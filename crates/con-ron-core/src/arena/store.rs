@@ -344,6 +344,45 @@ where
         self.rows = Vec::new();
         reset_map(&mut self.cons)
     }
+
+    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
+    /// A copy of this table that shares nothing with it: the row column, and
+    /// the cons table by `HashMap2::dup`.  It exists for one caller,
+    /// `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4), which
+    /// copies a tier's SCRATCH tables so that `attempt_restore` can put them
+    /// back after a failed variant attempt.  Aeneas models neither
+    /// `Vec::truncate` nor `Vec::clear` (this module's note on `drop_scratch`),
+    /// so a restore is a whole value moved back, and this is the copy it moves.
+    pub fn dup(&self) -> Tbl<A, I, D> {
+        let n = self.rows.len();
+        Tbl {
+            rows: Tbl::<A, I, D>::dup_rows(&self.rows, Vec::with_capacity(n), 0, n),
+            cons: self.cons.dup(),
+        }
+    }
+
+    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
+    /// `dup`'s row walk over `[lo, hi)`, pushing the copies onto `out` in index
+    /// order.  **Halved rather than peeled**, for `checker_base::vec_dup_range`'s
+    /// reason: a peeling recursion is one frame per row, which is a stack
+    /// overflow on a long tier (task #97-P6-2).  The accumulator is passed by
+    /// value and returned.
+    fn dup_rows(src: &Vec<(A, D)>, out: Vec<(A, D)>, lo: usize, hi: usize) -> Vec<(A, D)> {
+        if hi > lo {
+            let n = hi - lo;
+            if n == 1 {
+                let mut out2 = out;
+                out2.push((src[lo].0.dup2(), src[lo].1.dup2()));
+                out2
+            } else {
+                let mid = lo + n / 2;
+                let out2 = Tbl::<A, I, D>::dup_rows(src, out, lo, mid);
+                Tbl::<A, I, D>::dup_rows(src, out2, mid, hi)
+            }
+        } else {
+            out
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1370,6 +1409,17 @@ impl NTables {
         self.nums.reset()
     }
 
+    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
+    /// A copy of this tier, table by table (`Tbl::dup`): the scratch-tier
+    /// snapshot of `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4).
+    pub fn dup(&self) -> NTables {
+        NTables {
+            anons: self.anons.dup(),
+            strs: self.strs.dup(),
+            nums: self.nums.dup(),
+        }
+    }
+
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:403-404 NTables.count
     /// Nodes in this tier, over all constructors.
     pub fn count(&self) -> usize {
@@ -1803,6 +1853,19 @@ impl LTables {
         self.params.reset()
     }
 
+    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
+    /// A copy of this tier, table by table (`Tbl::dup`): the scratch-tier
+    /// snapshot of `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4).
+    pub fn dup(&self) -> LTables {
+        LTables {
+            zeros: self.zeros.dup(),
+            succs: self.succs.dup(),
+            maxs: self.maxs.dup(),
+            imaxs: self.imaxs.dup(),
+            params: self.params.dup(),
+        }
+    }
+
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:403-404 LTables.count
     pub fn count(&self) -> usize {
         self.zeros.size()
@@ -2177,6 +2240,15 @@ impl LsTables {
         self.lists.reset()
     }
 
+    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
+    /// A copy of this tier, table by table (`Tbl::dup`): the scratch-tier
+    /// snapshot of `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4).
+    pub fn dup(&self) -> LsTables {
+        LsTables {
+            lists: self.lists.dup(),
+        }
+    }
+
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:403-404 LsTables.count
     pub fn count(&self) -> usize {
         self.lists.size()
@@ -2534,6 +2606,25 @@ impl ETables {
         self.lits.reset();
         self.projs.reset();
         self.bms.reset()
+    }
+
+    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
+    /// A copy of this tier, table by table (`Tbl::dup`): the scratch-tier
+    /// snapshot of `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4).
+    pub fn dup(&self) -> ETables {
+        ETables {
+            bvars: self.bvars.dup(),
+            fvars: self.fvars.dup(),
+            sorts: self.sorts.dup(),
+            consts: self.consts.dup(),
+            apps: self.apps.dup(),
+            lams: self.lams.dup(),
+            foralls: self.foralls.dup(),
+            lets: self.lets.dup(),
+            lits: self.lits.dup(),
+            projs: self.projs.dup(),
+            bms: self.bms.dup(),
+        }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:403-404 ETables.count

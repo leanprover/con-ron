@@ -16,6 +16,15 @@ namespace ConRon.Refine2.Lockstep
 
 open ConRon.Arena ConRon.Refine2
 
+/-! ## The Core tier's side-goal extension
+
+A fact about an element of a list the context quantifies over (a binder
+stack's datum well-formedness, `∀ x ∈ stk.val, PropWhenWF x.2.pw`), through
+the shared tactic's extension tier. -/
+
+macro_rules
+  | `(tactic| lockstep_side_ext) => `(tactic| (solve_by_elim (maxDepth := 3) [List.getElem_mem]))
+
 /-! ## Converters from the `AOut₀` form -/
 
 theorem LSR.ofAOut₀ {α β : Type} {A : α → β} {pers : arena.store.PersTier}

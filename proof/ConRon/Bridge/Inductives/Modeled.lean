@@ -25,8 +25,9 @@ compares HANDLES (`ci == (← eqA)`), which is the same predicate because
 here for the third time in the campaign (after the Core tier's stuck-tag
 branch and `defeqPeel_chain`'s two equality short-circuits).
 -/
-import ConRon.Bridge.Inductives.NativeInstall
+import ConRon.Bridge.Inductives.ProjRule
 import ConRon.Bridge.Checker.Canon
+import ConRon.Bridge.Checker.DeclVal
 import ConRon.Bridge.Frontend.Shared
 import ConLeche.Verify.Extend.Iota
 import ConLeche.Verify.Extend.Modeled
@@ -715,19 +716,6 @@ theorem renameConstsFast_pstep {fuel : Nat} {tbl : List (NIdx × NIdx)}
     (renameConstsFast_ns fuel _ fP s₀ e hok hren (by rw [hd]; rfl))
   exact ⟨PStep.of_caches h1 h2 h3 h4 h5, h6, h7 eP hd⟩
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux — the
-range peeled at its TOP, which is the order the twin's recursion runs in. -/
-theorem domsMatchAux_succ (g : Nat → Expr → Expr) (bs₁ bs₂ : List (Expr × BinderMeta))
-    (o₁ o₂ k : Nat) :
-    ConLeche.domsMatchAux g bs₁ bs₂ o₁ o₂ (k + 1) =
-      (ConLeche.domsMatchAux g bs₁ bs₂ o₁ o₂ k &&
-        (match bs₁[o₁ + k]?, bs₂[o₂ + k]? with
-         | some b₁, some b₂ => b₁.1 == g k b₂.1
-         | _, _ => false)) := by
-  simp only [ConLeche.domsMatchAux, List.range_succ, List.all_append, List.all_cons,
-    List.all_nil, Bool.and_true]
-  rfl
-
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux —
 `domsMatchAux` with the right side renamed; con-leche's higher-order `g` is
 instantiated at `fun _ e => e.renameConsts fP`, which is `checkProjIota`'s own
@@ -969,22 +957,34 @@ theorem eqApp3?_spec (h : EIdx) (hP : Expr) :
           hP = .app (.app (.app (.const cP [uP]) tyP) lP) rrP) := by
   intro s₀ s' r hok hd hrun
   simp only [Arena.eqApp3?] at hrun
-  obtain ⟨v1, s1, g1, k1⟩ := bindOk hrun
+  obtain ⟨v10, hv10⟩ := denoteE_view hd
+  obtain ⟨v1, s1, g1, k1⟩ := bindOk (tagIf_view_run hv10
+    (fun hne => by cases v10 <;> first | exact absurd rfl hne | rfl) hrun)
+  clear hv10 v10
   obtain ⟨rfl, hw1⟩ := view_run g1
   cases v1
   case app f1 rr =>
     obtain ⟨efP, errP, rfl, hf1, hrr⟩ := denote_app_inv hok.wf hw1 hd
-    obtain ⟨v2, s2, g2, k2⟩ := bindOk k1
+    obtain ⟨v20, hv20⟩ := denoteE_view hf1
+    obtain ⟨v2, s2, g2, k2⟩ := bindOk (tagIf_view_run hv20
+      (fun hne => by cases v20 <;> first | exact absurd rfl hne | rfl) k1)
+    clear hv20 v20
     obtain ⟨rfl, hw2⟩ := view_run g2
     cases v2
     case app f2 l =>
       obtain ⟨ef2P, elP, hfe, hf2, hl⟩ := denote_app_inv hok.wf hw2 hf1
-      obtain ⟨v3, s3, g3, k3⟩ := bindOk k2
+      obtain ⟨v30, hv30⟩ := denoteE_view hf2
+      obtain ⟨v3, s3, g3, k3⟩ := bindOk (tagIf_view_run hv30
+        (fun hne => by cases v30 <;> first | exact absurd rfl hne | rfl) k2)
+      clear hv30 v30
       obtain ⟨rfl, hw3⟩ := view_run g3
       cases v3
       case app f3 ty =>
         obtain ⟨ef3P, etyP, hfe2, hf3, hty⟩ := denote_app_inv hok.wf hw3 hf2
-        obtain ⟨v4, s4, g4, k4⟩ := bindOk k3
+        obtain ⟨v40, hv40⟩ := denoteE_view hf3
+        obtain ⟨v4, s4, g4, k4⟩ := bindOk (tagIf_view_run hv40
+          (fun hne => by cases v40 <;> first | exact absurd rfl hne | rfl) k3)
+        clear hv40 v40
         obtain ⟨rfl, hw4⟩ := view_run g4
         cases v4
         case const c us =>
@@ -1044,22 +1044,34 @@ theorem eqApp3?_none (h : EIdx) (hP : Expr) :
   intro s₀ s' r hok hd hrun
   have hwf := hok.wf
   simp only [Arena.eqApp3?] at hrun
-  obtain ⟨v1, s1, g1, k1⟩ := bindOk hrun
+  obtain ⟨v10, hv10⟩ := denoteE_view hd
+  obtain ⟨v1, s1, g1, k1⟩ := bindOk (tagIf_view_run hv10
+    (fun hne => by cases v10 <;> first | exact absurd rfl hne | rfl) hrun)
+  clear hv10 v10
   obtain ⟨rfl, hw1⟩ := view_run g1
   cases v1
   case app f1 rr =>
     obtain ⟨efP, errP, rfl, hf1, hrr⟩ := denote_app_inv hwf hw1 hd
-    obtain ⟨v2, s2, g2, k2⟩ := bindOk k1
+    obtain ⟨v20, hv20⟩ := denoteE_view hf1
+    obtain ⟨v2, s2, g2, k2⟩ := bindOk (tagIf_view_run hv20
+      (fun hne => by cases v20 <;> first | exact absurd rfl hne | rfl) k1)
+    clear hv20 v20
     obtain ⟨rfl, hw2⟩ := view_run g2
     cases v2
     case app f2 l =>
       obtain ⟨ef2P, elP, rfl, hf2, hl⟩ := denote_app_inv hwf hw2 hf1
-      obtain ⟨v3, s3, g3, k3⟩ := bindOk k2
+      obtain ⟨v30, hv30⟩ := denoteE_view hf2
+      obtain ⟨v3, s3, g3, k3⟩ := bindOk (tagIf_view_run hv30
+        (fun hne => by cases v30 <;> first | exact absurd rfl hne | rfl) k2)
+      clear hv30 v30
       obtain ⟨rfl, hw3⟩ := view_run g3
       cases v3
       case app f3 ty =>
         obtain ⟨ef3P, etyP, rfl, hf3, hty⟩ := denote_app_inv hwf hw3 hf2
-        obtain ⟨v4, s4, g4, k4⟩ := bindOk k3
+        obtain ⟨v40, hv40⟩ := denoteE_view hf3
+        obtain ⟨v4, s4, g4, k4⟩ := bindOk (tagIf_view_run hv40
+          (fun hne => by cases v40 <;> first | exact absurd rfl hne | rfl) k3)
+        clear hv40 v40
         obtain ⟨rfl, hw4⟩ := view_run g4
         cases v4
         case const c us =>
@@ -1136,7 +1148,7 @@ theorem checkIotaSidesTy_spec {μ : CheckMode} {env : Env} (feSelf : IFEnv)
         denoteE st lhsS = some lhsSP ∧ denoteE st rhsS = some rhsSP ∧
         denoteL st.ls lA = some lAP ∧ denoteN st.ns cvName = some cvNameP ∧
         denoteFEnv st feSelf = some envSelf ∧ denoteFEnv st feSelf = some env)
-      (Arena.checkIotaSidesTy μ feSelf depth alphaS lhsS rhsS lA cvName)
+      (Arena.checkIotaSidesTy μ feSelf depth alphaS lhsS rhsS lA)
       (fun _ _ => ∃ F, ConLeche.checkIotaSidesTy μ (ConLeche.fueledOps μ F)
         envSelf depth alphaSP lhsSP rhsSP lAP cvNameP = .ok ()) := by
   intro s₀ s' r hok hpre hrun
@@ -1144,9 +1156,6 @@ theorem checkIotaSidesTy_spec {μ : CheckMode} {env : Env} (feSelf : IFEnv)
   obtain rfl : envSelf = env := Option.some.inj (hfeS.symm.trans hfe)
   obtain ⟨hwa, hwl, hwr⟩ := hws
   have hknot := hk.knot envSelf feSelf henv
-  have hnever : ∀ {α β γ : Type} {x : AM α} {f : α → Arena.CheckError}
-      {g : γ → AM β}, AM.Never (x >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
-    fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
   simp only [Arena.checkIotaSidesTy] at hrun
   -- the left side's type
   obtain ⟨tl, s1, k1, z1⟩ := bindOk hrun
@@ -1159,7 +1168,7 @@ theorem checkIotaSidesTy_spec {μ : CheckMode} {env : Env} (feSelf : IFEnv)
     (Q := fun r u => CheckOK μ envSelf feSelf u ∧ Ext s1.store u.store ∧
       u.pins = s1.pins ∧ Core.SimV (ConLeche.isDefEqCore μ envSelf) depth tlP alphaSP r)
     rfl k2 (hknot.defeq s1 depth tl alphaS tlP alphaSP ok1 htl (denote_ext hal x1) hwtl hwa)
-  obtain ⟨hb1, z3⟩ := AM.dunless_ok hnever z2
+  obtain ⟨hb1, z3⟩ := AM.dunless_ok (AM.Never.fail _) z2
   replace z3 := AM.pure_bind_ok z3
   subst hb1
   -- the right side's type
@@ -1175,7 +1184,7 @@ theorem checkIotaSidesTy_spec {μ : CheckMode} {env : Env} (feSelf : IFEnv)
       u.pins = s3.pins ∧ Core.SimV (ConLeche.isDefEqCore μ envSelf) depth trP alphaSP r)
     rfl k4 (hknot.defeq s3 depth tr alphaS trP alphaSP ok3 htr
       (denote_ext hal (x12.trans x3)) hwtr hwa)
-  obtain ⟨hb2, z6⟩ := AM.dunless_ok hnever z5
+  obtain ⟨hb2, z6⟩ := AM.dunless_ok (AM.Never.fail _) z5
   replace z6 := AM.pure_bind_ok z6
   subst hb2
   have x14 := (x12.trans x3).trans x4
@@ -1216,7 +1225,7 @@ theorem checkIotaSidesTy_spec {μ : CheckMode} {env : Env} (feSelf : IFEnv)
         u.pins = s6.pins ∧ Core.SimV (ConLeche.isDefEqCore μ envSelf) depth taP (.sort lAP) r)
       rfl k7 (hknot.defeq s6 depth ta so taP (.sort lAP) ok6 (denote_ext hta p6.ext) hso hwta
         (by simp [Expr.WScoped]))
-    obtain ⟨hb3, z10⟩ := AM.dunless_ok (AM.Never.bind fun _ => AM.Never.fail _) z9
+    obtain ⟨hb3, z10⟩ := AM.dunless_ok (AM.Never.fail _) z9
     subst hb3
     obtain ⟨rfl, rfl⟩ := pureOk z10
     refine ⟨⟨ok7, (x14.trans x5).trans (p6.ext.trans x7), by rw [p7, p6.pins, p5, c4.pins]⟩,
@@ -1266,20 +1275,69 @@ theorem iotaThmName_spec (cvName : NIdx) (cvNameP : ConLeche.Name) (j : Nat) :
   simp only [denoteNView, denoteN_ext hm hstep2.ext, Option.map_some] at hr
   exact hr
 
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:241-247 Env.findCV? — the
+stored constant's common data under a name, read through the index spec at
+`fe` (the caches may serve another index): present exactly when con-leche's
+is, and denoting it.  The frame is `toConstantVal`'s (a projection table's
+pseudo-type is interned). -/
+theorem findCV?_run {μ : CheckMode} {envC env : Env} {feC fe : IFEnv} {s s' : AState}
+    {n : NIdx} {nm : ConLeche.Name} {r : Option IConstantVal}
+    (hck : CheckOK μ envC feC s) (hi : IFEnvOK env fe s)
+    (hn : denoteN s.store.ns n = some nm)
+    (hrun : Arena.IFEnv.findCV? fe n s = .ok (r, s')) :
+    CoreStep μ envC feC s s' ∧ r.isSome = (env.findCV? nm).isSome ∧
+      ∀ cv, r = some cv → ∃ cvP, env.findCV? nm = some cvP ∧
+        Frontend.denoteCV s'.store cv = some cvP := by
+  simp only [Arena.IFEnv.findCV?] at hrun
+  cases hf : fe.find? n with
+  | none =>
+    rw [hf] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    refine ⟨CoreStep.refl hck, ?_, fun cv h => nomatch h⟩
+    simp [ConLeche.Env.findCV?, IFEnvOK.miss hck.state hi hn hf]
+  | some ci =>
+    rw [hf] at hrun
+    obtain ⟨nm', c, hnm', hci, henvc⟩ := hi.hit n ci hf
+    obtain rfl := Option.some.inj (hnm'.symm.trans hn)
+    obtain ⟨v, s₁, k1, z1⟩ := bindOk hrun
+    obtain ⟨hstep, hv⟩ := toConstantVal_sstep hck.state (CIProjNamed_of_find hi hf) hci k1
+    obtain ⟨rfl, rfl⟩ := pureOk z1
+    refine ⟨⟨hck.monoF hstep.ok hstep.ext (CacheFrame.of_eq hstep.caches hstep.ext)
+      hstep.pins, hstep.ext, hstep.pins⟩, ?_, ?_⟩
+    · simp [ConLeche.Env.findCV?, henvc]
+    · intro cv hcv
+      obtain rfl := Option.some.inj hcv
+      exact ⟨c.toConstantVal, by simp [ConLeche.Env.findCV?, henvc], hv⟩
+
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:55-149 checkIotaThm
 **The plain iota certificate**: the `j`-th rule's model theorem is the stated
 equation, its sides the rule's own.
 
-`sorry`: `iotaThmName_spec`, `eqApp3?_spec`, `checkIotaSidesTy_spec`,
-`Bridge/ExprOps/Reset.lean`'s `renameConstsFast_spec`, `CoreSpec.knot`'s
-`defeq` slot, and `IFEnvOK` at the theorem's lookup. -/
+**CLOSED** (task #97-P3-Ind round 9): `iotaThmName_spec` + `findCV?_run` for
+the stored theorem, the opened telescope (`openPisAtFvarsF_run`), `isEqHead_run`,
+the redex's head and spine (`paramLevels_spec`, `internConstE_run` through the
+rename relation, `mkAppN_run`, `denoteEList_getLastD`), the renamed constructor
+and recursor telescopes (`renameConstsFast_pstep`, `instPisAtF_spec` at
+`instListSpec`), five `checkDefEqList_bridge`s, the knot's `defeq` slot, and
+`checkIotaSidesTy_spec`.  The scope of every compared list is con-leche's
+`checkIotaThm_wfimp`'s, step for step.
+
+**Four missing preconditions repaired** (round 9, hypothesis changes only):
+`EnvWF env'` (the stored theorem's statement is closed) and `hasFvar = false`
+of `tyA`, of the constructor's type and of `rhsA` — exactly the four
+`checkIotaThm_wfimp` takes.  The callers discharge them: `checkIotaRule_spec`
+from `EnvWF env'` at the constructor and the annotated side's scope,
+`installIndRecs_spec` from `provisionRecs_tys`. -/
 theorem checkIotaThm_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
+    (henv' : EnvWF env')
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cvName : NIdx) (cvNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
     (r : IRecRule) (rP' : RecRule) (cvj : IConstantVal) (cvjP : ConstantVal)
-    (cnP cnF : Nat) (rhsA : EIdx) (rhsAP : Expr) :
+    (cnP cnF : Nat) (rhsA : EIdx) (rhsAP : Expr)
+    (htyA : tyAP.hasFvar = false) (hctor : cvjP.type.hasFvar = false)
+    (hrhsA : rhsAP.hasFvar = false) :
     CSpec μ envSelf feSelf
       (fun st => RenameRelW st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
@@ -1292,15 +1350,447 @@ theorem checkIotaThm_spec {μ : CheckMode} (fe' feSelf : IFEnv)
       (fun _ _ => ∃ F, ConLeche.checkIotaThm μ (ConLeche.fueledOps μ F) env'
         envSelf fP cvNameP lpsP tyAP mI rP j rP' cvjP cnP cnF rhsAP
         = .ok ()) := by
-  sorry
+  intro s₀ s' x hck hpre hrun
+  obtain ⟨hren, hcn, hlps, hty, hr, hcv, hrhs, hfe', hfeS, hok'⟩ := hpre
+  have hknot := hk.knot envSelf feSelf henv
+  have hnever : ∀ {α β : Type} {e : Arena.CheckError} {g : α → AM β},
+      AM.Never ((Arena.fail e : AM α) >>= g) := fun {_ _ _ _} => AM.Never.fail_any
+  have hnever2 : ∀ {α β γ : Type} {y : AM α} {f : α → Arena.CheckError}
+      {g : γ → AM β}, AM.Never (y >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
+    fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
+  obtain ⟨hctorN, -⟩ := denoteRule_ctor hr
+  simp only [Arena.checkIotaThm] at hrun
+  -- the stored theorem
+  obtain ⟨thm, s₂, k2, z2⟩ := bindOk hrun
+  obtain ⟨p2, hthm⟩ := iotaThmName_spec cvName cvNameP j s₀ s₂ thm hck.state hcn k2
+  have c2 := p2.toCore hck
+  obtain ⟨o, s₃, k3, z3⟩ := bindOk z2
+  obtain ⟨c3, -, hcvt⟩ := findCV?_run c2.ok (hok'.mono c2.ext s₂ rfl) hthm k3
+  have c03 := c2.trans c3
+  obtain ⟨cvt, s₄, k4, z4⟩ := bindOk z3
+  obtain ⟨rfl, hs4⟩ := unwrapOr_ok k4
+  subst s₄
+  obtain ⟨cvtP, hcvtP, hcvtD⟩ := hcvt cvt rfl
+  have hname : (cvNameP.str "_model").str s!"iota_{j}" =
+      (cvNameP.str "_model").str ("iota_" ++ toString j) := by
+    simp; rfl
+  rw [← hname] at hcvtP
+  obtain ⟨hlp, z5⟩ := AM.dunless_ok hnever z4
+  replace z5 := AM.pure_bind_ok z5
+  have hlpP : cvtP.levelParams = lpsP := by
+    have e1 := denoteCV_lps hcvtD
+    rw [hlp] at e1
+    exact Option.some.inj ((denoteNListE_ext c03.ext _ _ hlps).symm.trans e1) |>.symm
+  -- the theorem's statement is closed
+  have hcvtF : cvtP.type.hasFvar = false := by
+    obtain ⟨ci, hci, hcvt'⟩ := ConLeche.findCV?_ok hcvtP
+    exact hcvt' ▸ (henv' _ (ConLeche.find?_mem hci)).1
+  -- its telescope, opened
+  obtain ⟨oo, s₅, k5, z6⟩ := bindOk z5
+  obtain ⟨q5, hoo⟩ := openPisAtFvarsF_run c03.ok.state (denoteCV_type hcvtD) k5
+  obtain ⟨pr, s₆, k6, z7⟩ := bindOk z6
+  obtain ⟨rfl, hs6⟩ := unwrapOr_ok k6
+  subst s₆
+  obtain ⟨fvs, tbody⟩ := pr
+  obtain ⟨fvsV, tbodyP, hopen, hfvs, htbody⟩ := denoteOpen_some_inv hoo
+  have c5 := c03.trans (q5.toCore c03.ok)
+  have hopenW := ConLeche.openPisAtFvars_WScoped (rP + cnF) cvtP.type 0 hopen
+    (Expr.WScoped.of_not_hasFvar hcvtF)
+  rw [Nat.zero_add] at hopenW
+  obtain ⟨hfvsW, htbodyW⟩ := hopenW
+  have htargsW : ∀ y ∈ tbodyP.getAppArgs, Expr.WScoped (rP + cnF) y :=
+    Expr.WScoped.getAppArgs htbodyW
+  -- the equation
+  obtain ⟨targs, s₇, k7, z8⟩ := bindOk z7
+  obtain ⟨hs7, htargs⟩ := getAppArgs_run c5.ok.state htbody k7
+  subst s₇
+  obtain ⟨tfn, s₈, k8, z9⟩ := bindOk z8
+  obtain ⟨hs8, htfn⟩ := getAppFn_run c5.ok.state htbody k8
+  subst s₈
+  obtain ⟨be, s₉, k9, z10⟩ := bindOk z9
+  obtain ⟨hs9, hbe⟩ := isEqHead_run c5.ok.state c5.ok.pins htfn k9
+  subst s₉
+  obtain ⟨heqh, z11⟩ := AM.dunless_ok hnever z10
+  replace z11 := AM.pure_bind_ok z11
+  rw [hbe] at heqh
+  obtain ⟨h3, z12⟩ := AM.dunless_ok hnever z11
+  replace z12 := AM.pure_bind_ok z12
+  have h3P : tbodyP.getAppArgs.length = 3 := by
+    rw [← h3]; exact (ExprOps.denoteEList_length _ _ htargs)
+  -- the equation's level, read in the prologue (as the port does)
+  obtain ⟨lA, s₄₆, k46, z12⟩ := bindOk z12
+  obtain ⟨hs46, hlA⟩ := eqHeadLevel_run c5.ok.state c5.ok.pins htfn k46
+  subst s₄₆
+  -- the two sides
+  obtain ⟨b0, s₁₀, k10, z13⟩ := bindOk z12
+  obtain ⟨q10, hb0⟩ := internBVarE_run c5.ok.state k10
+  have htg := denoteEList_ext q10.ext _ _ htargs
+  have hlhsS := denoteEList_getD_fb hb0 htg 1
+  have hrhsS := denoteEList_getD_fb hb0 htg 2
+  have hlhsW : Expr.WScoped (rP + cnF) (tbodyP.getAppArgs.getD 1 (.bvar 0)) :=
+    ConLeche.WScoped_getD' htargsW 1
+  have hrhsSW : Expr.WScoped (rP + cnF) (tbodyP.getAppArgs.getD 2 (.bvar 0)) :=
+    ConLeche.WScoped_getD' htargsW 2
+  have hlargsW : ∀ y ∈ (tbodyP.getAppArgs.getD 1 (.bvar 0)).getAppArgs,
+      Expr.WScoped (rP + cnF) y := Expr.WScoped.getAppArgs hlhsW
+  -- the left side's head and spine
+  obtain ⟨largs, s₁₁, k11, z14⟩ := bindOk z13
+  obtain ⟨hs11, hlargs⟩ := getAppArgs_run q10.ok hlhsS k11
+  subst s₁₁
+  obtain ⟨lfn, s₁₂, k12, z15⟩ := bindOk z14
+  obtain ⟨hs12, hlfn⟩ := getAppFn_run q10.ok hlhsS k12
+  subst s₁₂
+  have c10 := c5.trans (q10.toCore c5.ok)
+  obtain ⟨lus, s₁₃, k13, z16⟩ := bindOk z15
+  obtain ⟨q13, hlus⟩ := paramLevels_spec lps lpsP s₁₀ s₁₃ lus q10.ok
+    (denoteNListE_ext c10.ext _ _ hlps) k13
+  obtain ⟨wantHd, s₁₄, k14, z17⟩ := bindOk z16
+  have x0_13 : Ext s₀.store s₁₃.store := c10.ext.trans q13.ext
+  obtain ⟨q14, hwant⟩ := internConstE_run q13.ok
+    ((hren s₁₃.store x0_13 q13.ok.wf) cvName cvNameP (denoteN_ext hcn x0_13)) hlus k14
+  obtain ⟨h4, z18⟩ := AM.dunless_ok hnever z17
+  replace z18 := AM.pure_bind_ok z18
+  have x10_14 : Ext s₁₀.store s₁₄.store := q13.ext.trans q14.ext
+  rw [beq_ehandle_eq q14.ok.wf (denote_ext hlfn x10_14) hwant] at h4
+  obtain ⟨h5, z19⟩ := AM.dunless_ok hnever z18
+  replace z19 := AM.pure_bind_ok z19
+  have h5P : (tbodyP.getAppArgs.getD 1 (.bvar 0)).getAppArgs.length = mI + 1 := by
+    rw [← h5]; exact (ExprOps.denoteEList_length _ _ hlargs)
+  obtain ⟨h6, z20⟩ := AM.dunless_ok hnever z19
+  replace z20 := AM.pure_bind_ok z20
+  have x5_14 : Ext s₅.store s₁₄.store := q10.ext.trans x10_14
+  rw [beq_ehandleList_eq q14.ok.wf
+    (ExprOps.denoteEList_take rP _ _ (denoteEList_ext x10_14 _ _ hlargs))
+    (ExprOps.denoteEList_take rP _ _ (denoteEList_ext x5_14 _ _ hfvs))] at h6
+  -- the major
+  obtain ⟨cus, s₁₅, k15, z21⟩ := bindOk z20
+  have x0_14 : Ext s₀.store s₁₄.store := x0_13.trans q14.ext
+  obtain ⟨q15, hcus⟩ := paramLevels_spec cvj.levelParams cvjP.levelParams s₁₄ s₁₅ cus q14.ok
+    (denoteCV_lps (denoteCV_ext hcv x0_14)) k15
+  obtain ⟨cHd, s₁₆, k16, z22⟩ := bindOk z21
+  have x0_15 : Ext s₀.store s₁₅.store := x0_14.trans q15.ext
+  obtain ⟨q16, hcHd⟩ := internConstE_run q15.ok
+    ((hren s₁₅.store x0_15 q15.ok.wf) r.ctor rP'.ctor (denoteN_ext hctorN x0_15)) hcus k16
+  obtain ⟨wantMajor, s₁₇, k17, z23⟩ := bindOk z22
+  have x5_16 : Ext s₅.store s₁₆.store := x5_14.trans (q15.ext.trans q16.ext)
+  have hfvs16 := denoteEList_ext x5_16 _ _ hfvs
+  obtain ⟨q17, hwM⟩ := mkAppN_run _ _ q16.ok hcHd
+    (Core.denoteEList_appendI (ExprOps.denoteEList_take cnP _ _ hfvs16)
+      (ExprOps.denoteEList_drop rP _ _ hfvs16)) k17
+  obtain ⟨h7, z24⟩ := AM.dunless_ok hnever z23
+  replace z24 := AM.pure_bind_ok z24
+  have x10_17 : Ext s₁₀.store s₁₇.store := x10_14.trans (q15.ext.trans (q16.ext.trans q17.ext))
+  rw [beq_ehandle_eq q17.ok.wf
+    (denoteEList_getLastD (denote_ext hb0 x10_17) (denoteEList_ext x10_17 _ _ hlargs)) hwM]
+    at h7
+  have c17 := c10.trans ((q13.trans (q14.trans (q15.trans (q16.trans q17)))).toCore c10.ok)
+  have x0_17 := c17.ext
+  -- the constructor's telescope
+  have hC17 := denote_ext (denoteCV_type hcv) x0_17
+  obtain ⟨sp8, s₁₈, k18, z25⟩ := bindOk z24
+  obtain ⟨hs18, hsp8⟩ := stripPis_pstep c17.ok.state hC17 k18
+  subst s₁₈
+  obtain ⟨h8, z26⟩ := AM.dunless_ok hnever z25
+  replace z26 := AM.pure_bind_ok z26
+  have h8P : (cvjP.type.stripPis (cnP + cnF)).isSome = true := by
+    rcases sp8 with _ | ⟨bs, e⟩
+    · exact absurd h8 (by simp)
+    · obtain ⟨xs, x', hx, -⟩ := stripPis_some hsp8
+      rw [hx]; rfl
+  obtain ⟨ctyR, s₁₉, k19, z27⟩ := bindOk z26
+  obtain ⟨q19, -, hctyR⟩ := renameConstsFast_pstep c17.ok.state
+    (hren s₁₇.store x0_17 c17.ok.state.wf) hC17 k19
+  obtain ⟨o2, s₂₀, k20, z28⟩ := bindOk z27
+  have x5_19 : Ext s₅.store s₁₉.store := x5_16.trans (q17.ext.trans q19.ext)
+  have hfvs19 := denoteEList_ext x5_19 _ _ hfvs
+  have hsp19 : Frontend.denoteEList s₁₉.store (fvs.take cnP ++ fvs.drop rP) =
+      some (fvsV.take cnP ++ fvsV.drop rP) :=
+    Core.denoteEList_appendI (ExprOps.denoteEList_take cnP _ _ hfvs19)
+      (ExprOps.denoteEList_drop rP _ _ hfvs19)
+  obtain ⟨h201, h202, h203, h204, h205, h206⟩ := AM.of_run (P := fun u => u = s₁₉) rfl k20
+    (ExprOps.instPisAtF_spec (instListSpec _) s₁₉ _ ctyR q19.ok
+      (by rw [hctyR]; rfl) (by rw [hsp19]; rfl))
+  have q20 := PStep.of_caches h201 h202 h203 h204 h205
+  have hi20 := h206 _ _ hctyR hsp19
+  simp only [ConLeche.instPisAtF_eq] at hi20
+  obtain ⟨pr2, s₂₁, k21, z29⟩ := bindOk z28
+  obtain ⟨rfl, hs21⟩ := unwrapOr_ok k21
+  subst s₂₁
+  obtain ⟨cdoms, cres⟩ := pr2
+  obtain ⟨cdomsV, cresV, hcinst, hcdoms, hcres⟩ := denoteEP_some_inv hi20
+  have hcargW : ∀ a ∈ fvsV.take cnP ++ fvsV.drop rP, Expr.WScoped (rP + cnF) a := by
+    intro a hax
+    rcases List.mem_append.mp hax with hax | hax
+    · exact hfvsW a (List.mem_of_mem_take hax)
+    · exact hfvsW a (List.mem_of_mem_drop hax)
+  obtain ⟨hcdomsW, hcresW⟩ := ConLeche.instPisAt_WScoped _ _ hcinst
+    (Expr.WScoped.of_not_hasFvar (by rw [ConLeche.hasFvar_renameConsts]; exact hctor))
+    hcargW
+  obtain ⟨cargs, s₂₂, k22, z30⟩ := bindOk z29
+  obtain ⟨hs22, hcargs⟩ := getAppArgs_run q20.ok hcres k22
+  subst s₂₂
+  obtain ⟨h9, z31⟩ := AM.dunless_ok hnever z30
+  replace z31 := AM.pure_bind_ok z31
+  have h9P : cresV.getAppArgs.length = cnP + (mI - rP) := by
+    rw [← h9]; exact (ExprOps.denoteEList_length _ _ hcargs)
+  have c20 := c17.trans ((q19.trans q20).toCore c17.ok)
+  -- the index arguments
+  have x10_20 : Ext s₁₀.store s₂₀.store := x10_17.trans (q19.ext.trans q20.ext)
+  obtain ⟨u1, s₂₃, k23, z32⟩ := bindOk z31
+  obtain ⟨c23, F₁, hF₁⟩ := checkDefEqList_bridge hk henv (rP + cnF)
+    ((largs.drop rP).take (mI - rP)) (cargs.drop cnP) _ _ s₂₀ s₂₃ c20.ok
+    (ExprOps.denoteEList_take _ _ _ (ExprOps.denoteEList_drop rP _ _
+      (denoteEList_ext x10_20 _ _ hlargs)))
+    (ExprOps.denoteEList_drop cnP _ _ hcargs)
+    (fun a ha => hlargsW a (List.mem_of_mem_drop (List.mem_of_mem_take ha)))
+    (fun b hb => Expr.WScoped.getAppArgs hcresW b (List.mem_of_mem_drop hb)) k23
+  -- the field domains
+  have x5_23 : Ext s₅.store s₂₃.store := x5_19.trans (q20.ext.trans c23.ext)
+  obtain ⟨ts2, s₂₄, k24, z33⟩ := bindOk z32
+  obtain ⟨q24, hts2⟩ := mapM_E_pstep (F := Expr.fvarTypeD)
+    (fun e eP s₀ s' r hok he hrun => by
+      obtain ⟨rfl, h2⟩ := fvarTypeD_run hok he hrun
+      exact ⟨PStep.refl hok, h2⟩)
+    _ _ s₂₃ s₂₄ ts2 c23.ok.state (ExprOps.denoteEList_drop rP _ _
+      (denoteEList_ext x5_23 _ _ hfvs)) k24
+  have c24 := (c20.trans c23).trans (q24.toCore c23.ok)
+  obtain ⟨u2, s₂₅, k25, z34⟩ := bindOk z33
+  obtain ⟨c25, F₂, hF₂⟩ := checkDefEqList_bridge hk henv (rP + cnF) ts2 (cdoms.drop cnP)
+    _ _ s₂₄ s₂₅ c24.ok hts2
+    (ExprOps.denoteEList_drop cnP _ _ (denoteEList_ext (c23.ext.trans q24.ext) _ _ hcdoms))
+    (fun a ha => by
+      obtain ⟨y, hy, rfl⟩ := List.mem_map.mp ha
+      exact ConLeche.fvarTypeD_WScoped (hfvsW y (List.mem_of_mem_drop hy)))
+    (fun b hb => hcdomsW b (List.mem_of_mem_drop hb)) k25
+  have c25' := c24.trans c25
+  -- the recursor's prefix domains
+  have x0_25 := c25'.ext
+  have hty25 := denote_ext hty x0_25
+  obtain ⟨tyAR, s₂₆, k26, z35⟩ := bindOk z34
+  obtain ⟨q26, -, htyAR⟩ := renameConstsFast_pstep c25'.ok.state
+    (hren s₂₅.store x0_25 c25'.ok.state.wf) hty25 k26
+  have x5_26 : Ext s₅.store s₂₆.store := x5_23.trans (q24.ext.trans (c25.ext.trans q26.ext))
+  have hfvs26 := denoteEList_ext x5_26 _ _ hfvs
+  obtain ⟨o3, s₂₇, k27, z36⟩ := bindOk z35
+  obtain ⟨h271, h272, h273, h274, h275, h276⟩ := AM.of_run (P := fun u => u = s₂₆) rfl k27
+    (ExprOps.instPisAtF_spec (instListSpec _) s₂₆ _ tyAR q26.ok
+      (by rw [htyAR]; rfl) (by rw [ExprOps.denoteEList_take rP _ _ hfvs26]; rfl))
+  have q27 := PStep.of_caches h271 h272 h273 h274 h275
+  have hi27 := h276 _ _ htyAR (ExprOps.denoteEList_take rP _ _ hfvs26)
+  simp only [ConLeche.instPisAtF_eq] at hi27
+  obtain ⟨pr3, s₂₈, k28, z37⟩ := bindOk z36
+  obtain ⟨rfl, hs28⟩ := unwrapOr_ok k28
+  subst s₂₈
+  obtain ⟨rdoms, rrest⟩ := pr3
+  obtain ⟨rdomsV, rrestV, hrinst, hrdoms, -⟩ := denoteEP_some_inv hi27
+  obtain ⟨hrdomsW, -⟩ := ConLeche.instPisAt_WScoped _ _ hrinst
+    (Expr.WScoped.of_not_hasFvar (by rw [ConLeche.hasFvar_renameConsts]; exact htyA))
+    (fun a ha => hfvsW a (List.mem_of_mem_take ha))
+  have c27 := c25'.trans ((q26.trans q27).toCore c25'.ok)
+  obtain ⟨ts3, s₂₉, k29, z38⟩ := bindOk z37
+  obtain ⟨q29, hts3⟩ := mapM_E_pstep (F := Expr.fvarTypeD)
+    (fun e eP s₀ s' r hok he hrun => by
+      obtain ⟨rfl, h2⟩ := fvarTypeD_run hok he hrun
+      exact ⟨PStep.refl hok, h2⟩)
+    _ _ s₂₇ s₂₉ ts3 c27.ok.state (ExprOps.denoteEList_take rP _ _
+      (denoteEList_ext q27.ext _ _ hfvs26)) k29
+  have c29 := c27.trans (q29.toCore c27.ok)
+  obtain ⟨u3, s₃₀, k30, z39⟩ := bindOk z38
+  obtain ⟨c30, F₃, hF₃⟩ := checkDefEqList_bridge hk henv (rP + cnF) ts3 rdoms
+    _ _ s₂₉ s₃₀ c29.ok hts3 (denoteEList_ext q29.ext _ _ hrdoms)
+    (fun a ha => by
+      obtain ⟨y, hy, rfl⟩ := List.mem_map.mp ha
+      exact ConLeche.fvarTypeD_WScoped (hfvsW y (List.mem_of_mem_take hy)))
+    (fun b hb => hrdomsW b hb) k30
+  have c30' := c29.trans c30
+  -- the rule's public telescope
+  have hty30 := denote_ext hty c30'.ext
+  obtain ⟨o4, s₃₁, k31, z40⟩ := bindOk z39
+  obtain ⟨q31, ho4⟩ := openPisAtFvarsF_run c30'.ok.state hty30 k31
+  obtain ⟨pr4, s₃₂, k32, z41⟩ := bindOk z40
+  obtain ⟨rfl, hs32⟩ := unwrapOr_ok k32
+  subst s₃₂
+  obtain ⟨fvsP, restP⟩ := pr4
+  obtain ⟨fvsPV, restPV, hopenP, hfvsP, -⟩ := denoteOpen_some_inv ho4
+  have hopenPW := ConLeche.openPisAtFvars_WScoped rP tyAP 0 hopenP
+    (Expr.WScoped.of_not_hasFvar htyA)
+  rw [Nat.zero_add] at hopenPW
+  obtain ⟨hfvsPW, -⟩ := hopenPW
+  have hC31 := denote_ext (denoteCV_type hcv) (c30'.ext.trans q31.ext)
+  obtain ⟨o5, s₃₃, k33, z42⟩ := bindOk z41
+  obtain ⟨h331, h332, h333, h334, h335, h336⟩ := AM.of_run (P := fun u => u = s₃₁) rfl k33
+    (ExprOps.instPisAtF_spec (instListSpec _) s₃₁ _ cvj.type q31.ok
+      (by rw [hC31]; rfl) (by rw [ExprOps.denoteEList_take cnP _ _ hfvsP]; rfl))
+  have q33 := PStep.of_caches h331 h332 h333 h334 h335
+  have hi33 := h336 _ _ hC31 (ExprOps.denoteEList_take cnP _ _ hfvsP)
+  simp only [ConLeche.instPisAtF_eq] at hi33
+  obtain ⟨pr5, s₃₄, k34, z43⟩ := bindOk z42
+  obtain ⟨rfl, hs34⟩ := unwrapOr_ok k34
+  subst s₃₄
+  obtain ⟨cdomsP, crestP⟩ := pr5
+  obtain ⟨cdomsPV, crestPV, hcinstP, hcdomsP, hcrestP⟩ := denoteEP_some_inv hi33
+  obtain ⟨hcdomsPW, hcrestPW⟩ := ConLeche.instPisAt_WScoped (d := rP) _ _ hcinstP
+    (Expr.WScoped.of_not_hasFvar hctor) (fun a ha => hfvsPW a (List.mem_of_mem_take ha))
+  have c33 := c30'.trans ((q31.trans q33).toCore c30'.ok)
+  obtain ⟨ts4, s₃₅, k35, z44⟩ := bindOk z43
+  obtain ⟨q35, hts4⟩ := mapM_E_pstep (F := Expr.fvarTypeD)
+    (fun e eP s₀ s' r hok he hrun => by
+      obtain ⟨rfl, h2⟩ := fvarTypeD_run hok he hrun
+      exact ⟨PStep.refl hok, h2⟩)
+    _ _ s₃₃ s₃₅ ts4 c33.ok.state (ExprOps.denoteEList_take cnP _ _
+      (denoteEList_ext q33.ext _ _ hfvsP)) k35
+  have c35 := c33.trans (q35.toCore c33.ok)
+  obtain ⟨u4, s₃₆, k36, z45⟩ := bindOk z44
+  obtain ⟨c36, F₄, hF₄⟩ := checkDefEqList_bridge hk henv (rP + cnF) ts4 cdomsP
+    _ _ s₃₅ s₃₆ c35.ok hts4 (denoteEList_ext q35.ext _ _ hcdomsP)
+    (fun a ha => by
+      obtain ⟨y, hy, rfl⟩ := List.mem_map.mp ha
+      exact (ConLeche.fvarTypeD_WScoped (hfvsPW y (List.mem_of_mem_take hy))).mono
+        (by omega))
+    (fun b hb => (hcdomsPW b hb).mono (by omega)) k36
+  have c36' := c35.trans c36
+  -- the rule's λ-domains
+  have x33_36 : Ext s₃₃.store s₃₆.store := q35.ext.trans c36.ext
+  obtain ⟨o6, s₃₇, k37, z46⟩ := bindOk z45
+  obtain ⟨q37, ho6⟩ := openPisAtFvarsF_run c36'.ok.state
+    (denote_ext hcrestP x33_36) k37
+  obtain ⟨pr6, s₃₈, k38, z47⟩ := bindOk z46
+  obtain ⟨rfl, hs38⟩ := unwrapOr_ok k38
+  subst s₃₈
+  obtain ⟨xFvsP, crest2⟩ := pr6
+  obtain ⟨xFvsPV, crest2V, hopenX, hxFvsP, -⟩ := denoteOpen_some_inv ho6
+  obtain ⟨hxFvsPW, -⟩ := ConLeche.openPisAtFvars_WScoped cnF crestPV rP hopenX hcrestPW
+  have hfvsPW' : ∀ a ∈ fvsPV ++ xFvsPV, Expr.WScoped (rP + cnF) a := by
+    intro a hax
+    rcases List.mem_append.mp hax with hax | hax
+    · exact Expr.WScoped.mono (by omega) (hfvsPW a hax)
+    · exact hxFvsPW a hax
+  have hsp37 : Frontend.denoteEList s₃₇.store (fvsP ++ xFvsP) = some (fvsPV ++ xFvsPV) :=
+    Core.denoteEList_appendI
+      (denoteEList_ext (q33.ext.trans (x33_36.trans q37.ext)) _ _ hfvsP) hxFvsP
+  have hrhs37 := denote_ext hrhs (c36'.ext.trans q37.ext)
+  obtain ⟨o7, s₃₉, k39, z48⟩ := bindOk z47
+  obtain ⟨h391, h392, h393, h394, h395, h396⟩ := AM.of_run (P := fun u => u = s₃₇) rfl k39
+    (ExprOps.instLamsAtF_spec (instListSpec _) s₃₇ _ rhsA q37.ok
+      (by rw [hrhs37]; rfl) (by rw [hsp37]; rfl))
+  have q39 := PStep.of_caches h391 h392 h393 h394 h395
+  have hi39 := h396 _ _ hrhs37 hsp37
+  simp only [ConLeche.instLamsAtF_eq] at hi39
+  obtain ⟨pr7, s₄₀, k40, z49⟩ := bindOk z48
+  obtain ⟨rfl, hs40⟩ := unwrapOr_ok k40
+  subst s₄₀
+  obtain ⟨ldoms, lrest⟩ := pr7
+  obtain ⟨ldomsV, lrestV, hlinst, hldoms, -⟩ := denoteEP_some_inv hi39
+  obtain ⟨hldomsW, -⟩ := ConLeche.instLamsAt_WScoped _ _ hlinst
+    (Expr.WScoped.of_not_hasFvar hrhsA) hfvsPW'
+  have c39 := c36'.trans ((q37.trans q39).toCore c36'.ok)
+  obtain ⟨ts5, s₄₁, k41, z50⟩ := bindOk z49
+  obtain ⟨q41, hts5⟩ := mapM_E_pstep (F := Expr.fvarTypeD)
+    (fun e eP s₀ s' r hok he hrun => by
+      obtain ⟨rfl, h2⟩ := fvarTypeD_run hok he hrun
+      exact ⟨PStep.refl hok, h2⟩)
+    _ _ s₃₉ s₄₁ ts5 c39.ok.state (denoteEList_ext q39.ext _ _ hsp37) k41
+  have c41 := c39.trans (q41.toCore c39.ok)
+  obtain ⟨u5, s₄₂, k42, z51⟩ := bindOk z50
+  obtain ⟨c42, F₅, hF₅⟩ := checkDefEqList_bridge hk henv (rP + cnF) ts5 ldoms
+    _ _ s₄₁ s₄₂ c41.ok hts5 (denoteEList_ext q41.ext _ _ hldoms)
+    (fun a ha => by
+      obtain ⟨y, hy, rfl⟩ := List.mem_map.mp ha
+      exact ConLeche.fvarTypeD_WScoped (hfvsPW' y hy))
+    (fun b hb => hldomsW b hb) k42
+  have c42' := c41.trans c42
+  -- the right side, definitionally the applied rule
+  have x0_42 := c42'.ext
+  obtain ⟨rhsR, s₄₃, k43, z52⟩ := bindOk z51
+  obtain ⟨q43, -, hrhsR⟩ := renameConstsFast_pstep c42'.ok.state
+    (hren s₄₂.store x0_42 c42'.ok.state.wf) (denote_ext hrhs x0_42) k43
+  obtain ⟨rhsApp, s₄₄, k44, z53⟩ := bindOk z52
+  have x26_42 : Ext s₂₆.store s₄₂.store := q27.ext.trans (q29.ext.trans (c30.ext.trans
+    (q31.ext.trans (q33.ext.trans (q35.ext.trans (c36.ext.trans (q37.ext.trans
+      (q39.ext.trans (q41.ext.trans c42.ext)))))))))
+  have hfvs43 := denoteEList_ext (x5_26.trans (x26_42.trans q43.ext)) _ _ hfvs
+  obtain ⟨q44, hrhsApp⟩ := mkAppN_run _ _ q43.ok hrhsR hfvs43 k44
+  have c44 := c42'.trans ((q43.trans q44).toCore c42'.ok)
+  have x10_44 : Ext s₁₀.store s₄₄.store := x10_20.trans (c23.ext.trans (q24.ext.trans
+    (c25.ext.trans (q26.ext.trans (x26_42.trans (q43.ext.trans q44.ext))))))
+  have hrhsS44 := denote_ext hrhsS x10_44
+  have happW : Expr.WScoped (rP + cnF) (Expr.mkAppN (rhsAP.renameConsts fP) fvsV) :=
+    Expr.WScoped.mkAppN (Expr.WScoped.of_not_hasFvar (by
+      rw [ConLeche.hasFvar_renameConsts]; exact hrhsA)) (fun y hy => hfvsW y hy)
+  obtain ⟨bd, s₄₅, k45, z54⟩ := bindOk z53
+  obtain ⟨ok45, x45, p45, F₆, hF₆⟩ := AM.of_run (P := fun u => u = s₄₄)
+    (Q := fun r u => CheckOK μ envSelf feSelf u ∧ Ext s₄₄.store u.store ∧
+      u.pins = s₄₄.pins ∧
+      Core.SimV (ConLeche.isDefEqCore μ envSelf) (rP + cnF)
+        (tbodyP.getAppArgs.getD 2 (.bvar 0)) (Expr.mkAppN (rhsAP.renameConsts fP) fvsV) r)
+    rfl k45 (hknot.defeq s₄₄ (rP + cnF) _ _ _ _ c44.ok hrhsS44 hrhsApp hrhsSW happW)
+  have c45 := c44.trans ⟨ok45, x45, p45⟩
+  obtain ⟨hbd, z55⟩ := AM.dunless_ok hnever z54
+  replace z55 := AM.pure_bind_ok z55
+  subst hbd
+  -- the two sides' types
+  have x5_45 : Ext s₅.store s₄₅.store := q10.ext.trans (x10_44.trans x45)
+  have x10_45 := x10_44.trans x45
+  have htg45 := denoteEList_ext x10_45 _ _ htg
+  obtain ⟨c47, F₇, hF₇⟩ := checkIotaSidesTy_spec feSelf envSelf hk henv (rP + cnF)
+    (targs.getD 0 b0) (targs.getD 1 b0) (targs.getD 2 b0)
+    (tbodyP.getAppArgs.getD 0 (.bvar 0)) (tbodyP.getAppArgs.getD 1 (.bvar 0))
+    (tbodyP.getAppArgs.getD 2 (.bvar 0)) lA (ConLeche.eqHeadLevel tbodyP.getAppFn) cvName
+    cvNameP ⟨ConLeche.WScoped_getD' htargsW 0, hlhsW, hrhsSW⟩ s₄₅ s' x c45.ok
+    ⟨denoteEList_getD_fb (denote_ext hb0 x10_45) htg45 0,
+      denoteEList_getD_fb (denote_ext hb0 x10_45) htg45 1,
+      denoteEList_getD_fb (denote_ext hb0 x10_45) htg45 2, denoteL_ext hlA x5_45,
+      denoteN_ext hcn c45.ext, denoteFEnv_ext c45.ext hfeS, denoteFEnv_ext c45.ext hfeS⟩ z55
+  refine ⟨c45.trans c47, max (max (max F₁ F₂) (max F₃ F₄)) (max F₅ (max F₆ F₇)), ?_⟩
+  -- the pure side, at the joined fuel
+  have g1 := checkDefEqList_mono (F' := max (max (max F₁ F₂) (max F₃ F₄)) (max F₅ (max F₆ F₇)))
+    (by omega) hF₁
+  have g2 := checkDefEqList_mono (F' := max (max (max F₁ F₂) (max F₃ F₄)) (max F₅ (max F₆ F₇)))
+    (by omega) hF₂
+  have g3 := checkDefEqList_mono (F' := max (max (max F₁ F₂) (max F₃ F₄)) (max F₅ (max F₆ F₇)))
+    (by omega) hF₃
+  have g4 := checkDefEqList_mono (F' := max (max (max F₁ F₂) (max F₃ F₄)) (max F₅ (max F₆ F₇)))
+    (by omega) hF₄
+  have g5 := checkDefEqList_mono (F' := max (max (max F₁ F₂) (max F₃ F₄)) (max F₅ (max F₆ F₇)))
+    (by omega) hF₅
+  have g6 : (ConLeche.fueledOps μ (max (max (max F₁ F₂) (max F₃ F₄)) (max F₅ (max F₆ F₇)))).isDefEq
+      envSelf (rP + cnF) (tbodyP.getAppArgs.getD 2 (.bvar 0))
+      (Expr.mkAppN (rhsAP.renameConsts fP) fvsV) = .ok true :=
+    ConLeche.isDefEqCore_mono (by omega) hF₆
+  have g7 : ConLeche.checkIotaSidesTy μ
+      (ConLeche.fueledOps μ (max (max (max F₁ F₂) (max F₃ F₄)) (max F₅ (max F₆ F₇)))) envSelf
+      (rP + cnF) (tbodyP.getAppArgs.getD 0 (.bvar 0)) (tbodyP.getAppArgs.getD 1 (.bvar 0))
+      (tbodyP.getAppArgs.getD 2 (.bvar 0)) (ConLeche.eqHeadLevel tbodyP.getAppFn) cvNameP
+      = .ok () := by
+    rw [← ConLeche.checkIotaSidesTy_datF] at hF₇ ⊢
+    exact (ConLeche.checkIotaSidesTy μ (ConLeche.fueledOpsM μ) envSelf (rP + cnF) _ _ _ _
+      cvNameP).property (by omega) hF₇
+  simp only [ConLeche.checkIotaThm, ConLeche.unwrapOr, hcvtP, bind, Except.bind, pure,
+    Except.pure]
+  rw [if_pos hlpP]
+  simp only [hopen]
+  rw [if_pos heqh, if_pos h3P, if_pos h4, if_pos h5P, if_pos h6, if_pos h7, if_pos h8P]
+  simp only [hcinst]
+  rw [if_pos h9P]
+  simp only [g1, g2, hrinst, g3, hopenP, hcinstP, g4, hopenX, hlinst, g5, g6]
+  rw [if_pos trivial]
+  exact g7
 
+-- task #97-T2-LOCKSTEP lane Inductives: the twin reads `rest` and the head tag-first now,
+-- and the two `simp_all` closers of the off-shape arms need twice the default budget.
+set_option maxHeartbeats 400000 in
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:151-190 nestedRuleShape
 The nested rule's levels and pinned arguments, read off the stored recursor
 type.  PURE on both sides (con-leche's is not even in `m`), and the answer is
 a level list and an expression list — task #97d-2's deviation 6 keeps the
 levels a `List LIdx`.
 
-`sorry`: `stripPis`' spec and `Bridge/ExprOps/Spine.lean`'s `getAppSpine`. -/
+**CLOSED** (task #97-P3-Ind round 9): `iotaThmName_spec` + `findCV?_run`,
+`stripPis_pstep`, the two view dispatches (`denote_not_forallE`,
+`denote_not_const`), `mapM_E_pstep` at `lowerBVarsFast_run` and
+`liftLooseBVarsFast_run`, `bvarsDesc_spec`, `readNames_run`/`readLevels_run`,
+`allM_E_cstep` for the pins' four guards, and `beq_ehandleList_eq` for the two
+spine comparisons. -/
 theorem nestedRuleShape_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (env' envSelf : Env) (cvName : NIdx) (cvNameP : ConLeche.Name)
     (lps : List NIdx) (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr)
@@ -1315,20 +1805,226 @@ theorem nestedRuleShape_spec {μ : CheckMode} (fe' feSelf : IFEnv)
       (ROp (fun q st r => denoteLList st.ls r.1 = some q.1 ∧
           Frontend.denoteEList st r.2 = some q.2)
         (ConLeche.nestedRuleShape env' envSelf cvNameP lpsP tyAP mI rP cnP j)) := by
-  sorry
+  intro s₀ s' r hck hpre hrun
+  obtain ⟨hcn, hlps, hty, hfe', hfeS, hok'⟩ := hpre
+  simp only [Arena.nestedRuleShape] at hrun
+  -- the model theorem's presence
+  obtain ⟨thm, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, hthm⟩ := iotaThmName_spec cvName cvNameP j s₀ s₁ thm hck.state hcn k1
+  have c1 := p1.toCore hck
+  obtain ⟨o, s₂, k2, z2⟩ := bindOk z1
+  obtain ⟨c2, hsome, -⟩ := findCV?_run c1.ok (hok'.mono c1.ext s₁ rfl) hthm k2
+  have c02 := c1.trans c2
+  have hname : (cvNameP.str "_model").str s!"iota_{j}" =
+      (cvNameP.str "_model").str ("iota_" ++ toString j) := by
+    simp; rfl
+  have hsome' : (env'.findCV? ((cvNameP.str "_model").str s!"iota_{j}")).isSome = o.isSome := by
+    rw [hname, hsome]
+  split at z2
+  · rename_i hno
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨c02, ?_⟩
+    show ConLeche.nestedRuleShape env' envSelf cvNameP lpsP tyAP mI rP cnP j = none
+    simp only [ConLeche.nestedRuleShape]
+    rw [if_neg]
+    rintro ⟨h1, h2⟩
+    have h3 := hsome'.symm.trans h1
+    cases o <;> simp_all
+  rename_i hyes
+  have hcond : (env'.findCV? ((cvNameP.str "_model").str s!"iota_{j}")).isSome = true ∧
+      rP ≤ mI := by
+    rw [hsome']
+    refine ⟨?_, (by simpa using hyes : _ ∧ _).2⟩
+    cases o <;> simp_all
+  -- the major premise's domain
+  have hty2 := denote_ext hty c02.ext
+  obtain ⟨sp, s₃, k3, z3⟩ := bindOk z2
+  obtain ⟨hs3, hsp⟩ := stripPis_pstep c02.ok.state hty2 k3
+  subst s₃
+  have hwf := c02.ok.state.wf
+  rcases sp with _ | ⟨bs, rest⟩
+  · obtain ⟨rfl, rfl⟩ := pureOk z3
+    refine ⟨c02, ?_⟩
+    show ConLeche.nestedRuleShape env' envSelf cvNameP lpsP tyAP mI rP cnP j = none
+    simp only [ConLeche.nestedRuleShape, if_pos hcond, stripPis_none hsp]
+  obtain ⟨bsP, restP, hspP, -, hrest⟩ := denoteBP_someB' hsp
+  dsimp only at z3
+  obtain ⟨v10, hv10⟩ := denoteE_view hrest
+  obtain ⟨v1, s₄, k4, z4⟩ := bindOk (tagIf_view_run hv10
+    (fun hne => by cases v10 <;> first | exact absurd rfl hne | rfl) z3)
+  clear hv10 v10
+  obtain ⟨hs4, hv1⟩ := view_run k4
+  subst s₄
+  by_cases hfa : ¬ ∃ dom b m, v1 = .forallE dom b m
+  · have hne : ∀ a b m, restP ≠ .forallE a b m :=
+      denote_not_forallE hwf hv1 hrest (fun a b m h => hfa ⟨a, b, m, h⟩)
+    have z4' : (pure none : AM (Option (List LIdx × List EIdx))) s₂ = .ok (r, s') := by
+      cases v1 <;> first | exact z4 | exact absurd ⟨_, _, _, rfl⟩ hfa
+    obtain ⟨rfl, rfl⟩ := pureOk z4'
+    refine ⟨c02, ?_⟩
+    show ConLeche.nestedRuleShape env' envSelf cvNameP lpsP tyAP mI rP cnP j = none
+    simp only [ConLeche.nestedRuleShape, if_pos hcond, hspP] <;> split <;> simp_all
+  obtain ⟨dom, b, m, rfl⟩ := Classical.not_not.mp hfa
+  obtain ⟨domP, bP, rfl, hdom, -⟩ := denote_forallE_inv hwf hv1 hrest
+  dsimp only at z4
+  -- its head
+  obtain ⟨hd, s₅, k5, z5⟩ := bindOk z4
+  obtain ⟨hs5, hhd⟩ := getAppFn_run c02.ok.state hdom k5
+  subst s₅
+  obtain ⟨v20, hv20⟩ := denoteE_view hhd
+  obtain ⟨v2, s₆, k6, z6⟩ := bindOk (tagIf_view_run hv20
+    (fun hne => by cases v20 <;> first | exact absurd rfl hne | rfl) z5)
+  clear hv20 v20
+  obtain ⟨hs6, hv2⟩ := view_run k6
+  subst s₆
+  by_cases hco : ¬ ∃ D us, v2 = .const D us
+  · have hne : ∀ n ls, domP.getAppFn ≠ .const n ls :=
+      denote_not_const hwf hv2 hhd (fun a b h => hco ⟨a, b, h⟩)
+    have z6' : (pure none : AM (Option (List LIdx × List EIdx))) s₂ = .ok (r, s') := by
+      cases v2 <;> first | exact z6 | exact absurd ⟨_, _, rfl⟩ hco
+    obtain ⟨rfl, rfl⟩ := pureOk z6'
+    refine ⟨c02, ?_⟩
+    show ConLeche.nestedRuleShape env' envSelf cvNameP lpsP tyAP mI rP cnP j = none
+    simp only [ConLeche.nestedRuleShape, if_pos hcond, hspP] <;> split <;> simp_all
+  obtain ⟨D, lvlsIdx, rfl⟩ := Classical.not_not.mp hco
+  obtain ⟨DP, lvlsP, hfnP, -, hlvlsP⟩ := denote_const_inv hwf hv2 hhd
+  dsimp only at z6
+  -- the arguments, split
+  obtain ⟨args, s₇, k7, z7⟩ := bindOk z6
+  obtain ⟨hs7, hargs⟩ := getAppArgs_run c02.ok.state hdom k7
+  subst s₇
+  obtain ⟨pins, s₈, k8, z8⟩ := bindOk z7
+  obtain ⟨q8, hpins⟩ := mapM_E_pstep (F := Expr.lowerBVars (mI - rP) 0)
+    (fun e eP s₀ s' r hok he hrun => by
+      obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.lowerBVarsFast_run hok
+        (by rw [he]; rfl) hrun
+      exact ⟨PStep.of_caches h1 h2 h3 h4 h5, h7 eP he⟩)
+    _ _ s₂ s₈ pins c02.ok.state (ExprOps.denoteEList_take cnP _ _ hargs) k8
+  obtain ⟨lifted, s₉, k9, z9⟩ := bindOk z8
+  obtain ⟨q9, hlifted⟩ := mapM_E_pstep (F := Expr.liftLooseBVars (mI - rP) 0)
+    (fun e eP s₀ s' r hok he hrun => by
+      obtain ⟨h1, h2, h3, h4, h5, -, -, h7⟩ := ExprOps.liftLooseBVarsFast_run hok
+        (by rw [he]; rfl) hrun
+      exact ⟨PStep.of_caches h1 h2 h3 h4 h5, h7 eP he⟩)
+    _ _ s₈ s₉ lifted q8.ok hpins k9
+  obtain ⟨idx, s₁₀, k10, z10⟩ := bindOk z9
+  obtain ⟨q10, hidx⟩ := bvarsDesc_spec (mI - rP) s₉ s₁₀ idx q9.ok trivial k10
+  have c10 := c02.trans ((q8.trans (q9.trans q10)).toCore c02.ok)
+  obtain ⟨ks, s₁₁, k11, z11⟩ := bindOk z10
+  obtain ⟨hs11, hks⟩ := readNames_run k11
+  subst s₁₁
+  have x2_10 : Ext s₂.store s₁₀.store := q8.ext.trans (q9.ext.trans q10.ext)
+  have hksP : ks = lpsP := Option.some.inj
+    (hks.symm.trans (denoteNListE_ext (c02.ext.trans x2_10) _ _ hlps))
+  obtain ⟨lvls, s₁₂, k12, z12⟩ := bindOk z11
+  obtain ⟨hs12, hlvls⟩ := viewLs_run k12
+  subst s₁₂
+  obtain ⟨lvlVals, s₁₃, k13, z13⟩ := bindOk z12
+  obtain ⟨hs13, hlvlVals⟩ := readLevels_run k13
+  subst s₁₃
+  have hlvls10 := denoteLs_ext hlvlsP x2_10
+  have hvalsP : lvlVals = lvlsP := Option.some.inj (hlvlVals.symm.trans hlvls10)
+  have hlvlsL := denoteLs_of_view hlvls hlvls10
+  -- the pins' guards
+  obtain ⟨pok, s₁₄, k14, z14⟩ := bindOk z13
+  obtain ⟨c14, hpok⟩ := allM_E_cstep (μ := μ) (env := envSelf) (fe := feSelf)
+    (g := fun p => !p.hasFvar && p.looseBVarsBounded rP && p.constsResolve envSelf &&
+      p.allLevelParamsDefined lpsP)
+    (fun st => Frontend.denoteNList st.ns lps = some lpsP)
+    (fun hx h => denoteNListE_ext hx _ _ h)
+    (fun a aP s₀ s' b hok hQ ha hrun => by
+      obtain ⟨b1, t1, g1, y1⟩ := bindOk hrun
+      obtain ⟨h11, h12, h13, hb1⟩ := AM.of_run (P := fun u => u = s₀) rfl g1
+        (ExprOps.hasFvarFast_spec Arena.coreWalkFuel s₀ a hok.state (by rw [ha]; rfl))
+      have d1 := CoreStep.of_readonly hok h11 h12 h13
+      have ha1 : denoteE t1.store a = some aP := by rw [h11]; exact ha
+      obtain ⟨b2, t2, g2, y2⟩ := bindOk y1
+      obtain ⟨h21, h22, h23, hb2⟩ := AM.of_run (P := fun u => u = t1) rfl g2
+        (ExprOps.looseBVarsBoundedFast_spec Arena.coreWalkFuel rP t1 a d1.ok.state
+          (by rw [ha1]; rfl))
+      have d2 := d1.trans (CoreStep.of_readonly d1.ok h21 h22 h23)
+      have ha2 : denoteE t2.store a = some aP := by rw [h21]; exact ha1
+      obtain ⟨b3, t3, g3, y3⟩ := bindOk y2
+      obtain ⟨h31, h32, h33, hb3⟩ := constsResolveFFast_run d2.ok ha2 g3
+      have d3 := d2.trans (CoreStep.of_readonly d2.ok h31 h32 h33)
+      have ha3 : denoteE t3.store a = some aP := by rw [h31]; exact ha2
+      obtain ⟨b4, t4, g4, y4⟩ := bindOk y3
+      obtain ⟨h41, h42, h43, hb4⟩ := allLevelParamsDefined_run d3.ok.state
+        (denoteNListE_ext d3.ext _ _ hQ) ha3 g4
+      have d4 := d3.trans (CoreStep.of_readonly d3.ok h41 h42 h43)
+      obtain ⟨rfl, rfl⟩ := pureOk y4
+      refine ⟨d4, ?_⟩
+      rw [hb1 aP ha, hb2 aP ha1, hb3, hb4])
+    pins _ s₁₀ s₁₄ pok c10.ok (denoteNListE_ext (c02.ext.trans x2_10) _ _ hlps)
+    (denoteEList_ext (q9.ext.trans q10.ext) _ _ hpins) k14
+  -- the decision, read on the pure side
+  have c014 := c10.trans c14
+  have x10_14 := c14.ext
+  have hwf14 := c14.ok.state.wf
+  have hlenE : args.length = domP.getAppArgs.length :=
+    (ExprOps.denoteEList_length _ _ hargs).symm
+  have htakeB : (args.take cnP == lifted) =
+      (domP.getAppArgs.take cnP ==
+        ((domP.getAppArgs.take cnP).map (Expr.lowerBVars (mI - rP) 0)).map
+          (Expr.liftLooseBVars (mI - rP) 0)) :=
+    beq_ehandleList_eq hwf14
+      (denoteEList_ext (x2_10.trans x10_14) _ _ (ExprOps.denoteEList_take cnP _ _ hargs))
+      (denoteEList_ext (q10.ext.trans x10_14) _ _ hlifted)
+  have hidxP : ConLeche.structPsAt 0 (mI - rP) =
+      (List.range (mI - rP)).map (fun i => Expr.bvar (mI - rP - 1 - i)) := by
+    simp only [ConLeche.structPsAt]
+    exact bvarRange_congr (fun j => by omega)
+  have hdropB : (args.drop cnP == idx) =
+      (domP.getAppArgs.drop cnP ==
+        (List.range (mI - rP)).map (fun i => Expr.bvar (mI - rP - 1 - i))) := by
+    rw [← hidxP]
+    exact beq_ehandleList_eq hwf14
+      (denoteEList_ext (x2_10.trans x10_14) _ _ (ExprOps.denoteEList_drop cnP _ _ hargs))
+      (denoteEList_ext x10_14 _ _ hidx)
+  subst ks lvlVals
+  split at z14
+  · rename_i hyes2
+    obtain ⟨rfl, rfl⟩ := pureOk z14
+    refine ⟨c014, (lvlsP, (domP.getAppArgs.take cnP).map (Expr.lowerBVars (mI - rP) 0)),
+      ?_, ?_, ?_⟩
+    · obtain ⟨e1, e2, e3, e4, e5⟩ := hyes2
+      rw [htakeB] at e2
+      rw [hdropB] at e3
+      rw [hpok] at e4
+      simp only [ConLeche.nestedRuleShape, if_pos hcond, hspP, hfnP]
+      rw [if_pos ⟨by rw [← hlenE]; exact e1, e2, e3, e4, e5⟩]
+    · exact denoteLList_ext x10_14.lss.ls _ _ hlvlsL
+    · exact denoteEList_ext (q9.ext.trans (q10.ext.trans x10_14)) _ _ hpins
+  · rename_i hno2
+    obtain ⟨rfl, rfl⟩ := pureOk z14
+    refine ⟨c014, ?_⟩
+    show ConLeche.nestedRuleShape env' envSelf cvNameP lpsP tyAP mI rP cnP j = none
+    simp only [ConLeche.nestedRuleShape, if_pos hcond, hspP, hfnP]
+    rw [if_neg]
+    rintro ⟨e1, e2, e3, e4, e5⟩
+    apply hno2
+    rw [htakeB, hdropB, hpok]
+    exact ⟨by rw [hlenE]; exact e1, e2, e3, e4, e5⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:192-317 checkIotaThmN
 **The nested iota certificate**, which also decides the rule's firing mode.
 
-`sorry`: `nestedRuleShape_spec`, `checkIotaThm_spec`'s pieces, and
-`Frontend.denoteFire` at the answer. -/
+**CLOSED** (task #97-P3-Ind round 9): `nestedRuleShape_spec` for the dispatch,
+then `checkIotaThm_spec`'s pieces, plus the pins opened at the prefix
+(`mapM_E_pstepQ` over `renameConstsFast_pstep` + `instSpine_spec`), the stored
+levels (`internLsNode_run`, `instLPFast_cstep` twice), `checkAnnotList_bridge`
+and `checkTypedList_bridge`.  Same four preconditions as `checkIotaThm_spec`.
+-/
 theorem checkIotaThmN_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
+    (henv' : EnvWF env')
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cvName : NIdx) (cvNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
     (r : IRecRule) (rP' : RecRule) (cvj : IConstantVal) (cvjP : ConstantVal)
-    (cnP cnF : Nat) (rhsA : EIdx) (rhsAP : Expr) :
+    (cnP cnF : Nat) (rhsA : EIdx) (rhsAP : Expr)
+    (htyA : tyAP.hasFvar = false) (hctor : cvjP.type.hasFvar = false)
+    (hrhsA : rhsAP.hasFvar = false) :
     CSpec μ envSelf feSelf
       (fun st => RenameRelW st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
@@ -1341,7 +2037,539 @@ theorem checkIotaThmN_spec {μ : CheckMode} (fe' feSelf : IFEnv)
       (fun st x => ∃ F fire, ConLeche.checkIotaThmN μ (ConLeche.fueledOps μ F)
         env' envSelf fP cvNameP lpsP tyAP mI rP j rP' cvjP cnP cnF rhsAP
           = .ok fire ∧ Frontend.denoteFire st x = some fire) := by
-  sorry
+  intro s₀ s' x hck hpre hrun
+  obtain ⟨hren, hcn, hlps, hty, hr, hcv, hrhs, hfe', hfeS, hok'⟩ := hpre
+  have hknot := hk.knot envSelf feSelf henv
+  have hnever : ∀ {α β : Type} {e : Arena.CheckError} {g : α → AM β},
+      AM.Never ((Arena.fail e : AM α) >>= g) := fun {_ _ _ _} => AM.Never.fail_any
+  obtain ⟨hctorN, -⟩ := denoteRule_ctor hr
+  simp only [Arena.checkIotaThmN] at hrun
+  -- the nested shape
+  obtain ⟨ns, s₀', k0, z0⟩ := bindOk hrun
+  obtain ⟨c0, hns⟩ := nestedRuleShape_spec fe' feSelf env' envSelf cvName cvNameP lps lpsP
+    tyA tyAP mI rP cnP j s₀ s₀' ns hck ⟨hcn, hlps, hty, hfe', hfeS, hok'⟩ k0
+  rcases ns with _ | ⟨lvls, pins⟩
+  · obtain ⟨rfl, rfl⟩ := pureOk z0
+    refine ⟨c0, 0, .inert, ?_, rfl⟩
+    have hnone : ConLeche.nestedRuleShape env' envSelf cvNameP lpsP tyAP mI rP cnP j = none := hns
+    simp only [ConLeche.checkIotaThmN, hnone]
+    rfl
+  obtain ⟨⟨lvlsP, pinsV⟩, hnsP, hlvls0, hpins0⟩ := hns
+  have hpinsF : ∀ p ∈ pinsV, p.hasFvar = false := ConLeche.nestedRuleShape_pins hnsP
+  dsimp only at z0
+  -- the stored theorem
+  obtain ⟨thm, s₂, k2, z2⟩ := bindOk z0
+  obtain ⟨p2, hthm⟩ := iotaThmName_spec cvName cvNameP j s₀' s₂ thm c0.ok.state
+    (denoteN_ext hcn c0.ext) k2
+  have c2 := c0.trans (p2.toCore c0.ok)
+  have x0'_2 : Ext s₀'.store s₂.store := p2.ext
+  obtain ⟨o, s₃, k3, z3⟩ := bindOk z2
+  obtain ⟨c3, -, hcvt⟩ := findCV?_run c2.ok (hok'.mono c2.ext s₂ rfl) hthm k3
+  have c03 := c2.trans c3
+  obtain ⟨cvt, s₄, k4, z4⟩ := bindOk z3
+  obtain ⟨rfl, hs4⟩ := unwrapOr_ok k4
+  subst s₄
+  obtain ⟨cvtP, hcvtP, hcvtD⟩ := hcvt cvt rfl
+  have hname : (cvNameP.str "_model").str s!"iota_{j}" =
+      (cvNameP.str "_model").str ("iota_" ++ toString j) := by
+    simp; rfl
+  rw [← hname] at hcvtP
+  obtain ⟨hlp, z5⟩ := AM.dunless_ok hnever z4
+  replace z5 := AM.pure_bind_ok z5
+  have hlpP : cvtP.levelParams = lpsP := by
+    have e1 := denoteCV_lps hcvtD
+    rw [hlp] at e1
+    exact Option.some.inj ((denoteNListE_ext c03.ext _ _ hlps).symm.trans e1) |>.symm
+  -- the theorem's statement is closed
+  have hcvtF : cvtP.type.hasFvar = false := by
+    obtain ⟨ci, hci, hcvt'⟩ := ConLeche.findCV?_ok hcvtP
+    exact hcvt' ▸ (henv' _ (ConLeche.find?_mem hci)).1
+  -- its telescope, opened
+  obtain ⟨oo, s₅, k5, z6⟩ := bindOk z5
+  obtain ⟨q5, hoo⟩ := openPisAtFvarsF_run c03.ok.state (denoteCV_type hcvtD) k5
+  obtain ⟨pr, s₆, k6, z7⟩ := bindOk z6
+  obtain ⟨rfl, hs6⟩ := unwrapOr_ok k6
+  subst s₆
+  obtain ⟨fvs, tbody⟩ := pr
+  obtain ⟨fvsV, tbodyP, hopen, hfvs, htbody⟩ := denoteOpen_some_inv hoo
+  have c5 := c03.trans (q5.toCore c03.ok)
+  have hopenW := ConLeche.openPisAtFvars_WScoped (rP + cnF) cvtP.type 0 hopen
+    (Expr.WScoped.of_not_hasFvar hcvtF)
+  rw [Nat.zero_add] at hopenW
+  obtain ⟨hfvsW, htbodyW⟩ := hopenW
+  have htargsW : ∀ y ∈ tbodyP.getAppArgs, Expr.WScoped (rP + cnF) y :=
+    Expr.WScoped.getAppArgs htbodyW
+  -- the equation
+  obtain ⟨targs, s₇, k7, z8⟩ := bindOk z7
+  obtain ⟨hs7, htargs⟩ := getAppArgs_run c5.ok.state htbody k7
+  subst s₇
+  obtain ⟨tfn, s₈, k8, z9⟩ := bindOk z8
+  obtain ⟨hs8, htfn⟩ := getAppFn_run c5.ok.state htbody k8
+  subst s₈
+  obtain ⟨be, s₉, k9, z10⟩ := bindOk z9
+  obtain ⟨hs9, hbe⟩ := isEqHead_run c5.ok.state c5.ok.pins htfn k9
+  subst s₉
+  obtain ⟨heqh, z11⟩ := AM.dunless_ok hnever z10
+  replace z11 := AM.pure_bind_ok z11
+  rw [hbe] at heqh
+  obtain ⟨h3, z12⟩ := AM.dunless_ok hnever z11
+  replace z12 := AM.pure_bind_ok z12
+  have h3P : tbodyP.getAppArgs.length = 3 := by
+    rw [← h3]; exact (ExprOps.denoteEList_length _ _ htargs)
+  -- the equation's level, read in the prologue (as the port does)
+  obtain ⟨lA, uR, kuR, z12⟩ := bindOk z12
+  obtain ⟨hsuR, hlA⟩ := eqHeadLevel_run c5.ok.state c5.ok.pins htfn kuR
+  subst uR
+  -- the two sides
+  obtain ⟨b0, s₁₀, k10, z13⟩ := bindOk z12
+  obtain ⟨q10, hb0⟩ := internBVarE_run c5.ok.state k10
+  have htg := denoteEList_ext q10.ext _ _ htargs
+  have hlhsS := denoteEList_getD_fb hb0 htg 1
+  have hrhsS := denoteEList_getD_fb hb0 htg 2
+  have hlhsW : Expr.WScoped (rP + cnF) (tbodyP.getAppArgs.getD 1 (.bvar 0)) :=
+    ConLeche.WScoped_getD' htargsW 1
+  have hrhsSW : Expr.WScoped (rP + cnF) (tbodyP.getAppArgs.getD 2 (.bvar 0)) :=
+    ConLeche.WScoped_getD' htargsW 2
+  have hlargsW : ∀ y ∈ (tbodyP.getAppArgs.getD 1 (.bvar 0)).getAppArgs,
+      Expr.WScoped (rP + cnF) y := Expr.WScoped.getAppArgs hlhsW
+  have c10 := c5.trans (q10.toCore c5.ok)
+  have x0'_10 : Ext s₀'.store s₁₀.store := x0'_2.trans (c3.ext.trans (q5.ext.trans q10.ext))
+  -- the pins, opened at the prefix variables (renamed)
+  obtain ⟨pinsF, tA, kA, zA⟩ := bindOk z13
+  obtain ⟨qA, hpinsFd⟩ := mapM_E_pstepQ
+    (F := fun p => Expr.instSpine (fvsV.take rP) (rP - 1) (p.renameConsts fP))
+    (fun st => RenameRelW st tbl fP ∧
+      Frontend.denoteEList st (fvs.take rP) = some (fvsV.take rP))
+    (fun hx h => ⟨h.1.mono hx, denoteEList_ext hx _ _ h.2⟩)
+    (fun e eP t₀ t' r hok hQ he hrun => by
+      obtain ⟨y, t₁, g1, y1⟩ := bindOk hrun
+      obtain ⟨u1, -, hy⟩ := renameConstsFast_pstep hok (hQ.1.now hok.wf) he g1
+      obtain ⟨h1, h2, h3, h4, h5, h6⟩ := AM.of_run (P := fun u => u = t₁) rfl y1
+        (ExprOps.instSpine_spec Arena.coreWalkFuel (fvs.take rP) t₁ (rP - 1) y u1.ok
+          (by rw [hy]; rfl) (by rw [denoteEList_ext u1.ext _ _ hQ.2]; rfl))
+      exact ⟨u1.trans (PStep.of_caches h1 h2 h3 h4 h5),
+        h6 _ _ hy (denoteEList_ext u1.ext _ _ hQ.2)⟩)
+    pins pinsV s₁₀ tA pinsF q10.ok
+    ⟨hren.mono c10.ext, ExprOps.denoteEList_take rP _ _ (denoteEList_ext q10.ext _ _ hfvs)⟩
+    (denoteEList_ext x0'_10 _ _ hpins0) kA
+  have cA := c10.trans (qA.toCore c10.ok)
+  have hpinsFW : ∀ a ∈ pinsV.map (fun p => Expr.instSpine (fvsV.take rP) (rP - 1)
+      (p.renameConsts fP)), Expr.WScoped (rP + cnF) a := by
+    intro a hax
+    obtain ⟨y, hy, rfl⟩ := List.mem_map.mp hax
+    exact ConLeche.instSpine_WScoped (rP - 1)
+      (Expr.WScoped.of_not_hasFvar (by rw [ConLeche.hasFvar_renameConsts]; exact hpinsF y hy))
+      (fun a' ha' => hfvsW a' (List.mem_of_mem_take ha'))
+  have hlhsSA := denote_ext hlhsS qA.ext
+  -- the left side's head and spine
+  obtain ⟨largs, tB, kB, zB⟩ := bindOk zA
+  obtain ⟨hsB, hlargs⟩ := getAppArgs_run qA.ok hlhsSA kB
+  subst tB
+  obtain ⟨lfn, tC, kC, zC⟩ := bindOk zB
+  obtain ⟨hsC, hlfn⟩ := getAppFn_run qA.ok hlhsSA kC
+  subst tC
+  obtain ⟨lus, tD, kD, zD⟩ := bindOk zC
+  obtain ⟨qD, hlus⟩ := paramLevels_spec lps lpsP tA tD lus qA.ok
+    (denoteNListE_ext cA.ext _ _ hlps) kD
+  obtain ⟨wantHd, tE, kE, zE⟩ := bindOk zD
+  have x0_D : Ext s₀.store tD.store := cA.ext.trans qD.ext
+  obtain ⟨qE, hwant⟩ := internConstE_run qD.ok
+    ((hren tD.store x0_D qD.ok.wf) cvName cvNameP (denoteN_ext hcn x0_D)) hlus kE
+  obtain ⟨h4, zF⟩ := AM.dunless_ok hnever zE
+  replace zF := AM.pure_bind_ok zF
+  have xA_E : Ext tA.store tE.store := qD.ext.trans qE.ext
+  rw [beq_ehandle_eq qE.ok.wf (denote_ext hlfn xA_E) hwant] at h4
+  obtain ⟨h5, zG⟩ := AM.dunless_ok hnever zF
+  replace zG := AM.pure_bind_ok zG
+  have h5P : (tbodyP.getAppArgs.getD 1 (.bvar 0)).getAppArgs.length = mI + 1 := by
+    rw [← h5]; exact (ExprOps.denoteEList_length _ _ hlargs)
+  obtain ⟨h6, zH⟩ := AM.dunless_ok hnever zG
+  replace zH := AM.pure_bind_ok zH
+  have x5_E : Ext s₅.store tE.store := q10.ext.trans (qA.ext.trans xA_E)
+  rw [beq_ehandleList_eq qE.ok.wf
+    (ExprOps.denoteEList_take rP _ _ (denoteEList_ext xA_E _ _ hlargs))
+    (ExprOps.denoteEList_take rP _ _ (denoteEList_ext x5_E _ _ hfvs))] at h6
+  -- the major, at the stored levels and pins
+  have x0'_E : Ext s₀'.store tE.store := x0'_10.trans (qA.ext.trans xA_E)
+  obtain ⟨lvlsIdx, tF, kF, zI⟩ := bindOk zH
+  obtain ⟨qF, hlvlsIdx⟩ := internLsNode_run qE.ok
+    (denoteLList_ext x0'_E.lss.ls _ _ hlvls0) kF
+  obtain ⟨cHd, tG, kG, zJ⟩ := bindOk zI
+  have x0_F : Ext s₀.store tF.store := x0_D.trans (qE.ext.trans qF.ext)
+  obtain ⟨qG, hcHd⟩ := internConstE_run qF.ok
+    ((hren tF.store x0_F qF.ok.wf) r.ctor rP'.ctor (denoteN_ext hctorN x0_F)) hlvlsIdx kG
+  obtain ⟨wantMajor, tH, kH, zK⟩ := bindOk zJ
+  have x5_G : Ext s₅.store tG.store := x5_E.trans (qF.ext.trans qG.ext)
+  have xA_G : Ext tA.store tG.store := xA_E.trans (qF.ext.trans qG.ext)
+  have hspG : Frontend.denoteEList tG.store (pinsF ++ fvs.drop rP) =
+      some (pinsV.map (fun p => Expr.instSpine (fvsV.take rP) (rP - 1) (p.renameConsts fP)) ++
+        fvsV.drop rP) :=
+    Core.denoteEList_appendI (denoteEList_ext xA_G _ _ hpinsFd)
+      (ExprOps.denoteEList_drop rP _ _ (denoteEList_ext x5_G _ _ hfvs))
+  obtain ⟨qH, hwM⟩ := mkAppN_run _ _ qG.ok hcHd hspG kH
+  obtain ⟨h7, zL⟩ := AM.dunless_ok hnever zK
+  replace zL := AM.pure_bind_ok zL
+  have xA_H : Ext tA.store tH.store := xA_G.trans qH.ext
+  have x10_H : Ext s₁₀.store tH.store := qA.ext.trans xA_H
+  rw [beq_ehandle_eq qH.ok.wf
+    (denoteEList_getLastD (denote_ext hb0 x10_H) (denoteEList_ext xA_H _ _ hlargs)) hwM]
+    at h7
+  have cH := cA.trans ((qD.trans (qE.trans (qF.trans (qG.trans qH)))).toCore cA.ok)
+  -- the constructor's telescope, its residual head a constant
+  have hCH := denote_ext (denoteCV_type hcv) cH.ext
+  obtain ⟨sp8, tI, kI, zM⟩ := bindOk zL
+  obtain ⟨hsI, hsp8⟩ := stripPis_pstep cH.ok.state hCH kI
+  subst tI
+  obtain ⟨pr8, tJ, kJ, zN⟩ := bindOk zM
+  obtain ⟨rfl, hsJ⟩ := unwrapOr_ok kJ
+  subst tJ
+  obtain ⟨bs8, cbody0⟩ := pr8
+  obtain ⟨bs8P, cbody0P, hsp8P, -, hcbody0⟩ := denoteBP_someB' hsp8
+  obtain ⟨hd0, tK, kK, zO⟩ := bindOk zN
+  obtain ⟨hsK, hhd0⟩ := getAppFn_run cH.ok.state hcbody0 kK
+  subst tK
+  obtain ⟨v00, hv00⟩ := denoteE_view hhd0
+  obtain ⟨v0, tL, kL, zP⟩ := bindOk (tagIf_view_run hv00
+    (fun hne => by cases v00 <;> first | exact absurd rfl hne | rfl) zO)
+  clear hv00 v00
+  obtain ⟨hsL, hv0⟩ := view_run kL
+  subst tL
+  obtain ⟨hcst, zQ⟩ := AM.dunless_ok hnever zP
+  replace zQ := AM.pure_bind_ok zQ
+  obtain ⟨DP0, usP0, hfn0⟩ : ∃ D us, cbody0P.getAppFn = .const D us := by
+    cases v0
+    case const D us =>
+      obtain ⟨DP, usP, hfn, -, -⟩ := denote_const_inv cH.ok.state.wf hv0 hhd0
+      exact ⟨DP, usP, hfn⟩
+    all_goals exact absurd hcst (by simp)
+  -- the constructor's type at the stored levels, renamed, instantiated
+  obtain ⟨ctyL, tM, kM, zR⟩ := bindOk zQ
+  obtain ⟨cM, hctyL⟩ := instLPFast_cstep cH.ok (denoteCV_lps (denoteCV_ext hcv cH.ext))
+    (denoteLs_ext hlvlsIdx (qG.ext.trans qH.ext)) hCH kM
+  have cM' := cH.trans cM
+  obtain ⟨ctyR, tN, kN, zS⟩ := bindOk zR
+  obtain ⟨qN, -, hctyR⟩ := renameConstsFast_pstep cM'.ok.state
+    (hren tM.store cM'.ext cM'.ok.state.wf) hctyL kN
+  have xG_N : Ext tG.store tN.store := qH.ext.trans (cM.ext.trans qN.ext)
+  have hspN := denoteEList_ext xG_N _ _ hspG
+  obtain ⟨o2, tO, kO, zT⟩ := bindOk zS
+  obtain ⟨h201, h202, h203, h204, h205, h206⟩ := AM.of_run (P := fun u => u = tN) rfl kO
+    (ExprOps.instPisAtF_spec (instListSpec _) tN _ ctyR qN.ok
+      (by rw [hctyR]; rfl) (by rw [hspN]; rfl))
+  have qO := PStep.of_caches h201 h202 h203 h204 h205
+  have hi20 := h206 _ _ hctyR hspN
+  simp only [ConLeche.instPisAtF_eq] at hi20
+  obtain ⟨pr2, tP, kP, zU⟩ := bindOk zT
+  obtain ⟨rfl, hsP⟩ := unwrapOr_ok kP
+  subst tP
+  obtain ⟨cdoms, cres⟩ := pr2
+  obtain ⟨cdomsV, cresV, hcinst, hcdoms, hcres⟩ := denoteEP_some_inv hi20
+  have hcargW : ∀ a ∈ pinsV.map (fun p => Expr.instSpine (fvsV.take rP) (rP - 1)
+      (p.renameConsts fP)) ++ fvsV.drop rP, Expr.WScoped (rP + cnF) a := by
+    intro a hax
+    rcases List.mem_append.mp hax with hax | hax
+    · exact hpinsFW a hax
+    · exact hfvsW a (List.mem_of_mem_drop hax)
+  obtain ⟨hcdomsW, hcresW⟩ := ConLeche.instPisAt_WScoped _ _ hcinst
+    (Expr.WScoped.of_not_hasFvar (by
+      rw [ConLeche.hasFvar_renameConsts, ConLeche.Expr.hasFvar_instantiateLevelParams]
+      exact hctor)) hcargW
+  obtain ⟨cargs, tQ, kQ, zV⟩ := bindOk zU
+  obtain ⟨hsQ, hcargs⟩ := getAppArgs_run qO.ok hcres kQ
+  subst tQ
+  obtain ⟨h9, zW⟩ := AM.dunless_ok hnever zV
+  replace zW := AM.pure_bind_ok zW
+  have h9P : cresV.getAppArgs.length = cnP + (mI - rP) := by
+    rw [← h9]; exact (ExprOps.denoteEList_length _ _ hcargs)
+  have cO := cM'.trans ((qN.trans qO).toCore cM'.ok)
+  -- the index arguments
+  have xA_O : Ext tA.store tO.store := xA_G.trans (xG_N.trans qO.ext)
+  obtain ⟨u1, tR, kR, zX⟩ := bindOk zW
+  obtain ⟨cR, F₁, hF₁⟩ := checkDefEqList_bridge hk henv (rP + cnF)
+    ((largs.drop rP).take (mI - rP)) (cargs.drop cnP) _ _ tO tR cO.ok
+    (ExprOps.denoteEList_take _ _ _ (ExprOps.denoteEList_drop rP _ _
+      (denoteEList_ext xA_O _ _ hlargs)))
+    (ExprOps.denoteEList_drop cnP _ _ hcargs)
+    (fun a ha => hlargsW a (List.mem_of_mem_drop (List.mem_of_mem_take ha)))
+    (fun b hb => Expr.WScoped.getAppArgs hcresW b (List.mem_of_mem_drop hb)) kR
+  -- the field domains
+  have x5_R : Ext s₅.store tR.store := x5_G.trans (xG_N.trans (qO.ext.trans cR.ext))
+  obtain ⟨ts2, tS, kS, zY⟩ := bindOk zX
+  obtain ⟨qS, hts2⟩ := mapM_E_pstep (F := Expr.fvarTypeD)
+    (fun e eP s₀ s' r hok he hrun => by
+      obtain ⟨rfl, h2⟩ := fvarTypeD_run hok he hrun
+      exact ⟨PStep.refl hok, h2⟩)
+    _ _ tR tS ts2 cR.ok.state (ExprOps.denoteEList_drop rP _ _
+      (denoteEList_ext x5_R _ _ hfvs)) kS
+  have cS := (cO.trans cR).trans (qS.toCore cR.ok)
+  obtain ⟨u2, tT, kT, zZ⟩ := bindOk zY
+  obtain ⟨cT, F₂, hF₂⟩ := checkDefEqList_bridge hk henv (rP + cnF) ts2 (cdoms.drop cnP)
+    _ _ tS tT cS.ok hts2
+    (ExprOps.denoteEList_drop cnP _ _ (denoteEList_ext (cR.ext.trans qS.ext) _ _ hcdoms))
+    (fun a ha => by
+      obtain ⟨y, hy, rfl⟩ := List.mem_map.mp ha
+      exact ConLeche.fvarTypeD_WScoped (hfvsW y (List.mem_of_mem_drop hy)))
+    (fun b hb => hcdomsW b (List.mem_of_mem_drop hb)) kT
+  have cT' := cS.trans cT
+  -- the recursor's prefix domains
+  have x0_T := cT'.ext
+  have htyT := denote_ext hty x0_T
+  obtain ⟨tyAR, tU, kU, zAA⟩ := bindOk zZ
+  obtain ⟨qU, -, htyAR⟩ := renameConstsFast_pstep cT'.ok.state
+    (hren tT.store x0_T cT'.ok.state.wf) htyT kU
+  have x5_U : Ext s₅.store tU.store := x5_R.trans (qS.ext.trans (cT.ext.trans qU.ext))
+  have hfvsU := denoteEList_ext x5_U _ _ hfvs
+  obtain ⟨o3, tV, kV, zAB⟩ := bindOk zAA
+  obtain ⟨h271, h272, h273, h274, h275, h276⟩ := AM.of_run (P := fun u => u = tU) rfl kV
+    (ExprOps.instPisAtF_spec (instListSpec _) tU _ tyAR qU.ok
+      (by rw [htyAR]; rfl) (by rw [ExprOps.denoteEList_take rP _ _ hfvsU]; rfl))
+  have qV := PStep.of_caches h271 h272 h273 h274 h275
+  have hi27 := h276 _ _ htyAR (ExprOps.denoteEList_take rP _ _ hfvsU)
+  simp only [ConLeche.instPisAtF_eq] at hi27
+  obtain ⟨pr3, tW, kW, zAC⟩ := bindOk zAB
+  obtain ⟨rfl, hsW⟩ := unwrapOr_ok kW
+  subst tW
+  obtain ⟨rdoms, rrest⟩ := pr3
+  obtain ⟨rdomsV, rrestV, hrinst, hrdoms, -⟩ := denoteEP_some_inv hi27
+  obtain ⟨hrdomsW, -⟩ := ConLeche.instPisAt_WScoped _ _ hrinst
+    (Expr.WScoped.of_not_hasFvar (by rw [ConLeche.hasFvar_renameConsts]; exact htyA))
+    (fun a ha => hfvsW a (List.mem_of_mem_take ha))
+  have cV := cT'.trans ((qU.trans qV).toCore cT'.ok)
+  obtain ⟨ts3, tX, kX, zAD⟩ := bindOk zAC
+  obtain ⟨qX, hts3⟩ := mapM_E_pstep (F := Expr.fvarTypeD)
+    (fun e eP s₀ s' r hok he hrun => by
+      obtain ⟨rfl, h2⟩ := fvarTypeD_run hok he hrun
+      exact ⟨PStep.refl hok, h2⟩)
+    _ _ tV tX ts3 cV.ok.state (ExprOps.denoteEList_take rP _ _
+      (denoteEList_ext qV.ext _ _ hfvsU)) kX
+  have cX := cV.trans (qX.toCore cV.ok)
+  obtain ⟨u3, tY, kY, zAE⟩ := bindOk zAD
+  obtain ⟨cY, F₃, hF₃⟩ := checkDefEqList_bridge hk henv (rP + cnF) ts3 rdoms
+    _ _ tX tY cX.ok hts3 (denoteEList_ext qX.ext _ _ hrdoms)
+    (fun a ha => by
+      obtain ⟨y, hy, rfl⟩ := List.mem_map.mp ha
+      exact ConLeche.fvarTypeD_WScoped (hfvsW y (List.mem_of_mem_take hy)))
+    (fun b hb => hrdomsW b hb) kY
+  have cY' := cX.trans cY
+  -- the rule's public telescope
+  have htyY := denote_ext hty cY'.ext
+  obtain ⟨o4, tZ, kZ, zAF⟩ := bindOk zAE
+  obtain ⟨qZ, ho4⟩ := openPisAtFvarsF_run cY'.ok.state htyY kZ
+  obtain ⟨pr4, uA, kuA, zAG⟩ := bindOk zAF
+  obtain ⟨rfl, hsuA⟩ := unwrapOr_ok kuA
+  subst uA
+  obtain ⟨fvsP, restP⟩ := pr4
+  obtain ⟨fvsPV, restPV, hopenP, hfvsP, -⟩ := denoteOpen_some_inv ho4
+  have hopenPW := ConLeche.openPisAtFvars_WScoped rP tyAP 0 hopenP
+    (Expr.WScoped.of_not_hasFvar htyA)
+  rw [Nat.zero_add] at hopenPW
+  obtain ⟨hfvsPW, -⟩ := hopenPW
+  have cZ := cY'.trans (qZ.toCore cY'.ok)
+  -- the pins at the public prefix
+  have x0'_Z : Ext s₀'.store tZ.store := x0'_10.trans (qA.ext.trans (xA_O.trans (cR.ext.trans
+    (qS.ext.trans (cT.ext.trans (qU.ext.trans (qV.ext.trans (qX.ext.trans
+      (cY.ext.trans qZ.ext)))))))))
+  obtain ⟨pinsP, uB, kuB, zAH⟩ := bindOk zAG
+  obtain ⟨quB, hpinsPd⟩ := mapM_E_pstepQ
+    (F := fun p => Expr.instSpine (fvsPV.take rP) (rP - 1) p)
+    (fun st => Frontend.denoteEList st (fvsP.take rP) = some (fvsPV.take rP))
+    (fun hx h => denoteEList_ext hx _ _ h)
+    (fun e eP t₀ t' r hok hQ he hrun => by
+      obtain ⟨h1, h2, h3, h4, h5, h6⟩ := AM.of_run (P := fun u => u = t₀) rfl hrun
+        (ExprOps.instSpine_spec Arena.coreWalkFuel (fvsP.take rP) t₀ (rP - 1) e hok
+          (by rw [he]; rfl) (by rw [hQ]; rfl))
+      exact ⟨PStep.of_caches h1 h2 h3 h4 h5, h6 _ _ he hQ⟩)
+    pins pinsV tZ uB pinsP qZ.ok (ExprOps.denoteEList_take rP _ _ hfvsP)
+    (denoteEList_ext x0'_Z _ _ hpins0) kuB
+  have cuB := cZ.trans (quB.toCore cZ.ok)
+  have hpinsPW : ∀ a ∈ pinsV.map (fun p => Expr.instSpine (fvsPV.take rP) (rP - 1) p),
+      Expr.WScoped rP a := by
+    intro a hax
+    obtain ⟨y, hy, rfl⟩ := List.mem_map.mp hax
+    exact ConLeche.instSpine_WScoped (rP - 1) (Expr.WScoped.of_not_hasFvar (hpinsF y hy))
+      (fun a' ha' => hfvsPW a' (List.mem_of_mem_take ha'))
+  obtain ⟨uA', uC, kuC, zAI⟩ := bindOk zAH
+  obtain ⟨cuC, FA, hFA⟩ := checkAnnotList_bridge hk henv (rP + cnF) pinsP _ uB uC cuB.ok hpinsPd
+    (fun a ha => (hpinsPW a ha).mono (by omega)) kuC
+  have cuC' := cuB.trans cuC
+  -- the constructor's parameter domains at the pins
+  have hCC := denote_ext (denoteCV_type hcv) cuC'.ext
+  have xG_C : Ext tG.store uC.store := xG_N.trans (qO.ext.trans (cR.ext.trans (qS.ext.trans
+    (cT.ext.trans (qU.ext.trans (qV.ext.trans (qX.ext.trans (cY.ext.trans (qZ.ext.trans
+      (quB.ext.trans cuC.ext))))))))))
+  obtain ⟨ctyL2, uD, kuD, zAJ⟩ := bindOk zAI
+  obtain ⟨cuD, hctyL2⟩ := instLPFast_cstep cuC'.ok (denoteCV_lps (denoteCV_ext hcv cuC'.ext))
+    (denoteLs_ext hlvlsIdx (qG.ext.trans (qH.ext.trans (cM.ext.trans (qN.ext.trans
+      (qO.ext.trans (cR.ext.trans (qS.ext.trans (cT.ext.trans (qU.ext.trans (qV.ext.trans
+        (qX.ext.trans (cY.ext.trans (qZ.ext.trans (quB.ext.trans cuC.ext)))))))))))))))
+    hCC kuD
+  have cuD' := cuC'.trans cuD
+  have hpinsPdD := denoteEList_ext (cuC.ext.trans cuD.ext) _ _ hpinsPd
+  obtain ⟨o5, uE, kuE, zAK⟩ := bindOk zAJ
+  obtain ⟨h331, h332, h333, h334, h335, h336⟩ := AM.of_run (P := fun u => u = uD) rfl kuE
+    (ExprOps.instPisAtF_spec (instListSpec _) uD _ ctyL2 cuD'.ok.state
+      (by rw [hctyL2]; rfl) (by rw [hpinsPdD]; rfl))
+  have quE := PStep.of_caches h331 h332 h333 h334 h335
+  have hi33 := h336 _ _ hctyL2 hpinsPdD
+  simp only [ConLeche.instPisAtF_eq] at hi33
+  obtain ⟨pr5, uF, kuF, zAL⟩ := bindOk zAK
+  obtain ⟨rfl, hsuF⟩ := unwrapOr_ok kuF
+  subst uF
+  obtain ⟨cdomsP, crestP⟩ := pr5
+  obtain ⟨cdomsPV, crestPV, hcinstP, hcdomsP, hcrestP⟩ := denoteEP_some_inv hi33
+  obtain ⟨hcdomsPW, hcrestPW⟩ := ConLeche.instPisAt_WScoped (d := rP) _ _ hcinstP
+    (Expr.WScoped.of_not_hasFvar (by
+      rw [ConLeche.Expr.hasFvar_instantiateLevelParams]; exact hctor)) hpinsPW
+  have cuE := cuD'.trans (quE.toCore cuD'.ok)
+  obtain ⟨uP', uG, kuG, zAM⟩ := bindOk zAL
+  obtain ⟨cuG, FT, hFT⟩ := checkTypedList_bridge hk henv (rP + cnF) pinsP cdomsP _ _ uE uG
+    cuE.ok (denoteEList_ext quE.ext _ _ hpinsPdD) hcdomsP
+    (fun a ha => (hpinsPW a ha).mono (by omega))
+    (fun b hb => (hcdomsPW b hb).mono (by omega)) kuG
+  have cuG' := cuE.trans cuG
+  -- the fields, opened
+  obtain ⟨o6, uH, kuH, zAN⟩ := bindOk zAM
+  obtain ⟨quH, ho6⟩ := openPisAtFvarsF_run cuG'.ok.state
+    (denote_ext hcrestP cuG.ext) kuH
+  obtain ⟨pr6, uI, kuI, zAO⟩ := bindOk zAN
+  obtain ⟨rfl, hsuI⟩ := unwrapOr_ok kuI
+  subst uI
+  obtain ⟨xFvsP, crest2⟩ := pr6
+  obtain ⟨xFvsPV, crest2V, hopenX, hxFvsP, hcrest2⟩ := denoteOpen_some_inv ho6
+  obtain ⟨hxFvsPW, -⟩ := ConLeche.openPisAtFvars_WScoped cnF crestPV rP hopenX hcrestPW
+  obtain ⟨cargs2, uJ, kuJ, zAP⟩ := bindOk zAO
+  obtain ⟨hsuJ, hcargs2⟩ := getAppArgs_run quH.ok hcrest2 kuJ
+  subst uJ
+  obtain ⟨hlen2, zAQ⟩ := AM.dunless_ok hnever zAP
+  replace zAQ := AM.pure_bind_ok zAQ
+  have hlen2P : (crest2V.getAppArgs.length == cnP + (mI - rP)) = true := by
+    rw [ExprOps.denoteEList_length _ _ hcargs2]; exact hlen2
+  have cuH := cuG'.trans (quH.toCore cuG'.ok)
+  -- the rule's λ-domains
+  have hfvsPW' : ∀ a ∈ fvsPV ++ xFvsPV, Expr.WScoped (rP + cnF) a := by
+    intro a hax
+    rcases List.mem_append.mp hax with hax | hax
+    · exact Expr.WScoped.mono (by omega) (hfvsPW a hax)
+    · exact hxFvsPW a hax
+  have xZ_H : Ext tZ.store uH.store := quB.ext.trans (cuC.ext.trans (cuD.ext.trans
+    (quE.ext.trans (cuG.ext.trans quH.ext))))
+  have hspH : Frontend.denoteEList uH.store (fvsP ++ xFvsP) = some (fvsPV ++ xFvsPV) :=
+    Core.denoteEList_appendI (denoteEList_ext xZ_H _ _ hfvsP) hxFvsP
+  have hrhsH := denote_ext hrhs cuH.ext
+  obtain ⟨o7, uK, kuK, zAR⟩ := bindOk zAQ
+  obtain ⟨h391, h392, h393, h394, h395, h396⟩ := AM.of_run (P := fun u => u = uH) rfl kuK
+    (ExprOps.instLamsAtF_spec (instListSpec _) uH _ rhsA quH.ok
+      (by rw [hrhsH]; rfl) (by rw [hspH]; rfl))
+  have quK := PStep.of_caches h391 h392 h393 h394 h395
+  have hi39 := h396 _ _ hrhsH hspH
+  simp only [ConLeche.instLamsAtF_eq] at hi39
+  obtain ⟨pr7, uL, kuL, zAS⟩ := bindOk zAR
+  obtain ⟨rfl, hsuL⟩ := unwrapOr_ok kuL
+  subst uL
+  obtain ⟨ldoms, lrest⟩ := pr7
+  obtain ⟨ldomsV, lrestV, hlinst, hldoms, -⟩ := denoteEP_some_inv hi39
+  obtain ⟨hldomsW, -⟩ := ConLeche.instLamsAt_WScoped _ _ hlinst
+    (Expr.WScoped.of_not_hasFvar hrhsA) hfvsPW'
+  have cuK := cuH.trans (quK.toCore cuH.ok)
+  obtain ⟨ts5, uM, kuM, zAT⟩ := bindOk zAS
+  obtain ⟨quM, hts5⟩ := mapM_E_pstep (F := Expr.fvarTypeD)
+    (fun e eP s₀ s' r hok he hrun => by
+      obtain ⟨rfl, h2⟩ := fvarTypeD_run hok he hrun
+      exact ⟨PStep.refl hok, h2⟩)
+    _ _ uK uM ts5 cuK.ok.state (denoteEList_ext quK.ext _ _ hspH) kuM
+  have cuM := cuK.trans (quM.toCore cuK.ok)
+  obtain ⟨u5, uN, kuN, zAU⟩ := bindOk zAT
+  obtain ⟨cuN, F₅, hF₅⟩ := checkDefEqList_bridge hk henv (rP + cnF) ts5 ldoms
+    _ _ uM uN cuM.ok hts5 (denoteEList_ext quM.ext _ _ hldoms)
+    (fun a ha => by
+      obtain ⟨y, hy, rfl⟩ := List.mem_map.mp ha
+      exact ConLeche.fvarTypeD_WScoped (hfvsPW' y hy))
+    (fun b hb => hldomsW b hb) kuN
+  have cuN' := cuM.trans cuN
+  -- the right side, definitionally the applied rule
+  have x0_N := cuN'.ext
+  obtain ⟨rhsR, uO, kuO, zAV⟩ := bindOk zAU
+  obtain ⟨quO, -, hrhsR⟩ := renameConstsFast_pstep cuN'.ok.state
+    (hren uN.store x0_N cuN'.ok.state.wf) (denote_ext hrhs x0_N) kuO
+  obtain ⟨rhsApp, uP, kuP, zAW⟩ := bindOk zAV
+  have xU_N : Ext tU.store uN.store := qV.ext.trans (qX.ext.trans (cY.ext.trans (qZ.ext.trans
+    (xZ_H.trans (quK.ext.trans (quM.ext.trans cuN.ext))))))
+  have hfvsO := denoteEList_ext (x5_U.trans (xU_N.trans quO.ext)) _ _ hfvs
+  obtain ⟨quP, hrhsApp⟩ := mkAppN_run _ _ quO.ok hrhsR hfvsO kuP
+  have cuP := cuN'.trans ((quO.trans quP).toCore cuN'.ok)
+  have x10_P : Ext s₁₀.store uP.store := qA.ext.trans (xA_O.trans (cR.ext.trans (qS.ext.trans
+    (cT.ext.trans (qU.ext.trans (xU_N.trans (quO.ext.trans quP.ext)))))))
+  have hrhsSP := denote_ext hrhsS x10_P
+  have happW : Expr.WScoped (rP + cnF) (Expr.mkAppN (rhsAP.renameConsts fP) fvsV) :=
+    Expr.WScoped.mkAppN (Expr.WScoped.of_not_hasFvar (by
+      rw [ConLeche.hasFvar_renameConsts]; exact hrhsA)) (fun y hy => hfvsW y hy)
+  obtain ⟨bd, uQ, kuQ, zAX⟩ := bindOk zAW
+  obtain ⟨okQ, xQ, pQ, F₆, hF₆⟩ := AM.of_run (P := fun u => u = uP)
+    (Q := fun r u => CheckOK μ envSelf feSelf u ∧ Ext uP.store u.store ∧
+      u.pins = uP.pins ∧
+      Core.SimV (ConLeche.isDefEqCore μ envSelf) (rP + cnF)
+        (tbodyP.getAppArgs.getD 2 (.bvar 0)) (Expr.mkAppN (rhsAP.renameConsts fP) fvsV) r)
+    rfl kuQ (hknot.defeq uP (rP + cnF) _ _ _ _ cuP.ok hrhsSP hrhsApp hrhsSW happW)
+  have cuQ := cuP.trans ⟨okQ, xQ, pQ⟩
+  obtain ⟨hbd, zAY⟩ := AM.dunless_ok hnever zAX
+  replace zAY := AM.pure_bind_ok zAY
+  subst hbd
+  -- the two sides' types
+  have x5_Q : Ext s₅.store uQ.store := q10.ext.trans (x10_P.trans xQ)
+  have x10_Q := x10_P.trans xQ
+  have htgQ := denoteEList_ext x10_Q _ _ htg
+  obtain ⟨uS, uT, kuT, zBA⟩ := bindOk zAY
+  obtain ⟨cuT, F₇, hF₇⟩ := checkIotaSidesTy_spec feSelf envSelf hk henv (rP + cnF)
+    (targs.getD 0 b0) (targs.getD 1 b0) (targs.getD 2 b0)
+    (tbodyP.getAppArgs.getD 0 (.bvar 0)) (tbodyP.getAppArgs.getD 1 (.bvar 0))
+    (tbodyP.getAppArgs.getD 2 (.bvar 0)) lA (ConLeche.eqHeadLevel tbodyP.getAppFn) cvName
+    cvNameP ⟨ConLeche.WScoped_getD' htargsW 0, hlhsW, hrhsSW⟩ uQ uT uS cuQ.ok
+    ⟨denoteEList_getD_fb (denote_ext hb0 x10_Q) htgQ 0,
+      denoteEList_getD_fb (denote_ext hb0 x10_Q) htgQ 1,
+      denoteEList_getD_fb (denote_ext hb0 x10_Q) htgQ 2, denoteL_ext hlA x5_Q,
+      denoteN_ext hcn cuQ.ext, denoteFEnv_ext cuQ.ext hfeS, denoteFEnv_ext cuQ.ext hfeS⟩ kuT
+  obtain ⟨hxe, hsT⟩ := pureOk zBA
+  subst hxe
+  subst s'
+  have x0'_T : Ext s₀'.store uT.store := x0'_Z.trans (xZ_H.trans (quK.ext.trans (quM.ext.trans
+    (cuN.ext.trans (quO.ext.trans (quP.ext.trans (xQ.trans cuT.ext)))))))
+  refine ⟨cuQ.trans cuT, max (max (max F₁ F₂) (max F₃ FA)) (max (max FT F₅) (max F₆ F₇)),
+    .nested lvlsP pinsV, ?_, by
+      have hl : denoteLList uT.store.ls lvls = some lvlsP :=
+        denoteLList_ext x0'_T.lss.ls _ _ hlvls0
+      simp only [Frontend.denoteFire, hl, denoteEList_ext x0'_T _ _ hpins0]⟩
+  have g1 := checkDefEqList_mono (F' := (max (max (max F₁ F₂) (max F₃ FA)) (max (max FT F₅) (max F₆ F₇)))) (by omega) hF₁
+  have g2 := checkDefEqList_mono (F' := (max (max (max F₁ F₂) (max F₃ FA)) (max (max FT F₅) (max F₆ F₇)))) (by omega) hF₂
+  have g3 := checkDefEqList_mono (F' := (max (max (max F₁ F₂) (max F₃ FA)) (max (max FT F₅) (max F₆ F₇)))) (by omega) hF₃
+  have gA := checkAnnotList_mono (F' := (max (max (max F₁ F₂) (max F₃ FA)) (max (max FT F₅) (max F₆ F₇)))) (by omega) hFA
+  have gT := checkTypedList_mono (F' := (max (max (max F₁ F₂) (max F₃ FA)) (max (max FT F₅) (max F₆ F₇)))) (by omega) hFT
+  have g5 := checkDefEqList_mono (F' := (max (max (max F₁ F₂) (max F₃ FA)) (max (max FT F₅) (max F₆ F₇)))) (by omega) hF₅
+  have g6 : (ConLeche.fueledOps μ (max (max (max F₁ F₂) (max F₃ FA)) (max (max FT F₅) (max F₆ F₇)))).isDefEq
+      envSelf (rP + cnF) (tbodyP.getAppArgs.getD 2 (.bvar 0))
+      (Expr.mkAppN (rhsAP.renameConsts fP) fvsV) = .ok true :=
+    ConLeche.isDefEqCore_mono (by omega) hF₆
+  have g7 : ConLeche.checkIotaSidesTy μ (ConLeche.fueledOps μ (max (max (max F₁ F₂) (max F₃ FA)) (max (max FT F₅) (max F₆ F₇)))) envSelf
+      (rP + cnF) (tbodyP.getAppArgs.getD 0 (.bvar 0)) (tbodyP.getAppArgs.getD 1 (.bvar 0))
+      (tbodyP.getAppArgs.getD 2 (.bvar 0)) (ConLeche.eqHeadLevel tbodyP.getAppFn) cvNameP
+      = .ok () := by
+    rw [← ConLeche.checkIotaSidesTy_datF] at hF₇ ⊢
+    exact (ConLeche.checkIotaSidesTy μ (ConLeche.fueledOpsM μ) envSelf (rP + cnF) _ _ _ _
+      cvNameP).property (by omega) hF₇
+  simp only [ConLeche.checkIotaThmN, hnsP, ConLeche.unwrapOr, hcvtP, bind, Except.bind, pure,
+    Except.pure]
+  rw [if_pos hlpP]
+  simp only [hopen]
+  rw [if_pos heqh, if_pos h3P, if_pos h4, if_pos h5P, if_pos h6, if_pos h7]
+  simp only [hsp8P, hfn0]
+  try rw [if_pos rfl]
+  simp only [hcinst]
+  rw [if_pos h9P]
+  simp only [g1, g2, hrinst, g3, hopenP, gA, hcinstP, gT, hopenX]
+  rw [if_pos hlen2P]
+  simp only [hlinst, g5, g6]
+  rw [if_pos trivial]
+  simp only [g7]
+  rw [if_pos trivial]
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:319-360 checkIotaRule
 One rule certified and its firing mode written in.
@@ -1350,10 +2578,11 @@ One rule certified and its firing mode written in.
 constructor's lookup. -/
 theorem checkIotaRule_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
+    (henv' : EnvWF env')
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cvName : NIdx) (cvNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
-    (r : IRecRule) (rP' : RecRule) :
+    (r : IRecRule) (rP' : RecRule) (htyA : tyAP.hasFvar = false) :
     CSpec μ envSelf feSelf
       (fun st => RenameRelW st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
@@ -1386,15 +2615,12 @@ theorem checkIotaRule_spec {μ : CheckMode} (fe' feSelf : IFEnv)
   rw [hc1, hc2, hc3] at hr
   obtain rfl := (Option.some.inj hr).symm
   simp only [Arena.checkIotaRule] at hrun
-  -- the rule's name, for the messages
-  obtain ⟨nm, s₁, k1, z1⟩ := bindOk hrun
-  obtain ⟨hs1, -⟩ := Frontend.readName_run k1
-  rw [hs1] at z1
+  have z1 := hrun
   -- the stored constructor, at `fe'`
   cases hf : fe'.find? r.ctor with
   | none =>
     rw [hf] at z1
-    exact absurd z1 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+    exact absurd z1 (AM.Never.fail _ _ _ _)
   | some ci =>
   rw [hf] at z1
   obtain ⟨nm', cP, hnm', hcP, henvC⟩ := hienv₀.hit r.ctor ci hf
@@ -1433,6 +2659,9 @@ theorem checkIotaRule_spec {μ : CheckMode} (fe' feSelf : IFEnv)
         u.pins = s₃.pins ∧ Core.SimE (ConLeche.annotateCore μ envSelf) 0 rhsP u.store r)
       rfl k4 (hknot.annotate s₃ 0 r.rhs rhsP c3.ok hc3'' hwsR)
     have c4 := c3.trans ⟨ok4, x4, p4⟩
+    have hrhsAF : rhsAP.hasFvar = false :=
+      ConLeche.Expr.not_hasFvar_of_fvarsBelow_zero hwsA.fvarsBelow
+    have hctorF : cvjP.type.hasFvar = false := (henv' _ (ConLeche.find?_mem henvC)).1
     -- its level parameters and constants
     obtain ⟨b3, s₅, k5, z7⟩ := bindOk z6
     obtain ⟨h51, h52, h53, hb3⟩ := allLevelParamsDefined_run c4.ok.state
@@ -1554,8 +2783,8 @@ theorem checkIotaRule_spec {μ : CheckMode} (fe' feSelf : IFEnv)
       simp only [Bool.false_eq_true, if_false] at z14
       obtain ⟨fire, s₁₀, k10, z15⟩ := bindOk z14
       obtain ⟨c10, F₃, fireP', hF₃, hfire⟩ := checkIotaThmN_spec fe' feSelf env' envSelf hk
-        henv tbl fP cvName cvNameP lps lpsP tyA tyAP mI rP j r _ cvj cvjP cnP cnF rhsA rhsAP
-        s₉ s₁₀ fire c9.ok hpre9 k10
+        henv henv' tbl fP cvName cvNameP lps lpsP tyA tyAP mI rP j r _ cvj cvjP cnP cnF rhsA
+        rhsAP htyA hctorF hrhsAF s₉ s₁₀ fire c9.ok hpre9 k10
       obtain ⟨cfin, hrfin⟩ := tail fire fireP' s₁₀ c10 hfire z15
       refine ⟨cfin, max (max F₁ F₂) F₃, _, pure_pre _ (by omega) (by omega) fireP' ?_, hrfin⟩
       have hpl : ¬ Expr.recRulePlain tyAP mI rP cnP = true := by rw [← hb5, hb]; simp
@@ -1567,9 +2796,9 @@ theorem checkIotaRule_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     · rw [hb] at z14
       simp only [if_true] at z14
       obtain ⟨u, s₁₀, k10, z15⟩ := bindOk z14
-      obtain ⟨c10, F₃, hF₃⟩ := checkIotaThm_spec fe' feSelf env' envSelf hk henv tbl fP
-        cvName cvNameP lps lpsP tyA tyAP mI rP j r _ cvj cvjP cnP cnF rhsA rhsAP
-        s₉ s₁₀ u c9.ok hpre9 k10
+      obtain ⟨c10, F₃, hF₃⟩ := checkIotaThm_spec fe' feSelf env' envSelf hk henv henv' tbl fP
+        cvName cvNameP lps lpsP tyA tyAP mI rP j r _ cvj cvjP cnP cnF rhsA rhsAP htyA hctorF
+        hrhsAF s₉ s₁₀ u c9.ok hpre9 k10
       replace z15 := AM.pure_bind_ok z15
       obtain ⟨cfin, hrfin⟩ := tail .plain .plain s₁₀ c10 rfl z15
       refine ⟨cfin, max (max F₁ F₂) F₃, _, pure_pre _ (by omega) (by omega) .plain ?_, hrfin⟩
@@ -1584,7 +2813,7 @@ theorem checkIotaRule_spec {μ : CheckMode} (fe' feSelf : IFEnv)
           tyAP mI rP j ⟨ctorP, r.nfields, r.ctorParams, fireP, rhsP, r.k, r.eta,
             r.paramsBlind⟩ cvjP cnP cnF rhsAP).property (by omega) hF₃
       simp only [bind, Except.bind, hu', pure, Except.pure]
-  all_goals exact absurd z1 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+  all_goals exact absurd z1 (AM.Never.fail _ _ _ _)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:362-371 checkIotaRules
 The whole rule list.
@@ -1592,10 +2821,11 @@ The whole rule list.
 **CLOSED** (task #97-P3-Ind round 8), over a list induction over `checkIotaRule_spec`. -/
 theorem checkIotaRules_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
+    (henv' : EnvWF env')
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cvName : NIdx) (cvNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
-    (rs : List IRecRule) (rsP : List RecRule) :
+    (rs : List IRecRule) (rsP : List RecRule) (htyA : tyAP.hasFvar = false) :
     CSpec μ envSelf feSelf
       (fun st => RenameRelW st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
@@ -1629,8 +2859,8 @@ theorem checkIotaRules_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     obtain rfl := (Option.some.inj hrs).symm
     simp only [Arena.checkIotaRules] at hrun
     obtain ⟨r1, s₁, k1, z1⟩ := bindOk hrun
-    obtain ⟨c1, F₁, rl', hF₁, hrl'⟩ := checkIotaRule_spec fe' feSelf env' envSelf hk henv tbl fP
-      cvName cvNameP lps lpsP tyA tyAP mI rP j rl rlP s₀ s₁ r1 hck
+    obtain ⟨c1, F₁, rl', hF₁, hrl'⟩ := checkIotaRule_spec fe' feSelf env' envSelf hk henv henv'
+      tbl fP cvName cvNameP lps lpsP tyA tyAP mI rP j rl rlP htyA s₀ s₁ r1 hck
       ⟨hren, hcn, hlps, hty, hr1, hfe', hfeS, hok'⟩ k1
     have x1 := c1.ext
     obtain ⟨r2, s₂, k2, z2⟩ := bindOk z1
@@ -1712,7 +2942,7 @@ theorem checkMemberVal_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
   cases hf : fe'.find? mn with
   | none =>
     rw [hf] at z4
-    exact absurd z4 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+    exact absurd z4 (AM.Never.fail _ _ _ _)
   | some ci =>
   rw [hf] at z4
   obtain ⟨nm', cm, hnm', hcm, henvm⟩ := hienv.hit mn ci hf
@@ -1746,7 +2976,7 @@ theorem checkMemberVal_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
       simpa using hms
     simp only [ConLeche.checkMemberVal, bind, Except.bind, hF, hms', Bool.false_eq_true,
       if_false, henvm, hlpsP, if_true, hty, pure, Except.pure]
-  all_goals exact absurd z4 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+  all_goals exact absurd z4 (AM.Never.fail _ _ _ _)
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeCS4.lean:164 checkIndMemberS_run
 (its `EnvWF` half, pure) — **one member step leaves a well-formed environment
@@ -1867,11 +3097,11 @@ theorem checkIndMember_push {μ : CheckMode} {bn : List NIdx} {caps : IIndCaps}
   | ctorInfo v a b =>
     obtain ⟨rfl, rfl⟩ := pureOk h
     exact ⟨_, rfl, fun t h => IConstantInfo.noConfusion h⟩
-  | axiomInfo v => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-  | defnInfo v e hint => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-  | thmInfo v e => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-  | recInfo v a b c => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-  | projInfo t => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+  | axiomInfo v => exact absurd h (AM.Never.fail _ _ _ _)
+  | defnInfo v e hint => exact absurd h (AM.Never.fail _ _ _ _)
+  | thmInfo v e => exact absurd h (AM.Never.fail _ _ _ _)
+  | recInfo v a b c => exact absurd h (AM.Never.fail _ _ _ _)
+  | projInfo t => exact absurd h (AM.Never.fail _ _ _ _)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:403-414 checkIndMember
 One member checked and installed at its real inductive kind.
@@ -1905,11 +3135,11 @@ theorem checkIndMember_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
     cases ci with
     | indInfo v c => exact Or.inl ⟨v, c, rfl⟩
     | ctorInfo v a b => exact Or.inr ⟨v, a, b, rfl⟩
-    | axiomInfo v => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-    | defnInfo v e hint => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-    | thmInfo v e => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-    | recInfo v a b c => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-    | projInfo t => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+    | axiomInfo v => exact absurd h (AM.Never.fail _ _ _ _)
+    | defnInfo v e hint => exact absurd h (AM.Never.fail _ _ _ _)
+    | thmInfo v e => exact absurd h (AM.Never.fail _ _ _ _)
+    | recInfo v a b c => exact absurd h (AM.Never.fail _ _ _ _)
+    | projInfo t => exact absurd h (AM.Never.fail _ _ _ _)
   rcases hkind with ⟨v, c, rfl⟩ | ⟨v, a, b, rfl⟩
   · obtain ⟨vP, cP, rfl, hv, hc⟩ := denoteCI_ind_inv hci
     obtain ⟨rfl, rfl⟩ := pureOk k2
@@ -2207,10 +3437,11 @@ each provisioned recursor's rules certified and the record installed.
 **CLOSED** (task #97-P3-Ind round 8), over `checkIotaRules_spec` and `IFEnv.push`, over a list induction. -/
 theorem installIndRecs_spec {μ : CheckMode} (fe₂ feSelf acc : IFEnv)
     (env₂ envSelf envAcc : Env) (hk : CoreSpec μ Arena.checkFuel)
-    (henvSelf : EnvWF envSelf) (hcoh : IFEnvCoh acc)
+    (henvSelf : EnvWF envSelf) (henv₂ : EnvWF env₂) (hcoh : IFEnvCoh acc)
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cs : List (IConstantVal × Nat × Nat × List IRecRule))
-    (csP : List (ConstantVal × Nat × Nat × List RecRule)) :
+    (csP : List (ConstantVal × Nat × Nat × List RecRule))
+    (htys : ∀ c ∈ csP, c.1.type.hasFvar = false) :
     CSpec μ envSelf feSelf
       (fun st => RenameRelW st tbl fP ∧ denoteFEnv st fe₂ = some env₂ ∧
         denoteFEnv st feSelf = some envSelf ∧
@@ -2251,8 +3482,8 @@ theorem installIndRecs_spec {μ : CheckMode} (fe₂ feSelf acc : IFEnv)
     simp only [Arena.installIndRecs] at hrun
     obtain ⟨rules', s₁, k1, z1⟩ := bindOk hrun
     obtain ⟨c1, F₁, rlsP, hF₁, hrls⟩ := checkIotaRules_spec fe₂ feSelf env₂ envSelf hk henvSelf
-      tbl fP cv.name cvP.name cv.levelParams cvP.levelParams cv.type cvP.type mI rP 0 rs rsP
-      s₀ s₁ rules' hck ⟨hren, denoteCV_name hcv, denoteCV_lps hcv, denoteCV_type hcv, hrs,
+      henv₂ tbl fP cv.name cvP.name cv.levelParams cvP.levelParams cv.type cvP.type mI rP 0 rs
+      rsP (htys _ List.mem_cons_self) s₀ s₁ rules' hck ⟨hren, denoteCV_name hcv, denoteCV_lps hcv, denoteCV_type hcv, hrs,
         hfe₂, hfeS, hok₂⟩ k1
     have x1 := c1.ext
     have hci : Frontend.denoteCI s₁.store (.recInfo cv mI rP rules') =
@@ -2268,7 +3499,8 @@ theorem installIndRecs_spec {μ : CheckMode} (fe₂ feSelf acc : IFEnv)
       have := h0.push hst hcoh (fun t' h => IConstantInfo.noConfusion h) (by rw [ht]; exact hci)
       exact this
     obtain ⟨c2, hinst₂⟩ := ih (acc.push (.recInfo cv mI rP rules'))
-      ⟨.recInfo cvP mI rP rlsP :: envAcc.consts⟩ (hcoh.push _) restP s₁ s' r c1.ok
+      ⟨.recInfo cvP mI rP rlsP :: envAcc.consts⟩ (hcoh.push _) restP
+      (fun c hc => htys c (List.mem_cons_of_mem _ hc)) s₁ s' r c1.ok
       ⟨hren.mono x1, denoteFEnv_ext x1 hfe₂, denoteFEnv_ext x1 hfeS, hpush, hok₂.mono x1,
         denoteRecs_ext x1 hrest, hokA₁⟩ z1
     refine ⟨c1.trans c2, ?_⟩
@@ -2311,6 +3543,39 @@ theorem provisionRecs_envWF {μ : CheckMode} {F : Nat} {bn : List ConLeche.Name}
           simp only [pure, Except.pure, Except.ok.injEq] at h
           subst h
           exact provisionRecs_envWF (v := w) (provRec_envWF (mI := mI) (rP := rP) henv hcm).1 hw
+    all_goals simp [ConLeche.provisionRecs, throw, throwThe, MonadExceptOf.throw] at h
+
+/-- con-leche: ConLeche/Verify/Extend/Recs.lean:237 ProvFacts.mem_facts (its
+`hasFvar` clause) — **every provisioned recursor's type is closed**, off
+`checkConstantVal`'s own guard.  con-leche reads it through `ProvFacts`, which
+needs the block-name membership this tier's statements do not carry; the
+guard alone is enough (task #97-P3-Ind round 9: what the iota certificates'
+scope needs of `tyA`). -/
+theorem provisionRecs_tys {μ : CheckMode} {F : Nat} {bn : List ConLeche.Name} :
+    ∀ {cis : List ConstantInfo} {env : Env}
+      {v : Env × List (ConstantVal × Nat × Nat × List RecRule)},
+      ConLeche.provisionRecs (ConLeche.fueledOps μ F) bn env cis = .ok v →
+      ∀ c ∈ v.2, c.1.type.hasFvar = false
+  | [], env, v, h => by
+    simp only [ConLeche.provisionRecs, pure, Except.pure, Except.ok.injEq] at h
+    subst h; intro c hc; exact nomatch hc
+  | ci :: rest, env, v, h => by
+    cases ci
+    case recInfo cv mI rP rules =>
+      simp only [ConLeche.provisionRecs, bind, Except.bind] at h
+      split at h
+      · exact nomatch h
+      · rename_i cvA hcm
+        split at h
+        · exact nomatch h
+        · rename_i w hw
+          simp only [pure, Except.pure, Except.ok.injEq] at h
+          subst h
+          intro c hc
+          rcases List.mem_cons.mp hc with rfl | hc
+          · obtain ⟨hccv, -⟩ := ConLeche.checkMemberVal_inv hcm
+            exact (checkConstantVal_typeWF hccv).fvar
+          · exact provisionRecs_tys hw c hc
     all_goals simp [ConLeche.provisionRecs, throw, throwThe, MonadExceptOf.throw] at h
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
@@ -2394,8 +3659,9 @@ theorem checkIndRecs_spec {μ : CheckMode} {env : Env} (fe₂ : IFEnv)
   have x04 : Ext s₀.store s₄.store := p1.ext.trans x14
   have hfe₄ := denoteFEnv_ext x04 hfe
   have hok₂ : IFEnvOKS env fe₂ s₄.store := (hread.ienv.toS).mono x04
-  obtain ⟨c5, hinst⟩ := installIndRecs_spec fe₂ feSelf fe₂ env envSelf env hk henvS hcoh tbl
-    (fun n => if blockNamesP.contains n then n.str "_model" else n) checked checkedP s₄ s' r
+  obtain ⟨c5, hinst⟩ := installIndRecs_spec fe₂ feSelf fe₂ env envSelf env hk henvS henv hcoh
+    tbl (fun n => if blockNamesP.contains n then n.str "_model" else n) checked checkedP
+    (provisionRecs_tys (v := (envSelf, checkedP)) hF₁) s₄ s' r
     hck₄ ⟨fun st' hx hwf => htbl st' (x14.trans hx) hwf, hfe₄,
       by obtain ⟨e, he, rfl⟩ := hinstS.denote; rw [hst₄]; exact he,
       hfe₄, hok₂, by rw [hst₄]; exact hchecked, hok₂⟩ z5
@@ -2598,10 +3864,18 @@ theorem checkProjTy_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:513-563 checkProjIota
 The projection function's iota certificate.
 
-`sorry`: `projBack_spec`/`projFwd_spec`, `domsMatchRenamed_spec`,
-`eqApp3?_spec` and `CoreSpec.knot`'s `defeq` slot. -/
+**CLOSED** (task #97-P3-Ind round 9): `projModelName_run`, `IFEnvOK`'s `hit`
+at the iota theorem, `stripPis_pstep` twice, `projFwd_specW` +
+`domsMatchRenamed_spec` for the domains, `structPsAt_spec`/`bvarsDesc_spec`/
+`paramLevels_spec`/`mkAppN_run` for the redex, `eqApp3?_spec` + `pinAt_run`
+for the body, and `checkIotaSidesTy_spec` for the two sides.
+
+**One missing precondition repaired** (round 9): `EnvWF env'`.  The sides'
+scope is read off the stored theorem's type, closed because `env'` is well
+formed — con-leche's `checkProjIota_wfimp` takes the same `henv'`. -/
 theorem checkProjIota_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
+    (henv' : EnvWF env')
     (T ctorName : NIdx) (TP ctorNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (cvj : IConstantVal) (cvjP : ConstantVal)
     (nP nF i : Nat) :
@@ -2615,13 +3889,207 @@ theorem checkProjIota_spec {μ : CheckMode} (fe' feSelf : IFEnv)
       (Arena.checkProjIota μ fe' feSelf T ctorName lps cvj nP nF i)
       (fun _ _ => ∃ F, ConLeche.checkProjIota μ (ConLeche.fueledOps μ F) env'
         envSelf TP ctorNameP lpsP cvjP nP nF i = .ok ()) := by
-  sorry
+  intro s₀ s' r hck hpre hrun
+  obtain ⟨hT, hC, hlps, hcv, hfe', hfeS, hok'⟩ := hpre
+  have hnever : ∀ {α β : Type} {e : Arena.CheckError} {g : α → AM β},
+      AM.Never ((Arena.fail e : AM α) >>= g) := fun {_ _ _ _} => AM.Never.fail_any
+  simp only [Arena.checkProjIota] at hrun
+  -- the theorem's name
+  obtain ⟨pmn, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, hpmn⟩ := projModelName_run hck.state hT k1
+  obtain ⟨itn, s₂, k2, z2⟩ := bindOk z1
+  obtain ⟨p2, hitn⟩ := internStrN_run p1.ok hpmn k2
+  have c2 := (p1.trans p2).toCore hck
+  -- the stored theorem, at `fe'`
+  have hi2 : IFEnvOK env' fe' s₂ := hok'.mono c2.ext s₂ rfl
+  cases hf : fe'.find? itn with
+  | none => rw [hf] at z2; exact absurd z2 (AM.Never.fail _ _ _ _)
+  | some ci =>
+  rw [hf] at z2
+  obtain ⟨nm, cP, hnm, hcP, henvC⟩ := hi2.hit itn ci hf
+  obtain rfl := Option.some.inj (hnm.symm.trans hitn)
+  cases ci
+  all_goals try (exact absurd z2 (AM.Never.fail _ _ _ _))
+  rename_i tcv tval
+  obtain ⟨tcvP, tvalP, rfl, htcv, -⟩ := denoteCI_thm_inv hcP
+  dsimp only at z2
+  obtain ⟨hlp, z3⟩ := AM.dunless_ok hnever z2
+  replace z3 := AM.pure_bind_ok z3
+  have hlpP : tcvP.levelParams = lpsP := by
+    have e1 := denoteCV_lps htcv
+    rw [hlp] at e1
+    exact Option.some.inj ((denoteNListE_ext c2.ext _ _ hlps).symm.trans e1) |>.symm
+  -- the two telescopes
+  have hty2 := denoteCV_type htcv
+  obtain ⟨o1, s₃, k3, z4⟩ := bindOk z3
+  obtain ⟨hs3, ho1⟩ := stripPis_pstep c2.ok.state hty2 k3
+  subst s₃
+  rcases o1 with _ | ⟨sbinders, sbody⟩
+  · exact absurd z4 (AM.Never.fail _ _ _ _)
+  obtain ⟨sbP, sbodyP, hsP, hsb, hsbody⟩ := denoteBP_someB' ho1
+  have hC2 := denote_ext (denoteCV_type hcv) c2.ext
+  obtain ⟨o2, s₄, k4, z5⟩ := bindOk z4
+  obtain ⟨hs4, ho2⟩ := stripPis_pstep c2.ok.state hC2 k4
+  subst s₄
+  rcases o2 with _ | ⟨cbindersR, cbody⟩
+  · exact absurd z5 (AM.Never.fail _ _ _ _)
+  obtain ⟨cbP, cbodyP, hcP', hcb, -⟩ := denoteBP_someB' ho2
+  -- the domains, renamed
+  obtain ⟨fwd, s₅, k5, z6⟩ := bindOk z5
+  obtain ⟨p5, hfwd⟩ := projFwd_specW T ctorName TP ctorNameP nF s₂ s₅ fwd c2.ok.state
+    ⟨denoteN_ext hT c2.ext, denoteN_ext hC c2.ext⟩ k5
+  obtain ⟨dm, s₆, k6, z7⟩ := bindOk z6
+  obtain ⟨p6, hdm⟩ := domsMatchRenamed_spec fwd (ConLeche.projFwd TP ctorNameP nF) sbinders
+    cbindersR sbP cbP 0 0 (nP + nF) s₅ s₆ dm p5.ok
+    ⟨hfwd s₅.store (Ext.refl _) p5.ok.wf, denoteBinders_ext p5.ext _ _ hsb,
+      denoteBinders_ext p5.ext _ _ hcb⟩ k6
+  obtain ⟨hdmT, z8⟩ := AM.dunless_ok hnever z7
+  replace z8 := AM.pure_bind_ok z8
+  have hdmP : ConLeche.domsMatchAux (fun _ e => e.renameConsts (ConLeche.projFwd TP ctorNameP nF))
+      sbP cbP 0 0 (nP + nF) = true := by rw [← hdm]; exact hdmT
+  have c6 := c2.trans ((p5.trans p6).toCore c2.ok)
+  have x26 : Ext s₂.store s₆.store := p5.ext.trans p6.ext
+  -- the redex, built
+  obtain ⟨pArgs, s₇, k7, z9⟩ := bindOk z8
+  obtain ⟨q7, hpA⟩ := structPsAt_spec nF nP s₆ s₇ pArgs c6.ok.state trivial k7
+  obtain ⟨xArgs, s₈, k8, z10⟩ := bindOk z9
+  obtain ⟨q8, hxA⟩ := bvarsDesc_spec nF s₇ s₈ xArgs q7.ok trivial k8
+  obtain ⟨cmn, s₉, k9, z11⟩ := bindOk z10
+  have x08 : Ext s₀.store s₈.store := c6.ext.trans (q7.ext.trans q8.ext)
+  obtain ⟨q9, hcmn⟩ := internStrN_run q8.ok (denoteN_ext hC x08) k9
+  obtain ⟨cus, s₁₀, k10, z12⟩ := bindOk z11
+  obtain ⟨q10, hcus⟩ := paramLevels_spec cvj.levelParams cvjP.levelParams s₉ s₁₀ cus q9.ok
+    (denoteCV_lps (denoteCV_ext hcv (x08.trans q9.ext))) k10
+  obtain ⟨cHd, s₁₁, k11, z13⟩ := bindOk z12
+  obtain ⟨q11, hcHd⟩ := internConstE_run q10.ok (denoteN_ext hcmn q10.ext) hcus k11
+  obtain ⟨mkSpine, s₁₂, k12, z14⟩ := bindOk z13
+  have x8_11 : Ext s₈.store s₁₁.store := q9.ext.trans (q10.ext.trans q11.ext)
+  obtain ⟨q12, hspine⟩ := mkAppN_run _ _ q11.ok hcHd
+    (Core.denoteEList_appendI (denoteEList_ext (q8.ext.trans x8_11) _ _ hpA)
+      (denoteEList_ext x8_11 _ _ hxA)) k12
+  obtain ⟨pus, s₁₃, k13, z15⟩ := bindOk z14
+  have x0_12 : Ext s₀.store s₁₂.store := x08.trans (x8_11.trans q12.ext)
+  obtain ⟨q13, hpus⟩ := paramLevels_spec lps lpsP s₁₂ s₁₃ pus q12.ok
+    (denoteNListE_ext x0_12 _ _ hlps) k13
+  obtain ⟨pHd, s₁₄, k14, z16⟩ := bindOk z15
+  have x1_13 : Ext s₁.store s₁₃.store := p2.ext.trans (x26.trans (q7.ext.trans (q8.ext.trans
+    (x8_11.trans (q12.ext.trans q13.ext)))))
+  obtain ⟨q14, hpHd⟩ := internConstE_run q13.ok (denoteN_ext hpmn x1_13) hpus k14
+  obtain ⟨lhsS, s₁₅, k15, z17⟩ := bindOk z16
+  have x7_14 : Ext s₇.store s₁₄.store := q8.ext.trans (x8_11.trans (q12.ext.trans
+    (q13.ext.trans q14.ext)))
+  obtain ⟨q15, hlhsS⟩ := mkAppN_run _ _ q14.ok hpHd
+    (Core.denoteEList_appendI (denoteEList_ext x7_14 _ _ hpA)
+      (show Frontend.denoteEList s₁₄.store [mkSpine] = some [_] by
+        simp only [Frontend.denoteEList, denote_ext hspine (q13.ext.trans q14.ext)]; rfl)) k15
+  have c15 := c6.trans ((q7.trans (q8.trans (q9.trans (q10.trans (q11.trans (q12.trans
+    (q13.trans (q14.trans q15)))))))).toCore c6.ok)
+  have x2_15 : Ext s₂.store s₁₅.store := x26.trans (q7.ext.trans (x7_14.trans q15.ext))
+  -- the statement's body
+  obtain ⟨oe, s₁₆, k16, z18⟩ := bindOk z17
+  obtain ⟨q16, hoe⟩ := eqApp3?_spec sbody sbodyP s₁₅ s₁₆ oe q15.ok (denote_ext hsbody x2_15) k16
+  rcases oe with _ | ⟨c, l, ty, lhsC, rhsC⟩
+  · dsimp only at z18
+    exact absurd z18 (hnever _ _ _)
+  obtain ⟨cP, uP, tyP, lP, rrP, hcPd, huP, htyP, hlP, hrrP, hsbEq⟩ := hoe _ _ _ _ _ rfl
+  have c16 := c15.trans (q16.toCore c15.ok)
+  dsimp only at z18
+  -- its head is the pinned `Eq`
+  obtain ⟨en, s₁₇, k17, z19⟩ := bindOk z18
+  simp only [Arena.pinEq] at k17
+  obtain ⟨hs17, hen⟩ := pinAt_run (x := ConLeche.eqName) c16.ok.pins rfl k17
+  subst s₁₇
+  obtain ⟨hc, z20⟩ := AM.dunless_ok hnever z19
+  replace z20 := AM.pure_bind_ok z20
+  have hcEq : cP = ConLeche.eqName := by
+    subst hc; exact Option.some.inj (hcPd.symm.trans hen)
+  -- the redex side
+  obtain ⟨hlhs, z21⟩ := AM.dunless_ok hnever z20
+  replace z21 := AM.pure_bind_ok z21
+  rw [beq_ehandle_eq c16.ok.state.wf hlP (denote_ext hlhsS q16.ext)] at hlhs
+  -- the field side
+  obtain ⟨fld, s₁₈, k18, z22⟩ := bindOk z21
+  obtain ⟨q18, hfld⟩ := internBVarE_run c16.ok.state k18
+  obtain ⟨hrhs, z23⟩ := AM.dunless_ok hnever z22
+  replace z23 := AM.pure_bind_ok z23
+  rw [beq_ehandle_eq q18.ok.wf (denote_ext hrrP q18.ext) hfld] at hrhs
+  have c18 := c16.trans (q18.toCore c16.ok)
+  have x2_18 : Ext s₂.store s₁₈.store := x2_15.trans (q16.ext.trans q18.ext)
+  -- the opened telescope, for the sides
+  obtain ⟨oo, s₁₉, k19, z24⟩ := bindOk z23
+  obtain ⟨q19, hoo⟩ := openPisAtFvarsF_run c18.ok.state (denote_ext hty2 x2_18) k19
+  obtain ⟨pr, s₂₀, k20, z25⟩ := bindOk z24
+  rcases oo with _ | ⟨fvsO, sbodyO⟩
+  · simp only [Arena.unwrapOr] at k20
+    exact absurd k20 (AM.Never.fail _ _ _ _)
+  simp only [Arena.unwrapOr] at k20
+  obtain ⟨rfl, hs20⟩ := pureOk k20
+  subst s₂₀
+  obtain ⟨fvsOP, sbodyOP, hopenO, -, hsbO⟩ := denoteOpen_some_inv hoo
+  obtain ⟨targsO, s₂₁, k21, z26⟩ := bindOk z25
+  obtain ⟨hs21, htargs⟩ := getAppArgs_run q19.ok hsbO k21
+  subst s₂₁
+  obtain ⟨b0, s₂₂, k22, z27⟩ := bindOk z26
+  obtain ⟨q22, hb0⟩ := internBVarE_run q19.ok k22
+  obtain ⟨hf0, s₂₃, k23, z28⟩ := bindOk z27
+  have x2_22 : Ext s₂.store s₂₂.store := x2_18.trans (q19.ext.trans q22.ext)
+  obtain ⟨hs23, hhf0⟩ := getAppFn_run q22.ok (denote_ext hsbody x2_22) k23
+  subst s₂₃
+  have c22 := c18.trans ((q19.trans q22).toCore c18.ok)
+  obtain ⟨lA, s₂₄, k24, z29⟩ := bindOk z28
+  obtain ⟨hs24, hlA⟩ := eqHeadLevel_run q22.ok c22.ok.pins hhf0 k24
+  subst s₂₄
+  -- the sides' scope
+  have hcvtF : tcvP.type.hasFvar = false := (henv' _ (ConLeche.find?_mem henvC)).1
+  have hopenW := ConLeche.openPisAtFvars_WScoped (nP + nF) tcvP.type 0 hopenO
+    (Expr.WScoped.of_not_hasFvar hcvtF)
+  rw [Nat.zero_add] at hopenW
+  obtain ⟨-, htbodyW⟩ := hopenW
+  have htargsW : ∀ x ∈ sbodyOP.getAppArgs, Expr.WScoped (nP + nF) x :=
+    Expr.WScoped.getAppArgs htbodyW
+  have htg := denoteEList_ext q22.ext _ _ htargs
+  obtain ⟨c29, F, hF⟩ := checkIotaSidesTy_spec feSelf envSelf hk henv (nP + nF)
+    (targsO.getD 0 b0) (targsO.getD 1 b0) (targsO.getD 2 b0)
+    (sbodyOP.getAppArgs.getD 0 (.bvar 0)) (sbodyOP.getAppArgs.getD 1 (.bvar 0))
+    (sbodyOP.getAppArgs.getD 2 (.bvar 0)) lA (ConLeche.eqHeadLevel sbodyP.getAppFn) pmn
+    (ConLeche.projModelName TP i)
+    ⟨ConLeche.WScoped_getD' htargsW 0, ConLeche.WScoped_getD' htargsW 1,
+      ConLeche.WScoped_getD' htargsW 2⟩ s₂₂ s' r c22.ok
+    ⟨denoteEList_getD_fb hb0 htg 0, denoteEList_getD_fb hb0 htg 1,
+      denoteEList_getD_fb hb0 htg 2, hlA, denoteN_ext hpmn (p2.ext.trans x2_22),
+      denoteFEnv_ext c22.ext hfeS, denoteFEnv_ext c22.ext hfeS⟩ z29
+  refine ⟨c22.trans c29, F, ?_⟩
+  -- the pure side
+  have hpA : ConLeche.structPsAt nF nP =
+      (List.range nP).map fun k => Expr.bvar (nP + nF - 1 - k) := by
+    simp only [ConLeche.structPsAt]
+    exact bvarRange_congr (fun j => by omega)
+  have hxA : ConLeche.structPsAt 0 nF =
+      (List.range nF).map fun k => Expr.bvar (nF - 1 - k) := by
+    simp only [ConLeche.structPsAt]
+    exact bvarRange_congr (fun j => by omega)
+  rw [hpA, hxA] at hlhs
+  subst hsbEq hcEq
+  simp only [ConLeche.checkProjIota, henvC]
+  rw [if_pos hlpP]
+  simp only [hsP, hcP']
+  rw [if_pos hdmP]
+  simp only [bind, Except.bind]
+  rw [if_pos trivial, if_pos hlhs, if_pos hrhs]
+  simp only [ConLeche.unwrapOr, hopenO, pure, Except.pure]
+  exact hF
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:565-584 checkProjFn
 One projection function checked and installed.
 
-`sorry`: `checkProjLookups_spec`, `checkProjTy_spec`, `checkProjIota_spec`,
-`CoreSpec.knot`'s `defeq` slot and `IFEnv.push`. -/
+**CLOSED** (task #97-P3-Ind round 9) as a composition: `checkProjLookups_spec`,
+`checkProjTy_spec`, `Bridge/Inductives/ProjRule.lean`'s `checkProjShape_spec`,
+`checkProjRule_spec` and `projFnRule_run`, `checkProjIota_spec` (still open:
+this theorem inherits its `sorryAx` from there alone), `projFnName_run` and
+`denoteFEnv_push`.  The two scoping facts `checkProjRule_spec` takes are the
+pure run's own, exactly as con-leche's `checkProjFn_wfimp` reads them:
+`checkProjTy_wf` for the projection type and `EnvWF` at the stored
+constructor. -/
 theorem checkProjFn_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
     (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (hcoh : IFEnvCoh fe')
     (T ctorName : NIdx)
@@ -2635,7 +4103,84 @@ theorem checkProjFn_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
       (Arena.checkProjFn μ fe' T ctorName lps nP nF i)
       (InstRel fe' (fun e => ∃ F, ConLeche.checkProjFn
         μ (ConLeche.fueledOps μ F) env TP ctorNameP lpsP nP nF i = .ok e)) := by
-  sorry
+  intro s₀ s' r hck hpre hrun
+  obtain ⟨hT, hC, hlps, hfe⟩ := hpre
+  have hnever : ∀ {α β : Type} {e : Arena.CheckError} {g : α → AM β},
+      AM.Never ((Arena.fail e : AM α) >>= g) := fun {_ _ _ _} => AM.Never.fail_any
+  simp only [Arena.checkProjFn] at hrun
+  -- stage 1, the lookups
+  obtain ⟨pr, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨c1, cvjP, mcvP, hlk, hcvj, hmcv⟩ := checkProjLookups_spec fe' T ctorName TP
+    ctorNameP lps lpsP nP nF i s₀ s₁ pr hck ⟨hT, hC, hlps, hfe⟩ k1
+  obtain ⟨cvj, mcv⟩ := pr
+  have x01 := c1.ext
+  -- stage 2, the type
+  obtain ⟨pty, s₂, k2, z2⟩ := bindOk z1
+  obtain ⟨c2, ptyP, hty, hpty⟩ := checkProjTy_spec fe' T ctorName TP ctorNameP lps lpsP
+    mcv.type mcvP.type nP nF s₁ s₂ pty c1.ok
+    ⟨denoteN_ext hT x01, denoteN_ext hC x01, denoteNListE_ext x01 _ _ hlps,
+      denoteCV_type hmcv, denoteFEnv_ext x01 hfe⟩ k2
+  have c02 := c1.trans c2
+  -- stage 2b, the shape
+  obtain ⟨u, s₃, k3, z3⟩ := bindOk z2
+  obtain ⟨p3, hshape⟩ := checkProjShape_spec pty cvj.type ptyP cvjP.type nP nF s₂ s₃ u
+    c02.ok.state ⟨hpty, denote_ext (denoteCV_type hcvj) c2.ext⟩ k3
+  have c03 := c02.trans (p3.toCore c02.ok)
+  obtain ⟨hi, z4⟩ := AM.dunless_ok hnever z3
+  replace z4 := AM.pure_bind_ok z4
+  -- the scoping facts the rule's frame pins need
+  obtain ⟨cnP0, cnF0, hctor⟩ := ConLeche.checkProjLookups_ctor hlk
+  obtain ⟨hptyf, -⟩ := ConLeche.checkProjTy_wf hty
+  have hCf : cvjP.type.hasFvar = false := (henv _ (ConLeche.find?_mem hctor)).1
+  -- stage 3, the rule
+  have x13 : Ext s₁.store s₃.store := c2.ext.trans p3.ext
+  obtain ⟨rhsA, s₄, k4, z5⟩ := bindOk z4
+  obtain ⟨c4, F₁, rhsAP, hF₁, hrhsA⟩ := checkProjRule_spec fe' hk henv pty ptyP cvj cvjP
+    lps lpsP nP nF i hptyf hCf s₃ s₄ rhsA c03.ok
+    ⟨denote_ext hpty p3.ext, denoteCV_ext hcvj x13,
+      denoteNListE_ext c03.ext _ _ hlps⟩ k4
+  have c04 := c03.trans c4
+  -- stage 4, the iota certificate
+  obtain ⟨u2, s₅, k5, z6⟩ := bindOk z5
+  obtain ⟨c5, F₂, hF₂⟩ := checkProjIota_spec fe' fe' env env hk henv henv T ctorName TP
+    ctorNameP lps lpsP cvj cvjP nP nF i s₄ s₅ u2 c04.ok
+    ⟨denoteN_ext hT c04.ext, denoteN_ext hC c04.ext, denoteNListE_ext c04.ext _ _ hlps,
+      denoteCV_ext hcvj (x13.trans c4.ext), denoteFEnv_ext c04.ext hfe,
+      denoteFEnv_ext c04.ext hfe, c04.ok.ienv.toS⟩ k5
+  have c05 := c04.trans c5
+  -- the install
+  obtain ⟨pn, s₆, k6, z7⟩ := bindOk z6
+  obtain ⟨p6, hpn⟩ := projFnName_run c05.ok.state (denoteN_ext hT c05.ext) k6
+  have c06 := c05.trans (p6.toCore c05.ok)
+  have x26 : Ext s₂.store s₆.store := p3.ext.trans (c4.ext.trans (c5.ext.trans p6.ext))
+  have x46 : Ext s₄.store s₆.store := c5.ext.trans p6.ext
+  obtain ⟨rule, s₇, k7, z8⟩ := bindOk z7
+  obtain ⟨c7, hrule⟩ := projFnRule_run c06.ok c06.ok.ienv.toS (denoteN_ext hT c06.ext)
+    (denoteN_ext hC c06.ext) (denote_ext hpty x26) (denote_ext hrhsA x46) k7
+  have c07 := c06.trans c7
+  obtain ⟨rfl, rfl⟩ := pureOk z8
+  have hdci : Frontend.denoteCI s'.store (.recInfo ⟨pn, lps, pty⟩ nP nP [rule]) =
+      some (.recInfo ⟨ConLeche.projFnName TP i, lpsP, ptyP⟩ nP nP
+        [ConLeche.projFnRule env.find? TP ctorNameP ptyP nP nF i rhsAP]) := by
+    simp [Frontend.denoteCI, Frontend.denoteCV, Frontend.denoteRules,
+      denoteN_ext hpn c7.ext, denoteNListE_ext c07.ext _ _ hlps,
+      denote_ext hpty (x26.trans c7.ext), hrule]
+  refine ⟨c07, hcoh.push _, Pushed.push _ _, Nat.le_succ _,
+    ⟨_, denoteFEnv_push (denoteFEnv_ext c07.ext hfe) hdci, max F₁ F₂, ?_⟩,
+    ProjOut.push hcoh _ (fun t h => IConstantInfo.noConfusion h)⟩
+  have g1 : ConLeche.checkProjRule (ConLeche.fueledOps μ (max F₁ F₂)) env ptyP cvjP lpsP
+      nP nF i = .ok rhsAP := by
+    rw [← ConLeche.checkProjRule_datF] at hF₁ ⊢
+    exact (ConLeche.checkProjRule (ConLeche.fueledOpsM μ) env ptyP cvjP lpsP nP nF i).property
+      (by omega) hF₁
+  have g2 : ConLeche.checkProjIota μ (ConLeche.fueledOps μ (max F₁ F₂)) env env TP ctorNameP
+      lpsP cvjP nP nF i = .ok () := by
+    rw [← ConLeche.checkProjIota_datF] at hF₂ ⊢
+    exact (ConLeche.checkProjIota μ (ConLeche.fueledOpsM μ) env env TP ctorNameP lpsP cvjP
+      nP nF i).property (by omega) hF₂
+  simp only [ConLeche.checkProjFn, bind, Except.bind, hlk, hty, hshape]
+  rw [if_pos hi]
+  simp only [g1, g2, pure, Except.pure]
 
 /-! ## The capability theorems -/
 
@@ -2662,45 +4207,6 @@ theorem denoteCI_kind {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
   case ctorInfo v _ _ => obtain ⟨_, rfl, _⟩ := denoteCI_ctor_inv h; rfl
   case recInfo v _ _ _ => obtain ⟨_, _, rfl, _⟩ := denoteCI_rec_inv h; rfl
   case projInfo t => obtain ⟨_, rfl, _⟩ := denoteCI_proj_inv h; rfl
-
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux — **the
-arena's binder comparison IS con-leche's at `g := fun _ e => e`**: the handle
-arrays are the lists' `toArray`, and each handle comparison is
-`beq_ehandle_eq`. -/
-theorem domsMatchAux_eq {st : EStore} (hwf : StoreWF st)
-    {bs₁ bs₂ : List (EIdx × BinderMeta)} {xs₁ xs₂ : List (Expr × BinderMeta)}
-    (h1 : denoteBinders st bs₁ = some xs₁) (h2 : denoteBinders st bs₂ = some xs₂)
-    (o₁ o₂ : Nat) : ∀ n, Arena.domsMatchAux bs₁.toArray bs₂.toArray o₁ o₂ n =
-      ConLeche.domsMatchAux (fun _ e => e) xs₁ xs₂ o₁ o₂ n := by
-  intro n
-  induction n with
-  | zero => rfl
-  | succ k ih =>
-    rw [domsMatchAux_succ]
-    have hA : Arena.domsMatchAux bs₁.toArray bs₂.toArray o₁ o₂ (k + 1) =
-        (Arena.domsMatchAux bs₁.toArray bs₂.toArray o₁ o₂ k &&
-          (match bs₁[o₁ + k]?, bs₂[o₂ + k]? with
-           | some b₁, some b₂ => b₁.1 == b₂.1
-           | _, _ => false)) := by
-      simp only [Arena.domsMatchAux, List.range_succ, List.all_append, List.all_cons,
-        List.all_nil, Bool.and_true, List.getElem?_toArray]
-      rfl
-    rw [hA, ih]
-    congr 1
-    obtain ⟨hA1, hB1⟩ := denoteBinders_getElem? h1 (o₁ + k)
-    obtain ⟨hA2, hB2⟩ := denoteBinders_getElem? h2 (o₂ + k)
-    cases hb1 : bs₁[o₁ + k]? with
-    | none => simp [hB1 hb1]
-    | some p1 =>
-    obtain ⟨t1, m1⟩ := p1
-    obtain ⟨t1P, hp1, hd1⟩ := hA1 t1 m1 hb1
-    cases hb2 : bs₂[o₂ + k]? with
-    | none => simp [hp1, hB2 hb2]
-    | some p2 =>
-    obtain ⟨t2, m2⟩ := p2
-    obtain ⟨t2P, hp2, hd2⟩ := hA2 t2 m2 hb2
-    simp only [hp1, hp2]
-    exact beq_ehandle_eq hwf hd1 hd2
 
 /-- con-leche: none — **a stored theorem, read back through the index**:
 `IFEnvOK`'s `cover` at a theorem, with the handle it is stored under pinned by
@@ -3011,15 +4517,15 @@ theorem checkEtaThm_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
         obtain ⟨sq1, s5, k5, z5⟩ := bindOk z4
         obtain ⟨hs5, hsq1⟩ := stripPis_pstep c04.ok.state (denoteCV_type htcv4) k5
         rw [hs5] at z5
-        obtain ⟨sq2, s6, k6, z6⟩ := bindOk z5
-        obtain ⟨hs6, hsq2⟩ := stripPis_pstep c04.ok.state (denoteCV_type hcvmT4) k6
-        rw [hs6] at z6
         rcases sq1 with _ | ⟨sbs, sbody⟩
-        · obtain ⟨rfl, rfl⟩ := pureOk z6
+        · obtain ⟨rfl, rfl⟩ := pureOk z5
           refine ⟨c04, ?_⟩
           show false = _
           rw [stripPis_none hsq1]
         obtain ⟨sxs, sbodyP, hsps, hsbs, hsbody⟩ := denoteBP_someB hsq1
+        obtain ⟨sq2, s6, k6, z6⟩ := bindOk z5
+        obtain ⟨hs6, hsq2⟩ := stripPis_pstep c04.ok.state (denoteCV_type hcvmT4) k6
+        rw [hs6] at z6
         rcases sq2 with _ | ⟨tbs, tbody⟩
         · obtain ⟨rfl, rfl⟩ := pureOk z6
           refine ⟨c04, ?_⟩
@@ -3126,57 +4632,64 @@ theorem checkEtaThm_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
         dsimp only at z13
         obtain ⟨b0, s14, k14, z14⟩ := bindOk z13
         obtain ⟨q14, hb0⟩ := internBVarE_run q13.ok k14
-        obtain ⟨cHd, s15, k15, z15⟩ := bindOk z14
+        -- the constructor model's head, at levels read afresh (as the port does)
         have x4_14 : Ext s4.store s14.store :=
           q4_10.ext.trans (q11.ext.trans (q12.ext.trans (q13.ext.trans q14.ext)))
-        have hus14 : denoteLs s14.store.lss us = some (lpsP.map Level.param) :=
-          denoteLs_ext hus (q8.ext.trans (q9.ext.trans (q10.ext.trans (q11.ext.trans
-            (q12.ext.trans (q13.ext.trans q14.ext))))))
-        obtain ⟨q15, hcHd⟩ := internConstE_run q14.ok
-          (denoteN_ext hcm ((c3.ext.trans c4.ext).trans x4_14)) hus14 k15
+        have hlps14 := denoteNListE_ext x4_14 _ _ (denoteNListE_ext c4.ext _ _ hlps3)
+        obtain ⟨us2, s14u, k14u, z14⟩ := bindOk z14
+        obtain ⟨q14u, hus2⟩ := paramLevels_spec lps lpsP s14 s14u us2 q14.ok hlps14 k14u
+        obtain ⟨cHd, s15, k15, z15⟩ := bindOk z14
+        obtain ⟨q15, hcHd⟩ := internConstE_run q14u.ok
+          (denoteN_ext hcm (((c3.ext.trans c4.ext).trans x4_14).trans q14u.ext)) hus2 k15
         obtain ⟨pas, s16, k16, z16⟩ := bindOk z15
         have hT15 : denoteN s15.store.ns T = some TP :=
-          denoteN_ext hT2 (((c3.ext.trans c4.ext).trans x4_14).trans q15.ext)
-        have hus15 := denoteLs_ext hus14 q15.ext
-        have hps15 := denoteEList_ext ((q12.ext.trans (q13.ext.trans q14.ext)).trans q15.ext)
-          _ _ hps1
-        have hb015 := denote_ext hb0 q15.ext
+          denoteN_ext hT2 (((c3.ext.trans c4.ext).trans x4_14).trans (q14u.ext.trans q15.ext))
+        have hlps15 := denoteNListE_ext (q14u.ext.trans q15.ext) _ _ hlps14
+        have hps15 := denoteEList_ext ((q12.ext.trans (q13.ext.trans q14.ext)).trans
+          (q14u.ext.trans q15.ext)) _ _ hps1
+        have hb015 := denote_ext hb0 (q14u.ext.trans q15.ext)
         obtain ⟨q16, hpas⟩ := mapM_pstep
           (fun j => (do
-            let pHd ← internE (.const (← Arena.projModelName T j) us)
+            let pHd ← internE (.const (← Arena.projModelName T j) (← Arena.paramLevels lps))
             Arena.mkAppN pHd (ps1 ++ [b0]) : AM EIdx))
           (fun j => Expr.mkAppN (.const (ConLeche.projModelName TP j) (lpsP.map .param))
             (((List.range nP).map fun k => Expr.bvar (nP - k)) ++ [Expr.bvar 0]))
           (fun st b c => denoteE st b = some c)
           (fun _ st => denoteN st.ns T = some TP ∧
-            denoteLs st.lss us = some (lpsP.map Level.param) ∧
+            Frontend.denoteNList st.ns lps = some lpsP ∧
             Frontend.denoteEList st ps1 = some ((List.range nP).map fun k => Expr.bvar (nP - k)) ∧
             denoteE st b0 = some (.bvar 0))
           (fun hx h => denote_ext h hx)
-          (fun hx h => ⟨denoteN_ext h.1 hx, denoteLs_ext h.2.1 hx,
+          (fun hx h => ⟨denoteN_ext h.1 hx, denoteNListE_ext hx _ _ h.2.1,
             denoteEList_ext hx _ _ h.2.2.1, denote_ext h.2.2.2 hx⟩)
           (by
             intro j t₀ t' b hokt hP hrun
-            obtain ⟨hTt, hust, hpst, hb0t⟩ := hP
+            obtain ⟨hTt, hlpst, hpst, hb0t⟩ := hP
             obtain ⟨nmh, t1, g1, y1⟩ := bindOk hrun
             obtain ⟨r1, hnmh⟩ := projModelName_run hokt hTt g1
-            obtain ⟨pHd, t2, g2, y2⟩ := bindOk y1
-            obtain ⟨r2, hpHd⟩ := internConstE_run r1.ok hnmh (denoteLs_ext hust r1.ext) g2
+            obtain ⟨ust, t1u, g1u, y1u⟩ := bindOk y1
+            obtain ⟨r1u, hust⟩ := paramLevels_spec lps lpsP t1 t1u ust r1.ok
+              (denoteNListE_ext r1.ext _ _ hlpst) g1u
+            obtain ⟨pHd, t2, g2, y2⟩ := bindOk y1u
+            obtain ⟨r2, hpHd⟩ := internConstE_run r1u.ok (denoteN_ext hnmh r1u.ext) hust g2
+            have x02 : Ext t₀.store t2.store := r1.ext.trans (r1u.ext.trans r2.ext)
             obtain ⟨r3, hr⟩ := mkAppN_run _ _ r2.ok hpHd
-              (denoteEList_append (denoteEList_ext (r1.ext.trans r2.ext) _ _ hpst)
+              (denoteEList_append (denoteEList_ext x02 _ _ hpst)
                 (show Frontend.denoteEList t2.store [b0] = some [Expr.bvar 0] by
-                  simp [Frontend.denoteEList, denote_ext hb0t (r1.ext.trans r2.ext)]))
+                  simp [Frontend.denoteEList, denote_ext hb0t x02]))
               y2
-            exact ⟨r1.trans (r2.trans r3), hr⟩)
-          (List.range nF) s15 s16 pas q15.ok (fun _ _ => ⟨hT15, hus15, hps15, hb015⟩) k16
+            exact ⟨r1.trans (r1u.trans (r2.trans r3)), hr⟩)
+          (List.range nF) s15 s16 pas q15.ok (fun _ _ => ⟨hT15, hlps15, hps15, hb015⟩) k16
         have hpasE := ListRel.toEList hpas
         obtain ⟨want, s17, k17, z17⟩ := bindOk z16
         obtain ⟨q17, hwant⟩ := mkAppN_run _ _ q16.ok (denote_ext hcHd q16.ext)
           (denoteEList_append (denoteEList_ext q16.ext _ _ hps15) hpasE) k17
         obtain ⟨sortA, s18, k18, z18⟩ := bindOk z17
         obtain ⟨q18, hsortA⟩ := internSortE_run q17.ok
-          (denoteL_ext hlA (q14.ext.trans (q15.ext.trans (q16.ext.trans q17.ext)))) k18
-        have q13_18 : PStep s13 s18 := q14.trans (q15.trans (q16.trans (q17.trans q18)))
+          (denoteL_ext hlA (q14.ext.trans (q14u.ext.trans (q15.ext.trans (q16.ext.trans
+            q17.ext))))) k18
+        have q13_18 : PStep s13 s18 :=
+          q14.trans (q14u.trans (q15.trans (q16.trans (q17.trans q18))))
         have c18 : CoreStep μ env fe' s₀ s18 := c13.trans (q13_18.toCore c13.ok)
         obtain ⟨pe, s19, k19, z19⟩ := bindOk z18
         obtain ⟨hs19, hpe⟩ := pinAt_run (x := ConLeche.eqName) c18.ok.pins rfl k19
@@ -3190,11 +4703,12 @@ theorem checkEtaThm_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
           (!μ.ttChecks || tbody == sortA)) = _
         rw [beq_handle_eq hwf18 (denoteN_ext hcc x13) hpe,
           beq_ehandle_eq hwf18 (denote_ext hlhs x13)
-            (denote_ext hb0 (q15.ext.trans (q16.ext.trans (q17.ext.trans q18.ext)))),
+            (denote_ext hb0 (q14u.ext.trans (q15.ext.trans (q16.ext.trans (q17.ext.trans
+              q18.ext))))),
           beq_ehandle_eq hwf18 (denote_ext htyS x13) (denote_ext hfam1 (q13.ext.trans x13)),
           beq_ehandle_eq hwf18 (denote_ext hrhs x13) (denote_ext hwant q18.ext),
-          beq_ehandle_eq hwf18 (denote_ext htbody (x4_14.trans
-            (q15.ext.trans (q16.ext.trans (q17.ext.trans q18.ext))))) hsortA]
+          beq_ehandle_eq hwf18 (denote_ext htbody (x4_14.trans (q14u.ext.trans
+            (q15.ext.trans (q16.ext.trans (q17.ext.trans q18.ext)))))) hsortA]
       all_goals
         (rw [hf1, hf2, hf3] at z2'
          obtain ⟨rfl, rfl⟩ := pureOk z2'
@@ -3354,15 +4868,15 @@ theorem checkUnitThm_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
       obtain ⟨sq1, s4, k4, z4⟩ := bindOk z3
       obtain ⟨hs4, hsq1⟩ := stripPis_pstep c03.ok.state (denoteCV_type htcv3) k4
       rw [hs4] at z4
-      obtain ⟨sq2, s5, k5, z5⟩ := bindOk z4
-      obtain ⟨hs5, hsq2⟩ := stripPis_pstep c03.ok.state (denoteCV_type hcvmT3) k5
-      rw [hs5] at z5
       rcases sq1 with _ | ⟨sbs, sbody⟩
-      · obtain ⟨rfl, rfl⟩ := pureOk z5
+      · obtain ⟨rfl, rfl⟩ := pureOk z4
         refine ⟨c03, ?_⟩
         show false = _
         rw [stripPis_none hsq1]
       obtain ⟨sxs, sbodyP, hsps, hsbs, hsbody⟩ := denoteBP_someB hsq1
+      obtain ⟨sq2, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨hs5, hsq2⟩ := stripPis_pstep c03.ok.state (denoteCV_type hcvmT3) k5
+      rw [hs5] at z5
       rcases sq2 with _ | ⟨tbs, tbody⟩
       · obtain ⟨rfl, rfl⟩ := pureOk z5
         refine ⟨c03, ?_⟩
@@ -3797,7 +5311,8 @@ theorem piResultIsProp_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s₀ s' : 
   have hprd := hpr eP he
   obtain ⟨v0, hv0⟩ := denoteE_view hprd
   obtain ⟨v, s2, k2, z2⟩ := bindOk (tagIf_view_run hv0
-    (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) z1)
+    (fun hne => by cases v0 <;> first | exact absurd rfl hne | rfl) z1)
+  clear hv0 v0
   obtain ⟨hs2, hv⟩ := view_run k2
   rw [hs2] at z2
   cases v
@@ -3838,7 +5353,8 @@ theorem piResultZ_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s₀ s' : AStat
   have hprd := hpr eP he
   obtain ⟨v0, hv0⟩ := denoteE_view hprd
   obtain ⟨v, s2, k2, z2⟩ := bindOk (tagIf_view_run hv0
-    (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) z1)
+    (fun hne => by cases v0 <;> first | exact absurd rfl hne | rfl) z1)
+  clear hv0 v0
   obtain ⟨hs2, hv⟩ := view_run k2
   rw [hs2] at z2
   cases v
@@ -4172,7 +5688,7 @@ theorem checkIndMember_kind {μ : CheckMode} {bn : List NIdx} {caps : IIndCaps}
   obtain ⟨_, _, _, h⟩ := bindOk h
   obtain ⟨_, _, _, h⟩ := bindOk h
   obtain ⟨_, _, _, h⟩ := bindOk h
-  exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+  exact absurd h (AM.Never.fail _ _ _ _)
 
 /-- con-leche: none — and so is every member of an accepted member fold. -/
 theorem checkIndMembers_kind {μ : CheckMode} {bn : List NIdx} {caps : IIndCaps} :

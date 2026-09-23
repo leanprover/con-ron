@@ -111,27 +111,41 @@ inductive OrElseStep where
   | failed (e : CheckError)
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — what a
-variant attempt must put back when it is abandoned: the per-call memo tables
-and the per-declaration caches, and NOT the store (task #97-P6-2's ledger
-entry).  The store is append-only, so the nodes a failed attempt interned are
-unreachable and every `denote` of a pre-attempt handle is unchanged; keeping
-them is what makes the two tiers agree on the handle NUMBERING as well as on
-the denotation. -/
+variant attempt must put back when it is abandoned: the per-call memo tables,
+the per-declaration caches, and the SCRATCH tiers of the four stores
+(expression, level-list, level, name).  The persistent tiers are not in it:
+the attempt runs inside a declaration's bracket, where every append is a
+scratch append.  Here the snapshot is free (a read of six fields); the port
+copies them (`attempt_snapshot`), which is the only reason the record exists. -/
 structure AttemptSnapshot where
   memos : Memos
   caches : Caches
+  eScr : ETables
+  lsScr : LsTables
+  lScr : LTables
+  nScr : NTables
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — take the
-snapshot, which in Lean is a read of two fields (the port's `memos_dup` /
-`caches_dup`). -/
+snapshot, which in Lean is a read of six fields (the port's `memos_dup`,
+`caches_dup` and four `ETables`/`LsTables`/`LTables`/`NTables` `dup`s). -/
 @[inline] def attemptSnapshot (st : AState) : AttemptSnapshot :=
-  ⟨st.memos, st.caches⟩
+  ⟨st.memos, st.caches, st.store.scr, st.store.lss.scr, st.store.lss.ls.scr,
+    st.store.lss.ls.ns.scr⟩
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — the restore
-of `OrElseStep.recovered`: the attempt's cache rows and memo rows go, its
-interned nodes stay. -/
+of `OrElseStep.recovered`: the attempt's cache rows, memo rows and scratch
+nodes all go. -/
 @[inline] def attemptRestore (st : AState) (snap : AttemptSnapshot) : AState :=
-  { st with memos := snap.memos, caches := snap.caches }
+  { st with
+    memos := snap.memos
+    caches := snap.caches
+    store := { st.store with
+      scr := snap.eScr
+      lss := { st.store.lss with
+        scr := snap.lsScr
+        ls := { st.store.lss.ls with
+          scr := snap.lScr
+          ns := { st.store.lss.ls.ns with scr := snap.nScr } } } } }
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — **the
 four-way step itself**, as a PURE function of the attempt's outcome, which is
@@ -154,19 +168,19 @@ Written as a state function rather than with `try`/`catch`: `AM = StateT AState
 (Except CheckError)`, so the PRE-attempt state `s` is what the error arm has
 in hand, and `attemptRestore s (attemptSnapshot s)` is `s` itself.
 
-**The one place (B) and (C) are not the same state** (task #97-P6-2's ledger
-entry, and it is not expressible in this monad).  The port keeps its `&mut
-AState` across a failing attempt, so it restores the memos and the caches and
-KEEPS the store — the attempt's appended nodes stay, unreachable.  A throw in
-`StateT σ (Except ε)` carries no state at all, so the twin's error arm can
-only resume at `s`, whose store is the pre-attempt one.  The two therefore
-differ on the handle NUMBERING after a recovered variant attempt, never on a
-denotation and never on a verdict: discarding an append is sound and
-invisible (the tiers are append-only, every pre-attempt handle still decodes
-at the restored sizes, and no handle the attempt made survives the arm).  What
-the refinement owes at this seam is `Ext` rather than store equality, and the
-attempt runs **eight times on the whole of `Init`** (task #97-P6-4a §4), so
-nothing downstream is sensitive to it.
+**The port and the twin now resume at the same state** (task
+#97-T2-LOCKSTEP D4).  A throw in `StateT σ (Except ε)` carries no state, so
+the twin's error arm can only resume at `s`.  The port keeps its `&mut
+AState` across the failing attempt and restores, from its snapshot, the
+memos, the caches and the four stores' scratch tiers
+(`arena::decl_check::check_div_mod_pin_attempt`).  The attempt runs inside a
+declaration's bracket, so the scratch flag is on and every append it makes is
+a scratch append; with the scratch tiers put back, the two stores agree on
+the handle NUMBERING as well as on every denotation.  (Until D4 the port kept
+the attempt's appended nodes, and the two scratch tiers then differed in
+length for the rest of the declaration — a difference no lockstep relation
+absorbs.)  The attempt runs **eight times on the whole of `Init`** (task
+#97-P6-4a §4), so the copies cost nothing measurable.
 
 The continuation is the caller's own tail call (`checkDivModPinLoop`), so it
 does not appear here — DESIGN §3.4 forbids the closure con-leche passes. -/
@@ -193,21 +207,27 @@ def nameNodup : List NIdx → Bool
 /-- con-leche: ConLeche/Kernel/Level.lean:218-221 Name.isModelSuffix — is
 this a `_model`-suffixed name (the shape of model companions)? -/
 def NIdx.isModelSuffix (n : NIdx) : AM Bool := do
-  match ← viewN n with
-  | .str _ s => pure (s == "_model")
-  | _ => pure false
+  if n.tag == NTag.str then
+    match ← viewN n with
+    | .str _ s => pure (s == "_model")
+    | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/Level.lean:223-230 Name.isProjFnShape — is
 this shaped like an installed projection function's name (`(T.proj).i`) or a
 projection table's (`(T.projTable).0`)?  Both shapes are reserved for the
 checker's own installs. -/
 def NIdx.isProjFnShape (n : NIdx) : AM Bool := do
-  match ← viewN n with
-  | .num p _ => do
-    match ← viewN p with
-    | .str _ s => pure (s == "proj" || s == "projTable")
+  if n.tag == NTag.num then
+    match ← viewN n with
+    | .num p _ => do
+      if p.tag == NTag.str then
+        match ← viewN p with
+        | .str _ s => pure (s == "proj" || s == "projTable")
+        | _ => pure false
+      else pure false
     | _ => pure false
-  | _ => pure false
+  else pure false
 
 /-! ## Level parameters, defined
 
@@ -370,23 +390,23 @@ happens only for the environment index's error text". -/
 def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
     AM IConstantVal := do
   if (fe.find? cv.name).isSome then
-    fail (.invalid s!"duplicate declaration {← readName cv.name}")
+    fail (.invalid "duplicate declaration")
   if (← reservedBasisNames).contains cv.name then
-    fail (.invalid s!"reserved basis name {← readName cv.name}")
+    fail (.invalid "reserved basis name")
   if ← NIdx.isProjFnShape cv.name then
-    fail (.invalid s!"reserved projection name {← readName cv.name}")
+    fail (.invalid "reserved projection name")
   unless nameNodup cv.levelParams do
-    fail (.invalid s!"duplicate universe parameters in {← readName cv.name}")
+    fail (.invalid "duplicate universe parameters")
   unless ← looseBVarsBoundedFast coreWalkFuel 0 cv.type do
-    fail (.invalid s!"loose bound variable in type of {← readName cv.name}")
+    fail (.invalid "loose bound variable in type")
   if ← hasFvarFast coreWalkFuel cv.type then
-    fail (.invalid s!"unexpected free variable in type of {← readName cv.name}")
+    fail (.invalid "unexpected free variable in type")
   let type ← annotateCore mode fe checkFuel 0 cv.type
   unless ← allLevelParamsDefined cv.levelParams type do
     fail (.invalid
-      s!"undeclared universe parameter in type of {← readName cv.name}")
+      "undeclared universe parameter in type")
   unless ← constsResolveFFast fe type do
-    fail (← unresolvedConstsError s!"type of {← readName cv.name}" type)
+    fail (← unresolvedConstsError "type" type)
   let stype ← inferTypeCore mode fe checkFuel 0 type
   let _u ← ensureSortCore mode fe checkFuel 0 stype
   pure { cv with type := type }
@@ -413,14 +433,16 @@ is the binder domain, instantiated with the earlier fvars).  Structural on
 def openPisAtFvars : Nat → EIdx → Nat → AM (Option (List EIdx × EIdx))
   | 0, e, _ => pure (some ([], e))
   | n + 1, h, i => do
-    match ← view h with
-    | .forallE dom body _ => do
-      let fv ← internE (.fvar i dom)
-      let b ← instantiate1Fast coreWalkFuel body fv 0
-      match ← openPisAtFvars n b (i + 1) with
-      | some (fvs, e) => pure (some (fv :: fvs, e))
-      | none => pure none
-    | _ => pure none
+    if h.tag == ETag.forallE then
+      match ← view h with
+      | .forallE dom body _ => do
+        let fv ← internE (.fvar i dom)
+        let b ← instantiate1Fast coreWalkFuel body fv 0
+        match ← openPisAtFvars n b (i + 1) with
+        | some (fvs, e) => pure (some (fv :: fvs, e))
+        | none => pure none
+      | _ => pure none
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:153-167 openPisAtFvarsFGo —
 core of `openPisAtFvarsF`: `acc` holds the already-created fvars, innermost
@@ -430,14 +452,16 @@ def openPisAtFvarsFGo (acc : Array EIdx) :
     Nat → EIdx → Nat → AM (Option (List EIdx × EIdx))
   | 0, e, _ => do pure (some ([], ← instantiateListFast coreWalkFuel e acc 0))
   | n + 1, h, i => do
-    match ← view h with
-    | .forallE dom body _ => do
-      let d ← instantiateListFast coreWalkFuel dom acc 0
-      let fv ← internE (.fvar i d)
-      match ← openPisAtFvarsFGo (acc.push fv) n body (i + 1) with
-      | some (fvs, e) => pure (some (fv :: fvs, e))
-      | none => pure none
-    | _ => pure none
+    if h.tag == ETag.forallE then
+      match ← view h with
+      | .forallE dom body _ => do
+        let d ← instantiateListFast coreWalkFuel dom acc 0
+        let fv ← internE (.fvar i d)
+        match ← openPisAtFvarsFGo (acc.push fv) n body (i + 1) with
+        | some (fvs, e) => pure (some (fv :: fvs, e))
+        | none => pure none
+      | _ => pure none
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:169-176 openPisAtFvarsF —
 one-pass `openPisAtFvars` (the fallback covers telescopes whose binders only
@@ -476,22 +500,26 @@ def checkAnnotList (mode : CheckMode) (fe : IFEnv) (depth : Nat) :
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:208-211 isEqHead — is the
 expression the pinned equality former at one level? -/
 def isEqHead (h : EIdx) : AM Bool := do
-  match ← view h with
-  | .const c us => do
-    let en ← pinEq
-    if c == en then pure ((← viewLs us).length == 1) else pure false
-  | _ => pure false
+  if h.tag == ETag.const then
+    match ← view h with
+    | .const c us => do
+      let en ← pinEq
+      if c == en then pure ((← viewLs us).length == 1) else pure false
+    | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:213-220 eqHeadLevel — the
 level an equality head carries.  Off shape it is `.zero`, which `isEqHead` has
 already rejected wherever the result is used. -/
 def eqHeadLevel (h : EIdx) : AM LIdx := do
-  match ← view h with
-  | .const _ us => do
-    match ← viewLs us with
-    | [l] => pure l
+  if h.tag == ETag.const then
+    match ← view h with
+    | .const _ us => do
+      match ← viewLs us with
+      | [l] => pure l
+      | _ => zeroLevel
     | _ => zeroLevel
-  | _ => zeroLevel
+  else zeroLevel
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:222-231 checkDefEqList —
 pairwise definitional-equality check of two spines (throws on any mismatch,
@@ -523,9 +551,12 @@ def IFEnv.findCV? (fe : IFEnv) (n : NIdx) : AM (Option IConstantVal) := do
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:249-254 piResultSort — the
 result sort of a syntactic pi telescope, if it ends in a sort at all. -/
 def piResultSort (e : EIdx) : AM (Option LIdx) := do
-  match ← view (← piResult coreWalkFuel e) with
-  | .sort u => pure (some u)
-  | _ => pure none
+  let r ← piResult coreWalkFuel e
+  if r.tag == ETag.sort then
+    match ← view r with
+    | .sort u => pure (some u)
+    | _ => pure none
+  else pure none
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:257-272 checkProjShape — stage
 2b: the projection type's parameter telescope is *syntactically* the
@@ -538,9 +569,12 @@ def checkProjShape (pty ctorTy : EIdx) (nP nF : Nat) : AM Unit := do
     | fail (.notImplemented "projection constructor telescope")
   unless (← getAppArgs coreWalkFuel cbody).length == nP do
     fail (.notImplemented "projection constructor residual arity")
-  match ← view (← getAppFn coreWalkFuel cbody) with
-  | .const _ _ => pure ()
-  | _ => fail (.notImplemented "projection constructor residual head")
+  let f ← getAppFn coreWalkFuel cbody
+  if f.tag == ETag.const then
+    match ← view f with
+    | .const _ _ => pure ()
+    | _ => fail (.notImplemented "projection constructor residual head")
+  else fail (.notImplemented "projection constructor residual head")
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:274-311 checkProjRule
 con-leche: ConLeche/Kernel/DeclCheck.lean:763-795 checkProjRuleF

@@ -8,24 +8,24 @@ checker's common ground — the per-declaration constant check, the two
 memoised guard walks, the projection-rule stages, the attempt bracket — and
 the install/check seam of a value declaration.
 
-## The one seam where (B) and (C) are not the same state
+## The attempt seam is lockstep (task #97-T2-LOCKSTEP D4)
 
-`orElseAttempt` (DESIGN §8.3 and task #97-LC's ledger row).  The port keeps
-its `&mut AState` across a failing attempt, so it restores the memos and the
-caches and **KEEPS the store** — the attempt's appended nodes stay,
-unreachable.  A throw in `StateT AState (Except ε)` carries no state at all,
-so the twin's error arm can only resume at the pre-attempt state, whose store
-is the pre-attempt one.  The two therefore differ on the handle NUMBERING
-after a recovered variant attempt, never on a denotation and never on a
-verdict.
+`orElseAttempt` (DESIGN §8.3 and task #97-LC's ledger row) used to be the one
+seam where (B) and (C) were not the same state: the port restored the memos
+and the caches and KEPT the store, while the twin's error arm (a throw in
+`StateT AState (Except ε)` carries no state) resumes at the pre-attempt
+state.  The kept scratch nodes lengthened the port's scratch tier, so every
+later scratch handle had a different word — no relation short of a renaming
+absorbs that, and it is why `Refine2/Shape.lean`'s old `AOut` carried `Ext`.
 
-*What the refinement owes at this seam is `Ext` rather than store equality* —
-which is exactly why `Refine2/Shape.lean`'s `AOut` carries `Ext lst.store
-lst'.store` in EVERY success arm rather than store equality, at no cost
-(`Ext.refl` for a reader, `Ext.trans` through a bind).  `attempt_restore` and
-`or_else_attempt` below are where that decision is cashed, and their
-conclusions are the only ones in the tier that are `Ext`-ONLY: nothing is
-claimed about the two stores beyond one extending the other.
+The maintainer's ruling moved the Rust: `attempt_snapshot`/`attempt_restore`
+also copy and restore the four stores' scratch tiers (and the readback memos,
+which `caches_dup` used to restore empty).  `attempt_restore_refines₀` is
+then lockstep, and `attempt_recover_refines₀` relates the port's restored
+state to the twin's pre-attempt state under `ScratchFrame` — a fact about the
+Rust attempt alone (the persistent tiers, the flags and the pins are not
+written inside a declaration's bracket).  The seam itself is
+`Refine2/Checker/DeclCheck.lean`'s `check_div_mod_pin_attempt_refines₀`.
 
 ## Finding 10 — `vis` out of the index is a hypothesis at seventy-one sites
 
@@ -100,18 +100,224 @@ namespace ConRon.Refine2
 open ConRon.Arena
 open ConRon.Refine (NameWF NamesWF ExprWF)
 
-/-! ## The attempt bracket — the `Ext`-only seam -/
+/-! ## The attempt bracket — lockstep since task #97-T2-LOCKSTEP D4 -/
 
 /-- `arena::checker_base::AttemptSnapshot` against the twin's: the per-call
-memo tables and the per-declaration caches, and **not** the store (task
-#97-P6-2's ledger entry).  Related rather than abstracted, for the reason
-every memo table in this tower is. -/
+memo tables, the per-declaration caches and the four stores' SCRATCH tiers,
+field by field, with the Rust-side invariant of each copy.  Related rather
+than abstracted, for the reason every memo table in this tower is. -/
 structure SnapRel (rs : arena.checker_base.AttemptSnapshot) (ls : AttemptSnapshot) :
     Prop where
   memos : MemosRel rs.memos ls.memos
   caches : CachesRel rs.caches ls.caches
   memosInv : MemosInv rs.memos
   cachesInv : CachesInv rs.caches
+  eScr : ETablesRel rs.e_scr ls.eScr
+  lsScr : LsTablesRel rs.ls_scr ls.lsScr
+  lScr : LTablesRel rs.l_scr ls.lScr
+  nScr : NTablesRel rs.n_scr ls.nScr
+  eScrInv : ETablesInv rs.e_scr
+  lsScrInv : LsTablesInv rs.ls_scr
+  lScrInv : LTablesInv rs.l_scr
+  nScrInv : NTablesInv rs.n_scr
+
+/-! ### The copies are the identity
+
+Every `Dup` dictionary the snapshot copies with returns its argument in the
+model: the handles, `u64`, `LDer` and the node records by `Refine2/Inv.lean`
+and `Refine2/Specs.lean`; the key records, `bool`, and task #97-T2-LOCKSTEP
+D4's `Level`/`Name`/`Vec<Level>` here.  `HashMap2::dup` is then the identity
+(`Refine/HashMap2.lean`'s `dup_spec`), `Tbl::dup`'s halved row walk copies
+row by row (`tbl_dup_rows_spec`, the shape of `HashMap2`'s `dup_slots_spec`),
+and each `dup` is literally `o = input`. -/
+
+section DupCopies
+
+open ConRon.Refine.HashMap (DupId)
+
+theorem dupId_bool : DupId Bool.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h; exact (Result.ok_injective h).symm
+theorem dupId_eidxNat : DupId arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  simp only [arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapDup.dup2,
+    arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+  exact h.symm
+theorem dupId_eidxPair : DupId arena.core_state.EIdxPair.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  simp only [arena.core_state.EIdxPair.Insts.Con_ron_coreRonHashmapDup.dup2,
+    arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+  exact h.symm
+theorem dupId_lidxPair : DupId arena.core_state.LIdxPair.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  simp only [arena.core_state.LIdxPair.Insts.Con_ron_coreRonHashmapDup.dup2,
+    arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+  exact h.symm
+theorem dupId_lsidxPair : DupId arena.core_state.LsIdxPair.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  simp only [arena.core_state.LsIdxPair.Insts.Con_ron_coreRonHashmapDup.dup2,
+    arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+  exact h.symm
+theorem dupId_nlsKey : DupId arena.core_state.NLsKey.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  simp only [arena.core_state.NLsKey.Insts.Con_ron_coreRonHashmapDup.dup2,
+    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2,
+    arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+  exact h.symm
+theorem dupId_nnlsKey : DupId arena.core_state.NNLsKey.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  simp only [arena.core_state.NNLsKey.Insts.Con_ron_coreRonHashmapDup.dup2,
+    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2,
+    arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+  exact h.symm
+theorem dupId_level : DupId kernel.level.Level.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  simp only [kernel.level.Level.Insts.Con_ron_coreRonHashmapDup.dup2,
+    ConRon.Refine.level_dup_eq, ok.injEq] at h
+  exact h.symm
+theorem dupId_name : DupId kernel.name.Name.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  simp only [kernel.name.Name.Insts.Con_ron_coreRonHashmapDup.dup2,
+    ConRon.Refine.name_dup_eq, ok.injEq] at h
+  exact h.symm
+theorem dupId_vecLevel : DupId alloc.vec.VecLevel.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  exact alloc.vec.Vec.ext _ _ (level_list_dup_val h)
+
+open ConRon.Refine.HashMap (take_one_drop uscalar_sub_eq uscalar_div_eq uscalar_add_eq vec_push_eq)
+
+/-- `Tbl::dup_rows` copies `src[lo..hi]` onto `out`, halving as
+`HashMap2::dup_slots` does; under `DupId` on both columns each row is itself. -/
+theorem tbl_dup_rows_spec {A I D : Type} {HA : ron.hashmap.Hashable A}
+    {EA : ron.hashmap.Eq2 A} {DA : ron.hashmap.Dup A} {DI : ron.hashmap.Dup I}
+    {DD : ron.hashmap.Dup D} {DDef : arena.store.DerDefault D}
+    (hA : DupId DA) (hD : DupId DD) (N : Nat) :
+    ∀ (src out out' : alloc.vec.Vec (A × D)) (lo hi : Std.Usize),
+      hi.val - lo.val = N → hi.val ≤ src.val.length →
+      arena.store.Tbl.dup_rows HA EA DA DI DD DDef src out lo hi = ok out' →
+      out'.val = out.val ++ (src.val.drop lo.val).take (hi.val - lo.val) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro src out out' lo hi hN hhi h
+    rw [arena.store.Tbl.dup_rows.eq_def] at h
+    split at h
+    · rename_i hgt
+      have hlt : lo.val < hi.val := by scalar_tac
+      obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hnv : n.val = hi.val - lo.val := uscalar_sub_eq hn
+      split at h
+      · rename_i h1
+        have hn1 : hi.val = lo.val + 1 := by
+          have : n.val = 1 := by scalar_tac
+          omega
+        have hlo : lo.val < src.val.length := by omega
+        have : Inhabited (A × D) := ⟨src.val[lo.val]⟩
+        obtain ⟨⟨a, d⟩, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨-, hx⟩ := ConRon.Refine.HashMap.vec_index_eq ha
+        obtain ⟨a', ha', h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨d', hd', hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        rw [hA _ _ ha', hD _ _ hd'] at hp
+        rw [vec_push_eq hp, hn1, show lo.val + 1 - lo.val = 1 by omega,
+          take_one_drop hlo, hx]
+      · rename_i h1
+        have hn2 : 2 ≤ n.val := by
+          have : n.val ≠ 1 := by scalar_tac
+          omega
+        obtain ⟨i, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨mid, hmid, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨out1, hs1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hiv : i.val = n.val / 2 := by
+          rw [uscalar_div_eq hi2, show (2#usize : Std.Usize).val = 2 by scalar_tac]
+        have hmv : mid.val = lo.val + i.val := uscalar_add_eq hmid
+        have e1 := ih (mid.val - lo.val) (by omega) src out out1 lo mid rfl (by omega) hs1
+        have e2 := ih (hi.val - mid.val) (by omega) src out1 out' mid hi rfl hhi h2
+        rw [e2, e1, List.append_assoc,
+          show hi.val - lo.val = (mid.val - lo.val) + (hi.val - mid.val) by omega,
+          List.take_add, List.drop_drop,
+          show lo.val + (mid.val - lo.val) = mid.val by omega]
+    · rename_i hgt
+      have hle : hi.val ≤ lo.val := by scalar_tac
+      rw [← Result.ok_injective h, show hi.val - lo.val = 0 by omega]
+      simp
+
+/-- **`Tbl::dup` is the identity**: the row column by `dup_rows`, the cons
+table by `HashMap2::dup`. -/
+theorem tbl_dup_eq {A I D : Type} {HA : ron.hashmap.Hashable A}
+    {EA : ron.hashmap.Eq2 A} {DA : ron.hashmap.Dup A} {DI : ron.hashmap.Dup I}
+    {DD : ron.hashmap.Dup D} {DDef : arena.store.DerDefault D}
+    (hA : DupId DA) (hI : DupId DI) (hD : DupId DD) {t o : arena.store.Tbl A I D}
+    (h : arena.store.Tbl.dup HA EA DA DI DD DDef t = ok o) : o = t := by
+  rw [arena.store.Tbl.dup] at h
+  obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hm, hhm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hr := tbl_dup_rows_spec hA hD _ t.rows _ v1 0#usize (alloc.vec.Vec.len t.rows) rfl
+    (by simp) hv1
+  have hc := ConRon.Refine.HashMap2.dup_spec hA hI hhm
+  rw [← Result.ok_injective h, hc]
+  obtain ⟨rows, cons⟩ := t
+  simp only at hr ⊢
+  congr
+  exact alloc.vec.Vec.ext _ _ (by simpa [alloc.vec.Vec.with_capacity] using hr)
+
+
+/-- Discharges a `DupId` goal at every dictionary the snapshot copies with. -/
+local macro "dup_id" : tactic => `(tactic| first
+  | exact dupId_eidx | exact dupId_nidx | exact dupId_lidx | exact dupId_lsidx
+  | exact dupId_bmidx | exact dupId_u64 | exact dupId_bool | exact dupId_lder
+  | exact dupId_eidxNat | exact dupId_eidxPair | exact dupId_lidxPair
+  | exact dupId_lsidxPair | exact dupId_nlsKey | exact dupId_nnlsKey
+  | exact dupId_level | exact dupId_name | exact dupId_vecLevel
+  | exact dupId_bvarnode | exact dupId_fvarnode | exact dupId_sortnode
+  | exact dupId_constnode | exact dupId_appnode | exact dupId_projnode
+  | exact dupId_letnode | exact dupId_bindnode | exact dupId_litnode
+  | exact dupId_bmnode | exact dupId_anonnode | exact dupId_strnode
+  | exact dupId_numnode | exact dupId_zeronode | exact dupId_succnode
+  | exact dupId_binlnode | exact dupId_paramnode | exact dupId_listnode)
+
+-- One copy step of a `dup` chain: the copied field is the field.
+set_option hygiene false in
+local macro "dup_step" : tactic => `(tactic|
+  (obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+   first
+   | obtain rfl := ConRon.Refine.HashMap2.dup_spec (by dup_id) (by dup_id) hx
+   | obtain rfl := tbl_dup_eq (by dup_id) (by dup_id) (by dup_id) hx))
+
+theorem memos_dup_eq {rm o : arena.monad.Memos}
+    (h : arena.checker_base.memos_dup rm = ok o) : o = rm := by
+  unfold arena.checker_base.memos_dup at h
+  repeat dup_step
+  rw [← Result.ok_injective h]
+
+theorem caches_dup_eq {rc o : arena.core_state.Caches}
+    (h : arena.checker_base.caches_dup rc = ok o) : o = rc := by
+  unfold arena.checker_base.caches_dup at h
+  repeat dup_step
+  rw [← Result.ok_injective h]
+
+theorem etables_dup_eq {rt o : arena.store.ETables}
+    (h : arena.store.ETables.dup rt = ok o) : o = rt := by
+  unfold arena.store.ETables.dup at h
+  repeat dup_step
+  rw [← Result.ok_injective h]
+
+theorem lstables_dup_eq {rt o : arena.store.LsTables}
+    (h : arena.store.LsTables.dup rt = ok o) : o = rt := by
+  unfold arena.store.LsTables.dup at h
+  repeat dup_step
+  rw [← Result.ok_injective h]
+
+theorem ltables_dup_eq {rt o : arena.store.LTables}
+    (h : arena.store.LTables.dup rt = ok o) : o = rt := by
+  unfold arena.store.LTables.dup at h
+  repeat dup_step
+  rw [← Result.ok_injective h]
+
+theorem ntables_dup_eq {rt o : arena.store.NTables}
+    (h : arena.store.NTables.dup rt = ok o) : o = rt := by
+  unfold arena.store.NTables.dup at h
+  repeat dup_step
+  rw [← Result.ok_injective h]
+
+end DupCopies
 
 /-- `memos_dup` is the identity on the abstraction: `ron::hashmap::Dup`'s
 `dup2` is `DupId` at every one of the thirteen tables (`Refine2/Inv.lean`). -/
@@ -119,36 +325,154 @@ theorem memos_dup_refines {rm lm} {o}
     (hrel : MemosRel rm lm) (hinv : MemosInv rm)
     (hrun : arena.checker_base.memos_dup rm = ok o) :
     MemosRel o lm ∧ MemosInv o := by
-  sorry
+  obtain rfl := memos_dup_eq hrun
+  exact ⟨hrel, hinv⟩
 
-/-- `caches_dup` is the identity on the abstraction. -/
+/-- `caches_dup` is the identity on the abstraction — including the three
+readback memos, which task #97-T2-LOCKSTEP D4 made it copy (they used to be
+restored EMPTY, which made this statement false). -/
 theorem caches_dup_refines {rc lc} {o}
     (hrel : CachesRel rc lc) (hinv : CachesInv rc)
     (hrun : arena.checker_base.caches_dup rc = ok o) :
     CachesRel o lc ∧ CachesInv o := by
-  sorry
+  obtain rfl := caches_dup_eq hrun
+  exact ⟨hrel, hinv⟩
 
-/-- `attempt_snapshot` ⊑ `attemptSnapshot` — in Lean a read of two fields, in
-Rust the two `dup`s above. -/
-theorem attempt_snapshot_refines {pers st lst} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+/-- `ETables::dup` is the identity on the abstraction (`Tbl::dup` per table:
+the row column copied by `dup2`, the cons table by `HashMap2::dup`). -/
+theorem etables_dup_refines {rt lt} {o}
+    (hrel : ETablesRel rt lt) (hinv : ETablesInv rt)
+    (hrun : arena.store.ETables.dup rt = ok o) :
+    ETablesRel o lt ∧ ETablesInv o := by
+  obtain rfl := etables_dup_eq hrun
+  exact ⟨hrel, hinv⟩
+
+/-- `LsTables::dup` is the identity on the abstraction. -/
+theorem lstables_dup_refines {rt lt} {o}
+    (hrel : LsTablesRel rt lt) (hinv : LsTablesInv rt)
+    (hrun : arena.store.LsTables.dup rt = ok o) :
+    LsTablesRel o lt ∧ LsTablesInv o := by
+  obtain rfl := lstables_dup_eq hrun
+  exact ⟨hrel, hinv⟩
+
+/-- `LTables::dup` is the identity on the abstraction. -/
+theorem ltables_dup_refines {rt lt} {o}
+    (hrel : LTablesRel rt lt) (hinv : LTablesInv rt)
+    (hrun : arena.store.LTables.dup rt = ok o) :
+    LTablesRel o lt ∧ LTablesInv o := by
+  obtain rfl := ltables_dup_eq hrun
+  exact ⟨hrel, hinv⟩
+
+/-- `NTables::dup` is the identity on the abstraction. -/
+theorem ntables_dup_refines {rt lt} {o}
+    (hrel : NTablesRel rt lt) (hinv : NTablesInv rt)
+    (hrun : arena.store.NTables.dup rt = ok o) :
+    NTablesRel o lt ∧ NTablesInv o := by
+  obtain rfl := ntables_dup_eq hrun
+  exact ⟨hrel, hinv⟩
+
+/-- `attempt_snapshot` ⊑ `attemptSnapshot` — in Lean a read of six fields, in
+Rust the six copies above. -/
+theorem attempt_snapshot_refines₀ {pers st lst} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.attempt_snapshot st = ok o) :
     SnapRel o (attemptSnapshot lst) := by
-  sorry
+  unfold arena.checker_base.attempt_snapshot at hrun
+  obtain ⟨m, hm, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨c, hc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨ls, hls, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  simp only [ok.injEq] at hrun
+  subst hrun
+  obtain ⟨hm1, hm2⟩ := memos_dup_refines hrel.memos hinv.memos hm
+  obtain ⟨hc1, hc2⟩ := caches_dup_refines hrel.caches hinv.caches hc
+  obtain ⟨he1, he2⟩ := etables_dup_refines hrel.store.scrt hinv.store.scrt he
+  obtain ⟨hls1, hls2⟩ := lstables_dup_refines hrel.store.lss.scrt hinv.store.lss.scrt hls
+  obtain ⟨hl1, hl2⟩ := ltables_dup_refines hrel.store.lss.lvl.scrt
+    hinv.store.lss.lvl.scrt hl
+  obtain ⟨hn1, hn2⟩ := ntables_dup_refines hrel.store.lss.lvl.ns.scrt
+    hinv.store.lss.lvl.ns.scrt hn
+  exact ⟨hm1, hc1, hm2, hc2, he1, hls1, hl1, hn1, he2, hls2, hl2, hn2⟩
 
-/-- `attempt_restore` ⊑ `attemptRestore` — **the attempt's cache rows and memo
-rows go, its interned nodes STAY**, which is why the conclusion is `Ext` and
-not store equality: the Rust's post-state and the twin's agree on the memos
-and the caches and on the STORE ONLY UP TO `Ext` (the Rust keeps the attempt's
-unreachable appends; the twin, throwing in `StateT σ (Except ε)`, cannot). -/
-theorem attempt_restore_refines {pers st lst} {snap lsnap} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+/-- `attempt_restore` ⊑ `attemptRestore` — **lockstep**: the two write the
+same six fields back, from related snapshots, into related states. -/
+theorem attempt_restore_refines₀ {pers st lst} {snap lsnap} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hsnap : SnapRel snap lsnap)
     (hrun : arena.checker_base.attempt_restore st snap = ok o) :
-    ∃ lst', AStateRel pers o lst' ∧ AStateInv pers o ∧
-      lst'.memos = lsnap.memos ∧ lst'.caches = lsnap.caches ∧
-      Ext lst.store lst'.store := by
-  sorry
+    AStateRel₀ pers o (attemptRestore lst lsnap) ∧ AStateInv pers o := by
+  unfold arena.checker_base.attempt_restore at hrun
+  simp only [ok.injEq] at hrun
+  subst hrun
+  refine ⟨⟨⟨⟨⟨⟨hrel.store.lss.lvl.ns.perst, hsnap.nScr,
+      hrel.store.lss.lvl.ns.scratchOn⟩, hrel.store.lss.lvl.perst, hsnap.lScr,
+      hrel.store.lss.lvl.scratchOn⟩, hrel.store.lss.perst, hsnap.lsScr,
+      hrel.store.lss.scratchOn⟩, hrel.store.perst, hsnap.eScr, hrel.store.scratchOn⟩,
+    hsnap.memos, hsnap.caches, hrel.pins⟩, ⟨⟨⟨⟨⟨hinv.store.lss.lvl.ns.perst,
+      hsnap.nScrInv⟩, hinv.store.lss.lvl.perst, hsnap.lScrInv⟩,
+      hinv.store.lss.perst, hsnap.lsScrInv⟩, hinv.store.perst, hsnap.eScrInv⟩,
+    hsnap.memosInv, hsnap.cachesInv⟩⟩
+
+/-- The twin's restore of its own snapshot is the identity — what makes its
+error arm "resume at the pre-attempt state". -/
+@[simp] theorem attemptRestore_self (s : AState) :
+    attemptRestore s (attemptSnapshot s) = s := rfl
+
+/-- **The port's frame at a recovered attempt**: the post-attempt state `st₁`
+agrees with the pre-attempt `st` everywhere `attempt_restore` does not write —
+the pins, and each of the four stores' persistent tier and two flags.  It is
+a fact about the RUST attempt only (task #97-T2-LOCKSTEP D4): the attempt
+runs inside a declaration's bracket, where the scratch flag is on and every
+append is a scratch append, and nothing in it toggles a flag or re-pins.  The
+twin needs no such fact, because its error arm resumes at `st`'s image
+itself. -/
+structure ScratchFrame (st st₁ : arena.monad.AState) : Prop where
+  pins : st₁.pins = st.pins
+  ePers : st₁.store.pers = st.store.pers
+  eOn : st₁.store.scratch_on = st.store.scratch_on
+  eShared : st₁.store.shared_on = st.store.shared_on
+  lsPers : st₁.store.lss.pers = st.store.lss.pers
+  lsOn : st₁.store.lss.scratch_on = st.store.lss.scratch_on
+  lsShared : st₁.store.lss.shared_on = st.store.lss.shared_on
+  lPers : st₁.store.lss.ls.pers = st.store.lss.ls.pers
+  lOn : st₁.store.lss.ls.scratch_on = st.store.lss.ls.scratch_on
+  lShared : st₁.store.lss.ls.shared_on = st.store.lss.ls.shared_on
+  nPers : st₁.store.lss.ls.ns.pers = st.store.lss.ls.ns.pers
+  nOn : st₁.store.lss.ls.ns.scratch_on = st.store.lss.ls.ns.scratch_on
+  nShared : st₁.store.lss.ls.ns.shared_on = st.store.lss.ls.ns.shared_on
+
+/-- Under the frame, restoring into the post-attempt state is restoring into
+the pre-attempt one: `attempt_restore` overwrites everything else. -/
+theorem attempt_restore_frame {st st₁ : arena.monad.AState}
+    {snap : arena.checker_base.AttemptSnapshot} (h : ScratchFrame st st₁) :
+    arena.checker_base.attempt_restore st₁ snap =
+      arena.checker_base.attempt_restore st snap := by
+  obtain ⟨⟨⟨⟨⟨np, ns, non, nsh⟩, lp, ls, lon, lsh⟩, lsp, lss, lson, lssh⟩, ep, es, eon,
+    esh⟩, m, c, p⟩ := st
+  obtain ⟨⟨⟨⟨⟨np₁, ns₁, non₁, nsh₁⟩, lp₁, ls₁, lon₁, lsh₁⟩, lsp₁, lss₁, lson₁, lssh₁⟩,
+    ep₁, es₁, eon₁, esh₁⟩, m₁, c₁, p₁⟩ := st₁
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13⟩ := h
+  simp only at h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13
+  subst h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13
+  rfl
+
+/-- **The recovered arm of `orElseAttempt`, lockstep.**  The port restores
+the snapshot into the post-attempt state; the twin resumes at the
+pre-attempt state.  Under the port's frame those are related by
+`AStateRel₀` — the twin's `attemptRestore lst (attemptSnapshot lst)` is `lst`
+itself.  This is what task #97-T2-LOCKSTEP D4 bought: before it the port
+kept the attempt's scratch nodes and the conclusion could only be `Ext`. -/
+theorem attempt_recover_refines₀ {pers st st₁ lst} {snap} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hsnap : SnapRel snap (attemptSnapshot lst))
+    (hframe : ScratchFrame st st₁)
+    (hrun : arena.checker_base.attempt_restore st₁ snap = ok o) :
+    AStateRel₀ pers o lst ∧ AStateInv pers o := by
+  rw [attempt_restore_frame hframe] at hrun
+  have h := attempt_restore_refines₀ hrel hinv hsnap hrun
+  rwa [attemptRestore_self] at h
 
 /-- `or_else_attempt` ⊑ `orElseStepOf` — the four-way step as a PURE function
 of the attempt's outcome, which is the shape the port has and which the twin
@@ -248,12 +572,12 @@ operations, as seven pin reads (task #97-P5-Top: a child of
 `annot_step_defn_refines`; the function is `arena::core`'s, but no tier had
 stated it). -/
 theorem nat_op_names_refines {pers st lst} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.core.nat_op_names st = ok o) :
-    Sim absNIdxL (fun _ => True) pers lst o natOpNames := by
+    Sim₀ absNIdxL pers lst o natOpNames := by
   unfold natOpNames
   rw [arena.core.nat_op_names] at hrun
-  unfold Sim
+  unfold Sim₀
   obtain ⟨q0, hq0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   rw [arena.core.nat_pred_name] at hq0
   obtain ⟨r0, hr0, hq0⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq0
@@ -263,7 +587,7 @@ theorem nat_op_names_refines {pers st lst} {o}
   | Err e =>
     have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
     obtain rfl := (Result.ok_injective hrun').symm
-    exact AOut.err (pin_err (tw := natPredName) hS0)
+    exact AOut₀.err (pin_err (tw := natPredName) hS0)
   | Ok a0 =>
   rw [pin_ok (tw := natPredName) hS0]
   obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -275,7 +599,7 @@ theorem nat_op_names_refines {pers st lst} {o}
   | Err e =>
     have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
     obtain rfl := (Result.ok_injective hrun').symm
-    exact AOut.err (pin_err (tw := natAddName) hS1)
+    exact AOut₀.err (pin_err (tw := natAddName) hS1)
   | Ok a1 =>
   rw [pin_ok (tw := natAddName) hS1]
   obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -287,7 +611,7 @@ theorem nat_op_names_refines {pers st lst} {o}
   | Err e =>
     have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
     obtain rfl := (Result.ok_injective hrun').symm
-    exact AOut.err (pin_err (tw := natSubName) hS2)
+    exact AOut₀.err (pin_err (tw := natSubName) hS2)
   | Ok a2 =>
   rw [pin_ok (tw := natSubName) hS2]
   obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -299,7 +623,7 @@ theorem nat_op_names_refines {pers st lst} {o}
   | Err e =>
     have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
     obtain rfl := (Result.ok_injective hrun').symm
-    exact AOut.err (pin_err (tw := natMulName) hS3)
+    exact AOut₀.err (pin_err (tw := natMulName) hS3)
   | Ok a3 =>
   rw [pin_ok (tw := natMulName) hS3]
   obtain ⟨q4, hq4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -311,7 +635,7 @@ theorem nat_op_names_refines {pers st lst} {o}
   | Err e =>
     have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
     obtain rfl := (Result.ok_injective hrun').symm
-    exact AOut.err (pin_err (tw := natPowName) hS4)
+    exact AOut₀.err (pin_err (tw := natPowName) hS4)
   | Ok a4 =>
   rw [pin_ok (tw := natPowName) hS4]
   obtain ⟨q5, hq5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -323,7 +647,7 @@ theorem nat_op_names_refines {pers st lst} {o}
   | Err e =>
     have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
     obtain rfl := (Result.ok_injective hrun').symm
-    exact AOut.err (pin_err (tw := natBeqName) hS5)
+    exact AOut₀.err (pin_err (tw := natBeqName) hS5)
   | Ok a5 =>
   rw [pin_ok (tw := natBeqName) hS5]
   obtain ⟨q6, hq6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -335,7 +659,7 @@ theorem nat_op_names_refines {pers st lst} {o}
   | Err e =>
     have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
     obtain rfl := (Result.ok_injective hrun').symm
-    exact AOut.err (pin_err (tw := natBleName) hS6)
+    exact AOut₀.err (pin_err (tw := natBleName) hS6)
   | Ok a6 =>
   rw [pin_ok (tw := natBleName) hS6]
   obtain ⟨w0, hw0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -349,19 +673,19 @@ theorem nat_op_names_refines {pers st lst} {o}
   have hv : w6.val = [a0, a1, a2, a3, a4, a5, a6] := by
     rw [push_nidx_val hw6, push_nidx_val hw5, push_nidx_val hw4, push_nidx_val hw3, push_nidx_val hw2, push_nidx_val hw1, push_nidx_val hw0]
     rfl
-  refine ⟨lst, ?_, hrel, hinv, Ext.refl _, trivial⟩
+  refine ⟨lst, ?_, hrel, hinv⟩
   simp only [absNIdxL, hv, List.map_cons, List.map_nil]
   rfl
 
 /-- `arena::core::nat_div_mod_names` ⊑ `natDivModNames` — the eight pinned
 well-founded operations, as eight pin reads (task #97-P5-Top, as above). -/
 theorem nat_div_mod_names_refines {pers st lst} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.core.nat_div_mod_names st = ok o) :
-    Sim absNIdxL (fun _ => True) pers lst o natDivModNames := by
+    Sim₀ absNIdxL pers lst o natDivModNames := by
   unfold natDivModNames
   rw [arena.core.nat_div_mod_names] at hrun
-  unfold Sim
+  unfold Sim₀
   obtain ⟨q0, hq0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   rw [arena.core.nat_div_name] at hq0
   obtain ⟨r0, hr0, hq0⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq0
@@ -371,7 +695,7 @@ theorem nat_div_mod_names_refines {pers st lst} {o}
   | Err e =>
     have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
     obtain rfl := (Result.ok_injective hrun').symm
-    exact AOut.err (pin_err (tw := natDivName) hS0)
+    exact AOut₀.err (pin_err (tw := natDivName) hS0)
   | Ok a0 =>
   rw [pin_ok (tw := natDivName) hS0]
   obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -383,7 +707,7 @@ theorem nat_div_mod_names_refines {pers st lst} {o}
   | Err e =>
     have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
     obtain rfl := (Result.ok_injective hrun').symm
-    exact AOut.err (pin_err (tw := natModName) hS1)
+    exact AOut₀.err (pin_err (tw := natModName) hS1)
   | Ok a1 =>
   rw [pin_ok (tw := natModName) hS1]
   obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -395,7 +719,7 @@ theorem nat_div_mod_names_refines {pers st lst} {o}
   | Err e =>
     have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
     obtain rfl := (Result.ok_injective hrun').symm
-    exact AOut.err (pin_err (tw := natGcdName) hS2)
+    exact AOut₀.err (pin_err (tw := natGcdName) hS2)
   | Ok a2 =>
   rw [pin_ok (tw := natGcdName) hS2]
   obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -407,7 +731,7 @@ theorem nat_div_mod_names_refines {pers st lst} {o}
   | Err e =>
     have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
     obtain rfl := (Result.ok_injective hrun').symm
-    exact AOut.err (pin_err (tw := natLandName) hS3)
+    exact AOut₀.err (pin_err (tw := natLandName) hS3)
   | Ok a3 =>
   rw [pin_ok (tw := natLandName) hS3]
   obtain ⟨q4, hq4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -419,7 +743,7 @@ theorem nat_div_mod_names_refines {pers st lst} {o}
   | Err e =>
     have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
     obtain rfl := (Result.ok_injective hrun').symm
-    exact AOut.err (pin_err (tw := natLorName) hS4)
+    exact AOut₀.err (pin_err (tw := natLorName) hS4)
   | Ok a4 =>
   rw [pin_ok (tw := natLorName) hS4]
   obtain ⟨q5, hq5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -431,7 +755,7 @@ theorem nat_div_mod_names_refines {pers st lst} {o}
   | Err e =>
     have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
     obtain rfl := (Result.ok_injective hrun').symm
-    exact AOut.err (pin_err (tw := natXorName) hS5)
+    exact AOut₀.err (pin_err (tw := natXorName) hS5)
   | Ok a5 =>
   rw [pin_ok (tw := natXorName) hS5]
   obtain ⟨q6, hq6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -443,7 +767,7 @@ theorem nat_div_mod_names_refines {pers st lst} {o}
   | Err e =>
     have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
     obtain rfl := (Result.ok_injective hrun').symm
-    exact AOut.err (pin_err (tw := natShiftLeftName) hS6)
+    exact AOut₀.err (pin_err (tw := natShiftLeftName) hS6)
   | Ok a6 =>
   rw [pin_ok (tw := natShiftLeftName) hS6]
   obtain ⟨q7, hq7, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -455,7 +779,7 @@ theorem nat_div_mod_names_refines {pers st lst} {o}
   | Err e =>
     have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
     obtain rfl := (Result.ok_injective hrun').symm
-    exact AOut.err (pin_err (tw := natShiftRightName) hS7)
+    exact AOut₀.err (pin_err (tw := natShiftRightName) hS7)
   | Ok a7 =>
   rw [pin_ok (tw := natShiftRightName) hS7]
   obtain ⟨w0, hw0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -470,7 +794,7 @@ theorem nat_div_mod_names_refines {pers st lst} {o}
   have hv : w7.val = [a0, a1, a2, a3, a4, a5, a6, a7] := by
     rw [push_nidx_val hw7, push_nidx_val hw6, push_nidx_val hw5, push_nidx_val hw4, push_nidx_val hw3, push_nidx_val hw2, push_nidx_val hw1, push_nidx_val hw0]
     rfl
-  refine ⟨lst, ?_, hrel, hinv, Ext.refl _, trivial⟩
+  refine ⟨lst, ?_, hrel, hinv⟩
   simp only [absNIdxL, hv, List.map_cons, List.map_nil]
   rfl
 
@@ -492,14 +816,14 @@ theorem name_nodup_refines {ns : alloc.vec.Vec arena.handle.NIdx} {o : Bool}
 
 /-- `nidx_is_model_suffix` ⊑ `NIdx.isModelSuffix`. -/
 theorem nidx_is_model_suffix_refines {pers st lst} {n : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.nidx_is_model_suffix pers st n = ok o) :
     SimRE id lst o (NIdx.isModelSuffix (absNIdx n)) := by
   sorry
 
 /-- `nidx_is_proj_fn_shape` ⊑ `NIdx.isProjFnShape`. -/
 theorem nidx_is_proj_fn_shape_refines {pers st lst} {n : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.nidx_is_proj_fn_shape pers st n = ok o) :
     SimRE id lst o (NIdx.isProjFnShape (absNIdx n)) := by
   sorry
@@ -537,7 +861,7 @@ theorem memo_b_get_refines {rm lm} {k : arena.handle.EIdx} {o}
 /-- `consts_resolve_f_go` ⊑ `constsResolveFGo`.  Finding 10's `hvis`. -/
 theorem consts_resolve_f_go_refines {pers st lst} {vis : Std.U64} {rf lf}
     {rm lm} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hm : ExprOps.LMemoRel rm lm)
     (hrun : arena.checker_base.consts_resolve_f_go pers vis st rf rm fuel h = ok o) :
@@ -549,7 +873,7 @@ theorem consts_resolve_f_go_refines {pers st lst} {vis : Std.U64} {rf lf}
 `view` (extraction rule 5), stated against the twin's arm at that view. -/
 theorem consts_resolve_f_node_refines {pers st lst} {vis : Std.U64} {rf lf}
     {rm lm} {fuel : Std.U64} {v : arena.store.ENodeView} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hm : ExprOps.LMemoRel rm lm)
     (hview : lst.store.view (absEIdx h) = some (absENodeView v))
@@ -563,7 +887,7 @@ theorem consts_resolve_f_node_refines {pers st lst} {vis : Std.U64} {rf lf}
 and WITHOUT a short-circuit (the twin's `.app` arm walks both and `&&`s). -/
 theorem consts_resolve_f_two_refines {pers st lst} {vis : Std.U64} {rf lf}
     {rm lm} {fuel : Std.U64} {a b : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hm : ExprOps.LMemoRel rm lm)
     (hrun : arena.checker_base.consts_resolve_f_two pers vis st rf rm fuel a b = ok o) :
@@ -580,10 +904,10 @@ theorem consts_resolve_f_two_refines {pers st lst} {vis : Std.U64} {rf lf}
 which is what every front door below calls. -/
 theorem consts_resolve_f_fast_refines {pers st lst} {vis : Std.U64} {rf lf}
     {e : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.checker_base.consts_resolve_f_fast pers vis st rf e = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (constsResolveFFast (lf.restrictTo (absU vis)) (absEIdx e)) := by
   sorry
 
@@ -603,7 +927,7 @@ theorem all_params_defined_list_refines
 theorem all_level_params_defined_go_refines {pers st lst}
     {params : alloc.vec.Vec kernel.name.Name} {rm lm} {fuel : Std.U64}
     {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hp : NamesWF params) (hm : ExprOps.LMemoRel rm lm)
     (hrun : arena.checker_base.all_level_params_defined_go pers st params rm fuel h
       = ok o) :
@@ -616,7 +940,7 @@ theorem all_level_params_defined_go_refines {pers st lst}
 theorem all_level_params_defined_node_refines {pers st lst}
     {params : alloc.vec.Vec kernel.name.Name} {rm lm} {fuel : Std.U64}
     {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hp : NamesWF params) (hm : ExprOps.LMemoRel rm lm)
     (hmiss : lm[absEIdx h]? = none)
     (hrun : arena.checker_base.all_level_params_defined_node pers st params rm fuel h
@@ -631,7 +955,7 @@ the one that also tests the binder metadatum's `PropWhen`. -/
 theorem all_level_params_defined_binder_refines {pers st lst}
     {params : alloc.vec.Vec kernel.name.Name} {rm lm} {fuel : Std.U64}
     {t b : arena.handle.EIdx} {m : kernel.expr.BinderMeta} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hp : NamesWF params) (hm : ExprOps.LMemoRel rm lm)
     (hmwf : ConRon.Refine.BinderMetaWF m)
     (hrun : arena.checker_base.all_level_params_defined_binder pers st params rm
@@ -651,7 +975,7 @@ theorem all_level_params_defined_binder_refines {pers st lst}
 walk, at the parameter list read back once. -/
 theorem all_level_params_defined_refines {pers st lst}
     {lps : alloc.vec.Vec arena.handle.NIdx} {e : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.all_level_params_defined pers st lps e = ok o) :
     SimRE id lst o (allLevelParamsDefined (absNIdxL lps) (absEIdx e)) := by
   sorry
@@ -659,157 +983,24 @@ theorem all_level_params_defined_refines {pers st lst}
 /-! ## The front door's verdict at an unresolved constant -/
 
 /-- `unresolved_consts_error` ⊑ `unresolvedConstsError`.  The result is a
-CheckError, so it is a `SimRel` at the kind: a term that mentions `sorryAx`
+CheckError, so it is a `SimRel₀` at the kind: a term that mentions `sorryAx`
 DECLINES (`notImplemented`) and anything else REJECTS (`invalid`), and the
 claim is that the two agree on WHICH — messages are never compared
 (DESIGN §3.1). -/
 theorem unresolved_consts_error_refines {pers st lst} {e : arena.handle.EIdx} {o}
     {w : String}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.unresolved_consts_error pers st e = ok o) :
-    SimRel (fun r v => absAErrKind r = lAErrKind v) pers lst o
+    SimRel₀ (fun r v => absAErrKind r = lAErrKind v) pers lst o
       (unresolvedConstsError w (absEIdx e)) := by
   sorry
 
-/-! ## `DeclResolves` — the declaration's handles and the Core answers resolve
-
-**Task #97-P5-Top round 2, ruling 2.**  The Core entries carry task #97-P5-0's
-finding 3 (`EResolves` of the handle they dispatch on: the port reads the
-handle's TAG, the twin its VIEW) and task #97-P5-Arms' finding 14
-(`AnswerResolves` of a callee's answer).  Nothing in `AStateRel`/`AStateInv`
-says a handle resolves — the Rust invariant does not constrain cache contents,
-so a universally quantified "every answer resolves" would be FALSE — and the
-fact is Theorem 1's ("the checker never holds a dangling handle", its
-`StateOK`).  So it enters Theorem 2 as a precondition, in the form Theorem 1
-can discharge:
-
-* `Good : IFEnv → AState → Prop` is Theorem 1's twin-state invariant, ABSTRACT
-  here (`Refine2` does not import `Bridge`);
-* `ResolveInv mode Good` is what Theorem 2 consumes of it: the Core answers
-  resolve from `Good` states, and `Good` survives the twin steps the glue
-  walks over — each field a twin-only statement over `Good` states;
-* `HandlesResolve Good hs` / `VGResolves Good fe g` — the declaration's (the
-  value group's) handles resolve in every `Good` state.
-
-The capstone (`ConRon/Capstone.lean`, the one module that sees both theorems)
-supplies `Good` and the facts from Theorem 1, the way it supplies `BrOK`. -/
-
-/-- The expression handles a stored constant carries. -/
-def ciHandles : IConstantInfo → List EIdx
-  | .axiomInfo cv => [cv.type]
-  | .defnInfo cv v _ => [cv.type, v]
-  | .thmInfo cv v => [cv.type, v]
-  | .indInfo cv _ => [cv.type]
-  | .ctorInfo cv _ _ => [cv.type]
-  | .recInfo cv _ _ rules => cv.type :: rules.map (·.rhs)
-  | .projInfo t => t.bodies.toList
-
-/-- The expression handles a declaration record carries. -/
-def declHandles : IDeclaration → List EIdx
-  | .axiomDecl cv => [cv.type]
-  | .defnDecl cv v _ => [cv.type, v]
-  | .thmDecl cv v => [cv.type, v]
-  | .opaqueDecl cv v => [cv.type, v]
-  | .basisDecl _ => []
-  | .indDecl block _ => block.flatMap ciHandles
-  | .quotDecl _ cv => [cv.type]
-
-/-- **The handles resolve in every `Good` state at `fe`.** -/
-def ResolvesAt (Good : IFEnv → AState → Prop) (fe : IFEnv) (hs : List EIdx) : Prop :=
-  ∀ s, Good fe s → ∀ h ∈ hs, ExprOps.EResolves s h
-
-theorem ResolvesAt.sub {Good : IFEnv → AState → Prop} {fe : IFEnv} {hs hs' : List EIdx}
-    (h : ResolvesAt Good fe hs) (hsub : ∀ x ∈ hs', x ∈ hs) : ResolvesAt Good fe hs' :=
-  fun s hg x hx => h s hg x (hsub x hx)
-
-/-- **The handles resolve in every `Good` state** — a stream declaration's
-handles are persistent, so Theorem 1's invariant carries them whatever the
-environment. -/
-def HandlesResolve (Good : IFEnv → AState → Prop) (hs : List EIdx) : Prop :=
-  ∀ fe, ResolvesAt Good fe hs
-
-/-- **A value group's handles resolve** in every `Good` state at the
-environment phase B checks it against (phase A made them; they are that
-environment's constant's type and value). -/
-def VGResolves (Good : IFEnv → AState → Prop) (fe : IFEnv) (g : ValueGroup) :
-    Prop :=
-  ∀ s, Good fe s → ExprOps.EResolves s g.cvA.type ∧ ExprOps.EResolves s g.jv
-
-/-- **What Theorem 2 consumes of Theorem 1's invariant `Good`** (ruling 2).
-Every field is a statement about the TWIN alone, over `Good` states: the Core
-answers resolve, and `Good` survives the twin steps the refinement's glue
-walks over.  Fields are added as the leaves below are proved; each is a
-Theorem-1 run lemma's frame. -/
-structure ResolveInv (mode : ConLeche.CheckMode) (Good : IFEnv → AState → Prop) : Prop where
-  /-- `inferTypeCore` answers a resolving handle, and keeps `Good`. -/
-  infer : ∀ {fe : IFEnv} {v d : Nat} {e w : EIdx} {s s' : AState}, Good fe s →
-    ExprOps.EResolves s e →
-    inferTypeCore mode (fe.restrictTo v) checkFuel d e s = .ok (w, s') →
-    ExprOps.EResolves s' w ∧ Good fe s'
-  /-- `whnf` answers a resolving handle. -/
-  whnf : ∀ {fe : IFEnv} {v d : Nat} {e w : EIdx} {s s' : AState}, Good fe s →
-    ExprOps.EResolves s e →
-    Arena.whnf mode (fe.restrictTo v) checkFuel d e s = .ok (w, s') →
-    ExprOps.EResolves s' w
-  /-- `ensureSortCore` keeps `Good`. -/
-  ensureSort : ∀ {fe : IFEnv} {v d : Nat} {e : EIdx} {u : LIdx} {s s' : AState},
-    Good fe s → ExprOps.EResolves s e →
-    ensureSortCore mode (fe.restrictTo v) checkFuel d e s = .ok (u, s') → Good fe s'
-  /-- **A `Good` state's store is well formed** (task #97-P5-Core round 4).
-  The Core tier's front doors are LOCKSTEP statements now — over
-  `AStateRel₀`, with no `Ext` — so a consumer that still wants `AStateRel`
-  and `Ext` takes the twin's own two facts from here (`Sim₀.toSim`), and they
-  are Theorem 1's (`StateOK`). -/
-  wf : ∀ {fe : IFEnv} {s : AState}, Good fe s → StoreWF s.store
-  /-- `inferTypeCore` only extends the store (Theorem 1's run lemma). -/
-  inferExt : ∀ {fe : IFEnv} {v d : Nat} {e w : EIdx} {s s' : AState}, Good fe s →
-    ExprOps.EResolves s e →
-    inferTypeCore mode (fe.restrictTo v) checkFuel d e s = .ok (w, s') →
-    Ext s.store s'.store
-  /-- `ensureSortCore` only extends the store (Theorem 1's run lemma). -/
-  ensureSortExt : ∀ {fe : IFEnv} {v d : Nat} {e : EIdx} {u : LIdx} {s s' : AState},
-    Good fe s → ExprOps.EResolves s e →
-    ensureSortCore mode (fe.restrictTo v) checkFuel d e s = .ok (u, s') →
-    Ext s.store s'.store
-  /-- `isDefEqCore` ends at a well-formed store extending its start
-  (Theorem 1's run lemma; task #97-P5-Core round 4, for
-  `check_value_group_tail_refines`, whose `Sim` conclusion still wants
-  `AStateRel` and `Ext` after the lockstep front door). -/
-  defeqWF : ∀ {fe : IFEnv} {v d : Nat} {a b : EIdx} {r : Bool} {s s' : AState},
-    Good fe s → ExprOps.EResolves s a → ExprOps.EResolves s b →
-    Arena.isDefEqCore mode (fe.restrictTo v) checkFuel d a b s = .ok (r, s') →
-    StoreWF s'.store ∧ Ext s.store s'.store
-  /-- `enterScratch` (phase B's bracket opened) keeps `Good`. -/
-  enterScratch : ∀ {fe : IFEnv} {s : AState}, Good fe s →
-    Good fe { s with store := s.store.enableScratch, memos := Memos.empty }
-  /-- `flushCaches; enterScratch` (a fold step's bracket opened) keeps `Good`. -/
-  flushEnter : ∀ {fe : IFEnv} {s : AState}, Good fe s →
-    Good fe ({ s with caches := Caches.empty, store := s.store.enableScratch,
-                      memos := Memos.empty } : AState)
-  /-- phase B's step keeps `Good`. -/
-  checkPending : ∀ {fe : IFEnv} {pc : PendingCheck} {s s' : AState}, Good fe s →
-    checkPending mode fe pc s = .ok ((), s') → Good fe s'
-  /-- phase A's step keeps `Good`, at the environment it hands on. -/
-  annotDeclStep : ∀ {pins : List INatOpPinSet} {p : Nat × IFEnv × Array PendingCheck}
-    {pd : IDeclaration} {p' : Nat × IFEnv × Array PendingCheck} {s s' : AState},
-    Good p.2.1 s → annotDeclStep mode pins p pd s = .ok (.ok p', s') → Good p'.2.1 s'
-  /-- the pure fold's step keeps `Good`, at the environment it hands on. -/
-  checkDeclStep : ∀ {pins : List INatOpPinSet} {fe fe' : IFEnv} {d : IDeclaration}
-    {s s' : AState}, Good fe s → checkDeclStep mode pins fe d s = .ok (fe', s') →
-    Good fe' s'
-  /-- `installConstantVal` keeps `Good`. -/
-  installConstantVal : ∀ {fe : IFEnv} {cv c : IConstantVal} {s s' : AState},
-    Good fe s → installConstantVal mode fe cv s = .ok (c, s') → Good fe s'
-  /-- `checkConstantVal` keeps `Good`, and its annotated type resolves. -/
-  checkConstantVal : ∀ {fe : IFEnv} {cv c : IConstantVal} {s s' : AState},
-    Good fe s → checkConstantVal mode fe cv s = .ok (c, s') →
-    Good fe s' ∧ ExprOps.EResolves s' c.type
-
 /-! ### Twin readers leave the state alone
 
-The glue carries `Good` across the twin's pin reads (`natOpNames`,
-`natDivModNames`, `reduceOpNames`), which read the pin table and write
-nothing. -/
+The twin's pin reads (`natOpNames`, `natDivModNames`, `reduceOpNames`) read
+the pin table and write nothing — a fact about the twin alone, which the
+parser tier's `is_nat_op_record_refines` uses to keep its old-shape
+statement across a lockstep reader. -/
 
 /-- A twin action that never changes the state it succeeds from. -/
 def AMReads {α : Type} (x : AM α) : Prop :=
@@ -866,96 +1057,15 @@ theorem reduceOpNames_reads : AMReads reduceOpNames := by
   unfold reduceOpNames
   repeat (first | exact AMReads.pure' _ | refine AMReads.bind' (pinAt_reads _) fun _ => ?_)
 
-/-- A continuation-passing `SimRel` composition that hands the continuation
-the twin's own run of the first half — which a `Good`-carrying glue step
-needs to move `Good` across it (ruling 2). -/
-theorem SimRel.of_sim_bind_run {α β γ δ : Type} {A : α → β} {R : γ → δ → Prop}
-    {pers : arena.store.PersTier} {lst : AState} {x : AM β} {f : β → AM δ}
-    {r : α} {st1 : arena.monad.AState}
-    {o : core.result.Result γ kernel.core_types.CheckError × arena.monad.AState}
-    (h1 : Sim A (fun _ => True) pers lst (.Ok r, st1) x)
-    (h2 : ∀ lst1, x.run lst = .ok (A r, lst1) → AStateRel pers st1 lst1 →
-      AStateInv pers st1 → SimRel R pers lst1 o (f (A r))) :
-    SimRel R pers lst o (x >>= f) := by
-  obtain ⟨lst1, hx, hrel1, hinv1, hext1, -⟩ := Sim.apply h1
-  have h := h2 lst1 hx hrel1 hinv1
-  unfold SimRel AOutRel at h ⊢
-  rw [am_run_bind', hx, except_ok_bind]
-  revert h
-  cases o.1 with
-  | Err e => exact id
-  | Ok r' =>
-    rintro ⟨v, lst2, hy, hr, hrel2, hinv2, hext2⟩
-    exact ⟨v, lst2, hy, hr, hrel2, hinv2, Ext.trans hext1 hext2⟩
-
-/-! ### `EResolves` is a fact about the Rust state
-
-`AStateRel` pins the twin store's node arrays down exactly (`TblRel.nodes`),
-and `EStore.view` reads nothing else, so two twin states related to the same
-Rust state resolve the same handles.  This is what turns a twin-side
-"the answer resolves" into the Core entries' `AnswerResolves`, which
-quantifies over every twin state related to the Rust post-state. -/
-
-/-- A table with everything but its node array erased. -/
-def tblSkel {α ι δ : Type} [BEq α] [Hashable α] (t : Tbl α ι δ) : Tbl α ι δ :=
-  ⟨t.nodes, #[], ∅⟩
-
-/-- An expression tier with everything `EStore.view` does not read erased. -/
-def eTablesSkel (t : ETables) : ETables :=
-  ⟨tblSkel t.bvars, tblSkel t.fvars, tblSkel t.sorts, tblSkel t.consts,
-    tblSkel t.apps, tblSkel t.lams, tblSkel t.foralls, tblSkel t.lets,
-    tblSkel t.lits, tblSkel t.projs, tblSkel t.bms⟩
-
-theorem estore_view_skel (st : EStore) (h : EIdx) :
-    st.view h = (EStore.mk default (eTablesSkel st.pers) (eTablesSkel st.scr)
-      st.scratchOn).view h := rfl
-
-private theorem tbl_nodes_eq {A I D α ι δ ω : Type} [DecidableEq A] [BEq α]
-    [Hashable α] {P : A → Prop} {absA : A → α} {absI : I → ι} {absD : D → δ}
-    {obsD : δ → ω} {rt : arena.store.Tbl A I D} {la lb : Tbl α ι δ}
-    (ha : TblRel P absA absI absD obsD rt la) (hb : TblRel P absA absI absD obsD rt lb) :
-    tblSkel la = tblSkel lb := by
-  have : la.nodes = lb.nodes := Array.toList_inj.mp (ha.nodes.trans hb.nodes.symm)
-  simp only [tblSkel, this]
-
-private theorem etables_skel_eq {rt : arena.store.ETables} {la lb : ETables}
-    (ha : ETablesRel rt la) (hb : ETablesRel rt lb) :
-    eTablesSkel la = eTablesSkel lb := by
-  simp only [eTablesSkel, tbl_nodes_eq ha.bvars hb.bvars, tbl_nodes_eq ha.fvars hb.fvars,
-    tbl_nodes_eq ha.sorts hb.sorts, tbl_nodes_eq ha.consts hb.consts,
-    tbl_nodes_eq ha.apps hb.apps, tbl_nodes_eq ha.lams hb.lams,
-    tbl_nodes_eq ha.foralls hb.foralls, tbl_nodes_eq ha.lets hb.lets,
-    tbl_nodes_eq ha.lits hb.lits, tbl_nodes_eq ha.projs hb.projs,
-    tbl_nodes_eq ha.bms hb.bms]
-
-/-- **Two twin states related to one Rust state view every handle alike.** -/
-theorem view_of_rel {pers : arena.store.PersTier} {st : arena.monad.AState}
-    {la lb : AState} (ha : AStateRel pers st la) (hb : AStateRel pers st lb)
-    (h : EIdx) : la.store.view h = lb.store.view h := by
-  rw [estore_view_skel la.store, estore_view_skel lb.store,
-    etables_skel_eq ha.store.perst hb.store.perst,
-    etables_skel_eq ha.store.scrt hb.store.scrt,
-    ha.store.scratchOn, hb.store.scratchOn]
-
-/-- `EResolves` transported between two twin states related to one Rust
-state. -/
-theorem EResolves.of_rel {pers : arena.store.PersTier} {st : arena.monad.AState}
-    {la lb : AState} {h : EIdx} (ha : AStateRel pers st la)
-    (hb : AStateRel pers st lb) (hr : ExprOps.EResolves la h) :
-    ExprOps.EResolves lb h := by
-  unfold ExprOps.EResolves at hr ⊢
-  rw [← view_of_rel ha hb h]
-  exact hr
-
 /-! ## The per-declaration constant check -/
 
 /-- `check_constant_val_guards_rest` is `check_constant_val_guards`'s tail past
 the duplicate-declaration test (extraction rule 5). -/
 theorem check_constant_val_guards_rest_refines {pers st lst}
     {cv : arena.env.IConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.check_constant_val_guards_rest pers st cv = ok o) :
-    Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
+    Sim₀ (fun _ : Unit => ()) pers lst o
       (checkConstantValGuardsRestSpec (absIConstantVal cv)) := by
   sorry
 
@@ -963,10 +1073,10 @@ theorem check_constant_val_guards_rest_refines {pers st lst}
 syntactic tests before the annotation. -/
 theorem check_constant_val_guards_refines {pers st lst} {vis : Std.U64} {rf lf}
     {cv : arena.env.IConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.checker_base.check_constant_val_guards pers vis st rf cv = ok o) :
-    Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
+    Sim₀ (fun _ : Unit => ()) pers lst o
       (checkConstantValGuardsSpec lf (absIConstantVal cv)) := by
   sorry
 
@@ -974,10 +1084,10 @@ theorem check_constant_val_guards_refines {pers st lst} {vis : Std.U64} {rf lf}
 annotation: the level-parameter test and the constant-resolution test. -/
 theorem install_constant_val_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     {cv : arena.env.IConstantVal} {ty : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.checker_base.install_constant_val_tail pers vis st rf cv ty = ok o) :
-    Sim absIConstantVal (fun _ => True) pers lst o
+    Sim₀ absIConstantVal pers lst o
       (installConstantValTailSpec lf (absIConstantVal cv) (absEIdx ty)) := by
   sorry
 
@@ -986,11 +1096,11 @@ install-side tail plus the type's own inference and sort check. -/
 theorem check_constant_val_after_annot_refines {pers st lst} {vis : Std.U64}
     {rf lf} {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
     {ty : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.checker_base.check_constant_val_after_annot pers vis st mode rf cv ty
       = ok o) :
-    Sim absIConstantVal (fun _ => True) pers lst o
+    Sim₀ absIConstantVal pers lst o
       (checkConstantValAfterAnnotSpec (ConRon.Refine.absMode mode) lf
         (absIConstantVal cv) (absEIdx ty)) := by
   sorry
@@ -998,15 +1108,28 @@ theorem check_constant_val_after_annot_refines {pers st lst} {vis : Std.U64}
 /-- **`check_constant_val` ⊑ `checkConstantVal`** — the common per-declaration
 constant check, whole. -/
 theorem check_constant_val_refines {pers st lst} {vis : Std.U64} {rf lf}
-    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal} {o} {Good : IFEnv → AState → Prop}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hR : ResolveInv (ConRon.Refine.absMode mode) Good) (hg : Good lf lst)
-    (hcv : ResolvesAt Good lf [absEIdx cv.ty])
     (hrun : arena.checker_base.check_constant_val pers vis st mode rf cv = ok o) :
-    Sim absIConstantVal (fun _ => True) pers lst o
+    Sim₀ absIConstantVal pers lst o
       (checkConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_constant_val_ls {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {cv : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absIConstantVal a)
+      (arena.checker_base.check_constant_val pers vis st mode rf cv) lst
+      (checkConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)) :=
+  LS.ofSim₀ fun _ h => check_constant_val_refines hrel hinv hfe.rel hfe.inv hvis h
 
 /-! ## Opening a pi telescope at fresh free variables -/
 
@@ -1014,9 +1137,9 @@ theorem check_constant_val_refines {pers st lst} {vis : Std.U64} {rf lf}
 its own. -/
 theorem open_pis_at_fvars_refines {pers st lst} {n : Std.U64}
     {h : arena.handle.EIdx} {i : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.open_pis_at_fvars pers st n h i = ok o) :
-    Sim (Option.map (fun p => (absEIdxL p.1, absEIdx p.2))) (fun _ => True)
+    Sim₀ (Option.map (fun p => (absEIdxL p.1, absEIdx p.2)))
       pers lst o (openPisAtFvars (absU n) (absEIdx h) (absU i)) := by
   sorry
 
@@ -1026,9 +1149,9 @@ domain instead of one whole-telescope `instantiate1` pass per binder. -/
 theorem open_pis_at_fvars_f_go_refines {pers st lst}
     {acc : alloc.vec.Vec arena.handle.EIdx} {n : Std.U64}
     {h : arena.handle.EIdx} {i : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.open_pis_at_fvars_f_go pers st acc n h i = ok o) :
-    Sim (Option.map (fun p => (absEIdxL p.1, absEIdx p.2))) (fun _ => True)
+    Sim₀ (Option.map (fun p => (absEIdxL p.1, absEIdx p.2)))
       pers lst o
       (openPisAtFvarsFGo (absEIdxL acc).toArray (absU n) (absEIdx h) (absU i)) := by
   sorry
@@ -1038,9 +1161,9 @@ fallback that covers telescopes whose binders only appear after
 substitution. -/
 theorem open_pis_at_fvars_f_refines {pers st lst} {n : Std.U64}
     {e : arena.handle.EIdx} {i : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.open_pis_at_fvars_f pers st n e i = ok o) :
-    Sim (Option.map (fun p => (absEIdxL p.1, absEIdx p.2))) (fun _ => True)
+    Sim₀ (Option.map (fun p => (absEIdxL p.1, absEIdx p.2)))
       pers lst o (openPisAtFvarsF (absU n) (absEIdx e) (absU i)) := by
   sorry
 
@@ -1049,7 +1172,7 @@ with DESIGN §3.4's closure-free `List` recursion. -/
 theorem fvar_type_ds_refines {pers st lst}
     {hs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
     {out : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.fvar_type_ds pers st hs i out = ok o) :
     SimRE absEIdxL lst o
       (do pure (absEIdxL out ++ (← fvarTypeDs (absEIdxLFrom hs i)))) := by
@@ -1060,17 +1183,17 @@ theorem fvar_type_ds_refines {pers st lst}
 /-- `is_eq_head` ⊑ `isEqHead` — is the expression the pinned equality former at
 one level? -/
 theorem is_eq_head_refines {pers st lst} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.is_eq_head pers st h = ok o) :
-    Sim id (fun _ => True) pers lst o (isEqHead (absEIdx h)) := by
+    Sim₀ id pers lst o (isEqHead (absEIdx h)) := by
   sorry
 
 /-- `eq_head_level_at` is `eq_head_level`'s tail at the universe-argument list
 (extraction rule 5). -/
 theorem eq_head_level_at_refines {pers st lst} {us : arena.handle.LsIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.eq_head_level_at pers st us = ok o) :
-    Sim absLIdx (fun _ => True) pers lst o
+    Sim₀ absLIdx pers lst o
       (do
         match ← viewLs (absLsIdx us) with
         | [l] => pure l
@@ -1080,9 +1203,9 @@ theorem eq_head_level_at_refines {pers st lst} {us : arena.handle.LsIdx} {o}
 /-- `eq_head_level` ⊑ `eqHeadLevel` — off shape it is `.zero`, which
 `isEqHead` has already rejected wherever the result is used. -/
 theorem eq_head_level_refines {pers st lst} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.eq_head_level pers st h = ok o) :
-    Sim absLIdx (fun _ => True) pers lst o (eqHeadLevel (absEIdx h)) := by
+    Sim₀ absLIdx pers lst o (eqHeadLevel (absEIdx h)) := by
   sorry
 
 /-! ## The three list checks -/
@@ -1091,11 +1214,11 @@ theorem eq_head_level_refines {pers st lst} {h : arena.handle.EIdx} {o}
 theorem check_typed_list_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {depth : Std.U64}
     {xs ts : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.checker_base.check_typed_list pers vis st mode rf depth xs ts i
       = ok o) :
-    Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
+    Sim₀ (fun _ : Unit => ()) pers lst o
       (checkTypedList (ConRon.Refine.absMode mode) lf (absU depth)
         (absEIdxLFrom xs i) (absEIdxLFrom ts i)) := by
   sorry
@@ -1104,11 +1227,11 @@ theorem check_typed_list_refines {pers st lst} {vis : Std.U64} {rf lf}
 theorem check_annot_list_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {depth : Std.U64}
     {xs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.checker_base.check_annot_list pers vis st mode rf depth xs i
       = ok o) :
-    Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
+    Sim₀ (fun _ : Unit => ()) pers lst o
       (checkAnnotList (ConRon.Refine.absMode mode) lf (absU depth)
         (absEIdxLFrom xs i)) := by
   sorry
@@ -1117,11 +1240,11 @@ theorem check_annot_list_refines {pers st lst} {vis : Std.U64} {rf lf}
 theorem check_def_eq_list_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {depth : Std.U64}
     {xs ys : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.checker_base.check_def_eq_list pers vis st mode rf depth xs ys i
       = ok o) :
-    Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
+    Sim₀ (fun _ : Unit => ()) pers lst o
       (checkDefEqList (ConRon.Refine.absMode mode) lf (absU depth)
         (absEIdxLFrom xs i) (absEIdxLFrom ys i)) := by
   sorry
@@ -1141,16 +1264,16 @@ theorem unwrap_or_refines {T β : Type} {A : T → β} {lst} {o : Option T}
 /-- `ifenv_find_cv` ⊑ `IFEnv.findCV?`.  Finding 10's `hvis`. -/
 theorem ifenv_find_cv_refines {pers st lst} {vis : Std.U64} {rf lf}
     {n : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.checker_base.ifenv_find_cv pers vis st rf n = ok o) :
-    Sim (Option.map absIConstantVal) (fun _ => True) pers lst o
+    Sim₀ (Option.map absIConstantVal) pers lst o
       (lf.findCV? (absNIdx n)) := by
   sorry
 
 /-- `pi_result_sort` ⊑ `piResultSort`. -/
 theorem pi_result_sort_refines {pers st lst} {e : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.pi_result_sort pers st e = ok o) :
     SimRE (Option.map absLIdx) lst o (piResultSort (absEIdx e)) := by
   sorry
@@ -1190,7 +1313,7 @@ theorem doms_match_aux_refines
 constructor's residual is the family applied to exactly the parameters. -/
 theorem check_proj_shape_residual_refines {pers st lst}
     {cbody : arena.handle.EIdx} {n_p : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.check_proj_shape_residual pers st cbody n_p = ok o) :
     SimRE (fun _ : Unit => ()) lst o
       (do
@@ -1204,7 +1327,7 @@ theorem check_proj_shape_residual_refines {pers st lst}
 /-- `check_proj_shape` ⊑ `checkProjShape` — stage 2b. -/
 theorem check_proj_shape_refines {pers st lst}
     {pty ctor_ty : arena.handle.EIdx} {n_p n_f : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.check_proj_shape pers st pty ctor_ty n_p n_f = ok o) :
     SimRE (fun _ : Unit => ()) lst o
       (checkProjShape (absEIdx pty) (absEIdx ctor_ty) (absU n_p) (absU n_f)) := by
@@ -1213,10 +1336,10 @@ theorem check_proj_shape_refines {pers st lst}
 /-- `proj_rule_wf` is `check_proj_rule`'s four-way well-formedness conjunct. -/
 theorem proj_rule_wf_refines {pers st lst} {vis : Std.U64} {rf lf}
     {rhs_a : arena.handle.EIdx} {lps : alloc.vec.Vec arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.checker_base.proj_rule_wf pers vis st rf rhs_a lps = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (do
         pure ((← allLevelParamsDefined (absNIdxL lps) (absEIdx rhs_a)) &&
           (← constsResolveFFast lf (absEIdx rhs_a)) &&
@@ -1231,11 +1354,11 @@ theorem check_proj_rule_frame_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {n_p n_f : Std.U64}
     {fvs_p : alloc.vec.Vec arena.handle.EIdx}
     {crest_p rhs_a : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.checker_base.check_proj_rule_frame pers vis st mode rf n_p n_f
       fvs_p crest_p rhs_a = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (checkProjRuleFrameSpec (ConRon.Refine.absMode mode) lf (absU n_p) (absU n_f)
         (absEIdxL fvs_p) (absEIdx crest_p) (absEIdx rhs_a)) := by
   sorry
@@ -1245,11 +1368,11 @@ theorem check_proj_rule_certs_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {pty : arena.handle.EIdx}
     {cvj : arena.env.IConstantVal} {n_p n_f : Std.U64}
     {rhs_a : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.checker_base.check_proj_rule_certs pers vis st mode rf pty cvj
       n_p n_f rhs_a = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (checkProjRuleCertsSpec (ConRon.Refine.absMode mode) lf (absEIdx pty)
         (absIConstantVal cvj) (absU n_p) (absU n_f) (absEIdx rhs_a)) := by
   sorry
@@ -1259,11 +1382,11 @@ theorem check_proj_rule_shape_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {pty : arena.handle.EIdx}
     {cvj : arena.env.IConstantVal} {n_p n_f : Std.U64}
     {bv rhs_a : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.checker_base.check_proj_rule_shape pers vis st mode rf pty cvj
       n_p n_f bv rhs_a = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (checkProjRuleShapeSpec (ConRon.Refine.absMode mode) lf (absEIdx pty)
         (absIConstantVal cvj) (absU n_p) (absU n_f) (absEIdx bv)
         (absEIdx rhs_a)) := by
@@ -1274,11 +1397,11 @@ theorem check_proj_rule_wf_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {pty : arena.handle.EIdx}
     {cvj : arena.env.IConstantVal} {lps : alloc.vec.Vec arena.handle.NIdx}
     {n_p n_f : Std.U64} {bv rhs_a : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.checker_base.check_proj_rule_wf pers vis st mode rf pty cvj lps
       n_p n_f bv rhs_a = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (checkProjRuleWfSpec (ConRon.Refine.absMode mode) lf (absEIdx pty)
         (absIConstantVal cvj) (absNIdxL lps) (absU n_p) (absU n_f) (absEIdx bv)
         (absEIdx rhs_a)) := by
@@ -1289,11 +1412,11 @@ theorem check_proj_rule_scoped_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {pty : arena.handle.EIdx}
     {cvj : arena.env.IConstantVal} {lps : alloc.vec.Vec arena.handle.NIdx}
     {n_p n_f : Std.U64} {bv rhs : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.checker_base.check_proj_rule_scoped pers vis st mode rf pty cvj lps
       n_p n_f bv rhs = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (checkProjRuleScopedSpec (ConRon.Refine.absMode mode) lf (absEIdx pty)
         (absIConstantVal cvj) (absNIdxL lps) (absU n_p) (absU n_f) (absEIdx bv)
         (absEIdx rhs)) := by
@@ -1306,11 +1429,11 @@ theorem check_proj_rule_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {pty : arena.handle.EIdx}
     {cvj : arena.env.IConstantVal} {lps : alloc.vec.Vec arena.handle.NIdx}
     {n_p n_f i : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.checker_base.check_proj_rule pers vis st mode rf pty cvj lps
       n_p n_f i = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (checkProjRule (ConRon.Refine.absMode mode) lf (absEIdx pty)
         (absIConstantVal cvj) (absNIdxL lps) (absU n_p) (absU n_f) (absU i)) := by
   sorry
@@ -1346,9 +1469,9 @@ theorem recs_form_suffix_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
 /-- `ind_params_ok_at` is `ind_params_ok`'s per-member test. -/
 theorem ind_params_ok_at_refines {pers st lst} {n_p : Std.U64}
     {ci : arena.env.IConstantInfo} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.ind_params_ok_at pers st n_p ci = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (indParamsOkAtSpec (absU n_p) (absIConstantInfo ci)) := by
   sorry
 
@@ -1358,9 +1481,9 @@ declared parameter count, checked as official checks it** (con-leche's task
 rejects. -/
 theorem ind_params_ok_refines {pers st lst} {n_p : Std.U64}
     {block : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.ind_params_ok pers st n_p block i = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (indParamsOk (absU n_p) (absICILFrom block i)) := by
   sorry
 
@@ -1391,7 +1514,7 @@ theorem absLIdxPair_inj : Function.Injective absLIdxPair := by
   simp [absLIdx_inj h.1, absLIdx_inj h.2]
 
 /-- `arena::core::lvl_eq_probe` against `lst.caches.lvlEqC[·]?`. -/
-theorem lvl_eq_probe_abs {pers st lst} (hrel : AStateRel pers st lst)
+theorem lvl_eq_probe_abs {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {k : arena.core_state.LIdxPair} {o : Option Bool}
     (hrun : arena.core.lvl_eq_probe st k = ok o) :
     o = lst.caches.lvlEqC[absLIdxPair k]? := by
@@ -1434,10 +1557,10 @@ theorem lvlEq?_miss {u v : LIdx} {lst : AState}
   rfl
 
 /-- **`lvl_eq` ⊑ `lvlEq?`** — the cached universe comparison. -/
-theorem lvl_eq_refines {pers st lst} (hrel : AStateRel pers st lst)
+theorem lvl_eq_refines {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {u v : arena.handle.LIdx} {o}
     (hrun : arena.core.lvl_eq pers st u v = ok o) :
-    Sim id (fun _ => True) pers lst o (lvlEq? (absLIdx u) (absLIdx v)) := by
+    Sim₀ id pers lst o (lvlEq? (absLIdx u) (absLIdx v)) := by
   rw [arena.core.lvl_eq] at hrun
   obtain ⟨k, hk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have hkv : absLIdxPair k = (absLIdx u, absLIdx v) := by
@@ -1450,40 +1573,38 @@ theorem lvl_eq_refines {pers st lst} (hrel : AStateRel pers st lst)
   obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have hpe := lvl_eq_probe_abs hrel hinv hp
   rw [hkv] at hpe
-  unfold Sim
+  unfold Sim₀
   cases p with
   | some r =>
     have ho := (Result.ok_injective hrun).symm
     subst ho
-    exact AOut.ok (lvlEq?_hit hpe.symm) hrel hinv (Ext.refl _) trivial
+    exact AOut₀.ok (lvlEq?_hit hpe.symm) hrel hinv
   | none =>
   rw [lvlEq?_miss hpe.symm]
   obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r1, st1⟩ := q1
   have hwf1 := (read_level_m_wf hinv hq1).1
-  have hS1 := read_level_m_run hrel hinv hq1
+  have hS1 := read_level_m_run₀ hrel hinv hq1
   cases r1 with
   | Err e =>
     have ho := Result.ok_injective hrun
     subst ho
-    exact AOut.errBind hS1
+    exact AOut₀.errBind hS1
   | Ok lu =>
-  obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+  obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS1
   rw [run_bind_ok hx1]
-  refine AOut.rebase hext1 ?_
   obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r2, st2⟩ := q2
   have hwf2 := (read_level_m_wf hinv1 hq2).1
-  have hS2 := read_level_m_run hrel1 hinv1 hq2
+  have hS2 := read_level_m_run₀ hrel1 hinv1 hq2
   cases r2 with
   | Err e =>
     have ho := Result.ok_injective hrun
     subst ho
-    exact AOut.errBind hS2
+    exact AOut₀.errBind hS2
   | Ok lv =>
-  obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+  obtain ⟨lst2, hx2, hrel2, hinv2⟩ := Sim₀.apply hS2
   rw [run_bind_ok hx2]
-  refine AOut.rebase hext2 ?_
   obtain ⟨o1, ho1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have heq := ConRon.Refine.Level.is_equiv_refines (hwf1 lu rfl) (hwf2 lv rfl) ho1
   simp only at heq ⊢
@@ -1492,7 +1613,7 @@ theorem lvl_eq_refines {pers st lst} (hrel : AStateRel pers st lst)
   | none =>
     have ho := (Result.ok_injective hrun).symm
     subst ho
-    exact AOut.ok rfl hrel2 hinv2 (Ext.refl _) trivial
+    exact AOut₀.ok rfl hrel2 hinv2
   | some r =>
   obtain ⟨st3, hst3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have ho := (Result.ok_injective hrun).symm
@@ -1510,9 +1631,9 @@ theorem lvl_eq_refines {pers st lst} (hrel : AStateRel pers st lst)
   rw [hkv] at h1
   let mp0 := if lst2.caches.lvlEqC.size < cacheCap then lst2.caches.lvlEqC else ∅
   let mp2 := mp0.insert (absLIdx u, absLIdx v) r
-  exact AOut.ok (lst' := { lst2 with caches := { lst2.caches with lvlEqC := mp2 } }) rfl
+  exact AOut₀.ok (lst' := { lst2 with caches := { lst2.caches with lvlEqC := mp2 } }) rfl
     { hrel2 with caches := { hrel2.caches with lvlEqC := h1 } }
-    { hinv2 with caches := { hinv2.caches with lvlEqC := h2 } } (Ext.refl _) trivial
+    { hinv2 with caches := { hinv2.caches with lvlEqC := h2 } }
 
 /-! ## `arena::checker_split` — the install/check seam of a value declaration
 
@@ -1543,23 +1664,21 @@ theorem is_thm_refines {k : arena.checker_split.ValueKind} {o : Bool}
 /-- **`install_constant_val` ⊑ `installConstantVal`** — `checkConstantVal`
 minus its inference: the syntactic guards and the annotation of the type. -/
 theorem install_constant_val_refines {pers st lst} {vis : Std.U64} {rf lf}
-    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal} {o} {Good : IFEnv → AState → Prop}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hR : ResolveInv (ConRon.Refine.absMode mode) Good) (hg : Good lf lst)
-    (hcv : ResolvesAt Good lf [absEIdx cv.ty])
     (hrun : arena.checker_split.install_constant_val pers vis st mode rf cv = ok o) :
-    Sim absIConstantVal (fun _ => True) pers lst o
+    Sim₀ absIConstantVal pers lst o
       (installConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)) := by
   sorry
 
 /-- `install_value_tail` is `install_value`'s tail past the annotation. -/
 theorem install_value_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     {cv : arena.env.IConstantVal} {value_a : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.checker_split.install_value_tail pers vis st rf cv value_a = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (installValueTailSpec (lf.restrictTo (absU vis)) (absIConstantVal cv)
         (absEIdx value_a)) := by
   sorry
@@ -1568,13 +1687,11 @@ theorem install_value_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
 `check{Defn,Thm,Opaque}Val` minus its inference. -/
 theorem install_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
-    {value : arena.handle.EIdx} {o} {Good : IFEnv → AState → Prop}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    {value : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hR : ResolveInv (ConRon.Refine.absMode mode) Good) (hg : Good lf lst)
-    (hv : ResolvesAt Good lf [absEIdx value])
     (hrun : arena.checker_split.install_value pers vis st mode rf cv value = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (installValue (ConRon.Refine.absMode mode) (lf.restrictTo (absU vis))
         (absIConstantVal cv) (absEIdx value)) := by
   sorry
@@ -1591,20 +1708,17 @@ the third blocker of round 3, is gone: task #97-T2-LOCKSTEP step 1 made the
 twin's message the Rust's constant `M_THM_NOT_PROP`, so the twin no longer
 reads the name there.)
 
-* `Good` across `lvlEq?` and `installValue` (two `ResolveInv` fields), needed
-  only because `install_value_refines` and the tail's Core front door take
-  `Good`/`EResolves` — the front doors' tag-versus-view divergence (task
-  #97-P5-0's finding 3). -/
+* (task #97-T2-LOCKSTEP) the `Good`/`EResolves` plumbing that stopped it is
+  gone with the lockstep statements; it is one `lockstep` call once
+  `install_value_refines` (a leaf) is `@[lockstep]`. -/
 theorem check_value_group_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
-    {u : arena.handle.LIdx} {o} {Good : IFEnv → AState → Prop}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    {u : arena.handle.LIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hR : ResolveInv (ConRon.Refine.absMode mode) Good) (hg : Good lf lst)
-    (hvg : VGResolves Good lf (absValueGroup g))
     (hrun : arena.checker_split.check_value_group_value pers vis st mode rf g u
       = ok o) :
-    Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
+    Sim₀ (fun _ : Unit => ()) pers lst o
       (checkValueGroupValueSpec (ConRon.Refine.absMode mode)
         (lf.restrictTo (absU vis)) (absValueGroup g) (absLIdx u)) := by
   sorry
@@ -1616,77 +1730,35 @@ against the declared one.
 decline became the Rust's constant `s!"type mismatch in {g.kind.word}"`: the
 old twin message read the constant's name (`readName`), a twin-only store read
 that throws `.internal` at a dangling name, and that divergence was what
-stopped task #97-P5-Top round 3 here.  Everything else composes from the
-statement's own hypotheses (`infer_type_core`, `is_def_eq_core` at the prefix
-view, `ResolveInv.infer`, `VGResolves`). -/
+stopped task #97-P5-Top round 3 here.  Since task #97-T2-LOCKSTEP lane
+Checker it is one `lockstep` call (`infer_type_core ; is_def_eq_core` at the
+prefix view), with no precondition on the twin. -/
 theorem check_value_group_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
-    {jv : arena.handle.EIdx} {o} {Good : IFEnv → AState → Prop}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    {jv : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hR : ResolveInv (ConRon.Refine.absMode mode) Good) (hg : Good lf lst)
-    (hvg : VGResolves Good lf (absValueGroup g))
-    (hjv : ExprOps.EResolves lst (absEIdx jv))
     (hrun : arena.checker_split.check_value_group_tail pers vis st mode rf g jv
       = ok o) :
-    Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
+    Sim₀ (fun _ : Unit => ()) pers lst o
       (checkValueGroupTailSpec (ConRon.Refine.absMode mode)
         (lf.restrictTo (absU vis)) (absValueGroup g) (absEIdx jv)) := by
   have hctx := IFEnvInv.coreCtxAt vis hfe hfinv
-  have h0 : absU (0#u64) = 0 := rfl
-  rw [arena.checker_split.check_value_group_tail] at hrun
-  unfold Sim
-  rw [checkValueGroupTailSpec,
-    show (absValueGroup g).cvA.type = absEIdx g.cv_a.ty from rfl]
-  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨r1, st1⟩ := q1
-  have hS1 := infer_type_core_refines knotRel_checkFuel' hrel.to₀ hinv hctx
-    check_fuel_abs hq1
-  rw [h0] at hS1
-  cases r1 with
-  | Err e =>
-    have ho := Result.ok_injective hrun
-    subst ho
-    exact AOut.err (by rw [StateT.run_bind]; exact AErrSim.bind (Sim₀.apply_err hS1) _)
-  | Ok vtype =>
-  -- the lockstep front doors give `AStateRel₀`; `StoreWF` and `Ext` are the
-  -- twin's own, from `ResolveInv` (task #97-P5-Core round 4)
-  obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS1
-  obtain ⟨hres1, hg1⟩ := hR.infer hg hjv hx1
-  have hext1 := hR.inferExt hg hjv hx1
-  have hty1 : ExprOps.EResolves lst1 (absEIdx g.cv_a.ty) := (hvg lst1 hg1).1
-  rw [run_bind_ok hx1]
-  refine AOut.rebase hext1 ?_
-  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨r2, st2⟩ := q2
-  have hS2 := is_def_eq_core_refines knotRel_checkFuel' hrel1 hinv1 hctx
-    check_fuel_abs hq2
-  rw [h0] at hS2
-  cases r2 with
-  | Err e =>
-    have ho := Result.ok_injective hrun
-    subst ho
-    exact AOut.err (by rw [StateT.run_bind]; exact AErrSim.bind (Sim₀.apply_err hS2) _)
-  | Ok b =>
-  obtain ⟨lst2, hx2, hrel2₀, hinv2⟩ := Sim₀.apply hS2
-  obtain ⟨hwf2, hext2⟩ := hR.defeqWF hg1 hres1 hty1 hx2
-  have hrel2 := hrel2₀.of₀ hwf2
-  rw [run_bind_ok hx2]
-  refine AOut.rebase hext2 ?_
-  cases b with
-  | true =>
-    have ho := Result.ok_injective hrun
-    subst ho
-    exact AOut.ok rfl hrel2 hinv2 (Ext.refl _) trivial
-  | false =>
-    obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    rw [arena.monad.fail] at hrun
-    obtain ⟨r2, hr2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have h2 := Result.ok_injective hr2
-    subst h2
-    have ho := Result.ok_injective hrun
-    subst ho
-    exact AErrSim.invalid (s := s!"type mismatch in {(absValueGroup g).kind.word}") rfl
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_split.check_value_group_tail, checkValueGroupTailSpec]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_value_group_value_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
+    {u : arena.handle.LIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) :
+    LS pers (fun _ b => b = ())
+      (arena.checker_split.check_value_group_value pers vis st mode rf g u) lst
+      (checkValueGroupValueSpec (ConRon.Refine.absMode mode)
+        (lf.restrictTo (absU vis)) (absValueGroup g) (absLIdx u)) :=
+  LS.ofSim₀ fun _ h => check_value_group_value_refines hrel hinv hfe hfinv h
 
 /-- **`check_value_group` ⊑ `checkValueGroup`** — the check half of a value
 declaration, at the environment the constant was installed at.
@@ -1696,73 +1768,206 @@ declaration, at the environment the constant was installed at.
 through `Refine2/Core`'s front doors at the prefix view `CoreCtx vis rf
 (lf.restrictTo (absU vis))` (`IFEnvInv.coreCtxAt`) and the knot at
 `checkFuel` (`knotRel_checkFuel'`).  **Since task #97-P5-Core round 4 the two
-front doors are lockstep statements** (`AStateRel₀`, no `StoreWF`, no
-`EResolves` premise, a `Sim₀` conclusion without `Ext`), so they need nothing
-of the precondition; what this proof still takes from `ResolveInv` is what
-its OWN conclusion (`Sim`, over `AStateRel` with `Ext`) and its callee
-`check_value_group_value_refines` need: `Good` along the twin run
-(`infer`, `ensureSort`), and the twin's own `StoreWF` (`wf`) and `Ext`
-(`inferExt`, `ensureSortExt`) — Theorem 1's, as the `ResolveInv` note says. -/
+front doors are lockstep statements**, and since task #97-T2-LOCKSTEP lane
+Checker so is this one: ruling 2's precondition is gone and the proof is one
+`lockstep` call. -/
 theorem check_value_group_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup} {o}
-    {Good : IFEnv → AState → Prop}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hR : ResolveInv (ConRon.Refine.absMode mode) Good) (hg : Good lf lst)
-    (hvg : VGResolves Good lf (absValueGroup g))
     (hrun : arena.checker_split.check_value_group pers vis st mode rf g = ok o) :
-    Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
+    Sim₀ (fun _ : Unit => ()) pers lst o
       (checkValueGroup (ConRon.Refine.absMode mode) (lf.restrictTo (absU vis))
         (absValueGroup g)) := by
   have hctx := IFEnvInv.coreCtxAt vis hfe hfinv
-  have hres : ExprOps.EResolves lst (absEIdx g.cv_a.ty) := (hvg lst hg).1
-  rw [arena.checker_split.check_value_group] at hrun
-  unfold Sim
-  rw [checkValueGroup_unfold,
-    show (absValueGroup g).cvA.type = absEIdx g.cv_a.ty from rfl]
-  have h0 : absU (0#u64) = 0 := rfl
-  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨r1, st1⟩ := q1
-  have hS1 := infer_type_core_refines knotRel_checkFuel' hrel.to₀ hinv hctx
-    check_fuel_abs hq1
-  rw [h0] at hS1
-  cases r1 with
-  | Err e =>
-    have ho := Result.ok_injective hrun
-    subst ho
-    exact AOut.err (by rw [StateT.run_bind]; exact AErrSim.bind (Sim₀.apply_err hS1) _)
-  | Ok stype =>
-  -- the lockstep front door gives `AStateRel₀`; `StoreWF` and `Ext` are the
-  -- twin's own, from `ResolveInv` (task #97-P5-Core round 4)
-  obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS1
-  obtain ⟨hres1, hg1⟩ := hR.infer hg hres hx1
-  have hext1 := hR.inferExt hg hres hx1
-  rw [run_bind_ok hx1]
-  refine AOut.rebase hext1 ?_
-  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨r2, st2⟩ := q2
-  have hS2 := ensure_sort_core_refines knotRel_checkFuel' hrel1 hinv1 hctx
-    check_fuel_abs hq2
-  rw [h0] at hS2
-  cases r2 with
-  | Err e =>
-    have ho := Result.ok_injective hrun
-    subst ho
-    exact AOut.err (by rw [StateT.run_bind]; exact AErrSim.bind (Sim₀.apply_err hS2) _)
-  | Ok u =>
-  obtain ⟨lst2, hx2, hrel2, hinv2⟩ := Sim₀.apply hS2
-  have hg2 := hR.ensureSort hg1 hres1 hx2
-  have hext2 := hR.ensureSortExt hg1 hres1 hx2
-  rw [run_bind_ok hx2]
-  refine AOut.rebase hext2 ?_
-  exact check_value_group_value_refines (hrel2.of₀ (hR.wf hg2)) hinv2 hfe hfinv hR
-    hg2 hvg hrun
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_split.check_value_group, checkValueGroup_unfold]
+  lockstep
 
+/-! ## The checker's glue callees as `@[lockstep]` specs (task #97-T2-LOCKSTEP lane Checker)
+
+Each is its `_refines` lemma (or a Rust-only value step) in the judgement the
+`lockstep` tactic zips with; the environment arguments come as `IFEnvRelI`,
+which is what a fold step has in hand. -/
+
+namespace Lockstep
+
+@[lockstep] theorem nat_op_names_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdxL a) (arena.core.nat_op_names st) lst natOpNames :=
+  LS.ofSim₀ fun _ h => nat_op_names_refines hrel hinv h
+
+@[lockstep] theorem nat_div_mod_names_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdxL a) (arena.core.nat_div_mod_names st) lst
+      natDivModNames :=
+  LS.ofSim₀ fun _ h => nat_div_mod_names_refines hrel hinv h
+
+@[lockstep] theorem reduce_op_names_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdxL a) (arena.trust_axioms.reduce_op_names st) lst
+      reduceOpNames :=
+  LS.ofSim₀ fun _ h => reduce_op_names_refines hrel hinv h
+
+@[lockstep] theorem install_constant_val_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absIConstantVal a)
+      (arena.checker_split.install_constant_val pers vis st mode rf cv) lst
+      (installConstantVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)) :=
+  LS.ofSim₀ fun _ h => install_constant_val_refines hrel hinv hfe.rel hfe.inv hvis h
+
+@[lockstep] theorem install_value_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
+    {value : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.checker_split.install_value pers vis st mode rf cv value) lst
+      (installValue (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
+        (absEIdx value)) := by
+  have hlf : lf.restrictTo (absU vis) = lf := by rw [IFEnv.restrictTo, hvis]
+  refine LS.ofSim₀ fun _ h => ?_
+  have := install_value_refines hrel hinv hfe.rel hfe.inv h
+  rwa [hlf] at this
+
+@[lockstep] theorem nidx_contains_from_spec (ns : alloc.vec.Vec arena.handle.NIdx)
+    (i : Std.Usize) (n : arena.handle.NIdx) :
+    LSP (arena.checker_base.nidx_contains_from ns i n)
+      (fun o => o = (absNIdxLFrom ns i).contains (absNIdx n)) :=
+  fun _ h => nidx_contains_from_refines h
+
+@[lockstep] theorem ifenv_push_spec {rf lf} (hfe : IFEnvRelI rf lf)
+    (ci : arena.env.IConstantInfo) :
+    LSP (arena.env.ifenv_push rf ci)
+      (fun r => IFEnvRelI r (lf.push (absIConstantInfo ci))) :=
+  fun _ h => ifenv_push_refines hfe.rel hfe.inv h
+
+@[lockstep] theorem i_constant_val_dup_spec (cv : arena.env.IConstantVal) :
+    LSP (arena.env.i_constant_val_dup cv)
+      (fun o => absIConstantVal o = absIConstantVal cv) :=
+  fun _ h => i_constant_val_dup_abs h
+
+@[lockstep] theorem reducibility_hint_dup_spec (h1 : kernel.env.ReducibilityHint) :
+    LSP (kernel.env.reducibility_hint_dup h1) (fun r => r = h1) := by
+  intro r h
+  cases h1 <;> simp only [kernel.env.reducibility_hint_dup, Result.ok.injEq] at h <;>
+    exact h.symm
+
+@[lockstep] theorem pmemo_empty_spec :
+    LSP arena.promote.PMemo.empty (fun o => PMemoRel o PMemo.empty) :=
+  fun _ h => pmemo_empty_refines h
+
+@[lockstep] theorem promote_new_ls {pers st lst rm lm rf lf} {fuel k : Std.U64}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hm : PMemoRel rm lm) (hfe : IFEnvRelI rf lf)
+    (hk : k.val ≤ rf.visible_below.val) :
+    LS pers (fun r v => PMemoRel r.1 v.1 ∧ IFEnvRelI r.2 v.2)
+      (arena.promote.promote_new pers st rm fuel k rf) lst
+      (promoteNew lm (absU fuel) (absU k) lf) :=
+  LS.ofSimPM fun _ h => promote_new_refines hrel hinv hm hfe.rel hfe.inv
+    (le_trans hk hfe.inv.visBound) h
+
+@[lockstep] theorem promote_vg_ls {pers st lst rm lm} {fuel : Std.U64}
+    {g : arena.checker_split.ValueGroup}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hm : PMemoRel rm lm) :
+    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absValueGroup r.2)
+      (arena.promote.promote_vg pers st rm fuel g) lst
+      (promoteVG lm (absU fuel) (absValueGroup g)) :=
+  LS.ofSimPM fun _ h => promote_vg_refines hrel hinv hm h
+
+@[lockstep] theorem flush_caches_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSW pers (arena.core.flush_caches st) lst flushCaches :=
+  LSW.ofSimS₀ fun _ h => flush_caches_sim₀ hrel hinv h
+
+@[lockstep] theorem enter_scratch_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSW pers (arena.core.enter_scratch st) lst enterScratch :=
+  LSW.ofSimS₀ fun _ h => enter_scratch_sim₀ hrel hinv h
+
+@[lockstep] theorem drop_scratch_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSW pers (arena.core.drop_scratch st) lst dropScratch :=
+  LSW.ofSimS₀ fun _ h => drop_scratch_sim₀ hrel hinv h
+
+@[lockstep] theorem pin_quot_sound_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_quot_sound st) st lst
+      pinQuotSound :=
+  LSR.ofSimRE hrel hinv fun _ h => pin_quot_sound_refines hrel hinv h
+
+@[lockstep] theorem nidx_eq2_spec (a b : arena.handle.NIdx) :
+    LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
+      (fun o => o = (absNIdx a == absNIdx b)) :=
+  fun _ h => nidx_eq2_abs h
+
+@[lockstep_simp] theorem absIConstantVal_name (cv : arena.env.IConstantVal) :
+    (absIConstantVal cv).name = absNIdx cv.name := rfl
+
+@[lockstep_simp] theorem absIConstantVal_type (cv : arena.env.IConstantVal) :
+    (absIConstantVal cv).type = absEIdx cv.ty := rfl
+
+@[lockstep_simp] theorem absNIdxLFrom_zero (ns : alloc.vec.Vec arena.handle.NIdx) :
+    absNIdxLFrom ns 0#usize = absNIdxL ns := by simp [absNIdxLFrom, absNIdxL]
+
+attribute [lockstep_simp] absIConstantInfo absValueGroup absValueKind Option.map_some
+  Option.map_none
+
+@[lockstep] theorem check_value_group_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun _ b => b = ())
+      (arena.checker_split.check_value_group pers vis st mode rf g) lst
+      (checkValueGroup (ConRon.Refine.absMode mode) (lf.restrictTo (absU vis))
+        (absValueGroup g)) :=
+  LS.ofSim₀ fun _ h => check_value_group_refines hrel hinv hfe.rel hfe.inv h
+
+@[lockstep_simp] theorem absPendingCheck_vis (p : arena.checker.PendingCheck) :
+    (absPendingCheck p).vis = absU p.vis := rfl
+
+@[lockstep_simp] theorem absPendingCheck_vg (p : arena.checker.PendingCheck) :
+    (absPendingCheck p).vg = absValueGroup p.vg := rfl
+
+end Lockstep
 
 /-! ## The axiom census -/
 
 /-- info: 'ConRon.Refine2.or_else_attempt_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms or_else_attempt_refines
+
+/-- info: 'ConRon.Refine2.memos_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms memos_dup_refines
+
+/-- info: 'ConRon.Refine2.caches_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms caches_dup_refines
+
+/-- info: 'ConRon.Refine2.etables_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms etables_dup_refines
+
+/-- info: 'ConRon.Refine2.lstables_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lstables_dup_refines
+
+/-- info: 'ConRon.Refine2.ltables_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ltables_dup_refines
+
+/-- info: 'ConRon.Refine2.ntables_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ntables_dup_refines
+
+/-- info: 'ConRon.Refine2.attempt_snapshot_refines₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms attempt_snapshot_refines₀
+
+/-- info: 'ConRon.Refine2.attempt_restore_refines₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms attempt_restore_refines₀
+
+/-- info: 'ConRon.Refine2.attempt_restore_frame' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in #print axioms attempt_restore_frame
+
+/-- info: 'ConRon.Refine2.attempt_recover_refines₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms attempt_recover_refines₀
 
 /-- info: 'ConRon.Refine2.is_rec_info_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms is_rec_info_refines

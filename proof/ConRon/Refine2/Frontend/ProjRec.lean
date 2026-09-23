@@ -17,7 +17,7 @@ task #97-P5-0's did for `expr_ops`:
 |---|---|
 | pure (no `pers`/`st`) | an equation |
 | `pers, &AState` — reads, never interns | `SimRE`, or `OOut` for the memoised walk |
-| `pers, &mut AState` — interns | `Sim` |
+| `pers, &mut AState` — interns | `Sim₀` |
 
 **The memoised walk is the one shape this file adds.**  `occurs_const_go`
 threads its `seen` table as an argument-and-result pair INSIDE the `Result`
@@ -43,7 +43,7 @@ threads its `seen` table as an argument-and-result pair INSIDE the `Result`
    twin's at any value.  (Task #97-P4e part 2 asks for the argument to come
    off the LEAN side too; until it does, this is where the difference lives.)
 
-## `sorry` count in this file: 56
+## `sorry` count in this file: 55
 -/
 import ConRon.Refine2.Frontend.Spec
 
@@ -135,19 +135,96 @@ theorem occurs_seen_refines {rm ls h' v} (hs : HSetRel rm ls)
 
 /-! ## The artifact name and its pre-filter -/
 
+/-- A code-point literal, copied out of its `const` array. -/
+theorem lit_cps {k : Std.Usize} {M : Std.Array Std.U32 k} {sl : Slice Std.U32}
+    (hs : lift (Std.Array.to_slice M) = ok sl) {v : alloc.vec.Vec Std.U32}
+    (hv : kernel.core_types.code_points sl = ok v) : v.val = M.val := by
+  simp only [lift, Result.ok.injEq] at hs
+  subst hs
+  rw [ConRon.Refine.Env.code_points_val hv, Std.Array.val_to_slice]
+
 /-- **`proj_iota_name` refines `projIotaName`** (`ProjRec.lean:77-81`): the
-rewrite's artifact name `T._model.proj_i.iota`. -/
+rewrite's artifact name `T._model.proj_i.iota`, three interns in the same
+order.  Round 3's F11: false only while `AStateRel` carried `storeWF` (`t`
+need not resolve; neither side checks); lockstep, it is the three interns and
+the two literals' and the index rendering's spelling (`Text.lean`). -/
 theorem proj_iota_name_refines {pers rst lst t i o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.proj_iota_name pers rst t i = ok o) :
-    Sim absNIdx (fun _ => True) pers lst o
-      (projIotaName (absNIdx t) (absU i)) := by sorry
+    Sim₀ absNIdx pers lst o (projIotaName (absNIdx t) (absU i)) := by
+  rw [frontend.proj_rec.proj_iota_name] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hnt : n = t := dupId_nidx _ _ hn
+  rw [hnt] at h
+  clear hn hnt
+  obtain ⟨sl, hsl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hvv := lit_cps hsl hv
+  obtain ⟨⟨r, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hS1 := intern_n_node_run₀ hrel hinv (.Str t v)
+    (by show ConRon.Refine.StrWF v; intro c hc; rw [hvv] at hc
+        simp only [frontend.proj_rec.M_MODEL, Std.Array.make] at hc
+        revert c; decide) h1
+  have ha1 : absNNodeView (.Str t v) = .str (absNIdx t) "_model" := by
+    simp only [absNNodeView, ConRon.Refine.absString, hvv, frontend.proj_rec.M_MODEL,
+      Std.Array.make]
+    rfl
+  rw [ha1] at hS1
+  unfold Sim₀
+  rw [projIotaName, am_run_bind']
+  cases r with
+  | Err e =>
+    cases Result.ok_injective h
+    exact AErrSim.bind (Sim₀.apply_err hS1) _
+  | Ok a =>
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS1
+    rw [hx1, except_ok_bind]
+    obtain ⟨sl1, hsl1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hv1v := lit_cps hsl1 hv1
+    obtain ⟨v2, hv2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hv2s, hv2w⟩ := u64_str_refines hv2
+    obtain ⟨s2, hs2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hs2v := cat_val hs2
+    obtain ⟨⟨r1, st2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hv1w : ConRon.Refine.StrWF v1 := by
+      intro c hc; rw [hv1v] at hc
+      simp only [frontend.proj_rec.M_PROJ, Std.Array.make] at hc
+      revert c; decide
+    have hS2 := intern_n_node_run₀ hrel1 hinv1 (.Str a s2)
+      (by show ConRon.Refine.StrWF s2; exact cat_wf hv1w hv2w hs2) h2
+    have ha2 : absNNodeView (.Str a s2) = .str (absNIdx a) s!"proj_{absU i}" := by
+      simp only [absNNodeView, absString_eq_codesF, hs2v, absCodesF_append, hv2s, hv1v,
+        frontend.proj_rec.M_PROJ, Std.Array.make]
+      rfl
+    rw [ha2] at hS2
+    rw [am_run_bind']
+    cases r1 with
+    | Err e =>
+      cases Result.ok_injective h
+      exact AErrSim.bind (Sim₀.apply_err hS2) _
+    | Ok b =>
+      obtain ⟨lst2, hx2, hrel2, hinv2⟩ := Sim₀.apply hS2
+      rw [hx2, except_ok_bind]
+      obtain ⟨sl3, hsl3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨v3, hv3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hv3v := lit_cps hsl3 hv3
+      have hS3 := intern_n_node_run₀ hrel2 hinv2 (.Str b v3)
+        (by show ConRon.Refine.StrWF v3; intro c hc; rw [hv3v] at hc
+            simp only [frontend.proj_rec.M_IOTA, Std.Array.make] at hc
+            revert c; decide) h
+      have ha3 : absNNodeView (.Str b v3) = .str (absNIdx b) "iota" := by
+        simp only [absNNodeView, ConRon.Refine.absString, hv3v, frontend.proj_rec.M_IOTA,
+          Std.Array.make]
+        rfl
+      rw [ha3] at hS3
+      exact hS3
 
 /-- **`is_proj_iota_pre`** — the port's split of the two inner `viewN`s
 (extraction rule 5: the outer view's loan must be dead where the next is
 taken).  No twin; stated against `isProjIotaName`'s inner test. -/
 theorem is_proj_iota_pre_refines {pers rst lst p1 o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.is_proj_iota_pre pers rst p1 = ok o) :
     SimRE id lst o (do
       match ← viewN (absNIdx p1) with
@@ -156,16 +233,16 @@ theorem is_proj_iota_pre_refines {pers rst lst p1 o}
 
 /-- **`is_proj_iota_name` refines `isProjIotaName`** (`ProjRec.lean:85-97`). -/
 theorem is_proj_iota_name_refines {pers rst lst n o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.is_proj_iota_name pers rst n = ok o) :
     SimRE id lst o (isProjIotaName (absNIdx n)) := by sorry
 
 /-- **`proj_iota_level_at`** — the port's split at the resolved view of the
 artifact's type (rule 5: the `.const` arm interns `Eq`). -/
 theorem proj_iota_level_at_refines {pers rst lst n us o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.proj_iota_level_at pers rst n us = ok o) :
-    Sim (Option.map absLIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absLIdx) pers lst o
       (do
         let eqN ← internName ConLeche.eqName
         if absNIdx n == eqN then
@@ -175,9 +252,9 @@ theorem proj_iota_level_at_refines {pers rst lst n us o}
 /-- **`proj_iota_level` refines `projIotaLevel`** (`ProjRec.lean:100-112`):
 the field sort the artifact records. -/
 theorem proj_iota_level_refines {pers rst lst fuel ty o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.proj_iota_level pers rst fuel ty = ok o) :
-    Sim (Option.map absLIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absLIdx) pers lst o
       (projIotaLevel (absU fuel) (absEIdx ty)) := by sorry
 
 /-! ## The occurrence test -/
@@ -185,14 +262,14 @@ theorem proj_iota_level_refines {pers rst lst fuel ty o}
 /-- **`occurs_const_go` refines `occursConstGo`** (`ProjRec.lean:141-186`):
 does the constant `n` occur in the DAG under `h`, each node visited once. -/
 theorem occurs_const_go_refines {pers rst lst n seen ls fuel h' o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hs : HSetRel seen ls)
     (h : frontend.proj_rec.occurs_const_go pers rst n seen fuel h' = ok o) :
     OOut lst o (occursConstGo (absNIdx n) ls (absU fuel) (absEIdx h')) := by sorry
 
 /-- **`occurs_const_node`** — the port's split at a resolved view. -/
 theorem occurs_const_node_refines {pers rst lst n seen ls fuel h' v o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hs : HSetRel seen ls)
     (h : frontend.proj_rec.occurs_const_node pers rst n seen fuel h' v = ok o) :
     OOut lst o (occursConstGo (absNIdx n) ls (absU fuel + 1) (absEIdx h')) := by
@@ -201,7 +278,7 @@ theorem occurs_const_node_refines {pers rst lst n seen ls fuel h' v o}
 /-- **`occurs_const_two`** — the twin's four identical two-child `match`
 nests, as one function. -/
 theorem occurs_const_two_refines {pers rst lst n seen ls fuel h' x y o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hs : HSetRel seen ls)
     (h : frontend.proj_rec.occurs_const_two pers rst n seen fuel h' x y = ok o) :
     OOut lst o (do
@@ -211,7 +288,7 @@ theorem occurs_const_two_refines {pers rst lst n seen ls fuel h' x y o}
 
 /-- **`occurs_const_fast` refines `occursConstFast`** (`ProjRec.lean:192-196`). -/
 theorem occurs_const_fast_refines {pers rst lst fuel n h' o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.occurs_const_fast pers rst fuel n h' = ok o) :
     SimRE id lst o (occursConstFast (absU fuel) (absNIdx n) (absEIdx h')) := by
   sorry
@@ -220,13 +297,13 @@ theorem occurs_const_fast_refines {pers rst lst fuel n h' o}
 
 /-- **`lam_body` refines `lamBody`** (`ProjRec.lean:200-205`). -/
 theorem lam_body_refines {pers rst lst fuel h' o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.lam_body pers rst fuel h' = ok o) :
     SimRE absEIdx lst o (lamBody (absU fuel) (absEIdx h')) := by sorry
 
 /-- **`strip_pis_all` refines `stripPisAll`** (`ProjRec.lean:209-217`). -/
 theorem strip_pis_all_refines {pers rst lst fuel h' o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.strip_pis_all pers rst fuel h' = ok o) :
     SimRE (fun p => (absBinderPairs p.1, absEIdx p.2)) lst o
       (stripPisAll (absU fuel) (absEIdx h')) := by sorry
@@ -235,49 +312,49 @@ theorem strip_pis_all_refines {pers rst lst fuel h' o}
 on the way OUT, so the cursor recurses to the end of the list and interns
 outward from there. -/
 theorem mk_lams_from_refines {pers rst lst bs i body o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.mk_lams_from pers rst bs i body = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (mkLams (absBinderPairsFrom bs i) (absEIdx body)) := by sorry
 
 /-- **`mk_lams` refines `mkLams`** (`ProjRec.lean:221-228`). -/
 theorem mk_lams_refines {pers rst lst bs body o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.mk_lams pers rst bs body = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (mkLams (absBinderPairs bs) (absEIdx body)) := by sorry
 
 /-- **`inst_pis_open_from`** — the cursor companion of `inst_pis_open`. -/
 theorem inst_pis_open_from_refines {pers rst lst fuel e args i o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.inst_pis_open_from pers rst fuel e args i = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (instPisOpen (absU fuel) (absEIdx e) (absEIdxLFrom args i)) := by sorry
 
 /-- **`inst_pis_open` refines `instPisOpen`** (`ProjRec.lean:232-243`). -/
 theorem inst_pis_open_refines {pers rst lst fuel e args o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.inst_pis_open pers rst fuel e args = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (instPisOpen (absU fuel) (absEIdx e) (absEIdxL args)) := by sorry
 
 /-- **`intern_param_levels_from`** — the cursor companion. -/
 theorem intern_param_levels_from_refines {pers rst lst ns i o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.intern_param_levels_from pers rst ns i = ok o) :
-    Sim (fun v => v.val.map absLIdx) (fun _ => True) pers lst o
+    Sim₀ (fun v => v.val.map absLIdx) pers lst o
       (projRecValue.internParamLevels (absNIdxLFrom ns i)) := by sorry
 
 /-- **`intern_param_levels` refines `internParamLevels`**. -/
 theorem intern_param_levels_refines {pers rst lst ns o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.intern_param_levels pers rst ns = ok o) :
-    Sim (fun v => v.val.map absLIdx) (fun _ => True) pers lst o
+    Sim₀ (fun v => v.val.map absLIdx) pers lst o
       (projRecValue.internParamLevels (absNIdxL ns)) := by sorry
 
 /-- **`head_is` refines `headIs`** (`ProjRec.lean:267-273`). -/
 theorem head_is_refines {pers rst lst fuel t e o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.head_is pers rst fuel t e = ok o) :
     SimRE id lst o (headIs (absU fuel) (absNIdx t) (absEIdx e)) := by sorry
 
@@ -285,40 +362,40 @@ theorem head_is_refines {pers rst lst fuel t e o}
 
 /-- **`mk_proj_motive_at`** — the port's split under the domain's view. -/
 theorem mk_proj_motive_at_refines {pers rst lst pb fuel bs o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.mk_proj_motive_at pers rst pb fuel bs = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (mkProjMotiveAt (absProjBuild pb) (absU fuel) (absBinderPairs bs)) := by
   sorry
 
 /-- **`mk_proj_motive` refines `mkProjMotive`** (`ProjRec.lean:277-293`). -/
 theorem mk_proj_motive_refines {pers rst lst pb fuel dom o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.mk_proj_motive pers rst pb fuel dom = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (mkProjMotive (absProjBuild pb) (absU fuel) (absEIdx dom)) := by sorry
 
 /-- **`mk_proj_minor_at`** — the port's split under the domain's view. -/
 theorem mk_proj_minor_at_refines {pers rst lst pb fuel bs major o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.mk_proj_minor_at pers rst pb fuel bs major = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (mkProjMinorAt (absProjBuild pb) (absU fuel) (absBinderPairs bs)
         (absEIdx major)) := by sorry
 
 /-- **`mk_proj_minor` refines `mkProjMinor`** (`ProjRec.lean:297-310`). -/
 theorem mk_proj_minor_refines {pers rst lst pb fuel dom o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.mk_proj_minor pers rst pb fuel dom = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (mkProjMinor (absProjBuild pb) (absU fuel) (absEIdx dom)) := by sorry
 
 /-- **`build_binders_at`** — the port's split under the peeled binder. -/
 theorem build_binders_at_refines {pers rst lst kind pb fuel k dom body o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.build_binders_at pers rst kind pb fuel k dom body
       = ok o) :
-    Sim (Option.map fun p => (absEIdxL p.1, absEIdx p.2)) (fun _ => True) pers lst o
+    Sim₀ (Option.map fun p => (absEIdxL p.1, absEIdx p.2)) pers lst o
       (buildBindersAt (absProjBinderKind kind) (absProjBuild pb) (absU fuel)
         (absU k) (absEIdx dom) (absEIdx body)) := by sorry
 
@@ -326,9 +403,9 @@ theorem build_binders_at_refines {pers rst lst kind pb fuel k dom body o}
 recursion is on `k`, as the twin's is: a motive or minor count is never
 large, so this is not a `Vec` cursor. -/
 theorem build_binders_refines {pers rst lst kind pb fuel k h' o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.build_binders pers rst kind pb fuel k h' = ok o) :
-    Sim (Option.map fun p => (absEIdxL p.1, absEIdx p.2)) (fun _ => True) pers lst o
+    Sim₀ (Option.map fun p => (absEIdxL p.1, absEIdx p.2)) pers lst o
       (buildBinders (absProjBinderKind kind) (absProjBuild pb) (absU fuel)
         (absU k) (absEIdx h')) := by sorry
 
@@ -342,10 +419,10 @@ entry point is stated against the twin. -/
 /-- **`proj_rec_value_app`** — the recursor application, once the parameters,
 motives and minors are built. -/
 theorem proj_rec_value_app_refines {pers rst lst o' lbs us params motives minors o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.proj_rec_value_app pers rst o' lbs us params motives
       minors = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (projRecValueApp (absProjRecOwner o') (absBinderPairs lbs) (absLsIdx us)
         (absEIdxL params) (absEIdxL motives) (absEIdxL minors)) := by sorry
 
@@ -353,10 +430,10 @@ theorem proj_rec_value_app_refines {pers rst lst o' lbs us params motives minors
 it. -/
 theorem proj_rec_value_major_refines
     {pers rst lst fuel o' lbs us params motives minors rty3 o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.proj_rec_value_major pers rst fuel o' lbs us params
       motives minors rty3 = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (projRecValueMajor (absU fuel) (absProjRecOwner o') (absBinderPairs lbs)
         (absLsIdx us) (absEIdxL params) (absEIdxL motives) (absEIdxL minors)
         (absEIdx rty3)) := by sorry
@@ -364,10 +441,10 @@ theorem proj_rec_value_major_refines
 /-- **`proj_rec_value_binders`** — the motive and the minors. -/
 theorem proj_rec_value_binders_refines
     {pers rst lst fuel o' l r i lbs us params rty1 o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.proj_rec_value_binders pers rst fuel o' l r i lbs us
       params rty1 = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (projRecValueBinders (absU fuel) (absProjRecOwner o') (absLIdx l)
         (absEIdx r) (absU i) (absBinderPairs lbs) (absLsIdx us)
         (absEIdxL params) (absEIdx rty1)) := by sorry
@@ -375,26 +452,26 @@ theorem proj_rec_value_binders_refines
 /-- **`proj_rec_value_at`** — the universe arguments and the recursor's type
 at the chosen elimination level. -/
 theorem proj_rec_value_at_refines {pers rst lst fuel o' l r i lbs o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.proj_rec_value_at pers rst fuel o' l r i lbs = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (projRecValueAt (absU fuel) (absProjRecOwner o') (absLIdx l) (absEIdx r)
         (absU i) (absBinderPairs lbs)) := by sorry
 
 /-- **`proj_rec_value_ty`** — the projection's own codomain, stripped. -/
 theorem proj_rec_value_ty_refines {pers rst lst fuel o' l ty i lbs o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.proj_rec_value_ty pers rst fuel o' l ty i lbs = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (projRecValueTy (absU fuel) (absProjRecOwner o') (absLIdx l) (absEIdx ty)
         (absU i) (absBinderPairs lbs)) := by sorry
 
 /-- **`proj_rec_value` refines `projRecValue`** (`ProjRec.lean:343-403`) —
 **the rewrite**, and one of the tier's named deliverables. -/
 theorem proj_rec_value_refines {pers rst lst fuel o' l ty val i o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.proj_rec_value pers rst fuel o' l ty val i = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (projRecValue (absU fuel) (absProjRecOwner o') (absLIdx l) (absEIdx ty)
         (absEIdx val) (absU i)) := by sorry
 
@@ -402,20 +479,20 @@ theorem proj_rec_value_refines {pers rst lst fuel o' l ty val i o}
 
 /-- **`occurs_any_of_from`** — the cursor companion. -/
 theorem occurs_any_of_from_refines {pers rst lst fuel ns d i o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.occurs_any_of_from pers rst fuel ns d i = ok o) :
     SimRE id lst o (occursAnyOf (absU fuel) (absNIdxLFrom ns i) (absEIdx d)) := by
   sorry
 
 /-- **`occurs_any_of` refines `occursAnyOf`** (`ProjRec.lean:407-412`). -/
 theorem occurs_any_of_refines {pers rst lst fuel ns d o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.occurs_any_of pers rst fuel ns d = ok o) :
     SimRE id lst o (occursAnyOf (absU fuel) (absNIdxL ns) (absEIdx d)) := by sorry
 
 /-- **`doms_mention_any_from`** — the cursor companion. -/
 theorem doms_mention_any_from_refines {pers rst lst fuel ns bs i o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.doms_mention_any_from pers rst fuel ns bs i = ok o) :
     SimRE id lst o
       (domsMentionAny (absU fuel) (absNIdxL ns) (absBinderPairsFrom bs i)) := by
@@ -423,14 +500,14 @@ theorem doms_mention_any_from_refines {pers rst lst fuel ns bs i o}
 
 /-- **`doms_mention_any` refines `domsMentionAny`** (`ProjRec.lean:416-421`). -/
 theorem doms_mention_any_refines {pers rst lst fuel ns bs o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.doms_mention_any pers rst fuel ns bs = ok o) :
     SimRE id lst o
       (domsMentionAny (absU fuel) (absNIdxL ns) (absBinderPairs bs)) := by sorry
 
 /-- **`ctors_mention_block_from`** — the cursor companion. -/
 theorem ctors_mention_block_from_refines {pers rst lst fuel ns ctors i o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.ctors_mention_block_from pers rst fuel ns ctors i
       = ok o) :
     SimRE id lst o
@@ -440,7 +517,7 @@ theorem ctors_mention_block_from_refines {pers rst lst fuel ns ctors i o}
 /-- **`ctors_mention_block` refines `ctorsMentionBlock`**
 (`ProjRec.lean:425-432`). -/
 theorem ctors_mention_block_refines {pers rst lst fuel ns ctors o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.ctors_mention_block pers rst fuel ns ctors = ok o) :
     SimRE id lst o
       (ctorsMentionBlock (absU fuel) (absNIdxL ns) (absProjCtorRecL ctors)) := by
@@ -474,26 +551,26 @@ theorem find_rec_rec_refines {recs n o}
 /-- **`proj_rec_candidate_rec`** — the port's split at the found recursor
 record. -/
 theorem proj_rec_candidate_rec_refines {pers rst lst ctors recs t o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.proj_rec_candidate_rec pers rst ctors recs t = ok o) :
-    Sim (Option.map absProjRecOwner) (fun _ => True) pers lst o
+    Sim₀ (Option.map absProjRecOwner) pers lst o
       (projRecCandidateRec (absProjCtorRecL ctors) (absProjRecRecL recs)
         (absProjTypeRec t)) := by sorry
 
 /-- **`proj_rec_candidate_at`** — one type record's candidacy. -/
 theorem proj_rec_candidate_at_refines {pers rst lst ctors recs t o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.proj_rec_candidate_at pers rst ctors recs t = ok o) :
-    Sim (Option.map absProjRecOwner) (fun _ => True) pers lst o
+    Sim₀ (Option.map absProjRecOwner) pers lst o
       (projRecCandidateAt (absProjCtorRecL ctors) (absProjRecRecL recs)
         (absProjTypeRec t)) := by sorry
 
 /-- **`proj_rec_candidates_from`** — the cursor companion. -/
 theorem proj_rec_candidates_from_refines {pers rst lst ctors recs types i fuel o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.proj_rec_candidates_from pers rst ctors recs types i
       = ok o) :
-    Sim absProjRecOwnerL (fun _ => True) pers lst o
+    Sim₀ absProjRecOwnerL pers lst o
       (projRecCandidates fuel (absProjCtorRecL ctors) (absProjRecRecL recs)
         (absProjTypeRecLFrom types i)) := by sorry
 
@@ -501,9 +578,9 @@ theorem proj_rec_candidates_from_refines {pers rst lst ctors recs types i fuel o
 (`ProjRec.lean:452-494`).  Deviation 3: the twin's `fuel` is dead, so the
 statement holds at ANY fuel. -/
 theorem proj_rec_candidates_refines {pers rst lst ctors recs types fuel o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.proj_rec_candidates pers rst ctors recs types = ok o) :
-    Sim absProjRecOwnerL (fun _ => True) pers lst o
+    Sim₀ absProjRecOwnerL pers lst o
       (projRecCandidates fuel (absProjCtorRecL ctors) (absProjRecRecL recs)
         (absProjTypeRecL types)) := by sorry
 
@@ -512,20 +589,20 @@ theorem proj_rec_candidates_refines {pers rst lst ctors recs types fuel o}
 CHEAP ORDER (deviation 3 of `ProjRec.lean`: the candidates first, the
 recognisers only when there is a candidate to serve). -/
 theorem proj_rec_owners_guard_refines {pers rst lst fuel block types ctors owners o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.proj_rec_owners_guard pers rst fuel block types ctors
       owners = ok o) :
-    Sim absProjRecOwnerL (fun _ => True) pers lst o
+    Sim₀ absProjRecOwnerL pers lst o
       (projRecOwnersGuard (absU fuel) (absICIL block) (absProjTypeRecL types)
         (absProjCtorRecL ctors) (absProjRecOwnerL owners)) := by sorry
 
 /-- **`proj_rec_owners` refines `projRecOwners`** (`ProjRec.lean:498-517`) —
 the owner census, and one of the tier's named deliverables. -/
 theorem proj_rec_owners_refines {pers rst lst fuel block types ctors recs o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.proj_rec_owners pers rst fuel block types ctors recs
       = ok o) :
-    Sim absProjRecOwnerL (fun _ => True) pers lst o
+    Sim₀ absProjRecOwnerL pers lst o
       (projRecOwners (absU fuel) (absICIL block) (absProjTypeRecL types)
         (absProjCtorRecL ctors) (absProjRecRecL recs)) := by sorry
 

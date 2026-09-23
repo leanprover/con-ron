@@ -185,7 +185,7 @@ pub fn with_sort(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:292-294 InductiveShape.rulePrefix
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:319-321 InductiveShape.rulePrefix`
+/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:325-327 InductiveShape.rulePrefix`
 /// — the recursor's rule prefix (parameters, motive, minors).  Ported with its
 /// record rather than with `SumInstall.lean`'s install stages: it is a reader
 /// of this record and nothing else.
@@ -194,7 +194,7 @@ pub fn rule_prefix(p: &InductiveShape) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:295 InductiveShape.majorIdx
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:323-325 InductiveShape.majorIdx`
+/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:329-331 InductiveShape.majorIdx`
 /// — the recursor's major index (the rule prefix, then the indices).
 pub fn major_idx(p: &InductiveShape) -> u64 {
     rule_prefix(p) + p.n_idx

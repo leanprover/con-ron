@@ -99,15 +99,19 @@ def structShapeMotiveSpec (T : NIdx) (lps : List NIdx) (elim : NIdx) (large : Bo
     (nP : Nat) (rbs : List (EIdx × ConLeche.BinderMeta)) : AM Bool := do
   match rbs[nP]? with
   | some (mdom, _) => do
-    match ← view mdom with
-    | .forallE mmaj mcod _ => do
-      match ← view mcod with
-      | .sort s' => do
-        let want ← structElimLevel elim large
-        let fam0 ← structFam T lps nP 0
-        pure (s' == want && mmaj == fam0)
+    if mdom.tag == ETag.forallE then
+      match ← view mdom with
+      | .forallE mmaj mcod _ => do
+        if mcod.tag == ETag.sort then
+          match ← view mcod with
+          | .sort s' => do
+            let want ← structElimLevel elim large
+            let fam0 ← structFam T lps nP 0
+            pure (s' == want && mmaj == fam0)
+          | _ => pure false
+        else pure false
       | _ => pure false
-    | _ => pure false
+    else pure false
   | _ => pure false
 
 /-- The minor premise's body (the `minorOk` `let`). -/
@@ -152,18 +156,34 @@ def structShapeAtSpec (T C : NIdx) (lps : List NIdx) (elim : NIdx) (large : Bool
 theorem structShape_unfold (T C : NIdx) (lps : List NIdx) (elim : NIdx)
     (large : Bool) (nP nF : Nat) (tty cty rty : EIdx) :
     structShape T C lps elim large nP nF tty cty rty = (do
-      match ← stripPis nP tty, ← stripPis (nP + nF) cty, ← stripPis (nP + 3) rty with
-      | some (_, tbody), some (_, cbody), some (rbs, rbody) => do
-        match ← view tbody with
-        | .sort _ => structShapeAtSpec T C lps elim large nP nF cbody rbs rbody
-        | _ => pure false
-      | _, _, _ => pure false) := by
+      match ← stripPis nP tty with
+      | none => pure false
+      | some (_, tbody) =>
+        match ← stripPis (nP + nF) cty with
+        | none => pure false
+        | some (_, cbody) =>
+          match ← stripPis (nP + 3) rty with
+          | none => pure false
+          | some (rbs, rbody) =>
+            if tbody.tag == ETag.sort then
+              match ← view tbody with
+              | .sort _ => structShapeAtSpec T C lps elim large nP nF cbody rbs rbody
+              | _ => pure false
+            else pure false) := by
   rw [structShape]
   refine am_bind_congr _ ?_; intro a
+  rcases a with _ | ⟨_, tbody⟩
+  · rfl
+  simp only []
   refine am_bind_congr _ ?_; intro b
+  rcases b with _ | ⟨_, cbody⟩
+  · rfl
+  simp only []
   refine am_bind_congr _ ?_; intro c
-  rcases a with _ | ⟨_, tbody⟩ <;> rcases b with _ | ⟨_, cbody⟩ <;>
-    rcases c with _ | ⟨rbs, rbody⟩ <;> simp only [] <;> (try rfl)
+  rcases c with _ | ⟨rbs, rbody⟩
+  · rfl
+  simp only []
+  refine if_congr Iff.rfl ?_ rfl
   refine am_bind_congr _ ?_; intro v
   cases v <;> simp only [] <;> (try rfl)
   rw [structShapeAtSpec, structShapeMotiveSpec, structShapeMinorSpec,
@@ -175,8 +195,10 @@ theorem structShape_unfold (T C : NIdx) (lps : List NIdx) (elim : NIdx)
   refine am_bind_congr _ ?_; intro want
   refine if_congr Iff.rfl rfl ?_
   rcases rbs[nP]? with _ | ⟨mdom, mm⟩ <;> twin_reduce <;> try (simp; done)
+  refine if_congr Iff.rfl ?_ (by first | rfl | twin_reduce)
   refine am_bind_congr _ ?_; intro v1
   cases v1 <;> twin_reduce <;> try (simp; done)
+  refine if_congr Iff.rfl ?_ (by first | rfl | twin_reduce)
   refine am_bind_congr _ ?_; intro v2
   cases v2 <;> twin_reduce <;> try (simp; done)
   refine if_congr Iff.rfl ?_ ?_ <;>
@@ -210,10 +232,11 @@ def structPartsCoreSmallSpec (cvT cvC : IConstantVal) (nP nF : Nat)
     (cvR : IConstantVal) (rule : IRecRule) (s : LIdx) (isProp : Bool) :
     AM (Option StructParts) := do
   let anon ← internNNode .anonymous
-  if cvR.levelParams == cvT.levelParams &&
-      (← structShape cvT.name cvC.name cvT.levelParams anon false nP nF
-        cvT.type cvC.type cvR.type) then
-    pure (some ⟨cvT, cvC, nP, nF, cvR, anon, s, rule.rhs, false, isProp⟩)
+  if cvR.levelParams == cvT.levelParams then
+    if ← structShape cvT.name cvC.name cvT.levelParams anon false nP nF
+        cvT.type cvC.type cvR.type then
+      pure (some ⟨cvT, cvC, nP, nF, cvR, anon, s, rule.rhs, false, isProp⟩)
+    else pure none
   else pure none
 
 /-- WHICH eliminator the recursor is: the large one carries a fresh level
@@ -224,10 +247,11 @@ def structPartsCoreElimSpec (cvT cvC : IConstantVal) (nP nF : Nat)
     AM (Option StructParts) := do
   match cvR.levelParams with
   | elim :: relps =>
-    if relps == cvT.levelParams && !cvT.levelParams.contains elim &&
-        (← structShape cvT.name cvC.name cvT.levelParams elim true nP nF
-          cvT.type cvC.type cvR.type) then
-      pure (some ⟨cvT, cvC, nP, nF, cvR, elim, s, rule.rhs, true, isProp⟩)
+    if relps == cvT.levelParams && !cvT.levelParams.contains elim then
+      if ← structShape cvT.name cvC.name cvT.levelParams elim true nP nF
+          cvT.type cvC.type cvR.type then
+        pure (some ⟨cvT, cvC, nP, nF, cvR, elim, s, rule.rhs, true, isProp⟩)
+      else structPartsCoreSmallSpec cvT cvC nP nF cvR rule s isProp
     else structPartsCoreSmallSpec cvT cvC nP nF cvR rule s isProp
   | [] => structPartsCoreSmallSpec cvT cvC nP nF cvR rule s isProp
 
@@ -237,12 +261,14 @@ def structPartsCoreSortSpec (cvT cvC : IConstantVal) (nP nF : Nat)
     (cvR : IConstantVal) (rule : IRecRule) : AM (Option StructParts) := do
   match ← stripPis nP cvT.type with
   | some (_, tbody) => do
-    match ← view tbody with
-    | .sort s => do
-      let z ← zeroLevel
-      let isProp := (← lvlEq? s z) == some true
-      structPartsCoreElimSpec cvT cvC nP nF cvR rule s isProp
-    | _ => pure none
+    if tbody.tag == ETag.sort then
+      match ← view tbody with
+      | .sort s => do
+        let z ← zeroLevel
+        let isProp := (← lvlEq? s z) == some true
+        structPartsCoreElimSpec cvT cvC nP nF cvR rule s isProp
+      | _ => pure none
+    else pure none
   | _ => pure none
 
 /-- The recogniser's body once the block's three members are in hand: the name
@@ -289,18 +315,9 @@ theorem structPartsCore_unfold (block : List IConstantInfo) :
   twin_reduce
   refine am_bind_congr _ ?_; intro sp
   rcases sp with _ | ⟨_, tbody⟩ <;> twin_reduce <;> try (simp; done)
+  refine if_congr Iff.rfl ?_ (by first | rfl | twin_reduce)
   refine am_bind_congr _ ?_; intro vw
-  cases vw <;> twin_reduce <;> try (simp; done)
-  refine am_bind_congr _ ?_; intro z
-  refine am_bind_congr _ ?_; intro le
-  rw [structPartsCoreElimSpec.eq_def]
-  rcases hlp : cvR.levelParams with _ | ⟨elim, relps⟩ <;> (try twin_reduce)
-  case nil => rw [structPartsCoreSmallSpec, hlp]; try twin_reduce
-  case cons =>
-    refine am_bind_congr _ ?_; intro b
-    refine if_congr Iff.rfl rfl ?_
-    rw [structPartsCoreSmallSpec, hlp]
-    try twin_reduce
+  cases vw <;> (try twin_reduce) <;> (try rfl)
 
 /-! ## The two memoised walks' arm dispatches -/
 
@@ -574,17 +591,19 @@ def fieldSortBoundSpec (isProp large : Bool) (s u : LIdx) (fv : EIdx)
 Π-binder descent, or the residual itself. -/
 def normPosDomAtSpec (mode : ConLeche.CheckMode) (fe : IFEnv) (T : NIdx) (d fuel : Nat)
     (w : EIdx) : AM EIdx := do
-  match ← view w with
-  | .forallE dom body bm => do
-    if ← mentionsConst T dom then
-      fail (.invalid "direct sum: non positive occurrence of the inductive type")
-    else do
-      let fv ← internE (.fvar d dom)
-      let opened ← instantiate1Fast coreWalkFuel body fv 0
-      let body' ← normPosDom mode fe T (d + 1) fuel opened
-      let closed ← abstract1Fast coreWalkFuel body' d 0
-      internE (.forallE dom closed bm)
-  | _ => pure w
+  if w.tag == ETag.forallE then
+    match ← view w with
+    | .forallE dom body bm => do
+      if ← mentionsConst T dom then
+        fail (.invalid "direct sum: non positive occurrence of the inductive type")
+      else do
+        let fv ← internE (.fvar d dom)
+        let opened ← instantiate1Fast coreWalkFuel body fv 0
+        let body' ← normPosDom mode fe T (d + 1) fuel opened
+        let closed ← abstract1Fast coreWalkFuel body' d 0
+        internE (.forallE dom closed bm)
+    | _ => pure w
+  else pure w
 
 /-- The owed equation: `normPosDom` at `fuel + 1` IS the two occurrence tests,
 the whnf and `normPosDomAtSpec`. -/
@@ -682,37 +701,25 @@ def idxFreeOfSpec (T : NIdx) : List EIdx → AM Bool
   | a :: rest => do
     if ← mentionsConst T a then pure false else idxFreeOfSpec T rest
 
-/-- `recPositivity`'s `_` arm: the residual is either free of the block, the
-family at a fitting spine, or a negative/unsupported occurrence. -/
+/-- `recPositivity`'s off-`∀` arm: the residual is either free of the block,
+or `recPositivityAt` (the Rust's `rec_positivity_at`) decides it. -/
 def recPositivityAtSpec (T : NIdx) (lps : List NIdx) (nP nIdx o : Nat) (h : EIdx)
     (k : Nat) : AM RecFieldKind := do
-  if !(← mentionsConst T h) then pure .ordinary else do
-  let us ← paramLevels lps
-  let hd ← internE (.const T us)
-  let fn ← getAppFn coreWalkFuel h
-  let args ← getAppArgs coreWalkFuel h
-  if fn == hd then do
-    let ps ← structPsAt (o + k) nP
-    if args.length == nP + nIdx && args.take nP == ps then
-      if ← recFamOk T lps nP nIdx (o + k) h then
-        pure (if k == 0 then .recursive else .reflexive)
-      else pure .negative
-    else pure .negative
-  else
-    match ← view fn with
-    | .const T' _ => pure (if T' == T then .negative else .unsupported)
-    | _ => pure .unsupported
+  if !(← mentionsConst T h) then pure .ordinary
+  else recPositivityAt T lps nP nIdx o h k
 
-/-- The owed equation: `recPositivity` at `fuel + 1` IS the Π descent and
-`recPositivityAtSpec`. -/
+/-- The owed equation: `recPositivity` at `fuel + 1` IS the tag-first Π descent
+and `recPositivityAtSpec`. -/
 theorem recPositivity_unfold (T : NIdx) (lps : List NIdx) (nP nIdx o fuel : Nat)
     (h : EIdx) (k : Nat) :
     recPositivity T lps nP nIdx o (fuel + 1) h k = (do
-      match ← view h with
-      | .forallE dom body _ => do
-        if ← mentionsConst T dom then pure .negative
-        else recPositivity T lps nP nIdx o fuel body (k + 1)
-      | _ => recPositivityAtSpec T lps nP nIdx o h k) := by
+      if h.tag == ETag.forallE then
+        match ← view h with
+        | .forallE dom body _ => do
+          if ← mentionsConst T dom then pure .negative
+          else recPositivity T lps nP nIdx o fuel body (k + 1)
+        | _ => recPositivityAtSpec T lps nP nIdx o h k
+      else recPositivityAtSpec T lps nP nIdx o h k) := by
   rfl
 
 /-- `recCtorKinds`' per-field post-step: a recursive or reflexive field a LATER
@@ -998,9 +1005,11 @@ def nativeShapeSortSpec (cvT : IConstantVal) (cs : List (IConstantVal × Nat × 
     AM (Option InductiveShape) := do
   let s ← match ← stripPis (nP + nIdx) cvT.type with
     | some (_, body) => do
-      match ← view body with
-      | .sort s => pure s
-      | _ => zeroLevel
+      if body.tag == ETag.sort then
+        match ← view body with
+        | .sort s => pure s
+        | _ => zeroLevel
+      else zeroLevel
     | _ => zeroLevel
   nativeShapeElimSpec cvT cs cvR rules nP nIdx s
 
@@ -1091,14 +1100,18 @@ theorem nativeShape_unfold (nPd : Nat) (block : List IConstantInfo) :
             | some pr =>
               obtain ⟨fst, body⟩ := pr
               twin_reduce
-              refine am_bind_congr _ ?_
-              intro v
-              cases v <;> twin_reduce <;>
-                first
-                  | exact hK _
-                  | (refine am_bind_congr _ ?_
-                     intro lvl
-                     exact hK lvl)
+              refine if_congr Iff.rfl ?_ ?_
+              · refine am_bind_congr _ ?_
+                intro v
+                cases v <;> twin_reduce <;>
+                  first
+                    | exact hK _
+                    | (refine am_bind_congr _ ?_
+                       intro lvl
+                       exact hK lvl)
+              · refine am_bind_congr _ ?_
+                intro lvl
+                exact hK lvl
           · rfl
     all_goals rfl
 
@@ -1212,16 +1225,24 @@ def nativeFieldsAtSpec (fe₀ : IFEnv) (nP nIdx : Nat) (ks : List RecFieldKind)
     (fvsP xFvs : List EIdx) (xrest hd : EIdx) : Nat → Nat → AM Bool
   | 0, _ => pure true
   | m + 1, i => do
-    let ok ← match ks.getD i .ordinary with
-      | .ordinary => do constsResolveFFast fe₀ (← fvarTypeD (xFvs.getD i default))
-      | .recursive => nativeFieldRecursiveSpec fe₀ nP nIdx fvsP xFvs xrest hd i
-      | .reflexive => nativeFieldReflexiveSpec fe₀ nP nIdx fvsP xFvs xrest hd i
-      | _ => pure false
-    if ok then nativeFieldsAtSpec fe₀ nP nIdx ks fvsP xFvs xrest hd m (i + 1)
-    else pure false
+    match xFvs[i]? with
+    | none => pure false
+    | some x =>
+      let ok ← match ks.getD i .ordinary with
+        | .ordinary => do constsResolveFFast fe₀ (← fvarTypeD x)
+        | .recursive => nativeFieldRecursiveSpec fe₀ nP nIdx fvsP xFvs xrest hd i
+        | .reflexive => nativeFieldReflexiveSpec fe₀ nP nIdx fvsP xFvs xrest hd i
+        | _ => pure false
+      if ok then nativeFieldsAtSpec fe₀ nP nIdx ks fvsP xFvs xrest hd m (i + 1)
+      else pure false
 
 /-- The owed equation: `nativeOpenedOk` IS the two telescope opens, the
-residual test and `nativeFieldsAtSpec`. -/
+residual test and `nativeFieldsAtSpec`.  **Closed** by task #97-T2-LOCKSTEP
+lane Inductives: round 2's defect was `nativeFieldsAtSpec` reading
+`xFvs.getD i default` where the port (`native_fields_at`) and the twin both
+answer `false` off the end of `xFvs`; the transcription now tests the bound
+first, and the twin's per-field dispatch matches `xFvs[i]?` before the kind
+(it used to match the two together). -/
 theorem nativeOpenedOk_unfold (fe₀ : IFEnv) (T : NIdx) (lps : List NIdx)
     (nP nIdx : Nat) (cty : EIdx) (nF : Nat) (ks : List RecFieldKind) :
     nativeOpenedOk fe₀ T lps nP nIdx cty nF ks = (do
@@ -1236,7 +1257,96 @@ theorem nativeOpenedOk_unfold (fe₀ : IFEnv) (T : NIdx) (lps : List NIdx)
           let xargs ← getAppArgs coreWalkFuel xrest
           if !(← idxArgsResolveSpec fe₀ (xargs.drop nP)) then pure false else
           nativeFieldsAtSpec fe₀ nP nIdx ks fvsP xFvs xrest hd nF 0) := by
-  sorry
+  have hidx : ∀ l, l.allM (fun e => constsResolveFFast fe₀ e) = idxArgsResolveSpec fe₀ l :=
+    list_allM_counted _ _ rfl (by intro a l; twin_reduce [idxArgsResolveSpec])
+  have hdoms : ∀ l, l.allM (fun x => do constsResolveFFast fe₀ (← fvarTypeD x)) =
+      fieldDomsResolveSpec fe₀ l :=
+    list_allM_counted _ _ rfl (by intro a l; twin_reduce [fieldDomsResolveSpec])
+  have hlater : ∀ q (l : List EIdx),
+      l.anyM (fun y => do mentionsFvar q (← fvarTypeD y)) = laterMentionsSpec q l := by
+    intro q l
+    induction l with
+    | nil => rfl
+    | cons y ys ih =>
+      simp only [List.anyM, laterMentionsSpec, ih]
+      twin_reduce
+      refine am_bind_congr _ ?_; intro t
+      refine am_bind_congr _ ?_; intro b
+      cases b <;> rfl
+  -- the shared tail of the two recursive arms
+  have hunused : ∀ (fvsP xFvs : List EIdx) (xrest : EIdx) (i : Nat),
+      (do
+        let later ← (xFvs.drop (i + 1)).anyM fun y => do mentionsFvar (nP + i) (← fvarTypeD y)
+        if later then pure false else pure !(← mentionsFvar (nP + i) xrest) : AM Bool) =
+      nativeFieldUnusedLaterSpec nP xFvs xrest i := by
+    intro fvsP xFvs xrest i
+    rw [hlater, nativeFieldUnusedLaterSpec]
+  have hfam : ∀ (fvsP xFvs : List EIdx) (body hd xrest : EIdx) (i : Nat),
+      (do
+        let fn ← getAppFn coreWalkFuel body
+        let args ← getAppArgs coreWalkFuel body
+        if !(fn == hd && args.take nP == fvsP && args.length == nP + nIdx) then
+          pure false
+        else do
+          let idxOk ← (args.drop nP).allM fun e => constsResolveFFast fe₀ e
+          if !idxOk then pure false else do
+          let later ← (xFvs.drop (i + 1)).anyM fun y => do
+            mentionsFvar (nP + i) (← fvarTypeD y)
+          if later then pure false else
+          pure !(← mentionsFvar (nP + i) xrest) : AM Bool) =
+      (do if ← nativeFamAppOkSpec fe₀ nP nIdx fvsP body hd then
+            nativeFieldUnusedLaterSpec nP xFvs xrest i
+          else pure false) := by
+    intro fvsP xFvs body hd xrest i
+    rw [nativeFamAppOkSpec]
+    twin_reduce
+    refine am_bind_congr _ ?_; intro fn
+    refine am_bind_congr _ ?_; intro args
+    refine if_congr Iff.rfl (by simp) ?_
+    rw [hidx]
+    refine am_bind_congr _ ?_; intro b
+    cases b
+    · simp
+    · simp only [Bool.not_true, Bool.false_eq_true, if_false, if_true]
+      exact hunused fvsP xFvs xrest i
+  rw [nativeOpenedOk]
+  refine am_bind_congr _ ?_; intro a
+  rcases a with _ | ⟨fvsP, crest⟩
+  · rfl
+  simp only []
+  refine am_bind_congr _ ?_; intro b
+  rcases b with _ | ⟨xFvs, xrest⟩
+  · rfl
+  simp only []
+  refine am_bind_congr _ ?_; intro us
+  refine am_bind_congr _ ?_; intro hd
+  refine am_bind_congr _ ?_; intro xargs
+  rw [hidx]
+  refine am_bind_congr _ ?_; intro ro
+  refine if_congr Iff.rfl rfl ?_
+  rw [List.range_eq_range']
+  refine range_allM_counted _ (nativeFieldsAtSpec fe₀ nP nIdx ks fvsP xFvs xrest hd)
+    (fun i => rfl) ?_ nF 0
+  intro m i
+  rw [nativeFieldsAtSpec]
+  rcases hx : xFvs[i]? with _ | x
+  · twin_reduce
+    simp
+  · twin_reduce
+    cases hk : ks.getD i .ordinary <;> simp only [hk] <;> (try twin_reduce) <;> (try simp; done)
+    case recursive =>
+      rw [nativeFieldRecursiveSpec, hx]
+      simp only [unwrapOr, pure_bind, ← hfam]
+      twin_reduce
+    case reflexive =>
+      rw [nativeFieldReflexiveSpec, hx]
+      simp only [unwrapOr, pure_bind, ← hfam, ← hdoms]
+      twin_reduce
+      refine am_bind_congr _ ?_; intro xt
+      refine am_bind_congr _ ?_; intro pb
+      refine am_bind_congr _ ?_; intro op
+      refine am_bind_congr₂ ?_ (fun _ => rfl)
+      rcases op with _ | ⟨afvs, body⟩ <;> rfl
 
 /-- `nativeFieldsOk`'s `(List.range …).allM` from constructor `j` on. -/
 def nativeFieldsOkFromSpec (fe₀ : IFEnv) (T : NIdx) (lps : List NIdx)
@@ -1386,5 +1496,8 @@ dearest (a memoised walk under rule 11's peel). -/
 
 /-- info: 'ConRon.Refine2.recCtorKinds_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms recCtorKinds_unfold
+
+/-- info: 'ConRon.Refine2.nativeOpenedOk_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nativeOpenedOk_unfold
 
 end ConRon.Refine2

@@ -199,10 +199,10 @@ Official's `is_valid_ind_app` exactly. -/
 theorem rec_fam_ok_refines {pers st lst} {t : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_idx ofs : Std.U64}
     {e : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.rec_fam_ok pers st t lps n_p n_idx ofs e
       = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (recFamOk (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx) (absU ofs)
         (absEIdx e)) := by
   sorry
@@ -210,21 +210,24 @@ theorem rec_fam_ok_refines {pers st lst} {t : arena.handle.NIdx}
 /-- `idx_free_of` ⊑ `recFamOk`'s closing `allM`, from the cursor on. -/
 theorem idx_free_of_refines {pers st lst} {t : arena.handle.NIdx}
     {idx : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.idx_free_of pers st t idx i = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (idxFreeOfSpec (absNIdx t) (absEIdxLFrom idx i)) := by
   sorry
 
-/-- `rec_positivity_at` ⊑ `recPositivity`'s `_` arm. -/
+/-- `rec_positivity_at` ⊑ `recPositivityAt` — the leaf of the walk, past the
+`mentionsConst` test (which `rec_positivity` makes before the call; the
+statement used to read `recPositivityAtSpec`, which includes that test, so the
+two sides did not do the same thing — task #97-T2-LOCKSTEP lane Inductives). -/
 theorem rec_positivity_at_refines {pers st lst} {t : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_idx ofs : Std.U64}
     {h : arena.handle.EIdx} {k : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.rec_positivity_at pers st t lps n_p n_idx
       ofs h k = ok o) :
-    Sim absRecFieldKind (fun _ => True) pers lst o
-      (recPositivityAtSpec (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
+    Sim₀ absRecFieldKind pers lst o
+      (recPositivityAt (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absU ofs) (absEIdx h) (absU k)) := by
   sorry
 
@@ -233,10 +236,10 @@ telescope walk on a field domain that mentions the block, syntactically. -/
 theorem rec_positivity_refines {pers st lst} {t : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_idx ofs fuel : Std.U64}
     {h : arena.handle.EIdx} {k : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.rec_positivity pers st t lps n_p n_idx ofs
       fuel h k = ok o) :
-    Sim absRecFieldKind (fun _ => True) pers lst o
+    Sim₀ absRecFieldKind pers lst o
       (recPositivity (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx) (absU ofs)
         (absU fuel) (absEIdx h) (absU k)) := by
   sorry
@@ -245,10 +248,10 @@ theorem rec_positivity_refines {pers st lst} {t : arena.handle.NIdx}
 theorem rec_field_kind_refines {pers st lst} {t : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_idx ofs : Std.U64}
     {dom : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.rec_field_kind pers st t lps n_p n_idx ofs
       dom = ok o) :
-    Sim absRecFieldKind (fun _ => True) pers lst o
+    Sim₀ absRecFieldKind pers lst o
       (recFieldKind (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx) (absU ofs)
         (absEIdx dom)) := by
   sorry
@@ -256,10 +259,10 @@ theorem rec_field_kind_refines {pers st lst} {t : arena.handle.NIdx}
 /-- `rec_ctor_kind_at` ⊑ `recCtorKinds`' per-field post-step. -/
 theorem rec_ctor_kind_at_refines {pers st lst} {cty : arena.handle.EIdx}
     {n_p i : Std.U64} {k : arena.inductives.native_parts.RecFieldKind} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.rec_ctor_kind_at pers st cty n_p i k
       = ok o) :
-    Sim absRecFieldKind (fun _ => True) pers lst o
+    Sim₀ absRecFieldKind pers lst o
       (recCtorKindAtSpec (absEIdx cty) (absU n_p) (absU i)
         (absRecFieldKind k)) := by
   sorry
@@ -272,10 +275,10 @@ theorem rec_ctor_kinds_from_refines {pers st lst} {t : arena.handle.NIdx}
     {cbs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {i : Std.U64}
     {out : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.rec_ctor_kinds_from pers st t lps n_p n_idx
       cty n_f cbs i out = ok o) :
-    Sim absKindL (fun _ => True) pers lst o
+    Sim₀ absKindL pers lst o
       (do pure (absKindL out ++
         (← recCtorKindsFromSpec (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
           (absEIdx cty) (absBinderL cbs) (absU n_f - absU i) (absU i)))) := by
@@ -314,10 +317,10 @@ off its (raw or annotated) type. -/
 theorem rec_ctor_kinds_refines {pers st lst} {t : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_idx : Std.U64}
     {c : arena.env.IConstantVal × Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.rec_ctor_kinds pers st t lps n_p n_idx c
       = ok o) :
-    Sim (Option.map absKindL) (fun _ => True) pers lst o
+    Sim₀ (Option.map absKindL) pers lst o
       (recCtorKinds (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absIConstantVal c.1, absU c.2)) := by
   sorry
@@ -329,7 +332,7 @@ theorem rec_ctor_kinds_refines {pers st lst} {t : arena.handle.NIdx}
 only failure is the fuel. -/
 theorem pi_binders_refines {pers st lst} {fuel : Std.U64} {h : arena.handle.EIdx}
     {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.pi_binders pers st fuel h out = ok o) :
     SimRE (fun r => (absBinderL r.1, absEIdx r.2)) lst o
       (do
@@ -340,20 +343,20 @@ theorem pi_binders_refines {pers st lst} {fuel : Std.U64} {h : arena.handle.EIdx
 /-- `struct_field_tele_of` ⊑ `structFieldTeleOf`. -/
 theorem struct_field_tele_of_refines {pers st lst} {cty : arena.handle.EIdx}
     {n_p n_f i : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_field_tele_of pers st cty n_p n_f i
       = ok o) :
-    Sim absBinderL (fun _ => True) pers lst o
+    Sim₀ absBinderL pers lst o
       (structFieldTeleOf (absEIdx cty) (absU n_p) (absU n_f) (absU i)) := by
   sorry
 
 /-- `struct_field_idx_of` ⊑ `structFieldIdxOf`. -/
 theorem struct_field_idx_of_refines {pers st lst} {cty : arena.handle.EIdx}
     {n_p n_f i : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_field_idx_of pers st cty n_p n_f i
       = ok o) :
-    Sim absEIdxL (fun _ => True) pers lst o
+    Sim₀ absEIdxL pers lst o
       (structFieldIdxOf (absEIdx cty) (absU n_p) (absU n_f) (absU i)) := by
   sorry
 
@@ -470,20 +473,20 @@ theorem with_kinds_refines {p : arena.inductives.native_parts.NativeParts}
 
 /-- `struct_rec_prefix_at` ⊑ `structRecPrefixAt`. -/
 theorem struct_rec_prefix_at_refines {pers st lst} {n_p n n_f e : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_rec_prefix_at pers st n_p n n_f e
       = ok o) :
-    Sim absEIdxL (fun _ => True) pers lst o
+    Sim₀ absEIdxL pers lst o
       (structRecPrefixAt (absU n_p) (absU n) (absU n_f) (absU e)) := by
   sorry
 
 /-- `struct_idx_at` ⊑ `structIdxAt`. -/
 theorem struct_idx_at_refines {pers st lst} {n_f ofs i l m : Std.U64}
     {e : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_idx_at pers st n_f ofs i l m e
       = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (structIdxAt (absU n_f) (absU ofs) (absU i) (absU l) (absU m)
         (absEIdx e)) := by
   sorry
@@ -495,10 +498,10 @@ theorem struct_tele_at_refines {pers st lst} {n_f ofs i l : Std.U64}
     {tele : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {k : Std.Usize}
     {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_tele_at pers st n_f ofs i l pw tele
       k out = ok o) :
-    Sim absBinderL (fun _ => True) pers lst o
+    Sim₀ absBinderL pers lst o
       (do pure (absBinderL out ++
         (← structTeleAt (absU n_f) (absU ofs) (absU i) (absU l)
           (ConRon.Refine.absPropWhen pw) (absBinderLFrom tele k)))) := by
@@ -506,18 +509,18 @@ theorem struct_tele_at_refines {pers st lst} {n_f ofs i l : Std.U64}
 
 /-- `struct_tele_vars` ⊑ `structTeleVars`. -/
 theorem struct_tele_vars_refines {pers st lst} {m : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_tele_vars pers st m = ok o) :
-    Sim absEIdxL (fun _ => True) pers lst o (structTeleVars (absU m)) := by
+    Sim₀ absEIdxL pers lst o (structTeleVars (absU m)) := by
   sorry
 
 /-- `mk_pis_of` ⊑ `Expr.mkPisOf` from the cursor on. -/
 theorem mk_pis_of_refines {pers st lst}
     {tele : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {k : Std.Usize} {body : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.mk_pis_of pers st tele k body = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (mkPisOf (absBinderLFrom tele k) (absEIdx body)) := by
   sorry
 
@@ -525,9 +528,9 @@ theorem mk_pis_of_refines {pers st lst}
 theorem mk_lams_of_refines {pers st lst}
     {tele : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {k : Std.Usize} {body : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.mk_lams_of pers st tele k body = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (mkLamsOf (absBinderLFrom tele k) (absEIdx body)) := by
   sorry
 
@@ -536,10 +539,10 @@ accumulated expressions in front. -/
 theorem struct_idx_list_refines {pers st lst} {n_f ofs i l m : Std.U64}
     {idx : alloc.vec.Vec arena.handle.EIdx} {k : Std.Usize}
     {out : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_idx_list pers st n_f ofs i l m idx k
       out = ok o) :
-    Sim absEIdxL (fun _ => True) pers lst o
+    Sim₀ absEIdxL pers lst o
       (do pure (absEIdxL out ++
         (← structIdxListSpec (absU n_f) (absU ofs) (absU i) (absU l) (absU m)
           (absEIdxLFrom idx k)))) := by
@@ -551,10 +554,10 @@ theorem struct_ih_app_refines {pers st lst} {rec_c : arena.handle.NIdx}
     {n_p n n_f i : Std.U64}
     {tele : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {idx : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_ih_app pers st rec_c rlvls pw n_p n
       n_f i tele idx = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (structIhApp (absNIdx rec_c) (absLsIdx rlvls) (ConRon.Refine.absPropWhen pw)
         (absU n_p) (absU n) (absU n_f) (absU i) (absBinderL tele)
         (absEIdxL idx)) := by
@@ -566,10 +569,10 @@ theorem struct_ih_list_refines {pers st lst} {rec_c : arena.handle.NIdx}
     {n_p n n_f : Std.U64} {rec_idx : alloc.vec.Vec Std.U64}
     {cty : arena.handle.EIdx} {k : Std.Usize}
     {out : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_ih_list pers st rec_c rlvls pw n_p n
       n_f rec_idx cty k out = ok o) :
-    Sim absEIdxL (fun _ => True) pers lst o
+    Sim₀ absEIdxL pers lst o
       (do pure (absEIdxL out ++
         (← structIhListSpec (absNIdx rec_c) (absLsIdx rlvls)
           (ConRon.Refine.absPropWhen pw) (absU n_p) (absU n) (absU n_f)
@@ -581,10 +584,10 @@ theorem struct_rule_body_r_refines {pers st lst} {rec_c : arena.handle.NIdx}
     {rlvls : arena.handle.LsIdx} {pw : kernel.prop_when.PropWhen}
     {n_p n n_f j : Std.U64} {rec_idx : alloc.vec.Vec Std.U64}
     {cty : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_rule_body_r pers st rec_c rlvls pw
       n_p n n_f j rec_idx cty = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (structRuleBodyR (absNIdx rec_c) (absLsIdx rlvls)
         (ConRon.Refine.absPropWhen pw) (absU n_p) (absU n) (absU n_f) (absU j)
         (absNatL rec_idx) (absEIdx cty)) := by
@@ -598,10 +601,10 @@ theorem struct_ih_pis_at_refines {pers st lst} {n_f ofs n_p : Std.U64}
     {tele : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {idx2 : alloc.vec.Vec arena.handle.EIdx} {motive : arena.handle.EIdx}
     {i m : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_ih_pis_at pers st n_f ofs n_p pw cty
       is k l body tele idx2 motive i m = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (structIhPisAtSpec (absU n_f) (absU ofs) (absU n_p)
         (ConRon.Refine.absPropWhen pw) (absEIdx cty) (absNatLFrom is k |>.tail)
         (absU l) (absEIdx body) (absBinderL tele) (absEIdxL idx2) (absEIdx motive)
@@ -613,10 +616,10 @@ theorem struct_ih_pis_refines {pers st lst} {n_f ofs n_p : Std.U64}
     {pw : kernel.prop_when.PropWhen} {cty : arena.handle.EIdx}
     {is : alloc.vec.Vec Std.U64} {k : Std.Usize} {l : Std.U64}
     {body : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_ih_pis pers st n_f ofs n_p pw cty is
       k l body = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (structIhPis (absU n_f) (absU ofs) (absU n_p) (ConRon.Refine.absPropWhen pw)
         (absEIdx cty) (absNatLFrom is k) (absU l) (absEIdx body)) := by
   sorry
@@ -626,10 +629,10 @@ on. -/
 theorem lift_list_refines {pers st lst} {amount c : Std.U64}
     {xs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
     {out : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.lift_list pers st amount c xs i out
       = ok o) :
-    Sim absEIdxL (fun _ => True) pers lst o
+    Sim₀ absEIdxL pers lst o
       (do pure (absEIdxL out ++
         (← liftListSpec (absU amount) (absU c) (absEIdxLFrom xs i)))) := by
   sorry
@@ -638,10 +641,10 @@ theorem lift_list_refines {pers st lst} {amount c : Std.U64}
 theorem struct_minor_ty_close_refines {pers st lst} {n_f ofs n_p : Std.U64}
     {pw : kernel.prop_when.PropWhen} {cty : arena.handle.EIdx}
     {rec_idx : alloc.vec.Vec Std.U64} {q2 concl0 : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_minor_ty_close pers st n_f ofs n_p
       pw cty rec_idx q2 concl0 = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (structMinorTyCloseSpec (absU n_f) (absU ofs) (absU n_p)
         (ConRon.Refine.absPropWhen pw) (absEIdx cty) (absNatL rec_idx)
         (absEIdx q2) (absEIdx concl0)) := by
@@ -652,10 +655,10 @@ theorem struct_minor_ty_at_refines {pers st lst} {c : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_f ofs : Std.U64}
     {pw : kernel.prop_when.PropWhen} {cty : arena.handle.EIdx}
     {rec_idx : alloc.vec.Vec Std.U64} {q2 r2 : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_minor_ty_at pers st c lps n_p n_f
       ofs pw cty rec_idx q2 r2 = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (structMinorTyAtSpec (absNIdx c) (absNIdxL lps) (absU n_p) (absU n_f)
         (absU ofs) (ConRon.Refine.absPropWhen pw) (absEIdx cty) (absNatL rec_idx)
         (absEIdx q2) (absEIdx r2)) := by
@@ -666,10 +669,10 @@ theorem struct_minor_ty_r_refines {pers st lst} {c : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_f ofs : Std.U64}
     {pw : kernel.prop_when.PropWhen} {cty : arena.handle.EIdx}
     {rec_idx : alloc.vec.Vec Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_minor_ty_r pers st c lps n_p n_f ofs
       pw cty rec_idx = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (structMinorTyR (absNIdx c) (absNIdxL lps) (absU n_p) (absU n_f) (absU ofs)
         (ConRon.Refine.absPropWhen pw) (absEIdx cty) (absNatL rec_idx)) := by
   sorry
@@ -678,10 +681,10 @@ theorem struct_minor_ty_r_refines {pers st lst} {c : arena.handle.NIdx}
 differ in (finding 16). -/
 theorem intern_binder_refines {pers st lst} {is_lam : Bool}
     {ty body : arena.handle.EIdx} {pw : kernel.prop_when.PropWhen} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.intern_binder pers st is_lam ty body pw
       = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (internBinderSpec is_lam (absEIdx ty) (absEIdx body)
         (ConRon.Refine.absPropWhen pw)) := by
   sorry
@@ -694,10 +697,10 @@ theorem struct_minors_pis_r_refines {pers st lst}
     {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
       (alloc.vec.Vec Std.U64))}
     {k : Std.Usize} {ofs : Std.U64} {body : arena.handle.EIdx} {is_lam : Bool} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_minors_pis_r pers st lps n_p pw
       ctors k ofs body is_lam = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (structMinorsRSpec (absNIdxL lps) (absU n_p) (ConRon.Refine.absPropWhen pw)
         (absCtors4LFrom ctors k) (absU ofs) (absEIdx body) is_lam) := by
   sorry
@@ -710,10 +713,10 @@ theorem struct_minors_lams_r_refines {pers st lst}
     {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
       (alloc.vec.Vec Std.U64))}
     {k : Std.Usize} {ofs : Std.U64} {body : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_minors_lams_r pers st lps n_p pw
       ctors k ofs body = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (structMinorsLamsR (absNIdxL lps) (absU n_p) (ConRon.Refine.absPropWhen pw)
         (absCtors4LFrom ctors k) (absU ofs) (absEIdx body)) := by
   sorry
@@ -769,10 +772,10 @@ theorem struct_rec_ty_close_refines {pers st lst}
       (alloc.vec.Vec Std.U64))}
     {pw : kernel.prop_when.PropWhen} {n : Std.U64}
     {q2 motive_ty major_body : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_rec_ty_close pers st lps n_p n_idx
       tty ctors pw n q2 motive_ty major_body = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (structRecTyCloseSpec (absNIdxL lps) (absU n_p) (absU n_idx) (absEIdx tty)
         (absCtors4L ctors) (ConRon.Refine.absPropWhen pw) (absU n) (absEIdx q2)
         (absEIdx motive_ty) (absEIdx major_body)) := by
@@ -786,10 +789,10 @@ theorem struct_rec_ty_at_refines {pers st lst} {t : arena.handle.NIdx}
       (alloc.vec.Vec Std.U64))}
     {pw : kernel.prop_when.PropWhen} {n : Std.U64}
     {q2 motive_ty : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_rec_ty_at pers st t lps n_p n_idx
       tty ctors pw n q2 motive_ty = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (structRecTyAtSpec (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absEIdx tty) (absCtors4L ctors) (ConRon.Refine.absPropWhen pw) (absU n)
         (absEIdx q2) (absEIdx motive_ty)) := by
@@ -802,10 +805,10 @@ theorem struct_rec_ty_r_refines {pers st lst} {t : arena.handle.NIdx}
     {large : Bool} {n_p n_idx : Std.U64} {tty : arena.handle.EIdx}
     {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
       (alloc.vec.Vec Std.U64))} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_rec_ty_r pers st t lps elim large
       n_p n_idx tty ctors = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (structRecTyR (absNIdx t) (absNIdxL lps) (absNIdx elim) large (absU n_p)
         (absU n_idx) (absEIdx tty) (absCtors4L ctors)) := by
   sorry
@@ -818,10 +821,10 @@ theorem struct_rec_rhs_close_refines {pers st lst}
       (alloc.vec.Vec Std.U64))}
     {pw : kernel.prop_when.PropWhen} {n n_f : Std.U64}
     {q2 body motive_ty : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_rec_rhs_close pers st lps n_p tty
       ctors pw n n_f q2 body motive_ty = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (structRecRhsCloseSpec (absNIdxL lps) (absU n_p) (absEIdx tty)
         (absCtors4L ctors) (ConRon.Refine.absPropWhen pw) (absU n) (absU n_f)
         (absEIdx q2) (absEIdx body) (absEIdx motive_ty)) := by
@@ -837,10 +840,10 @@ theorem struct_rec_rhs_at_refines {pers st lst} {t : arena.handle.NIdx}
     {rec_c : arena.handle.NIdx} {rlvls : arena.handle.LsIdx} {j : Std.U64}
     {pw : kernel.prop_when.PropWhen} {n n_f : Std.U64} {cty : arena.handle.EIdx}
     {rec_idx : alloc.vec.Vec Std.U64} {l : arena.handle.LIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_rec_rhs_at pers st t lps n_p n_idx
       tty ctors rec_c rlvls j pw n n_f cty rec_idx l = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (structRecRhsAtSpec (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absEIdx tty) (absCtors4L ctors) (absNIdx rec_c) (absLsIdx rlvls) (absU j)
         (ConRon.Refine.absPropWhen pw) (absU n) (absU n_f) (absEIdx cty)
@@ -855,10 +858,10 @@ theorem struct_rec_rhs_r_refines {pers st lst} {t : arena.handle.NIdx}
     {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
       (alloc.vec.Vec Std.U64))}
     {rec_c : arena.handle.NIdx} {rlvls : arena.handle.LsIdx} {j : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_rec_rhs_r pers st t lps elim large
       n_p n_idx tty ctors rec_c rlvls j = ok o) :
-    Sim (Option.map absEIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (structRecRhsR (absNIdx t) (absNIdxL lps) (absNIdx elim) large (absU n_p)
         (absU n_idx) (absEIdx tty) (absCtors4L ctors) (absNIdx rec_c)
         (absLsIdx rlvls) (absU j)) := by
@@ -928,10 +931,10 @@ the `i`-th on. -/
 theorem binders_reset_beq_from_refines {pers st lst}
     {bs1 bs2 : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {o1 o2 n i : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.binders_reset_beq_from pers st bs1 bs2 o1
       o2 n i = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (bindersResetBeqSpec (absBinderL bs1) (absBinderL bs2) (absU o1) (absU o2)
         (absU n - absU i) (absU i)) := by
   sorry
@@ -940,10 +943,10 @@ theorem binders_reset_beq_from_refines {pers st lst}
 theorem binders_reset_beq_refines {pers st lst}
     {bs1 bs2 : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {o1 o2 n : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.binders_reset_beq pers st bs1 bs2 o1 o2 n
       = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (bindersResetBeqSpec (absBinderL bs1) (absBinderL bs2) (absU o1) (absU o2)
         (absU n) 0) := by
   sorry
@@ -952,10 +955,10 @@ theorem binders_reset_beq_refines {pers st lst}
 theorem native_rule_fields_ok_refines {pers st lst} {n_p n j n_f : Std.U64}
     {rbs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {mty : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.native_rule_fields_ok pers st n_p n j n_f
       rbs mty = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (nativeRuleFieldsOkSpec (absU n_p) (absU n) (absU j) (absU n_f)
         (absBinderL rbs) (absEIdx mty)) := by
   sorry
@@ -964,10 +967,10 @@ theorem native_rule_fields_ok_refines {pers st lst} {n_p n j n_f : Std.U64}
 against the stream's own recursor type** (con-leche's task #271). -/
 theorem native_rule_prefix_ok_refines {pers st lst} {rec_ty : arena.handle.EIdx}
     {n_p n j n_f : Std.U64} {rhs : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.native_rule_prefix_ok pers st rec_ty n_p n
       j n_f rhs = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (nativeRulePrefixOk (absEIdx rec_ty) (absU n_p) (absU n) (absU j) (absU n_f)
         (absEIdx rhs)) := by
   sorry
@@ -977,10 +980,10 @@ theorem native_rule_body_ok_refines {pers st lst} {rec_c : arena.handle.NIdx}
     {rlvls : arena.handle.LsIdx} {pw : kernel.prop_when.PropWhen}
     {n_p n n_f j : Std.U64} {rec_idx : alloc.vec.Vec Std.U64}
     {cty rhs : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.native_rule_body_ok pers st rec_c rlvls pw
       n_p n n_f j rec_idx cty rhs = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (nativeRuleBodyOkSpec (absNIdx rec_c) (absLsIdx rlvls)
         (ConRon.Refine.absPropWhen pw) (absU n_p) (absU n) (absU n_f) (absU j)
         (absNatL rec_idx) (absEIdx cty) (absEIdx rhs)) := by
@@ -994,10 +997,10 @@ theorem native_rules_ok_from_refines {pers st lst} {rec_c : arena.handle.NIdx}
     {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
     {rhss : alloc.vec.Vec arena.handle.EIdx} {rec_ty : arena.handle.EIdx}
     {j : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.native_rules_ok_from pers st rec_c rlvls pw
       n_p n cs kinds rhss rec_ty j = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (nativeRulesOkFromSpec (absNIdx rec_c) (absLsIdx rlvls)
         (ConRon.Refine.absPropWhen pw) (absU n_p) (absU n) (absCtorsL cs)
         (absKindLL kinds) (absEIdxL rhss) (absEIdx rec_ty) (absU n - absU j)
@@ -1011,10 +1014,10 @@ theorem native_rules_ok_refines {pers st lst} {rec_c : arena.handle.NIdx}
     {n_p n : Std.U64} {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
     {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
     {rhss : alloc.vec.Vec arena.handle.EIdx} {rec_ty : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.native_rules_ok pers st rec_c rlvls pw n_p
       n cs kinds rhss rec_ty = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (nativeRulesOk (absNIdx rec_c) (absLsIdx rlvls) (ConRon.Refine.absPropWhen pw)
         (absU n_p) (absU n) (absCtorsL cs) (absKindLL kinds) (absEIdxL rhss)
         (absEIdx rec_ty)) := by
@@ -1028,11 +1031,11 @@ constructor count where the twin takes the list, so the statement supplies
 theorem native_counts_refines {pers st lst} {n_pd : Std.U64}
     {cv_t : arena.env.IConstantVal} {n_ctors m_i r_p : Std.U64} {o}
     {cs : List (IConstantVal × Nat × Nat)}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hlen : absU n_ctors = cs.length)
     (hrun : arena.inductives.native_parts.native_counts pers st n_pd cv_t n_ctors m_i
       r_p = ok o) :
-    Sim (Option.map fun p => (absU p.1, absU p.2)) (fun _ => True) pers lst o
+    Sim₀ (Option.map fun p => (absU p.1, absU p.2)) pers lst o
       (nativeCounts? (absU n_pd) (absIConstantVal cv_t) cs (absU m_i)
         (absU r_p)) := by
   sorry
@@ -1435,10 +1438,10 @@ theorem native_shape_small_refines {pers st lst}
     {s : arena.handle.LIdx} {is_prop : Bool}
     {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
     {rhss : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.native_shape_small pers st cv_t cv_r n_p
       n_idx s is_prop ctors rhss = ok o) :
-    Sim (Option.map absInductiveShape) (fun _ => True) pers lst o
+    Sim₀ (Option.map absInductiveShape) pers lst o
       (nativeShapeSmallSpec (absIConstantVal cv_t) (absIConstantVal cv_r) (absU n_p)
         (absU n_idx) (absLIdx s) is_prop (absCtorsL ctors) (absEIdxL rhss)) := by
   sorry
@@ -1449,10 +1452,10 @@ theorem native_shape_elim_refines {pers st lst}
     {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)}
     {cv_r : arena.env.IConstantVal} {rules : alloc.vec.Vec arena.env.IRecRule}
     {n_p n_idx : Std.U64} {s : arena.handle.LIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.native_shape_elim pers st cv_t cs cv_r
       rules n_p n_idx s = ok o) :
-    Sim (Option.map absInductiveShape) (fun _ => True) pers lst o
+    Sim₀ (Option.map absInductiveShape) pers lst o
       (nativeShapeElimSpec (absIConstantVal cv_t) (absCtors3L cs)
         (absIConstantVal cv_r) (absIRecRuleL rules) (absU n_p) (absU n_idx)
         (absLIdx s)) := by
@@ -1463,10 +1466,10 @@ theorem native_shape_sort_refines {pers st lst} {cv_t : arena.env.IConstantVal}
     {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)}
     {cv_r : arena.env.IConstantVal} {rules : alloc.vec.Vec arena.env.IRecRule}
     {n_p n_idx : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.native_shape_sort pers st cv_t cs cv_r
       rules n_p n_idx = ok o) :
-    Sim (Option.map absInductiveShape) (fun _ => True) pers lst o
+    Sim₀ (Option.map absInductiveShape) pers lst o
       (nativeShapeSortSpec (absIConstantVal cv_t) (absCtors3L cs)
         (absIConstantVal cv_r) (absIRecRuleL rules) (absU n_p) (absU n_idx)) := by
   sorry
@@ -1478,10 +1481,10 @@ theorem native_shape_at_refines {pers st lst} {n_pd : Std.U64}
     {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)}
     {cv_r : arena.env.IConstantVal} {m_i r_p : Std.U64}
     {rules : alloc.vec.Vec arena.env.IRecRule} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.native_shape_at pers st n_pd cv_t cs cv_r
       m_i r_p rules = ok o) :
-    Sim (Option.map absInductiveShape) (fun _ => True) pers lst o
+    Sim₀ (Option.map absInductiveShape) pers lst o
       (nativeShapeAtSpec (absU n_pd) (absIConstantVal cv_t) (absCtors3L cs)
         (absIConstantVal cv_r) (absU m_i) (absU r_p) (absIRecRuleL rules)) := by
   sorry
@@ -1489,9 +1492,9 @@ theorem native_shape_at_refines {pers st lst} {n_pd : Std.U64}
 /-- `native_shape` ⊑ `nativeShape?`. -/
 theorem native_shape_refines {pers st lst} {n_pd : Std.U64}
     {block : alloc.vec.Vec arena.env.IConstantInfo} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.native_shape pers st n_pd block = ok o) :
-    Sim (Option.map absInductiveShape) (fun _ => True) pers lst o
+    Sim₀ (Option.map absInductiveShape) pers lst o
       (nativeShape? (absU n_pd) (absICIL block)) := by
   sorry
 
@@ -1499,9 +1502,9 @@ theorem native_shape_refines {pers st lst} {n_pd : Std.U64}
 fields' kinds are a PLACEHOLDER the install fills. -/
 theorem native_parts_refines {pers st lst} {n_pd : Std.U64}
     {block : alloc.vec.Vec arena.env.IConstantInfo} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.native_parts pers st n_pd block = ok o) :
-    Sim (Option.map absNativeParts) (fun _ => True) pers lst o
+    Sim₀ (Option.map absNativeParts) pers lst o
       (nativeParts? (absU n_pd) (absICIL block)) := by
   sorry
 

@@ -346,7 +346,8 @@ the pin modules discharge from `Refine/Pins*.lean`, every subject of
 def EMemoRel (rm : ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)
     (lm : Std.HashMap ConLeche.Expr EIdx) : Prop :=
   RelOn ConRon.Refine.ExprWF rm lm ConRon.Refine.absExpr absEIdx ∧
-    Inv kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable rm
+    Inv kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable rm ∧
+    ConRon.Refine.HashMap2.KeysOk ConRon.Refine.ExprWF rm
 
 /-! ## The two memo-threading outcome shapes (finding 4, at this tier) -/
 
@@ -359,7 +360,7 @@ def POut {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)
     (x : Except Arena.CheckError ((PMemo × β) × AState)) : Prop :=
   match o with
   | .Ok r => ∃ m' v lst', x = .ok ((m', v), lst') ∧ R r.2 v ∧ PMemoRel r.1 m' ∧
-      AStateRel pers st' lst' ∧ AStateInv pers st' ∧ Ext lst.store lst'.store
+      AStateRel₀ pers st' lst' ∧ AStateInv pers st'
   | .Err e => AErrSim e x
 
 /-- `POut` at the Rust's outcome pair — the `Sim` of the promotion tier. -/
@@ -383,9 +384,9 @@ theorem POut.ok {α β : Type} {R : α → β → Prop} {r : arena.promote.PMemo
     {v : β} {pers : arena.store.PersTier} {lst lst' : AState} {m' : PMemo}
     {st' : arena.monad.AState} {x : Except Arena.CheckError ((PMemo × β) × AState)}
     (hx : x = .ok ((m', v), lst')) (hv : R r.2 v) (hm : PMemoRel r.1 m')
-    (hrel : AStateRel pers st' lst') (hinv : AStateInv pers st')
-    (hext : Ext lst.store lst'.store) : POut R pers lst (.Ok r) st' x :=
-  ⟨m', v, lst', hx, hv, hm, hrel, hinv, hext⟩
+    (hrel : AStateRel₀ pers st' lst') (hinv : AStateInv pers st') :
+    POut R pers lst (.Ok r) st' x :=
+  ⟨m', v, lst', hx, hv, hm, hrel, hinv⟩
 
 theorem POut.err {α β : Type} {R : α → β → Prop} {e : kernel.core_types.CheckError}
     {pers : arena.store.PersTier} {lst : AState} {st' : arena.monad.AState}
@@ -397,7 +398,7 @@ theorem POut.dest {α β : Type} {R : α → β → Prop} {r : arena.promote.PMe
     {x : Except Arena.CheckError ((PMemo × β) × AState)}
     (h : POut R pers lst (.Ok r) st' x) :
     ∃ m' v lst', x = .ok ((m', v), lst') ∧ R r.2 v ∧ PMemoRel r.1 m' ∧
-      AStateRel pers st' lst' ∧ AStateInv pers st' ∧ Ext lst.store lst'.store := h
+      AStateRel₀ pers st' lst' ∧ AStateInv pers st' := h
 
 /-- The outcome of an `arena::intern` walk.  **The memo is outside the
 `Result`** on the Rust's side and inside it on the twin's: the port moves the
@@ -412,7 +413,7 @@ def EOut {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : ASt
     Prop :=
   match o with
   | .Ok r => ∃ m' lst', x = .ok ((m', A r), lst') ∧ EMemoRel rm m' ∧
-      AStateRel pers st' lst' ∧ AStateInv pers st' ∧ Ext lst.store lst'.store
+      AStateRel₀ pers st' lst' ∧ AStateInv pers st'
   | .Err e => AErrSim e x
 
 /-- `EOut` at the Rust's outcome TRIPLE. -/
@@ -440,7 +441,7 @@ def SimBM {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : AS
     (x : AM (β × Std.HashMap EIdx Bool)) : Prop :=
   match o.1 with
   | .Ok r => ∃ m' lst', x.run lst = .ok ((A r, m'), lst') ∧ ExprOps.LMemoRel o.2.2 m' ∧
-      AStateRel pers o.2.1 lst' ∧ AStateInv pers o.2.1 ∧ Ext lst.store lst'.store
+      AStateRel₀ pers o.2.1 lst' ∧ AStateInv pers o.2.1
   | .Err e => AErrSim e (x.run lst)
 
 /-- A `Bool`-memo walk that only READS the state: `(Result α) × memo`.
@@ -855,39 +856,6 @@ theorem am_run_bind_ok {α β : Type} {m : AM α} {k : α → AM β} {ls ls' : A
     intro h
     exact ⟨a, s, rfl, h⟩
 
-/-- **A `Sim` step, then a `SimRel` continuation** — the composition every
-checker arm of the shape `let x ← <Sim callee>; <SimRel callee> x` is (task
-#97-P5-Checker round 4).  The continuation is asked for at every related
-state, since the intermediate twin state is the `Sim`'s existential. -/
-theorem SimRel.of_sim_bind {α β γ δ : Type} {A : α → β} {R : γ → δ → Prop}
-    {pers : arena.store.PersTier} {lst : AState} {x : AM β} {f : β → AM δ}
-    {r : α} {st1 : arena.monad.AState}
-    {o : core.result.Result γ kernel.core_types.CheckError × arena.monad.AState}
-    (h1 : Sim A (fun _ => True) pers lst (.Ok r, st1) x)
-    (h2 : ∀ lst1, AStateRel pers st1 lst1 → AStateInv pers st1 →
-      SimRel R pers lst1 o (f (A r))) :
-    SimRel R pers lst o (x >>= f) := by
-  obtain ⟨lst1, hx, hrel1, hinv1, hext1, -⟩ := Sim.apply h1
-  have h := h2 lst1 hrel1 hinv1
-  unfold SimRel AOutRel at h ⊢
-  rw [am_run_bind', hx, except_ok_bind]
-  revert h
-  cases o.1 with
-  | Err e => exact id
-  | Ok r' =>
-    rintro ⟨v, lst2, hy, hr, hrel2, hinv2, hext2⟩
-    exact ⟨v, lst2, hy, hr, hrel2, hinv2, Ext.trans hext1 hext2⟩
-
-/-- The failure half: a `Sim` step that fails fails the bind. -/
-theorem SimRel.of_sim_err {α β γ δ : Type} {A : α → β} {R : γ → δ → Prop}
-    {pers : arena.store.PersTier} {lst : AState} {x : AM β} {f : β → AM δ}
-    {e : kernel.core_types.CheckError} {st1 : arena.monad.AState}
-    (h1 : Sim A (fun _ => True) pers lst (.Err e, st1) x) :
-    SimRel R pers lst (.Err e, st1) (x >>= f) := by
-  show AErrSim e _
-  rw [am_run_bind']
-  exact AErrSim.bind (Sim.apply_err h1) _
-
 private theorem pure_none_ne {ls ls' : AState} {fvs : List EIdx} {r : EIdx}
     (h : (pure none : AM (Option (List EIdx × EIdx))).run ls
       = .ok (some (fvs, r), ls')) : False := by
@@ -911,6 +879,11 @@ theorem openPisAtFvars_length {n : Nat} {e : EIdx} {i : Nat} {ls ls' : AState}
     rfl
   | succ n ih =>
     rw [openPisAtFvars] at h
+    -- the tag-first twin (task #97-T2-LOCKSTEP lane Checker, D1)
+    by_cases ht : (e.tag == ETag.forallE) = true
+    swap
+    · rw [if_neg ht] at h; exact (pure_none_ne h).elim
+    rw [if_pos ht] at h
     obtain ⟨v, ls1, -, h⟩ := am_run_bind_ok h
     cases v
     case forallE dom body mm =>
@@ -948,6 +921,11 @@ theorem openPisAtFvarsFGo_length : ∀ {acc : Array EIdx} {n : Nat} {e : EIdx}
   | succ n ih =>
     intro e i ls ls' fvs r h
     rw [openPisAtFvarsFGo] at h
+    -- the tag-first twin (task #97-T2-LOCKSTEP lane Checker, D1)
+    by_cases ht : (e.tag == ETag.forallE) = true
+    swap
+    · rw [if_neg ht] at h; exact (pure_none_ne h).elim
+    rw [if_pos ht] at h
     obtain ⟨v, ls1, -, h⟩ := am_run_bind_ok h
     cases v
     case forallE dom body mm =>
@@ -982,377 +960,6 @@ theorem openPisAtFvarsF_length {n : Nat} {e : EIdx} {i : Nat} {ls ls' : AState}
     simp only [Except.ok.injEq, Prod.mk.injEq, Option.some.injEq] at h
     rw [← h.1.1]
     exact openPisAtFvarsFGo_length ho
-
-/-! ## The declaration boundary, as a fact about the TWIN
-(task #97-P5-Checker round 3)
-
-`Refine2/Core/Bracket.lean`'s `BrOK` is the boundary a bracketed step is
-entered at — the twin store well formed and its scratch tier closed — and the
-three bracketed statements of `Refine2/Checker/Top.lean` (`check_pending`,
-`check_decl_step`, `annot_step`) each need one.  Since task #97-P5-Specs put
-`StoreWF ls.store` into `AStateRel` (finding 16) the well-formedness half is
-free at every state the relation holds of; the FLAG half is not, and must not
-be — it is false of the state INSIDE the bracket, which is exactly a state
-`AStateRel` holds of.
-
-**So the flag threads, and the cheapest way to thread it is not to touch a
-refinement statement at all.**  `dropScratch` closes the tier whatever ran
-before it, so *"this twin action leaves the tier closed"* is a fact about the
-TWIN alone, quantified over the state — `Refine2/Core/Bracket.lean`'s `TwinWF`
-shape, and it threads through a fold for the same reason.  A bracketed step
-then carries one extra HYPOTHESIS (`BrOK lst`) and no extra conclusion: the
-fold rebuilds the next boundary from `AStateRel.storeWF` and the `_off` lemma
-of whatever it just ran. -/
-
-/-- The twin's `dropScratch`, run. -/
-theorem dropScratch_run (ls : AState) :
-    (dropScratch : AM Unit).run ls
-      = .ok ((), { ls with store := ls.store.dropScratch, caches := Caches.empty })
-  := rfl
-
-/-- **`dropScratch` closes the tier**, whatever ran before it. -/
-theorem dropScratch_off {ls ls' : AState} {v : Unit}
-    (h : (dropScratch : AM Unit).run ls = .ok (v, ls')) :
-    ls'.store.scratchOn = false := by
-  rw [dropScratch_run] at h
-  simp only [Except.ok.injEq, Prod.mk.injEq] at h
-  rw [← h.2]
-  rfl
-
-/-- `dropScratch` followed by anything that leaves the STATE alone — the tail
-of every bracketed twin, which is `dropScratch; pure <something>`. -/
-theorem dropScratch_bind_off {α : Type} {k : Unit → AM α} {ls ls' : AState}
-    {v : α}
-    (hk : ∀ (u : Unit) (s s' : AState) (w : α), (k u).run s = .ok (w, s') →
-      s' = s)
-    (h : ((dropScratch : AM Unit) >>= k).run ls = .ok (v, ls')) :
-    ls'.store.scratchOn = false := by
-  obtain ⟨u, ls₁, h1, h2⟩ := am_run_bind_ok h
-  rw [hk u ls₁ ls' v h2]
-  exact dropScratch_off h1
-
-/-- A `pure`'s VALUE, off a run. -/
-theorem am_run_pure_val {α : Type} {a : α} {s s' : AState} {w : α}
-    (h : (pure a : AM α).run s = .ok (w, s')) : w = a := by
-  replace h : (Except.ok (a, s) : Except Arena.CheckError (α × AState))
-      = Except.ok (w, s') := h
-  simp only [Except.ok.injEq, Prod.mk.injEq] at h
-  exact h.1.symm
-
-/-- The side condition of `dropScratch_bind_off` at a `pure`. -/
-theorem am_run_pure_state {α : Type} {a : α} {s s' : AState} {w : α}
-    (h : (pure a : AM α).run s = .ok (w, s')) : s' = s := by
-  replace h : (Except.ok (a, s) : Except Arena.CheckError (α × AState))
-      = Except.ok (w, s') := h
-  simp only [Except.ok.injEq, Prod.mk.injEq] at h
-  exact h.2.symm
-
-/-! ## The promote window, closed (task #97-P5-Checker round 4)
-
-**The bridge between `AStateRelW` and `AStateRel` is `dropScratch`, and it is
-one lemma: `bracket_close_w`.**  A bracketed step runs its body at the strong
-relation, enters the promotion at the weak one (`AStateRelW.of_rel`, free),
-and leaves the promotion at the weak one — `internPersistent` breaks `fresh`
-(task #97-P5-Fresh) — so what the bracket's closing half is handed is
-`AStateRelW`, where `Refine2/Core/Bracket.lean`'s `bracket_close` asks for
-`AStateRel`.  `bracket_close` needs the strong relation for exactly two
-things, and neither of them reads `fresh`:
-
-* `drop_scratch_refines`' post-state `storeWF` — which the WEAK invariant
-  gives as well, through `StoreWF'.dropScratch_wf` (task #97-P5-Fresh §4:
-  `wf_of_scr_empty` never read the input's `fresh`);
-* `ext_bracket`'s `StoreWF b` — the tier discipline that makes a PERSISTENT
-  handle's denotation survive the drop.  Its proof reads `childOK`'s
-  persistence conjunct, the four ranks and `bmChildOK`, all of which the weak
-  invariant keeps; the four `denote*Aux_dropScratch` inductions below are the
-  strong ones with `WFAt` replaced by `WFAt'` and not a step changed.
-
-So the relation is weak exactly across the promote window and strong on both
-sides of it, and **no statement above the bracket weakens**.  The four
-inductions belong beside their strong siblings in `Arena/WFProofs.lean`;
-they are here because that file is not this tier's lane. -/
-
-theorem _root_.ConRon.Arena.NWFAt'.rank_lt {st : NStore} {rk : NIdx → Nat} (h : NWFAt' st rk)
-    {i : NIdx} (hv : (st.view i).isSome = true) : rk i < st.nodeCount := by
-  by_cases hp : i.isPersistent = true
-  · have h1 := h.rankP i hp hv
-    have h2 := NStore.persCount_le st
-    omega
-  · exact h.rankS i (by simpa using hp) hv
-
-theorem _root_.ConRon.Arena.LWFAt'.rank_lt {st : LStore} {rk : LIdx → Nat} (h : LWFAt' st rk)
-    {i : LIdx} (hv : (st.view i).isSome = true) : rk i < st.nodeCount := by
-  by_cases hp : i.isPersistent = true
-  · have h1 := h.rankP i hp hv
-    have h2 := LStore.persCount_le st
-    omega
-  · exact h.rankS i (by simpa using hp) hv
-
-theorem _root_.ConRon.Arena.EWFAt'.rank_lt {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk)
-    {i : EIdx} (hv : (st.view i).isSome = true) : rk i < st.nodeCount := by
-  by_cases hp : i.isPersistent = true
-  · have h1 := h.rankP i hp hv
-    have h2 := EStore.persCount_le st
-    omega
-  · exact h.rankS i (by simpa using hp) hv
-
-theorem _root_.ConRon.Arena.EWFAt'.bmPers {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk) (i : EIdx)
-    (hp : i.isPersistent = true) :
-    ∀ ty b mi, st.viewBindI i = some (ty, b, mi) → mi.isPersistent = true :=
-  fun ty b mi hh => (h.bmChildOK i ty b mi hh).2.1 hp
-
-theorem denoteNAux_dropScratch' {st : NStore} {rk : NIdx → Nat} (h : NWFAt' st rk) :
-    ∀ (f : Nat) (i : NIdx) (x : ConLeche.Name), i.isPersistent = true →
-      denoteNAux st f i = some x → denoteNAux st.dropScratch f i = some x := by
-  intro f
-  induction f with
-  | zero => intro i x _ hd; simp [denoteNAux] at hd
-  | succ k ih =>
-    intro i x hp hd
-    simp only [denoteNAux, Option.bind_eq_some_iff] at hd ⊢
-    obtain ⟨v, hv, hd⟩ := hd
-    refine ⟨v, by rw [NStore.view_dropScratch_pers st hp]; exact hv, ?_⟩
-    cases v with
-    | anonymous => exact hd
-    | str p s =>
-      simp only [Option.map_eq_some_iff] at hd ⊢
-      obtain ⟨q, hq, he⟩ := hd
-      exact ⟨q, ih p q ((h.childOK i _ hv p (by simp [NNodeView.children])).2.2 hp) hq, he⟩
-    | num p n =>
-      simp only [Option.map_eq_some_iff] at hd ⊢
-      obtain ⟨q, hq, he⟩ := hd
-      exact ⟨q, ih p q ((h.childOK i _ hv p (by simp [NNodeView.children])).2.2 hp) hq, he⟩
-
-theorem denoteN_dropScratch_pers' {st : NStore} {rk : NIdx → Nat} (h : NWFAt' st rk)
-    {i : NIdx} {x : ConLeche.Name} (hp : i.isPersistent = true)
-    (hd : denoteN st i = some x) : denoteN st.dropScratch i = some x := by
-  have h' := NStore.dropScratch_wfAt' h
-  obtain ⟨v, hv⟩ := denoteN_view hd
-  have hsome : (st.dropScratch.view i).isSome = true := by
-    rw [NStore.view_dropScratch_pers st hp, hv]; rfl
-  have hr1 : rk i < st.dropScratch.nodeCount := h'.rank_lt hsome
-  have hr2 : rk i < st.nodeCount := h.rank_lt (by rw [hv]; rfl)
-  have h1 : denoteNAux st.dropScratch (st.nodeCount + 1) i = some x :=
-    denoteNAux_dropScratch' h _ i x hp hd
-  rw [denoteN, denoteNAux_congr h' (st.dropScratch.nodeCount + 1) i
-    (st.dropScratch.nodeCount + 1) (st.nodeCount + 1) (by omega) (by omega) (by omega)]
-  exact h1
-
-theorem denoteLAux_dropScratch' {st : LStore} {rk : LIdx → Nat} (h : LWFAt' st rk) :
-    ∀ (f : Nat) (i : LIdx) (x : ConLeche.Level), i.isPersistent = true →
-      denoteLAux st f i = some x → denoteLAux st.dropScratch f i = some x := by
-  obtain ⟨rkn, hn⟩ := h.ns
-  intro f
-  induction f with
-  | zero => intro i x _ hd; simp [denoteLAux] at hd
-  | succ k ih =>
-    intro i x hp hd
-    simp only [denoteLAux, Option.bind_eq_some_iff] at hd ⊢
-    obtain ⟨v, hv, hd⟩ := hd
-    refine ⟨v, by rw [LStore.view_dropScratch_pers st hp]; exact hv, ?_⟩
-    cases v with
-    | zero => exact hd
-    | succ u =>
-      simp only [Option.map_eq_some_iff] at hd ⊢
-      obtain ⟨q, hq, he⟩ := hd
-      exact ⟨q, ih u q ((h.childOK i _ hv u (by simp [LNodeView.lchildren])).2.2 hp) hq, he⟩
-    | max u w =>
-      simp only [opt2_eq_some_iff] at hd ⊢
-      obtain ⟨a, b, ha, hb, he⟩ := hd
-      exact ⟨a, b, ih u a ((h.childOK i _ hv u (by simp [LNodeView.lchildren])).2.2 hp) ha,
-        ih w b ((h.childOK i _ hv w (by simp [LNodeView.lchildren])).2.2 hp) hb, he⟩
-    | imax u w =>
-      simp only [opt2_eq_some_iff] at hd ⊢
-      obtain ⟨a, b, ha, hb, he⟩ := hd
-      exact ⟨a, b, ih u a ((h.childOK i _ hv u (by simp [LNodeView.lchildren])).2.2 hp) ha,
-        ih w b ((h.childOK i _ hv w (by simp [LNodeView.lchildren])).2.2 hp) hb, he⟩
-    | param n =>
-      simp only [Option.map_eq_some_iff] at hd ⊢
-      obtain ⟨q, hq, he⟩ := hd
-      refine ⟨q, ?_, he⟩
-      exact denoteN_dropScratch_pers' hn
-        ((h.nchildOK i _ hv n (by simp [LNodeView.nchildren])).2 hp) hq
-
-theorem denoteL_dropScratch_pers' {st : LStore} {rk : LIdx → Nat} (h : LWFAt' st rk)
-    {i : LIdx} {x : ConLeche.Level} (hp : i.isPersistent = true)
-    (hd : denoteL st i = some x) : denoteL st.dropScratch i = some x := by
-  have h' := LStore.dropScratch_wfAt' h
-  obtain ⟨v, hv⟩ := denoteL_view hd
-  have hsome : (st.dropScratch.view i).isSome = true := by
-    rw [LStore.view_dropScratch_pers st hp, hv]; rfl
-  have hr1 : rk i < st.dropScratch.nodeCount := h'.rank_lt hsome
-  have hr2 : rk i < st.nodeCount := h.rank_lt (by rw [hv]; rfl)
-  have h1 : denoteLAux st.dropScratch (st.nodeCount + 1) i = some x :=
-    denoteLAux_dropScratch' h _ i x hp hd
-  rw [denoteL, denoteLAux_congr h' (st.dropScratch.nodeCount + 1) i
-    (st.dropScratch.nodeCount + 1) (st.nodeCount + 1) (by omega) (by omega) (by omega)]
-  exact h1
-
-theorem denoteLList_dropScratch' {ls : LStore} {rk : LIdx → Nat} (h : LWFAt' ls rk) :
-    ∀ (us : List LIdx) (xs : List ConLeche.Level), (∀ c ∈ us, c.isPersistent = true) →
-      denoteLList ls us = some xs → denoteLList ls.dropScratch us = some xs := by
-  intro us
-  induction us with
-  | nil => intro xs _ hd; exact hd
-  | cons u rest ih =>
-    intro xs hp hd
-    simp only [denoteLList, opt2_eq_some_iff] at hd ⊢
-    obtain ⟨a, b, ha, hb, he⟩ := hd
-    exact ⟨a, b, denoteL_dropScratch_pers' h (hp u (by simp)) ha,
-      ih b (fun c hc => hp c (by simp [hc])) hb, he⟩
-
-theorem denoteLs_dropScratch_pers' {st : LsStore} (h : LsWF' st) {i : LsIdx}
-    {xs : List ConLeche.Level} (hp : i.isPersistent = true) (hd : denoteLs st i = some xs) :
-    denoteLs st.dropScratch i = some xs := by
-  obtain ⟨rkl, hl⟩ := h.ls
-  obtain ⟨us, hus, hlist⟩ := denoteLs_view hd
-  rw [denoteLs, LsStore.view_dropScratch_pers st hp, hus]
-  exact denoteLList_dropScratch' hl us xs
-    (fun c hc => (h.lchildOK i us hus c hc).2 hp) hlist
-
-theorem denoteEAux_dropScratch' {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk) :
-    ∀ (f : Nat) (i : EIdx) (x : ConLeche.Expr), i.isPersistent = true →
-      denoteEAux st f i = some x → denoteEAux st.dropScratch f i = some x := by
-  have hlsw : LsWF' st.lss := h.lss
-  obtain ⟨rkl, hl⟩ : LStoreWF' st.ls := hlsw.ls
-  obtain ⟨rkn, hn⟩ : NStoreWF' st.ns := hl.ns
-  intro f
-  induction f with
-  | zero => intro i x _ hd; simp [denoteEAux] at hd
-  | succ k ih =>
-    intro i x hp hd
-    simp only [denoteEAux, Option.bind_eq_some_iff] at hd ⊢
-    obtain ⟨v, hv, hd⟩ := hd
-    refine ⟨v, by rw [EStore.view_dropScratch_pers st (h.bmPers i hp) hp]; exact hv, ?_⟩
-    cases v with
-    | bvar _ => exact hd
-    | lit _ => exact hd
-    | fvar j ty =>
-      simp only [Option.map_eq_some_iff] at hd ⊢
-      obtain ⟨q, hq, he⟩ := hd
-      exact ⟨q, ih ty q ((h.childOK i _ hv ty (by simp [ENodeView.echildren])).2.2 hp) hq, he⟩
-    | sort u =>
-      simp only [Option.map_eq_some_iff] at hd ⊢
-      obtain ⟨q, hq, he⟩ := hd
-      refine ⟨q, ?_, he⟩
-      exact denoteL_dropScratch_pers' hl
-        ((h.lchildOK i _ hv u (by simp [ENodeView.lchildren])).2 hp) hq
-    | const n us =>
-      simp only [opt2_eq_some_iff] at hd ⊢
-      obtain ⟨a, b, ha, hb, he⟩ := hd
-      refine ⟨a, b, ?_, ?_, he⟩
-      · exact denoteN_dropScratch_pers' hn
-          ((h.nchildOK i _ hv n (by simp [ENodeView.nchildren])).2 hp) ha
-      · exact denoteLs_dropScratch_pers' hlsw
-          ((h.lschildOK i _ hv us (by simp [ENodeView.lschildren])).2 hp) hb
-    | app g a =>
-      simp only [opt2_eq_some_iff] at hd ⊢
-      obtain ⟨p, q, hp1, hq1, he⟩ := hd
-      exact ⟨p, q, ih g p ((h.childOK i _ hv g (by simp [ENodeView.echildren])).2.2 hp) hp1,
-        ih a q ((h.childOK i _ hv a (by simp [ENodeView.echildren])).2.2 hp) hq1, he⟩
-    | lam ty b m =>
-      simp only [opt2_eq_some_iff] at hd ⊢
-      obtain ⟨p, q, hp1, hq1, he⟩ := hd
-      exact ⟨p, q, ih ty p ((h.childOK i _ hv ty (by simp [ENodeView.echildren])).2.2 hp) hp1,
-        ih b q ((h.childOK i _ hv b (by simp [ENodeView.echildren])).2.2 hp) hq1, he⟩
-    | forallE ty b m =>
-      simp only [opt2_eq_some_iff] at hd ⊢
-      obtain ⟨p, q, hp1, hq1, he⟩ := hd
-      exact ⟨p, q, ih ty p ((h.childOK i _ hv ty (by simp [ENodeView.echildren])).2.2 hp) hp1,
-        ih b q ((h.childOK i _ hv b (by simp [ENodeView.echildren])).2.2 hp) hq1, he⟩
-    | letE ty val b =>
-      simp only [opt3_eq_some_iff] at hd ⊢
-      obtain ⟨p, q, r, hp1, hq1, hr1, he⟩ := hd
-      exact ⟨p, q, r,
-        ih ty p ((h.childOK i _ hv ty (by simp [ENodeView.echildren])).2.2 hp) hp1,
-        ih val q ((h.childOK i _ hv val (by simp [ENodeView.echildren])).2.2 hp) hq1,
-        ih b r ((h.childOK i _ hv b (by simp [ENodeView.echildren])).2.2 hp) hr1, he⟩
-    | proj n j e =>
-      simp only [opt2_eq_some_iff] at hd ⊢
-      obtain ⟨p, q, hp1, hq1, he⟩ := hd
-      refine ⟨p, q, ?_, ih e q ((h.childOK i _ hv e (by simp [ENodeView.echildren])).2.2 hp) hq1, he⟩
-      exact denoteN_dropScratch_pers' hn
-        ((h.nchildOK i _ hv n (by simp [ENodeView.nchildren])).2 hp) hp1
-
-theorem EStore.dropScratch_denote_pers' {st : EStore} (h : StoreWF' st)
-    {i : EIdx} {e : ConLeche.Expr} (hp : i.isPersistent = true)
-    (hd : denoteE st i = some e) : denoteE st.dropScratch i = some e := by
-  obtain ⟨rk, h⟩ := h
-  have h' := EStore.dropScratch_wfAt' h
-  obtain ⟨v, hv⟩ := denoteE_view hd
-  have hsome : (st.dropScratch.view i).isSome = true := by
-    rw [EStore.view_dropScratch_pers st (h.bmPers i hp) hp, hv]; rfl
-  have hr1 : rk i < st.dropScratch.nodeCount := h'.rank_lt hsome
-  have hr2 : rk i < st.nodeCount := h.rank_lt (by rw [hv]; rfl)
-  have h1 : denoteEAux st.dropScratch (st.nodeCount + 1) i = some e :=
-    denoteEAux_dropScratch' h _ i e hp hd
-  rw [denoteE, denoteEAux_congr h' (st.dropScratch.nodeCount + 1) i
-    (st.dropScratch.nodeCount + 1) (st.nodeCount + 1) (by omega) (by omega) (by omega)]
-  exact h1
-
-/-- `Refine2/Core/Bracket.lean`'s `ext_dropScratch` at the WEAK invariant. -/
-theorem ext_dropScratch' {a b : EStore} (hc : ScratchClosed a) (hwf : StoreWF' b)
-    (h : Ext a b) : Ext a b.dropScratch := by
-  obtain ⟨rk, hwa⟩ := hwf
-  have hwfE : StoreWF' b := ⟨rk, hwa⟩
-  have hlss : LsWF' b.lss := hwa.lss
-  obtain ⟨rkl, hls⟩ : LStoreWF' b.lss.ls := hlss.ls
-  obtain ⟨rkn, hns⟩ : NStoreWF' b.lss.ls.ns := hls.ns
-  refine ⟨⟨⟨?_, ?_⟩, ?_⟩, ?_⟩
-  · intro i n hd
-    exact denoteN_dropScratch_pers' hns (hc.lss.ls.ns.pers hd) (h.lss.ls.ns i n hd)
-  · intro i u hd
-    exact denoteL_dropScratch_pers' hls (hc.lss.ls.pers hd) (h.lss.ls.lvl i u hd)
-  · intro i us hd
-    exact denoteLs_dropScratch_pers' hlss (hc.lss.pers hd) (h.lss.lst i us hd)
-  · intro i e hd
-    exact EStore.dropScratch_denote_pers' hwfE (hc.pers hd) (h.expr i e hd)
-
-/-- `ext_bracket` at the WEAK invariant: **the bracket, as an `Ext`, across a
-promotion**. -/
-theorem ext_bracket' {a b : EStore} (hc : ScratchClosed a) (hwf : StoreWF' b)
-    (h : Ext a.enableScratch b) : Ext a b.dropScratch :=
-  ext_dropScratch' hc hwf (Ext.trans hc.ext h)
-
-/-- `drop_scratch_refines` from the promote window's relation: the WEAK
-relation in, the STRONG one out — `dropScratch` is where `fresh` comes back. -/
-theorem drop_scratch_refines_w {pers st lst st'}
-    (hrel : AStateRelW pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.core.drop_scratch st = ok st') :
-    (dropScratch : AM Unit).run lst = .ok ((),
-        { lst with store := lst.store.dropScratch, caches := Caches.empty }) ∧
-      AStateRel pers st'
-        { lst with store := lst.store.dropScratch, caches := Caches.empty } ∧
-      AStateInv pers st' := by
-  rw [arena.core.drop_scratch] at hrun
-  obtain ⟨s1, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hst : st' = { s1 with store := e } := (Result.ok_injective hrun).symm
-  subst hst
-  rw [arena.core.flush_caches] at h1
-  obtain ⟨c, hc, h1⟩ := ConRon.Refine.bind_eq_ok_iff.mp h1
-  have hs1 : s1 = { st with caches := c } := (Result.ok_injective h1).symm
-  subst hs1
-  obtain ⟨hcr, hci⟩ := caches_reset hinv.caches hc
-  obtain ⟨hsr, hsi⟩ := estore_drop hrel.store hinv.store he
-  exact ⟨rfl,
-    ⟨hsr, hrel.memos, hcr, hrel.pins, StoreWF'.dropScratch_wf hrel.storeWF⟩,
-    ⟨hsi, hinv.memos, hci⟩⟩
-
-/-- **THE BRIDGE** — `bracket_close` from the promote window: a bracket entered
-at a boundary whose body delivered `Ext` from the opened store, and whose
-promotion left the WEAK relation, closes to the STRONG relation, `Ext` from
-the boundary, and the next boundary. -/
-theorem bracket_close_w {pers st st' lst lst2}
-    (hbr : BrOK lst) (hrel : AStateRelW pers st lst2) (hinv : AStateInv pers st)
-    (hext : Ext lst.store.enableScratch lst2.store)
-    (hdrop : arena.core.drop_scratch st = ok st') :
-    (dropScratch : AM Unit).run lst2 = .ok ((), (brLeft lst2)) ∧
-      AStateRel pers st' (brLeft lst2) ∧ AStateInv pers st' ∧
-      Ext lst.store (brLeft lst2).store ∧ BrOK (brLeft lst2) := by
-  obtain ⟨hr, hrel', hinv'⟩ := drop_scratch_refines_w hrel hinv hdrop
-  exact ⟨hr, hrel', hinv', ext_bracket' hbr.closedStore hrel.storeWF hext,
-    ⟨StoreWF'.dropScratch_wf hrel.storeWF, rfl⟩⟩
 
 /-! ## The Inductives seam (task #97-P5-Checker's finding 14)
 
@@ -1465,11 +1072,5 @@ attribute [simp] absPendingCheck absPendingCheckL absPendingCheckLFrom
 
 /-- info: 'ConRon.Refine2.openPisAtFvarsF_length' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms openPisAtFvarsF_length
-
-/-- info: 'ConRon.Refine2.ext_bracket'' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ext_bracket'
-
-/-- info: 'ConRon.Refine2.bracket_close_w' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms bracket_close_w
 
 end ConRon.Refine2

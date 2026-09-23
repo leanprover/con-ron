@@ -521,4 +521,14 @@ Registered BEFORE the `sorry` statement below, so `lockstep` tries it first. -/
       (Arena.internLevel (ConRon.Refine.absLevel l)) :=
   LS.ofSim₀ fun _ h => intern_level_run₀ hrel hinv hwf h
 
+/-! ## Added by task #97-T2-LOCKSTEP lane Inductives
+
+The `NIdx` copy: the inductives tier dups a name handle before every
+`intern_e_const`/`intern_l_node (Param …)`.  The ExprOps lane carries the same
+fact as `dup2_nidx` on its branch; whichever lands second keeps one. -/
+
+@[lockstep] theorem nidx_dup2_spec (h : arena.handle.NIdx) :
+    LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
+  fun e he => dupId_nidx _ _ he
+
 end ConRon.Refine2.Lockstep

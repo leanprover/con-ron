@@ -43,7 +43,7 @@ narrowing; the remaining 121 take no state at all).  Rather than a second family
 `withStore` lifts the port's post-store into the ambient `AState` —
 `{ rst with store := e }` — and the one family covers both.  That the twin's
 corresponding action really leaves the memos alone is not assumed: it is what
-the proof shows, since `AStateRel` at the lifted state demands exactly it.
+the proof shows, since `AStateRel₀` at the lifted state demands exactly it.
 
 **3. The frontend tier of Theorem 2 needs NO well-formedness hypothesis on a
 term**, and that is the arena's dividend.  `RefineOld/Frontend/Base.lean`'s
@@ -57,9 +57,16 @@ definition's `safety` and a quotient record's `kind` — and that is
 `DeclRecStrWF`, task #87 §8's finding, carried here as the scanner's
 obligation it always was.
 
+**4. Lockstep (task #97-T2-LOCKSTEP, lane Frontend).**  Every success arm
+below relates the post-states by `AStateRel₀` — the same data in two
+representations — and carries no `Ext` and no `StoreWF`: those are the twin's
+own invariants, and Theorem 1's (DESIGN §8.2, task #97-T2-AUDIT §6).  The
+modeller seam `ModellerRefines`/`SimGen` is lockstep too: the Rust generator
+does what the twin's does, from related states to related states.
+
 ## `sorry` count in this file: 0
 -/
-import ConRon.Refine2.Frontend.Abs
+import ConRon.Refine2.Frontend.Text
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -76,7 +83,7 @@ open ConRon.Refine.HashMap2 (Inv KeysOk RelOn toFun)
 /-! ## The ambient state, lifted from a bare store
 
 The port's parse threads `&mut EStore` where the twin threads `AState`;
-`withStore` is the lift, and `AStateRel pers (withStore rst e) lst'` is what a
+`withStore` is the lift, and `AStateRel₀ pers (withStore rst e) lst'` is what a
 store-only function's success arm claims — which says, among other things,
 that the twin's action left every memo alone. -/
 
@@ -148,40 +155,42 @@ The value builders and readers of the parse: `st_name`, `parse_cv_d`,
 `note_decl_entries`, …  The twin is `AM β`; the port's post-state is either a
 bare `EStore` (lifted by `withStore`) or an `AState`. -/
 
-/-- The outcome of a `LineErr`-channelled port function. -/
-def LOut {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : AState)
+/-- The outcome of a `LineErr`-channelled port function — lockstep (task
+#97-T2-LOCKSTEP): the twin's post-state is related by `AStateRel₀`, and nothing
+about the twin's own store (`StoreWF`, `Ext`) is claimed. -/
+def LOut {α β : Type} (A : α → β) (pers : arena.store.PersTier)
     (o : core.result.Result α frontend.export_c.LineErr)
     (rst' : arena.monad.AState)
     (x : Except Arena.CheckError (β × AState)) : Prop :=
   match o with
-  | .Ok r => ∃ lst', x = .ok (A r, lst') ∧ AStateRel pers rst' lst' ∧
-      AStateInv pers rst' ∧ Ext lst.store lst'.store
+  | .Ok r => ∃ lst', x = .ok (A r, lst') ∧ AStateRel₀ pers rst' lst' ∧
+      AStateInv pers rst'
   | .Err e => ALineErrSim e x
 
 /-- `LOut` at the Rust's outcome pair. -/
 def SimL {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : AState)
     (o : core.result.Result α frontend.export_c.LineErr × arena.monad.AState)
     (x : AM β) : Prop :=
-  LOut A pers lst o.1 o.2 (x.run lst)
+  LOut A pers o.1 o.2 (x.run lst)
 
 theorem LOut.ok {α β : Type} {A : α → β} {r : α} {pers : arena.store.PersTier}
-    {lst lst' : AState} {rst' : arena.monad.AState}
+    {lst' : AState} {rst' : arena.monad.AState}
     {x : Except Arena.CheckError (β × AState)} (hx : x = .ok (A r, lst'))
-    (hrel : AStateRel pers rst' lst') (hinv : AStateInv pers rst')
-    (hext : Ext lst.store lst'.store) : LOut A pers lst (.Ok r) rst' x :=
-  ⟨lst', hx, hrel, hinv, hext⟩
+    (hrel : AStateRel₀ pers rst' lst') (hinv : AStateInv pers rst') :
+    LOut A pers (.Ok r) rst' x :=
+  ⟨lst', hx, hrel, hinv⟩
 
 theorem LOut.err {α β : Type} {A : α → β} {e : frontend.export_c.LineErr}
-    {pers : arena.store.PersTier} {lst : AState} {rst' : arena.monad.AState}
+    {pers : arena.store.PersTier} {rst' : arena.monad.AState}
     {x : Except Arena.CheckError (β × AState)} (h : ALineErrSim e x) :
-    LOut A pers lst (.Err e) rst' x := h
+    LOut A pers (.Err e) rst' x := h
 
 theorem LOut.dest {α β : Type} {A : α → β} {r : α} {pers : arena.store.PersTier}
-    {lst : AState} {rst' : arena.monad.AState}
+    {rst' : arena.monad.AState}
     {x : Except Arena.CheckError (β × AState)}
-    (h : LOut A pers lst (.Ok r) rst' x) :
-    ∃ lst', x = .ok (A r, lst') ∧ AStateRel pers rst' lst' ∧
-      AStateInv pers rst' ∧ Ext lst.store lst'.store := h
+    (h : LOut A pers (.Ok r) rst' x) :
+    ∃ lst', x = .ok (A r, lst') ∧ AStateRel₀ pers rst' lst' ∧
+      AStateInv pers rst' := h
 
 /-- **A `LineErr`-channelled READER**: no state in the return at all
 (`st_name`, `st_level`, `st_expr`, `get_decl_d`, `note_one`, `declares`…).
@@ -454,7 +463,7 @@ def SimD (pers : arena.store.PersTier) (lst : AState)
     (x : AM Arena.Frontend.StateD) : Prop :=
   match o.1 with
   | .Ok _ => ∃ lsd' lst', x.run lst = .ok (lsd', lst') ∧ StateDRel o.2.2 lsd' ∧ StateDInv o.2.2 ∧
-      AStateRel pers o.2.1 lst' ∧ AStateInv pers o.2.1 ∧ Ext lst.store lst'.store
+      AStateRel₀ pers o.2.1 lst' ∧ AStateInv pers o.2.1
   | .Err e => ALineErrSim e (x.run lst)
 
 theorem SimD.mk {pers : arena.store.PersTier} {lst lst' : AState}
@@ -462,10 +471,9 @@ theorem SimD.mk {pers : arena.store.PersTier} {lst lst' : AState}
     {rsd' : frontend.export_c.StateD} {x : AM Arena.Frontend.StateD}
     (hx : x.run lst = .ok (lsd', lst')) (hd : StateDRel rsd' lsd')
     (hi : StateDInv rsd')
-    (hrel : AStateRel pers rst' lst') (hinv : AStateInv pers rst')
-    (hext : Ext lst.store lst'.store) :
+    (hrel : AStateRel₀ pers rst' lst') (hinv : AStateInv pers rst') :
     SimD pers lst (.Ok (), rst', rsd') x :=
-  ⟨lsd', lst', hx, hd, hi, hrel, hinv, hext⟩
+  ⟨lsd', lst', hx, hd, hi, hrel, hinv⟩
 
 theorem SimD.err {pers : arena.store.PersTier} {lst : AState}
     {e : frontend.export_c.LineErr}
@@ -483,10 +491,10 @@ def SimDV (pers : arena.store.PersTier) (lst : AState)
     (x : AM (Arena.Frontend.StateD ⊕ Arena.Frontend.RecordVerdict)) : Prop :=
   match o.1 with
   | .Ok _ => ∃ lsd' lst', x.run lst = .ok (.inl lsd', lst') ∧ StateDRel o.2.2 lsd' ∧ StateDInv o.2.2 ∧
-      AStateRel pers o.2.1 lst' ∧ AStateInv pers o.2.1 ∧ Ext lst.store lst'.store
+      AStateRel₀ pers o.2.1 lst' ∧ AStateInv pers o.2.1
   | .Err (.Err ce) => AErrSim ce (x.run lst)
   | .Err (.Verdict v) => ∃ lv lst', x.run lst = .ok (.inr lv, lst') ∧
-      lVerdictKind lv = absVerdictKind v ∧ Ext lst.store lst'.store
+      lVerdictKind lv = absVerdictKind v
 
 theorem SimDV.mk {pers : arena.store.PersTier} {lst lst' : AState}
     {lsd' : Arena.Frontend.StateD} {rst' : arena.monad.AState}
@@ -494,10 +502,9 @@ theorem SimDV.mk {pers : arena.store.PersTier} {lst lst' : AState}
     {x : AM (Arena.Frontend.StateD ⊕ Arena.Frontend.RecordVerdict)}
     (hx : x.run lst = .ok (.inl lsd', lst')) (hd : StateDRel rsd' lsd')
     (hi : StateDInv rsd')
-    (hrel : AStateRel pers rst' lst') (hinv : AStateInv pers rst')
-    (hext : Ext lst.store lst'.store) :
+    (hrel : AStateRel₀ pers rst' lst') (hinv : AStateInv pers rst') :
     SimDV pers lst (.Ok (), rst', rsd') x :=
-  ⟨lsd', lst', hx, hd, hi, hrel, hinv, hext⟩
+  ⟨lsd', lst', hx, hd, hi, hrel, hinv⟩
 
 theorem SimDV.verdict {pers : arena.store.PersTier} {lst lst' : AState}
     {v : frontend.types.RecordVerdict}
@@ -505,8 +512,8 @@ theorem SimDV.verdict {pers : arena.store.PersTier} {lst lst' : AState}
     {rsd' : frontend.export_c.StateD}
     {x : AM (Arena.Frontend.StateD ⊕ Arena.Frontend.RecordVerdict)}
     (hx : x.run lst = .ok (.inr lv, lst'))
-    (hk : lVerdictKind lv = absVerdictKind v) (hext : Ext lst.store lst'.store) :
-    SimDV pers lst (.Err (.Verdict v), rst', rsd') x := ⟨lv, lst', hx, hk, hext⟩
+    (hk : lVerdictKind lv = absVerdictKind v) :
+    SimDV pers lst (.Err (.Verdict v), rst', rsd') x := ⟨lv, lst', hx, hk⟩
 
 /-- **A reader's failure, inside a line function.**  The one move that carries
 a `SimL`-shaped failure into the sum's outcome, and where `ALineErrSim`'s
@@ -574,7 +581,7 @@ def SimStreamRel {α β : Type} (R : α → β → Prop) (pers : arena.store.Per
     (x : AM (Except (Arena.CheckError × Nat) β)) : Prop :=
   match o.1 with
   | .Ok r => ∃ v lst', x.run lst = .ok (.ok v, lst') ∧ R r v ∧
-      AStateRel pers o.2 lst' ∧ AStateInv pers o.2 ∧ Ext lst.store lst'.store
+      AStateRel₀ pers o.2 lst' ∧ AStateInv pers o.2
   | .Err p => StreamErrSim p (x.run lst)
 
 /-- The common case: the result abstracts by a FUNCTION. -/
@@ -587,9 +594,9 @@ abbrev SimStream {α β : Type} (A : α → β) (pers : arena.store.PersTier) (l
 theorem SimStreamRel.ok {α β : Type} {R : α → β → Prop} {pers : arena.store.PersTier}
     {lst lst' : AState} {r : α} {v : β} {rst' : arena.monad.AState}
     {x : AM (Except (Arena.CheckError × Nat) β)}
-    (hx : x.run lst = .ok (.ok v, lst')) (hr : R r v) (hrel : AStateRel pers rst' lst')
-    (hinv : AStateInv pers rst') (hext : Ext lst.store lst'.store) :
-    SimStreamRel R pers lst (.Ok r, rst') x := ⟨v, lst', hx, hr, hrel, hinv, hext⟩
+    (hx : x.run lst = .ok (.ok v, lst')) (hr : R r v) (hrel : AStateRel₀ pers rst' lst')
+    (hinv : AStateInv pers rst') :
+    SimStreamRel R pers lst (.Ok r, rst') x := ⟨v, lst', hx, hr, hrel, hinv⟩
 
 /-- A port `Native` in the pair claims nothing, exactly as it does in a throw. -/
 theorem SimStreamRel.native {α β : Type} {R : α → β → Prop}
@@ -609,8 +616,7 @@ def SimStreamD {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst
     (x : AM (Except (Arena.CheckError × Nat) (Arena.Frontend.StateD × β))) : Prop :=
   match o.1 with
   | .Ok r => ∃ lsd' lst', x.run lst = .ok (.ok (lsd', A r), lst') ∧
-      StateDRel o.2.2 lsd' ∧ StateDInv o.2.2 ∧ AStateRel pers o.2.1 lst' ∧ AStateInv pers o.2.1 ∧
-      Ext lst.store lst'.store
+      StateDRel o.2.2 lsd' ∧ StateDInv o.2.2 ∧ AStateRel₀ pers o.2.1 lst' ∧ AStateInv pers o.2.1
   | .Err p => StreamErrSim p (x.run lst)
 
 /-! ## The modeller seam (DESIGN §8.2's `Modeller`)
@@ -649,8 +655,8 @@ def SimGen (pers : arena.store.PersTier) (rst : arena.monad.AState) (lst : AStat
     (o : core.result.Result (alloc.vec.Vec arena.env.IDeclaration)
       (alloc.vec.Vec Std.U32) × arena.store.EStore)
     (x : AM (Except String (List IDeclaration))) : Prop :=
-  ∃ lst', AStateRel pers (withStore rst o.2) lst' ∧
-    AStateInv pers (withStore rst o.2) ∧ Ext lst.store lst'.store ∧
+  ∃ lst', AStateRel₀ pers (withStore rst o.2) lst' ∧
+    AStateInv pers (withStore rst o.2) ∧
     (match o.1 with
      | .Ok ds => x.run lst = .ok (.ok (ds.val.map absIDeclaration), lst')
      | .Err _ => ∃ s, x.run lst = .ok (.error s, lst'))
@@ -661,7 +667,7 @@ related context*.  One clause. -/
 structure ModellerRefines {G : Type} (inst : frontend.types.Modeller G) (m : G)
     (lmd : Arena.Frontend.Modeller) : Prop where
   generate : ∀ {pers rst lst rc lc b o},
-    AStateRel pers rst lst → AStateInv pers rst → CtxRel rc lc →
+    AStateRel₀ pers rst lst → AStateInv pers rst → CtxRel rc lc →
     inst.generate m pers rst.store rc b = ok o →
     SimGen pers rst lst o (lmd.generate lc (absBlockRec b))
 

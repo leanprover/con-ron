@@ -186,9 +186,9 @@ theorem sum_split_refines {block : alloc.vec.Vec arena.env.IConstantInfo} {o}
 that reads the store: `isProp` is `lvlEq? s zero`, whose verdict is cached. -/
 theorem with_sort_refines {pers st lst}
     {p : arena.inductives.sum_parts.InductiveShape} {s : arena.handle.LIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.sum_parts.with_sort pers st p s = ok o) :
-    Sim absInductiveShape (fun _ => True) pers lst o
+    Sim₀ absInductiveShape pers lst o
       ((absInductiveShape p).withSort (absLIdx s)) := by
   sorry
 

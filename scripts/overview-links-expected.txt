@@ -800,44 +800,44 @@
     25  weak.backward.isDefEq.respectTransparency = false
     26  weak.backward.do.legacy = true
 
-== scripts/gates.sh#L62-L100
-    62  run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
-    63  run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
-    64  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
-    65  run provenance    python3 "$root/scripts/provenance.py" check
-    66  run provenance-self python3 "$root/scripts/provenance-selftest.py"
-    67  # The other half of the same ledger: `provenance` checks what the Rust was
-    68  # ported FROM (con-leche, a pinned tree), `twin-lines` what it is a port OF
-    69  # (`proof/ConRon/**`, OUR tree, which every task edits — so its ranges rot
-    70  # faster).  Task #97-TWIN.
-    71  run twin-lines    python3 "$root/scripts/twin-lines.py" check
-    72  run overview-links "$root/scripts/overview-links.sh"
-    73  run holes         "$root/scripts/holes.sh" --check
-    74  run gen-pins      "$root/scripts/gen-pins.sh" --check
-    75  run gen-prelude   "$root/scripts/gen-prelude.sh" --check
-    76  run gen-prelude-lean "$root/scripts/gen-prelude-lean.sh" --check
-    77  # Charon + Aeneas peak at several GB each; several agents gating at once pushed
-    78  # the shared 50 GB cgroup over its cap (peak 53.9 GB, 2026-09-23) and the
-    79  # kernel OOM-killed aeneas (exit 137).  Serialise this one step machine-wide
-    80  # through a lock in the shared `_tmp/` (every worktree sees the same one).
-    81  run extract-check flock "$root/_tmp/.extract-check.lock" "$root/scripts/extract.sh" --check
-    82  run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
-    83  # `ConRonRefine2` is deliberately NOT a default target (a half-built P5 tier
-    84  # must not block `lake build`), which means the line above never elaborates a
-    85  # single module of `ConRon/Refine2/**`.  Until task #97-P5-Mut found this, a
-    86  # green gate run said nothing whatsoever about a Theorem-2 lane.  It is its
-    87  # own step so the OK/FAIL line names it.
-    88  run lake-refine2  env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonRefine2
-    89  # **And `ConRonBridge` is not a default target either** — same hole, one tier
-    90  # over, found by task #97-P3-Ind round 5 when a green gate run was followed by
-    91  # a broken `lake build ConRonBridge`.  Every P3 brief has had to ask for the
-    92  # target by hand for exactly this reason; now the gate does it, so a green run
-    93  # means Theorem 1's spec layer elaborates too.
-    94  run lake-bridge   env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonBridge
-    95  # **The composition** (task #97-COMPOSE): `ConRon/Capstone.lean`, the one
-    96  # module importing both theorems, states `ConRon.Capstone.model_exists` and
-    97  # `ConRon.Capstone.no_False_declaration` for the Rust pipeline.  Its own
-    98  # library, not a default target, for the reason the two above are not; its
-    99  # `#guard_msgs` census is what fails if a seam moves.
-   100  run lake-capstone env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonCapstone
+== scripts/gates.sh#L71-L109
+    71  run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
+    72  run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
+    73  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
+    74  run provenance    python3 "$root/scripts/provenance.py" check
+    75  run provenance-self python3 "$root/scripts/provenance-selftest.py"
+    76  # The other half of the same ledger: `provenance` checks what the Rust was
+    77  # ported FROM (con-leche, a pinned tree), `twin-lines` what it is a port OF
+    78  # (`proof/ConRon/**`, OUR tree, which every task edits — so its ranges rot
+    79  # faster).  Task #97-TWIN.
+    80  run twin-lines    python3 "$root/scripts/twin-lines.py" check
+    81  run overview-links "$root/scripts/overview-links.sh"
+    82  run holes         "$root/scripts/holes.sh" --check
+    83  run gen-pins      "$root/scripts/gen-pins.sh" --check
+    84  run gen-prelude   "$root/scripts/gen-prelude.sh" --check
+    85  run gen-prelude-lean "$root/scripts/gen-prelude-lean.sh" --check
+    86  # Charon + Aeneas peak at several GB each; several agents gating at once pushed
+    87  # the shared 50 GB cgroup over its cap (peak 53.9 GB, 2026-09-23) and the
+    88  # kernel OOM-killed aeneas (exit 137).  Serialise this one step machine-wide
+    89  # through a lock in the shared `_tmp/` (every worktree sees the same one).
+    90  run extract-check flock "$root/_tmp/.extract-check.lock" "$root/scripts/extract.sh" --check
+    91  run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
+    92  # `ConRonRefine2` is deliberately NOT a default target (a half-built P5 tier
+    93  # must not block `lake build`), which means the line above never elaborates a
+    94  # single module of `ConRon/Refine2/**`.  Until task #97-P5-Mut found this, a
+    95  # green gate run said nothing whatsoever about a Theorem-2 lane.  It is its
+    96  # own step so the OK/FAIL line names it.
+    97  run lake-refine2  env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonRefine2
+    98  # **And `ConRonBridge` is not a default target either** — same hole, one tier
+    99  # over, found by task #97-P3-Ind round 5 when a green gate run was followed by
+   100  # a broken `lake build ConRonBridge`.  Every P3 brief has had to ask for the
+   101  # target by hand for exactly this reason; now the gate does it, so a green run
+   102  # means Theorem 1's spec layer elaborates too.
+   103  run lake-bridge   env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonBridge
+   104  # **The composition** (task #97-COMPOSE): `ConRon/Capstone.lean`, the one
+   105  # module importing both theorems, states `ConRon.Capstone.model_exists` and
+   106  # `ConRon.Capstone.no_False_declaration` for the Rust pipeline.  Its own
+   107  # library, not a default target, for the reason the two above are not; its
+   108  # `#guard_msgs` census is what fails if a seam moves.
+   109  run lake-capstone env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonCapstone
 

@@ -175,7 +175,7 @@ pub fn cons_sum_ctors_f(n_p: u64, ctors: &Vec<(IConstantVal, u64)>, i: usize, fe
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:59-98 nativeCapsAt
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:103-121 nativeCapsAt`
+/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:105-123 nativeCapsAt`
 /// — the capability record, re-exported under the name
 /// `arena::inductives::native_install` looks for; the function is
 /// `sum_install`'s, one module earlier than con-leche places it.
