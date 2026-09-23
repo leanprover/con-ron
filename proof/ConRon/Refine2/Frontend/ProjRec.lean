@@ -1985,29 +1985,140 @@ open ConRon.Refine2.Lockstep in
   simpa [absProjCtorRecLFrom, absProjCtorRecL] using this
 
 /-- **`find_ctor_rec_from`** — the cursor companion.  Deviation 2: the port
-answers the INDEX. -/
-theorem find_ctor_rec_from_refines {ctors c i o}
-    (h : frontend.proj_rec.find_ctor_rec_from ctors c i = ok o) :
-    o.map (fun j => (absProjCtorRecL ctors)[j.val]?) =
-      (findCtorRec (absNIdx c) (absProjCtorRecLFrom ctors i)).map some := by sorry
+answers the INDEX of the record the twin finds. -/
+theorem find_ctor_rec_from_refines {ctors c} :
+    ∀ (N : Nat) (i : Std.Usize) {o}, ctors.val.length - i.val = N →
+      frontend.proj_rec.find_ctor_rec_from ctors c i = ok o →
+      (o = none ∧ findCtorRec (absNIdx c) (absProjCtorRecLFrom ctors i) = none) ∨
+      (∃ j : Std.Usize, ∃ hj : j.val < ctors.val.length, o = some j ∧
+        findCtorRec (absNIdx c) (absProjCtorRecLFrom ctors i) =
+          some (absProjCtorRec ctors.val[j.val])) := by
+  intro N
+  induction N with
+  | zero =>
+    intro i o hn h
+    rw [frontend.proj_rec.find_ctor_rec_from, if_pos (by scalar_tac)] at h
+    cases Result.ok_injective h
+    left
+    refine ⟨rfl, ?_⟩
+    simp only [absProjCtorRecLFrom]
+    rw [List.drop_eq_nil_of_le (by omega)]; rfl
+  | succ k ih =>
+    intro i o hn h
+    have hi : i.val < ctors.val.length := by omega
+    rw [frontend.proj_rec.find_ctor_rec_from, if_neg (by scalar_tac),
+      vec_index_ok_eq ctors i hi, bind_tc_ok] at h
+    rcases hx : ctors.val[i.val] with ⟨n1, nf, e⟩
+    rw [hx] at h
+    change (do
+      let b ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 n1 c
+      if b = true then ok (some i) else do
+        let i2 ← i + 1#usize
+        frontend.proj_rec.find_ctor_rec_from ctors c i2) = ok o at h
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbv : b = (absNIdx n1 == absNIdx c) := nidx_eq2_abs hb
+    have hcons : absProjCtorRecLFrom ctors i =
+        absProjCtorRec (n1, nf, e) :: absProjCtorRecLFrom ctors ⟨i.val + 1, by scalar_tac⟩ := by
+      simp only [absProjCtorRecLFrom]
+      rw [List.drop_eq_getElem_cons hi, hx]; rfl
+    split at h
+    · rename_i hbt
+      cases Result.ok_injective h
+      right
+      refine ⟨i, hi, rfl, ?_⟩
+      have : ((absProjCtorRec (n1, nf, e)).1 == absNIdx c) = true := by
+        show (absNIdx n1 == absNIdx c) = true
+        rw [← hbv]; exact hbt
+      rw [hcons, findCtorRec, if_pos this, hx]
+    · rename_i hbt
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi2).trans (by simp)
+      have hnf : ((absProjCtorRec (n1, nf, e)).1 == absNIdx c) = false := by
+        show (absNIdx n1 == absNIdx c) = false
+        rw [← hbv]; simpa using hbt
+      have hrest : absProjCtorRecLFrom ctors ⟨i.val + 1, by scalar_tac⟩ =
+          absProjCtorRecLFrom ctors i2 := by
+        simp only [absProjCtorRecLFrom, hi2v]; rfl
+      rw [hcons, findCtorRec, hnf, if_neg (by simp), hrest]
+      exact ih i2 (by omega) h
 
-/-- **`find_ctor_rec` refines `findCtorRec`** (`ProjRec.lean:435-437`). -/
 theorem find_ctor_rec_refines {ctors c o}
     (h : frontend.proj_rec.find_ctor_rec ctors c = ok o) :
-    o.bind (fun j => (absProjCtorRecL ctors)[j.val]?) =
-      findCtorRec (absNIdx c) (absProjCtorRecL ctors) := by sorry
+    (o = none ∧ findCtorRec (absNIdx c) (absProjCtorRecL ctors) = none) ∨
+      (∃ j : Std.Usize, ∃ hj : j.val < ctors.val.length, o = some j ∧
+        findCtorRec (absNIdx c) (absProjCtorRecL ctors) =
+          some (absProjCtorRec ctors.val[j.val])) := by
+  rw [frontend.proj_rec.find_ctor_rec] at h
+  have := find_ctor_rec_from_refines _ 0#usize rfl h
+  simpa [absProjCtorRecLFrom, absProjCtorRecL] using this
 
 /-- **`find_rec_rec_from`** — the cursor companion. -/
-theorem find_rec_rec_from_refines {recs n i o}
-    (h : frontend.proj_rec.find_rec_rec_from recs n i = ok o) :
-    o.map (fun j => (absProjRecRecL recs)[j.val]?) =
-      (findRecRec (absNIdx n) (absProjRecRecLFrom recs i)).map some := by sorry
+theorem find_rec_rec_from_refines {recs n} :
+    ∀ (N : Nat) (i : Std.Usize) {o}, recs.val.length - i.val = N →
+      frontend.proj_rec.find_rec_rec_from recs n i = ok o →
+      (o = none ∧ findRecRec (absNIdx n) (absProjRecRecLFrom recs i) = none) ∨
+      (∃ j : Std.Usize, ∃ hj : j.val < recs.val.length, o = some j ∧
+        findRecRec (absNIdx n) (absProjRecRecLFrom recs i) =
+          some (absProjRecRec recs.val[j.val])) := by
+  intro N
+  induction N with
+  | zero =>
+    intro i o hn h
+    rw [frontend.proj_rec.find_rec_rec_from, if_pos (by scalar_tac)] at h
+    cases Result.ok_injective h
+    left
+    refine ⟨rfl, ?_⟩
+    simp only [absProjRecRecLFrom]
+    rw [List.drop_eq_nil_of_le (by omega)]; rfl
+  | succ k ih =>
+    intro i o hn h
+    have hi : i.val < recs.val.length := by omega
+    rw [frontend.proj_rec.find_rec_rec_from, if_neg (by scalar_tac),
+      vec_index_ok_eq recs i hi, bind_tc_ok] at h
+    rcases hx : recs.val[i.val] with ⟨n1, lps, e, a, b⟩
+    rw [hx] at h
+    change (do
+      let b ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 n1 n
+      if b = true then ok (some i) else do
+        let i2 ← i + 1#usize
+        frontend.proj_rec.find_rec_rec_from recs n i2) = ok o at h
+    obtain ⟨bb, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbv : bb = (absNIdx n1 == absNIdx n) := nidx_eq2_abs hb
+    have hcons : absProjRecRecLFrom recs i =
+        absProjRecRec (n1, lps, e, a, b) ::
+          absProjRecRecLFrom recs ⟨i.val + 1, by scalar_tac⟩ := by
+      simp only [absProjRecRecLFrom]
+      rw [List.drop_eq_getElem_cons hi, hx]; rfl
+    split at h
+    · rename_i hbt
+      cases Result.ok_injective h
+      right
+      refine ⟨i, hi, rfl, ?_⟩
+      have : ((absProjRecRec (n1, lps, e, a, b)).1 == absNIdx n) = true := by
+        show (absNIdx n1 == absNIdx n) = true
+        rw [← hbv]; exact hbt
+      rw [hcons, findRecRec, if_pos this, hx]
+    · rename_i hbt
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi2).trans (by simp)
+      have hnf : ((absProjRecRec (n1, lps, e, a, b)).1 == absNIdx n) = false := by
+        show (absNIdx n1 == absNIdx n) = false
+        rw [← hbv]; simpa using hbt
+      have hrest : absProjRecRecLFrom recs ⟨i.val + 1, by scalar_tac⟩ =
+          absProjRecRecLFrom recs i2 := by
+        simp only [absProjRecRecLFrom, hi2v]; rfl
+      rw [hcons, findRecRec, hnf, if_neg (by simp), hrest]
+      exact ih i2 (by omega) h
 
-/-- **`find_rec_rec` refines `findRecRec`** (`ProjRec.lean:441-445`). -/
 theorem find_rec_rec_refines {recs n o}
     (h : frontend.proj_rec.find_rec_rec recs n = ok o) :
-    o.bind (fun j => (absProjRecRecL recs)[j.val]?) =
-      findRecRec (absNIdx n) (absProjRecRecL recs) := by sorry
+    (o = none ∧ findRecRec (absNIdx n) (absProjRecRecL recs) = none) ∨
+      (∃ j : Std.Usize, ∃ hj : j.val < recs.val.length, o = some j ∧
+        findRecRec (absNIdx n) (absProjRecRecL recs) =
+          some (absProjRecRec recs.val[j.val])) := by
+  rw [frontend.proj_rec.find_rec_rec] at h
+  have := find_rec_rec_from_refines _ 0#usize rfl h
+  simpa [absProjRecRecLFrom, absProjRecRecL] using this
 
 /-- **`proj_rec_candidate_rec`** — the port's split at the found recursor
 record. -/
