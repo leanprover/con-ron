@@ -1098,7 +1098,15 @@ def specCore (g : MVarId) : TacticM Unit := g.withContext do
       | some m' => rustKey? m'.headBeta == some k
       | none => false
     if ok then cands := cands.push d.toExpr
-  for n in (← lockstepLemmas k) do
+  -- lemmas from an `open`ed namespace first: a file that opens its own set
+  -- of pairs (`open …Lockstep.PB`) gets those before any other module's
+  let opens ← getOpenDecls
+  let isOpen (n : Name) : Bool := opens.any fun
+    | .simple ns _ => ns == n.getPrefix
+    | _ => false
+  let ls ← lockstepLemmas k
+  let ls := ls.filter isOpen ++ ls.filter (!isOpen ·)
+  for n in ls do
     let c ← mkConstWithFreshMVarLevels n
     let same ← forallTelescope (← inferType c) fun _ concl =>
       pure (concl.getAppFn.constName? == ty.getAppFn.constName?)
@@ -1520,14 +1528,36 @@ partial def twinEqsOf (pf t : Expr) : MetaM (List (Expr × Expr)) := do
 def simpTwinEqs (g : MVarId) : MetaM MVarId := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   unless ty.isAppOfArity ``LS 7 do return g
+  -- the Rust's scalar facts `↑x = e` (a machine word's value), used to put
+  -- each `TwinEq`'s left side in the twin's own spelling (`↑i` → `↑np + ↑k`)
+  let mut scal : SimpTheorems := {}
+  let mut anyScal := false
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    let t ← instantiateMVars d.type
+    if let some (_, l, _) := t.eq? then
+      if l.isAppOfArity ``Aeneas.Std.UScalar.val 2 && l.appArg!.isFVar then
+        scal ← scal.add (.fvar d.fvarId) #[] d.toExpr
+        anyScal := true
+  let sctx ← Simp.mkContext (simpTheorems := #[scal]) (congrTheorems := ← getSimpCongrTheorems)
   let mut thms : SimpTheorems := {}
   let mut any := false
   for d in (← getLCtx) do
     if d.isImplementationDetail then continue
     let t ← instantiateMVars d.type
     for (pf, te) in ← twinEqsOf d.toExpr t do
-      let eqTy ← mkEq (te.getArg! 1) (te.getArg! 2)
-      thms ← thms.add (.fvar d.fvarId) #[] (← mkExpectedTypeHint pf eqTy)
+      let a := te.getArg! 1
+      let b := te.getArg! 2
+      let pfEq ← mkExpectedTypeHint pf (← mkEq a b)
+      let mut rule := pfEq
+      if anyScal then
+        let (r, _) ← simp a sctx
+        if r.expr != a then
+          if let some p := r.proof? then
+            rule ← mkEqTrans (← mkEqSymm p) pfEq
+      thms ← thms.add (.fvar d.fvarId) #[] rule
+      if rule != pfEq then
+        thms ← thms.add (.fvar d.fvarId) #[] pfEq
       any := true
   unless any do return g
   let some ext ← getSimpExtension? `lockstep_simp | return g
@@ -1623,7 +1653,33 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
         let P ← whnfR T.appArg!
         if P.isAppOfArity ``Prod 2 && (P.getArg! 1).isConstOf ``arena.store.EStore then
           let gs ← applyRule g ``LSS.bind
-          specCore (← pick gs `hf)
+          -- the state the port rebuilds is not in the step's own type: read it
+          -- off the store argument (`X.store`) or off the continuation's
+          -- `{ store := s, … }` at that store
+          let hf ← pick gs `hf
+          let hfTy ← instantiateMVars (← hf.getType)
+          let stM := hfTy.getArg! 5
+          if stM.isMVar then
+            let storeArg? ← f.getAppArgs.findM? fun a => do
+              return (← whnfR (← inferType a)).isConstOf ``arena.store.EStore
+            if let some sa := storeArg? then
+              let sa ← instantiateMVars sa
+              if sa.isAppOfArity ``arena.monad.AState.store 1 then
+                discard <| isDefEq stM sa.appArg!
+              else if let .proj _ 0 x := sa then
+                discard <| isDefEq stM x
+              else
+                let k := m.getArg! 5
+                let found := k.find? fun t =>
+                  t.isAppOfArity ``arena.monad.AState.mk 4 && t.getArg! 0 == sa
+                if let some t := found then discard <| isDefEq stM t
+                else
+                  -- a lookup on the store a previous step returned: the state
+                  -- the continuation rebuilds, at this step's store
+                  let any := k.find? fun t => t.isAppOfArity ``arena.monad.AState.mk 4
+                  if let some t := any then
+                    discard <| isDefEq stM (mkAppN t.getAppFn ((t.getAppArgs).set! 0 sa))
+          specCore hf
           runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
           errArm (← pick gs `he) [`e, `s']
           return some (← normAll (← cont (← pick gs `hk) [`a, `b, `s', `lst1, `hR, `hrel, `hinv] (some `hR)))

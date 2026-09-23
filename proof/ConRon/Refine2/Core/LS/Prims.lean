@@ -73,6 +73,16 @@ theorem idx_beq_decide {k : IdxKind} (a b : Idx k) :
     (a == b) = decide (a = b) := by
   by_cases h : a = b <;> simp [h]
 
+/-! ## The two expression-list abstractions, one normal form
+
+`Refine2/ExprOps/Read.lean`'s `ExprOps.absEIdxList` and `ExprOps/Mut.lean`'s
+`absEIdxList` are the same map; `lockstep_simp` rewrites the first to the
+second, and knows the length of both. -/
+
+@[lockstep_simp] theorem absEIdxList_length_mut (v : alloc.vec.Vec arena.handle.EIdx) :
+    (absEIdxList v).length = v.val.length := by
+  simp [absEIdxList]
+
 /-! ## The environment -/
 
 /-- `arena::env::IProjEntry` as the twin's `IProjEntry`, field for field. -/
@@ -82,6 +92,7 @@ def absIProjEntry (e : arena.env.IProjEntry) : IProjEntry :=
     absLIdx e.struct_sort, absU e.off⟩
 
 attribute [lockstep_simp] absIProjEntry
+
 
 
 attribute [lockstep_simp] absIConstantInfo
@@ -290,5 +301,122 @@ Each wrapper's `hx : ExprOpsHyp pers` premise is closed from the context by
       (arena.core.const_val_at pers st n lps value us) lst
       (constValAt (absNIdx n) (lps.val.map absNIdx) (absEIdx value) (absLsIdx us)) :=
   LS.ofSim₀ fun _ h => const_val_at_refines hx hrel hinv h
+
+/-! ## The environment's name builders (region C1's proofs, shared)
+
+`proj_fn_name` and `proj_table_name` intern two names on the bare store and
+answer `(Result, EStore)`: store-level steps (`LSS`). -/
+
+theorem code_points_from_val' (N : Nat) :
+    ∀ (codes : Slice Std.U32) (i : Std.Usize) (out r : alloc.vec.Vec Std.U32),
+      codes.val.length - i.val = N →
+      kernel.core_types.code_points_from codes i out = ok r →
+      r.val = out.val ++ codes.val.drop i.val := by
+  induction N with
+  | zero =>
+    intro codes i out r hN h
+    rw [kernel.core_types.code_points_from] at h
+    rw [if_pos (by have := Slice.len_val codes; scalar_tac)] at h
+    rw [← Result.ok_injective h, List.drop_eq_nil_of_le (by omega)]; simp
+  | succ N ih =>
+    intro codes i out r hN h
+    rw [kernel.core_types.code_points_from] at h
+    rw [if_neg (by have := Slice.len_val codes; scalar_tac)] at h
+    obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hlt : i.val < codes.val.length := by omega
+    have hxv : codes.val[i.val] = x := by
+      simp only [Slice.index_usize] at hx
+      cases hq : codes[i]? with
+      | none => rw [hq] at hx; simp at hx
+      | some y =>
+        rw [hq] at hx
+        have hyx : y = x := Result.ok_injective hx
+        subst hyx
+        have : codes.val[i.val]? = some y := hq
+        rw [List.getElem?_eq_getElem hlt] at this
+        exact Option.some_injective _ this
+    have h2 := ConRon.Refine.Nat.uadd_val hi1
+    rw [ih codes i1 o1 r (by simp at h2; omega) h, ConRon.Refine.vec_push_val ho1,
+      show i1.val = i.val + 1 by simpa using h2, List.drop_eq_getElem_cons hlt, hxv]
+    simp
+
+theorem code_points_val' {codes : Slice Std.U32} {r : alloc.vec.Vec Std.U32}
+    (h : kernel.core_types.code_points codes = ok r) : r.val = codes.val := by
+  rw [kernel.core_types.code_points] at h
+  rw [code_points_from_val' _ codes 0#usize _ r rfl h]
+  simp [alloc.vec.Vec.with_capacity]
+
+theorem proj_fn_name_str_abs {v : alloc.vec.Vec Std.U32}
+    (h : kernel.core_types.code_points (Array.to_slice arena.env.proj_fn_name.S) = ok v) :
+    ConRon.Refine.absString v = "proj" ∧ ConRon.Refine.StrWF v := by
+  have hv : v.val = [112#u32, 114#u32, 111#u32, 106#u32] := by
+    rw [code_points_val' h, Array.val_to_slice, arena.env.proj_fn_name.S,
+      Array.make_val]
+  refine ⟨?_, ?_⟩
+  · rw [ConRon.Refine.absString, hv]; rfl
+  · intro c hc; rw [hv] at hc; fin_cases hc <;> decide
+
+theorem intern_n_node_of_estore {pers : arena.store.PersTier} {st : arena.monad.AState}
+    {v : arena.store.NNodeView} {r e}
+    (h : arena.store.EStore.intern_name st.store pers v = ok (r, e)) :
+    arena.monad.intern_n_node pers st v = ok (r, { st with store := e }) := by
+  rw [arena.monad.intern_n_node, h]; simp
+
+/-- `arena::env::proj_fn_name` (two name interns on the bare store) against
+`projFnName`. -/
+@[lockstep] theorem proj_fn_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (t : arena.handle.NIdx) (j : Std.U64) :
+    LSS pers (fun a b => b = absNIdx a) (arena.env.proj_fn_name pers st.store t j) st lst
+      (projFnName (absNIdx t) (absU j)) := by
+  intro o s' hm
+  rw [arena.env.proj_fn_name] at hm
+  obtain ⟨n, hn, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  obtain ⟨sl, hsl, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  obtain ⟨v, hv, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  obtain ⟨⟨r1, ar1⟩, h1, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  simp only [lift, Result.ok.injEq] at hsl
+  subst hsl
+  have hnt : n = t := dupId_nidx _ _ hn
+  subst hnt
+  obtain ⟨hstr, hwf⟩ := proj_fn_name_str_abs hv
+  have sim1 := intern_n_node_run₀ hrel hinv _ (by exact hwf) (intern_n_node_of_estore h1)
+  have htw : projFnName (absNIdx n) (absU j)
+      = (Arena.internNNode (absNNodeView (.Str n v)) >>= fun s =>
+          Arena.internNNode (.num s (absU j))) := by
+    rw [projFnName, absNNodeView, hstr]
+  rw [htw]
+  cases r1 with
+  | Err e =>
+    have ho := Result.ok_injective hm
+    cases ho
+    exact errSim_bind sim1
+  | Ok s1 =>
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := sim1.apply
+    rw [run_bind_ok hx1]
+    have sim2 := intern_n_node_run₀ (st := { st with store := ar1 }) hrel1 hinv1
+      (.Num s1 j) trivial (intern_n_node_of_estore hm)
+    show LOut pers _ o { st with store := s' } _
+    cases o with
+    | Err e => exact sim2
+    | Ok a =>
+      obtain ⟨lst2, hx2, hrel2, hinv2⟩ := sim2.apply
+      exact ⟨_, lst2, hx2, rfl, hrel2, hinv2⟩
+
+
+/-- The projection-table lookup (`ifenv_find_proj`): it interns the table's
+reserved name (`proj_table_name`), then reads the environment.  The Rust store
+argument `s` is named apart from the state `st` the caller rebuilds (`hs`),
+so a second lookup on the store the first one returned matches without
+unifying `?st.store` with a store (region G's form). -/
+@[lockstep] theorem ifenv_find_proj_ls {pers vis st fe lfe lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (s : arena.store.EStore) (hs : st.store = s)
+    (t : arena.handle.NIdx) (i : Std.U64) :
+    LSS pers (fun a b => b = Option.map absIProjEntry a)
+      (arena.env.ifenv_find_proj pers vis s fe t i) st lst
+      (lfe.findProj? (absNIdx t) (absU i)) := by
+  sorry
 
 end ConRon.Refine2.Lockstep
