@@ -403,7 +403,8 @@ theorem ensureSortCore_of_whnf {F d : Nat} {t : Expr} {u : Level}
 /-- con-leche: ConLeche/Kernel/Core.lean:1852-1881 annotateBody — **the `.letE`
 clause** (con-leche's task #217): `KnotSpec.annotate`, `ensureSort`,
 `KnotSpec.infer`, `KnotSpec.defeq'`, `instantiate1Fast`; pure side
-`annot_letE`. -/
+`annot_letE`.
+**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem annotateBody_letE {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
@@ -539,6 +540,27 @@ theorem annotateBody_letE {fe : IFEnv} {fuel : Nat}
       | exact fun h => h.elim
       | (apply CheckOK.state; assumption)
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
+
+/-- con-leche: none — `Walks/Proj.lean`'s `IFEnv.findProj?_spec` in ANSWER
+shape: the looked-up name is read off a `view` of a `whnf`'s head, so its
+denotation goes in as an existential and out as a universal (round 3's
+rule). -/
+theorem IFEnv.findProj?_spec' {fe : IFEnv} (s₀ : AState) (T : NIdx) (i : Nat)
+    (hok : CheckOK mode env fe s₀)
+    (hT : ∃ Tn, denoteN s₀.store.ns T = some Tn) :
+    ⦃fun s => ⌜s = s₀⌝⦄ fe.findProj? T i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        ∀ Tn, denoteN s₀.store.ns T = some Tn →
+          ∀ e, r = some e → ∃ p, denoteProjEntry s'.store e = some p ∧
+            env.findProj? Tn i = some p⌝⦄ := by
+  obtain ⟨Tn, hTn⟩ := hT
+  have h := IFEnv.findProj?_spec (mode := mode) (env := env) (fe := fe)
+    s₀ T i Tn hok hTn
+  mvcgen [h]
+  intro hck hx _ hc hp hsome _
+  refine ⟨hck, hx, hc, hp, fun Tn' hTn' => ?_⟩
+  rw [hTn] at hTn'; obtain rfl := Option.some.inj hTn'; exact hsome
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1882-1900 annotateBody — **the `.proj`
 clause**: `KnotSpec.annotate`, `KnotSpec.inferIO'`, `KnotSpec.whnf'`,
@@ -745,7 +767,9 @@ section Census
 #print axioms annotateBody_app
 #print axioms annotateBody_lit
 #print axioms annotateBody_leaf
-
+#print axioms ensureSortCore_of_whnf
+#print axioms annotateBody_letE
+#print axioms IFEnv.findProj?_spec'
 end Census
 
 end ConRon.Bridge.Core
