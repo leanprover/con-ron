@@ -1309,13 +1309,6 @@ vacuous at `P := fun _ => True` (`HashMap2.KeysOk_true`), which is why
     subst h2
     rw [dupId_eidx _ _ hx]
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `inst1_get_run₀`. -/
-@[grind →] theorem inst1_get_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st) {k : arena.monad.EIdxNat} {o : Option arena.handle.EIdx}
-    (hrun : arena.monad.inst1_get st k = ok o) :
-    SimR (Option.map absEIdx) lst o (Arena.inst1Get (absEIdxNat k)) := by
-  apply inst1_get_run₀ (hrel := hrel.to₀) <;> assumption
-
 /-- `arena::monad::inst_l_get` against `Arena.instLGet`. -/
 @[grind →] theorem inst_l_get_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {k : arena.monad.EIdxNat} {o : Option arena.handle.EIdx}
@@ -2427,15 +2420,6 @@ theorem view_run_state {lst lst' : AState} {hh : EIdx} {v : ENodeView}
   split at h
   · simp only [Except.ok.injEq, Prod.mk.injEq] at h; exact h.2.symm
   · simp at h
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `view_run₀`. -/
-@[grind →] theorem view_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st) {h : arena.handle.EIdx} {o}
-    (hrun : arena.monad.view pers st h = ok o) :
-    AOut absENodeView (fun _ => True) pers lst o st
-      ((Arena.view (absEIdx h)).run lst) := by
-  exact AOut₀.toAOut_of_store (view_run₀ hrel.to₀ hinv hrun) hrel.storeWF
-    (fun _ _ hx => by rw [view_run_state hx])
 
 /-- `arena::monad::view_bind_i` against `Arena.viewBindI` (task #97-P6-16: the
 binder projection that stops at the datum's HANDLE). -/
@@ -4642,16 +4626,6 @@ theorem internNodeE_run_inv {lst lst' : AState} {v : ENodeView} {h : EIdx}
         rw [← he.2]
     · rw [if_neg hc, arena_fail_run] at hrun; exact absurd hrun (by simp)
 
-/-- The twin's own two facts at a successful non-binder `internE` (task
-#97-T2-LOCKSTEP): what `Sim₀.toSim` wants of a deprecated intern shim. -/
-theorem internNodeE_run_wf {lst lst' : AState} {v : ENodeView} {h : EIdx}
-    (hwf : StoreWF lst.store) (hview : lst.store.ViewOK v)
-    (hrun : (Arena.internNodeE v).run lst = .ok (h, lst'))
-    (hbm : EStore.eViewNeedsBM v = false) :
-    StoreWF lst'.store ∧ Ext lst.store lst'.store := by
-  obtain ⟨hc, rfl⟩ := internNodeE_run_inv hrun
-  exact ⟨intern_storeWF hwf hview hc (ECapBMAt.of_no_bm hbm), EStore.intern_ext _ _⟩
-
 /-! ### The ten `ViewOK` builders
 
 One per constructor, so that a caller says what it knows (a child's `view`
@@ -4769,16 +4743,6 @@ theorem intern_e_bvar_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     rw [Arena.internBVarE, internE_run_of_cap rfl hcap, hhd]
   | Err ee => exact AOut₀.err (AErrSim.of_none (herr ee hr))
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_e_bvar_run₀`. -/
-theorem intern_e_bvar_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    (i : Std.U64)
-    {o}
-    (hrun : arena.monad.intern_e_bvar pers st i = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (Arena.internBVarE (absU i)) :=
-  (intern_e_bvar_run₀ hrel.to₀ hinv i hrun).toSim
-    (fun _ _ hx => internNodeE_run_wf hrel.storeWF (viewOK_bvar _) hx rfl) (fun _ _ => trivial)
-
 /-- **The port's `intern_e_bvar` leaves the two tier flags alone.**  Finding 14
 takes `hcap` and `hchild` off an interning walk's hypothesis list; `hfrozen`
 (finding 8) was the third — retired in task #97-P5-Unfreeze — and this is
@@ -4798,15 +4762,6 @@ theorem intern_e_bvar_flags₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
   subst ho
   exact ⟨(estore_intern_bvar_abs (ls := lst.store) hrel.store hinv.store hp).2.2.1,
     (estore_intern_bvar_abs (ls := lst.store) hrel.store hinv.store hp).2.2.2.1⟩
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_e_bvar_flags₀`. -/
-theorem intern_e_bvar_flags {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    {i : Std.U64} {o} (hrun : arena.monad.intern_e_bvar pers st i = ok o) :
-    o.2.store.shared_on = st.store.shared_on ∧
-      o.2.store.scratch_on = st.store.scratch_on := by
-  apply intern_e_bvar_flags₀ (hrel := hrel.to₀) <;> assumption
-
 
 /-! ## The level-list tier's derived column, and the three inner `der` readers
 
@@ -8498,20 +8453,6 @@ theorem intern_e_fvar_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     rw [Arena.internFVarE, internE_run_of_cap rfl hcap, hhd]
   | Err ee => exact AOut₀.err (AErrSim.of_none (herr ee hr))
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_e_fvar_run₀`.
-`arena::monad::intern_e_fvar` against `internFVarE`. -/
-theorem intern_e_fvar_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    (idx : Std.U64) (ty : arena.handle.EIdx)
-    (hchild : (absEIdx ty).isPersistent = false →
-      lst.store.pers.fvars.find? ⟨absU idx, absEIdx ty⟩ = none)
-    (hview : lst.store.ViewOK (.fvar (absU idx) (absEIdx ty)))
-    {o}
-    (hrun : arena.monad.intern_e_fvar pers st idx ty = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (Arena.internFVarE (absU idx) (absEIdx ty)) :=
-  (intern_e_fvar_run₀ hrel.to₀ hinv idx ty hrun).toSim
-    (fun _ _ hx => internNodeE_run_wf hrel.storeWF (hview) hx rfl) (fun _ _ => trivial)
-
 /-- `arena::monad::intern_e_sort` against `internSortE`. -/
 theorem intern_e_sort_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
@@ -8537,20 +8478,6 @@ theorem intern_e_sort_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
       ⟨hinv', hinv.memos, hinv.caches⟩
     rw [Arena.internSortE, internE_run_of_cap rfl hcap, hhd]
   | Err ee => exact AOut₀.err (AErrSim.of_none (herr ee hr))
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_e_sort_run₀`.
-`arena::monad::intern_e_sort` against `internSortE`. -/
-theorem intern_e_sort_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    (u : arena.handle.LIdx)
-    (hchild : (absLIdx u).isPersistent = false →
-      lst.store.pers.sorts.find? ⟨absLIdx u⟩ = none)
-    (hview : lst.store.ViewOK (.sort (absLIdx u)))
-    {o}
-    (hrun : arena.monad.intern_e_sort pers st u = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (Arena.internSortE (absLIdx u)) :=
-  (intern_e_sort_run₀ hrel.to₀ hinv u hrun).toSim
-    (fun _ _ hx => internNodeE_run_wf hrel.storeWF (hview) hx rfl) (fun _ _ => trivial)
 
 /-- `arena::monad::intern_e_const` against `internConstE`. -/
 theorem intern_e_const_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -8578,20 +8505,6 @@ theorem intern_e_const_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     rw [Arena.internConstE, internE_run_of_cap rfl hcap, hhd]
   | Err ee => exact AOut₀.err (AErrSim.of_none (herr ee hr))
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_e_const_run₀`.
-`arena::monad::intern_e_const` against `internConstE`. -/
-theorem intern_e_const_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    (n : arena.handle.NIdx) (us : arena.handle.LsIdx)
-    (hchild : ((absNIdx n).isPersistent = false ∨ (absLsIdx us).isPersistent = false) →
-      lst.store.pers.consts.find? ⟨absNIdx n, absLsIdx us⟩ = none)
-    (hview : lst.store.ViewOK (.const (absNIdx n) (absLsIdx us)))
-    {o}
-    (hrun : arena.monad.intern_e_const pers st n us = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (Arena.internConstE (absNIdx n) (absLsIdx us)) :=
-  (intern_e_const_run₀ hrel.to₀ hinv n us hrun).toSim
-    (fun _ _ hx => internNodeE_run_wf hrel.storeWF (hview) hx rfl) (fun _ _ => trivial)
-
 /-- `arena::monad::intern_e_app` against `internAppE`. -/
 theorem intern_e_app_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
@@ -8617,20 +8530,6 @@ theorem intern_e_app_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
       ⟨hinv', hinv.memos, hinv.caches⟩
     rw [Arena.internAppE, internE_run_of_cap rfl hcap, hhd]
   | Err ee => exact AOut₀.err (AErrSim.of_none (herr ee hr))
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_e_app_run₀`.
-`arena::monad::intern_e_app` against `internAppE`. -/
-theorem intern_e_app_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    (f a : arena.handle.EIdx)
-    (hchild : ((absEIdx f).isPersistent = false ∨ (absEIdx a).isPersistent = false) →
-      lst.store.pers.apps.find? ⟨absEIdx f, absEIdx a⟩ = none)
-    (hview : lst.store.ViewOK (.app (absEIdx f) (absEIdx a)))
-    {o}
-    (hrun : arena.monad.intern_e_app pers st f a = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (Arena.internAppE (absEIdx f) (absEIdx a)) :=
-  (intern_e_app_run₀ hrel.to₀ hinv f a hrun).toSim
-    (fun _ _ hx => internNodeE_run_wf hrel.storeWF (hview) hx rfl) (fun _ _ => trivial)
 
 /-- `arena::monad::intern_e_let_e` against `internLetEE`. -/
 theorem intern_e_let_e_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -8658,20 +8557,6 @@ theorem intern_e_let_e_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     rw [Arena.internLetEE, internE_run_of_cap rfl hcap, hhd]
   | Err ee => exact AOut₀.err (AErrSim.of_none (herr ee hr))
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_e_let_e_run₀`.
-`arena::monad::intern_e_let_e` against `internLetEE`. -/
-theorem intern_e_let_e_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    (ty val bo : arena.handle.EIdx)
-    (hchild : ((absEIdx ty).isPersistent = false ∨ (absEIdx val).isPersistent = false ∨ (absEIdx bo).isPersistent = false) →
-      lst.store.pers.lets.find? ⟨absEIdx ty, absEIdx val, absEIdx bo⟩ = none)
-    (hview : lst.store.ViewOK (.letE (absEIdx ty) (absEIdx val) (absEIdx bo)))
-    {o}
-    (hrun : arena.monad.intern_e_let_e pers st ty val bo = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (Arena.internLetEE (absEIdx ty) (absEIdx val) (absEIdx bo)) :=
-  (intern_e_let_e_run₀ hrel.to₀ hinv ty val bo hrun).toSim
-    (fun _ _ hx => internNodeE_run_wf hrel.storeWF (hview) hx rfl) (fun _ _ => trivial)
-
 /-- `arena::monad::intern_e_proj` against `internProjE`. -/
 theorem intern_e_proj_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
@@ -8697,20 +8582,6 @@ theorem intern_e_proj_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
       ⟨hinv', hinv.memos, hinv.caches⟩
     rw [Arena.internProjE, internE_run_of_cap rfl hcap, hhd]
   | Err ee => exact AOut₀.err (AErrSim.of_none (herr ee hr))
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_e_proj_run₀`.
-`arena::monad::intern_e_proj` against `internProjE`. -/
-theorem intern_e_proj_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    (n : arena.handle.NIdx) (i : Std.U64) (ep : arena.handle.EIdx)
-    (hchild : ((absNIdx n).isPersistent = false ∨ (absEIdx ep).isPersistent = false) →
-      lst.store.pers.projs.find? ⟨absNIdx n, absU i, absEIdx ep⟩ = none)
-    (hview : lst.store.ViewOK (.proj (absNIdx n) (absU i) (absEIdx ep)))
-    {o}
-    (hrun : arena.monad.intern_e_proj pers st n i ep = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (Arena.internProjE (absNIdx n) (absU i) (absEIdx ep)) :=
-  (intern_e_proj_run₀ hrel.to₀ hinv n i ep hrun).toSim
-    (fun _ _ hx => internNodeE_run_wf hrel.storeWF (hview) hx rfl) (fun _ _ => trivial)
 
 /-- `arena::monad::intern_e_lit` against `internLitE`. -/
 theorem intern_e_lit_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -8738,18 +8609,6 @@ theorem intern_e_lit_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
       ⟨hinv', hinv.memos, hinv.caches⟩
     rw [Arena.internLitE, internE_run_of_cap rfl hcap, hhd]
   | Err ee => exact AOut₀.err (AErrSim.of_none (herr ee hr))
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_e_lit_run₀`.
-`arena::monad::intern_e_lit` against `internLitE`. -/
-theorem intern_e_lit_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    (l : kernel.expr.Literal)
-    (hwf : ConRon.Refine.LiteralWF l)
-    {o}
-    (hrun : arena.monad.intern_e_lit pers st l = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (Arena.internLitE (ConRon.Refine.absLiteral l)) :=
-  (intern_e_lit_run₀ hrel.to₀ hinv l hwf hrun).toSim
-    (fun _ _ hx => internNodeE_run_wf hrel.storeWF (viewOK_lit _) hx rfl) (fun _ _ => trivial)
 
 /-! ## The binder `intern` wrappers (task #97-P5-3 round 2)
 
@@ -8989,43 +8848,6 @@ theorem intern_e_bind_i_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
       intro hcc; exact hc (absU32_inj hcc)
     rw [if_neg (show ¬ ((absU32 tag == ETag.lam) = true) by simp [hne])]
     exact intern_e_forall_e_i_run₀ hrel hinv ty b mi hrun
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_e_bind_i_run₀`.
-`arena::monad::intern_e_bind_i` against `Arena.internBindIE` — the tag
-dispatch, and nothing but. -/
-theorem intern_e_bind_i_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    (tag : Std.U32) (ty : arena.handle.EIdx) (b : arena.handle.EIdx)
-    (mi : arena.handle.BMIdx)
-    (hchildL : absU32 tag = ETag.lam →
-      ((absEIdx ty).isPersistent = false ∨
-        (absEIdx b).isPersistent = false ∨ (absBMIdx mi).isPersistent = false) →
-      lst.store.pers.lams.find? ⟨absEIdx ty, absEIdx b, absBMIdx mi⟩ = none)
-    (hchildF : absU32 tag ≠ ETag.lam →
-      ((absEIdx ty).isPersistent = false ∨
-        (absEIdx b).isPersistent = false ∨ (absBMIdx mi).isPersistent = false) →
-      lst.store.pers.foralls.find? ⟨absEIdx ty, absEIdx b, absBMIdx mi⟩ = none)
-    (hwfL : absU32 tag = ETag.lam →
-      EBindWFAt lst.store ETag.lam (absEIdx ty) (absEIdx b) (absBMIdx mi))
-    (hwfF : absU32 tag ≠ ETag.lam →
-      EBindWFAt lst.store ETag.forallE (absEIdx ty) (absEIdx b) (absBMIdx mi))
-    {o}
-    (hrun : arena.monad.intern_e_bind_i pers st tag ty b mi = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
-      (Arena.internBindIE (absU32 tag) (absEIdx ty) (absEIdx b) (absBMIdx mi)) := by
-  refine (intern_e_bind_i_run₀ hrel.to₀ hinv tag ty b mi hrun).toSim ?_
-    (fun _ _ => trivial)
-  intro b' lst' hx
-  rw [Arena.internBindIE] at hx
-  split at hx
-  · rename_i hc
-    have hl : absU32 tag = ETag.lam := by simpa using hc
-    rw [internLamIE_run_inv hx]
-    exact ⟨(hwfL hl).apply hrel.storeWF, EStore.internLamI_ext _ _ _ _⟩
-  · rename_i hc
-    have hl : absU32 tag ≠ ETag.lam := by simpa using hc
-    rw [internForallEIE_run_inv hx]
-    exact ⟨(hwfF hl).apply hrel.storeWF, EStore.internForallEI_ext _ _ _ _⟩
 
 /-! ## `intern` at a binder view IS the datum intern then `internBindI`
 
@@ -9431,62 +9253,6 @@ theorem intern_e_forall_e_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
         internForallEIE_run_of_cap hcap, hhd]
     | Err ee => exact AOut₀.err (AErrSim.of_none (herr2 ee hr))
 
-/-- The twin's own two facts at a successful binder `internE`, at a `StoreWF`
-store (task #97-T2-LOCKSTEP D6): what `Sim₀.toSim` wants of the two
-deprecated binder shims.  `StoreWF` is used twice — `ECapAt` from the node
-step's test (`ECapAt_lam_of`: a stale cons key cannot name the fresh datum),
-and the node step as the twin's composed `EStore.intern` (`intern_lam_eq`). -/
-theorem internLamE_run_wf {lst lst' : AState} {ty b : EIdx} {m : ConLeche.BinderMeta}
-    {h : EIdx} (hwf : StoreWF lst.store) (hview : lst.store.ViewOK (.lam ty b m))
-    (hrun : (Arena.internE (.lam ty b m)).run lst = .ok (h, lst')) :
-    StoreWF lst'.store ∧ Ext lst.store lst'.store := by
-  obtain ⟨hbm, hcap, rfl⟩ := internLamE_run_inv hrun
-  have hiv := intern_lam_eq (ty := ty) (b := b) hwf hbm
-  show StoreWF (lst.store.internLam ty b m).1 ∧ Ext lst.store (lst.store.internLam ty b m).1
-  rw [← hiv]
-  exact ⟨intern_storeWF hwf hview (ECapAt_lam_of hwf hbm hcap) hbm, EStore.intern_ext _ _⟩
-
-theorem internForallEE_run_wf {lst lst' : AState} {ty b : EIdx}
-    {m : ConLeche.BinderMeta} {h : EIdx} (hwf : StoreWF lst.store)
-    (hview : lst.store.ViewOK (.forallE ty b m))
-    (hrun : (Arena.internE (.forallE ty b m)).run lst = .ok (h, lst')) :
-    StoreWF lst'.store ∧ Ext lst.store lst'.store := by
-  obtain ⟨hbm, hcap, rfl⟩ := internForallEE_run_inv hrun
-  have hiv := intern_forall_e_eq (ty := ty) (b := b) hwf hbm
-  show StoreWF (lst.store.internForallE ty b m).1 ∧
-    Ext lst.store (lst.store.internForallE ty b m).1
-  rw [← hiv]
-  exact ⟨intern_storeWF hwf hview (ECapAt_forallE_of hwf hbm hcap) hbm,
-    EStore.intern_ext _ _⟩
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_e_lam_run₀`.
-`arena::monad::intern_e_lam` against `Arena.internLamE`. -/
-theorem intern_e_lam_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    (ty : arena.handle.EIdx) (b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
-    (hpw : ConRon.Refine.PropWhenWF m.pw)
-    (hview : lst.store.ViewOK (.lam (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)))
-    {o}
-    (hrun : arena.monad.intern_e_lam pers st ty b m = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
-      (Arena.internLamE (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
-  (intern_e_lam_run₀ hrel.to₀ hinv ty b m hpw hrun).toSim
-    (fun _ _ hx => internLamE_run_wf hrel.storeWF hview hx) (fun _ _ => trivial)
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_e_forall_e_run₀`.
-`arena::monad::intern_e_forall_e` against `Arena.internForallEE`. -/
-theorem intern_e_forall_e_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    (ty : arena.handle.EIdx) (b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
-    (hpw : ConRon.Refine.PropWhenWF m.pw)
-    (hview : lst.store.ViewOK (.forallE (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)))
-    {o}
-    (hrun : arena.monad.intern_e_forall_e pers st ty b m = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
-      (Arena.internForallEE (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
-  (intern_e_forall_e_run₀ hrel.to₀ hinv ty b m hpw hrun).toSim
-    (fun _ _ hx => internForallEE_run_wf hrel.storeWF hview hx) (fun _ _ => trivial)
-
 /-- **`arena::monad::intern_e` against `Arena.internE`, lockstep** (task
 #97-T2-LOCKSTEP D6) — the ten-way dispatcher, each arm its wrapper's `₀`
 lemma.  No `StoreWF`, no `ViewOK`, no `hchild`: what survives is what is the
@@ -9513,61 +9279,6 @@ theorem intern_e_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
   | LetE ty val b => exact intern_e_let_e_run₀ hrel hinv ty val b hrun
   | Lit l => exact intern_e_lit_run₀ hrel hinv l (hlit l rfl) hrun
   | Proj n i e => exact intern_e_proj_run₀ hrel hinv n i e hrun
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_e_run₀`.
-**`arena::monad::intern_e` against `Arena.internE`** — the ten-way
-dispatcher, and nothing but.
-
-`EStore::intern` is a `match` on the view that calls `intern_bvar` …
-`intern_proj`, and `arena::monad::intern_e_bvar` … `intern_e_proj` wrap the
-same ten at the same place, so **each arm is definitionally its wrapper** and
-the proof is `cases v` above ten `exact`s.
-
-What the arms need is the interesting part, and it is where finding 16's
-clause pays a second time: **`hchild` is gone at all ten**, because round 3
-§2's `hchild_*` derive it from `StoreWF` and `hrel.storeWF` is that now — at
-the two binder arms since task #97-P5-Mut round 2, which also made their
-`ECapAt` a conclusion of `estore_intern_{lam,forall_e}_abs`.  What survives
-as a hypothesis is what genuinely is not the port's to give — `ViewOK` (the
-children decode), the literal's own well-formedness and the binder datum's
-`PropWhen` shape. -/
-theorem intern_e_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    (v : arena.store.ENodeView)
-    (hview : lst.store.ViewOK (absENodeView v))
-    (hlit : ∀ l, v = .Lit l → ConRon.Refine.LiteralWF l)
-    (hpw : ∀ ty b m, v = .Lam ty b m ∨ v = .ForallE ty b m →
-      ConRon.Refine.PropWhenWF m.pw)
-    {o}
-    (hrun : arena.monad.intern_e pers st v = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (Arena.internE (absENodeView v)) := by
-  cases v with
-  | BVar i => exact intern_e_bvar_run hrel hinv i hrun
-  | FVar idx ty =>
-    exact intern_e_fvar_run hrel hinv idx ty
-      (fun h => hchild_fvar hrel.storeWF h) hview hrun
-  | «Sort» u =>
-    exact intern_e_sort_run hrel hinv u
-      (fun h => hchild_sort hrel.storeWF h) hview hrun
-  | Const n us =>
-    exact intern_e_const_run hrel hinv n us
-      (fun h => hchild_const hrel.storeWF h) hview hrun
-  | App f a =>
-    exact intern_e_app_run hrel hinv f a
-      (fun h => hchild_app hrel.storeWF h) hview hrun
-  | Lam ty b m =>
-    exact intern_e_lam_run hrel hinv ty b m
-      (hpw ty b m (Or.inl rfl)) hview hrun
-  | ForallE ty b m =>
-    exact intern_e_forall_e_run hrel hinv ty b m
-      (hpw ty b m (Or.inr rfl)) hview hrun
-  | LetE ty val b =>
-    exact intern_e_let_e_run hrel hinv ty val b
-      (fun h => hchild_let_e hrel.storeWF h) hview hrun
-  | Lit l => exact intern_e_lit_run hrel hinv l (hlit l rfl) hrun
-  | Proj n i e =>
-    exact intern_e_proj_run hrel hinv n i e
-      (fun h => hchild_proj hrel.storeWF h) hview hrun
 
 /-! ## The name, level and level-list tiers' `intern` (task #97-P5-Specs
 round 2)
@@ -12833,17 +12544,6 @@ theorem internLsNode_run_view {lst lst' : AState} {v : LsNodeView} {h : LsIdx}
     exact LsStore.view_of_find (StoreWF.lssWF' hwf) hf
   | none => exact LsStore.intern_view_spec (StoreWF.lssWF' hwf) hview (hcap hf)
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_n_node_run₀`.
- `arena::monad::intern_n_node` against `Arena.internNNode`. -/
-theorem intern_n_node_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    (v : arena.store.NNodeView) (hvwf : NNodeViewWF v)
-    (hview : lst.store.ns.ViewOK (absNNodeView v)) {o}
-    (hrun : arena.monad.intern_n_node pers st v = ok o) :
-    Sim absNIdx (fun _ => True) pers lst o (Arena.internNNode (absNNodeView v)) :=
-  (intern_n_node_run₀ hrel.to₀ hinv v hvwf hrun).toSim
-    (fun _ _ hx => (internNNode_run_view hrel.storeWF hview hx).2) (fun _ _ => trivial)
-
 theorem internLevel_run_denote : ∀ (u : ConLeche.Level) {lst lst' : AState} {h : LIdx},
     StoreWF lst.store →
     (Arena.internLevel u).run lst = .ok (h, lst') →
@@ -14249,21 +13949,6 @@ theorem read_level_m_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
         { hrel with caches := { hrel.caches with readLC := h1 } }
         { hinv with caches := { hinv.caches with readLC := h2, readLVals := hvals } }
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `read_level_m_run₀`. -/
-theorem read_level_m_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st) {h : arena.handle.LIdx} {o}
-    (hrun : arena.monad.read_level_m pers st h = ok o) :
-    Sim ConRon.Refine.absLevel (fun _ => True) pers lst o
-      (Arena.readLevelM (absLIdx h)) := by
-  refine Sim₀.toSim_of_store (read_level_m_run₀ hrel.to₀ hinv hrun) hrel.storeWF ?_
-  intro b lst' hx
-  rw [readLevelM_run] at hx
-  split at hx
-  · cases hx; rfl
-  · split at hx
-    · cases hx
-    · cases hx; rfl
-
 theorem readLevelsM_run (lst : AState) (h : LsIdx) :
     (Arena.readLevelsM h).run lst
       = match lst.caches.readLsC[h]? with
@@ -14574,14 +14259,6 @@ theorem inst1_set_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     hrel.memos.inst1C hp
   exact SimS₀.mk rfl { hrel with memos := { hrel.memos with inst1C := h1 } }
     { hinv with memos := { hinv.memos with inst1C := h2 } }
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `inst1_set_run₀`. -/
-theorem inst1_set_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st) {k : arena.monad.EIdxNat} {r : arena.handle.EIdx} {st'}
-    (hrun : arena.monad.inst1_set st k r = ok st') :
-    SimS pers lst st' (Arena.inst1Set (absEIdxNat k) (absEIdx r)) :=
-  SimS₀.toSimS (by apply inst1_set_run₀ (hrel := hrel.to₀) <;> assumption)
-    (fun _ hx => by cases hx; exact ⟨hrel.storeWF, Ext.refl _⟩)
 
 /-- `arena::monad::inst_l_set` against `Arena.instLSet`. -/
 theorem inst_l_set_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -14989,8 +14666,6 @@ the census that would have caught it. -/
 /-- info: 'ConRon.Refine2.estore_view_app_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms estore_view_app_abs
 
-/-- info: 'ConRon.Refine2.inst1_get_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms inst1_get_run
 
 /-- info: 'ConRon.Refine2.eidx_idxNat' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms eidx_idxNat
@@ -15013,8 +14688,6 @@ the census that would have caught it. -/
 /-- info: 'ConRon.Refine2.estore_view_bind_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms estore_view_bind_abs
 
-/-- info: 'ConRon.Refine2.view_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms view_run
 
 /-- info: 'ConRon.Refine2.derived_e_run₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms derived_e_run₀
@@ -15022,8 +14695,6 @@ the census that would have caught it. -/
 /-- info: 'ConRon.Refine2.etag_isBind_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms etag_isBind_abs
 
-/-- info: 'ConRon.Refine2.inst1_set_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms inst1_set_run
 
 /-- info: 'ConRon.Refine2.ntables_get_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ntables_get_abs
@@ -15071,8 +14742,6 @@ the census that would have caught it. -/
 /-- info: 'ConRon.Refine2.internE_run_of_cap' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms internE_run_of_cap
 
-/-- info: 'ConRon.Refine2.intern_e_bvar_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_e_bvar_run
 
 
 
@@ -15208,26 +14877,12 @@ packing's `*`/`/`/`%` spelling is what buys. -/
 /-- info: 'ConRon.Refine2.internE_run_of_cap' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms internE_run_of_cap
 
-/-- info: 'ConRon.Refine2.intern_e_fvar_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_e_fvar_run
 
-/-- info: 'ConRon.Refine2.intern_e_sort_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_e_sort_run
 
-/-- info: 'ConRon.Refine2.intern_e_const_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_e_const_run
 
-/-- info: 'ConRon.Refine2.intern_e_app_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_e_app_run
 
-/-- info: 'ConRon.Refine2.intern_e_let_e_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_e_let_e_run
 
-/-- info: 'ConRon.Refine2.intern_e_lit_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_e_lit_run
 
-/-- info: 'ConRon.Refine2.intern_e_proj_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_e_proj_run
 
 /-! ## The tag/view agreement (task #97-P5-3, task #97-P5-Arms)
 
@@ -15352,8 +15007,6 @@ theorem EStore_view_tagOf {st : EStore} {i : EIdx} {v : ENodeView}
 /-- info: 'ConRon.Refine2.intern_e_forall_e_i_run₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms intern_e_forall_e_i_run₀
 
-/-- info: 'ConRon.Refine2.intern_e_bind_i_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_e_bind_i_run
 
 /-! ## The axiom census, task #97-P5-3 round 3
 
@@ -15380,11 +15033,7 @@ Finding 14's two halves and the binder composition of §2. -/
 /-- info: 'ConRon.Refine2.estore_intern_forall_e_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms estore_intern_forall_e_abs
 
-/-- info: 'ConRon.Refine2.intern_e_lam_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_e_lam_run
 
-/-- info: 'ConRon.Refine2.intern_e_forall_e_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_e_forall_e_run
 
 /-! ### Task #97-P5-Specs: the eight readbacks and their machinery -/
 
@@ -15424,11 +15073,7 @@ Finding 14's two halves and the binder composition of §2. -/
 /-- info: 'ConRon.Refine2.memo_insert_vals' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms memo_insert_vals
 
-/-- info: 'ConRon.Refine2.read_level_m_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms read_level_m_run
 
-/-- info: 'ConRon.Refine2.intern_e_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_e_run
 
 /-! ### Task #97-P5-Fresh: the promote window -/
 

@@ -84,13 +84,13 @@ def checkConstantValGuardsSpec (fe : IFEnv) (cv : IConstantVal) : AM Unit := do
 /-- The two guards on the ANNOTATED type and the header they produce —
 `installConstantVal`'s tail, which `checkConstantVal` shares. -/
 def installConstantValTailSpec (fe : IFEnv) (cv : IConstantVal) (ty : EIdx) :
-    AM IConstantVal := do
-  unless ← allLevelParamsDefined cv.levelParams ty do
-    fail (.invalid
-      "undeclared universe parameter in type")
-  unless ← constsResolveFFast fe ty do
-    fail (← unresolvedConstsError "type" ty)
-  pure { cv with type := ty }
+    AM IConstantVal :=
+  allLevelParamsDefined cv.levelParams ty >>= fun d =>
+    if d then
+      constsResolveFFast fe ty >>= fun r =>
+        if r then pure { cv with type := ty }
+        else unresolvedConstsError "type" ty >>= fun e => fail e
+    else fail (.invalid "undeclared universe parameter in type")
 
 /-- `checkConstantVal`'s tail past the annotation: the install-side tail, then
 the type's own inference and sort check. -/
@@ -103,13 +103,13 @@ def checkConstantValAfterAnnotSpec (mode : CheckMode) (fe : IFEnv)
 
 /-- `installValue`'s tail past the annotation. -/
 def installValueTailSpec (fe : IFEnv) (cv : IConstantVal) (valueA : EIdx) :
-    AM EIdx := do
-  unless ← allLevelParamsDefined cv.levelParams valueA do
-    fail (.invalid
-      "undeclared universe parameter in value")
-  unless ← constsResolveFFast fe valueA do
-    fail (← unresolvedConstsError "value" valueA)
-  pure valueA
+    AM EIdx :=
+  allLevelParamsDefined cv.levelParams valueA >>= fun d =>
+    if d then
+      constsResolveFFast fe valueA >>= fun r =>
+        if r then pure valueA
+        else unresolvedConstsError "value" valueA >>= fun e => fail e
+    else fail (.invalid "undeclared universe parameter in value")
 
 /-! ## `checkValueGroup`, in three -/
 
@@ -505,6 +505,23 @@ def checkThmValWitnessSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     fail (.invalid "type mismatch in theorem")
   pure (fe.push (.thmInfo cv value))
 
+/-- `checkThmVal` past its proposition test is `checkThmValWitnessSpec` — the
+Rust's `check_thm_val` / `check_thm_val_witness` split. -/
+theorem checkThmVal_split (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
+    (value : EIdx) :
+    checkThmVal mode fe cv value = (do
+      let stype ← inferTypeCore mode fe checkFuel 0 cv.type
+      let u ← ensureSortCore mode fe checkFuel 0 stype
+      let z ← zeroLevel
+      if ← liftFueled "level comparison" (← lvlEq? u z) then
+        checkThmValWitnessSpec mode fe cv value
+      else fail (.invalid "type of theorem is not a proposition")) := by
+  unfold checkThmVal checkThmValWitnessSpec
+  refine ConRon.Refine2.am_bind_congr _ fun _ => ConRon.Refine2.am_bind_congr _ fun _ =>
+    ConRon.Refine2.am_bind_congr _ fun _ => ConRon.Refine2.am_bind_congr _ fun _ =>
+    ConRon.Refine2.am_bind_congr _ fun b => ?_
+  cases b <;> simp [ConRon.Refine2.am_fail_bind]
+
 /-! ### The `Nat`-operation pin gate's splits -/
 
 /-- `divModCertGuard`'s tail past the substituted proof's own ground guards. -/
@@ -514,12 +531,7 @@ def divModCertGuardRestSpec (fe : IFEnv) (c : NIdx) (annVal : EIdx)
   else constsResolveFFast fe (← substConst0 c annVal coreWalkFuel eqE)
 
 /-- One `Bool` constructor stored at the type `Bool` itself. -/
-def boolCtorTypedSpec (fe2 : IFEnv) (n : NIdx) : AM Bool := do
-  let bn ← boolName
-  let boolTy ← constE bn
-  match fe2.find? n with
-  | some ci => pure ((← ci.toConstantVal).type == boolTy)
-  | none => pure false
+abbrev boolCtorTypedSpec (fe2 : IFEnv) (n : NIdx) : AM Bool := boolCtorTyped fe2 n
 
 /-- `divModEnvGuard`'s tail past the operation's own dependencies: the pinned
 `Eq` basis and the two `Bool` constructors stored at the type `Bool`. -/
@@ -528,6 +540,24 @@ def divModEnvGuardRestSpec (fe2 : IFEnv) : AM Bool := do
   if fe2.find? en != some (← eqA) then pure false
   else if !(← boolCtorTypedSpec fe2 (← boolTrueName)) then pure false
   else boolCtorTypedSpec fe2 (← boolFalseName)
+
+/-- `divModEnvGuardRestSpec` with its `Eq` test named, as the Rust's
+`div_mod_env_guard_rest` calls `eq_basis_pinned`. -/
+theorem divModEnvGuardRestSpec_split (fe2 : IFEnv) :
+    divModEnvGuardRestSpec fe2 = (do
+      if ← eqBasisPinnedSpec fe2 then
+        if ← boolCtorTypedSpec fe2 (← boolTrueName) then
+          boolCtorTypedSpec fe2 (← boolFalseName)
+        else pure false
+      else pure false) := by
+  unfold divModEnvGuardRestSpec eqBasisPinnedSpec
+  simp only [bind_assoc, pure_bind]
+  refine ConRon.Refine2.am_bind_congr _ fun en => ConRon.Refine2.am_bind_congr _ fun ea => ?_
+  by_cases h : (fe2.find? en == some ea) = true
+  · simp only [h, bne, Bool.not_true, Bool.false_eq_true, if_false, if_true]
+    refine ConRon.Refine2.am_bind_congr _ fun t => ConRon.Refine2.am_bind_congr _ fun b => ?_
+    cases b <;> rfl
+  · simp [h, bne]
 
 /-- `checkDivModCerts`' tail at one certificate, past the applied proof. -/
 def checkDivModCertTailSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
@@ -585,16 +615,16 @@ def divModSlot2Spec (c : NIdx) : AM Nat := do
   else if c == (← natShiftRightName) then pure 6
   else pure 7
 
-/-- … past the two bitwise conjunctions. -/
+/-- … past `Nat.div` (the Rust's `div_mod_slot_1`: `gcd`, `land`, `lor`). -/
 def divModSlot1Spec (c : NIdx) : AM Nat := do
-  if c == (← natLandName) then pure 2
+  if c == (← natGcdName) then pure 1
+  else if c == (← natLandName) then pure 2
   else if c == (← natLorName) then pure 3
   else divModSlot2Spec c
 
 /-- … from the top. -/
 def divModSlotSpec (c : NIdx) : AM Nat := do
   if c == (← natDivName) then pure 0
-  else if c == (← natGcdName) then pure 1
   else divModSlot1Spec c
 
 /-! ### `divModCertStmts`' context and its seven arms

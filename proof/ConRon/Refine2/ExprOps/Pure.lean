@@ -448,6 +448,71 @@ theorem eidx_take_beq_refines {args want : alloc.vec.Vec arena.handle.EIdx}
       rw [List.getElem?_take_of_lt hj2] at hq
       exact hq
 
+/-! ## `take_eidx_n`: the prefix at a machine-word count -/
+
+theorem take_eidx_n_from_aux (xs : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ (k : Nat) (c : Std.U64) (i : Std.Usize) (out r : alloc.vec.Vec arena.handle.EIdx),
+      xs.val.length ≤ i.val + k →
+      arena.expr_ops.take_eidx_n_from xs c i out = ok r →
+      absEIdxL r = absEIdxL out ++ ((absEIdxL xs).drop i.val).take c.val := by
+  intro k
+  induction k with
+  | zero =>
+    intro c i out r hk h
+    rw [arena.expr_ops.take_eidx_n_from.eq_def] at h
+    have hd : (absEIdxL xs).drop i.val = [] := List.drop_eq_nil_of_le (by simp [absEIdxL]; omega)
+    rw [hd]
+    split at h
+    · rw [Result.ok.injEq] at h; subst h; simp
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+      subst h; simp
+  | succ k ih =>
+    intro c i out r hk h
+    rw [arena.expr_ops.take_eidx_n_from.eq_def] at h
+    split at h
+    · rename_i hc
+      rw [Result.ok.injEq] at h; subst h; subst hc; simp
+    · rename_i hc
+      by_cases hx : i.val ≥ xs.val.length
+      · rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+        subst h
+        rw [List.drop_eq_nil_of_le (by simp [absEIdxL]; omega)]
+        simp
+      · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
+        have hxi : i.val < xs.val.length := by omega
+        obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨c2, hc2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨hb, hpv⟩ := vecIndexAt he
+        have hee : e1 = e := dupId_eidx e e1 he1
+        have hov : out1.val = out.val ++ [e1] := ConRon.Refine.vec_push_val hout1
+        have hc0 : c.val ≠ 0 := fun h0 => hc (Std.UScalar.eq_of_val_eq (by simpa using h0))
+        have hc2v : c2.val = c.val - 1 := (ConRon.Refine.Nat.usub_val hc2).2
+        have hi2v : i2.val = i.val + 1 :=
+          (ConRon.Refine.Nat.uadd_val hi2).trans (by simp)
+        have hih := ih c2 i2 out1 r (by omega) h
+        rw [hih, hi2v, hc2v]
+        have hd : (absEIdxL xs).drop i.val
+            = absEIdx e :: (absEIdxL xs).drop (i.val + 1) := by
+          rw [List.drop_eq_getElem_cons (by simpa [absEIdxL] using hxi)]
+          simp only [absEIdxL, List.getElem_map, hpv]
+        have hob : absEIdxL out1 = absEIdxL out ++ [absEIdx e] := by
+          simp [absEIdxL, hov, hee]
+        rw [hd, hob]
+        obtain ⟨c', hc'⟩ : ∃ c', c.val = c' + 1 := ⟨c.val - 1, by omega⟩
+        rw [hc', List.take_succ_cons]
+        simp
+
+theorem take_eidx_n_refines {xs : alloc.vec.Vec arena.handle.EIdx} {c : Std.U64}
+    {r : alloc.vec.Vec arena.handle.EIdx}
+    (h : arena.expr_ops.take_eidx_n xs c = ok r) :
+    absEIdxL r = (absEIdxL xs).take c.val := by
+  rw [arena.expr_ops.take_eidx_n] at h
+  have := take_eidx_n_from_aux xs xs.val.length c 0#usize _ r (by simp) h
+  simpa [absEIdxL] using this
+
 /-! ## The binder telescope's cons -/
 
 theorem binder_copy_from_aux

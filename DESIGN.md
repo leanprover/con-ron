@@ -60149,6 +60149,85 @@ items on the frontier are now leaves: `certify_nat_eqs`,
 **Rulings needed:** none for this slice.  `check_div_mod_pin_try_refines` /
 `ScratchFrame` and the `IFEnvRel` fields remain the coordinator's.
 
+
+#### Slice 2 — the frontier leaves (worktree `_tmp/wt-t2-checker4`)
+
+**One more divergence, fixed in the twin: `bool_ctor_typed`.**  The twin's
+`divModEnvGuard` interned `.const Bool []` ONCE, before looking up the two
+`Bool` constructors; the Rust (`bool_ctor_typed`) looks the constructor up
+first and interns `Bool` only on a hit, per constructor.  On a miss the twin
+wrote the store where the Rust did not.  The twin now has
+`Arena.boolCtorTyped` in the Rust's order; Theorem 1's repair is one
+`RunsB` lemma (`Bridge/Checker/DivMod.lean`'s `boolCtorTyped_runsB`) and a
+four-line change to `divModEnvGuard_run`.
+
+**Transcriptions corrected to the Rust's split points** (`Checker/Spec.lean`;
+no twin change): `divModSlotSpec`/`divModSlot1Spec` (the Rust's `div_mod_slot_1`
+starts at `gcd`), `installConstantValTailSpec`/`installValueTailSpec` (explicit
+binds: the `unless` join point made the tactic stop), `boolCtorTypedSpec` (now
+the twin's function), and new split equations `checkThmVal_split`,
+`checkReducePin_split`, `checkDivModPin_split`,
+`checkStructuralNatPinEqsSpec_split`, `divModEnvGuardRestSpec_split`.
+
+**Closed, all by `lockstep`** (≈55 statements): `certify_nat_eqs` (cursor
+induction), `check_div_mod_pin_loop` (cursor induction; after the D4c merge the
+try step takes the loop at `i + 1` as `hloop`, which the induction hypothesis
+supplies, and the attempt as `hat`, which `check_div_mod_pin_at_refines`
+supplies — so the loop, the try and the seam are one closed recursion modulo
+their leaves), `check_constant_val{,_guards,_after_annot}`,
+`install_constant_val{,_tail}`, `install_value_tail`,
+`check_{defn,thm,opaque}_val`, `check_thm_val_witness`,
+`check_value_group_value`, `ifenv_find_cv`, `bool_ctor_typed`,
+`div_mod_env_guard`, `div_mod_pin_guard`, `div_mod_certs_guard`,
+`check_div_mod_pin_{certs,at}`, `check_reduce_pin_{pre,value}`,
+`check_reduce_identity`, `reduce_{stored,pin_guard,elem_ok_bool}`,
+`{iff,nonempty,true}_pinned`, `matches_pin_of_ci`, `eq_at1{,_app}`, `nat_one`,
+`nat_var`, the certificate readers `cert_{guard,eq,halves,lor,xor,lor_rhs,
+xor_rhs,shift_left,shift_right,land,div_mod_guards}`, `cert_ctx{,_names,
+_names_rest}`, `div_mod_cert_{stmts_at,applied}`, `div_mod_slot`, the Axioms
+pin readers `of_reduce_op`, `reduce_elem_{name,ty}`, `reduce_op_cv_a`,
+`of_reduce_pin_a`, `reduce_decl_pin`, `reduce_cert_var`, and the Top arms
+`check_quot_decl`, `check_axiom_decl_rest`, `open_pis_at_fvars_f`.
+
+**Extension points only** (no edit to `Tactic/Lockstep.lean`): `@[lockstep]`
+wrappers for every `_refines` statement of `Checker/{Axioms,Pins,Base,
+DeclCheck}.lean` (generated, `_tmp/t2c4-scratch/genls.py`, now also for
+`SimRE` → `LSR`); specs for the pinned-name readers, `ifenv_find` (a `TwinEq`
+rewrite), `ifenv_push` (now also concludes the counter grows),
+`lift_fueled`, `nidx_vec_dup`, `is_thm`, `eidx eq2`, `const_e`/`nat_ap1`/
+`nat_ap2`, `i_constant_info_to_constant_val` (`LSS`), `install_value` at a
+split scalar, `unresolved_consts_error` at its two subjects; `@[lockstep_simp]`
+`ite_true`/`ite_false`, `Option.isSome_map`, `IFEnv.restrictTo_visibleBelow`.
+Moves: `LSR.ofSimRE` from `KnotHyp` to `Checker/Pins` (so the pin readers can
+be filed there); `i_constant_info_to_constant_val_refines` and `withStore`
+from the Frontend tier down to `Checker/{Pins,Shape}` (the checker's lookups
+need them); on merging `arena`, the Inductives lane's duplicate `lvl_eq_ls`/
+`zero_level_ls` (`Inductives/Prims.lean`) removed in favour of the Checker
+tier's, and this lane's `basis_pin_hit_ls` removed in favour of `Top.lean`'s.
+
+**Two tactic limits met, worked around per proof** (for the tactic's owner):
+a lemma whose twin carries a parameter the Rust does not determine (`liftFueled
+what`, `unresolvedConstsError what`, the loop's `tried` list) is never picked —
+its free argument becomes a side goal — so such lemmas are filed at their
+call sites' constants; and when the Rust binds while the twin tests an `if`,
+the Rust step wins through `LS.twin_bind_pure` and the twin `if` is left
+wrapped as `(if …) >>= pure` (`install_value_tail` finishes with one
+`rw [bind_pure, if_neg]`).
+
+**Blocked on other lanes:** `install_value`, `check_constant_val_guards_rest`,
+`ground_guards`, `proj_rule_wf` call the ExprOps walks
+`loose_bvars_bounded_fast`/`has_fvar_fast`, whose statements are still on the
+old `AStateRel`; `check_div_mod_pin_attempt` is the D4c seam.
+
+**Lane split** (coordinator, mid-slice): `Checker/Base.lean` and
+`Checker/Top.lean` pass to a new agent from this commit on; this lane keeps
+`Checker/{DeclCheck,Axioms}.lean`.
+
+Frontier (`model_exists` + `no_False_declaration`), before the `arena` merge:
+**41 / 145 / 550 → 42 items / 198 tainted / 487 dead weight**; the item count
+holds because each closed arm exposes its leaves, and the dead weight (the
+direct `sorry`s off the frontier) fell by 63.
+
 ### Task #97-T2-LOCKSTEP lane Inductives round 3 — the tier wired into the capstone; fan-in by `lockstep` (2026-09-23, Opus under Fable)
 
 Worktree `_tmp/wt-t2-ind3`, branch `t2-ind-3` off `arena` `ef5e1eec`.  The
@@ -60780,3 +60859,32 @@ Two fallouts on the merged tree, both fixed here.  `Frontend/ExportCInd`
 first `lockstep`; with the atomic `twin_bind_pure` fallback (§7) that first
 `lockstep` closes the goal, so the hand tail is deleted (one `lockstep` call
 now).
+
+#### 9. Slice 3 — the Inductives' ExprOps companions; the last deprecated shapes
+
+Every `arena::expr_ops` function the inductives Rust calls (25, counted off
+`Generated/Funs.lean`) now has an `@[lockstep]` companion.  Already there:
+`strip_pis_ls`, `mk_app_n_ls`, `get_app_args_ls`, `get_app_fn_ls`,
+`rename_consts_fast_ls`, `lift_loose_bvars_fast_ls`, `strip_lams_ls`,
+`loose_bvars_bounded_fast_ls`, `inst_pis_at_lift_ls`, `inst_pis_at_f_ls`,
+`inst_lams_at_f_ls`, `has_fvar_fast_ls`, `reset_meta_fast_ls`,
+`instantiate1_fast_ls`, `instantiate1_lift_fast_ls`, `abstract1_fast_ls`,
+`lower_bvars_fast_ls`, `inst_spine_ls`, `inst_lp_fast_ls`,
+`rec_rule_plain_ls`, `bvar_b_ls`, `eidx_take_beq_spec` (all in
+`ExprOps/{Mut,Read}.lean` or `Tactic/Prims.lean`; the Inductives modules reach
+them by importing `ConRon.Refine2.ExprOps.Mut`, which `Modeled.lean` already
+does).  Added: `take_eidx_n_spec` (`take_eidx_n` against `takeEidx` at the
+`u64` count, over a new `take_eidx_n_from_aux`/`take_eidx_n_refines` in
+`ExprOps/Pure.lean`), `binder_copy_from_spec`, and the missing
+`@[lockstep]` on `fvar_type_d_ls`.
+
+Deleted: `Read.lean`'s `WOut`/`LOut`/`FOut` (no consumer; `Inductives/Shape`
+and `StructParts` still name `WOut` in doc comments only); `Specs.lean`'s last
+18 deprecated `AStateRel` shims — `view_run`, `inst1_get_run`,
+`inst1_set_run`, `read_level_m_run`, `intern_n_node_run`, and the
+`intern_e_run` chain (`intern_e_{bvar,fvar,sort,const,app,let_e,proj,lit,
+bind_i,lam,forall_e}_run`, `intern_e_bvar_flags`) — with the three helpers only
+they used (`internNodeE_run_wf`, `internLamE_run_wf`, `internForallEE_run_wf`)
+and their census entries; the `₀` statements stay.  `EResolves` stays:
+`Core/Arms/Gated.lean`'s `bodyRel_stuckGatedCore` takes it as a premise
+(Core lane), and five Core files `open` it.
