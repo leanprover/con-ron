@@ -1200,6 +1200,132 @@ theorem nidx_is_proj_fn_shape_refines {pers st lst} {n : arena.handle.NIdx} {o}
     obtain rfl := (Result.ok_injective hrun).symm
     rfl
 
+/-! ## `arena::core::consts_resolve` — the plain walk the guard walk's leaves call
+
+No tier had stated `arena::core::consts_resolve` (the Core knot does not call
+it; the checker's guard walk hands its leaf arms to it).  The Rust splits the
+two literal arms into `nat_trio_stored`/`str_support_stored`, the twin writes
+their pin reads inline: the SAME reads in the same order, so the twin side is
+two transcriptions (`natTrioStoredSpec`, `strSupportStoredSpec`) and one
+equation (`constsResolve_succ`) — a factoring difference, not a divergence. -/
+
+/-- The `Nat` literal arm's three pin reads and probes. -/
+def natTrioStoredSpec (fe : IFEnv) : AM Bool := do
+  let nt ← pinNat
+  let nz ← pinNatZero
+  let ns ← pinNatSucc
+  pure ((fe.find? nt).isSome && (fe.find? nz).isSome && (fe.find? ns).isSome)
+
+/-- The `String` literal arm's seven further pin reads and probes. -/
+def strSupportStoredSpec (fe : IFEnv) : AM Bool := do
+  let st ← pinString
+  let sl ← pinStringOfList
+  let li ← pinList
+  let ln ← pinListNil
+  let lc ← pinListCons
+  let ch ← pinChar
+  let co ← pinCharOfNat
+  pure ((fe.find? st).isSome && (fe.find? sl).isSome && (fe.find? li).isSome &&
+    (fe.find? ln).isSome && (fe.find? lc).isSome && (fe.find? ch).isSome &&
+    (fe.find? co).isSome)
+
+/-- `constsResolve` one step in, with the literal arms as the two transcriptions. -/
+theorem constsResolve_succ (fe : IFEnv) (fuel : Nat) (h : EIdx) :
+    constsResolve fe (fuel + 1) h = (do
+      match ← view h with
+      | .bvar _ | .sort _ => pure true
+      | .lit (.natVal _) => natTrioStoredSpec fe
+      | .lit (.strVal _) => do
+        let x ← natTrioStoredSpec fe
+        let y ← strSupportStoredSpec fe
+        pure (x && y)
+      | .const n _ => pure (fe.find? n).isSome
+      | .fvar _ ty => constsResolve fe fuel ty
+      | .app f a => do
+        let x ← constsResolve fe fuel f
+        if x then constsResolve fe fuel a else pure false
+      | .lam ty body _ | .forallE ty body _ => do
+        let x ← constsResolve fe fuel ty
+        if x then constsResolve fe fuel body else pure false
+      | .letE ty val body => do
+        let x ← constsResolve fe fuel ty
+        if !x then pure false else do
+          let y ← constsResolve fe fuel val
+          if y then constsResolve fe fuel body else pure false
+      | .proj s _ sub => do
+        if (fe.find? s).isSome then constsResolve fe fuel sub else pure false) := by
+  rw [constsResolve]
+  refine ConRon.Refine2.am_bind_congr _ ?_
+  intro v
+  cases v with
+  | lit l =>
+    cases l with
+    | natVal _ => rfl
+    | strVal _ =>
+      simp only [natTrioStoredSpec, strSupportStoredSpec, bind_assoc, pure_bind,
+        Bool.and_assoc]
+  | _ => rfl
+
+namespace Lockstep
+
+/-- `arena::core::stored` is an index probe: the twin's `find?` test. -/
+@[lockstep] theorem stored_spec {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (n : arena.handle.NIdx) (hctx : CoreCtx vis rf lf) :
+    LSP (arena.core.stored vis rf n)
+      (fun b => TwinEq ((lf.find? (absNIdx n)).isSome) b) := by
+  intro b h
+  rw [arena.core.stored] at h
+  obtain ⟨o, ho, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hf := ifenv_find_abs hctx ho
+  show (lf.find? (absNIdx n)).isSome = b
+  rw [← hf]
+  cases o with
+  | none => simp only [Result.ok.injEq] at h; subst h; rfl
+  | some _ => simp only [Result.ok.injEq] at h; subst h; rfl
+
+@[lockstep] theorem nat_trio_stored_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis rf lf) :
+    LS pers (fun a b => b = id a) (arena.core.nat_trio_stored vis st rf) lst
+      (natTrioStoredSpec lf) := by
+  rw [arena.core.nat_trio_stored, natTrioStoredSpec]
+  lockstep
+
+@[lockstep] theorem str_support_stored_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis rf lf) :
+    LS pers (fun a b => b = id a) (arena.core.str_support_stored vis st rf) lst
+      (strSupportStoredSpec lf) := by
+  rw [arena.core.str_support_stored, strSupportStoredSpec]
+  lockstep
+
+end Lockstep
+
+theorem consts_resolve_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+      (fuel : Std.U64) (h : arena.handle.EIdx),
+      fuel.val = n → CoreCtx vis rf lf → AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = id a) (arena.core.consts_resolve pers vis st rf fuel h)
+        lst (constsResolve lf n (absEIdx h)) := by
+  induction n with
+  | zero =>
+    intro pers st lst vis rf lf fuel h hn hctx hrel hinv
+    rw [arena.core.consts_resolve, constsResolve]
+    lockstep
+  | succ m ih =>
+    intro pers st lst vis rf lf fuel h hn hctx hrel hinv
+    rw [arena.core.consts_resolve, constsResolve_succ]
+    lockstep
+
+/-- **`arena::core::consts_resolve` ⊑ `constsResolve`**. -/
+@[lockstep] theorem Lockstep.consts_resolve_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis rf lf) (fuel : Std.U64) (h : arena.handle.EIdx) :
+    Lockstep.LS pers (fun a b => b = id a) (arena.core.consts_resolve pers vis st rf fuel h)
+      lst (constsResolve lf (absU fuel) (absEIdx h)) :=
+  consts_resolve_aux _ fuel h rfl hctx hrel hinv
+
 /-! ## The two memoised guard walks
 
 Both thread a `HashMap2<EIdx, bool>` exactly as `expr_ops`' three memoised
@@ -3094,6 +3220,18 @@ end Lockstep
 
 /-- info: 'ConRon.Refine2.is_thm_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms is_thm_refines
+
+/-- info: 'ConRon.Refine2.consts_resolve_aux' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms consts_resolve_aux
+
+/-- info: 'ConRon.Refine2.nidx_is_proj_fn_shape_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nidx_is_proj_fn_shape_refines
+
+/-- info: 'ConRon.Refine2.recs_form_suffix_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms recs_form_suffix_refines
+
+/-- info: 'ConRon.Refine2.name_nodup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms name_nodup_refines
 
 /-- info: 'ConRon.Refine2.lvl_eq_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms lvl_eq_refines
