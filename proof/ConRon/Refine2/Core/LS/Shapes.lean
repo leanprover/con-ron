@@ -307,6 +307,12 @@ theorem pi_residual_aux (n : Nat) :
     rw [arena.core.pi_residual, listFrom_cons args i (by omega), piResidual]
     lockstep_a2
 
+@[lockstep] theorem pi_residual_ls {pers st e args i lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = Option.map absEIdx a) (arena.core.pi_residual pers st e args i) lst
+      (piResidual (absEIdx e) (absEIdxListFrom args i)) :=
+  pi_residual_aux _ e args i hx rfl hrel hinv
+
 /-! ## Stubs (other regions' lemmas; deleted at merge) -/
 
 /-- Region A1's `IProjEntry.fireOk`. -/
@@ -505,6 +511,65 @@ end rescue
 
 section tele
 
+/-- `prop_when::beq` at a stack entry's datum (the ∀-membership form of the
+`PropWhenWF` premise). -/
+@[lockstep] theorem prop_when_beq_lam_stk_ls {l : List (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {i : Nat} {hi : i < l.length} {b : kernel.prop_when.PropWhen}
+    (hl : ∀ x ∈ l, ConRon.Refine.PropWhenWF x.2.pw) (hb : ConRon.Refine.PropWhenWF b) :
+    LSP (kernel.prop_when.beq (l[i]'hi).2.pw b)
+      (fun c => c = (ConRon.Refine.absPropWhen (l[i]'hi).2.pw == ConRon.Refine.absPropWhen b)) :=
+  PA2.prop_when_beq_ls (hl _ (List.getElem_mem hi)) hb
+
+@[lockstep] theorem prop_when_beq_pi_stk_ls {l : List (arena.handle.LIdx × kernel.prop_when.PropWhen)}
+    {i : Nat} {hi : i < l.length} {a : kernel.prop_when.PropWhen}
+    (hl : ∀ x ∈ l, ConRon.Refine.PropWhenWF x.2) (ha : ConRon.Refine.PropWhenWF a) :
+    LSP (kernel.prop_when.beq a (l[i]'hi).2)
+      (fun c => c = (ConRon.Refine.absPropWhen a == ConRon.Refine.absPropWhen (l[i]'hi).2)) :=
+  PA2.prop_when_beq_ls ha (hl _ (List.getElem_mem hi))
+
+theorem getElem!_map_toArray {α β : Type} [Inhabited β] (f : α → β) {l : List α} {i : Nat}
+    (hi : i < l.length) (k : Nat) (hk : k = i) : (l.map f).toArray[k]! = f l[i] := by
+  subst hk
+  simp [hi]
+
+open Lean Meta Elab Tactic in
+/-- The twin reads a stack by `stk[k]!` where the Rust reads `stk[i]` under a
+bound `i < len`: rewrite the twin's read to the Rust's, `k = i` by `omega`. -/
+elab "a2_idx" : tactic => withMainContext do
+  let g ← getMainGoal
+  let others := (← getGoals).tail
+  let tgt ← instantiateMVars (← g.getType)
+  for d in ← getLCtx do
+    if d.isImplementationDetail then continue
+    let t ← instantiateMVars d.type
+    unless t.isAppOfArity ``LT.lt 4 && (t.getArg! 3).isAppOfArity ``List.length 2 do continue
+    let l := (t.getArg! 3).getArg! 1
+    let i := t.getArg! 2
+    let occ? := tgt.find? fun e =>
+      e.isAppOf ``GetElem?.getElem! && e.getAppNumArgs ≥ 2 &&
+        (let xs := e.getArg! (e.getAppNumArgs - 2)
+         xs.isAppOfArity ``List.toArray 2 && (xs.getArg! 1).isAppOfArity ``List.map 4 &&
+           (xs.getArg! 1).getArg! 3 == l)
+    let some occ := occ? | continue
+    let xs := occ.getArg! (occ.getAppNumArgs - 2)
+    let f := (xs.getArg! 1).getArg! 2
+    let k := occ.getArg! (occ.getAppNumArgs - 1)
+    let hk ← mkFreshExprMVar (← mkEq k i)
+    let rest ← runOn hk.mvarId! (evalT `(tactic| (simp only [lockstep_simp] at *; omega)))
+    unless rest.isEmpty do throwError "a2_idx: index"
+    let pf ← mkAppM ``getElem!_map_toArray #[f, d.toExpr, k, hk]
+    let r ← g.rewrite tgt pf
+    let g' ← g.replaceTargetEq r.eNew r.eqProof
+    setGoals (g' :: r.mvarIds ++ others)
+    return
+  throwError "a2_idx: no stack read"
+
+attribute [local lockstep_simp] ConRon.Refine.absBinderMeta
+
+/-- `lockstep_a2` with the stack-read rewrite `a2_idx` as a last resort. -/
+macro "lockstep_a2_stk" : tactic =>
+  `(tactic| repeat' (first | lockstep_a2_step | lockstep_core_step | a2_idx))
+
 theorem infer_lams_out_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
       (mode : kernel.env.CheckMode) (d : Std.U64)
@@ -522,15 +587,17 @@ theorem infer_lams_out_aux (n : Nat) :
   | zero =>
     intro pers st lst mode d stk nn cur prev_pw hx hstk hpw hn hrel hinv
     rw [arena.core.infer_lams_out, inferLamsOut]
-    lockstep_a2
-    all_goals trace_state
-    all_goals sorry
+    lockstep_a2_stk
   | succ m ih =>
     intro pers st lst mode d stk nn cur prev_pw hx hstk hpw hn hrel hinv
     rw [arena.core.infer_lams_out, inferLamsOut]
-    lockstep_a2
-    all_goals trace_state
-    all_goals sorry
+    lockstep_a2_stk
+    -- glue: the recursive call, whose datum premise is a stack entry's
+    all_goals
+      refine LS.tail (ih _ _ _ _ _ _ hx hstk (hstk _ (List.getElem_mem ‹_›))
+        (by simp only [lockstep_simp] at *; omega) hrel hinv) ?_ (fun _ _ h => h)
+      simp only [ConRon.Refine.absBinderMeta]
+      congr 1
 
 theorem infer_pis_out_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
@@ -548,16 +615,56 @@ theorem infer_pis_out_aux (n : Nat) :
   | zero =>
     intro pers st lst mode stk nn v pv hstk hpw hn hrel hinv
     rw [arena.core.infer_pis_out, inferPisOut]
-    lockstep_a2
-    all_goals trace_state
-    all_goals sorry
+    lockstep_a2_stk
   | succ m ih =>
     intro pers st lst mode stk nn v pv hstk hpw hn hrel hinv
     rw [arena.core.infer_pis_out, inferPisOut]
-    lockstep_a2
-    all_goals trace_state
-    all_goals sorry
+    lockstep_a2_stk
+
+@[lockstep] theorem infer_lams_out_ls {pers st mode d stk n cur prev_pw lst}
+    (hx : ExprOpsHyp pers)
+    (hstk : ∀ x ∈ stk.val, ConRon.Refine.PropWhenWF x.2.pw)
+    (hpw : ConRon.Refine.PropWhenWF prev_pw)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.infer_lams_out pers st mode d stk n cur prev_pw) lst
+      (inferLamsOut (ConRon.Refine.absMode mode) (absU d)
+        (stk.val.map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)).toArray (absSz n)
+        (absEIdx cur) (ConRon.Refine.absPropWhen prev_pw)) :=
+  infer_lams_out_aux _ mode d stk n cur prev_pw hx hstk hpw rfl hrel hinv
+
+@[lockstep] theorem infer_pis_out_ls {pers st mode stk n v pv lst}
+    (hstk : ∀ x ∈ stk.val, ConRon.Refine.PropWhenWF x.2)
+    (hpw : ConRon.Refine.PropWhenWF pv)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absLIdx a)
+      (arena.core.infer_pis_out pers st mode stk n v pv) lst
+      (inferPisOut (ConRon.Refine.absMode mode)
+        (stk.val.map fun p => (absLIdx p.1, ConRon.Refine.absPropWhen p.2)).toArray (absSz n)
+        (absLIdx v) (ConRon.Refine.absPropWhen pv)) :=
+  infer_pis_out_aux _ mode stk n v pv hstk hpw rfl hrel hinv
 
 end tele
+
+/-! ## The axiom census -/
+
+#print axioms get_app_spine_ls
+#print axioms head_and_args_ls
+#print axioms intern_app_rebuilt_ls
+#print axioms defeq_peel_done_ls
+#print axioms pw_written_ls
+#print axioms annot_binder_meta_ls
+#print axioms whnf_core_stuck_tag_ls
+#print axioms defeq_no_fvars_ls
+#print axioms fab_scope_ok_ls
+#print axioms infer_lam_result_ls
+#print axioms eta_ctor_shape_ls
+#print axioms pi_residual_ls
+#print axioms tower_slots_all_ls
+#print axioms rec_slots_all_ls
+#print axioms eta_projs_ls
+#print axioms and_rescue_slots_ls
+#print axioms infer_lams_out_ls
+#print axioms infer_pis_out_ls
 
 end ConRon.Refine2.Lockstep
