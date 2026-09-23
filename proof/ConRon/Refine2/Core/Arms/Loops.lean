@@ -37,14 +37,14 @@ and `1 ≤ absU n` is gone from both.
 **Since task #97-P5-Core round 4, nothing but `ExprOpsHyp pers`** —
 `Core/Arms/Delta.lean`'s bundle of the two `arena::expr_ops` walks the delta
 leaf borrows, at the lockstep shape.  The loops are stated over `AStateRel₀`
-with `KSim` conclusions, so the old `CoreAmbient` bundle is gone with every
+with `Sim₀` conclusions, so the old `CoreAmbient` bundle is gone with every
 one of its clauses: `wf` (`StoreWF` at every state the loop re-enters) left
 with `storeWF`, which is Theorem 1's; `resWhnfCore` (the `whnfCore` reduct
 resolves) and `resExt` (resolution travels along `Ext`) left because the twin
 now tests the reduct's TAG where the port does — `reduceNat` and
 `unfoldDefinition` are tag-first (round 4's audit) — and `Ext` is not in the
 conclusion any more.  `AOut.widen`, the loop's old re-basing move, is gone
-too: `KOut` does not mention the state a call started in.
+too: `AOut₀` does not mention the state a call started in.
 
 ## What is still `sorry`, and why the cut is here
 
@@ -85,7 +85,7 @@ theorem reduce_nat_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.reduce_nat pers vis st mode lane fu fe depth e = ok o) :
-    KSim (Option.map absEIdx) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (reduceNat (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e)) := by
   sorry
@@ -189,11 +189,11 @@ private theorem whnf_step_of_cont {f : Nat} (hk : KnotRel f)
     (hcont : ∀ {st' : arena.monad.AState} {lst' : AState} {e' o'},
       AStateRel₀ pers st' lst' → AStateInv pers st' →
       arena.core.whnf_loop pers vis st' mode lane fu fe depth n e' = ok o' →
-      KSim absEIdx pers lst' o'
+      Sim₀ absEIdx pers lst' o'
         (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
           (absU depth) (absU n) (absEIdx e')))
     (hrun : arena.core.whnf_step pers vis st mode lane fu fe depth n e = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (whnfStep (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth)
         (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
@@ -209,9 +209,9 @@ private theorem whnf_step_of_cont {f : Nat} (hk : KnotRel f)
   cases r with
   | Err er =>
     rw [← Result.ok_injective hrun]
-    exact KOut.err (AErrSim.of_eq (AErrSim.bind (KSim.apply_err hwc) _) t0)
+    exact AOut₀.err (AErrSim.of_eq (AErrSim.bind (Sim₀.apply_err hwc) _) t0)
   | Ok e1 =>
-    obtain ⟨lst1, hb1, hrel1, hinv1⟩ := KSim.apply hwc
+    obtain ⟨lst1, hb1, hrel1, hinv1⟩ := Sim₀.apply hwc
     have t1 : (whnfStep (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth)
         (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
@@ -236,9 +236,9 @@ private theorem whnf_step_of_cont {f : Nat} (hk : KnotRel f)
     cases r2 with
     | Err er =>
       rw [← Result.ok_injective hrun]
-      exact KOut.err (AErrSim.of_eq (AErrSim.bind (KSim.apply_err hrn) _) t1)
+      exact AOut₀.err (AErrSim.of_eq (AErrSim.bind (Sim₀.apply_err hrn) _) t1)
     | Ok on =>
-      obtain ⟨lst2, hb2, hrel2, hinv2⟩ := KSim.apply hrn
+      obtain ⟨lst2, hb2, hrel2, hinv2⟩ := Sim₀.apply hrn
       cases on with
       | some e2 =>
         have t2 : (whnfStep (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
@@ -248,7 +248,7 @@ private theorem whnf_step_of_cont {f : Nat} (hk : KnotRel f)
             = ((whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
                 (absU depth) (absU n)) (absEIdx e2)).run lst2 := by
           rw [t1, hb2]; rfl
-        exact KOut.of_eq (hcont hrel2 hinv2 hrun) t2
+        exact AOut₀.of_eq (hcont hrel2 hinv2 hrun) t2
       | none =>
         have t2 : (whnfStep (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
             lfe (absU depth)
@@ -267,9 +267,9 @@ private theorem whnf_step_of_cont {f : Nat} (hk : KnotRel f)
         cases r3 with
         | Err er =>
           rw [← Result.ok_injective hrun]
-          exact KOut.err (AErrSim.of_eq (AErrSim.bind (KSim.apply_err hud) _) t2)
+          exact AOut₀.err (AErrSim.of_eq (AErrSim.bind (Sim₀.apply_err hud) _) t2)
         | Ok ou =>
-          obtain ⟨lst3, hb3, hrel3, hinv3⟩ := KSim.apply hud
+          obtain ⟨lst3, hb3, hrel3, hinv3⟩ := Sim₀.apply hud
           cases ou with
           | some e2 =>
             have t3 : (whnfStep (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
@@ -279,7 +279,7 @@ private theorem whnf_step_of_cont {f : Nat} (hk : KnotRel f)
                 = ((whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
                     lfe (absU depth) (absU n)) (absEIdx e2)).run lst3 := by
               rw [t2, hb3]; rfl
-            exact KOut.of_eq (hcont hrel3 hinv3 hrun) t3
+            exact AOut₀.of_eq (hcont hrel3 hinv3 hrun) t3
           | none =>
             have t3 : (whnfStep (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
                 lfe (absU depth)
@@ -288,7 +288,7 @@ private theorem whnf_step_of_cont {f : Nat} (hk : KnotRel f)
                 = .ok (absEIdx e1, lst3) := by
               rw [t2, hb3]; rfl
             rw [← Result.ok_injective hrun]
-            exact KOut.ok t3 hrel3 hinv3
+            exact AOut₀.ok t3 hrel3 hinv3
 
 /-! ## The loop, by induction on the port's counter -/
 
@@ -299,7 +299,7 @@ private theorem whnf_loop_aux {f : Nat} (hk : KnotRel f) (m : Nat) :
       absU fu = f →
       absU n = m →
       arena.core.whnf_loop pers vis st mode lane fu fe depth n e = ok o →
-      KSim absEIdx pers lst o
+      Sim₀ absEIdx pers lst o
         (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
           (absU depth) m (absEIdx e)) := by
   induction m with
@@ -312,7 +312,7 @@ private theorem whnf_loop_aux {f : Nat} (hk : KnotRel f) (m : Nat) :
     obtain ⟨r1, hr1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hr1] at hrun
     rw [← Result.ok_injective hrun]
-    exact KOut.err (AErrSim.internal (s := "fuel exhausted: whnf loop")
+    exact AOut₀.err (AErrSim.internal (s := "fuel exhausted: whnf loop")
       (whnfLoop_zero_run _ _ _ _ _))
   | succ m ih =>
     intro pers vis st mode lane fu fe lfe depth n e lst o hx hrel hinv hctx
@@ -334,7 +334,7 @@ theorem whnf_loop_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.whnf_loop pers vis st mode lane fu fe depth n e = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absU n) (absEIdx e)) :=
   whnf_loop_aux hk (absU n) hx hrel hinv hctx hf rfl hrun
@@ -348,7 +348,7 @@ theorem whnf_step_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.whnf_step pers vis st mode lane fu fe depth n e = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (whnfStep (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth)
         (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
@@ -364,7 +364,7 @@ theorem whnf_body_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.whnf_body pers vis st mode lane fu fe depth e = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (whnfBody (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e)) := by
   rw [arena.core.whnf_body] at hrun
@@ -390,7 +390,7 @@ theorem defeq_loop_refines {f : Nat} (hk : KnotRel f)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.defeq_loop pers vis st mode lane fu fe depth n pi a b
       = ok o) :
-    KSim id pers lst o
+    Sim₀ id pers lst o
       (defeqLoop (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
         (absU n) pi (absEIdx a) (absEIdx b)) := by
@@ -404,7 +404,7 @@ theorem defeq_step_refines {f : Nat} (hk : KnotRel f)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.defeq_step pers vis st mode lane fu fe depth n pi a b
       = ok o) :
-    KSim id pers lst o
+    Sim₀ id pers lst o
       (defeqStep (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
         (defeqLoop (ConRon.Refine.absMode mode)
@@ -421,7 +421,7 @@ theorem defeq_body_refines {f : Nat} (hk : KnotRel f)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.defeq_body pers vis st mode lane fu fe depth a b
       = ok o) :
-    KSim id pers lst o
+    Sim₀ id pers lst o
       (defeqBody (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
         (absEIdx a) (absEIdx b)) := by

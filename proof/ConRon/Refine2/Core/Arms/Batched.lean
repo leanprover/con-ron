@@ -42,7 +42,7 @@ theorem whnf_app_refines {f : Nat} (hk : KnotRel f)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.whnf_app pers vis st mode lane fu fe depth v hd vargs
       same args nodes i = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (whnfApp (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
         (absEIdx v) (absEIdx hd) (absEIdxArr vargs) same (absEIdxArr args)
@@ -57,7 +57,7 @@ theorem beta_peel_refines {f : Nat} (hk : KnotRel f)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.beta_peel pers vis st mode lane fu fe depth t acc args
       nodes i = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (betaPeel (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
         (absEIdx t) (absEIdxArr acc) (absEIdxArr args) (absEIdxArr nodes)
@@ -72,7 +72,7 @@ theorem iota_rec_at_refines {f : Nat} (hk : KnotRel f)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.iota_rec_at pers vis st mode lane fu fe depth hd sargs n
       = ok o) :
-    KSim (Option.map absEIdx) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (iotaRecAt (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
         (absEIdx hd) (absEIdxArr sargs) (absSz n)) := by
@@ -86,7 +86,7 @@ theorem defeq_peel_leaf_refines {f : Nat} (hk : KnotRel f)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.defeq_peel_leaf pers vis st mode lane fu fe d a b k fvs
       mism mismLam = ok o) :
-    KSim id pers lst o
+    Sim₀ id pers lst o
       (defeqPeelLeaf (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
         (absU d) (absEIdx a) (absEIdx b) (absU k) (absEIdxArr fvs) mism
         mismLam) := by
@@ -100,7 +100,7 @@ theorem whnf_core_stuck_app_refines {f : Nat} (hk : KnotRel f)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.whnf_core_stuck_app pers vis st mode lane fu fe depth h
       same fp a = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (whnfCoreStuckApp (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
         (absEIdx h) same (absEIdx fp) (absEIdx a)) := by

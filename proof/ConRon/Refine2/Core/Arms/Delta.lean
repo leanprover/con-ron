@@ -51,7 +51,7 @@ shape and what task #97-P5-Arms §9 asked for at `defeqAfterWhnf`.
 
 `ExprOpsHyp` below: the two interning walks the delta step borrows
 (`inst_lp_fast`, `mk_app_n`), stated at the LOCKSTEP shape the Core tier is
-stated at since task #97-P5-Core round 4 (`AStateRel₀`, `KSim`).
+stated at since task #97-P5-Core round 4 (`AStateRel₀`, `Sim₀`).
 `Refine2/ExprOps/Mut.lean` proves both over `AStateRel` with `EResolves`
 premises (their interns need the twin's `StoreWF`), which does not apply
 here; the `ExprOps` tier's migration to `AStateRel₀` owes them, and the
@@ -306,7 +306,7 @@ private theorem get_app_fn_aux₀ (n : Nat) :
       {fuel : Std.U64} {h : arena.handle.EIdx} {o},
       fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
       arena.expr_ops.get_app_fn pers st fuel h = ok o →
-      KOut absEIdx pers o st ((getAppFn (absU fuel) (absEIdx h)).run lst) := by
+      AOut₀ absEIdx pers o st ((getAppFn (absU fuel) (absEIdx h)).run lst) := by
   induction n with
   | zero =>
     intro pers st lst fuel h o hn hrel hinv hrun
@@ -315,7 +315,7 @@ private theorem get_app_fn_aux₀ (n : Nat) :
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hrun]
-    refine KOut.err ?_
+    refine AOut₀.err ?_
     show AErrSim _ ((getAppFn (absU fuel) (absEIdx h)).run lst)
     rw [show absU fuel = 0 from hn, getAppFn, arena_fail_run]
     exact AErrSim.internal rfl
@@ -344,7 +344,7 @@ private theorem get_app_fn_aux₀ (n : Nat) :
         obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         rw [fail_run hrun]
-        refine KOut.err ?_
+        refine AOut₀.err ?_
         show AErrSim _ ((Arena.failDanglingE : AM EIdx).run lst)
         exact failDanglingE_errSim lst
       | some q =>
@@ -355,7 +355,7 @@ private theorem get_app_fn_aux₀ (n : Nat) :
           have h1 : i1.val = fuel.val - (1#u64 : Std.U64).val :=
             (ConRon.Refine.Nat.usub_val hi1).2
           rw [h1, hn]; rfl
-        show KOut absEIdx pers o st ((getAppFn m (absEIdx f1)).run lst)
+        show AOut₀ absEIdx pers o st ((getAppFn m (absEIdx f1)).run lst)
         have := ih (fuel := i1) (h := f1) hi1v hrel hinv hrun
         rw [show absU i1 = m from hi1v] at this
         exact this
@@ -372,14 +372,14 @@ private theorem get_app_fn_aux₀ (n : Nat) :
           intro hcc; exact hc (absU32_inj hcc)
         simp [this]]
       simp only [Bool.false_eq_true, if_false]
-      exact KOut.ok rfl hrel hinv
+      exact AOut₀.ok rfl hrel hinv
 
 /-- `get_app_fn` ⊑ `getAppFn`, lockstep. -/
 theorem get_app_fn_refines₀ {pers : arena.store.PersTier} {st : arena.monad.AState}
     {lst : AState} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.expr_ops.get_app_fn pers st fuel h = ok o) :
-    KOut absEIdx pers o st ((getAppFn (absU fuel) (absEIdx h)).run lst) :=
+    AOut₀ absEIdx pers o st ((getAppFn (absU fuel) (absEIdx h)).run lst) :=
   get_app_fn_aux₀ fuel.val rfl hrel hinv hrun
 
 private theorem get_app_args_go_aux₀ (n : Nat) :
@@ -387,7 +387,7 @@ private theorem get_app_args_go_aux₀ (n : Nat) :
       {fuel : Std.U64} {h : arena.handle.EIdx} {k : Std.Usize} {o},
       fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
       arena.expr_ops.get_app_args_go pers st fuel h k = ok o →
-      KOut absEIdxList pers o st ((getAppArgs (absU fuel) (absEIdx h)).run lst) := by
+      AOut₀ absEIdxList pers o st ((getAppArgs (absU fuel) (absEIdx h)).run lst) := by
   induction n with
   | zero =>
     intro pers st lst fuel h k o hn hrel hinv hrun
@@ -396,7 +396,7 @@ private theorem get_app_args_go_aux₀ (n : Nat) :
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hrun]
-    refine KOut.err ?_
+    refine AOut₀.err ?_
     show AErrSim _ ((getAppArgs (absU fuel) (absEIdx h)).run lst)
     rw [show absU fuel = 0 from hn, getAppArgs, arena_fail_run]
     exact AErrSim.internal rfl
@@ -425,7 +425,7 @@ private theorem get_app_args_go_aux₀ (n : Nat) :
         obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         rw [fail_run hrun]
-        refine KOut.err ?_
+        refine AOut₀.err ?_
         show AErrSim _ ((Arena.failDanglingE : AM (List EIdx)).run lst)
         exact failDanglingE_errSim lst
       | some q =>
@@ -440,7 +440,7 @@ private theorem get_app_args_go_aux₀ (n : Nat) :
           rw [h1, hn]; rfl
         have hrec := ih (fuel := i1) (h := f1) (k := i2) hi1v hrel hinv hr
         rw [show absU i1 = m from hi1v] at hrec
-        show KOut absEIdxList pers o st
+        show AOut₀ absEIdxList pers o st
           ((do let qs ← getAppArgs m (absEIdx f1); pure (qs ++ [absEIdx a1])).run lst)
         cases hrc : r with
         | Err e =>
@@ -449,7 +449,7 @@ private theorem get_app_args_go_aux₀ (n : Nat) :
               core.result.Result (alloc.vec.Vec arena.handle.EIdx) _) = o :=
             Result.ok_injective hrun
           rw [← ho]
-          refine KOut.err ?_
+          refine AOut₀.err ?_
           rw [StateT.run_bind]
           intro kk hk
           obtain ⟨le, hle, hlk⟩ := hrec kk hk
@@ -462,7 +462,7 @@ private theorem get_app_args_go_aux₀ (n : Nat) :
               core.result.Result (alloc.vec.Vec arena.handle.EIdx) _) = o :=
             Result.ok_injective hrun
           rw [← ho]
-          refine KOut.ok ?_ hrel' hinv'
+          refine AOut₀.ok ?_ hrel' hinv'
           rw [StateT.run_bind, hx]
           show Except.ok _ = _
           rw [show absEIdxList args1 = absEIdxList args ++ [absEIdx a1] by
@@ -482,7 +482,7 @@ private theorem get_app_args_go_aux₀ (n : Nat) :
           intro hcc; exact hc (absU32_inj hcc)
         simp [this]]
       simp only [Bool.false_eq_true, if_false]
-      refine KOut.ok ?_ hrel hinv
+      refine AOut₀.ok ?_ hrel hinv
       show Except.ok ([], lst) = _
       rfl
 
@@ -492,7 +492,7 @@ theorem get_app_args_refines₀ {pers : arena.store.PersTier}
     {h : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.expr_ops.get_app_args pers st fuel h = ok o) :
-    KOut absEIdxList pers o st ((getAppArgs (absU fuel) (absEIdx h)).run lst) := by
+    AOut₀ absEIdxList pers o st ((getAppArgs (absU fuel) (absEIdx h)).run lst) := by
   rw [arena.expr_ops.get_app_args] at hrun
   exact get_app_args_go_aux₀ fuel.val rfl hrel hinv hrun
 
@@ -513,7 +513,7 @@ apply, so:
 * `headRes` and `mkAppNRes` are GONE: the twin's `unfoldDefinition` now tests
   the head's TAG where the port does (round 4's audit), so no resolution fact
   is consumed, and the `AnswerResolvesOpt` conjunct they fed is gone with the
-  `KSim` conclusion;
+  `Sim₀` conclusion;
 * `instLPFast` and `mkAppN` are the lockstep statements the `ExprOps` tier's
   migration to `AStateRel₀` owes — no premise beyond the relation and the
   invariant.  Round 4's audit found `inst_lp_fast` and `mk_app_n` in lockstep
@@ -528,7 +528,7 @@ structure ExprOpsHyp (pers : arena.store.PersTier) : Prop where
     {value : arena.handle.EIdx} {o},
     AStateRel₀ pers st lst → AStateInv pers st →
     arena.expr_ops.inst_lp_fast pers st fuel lps us value = ok o →
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (instLPFast (absU fuel) (lps.val.map absNIdx) (absLsIdx us)
         (absEIdx value))
   /-- `Refine2/ExprOps/Mut.lean`'s `mk_app_n_refines`, at the lockstep
@@ -537,7 +537,7 @@ structure ExprOpsHyp (pers : arena.store.PersTier) : Prop where
     {args : alloc.vec.Vec arena.handle.EIdx} {o},
     AStateRel₀ pers st lst → AStateInv pers st →
     arena.expr_ops.mk_app_n pers st f args = ok o →
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (Arena.mkAppN (absEIdx f) (absEIdxList args))
 
 /-! ## `const_val_at` — the delta step's memo
@@ -590,7 +590,7 @@ theorem const_val_at_refines {pers st lst} {n : arena.handle.NIdx}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.core.const_val_at pers st n lps value us = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (constValAt (absNIdx n) (lps.val.map absNIdx) (absEIdx value)
         (absLsIdx us)) := by
   have hfuel := core_walk_fuel_abs
@@ -604,7 +604,7 @@ theorem const_val_at_refines {pers st lst} {n : arena.handle.NIdx}
     rw [hoc] at hrun hprobe
     have ho : (core.result.Result.Ok x, st) = o := Result.ok_injective hrun
     rw [← ho]
-    exact KOut.ok (constValAt_hit _ _ _ _ _ _ hprobe.symm) hrel hinv
+    exact AOut₀.ok (constValAt_hit _ _ _ _ _ _ hprobe.symm) hrel hinv
   | none =>
     rw [hoc] at hrun hprobe
     obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -619,15 +619,15 @@ theorem const_val_at_refines {pers st lst} {n : arena.handle.NIdx}
     | Err er =>
       have ho : (core.result.Result.Err er, st1) = o := Result.ok_injective hrun
       rw [← ho]
-      exact KOut.err (AErrSim.of_eq (AErrSim.bind (KSim.apply_err hbody) _) htw)
+      exact AOut₀.err (AErrSim.of_eq (AErrSim.bind (Sim₀.apply_err hbody) _) htw)
     | Ok r1 =>
-      obtain ⟨lst1, hb1, hrel1, hinv1⟩ := KSim.apply hbody
+      obtain ⟨lst1, hb1, hrel1, hinv1⟩ := Sim₀.apply hbody
       obtain ⟨st2, hs2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have ho : (core.result.Result.Ok r1, st2) = o := Result.ok_injective hrun
       rw [← ho]
       obtain ⟨hrel2, hinv2⟩ := const_val_set_rel hrel1 hinv1 hs2
       rw [nls_key_abs hk] at hrel2
-      refine KOut.ok ?_ hrel2 hinv2
+      refine AOut₀.ok ?_ hrel2 hinv2
       rw [htw, hb1]
       rfl
 
@@ -808,7 +808,7 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe)
     (hrun : arena.core.unfold_definition pers vis st fe e = ok o) :
-    KSim (Option.map absEIdx) pers lst o
+    Sim₀ (Option.map absEIdx) pers lst o
       (unfoldDefinition lfe (absEIdx e)) := by
   have hfuel := core_walk_fuel_abs
   rw [arena.core.unfold_definition] at hrun
@@ -825,7 +825,7 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
     have ho : (core.result.Result.Err (T := Option arena.handle.EIdx) er, st) = o :=
       Result.ok_injective hrun
     rw [← ho]
-    exact KOut.err (AErrSim.of_eq (AErrSim.bind hfn _) htw0)
+    exact AOut₀.err (AErrSim.of_eq (AErrSim.bind hfn _) htw0)
   | Ok h =>
     obtain ⟨lst0, hb0, hrel0, hinv0⟩ := hfn
     have htw1 : (unfoldDefinition lfe (absEIdx e)).run lst
@@ -858,7 +858,7 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
           (kernel.core_types.CheckError.Internal cps), st) = o :=
           Result.ok_injective hrun
         rw [← ho]
-        refine KOut.err (AErrSim.internal
+        refine AOut₀.err (AErrSim.internal
           (s := "arena: dangling expression handle") ?_)
         rw [htw1, unfoldDefAt_run _ _ _ _ htag, hvw]
         rfl
@@ -877,7 +877,7 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
           have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
               = o := Result.ok_injective hrun
           rw [← ho]
-          refine KOut.ok (lst' := lst0) ?_ hrel0 hinv0
+          refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
           rw [htw2, unfoldDefConst_run, ← hfind]
           rfl
         | some ii =>
@@ -926,7 +926,7 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
                 | none => rfl
                 | some l => rw [hq] at hvl; simp at hvl
               rw [← ho]
-              refine KOut.err (AErrSim.internal
+              refine AOut₀.err (AErrSim.internal
                 (s := "arena: dangling level-list handle") ?_)
               rw [htw3, hvn]
             | some usl =>
@@ -965,10 +965,10 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
                     (T := Option arena.handle.EIdx) er, st1) = o :=
                     Result.ok_injective hrun
                   rw [← ho]
-                  exact KOut.err (AErrSim.of_eq
-                    (AErrSim.bind (KSim.apply_err hcva) _) htw4)
+                  exact AOut₀.err (AErrSim.of_eq
+                    (AErrSim.bind (Sim₀.apply_err hcva) _) htw4)
                 | Ok v =>
-                  obtain ⟨lst1, hb1, hrel1, hinv1⟩ := KSim.apply hcva
+                  obtain ⟨lst1, hb1, hrel1, hinv1⟩ := Sim₀.apply hcva
                   have htw5 : (unfoldDefinition lfe (absEIdx e)).run lst
                       = ((getAppArgs coreWalkFuel (absEIdx e)).run lst1) >>= fun q =>
                           ((Arena.mkAppN (absEIdx v) q.1).run q.2) >>= fun r =>
@@ -983,7 +983,7 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
                       (T := Option arena.handle.EIdx) er, st1) = o :=
                       Result.ok_injective hrun
                     rw [← ho]
-                    exact KOut.err (AErrSim.of_eq
+                    exact AOut₀.err (AErrSim.of_eq
                       (AErrSim.bind hga _) htw5)
                   | Ok args =>
                     obtain ⟨lst2, hb2, hrel2, hinv2⟩ := hga
@@ -1001,15 +1001,15 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
                         (T := Option arena.handle.EIdx) er, st2) = o :=
                         Result.ok_injective hrun
                       rw [← ho]
-                      exact KOut.err (AErrSim.of_eq
-                        (AErrSim.bind (KSim.apply_err hmk) _) htw6)
+                      exact AOut₀.err (AErrSim.of_eq
+                        (AErrSim.bind (Sim₀.apply_err hmk) _) htw6)
                     | Ok r4 =>
-                      obtain ⟨lst3, hb3, hrel3, hinv3⟩ := KSim.apply hmk
+                      obtain ⟨lst3, hb3, hrel3, hinv3⟩ := Sim₀.apply hmk
                       have ho : (core.result.Result.Ok
                         (T := Option arena.handle.EIdx) (some r4), st2) = o :=
                         Result.ok_injective hrun
                       rw [← ho]
-                      refine KOut.ok (lst' := lst3) ?_ hrel3 hinv3
+                      refine AOut₀.ok (lst' := lst3) ?_ hrel3 hinv3
                       rw [htw6, hb3]; rfl
               · rw [if_neg hb] at hrun
                 have ho : (core.result.Result.Ok
@@ -1022,7 +1022,7 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
                   apply Aeneas.Std.UScalar.eq_imp
                   exact hx2
                 rw [← ho]
-                refine KOut.ok (lst' := lst0) ?_ hrel0 hinv0
+                refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
                 rw [htw3, hl]
                 dsimp only
                 rw [if_neg hlt]
@@ -1031,42 +1031,42 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
             have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
                 = o := Result.ok_injective hrun
             rw [← ho]
-            refine KOut.ok (lst' := lst0) ?_ hrel0 hinv0
+            refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
             rw [htw2, unfoldDefConst_run, ← hfind]
             rfl
           | ThmInfo cv v =>
             have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
                 = o := Result.ok_injective hrun
             rw [← ho]
-            refine KOut.ok (lst' := lst0) ?_ hrel0 hinv0
+            refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
             rw [htw2, unfoldDefConst_run, ← hfind]
             rfl
           | IndInfo cv caps =>
             have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
                 = o := Result.ok_injective hrun
             rw [← ho]
-            refine KOut.ok (lst' := lst0) ?_ hrel0 hinv0
+            refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
             rw [htw2, unfoldDefConst_run, ← hfind]
             rfl
           | CtorInfo cv np nf =>
             have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
                 = o := Result.ok_injective hrun
             rw [← ho]
-            refine KOut.ok (lst' := lst0) ?_ hrel0 hinv0
+            refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
             rw [htw2, unfoldDefConst_run, ← hfind]
             rfl
           | RecInfo cv mi rp rules =>
             have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
                 = o := Result.ok_injective hrun
             rw [← ho]
-            refine KOut.ok (lst' := lst0) ?_ hrel0 hinv0
+            refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
             rw [htw2, unfoldDefConst_run, ← hfind]
             rfl
           | ProjInfo tbl =>
             have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
                 = o := Result.ok_injective hrun
             rw [← ho]
-            refine KOut.ok (lst' := lst0) ?_ hrel0 hinv0
+            refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
             rw [htw2, unfoldDefConst_run, ← hfind]
             rfl
     · -- the port's `else` arm, off the tag: the twin tests the same tag
@@ -1074,7 +1074,7 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
       have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
           = o := Result.ok_injective hrun
       rw [← ho]
-      refine KOut.ok (lst' := lst0) ?_ hrel0 hinv0
+      refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
       rw [htw1, unfoldDefAt_run_ne _ _ _ _ (fun hx2 => hts (absU32_inj (by
         rw [← hta, hx2, etag_const_abs])))]
       rfl

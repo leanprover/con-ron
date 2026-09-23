@@ -294,7 +294,10 @@ structure PinsRel (rp : arena.pins.Pins) (lp : Pins) : Prop where
 
 /-! ## The whole state -/
 
-/-- **`absState`**, as a relation: `(pers, st)` against the twin's `AState`.
+/-- **Deprecated shim** (task #97-T2-LOCKSTEP): Theorem 2's relation is
+`AStateRel₀` below; `storeWF` is Theorem 1's invariant and leaves Theorem 2
+lane by lane.  **`absState`**, as a relation: `(pers, st)` against the twin's
+`AState`.
 
 **`storeWF` — finding 16's clause, task #97-P5-Specs.**  Task #97-P5-3 round 3
 measured that an interning walk's every step needs `StoreWF` at the store it

@@ -65,7 +65,9 @@ use crate::arena::std_axioms::{choice_name, propext_name};
 use crate::arena::trust_axioms::{
     of_reduce_bool_name, of_reduce_nat_name, reduce_op_names, trust_compiler_name,
 };
-use crate::arena::pins::{pin_quot_sound, pin_sorry_ax};
+use crate::arena::pins::{pin_quot_sound, pin_sorry_ax, Pins};
+use crate::arena::env::nidx_vec_dup;
+use crate::arena::store::{EStore, ETables, LTables, LsTables, NTables};
 use crate::kernel::core_k;
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env as cenv;
@@ -77,6 +79,19 @@ use crate::arena::store::PersTier;
 // ---------------------------------------------------------------------------
 // The messages of this module's declines
 // ---------------------------------------------------------------------------
+
+/// con-leche: none — the phase boundary, which con-leche has no tier to make
+/// `"arena: phase boundary on a frozen store"`, as code points: `freeze_tier`'s
+/// decline when the store it is handed is already frozen.  Raised as the port's
+/// own `Native` (the store's `M_FROZEN` is its precedent): con-leche and the
+/// twin have no frozen tier, so the refinement claims nothing when it fires,
+/// and no run of the binary reaches it — the one store the driver freezes is
+/// phase A's, whose four flags are down.
+pub const M_REFREEZE: [u32; 39] = [
+    97, 114, 101, 110, 97, 58, 32, 112, 104, 97, 115, 101, 32, 98, 111, 117, 110, 100, 97,
+    114, 121, 32, 111, 110, 32, 97, 32, 102, 114, 111, 122, 101, 110, 32, 115, 116, 111, 114,
+    101
+];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"quotient basis requires the pinned Eq basis"`, as code points.
@@ -1284,6 +1299,215 @@ pub fn install_then_check(
         Ok(p) => match check_pending_list(pers, st, mode, &p.1, &p.2, 0) {
             Err(e) => Err(e),
             Ok(()) => Ok(p.1),
+        },
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The driver's fold: the phase boundary and phase B on a worker
+// (task #97-P5-Driver)
+//
+// `install_then_check` above threads ONE state through both phases.  The
+// binary does not: at the phase boundary it FREEZES the persistent tier into
+// one `PersTier` every phase-B worker borrows, and each worker checks its
+// records on a state of its own over that tier (`crates/con-ron/src/pool.rs`).
+// Every sequential piece of that is here, in the verified crate, so that the driver is a straight line
+// of calls into extracted functions and the one thing it does not share with
+// `check_decls_phased` below is the pool's scheduling:
+//
+//   annot_fold_hooked       phase A (`annot_fold`, plus a read-only hook)
+//   freeze_tier             the boundary
+//   worker_state            a phase-B worker's state over the frozen tier
+//   check_pending_worker    phase B on one worker in record order — what the
+//                           pool is argued equal to, by record index
+//   thaw_tier               the boundary undone
+// ---------------------------------------------------------------------------
+
+/// con-leche: Main.lean:67-141 installLoop
+/// What the driver prints between phase A's steps (the `--progress`
+/// heartbeat's install line), as a trait the verified fold calls: the hook
+/// takes the state by SHARED reference and returns nothing, so it cannot
+/// change a verdict — `annot_fold_hooked` is `annot_fold` with a call to it
+/// before each step, and `Refine2/Checker/Phased.lean` proves the two equal.
+/// `Modeller`'s arrangement (`frontend::types`): the trait is declared here,
+/// the implementations live in the unverified crate.
+pub trait InstallHook {
+    /// con-leche: Main.lean:67-141 installLoop
+    /// Before record `pos` of `total` is installed.
+    fn install_before(&self, pers: &PersTier, ar: &EStore, pos: u64, total: usize, d: &IDeclaration);
+}
+
+/// con-leche: ConLeche/Cached/Installed.lean:450-455 checkDecls
+/// Lean twin: none — `annot_fold` with the driver's hook; the twin has no hook
+/// and the refinement is `annot_fold`'s, through the equation
+/// `annot_fold_hooked_eq` (`Refine2/Checker/Phased.lean`).
+/// **Phase A as the driver runs it**: `annot_fold` step for step, with
+/// `h.install_before` called before each record.  The hook reads the store and
+/// writes nothing the fold can see.
+#[allow(clippy::too_many_arguments)]
+pub fn annot_fold_hooked<H: InstallHook>(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    pins: &Vec<INatOpPinSet>,
+    p: (u64, IFEnv, Vec<PendingCheck>),
+    ds: &Vec<IDeclaration>,
+    i: usize,
+    h: &H,
+) -> Result<(u64, IFEnv, Vec<PendingCheck>), (CheckError, u64)> {
+    if i >= ds.len() {
+        Ok(p)
+    } else {
+        h.install_before(pers, &st.store, p.0, ds.len(), &ds[i]);
+        match annot_decl_step(pers, st, mode, pins, p, &ds[i]) {
+            Err(e) => Err(e),
+            Ok(q) => annot_fold_hooked(pers, st, mode, pins, q, ds, i + 1, h),
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/Installed.lean:450-455 checkDecls
+/// Lean twin: none — the fold's start triple, `(0, mkIFEnv IEnv.empty, #[])`,
+/// which `installThenCheck` writes inline.
+/// Phase A's starting accumulator, so that the driver builds it with the same
+/// call the verified fold does.
+pub fn fold_start() -> (u64, IFEnv, Vec<PendingCheck>) {
+    (0, mk_ifenv(i_env_empty()), Vec::new())
+}
+
+/// con-leche: none — the phase boundary, which con-leche has no tier to make
+/// Lean twin: none — the twin has no tier to move; its phase-B worker reads the
+/// persistent tier where it is (`AState.worker`, `Arena/Phased.lean`).
+/// **The persistent tier out of the store and into a value** (task
+/// #97-P6-6b's driver function, moved here by task #97-P5-Driver): the four
+/// stores' persistent tables are moved into one `PersTier` and the four
+/// `shared_on` flags go up, so every later persistent read of this store goes
+/// to the tier the caller now holds and a persistent append is declined
+/// (`arena::store`'s frozen-tier guard).
+///
+/// **A store that is already frozen is declined** (`M_REFREEZE`, `Native`):
+/// its own persistent tables are empty and its reads go to a tier this
+/// function cannot see, so moving the tables out would hand back an empty
+/// tier.  The driver freezes phase A's store once, with every flag down, and
+/// the guard is what lets the refinement state the boundary with no
+/// hypothesis about the flags.
+pub fn freeze_tier(ar: &mut EStore) -> Result<PersTier, CheckError> {
+    if ar.shared_on || ar.lss.shared_on || ar.lss.ls.shared_on || ar.lss.ls.ns.shared_on {
+        Err(CheckError::Native(code_points(&M_REFREEZE)))
+    } else {
+        let n: NTables = core::mem::replace(&mut ar.lss.ls.ns.pers, NTables::empty());
+        let l: LTables = core::mem::replace(&mut ar.lss.ls.pers, LTables::empty());
+        let ls: LsTables = core::mem::replace(&mut ar.lss.pers, LsTables::empty());
+        let e: ETables = core::mem::replace(&mut ar.pers, ETables::empty());
+        ar.shared_on = true;
+        ar.lss.shared_on = true;
+        ar.lss.ls.shared_on = true;
+        ar.lss.ls.ns.shared_on = true;
+        Ok(PersTier { n, l, ls, e })
+    }
+}
+
+/// con-leche: none — the phase boundary, which con-leche has no tier to make
+/// Lean twin: none — the inverse of `freeze_tier`, which has none either.
+/// **`freeze_tier` inverted**: the tier back into the store and the flags
+/// down, so that everything after phase B — the verdict line's label, the
+/// failing record's name, the receipts — reads the handles it was given.
+/// `thaw_tier(ar, freeze_tier(ar))` leaves a store with its flags down exactly
+/// as it found it (`Refine2/Checker/Phased.lean`'s `freeze_thaw`).
+pub fn thaw_tier(ar: &mut EStore, tier: PersTier) {
+    ar.lss.ls.ns.pers = tier.n;
+    ar.lss.ls.pers = tier.l;
+    ar.lss.pers = tier.ls;
+    ar.pers = tier.e;
+    ar.shared_on = false;
+    ar.lss.shared_on = false;
+    ar.lss.ls.shared_on = false;
+    ar.lss.ls.ns.shared_on = false;
+}
+
+/// con-leche: none — the pin table is handles, so a copy is a copy of words
+/// Lean twin: none — the value is `Pins` itself (`Refine2`'s `pins_dup_val`).
+/// A phase-B worker's copy of the driver's `Pins`: sixty-eight handles into the
+/// frozen tier and nothing else, so every record's state may own one and none
+/// of them has to intern anything to fill it.
+pub fn pins_dup(p: &Pins) -> Pins {
+    Pins {
+        names: nidx_vec_dup(&p.names),
+        reserved: nidx_vec_dup(&p.reserved),
+        empty_levels: p.empty_levels.dup2(),
+        zero_level: p.zero_level.dup2(),
+        sort_one: p.sort_one.dup2(),
+    }
+}
+
+/// con-leche: Main.lean:262-278 checkWorker
+/// Lean twin: `proof/ConRon/Arena/Phased.lean:37-44 AState.worker` — the twin's
+/// phase-B worker reads the persistent tier where it is.
+/// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,
+/// moved here by task #97-P5-Driver): an empty store whose four `shared_on`
+/// flags are up, so that every persistent read goes to the `PersTier` the
+/// boundary froze and a persistent append is declined; fresh memos and caches;
+/// and a copy of the pins.  The scratch tier is off until `check_pending`
+/// opens it.
+pub fn worker_state(pins: &Pins) -> AState {
+    let mut st = AState::init(EStore::empty());
+    st.store.shared_on = true;
+    st.store.lss.shared_on = true;
+    st.store.lss.ls.shared_on = true;
+    st.store.lss.ls.ns.shared_on = true;
+    st.pins = pins_dup(pins);
+    st
+}
+
+/// con-leche: ConLeche/Cached/Installed.lean:429-436 checkPendingList
+/// Lean twin: `proof/ConRon/Arena/Phased.lean:46-54 checkPendingWorker` —
+/// **phase B on ONE worker, in record order**: a worker's state
+/// (`worker_state`) and `check_pending_list` from it, over the frozen tier.
+/// This is `pool::check_pool` at one worker call for call — the worker claims
+/// the records in order and checks each with `check_pending` on its one
+/// state — and it is the walk the pool's merged table is argued equal to by
+/// record index at every worker count (`pool.rs`'s note, which also states
+/// the one thing a second worker adds).
+pub fn check_pending_worker(
+    pers: &PersTier,
+    mode: &CheckMode,
+    fe: &IFEnv,
+    pins: &Pins,
+    pend: &Vec<PendingCheck>,
+) -> Result<(), (CheckError, u64)> {
+    let mut st = worker_state(pins);
+    check_pending_list(pers, &mut st, mode, fe, pend, 0)
+}
+
+/// con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls
+/// Lean twin: `proof/ConRon/Arena/Phased.lean:56-67 installThenCheckPhased` —
+/// **the declaration fold the binary runs**, sequentially: phase A
+/// (`annot_fold_hooked`), the boundary (`freeze_tier`), phase B on one worker
+/// over the frozen tier (`check_pending_worker`), the boundary undone
+/// (`thaw_tier`).  `driver::check_decls_driver` is this function with the
+/// observer's read-only lines between the calls and `pool::check_pool` in
+/// place of `check_pending_worker`; the capstone (`ConRon.Capstone`) is
+/// stated about this one.
+pub fn check_decls_phased<H: InstallHook>(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    pins: &Vec<INatOpPinSet>,
+    ds: &Vec<IDeclaration>,
+    h: &H,
+) -> Result<IFEnv, (CheckError, u64)> {
+    match annot_fold_hooked(pers, st, mode, pins, fold_start(), ds, 0, h) {
+        Err(e) => Err(e),
+        Ok(p) => match freeze_tier(&mut st.store) {
+            Err(e) => Err((e, p.0)),
+            Ok(tier) => {
+                let r = check_pending_worker(&tier, mode, &p.1, &st.pins, &p.2);
+                thaw_tier(&mut st.store, tier);
+                match r {
+                    Err(e) => Err(e),
+                    Ok(()) => Ok(p.1),
+                }
+            }
         },
     }
 }

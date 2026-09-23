@@ -758,7 +758,7 @@ structure ResolveInv (mode : ConLeche.CheckMode) (Good : IFEnv → AState → Pr
   /-- **A `Good` state's store is well formed** (task #97-P5-Core round 4).
   The Core tier's front doors are LOCKSTEP statements now — over
   `AStateRel₀`, with no `Ext` — so a consumer that still wants `AStateRel`
-  and `Ext` takes the twin's own two facts from here (`KSim.toSim`), and they
+  and `Ext` takes the twin's own two facts from here (`Sim₀.toSim`), and they
   are Theorem 1's (`StateOK`). -/
   wf : ∀ {fe : IFEnv} {s : AState}, Good fe s → StoreWF s.store
   /-- `inferTypeCore` only extends the store (Theorem 1's run lemma). -/
@@ -1356,6 +1356,156 @@ theorem ind_params_ok_refines {pers st lst} {n_p : Std.U64}
       (indParamsOk (absU n_p) (absICILFrom block i)) := by
   sorry
 
+/-! ## `arena::core::lvl_eq` — the cached level comparison (task #97-P5-Top round 3)
+
+`check_value_group_value`'s theorem arm asks `lvl_eq u zero`, and no tier had
+stated `lvl_eq` against `lvlEq?`: the Core knot's own level comparisons go
+through `lvls_eq`, and the Inductives tier's are inside sorried shapes.  The
+proof is `Refine2/Core/Probes.lean`'s probe/write pair at the `lvlEqC` table
+(key `LIdxPair`, value `Bool`, so no value abstraction), around
+`read_level_m_run` twice and the old tier's `Level.is_equiv_refines`. -/
+
+private theorem absLIdx_surj' : Function.Surjective absLIdx := by
+  intro i
+  obtain ⟨w⟩ := i
+  obtain ⟨x, hx⟩ := absU32_surj w
+  exact ⟨⟨x⟩, by simp [absLIdx, hx]⟩
+
+theorem absLIdxPair_surj : Function.Surjective absLIdxPair := by
+  rintro ⟨a, b⟩
+  obtain ⟨x, hx⟩ := absLIdx_surj' a
+  obtain ⟨y, hy⟩ := absLIdx_surj' b
+  exact ⟨⟨x, y⟩, by simp [absLIdxPair, hx, hy]⟩
+
+theorem absLIdxPair_inj : Function.Injective absLIdxPair := by
+  rintro ⟨a, b⟩ ⟨c, d⟩ h
+  simp only [absLIdxPair, Prod.mk.injEq] at h
+  simp [absLIdx_inj h.1, absLIdx_inj h.2]
+
+/-- `arena::core::lvl_eq_probe` against `lst.caches.lvlEqC[·]?`. -/
+theorem lvl_eq_probe_abs {pers st lst} (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st) {k : arena.core_state.LIdxPair} {o : Option Bool}
+    (hrun : arena.core.lvl_eq_probe st k = ok o) :
+    o = lst.caches.lvlEqC[absLIdxPair k]? := by
+  rw [arena.core.lvl_eq_probe] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hto := ConRon.Refine.HashMap2.get_refines_wf lidxPair_eq2 hinv.caches.lvlEqC
+    ConRon.Refine.HashMap2.KeysOk_true trivial hr
+  have hrelk := hrel.caches.lvlEqC k trivial
+  have ho : o = r := by
+    cases r with
+    | none => exact (Result.ok_injective hrun).symm
+    | some _ => exact (Result.ok_injective hrun).symm
+  rw [ho, ← hrelk, ← hto]
+  simp
+
+/-- The twin's cache hit. -/
+theorem lvlEq?_hit {u v : LIdx} {lst : AState} {r : Bool}
+    (h : lst.caches.lvlEqC[(u, v)]? = some r) :
+    (lvlEq? u v).run lst = .ok (some r, lst) := by
+  show (lvlEq? u v) lst = _
+  simp only [lvlEq?, Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+    Pure.pure, StateT.pure, Except.bind, Except.pure, h]
+
+/-- The twin's cache miss: the two reads, the verdict, and the capped write. -/
+theorem lvlEq?_miss {u v : LIdx} {lst : AState}
+    (h : lst.caches.lvlEqC[(u, v)]? = none) :
+    (lvlEq? u v).run lst = (do
+      let lu ← readLevelM u
+      let lv ← readLevelM v
+      match ConLeche.Level.isEquiv lu lv with
+      | some r => do
+        let s ← get
+        let mp := if s.caches.lvlEqC.size < cacheCap then s.caches.lvlEqC else ∅
+        set { s with caches := { s.caches with lvlEqC := mp.insert (u, v) r } }
+        pure (some r)
+      | none => pure none : AM (Option Bool)).run lst := by
+  show (lvlEq? u v) lst = _
+  simp only [lvlEq?, Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+    Pure.pure, Except.bind, Except.pure, h]
+  rfl
+
+/-- **`lvl_eq` ⊑ `lvlEq?`** — the cached universe comparison. -/
+theorem lvl_eq_refines {pers st lst} (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st) {u v : arena.handle.LIdx} {o}
+    (hrun : arena.core.lvl_eq pers st u v = ok o) :
+    Sim id (fun _ => True) pers lst o (lvlEq? (absLIdx u) (absLIdx v)) := by
+  rw [arena.core.lvl_eq] at hrun
+  obtain ⟨k, hk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hkv : absLIdxPair k = (absLIdx u, absLIdx v) := by
+    rw [arena.core_state.lidx_pair] at hk
+    obtain ⟨a, ha, hk⟩ := ConRon.Refine.bind_eq_ok_iff.mp hk
+    obtain ⟨b, hb, hk⟩ := ConRon.Refine.bind_eq_ok_iff.mp hk
+    have hk' := (Result.ok_injective hk).symm
+    subst hk'
+    simp [absLIdxPair, dupId_lidx _ _ ha, dupId_lidx _ _ hb]
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hpe := lvl_eq_probe_abs hrel hinv hp
+  rw [hkv] at hpe
+  unfold Sim
+  cases p with
+  | some r =>
+    have ho := (Result.ok_injective hrun).symm
+    subst ho
+    exact AOut.ok (lvlEq?_hit hpe.symm) hrel hinv (Ext.refl _) trivial
+  | none =>
+  rw [lvlEq?_miss hpe.symm]
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r1, st1⟩ := q1
+  have hwf1 := (read_level_m_wf hinv hq1).1
+  have hS1 := read_level_m_run hrel hinv hq1
+  cases r1 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS1
+  | Ok lu =>
+  obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+  rw [run_bind_ok hx1]
+  refine AOut.rebase hext1 ?_
+  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r2, st2⟩ := q2
+  have hwf2 := (read_level_m_wf hinv1 hq2).1
+  have hS2 := read_level_m_run hrel1 hinv1 hq2
+  cases r2 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS2
+  | Ok lv =>
+  obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+  rw [run_bind_ok hx2]
+  refine AOut.rebase hext2 ?_
+  obtain ⟨o1, ho1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have heq := ConRon.Refine.Level.is_equiv_refines (hwf1 lu rfl) (hwf2 lv rfl) ho1
+  simp only at heq ⊢
+  rw [heq]
+  cases o1 with
+  | none =>
+    have ho := (Result.ok_injective hrun).symm
+    subst ho
+    exact AOut.ok rfl hrel2 hinv2 (Ext.refl _) trivial
+  | some r =>
+  obtain ⟨st3, hst3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have ho := (Result.ok_injective hrun).symm
+  subst ho
+  rw [arena.core.lvl_eq_set] at hst3
+  obtain ⟨n, hn, hst3⟩ := ConRon.Refine.bind_eq_ok_iff.mp hst3
+  obtain ⟨hm, hfit, hst3⟩ := ConRon.Refine.bind_eq_ok_iff.mp hst3
+  obtain ⟨pp, hpp, hst3⟩ := ConRon.Refine.bind_eq_ok_iff.mp hst3
+  obtain ⟨old, hm2⟩ := pp
+  have hst : st3 = { st2 with caches := { st2.caches with lvl_eq_c := hm2 } } :=
+    (Result.ok_injective hst3).symm
+  subst hst
+  obtain ⟨h1, h2⟩ := cache_insert_step lidxPair_eq2 absLIdxPair_surj absLIdxPair_inj
+    hinv2.caches.lvlEqC hrel2.caches.lvlEqC hn hfit hpp
+  rw [hkv] at h1
+  let mp0 := if lst2.caches.lvlEqC.size < cacheCap then lst2.caches.lvlEqC else ∅
+  let mp2 := mp0.insert (absLIdx u, absLIdx v) r
+  exact AOut.ok (lst' := { lst2 with caches := { lst2.caches with lvlEqC := mp2 } }) rfl
+    { hrel2 with caches := { hrel2.caches with lvlEqC := h1 } }
+    { hinv2 with caches := { hinv2.caches with lvlEqC := h2 } } (Ext.refl _) trivial
+
 /-! ## `arena::checker_split` — the install/check seam of a value declaration
 
 DESIGN §8.3's per-declaration bracket lives here: the install half writes the
@@ -1422,7 +1572,23 @@ theorem install_value_refines {pers st lst} {vis : Std.U64} {rf lf}
   sorry
 
 /-- `check_value_group_value` is `check_value_group`'s middle: the theorem's
-is-a-proposition test and, for a theorem, the value's guards and annotation. -/
+is-a-proposition test and, for a theorem, the value's guards and annotation.
+
+**Open, and stopped on a divergence** (task #97-P5-Top round 3).  The glue is
+written in the round-3 log (`is_thm ; zero_level ; lvl_eq ; lift_fueled ;
+install_value ; check_value_group_tail`, with `lvl_eq_refines` above), but it
+closes only with three clauses the statement does not have and, by the
+coordinator's round-3 rule, must not grow:
+
+* the NOT-A-PROPOSITION decline: the Rust fails with the constant message
+  `M_THM_NOT_PROP`, the twin with `s!"… {← readName g.cvA.name} …"` — a store
+  READ on the twin side only, which throws `.internal` where the name does not
+  decode, so the kinds differ there (the same divergence as `checkDecl`'s
+  `.defnDecl` arm, round 4 §4);
+* `Good` across `lvlEq?` and `installValue` (two `ResolveInv` fields), needed
+  only because `install_value_refines` and the tail's Core front door take
+  `Good`/`EResolves` — the front doors' tag-versus-view divergence (task
+  #97-P5-0's finding 3). -/
 theorem check_value_group_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
     {u : arena.handle.LIdx} {o} {Good : IFEnv → AState → Prop}
@@ -1438,7 +1604,14 @@ theorem check_value_group_value_refines {pers st lst} {vis : Std.U64} {rf lf}
   sorry
 
 /-- `check_value_group_tail` is `check_value_group`'s tail: the value's type
-against the declared one. -/
+against the declared one.
+
+**Open, and stopped on a divergence** (task #97-P5-Top round 3): the
+type-mismatch decline is `Invalid (value_kind_word g.kind)` in the Rust and
+`s!"type mismatch in {g.kind.word} {← readName g.cvA.name}"` in the twin — a
+twin-only store read that throws `.internal` at a dangling name.  Everything
+else composes from the statement's own hypotheses (`infer_type_core`,
+`is_def_eq_core` at the prefix view, `ResolveInv.infer`, `VGResolves`). -/
 theorem check_value_group_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
     {jv : arena.handle.EIdx} {o} {Good : IFEnv → AState → Prop}
@@ -1463,7 +1636,7 @@ through `Refine2/Core`'s front doors at the prefix view `CoreCtx vis rf
 (lf.restrictTo (absU vis))` (`IFEnvInv.coreCtxAt`) and the knot at
 `checkFuel` (`knotRel_checkFuel'`).  **Since task #97-P5-Core round 4 the two
 front doors are lockstep statements** (`AStateRel₀`, no `StoreWF`, no
-`EResolves` premise, a `KSim` conclusion without `Ext`), so they need nothing
+`EResolves` premise, a `Sim₀` conclusion without `Ext`), so they need nothing
 of the precondition; what this proof still takes from `ResolveInv` is what
 its OWN conclusion (`Sim`, over `AStateRel` with `Ext`) and its callee
 `check_value_group_value_refines` need: `Good` along the twin run
@@ -1496,11 +1669,11 @@ theorem check_value_group_refines {pers st lst} {vis : Std.U64} {rf lf}
   | Err e =>
     have ho := Result.ok_injective hrun
     subst ho
-    exact AOut.err (by rw [StateT.run_bind]; exact AErrSim.bind (KSim.apply_err hS1) _)
+    exact AOut.err (by rw [StateT.run_bind]; exact AErrSim.bind (Sim₀.apply_err hS1) _)
   | Ok stype =>
   -- the lockstep front door gives `AStateRel₀`; `StoreWF` and `Ext` are the
   -- twin's own, from `ResolveInv` (task #97-P5-Core round 4)
-  obtain ⟨lst1, hx1, hrel1, hinv1⟩ := KSim.apply hS1
+  obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS1
   obtain ⟨hres1, hg1⟩ := hR.infer hg hres hx1
   have hext1 := hR.inferExt hg hres hx1
   rw [run_bind_ok hx1]
@@ -1514,9 +1687,9 @@ theorem check_value_group_refines {pers st lst} {vis : Std.U64} {rf lf}
   | Err e =>
     have ho := Result.ok_injective hrun
     subst ho
-    exact AOut.err (by rw [StateT.run_bind]; exact AErrSim.bind (KSim.apply_err hS2) _)
+    exact AOut.err (by rw [StateT.run_bind]; exact AErrSim.bind (Sim₀.apply_err hS2) _)
   | Ok u =>
-  obtain ⟨lst2, hx2, hrel2, hinv2⟩ := KSim.apply hS2
+  obtain ⟨lst2, hx2, hrel2, hinv2⟩ := Sim₀.apply hS2
   have hg2 := hR.ensureSort hg1 hres1 hx2
   have hext2 := hR.ensureSortExt hg1 hres1 hx2
   rw [run_bind_ok hx2]
@@ -1538,5 +1711,8 @@ theorem check_value_group_refines {pers st lst} {vis : Std.U64} {rf lf}
 
 /-- info: 'ConRon.Refine2.is_thm_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms is_thm_refines
+
+/-- info: 'ConRon.Refine2.lvl_eq_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lvl_eq_refines
 
 end ConRon.Refine2

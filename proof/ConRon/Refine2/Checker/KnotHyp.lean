@@ -56,7 +56,7 @@ the call site rather than here:
 
 1. **The entries are LOCKSTEP statements** (task #97-P5-Core round 4): over
    `AStateRel₀` (take `hrel.to₀`), with no `StoreWF` and no `EResolves`
-   premise, and a `KSim` conclusion without `Ext`.  A checker-tier proof that
+   premise, and a `Sim₀` conclusion without `Ext`.  A checker-tier proof that
    still concludes `Sim` gets the twin's `StoreWF` and `Ext` from `ResolveInv`
    (`wf`, `inferExt`, `ensureSortExt`) — Theorem 1's — and rebuilds
    `AStateRel` with `AStateRel₀.of₀`; `check_value_group_refines` is the one

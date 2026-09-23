@@ -509,8 +509,8 @@ and the holes drift apart.
 | **`rustc`, the Rust standard library, and the allocator** | Nothing.  This is the trade the project makes: Lean's compiler, runtime and GMP for these.  The allocator cannot change a verdict, only memory and time |
 | **`overflow-checks = true`** in the [release profile](https://github.com/leanprover/con-ron/blob/master/Cargo.toml#L19-L23) | The model is the checked-arithmetic one.  A build without it would wrap where the model fails, and the model would no longer describe it |
 | **The modeller**, [`crates/con-ron/src/in_model/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/in_model.rs#L28-L32), unverified by design | The two hypotheses of §3, `ModellerWF` and `ModellerRefines`.  Every record it generates is checked by the fold as a stream declaration, so a wrong one is rejected or declined, never accepted; what it decides is which blocks the checker can accept, not whether an accepted one is sound |
-| **The driver**, [`driver.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L5-L14) | That it calls the verified steps on the bytes it read and on the embedded pin text, and maps the outcome to the exit codes of §1 |
-| **The worker pool**, [`pool.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/pool.rs#L49-L56) | An argument, not a proof: the workers' results are merged by record index and walked in record order, so the verdict is the sequential walk's at every `--jobs`, and a test that a failure is reported first at every worker count |
+| **The driver**, [`driver.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L5-L14) | That it calls the verified steps on the bytes it read and on the embedded pin text, and maps the outcome to the exit codes of §1.  The read loop is the verified `parse_source` over the file handle, and that the handle's reads are the file's bytes in order is the capstone's `ReadsAs` hypothesis.  The declaration fold is a [straight line of verified calls](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L472-L490) — phase A, the tier frozen, phase B, the tier thawed — and the capstone is stated about `check_decls_phased`, the same line with the one-worker walk where the pool is; the observer between the calls holds only shared references |
+| **The worker pool**, [`pool.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/pool.rs#L47-L105) | An argument, not a proof, that the pool returns what the verified one-worker walk `check_pending_worker` returns: the workers' results are merged by record index and walked in record order, and — because a worker keeps one state across its records, which fresh per-record states would cost 16 % of the instructions on `Init` — a record's outcome does not depend on which records its worker checked before it (the bracket resets everything but capacity).  Two tests: the pool equals the walk, and a failure is reported first, at every worker count |
 | **One extra axiom on the embedded pair only**, `pins_text.PINS_TEXT._native.decide.ax_1` | Aeneas discharges the size bound of every extracted string constant with `decide +native` in the constant's own definition (AENEAS_FINDINGS.md §3.8).  It lives in a definition, not a computation, and is not the port's to remove; the parsed capstone does not carry it |
 
 And **no `unsafe`** in the verified crate: tasks #94-#97-SWAP had twelve
@@ -594,7 +594,7 @@ functions are `abs*`, the relations `*Rel`, the well-formedness predicates
 ## 12. Gates
 
 `scripts/gates.sh` runs, in order, and stops at the first failure
-([the sixteen steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L62-L96)):
+([the sixteen steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L62-L100)):
 
 1. `cargo build` with warnings denied;
 2. `cargo test`;

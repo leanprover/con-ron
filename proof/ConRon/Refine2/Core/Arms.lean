@@ -16,8 +16,8 @@ statement; the arms themselves live in `Core/Arms/`:
 | `Core/Eqns.lean` | the 109 `partial_fixpoint` unfolding equations of `arena::core`'s two mutual blocks, derived ONCE (≈ 9.4 s each; ≈ 17 min, once) and cached into one `.olean` that every arm file imports | — |
 | `Core/Arms/Sort.lean` | the `view`/tag agreement — the ten-way `EStore_view_tagOf` and the `sort` projection — and **`ensure_sort_refines`** | **all** |
 | `Core/Arms/Gated.lean` | `bodyRel_stuckGatedCore` — the gated body's identity at a stuck tag (task #97-P5-Core's finding 12, first half).  It was a `BodyRel` FIELD until task #97-P5-Core-2 put the port's fuel-0 arm back in `coreKnotGated`; the fact stays true and stays proved | **all** |
-| `Core/Arms/Delta.lean` | the `whnf` loop's DELTA leaf (task #97-P5-Core-2): `ifenv_find_abs` (the environment index's one reader), the `const` tag/view agreement, `nidx_vec_dup_val`, `const_val_at_refines` and **`unfold_definition_refines`** | **all** |
-| `Core/Arms/Loops.lean` | the two loops' SECOND fuel dimension: `whnf_step` / `whnf_loop` / `whnf_body` **closed** modulo ONE leaf (`reduce_nat`); the `defeq` triple stated at the corrected shape | 11 of 14 |
+| `Core/Arms/Delta.lean` | the `whnf` loop's DELTA leaf (task #97-P5-Core-2): `ifenv_find_abs` (the environment index's one reader), the `const` tag/view agreement, `nidx_vec_dup_val`, `const_val_at_refines` and **`unfold_definition_refines`** — lockstep since task #97-P5-Core round 4, closed modulo `ExprOpsHyp` (the `ExprOps` migration's two walks) | **all** (modulo `ExprOpsHyp`) |
+| `Core/Arms/Loops.lean` | the two loops' SECOND fuel dimension: `whnf_step` / `whnf_loop` / `whnf_body` **closed** modulo `reduce_nat` and `ExprOpsHyp`; the `defeq` triple stated at the corrected shape (all lockstep since round 4) | 11 of 14 |
 | `Core/Arms/Batched.lean` | the five batched clauses of tasks #97-P6-9, -11, -12 and -14, each against the twin's own batched form | 0 of 5 |
 
 ## What each body needs, counted
@@ -78,7 +78,7 @@ open ConRon.Arena
 **Task #97-P5-Core round 4: the skeleton.**  `bodyRel_of_knot` is no longer
 one `sorry`: it is the seven `BodyRel` fields assembled from one child per
 body, every child a LOCKSTEP statement over `AStateRel₀` (no `StoreWF`, no
-`EResolves`, `KSim`).  Two of the seven are already the loops of
+`EResolves`, `Sim₀`).  Two of the seven are already the loops of
 `Core/Arms/Loops.lean` (`whnf_body_refines`, closed modulo `reduce_nat` and
 the `ExprOpsHyp` seam; `defeq_body_refines`, whose loop is open); the other
 five are the ten-way dispatches below. -/
@@ -90,7 +90,7 @@ theorem whnf_core_body_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.whnf_core_body pers vis st mode lane fu fe depth e = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (whnfCoreBody (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e)) := by
@@ -104,7 +104,7 @@ theorem whnf_core_body_gated_refines {f : Nat} (hk : KnotRel f)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core_gated.whnf_core_body_gated pers vis st mode lane fu fe depth e
       = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (whnfCoreBodyGated (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e)) := by
@@ -116,7 +116,7 @@ theorem infer_body_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.infer_body pers vis st mode lane fu fe depth e = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (inferBody (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e)) := by
@@ -128,7 +128,7 @@ theorem infer_body_io_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.infer_body_io pers vis st mode lane io fu fe depth e = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (inferBodyIO (ConRon.Refine.absMode mode)
         (laneKnotAt (ConRon.Refine.absMode mode) lfe lane io f) lfe
         (absU depth) (absEIdx e)) := by
@@ -140,7 +140,7 @@ theorem annotate_body_refines {f : Nat} (hk : KnotRel f)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.annotate_body pers vis st mode lane fu fe depth e = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (annotateBody (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e)) := by
   sorry

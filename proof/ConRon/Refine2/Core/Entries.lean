@@ -15,11 +15,11 @@ a knot slot (it runs `r.whnf` and then reads the view), so it belongs in
 **What the Checker tier should call:** `knotRel_checkFuel`, below —
 `KnotRel (absU CHECK_FUEL)`, i.e. `KnotRel 100000` — and then the six
 `*_refines`.  **Since task #97-P5-Core round 4 they are LOCKSTEP statements**:
-over `AStateRel₀` (no `StoreWF`), with no `EResolves` premise and a `KSim`
+over `AStateRel₀` (no `StoreWF`), with no `EResolves` premise and a `Sim₀`
 conclusion (no `Ext`).  Task #97-P5-0's finding 3 — the tag-first / view-first
 split that made them need a resolving argument — is gone because the twin now
 tests the tag where the port does (round 4's audit); a consumer that still
-wants `Sim` takes `KSim.toSim` with the twin's own two facts from Theorem 1.
+wants `Sim` takes `Sim₀.toSim` with the twin's own two facts from Theorem 1.
 -/
 import ConRon.Refine2.Core.Induction
 
@@ -48,7 +48,7 @@ theorem whnf_core_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ 
     (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
     (hf : absU fu = f)
     (hrun : arena.core.whnf_core pers vis st mode fe fu depth e = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (Arena.whnfCore (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by
   rw [arena.core.whnf_core] at hrun
@@ -63,7 +63,7 @@ theorem whnf_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers 
     (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
     (hf : absU fu = f)
     (hrun : arena.core.whnf pers vis st mode fe fu depth e = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (Arena.whnf (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by
   rw [arena.core.whnf] at hrun
@@ -76,7 +76,7 @@ theorem infer_type_core_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateR
     (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
     (hf : absU fu = f)
     (hrun : arena.core.infer_type_core pers vis st mode fe fu depth e = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (Arena.inferTypeCore (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by
   rw [arena.core.infer_type_core] at hrun
@@ -89,7 +89,7 @@ theorem infer_type_io_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel
     (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
     (hf : absU fu = f)
     (hrun : arena.core.infer_type_io pers vis st mode fe fu depth e = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (Arena.inferTypeIO (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by
   rw [arena.core.infer_type_io] at hrun
@@ -102,7 +102,7 @@ theorem is_def_eq_core_refines {f : Nat} (hk : KnotRel f) {a b o} (hrel : AState
     (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
     (hf : absU fu = f)
     (hrun : arena.core.is_def_eq_core pers vis st mode fe fu depth a b = ok o) :
-    KSim id pers lst o
+    Sim₀ id pers lst o
       (Arena.isDefEqCore (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx a) (absEIdx b)) := by
   rw [arena.core.is_def_eq_core] at hrun
@@ -115,7 +115,7 @@ theorem annotate_core_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel
     (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
     (hf : absU fu = f)
     (hrun : arena.core.annotate_core pers vis st mode fe fu depth e = ok o) :
-    KSim absEIdx pers lst o
+    Sim₀ absEIdx pers lst o
       (Arena.annotateCore (ConRon.Refine.absMode mode) lfe f (absU depth)
         (absEIdx e)) := by
   rw [arena.core.annotate_core] at hrun

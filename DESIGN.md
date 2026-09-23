@@ -41647,6 +41647,168 @@ round-9 group: `checkDecl_nodup`, `Arena.checkPending_prefix`,
 `denoteN_default_of_pinNames`, `internPinSets_run`, `bracketClose_foldOK`,
 `FoldOK.projMem` print the three standard axioms only.
 
+#### Round 10 — `DeclOut`'s two clauses, the pinned blocks' `ConstWF`, and the first two divMod guards (2026-09-23, Opus under Fable)
+
+Branch `checker-r10` off `arena`'s `e899ecd1`, merged forward three times
+(`aa1dc3e2`, `6cfd995d`).  **Landed in two parts**: this part lands early
+because the Inductives tier waits on §4; part 2 (the remaining divMod pieces)
+follows in a new worktree.  Diff: `Bridge/Checker/**` only.
+
+##### 1. `DeclOut` gains `envWF` and `proj` (the coordinator's ruling on round 9)
+
+`DeclOut` (`Checker/Decl.lean`) has two new clauses:
+`envWF : ∀ env', denoteFEnv s'.store fe' = some env' → EnvWF env'` (stated at
+every denotation, which `run` makes the one) and
+`proj : ∀ t, .projInfo t ∈ fe'.env.consts → .projInfo t ∈ fe.env.consts ∨
+IProjTableOK s'.store t` — `IFEnvOK.proj`'s conclusion, over MEMBERSHIP (the
+shape `IFEnvOK_of_denote` takes) and RELATIVE to the step (the shape
+`Inductives/Rel.lean`'s `ProjOut` has), so no arm needs the incoming tables'
+shape and no arm gains a hypothesis.  The six old clauses are `DeclCore`;
+every non-inductive exit is `DeclCore.out hok hd {…}`, which derives both
+clauses from the pure run the arm already proves:
+
+* **`checkDecl_wf_pure`** (new pure module `Checker/DeclWF.lean`): off the
+  unpinned inductive route, an accepted `checkDecl` keeps `EnvWF` and pushes
+  only non-tower constants (`NoTowerPush`) — read off con-leche's `DeclRun`
+  (`checkDeclRun_ofEnvFactsE`), whose value-arm records carry the type's and
+  value's guards and annotate outputs (`annotate_syntax`);
+* **the pinned blocks** (basis, a pinned `ind` block, the quotient `.type`
+  record): `declBasisRun_envWF`.  con-leche's model tier proves each block's
+  `EnvWF` only INLINE (`Model/Basis*.lean`'s `declBasisPB_*K`, the `have hwf1
+  … hwfN` steps inside a `Nonempty (EnvModelM …)` proof), so there was nothing
+  to cite: `declsA_constWF` proves the 19 pinned constants' `ConstWF` at their
+  own block (the quotient block also at `eqA`) as CLOSED facts by
+  `decide +kernel` (a `constWF_closed` macro; the recursors' rules through one
+  `List.all`, `recRules_ok`), and `constWF_le` (a local copy of
+  `Verify/Cached/BridgeCS4.lean`'s private `constWF_le'`) moves them to the
+  installed environment.  **Upstream asks, added to the `ConstWF` list beside
+  `cvA_type_facts'` and `constWF_intro'`: make `constWF_le'` public, and
+  export a `declBasisRun_envWF` beside `DeclBasisRun`.**
+* `projMem_of_noTower`: the index's pushed front denotes the environment's
+  pushed front, and `denoteCI` keeps the constructor, so it holds no table.
+
+The unpinned inductive route is the one exception: `checkDecl_bridge_ind`
+reads both clauses off **`IndSpec.wf : μ.verifiedChecks = true → IndSpec μ →
+IndWFSpec μ`** (`Checker/Hyp.lean`, `sorry`, OWED by the Inductives tier).
+`IndWFSpec.run` states exactly what the route owes: `EnvWF` at the pushed
+denotation and the relative membership-shaped table clause.  It is stated
+from `IndSpec` so that nothing above this tier changes (the capstones take
+`hind : IndSpec .verified`); once `IndSpec.run` concludes the two clauses it
+is a projection.  The table clause is asked for over membership, not `find?`,
+because turning `ProjOut` into membership needs the index to answer for every
+stored table — which is what the membership clause is used to prove; the
+route pushes its tables explicitly and can state it directly.
+
+**`Arena.checkDecl_wfProj` is PROVED** from the two clauses (the old tables
+through `FoldOK.projMem` under `hnd`, carried by `IProjTableOK.mono`).
+
+##### 2. The divMod pieces — part 1
+
+`checkDivModPin`'s section moved to its own module, `Checker/DivMod.lean`
+(`DeclVal.lean` keeps `pinGuardWalk_run`, the four-walk pin guard lifted out
+of `reducePinGuard_run`, which both gates share).
+
+* **`divModEnvGuard_run` PROVED**: `natOpGuard_runsB` (the chain inside
+  `natOpGuard_run`, now a `RunsB` of its own), `natOpDeps_run` +
+  `natOpStoredOkAll_runs`, the `eqA` test (`IFEnvOK.find_beq_ind` at the
+  freshly interned `eqA`) and the two `Bool` constructors' types
+  (`RunsB.matchTyAnd`, `RunsB.matchTy`, new).
+* **`divModPinGuard_run` PROVED**: `divModDeclPin_run` (seven pin reads and
+  handle tests), then `pinGuardWalk_run`.  `divModCertProofs_run` is the same
+  seven tests at the proof lists.
+* `substConstAll_run` (the full substitution, a fuel induction over
+  `substConst0_run`'s shape plus the four binder/`proj` arms) — the first
+  leaf of `divModCertsGuard_run`.
+
+Open: `divModCertsGuard_run`, `checkDivModPinAt_bridge` (part 2).
+
+##### 3. `declResolves_of_stages` (the coordinator's added item) — FINDING, ruling needed
+
+`Capstone.lean`'s `declResolves_of_stages` asks for a `Good` with
+`Refine2.DeclResolves`, whose `ResolveInv` fields quantify over EVERY
+resolving handle at every depth: `infer : Good fe s → EResolves s e →
+inferTypeCore mode (fe.restrictTo v) checkFuel d e s = .ok (w, s') →
+EResolves s' w ∧ Good fe s'` (likewise `whnf`, `ensureSort`).  Theorem 1's run
+lemmas cannot supply that: `KnotSpec.infer` needs `CheckOK` at the call's own
+environment (`fe.restrictTo v`'s), `denoteE s e = some x` AND `Expr.WScoped d
+x` — a merely resolving handle at an arbitrary depth has no such facts, and
+no choice of `Good` supplies `WScoped d` for an arbitrary `d`.  Worse,
+`CheckOK` at a phase-B prefix needs empty caches (round 9 §2's repair), and
+`infer` fills them, so a `FoldOK`-based `Good` is not closed under the
+`infer` field either.  What the fields DO state is a closure property of the
+twin — the Core never answers a dangling handle — which is true but is a
+whole-Core induction of its own (every answer is an input subterm, an intern,
+a cache/memo row, a pin or an environment constant, and each of those must
+resolve), not a frame of any existing Theorem-1 lemma.  **Ruling needed**,
+two options: (a) strengthen `ResolveInv`'s Core fields' preconditions to what
+the call sites have and Theorem 1 can use (e.g. `denoteE s e = some x ∧
+Expr.WScoped d x` and the prefix environment's invariant — the one call site
+read, `check_value_group_refines`, has them: the value group's type is
+`WScoped 0` and denotes); or (b) a new "no dangling handle" tier over the
+Core.  Not attempted this round; `declResolves_of_stages` stays `sorry`.
+
+##### 4. `checkConstantVal_bridge` restated (the coordinator's ruling, for the Inductives tier)
+
+Hypotheses `CheckOK μ env fe s` and `EnvWF env` instead of `FoldOK`: the
+inductive routes call it at an index already holding a scratch constant,
+where `FoldOK`'s `PersIFEnv` is false.  The proof never needed `PersIFEnv`
+(its two uses computed a denotation nothing read — so the restatement does not
+take `denoteFEnv` either).  The arms call `checkConstantVal_bridge_of_fold`.
+
+##### 5. Part 1's frontier and gates
+
+`scripts/gates.sh`: **all 16 OK** on the merge onto `arena`'s `6cfd995d`
+(`extract-check` 406 s, `lake-refine2` 148 s, `lake-bridge` 65 s);
+`Arena/Checker` T1 **stated 88/242, closed 85** (round 9: 83/242, 78).
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`:
+
+| run | tree | items | tainted | dead weight | this lane's items |
+|---|---|---:|---:|---:|---|
+| start | `arena` `29ec471f` (clean) | 32 | 101 | 794 | `checkDivModPinAt_bridge`, `divModCertsGuard_run`, `divModPinGuard_run` (reach 14), `divModEnvGuard_run` (13), `Arena.checkDecl_wfProj` (10) |
+| part 1 | `checker-r10` on `6cfd995d` | 32 | 109 | 756 | `IndSpec.wf` (fan-in 1, reach 13 — the Inductives tier's debt), `divModCertsGuard_run`, `checkDivModPinAt_bridge` (15), `declResolves_of_stages` (4, §3, added to the capstone meanwhile) |
+
+##### 6. Part 2 — the divMod gate closed
+
+Branch `checker-r10b` off `arena`'s `38a7e0c2` (part 1's landing).  All in
+`Checker/DivMod.lean`; **`checkDivModPin_bridge` now prints the three standard
+axioms only**.
+
+* **`divModCertsGuard_run` PROVED**: `divModCertStmts_run` (the seven
+  branches of pinned statements, interned — generated text over the shared
+  prologue, with `natVar_run`, `natOne_run`, `eqAt1_run` new; the relation is
+  `StmtsDenote`, statement by statement; the `Nat.div`/`Nat.mod` branch is
+  special because the `do`-elaborator pushes the rest of the block into both
+  arms of BOTH `c == divN` tests), `divModCertProofs_run`, then
+  `divModCertsGuardGo_run` over the zip, each step `divModCertGuard_run`.
+  The guard chain reads through the Fast walks and interns substitutions, so
+  its frame is `CoreStep`: **`RunsC`** is `RunsB` at that frame (`ret`, `bind`,
+  `bindB`, `guard`, `guardT`, four walk lemmas, `constsResolveAll_runsC`),
+  plus `substConst0List_run`.
+* **`checkDivModPinAt_bridge` PROVED**: `divModDeclPin_run`,
+  `KnotSpec.annotate` / `defeq` at depth 0, then `checkDivModCerts_bridge_aux`
+  (per certificate: the guard, `substConstAll_run`, `substConst0List_run`,
+  `divModCertApplied_run`, `KnotSpec.annotate` / `infer` / `defeq` at depth 4,
+  scoped by `divModCertApplied_wscoped` and `divModCertStmts_wscoped`), one
+  fuel through `checkDivModCerts_mono` (con-leche's `_datF`).
+  **Precondition repair: `hpg : divModPinGuard psP env nm = true`** — the pin
+  goes through `KnotSpec.annotate`, which needs it `WScoped 0`, and nothing
+  else said it was closed; the loop, its one caller, runs the attempt only
+  after the guard answered `true`.
+
+##### 7. The end of the round
+
+`scripts/gates.sh`: **all 16 OK** on the merge onto `arena`'s `5b2873c5`
+(`extract-check` 127 s); `Arena/Checker` T1 **stated 97/242, closed 96**
+(part 1: 88/85).  Frontier at the end: **56 items, 148 tainted, 676 dead
+weight** (the total grew from other lanes' skeletons merged meanwhile); this
+lane's items are **`IndSpec.wf`** (fan-in 8, reach 13 — the Inductives tier's
+debt, §1) and **`declResolves_of_stages`** (reach 4 — the ruling §3 asks for).
+The five items the round started with are all closed: `Arena.checkDecl_wfProj`
+(over `IndSpec.wf`), `divModEnvGuard_run`, `divModPinGuard_run`,
+`divModCertsGuard_run`, `checkDivModPinAt_bridge`.
+
 ### Task #97-P5-2 — Theorem 2: `intern` at every expression array, and the fuel-induction idiom (2026-09-22, Opus under Fable)
 
 The third phase of DESIGN §8.6's **P5**: task #97-P5-1 left `Specs.lean` at 32
@@ -49958,6 +50120,128 @@ copy goes.**
 | the diff | `proof/ConRon/Bridge/Core/**` (five new `Walks/` modules; `Memo.lean`, the five `Arms/`, `Walks/{Owed,Walks}.lean`) and this section.  No Rust file, no generated model, no `Arena/`, no `Refine2/`, no other `Bridge/` module; `Walks/Reserved.lean` imports `Bridge/Promote/Pers.lean`, new for the tier |
 
 
+#### Round 6 — `CoreSpec.of_core` sorry-free, and `hk` off the capstone (2026-09-23, Opus under Fable)
+
+Branch `p3-core-6` off `arena` `29ec471f`.  Seven helper lanes ran in
+parallel, each in its own worktree off `p3-core-6`, and were merged into it
+and dropped: `eta`, `peel`, `whnfapp`, `iota`, `app`, `binders`, `lam`.
+**The Core tier is at zero `sorry`** (round 5: 9), and
+**`CoreSpec.of_core` is at `[propext, Classical.choice, Quot.sound]`**, so
+the capstone no longer takes `hk`.
+
+##### 1. The frontier
+
+| root | start (`29ec471f`) | end |
+|---|---|---|
+| `ConRon.Bridge.CoreSpec.of_core` | 8 items / 6 modules / 39 tainted, top `structEtaCertWith_spec` (fan-in 15) | **0 items / 0 modules / 0 tainted** |
+| `ConRon.Capstone.{model_exists,no_False_declaration}` | 32 items / 13 modules / 101 tainted, dead 794 | 32 items / 13 modules / 101 tainted, dead 785 |
+
+The capstone's item count does not move, because the Core tier's items were
+never on it: `hk` was a named hypothesis and hid them.  With `hk` gone, its
+32 items are what the OTHER tiers owe (top: `Refine2.Frontend.apply_line_refines`).
+The dead weight drops by the Core lane's nine direct `sorry`s.
+
+##### 2. `hk` removed (the authorised edit outside the lane)
+
+`Capstone.lean`: `model_exists` and `no_False_declaration` lose the
+hypothesis `hk : CoreSpec .verified checkFuel` and pass
+`ConRon.Bridge.CoreSpec.of_core rfl` to `stages_model` /
+`no_False_declaration_pipeline`.  The module doc's list of named hypotheses
+strikes `hk`.  `stages_model` (internal) keeps its `hk` argument.
+`lake build ConRonCapstone` green.
+
+##### 3. What closed, per lane
+
+Every theorem listed is at `[propext, Classical.choice, Quot.sound]` (the
+module censuses print them).
+
+| lane | target(s) | new module(s) | how |
+|---|---|---|---|
+| `eta` | `structEtaCertWith_spec` (so `structEtaCert_spec`, `stuckIrrel_spec`, `defeqStep_spec` too) | `Walks/Eta.lean` (661 lines) | the four missing sub-walks — `towerSlotsAll_spec`, `recSlotsAll_spec`, `structEtaProjCerts_spec` (induction on the slot list), `etaProjs_spec` over `projNodesGo`/`projAppsGo` — then the body staged, one pure lemma per exit |
+| `peel` | `defeqPeel_chain` | `Arms/DefeqPeel.lean` (665) | `defeqPeel_spec` by induction on the peel's budget over an invariant `PeelOK`; `defeqBinders_spec` is the chain |
+| `whnfapp` | `whnfCoreBody_app_batched` | `Walks/BetaSpine.lean` (897) | handle-level carry of `whnfApp`/`betaPeel` to con-leche's Expr-level loops (`Verify/BetaSpine.lean`) by strong induction on `args.size - i` (`spine_carry`), then con-leche's `whnfApp_sound` |
+| `iota` | `iotaRec_spec`, new `iotaRecAt_spec` | `Walks/{IotaLeaves,IotaMajor,Iota}.lean` (616 + 1 636 + 1 457) | top-down skeleton then bottom-up: six readers, `majorToCtor_spec` (K, η, `And` rescues), `prepareMajor_spec`, `recFireComparands_spec`, `iotaIndexOk_spec`, `iotaFam_spec`, `iotaRecAt_spec`, `iotaRec_spec` (moved from `Owed.lean`, which keeps a note) |
+| `app` | `inferBody_app_batched`, `inferBodyIO_app` | `Walks/InferSpine.lean` (532) | `inferSpine_go` / `inferSpineIO_go`, induction on the arguments left, against con-leche's `inferSpine`/`inferSpineIO`; then `inferSpine_sound` / `inferSpineIO_sound` |
+| `binders` | `inferBody_binders_batched`, `annotateBody_binders_batched` | `Walks/BinderLoop.lean` (1 894) | four loop carries (`inferLams`, `inferPis`, `annotatePis`, `annotateLams`) against `Verify/BinderLoop.lean`'s mirrors, then its `*_sound`; `inferPisOut_carry` discharges the threaded zero-ness datum (`zeronessOf (imax u v) = zeronessOf v` by definition) |
+| `lam` | `inferBodyIO_lam` | `Walks/FvarB.lean` (193) | ruling 2: `Core.fvarBSpec : ExprOps.FvarBSpec`, copied from `Bridge/Inductives/Rel.lean:2598-2730`; then `inferLamResult_spec` over `abstract1Fast_spec` |
+
+##### 4. Preconditions added (no conclusion changed)
+
+Round 5's ruling 1 approved the `s'.pins = s₀.pins` conjunct on the five
+batched children; nothing else in a conclusion changed this round.  Missing
+preconditions, each one con-leche's own at the corresponding lemma:
+
+1. **`whnfCoreBody_app_batched` gains `hμ : mode.verifiedChecks = true`.**
+   The twin's β site reads `CheckMode.betaSkip`, which skips the β
+   certificate when `!mode.certs`; con-leche's spec runs it.  At `.trusted` a
+   redex whose certificate fails stays stuck in the spec but reduces in the
+   twin, so the statement was **false at `.trusted`**.  Con-leche's
+   `certs_of_verifiedChecks` (`Verify/BetaGate.lean:126`); the one caller
+   `whnfCoreBody_spec` already had it.
+2. **`iotaRec_spec` gains `hμ` and `EnvWF env`**: the twin gates the rescue
+   and ι certificate families on `mode.certs` (as round 5 §5.1 found for
+   `stuckIrrel`), and con-leche's `iotaRec_WScoped`,
+   `prepareMajorFueled_WScoped` and `const_ty_hasFvar` take `EnvWF`.
+3. **`iotaRecAt_spec` (new; `whnfApp` calls `iotaRecAt` on the spine it
+   holds, never `iotaRec`)** takes `hnapp : ∀ f a, h ≠ .app f a` and
+   `hn : n = sargs.size`.  Both are needed: at an application head the twin
+   answers `none` from the tag where con-leche fires on the head's own spine,
+   and at `n > sargs.size` the twin's arity guard reads `n` where con-leche
+   reads the spine.  The `whnfApp` call site discharges them by
+   `Expr.getAppFn_not_app` and `rfl`.
+
+##### 5. Duplications to fold away
+
+* **`FvarBSpec`** (ruling 2): `Bridge/Inductives/Rel.lean:2598-2730`
+  (`A1Prog`, `fvarRangeGo_a1`, `fvarB_a1`, `fvarBSpec`) is now a duplicate
+  of `Bridge/Core/Walks/FvarB.lean`'s `Core.fvarBSpec`; **the Inductives lane
+  should delete its copy** and import this one (it imports only
+  `Core.Walks.Cached` and `ExprOps.Ranges`).  `Rel.lean` was not edited.
+* **The seven `…C` copies in `Walks/Reserved.lean`** (ruling 3) stay; fold
+  them once `reservedBasisNames_run`'s cone sits below both tiers.
+* `Walks/Eta.lean`'s `denoteNList_injC` copies `Checker/Canon.lean`'s
+  `denoteNList_inj` (same import cycle).
+* `Walks/IotaLeaves.lean` carries `I`-suffixed copies of `Walks/Eta.lean`
+  lemmas (`projFnName_specI`, `towerSlotsAllGo_specI`, `projNodesGo_specI`,
+  `projAppsGo_specI`, `etaProjs_specI`, `denoteEList_appendI`) — the two
+  lanes ran concurrently; `IotaLeaves` can import `Eta` and drop them.
+* `Walks/InferSpine.lean`'s `denote_not_forallE_of_tag` clashed at merge with
+  `Walks/BinderLoop.lean`'s (different hypothesis form) and was renamed
+  `denote_not_forallE_of_tagB`.
+
+##### 6. Method notes
+
+1. **`let v ← if c then x else y` is not `(if …) >>= k`.**  The `do`
+   elaborator copies the continuation into both branches.  The η lane's
+   `triple_ite_seq` (`Walks/Stuck.lean`) turns it back into that form, and
+   `triple_ite` does the case split without `split`, which on a long staged
+   goal can hit simp's max-steps.  The iota lane met the same thing at
+   `iotaRecAt`'s three-way parameter comparison and proved the shared rest
+   once (`iotaFam_spec`, stated over the same `do` text).
+2. **Copies tied by `rfl`** (round 5's `dqTail`) again: the iota lane's
+   `iotaTail`/`mtcK`/`mtcEta`/`mtcAnd`, and the peel lane's `peelStep`.
+   The equation compiler could not generate `defeqPeel`'s unfolding lemma
+   (a fixed 200 000-heartbeat limit that `maxHeartbeats` does not raise), so
+   `DefeqPeel.lean` states one level as `peelStep` and ties it with
+   `delta`/`rfl` (`defeqPeel_zero_eq`, `defeqPeel_succ_eq`).
+3. **Parallel lanes on a skeleton work.** Round 5's skeleton made every open
+   child a named statement.  So seven lanes could each use their siblings'
+   statements as black boxes and merge textually.  The one interface
+   surprise (`whnfApp` calls `iotaRecAt`, not `iotaRec`) was a new lemma, not
+   a changed one.
+
+##### 7. Gates
+
+`lake build ConRonBridge`: **643 jobs, green** (634 at the branch point;
+nine new modules).  `lake build ConRonCapstone`: 2 768 jobs, green.
+`scripts/gates.sh` on the merged tree (`arena` `d6288114` merged; the one conflict was `Capstone.lean`, where `arena` had threaded `hk` into `rust_stages` — resolved by passing `CoreSpec.of_core rfl` there too): **all 16 OK** (exit 0; `extract-check` ~120 s, `lake-build` ~50 s, `lake-bridge` ~30 s, `lake-capstone` 3 s).  The gates' report line after the merge reads the capstone at **36 items / 13 modules / 123 tainted, dead weight 713** (top `Refine2.Frontend.push_decl_refines`); the move from 32 is `arena`'s, not this round's.  A second merge (`arena` `5b2873c5`, `Refine2/**` and DESIGN only) re-ran `lake build ConRonRefine2` (2 264 jobs) and `ConRonCapstone` (2 784), both green. At the landed tip: `CoreSpec.of_core` **0 items / 0 tainted**; the capstone **58 items / 15 modules / 153 tainted, dead weight 667** (top `Refine2.Frontend.hoist_targets_refines`), which is again `arena`'s skeletons.
+
+| | |
+|---|---|
+| branch | `p3-core-6` off `arena` `29ec471f`; helpers `p3-core-6-{eta,peel,whnfapp,iota,app,binders,lam}`, each merged into it and dropped |
+| the diff | `proof/ConRon/Bridge/Core/**` (nine new modules: `Walks/{Eta,FvarB,InferSpine,BetaSpine,BinderLoop,IotaLeaves,IotaMajor,Iota}.lean`, `Arms/DefeqPeel.lean`), `proof/ConRon/Capstone.lean` (the authorised `hk` removal) and this section.  No Rust, no generated model, no `Arena/`, no `Refine2/`, no other `Bridge/` module |
+
+
 ### Task #97-P5-Ind — Theorem 2: the inductives tier, round 2 (2026-09-22, Opus under Fable)
 
 (The section this continues is `### Task #97-P5-Ind` above; its §6 is the
@@ -56056,6 +56340,156 @@ re-ran the Lean gates it can touch: `ConRonBridge` (634 jobs),
 `ConRonCapstone` (2 768) and `lake build` green; the Rust, lint, provenance and
 extraction gates cannot be reached by it.
 
+#### Round 3 — the startup walk closed down to its pin leaves, `erase_installed`; three items stopped on divergences under the no-invariant rule (2026-09-23, Opus under Fable)
+
+Branch `p5-top-3` off `arena` `aa1dc3e2`, worked in three sub-branches (startup
+walk; promotion; `check_value_group_value`) and merged with `arena` once, at
+`d6288114` (task #97-T2-AUDIT, and the Checker, Front, Core and Ind rounds; no
+conflict).  Lane `Refine2/{Checker,Promote}/**`.  `Capstone.lean` is unchanged,
+and `Refine2` still imports nothing of `Bridge`.
+
+**Mid-round rule (from the coordinator, after the maintainer's question that
+became task #97-T2-AUDIT):** add NO new invariant-style hypothesis or clause
+to a Theorem-2 statement (resolves, `ViewOK`, `StoreWF`, `Ext`, memo-OK, new
+`ResolveInv` fields).  Where one is needed, stop on that statement and report
+the twin/Rust divergence behind it.  Everything this round had already added
+of that kind was backed out before landing, or held back on a branch (§3).
+
+##### 1. What closed
+
+| item | how |
+|---|---|
+| `intern_all_basis` | measure induction over the cursor (`intern_all_basis_aux`), `all_basis_kinds_refines` |
+| `intern_all_axiom_pins`, and its chain `_rest`, `intern_all_trust_pins`, `intern_all_reduce_pins` | glue over the pin constants' `_refines` |
+| `intern_pin_sets` | cursor measure induction (`intern_pin_sets_aux`, `internPinSets_cons_acc`).  The accumulator is counted once: the Rust base case returns `out` itself |
+| `intern_pin_set`, `intern_pin_set_proofs` | glue over `intern_expr{,_list}_refines` and `str_copy_eq` |
+| `pin_reserved` (leaf) | written like `pin_empty_levels_refines`; `Checker/Pins.lean` now imports `Refine2/Core/Arms/Delta` for `nidx_vec_dup_val` (no cycle) |
+| `erase_installed` | the index read back as a membership test (`erase_installed_aux`, `eraseInstalled_getElem?_eq'`); axiom-clean, census row added |
+| `lvl_eq` (new statement, `Checker/Base.lean`) | `arena::core::lvl_eq` ⊑ `lvlEq?`, which no tier had stated: the `lvlEqC` probe and capped write (`Core/Probes.lean`'s `cache_insert_step`), `read_level_m_run` twice, and `Level.is_equiv_refines`.  Axiom-clean, census row added.  It is `check_value_group_value`'s `lvl_eq u zero` |
+
+**`SimFold` (round 1's F1 carried over): no defect.**  In the frontend,
+`SimStreamRel`'s error arm was false because the twin's failures escape as
+throws where the Rust returns an `(error, line)` pair.  `Checker/Top.lean`'s
+`SimFold` is not in that position.  Both twin fold steps CATCH: `annotDeclStep`
+turns every `annotStep` throw into `.ok (.error (e, p.1), abandoned)`, and
+`checkPendingList` turns every `checkPending` throw into `.ok (.error (e,
+pc.pos), abandoned)`.  `annotFold` and `installThenCheck` only `pure` those
+values on.  The Rust returns `Err((e, pos))` at the same positions.  So the
+twin never throws where the Rust has a pair, and the value-only error arm is
+true.  Its consumers (`annot_fold_refines`, `check_pending_list_refines`,
+`install_then_check_refines`) were already closed, so it was not on the
+frontier.  No change.
+
+##### 2. Stopped on divergences (the round-3 rule)
+
+1. **`intern_all_names` — the reserved names (a ruling).**  The port's
+   `reserved_basis_names` is `pin_reserved`, a table READ (task #97-P6-4a).
+   The twin's `reservedBasisNames` still re-interns 13 of the 19 names.  At a
+   related state whose table is filled but whose store lacks, say,
+   `Eq.refl`, the twin's store grows and the Rust's does not.  The glue went
+   through with `hres : reservedBasisNames.run lst = pinReserved.run lst`,
+   discharged by a new `Capstone.reservedNamesRead_of_stages` `sorry`.  Both
+   were backed out; the statement is `sorry` with the divergence in its
+   docstring.  **Fix:** the twin's `reservedBasisNames := pinReserved`; the
+   proof is then glue over closed or stated leaves.  The same divergence sits
+   behind the twin's other `reservedBasisNames` call sites
+   (`Checker/Spec.lean`, `Inductives/Spec.lean` twice).
+2. **`check_value_group_value` and `check_value_group_tail` — a twin-only
+   name read.**  Both glues were written and green at `786715f8` (in the
+   history of this branch).  They needed three clauses the rule forbids:
+   * `VGResolves` growing *"the name decodes"*;
+   * `ResolveInv.lvlEq` (`Good` across `lvlEq?`);
+   * `ResolveInv.installValue` (the annotated value resolves, and `Good` is
+     kept).
+
+   All three were backed out.  The divergence behind the first: the Rust
+   declines with constant messages (`M_THM_NOT_PROP`, and `Invalid
+   (value_kind_word k)` for a mismatch).  The twin declines with `s!"… {←
+   readName g.cvA.name} …"`, a store READ on one side only, which throws
+   `.internal` at a dangling name.  That is the same divergence as round 1's
+   `checkDecl` `.defnDecl` arm (task #97-P5-Checker round 4 §4).  The other
+   two are the `Good`/`EResolves` plumbing, i.e. task #97-T2-AUDIT's D1
+   (tag-first against view-first).  **Fix:** drop the name from the twin's
+   two decline messages, or make the Rust read it too; then D1.  The brief's
+   expected `isDefEqCore` field turned out unnecessary: the tail is the last
+   step and needs no `Good` after it.
+3. **The promotion walks — held on branch `p5-top-3-promote` (`9b576da3`),
+   not landed.**  The sub-agent closed the whole promotion tier from a new
+   twin-side module `Refine2/Promote/Twin.lean` (the cores of
+   `Bridge/Promote/{Pers,Weak,StoreP,Memo,Walk}.lean`, copied with their
+   sources cited, since `Refine2` may not import `Bridge`).  That covers the
+   name, level, levels and expression walks with their `_node`/`_two`/`_list`
+   companions, `promote_cv`, the declaration layer (`fire`, `rule(s)`,
+   `caps`, `proj_table(_rest)`, `ci(_list)`, `decl`) and `index_promoted`.
+   All accumulators were checked against the Rust `Ok out`.  It rests on
+   hypotheses the rule forbids, and that task #97-T2-AUDIT classifies as
+   kind 3 (the promote window's `StoreWF'`):
+   * `hmo : PTwin.PMemoOK lm lst.store` on every promotion statement with a
+     memo (supplied in `Top.lean` by `PMemoOK.empty` and a keep lemma);
+   * `hvok`/`hvwf` (the view's children have views; datum WF) on
+     `promote_{n,l,e}_node_refines`;
+   * `hnorow` on `index_promoted_refines` (no index row points into the
+     slice): the POSITION-against-CONSTANT representation of the index.
+
+   It also leaves two `sorry`s, each a divergence:
+   * **`intern_persistent_e_run_nocap` — audit D3, confirmed independently.**
+     The twin's `internPersistentE` tests the persistent binder-datum table's
+     capacity on every binder-node miss.  The port tests only when it
+     appends a new datum.  At a full table, a new binder node over an
+     existing datum succeeds in the port and fails in the twin, so
+     `promote_e_refines` is false in exactly that corner.  **Fix:** gate the
+     twin's test on the datum lookup, as task #97-P5-Twin did for `internE`.
+   * **`IFEnvNamed` inside `promote_new`.**  A Rust index row holds a slot
+     position; a twin row holds the constant.  Writing a promoted constant
+     back into its slot changes what a row that points there under another
+     name answers.  The fact that no such row exists is Theorem 1's
+     (`IFEnvCoh`).  It was threaded as a precondition, then backed out under
+     the rule.
+
+   When the audit's migration (`storeWF` out of `AStateRel`, the promote
+   window no longer special) lands, `hmo`/`hvok` should disappear, and the
+   branch is the proof material.
+
+##### 3. Counts and the frontier
+
+| file | `sorry` tactic lines (was) |
+|---|---:|
+| `Checker/Top.lean` | 21 (26) |
+| `Checker/Pins.lean` | 0 (4) |
+| `Checker/Base.lean` | 59 (59) — `lvl_eq` added closed |
+| `Promote/Promote.lean` | 28 (29) |
+
+`lake build ConRonRefine2`: 703 `declaration uses sorry` warnings, against
+713 at the merged `arena` (`d6288114`, measured in a detached worktree).
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists ConRon.Capstone.no_False_declaration`:
+
+| | items | modules | tainted | dead weight |
+|---|---:|---:|---:|---:|
+| start (`aa1dc3e2`) | 34 | 14 | 109 | 769 |
+| end (after the `arena` merge) | 54 | 14 | 151 | 694 |
+
+**Left the frontier:** `intern_all_basis`, `intern_all_axiom_pins`,
+`intern_pin_sets`, `erase_installed` (this lane), and
+`Bridge.{divModEnvGuard_run,divModPinGuard_run,Arena.checkDecl_wfProj}`
+(the merged Checker round 10).  **Entered:** the leaves the startup-walk glue
+now reaches: the eighteen pin constants of `Checker/Axioms.lean` (`iff_raw` …
+`trust_compiler_a`, `reduce_*`, `of_reduce_*_a`), `basis_kind_decls{,_a}`
+and `intern_expr{,_list}`; and `Bridge.IndSpec.wf` (merged).  The growth is
+the startup walk moving down to one Rust function per item.
+`intern_all_names`, `check_value_group_value`, `promote_cv`, `promote_e` and
+`index_promoted` stay on the frontier (§2).  No non-standard axiom.
+
+**Next in this lane:** the eighteen pin constants and `basis_kind_decls{,_a}`
+(one-function leaves, no invariants needed); the three rulings of §2
+(`reservedBasisNames`, the decline-message name reads, D3's capacity test),
+each a twin edit that turns a stopped item into glue; and the promotion
+branch, once the audit's migration removes the promote window.
+
+**Gates:** `scripts/gates.sh` after the `arena` merge: **all 16 OK**
+(`extract-check` 175 s, `lake-build` 36 s).  `ConRonRefine2`,
+`ConRonCapstone` green.
+
 ### Task #97-P3-Promote — Theorem 1: the promotion tier, and the coherence clause it cannot meet (2026-09-23, Opus under Fable)
 
 Lane: `proof/ConRon/Bridge/Promote/**`, untouched since task #97-P3-Checker
@@ -56585,6 +57019,109 @@ this branch; out of lane: `Refine2/Checker/Shape.lean` (one import),
 `Core/Arms/Delta.lean`, `Inductives/{Shape,NativeParts}.lean` (the §2 move),
 `Refine2.lean` (the index).
 
+#### Round 3 — the line layer's four closable items, and what stops the rest (2026-09-23, Opus under Fable)
+
+Branch `p5-front-3` off `arena` `e3ea3e55`, merged forward to `arena`
+`900615df`.  Lane `proof/ConRon/Refine2/Frontend/**`.  The round was stopped
+early by the coordinator (the Theorem 2 lockstep migration of task
+#97-T2-AUDIT is about to restate `AStateRel`/`AOut`/`SimS`), at a clean point:
+every lemma below is either closed or left exactly as it was.
+
+##### 1. Closed, top-down
+
+| frontier item | how | new closed lemmas |
+|---|---|---|
+| `push_decl_refines` (fan-in 4) | `note_decl` then the push, against `pushDecl = noteDecl ∘ push` | `noteDecl_unfold` (`Spec.lean`, `cases d <;> rfl`), `pushDecl_run`, `noteDecl_run_decls`, `noteEntries_{decls,nil,cons,single}`, `note_decl`, `note_decl_entries` (seven arms), `note_one`, `note_block` + its loop, `note_entries` + its loop (`Rel_insert_wf` at `constTypes`/`heights`), **`i_constant_info_to_constant_val_refines`** (the `.projInfo` arm's three interns, `Refine2/Checker/Pins.lean`'s `Sort 1` pattern), `AErrSim.of_kind`, `LOut.rebase` |
+| `hoist_order_refines` (fan-in 1) | the bucket pass is `List.mergeSort`, ported from `RefineOld/Frontend/PrepareR.lean` (task #87 §5) | `hoistBuckets_eq_mergeSort` and its twelve key-order lemmas, the two loop lemmas |
+| `proj_rewrite_d_refines` | composed: `store_fuel` ; `lam_body` ; two `view`s ; the `proj_rewrite_at` split INLINED (see §2, F10) | `store_fuel_refines`, `estore_node_count_abs`, `etables_count_abs`, `proj_owner_of_refines`, `proj_level_of_refines` |
+| `install_ind_d_refines` | composed over `installIndD_unfold` (`Spec.lean`, now proved): `ind_block_of` ; `register_proj_owners` ; `T0` (the empty block's `internNNode .anonymous`) ; `install_ind_tail` (`block_rec_of` ; `note_ind_blocks` ; `install_gen` or `push_decl`) | `installIndD_unfold`, `install_ind_tail` |
+
+`SimDV.of_run_eq`, `SimD.toSimDV_inl`, `SimDV.bind_ok` moved from `Top.lean`
+to `ExportC.lean` (unchanged, same namespace) so `ExportCInd.lean` can use
+them.  Pinned at `[propext, Classical.choice, Quot.sound]`:
+`i_constant_info_to_constant_val_refines`, `note_entries_refines`,
+`push_decl_refines`.
+
+The frontier now shows the real subtrees: `proj_rewrite_d` rests on
+`lam_body`, `proj_iota_name`, `proj_rec_value` (`ProjRec.lean`);
+`install_ind_d` on `ind_block_of`, `register_proj_owners`, `block_rec_of`,
+`note_ind_blocks`, `install_gen`.
+
+##### 2. Findings — for the migration (twin/Rust divergences first)
+
+* **D1 — `lam_body`: the port reads the TAG, the twin VIEWS.**
+  `frontend::proj_rec::lam_body` tests `EIdx::tag(h) == ETAG_LAM` and answers
+  `h` itself on any other tag without reading the store; the twin's `lamBody`
+  does `match ← view h`, which throws `internal` on a dangling handle.  At a
+  dangling non-`lam`-tagged `h` the port is `Ok h` and the twin fails, so
+  `lam_body_refines` (`SimRE`) is false as stated.  The same tag-vs-view
+  split as task #97-P5-Core round 3's finding; `proj_rewrite_d` views the
+  answer next on both sides, so only this leaf is affected.  **For the twin:**
+  `lamBody` should read the tag first, like the port.
+* **F10 — `proj_rewrite_at_refines` is false as stated (a transcription
+  error, not a program divergence).**  Its twin side reads `projLevels` at
+  `cv.name` and never compares level parameters; the port (and the twin's
+  `projRewriteD`) compares `cv.level_params == o.lps` and reads `projLevels`
+  at `proj_iota_name t i`.  Left `sorry` with a note saying so;
+  `proj_rewrite_d_refines` inlines the split instead of calling it.
+  Restating it is a conclusion change (ruling needed; or delete it).
+* **F11 — the three table-entry writers and `proj_iota_name` need a
+  resolves fact that nothing supplies.**  `parse_{name,level,expr}_entry_d`
+  intern a node whose children are handles read out of the parse tables;
+  `proj_iota_name` interns `.str t "_model"` for an arbitrary `t`.  Neither
+  side checks a child (Rust `EStore::intern_name`/`intern_level`/`intern`
+  and the twin's `internNNode`/`internLNode`/`internE` all intern blindly —
+  **no divergence**), but `AStateRel.storeWF` at the post-state needs the
+  child to resolve, and neither `StateDRel` nor `StateDInv` says table
+  handles resolve.  So the four statements are false at a state whose table
+  (or argument) holds a dangling handle.  Per the coordinator's instruction
+  no resolves clause was added; the migration's removal of `storeWF` from
+  `AStateRel` makes all four provable as stated.
+* **F12 — `validate_ind_d_refines` cannot be composed from its children as
+  they stand.**  `check_one_ctor_refines` states the twin's checks as
+  `fail (.internal …)` where the port returns `invalid` VERDICTS (and
+  `ALineErrSim`'s verdict arm is `False`), so it is false at every rejecting
+  constructor; `order_type_ctors`/`order_block_ctors` conclude lengths only;
+  `check_one_rec`/`check_rec_records` conclude `True`.  The module note
+  already says their transcriptions are "what `Spec.lean` still owes".
+  Restating them (a transcription per loop body, as `installGen` is for
+  `installIndD`) is a conclusion change: ruling needed.  `validate_ind_d`
+  itself was not touched.
+* The remaining two items were not reached: `hoist_targets` (the
+  `hoist_close` fuel argument and the `used_consts_*` walk — both sides
+  `view` in `used_consts_node`/`usedConstsGo`, no divergence seen there).
+
+##### 3. Counts, frontier, gates
+
+| file | before | after |
+|---|---:|---:|
+| `ExportC.lean` | 46 | **36** |
+| `ExportCInd.lean` | 26 | **25** |
+| `NatOpGround.lean` | 11 | **10** |
+| `Spec.lean` | 10 | **8** |
+| `ProjRec.lean` / `Top.lean` | 56 / 2 | 56 / 2 (untouched) |
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`:
+
+* **before** (this worktree at `arena` `e3ea3e55`): 38 items in 13 modules,
+  123 tainted, dead weight 722; top `push_decl_refines` (fan-in 4, reach 24).
+* **after** (merged with `arena` `900615df`): **58 items in 15 modules, 153 tainted, dead
+  weight 676**; top `hoist_targets_refines` (fan-in 3, reach 7).  This lane's
+  items are thirteen: `hoist_targets` (fan-in 3), and at fan-in 0 the new
+  children `lam_body` (D1), `proj_iota_name` (F11), `proj_rec_value`,
+  `block_rec_of`, `install_gen`, `note_ind_blocks`, `ind_block_of`,
+  `register_proj_owners`, plus `validate_ind_d` (F12) and
+  `parse_{name,level,expr}_entry_d` (F11).  `push_decl`, `hoist_order`,
+  `proj_rewrite_d`, `install_ind_d` left the frontier.  The growth in the
+  total is mostly `arena`'s delta (Checker/Pins/Promote/Bridge) plus the
+  subtrees opened here; dead weight fell by 46.
+
+**Gates** (the coordinator's clean point for the stopped round, not the full
+`gates.sh`): `arena` merged at `900615df`, `lake build ConRonRefine2
+ConRonCapstone` green.  No Rust, generated-model, lakefile or `Bridge/**`
+change on this branch.
+
 ### Task #97-P5-Core round 3 — Theorem 2's knot: `KnotRel` and `BodyRel` are false at a dangling cache entry (2026-09-23, Opus under Fable)
 
 Branch `p5-core-3` off `arena` `aa1dc3e2`.  The brief: skeletonise
@@ -56761,3 +57298,577 @@ wall), which is not the script's cost.
 |---|---|
 | `scripts/gates.sh` | **all 16 OK** at the `arena` `6cfd995d` merge (`extract-check` 132 s, `lake-build` 35 s, `lake-bridge` 40 s, the rest ≤ 8 s).  The first attempt's `extract-check` died with exit 137 (Aeneas killed under the shared machine's memory pressure); the re-run passed |
 | the diff | this section only |
+
+### Task #97-T2-AUDIT — has Theorem 2 drifted from "two programs doing the same thing"? (2026-09-23, Opus under Fable)
+
+An analysis task, so there is no proof or code in it.  The maintainer's intent
+(§8.2, §8.4): the twin is Rust-shaped, so every Theorem-2 lemma relates two
+programs that do the same operations in the same order, and invariants belong
+to Theorem 1.  The question was whether Theorem 2 still has that shape, and
+where it does not.  Worktree `_tmp/wt-t2-audit` off `arena` `e3ea3e55`.  I
+read the Rust (`crates/con-ron-core/src/arena/**`), the twin
+(`proof/ConRon/Arena/**`) and the statements (`proof/ConRon/Refine2/**`,
+`Capstone.lean`), and used the task log to see why each clause was added.
+
+**Answer: yes, it has drifted, and the cause is a single decision.**  Task
+#97-P5-0's finding 3 (the Rust reads a handle's TAG where the twin reads its
+VIEW) was booked as *"a hypothesis Theorem 1 owes at ~60 sites"* instead of
+being fixed in the twin.  Finding 16 then put `StoreWF` into `AStateRel`.
+Every clause in the brief is downstream of one of those two choices, or of
+`Ext`, whose only stated reason (`orElseAttempt`) is a third divergence.  The
+state relation itself is already the exact one.  A mid-task ruling by the
+coordinator settled the direction: **`storeWF` and `Ext` leave Theorem 2**.
+This section therefore also answers the three questions that ruling raised:
+§3, §5 and §4.
+
+#### 1. The relation is already exact, apart from representation
+
+`Refine2/AbsStore.lean` relates the two sides as follows:
+
+* **Handles** are the same `u32` word (`absEIdx i = ⟨absU32 i.word⟩`, a
+  function).
+* **Node arrays** are equal up to a `map` (`TblRel.nodes`).
+* **The derived column** is equal up to `obsD`.  The one field left out is
+  the hash, and it has to be: con-leche's `mixHash` is `opaque`, and no reader
+  outside `der_of_*` ever sees the hash.
+* **Cons, memo and cache tables** are `RelOn`, which says the finite maps are
+  equal key by key.
+* **Flags** are equal.
+
+So `AStateRel` without `storeWF` (the coordinator's `AStateRel₀`) already
+means "the stores are equal field for field, modulo representation".  Nothing
+in it needs to be weakened to make it a lockstep relation.  What stops it being
+a lockstep invariant (holding before and after every call) is exactly one
+divergence, D4 below.
+
+#### 2. Classification of every clause in the brief
+
+Kind 1 is a representation refinement (legitimate in Theorem 2).  Kind 2 is a
+twin/Rust divergence (fix the program, then delete the clause).  Kind 3 is
+Theorem-1 content that leaked into Theorem 2.
+
+| clause | kind | evidence |
+|---|---|---|
+| `AStateRel.storeWF` | **3** | Added by #97-P5-Specs.  Its producers are 12 intern wrappers in `Specs.lean` and 2 in `Core/Bracket.lean`.  Their use of it is circular: they discharge `EStore.intern_wf` in order to re-establish the clause itself, and to prove `Ext`.  Its one non-circular consumer is `hchild_*` (`Specs.lean:652-689`), which is D2.  Nothing in Theorem 1 or `Capstone.lean` reads it, apart from `rust_stages` passing `hrelE.storeWF` into Theorem 2's own `BrOK`. |
+| `Ext` in `AOut`/`SimS`/`AOutRel`/`WOutR`/`AOutW` | **2 → 3** | `Shape.lean`'s note: *"in the success arm because `orElseAttempt` needs it and nothing else does"*.  That is D4.  Everywhere else it is a free rider (`Ext.refl` 259 times, `Ext.trans` 119, `aout_rebase` 21).  Where it is not free, it drags `StoreWF` in: `ext_bracket`, and `intern_wf` for `Ext` at an intern.  `rust_stages` throws every `Ext` away (`-`). |
+| `ExprOps/Mut.lean`: `MemoRes`, `EResolves` premises, `WOutE`/`WOutR`, `EViewExt`, `QStable`, `RenameRes` | **3** | Finding 19's own words: the statements are false *"wherever … `AStateRel`'s `storeWF` conjunct"* fails, because the memo can hold a dangling handle and `childOK` then fails at the next intern.  With `storeWF` gone, both sides intern over the same dangling handle and the stores stay equal (this is the coordinator's counterexample).  So all of it goes, and the 63 `WOutE` statements go back to `Sim`. |
+| `hview` / `ViewOK` (57 builders, 207 uses), `EViewPers` / `hpers`, `EBindWFAt` | **3** | These are the preconditions of `EStore.intern_wf` / `internPersistent_spec'`.  They exist only to re-establish `storeWF` / `StoreWF'`. |
+| `AStateRelW` / `AOutW` / `SimW` (the promote window, `Specs.lean:10847`) | **3** | This is a second copy of the relation, needed because `StoreWF` does not hold between promotions (#97-P5-Fresh).  Theorem 1 owns `StoreWF'` (`Bridge/Promote/Weak.lean`).  Under `AStateRel₀` the promote window is not special. |
+| `BrOK`, `ScratchClosed`, `TwinWF`, `ext_bracket` | **3** | `Core/Bracket.lean`'s own note says they carry `Ext` across `dropScratch`.  Without `Ext`, the bracket is three `SimS` lemmas: flush, enter and drop.  Both sides do those three operations. |
+| `Refine2/Checker/Base.lean` `ResolveInv mode Good`, `DeclResolves`, `HandlesResolve`, `VGResolves`, `ResolvesAt`; `Capstone.declResolves_of_stages` (a `sorry`) | **2** (D1) | Ruling 2 of #97-P5-Top adds them because the Core entries carry finding 3's `EResolves` and finding 14's `AnswerResolves`.  Both are caused by the tag/view split, so fixing the twin removes the whole family, including the Capstone `sorry`. |
+| `EResolves` premises in `ExprOps/Read.lean` and in `KnotRel`/`BodyRel`; `AnswerResolves`; `CoreAmbient`; `ExprOpsHyp.headRes`/`mkAppNRes` | **2** (D1) | Finding 3 / 13 / 14 and #97-P5-Core round 3 §1–3.  On a dangling handle whose tag is not the one tested, the Rust answers `Ok` (or `Invalid`, at `ensure_sort`) and the twin throws `internal`. |
+| `CoreCachesRes` (withdrawn) | **2** (D1) | This is round 3's counterexample: `reduce_nat` tests the tag first, while `reduceNat` does `match ← view e`. |
+| `hchild` (24 statements), `hchild_*` | **2** (D2), and the **only** clause where the Rust relies on a store invariant | `EStore::intern_*` skips the persistent probe when a child is scratch (`sk`, `pers_find_maybe`, `store.rs:3966`).  The twin always probes.  The Rust's own doc comment says so: *"The twin probes unconditionally and is not changed by this; what is owed is one Theorem-2 lemma … under `StoreWF`"*. |
+| `hbmcap` on `intern_persistent_e_run`, and `ECapBMAt` | **2** (D3, **new**) | `Arena.internPersistentE` (`Monad.lean:672`) tests `pers.bmSize < idxCap` on a node miss whatever the datum is.  The Rust (`store.rs:4898`) interns the datum FIRST, with its own `full` test only on a datum miss.  This is the same corner #97-P5-Twin round 2 fixed in `internE`, still present on the persistent path. |
+| `ECapAt`, `EBindCapAt` | **1** | When the Rust's `Tbl::full` answers false, the lengths are below `IDX_CAP`, and `TblRel` makes the lengths equal.  When `full` answers true (saturation included), the result is `Native`, which claims nothing.  These should stay *internal* to the `estore_intern_*_abs` proofs.  They are already conclusions rather than hypotheses. |
+| `AStateInv` (`HashMap2.Inv` per table), `CachesInv.read*Vals`, the key predicates `StrNodeWF`/`LitNodeWF`/`BMNodeWF`/`ENodeViewWF`, `CoreCtx.idxInv`/`idxPos`, `IFEnvRel`'s position read, `absIEnv`'s reversal, `fvar_leaves`' `.reverse`, `absEIdxListFrom`, `RenameRel` | **1** | These are Rust-side representation invariants: the `ron::HashMap2` probe invariant, the cached words inside `ron` values, `u64 → usize`, `Vec` against `List`/`Array`, a trait dictionary against a function.  They stay, and every one of them is stated about the Rust representation only. |
+
+#### 3. Where Theorem 1 gets `StoreWF` (the ruling's question 1)
+
+Theorem 1 does not rely on Theorem 2 for `StoreWF`.  It proves it along the
+run itself:
+
+* `Bridge/StateOK.lean:62` defines `StateOK := ⟨wf : StoreWF s.store⟩`.
+* Every Bridge run lemma takes `StoreWF` as a precondition and concludes it.
+  For example, `Bridge/Specs.lean:290` `internE_spec` takes `StoreWF s₀.store`
+  and `ViewOK w` and concludes `StoreWF s'.store ∧ Ext … ∧ view h = some w`.
+  The promote window has its own weak form, `StoreWF'`, in
+  `Bridge/Promote/Walk.lean:833` `internPersistentE_run`.
+* `Arena.checkDecl_bridge` (§8.2) concludes `StateOK st' ∧ Ext st st'`.
+  `Capstone.stages_frame` starts the chain at `EStore.empty_wf`.
+
+Theorem 1 gets `ViewOK` because its walks carry denotations: a handle that
+denotes also resolves.  The dangling-cache counterexample is excluded by
+Theorem 1's cache invariants (`CacheOK` / `ReadCachesOK`: *"every recorded
+answer is the real one"*).
+
+**No Theorem-1 intern spec relied on Theorem 2 supplying `StoreWF`.**  The
+specs that relied on `hrel.storeWF` are all on Theorem 2's own side:
+
+* the 12 `intern_*_run` wrappers and the `_i` binder family in `Specs.lean`
+  (46 `.storeWF` reads), which re-establish the clause and `Ext`;
+* the walks in `ExprOps/Mut.lean` (167 reads);
+* `Core/Bracket.lean` (2) and `Checker/*` (18), which feed `BrOK` and
+  `IFEnv` well-formedness through the same field;
+* `hchild_*`, which is D2.
+
+Deleting the clause therefore costs Theorem 1 nothing, **except where a
+divergence fix below moves a fact into Theorem 1**.  Those facts are listed in
+§6.
+
+#### 4. The divergences, across all tiers (the ruling's question 3)
+
+**D1 — the Rust tests the tag first, the twin reads the view first.  94 Rust
+functions.**  The list was produced mechanically: each Rust function with a
+`.tag()` test whose cited twin body has no tag test but does `view`.  I
+checked seven of them by hand (`is_lam`, `ensure_sort`, `reduce_nat`,
+`is_ctor_app`, `iota_rec_major`, `eq_app3`, `nidx_is_model_suffix`).  I
+removed two false positives: `whnf_stuck_tag`, whose twin is
+`whnfStuckTag`, and `iota_rec_at`, where `iotaRecAt` does test `hd`.
+
+In the stretch `core.rs` 5070–7260 the list has 11 functions: `eta_cert`,
+the four `major_to_ctor*`, `lit_major_to_ctor`, `proj_lit_to_ctor`,
+`rec_rule_{k,eta}_of`, `iota_rec_major` (twin: `iotaRecAt:1978`'s `view` of
+the major's head) and `whnf_core_proj_at`.  Some of them have more than one
+tag-test site, which fits the core agent's count of 12 rows.
+
+| Rust file | n | functions (line) |
+|---|---:|---|
+| `checker_base.rs` | 8 | `nidx_is_model_suffix`:480, `nidx_is_proj_fn_shape`:498, `open_pis_at_fvars`:1098, `open_pis_at_fvars_f_go`:1136, `is_eq_head`:1265, `eq_head_level`:1292, `pi_result_sort`:1393, `check_proj_shape_residual`:1434 |
+| `core.rs` | 46 | `is_ctor_app`:847, `pi_result_is_prop`:874, `pi_result_z`:898, `pi_result_never_zero`:919, `is_unit_like_ty`:972, `unfold_definition`:1026, `unfoldable_head`:1076, `head_hint`:1109, `same_const_heads`:1139, `nat_succ_ok`:1280, `lit_to_ctor_if_nat`:1490, `list_ty_ok`:1728, `list_nil_ty_body`:1775, `list_cons_ty_body`:1878, `char_of_nat_ty_ok`:2011, `string_of_list_ty_body`:2059, `is_bool_true`:2342, `nat_op_ty_pinned`:3389, `reduce_nat`:3637, `pi_residual`:3967, `prop_sorts_zero`:4111, `prop_sorts_zero_right`:4160, `struct_eta_cert_at`:4738, `struct_eta_cert_with`:4837, `eta_ctor_shape`:4890, `struct_unit_cert`:5006, `eta_cert`:5072, `major_to_ctor_k`:5492, `major_to_ctor_eta`:5626, `major_to_ctor_and`:5740, `major_to_ctor`:5895, `lit_major_to_ctor`:5967, `proj_lit_to_ctor`:6002, `rec_rule_k_of`:6038, `rec_rule_eta_of`:6080, `iota_rec_major`:6710, `whnf_core_proj_at`:7054, `ensure_sort`:7721, `infer_forall`:7892, `infer_proj`:7946, `infer_lam`:8066, `infer_forall_io`:8906, `infer_proj_io`:9152, `defeq_spine`:9225, `defeq_lit_app`:9603, `annotate_proj`:10857 |
+| `core_gated.rs` | 1 | `whnf_core_app_gated`:57 |
+| `expr_ops.rs` | 18 | `is_lam`:2550, `lam_pw`:2565, `forall_pw`:2579, `strip_lams`:2955, `strip_pis`:2982, `pi_result`:3009, `inst_pis_from`:3042, `inst_pis_at_from`:3090, `inst_lams_at_from`:3138, `inst_pis_at_f_go`:3185, `inst_lams_at_f_go`:3243, `fvar_type_d`:3300, `rec_rule_plain`:3382, `pis_to_lams`:3420, `replace_pi_body`:3455, `pi_arity`:3489, `abstract_range_go`:4019, `inst_pis_at_lift_from`:4619 |
+| `inductives/modeled.rs` | 3 | `eq_app3`:724, `nested_rule_shape_at`:1480, `check_iota_thm_n_ctor`:1919 |
+| `inductives/native_parts.rs` | 5 | `rec_positivity`:230, `rec_positivity_at`:272, `pi_binders`:481, `native_counts`:1859, `native_shape_sort`:2081 |
+| `inductives/struct_parts.rs` | 6 | `replace_pis_pw`:321, `pis_to_lams_pw`:357, `struct_shape`:526, `struct_shape_motive`:616, `struct_parts_core_sort`:814, `struct_proj_bodies_go`:1342 |
+| `inductives/sum_install.rs` | 3 | `check_sum_tele`:280, `norm_pos_dom_at`:641, `norm_field_doms`:690 |
+| `prop_read.rs` | 4 | `peel_never_pis`:60, `num_args`:89, `residual_pw`:111, `proof_pw`:313 |
+
+The twins already spell the tag-first form at 19 sites (`get_app_fn`,
+`get_app_spine_go`, `instantiate1_go`, `infer_pis`, `defeq_peel`,
+`whnf_core_stuck_tag`, and others).  Those 19 are the precedent.
+
+**Fix:** write `if h.tag == ETag.C then match ← viewC h with | none =>
+failDanglingE | some … else …` in the twin, which is exactly the Rust.  The
+per-constructor projections already exist in `Monad.lean`.  Once that is done,
+a dangling handle behaves identically on both sides, and every `EResolves`,
+`AnswerResolves`, `CoreCachesRes`, `ResolveInv`/`Good` and `DeclResolves`
+disappears from Theorem 2.
+
+**D2 — the persistent probe is skipped when a child is in the scratch tier
+(Rust only).**  **Fix:** add the same `sk` test to the twin's
+`EStore.findAt`/`internAt`: `if scratchOn ∧ eViewHasScratchChild v then none
+else pers.find? v mi`.  This removes `hchild`.
+
+**D3 — `internPersistentE`'s datum capacity test.**  The twin tests it before
+the datum intern; the Rust interns the datum first and tests capacity only on
+a datum miss.  **Fix:** make the twin's monadic wrapper follow the Rust's order
+(`internBMPersistent` with its own miss-path test, then the node probe, then
+the node's test).  This removes `hbmcap` and `ECapBMAt` as hypotheses.
+
+**D4 — `orElseAttempt` puts the store back; the Rust keeps it.**  The twin's
+error arm resumes at the pre-attempt state, because `StateT σ (Except ε)`
+throws the state away on an error.  `attempt_restore`
+(`checker_base.rs:384`) restores memos and caches only, so the appends made by
+a failed attempt stay in the Rust store.
+
+After a recovered attempt the two scratch tiers differ in LENGTH, so every
+later scratch handle has a different `u32`.  That breaks the lockstep for the
+rest of the declaration.  A weaker relation cannot absorb it; it would need a
+renaming.  The fix has to be in a program:
+
+* **Recommended: in the Rust.**  Snapshot and restore the four stores'
+  scratch tiers alongside the memos and caches.  The attempt runs inside a
+  declaration's bracket (`check_decl` → `check_defn_div_mod_pin` →
+  `check_div_mod_pin`), so the scratch tier is on.  It is 8 attempts on the
+  whole of `Init` (#97-P6-4a §4), and each snapshot is one declaration's
+  scratch.  The whole-store copy that overflowed the stack in #97-P4d/P6-2 was
+  12.3 M nodes and recursive; this is neither.  The implementer should confirm
+  the scratch flag at the call site and write the copy as a loop.
+* The twin-side alternative is a monad whose error carries the state
+  (`EStateM`-shaped).  That is a whole-twin change and is not proportionate.
+
+Once D4 is fixed, `AStateRel₀` holds at every step, which is the lockstep.
+
+**Already fixed earlier in the campaign, for the record:** the capacity test
+before the probe (P5-1 f9, P5-Twin), `M_FROZEN` (P5-Usize), raw pins, the
+hoist fuel, and the gated lane's stuck-tag hoist (P5-Core-2).
+
+#### 5. Does the Rust genuinely need an invariant to behave like the twin?
+
+An Aeneas `fail` (a panic, an overflow, an out-of-bounds read) is excluded by
+every lemma's `= ok` hypothesis.  `Native` claims nothing.  So what matters is
+only a Rust `Ok`, or a different error kind, where the twin differs.  Going
+through every place the Rust reads memory or skips work:
+
+1. **D2 is the one real case.**  The Rust relies on the tier discipline
+   ("a persistent cons key has no scratch child") to skip a probe.  The Rust
+   cannot maintain that invariant by itself: with scratch off it can intern a
+   persistent node over a stale scratch handle.  So it is not a Rust-side
+   invariant.  It is Theorem 1's (`consP` + `childOK`), and mirroring the skip
+   in the twin is how it gets there.
+2. **D4.**  The Rust relies on "append-only, so unreachable nodes are
+   harmless", which is a statement about denotations.  Recommended fix: the
+   Rust restores the scratch tiers.
+3. **Representation only, and it stays:**
+   * the `HashMap2` probe invariant (`AStateInv`, `CoreCtx.idxInv`);
+   * the cached words in `ron` strings, literals and `PropWhen` (the
+     `*NodeWF` key predicates, `CachesInv.read*Vals`);
+   * `idxPos` (`pos as usize`).
+
+   Everything else is total on both sides:
+   * the typed projections (`view_*`, both sides return `None`);
+   * `der_at`'s default, which equals the twin's `derived` default at all
+     three stores;
+   * the cache cap, where `relOn_size` makes the lengths equal;
+   * the handle packing, where `as u32` and `UInt32.ofNat` both wrap.
+
+**List of genuine Theorem-2 invariants after D1–D4: `AStateInv` and the
+representation predicates in the kind-1 row.  Nothing about the twin's store.**
+
+#### 6. The lockstep shape of Theorem 2 (recommended)
+
+    structure AStateRel₀ pers rs ls : Prop where   -- store, memos, caches, pins; nothing else
+    structure AStateInv pers rs : Prop             -- unchanged: HashMap2.Inv + read*Vals
+
+    def AOut A WF pers o st' x :=                  -- the `lst` parameter is dead; drop it
+      match o with
+      | .Ok r  => ∃ lst', x = .ok (A r, lst') ∧ AStateRel₀ pers st' lst' ∧ AStateInv pers st' ∧ WF r
+      | .Err e => AErrSim e x
+    def SimS pers lst st' x := ∃ lst', x.run lst = .ok ((), lst') ∧ AStateRel₀ pers st' lst' ∧ AStateInv pers st'
+    -- AOutRel / SimRel: the same, with `R r v` in place of `v = A r`
+
+`WF r` keeps its role as a representation predicate on the Rust result (for
+example `LevelWF` of a readback).  Every statement then has the premises
+`hrel₀ hinv hrun`, plus representation facts about Rust inputs (`CoreCtx`,
+`IFEnvRel`/`IFEnvInv`, `ENodeViewWF`, `RenameRel`).  There is no premise
+about the twin store.
+
+`KnotRel`/`BodyRel`'s 13 fields become `hrel₀ → hinv → hctx → hf → hrun →
+Sim …`, and `knotRel_checkFuel'` is then true.  The bracket becomes three
+`SimS` lemmas, the plan `Shape.lean`'s note first had.
+
+**What Theorem 1 gains in exchange:**
+
+* **D1:** one rewriting lemma per projection kind:
+  `EResolves → (tag-first form) = (view-first form)`.  It is unconditional in
+  one direction (`EStore_view_tagOf`, `EStore_view_of_tag_sort`, both already
+  proved in `Specs.lean`, both `StoreWF`-free, which move to `Arena/`).  It is
+  then applied once in each of the ~94 Bridge proofs of the edited twins.
+* **D2:** one `StoreWF`-premised lemma, "the skip does not change
+  `findAt`/`internAt`".  This is the six `hchild_*` lemmas moved from
+  `Refine2/Specs.lean` to `Arena/WFProofs.lean` unchanged, plus one equation.
+* **D3:** a reordered wrapper spec.
+* **D4:** nothing, if the Rust restores.
+
+#### 7. Migration plan for `Refine2/**` (the ruling's question 2)
+
+Counts are over theorem signatures at `e3ea3e55`: 3 113 theorems, of which 954
+are simulation statements (these carry `Ext` implicitly through
+`AOut`/`SimS`), and 370 have a drift clause in the signature.
+
+| lane | theorems / sim. stmts / with a drift clause | what the statements lose | proofs |
+|---|---|---|---|
+| base (`Shape`, `AbsState`) | 103 / 16 / 0 | `AOut`/`SimS`/`AOutRel` lose `Ext` and `lst`; `AStateRel₀` | four `def` edits |
+| `Specs.lean` | 455 / 72 / 86 | `storeWF` (42), `hview` (38), `hchild` (17, needs D2), `hbmcap` (5, needs D3), `EBindWFAt` (4); the `AStateRelW`/`AOutW`/`SimW` family (10) is deleted; `intern_storeWF`, the 10 `viewOK_*` builders and `hchild_*` are deleted or moved to Theorem 1 | **shrink**: each intern loses its `intern_wf` discharge and `Ext` |
+| `ExprOps` | 464 / 167 / 151 | `EResolves` (106; the 18 D1 walks), `MemoRes` (37), `ViewOK` (19), `WOutE` → `Sim` (63), `StoreWF` (15) | **shrink a lot**: the finding-19 scaffolding (`WOutR`, `EViewExt`, `QStable`, `RenameRes`, `intern_resolves`) goes, and `Mut.lean`'s inductions carry only `hrel₀`/`hinv` |
+| `Core` | 195 / 40 / 56 | `KnotRel`/`BodyRel`/entries lose `StoreWF` (38) and `EResolves` (27, after D1); `CoreAmbient`/`AnswerResolves` (12) deleted; `ExprOpsHyp.headRes`/`mkAppNRes` (false as stated) deleted; `Bracket.lean`'s `BrOK`/`ScratchClosed`/`TwinWF`/`ext_bracket` (25) deleted | **shrink**; `bodyRel_of_knot` becomes statable as briefed |
+| `Promote` | 76 / 43 / 33 | all 33 move from `AStateRelW`/`SimW` onto `AStateRel₀`/`Sim`; `EViewPers`/`hview` go | **shrink** |
+| `Inductives` | 358 / 249 / 0 | `Ext` only, implicit | mechanical: delete the `Ext` arguments at `AOut.ok`/`SimRel` sites |
+| `Checker` | 562 / 316 / 44 | the `Good` parameter and `ResolveInv` (37, after D1), `BrOK` (16) | **shrink**; `install_then_check_refines` is `hrel₀ hinv hrun` |
+| `Frontend` | 900 / 51 / 0 | `Ext` only, implicit | mechanical |
+| `Capstone.lean` | — | `declResolves_of_stages` (a **`sorry`**) and the `BrOK`/`Good` arguments of `rust_stages` are deleted | shrink |
+
+Across all proofs this deletes about 220 `AOut.ok` `Ext` arguments, 33
+`SimS.mk` arguments, 259 `Ext.refl`, 119 `Ext.trans` and 21 `aout_rebase`.
+**Every proof shrinks or stays the same size.**  The one place new
+Theorem-2 work appears is the Theorem-2 lemmas of the 94 D1 twins.  Those
+become strictly lockstep (tag test against tag test, projection against
+projection).  Many of them are `sorry` today, so this is reshaping rather than
+re-proving.
+
+**Order.**  The new statements are weaker in their premises, so a consumer
+cannot be restated before its producers.  Migration therefore goes bottom-up:
+
+1. `Shape.lean`: `AStateRel₀` and the `Ext`-free `AOut`/`SimS`.  Keep
+   `AStateRel := AStateRel₀ ∧ StoreWF` (the core lane's plan) together with a
+   projection `AStateRel → AStateRel₀`, so that not-yet-migrated consumers
+   still compile.
+2. Twin fixes D2 and D3 in `Arena/Store.lean`/`Monad.lean`, with their
+   Theorem-1 lemmas.  D4 in the Rust, with a re-extraction.
+3. `Specs.lean`'s producers.
+4. `ExprOps` together with D1 on the 18 `expr_ops` twins.
+5. `Core` together with D1 on the 47 `core` and `core_gated` twins (this
+   unblocks `bodyRel_of_knot`).
+6. `Promote`.
+7. `Inductives` together with D1 on its 17 twins, and `prop_read`'s 4.
+8. `Checker` together with D1 on `checker_base`'s 8.
+9. `Frontend`.
+10. `Capstone`.
+11. Delete `AStateRel`, `AStateRelW`, `WOutE`, `MemoRes`, `ResolveInv`,
+    `BrOK` and `TwinWF`.
+
+Each D1 twin edit also touches its Bridge proof (Theorem 1), so each such step
+belongs to a lane that holds both sides for that tier, or a Bridge task has to
+go with it.
+
+#### 8. Gates
+
+This is a DESIGN-only change, so the only gate is `scripts/overview-links.sh`.
+**It FAILS, and the failure is already on `arena`**, not caused by this
+branch.  I reproduced it at `arena` `38a7e0c2` in a detached checkout.  The
+failing citation is `README.md:13`'s
+`proof/ConRon/RefineOld/Installed.lean#L3289-L3305` (`check_decls_refines`),
+whose cited lines moved under it.  This section adds no link, so I landed on
+the rule that the gate is unchanged by the diff.  The README anchor needs
+someone to re-read the paragraph that cites it and then run `--update`.
+
+#### Rulings on round 3's questions (coordinator, 2026-09-23)
+
+For the lane's restart after the lockstep foundation lands:
+
+* **F10** — `proj_rewrite_at_refines` is false as stated (wrong key, no
+  level-param comparison) and has no callers: **delete it**, do not restate.
+* **F12** — **authorised**: `check_one_ctor_refines`, `order_type_ctors`,
+  `order_block_ctors`, `check_one_rec`, `check_rec_records` gain real
+  conclusions, each against a twin-side transcription of its loop body in
+  `Spec.lean`; `check_one_ctor_refines`' twin side must return the `invalid`
+  verdict where the Rust does, not `fail` (if the *twin* is what fails there,
+  that is a twin/Rust divergence to fix in the twin, per the lockstep rule).
+* **F11** needs nothing: it disappears when `storeWF` leaves `AStateRel`.
+* **D1 `lam_body`** joins the audit's tag-first list (ExprOps lane).
+
+### Task #97-P5-Driver — the driver's fold and reader loop, extracted; the capstone restated over them; the pool the one trusted claim (2026-09-23, Opus under Fable)
+
+**The gap** (task #97-COMPOSE's mismatch 11, priced by task #97-P5-Top §6 and
+task #97-P5-Front §4): the capstone
+`ConRon.Capstone.{model_exists,no_False_declaration}` was about
+`parse_chunks` and `install_then_check` at one `PersTier`; the binary instead
+ran two loops of its own in the unverified crate — the reader loop
+`driver::parse_export_handle_d` and `driver::check_decls_driver`, which
+re-froze the persistent tier with `std::mem::replace` of whole tables
+(`freeze_tier` / `thaw_tier`), looped over phase A itself, and ran phase B on
+the pool.  The maintainer's bar, relayed mid-task: **no regression against
+`master`** in what is trusted or in architecture — master's unverified crate
+trusts exactly the modeller, the driver's call sequence, and the pool's
+merge-by-record-index argument against a VERIFIED sequential phase-B fold
+(`installed::check_pending_list`), and its driver calls nothing but verified
+functions.  The reader loop was added to the task by the coordinator so that
+one regeneration of `Generated/Funs.lean` serves both.
+
+#### 1. What moved into `con-ron-core` (and so into the model)
+
+All extracted, `Generated/{Types,Funs}.lean` regenerated in the same commit;
+no new hole (`scripts/holes.sh` unchanged, six).  `mem::replace` is
+`core.mem.replace` in the model (`(dst, src)`), already used by
+`ron::hashmap{,2}`.
+
+| function | what it is | Lean twin |
+|---|---|---|
+| `arena::checker::InstallHook` (trait) | the `--progress` install line, `&self` and `()`-valued — `Modeller`'s arrangement: declared in the core, implemented in the driver (`Heartbeat`, `Silent`) | none |
+| `annot_fold_hooked` | `annot_fold` with `h.install_before(…)` before each step — **phase A is this call** | none — proved EQUAL to `annot_fold` |
+| `fold_start` | `(0, mk_ifenv(i_env_empty()), Vec::new())`, so the driver builds the accumulator with the verified call | none |
+| `freeze_tier` | moved from the driver; **now declines** (`Native`, `M_REFREEZE`) a store with any `shared_on` flag up | none (the twin has no tier) |
+| `thaw_tier` | moved from the driver | none |
+| `pins_dup`, `worker_state` | moved from `pool.rs` | `AState.worker` |
+| `check_pending_worker` | ONE `worker_state` and `check_pending_list` from it over the frozen tier — **the verified sequential phase-B walk**, the pool at one worker call for call | `checkPendingWorker` |
+| `check_decls_phased` | `annot_fold_hooked → freeze_tier → check_pending_worker → thaw_tier` — the driver's fold with the pool replaced by the walk | `installThenCheckPhased` |
+| `frontend::export_c::ChunkSource` (trait) | `next_chunk(&mut self) -> Vec<u8>`, empty at the end — the input seam; the driver implements it over the file handle (`driver::HandleSource`) | none |
+| `frontend::export_c::parse_source` | **the reader loop**, moved from the driver: `state_d_init`, one `chunk_step` per buffer, `chunk_finish` at the first empty one | none — proved EQUAL to `parse_chunks` over the chunks read |
+
+**The driver is now a straight line of calls into the verified crate.**  The
+declaration fold (`driver::check_decls_driver`, doc table):
+`annot_fold_hooked(…, fold_start(), …, &*obs)`, `freeze_tier`,
+`pool::check_pool(&tier, …, &st.pins, …)`, `thaw_tier`, with observer lines
+between them that hold only `&` the state.  The read:
+`export_c::parse_source(…, &mut HandleSource { h, chunk, … }, …)`; a read
+failure ends the source like an end of file and is kept in the source, and
+`parse_export_handle_d` returns it in place of the parse's result — exit 3,
+never a verdict, as before.  Gone from the unverified crate:
+`driver::{freeze_tier, thaw_tier, pins_ref}`, `pool::{pins_dup,
+worker_state}`, the driver's two loops.  `PhaseObserver::install_before`
+became `InstallHook::install_before(&self…)`.
+
+**The freeze guard is the one Rust behaviour added.**  The relation
+(`StoreRel`) reads the persistent arm through `rPersE pers st = if
+st.shared_on then pers.e else st.pers`; nothing in Theorem 2 tracks the flags
+(no frame lemma over the checker says a call preserves them), so a boundary
+lemma about an arbitrary related store would need "flags down" as a
+hypothesis the capstone could not discharge.  The guard makes the Rust check
+it and the proof read it off the run.  It is unreachable in the binary (phase
+A's store has its flags down) and costs four `bool` tests per run.
+
+#### 2. The proofs (all closed, no `sorry`)
+
+* **Twin** — `proof/ConRon/Arena/Phased.lean`: `AState.worker s = { s with
+  store := s.store.dropScratch, memos := ∅, caches := ∅ }`,
+  `checkPendingWorker`, `installThenCheckPhased`; and the one structural fact
+  `enterScratch s.worker = enterScratch s` when `s.caches = ∅`
+  (`enableScratch ∘ dropScratch = enableScratch` by `rfl`), hence
+  `checkPending_worker` and `checkPendingList_worker` (a worker's accepting
+  walk is the phase-A state's).
+* **Theorem 1** — `proof/ConRon/Bridge/Checker/Phased.lean`:
+  `Arena.installThenCheckPhased_bridge`, `installThenCheck_bridge`'s
+  hypotheses verbatim, concluding (i) `installThenCheck` accepts from the same
+  state and (ii) the pure fold accepts at the environment's denotation in the
+  RETURNED (phase-A) state.  The caches-empty fact is `annotFold_bridge`'s own
+  last conjunct, which `installThenCheck_bridge` already uses to enter phase B.
+* **Theorem 2** — `proof/ConRon/Refine2/Checker/Phased.lean`:
+  `annot_fold_hooked_eq` (the hooked fold's outcome IS `annot_fold`'s, any
+  hook); `freeze_tier_err` (its decline is `Native`, claims nothing);
+  `freeze_tier_ok` (accepts only a `Thawed` store, hands back `tierOf` it, and
+  `thaw_tier` restores the store exactly); `pins_dup_val`; `worker_state_rel`
+  (the worker over `tierOf st.store` is related to `lst.worker` AT THE TIER as
+  the reader parameter, with `AStateInv` and `BrOK`); and
+  **`check_decls_phased_refines`** — `install_then_check_refines`' statement
+  and hypotheses verbatim, for any `InstallHook` instance, against
+  `installThenCheckPhased`.  `check_pending_list_refines` is reused at
+  `pers := tierOf st.store`: Theorem 2's statements were already parametric in
+  the tier, which is what made the boundary a composition.
+* **The reader loop** — `proof/ConRon/Refine2/Frontend/Source.lean`:
+  `ReadsAs inst src cs` (the source hands out the chunks `cs`, each nonempty,
+  then an empty buffer) and `parse_source_eq`: under it, `parse_source` returns
+  what `parse_chunks` returns on `cs`, with the same arena state — the two
+  `-loops-to-rec` loops side by side, induction on the chunks left.  A
+  statement about the Rust model alone; no twin, no `ScanSpec`.
+* **The capstone** — `proof/ConRon/Capstone.lean`: stage 3 is
+  `parse_source inst sinst pers m st2 src true false = ok (.Ok r, st3, src')`
+  under the new named hypothesis `hreads : ReadsAs sinst src chunks.val`, and
+  stage 6 is `check_decls_phased hinst pers st5 .Verified ipins ds hook = ok
+  (.Ok fe, st6)` for ANY hook `{Hk} {hinst : InstallHook Hk} {hook}` — the
+  plain run and `--progress` alike.  `rust_stages` routes stage 3 through
+  `parse_source_eq` and stage 6 through `check_decls_phased_refines`;
+  `stages_model` uses `installThenCheckPhased_bridge`; `no_False_declaration`
+  goes through the new `stages_installThenCheck` to reach
+  `runPipeline_ok_of_stages` unchanged.  Census unchanged (`#guard_msgs`).
+
+#### 3. The trusted residue, and the one deliberate difference from master
+
+The unverified crate's rows (OVERVIEW §8.2) are the same three as master's:
+
+* **the modeller** — behind `ModellerWF`/`ModellerRefines`.
+  `in_model.rs`'s `mem::replace` of the store around `intern_decls` is INSIDE
+  `Modeller::generate`, and `ModellerRefines.generate` is a statement about
+  `inst.generate m pers rst.store …`'s whole run, so it is covered;
+* **the driver's call sequence** — the six stages in order, the verdict
+  mapping, and **the reads**: that the handle hands `parse_source` the file's
+  bytes in order is the capstone's `hreads`, the input seam as `hmr` is the
+  modeller's.  Master's driver trusted its reader loop as part of this row;
+  here the loop is verified and only the reads are left;
+* **the pool** — its claim (`pool.rs`'s module note, "THE TRUSTED CLAIM"):
+  `check_pool(pers, mode, fe, pend, pins, n, _)` returns what the verified
+  `check_pending_worker(pers, mode, fe, pins, pend)` returns, at every `n`.
+  It rests on
+  1. **merge by record index** — master's argument, unchanged (the limit is
+     `m` or a failing index, the counter is monotone, the table is complete
+     below the first failure and walked in record order);
+  2. **a record's outcome does not depend on which records its worker checked
+     before it** — the deliberate difference.  Master's pool (and con-leche's
+     `checkPending mode fe pc {}`) checked every record from a fresh state, so
+     (1) was the whole argument.  The arena keeps ONE `AState` per worker
+     (task #97-P6-6b), so record `k` runs on a state its worker's earlier
+     records used — `0..k` in the one-worker walk, a subsequence in the pool.
+     The argument: `enter_scratch` resets the memos and opens an empty scratch
+     tier, `drop_scratch` resets the caches and truncates it, the persistent
+     tier is `&PersTier` and the store's own persistent tables are frozen, the
+     pins are never written — so what crosses a record is CAPACITY
+     (slot-vector lengths, `clear_fit`'s high-water mark, `Vec` capacities),
+     which no lookup's answer depends on.
+
+**Why (2) is taken, measured.**  This task built the master-shaped
+alternative first — a fresh `worker_state` per record in the pool AND in the
+verified walk (`check_pending_fresh{,_list}`), which makes (2) true by
+construction — and it cost **+16.4 % instructions on `Init`** (§4): every
+record re-grows the tables that task #97-P6-7's high-water mark exists to keep
+sized.  So the branch keeps per-worker states and states (2) explicitly;
+`pool_is_check_pending_worker_at_every_jobs` tests the whole claim at 1, 2, 3,
+4 and 8 workers on five lists.  **At `--jobs=1` (2) is vacuous** — one
+worker's history IS the walk's — so the single-worker binary's residue is (1)
+alone, exactly master's.  **(2) is about the verified crate's `check_pending`
+alone**, so it is provable in principle; what it would take is a
+Theorem-2-level invariant "a worker state reached by accepting
+`check_pending`s from `worker_state` is related to `AState.worker lst` up to
+memos", whose missing pieces are frame lemmas nobody has: the Rust checker
+preserves the `shared_on` flags and the pins, and the twin's phase B leaves the
+persistent tier's `Std.HashMap`s literally unchanged (the relation fixes them
+only up to probes).  **Ruling wanted**: accept (2) as the deliberate
+difference, or schedule that proof, or pay the 16 %.
+
+#### 4. No behaviour change: `Init`
+
+`perf stat -e instructions:u` (+ GNU `time`) of `--verified` on
+`_tmp/corpus/init.ndjson`, two runs each, before/after interleaved, `timeout
+900`, `ulimit -v 8388608` at `--jobs=1` and `27000000` at the default (16
+workers).  "before" is the `arena` tip `5facde4c` this branch started from,
+rebuilt here; every run accepts 57 977.
+
+| binary | `--jobs=1` instructions | default-jobs instructions |
+|---|---|---|
+| before | 211 941 759 958 / 211 942 102 263 / 211 942 818 000 / 211 943 038 535 | 214.55 G / 214.37 G / 214.46 G / 214.49 G |
+| **this branch** (fold + reader loop) | 211 955 367 466 / 211 955 556 581 (**+12.5 M, +0.006 %**) | 214.51 G / 214.56 G (within the ±0.1 G spread) |
+| fold only, reader loop still in the driver | 211 947 119 602 / 211 948 304 370 (+5.8 M) | 214.33 G / 214.45 G |
+| the fresh-per-record alternative (not landed) | 246 685 094 595 / 246 683 474 528 (**+16.4 %**) | 246.73 G / 246.72 G |
+
+The +6.7 M the reader loop adds is, presumably, its fresh 4 MiB buffer per
+read where the old loop refilled one (83 reads on `Init`); not profiled.  Peak RSS unchanged (0.54–0.66 GB at
+`--jobs=1`, 0.96–1.04 GB at the default, both binaries).  Wall time is not
+reported: another agent's builds and this task's own extraction ran beside
+every pair (22–42 s at `--jobs=1` for BOTH binaries), so the column would
+measure the machine.
+
+#### 5. Out-of-lane edits
+
+* `proof/ConRon/Arena.lean` — one import line (`ConRon.Arena.Phased`);
+  `Refine2/Checker/Shape.lean`, `Refine2/Frontend/Abs.lean` and
+  `Bridge/Peel.lean` import the aggregator, so they rebuild.
+* NEW files in the two live lanes: `proof/ConRon/Bridge/Checker/Phased.lean`,
+  `proof/ConRon/Refine2/Checker/Phased.lean`,
+  `proof/ConRon/Refine2/Frontend/Source.lean`.  Nothing existing under
+  `Bridge/**` or `Refine2/**` was edited (`Refine2/Checker/Top.lean`'s private
+  `mk_ifenv_empty_refines` and `Capstone.lean`'s `AM.bind_of_ok` are copied,
+  not exported, to keep out of those files).
+* `OVERVIEW.md` §8.2's driver and pool rows, and
+  `scripts/overview-links-expected.txt`.
+
+#### 6. Gates, merge and cache
+
+`arena` merged at `e899ecd1` (P3-Frontend round 8, P3-Checker round 9,
+P5-Front, P3-Promote): two conflicts — `Capstone.lean` (the capstone lost
+`hsc` to `scanSpec` there while it gained `hreads` here; both kept) and this
+file (both appends kept) — and one follow-up, `annotFold_bridge`'s new
+`NodupNames` argument in `Bridge/Checker/Phased.lean`.  `scripts/gates.sh` on
+the result: **all 16 OK** (`extract-check` 103 s).  Capstone frontier
+(`frontier.sh`): **32 items in 13 modules, 103 tainted declarations** — none
+of them in this task's four new modules, which carry no `sorry`; census of the
+two roots unchanged.  The shared Lake cache was seeded from this worktree
+(`LAKE_ARTIFACT_CACHE=true LAKE_RESTORE_ARTIFACTS=true lake build
+ConRonRefine2 ConRonBridge ConRonCapstone`), `Refine2/Core/Eqns.lean` (1 036 s
+here) included.
+
+**Second merge**, `arena` at `aa1dc3e2` (task #97-P5-Top round 2: ruling 2's
+`DeclResolves`, threaded through `annot_fold_refines`,
+`check_pending_list_refines` and `install_then_check_refines` over an abstract
+invariant `Good`, discharged in the capstone by the new, `sorry`ed,
+`declResolves_of_stages`).  `check_decls_phased_refines` takes `DeclResolves`
+exactly as `install_then_check_refines` does, **plus one hypothesis about the
+same `Good`**: `hwork : Good fe s → Good fe s.worker`, because phase B now
+starts from the twin's `AState.worker` of the phase-A state rather than from
+the phase-A state itself.  The capstone takes it from
+`declResolves_of_stages`, whose conclusion gains that conjunct — **an added
+obligation on a lemma that is already Theorem 1's `sorry`**, not a new named
+hypothesis: the witness its doc comment names (`FoldOK` plus "the handles
+resolve") is about the persistent tier, which `AState.worker` keeps
+(`EStore.dropScratch_wf`, persistent denotation through the drop, `CacheOK` of
+empty caches).  Flagged for the Theorem-1 lane.  One conflict
+(`Capstone.lean`'s `rust_stages`, `model_exists`, `no_False_declaration`:
+theirs added `hk hind` and `DeclResolves`, mine `hreads` and the phased fold;
+both kept).  `scripts/gates.sh` on the second merge `ad2dd999`: **all 16 OK**
+(`extract-check` 98 s); frontier **34 items in 14 modules, 111 tainted
+declarations** (still none in this task's four modules).  `arena` then moved
+to `6cfd995d` (`CLAUDE.md`, and a `Bridge/Inductives/**` +
+`Bridge/Checker/{Arms,Hyp}.lean` landing): merged cleanly, and the gates that
+delta can reach re-run — `lake build ConRonBridge ConRonCapstone` green (2 790
+jobs); no Rust, `Refine2/**` or default-target module is downstream of it.
+**Fourth merge**, `arena` at `e3ea3e55` (a Frontend round, `Refine2/Dup.lean`
+— `nidx_vec_dup_val`, which `pins_dup_val` uses, moved there — and a
+`gates.sh` lock): `DESIGN.md` conflict only.  `scripts/gates.sh` on
+`0c643232`: **all 16 OK** (`extract-check` 120 s); frontier **38 items in 13
+modules, 125 tainted declarations**, none in this task's modules.  The shared
+Lake cache re-seeded from this state before landing.
+
+**Fifth to seventh merges**, `arena` at `d6288114` (a `Bridge/Checker/**`
+round, `Split.lean` included), `900615df` (task #97-P5-Top round 3:
+`Refine2/Checker/{Base,Pins,Top}.lean`, `Promote.lean`) and `5b2873c5` (a
+`Refine2/Frontend/**` round): `DESIGN.md` conflicts at most.  Re-gated what
+each reaches: `overview-links` OK and `lake build ConRonBridge ConRonCapstone`
+green after the first, `lake build ConRonRefine2 ConRonCapstone` green after
+the other two; none touches Rust, the model or a default-target module.  The
+cache seeding was repeated on the landing state.
+**Eighth merge**, `315ab8d5` (task #97-P3-Core round 6: `hk` is a theorem,
+`CoreSpec.of_core`, and left the two roots' signatures): conflict in the two
+roots' bodies, resolved to `CoreSpec.of_core rfl` with this task's `hreads`
+and `stages_installThenCheck`; `lake build ConRonBridge ConRonCapstone` green
+(2 803 jobs); cache re-seeded.
+**Ninth**, `12fd2d46` (T2-LOCKSTEP step 1: `Refine2` shape shims): clean;
+`lake build ConRonRefine2 ConRonCapstone` green (2 790 jobs); cache re-seeded;
+landed.

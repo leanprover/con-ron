@@ -29,11 +29,11 @@ the ζ reduct (con-leche's task #217).
    `annotateBindersOut`'s outward rebuild.  The single-binder clause survives
    as `annotateBinder`, con-leche's λ residual, entered zero times on `Init`.
    con-leche's identification is `Verify/BinderLoop.lean` and its cached port;
-   the carry is `annotateBody_binders_batched` below.
+   the carry is `annotateBody_binders_batched` below (CLOSED, round 6, over
+   `Walks/BinderLoop.lean`).
 2. **The EXECUTED `abstractRange`** (the same task): the rebuild calls
-   `abstractRangeFast`, whose spec is `Bridge/ExprOps/Owed.lean`'s (still
-   `sorry` — task #97-P3-0's open list) and whose identification with the
-   spec descent is `Bridge/ExprOps/Abs.lean`'s.
+   `abstractRangeFast`, whose spec is `Bridge/ExprOps/Owed.lean`'s, at
+   `Walks/FvarB.lean`'s `fvarBSpec`.
 3. `internRebuiltApp` at the `.app` clause (task #97-P6-7's lever 4), whose
    `@[spec]` theorem is `Bridge/Specs.lean`'s `internRebuiltApp_spec` and
    which claims exactly `RelE`'s `.self` when the children did not move.
@@ -230,16 +230,17 @@ theorem annot_proj {F d i : Nat} {sn T : Name} {pe e' te tpe : Expr}
 
 /-! ## 6. The batched clause's identification, and the body theorem -/
 
-/-- con-leche: ConLeche/Verify/BinderLoop.lean — **OPEN** (task
-#97-P3-Core): the twin's binder clauses are `annotatePis`/`annotateLams`
-(task #97-P6-11), con-leche's own cached-tier telescope loops with
-`annotateBindersOut`'s outward rebuild, against the chained
-`annot_forallE_*`/`annot_lam_*` above.  What is owed is the denotation carry,
-and it needs `Bridge/ExprOps/Owed.lean`'s `abstractRangeFast_spec` — still
-`sorry` (task #97-P3-0's open list) — because the rebuild is the EXECUTED
-`abstractRange` and not the spec descent. -/
+/-- con-leche: ConLeche/Verify/BinderLoop.lean:1612 annotatePis_sound /
+:1714 annotateLams_sound — the twin's binder clauses are
+`annotatePis`/`annotateLams` (task #97-P6-11), con-leche's own cached-tier
+telescope loops with `annotateBindersOut`'s outward rebuild, and — at a λ
+that is not `bvar`-closed — the per-binder `annotateBinder`.
+**CLOSED** (task #97-P3-Core round 6, lane `binders`): the carries are
+`Walks/BinderLoop.lean`'s `annotateForall_spec`, `annotateLamLoop_spec`
+and `annotateBinderLam_spec`; the `bvarB` test between the last two needs
+no fact, both branches being sound. -/
 theorem annotateBody_binders_batched {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env)
+    (_henv : ConLeche.EnvWF env)
     (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
@@ -248,7 +249,37 @@ theorem annotateBody_binders_batched {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v
+  case forallE ty b m =>
+    obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_forallE_inv hwf hv hden
+    exact annotateForall_spec hsim s₀ d ty b m et eb hok hdt hdb hw
+  case lam ty b m =>
+    obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_lam_inv hwf hv hden
+    dsimp only
+    refine triple_seq (ExprOps.bvarB_spec coreWalkFuel s₀ i hok.state
+      (by rw [hden]; rfl)) ?_
+    rintro bb s1 ⟨hst1, hc1, hp1, -, -, -⟩
+    have hx1 : Ext s₀.store s1.store := by rw [hst1]; exact Ext.refl _
+    have hok1 : CheckOK mode env fe s1 :=
+      hok.mono ⟨by rw [hst1]; exact hwf⟩ hx1 hc1 hp1
+    have hdt1 := denote_ext hdt hx1
+    have hdb1 := denote_ext hdb hx1
+    have hfin : ∀ r s', (CheckOK mode env fe s' ∧ Ext s1.store s'.store ∧
+        s'.pins = s1.pins ∧
+        SimE (ConLeche.annotateCore mode env) d (.lam et eb m) s'.store r) →
+        (CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        SimE (ConLeche.annotateCore mode env) d (.lam et eb m) s'.store r) :=
+      fun r s' ⟨h1, h2, h3, h4⟩ => ⟨h1, hx1.trans h2, h3.trans hp1, h4⟩
+    split
+    next => exact triple_mono (annotateLamLoop_spec hsim s1 d ty b m et eb hok1
+      hdt1 hdb1 hw) hfin
+    next => exact triple_mono (annotateBinderLam_spec hsim s1 d ty b m et eb hok1
+      hdt1 hdb1 hw) hfin
+  all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 
 /-! ### The dispatch's children (task #97-P3-Core round 5)
@@ -770,6 +801,7 @@ section Census
 
 #print axioms view_app_of_denote
 #print axioms annotateBody_app
+#print axioms annotateBody_binders_batched
 #print axioms annotateBody_lit
 #print axioms annotateBody_leaf
 #print axioms ensureSortCore_of_whnf
