@@ -307,4 +307,156 @@ theorem pi_residual_aux (n : Nat) :
     rw [arena.core.pi_residual, listFrom_cons args i (by omega), piResidual]
     lockstep_a2
 
+/-! ## Stubs (other regions' lemmas; deleted at merge) -/
+
+/-- Region A1's `IProjEntry.fireOk`. -/
+@[lockstep] theorem stub_proj_entry_fire_ok_ls {pers st entry us lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.proj_entry_fire_ok pers st entry us) lst
+      ((absIProjEntry entry).fireOk (absLsIdx us)) := by
+  sorry
+
+/-! ## The projection-slot walks -/
+
+section slots
+attribute [local lockstep_simp] Option.map_none Option.map_some Option.isSome_none
+  Option.isSome_some absIProjEntry
+
+theorem tower_slots_all_go_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {vis : Std.U64} {st : arena.monad.AState}
+      {fe : arena.env.IFEnv} {lfe : IFEnv} {lst : AState}
+      (t : arena.handle.NIdx) (nn j : Std.U64),
+      nn.val = n → AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+      LS pers (fun a b => b = a) (arena.core.tower_slots_all_go pers vis st fe t nn j) lst
+        (towerSlotsAllGo lfe (absNIdx t) n (absU j)) := by
+  induction n with
+  | zero =>
+    intro pers vis st fe lfe lst t nn j hn hrel hinv hctx
+    rw [arena.core.tower_slots_all_go, towerSlotsAllGo]
+    lockstep_a2
+  | succ m ih =>
+    intro pers vis st fe lfe lst t nn j hn hrel hinv hctx
+    rw [arena.core.tower_slots_all_go, towerSlotsAllGo]
+    lockstep_a2
+
+@[lockstep] theorem tower_slots_all_go_ls {pers vis st fe lfe t n j lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.tower_slots_all_go pers vis st fe t n j) lst
+      (towerSlotsAllGo lfe (absNIdx t) (absU n) (absU j)) :=
+  tower_slots_all_go_aux _ t n j rfl hrel hinv hctx
+
+@[lockstep] theorem tower_slots_all_ls {pers vis st fe lfe t n_f lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.tower_slots_all pers vis st fe t n_f) lst
+      (towerSlotsAll lfe (absNIdx t) (absU n_f)) := by
+  rw [arena.core.tower_slots_all, towerSlotsAll]
+  lockstep_a2
+
+theorem rec_slots_all_go_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {vis : Std.U64} {st : arena.monad.AState}
+      {fe : arena.env.IFEnv} {lfe : IFEnv} {lst : AState}
+      (t : arena.handle.NIdx) (nn j : Std.U64),
+      nn.val = n → AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+      LS pers (fun a b => b = a) (arena.core.rec_slots_all_go pers vis st fe t nn j) lst
+        (recSlotsAllGo lfe (absNIdx t) n (absU j)) := by
+  induction n with
+  | zero =>
+    intro pers vis st fe lfe lst t nn j hn hrel hinv hctx
+    rw [arena.core.rec_slots_all_go, recSlotsAllGo]
+    lockstep_a2
+  | succ m ih =>
+    intro pers vis st fe lfe lst t nn j hn hrel hinv hctx
+    rw [arena.core.rec_slots_all_go, recSlotsAllGo]
+    lockstep_a2
+
+@[lockstep] theorem rec_slots_all_go_ls {pers vis st fe lfe t n j lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.rec_slots_all_go pers vis st fe t n j) lst
+      (recSlotsAllGo lfe (absNIdx t) (absU n) (absU j)) :=
+  rec_slots_all_go_aux _ t n j rfl hrel hinv hctx
+
+@[lockstep] theorem rec_slots_all_ls {pers vis st fe lfe t n_f lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.rec_slots_all pers vis st fe t n_f) lst
+      (recSlotsAll lfe (absNIdx t) (absU n_f)) := by
+  rw [arena.core.rec_slots_all, recSlotsAll]
+  lockstep_a2
+
+end slots
+
+section projs
+attribute [local lockstep_simp] absEIdxList
+
+theorem proj_nodes_go_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (t : arena.handle.NIdx) (b : arena.handle.EIdx) (nn j : Std.U64),
+      nn.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdxList a) (arena.core.proj_nodes_go pers st t b nn j) lst
+        (projNodesGo (absNIdx t) (absEIdx b) n (absU j)) := by
+  induction n with
+  | zero =>
+    intro pers st lst t b nn j hn hrel hinv
+    rw [arena.core.proj_nodes_go, projNodesGo]
+    lockstep_a2
+    all_goals trace_state
+    all_goals sorry
+  | succ m ih =>
+    intro pers st lst t b nn j hn hrel hinv
+    rw [arena.core.proj_nodes_go, projNodesGo]
+    lockstep_a2
+    all_goals trace_state
+    all_goals sorry
+
+@[lockstep] theorem proj_nodes_go_ls {pers st t b n j lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdxList a) (arena.core.proj_nodes_go pers st t b n j) lst
+      (projNodesGo (absNIdx t) (absEIdx b) (absU n) (absU j)) :=
+  proj_nodes_go_aux _ t b n j rfl hrel hinv
+
+theorem proj_apps_go_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (t : arena.handle.NIdx) (us : arena.handle.LsIdx) (targs : alloc.vec.Vec arena.handle.EIdx)
+      (b : arena.handle.EIdx) (nn j : Std.U64),
+      ExprOpsHyp pers → nn.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdxList a)
+        (arena.core.proj_apps_go pers st t us targs b nn j) lst
+        (projAppsGo (absNIdx t) (absLsIdx us) (absEIdxList targs) (absEIdx b) n (absU j)) := by
+  induction n with
+  | zero =>
+    intro pers st lst t us targs b nn j hx hn hrel hinv
+    rw [arena.core.proj_apps_go, projAppsGo]
+    lockstep_a2
+    all_goals trace_state
+    all_goals sorry
+  | succ m ih =>
+    intro pers st lst t us targs b nn j hx hn hrel hinv
+    rw [arena.core.proj_apps_go, projAppsGo]
+    lockstep_a2
+    all_goals trace_state
+    all_goals sorry
+
+@[lockstep] theorem proj_apps_go_ls {pers st t us targs b n j lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdxList a)
+      (arena.core.proj_apps_go pers st t us targs b n j) lst
+      (projAppsGo (absNIdx t) (absLsIdx us) (absEIdxList targs) (absEIdx b) (absU n) (absU j)) :=
+  proj_apps_go_aux _ t us targs b n j hx rfl hrel hinv
+
+@[lockstep] theorem eta_projs_ls {pers vis st fe lfe t us targs b n_f lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = absEIdxList a)
+      (arena.core.eta_projs pers vis st fe t us targs b n_f) lst
+      (etaProjs lfe (absNIdx t) (absLsIdx us) (absEIdxList targs) (absEIdx b) (absU n_f)) := by
+  rw [arena.core.eta_projs, etaProjs]
+  lockstep_a2
+  all_goals trace_state
+  all_goals sorry
+
+end projs
+
 end ConRon.Refine2.Lockstep
