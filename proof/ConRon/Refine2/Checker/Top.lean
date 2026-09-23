@@ -213,7 +213,12 @@ theorem check_quot_decl_refines {pers st lst} {rf lf}
     (hrun : arena.checker.check_quot_decl pers st rf k cv = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkQuotDeclSpec lf (ConRon.Refine.absQuotKind k) (absIConstantVal cv)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtxSelf hfe hfinv
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker.check_quot_decl]
+  try unfold checkQuotDeclSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_quot_decl_ls {pers st lst}
@@ -269,7 +274,12 @@ theorem check_axiom_decl_rest_refines {pers st lst} {rf lf}
     (hrun : arena.checker.check_axiom_decl_rest st rf cv_a = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkAxiomDeclRestSpec lf (absIConstantVal cv_a)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtxSelf hfe hfinv
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker.check_axiom_decl_rest]
+  try unfold checkAxiomDeclRestSpec
+  lockstep
 
 /-- `check_axiom_decl_of_reduce` — the `ofReduce*` arm. -/
 theorem check_axiom_decl_of_reduce_refines {pers st lst} {rf lf}

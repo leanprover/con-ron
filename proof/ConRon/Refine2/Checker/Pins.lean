@@ -2459,4 +2459,25 @@ open Lockstep in
       reservedBasisNames :=
   LSR.ofSimRE hrel hinv fun _ h => reserved_basis_names_refines hrel hinv h
 
+
+namespace Lockstep
+
+@[lockstep] theorem nidx_eq2_spec (a b : arena.handle.NIdx) :
+    LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
+      (fun o => o = (absNIdx a == absNIdx b)) :=
+  fun _ h => nidx_eq2_abs h
+
+@[lockstep] theorem i_constant_val_dup_spec (cv : arena.env.IConstantVal) :
+    LSP (arena.env.i_constant_val_dup cv)
+      (fun o => absIConstantVal o = absIConstantVal cv) :=
+  fun _ h => i_constant_val_dup_abs h
+
+@[lockstep] theorem reducibility_hint_dup_spec (h1 : kernel.env.ReducibilityHint) :
+    LSP (kernel.env.reducibility_hint_dup h1) (fun r => r = h1) := by
+  intro r h
+  cases h1 <;> simp only [kernel.env.reducibility_hint_dup, Result.ok.injEq] at h <;>
+    exact h.symm
+
+end Lockstep
+
 end ConRon.Refine2

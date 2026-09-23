@@ -120,7 +120,12 @@ theorem iff_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.iff_pinned pers vis st rf = ok o) :
     Sim₀ id pers lst o (iffPinnedSpec lf) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.iff_pinned]
+  try unfold iffPinnedSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem iff_pinned_ls {pers st lst}
@@ -183,7 +188,12 @@ theorem nonempty_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.nonempty_pinned pers vis st rf = ok o) :
     Sim₀ id pers lst o (nonemptyPinnedSpec lf) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.nonempty_pinned]
+  try unfold nonemptyPinnedSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem nonempty_pinned_ls {pers st lst}
@@ -368,7 +378,12 @@ theorem true_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.true_pinned pers vis st rf = ok o) :
     Sim₀ id pers lst o (truePinnedSpec lf) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.true_pinned]
+  try unfold truePinnedSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem true_pinned_ls {pers st lst}
@@ -434,7 +449,12 @@ theorem reduce_elem_ok_bool_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.reduce_elem_ok_bool pers vis st rf = ok o) :
     Sim₀ id pers lst o (reduceElemOkBoolSpec lf) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.reduce_elem_ok_bool]
+  try unfold reduceElemOkBoolSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem reduce_elem_ok_bool_ls {pers st lst}
@@ -479,7 +499,12 @@ theorem reduce_stored_ok_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.reduce_stored_ok pers vis st rf c = ok o) :
     Sim₀ id pers lst o (reduceStoredOk lf (absNIdx c)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.reduce_stored_ok]
+  try unfold reduceStoredOk
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem reduce_stored_ok_ls {pers st lst} {vis : Std.U64} {rf lf}
@@ -595,7 +620,12 @@ theorem reduce_pin_guard_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.reduce_pin_guard pers vis st rf c = ok o) :
     Sim₀ id pers lst o (reducePinGuard lf (absNIdx c)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.reduce_pin_guard]
+  try unfold reducePinGuard
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem reduce_pin_guard_ls {pers st lst}
@@ -623,7 +653,12 @@ theorem check_reduce_identity_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ (fun _ : Unit => ()) pers lst o
       (checkReduceIdentitySpec (ConRon.Refine.absMode mode) lf (absNIdx c)
         (absEIdx val_a)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.check_reduce_identity]
+  try unfold checkReduceIdentitySpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_reduce_identity_ls {pers st lst}
@@ -653,7 +688,12 @@ theorem check_reduce_pin_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ (fun _ : Unit => ()) pers lst o
       (checkReducePinValueSpec (ConRon.Refine.absMode mode) lf (absNIdx c)
         (absEIdx value)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.check_reduce_pin_value]
+  try unfold checkReducePinValueSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_reduce_pin_value_ls {pers st lst}
@@ -1194,7 +1234,10 @@ theorem eq_at1_app_refines {pers st lst} {hus : arena.handle.LsIdx}
         let e1 ← internE (.app e (absEIdx ty))
         let e2 ← internE (.app e1 (absEIdx a))
         internE (.app e2 (absEIdx b))) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.eq_at1_app]
+  skip
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem eq_at1_app_ls {pers st lst}
