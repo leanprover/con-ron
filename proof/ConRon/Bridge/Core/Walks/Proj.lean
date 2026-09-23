@@ -75,6 +75,8 @@ whole — the same one-line fix, at the same cost (`rfl`), as last round's.
 -/
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.Core.Walks.Spec
+import ConRon.Bridge.ExprOps.Subst
+import ConRon.Bridge.ExprOps.Spine
 
 namespace ConRon.Bridge.Core
 
@@ -328,7 +330,36 @@ theorem IProjEntry.typeAt_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteE s'.store r = some (p.typeAt ls xs x)⌝⦄ := by
-  sorry
+  obtain ⟨_hs, hlps, _hc, hb, _hfs, _hss, _hi, _hnp, _hnf, _ho⟩ :=
+    denoteProjEntry_inv hden
+  have hi := ExprOps.instLPFast_spec coreWalkFuel s₀ entry.levelParams us
+    entry.body _ _ hok.state hok.caches.readN hok.caches.readL hok.caches.readLs
+    hlps hus (by rw [hb]; rfl)
+  have hl := fun (s : AState) (e : EIdx) =>
+    ExprOps.instantiateListFast_spec coreWalkFuel s e (targs.toArray.push pe) 0
+      (x :: xs.reverse)
+  -- the push-order vector denotes `pe :: targs.reverse` (task #97-P6-15)
+  have hvec : ExprOps.InstLVec s₀.store (targs.toArray.push pe)
+      (x :: xs.reverse) := by
+    unfold ExprOps.InstLVec
+    simp only [Array.toList_push, List.reverse_cons,
+      List.reverse_reverse]
+    exact ExprOps.denoteEList_snoc hpe _ _ hargs
+  mvcgen [ConRon.Arena.IProjEntry.typeAt, hi, hl]
+  all_goals (bridge_peel; subst_vars)
+  case vc3 => intro s hst; intros; exact hst
+  case vc4 => intro s _ hx; intros; exact hvec.ext hx
+  case vc5 =>
+    intro s _ _ _ _ _ _ _ _ _ hrel
+    rw [hrel _ hb]; rfl
+  case vc2 =>
+    rename_i hst1 hL hLs hN hx1 _ hc1 hp1 _ hrel1
+    intro hst2 hx2 _ hc2 hp2 _ hrel2
+    have hck1 := CheckOK.ofInstLP hok hst1 hx1 hL hLs hN hc1 hp1
+    refine ⟨hck1.mono hst2 hx2 hc2 hp2, hx1.trans hx2, hp2.trans hp1, ?_⟩
+    rw [hrel2 _ (hrel1 _ hb)]
+    rfl
+
 
 /-- con-leche: ConLeche/Kernel/Core.lean:912-947 projCert — **THEOREM 1 for
 the structural projection's certificate**: the redex `proj_i (C p⃗ x⃗)` fires

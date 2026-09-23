@@ -159,39 +159,10 @@ and `whnfLoop_reduceNat` are their pure-side step lemmas, and both are
 closed), which is why `whnfBody_spec` — the most reachable of the six body
 walks — is still open. -/
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:136-155 unfoldDefinition —
-**THEOREM 1 for `unfoldDefinition`**: unfold the (application of a)
-definition at the head, one step.  The pure side takes no fuel, so the
-conclusion is an equation through `denoteEO` (`Bridge/Rel.lean`).
-
-**OPEN, and on ONE thing** (round 3): the three spine rules are in hand
-(`getAppFn_spec`, `getAppArgs_spec`, `mkAppN_spec`, all closed in
-`Bridge/ExprOps/Spine.lean`, and `Walks/Spine.lean` shows how to reach them
-from here), and what is left is `Bridge/Core/Walks/Cached.lean`'s
-`constValAt_spec` — which is NOT waiting on `instLPFast_spec` any more
-(that is closed) but on **the two conjuncts `instLPFast_spec` does not carry**:
-the cache-record frame and `ReadNCacheOK`.  Without them no caller graded
-`CheckOK` can rebuild `CacheOK` past the call.  DESIGN §8's
-`### Task #97-P3-Core-2` round 3 finding 19 states them; the owner is the
-`ExprOps` tier.
-
-Round 3 also found that the statement `constValAt_spec` is published with
-cannot be applied by this walk even once it is proved: it takes `nm`, `ls`,
-`cv`, `val` and `hint` as explicit arguments, and `mvcgen` mis-instantiates
-all five (measured: `val := x`, the whole subject).  It needs §0's ∃/∀
-re-shape first, which is four lines and which this round did not make because
-the theorem is `sorry` and the re-shape would have been unverifiable. -/
-theorem unfoldDefinition_spec (s₀ : AState) (d : Nat) (e : EIdx)
-    (hok : CheckOK mode env fe s₀)
-    (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.unfoldDefinition fe e
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        ∀ x, denoteE s₀.store e = some x →
-          denoteEO s'.store r = some (ConLeche.unfoldDefinition env x) ∧
-          ∀ y, ConLeche.unfoldDefinition env x = some y →
-            Expr.WScoped d y⌝⦄ := by
-  sorry
+/-! `unfoldDefinition_spec` **moved to `Bridge/Core/Walks/Spine.lean`** in
+round 4 and is CLOSED there: it needs `getAppFn`/`getAppArgs`/`mkAppN` from
+the `ExprOps` tier and the index facts that module owns, and the reason it
+could not import them from here (finding 18) is gone. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — **THEOREM 1 for
 `reduceNat`**: the literal acceleration, run in the `whnf` loop before

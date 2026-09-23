@@ -64,6 +64,7 @@ Read off `lvlEq?_spec` below; every cached walk follows it.
 -/
 import ConRon.Bridge.Core.Walks.Frame
 import ConRon.Bridge.Promote.Pers
+import ConRon.Bridge.ExprOps.Owed
 
 namespace ConRon.Bridge.Core
 
@@ -232,6 +233,48 @@ theorem CacheOK.insertLvlsEq {s : AState} (hc : CacheOK mode env s)
         else ∅).insert (us, vs) r } } :=
   { hc with lvlsEq := LvlsEqCacheOK.insert_capped hc.lvlsEq hu hv heq }
 
+/-- con-leche: none — `CacheOK` past the instantiated-constant TYPE cache's
+insert. -/
+theorem CacheOK.insertConstTy {s : AState} (hc : CacheOK mode env s)
+    {n : NIdx} {us : LsIdx} {i : EIdx} {nm : ConLeche.Name} {ls : List Level}
+    {ci : ConstantInfo}
+    (hn : denoteN s.store.ns n = some nm) (hus : denoteLs s.store.lss us = some ls)
+    (hf : env.find? nm = some ci)
+    (hi : denoteE s.store i = some (ci.toConstantVal.type.instantiateLevelParams
+      ci.toConstantVal.levelParams ls)) :
+    CacheOK mode env { s with caches := { s.caches with
+      constTyC := (if s.caches.constTyC.size < cacheCap then s.caches.constTyC
+        else ∅).insert (n, us) i } } :=
+  { hc with constTy := ConstTyCacheOK.insert_capped hc.constTy hn hus hf hi }
+
+/-- con-leche: none — `CacheOK` past the instantiated-constant VALUE cache's
+insert. -/
+theorem CacheOK.insertConstVal {s : AState} (hc : CacheOK mode env s)
+    {n : NIdx} {us : LsIdx} {i : EIdx} {nm : ConLeche.Name} {ls : List Level}
+    {cv : ConstantVal} {value : Expr} {hint : ReducibilityHint}
+    (hn : denoteN s.store.ns n = some nm) (hus : denoteLs s.store.lss us = some ls)
+    (hf : env.find? nm = some (.defnInfo cv value hint))
+    (hi : denoteE s.store i = some (value.instantiateLevelParams cv.levelParams ls)) :
+    CacheOK mode env { s with caches := { s.caches with
+      constValC := (if s.caches.constValC.size < cacheCap then s.caches.constValC
+        else ∅).insert (n, us) i } } :=
+  { hc with constVal := ConstValCacheOK.insert_capped hc.constVal hn hus hf hi }
+
+/-- con-leche: none — `CacheOK` past the ι right-hand-side cache's insert. -/
+theorem CacheOK.insertRuleRhs {s : AState} (hc : CacheOK mode env s)
+    {rn cn : NIdx} {us : LsIdx} {i : EIdx}
+    {rnv cnv : ConLeche.Name} {ls : List Level} {cv : ConstantVal}
+    {mi rp : Nat} {rules : List RecRule} {rl : RecRule}
+    (hr : denoteN s.store.ns rn = some rnv) (hcn : denoteN s.store.ns cn = some cnv)
+    (hus : denoteLs s.store.lss us = some ls)
+    (hf : env.find? rnv = some (.recInfo cv mi rp rules))
+    (hrl : rules.find? (fun r => r.ctor == cnv) = some rl)
+    (hi : denoteE s.store i = some (rl.rhs.instantiateLevelParams cv.levelParams ls)) :
+    CacheOK mode env { s with caches := { s.caches with
+      ruleRhsC := (if s.caches.ruleRhsC.size < cacheCap then s.caches.ruleRhsC
+        else ∅).insert (rn, cn, us) i } } :=
+  { hc with ruleRhs := RuleRhsCacheOK.insert_capped hc.ruleRhs hr hcn hus hf hrl hi }
+
 /-! ## 2. `lvlEq?` — the tier's exemplar, CLOSED -/
 
 /-- con-leche: ConLeche/Kernel/Level.lean:158-163 Level.isEquiv — **THEOREM 1
@@ -342,11 +385,64 @@ whose callee rule is `Bridge/ExprOps/Owed.lean`'s `instLPFast_spec` — itself
 split while this round ran.  The insert lemmas above are written; what each
 proof needs is the one call's spec and nothing else. -/
 
+/-- con-leche: none — **`CheckOK` past an `instLPFast` call**: the call's
+record equation names the three readback tables it moves and frames the other
+eleven, so the eleven transport along `Ext` and the three are the call's own
+conjuncts. -/
+theorem CheckOK.ofInstLP {s₀ s' : AState} (hok : CheckOK mode env fe s₀)
+    (hst : StateOK s') (hx : Ext s₀.store s'.store)
+    (hL : ReadLCacheOK s'.caches.readLC s'.store)
+    (hLs : ReadLsCacheOK s'.caches.readLsC s'.store)
+    (hN : ReadNCacheOK s'.caches.readNC s'.store)
+    (hc : s'.caches = { s₀.caches with
+      readLC := s'.caches.readLC, readNC := s'.caches.readNC,
+      readLsC := s'.caches.readLsC })
+    (hp : s'.pins = s₀.pins) : CheckOK mode env fe s' where
+  state := hst
+  caches :=
+    { whnfCore := by rw [hc]; exact hok.caches.whnfCore.mono hx
+      whnf := by rw [hc]; exact hok.caches.whnf.mono hx
+      infer := by rw [hc]; exact hok.caches.infer.mono hx
+      inferIO := by rw [hc]; exact hok.caches.inferIO.mono hx
+      annot := by rw [hc]; exact hok.caches.annot.mono hx
+      defeq := by rw [hc]; exact hok.caches.defeq.mono hx
+      lvlEq := by rw [hc]; exact hok.caches.lvlEq.mono hx
+      lvlsEq := by rw [hc]; exact hok.caches.lvlsEq.mono hx
+      constTy := by rw [hc]; exact hok.caches.constTy.mono hx
+      constVal := by rw [hc]; exact hok.caches.constVal.mono hx
+      ruleRhs := by rw [hc]; exact hok.caches.ruleRhs.mono hx
+      readL := hL
+      readN := hN
+      readLs := hLs }
+  pins := hok.pins.mono hx hp
+  ienv := hok.ienv.mono hx
+
+/-- con-leche: none — the field-by-field inversion of `denoteCV`, which
+is where `cv.levelParams` on the two sides meet.  (Moved down from
+`Bridge/Core/Walks/Spine.lean`, round 4: the three instantiated-constant
+caches need it.) -/
+theorem denoteCV_inv {st : EStore} {v : IConstantVal} {c : ConstantVal}
+    (h : Frontend.denoteCV st v = some c) :
+    denoteN st.ns v.name = some c.name ∧
+      Frontend.denoteNList st.ns v.levelParams = some c.levelParams ∧
+      denoteE st v.type = some c.type := by
+  simp only [Frontend.denoteCV] at h
+  cases hn : denoteN st.ns v.name with
+  | none => rw [hn] at h; simp at h
+  | some n =>
+    cases hl : Frontend.denoteNList st.ns v.levelParams with
+    | none => rw [hn, hl] at h; simp at h
+    | some lps =>
+      cases ht : denoteE st v.type with
+      | none => rw [hn, hl, ht] at h; simp at h
+      | some ty =>
+        rw [hn, hl, ht] at h
+        obtain rfl := (Option.some.inj h).symm
+        exact ⟨rfl, rfl, rfl⟩
+
 /-- con-leche: none — **THEOREM 1 for `constTyAt`** (DESIGN §8.3's
-instantiated-constant TYPE cache).  **OPEN**: needs
-`Bridge/ExprOps/Owed.lean`'s `instLPFast_spec`, then
-`ConstTyCacheOK.insert_capped` above and `lvlEq?_spec`'s five-verification-
-condition shape. -/
+instantiated-constant TYPE cache).  **CLOSED** (round 4), on
+`Bridge/ExprOps/Owed.lean`'s `instLPFast_spec` with its cache frame. -/
 theorem constTyAt_spec (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
     (nm : ConLeche.Name) (ls : List Level) (ci : ConstantInfo)
     (hok : CheckOK mode env fe s₀)
@@ -360,7 +456,26 @@ theorem constTyAt_spec (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
         denoteE s'.store r =
           some (ci.toConstantVal.type.instantiateLevelParams
             ci.toConstantVal.levelParams ls)⌝⦄ := by
-  sorry
+  obtain ⟨_hnm, hlps, hty⟩ := denoteCV_inv hcv
+  have hi := ExprOps.instLPFast_spec coreWalkFuel s₀ cv.levelParams us cv.type
+    _ _ hok.state hok.caches.readN hok.caches.readL hok.caches.readLs hlps hus
+    (by rw [hty]; rfl)
+  mvcgen [constTyAt, hi]
+  all_goals (bridge_peel; subst_vars)
+  · -- the HIT: the row's own clause, at the three functional denotations
+    rename_i r hhit
+    refine ⟨hok, Ext.refl _, rfl, ?_⟩
+    obtain ⟨nm', ls', ci', hn', hus', hf', hd⟩ := hok.caches.constTy _ r hhit
+    obtain rfl := Option.some.inj (hn'.symm.trans hn)
+    obtain rfl := Option.some.inj (hus'.symm.trans hus)
+    obtain rfl := Option.some.inj (hf'.symm.trans hf)
+    exact hd
+  · -- the MISS: `instLPFast`, then the capped insert
+    rename_i _ _ r s1 _ _ _ hst hL hLs hN hx _ hc hp _ hrel
+    have hck := CheckOK.ofInstLP hok hst hx hL hLs hN hc hp
+    have hd := hrel _ hty
+    exact ⟨CheckOK.ofCache hck (CacheOK.insertConstTy hck.caches
+        (denoteN_ext hn hx) (denoteLs_ext hus hx) hf hd) rfl rfl, hx, hp, hd⟩
 
 /-- con-leche: none — **THEOREM 1 for `constValAt`** (the delta step's
 expensive half, and the reason `unfoldDefinition` is not free).  **OPEN**:
@@ -379,7 +494,61 @@ theorem constValAt_spec (s₀ : AState) (n : NIdx) (lps : List NIdx)
         s'.pins = s₀.pins ∧
         denoteE s'.store r =
           some (val.instantiateLevelParams cv.levelParams ls)⌝⦄ := by
-  sorry
+  have hi := ExprOps.instLPFast_spec coreWalkFuel s₀ lps us value
+    _ _ hok.state hok.caches.readN hok.caches.readL hok.caches.readLs hlps hus
+    (by rw [hval]; rfl)
+  mvcgen [constValAt, hi]
+  all_goals (bridge_peel; subst_vars)
+  · -- the HIT
+    rename_i r hhit
+    refine ⟨hok, Ext.refl _, rfl, ?_⟩
+    obtain ⟨nm', ls', cv', val', hint', hn', hus', hf', hd⟩ :=
+      hok.caches.constVal _ r hhit
+    obtain rfl := Option.some.inj (hn'.symm.trans hn)
+    obtain rfl := Option.some.inj (hus'.symm.trans hus)
+    rw [hfd] at hf'
+    cases hf'
+    exact hd
+  · -- the MISS
+    rename_i _ _ r s1 _ _ _ hst hL hLs hN hx _ hc hp _ hrel
+    have hck := CheckOK.ofInstLP hok hst hx hL hLs hN hc hp
+    have hd := hrel _ hval
+    exact ⟨CheckOK.ofCache hck (CacheOK.insertConstVal hck.caches
+        (denoteN_ext hn hx) (denoteLs_ext hus hx) hfd hd) rfl rfl, hx, hp, hd⟩
+
+/-- con-leche: none — `constValAt_spec` in ANSWER shape (round 3's rule: *a
+walk whose subject is another walk's answer must not take that answer's
+denotation as an explicit argument*).  The five denotations go IN as an
+existential and come OUT as a universal, so a caller that reaches the walk
+through `getAppFn`/`view` — `unfoldDefinition` — leaves no metavariable in the
+side goal.  Four lines over the unprimed form and the functionality of each
+denotation. -/
+theorem constValAt_spec' (s₀ : AState) (n : NIdx) (lps : List NIdx)
+    (value : EIdx) (us : LsIdx) (hok : CheckOK mode env fe s₀)
+    (hpre : ∃ nm ls cv val hint, denoteN s₀.store.ns n = some nm ∧
+      denoteLs s₀.store.lss us = some ls ∧
+      Frontend.denoteNList s₀.store.ns lps = some cv.levelParams ∧
+      denoteE s₀.store value = some val ∧
+      env.find? nm = some (.defnInfo cv val hint)) :
+    ⦃fun s => ⌜s = s₀⌝⦄ constValAt n lps value us
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        ∀ nm ls cv val hint, denoteN s₀.store.ns n = some nm →
+          denoteLs s₀.store.lss us = some ls →
+          env.find? nm = some (.defnInfo cv val hint) →
+          denoteE s'.store r =
+            some (val.instantiateLevelParams cv.levelParams ls)⌝⦄ := by
+  obtain ⟨nm, ls, cv, val, hint, hn, hus, hlps, hval, hfd⟩ := hpre
+  have h := constValAt_spec s₀ n lps value us nm ls cv val hint hok hn hus
+    hlps hval hfd
+  mvcgen [h]
+  intro hck hx hp hd
+  refine ⟨hck, hx, hp, fun nm' ls' cv' val' hint' hn' hus' hfd' => ?_⟩
+  obtain rfl := Option.some.inj (hn.symm.trans hn')
+  obtain rfl := Option.some.inj (hus.symm.trans hus')
+  rw [hfd] at hfd'
+  cases hfd'
+  exact hd
 
 /-- con-leche: none — **THEOREM 1 for `ruleRhsAt`** (an ι rule's right-hand
 side at the recursor's universe instantiation).  **OPEN**: needs
@@ -400,7 +569,31 @@ theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
         s'.pins = s₀.pins ∧
         denoteE s'.store r =
           some (rl.rhs.instantiateLevelParams cv.levelParams ls)⌝⦄ := by
-  sorry
+  have hi := ExprOps.instLPFast_spec coreWalkFuel s₀ lps us rhs
+    _ _ hok.state hok.caches.readN hok.caches.readL hok.caches.readLs hlps hus
+    (by rw [hrhs]; rfl)
+  mvcgen [ruleRhsAt, hi]
+  all_goals (bridge_peel; subst_vars)
+  · -- the HIT
+    rename_i r hhit
+    refine ⟨hok, Ext.refl _, rfl, ?_⟩
+    obtain ⟨rn', cn', ls', cv', mi', rp', rules', rl', hr', hc', hus', hf', hrl', hd⟩ :=
+      hok.caches.ruleRhs _ r hhit
+    obtain rfl := Option.some.inj (hr'.symm.trans hr)
+    obtain rfl := Option.some.inj (hc'.symm.trans hc)
+    obtain rfl := Option.some.inj (hus'.symm.trans hus)
+    rw [hfr] at hf'
+    cases hf'
+    rw [hrl] at hrl'
+    cases hrl'
+    exact hd
+  · -- the MISS
+    rename_i _ _ r s1 _ _ _ hst hL hLs hN hx _ hcc hp _ hrel
+    have hck := CheckOK.ofInstLP hok hst hx hL hLs hN hcc hp
+    have hd := hrel _ hrhs
+    exact ⟨CheckOK.ofCache hck (CacheOK.insertRuleRhs hck.caches
+        (denoteN_ext hr hx) (denoteN_ext hc hx) (denoteLs_ext hus hx) hfr hrl hd)
+        rfl rfl, hx, hp, hd⟩
 
 
 

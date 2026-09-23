@@ -24,6 +24,7 @@ runs.
 import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.Owed
 import ConRon.Bridge.Core.Walks.Mono
+import ConRon.Bridge.Core.Walks.Spine
 
 namespace ConRon.Bridge.Core
 
@@ -133,7 +134,7 @@ theorem whnfLoopFuel_eq :
 the reduction LOOP**, at an arbitrary step budget: one `Nat` induction over
 §1's three step lemmas, with the fuel merge at every iteration. -/
 theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
-    (hsim : KnotSpec mode env fe fuel) :
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) :
     ∀ (n : Nat) (s₀ : AState) (d : Nat) (i : EIdx),
       CheckOK mode env fe s₀ →
       (∃ e, denoteE s₀.store i = some e ∧ Expr.WScoped d e) →
@@ -155,8 +156,9 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
     intro s₀ d i hok hdw
     obtain ⟨e, hden, hw⟩ := hdw
     have hwc := hsim.whnfCore
+    have hud := unfoldDefinition_spec (mode := mode) (fe := fe) henv
     mvcgen [ConRon.Arena.whnfLoop, ConRon.Arena.whnfStep,
-      hwc, reduceNat_spec, unfoldDefinition_spec, ih]
+      hwc, reduceNat_spec, hud, ih]
     all_goals (bridge_peel; subst_vars)
     -- the first call's two preconditions
     case vc2.a => exact hok
@@ -193,14 +195,14 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
         (whnfLoopFueled_mono
           (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)) hF₃)
     -- ARM 2: `unfoldDefinition`'s two preconditions
-    case vc15.hok => rename_i _c1 hck _c3 _c4 _c5 _c6 _c7 _c8; exact hck
-    case vc16.hdw =>
+    case vc13.hok => rename_i _c1 hck _c3 _c4 _c5 _c6 _c7 _c8; exact hck
+    case vc14.hdw =>
       rename_i _c1 _c2 _c3 hx21 _c5 hsE _c7 _c8
       obtain ⟨x, hx, hwx, _⟩ := hsE
       exact ⟨x, denote_ext hx hx21, hwx⟩
     -- ARM 2: the delta step fires
-    case vc18 => intro s h1 _ _ _; exact h1
-    case vc19 =>
+    case vc16 => intro s h1 _ _ _; exact h1
+    case vc17 =>
       rename_i _c1 _c2 _c3 hx21 _c5 hsE _c7 _c8
       intro s _h1 _h2 _h3 h4
       obtain ⟨e₁, he₁, _hw₁, _⟩ := hsE
@@ -208,7 +210,7 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
       simp only [denoteEO, Option.map_eq_some_iff] at hdo
       obtain ⟨v, hv, hveq⟩ := hdo
       exact ⟨v, hv, hws v hveq.symm⟩
-    case vc17 =>
+    case vc15 =>
       rename_i _ck3 _ck2 _ck1 hx43 hx32 hx21 hp34 hsE hp23 hrn hp12 hud
       intro hck hxL hpL hloop
       refine ⟨hck, (hx43.trans (hx32.trans hx21)).trans hxL,
@@ -230,7 +232,7 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
         (whnfLoopFueled_mono
           (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)) hF₃)
     -- ARM 3: nothing reduces — the `whnfCore` reduct IS the head normal form
-    case vc20 =>
+    case vc18 =>
       rename_i _ck2 _ck1 _ck0 hx32 hx21 hx10 hp23 hsE hp12 hrn hp01 hud
       refine ⟨by assumption, hx32.trans (hx21.trans hx10),
         hp01.trans (hp12.trans hp23), ?_⟩
@@ -259,12 +261,12 @@ What it still INHERITS is `sorryAx` from exactly two walk theorems of
 — and from nothing else, which is DESIGN §8's `### Task #97-P3-CoreWalks` §9
 made literal: *"`whnfBody_spec` closes the day `instLPFast_spec` does"*. -/
 theorem whnfBody_spec {fe : IFEnv} {fuel : Nat}
-    (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
+    (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel) :
     BodySpec mode env fe (whnfBody (coreKnot mode fe id fuel) fe)
       (ConLeche.whnf mode env) := by
   intro s₀ d i e hok hden hw
-  have hloop := whnfLoop_spec hsim
+  have hloop := whnfLoop_spec henv hsim
   mvcgen [ConRon.Arena.whnfBody, hloop]
   all_goals (bridge_peel; subst_vars)
   case vc2 => intro s hs; subst hs; exact hok

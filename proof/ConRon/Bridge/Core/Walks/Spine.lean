@@ -151,6 +151,16 @@ theorem viewLen_of_denoteLs {st : LsStore} {i : LsIdx} {us : List Level}
     rw [hv] at h
     rw [lsStore_viewLen_eq, hv, Option.map_some, denoteLList_len h]
 
+/-- con-leche: none — the same at the full VIEW: a level-list handle that
+denotes `us` views as a list of `us.length` handles (`unfoldDefinition`
+compares the view's length, not `viewLsLen`'s). -/
+theorem view_len_of_denoteLs {st : LsStore} {i : LsIdx} {us : List Level}
+    {v : LsNodeView} (h : denoteLs st i = some us) (hv : st.view i = some v) :
+    v.length = us.length := by
+  have hl := viewLen_of_denoteLs h
+  rw [lsStore_viewLen_eq, hv, Option.map_some] at hl
+  exact Option.some.inj hl
+
 /-- con-leche: none — a denoting NAME-handle list keeps its length.
 `Bridge/Rel.lean` has this at expression and level handles
 (`denoteEList_len`, `denoteLList_len`) and not at names. -/
@@ -190,26 +200,9 @@ theorem denoteCI_defnInfo_inv {st : EStore} {v : IConstantVal} {e : EIdx}
       exact ⟨cv, x, rfl, rfl, (Option.some.inj h).symm⟩
 
 
-/-- con-leche: none — the field-by-field inversion of `denoteCV`, which
-is where `cv.levelParams` on the two sides meet. -/
-theorem denoteCV_inv {st : EStore} {v : IConstantVal} {c : ConstantVal}
-    (h : Frontend.denoteCV st v = some c) :
-    denoteN st.ns v.name = some c.name ∧
-      Frontend.denoteNList st.ns v.levelParams = some c.levelParams ∧
-      denoteE st v.type = some c.type := by
-  simp only [Frontend.denoteCV] at h
-  cases hn : denoteN st.ns v.name with
-  | none => rw [hn] at h; simp at h
-  | some n =>
-    cases hl : Frontend.denoteNList st.ns v.levelParams with
-    | none => rw [hn, hl] at h; simp at h
-    | some lps =>
-      cases ht : denoteE st v.type with
-      | none => rw [hn, hl, ht] at h; simp at h
-      | some ty =>
-        rw [hn, hl, ht] at h
-        obtain rfl := (Option.some.inj h).symm
-        exact ⟨rfl, rfl, rfl⟩
+/-! `denoteCV_inv` — the field-by-field inversion of `denoteCV` — moved down
+to `Bridge/Core/Walks/Cached.lean` in round 4, where the three
+instantiated-constant caches need it. -/
 
 /-- con-leche: none — **and the other direction**: a stored constant that
 DENOTES a definition IS one.  DESIGN §8.3's "the denotation does not change a
@@ -385,6 +378,130 @@ theorem unfoldableHead_spec (s₀ : AState) (e : EIdx) (x : Expr)
     refine ⟨hok, rfl, rfl, ?_⟩
     exact (unfoldableHead_of_not_const
       (denote_not_const hok.state.wf hview (hrel x hden) hnc)).symm
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:136-155 unfoldDefinition —
+**THEOREM 1 for `unfoldDefinition`**: unfold the (application of a)
+definition at the head, one step.  The pure side takes no fuel, so the
+conclusion is an equation through `denoteEO` (`Bridge/Rel.lean`).
+
+**CLOSED** (round 4), and it moved here from `Walks/Owed.lean`: the spine
+rules are the `ExprOps` tier's, the index facts are this module's, and the
+delta step's value is `Walks/Cached.lean`'s `constValAt_spec'` — the ANSWER
+shape, because the constant's name and levels come out of `getAppFn`/`view`.
+
+**One precondition was missing and is repaired: `EnvWF env`.**  The
+postcondition promises the unfolding is well-scoped at `d`, and that is
+con-leche's `unfoldDefinition_WScoped` — whose own hypothesis is exactly
+`EnvWF` (the stored VALUE is closed).  Without it the statement is false: a
+definition whose stored value has a loose bound variable unfolds, in both
+tiers, to a term that is not well-scoped, and nothing in `CheckOK` rules such
+an environment out.  Its one caller, `Arms/Whnf.lean`'s `whnfBody_spec`,
+already took `EnvWF`. -/
+theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
+    (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
+    (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.unfoldDefinition fe e
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        ∀ x, denoteE s₀.store e = some x →
+          denoteEO s'.store r = some (ConLeche.unfoldDefinition env x) ∧
+          ∀ y, ConLeche.unfoldDefinition env x = some y →
+            Expr.WScoped d y⌝⦄ := by
+  obtain ⟨x, hden, hwx⟩ := hdw
+  have hfn := ExprOps.getAppFn_spec coreWalkFuel
+  have hargs := ExprOps.getAppArgs_spec coreWalkFuel
+  have hmk := ExprOps.mkAppN_spec
+  have hcv := fun (s : AState) (n : NIdx) (lps : List NIdx) (value : EIdx)
+      (us : LsIdx) => constValAt_spec' (mode := mode) (env := env) (fe := fe)
+        s n lps value us
+  obtain ⟨rk, hrk⟩ := hok.state.wf
+  mvcgen [ConRon.Arena.unfoldDefinition, hfn, hargs, hmk, hcv]
+  all_goals (bridge_peel; subst_vars)
+  -- the five preconditions of the four callees
+  case vc1.a => exact hok.state
+  case vc2.a => rw [hden]; rfl
+  case vc3.hok => exact hok
+  case vc4.hpre =>
+    rename_i hfd _ _ _ _ hview hrel
+    obtain ⟨nm, ls, _, hn, hus⟩ :=
+      denote_const_inv hok.state.wf hview (hrel x hden)
+    obtain ⟨dcv, dval, hdcv, hdval, hfind⟩ := env_defn_of_index hok hn hfd
+    obtain ⟨_, hlps, _⟩ := denoteCV_inv hdcv
+    exact ⟨nm, ls, dcv, dval, _, hn, hus, hlps, hdval, hfind⟩
+  case vc5.a => rename_i hck _ _ _ _ _ _; exact hck.state
+  case vc6.a =>
+    rename_i _ hx _ _ _ _ _
+    rw [denote_ext hden hx]; rfl
+  case vc7.a => rename_i hck _ _ _ _; exact hck.state
+  case vc8.a =>
+    rename_i hfd _ _ _ _ _ _ _ hview hrel _ _ _ _ hcvr
+    obtain ⟨nm, ls, hgf, hn, hus⟩ :=
+      denote_const_inv hok.state.wf hview (hrel x hden)
+    obtain ⟨dcv, dval, _, _, hfind⟩ := env_defn_of_index hok hn hfd
+    rw [hcvr nm ls dcv dval _ hn hus hfind]; rfl
+  case vc9.a =>
+    rename_i _ hargsr hx _ _
+    rw [hargsr x (denote_ext hden hx)]; rfl
+  -- the definition UNFOLDS
+  case vc10 =>
+    rename_i hfd _ hlen _ _ _ _ _ _ hst3 hx13 _ _ hc13 hp13 hmkr hlsv hview hrel
+      hck1 hargsr hx01 hp01 hcvr
+    obtain ⟨nm, ls, hgf, hn, hus⟩ :=
+      denote_const_inv hok.state.wf hview (hrel x hden)
+    obtain ⟨dcv, dval, hdcv, _, hfind⟩ := env_defn_of_index hok hn hfd
+    obtain ⟨_, hlps, _⟩ := denoteCV_inv hdcv
+    have hv := hcvr nm ls dcv dval _ hn hus hfind
+    have ha := hargsr x (denote_ext hden hx01)
+    have hr := hmkr _ _ hv ha
+    have hul : ls.length = dcv.levelParams.length := by
+      rw [← view_len_of_denoteLs hus hlsv, hlen, denoteNList_len hlps]
+    have hud : ConLeche.unfoldDefinition env x =
+        some (Expr.mkAppN (dval.instantiateLevelParams dcv.levelParams ls)
+          x.getAppArgs) := by
+      simp only [ConLeche.unfoldDefinition, hgf, hfind, hul, if_true]
+    refine ⟨hck1.mono hst3 hx13 hc13 hp13, hx01.trans hx13, hp13.trans hp01,
+      fun x' hx' => ?_⟩
+    obtain rfl : x' = x := Option.some.inj (hx'.symm.trans hden)
+    refine ⟨by rw [hud]; simp only [denoteEO, hr, Option.map_some], ?_⟩
+    intro y hy
+    exact ConLeche.unfoldDefinition_WScoped henv hy hwx
+  -- the level count does not match: both decline
+  case vc11 =>
+    rename_i hfd _ hlen _ hlsv hview hrel
+    obtain ⟨nm, ls, hgf, hn, hus⟩ :=
+      denote_const_inv hok.state.wf hview (hrel x hden)
+    obtain ⟨dcv, dval, hdcv, _, hfind⟩ := env_defn_of_index hok hn hfd
+    obtain ⟨_, hlps, _⟩ := denoteCV_inv hdcv
+    have hul : ¬ ls.length = dcv.levelParams.length := by
+      rw [← view_len_of_denoteLs hus hlsv, denoteNList_len hlps]; exact hlen
+    have hud : ConLeche.unfoldDefinition env x = none := by
+      simp only [ConLeche.unfoldDefinition, hgf, hfind, hul, if_false]
+    refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
+    obtain rfl : x' = x := Option.some.inj (hx'.symm.trans hden)
+    rw [hud]
+    exact ⟨rfl, fun y hy => absurd hy (by simp)⟩
+  -- the head is a constant but not a stored definition
+  case vc12 =>
+    rename_i _ _ _ _ hview hrel hnd
+    obtain ⟨nm, ls, hgf, hn, _⟩ :=
+      denote_const_inv hok.state.wf hview (hrel x hden)
+    have hud : ConLeche.unfoldDefinition env x = none := by
+      have h := env_not_defn_of_index hok hn hnd
+      simp only [ConLeche.unfoldDefinition, hgf]
+    refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
+    obtain rfl : x' = x := Option.some.inj (hx'.symm.trans hden)
+    rw [hud]
+    exact ⟨rfl, fun y hy => absurd hy (by simp)⟩
+  -- the head is not a constant
+  case vc13 =>
+    rename_i _ _ hnc _ hview hrel
+    have hud : ConLeche.unfoldDefinition env x = none := by
+      have h := denote_not_const hok.state.wf hview (hrel x hden) hnc
+      simp only [ConLeche.unfoldDefinition]
+    refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
+    obtain rfl : x' = x := Option.some.inj (hx'.symm.trans hden)
+    rw [hud]
+    exact ⟨rfl, fun y hy => absurd hy (by simp)⟩
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:172-181 headHint — **THEOREM 1
 for `headHint`**: the reducibility hint of the constant at the head.
