@@ -1249,12 +1249,19 @@ structure arena.checker_split.ValueGroup where
   jv : arena.handle.EIdx
 
 /-- [con_ron_core::arena::checker::PendingCheck]
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 832:0-836:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 847:0-851:1
     Visibility: public -/
 structure arena.checker.PendingCheck where
   vg : arena.checker_split.ValueGroup
   pos : Std.U64
   vis : Std.U64
+
+/-- Trait declaration: [con_ron_core::arena::checker::InstallHook]
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1334:0-1338:1
+    Visibility: public -/
+structure arena.checker.InstallHook (Self : Type) where
+  install_before : Self → arena.store.PersTier → arena.store.EStore →
+    Std.U64 → Std.Usize → arena.env.IDeclaration → Result Unit
 
 /-- [con_ron_core::kernel::nat_op_pins::NatOpPinSet]
     Source: 'crates/con-ron-core/src/kernel/nat_op_pins.rs', lines 49:0-67:1
@@ -1768,6 +1775,12 @@ inductive frontend.scan_fast.Member where
   Std.Usize →
   Std.Usize →
   frontend.scan_fast.Member
+
+/-- Trait declaration: [con_ron_core::frontend::export_c::ChunkSource]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 3252:0-3259:1
+    Visibility: public -/
+structure frontend.export_c.ChunkSource (Self : Type) where
+  next_chunk : Self → Result ((alloc.vec.Vec Std.U8) × Self)
 
 /-- [con_ron_core::frontend::prepare::PreludeIx]
     Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 67:0-69:1
