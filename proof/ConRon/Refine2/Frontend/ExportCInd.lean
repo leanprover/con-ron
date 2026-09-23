@@ -215,10 +215,35 @@ is `denoteN`'s (`env::read_name`); messages are never compared, so what is
 claimed is that it succeeds, and fails, exactly where the twin's `readName`
 does — at the state it started in. -/
 theorem show_name_refines {pers rst lst h' o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (_hinv : AStateInv pers rst)
     (h : frontend.export_c.show_name pers rst.store h' = ok o) :
     SimLR (fun _ => ()) lst o ((fun _ => ()) <$> readName (absNIdx h')) := by
-  sorry
+  rw [frontend.export_c.show_name] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hR := env_read_name_abs hrel.store hr
+  have hrun : ∀ x, denoteN lst.store.ns (absNIdx h') = x →
+      (((fun _ => ()) <$> readName (absNIdx h')) : AM Unit).run lst =
+        match x with
+        | some _ => .ok ((), lst)
+        | none => .error (.internal "arena: dangling name handle") := by
+    rintro x rfl
+    unfold readName
+    show StateT.run ((fun _ => ()) <$> ((match denoteN lst.store.ns (absNIdx h') with
+      | some x => pure x
+      | none => Arena.fail (.internal "arena: dangling name handle")) : AM ConLeche.Name)) lst = _
+    cases denoteN lst.store.ns (absNIdx h') <;> rfl
+  cases hdn : denoteN lst.store.ns (absNIdx h') with
+  | none =>
+    rw [hdn] at hR
+    obtain ⟨e, rfl, hek⟩ := hR
+    obtain ⟨e', rfl, hk'⟩ := fail_refines h
+    exact AErrSim.mk (hrun _ hdn) (by rw [hk', hek]; rfl)
+  | some x =>
+    rw [hdn] at hR
+    obtain ⟨y, rfl, -⟩ := hR
+    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    exact hrun _ hdn
 
 /-! ## The verdict-carrying pieces (ruling F12)
 
@@ -243,7 +268,179 @@ def SimLV {α β : Type} (A : α → β) (V : β → Option RecordVerdict) (lst 
   | .Err (.Verdict vd) => ∃ b lv, x.run lst = .ok (b, lst) ∧ V b = some lv ∧
       lVerdictKind lv = absVerdictKind vd
 
+theorem SimLV.bind {α β γ δ : Type} {A : α → β} {V : β → Option RecordVerdict}
+    {B : δ → γ} {lst : AState} {r : core.result.Result δ frontend.export_c.LineErr}
+    {x : AM γ} {f : γ → AM β} {o}
+    (hx : SimLR B lst r x) (hk : ∀ v, r = .Ok v → SimLV A V lst o (f (B v)))
+    (herr : ∀ e, r = .Err e → o = .Err e) : SimLV A V lst o (x >>= f) := by
+  cases r with
+  | Ok v =>
+    have h1 := hk v rfl
+    simp only [SimLR] at hx
+    have e : (x >>= f).run lst = (f (B v)).run lst := by rw [am_run_bind', hx]; rfl
+    unfold SimLV at h1 ⊢
+    rw [e]; exact h1
+  | Err e =>
+    obtain rfl := herr e rfl
+    simp only [SimLR] at hx
+    cases e with
+    | Verdict _ => exact hx.elim
+    | Err ce =>
+      show AErrSim ce _
+      rw [am_run_bind']; exact AErrSim.bind hx _
+
+/-- A message's name read: `show_name` against the twin's `readName`, whose
+value the verdict's text only uses. -/
+theorem SimLV.bind_name {α β γ : Type} {A : α → β} {V : β → Option RecordVerdict}
+    {lst : AState} {r : core.result.Result (alloc.vec.Vec Std.U32) frontend.export_c.LineErr}
+    {m : AM γ} {f : γ → AM β} {o}
+    (hx : SimLR (fun _ => ()) lst r ((fun _ => ()) <$> m))
+    (hk : ∀ v, r = .Ok v → ∀ a, SimLV A V lst o (f a))
+    (herr : ∀ e, r = .Err e → o = .Err e) : SimLV A V lst o (m >>= f) := by
+  have hmap : ((fun _ => ()) <$> m).run lst = (m.run lst) >>= fun p => pure ((), p.2) := rfl
+  cases r with
+  | Ok v =>
+    simp only [SimLR] at hx
+    rw [hmap] at hx
+    cases hm : m.run lst with
+    | error le => rw [hm] at hx; cases hx
+    | ok p =>
+      rw [hm] at hx
+      obtain ⟨a, s⟩ := p
+      have hs : s = lst := by
+        have : (Except.ok ((), s) : Except Arena.CheckError _) = .ok ((), lst) := hx
+        cases this; rfl
+      subst hs
+      have h1 := hk v rfl a
+      have e : (m >>= f).run s = (f a).run s := by rw [am_run_bind', hm]; rfl
+      unfold SimLV at h1 ⊢
+      rw [e]; exact h1
+  | Err e =>
+    obtain rfl := herr e rfl
+    simp only [SimLR] at hx
+    cases e with
+    | Verdict _ => exact hx.elim
+    | Err ce =>
+      show AErrSim ce _
+      refine AErrSim.trans hx fun le hle => ?_
+      rw [hmap] at hle
+      rw [am_run_bind']
+      cases hm : m.run lst with
+      | error le' => rw [hm] at hle; cases hle; rfl
+      | ok p => rw [hm] at hle; cases hle
+
+/-- `export_c::invalid` is an `invalid` verdict. -/
+theorem invalid_ok {T : Type} {v o} (h : frontend.export_c.invalid T v = ok o) :
+    o = .Err (.Verdict (.Invalid v)) := by
+  rw [frontend.export_c.invalid] at h
+  exact (Result.ok_injective h).symm
+
+/-- A message builder, then `invalid`: an `invalid` verdict. -/
+theorem msg_invalid_ok {T X : Type} {m : Result X} {k : X → alloc.vec.Vec Std.U32} {o}
+    (h : (do let v ← m; frontend.export_c.invalid T (k v)) = ok o) :
+    ∃ v, o = .Err (.Verdict (.Invalid v)) := by
+  obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  exact ⟨_, invalid_ok h⟩
+
+/-- The twin answering with an `invalid` verdict. -/
+theorem SimLV.invalid {α β : Type} {A : α → β} {V : β → Option RecordVerdict}
+    {lst : AState} {b : β} {s : String} (hV : V b = some (.invalid s)) (w) :
+    SimLV A V lst (.Err (.Verdict (.Invalid w))) (pure b) :=
+  ⟨b, _, rfl, hV, rfl⟩
+
 /-! ## The first `for` loop: the constructors in the block's own order -/
+
+-- `check_one_ctor`'s `numFields` tail, which Aeneas copies into each of its
+-- four `cidx`/`induct` arms.
+set_option hygiene false in
+local macro "ctor_fields_tail" : tactic => `(tactic| (
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  refine SimLV.bind (get_decl_d_refines hd hr) (fun v hv => ?_)
+    (fun e he => by subst he; exact (Result.ok_injective h).symm)
+  subst hv
+  obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  refine SimLV.bind (ind_pi_tele_len_refines hrel hinv hr1) (fun v1 hv1 => ?_)
+    (fun e he => by subst he; exact (Result.ok_injective h).symm)
+  subst hv1
+  obtain ⟨i, hi', h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hiv := ConRon.Refine.Nat.uadd_val hi'
+  by_cases hne : (i != v1) = true
+  · rw [if_pos hne] at h
+    have hne' : ¬ (absU n_pd + absU64 c.num_fields == absU v1) = true := by
+      simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv] at hne
+      simp only [absU, absU64, beq_iff_eq]; omega
+    rw [if_neg hne']
+    obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine SimLV.bind_name (show_name_refines hrel hinv hr2) (fun v2 hv2 a => ?_)
+      (fun e he => by subst he; exact (Result.ok_injective h).symm)
+    subst hv2
+    obtain ⟨_, rfl⟩ := msg_invalid_ok h
+    exact SimLV.invalid (by rfl) _
+  · rw [if_neg hne] at h
+    cases Result.ok_injective h
+    have heq : (absU n_pd + absU64 c.num_fields == absU v1) = true := by
+      simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv, Classical.not_not] at hne
+      simp only [absU, absU64, beq_iff_eq]; omega
+    rw [if_pos heq]
+    rfl))
+
+-- `check_one_ctor`'s `induct` check, ending in its `numFields` tail.
+set_option hygiene false in
+local macro "ctor_induct" : tactic => `(tactic| (
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  refine SimLV.bind (st_name_refines hd hr) (fun v hv => ?_)
+    (fun e he => by subst he; exact (Result.ok_injective h).symm)
+  subst hv
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [nidx_eq2_abs hb] at h
+  by_cases hbt : (absNIdx v == absNIdx t) = true
+  · rw [if_pos hbt] at h
+    rw [if_pos hbt]
+    try simp only [pure_bind]
+    ctor_fields_tail
+  · rw [if_neg hbt] at h
+    rw [if_neg hbt]
+    obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine SimLV.bind_name (show_name_refines hrel hinv hr1) (fun v1 hv1 a1 => ?_)
+      (fun e he => by subst he; exact (Result.ok_injective h).symm)
+    subst hv1
+    obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine SimLV.bind_name (show_name_refines hrel hinv hr2) (fun v2 hv2 a2 => ?_)
+      (fun e he => by subst he; exact (Result.ok_injective h).symm)
+    subst hv2
+    obtain ⟨r3, hr3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine SimLV.bind_name (show_name_refines hrel hinv hr3) (fun v3 hv3 a3 => ?_)
+      (fun e he => by subst he; exact (Result.ok_injective h).symm)
+    subst hv3
+    obtain ⟨_, rfl⟩ := msg_invalid_ok h
+    exact SimLV.invalid (by rfl) _))
+
+-- `check_one_ctor`'s `cidx` check; leaves the passing arm.
+set_option hygiene false in
+local macro "ctor_cidx" : tactic => `(tactic| (
+  by_cases hcj : (ci != j) = true
+  case pos =>
+    rw [if_pos hcj] at h
+    have hne : ¬ (absU64 ci == absU j) = true := by
+      simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv] at hcj
+      simpa [absU64, absU] using hcj
+    rw [if_neg hne]
+    obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine SimLV.bind_name (show_name_refines hrel hinv hr) (fun v hv a => ?_)
+      (fun e he => by subst he; exact (Result.ok_injective h).symm)
+    subst hv
+    obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine SimLV.bind_name (show_name_refines hrel hinv hr1) (fun v1 hv1 a1 => ?_)
+      (fun e he => by subst he; exact (Result.ok_injective h).symm)
+    subst hv1
+    obtain ⟨_, rfl⟩ := msg_invalid_ok h
+    exact SimLV.invalid (by rfl) _
+  rw [if_neg hcj] at h
+  have heq : (absU64 ci == absU j) = true := by
+    simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv, Classical.not_not] at hcj
+    simpa [absU64, absU] using hcj
+  rw [if_pos heq]
+  try simp only [pure_bind]))
 
 /-- **`check_one_ctor`** — the three redundant-field checks at one
 constructor, against `checkOneCtorD`: `cidx` names its position, `induct`
@@ -257,7 +454,28 @@ theorem check_one_ctor_refines {pers rst lst rsd lsd fuel n t c j n_pd o}
       = ok o) :
     SimLV (fun _ => none) vOfOpt lst o
       (checkOneCtorD lsd (absU fuel) (absNIdx t) (absNIdx n) (absIndCtorRec c)
-        (absU j) (absU n_pd)) := by sorry
+        (absU j) (absU n_pd)) := by
+  rw [frontend.export_c.check_one_ctor] at h
+  unfold checkOneCtorD
+  cases hc : c.cidx with
+  | none =>
+    cases hi : c.induct with
+    | none =>
+      simp only [hc, hi, absIndCtorRec, Option.map, pure_bind] at h ⊢
+      ctor_fields_tail
+    | some iw =>
+      simp only [hc, hi, absIndCtorRec, Option.map, pure_bind] at h ⊢
+      ctor_induct
+  | some ci =>
+    cases hi : c.induct with
+    | none =>
+      simp only [hc, hi, absIndCtorRec, Option.map, pure_bind] at h ⊢
+      ctor_cidx
+      ctor_fields_tail
+    | some iw =>
+      simp only [hc, hi, absIndCtorRec, Option.map, pure_bind] at h ⊢
+      ctor_cidx
+      ctor_induct
 
 /-- **`order_type_ctors`** — the inner `for n in ns` loop at one type former,
 against `orderTypeCtorsD` from position `0`.  `hix` is `ctor_index_of`'s
