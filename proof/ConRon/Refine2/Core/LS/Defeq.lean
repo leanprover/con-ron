@@ -22,6 +22,8 @@ by induction on the port's counter — finding 13: the port's `n` IS the twin's
 continuation `defeqLoop … (absU n)`, no `- 1`.
 -/
 import ConRon.Refine2.Core.LS.PrimsF
+import ConRon.Refine2.Core.LS.Leaves
+import ConRon.Refine2.Core.LS.Shapes
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -110,80 +112,16 @@ recursion depth when added to `lockstep_simp`, whose `simpTwin` runs over the
 whole twin program). -/
 macro "lockstep_twin_ite_full" : tactic =>
   `(tactic| first
-    | (apply LS.twin_ite_neg (hc := by lockstep_simp_all_small) ; skip)
-    | (apply LS.twin_ite_pos (hc := by lockstep_simp_all_small) ; skip))
+    | (refine LS.twin_ite_neg ?_ ?_; (· lockstep_simp_all_small))
+    | (refine LS.twin_ite_pos ?_ ?_; (· lockstep_simp_all_small)))
 
 /-- `lockstep_core` with the local moves as fallbacks. -/
 macro "lockstep_f" : tactic =>
-  `(tactic| repeat' (first | lockstep_core_step | lockstep_twin_ite_full | lockstep_twin_tail | lockstep_bool_cases))
+  `(tactic| repeat' (first | lockstep_step | lockstep_twin_ite_full | lockstep_twin_tail | lockstep_bool_cases))
 
 /-! ## Stubs (other regions' lemmas; deleted at merge) -/
 
 section Stubs
-
-@[lockstep] theorem stub_lvl_eq_ls {pers st u v lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a) (arena.core.lvl_eq pers st u v) lst
-      (lvlEq? (absLIdx u) (absLIdx v)) := by
-  sorry
-
-@[lockstep] theorem stub_lvls_eq_ls {pers st us vs lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a) (arena.core.lvls_eq pers st us vs) lst
-      (lvlsEq? (absLsIdx us) (absLsIdx vs)) := by
-  sorry
-
-@[lockstep] theorem stub_lift_fueled_ls {pers st lst} (what : String) (o : Option Bool)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = a) (arena.core.lift_fueled o) st lst (liftFueled what o) := by
-  sorry
-
-@[lockstep] theorem stub_empty_levels_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absLsIdx a) (arena.core.empty_levels st) st lst emptyLevels := by
-  sorry
-
-@[lockstep] theorem stub_is_bool_true_ls {pers st h lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a) (arena.core.is_bool_true pers st h) lst
-      (isBoolTrue (absEIdx h)) := by
-  sorry
-
-@[lockstep] theorem stub_quick_pair_ls (a b : arena.handle.EIdx) :
-    LSP (arena.core.quick_pair a b) (fun r => TwinEq (quickPair (absEIdx a) (absEIdx b)) r) := by
-  sorry
-
-@[lockstep] theorem stub_head_hint_ls {pers vis st fe lfe e lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = ConRon.Refine.absHint a) (arena.core.head_hint pers vis st fe e) lst
-      (headHint lfe (absEIdx e)) := by
-  sorry
-
-@[lockstep] theorem stub_unfoldable_head_ls {pers vis st fe lfe e lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.unfoldable_head pers vis st fe e) lst
-      (unfoldableHead lfe (absEIdx e)) := by
-  sorry
-
-@[lockstep] theorem stub_same_const_heads_ls {pers st a b lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a) (arena.core.same_const_heads pers st a b) lst
-      (sameConstHeads (absEIdx a) (absEIdx b)) := by
-  sorry
-
-@[lockstep] theorem stub_defeq_no_fvars_ls {pers st a b lst} (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a) (arena.core.defeq_no_fvars pers st a b) lst
-      (defeqNoFvars (absEIdx a) (absEIdx b)) := by
-  sorry
-
-@[lockstep] theorem stub_defeq_peel_done_ls {pers st lst} (mism mismLam : Bool)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = a) (arena.core.defeq_peel_done mism mismLam) st lst
-      (defeqPeelDone mism mismLam) := by
-  sorry
 
 @[lockstep] theorem stub_reduce_nat_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth e lst}
@@ -356,7 +294,7 @@ theorem defeq_peel_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
   | zero =>
     intro st lst peel a b k fvs mism mismLam hn hrel hinv
     rw [arena.core.defeq_peel, defeqPeel_zero]
-    lockstep_f
+    lockstep
   | succ m ih =>
     intro st lst peel a b k fvs mism mismLam hn hrel hinv
     rw [arena.core.defeq_peel, defeqPeel_succ]
