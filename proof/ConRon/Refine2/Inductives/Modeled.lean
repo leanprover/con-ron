@@ -742,7 +742,9 @@ theorem check_iota_major_refines {pers st lst}
       (checkIotaMajorSpec (absRenameBy f) (absIRecRule r) (absIConstantVal cvj)
         (absU cn_p) (absEIdxL fvs) (absEIdxL x_fvs) (absEIdxL largs)
         (absEIdx b0)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_iota_major, checkIotaMajorSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_iota_major_ls
@@ -818,7 +820,9 @@ theorem check_iota_thm_lams_refines {pers st lst} {vis : Std.U64} {rfS lfS}
       (checkIotaThmLamsSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
         (absU depth) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs)
         (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) (absEIdxL all) lcv) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_iota_thm_lams, checkIotaThmLamsSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_lams_ls
@@ -862,7 +866,9 @@ theorem check_iota_thm_frames_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx ty_a) (absU r_p) (absIConstantVal cvj) (absU cn_p) (absU depth)
         (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs) (absEIdx rhs_s)
         (absLIdx l_a) (absEIdx b0) lcv) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_iota_thm_frames, checkIotaThmFramesSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_frames_ls
@@ -909,7 +915,9 @@ theorem check_iota_thm_prefix_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx ty_a) (absU r_p) (absIConstantVal cvj) (absU cn_p) (absU depth)
         (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs) (absEIdx rhs_s)
         (absLIdx l_a) (absEIdx b0) lcv) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_iota_thm_prefix, checkIotaThmPrefixSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_prefix_ls
@@ -1012,7 +1020,9 @@ theorem check_iota_thm_ctor_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absU cn_f) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL x_fvs)
         (absEIdxL largs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a)
         (absEIdx b0) lcv) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_iota_thm_ctor, checkIotaThmCtorSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_ctor_ls
@@ -1408,7 +1418,9 @@ theorem check_iota_thm_n_frames_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absU cn_f) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs)
         (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) (absLsIdx lvls_idx)
         (absEIdxL pins) lcv) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_iota_thm_n_frames, checkIotaThmNFramesSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_n_frames_ls
@@ -1462,7 +1474,9 @@ theorem check_iota_thm_n_prefix_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absU cn_f) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs)
         (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) (absLsIdx lvls_idx)
         (absEIdxL pins) lcv) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_iota_thm_n_prefix, checkIotaThmNPrefixSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_n_prefix_ls

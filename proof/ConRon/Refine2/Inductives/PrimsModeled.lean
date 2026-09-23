@@ -566,6 +566,50 @@ theorem append_eidx_val {xs ys r : alloc.vec.Vec arena.handle.EIdx}
     LSP (arena.core.append_eidx xs ys) (fun r => r.val = xs.val ++ ys.val) :=
   fun _ h => append_eidx_val h
 
+/-- `Tactic/Prims.lean`'s `take_eidx_n_spec` answers in the `Array` form of
+`takeEidx`; the modeled route's twins take the prefix of a list. -/
+theorem take_list_of_arr {a xs : alloc.vec.Vec arena.handle.EIdx} {k : Nat}
+    (h : absEIdxArr a = takeEidx (absEIdxArr xs) k) :
+    a.val.map absEIdx = (xs.val.map absEIdx).take k := by
+  have := congrArg Array.toList h
+  rw [takeEidx, ExprOps.eidxCopyUpto_toList _ k k 0 #[] (by omega)] at this
+  simpa [absEIdxArr] using this
+
+/-- `checker_base::fvar_type_ds` ⊑ `List.mapM fvarTypeD` from the cursor on,
+with the accumulator in front — proved here by the cursor induction (the
+checker tier's `fvar_type_ds_refines` is still `sorry`). -/
+theorem fvar_type_ds_aux (n : Nat) :
+    ∀ {pers st lst} {hs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
+      {out : alloc.vec.Vec arena.handle.EIdx},
+      hs.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = absEIdxL a) (arena.checker_base.fvar_type_ds pers st hs i out)
+        st lst (do pure (absEIdxL out ++ (← List.mapM fvarTypeD (absEIdxLFrom hs i)))) := by
+  induction n with
+  | zero =>
+    intro pers st lst hs i out hn hrel hinv
+    apply LSR.of_LS
+    rw [arena.checker_base.fvar_type_ds, if_pos (by scalar_tac), absEIdxLFrom,
+      vecFrom_nil _ _ _ (by omega), List.mapM_nil]
+    lockstep
+  | succ m ih =>
+    intro pers st lst hs i out hn hrel hinv
+    apply LSR.of_LS
+    rw [arena.checker_base.fvar_type_ds, if_neg (by scalar_tac), absEIdxLFrom,
+      vecFrom_cons _ _ _ (by omega), List.mapM_cons]
+    simp only [bind_assoc, pure_bind]
+    lockstep
+
+/-- `fvar_type_ds` from the cursor `0` and an empty accumulator: the twin's
+`xs.mapM fvarTypeD`. -/
+@[lockstep] theorem fvar_type_ds_mapM_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hs : alloc.vec.Vec arena.handle.EIdx) :
+    LSR pers (fun a b => b = absEIdxL a)
+      (arena.checker_base.fvar_type_ds pers st hs 0#usize (alloc.vec.Vec.new _)) st lst
+      (List.mapM fvarTypeD (hs.val.map absEIdx)) := by
+  have h := fvar_type_ds_aux (hs := hs) (i := 0#usize) (out := alloc.vec.Vec.new _) _ rfl hrel hinv
+  simpa [absEIdxL, absEIdxLFrom, alloc.vec.Vec.new] using h
+
 /-- `ifenv_dup` in `LSP` form: the copy stands for the same twin environment. -/
 @[lockstep] theorem ifenv_dup_spec {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
     LSP (arena.env.ifenv_dup rf) (fun a => IFEnvRelI a lf) :=
@@ -580,6 +624,20 @@ elab "ind_opt_guard" : tactic => do
   unless t.containsConst (fun n => n == ``core.option.Option.is_some ||
       n == ``core.option.Option.is_none || n == ``Option.isSome || n == ``Option.isNone) do
     throwError "ind_opt_guard: no Option test"
+
+open Lean Elab Tactic in
+/-- Fails unless the goal takes a list prefix. -/
+elab "ind_take_guard" : tactic => do
+  unless (← getMainTarget).containsConst (· == ``List.take) do
+    throwError "ind_take_guard: no List.take"
+
+/-- A list prefix of the twin against the port's `take_eidx_n` (whose spec is
+in `Array` form). -/
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (ind_take_guard
+               have := IndModeledPrims.take_list_of_arr ‹absEIdxArr _ = takeEidx _ _›
+               simp_all [ExprOps.absEIdxList, absEIdxL, absEIdxList]; done))
 
 /-- `lf.restrictTo (absU rf.visible_below) = lf` from `IFEnvRelI rf lf`. -/
 macro_rules
