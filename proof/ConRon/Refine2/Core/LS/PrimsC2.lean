@@ -13,7 +13,6 @@ those bodies step through that no earlier file supplies:
 * the state-free vector helpers (`take_eidx`, `take_eidx_n`, `drop_eidx_n`,
   `snoc_eidx`, `snoc2_eidx_of`, `append_eidx`, `append_eidx_of`,
   `get_d_eidx`) as `LSP` facts about the lists they denote;
-* `intern_e_const`, pending the foundation's intern slice.
 
 Several of these are the same statements regions A2 and C1 add in their own
 files (`PA2.nidx_eq2_ls`, `PC1.certs_ls` …); the coordinator deduplicates at
@@ -652,15 +651,6 @@ theorem estore_view_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       simpa [hlt2] using hi
     rw [Array.getElem?_eq_getElem hlt3] at hsome
     rw [Option.some_inj.mp hsome]
-
-/-! ## The intern — pending the foundation's intern slice -/
-
-@[lockstep] theorem intern_e_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (n : arena.handle.NIdx) (us : arena.handle.LsIdx) :
-    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_const pers st n us) lst
-      (Arena.internConstE (absNIdx n) (absLsIdx us)) := by
-  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
-  sorry
 
 /-! ## The projection-function shape test -/
 

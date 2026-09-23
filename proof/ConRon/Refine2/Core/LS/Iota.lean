@@ -11,7 +11,7 @@ Task #97-P5-Core round 5, region C2.  The Theorem-2 lockstep lemmas of
   `iota_rec_{major,fire,params,certs,fam,reduct}`, `get_d_eidx`);
 * `projCert`, `projCertAt`.
 
-Each is one `lockstep_core` run over the Rust body with its fragments inlined
+Each is one `lockstep_c2` run (the shared `lockstep` plus this file's local moves) over the Rust body with its fragments inlined
 (`@[lockstep_inline]`) against the twin's body.
 -/
 import ConRon.Refine2.Core.LS.PrimsC2
@@ -25,46 +25,17 @@ namespace ConRon.Refine2.Lockstep
 
 open ConRon.Arena ConRon.Refine2
 
-/-! ## A local move: `ok v >>= k` on the Rust side
+/-! ## Local moves
 
-`Core/LS/Tactic.lean`'s `coreMove` steps a Rust `ok v >>= k` to `k v` with
-`replaceTargetDefEq`, but `Result.bind` is `ITree.bind`, which is NOT
-definitionally `k v` at `ok v` for the kernel: the elaborator accepts the step
-unchecked and the kernel rejects the proof ("application type mismatch").
-This file steps it through `bind_tc_ok` instead, BEFORE `lockstep_core_step`
-sees it (reported to the coordinator as a tactic gap). -/
+The shared `lockstep` (task #97-P5-Core round 5's central fix) steps `ok v >>= k`
+soundly and closes error arms through `ok`-bind chains.  Four moves remain
+local to this region:
 
-theorem LS.rust_ok_bind {α γ β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
-    {v : γ} {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
-    {lst : AState} {x : AM β} (h : LS pers R (k v) lst x) :
-    LS pers R (ok v >>= k) lst x := by
-  rw [bind_tc_ok]; exact h
-
-theorem LSP.rust_ok_bind {γ α : Type} {v : γ} {k : γ → Result α} {Q : α → Prop}
-    (h : LSP (k v) Q) : LSP (ok v >>= k) Q := by
-  rw [bind_tc_ok]; exact h
-
-open Lean Meta Elab Tactic in
-/-- Step a Rust `ok v >>= k` to `k v`, soundly. -/
-elab "c2_ok_bind" : tactic => do
-  let g ← getMainGoal
-  let others := (← getGoals).tail
-  g.withContext do
-    let ty ← instantiateMVars (← g.getType)
-    let some rp := rustPos ty | throwError "c2_ok_bind: not a judgement"
-    let m := (ty.getArg! rp).headBeta
-    unless m.isAppOfArity ``Bind.bind 6 do throwError "c2_ok_bind: not a bind"
-    let f ← headNorm (m.getArg! 4)
-    unless f.isAppOfArity ``Result.ok 2 do throwError "c2_ok_bind: not `ok`"
-    let rule := if rp == 4 then ``LS.rust_ok_bind else ``LSP.rust_ok_bind
-    let gs ← applyRule g rule
-    let rest ← normAll [← pick gs `h]
-    setGoals (rest ++ others)
-
-theorem ErrArm.of_ok_bind {γ δ : Type} {v : δ}
-    {k : δ → Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
-    {e : kernel.core_types.CheckError} (h : ErrArm (k v) e) : ErrArm (ok v >>= k) e := by
-  rw [bind_tc_ok]; exact h
+* an error arm through a `(b >>= g) >>= k` chain (`ErrArm.of_assoc`; the
+  central `errArmChain` handles only `ok v >>= k` links) — `c2_bind_state`;
+* the level-list length read (`c2_lslen`), the bounds-checked list read
+  (`c2_getelem`), the split-match equations (`c2_heq`) and the `u64 as
+  usize` cast (`c2_cast`), each documented at its definition. -/
 
 theorem ErrArm.of_assoc {γ δ ε : Type} {b : Result ε} {g : ε → Result δ}
     {k : δ → Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
@@ -73,9 +44,9 @@ theorem ErrArm.of_assoc {γ δ ε : Type} {b : Result ε} {g : ε → Result δ}
   rw [Aeneas.Std.bind_assoc_eq]; exact h
 
 open Lean Meta Elab Tactic in
-/-- `ErrArm` through a chain of `ok v >>= k` (an inlined fragment's result
-re-matched by the caller), where `errArm_ok` alone sees only one link. -/
-partial def errArmChain (g : MVarId) : TacticM Unit := g.withContext do
+/-- `ErrArm` through a chain of `ok v >>= k` links and `(b >>= g) >>= k`
+re-associations (an inlined fragment's result re-matched by the caller). -/
+partial def c2ErrArmChain (g : MVarId) : TacticM Unit := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   let m ← headNorm (ty.getArg! 1)
   let g ← g.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
@@ -83,11 +54,11 @@ partial def errArmChain (g : MVarId) : TacticM Unit := g.withContext do
     let f ← headNorm (m.getArg! 4)
     if f.isAppOfArity ``Result.ok 2 then
       let gs ← applyRule g ``ErrArm.of_ok_bind
-      return ← errArmChain (← pick gs `h)
+      return ← c2ErrArmChain (← pick gs `h)
     if f.isAppOfArity ``Bind.bind 6 then
       let gs ← applyRule g ``ErrArm.of_assoc
-      return ← errArmChain (← pick gs `h)
-  runClosed g (evalT `(tactic| exact errArm_ok))
+      return ← c2ErrArmChain (← pick gs `h)
+  runClosed g (evalT `(tactic| lockstep_errarm))
 
 open Lean Meta Elab Tactic in
 /-- `rustStep`'s state-threading bind, with `errArmChain` for the error arm. -/
@@ -103,7 +74,7 @@ elab "c2_bind_state" : tactic => do
     specCore (← pick gs `hf)
     runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
     let (_, ge) ← (← pick gs `he).introN 2 [`e, `st1]
-    errArmChain ge
+    c2ErrArmChain ge
     let rest ← cont (← pick gs `hk) [`a, `b, `st1, `lst1, `hR, `hrel, `hinv] (some `hR)
     setGoals ((← normAll rest) ++ others)
 
@@ -235,13 +206,10 @@ elab "c2_heq" : tactic => do
     let g ← g.replaceTargetDefEq ((← instantiateMVars (← g.getType)).consumeMData)
     setGoals (← normAll [g])
 
-/-- `lockstep_core` with the sound `ok`-bind step first, the chained error arm,
-the level-list length read, the bounds-checked list read, the split-match
-equations and the cast glue as fallbacks. -/
+/-- The shared `lockstep` step with this region's moves around it. -/
 macro "lockstep_c2" : tactic =>
   `(tactic| repeat' (first
-    | c2_ok_bind | c2_heq | lockstep_core_step | c2_bind_state | c2_lslen | c2_getelem
-    | c2_cast))
+    | c2_heq | lockstep_step | c2_bind_state | c2_lslen | c2_getelem | c2_cast))
 
 /-! ## Local normalisation: record projections and lengths
 
