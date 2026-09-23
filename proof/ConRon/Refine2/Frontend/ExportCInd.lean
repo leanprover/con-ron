@@ -946,6 +946,57 @@ theorem check_rec_indices_refines
   rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at this
   exact this
 
+-- One of `check_one_rec`'s count checks, at the Rust field `X` against `Y`;
+-- leaves the passing arm.
+set_option hygiene false in
+local macro "rec_count" x:term "," y:term : tactic => `(tactic| (
+  by_cases hne : ($x != $y) = true
+  case pos =>
+    rw [if_pos hne] at h
+    have hne' : ¬ (absU64 $x == absU $y) = true := by
+      simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv] at hne
+      simpa [absU64, absU] using hne
+    rw [if_neg hne']
+    obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine SimLV.bind_name (show_name_refines hrel hinv hr2) (fun v2 hv2 a2 => ?_)
+      (fun e he => by subst he; exact (Result.ok_injective h).symm)
+    subst hv2
+    obtain ⟨_, rfl⟩ := msg_invalid_ok h
+    exact SimLV.invalid (by rfl) _
+  rw [if_neg hne] at h
+  have heq : (absU64 $x == absU $y) = true := by
+    simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv, Classical.not_not] at hne
+    simpa [absU64, absU] using hne
+  rw [if_pos heq]))
+
+-- `check_one_rec`'s `T.rec` tail: the name's view, then `check_rec_indices`.
+set_option hygiene false in
+local macro "rec_view_tail" : tactic => `(tactic| (
+  obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  refine SimLV.bind_re (env_view_n_run hrel hr2) (fun nv hnv => ?_)
+    (fun e he => by subst he; exact fail_refines h)
+  subst hnv
+  cases nv with
+  | Anonymous => cases Result.ok_injective h; rfl
+  | Num a b => cases Result.ok_injective h; rfl
+  | Str tp last =>
+    obtain ⟨sl, hsl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbr := cps_beq_rec hsl hb
+    simp only [absNNodeView]
+    split
+    · rename_i T heq
+      injection heq with hT hs
+      subst hT
+      rw [if_pos (hbr.mpr hs)] at h
+      refine SimLV.bind_lv (check_rec_indices_refines hrel hinv hlen h)
+        (fun w hw => by subst hw; rfl) (fun b lv hb => ⟨_, rfl, hb⟩) (fun e he => he)
+    · rename_i hnot
+      have hbf : ¬ b = true := fun hbt => hnot _ (by rw [hbr.mp hbt])
+      rw [if_neg hbf] at h
+      cases Result.ok_injective h
+      rfl))
+
 /-- **`check_one_rec`** — the four count checks, the K flag and the indices
 at one recursor record, against `checkOneRecD`. -/
 theorem check_one_rec_refines
@@ -959,8 +1010,35 @@ theorem check_one_rec_refines
         (absU n_types) (absU n_ctors) k_exp (absIndRecRec r)) := by
   rw [frontend.export_c.check_one_rec] at h
   unfold checkOneRecD
-  simp only [absIndRecRec, bind_assoc]
-  sorry
+  simp only [absIndRecRec]
+  obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  refine SimLV.bind (st_name_refines hd hr1) (fun v hv => ?_)
+    (fun e he => by subst he; exact (Result.ok_injective h).symm)
+  subst hv
+  dsimp only at h
+  simp only [pure_bind]
+  rec_count r.num_params, n_pd
+  rec_count r.num_motives, n_types
+  rec_count r.num_minors, n_ctors
+  cases k_exp with
+  | none => rec_view_tail
+  | some kE =>
+    dsimp only at h ⊢
+    by_cases hk : (r.k != kE) = true
+    case pos =>
+      rw [if_pos hk] at h
+      have hk' : ¬ (r.k == kE) = true := by simpa using hk
+      rw [if_neg hk']
+      obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      refine SimLV.bind_name (show_name_refines hrel hinv hr2) (fun v2 hv2 a2 => ?_)
+        (fun e he => by subst he; exact (Result.ok_injective h).symm)
+      subst hv2
+      obtain ⟨_, rfl⟩ := msg_invalid_ok h
+      exact SimLV.invalid (by rfl) _
+    rw [if_neg hk] at h
+    have hk' : (r.k == kE) = true := by simpa using hk
+    rw [if_pos hk']
+    rec_view_tail
 
 /-- **`check_rec_records`** — the `for r in rcs` loop, against
 `checkRecRecordsD` (the caller skips it at a nested block, as the twin's
