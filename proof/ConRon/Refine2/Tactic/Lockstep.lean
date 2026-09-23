@@ -49,6 +49,9 @@ cannot move.  One step looks at the RUST side first:
   same judgement.  The spec's twin action is not unified with the goal's:
   the rules take `x' = x`, closed by `congr 1` and the side tactic, so
   `absU i1` against `absU c + 1` is a side goal, not a unification failure.
+  A spec argument that only its TWIN side mentions (a message string, the
+  div/mod loop's `tried` list) is not a side goal either: it is fixed by
+  that `x' = x` check, by unification with the goal's twin action;
   A Rust-only value step with no lemma keeps its equation (`LS.bind_eq`) —
   unless the callee reads the Rust state, which must have a twin partner:
   then the step FAILS with "the Rust reads the state at `f` and no
@@ -60,7 +63,8 @@ cannot move.  One step looks at the RUST side first:
 
 The twin side moves only when the Rust cannot: `pure`/`get` binds, and an
 `if` decided by the facts the Rust steps produced (cheap tier first, the last
-Rust test's polarity first).  After every step the heads of both programs are
+Rust test's polarity first).  A twin `if` in bind position is distributed over
+its continuation first; one nothing decides is split as a last resort.  After every step the heads of both programs are
 normalised by DEFINITIONAL steps (`headNorm`: beta, `let`, `uncurry` at a
 pair, a `match` on constructors) and the twin alone by `simp only
 [lockstep_simp]` (the abstraction equations, the twin's arm definitions);
@@ -653,6 +657,57 @@ theorem LS.twin_dite_neg {α β : Type} {pers : arena.store.PersTier} {R : α �
     LS pers R m lst (if h : c then x h else y h) := by
   rw [dif_neg hc]; exact h
 
+/-! ### A twin `if` against a Rust bind (task #97-T2-TACTIC round 2)
+
+The Rust takes a bind step while the twin still tests an `if`.  An `if` in
+bind position (`(if c then a else b) >>= k`, e.g. the `… >>= pure` of a twin
+`do` block's last line) is distributed over its continuation, so the twin
+side is an `if` again and is decided like any other (`twin_ite_pos`/`neg`).
+An `if` the context does not decide, where no step moves, is split: both
+branches continue the zip, and the one a later Rust test rules out closes by
+`lockstep_contra`.  Neither rule produces a bind with `pure`, so they cannot
+cycle with `twin_bind_pure` (which is atomic in `rustStep`). -/
+
+theorem LS.twin_ite_bind {α β γ : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {c : Prop} [Decidable c]
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {a b : AM γ} {k : γ → AM β}
+    (h : LS pers R m lst (if c then a >>= k else b >>= k)) :
+    LS pers R m lst ((if c then a else b) >>= k) := by
+  by_cases hc : c
+  · rw [if_pos hc] at h ⊢; exact h
+  · rw [if_neg hc] at h ⊢; exact h
+
+theorem LS.twin_dite_bind {α β γ : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {c : Prop} [Decidable c]
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {a : c → AM γ} {b : ¬ c → AM γ} {k : γ → AM β}
+    (h : LS pers R m lst (if hc : c then a hc >>= k else b hc >>= k)) :
+    LS pers R m lst ((if hc : c then a hc else b hc) >>= k) := by
+  by_cases hc : c
+  · rw [dif_pos hc] at h ⊢; exact h
+  · rw [dif_neg hc] at h ⊢; exact h
+
+theorem LS.twin_ite_split {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {c : Prop} [Decidable c]
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x y : AM β}
+    (h₁ : c → LS pers R m lst x) (h₂ : ¬ c → LS pers R m lst y) :
+    LS pers R m lst (if c then x else y) := by
+  by_cases hc : c
+  · rw [if_pos hc]; exact h₁ hc
+  · rw [if_neg hc]; exact h₂ hc
+
+theorem LS.twin_dite_split {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {c : Prop} [Decidable c]
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : c → AM β} {y : ¬ c → AM β}
+    (h₁ : ∀ hc : c, LS pers R m lst (x hc)) (h₂ : ∀ hc : ¬ c, LS pers R m lst (y hc)) :
+    LS pers R m lst (if hc : c then x hc else y hc) := by
+  by_cases hc : c
+  · rw [dif_pos hc]; exact h₁ hc
+  · rw [dif_neg hc]; exact h₂ hc
+
 /-! ### The tag-guarded projections -/
 
 theorem tagView_const (st : EStore) (i : EIdx) (hi : i.tag = ETag.const) :
@@ -1158,12 +1213,36 @@ def specCore (g : MVarId) (after : TacticM Unit := pure ()) : TacticM Unit := g.
   for c in cands do
     try
       let gs ← g.apply c
+      -- **Twin-only arguments** (task #97-T2-TACTIC round 2).  A premise that
+      -- is not a proposition is an argument the Rust side did not determine:
+      -- the twin's message string (`liftFueled what`, `unresolvedConstsError
+      -- what`), the div/mod loop's `tried` list.  It is fixed by unifying the
+      -- spec's twin action with the goal's (`after`, the `x' = x` check), not
+      -- by the side tactic, whose `assumption` would take any term of its
+      -- type.  A propositional premise that fails while it still mentions
+      -- such an argument waits for the unification too.
+      let dataGoals ← gs.filterM fun sg => return !(← isProp (← sg.getType))
+      let pending (sg : MVarId) : MetaM Bool := do
+        let t ← instantiateMVars (← sg.getType)
+        dataGoals.anyM fun d => do
+          if ← d.isAssigned then return false
+          return (t.findMVar? (· == d)).isSome
+      let mut deferred : Array MVarId := #[]
       for sg in gs do
         if ← sg.isAssigned then continue
-        runClosed sg (evalT `(tactic| lockstep_side))
+        if dataGoals.contains sg then continue
+        if ← pending sg then
+          let s1 ← saveState
+          try runClosed sg (evalT `(tactic| lockstep_side))
+          catch _ => s1.restore; deferred := deferred.push sg
+        else
+          runClosed sg (evalT `(tactic| lockstep_side))
       -- the caller's check on this candidate's twin action (`x' = x`): a
       -- candidate whose twin action is not the goal's gives way to the next
       after
+      for sg in deferred ++ dataGoals do
+        if ← sg.isAssigned then continue
+        runClosed sg (evalT `(tactic| lockstep_side))
       return
     catch e =>
       errs := errs.push m!"{c}: {e.toMessageData}"
@@ -1447,7 +1526,12 @@ partial def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.with
         -- rewrite is undone — a bare `x >>= pure` goal would be normalised back
         -- to `x` and `lockstep` would loop on it (task #97-T2-LOCKSTEP lane
         -- ExprOps: `inst_lp_fast_ls` never terminated).
-        if !(x.isAppOfArity ``Bind.bind 6) then
+        -- Not at a twin `if`: its partner is inside a branch, and the `if` is
+        -- decided (or split) by `stepCore` once the Rust cannot move — taking
+        -- it whole as the partner would bury it under the `>>= pure` (task
+        -- #97-T2-TACTIC round 2, the Checker Base/Top lane's `chk_lockstep`).
+        if !(x.isAppOfArity ``Bind.bind 6) && !(x.isAppOfArity ``ite 5) &&
+            !(x.isAppOfArity ``dite 5) then
           try
             let gs ← applyRule g ``LS.twin_bind_pure
             let g' ← pick gs `h
@@ -1568,6 +1652,13 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
     if a.isAppOfArity ``MonadState.get 3 then
       let gs ← applyRule g ``LS.twin_get_bind
       return ← tidy (← pick gs `h) none
+    -- a twin `if` in bind position: distribute it over the continuation
+    if a.isAppOfArity ``ite 5 then
+      let gs ← applyRule g ``LS.twin_ite_bind
+      return ← tidy (← pick gs `h) none
+    if a.isAppOfArity ``dite 5 then
+      let gs ← applyRule g ``LS.twin_dite_bind
+      return ← tidy (← pick gs `h) none
   let s0 ← saveState
   try rustStep g m x
   catch e =>
@@ -1595,6 +1686,15 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
           for sg in rest do
             out := out ++ (← tidy sg none)
           return ← contra out
+    -- a twin `if` nothing decides and no step moves past: split it; each
+    -- branch continues the zip, and a branch a later Rust test rules out
+    -- closes by `lockstep_contra`
+    if x.isAppOfArity ``ite 5 || x.isAppOfArity ``dite 5 then
+      let gs ← applyRule g (if x.isAppOfArity ``ite 5 then ``LS.twin_ite_split
+        else ``LS.twin_dite_split)
+      let g1 ← cont (← pick gs `h₁) [`hc] (some `hc)
+      let g2 ← cont (← pick gs `h₂) [`hc] (some `hc)
+      return g1 ++ g2
     throw e
 
 /-- Is `n` registered `@[lockstep_inline]`? -/

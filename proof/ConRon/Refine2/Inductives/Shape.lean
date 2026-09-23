@@ -836,45 +836,6 @@ macro_rules
           | (apply IFEnvRelI.rel; assumption) | (apply IFEnvRelI.inv; assumption)
           | assumption | (checker_env_facts; simp_all; done)))
 
-/-! ## The port's message and name-part constants
-
-A name the port builds from a constant (`intern_n_node (Str n (code_points
-REC))`) is the twin's `.str n "rec"`: the literal is `lift (to_slice REC)` then
-`code_points`, two Rust-only steps whose specs carry the code points, and the
-side goals `absString v = "rec"` / `StrWF v` are then a computation on a
-three-element list. -/
-
-open Lockstep in
-@[lockstep] theorem lift_to_slice_spec {n : Std.Usize} (X : Array Std.U32 n) :
-    LSP (lift (Array.to_slice X)) (fun s => s.val = X.val) := by
-  intro s h
-  simp only [lift, Result.ok.injEq] at h
-  subst h
-  simp
-
-open Lockstep in
-@[lockstep] theorem code_points_spec (s : Slice Std.U32) :
-    LSP (kernel.core_types.code_points s) (fun v => v.val = s.val) :=
-  fun _ h => ConRon.Refine.Env.code_points_val h
-
-open Lean Elab Tactic in
-/-- Fails unless the goal mentions a name-part string (`absString`, `StrWF`,
-`NNodeViewWF`): the string tier's `simp only [global_simps] at *` is not free. -/
-elab "ind_str_guard" : tactic => do
-  let t ← getMainTarget
-  unless t.containsConst (fun n => n == ``ConRon.Refine.absString ||
-      n == ``ConRon.Refine.StrWF || n == ``NNodeViewWF || n == ``absNNodeView) do
-    throwError "ind_str_guard: no string goal"
-
-/-- The string side goals of a constant name part. -/
-macro "ind_str_side" : tactic =>
-  `(tactic| (ind_str_guard
-             try simp only [global_simps] at *
-             simp_all [Array.make, ConRon.Refine.absString, ConRon.Refine.StrWF, NNodeViewWF, absNNodeView]
-             try decide))
-
-macro_rules
-  | `(tactic| lockstep_side_ext) => `(tactic| (ind_str_side; done))
 
 -- A twin `if` whose test a `TwinEq` rewrote to a literal.
 attribute [lockstep_simp] ite_true ite_false
@@ -945,6 +906,90 @@ open Lockstep in
 macro_rules
   | `(tactic| lockstep_side_ext) =>
     `(tactic| (simp only [IFEnv.restrictTo] at *; checker_env_facts; simp_all; done))
+
+/-! ## The cursor recipe in `LS` form (task #97-T2-LOCKSTEP lane Inductives round 4)
+
+The Rust walks a `Vec` by an index, the twin recurses structurally on the
+list from that index (DESIGN §3.4's `List`-as-cursor deviation).  `ls_cursor`
+is the induction once: a caller proves the stop case and the step case, each
+by unfolding one equation on each side and `lockstep`, with the induction
+hypothesis in the context for the recursive call. -/
+
+open Lockstep in
+theorem ls_cursor {α β γ δ : Type} {pers : arena.store.PersTier} {R : γ → δ → Prop}
+    (xs : alloc.vec.Vec α) (a : α → β) (G : List β → AM δ)
+    (F : arena.monad.AState → Std.Usize →
+      Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState))
+    (hstop : ∀ st lst (i : Std.Usize), xs.val.length ≤ i.val →
+      AStateRel₀ pers st lst → AStateInv pers st → LS pers R (F st i) lst (G []))
+    (hstep : ∀ st lst (i : Std.Usize) (hb : i.val < xs.val.length),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      (∀ st' lst' (j : Std.Usize), j.val = i.val + 1 →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers R (F st' j) lst' (G ((xs.val.drop j.val).map a))) →
+      LS pers R (F st i) lst (G (a xs.val[i.val] :: (xs.val.drop (i.val + 1)).map a))) :
+    ∀ (i : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers R (F st i) lst (G ((xs.val.drop i.val).map a)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) xs.val.length
+    (fun i (_ : Unit) => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers R (F st i) lst (G ((xs.val.drop i.val).map a))) ?_ ?_ i ()
+  · intro i _ hn st lst hrel hinv
+    rw [List.drop_eq_nil_of_le hn, List.map_nil]
+    exact hstop st lst i hn hrel hinv
+  · intro i _ hi ih st lst hrel hinv
+    rw [List.drop_eq_getElem_cons hi, List.map_cons]
+    exact hstep st lst i hi hrel hinv (fun st' lst' j hj => ih j () hj st' lst')
+
+/-! ## The cursor abstractions at `0` (for the `lockstep` side tier)
+
+A caller's twin names the whole list (`absXL v`); the callee's statement is at
+the cursor (`absXLFrom v i`) and the port calls it at `0#usize`. -/
+
+@[lockstep_simp] theorem absNIdxLFrom_zero (v) : absNIdxLFrom v 0#usize = absNIdxL v := by
+  simp [absNIdxLFrom, absNIdxL]
+
+@[lockstep_simp] theorem absEIdxLFrom_zero (v) : absEIdxLFrom v 0#usize = absEIdxL v := by
+  simp [absEIdxLFrom, absEIdxL]
+
+@[lockstep_simp] theorem absLIdxLFrom_zero (v) : absLIdxLFrom v 0#usize = absLIdxL v := by
+  simp [absLIdxLFrom, absLIdxL]
+
+@[lockstep_simp] theorem absICILFrom_zero (v) : absICILFrom v 0#usize = absICIL v := by
+  simp [absICILFrom, absICIL]
+
+@[lockstep_simp] theorem absNatLFrom_zero (v) : absNatLFrom v 0#usize = absNatL v := by
+  simp [absNatLFrom, absNatL]
+
+@[lockstep_simp] theorem absBoolLFrom_zero (v) : absBoolLFrom v 0#usize = absBoolL v := by
+  simp [absBoolLFrom, absBoolL]
+
+@[lockstep_simp] theorem absLIdxLLFrom_zero (v) : absLIdxLLFrom v 0#usize = absLIdxLL v := by
+  simp [absLIdxLLFrom, absLIdxLL]
+
+@[lockstep_simp] theorem absBinderLFrom_zero (v) : absBinderLFrom v 0#usize = absBinderL v := by
+  simp [absBinderLFrom, absBinderL]
+
+@[lockstep_simp] theorem absCtorsLFrom_zero (v) : absCtorsLFrom v 0#usize = absCtorsL v := by
+  simp [absCtorsLFrom, absCtorsL]
+
+@[lockstep_simp] theorem absCtors3LFrom_zero (v) : absCtors3LFrom v 0#usize = absCtors3L v := by
+  simp [absCtors3LFrom, absCtors3L]
+
+@[lockstep_simp] theorem absCtors4LFrom_zero (v) : absCtors4LFrom v 0#usize = absCtors4L v := by
+  simp [absCtors4LFrom, absCtors4L]
+
+@[lockstep_simp] theorem absRecsLFrom_zero (v) : absRecsLFrom v 0#usize = absRecsL v := by
+  simp [absRecsLFrom, absRecsL]
+
+@[lockstep_simp] theorem absRenameTblFrom_zero (v) : absRenameTblFrom v 0#usize = absRenameTbl v := by
+  simp [absRenameTblFrom, absRenameTbl]
+
+@[lockstep_simp] theorem absKindLFrom_zero (v) : absKindLFrom v 0#usize = absKindL v := by
+  simp [absKindLFrom, absKindL]
+
+@[lockstep_simp] theorem absKindLLFrom_zero (v) : absKindLLFrom v 0#usize = absKindLL v := by
+  simp [absKindLLFrom, absKindLL]
 
 /-! ## The axiom census -/
 
