@@ -292,7 +292,9 @@ theorem struct_elim_level_refines {pers st lst} {elim : arena.handle.NIdx}
       = ok o) :
     Sim₀ absLIdx pers lst o
       (structElimLevel (absNIdx elim) large) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.struct_parts.struct_elim_level, structElimLevel]
+  lockstep
 
 /-- `struct_ctor_spine_at` ⊑ `structCtorSpineAt`. -/
 theorem struct_ctor_spine_at_refines {pers st lst} {c : arena.handle.NIdx}
@@ -521,7 +523,9 @@ theorem struct_proj_arg_p_refines {pers st lst} {t : arena.handle.NIdx}
     (hrun : arena.inductives.struct_parts.struct_proj_arg_p pers st t j = ok o) :
     Sim₀ absEIdx pers lst o
       (structProjArgP (absNIdx t) (absU j)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.struct_parts.struct_proj_arg_p, structProjArgP]
+  lockstep
 
 /-- `struct_proj_resid_p` ⊑ `structProjResidP`. -/
 theorem struct_proj_resid_p_refines {pers st lst} {t : arena.handle.NIdx}

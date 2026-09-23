@@ -26,27 +26,17 @@ modeled route's only instantiation is `RenameBy`, whose twin is the TABLE
 dictionary and the table answer the same name, and it is what discharges
 `RenameRel` at every call site of this module.
 
-**Finding 20 — the port hoists `eqHeadLevel` into the statement prologue.**
-The twin calls it at the very end of `checkIotaThm` / `checkIotaThmN`; the
-port's `iota_stmt_open_at` computes it with the rest of the prologue.  Sound
-because it is a reader that interns nothing on the arm `isEqHead` accepts.
-
-**Finding 21 — the twin READS the recursor's name and the port does not, so
-three statement families carry "this handle resolves".**  `checkIotaThm`,
-`checkIotaThmN` and `checkIotaRule` open with `let nm ← readName cvName`,
-purely to interpolate the name into their declines; the port's messages are
-constants (DESIGN §3.1).  `readName` throws `.internal` on a dangling handle,
-so the twin can fail where the port succeeds — task #97-P5-0's finding 3 in
-another guise.  The hypothesis is
-`(denoteN lst.store.ns (absNIdx cv_name)).isSome = true`, and it is Theorem
-1's to carry: every call site reaches these through a STORED recursor's name.
-
-**Finding 22 — `check_iota_sides_ty` drops the name argument entirely.**  The
-twin's `checkIotaSidesTy` takes `cvName` for its three messages and the port
-takes none, so the statement quantifies over the twin's.  It is sound with no
-side condition at all: the twin's `readName` there sits inside the failure
-arms only, and on a failure arm the claim is about the KIND, which `readName`
-can only change by throwing `.internal` — which is a mirrored kind too.
+**Findings 20–22 are fixed in the twin** (task #97-T2-LOCKSTEP lane
+Inductives).  Round 1 recorded three places where the twin did something the
+port does not: `checkIotaThm`/`checkIotaThmN` computed `eqHeadLevel` at the very
+end where the port's `iota_stmt_open_at` reads it in the prologue (finding 20);
+`checkIotaThm`, `checkIotaThmN` and `checkIotaRule` read the recursor's NAME
+(`readName cvName`) to interpolate it into their declines, which the port
+never does (finding 21, carried as an `hname : "cvName resolves"` hypothesis —
+a fact about the twin's store, which a lockstep statement may not carry); and
+`checkIotaSidesTy` took the name for its messages (finding 22).  The twin now
+reads `eqHeadLevel` where the port does and declines with the port's constant
+messages, so the `hname` hypotheses and the quantified-over names are gone.
 
 ## What these lemmas wait on
 
@@ -254,8 +244,7 @@ theorem eq_app3_refines {pers st lst} {h : arena.handle.EIdx} {o}
 
 /-! ## The iota certificates -/
 
-/-- `check_iota_slot_ty` ⊑ `checkIotaSidesTy`'s TT-lane tail (finding 22: the
-twin's `cvName` is message-only, so the statement quantifies over it). -/
+/-- `check_iota_slot_ty` ⊑ `checkIotaSidesTy`'s TT-lane tail. -/
 theorem check_iota_slot_ty_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {mode : kernel.env.CheckMode} {depth : Std.U64} {alpha_s : arena.handle.EIdx}
     {l_a : arena.handle.LIdx} {lcv : NIdx} {o}
@@ -266,7 +255,7 @@ theorem check_iota_slot_ty_refines {pers st lst} {vis : Std.U64} {rfS lfS}
       alpha_s l_a = ok o) :
     Sim₀ (fun _ => ()) pers lst o
       (checkIotaSlotTySpec (ConRon.Refine.absMode mode) lfS (absU depth)
-        (absEIdx alpha_s) (absLIdx l_a) lcv) := by
+        (absEIdx alpha_s) (absLIdx l_a)) := by
   sorry
 
 /-- `check_iota_sides_ty` ⊑ `checkIotaSidesTy` — both sides of a modeled iota
@@ -283,7 +272,7 @@ theorem check_iota_sides_ty_refines {pers st lst} {vis : Std.U64} {rfS lfS}
       alpha_s lhs_s rhs_s l_a = ok o) :
     Sim₀ (fun _ => ()) pers lst o
       (checkIotaSidesTy (ConRon.Refine.absMode mode) lfS (absU depth)
-        (absEIdx alpha_s) (absEIdx lhs_s) (absEIdx rhs_s) (absLIdx l_a) lcv) := by
+        (absEIdx alpha_s) (absEIdx lhs_s) (absEIdx rhs_s) (absLIdx l_a)) := by
   sorry
 
 /-- `iota_thm_name` ⊑ `iotaThmName` — `(cvName.str "_model").str "iota_j"`,
@@ -331,17 +320,17 @@ theorem last_d_eidx_refines {xs : alloc.vec.Vec arena.handle.EIdx}
 /-- `iota_stmt_open_at` ⊑ the prologue's tail: the telescope, the equation
 head and its arity (finding 20's hoisted `eqHeadLevel` among them). -/
 theorem iota_stmt_open_at_refines {pers st lst} {depth : Std.U64}
-    {tty : arena.handle.EIdx} {lnm : ConLeche.Name} {o}
+    {tty : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.modeled.iota_stmt_open_at pers st depth tty = ok o) :
     Sim₀ (fun r => (absEIdxL r.1, absEIdxL r.2.1, absLIdx r.2.2))
-      pers lst o (iotaStmtOpenAtSpec (absU depth) (absEIdx tty) lnm) := by
+      pers lst o (iotaStmtOpenAtSpec (absU depth) (absEIdx tty)) := by
   sorry
 
 /-- `iota_stmt_open` ⊑ the prologue both statement checks share. -/
 theorem iota_stmt_open_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     {cv_name : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
-    {depth j : Std.U64} {lnm : ConLeche.Name} {o}
+    {depth j : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
     (hvis : absU vis = lf2.visibleBelow)
@@ -350,7 +339,7 @@ theorem iota_stmt_open_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     Sim₀ (fun r => (absEIdxL r.1, absEIdxL r.2.1, absLIdx r.2.2))
       pers lst o
       (iotaStmtOpenSpec lf2 (absNIdx cv_name) (absNIdxL lps) (absU depth) (absU j)
-        lnm) := by
+       ) := by
   sorry
 
 /-- `iota_lhs_prefix_ok` ⊑ the left side's head, arity and prefix pins. -/
@@ -387,8 +376,7 @@ theorem check_iota_thm_rhs_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {mode : kernel.env.CheckMode} {f : arena.inductives.modeled.RenameBy}
     {depth : Std.U64} {rhs_a : arena.handle.EIdx}
     {fvs targs : alloc.vec.Vec arena.handle.EIdx} {rhs_s : arena.handle.EIdx}
-    {l_a : arena.handle.LIdx} {b0 : arena.handle.EIdx} {lcv : NIdx}
-    {lnm : ConLeche.Name} {o}
+    {l_a : arena.handle.LIdx} {b0 : arena.handle.EIdx} {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
     (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
@@ -397,7 +385,7 @@ theorem check_iota_thm_rhs_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     Sim₀ (fun _ => ()) pers lst o
       (checkIotaThmRhsSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
         (absU depth) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs)
-        (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) lcv lnm) := by
+        (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) lcv) := by
   sorry
 
 /-- `check_iota_thm_lams` ⊑ `checkIotaThm`'s λ-domain stage. -/
@@ -406,7 +394,7 @@ theorem check_iota_thm_lams_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {depth : Std.U64} {rhs_a : arena.handle.EIdx}
     {fvs targs : alloc.vec.Vec arena.handle.EIdx} {rhs_s : arena.handle.EIdx}
     {l_a : arena.handle.LIdx} {b0 : arena.handle.EIdx}
-    {all : alloc.vec.Vec arena.handle.EIdx} {lcv : NIdx} {lnm : ConLeche.Name} {o}
+    {all : alloc.vec.Vec arena.handle.EIdx} {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
     (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
@@ -415,7 +403,7 @@ theorem check_iota_thm_lams_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     Sim₀ (fun _ => ()) pers lst o
       (checkIotaThmLamsSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
         (absU depth) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs)
-        (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) (absEIdxL all) lcv lnm) := by
+        (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) (absEIdxL all) lcv) := by
   sorry
 
 /-- `check_iota_thm_frames` ⊑ `checkIotaThm`'s public-frame stage. -/
@@ -424,8 +412,7 @@ theorem check_iota_thm_frames_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {ty_a : arena.handle.EIdx} {r_p : Std.U64} {cvj : arena.env.IConstantVal}
     {cn_p depth : Std.U64} {rhs_a : arena.handle.EIdx}
     {fvs targs : alloc.vec.Vec arena.handle.EIdx} {rhs_s : arena.handle.EIdx}
-    {l_a : arena.handle.LIdx} {b0 : arena.handle.EIdx} {lcv : NIdx}
-    {lnm : ConLeche.Name} {o}
+    {l_a : arena.handle.LIdx} {b0 : arena.handle.EIdx} {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
     (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
@@ -435,7 +422,7 @@ theorem check_iota_thm_frames_refines {pers st lst} {vis : Std.U64} {rfS lfS}
       (checkIotaThmFramesSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
         (absEIdx ty_a) (absU r_p) (absIConstantVal cvj) (absU cn_p) (absU depth)
         (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs) (absEIdx rhs_s)
-        (absLIdx l_a) (absEIdx b0) lcv lnm) := by
+        (absLIdx l_a) (absEIdx b0) lcv) := by
   sorry
 
 /-- `check_iota_thm_prefix` ⊑ `checkIotaThm`'s prefix-domain stage. -/
@@ -444,8 +431,7 @@ theorem check_iota_thm_prefix_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {ty_a : arena.handle.EIdx} {r_p : Std.U64} {cvj : arena.env.IConstantVal}
     {cn_p depth : Std.U64} {rhs_a : arena.handle.EIdx}
     {fvs targs : alloc.vec.Vec arena.handle.EIdx} {rhs_s : arena.handle.EIdx}
-    {l_a : arena.handle.LIdx} {b0 : arena.handle.EIdx} {lcv : NIdx}
-    {lnm : ConLeche.Name} {o}
+    {l_a : arena.handle.LIdx} {b0 : arena.handle.EIdx} {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
     (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
@@ -455,7 +441,7 @@ theorem check_iota_thm_prefix_refines {pers st lst} {vis : Std.U64} {rfS lfS}
       (checkIotaThmPrefixSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
         (absEIdx ty_a) (absU r_p) (absIConstantVal cvj) (absU cn_p) (absU depth)
         (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs) (absEIdx rhs_s)
-        (absLIdx l_a) (absEIdx b0) lcv lnm) := by
+        (absLIdx l_a) (absEIdx b0) lcv) := by
   sorry
 
 /-- `check_iota_thm_idx` ⊑ `checkIotaThm`'s index-tuple stage. -/
@@ -466,7 +452,7 @@ theorem check_iota_thm_idx_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {fvs x_fvs largs targs : alloc.vec.Vec arena.handle.EIdx}
     {rhs_s : arena.handle.EIdx} {l_a : arena.handle.LIdx}
     {b0 : arena.handle.EIdx} {cdoms : alloc.vec.Vec arena.handle.EIdx}
-    {cres : arena.handle.EIdx} {lcv : NIdx} {lnm : ConLeche.Name} {o}
+    {cres : arena.handle.EIdx} {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
     (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
@@ -478,7 +464,7 @@ theorem check_iota_thm_idx_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx ty_a) (absU m_i) (absU r_p) (absIConstantVal cvj) (absU cn_p)
         (absU depth) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL x_fvs)
         (absEIdxL largs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a)
-        (absEIdx b0) (absEIdxL cdoms) (absEIdx cres) lcv lnm) := by
+        (absEIdx b0) (absEIdxL cdoms) (absEIdx cres) lcv) := by
   sorry
 
 /-- `check_iota_thm_ctor` ⊑ `checkIotaThm`'s constructor-telescope stage. -/
@@ -488,7 +474,7 @@ theorem check_iota_thm_ctor_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {cn_p cn_f : Std.U64} {rhs_a : arena.handle.EIdx}
     {fvs x_fvs largs targs : alloc.vec.Vec arena.handle.EIdx}
     {rhs_s : arena.handle.EIdx} {l_a : arena.handle.LIdx}
-    {b0 : arena.handle.EIdx} {lcv : NIdx} {lnm : ConLeche.Name} {o}
+    {b0 : arena.handle.EIdx} {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
     (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
@@ -499,12 +485,11 @@ theorem check_iota_thm_ctor_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx ty_a) (absU m_i) (absU r_p) (absIConstantVal cvj) (absU cn_p)
         (absU cn_f) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL x_fvs)
         (absEIdxL largs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a)
-        (absEIdx b0) lcv lnm) := by
+        (absEIdx b0) lcv) := by
   sorry
 
 /-- `check_iota_thm` ⊑ `checkIotaThm` — **check a canonical recursor rule's
-`iota_j` theorem, semantically**.  Finding 21's `hname` is what lets the
-twin's opening `readName cvName` succeed. -/
+`iota_j` theorem, semantically**. -/
 theorem check_iota_thm_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf2 lf2} {rfS lfS} {f : arena.inductives.modeled.RenameBy}
     {cv_name : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
@@ -514,7 +499,6 @@ theorem check_iota_thm_refines {pers st lst} {mode : kernel.env.CheckMode}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe2 : IFEnvRel rf2 lf2) (hfinv2 : IFEnvInv rf2)
     (hfeS : IFEnvRel rfS lfS) (hfinvS : IFEnvInv rfS) (hknot : KnotRel checkFuel)
-    (hname : (denoteN lst.store.ns (absNIdx cv_name)).isSome = true)
     (hrun : arena.inductives.modeled.check_iota_thm pers st mode rf2 rfS f cv_name
       lps ty_a m_i r_p j r cvj cn_p cn_f rhs_a = ok o) :
     Sim₀ (fun _ => ()) pers lst o
@@ -647,7 +631,7 @@ theorem check_iota_thm_n_fields_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {fvs targs : alloc.vec.Vec arena.handle.EIdx} {rhs_s : arena.handle.EIdx}
     {l_a : arena.handle.LIdx} {b0 : arena.handle.EIdx}
     {fvs_p : alloc.vec.Vec arena.handle.EIdx} {crest_p : arena.handle.EIdx}
-    {lcv : NIdx} {lnm : ConLeche.Name} {o}
+    {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
     (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
@@ -657,7 +641,7 @@ theorem check_iota_thm_n_fields_refines {pers st lst} {vis : Std.U64} {rfS lfS}
       (checkIotaThmNFieldsSpec (ConRon.Refine.absMode mode) lfS (absRenameBy f)
         (absU m_i) (absU r_p) (absU cn_p) (absU cn_f) (absEIdx rhs_a)
         (absEIdxL fvs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0)
-        (absEIdxL fvs_p) (absEIdx crest_p) lcv lnm) := by
+        (absEIdxL fvs_p) (absEIdx crest_p) lcv) := by
   sorry
 
 /-- `check_iota_thm_n_frames` ⊑ `checkIotaThmN`'s public-frame stage. -/
@@ -668,7 +652,7 @@ theorem check_iota_thm_n_frames_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {fvs targs : alloc.vec.Vec arena.handle.EIdx} {rhs_s : arena.handle.EIdx}
     {l_a : arena.handle.LIdx} {b0 : arena.handle.EIdx}
     {lvls_idx : arena.handle.LsIdx} {pins : alloc.vec.Vec arena.handle.EIdx}
-    {lcv : NIdx} {lnm : ConLeche.Name} {o}
+    {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
     (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
@@ -680,7 +664,7 @@ theorem check_iota_thm_n_frames_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx ty_a) (absU m_i) (absU r_p) (absIConstantVal cvj) (absU cn_p)
         (absU cn_f) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs)
         (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) (absLsIdx lvls_idx)
-        (absEIdxL pins) lcv lnm) := by
+        (absEIdxL pins) lcv) := by
   sorry
 
 /-- `check_iota_thm_n_prefix` ⊑ `checkIotaThmN`'s prefix-domain stage. -/
@@ -691,7 +675,7 @@ theorem check_iota_thm_n_prefix_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {fvs targs : alloc.vec.Vec arena.handle.EIdx} {rhs_s : arena.handle.EIdx}
     {l_a : arena.handle.LIdx} {b0 : arena.handle.EIdx}
     {lvls_idx : arena.handle.LsIdx} {pins : alloc.vec.Vec arena.handle.EIdx}
-    {lcv : NIdx} {lnm : ConLeche.Name} {o}
+    {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
     (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
@@ -703,7 +687,7 @@ theorem check_iota_thm_n_prefix_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx ty_a) (absU m_i) (absU r_p) (absIConstantVal cvj) (absU cn_p)
         (absU cn_f) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL targs)
         (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) (absLsIdx lvls_idx)
-        (absEIdxL pins) lcv lnm) := by
+        (absEIdxL pins) lcv) := by
   sorry
 
 /-- `check_iota_thm_n_idx` ⊑ `checkIotaThmN`'s index-tuple stage. -/
@@ -715,7 +699,7 @@ theorem check_iota_thm_n_idx_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {rhs_s : arena.handle.EIdx} {l_a : arena.handle.LIdx}
     {b0 : arena.handle.EIdx} {lvls_idx : arena.handle.LsIdx}
     {pins cdoms : alloc.vec.Vec arena.handle.EIdx} {cres : arena.handle.EIdx}
-    {lcv : NIdx} {lnm : ConLeche.Name} {o}
+    {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
     (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
@@ -728,7 +712,7 @@ theorem check_iota_thm_n_idx_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absU cn_f) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL x_fvs)
         (absEIdxL largs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a)
         (absEIdx b0) (absLsIdx lvls_idx) (absEIdxL pins) (absEIdxL cdoms)
-        (absEIdx cres) lcv lnm) := by
+        (absEIdx cres) lcv) := by
   sorry
 
 /-- `check_iota_thm_n_ctor` ⊑ `checkIotaThmN`'s constructor-telescope stage. -/
@@ -739,8 +723,7 @@ theorem check_iota_thm_n_ctor_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {fvs x_fvs largs targs : alloc.vec.Vec arena.handle.EIdx}
     {rhs_s : arena.handle.EIdx} {l_a : arena.handle.LIdx}
     {b0 : arena.handle.EIdx} {lvls_idx : arena.handle.LsIdx}
-    {pins pins_f : alloc.vec.Vec arena.handle.EIdx} {lcv : NIdx}
-    {lnm : ConLeche.Name} {o}
+    {pins pins_f : alloc.vec.Vec arena.handle.EIdx} {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
     (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
@@ -753,7 +736,7 @@ theorem check_iota_thm_n_ctor_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absU cn_f) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL x_fvs)
         (absEIdxL largs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a)
         (absEIdx b0) (absLsIdx lvls_idx) (absEIdxL pins) (absEIdxL pins_f)
-        lcv lnm) := by
+        lcv) := by
   sorry
 
 /-- `check_iota_thm_n_major` ⊑ `checkIotaThmN`'s major-premise stage. -/
@@ -765,7 +748,7 @@ theorem check_iota_thm_n_major_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {rhs_s : arena.handle.EIdx} {l_a : arena.handle.LIdx}
     {b0 : arena.handle.EIdx} {lvls : alloc.vec.Vec arena.handle.LIdx}
     {pins pins_f : alloc.vec.Vec arena.handle.EIdx} {r : arena.env.IRecRule}
-    {lcv : NIdx} {lnm : ConLeche.Name} {o}
+    {lcv : NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rfS lfS) (hfinv : IFEnvInv rfS)
     (hvis : absU vis = lfS.visibleBelow) (hknot : KnotRel checkFuel)
@@ -778,11 +761,10 @@ theorem check_iota_thm_n_major_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absU cn_f) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL x_fvs)
         (absEIdxL largs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a)
         (absEIdx b0) (absLIdxL lvls) (absEIdxL pins) (absEIdxL pins_f)
-        (absIRecRule r) lcv lnm) := by
+        (absIRecRule r) lcv) := by
   sorry
 
-/-- `check_iota_thm_n_at` ⊑ `checkIotaThmN`'s prologue at a recognised shape.
-Finding 21's `hname` is what lets the twin's `readName cvName` succeed. -/
+/-- `check_iota_thm_n_at` ⊑ `checkIotaThmN`'s prologue at a recognised shape. -/
 theorem check_iota_thm_n_at_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf2 lf2} {rfS lfS} {f : arena.inductives.modeled.RenameBy}
     {cv_name : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
@@ -793,7 +775,6 @@ theorem check_iota_thm_n_at_refines {pers st lst} {mode : kernel.env.CheckMode}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe2 : IFEnvRel rf2 lf2) (hfinv2 : IFEnvInv rf2)
     (hfeS : IFEnvRel rfS lfS) (hfinvS : IFEnvInv rfS) (hknot : KnotRel checkFuel)
-    (hname : (denoteN lst.store.ns (absNIdx cv_name)).isSome = true)
     (hrun : arena.inductives.modeled.check_iota_thm_n_at pers st mode rf2 rfS f
       cv_name lps ty_a m_i r_p j r cvj cn_p cn_f rhs_a lvls pins = ok o) :
     Sim₀ (fun _ => ()) pers lst o
@@ -815,7 +796,6 @@ theorem check_iota_thm_n_refines {pers st lst} {mode : kernel.env.CheckMode}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe2 : IFEnvRel rf2 lf2) (hfinv2 : IFEnvInv rf2)
     (hfeS : IFEnvRel rfS lfS) (hfinvS : IFEnvInv rfS) (hknot : KnotRel checkFuel)
-    (hname : (denoteN lst.store.ns (absNIdx cv_name)).isSome = true)
     (hrun : arena.inductives.modeled.check_iota_thm_n pers st mode rf2 rfS f cv_name
       lps ty_a m_i r_p j r cvj cn_p cn_f rhs_a = ok o) :
     Sim₀ absIRecRuleFire pers lst o
@@ -847,18 +827,17 @@ theorem check_iota_rule_fire_refines {pers st lst} {mode : kernel.env.CheckMode}
     {cv_name : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
     {ty_a : arena.handle.EIdx} {m_i r_p j : Std.U64} {r : arena.env.IRecRule}
     {cvj : arena.env.IConstantVal} {cn_p cn_f : Std.U64}
-    {rhs_a : arena.handle.EIdx} {lnm : ConLeche.Name} {o}
+    {rhs_a : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe2 : IFEnvRel rf2 lf2) (hfinv2 : IFEnvInv rf2)
     (hfeS : IFEnvRel rfS lfS) (hfinvS : IFEnvInv rfS) (hknot : KnotRel checkFuel)
-    (hname : (denoteN lst.store.ns (absNIdx cv_name)).isSome = true)
     (hrun : arena.inductives.modeled.check_iota_rule_fire pers st mode rf2 rfS f
       cv_name lps ty_a m_i r_p j r cvj cn_p cn_f rhs_a = ok o) :
     Sim₀ absIRecRule pers lst o
       (checkIotaRuleFireSpec (ConRon.Refine.absMode mode) lf2 lfS (absRenameBy f)
         (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a) (absU m_i) (absU r_p)
         (absU j) (absIRecRule r) (absIConstantVal cvj) (absU cn_p) (absU cn_f)
-        (absEIdx rhs_a) lnm) := by
+        (absEIdx rhs_a)) := by
   sorry
 
 /-- `check_iota_rule_wf` ⊑ `checkIotaRule`'s well-formedness stage. -/
@@ -866,19 +845,17 @@ theorem check_iota_rule_wf_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf2 lf2} {rfS lfS} {f : arena.inductives.modeled.RenameBy}
     {cv_name : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
     {ty_a : arena.handle.EIdx} {m_i r_p j : Std.U64} {r : arena.env.IRecRule}
-    {cvj : arena.env.IConstantVal} {cn_p cn_f : Std.U64}
-    {lnm : ConLeche.Name} {o}
+    {cvj : arena.env.IConstantVal} {cn_p cn_f : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe2 : IFEnvRel rf2 lf2) (hfinv2 : IFEnvInv rf2)
     (hfeS : IFEnvRel rfS lfS) (hfinvS : IFEnvInv rfS) (hknot : KnotRel checkFuel)
-    (hname : (denoteN lst.store.ns (absNIdx cv_name)).isSome = true)
     (hrun : arena.inductives.modeled.check_iota_rule_wf pers st mode rf2 rfS f
       cv_name lps ty_a m_i r_p j r cvj cn_p cn_f = ok o) :
     Sim₀ absIRecRule pers lst o
       (checkIotaRuleWfSpec (ConRon.Refine.absMode mode) lf2 lfS (absRenameBy f)
         (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a) (absU m_i) (absU r_p)
         (absU j) (absIRecRule r) (absIConstantVal cvj) (absU cn_p) (absU cn_f)
-        lnm) := by
+       ) := by
   sorry
 
 /-- `check_iota_rule` ⊑ `checkIotaRule` — one modeled recursor rule: generic
@@ -890,7 +867,6 @@ theorem check_iota_rule_refines {pers st lst} {mode : kernel.env.CheckMode}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe2 : IFEnvRel rf2 lf2) (hfinv2 : IFEnvInv rf2)
     (hfeS : IFEnvRel rfS lfS) (hfinvS : IFEnvInv rfS) (hknot : KnotRel checkFuel)
-    (hname : (denoteN lst.store.ns (absNIdx cv_name)).isSome = true)
     (hrun : arena.inductives.modeled.check_iota_rule pers st mode rf2 rfS f cv_name
       lps ty_a m_i r_p j r = ok o) :
     Sim₀ absIRecRule pers lst o
@@ -910,7 +886,6 @@ theorem check_iota_rules_refines {pers st lst} {mode : kernel.env.CheckMode}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe2 : IFEnvRel rf2 lf2) (hfinv2 : IFEnvInv rf2)
     (hfeS : IFEnvRel rfS lfS) (hfinvS : IFEnvInv rfS) (hknot : KnotRel checkFuel)
-    (hname : (denoteN lst.store.ns (absNIdx cv_name)).isSome = true)
     (hrun : arena.inductives.modeled.check_iota_rules pers st mode rf2 rfS f cv_name
       lps ty_a m_i r_p j rules i out = ok o) :
     Sim₀ absIRecRuleL pers lst o

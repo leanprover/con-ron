@@ -123,13 +123,17 @@ private def iCI : ConstantInfo → AM IConstantInfo
 `.verified` (DESIGN §8.2). -/
 private def MU : CheckMode := .verified
 
-/-- con-leche: none — an arena error against a con-leche error, by kind AND
-message.  The arena's `CheckError` has a fourth constructor (`.native`, the
-store's capacity limit), which no con-leche error can meet. -/
+/-- con-leche: none — an arena error against a con-leche error, by KIND, the
+message not compared (DESIGN §3.1).  The modelled route's declines carry the
+Rust port's constant messages, which name no declaration: the twin reads no
+name on those paths, as `check_member_model` does not (task #97-T2-LOCKSTEP
+lane Inductives; the same ruling as `CheckerTest.lean`'s `errKindEq`).  The
+arena's `CheckError` has a fourth constructor (`.native`, the store's capacity
+limit), which no con-leche error can meet. -/
 private def errEq : CheckError → ConLeche.CheckError → Bool
-  | .notImplemented a, .notImplemented b => a == b
-  | .invalid a, .invalid b => a == b
-  | .internal a, .internal b => a == b
+  | .notImplemented _, .notImplemented _ => true
+  | .invalid _, .invalid _ => true
+  | .internal _, .internal _ => true
   | _, _ => false
 
 /-- con-leche: none — **the differential**: con-leche's `checkDecl` on
@@ -383,7 +387,8 @@ private def mutBlock : List ConstantInfo :=
 #guard chk mutBase mutBlock 0
 
 /- The same block with NO models: the modelled route declines, naming the
-block — the positive statement con-leche makes when it has no model. -/
+block — the positive statement con-leche makes when it has no model (the kind is
+compared, not the message). -/
 #guard !accepts [] mutBlock 0
 #guard chk [] mutBlock 0
 
@@ -391,7 +396,7 @@ block — the positive statement con-leche makes when it has no model. -/
 
 Two RECURSORS: the kernel's nested→mutual specialisation mints one per mimic,
 so `sumSplit` refuses this shape too and the block is the modelled route's.
-With no `_model` artifacts it declines, naming the block. -/
+With no `_model` artifacts it declines. -/
 
 /-- con-leche: none — a fixture name. -/
 private def nNest : ConLeche.Name := nm "Nest"
