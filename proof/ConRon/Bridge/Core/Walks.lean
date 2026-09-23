@@ -72,10 +72,14 @@ six more.
 * `Walks/ProjLit.lean` — `projLitToCtor_spec` (round 5, moved from
   `Walks/Owed.lean`). CLOSED.
 * `Walks/Stuck.lean` — **the stuck fallback** (round 5): `stuckIrrel_spec`
-  PROVED from `structEtaCert_spec` (proved, over `etaCtorShape_spec` and the
-  OPEN `structEtaCertWith_spec`), `structUnitCert_spec` and `proofIrrel_spec`
-  (both CLOSED, over the new `isUnitLikeTy_spec` and
-  `reservedBasisNames_spec`).
+  PROVED from `structEtaCert_spec` (proved, over `etaCtorShape_spec` and
+  `structEtaCertWith_spec`, CLOSED round 6), `structUnitCert_spec` and
+  `proofIrrel_spec` (both CLOSED, over the new `isUnitLikeTy_spec` and
+  `reservedBasisNames_spec`).  The module is at zero `sorry`.
+* `Walks/Eta.lean` — **the structure-η certificate's sub-walks** (round 6):
+  `projFnName_spec`, `towerSlotsAll_spec`, `recSlotsAll_spec`,
+  `structEtaProjCerts_spec`, `etaProjs_spec` (`projNodesGo`/`projAppsGo`).
+  CLOSED.
 * `Walks/Owed.lean` — **the statements not yet reached** (one after round
   5: `iotaRec`),
   each with what it is waiting on written at the site.  `defEqList_spec` is

@@ -50080,6 +50080,128 @@ copy goes.**
 | the diff | `proof/ConRon/Bridge/Core/**` (five new `Walks/` modules; `Memo.lean`, the five `Arms/`, `Walks/{Owed,Walks}.lean`) and this section.  No Rust file, no generated model, no `Arena/`, no `Refine2/`, no other `Bridge/` module; `Walks/Reserved.lean` imports `Bridge/Promote/Pers.lean`, new for the tier |
 
 
+#### Round 6 — `CoreSpec.of_core` sorry-free, and `hk` off the capstone (2026-09-23, Opus under Fable)
+
+Branch `p3-core-6` off `arena` `29ec471f`.  Seven helper lanes ran in
+parallel, each in its own worktree off `p3-core-6`, and were merged into it
+and dropped: `eta`, `peel`, `whnfapp`, `iota`, `app`, `binders`, `lam`.
+**The Core tier is at zero `sorry`** (round 5: 9), and
+**`CoreSpec.of_core` is at `[propext, Classical.choice, Quot.sound]`**, so
+the capstone no longer takes `hk`.
+
+##### 1. The frontier
+
+| root | start (`29ec471f`) | end |
+|---|---|---|
+| `ConRon.Bridge.CoreSpec.of_core` | 8 items / 6 modules / 39 tainted, top `structEtaCertWith_spec` (fan-in 15) | **0 items / 0 modules / 0 tainted** |
+| `ConRon.Capstone.{model_exists,no_False_declaration}` | 32 items / 13 modules / 101 tainted, dead 794 | 32 items / 13 modules / 101 tainted, dead 785 |
+
+The capstone's item count does not move, because the Core tier's items were
+never on it: `hk` was a named hypothesis and hid them.  With `hk` gone, its
+32 items are what the OTHER tiers owe (top: `Refine2.Frontend.apply_line_refines`).
+The dead weight drops by the Core lane's nine direct `sorry`s.
+
+##### 2. `hk` removed (the authorised edit outside the lane)
+
+`Capstone.lean`: `model_exists` and `no_False_declaration` lose the
+hypothesis `hk : CoreSpec .verified checkFuel` and pass
+`ConRon.Bridge.CoreSpec.of_core rfl` to `stages_model` /
+`no_False_declaration_pipeline`.  The module doc's list of named hypotheses
+strikes `hk`.  `stages_model` (internal) keeps its `hk` argument.
+`lake build ConRonCapstone` green.
+
+##### 3. What closed, per lane
+
+Every theorem listed is at `[propext, Classical.choice, Quot.sound]` (the
+module censuses print them).
+
+| lane | target(s) | new module(s) | how |
+|---|---|---|---|
+| `eta` | `structEtaCertWith_spec` (so `structEtaCert_spec`, `stuckIrrel_spec`, `defeqStep_spec` too) | `Walks/Eta.lean` (661 lines) | the four missing sub-walks — `towerSlotsAll_spec`, `recSlotsAll_spec`, `structEtaProjCerts_spec` (induction on the slot list), `etaProjs_spec` over `projNodesGo`/`projAppsGo` — then the body staged, one pure lemma per exit |
+| `peel` | `defeqPeel_chain` | `Arms/DefeqPeel.lean` (665) | `defeqPeel_spec` by induction on the peel's budget over an invariant `PeelOK`; `defeqBinders_spec` is the chain |
+| `whnfapp` | `whnfCoreBody_app_batched` | `Walks/BetaSpine.lean` (897) | handle-level carry of `whnfApp`/`betaPeel` to con-leche's Expr-level loops (`Verify/BetaSpine.lean`) by strong induction on `args.size - i` (`spine_carry`), then con-leche's `whnfApp_sound` |
+| `iota` | `iotaRec_spec`, new `iotaRecAt_spec` | `Walks/{IotaLeaves,IotaMajor,Iota}.lean` (616 + 1 636 + 1 457) | top-down skeleton then bottom-up: six readers, `majorToCtor_spec` (K, η, `And` rescues), `prepareMajor_spec`, `recFireComparands_spec`, `iotaIndexOk_spec`, `iotaFam_spec`, `iotaRecAt_spec`, `iotaRec_spec` (moved from `Owed.lean`, which keeps a note) |
+| `app` | `inferBody_app_batched`, `inferBodyIO_app` | `Walks/InferSpine.lean` (532) | `inferSpine_go` / `inferSpineIO_go`, induction on the arguments left, against con-leche's `inferSpine`/`inferSpineIO`; then `inferSpine_sound` / `inferSpineIO_sound` |
+| `binders` | `inferBody_binders_batched`, `annotateBody_binders_batched` | `Walks/BinderLoop.lean` (1 894) | four loop carries (`inferLams`, `inferPis`, `annotatePis`, `annotateLams`) against `Verify/BinderLoop.lean`'s mirrors, then its `*_sound`; `inferPisOut_carry` discharges the threaded zero-ness datum (`zeronessOf (imax u v) = zeronessOf v` by definition) |
+| `lam` | `inferBodyIO_lam` | `Walks/FvarB.lean` (193) | ruling 2: `Core.fvarBSpec : ExprOps.FvarBSpec`, copied from `Bridge/Inductives/Rel.lean:2598-2730`; then `inferLamResult_spec` over `abstract1Fast_spec` |
+
+##### 4. Preconditions added (no conclusion changed)
+
+Round 5's ruling 1 approved the `s'.pins = s₀.pins` conjunct on the five
+batched children; nothing else in a conclusion changed this round.  Missing
+preconditions, each one con-leche's own at the corresponding lemma:
+
+1. **`whnfCoreBody_app_batched` gains `hμ : mode.verifiedChecks = true`.**
+   The twin's β site reads `CheckMode.betaSkip`, which skips the β
+   certificate when `!mode.certs`; con-leche's spec runs it.  At `.trusted` a
+   redex whose certificate fails stays stuck in the spec but reduces in the
+   twin, so the statement was **false at `.trusted`**.  Con-leche's
+   `certs_of_verifiedChecks` (`Verify/BetaGate.lean:126`); the one caller
+   `whnfCoreBody_spec` already had it.
+2. **`iotaRec_spec` gains `hμ` and `EnvWF env`**: the twin gates the rescue
+   and ι certificate families on `mode.certs` (as round 5 §5.1 found for
+   `stuckIrrel`), and con-leche's `iotaRec_WScoped`,
+   `prepareMajorFueled_WScoped` and `const_ty_hasFvar` take `EnvWF`.
+3. **`iotaRecAt_spec` (new; `whnfApp` calls `iotaRecAt` on the spine it
+   holds, never `iotaRec`)** takes `hnapp : ∀ f a, h ≠ .app f a` and
+   `hn : n = sargs.size`.  Both are needed: at an application head the twin
+   answers `none` from the tag where con-leche fires on the head's own spine,
+   and at `n > sargs.size` the twin's arity guard reads `n` where con-leche
+   reads the spine.  The `whnfApp` call site discharges them by
+   `Expr.getAppFn_not_app` and `rfl`.
+
+##### 5. Duplications to fold away
+
+* **`FvarBSpec`** (ruling 2): `Bridge/Inductives/Rel.lean:2598-2730`
+  (`A1Prog`, `fvarRangeGo_a1`, `fvarB_a1`, `fvarBSpec`) is now a duplicate
+  of `Bridge/Core/Walks/FvarB.lean`'s `Core.fvarBSpec`; **the Inductives lane
+  should delete its copy** and import this one (it imports only
+  `Core.Walks.Cached` and `ExprOps.Ranges`).  `Rel.lean` was not edited.
+* **The seven `…C` copies in `Walks/Reserved.lean`** (ruling 3) stay; fold
+  them once `reservedBasisNames_run`'s cone sits below both tiers.
+* `Walks/Eta.lean`'s `denoteNList_injC` copies `Checker/Canon.lean`'s
+  `denoteNList_inj` (same import cycle).
+* `Walks/IotaLeaves.lean` carries `I`-suffixed copies of `Walks/Eta.lean`
+  lemmas (`projFnName_specI`, `towerSlotsAllGo_specI`, `projNodesGo_specI`,
+  `projAppsGo_specI`, `etaProjs_specI`, `denoteEList_appendI`) — the two
+  lanes ran concurrently; `IotaLeaves` can import `Eta` and drop them.
+* `Walks/InferSpine.lean`'s `denote_not_forallE_of_tag` clashed at merge with
+  `Walks/BinderLoop.lean`'s (different hypothesis form) and was renamed
+  `denote_not_forallE_of_tagB`.
+
+##### 6. Method notes
+
+1. **`let v ← if c then x else y` is not `(if …) >>= k`.**  The `do`
+   elaborator copies the continuation into both branches.  The η lane's
+   `triple_ite_seq` (`Walks/Stuck.lean`) turns it back into that form, and
+   `triple_ite` does the case split without `split`, which on a long staged
+   goal can hit simp's max-steps.  The iota lane met the same thing at
+   `iotaRecAt`'s three-way parameter comparison and proved the shared rest
+   once (`iotaFam_spec`, stated over the same `do` text).
+2. **Copies tied by `rfl`** (round 5's `dqTail`) again: the iota lane's
+   `iotaTail`/`mtcK`/`mtcEta`/`mtcAnd`, and the peel lane's `peelStep`.
+   The equation compiler could not generate `defeqPeel`'s unfolding lemma
+   (a fixed 200 000-heartbeat limit that `maxHeartbeats` does not raise), so
+   `DefeqPeel.lean` states one level as `peelStep` and ties it with
+   `delta`/`rfl` (`defeqPeel_zero_eq`, `defeqPeel_succ_eq`).
+3. **Parallel lanes on a skeleton work.** Round 5's skeleton made every open
+   child a named statement.  So seven lanes could each use their siblings'
+   statements as black boxes and merge textually.  The one interface
+   surprise (`whnfApp` calls `iotaRecAt`, not `iotaRec`) was a new lemma, not
+   a changed one.
+
+##### 7. Gates
+
+`lake build ConRonBridge`: **643 jobs, green** (634 at the branch point;
+nine new modules).  `lake build ConRonCapstone`: 2 768 jobs, green.
+`scripts/gates.sh` on the merged tree (`arena` `d6288114` merged; the one conflict was `Capstone.lean`, where `arena` had threaded `hk` into `rust_stages` — resolved by passing `CoreSpec.of_core rfl` there too): **all 16 OK** (exit 0; `extract-check` ~120 s, `lake-build` ~50 s, `lake-bridge` ~30 s, `lake-capstone` 3 s).  The gates' report line after the merge reads the capstone at **36 items / 13 modules / 123 tainted, dead weight 713** (top `Refine2.Frontend.push_decl_refines`); the move from 32 is `arena`'s, not this round's.  A second merge (`arena` `5b2873c5`, `Refine2/**` and DESIGN only) re-ran `lake build ConRonRefine2` (2 264 jobs) and `ConRonCapstone` (2 784), both green. At the landed tip: `CoreSpec.of_core` **0 items / 0 tainted**; the capstone **58 items / 15 modules / 153 tainted, dead weight 667** (top `Refine2.Frontend.hoist_targets_refines`), which is again `arena`'s skeletons.
+
+| | |
+|---|---|
+| branch | `p3-core-6` off `arena` `29ec471f`; helpers `p3-core-6-{eta,peel,whnfapp,iota,app,binders,lam}`, each merged into it and dropped |
+| the diff | `proof/ConRon/Bridge/Core/**` (nine new modules: `Walks/{Eta,FvarB,InferSpine,BetaSpine,BinderLoop,IotaLeaves,IotaMajor,Iota}.lean`, `Arms/DefeqPeel.lean`), `proof/ConRon/Capstone.lean` (the authorised `hk` removal) and this section.  No Rust, no generated model, no `Arena/`, no `Refine2/`, no other `Bridge/` module |
+
+
 ### Task #97-P5-Ind — Theorem 2: the inductives tier, round 2 (2026-09-22, Opus under Fable)
 
 (The section this continues is `### Task #97-P5-Ind` above; its §6 is the
