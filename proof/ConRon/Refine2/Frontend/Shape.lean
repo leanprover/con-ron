@@ -66,7 +66,7 @@ does what the twin's does, from related states to related states.
 
 ## `sorry` count in this file: 0
 -/
-import ConRon.Refine2.Frontend.Abs
+import ConRon.Refine2.Frontend.Text
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
