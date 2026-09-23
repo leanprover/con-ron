@@ -365,6 +365,208 @@ theorem apply_final_line_refines {G : Type} {inst : frontend.types.Modeller G}
       simp only [applyFinalLine, hscan]
       rfl
 
+/-- **A line the con-leche scanner accepts with a continue position ends at a
+newline at or after its start** — `scanLineFwd`'s `0` is exactly "the buffer
+ran out before a newline did".  A fact about con-leche's recogniser alone
+(task #97-P5-Front): `skipWs` and `scanLineLoop` only move forward, and the
+only nonzero continue position is one past a `10` byte.  It is what lets the
+port's "scan error, no newline ahead: an incomplete tail" arm agree with the
+twin whatever the twin's scanner answers there, `IndexOverflow` included. -/
+theorem scanLineFwd_ok_newline {b : ByteArray} {i : USize} {r : LineRec} {j : USize}
+    (h : ConLeche.Frontend.scanLineFwd b i = .ok r j) (hj : j ≠ 0) :
+    ConLeche.Frontend.newlineFrom b i = true := by sorry
+
+theorem absPos_beq_zero (j : Std.Usize) : (absPos j == 0) = decide (j.val = 0) := by
+  by_cases hj : j.val = 0
+  · have : absPos j = 0 := by
+      apply USize.toNat_inj.mp; rw [absPos_toNat, hj]; rfl
+    simp [this, hj]
+  · have : absPos j ≠ 0 := by
+      intro h0; apply hj; have := congrArg USize.toNat h0; simpa using this
+    simp [this, hj]
+
+theorem absPos_lt_iff (i j : Std.Usize) : absPos i < absPos j ↔ i.val < j.val := by
+  rw [USize.lt_iff_toNat_lt, absPos_toNat, absPos_toNat]
+
+/-- **`feed_chunk`'s loop refines `feedChunk`** (task #97-P5-Front), unwrapped:
+the twin's result already has the `StateD × β` shape `SimStreamD` reads.  By
+induction on the bytes left; the step is `apply_line_refines` behind the
+scanner's `ScanSpec`, and the three exits are the scanner's error (reported only
+when a newline follows), the incomplete tail, and the no-progress guard. -/
+theorem feed_chunk_loop_refines {G : Type} {inst : frontend.types.Modeller G}
+    {m : G} {lmd : Arena.Frontend.Modeller} {pers} {b : Slice Std.U8}
+    (hsc : ScanSpec) (hmr : ModellerRefines inst m lmd) :
+    ∀ (i : Std.Usize) (rst : arena.monad.AState) (lst : AState)
+      (rsd : frontend.export_c.StateD) (lsd : Arena.Frontend.StateD)
+      (line_no : Std.U64) (o),
+      AStateRel pers rst lst → AStateInv pers rst → StateDRel rsd lsd → StateDInv rsd →
+      frontend.export_c.feed_chunk_loop inst pers m rst rsd b i line_no = ok o →
+      SimStreamD (fun p => (absU p.1, absPos p.2)) pers lst o
+        (feedChunk lmd lsd (absBytes b) (absPos i) (absU line_no)) := by
+  suffices H : ∀ (k : Nat) (i : Std.Usize) (rst : arena.monad.AState) (lst : AState)
+      (rsd : frontend.export_c.StateD) (lsd : Arena.Frontend.StateD)
+      (line_no : Std.U64) (o),
+      b.val.length - i.val = k →
+      AStateRel pers rst lst → AStateInv pers rst → StateDRel rsd lsd → StateDInv rsd →
+      frontend.export_c.feed_chunk_loop inst pers m rst rsd b i line_no = ok o →
+      SimStreamD (fun p => (absU p.1, absPos p.2)) pers lst o
+        (feedChunk lmd lsd (absBytes b) (absPos i) (absU line_no)) from
+    fun i rst lst rsd lsd line_no o => H _ i rst lst rsd lsd line_no o rfl
+  intro k
+  induction k using Nat.strong_induction_on with
+  | _ k ih =>
+  intro i rst lst rsd lsd line_no o hk hrel hinv hd hi h
+  rw [frontend.export_c.feed_chunk_loop] at h
+  simp only [SimStreamD]
+  split at h
+  · rename_i hlt
+    have hlt' : absPos i < (absBytes b).usize := absPos_lt_usize.mpr (by scalar_tac)
+    rw [feedChunk, dif_pos hlt']
+    obtain ⟨sr, hsr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hS := hsc.scanLineFwd hsr
+    cases sr with
+    | Ok p =>
+      obtain ⟨r1, j⟩ := p
+      replace h : ite (j = 0#usize) _ _ = ok o := h
+      have hscan : ConLeche.Frontend.scanLineFwd (absBytes b) (absPos i) =
+          .ok (absLineRec r1) (absPos j) := hS
+      simp only [hscan, absPos_beq_zero]
+      split at h
+      · rename_i hj0
+        have ho := Result.ok_injective h; subst ho
+        have : j.val = 0 := by rw [hj0]; rfl
+        simp only [this, decide_true, if_true]
+        exact ⟨lsd, lst, rfl, hd, hi, hrel, hinv, Ext.refl _⟩
+      · rename_i hj0
+        have hj0' : ¬ j.val = 0 := fun hv => hj0 (by scalar_tac)
+        simp only [hj0', decide_false, Bool.false_eq_true, if_false]
+        obtain ⟨hwf, hnat⟩ := hsc.scanLineStr hsr
+        obtain ⟨⟨r2, ar1, st1⟩, hap, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hA := apply_line_refines hmr hrel hinv hd hi hwf hnat hap
+        simp only [SimDV] at hA
+        rw [am_run_bind']
+        cases r2 with
+        | Ok u =>
+          obtain ⟨lsd', lst', hx, hd', hi', hrel', hinv', hext'⟩ := hA
+          rw [hx]
+          simp only [except_ok_bind]
+          split at h
+          · rename_i hge
+            have hge' : ¬ absPos i < absPos j := by rw [absPos_lt_iff]; scalar_tac
+            simp only [dif_neg hge']
+            obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+            obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+            obtain ⟨ce, hce, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+            obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+            have ho := Result.ok_injective h; subst ho
+            simp only [kernel.core_types.internal, Result.ok.injEq] at hce
+            subst hce
+            intro k' hk'
+            simp only [absAErrKind_internal, Option.some.injEq] at hk'
+            subst hk'
+            refine Or.inl ⟨.internal "the line scanner made no progress", lst', ?_, rfl⟩
+            rw [absU_add_one hi2]; rfl
+          · rename_i hlt2
+            have hlt2' : absPos i < absPos j := by rw [absPos_lt_iff]; scalar_tac
+            simp only [dif_pos hlt2']
+            obtain ⟨line_no1, hl1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+            have hR := ih (b.val.length - j.val) (by scalar_tac) j ar1 lst' st1 lsd'
+              line_no1 o rfl hrel' hinv' hd' hi' h
+            rw [absU_add_one hl1] at hR
+            simp only [SimStreamD] at hR
+            rcases o with ⟨r3, st3, sd3⟩
+            cases r3 with
+            | Ok q =>
+              obtain ⟨l4, s4, hx4, hd4, hi4, hr4, hv4, he4⟩ := hR
+              exact ⟨l4, s4, hx4, hd4, hi4, hr4, hv4, Ext.trans hext' he4⟩
+            | Err p => exact hR
+        | Err e =>
+          obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          obtain ⟨p1, hp1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have ho := Result.ok_injective h; subst ho
+          obtain ⟨hpos, herr, hver⟩ := line_err_to_check_refines hp1
+          rw [absU_add_one hi2] at hpos
+          show StreamErrSim p1 _
+          cases e with
+          | Err ce =>
+            intro k' hk'
+            rw [herr ce rfl] at hk'
+            obtain ⟨le, hx, hle⟩ := hA k' hk'
+            exact Or.inr ⟨le, by rw [hx]; rfl, hle⟩
+          | Verdict v =>
+            obtain ⟨lv, lst', hx, hkv, -⟩ := hA
+            intro k' hk'
+            rw [hver v lv rfl hkv] at hk'
+            refine Or.inl ⟨lv.toError, lst', ?_, hk'⟩
+            rw [hx, hpos]; rfl
+    | Err e =>
+      simp only at h
+      obtain ⟨nl, hnl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hnl' := hsc.newlineFrom hnl
+      split at h
+      · rename_i hnlt
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨ce, hce, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have ho := Result.ok_injective h; subst ho
+        obtain ⟨hnone, hsome⟩ := scan_err_to_check_refines hce
+        show StreamErrSim (ce, i3) _
+        intro k' hk'
+        cases ht : absErrTag e.what with
+        | none => rw [hnone ht] at hk'; cases hk'
+        | some tg =>
+          rw [hsome tg ht] at hk'
+          cases hk'
+          have hscan : ConLeche.Frontend.scanLineFwd (absBytes b) (absPos i) =
+              .err ⟨e.offset.val, tg⟩ :=
+            (hS : ScanErrSim e _) ⟨e.offset.val, tg⟩ (by rw [absScanErr, ht]; rfl)
+          have hnlt' : ConLeche.Frontend.newlineFrom (absBytes b) (absPos i) = true := by
+            rw [← hnl']; exact hnlt
+          refine Or.inl ⟨.internal (ConLeche.Frontend.ScanErr.render
+            ⟨e.offset.val - (absPos i).toNat, tg⟩), lst, ?_, rfl⟩
+          simp only [hscan, hnlt', if_true]
+          rw [absU_add_one hi3]; rfl
+      · rename_i hnlf
+        have ho := Result.ok_injective h; subst ho
+        have hnlf' : ConLeche.Frontend.newlineFrom (absBytes b) (absPos i) = false := by
+          rw [← hnl']; simpa using hnlf
+        -- the twin: whatever its scanner answers here, with no newline ahead the
+        -- line is an incomplete tail (`scanLineFwd_ok_newline`)
+        refine ⟨lsd, lst, ?_, hd, hi, hrel, hinv, Ext.refl _⟩
+        cases hsc2 : ConLeche.Frontend.scanLineFwd (absBytes b) (absPos i) with
+        | err se =>
+          simp only [hnlf', Bool.false_eq_true, if_false]
+          rfl
+        | ok r j =>
+          by_cases hj : j = 0
+          · simp only [hj, beq_self_eq_true, if_true]
+            rfl
+          · have := scanLineFwd_ok_newline hsc2 hj
+            rw [hnlf'] at this; cases this
+  · rename_i hge
+    have hge' : ¬ absPos i < (absBytes b).usize := by
+      rw [absPos_lt_usize]; scalar_tac
+    have ho := Result.ok_injective h; subst ho
+    rw [feedChunk, dif_neg hge']
+    exact ⟨lsd, lst, rfl, hd, hi, hrel, hinv, Ext.refl _⟩
+
+/-- A wrapper that reshapes nothing: `SimStreamD` goes through it. -/
+theorem SimStreamD.of_wrap_id {α β : Type} {A : α → β} {pers : arena.store.PersTier}
+    {lst : AState}
+    {o : core.result.Result α (kernel.core_types.CheckError × Std.U64) ×
+      arena.monad.AState × frontend.export_c.StateD}
+    {x : AM (Except (Arena.CheckError × Nat) (Arena.Frontend.StateD × β))}
+    {g : Except (Arena.CheckError × Nat) (Arena.Frontend.StateD × β) →
+      AM (Except (Arena.CheckError × Nat) (Arena.Frontend.StateD × β))}
+    (hx : SimStreamD A pers lst o x)
+    (h1 : ∀ e, g (.error e) = pure (.error e)) (h2 : ∀ b, g (.ok b) = pure (.ok b)) :
+    SimStreamD A pers lst o (x >>= g) := by
+  have hw : x >>= g = x := by
+    rw [wrap_map x id h1 h2]
+    conv => rhs; rw [← bind_pure x]
+    congr 1; funext r; cases r <;> rfl
+  rw [hw]; exact hx
+
 /-- **`feed_chunk` refines `feedChunk`** (`ExportC.lean:742-765`) — every
 COMPLETE line of the chunk from `i`, applied in order.  A line a chunk cut in
 half is told from a malformed one by whether the rest of the chunk holds a
@@ -379,7 +581,11 @@ theorem feed_chunk_refines {G : Type} {inst : frontend.types.Modeller G}
       (do
         match ← feedChunk lmd lsd (absBytes b) (absPos i) (absU line_no) with
         | .error e => pure (.error e)
-        | .ok (st, n, j) => pure (.ok (st, (n, j)))) := by sorry
+        | .ok (st, n, j) => pure (.ok (st, (n, j)))) := by
+  have hL := feed_chunk_loop_refines hsc hmr i rst lst rsd lsd line_no o hrel hinv hd hi h
+  refine SimStreamD.of_wrap_id hL ?_ ?_
+  · intro e; rfl
+  · intro q; rfl
 
 /-- **`parse_bytes_final`** — the cited tail of `parseBytes`: the last line. -/
 theorem parse_bytes_final_refines {G : Type} {inst : frontend.types.Modeller G}
