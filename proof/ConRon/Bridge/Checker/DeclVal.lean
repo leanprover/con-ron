@@ -1459,6 +1459,83 @@ theorem natOpEquations_run {d : Nat} {cn : NIdx} {nm : ConLeche.Name}
       EqPairsDenote s'.store eqs (ConLeche.natOpEquations d nm) := by
   sorry
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:614-620 Expr.substConst0 — the
+spine substitution over handles is con-leche's: `.const n []` is a handle
+comparison against the pinned empty level list, and the `app` arm re-interns. -/
+theorem substConst0_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx} {x : Expr} :
+    ∀ (fuel : Nat) {h h' : EIdx} {e : Expr} {s s' : AState}, StateOK s →
+      PinsOK s → denoteN s.store.ns cn = some nm → denoteE s.store rh = some x →
+      denoteE s.store h = some e →
+      Arena.substConst0 cn rh fuel h s = .ok (h', s') →
+      Frontend.IStepS s s' ∧
+        denoteE s'.store h' = some (Expr.substConst0 nm x e) := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro h h' e s s' _ _ _ _ _ hrun
+    exact absurd hrun (AM.Never.fail _ _ _ _)
+  | succ fuel ih =>
+    intro h h' e s s' hst hp hn hx he hrun
+    have hwf := hst.wf
+    have hwf' := hwf
+    obtain ⟨rk, hrk⟩ := hwf'
+    simp only [Arena.substConst0] at hrun
+    obtain ⟨v, s1, g1, k1⟩ := AM.bind_ok hrun
+    obtain ⟨e1s, hv⟩ := viewE_run g1
+    rw [e1s] at k1
+    cases v
+    case const c us =>
+      obtain ⟨cN, ls, rfl, hcN, hls⟩ := denote_const_inv hwf hv he
+      obtain ⟨el, s2, g2, k2⟩ := AM.bind_ok k1
+      obtain ⟨e2s, hel⟩ := AM.of_run (P := fun t => t = s)
+        (Q := fun r t => t = s ∧ denoteLs s.store.lss r = some []) rfl g2
+        (pinEmptyLevels_spec s hp)
+      rw [e2s] at k2
+      have e1 := beq_of_denote_inj (fun h1 h2 => denoteN_inj hrk.nsWF h1 h2) hcN hn
+      have e2 := beq_of_denote_inj (fun h1 h2 => denoteLs_inj hrk.lss h1 h2) hls hel
+      rcases AM.ite_ok k2 with ⟨hc, k3⟩ | ⟨hc, k3⟩
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+        simp only [Bool.and_eq_true, e1, e2, beq_iff_eq] at hc
+        refine ⟨Frontend.IStepS.refl hst, ?_⟩
+        simp only [Expr.substConst0, hc, and_self, if_true]
+        exact hx
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+        simp only [Bool.and_eq_true, e1, e2, beq_iff_eq] at hc
+        refine ⟨Frontend.IStepS.refl hst, ?_⟩
+        simp only [Expr.substConst0, if_neg hc]
+        exact he
+    case app f a =>
+      obtain ⟨ef, ea, rfl, hf, ha⟩ := denote_app_inv hwf hv he
+      obtain ⟨f', s2, g2, k2⟩ := AM.bind_ok k1
+      obtain ⟨hs2, hf'⟩ := ih hst hp hn hx hf g2
+      obtain ⟨a', s3, g3, k3⟩ := AM.bind_ok k2
+      obtain ⟨hs3, ha'⟩ := ih hs2.ok (hp.mono hs2.ext hs2.pins)
+        (denoteN_ext hn hs2.ext) (denote_ext hx hs2.ext) (denote_ext ha hs2.ext) g3
+      have hf3 := denote_ext hf' hs3.ext
+      obtain ⟨hs4, hd⟩ := Frontend.internE_sstep hs3.ok
+        (viewOK_app (by rw [hf3]; rfl) (by rw [ha']; rfl)) k3
+      refine ⟨(hs2.trans hs3).trans hs4, ?_⟩
+      rw [hd]
+      simp only [denoteEView, denote_ext hf3 hs4.ext, denote_ext ha' hs4.ext, opt2,
+        Expr.substConst0]
+    all_goals first
+      | (obtain rfl := denote_bvar_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+      | (obtain ⟨_, rfl, _⟩ := denote_fvar_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+      | (obtain ⟨_, rfl, _⟩ := denote_sort_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_lam_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_forallE_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+      | (obtain ⟨_, _, _, rfl, _⟩ := denote_letE_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+      | (obtain rfl := denote_lit_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+      | (obtain ⟨_, _, rfl, _⟩ := denote_proj_inv hwf hv he
+         obtain ⟨rfl, rfl⟩ := AM.pure_ok k1; exact ⟨Frontend.IStepS.refl hst, he⟩)
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean (Expr.substConst0) — the
 self-reference substitution, pair by pair.
 
@@ -1481,7 +1558,46 @@ theorem substConst0Pairs_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx}
       EqPairsDenote s'.store r
         (xs.map fun eq => (Expr.substConst0 nm x eq.1,
           Expr.substConst0 nm x eq.2)) := by
-  sorry
+  suffices h : ∀ (eqs : List (EIdx × EIdx)) (xs : List (Expr × Expr))
+      {r : List (EIdx × EIdx)} {s s' : AState}, StateOK s → PinsOK s →
+      denoteN s.store.ns cn = some nm → denoteE s.store rh = some x →
+      EqPairsDenote s.store eqs xs → substConst0Pairs cn rh eqs s = .ok (r, s') →
+      Frontend.IStepS s s' ∧ EqPairsDenote s'.store r
+        (xs.map fun eq => (Expr.substConst0 nm x eq.1,
+          Expr.substConst0 nm x eq.2)) by
+    obtain ⟨hs, hd'⟩ := h eqs xs hok hp hn hv hd hr
+    exact ⟨hs.ok, hs.ext, hs.caches, hs.pins, hd'⟩
+  intro eqs
+  induction eqs with
+  | nil =>
+    intro xs r s s' hst _ _ _ hd hr
+    cases xs with
+    | cons q qs => exact absurd hd (by simp [EqPairsDenote])
+    | nil =>
+      simp only [Arena.substConst0Pairs] at hr
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hr
+      exact ⟨Frontend.IStepS.refl hst, trivial⟩
+  | cons e es ih =>
+    intro xs r s s' hst hp hn hv hd hr
+    cases xs with
+    | nil => exact absurd hd (by simp [EqPairsDenote])
+    | cons q qs =>
+      obtain ⟨hd1, hd2, hdt⟩ := hd
+      obtain ⟨a, b⟩ := e
+      simp only [Arena.substConst0Pairs] at hr
+      obtain ⟨a', s1, g1, k1⟩ := AM.bind_ok hr
+      obtain ⟨hs1, ha⟩ := substConst0_run _ hst hp hn hv hd1 g1
+      obtain ⟨b', s2, g2, k2⟩ := AM.bind_ok k1
+      obtain ⟨hs2, hb⟩ := substConst0_run _ hs1.ok (hp.mono hs1.ext hs1.pins)
+        (denoteN_ext hn hs1.ext) (denote_ext hv hs1.ext) (denote_ext hd2 hs1.ext) g2
+      obtain ⟨rest, s3, g3, k3⟩ := AM.bind_ok k2
+      have hs12 := hs1.trans hs2
+      obtain ⟨hs3, hrest⟩ := ih qs hs12.ok (hp.mono hs12.ext hs12.pins)
+        (denoteN_ext hn hs12.ext) (denote_ext hv hs12.ext)
+        (EqPairsDenote.mono hs12.ext hdt) g3
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+      refine ⟨hs12.trans hs3, ?_⟩
+      exact ⟨denote_ext (denote_ext ha hs2.ext) hs3.ext, denote_ext hb hs3.ext, hrest⟩
 
 
 
