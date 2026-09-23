@@ -57,7 +57,7 @@ name_pin arena.core.nat_shift_right_name natShiftRightName PB.pin_nat_shift_righ
     rw [dupId_nidx _ _ hn1] at h
     exact ConRon.Refine.vec_push_val h
 
-@[lockstep_simp] theorem vec_new_val {α : Type} : (alloc.vec.Vec.new α).val = [] := rfl
+@[lockstep_simp] theorem vec_new_val_B {α : Type} : (alloc.vec.Vec.new α).val = [] := rfl
 
 attribute [lockstep_simp] absNIdxList
 
