@@ -7,17 +7,15 @@ shape `Tactic/Lockstep.lean` steps with.  Each is the existing `Specs.lean` /
 where the existing proof only reads `hrel.store` / `hrel.memos` the proof
 below is that proof with `AStateRel₀`.
 
-**The seven interns are `sorry` here, and as stated they are FALSE until the
-D2 twin fix lands** (task #97-T2-AUDIT §4: the Rust skips the persistent
-probe when a child is in the scratch tier, the twin always probes, so on a
-store that is not `StoreWF` the two can answer different handles).  Under
-`AStateRel₀` the existing lemmas need `hchild`, a fact about the twin store
-no lockstep context carries.  They are stated with `AStateRel₀`, `AStateInv`
-and nothing else because that is the statement the migration's intern slice
-proves once the twin mirrors the `sk` skip; `intern_e_bind_i_ls` also waits
-on finding 15 (`internLamIE`'s capacity test before the probe).  Nothing
-outside the `Tactic/Sample*.lean` measurements may use them; `#print axioms`
-on each sample shows `sorryAx` exactly through these.
+**The interns.**  Task #97-T2-TACTIC left the seven expression interns
+`sorry`: they were false until the D2 twin fix (task #97-T2-AUDIT §4).  Since
+the foundation's intern slice (task #97-T2-LOCKSTEP slice 3) they are the
+`Refine2/Specs.lean` `intern_*_run₀` lemmas in `LS` form (task #97-P5-Core
+round 5, which also added `fvar`, `sort`, `const`, `lit`, the level node, the
+level list and `intern_level`).  Two stay `sorry`: `intern_e_lam_ls` and
+`intern_e_forall_e_ls`, the binder DISPATCHERS, which Specs.lean records as a
+twin/Rust divergence still to fix in the twin (its binder `internE` arm must
+intern the datum first, in the Rust's order).
 -/
 import ConRon.Refine2.Tactic.Lockstep
 import ConRon.Refine2.ExprOps.Mut
@@ -418,19 +416,26 @@ boolean is the twin's test on the word it reads. -/
   exact ⟨(), _, rfl, trivial, { hrel with memos := { hrel.memos with inst1C := h1 } },
     { hinv with memos := { hinv.memos with inst1C := h2 } }⟩
 
-/-! ## Interns — pending D2 (see the module note) -/
+/-! ## Interns
+
+Since the foundation's intern slice (task #97-T2-LOCKSTEP slice 3) every
+expression intern but the two binder DISPATCHERS is proved over `AStateRel₀`
+(`Refine2/Specs.lean`'s `intern_*_run₀`); `intern_e_lam_ls` and
+`intern_e_forall_e_ls` stay `sorry` until the twin's binder `internE` arm
+follows the Rust's order (Specs.lean's "No lockstep form yet: the binder
+dispatchers"). -/
 
 @[lockstep] theorem intern_e_bvar_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (i : Std.U64) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_bvar pers st i) lst
-      (Arena.internBVarE (absU i)) := by
-  sorry
+      (Arena.internBVarE (absU i)) :=
+  LS.ofSim₀ fun _ h => intern_e_bvar_run₀ hrel hinv i h
 
 @[lockstep] theorem intern_e_app_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (f a : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_app pers st f a) lst
-      (Arena.internAppE (absEIdx f) (absEIdx a)) := by
-  sorry
+      (Arena.internAppE (absEIdx f) (absEIdx a)) :=
+  LS.ofSim₀ fun _ h => intern_e_app_run₀ hrel hinv f a h
 
 @[lockstep] theorem intern_e_lam_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) :
@@ -447,19 +452,61 @@ boolean is the twin's test on the word it reads. -/
 @[lockstep] theorem intern_e_let_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (t v b : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_let_e pers st t v b) lst
-      (Arena.internLetEE (absEIdx t) (absEIdx v) (absEIdx b)) := by
-  sorry
+      (Arena.internLetEE (absEIdx t) (absEIdx v) (absEIdx b)) :=
+  LS.ofSim₀ fun _ h => intern_e_let_e_run₀ hrel hinv t v b h
 
 @[lockstep] theorem intern_e_bind_i_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (t : Std.U32) (ty b : arena.handle.EIdx) (m : arena.handle.BMIdx) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_bind_i pers st t ty b m) lst
-      (Arena.internBindIE (absU32 t) (absEIdx ty) (absEIdx b) (absBMIdx m)) := by
-  sorry
+      (Arena.internBindIE (absU32 t) (absEIdx ty) (absEIdx b) (absBMIdx m)) :=
+  LS.ofSim₀ fun _ h => intern_e_bind_i_run₀ hrel hinv t ty b m h
 
 @[lockstep] theorem intern_e_proj_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (n : arena.handle.NIdx) (i : Std.U64) (s : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_proj pers st n i s) lst
-      (Arena.internProjE (absNIdx n) (absU i) (absEIdx s)) := by
-  sorry
+      (Arena.internProjE (absNIdx n) (absU i) (absEIdx s)) :=
+  LS.ofSim₀ fun _ h => intern_e_proj_run₀ hrel hinv n i s h
+
+@[lockstep] theorem intern_e_fvar_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (idx : Std.U64) (ty : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_fvar pers st idx ty) lst
+      (Arena.internFVarE (absU idx) (absEIdx ty)) :=
+  LS.ofSim₀ fun _ h => intern_e_fvar_run₀ hrel hinv idx ty h
+
+@[lockstep] theorem intern_e_sort_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (u : arena.handle.LIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_sort pers st u) lst
+      (Arena.internSortE (absLIdx u)) :=
+  LS.ofSim₀ fun _ h => intern_e_sort_run₀ hrel hinv u h
+
+@[lockstep] theorem intern_e_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : arena.handle.NIdx) (us : arena.handle.LsIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_const pers st n us) lst
+      (Arena.internConstE (absNIdx n) (absLsIdx us)) :=
+  LS.ofSim₀ fun _ h => intern_e_const_run₀ hrel hinv n us h
+
+@[lockstep] theorem intern_e_lit_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (l : kernel.expr.Literal) (hwf : ConRon.Refine.LiteralWF l) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_lit pers st l) lst
+      (Arena.internLitE (ConRon.Refine.absLiteral l)) :=
+  LS.ofSim₀ fun _ h => intern_e_lit_run₀ hrel hinv l hwf h
+
+@[lockstep] theorem intern_l_node_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (v : arena.store.LNodeView) :
+    LS pers (fun a b => b = absLIdx a) (arena.monad.intern_l_node pers st v) lst
+      (Arena.internLNode (absLNodeView v)) :=
+  LS.ofSim₀ fun _ h => intern_l_node_run₀ hrel hinv v h
+
+@[lockstep] theorem intern_ls_node_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (v : alloc.vec.Vec arena.handle.LIdx) :
+    LS pers (fun a b => b = absLsIdx a) (arena.monad.intern_ls_node pers st v) lst
+      (Arena.internLsNode (absLsNodeView v)) :=
+  LS.ofSim₀ fun _ h => intern_ls_node_run₀ hrel hinv v h
+
+@[lockstep] theorem intern_level_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (l : kernel.level.Level) (hwf : ConRon.Refine.LevelWF l) :
+    LS pers (fun a b => b = absLIdx a) (arena.monad.intern_level pers st l) lst
+      (Arena.internLevel (ConRon.Refine.absLevel l)) :=
+  LS.ofSim₀ fun _ h => intern_level_run₀ hrel hinv hwf h
 
 end ConRon.Refine2.Lockstep
