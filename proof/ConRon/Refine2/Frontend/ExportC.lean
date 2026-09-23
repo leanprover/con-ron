@@ -517,7 +517,13 @@ inline in `installIndD`; this is `CtxRel` at them. -/
 theorem state_model_ctx_refines {rsd lsd rc} (hd : StateDRel rsd lsd)
     (hi : StateDInv rsd) (h : frontend.export_c.state_model_ctx rsd = ok rc) :
     CtxRel rc ⟨fun n => lsd.constTypes[n]?, fun n => lsd.heights.getD n 0,
-      fun n => lsd.indBlocks[n]?⟩ := by sorry
+      fun n => lsd.indBlocks[n]?⟩ := by
+  rw [frontend.export_c.state_model_ctx] at h
+  cases Result.ok_injective h
+  refine ⟨fun n => (hd.constTypes n trivial).symm, fun n => ?_,
+    fun n => (hd.indBlocks n trivial).symm, hi.constTypes, hi.heights, hi.indBlocks⟩
+  show lsd.heights.getD (absNIdx n) 0 = _
+  rw [Std.HashMap.getD_eq_getD_getElem?, ← hd.heights n trivial]
 
 /-! ## The twin's `noteDecl`, split, and the port's `toConstantVal`
 
@@ -2380,13 +2386,72 @@ theorem note_gen_names_refines {rsd lsd names t0 rsd'} (hd : StateDRel rsd lsd)
       { lsd with genRecords := lsd.genRecords + 1,
                  genOwner := (absNIdxL names).foldl
                    (fun m n => m.insert n (absNIdx t0)) lsd.genOwner } ∧
-      StateDInv rsd' := by sorry
+      StateDInv rsd' := by
+  rw [frontend.export_c.note_gen_names] at h
+  obtain ⟨i, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hm, hhm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  have hiv : absU i = absU rsd.gen_records + 1 := by
+    have := ConRon.Refine.Nat.uadd_val hi1; simp only [absU]; simpa using this
+  have key : ∀ (n : Nat) (j : Std.Usize) (m : ron.hashmap2.HashMap2 arena.handle.NIdx arena.handle.NIdx)
+      (M : Std.HashMap NIdx NIdx) m',
+      names.val.length - j.val = n →
+      ConRon.Refine.HashMap2.RelOn anyN m M absNIdx absNIdx →
+      ConRon.Refine.HashMap2.Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable m →
+      frontend.export_c.note_gen_names_loop m names t0 (alloc.vec.Vec.len names) j = ok m' →
+      ConRon.Refine.HashMap2.RelOn anyN m' (((names.val.drop j.val).map absNIdx).foldl
+          (fun m n => m.insert n (absNIdx t0)) M) absNIdx absNIdx ∧
+        ConRon.Refine.HashMap2.Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable m' := by
+    intro n
+    induction n with
+    | zero =>
+      intro j m M m' hn hR hI h
+      rw [frontend.export_c.note_gen_names_loop, if_neg (by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le (by omega)]
+      exact ⟨hR, hI⟩
+    | succ k ih =>
+      intro j m M m' hn hR hI h
+      have hj : j.val < names.val.length := by omega
+      rw [frontend.export_c.note_gen_names_loop, if_pos (by scalar_tac)] at h
+      obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hn1' : names.val[j.val] = n1 := by
+        rw [vec_index_ok_eq names j hj] at hn1; exact Result.ok_injective hn1
+      obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [dupId_nidx _ _ hn2] at h
+      obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [dupId_nidx _ _ hn3] at h
+      obtain ⟨⟨old, hm1⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨hR1, -⟩ := ConRon.Refine.HashMap2.Rel_insert_wf nidx_eq2
+        (fun a b _ _ e => absNIdx_inj e) hI (anyNKeysOk _) hR trivial hins
+      obtain ⟨hI1, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen nidx_eq2 hI
+        (anyNKeysOk _) trivial hins
+      obtain ⟨j2, hj2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hj2v : j2.val = j.val + 1 := (ConRon.Refine.Nat.uadd_val hj2).trans (by simp)
+      have := ih j2 hm1 _ m' (by omega) hR1 hI1 h
+      rw [hj2v] at this
+      rw [List.drop_eq_getElem_cons hj, hn1', List.map_cons, List.foldl_cons]
+      exact this
+  obtain ⟨hR, hI⟩ := key (names.val.length - (0#usize : Std.Usize).val) 0#usize rsd.gen_owner
+    lsd.genOwner hm rfl hd.genOwner hi.genOwner hhm
+  refine ⟨{ hd with genRecords := ?_, genOwner := ?_ }, { hi with genOwner := hI }⟩
+  · show lsd.genRecords + 1 = absU i
+    rw [hiv, hd.genRecords]
+  · simpa [absNIdxL] using hR
 
 /-- **`note_gen` refines `noteGen`** (`ExportC.lean:347-353`). -/
 theorem note_gen_refines {rsd lsd lst d t0 rsd'} (hd : StateDRel rsd lsd)
     (hi : StateDInv rsd) (h : frontend.export_c.note_gen rsd d t0 = ok rsd') :
     ∃ lsd', (noteGen lsd (absIDeclaration d) (absNIdx t0)).run lst = .ok (lsd', lst) ∧
-      StateDRel rsd' lsd' ∧ StateDInv rsd' := by sorry
+      StateDRel rsd' lsd' ∧ StateDInv rsd' := by
+  rw [frontend.export_c.note_gen] at h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hv' := i_declaration_names_abs hv
+  obtain ⟨hd', hi'⟩ := note_gen_names_refines hd hi h
+  refine ⟨_, rfl, ?_, hi'⟩
+  simp only [noteGen]
+  rw [← hv']
+  exact hd'
 
 /-- **`push_gen_list` refines `pushGenList`** (`ExportC.lean:425-428`). -/
 theorem push_gen_list_refines {pers rst lst rsd lsd gen t0 o}
@@ -3008,7 +3073,21 @@ theorem parse_result_of_state_refines {rsd lsd p} (hd : StateDRel rsd lsd)
 folded into the message.  The KIND — hence the exit code — is untouched, and
 the kind is all the theorem reads. -/
 theorem at_line_refines {e n ce} (h : frontend.export_c.at_line e n = ok ce) :
-    absAErrKind ce = absAErrKind e := by sorry
+    absAErrKind ce = absAErrKind e := by
+  rw [frontend.export_c.at_line] at h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases e <;>
+  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    first
+    | (rw [kernel.core_types.not_implemented] at h; cases Result.ok_injective h; rfl)
+    | (rw [kernel.core_types.invalid] at h; cases Result.ok_injective h; rfl)
+    | (rw [kernel.core_types.internal] at h; cases Result.ok_injective h; rfl)
+    | (rw [kernel.core_types.native] at h; cases Result.ok_injective h; rfl)
 
 /-! ## Line-layer shape lemmas (moved from `Top.lean` by task #97-P5-Front round 3,
 so that `ExportCInd.lean`'s `install_ind_d` can compose with them) -/
