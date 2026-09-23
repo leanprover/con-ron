@@ -12,10 +12,12 @@ below is that proof with `AStateRel₀`.
 the foundation's intern slice (task #97-T2-LOCKSTEP slice 3) they are the
 `Refine2/Specs.lean` `intern_*_run₀` lemmas in `LS` form (task #97-P5-Core
 round 5, which also added `fvar`, `sort`, `const`, `lit`, the level node, the
-level list and `intern_level`).  Two stay `sorry`: `intern_e_lam_ls` and
-`intern_e_forall_e_ls`, the binder DISPATCHERS, which Specs.lean records as a
-twin/Rust divergence still to fix in the twin (its binder `internE` arm must
-intern the datum first, in the Rust's order).
+level list and `intern_level`).  **`intern_e_lam_ls` / `intern_e_forall_e_ls`
+stay `sorry`**, and only because of their statement (task #97-T2-LOCKSTEP D6):
+`intern_e_{lam,forall_e}_run₀` need `PropWhenWF m.pw` of the Rust INPUT datum
+(the `bms` cons key is a `PropWhen`, so `TblRel` is `RelOn PropWhenWF`), which
+these two statements do not ask for; `intern_e_{lam,forall_e}_wf_ls` are the
+same pairs with that premise, proved, and registered first.
 -/
 import ConRon.Refine2.Tactic.Lockstep
 import ConRon.Refine2.ExprOps.Mut
@@ -416,14 +418,7 @@ boolean is the twin's test on the word it reads. -/
   exact ⟨(), _, rfl, trivial, { hrel with memos := { hrel.memos with inst1C := h1 } },
     { hinv with memos := { hinv.memos with inst1C := h2 } }⟩
 
-/-! ## Interns
-
-Since the foundation's intern slice (task #97-T2-LOCKSTEP slice 3) every
-expression intern but the two binder DISPATCHERS is proved over `AStateRel₀`
-(`Refine2/Specs.lean`'s `intern_*_run₀`); `intern_e_lam_ls` and
-`intern_e_forall_e_ls` stay `sorry` until the twin's binder `internE` arm
-follows the Rust's order (Specs.lean's "No lockstep form yet: the binder
-dispatchers"). -/
+/-! ## Interns (see the module note) -/
 
 @[lockstep] theorem intern_e_bvar_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (i : Std.U64) :
@@ -437,16 +432,33 @@ dispatchers"). -/
       (Arena.internAppE (absEIdx f) (absEIdx a)) :=
   LS.ofSim₀ fun _ h => intern_e_app_run₀ hrel hinv f a h
 
+/-- `intern_e_lam` with its datum's `PropWhenWF` in context: the `₀` lemma.
+Registered BEFORE the `sorry` statement below, so `lockstep` tries it first. -/
+@[lockstep] theorem intern_e_lam_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
+    (hpw : ConRon.Refine.PropWhenWF m.pw) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_lam pers st t b m) lst
+      (Arena.internLamE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
+  LS.ofSim₀ fun _ h => intern_e_lam_run₀ hrel hinv t b m hpw h
+
+/-- `intern_e_forall_e` with its datum's `PropWhenWF` in context. -/
+@[lockstep] theorem intern_e_forall_e_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
+    (hpw : ConRon.Refine.PropWhenWF m.pw) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_forall_e pers st t b m) lst
+      (Arena.internForallEE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
+  LS.ofSim₀ fun _ h => intern_e_forall_e_run₀ hrel hinv t b m hpw h
+
 @[lockstep] theorem intern_e_lam_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_lam pers st t b m) lst
-      (Arena.internLamE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) := by
+      (Arena.internLamE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
   sorry
 
 @[lockstep] theorem intern_e_forall_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) :
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_forall_e pers st t b m) lst
-      (Arena.internForallEE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) := by
+      (Arena.internForallEE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
   sorry
 
 @[lockstep] theorem intern_e_let_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)

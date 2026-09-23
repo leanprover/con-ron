@@ -312,6 +312,14 @@ knot's own equation (`coreKnotGated_succ_whnfCore_stuck`,
 of the two is nonetheless TRUE and stays proved, as a fact about the twin, in
 `Core/Arms/Gated.lean`; the second, which was false at `f = 0` and carried
 `1 ≤ f` for it, has no consumer and is not restated. -/
+/- **`inferIO`'s call-site premise** (task #97-P5-Core round 5, region E's
+finding).  The port's `infer_body_io` is called at exactly two points,
+`knot_infer_io`'s `(LANE_IO, false)` and `(LANE_FULL, true)`; its `.lam`
+clause always re-enters `knot_infer_io`, while the twin's `inferBodyIO` calls
+`r.infer` of `laneKnotAt … io f` — the io slot at `io = true` and at
+`LANE_IO` (where `coreKnotIO`'s two infer slots are one function), the FULL
+infer otherwise.  The field is therefore stated at the call sites' shape,
+`io = true ∨ lane = LANE_IO`, a fact about the port's two scalar arguments. -/
 structure BodyRel (f : Nat) : Prop where
   whnfCore : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
     AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
@@ -348,6 +356,7 @@ structure BodyRel (f : Nat) : Prop where
   inferIO : ∀ {pers vis st mode lane io fu fe lfe depth e lst o},
     AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
     absU fu = f →
+    (io = true ∨ lane = arena.core.LANE_IO) →
     arena.core.infer_body_io pers vis st mode lane io fu fe depth e = ok o →
     Sim₀ absEIdx pers lst o
       (inferBodyIO (ConRon.Refine.absMode mode)

@@ -15,6 +15,7 @@ form and proved through `LSR.of_LS`, which turns it into an `LS` goal about
 helper whose twin is a pure function is stated in `LSP` form.
 -/
 import ConRon.Refine2.Core.LS.PrimsA2
+import ConRon.Refine2.Core.LS.Leaves
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -35,7 +36,7 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PA2
   rw [pwWritten, ← ConRon.Refine.PropWhen.is_never_refines hc, ← Result.ok_injective h]
   cases c <;> rfl
 
-@[lockstep] theorem annot_binder_meta_ls (pw : Option kernel.prop_when.PropWhen)
+theorem annot_binder_meta_spec (pw : Option kernel.prop_when.PropWhen)
     (mb : kernel.expr.BinderMeta) :
     LSP (arena.core.annot_binder_meta pw mb)
       (fun r => ConRon.Refine.absBinderMeta r =
@@ -58,6 +59,16 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PA2
       rw [binder_meta_ls p r h]
       simp only [Bool.not_eq_true] at hc
       rw [← hb', hc]; rfl
+
+/-- `annot_binder_meta` in the `TwinEq` form the zip rewrites the twin with
+(region G's statement): the twin's `annotBinderMeta` of the abstracted
+arguments IS the abstraction of the port's answer. -/
+@[lockstep] theorem annot_binder_meta_ls (pw : Option kernel.prop_when.PropWhen)
+    (mb : kernel.expr.BinderMeta) :
+    LSP (arena.core.annot_binder_meta pw mb)
+      (fun m => TwinEq (annotBinderMeta (ExprOps.absPwOpt pw) (ConRon.Refine.absBinderMeta mb))
+        (ConRon.Refine.absBinderMeta m)) :=
+  fun r h => (annot_binder_meta_spec pw mb r h).symm
 
 @[lockstep] theorem whnf_core_stuck_tag_ls (e : arena.handle.EIdx) :
     LSP (arena.core.whnf_core_stuck_tag e) (fun b => b = whnfCoreStuckTag (absEIdx e)) := by
@@ -203,13 +214,6 @@ theorem pi_residual_aux (n : Nat) :
   pi_residual_aux _ e args i hx rfl hrel hinv
 
 /-! ## Stubs (other regions' lemmas; deleted at merge) -/
-
-/-- Region A1's `IProjEntry.fireOk`. -/
-@[lockstep] theorem stub_proj_entry_fire_ok_ls {pers st entry us lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a) (arena.core.proj_entry_fire_ok pers st entry us) lst
-      ((absIProjEntry entry).fireOk (absLsIdx us)) := by
-  sorry
 
 /-! ## The projection-slot walks -/
 
@@ -543,6 +547,7 @@ end tele
 #print axioms defeq_peel_done_ls
 #print axioms pw_written_ls
 #print axioms annot_binder_meta_ls
+#print axioms annot_binder_meta_spec
 #print axioms whnf_core_stuck_tag_ls
 #print axioms defeq_no_fvars_ls
 #print axioms fab_scope_ok_ls

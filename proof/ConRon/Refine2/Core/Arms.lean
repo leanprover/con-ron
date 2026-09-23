@@ -87,6 +87,7 @@ five are the ten-way dispatches below. -/
 head-normalization body.  **Open.** -/
 theorem whnf_core_body_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth e lst o}
+    (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.whnf_core_body pers vis st mode lane fu fe depth e = ok o) :
@@ -100,6 +101,7 @@ theorem whnf_core_body_refines {f : Nat} (hk : KnotRel f)
 — the gated lane's `whnfCore` body.  **Open.** -/
 theorem whnf_core_body_gated_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth e lst o}
+    (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core_gated.whnf_core_body_gated pers vis st mode lane fu fe depth e
@@ -113,6 +115,7 @@ theorem whnf_core_body_gated_refines {f : Nat} (hk : KnotRel f)
 /-- `arena::core::infer_body` against `Arena.inferBody`.  **Open.** -/
 theorem infer_body_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth e lst o}
+    (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.infer_body pers vis st mode lane fu fe depth e = ok o) :
@@ -125,8 +128,10 @@ theorem infer_body_refines {f : Nat} (hk : KnotRel f)
 /-- `arena::core::infer_body_io` against `Arena.inferBodyIO`.  **Open.** -/
 theorem infer_body_io_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane io fu fe lfe depth e lst o}
+    (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hio : io = true ∨ lane = arena.core.LANE_IO)
     (hrun : arena.core.infer_body_io pers vis st mode lane io fu fe depth e = ok o) :
     Sim₀ absEIdx pers lst o
       (inferBodyIO (ConRon.Refine.absMode mode)
@@ -137,6 +142,7 @@ theorem infer_body_io_refines {f : Nat} (hk : KnotRel f)
 /-- `arena::core::annotate_body` against `Arena.annotateBody`.  **Open.** -/
 theorem annotate_body_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth e lst o}
+    (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.annotate_body pers vis st mode lane fu fe depth e = ok o) :
@@ -158,15 +164,18 @@ task #97-P5-Core round 4 this is a skeleton, not a `sorry`: the open work is
 the five dispatches above, `reduce_nat_refines` and `defeq_loop_refines`
 (`Core/Arms/Loops.lean`), and the `exprOpsHyp` seam. -/
 theorem bodyRel_of_knot : ∀ f, KnotRel f → BodyRel f := fun _ hk =>
-  { whnfCore := fun h1 h2 h3 h4 h5 => whnf_core_body_refines hk h1 h2 h3 h4 h5
+  { whnfCore := fun h1 h2 h3 h4 h5 =>
+      whnf_core_body_refines hk (exprOpsHyp _) h1 h2 h3 h4 h5
     whnfCoreGated := fun h1 h2 h3 h4 h5 =>
-      whnf_core_body_gated_refines hk h1 h2 h3 h4 h5
+      whnf_core_body_gated_refines hk (exprOpsHyp _) h1 h2 h3 h4 h5
     whnf := fun h1 h2 h3 h4 h5 =>
       whnf_body_refines hk (exprOpsHyp _) h1 h2 h3 h4 h5
-    infer := fun h1 h2 h3 h4 h5 => infer_body_refines hk h1 h2 h3 h4 h5
-    inferIO := fun h1 h2 h3 h4 h5 => infer_body_io_refines hk h1 h2 h3 h4 h5
+    infer := fun h1 h2 h3 h4 h5 => infer_body_refines hk (exprOpsHyp _) h1 h2 h3 h4 h5
+    inferIO := fun h1 h2 h3 h4 hio h5 =>
+      infer_body_io_refines hk (exprOpsHyp _) h1 h2 h3 h4 hio h5
     defeq := fun h1 h2 h3 h4 h5 => defeq_body_refines hk h1 h2 h3 h4 h5
-    annotate := fun h1 h2 h3 h4 h5 => annotate_body_refines hk h1 h2 h3 h4 h5 }
+    annotate := fun h1 h2 h3 h4 h5 =>
+      annotate_body_refines hk (exprOpsHyp _) h1 h2 h3 h4 h5 }
 
 /-- **The knot, unconditionally** — the theorem the Checker tier wants, and the
 only `sorry` between it and `Core/Induction.lean`'s closed induction. -/
