@@ -1051,7 +1051,52 @@ theorem check_rec_records_refines
       ty_types n_pd n_types n_ctors k_exp = ok o) :
     SimLV (fun _ => ⟨none, PUnit.unit⟩) (fun b => vOfOpt b.1) lst o
       (checkRecRecordsD lsd (absU fuel) (absNIdxL ty_names) (absEIdxL ty_types) (absU n_pd)
-        (absU n_types) (absU n_ctors) k_exp (absIndRecRecs rcs)) := by sorry
+        (absU n_types) (absU n_ctors) k_exp (absIndRecRecs rcs)) := by
+  rw [frontend.export_c.check_rec_records] at h
+  have H : ∀ (k : Nat) (i : Std.Usize) o, rcs.val.length - i.val = k →
+      frontend.export_c.check_rec_records_loop pers rst.store fuel rsd rcs ty_names ty_types
+        n_pd n_types n_ctors k_exp (alloc.vec.Vec.len rcs) i = ok o →
+      SimLV (fun _ => ⟨none, PUnit.unit⟩) (fun b => vOfOpt b.1) lst o
+        (forIn ((absIndRecRecs rcs).drop i.val)
+          (⟨none, PUnit.unit⟩ : MProd (Option VRes) PUnit)
+          fun r _ => recStepD lsd (absU fuel) (absNIdxL ty_names) (absEIdxL ty_types)
+            (absU n_pd) (absU n_types) (absU n_ctors) k_exp r) := by
+    intro k
+    induction k using Nat.strong_induction_on with
+    | _ k ih =>
+      intro i o hk h
+      rw [frontend.export_c.check_rec_records_loop.eq_def] at h
+      by_cases hi : i < alloc.vec.Vec.len rcs
+      · rw [if_pos hi] at h
+        have hi' : i.val < rcs.val.length := by scalar_tac
+        obtain ⟨irr, hirr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hirr' := vec_index_eq hi' hirr
+        rw [show (absIndRecRecs rcs).drop i.val =
+            absIndRecRec (rcs.val[i.val]'hi') :: (absIndRecRecs rcs).drop (i.val + 1) by
+          simp only [absIndRecRecs, ← List.map_drop, List.drop_eq_getElem_cons hi',
+            List.map_cons],
+          List.forIn_cons, recStepD_eq, hirr']
+        simp only [bind_assoc]
+        obtain ⟨rc, hrc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        refine SimLV.bind_check (check_one_rec_refines hrel hinv hd hlen hrc)
+          (fun hok => ?_) (fun b lv hb => ?_)
+          (fun e he => by subst he; exact (Result.ok_injective h).symm)
+        · subst hok
+          simp only [pure_bind]
+          obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hi1v := ConRon.Refine.Nat.uadd_val hi1
+          have hR := ih (rcs.val.length - i1.val) (by simp at hi1v; omega) i1 o rfl h
+          rwa [show i1.val = i.val + 1 by simp at hi1v; omega] at hR
+        · rcases b with _ | (lv' | _) <;> simp only [vOfOpt, reduceCtorEq, Option.some.injEq] at hb
+          subst hb
+          exact ⟨_, rfl, rfl⟩
+      · rw [if_neg hi] at h
+        cases Result.ok_injective h
+        rw [List.drop_eq_nil_of_le (by simp [absIndRecRecs]; scalar_tac), List.forIn_nil]
+        rfl
+  have := H _ 0#usize o rfl h
+  rw [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at this
+  exact this
 
 /-- **`validate_ind_d` refines `validateIndD`** (`ExportC.lean:442-539`) — the
 load-bearing statement of this file: the eleven verdicts, at the same kind and
