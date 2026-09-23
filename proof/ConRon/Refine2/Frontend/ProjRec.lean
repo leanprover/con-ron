@@ -46,6 +46,8 @@ threads its `seen` table as an argument-and-result pair INSIDE the `Result`
 ## `sorry` count in this file: 54
 -/
 import ConRon.Refine2.Frontend.ExprOpsSeam
+import ConRon.Refine2.Inductives.NativeParts
+import ConRon.Refine2.Inductives.StructParts
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -2120,53 +2122,339 @@ theorem find_rec_rec_refines {recs n o}
   have := find_rec_rec_from_refines _ 0#usize rfl h
   simpa [absProjRecRecLFrom, absProjRecRecL] using this
 
-/-- **`proj_rec_candidate_rec`** — the port's split at the found recursor
-record. -/
-theorem proj_rec_candidate_rec_refines {pers rst lst ctors recs t o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.proj_rec_candidate_rec pers rst ctors recs t = ok o) :
-    Sim₀ (Option.map absProjRecOwner) pers lst o
-      (projRecCandidateRec (absProjCtorRecL ctors) (absProjRecRecL recs)
-        (absProjTypeRec t)) := by sorry
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem read_level_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.LIdx) :
+    LS pers (fun a b => ConRon.Refine.LevelWF a ∧ b = ConRon.Refine.absLevel a)
+      (arena.monad.read_level_m pers st h) lst (Arena.readLevelM (absLIdx h)) := by
+  intro o st' hm
+  have hS := read_level_m_run₀ hrel hinv hm
+  have hW := (read_level_m_wf hinv hm).1
+  cases o with
+  | Err e => exact hS
+  | Ok a =>
+    obtain ⟨lst', hx, h1, h2⟩ := hS
+    exact ⟨_, lst', hx, ⟨hW a rfl, rfl⟩, h1, h2⟩
 
-/-- **`proj_rec_candidate_at`** — one type record's candidacy. -/
-theorem proj_rec_candidate_at_refines {pers rst lst ctors recs t o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.proj_rec_candidate_at pers rst ctors recs t = ok o) :
-    Sim₀ (Option.map absProjRecOwner) pers lst o
-      (projRecCandidateAt (absProjCtorRecL ctors) (absProjRecRecL recs)
-        (absProjTypeRec t)) := by sorry
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem level_zero_spec :
+    LSP kernel.level.zero
+      (fun z => ConRon.Refine.LevelWF z ∧ ConRon.Refine.absLevel z = ConLeche.Level.zero) :=
+  fun _ h => ⟨ConRon.Refine.Level.zero_wf' h, ConRon.Refine.Level.zero_refines h⟩
 
-/-- **`proj_rec_candidates_from`** — the cursor companion. -/
-theorem proj_rec_candidates_from_refines {pers rst lst ctors recs types i fuel o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.proj_rec_candidates_from pers rst ctors recs types i
-      = ok o) :
-    Sim₀ absProjRecOwnerL pers lst o
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem level_is_equiv_spec {a b : kernel.level.Level}
+    (ha : ConRon.Refine.LevelWF a) (hb : ConRon.Refine.LevelWF b) :
+    LSP (kernel.level.is_equiv a b)
+      (fun o => o = ConLeche.Level.isEquiv (ConRon.Refine.absLevel a) (ConRon.Refine.absLevel b)) :=
+  fun _ h => (ConRon.Refine.Level.is_equiv_refines ha hb h).symm
+
+open ConRon.Refine2.Lockstep in
+/-- `find_ctor_rec`: the port's index names the record the twin's `findCtorRec`
+finds (a `TwinEq` the twin side is rewritten with). -/
+@[lockstep] theorem find_ctor_rec_spec
+    (ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx))
+    (c : arena.handle.NIdx) :
+    LSP (frontend.proj_rec.find_ctor_rec ctors c)
+      (fun o => (∀ j, o = some j → j.val < ctors.val.length) ∧
+        TwinEq (findCtorRec (absNIdx c) (absProjCtorRecL ctors))
+          (o.bind fun j => (absProjCtorRecL ctors)[j.val]?)) := by
+  intro o h
+  rcases find_ctor_rec_refines h with ⟨ho, hn⟩ | ⟨j, hj, ho, hs⟩
+  · subst ho; exact ⟨fun _ h => (by cases h), hn⟩
+  · subst ho
+    refine ⟨fun j' h' => (by cases h'; exact hj), ?_⟩
+    show _ = _
+    rw [hs]
+    simp [absProjCtorRecL, hj]
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem find_rec_rec_spec
+    (recs : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
+      arena.handle.EIdx × Std.U64 × Std.U64))
+    (n : arena.handle.NIdx) :
+    LSP (frontend.proj_rec.find_rec_rec recs n)
+      (fun o => (∀ j, o = some j → j.val < recs.val.length) ∧
+        TwinEq (findRecRec (absNIdx n) (absProjRecRecL recs))
+          (o.bind fun j => (absProjRecRecL recs)[j.val]?)) := by
+  intro o h
+  rcases find_rec_rec_refines h with ⟨ho, hn⟩ | ⟨j, hj, ho, hs⟩
+  · subst ho; exact ⟨fun _ h => (by cases h), hn⟩
+  · subst ho
+    refine ⟨fun j' h' => (by cases h'; exact hj), ?_⟩
+    show _ = _
+    rw [hs]
+    simp [absProjRecRecL, hj]
+
+open ConRon.Refine2.Lockstep in
+/-- The port's `T.rec` component: `intern_n_node` at `Str n v` with `v` the
+code points of `M_REC`, against the twin's `internNNode (.str n "rec")`. -/
+@[lockstep] theorem intern_rec_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : arena.handle.NIdx) (v : alloc.vec.Vec Std.U32)
+    (sl : Slice Std.U32) (hsl : lift (Std.Array.to_slice frontend.proj_rec.M_REC) = ok sl)
+    (hv : kernel.core_types.code_points sl = ok v) :
+    LS pers (fun a b => b = absNIdx a) (arena.monad.intern_n_node pers st (.Str n v)) lst
+      (Arena.internNNode (.str (absNIdx n) "rec")) := by
+  have hvv := lit_cps hsl hv
+  have hwf : ConRon.Refine.StrWF v := by
+    intro c hc; rw [hvv] at hc
+    simp only [frontend.proj_rec.M_REC, Std.Array.make] at hc
+    revert c; decide
+  have ha : absNNodeView (.Str n v) = .str (absNIdx n) "rec" := by
+    simp only [absNNodeView, ConRon.Refine.absString, hvv, frontend.proj_rec.M_REC,
+      Std.Array.make]
+    rfl
+  rw [← ha]
+  exact LS.ofSim₀ fun _ h => intern_n_node_run₀ hrel hinv (.Str n v) hwf h
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem nidx_vec_dup_spec' (ns : alloc.vec.Vec arena.handle.NIdx) :
+    LSP (arena.env.nidx_vec_dup ns) (fun r => r.val = ns.val) :=
+  fun _ h => nidx_vec_dup_val h
+
+theorem candidates_from_loop_val (tail : alloc.vec.Vec frontend.types.ProjRecOwner) :
+    ∀ (k : Nat) (out : alloc.vec.Vec frontend.types.ProjRecOwner) (j : Std.Usize) r,
+      tail.val.length - j.val = k →
+      frontend.proj_rec.proj_rec_candidates_from_loop tail out (alloc.vec.Vec.len tail) j = ok r →
+      absProjRecOwnerL r = absProjRecOwnerL out ++ (tail.val.drop j.val).map absProjRecOwner := by
+  intro k
+  induction k with
+  | zero =>
+    intro out j r hk h
+    rw [frontend.proj_rec.proj_rec_candidates_from_loop, if_neg (by scalar_tac)] at h
+    cases Result.ok_injective h
+    rw [List.drop_eq_nil_of_le (by omega)]; simp
+  | succ k ih =>
+    intro out j r hk h
+    have hj : j.val < tail.val.length := by omega
+    rw [frontend.proj_rec.proj_rec_candidates_from_loop, if_pos (by scalar_tac),
+      vec_index_ok_eq tail j hj, bind_tc_ok] at h
+    obtain ⟨p1, hp1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨j1, hj1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hj1v : j1.val = j.val + 1 := (ConRon.Refine.Nat.uadd_val hj1).trans (by simp)
+    rw [ih o1 j1 r (by omega) h, hj1v]
+    simp only [absProjRecOwnerL, ConRon.Refine.vec_push_val ho1, List.map_append, List.map_cons,
+      List.map_nil, proj_rec_owner_dup_refines hp1, List.append_assoc, List.singleton_append,
+      List.drop_eq_getElem_cons hj]
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem candidates_from_loop_spec (tail out : alloc.vec.Vec frontend.types.ProjRecOwner) :
+    LSP (frontend.proj_rec.proj_rec_candidates_from_loop tail out (alloc.vec.Vec.len tail) 0#usize)
+      (fun r => absProjRecOwnerL r = absProjRecOwnerL out ++ absProjRecOwnerL tail) := by
+  intro r h
+  have := candidates_from_loop_val tail _ out 0#usize r rfl h
+  simpa [absProjRecOwnerL] using this
+
+attribute [local lockstep_inline] frontend.proj_rec.proj_rec_candidate_at
+  frontend.proj_rec.proj_rec_candidate_rec
+
+theorem absProjTypeRecLFrom_nil (v : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
+      arena.handle.EIdx × Std.U64 × Std.U64 × (alloc.vec.Vec arena.handle.NIdx) × Bool))
+    (i : Std.Usize) (hi : v.val.length ≤ i.val) : absProjTypeRecLFrom v i = [] := by
+  simp only [absProjTypeRecLFrom]; rw [List.drop_eq_nil_of_le hi]; rfl
+
+theorem absProjTypeRecLFrom_cons (v : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
+      arena.handle.EIdx × Std.U64 × Std.U64 × (alloc.vec.Vec arena.handle.NIdx) × Bool))
+    (i : Std.Usize) (hi : i.val < v.val.length) :
+    absProjTypeRecLFrom v i = absProjTypeRec v.val[i.val] ::
+      (v.val.drop (i.val + 1)).map absProjTypeRec := by
+  simp only [absProjTypeRecLFrom]; rw [List.drop_eq_getElem_cons hi]; rfl
+
+open ConRon.Refine2.Lockstep in
+theorem proj_rec_candidates_from_aux (fuel : Nat) (N : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx))
+      (recs : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
+        arena.handle.EIdx × Std.U64 × Std.U64))
+      (types : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
+        arena.handle.EIdx × Std.U64 × Std.U64 × (alloc.vec.Vec arena.handle.NIdx) × Bool))
+      (i : Std.Usize),
+      types.val.length - i.val = N → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absProjRecOwnerL a)
+        (frontend.proj_rec.proj_rec_candidates_from pers st ctors recs types i) lst
+        (projRecCandidates fuel (absProjCtorRecL ctors) (absProjRecRecL recs)
+          (absProjTypeRecLFrom types i)) := by
+  induction N with
+  | zero =>
+    intro pers st lst ctors recs types i hn hrel hinv
+    rw [frontend.proj_rec.proj_rec_candidates_from, absProjTypeRecLFrom_nil types i (by omega),
+      projRecCandidates, if_pos (by scalar_tac)]
+    lockstep
+  | succ k ih =>
+    intro pers st lst ctors recs types i hn hrel hinv
+    have hi : i.val < types.val.length := by omega
+    rw [frontend.proj_rec.proj_rec_candidates_from, absProjTypeRecLFrom_cons types i hi,
+      if_neg (by scalar_tac)]
+    rw [vec_index_ok_eq types i hi]
+    simp only [bind_tc_ok]
+    rcases hx : types.val[i.val] with ⟨tn, lps, tty, nP, nI, cs, isRec⟩
+    simp only [hx, absProjTypeRec, projRecCandidates]
+    by_cases hl : cs.val.length = 1
+    · obtain ⟨c0, hc0⟩ := List.length_eq_one_iff.mp hl
+      have hcs : List.map absNIdx cs.val = [absNIdx c0] := by simp [hc0]
+      have hidx0 : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice _) cs 0#usize
+          = ok c0 := by
+        rw [vec_index_ok_eq cs 0#usize (by simp [hc0])]; simp [hc0]
+      simp only [hcs]
+      have hidxL : Lockstep.LSP (alloc.vec.Vec.index
+          (core.slice.index.SliceIndexUsizeSlice arena.handle.NIdx) cs 0#usize)
+          (fun x => x = c0) := fun x hx => by rw [hidx0] at hx; exact (Result.ok_injective hx).symm
+      lockstep
+      -- the port's `if tag != ETAG_SORT` against the twin's `if tag == ETag.sort`
+      all_goals first
+        | (rw [if_neg (by
+            rw [‹Idx.tag _ = absU32 _›, Lockstep.absU32_beq_sort]
+            have h := ‹(_ != arena.handle.ETAG_SORT) = true›
+            simp only [bne_iff_ne, ne_eq] at h
+            simpa using h)]
+           lockstep)
+        | (have h := ‹¬(_ != arena.handle.ETAG_SORT) = true›
+           simp only [bne_iff_ne, ne_eq, Decidable.not_not] at h
+           subst h
+           rw [if_pos (by rw [‹Idx.tag _ = absU32 _›, Lockstep.absU32_beq_sort]; simp)]
+           apply Lockstep.LS.twin_view_sort (by rw [‹Idx.tag _ = absU32 _›, etag_sort_abs])
+           lockstep)
+      -- the port's `match is_equiv v1 zero with` against the twin's `if isEquiv … == some true`
+      all_goals
+        rw [hP.2]
+        generalize ConLeche.Level.isEquiv (ConRon.Refine.absLevel _) ConLeche.Level.zero = q
+        rcases q with _ | _ | _
+        all_goals simp (config := {decide := true}) only [if_true, if_false, bind_pure]
+        all_goals simp only [frontend.proj_rec.proj_rec_candidate_rec, hidx0, bind_tc_ok]
+        all_goals lockstep
+        -- `find_ctor_rec` found index `j`: the twin's `findCtorRec` is `ctors[j]`
+        all_goals
+          rename_i jc _ _ _ _ _
+          have hbC : jc.val < ctors.val.length :=
+            ‹∀ (j : Std.Usize), some jc = some j → j.val < ctors.val.length› _ rfl
+          simp only [Option.bind_some, absProjCtorRecL, List.getElem?_map,
+            List.getElem?_eq_getElem hbC, Option.map_some, absProjCtorRec, bind_pure]
+          lockstep
+        -- `find_rec_rec` found index `j1`: the twin's `findRecRec` is `recs[j1]`
+        all_goals
+          have hb := ‹∀ (j : Std.Usize), some _ = some j → j.val < recs.val.length›
+          have hbv := hb _ rfl
+          simp only [Option.bind_some, absProjRecRecL, List.getElem?_map,
+            List.getElem?_eq_getElem hbv, Option.map_some, absProjRecRec, bind_pure]
+          rename_i j1 _ _ _
+          generalize recs.val[j1.val]'hbv = rr
+          rcases rr with ⟨n3, v4, e, i1, i2⟩
+          dsimp only
+          lockstep
+        -- the constructor record `ctors[jc]` the port reads its `n_f` from
+        all_goals
+          simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hc
+          rw [if_neg (by
+            simp only [List.length_map, bne_iff_ne, ne_eq, Decidable.not_not]
+            scalar_tac)]
+          simp only [pure_bind]
+          generalize ctors.val[jc.val]'hbC = rc
+          rcases rc with ⟨c1, nf1, e1⟩
+          dsimp only
+          lockstep
+    · lockstep
+      all_goals
+        split
+        · rename_i heq
+          exact absurd (by simpa using congrArg List.length heq) hl
+        · lockstep
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem proj_rec_candidates_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (fuel : Nat)
+    (ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx))
+    (recs : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
+      arena.handle.EIdx × Std.U64 × Std.U64))
+    (types : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
+      arena.handle.EIdx × Std.U64 × Std.U64 × (alloc.vec.Vec arena.handle.NIdx) × Bool)) :
+    LS pers (fun a b => b = absProjRecOwnerL a)
+      (frontend.proj_rec.proj_rec_candidates pers st ctors recs types) lst
       (projRecCandidates fuel (absProjCtorRecL ctors) (absProjRecRecL recs)
-        (absProjTypeRecLFrom types i)) := by sorry
+        (absProjTypeRecL types)) := by
+  have := proj_rec_candidates_from_aux fuel _ ctors recs types 0#usize rfl hrel hinv
+  rw [frontend.proj_rec.proj_rec_candidates]
+  simpa [absProjTypeRecLFrom, absProjTypeRecL] using this
 
-/-- **`proj_rec_candidates` refines `projRecCandidates`**
-(`ProjRec.lean:452-494`).  Deviation 3: the twin's `fuel` is dead, so the
-statement holds at ANY fuel. -/
-theorem proj_rec_candidates_refines {pers rst lst ctors recs types fuel o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.proj_rec_candidates pers rst ctors recs types = ok o) :
-    Sim₀ absProjRecOwnerL pers lst o
-      (projRecCandidates fuel (absProjCtorRecL ctors) (absProjRecRecL recs)
-        (absProjTypeRecL types)) := by sorry
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem type_names_spec
+    (types : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
+      arena.handle.EIdx × Std.U64 × Std.U64 × (alloc.vec.Vec arena.handle.NIdx) × Bool)) :
+    LSP (frontend.proj_rec.type_names types)
+      (fun v => absNIdxL v = (absProjTypeRecL types).map (·.1)) :=
+  fun _ h => type_names_refines h
 
-/-- **`proj_rec_owners_guard`** — the two delegated block recognisers
-(`structPartsCore?`, `nativeParts?`) and the recursive test, in the twin's own
-CHEAP ORDER (deviation 3 of `ProjRec.lean`: the candidates first, the
-recognisers only when there is a candidate to serve). -/
-theorem proj_rec_owners_guard_refines {pers rst lst fuel block types ctors owners o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.proj_rec_owners_guard pers rst fuel block types ctors
-      owners = ok o) :
-    Sim₀ absProjRecOwnerL pers lst o
-      (projRecOwnersGuard (absU fuel) (absICIL block) (absProjTypeRecL types)
-        (absProjCtorRecL ctors) (absProjRecOwnerL owners)) := by sorry
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem any_is_rec_spec
+    (types : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
+      arena.handle.EIdx × Std.U64 × Std.U64 × (alloc.vec.Vec arena.handle.NIdx) × Bool)) :
+    LSP (frontend.proj_rec.any_is_rec types)
+      (fun v => v = (absProjTypeRecL types).any (·.2.2.2.2.2.2)) :=
+  fun _ h => any_is_rec_refines h
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem declared_num_params_spec
+    (types : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
+      arena.handle.EIdx × Std.U64 × Std.U64 × (alloc.vec.Vec arena.handle.NIdx) × Bool)) :
+    LSP (frontend.proj_rec.declared_num_params types)
+      (fun v => absU v = (((absProjTypeRecL types).head?).map (·.2.2.2.1)).getD 0) :=
+  fun _ h => declared_num_params_refines h
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem struct_parts_core_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (block : alloc.vec.Vec arena.env.IConstantInfo) :
+    LS pers (fun a b => b = Option.map absStructParts a)
+      (arena.inductives.struct_parts.struct_parts_core pers st block) lst
+      (structPartsCore? (absICIL block)) :=
+  LS.ofSim₀ fun _ h => struct_parts_core_refines hrel hinv h
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem native_parts_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n_pd : Std.U64) (block : alloc.vec.Vec arena.env.IConstantInfo) :
+    LS pers (fun a b => b = Option.map absNativeParts a)
+      (arena.inductives.native_parts.native_parts pers st n_pd block) lst
+      (nativeParts? (absU n_pd) (absICIL block)) :=
+  LS.ofSim₀ fun _ h => native_parts_refines hrel hinv h
+
+open ConRon.Refine2.Lockstep in
+/-- **`proj_rec_owners` refines `projRecOwners`** (`ProjRec.lean:498-517`) —
+the owner census; the port's `proj_rec_owners_guard` (called on a non-empty
+candidate list only, which is where the twin runs its guard) inline. -/
+@[lockstep] theorem proj_rec_owners_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (fuel : Std.U64) (block : alloc.vec.Vec arena.env.IConstantInfo)
+    (types : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
+      arena.handle.EIdx × Std.U64 × Std.U64 × (alloc.vec.Vec arena.handle.NIdx) × Bool))
+    (ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx))
+    (recs : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
+      arena.handle.EIdx × Std.U64 × Std.U64)) :
+    LS pers (fun a b => b = absProjRecOwnerL a)
+      (frontend.proj_rec.proj_rec_owners pers st fuel block types ctors recs) lst
+      (projRecOwners (absU fuel) (absICIL block) (absProjTypeRecL types)
+        (absProjCtorRecL ctors) (absProjRecRecL recs)) := by
+  rw [frontend.proj_rec.proj_rec_owners, projRecOwners]
+  refine LS.bind (proj_rec_candidates_ls hrel hinv (absU fuel) ctors recs types) rfl
+    (fun _ _ => by lockstep_errarm) (fun a b st1 lst1 hR hrel1 hinv1 => ?_)
+  subst hR
+  by_cases hnil : a.val = []
+  · have : absProjRecOwnerL a = [] := by simp [absProjRecOwnerL, hnil]
+    have hl0 : (alloc.vec.Vec.len a).val = 0 := by simp [hnil]
+    rw [this]
+    lockstep
+  · obtain ⟨o0, os, hos⟩ := List.exists_cons_of_ne_nil hnil
+    have : absProjRecOwnerL a = absProjRecOwner o0 :: os.map absProjRecOwner := by
+      simp [absProjRecOwnerL, hos]
+    have hl0 : (alloc.vec.Vec.len a).val ≠ 0 := by simp [hos]
+    rw [this]
+    simp only [frontend.proj_rec.proj_rec_owners_guard]
+    rw [← this]
+    lockstep
+    -- the port's `if direct { if recursive {…} }` against the twin's
+    -- `if direct && !recursive`: the recursive arm
+    all_goals
+      rw [if_neg (by simp only [Option.isSome_some, Bool.true_and, Bool.not_eq_true',
+        Bool.not_eq_eq_eq_not, Bool.not_false, Bool.or_eq_true] at *; simp_all)]
+      simp only [bind_pure]
+      lockstep
 
 /-- **`proj_rec_owners` refines `projRecOwners`** (`ProjRec.lean:498-517`) —
 the owner census, and one of the tier's named deliverables. -/
@@ -2176,7 +2464,8 @@ theorem proj_rec_owners_refines {pers rst lst fuel block types ctors recs o}
       = ok o) :
     Sim₀ absProjRecOwnerL pers lst o
       (projRecOwners (absU fuel) (absICIL block) (absProjTypeRecL types)
-        (absProjCtorRecL ctors) (absProjRecRecL recs)) := by sorry
+        (absProjCtorRecL ctors) (absProjRecRecL recs)) :=
+  Lockstep.LS.toSim₀ (proj_rec_owners_ls hrel hinv fuel block types ctors recs) h
 
 #print axioms mk_lams_ls
 #print axioms proj_rec_value_refines
