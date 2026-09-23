@@ -2063,11 +2063,246 @@ theorem divModEnvGuard_run {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
   exact RunsB.matchTy hs6.ok (hie6.findRel hs6.ok dbf)
     (fun ci hf => CIProjNamed_of_find hie6 hf) (denote_ext hbty hs6.ext)
 
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:209-213 reducePinGuard
+con-leche: ConLeche/Kernel/Checker.lean:292-297 divModPinGuard — **the four
+syntactic guards on an interned pin** (bounded, closed, level-monomorphic,
+resolving), as the two pin guards share them: the Fast walks answer
+con-leche's `Bool`s at the pin's denotation.  (Task #97-P3-Checker round 10
+lifted it out of `reducePinGuard_run`, whose tail it was.) -/
+theorem pinGuardWalk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
+    {p : EIdx} {E : Expr} {r : Bool} {s s1 s' : AState}
+    (hck1 : CheckOK μ env fe s1) (hs1x : Ext s.store s1.store)
+    (hs1p : s1.pins = s.pins) (hpd : denoteE s1.store p = some E)
+    (r1 : (do
+        if !(← looseBVarsBoundedFast coreWalkFuel 0 p) then pure false
+        else if ← hasFvarFast coreWalkFuel p then pure false
+        else if !(← allLevelParamsDefined [] p) then pure false
+        else constsResolveFFast fe p : AM Bool) s1 = .ok (r, s')) :
+    CheckOK μ env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
+      r = (E.looseBVarsBounded 0 && (!E.hasFvar &&
+        (E.allLevelParamsDefined [] && E.constsResolve env))) := by
+  have frame : ∀ {t : AState}, t.store = s1.store → t.caches = s1.caches →
+      t.pins = s1.pins → CheckOK μ env fe t ∧ Ext s.store t.store ∧
+        t.pins = s.pins := fun h1 h2 h3 =>
+    ⟨hck1.mono ⟨by rw [h1]; exact hck1.state.wf⟩ (by rw [h1]; exact Ext.refl _)
+      h2 h3, by rw [h1]; exact hs1x, by rw [h3, hs1p]⟩
+  obtain ⟨b2, s2, g2, r2⟩ := AM.bind_ok r1
+  obtain ⟨h2st, h2c, h2p, h2r⟩ := AM.of_run (P := fun t => t = s1)
+    (Q := fun r t => t.store = s1.store ∧ t.caches = s1.caches ∧
+      t.pins = s1.pins ∧ RelV (Expr.looseBVarsBounded 0) s1.store p r)
+    rfl g2 (ConRon.Bridge.ExprOps.looseBVarsBoundedFast_spec coreWalkFuel 0 s1
+      p hck1.state (by rw [hpd]; rfl))
+  have e2 := h2r _ hpd
+  rcases AM.ite_ok r2 with ⟨hc2, k2⟩ | ⟨hc2, k2⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+    obtain ⟨a, b, c⟩ := frame h2st h2c h2p
+    refine ⟨a, b, c, ?_⟩
+    simp only [Bool.not_eq_true'] at hc2
+    rw [← e2, hc2, Bool.false_and]
+  have hc2' : b2 = true := by simpa using hc2
+  obtain ⟨b3, s3, g3, r3⟩ := AM.bind_ok k2
+  have hp2 : denoteE s2.store p = some (E) := by
+    rw [h2st]; exact hpd
+  obtain ⟨h3st, h3c, h3p, h3r⟩ := AM.of_run (P := fun t => t = s2)
+    (Q := fun r t => t.store = s2.store ∧ t.caches = s2.caches ∧
+      t.pins = s2.pins ∧ RelV Expr.hasFvar s2.store p r)
+    rfl g3 (ConRon.Bridge.ExprOps.hasFvarFast_spec coreWalkFuel s2 p
+      (frame h2st h2c h2p).1.state (by rw [hp2]; rfl))
+  have e3 := h3r _ hp2
+  have f3 : s3.store = s1.store := by rw [h3st, h2st]
+  have c3 : s3.caches = s1.caches := by rw [h3c, h2c]
+  have q3 : s3.pins = s1.pins := by rw [h3p, h2p]
+  rcases AM.ite_ok r3 with ⟨hc3, k3⟩ | ⟨hc3, k3⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
+    obtain ⟨a, b, c⟩ := frame f3 c3 q3
+    refine ⟨a, b, c, ?_⟩
+    rw [← e2, hc2', ← e3, hc3]; rfl
+  have hc3' : b3 = false := by simpa using hc3
+  obtain ⟨b4, s4, g4, r4⟩ := AM.bind_ok k3
+  have hp3 : denoteE s3.store p = some (E) := by
+    rw [f3]; exact hpd
+  obtain ⟨h4st, h4c, h4p, h4r⟩ :=
+    allLevelParamsDefined_run (frame f3 c3 q3).1.state rfl hp3 g4
+  have f4 : s4.store = s1.store := by rw [h4st, f3]
+  have c4 : s4.caches = s1.caches := by rw [h4c, c3]
+  have q4 : s4.pins = s1.pins := by rw [h4p, q3]
+  rcases AM.ite_ok r4 with ⟨hc4, k4⟩ | ⟨hc4, k4⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
+    obtain ⟨a, b, c⟩ := frame f4 c4 q4
+    refine ⟨a, b, c, ?_⟩
+    simp only [Bool.not_eq_true'] at hc4
+    rw [← e2, hc2', ← e3, hc3', ← h4r, hc4]; rfl
+  have hc4' : b4 = true := by simpa using hc4
+  have hp4 : denoteE s4.store p = some (E) := by
+    rw [f4]; exact hpd
+  obtain ⟨h5st, h5c, h5p, h5r⟩ :=
+    constsResolveFFast_run (frame f4 c4 q4).1 hp4 k4
+  obtain ⟨a, b, c⟩ := frame (by rw [h5st, f4]) (by rw [h5c, c4]) (by rw [h5p, q4])
+  refine ⟨a, b, c, ?_⟩
+  rw [← e2, hc2', ← e3, hc3', ← h4r, hc4', ← h5r]; rfl
+
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:122-130 divModDeclPin — one
+variant's pinned defining expression: seven pin reads and handle tests, each
+con-leche's name test (`beq_handle_iff`), and the variant's field. -/
+theorem divModDeclPin_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
+    {nm : ConLeche.Name} {p : EIdx} {s s' : AState} (hst : StateOK s)
+    (hp : PinsOK s) (hps : PinSetDenote s.store ps psP)
+    (hn : denoteN s.store.ns cn = some nm)
+    (hrun : Arena.divModDeclPin ps cn s = .ok (p, s')) :
+    s' = s ∧ denoteE s.store p = some (ConLeche.divModDeclPin psP nm) := by
+  simp only [Arena.divModDeclPin] at hrun
+  obtain ⟨h0, u0, g0, w0⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, d0⟩ := pinAt_run (x := ConLeche.natDivName) hp (by rfl) g0
+  have b0 := beq_handle_iff hst.wf hn d0
+  rcases AM.ite_ok w0 with ⟨y0, a0⟩ | ⟨z0, v0⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a0
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModDeclPin, if_pos (b0.mp y0)]
+    exact hps.divPin
+  have nb0 : ¬ (nm = ConLeche.natDivName) := fun h => z0 (b0.mpr h)
+  obtain ⟨h1, u1, g1, w1⟩ := AM.bind_ok v0
+  obtain ⟨rfl, d1⟩ := pinAt_run (x := ConLeche.natGcdName) hp (by rfl) g1
+  have b1 := beq_handle_iff hst.wf hn d1
+  rcases AM.ite_ok w1 with ⟨y1, a1⟩ | ⟨z1, v1⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a1
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModDeclPin, if_neg nb0, if_pos (b1.mp y1)]
+    exact hps.gcdPin
+  have nb1 : ¬ (nm = ConLeche.natGcdName) := fun h => z1 (b1.mpr h)
+  obtain ⟨h2, u2, g2, w2⟩ := AM.bind_ok v1
+  obtain ⟨rfl, d2⟩ := pinAt_run (x := ConLeche.natLandName) hp (by rfl) g2
+  have b2 := beq_handle_iff hst.wf hn d2
+  rcases AM.ite_ok w2 with ⟨y2, a2⟩ | ⟨z2, v2⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a2
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModDeclPin, if_neg nb0, if_neg nb1, if_pos (b2.mp y2)]
+    exact hps.landPin
+  have nb2 : ¬ (nm = ConLeche.natLandName) := fun h => z2 (b2.mpr h)
+  obtain ⟨h3, u3, g3, w3⟩ := AM.bind_ok v2
+  obtain ⟨rfl, d3⟩ := pinAt_run (x := ConLeche.natLorName) hp (by rfl) g3
+  have b3 := beq_handle_iff hst.wf hn d3
+  rcases AM.ite_ok w3 with ⟨y3, a3⟩ | ⟨z3, v3⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a3
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModDeclPin, if_neg nb0, if_neg nb1, if_neg nb2, if_pos (b3.mp y3)]
+    exact hps.lorPin
+  have nb3 : ¬ (nm = ConLeche.natLorName) := fun h => z3 (b3.mpr h)
+  obtain ⟨h4, u4, g4, w4⟩ := AM.bind_ok v3
+  obtain ⟨rfl, d4⟩ := pinAt_run (x := ConLeche.natXorName) hp (by rfl) g4
+  have b4 := beq_handle_iff hst.wf hn d4
+  rcases AM.ite_ok w4 with ⟨y4, a4⟩ | ⟨z4, v4⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a4
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModDeclPin, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_pos (b4.mp y4)]
+    exact hps.xorPin
+  have nb4 : ¬ (nm = ConLeche.natXorName) := fun h => z4 (b4.mpr h)
+  obtain ⟨h5, u5, g5, w5⟩ := AM.bind_ok v4
+  obtain ⟨rfl, d5⟩ := pinAt_run (x := ConLeche.natShiftLeftName) hp (by rfl) g5
+  have b5 := beq_handle_iff hst.wf hn d5
+  rcases AM.ite_ok w5 with ⟨y5, a5⟩ | ⟨z5, v5⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a5
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModDeclPin, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_pos (b5.mp y5)]
+    exact hps.shiftLeftPin
+  have nb5 : ¬ (nm = ConLeche.natShiftLeftName) := fun h => z5 (b5.mpr h)
+  obtain ⟨h6, u6, g6, w6⟩ := AM.bind_ok v5
+  obtain ⟨rfl, d6⟩ := pinAt_run (x := ConLeche.natShiftRightName) hp (by rfl) g6
+  have b6 := beq_handle_iff hst.wf hn d6
+  rcases AM.ite_ok w6 with ⟨y6, a6⟩ | ⟨z6, v6⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a6
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModDeclPin, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_pos (b6.mp y6)]
+    exact hps.shiftRightPin
+  have nb6 : ¬ (nm = ConLeche.natShiftRightName) := fun h => z6 (b6.mpr h)
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok v6
+  refine ⟨rfl, ?_⟩
+  rw [ConLeche.divModDeclPin, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_neg nb6]
+  exact hps.modPin
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:134-142 divModCertProofs — one
+variant's certificate proofs, by the same seven tests. -/
+theorem divModCertProofs_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
+    {nm : ConLeche.Name} {p : List EIdx} {s s' : AState} (hst : StateOK s)
+    (hp : PinsOK s) (hps : PinSetDenote s.store ps psP)
+    (hn : denoteN s.store.ns cn = some nm)
+    (hrun : Arena.divModCertProofs ps cn s = .ok (p, s')) :
+    s' = s ∧ Frontend.denoteEList s.store p = some (ConLeche.divModCertProofs psP nm) := by
+  simp only [Arena.divModCertProofs] at hrun
+  obtain ⟨h0, u0, g0, w0⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, d0⟩ := pinAt_run (x := ConLeche.natDivName) hp (by rfl) g0
+  have b0 := beq_handle_iff hst.wf hn d0
+  rcases AM.ite_ok w0 with ⟨y0, a0⟩ | ⟨z0, v0⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a0
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModCertProofs, if_pos (b0.mp y0)]
+    exact hps.divProofs
+  have nb0 : ¬ (nm = ConLeche.natDivName) := fun h => z0 (b0.mpr h)
+  obtain ⟨h1, u1, g1, w1⟩ := AM.bind_ok v0
+  obtain ⟨rfl, d1⟩ := pinAt_run (x := ConLeche.natGcdName) hp (by rfl) g1
+  have b1 := beq_handle_iff hst.wf hn d1
+  rcases AM.ite_ok w1 with ⟨y1, a1⟩ | ⟨z1, v1⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a1
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModCertProofs, if_neg nb0, if_pos (b1.mp y1)]
+    exact hps.gcdProofs
+  have nb1 : ¬ (nm = ConLeche.natGcdName) := fun h => z1 (b1.mpr h)
+  obtain ⟨h2, u2, g2, w2⟩ := AM.bind_ok v1
+  obtain ⟨rfl, d2⟩ := pinAt_run (x := ConLeche.natLandName) hp (by rfl) g2
+  have b2 := beq_handle_iff hst.wf hn d2
+  rcases AM.ite_ok w2 with ⟨y2, a2⟩ | ⟨z2, v2⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a2
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModCertProofs, if_neg nb0, if_neg nb1, if_pos (b2.mp y2)]
+    exact hps.landProofs
+  have nb2 : ¬ (nm = ConLeche.natLandName) := fun h => z2 (b2.mpr h)
+  obtain ⟨h3, u3, g3, w3⟩ := AM.bind_ok v2
+  obtain ⟨rfl, d3⟩ := pinAt_run (x := ConLeche.natLorName) hp (by rfl) g3
+  have b3 := beq_handle_iff hst.wf hn d3
+  rcases AM.ite_ok w3 with ⟨y3, a3⟩ | ⟨z3, v3⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a3
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModCertProofs, if_neg nb0, if_neg nb1, if_neg nb2, if_pos (b3.mp y3)]
+    exact hps.lorProofs
+  have nb3 : ¬ (nm = ConLeche.natLorName) := fun h => z3 (b3.mpr h)
+  obtain ⟨h4, u4, g4, w4⟩ := AM.bind_ok v3
+  obtain ⟨rfl, d4⟩ := pinAt_run (x := ConLeche.natXorName) hp (by rfl) g4
+  have b4 := beq_handle_iff hst.wf hn d4
+  rcases AM.ite_ok w4 with ⟨y4, a4⟩ | ⟨z4, v4⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a4
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModCertProofs, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_pos (b4.mp y4)]
+    exact hps.xorProofs
+  have nb4 : ¬ (nm = ConLeche.natXorName) := fun h => z4 (b4.mpr h)
+  obtain ⟨h5, u5, g5, w5⟩ := AM.bind_ok v4
+  obtain ⟨rfl, d5⟩ := pinAt_run (x := ConLeche.natShiftLeftName) hp (by rfl) g5
+  have b5 := beq_handle_iff hst.wf hn d5
+  rcases AM.ite_ok w5 with ⟨y5, a5⟩ | ⟨z5, v5⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a5
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModCertProofs, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_pos (b5.mp y5)]
+    exact hps.shiftLeftProofs
+  have nb5 : ¬ (nm = ConLeche.natShiftLeftName) := fun h => z5 (b5.mpr h)
+  obtain ⟨h6, u6, g6, w6⟩ := AM.bind_ok v5
+  obtain ⟨rfl, d6⟩ := pinAt_run (x := ConLeche.natShiftRightName) hp (by rfl) g6
+  have b6 := beq_handle_iff hst.wf hn d6
+  rcases AM.ite_ok w6 with ⟨y6, a6⟩ | ⟨z6, v6⟩
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok a6
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.divModCertProofs, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_pos (b6.mp y6)]
+    exact hps.shiftRightProofs
+  have nb6 : ¬ (nm = ConLeche.natShiftRightName) := fun h => z6 (b6.mpr h)
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok v6
+  refine ⟨rfl, ?_⟩
+  rw [ConLeche.divModCertProofs, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_neg nb6]
+  exact hps.modProofs
+
 /-- con-leche: ConLeche/Kernel/Checker.lean:292-297 divModPinGuard — one
 variant's pin guards.
 
-`sorry`: `divModDeclPin`'s handle-comparison chain against the pins
-(`PinsOK`), then `reducePinGuard_run`'s four walks. -/
+**PROVED** (task #97-P3-Checker round 10): `divModDeclPin_run` (the
+handle-comparison chain against the pins), then `pinGuardWalk_run`, the four
+walks `reducePinGuard_run` shares. -/
 theorem divModPinGuard_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx} {nm : ConLeche.Name}
     {r : Bool} {s s' : AState}
@@ -2076,7 +2311,11 @@ theorem divModPinGuard_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     (hr : Arena.divModPinGuard ps fe cn s = .ok (r, s')) :
     CheckOK μ env fe s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
       r = ConLeche.divModPinGuard psP env nm := by
-  sorry
+  simp only [Arena.divModPinGuard] at hr
+  obtain ⟨p, s1, g1, r1⟩ := AM.bind_ok hr
+  obtain ⟨rfl, hpd⟩ := divModDeclPin_run hck.state hck.pins hps hn g1
+  simp only [ConLeche.divModPinGuard, Bool.and_assoc]
+  exact pinGuardWalk_run hck (Ext.refl _) rfl hpd r1
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:299-306 divModCertsGuard — one
 variant's certificate guards, over the pinned statements.
@@ -2341,7 +2580,8 @@ theorem reduceCertVar_run {cH : NIdx} {cn : ConLeche.Name} {v : EIdx}
   rw [ConLeche.reduceCertVar, this]
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:209-213 reducePinGuard — the
-pin's syntactic guards are con-leche's. -/
+pin's syntactic guards are con-leche's.  `reduceDeclPin_run`, then
+`pinGuardWalk_run`. -/
 theorem reducePinGuard_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     {cH : NIdx} {cn : ConLeche.Name} {r : Bool} {s s' : AState}
     (hck : CheckOK μ env fe s) (hd : denoteN s.store.ns cH = some cn)
@@ -2353,66 +2593,8 @@ theorem reducePinGuard_run {μ : CheckMode} {env : Env} {fe : IFEnv}
   obtain ⟨hs1, hpd⟩ := reduceDeclPin_run hck.state hck.pins hd g1
   have hck1 : CheckOK μ env fe s1 :=
     hck.mono hs1.ok hs1.ext hs1.caches hs1.pins
-  have frame : ∀ {t : AState}, t.store = s1.store → t.caches = s1.caches →
-      t.pins = s1.pins → CheckOK μ env fe t ∧ Ext s.store t.store ∧
-        t.pins = s.pins := fun h1 h2 h3 =>
-    ⟨hck1.mono ⟨by rw [h1]; exact hck1.state.wf⟩ (by rw [h1]; exact Ext.refl _)
-      h2 h3, by rw [h1]; exact hs1.ext, by rw [h3, hs1.pins]⟩
   simp only [ConLeche.reducePinGuard, Bool.and_assoc]
-  obtain ⟨b2, s2, g2, r2⟩ := AM.bind_ok r1
-  obtain ⟨h2st, h2c, h2p, h2r⟩ := AM.of_run (P := fun t => t = s1)
-    (Q := fun r t => t.store = s1.store ∧ t.caches = s1.caches ∧
-      t.pins = s1.pins ∧ RelV (Expr.looseBVarsBounded 0) s1.store p r)
-    rfl g2 (ConRon.Bridge.ExprOps.looseBVarsBoundedFast_spec coreWalkFuel 0 s1
-      p hck1.state (by rw [hpd]; rfl))
-  have e2 := h2r _ hpd
-  rcases AM.ite_ok r2 with ⟨hc2, k2⟩ | ⟨hc2, k2⟩
-  · obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
-    obtain ⟨a, b, c⟩ := frame h2st h2c h2p
-    refine ⟨a, b, c, ?_⟩
-    simp only [Bool.not_eq_true'] at hc2
-    rw [← e2, hc2, Bool.false_and]
-  have hc2' : b2 = true := by simpa using hc2
-  obtain ⟨b3, s3, g3, r3⟩ := AM.bind_ok k2
-  have hp2 : denoteE s2.store p = some (ConLeche.reduceDeclPin cn) := by
-    rw [h2st]; exact hpd
-  obtain ⟨h3st, h3c, h3p, h3r⟩ := AM.of_run (P := fun t => t = s2)
-    (Q := fun r t => t.store = s2.store ∧ t.caches = s2.caches ∧
-      t.pins = s2.pins ∧ RelV Expr.hasFvar s2.store p r)
-    rfl g3 (ConRon.Bridge.ExprOps.hasFvarFast_spec coreWalkFuel s2 p
-      (frame h2st h2c h2p).1.state (by rw [hp2]; rfl))
-  have e3 := h3r _ hp2
-  have f3 : s3.store = s1.store := by rw [h3st, h2st]
-  have c3 : s3.caches = s1.caches := by rw [h3c, h2c]
-  have q3 : s3.pins = s1.pins := by rw [h3p, h2p]
-  rcases AM.ite_ok r3 with ⟨hc3, k3⟩ | ⟨hc3, k3⟩
-  · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
-    obtain ⟨a, b, c⟩ := frame f3 c3 q3
-    refine ⟨a, b, c, ?_⟩
-    rw [← e2, hc2', ← e3, hc3]; rfl
-  have hc3' : b3 = false := by simpa using hc3
-  obtain ⟨b4, s4, g4, r4⟩ := AM.bind_ok k3
-  have hp3 : denoteE s3.store p = some (ConLeche.reduceDeclPin cn) := by
-    rw [f3]; exact hpd
-  obtain ⟨h4st, h4c, h4p, h4r⟩ :=
-    allLevelParamsDefined_run (frame f3 c3 q3).1.state rfl hp3 g4
-  have f4 : s4.store = s1.store := by rw [h4st, f3]
-  have c4 : s4.caches = s1.caches := by rw [h4c, c3]
-  have q4 : s4.pins = s1.pins := by rw [h4p, q3]
-  rcases AM.ite_ok r4 with ⟨hc4, k4⟩ | ⟨hc4, k4⟩
-  · obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
-    obtain ⟨a, b, c⟩ := frame f4 c4 q4
-    refine ⟨a, b, c, ?_⟩
-    simp only [Bool.not_eq_true'] at hc4
-    rw [← e2, hc2', ← e3, hc3', ← h4r, hc4]; rfl
-  have hc4' : b4 = true := by simpa using hc4
-  have hp4 : denoteE s4.store p = some (ConLeche.reduceDeclPin cn) := by
-    rw [f4]; exact hpd
-  obtain ⟨h5st, h5c, h5p, h5r⟩ :=
-    constsResolveFFast_run (frame f4 c4 q4).1 hp4 k4
-  obtain ⟨a, b, c⟩ := frame (by rw [h5st, f4]) (by rw [h5c, c4]) (by rw [h5p, q4])
-  refine ⟨a, b, c, ?_⟩
-  rw [← e2, hc2', ← e3, hc3', ← h4r, hc4', ← h5r]; rfl
+  exact pinGuardWalk_run hck1 hs1.ext hs1.pins hpd r1
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:407-425 checkReducePin — the pure
 side of an accepted gate, at ONE fuel. -/
