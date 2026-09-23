@@ -50194,7 +50194,7 @@ preconditions, each one con-leche's own at the corresponding lemma:
 
 `lake build ConRonBridge`: **643 jobs, green** (634 at the branch point;
 nine new modules).  `lake build ConRonCapstone`: 2 768 jobs, green.
-`scripts/gates.sh` on the merged tree: see the landing commit.
+`scripts/gates.sh` on the merged tree (`arena` `d6288114` merged; the one conflict was `Capstone.lean`, where `arena` had threaded `hk` into `rust_stages` — resolved by passing `CoreSpec.of_core rfl` there too): **all 16 OK** (exit 0; `extract-check` ~120 s, `lake-build` ~50 s, `lake-bridge` ~30 s, `lake-capstone` 3 s).  The gates' report line after the merge reads the capstone at **36 items / 13 modules / 123 tainted, dead weight 713** (top `Refine2.Frontend.push_decl_refines`); the move from 32 is `arena`'s, not this round's.
 
 | | |
 |---|---|
