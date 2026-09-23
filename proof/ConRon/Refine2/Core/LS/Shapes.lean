@@ -402,14 +402,10 @@ theorem proj_nodes_go_aux (n : Nat) :
     intro pers st lst t b nn j hn hrel hinv
     rw [arena.core.proj_nodes_go, projNodesGo]
     lockstep_a2
-    all_goals trace_state
-    all_goals sorry
   | succ m ih =>
     intro pers st lst t b nn j hn hrel hinv
     rw [arena.core.proj_nodes_go, projNodesGo]
     lockstep_a2
-    all_goals trace_state
-    all_goals sorry
 
 @[lockstep] theorem proj_nodes_go_ls {pers st t b n j lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -430,14 +426,10 @@ theorem proj_apps_go_aux (n : Nat) :
     intro pers st lst t us targs b nn j hx hn hrel hinv
     rw [arena.core.proj_apps_go, projAppsGo]
     lockstep_a2
-    all_goals trace_state
-    all_goals sorry
   | succ m ih =>
     intro pers st lst t us targs b nn j hx hn hrel hinv
     rw [arena.core.proj_apps_go, projAppsGo]
     lockstep_a2
-    all_goals trace_state
-    all_goals sorry
 
 @[lockstep] theorem proj_apps_go_ls {pers st t us targs b n j lst}
     (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -454,9 +446,118 @@ theorem proj_apps_go_aux (n : Nat) :
       (etaProjs lfe (absNIdx t) (absLsIdx us) (absEIdxList targs) (absEIdx b) (absU n_f)) := by
   rw [arena.core.eta_projs, etaProjs]
   lockstep_a2
-  all_goals trace_state
-  all_goals sorry
 
 end projs
+
+section rescue
+
+theorem u64_val_beq_two (x : Std.U64) : (x.val == 2) = decide (x = 2#u64) := by
+  by_cases h : x = 2#u64
+  · subst h; rfl
+  · have : x.val ≠ 2 := fun hc => h (UScalar.eq_of_val_eq (by rw [hc]; rfl))
+    simp [h, this]
+
+theorem u64_val_beq (x y : Std.U64) : (x.val == y.val) = decide (x = y) :=
+  (decide_u64_eq x y).symm
+
+attribute [local lockstep_simp] Option.map_none Option.map_some absIProjEntry u64_val_beq_two
+  u64_val_beq
+
+theorem and_rescue_slots_go_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {vis : Std.U64} {st : arena.monad.AState}
+      {fe : arena.env.IFEnv} {lfe : IFEnv} {lst : AState}
+      (an ctor : arena.handle.NIdx) (n_p : Std.U64) (ust : arena.handle.LsIdx) (nn j : Std.U64),
+      nn.val = n → AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+      LS pers (fun a b => b = a)
+        (arena.core.and_rescue_slots_go pers vis st fe an ctor n_p ust nn j) lst
+        (andRescueSlotsGo lfe (absNIdx an) (absNIdx ctor) (absU n_p) (absLsIdx ust) n (absU j)) := by
+  induction n with
+  | zero =>
+    intro pers vis st fe lfe lst an ctor n_p ust nn j hn hrel hinv hctx
+    rw [arena.core.and_rescue_slots_go, andRescueSlotsGo]
+    lockstep_a2
+  | succ m ih =>
+    intro pers vis st fe lfe lst an ctor n_p ust nn j hn hrel hinv hctx
+    rw [arena.core.and_rescue_slots_go, andRescueSlotsGo]
+    lockstep_a2
+
+@[lockstep] theorem and_rescue_slots_go_ls {pers vis st fe lfe an ctor n_p ust n j lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = a)
+      (arena.core.and_rescue_slots_go pers vis st fe an ctor n_p ust n j) lst
+      (andRescueSlotsGo lfe (absNIdx an) (absNIdx ctor) (absU n_p) (absLsIdx ust) (absU n)
+        (absU j)) :=
+  and_rescue_slots_go_aux _ an ctor n_p ust n j rfl hrel hinv hctx
+
+@[lockstep] theorem and_rescue_slots_ls {pers vis st fe lfe ctor n_p ust lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = a)
+      (arena.core.and_rescue_slots pers vis st fe ctor n_p ust) lst
+      (andRescueSlots lfe (absNIdx ctor) (absU n_p) (absLsIdx ust)) := by
+  rw [arena.core.and_rescue_slots, andRescueSlots]
+  lockstep_a2
+
+end rescue
+
+/-! ## The telescope rebuilds -/
+
+section tele
+
+theorem infer_lams_out_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (mode : kernel.env.CheckMode) (d : Std.U64)
+      (stk : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+      (nn : Std.Usize) (cur : arena.handle.EIdx) (prev_pw : kernel.prop_when.PropWhen),
+      ExprOpsHyp pers →
+      (∀ x ∈ stk.val, ConRon.Refine.PropWhenWF x.2.pw) → ConRon.Refine.PropWhenWF prev_pw →
+      nn.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdx a)
+        (arena.core.infer_lams_out pers st mode d stk nn cur prev_pw) lst
+        (inferLamsOut (ConRon.Refine.absMode mode) (absU d)
+          (stk.val.map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)).toArray n
+          (absEIdx cur) (ConRon.Refine.absPropWhen prev_pw)) := by
+  induction n with
+  | zero =>
+    intro pers st lst mode d stk nn cur prev_pw hx hstk hpw hn hrel hinv
+    rw [arena.core.infer_lams_out, inferLamsOut]
+    lockstep_a2
+    all_goals trace_state
+    all_goals sorry
+  | succ m ih =>
+    intro pers st lst mode d stk nn cur prev_pw hx hstk hpw hn hrel hinv
+    rw [arena.core.infer_lams_out, inferLamsOut]
+    lockstep_a2
+    all_goals trace_state
+    all_goals sorry
+
+theorem infer_pis_out_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (mode : kernel.env.CheckMode)
+      (stk : alloc.vec.Vec (arena.handle.LIdx × kernel.prop_when.PropWhen))
+      (nn : Std.Usize) (v : arena.handle.LIdx) (pv : kernel.prop_when.PropWhen),
+      (∀ x ∈ stk.val, ConRon.Refine.PropWhenWF x.2) → ConRon.Refine.PropWhenWF pv →
+      nn.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absLIdx a)
+        (arena.core.infer_pis_out pers st mode stk nn v pv) lst
+        (inferPisOut (ConRon.Refine.absMode mode)
+          (stk.val.map fun p => (absLIdx p.1, ConRon.Refine.absPropWhen p.2)).toArray n
+          (absLIdx v) (ConRon.Refine.absPropWhen pv)) := by
+  induction n with
+  | zero =>
+    intro pers st lst mode stk nn v pv hstk hpw hn hrel hinv
+    rw [arena.core.infer_pis_out, inferPisOut]
+    lockstep_a2
+    all_goals trace_state
+    all_goals sorry
+  | succ m ih =>
+    intro pers st lst mode stk nn v pv hstk hpw hn hrel hinv
+    rw [arena.core.infer_pis_out, inferPisOut]
+    lockstep_a2
+    all_goals trace_state
+    all_goals sorry
+
+end tele
 
 end ConRon.Refine2.Lockstep
