@@ -71,6 +71,7 @@ structure InstListSpec (fuel : Nat) : Prop where
     (Frontend.denoteEList s₁.store vs.toList).isSome = true →
     ⦃fun s => ⌜s = s₁⌝⦄ instantiateListFast fuel e vs d
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₁.store s'.store ∧
+        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         RelEA (fun x ws => x.instantiateList ws.reverse d) s₁.store e
           vs.toList s'.store r⌝⦄
@@ -322,6 +323,7 @@ theorem instPisAtFGo_spec {fuel : Nat} (hil : InstListSpec fuel) :
     (Frontend.denoteEList s₀.store args).isSome = true →
     ⦃fun s => ⌜s = s₀⌝⦄ instPisAtFGo fuel acc args h
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelEPAA (fun e eacc es => Expr.instPisAtFGo eacc.reverse es e)
           s₀.store h acc.toList args s'.store r⌝⦄ := by
@@ -337,7 +339,8 @@ theorem instPisAtFGo_spec {fuel : Nat} (hil : InstListSpec fuel) :
        first
        | assumption
        | (refine ⟨by first | arm_hyp | exact ⟨by arm_hyp⟩,
-            by grind only [Ext.trans], by grind, by grind, ?_⟩
+            by grind only [Ext.trans],
+            by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
           exact RelEPAA.nil_step (by arm_hyp) (fun _ _ => rfl)))
   | cons a as ih =>
     intro s₀ acc h hok hden hacc hargs
@@ -357,7 +360,8 @@ theorem instPisAtFGo_spec {fuel : Nat} (hil : InstListSpec fuel) :
        first
        | assumption
        | (refine ⟨by first | arm_hyp | exact ⟨by arm_hyp⟩,
-            by grind only [Ext.trans], by grind, by grind, ?_⟩
+            by grind only [Ext.trans],
+            by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
           first
           | exact RelEPAA.forallE_step
               (Fr := fun e eacc es => Expr.instPisAtFGo eacc.reverse es e)
@@ -368,7 +372,7 @@ theorem instPisAtFGo_spec {fuel : Nat} (hil : InstListSpec fuel) :
               (Fr := fun e eacc es => Expr.instPisAtFGo eacc.reverse es e)
               hok.wf (by arm_hyp) hea (by arm_hyp) (by simp)
               (fun _ _ _ hh x => instPisAtFGo_cons_none hh x _))
-       | exact ⟨hok, Ext.refl _, rfl, rfl,
+       | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl,
            RelEPAA.none_of_view_cons hok.wf (by arm_hyp) (fun e ws x xs he =>
              instPisAtFGo_of_not_forallE
                (denoteEView_not_forallE he (by assumption)))⟩
@@ -389,6 +393,7 @@ theorem instLamsAtFGo_spec {fuel : Nat} (hil : InstListSpec fuel) :
     (Frontend.denoteEList s₀.store args).isSome = true →
     ⦃fun s => ⌜s = s₀⌝⦄ instLamsAtFGo fuel acc args h
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelEPAA (fun e eacc es => Expr.instLamsAtFGo eacc.reverse es e)
           s₀.store h acc.toList args s'.store r⌝⦄ := by
@@ -404,7 +409,8 @@ theorem instLamsAtFGo_spec {fuel : Nat} (hil : InstListSpec fuel) :
        first
        | assumption
        | (refine ⟨by first | arm_hyp | exact ⟨by arm_hyp⟩,
-            by grind only [Ext.trans], by grind, by grind, ?_⟩
+            by grind only [Ext.trans],
+            by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
           exact RelEPAA.nil_step (by arm_hyp) (fun _ _ => rfl)))
   | cons a as ih =>
     intro s₀ acc h hok hden hacc hargs
@@ -421,7 +427,8 @@ theorem instLamsAtFGo_spec {fuel : Nat} (hil : InstListSpec fuel) :
        first
        | assumption
        | (refine ⟨by first | arm_hyp | exact ⟨by arm_hyp⟩,
-            by grind only [Ext.trans], by grind, by grind, ?_⟩
+            by grind only [Ext.trans],
+            by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
           first
           | exact RelEPAA.lam_step
               (Fr := fun e eacc es => Expr.instLamsAtFGo eacc.reverse es e)
@@ -432,7 +439,7 @@ theorem instLamsAtFGo_spec {fuel : Nat} (hil : InstListSpec fuel) :
               (Fr := fun e eacc es => Expr.instLamsAtFGo eacc.reverse es e)
               hok.wf (by arm_hyp) hea (by arm_hyp) (by simp)
               (fun _ _ _ hh x => instLamsAtFGo_cons_none hh x _))
-       | exact ⟨hok, Ext.refl _, rfl, rfl,
+       | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl,
            RelEPAA.none_of_view_cons hok.wf (by arm_hyp) (fun e ws x xs he =>
              instLamsAtFGo_of_not_lam
                (denoteEView_not_lam he (by assumption)))⟩
@@ -520,6 +527,7 @@ theorem instPisAtF_spec {fuel : Nat} (hil : InstListSpec fuel)
     (hargs : (Frontend.denoteEList s₀.store args).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ instPisAtF fuel args h
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelEPA (fun e es => Expr.instPisAtF es e) s₀.store h args
           s'.store r⌝⦄ := by
@@ -537,7 +545,8 @@ theorem instPisAtF_spec {fuel : Nat} (hil : InstListSpec fuel)
      | exact denote_isSome_ext (by arm_hyp) (by arm_hyp)
      | exact denoteEList_isSome_ext (by arm_hyp) (by arm_hyp)
      | (refine ⟨by first | arm_hyp | exact ⟨by arm_hyp⟩,
-          by grind only [Ext.trans], by grind, by grind, ?_⟩
+          by grind only [Ext.trans],
+          by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
         first
         | exact RelEPA.of_go_some (by arm_hyp)
             (fun _ _ _ _ hh => instPisAtF_of_some hh)
@@ -553,6 +562,7 @@ theorem instLamsAtF_spec {fuel : Nat} (hil : InstListSpec fuel)
     (hargs : (Frontend.denoteEList s₀.store args).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ instLamsAtF fuel args h
     ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelEPA (fun e es => Expr.instLamsAtF es e) s₀.store h args
           s'.store r⌝⦄ := by
@@ -567,7 +577,8 @@ theorem instLamsAtF_spec {fuel : Nat} (hil : InstListSpec fuel)
      | exact denote_isSome_ext (by arm_hyp) (by arm_hyp)
      | exact denoteEList_isSome_ext (by arm_hyp) (by arm_hyp)
      | (refine ⟨by first | arm_hyp | exact ⟨by arm_hyp⟩,
-          by grind only [Ext.trans], by grind, by grind, ?_⟩
+          by grind only [Ext.trans],
+          by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
         first
         | exact RelEPA.of_go_some (by arm_hyp)
             (fun _ _ _ _ hh => instLamsAtF_of_some hh)
@@ -821,7 +832,8 @@ theorem recRulePlain_spec (fuel : Nat) (s₀ : AState) (recTy : EIdx)
     (mI rP cnP : Nat) (hok : StateOK s₀)
     (hden : (denoteE s₀.store recTy).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ recRulePlain fuel recTy mI rP cnP
-    ⦃⇓? b s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧ s'.memos = s₀.memos ∧
+    ⦃⇓? b s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧ s'.memos = s₀.memos ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelV (fun x => Expr.recRulePlain x mI rP cnP) s₀.store recTy b⌝⦄ := by
   have hstrip := stripPis_spec mI
@@ -836,13 +848,15 @@ theorem recRulePlain_spec (fuel : Nat) (s₀ : AState) (recTy : EIdx)
      | assumption
      | exact (isSome_forallE hok.wf (by arm_hyp)
          (RelBP.snd_isSome (by arm_hyp) hrecTy)).1
-     | exact ⟨hok, Ext.refl _, rfl, rfl, rfl, recRulePlain_notLe (by grind)⟩
-     | exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
+     | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, recRulePlain_notLe (by grind)⟩
+     | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
          recRulePlain_stripNone hrecTy (by arm_hyp)⟩
-     | exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
+     | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
          recRulePlain_notPi hok.wf hrecTy (by arm_hyp) (by arm_hyp)
            (by assumption)⟩
-     | (refine ⟨by arm_hyp, by arm_hyp, by arm_hyp, by arm_hyp, by arm_hyp,
+     | (refine ⟨by arm_hyp, by arm_hyp,
+          by grind only [BMExt.trans, BMExt.refl],
+          by arm_hyp, by arm_hyp, by arm_hyp,
           ?_⟩
         exact recRulePlain_canonical hok.wf hrecTy (by arm_hyp) (by arm_hyp)
           (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) (by grind))

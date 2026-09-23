@@ -427,7 +427,41 @@ theorem cons_sum_ctors_refines {n_p : Std.U64}
     (hrun : arena.inductives.sum_install.cons_sum_ctors n_p ctors i rf = ok o) :
     IFEnvRel o (consSumCtors (absU n_p) (absCtorsLFrom ctors i) lf) ∧
       IFEnvInv o := by
-  sorry
+  refine cursor_induction (fun i : Std.Usize => i.val) ctors.val.length
+    (fun i rf => ∀ lf o, IFEnvRel rf lf → IFEnvInv rf →
+      arena.inductives.sum_install.cons_sum_ctors n_p ctors i rf = ok o →
+      IFEnvRel o (consSumCtors (absU n_p) (absCtorsLFrom ctors i) lf) ∧ IFEnvInv o)
+    ?_ ?_ i rf lf o hfe hfinv hrun
+  · intro i rf hn lf o hfe hfinv h
+    rw [arena.inductives.sum_install.cons_sum_ctors.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len ctors by scalar_tac)] at h
+    obtain rfl := Result.ok_injective h
+    rw [absCtorsLFrom, List.drop_eq_nil_of_le hn]
+    exact ⟨hfe, hfinv⟩
+  · intro i rf hi ih lf o hfe hfinv h
+    rw [arena.inductives.sum_install.cons_sum_ctors.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ctors by scalar_tac)] at h
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨iv, nf⟩ := p
+    obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨fe1, hfe1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hx : ctors.val[i.val]? = some (iv, nf) := vec_index_some hp
+    obtain ⟨hb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
+    obtain ⟨hrel1, hinv1⟩ := ifenv_push_refines hfe hfinv hfe1
+    have h3 : i3.val = i.val + 1 := by
+      have := ConRon.Refine.Nat.uadd_val hi3; simpa using this
+    have hdrop : absCtorsLFrom ctors i
+        = (absIConstantVal iv, absU nf) :: absCtorsLFrom ctors i3 := by
+      rw [absCtorsLFrom, absCtorsLFrom, h3,
+        List.drop_eq_getElem_cons hb, hxv]
+      simp
+    rw [hdrop, consSumCtors]
+    refine ih i3 fe1 h3 _ o ?_ hinv1 h
+    have : absIConstantInfo (arena.env.IConstantInfo.CtorInfo iv1 n_p nf)
+        = IConstantInfo.ctorInfo (absIConstantVal iv) (absU n_p) (absU nf) := by
+      simp [absIConstantInfo, i_constant_val_dup_abs hiv1]
+    rwa [this] at hrel1
 
 /-- `sum_rules` ⊑ `sumRules` from the cursor on, with the accumulated rules in
 front. -/
@@ -447,5 +481,14 @@ theorem sum_rules_refines {pers st lst} {vis : Std.U64} {rf lf}
         (← sumRules lf (absNIdx rec_name) (absU n_p) (absU m_i) (absU r_p)
           (absEIdx rec_ty) (absCtorsLFrom ctors i) (absEIdxLFrom rhss i)))) := by
   sorry
+
+/-! ## The axiom census
+
+`cons_sum_ctors_refines` is round 3 §R3.5's `ifenv_push` obligation cashed:
+`Refine2/Checker/Shape.lean`'s `ifenv_push_refines` landed in round 4's second
+`arena` merge, and this is the fold that was waiting on it. -/
+
+/-- info: 'ConRon.Refine2.cons_sum_ctors_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms cons_sum_ctors_refines
 
 end ConRon.Refine2
