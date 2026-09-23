@@ -733,8 +733,7 @@ environment phase B checks it against (phase A made them; they are that
 environment's constant's type and value). -/
 def VGResolves (Good : IFEnv → AState → Prop) (fe : IFEnv) (g : ValueGroup) :
     Prop :=
-  ∀ s, Good fe s → ExprOps.EResolves s g.cvA.type ∧ ExprOps.EResolves s g.jv ∧
-    (denoteN s.store.ns g.cvA.name).isSome = true
+  ∀ s, Good fe s → ExprOps.EResolves s g.cvA.type ∧ ExprOps.EResolves s g.jv
 
 /-- **What Theorem 2 consumes of Theorem 1's invariant `Good`** (ruling 2).
 Every field is a statement about the TWIN alone, over `Good` states: the Core
@@ -781,17 +780,6 @@ structure ResolveInv (mode : ConLeche.CheckMode) (Good : IFEnv → AState → Pr
   checkConstantVal : ∀ {fe : IFEnv} {cv c : IConstantVal} {s s' : AState},
     Good fe s → checkConstantVal mode fe cv s = .ok (c, s') →
     Good fe s' ∧ ExprOps.EResolves s' c.type
-  /-- `lvlEq?` (the theorem arm's is-a-proposition test) keeps `Good` — it
-  writes the `lvlEqC` and `readLC` caches only (task #97-P5-Top round 3). -/
-  lvlEq : ∀ {fe : IFEnv} {u v : LIdx} {b : Option Bool} {s s' : AState},
-    Good fe s → lvlEq? u v s = .ok (b, s') → Good fe s'
-  /-- `installValue` answers a resolving handle, and keeps `Good` (task
-  #97-P5-Top round 3: `check_value_group_value` hands its answer to the
-  tail's inference). -/
-  installValue : ∀ {fe : IFEnv} {v : Nat} {cv : IConstantVal} {e w : EIdx}
-    {s s' : AState}, Good fe s → ExprOps.EResolves s e →
-    installValue mode (fe.restrictTo v) cv e s = .ok (w, s') →
-    ExprOps.EResolves s' w ∧ Good fe s'
 
 /-! ### Twin readers leave the state alone
 
@@ -1567,32 +1555,47 @@ theorem install_value_refines {pers st lst} {vis : Std.U64} {rf lf}
         (absIConstantVal cv) (absEIdx value)) := by
   sorry
 
-/-- `readName` at a name that decodes answers it and leaves the state alone. -/
-theorem readName_run_of_denote {lst : AState} {h : NIdx} {x : ConLeche.Name}
-    (hd : denoteN lst.store.ns h = some x) : (readName h).run lst = .ok (x, lst) := by
-  show (readName h) lst = _
-  simp only [readName, Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-    Pure.pure, StateT.pure, Except.bind, Except.pure, hd]
+/-- `check_value_group_value` is `check_value_group`'s middle: the theorem's
+is-a-proposition test and, for a theorem, the value's guards and annotation.
 
-/-- A name that decodes still decodes after an extension. -/
-theorem denoteN_isSome_of_ext {st st' : EStore} {h : NIdx} (hext : Ext st st')
-    (hd : (denoteN st.ns h).isSome = true) : (denoteN st'.ns h).isSome = true := by
-  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hd
-  show (denoteN st'.lss.ls.ns h).isSome = true
-  rw [hext.lss.ls.ns h x hx]
-  rfl
+**Open, and stopped on a divergence** (task #97-P5-Top round 3).  The glue is
+written in the round-3 log (`is_thm ; zero_level ; lvl_eq ; lift_fueled ;
+install_value ; check_value_group_tail`, with `lvl_eq_refines` above), but it
+closes only with three clauses the statement does not have and, by the
+coordinator's round-3 rule, must not grow:
+
+* the NOT-A-PROPOSITION decline: the Rust fails with the constant message
+  `M_THM_NOT_PROP`, the twin with `s!"… {← readName g.cvA.name} …"` — a store
+  READ on the twin side only, which throws `.internal` where the name does not
+  decode, so the kinds differ there (the same divergence as `checkDecl`'s
+  `.defnDecl` arm, round 4 §4);
+* `Good` across `lvlEq?` and `installValue` (two `ResolveInv` fields), needed
+  only because `install_value_refines` and the tail's Core front door take
+  `Good`/`EResolves` — the front doors' tag-versus-view divergence (task
+  #97-P5-0's finding 3). -/
+theorem check_value_group_value_refines {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
+    {u : arena.handle.LIdx} {o} {Good : IFEnv → AState → Prop}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hR : ResolveInv (ConRon.Refine.absMode mode) Good) (hg : Good lf lst)
+    (hvg : VGResolves Good lf (absValueGroup g))
+    (hrun : arena.checker_split.check_value_group_value pers vis st mode rf g u
+      = ok o) :
+    Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
+      (checkValueGroupValueSpec (ConRon.Refine.absMode mode)
+        (lf.restrictTo (absU vis)) (absValueGroup g) (absLIdx u)) := by
+  sorry
 
 /-- `check_value_group_tail` is `check_value_group`'s tail: the value's type
 against the declared one.
 
-**PROVED** (task #97-P5-Top round 3): `infer_type_core ; is_def_eq_core`
-through the Core front doors at the prefix view, exactly as
-`check_value_group_refines`' first two steps.  The inferred type resolves by
-`ResolveInv.infer`, which also keeps `Good`, so `VGResolves` at the
-post-inference state gives the declared type's `EResolves` for the
-conversion.  The mismatch message is the one place the twin reads a name:
-`VGResolves`' third conjunct, carried forward by the two steps' `Ext`, makes
-`readName` answer, so the twin's failure is `.invalid` as the port's is. -/
+**Open, and stopped on a divergence** (task #97-P5-Top round 3): the
+type-mismatch decline is `Invalid (value_kind_word g.kind)` in the Rust and
+`s!"type mismatch in {g.kind.word} {← readName g.cvA.name}"` in the twin — a
+twin-only store read that throws `.internal` at a dangling name.  Everything
+else composes from the statement's own hypotheses (`infer_type_core`,
+`is_def_eq_core` at the prefix view, `ResolveInv.infer`, `VGResolves`). -/
 theorem check_value_group_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
     {jv : arena.handle.EIdx} {o} {Good : IFEnv → AState → Prop}
@@ -1606,197 +1609,8 @@ theorem check_value_group_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
       (checkValueGroupTailSpec (ConRon.Refine.absMode mode)
         (lf.restrictTo (absU vis)) (absValueGroup g) (absEIdx jv)) := by
-  have hctx := IFEnvInv.coreCtxAt vis hfe hfinv
-  have hnm0 := (hvg lst hg).2.2
-  rw [arena.checker_split.check_value_group_tail] at hrun
-  unfold Sim
-  unfold checkValueGroupTailSpec
-  rw [show (absValueGroup g).cvA.type = absEIdx g.cv_a.ty from rfl]
-  have h0 : absU (0#u64) = 0 := rfl
-  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨r1, st1⟩ := q1
-  have hS1 := infer_type_core_refines knotRel_checkFuel' hrel hinv hctx hrel.storeWF
-    hjv check_fuel_abs hq1
-  rw [h0] at hS1
-  cases r1 with
-  | Err e =>
-    have ho := Result.ok_injective hrun
-    subst ho
-    exact AOut.errBind hS1
-  | Ok vtype =>
-  obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
-  obtain ⟨hres1, hg1⟩ := hR.infer hg hjv hx1
-  rw [run_bind_ok hx1]
-  refine AOut.rebase hext1 ?_
-  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨r2, st2⟩ := q2
-  have hS2 := is_def_eq_core_refines knotRel_checkFuel' hrel1 hinv1 hctx hrel1.storeWF
-    hres1 (hvg lst1 hg1).1 check_fuel_abs hq2
-  rw [h0] at hS2
-  cases r2 with
-  | Err e =>
-    have ho := Result.ok_injective hrun
-    subst ho
-    exact AOut.errBind hS2
-  | Ok ok1 =>
-  obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
-  rw [run_bind_ok hx2]
-  refine AOut.rebase hext2 ?_
-  cases ok1 with
-  | true =>
-    have ho := (Result.ok_injective hrun).symm
-    subst ho
-    exact AOut.ok rfl hrel2 hinv2 (Ext.refl _) trivial
-  | false =>
-    try simp only [Bool.false_eq_true, if_false] at hrun
-    obtain ⟨w, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨r3, hr3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    rw [arena.monad.fail] at hr3
-    have ho := (Result.ok_injective hrun).symm
-    subst ho
-    have hr3' := (Result.ok_injective hr3).symm
-    subst hr3'
-    have hnm2 := denoteN_isSome_of_ext hext2 (denoteN_isSome_of_ext hext1 hnm0)
-    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hnm2
-    refine AOut.err ?_
-    simp only [id, Bool.false_eq_true, ↓reduceIte]
-    rw [run_bind_ok (readName_run_of_denote hx)]
-    exact AErrSim.invalid rfl
+  sorry
 
-/-- `check_value_group_value` is `check_value_group`'s middle: the theorem's
-is-a-proposition test and, for a theorem, the value's guards and annotation.
-
-**PROVED** (task #97-P5-Top round 3), glue: `is_thm`, then on the theorem arm
-`zero_level` (`pin_zero_level_refines`), `lvl_eq` (`lvl_eq_refines`, new
-here), `lift_fueled`, `install_value_refines` and the tail; on the other arms
-the tail at the value itself.  Two `ResolveInv` fields carry `Good` across the
-arm: `lvlEq` (the comparison writes caches only) and `installValue` (the
-annotated value resolves, which the tail's inference needs).  The
-not-a-proposition decline reads the name, as the tail's mismatch does. -/
-theorem check_value_group_value_refines {pers st lst} {vis : Std.U64} {rf lf}
-    {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
-    {u : arena.handle.LIdx} {o} {Good : IFEnv → AState → Prop}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hR : ResolveInv (ConRon.Refine.absMode mode) Good) (hg : Good lf lst)
-    (hvg : VGResolves Good lf (absValueGroup g))
-    (hrun : arena.checker_split.check_value_group_value pers vis st mode rf g u
-      = ok o) :
-    Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
-      (checkValueGroupValueSpec (ConRon.Refine.absMode mode)
-        (lf.restrictTo (absU vis)) (absValueGroup g) (absLIdx u)) := by
-  obtain ⟨-, hjv0, hnm0⟩ := hvg lst hg
-  rw [arena.checker_split.check_value_group_value] at hrun
-  obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hb' := is_thm_refines hb
-  unfold Sim
-  unfold checkValueGroupValueSpec
-  cases b with
-  | false =>
-    simp only [Bool.false_eq_true, if_false] at hrun
-    obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    rw [dupId_eidx _ _ he] at hrun
-    have hk : ((absValueGroup g).kind == .thm) = false := by
-      rw [show (absValueGroup g).kind = absValueKind g.kind from rfl]; exact hb'.symm
-    rw [if_neg (by rw [hk]; decide)]
-    rw [run_bind_ok (show (pure (absValueGroup g).jv : AM EIdx).run lst
-      = .ok ((absValueGroup g).jv, lst) from rfl)]
-    exact check_value_group_tail_refines hrel hinv hfe hfinv hR hg hvg hjv0 hrun
-  | true =>
-    simp only [if_true] at hrun
-    have hk : ((absValueGroup g).kind == .thm) = true := by
-      rw [show (absValueGroup g).kind = absValueKind g.kind from rfl]; exact hb'.symm
-    rw [if_pos hk]
-    obtain ⟨rz, hz, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    rw [arena.core.zero_level] at hz
-    have hZ := pin_zero_level_refines hrel hinv hz
-    cases rz with
-    | Err e =>
-      have ho := Result.ok_injective hrun
-      subst ho
-      refine AOut.err ?_
-      rw [am_run_bind']
-      exact AErrSim.bind hZ _
-    | Ok z =>
-    have hZ' : (zeroLevel).run lst = .ok (absLIdx z, lst) := hZ
-    rw [run_bind_ok hZ']
-    obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨r1, st1⟩ := q1
-    have hS1 := lvl_eq_refines hrel hinv hq1
-    cases r1 with
-    | Err e =>
-      have ho := Result.ok_injective hrun
-      subst ho
-      exact AOut.errBind hS1
-    | Ok ob =>
-    obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
-    have hg1 := hR.lvlEq hg hx1
-    rw [run_bind_ok hx1]
-    refine AOut.rebase hext1 ?_
-    obtain ⟨rf2, hf2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    rw [arena.core.lift_fueled.eq_def] at hf2
-    cases ob with
-    | none =>
-      obtain ⟨sl, -, hf2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hf2
-      obtain ⟨cps, -, hf2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hf2
-      rw [arena.monad.fail] at hf2
-      have h2 := (Result.ok_injective hf2).symm
-      subst h2
-      have ho := Result.ok_injective hrun
-      subst ho
-      refine AOut.err (AErrSim.mk
-        (le := .internal s!"fuel exhausted: {"level comparison"}") ?_ rfl)
-      rfl
-    | some isp =>
-    have h2 := (Result.ok_injective hf2).symm
-    subst h2
-    simp only [id]
-    rw [run_bind_ok (show (liftFueled "level comparison" (some isp) : AM Bool).run lst1
-      = .ok (isp, lst1) from rfl)]
-    cases isp with
-    | false =>
-      simp only [Bool.false_eq_true, if_false] at hrun
-      obtain ⟨sl, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      obtain ⟨cps, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      obtain ⟨r3, hr3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      rw [arena.monad.fail] at hr3
-      have hr3' := (Result.ok_injective hr3).symm
-      subst hr3'
-      have ho := (Result.ok_injective hrun).symm
-      subst ho
-      have hnm1 := denoteN_isSome_of_ext hext1 hnm0
-      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hnm1
-      refine AOut.err ?_
-      simp only [Bool.false_eq_true, ↓reduceIte]
-      rw [run_bind_ok (readName_run_of_denote hx)]
-      exact AErrSim.invalid rfl
-    | true =>
-      simp only [if_true] at hrun
-      obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      obtain ⟨r3, st2⟩ := q3
-      have hS3 := install_value_refines hrel1 hinv1 hfe hfinv hR hg1
-        (fun s hs x hx => by
-          simp only [List.mem_singleton] at hx
-          subst hx
-          exact (hvg s hs).2.1) hq3
-      cases r3 with
-      | Err e =>
-        have ho := Result.ok_injective hrun
-        subst ho
-        simp only [↓reduceIte]
-        rw [run_bind_ok (show (pure PUnit.unit : AM PUnit).run lst1
-          = .ok (PUnit.unit, lst1) from rfl)]
-        exact AOut.errBind hS3
-      | Ok jv =>
-      obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS3
-      obtain ⟨hres2, hg2⟩ := hR.installValue hg1 (hvg lst1 hg1).2.1 hx2
-      simp only [↓reduceIte]
-      rw [run_bind_ok (show (pure PUnit.unit : AM PUnit).run lst1
-          = .ok (PUnit.unit, lst1) from rfl),
-        show (absValueGroup g).cvA = absIConstantVal g.cv_a from rfl,
-        show (absValueGroup g).jv = absEIdx g.jv from rfl, run_bind_ok hx2]
-      refine AOut.rebase hext2 ?_
-      exact check_value_group_tail_refines hrel2 hinv2 hfe hfinv hR hg2 hvg hres2 hrun
 /-- **`check_value_group` ⊑ `checkValueGroup`** — the check half of a value
 declaration, at the environment the constant was installed at.
 
