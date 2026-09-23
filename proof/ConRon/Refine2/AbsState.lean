@@ -432,6 +432,20 @@ port's `Vec` is oldest-first, its index storing a position into it. -/
 def absIEnv (e : arena.env.IEnv) : IEnv :=
   ⟨(e.consts.val.map absIConstantInfo).reverse⟩
 
+/-- **The index clause `index_promoted` needs** (a statement gap, found by this
+task): every row of the port's index points at a slot whose constant carries
+the row's key.  `IFEnvRel` reads a row THROUGH its position, so overwriting a
+slot moves every row that points at it; the twin re-indexes by NAME.  The two
+agree exactly when the rows at a slot are keyed by that slot's name.  It is a
+fact about the Rust `IFEnv` alone (every writer — `mk_ifenv_go`,
+`ifenv_push`, `index_promoted` — stores its own constant's name at its own
+slot), a key predicate on the Rust `IFEnv`, carried by `IFEnvRel.keys` (task
+#97-P5-Core round 5, the coordinator's ruling; found by task #97-T2-LOCKSTEP
+lane Promote). -/
+def IFEnvKeys (rf : arena.env.IFEnv) : Prop :=
+  ∀ k p, ConRon.Refine.HashMap2.toFun rf.idx k = some p →
+    ∃ ci, rf.env.consts.val[p.2.val]? = some ci ∧ (absIConstantInfo ci).name = absNIdx k
+
 /-- **The Rust-side representation predicate of a stored constant** (task
 #97-P5-Core round 5, coordinator's ruling (d)): the data a lockstep step reads
 out of the environment and hands to a function that is exact only on
@@ -464,6 +478,9 @@ structure IFEnvRel (rf : arena.env.IFEnv) (lf : IFEnv) : Prop where
   /-- The stored constants are canonical Rust data (`IConstantInfoWF`): a
   Rust environment represents a twin one only when it is. -/
   envWF : ∀ ci ∈ rf.env.consts.val, IConstantInfoWF ci
+  /-- Every index row points at a slot whose constant carries the row's key
+  (`IFEnvKeys`). -/
+  keys : IFEnvKeys rf
 
 /-- **SEAM, routed to the Checker lane** (task #97-P5-Core round 5, ruling
 (d)): a constant the checker PUSHES onto the environment is canonical Rust

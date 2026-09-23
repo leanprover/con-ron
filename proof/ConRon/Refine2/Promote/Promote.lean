@@ -1496,7 +1496,13 @@ theorem erase_installed_refines {rf lf} {i : Std.Usize} {o}
                      (rf.env.consts.val.length - i.val)) })
       ∧ IFEnvInv o := by
   obtain ⟨he, hv, hI, hidx⟩ := erase_installed_aux _ rfl hfinv hrun
-  refine ⟨⟨?_, ?_, ?_, by rw [he]; exact hfe.envWF⟩, hI⟩
+  refine ⟨⟨?_, ?_, ?_, by rw [he]; exact hfe.envWF, fun k p hp => ?_⟩, hI⟩
+  · -- the keys: `erase_installed` only removes rows
+    rw [hidx k] at hp
+    split at hp
+    · cases hp
+    · obtain ⟨c, hc, hcn⟩ := hfe.keys k p hp
+      exact ⟨c, by rw [he]; exact hc, hcn⟩
   · show lf.env = absIEnv o.env
     rw [he]; exact hfe.env
   · intro k
@@ -1566,18 +1572,6 @@ theorem indexPromotedTwin_succ (m : PMemo) (fuel : Nat) (cs : List IConstantInfo
   funext q
   obtain ⟨m'', mid⟩ := q
   simp [indexPromoted, List.append_assoc]
-
-/-- **The index clause `index_promoted` needs** (a statement gap, found by this
-task): every row of the port's index points at a slot whose constant carries
-the row's key.  `IFEnvRel` reads a row THROUGH its position, so overwriting a
-slot moves every row that points at it; the twin re-indexes by NAME.  The two
-agree exactly when the rows at a slot are keyed by that slot's name.  It is a
-fact about the Rust `IFEnv` alone (every writer — `mk_ifenv_go`,
-`ifenv_push`, `index_promoted` — stores its own constant's name at its own
-slot), the kind of representation invariant `IFEnvInv` carries. -/
-def IFEnvKeys (rf : arena.env.IFEnv) : Prop :=
-  ∀ k p, ConRon.Refine.HashMap2.toFun rf.idx k = some p →
-    ∃ ci, rf.env.consts.val[p.2.val]? = some ci ∧ (absIConstantInfo ci).name = absNIdx k
 
 theorem reverse_set' {α : Type} (l : List α) (i : Nat) (x : α) (h : i < l.length) :
     (l.set i x).reverse = l.reverse.set (l.length - 1 - i) x := by
@@ -1869,17 +1863,9 @@ theorem promote_new_refines_keyed {pers st lst rm lm rf lf} {fuel k : Std.U64} {
     exact hI
 
 /-- **`promote_new` ⊑ `promoteNew`, as the checker tier consumes it** — the
-statement without `IFEnvKeys`.
-
-**`sorry`, and false as stated** (task #97-T2-LOCKSTEP lane Promote): with a
-row `b ↦ (0, 0)` keyed by a name that is NOT slot 0's, `IFEnvRel` holds (the
-twin row reads `(0, abs consts[0])`), `erase_installed` leaves the row, and
-`index_promoted` overwrites slot 0 with its promotion — the port's row now
-reads the PROMOTED constant, the twin's still the old one.
-`promote_new_refines_keyed` is the true statement; the key clause is a
-Rust-side representation invariant of `IFEnv` (every writer keeps it) and
-belongs in `IFEnvInv`, which is the checker lane's shape — the ruling asked
-for in DESIGN `#97-T2-LANE-Promote`. -/
+key clause is `IFEnvRel.keys` since task #97-P5-Core round 5 (the
+coordinator's ruling: a key predicate on the Rust `IFEnv` belongs in its
+representation relation), so this is `promote_new_refines_keyed` at it. -/
 theorem promote_new_refines {pers st lst rm lm rf lf} {fuel k : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : PMemoRel rm lm) (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
@@ -1887,7 +1873,7 @@ theorem promote_new_refines {pers st lst rm lm rf lf} {fuel k : Std.U64} {o}
     (hrun : arena.promote.promote_new pers st rm fuel k rf = ok o) :
     SimPM IFEnvRelI pers lst o
       (promoteNew lm (absU fuel) (absU k) lf) :=
-  promote_new_refines_keyed hrel hinv hm hfe hfinv sorry hk hrun
+  promote_new_refines_keyed hrel hinv hm hfe hfinv hfe.keys hk hrun
 
 /-! ## The axiom census
 
