@@ -48,26 +48,170 @@ namespace ConRon.Bridge
 
 set_option autoImplicit false
 
+/-- con-leche: none — `Arena/Pins.lean`'s own `internNameList` (the pin
+table's cursor recursion, a sibling of the frontend's) denotes its argument,
+in the scratch-agnostic frame. -/
+theorem internNameList_pins_sstep : ∀ (ns : List ConLeche.Name) {s s' : AState}
+    {hs : List NIdx}, StateOK s →
+    ConRon.Arena.internNameList ns s = .ok (hs, s') →
+    Frontend.IStepS s s' ∧ Frontend.denoteNList s'.store.ns hs = some ns := by
+  intro ns
+  induction ns with
+  | nil =>
+    intro s s' hs hok hrun
+    rw [ConRon.Arena.internNameList] at hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+    subst hst; subst hv
+    exact ⟨Frontend.IStepS.refl hok, rfl⟩
+  | cons a as ih =>
+    intro s s' hs hok hrun
+    rw [ConRon.Arena.internNameList] at hrun
+    obtain ⟨h1, s₁, hn, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hstep1, hdn⟩ := Frontend.internName_sstep hok hn
+    obtain ⟨t1, s₂, hns, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hstep2, hdns⟩ := ih hstep1.ok hns
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hst; subst hv
+    refine ⟨hstep1.trans hstep2, ?_⟩
+    simp only [Frontend.denoteNList, denoteN_ext hdn hstep2.ext, hdns]
+
+/-- con-leche: none — the list readback, as the pointwise relation `PinsOK`
+states. -/
+theorem denoteNL_of_denoteNList {st : EStore} :
+    ∀ (hs : List NIdx) (xs : List ConLeche.Name),
+      Frontend.denoteNList st.ns hs = some xs → denoteNL st hs xs := by
+  intro hs
+  induction hs with
+  | nil =>
+    intro xs h
+    simp only [Frontend.denoteNList, Option.some.injEq] at h
+    subst h; trivial
+  | cons a as ih =>
+    intro xs h
+    simp only [Frontend.denoteNList] at h
+    cases ha : denoteN st.ns a with
+    | none => rw [ha] at h; simp at h
+    | some x =>
+      cases has : Frontend.denoteNList st.ns as with
+      | none => rw [ha, has] at h; simp at h
+      | some ys =>
+        rw [ha, has] at h
+        simp only [Option.some.injEq] at h
+        subst h
+        exact ⟨ha, ih ys has⟩
+
+/-- con-leche: none — a level-list handle that denotes on a closed store is
+persistent (`PersN_of_view`'s twin at the level-list store). -/
+theorem PersLs_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) {h : LsIdx} {xs : List Level}
+    (hd : denoteLs st.lss h = some xs) : PersLs h := by
+  obtain ⟨us, hv, -⟩ := denoteLs_view hd
+  by_cases hp : h.isPersistent = true
+  · exact hp
+  · exfalso
+    rw [Arena.LsStore.view, if_neg hp,
+      if_neg (by rw [(Frontend.scratchOn_nested hwf).1, hoff]; simp)] at hv
+    exact absurd hv (by simp)
+
+/-- con-leche: none — **the zero name handle is `.anonymous`** once the pin
+names are interned: every pin name is a `.str`/`.num` chain bottoming out at
+`.anonymous`, so `.anonymous` sits in the persistent `anons` table, whose only
+slot is 0, and `Idx.ofWord 0` is tag-`anonymous`, tier-persistent, slot 0
+(`PinsOK.anon`'s doc comment is the argument).
+
+`sorry`: the chain's last link through `Arena.denoteN_view`, then the `anons`
+table's single slot — a fact about `Arena/Store.lean`'s name tables, one
+round. -/
+theorem denoteN_default_of_pinNames {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) {hs : List NIdx}
+    (hd : Frontend.denoteNList st.ns hs = some pinNames) :
+    denoteN st.ns (default : NIdx) = some ConLeche.Name.anonymous := by
+  sorry
+
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-119 reservedBasisNames —
 **the pin table, filled**: `internReservedPins` on a store with the scratch
 tier closed leaves the table denoting and persistent.
 
-`sorry`: `internNameList` over `Bridge/StoreNested.lean`'s
-`EStore.internName` spec (49 + 19 interns), then `internLsNode` / `internLNode`
-/ `internSortE` over `Bridge/Specs.lean`'s.  **`PinsOK.anon` is one more
-obligation here** (task #97-P3-Ind round 5): every pin name is a `.str`/`.num`
-chain bottoming out at `.anonymous`, so interning the first of them interns
-`.anonymous` into the persistent `anons` table, whose only slot is 0 — and
-`Idx.ofWord 0` is tag-`anonymous`, tier-persistent, slot 0.  The persistence half is the
-`scratchOn = false` branch of `intern`, which `Arena/WFProofs.lean`'s
-`intern_view_spec` already exposes.  Task #97-P3-Checker's sorry list,
-item 13. -/
+**SKELETONISED** (task #97-P3-Checker round 8): proved from the frontend
+tier's `IStepS` leaves (`internNameList_pins_sstep`, `internLsNode_sstep`,
+`internLNode_sstep`, `internE_sstep`) — persistence off `Pers…_of_denote` at
+the closed store, `PersLs_of_denote` new — and ONE child,
+`denoteN_default_of_pinNames` (`PinsOK.anon`: the zero name handle is
+`.anonymous`, a fact about the persistent `anons` table). -/
 theorem internReservedPins_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false)
     (hrun : internReservedPins s = .ok ((), s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ PinsOK s' ∧ PersPins s' ∧
       s'.store.scratchOn = false ∧ s'.memos = s.memos ∧ s'.caches = s.caches := by
-  sorry
+  simp only [Arena.internReservedPins] at hrun
+  obtain ⟨hs, s1, g1, r1⟩ := AM.bind_ok hrun
+  obtain ⟨st1, hd1⟩ := internNameList_pins_sstep pinNames hok g1
+  obtain ⟨rs, s2, g2, r2⟩ := AM.bind_ok r1
+  obtain ⟨st2, hd2⟩ := internNameList_pins_sstep reservedBasisNameValues st1.ok g2
+  obtain ⟨us, s3, g3, r3⟩ := AM.bind_ok r2
+  obtain ⟨st3, hd3⟩ := Frontend.internLsNode_sstep st2.ok
+    (by intro c hc; simp at hc) g3
+  obtain ⟨z, s4, g4, r4⟩ := AM.bind_ok r3
+  obtain ⟨st4, hd4⟩ := Frontend.internLNode_sstep st3.ok
+    ⟨by intro c hc; simp [LNodeView.lchildren] at hc,
+     by intro c hc; simp [LNodeView.nchildren] at hc⟩ g4
+  have hz4 : denoteL s4.store.ls z = some .zero := by rw [hd4]; rfl
+  obtain ⟨o, s5, g5, r5⟩ := AM.bind_ok r4
+  obtain ⟨st5, hd5⟩ := Frontend.internLNode_sstep st4.ok
+    ⟨by intro c hc
+        simp only [LNodeView.lchildren, List.mem_singleton] at hc
+        subst hc; exact lview_isSome_of_denote hz4,
+     by intro c hc; simp [LNodeView.nchildren] at hc⟩ g5
+  have ho5 : denoteL s5.store.ls o = some (.succ .zero) := by
+    rw [hd5]; simp only [denoteLView, denoteL_ext hz4 st5.ext, Option.map_some]
+  obtain ⟨e1, s6, g6, r6⟩ := AM.bind_ok r5
+  obtain ⟨st6, hd6⟩ := Frontend.internE_sstep st5.ok
+    (viewOK_sort (lview_isSome_of_denote ho5)) g6
+  have he6 : denoteE s6.store e1 = some (.sort (.succ .zero)) := by
+    rw [hd6]; simp only [denoteEView, denoteL_ext ho5 st6.ext, Option.map_some]
+  obtain ⟨g, s7, g7, r7⟩ := AM.bind_ok r6
+  obtain ⟨hg, hs7⟩ : g = s6 ∧ s7 = s6 := by
+    simp only [get, getThe, MonadStateOf.get, StateT.get, pure, Except.pure,
+      Except.ok.injEq, Prod.mk.injEq] at g7
+    exact ⟨g7.1.symm, g7.2.symm⟩
+  subst g
+  subst s7
+  simp only [set, MonadStateOf.set, StateT.set, pure, Except.pure,
+    Except.ok.injEq, Prod.mk.injEq] at r7
+  obtain ⟨-, rfl⟩ := r7
+  have hacc := ((((st1.trans st2).trans st3).trans st4).trans st5).trans st6
+  have hoff6 : s6.store.scratchOn = false := hacc.off hoff
+  have hwf6 := st6.ok.wf
+  have hx26 : Ext s2.store s6.store := ((st3.ext.trans st4.ext).trans st5.ext).trans st6.ext
+  have hx16 : Ext s1.store s6.store := st2.ext.trans hx26
+  have hdn1 := denoteNListE_ext hx16 _ _ hd1
+  have hdn2 := denoteNListE_ext hx26 _ _ hd2
+  have hus6 : denoteLs s6.store.lss us = some [] := by
+    have : denoteLs s3.store.lss us = some [] := by rw [hd3]; rfl
+    exact denoteLs_ext this ((st4.ext.trans st5.ext).trans st6.ext)
+  have hz6 := denoteL_ext hz4 (st5.ext.trans st6.ext)
+  refine ⟨⟨hwf6⟩, hacc.ext, ?_, ?_, hoff6, hacc.memos, hacc.caches⟩
+  · exact
+      { ready := by
+          show hs.toArray.size = pinCount
+          rw [List.size_toArray, denoteNList_length _ _ hdn1]; rfl
+        names := by
+          show denoteNL s6.store hs.toArray.toList pinNames
+          rw [List.toList_toArray]; exact denoteNL_of_denoteNList _ _ hdn1
+        reserved := denoteNL_of_denoteNList _ _ hdn2
+        emptyLevels := hus6
+        zeroLevel := hz6
+        sortOne := he6
+        anon := denoteN_default_of_pinNames hwf6 hoff6 hdn1 }
+  · exact
+      { names := by
+          intro n hn
+          rw [List.mem_toArray] at hn
+          exact Frontend.PersNList_of_denote hwf6 hoff6 hdn1 n hn
+        reserved := Frontend.PersNList_of_denote hwf6 hoff6 hdn2
+        emptyLevels := PersLs_of_denote hwf6 hoff6 hus6
+        zeroLevel := Frontend.PersL_of_denote hwf6 hoff6 hz6
+        sortOne := Frontend.PersE_of_denote hwf6 hoff6 he6 }
 
 /-- con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _ — **the pin variants,
 interned**: `internPinSets` on a closed scratch tier hands back a list that

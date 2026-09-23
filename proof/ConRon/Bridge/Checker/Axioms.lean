@@ -387,6 +387,12 @@ namespace ConRon.Bridge
 #print axioms reducePinGuard_run
 #print axioms checkReducePin_bridge
 #print axioms reservedBasisNames_sstep
+#print axioms natOpEquations_run
+#print axioms substConst0Pairs_run
+#print axioms PhaseA.foldlM
+#print axioms SplitInstall.checkDecl
+#print axioms SplitInstall.nodup
+#print axioms PendRel.mono
 
 /-! ## Group 2 — the three headline theorems
 
@@ -415,5 +421,14 @@ nor `IndSpec`, which are hypotheses of the statement. -/
 #print axioms Arena.model_exists
 #print axioms Arena.no_proof_of_False
 #print axioms Arena.installThenCheck_bridge
+
+-- the fold's skeleton and the startup walk (task #97-P3-Checker round 8):
+-- each reaches exactly its named children's `sorryAx`
+#print axioms Arena.annotFold_bridge
+#print axioms Arena.checkPendingList_bridge
+#print axioms Arena.annotStep_bridge
+#print axioms Arena.checkPending_bridge
+#print axioms internReservedPins_run
+#print axioms internAllPins_run
 
 end ConRon.Bridge
