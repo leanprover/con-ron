@@ -45088,6 +45088,208 @@ this file* — is what makes that visible.
 
 The tier is **8 825 lines** (was 7 478) in nine modules plus the index.
 
+#### Round 6 — persistence is a consequence of the denotation, and the two memo walks
+
+Branch `p3-frontend-6` off `arena`'s tip `d53a95be`, merged forward to
+`a8be5b78`.  Brief: the scratch-agnostic denotation half that the layout round
+priced at *"a parallel family of ~700 lines"* and that `Bridge/Checker/
+Basis.lean`'s eight statements wait on, **with the explicit instruction to
+check whether the family can be parameterised rather than duplicated**; then
+the tier's own remainder.
+
+**It can, and the parameterisation is better than the brief hoped.**  The
+answer is not "one statement over a flag-preserving frame with the `IStep`
+version as a corollary" — that is only half of it, and the interesting half is
+the other one: *the `Pers*` conjuncts are not content the intern has to prove
+at all.*  §1.  On top of that the round closed the two `seen`-set walks the
+tier still owed (§2, §3), and one of them turned out not to be the shape the
+file said it was.
+
+##### 1. Item 1 — the scratch-agnostic half.  ONE family, and a general fact
+
+**Finding 17 — a handle that denotes on a closed store is persistent, so
+`Pers…` is a corollary of the denotation and never needs a proof of its
+own.**  The chain is two lemmas that were already in the tree and one
+observation nobody had made:
+
+* `Arena/WFProofs.lean`'s `denoteN_view` / `denoteL_view` / `denoteE_view` — a
+  handle that denotes has a view;
+* `Bridge/Frontend/Rel.lean`'s `PersN_of_view` / `PersL_of_view` /
+  `PersE_of_view` — a handle with a view on a store whose scratch tier is
+  closed is persistent (a scratch handle reads as ABSENT while the tier is
+  closed, which is the tier's oldest observation);
+* and the observation: **every record denotation of
+  `Arena/Frontend/Readback.lean:93-199` reads every handle field of its
+  record.**  `denoteCV` reads name, levelParams and type, which is exactly
+  `PersCV`'s three clauses; `denoteFire` reads the `.nested` arm's two lists,
+  which is exactly `PersFire`; `denoteRule` reads ctor, fire and rhs.  Field
+  for field, at all twelve layers.
+
+So `Bridge/Frontend/Rel.lean` grew **sixteen `Pers…_of_denote` lemmas**, leaf
+to stream (`PersN`, `PersL`, `PersE`, the three lists, `PersCV`, `PersFire`,
+`PersRule`, `PersRules`, `PersCaps`, `PersProjTable`, `PersCI`, `PersCIList`,
+`PersDecl`, `PersDecls`), 387 lines, and they compiled on the first build.
+
+**The ONE field a denotation does not read.**  `denoteProjTable` drops
+`tableName` — con-leche recomputes it, and `Arena/Frontend/Readback.lean:156`
+says so in as many words.  That is the only gap in the whole family, and it is
+exactly what `Bridge/StateOK.lean`'s `IProjNamed` closes; `internProjTable`
+already carried the clause as a conjunct (round 5's repair of finding 16), and
+`internCI` carries `CIProjNamed`.  So the two projection layers take it as a
+hypothesis and **nothing was weakened to make this work**: the hypothesis was
+already in the conclusion of the theorem that supplies it.
+
+**What that buys in `Shared.lean`.**  `IStepS` is `IStep` with
+`scratch : s'.store.scratchOn = s.store.scratchOn` where `IStep` has
+`off : … = false`, plus `refl`/`trans`/`off`/`toIStep`/`toParse`.  The
+twenty-two `intern*` theorems are restated over it, with `hoff` gone and the
+`Pers*` conjunct gone — and the induction is **the same induction, shorter**:
+`Shared.lean` is +573/−303 overall, and the deletions are the `hoff`
+threading and the `Pers` bookkeeping that the family no longer carries.  The twenty-two `*_istep` are unchanged in statement (so no caller
+anywhere moved) and are now corollaries, three lines each for seventeen of
+them.
+
+**The five that are not three lines** are the VIEW leaves — `internE`,
+`internName`, `internLevel`, `internNNode`, `internLNode` — whose conclusion is
+a `denoteEView` / `denoteNView` / `denoteLView` EQUATION rather than a `some`.
+A handle known only to denote whatever some view denotes is not yet known to
+denote at all, so `Pers…_of_denote` does not apply and those five keep their
+own four-line derivation from the spec's `view` conjunct.  That is the precise
+boundary of finding 17 and worth stating: *the fact is about denotations, not
+about denotation equations.*
+
+**The price, measured, against the layout round's estimate.**  The estimate was
+~700 lines of parallel family *that would then have to be kept in step
+forever*.  What landed is `Rel.lean` +387 and `Shared.lean` +573/−303 = +270,
+so **657 lines and ONE family** — and of the 657, the 387 are a general fact
+about the arena that any tier can now cite, not a copy of anything.
+
+**Verified from the far side** (temporary `#check`s and a worked `example` in
+`Bridge/Checker/Basis.lean` behind `+ import ConRon.Bridge.Frontend.Shared`,
+then reverted; `Bridge/Checker/**` is another tier's lane this week):
+`internCIList_sstep` takes `StateOK s` and `EMemoOK` and concludes
+`IStepS s s' ∧ denoteCIList s'.store cis = some cs ∧ …`, and
+`IStepS.{ok,ext,caches,pins}` are exactly the four extra conjuncts of
+`BasisKind.decls_run`.  The example that proves `decls_run`'s shape from it
+elaborates.  **`Basis.lean`'s eight are now behind the one-line import and
+nothing else.**
+
+`internExpr_sstep` went in beside it: the fresh-memo entry point without the
+flag, which is what a caller inside the bracket reaches for first.
+
+##### 2. Item 2a — `occursConstFast_run`, and a shape the file got wrong
+
+Round 5's doc comment said this walk needed *"the same GRAY shape
+`Bridge/ExprOps/Leaves.lean`'s `fvarLeavesGo_spec` is open on"*.  **It does
+not.**  `Arena/Frontend/ProjRec.lean:148-187` puts `seen.insert h` in the
+branch where every child has already answered `false`, and nowhere else — the
+memo is BLACK-only, nothing is ever marked on the way down, and the invariant
+is one clause with no rank and no gray disjunct:
+
+    OccSeen st nP seen := ∀ k, seen.contains k → ∀ e, denoteE st k = some e →
+                            occursConst nP e = false
+
+`fvarLeavesGo` marks a node BEFORE descending, which is the only reason it
+needs `StoreWF`'s rank to say what a gray key is.  **The two walks are not the
+same shape, and reading the insert's position is how you tell** — worth
+remembering the next time a walk is priced by its silhouette.
+
+`occursConstGo_run` is then a plain fuel induction over the ten views with
+`Bridge/Rel.lean`'s inversion layer read once each.  The `const` arm is the
+only comparison in it and it is exact in BOTH directions: a handle equality
+gives a name equality because `denoteN` is a function, a name equality gives a
+handle equality because `denoteN` is INJECTIVE.  (`Bridge/Checker/Names.lean`'s
+`denoteNList_contains` is the same two lines; `beq_eq_false_iff_ne` twice is
+the whole of it.)
+
+`occursConstFast_run` is three lines on top.  What remains under it is round
+5's two con-leche-tier asks (`clOccursConstB_eq`, `clOccursConstGo_eq`,
+finding 6's shape — they belong in `ConLeche/Verify/Frontend/ProjRec.lean`) and
+**nothing of this tier's**.
+
+##### 3. Item 2b — `usedConsts_run`, the gray one, and where `denoteE_inj` earns its keep
+
+This is the walk that *is* gray: `usedConstsGo`
+(`Arena/Frontend/NatOpGround.lean:52-71`) inserts before it matches.  It costs
+nothing anyway, because the walk only ever consults `seen` as "stop" and the
+statement relates the two memos elementwise rather than saying anything about
+why a key is in one.
+
+**What the two memos are keyed by is the whole content of the proof.**
+con-leche's is a `Std.HashSet Expr`, the twin's a `Std.HashSet EIdx`.  The two
+walks stop in the same places exactly when one handle per expression is
+reachable — DESIGN §8.3's `denoteE_inj`, the store being hash-consed.  Without
+it the twin would re-walk a subterm con-leche skips and push its constants
+twice, and `usedConsts_run`'s array equality would be **false**.  This is the
+third place in the campaign where `denoteE_inj` is load-bearing rather than
+convenient, and the first where the statement is false without it.
+
+`UCSeen` has three clauses (`fwd`, `bwd`, `dom`) and not one, and the reason is
+the arena EXTENSION: `usedConstsBlock` reads `toConstantVal`, whose `.projInfo`
+arm interns `Sort 1` (round 4's finding 16), so the store grows mid-fold.  The
+`bwd` clause — *every member of con-leche's set is denoted by some handle of
+the twin's* — is what makes a NEW handle's absence from `seen` provable: a
+handle the extension added cannot denote anything the old set already holds,
+because `denoteE_inj` holds at the bigger store too.  A one-clause invariant
+does not survive the fold; this one does.
+
+What landed, all at `[propext, Classical.choice, Quot.sound]`: `UCSeen` and its
+four lemmas, `denoteNList_snoc`, `usedConstsGo_run` (ten arms),
+`ucRuleStep`/`ucBlockStep` — con-leche's two inline fold closures, named, with
+`usedConsts_indDecl_eq` a `rfl` (DESIGN §3.4's "a `List` fold is a named
+recursion", read backwards: the twin has names for them, so the theorems need
+con-leche's closures to have names too) — `usedConstsRules_run`,
+`ucBlockStep_denote`, `usedConstsBlock_run` in the `ParseStep` frame round 5's
+repair called for, and `usedConsts_run` over seven arms.
+
+**A hypothesis that was NOT added, and why that mattered.**  The obvious route
+had `usedConsts_run` take `DeclProjNamed s.store d`, because
+`usedConstsBlock_run` reads `toConstantVal_run`, which takes `CIProjNamed`.
+The caller (`hoistTargets_run`) has it, so it would have gone through — and it
+would have been a weakening, because the statement is TRUE without it:
+`usedConsts` reads only `toConstantVal`'s TYPE, and the `.projInfo` arm's dummy
+is `Sort 1` whatever the table is called.  So `Bridge/Frontend/Lines.lean` got
+`toConstantVal_type_run`, that half stated without the name clause — six arms
+are `toConstantVal_run` at a vacuous `CIProjNamed.of_ne`, the seventh is its
+three interns without the name half.  **A hypothesis should not travel upward
+into a statement that does not need it**, and the check is cheap: ask which
+conjunct of the lemma below actually used it.
+
+##### 4. What is open after round 6, and what each waits on
+
+**11** (was 13), in three modules; six of nine modules are at zero.
+
+| module | open | what they wait on |
+|---|---:|---|
+| `ProjRec.lean` | 6 | two are round 5's **con-leche-tier** asks (`clOccursConstB_eq`, `clOccursConstGo_eq`) and belong in con-leche, not here; the other four are `projRecValue_run`'s cone — `stripPisAll_run`/`buildBinders_run`/`instPisOpen_run` composed, and `projRecCandidates_run`'s `filterMap` |
+| `Lines.lean` | 3 | the tier's critical path: `validateIndD_run` (two `for`/`mut` loops, a `Std.HashMap` index, a `Nodup` guard and `indPiTeleLen`), `installIndD_run` (the modeller seam) and `processLineCoreD_run` on both |
+| `Prepare.lean` | 2 | `hoistTargets_run` — `usedConsts_run` is now in hand, what is left is the name index as a `Std.HashMap NIdx Nat` against con-leche's `Std.HashMap Nat Nat`, through `denoteN_inj` — and `hoistNatOpGround_run`'s `applyHoist` permutation on top of it |
+
+`Prepare.lean`'s remaining two are the smallest lane in the tier now, and both
+are index bookkeeping rather than a walk.  `Lines.lean`'s three are the
+largest single piece of work left anywhere in P3.
+
+##### 5. The axiom census, the sizes and the gates
+
+`Bridge/Frontend/Axioms.lean`: the round adds twelve entries
+(`toConstantVal_type_run`, `UCSeen.{contains,insert,mono}`,
+`denoteNList_snoc`, `usedConstsGo_run`, `usedConstsRules_run`,
+`ucBlockStep_denote`, `usedConstsBlock_run`, `usedConsts_run`,
+`OccSeen.insert`, `occursConstGo_run`), every one within
+`[propext, Classical.choice, Quot.sound]` and `denoteNList_snoc` at
+`[propext, Quot.sound]`.  `occursConstFast_run` is still NOT in the list, and
+that is the census's rule working: it is proved *modulo an ask of con-leche*.
+
+The tier is **10 473 lines** (was 8 825) in nine modules plus the index; the
+round's diff is 2 035 insertions and 316 deletions across six of them.
+
+| gate | |
+|---|---|
+| `scripts/gates.sh` at the merge (`arena` `a8be5b78`) | **all 15 OK** — `extract-check` 90 s, `lake-build` 111 s (2 209 jobs), `lake-refine2` 141 s (2 221 jobs), `lake-bridge` 390 s (618 jobs) |
+| `cd proof && lake build ConRonBridge` | **0 errors**, 618 jobs; 11 of this tier's declarations open |
+| the diff | `proof/ConRon/Bridge/Frontend/{Rel,Shared,Lines,ProjRec,Prepare,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, **and no other `Bridge/` module** — `Bridge/Checker/Basis.lean`'s one-line import is the checker tier's to make, and that tier was live all day |
+
+
 ### Task #97-P3-Ind — Theorem 1: the inductive tier, and what `IndSpec` actually says (2026-09-22, Opus under Fable)
 
 Phase **P3** of §8.6, the inductives round: DESIGN §8.2's **Theorem 1** at
