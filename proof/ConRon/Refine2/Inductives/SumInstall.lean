@@ -46,12 +46,12 @@ at the end, where it must be a sort. -/
 theorem whnf_telescope_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {i n : Std.U64} {e : arena.handle.EIdx}
     {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hvis : absU vis = lf.visibleBelow) (hknot : KnotRel checkFuel)
     (hrun : arena.inductives.sum_install.whnf_telescope pers vis st mode rf i n e out
       = ok o) :
-    Sim (fun r => (absBinderL r.1, absLIdx r.2)) (fun _ => True) pers lst o
+    Sim₀ (fun r => (absBinderL r.1, absLIdx r.2)) pers lst o
       (do
         let q ← whnfTelescope (ConRon.Refine.absMode mode) lf (absU i) (absU n)
           (absEIdx e)
@@ -64,9 +64,9 @@ opened at the free variables `i ..< i + bs.length` back into a syntactic
 theorem close_telescope_refines {pers st lst}
     {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {k : Std.Usize} {i : Std.U64} {body : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.sum_install.close_telescope pers st bs k i body = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (closeTelescope (absBinderLFrom bs k) (absU i) (absEIdx body)) := by
   sorry
 
@@ -76,12 +76,12 @@ its match, named on both sides because over handles the syntactic test is two
 theorem check_sum_tele_slow_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal} {n : Std.U64}
     {cv_ta0 : arena.env.IConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hvis : absU vis = lf.visibleBelow) (hknot : KnotRel checkFuel)
     (hrun : arena.inductives.sum_install.check_sum_tele_slow pers vis st mode rf cv n
       cv_ta0 = ok o) :
-    Sim (fun r => (absIConstantVal r.1, absLIdx r.2)) (fun _ => True) pers lst o
+    Sim₀ (fun r => (absIConstantVal r.1, absLIdx r.2)) pers lst o
       (checkSumTele.checkSumTeleSlow (ConRon.Refine.absMode mode) lf
         (absIConstantVal cv) (absU n) (absIConstantVal cv_ta0)) := by
   sorry
@@ -93,12 +93,12 @@ type's whnf'd telescope, closed and checked in its place. -/
 theorem check_sum_tele_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal} {n : Std.U64}
     {cv_ta0 : arena.env.IConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hvis : absU vis = lf.visibleBelow) (hknot : KnotRel checkFuel)
     (hrun : arena.inductives.sum_install.check_sum_tele pers vis st mode rf cv n
       cv_ta0 = ok o) :
-    Sim (fun r => (absIConstantVal r.1, absLIdx r.2)) (fun _ => True) pers lst o
+    Sim₀ (fun r => (absIConstantVal r.1, absLIdx r.2)) pers lst o
       (checkSumTele (ConRon.Refine.absMode mode) lf (absIConstantVal cv) (absU n)
         (absIConstantVal cv_ta0)) := by
   sorry
@@ -109,9 +109,9 @@ fixpoint route earns (con-leche's task #210 Part A).  Twinned in
 calls it where con-leche passes it in as a closure. -/
 theorem native_caps_at_refines {pers st lst}
     {p : arena.inductives.sum_parts.InductiveShape} {is_rec : Bool} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.sum_install.native_caps_at pers st p is_rec = ok o) :
-    Sim absIIndCaps (fun _ => True) pers lst o
+    Sim₀ absIIndCaps pers lst o
       (nativeCapsAt (absInductiveShape p) is_rec) := by
   sorry
 
@@ -119,11 +119,11 @@ theorem native_caps_at_refines {pers st lst}
 theorem check_sum_ind_at_refines {pers st lst} {rf lf}
     {p : arena.inductives.sum_parts.InductiveShape} {is_rec : Bool}
     {cv_ta : arena.env.IConstantVal} {s : arena.handle.LIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.inductives.sum_install.check_sum_ind_at pers st rf p is_rec cv_ta s
       = ok o) :
-    SimRel (fun r v => IFEnvRel r.1 v.1 ∧ v.2.1 = absIConstantVal r.2.1 ∧
+    SimRel₀ (fun r v => IFEnvRel r.1 v.1 ∧ v.2.1 = absIConstantVal r.2.1 ∧
         v.2.2 = absInductiveShape r.2.2)
       pers lst o
       (checkSumIndAtSpec lf (absInductiveShape p) is_rec (absIConstantVal cv_ta)
@@ -134,11 +134,11 @@ theorem check_sum_ind_at_refines {pers st lst} {rf lf}
 the block's capability record at its telescope. -/
 theorem check_sum_ind_refines {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
     {p : arena.inductives.sum_parts.InductiveShape} {is_rec : Bool} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hknot : KnotRel checkFuel)
     (hrun : arena.inductives.sum_install.check_sum_ind pers st mode rf p is_rec
       = ok o) :
-    SimRel (fun r v => IFEnvRel r.1 v.1 ∧ v.2.1 = absIConstantVal r.2.1 ∧
+    SimRel₀ (fun r v => IFEnvRel r.1 v.1 ∧ v.2.1 = absIConstantVal r.2.1 ∧
         v.2.2 = absInductiveShape r.2.2)
       pers lst o
       (checkSumInd (ConRon.Refine.absMode mode) lf (absInductiveShape p) is_rec) := by
@@ -188,10 +188,10 @@ bound. -/
 theorem field_sort_bound_refines {pers st lst} {is_prop large : Bool}
     {s u : arena.handle.LIdx} {fv : arena.handle.EIdx}
     {idx_args : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.sum_install.field_sort_bound pers st is_prop large s u
       fv idx_args = ok o) :
-    Sim (fun _ => ()) (fun _ => True) pers lst o
+    Sim₀ (fun _ => ()) pers lst o
       (fieldSortBoundSpec is_prop large (absLIdx s) (absLIdx u) (absEIdx fv)
         (absEIdxL idx_args)) := by
   sorry
@@ -205,12 +205,12 @@ theorem check_struct_field_sorts_i_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {is_prop large : Bool} {s : arena.handle.LIdx}
     {n_p : Std.U64} {fvs idx_args : alloc.vec.Vec arena.handle.EIdx}
     {k : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hvis : absU vis = lf.visibleBelow) (hknot : KnotRel checkFuel)
     (hrun : arena.inductives.sum_install.check_struct_field_sorts_i pers vis st mode
       rf is_prop large s n_p fvs idx_args k = ok o) :
-    Sim absLIdxL (fun _ => True) pers lst o
+    Sim₀ absLIdxL pers lst o
       (checkStructFieldSortsI (ConRon.Refine.absMode mode) lf is_prop large
         (absLIdx s) (absU n_p) (absEIdxL fvs) (absEIdxL idx_args) (absU k)) := by
   sorry
@@ -222,12 +222,12 @@ the whnf. -/
 theorem norm_pos_dom_at_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {t : arena.handle.NIdx} {d fuel : Std.U64}
     {w : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hvis : absU vis = lf.visibleBelow) (hknot : KnotRel checkFuel)
     (hrun : arena.inductives.sum_install.norm_pos_dom_at pers vis st mode rf t d fuel
       w = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (normPosDomAtSpec (ConRon.Refine.absMode mode) lf (absNIdx t) (absU d)
         (absU fuel) (absEIdx w)) := by
   sorry
@@ -236,12 +236,12 @@ theorem norm_pos_dom_at_refines {pers st lst} {vis : Std.U64} {rf lf}
 theorem norm_pos_dom_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {t : arena.handle.NIdx} {d fuel : Std.U64}
     {e : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hvis : absU vis = lf.visibleBelow) (hknot : KnotRel checkFuel)
     (hrun : arena.inductives.sum_install.norm_pos_dom pers vis st mode rf t d fuel e
       = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (normPosDom (ConRon.Refine.absMode mode) lf (absNIdx t) (absU d) (absU fuel)
         (absEIdx e)) := by
   sorry
@@ -252,12 +252,12 @@ theorem norm_field_doms_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {t : arena.handle.NIdx} {i n : Std.U64}
     {h : arena.handle.EIdx}
     {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hvis : absU vis = lf.visibleBelow) (hknot : KnotRel checkFuel)
     (hrun : arena.inductives.sum_install.norm_field_doms pers vis st mode rf t i n h
       out = ok o) :
-    Sim (fun r => (absBinderL r.1, absEIdx r.2)) (fun _ => True) pers lst o
+    Sim₀ (fun r => (absBinderL r.1, absEIdx r.2)) pers lst o
       (do
         let q ← normFieldDoms (ConRon.Refine.absMode mode) lf (absNIdx t) (absU i)
           (absU n) (absEIdx h)
@@ -271,7 +271,7 @@ theorem zip_fvar_doms_refines {pers st lst} {xs : alloc.vec.Vec arena.handle.EId
     {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {i : Std.Usize}
     {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.sum_install.zip_fvar_doms pers st xs bs i out = ok o) :
     SimRE absBinderL lst o
       (do pure (absBinderL out ++
@@ -284,12 +284,12 @@ checked as the constructor's type in its place, from scratch. -/
 theorem norm_ctor_val_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {t : arena.handle.NIdx} {n_p n_f : Std.U64}
     {cv_c cv_ca : arena.env.IConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hvis : absU vis = lf.visibleBelow) (hknot : KnotRel checkFuel)
     (hrun : arena.inductives.sum_install.norm_ctor_val pers vis st mode rf t n_p n_f
       cv_c cv_ca = ok o) :
-    Sim absIConstantVal (fun _ => True) pers lst o
+    Sim₀ absIConstantVal pers lst o
       (normCtorVal (ConRon.Refine.absMode mode) lf (absNIdx t) (absU n_p) (absU n_f)
         (absIConstantVal cv_c) (absIConstantVal cv_ca)) := by
   sorry
@@ -300,12 +300,12 @@ theorem norm_ctor_val_refines {pers st lst} {vis : Std.U64} {rf lf}
 cursor on. -/
 theorem field_doms_resolve_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     {x_fvs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf0 lf0) (hfinv : IFEnvInv rf0)
     (hvis : absU vis = lf0.visibleBelow)
     (hrun : arena.inductives.sum_install.field_doms_resolve pers vis st rf0 x_fvs i
       = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (fieldDomsResolveSpec lf0 (absEIdxLFrom x_fvs i)) := by
   sorry
 
@@ -313,12 +313,12 @@ theorem field_doms_resolve_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
 cursor on. -/
 theorem idx_args_resolve_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     {idx_args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf0 lf0) (hfinv : IFEnvInv rf0)
     (hvis : absU vis = lf0.visibleBelow)
     (hrun : arena.inductives.sum_install.idx_args_resolve pers vis st rf0 idx_args i
       = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (idxArgsResolveSpec lf0 (absEIdxLFrom idx_args i)) := by
   sorry
 
@@ -327,12 +327,12 @@ theorem check_sum_ctor_sorts_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf0 lf0} {rf lf} {n_p : Std.U64} {res_sort : arena.handle.LIdx}
     {is_prop large : Bool} {n_f : Std.U64} {cv_ca : arena.env.IConstantVal}
     {x_fvs idx_args : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe0 : IFEnvRel rf0 lf0) (hfinv0 : IFEnvInv rf0)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hknot : KnotRel checkFuel)
     (hrun : arena.inductives.sum_install.check_sum_ctor_sorts pers st mode rf0 rf n_p
       res_sort is_prop large n_f cv_ca x_fvs idx_args = ok o) :
-    Sim (fun r => (absIConstantVal r.1, absLIdxL r.2)) (fun _ => True) pers lst o
+    Sim₀ (fun r => (absIConstantVal r.1, absLIdxL r.2)) pers lst o
       (checkSumCtorSortsSpec (ConRon.Refine.absMode mode) lf0 lf (absU n_p)
         (absLIdx res_sort) is_prop large (absU n_f) (absIConstantVal cv_ca)
         (absEIdxL x_fvs) (absEIdxL idx_args)) := by
@@ -346,12 +346,12 @@ theorem check_sum_ctor_resid_refines {pers st lst} {mode : kernel.env.CheckMode}
     {cv_ca : arena.env.IConstantVal}
     {p_fvs x_fvs : alloc.vec.Vec arena.handle.EIdx}
     {xrest : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe0 : IFEnvRel rf0 lf0) (hfinv0 : IFEnvInv rf0)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hknot : KnotRel checkFuel)
     (hrun : arena.inductives.sum_install.check_sum_ctor_resid pers st mode rf0 rf t
       lps n_p n_idx res_sort is_prop large n_f cv_ca p_fvs x_fvs xrest = ok o) :
-    Sim (fun r => (absIConstantVal r.1, absLIdxL r.2)) (fun _ => True) pers lst o
+    Sim₀ (fun r => (absIConstantVal r.1, absLIdxL r.2)) pers lst o
       (checkSumCtorResidSpec (ConRon.Refine.absMode mode) lf0 lf (absNIdx t)
         (absNIdxL lps) (absU n_p) (absU n_idx) (absLIdx res_sort) is_prop large
         (absU n_f) (absIConstantVal cv_ca) (absEIdxL p_fvs) (absEIdxL x_fvs)
@@ -364,12 +364,12 @@ theorem check_sum_ctor_frames_refines {pers st lst} {mode : kernel.env.CheckMode
     {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_idx : Std.U64}
     {res_sort : arena.handle.LIdx} {is_prop large : Bool} {n_f : Std.U64}
     {cv_ta cv_ca : arena.env.IConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe0 : IFEnvRel rf0 lf0) (hfinv0 : IFEnvInv rf0)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hknot : KnotRel checkFuel)
     (hrun : arena.inductives.sum_install.check_sum_ctor_frames pers st mode rf0 rf t
       lps n_p n_idx res_sort is_prop large n_f cv_ta cv_ca = ok o) :
-    Sim (fun r => (absIConstantVal r.1, absLIdxL r.2)) (fun _ => True) pers lst o
+    Sim₀ (fun r => (absIConstantVal r.1, absLIdxL r.2)) pers lst o
       (checkSumCtorFramesSpec (ConRon.Refine.absMode mode) lf0 lf (absNIdx t)
         (absNIdxL lps) (absU n_p) (absU n_idx) (absLIdx res_sort) is_prop large
         (absU n_f) (absIConstantVal cv_ta) (absIConstantVal cv_ca)) := by
@@ -382,12 +382,12 @@ theorem check_sum_ctor_refines {pers st lst} {mode : kernel.env.CheckMode}
     {res_sort : arena.handle.LIdx} {is_prop large : Bool}
     {cv_c : arena.env.IConstantVal} {n_f : Std.U64}
     {cv_ta : arena.env.IConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe0 : IFEnvRel rf0 lf0) (hfinv0 : IFEnvInv rf0)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hknot : KnotRel checkFuel)
     (hrun : arena.inductives.sum_install.check_sum_ctor pers st mode rf0 rf t lps n_p
       n_idx res_sort is_prop large cv_c n_f cv_ta = ok o) :
-    Sim (fun r => (absIConstantVal r.1, absLIdxL r.2)) (fun _ => True) pers lst o
+    Sim₀ (fun r => (absIConstantVal r.1, absLIdxL r.2)) pers lst o
       (checkSumCtor (ConRon.Refine.absMode mode) lf0 lf (absNIdx t) (absNIdxL lps)
         (absU n_p) (absU n_idx) (absLIdx res_sort) is_prop large
         (absIConstantVal cv_c) (absU n_f) (absIConstantVal cv_ta)) := by
@@ -403,12 +403,12 @@ theorem check_sum_ctors_refines {pers st lst} {mode : kernel.env.CheckMode}
     {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {i : Std.Usize}
     {out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
     {sout : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe0 : IFEnvRel rf0 lf0) (hfinv0 : IFEnvInv rf0)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hknot : KnotRel checkFuel)
     (hrun : arena.inductives.sum_install.check_sum_ctors pers st mode rf0 rf t lps
       n_p n_idx res_sort is_prop large cv_ta ctors i out sout = ok o) :
-    Sim (fun r => (absCtorsL r.1, absLIdxLL r.2)) (fun _ => True) pers lst o
+    Sim₀ (fun r => (absCtorsL r.1, absLIdxLL r.2)) pers lst o
       (do
         let q ← checkSumCtors (ConRon.Refine.absMode mode) lf0 lf (absNIdx t)
           (absNIdxL lps) (absU n_p) (absU n_idx) (absLIdx res_sort) is_prop large
@@ -471,12 +471,12 @@ theorem sum_rules_refines {pers st lst} {vis : Std.U64} {rf lf}
     {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
     {rhss : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
     {out : alloc.vec.Vec arena.env.IRecRule} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.inductives.sum_install.sum_rules pers vis st rf rec_name n_p m_i
       r_p rec_ty ctors rhss i out = ok o) :
-    Sim absIRecRuleL (fun _ => True) pers lst o
+    Sim₀ absIRecRuleL pers lst o
       (do pure (absIRecRuleL out ++
         (← sumRules lf (absNIdx rec_name) (absU n_p) (absU m_i) (absU r_p)
           (absEIdx rec_ty) (absCtorsLFrom ctors i) (absEIdxLFrom rhss i)))) := by
