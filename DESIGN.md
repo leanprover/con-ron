@@ -56559,5 +56559,5 @@ wall), which is not the script's cost.
 
 | gate | result |
 |---|---|
-| `scripts/gates.sh` | GATES_LINE |
+| `scripts/gates.sh` | **all 16 OK** at the `arena` `6cfd995d` merge (`extract-check` 132 s, `lake-build` 35 s, `lake-bridge` 40 s, the rest ≤ 8 s).  The first attempt's `extract-check` died with exit 137 (Aeneas killed under the shared machine's memory pressure); the re-run passed |
 | the diff | this section only |
