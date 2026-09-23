@@ -60301,6 +60301,15 @@ delegations, `check_modeled` (frontier, through `checkModeled_unfold`),
    gates at `fe2.restrictTo …`); the twin fix needs Theorem 1's congruence of
    a `find?`-only reader over `find?`-equal environments.
 
+**Frontier and gates.**  `scripts/frontier.sh --summary …`: slice 1 landed at
+54 items / 14 modules / 142 tainted / dead weight 568; slice 2 before the
+`arena` merge **62 / 15 / 165 / 525** (the tier's frontier items: `native_shape`,
+`check_native`, `checkModeled_unfold`, `check_ind_members`, `check_ind_recs`,
+`ind_block_caps`, `ctor_residual_ok`, `ctor_targets_fam`, `install_proj_fns`,
+`proj_fn_family_free_modeled`); after merging `arena` `6ae149bc` (the D4b and
+Frontend landings) **48 / 15 / 175 / 465**.  `scripts/gates.sh` after the
+merge: **all 16 OK**.
+
 ### Task #97-T2-LOCKSTEP D4b — a failed div/mod-pin attempt restores the WHOLE state from a full copy (2026-09-23, Opus under Fable)
 
 Maintainer's decision after the Checker lane priced D4's `ScratchFrame` (the
