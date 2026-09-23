@@ -50013,6 +50013,214 @@ round closed**, and still no `bv_decide` axiom anywhere in `Refine2/`.
 
 ### Task #97-P3-Ind — Theorem 1: the inductive tier
 
+#### Round 6 — the recognisers, groups 3 and 4, two files to zero, and the three walls that are left (2026-09-23, Opus under Fable)
+
+Branch `ind-r6` off `arena` `7f4b4a86`, merged forward once (`8d995437`,
+bringing task #97-P3-Checker round 8, #97-FRONTIER and #97-COMPOSE — none of
+which touches `Bridge/Inductives/**`).  The diff is `Bridge/Inductives/{Rel,
+StructParts,NativeParts,StructInstall,SumInstall,NativeInstall,Modeled,
+Axioms}.lean` and this section.  **No file outside `Bridge/Inductives/**`**,
+no Rust, no generated model.
+
+**The tier went from 74 open `sorry` to 41** — thirty-three statements
+closed, every one at `[propext, Classical.choice, Quot.sound]` (the census
+block `Axioms.lean` gained lists them; the only `sorryAx` lines of that file
+are still the two headline theorems).  Gates on the merged tip: **all 16
+OK** (`extract-check` 117 s, `lake-build` 163 s, `lake-refine2` 150 s,
+`lake-bridge` 21 s, `lake-capstone` 3 s).
+
+| module | open (r5 → r6) |
+|---|---:|
+| `Rel.lean` — the vocabulary | 0 → **0** |
+| `StructParts.lean` | 5 → **0** |
+| `SumParts.lean` | 0 → **0** |
+| `NativeParts.lean` | 18 → **0** |
+| `StructInstall.lean` | 2 → **1** |
+| `SumInstall.lean` | 12 → **9** |
+| `NativeInstall.lean` | 13 → **8** |
+| `Modeled.lean` | 24 → **23** |
+| `Decl.lean` — the arm | 0 → **0** |
+| **the tier** | **74 → 41** |
+
+##### R6.1 What closed
+
+* **The three recognisers and their `isSome` halves** — `structPartsCore?_spec`,
+  `structPartsCore?_isSome`, `nativeShape?_spec`, `nativeParts?_spec`,
+  `nativeParts?_isSome`.  Round 3's intended shape, executed: ONE inversion
+  per recogniser (`structPartsCore?_run`, `nativeShape?_run`,
+  `nativeParts?_run`) at `PStep` under `StateOK` + `PinsOK`, whose answer
+  relation carries the record under a `CheckOK` hypothesis **at the initial
+  state** — `∀ μ env fe, CheckOK μ env fe s₀ → SPartsRel …`.  Only `isProp`
+  (`lvlEq?`'s verdict) needs it, and `CheckOK` travels to the `lvlEq?` call
+  through `PStep.toCore`.  `ROp`'s two-sidedness does not look at the
+  relation, so `ROp.isSome` IS the `isSome` half, and `ROp.mono` at the
+  caller's own `CheckOK` IS the core-grade statement.  The Frontend tier's
+  `projRecOwners_run` can now cite both `isSome` lemmas (grade `PSpecP`, as
+  its note already expects).
+* **Group 3 and group 4, whole** — `structTeleAt`, `structIhApp`,
+  `structRuleBodyR`, `structIhPis`, `structMinorTyR`, `structMinorsPisR`,
+  `structMinorsLamsR`, `structRecTyR`, `structRecRhsR`, and
+  `structProjResidP`, `structProjBodiesGo`, `structProjBodies`.
+* **The positivity classification** — `recFamOk`, `recPositivity`,
+  `recFieldKind`, `recCtorKinds`, `recCtorKindsAll`, `classifyFixKinds`,
+  `nativeRawRec`, `mentionsFvarGo`, `mentionsFvar`.
+* **The stream's rules** — `nativeRulePrefixOk`, `nativeRulesOk`.
+* **Install pieces** — `closeTelescope` (the brief's item), `consSumCtors`,
+  `sumRules`, `checkStructDomsAt` (§R6.3), `domsMatchRenamed`.
+
+`StructParts.lean` and `NativeParts.lean` are at **zero**.
+
+##### R6.2 The infrastructure this round added, and where it belongs
+
+In `Rel.lean`, all closed:
+
+* **`mapM_pstep` / `ListRel`** — the one `List.mapM` induction at the pure
+  frame, the answer a pointwise relation that `ListRel.toEList` /
+  `ListRel.toBinders` / `ListRel.map_eq` read; `mapM_E_pstep`,
+  `allM_E_pstep`, `allM_pstep`, `anyM_B_pstep` are its siblings for
+  handle lists, `allM`, and `anyM` over telescopes.
+* **`reservedBasisNames_pstep`** — `Checker/Names.lean`'s
+  `reservedBasisNames_run` gives `PinStep`, which carries no `BMExt`;
+  `NestProg` (a four-lemma program-level frame over `pinAt`/`internName`,
+  closed by one `repeat`) supplies the three fields `EStore.viewBM` reads.
+* **`fvarBSpec : ExprOps.FvarBSpec` — `Abs.lean`'s hypothesis DISCHARGED, on
+  loan.**  `Ranges.lean`'s `fvarB_spec` states everything the record asks
+  except the `abs1C` frame.  `A1Prog` proves that frame over `fvarRangeGo`'s
+  mutual block (fuel induction, eight arms, no `mvcgen`), and
+  `AM.triple_of_run` — `AM.of_run`'s converse, new — assembles the triple.
+  **Owner: the `ExprOps` tier**; `fvarB_spec` gaining `s'.memos.abs1C =
+  s₀.memos.abs1C` makes this section one line.  It is what `closeTelescope`
+  needed, and every other `abstract1Fast_spec` / `abstractRange*_spec`
+  consumer can now discharge the hypothesis too.
+* Run forms: `stripLams_pstep`, `lvlEq?_pstep`, `resetMeta_pstep`,
+  `resetPair_pstep`, `instPisAtLift_pstep` (`StructParts.lean`),
+  `renameConstsFast_ns` (`Modeled.lean`, §R6.4), and the list readers
+  `denoteCtors_getElem?`, `denoteCtors4_{ext,length,getElem?}`,
+  `denoteCtors3_ext`, `denoteBinders_drop`, `denoteBP_some'`,
+  `denoteBP_someB'`, `denote_not_const`.
+* **The rescue bits' run forms, on loan from the Core tier** —
+  `recRuleKOf_run`, `recRuleEtaOf_run`, `recRuleBits_run`
+  (`SumInstall.lean`).  `Arena/Core.lean`'s three had no Theorem 1 anywhere;
+  each lookup is `IFEnvOK`'s `hit`/`miss`, each comparison `denoteN_inj`,
+  and the η bit's recursor-name readback is a `ReadbackFrame`.  They belong
+  in `Bridge/Core/**` beside the other `CoreDefs` twins; `projFnRule`
+  (`Modeled.lean`'s `installProjFnStep`) will want the same three.
+
+**`Rel.lean` imports `ExprOps.Owed` and `ExprOps.TelescopeF`** (for
+`resetMetaFast_spec`, `abstract1Fast_spec`, `renameConsts*` and
+`recRulePlain_spec`).  Nothing imports the inductive tier except the
+`Bridge` root, so `MemoSpecs`' `@[spec high]` specs become visible only
+here, and this tier uses `mvcgen` in exactly one place
+(`renameConstsFast_ns`, which is the `Owed` proof with a conjunct added).
+
+##### R6.3 The one statement repair — `checkStructDomsAt_spec`, two missing preconditions
+
+The knot's `defeq` slot is stated at a well-formed environment
+(`CoreSpec.knot` takes `EnvWF env`) and at WELL-SCOPED arguments
+(`Expr.WScoped` at the comparison's depth).  Round 1's statement had
+neither, so it could not call the slot at all.  It gained
+`(henv : EnvWF env)` and, for each pair it compares,
+`WScoped (off + i) fvsP[i].fvarTypeD ∧ WScoped (off + i) domsP[i]` — exactly
+`Bridge/Checker/Base.lean`'s `checkDefEqList_bridge`'s pair of hypotheses,
+for exactly the same reason.  **A precondition repair, no conclusion
+changed**, and nothing consumed the statement (the arena's install calls no
+`checkStructDomsAt`).  One fuel for the whole walk is `max` of the two, by
+`ConLeche.isDefEqCore_mono` and a new `checkStructDomsAt_mono`.
+
+**Every remaining knot-slot consumer of this tier has the same defect.**
+`whnfTelescope`, `checkSumTele`, `checkStructFieldSortsI`, `normPosDom`,
+`normFieldDoms`, `normCtorVal`, `checkSumCtor(s)` (`SumInstall.lean`) and
+`checkIotaSidesTy`, `checkIotaThm(N)`, `checkIotaRule(s)`, `checkProjIota`
+(`Modeled.lean`) are stated with no `EnvWF` and no `WScoped`.  The repair is
+the same shape at each; what makes it a round and not a sweep is that the
+scoping has to be threaded through the telescope OPENINGS
+(`WScoped.instantiate1` at `fvar d dom`, `SimE`'s own `WScoped` on each
+slot's answer), so each caller's precondition is its callee's after one
+opening.  Not done here: nine statement edits at once in a tier whose
+callers are themselves open is the kind of change that wants its own round.
+
+##### R6.4 THE FINDINGS — three walls, and two frames the entry points dropped
+
+**1. The `Checker/Base.lean` import wall, again — and now it is FIVE
+statements.**  `allLevelParamsDefined_run` and `constsResolveFFast_run` live
+in `Base.lean`, which this tier does not import (the layout rule task
+#97-P3-Layout recorded).  They are the scoping guards of
+`checkStructProjTable` (the only open statement of `StructInstall.lean`),
+`checkProjTy`, `nestedRuleShape`, `nativeOpenedOk` and, through them,
+`checkNativeTable`, `nativeFieldsOk`, `checkIotaThmN` and the projection
+install.  **The fix is task #97-P3-Layout's §3 once more**: move the two
+walks, with whatever cone their proofs reach for (not surveyed here), down to
+`Checker/Names.lean` or a sibling below `Checker/Hyp.lean`.  **Owner: the Checker
+tier.**  (An `import ConRon.Bridge.Checker.Base` from here is ACYCLIC today —
+`Base.lean` imports no inductive module — but the layout rule says no, so it
+was not done.)
+
+**2. `nativeOpenedOk_spec` / `nativeFieldsOk_spec` cannot be proved at
+`PSpec`.**  They call `constsResolveFFast`, whose Theorem 1 needs
+`IFEnvOK` (`CheckOK.ienv`) — the index answering what `env₀` answers — and
+`PSpec`'s precondition is `denoteFEnv st fe₀ = some env₀`, which does not
+give it.  Missing precondition, to repair when wall 1 falls: `IFEnvOK env₀
+fe₀ s₀` (or the pair at `CSpec`).
+
+**3. `eqBasisStored` interns `ConLeche.eqA` inside the bracket.**
+`Arena.eqA` is `internCI ConLeche.eqA`, and `Frontend/Shared.lean`'s
+`internCI_istep` requires `scratchOn = false` — the scratch-agnostic
+`ParseStep` family task #97-P3-Layout §2 describes.  `eqBasisStored_spec`
+and everything that guards on it (`checkProjLookups`, `checkEtaThm`,
+`checkUnitThm`, `checkIndRecs`, `indBlockCaps`) waits on that restatement.
+**Owner: the Frontend tier**, as §2 said.
+
+**4. Two entry points dropped a frame their walk states** (the species task
+#97-P3-ExprOps round 5 swept for `BMExt`):
+
+* `fvarB_spec` (`Ranges.lean`) has no `abs1C` conjunct — discharged here on
+  loan (§R6.2);
+* `renameConstsFast_spec` (`Owed.lean`) drops the NAME-store frame that
+  `RenameSpec` states (`s'.store.ns = ns0`).  `RenameRel` mentions only the
+  name store, so a rename relation cannot be carried across a rename without
+  it; `renameConstsFast_ns` (`Modeled.lean`) is the same `mvcgen` proof with
+  the conjunct kept.  **Owner: the `ExprOps` tier** — one conjunct, and the
+  local copy goes.
+
+##### R6.5 Lessons, for the next agent in this tier
+
+* **A `match` cannot be restated.**  Every `match` a statement or a `have`
+  writes elaborates to a NEW matcher, so `rw` with it never fires against
+  con-leche's (nor against another `match` in the same proof).  Three
+  answers, used in that order of preference: (a) `generalize` the pure side's
+  matcher application by its printed name (`set_option pp.match false`
+  shows it; `nativeShape?_run`'s result sort); (b) NAME the lambda
+  (`recKindAt`) and prove the unfolding once by `rfl`, which does unfold both
+  matchers; (c) `change` the goal to your own spelling — defeq checks
+  unfold matchers, `rw` does not (`nativeRulePrefixOk_spec`).
+* **`do`-notation join points are duplicated by `dsimp only`** — a
+  `let x ← match …` whose continuation is long becomes N copies after
+  `dsimp`.  `structPartsCore?`'s `large?` tail and `nativeShape?`'s three
+  sort branches were proved ONCE each by writing the tail proof as a Python
+  template and instantiating it per branch; a `split at` on the match
+  (which yields the catch-all's negative hypothesis) beats `cases` on the
+  scrutinee when the scrutinee has ten constructors.
+* **`split at h` fails with "Failed to find match-expression discriminants"
+  when the discriminant is a literal `some x`** (after a `rw`); `cases x`
+  plus `all_goals try (…)` for the fallthrough arms is the workaround.
+* **`obtain ⟨rfl, rfl⟩ := pureOk …` substitutes in whichever direction
+  `subst` picks** — usually eliminating the EARLIER state, so a later
+  mention of `s₀` is an unknown identifier.  Keep the state equation as a
+  hypothesis (`obtain ⟨rfl, hs⟩`, then `rw [hs] at …`) when the old state is
+  still mentioned, or state helper lemmas as `s = s₁` rather than `s₁ = s`.
+
+##### R6.6 What the next round should do
+
+1. **Wall 1** (Checker tier moves two walks down) unblocks five statements
+   here and, through `checkStructProjTable`, `checkNativeTable`.
+2. **The `EnvWF` + `WScoped` repair of §R6.3**, as one round over
+   `SumInstall.lean`'s nine: `normPosDom` first (it needs only
+   `WScoped.instantiate1` and the `whnf` slot's `SimE`), then
+   `normFieldDoms`, `whnfTelescope`, `checkSumTele`, `normCtorVal`,
+   `checkSumCtor(s)`, `checkSumInd`.
+3. **Wall 3** (Frontend tier's scratch-agnostic `internCI`) unblocks the
+   `eqBasisStored` family of `Modeled.lean`.
+
 #### Round 5 — `structShape_spec`, the `PinsOK` ruling executed, and TWO new blockers named (2026-09-23, Opus under Fable)
 
 Branch `p3-ind-5` off `arena`'s tip `aa4c7a76`, merged forward FOUR times
