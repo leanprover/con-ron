@@ -1263,11 +1263,14 @@ equation, its sides the rule's own.
 `defeq` slot, and `IFEnvOK` at the theorem's lookup. -/
 theorem checkIotaThm_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
+    (henv' : EnvWF env')
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cvName : NIdx) (cvNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
     (r : IRecRule) (rP' : RecRule) (cvj : IConstantVal) (cvjP : ConstantVal)
-    (cnP cnF : Nat) (rhsA : EIdx) (rhsAP : Expr) :
+    (cnP cnF : Nat) (rhsA : EIdx) (rhsAP : Expr)
+    (htyA : tyAP.hasFvar = false) (hctor : cvjP.type.hasFvar = false)
+    (hrhsA : rhsAP.hasFvar = false) :
     CSpec μ envSelf feSelf
       (fun st => RenameRelW st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
@@ -1539,11 +1542,14 @@ theorem nestedRuleShape_spec {μ : CheckMode} (fe' feSelf : IFEnv)
 `Frontend.denoteFire` at the answer. -/
 theorem checkIotaThmN_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
+    (henv' : EnvWF env')
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cvName : NIdx) (cvNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
     (r : IRecRule) (rP' : RecRule) (cvj : IConstantVal) (cvjP : ConstantVal)
-    (cnP cnF : Nat) (rhsA : EIdx) (rhsAP : Expr) :
+    (cnP cnF : Nat) (rhsA : EIdx) (rhsAP : Expr)
+    (htyA : tyAP.hasFvar = false) (hctor : cvjP.type.hasFvar = false)
+    (hrhsA : rhsAP.hasFvar = false) :
     CSpec μ envSelf feSelf
       (fun st => RenameRelW st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
@@ -1565,10 +1571,11 @@ One rule certified and its firing mode written in.
 constructor's lookup. -/
 theorem checkIotaRule_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
+    (henv' : EnvWF env')
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cvName : NIdx) (cvNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
-    (r : IRecRule) (rP' : RecRule) :
+    (r : IRecRule) (rP' : RecRule) (htyA : tyAP.hasFvar = false) :
     CSpec μ envSelf feSelf
       (fun st => RenameRelW st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
@@ -1648,6 +1655,9 @@ theorem checkIotaRule_spec {μ : CheckMode} (fe' feSelf : IFEnv)
         u.pins = s₃.pins ∧ Core.SimE (ConLeche.annotateCore μ envSelf) 0 rhsP u.store r)
       rfl k4 (hknot.annotate s₃ 0 r.rhs rhsP c3.ok hc3'' hwsR)
     have c4 := c3.trans ⟨ok4, x4, p4⟩
+    have hrhsAF : rhsAP.hasFvar = false :=
+      ConLeche.Expr.not_hasFvar_of_fvarsBelow_zero hwsA.fvarsBelow
+    have hctorF : cvjP.type.hasFvar = false := (henv' _ (ConLeche.find?_mem henvC)).1
     -- its level parameters and constants
     obtain ⟨b3, s₅, k5, z7⟩ := bindOk z6
     obtain ⟨h51, h52, h53, hb3⟩ := allLevelParamsDefined_run c4.ok.state
@@ -1769,8 +1779,8 @@ theorem checkIotaRule_spec {μ : CheckMode} (fe' feSelf : IFEnv)
       simp only [Bool.false_eq_true, if_false] at z14
       obtain ⟨fire, s₁₀, k10, z15⟩ := bindOk z14
       obtain ⟨c10, F₃, fireP', hF₃, hfire⟩ := checkIotaThmN_spec fe' feSelf env' envSelf hk
-        henv tbl fP cvName cvNameP lps lpsP tyA tyAP mI rP j r _ cvj cvjP cnP cnF rhsA rhsAP
-        s₉ s₁₀ fire c9.ok hpre9 k10
+        henv henv' tbl fP cvName cvNameP lps lpsP tyA tyAP mI rP j r _ cvj cvjP cnP cnF rhsA
+        rhsAP htyA hctorF hrhsAF s₉ s₁₀ fire c9.ok hpre9 k10
       obtain ⟨cfin, hrfin⟩ := tail fire fireP' s₁₀ c10 hfire z15
       refine ⟨cfin, max (max F₁ F₂) F₃, _, pure_pre _ (by omega) (by omega) fireP' ?_, hrfin⟩
       have hpl : ¬ Expr.recRulePlain tyAP mI rP cnP = true := by rw [← hb5, hb]; simp
@@ -1782,9 +1792,9 @@ theorem checkIotaRule_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     · rw [hb] at z14
       simp only [if_true] at z14
       obtain ⟨u, s₁₀, k10, z15⟩ := bindOk z14
-      obtain ⟨c10, F₃, hF₃⟩ := checkIotaThm_spec fe' feSelf env' envSelf hk henv tbl fP
-        cvName cvNameP lps lpsP tyA tyAP mI rP j r _ cvj cvjP cnP cnF rhsA rhsAP
-        s₉ s₁₀ u c9.ok hpre9 k10
+      obtain ⟨c10, F₃, hF₃⟩ := checkIotaThm_spec fe' feSelf env' envSelf hk henv henv' tbl fP
+        cvName cvNameP lps lpsP tyA tyAP mI rP j r _ cvj cvjP cnP cnF rhsA rhsAP htyA hctorF
+        hrhsAF s₉ s₁₀ u c9.ok hpre9 k10
       replace z15 := AM.pure_bind_ok z15
       obtain ⟨cfin, hrfin⟩ := tail .plain .plain s₁₀ c10 rfl z15
       refine ⟨cfin, max (max F₁ F₂) F₃, _, pure_pre _ (by omega) (by omega) .plain ?_, hrfin⟩
@@ -1807,10 +1817,11 @@ The whole rule list.
 **CLOSED** (task #97-P3-Ind round 8), over a list induction over `checkIotaRule_spec`. -/
 theorem checkIotaRules_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     (env' envSelf : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF envSelf)
+    (henv' : EnvWF env')
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cvName : NIdx) (cvNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP j : Nat)
-    (rs : List IRecRule) (rsP : List RecRule) :
+    (rs : List IRecRule) (rsP : List RecRule) (htyA : tyAP.hasFvar = false) :
     CSpec μ envSelf feSelf
       (fun st => RenameRelW st tbl fP ∧ denoteN st.ns cvName = some cvNameP ∧
         Frontend.denoteNList st.ns lps = some lpsP ∧
@@ -1844,8 +1855,8 @@ theorem checkIotaRules_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     obtain rfl := (Option.some.inj hrs).symm
     simp only [Arena.checkIotaRules] at hrun
     obtain ⟨r1, s₁, k1, z1⟩ := bindOk hrun
-    obtain ⟨c1, F₁, rl', hF₁, hrl'⟩ := checkIotaRule_spec fe' feSelf env' envSelf hk henv tbl fP
-      cvName cvNameP lps lpsP tyA tyAP mI rP j rl rlP s₀ s₁ r1 hck
+    obtain ⟨c1, F₁, rl', hF₁, hrl'⟩ := checkIotaRule_spec fe' feSelf env' envSelf hk henv henv'
+      tbl fP cvName cvNameP lps lpsP tyA tyAP mI rP j rl rlP htyA s₀ s₁ r1 hck
       ⟨hren, hcn, hlps, hty, hr1, hfe', hfeS, hok'⟩ k1
     have x1 := c1.ext
     obtain ⟨r2, s₂, k2, z2⟩ := bindOk z1
@@ -2422,10 +2433,11 @@ each provisioned recursor's rules certified and the record installed.
 **CLOSED** (task #97-P3-Ind round 8), over `checkIotaRules_spec` and `IFEnv.push`, over a list induction. -/
 theorem installIndRecs_spec {μ : CheckMode} (fe₂ feSelf acc : IFEnv)
     (env₂ envSelf envAcc : Env) (hk : CoreSpec μ Arena.checkFuel)
-    (henvSelf : EnvWF envSelf) (hcoh : IFEnvCoh acc)
+    (henvSelf : EnvWF envSelf) (henv₂ : EnvWF env₂) (hcoh : IFEnvCoh acc)
     (tbl : List (NIdx × NIdx)) (fP : ConLeche.Name → ConLeche.Name)
     (cs : List (IConstantVal × Nat × Nat × List IRecRule))
-    (csP : List (ConstantVal × Nat × Nat × List RecRule)) :
+    (csP : List (ConstantVal × Nat × Nat × List RecRule))
+    (htys : ∀ c ∈ csP, c.1.type.hasFvar = false) :
     CSpec μ envSelf feSelf
       (fun st => RenameRelW st tbl fP ∧ denoteFEnv st fe₂ = some env₂ ∧
         denoteFEnv st feSelf = some envSelf ∧
@@ -2466,8 +2478,8 @@ theorem installIndRecs_spec {μ : CheckMode} (fe₂ feSelf acc : IFEnv)
     simp only [Arena.installIndRecs] at hrun
     obtain ⟨rules', s₁, k1, z1⟩ := bindOk hrun
     obtain ⟨c1, F₁, rlsP, hF₁, hrls⟩ := checkIotaRules_spec fe₂ feSelf env₂ envSelf hk henvSelf
-      tbl fP cv.name cvP.name cv.levelParams cvP.levelParams cv.type cvP.type mI rP 0 rs rsP
-      s₀ s₁ rules' hck ⟨hren, denoteCV_name hcv, denoteCV_lps hcv, denoteCV_type hcv, hrs,
+      henv₂ tbl fP cv.name cvP.name cv.levelParams cvP.levelParams cv.type cvP.type mI rP 0 rs
+      rsP (htys _ List.mem_cons_self) s₀ s₁ rules' hck ⟨hren, denoteCV_name hcv, denoteCV_lps hcv, denoteCV_type hcv, hrs,
         hfe₂, hfeS, hok₂⟩ k1
     have x1 := c1.ext
     have hci : Frontend.denoteCI s₁.store (.recInfo cv mI rP rules') =
@@ -2483,7 +2495,8 @@ theorem installIndRecs_spec {μ : CheckMode} (fe₂ feSelf acc : IFEnv)
       have := h0.push hst hcoh (fun t' h => IConstantInfo.noConfusion h) (by rw [ht]; exact hci)
       exact this
     obtain ⟨c2, hinst₂⟩ := ih (acc.push (.recInfo cv mI rP rules'))
-      ⟨.recInfo cvP mI rP rlsP :: envAcc.consts⟩ (hcoh.push _) restP s₁ s' r c1.ok
+      ⟨.recInfo cvP mI rP rlsP :: envAcc.consts⟩ (hcoh.push _) restP
+      (fun c hc => htys c (List.mem_cons_of_mem _ hc)) s₁ s' r c1.ok
       ⟨hren.mono x1, denoteFEnv_ext x1 hfe₂, denoteFEnv_ext x1 hfeS, hpush, hok₂.mono x1,
         denoteRecs_ext x1 hrest, hokA₁⟩ z1
     refine ⟨c1.trans c2, ?_⟩
@@ -2526,6 +2539,39 @@ theorem provisionRecs_envWF {μ : CheckMode} {F : Nat} {bn : List ConLeche.Name}
           simp only [pure, Except.pure, Except.ok.injEq] at h
           subst h
           exact provisionRecs_envWF (v := w) (provRec_envWF (mI := mI) (rP := rP) henv hcm).1 hw
+    all_goals simp [ConLeche.provisionRecs, throw, throwThe, MonadExceptOf.throw] at h
+
+/-- con-leche: ConLeche/Verify/Extend/Recs.lean:237 ProvFacts.mem_facts (its
+`hasFvar` clause) — **every provisioned recursor's type is closed**, off
+`checkConstantVal`'s own guard.  con-leche reads it through `ProvFacts`, which
+needs the block-name membership this tier's statements do not carry; the
+guard alone is enough (task #97-P3-Ind round 9: what the iota certificates'
+scope needs of `tyA`). -/
+theorem provisionRecs_tys {μ : CheckMode} {F : Nat} {bn : List ConLeche.Name} :
+    ∀ {cis : List ConstantInfo} {env : Env}
+      {v : Env × List (ConstantVal × Nat × Nat × List RecRule)},
+      ConLeche.provisionRecs (ConLeche.fueledOps μ F) bn env cis = .ok v →
+      ∀ c ∈ v.2, c.1.type.hasFvar = false
+  | [], env, v, h => by
+    simp only [ConLeche.provisionRecs, pure, Except.pure, Except.ok.injEq] at h
+    subst h; intro c hc; exact nomatch hc
+  | ci :: rest, env, v, h => by
+    cases ci
+    case recInfo cv mI rP rules =>
+      simp only [ConLeche.provisionRecs, bind, Except.bind] at h
+      split at h
+      · exact nomatch h
+      · rename_i cvA hcm
+        split at h
+        · exact nomatch h
+        · rename_i w hw
+          simp only [pure, Except.pure, Except.ok.injEq] at h
+          subst h
+          intro c hc
+          rcases List.mem_cons.mp hc with rfl | hc
+          · obtain ⟨hccv, -⟩ := ConLeche.checkMemberVal_inv hcm
+            exact (checkConstantVal_typeWF hccv).fvar
+          · exact provisionRecs_tys hw c hc
     all_goals simp [ConLeche.provisionRecs, throw, throwThe, MonadExceptOf.throw] at h
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
@@ -2609,8 +2655,9 @@ theorem checkIndRecs_spec {μ : CheckMode} {env : Env} (fe₂ : IFEnv)
   have x04 : Ext s₀.store s₄.store := p1.ext.trans x14
   have hfe₄ := denoteFEnv_ext x04 hfe
   have hok₂ : IFEnvOKS env fe₂ s₄.store := (hread.ienv.toS).mono x04
-  obtain ⟨c5, hinst⟩ := installIndRecs_spec fe₂ feSelf fe₂ env envSelf env hk henvS hcoh tbl
-    (fun n => if blockNamesP.contains n then n.str "_model" else n) checked checkedP s₄ s' r
+  obtain ⟨c5, hinst⟩ := installIndRecs_spec fe₂ feSelf fe₂ env envSelf env hk henvS henv hcoh
+    tbl (fun n => if blockNamesP.contains n then n.str "_model" else n) checked checkedP
+    (provisionRecs_tys (v := (envSelf, checkedP)) hF₁) s₄ s' r
     hck₄ ⟨fun st' hx hwf => htbl st' (x14.trans hx) hwf, hfe₄,
       by obtain ⟨e, he, rfl⟩ := hinstS.denote; rw [hst₄]; exact he,
       hfe₄, hok₂, by rw [hst₄]; exact hchecked, hok₂⟩ z5
