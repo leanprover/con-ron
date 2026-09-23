@@ -58949,4 +58949,4 @@ when its last consumer below has moved:
 `scripts/frontier.sh --summary ConRon.Capstone.model_exists ConRon.Capstone.no_False_declaration`:
 54 items / 151 tainted / 694 dead at the start (`4ce7df20`); per slice, the
 movement is other lanes' landings except slice 2 (59/162/650 → 58/161/649:
-two sorries closed by D5).  At this landing: FRONTIER_AFTER.
+two sorries closed by D5).  At this landing: 65 / 174 / 642 (arena before it: 65 / 174 / 647; the five dead-weight sorries are `Tactic/Prims.lean`'s closed `intern_e_*_ls`).  Gates: all 16 OK at every slice.
