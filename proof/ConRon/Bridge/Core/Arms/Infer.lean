@@ -38,6 +38,7 @@ a twin SUCCESS is what each success lemma is the licence for.
 import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.Proj
 import ConRon.Bridge.Core.Walks.Frame
+import ConRon.Bridge.Core.Walks.StrLit
 
 namespace ConRon.Bridge.Core
 
@@ -293,9 +294,12 @@ the other four are here. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1216-1228 inferBody — **the `.app`
 clause**, at the body: the dispatch hands the node to `inferApp`, whose
-carry is `inferBody_app_batched`. -/
+carry is `inferBody_app_batched`.
+**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves) as a dispatch: its
+own proof is sorry-free, and its census line shows `sorryAx` only through
+`inferBody_app_batched`, the real content, which stays open. -/
 theorem inferBody_app {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
@@ -306,15 +310,22 @@ theorem inferBody_app {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v
+  case app f a =>
+    exact inferBody_app_batched henv hsim s₀ d i e hok hden hw (by simp [htag])
+  all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1126-1137 inferBody — **the `.const`
 clause**: the index lookup, the tower-entry and level-arity guards, and the
 stored type through `constTyAt` (`Walks/Cached.lean`'s `constTyAt_spec'`,
-CLOSED); pure side `infer_const`. -/
+CLOSED); pure side `infer_const`.
+**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem inferBody_const {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel)
+    (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
+    (_hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
@@ -324,15 +335,64 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v
+  case const n us =>
+    obtain ⟨nm, ls, rfl, hn, hus⟩ := denote_const_inv hwf hv hden
+    dsimp only
+    cases hf : fe.find? n with
+    | none =>
+      mvcgen [ConRon.Arena.unknownConstError, ConRon.Arena.pinSorryAx]
+      all_goals (bridge_peel; subst_vars)
+      all_goals first
+        | exact hok.pins
+        | exact hok.caches.readN
+        | exact fun h => h.elim
+    | some ci =>
+      obtain ⟨nm', c, hn', hci, hfind⟩ := hok.ienv.hit n ci hf
+      obtain rfl := Option.some.inj (hn.symm.trans hn')
+      cases ht : ci.isTowerEntry
+      · obtain ⟨hct, cv, hcv_eq, hcv⟩ := denoteCI_nonTower hci ht
+        have hname : denoteN s₀.store.ns cv.name = some nm := by
+          rw [denoteCV_name hcv]; exact congrArg some (env_find_name hfind)
+        have hlp := denoteNList_len (denoteCV_inv hcv).2.1
+        have hcta := constTyAt_spec' (mode := mode) (env := env) (fe := fe)
+          s₀ cv us hok ⟨nm, ls, c, hname, hus, hfind, hcv⟩
+        simp only [hcv_eq, Bool.false_eq_true, if_false]
+        mvcgen [hcta]
+        all_goals (bridge_peel; subst_vars)
+        all_goals first
+          | exact hok.pins
+          | exact hok.caches.readN
+          | exact fun h => h.elim
+          | rfl
+          | skip
+        rename_i _ usl hlen s₁ r s₂ hview
+        intro hck hx hp hd
+        have hlen' : usl.length = cv.levelParams.length := by simpa using hlen
+        have hl : ls.length = c.toConstantVal.levelParams.length := by
+          rw [← view_len_of_denoteLs hus hview, hlen', hlp]
+        exact ⟨hck, hx, hp, _, hd nm ls c hname hus hfind,
+          Expr.WScoped.of_not_hasFvar (ConLeche.const_ty_hasFvar henv hfind ls),
+          1, infer_const hfind hct hl⟩
+      · mvcgen
+        all_goals (bridge_peel; subst_vars)
+        all_goals first
+          | exact hok.caches.readN
+          | exact fun h => h.elim
+  all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1138-1147 inferBody — **the two
 literal clauses**: `natLitSupported_spec` (`Walks/Nat.lean`, CLOSED) and
-`strLitSupported` (OPEN — no bridge spec yet), then `constE_spec`; pure side
-`infer_natLit`/`infer_strLit`. -/
+`strLitSupported_spec` (`Walks/StrLit.lean`, CLOSED), then `constE_spec`;
+pure side `infer_natLit`/`infer_strLit`.
+**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel)
+    (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
+    (_hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
@@ -342,7 +402,45 @@ theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  have hce := fun (s : AState) (n : NIdx) =>
+    constE_spec' (mode := mode) (env := env) (fe := fe) s n
+  cases v
+  case lit l =>
+    obtain rfl := denote_lit_inv hwf hv hden
+    cases l with
+    | natVal n =>
+      have hn := natLitSupported_spec (mode := mode) (env := env) (fe := fe)
+        s₀ hok
+      mvcgen [hn, ConRon.Arena.pinNat, hce]
+      all_goals (bridge_peel; subst_vars)
+      all_goals first
+        | exact fun h => h.elim
+        | (apply CheckOK.pins; assumption)
+        | (intro s hs _; subst hs; assumption)
+        | (intro s hs hp; subst hs; exact ⟨_, hp _ rfl⟩)
+        | (rename_i s2 r1 s1 r0 s0 hsup ck_s1 hpin x_s2_s1 p_s1_s2
+           intro hck hx hp hd
+           exact ⟨hck, x_s2_s1.trans hx, hp.trans p_s1_s2, _, hd _ (hpin _ rfl),
+             by unfold Expr.WScoped; trivial, 1, infer_natLit hsup.symm⟩)
+    | strVal str =>
+      have hn := strLitSupported_spec (mode := mode) (env := env) (fe := fe)
+        s₀ hok
+      mvcgen [hn, ConRon.Arena.pinString, hce]
+      all_goals (bridge_peel; subst_vars)
+      all_goals first
+        | exact fun h => h.elim
+        | (apply CheckOK.pins; assumption)
+        | (intro s hs _; subst hs; assumption)
+        | (intro s hs hp; subst hs; exact ⟨_, hp _ rfl⟩)
+        | (rename_i s2 r1 s1 r0 s0 hsup ck_s1 hpin x_s2_s1 p_s1_s2
+           intro hck hx hp hd
+           exact ⟨hck, x_s2_s1.trans hx, hp.trans p_s1_s2, _, hd _ (hpin _ rfl),
+             by unfold Expr.WScoped; trivial, 1, infer_strLit hsup.symm⟩)
+  all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1229-1264 inferBody — **the `.proj`
 clause**: `KnotSpec.infer`, `KnotSpec.whnf'`, `getAppFn`/`getAppArgs`,
@@ -524,10 +622,11 @@ theorem inferBody_proj {fe : IFEnv} {fuel : Nat}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1115-1125 inferBody — **the leaf
 clauses**: `.sort` (one level intern and one node intern), `.fvar` (the
-scope check), and the two throws (`.letE`, `.bvar`). -/
+scope check), and the two throws (`.letE`, `.bvar`).
+**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel)
+    (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
+    (_hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
@@ -539,7 +638,52 @@ theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v with
+  | app f a => exact absurd htg hna
+  | lit l => exact absurd htg hnl
+  | const n us => exact absurd htg hnc
+  | proj n k sub => exact absurd htg hnp
+  | lam ty b m =>
+    rw [htg] at hnb; simp [ENodeView.tagOf, ETag.isBind] at hnb
+  | forallE ty b m =>
+    rw [htg] at hnb; simp [ENodeView.tagOf, ETag.isBind] at hnb
+  | letE ty w b => mvcgen; exact fun h => h.elim
+  | bvar k => mvcgen; exact fun h => h.elim
+  | fvar k t =>
+    obtain ⟨t', rfl, ht⟩ := denote_fvar_inv hwf hv hden
+    have hk : k < d := by unfold Expr.WScoped at hw; exact hw.1
+    have hwt : Expr.WScoped d t' := by
+      unfold Expr.WScoped at hw; exact Expr.WScoped.mono (Nat.le_of_lt hk) hw.2
+    mvcgen
+    bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, _, ht, hwt, 1, infer_fvar hk⟩
+  | sort u =>
+    obtain ⟨l, rfl, hl⟩ := denote_sort_inv hwf hv hden
+    mvcgen [internLNode_spec, internE_spec]
+    all_goals (bridge_peel; subst_vars)
+    case vc1.hwf => exact hwf
+    case vc2.hv =>
+      exact ⟨fun c hc => by
+        simp [LNodeView.lchildren] at hc; subst hc
+        exact lview_isSome_of_denote hl,
+        fun c hc => by simp [LNodeView.nchildren] at hc⟩
+    case vc3.sort.post.success.post.success =>
+      rename_i s₁ r₁ s₂ r₂ s₃ _ hx1 _ _ _ _ hc1 hp1 _ hd1
+      intro hwf2 hx2 _ _ hc2 hp2 _ _ _ hd2
+      refine ⟨hok.mono ⟨hwf2⟩ (hx1.trans hx2) (hc2.trans hc1) (hp2.trans hp1),
+        hx1.trans hx2, hp2.trans hp1, .sort (.succ l), ?_,
+        by unfold Expr.WScoped; trivial, 1, infer_sort⟩
+      have hs1 : denoteL s₂.store.ls r₁ = some (Level.succ l) := by
+        rw [hd1]; simp [denoteLView, denoteL_ext hl hx1]
+      rw [hd2]; simp [denoteEView, denoteL_ext hs1 hx2]
+    case vc4 => intro s h _ _ _ _ _ _ _ _ _; exact h
+    case vc5 =>
+      intro s _ _ _ _ _ _ _ _ hview _
+      exact viewOK_sort (by rw [hview]; rfl)
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC5.lean inferBodyC_sim — **THEOREM 1
 for `inferBody`**.
@@ -567,5 +711,18 @@ theorem inferBody_spec {fe : IFEnv} {fuel : Nat}
   · exact inferBody_lit henv hμ hsim s₀ d i e hok hden hw hl
   exact inferBody_leaf henv hμ hsim s₀ d i e hok hden hw ha hp
     (Bool.eq_false_iff.mpr hb) hc hl
+
+/-! ## The axiom census of the closed children (task #97-P3-Core round 5,
+sub-lane Leaves) -/
+
+section Census
+
+-- `sorryAx` here is `inferBody_app_batched`'s, inherited through the dispatch
+#print axioms inferBody_app
+#print axioms inferBody_const
+#print axioms inferBody_lit
+#print axioms inferBody_leaf
+
+end Census
 
 end ConRon.Bridge.Core
