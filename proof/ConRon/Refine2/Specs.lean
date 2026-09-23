@@ -9464,7 +9464,7 @@ theorem internForallEE_run_inv {lst lst' : AState} {ty b : EIdx}
 /-- `ECapAt` at a binder view gives the node step's own test at the datum
 handle `internBM` answers — no `StoreWF`: on a datum hit the node probe IS
 `find?`'s second step, and on a datum miss `find?` already missed. -/
-theorem EBindCapAt_of_ECapAt {ls : EStore} {tag : UInt32} {ty b : EIdx}
+theorem EBindCapAt_internBM_of_ECapAt {ls : EStore} {tag : UInt32} {ty b : EIdx}
     {m : ConLeche.BinderMeta} {v : ENodeView}
     (hfov : ∀ st : EStore, st.findBMOfView v = st.findBM m)
     (hfa : ∀ (st : EStore) (mi : BMIdx), st.findAt v mi = st.findBindI tag ty b mi)
@@ -9496,14 +9496,14 @@ theorem internE_run_of_caps {lst : AState} {v : ENodeView} (hwf : StoreWF lst.st
   case lam ty b m =>
     have hbm' : ECapBMOf lst.store m := hbm
     rw [internLamE_run_split hbm', internLamIE_run_of_cap
-      (EBindCapAt_of_ECapAt (fun _ => rfl) (fun st mi => findAt_lam_eq_findBindI st ty b m mi)
+      (EBindCapAt_internBM_of_ECapAt (fun _ => rfl) (fun st mi => findAt_lam_eq_findBindI st ty b m mi)
         (fun t => by simp [ETables.sizeOf, ETables.bindSizeOf]) hcap),
       intern_lam_eq hwf hbm']
     rfl
   case forallE ty b m =>
     have hbm' : ECapBMOf lst.store m := hbm
     rw [internForallEE_run_split hbm', internForallEIE_run_of_cap
-      (EBindCapAt_of_ECapAt (fun _ => rfl)
+      (EBindCapAt_internBM_of_ECapAt (fun _ => rfl)
         (fun st mi => findAt_forallE_eq_findBindI st ty b m mi)
         (fun t => by simp [ETables.sizeOf, ETables.bindSizeOf, ETag.lam, ETag.forallE])
         hcap),
