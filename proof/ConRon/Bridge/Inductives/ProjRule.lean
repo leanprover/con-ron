@@ -697,4 +697,54 @@ theorem unwrapOr_ok {α : Type} {o : Option α} {e : Arena.CheckError} {a : α}
     obtain ⟨rfl, rfl⟩ := pureOk h
     exact ⟨rfl, rfl⟩
 
+/-! ## Two more run forms for the nested certificate -/
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean instantiateLevelParams — the
+executed level instantiation at the checking invariant: it writes the three
+read caches (`Bridge/ExprOps/Owed.lean`'s `instLPFast_spec` carries their
+invariants), so the frame is a `CoreStep`, not a `PStep`. -/
+theorem instLPFast_cstep {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
+    {ks : List NIdx} {us : LsIdx} {e r : EIdx} {ksv : List ConLeche.Name}
+    {usv : List Level} {eP : Expr} (hok : CheckOK μ env fe s)
+    (hks : Frontend.denoteNList s.store.ns ks = some ksv)
+    (hus : denoteLs s.store.lss us = some usv) (he : denoteE s.store e = some eP)
+    (hrun : Arena.instLPFast Arena.coreWalkFuel ks us e s = .ok (r, s')) :
+    CoreStep μ env fe s s' ∧ denoteE s'.store r = some (eP.instantiateLevelParams ksv usv) := by
+  obtain ⟨hst, hx, -, hL, hLs, hN, hc, hp, -, hrel⟩ := AM.of_run (P := fun t => t = s) rfl hrun
+    (ExprOps.instLPFast_spec _ s ks us e ksv usv hok.state hok.caches.readN hok.caches.readL
+      hok.caches.readLs hks hus (by rw [he]; rfl))
+  exact ⟨⟨Core.CheckOK.ofInstLP hok hst hx hL hLs hN hc hp, hx, hp⟩, hrel eP he⟩
+
+/-- con-leche: none — `mapM_E_pstep` with a store invariant the step reads
+(a rename table's relation, an argument spine's denotation). -/
+theorem mapM_E_pstepQ {f : EIdx → AM EIdx} {F : Expr → Expr} (Q : EStore → Prop)
+    (hQx : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
+    (hf : ∀ (e : EIdx) (eP : Expr) (s₀ s' : AState) (r : EIdx), StateOK s₀ → Q s₀.store →
+      denoteE s₀.store e = some eP → f e s₀ = .ok (r, s') →
+      PStep s₀ s' ∧ denoteE s'.store r = some (F eP)) :
+    ∀ (idx : List EIdx) (idxP : List Expr) (s₀ s' : AState) (r : List EIdx),
+      StateOK s₀ → Q s₀.store → Frontend.denoteEList s₀.store idx = some idxP →
+      idx.mapM f s₀ = .ok (r, s') →
+      PStep s₀ s' ∧ Frontend.denoteEList s'.store r = some (idxP.map F) := by
+  intro idx
+  induction idx with
+  | nil =>
+    intro idxP s₀ s' r hok _ h hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at h
+    subst h
+    simp only [List.mapM_nil] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons e es ih =>
+    intro idxP s₀ s' r hok hQ h hrun
+    obtain ⟨x, xs, hx, hxs, rfl⟩ := denoteEList_cons h
+    simp only [List.mapM_cons] at hrun
+    obtain ⟨y, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hy⟩ := hf e x s₀ s1 y hok hQ hx k1
+    obtain ⟨ys, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, hys⟩ := ih xs s1 s2 ys p1.ok (hQx p1.ext hQ) (denoteEList_ext p1.ext _ _ hxs) k2
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨p1.trans p2, ?_⟩
+    simp only [Frontend.denoteEList, denote_ext hy p2.ext, hys, List.map_cons]
+
 end ConRon.Bridge.Inductives
