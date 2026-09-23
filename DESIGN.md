@@ -54165,3 +54165,144 @@ closure there is no shared cache to exploit.
 The per-root runs: T1 roots 2.5 s wall each, T2 roots 7.5 s (Mathlib in the
 import).  The gate's report line costs one capstone run, ~12 s including the
 `lake build` no-op.
+### Task #97-P5-Usize — the arena's `u64 as usize` casts, fixed in the Rust; and the frozen-tier guard made `Native` (2026-09-23, Opus under Fable)
+
+Branch `p5-usize` off `arena` `7f4b4a86`, fast-forwarded to `ceb06658` before
+the commit (the Rust and the regenerated model land as **one** commit, so every
+live lane pays `Refine2/Core/Eqns.lean` once).  Two rulings of the maintainer,
+both in the Rust: (1) round 3 §R3.5's finding — four Theorem-2 statements
+false on a 32-bit target because a `Vec` is indexed at `j as usize` on an
+unbounded `u64` — is fixed by removing the unbounded casts, not by a
+hypothesis; (2) folded in on the coordinator's request, the ~20
+`M_FROZEN` sites of `arena::store` raise `Native` instead of `Internal`.
+
+#### 1. The classification
+
+`grep "as usize" crates/con-ron-core/src/arena/` read **107 lines, 115 casts**
+(seven lines carry two, `native_rules_ok_from`'s guard three).  Classes:
+**(a)** bounded by something the proof can already see — a guard in `u64` on
+the same path, or a standing hypothesis; **(w)** a `u32` widening, exact on
+every target; **(b)** a `usize` cast up and back; **(c)** genuinely unbounded.
+
+| class | casts | where, and why |
+|---|---:|---|
+| (a) | 21 | `checker_base::doms_match_aux_from` ×2, `modeled::doms_match_renamed` ×2, `native_parts::binders_reset_beq_from` ×2 (`j1 >= bs1.len() as u64` first); `env::i_proj_table_entry` ×2, `basis::quot_pin_hit`, `core::get_d_eidx`, `expr_ops::instantiate_list` (`j - d < vs.len() as u64`) — the guard is already in `u64`; `env::ifenv_find` ×2 — `IFEnvInv`'s `p.2.val < \|consts\|` (task #97-P5-Checker round 3's precedent); `promote::promote_new` — the lemma's `hk : absU k ≤ \|consts\|` (finding C); and seven take/drop sites whose count a local guard bounds: `core::major_to_ctor_k` (`cn_p <= targs.len() as u64`), `modeled` ×3 (`cargs.len() as u64 != cn_p + k` twice, and `nested_rule_shape_args`' `args.len() as u64 == cn_p + k &&` conjunct, which the `drop` sits behind), `native_parts::rec_fam_ok`, `native_install::native_fam_app_ok`, `sum_install::check_sum_ctor_resid` (the `drop` after `args.len() as u64 == n_p + n_idx`) |
+| (w) | 2 | `handle::word_idx_nat` (`u32`), `store::full` (`IDX_CAP`, a `u32` constant) |
+| (b) | 0 | none: every counter that indexes a `Vec` in the arena is a `u64` of the checker's own arithmetic or a length read through `len() as u64`, which (a) already covers |
+| (c) | **92** | below |
+
+The 92, and what each became:
+
+* **36 take/drop counts → `take_eidx_n` / `drop_eidx_n`**, task #61/#59's
+  helpers (`kernel::core_k::{take,drop}_exprs_n`) over handles, verbatim in
+  shape: a `usize` cursor walks the `Vec` while the `u64` count counts down,
+  so no value crosses between the widths.  `core.rs` ×11 (the ι cone:
+  `iota_index_ok`, `struct_eta_cert_tail` ×2, `inst_spine_pins`,
+  `rec_fire_comparands_plain`, `iota_rec_params`, `iota_rec_fam` ×3,
+  `iota_rec_reduct` ×2 — task #61 had swept these from `cached/core_c.rs`,
+  and the arena port put them back), `modeled.rs` ×18 (the `check_iota_thm*`
+  family — the shape task #59 swept from `kernel/inductives/modeled.rs`,
+  back in the arena port), `native_install.rs` ×3, `native_parts.rs`
+  ×3, `sum_install.rs` ×1.  Three of them (`native_fam_app_ok`'s and
+  `check_sum_ctor_resid`'s `take`, `nested_rule_shape_args`' `take`) sit
+  BEFORE the guard that would bound them — the answer is rescued by a later
+  conjunct but the store is not (`lower_bvars_list` interns from the wrapped
+  prefix), so they are (c), not (a).
+* **23 bounds tests → the same test in `u64`** (`(j as usize) < v.len()`
+  becomes `j < v.len() as u64`): `kind_get_d`, `used_get_d`, `sort_get_d`,
+  `rules_pin_ok` ×2, `native_rules_ok_from` ×3, `rec_ctor_kinds_from`,
+  `struct_field_tele_of`, `struct_field_idx_of`, `struct_rec_rhs_r`,
+  `native_rule_prefix_ok`, `struct_shape_{motive,minor,major}`,
+  `check_struct_doms_at` ×2, `check_struct_field_sorts_i`,
+  `native_fields_at`, `check_eta_thm_body`, `check_unit_thm_shape` ×2.  This
+  is the arena's OWN idiom for `getD` (`core::get_d_eidx`, task #61's
+  `get_d_expr`), not a new one, and it is O(1) where `dom_at_n`'s recursion
+  would have made every `kind_get_d` in a rule loop linear.  The **29 index
+  casts under those tests** are kept and are now class (a): the value is
+  `< len ≤ Usize.max`, and `ExprOps.u64_cast_usize_val` closes them.
+* **4 restructured**: `native_raw_rec`'s `any_dom_mentions(…, n_p as usize)`
+  and `native_field_unused_later`'s `later_mentions(…, (i + 1) as usize)`
+  now call the `usize` cursor only under `n_p < len as u64` / `i + 1 < len as
+  u64`, answering `Ok(false)` otherwise — which is what the cursor answers at
+  or past the end, so the result is unchanged; `native_field_recursive` and
+  `native_field_reflexive` read `x_fvs[i as usize]` with NO guard (the caller
+  tested it) and now go through a new `native_install::field_at`, which tests
+  in `u64` and answers `Internal("direct rec: field index")` past the end —
+  exactly the Refine2 spec's `unwrapOr xFvs[i]? (.internal …)`
+  (`nativeFieldRecursiveSpec`/`…ReflexiveSpec`), which were therefore FALSE on
+  32-bit as stated too (a sixth and seventh §R3.5 statement nobody had
+  listed).
+
+After the fix the arena has **55 casts, every one (a) or (w)** (57 matches,
+two of them in doc comments).  **Nothing changes on a 64-bit target**: every
+rewrite is the identity there, except that the two field readers' former
+out-of-bounds PANIC — unreachable, the caller tests the bound — is now an
+`Internal` error.  **The twin did not change**, because no fix changes what
+the port does on any input the twin can see.
+
+#### 2. The four (and `native_rec_pin_ok`), re-stated and proved
+
+**No statement had to change**: with the Rust fixed, round 2's statements are
+true as written, with no bound hypothesis.  Closed, all at `[propext,
+Classical.choice, Quot.sound]` under `#guard_msgs`:
+`native_parts::kind_get_d_refines`, `rules_pin_ok_refines`,
+`native_rec_pin_ok_refines` (`Inductives/NativeParts.lean`),
+`struct_parts::used_get_d_refines`, `sort_get_d_refines`
+(`Inductives/StructParts.lean`).  New helpers beside them:
+`rulesPinOkSpec_eq_all` (the spec's recursion is the twin's
+`(List.range' j m).all`) and `i_constant_infos_dup_from_abs` (by
+`vec_cursor_copy`).  One Lean idiom worth knowing: a tuple destructured by a
+bind (`let (_, _, i8) ← …`) leaves `match (iv, a, b) with …` in the
+hypothesis, which `rw [if_pos]` cannot see through and `dsimp` would not
+reduce; `replace h : (if … then … else …) = ok o := h` (a defeq ascription)
+does.
+
+#### 3. The frozen-tier guard, `Internal` → `Native`
+
+The maintainer's ruling: all **20** `Err(CheckError::Internal(code_points(&M_FROZEN)))`
+in `arena/store.rs` are `Native` now; the constant and its message stay, with
+a sentence on why.  **Reachability, checked site by site**: fifteen are
+`} else if self.shared_on {` after the `scratch_on` arm of an ordinary
+intern (so they fire only on a persistent append with the scratch tier
+closed), five are the head of an `intern_persistent` (whose only caller is
+phase A's `arena::promote`).  `shared_on` is set only by the driver's
+`freeze_tier` (between phase A and phase B, undone by `thaw_tier`) and by
+`pool::worker_state`, and phase B's only entry is `check_pending`, whose
+first action is `enter_scratch` — at every `--jobs`, including `1`.  **No
+`M_FROZEN` site is reachable from a valid input**, so the flip loses no
+completeness.  It changes nothing but the error kind.
+
+**Statements that become dischargeable** (routed by the coordinator; NOT
+edited here — other lanes are live in them): every hypothesis of the shape
+`hfrozen : _.shared_on = true → _.scratch_on = true`, `PersUnfrozen`,
+`KeepsUnfrozen` exists to rule out the `Internal` arm, which a `Native` arm
+no longer needs ruled out (`AErrSim.native`).  By declaration, 124:
+
+* `ConRon/Refine2/Checker/Top.lean` (5): `enter_scratch_unfrozen`, `check_decl_step_of_keeps`, `annot_step_promote_refines`, `annot_step_promote_of_keeps`, `annot_step_of_keeps`
+* `ConRon/Refine2/ExprOps/Mut.lean` (17): `intern_e_app_res`, `intern_rebuilt_bvar_refines`, `intern_rebuilt_fvar_refines`, `intern_rebuilt_sort_refines`, `intern_rebuilt_const_refines`, `intern_rebuilt_app_refines`, `intern_rebuilt_let_e_refines`, `intern_rebuilt_lit_refines`, `intern_rebuilt_proj_refines`, `intern_rebuilt_bind_i_refines`, `intern_rebuilt_refines`, `intern_rebuilt_lam_refines`, `intern_rebuilt_forall_e_refines`, `intern_rebuilt_bind_refines`, `mk_app_n_from_refines`, `mk_app_n_refines`, `bvar_range_refines`
+* `ConRon/Refine2/Inductives/StructParts.lean` (3): `struct_ps_at_from_refines`, `struct_ps_at_refines`, `bvars_desc_refines`
+* `ConRon/Refine2/Promote/Intern.lean` (1): `PersUnfrozen`
+* `ConRon/Refine2/Promote/Promote.lean` (30): `promote_n_refines`, `promote_n_node_refines`, `promote_l_refines`, `promote_l_node_refines`, `promote_l_two_refines`, `promote_l_list_from_refines`, `promote_l_list_refines`, `promote_ls_refines`, `promote_e_refines`, `promote_e_node_refines`, `promote_e_two_refines`, `promote_n_list_from_refines`, `promote_n_list_refines`, `promote_e_list_from_refines`, `promote_e_list_refines`, `promote_cv_refines`, `promote_fire_refines`, `promote_rule_refines`, `promote_rules_from_refines`, `promote_rules_refines`, `promote_caps_refines`, `promote_proj_table_refines`, `promote_proj_table_rest_refines`, `promote_ci_refines`, `promote_ci_list_from_refines`, `promote_ci_list_refines`, `promote_decl_refines`, `promote_vg_refines`, `index_promoted_refines`, `promote_new_refines`
+* `ConRon/Refine2/Specs.lean` (68): `estore_intern_bvar_abs`, `intern_e_bvar_run`, `intern_e_bvar_flags`, `estore_intern_fvar_abs`, `estore_intern_sort_abs`, `estore_intern_const_abs`, `estore_intern_app_abs`, `estore_intern_proj_abs`, `estore_intern_let_e_abs`, `estore_intern_lit_abs`, `estore_intern_bm_abs`, `estore_intern_lam_i_abs`, `estore_intern_forall_e_i_abs`, `estore_intern_lam_abs`, `estore_intern_forall_e_abs`, `intern_e_fvar_run`, `intern_e_sort_run`, `intern_e_const_run`, `intern_e_app_run`, `intern_e_let_e_run`, `intern_e_proj_run`, `intern_e_lit_run`, `intern_e_lam_i_run`, `intern_e_forall_e_i_run`, `intern_e_bind_i_run`, `intern_e_lam_run`, `intern_e_forall_e_run`, `intern_e_run`, `nstore_intern_other_abs`, `nstore_intern_str_abs`, `nstore_intern_abs`, `nstore_intern_persistent_abs`, `estore_intern_name_abs`, `intern_n_node_run`, `lstore_intern_abs`, `estore_intern_level_abs`, `intern_l_node_run`, `lsstore_intern_abs`, `estore_intern_levels_abs`, `intern_ls_node_run`, `lstore_intern_persistent_abs`, `lsstore_intern_persistent_abs`, `estore_intern_name_persistent_abs`, `estore_intern_level_persistent_abs`, `estore_intern_levels_persistent_abs`, `estore_intern_bm_persistent_abs`, `estore_intern_bm_of_view_persistent_abs`, `estore_intern_persistent_abs`, `intern_persistent_e_run`, `intern_persistent_n_run`, `intern_persistent_l_run`, `intern_persistent_ls_run`, `FlagsEq.unfrozenN`, `FlagsEq.unfrozenL`, `FlagsEq.unfrozenLs`, `intern_name_run'`, `intern_level_run'`, `intern_level_list_from_run'`, `intern_level_list_run'`, `intern_levels_run'`, `intern_name_run`, `intern_name_flags`, `intern_level_run`, `intern_level_flags`, `intern_level_list_run`, `intern_level_list_flags`, `intern_levels_run`, `intern_levels_flags`
+
+#### 4. Fallout, cost and the gates
+
+**No proof outside the five broke.**  `lake build ConRonRefine2`,
+`ConRonBridge` and the default targets all built on the regenerated model at
+the first attempt; the only edits under `proof/` are the five proofs, the two
+helpers and five census rows in `Refine2/Inductives/{NativeParts,StructParts}.lean`
+(this tier's own lane).  No out-of-lane edit.
+
+**Cost**: `Generated/Funs.lean` 229 s, `Refine2/Core/Eqns.lean` **987 s**
+(once per worktree that merges this).  `perf stat -e instructions:u` of
+`--verified --jobs=1` on `Init`, two runs each, interleaved, under `timeout`
+and `ulimit -v 8388608`: `arena` 211 853 595 128 / 211 853 175 253, this
+branch 211 928 888 206 / 211 927 990 581 — **+75 M, +0.035 %**, against a
+0.4 M run-to-run spread; both accept 57 977.  That is `take_eidx_n`'s growing
+`Vec::new()` against `take_eidx`'s pre-sized one on the ι path.  (Measured
+before §3's flip, which only renames the kind of a cold error.)
+
+**Gates**: all 15 OK on the task commit `464200a6`; `arena` then moved
+(task #97-P3-Checker round 8, #97-FRONTIER — no Rust), merged as `cace9da8`,
+and **all 16 OK** there (the new `lake-capstone` step included).  The shared
+Lake cache was not seeded from this worktree.

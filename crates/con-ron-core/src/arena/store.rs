@@ -148,7 +148,10 @@ const M_LS_CAP: [u32; 30] = [
 /// injectivity.  Phase B never takes the branch — `check_pending` opens the
 /// scratch tier before any term is built, and `intern_persistent`'s only
 /// caller is `arena::promote`, which is phase A's — so the guard states the
-/// discipline rather than walking a path the run takes.
+/// discipline rather than walking a path the run takes.  It is raised as the
+/// port's own `Native` decline (task #97-P5-Usize, the maintainer's ruling):
+/// con-leche and the twin have no frozen tier, so the refinement claims
+/// nothing when it fires, exactly as for the capacity guard beside it.
 const M_FROZEN: [u32; 41] = [
     97, 114, 101, 110, 97, 58, 32, 97, 112, 112, 101, 110, 100, 32, 116, 111, 32, 97, 32, 102,
     114, 111, 122, 101, 110, 32, 112, 101, 114, 115, 105, 115, 116, 101, 110, 116, 32, 116, 105,
@@ -1700,7 +1703,7 @@ impl NStore {
                         }
                     }
                 } else if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers.strs.full() {
                     Err(CheckError::Native(code_points(&M_N_CAP)))
                 } else {
@@ -1733,7 +1736,7 @@ impl NStore {
                         }
                     }
                 } else if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers_full_of(pers, &v) {
                     Err(CheckError::Native(code_points(&M_N_CAP)))
                 } else {
@@ -2110,7 +2113,7 @@ impl LStore {
                         }
                     }
                 } else if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers_full_of(pers, &v) {
                     Err(CheckError::Native(code_points(&M_L_CAP)))
                 } else {
@@ -2448,7 +2451,7 @@ impl LsStore {
                         }
                     }
                 } else if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers_full_of(pers, &v) {
                     Err(CheckError::Native(code_points(&M_LS_CAP)))
                 } else {
@@ -3642,7 +3645,7 @@ impl EStore {
                         }
                     }
                 } else if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers.bms.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
@@ -3675,7 +3678,7 @@ impl EStore {
             Some(hp) => Ok(hp),
             None => {
                 if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers.bms.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
@@ -4082,7 +4085,7 @@ impl EStore {
                         }
                     }
                 } else if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers.bvars.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
@@ -4150,7 +4153,7 @@ impl EStore {
                         }
                     }
                 } else if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers.fvars.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
@@ -4218,7 +4221,7 @@ impl EStore {
                         }
                     }
                 } else if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers.sorts.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
@@ -4278,7 +4281,7 @@ impl EStore {
                         }
                     }
                 } else if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers.consts.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
@@ -4338,7 +4341,7 @@ impl EStore {
                         }
                     }
                 } else if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers.apps.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
@@ -4420,7 +4423,7 @@ impl EStore {
                         }
                     }
                 } else if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers.lams.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
@@ -4502,7 +4505,7 @@ impl EStore {
                         }
                     }
                 } else if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers.foralls.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
@@ -4566,7 +4569,7 @@ impl EStore {
                         }
                     }
                 } else if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers.lets.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
@@ -4618,7 +4621,7 @@ impl EStore {
                         }
                     }
                 } else if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers.lits.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
@@ -4678,7 +4681,7 @@ impl EStore {
                         }
                     }
                 } else if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers.projs.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
@@ -4777,7 +4780,7 @@ impl NStore {
             Some(i) => Ok(i),
             None => {
                 if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers_full_of(pers, &v) {
                     Err(CheckError::Native(code_points(&M_N_CAP)))
                 } else {
@@ -4806,7 +4809,7 @@ impl LStore {
             Some(i) => Ok(i),
             None => {
                 if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers_full_of(pers, &v) {
                     Err(CheckError::Native(code_points(&M_L_CAP)))
                 } else {
@@ -4848,7 +4851,7 @@ impl LsStore {
             Some(i) => Ok(i),
             None => {
                 if self.shared_on {
-                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                    Err(CheckError::Native(code_points(&M_FROZEN)))
                 } else if self.pers_full_of(pers, &v) {
                     Err(CheckError::Native(code_points(&M_LS_CAP)))
                 } else {
@@ -4899,7 +4902,7 @@ impl EStore {
                 Some(i) => Ok(i),
                 None => {
                     if self.shared_on {
-                        Err(CheckError::Internal(code_points(&M_FROZEN)))
+                        Err(CheckError::Native(code_points(&M_FROZEN)))
                     } else if self.pers_full_of(pers, &v) {
                         Err(CheckError::Native(code_points(&M_E_CAP)))
                     } else {

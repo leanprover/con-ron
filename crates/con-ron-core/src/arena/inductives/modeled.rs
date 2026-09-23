@@ -994,8 +994,8 @@ pub fn iota_lhs_prefix_ok(
                     } else if largs.len() as u64 != m_i + 1 {
                         Ok(false)
                     } else {
-                        let a: Vec<EIdx> = expr_ops::take_eidx(largs, r_p as usize);
-                        let b: Vec<EIdx> = expr_ops::take_eidx(fvs, r_p as usize);
+                        let a: Vec<EIdx> = expr_ops::take_eidx_n(largs, r_p);
+                        let b: Vec<EIdx> = expr_ops::take_eidx_n(fvs, r_p);
                         Ok(canon::eidx_vec_beq(&a, &b, 0))
                     }
                 }
@@ -1041,7 +1041,7 @@ pub fn check_iota_thm(
                 Ok(b0) => {
                     let lhs_s: EIdx = core::get_d_eidx(&targs, 1, &b0);
                     let rhs_s: EIdx = core::get_d_eidx(&targs, 2, &b0);
-                    let x_fvs: Vec<EIdx> = core::drop_eidx(&fvs, r_p as usize);
+                    let x_fvs: Vec<EIdx> = core::drop_eidx_n(&fvs, r_p);
                     match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, &lhs_s) {
                         Err(e) => Err(e),
                         Ok(largs) => match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, &lhs_s) {
@@ -1101,7 +1101,7 @@ pub fn check_iota_major(
                 Err(e) => Err(e),
                 Ok(c_hd) => {
                     let spine: Vec<EIdx> =
-                        core::append_eidx(expr_ops::take_eidx(fvs, cn_p as usize), x_fvs);
+                        core::append_eidx(expr_ops::take_eidx_n(fvs, cn_p), x_fvs);
                     match expr_ops::mk_app_n(pers, st, &c_hd, &spine) {
                         Err(e) => Err(e),
                         Ok(want) => Ok(major.eq2(&want)),
@@ -1148,7 +1148,7 @@ pub fn check_iota_thm_ctor(
             Err(e) => Err(e),
             Ok(cty_r) => {
                 let spine: Vec<EIdx> =
-                    core::append_eidx(expr_ops::take_eidx(fvs, cn_p as usize), x_fvs);
+                    core::append_eidx(expr_ops::take_eidx_n(fvs, cn_p), x_fvs);
                 match expr_ops::inst_pis_at_f(pers, st, CORE_WALK_FUEL, &spine, &cty_r) {
                     Err(e) => Err(e),
                     Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_CTELE))),
@@ -1200,14 +1200,14 @@ pub fn check_iota_thm_idx(
                 fail(core_types::not_implemented(code_points(&M_IOTA_CIDX)))
             } else {
                 let lidx: Vec<EIdx> =
-                    expr_ops::take_eidx(&core::drop_eidx(largs, r_p as usize), k as usize);
+                    expr_ops::take_eidx_n(&core::drop_eidx_n(largs, r_p), k);
                 let cidx: Vec<EIdx> = core::drop_eidx(&cargs, cn_p as usize);
                 match checker_base::check_def_eq_list(pers, vis, st, mode, fe_self, depth, &lidx, &cidx, 0) {
                     Err(e) => Err(e),
                     Ok(()) => match checker_base::fvar_type_ds(pers, st, x_fvs, 0, Vec::new()) {
                         Err(e) => Err(e),
                         Ok(xdoms) => {
-                            let cdom_tail: Vec<EIdx> = core::drop_eidx(cdoms, cn_p as usize);
+                            let cdom_tail: Vec<EIdx> = core::drop_eidx_n(cdoms, cn_p);
                             match checker_base::check_def_eq_list(
                                 pers,
                                 vis,
@@ -1254,7 +1254,7 @@ pub fn check_iota_thm_prefix(
     match expr_ops::rename_consts_fast(pers, st, CORE_WALK_FUEL, f, ty_a) {
         Err(e) => Err(e),
         Ok(ty_ar) => {
-            let pfx: Vec<EIdx> = expr_ops::take_eidx(fvs, r_p as usize);
+            let pfx: Vec<EIdx> = expr_ops::take_eidx_n(fvs, r_p);
             match expr_ops::inst_pis_at_f(pers, st, CORE_WALK_FUEL, &pfx, &ty_ar) {
                 Err(e) => Err(e),
                 Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_RTELE))),
@@ -1313,7 +1313,7 @@ pub fn check_iota_thm_frames(
         Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_RTELE))),
         Ok(Some(pq)) => {
             let fvs_p: Vec<EIdx> = pq.0;
-            let pfx: Vec<EIdx> = expr_ops::take_eidx(&fvs_p, cn_p as usize);
+            let pfx: Vec<EIdx> = expr_ops::take_eidx_n(&fvs_p, cn_p);
             match expr_ops::inst_pis_at_f(pers, st, CORE_WALK_FUEL, &pfx, &cvj.ty) {
                 Err(e) => Err(e),
                 Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_CTELE))),
@@ -1539,7 +1539,7 @@ pub fn nested_rule_shape_args(
     match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, dom) {
         Err(e) => Err(e),
         Ok(args) => {
-            let head: Vec<EIdx> = expr_ops::take_eidx(&args, cn_p as usize);
+            let head: Vec<EIdx> = expr_ops::take_eidx_n(&args, cn_p);
             match lower_bvars_list(pers, st, k, &head, 0, Vec::new()) {
                 Err(e) => Err(e),
                 Ok(pins) => match lift_bvars_list(pers, st, k, &pins, 0, Vec::new()) {
@@ -1819,8 +1819,8 @@ pub fn check_iota_thm_n_at(
                 Ok(b0) => {
                     let lhs_s: EIdx = core::get_d_eidx(&targs, 1, &b0);
                     let rhs_s: EIdx = core::get_d_eidx(&targs, 2, &b0);
-                    let x_fvs: Vec<EIdx> = core::drop_eidx(&fvs, r_p as usize);
-                    let pfx: Vec<EIdx> = expr_ops::take_eidx(&fvs, r_p as usize);
+                    let x_fvs: Vec<EIdx> = core::drop_eidx_n(&fvs, r_p);
+                    let pfx: Vec<EIdx> = expr_ops::take_eidx_n(&fvs, r_p);
                     match inst_spine_list_renamed(pers, st, f, &pfx, sub_nat(r_p, 1), pins, 0, Vec::new())
                     {
                         Err(e) => Err(e),
@@ -2036,14 +2036,14 @@ pub fn check_iota_thm_n_idx(
                 fail(core_types::not_implemented(code_points(&M_IOTA_CIDX)))
             } else {
                 let lidx: Vec<EIdx> =
-                    expr_ops::take_eidx(&core::drop_eidx(largs, r_p as usize), k as usize);
+                    expr_ops::take_eidx_n(&core::drop_eidx_n(largs, r_p), k);
                 let cidx: Vec<EIdx> = core::drop_eidx(&cargs, cn_p as usize);
                 match checker_base::check_def_eq_list(pers, vis, st, mode, fe_self, depth, &lidx, &cidx, 0) {
                     Err(e) => Err(e),
                     Ok(()) => match checker_base::fvar_type_ds(pers, st, x_fvs, 0, Vec::new()) {
                         Err(e) => Err(e),
                         Ok(xdoms) => {
-                            let cdom_tail: Vec<EIdx> = core::drop_eidx(cdoms, cn_p as usize);
+                            let cdom_tail: Vec<EIdx> = core::drop_eidx_n(cdoms, cn_p);
                             match checker_base::check_def_eq_list(
                                 pers,
                                 vis,
@@ -2094,7 +2094,7 @@ pub fn check_iota_thm_n_prefix(
     match expr_ops::rename_consts_fast(pers, st, CORE_WALK_FUEL, f, ty_a) {
         Err(e) => Err(e),
         Ok(ty_ar) => {
-            let pfx: Vec<EIdx> = expr_ops::take_eidx(fvs, r_p as usize);
+            let pfx: Vec<EIdx> = expr_ops::take_eidx_n(fvs, r_p);
             match expr_ops::inst_pis_at_f(pers, st, CORE_WALK_FUEL, &pfx, &ty_ar) {
                 Err(e) => Err(e),
                 Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_RTELE))),
@@ -2155,7 +2155,7 @@ pub fn check_iota_thm_n_frames(
         Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_RTELE))),
         Ok(Some(pq)) => {
             let fvs_p: Vec<EIdx> = pq.0;
-            let pfx: Vec<EIdx> = expr_ops::take_eidx(&fvs_p, r_p as usize);
+            let pfx: Vec<EIdx> = expr_ops::take_eidx_n(&fvs_p, r_p);
             match inst_spine_list(pers, st, &pfx, sub_nat(r_p, 1), pins, 0, Vec::new()) {
                 Err(e) => Err(e),
                 Ok(pins_p) => {
@@ -3475,7 +3475,7 @@ pub fn check_eta_thm_body(
         Ok(ps_lo) => match expr_ops::mk_app_n(pers, st, t_hd, &ps_lo) {
             Err(e) => Err(e),
             Ok(fam_lo) => {
-                let xdom_ok: bool = if (n_p as usize) < sbinders.len() {
+                let xdom_ok: bool = if n_p < sbinders.len() as u64 {
                     sbinders[n_p as usize].0.eq2(&fam_lo)
                 } else {
                     false
@@ -3713,12 +3713,12 @@ pub fn check_unit_thm_shape(
                     Ok(fam1) => match fam_at(pers, st, &t_hd, 2, n_p) {
                         Err(e) => Err(e),
                         Ok(fam2) => {
-                            let x_ok: bool = if (n_p as usize) < sbinders.len() {
+                            let x_ok: bool = if n_p < sbinders.len() as u64 {
                                 sbinders[n_p as usize].0.eq2(&fam0)
                             } else {
                                 false
                             };
-                            let y_ok: bool = if ((n_p + 1) as usize) < sbinders.len() {
+                            let y_ok: bool = if n_p + 1 < sbinders.len() as u64 {
                                 sbinders[(n_p + 1) as usize].0.eq2(&fam1)
                             } else {
                                 false

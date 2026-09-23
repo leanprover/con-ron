@@ -319,6 +319,36 @@ pub fn take_eidx(xs: &Vec<EIdx>, k: usize) -> Vec<EIdx> {
     eidx_copy_upto(xs, k, 0, Vec::with_capacity(n))
 }
 
+/// con-leche: none — `List.take` over a `Vec<EIdx>` at a `u64` count, without a `usize` cast
+/// `xs.take n` where the count is a machine word of the checker's own
+/// arithmetic (a parameter count, a major-premise index): task #61's
+/// `kernel::core_k::take_exprs_n` over handles (task #97-P5-Usize).  The
+/// obvious `take_eidx(xs, n as usize)` is a *truncating* cast under Aeneas,
+/// so on a 32-bit target a count past `u32::MAX` would take a short prefix
+/// where the twin's `List.take` takes the whole list.  The count is consumed
+/// by the recursion instead of converted: `i` walks the `Vec` and `n` counts
+/// down, so no value ever crosses between the two widths.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:220-221 takeEidx` — the same
+/// prefix of a push-order vector.
+pub fn take_eidx_n(xs: &Vec<EIdx>, n: u64) -> Vec<EIdx> {
+    take_eidx_n_from(xs, n, 0, Vec::new())
+}
+
+/// con-leche: none — `List.take` over a `Vec<EIdx>` at a `u64` count
+/// The index recursion behind `take_eidx_n`; the accumulator is passed by
+/// value and returned (task #6's rule).
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:220-221 takeEidx` — the
+/// window copy, one handle per step.
+pub fn take_eidx_n_from(xs: &Vec<EIdx>, n: u64, i: usize, out: Vec<EIdx>) -> Vec<EIdx> {
+    if n == 0 || i >= xs.len() {
+        out
+    } else {
+        let mut o: Vec<EIdx> = out;
+        o.push(xs[i].dup2());
+        take_eidx_n_from(xs, n - 1, i + 1, o)
+    }
+}
+
 /// con-leche: none — `x :: xs` over a `Vec<EIdx>`
 /// Lean conses in `O(1)` and shares the tail; a `Vec` has no cons, so the
 /// tail is copied.  Every call site is a telescope arity, not a term size.
