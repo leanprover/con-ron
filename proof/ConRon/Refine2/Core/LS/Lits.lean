@@ -310,4 +310,256 @@ set_option maxHeartbeats 4000000 in
   rw [arena.core.nat_op_result, natOpResult]
   lockstep
 
+/-! ## String literals -/
+
+@[lockstep] theorem cast_u32_u64_spec (x : Std.U32) :
+    LSP (lift (UScalar.cast .U64 x)) (fun y => y.val = x.val) := by
+  intro y h
+  simp only [ConRon.Refine.lift_eq, Result.ok.injEq] at h
+  subst h
+  simp
+
+theorem bne_eq_not_beq' {α : Type} [BEq α] (a b : α) : (a != b) = !(a == b) := rfl
+
+attribute [local lockstep_simp] bne_eq_not_beq' Bool.not_true Bool.not_false
+
+/-- The twin's character list of a stored string. -/
+theorem absString_toList (s : alloc.vec.Vec Std.U32) :
+    (ConRon.Refine.absString s).toList = s.val.map fun c => Char.ofNat c.val := by
+  rw [ConRon.Refine.absString, String.toList_ofList]
+
+theorem char_toNat_ofNat_of_valid {n : Nat} (hv : n.isValidChar) :
+    (Char.ofNat n).toNat = n := by
+  simp [Char.ofNat, hv, Char.ofNatAux, Char.toNat]
+
+/-- The spine's one-character step reads the stored code point. -/
+theorem spine_char {s : alloc.vec.Vec Std.U32} (hs : ConRon.Refine.StrWF s) {i : Nat}
+    (hi : i < s.val.length) :
+    ((s.val.map fun c => Char.ofNat c.val)[i]'(by simpa using hi)).toNat = s.val[i].val := by
+  rw [List.getElem_map]
+  exact char_toNat_ofNat_of_valid (hs _ (List.getElem_mem hi))
+
+theorem str_lit_cons_spine_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (cons of_nat nil_e : arena.handle.EIdx) (s : alloc.vec.Vec Std.U32) (i : Std.Usize),
+      s.val.length - i.val = n → ConRon.Refine.StrWF s →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdx a)
+        (arena.core.str_lit_cons_spine pers st cons of_nat nil_e s i) lst
+        (strLitConsSpine (absEIdx cons) (absEIdx of_nat) (absEIdx nil_e)
+          ((s.val.map fun c => Char.ofNat c.val).drop i.val)) := by
+  induction n with
+  | zero =>
+    intro pers st lst cons of_nat nil_e s i hn hs hrel hinv
+    rw [arena.core.str_lit_cons_spine, List.drop_eq_nil_of_le (by simp; omega),
+      strLitConsSpine]
+    lockstep
+    all_goals trace_state
+    all_goals sorry
+  | succ k ih =>
+    intro pers st lst cons of_nat nil_e s i hn hs hrel hinv
+    have hi : i.val < s.val.length := by omega
+    have hc := spine_char hs hi
+    rw [arena.core.str_lit_cons_spine, List.drop_eq_getElem_cons (by simpa using hi),
+      strLitConsSpine]
+    lockstep
+    all_goals trace_state
+    all_goals sorry
+
+@[lockstep] theorem str_lit_cons_spine_ls {pers st cons of_nat nil_e s i lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hs : ConRon.Refine.StrWF s) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.str_lit_cons_spine pers st cons of_nat nil_e s i) lst
+      (strLitConsSpine (absEIdx cons) (absEIdx of_nat) (absEIdx nil_e)
+        ((s.val.map fun c => Char.ofNat c.val).drop i.val)) :=
+  str_lit_cons_spine_aux _ cons of_nat nil_e s i rfl hs hrel hinv
+
+attribute [lockstep_inline] arena.core.str_lit_to_constructor_rest
+
+attribute [local lockstep_simp] absString_toList List.drop_zero
+
+@[lockstep] theorem str_lit_to_constructor_ls {pers st s lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hs : ConRon.Refine.StrWF s) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.str_lit_to_constructor pers st s) lst
+      (strLitToConstructor (ConRon.Refine.absString s)) := by
+  rw [arena.core.str_lit_to_constructor, strLitToConstructor]
+  lockstep
+  all_goals trace_state
+  all_goals sorry
+
+/-! ## The `String` literal guards -/
+
+@[lockstep] theorem string_ty_ok_ls {pers st ci lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.string_ty_ok pers st ci) lst
+      (stringTyOk (ci.map absIConstantInfo)) := by
+  rcases ci with _ | c <;> rw [arena.core.string_ty_ok.eq_def] <;>
+    simp only [Option.map_none, Option.map_some, stringTyOk] <;> lockstep
+  all_goals trace_state
+  all_goals sorry
+
+@[lockstep] theorem char_ty_ok_ls {pers st ci lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.char_ty_ok pers st ci) lst
+      (charTyOk (ci.map absIConstantInfo)) := by
+  rcases ci with _ | c <;> rw [arena.core.char_ty_ok.eq_def] <;>
+    simp only [Option.map_none, Option.map_some, charTyOk] <;> lockstep
+  all_goals trace_state
+  all_goals sorry
+
+@[lockstep] theorem char_of_nat_ty_ok_ls {pers st ci lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.char_of_nat_ty_ok pers st ci) lst
+      (charOfNatTyOk (ci.map absIConstantInfo)) := by
+  rcases ci with _ | c <;> rw [arena.core.char_of_nat_ty_ok.eq_def] <;>
+    simp only [Option.map_none, Option.map_some, charOfNatTyOk] <;> lockstep
+  all_goals trace_state
+  all_goals sorry
+
+attribute [lockstep_inline] arena.core.string_of_list_ty_body arena.core.list_nil_ty_body
+  arena.core.list_cons_ty_body arena.core.list_cons_ty_at arena.core.str_lit_supported_rest
+
+@[lockstep] theorem string_of_list_ty_ok_ls {pers st ci lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.string_of_list_ty_ok pers st ci) lst
+      (stringOfListTyOk (ci.map absIConstantInfo)) := by
+  rcases ci with _ | c <;> rw [arena.core.string_of_list_ty_ok.eq_def] <;>
+    simp only [Option.map_none, Option.map_some, stringOfListTyOk] <;> lockstep
+  all_goals trace_state
+  all_goals sorry
+
+@[lockstep] theorem list_ty_ok_ls {pers st ci lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.list_ty_ok pers st ci) lst
+      (listTyOk (ci.map absIConstantInfo)) := by
+  rcases ci with _ | c <;> rw [arena.core.list_ty_ok.eq_def] <;>
+    simp only [Option.map_none, Option.map_some, listTyOk] <;> lockstep
+  all_goals trace_state
+  all_goals sorry
+
+@[lockstep] theorem list_nil_ty_ok_ls {pers st ci lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.list_nil_ty_ok pers st ci) lst
+      (listNilTyOk (ci.map absIConstantInfo)) := by
+  rcases ci with _ | c <;> rw [arena.core.list_nil_ty_ok.eq_def] <;>
+    simp only [Option.map_none, Option.map_some, listNilTyOk] <;> lockstep
+  all_goals trace_state
+  all_goals sorry
+
+@[lockstep] theorem list_cons_ty_ok_ls {pers st ci lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.list_cons_ty_ok pers st ci) lst
+      (listConsTyOk (ci.map absIConstantInfo)) := by
+  rcases ci with _ | c <;> rw [arena.core.list_cons_ty_ok.eq_def] <;>
+    simp only [Option.map_none, Option.map_some, listConsTyOk] <;> lockstep
+  all_goals trace_state
+  all_goals sorry
+
+@[lockstep] theorem str_lit_supported_ls {pers vis st fe lfe lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.str_lit_supported pers vis st fe) lst
+      (strLitSupported lfe) := by
+  rw [arena.core.str_lit_supported, strLitSupported]
+  lockstep
+  all_goals trace_state
+  all_goals sorry
+
+/-! ## `reduceNat` -/
+
+/-- `arena::env::nidx_vec_contains` is `List.contains` of the abstracted names
+(a Rust-only step: the twin's `wf.contains c` is a pure expression). -/
+theorem nidx_vec_contains_from_any (ns : alloc.vec.Vec arena.handle.NIdx)
+    (n : arena.handle.NIdx) (k : Nat) :
+    ∀ (i : Std.Usize) (o : Bool), ns.val.length - i.val = k →
+      arena.env.nidx_vec_contains_from ns i n = ok o →
+      o = (ns.val.drop i.val).any fun m => absNIdx m == absNIdx n := by
+  induction k with
+  | zero =>
+    intro i o hk h
+    rw [arena.env.nidx_vec_contains_from.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len ns by scalar_tac), Result.ok.injEq] at h
+    rw [← h, List.drop_eq_nil_of_le (by omega)]
+    rfl
+  | succ k ih =>
+    intro i o hk h
+    have hlt : i.val < ns.val.length := by omega
+    rw [arena.env.nidx_vec_contains_from.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ns by scalar_tac)] at h
+    obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, rfl⟩ := ExprOps.vecIndexAt hn1
+    have hbv : b = (absNIdx ns.val[i.val] == absNIdx n) := PB.nidx_eq2_spec _ _ b hb
+    rw [List.drop_eq_getElem_cons hlt, List.any_cons, ← hbv]
+    cases b with
+    | false =>
+      rw [if_neg (by simp)] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi2)
+      rw [Bool.false_or, ih i2 o (by omega) h, hi2v]
+    | true =>
+      rw [if_pos (by simp), Result.ok.injEq] at h
+      rw [← h, Bool.true_or]
+
+@[lockstep] theorem nidx_vec_contains_spec (ns : alloc.vec.Vec arena.handle.NIdx)
+    (n : arena.handle.NIdx) :
+    LSP (arena.env.nidx_vec_contains ns n)
+      (fun o => o = (absNIdxList ns).contains (absNIdx n)) := by
+  intro o h
+  rw [arena.env.nidx_vec_contains] at h
+  rw [nidx_vec_contains_from_any ns n _ 0#usize o rfl h]
+  simp [absNIdxList, List.contains_eq_any_beq, List.any_map, Function.comp_def, List.any_eq]
+
+/-- The twin's `natOpStored` reads the environment and nothing else. -/
+def natOpStoredB (fe : IFEnv) (c : NIdx) : Bool :=
+  match fe.find? c with
+  | some (.defnInfo _ _ _) => true
+  | _ => false
+
+theorem natOpStored_pure (fe : IFEnv) (c : NIdx) :
+    natOpStored fe c = pure (natOpStoredB fe c) := by
+  unfold natOpStored natOpStoredB
+  generalize fe.find? c = o
+  rcases o with _ | ci
+  · rfl
+  · cases ci <;> rfl
+
+@[lockstep] theorem nat_op_stored_spec {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
+    (hctx : CoreCtx vis fe lfe) (c : arena.handle.NIdx) :
+    LSP (arena.core.nat_op_stored vis fe c) (fun b => b = natOpStoredB lfe (absNIdx c)) := by
+  intro a ha
+  rw [arena.core.nat_op_stored] at ha
+  obtain ⟨o, ho, ha⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha
+  have hf := ifenv_find_abs hctx ho
+  rw [natOpStoredB, ← hf]
+  rcases o with _ | ii
+  · cases Result.ok_injective ha; rfl
+  · cases ii <;> (cases Result.ok_injective ha; rfl)
+
+attribute [lockstep_inline] arena.core.reduce_nat_succ arena.core.reduce_nat_bin
+  arena.core.reduce_nat_wf
+
+section
+attribute [local lockstep_simp] natOpStored_pure
+
+set_option maxHeartbeats 4000000 in
+/-- **`arena::core::reduce_nat` ⊑ `Arena.reduceNat`** — the headline of region B,
+discharging `Core/Arms/Loops.lean`'s `reduce_nat_refines` through
+`LS.toSim₀`. -/
+@[lockstep] theorem reduce_nat_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = Option.map absEIdx a)
+      (arena.core.reduce_nat pers vis st mode lane fu fe depth e) lst
+      (reduceNat (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+        (absU depth) (absEIdx e)) := by
+  rw [arena.core.reduce_nat, reduceNat]
+  lockstep
+  all_goals trace_state
+  all_goals sorry
+
+end
+
 end ConRon.Refine2.Lockstep

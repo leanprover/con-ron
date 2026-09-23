@@ -587,6 +587,13 @@ attribute [lockstep_simp] absLNodeView absLsNodeView absIConstantVal ConRon.Refi
       | cons _ _ => rfl
     rw [h2, bne_iff_ne.mpr h1]; rfl
 
+@[lockstep_simp] theorem vec_len_beq_zero {α : Type} (v : alloc.vec.Vec α) :
+    (alloc.vec.Vec.len v == 0#usize) = v.val.isEmpty := by
+  have h := vec_len_bne_zero v
+  rw [bne] at h
+  have := congrArg (fun b => !b) h
+  simpa using this
+
 attribute [lockstep_simp] List.isEmpty_map List.isEmpty_iff
 
 end ConRon.Refine2.Lockstep.PB
