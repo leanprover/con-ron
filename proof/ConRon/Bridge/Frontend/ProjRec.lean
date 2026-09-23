@@ -956,6 +956,15 @@ theorem projRecValue_run {s s' : AState} (hok : StateOK s)
 rewrite AT A RECORD: the state's owner table is consulted, the iota name's
 level is read, and the rewrite runs or does not.
 
+**Two-sided since round 7**: the answer is an `OptRel`, not the accept
+direction alone, because `processLineCoreD` pushes the ORIGINAL value where
+the twin answers `none`, and con-leche must then answer `none` too or the two
+pushed records differ.  (`projIotaLevel_run` became an `OptRel` in round 4 for
+the same kind of reason.)  **The frame is not yet true** — task
+#97-P3-Frontend round 7's finding: `projRecValue`'s `instLPFast` writes
+`caches.readNC`/`readLsC` and its `…Fast` walks clear per-call memos, and
+`ParseStep` frames neither; see DESIGN.
+
 `sorry`: `projRecValue_run` plus the `projOwners`/`projLevels` reads through
 `Bridge/Frontend/Rel.lean`'s `MapRel`.  Task #97-P3-Frontend's sorry list,
 item 12. -/
@@ -965,9 +974,9 @@ theorem projRewriteD_run {s s' : AState} (hok : StateOK s)
     {cv : IConstantVal} {c : ConstantVal} (hcv : denoteCV s.store cv = some c)
     {vl : EIdx} {vlP : Expr} (hvl : denoteE s.store vl = some vlP)
     {o : Option EIdx} (hrun : projRewriteD sd cv vl s = .ok (o, s')) :
-    ParseStep s s' ∧ ∀ h, o = some h → PersE h ∧
-      ∃ e, denoteE s'.store h = some e ∧
-        ConLeche.Frontend.projRewriteD sc c vlP = some e := by
+    ParseStep s s' ∧ (∀ h, o = some h → PersE h) ∧
+      OptRel (fun (h : EIdx) (e : Expr) => denoteE s'.store h = some e) o
+        (ConLeche.Frontend.projRewriteD sc c vlP) := by
   sorry
 
 /-! ## The owner census, and the one reordering -/

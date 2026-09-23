@@ -158,7 +158,7 @@ This is the pipeline BEFORE the parse: the built-in prelude, parsed into the
 same store the stream goes into, and the parse state the stream's first chunk
 is fed to.  Shared verbatim by the pure seam and by the driver's interleaved
 loop. -/
-def runPipelineHead (md : Frontend.Modeller) :
+def runPipelineHead (md : Frontend.Modeller) (im : Bool := true) (ce : Bool := false) :
     AM (Except (CheckError × Nat) (Frontend.PreludeIx × Frontend.StateD)) := do
   -- **The reserved-name pins, interned ONCE** (task #97-P6-4a): immediately
   -- after the state is made and before the prelude, so the scratch tier is
@@ -166,7 +166,7 @@ def runPipelineHead (md : Frontend.Modeller) :
   internReservedPins
   match ← Frontend.builtinPreludeE md with
   | .error e => pure (.error e)
-  | .ok pre => pure (.ok (pre, ← Frontend.StateD.init true false))
+  | .ok pre => pure (.ok (pre, ← Frontend.StateD.init im ce))
 
 /-- con-leche: Main.lean:461-711 checkMain
 The pipeline AFTER the parse: `preparePrelude`, then **the fold** (task
@@ -203,9 +203,10 @@ folded over the chunk list with `chunkFinish` at its end), and the tail.  The
 driver's `readFold` is the same fold over the same steps with the buffers read
 one at a time; see the module note. -/
 def runPipelineM (md : Frontend.Modeller) (mode : CheckMode)
-    (pins : List NatOpPinSet) (chunks : List ByteArray) :
+    (pins : List NatOpPinSet) (chunks : List ByteArray) (im : Bool := true)
+    (ce : Bool := false) :
     AM (Except CheckError Nat) := do
-  match ← runPipelineHead md with
+  match ← runPipelineHead md im ce with
   | .error (e, n) => pure (.error (Frontend.atLine e n))
   | .ok (pre, st) =>
     match ← Frontend.parseChunksGo md st .empty 0 0 chunks with
@@ -215,10 +216,18 @@ def runPipelineM (md : Frontend.Modeller) (mode : CheckMode)
 /-- con-leche: Main.lean:461-711 checkMain
 **THE SEAM ITSELF**: `runPipelineM` run at the empty store, with the parse's
 own `(CheckError × Nat)` position folded into the message (`Frontend.atLine`)
-because this signature has no position channel. -/
+because this signature has no position channel.
+
+`im`/`ce` are the binary's two environment flags (`CON_LECHE_INMODEL`,
+`CON_LECHE_INMODEL_CENSUS`; `crates/con-ron/src/bin/con-ron.rs` reads them
+and `driver.rs` hands them to `state_d_init`), defaulting to the binary's own
+defaults.  Task #97-COMPOSE's mismatch 4: until round 7 of task
+#97-P3-Frontend they were hard-coded here, so a run with a non-default flag
+was outside the theorem. -/
 def runPipeline (chunks : List ByteArray) (mode : CheckMode)
-    (pins : List NatOpPinSet) : Except CheckError Nat :=
-  match (runPipelineM Frontend.inProcessModeller mode pins chunks).run
+    (pins : List NatOpPinSet) (im : Bool := true) (ce : Bool := false) :
+    Except CheckError Nat :=
+  match (runPipelineM Frontend.inProcessModeller mode pins chunks im ce).run
       (AState.init EStore.empty) with
   | .error e => .error e
   | .ok (r, _) => r

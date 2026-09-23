@@ -137,6 +137,26 @@ theorem FoldOK_post_parse {μ : CheckMode} {s s' : AState}
     (hpp.mono hstep.pins)
     ((CacheOK.of_empty hc).monoF hstep.ext hstep.cframe)
 
+/-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
+**the fold's start, after the pin walk the binary runs between the
+preparation and the fold** (`Arena/Main.lean`'s `runPipelineTail`): the parse
+chain's frame, then `internAllPins_run`'s.  Task #97-COMPOSE's mismatch 5:
+the two parametric letters used to go from the preparation straight to the
+fold, a pipeline nobody runs. -/
+theorem FoldOK_post_pins {μ : CheckMode} {s s' s'' : AState}
+    {ps : List NatOpPinSet} {r : List INatOpPinSet}
+    (hpins : PinsOK s) (hpp : PersPins s) (hc : s.caches = Caches.empty)
+    (hstep : ParseStep s s') (hoff : s'.store.scratchOn = false)
+    (hrun : internAllPins ps s' = .ok (r, s'')) :
+    FoldOK μ Env.empty (mkIFEnv IEnv.empty) s'' ∧
+      PinsDenote s''.store r ps ∧ PersPinSets r := by
+  obtain ⟨hokP, hxP, hpinsP, hppP, hipins, hpps, -, hcachesP, -⟩ :=
+    internAllPins_run hstep.ok (hpins.mono hstep.ext hstep.pins)
+      (hpp.mono hstep.pins) hoff hrun
+  exact ⟨FoldOK_of_start hokP hpinsP hppP
+    (((CacheOK.of_empty hc).monoF hstep.ext hstep.cframe).mono hxP hcachesP),
+    hipins, hpps⟩
+
 /-! ## 2. The pure fold's stream ingredient
 
 con-leche proves *"an accepted stream that declares a theorem of a bare
@@ -301,15 +321,15 @@ theorem Arena.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     (hfalse : ConLeche.jsonWithTheoremFalse chunks)
     {pins : List NatOpPinSet} {ipins : List INatOpPinSet}
     {preBytes : ByteArray} {im ce : Bool}
-    {s0 s1 s2 s3 s4 : AState} {preR : ParseResultD} {r : ParseResultD}
+    {s0 s1 s2 s3 s3' s4 : AState} {preR : ParseResultD} {r : ParseResultD}
     {ds : Array IDeclaration} {fe' : IFEnv}
     (hok0 : StateOK s0) (hoff0 : s0.store.scratchOn = false)
     (hpins0 : PinsOK s0) (hpp0 : PersPins s0) (hcache0 : s0.caches = Caches.empty)
-    (hipins : PinsDenote s3.store ipins pins) (hpps : PersPinSets ipins)
     (hpre : parseBytes md preBytes true false s0 = .ok (.ok preR, s1))
     (hparse : parseChunks md chunks im ce s1 = .ok (.ok r, s2))
     (hprep : preparePrelude ⟨preR.decls⟩ r.decls s2 = .ok (ds, s3))
-    (hrun : Arena.installThenCheck .verified ipins ds s3 = .ok (.ok fe', s4)) :
+    (hpinsrun : internAllPins pins s3 = .ok (ipins, s3'))
+    (hrun : Arena.installThenCheck .verified ipins ds s3' = .ok (.ok fe', s4)) :
     False := by
   -- 1. the prelude's parse and the stream's parse
   obtain ⟨hstep1, hpersPre, preC, -, hrelPre⟩ :=
@@ -323,13 +343,21 @@ theorem Arena.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
       (denoteDeclArray_ext hstep2.ext hrelPre.decls) hpersPre
       (hrelPre.projNamed.mono hstep2.ext) hrelR.decls
       hpersR hrelR.projNamed hprep
-  -- 3. the fold
+  -- 3. the pin walk, and the fold
+  obtain ⟨hfold, hipins, hpps⟩ :=
+    FoldOK_post_pins hpins0 hpp0 hcache0 ((hstep1.trans hstep2).trans hstep3)
+      (by rw [hstep3.scratch, hstep2.scratch, hstep1.scratch]; exact hoff0) hpinsrun
+  have hxP : Ext s3.store s3'.store :=
+    (internAllPins_run hstep3.ok
+      ((hpins0.mono ((hstep1.trans hstep2).trans hstep3).ext
+        ((hstep1.trans hstep2).trans hstep3).pins))
+      (hpp0.mono ((hstep1.trans hstep2).trans hstep3).pins)
+      (by rw [hstep3.scratch, hstep2.scratch, hstep1.scratch]; exact hoff0)
+      hpinsrun).2.1
   obtain ⟨env', F', -, hcheck⟩ :=
-    Arena.installThenCheck_bridge rfl hk hind hpps
-      (FoldOK_post_parse hpins0 hpp0 hcache0
-        ((hstep1.trans hstep2).trans hstep3))
+    Arena.installThenCheck_bridge rfl hk hind hpps hfold
       hipins (fun x hx => hpersDs x (by simpa using hx))
-      (denoteDeclArray_iff.mp hclPrep) hrun
+      (denoteDeclArray_iff.mp (denoteDeclArray_ext hxP hclPrep)) hrun
   -- 4. con-leche refutes it
   obtain ⟨cv, vl, hty, hmem⟩ :=
     ConLeche.Frontend.parseChunks_jsonWithTheoremFalse hfalse hclR
@@ -362,15 +390,15 @@ theorem Arena.no_False_declaration_prelude (V : Type w) [ConLeche.SetTheory V]
     {chunks : List ByteArray}
     (hfalse : ConLeche.jsonWithTheoremFalse chunks)
     {pins : List NatOpPinSet} {ipins : List INatOpPinSet} {im ce : Bool}
-    {s0 s1 s2 s3 s4 : AState} {pre : PreludeIx} {r : ParseResultD}
+    {s0 s1 s2 s3 s3' s4 : AState} {pre : PreludeIx} {r : ParseResultD}
     {ds : Array IDeclaration} {fe' : IFEnv}
     (hok0 : StateOK s0) (hoff0 : s0.store.scratchOn = false)
     (hpins0 : PinsOK s0) (hpp0 : PersPins s0) (hcache0 : s0.caches = Caches.empty)
-    (hipins : PinsDenote s3.store ipins pins) (hpps : PersPinSets ipins)
     (hpre : builtinPreludeE md s0 = .ok (.ok pre, s1))
     (hparse : parseChunks md chunks im ce s1 = .ok (.ok r, s2))
     (hprep : preparePrelude pre r.decls s2 = .ok (ds, s3))
-    (hrun : Arena.installThenCheck .verified ipins ds s3 = .ok (.ok fe', s4)) :
+    (hpinsrun : internAllPins pins s3 = .ok (ipins, s3'))
+    (hrun : Arena.installThenCheck .verified ipins ds s3' = .ok (.ok fe', s4)) :
     False := by
   obtain ⟨hstep1, hpersPre, hnPre, preC, -, hrelPre⟩ :=
     builtinPreludeE_run hmw hmr hbytes hok0 hoff0 hpre
@@ -382,12 +410,20 @@ theorem Arena.no_False_declaration_prelude (V : Type w) [ConLeche.SetTheory V]
       (denoteDeclArray_ext hstep2.ext hrelPre) hpersPre
       (hnPre.mono hstep2.ext) hrelR.decls
       hpersR hrelR.projNamed hprep
+  obtain ⟨hfold, hipins, hpps⟩ :=
+    FoldOK_post_pins hpins0 hpp0 hcache0 ((hstep1.trans hstep2).trans hstep3)
+      (by rw [hstep3.scratch, hstep2.scratch, hstep1.scratch]; exact hoff0) hpinsrun
+  have hxP : Ext s3.store s3'.store :=
+    (internAllPins_run hstep3.ok
+      ((hpins0.mono ((hstep1.trans hstep2).trans hstep3).ext
+        ((hstep1.trans hstep2).trans hstep3).pins))
+      (hpp0.mono ((hstep1.trans hstep2).trans hstep3).pins)
+      (by rw [hstep3.scratch, hstep2.scratch, hstep1.scratch]; exact hoff0)
+      hpinsrun).2.1
   obtain ⟨env', F', -, hcheck⟩ :=
-    Arena.installThenCheck_bridge rfl hk hind hpps
-      (FoldOK_post_parse hpins0 hpp0 hcache0
-        ((hstep1.trans hstep2).trans hstep3))
+    Arena.installThenCheck_bridge rfl hk hind hpps hfold
       hipins (fun x hx => hpersDs x (by simpa using hx))
-      (denoteDeclArray_iff.mp hclPrep) hrun
+      (denoteDeclArray_iff.mp (denoteDeclArray_ext hxP hclPrep)) hrun
   obtain ⟨cv, vl, hty, hmem⟩ :=
     ConLeche.Frontend.parseChunks_jsonWithTheoremFalse hfalse hclR
   exact no_False_theorem_accepted_pure V rfl
@@ -449,17 +485,18 @@ theorem Arena.no_False_declaration_pipeline (V : Type w) [ConLeche.SetTheory V]
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
     (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
     (pins : List NatOpPinSet) (chunks : List ByteArray)
-    (hfalse : ConLeche.jsonWithTheoremFalse chunks) :
-    ∃ e, Arena.runPipeline chunks .verified pins = .error e := by
-  by_cases hex : ∃ e, Arena.runPipeline chunks .verified pins = .error e
+    (hfalse : ConLeche.jsonWithTheoremFalse chunks) (im : Bool := true)
+    (ce : Bool := false) :
+    ∃ e, Arena.runPipeline chunks .verified pins im ce = .error e := by
+  by_cases hex : ∃ e, Arena.runPipeline chunks .verified pins im ce = .error e
   · exact hex
   exfalso
-  cases hres : Arena.runPipeline chunks .verified pins with
+  cases hres : Arena.runPipeline chunks .verified pins im ce with
   | error e => exact hex ⟨e, hres⟩
   | ok n =>
   rw [ConRon.Arena.runPipeline] at hres
   cases hm : (ConRon.Arena.runPipelineM Frontend.inProcessModeller .verified pins
-      chunks).run (AState.init EStore.empty) with
+      chunks im ce).run (AState.init EStore.empty) with
   | error e2 => rw [hm] at hres; exact absurd hres (by simp)
   | ok q =>
   obtain ⟨res, sF⟩ := q
@@ -506,7 +543,7 @@ theorem Arena.no_False_declaration_pipeline (V : Type w) [ConLeche.SetTheory V]
   obtain ⟨hpre', hst'⟩ := hv4
   subst hpre'; subst hst'; subst hs4
   -- the parse, reassembled from `StateD.init` and `parseChunksGo`
-  have hparse : parseChunks Frontend.inProcessModeller chunks true false sB
+  have hparse : parseChunks Frontend.inProcessModeller chunks im ce sB
       = .ok (.ok r0, s2) := by
     rw [parseChunks, AM.bind_apply, hinit]
     exact hgo
