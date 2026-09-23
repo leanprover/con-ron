@@ -1762,4 +1762,133 @@ theorem annotateLamLoop_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   exact ⟨hok', hx02.trans hx', hp'.trans (hp2.trans hp1), v, hv,
     ConLeche.annotateCore_WScoped F _ hF hw, F, hF⟩
 
+/-! ### 4.4 The λ residual: the per-binder clause -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1795-1915 annotateBody — **the
+per-binder `.lam` clause carries** (`annotateBinder … true`, the residual
+con-leche's cached tier keeps for a λ that is not `bvar`-closed): the
+domain annotated, one `instantiate1`, the body annotated, the datum written
+unless one is, one `abstract1`, the node. -/
+theorem annotateBinderLam_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (ty body : EIdx) (mb : BinderMeta)
+    (tyx bodyx : Expr) (hok : CheckOK mode env fe s₀)
+    (hty : denoteE s₀.store ty = some tyx)
+    (hbody : denoteE s₀.store body = some bodyx)
+    (hw : Expr.WScoped d (.lam tyx bodyx mb)) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      ConRon.Arena.annotateBinder (coreKnot mode fe id fuel) fe d ty body mb true
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.annotateCore mode env) d (.lam tyx bodyx mb)
+          s'.store r⌝⦄ := by
+  have hwty : Expr.WScoped d tyx := by unfold Expr.WScoped at hw; exact hw.1
+  have hwbody : Expr.WScoped d bodyx := by unfold Expr.WScoped at hw; exact hw.2
+  unfold ConRon.Arena.annotateBinder
+  -- stage 1: the domain
+  refine triple_seq (hsim.annotate s₀ d ty tyx hok hty hwty) ?_
+  rintro typ s1 ⟨hok1, hx1, hp1, typx, htypx, hwtypx, F1, hF1⟩
+  -- stage 2: the free variable
+  refine triple_seq (internFVarE_spec s1 d typ hok1.state.wf
+    (by rw [htypx]; rfl)) ?_
+  rintro fv s2 ⟨hwf2, hx2, -, -, -, -, hc2, hp2, -, hd2⟩
+  have hok2 := hok1.mono ⟨hwf2⟩ hx2 hc2 hp2
+  have hfv : denoteE s2.store fv = some (.fvar d typx) := by
+    rw [hd2]; simp [denoteEView, denote_ext htypx hx2]
+  have hx02 := hx1.trans hx2
+  have hbody2 := denote_ext hbody hx02
+  -- stage 3: the body, opened
+  refine triple_seq (instantiate1Fast_specE coreWalkFuel s2 body fv 0 hok2.state
+    (by rw [hfv]; rfl) (by rw [hbody2]; rfl)) ?_
+  rintro ob s3 ⟨hs3, hx3, hc3, hp3, -, hrel3⟩
+  have hok3 := hok2.mono hs3 hx3 hc3 hp3
+  have hob : denoteE s3.store ob = some (bodyx.instantiate1 (.fvar d typx)) :=
+    hrel3 _ hfv _ hbody2
+  have hwob : Expr.WScoped (d + 1) (bodyx.instantiate1 (.fvar d typx)) :=
+    Expr.WScoped.instantiate1 hwtypx 0 hwbody
+  -- stage 4: the body, annotated
+  refine triple_seq (hsim.annotate s3 (d + 1) ob _ hok3 hob hwob) ?_
+  rintro bp s4 ⟨hok4, hx4, hp4, bpx, hbpx, hwbpx, F2, hF2⟩
+  have hx04 := hx02.trans (hx3.trans hx4)
+  have htypx4 := denote_ext htypx (hx2.trans (hx3.trans hx4))
+  -- the tail, from the datum and a fuel at which the pure datum is it
+  have hk : ∀ (pw : PropWhen) (s5 : AState) (F3 : Nat),
+      CheckOK mode env fe s5 → Ext s4.store s5.store → s5.pins = s4.pins →
+      (ConLeche.annotateCore mode env (max (max F1 F2) F3 + 1) d
+        (.lam tyx bodyx mb) = .ok (.lam typx (bpx.abstract1 d) ⟨pw⟩)) →
+      ⦃fun s => ⌜s = s5⌝⦄ (do
+        let ab ← abstract1Fast coreWalkFuel bp d 0
+        if true = true then internLamE typ ab ⟨pw⟩
+        else internForallEE typ ab ⟨pw⟩)
+      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧
+          SimE (ConLeche.annotateCore mode env) d (.lam tyx bodyx mb)
+            s'.store r⌝⦄ := by
+    intro pw s5 F3 hok5 hx5 hp5 hpure
+    have hbp5 := denote_ext hbpx hx5
+    refine triple_seq (ExprOps.abstract1Fast_spec fvarBSpec coreWalkFuel s5 bp d
+      0 hok5.state (by rw [hbp5]; rfl)) ?_
+    rintro ab s6 ⟨hs6, hx6, -, hc6, hp6, -, hrel6⟩
+    have hok6 := hok5.mono hs6 hx6 hc6 hp6
+    have hab : denoteE s6.store ab = some (bpx.abstract1 d) := hrel6 _ hbp5
+    simp only [if_true]
+    refine triple_mono (internLamE_spec s6 typ ab ⟨pw⟩ hok6.state.wf
+      (by rw [denote_ext htypx4 (hx5.trans hx6)]; rfl) (by rw [hab]; rfl)) ?_
+    rintro r s7 ⟨hwf7, hx7, -, -, -, -, hc7, hp7, -, hd7⟩
+    have hok7 := hok6.mono ⟨hwf7⟩ hx7 hc7 hp7
+    refine ⟨hok7, hx04.trans (hx5.trans (hx6.trans hx7)),
+      hp7.trans (hp6.trans (hp5.trans (hp4.trans (hp3.trans (hp2.trans hp1))))),
+      _, ?_, ConLeche.annotateCore_WScoped _ _ hpure hw, _, hpure⟩
+    rw [hd7]
+    simp [denoteEView, denote_ext htypx4 (hx5.trans (hx6.trans hx7)),
+      denote_ext hab hx7]
+  have hA : ∀ G, max F1 F2 ≤ G →
+      ConLeche.annotateCore mode env G d tyx = .ok typx ∧
+      ConLeche.annotateCore mode env G (d + 1)
+        (bodyx.instantiate1 (.fvar d typx)) = .ok bpx := fun G hle =>
+    ⟨ConLeche.annotateCore_mono (Nat.le_trans (Nat.le_max_left _ _) hle) hF1,
+     ConLeche.annotateCore_mono (Nat.le_trans (Nat.le_max_right _ _) hle) hF2⟩
+  by_cases hwr : (!ConRon.Arena.pwWritten mb.pw) = true
+  · rw [if_pos hwr]
+    simp only [if_true]
+    refine triple_seq (annotPwLam_spec hsim s4 (d + 1) bp bpx hok4 hbpx hwbpx) ?_
+    rintro pw s5 ⟨hok5, hx5, hp5, F3, hF3⟩
+    refine hk pw s5 F3 hok5 hx5 hp5 ?_
+    obtain ⟨h1, h2⟩ := hA (max (max F1 F2) F3) (Nat.le_max_left _ _)
+    have hwr' : (!ConLeche.pwWritten mb.pw) = true := hwr
+    rw [ConLeche.annotateCore_lam_eq, h1, ConLeche.okB_bind, h2,
+      ConLeche.okB_bind, if_pos hwr',
+      ConLeche.annotPwLam_mono (Nat.le_max_right _ _) hF3, ConLeche.okB_bind]
+    rfl
+  · rw [if_neg hwr, pure_bind]
+    refine hk mb.pw s4 0 hok4 (Ext.refl _) rfl ?_
+    obtain ⟨h1, h2⟩ := hA (max (max F1 F2) 0) (Nat.le_max_left _ _)
+    have hwr' : ¬ (!ConLeche.pwWritten mb.pw) = true := hwr
+    rw [ConLeche.annotateCore_lam_eq, h1, ConLeche.okB_bind, h2,
+      ConLeche.okB_bind, if_neg hwr']
+    rfl
+
+/-! ## 5. The axiom census -/
+
+#print axioms inferLamsOut_carry
+#print axioms inferLamsLeafCheck_carry
+#print axioms inferLamsLeaf_carry
+#print axioms inferLams_carry
+#print axioms inferTypeCore_lam_of_loop
+#print axioms inferLam_spec
+#print axioms inferPisOut_carry
+#print axioms inferPisLeaf_carry
+#print axioms inferPis_carry
+#print axioms inferTypeCore_forallE_of_loop
+#print axioms inferForall_spec
+#print axioms annotateBindersOut_carry
+#print axioms annotatePisLeaf_carry
+#print axioms annotatePis_carry
+#print axioms annotateCore_forallE_of_loop
+#print axioms annotateForall_spec
+#print axioms annotateLamsLeaf_carry
+#print axioms annotateLams_carry
+#print axioms annotateCore_lam_of_loop
+#print axioms annotateLamLoop_spec
+#print axioms annotateBinderLam_spec
+
 end ConRon.Bridge.Core

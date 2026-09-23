@@ -27,7 +27,8 @@ a twin SUCCESS is what each success lemma is the licence for.
    `inferLamsI`/`inferPisI`, which peel and open the whole chain in one walk.
    The identification is con-leche's — `Verify/Cached/BinderLoopC.lean` and
    `Verify/BinderLoop.lean` — and what this library owes is the denotation
-   carry, `inferBody_binders_batched` below.
+   carry, `inferBody_binders_batched` below (CLOSED, round 6, over
+   `Walks/BinderLoop.lean`).
 2. **The batched application spine** (task #97-P6-9): `inferSpine`/`inferApp`
    in place of the per-argument chain, identified by
    `Verify/BetaSpine.lean`'s `inferSpine_*` family
@@ -263,14 +264,16 @@ theorem inferBody_app_batched {fe : IFEnv} {fuel : Nat}
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
   sorry
 
-/-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean — **OPEN** (task
-#97-P3-Core): the twin's `.lam`/`.forallE` clauses are `inferLams`/`inferPis`
-(task #97-P6-12), con-leche's own cached-tier telescope loops, against the
-chained `infer_lam_*`/`infer_forallE` above.  con-leche's own identification
-is `Verify/BinderLoop.lean` plus its cached port; what is owed is the
-denotation carry, including `inferPisOut`'s THREADED zero-ness datum
-(con-leche's task #272), which is the one place the twin computes something
-the chained clause recomputes per binder. -/
+/-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:595/790
+inferLamsC_tail_sim / inferPisC_tail_sim — the twin's `.lam`/`.forallE`
+clauses are `inferLams`/`inferPis` (task #97-P6-12), con-leche's own
+cached-tier telescope loops, against the chained `infer_lam_*`/
+`infer_forallE` above.  **CLOSED** (task #97-P3-Core round 6, lane
+`binders`): the carries are `Walks/BinderLoop.lean`'s `inferLam_spec` and
+`inferForall_spec`, over con-leche's `inferLams_sound`/`inferPis_sound`;
+`inferPisOut`'s THREADED zero-ness datum (con-leche's task #272) is sound
+because `Level.zeronessOf (.imax u v) = Level.zeronessOf v` by definition
+(`inferPisOut_carry`). -/
 theorem inferBody_binders_batched {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env)
     (hsim : KnotSpec mode env fe fuel)
@@ -731,6 +734,7 @@ section Census
 
 -- `sorryAx` here is `inferBody_app_batched`'s, inherited through the dispatch
 #print axioms inferBody_app
+#print axioms inferBody_binders_batched
 #print axioms inferBody_const
 #print axioms inferBody_lit
 #print axioms inferBody_leaf
