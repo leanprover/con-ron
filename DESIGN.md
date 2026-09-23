@@ -61213,3 +61213,67 @@ branch (`t2-ind-mod`, not on `arena` at the time) and this are both landed:
 `Inductives/PrimsModeled.lean`'s `ind_twin_split` and the `lockstep_mod` /
 `lockstep_ite` drivers (their `rw [bind_pure]; twin_ite_pos/neg` tail is slice
 1b's case), whose uses in `Inductives/Modeled.lean` become `lockstep`.
+
+#### Slice 4 — memoised walks are a first-class shape (`LSM`/`LSRM`), and two more Modeled-lane findings (core)
+
+**Coordinator's item (b).**  Walks that return their memo OUTSIDE the
+`Result` — `(Result α, AState, M)` for a state walk (`consts_resolve_f_*`,
+`arena::intern`'s `intern_expr_go`), `(Result α, M)` for a reader
+(`all_level_params_defined_*`) — had no judgement in the shared tactic; the
+Promote lane wrote its own (`LSM`, hand bind rules) and proved its walks by
+hand.  `Tactic/Lockstep.lean` now has:
+
+* `packM m` / `packRM st m`: the walk with its memo moved into the answer
+  (`Ok a, st, mm` ↦ `Ok (a, mm), st`; an `Err` drops the memo, as the twin
+  throws).  `LSM pers R m lst x := LS pers R (packM m) lst x`, `LSRM pers R m
+  st lst x := LS pers R (packRM st m) lst x`, with `R` on `(answer, memo)`.
+  So the whole existing zip applies unchanged.
+* The tactic unfolds an `LSM`/`LSRM` goal to its `LS`, pushes the packing
+  through the Rust program (`packMove`: `LS.packM_bind`/`_ite`/`_ok_ok`/
+  `_ok_err`, cases on a tuple or `match` variable; the `packRM` twins), and
+  steps a memoised walk as a CALLEE (`classify`'s new kinds `.memo`/`.rmemo`,
+  `LS.bindM`/`LS.bindRM`, continuation `hk : ∀ a mm b …, R₁ (a, mm) b → …`) or
+  in TAIL position (`LS.tailM`/`tailRM`); its spec is an `LSM`/`LSRM` lemma
+  (`@[lockstep]` files it under the walk's head, `Attr.lean` knows both
+  judgements) or a local hypothesis (the fuel induction's IH).  Error arms go
+  through `ErrArm.packM_ok_err`/`packM_bind` (and the `packRM` pair).
+  `LSM.apply`/`LSM.intro`/`LSRM.apply` are the bridges to hand statements.
+* Two general improvements the walks needed: a relation CONSTANT that unfolds
+  reducibly to a conjunction (`abbrev BMemoR p b := b.1 = p.1 ∧ LMemoRel p.2
+  b.2`) is split like a syntactic one (`splitRels`) and unfolded at a leaf; and
+  a `TwinEq` fact is also used with its left side in `lockstep_simp` normal
+  form (the twin side is kept in that form, and simp rewrites subterms first,
+  so `absNames params` had already become `List.map absName params`).  Cost of
+  the second, measured: full `ConRonRefine2` rebuild 6 835 G instructions with
+  it, 6 843 G without (noise).
+* `Promote/Intern.lean` (lane closed, no active branch): its judgement is
+  renamed `LSMI` (it clashed by name), with `LSMI.toLSM`/`LSMI.ofLSM` to the
+  shared `LSM` at `fun p sb => EMemoRel p.2 sb.1 ∧ R p.1 sb.2`.  Its hand
+  proofs are unchanged; converting them to `lockstep` is the lane's.
+
+Tests (`Tactic/Tests.lean` §6), each ONE `lockstep` after unfolding the Rust
+function, the recursive walk a hypothesis as an IH would be:
+`consts_resolve_f_two` (two state walks, memo threaded, answers `&&`ed),
+`consts_resolve_f_fast` (fresh memo, walk as a callee, memo dropped — an `LS`
+goal), `all_level_params_defined_binder` (a READER walk twice, the binder's
+`params_defined` between).
+
+**Files that benefit** (their walks can become `lockstep` fuel inductions):
+`Checker/Base.lean` — `consts_resolve_f_{go,node,two,fast}`,
+`all_level_params_defined_{go,node,binder}` (today `sorry`, stated in
+`Checker/Shape.lean`'s `SimBM`/`SimBR`; restate as `LSM`/`LSRM` or bridge with
+`LSM.apply`); `Promote/Intern.lean` — `intern_expr_aux`'s hand `LSMI.bindM`/
+`bindS`/`tailS`/`bindP` chains and `intern_probe_ls`.
+
+**Two more Modeled-lane findings (core, separate commit):**
+`LS.twin_view_const_name`'s premise `hg` (the continuation ignores the levels)
+was checked by `rfl`, which unfolds whatever the continuation calls on the
+levels without bound (`nested_rule_shape_at` hung; the lane's workaround is a
+local `irreducible` attribute): it is now `with_reducible rfl`, then `dsimp
+only; done`.  `etag_const_abs` (and `etag_fvar_abs`, `etag_lit_abs`, the other
+two missing tag constants) are `lockstep_simp` in `Tactic/Prims.lean`.  And the
+`twin_bind_pure` fallback is also skipped at a twin `pure`, the same guard the
+Core lane's `p5-core-5` carries (89019910), so the two branches meet on one
+condition line.
+
+`lake build ConRonRefine2` green (all of it re-elaborated).
