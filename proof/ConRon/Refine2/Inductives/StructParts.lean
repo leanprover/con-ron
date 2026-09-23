@@ -129,19 +129,18 @@ the `nP - k` in the statement. -/
 theorem struct_ps_at_from_refines {pers st lst} {ofs n_p k : Std.U64}
     {out : alloc.vec.Vec arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hrun : arena.inductives.struct_parts.struct_ps_at_from pers st ofs n_p k out
       = ok o) :
     Sim absEIdxL (fun _ => True) pers lst o
       (do pure (absEIdxL out ++
         (← structPsAtGoSpec (absU ofs) (absU n_p) (absU n_p - absU k) (absU k)))) := by
   refine sim_cursor_copy (fun k : Std.U64 => k.val) (absU n_p) absEIdx
-    (fun s => s.store.shared_on = true → s.store.scratch_on = true)
+    (fun _ => True)
     (fun m => Arena.internBVarE (absU ofs + absU n_p - 1 - m))
     (fun m => structPsAtGoSpec (absU ofs) (absU n_p) (absU n_p - m) m)
     (fun s k out => arena.inductives.struct_parts.struct_ps_at_from pers s ofs n_p k out)
     ?_ ?_ ?_ ?_
-    k out st lst o hrel hinv hfrozen hrun
+    k out st lst o hrel hinv trivial hrun
   · intro m hm
     rw [show absU n_p - m = 0 by omega]
     rfl
@@ -153,7 +152,7 @@ theorem struct_ps_at_from_refines {pers st lst} {ofs n_p k : Std.U64}
     rw [arena.inductives.struct_parts.struct_ps_at_from.eq_def] at h
     rw [if_pos (show i ≥ n_p by scalar_tac)] at h
     exact (Result.ok_injective h).symm
-  · intro st lst i out o hi hrel hinv hfr h
+  · intro st lst i out o hi hrel hinv _ h
     rw [arena.inductives.struct_parts.struct_ps_at_from.eq_def] at h
     rw [if_neg (show ¬ i ≥ n_p by scalar_tac)] at h
     obtain ⟨a1, ha1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -168,19 +167,15 @@ theorem struct_ps_at_from_refines {pers st lst} {ofs n_p k : Std.U64}
       have hone : (1#u64 : Std.U64).val = 1 := by scalar_tac
       simp only [absU]
       omega
-    have hf := intern_e_bvar_flags hrel hinv hfr hp
-    refine ⟨r, st1, by rw [← hval]; exact intern_e_bvar_run hrel hinv hfr a3 hp,
+    refine ⟨r, st1, by rw [← hval]; exact intern_e_bvar_run hrel hinv a3 hp,
       ?_, ?_⟩
     · intro u hu
       subst hu
       obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      refine ⟨i3, out1, ?_, ConRon.Refine.vec_push_val hout1, ?_, h⟩
-      · have := ConRon.Refine.Nat.uadd_val hi3
-        simpa using this
-      · intro hs
-        rw [hf.2]
-        exact hfr (by rw [← hf.1]; exact hs)
+      refine ⟨i3, out1, ?_, ConRon.Refine.vec_push_val hout1, trivial, h⟩
+      have := ConRon.Refine.Nat.uadd_val hi3
+      simpa using this
     · intro e he
       subst he
       exact (Result.ok_injective h).symm
@@ -188,11 +183,10 @@ theorem struct_ps_at_from_refines {pers st lst} {ofs n_p k : Std.U64}
 /-- `struct_ps_at` ⊑ `structPsAt`. -/
 theorem struct_ps_at_refines {pers st lst} {ofs n_p : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hrun : arena.inductives.struct_parts.struct_ps_at pers st ofs n_p = ok o) :
     Sim absEIdxL (fun _ => True) pers lst o (structPsAt (absU ofs) (absU n_p)) := by
   rw [arena.inductives.struct_parts.struct_ps_at] at hrun
-  have h := struct_ps_at_from_refines hrel hinv hfrozen hrun
+  have h := struct_ps_at_from_refines hrel hinv hrun
   rw [structPsAt_unfold]
   have h0 : ((0#u64 : Std.U64)).val = 0 := by scalar_tac
   simpa [absEIdxL, alloc.vec.Vec.new, h0, absU] using h
@@ -201,11 +195,10 @@ theorem struct_ps_at_refines {pers st lst} {ofs n_p : Std.U64} {o}
 con-leche writes the two inline at different frames. -/
 theorem bvars_desc_refines {pers st lst} {n : Std.U64} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hrun : arena.inductives.struct_parts.bvars_desc pers st n = ok o) :
     Sim absEIdxL (fun _ => True) pers lst o (bvarsDesc (absU n)) := by
   rw [arena.inductives.struct_parts.bvars_desc] at hrun
-  have h := struct_ps_at_refines hrel hinv hfrozen hrun
+  have h := struct_ps_at_refines hrel hinv hrun
   have h0 : ((0#u64 : Std.U64)).val = 0 := by scalar_tac
   rw [show absU (0#u64 : Std.U64) = 0 from h0] at h
   rwa [bvarsDesc]

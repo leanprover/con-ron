@@ -54589,6 +54589,71 @@ before §3's flip, which only renames the kind of a cold error.)
 and **all 16 OK** there (the new `lake-capstone` step included).  The shared
 Lake cache was not seeded from this worktree.
 
+### Task #97-P5-Unfreeze — the frozen-tier hypotheses retired from `Specs.lean` and `StructParts.lean` (2026-09-23, Opus under Fable)
+
+Branch `p5-unfreeze` off `arena` `b57cc1c6`.  Task #97-P5-Usize §3 made the
+twenty `M_FROZEN` guards of `arena::store` raise `Native`, which Theorem 2
+claims nothing about; §3's list routed 68 `Specs.lean` declarations and three
+`Inductives/StructParts.lean` ones here.
+
+**Result: zero frozen-tier binders in both files.**  Counted by pattern on the
+old and new text: `Specs.lean` had **68** binders of the shape
+`… .shared_on = true → … .scratch_on = true` (named `hfrozen`, `hfrozenN/L/Ls`,
+`hfr*`, `hu`, or anonymous in the five `∀`-stated walk lemmas) and **13** of
+the shape `… .shared_on = false` (`hshared`, the promote-tier interns);
+`StructParts.lean` had **3**.  All 84 are gone; none turned out to be needed
+for anything but the old `Internal` arm.  No statement was weakened: every
+conclusion is unchanged (the `rs'.shared_on = rs.shared_on ∧ …` frame
+conjuncts and `FlagsEq` stay — they are true frame facts, just no longer
+carrying a hypothesis).
+
+**The mechanism**, as routed: at each of the twenty sites the arm the
+hypothesis used to dismiss is now proved.  `frozen_native_arm` (new, in
+`Specs.lean` beside `der_of_bvar_obs`) takes the port's
+`lift M_FROZEN.to_slice >>= code_points >>= ok (Err (Native v), st)` to
+`r = Err (Native v) ∧ st' = st`, so each arm is `obtain ⟨⟨v1, rfl⟩, rfl⟩ :=
+frozen_native_arm h` and the conclusion's error conjunct is
+`absAErrKind_native`.  Three shapes:
+* the 11 expression-tier interns (`estore_intern_{bvar,fvar,sort,const,app,
+  proj,let_e,lit,bm,lam_i,forall_e_i}_abs`) and the 4 name/level/level-list
+  ones (`nstore_intern_{other,str}_abs`, `lstore_intern_abs`,
+  `lsstore_intern_abs`): `by_cases` on `shared_on` in the scratch-closed
+  arm, the frame conjunct from the case hypothesis;
+* the 5 promote-tier interns (`{n,l,ls}store_intern_persistent_abs`,
+  `estore_intern_bm_persistent_abs`, `estore_intern_persistent_abs`): here
+  `hshared` was ALSO used to rewrite `rPers* pers rs` to `rs.pers` at the
+  top of the proof.  That rewrite is only needed on the append path, so it
+  moved below the frozen split; the probe now goes through `rPers*`
+  generically (`estore_intern_bm_persistent_abs` takes the non-persistent
+  sibling's two-way probe proof; `estore_intern_persistent_abs`'s `pers_find`
+  is related to `rPersE` by a two-line `if_pos`/`if_neg`).  So the frozen
+  tier's HIT path is now covered too, which the old statement excluded;
+* everything else (the `_run` wrappers, the four walks and their `_flags`
+  halves, `intern_e_bvar_flags`, `estore_intern_{lam,forall_e}_abs`'s
+  `hfrozen1`) just stops passing the argument.  `FlagsEq.unfrozen{N,L,Ls}`,
+  which existed only to carry the hypothesis across a walk step, are deleted.
+
+Docstrings that explained the hypotheses (the `bvar` pattern note's item 6,
+the persistent-tier module notes, finding 17's "cheap half", the walk notes)
+now say they are retired.
+
+**Lines**: `Specs.lean` 14 984 → 14 940 (−44; 299 added, 343 deleted —
+the twenty arms cost one line each plus the 17-line helper), `StructParts.lean`
+824 → 817 (−7).
+
+**Out-of-lane edits (build-forced, minimal)**: `Refine2/ExprOps/Mut.lean`,
+**17 call sites** lose the `hfrozen` argument they passed to a `Specs.lean`
+lemma (lines 342, 393, 423, 453, 483, 513, 545, 572, 603, 648, 704, 746, 786,
+845, 853, 1450, 1451 — `estore_intern_app_abs`, `intern_e_*_run`,
+`intern_e_bvar_flags`).  Mut's own 17 `hfrozen` binders are untouched and now
+unused inside those proofs — that lane retires them.  `Promote/**` and
+`Checker/**` call no changed declaration and needed nothing.
+`StructParts.lean`'s `struct_ps_at_from_refines` hands `sim_cursor_copy` the
+invariant `fun _ => True` where it used to thread the frozen implication.
+
+**Gates**: `arena` merged at `61313dfd` (no `Refine2/` change came with it);
+**all 16 OK** on the merged branch (`extract-check` 106 s, `lake-refine2`
+120 s).  The shared Lake cache was not seeded from this worktree.
 ### Task #97-P3-Promote — Theorem 1: the promotion tier, and the coherence clause it cannot meet (2026-09-23, Opus under Fable)
 
 Lane: `proof/ConRon/Bridge/Promote/**`, untouched since task #97-P3-Checker
