@@ -121,3 +121,11 @@ root = "ConRon.Arena.Bench"
 [[lean_lib]]
 name = "ConRonRefine2"
 roots = ["ConRon.Refine2"]
+# Every module under `ConRon/Refine2/` is built, not only what the root
+# imports — the same reason `ConRonBridge` has this, plus a sharper one.
+# `Refine2/Inductives/StructParts.lean` (772 lines, 50 declarations) was
+# imported by nothing for an entire round, so its proofs were never
+# elaborated by any gate; task #97-P5-Ind round 4 found it by hand.  A
+# `roots`-only library silently drops orphaned modules, and "the tier is
+# green" then means "the tier the root happens to reach is green".
+globs = ["ConRon.Refine2.+"]
