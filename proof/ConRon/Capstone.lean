@@ -4,6 +4,7 @@ import ConRon.Refine2.Frontend.Top
 import ConRon.Refine2.Frontend.Prepare
 import ConRon.Refine2.Checker.Pins
 import ConRon.Refine2.Checker.Init
+import ConRon.Refine2.Checker.PinsWF
 
 /-!
 # `ConRon.Capstone` — THE COMPOSITION: Theorem 2 ∘ Theorem 1 ∘ con-leche
@@ -67,8 +68,11 @@ task #97-COMPOSE section tags each with its owning lane):
   out-of-build `RefineOld/Frontend/`;
 * `hmr : Refine2.Frontend.ModellerRefines inst m inProcessModeller` — the
   Rust modeller against the twin's (the modeller seam, by design);
-* `hwf : ∀ p ∈ pins.val, NatOpPinSetWF p` — the Rust pin list is well formed
-  (its decoder lemma is the out-of-build `RefineOld/PinsWF.lean`);
+* `hdec : kernel.pins_decode.decode text = ok (.Ok pins)` — the pin list is
+  what the port's decoder read (it was `hwf`, the list's well-formedness,
+  until task #97-P5-Top ported `RefineOld/PinsWF.lean`'s `decode_wf` to
+  `Refine2/Checker/PinsWF.lean`); the binary's `pins_for_run` choosing the
+  text is driver code;
 * `hfn : FrozenNative` — the frozen-tier guard (`Refine2/Promote/Promote.lean`,
   task #97-P5-Top): the two promotion lemmas without their `PersUnfrozen`
   side condition, which is what they become once the pending Rust commit
@@ -263,7 +267,8 @@ theorem rust_stages
     (hmr : ConRon.Refine2.Frontend.ModellerRefines inst m
       ConRon.Arena.Frontend.inProcessModeller)
     {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
-    (hwf : ∀ p ∈ pins.val, NatOpPinSetWF p)
+    {text : Slice Std.U8}
+    (hdec : kernel.pins_decode.decode text = ok (.Ok pins))
     {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
     {pers : arena.store.PersTier} {est : arena.store.EStore}
     {st0 st1 st2 st3 st4 st5 st6 : arena.monad.AState}
@@ -313,7 +318,8 @@ theorem rust_stages
     (prepare_prelude_refines hrelC hinvC h4).dest
   -- 5. the startup pin walk
   obtain ⟨sE, hE, hrelE, hinvE, -, -⟩ :=
-    (intern_all_pins_refines hrelD hinvD hwf h5).dest
+    (intern_all_pins_refines hrelD hinvD
+      (ConRon.Refine.PinsWF.decode_wf_refine2 hdec) h5).dest
   -- the fold's entry: the twin's scratch tier is closed there
   have hdecls : rv.decls = absIDeclArr r.decls := hrv.decls
   have hD' : ConRon.Arena.Frontend.preparePrelude (absPreludeIx pre) rv.decls sC
@@ -361,7 +367,8 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
     (hmr : ConRon.Refine2.Frontend.ModellerRefines inst m
       ConRon.Arena.Frontend.inProcessModeller)
     {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
-    (hwf : ∀ p ∈ pins.val, NatOpPinSetWF p)
+    {text : Slice Std.U8}
+    (hdec : kernel.pins_decode.decode text = ok (.Ok pins))
     {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
     {pers : arena.store.PersTier} {est : arena.store.EStore}
     {st0 st1 st2 st3 st4 st5 st6 : arena.monad.AState}
@@ -385,7 +392,7 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
       ConRon.Bridge.denoteFEnv lst.store lfe = some env ∧
       Nonempty (ConLeche.Model.EnvModelM V .verified env) := by
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, hrelF, hfe⟩ :=
-    rust_stages hfn hbytes hsc hmr hwf hpers hest hst0 h1 h2 h3 h4 h5 h6
+    rust_stages hfn hbytes hsc hmr hdec hpers hest hst0 h1 h2 h3 h4 h5 h6
   obtain ⟨env, hden, hmod⟩ := stages_model V hk hind hbytes hA hB hC hD hE hF
   exact ⟨sF, lfe, env, hrelF, hfe, hden, hmod⟩
 
@@ -411,7 +418,8 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     (hmr : ConRon.Refine2.Frontend.ModellerRefines inst m
       ConRon.Arena.Frontend.inProcessModeller)
     {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
-    (hwf : ∀ p ∈ pins.val, NatOpPinSetWF p)
+    {text : Slice Std.U8}
+    (hdec : kernel.pins_decode.decode text = ok (.Ok pins))
     {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
     (hfalse : ConLeche.jsonWithTheoremFalse (absChunks chunks))
     {pers : arena.store.PersTier} {est : arena.store.EStore}
@@ -433,7 +441,7 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
       = ok (.Ok fe, st6)) :
     False := by
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, -, -⟩ :=
-    rust_stages hfn hbytes hsc hmr hwf hpers hest hst0 h1 h2 h3 h4 h5 h6
+    rust_stages hfn hbytes hsc hmr hdec hpers hest hst0 h1 h2 h3 h4 h5 h6
   obtain ⟨n, hn⟩ := runPipeline_ok_of_stages hA hB hC hD hE hF
   obtain ⟨e, he⟩ := ConRon.Bridge.Frontend.Arena.no_False_declaration_pipeline V
     hk hind hbytes (ConRon.Refine.absPins pins) (absChunks chunks) hfalse
