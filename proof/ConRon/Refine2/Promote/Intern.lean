@@ -222,8 +222,9 @@ private theorem intern_name_list_go_aux (n : Nat) :
 walk ACCUMULATES — it returns `out` with the new handles pushed on — so its
 result abstracts by `absNIdxL` alone; the old `fun v => absNIdxL out ++
 absNIdxL v` counted `out` twice and failed at every call with a nonempty
-accumulator.  `hfrozen` is `intern_name_run`'s side condition at the name
-store (the frozen-tier guard's; it goes when that guard is `Native`). -/
+accumulator.  `hfrozen` is `Refine2/Specs.lean`'s `intern_name_run` side
+condition at the name store; the guard it ruled out is `Native` since task
+#97-P5-Usize, and it goes when that lemma drops it. -/
 theorem intern_name_list_go_refines {pers st lst}
     {ns : alloc.vec.Vec kernel.name.Name} {i : Std.Usize}
     {out : alloc.vec.Vec arena.handle.NIdx} {o}
@@ -448,12 +449,17 @@ lemma relates the twin's post-state by `AStateRelW` and not `AStateRel`.
 `dropScratch` turns the weak invariant back into `StoreWF`
 (`StoreWF'.dropScratch_wf`), which is why nothing ABOVE the bracket weakens. -/
 
-/-- **The persistent tier is this state's own, not a shared frozen one.**
-Finding 17's first half as one hypothesis: at a frozen tier the port answers
-`Internal` where the twin appends, and `Internal` abstracts to
-`some .internal`, so every promote lemma needs it at all four stores.  The
-promotion phase holds its own persistent tier, which is what makes it true at
-the call sites. -/
+/-- **The persistent tier is this state's own, not a shared frozen one** —
+every tier's `shared_on` down.
+
+It was finding 17's first half as one hypothesis of every promote lemma: at a
+frozen tier the port answered `Internal(M_FROZEN)` where the twin appends.
+Task #97-P5-Usize made that guard `Native` (which claims nothing), and task
+#97-P5-Top dropped it from all thirty `Refine2/Promote/Promote.lean`
+statements.  **Its last consumers** are `Refine2/Checker/Pins.lean`'s
+`intern_reserved_pins_refines` (and `init_rel`, which supplies it at the
+driver's start): they call `Refine2/Specs.lean`'s closed `intern_*_run`, whose
+`hfrozen` binders another lane is retiring.  Delete this with them. -/
 structure PersUnfrozen (rs : arena.store.EStore) : Prop where
   e : rs.shared_on = false
   lss : rs.lss.shared_on = false
