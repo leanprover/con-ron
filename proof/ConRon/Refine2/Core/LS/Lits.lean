@@ -94,8 +94,11 @@ name_pin arena.core.nat_shift_right_name natShiftRightName PB.pin_nat_shift_righ
 
 @[lockstep_simp] theorem vec_new_val {α : Type} : (alloc.vec.Vec.new α).val = [] := rfl
 
-attribute [lockstep_simp] absNIdxList List.map_append List.map_cons List.map_nil
-  List.nil_append List.cons_append
+attribute [lockstep_simp] absNIdxList
+
+attribute [local lockstep_simp] List.map_append List.map_cons List.map_nil
+  List.nil_append List.cons_append List.isEmpty_nil List.isEmpty_cons Bool.true_and
+  Bool.false_and Bool.and_true Bool.and_false
 
 @[lockstep] theorem nat_op_names_ls {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -211,5 +214,91 @@ end
   rcases o with _ | ii
   · cases Result.ok_injective ha; rfl
   · cases ii <;> (cases Result.ok_injective ha; rfl)
+
+/-! ## The `Nat` literal guards -/
+
+@[lockstep] theorem nat_ind_ok_ls {pers st ci lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.nat_ind_ok st ci) lst
+      (natIndOk (ci.map absIConstantInfo)) := by
+  rcases ci with _ | ci
+  · rw [arena.core.nat_ind_ok.eq_def]
+    simp only [Option.map_none, natIndOk]
+    lockstep_b
+  rcases ci <;> rw [arena.core.nat_ind_ok.eq_def] <;>
+    simp only [Option.map_some, absIConstantInfo, natIndOk] <;> lockstep_b
+
+@[lockstep] theorem nat_zero_ok_ls {pers st ci lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.nat_zero_ok pers st ci) lst
+      (natZeroOk (ci.map absIConstantInfo)) := by
+  rcases ci with _ | ci
+  · rw [arena.core.nat_zero_ok.eq_def]
+    simp only [Option.map_none, natZeroOk]
+    lockstep_b
+  rcases ci <;> rw [arena.core.nat_zero_ok.eq_def] <;>
+    simp only [Option.map_some, absIConstantInfo, natZeroOk] <;> lockstep_b
+
+@[lockstep] theorem nat_succ_ok_ls {pers st ci lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.nat_succ_ok pers st ci) lst
+      (natSuccOk (ci.map absIConstantInfo)) := by
+  rcases ci with _ | ci
+  · rw [arena.core.nat_succ_ok.eq_def]
+    simp only [Option.map_none, natSuccOk]
+    lockstep_b
+  rcases ci <;> rw [arena.core.nat_succ_ok.eq_def] <;>
+    simp only [Option.map_some, absIConstantInfo, natSuccOk] <;> lockstep_b
+
+@[lockstep] theorem nat_lit_supported_ls {pers vis st fe lfe lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.nat_lit_supported pers vis st fe) lst
+      (natLitSupported lfe) := by
+  rw [arena.core.nat_lit_supported, natLitSupported]
+  lockstep_b
+
+/-! ## Constructor forms and the literal reading -/
+
+attribute [local lockstep_simp] Nat.add_sub_cancel
+attribute [local simp] ConRon.Refine.LiteralWF
+
+@[lockstep] theorem nat_lit_to_constructor_ls {pers st n lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hn : ConRon.Refine.Nat.NatWF n) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.nat_lit_to_constructor pers st n) lst
+      (natLitToConstructor (ConRon.Refine.Nat.toNat n)) := by
+  rw [arena.core.nat_lit_to_constructor]
+  rcases hk : ConRon.Refine.Nat.toNat n with _ | k
+  · rw [natLitToConstructor]
+    lockstep_b
+    all_goals trace_state
+    all_goals sorry
+  · rw [natLitToConstructor]
+    lockstep_b
+    all_goals trace_state
+    all_goals sorry
+
+@[lockstep] theorem raw_nat_lit_ls {pers st h lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => (∀ n, a = some n → ConRon.Refine.Nat.NatWF n) ∧
+        b = a.map ConRon.Refine.Nat.toNat)
+      (arena.core.raw_nat_lit pers st h) lst (rawNatLit? (absEIdx h)) := by
+  rw [arena.core.raw_nat_lit, rawNatLit?]
+  refine LSR.bind (PB.view_wf_ls hrel hinv h) rfl (fun e => errArm_ok) ?_
+  intro a b lst1 hR hrel1 hinv1
+  obtain ⟨hwf, rfl⟩ := hR
+  dsimp only
+  lockstep_b
+  all_goals trace_state
+  all_goals sorry
+
+@[lockstep] theorem lit_to_ctor_if_nat_ls {pers vis st fe lfe h lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.lit_to_ctor_if_nat pers vis st fe h) lst
+      (litToCtorIfNat lfe (absEIdx h)) := by
+  rw [arena.core.lit_to_ctor_if_nat, litToCtorIfNat]
+  lockstep_b
+  all_goals trace_state
+  all_goals sorry
 
 end ConRon.Refine2.Lockstep

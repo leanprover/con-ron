@@ -416,6 +416,116 @@ theorem estore_view_lit_wf {pers rs} (hinv : StoreInv pers rs)
       subst h2
       intro l hl; cases hl
 
+set_option hygiene false in
+/-- One non-literal arm of `ETables.get`: it cannot answer a `Lit`. -/
+local macro "nonlit_arm" : tactic => `(tactic| (
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨p, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rcases p with _ | r
+  · have := Result.ok_injective h; simp at this
+  · simp only [ConRon.Refine.bind_eq_ok_iff] at h
+    first
+    | (have := Result.ok_injective h; simp at this)
+    | (obtain ⟨_, -, h⟩ := h; have := Result.ok_injective h; simp at this)
+    | (obtain ⟨_, -, _, -, h⟩ := h; have := Result.ok_injective h; simp at this)
+    | (obtain ⟨_, -, _, -, _, -, h⟩ := h; have := Result.ok_injective h; simp at this)))
+
+/-- The stored literal behind `ETables.get`'s `Lit` answer is well formed. -/
+theorem etables_get_lit_wf' {rt} (hinv : ETablesInv rt) {i : arena.handle.EIdx}
+    {l : kernel.expr.Literal}
+    (h : arena.store.ETables.get rt i = ok (some (.Lit l))) :
+    ConRon.Refine.LiteralWF l := by
+  rw [arena.store.ETables.get] at h
+  obtain ⟨t, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  split at h
+  · nonlit_arm
+  split at h
+  · nonlit_arm
+  split at h
+  · nonlit_arm
+  split at h
+  · nonlit_arm
+  split at h
+  · nonlit_arm
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  split at h
+  · have := Result.ok_injective h; simp at this
+  split at h
+  · nonlit_arm
+  split at h
+  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rcases p with _ | r
+    · have := Result.ok_injective h; simp at this
+    · obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h2 := Result.ok_injective h
+      simp only [Option.some.injEq, arena.store.ENodeView.Lit.injEq] at h2
+      subst h2
+      rw [ConRon.Refine.Expr.literal_dup_eq hx]
+      exact tbl_node_wf hinv.lits hp r rfl
+  split at h
+  · nonlit_arm
+  · have := Result.ok_injective h; simp at this
+
+/-- The literal behind `EStore.view`'s `Lit` answer is well formed. -/
+theorem estore_view_lit_wf' {pers rs} (hinv : StoreInv pers rs) {i : arena.handle.EIdx}
+    {l : kernel.expr.Literal}
+    (h : arena.store.EStore.view rs pers i = ok (some (.Lit l))) :
+    ConRon.Refine.LiteralWF l := by
+  rw [arena.store.EStore.view] at h
+  obtain ⟨t, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨b, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨q, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rcases q with _ | ⟨ty, bo, mm⟩
+    · have := Result.ok_injective h; simp at this
+    · obtain ⟨ev, hev, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h2 := Result.ok_injective h
+      simp only [Option.some.injEq] at h2
+      subst h2
+      rw [arena.store.e_bind_view] at hev
+      split at hev <;> (have := Result.ok_injective hev; simp at this)
+  · obtain ⟨b1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    split at h
+    · rw [arena.store.EStore.pers_get] at h
+      have h3 : arena.store.ETables.get (rPersE pers rs) i = ok (some (.Lit l)) := by
+        unfold rPersE
+        split at h <;> rename_i hs
+        · rw [if_pos hs]; exact h
+        · rw [if_neg hs]; exact h
+      exact etables_get_lit_wf' hinv.perst h3
+    · split at h
+      · exact etables_get_lit_wf' hinv.scrt h
+      · have := Result.ok_injective h; simp at this
+
+/-- `view` against `Arena.view`, with the `LiteralWF` of a `Lit` answer (the
+`view_ls` of `Tactic/Prims.lean` plus the representation fact; a local
+candidate where the WF is needed). -/
+theorem view_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSR pers (fun a b => (∀ l, a = .Lit l → ConRon.Refine.LiteralWF l) ∧ b = absENodeView a)
+      (arena.monad.view pers st h) st lst (Arena.view (absEIdx h)) := by
+  intro o hrun
+  have h1 := view_ls hrel hinv h o hrun
+  cases o with
+  | Err e => exact h1
+  | Ok v =>
+    obtain ⟨b, lst', hx, hb, h2, h3⟩ := h1
+    refine ⟨b, lst', hx, ⟨?_, hb⟩, h2, h3⟩
+    intro l hl
+    subst hl
+    rw [arena.monad.view] at hrun
+    obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rcases q with _ | q
+    · obtain ⟨s, _, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨w, _, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      rw [arena.monad.fail] at hrun
+      cases Result.ok_injective hrun
+    · have h4 := Result.ok_injective hrun
+      simp only [core.result.Result.Ok.injEq] at h4
+      subst h4
+      exact estore_view_lit_wf' hinv.store hq
+
 /-- `view_lit` against `viewLit`, with the stored literal's `LiteralWF`. -/
 @[lockstep] theorem view_lit_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
@@ -437,6 +547,82 @@ theorem estore_view_lit_wf {pers rs} (hinv : StoreInv pers rs)
   exact ⟨_, lst, rfl, estore_view_const_abs hrel.store hrun, hrel, hinv⟩
 
 attribute [lockstep_simp] absConstT
+
+/-! ## Interns — PENDING foundation intern slice (T2-LOCKSTEP slice 3) -/
+
+@[lockstep] theorem intern_e_lit_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (l : kernel.expr.Literal) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_lit pers st l) lst
+      (Arena.internE (.lit (ConRon.Refine.absLiteral l))) := by
+  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
+  sorry
+
+@[lockstep] theorem intern_e_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : arena.handle.NIdx) (us : arena.handle.LsIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_const pers st n us) lst
+      (Arena.internE (.const (absNIdx n) (absLsIdx us))) := by
+  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
+  sorry
+
+@[lockstep] theorem intern_e_sort_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (u : arena.handle.LIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_sort pers st u) lst
+      (Arena.internE (.sort (absLIdx u))) := by
+  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
+  sorry
+
+@[lockstep] theorem intern_l_node_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (v : arena.store.LNodeView) :
+    LS pers (fun a b => b = absLIdx a) (arena.monad.intern_l_node pers st v) lst
+      (Arena.internLNode (absLNodeView v)) := by
+  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
+  sorry
+
+@[lockstep] theorem intern_ls_node_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (v : alloc.vec.Vec arena.handle.LIdx) :
+    LS pers (fun a b => b = absLsIdx a) (arena.monad.intern_ls_node pers st v) lst
+      (Arena.internLsNode (absLsNodeView v)) := by
+  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
+  sorry
+
+/-- `i_constant_info_to_constant_val` against `IConstantInfo.toConstantVal`, a
+store-level step (its `projInfo` arm interns `Sort 1`). -/
+@[lockstep] theorem i_constant_info_to_constant_val_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (c : arena.env.IConstantInfo) :
+    LSS pers (fun a b => b = absIConstantVal a)
+      (arena.env.i_constant_info_to_constant_val pers st.store c) st lst
+      (absIConstantInfo c).toConstantVal := by
+  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
+  sorry
+
+attribute [lockstep_simp] absLNodeView absLsNodeView absIConstantVal ConRon.Refine.absLiteral
+
+@[lockstep_simp] theorem vec_len_eq_zero {α : Type} (v : alloc.vec.Vec α) :
+    (alloc.vec.Vec.len v = 0#usize) = (v.val = []) := by
+  apply propext; constructor
+  · intro h
+    have := congrArg Std.UScalar.val h
+    rw [alloc.vec.Vec.len_val] at this
+    exact List.eq_nil_of_length_eq_zero (by simpa using this)
+  · intro h
+    apply Std.UScalar.eq_of_val_eq
+    rw [alloc.vec.Vec.len_val]
+    simp [h]
+
+@[lockstep_simp] theorem vec_len_bne_zero {α : Type} (v : alloc.vec.Vec α) :
+    (alloc.vec.Vec.len v != 0#usize) = !(v.val.isEmpty) := by
+  have e := vec_len_eq_zero v
+  by_cases h : v.val = []
+  · have h1 : alloc.vec.Vec.len v = 0#usize := e ▸ h
+    rw [h1, h]; rfl
+  · have h1 : alloc.vec.Vec.len v ≠ 0#usize := fun h1 => h (e ▸ h1)
+    have h2 : v.val.isEmpty = false := by
+      cases hv : v.val with
+      | nil => exact absurd hv h
+      | cons _ _ => rfl
+    rw [h2, bne_iff_ne.mpr h1]; rfl
+
+attribute [lockstep_simp] List.isEmpty_map List.isEmpty_iff
 
 /-! ## A tactic gap: the error arm of an inlined fragment in bind position
 
