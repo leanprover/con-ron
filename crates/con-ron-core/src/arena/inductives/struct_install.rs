@@ -107,12 +107,12 @@ pub fn check_struct_doms_at(
         Ok(())
     } else {
         let j: u64 = k - 1;
-        let a: Option<EIdx> = if (j as usize) < fvs.len() {
+        let a: Option<EIdx> = if j < fvs.len() as u64 {
             Some(fvs[j as usize].dup2())
         } else {
             None
         };
-        let b: Option<EIdx> = if (j as usize) < doms.len() {
+        let b: Option<EIdx> = if j < doms.len() as u64 {
             Some(doms[j as usize].dup2())
         } else {
             None

@@ -113,6 +113,8 @@ import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.ExprOps.Spine
 import ConRon.Bridge.ExprOps.Ranges
 import ConRon.Bridge.ExprOps.Subst
+import ConRon.Bridge.ExprOps.Owed
+import ConRon.Bridge.ExprOps.TelescopeF
 
 namespace ConRon.Bridge.Inductives
 
@@ -369,6 +371,97 @@ def denoteCtors4 (st : EStore) :
     | some nm, some t, some rest => some ((nm, k, t, idx) :: rest)
     | _, _, _ => none
 
+/-- con-leche: none — `nativeCtors4`'s four-tuple list survives an append. -/
+theorem denoteCtors4_ext {st st' : EStore} (hx : Ext st st') :
+    ∀ (cs : List (NIdx × Nat × EIdx × List Nat))
+      (csP : List (ConLeche.Name × Nat × Expr × List Nat)),
+      denoteCtors4 st cs = some csP → denoteCtors4 st' cs = some csP := by
+  intro cs
+  induction cs with
+  | nil => intro csP h; exact h
+  | cons c cs ih =>
+    intro csP h
+    obtain ⟨n, k, ty, idx⟩ := c
+    simp only [denoteCtors4] at h ⊢
+    cases h1 : denoteN st.ns n with
+    | none => rw [h1] at h; simp at h
+    | some nm =>
+      cases h2 : denoteE st ty with
+      | none => rw [h1, h2] at h; simp at h
+      | some t =>
+        cases h3 : denoteCtors4 st cs with
+        | none => rw [h1, h2, h3] at h; simp at h
+        | some rest =>
+          rw [h1, h2, h3] at h
+          rw [denoteN_ext h1 hx, denote_ext h2 hx, ih rest h3]
+          exact h
+
+/-- con-leche: none — the four-tuple list's length survives the denotation. -/
+theorem denoteCtors4_length {st : EStore} :
+    ∀ {cs : List (NIdx × Nat × EIdx × List Nat)}
+      {csP : List (ConLeche.Name × Nat × Expr × List Nat)},
+      denoteCtors4 st cs = some csP → cs.length = csP.length := by
+  intro cs
+  induction cs with
+  | nil => intro csP h; simp only [denoteCtors4, Option.some.injEq] at h; subst h; rfl
+  | cons c cs ih =>
+    intro csP h
+    obtain ⟨n, k, ty, idx⟩ := c
+    simp only [denoteCtors4] at h
+    cases h1 : denoteN st.ns n with
+    | none => rw [h1] at h; simp at h
+    | some nm =>
+      cases h2 : denoteE st ty with
+      | none => rw [h1, h2] at h; simp at h
+      | some t =>
+        cases h3 : denoteCtors4 st cs with
+        | none => rw [h1, h2, h3] at h; simp at h
+        | some rest =>
+          rw [h1, h2, h3] at h
+          obtain rfl := (Option.some.inj h).symm
+          simp only [List.length_cons, ih h3]
+
+/-- con-leche: none — and it reads at an index with the `Option` carried. -/
+theorem denoteCtors4_getElem? {st : EStore} :
+    ∀ {cs : List (NIdx × Nat × EIdx × List Nat)}
+      {csP : List (ConLeche.Name × Nat × Expr × List Nat)},
+      denoteCtors4 st cs = some csP → ∀ (j : Nat),
+      (cs[j]? = none ↔ csP[j]? = none) ∧
+      ∀ n k ty idx, cs[j]? = some (n, k, ty, idx) →
+        ∃ nm t, csP[j]? = some (nm, k, t, idx) ∧ denoteN st.ns n = some nm ∧
+          denoteE st ty = some t := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro csP h j
+    simp only [denoteCtors4, Option.some.injEq] at h; subst h
+    simp
+  | cons c cs ih =>
+    intro csP h j
+    obtain ⟨n, k, ty, idx⟩ := c
+    simp only [denoteCtors4] at h
+    cases h1 : denoteN st.ns n with
+    | none => rw [h1] at h; simp at h
+    | some nm =>
+      cases h2 : denoteE st ty with
+      | none => rw [h1, h2] at h; simp at h
+      | some t =>
+        cases h3 : denoteCtors4 st cs with
+        | none => rw [h1, h2, h3] at h; simp at h
+        | some rest =>
+          rw [h1, h2, h3] at h
+          obtain rfl := (Option.some.inj h).symm
+          cases j with
+          | zero =>
+            refine ⟨by simp, ?_⟩
+            intro n' k' ty' idx' he
+            simp only [List.getElem?_cons_zero, Option.some.injEq, Prod.mk.injEq] at he
+            obtain ⟨rfl, rfl, rfl, rfl⟩ := he
+            exact ⟨nm, t, rfl, h1, h2⟩
+          | succ j =>
+            simp only [List.getElem?_cons_succ]
+            exact ih h3 j
+
 abbrev RCs (cs : List (ConstantVal × Nat)) :
     EStore → List (IConstantVal × Nat) → Prop :=
   fun st r => denoteCtors st r = some cs
@@ -568,6 +661,53 @@ theorem denoteCtors3_getElem? {st : EStore} :
           · intro cv' a b hb
             simp only [List.getElem?_cons_succ] at hb
             obtain ⟨c', hc', hd⟩ := hA cv' a b hb
+            exact ⟨c', by simpa using hc', hd⟩
+          · intro hb
+            simp only [List.getElem?_cons_succ] at hb ⊢
+            exact hB hb
+
+/-- con-leche: none — the shape record's constructor list at an index, with
+the `Option` carried. -/
+theorem denoteCtors_getElem? {st : EStore} :
+    ∀ {cs : List (IConstantVal × Nat)} {csP : List (ConstantVal × Nat)},
+      denoteCtors st cs = some csP → ∀ (j : Nat),
+        (∀ cv a, cs[j]? = some (cv, a) →
+          ∃ c, csP[j]? = some (c, a) ∧ Frontend.denoteCV st cv = some c) ∧
+        (cs[j]? = none → csP[j]? = none) := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro csP h j
+    simp only [denoteCtors, Option.some.injEq] at h
+    subst h
+    exact ⟨by intro cv a hb; simp at hb, by intro _; simp⟩
+  | cons e es ih =>
+    intro csP h j
+    obtain ⟨cv, x⟩ := e
+    simp only [denoteCtors] at h
+    cases hcv : Frontend.denoteCV st cv with
+    | none => rw [hcv] at h; simp at h
+    | some c =>
+      cases has : denoteCtors st es with
+      | none => rw [hcv, has] at h; simp at h
+      | some rest =>
+        rw [hcv, has] at h
+        obtain rfl := Option.some.inj h
+        cases j with
+        | zero =>
+          refine ⟨?_, ?_⟩
+          · intro cv' a hb
+            simp only [List.getElem?_cons_zero, Option.some.injEq,
+              Prod.mk.injEq] at hb
+            obtain ⟨rfl, rfl⟩ := hb
+            exact ⟨c, by simp, hcv⟩
+          · intro hb; simp at hb
+        | succ j =>
+          obtain ⟨hA, hB⟩ := ih has j
+          refine ⟨?_, ?_⟩
+          · intro cv' a hb
+            simp only [List.getElem?_cons_succ] at hb
+            obtain ⟨c', hc', hd⟩ := hA cv' a hb
             exact ⟨c', by simpa using hc', hd⟩
           · intro hb
             simp only [List.getElem?_cons_succ] at hb ⊢
@@ -1969,6 +2109,620 @@ theorem InstRel.trans {fe₀ fe₁ fe₂ : IFEnv} {P₁ P₂ : Env → Prop}
   visible := Nat.le_trans h₁.visible h₂.visible
   denote := h₂.denote
   proj := h₁.proj.trans h₂.proj hx
+
+/-! ## The recognisers' readers (task #97-P3-Ind round 6)
+
+`structPartsCore?` and `nativeShape?` read the reserved-name list, peel a
+rule's right-hand side with `stripLams`, and ask `lvlEq?` for `isProp`.  The
+three run forms below put each of those at THIS tier's frame. -/
+
+/-- con-leche: none — the frame a name-only program leaves on the three
+fields `EStore.viewBM` reads: `bmExt_of_nested`'s hypotheses, as a relation
+between states that composes along a `do` block. -/
+def NestFrame (s s' : AState) : Prop :=
+  StoreWF s.store → StoreWF s'.store ∧ s'.store.pers = s.store.pers ∧
+    s'.store.scr = s.store.scr ∧ s'.store.scratchOn = s.store.scratchOn
+
+/-- con-leche: none — every accepting run of the program leaves `NestFrame`. -/
+def NestProg {α : Type} (c : AM α) : Prop :=
+  ∀ (s s' : AState) (a : α), c s = .ok (a, s') → NestFrame s s'
+
+theorem NestProg.pure {α : Type} (a : α) : NestProg (pure a : AM α) := by
+  intro s s' b h
+  obtain ⟨-, rfl⟩ := pureOk h
+  exact fun hw => ⟨hw, rfl, rfl, rfl⟩
+
+theorem NestProg.bind {α β : Type} {x : AM α} {f : α → AM β}
+    (hx : NestProg x) (hf : ∀ a, NestProg (f a)) : NestProg (x >>= f) := by
+  intro s s' b h
+  obtain ⟨a, s₁, h1, h2⟩ := bindOk h
+  intro hw
+  obtain ⟨w1, p1, c1, o1⟩ := hx s s₁ a h1 hw
+  obtain ⟨w2, p2, c2, o2⟩ := hf a s₁ s' b h2 w1
+  exact ⟨w2, p2.trans p1, c2.trans c1, o2.trans o1⟩
+
+theorem NestProg.pinAt (i : Nat) : NestProg (Arena.pinAt i) := by
+  intro s s' n h
+  simp only [Arena.pinAt] at h
+  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
+  have e1 : t = s ∧ s₁ = s := by
+    injection h1 with h1'; injection h1' with a b; exact ⟨a.symm, b.symm⟩
+  obtain ⟨rfl, rfl⟩ := e1
+  split at h2
+  · obtain ⟨-, rfl⟩ := pureOk h2
+    exact fun hw => ⟨hw, rfl, rfl, rfl⟩
+  · exact absurd h2 (fun hc => failOk hc)
+
+theorem NestProg.internName (nm : ConLeche.Name) :
+    NestProg (Arena.internName nm) := by
+  intro s s' n h hw
+  obtain ⟨h1, -, h3, h4, h5, -⟩ := AM.of_run (P := fun t => t = s)
+    (Q := fun r t => StoreWF t.store ∧ Ext s.store t.store ∧
+        t.store.pers = s.store.pers ∧ t.store.scr = s.store.scr ∧
+        t.store.scratchOn = s.store.scratchOn ∧
+        t.memos = s.memos ∧ t.caches = s.caches ∧ t.pins = s.pins ∧
+        denoteN t.store.ns r = some nm) rfl h (internName_spec s nm hw)
+  exact ⟨h1, h3, h4, h5⟩
+
+/-- con-leche: none — `reservedBasisNames` touches no expression table:
+six pin reads and thirteen name interns. -/
+theorem reservedBasisNames_nest : NestProg Arena.reservedBasisNames := by
+  simp only [Arena.reservedBasisNames]
+  repeat
+    first
+    | exact NestProg.pure _
+    | refine NestProg.bind (NestProg.pinAt _) (fun _ => ?_)
+    | refine NestProg.bind (NestProg.internName _) (fun _ => ?_)
+
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
+**the reserved list at this tier's frame**: `Bridge/Checker/Names.lean`'s
+`reservedBasisNames_run` gives `PinStep` and the list; `reservedBasisNames_nest`
+adds the three fields `BMExt` needs. -/
+theorem reservedBasisNames_pstep {s s' : AState} {hs : List NIdx}
+    (hok : StateOK s) (hp : PinsOK s)
+    (hr : Arena.reservedBasisNames s = .ok (hs, s')) :
+    PStep s s' ∧
+      Frontend.denoteNList s'.store.ns hs = some ConLeche.reservedBasisNames := by
+  obtain ⟨hps, hd⟩ := reservedBasisNames_run hok.wf hp hr
+  obtain ⟨-, h1, h2, h3⟩ := reservedBasisNames_nest s s' hs hr hok.wf
+  refine ⟨PStep.of_caches ⟨hps.wf⟩ hps.ext (bmExt_of_nested h1 h2 h3)
+    hps.caches hps.pins, ?_⟩
+  rw [← reservedBasisNameValues_eq]
+  exact denoteNL_toList _ _ hd
+
+/-- con-leche: none — a `some` answer of a telescope peel names the pure
+residual, at ANY pure function (`stripPis_some` is this at `stripPis`). -/
+theorem denoteBP_some' {st : EStore} {v : Option (List (Expr × BinderMeta) × Expr)}
+    {bs : List (EIdx × BinderMeta)} {e : EIdx}
+    (h : ExprOps.denoteBP st (some (bs, e)) = some v) :
+    ∃ xs x, v = some (xs, x) ∧ denoteE st e = some x := by
+  simp only [ExprOps.denoteBP] at h
+  cases hb : ExprOps.denoteBL st bs with
+  | none => rw [hb] at h; simp at h
+  | some xs =>
+    cases he : denoteE st e with
+    | none => rw [hb, he] at h; simp at h
+    | some x =>
+      rw [hb, he] at h
+      exact ⟨xs, x, (Option.some.inj h).symm, rfl⟩
+
+/-- con-leche: none — `denoteBP_someB` at any pure peel (`stripLams`'s too):
+the binders and the residual both denote. -/
+theorem denoteBP_someB' {st : EStore} {v : Option (List (Expr × BinderMeta) × Expr)}
+    {bs : List (EIdx × BinderMeta)} {e : EIdx}
+    (h : ExprOps.denoteBP st (some (bs, e)) = some v) :
+    ∃ xs x, v = some (xs, x) ∧ denoteBinders st bs = some xs ∧ denoteE st e = some x := by
+  simp only [ExprOps.denoteBP] at h
+  cases hb : ExprOps.denoteBL st bs with
+  | none => rw [hb] at h; simp at h
+  | some xs =>
+    cases he : denoteE st e with
+    | none => rw [hb, he] at h; simp at h
+    | some x =>
+      rw [hb, he] at h
+      refine ⟨xs, x, (Option.some.inj h).symm, ?_, rfl⟩
+      rw [denoteBinders_eq_denoteBL]; exact hb
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean resetMeta — `resetMetaFast` in run
+form at this tier's frame. -/
+theorem resetMeta_pstep {fuel : Nat} {s₀ s' : AState} {e r : EIdx} {eP : Expr}
+    (hok : StateOK s₀) (hd : denoteE s₀.store e = some eP)
+    (hrun : Arena.resetMetaFast fuel e s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ denoteE s'.store r = some eP.resetMeta := by
+  obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.resetMetaFast_spec fuel s₀ e hok (by rw [hd]; rfl))
+  exact ⟨PStep.of_caches h1 h2 h3 h4 h5, h7 eP hd⟩
+
+/-- con-leche: none — the recogniser's binder comparison "`resetMeta a ==
+resetMeta b`" in run form. -/
+theorem resetPair_pstep {fuel : Nat} {s₀ s' : AState} {a b : EIdx} {aP bP : Expr}
+    {r : Bool} (hok : StateOK s₀) (ha : denoteE s₀.store a = some aP)
+    (hb : denoteE s₀.store b = some bP)
+    (hrun : (do pure ((← Arena.resetMetaFast fuel a) == (← Arena.resetMetaFast fuel b)) :
+      AM Bool) s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ r = (aP.resetMeta == bP.resetMeta) := by
+  obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, hx⟩ := resetMeta_pstep hok ha k1
+  obtain ⟨y, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨p2, hy⟩ := resetMeta_pstep p1.ok (denote_ext hb p1.ext) k2
+  obtain ⟨rfl, rfl⟩ := pureOk z2
+  exact ⟨p1.trans p2, beq_ehandle_eq p2.ok.wf (denote_ext hx p2.ext) hy⟩
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1120-1126 stripLams — the run form
+of `Bridge/ExprOps/Spine.lean`'s closed `stripLams_spec`, `stripPis_pstep`'s
+λ twin. -/
+theorem stripLams_pstep {k : Nat} {s₀ s' : AState} {c : EIdx} {cP : Expr}
+    {r : Option (List (EIdx × BinderMeta) × EIdx)} (hok : StateOK s₀)
+    (hd : denoteE s₀.store c = some cP)
+    (hrun : Arena.stripLams k c s₀ = .ok (r, s')) :
+    s' = s₀ ∧ ExprOps.denoteBP s₀.store r = some (Expr.stripLams k cP) := by
+  obtain ⟨h1, h2⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.stripLams_spec k s₀ c hok (by rw [hd]; rfl))
+  exact ⟨h1, h2 cP hd⟩
+
+/-- con-leche: none — a rule's right-hand side denotes. -/
+theorem denoteRule_rhs {st : EStore} {rl : IRecRule} {x : RecRule}
+    (h : Frontend.denoteRule st rl = some x) : denoteE st rl.rhs = some x.rhs := by
+  simp only [Frontend.denoteRule] at h
+  cases hc : denoteN st.ns rl.ctor with
+  | none => rw [hc] at h; simp at h
+  | some c =>
+    cases hf : Frontend.denoteFire st rl.fire with
+    | none => rw [hc, hf] at h; simp at h
+    | some f =>
+      cases he : denoteE st rl.rhs with
+      | none => rw [hc, hf, he] at h; simp at h
+      | some e =>
+        rw [hc, hf, he] at h
+        obtain rfl := Option.some.inj h
+        rfl
+
+/-- con-leche: none — **`lvlEq?` at the pure frame**: it moves only the two
+caches `CacheFrame` names (`Core.lvlEq?_frame`). -/
+theorem lvlEq?_pstep {s s' : AState} {u v : LIdx} {r : Option Bool}
+    (hok : StateOK s) (hrun : Arena.lvlEq? u v s = .ok (r, s')) : PStep s s' := by
+  obtain ⟨hst, -, hp, hcf⟩ := Core.lvlEq?_frame hrun
+  exact ⟨⟨by rw [hst]; exact hok.wf⟩, by rw [hst]; exact Ext.refl _,
+    by rw [hst]; exact BMExt.refl _, hcf, hp⟩
+
+/-- con-leche: none — `ROp` is monotone in its relation. -/
+theorem ROp.mono {α β : Type} {R R' : β → EStore → α → Prop} {x : Option β}
+    {st : EStore} {r : Option α} (h : ROp R x st r)
+    (hR : ∀ b a, R b st a → R' b st a) : ROp R' x st r := by
+  cases r with
+  | none => exact h
+  | some a => obtain ⟨b, hb, hr⟩ := h; exact ⟨b, hb, hR b a hr⟩
+
+/-- con-leche: none — and it is two-sided at `isSome`. -/
+theorem ROp.isSome {α β : Type} {R : β → EStore → α → Prop} {x : Option β}
+    {st : EStore} {r : Option α} (h : ROp R x st r) : r.isSome = x.isSome := by
+  cases r with
+  | none => simp only [ROp] at h; rw [h]; rfl
+  | some a => obtain ⟨b, hb, _⟩ := h; rw [hb]; rfl
+
+/-! ## `List.mapM` at the pure frame (task #97-P3-Ind round 6)
+
+Group 3's generators map a pure-grade twin over a list (`structTeleAt` over
+the telescope's indices, `structIhApp` over the index expressions,
+`structRuleBodyR` over the recursive positions, …).  `mapM_pstep` is the one
+induction; the answer is a pointwise relation `ListRel`, which the two
+readers below turn into `denoteEList` / `denoteBinders`. -/
+
+/-- con-leche: none — a relation lifted pointwise to two lists of the same
+length. -/
+def ListRel {β γ : Type} (R : EStore → β → γ → Prop) (st : EStore) :
+    List β → List γ → Prop
+  | [], [] => True
+  | b :: bs, c :: cs => R st b c ∧ ListRel R st bs cs
+  | _, _ => False
+
+/-- con-leche: none — **`List.mapM` of a pure-grade step**: the frame
+composes and the answers relate pointwise. -/
+theorem mapM_pstep {α β γ : Type} (f : α → AM β) (g : α → γ)
+    (R : EStore → β → γ → Prop) (P : α → EStore → Prop)
+    (hRx : ∀ {st st' : EStore} {b : β} {c : γ}, Ext st st' → R st b c → R st' b c)
+    (hPx : ∀ {a : α} {st st' : EStore}, Ext st st' → P a st → P a st')
+    (hf : ∀ (a : α) (s₀ s' : AState) (b : β), StateOK s₀ → P a s₀.store →
+      f a s₀ = .ok (b, s') → PStep s₀ s' ∧ R s'.store b (g a)) :
+    ∀ (xs : List α) (s₀ s' : AState) (bs : List β), StateOK s₀ →
+      (∀ a ∈ xs, P a s₀.store) → xs.mapM f s₀ = .ok (bs, s') →
+      PStep s₀ s' ∧ ListRel R s'.store bs (xs.map g) := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro s₀ s' bs hok _ hrun
+    simp only [List.mapM_nil] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, trivial⟩
+  | cons a as ih =>
+    intro s₀ s' bs hok hP hrun
+    simp only [List.mapM_cons] at hrun
+    obtain ⟨b, s1, k1, hz1⟩ := bindOk hrun
+    obtain ⟨p1, hb⟩ := hf a s₀ s1 b hok (hP a (by simp)) k1
+    obtain ⟨cs, s2, k2, hz2⟩ := bindOk hz1
+    obtain ⟨p2, hcs⟩ := ih s1 s2 cs p1.ok
+      (fun x hx => hPx p1.ext (hP x (by simp [hx]))) k2
+    obtain ⟨rfl, rfl⟩ := pureOk hz2
+    exact ⟨p1.trans p2, hRx p2.ext hb, hcs⟩
+
+/-- con-leche: none — `List.mapM` of a pure-grade expression map over a
+denoting handle list: the answer denotes the pure map. -/
+theorem mapM_E_pstep {f : EIdx → AM EIdx} {F : Expr → Expr}
+    (hf : ∀ (e : EIdx) (eP : Expr) (s₀ s' : AState) (r : EIdx), StateOK s₀ →
+      denoteE s₀.store e = some eP → f e s₀ = .ok (r, s') →
+      PStep s₀ s' ∧ denoteE s'.store r = some (F eP)) :
+    ∀ (idx : List EIdx) (idxP : List Expr) (s₀ s' : AState) (r : List EIdx),
+      StateOK s₀ → Frontend.denoteEList s₀.store idx = some idxP →
+      idx.mapM f s₀ = .ok (r, s') →
+      PStep s₀ s' ∧ Frontend.denoteEList s'.store r = some (idxP.map F) := by
+  intro idx
+  induction idx with
+  | nil =>
+    intro idxP s₀ s' r hok h hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at h
+    subst h
+    simp only [List.mapM_nil] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons e es ih =>
+    intro idxP s₀ s' r hok h hrun
+    simp only [Frontend.denoteEList] at h
+    cases he : denoteE s₀.store e with
+    | none => rw [he] at h; simp at h
+    | some eP =>
+      cases hes : Frontend.denoteEList s₀.store es with
+      | none => rw [he, hes] at h; simp at h
+      | some esP =>
+        rw [he, hes] at h
+        obtain rfl := (Option.some.inj h).symm
+        simp only [List.mapM_cons] at hrun
+        obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
+        obtain ⟨p1, hx⟩ := hf e eP s₀ s1 x hok he k1
+        obtain ⟨xs, s2, k2, z2⟩ := bindOk z1
+        obtain ⟨p2, hxs⟩ := ih esP s1 s2 xs p1.ok (denoteEList_ext p1.ext _ _ hes) k2
+        obtain ⟨rfl, rfl⟩ := pureOk z2
+        refine ⟨p1.trans p2, ?_⟩
+        simp only [Frontend.denoteEList, List.map_cons, denote_ext hx p2.ext, hxs]
+
+/-- con-leche: none — `List.allM` of a pure-grade test over a denoting
+handle list, with a store invariant `Q` the test may read (the name a
+`mentionsConst` looks for, say): the verdict is the pure `List.all`. -/
+theorem allM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool} (Q : EStore → Prop)
+    (hQx : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
+    (hf : ∀ (e : EIdx) (eP : Expr) (s₀ s' : AState) (b : Bool), StateOK s₀ →
+      Q s₀.store → denoteE s₀.store e = some eP → f e s₀ = .ok (b, s') →
+      PStep s₀ s' ∧ b = F eP) :
+    ∀ (hs : List EIdx) (xs : List Expr) (s₀ s' : AState) (b : Bool),
+      StateOK s₀ → Q s₀.store → Frontend.denoteEList s₀.store hs = some xs →
+      hs.allM f s₀ = .ok (b, s') → PStep s₀ s' ∧ b = xs.all F := by
+  intro hs
+  induction hs with
+  | nil =>
+    intro xs s₀ s' b hok _ h hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at h
+    subst h
+    simp only [List.allM] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons e es ih =>
+    intro xs s₀ s' b hok hq h hrun
+    simp only [Frontend.denoteEList] at h
+    cases he : denoteE s₀.store e with
+    | none => rw [he] at h; simp at h
+    | some eP =>
+      cases hes : Frontend.denoteEList s₀.store es with
+      | none => rw [he, hes] at h; simp at h
+      | some esP =>
+        rw [he, hes] at h
+        obtain rfl := (Option.some.inj h).symm
+        simp only [List.allM] at hrun
+        obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+        obtain ⟨p1, hc⟩ := hf e eP s₀ s1 c hok hq he k1
+        cases c with
+        | false =>
+          obtain ⟨rfl, rfl⟩ := pureOk z1
+          refine ⟨p1, ?_⟩
+          simp only [List.all_cons, ← hc, Bool.false_and]
+        | true =>
+          obtain ⟨p2, hb⟩ := ih esP s1 s' b p1.ok (hQx p1.ext hq)
+            (denoteEList_ext p1.ext _ _ hes) z1
+          refine ⟨p1.trans p2, ?_⟩
+          simp only [List.all_cons, ← hc, Bool.true_and, hb]
+
+/-- con-leche: none — `List.allM` of a pure-grade test over a list of
+representation-free keys (indices): the verdict is the pure `List.all`. -/
+theorem allM_pstep {α : Type} {f : α → AM Bool} {g : α → Bool}
+    (P : α → EStore → Prop)
+    (hPx : ∀ {a : α} {st st' : EStore}, Ext st st' → P a st → P a st')
+    (hf : ∀ (a : α) (s₀ s' : AState) (b : Bool), StateOK s₀ → P a s₀.store →
+      f a s₀ = .ok (b, s') → PStep s₀ s' ∧ b = g a) :
+    ∀ (xs : List α) (s₀ s' : AState) (b : Bool), StateOK s₀ →
+      (∀ a ∈ xs, P a s₀.store) → xs.allM f s₀ = .ok (b, s') →
+      PStep s₀ s' ∧ b = xs.all g := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro s₀ s' b hok _ hrun
+    simp only [List.allM] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons a as ih =>
+    intro s₀ s' b hok hP hrun
+    simp only [List.allM] at hrun
+    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hc⟩ := hf a s₀ s1 c hok (hP a (by simp)) k1
+    cases c with
+    | false =>
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      refine ⟨p1, ?_⟩
+      simp only [List.all_cons, ← hc, Bool.false_and]
+    | true =>
+      obtain ⟨p2, hb⟩ := ih s1 s' b p1.ok (fun x hx => hPx p1.ext (hP x (by simp [hx]))) z1
+      refine ⟨p1.trans p2, ?_⟩
+      simp only [List.all_cons, ← hc, Bool.true_and, hb]
+
+/-- con-leche: none — a handle whose view is not a `.const` denotes a term
+that is not one (`Bridge/Core/Walks/Guards.lean`'s `isBoolTrue_of_not_const`
+argument, as a shape fact). -/
+theorem denote_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
+    {e : Expr} {v : ENodeView} (hv : st.view h = some v)
+    (he : denoteE st h = some e)
+    (hne : ∀ c us, v ≠ .const c us) : ∀ c us, e ≠ .const c us := by
+  cases v with
+  | bvar i => rw [denote_bvar_inv hwf hv he]; intro _ _ h; cases h
+  | fvar k t =>
+    obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv he; intro _ _ h; cases h
+  | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; intro _ _ h; cases h
+  | const n us => exact absurd rfl (hne n us)
+  | app f a =>
+    obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv he; intro _ _ h; cases h
+  | lam ty b m =>
+    obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; intro _ _ h; cases h
+  | forallE ty b m =>
+    obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv he; intro _ _ h; cases h
+  | letE ty w b =>
+    obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; intro _ _ h; cases h
+  | lit l => rw [denote_lit_inv hwf hv he]; intro _ _ h; cases h
+  | proj n i sub =>
+    obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; intro _ _ h; cases h
+
+/-- con-leche: none — a denoting telescope's suffix denotes the suffix. -/
+theorem denoteBinders_drop {st : EStore} :
+    ∀ {bs : List (EIdx × BinderMeta)} {xs : List (Expr × BinderMeta)},
+      denoteBinders st bs = some xs → ∀ (n : Nat),
+        denoteBinders st (bs.drop n) = some (xs.drop n) := by
+  intro bs
+  induction bs with
+  | nil => intro xs h n; simp only [denoteBinders, Option.some.injEq] at h; subst h; simp [denoteBinders]
+  | cons b bs ih =>
+    intro xs h n
+    obtain ⟨t, m⟩ := b
+    simp only [denoteBinders] at h
+    cases ht : denoteE st t with
+    | none => rw [ht] at h; simp at h
+    | some tP =>
+      cases hbs : denoteBinders st bs with
+      | none => rw [ht, hbs] at h; simp at h
+      | some rest =>
+        rw [ht, hbs] at h
+        obtain rfl := (Option.some.inj h).symm
+        cases n with
+        | zero => simp only [List.drop_zero, denoteBinders, ht, hbs]
+        | succ n => simp only [List.drop_succ_cons]; exact ih hbs n
+
+/-- con-leche: none — `List.anyM` of a pure-grade test over a denoting
+binder telescope, with a store invariant `Q`: the verdict is the pure
+`List.any`. -/
+theorem anyM_B_pstep {f : EIdx × BinderMeta → AM Bool} {F : Expr × BinderMeta → Bool}
+    (Q : EStore → Prop) (hQx : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
+    (hf : ∀ (b : EIdx × BinderMeta) (bP : Expr × BinderMeta) (s₀ s' : AState) (x : Bool),
+      StateOK s₀ → Q s₀.store → denoteE s₀.store b.1 = some bP.1 → b.2 = bP.2 →
+      f b s₀ = .ok (x, s') → PStep s₀ s' ∧ x = F bP) :
+    ∀ (bs : List (EIdx × BinderMeta)) (bsP : List (Expr × BinderMeta)) (s₀ s' : AState)
+      (x : Bool), StateOK s₀ → Q s₀.store → denoteBinders s₀.store bs = some bsP →
+      bs.anyM f s₀ = .ok (x, s') → PStep s₀ s' ∧ x = bsP.any F := by
+  intro bs
+  induction bs with
+  | nil =>
+    intro bsP s₀ s' x hok _ h hrun
+    simp only [denoteBinders, Option.some.injEq] at h
+    subst h
+    simp only [List.anyM] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons b bs ih =>
+    intro bsP s₀ s' x hok hq h hrun
+    obtain ⟨t, m⟩ := b
+    simp only [denoteBinders] at h
+    cases ht : denoteE s₀.store t with
+    | none => rw [ht] at h; simp at h
+    | some tP =>
+      cases hbs : denoteBinders s₀.store bs with
+      | none => rw [ht, hbs] at h; simp at h
+      | some rest =>
+        rw [ht, hbs] at h
+        obtain rfl := (Option.some.inj h).symm
+        simp only [List.anyM] at hrun
+        obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+        obtain ⟨p1, hc⟩ := hf (t, m) (tP, m) s₀ s1 c hok hq ht rfl k1
+        cases c with
+        | true =>
+          obtain ⟨rfl, rfl⟩ := pureOk z1
+          refine ⟨p1, ?_⟩
+          simp only [List.any_cons, ← hc, Bool.true_or]
+        | false =>
+          obtain ⟨p2, hx⟩ := ih rest s1 s' x p1.ok (hQx p1.ext hq)
+            (denoteBinders_ext p1.ext _ _ hbs) z1
+          refine ⟨p1.trans p2, ?_⟩
+          simp only [List.any_cons, ← hc, Bool.false_or, hx]
+
+/-- con-leche: none — `ListRel` at a handle denotation is `denoteEList`. -/
+theorem ListRel.toEList {st : EStore} :
+    ∀ {bs : List EIdx} {cs : List Expr},
+      ListRel (fun st b c => denoteE st b = some c) st bs cs →
+      Frontend.denoteEList st bs = some cs := by
+  intro bs
+  induction bs with
+  | nil => intro cs h; cases cs with
+    | nil => rfl
+    | cons _ _ => exact h.elim
+  | cons b bs ih =>
+    intro cs h
+    cases cs with
+    | nil => exact h.elim
+    | cons c cs =>
+      obtain ⟨h1, h2⟩ := h
+      simp only [Frontend.denoteEList, h1, ih h2]
+
+/-- con-leche: none — and at a binder, `denoteBinders`. -/
+theorem ListRel.toBinders {st : EStore} :
+    ∀ {bs : List (EIdx × BinderMeta)} {cs : List (Expr × BinderMeta)},
+      ListRel (fun st b c => denoteE st b.1 = some c.1 ∧ b.2 = c.2) st bs cs →
+      denoteBinders st bs = some cs := by
+  intro bs
+  induction bs with
+  | nil => intro cs h; cases cs with
+    | nil => rfl
+    | cons _ _ => exact h.elim
+  | cons b bs ih =>
+    intro cs h
+    cases cs with
+    | nil => exact h.elim
+    | cons c cs =>
+      obtain ⟨⟨h1, h1'⟩, h2⟩ := h
+      obtain ⟨t, m⟩ := b
+      obtain ⟨x, m'⟩ := c
+      try simp only at h1 h1'
+      subst h1'
+      simp only [denoteBinders, h1, ih h2]
+
+/-! ## `FvarBSpec`, discharged (task #97-P3-Ind round 6)
+
+`Bridge/ExprOps/Abs.lean` takes `fvarB`'s Theorem 1 as the hypothesis
+`FvarBSpec`, and `Bridge/ExprOps/Ranges.lean`'s `fvarB_spec` states everything
+it asks EXCEPT the `abs1C` frame (`fvarB` writes only `fvarBC`).  This section
+supplies that frame — a program-level fact, proved over `fvarRangeGo`'s
+mutual block the way `NestProg` is over `reservedBasisNames` — and assembles
+the record, so `abstract1Fast_spec` has its hypothesis and `closeTelescope`
+(`SumInstall.lean`) can call it.  **On loan from the `ExprOps` tier**, whose
+module it belongs in: `Ranges.lean`'s `fvarB_spec` gaining the conjunct makes
+this section one line. -/
+
+/-- con-leche: none — `AM.of_run`'s converse: a partial-correctness triple
+from a statement about every accepting run. -/
+theorem AM.triple_of_run {α : Type} {prog : AM α} {P : AState → Prop}
+    {Q : α → AState → Prop}
+    (h : ∀ (s : AState) (a : α) (s' : AState), P s → prog.run s = .ok (a, s') → Q a s') :
+    ⦃fun s => ⌜P s⌝⦄ prog ⦃⇓? r s'' => ⌜Q r s''⌝⦄ := by
+  intro s hp
+  simp only [WP.wp, PredTrans.apply_pushArg]
+  cases hr : prog.run s with
+  | error e => trivial
+  | ok p => exact h s p.1 p.2 hp hr
+
+/-- con-leche: none — every accepting run leaves `abs1C` alone. -/
+def A1Prog {α : Type} (c : AM α) : Prop :=
+  ∀ (s s' : AState) (a : α), c s = .ok (a, s') → s'.memos.abs1C = s.memos.abs1C
+
+theorem A1Prog.pure {α : Type} (a : α) : A1Prog (pure a : AM α) := by
+  intro s s' b h; obtain ⟨-, rfl⟩ := pureOk h; rfl
+
+theorem A1Prog.bind {α β : Type} {x : AM α} {f : α → AM β}
+    (hx : A1Prog x) (hf : ∀ a, A1Prog (f a)) : A1Prog (x >>= f) := by
+  intro s s' b h
+  obtain ⟨a, s₁, h1, h2⟩ := bindOk h
+  exact (hf a s₁ s' b h2).trans (hx s s₁ a h1)
+
+theorem A1Prog.fail {α : Type} (e : Arena.CheckError) : A1Prog (Arena.fail e : AM α) := by
+  intro s s' a h; exact absurd h (fun hc => failOk hc)
+
+theorem A1Prog.fvarBGet (k : EIdx) : A1Prog (Arena.fvarBGet k) := by
+  intro s s' a h
+  simp only [Arena.fvarBGet] at h
+  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
+  obtain ⟨rfl, rfl⟩ := Core.AM.get_ok h1
+  obtain ⟨-, rfl⟩ := pureOk h2; rfl
+
+theorem A1Prog.fvarBSet (k : EIdx) (r : Nat) : A1Prog (Arena.fvarBSet k r) := by
+  intro s s' a h
+  simp only [Arena.fvarBSet] at h
+  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
+  obtain ⟨rfl, rfl⟩ := Core.AM.get_ok h1
+  rw [Core.AM.set_ok h2]
+
+theorem A1Prog.fvarBClear : A1Prog Arena.fvarBClear := by
+  intro s s' a h
+  simp only [Arena.fvarBClear] at h
+  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
+  obtain ⟨rfl, rfl⟩ := Core.AM.get_ok h1
+  rw [Core.AM.set_ok h2]
+
+theorem A1Prog.view (k : EIdx) : A1Prog (Arena.view k) := by
+  intro s s' a h
+  obtain ⟨rfl, -⟩ := view_run h; rfl
+
+theorem A1Prog.derivedE (k : EIdx) : A1Prog (Arena.derivedE k) := by
+  intro s s' a h
+  simp only [Arena.derivedE] at h
+  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
+  obtain ⟨rfl, rfl⟩ := Core.AM.get_ok h1
+  obtain ⟨-, rfl⟩ := pureOk h2; rfl
+
+/-- con-leche: none — `fvarRangeGo`'s mutual block leaves `abs1C` alone, at
+every fuel. -/
+theorem fvarRangeGo_a1 : ∀ (fuel : Nat) (h : EIdx), A1Prog (Arena.fvarRangeGo fuel h) := by
+  intro fuel
+  induction fuel with
+  | zero => intro h; rw [Arena.fvarRangeGo_zero]; exact A1Prog.fail _
+  | succ fuel ih =>
+    intro h
+    rw [Arena.fvarRangeGo_succ]
+    refine A1Prog.bind (A1Prog.fvarBGet h) (fun o => ?_)
+    cases o with
+    | some r => exact A1Prog.pure r
+    | none =>
+      refine A1Prog.bind ?_ (fun r => A1Prog.bind (A1Prog.fvarBSet h r) (fun _ => A1Prog.pure r))
+      refine A1Prog.bind (A1Prog.view h) (fun v => ?_)
+      cases v with
+      | fvar idx t => exact A1Prog.pure _
+      | bvar _ => exact A1Prog.pure _
+      | sort _ => exact A1Prog.pure _
+      | const _ _ => exact A1Prog.pure _
+      | lit _ => exact A1Prog.pure _
+      | app f a =>
+        simp only [Arena.fvarRangeArmApp]
+        exact A1Prog.bind (ih f) (fun _ => A1Prog.bind (ih a) (fun _ => A1Prog.pure _))
+      | lam ty b _ =>
+        simp only [Arena.fvarRangeArmBind]
+        exact A1Prog.bind (ih ty) (fun _ => A1Prog.bind (ih b) (fun _ => A1Prog.pure _))
+      | forallE ty b _ =>
+        simp only [Arena.fvarRangeArmBind]
+        exact A1Prog.bind (ih ty) (fun _ => A1Prog.bind (ih b) (fun _ => A1Prog.pure _))
+      | letE ty w b =>
+        simp only [Arena.fvarRangeArmLet]
+        exact A1Prog.bind (ih ty) (fun _ => A1Prog.bind (ih w)
+          (fun _ => A1Prog.bind (ih b) (fun _ => A1Prog.pure _)))
+      | proj _ _ sub => exact ih sub
+
+/-- con-leche: none — and so does `fvarB`. -/
+theorem fvarB_a1 (fuel : Nat) (e : EIdx) : A1Prog (Arena.fvarB fuel e) := by
+  simp only [Arena.fvarB]
+  refine A1Prog.bind (A1Prog.derivedE e) (fun der => ?_)
+  split
+  · simp only [Arena.fvarRangeMemo]
+    exact A1Prog.bind A1Prog.fvarBClear (fun _ => A1Prog.bind (fvarRangeGo_a1 fuel e)
+      (fun r => A1Prog.bind A1Prog.fvarBClear (fun _ => A1Prog.pure r)))
+  · exact A1Prog.pure _
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1436-1441 fvarB — **`Abs.lean`'s
+hypothesis, discharged**: `Ranges.lean`'s `fvarB_spec` plus `fvarB_a1`. -/
+theorem fvarBSpec : ExprOps.FvarBSpec where
+  run := fun fuel s₁ h hok hden => AM.triple_of_run (P := fun s => s = s₁) (by
+    intro s a s' hs hr
+    subst hs
+    obtain ⟨h1, h2, h3, h4⟩ := AM.of_run (P := fun t => t = s) rfl hr
+      (ExprOps.fvarB_spec fuel s h hok hden)
+    exact ⟨h1, h2, h3, fvarB_a1 fuel h s s' a hr, h4⟩)
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
 **what an inductive install route leaves behind**.  Seven clauses, and the

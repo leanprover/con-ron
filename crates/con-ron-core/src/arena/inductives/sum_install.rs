@@ -496,7 +496,7 @@ pub fn check_struct_field_sorts_i(
         Ok(Vec::new())
     } else {
         let j: u64 = k - 1;
-        let at: Option<EIdx> = if (j as usize) < fvs.len() {
+        let at: Option<EIdx> = if j < fvs.len() as u64 {
             Some(fvs[j as usize].dup2())
         } else {
             None
@@ -946,7 +946,7 @@ pub fn check_sum_ctor_resid(
                 Ok(xfn) => match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, xrest) {
                     Err(e) => Err(e),
                     Ok(xargs) => {
-                        let pre: Vec<EIdx> = expr_ops::take_eidx(&xargs, n_p as usize);
+                        let pre: Vec<EIdx> = expr_ops::take_eidx_n(&xargs, n_p);
                         if !(xfn.eq2(&hd)
                             && canon::eidx_vec_beq(&pre, p_fvs, 0)
                             && xargs.len() as u64 == n_p + n_idx)

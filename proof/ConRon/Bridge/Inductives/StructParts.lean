@@ -1049,6 +1049,380 @@ theorem structShape_spec (T C : NIdx) (TP CP : ConLeche.Name) (lps : List NIdx)
      exact ⟨PStep.refl hok, (structShape_false_sort hspt
        (ExprOps.denoteEView_not_sort htbv (by simp))).symm⟩)
 
+/-! ### The recogniser's dispatch (task #97-P3-Ind round 6)
+
+`structPartsCore?_spec` (core grade) and `structPartsCore?_isSome` (pure
+grade, pin licence) share ONE inversion, `structPartsCore?_run`: its frame is
+`PStep` at `StateOK` + `PinsOK`, and its answer relation carries the whole
+record under a `CheckOK` hypothesis at the INITIAL state — the one field that
+needs it is `isProp`, `lvlEq?`'s verdict, and `CheckOK` travels to the
+`lvlEq?` call through `PStep.toCore`.  `ROp`'s two-sidedness does not depend
+on the relation, which is exactly the `isSome` half. -/
+
+/-- con-leche: none — a three-constant block's denotation, forwards: the
+recogniser's pattern on the handle side names the same pattern on the pure
+side, field by field. -/
+theorem denoteCIList_struct3 {st : EStore} {cvT : IConstantVal} {caps : IIndCaps}
+    {cvC : IConstantVal} {nP nF : Nat} {cvR : IConstantVal} {mI rP : Nat}
+    {rule : IRecRule} {blockP : List ConstantInfo}
+    (h : Frontend.denoteCIList st
+      [.indInfo cvT caps, .ctorInfo cvC nP nF, .recInfo cvR mI rP [rule]] = some blockP) :
+    ∃ cvTP capsP cvCP cvRP ruleP,
+      blockP = [.indInfo cvTP capsP, .ctorInfo cvCP nP nF, .recInfo cvRP mI rP [ruleP]] ∧
+      Frontend.denoteCV st cvT = some cvTP ∧ Frontend.denoteCV st cvC = some cvCP ∧
+      Frontend.denoteCV st cvR = some cvRP ∧ Frontend.denoteRule st rule = some ruleP := by
+  simp only [Frontend.denoteCIList, Frontend.denoteCI, Frontend.denoteRules] at h
+  cases h1 : Frontend.denoteCV st cvT <;> cases h2 : Frontend.denoteCaps st caps <;>
+    cases h3 : Frontend.denoteCV st cvC <;> cases h4 : Frontend.denoteCV st cvR <;>
+    cases h5 : Frontend.denoteRule st rule <;> simp_all
+  subst h
+  exact ⟨_, _, _, _, _, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- con-leche: none — a denoting cons is a cons of denotations. -/
+theorem denoteCIList_cons_eq {st : EStore} {c : IConstantInfo}
+    {cs : List IConstantInfo} {ys : List ConstantInfo}
+    (h : Frontend.denoteCIList st (c :: cs) = some ys) :
+    ∃ x xs, ys = x :: xs ∧ Frontend.denoteCI st c = some x ∧
+      Frontend.denoteCIList st cs = some xs := by
+  simp only [Frontend.denoteCIList] at h
+  cases h1 : Frontend.denoteCI st c <;> cases h2 : Frontend.denoteCIList st cs <;>
+    simp_all
+
+/-- con-leche: none — the same at a rule list. -/
+theorem denoteRules_cons_eq {st : EStore} {c : IRecRule}
+    {cs : List IRecRule} {ys : List RecRule}
+    (h : Frontend.denoteRules st (c :: cs) = some ys) :
+    ∃ x xs, ys = x :: xs ∧ Frontend.denoteRule st c = some x ∧
+      Frontend.denoteRules st cs = some xs := by
+  simp only [Frontend.denoteRules] at h
+  cases h1 : Frontend.denoteRule st c <;> cases h2 : Frontend.denoteRules st cs <;>
+    simp_all
+
+/-- con-leche: none — `denoteCI` preserves the constant's kind: the three
+kinds the recogniser's pattern names. -/
+theorem denoteCI_ind_shape {st : EStore} {a : IConstantInfo} {v : ConstantVal}
+    {c : IndCaps} (h : Frontend.denoteCI st a = some (.indInfo v c)) :
+    ∃ v' c', a = .indInfo v' c' := by
+  cases a <;> simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h <;>
+    (try split at h) <;> simp_all
+
+theorem denoteCI_ctor_shape {st : EStore} {a : IConstantInfo} {v : ConstantVal}
+    {nP nF : Nat} (h : Frontend.denoteCI st a = some (.ctorInfo v nP nF)) :
+    ∃ v', a = .ctorInfo v' nP nF := by
+  cases a <;> simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h <;>
+    (try split at h) <;> simp_all
+  obtain ⟨_, _, _, h2, h3⟩ := h; exact ⟨h2, h3⟩
+
+theorem denoteCI_rec_shape {st : EStore} {a : IConstantInfo} {v : ConstantVal}
+    {mI rP : Nat} {rs : List RecRule} (h : Frontend.denoteCI st a = some (.recInfo v mI rP rs)) :
+    ∃ v' rs', a = .recInfo v' mI rP rs' ∧ Frontend.denoteRules st rs' = some rs := by
+  cases a <;> simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h <;>
+    (try split at h) <;> simp_all
+  rename_i hr
+  exact ⟨_, _, ⟨rfl, rfl⟩, hr⟩
+
+/-- con-leche: none — and backwards: a block that DENOTES the pure pattern
+has the handle pattern. -/
+theorem denoteCIList_struct3_inv {st : EStore} {block : List IConstantInfo}
+    {cvTP : ConstantVal} {capsP : IndCaps} {cvCP : ConstantVal} {nP nF : Nat}
+    {cvRP : ConstantVal} {mI rP : Nat} {ruleP : RecRule}
+    (h : Frontend.denoteCIList st block =
+      some [.indInfo cvTP capsP, .ctorInfo cvCP nP nF, .recInfo cvRP mI rP [ruleP]]) :
+    ∃ cvT caps cvC cvR rule,
+      block = [.indInfo cvT caps, .ctorInfo cvC nP nF, .recInfo cvR mI rP [rule]] := by
+  rcases block with _ | ⟨a, bs⟩
+  · simp [Frontend.denoteCIList] at h
+  obtain ⟨x1, r1, e1, d1, t1⟩ := denoteCIList_cons_eq h
+  simp only [List.cons.injEq] at e1; obtain ⟨rfl, rfl⟩ := e1
+  rcases bs with _ | ⟨b, cs⟩
+  · simp [Frontend.denoteCIList] at t1
+  obtain ⟨x2, r2, e2, d2, t2⟩ := denoteCIList_cons_eq t1
+  simp only [List.cons.injEq] at e2; obtain ⟨rfl, rfl⟩ := e2
+  rcases cs with _ | ⟨c, ds⟩
+  · simp [Frontend.denoteCIList] at t2
+  obtain ⟨x3, r3, e3, d3, t3⟩ := denoteCIList_cons_eq t2
+  simp only [List.cons.injEq] at e3; obtain ⟨rfl, rfl⟩ := e3
+  rcases ds with _ | ⟨d, es⟩
+  · obtain ⟨v1, c1, rfl⟩ := denoteCI_ind_shape d1
+    obtain ⟨v2, rfl⟩ := denoteCI_ctor_shape d2
+    obtain ⟨v3, rs, rfl, hrs⟩ := denoteCI_rec_shape d3
+    rcases rs with _ | ⟨q1, qs⟩
+    · simp [Frontend.denoteRules] at hrs
+    rcases qs with _ | ⟨q2, qs⟩
+    · exact ⟨_, _, _, _, _, rfl⟩
+    · obtain ⟨_, ys, e5, _, t5⟩ := denoteRules_cons_eq hrs
+      simp only [List.cons.injEq] at e5; obtain ⟨-, rfl⟩ := e5
+      obtain ⟨_, _, e6, _, _⟩ := denoteRules_cons_eq t5
+      simp at e6
+  · obtain ⟨_, _, e4, _, _⟩ := denoteCIList_cons_eq t3
+    simp at e4
+
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:283-329 structPartsCore?
+— **the recogniser's run, inverted once**, for both of its statements (see the
+section note). -/
+theorem structPartsCore?_run (block : List IConstantInfo)
+    (blockP : List ConstantInfo) (s₀ s' : AState) (r : Option Arena.StructParts)
+    (hok : StateOK s₀) (hpin : PinsOK s₀)
+    (hb : Frontend.denoteCIList s₀.store block = some blockP)
+    (hrun : Arena.structPartsCore? block s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧
+      ROp (fun q st p => ∀ (μ : CheckMode) (env : Env) (fe : IFEnv),
+          CheckOK μ env fe s₀ → SPartsRel st p q)
+        (ConLeche.structPartsCore? blockP) s'.store r := by
+  unfold Arena.structPartsCore? at hrun
+  split at hrun
+  case h_2 hne =>
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    refine ⟨PStep.refl hok, ?_⟩
+    show ConLeche.structPartsCore? blockP = none
+    unfold ConLeche.structPartsCore?
+    split
+    · obtain ⟨_, _, _, _, _, rfl⟩ := denoteCIList_struct3_inv hb
+      exact absurd rfl (hne _ _ _ _ _ _ _ _ _)
+    · rfl
+  rename_i cvT caps cvC nP nF cvR mI rP rule
+  obtain ⟨cvTP, capsP, cvCP, cvRP, ruleP, rfl, hcvT, hcvC, hcvR, hrule⟩ :=
+    denoteCIList_struct3 hb
+  have hT := denoteCV_name hcvT
+  have hC := denoteCV_name hcvC
+  have hR := denoteCV_name hcvR
+  have hlps := denoteCV_lps hcvT
+  have hClps := denoteCV_lps hcvC
+  have hRlps := denoteCV_lps hcvR
+  have hTty := denoteCV_type hcvT
+  have hCty := denoteCV_type hcvC
+  have hRty := denoteCV_type hcvR
+  obtain ⟨hrc, hnf⟩ := denoteRule_ctor hrule
+  have hrhs := denoteRule_rhs hrule
+  dsimp only at hrun
+  obtain ⟨recName, s1, k1, hz1⟩ := bindOk hrun
+  obtain ⟨p1, hrec⟩ := internStrN_run (str := "rec") hok hT k1
+  obtain ⟨reserved, s2, k2, hz2⟩ := bindOk hz1
+  obtain ⟨p2, hres⟩ := reservedBasisNames_pstep p1.ok (hpin.mono p1.ext p1.pins) k2
+  have q2 : PStep s₀ s2 := p1.trans p2
+  obtain ⟨sl, s3, k3, hz3⟩ := bindOk hz2
+  obtain ⟨hs3, hsl⟩ := stripLams_pstep q2.ok (denote_ext hrhs q2.ext) k3
+  subst hs3
+  -- the eight name/list comparisons of the guard, at any later store
+  have guard : ∀ st : EStore, StoreWF st → Ext s3.store st →
+      (cvR.name == recName) = (cvRP.name == cvTP.name.str "rec") ∧
+      (cvC.levelParams == cvT.levelParams) = (cvCP.levelParams == cvTP.levelParams) ∧
+      reserved.contains cvT.name = ConLeche.reservedBasisNames.contains cvTP.name ∧
+      reserved.contains cvC.name = ConLeche.reservedBasisNames.contains cvCP.name ∧
+      reserved.contains cvR.name = ConLeche.reservedBasisNames.contains cvRP.name ∧
+      (rule.ctor == cvC.name) = (ruleP.ctor == cvCP.name) := by
+    intro st hwf hx
+    have x2 : Ext s₀.store st := q2.ext.trans hx
+    have hres' := denoteNListE_ext hx _ _ hres
+    refine ⟨beq_handle_eq hwf (denoteN_ext hR x2)
+        (denoteN_ext hrec (p2.ext.trans hx)),
+      beq_nhandleList_eq hwf (denoteNListE_ext x2 _ _ hClps)
+        (denoteNListE_ext x2 _ _ hlps),
+      denoteNList_contains hwf _ _ hres' _ _ (denoteN_ext hT x2),
+      denoteNList_contains hwf _ _ hres' _ _ (denoteN_ext hC x2),
+      denoteNList_contains hwf _ _ hres' _ _ (denoteN_ext hR x2),
+      beq_handle_eq hwf (denoteN_ext hrc x2) (denoteN_ext hC x2)⟩
+  rcases sl with _ | ⟨rbs, rbody⟩
+  · -- the rule's right-hand side does not peel: `rhsOk = false`
+    have hslP : ruleP.rhs.stripLams (nP + 2 + nF) = none := (Option.some.inj hsl).symm
+    obtain ⟨y, s4, k4, hz4⟩ := bindOk hz3
+    obtain ⟨rfl, rfl⟩ := pureOk k4
+    simp only [Bool.and_false] at hz4
+    obtain ⟨rfl, rfl⟩ := pureOk hz4
+    refine ⟨q2, ?_⟩
+    show ConLeche.structPartsCore? _ = none
+    simp only [ConLeche.structPartsCore?, hslP, Bool.and_false]
+    rfl
+  obtain ⟨_, rbodyP, hslP, hrb⟩ := denoteBP_some' hsl
+  obtain ⟨want, s4, k4, hz4⟩ := bindOk hz3
+  obtain ⟨p4, hwant⟩ := structRuleBody_spec nF s3 s4 want q2.ok trivial k4
+  have q4 : PStep s₀ s4 := q2.trans p4
+  obtain ⟨y, s5, k5, hz5⟩ := bindOk hz4
+  obtain ⟨rfl, hs5⟩ := pureOk k5
+  rw [hs5] at hz5
+  have erhs : (rbody == want) = (rbodyP == ConLeche.structRuleBody nF) :=
+    beq_ehandle_eq q4.ok.wf (denote_ext hrb p4.ext) hwant
+  obtain ⟨g1, g2, g3, g4, g5, g6⟩ := guard s4.store q4.ok.wf p4.ext
+  rw [g1, g2, g3, g4, g5, g6, hnf, erhs] at hz5
+  simp only [ConLeche.structPartsCore?, hslP]
+  split at hz5
+  case isFalse hc =>
+    obtain ⟨rfl, rfl⟩ := pureOk hz5
+    refine ⟨q4, ?_⟩
+    show _ = none
+    rw [if_neg hc]
+  case isTrue hc =>
+  rw [if_pos hc]
+  obtain ⟨tq, s6, k6, hz6⟩ := bindOk hz5
+  obtain ⟨hs6, htq⟩ := stripPis_pstep q4.ok (denote_ext hTty q4.ext) k6
+  rw [hs6] at hz6
+  rcases tq with _ | ⟨tbs, tbody⟩
+  · obtain ⟨rfl, rfl⟩ := pureOk hz6
+    refine ⟨q4, ?_⟩
+    show _ = none
+    rw [stripPis_none htq]
+  obtain ⟨txs, tbodyP, hspt, -, htbody⟩ := denoteBP_someB htq
+  rw [hspt]
+  obtain ⟨tv, s7, k7, hz7⟩ := bindOk hz6
+  obtain ⟨hs7, htv⟩ := view_run k7
+  rw [hs7] at hz7
+  have htbv : denoteEView s4.store tv = some tbodyP := by
+    rw [← denoteE_view_eq q4.ok.wf htv]; exact htbody
+  cases tv
+  case sort u =>
+    obtain ⟨l, rfl, hl⟩ := denote_sort_inv q4.ok.wf htv htbody
+    obtain ⟨z, s8, k8, hz8⟩ := bindOk hz7
+    obtain ⟨hs8, hz⟩ := zeroLevel_run (hpin.mono q4.ext q4.pins) k8
+    rw [hs8] at hz8
+    obtain ⟨v, s9, k9, hz9⟩ := bindOk hz8
+    have p9 := lvlEq?_pstep q4.ok k9
+    have q9 : PStep s₀ s9 := q4.trans p9
+    have hprop : ∀ (μ : CheckMode) (env : Env) (fe : IFEnv), CheckOK μ env fe s₀ →
+        v = Level.isEquiv l .zero := by
+      intro μ env fe hc
+      have hc4 := (q4.toCore hc).ok
+      obtain ⟨-, -, -, lu, lv, hlu, hlv, ha⟩ :=
+        AM.of_run (P := fun t => t = s4) rfl k9 (Core.lvlEq?_spec s4 u z hc4)
+      rw [hl] at hlu; rw [hz] at hlv
+      cases hlu; cases hlv; exact ha
+    have g7 : (cvR.levelParams == cvT.levelParams) =
+        (cvRP.levelParams == cvTP.levelParams) :=
+      beq_nhandleList_eq q9.ok.wf (denoteNListE_ext q9.ext _ _ hRlps)
+        (denoteNListE_ext q9.ext _ _ hlps)
+    rw [g7] at hz9
+    cases hlp : cvR.levelParams with
+    | nil =>
+      have hlpP : cvRP.levelParams = [] := by
+        rw [hlp] at hRlps; simp [Frontend.denoteNList] at hRlps; exact hRlps
+      rw [hlp] at hz9
+      obtain ⟨y, s10, k10, hz10⟩ := bindOk hz9
+      obtain ⟨rfl, rfl⟩ := pureOk k10
+      obtain ⟨anon, sA, kA, hzA⟩ := bindOk hz10
+      obtain ⟨pA, hanon⟩ := internNNode_run q9.ok
+        (by intro c hc; simp [NNodeView.children] at hc) kA
+      have hanon' : denoteN sA.store.ns anon = some ConLeche.Name.anonymous := by
+        rw [hanon]; rfl
+      have xA : Ext s₀.store sA.store := q9.ext.trans pA.ext
+      obtain ⟨bA, sB, kB, hzB⟩ := bindOk hzA
+      obtain ⟨pB, hbA⟩ := structShape_spec cvT.name cvC.name cvTP.name cvCP.name
+        cvT.levelParams cvTP.levelParams anon .anonymous false nP nF cvT.type cvC.type
+        cvR.type cvTP.type cvCP.type cvRP.type sA sB bA pA.ok
+        ⟨denoteN_ext hT xA, denoteN_ext hC xA, denoteNListE_ext xA _ _ hlps, hanon',
+          denote_ext hTty xA, denote_ext hCty xA, denote_ext hRty xA⟩ kB
+      have hbA' : bA = ConLeche.structShape cvTP.name cvCP.name cvTP.levelParams
+          .anonymous false nP nF cvTP.type cvCP.type cvRP.type := hbA
+      have qB : PStep s₀ sB := (q9.trans pA).trans pB
+      have xB : Ext s₀.store sB.store := qB.ext
+      rw [hbA'] at hzB
+      split at hzB
+      case isTrue hc3 =>
+        obtain ⟨rfl, rfl⟩ := pureOk hzB
+        refine ⟨qB, ?_⟩
+        simp only [hlpP]
+        rw [hlpP] at hc3; rw [if_pos hc3]
+        refine ⟨_, rfl, fun μ env fe hc => ?_⟩
+        exact { cvT := denoteCV_ext hcvT xB, cvC := denoteCV_ext hcvC xB, nP := rfl,
+                nF := rfl, cvR := denoteCV_ext hcvR xB,
+                elim := denoteN_ext hanon' pB.ext,
+                resSort := denoteL_ext hl (p9.ext.trans (pA.ext.trans pB.ext)),
+                rhs := denote_ext hrhs xB, large := rfl,
+                isProp := by rw [hprop μ env fe hc] }
+      case isFalse hc3 =>
+        obtain ⟨rfl, rfl⟩ := pureOk hzB
+        refine ⟨qB, ?_⟩
+        show _ = none
+        simp only [hlpP]
+        rw [hlpP] at hc3; rw [if_neg hc3]
+    | cons elim relps =>
+      rw [hlp] at hRlps
+      simp only [Frontend.denoteNList] at hRlps
+      cases helim : denoteN s₀.store.ns elim with
+      | none => rw [helim] at hRlps; simp at hRlps
+      | some elimP =>
+      cases hrel : Frontend.denoteNList s₀.store.ns relps with
+      | none => rw [helim, hrel] at hRlps; simp at hRlps
+      | some relpsP =>
+      rw [helim, hrel] at hRlps
+      have hlpP : cvRP.levelParams = elimP :: relpsP := (Option.some.inj hRlps).symm
+      rw [hlp] at hz9
+      obtain ⟨b, s10, k10, hz10⟩ := bindOk hz9
+      obtain ⟨p10, hbv⟩ := structShape_spec cvT.name cvC.name cvTP.name cvCP.name
+        cvT.levelParams cvTP.levelParams elim elimP true nP nF cvT.type cvC.type
+        cvR.type cvTP.type cvCP.type cvRP.type s9 s10 b q9.ok
+        ⟨denoteN_ext hT q9.ext, denoteN_ext hC q9.ext, denoteNListE_ext q9.ext _ _ hlps,
+          denoteN_ext helim q9.ext, denote_ext hTty q9.ext, denote_ext hCty q9.ext,
+          denote_ext hRty q9.ext⟩ k10
+      have hbv' : b = ConLeche.structShape cvTP.name cvCP.name cvTP.levelParams
+          elimP true nP nF cvTP.type cvCP.type cvRP.type := hbv
+      have q10 : PStep s₀ s10 := q9.trans p10
+      have g8 : (relps == cvT.levelParams) = (relpsP == cvTP.levelParams) :=
+        beq_nhandleList_eq q10.ok.wf (denoteNListE_ext q10.ext _ _ hrel)
+          (denoteNListE_ext q10.ext _ _ hlps)
+      have g9 : cvT.levelParams.contains elim = cvTP.levelParams.contains elimP :=
+        denoteNList_contains q10.ok.wf _ _ (denoteNListE_ext q10.ext _ _ hlps) _ _
+          (denoteN_ext helim q10.ext)
+      rw [hbv', g8, g9] at hz10
+      split at hz10
+      case isTrue hc2 =>
+        obtain ⟨y, s11, k11, hz11⟩ := bindOk hz10
+        obtain ⟨rfl, rfl⟩ := pureOk k11
+        obtain ⟨rfl, rfl⟩ := pureOk hz11
+        refine ⟨q10, ?_⟩
+        simp only [hlpP]
+        rw [if_pos hc2]
+        refine ⟨_, rfl, fun μ env fe hc => ?_⟩
+        exact { cvT := denoteCV_ext hcvT q10.ext, cvC := denoteCV_ext hcvC q10.ext,
+                nP := rfl, nF := rfl, cvR := denoteCV_ext hcvR q10.ext,
+                elim := denoteN_ext helim q10.ext,
+                resSort := denoteL_ext hl (p9.ext.trans p10.ext),
+                rhs := denote_ext hrhs q10.ext, large := rfl,
+                isProp := by rw [hprop μ env fe hc] }
+      case isFalse hc2 =>
+        obtain ⟨y, s11, k11, hz11⟩ := bindOk hz10
+        obtain ⟨rfl, rfl⟩ := pureOk k11
+        simp only [hlpP]
+        rw [if_neg hc2]
+        obtain ⟨anon, sA, kA, hzA⟩ := bindOk hz11
+        obtain ⟨pA, hanon⟩ := internNNode_run q10.ok
+          (by intro c hc; simp [NNodeView.children] at hc) kA
+        have hanon' : denoteN sA.store.ns anon = some ConLeche.Name.anonymous := by
+          rw [hanon]; rfl
+        have xA : Ext s₀.store sA.store := q10.ext.trans pA.ext
+        obtain ⟨bA, sB, kB, hzB⟩ := bindOk hzA
+        obtain ⟨pB, hbA⟩ := structShape_spec cvT.name cvC.name cvTP.name cvCP.name
+          cvT.levelParams cvTP.levelParams anon .anonymous false nP nF cvT.type cvC.type
+          cvR.type cvTP.type cvCP.type cvRP.type sA sB bA pA.ok
+          ⟨denoteN_ext hT xA, denoteN_ext hC xA, denoteNListE_ext xA _ _ hlps, hanon',
+            denote_ext hTty xA, denote_ext hCty xA, denote_ext hRty xA⟩ kB
+        have hbA' : bA = ConLeche.structShape cvTP.name cvCP.name cvTP.levelParams
+            .anonymous false nP nF cvTP.type cvCP.type cvRP.type := hbA
+        have qB : PStep s₀ sB := (q10.trans pA).trans pB
+        have xB : Ext s₀.store sB.store := qB.ext
+        rw [hbA'] at hzB
+        split at hzB
+        case isTrue hc3 =>
+          obtain ⟨rfl, rfl⟩ := pureOk hzB
+          refine ⟨qB, ?_⟩
+          rw [hlpP] at hc3; rw [if_pos hc3]
+          refine ⟨_, rfl, fun μ env fe hc => ?_⟩
+          exact { cvT := denoteCV_ext hcvT xB, cvC := denoteCV_ext hcvC xB, nP := rfl,
+                  nF := rfl, cvR := denoteCV_ext hcvR xB,
+                  elim := denoteN_ext hanon' pB.ext,
+                  resSort := denoteL_ext hl (p9.ext.trans (p10.ext.trans (pA.ext.trans pB.ext))),
+                  rhs := denote_ext hrhs xB, large := rfl,
+                  isProp := by rw [hprop μ env fe hc] }
+        case isFalse hc3 =>
+          obtain ⟨rfl, rfl⟩ := pureOk hzB
+          refine ⟨qB, ?_⟩
+          show _ = none
+          rw [hlpP] at hc3; rw [if_neg hc3]
+  all_goals
+    (obtain ⟨rfl, rfl⟩ := pureOk hz7
+     refine ⟨q4, ?_⟩
+     have hns := ExprOps.denoteEView_not_sort htbv (by simp)
+     show _ = none
+     cases tbodyP <;> first | rfl | exact absurd rfl (hns _))
+
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:283-329 structPartsCore?
 Recognise a direct simple-structure block.  `none` means "not this class", and
 the relation is TWO-SIDED (`ROp`): a twin that failed to recognise a block
@@ -1066,15 +1440,18 @@ clause true of a `lvlEq?` call, so the FRAME no longer forces the grade — but
 cache hit answers is `Level.isEquiv`'s only under `LvlEqCacheOK`.  `StateOK`
 does not carry it, so the ANSWER forces the grade instead.
 
-`sorry`: `structShape_spec`, `stripLams`' and `stripPis`' specs, the reserved
-name table through `PinsOK`, `lvlEq?_spec` (closed) and `internNNode_spec` at
-`T.str "rec"`. -/
+**CLOSED** (task #97-P3-Ind round 6): `structPartsCore?_run` at the
+`CheckOK` it was handed — `CheckOK.pins` is the pin licence and the relation's
+`CheckOK` hypothesis is this statement's own. -/
 theorem structPartsCore?_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (block : List IConstantInfo) (blockP : List ConstantInfo) :
     CSpec μ env fe (fun st => Frontend.denoteCIList st block = some blockP)
       (Arena.structPartsCore? block)
       (ROp RSParts (ConLeche.structPartsCore? blockP)) := by
-  sorry
+  intro s₀ s' r hok hb hrun
+  obtain ⟨hstep, hrel⟩ :=
+    structPartsCore?_run block blockP s₀ s' r hok.state hok.pins hb hrun
+  exact ⟨hstep.toCore hok, hrel.mono (fun _ _ h => h μ env fe hok)⟩
 
 /-! ## The recogniser's `isSome` half, for the parse
 
@@ -1100,18 +1477,17 @@ sorry list, item 13, which names this lemma).  The `isProp` field — the one
 thing that forces `structPartsCore?_spec` up to `CSpec` — is not mentioned, so
 this statement lives at `StateOK` + `PinsOK` and the parse can use it.
 
-`sorry`: `structShape_spec`, `stripLams`' and `stripPis`' specs, and the
-handle comparisons through `denoteN_inj`/`denoteE_inj`.  Exactly
-`structPartsCore?_spec`'s dependencies MINUS `lvlEq?`: the two statements share
-the dispatch and differ only in what they say about the record.  The intended
-shape is one dispatch lemma feeding both; this round states the consumer's
-half so the Frontend tier can cite it by name. -/
+**CLOSED** (task #97-P3-Ind round 6): the one dispatch lemma feeding both,
+as round 3 intended — `structPartsCore?_run`, read through `ROp.isSome`, which
+does not look at the relation at all. -/
 theorem structPartsCore?_isSome (block : List IConstantInfo)
     (blockP : List ConstantInfo) :
     PSpecP (fun st => Frontend.denoteCIList st block = some blockP)
       (Arena.structPartsCore? block)
       (fun _ r => r.isSome = (ConLeche.structPartsCore? blockP).isSome) := by
-  sorry
+  intro s₀ s' r hok hpin hb hrun
+  obtain ⟨hstep, hrel⟩ := structPartsCore?_run block blockP s₀ s' r hok hpin hb hrun
+  exact ⟨hstep, hrel.isSome⟩
 
 /-! ## The projection bodies -/
 
@@ -1153,17 +1529,67 @@ theorem structProjArgP_spec (T : NIdx) (TP : ConLeche.Name) (j : Nat) :
     internProjE_run hstep1.ok (denoteN_ext hT hstep1.ext) hb h2
   exact ⟨hstep1.trans hstep2, hr⟩
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2367-2380 instPisAtLift — the run
+form of `Bridge/ExprOps/Subst.lean`'s closed `instPisAtLift_spec` at this
+tier's frame, with the answer as an `ROp RE`. -/
+theorem instPisAtLift_pstep {fuel : Nat} {args : List EIdx} {argsP : List Expr}
+    {s₀ s' : AState} {c : EIdx} {cP : Expr} {r : Option EIdx}
+    (hok : StateOK s₀) (ha : Frontend.denoteEList s₀.store args = some argsP)
+    (hc : denoteE s₀.store c = some cP)
+    (hrun : Arena.instPisAtLift fuel args c s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ ROp RE (Expr.instPisAtLift argsP cP) s'.store r := by
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.instPisAtLift_spec fuel args s₀ c hok (by rw [ha]; rfl) (by rw [hc]; rfl))
+  refine ⟨PStep.of_caches h1 h2 h3 h4 h5, ?_⟩
+  have h7 := h6 argsP ha cP hc
+  cases r with
+  | none => simp only [denoteEO, Option.some.injEq] at h7; exact h7.symm
+  | some j =>
+    simp only [denoteEO, Option.map_eq_some_iff] at h7
+    obtain ⟨e, he, hx⟩ := h7
+    exact ⟨e, hx.symm, he⟩
+
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:347-354 structProjResidP
 The constructor type's residual after `i` projections have been substituted.
 
-`sorry`: `Bridge/ExprOps/Owed.lean`'s `instPisAtLift_spec` — still open on
-that tier's own list — plus `structProjPs_spec` and `structProjArgP_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem structProjResidP_spec (T : NIdx) (TP : ConLeche.Name) (nP : Nat)
     (cty : EIdx) (ctyP : Expr) (i : Nat) :
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st cty = some ctyP)
       (Arena.structProjResidP T nP cty i)
       (ROp RE (ConLeche.structProjResidP TP nP ctyP i)) := by
-  sorry
+  induction i with
+  | zero =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨_, hc⟩ := hpre
+    simp only [Arena.structProjResidP] at hrun
+    obtain ⟨ps, s1, k1, hz1⟩ := bindOk hrun
+    obtain ⟨p1, hps⟩ := structProjPs_spec nP s₀ s1 ps hok trivial k1
+    obtain ⟨p2, hr⟩ := instPisAtLift_pstep p1.ok hps (denote_ext hc p1.ext) hz1
+    exact ⟨p1.trans p2, hr⟩
+  | succ i ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hT, hc⟩ := hpre
+    simp only [Arena.structProjResidP] at hrun
+    obtain ⟨o, s1, k1, hz1⟩ := bindOk hrun
+    obtain ⟨p1, ho⟩ := ih s₀ s1 o hok ⟨hT, hc⟩ k1
+    cases o with
+    | none =>
+      obtain ⟨rfl, rfl⟩ := pureOk hz1
+      refine ⟨p1, ?_⟩
+      show ConLeche.structProjResidP TP nP ctyP (i + 1) = none
+      simp only [ConLeche.structProjResidP, show ConLeche.structProjResidP TP nP ctyP i = none
+        from ho, Option.bind_none]
+    | some h =>
+      obtain ⟨e, he, hd⟩ := ho
+      obtain ⟨a, s2, k2, hz2⟩ := bindOk hz1
+      obtain ⟨p2, ha⟩ := structProjArgP_spec T TP i s1 s2 a p1.ok
+        (denoteN_ext hT p1.ext) k2
+      obtain ⟨p3, hr⟩ := instPisAtLift_pstep (argsP := [ConLeche.structProjArgP TP i])
+        p2.ok (by simp only [Frontend.denoteEList, ha]) (denote_ext hd p2.ext) hz2
+      refine ⟨p1.trans (p2.trans p3), ?_⟩
+      simp only [ConLeche.structProjResidP, he, Option.bind_some]
+      exact hr
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1577 bvarB_eq — **the cutoff's
 run form**, at this tier's frame: `Bridge/ExprOps/Ranges.lean`'s `bvarB_run`
@@ -1704,25 +2130,109 @@ theorem structProjGuards_spec (cty : EIdx) (ctyP : Expr) (nP nF : Nat)
 Peel `k` field binders, substituting the projection of the structure variable
 for each.
 
-`sorry`: a `Nat` recursion over `instantiate1LiftFast_spec`
-(`Bridge/ExprOps/Subst.lean`) and `structProjArgP_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
     (h : EIdx) (hP : Expr) :
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st h = some hP)
       (Arena.structProjBodiesGo T k i h)
       (ROp REL (ConLeche.structProjBodiesGo TP k i hP)) := by
-  sorry
+  induction k generalizing i h hP with
+  | zero =>
+    intro s₀ s' r hok _ hrun
+    simp only [Arena.structProjBodiesGo] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, [], by simp only [ConLeche.structProjBodiesGo], rfl⟩
+  | succ k ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hT, hh⟩ := hpre
+    simp only [Arena.structProjBodiesGo] at hrun
+    obtain ⟨v, s1, k1, hz1⟩ := bindOk hrun
+    obtain ⟨hs1, hv⟩ := view_run k1
+    rw [hs1] at hz1
+    have hhv : denoteEView s₀.store v = some hP := by
+      rw [← denoteE_view_eq hok.wf hv]; exact hh
+    split at hz1
+    case h_1 fdom body m =>
+      obtain ⟨fdomP, bodyP, rfl, hfd, hbd⟩ := denote_forallE_inv hok.wf hv hh
+      obtain ⟨a, s2, k2, hz2⟩ := bindOk hz1
+      obtain ⟨p2, ha⟩ := structProjArgP_spec T TP i s₀ s2 a hok hT k2
+      obtain ⟨b, s3, k3, hz3⟩ := bindOk hz2
+      obtain ⟨hok3, hx3, hbm3, hc3, hp3, -, hb⟩ :=
+        ExprOps.instantiate1LiftFast_run p2.ok ha
+          (by rw [denote_ext hbd p2.ext]; rfl) k3
+      have p3 : PStep s2 s3 := PStep.of_caches hok3 hx3 hbm3 hc3 hp3
+      have hb' := hb bodyP (denote_ext hbd p2.ext)
+      obtain ⟨o, s4, k4, hz4⟩ := bindOk hz3
+      obtain ⟨p4, ho⟩ := ih (i + 1) b _ s3 s4 o p3.ok
+        ⟨denoteN_ext hT (p2.ext.trans p3.ext), hb'⟩ k4
+      have q4 : PStep s₀ s4 := p2.trans (p3.trans p4)
+      cases o with
+      | none =>
+        obtain ⟨rfl, rfl⟩ := pureOk hz4
+        refine ⟨q4, ?_⟩
+        show ConLeche.structProjBodiesGo TP (k + 1) i (.forallE fdomP bodyP m) = none
+        simp only [ConLeche.structProjBodiesGo]
+        rw [show ConLeche.structProjBodiesGo TP k (i + 1) _ = none from ho]
+        rfl
+      | some l =>
+        obtain ⟨lP, hl, hdl⟩ := ho
+        obtain ⟨rfl, rfl⟩ := pureOk hz4
+        refine ⟨q4, fdomP :: lP, ?_, ?_⟩
+        · simp only [ConLeche.structProjBodiesGo]
+          rw [hl]; rfl
+        · show Frontend.denoteEList _ (fdom :: l) = some (fdomP :: lP)
+          simp only [Frontend.denoteEList, denote_ext hfd q4.ext, hdl]
+    case h_2 hne =>
+      obtain ⟨rfl, rfl⟩ := pureOk hz1
+      refine ⟨PStep.refl hok, ?_⟩
+      have hns := ExprOps.denoteEView_not_forallE hhv hne
+      show _ = none
+      cases hP <;> first | rfl | exact absurd rfl (hns _ _ _)
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:768-771 structProjBodies
 The entry, after `nP` parameter binders.
 
-`sorry`: `structProjBodiesGo_spec` and `structProjResidP_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem structProjBodies_spec (T : NIdx) (TP : ConLeche.Name) (nP nF : Nat)
     (cty : EIdx) (ctyP : Expr) :
     PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st cty = some ctyP)
       (Arena.structProjBodies T nP nF cty)
       (ROp REA (ConLeche.structProjBodies TP nP nF ctyP)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hT, hc⟩ := hpre
+  simp only [Arena.structProjBodies] at hrun
+  obtain ⟨ps, s1, k1, hz1⟩ := bindOk hrun
+  obtain ⟨p1, hps⟩ := structProjPs_spec nP s₀ s1 ps hok trivial k1
+  obtain ⟨o, s2, k2, hz2⟩ := bindOk hz1
+  obtain ⟨p2, ho⟩ := instPisAtLift_pstep p1.ok hps (denote_ext hc p1.ext) k2
+  cases o with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk hz2
+    refine ⟨p1.trans p2, ?_⟩
+    show ConLeche.structProjBodies TP nP nF ctyP = none
+    simp only [ConLeche.structProjBodies]
+    rw [show Expr.instPisAtLift (ConLeche.structProjPs nP) ctyP = none from ho]
+  | some h =>
+    obtain ⟨e, he, hd⟩ := ho
+    obtain ⟨o2, s3, k3, hz3⟩ := bindOk hz2
+    obtain ⟨p3, ho2⟩ := structProjBodiesGo_spec T TP nF 0 h e s2 s3 o2 p2.ok
+      ⟨denoteN_ext hT (p1.ext.trans p2.ext), hd⟩ k3
+    have q3 : PStep s₀ s3 := p1.trans (p2.trans p3)
+    cases o2 with
+    | none =>
+      obtain ⟨rfl, rfl⟩ := pureOk hz3
+      refine ⟨q3, ?_⟩
+      show ConLeche.structProjBodies TP nP nF ctyP = none
+      simp only [ConLeche.structProjBodies, he]
+      rw [show ConLeche.structProjBodiesGo TP nF 0 e = none from ho2]
+      rfl
+    | some l =>
+      obtain ⟨lP, hl, hdl⟩ := ho2
+      obtain ⟨rfl, rfl⟩ := pureOk hz3
+      refine ⟨q3, lP.toArray, ?_, ?_⟩
+      · simp only [ConLeche.structProjBodies, he, hl]; rfl
+      · show Frontend.denoteEArray _ l.toArray = _
+        simp only [Frontend.denoteEArray, hdl]
 
 /-! ## `mentionsConst`, memoised -/
 

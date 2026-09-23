@@ -37,6 +37,29 @@ def FvarMemoOK (q : Nat) (tbl : Std.HashMap EIdx Bool) (st : EStore) : Prop :=
   ∀ (k : EIdx) (r : Bool), tbl[k]? = some r →
     ∃ e, denoteE st k = some e ∧ r = Expr.mentionsFvar q e
 
+/-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:143-148 MentionsFvarMemoInv.insert
+— recording the real answer keeps the memo sound. -/
+theorem FvarMemoOK.insert {q : Nat} {tbl : Std.HashMap EIdx Bool} {st : EStore}
+    (hm : FvarMemoOK q tbl st) {h : EIdx} {hP : Expr} {r : Bool}
+    (hd : denoteE st h = some hP) (heq : r = Expr.mentionsFvar q hP) :
+    FvarMemoOK q (tbl.insert h r) st := by
+  intro k r' hk
+  rw [Std.HashMap.getElem?_insert] at hk
+  split at hk
+  · rename_i hbeq
+    cases hk
+    rw [← eq_of_beq hbeq]
+    exact ⟨hP, hd, heq⟩
+  · exact hm k r' hk
+
+/-- con-leche: none — the memo is about denotations, so it survives an
+append. -/
+theorem FvarMemoOK.mono {q : Nat} {tbl : Std.HashMap EIdx Bool} {st st' : EStore}
+    (hm : FvarMemoOK q tbl st) (hx : Ext st st') : FvarMemoOK q tbl st' := by
+  intro k r hk
+  obtain ⟨e, he, hr⟩ := hm k r hk
+  exact ⟨e, denote_ext he hx, hr⟩
+
 /-! ## The three pure readers off the record -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:100-103 nativeIsRec
@@ -72,11 +95,77 @@ theorem nativeCaps_spec (p : Arena.NativeParts) (q : ConLeche.NativeParts) :
 The SYNTACTIC reading of `is_rec` off the declared constructor types, before
 anything is normalised (task #268's first pass runs at this verdict).
 
-`sorry`: `mentionsConst_spec` under the constructors' telescopes. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem nativeRawRec_spec (p : Arena.NativeParts) (q : ConLeche.NativeParts) :
     PSpec (fun st => PartsRel st p q)
       (Arena.nativeRawRec p) (RV (ConLeche.nativeRawRec q)) := by
-  sorry
+  intro s₀ s' r hok hrel hrun
+  have hT := denoteCV_name hrel.shape.cvT
+  have hcs := hrel.shape.ctors
+  have hnP := hrel.shape.nP
+  simp only [Arena.nativeRawRec] at hrun
+  show PStep s₀ s' ∧ r = ConLeche.nativeRawRec q
+  simp only [ConLeche.nativeRawRec]
+  cases hc : p.ctors with
+  | nil =>
+    rw [hc] at hrun hcs
+    simp only [denoteCtors, Option.some.injEq] at hcs
+    rw [← hcs]
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons c cs =>
+  obtain ⟨cv, n⟩ := c
+  rw [hc] at hcs
+  simp only [denoteCtors] at hcs
+  cases hcv : Frontend.denoteCV s₀.store cv with
+  | none => rw [hcv] at hcs; simp at hcs
+  | some cP =>
+  cases hrest : denoteCtors s₀.store cs with
+  | none => rw [hcv, hrest] at hcs; simp at hcs
+  | some restP =>
+  rw [hcv, hrest] at hcs
+  rw [← (Option.some.inj hcs)]
+  cases cs with
+  | cons c2 cs2 =>
+    rw [hc] at hrun
+    simp only [denoteCtors] at hrest
+    cases h2 : Frontend.denoteCV s₀.store c2.1 with
+    | none =>
+      obtain ⟨c2v, c2n⟩ := c2
+      simp only at h2
+      rw [h2] at hrest; simp at hrest
+    | some c2P =>
+      obtain ⟨c2v, c2n⟩ := c2
+      simp only at h2
+      cases h3 : denoteCtors s₀.store cs2 with
+      | none => rw [h2, h3] at hrest; simp at hrest
+      | some r3 =>
+        rw [h2, h3] at hrest
+        rw [← (Option.some.inj hrest)]
+        obtain ⟨rfl, rfl⟩ := pureOk hrun
+        exact ⟨PStep.refl hok, rfl⟩
+  | nil =>
+  simp only [denoteCtors, Option.some.injEq] at hrest
+  subst hrest
+  rw [hc] at hrun
+  dsimp only at hrun ⊢
+  obtain ⟨q1, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨hs1, hq1⟩ := stripPis_pstep hok (denoteCV_type hcv) k1
+  rw [hs1] at z1
+  rw [← hnP]
+  rcases q1 with _ | ⟨cbs, cb⟩
+  · obtain ⟨rfl, rfl⟩ := pureOk z1
+    refine ⟨PStep.refl hok, ?_⟩
+    rw [stripPis_none hq1]
+  obtain ⟨cxs, cbP, hsp, hcbs, -⟩ := denoteBP_someB hq1
+  rw [hsp]
+  dsimp only
+  exact anyM_B_pstep (F := fun b => b.1.mentionsConst q.cvT.name)
+    (fun st => denoteN st.ns p.cvT.name = some q.cvT.name) (fun hx h => denoteN_ext h hx)
+    (by
+      intro b bP t0 t1 x hok0 hq0 hb _ hrun0
+      exact mentionsConst_spec _ _ b.1 bP.1 t0 t1 x hok0 ⟨hq0, hb⟩ hrun0)
+    _ _ s₀ s' r hok hT (denoteBinders_drop hcbs p.nP) z1
 
 /-! ## `mentionsFvar`, memoised
 
@@ -88,23 +177,198 @@ inside the walk's invariant step. -/
 The memoised walk; note the `fvar` arm answers on the LEVEL and does not
 descend into the variable's type, which is con-leche's own clause.
 
-`sorry`: a fuel induction with the memo threaded, in
-`Bridge/ExprOps/Walks.lean`'s shape. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem mentionsFvarGo_spec (q : Nat) (memo : Std.HashMap EIdx Bool)
     (fuel : Nat) (h : EIdx) (hP : Expr) :
     PSpec (fun st => denoteE st h = some hP ∧ FvarMemoOK q memo st)
       (Arena.mentionsFvarGo q memo fuel h)
       (fun st r => r.1 = Expr.mentionsFvar q hP ∧ FvarMemoOK q r.2 st) := by
-  sorry
+  induction fuel generalizing memo h hP with
+  | zero =>
+    intro s₀ s' r _ _ hrun
+    simp only [Arena.mentionsFvarGo] at hrun
+    exact absurd hrun (fun hc => failOk hc)
+  | succ fuel ih =>
+    intro s₀ s' r hok hp hrun
+    obtain ⟨hd, hm⟩ := hp
+    simp only [Arena.mentionsFvarGo] at hrun
+    obtain ⟨v, s₁, hv, h2⟩ := bindOk hrun
+    obtain ⟨hv0, hw⟩ := view_run hv
+    rw [hv0] at h2
+    have fin : ∀ {s₂ s₃ : AState} {rr r' : Bool × Std.HashMap EIdx Bool},
+        PStep s₀ s₂ → rr.1 = Expr.mentionsFvar q hP → FvarMemoOK q rr.2 s₂.store →
+        (pure (Arena.mentionsFvarIns h rr) : AM (Bool × Std.HashMap EIdx Bool)) s₂
+          = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ r'.1 = Expr.mentionsFvar q hP ∧ FvarMemoOK q r'.2 s₃.store := by
+      intro s₂ s₃ rr r' hs hb hmm hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      exact ⟨hs, hb, FvarMemoOK.insert hmm (denote_ext hd hs.ext) hb⟩
+    have hit : ∀ {s₃ : AState} {r₀ : Bool} {r' : Bool × Std.HashMap EIdx Bool},
+        memo[h]? = some r₀ →
+        (pure ((r₀, memo) : Bool × Std.HashMap EIdx Bool) :
+            AM (Bool × Std.HashMap EIdx Bool)) s₀ = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ r'.1 = Expr.mentionsFvar q hP ∧ FvarMemoOK q r'.2 s₃.store := by
+      intro s₃ r₀ r' hlk hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨e, he, hre⟩ := hm h r₀ hlk
+      obtain rfl := Option.some.inj (hd.symm.trans he)
+      exact ⟨PStep.refl hok, hre, hm⟩
+    cases v
+    case bvar j =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain rfl := denote_bvar_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, by simp [Expr.mentionsFvar, Expr.fvarLeaves], hm⟩
+    case sort u =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨l, rfl, _⟩ := denote_sort_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, by simp [Expr.mentionsFvar, Expr.fvarLeaves], hm⟩
+    case lit l =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain rfl := denote_lit_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, by simp [Expr.mentionsFvar, Expr.fvarLeaves], hm⟩
+    case const n us =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, by simp [Expr.mentionsFvar, Expr.fvarLeaves], hm⟩
+    case fvar k ty =>
+      obtain ⟨t, rfl, hty⟩ := denote_fvar_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; dsimp only at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        dsimp only at h2
+        split at h2
+        case isTrue hkq =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk h2
+          obtain ⟨rfl, rfl⟩ := pureOk kR
+          exact fin (PStep.refl hok) (by simp only [Expr.mentionsFvar_fvar, hkq, Bool.true_or])
+            hm zR
+        case isFalse hkq =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk h2
+          obtain ⟨hsA, hrA, hmA⟩ := ih memo ty t s₀ sR rr hok ⟨hty, hm⟩ kR
+          exact fin hsA (by simp only [Expr.mentionsFvar_fvar, hrA]; simp [hkq]) hmA zR
+    case app x1 x2 =>
+      obtain ⟨e1, e2, rfl, hd1, hd2⟩ := denote_app_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; dsimp only at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        dsimp only at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo x1 e1 s₀ sa (b1, m1) hok ⟨hd1, hm⟩ hc1
+        simp only at hrA
+        cases b1 with
+        | true =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk hn1
+          obtain ⟨rfl, rfl⟩ := pureOk kR
+          exact fin hsA (by simp only [Expr.mentionsFvar_app, ← hrA, Bool.true_or]) hmA zR
+        | false =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk hn1
+          obtain ⟨hsB, hrB, hmB⟩ := ih m1 x2 e2 sa sR rr hsA.ok
+            ⟨denote_ext hd2 hsA.ext, hmA⟩ kR
+          exact fin (hsA.trans hsB) (by simp only [Expr.mentionsFvar_app, ← hrA, hrB, Bool.false_or]) hmB zR
+    case lam x1 x2 xm =>
+      obtain ⟨e1, e2, rfl, hd1, hd2⟩ := denote_lam_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; dsimp only at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        dsimp only at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo x1 e1 s₀ sa (b1, m1) hok ⟨hd1, hm⟩ hc1
+        simp only at hrA
+        cases b1 with
+        | true =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk hn1
+          obtain ⟨rfl, rfl⟩ := pureOk kR
+          exact fin hsA (by simp only [Expr.mentionsFvar_lam, ← hrA, Bool.true_or]) hmA zR
+        | false =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk hn1
+          obtain ⟨hsB, hrB, hmB⟩ := ih m1 x2 e2 sa sR rr hsA.ok
+            ⟨denote_ext hd2 hsA.ext, hmA⟩ kR
+          exact fin (hsA.trans hsB) (by simp only [Expr.mentionsFvar_lam, ← hrA, hrB, Bool.false_or]) hmB zR
+    case forallE x1 x2 xm =>
+      obtain ⟨e1, e2, rfl, hd1, hd2⟩ := denote_forallE_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; dsimp only at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        dsimp only at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo x1 e1 s₀ sa (b1, m1) hok ⟨hd1, hm⟩ hc1
+        simp only at hrA
+        cases b1 with
+        | true =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk hn1
+          obtain ⟨rfl, rfl⟩ := pureOk kR
+          exact fin hsA (by simp only [Expr.mentionsFvar_forallE, ← hrA, Bool.true_or]) hmA zR
+        | false =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk hn1
+          obtain ⟨hsB, hrB, hmB⟩ := ih m1 x2 e2 sa sR rr hsA.ok
+            ⟨denote_ext hd2 hsA.ext, hmA⟩ kR
+          exact fin (hsA.trans hsB) (by simp only [Expr.mentionsFvar_forallE, ← hrA, hrB, Bool.false_or]) hmB zR
+    case letE lt lv lb =>
+      obtain ⟨et, ev, eb, rfl, hty, hval, hbd⟩ := denote_letE_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; dsimp only at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        dsimp only at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo lt et s₀ sa (b1, m1) hok ⟨hty, hm⟩ hc1
+        simp only at hrA
+        cases b1 with
+        | true =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk hn1
+          obtain ⟨rfl, rfl⟩ := pureOk kR
+          exact fin hsA (by simp only [Expr.mentionsFvar_letE, ← hrA, Bool.true_or]) hmA zR
+        | false =>
+          obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+          obtain ⟨b2, m2⟩ := p2
+          obtain ⟨hsB, hrB, hmB⟩ := ih m1 lv ev sa sb (b2, m2) hsA.ok
+            ⟨denote_ext hval hsA.ext, hmA⟩ hc2
+          simp only at hrB
+          cases b2 with
+          | true =>
+            obtain ⟨rr, sR, kR, zR⟩ := bindOk hn2
+            obtain ⟨rfl, rfl⟩ := pureOk kR
+            exact fin (hsA.trans hsB) (by simp only [Expr.mentionsFvar_letE, ← hrA, ← hrB,
+              Bool.false_or, Bool.true_or]) hmB zR
+          | false =>
+            obtain ⟨rr, sR, kR, zR⟩ := bindOk hn2
+            obtain ⟨hsC, hrC, hmC⟩ := ih m2 lb eb sb sR rr hsB.ok
+              ⟨denote_ext (denote_ext hbd hsA.ext) hsB.ext, hmB⟩ kR
+            exact fin ((hsA.trans hsB).trans hsC) (by simp only [Expr.mentionsFvar_letE, ← hrA,
+              ← hrB, hrC, Bool.false_or]) hmC zR
+    case proj pn pk psub =>
+      obtain ⟨nm, es, rfl, _, hsub⟩ := denote_proj_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; dsimp only at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        dsimp only at h2
+        obtain ⟨rr, sR, kR, zR⟩ := bindOk h2
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo psub es s₀ sR rr hok ⟨hsub, hm⟩ kR
+        exact fin hsA (by simp only [Expr.mentionsFvar_proj, hrA]) hmA zR
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:379-381 Expr.mentionsFvarFast
 The entry at an empty memo.
 
-`sorry`: `mentionsFvarGo_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem mentionsFvar_spec (q : Nat) (e : EIdx) (eP : Expr) :
     PSpec (fun st => denoteE st e = some eP)
       (Arena.mentionsFvar q e) (RV (Expr.mentionsFvar q eP)) := by
-  sorry
+  intro s₀ s' r hok hd hrun
+  simp only [Arena.mentionsFvar] at hrun
+  obtain ⟨p, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨hs, hr, -⟩ := mentionsFvarGo_spec q ∅ Arena.coreWalkFuel e eP s₀ s1 p hok
+    ⟨hd, fun k r hk => by simp at hk⟩ k1
+  obtain ⟨rfl, rfl⟩ := pureOk z1
+  exact ⟨hs, hr⟩
 
 /-! ## The opened re-check -/
 
@@ -256,13 +520,69 @@ theorem recCtorKindsAll_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
         denoteCtors st cs = some csP)
       (Arena.recCtorKindsAll T lps nP nIdx cs)
       (ROp RKss (csP.mapM (ConLeche.recCtorKinds TP lpsP nP nIdx))) := by
-  sorry
+  induction cs generalizing csP with
+  | nil =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨_, _, hcs⟩ := hpre
+    simp only [denoteCtors, Option.some.injEq] at hcs
+    subst hcs
+    simp only [Arena.recCtorKindsAll] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, [], rfl, rfl⟩
+  | cons c cs ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hT, hlps, hcs⟩ := hpre
+    obtain ⟨cv, n⟩ := c
+    simp only [denoteCtors] at hcs
+    cases hcv : Frontend.denoteCV s₀.store cv with
+    | none => rw [hcv] at hcs; simp at hcs
+    | some cP =>
+    cases hrest : denoteCtors s₀.store cs with
+    | none => rw [hcv, hrest] at hcs; simp at hcs
+    | some restP =>
+    rw [hcv, hrest] at hcs
+    obtain rfl := (Option.some.inj hcs).symm
+    simp only [Arena.recCtorKindsAll] at hrun
+    obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, ho⟩ := recCtorKinds_spec T TP lps lpsP nP nIdx (cv, n) (cP, n) s₀ s1 o hok
+      ⟨hT, hlps, hcv, rfl⟩ k1
+    cases o with
+    | none =>
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      refine ⟨p1, ?_⟩
+      have ho' : ConLeche.recCtorKinds TP lpsP nP nIdx (cP, n) = none := ho
+      show _ = none
+      simp only [List.mapM_cons, ho']
+      rfl
+    | some ks =>
+    obtain ⟨ksP, hkP, hkr⟩ := ho
+    obtain ⟨o2, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, ho2⟩ := ih restP s1 s2 o2 p1.ok
+      ⟨denoteN_ext hT p1.ext, denoteNListE_ext p1.ext _ _ hlps,
+        denoteCtors_ext p1.ext _ _ hrest⟩ k2
+    cases o2 with
+    | none =>
+      obtain ⟨rfl, rfl⟩ := pureOk z2
+      refine ⟨p1.trans p2, ?_⟩
+      have ho2' : restP.mapM (ConLeche.recCtorKinds TP lpsP nP nIdx) = none := ho2
+      show _ = none
+      simp only [List.mapM_cons, hkP, ho2']
+      rfl
+    | some rest =>
+    obtain ⟨restKP, hrkP, hrkr⟩ := ho2
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨p1.trans p2, ksP :: restKP, ?_, ?_⟩
+    · simp only [List.mapM_cons, hkP, hrkP]
+      rfl
+    · show (ks :: rest).map (·.map kindOf) = _
+      simp only [List.map_cons]
+      rw [show ks.map kindOf = ksP from hkr, show rest.map (·.map kindOf) = restKP from hrkr]
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:539-554 classifyFixKinds
 The kinds classified on the stored constructors, with the two declines
 (`negative`, `unsupported`) raised.
 
-`sorry`: `recCtorKindsAll_spec`. -/
+**CLOSED** (task #97-P3-Ind round 6). -/
 theorem classifyFixKinds_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nIdx : Nat)
@@ -275,7 +595,55 @@ theorem classifyFixKinds_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (fun _ r => ∃ ks,
         ConLeche.classifyFixKinds (m := CheckM) TP lpsP nP nIdx ctorsAP
           = .ok ks ∧ r.map (·.map kindOf) = ks) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  simp only [Arena.classifyFixKinds] at hrun
+  obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, ho⟩ := recCtorKindsAll_spec T TP lps lpsP nP nIdx ctorsA ctorsAP s₀ s1 o
+    hok.state hpre k1
+  cases o with
+  | none =>
+    obtain ⟨_, s2, k2, _⟩ := bindOk z1
+    simp only [Arena.unwrapOr] at k2
+    exact absurd k2 (fun h => failOk h)
+  | some kinds =>
+  obtain ⟨kP, hkP, hkr⟩ := ho
+  have hkr' : kinds.map (·.map kindOf) = kP := hkr
+  obtain ⟨kk, s2, k2, z2⟩ := bindOk z1
+  simp only [Arena.unwrapOr] at k2
+  obtain ⟨hkk, rfl⟩ := pureOk k2
+  subst kk
+  have hneg : (kP.any fun ks => ks.any (· == .negative)) =
+      (kinds.any fun ks => ks.any (· == .negative)) := by
+    rw [← hkr']
+    simp only [List.any_map, Function.comp_def]
+    congr 1; funext ks; congr 1; funext k; cases k <;> rfl
+  have huns : (kP.any fun ks => ks.any (· == .unsupported)) =
+      (kinds.any fun ks => ks.any (· == .unsupported)) := by
+    rw [← hkr']
+    simp only [List.any_map, Function.comp_def]
+    congr 1; funext ks; congr 1; funext k; cases k <;> rfl
+  split at z2
+  case isTrue _ =>
+    obtain ⟨_, s3, k3, _⟩ := bindOk z2
+    exact absurd k3 (fun h => failOk h)
+  case isFalse hn =>
+  obtain ⟨_, s3, k3, z3⟩ := bindOk z2
+  obtain ⟨-, rfl⟩ := pureOk k3
+  split at z3
+  case isTrue _ =>
+    obtain ⟨_, s4, k4, _⟩ := bindOk z3
+    exact absurd k4 (fun h => failOk h)
+  case isFalse hu =>
+  obtain ⟨_, s4, k4, z4⟩ := bindOk z3
+  obtain ⟨-, rfl⟩ := pureOk k4
+  obtain ⟨rfl, rfl⟩ := pureOk z4
+  refine ⟨p1.toCore hok, kP, ?_, hkr'⟩
+  have hn' : (kP.any fun ks => ks.any (· == .negative)) = false := by
+    rw [hneg]; simpa using hn
+  have hu' : (kP.any fun ks => ks.any (· == .unsupported)) = false := by
+    rw [huns]; simpa using hu
+  simp only [ConLeche.classifyFixKinds, hkP, ConLeche.unwrapOr, pure, Except.pure, bind,
+    Except.bind, hn', hu', Bool.false_eq_true, if_false]
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:556-574 checkNativePass
 **One pass over the former and the constructors** at a given `is_rec` verdict,
