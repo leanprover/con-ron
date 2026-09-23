@@ -19,7 +19,6 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
 
 attribute [local lockstep_simp] check_fuel_abs
 
-set_option profiler true in
 theorem check_value_group_refines' {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup} {o}
     (hITC : ∀ {pers vis st mode fe lfe fu depth e lst},

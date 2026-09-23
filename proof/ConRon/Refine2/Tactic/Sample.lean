@@ -20,8 +20,6 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
 
 /-! ## 0. Straight-line intern wrappers: `intern_rebuilt_{app,bind}` (old: 29 / 57 lines) -/
 
-set_option profiler true in
-set_option profiler.threshold 10 in
 theorem intern_rebuilt_app_refines' {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {f a : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -31,8 +29,6 @@ theorem intern_rebuilt_app_refines' {pers st lst} {h : arena.handle.EIdx}
   rw [arena.expr_ops.intern_rebuilt_app, internRebuiltApp]
   lockstep
 
-set_option profiler true in
-set_option profiler.threshold 10 in
 theorem intern_rebuilt_bind_refines' {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {tag : Std.U32} {ty body : arena.handle.EIdx}
     {m : kernel.expr.BinderMeta} {o}
@@ -50,8 +46,6 @@ theorem intern_rebuilt_bind_refines' {pers st lst} {h : arena.handle.EIdx}
 section lift
 attribute [local lockstep_simp] liftArmApp liftArmLam liftArmForallE liftArmLet liftArmProj
 
-set_option profiler true in
-set_option profiler.threshold 10 in
 theorem lift_loose_bvars_go_aux' (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
       (amount fuel : Std.U64) (h : arena.handle.EIdx) (c : Std.U64),
@@ -86,8 +80,6 @@ section inst1
 attribute [local lockstep_simp] instantiate1ArmApp instantiate1ArmBind instantiate1ArmBVar
   instantiate1ArmLet instantiate1ArmProj
 
-set_option maxHeartbeats 4000000 in
-set_option profiler true in
 theorem instantiate1_go_aux' (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
       (v : arena.handle.EIdx) (fuel : Std.U64) (h : arena.handle.EIdx) (d : Std.U64),
@@ -103,9 +95,7 @@ theorem instantiate1_go_aux' (n : Nat) :
   | succ m ih =>
     intro pers st lst v fuel h d hn hrel hinv
     rw [arena.expr_ops.instantiate1_go, instantiate1Go_succ]
-    lockstep_stats
     lockstep
-    lockstep_stats
 
 end inst1
 
@@ -124,7 +114,6 @@ def I1Spec : Prop :=
     LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate1_fast pers st fuel e v d) lst
       (instantiate1Fast (absU fuel) (absEIdx e) (absEIdx v) (absU d))
 
-set_option profiler true in
 theorem inst_pis_from_aux' (hI1 : I1Spec) (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
       (fuel : Std.U64) (e : arena.handle.EIdx) (args : alloc.vec.Vec arena.handle.EIdx)
@@ -159,7 +148,6 @@ def instPisTF (fuel : Nat) : EIdx → List EIdx → AM (Option EIdx)
         instPisTF fuel b rest
     else pure none
 
-set_option profiler true in
 theorem inst_pis_from_tf_aux' (hI1 : I1Spec) (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
       (fuel : Std.U64) (e : arena.handle.EIdx) (args : alloc.vec.Vec arena.handle.EIdx)

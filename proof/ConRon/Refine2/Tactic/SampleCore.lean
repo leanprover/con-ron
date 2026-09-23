@@ -26,7 +26,6 @@ def WhnfLS (f : Nat) : Prop :=
       (arena.core.knot_whnf pers vis st mode lane fu fe depth e) lst
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).whnf (absU depth) (absEIdx e))
 
-set_option profiler true in
 /-- As the twin is today: the zip stops at the D1 site. -/
 theorem ensure_sort_refines' {f : Nat} (hW : WhnfLS f)
     {pers vis st mode lane fu fe lfe depth e lst o}
@@ -53,7 +52,6 @@ def ensureSortTF (r : CoreFnsA) (_fe : IFEnv) (depth : Nat) (e : EIdx) : AM LIdx
     | some u => pure u
   else fail (.invalid "expected a sort")
 
-set_option profiler true in
 theorem ensure_sort_tf_refines' {f : Nat} (hW : WhnfLS f)
     {pers vis st mode lane fu fe lfe depth e lst o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)

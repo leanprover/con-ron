@@ -22,7 +22,6 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
     LSP (arena.env.i_constant_val_dup cv) (fun o => absIConstantVal o = absIConstantVal cv) :=
   fun _ h => i_constant_val_dup_abs h
 
-set_option profiler true in
 theorem ctors_copy_from_refines' (n : Nat) :
     ∀ (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) (i : Std.Usize)
       (out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)),

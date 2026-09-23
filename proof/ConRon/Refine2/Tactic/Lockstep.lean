@@ -361,6 +361,10 @@ theorem LSP.tail {α : Type} {m : Result α} {P Q : α → Prop}
 
 /-! ## Pure Rust-only specs of the machine words -/
 
+@[lockstep_simp] theorem u64_one_val : (1#u64 : Std.U64).val = 1 := rfl
+@[lockstep_simp] theorem usize_one_val : (1#usize : Std.Usize).val = 1 := rfl
+@[lockstep_simp] theorem u64_zero_val : (0#u64 : Std.U64).val = 0 := rfl
+
 theorem LSP.u64_sub (x y : Std.U64) :
     LSP (x - y) (fun z => z.val = x.val - y.val ∧ y.val ≤ x.val) := by
   intro z h
@@ -428,13 +432,15 @@ def firstTimed (label : String) (alts : List (TSyntax `tactic)) : TacticM Unit :
 def sideCheap : TacticM (List (TSyntax `tactic)) := do return [
     ← `(tactic| assumption),
     ← `(tactic| rfl),
+    ← `(tactic| (simp only [lockstep_simp]; done)),
     ← `(tactic| (apply Eq.symm; assumption)),
-    ← `(tactic| (simp only [lockstep_simp] at *; first | assumption | rfl | done)),
-    ← `(tactic| (simp_all only [lockstep_simp]; done)),
-    ← `(tactic| (simp_all (config := { decide := true }) only [lockstep_simp]; done))]
+    ← `(tactic| (simp only [lockstep_simp, *]; done)),
+    ← `(tactic| (simp (config := { decide := true }) only [lockstep_simp, *]; done))]
 
 def sideDear : TacticM (List (TSyntax `tactic)) := do return [
     ← `(tactic| scalar_tac),
+    ← `(tactic| (simp_all only [lockstep_simp]; done)),
+    ← `(tactic| (simp_all (config := { decide := true }) only [lockstep_simp]; done)),
     ← `(tactic| (simp_all only [lockstep_simp, Bool.and_eq_true]; scalar_tac)),
     ← `(tactic| (simp_all; done))]
 
@@ -446,7 +452,9 @@ elab "lockstep_side" : tactic => do
   let arith := (ty.isAppOfArity ``Eq 3 && (ty.getArg! 0).isConstOf ``Nat) ||
     ty.isAppOfArity ``LT.lt 4 || ty.isAppOfArity ``LE.le 4
   if arith then
-    firstTimed "sideA" [← `(tactic| assumption), ← `(tactic| rfl), ← `(tactic| scalar_tac),
+    firstTimed "sideA" [← `(tactic| assumption), ← `(tactic| rfl),
+      ← `(tactic| (simp only [lockstep_simp]; done)),
+      ← `(tactic| (simp only [lockstep_simp] at *; omega)), ← `(tactic| scalar_tac),
       ← `(tactic| (simp_all only [lockstep_simp]; done)), ← `(tactic| (simp_all; done))]
   else
     firstTimed "side" ((← sideCheap) ++ (← sideDear))
@@ -456,6 +464,10 @@ elab "lockstep_side_cheap" : tactic => do
 
 elab "lockstep_side_dear" : tactic => do
   firstTimed "sideD" (← sideDear)
+
+/-- A twin test the cheap tier could not decide: arithmetic, then the context. -/
+elab "lockstep_side_ite" : tactic => do
+  firstTimed "sideI" [← `(tactic| scalar_tac), ← `(tactic| (simp_all only [lockstep_simp]; done))]
 
 elab "lockstep_stats" : tactic => do
   let m ← statsRef.get
@@ -617,13 +629,30 @@ def normGoal (g : MVarId) : MetaM MVarId := g.withContext do
     g.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
   else return g
 
+/-- Clear the relation and invariant hypotheses about states the goal no
+longer mentions: every side tactic pays for the context it sees. -/
+def clearStale (g : MVarId) : MetaM MVarId := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  let mut g := g
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    let t ← instantiateMVars d.type
+    if t.isAppOfArity ``AStateRel₀ 3 || t.isAppOfArity ``AStateInv 2 then
+      let rs := t.getArg! 1
+      let ls? := if t.isAppOfArity ``AStateRel₀ 3 then some (t.getArg! 2) else none
+      let gone := (rs.isFVar && !ty.containsFVar rs.fvarId!) ||
+        (match ls? with | some l => l.isFVar && !ty.containsFVar l.fvarId! | none => false)
+      if gone then
+        g ← (try g.clear d.fvarId catch _ => pure g)
+  return g
+
 /-- Tidy a continuation: `subst` the answer relation, normalise the heads. -/
 def tidy (g : MVarId) (hR : Option Name) : TacticM (List MVarId) := do
   let rest ← runOn g do
     if let some h := hR then
       let hi := mkIdent h
       evalT `(tactic| first | subst $hi:ident | (obtain ⟨_, $hi:ident⟩ := $hi:ident; subst $hi:ident) | skip)
-  rest.mapM fun g => normGoal g
+  rest.mapM fun g => do clearStale (← normGoal g)
 
 /-- The Rust computation's shape. -/
 inductive RKind where
@@ -825,7 +854,7 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
   -- the twin side, when it moves first
   if x.isAppOfArity ``ite 5 then
     let cheap ← `(tactic| lockstep_side_cheap)
-    let dear ← `(tactic| lockstep_side_dear)
+    let dear ← `(tactic| lockstep_side_ite)
     -- polarity: the twin's test usually goes the way the last Rust test went
     let lastNeg ← do
       let mut r := false
