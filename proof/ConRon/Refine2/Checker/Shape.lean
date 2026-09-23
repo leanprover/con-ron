@@ -35,6 +35,7 @@ each is an ordinary argument and an ordinary result; putting either in
 -/
 import ConRon.Refine2.Specs
 import ConRon.Refine2.ExprOps.Read
+import ConRon.Refine2.Core.Bracket
 import ConRon.Arena
 
 open Aeneas Aeneas.Std Result
@@ -813,6 +814,70 @@ theorem openPisAtFvarsF_length {n : Nat} {e : EIdx} {i : Nat} {ls ls' : AState}
     simp only [Except.ok.injEq, Prod.mk.injEq, Option.some.injEq] at h
     rw [← h.1.1]
     exact openPisAtFvarsFGo_length ho
+
+/-! ## The declaration boundary, as a fact about the TWIN
+(task #97-P5-Checker round 3)
+
+`Refine2/Core/Bracket.lean`'s `BrOK` is the boundary a bracketed step is
+entered at — the twin store well formed and its scratch tier closed — and the
+three bracketed statements of `Refine2/Checker/Top.lean` (`check_pending`,
+`check_decl_step`, `annot_step`) each need one.  Since task #97-P5-Specs put
+`StoreWF ls.store` into `AStateRel` (finding 16) the well-formedness half is
+free at every state the relation holds of; the FLAG half is not, and must not
+be — it is false of the state INSIDE the bracket, which is exactly a state
+`AStateRel` holds of.
+
+**So the flag threads, and the cheapest way to thread it is not to touch a
+refinement statement at all.**  `dropScratch` closes the tier whatever ran
+before it, so *"this twin action leaves the tier closed"* is a fact about the
+TWIN alone, quantified over the state — `Refine2/Core/Bracket.lean`'s `TwinWF`
+shape, and it threads through a fold for the same reason.  A bracketed step
+then carries one extra HYPOTHESIS (`BrOK lst`) and no extra conclusion: the
+fold rebuilds the next boundary from `AStateRel.storeWF` and the `_off` lemma
+of whatever it just ran. -/
+
+/-- The twin's `dropScratch`, run. -/
+theorem dropScratch_run (ls : AState) :
+    (dropScratch : AM Unit).run ls
+      = .ok ((), { ls with store := ls.store.dropScratch, caches := Caches.empty })
+  := rfl
+
+/-- **`dropScratch` closes the tier**, whatever ran before it. -/
+theorem dropScratch_off {ls ls' : AState} {v : Unit}
+    (h : (dropScratch : AM Unit).run ls = .ok (v, ls')) :
+    ls'.store.scratchOn = false := by
+  rw [dropScratch_run] at h
+  simp only [Except.ok.injEq, Prod.mk.injEq] at h
+  rw [← h.2]
+  rfl
+
+/-- `dropScratch` followed by anything that leaves the STATE alone — the tail
+of every bracketed twin, which is `dropScratch; pure <something>`. -/
+theorem dropScratch_bind_off {α : Type} {k : Unit → AM α} {ls ls' : AState}
+    {v : α}
+    (hk : ∀ (u : Unit) (s s' : AState) (w : α), (k u).run s = .ok (w, s') →
+      s' = s)
+    (h : ((dropScratch : AM Unit) >>= k).run ls = .ok (v, ls')) :
+    ls'.store.scratchOn = false := by
+  obtain ⟨u, ls₁, h1, h2⟩ := am_run_bind_ok h
+  rw [hk u ls₁ ls' v h2]
+  exact dropScratch_off h1
+
+/-- A `pure`'s VALUE, off a run. -/
+theorem am_run_pure_val {α : Type} {a : α} {s s' : AState} {w : α}
+    (h : (pure a : AM α).run s = .ok (w, s')) : w = a := by
+  replace h : (Except.ok (a, s) : Except Arena.CheckError (α × AState))
+      = Except.ok (w, s') := h
+  simp only [Except.ok.injEq, Prod.mk.injEq] at h
+  exact h.1.symm
+
+/-- The side condition of `dropScratch_bind_off` at a `pure`. -/
+theorem am_run_pure_state {α : Type} {a : α} {s s' : AState} {w : α}
+    (h : (pure a : AM α).run s = .ok (w, s')) : s' = s := by
+  replace h : (Except.ok (a, s) : Except Arena.CheckError (α × AState))
+      = Except.ok (w, s') := h
+  simp only [Except.ok.injEq, Prod.mk.injEq] at h
+  exact h.2.symm
 
 /-! ## The Inductives seam (task #97-P5-Checker's finding 14)
 
