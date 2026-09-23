@@ -1025,8 +1025,10 @@ theorem checkIndRecs_spec {μ : CheckMode} {env : Env} (fe₂ : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:475-495 checkProjLookups
 The model's projection and the block's constructor, looked up.
 
-`sorry`: `IFEnvOK`'s `hit` clause at two names, and `internNNode_spec` at
-`projFnName`/`projModelName`. -/
+**CLOSED** (task #97-P3-Ind round 7): `IFEnvOK`'s `hit` clause at the
+constructor, the model projection and the parent, its `miss` clause at the
+projection's own name, `projModelName_run`/`projFnName_run`, and
+`eqBasisStored_spec` for the pinned-`Eq` guard. -/
 theorem checkProjLookups_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
     (T ctorName : NIdx) (TP ctorNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nF i : Nat) :
@@ -1039,7 +1041,76 @@ theorem checkProjLookups_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
       (fun st r => ∃ a b, @ConLeche.checkProjLookups CheckM _ _ env TP
           ctorNameP lpsP nP nF i = .ok (a, b) ∧
         Frontend.denoteCV st r.1 = some a ∧ Frontend.denoteCV st r.2 = some b) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hT, hC, hlps, hfe⟩ := hpre
+  simp only [Arena.checkProjLookups] at hrun
+  cases hf1 : fe'.find? ctorName with
+  | none => rw [hf1] at hrun; exact absurd hrun (fun h => failOk h)
+  | some ci =>
+  rw [hf1] at hrun
+  obtain ⟨nm1, c1, hnm1, hci1, henv1⟩ := hok.ienv.hit ctorName ci hf1
+  obtain rfl : nm1 = ctorNameP := Option.some.inj (hnm1.symm.trans hC)
+  cases ci
+  case ctorInfo cvj cnP cnF =>
+    obtain ⟨cvjP, rfl, hcvj⟩ := denoteCI_ctor_inv hci1
+    dsimp only at hrun
+    split at hrun
+    case isFalse => obtain ⟨_, _, k, _⟩ := bindOk hrun; exact absurd k (fun h => failOk h)
+    case isTrue har =>
+    replace hrun := AM.pure_bind_ok hrun
+    obtain ⟨h2, s2, k2, z2⟩ := bindOk hrun
+    obtain ⟨p2, hh2⟩ := projModelName_run hok.state hT k2
+    have c2 := p2.toCore hok
+    cases hf2 : fe'.find? h2 with
+    | none => rw [hf2] at z2; exact absurd z2 (fun h => failOk h)
+    | some ci2 =>
+    rw [hf2] at z2
+    obtain ⟨nm2, c2P, hnm2, hci2, henv2⟩ := c2.ok.ienv.hit h2 ci2 hf2
+    obtain rfl : nm2 = ConLeche.projModelName TP i := Option.some.inj (hnm2.symm.trans hh2)
+    cases ci2
+    case defnInfo mcv mv mh =>
+      obtain ⟨mcvP, mvP, rfl, hmcv, -⟩ := denoteCI_defn_inv hci2
+      dsimp only at z2
+      split at z2
+      case isFalse => obtain ⟨_, _, k, _⟩ := bindOk z2; exact absurd k (fun h => failOk h)
+      case isTrue hlp =>
+      replace z2 := AM.pure_bind_ok z2
+      obtain ⟨h3, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨p3, hh3⟩ := projFnName_run c2.ok.state (denoteN_ext hT c2.ext) k3
+      have c3 := c2.trans (p3.toCore c2.ok)
+      split at z3
+      case isFalse => obtain ⟨_, _, k, _⟩ := bindOk z3; exact absurd k (fun h => failOk h)
+      case isTrue hnone =>
+      replace z3 := AM.pure_bind_ok z3
+      have hf3 : fe'.find? h3 = none := by simpa using hnone
+      have henv3 := IFEnvOK.miss c3.ok.state c3.ok.ienv hh3 hf3
+      split at z3
+      case isFalse => obtain ⟨_, _, k, _⟩ := bindOk z3; exact absurd k (fun h => failOk h)
+      case isTrue hsome =>
+      replace z3 := AM.pure_bind_ok z3
+      obtain ⟨ciT, hfT⟩ := Option.isSome_iff_exists.mp hsome
+      obtain ⟨nmT, cT, hnmT, -, henvT⟩ := c3.ok.ienv.hit T ciT hfT
+      obtain rfl : nmT = TP := Option.some.inj (hnmT.symm.trans (denoteN_ext hT c3.ext))
+      obtain ⟨b, s4, k4, z4⟩ := bindOk z3
+      obtain ⟨c4, hb⟩ := eqBasisStored_spec fe' s3 s4 b c3.ok (denoteFEnv_ext c3.ext hfe) k4
+      obtain ⟨hbt, z5⟩ := AM.dunless_ok AM.Never.fail_any z4
+      replace z5 := AM.pure_bind_ok z5
+      obtain ⟨rfl, rfl⟩ := pureOk z5
+      have hbt' : decide (env.find? ConLeche.eqName = some ConLeche.eqA) = true := by
+        rw [← hb]; exact hbt
+      have c34 := c3.trans c4
+      have hlpP : mcvP.levelParams = lpsP := by
+        have e1 := denoteCV_lps hmcv
+        rw [hlp] at e1
+        exact Option.some.inj ((denoteNListE_ext (c2.ext) _ _ hlps).symm.trans e1) |>.symm
+      refine ⟨c34, cvjP, mcvP, ?_, ?_, ?_⟩
+      · simp only [ConLeche.checkProjLookups, henv1, henv2, henv3, henvT, hlpP, har,
+          of_decide_eq_true hbt']
+        rfl
+      · exact denoteCV_ext hcvj c34.ext
+      · exact denoteCV_ext hmcv (p3.ext.trans c4.ext)
+    all_goals exact absurd z2 (fun h => failOk h)
+  all_goals exact absurd hrun (fun h => failOk h)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:497-511 checkProjTy
 The projection function's generated type.
