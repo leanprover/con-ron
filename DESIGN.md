@@ -59680,4 +59680,9 @@ every con-leche olean scanned for a 4.34 header (none left), `lake build
 
 #### 6. Gates
 
-See the slice's submission note.
+Slice 1: `scripts/gates.sh` all 16 OK after each of three `arena` merges
+(the last at `8e8a879c`, submitted to the merge queue).  Slice 2: `arena`
+merged at `ecee8ea4` (`DESIGN.md` conflict, both appends kept; `Mut.lean`
+conflict, this lane's file kept); `twin-lines.py update` relocated 106 Rust
+citations (digits only); then **all 16 OK** (`extract-check` 109 s,
+`lake-refine2` 215 s, `lake-bridge` 534 s).
