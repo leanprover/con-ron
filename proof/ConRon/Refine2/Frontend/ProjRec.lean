@@ -295,14 +295,6 @@ theorem absString_startsWith {s : alloc.vec.Vec Std.U32} (hs : ConRon.Refine.Str
   rw [e1, e2]
   exact prefix_map_ofNat (by simpa using hL) (by simpa [ConRon.Refine.StrWF] using hs)
 
-/-- An in-bounds `Vec` index answers the element. -/
-theorem vec_index_ok_eq {α : Type} (v : alloc.vec.Vec α) (i : Std.Usize)
-    (hi : i.val < v.val.length) :
-    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i = ok v.val[i.val] := by
-  simp only [alloc.vec.Vec.index_slice_index]
-  obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec v i hi)
-  rw [hy, hyv]
-
 /-- **`one_lidx`** — the singleton level list. -/
 theorem one_lidx_refines {l v} (h : frontend.proj_rec.one_lidx l = ok v) :
     v.val.map absLIdx = [absLIdx l] := by
