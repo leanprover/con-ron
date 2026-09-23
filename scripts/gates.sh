@@ -108,4 +108,14 @@ python3 "$root/scripts/progress.py" --summary
 # (`Refine2/**`).  A REPORT, never a FAIL: it runs after the gates and its
 # exit code is ignored on purpose.
 python3 "$root/scripts/arena-census.py" --summary || true
+# The `sorry` FRONTIER of the capstone (task #97-FRONTIER): the declarations
+# of `ConRon.Capstone.{model_exists,no_False_declaration}`'s dependency
+# closure whose own proof says `sorry`, i.e. what the capstone is actually
+# waiting on, and the direct `sorry`s of `Bridge/**`/`Refine2/**` nothing on
+# that path needs (dead weight).  Also a REPORT: the full list is
+# `scripts/frontier.sh ConRon.Capstone.model_exists
+# ConRon.Capstone.no_False_declaration`, and every run appends a row to
+# `_tmp/frontier-history.tsv` (`scripts/frontier.sh --history`).
+"$root/scripts/frontier.sh" --summary --tag capstone \
+  ConRon.Capstone.model_exists ConRon.Capstone.no_False_declaration || true
 python3 "$root/scripts/loc.py" --summary

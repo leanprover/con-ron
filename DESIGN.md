@@ -41217,6 +41217,278 @@ point; `Basis.lean` is 802 lines, from 214.
 | the diff | `proof/ConRon/Bridge/Checker/{Basis,Canon,Base,Split,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no `Promote/`, no `Frontend/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
 
 
+#### Round 8 — the shape tests, the two `Nat` gates, the startup walk, and two arms closed (2026-09-23, Opus under Fable)
+
+Branch `checker-r8` off `arena`'s `7f4b4a86`, merged forward once (`arena`'s
+`2f802dd9`, `Refine2/**` only).  The diff is `proof/ConRon/Bridge/Checker/**`
+and this text: no Rust file, no generated model, no `Arena/`, no `Refine/`,
+no `Refine2/`, no `Promote/`, no `Frontend/`, no `lakefile.toml`.
+
+**18 open → 8.**  `Basis.lean` 3 → 0, `DeclVal.lean` 7 → 1, `Pins.lean` 3 → 2;
+`Split.lean` 3, `Inv.lean` 1 and `Fold.lean` 1 were not in the round's brief
+and are unchanged.  **Six of the seven arms of `checkDecl` are now fully
+closed**: `checkDecl_bridge_axiom` and `checkDecl_bridge_opaque` leave the
+`sorryAx` list, and the one arm left, `defn`, waits on `checkDivModPin_bridge`
+alone (§6).
+
+| file | round 7 | round 8 | what closed |
+|---|---:|---:|---|
+| `Basis.lean` | 3 | 0 | `stdAxiomOk_run`, `trustCompilerOk_run`, `ofReduceAxOk_run` |
+| `DeclVal.lean` | 7 | 1 | `natOpGuard_run`, `natOpStoredOkAll_run`, `natOpEquations_run`, `substConst0Pairs_run`, `natOpEqs_wscoped`, `checkReducePin_bridge` |
+| `Pins.lean` | 3 | 2 | `internAllPins_run` (relative to `internPinSets_run`) |
+| `Split.lean` | 3 | 3 | — |
+| `Inv.lean` | 1 | 1 | — |
+| `Fold.lean` | 1 | 1 | — |
+
+##### 1. Item 1 — `erasePwEq_run`, and a hundred arms in forty lines
+
+`erasePwEq_run` is `canonExprEq_run`'s transliteration at con-leche's
+`Expr.erasePwEq` (the `@[csimp]` twin; `erasePwEq_eq` is con-leche's), and
+`matchesPin_run` lifts it to `ConstantVal.matchesPin` through
+`matchesPin_eq_matchesPinFast`.  **It is not written as a hundred arms.**
+`cases va <;> cases vb`, then one `all_goals first | …` that inverts the
+left denotation through whichever `denote_*_inv` applies, one that inverts
+the right, and one that closes every arm whose arena side is a bare `pure`
+(`refine ⟨rfl, ?_⟩; simp; done` — the `done` matters: without it a failed
+`simp` inside a term-mode `by` does not backtrack `first`).  What survives are
+the eight matching arms, each two to five lines over one helper,
+`ite_and_run` (`if c then m else pure false` answers `c && B`), and
+`beq_of_denote_inj` (a handle comparison IS the comparison of denotations, for
+any injective readback) at names, levels, level lists and expressions.
+`canonExprEq_run` is ≈560 lines; this one is ≈90.
+
+##### 2. The `RunsB` combinators — every shape test is its `do`-block read top to bottom
+
+The three shape tests, `reduceElemOk`/`reduceStoredOk`, and all of
+`natOpGuard`'s pieces are `Bool` chains of pin reads, fresh-memo interns,
+index lookups and comparisons, and every link is a `Frontend.IStepS`.
+`RunsB m s b` — every success of `m` at `s` is an `IStepS` answering `b` — is
+the one predicate, and the combinators follow the arena's `do`-blocks link by
+link (`Basis.lean`):
+
+| combinator | arena shape | con-leche shape |
+|---|---|---|
+| `RunsB.pin` | `pinAt i >>= k` | — |
+| `RunsB.bind` / `bindB` | `m >>= k` | — |
+| `RunsB.ite` | `if c then X else Y` | `if c' then b1 else b2`, `c ↔ c'` |
+| `RunsB.guard` / `guardT` | `if !b then pure false else Y` / `if b then Y else pure false` | `D && B` |
+| `RunsB.matchInd`/`matchAxiom`/`matchDefn`/`matchCtor{0,1,2}`/`matchRec{3,4}` | `match fe.find? n with \| some (.K cv …) => K cv \| _ => pure false` | `(match env.find? nm with …) && R` |
+| `RunsB.pinCV` / `pinCI` / `pinCVLast` / `pinLastOf` | `cv.matchesPin (← pin)` | `matchesPin cv' P` |
+| `RunsB.matchLps` / `matchLpsJP` / `matchCod` | the `Bool`-constructor lookups through `toConstantVal` | |
+
+Three findings about the mechanism, each of which cost a build to learn:
+
+* **A `match` in a lemma statement and the arena's `match` are different
+  matchers, and `refine` still unifies them** — by unfolding both — as long as
+  the lemma's is written `match (generalizing := false) x with`.  Without the
+  flag the elaborator generalises the `FindRel` hypothesis into the motive and
+  the shapes no longer agree.  `rw` never unifies them (it is syntactic): the
+  `natSuccOk` pattern had to be restated as con-leche's own `natSuccOk_eq`
+  (proved by `cases` on con-leche's matcher) rather than rewritten.
+* **`let okT ← match …; rest` is a join point.**  The legacy `do` elaborator
+  pushes `rest` into both arms as `have __do_jp := …`, and each arm ends
+  `let y ← pure …; __do_jp y`.  `RunsB.matchLpsJP` is stated at exactly that
+  shape; `refine` sees through the `have`.
+* **`RunsB.pure` is the wrong name**: inside `namespace RunsB`, every later
+  `pure false` in a statement resolved to it.  It is `RunsB.ret`.
+
+`IFEnvOK.findRel` is the index read in the form those `match` lemmas take
+(`FindRel`: both `none`, or both `some` with the handle denoting), and
+`IFEnvOK.find_beq_ind` is the `fe.find? en == some (← eqA)` test — which
+needs **`denoteCI_inj_ind`**, `Frontend.denoteCI`'s injectivity at an
+inductive.  It is NOT injective in general (a projection table's `tableName`
+is dropped), which is why the lemma is stated at `.indInfo` only; the two
+pinned comparands (`eqA`, `natA`) are inductives, `⟨_, _, rfl⟩`.
+
+##### 3. Item 2 — `natOpGuard_run` and `natOpStoredOkAll_run`
+
+`DeclVal.lean` takes `import ConRon.Bridge.Checker.Basis`; `lake build
+ConRonBridge` (618 jobs) is green on it, and no closed proof moved.  The four
+helpers round 7 priced are `constE_run`, `beqE_of_denote`, `lpsEmpty_of_denote`
+and `toConstantVal_sstep` (whose `.projInfo` premise `IFEnvOK.proj` discharges
+for a stored constant: `CIProjNamed_of_find`).  Two small extras:
+`natOpDeps_state` (fifteen pin reads leave the state alone — `natOpDeps_run`
+carries only four frame clauses and `IStepS` needs `scratch`/`memos` too), and
+`natSuccTy`/`natSuccOk_eq` (§2's first finding).
+
+##### 4. Item 3 — `internAllPins_run`
+
+`Pins.lean` takes `import ConRon.Bridge.Checker.DeclVal` (acyclic: `Pins` is a
+leaf, imported only by the index and `Axioms.lean`).  Thirty-six `IStepS`
+links: the twelve basis blocks (`BasisKind.decls_sstep`/`declsA_sstep`, the
+round-7 run lemmas' own first conjunct re-exported, since `decls_run` does not
+carry `scratch`/`memos`), eighteen fresh interns, **`reservedBasisNames_sstep`**
+(the same walk as `reservedBasisNames_run`, whose `PinStep` has no `scratchOn`
+clause) and six pin reads; then `internPinSets_run`.  `PersPins` travels
+because the pin record is untouched and `PersN` is a fact about handles.  The
+theorem is closed RELATIVE to `internPinSets_run`, which is still open, so it
+still reaches `sorryAx`.
+
+##### 5. The opaque arm: `checkReducePin_bridge`, and a missing precondition
+
+`checkReducePin` annotates the RAW value (`annotateCore … value`, as
+con-leche's `ops.annotate env 0 value` does), and `KnotSpec.annotate` wants
+`Expr.WScoped 0 x`.  **Nothing in the statement gave it.**  It is true at the
+one call site — the accepted `checkOpaqueVal` ran `installValue`'s `hasFvar`
+guard on the same raw value — so it is a missing PRECONDITION (round 4's
+`PinsOK` precedent): `(hws : Expr.WScoped 0 x)` is added, and
+`Arms.lean`'s opaque arm discharges it as
+`WScoped.of_not_hasFvar (checkOpaqueVal_noFvar hpure2)`.  The conclusion is
+unchanged.  The proof is the gate read in order: `reduceStoredOk_run` at `fe2`,
+`reduceElemOk_run` at `fe` (both from §2), `reducePinGuard_run` (whose
+`hasFvar` conjunct also scopes the pin), two `KnotSpec.annotate`, two
+`KnotSpec.defeq` (the second at depth 1, over `reduceCertVar_run`'s `fvar 0`),
+and `checkReducePin_pure` at the `max` of four fuels.
+
+##### 6. The `defn` arm, and what is left of it
+
+`natOpEquations_run` (generated text: seventeen shared links and seven
+branches of `natAp1_run`/`natAp2_run`, every fact transported to the final
+state along the `IStepS` chain behind it), `substConst0Pairs_run` (over a new
+`substConst0_run`, a fuel induction) and `natOpEqs_wscoped` (the literal shapes
+by cases, `substConst0_wscoped`, and `EnvWF`'s `defnInfo` value clause) all
+closed.  **The arm now waits on `checkDivModPin_bridge` and nothing else.**
+Priced, not taken: it is `divModEnvGuard` (≈ `natOpGuard_run` +
+`natOpStoredOkAll_runs` + the `Eq` test + two `toConstantVal` type
+comparisons, all §2 combinators), `divModPinGuard` (`reducePinGuard_run`'s
+shape), `divModCertStmts` (eight branches of `natAp*`/`eqAt1`, the
+`natOpEquations_run` generator), a full-walk `substConstAll_run` (seven arms),
+`divModCertApplied`, the certificate loop with `KnotSpec.annotate`/`infer`/
+`defeq` at depth 4 — whose `WScoped 4` preconditions need a
+`natOpEquations_wscoped`-style fact about the pinned hypotheses — and the
+variant loop over `orElseAttempt_run` against `PinsDenote`.  Several hundred
+lines, all of it in shapes this round built.
+
+##### 7. What the remaining 8 wait on
+
+| where | open | waits on |
+|---|---:|---|
+| `DeclVal.lean` | 1 | `checkDivModPin_bridge` (§6) |
+| `Pins.lean` | 2 | `internPinSets_run` (sixteen `internExpr` per variant and a list recursion — mechanical); `internReservedPins_run` (`internName_spec`'s persistence clause) |
+| `Split.lean` | 3 | `annotStep_bridge`, `checkPending_bridge`, `installThenCheck_bridge` |
+| `Inv.lean` | 1 | `projTableOK_of_install` — the Inductives tier's |
+| `Fold.lean` | 1 | `checkDeclStep_bridge` — the promotion tier |
+
+##### 8. Gates
+
+| gate | |
+|---|---|
+| `scripts/gates.sh` | **all 15 OK** on the merge forward onto `arena`'s `2f802dd9` — `extract-check` 127 s, `lake-build` 121 s, `lake-refine2` 141 s, `lake-bridge` 11 s |
+| `#print axioms` | `Bridge/Checker/Axioms.lean` lists **268 results, 7 with `sorryAx`** (round 7: 248 / 9): `CoreSpec.of_knot`, `checkDecl_bridge_defn`, the three headline theorems, `Arena.no_proof_of_False`, `Arena.installThenCheck_bridge`.  `checkDecl_bridge_axiom` and `checkDecl_bridge_opaque` have left the list; the twenty round-8 results added to group 1 all print the three standard axioms only |
+| `scripts/arena-census.py` | `Arena/Checker` **T1 stated 75/242, closed 68** (round 7: 65/242, 51) |
+| the diff | `proof/ConRon/Bridge/Checker/{Basis,DeclVal,Pins,Arms,Axioms}.lean` and this section |
+
+The tier is **12 943 lines**, from 10 703; `Basis.lean` 802 → 1 741,
+`DeclVal.lean` 1 164 → 2 249, `Pins.lean` 120 → 313.
+
+##### 9. The coordinator's priority: the capstone's three items, skeletonised
+
+The end-to-end capstone (`ConRon.Capstone`, task #97-COMPOSE) landed during
+the round, and three of its twelve frontier items were this lane's:
+`Arena.installThenCheck_bridge`, `internAllPins_run` and
+`internReservedPins_run`.  All three are now PROVED over named children; none
+of them uses `sorry` directly.
+
+**`Arena.installThenCheck_bridge`** (`Split.lean`) — the binary's two-phase
+fold is one accept of `checkDeclsPure`:
+
+| piece | status | what it is |
+|---|---|---|
+| `SplitInstall`, `PhaseA` | defs | the pure record of phase A: per declaration a full `checkDecl` step, or the install halves (`checkDecl_of_split_*`'s premises) owing a check at `(env, vg)` |
+| `PhaseA.foldlM` | **PROVED** | every owed check paid ⇒ `checkDecl`'s fold, at one fuel (`SplitInstall.checkDecl`, `checkDecl_mono`, `installConstantVal_mono`, `installValue_mono`, `checkValueGroup_mono`) |
+| `PendRel`, `ListRel`, `KindRel` | defs | what crosses the seam per record: denotations, the two scope facts, the install environment (`EnvWF`, `pc.vis` = its length, the final environment extends it — so `env'.prefixTo pc.vis` IS it, `PendRel.prefix`), persistence |
+| `Arena.annotFold_bridge` | **PROVED** | phase A over handles, an induction over … |
+| `Arena.annotStep_split` | `sorry` (child) | … one bracketed step: `annotStep_bridge`'s conclusion plus the pure half and the two frames phase B reads |
+| `Arena.checkPendingList_bridge` | **PROVED** | phase B over handles, an induction over … |
+| `Arena.checkPending_prefix` | `sorry` (child) | … one record checked AT `env.prefixTo pc.vis` |
+| `PhaseA.nodup` | **PROVED** over `checkDecl_nodup` (`sorry`, child) and `SplitInstall.nodup` (**PROVED**) | name uniqueness at the end of phase A, which `IFEnvOK_restrictTo` needs |
+
+`Arena.annotStep_bridge` and `Arena.checkPending_bridge` are now PROVED from
+the two children (they are no longer on any path, but they stay as the
+statements round 4 wrote).
+
+**Four statement defects, found by the skeleton** (all repairs of
+PRECONDITIONS; no conclusion moved):
+
+1. `Arena.annotStep_bridge` concluded every record of `pend'` persistent
+   without assuming it of `pend ⊆ pend'` — false at a non-persistent input.
+   Gains `hpend`.
+2. `Arena.checkPending_bridge` had no hypothesis tying the handle record's kind
+   to the pure record's (`Arena.ValueKind` and `ConLeche.ValueKind` are
+   different types), and `checkValueGroup` branches on the kind — false at a
+   mismatched pair.  Gains `hkind : KindRel pc.vg.kind gP.kind`.
+3. `hwsjv : WScoped 0 gP.jv` on `checkPending_bridge` and
+   `checkValueGroup_bridge` is **not dischargeable at the fold**: a theorem's
+   pending value is its RAW value, which phase A never guards (a theorem
+   installs by statement).  `checkValueGroup_bridge` only used it on the other
+   two kinds, so it is weakened to `gP.kind ≠ .thm → …` — a strengthening of
+   both theorems.
+4. `checkPending_bridge`'s EXISTENTIAL `envK` (equal to the prefix only up to
+   `find?`) cannot feed `checkDecl_of_split_*`, which needs the check half at
+   the SAME environment as the install halves, without a `find?`-congruence of
+   the whole pure core that con-leche does not state (it has one for the
+   cached knot only, `Verify/Cached/KnotCongr.lean`).  Not a defect of the
+   statement but of its shape for this consumer: `checkPending_prefix`
+   instantiates the knot at `env.prefixTo pc.vis` directly
+   (`IFEnvOK_restrictTo` gives the index invariant there), and the old
+   theorem follows with `envK := env.prefixTo pc.vis`.
+
+**`internReservedPins_run`** (`Pins.lean`) is PROVED from the frontend
+tier's `IStepS` leaves (a local `internNameList_pins_sstep`, since
+`Arena/Pins.lean` has its own `internNameList`), persistence off
+`Pers…_of_denote` at the closed store (`PersLs_of_denote` new), and ONE child,
+`denoteN_default_of_pinNames` — `PinsOK.anon`, the zero name handle is
+`.anonymous` (a fact about the persistent `anons` table).  Round 7's note that
+it waited on "`internName_spec`'s missing persistence clause" was stale: the
+frontend round's `Pers…_of_denote` already supplied it.
+
+**`internAllPins_run`** was closed earlier in the round (§4); its one child
+is `internPinSets_run`.
+
+**Which arms of `checkDecl` the capstone's fold reaches.**  Phase A
+(`annotStepGo`) runs the full `checkDecl` for: `defn` records whose name is a
+pinned `Nat` operation or `Nat.div`/`mod` (the `defn` arm, with `natOpGuard`,
+`certifyNatEqs` and `checkDivModPin`), `opaque` records named
+`Lean.reduceNat`/`reduceBool` (the `opaque` arm — closed), and every non-value
+record (`axiom` — closed; `ind`, `basis`, `quot` — closed).  Every other
+`defn`/`opaque`, and EVERY `thm`, takes the split route and never enters
+`checkDecl`.  So on the capstone path the one open arm is `defn`, i.e.
+**`checkDivModPin_bridge`**; `checkDecl_bridge_thm` is unreached, and
+`Arena.checkDeclStep_bridge` (`Fold.lean`) is on the one-phase
+`checkDeclsPure` path only.
+
+**The capstone frontier in this lane is now**: `Arena.annotStep_split`,
+`Arena.checkPending_prefix`, `checkDecl_nodup`, `denoteN_default_of_pinNames`,
+`internPinSets_run` — and, behind `annotStep_split` once it is proved,
+`checkDivModPin_bridge`.  Pricing:
+
+| item | size | depends on |
+|---|---|---|
+| `checkPending_prefix` | one round | `IFEnvOK_restrictTo` (its `hproj` from `IFEnvOK.proj` under uniqueness), `checkValueGroup_bridge` at the prefix, `PExt.enterScratch`/`dropScratch` |
+| `checkDecl_nodup` | one round | `checkDecl`'s arms' duplicate guards (con-leche proves it for the cached fold only, `installRun_trace`'s `PushChain`) |
+| `denoteN_default_of_pinNames` | one round | `Arena/Store.lean`'s `anons` table |
+| `internPinSets_run` | one round | sixteen `internExpr_istep` per variant and a list recursion |
+| `annotStep_split` | **more than one** | the four arms are in hand (`installConstantVal_bridge`, `installValue_bridge`, `Arena.checkDecl_bridge`); the bracket needs `promoteVG_spec` / `promoteNew_spec` (Promote tier, stated, open) and `IFEnvOK` at the pushed index (`IFEnvOK_of_denote`, which `Arena.checkDeclStep_bridge`'s note ties to `denoteProjTable` pinning `tableName`).  A shared bracket lemma would serve it and `checkDeclStep_bridge` both; the round did not state one because its interface depends on those Promote-tier statements |
+
+`Bridge/Checker/Axioms.lean` now prints **280 results**; the ones with
+`sorryAx` are the seven of §8 plus the six skeleton results that reach their
+named children (`Arena.annotFold_bridge`, `Arena.checkPendingList_bridge`,
+`Arena.annotStep_bridge`, `Arena.checkPending_bridge`,
+`internReservedPins_run`, `internAllPins_run`).  The tier's `sorry`
+declarations: **8** — `DeclVal.lean` 1 (`checkDivModPin_bridge`),
+`Pins.lean` 2 (`internPinSets_run`, `denoteN_default_of_pinNames`),
+`Split.lean` 3 (`annotStep_split`, `checkPending_prefix`, `checkDecl_nodup`),
+`Inv.lean` 1, `Fold.lean` 1.
+
+`scripts/frontier.sh ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration` on the merge forward onto `arena`'s
+`eb05ac35`: **14 items**, of which this lane's are exactly the five above
+(`checkDivModPin_bridge` is behind `annotStep_split`'s `sorry`, so not yet in
+the closure).  `scripts/gates.sh`: **all 16 OK** (`extract-check` 100 s; the
+Lean steps were already up to date from the edit loop); `Arena/Checker` T1
+**stated 77/242, closed 74**.
+
+
 ### Task #97-P5-2 — Theorem 2: `intern` at every expression array, and the fuel-induction idiom (2026-09-22, Opus under Fable)
 
 The third phase of DESIGN §8.6's **P5**: task #97-P5-1 left `Specs.lean` at 32
@@ -53667,3 +53939,134 @@ Tag: owning lane; **P** = precondition (cheap, the tier may repair),
     Rust stages as the binary does, and T1's `_pipeline` needs nothing about
     the start state (it is `AState.init EStore.empty`, which is exactly what
     `InitRel` relates the Rust start to).
+
+### Task #97-FRONTIER — the `sorry` frontier of the capstone (2026-09-23, Opus under Fable)
+
+The campaign closes `sorry`s **top-down from one root** now (task
+#97-COMPOSE's `ConRon.Capstone.{model_exists,no_False_declaration}`), and
+neither standing ledger can say what that root is waiting on: `sorry` tokens
+per file and task #97-CENSUS's per-twin table both count statements nothing on
+the path needs.  This task is the tool that reads the answer off the
+elaborated environment instead of the source text.
+
+#### 1. What it computes
+
+`proof/ConRon/Tools/Frontier.lean` (new library `ConRonTools`, a default
+target; imports `Lean` only, so every library can use it):
+
+* **closure** — the one `#print axioms` walks: every constant mentioned by a
+  type or value, transitively, inductives through their constructors;
+* **frontier** — the closure declarations whose OWN type/value mentions
+  `sorryAx`, grouped by **owner** (the nearest name with a source range, so a
+  `decreasing_by sorry` in `f._unary`/`f.proof_3` is reported as `f`), with
+  file and line;
+* **fan-in** of an item — how many owner-level closure declarations reach
+  `sorryAx` ONLY through it (closing it alone clears them) — and **reach**,
+  how many reach it at all (itself included).  The report is sorted by
+  fan-in, then reach;
+* **non-standard axioms** — anything but `propext`/`Classical.choice`/
+  `Quot.sound`/`sorryAx`, each with its direct users; printed with `!!!`
+  (and a frontier item outside `ConRon.*`/`ConLeche.*` likewise);
+* **dead weight** — direct-`sorry` declarations of the scope modules
+  (`ConRon.Bridge`/`ConRon.Refine2`, every module of the tier imported, not
+  just the root's closure) that are NOT on the frontier;
+* per frontier item, **its module's size and the dead weight of its module
+  and lane** (lane = the module's parent, `Refine2/Checker`).  This is the
+  coordinator's addition, and it is what makes a small frontier readable: a
+  frontier item that is a whole top-level statement proved by `sorry` hides
+  the entire subtree its eventual proof will use — those lemmas exist, carry
+  `sorry`s, and are not in the closure yet.  A large `dead_in_lane` next to a
+  frontier item says "unskeletonised top", a small one "nearly done".
+
+**Pruning** is what makes it cheap.  The traversal opens a constant only when
+its axiom set — Lean's own `collectAxioms`, which for an imported constant is
+a lookup in the table Lean writes into each `.olean` — contains `sorryAx` or
+a non-standard axiom.  Mathlib, Aeneas and every clean lemma are dismissed by
+one lookup.  On the capstone it opens **37 constants** and takes **17 ms**.
+
+Fan-in/reach are one bitset per opened constant (one bit per frontier owner)
+in a post-order over the tainted graph, then OR-ed per owner; an
+inductive↔constructor cycle edge contributes nothing.
+
+#### 2. How to run it
+
+* `#sorry_frontier T₁ … Tₙ` in any file (no dead weight: that needs the whole
+  tier imported);
+* `scripts/frontier.sh [--summary] [--scope P,…] [--top N] [--tag T] <root>…`
+  — locates each root's module by grep (or `Module:Name`), writes a scratch
+  file importing it plus every module of the scope, builds what it imports,
+  and runs the analysis.  Output under `_tmp/frontier-<checkout key>/`:
+  `<tag>.frontier.tsv` (`fan_in reach module_lines dead_in_module
+  dead_in_lane owner file line members`), `<tag>.dead.tsv`,
+  `<tag>.summary.txt`;
+* **the series over time**: every run appends one row (date, commit, branch,
+  clean/dirty, items, tainted, dead, non-standard axioms, top item) to the
+  SHARED `_tmp/frontier-history.tsv`, so gate runs on every branch add to one
+  series; `scripts/frontier.sh --history` prints it.  The skeletonisation
+  now under way should make `items` GROW before it shrinks, and `dead` fall
+  as statements are pulled into the closure;
+* `scripts/gates.sh` prints the capstone's `--summary` line after the arena
+  census (a report, `|| true`).
+* `ConRon/Tools/FrontierTest.lean` is the calibration fixture: a closure
+  whose frontier, fan-ins and reaches are known by hand, under `#guard_msgs`.
+
+#### 3. The numbers at `ebb06567` (arena `00ab9e63` + this task)
+
+| root | frontier | modules | tainted | dead weight (scope) | top item (fan-in / reach) |
+|---|---:|---:|---:|---:|---|
+| **`ConRon.Capstone.{model_exists,no_False_declaration}`** | **12** | 9 | 37 | 977 (Bridge+Refine2) | `Bridge.Frontend.processLineCoreD_run` (11 / 18) |
+| `ConRon.Bridge.Arena.model_exists` (T1) | 1 | 1 | 4 | 141 (Bridge) | `Bridge.Arena.checkDeclStep_bridge` (3 / 4) |
+| `ConRon.Bridge.Frontend.Arena.no_False_declaration` (T1) | 3 | 3 | 15 | 139 | `processLineCoreD_run` (10 / 12) |
+| `ConRon.Refine2.install_then_check_refines` (T2) | 2 | 2 | 9 | 845 (Refine2) | `annot_step_refines`, `check_value_group_refines` (3 / 5 each) |
+| `ConRon.Refine2.check_decls_pure_refines` (T2) | 1 | 1 | 4 | 846 | `check_decl_step_refines` (3 / 4) |
+
+The capstone's 12 agree with the count #97-COMPOSE made by hand.  **No
+non-standard axioms** anywhere: every closure is `propext`, `sorryAx`,
+`Classical.choice`, `Quot.sound`.  The capstone frontier with its context:
+
+| fan-in | reach | module lines | dead in module | dead in lane | item |
+|---:|---:|---:|---:|---:|---|
+| 11 | 18 | 1803 | 2 | 9 | `Bridge/Frontend/Lines.lean:1685` `processLineCoreD_run` |
+| 3 | 8 | 1779 | 35 | 274 | `Refine2/Checker/Top.lean:1244` `annot_step_refines` |
+| 3 | 8 | 932 | 60 | 274 | `Refine2/Checker/Base.lean:904` `check_value_group_refines` |
+| 1 | 8 | 1336 | 1 | 9 | `Bridge/Frontend/Prepare.lean:1222` `hoistNatOpGround_run` |
+| 0 | 7 | 121 | 1 | 15 | `Bridge/Checker/Pins.lean:86` `internAllPins_run` |
+| 0 | 7 | 121 | 1 | 15 | `Bridge/Checker/Pins.lean:50` `internReservedPins_run` |
+| 0 | 5 | 842 | 2 | 15 | `Bridge/Checker/Split.lean:808` `installThenCheck_bridge` |
+| 0 | 4 | 1779 | 35 | 274 | `Refine2/Checker/Top.lean:1728` `intern_all_pins_refines` |
+| 0 | 4 | 1092 | 5 | 274 | `Refine2/Checker/Pins.lean:69` `intern_reserved_pins_refines` |
+| 0 | 4 | 286 | 13 | 201 | `Refine2/Frontend/Top.lean:262` `builtin_prelude_e_refines` |
+| 0 | 4 | 286 | 13 | 201 | `Refine2/Frontend/Top.lean:233` `parse_chunks_refines` |
+| 0 | 4 | 188 | 11 | 201 | `Refine2/Frontend/Prepare.lean:177` `prepare_prelude_refines` |
+
+**Read it as the coordinator warned**: 12 is not "nearly done".  The T2
+items sit in lanes with 201–274 off-frontier `sorry` declarations each
+(`Refine2/Checker`, `Refine2/Frontend`).  The tool cannot tell which of the
+977 dead-weight declarations are the future subtree of a sorried top and which
+are statements nothing will ever need — that needs the tops skeletonised, and
+the series in `_tmp/frontier-history.tsv` is where the split will show (dead
+weight pulled into the closure moves from `dead` to `tainted`/`items`).  Per module the dead weight leads with
+`Refine2/Checker/DeclCheck` 92, `Refine2/Inductives/Modeled` 84,
+`Refine2/Checker/Base` 60, `Refine2/Checker/Axioms` 59,
+`Refine2/Frontend/ExportC` 57, `Refine2/Frontend/ProjRec` 56; Bridge's
+largest are `Bridge/Inductives/Modeled` 24 and `NativeParts` 18.
+
+#### 4. Cost
+
+Capstone, the root module plus all 141 `Bridge/**`+`Refine2/**` modules imported together (it
+works: no auxiliary clash across the two tiers): `perf stat` over the Lean
+run, three runs, **110.59 G instructions:u** (spread < 0.001 %),
+35.3–36.0 G cycles:u, 8.6–8.9 s wall.  Of the analysis's 6.7–7.0 s, the
+frontier is **17 ms**; the rest is the dead-weight scan (a direct
+`Expr.find?` for `sorryAx` over every constant of those modules);
+the rest of the wall time is the import.  One fix on the way:
+`EnvironmentHeader.moduleNames` is COMPUTED (an `Array.map` over every
+module) on each call, and looking up a constant's module through it cost
+16 s over a Mathlib-sized environment; the tool now computes it once.  A
+`collectAxioms` pre-filter for the dead-weight scan was measured and is
+SLOWER (16 s vs 5 s over `Refine2/**`'s 6 888 constants): outside the
+closure there is no shared cache to exploit.
+
+The per-root runs: T1 roots 2.5 s wall each, T2 roots 7.5 s (Mathlib in the
+import).  The gate's report line costs one capstone run, ~12 s including the
+`lake build` no-op.
