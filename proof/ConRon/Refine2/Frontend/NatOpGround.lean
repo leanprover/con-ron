@@ -42,6 +42,7 @@ the code after a loop into every exit of it.
 ## `sorry` count in this file: 27
 -/
 import ConRon.Refine2.Frontend.Prepare
+import ConRon.Refine2.Checker.Base
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -217,14 +218,6 @@ theorem decl_used_consts_value_refines {pers rst lst seen ls ty v o}
 
 /-! ## The trigger set -/
 
-/-- **`nat_op_ground::is_nat_op_record` refines `isNatOpRecord`**
-(`Arena/Frontend/NatOpGround.lean:111-117`). -/
-theorem is_nat_op_record_refines {pers rst lst d o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.nat_op_ground.is_nat_op_record rst d = ok o) :
-    Sim (Option.map absNIdx) (fun _ => True) pers lst o
-      (isNatOpRecord (absIDeclaration d)) := by sorry
-
 /-- **`nidx_contains`** — `Vec<NIdx>` membership, the twin's `List.contains`. -/
 theorem nidx_contains_refines {ns n v}
     (h : frontend.nat_op_ground.nidx_contains ns n = ok v) :
@@ -265,6 +258,81 @@ theorem nidx_contains_refines {ns n v}
         simp [hbf]
   have := key 0#usize () v h
   simpa [absNIdxL] using this
+
+/-- **`nat_op_ground::is_nat_op_record` refines `isNatOpRecord`**
+(`Arena/Frontend/NatOpGround.lean:111-117`). -/
+theorem is_nat_op_record_refines {pers rst lst d o}
+    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (h : frontend.nat_op_ground.is_nat_op_record rst d = ok o) :
+    Sim (Option.map absNIdx) (fun _ => True) pers lst o
+      (isNatOpRecord (absIDeclaration d)) := by
+  rw [frontend.nat_op_ground.is_nat_op_record.eq_def] at h
+  have hnone : ∀ x : AM (Option NIdx), x = pure none →
+      Sim (Option.map absNIdx) (fun _ => True) pers lst (.Ok none, rst) x := by
+    intro x hx; subst hx
+    exact ⟨lst, rfl, hrel, hinv, Ext.refl _, trivial⟩
+  cases d with
+  | DefnDecl cv v hint =>
+    dsimp only at h
+    obtain ⟨⟨r, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hD := nat_div_mod_names_refines hrel hinv h1
+    simp only [Sim] at hD ⊢
+    simp only [absIDeclaration, isNatOpRecord, am_run_bind']
+    cases r with
+    | Err e =>
+      cases Result.ok_injective h
+      exact AErrSim.bind hD _
+    | Ok dsn =>
+      obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hD
+      rw [hx1]; simp only [except_ok_bind]
+      obtain ⟨⟨r1, st2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hN := nat_op_names_refines hrel1 hinv1 h2
+      simp only [Sim] at hN
+      cases r1 with
+      | Err e =>
+        cases Result.ok_injective h
+        exact AErrSim.bind hN _
+      | Ok nsn =>
+        obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := hN
+        rw [hx2]; simp only [except_ok_bind]
+        obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hbv := nidx_contains_refines hb
+        split at h
+        · rename_i hbt
+          obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          cases Result.ok_injective h
+          have hnv : n = cv.name := dupId_nidx _ _ hn
+          subst hnv
+          rw [hbt] at hbv
+          refine ⟨lst2, ?_, hrel2, hinv2, Ext.trans hext1 hext2, trivial⟩
+          simp only [absIConstantVal, ← hbv, Bool.true_or, if_true]; rfl
+        · rename_i hbf
+          obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hb1v := nidx_contains_refines hb1
+          have hbv' : (absNIdxL dsn).contains (absNIdx cv.name) = false := by
+            rw [← hbv]; simpa using hbf
+          split at h
+          · rename_i hb1t
+            obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+            cases Result.ok_injective h
+            have hnv : n = cv.name := dupId_nidx _ _ hn
+            subst hnv
+            rw [hb1t] at hb1v
+            refine ⟨lst2, ?_, hrel2, hinv2, Ext.trans hext1 hext2, trivial⟩
+            simp only [absIConstantVal, hbv', ← hb1v, Bool.false_or, if_true]; rfl
+          · rename_i hb1f
+            cases Result.ok_injective h
+            have hb1v' : (absNIdxL nsn).contains (absNIdx cv.name) = false := by
+              rw [← hb1v]; simpa using hb1f
+            refine ⟨lst2, ?_, hrel2, hinv2, Ext.trans hext1 hext2, trivial⟩
+            simp only [absIConstantVal, hbv', hb1v', Bool.false_or, Bool.false_eq_true,
+              if_false]; rfl
+  | AxiomDecl _ => cases Result.ok_injective h; exact hnone _ rfl
+  | ThmDecl _ _ => cases Result.ok_injective h; exact hnone _ rfl
+  | OpaqueDecl _ _ => cases Result.ok_injective h; exact hnone _ rfl
+  | BasisDecl _ => cases Result.ok_injective h; exact hnone _ rfl
+  | IndDecl _ _ => cases Result.ok_injective h; exact hnone _ rfl
+  | QuotDecl _ _ => cases Result.ok_injective h; exact hnone _ rfl
 
 /-! ## The name index -/
 
