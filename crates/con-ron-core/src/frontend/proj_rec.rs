@@ -118,7 +118,7 @@ use crate::arena::store::PersTier;
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:482-517 projRecOwners` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:485-520 projRecOwners` —
 /// one type former of the parsed block as the census reads it:
 /// `(name, levelParams, type, numParams, numIndices, ctors, isRec)`, the
 /// export record's own data over handles.  The twin's tuple, spelled as a
@@ -127,12 +127,12 @@ use crate::arena::store::PersTier;
 pub type ProjTypeRec = (NIdx, Vec<NIdx>, EIdx, u64, u64, Vec<NIdx>, bool);
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:482-517 projRecOwners` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:485-520 projRecOwners` —
 /// one constructor: `(name, numFields, type)`.
 pub type ProjCtorRec = (NIdx, u64, EIdx);
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:482-517 projRecOwners` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:485-520 projRecOwners` —
 /// one recursor: `(name, levelParams, type, numMotives, numMinors)`.
 pub type ProjRecRec = (NIdx, Vec<NIdx>, EIdx, u64, u64);
 
@@ -497,7 +497,7 @@ pub const M_FUEL_STRIP_PIS_ALL: [u32; 27] = [
 ];
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:233-237 lamBody
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:197-205 lamBody` — the
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:197-208 lamBody` — the
 /// body under every leading `λ` (the projection shape's pre-filter: the node
 /// under the value's binders).
 pub fn lam_body(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<EIdx, CheckError> {
@@ -516,7 +516,7 @@ pub fn lam_body(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<EId
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:239-245 stripPisAll
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:207-216 stripPisAll` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:210-219 stripPisAll` —
 /// strip every leading `∀`: the binder list (outermost first) and the body.
 pub fn strip_pis_all(
     pers: &PersTier,
@@ -542,7 +542,7 @@ pub fn strip_pis_all(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:247-249 mkLams
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:218-225 mkLams` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:221-228 mkLams` —
 /// rebuild a `λ`-telescope over a binder list (outermost first).  Structural
 /// on the list, so no fuel; every binder is interned.  The `i = 0` wrapper of
 /// the cursor recursion below.
@@ -556,7 +556,7 @@ pub fn mk_lams(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:247-249 mkLams
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:218-225 mkLams` — the
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:221-228 mkLams` — the
 /// cursor recursion behind `mk_lams`: the twin conses on the way OUT, so the
 /// cursor recurses to the end of the list and interns outward from there.
 pub fn mk_lams_from(
@@ -577,7 +577,7 @@ pub fn mk_lams_from(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:251-257 instPisOpen
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:227-239 instPisOpen` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:230-242 instPisOpen` —
 /// instantiate the leading `∀`-binders at *open* arguments (the body-frame
 /// variables and the built motives/minors), one binder per argument, returning
 /// the residual telescope.  Structural on the argument list; `fuel` is the one
@@ -594,7 +594,7 @@ pub fn inst_pis_open(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:251-257 instPisOpen
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:227-239 instPisOpen` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:230-242 instPisOpen` —
 /// the cursor recursion behind `inst_pis_open`.
 pub fn inst_pis_open_from(
     pers: &PersTier,
@@ -629,7 +629,7 @@ pub fn inst_pis_open_from(
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — which of `projRecValue`'s two `mk` lambdas `buildBinders` runs
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:243-250
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:246-253
 /// ProjBinderKind` — con-leche passes the lambda itself; DESIGN.md §3.4
 /// forbids a closure in translated code (and this one takes the state
 /// besides), so the twin passes the tag the Rust would need anyway, and here
@@ -640,7 +640,7 @@ pub enum ProjBinderKind {
 }
 
 /// con-leche: none — what `projRecValue`'s two `mk` lambdas capture
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:252-262 ProjBuild` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:255-265 ProjBuild` —
 /// the owner's type former and constructor, the projection's own codomain `R`,
 /// the field index, and the two `PUnit` constants at the elimination level,
 /// interned once at the entry rather than rebuilt per binder.
@@ -654,7 +654,7 @@ pub struct ProjBuild {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:271-277 headIs
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:264-270 headIs` — is
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:267-273 headIs` — is
 /// `T` the head of the owner's own carrier: the motive domain
 /// `∀ (t : T p⃗), Sort ℓ` (exactly one binder) or the major-premise domain.
 pub fn head_is(
@@ -678,7 +678,7 @@ pub fn head_is(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:272-289 mkProjMotive`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:275-292 mkProjMotive`
 /// — the motive body (`mkMotive` inside `projRecValue`): the owner's motive is
 /// `fun (t : T p⃗) => R` — `R`'s parameter references skip the new binder, its
 /// subject reference IS the new binder — and every other one is the constant
@@ -704,7 +704,7 @@ pub fn mk_proj_motive(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:272-289 mkProjMotive`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:275-292 mkProjMotive`
 /// — the cited `match bs with | [(d, m)] => … | bs => …`, past the sort test.
 pub fn mk_proj_motive_at(
     pers: &PersTier,
@@ -737,7 +737,7 @@ pub fn mk_proj_motive_at(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:291-307 mkProjMinor` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:294-310 mkProjMinor` —
 /// the minor body (`mkMinor` inside `projRecValue`): the owner constructor's
 /// minor returns field `i` of its telescope (the fields come first, then the
 /// inductive hypotheses recursion adds); every other one returns
@@ -766,7 +766,7 @@ pub fn mk_proj_minor(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:291-307 mkProjMinor` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:294-310 mkProjMinor` —
 /// the cited `if ← headIs fuel pb.ctor major then … else …`, at the spine's
 /// last argument.
 pub fn mk_proj_minor_at(
@@ -800,7 +800,7 @@ pub fn mk_proj_minor_at(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:259-269 buildBinders
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:309-330 buildBinders`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:312-333 buildBinders`
 /// — peel `k` binders of a telescope, building one term per binder from its
 /// (progressively instantiated) domain, and instantiating the telescope with
 /// that term before the next binder is read.  `kind` is con-leche's `mk`
@@ -831,7 +831,7 @@ pub fn build_binders(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:259-269 buildBinders
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:309-330 buildBinders`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:312-333 buildBinders`
 /// — the `.forallE` arm's `do` block, at the binder's domain and body.  Its
 /// own function because the `view`'s loans may not still be alive where the
 /// recursion interns (extraction rule 5 / AENEAS_FINDINGS §2.1 F3: an arm ends
@@ -869,7 +869,7 @@ pub fn build_binders_at(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:392-400
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:395-403
 /// projRecValue.internParamLevels` — `o.lps.map Level.param`, interned: a `List.map` with a
 /// closure is §3.4's explicit recursion here.  The `i = 0` wrapper.
 pub fn intern_param_levels(
@@ -881,7 +881,7 @@ pub fn intern_param_levels(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:392-400
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:395-403
 /// projRecValue.internParamLevels` — the cursor recursion behind `intern_param_levels`.
 pub fn intern_param_levels_from(
     pers: &PersTier,
@@ -932,7 +932,7 @@ pub fn append_eidx(out: Vec<EIdx>, xs: &Vec<EIdx>) -> Vec<EIdx> {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:334-400 projRecValue`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:337-403 projRecValue`
 /// — **THE REWRITE.**  `ty`/`val` are the definition's declared type and
 /// value, `i` the projected field, `l` the field's sort (from the artifact).
 /// `None` = the value is not of the projection shape (the caller keeps the
@@ -981,7 +981,7 @@ pub fn proj_rec_value(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:334-400 projRecValue`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:337-403 projRecValue`
 /// — the cited `match ← stripPis (o.nP + 1) ty with`, past the shape test.
 pub fn proj_rec_value_ty(
     pers: &PersTier,
@@ -1001,7 +1001,7 @@ pub fn proj_rec_value_ty(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:334-400 projRecValue`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:337-403 projRecValue`
 /// — the recursor's type at the chosen elimination level, its parameters
 /// instantiated at the body frame (`nP + 1` binders: parameter `k` is
 /// `bvar (nP - k)`, the subject `bvar 0`), and the two `PUnit` constants the
@@ -1040,7 +1040,7 @@ pub fn proj_rec_value_at(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:334-400 projRecValue`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:337-403 projRecValue`
 /// — the `ProjBuild` record and the two `buildBinders` runs.
 pub fn proj_rec_value_binders(
     pers: &PersTier,
@@ -1109,7 +1109,7 @@ pub fn one_lidx(l: &LIdx) -> Vec<LIdx> {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:334-400 projRecValue`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:337-403 projRecValue`
 /// — the cited final `match ← view rty3 with | .forallE majDom _ _ => …`: the
 /// owner has no indices, so the next binder is the subject itself, and the
 /// value is `T.rec.{ℓ, u⃗} p⃗ motives minors (bvar 0)` under the definition's
@@ -1141,7 +1141,7 @@ pub fn proj_rec_value_major(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:334-400 projRecValue`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:337-403 projRecValue`
 /// — the spine itself, past the major-premise test: `mkAppN` of the recursor
 /// constant over `params ++ motives ++ minors ++ [bvar 0]`, under `mkLams`.
 pub fn proj_rec_value_app(
@@ -1181,7 +1181,7 @@ pub fn proj_rec_value_app(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:404-411 occursAnyOf` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:407-414 occursAnyOf` —
 /// does any of `ns` occur in `d`?  con-leche's inner `blockNames.any`, as an
 /// explicit recursion (§3.4).  The `i = 0` wrapper.
 pub fn occurs_any_of(
@@ -1195,7 +1195,7 @@ pub fn occurs_any_of(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:404-411 occursAnyOf` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:407-414 occursAnyOf` —
 /// the cursor recursion behind `occurs_any_of`.
 pub fn occurs_any_of_from(
     pers: &PersTier,
@@ -1217,7 +1217,7 @@ pub fn occurs_any_of_from(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:413-420 domsMentionAny`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:416-423 domsMentionAny`
 /// — does any of `ns` occur in any binder domain of the list?  con-leche's
 /// middle `(stripPisAll cty).1.any`, as an explicit recursion.  The `i = 0`
 /// wrapper.
@@ -1232,7 +1232,7 @@ pub fn doms_mention_any(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:413-420 domsMentionAny`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:416-423 domsMentionAny`
 /// — the cursor recursion behind `doms_mention_any`.
 pub fn doms_mention_any_from(
     pers: &PersTier,
@@ -1254,7 +1254,7 @@ pub fn doms_mention_any_from(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:422-431
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:425-434
 /// ctorsMentionBlock` — a block name in a constructor's binder *domains* (its
 /// result names the owner by definition): con-leche's outer `ctors.any`, as an
 /// explicit recursion.  The `i = 0` wrapper.
@@ -1269,7 +1269,7 @@ pub fn ctors_mention_block(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:422-431
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:425-434
 /// ctorsMentionBlock` — the cursor recursion behind `ctors_mention_block`.
 pub fn ctors_mention_block_from(
     pers: &PersTier,
@@ -1294,7 +1294,7 @@ pub fn ctors_mention_block_from(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:433-437 findCtorRec` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:436-440 findCtorRec` —
 /// `ctors.find? (·.1 == C)`, as an explicit recursion.  Returns the INDEX (the
 /// module note's fourth shape: the record stays in place).
 pub fn find_ctor_rec(ctors: &Vec<ProjCtorRec>, c: &NIdx) -> Option<usize> {
@@ -1302,7 +1302,7 @@ pub fn find_ctor_rec(ctors: &Vec<ProjCtorRec>, c: &NIdx) -> Option<usize> {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:433-437 findCtorRec` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:436-440 findCtorRec` —
 /// the cursor recursion behind `find_ctor_rec`.
 pub fn find_ctor_rec_from(ctors: &Vec<ProjCtorRec>, c: &NIdx, i: usize) -> Option<usize> {
     if i >= ctors.len() {
@@ -1315,7 +1315,7 @@ pub fn find_ctor_rec_from(ctors: &Vec<ProjCtorRec>, c: &NIdx, i: usize) -> Optio
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:439-445 findRecRec` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:442-448 findRecRec` —
 /// `recs.find? (·.1 == T.str "rec")`, as an explicit recursion.  Returns the
 /// INDEX.
 pub fn find_rec_rec(recs: &Vec<ProjRecRec>, n: &NIdx) -> Option<usize> {
@@ -1323,7 +1323,7 @@ pub fn find_rec_rec(recs: &Vec<ProjRecRec>, n: &NIdx) -> Option<usize> {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:439-445 findRecRec` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:442-448 findRecRec` —
 /// the cursor recursion behind `find_rec_rec`.
 pub fn find_rec_rec_from(recs: &Vec<ProjRecRec>, n: &NIdx, i: usize) -> Option<usize> {
     if i >= recs.len() {
@@ -1336,7 +1336,7 @@ pub fn find_rec_rec_from(recs: &Vec<ProjRecRec>, n: &NIdx, i: usize) -> Option<u
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:447-480
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:450-483
 /// projRecCandidates` — the `filterMap` of `projRecOwners`: the officially
 /// structure-like members (one constructor, zero indices, non-propositional)
 /// whose recursor carries an elimination level parameter.  An explicit
@@ -1359,7 +1359,7 @@ pub fn proj_rec_candidates(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:447-480
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:450-483
 /// projRecCandidates` — the cursor recursion behind `proj_rec_candidates`.
 /// The twin computes the TAIL first and conses; so does this, so that the
 /// order of the interning the candidate test does is the twin's order.
@@ -1396,7 +1396,7 @@ pub fn proj_rec_candidates_from(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:447-480
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:450-483
 /// projRecCandidates` — the `filterMap`'s body at ONE type record: one
 /// constructor, no indices, a syntactic sort under the parameters, not `Prop`.
 pub fn proj_rec_candidate_at(
@@ -1433,7 +1433,7 @@ pub fn proj_rec_candidate_at(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:447-480
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:450-483
 /// projRecCandidates` — past the sort test: the constructor's record, the
 /// recursor `T.rec`, and the elimination level parameter its level list must
 /// carry.
@@ -1474,7 +1474,7 @@ pub fn proj_rec_candidate_rec(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:482-517
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:485-520
 /// projRecOwners` — the cited `types.map (·.1)`: the block's type formers.
 pub fn type_names(types: &Vec<ProjTypeRec>) -> Vec<NIdx> {
     let n = types.len();
@@ -1488,7 +1488,7 @@ pub fn type_names(types: &Vec<ProjTypeRec>) -> Vec<NIdx> {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:482-517 projRecOwners` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:485-520 projRecOwners` —
 /// the cited `types.any (·.2.2.2.2.2.2)`: the export's own `isRec` flag on any
 /// member.
 pub fn any_is_rec(types: &Vec<ProjTypeRec>) -> bool {
@@ -1504,7 +1504,7 @@ pub fn any_is_rec(types: &Vec<ProjTypeRec>) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:482-517 projRecOwners` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:485-520 projRecOwners` —
 /// the cited `(types.head?.map (·.2.2.2.1)).getD 0`: the block's DECLARED
 /// parameter count, which is the first type record's and is what the parse
 /// carries into `indDecl`.
@@ -1517,7 +1517,7 @@ pub fn declared_num_params(types: &Vec<ProjTypeRec>) -> u64 {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:482-517
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:485-520
 /// projRecOwners` — **which block members the rewrite serves**: the officially
 /// structure-like ones of a block the direct install does not recognise —
 /// `struct_parts_core` rejects it (mutual, multi-constructor, indexed, shape
@@ -1552,7 +1552,7 @@ pub fn proj_rec_owners(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
-/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:482-517 projRecOwners`
+/// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:485-520 projRecOwners`
 /// — the two recogniser guards, run only when there is a candidate to serve.
 pub fn proj_rec_owners_guard(
     pers: &PersTier,

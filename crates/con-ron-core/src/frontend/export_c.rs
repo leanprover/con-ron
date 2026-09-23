@@ -1145,7 +1145,7 @@ pub fn ind_pi_tele_len(pers: &PersTier, ar: &EStore, fuel: u64, h: &EIdx) -> Res
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1136-1140 piResult
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2076-2088 piResult` — the body of
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2088-2100 piResult` — the body of
 /// a syntactic `∀`-telescope.  `validate_ind_d`'s `is_K_target` is its one
 /// caller in the frontend; the `ExprOps` twin proper is `arena/expr_ops.rs`,
 /// which task #97 P4b writes, and this call site moves to it then.  Three
