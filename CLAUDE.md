@@ -170,6 +170,12 @@ section for every task you land.
     branches under one gate run and back one out if the batch goes red.
   * `scripts/land.sh` stays for the queue agent's own use and for when no
     queue is running.
+* **`Refine2/Tactic/Lockstep.lean` is shared core.**  Lanes extend the
+  `lockstep` tactic through its extension points — `@[lockstep]`/
+  `@[lockstep_inline]` lemmas and the side-goal tier's `macro_rules` — and do
+  not edit existing alternatives.  If a change to the core is unavoidable,
+  make it a separate small commit and name it in the report, so the queue can
+  land it ahead of dependent work.
 * **Landing a branch (merge discipline).**  The *agent* merges master into
   its branch and runs the gates there; the landing is then a fast-forward
   merge of that branch into master.  If master moved in between so the
