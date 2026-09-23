@@ -407,7 +407,9 @@ theorem replacePisPw_spec (pw : PropWhen) (k : Nat) : ∀ (h b : EIdx)
     intro h b hP bP s₀ s' r hok hpre hrun
     obtain ⟨hh, hb⟩ := hpre
     simp only [Arena.replacePisPw] at hrun
-    obtain ⟨v, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨v0, hv0⟩ := denoteE_view hh
+    obtain ⟨v, s₁, h1, h2⟩ := bindOk (tagIf_view_run hv0
+      (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) hrun)
     obtain ⟨hs1, hw⟩ := view_run h1
     rw [hs1] at h2
     have hde : denoteEView s₀.store v = some hP := by
@@ -465,7 +467,9 @@ theorem pisToLamsPw_spec (pw : PropWhen) (k : Nat) : ∀ (h b : EIdx)
     intro h b hP bP s₀ s' r hok hpre hrun
     obtain ⟨hh, hb⟩ := hpre
     simp only [Arena.pisToLamsPw] at hrun
-    obtain ⟨v, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨v0, hv0⟩ := denoteE_view hh
+    obtain ⟨v, s₁, h1, h2⟩ := bindOk (tagIf_view_run hv0
+      (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) hrun)
     obtain ⟨hs1, hw⟩ := view_run h1
     rw [hs1] at h2
     have hde : denoteEView s₀.store v = some hP := by
@@ -808,25 +812,27 @@ theorem structShape_spec (T C : NIdx) (TP CP : ConLeche.Name) (lps : List NIdx)
   obtain ⟨tq, sa, ka, hz1⟩ := bindOk hz
   obtain ⟨hsa, htq⟩ := stripPis_pstep hok htty ka
   rw [hsa] at hz1
+  rcases tq with _ | ⟨tbs, tbody⟩
+  · obtain ⟨rfl, rfl⟩ := pureOk hz1
+    exact ⟨PStep.refl hok, (structShape_false_t (stripPis_none htq)).symm⟩
+  obtain ⟨txs, tbodyP, hspt, htbs, htbody⟩ := denoteBP_someB htq
   obtain ⟨cq, sb, kb, hz2⟩ := bindOk hz1
   obtain ⟨hsb, hcq⟩ := stripPis_pstep hok hcty kb
   rw [hsb] at hz2
+  rcases cq with _ | ⟨cbs, cbody⟩
+  · obtain ⟨rfl, rfl⟩ := pureOk hz2
+    exact ⟨PStep.refl hok, (structShape_false_c hspt (stripPis_none hcq)).symm⟩
+  obtain ⟨cxs, cbodyP, hspc, hcbs, hcbody⟩ := denoteBP_someB hcq
   obtain ⟨rq, sc, kc, hz3⟩ := bindOk hz2
   obtain ⟨hsc, hrq⟩ := stripPis_pstep hok hrty kc
   rw [hsc] at hz3
-  rcases tq with _ | ⟨tbs, tbody⟩
-  · obtain ⟨rfl, rfl⟩ := pureOk hz3
-    exact ⟨PStep.refl hok, (structShape_false_t (stripPis_none htq)).symm⟩
-  obtain ⟨txs, tbodyP, hspt, htbs, htbody⟩ := denoteBP_someB htq
-  rcases cq with _ | ⟨cbs, cbody⟩
-  · obtain ⟨rfl, rfl⟩ := pureOk hz3
-    exact ⟨PStep.refl hok, (structShape_false_c hspt (stripPis_none hcq)).symm⟩
-  obtain ⟨cxs, cbodyP, hspc, hcbs, hcbody⟩ := denoteBP_someB hcq
   rcases rq with _ | ⟨rbs, rbody⟩
   · obtain ⟨rfl, rfl⟩ := pureOk hz3
     exact ⟨PStep.refl hok, (structShape_false_r hspt hspc (stripPis_none hrq)).symm⟩
   obtain ⟨rxs, rbodyP, hspr, hrbs, hrbody⟩ := denoteBP_someB hrq
-  obtain ⟨tv, sd, kd, hz4⟩ := bindOk hz3
+  obtain ⟨tv0, htv0⟩ := denoteE_view htbody
+  obtain ⟨tv, sd, kd, hz4⟩ := bindOk (tagIf_view_run htv0
+    (fun hne => by cases tv0 <;> first | rfl | exact absurd rfl hne) hz3)
   obtain ⟨hsd, htv⟩ := view_run kd
   rw [hsd] at hz4
   have htbv : denoteEView s₀.store tv = some tbodyP := by
@@ -879,17 +885,21 @@ theorem structShape_spec (T C : NIdx) (TP CP : ConLeche.Name) (lps : List NIdx)
         obtain ⟨mdom, mbm⟩ := mp
         obtain ⟨mdomP, hmx, hmdom⟩ := hgetA mdom mbm hm
         rw [hm] at hz8
-        obtain ⟨mv, s5, k5, hz9⟩ := bindOk hz8
+        have hmdom4 : denoteE s4.store mdom = some mdomP := denote_ext hmdom q4.ext
+        obtain ⟨mv0, hmv0⟩ := denoteE_view hmdom4
+        obtain ⟨mv, s5, k5, hz9⟩ := bindOk (tagIf_view_run hmv0
+          (fun hne => by cases mv0 <;> first | rfl | exact absurd rfl hne) hz8)
         obtain ⟨hs5, hmv⟩ := view_run k5
         rw [hs5] at hz9
-        have hmdom4 : denoteE s4.store mdom = some mdomP := denote_ext hmdom q4.ext
         have hmdv : denoteEView s4.store mv = some mdomP := by
           rw [← denoteE_view_eq q4.ok.wf hmv]; exact hmdom4
         cases mv
         case forallE mty mcod mm =>
           obtain ⟨mtyP, mcodP, hmdEq, hmty, hmcod⟩ :=
             denote_forallE_inv q4.ok.wf hmv hmdom4
-          obtain ⟨mv2, s6, k6, hz10⟩ := bindOk hz9
+          obtain ⟨mv20, hmv20⟩ := denoteE_view hmcod
+          obtain ⟨mv2, s6, k6, hz10⟩ := bindOk (tagIf_view_run hmv20
+            (fun hne => by cases mv20 <;> first | rfl | exact absurd rfl hne) hz9)
           obtain ⟨hs6, hmv2⟩ := view_run k6
           rw [hs6] at hz10
           have hmcv : denoteEView s4.store mv2 = some mcodP := by
@@ -1263,7 +1273,9 @@ theorem structPartsCore?_run (block : List IConstantInfo)
     rw [stripPis_none htq]
   obtain ⟨txs, tbodyP, hspt, -, htbody⟩ := denoteBP_someB htq
   rw [hspt]
-  obtain ⟨tv, s7, k7, hz7⟩ := bindOk hz6
+  obtain ⟨tv0, htv0⟩ := denoteE_view htbody
+  obtain ⟨tv, s7, k7, hz7⟩ := bindOk (tagIf_view_run htv0
+    (fun hne => by cases tv0 <;> first | rfl | exact absurd rfl hne) hz6)
   obtain ⟨hs7, htv⟩ := view_run k7
   rw [hs7] at hz7
   have htbv : denoteEView s4.store tv = some tbodyP := by
@@ -1290,19 +1302,40 @@ theorem structPartsCore?_run (block : List IConstantInfo)
       beq_nhandleList_eq q9.ok.wf (denoteNListE_ext q9.ext _ _ hRlps)
         (denoteNListE_ext q9.ext _ _ hlps)
     rw [g7] at hz9
-    cases hlp : cvR.levelParams with
-    | nil =>
-      have hlpP : cvRP.levelParams = [] := by
-        rw [hlp] at hRlps; simp [Frontend.denoteNList] at hRlps; exact hRlps
-      rw [hlp] at hz9
-      obtain ⟨y, s10, k10, hz10⟩ := bindOk hz9
-      obtain ⟨rfl, rfl⟩ := pureOk k10
-      obtain ⟨anon, sA, kA, hzA⟩ := bindOk hz10
-      obtain ⟨pA, hanon⟩ := internNNode_run q9.ok
+    -- the small eliminator's arm (twin: `anon`, then the level-parameter test,
+    -- and `structShape` only under it), from any state the large arm left
+    have small : ∀ sX : AState, PStep s₀ sX → PStep s9 sX →
+        (do
+          let anon ← internNNode .anonymous
+          if (cvRP.levelParams == cvTP.levelParams) = true then do
+            let b ← structShape cvT.name cvC.name cvT.levelParams anon false nP nF cvT.type
+              cvC.type cvR.type
+            if b = true then
+              pure (some ⟨cvT, cvC, nP, nF, cvR, anon, u, rule.rhs, false, v == some true⟩)
+            else pure none
+          else pure none : AM (Option Arena.StructParts)) sX = .ok (r, s') →
+        PStep s₀ s' ∧ ROp (fun q st p => ∀ (μ : CheckMode) (env : Env) (fe : IFEnv),
+            CheckOK μ env fe s₀ → SPartsRel st p q)
+          (if (cvRP.levelParams == cvTP.levelParams &&
+              ConLeche.structShape cvTP.name cvCP.name cvTP.levelParams .anonymous false nP nF
+                cvTP.type cvCP.type cvRP.type) = true then
+            some ⟨cvTP, cvCP, nP, nF, cvRP, .anonymous, l, ruleP.rhs, false,
+              Level.isEquiv l .zero == some true⟩
+          else none) s'.store r := by
+      intro sX qX pX hzX
+      obtain ⟨anon, sA, kA, hzA⟩ := bindOk hzX
+      obtain ⟨pA, hanon⟩ := internNNode_run qX.ok
         (by intro c hc; simp [NNodeView.children] at hc) kA
       have hanon' : denoteN sA.store.ns anon = some ConLeche.Name.anonymous := by
         rw [hanon]; rfl
-      have xA : Ext s₀.store sA.store := q9.ext.trans pA.ext
+      have xA : Ext s₀.store sA.store := qX.ext.trans pA.ext
+      split at hzA
+      case isFalse hc0 =>
+        obtain ⟨rfl, rfl⟩ := pureOk hzA
+        refine ⟨qX.trans pA, ?_⟩
+        show _ = none
+        rw [if_neg (by simp only [Bool.and_eq_true, not_and]; exact fun h => absurd h hc0)]
+      case isTrue hc0 =>
       obtain ⟨bA, sB, kB, hzB⟩ := bindOk hzA
       obtain ⟨pB, hbA⟩ := structShape_spec cvT.name cvC.name cvTP.name cvCP.name
         cvT.levelParams cvTP.levelParams anon .anonymous false nP nF cvT.type cvC.type
@@ -1311,28 +1344,36 @@ theorem structPartsCore?_run (block : List IConstantInfo)
           denote_ext hTty xA, denote_ext hCty xA, denote_ext hRty xA⟩ kB
       have hbA' : bA = ConLeche.structShape cvTP.name cvCP.name cvTP.levelParams
           .anonymous false nP nF cvTP.type cvCP.type cvRP.type := hbA
-      have qB : PStep s₀ sB := (q9.trans pA).trans pB
+      have qB : PStep s₀ sB := (qX.trans pA).trans pB
       have xB : Ext s₀.store sB.store := qB.ext
       rw [hbA'] at hzB
       split at hzB
       case isTrue hc3 =>
         obtain ⟨rfl, rfl⟩ := pureOk hzB
         refine ⟨qB, ?_⟩
-        simp only [hlpP]
-        rw [hlpP] at hc3; rw [if_pos hc3]
+        rw [if_pos (by simp only [Bool.and_eq_true]; exact ⟨hc0, hc3⟩)]
         refine ⟨_, rfl, fun μ env fe hc => ?_⟩
         exact { cvT := denoteCV_ext hcvT xB, cvC := denoteCV_ext hcvC xB, nP := rfl,
                 nF := rfl, cvR := denoteCV_ext hcvR xB,
                 elim := denoteN_ext hanon' pB.ext,
-                resSort := denoteL_ext hl (p9.ext.trans (pA.ext.trans pB.ext)),
+                resSort := denoteL_ext hl (p9.ext.trans (pX.ext.trans (pA.ext.trans pB.ext))),
                 rhs := denote_ext hrhs xB, large := rfl,
                 isProp := by rw [hprop μ env fe hc] }
       case isFalse hc3 =>
         obtain ⟨rfl, rfl⟩ := pureOk hzB
         refine ⟨qB, ?_⟩
         show _ = none
-        simp only [hlpP]
-        rw [hlpP] at hc3; rw [if_neg hc3]
+        rw [if_neg (by simp only [Bool.and_eq_true, not_and]; exact fun _ h => absurd h hc3)]
+    cases hlp : cvR.levelParams with
+    | nil =>
+      have hlpP : cvRP.levelParams = [] := by
+        rw [hlp] at hRlps; simp [Frontend.denoteNList] at hRlps; exact hRlps
+      rw [hlp] at hz9
+      obtain ⟨y, s10, k10, hz10⟩ := bindOk hz9
+      obtain ⟨rfl, rfl⟩ := pureOk k10
+      simp only [hlpP]
+      have := small _ q9 (PStep.refl q9.ok) hz10
+      simpa only [hlpP] using this
     | cons elim relps =>
       rw [hlp] at hRlps
       simp only [Frontend.denoteNList] at hRlps
@@ -1345,6 +1386,22 @@ theorem structPartsCore?_run (block : List IConstantInfo)
       rw [helim, hrel] at hRlps
       have hlpP : cvRP.levelParams = elimP :: relpsP := (Option.some.inj hRlps).symm
       rw [hlp] at hz9
+      have g8 : (relps == cvT.levelParams) = (relpsP == cvTP.levelParams) :=
+        beq_nhandleList_eq q9.ok.wf (denoteNListE_ext q9.ext _ _ hrel)
+          (denoteNListE_ext q9.ext _ _ hlps)
+      have g9 : cvT.levelParams.contains elim = cvTP.levelParams.contains elimP :=
+        denoteNList_contains q9.ok.wf _ _ (denoteNListE_ext q9.ext _ _ hlps) _ _
+          (denoteN_ext helim q9.ext)
+      simp only [] at hz9
+      rw [g8, g9] at hz9
+      simp only [hlpP]
+      split at hz9
+      case isFalse hc1 =>
+        simp only [pure_bind] at hz9
+        rw [if_neg (by simp only [Bool.and_eq_true] at hc1 ⊢; exact fun h => hc1 h.1)]
+        have := small _ q9 (PStep.refl q9.ok) hz9
+        simpa only [hlpP] using this
+      case isTrue hc1 =>
       obtain ⟨b, s10, k10, hz10⟩ := bindOk hz9
       obtain ⟨p10, hbv⟩ := structShape_spec cvT.name cvC.name cvTP.name cvCP.name
         cvT.levelParams cvTP.levelParams elim elimP true nP nF cvT.type cvC.type
@@ -1355,21 +1412,13 @@ theorem structPartsCore?_run (block : List IConstantInfo)
       have hbv' : b = ConLeche.structShape cvTP.name cvCP.name cvTP.levelParams
           elimP true nP nF cvTP.type cvCP.type cvRP.type := hbv
       have q10 : PStep s₀ s10 := q9.trans p10
-      have g8 : (relps == cvT.levelParams) = (relpsP == cvTP.levelParams) :=
-        beq_nhandleList_eq q10.ok.wf (denoteNListE_ext q10.ext _ _ hrel)
-          (denoteNListE_ext q10.ext _ _ hlps)
-      have g9 : cvT.levelParams.contains elim = cvTP.levelParams.contains elimP :=
-        denoteNList_contains q10.ok.wf _ _ (denoteNListE_ext q10.ext _ _ hlps) _ _
-          (denoteN_ext helim q10.ext)
-      rw [hbv', g8, g9] at hz10
+      rw [hbv'] at hz10
       split at hz10
       case isTrue hc2 =>
-        obtain ⟨y, s11, k11, hz11⟩ := bindOk hz10
-        obtain ⟨rfl, rfl⟩ := pureOk k11
-        obtain ⟨rfl, rfl⟩ := pureOk hz11
+        simp only [pure_bind] at hz10
+        obtain ⟨rfl, rfl⟩ := pureOk hz10
         refine ⟨q10, ?_⟩
-        simp only [hlpP]
-        rw [if_pos hc2]
+        rw [if_pos (by simp only [Bool.and_eq_true] at hc1 ⊢; exact ⟨hc1, hc2⟩)]
         refine ⟨_, rfl, fun μ env fe hc => ?_⟩
         exact { cvT := denoteCV_ext hcvT q10.ext, cvC := denoteCV_ext hcvC q10.ext,
                 nP := rfl, nF := rfl, cvR := denoteCV_ext hcvR q10.ext,
@@ -1378,44 +1427,10 @@ theorem structPartsCore?_run (block : List IConstantInfo)
                 rhs := denote_ext hrhs q10.ext, large := rfl,
                 isProp := by rw [hprop μ env fe hc] }
       case isFalse hc2 =>
-        obtain ⟨y, s11, k11, hz11⟩ := bindOk hz10
-        obtain ⟨rfl, rfl⟩ := pureOk k11
-        simp only [hlpP]
-        rw [if_neg hc2]
-        obtain ⟨anon, sA, kA, hzA⟩ := bindOk hz11
-        obtain ⟨pA, hanon⟩ := internNNode_run q10.ok
-          (by intro c hc; simp [NNodeView.children] at hc) kA
-        have hanon' : denoteN sA.store.ns anon = some ConLeche.Name.anonymous := by
-          rw [hanon]; rfl
-        have xA : Ext s₀.store sA.store := q10.ext.trans pA.ext
-        obtain ⟨bA, sB, kB, hzB⟩ := bindOk hzA
-        obtain ⟨pB, hbA⟩ := structShape_spec cvT.name cvC.name cvTP.name cvCP.name
-          cvT.levelParams cvTP.levelParams anon .anonymous false nP nF cvT.type cvC.type
-          cvR.type cvTP.type cvCP.type cvRP.type sA sB bA pA.ok
-          ⟨denoteN_ext hT xA, denoteN_ext hC xA, denoteNListE_ext xA _ _ hlps, hanon',
-            denote_ext hTty xA, denote_ext hCty xA, denote_ext hRty xA⟩ kB
-        have hbA' : bA = ConLeche.structShape cvTP.name cvCP.name cvTP.levelParams
-            .anonymous false nP nF cvTP.type cvCP.type cvRP.type := hbA
-        have qB : PStep s₀ sB := (q10.trans pA).trans pB
-        have xB : Ext s₀.store sB.store := qB.ext
-        rw [hbA'] at hzB
-        split at hzB
-        case isTrue hc3 =>
-          obtain ⟨rfl, rfl⟩ := pureOk hzB
-          refine ⟨qB, ?_⟩
-          rw [hlpP] at hc3; rw [if_pos hc3]
-          refine ⟨_, rfl, fun μ env fe hc => ?_⟩
-          exact { cvT := denoteCV_ext hcvT xB, cvC := denoteCV_ext hcvC xB, nP := rfl,
-                  nF := rfl, cvR := denoteCV_ext hcvR xB,
-                  elim := denoteN_ext hanon' pB.ext,
-                  resSort := denoteL_ext hl (p9.ext.trans (p10.ext.trans (pA.ext.trans pB.ext))),
-                  rhs := denote_ext hrhs xB, large := rfl,
-                  isProp := by rw [hprop μ env fe hc] }
-        case isFalse hc3 =>
-          obtain ⟨rfl, rfl⟩ := pureOk hzB
-          refine ⟨qB, ?_⟩
-          show _ = none
-          rw [hlpP] at hc3; rw [if_neg hc3]
+        simp only [pure_bind] at hz10
+        rw [if_neg (by simp only [Bool.and_eq_true]; exact fun h => hc2 h.2)]
+        have := small _ q10 p10 hz10
+        simpa only [hlpP] using this
   all_goals
     (obtain ⟨rfl, rfl⟩ := pureOk hz7
      refine ⟨q4, ?_⟩
@@ -2146,7 +2161,9 @@ theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
     intro s₀ s' r hok hpre hrun
     obtain ⟨hT, hh⟩ := hpre
     simp only [Arena.structProjBodiesGo] at hrun
-    obtain ⟨v, s1, k1, hz1⟩ := bindOk hrun
+    obtain ⟨v0, hv0⟩ := denoteE_view hh
+    obtain ⟨v, s1, k1, hz1⟩ := bindOk (tagIf_view_run hv0
+      (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) hrun)
     obtain ⟨hs1, hv⟩ := view_run k1
     rw [hs1] at hz1
     have hhv : denoteEView s₀.store v = some hP := by
