@@ -228,6 +228,19 @@ theorem size_error_refines {o} (h : frontend.export_c.size_error = ok o) :
   subst h
   refine ⟨by rw [← hce]; rfl, rfl⟩
 
+/-- `usize as u64`: a widening, so the value is kept. -/
+theorem cast_u64_usize {i : Std.Usize} {r : Std.U64}
+    (h : lift (UScalar.cast .U64 i) = ok r) : r.val = i.val := by
+  simp only [lift, Result.ok.injEq] at h
+  subst h
+  rw [UScalar.cast_val_eq]
+  apply Nat.mod_eq_of_lt
+  have := i.hBounds
+  simp only [UScalarTy.numBits] at this ⊢
+  cases System.Platform.numBits_eq with
+  | inl h => rw [h] at this; omega
+  | inr h => rw [h] at this; omega
+
 /-- `USIZE_SIZE` is `USize.size`: `1 << usize::BITS` in `u128`. -/
 theorem usize_size_val {x : Std.U128} (h : frontend.export_c.USIZE_SIZE = ok x) :
     x.val = USize.size := by
@@ -722,6 +735,62 @@ theorem parse_export_d_refines {G : Type} {inst : frontend.types.Modeller G}
       SimStreamRel ParseResultDRel pers lst o
         (parseExportD lmd s in_model census) := by sorry
 
+/-! ### Byte vectors (task #97-P5-Front) -/
+
+theorem clone_u8 : ∀ x : Std.U8, core.clone.CloneU8.clone x = ok x := fun _ => rfl
+
+theorem to_vec_u8_val {s : Slice Std.U8} {v : alloc.vec.Vec Std.U8}
+    (h : alloc.slice.Slice.to_vec core.clone.CloneU8 s = ok v) : v.val = s.val := by
+  obtain ⟨v', hv', hs⟩ := WP.spec_imp_exists
+    (alloc.slice.Slice.to_vec_spec core.clone.CloneU8 s (fun x _ => clone_u8 x))
+  rw [hv'] at h
+  cases Result.ok_injective h
+  rw [hs]; rfl
+
+theorem extend_u8_val {v w : alloc.vec.Vec Std.U8} {s : Slice Std.U8}
+    (h : alloc.vec.Vec.extend_from_slice core.clone.CloneU8 v s = ok w) :
+    w.val = v.val ++ s.val := by
+  obtain ⟨s', hs', hss⟩ := WP.spec_imp_exists
+    (Slice.clone_spec (clone := core.clone.CloneU8.clone) (s := s) (fun x _ => clone_u8 x))
+  unfold alloc.vec.Vec.extend_from_slice at h
+  split at h
+  · split at h
+    · rename_i s'' hm
+      simp only [Result.ok.injEq] at h
+      subst h
+      have : Slice.clone core.clone.CloneU8.clone s = ok s'' := by simpa using hm
+      rw [hs'] at this
+      cases Result.ok_injective this
+      simp [hss]
+    · simp at h
+    · simp at h
+  · simp at h
+
+theorem range_from_val {v : alloc.vec.Vec Std.U8} {t : Std.Usize} {s : Slice Std.U8}
+    (h : alloc.vec.Vec.index (core.slice.index.SliceIndexRangeFromUsizeSlice Std.U8) v
+      { start := t } = ok s) :
+    s.val = v.val.drop t.val ∧ t.val ≤ v.val.length := by
+  simp only [alloc.vec.Vec.index,
+    core.slice.index.SliceIndexRangeFromUsizeSlice.index] at h
+  split at h
+  · rename_i hle
+    cases Result.ok_injective h
+    exact ⟨by simp; rfl, hle⟩
+  · simp at h
+
+/-- A `Vec<u8>` read through `[..]` is its own bytes. -/
+theorem vec_index_full {v : alloc.vec.Vec Std.U8} {s : Slice Std.U8}
+    (h : alloc.vec.Vec.index (core.slice.index.SliceIndexRangeFullSlice Std.U8) v () = ok s) :
+    absBytes s = absChunk v := by
+  simp only [alloc.vec.Vec.index,
+    core.slice.index.SliceIndexRangeFullSlice.index, Result.ok.injEq] at h
+  subst h
+  rfl
+
+@[simp] theorem absChunk_size (c : alloc.vec.Vec Std.U8) :
+    (absChunk c).size = c.val.length := by
+  simp [absChunk, ByteArray.size]
+
 /-- **`chunk_step` refines `chunkStep`** (`ExportC.lean:803-811`) — one chunk
 of the stream, applied: the carried incomplete tail in front of the new bytes,
 every complete line fed, the new incomplete tail cut off for the next chunk. -/
@@ -738,7 +807,90 @@ theorem chunk_step_refines {G : Type} {inst : frontend.types.Modeller G}
         match ← chunkStep lmd lsd (absChunk carry) (absU line_no) (absU total)
             (absBytes buf0) with
         | .error e => pure (.error e)
-        | .ok (st, c, n, t) => pure (.ok (st, (c, n, t)))) := by sorry
+        | .ok (st, c, n, t) => pure (.ok (st, (c, n, t)))) := by
+  refine SimStreamD.of_wrap_id ?_ (fun _ => rfl) (fun _ => rfl)
+  rw [frontend.export_c.chunk_step] at h
+  obtain ⟨i0, hi0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨i4, hi4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have e0 : i0.val = total.val := cast_u128_val (by decide) hi0
+  have e2 : i2.val = buf0.val.length := by
+    rw [cast_u128_val usize_numBits_le hi2]; simp
+  have e3 : i3.val = i0.val + i2.val := ConRon.Refine.Nat.uadd_val hi3
+  have e4 := usize_size_val hi4
+  simp only [SimStreamD, chunkStep]
+  split at h
+  · rename_i hge
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have ho := Result.ok_injective h; subst ho
+    have hge' : absU total + (absBytes buf0).size ≥ USize.size := by
+      rw [absBytes_size]; simp only [absU]; scalar_tac
+    rw [if_pos hge']
+    have hk := size_error_refines hp
+    intro k hk'
+    rw [hk.1] at hk'
+    exact Or.inl ⟨sizeError.1, lst, by rw [hk.2]; rfl, hk'⟩
+  · rename_i hlt
+    have hlt' : ¬ absU total + (absBytes buf0).size ≥ USize.size := by
+      rw [absBytes_size]; simp only [absU]; scalar_tac
+    rw [if_neg hlt']
+    obtain ⟨buf, hbuf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨⟨r, ar1, st1⟩, hf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbufv : absChunk buf =
+        (if (absChunk carry).isEmpty then absBytes buf0 else absChunk carry ++ absBytes buf0) := by
+      split at hbuf
+      · rename_i h0
+        have hv := to_vec_u8_val hbuf
+        have hc : carry.val.length = 0 := by scalar_tac
+        have : (absChunk carry).isEmpty = true := by
+          simp only [ByteArray.isEmpty, absChunk_size]; simp [hc]
+        rw [if_pos this]
+        simp only [absChunk, absBytes, hv]
+      · rename_i h0
+        have hv := extend_u8_val hbuf
+        have hc : carry.val.length ≠ 0 := by scalar_tac
+        have : (absChunk carry).isEmpty = false := by
+          simp only [ByteArray.isEmpty, absChunk_size]; simp [hc]
+        rw [if_neg (by simp [this])]
+        apply ByteArray.ext
+        simp [absChunk, absBytes, hv, ByteArray.data_append]
+    rw [← hbufv]
+    have hF := feed_chunk_loop_refines hsc hmr 0#usize rst lst rsd lsd line_no _ hrel hinv hd hi hf
+    rw [vec_index_full hs] at hF
+    have h00 : absPos 0#usize = 0 := rfl
+    rw [h00] at hF
+    simp only [SimStreamD] at hF
+    simp only [am_run_bind', StateT.run_pure, except_pure_bind]
+    cases r with
+    | Ok p =>
+      obtain ⟨line_no2, tail⟩ := p
+      obtain ⟨lsd', lst', hx, hd', hi', hrel', hinv', hext'⟩ := hF
+      rw [hx]
+      obtain ⟨s1, hs1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i7, hi7, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i8, hi8, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have ho := Result.ok_injective h; subst ho
+      obtain ⟨hs1v, htl⟩ := range_from_val hs1
+      have hvv := to_vec_u8_val hv
+      have e7 : i7.val = buf0.val.length := by rw [cast_u64_usize hi7]; simp
+      have e8 : i8.val = total.val + i7.val := ConRon.Refine.Nat.uadd_val hi8
+      have hE : (absChunk buf).extract (absPos tail).toNat (absChunk buf).size =
+          absChunk v := by
+        apply ByteArray.ext
+        simp [absChunk, hvv, hs1v, ByteArray.data_extract, List.map_drop]
+        simp [ByteArray.size]; omega
+      have hN : absU total + (absBytes buf0).size = absU i8 := by
+        simp only [absU, e8, e7, absBytes_size]
+      refine ⟨lsd', lst', ?_, hd', hi', hrel', hinv', hext'⟩
+      simp only [except_ok_bind]
+      rw [hE, hN]
+      rfl
+    | Err e =>
+      have ho := Result.ok_injective h; subst ho
+      exact StreamErrSim.bind hF _ (fun _ _ => rfl)
 
 /-- **`chunk_finish` refines `chunkFinish`** (`ExportC.lean:815-820`) — the end
 of the stream: the carried tail, if any, is its last line. -/
@@ -806,15 +958,6 @@ theorem chunk_finish_refines {G : Type} {inst : frontend.types.Modeller G}
       exact StreamErrSim.bind hA' _ (fun _ _ => rfl)
 
 /-! ## The tier's first top statement -/
-
-/-- A `Vec<u8>` read through `[..]` is its own bytes. -/
-theorem vec_index_full {v : alloc.vec.Vec Std.U8} {s : Slice Std.U8}
-    (h : alloc.vec.Vec.index (core.slice.index.SliceIndexRangeFullSlice Std.U8) v () = ok s) :
-    absBytes s = absChunk v := by
-  simp only [alloc.vec.Vec.index,
-    core.slice.index.SliceIndexRangeFullSlice.index, Result.ok.injEq] at h
-  subst h
-  rfl
 
 /-- **`parse_chunks`'s loop refines `parseChunksGo`** (task #97-P5-Front) —
 from chunk `i`, the twin's fold over the chunks not yet read.  The loop the
@@ -994,19 +1137,6 @@ theorem builtin_prelude_e_refines {G : Type} {inst : frontend.types.Modeller G}
   | Err e =>
     have ho := Result.ok_injective h; subst ho
     exact StreamErrSim.bind hP _ (fun _ _ => rfl)
-
-/-- `usize as u64`: a widening, so the value is kept. -/
-theorem cast_u64_usize {i : Std.Usize} {r : Std.U64}
-    (h : lift (UScalar.cast .U64 i) = ok r) : r.val = i.val := by
-  simp only [lift, Result.ok.injEq] at h
-  subst h
-  rw [UScalar.cast_val_eq]
-  apply Nat.mod_eq_of_lt
-  have := i.hBounds
-  simp only [UScalarTy.numBits] at this ⊢
-  cases System.Platform.numBits_eq with
-  | inl h => rw [h] at this; omega
-  | inr h => rw [h] at this; omega
 
 /-! ## The preparation (moved here from `Prepare.lean`, task #97-P5-Front)
 
