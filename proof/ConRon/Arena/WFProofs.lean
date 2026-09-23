@@ -6055,7 +6055,8 @@ theorem EStore.internBM_push_pers {st : EStore} {m : ConLeche.BinderMeta}
 store stays well formed, nothing a node read can see moves, and the handle it
 answers decodes to the datum it was asked for. -/
 theorem EStore.internBM_spec {st : EStore} {rk : EIdx → Nat}
-    {m : ConLeche.BinderMeta} (h : EWFAt st rk) (hcap : st.capOKBM) :
+    {m : ConLeche.BinderMeta} (h : EWFAt st rk)
+    (hcap : st.findBM m = none → st.capOKBM) :
     StoreWF (st.internBM m).1 ∧
       (st.internBM m).1.lss = st.lss ∧
       (st.internBM m).1.scratchOn = st.scratchOn ∧
@@ -6064,7 +6065,6 @@ theorem EStore.internBM_spec {st : EStore} {rk : EIdx → Nat}
       (∀ v : ENodeView, (st.internBM m).1.scr.sizeOf v = st.scr.sizeOf v) ∧
       (st.internBM m).1.viewBM (st.internBM m).2 = some m ∧
       (st.internBM m).2.tag = 0 := by
-  simp only [EStore.capOKBM] at hcap
   cases hp : st.persFindBM m with
   | some i =>
     rw [EStore.internBM_hit_pers hp]
@@ -6079,9 +6079,10 @@ theorem EStore.internBM_spec {st : EStore} {rk : EIdx → Nat}
         exact ⟨⟨rk, h⟩, rfl, hon, fun _ => rfl, fun _ => rfl, fun _ => rfl,
           ((h.bmConsS m i).mp hs).1, ((h.bmConsS m i).mp hs).2.2⟩
       | none =>
-        rw [hon] at hcap
-        simp only [if_true] at hcap
-        have hcap' : st.scr.bms.size < Idx.idxCap := hcap
+        have hcap0 : st.capOKBM :=
+          hcap (by simp only [EStore.findBM, hp, hon, if_true, hs])
+        simp only [EStore.capOKBM, hon, if_true] at hcap0
+        have hcap' : st.scr.bms.size < Idx.idxCap := hcap0
         rw [EStore.internBM_push_scr hp hon hs]
         obtain ⟨hwf, hview, hbm, htg⟩ := EStore.wf_pushBM_scr
           (st' := { st with scr := (st.scr.pushBM m (hash m.pw) Idx.tierS).1 })
@@ -6091,9 +6092,10 @@ theorem EStore.internBM_spec {st : EStore} {rk : EIdx → Nat}
         exact ⟨⟨rk, hwf⟩, rfl, hon, hview, fun _ => rfl,
           fun v => ETables.sizeOf_pushBM _ _ _ _ v, hbm, htg⟩
     | false =>
-      rw [hon] at hcap
-      simp only [Bool.false_eq_true, if_false] at hcap
-      have hcap' : st.pers.bms.size < Idx.idxCap := hcap
+      have hcap0 : st.capOKBM :=
+        hcap (by simp only [EStore.findBM, hp, hon, Bool.false_eq_true, if_false])
+      simp only [EStore.capOKBM, hon, Bool.false_eq_true, if_false] at hcap0
+      have hcap' : st.pers.bms.size < Idx.idxCap := hcap0
       rw [EStore.internBM_push_pers hp hon]
       obtain ⟨hwf, hview, hbm, htg⟩ := EStore.wf_pushBM_pers
         (st' := { st with pers := (st.pers.pushBM m (hash m.pw) Idx.tierP).1 })
@@ -6107,7 +6109,7 @@ theorem EStore.internBM_spec {st : EStore} {rk : EIdx → Nat}
 interning: the datum handle the node's cons key will carry is exactly what
 `findBMOfView` answers on the store the append then runs on. -/
 theorem EStore.internBMOfView_spec {st : EStore} {rk : EIdx → Nat} {w : ENodeView}
-    (h : EWFAt st rk) (hcap : EStore.eViewNeedsBM w = true → st.capOKBM) :
+    (h : EWFAt st rk) (hcap : st.findBMOfView w = none → st.capOKBM) :
     StoreWF (st.internBMOfView w).1 ∧
       (st.internBMOfView w).1.lss = st.lss ∧
       (st.internBMOfView w).1.scratchOn = st.scratchOn ∧
@@ -6120,7 +6122,7 @@ theorem EStore.internBMOfView_spec {st : EStore} {rk : EIdx → Nat} {w : ENodeV
   have hzero : (Idx.ofWord 0 : BMIdx).tag = 0 := by decide
   cases w
   case lam ty b m =>
-    obtain ⟨hwf, h2, h3, h4, h5, h6, h7, h8⟩ := EStore.internBM_spec (m := m) h (hcap rfl)
+    obtain ⟨hwf, h2, h3, h4, h5, h6, h7, h8⟩ := EStore.internBM_spec (m := m) h hcap
     obtain ⟨rk1, hwf1⟩ := hwf
     have hbmok : ENodeView.BMOK (st.internBM m).1.viewBM (.lam ty b m)
         (st.internBM m).2 := by
@@ -6131,7 +6133,7 @@ theorem EStore.internBMOfView_spec {st : EStore} {rk : EIdx → Nat} {w : ENodeV
       by rw [EStore.findBMOfView_eq_findBM _ (rfl : (ENodeView.lam ty b m).bmOf = some m)]
          exact hwf1.findBM_of_viewBM h8 h7⟩
   case forallE ty b m =>
-    obtain ⟨hwf, h2, h3, h4, h5, h6, h7, h8⟩ := EStore.internBM_spec (m := m) h (hcap rfl)
+    obtain ⟨hwf, h2, h3, h4, h5, h6, h7, h8⟩ := EStore.internBM_spec (m := m) h hcap
     obtain ⟨rk1, hwf1⟩ := hwf
     have hbmok : ENodeView.BMOK (st.internBM m).1.viewBM (.forallE ty b m)
         (st.internBM m).2 := by

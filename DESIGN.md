@@ -50551,6 +50551,189 @@ the numbers task #97-P5-3 round 3 left them at.
 
 
 
+#### Round 2 — the note at `Monad.lean:198` was not unreachable, and it is closed (2026-09-23, Opus under Fable)
+
+Round 1 fixed the two `_i` faces.  This round fixes the one the note itself
+named.  `internE` tested the **datum** array's capacity at EVERY binder view;
+the port's `intern_bm` tests `full` only inside its own miss arm, so a node
+MISS whose DATUM is a cons hit needs no room in `bms` at all.  The note closed
+with *"the corner is unreachable, and it is recorded rather than closed"*;
+task #97-P5-Mut's §2 showed that what the over-strictness actually costs is
+not an input, it is a STATEMENT — the resulting `hbmcap : lst.store.capOKBM`
+is about the store the walk is at, k steps in, so it can be neither a
+hypothesis of a public `Sim` nor a conclusion of anything, and it **gates 38
+of `Refine2/ExprOps/Mut.lean`'s 41 open statements**.
+
+Branch `p5-twin-2` off `arena` `c87b3ee6`; merged `arena` three times (`4b28bf9d`,
+`8c92c196`, `d53a95be`), with a full gate run after each.
+
+##### 1. The port is right, and the twin was wrong
+
+`EStore::intern_lam` is `intern_bm` then `intern_lam_i`, and `intern_bm`'s
+`self.scr.bms.full()` / `self.pers.bms.full()` sit **inside the miss arm** of
+its own two-tier probe.  So the port declines for want of datum room exactly
+when its datum probe misses — and never otherwise.  The twin declined whenever
+the view was a binder.  A store whose `bms` is at `idxCap` and whose next
+binder names a datum already interned is a store where the port answers `Ok`
+and the old twin threw `Native`: a behavioural divergence of layer B from
+layer C, the same species as round 1's finding 15 and #97-P3-1's finding 9,
+and the third and last of that species in `internE`.
+
+##### 2. The edit — one `if`, one `def`, two frozen specs
+
+| file | change |
+|---|---|
+| `Arena/Monad.lean` | `internE`'s test is `n < Idx.idxCap && ((s.store.findBMOfView v).isSome \|\| nbm < Idx.idxCap)`.  **`eViewNeedsBM` disappears from it**: a NON-binder view answers `some (Idx.ofWord 0)` at `findBMOfView` by definition, so the one disjunct covers the eight arms that never touch the datum array and the two that touch it only on a datum miss |
+| `Arena/Store.lean` | `EStore.capOK`'s second conjunct becomes `st.findBMOfView v = none → st.capOKBM` (was `eViewNeedsBM v = true → st.capOKBM`) |
+| `Arena/WFProofs.lean` | `EStore.internBM_spec`'s `hcap` weakens to `st.findBM m = none → st.capOKBM` — which is `internBM`'s append condition **exactly**, `findBM` being `persFindBM` then the scratch probe — and `internBMOfView_spec`'s to `st.findBMOfView w = none → st.capOKBM`.  Two `have`s in the two append arms, and the `simp only [capOKBM] at hcap` prologue moves inside them.  `internAt_wf_view`, `intern_wf_view_of_sync`, `intern_spec` and `intern_isPersistent_of_off` are unchanged: they consume `capOK`'s conjunct as a black box |
+| `Bridge/{Specs, ExprOps/MemoSpecs}.lean` | `internE_spec` / the memoised twin rebuild `hcap'` from the new branch condition.  Three lines each, and `Bool.not_eq_true'` leaves the `simp only` list because there is no `!` in the test any more |
+
+**The twin and the port now agree on every input.**  Three cases: a node cons
+HIT tests nothing on either side; a node MISS at an interned datum tests the
+node array on both; a node MISS at a fresh datum tests both arrays on both.
+The order inside the last differs (the twin's `&&` reads the node array first,
+the port tests `bms` first) and the decline is the same `Native` either way.
+
+**What is still stricter, and why it is not the old note again.**  On a datum
+MISS the twin tests the NODE array unconditionally, where the port would skip
+that test if its node probe — made *after* the datum append, at the fresh
+handle — hit.  It cannot hit: `consP`/`consS` say every cons key's datum
+handle decodes in the datum table, and this one was just pushed past its end.
+So this residue is unreachable **for a reason the invariant states**, where
+the corner just closed was unreachable only for a reason about how many
+distinct `PropWhen`s a run builds.  That is the difference between a record
+and a defect, and `Monad.lean`'s note now says so.
+
+##### 3. The dividend, cashed in the same round: `hbmcap` is a CONCLUSION
+
+The point of the edit is that `findBM m = none → capOKBM` is **the port's own
+`Tbl::full`**, exactly as `ECapAt` is (finding 14).  So this round did not
+stop at weakening the hypothesis; it discharged it.
+
+* `Refine2/Specs.lean` gets `ECapBMOf st m := st.findBM m = none → st.capOKBM`
+  with `of_find_ne` / `of_scr_size` / `of_pers_size` and the two `findBM_eq_of_*`
+  probe lemmas — `ECapAt`'s constructor set at the datum array.  `ECapBMAt` is
+  re-guarded by the datum probe instead of the tag (`st.findBMOfView v = none →
+  st.capOKBM`), and `ECapBMAt st (.lam ty b m)` IS `ECapBMOf st m`, so the two
+  are one predicate seen from the view side and the datum side.
+* **`estore_intern_bm_abs` concludes `ECapBMOf ls (absBinderMeta m)`** in its
+  success arm — four arms: vacuous on the two probe hits (`findBM_eq_of_pers`
+  / `findBM_eq_of_scr`), `tbl_not_full_size` on the two appends.  Thirty lines.
+* `estore_intern_{lam, forall_e}_abs` carry it through (they are the
+  composition), and `intern_e_lam_run` / `intern_e_forall_e_run` read it off
+  `hok hh hr` instead of taking it — the `have hiv := intern_lam_eq …` moves
+  inside the `Ok` arm, which is the only place it was used.
+
+**`hbmcap` is deleted from seven statements**: `intern_e_lam_run`,
+`intern_e_forall_e_run`, `intern_e_run` (where it was a ∀-guarded conjunction
+over the two binder constructors) and `ExprOps/Mut.lean`'s
+`intern_rebuilt_refines`, `intern_rebuilt_lam_refines`,
+`intern_rebuilt_forall_e_refines`, `intern_rebuilt_bind_refines`.  Nothing was
+weakened to get there: the hypothesis is gone because the port proves it.
+
+##### 4. What is STILL not concludable at the two binder arms, and the route
+
+`hcap : ECapAt lst.store (.lam …)` is the other half of P5-Mut §2 and this
+round did **not** close it.  The obstruction is worth recording, because it is
+not the one the schedule assumed ("the same one-line addition").
+
+`ECapAt ls v` is guarded by `ls.find? v = none`; what the port proves is
+guarded by `ls1.findBindI ETag.lam ty b mi = none`, at the SHIFTED store
+`ls1 = (ls.internBM m).1` and the datum handle `mi = (ls.internBM m).2`.  The
+two guards agree when the datum probe HIT (`ls1 = ls`, `mi` is the handle
+`findBMOfView` answered, and `findBindI` at the binder arrays is `findAt` at
+the view).  When it MISSED they do not: `mi` is fresh, and *"no existing cons
+key names a datum handle past the end of the datum table"* is a `StoreWF`
+fact, while `estore_intern_*_abs` takes only `StoreRel` and `StoreInv`.  So
+the route is: an `EBindCapAt ls1 ETag.lam ty b mi` conclusion on
+`estore_intern_lam_i_abs` (mechanical, `EBindCapAt`'s three constructors
+already exist from round 1), plus `StoreWF ls` as a hypothesis of
+`estore_intern_lam_abs`, plus the Arena-side lemma *"`findBind` at a
+freshly-pushed `BMIdx` is `none`"*, which is `bmConsP` read backwards and
+belongs in `Arena/WFProofs.lean`.  Priced at ~80 lines, one of them across the
+Arena boundary; **it is the last thing between `Refine2/ExprOps/Mut.lean` and
+its fourteen direct binder-interning walks.**
+
+##### 5. `intern_*_flags`: 661 lines out of `Mut.lean`, 56 into `Specs.lean`
+
+Task #97-P5-Mut wrote the eight store-level flag lemmas and nine
+`arena::monad` wrappers from outside and booked the follow-up in its own
+module note: *"they are one line INSIDE `estore_intern_*_abs`, where the tier
+select and the six leaves are already split"*.  It is one line, and the shape
+is `estore_intern_bvar_abs`'s, which has carried it since #97-P5-3 round 3 §4:
+a **third top-level conjunct**, beside the `Ok` and the `Err` arm rather than
+inside either, so the claim stays UNCONDITIONAL and an error-path caller still
+has it.
+
+Each of `estore_intern_{fvar, sort, const, app, proj, let_e, lam_i,
+forall_e_i}_abs` has six terminal arms and they are uniform across all eight —
+which is itself the finding, and is what made the edit a script: `⟨rfl, rfl⟩`
+on the persistent-probe hit, `⟨rfl, hsc.symm⟩` on the three scratch arms (the
+generated record literal carries `scratch_on := true`), `⟨hsh.symm, (show
+rs.scratch_on = false by simpa using hsc).symm⟩` on the two persistent ones.
+The two `Native` arms had to start substituting their `rs'` equation
+(`obtain ⟨hr, -⟩` → `obtain ⟨hr, hsr⟩`), which is the file's own "name every
+`obtain` witness" rule biting in the direction it was written for.
+
+**800 lines deleted, 157 added.**  Eight of the nine monad wrappers had no
+caller at all; the ninth, `intern_e_app_flags`, is `intern_e_app_res`'s and is
+now `estore_intern_app_abs`'s third conjunct read off `hok`'s sibling.
+`intern_e_bind_i_flags` goes with them — re-deriving it from
+`estore_intern_{lam_i, forall_e_i}_abs` is two lines when a binder walk wants
+it.
+
+##### 6. One twin of the same species is deliberately left standing
+
+`Arena/Monad.lean`'s `internPersistentE` (the promotion's intern) still tests
+`!eViewNeedsBM v || pers.bmSize < Idx.idxCap`, and `EStore.capOKPersistent`
+still carries the tag-guarded conjunct, while the port's
+`intern_bm_persistent` tests `full` only on its own miss.  It is the same
+defect one tier over.  It is **not** fixed here because nothing is blocked on
+it — `Refine2/Specs.lean`'s promote family already states `hbmcap` in the
+guarded `eViewNeedsBM` shape and the promote walks are not the 38 — and
+because closing it wants a `findBMOfViewPersistent` probe that does not exist
+yet.  Recorded, with the reason, which is what the note this round closed
+failed to do.
+
+##### 7. The `sorry` count in each affected tier, before and after
+
+| tier | before | after |
+|---|---|---|
+| `ConRonArena` (the twin, layer B) | **0** | **0** |
+| `ConRonBridge` (Theorem 1) | **149** | **149** |
+| `ConRonBridge`, the `ExprOps` tier's modules | **0** | **0** |
+| `ConRonRefine2` (Theorem 2) | **669** | **669** |
+| `Refine2/ExprOps/Mut.lean` | **41** | **41** |
+| `Refine2/Specs.lean` | **0** | **0** |
+
+Counted as `grep -cE '^\s*sorry\s*$'` over each tier's sources at the same two
+commits — `arena` `d53a95be` (the third merge) and this branch's tip —
+because **`lake build`'s warning replay covers only what an invocation
+rebuilt** and is therefore not comparable across runs: a warm
+`lake build ConRonBridge` on this tree reported 162 in one run and 5 in
+another, both green.  The declaration-level numbers from the runs that
+elaborated each whole tier are `ConRonBridge` **149** and `ConRonRefine2`
+**849** (of which `ExprOps/Mut.lean` is 41 and `Bridge/ExprOps/**` is 0); the
+Refine2 figure is above task #97-P5-Mut's 823 because `arena` moved —
+`Refine2/Inductives/**` grew and `proof/lakefile.toml` gave `ConRonRefine2` a
+`globs` line, so orphaned modules are elaborated now.
+
+The statement that the repair is a repair is the diff's own:
+`git diff d53a95be HEAD -- '*.lean' | grep -c '^[+-].*sorry'` reads **0**.
+
+##### 8. The gates
+
+| gate | result |
+|---|---|
+| `scripts/gates.sh` (`LAKE_JOBS=4`) | **all 15 OK** — `cargo-build` 0 s, `cargo-test` 6 s, `lint-rust` 1 s, `provenance` `6 737 item(s) (4 099 Rust, 2 638 arena Lean), 4 201 citation(s), all current at pin 78ded4b6`, `provenance-self`, `twin-lines`, `overview-links`, `holes`, `gen-pins`, `gen-prelude`, `gen-prelude-lean`, **`extract-check` 89 s OK** (this round's Rust diff is `Lean twin:` DIGITS only, so it cannot move the generated model), `lake-build` 2 s, `lake-refine2` 1 s, **`lake-bridge` 388 s**.  Run three times, once at each merge; the first was **all 14 OK** — the fifteenth step arrived on `arena` between the first and the second |
+| `cd proof && lake build ConRonArena` | **green**, **106 jobs**, **0 `sorry`** — `ExprOpsTest` / `CheckerTest` elaborate, so their `#guard`s pass on the new capacity test |
+| `cd proof && lake build ConRonBridge` | **green**, **618 jobs**, **149 `sorry`** — `Bridge/ExprOps/**` still **0 across all thirteen modules**, which is the number this round was told not to lose |
+| `cd proof && lake build ConRonRefine2` | **green**, **2 221 jobs**, **849 `sorry`**, of which `ExprOps/Mut.lean` is **41** and `Specs.lean` **0** |
+| `scripts/twin-lines.py update`, twice | **220 citations relocated in all, 0 GONE** (122, then 98 after `internE`'s note grew by nine lines) — `Arena/Monad.lean` is +11 net and `Arena/Store.lean` +4, so every `Lean twin:` range below them moved.  Digits only in four Rust files (`arena/{env,intern,monad,store}.rs`); no prose rewrapped, so `extract.sh --check` cannot move |
+| merged `arena` three times — `4b28bf9d`, `8c92c196`, `d53a95be` | all three auto-merged every hunk.  What moved on `arena` is `Bridge/{Inductives, Checker, StateOK, Core, Frontend, ExprOps}/**`, `Refine2/Inductives/**`, `proof/lakefile.toml` (`ConRonRefine2` gains `globs`), `scripts/gates.sh` (the fifteenth step) and DESIGN/OVERVIEW/`CLAUDE.md` — no file this round edits, and the gates were re-run in full after each |
+| the diff | `proof/ConRon/Arena/{Monad,Store,WFProofs}.lean`, `proof/ConRon/Bridge/{Specs,ExprOps/MemoSpecs}.lean`, `proof/ConRon/Refine2/{Specs,ExprOps/Mut}.lean`, the four Rust files' `Lean twin:` digits, and this section |
+
+
 ### Task #97-P5-Specs — Theorem 2: finding 16's clause, and the eight readbacks (2026-09-22, Opus under Fable)
 
 Task #97-P5-3 round 3's **finding 16** said that `AOut` carried no

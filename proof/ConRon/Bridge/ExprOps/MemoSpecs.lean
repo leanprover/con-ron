@@ -276,8 +276,7 @@ two new conjuncts are `EStore.view_intern_mono` and
       fun _ _ hmi => hmi, hview, denoteE_unfold hwf' hview⟩
   rename_i s hs _hfind _n _nbm hcap _s1
   subst hs
-  simp only [Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq,
-    Bool.not_eq_true'] at hcap
+  simp only [Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq] at hcap
   have hcap' : EStore.capOK s.store w := by
     refine ⟨hcap.1, fun hbm => ?_⟩
     simp only [EStore.capOKBM]

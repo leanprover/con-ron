@@ -1705,13 +1705,17 @@ total.
 `intern` of a `lam`/`forallE` view also pushes a binder DATUM, and a datum
 array at `Idx.idxCap` would hand back a `BMIdx` whose index has wrapped into
 the TIER bit — a persistent handle reading as scratch, which breaks
-`bmConsP` and, with it, `view` of the node just interned.  `eViewNeedsBM`
-names the two arms that reach the datum store, and `Monad.lean`'s `internE`
-tests `bmSize` at exactly those (`Monad.lean:186`), which is what discharges
-this conjunct. -/
+`bmConsP` and, with it, `view` of the node just interned.
+
+**…but only where the datum is actually APPENDED** (task #97-P5-Twin round 2).
+`internBMOfView` probes before it pushes, so a view whose datum is already
+interned (`findBMOfView v = some _`) needs no room in `bms` at all — which is
+exactly where the Rust's `intern_bm` tests `full`, inside its own miss arm.
+A NON-binder view has `findBMOfView v = some (Idx.ofWord 0)` by definition, so
+the conjunct is vacuous there and `eViewNeedsBM` need not appear in it. -/
 def capOK (st : EStore) (v : ENodeView) : Prop :=
   (if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap
-    ∧ (eViewNeedsBM v = true → st.capOKBM)
+    ∧ (st.findBMOfView v = none → st.capOKBM)
 
 end EStore
 

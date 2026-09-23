@@ -1126,7 +1126,7 @@ pub fn view_e(pers: &PersTier, ar: &EStore, h: &EIdx) -> Result<ENodeView, Check
     }
 }
 
-/// con-leche: none — the port's own dangling-handle guard; Lean twin: proof/ConRon/Arena/Monad.lean:392-397 viewN
+/// con-leche: none — the port's own dangling-handle guard; Lean twin: proof/ConRon/Arena/Monad.lean:403-408 viewN
 /// Decode a name handle.
 pub fn view_n(pers: &PersTier, ar: &EStore, h: &NIdx) -> Result<NNodeView, CheckError> {
     match ar.ns().view(pers, h) {
@@ -1135,7 +1135,7 @@ pub fn view_n(pers: &PersTier, ar: &EStore, h: &NIdx) -> Result<NNodeView, Check
     }
 }
 
-/// con-leche: none — the port's own dangling-handle guard; Lean twin: proof/ConRon/Arena/Monad.lean:392-397 viewN
+/// con-leche: none — the port's own dangling-handle guard; Lean twin: proof/ConRon/Arena/Monad.lean:403-408 viewN
 /// `"arena: dangling name handle"`, named once: `view_n` and `read_name` raise
 /// the same error, as the twin's two primitives do.
 pub fn dangling_name() -> CheckError {
@@ -1147,7 +1147,7 @@ pub fn dangling_name() -> CheckError {
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
-/// Lean twin: `proof/ConRon/Arena/Monad.lean:417-425 readName` — read a name
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:428-436 readName` — read a name
 /// back out of the store as a transient `Name`.  Names are compared by handle
 /// throughout the checker (DESIGN.md §8.3), so this is the error-text and
 /// level-substitution path only, and the readback IS the denotation
@@ -1179,7 +1179,7 @@ pub fn read_name_at(pers: &PersTier, ar: &EStore, fuel: u64, h: &NIdx) -> Result
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
-/// Lean twin: `proof/ConRon/Arena/Monad.lean:427-436 readNames` — read a LIST
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:438-447 readNames` — read a LIST
 /// of name handles back.  `ks.mapM readName` would do it with a closure, which
 /// DESIGN.md §3.4 forbids, so this is the cursor recursion.
 pub fn read_names(pers: &PersTier, ar: &EStore, hs: &Vec<NIdx>) -> Result<Vec<Name>, CheckError> {
@@ -1210,7 +1210,7 @@ pub fn read_names_from(
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:26-37 subst
-/// Lean twin: `proof/ConRon/Arena/Monad.lean:484-493 readLevel` — **the
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:495-504 readLevel` — **the
 /// readback** (DESIGN.md §8.3 lesson 4, "intern the representation, not the
 /// algorithm"): a level ALGORITHM runs on a transient `Level` tree read out of
 /// the store, never on handles.  The readback is `denoteL` itself.
@@ -1257,7 +1257,7 @@ pub fn read_level_at(
     }
 }
 
-/// con-leche: none — the port's own dangling-handle guard; Lean twin: proof/ConRon/Arena/Monad.lean:451-457 viewL
+/// con-leche: none — the port's own dangling-handle guard; Lean twin: proof/ConRon/Arena/Monad.lean:462-468 viewL
 /// `"arena: dangling level handle"`, named once.
 pub fn dangling_level() -> CheckError {
     const M: [u32; 28] = [
