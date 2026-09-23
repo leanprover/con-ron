@@ -43,6 +43,7 @@ the code after a loop into every exit of it.
 -/
 import ConRon.Refine2.Frontend.Prepare
 import ConRon.Refine2.Checker.Base
+import ConRon.Refine2.Frontend.NatOpDeps
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -1642,21 +1643,113 @@ theorem hoist_close_refines {pers rst lst ds rm lm target ltarget j i o}
     (by rw [habs]; intro x hx; simp at hx; subst hx; exact hj) hrel hinv ht h
   rwa [habs] at this
 
+/-- The `for g in deps` loop of `hoist_targets_at` against `hoistDeps` on the
+suffix of the dependency list from `k`. -/
+theorem hoist_targets_at_loop_aux {pers : arena.store.PersTier}
+    {ds : alloc.vec.Vec arena.env.IDeclaration} {rm lm} {i : Std.U64}
+    {gs : alloc.vec.Vec arena.handle.NIdx}
+    (hr : NameIdxRel rm lm)
+    (hidx : ∀ (x : NIdx) m, lm[x]? = some m → m < ds.val.length) :
+    ∀ (n : Nat) (k : Std.Usize) (st : arena.monad.AState) (lst : AState)
+      (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) (ltarget : Std.HashMap Nat Nat) o,
+      gs.val.length - k.val = n → k.val ≤ gs.val.length →
+      AStateRel₀ pers st lst → AStateInv pers st → TargetRel target ltarget →
+      frontend.nat_op_ground.hoist_targets_at_loop pers st ds rm i target gs
+        (alloc.vec.Vec.len gs) k = ok o →
+      HCOut pers lst o (hoistTargetsGo.hoistDeps (absIDeclArr ds) lm ltarget (absU i)
+        ((absNIdxL gs).drop k.val)) := by
+  intro n
+  induction n with
+  | zero =>
+    intro k st lst target ltarget o hn hk hrel hinv ht h
+    rw [frontend.nat_op_ground.hoist_targets_at_loop, if_neg (by scalar_tac)] at h
+    cases Result.ok_injective h
+    have hnil : (absNIdxL gs).drop k.val = [] := by
+      simp only [absNIdxL, List.drop_eq_nil_iff, List.length_map]; omega
+    rw [hnil, hoistTargetsGo.hoistDeps]
+    exact ⟨fun t ht' => by cases ht'; exact ⟨ltarget, lst, rfl, ht, hrel, hinv⟩,
+      fun e he => by cases he⟩
+  | succ n ih =>
+    intro k st lst target ltarget o hn hk hrel hinv ht h
+    rw [frontend.nat_op_ground.hoist_targets_at_loop, if_pos (by scalar_tac)] at h
+    obtain ⟨g, hg, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hgb, hgv⟩ := ExprOps.vecIndexAt hg
+    have hdrop : (absNIdxL gs).drop k.val = absNIdx g :: (absNIdxL gs).drop (k.val + 1) := by
+      rw [← hgv]
+      simp only [absNIdxL]
+      rw [List.drop_eq_getElem_cons (by simpa using hgb)]
+      simp
+    rw [hdrop, hoistTargetsGo.hoistDeps]
+    obtain ⟨og, hog, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hgl := idx_get_refines hr hog
+    cases og with
+    | none =>
+      have hlm : lm[absNIdx g]? = none := by rw [← hgl]; rfl
+      simp only [hlm]
+      obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hk1v : k1.val = k.val + 1 := by have := ConRon.Refine.Nat.uadd_val hk1; simpa using this
+      have IH := ih k1 st lst target ltarget o (by omega) (by omega) hrel hinv ht h
+      rwa [hk1v] at IH
+    | some j =>
+      have hlm : lm[absNIdx g]? = some (absU j) := by rw [← hgl]; rfl
+      simp only [hlm]
+      simp only at h
+      split at h
+      · rename_i hji
+        rw [if_pos (show absU j > absU i by show j.val > i.val; scalar_tac)]
+        obtain ⟨⟨r, st1⟩, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have HC := hoist_close_refines hrel hinv hr ht hidx (hidx _ _ hlm) hc
+        cases r with
+        | Err e =>
+          cases Result.ok_injective h
+          refine ⟨fun t ht' => (by cases ht'), fun e' he => ?_⟩
+          cases he
+          rw [am_run_bind']
+          exact AErrSim.bind (HC.2 e rfl) _
+        | Ok t =>
+          obtain ⟨lt, lst1, hx, ht1, hrel1, hinv1⟩ := HC.1 t rfl
+          obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hk1v : k1.val = k.val + 1 := by have := ConRon.Refine.Nat.uadd_val hk1; simpa using this
+          have IH := ih k1 st1 lst1 t lt o (by omega) (by omega) hrel1 hinv1 ht1 h
+          rw [hk1v] at IH
+          unfold HCOut
+          rw [am_run_bind', hx, except_ok_bind]
+          exact IH
+      · rename_i hji
+        rw [if_neg (show ¬ absU j > absU i by show ¬ j.val > i.val; scalar_tac)]
+        obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hk1v : k1.val = k.val + 1 := by have := ConRon.Refine.Nat.uadd_val hk1; simpa using this
+        have IH := ih k1 st lst target ltarget o (by omega) (by omega) hrel hinv ht h
+        rwa [hk1v] at IH
+
 /-- **`hoist_targets_at` refines `hoistTargetsGo.hoistDeps`** at one pinned
-operation's `natOpDeps`. -/
+operation's `natOpDeps`.  Round 3 restated it in the `HCOut` shape of
+`hoist_close_refines`, with that lemma's index bound `hidx`. -/
 theorem hoist_targets_at_refines {pers rst lst ds rm lm target ltarget c i o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hr : NameIdxRel rm lm) (ht : TargetRel target ltarget)
+    (hidx : ∀ (x : NIdx) m, lm[x]? = some m → m < ds.val.length)
     (h : frontend.nat_op_ground.hoist_targets_at pers rst ds rm target c i = ok o) :
-    (∀ t, o.1 = .Ok t → ∃ lt lst1 lst' deps,
-      (natOpDeps (absNIdx c)).run lst = .ok (deps, lst1) ∧
-      (hoistTargetsGo.hoistDeps (absIDeclArr ds) lm ltarget (absU i) deps).run lst1
-        = .ok (lt, lst') ∧ TargetRel t lt ∧
-      AStateRel₀ pers o.2 lst' ∧ AStateInv pers o.2) ∧
-    (∀ e, o.1 = .Err e → AErrSim e ((do
+    HCOut pers lst o (do
         let deps ← natOpDeps (absNIdx c)
-        hoistTargetsGo.hoistDeps (absIDeclArr ds) lm ltarget (absU i) deps).run lst)) := by
-  sorry
+        hoistTargetsGo.hoistDeps (absIDeclArr ds) lm ltarget (absU i) deps) := by
+  rw [frontend.nat_op_ground.hoist_targets_at] at h
+  obtain ⟨⟨r, st1⟩, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have HD := nat_op_deps_ls hrel hinv c r st1 hd
+  cases r with
+  | Err e =>
+    cases Result.ok_injective h
+    refine ⟨fun t ht' => (by cases ht'), fun e' he => ?_⟩
+    cases he
+    rw [am_run_bind']
+    exact AErrSim.bind HD _
+  | Ok v =>
+    obtain ⟨b, lst1, hx, rfl, hrel1, hinv1⟩ := HD
+    have IH := hoist_targets_at_loop_aux (gs := v) (i := i) hr hidx _ 0#usize st1 lst1
+      target ltarget o rfl (by simp) hrel1 hinv1 ht h
+    unfold HCOut
+    rw [am_run_bind', hx, except_ok_bind]
+    exact IH
 
 /-- **`hoist_targets` refines `hoistTargets`**
 (`Arena/Frontend/NatOpGround.lean:360-363`): the map from a record's index to
@@ -1788,8 +1881,7 @@ theorem hoist_moved_idxs_refines {n rm lm v} (hr : TargetRel rm lm)
       obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hk1v : k1.val = k.val + 1 := by
-        have := ConRon.Refine.Nat.uadd_val hk1; simpa using this
+      have hk1v : k1.val = k.val + 1 := by have := ConRon.Refine.Nat.uadd_val hk1; simpa using this
       have hiv : i.val = k.val := by
         simp only [lift, Result.ok.injEq] at hi; subst hi; exact usize_cast_u64_val' k
       have hbv : b = lm.contains k.val := by
