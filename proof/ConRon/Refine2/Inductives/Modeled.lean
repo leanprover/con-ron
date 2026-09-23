@@ -679,14 +679,6 @@ theorem iota_stmt_open_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.iota_stmt_open, iotaStmtOpenSpec]
   lockstep_mod
-  -- `unwrap_or`: the twin's message is free in the spec, which `specCore`
-  -- cannot leave for the twin match, so the step is taken by hand
-  all_goals
-    refine Lockstep.LSR.bind (IndModeledPrims.unwrap_or_cv_ni ‹_› ‹_›) rfl
-      (fun _ => Lockstep.errArm_ok) ?_
-    intro a b lst1 hR hrel hinv
-    subst hR
-    lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem iota_stmt_open_ls
@@ -2098,9 +2090,7 @@ theorem check_member_val_refines {pers st lst} {vis : Std.U64}
         (absIConstantVal cv)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_member_val, checkMemberVal_unfold]
-  lockstep
-  -- the model stage's statement is general in the twin's message arguments
-  all_goals exact check_member_model_ls ‹_› ‹_› hfe hvis
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_member_val_ls
