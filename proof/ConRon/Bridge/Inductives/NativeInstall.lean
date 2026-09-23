@@ -37,6 +37,29 @@ def FvarMemoOK (q : Nat) (tbl : Std.HashMap EIdx Bool) (st : EStore) : Prop :=
   ∀ (k : EIdx) (r : Bool), tbl[k]? = some r →
     ∃ e, denoteE st k = some e ∧ r = Expr.mentionsFvar q e
 
+/-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:143-148 MentionsFvarMemoInv.insert
+— recording the real answer keeps the memo sound. -/
+theorem FvarMemoOK.insert {q : Nat} {tbl : Std.HashMap EIdx Bool} {st : EStore}
+    (hm : FvarMemoOK q tbl st) {h : EIdx} {hP : Expr} {r : Bool}
+    (hd : denoteE st h = some hP) (heq : r = Expr.mentionsFvar q hP) :
+    FvarMemoOK q (tbl.insert h r) st := by
+  intro k r' hk
+  rw [Std.HashMap.getElem?_insert] at hk
+  split at hk
+  · rename_i hbeq
+    cases hk
+    rw [← eq_of_beq hbeq]
+    exact ⟨hP, hd, heq⟩
+  · exact hm k r' hk
+
+/-- con-leche: none — the memo is about denotations, so it survives an
+append. -/
+theorem FvarMemoOK.mono {q : Nat} {tbl : Std.HashMap EIdx Bool} {st st' : EStore}
+    (hm : FvarMemoOK q tbl st) (hx : Ext st st') : FvarMemoOK q tbl st' := by
+  intro k r hk
+  obtain ⟨e, he, hr⟩ := hm k r hk
+  exact ⟨e, denote_ext he hx, hr⟩
+
 /-! ## The three pure readers off the record -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:100-103 nativeIsRec
@@ -161,7 +184,177 @@ theorem mentionsFvarGo_spec (q : Nat) (memo : Std.HashMap EIdx Bool)
     PSpec (fun st => denoteE st h = some hP ∧ FvarMemoOK q memo st)
       (Arena.mentionsFvarGo q memo fuel h)
       (fun st r => r.1 = Expr.mentionsFvar q hP ∧ FvarMemoOK q r.2 st) := by
-  sorry
+  induction fuel generalizing memo h hP with
+  | zero =>
+    intro s₀ s' r _ _ hrun
+    simp only [Arena.mentionsFvarGo] at hrun
+    exact absurd hrun (fun hc => failOk hc)
+  | succ fuel ih =>
+    intro s₀ s' r hok hp hrun
+    obtain ⟨hd, hm⟩ := hp
+    simp only [Arena.mentionsFvarGo] at hrun
+    obtain ⟨v, s₁, hv, h2⟩ := bindOk hrun
+    obtain ⟨hv0, hw⟩ := view_run hv
+    rw [hv0] at h2
+    have fin : ∀ {s₂ s₃ : AState} {rr r' : Bool × Std.HashMap EIdx Bool},
+        PStep s₀ s₂ → rr.1 = Expr.mentionsFvar q hP → FvarMemoOK q rr.2 s₂.store →
+        (pure (Arena.mentionsFvarIns h rr) : AM (Bool × Std.HashMap EIdx Bool)) s₂
+          = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ r'.1 = Expr.mentionsFvar q hP ∧ FvarMemoOK q r'.2 s₃.store := by
+      intro s₂ s₃ rr r' hs hb hmm hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      exact ⟨hs, hb, FvarMemoOK.insert hmm (denote_ext hd hs.ext) hb⟩
+    have hit : ∀ {s₃ : AState} {r₀ : Bool} {r' : Bool × Std.HashMap EIdx Bool},
+        memo[h]? = some r₀ →
+        (pure ((r₀, memo) : Bool × Std.HashMap EIdx Bool) :
+            AM (Bool × Std.HashMap EIdx Bool)) s₀ = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ r'.1 = Expr.mentionsFvar q hP ∧ FvarMemoOK q r'.2 s₃.store := by
+      intro s₃ r₀ r' hlk hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨e, he, hre⟩ := hm h r₀ hlk
+      obtain rfl := Option.some.inj (hd.symm.trans he)
+      exact ⟨PStep.refl hok, hre, hm⟩
+    cases v
+    case bvar j =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain rfl := denote_bvar_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, by simp [Expr.mentionsFvar, Expr.fvarLeaves], hm⟩
+    case sort u =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨l, rfl, _⟩ := denote_sort_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, by simp [Expr.mentionsFvar, Expr.fvarLeaves], hm⟩
+    case lit l =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain rfl := denote_lit_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, by simp [Expr.mentionsFvar, Expr.fvarLeaves], hm⟩
+    case const n us =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, by simp [Expr.mentionsFvar, Expr.fvarLeaves], hm⟩
+    case fvar k ty =>
+      obtain ⟨t, rfl, hty⟩ := denote_fvar_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; dsimp only at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        dsimp only at h2
+        split at h2
+        case isTrue hkq =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk h2
+          obtain ⟨rfl, rfl⟩ := pureOk kR
+          exact fin (PStep.refl hok) (by simp only [Expr.mentionsFvar_fvar, hkq, Bool.true_or])
+            hm zR
+        case isFalse hkq =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk h2
+          obtain ⟨hsA, hrA, hmA⟩ := ih memo ty t s₀ sR rr hok ⟨hty, hm⟩ kR
+          exact fin hsA (by simp only [Expr.mentionsFvar_fvar, hrA]; simp [hkq]) hmA zR
+    case app x1 x2 =>
+      obtain ⟨e1, e2, rfl, hd1, hd2⟩ := denote_app_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; dsimp only at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        dsimp only at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo x1 e1 s₀ sa (b1, m1) hok ⟨hd1, hm⟩ hc1
+        simp only at hrA
+        cases b1 with
+        | true =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk hn1
+          obtain ⟨rfl, rfl⟩ := pureOk kR
+          exact fin hsA (by simp only [Expr.mentionsFvar_app, ← hrA, Bool.true_or]) hmA zR
+        | false =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk hn1
+          obtain ⟨hsB, hrB, hmB⟩ := ih m1 x2 e2 sa sR rr hsA.ok
+            ⟨denote_ext hd2 hsA.ext, hmA⟩ kR
+          exact fin (hsA.trans hsB) (by simp only [Expr.mentionsFvar_app, ← hrA, hrB, Bool.false_or]) hmB zR
+    case lam x1 x2 xm =>
+      obtain ⟨e1, e2, rfl, hd1, hd2⟩ := denote_lam_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; dsimp only at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        dsimp only at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo x1 e1 s₀ sa (b1, m1) hok ⟨hd1, hm⟩ hc1
+        simp only at hrA
+        cases b1 with
+        | true =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk hn1
+          obtain ⟨rfl, rfl⟩ := pureOk kR
+          exact fin hsA (by simp only [Expr.mentionsFvar_lam, ← hrA, Bool.true_or]) hmA zR
+        | false =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk hn1
+          obtain ⟨hsB, hrB, hmB⟩ := ih m1 x2 e2 sa sR rr hsA.ok
+            ⟨denote_ext hd2 hsA.ext, hmA⟩ kR
+          exact fin (hsA.trans hsB) (by simp only [Expr.mentionsFvar_lam, ← hrA, hrB, Bool.false_or]) hmB zR
+    case forallE x1 x2 xm =>
+      obtain ⟨e1, e2, rfl, hd1, hd2⟩ := denote_forallE_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; dsimp only at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        dsimp only at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo x1 e1 s₀ sa (b1, m1) hok ⟨hd1, hm⟩ hc1
+        simp only at hrA
+        cases b1 with
+        | true =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk hn1
+          obtain ⟨rfl, rfl⟩ := pureOk kR
+          exact fin hsA (by simp only [Expr.mentionsFvar_forallE, ← hrA, Bool.true_or]) hmA zR
+        | false =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk hn1
+          obtain ⟨hsB, hrB, hmB⟩ := ih m1 x2 e2 sa sR rr hsA.ok
+            ⟨denote_ext hd2 hsA.ext, hmA⟩ kR
+          exact fin (hsA.trans hsB) (by simp only [Expr.mentionsFvar_forallE, ← hrA, hrB, Bool.false_or]) hmB zR
+    case letE lt lv lb =>
+      obtain ⟨et, ev, eb, rfl, hty, hval, hbd⟩ := denote_letE_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; dsimp only at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        dsimp only at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo lt et s₀ sa (b1, m1) hok ⟨hty, hm⟩ hc1
+        simp only at hrA
+        cases b1 with
+        | true =>
+          obtain ⟨rr, sR, kR, zR⟩ := bindOk hn1
+          obtain ⟨rfl, rfl⟩ := pureOk kR
+          exact fin hsA (by simp only [Expr.mentionsFvar_letE, ← hrA, Bool.true_or]) hmA zR
+        | false =>
+          obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+          obtain ⟨b2, m2⟩ := p2
+          obtain ⟨hsB, hrB, hmB⟩ := ih m1 lv ev sa sb (b2, m2) hsA.ok
+            ⟨denote_ext hval hsA.ext, hmA⟩ hc2
+          simp only at hrB
+          cases b2 with
+          | true =>
+            obtain ⟨rr, sR, kR, zR⟩ := bindOk hn2
+            obtain ⟨rfl, rfl⟩ := pureOk kR
+            exact fin (hsA.trans hsB) (by simp only [Expr.mentionsFvar_letE, ← hrA, ← hrB,
+              Bool.false_or, Bool.true_or]) hmB zR
+          | false =>
+            obtain ⟨rr, sR, kR, zR⟩ := bindOk hn2
+            obtain ⟨hsC, hrC, hmC⟩ := ih m2 lb eb sb sR rr hsB.ok
+              ⟨denote_ext (denote_ext hbd hsA.ext) hsB.ext, hmB⟩ kR
+            exact fin ((hsA.trans hsB).trans hsC) (by simp only [Expr.mentionsFvar_letE, ← hrA,
+              ← hrB, hrC, Bool.false_or]) hmC zR
+    case proj pn pk psub =>
+      obtain ⟨nm, es, rfl, _, hsub⟩ := denote_proj_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; dsimp only at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        dsimp only at h2
+        obtain ⟨rr, sR, kR, zR⟩ := bindOk h2
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo psub es s₀ sR rr hok ⟨hsub, hm⟩ kR
+        exact fin hsA (by simp only [Expr.mentionsFvar_proj, hrA]) hmA zR
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:379-381 Expr.mentionsFvarFast
 The entry at an empty memo.
@@ -170,7 +363,13 @@ The entry at an empty memo.
 theorem mentionsFvar_spec (q : Nat) (e : EIdx) (eP : Expr) :
     PSpec (fun st => denoteE st e = some eP)
       (Arena.mentionsFvar q e) (RV (Expr.mentionsFvar q eP)) := by
-  sorry
+  intro s₀ s' r hok hd hrun
+  simp only [Arena.mentionsFvar] at hrun
+  obtain ⟨p, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨hs, hr, -⟩ := mentionsFvarGo_spec q ∅ Arena.coreWalkFuel e eP s₀ s1 p hok
+    ⟨hd, fun k r hk => by simp at hk⟩ k1
+  obtain ⟨rfl, rfl⟩ := pureOk z1
+  exact ⟨hs, hr⟩
 
 /-! ## The opened re-check -/
 
