@@ -1050,14 +1050,204 @@ theorem order_block_ctors_refines
 
 /-! ## The K flag and the recursor records -/
 
+theorem env_dangling_level_kind {ce : kernel.core_types.CheckError}
+    (h : arena.env.dangling_level = ok ce) : absAErrKind ce = some .internal := by
+  rw [arena.env.dangling_level] at h
+  simp only [lift, bind_tc_ok] at h
+  obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [kernel.core_types.internal] at h
+  cases Result.ok_injective h
+  rfl
+
+/-- **`env::read_level_at` is `denoteLAux`** at the same fuel, the answer
+well formed, and `Internal` exactly where the readback is `none`. -/
+theorem env_read_level_at_abs {pers rst lst} (hrel : AStateRel₀ pers rst lst)
+    (hinv : AStateInv pers rst) :
+    ∀ (n : Nat) (fuel : Std.U64) (i : arena.handle.LIdx) {o}, fuel.val = n →
+      arena.env.read_level_at pers rst.store fuel i = ok o →
+      match denoteLAux lst.store.ls n (absLIdx i) with
+      | some x => ∃ l, o = .Ok l ∧ ConRon.Refine.absLevel l = x ∧ ConRon.Refine.LevelWF l
+      | none => ∃ e, o = .Err e ∧ absAErrKind e = some .internal := by
+  intro n
+  induction n with
+  | zero =>
+    intro fuel i o hn hrun
+    rw [arena.env.read_level_at, if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) :
+      fuel = 0#u64)] at hrun
+    obtain ⟨ce, hce, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    cases Result.ok_injective hrun
+    exact ⟨ce, rfl, env_dangling_level_kind hce⟩
+  | succ k ih =>
+    intro fuel i o hn hrun
+    rw [arena.env.read_level_at, if_neg (by intro hc; rw [hc] at hn; simp at hn)] at hrun
+    obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [arena.store.EStore.ls] at hl
+    cases Result.ok_injective hl
+    obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hview : lst.store.ls.view (absLIdx i) = v.map absLNodeView :=
+      lstore_view_abs hrel.store.lss.lvl hv
+    rw [denoteLAux, hview]
+    have hf : ∀ {f1 : Std.U64}, fuel - 1#u64 = ok f1 → f1.val = k := by
+      intro f1 hf1
+      have h1 : f1.val = fuel.val - (1#u64 : Std.U64).val := (ConRon.Refine.Nat.usub_val hf1).2
+      rw [h1, hn]; rfl
+    cases v with
+    | none =>
+      obtain ⟨ce, hce, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      cases Result.ok_injective hrun
+      exact ⟨ce, rfl, env_dangling_level_kind hce⟩
+    | some lv =>
+      simp only [Option.map_some, Option.bind_some]
+      cases lv with
+      | Zero =>
+        obtain ⟨u, hu, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        cases Result.ok_injective hrun
+        obtain ⟨hh, hue⟩ := ConRon.Refine.Level.level_zero_inv' hu
+        exact ⟨u, rfl, by rw [hue]; rfl, ConRon.Refine.LevelWF.zero hu⟩
+      | Succ a =>
+        obtain ⟨f1, hf1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨o1, ho1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hih := ih f1 a (hf hf1) ho1
+        simp only [absLNodeView]
+        cases hd : denoteLAux lst.store.ls k (absLIdx a) with
+        | none =>
+          rw [hd] at hih
+          obtain ⟨e, rfl, hek⟩ := hih
+          cases Result.ok_injective hrun
+          exact ⟨e, rfl, hek⟩
+        | some x =>
+          rw [hd] at hih
+          obtain ⟨la, rfl, hla, hwa⟩ := hih
+          obtain ⟨u, hu, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          cases Result.ok_injective hrun
+          obtain ⟨hh, hue⟩ := ConRon.Refine.level_succ_inv hu
+          refine ⟨u, rfl, ?_, ConRon.Refine.LevelWF.succ hwa hu⟩
+          rw [hue, ← hla]; rfl
+      | Max a b =>
+        obtain ⟨f1, hf1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨o1, ho1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hiha := ih f1 a (hf hf1) ho1
+        simp only [absLNodeView]
+        cases hda : denoteLAux lst.store.ls k (absLIdx a) with
+        | none =>
+          rw [hda] at hiha
+          obtain ⟨e, rfl, hek⟩ := hiha
+          cases Result.ok_injective hrun
+          exact ⟨e, rfl, hek⟩
+        | some xa =>
+          rw [hda] at hiha
+          obtain ⟨la, rfl, hla, hwa⟩ := hiha
+          obtain ⟨o2, ho2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          have hihb := ih f1 b (hf hf1) ho2
+          cases hdb : denoteLAux lst.store.ls k (absLIdx b) with
+          | none =>
+            rw [hdb] at hihb
+            obtain ⟨e, rfl, hek⟩ := hihb
+            cases Result.ok_injective hrun
+            exact ⟨e, rfl, hek⟩
+          | some xb =>
+            rw [hdb] at hihb
+            obtain ⟨lb, rfl, hlb, hwb⟩ := hihb
+            obtain ⟨u, hu, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+            cases Result.ok_injective hrun
+            obtain ⟨hh, hue⟩ := ConRon.Refine.level_max_inv hu
+            refine ⟨u, rfl, ?_, ConRon.Refine.LevelWF.max hwa hwb hu⟩
+            rw [hue, ← hla, ← hlb]; rfl
+      | Imax a b =>
+        obtain ⟨f1, hf1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨o1, ho1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hiha := ih f1 a (hf hf1) ho1
+        simp only [absLNodeView]
+        cases hda : denoteLAux lst.store.ls k (absLIdx a) with
+        | none =>
+          rw [hda] at hiha
+          obtain ⟨e, rfl, hek⟩ := hiha
+          cases Result.ok_injective hrun
+          exact ⟨e, rfl, hek⟩
+        | some xa =>
+          rw [hda] at hiha
+          obtain ⟨la, rfl, hla, hwa⟩ := hiha
+          obtain ⟨o2, ho2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          have hihb := ih f1 b (hf hf1) ho2
+          cases hdb : denoteLAux lst.store.ls k (absLIdx b) with
+          | none =>
+            rw [hdb] at hihb
+            obtain ⟨e, rfl, hek⟩ := hihb
+            cases Result.ok_injective hrun
+            exact ⟨e, rfl, hek⟩
+          | some xb =>
+            rw [hdb] at hihb
+            obtain ⟨lb, rfl, hlb, hwb⟩ := hihb
+            obtain ⟨u, hu, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+            cases Result.ok_injective hrun
+            obtain ⟨hh, hue⟩ := ConRon.Refine.level_imax_inv hu
+            refine ⟨u, rfl, ?_, ConRon.Refine.LevelWF.imax hwa hwb hu⟩
+            rw [hue, ← hla, ← hlb]; rfl
+      | Param nm =>
+        obtain ⟨o1, ho1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hR := env_read_name_abs hrel.store ho1
+        have hW := env_read_name_wf hinv.store ho1
+        simp only [absLNodeView]
+        cases hdn : denoteN lst.store.ls.ns (absNIdx nm) with
+        | none =>
+          rw [show lst.store.ns = lst.store.ls.ns from rfl, hdn] at hR
+          obtain ⟨e, rfl, hek⟩ := hR
+          cases Result.ok_injective hrun
+          exact ⟨e, rfl, hek⟩
+        | some x =>
+          rw [show lst.store.ns = lst.store.ls.ns from rfl, hdn] at hR
+          obtain ⟨y, rfl, hy⟩ := hR
+          obtain ⟨u, hu, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          cases Result.ok_injective hrun
+          obtain ⟨hh, hue⟩ := ConRon.Refine.level_param_inv hu
+          refine ⟨u, rfl, ?_, ConRon.Refine.LevelWF.param (hW y rfl) hu⟩
+          rw [hue, ← hy]; rfl
+
 /-- **`env::read_level` is `readLevel`** (the store's level readback,
-`denoteL` at `node_count + 1` fuel), with the answer well formed.  A leaf of
-this tier. -/
+`denoteL` at `node_count + 1` fuel), with the answer well formed. -/
 theorem env_read_level_run {pers rst lst} (hrel : AStateRel₀ pers rst lst)
     (hinv : AStateInv pers rst) {h : arena.handle.LIdx} {o}
     (hrun : arena.env.read_level pers rst.store h = ok o) :
     (∀ l, o = .Ok l → ConRon.Refine.LevelWF l) ∧
-      SimRE ConRon.Refine.absLevel lst o (readLevel (absLIdx h)) := by sorry
+      SimRE ConRon.Refine.absLevel lst o (readLevel (absLIdx h)) := by
+  rw [arena.env.read_level] at hrun
+  obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.store.EStore.ls] at hl
+  cases Result.ok_injective hl
+  obtain ⟨c, hc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨c1, hc1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨c2, hc2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hcv := lstore_node_count_abs hrel.store.lss.lvl hc
+  have hc1v : c1.val = c.val := by
+    simp only [lift, Result.ok.injEq] at hc1
+    rw [← hc1]; exact usize_cast_u64_val' c
+  have hc2v : c2.val = lst.store.ls.nodeCount + 1 := by
+    have := ConRon.Refine.Nat.uadd_val hc2
+    rw [this, hc1v, hcv]; rfl
+  have H := env_read_level_at_abs hrel hinv _ c2 h hc2v hrun
+  have hrunl : (readLevel (absLIdx h)).run lst
+      = match denoteL lst.store.ls (absLIdx h) with
+        | some x => Except.ok (x, lst)
+        | none => Except.error (.internal "arena: dangling level handle") := by
+    show (match denoteL lst.store.ls (absLIdx h) with
+          | some l => (pure l : AM _)
+          | none => Arena.fail (.internal "arena: dangling level handle")).run lst = _
+    cases denoteL lst.store.ls (absLIdx h) <;> rfl
+  rw [denoteL] at hrunl
+  cases hd : denoteLAux lst.store.ls (lst.store.ls.nodeCount + 1) (absLIdx h) with
+  | none =>
+    rw [hd] at H hrunl
+    obtain ⟨e, rfl, hek⟩ := H
+    refine ⟨fun l' hl' => (nomatch hl'), ?_⟩
+    show AErrSim e _
+    rw [hrunl]
+    exact AErrSim.mk rfl (by rw [hek]; rfl)
+  | some x =>
+    rw [hd] at H hrunl
+    obtain ⟨l, rfl, hlx, hw⟩ := H
+    refine ⟨fun l' hl' => by cases hl'; exact hw, ?_⟩
+    show _ = _
+    rw [hrunl, hlx]
 
 /-- **`k_expected_of`** — official's `is_K_target`, against `kExpectedOfD`: a
 single type former with a single constructor of zero fields whose result sort
