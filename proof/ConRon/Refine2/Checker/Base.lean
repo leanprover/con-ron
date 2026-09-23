@@ -104,6 +104,29 @@ namespace ConRon.Refine2
 open ConRon.Arena
 open ConRon.Refine (NameWF NamesWF ExprWF)
 
+/-- `lockstep`, deciding a twin `if` from the context BEFORE the Rust moves.
+The shared tactic moves a Rust bind before it decides a twin `if`, and when
+that bind's spec does not match (its twin partner is inside the `if`) it
+falls back to `LS.twin_bind_pure`, which succeeds and buries the `if` under a
+`>>= pure` where it is never decided.  That happens exactly where a guard's
+Rust test was already split (`hc` in context) and the Rust's next step is a
+state-threading call in the branch (`unresolved_consts_error`, the axiom
+arms' `*_ok` gates).  This wrapper tries the context's decision first (a test
+in context, or the twin's `a || b` against the Rust's two nested tests);
+everything else is `lockstep_step`.
+(Reported as a tactic issue for the shared `Tactic/Lockstep.lean`.) -/
+macro "chk_lockstep" : tactic => `(tactic| repeat' (first
+  | (refine Lockstep.LS.twin_ite_neg (by first
+      | assumption
+      | (simp only [Bool.or_eq_true, not_or]; exact ⟨by assumption, by assumption⟩)
+      | lockstep_side_cheap | lockstep_side_ite) ?_)
+  | (refine Lockstep.LS.twin_ite_pos (by first
+      | assumption
+      | (simp only [Bool.or_eq_true]; first
+          | exact Or.inl (by assumption) | exact Or.inr (by assumption))
+      | lockstep_side_cheap | lockstep_side_ite) ?_)
+  | lockstep_step))
+
 /-! ## The attempt bracket — lockstep since task #97-T2-LOCKSTEP D4b -/
 
 /-! ### The copies are the identity
@@ -974,12 +997,48 @@ theorem nat_div_mod_names_refines {pers st lst} {o}
   simp only [absNIdxL, hv, List.map_cons, List.map_nil]
   rfl
 
+private theorem name_nodup_from_aux {ns : alloc.vec.Vec arena.handle.NIdx} (m : Nat) :
+    ∀ {i : Std.Usize} {o : Bool}, ns.val.length - i.val = m →
+      arena.checker_base.name_nodup_from ns i = ok o →
+      o = nameNodup (absNIdxLFrom ns i) := by
+  induction m using Nat.strong_induction_on with
+  | _ m ih =>
+    intro i o hm hrun
+    rw [arena.checker_base.name_nodup_from.eq_def] at hrun
+    dsimp only at hrun
+    have hl := alloc.vec.Vec.len_val ns
+    by_cases hge : i ≥ ns.len
+    · have hle : ns.val.length ≤ i.val := by scalar_tac
+      rw [if_pos hge] at hrun
+      rw [← Result.ok_injective hrun]
+      simp [absNIdxLFrom, List.drop_eq_nil_of_le hle, nameNodup]
+    · have hlt : i.val < ns.val.length := by scalar_tac
+      rw [if_neg hge] at hrun
+      obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+      obtain ⟨c, hc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨_, rfl⟩ := ConRon.Refine.ExprOps.vec_index_val hc
+      obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hbv := nidx_contains_from_refines hb
+      have hcons : absNIdxLFrom ns i = absNIdx ns.val[i.val] :: absNIdxLFrom ns i2 := by
+        simp only [absNIdxLFrom, List.drop_eq_getElem_cons hlt, List.map_cons, hi2v]
+      rw [hcons, nameNodup, ← hbv]
+      by_cases hbt : b = true
+      · rw [if_pos hbt] at hrun
+        rw [← Result.ok_injective hrun, hbt]
+        rfl
+      · rw [if_neg hbt] at hrun
+        have hrec := ih (ns.val.length - i2.val) (by omega) rfl hrun
+        have hbf : b = false := by simpa using hbt
+        rw [hrec, hbf]
+        rfl
+
 /-- `name_nodup_from` ⊑ `nameNodup` from the cursor on. -/
 theorem name_nodup_from_refines {ns : alloc.vec.Vec arena.handle.NIdx}
     {i : Std.Usize} {o : Bool}
     (hrun : arena.checker_base.name_nodup_from ns i = ok o) :
-    o = nameNodup (absNIdxLFrom ns i) := by
-  sorry
+    o = nameNodup (absNIdxLFrom ns i) :=
+  name_nodup_from_aux _ rfl hrun
 
 /-- `name_nodup` ⊑ `nameNodup` — no duplicates in a list of name HANDLES.  A
 name comparison is a handle comparison, which is sound because `denoteN` is
@@ -988,7 +1047,9 @@ reason). -/
 theorem name_nodup_refines {ns : alloc.vec.Vec arena.handle.NIdx} {o : Bool}
     (hrun : arena.checker_base.name_nodup ns = ok o) :
     o = nameNodup (absNIdxL ns) := by
-  sorry
+  rw [arena.checker_base.name_nodup] at hrun
+  have := name_nodup_from_refines hrun
+  simpa [absNIdxLFrom, absNIdxL] using this
 
 /-- `nidx_is_model_suffix` ⊑ `NIdx.isModelSuffix`. -/
 theorem nidx_is_model_suffix_refines {pers st lst} {n : arena.handle.NIdx} {o}
@@ -997,12 +1058,273 @@ theorem nidx_is_model_suffix_refines {pers st lst} {n : arena.handle.NIdx} {o}
     SimRE id lst o (NIdx.isModelSuffix (absNIdx n)) := by
   sorry
 
+/-- `viewN` in `run` form: a read of the name store, the state unchanged. -/
+theorem viewN_run (h : NIdx) (lst : AState) :
+    (viewN h).run lst = match lst.store.ns.view h with
+      | some x => .ok (x, lst)
+      | none => .error (.internal "arena: dangling name handle") := by
+  show (match lst.store.ns.view h with
+        | some v => (pure v : AM _)
+        | none => Arena.fail (.internal "arena: dangling name handle")).run lst = _
+  cases lst.store.ns.view h <;> rfl
+
+/-- The Rust name view as a `SimRE` read, with the view's well-formedness. -/
+theorem view_n_simre {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {h : arena.handle.NIdx} {o}
+    (hrun : arena.monad.view_n pers st h = ok o) :
+    SimRE absNNodeView lst o (viewN (absNIdx h)) ∧
+      ∀ v, o = .Ok v → NNodeViewWF v := by
+  have hA := view_n_run₀ hrel hinv hrun
+  refine ⟨?_, ?_⟩
+  · cases o with
+    | Err e => exact hA
+    | Ok v =>
+      obtain ⟨lst', hx, -, -⟩ := hA
+      show (viewN (absNIdx h)).run lst = .ok (absNNodeView v, lst)
+      rw [hx]
+      rw [viewN_run] at hx
+      split at hx
+      · cases hx; rfl
+      · cases hx
+  · intro v hv
+    subst hv
+    obtain ⟨_, _, _, ⟨_, hwf⟩, _⟩ := Lockstep.view_n_ls hrel hinv h (.Ok v) hrun
+    exact hwf
+
+/-- A code-point literal, read back. -/
+theorem lit_abs {k : Std.Usize} {M : Std.Array Std.U32 k} {sl : Slice Std.U32}
+    (hs : lift (Std.Array.to_slice M) = ok sl) {v : alloc.vec.Vec Std.U32}
+    (hv : kernel.core_types.code_points sl = ok v) : v.val = M.val := by
+  simp only [lift, Result.ok.injEq] at hs
+  subst hs
+  rw [ConRon.Refine.Env.code_points_val hv, Std.Array.val_to_slice]
+
 /-- `nidx_is_proj_fn_shape` ⊑ `NIdx.isProjFnShape`. -/
 theorem nidx_is_proj_fn_shape_refines {pers st lst} {n : arena.handle.NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.nidx_is_proj_fn_shape pers st n = ok o) :
     SimRE id lst o (NIdx.isProjFnShape (absNIdx n)) := by
-  sorry
+  rw [arena.checker_base.nidx_is_proj_fn_shape] at hrun
+  obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have htag := nidx_tag_abs ht
+  unfold SimRE
+  rw [NIdx.isProjFnShape, htag]
+  by_cases hnum : t = arena.handle.NTAG_NUM
+  · rw [if_pos hnum] at hrun
+    rw [if_pos (by rw [hnum, ntag_num_abs]; exact beq_self_eq_true _)]
+    obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨hV, -⟩ := view_n_simre hrel hinv hr
+    cases r with
+    | Err e =>
+      obtain rfl := (Result.ok_injective hrun).symm
+      rw [am_run_bind']
+      exact AErrSim.bind hV _
+    | Ok nv =>
+      have hV' : (viewN (absNIdx n)).run lst = .ok (absNNodeView nv, lst) := hV
+      rw [Lockstep.run_bind_ok hV']
+      cases nv with
+      | Anonymous => obtain rfl := (Result.ok_injective hrun).symm; rfl
+      | Str _ _ => obtain rfl := (Result.ok_injective hrun).symm; rfl
+      | Num p _ =>
+        simp only [absNNodeView]
+        obtain ⟨t1, ht1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have htag1 := nidx_tag_abs ht1
+        rw [htag1]
+        by_cases hstr : t1 = arena.handle.NTAG_STR
+        · rw [if_pos hstr] at hrun
+          rw [if_pos (by rw [hstr, ntag_str_abs]; exact beq_self_eq_true _)]
+          obtain ⟨r1, hr1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+          obtain ⟨hV1, hwf1⟩ := view_n_simre hrel hinv hr1
+          cases r1 with
+          | Err e =>
+            obtain rfl := (Result.ok_injective hrun).symm
+            rw [am_run_bind']
+            exact AErrSim.bind hV1 _
+          | Ok nv1 =>
+            have hV1' : (viewN (absNIdx p)).run lst = .ok (absNNodeView nv1, lst) := hV1
+            rw [Lockstep.run_bind_ok hV1']
+            cases nv1 with
+            | Anonymous => obtain rfl := (Result.ok_injective hrun).symm; rfl
+            | Num _ _ => obtain rfl := (Result.ok_injective hrun).symm; rfl
+            | Str _ sv =>
+              have hswf : ConRon.Refine.StrWF sv := hwf1 _ rfl
+              simp only [absNNodeView]
+              obtain ⟨sl, hsl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+              obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+              have hvv := lit_abs hsl hv
+              rw [arena.checker_base.nidx_is_proj_fn_shape.P, Std.Array.make_val] at hvv
+              have hvwf : ConRon.Refine.StrWF v := by
+                intro c hc; rw [hvv] at hc; fin_cases hc <;> decide
+              have hvabs : ConRon.Refine.absString v = "proj" := by
+                rw [ConRon.Refine.absString, hvv]; rfl
+              obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+              have hbv := ConRon.Refine.Name.str_eq_refines hswf hvwf hb
+              rw [hvabs] at hbv
+              by_cases hbt : b = true
+              · rw [if_pos hbt] at hrun
+                obtain rfl := (Result.ok_injective hrun).symm
+                have : ConRon.Refine.absString sv = "proj" := by simpa [hbt] using hbv
+                show Except.ok _ = Except.ok _
+                simp [this]
+              · rw [if_neg hbt] at hrun
+                obtain ⟨sl2, hsl2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+                obtain ⟨v2, hv2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+                have hvv2 := lit_abs hsl2 hv2
+                rw [arena.checker_base.nidx_is_proj_fn_shape.T, Std.Array.make_val] at hvv2
+                have hvwf2 : ConRon.Refine.StrWF v2 := by
+                  intro c hc; rw [hvv2] at hc; fin_cases hc <;> decide
+                have hvabs2 : ConRon.Refine.absString v2 = "projTable" := by
+                  rw [ConRon.Refine.absString, hvv2]; rfl
+                obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+                have hbv1 := ConRon.Refine.Name.str_eq_refines hswf hvwf2 hb1
+                rw [hvabs2] at hbv1
+                obtain rfl := (Result.ok_injective hrun).symm
+                have hne : ConRon.Refine.absString sv ≠ "proj" := by
+                  intro h; apply hbt; rw [hbv, h]; rfl
+                show Except.ok _ = Except.ok _
+                have h1 : (ConRon.Refine.absString sv == "proj") = false := by simp [hne]
+                simp only [h1, Bool.false_or, hbv1, id]
+                cases h : (ConRon.Refine.absString sv == "projTable") <;> simp_all
+        · rw [if_neg hstr] at hrun
+          rw [if_neg (by
+            rw [ntag_str_abs.symm.trans rfl] at *
+            intro hx
+            exact hstr (absU32_inj (by simpa using hx)))]
+          obtain rfl := (Result.ok_injective hrun).symm
+          rfl
+  · rw [if_neg hnum] at hrun
+    rw [if_neg (by
+      rw [← ntag_num_abs]
+      intro hx
+      exact hnum (absU32_inj (by simpa using hx)))]
+    obtain rfl := (Result.ok_injective hrun).symm
+    rfl
+
+/-! ## `arena::core::consts_resolve` — the plain walk the guard walk's leaves call
+
+No tier had stated `arena::core::consts_resolve` (the Core knot does not call
+it; the checker's guard walk hands its leaf arms to it).  The Rust splits the
+two literal arms into `nat_trio_stored`/`str_support_stored`, the twin writes
+their pin reads inline: the SAME reads in the same order, so the twin side is
+two transcriptions (`natTrioStoredSpec`, `strSupportStoredSpec`) and one
+equation (`constsResolve_succ`) — a factoring difference, not a divergence. -/
+
+/-- The `Nat` literal arm's three pin reads and probes. -/
+def natTrioStoredSpec (fe : IFEnv) : AM Bool := do
+  let nt ← pinNat
+  let nz ← pinNatZero
+  let ns ← pinNatSucc
+  pure ((fe.find? nt).isSome && (fe.find? nz).isSome && (fe.find? ns).isSome)
+
+/-- The `String` literal arm's seven further pin reads and probes. -/
+def strSupportStoredSpec (fe : IFEnv) : AM Bool := do
+  let st ← pinString
+  let sl ← pinStringOfList
+  let li ← pinList
+  let ln ← pinListNil
+  let lc ← pinListCons
+  let ch ← pinChar
+  let co ← pinCharOfNat
+  pure ((fe.find? st).isSome && (fe.find? sl).isSome && (fe.find? li).isSome &&
+    (fe.find? ln).isSome && (fe.find? lc).isSome && (fe.find? ch).isSome &&
+    (fe.find? co).isSome)
+
+/-- `constsResolve` one step in, with the literal arms as the two transcriptions. -/
+theorem constsResolve_succ (fe : IFEnv) (fuel : Nat) (h : EIdx) :
+    constsResolve fe (fuel + 1) h = (do
+      match ← view h with
+      | .bvar _ | .sort _ => pure true
+      | .lit (.natVal _) => natTrioStoredSpec fe
+      | .lit (.strVal _) => do
+        let x ← natTrioStoredSpec fe
+        let y ← strSupportStoredSpec fe
+        pure (x && y)
+      | .const n _ => pure (fe.find? n).isSome
+      | .fvar _ ty => constsResolve fe fuel ty
+      | .app f a => do
+        let x ← constsResolve fe fuel f
+        if x then constsResolve fe fuel a else pure false
+      | .lam ty body _ | .forallE ty body _ => do
+        let x ← constsResolve fe fuel ty
+        if x then constsResolve fe fuel body else pure false
+      | .letE ty val body => do
+        let x ← constsResolve fe fuel ty
+        if !x then pure false else do
+          let y ← constsResolve fe fuel val
+          if y then constsResolve fe fuel body else pure false
+      | .proj s _ sub => do
+        if (fe.find? s).isSome then constsResolve fe fuel sub else pure false) := by
+  rw [constsResolve]
+  refine ConRon.Refine2.am_bind_congr _ ?_
+  intro v
+  cases v with
+  | lit l =>
+    cases l with
+    | natVal _ => rfl
+    | strVal _ =>
+      simp only [natTrioStoredSpec, strSupportStoredSpec, bind_assoc, pure_bind,
+        Bool.and_assoc]
+  | _ => rfl
+
+namespace Lockstep
+
+/-- `arena::core::stored` is an index probe: the twin's `find?` test. -/
+@[lockstep] theorem stored_spec {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (n : arena.handle.NIdx) (hctx : CoreCtx vis rf lf) :
+    LSP (arena.core.stored vis rf n)
+      (fun b => TwinEq ((lf.find? (absNIdx n)).isSome) b) := by
+  intro b h
+  rw [arena.core.stored] at h
+  obtain ⟨o, ho, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hf := ifenv_find_abs hctx ho
+  show (lf.find? (absNIdx n)).isSome = b
+  rw [← hf]
+  cases o with
+  | none => simp only [Result.ok.injEq] at h; subst h; rfl
+  | some _ => simp only [Result.ok.injEq] at h; subst h; rfl
+
+@[lockstep] theorem nat_trio_stored_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis rf lf) :
+    LS pers (fun a b => b = id a) (arena.core.nat_trio_stored vis st rf) lst
+      (natTrioStoredSpec lf) := by
+  rw [arena.core.nat_trio_stored, natTrioStoredSpec]
+  lockstep
+
+@[lockstep] theorem str_support_stored_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis rf lf) :
+    LS pers (fun a b => b = id a) (arena.core.str_support_stored vis st rf) lst
+      (strSupportStoredSpec lf) := by
+  rw [arena.core.str_support_stored, strSupportStoredSpec]
+  lockstep
+
+end Lockstep
+
+theorem consts_resolve_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+      (fuel : Std.U64) (h : arena.handle.EIdx),
+      fuel.val = n → CoreCtx vis rf lf → AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = id a) (arena.core.consts_resolve pers vis st rf fuel h)
+        lst (constsResolve lf n (absEIdx h)) := by
+  induction n with
+  | zero =>
+    intro pers st lst vis rf lf fuel h hn hctx hrel hinv
+    rw [arena.core.consts_resolve, constsResolve]
+    lockstep
+  | succ m ih =>
+    intro pers st lst vis rf lf fuel h hn hctx hrel hinv
+    rw [arena.core.consts_resolve, constsResolve_succ]
+    lockstep
+
+/-- **`arena::core::consts_resolve` ⊑ `constsResolve`**. -/
+@[lockstep] theorem Lockstep.consts_resolve_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis rf lf) (fuel : Std.U64) (h : arena.handle.EIdx) :
+    Lockstep.LS pers (fun a b => b = id a) (arena.core.consts_resolve pers vis st rf fuel h)
+      lst (constsResolve lf (absU fuel) (absEIdx h)) :=
+  consts_resolve_aux _ fuel h rfl hctx hrel hinv
 
 /-! ## The two memoised guard walks
 
@@ -1171,18 +1493,42 @@ theorem all_level_params_defined_refines {pers st lst}
 
 /-! ## The front door's verdict at an unresolved constant -/
 
+/-- `unresolved_consts_error` by `lockstep`, with its walk `mentions_const` as a
+hypothesis: that walk's statement (`mentions_const_ls`) is
+`Refine2/Inductives/StructParts.lean`'s, a module ABOVE this one (the
+Inductives tier imports the checker's base), so it cannot be named here. -/
+theorem unresolved_consts_error_of {pers st lst} {e : arena.handle.EIdx} {o}
+    {w : String}
+    (hM : ∀ {st lst} (t : arena.handle.NIdx), AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = id a)
+        (arena.inductives.struct_parts.mentions_const pers st t e) lst
+        (mentionsConst (absNIdx t) (absEIdx e)))
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.checker_base.unresolved_consts_error pers st e = ok o) :
+    SimRel₀ (fun r v => absAErrKind r = lAErrKind v) pers lst o
+      (unresolvedConstsError w (absEIdx e)) := by
+  have hS : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_sorry_ax st) st lst
+        pinSorryAx :=
+    fun hrel hinv => Lockstep.LSR.ofSimRE hrel hinv fun _ h => pin_sorry_ax_refines hrel hinv h
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker_base.unresolved_consts_error, unresolvedConstsError]
+  chk_lockstep
+
 /-- `unresolved_consts_error` ⊑ `unresolvedConstsError`.  The result is a
 CheckError, so it is a `SimRel₀` at the kind: a term that mentions `sorryAx`
 DECLINES (`notImplemented`) and anything else REJECTS (`invalid`), and the
 claim is that the two agree on WHICH — messages are never compared
-(DESIGN §3.1). -/
+(DESIGN §3.1).  **Closed modulo `mentions_const`**: `unresolved_consts_error_of`
+is the whole proof; the `sorry` is `Inductives/StructParts.lean`'s
+`mentions_const_ls` (itself a `sorry` there), which this module cannot import. -/
 theorem unresolved_consts_error_refines {pers st lst} {e : arena.handle.EIdx} {o}
     {w : String}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.unresolved_consts_error pers st e = ok o) :
     SimRel₀ (fun r v => absAErrKind r = lAErrKind v) pers lst o
-      (unresolvedConstsError w (absEIdx e)) := by
-  sorry
+      (unresolvedConstsError w (absEIdx e)) :=
+  unresolved_consts_error_of (fun _ _ _ => sorry) hrel hinv hrun
 
 open Lockstep in
 @[lockstep] theorem unresolved_consts_error_ls {pers st lst}
@@ -1402,15 +1748,34 @@ end Lockstep
 
 /-! ## The per-declaration constant check -/
 
+open Lockstep in
+@[lockstep] theorem nidx_is_proj_fn_shape_ls {pers st lst} {n : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = id a) (arena.checker_base.nidx_is_proj_fn_shape pers st n)
+      st lst (NIdx.isProjFnShape (absNIdx n)) :=
+  LSR.ofSimRE hrel hinv fun _ h => nidx_is_proj_fn_shape_refines hrel hinv h
+
+@[lockstep_simp] theorem absIConstantVal_levelParams (cv : arena.env.IConstantVal) :
+    (absIConstantVal cv).levelParams = cv.level_params.val.map absNIdx := rfl
+
+open Lockstep in
+@[lockstep] theorem name_nodup_spec (ns : alloc.vec.Vec arena.handle.NIdx) :
+    LSP (arena.checker_base.name_nodup ns)
+      (fun o => TwinEq (nameNodup (ns.val.map absNIdx)) o) :=
+  fun _ h => (name_nodup_refines h).symm
+
 /-- `check_constant_val_guards_rest` is `check_constant_val_guards`'s tail past
-the duplicate-declaration test (extraction rule 5). -/
+the duplicate-declaration test (extraction rule 5).  One `lockstep` call. -/
 theorem check_constant_val_guards_rest_refines {pers st lst}
     {cv : arena.env.IConstantVal} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.check_constant_val_guards_rest pers st cv = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
       (checkConstantValGuardsRestSpec (absIConstantVal cv)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_base.check_constant_val_guards_rest, checkConstantValGuardsRestSpec]
+  simp only [am_fail_bind]
+  chk_lockstep
 
 open Lockstep in
 @[lockstep] theorem check_constant_val_guards_rest_ls {pers st lst}
@@ -2167,20 +2532,99 @@ theorem is_rec_info_refines {ci : arena.env.IConstantInfo} {o : Bool}
     subst h2
     rfl)
 
+/-- The block's cursor at a position inside it: the element, then the rest. -/
+theorem absICILFrom_cons {block : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize}
+    (hlt : i.val < block.val.length) :
+    absICILFrom block i
+      = absIConstantInfo block.val[i.val] :: (block.val.drop (i.val + 1)).map absIConstantInfo := by
+  simp only [absICILFrom, List.drop_eq_getElem_cons hlt, List.map_cons]
+
+private theorem all_rec_info_aux {block : alloc.vec.Vec arena.env.IConstantInfo} (m : Nat) :
+    ∀ {i : Std.Usize} {o : Bool}, block.val.length - i.val = m →
+      arena.checker_base.all_rec_info block i = ok o →
+      o = (absICILFrom block i).all isRecInfo := by
+  induction m using Nat.strong_induction_on with
+  | _ m ih =>
+    intro i o hm hrun
+    rw [arena.checker_base.all_rec_info.eq_def] at hrun
+    dsimp only at hrun
+    have hl := alloc.vec.Vec.len_val block
+    by_cases hge : i ≥ block.len
+    · have hle : block.val.length ≤ i.val := by scalar_tac
+      rw [if_pos hge] at hrun
+      rw [← Result.ok_injective hrun]
+      simp [absICILFrom, List.drop_eq_nil_of_le hle]
+    · have hlt : i.val < block.val.length := by scalar_tac
+      rw [if_neg hge] at hrun
+      obtain ⟨c, hc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨_, rfl⟩ := ConRon.Refine.ExprOps.vec_index_val hc
+      obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hbv := is_rec_info_refines hb
+      rw [absICILFrom_cons hlt, List.all_cons, ← hbv]
+      by_cases hbt : b = true
+      · rw [if_pos hbt] at hrun
+        obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+        have hrec := ih (block.val.length - i2.val) (by omega) rfl hrun
+        rw [hrec, hbt]
+        simp [absICILFrom, hi2v]
+      · rw [if_neg hbt] at hrun
+        rw [← Result.ok_injective hrun]
+        simp [hbt]
+
+private theorem recs_form_suffix_aux {block : alloc.vec.Vec arena.env.IConstantInfo}
+    (m : Nat) :
+    ∀ {i : Std.Usize} {o : Bool}, block.val.length - i.val = m →
+      arena.checker_base.recs_form_suffix block i = ok o →
+      o = recsFormSuffix (absICILFrom block i) := by
+  induction m using Nat.strong_induction_on with
+  | _ m ih =>
+    intro i o hm hrun
+    rw [arena.checker_base.recs_form_suffix.eq_def] at hrun
+    dsimp only at hrun
+    have hl := alloc.vec.Vec.len_val block
+    by_cases hge : i ≥ block.len
+    · have hle : block.val.length ≤ i.val := by scalar_tac
+      rw [if_pos hge] at hrun
+      rw [← Result.ok_injective hrun]
+      simp [absICILFrom, List.drop_eq_nil_of_le hle, recsFormSuffix]
+    · have hlt : i.val < block.val.length := by scalar_tac
+      rw [if_neg hge] at hrun
+      obtain ⟨c, hc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨_, rfl⟩ := ConRon.Refine.ExprOps.vec_index_val hc
+      obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hbv := is_rec_info_refines hb
+      rw [absICILFrom_cons hlt, recsFormSuffix, ← hbv]
+      by_cases hbt : b = true
+      · rw [if_pos hbt] at hrun ⊢
+        obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+        have hdrop : (block.val.drop (i.val + 1)).map absIConstantInfo
+            = absICILFrom block i2 := by simp [absICILFrom, hi2v]
+        rw [hdrop]
+        exact all_rec_info_aux _ rfl hrun
+      · rw [if_neg hbt] at hrun ⊢
+        obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+        have hdrop : (block.val.drop (i.val + 1)).map absIConstantInfo
+            = absICILFrom block i2 := by simp [absICILFrom, hi2v]
+        rw [hdrop]
+        exact ih (block.val.length - i2.val) (by omega) rfl hrun
+
 /-- `all_rec_info` is `rest.all isRecInfo` from the cursor on. -/
 theorem all_rec_info_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
     {i : Std.Usize} {o : Bool}
     (hrun : arena.checker_base.all_rec_info block i = ok o) :
-    o = (absICILFrom block i).all isRecInfo := by
-  sorry
+    o = (absICILFrom block i).all isRecInfo :=
+  all_rec_info_aux _ rfl hrun
 
 /-- `recs_form_suffix` ⊑ `recsFormSuffix` from the cursor on — do the
 recursors form a suffix of the block? -/
 theorem recs_form_suffix_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
     {i : Std.Usize} {o : Bool}
     (hrun : arena.checker_base.recs_form_suffix block i = ok o) :
-    o = recsFormSuffix (absICILFrom block i) := by
-  sorry
+    o = recsFormSuffix (absICILFrom block i) :=
+  recs_form_suffix_aux _ rfl hrun
 
 /-- `ind_params_ok_at` is `ind_params_ok`'s per-member test. -/
 theorem ind_params_ok_at_refines {pers st lst} {n_p : Std.U64}
@@ -2467,7 +2911,7 @@ open Lockstep in
   LS.ofSim₀ fun _ h => install_value_tail_refines hrel hinv hfe.rel hfe.inv h
 
 /-- **`install_value` ⊑ `installValue`** — the value half of
-`check{Defn,Thm,Opaque}Val` minus its inference. -/
+`check{Defn,Thm,Opaque}Val` minus its inference.  One `lockstep` call. -/
 theorem install_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
     {value : arena.handle.EIdx} {o}
@@ -2477,7 +2921,12 @@ theorem install_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ absEIdx pers lst o
       (installValue (ConRon.Refine.absMode mode) (lf.restrictTo (absU vis))
         (absIConstantVal cv) (absEIdx value)) := by
-  sorry
+  have hctx := IFEnvInv.coreCtxAt vis hfe hfinv
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_split.install_value, installValue_unfold]
+  simp only [am_fail_bind]
+  chk_lockstep
 
 @[lockstep] theorem Lockstep.install_value_ls {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
@@ -2771,6 +3220,18 @@ end Lockstep
 
 /-- info: 'ConRon.Refine2.is_thm_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms is_thm_refines
+
+/-- info: 'ConRon.Refine2.consts_resolve_aux' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms consts_resolve_aux
+
+/-- info: 'ConRon.Refine2.nidx_is_proj_fn_shape_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nidx_is_proj_fn_shape_refines
+
+/-- info: 'ConRon.Refine2.recs_form_suffix_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms recs_form_suffix_refines
+
+/-- info: 'ConRon.Refine2.name_nodup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms name_nodup_refines
 
 /-- info: 'ConRon.Refine2.lvl_eq_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms lvl_eq_refines
