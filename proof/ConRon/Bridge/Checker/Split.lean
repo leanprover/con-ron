@@ -393,6 +393,24 @@ theorem installValue_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
 **the check half of a value declaration**, at the environment the constant was
 installed at.
 
+**THE STATEMENT WAS UNDER-HYPOTHESISED, and the two `WScoped` clauses are
+the repair** (task #97-P3-Checker round 5 — the campaign's seventh statement
+defect in this tier, found by taking the proof on).  `checkValueGroup`'s FIRST
+operation is `inferTypeCore … 0 g.cvA.type`, and the only route from an arena
+core run to con-leche's is `KnotSpec.infer`, whose precondition is
+`Expr.WScoped 0` of the DENOTED argument.  Nothing in round 1's hypotheses
+delivers it: `FoldOK` speaks about the environment and the store, not about a
+pending record's header, and `gP.cvA` is not (as far as this statement says) a
+constant of `env`, so `EnvWF`'s `hasFvar = false` clause does not reach it
+either.  The same holds of `gP.jv` at the second inference, in the `defn` and
+`opaque` arms where the value reaches `inferTypeCore` unannotated.
+
+At depth 0 `WScoped` IS `hasFvar = false` (`Expr.WScoped.of_not_hasFvar`), so
+both clauses are free at the one call site: phase A's `installConstantVal` and
+`installValue` test exactly that guard, and `annotateCore_WScoped` carries it
+to the annotated term.  `Arena.checkPending_bridge` is where they are
+discharged.
+
 `sorry`: `KnotSpec.infer`, `EnsureSortSpec.ensureSort`, the level
 comparison (`lvlEq?` through `CacheOK.lvlEq`), `installValue_bridge` for a
 theorem's own value, and `KnotSpec.defeq`.  Task #97-P3-Checker's sorry
@@ -405,6 +423,7 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
       g.kind = .opaque ∧ gP.kind = .opaque)
     (hcv : Frontend.denoteCV s.store g.cvA = some gP.cvA)
     (hjv : denoteE s.store g.jv = some gP.jv)
+    (hwsty : Expr.WScoped 0 gP.cvA.type) (hwsjv : Expr.WScoped 0 gP.jv)
     (hrun : checkValueGroup μ fe g s = .ok ((), s')) :
     CoreStep μ env fe s s' ∧ ∃ F,
       ConLeche.checkValueGroup (ConLeche.fueledOps μ F) env gP = .ok () := by
@@ -416,41 +435,327 @@ con-leche's `mkFEnv_find?_visibleBelow` at the arena's `IFEnv.restrictTo`.
 This is the one place the environment INDEX is consulted at something other
 than the environment it indexes, and it is why `FoldOK` carries `IFEnvCoh`. -/
 
-/-- con-leche: ConLeche/Verify/EnvBound.lean:141 mkFEnv_find?_visibleBelow —
-**the prefix view denotes the prefix environment**.  Phase B checks a pending
-record against `fe.restrictTo pc.vis`, and this says that view is the
-environment the record was installed at.
+/-! ### The bound, and the suffix it names
+
+`IFEnv.restrictTo k` keeps the index and lowers the bound; `Env.prefixTo k`
+keeps the environment's LAST `k` constants.  These four lemmas are that
+correspondence at the arena's index, and they are con-leche's `idxBelow_eq`
+(`Verify/EnvBound.lean`) with `List.drop` where con-leche has its own spec
+list.  They are stated here because `IFEnvOK_restrictTo` is their only
+consumer. -/
+
+/-- con-leche: none — lowering the bound only ever hides: a hit of the
+restricted view is a hit of the full one. -/
+theorem IFEnv.restrictTo_find?_le {fe : IFEnv} {k : Nat}
+    (hk : k ≤ fe.visibleBelow) {n : NIdx} {ci : IConstantInfo}
+    (h : (fe.restrictTo k).find? n = some ci) : fe.find? n = some ci := by
+  simp only [IFEnv.find?, IFEnv.restrictTo] at h ⊢
+  cases hg : fe.idx[n]? with
+  | none => rw [hg] at h; simp at h
+  | some p =>
+    obtain ⟨c0, ci0⟩ := p
+    rw [hg] at h
+    dsimp only at h ⊢
+    by_cases hc : c0 < k
+    · rw [if_pos hc] at h
+      rw [if_pos (Nat.lt_of_lt_of_le hc hk)]
+      exact h
+    · rw [if_neg hc] at h; simp at h
+
+/-- con-leche: ConLeche/Verify/EnvBound.lean idxBelow_eq_some — **soundness of
+the bound**: what the restricted index finds, the suffix finds too.  The
+counter `mkIFEnvGo` hands an entry is the length of the list BEHIND it, so
+`c < k` says the entry is within the last `k`. -/
+theorem mkIFEnvGo_below : ∀ (cs : List IConstantInfo) (n : NIdx) (k c : Nat)
+    (ci : IConstantInfo), (mkIFEnvGo cs).2[n]? = some (c, ci) → c < k →
+    (cs.drop (cs.length - k)).find? (fun d => d.name == n) = some ci := by
+  intro cs
+  induction cs with
+  | nil => intro n k c ci h _; simp [mkIFEnvGo] at h
+  | cons a as ih =>
+    intro n k c ci h hc
+    simp only [mkIFEnvGo] at h
+    rw [Std.HashMap.getElem?_insert] at h
+    by_cases hb : a.name == n
+    · rw [if_pos hb] at h
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      rw [mkIFEnvGo_fst] at hc
+      have e0 : (a :: as).length - k = 0 := by simp only [List.length_cons]; omega
+      rw [e0, List.drop_zero, List.find?_cons, hb]
+    · rw [if_neg hb] at h
+      have hbf : (a.name == n) = false := by simpa using hb
+      have ihh := ih n k c ci h hc
+      by_cases hk : k ≤ as.length
+      · have e1 : (a :: as).length - k = (as.length - k) + 1 := by
+          simp only [List.length_cons]; omega
+        rw [e1, List.drop_succ_cons]
+        exact ihh
+      · have e2 : (a :: as).length - k = 0 := by simp only [List.length_cons]; omega
+        have e3 : as.length - k = 0 := by omega
+        rw [e3, List.drop_zero] at ihh
+        rw [e2, List.drop_zero, List.find?_cons, hbf]
+        exact ihh
+
+/-- con-leche: ConLeche/Verify/EnvBound.lean idxBelow_eq — **completeness of
+the bound**, and the one place the `Nodup` side condition is spent: without it
+an entry of the suffix could be SHADOWED by an earlier entry with the same
+handle, which the index would answer with instead. -/
+theorem mkIFEnvGo_below_of : ∀ (cs : List IConstantInfo) (n : NIdx) (k : Nat)
+    (ci : IConstantInfo), k ≤ cs.length → (cs.map (·.name)).Nodup →
+    (cs.drop (cs.length - k)).find? (fun d => d.name == n) = some ci →
+    ∃ c, (mkIFEnvGo cs).2[n]? = some (c, ci) ∧ c < k := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro n k ci hk _ h
+    simp only [List.length_nil, Nat.le_zero_eq] at hk
+    subst hk
+    simp at h
+  | cons a as ih =>
+    intro n k ci hk hnd h
+    simp only [List.map_cons, List.nodup_cons] at hnd
+    obtain ⟨hna, hnd'⟩ := hnd
+    simp only [List.length_cons] at hk
+    simp only [mkIFEnvGo]
+    rw [Std.HashMap.getElem?_insert]
+    by_cases hkk : k ≤ as.length
+    · have e1 : (a :: as).length - k = (as.length - k) + 1 := by
+        simp only [List.length_cons]; omega
+      rw [e1, List.drop_succ_cons] at h
+      obtain ⟨c, hc, hck⟩ := ih n k ci hkk hnd' h
+      have hcin : ci ∈ as := List.drop_subset _ _ (List.mem_of_find?_eq_some h)
+      have hcn : ci.name = n := by simpa using List.find?_some h
+      have hb : ¬ (a.name == n) := by
+        intro hx
+        obtain rfl : a.name = n := by simpa using hx
+        exact hna (hcn ▸ List.mem_map_of_mem hcin)
+      rw [if_neg hb]
+      exact ⟨c, hc, hck⟩
+    · have hke : k = as.length + 1 := by omega
+      subst hke
+      have e0 : (a :: as).length - (as.length + 1) = 0 := by
+        simp only [List.length_cons]; omega
+      rw [e0, List.drop_zero, List.find?_cons] at h
+      by_cases hb : a.name == n
+      · rw [hb] at h
+        simp only [Option.some.injEq] at h
+        subst h
+        rw [if_pos hb, mkIFEnvGo_fst]
+        exact ⟨as.length, rfl, Nat.lt_succ_self _⟩
+      · have hbf : (a.name == n) = false := by simpa using hb
+        rw [hbf] at h
+        simp only at h
+        rw [if_neg hb]
+        have hm := mkIFEnvGo_snd as n
+        rw [h] at hm
+        cases hg : (mkIFEnvGo as).2[n]? with
+        | none => rw [hg] at hm; simp at hm
+        | some p =>
+          obtain ⟨c0, ci0⟩ := p
+          rw [hg] at hm
+          simp only [Option.map_some, Option.some.injEq] at hm
+          subst hm
+          exact ⟨c0, rfl,
+            Nat.lt_succ_of_lt (mkIFEnvGo_lt as n c0 ci0 hg)⟩
+
+/-- con-leche: none — the readback is elementwise, so a member of the list has
+a member of its denotation. -/
+theorem denoteCIList_mem {st : EStore} : ∀ (cs : List IConstantInfo)
+    (zs : List ConstantInfo), Frontend.denoteCIList st cs = some zs →
+    ∀ b ∈ cs, ∃ z ∈ zs, Frontend.denoteCI st b = some z := by
+  intro cs
+  induction cs with
+  | nil => intro zs _ b hb; simp at hb
+  | cons a as ih =>
+    intro zs hz b hb
+    obtain ⟨x, xs, ha, has, rfl⟩ := denoteCIList_cons hz
+    rcases List.mem_cons.mp hb with rfl | hb
+    · exact ⟨x, List.mem_cons_self, ha⟩
+    · obtain ⟨z, hzm, hzd⟩ := ih xs has b hb
+      exact ⟨z, List.mem_cons_of_mem _ hzm, hzd⟩
+
+/-- con-leche: none — the readback is elementwise, so it commutes with
+`List.drop`. -/
+theorem denoteCIList_drop {st : EStore} : ∀ (m : Nat) (cs : List IConstantInfo)
+    (zs : List ConstantInfo), Frontend.denoteCIList st cs = some zs →
+    Frontend.denoteCIList st (cs.drop m) = some (zs.drop m) := by
+  intro m
+  induction m with
+  | zero => intro cs zs h; simpa using h
+  | succ m ih =>
+    intro cs zs h
+    cases cs with
+    | nil =>
+      simp only [Frontend.denoteCIList, Option.some.injEq] at h
+      subst h
+      simp [Frontend.denoteCIList]
+    | cons a as =>
+      obtain ⟨x, xs, -, has, rfl⟩ := denoteCIList_cons h
+      simp only [List.drop_succ_cons]
+      exact ih as xs has
+
+/-- con-leche: none — the readback preserves length. -/
+theorem denoteCIList_length {st : EStore} : ∀ (cs : List IConstantInfo)
+    (zs : List ConstantInfo), Frontend.denoteCIList st cs = some zs →
+    cs.length = zs.length := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro zs h
+    simp only [Frontend.denoteCIList, Option.some.injEq] at h
+    subst h; rfl
+  | cons a as ih =>
+    intro zs h
+    obtain ⟨x, xs, -, has, rfl⟩ := denoteCIList_cons h
+    simp only [List.length_cons, ih xs has]
+
+/-- con-leche: none — **name uniqueness transports to HANDLE uniqueness**:
+`denoteN` is injective and each entry's handle denotes its constant's name, so
+two entries with the same handle would be two constants with the same name.
+This is how `IFEnvOK_restrictTo` spends con-leche's own `Nodup` side
+condition on the arena's index. -/
+theorem denoteCIList_nodup {st : EStore} (hwf : StoreWF st) :
+    ∀ (cs : List IConstantInfo) (zs : List ConstantInfo),
+      Frontend.denoteCIList st cs = some zs →
+      (∀ t, IConstantInfo.projInfo t ∈ cs → IProjTableOK st t) →
+      (zs.map (·.name)).Nodup → (cs.map (·.name)).Nodup := by
+  obtain ⟨rk, hrk⟩ := hwf
+  intro cs
+  induction cs with
+  | nil => intro zs _ _ _; simp
+  | cons a as ih =>
+    intro zs hz hproj hnd
+    obtain ⟨x, xs, ha, has, rfl⟩ := denoteCIList_cons hz
+    simp only [List.map_cons, List.nodup_cons] at hnd ⊢
+    obtain ⟨hxa, hxs⟩ := hnd
+    refine ⟨?_, ih xs has (fun t ht => hproj t (List.mem_cons_of_mem _ ht)) hxs⟩
+    intro hmem
+    obtain ⟨b, hbm, hbn⟩ := List.mem_map.mp hmem
+    obtain ⟨z, hzm, hzd⟩ := denoteCIList_mem as xs has b hbm
+    have h1 : denoteN st.ns a.name = some x.name :=
+      denoteCI_name_of (fun t ht => hproj t (by simp [ht])) ha
+    have h2 : denoteN st.ns b.name = some z.name :=
+      denoteCI_name_of
+        (fun t ht => hproj t (List.mem_cons_of_mem _ (ht ▸ hbm))) hzd
+    rw [hbn] at h2
+    have hxz : x.name = z.name := Option.some.inj (h1.symm.trans h2)
+    exact hxa (hxz ▸ List.mem_map_of_mem hzm)
+
+/-- con-leche: ConLeche/Verify/EnvBound.lean:243 mkFEnv_find?_visibleBelow —
+**the prefix view IS the index of the prefix environment**.  Phase B checks a
+pending record against `fe.restrictTo pc.vis`, and this says that view indexes
+the environment the record was installed at.
 
 The `Nodup` side condition is con-leche's own and it is the accumulated
 duplicate test of `checkConstantVal`; the fold carries it.
 
-`sorry`, and **the statement is FALSE as written** (task #97-P3-Checker
-round 4 — the round's fourth statement defect, and the only one it found that
-is false rather than under-hypothesised).  `IFEnv.restrictTo k` is
-`{ fe with visibleBelow := k }`, a change to the INDEX's bound and to nothing
-else, while `denoteFEnv st fe` is `denoteIEnv st fe.env` — it reads
-`fe.env.consts` and ignores `idx` and `visibleBelow` entirely.  So
-`denoteFEnv s.store (fe.restrictTo k) = denoteFEnv s.store fe = some env`,
-`envK = env` is forced, and the second conjunct becomes
-`env.find? = (env.prefixTo k).find?`, which fails at `k = 0` and any non-empty
-`env` (`env.prefixTo 0 = ⟨[]⟩`).
+**RESTATED** (task #97-P3-Checker round 5, on round 4's finding).  Round 4's
+conclusion was
 
-**What it should say.**  con-leche's own `mkFEnv_find?_visibleBelow`
-(`Verify/EnvBound.lean:243`) is about `FEnv.find?`, not about a denotation:
-"looking a name up in the full index with the bound `k` is looking it up in
-the environment truncated to its first `k` installed constants".  The arena
-twin of that is a statement about the INDEX — `IFEnvOK (env.prefixTo k)
-(fe.restrictTo k) s`, "the restricted index is the index of the prefix
-environment" — which is also exactly what the one consumer
-(`Arena.checkPending_bridge`, phase B, which calls the core at
-`fe.restrictTo pc.vis`) needs.  Reported rather than rewritten: replacing a
-conclusion is a statement decision. -/
-theorem denoteFEnv_restrictTo {μ : CheckMode} {env : Env} {fe : IFEnv}
-    {s : AState} {k : Nat} (hok : FoldOK μ env fe s)
-    (hnd : (env.consts.map (·.name)).Nodup) (hk : k ≤ fe.visibleBelow) :
     ∃ envK, denoteFEnv s.store (fe.restrictTo k) = some envK ∧
-      envK.find? = (env.prefixTo k).find? := by
-  sorry
+      envK.find? = (env.prefixTo k).find?
+
+and it is FALSE.  `IFEnv.restrictTo k` is `{ fe with visibleBelow := k }` — a
+change to the INDEX's bound and to nothing else — while `denoteFEnv st fe` is
+`denoteIEnv st fe.env`, which reads `fe.env.consts` and ignores `idx` and
+`visibleBelow` entirely.  So `denoteFEnv s.store (fe.restrictTo k)
+= denoteFEnv s.store fe = some env`, `envK = env` is forced, and the second
+conjunct degenerates to `env.find? = (env.prefixTo k).find?`, which fails at
+`k = 0` and any non-empty `env` (`env.prefixTo 0 = ⟨[]⟩`).
+
+con-leche's own `mkFEnv_find?_visibleBelow` is a statement about `FEnv.find?`,
+not about a denotation — *"looking a name up in the full index with the bound
+`k` is looking it up in the environment truncated to its first `k` installed
+constants"* — and the arena twin of that is a statement about the INDEX.  That
+is what stands here now, and it is what the one consumer
+(`Arena.checkPending_bridge`, phase B, which calls the core at
+`fe.restrictTo pc.vis`) actually needs: the Core tier's hypotheses are
+`IFEnvOK`-shaped, not denotation-shaped.
+
+**PROVED** (task #97-P3-Checker round 5, in the same round as the
+restatement).  `proj` is immediate: `hk` makes every hit of the restricted
+view a hit of `fe` (`IFEnv.restrictTo_find?_le`), so `FoldOK`'s own
+`IFEnvOK.proj` applies.  `hit` and `cover` are con-leche's `idxBelow_eq` at a
+DENOTED list: `mkIFEnvGo_below` and `mkIFEnvGo_below_of` above turn the
+bounded index read into `List.find?` over `cs.drop (cs.length - k)` — the
+counter an entry gets is the length of the list BEHIND it, so `c < k` says
+exactly "within the last `k`" — and then `Bridge/Checker/Inv.lean`'s
+`denoteCIList_find?` applies to the two DROPPED lists, because the readback is
+elementwise and so commutes with `List.drop`.
+
+**`hnd` is spent in exactly one place**, `mkIFEnvGo_below_of`: without it an
+entry of the suffix could be shadowed by an earlier entry with the same
+handle, which the index would answer with instead.  It arrives as con-leche's
+own NAME uniqueness and `denoteCIList_nodup` transports it to HANDLE
+uniqueness through `denoteN_inj`.
+
+**`hproj` is the tier's standing `.projInfo` hypothesis**, the same one
+`IFEnvOK_of_denote`, `installBasisDecl_bridge` and `IConstantInfo.canonEq_run`
+take at the same gap (`Frontend.denoteProjTable` drops `tableName`), and the
+same debtor discharges it (`projTableOK_of_install`).  It is needed here for
+`denoteCIList_find?`'s use of `denoteCI_name_of`. -/
+theorem IFEnvOK_restrictTo {μ : CheckMode} {env : Env} {fe : IFEnv}
+    {s : AState} {k : Nat} (hok : FoldOK μ env fe s)
+    (hproj : ∀ t, IConstantInfo.projInfo t ∈ fe.env.consts →
+      IProjTableOK s.store t)
+    (hnd : (env.consts.map (·.name)).Nodup) (hk : k ≤ fe.visibleBelow) :
+    IFEnvOK (env.prefixTo k) (fe.restrictTo k) s := by
+  have hwf := hok.check.state.wf
+  have hd := hok.denote
+  simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hd
+  obtain ⟨zs, hzs, rfl⟩ := hd
+  have hidx : fe.idx = (mkIFEnvGo fe.env.consts).2 := congrArg IFEnv.idx hok.coh
+  have hvb : fe.visibleBelow = fe.env.consts.length := by
+    rw [show fe.visibleBelow = (mkIFEnv fe.env).visibleBelow from
+      congrArg IFEnv.visibleBelow hok.coh]
+    exact mkIFEnvGo_fst fe.env.consts
+  have hk' : k ≤ fe.env.consts.length := hvb ▸ hk
+  have hlen : fe.env.consts.length = zs.length := denoteCIList_length _ _ hzs
+  have hndH : (fe.env.consts.map (·.name)).Nodup :=
+    denoteCIList_nodup hwf _ _ hzs hproj hnd
+  obtain ⟨hH, hC⟩ :=
+    denoteCIList_find? hwf (fe.env.consts.drop (fe.env.consts.length - k))
+      (zs.drop (fe.env.consts.length - k)) (denoteCIList_drop _ _ _ hzs)
+      (fun t ht => hproj t (List.drop_subset _ _ ht))
+  have hfwd : ∀ (n : NIdx) (ci : IConstantInfo),
+      (fe.restrictTo k).find? n = some ci →
+      (fe.env.consts.drop (fe.env.consts.length - k)).find?
+        (fun d => d.name == n) = some ci := by
+    intro n ci hf
+    simp only [IFEnv.find?, IFEnv.restrictTo, hidx] at hf
+    cases hg : (mkIFEnvGo fe.env.consts).2[n]? with
+    | none => rw [hg] at hf; simp at hf
+    | some p =>
+      obtain ⟨c0, ci0⟩ := p
+      rw [hg] at hf
+      dsimp only at hf
+      by_cases hc : c0 < k
+      · rw [if_pos hc] at hf
+        obtain rfl : ci0 = ci := Option.some.inj hf
+        exact mkIFEnvGo_below _ n k c0 _ hg hc
+      · rw [if_neg hc] at hf; simp at hf
+  have hbwd : ∀ (n : NIdx) (ci : IConstantInfo),
+      (fe.env.consts.drop (fe.env.consts.length - k)).find?
+        (fun d => d.name == n) = some ci →
+      (fe.restrictTo k).find? n = some ci := by
+    intro n ci hf
+    obtain ⟨c, hc, hck⟩ := mkIFEnvGo_below_of _ n k ci hk' hndH hf
+    simp only [IFEnv.find?, IFEnv.restrictTo, hidx, hc]
+    rw [if_pos hck]
+  refine ⟨?_, ?_, ?_⟩
+  · intro n ci hf
+    obtain ⟨nm, c, h1, h2, h3⟩ := hH n ci (hfwd n ci hf)
+    refine ⟨nm, c, h1, h2, ?_⟩
+    simpa [Env.prefixTo, Env.find?, ← hlen] using h3
+  · intro nm c he
+    have he' : (zs.drop (fe.env.consts.length - k)).find?
+        (fun d => d.name == nm) = some c := by
+      simpa [Env.prefixTo, Env.find?, ← hlen] using he
+    obtain ⟨n, ci, h1, h2, h3⟩ := hC nm c he'
+    exact ⟨n, ci, h1, hbwd n ci h2, h3⟩
+  · intro n t hf
+    exact hok.check.ienv.proj n t (IFEnv.restrictTo_find?_le hk hf)
 
 /-! ## Phase A and phase B -/
 
@@ -486,7 +791,7 @@ theorem Arena.annotStep_bridge {μ : CheckMode}
 /-- con-leche: ConLeche/Cached/Installed.lean:260-274 checkPending — **phase
 B's check of one record**, against the prefix view, inside its own bracket.
 
-`sorry`: `denoteFEnv_restrictTo` and `checkValueGroup_bridge`, then the
+`sorry`: `IFEnvOK_restrictTo` and `checkValueGroup_bridge`, then the
 bracket with nothing to promote (`Arena/Checker.lean`: "Nothing crosses back,
 so there is nothing to promote").  Task #97-P3-Checker's sorry list,
 item 19. -/
@@ -517,7 +822,7 @@ Theorem 1 — the half the history report's fine print 5 prices — and with
 `Verify/Cached/InstalledC.lean:456 installRun_model` is the same walk at the
 model instead of at `checkDeclsPure`): phase A's records give the install
 halves at each prefix environment, `Arena.checkPending_bridge` gives the check
-half at the SAME one through `denoteFEnv_restrictTo`, `checkDecl_of_split_*`
+half at the SAME one through `IFEnvOK_restrictTo`, `checkDecl_of_split_*`
 combines them into `ConLeche.checkDecl`, and `checkDecl_mono` raises the fuels
 to one.  Task #97-P3-Checker's sorry list, item 20 — the largest remaining
 item after the seven arms, and the only one that is a *fold* rather than a

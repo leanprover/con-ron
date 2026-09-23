@@ -271,6 +271,43 @@ namespace ConRon.Bridge
 #print axioms checkDecl_axiom_ofReduce_pure
 #print axioms checkDecl_axiom_sorryAx_pure
 
+-- **ROUND 5.**  The index retired (`IFEnvOK_of_denote`, `IFEnvOK_restrictTo`),
+-- the whole `canon` comparison, and the recurrence certifier.
+
+-- the index IS the list: con-leche's `mkFEnv_find?` at the arena's hash map
+#print axioms mkIFEnvGo_fst
+#print axioms mkIFEnvGo_snd
+#print axioms mkIFEnvGo_lt
+#print axioms mkIFEnvGo_mem
+#print axioms mkIFEnv_find?
+#print axioms IFEnvCoh.find?
+#print axioms IFEnv.find?_mem
+#print axioms denoteCIList_find?
+#print axioms IFEnvOK_of_denote
+
+-- the bounded view, and `Env.prefixTo`: con-leche's `idxBelow_eq`
+#print axioms IFEnv.restrictTo_find?_le
+#print axioms mkIFEnvGo_below
+#print axioms mkIFEnvGo_below_of
+#print axioms denoteCIList_mem
+#print axioms denoteCIList_drop
+#print axioms denoteCIList_length
+#print axioms denoteCIList_nodup
+#print axioms IFEnvOK_restrictTo
+
+-- the `.projInfo` comparison, and the two injectivity facts it needed
+#print axioms denoteNList_inj
+#print axioms denoteEArray_inj
+#print axioms denoteProjTable_inj
+#print axioms IConstantInfo.canonEq_run
+#print axioms canonEqList_run
+
+-- the recurrence certifier
+#print axioms EqPairsDenote.mono
+#print axioms certifyNatEqs_cons_pure
+#print axioms certifyNatEqs_bridge_aux
+#print axioms certifyNatEqs_bridge
+
 /-! ## Group 2 — the three headline theorems
 
 Each carries `sorryAx` from the tier's open items; neither carries `CoreSpec`
@@ -280,16 +317,6 @@ nor `IndSpec`, which are hypotheses of the statement. -/
 -- `Bridge/Core/Induction.lean`'s `knot_spec_checkFuel` (which carries
 -- `sorryAx` through its six `…Body_spec` walks)
 #print axioms CoreSpec.of_knot
-
--- `canonEqList_run` (task #97-P3-Checker-3) is an ASSEMBLY, not a leaf: the
--- list induction is closed and its `sorryAx` is `IConstantInfo.canonEq_run`'s,
--- which is `canonExprEq`'s fuel induction and nothing else.
-#print axioms canonEqList_run
-
--- `IConstantInfo.canonEq_run` (round 4) is forty-eight of its forty-nine arms:
--- its `sorryAx` is the `.projInfo`/`.projInfo` arm alone, which is a STATEMENT
--- defect (DESIGN, round 4 §3.2 — `denoteProjTable` drops `tableName`).
-#print axioms IConstantInfo.canonEq_run
 
 #print axioms checkDecl_defn_pure_nn
 #print axioms checkDecl_defn_pure_nd
