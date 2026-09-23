@@ -50980,6 +50980,12 @@ goes in and the three copies come out.  `Read.lean` is `namespace
 ConRon.Refine2.ExprOps` and `Mut.lean` is `ConRon.Refine2`, so the three names
 arrive through one `open … (aout_err_bind aout_rebase EResolves)`.
 
+**The rest of that merge is still owed**, and the import makes it visible:
+`absEIdxArr` is DEFINED twice, once in each namespace (`ExprOps/Pure.lean:92`
+and `ExprOps/Mut.lean:113`), with `absEIdxArr_size` / `absEIdxArr_toList`
+duplicated on top of each.  The two namespaces keep them apart, so nothing
+breaks; one of the two should go when a round next owns both files.
+
 #### 6. The axiom census
 
 **Nine more `#print axioms` rows under `#guard_msgs`** in `ExprOps/Mut.lean`
