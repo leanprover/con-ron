@@ -331,6 +331,60 @@ theorem recFireComparands_spec (s₀ : AState) (rl : IRecRule) (rl' : RecRule)
     · rw [ExprOps.denoteEList_take _ _ _ (denoteEList_ext hx04 _ _ hxs)]
       simp [ConLeche.recFireComparands]
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:704-707 piResidual — a non-∀
+telescope has no residual along a non-empty spine. -/
+theorem piResidual_cons_none {e x : Expr} {xs : List Expr}
+    (h : ∀ p q m, e ≠ .forallE p q m) : ConLeche.piResidual e (x :: xs) = none := by
+  cases e with
+  | forallE p q m => exact absurd rfl (h p q m)
+  | _ => rfl
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:704-707 piResidual — **THEOREM 1
+for `piResidual`**: the telescope residual along an argument spine. -/
+theorem piResidual_spec : ∀ (as : List EIdx) (s₀ : AState) (h : EIdx) (e : Expr)
+    (xs : List Expr), CheckOK mode env fe s₀ → denoteE s₀.store h = some e →
+    Frontend.denoteEList s₀.store as = some xs →
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.piResidual h as
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        denoteEO s'.store r = some (ConLeche.piResidual e xs)⌝⦄ := by
+  intro as
+  induction as with
+  | nil =>
+    intro s₀ h e xs hok he hxs
+    obtain rfl := denoteEList_nil_inv hxs
+    mvcgen [ConRon.Arena.piResidual]
+    bridge_peel; subst_vars
+    refine ⟨hok, Ext.refl _, rfl, ?_⟩
+    simp [denoteEO, he, ConLeche.piResidual]
+  | cons a as ih =>
+    intro s₀ h e xs hok he hxs
+    have hwf := hok.state.wf
+    obtain ⟨x, xs', hx, hxs', rfl⟩ := denoteEList_cons_inv hxs
+    obtain ⟨v, hv⟩ := denoteE_view he
+    unfold ConRon.Arena.piResidual
+    refine view_bind_triple hv ?_
+    cases v
+    case forallE ty b m =>
+      obtain ⟨et, eb, rfl, _, hb⟩ := denote_forallE_inv hwf hv he
+      dsimp only
+      refine triple_seq (instantiate1Fast_specE coreWalkFuel s₀ b a 0 hok.state
+        (by rw [hx]; rfl) (by rw [hb]; rfl)) ?_
+      rintro b' s1 ⟨hst1, hx1, hc1, hp1, _, hrel⟩
+      have hok1 : CheckOK mode env fe s1 := hok.mono hst1 hx1 hc1 hp1
+      have hb' := hrel x hx eb hb
+      refine triple_mono (ih s1 b' _ xs' hok1 hb' (denoteEList_ext hx1 _ _ hxs')) ?_
+      rintro r s2 ⟨hok2, hx2, hp2, hr⟩
+      exact ⟨hok2, hx1.trans hx2, hp2.trans hp1, hr⟩
+    all_goals
+      dsimp only
+      have hnf := denote_not_forallE hwf hv he (by intro ty b m h; cases h)
+      mvcgen
+      bridge_peel; subst_vars
+      refine ⟨hok, Ext.refl _, rfl, ?_⟩
+      rw [piResidual_cons_none hnf]
+      rfl
+
 /-- con-leche: ConLeche/Kernel/Core.lean:255-265 iotaIndexOk — **THEOREM 1
 for `iotaIndexOk`**: the canonical-index comparison of a firing redex. -/
 theorem iotaIndexOk_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
@@ -348,7 +402,51 @@ theorem iotaIndexOk_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.iotaIndexOkFueled mode env F d mI rP cnP ty
           ms is) r⌝⦄ := by
-  sorry
+  unfold ConRon.Arena.iotaIndexOk
+  split
+  next hm =>
+    have hres : ConLeche.iotaIndexOkFueled mode env 0 d mI rP cnP ty ms is =
+        .ok true := by
+      simp only [ConLeche.iotaIndexOkFueled, ConLeche.iotaIndexOk, if_pos hm]; rfl
+    mvcgen
+    bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
+  next hm =>
+    refine triple_seq (piResidual_spec margs s₀ tyC ty ms hok hty hms) ?_
+    rintro o s1 ⟨hok1, hx1, hp1, ho⟩
+    cases o with
+    | none =>
+      have hn : ConLeche.piResidual ty ms = none := by
+        simp only [denoteEO, Option.some.injEq] at ho; exact ho.symm
+      have hres : ConLeche.iotaIndexOkFueled mode env 0 d mI rP cnP ty ms is =
+          .ok false := by
+        simp only [ConLeche.iotaIndexOkFueled, ConLeche.iotaIndexOk, if_neg hm, hn]
+        rfl
+      mvcgen
+      bridge_peel; subst_vars
+      exact ⟨hok1, hx1, hp1, 0, hres⟩
+    | some res =>
+      obtain ⟨e', hres, hpe⟩ : ∃ e', denoteE s1.store res = some e' ∧
+          ConLeche.piResidual ty ms = some e' := by
+        simp only [denoteEO, Option.map_eq_some_iff] at ho
+        obtain ⟨e', h1, h2⟩ := ho
+        exact ⟨e', h1, by rw [← h2]⟩
+      have hwe' : Expr.WScoped d e' := ConLeche.piResidual_WScoped hpe hwty hwms
+      dsimp only
+      refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s1 res hok1.state
+        (by rw [hres]; rfl)) ?_
+      rintro args s2 ⟨hs2, hrelA⟩
+      subst s2
+      have hargs := ExprOps.denoteEList_drop cnP _ _ (hrelA e' hres)
+      refine triple_mono (defEqList_spec hsim s1 d (args.drop cnP) idx _ is hok1
+        hargs (denoteEList_ext hx1 _ _ his)
+        (fun z hz => Expr.WScoped.getAppArgs hwe' z (List.mem_of_mem_drop hz))
+        hwis) ?_
+      rintro r s3 ⟨hok3, hx3, hp3, F, hF⟩
+      refine ⟨hok3, hx1.trans hx3, hp3.trans hp1, F, ?_⟩
+      have hF' : ConLeche.defEqList (ConLeche.pureFns mode env F) env d
+          (e'.getAppArgs.drop cnP) is = .ok r := hF
+      simp [ConLeche.iotaIndexOkFueled, ConLeche.iotaIndexOk, hm, hpe, hF']
 
 /-! ## 4. The ι step -/
 
