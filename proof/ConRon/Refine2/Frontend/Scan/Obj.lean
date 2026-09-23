@@ -71,13 +71,17 @@ the `Refine/IndSpec.lean` style, not a `sorry`.
   `close` and `key` arms.
 
 ## `sorry` count in this file: 0
+
+**Moved back from `RefineOld/Frontend/ScanObj.lean` by task #97-P5-Front** (namespace
+`ConRon.Refine2.Frontend`, the `#guard_msgs` strings re-spelled, nothing else).
 -/
-import ConRon.RefineOld.Frontend.ScanKit
+import ConRon.Refine2.Frontend.Scan.Kit
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
 
-namespace ConRon.Refine.Frontend
+namespace ConRon.Refine2.Frontend
+open ConRon.Refine
 
 open ConRon.Refine
 open ConLeche.Frontend
@@ -1594,24 +1598,24 @@ theorem scan_hints_refines {b : Slice Std.U8} (kf : KitFacts b) {i : Std.Usize}
 axiom: nothing below leans on anything but `propext`, `Classical.choice` and
 `Quot.sound`. -/
 
-/-- info: 'ConRon.Refine.Frontend.scan_nat_list_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.Frontend.scan_nat_list_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms scan_nat_list_refines
 
-/-- info: 'ConRon.Refine.Frontend.scan_pw_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.Frontend.scan_pw_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms scan_pw_refines
 
-/-- info: 'ConRon.Refine.Frontend.scan_hints_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.Frontend.scan_hints_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms scan_hints_refines
 
-/-- info: 'ConRon.Refine.Frontend.scan_num_name_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.Frontend.scan_num_name_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms scan_num_name_refines
 
-/-- info: 'ConRon.Refine.Frontend.scan_str_name_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.Frontend.scan_str_name_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms scan_str_name_refines
 
-end ConRon.Refine.Frontend
+end ConRon.Refine2.Frontend
