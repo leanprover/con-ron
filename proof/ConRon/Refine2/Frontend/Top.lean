@@ -452,23 +452,24 @@ theorem plc_ind {G : Type} {inst : frontend.types.Modeller G}
   have hd' := hd.set_indCount hiv
   have hi' := hi.set_indCount (i := i)
   obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨hOk, hErr⟩ := validate_ind_d_refines hrel hinv hd' hi' hr
+  have hV := validate_ind_d_refines hrel hinv hd' hi' hr
   simp only [absDeclRec, processLineCoreD]
   cases r with
   | Ok p =>
     obtain ⟨cts2, n_pd⟩ := p
-    have hx := hOk _ rfl
+    have hx := hV
     refine SimDV.bind_ok hx ?_
     exact install_ind_d_refines hmr hrel hinv hd' hi' h
   | Err e =>
     cases Result.ok_injective h
-    obtain ⟨hE, hV⟩ := hErr e rfl
     cases e with
     | Err ce =>
-      have := hE ce rfl
+      have : AErrSim ce _ := hV
       exact AErrSim.bind this _
     | Verdict vd =>
-      obtain ⟨lv, hx, hk⟩ := hV vd rfl
+      obtain ⟨b, lv, hx, hb, hk⟩ := hV
+      rcases b with lv' | _ <;> simp only [vOfSum, reduceCtorEq, Option.some.injEq] at hb
+      subst hb
       refine SimDV.bind_ok hx ?_
       exact SimDV.verdict rfl hk
 
