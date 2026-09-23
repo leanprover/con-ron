@@ -234,6 +234,26 @@ theorem PSpec.toCSpec {α : Type} {P : EStore → Prop} {c : AM α}
   obtain ⟨hstep, hr⟩ := h s₀ s' r hok.state hp hrun
   exact ⟨hstep.toCore hok, hr⟩
 
+/-- con-leche: none — **the pure grade with the level-readback cache** (task
+#97-T2-LOCKSTEP lane Inductives round 3, ruling 1).  A twin that reads a level
+back through the CACHED `readLevelM` answers the denotation only under
+`ReadLCacheOK`, which `StateOK` does not carry; the core grade (`CSpec`) does,
+but its `CheckOK` also pins every knot cache to ONE environment, which the
+native recursor's generators do not have (they run at the environment with
+the rule-less recursor pushed, `checkNativeRec`).  This grade asks for the one
+table and nothing else; `PSpecL.toCSpec` is the core grade. -/
+def PSpecL {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
+    Prop :=
+  ∀ (s₀ s' : AState) (r : α), StateOK s₀ → ReadLCacheOK s₀.caches.readLC s₀.store →
+    P s₀.store → c s₀ = .ok (r, s') → PStep s₀ s' ∧ R s'.store r
+
+theorem PSpecL.toCSpec {α : Type} {P : EStore → Prop} {c : AM α}
+    {R : EStore → α → Prop} (h : PSpecL P c R) (μ : CheckMode) (env : Env)
+    (fe : IFEnv) : CSpec μ env fe P c R := by
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hstep, hr⟩ := h s₀ s' r hok.state hok.caches.readL hp hrun
+  exact ⟨hstep.toCore hok, hr⟩
+
 /-- con-leche: none — and a pin-reading pure twin is a core-grade twin at any
 environment: `CheckOK.pins` is exactly what it was missing. -/
 theorem PSpecP.toCSpec {α : Type} {P : EStore → Prop} {c : AM α}
@@ -2525,6 +2545,33 @@ theorem lvlEq?_pstep {s s' : AState} {u v : LIdx} {r : Option Bool}
   obtain ⟨hst, -, hp, hcf⟩ := Core.lvlEq?_frame hrun
   exact ⟨⟨by rw [hst]; exact hok.wf⟩, by rw [hst]; exact Ext.refl _,
     by rw [hst]; exact BMExt.refl _, hcf, hp⟩
+
+/-- con-leche: none — **`readLevelM` at the pure grade's frame** (task
+#97-T2-LOCKSTEP lane Inductives round 3, ruling 1: the twin reads a level back
+through the CACHED readback, as the port's `read_level_m` does).  The frame
+needs nothing: the store, memos and pins stand still and the one table that
+moves is `readLC` (`Core.CacheFrame.ofReadLevelM`). -/
+theorem readLevelM_pstep {s s' : AState} {h : LIdx} {u : Level}
+    (hok : StateOK s) (hrun : readLevelM h s = .ok (u, s')) : PStep s s' := by
+  obtain ⟨hst, -, hp, -⟩ := Core.readLevelM_frame hrun
+  exact ⟨⟨by rw [hst]; exact hok.wf⟩, by rw [hst]; exact Ext.refl _,
+    by rw [hst]; exact BMExt.refl _, Core.CacheFrame.ofReadLevelM hrun, hp⟩
+
+/-- con-leche: none — `readLevelM`'s ANSWER, which is the denotation only
+under `ReadLCacheOK`, carried from the statement's along the pure steps before
+it (`CacheFrame.readL`). -/
+theorem readLevelM_denote_L {s₀ s s' : AState} {h : LIdx} {u : Level}
+    (hrl : ReadLCacheOK s₀.caches.readLC s₀.store)
+    (q : PStep s₀ s) (hrun : readLevelM h s = .ok (u, s')) :
+    denoteL s.store.ls h = some u :=
+  (Core.readLevelM_denote (q.cframe.readL hrl) hrun).1
+
+/-- con-leche: none — the same from the core grade's `CheckOK`. -/
+theorem readLevelM_denote_core {μ : CheckMode} {env : Env} {fe : IFEnv}
+    {s₀ s s' : AState} {h : LIdx} {u : Level} (hc : CheckOK μ env fe s₀)
+    (q : PStep s₀ s) (hrun : readLevelM h s = .ok (u, s')) :
+    denoteL s.store.ls h = some u :=
+  readLevelM_denote_L hc.caches.readL q hrun
 
 /-- con-leche: none — `ROp` is monotone in its relation. -/
 theorem ROp.mono {α β : Type} {R R' : β → EStore → α → Prop} {x : Option β}
