@@ -143,6 +143,60 @@ namespace ConRon.Bridge.Inductives
 #print axioms indParamsOk_tail
 #print axioms indParamsOk_spec
 
+-- round 6 (task #97-P3-Ind round 6): the recognisers, groups 3 and 4, the
+-- positivity classification, and the pieces of the installs they unblocked
+#print axioms reservedBasisNames_pstep
+#print axioms stripLams_pstep
+#print axioms lvlEq?_pstep
+#print axioms mapM_pstep
+#print axioms allM_pstep
+#print axioms allM_E_pstep
+#print axioms anyM_B_pstep
+#print axioms mapM_E_pstep
+#print axioms resetPair_pstep
+#print axioms fvarBSpec
+#print axioms structPartsCore?_run
+#print axioms structPartsCore?_spec
+#print axioms structPartsCore?_isSome
+#print axioms nativeShape?_run
+#print axioms nativeShape?_spec
+#print axioms nativeParts?_run
+#print axioms nativeParts?_spec
+#print axioms nativeParts?_isSome
+#print axioms instPisAtLift_pstep
+#print axioms structProjResidP_spec
+#print axioms structProjBodiesGo_spec
+#print axioms structProjBodies_spec
+#print axioms structTeleAt_spec
+#print axioms structIhApp_spec
+#print axioms structRuleBodyR_spec
+#print axioms structIhPis_spec
+#print axioms structMinorTyR_spec
+#print axioms structMinorsPisR_spec
+#print axioms structMinorsLamsR_spec
+#print axioms structRecTyR_spec
+#print axioms structRecRhsR_spec
+#print axioms recFamOk_spec
+#print axioms recPositivity_spec
+#print axioms recFieldKind_spec
+#print axioms recCtorKinds_spec
+#print axioms nativeRulePrefixOk_spec
+#print axioms nativeRulesOk_spec
+#print axioms checkStructDomsAt_spec
+#print axioms closeTelescope_spec
+#print axioms consSumCtors_spec
+#print axioms recRuleKOf_run
+#print axioms recRuleEtaOf_run
+#print axioms recRuleBits_run
+#print axioms sumRules_spec
+#print axioms nativeRawRec_spec
+#print axioms mentionsFvarGo_spec
+#print axioms mentionsFvar_spec
+#print axioms recCtorKindsAll_spec
+#print axioms classifyFixKinds_spec
+#print axioms renameConstsFast_ns
+#print axioms domsMatchRenamed_spec
+
 /-! ## Group 2 — the two headline theorems -/
 
 #print axioms checkIndDecl_bridge

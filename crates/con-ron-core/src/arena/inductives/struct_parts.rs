@@ -623,7 +623,7 @@ pub fn struct_shape_motive(
     n_p: u64,
     rbs: &Vec<(EIdx, BinderMeta)>,
 ) -> Result<bool, CheckError> {
-    if (n_p as usize) >= rbs.len() {
+    if n_p >= rbs.len() as u64 {
         Ok(false)
     } else {
         let mdom: EIdx = rbs[n_p as usize].0.dup2();
@@ -663,7 +663,7 @@ pub fn struct_shape_minor(
     n_f: u64,
     rbs: &Vec<(EIdx, BinderMeta)>,
 ) -> Result<bool, CheckError> {
-    if ((n_p + 1) as usize) >= rbs.len() {
+    if n_p + 1 >= rbs.len() as u64 {
         Ok(false)
     } else {
         let mindom: EIdx = rbs[(n_p + 1) as usize].0.dup2();
@@ -695,7 +695,7 @@ pub fn struct_shape_major(
     n_p: u64,
     rbs: &Vec<(EIdx, BinderMeta)>,
 ) -> Result<bool, CheckError> {
-    if ((n_p + 2) as usize) >= rbs.len() {
+    if n_p + 2 >= rbs.len() as u64 {
         Ok(false)
     } else {
         let majdom: EIdx = rbs[(n_p + 2) as usize].0.dup2();
@@ -1232,7 +1232,7 @@ pub fn struct_used_later_list(
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:426-451 structProjGuards`
 /// — the out-of-range fallback the guard fold spells at every read.
 pub fn used_get_d(used: &Vec<bool>, j: u64) -> bool {
-    if (j as usize) < used.len() {
+    if j < used.len() as u64 {
         used[j as usize]
     } else {
         false
@@ -1244,7 +1244,7 @@ pub fn used_get_d(used: &Vec<bool>, j: u64) -> bool {
 /// — the out-of-range fallback (`zeroLevel`) the guard fold spells at every
 /// read.
 pub fn sort_get_d(sorts: &Vec<LIdx>, j: u64, z: &LIdx) -> LIdx {
-    if (j as usize) < sorts.len() {
+    if j < sorts.len() as u64 {
         sorts[j as usize].dup2()
     } else {
         z.dup2()

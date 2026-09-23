@@ -140,6 +140,17 @@ pub const M_KIND_TELE: [u32; 41] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `direct rec: field index`, as code points — the port's own (task
+/// #97-P5-Usize): a field reader handed an index past the opened telescope.
+/// Its reader, `field_at`, is only reached past `native_fields_at`'s own test of
+/// the same bound, so the arm is unreachable; it is there so the index is
+/// compared in `u64` and never wrapped by a `usize` cast (the twin's `xFvs[i]?`).
+pub const M_FIELD_IDX: [u32; 23] = [
+    100, 105, 114, 101, 99, 116, 32, 114, 101, 99, 58, 32, 102, 105, 101, 108, 100, 32, 105, 110,
+    100, 101, 120,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `direct rec: non positive or non valid occurrence                    `, as code points — `con_ron_core::kernel::inductives::native_install`'s own, so the differential test can compare error text.
 pub const M_KIND_NEG: [u32; 68] = [
     100, 105, 114, 101, 99, 116, 32, 114, 101, 99, 58, 32, 110, 111, 110, 32, 112, 111, 115, 105,
@@ -271,7 +282,13 @@ pub fn native_raw_rec(
         match expr_ops::strip_pis(pers, st, p.shape.n_p + n_f, &cty) {
             Err(e) => Err(e),
             Ok(None) => Ok(false),
-            Ok(Some(q)) => any_dom_mentions(pers, st, &t, &q.0, p.shape.n_p as usize),
+            Ok(Some(q)) => {
+                if p.shape.n_p < q.0.len() as u64 {
+                    any_dom_mentions(pers, st, &t, &q.0, p.shape.n_p as usize)
+                } else {
+                    Ok(false)
+                }
+            }
         }
     }
 }
@@ -455,7 +472,7 @@ pub fn native_opened_ok(
                     Ok(hd) => match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, &xq.1) {
                         Err(e) => Err(e),
                         Ok(xargs) => {
-                            let idx: Vec<EIdx> = core::drop_eidx(&xargs, n_p as usize);
+                            let idx: Vec<EIdx> = core::drop_eidx_n(&xargs, n_p);
                             match sum_install::idx_args_resolve(pers, vis, st, fe0, &idx, 0) {
                                 Err(e) => Err(e),
                                 Ok(false) => Ok(false),
@@ -495,7 +512,7 @@ pub fn native_fields_at(
 ) -> Result<bool, CheckError> {
     if i >= n_f {
         Ok(true)
-    } else if (i as usize) >= x_fvs.len() {
+    } else if i >= x_fvs.len() as u64 {
         Ok(false)
     } else {
         let x: EIdx = x_fvs[i as usize].dup2();
@@ -571,6 +588,21 @@ pub fn native_fields_at(
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:388-433 nativeOpenedOk
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:119-174 nativeOpenedOk`
+/// — the field variable at index `i`, the twin's `xFvs[i]?` read by the two
+/// field arms below.  The bound is tested in `u64` (task #97-P5-Usize): a
+/// bare `x_fvs[i as usize]` is a *truncating* cast under Aeneas, which on a
+/// 32-bit target would read a field the twin has not got.  The caller has
+/// already tested the same bound, so the `Err` arm is unreachable.
+pub fn field_at(x_fvs: &Vec<EIdx>, i: u64) -> Result<EIdx, CheckError> {
+    if i < x_fvs.len() as u64 {
+        Ok(x_fvs[i as usize].dup2())
+    } else {
+        Err(core_types::internal(code_points(&M_FIELD_IDX)))
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:388-433 nativeOpenedOk
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:119-174 nativeOpenedOk`
 /// — a FINITARY recursive field: its annotation is the family at the opened
 /// parameters, its indices resolve before the block, and no later field or the
 /// residual mentions it.
@@ -588,13 +620,15 @@ pub fn native_field_recursive(
     hd: &EIdx,
     i: u64,
 ) -> Result<bool, CheckError> {
-    let x: EIdx = x_fvs[i as usize].dup2();
-    match expr_ops::fvar_type_d(pers, st, &x) {
+    match field_at(x_fvs, i) {
         Err(e) => Err(e),
-        Ok(xt) => match native_fam_app_ok(pers, vis, st, fe0, n_p, n_idx, fvs_p, &xt, hd) {
+        Ok(x) => match expr_ops::fvar_type_d(pers, st, &x) {
             Err(e) => Err(e),
-            Ok(false) => Ok(false),
-            Ok(true) => native_field_unused_later(pers, st, n_p, x_fvs, xrest, i),
+            Ok(xt) => match native_fam_app_ok(pers, vis, st, fe0, n_p, n_idx, fvs_p, &xt, hd) {
+                Err(e) => Err(e),
+                Ok(false) => Ok(false),
+                Ok(true) => native_field_unused_later(pers, st, n_p, x_fvs, xrest, i),
+            },
         },
     }
 }
@@ -618,29 +652,31 @@ pub fn native_field_reflexive(
     hd: &EIdx,
     i: u64,
 ) -> Result<bool, CheckError> {
-    let x: EIdx = x_fvs[i as usize].dup2();
-    match expr_ops::fvar_type_d(pers, st, &x) {
+    match field_at(x_fvs, i) {
         Err(e) => Err(e),
-        Ok(xt) => match native_parts::pi_binders(pers, st, CORE_WALK_FUEL, &xt, Vec::new()) {
+        Ok(x) => match expr_ops::fvar_type_d(pers, st, &x) {
             Err(e) => Err(e),
-            Ok(tq) => {
-                let m: u64 = tq.0.len() as u64;
-                match checker_base::open_pis_at_fvars_f(pers, st, m, &xt, n_p + i) {
-                    Err(e) => Err(e),
-                    Ok(None) => Ok(false),
-                    Ok(Some(aq)) => {
-                        if aq.0.len() == 0 {
-                            Ok(false)
-                        } else {
-                            match sum_install::field_doms_resolve(pers, vis, st, fe0, &aq.0, 0) {
-                                Err(e) => Err(e),
-                                Ok(false) => Ok(false),
-                                Ok(true) => {
-                                    match native_fam_app_ok(pers, vis, st, fe0, n_p, n_idx, fvs_p, &aq.1, hd) {
-                                        Err(e) => Err(e),
-                                        Ok(false) => Ok(false),
-                                        Ok(true) => {
-                                            native_field_unused_later(pers, st, n_p, x_fvs, xrest, i)
+            Ok(xt) => match native_parts::pi_binders(pers, st, CORE_WALK_FUEL, &xt, Vec::new()) {
+                Err(e) => Err(e),
+                Ok(tq) => {
+                    let m: u64 = tq.0.len() as u64;
+                    match checker_base::open_pis_at_fvars_f(pers, st, m, &xt, n_p + i) {
+                        Err(e) => Err(e),
+                        Ok(None) => Ok(false),
+                        Ok(Some(aq)) => {
+                            if aq.0.len() == 0 {
+                                Ok(false)
+                            } else {
+                                match sum_install::field_doms_resolve(pers, vis, st, fe0, &aq.0, 0) {
+                                    Err(e) => Err(e),
+                                    Ok(false) => Ok(false),
+                                    Ok(true) => {
+                                        match native_fam_app_ok(pers, vis, st, fe0, n_p, n_idx, fvs_p, &aq.1, hd) {
+                                            Err(e) => Err(e),
+                                            Ok(false) => Ok(false),
+                                            Ok(true) => {
+                                                native_field_unused_later(pers, st, n_p, x_fvs, xrest, i)
+                                            }
                                         }
                                     }
                                 }
@@ -648,7 +684,7 @@ pub fn native_field_reflexive(
                         }
                     }
                 }
-            }
+            },
         },
     }
 }
@@ -674,7 +710,7 @@ pub fn native_fam_app_ok(
         Ok(fna) => match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, body) {
             Err(e) => Err(e),
             Ok(args) => {
-                let pre: Vec<EIdx> = expr_ops::take_eidx(&args, n_p as usize);
+                let pre: Vec<EIdx> = expr_ops::take_eidx_n(&args, n_p);
                 if !(fna.eq2(hd)
                     && canon::eidx_vec_beq(&pre, fvs_p, 0)
                     && args.len() as u64 == n_p + n_idx)
@@ -701,7 +737,12 @@ pub fn native_field_unused_later(
     xrest: &EIdx,
     i: u64,
 ) -> Result<bool, CheckError> {
-    match later_mentions(pers, st, n_p + i, x_fvs, (i + 1) as usize) {
+    let later: Result<bool, CheckError> = if i + 1 < x_fvs.len() as u64 {
+        later_mentions(pers, st, n_p + i, x_fvs, (i + 1) as usize)
+    } else {
+        Ok(false)
+    };
+    match later {
         Err(e) => Err(e),
         Ok(true) => Ok(false),
         Ok(false) => match mentions_fvar(pers, st, n_p + i, xrest) {
@@ -1368,7 +1409,7 @@ pub fn check_native_tail_sorts(
             match checker_base::unwrap_or(o, core_types::internal(code_points(&M_TAIL_TELE))) {
                 Err(e) => Err(e),
                 Ok(tq) => {
-                    let idx_fvs: Vec<EIdx> = core::drop_eidx(&tq.0, q.p.shape.n_p as usize);
+                    let idx_fvs: Vec<EIdx> = core::drop_eidx_n(&tq.0, q.p.shape.n_p);
                     let none: Vec<EIdx> = Vec::new();
                     match sum_install::check_struct_field_sorts_i(pers, q.env1.visible_below,
                         st,

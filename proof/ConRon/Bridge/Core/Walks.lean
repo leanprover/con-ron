@@ -51,10 +51,16 @@ six more.
   and `Verify/Mono.lean`'s `pureFns_mono`.
 * `Walks/Proj.lean` — **the projection table** (task #97-P3-Core-2), on
   `Bridge/Rel.lean`'s new `denoteProjEntry`: `projTableName_spec`,
-  `IFEnv.findProj?_spec` and `IProjEntry.fireOk_spec` CLOSED,
-  `IProjEntry.typeAt_spec` and `projCert_spec` stated.  §5's structural gap
+  `IFEnv.findProj?_spec` and `IProjEntry.fireOk_spec` CLOSED; since round 4
+  also `IProjEntry.typeAt_spec`, `iotaCerts_spec`, `projCert_spec` and
+  `projCertAt_spec` — the module is at zero `sorry`.  §5's structural gap
   below is closed by it.
-* `Walks/Owed.lean` — **the sixteen statements the round did not reach**,
+* `Walks/Nat.lean` — **the literal acceleration** (task #97-P3-Core round
+  4): `reduceNat_spec` and the six state-only walks under it, all CLOSED —
+  which is what makes `Arms/Whnf.lean`'s `whnfBody_spec` sorry-free.
+* `Walks/Owed.lean` — **the statements not yet reached** (six after round
+  4: `iotaRec`, `projLitToCtor`, `propIrrel`, `stuckIrrel`, `annotPwPi`,
+  `annotPwLam`),
   each with what it is waiting on written at the site.  `defEqList_spec` is
   the nearest and its fuel merge is now IN HAND (`Walks/Mono.lean`'s
   `defEqListFueled_mono`); `reduceNat_spec` and `unfoldDefinition_spec` were

@@ -87,7 +87,7 @@ use crate::arena::expr_ops::{
     has_fvar_fast, instantiate1_fast, instantiate_list_fast, inst_lp_fast, inst_spine,
     lam_pw, leaf_guard, loose_bvars_bounded_fast, mk_app_n, mk_app_n_from, pi_result,
     rec_rule_plain, snoc_eidx_of, strip_pis,
-    take_eidx, wscoped_b_fast,
+    take_eidx, take_eidx_n, wscoped_b_fast,
 };
 use crate::arena::handle::{
     EIdx, LIdx, LsIdx, NIdx, ETAG_APP, ETAG_BVAR, ETAG_CONST, ETAG_FORALL_E, ETAG_FVAR, ETAG_LAM,
@@ -3536,6 +3536,33 @@ pub fn drop_eidx_from(xs: &Vec<EIdx>, k: usize, out: Vec<EIdx>) -> Vec<EIdx> {
     }
 }
 
+/// con-leche: none — `List.drop` on a `Vec` at a `u64` count, without a `usize` cast
+/// `xs.drop n` where the count is a machine word of the checker's own
+/// arithmetic: task #61's `kernel::core_k::drop_exprs_n` over handles (task
+/// #97-P5-Usize).  `drop_eidx_n(xs, n)` is a *truncating* cast under
+/// Aeneas, so on a 32-bit target a count past `u32::MAX` would keep entries
+/// the twin's `List.drop` drops.  The count is consumed by the recursion
+/// instead: `i` walks the `Vec` and `n` counts down.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1250-1260 iotaIndexOk` — `args.drop k`.
+pub fn drop_eidx_n(xs: &Vec<EIdx>, n: u64) -> Vec<EIdx> {
+    drop_eidx_n_from(xs, n, 0)
+}
+
+/// con-leche: none — `List.drop` on a `Vec` at a `u64` count
+/// The index recursion behind `drop_eidx_n`: it walks the prefix without
+/// copying and hands the rest to `drop_eidx_from`.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1250-1260 iotaIndexOk` — the
+/// cursor recursion behind `drop_eidx_n`.
+pub fn drop_eidx_n_from(xs: &Vec<EIdx>, n: u64, i: usize) -> Vec<EIdx> {
+    if n == 0 {
+        drop_eidx_from(xs, i, Vec::new())
+    } else if i >= xs.len() {
+        Vec::new()
+    } else {
+        drop_eidx_n_from(xs, n - 1, i + 1)
+    }
+}
+
 /// con-leche: none — `List.append` on a `Vec`; Lean's `++` shares the tail
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1310-1327 structEtaProjCerts` — `xs ++
 /// ys`, consuming `xs` and copying `ys`' spine.
@@ -4027,7 +4054,7 @@ pub fn iota_index_ok(
             Ok(Some(residual)) => match get_app_args(pers, st, CORE_WALK_FUEL, &residual) {
                 Err(e) => Err(e),
                 Ok(args) => {
-                    let rest: Vec<EIdx> = drop_eidx(&args, cn_p as usize);
+                    let rest: Vec<EIdx> = drop_eidx_n(&args, cn_p);
                     def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &rest, idx, 0)
                 }
             },
@@ -4548,7 +4575,7 @@ pub fn struct_eta_cert_tail(
     eta_params: u64,
     eta_fields: u64,
 ) -> Result<bool, CheckError> {
-    let head: Vec<EIdx> = take_eidx(aargs, eta_params as usize);
+    let head: Vec<EIdx> = take_eidx_n(aargs, eta_params);
     match def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &head, targs, 0) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
@@ -4578,7 +4605,7 @@ pub fn struct_eta_cert_tail(
                 Ok(true) => match eta_projs(pers, vis, st, fe, t, us2, targs, b, eta_fields) {
                     Err(e) => Err(e),
                     Ok(projs) => {
-                        let rest: Vec<EIdx> = drop_eidx(aargs, eta_params as usize);
+                        let rest: Vec<EIdx> = drop_eidx_n(aargs, eta_params);
                         def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &rest, &projs, 0)
                     }
                 },
@@ -6316,7 +6343,7 @@ pub fn inst_spine_pins(
         match inst_lp_fast(pers, st, CORE_WALK_FUEL, lps, us, &p) {
             Err(e) => Err(e),
             Ok(q) => {
-                let head: Vec<EIdx> = take_eidx(args, r_p as usize);
+                let head: Vec<EIdx> = take_eidx_n(args, r_p);
                 match inst_spine(pers, st, CORE_WALK_FUEL, &head, sub_nat(r_p, 1), &q) {
                     Err(e) => Err(e),
                     Ok(s) => {
@@ -6410,7 +6437,7 @@ pub fn rec_fire_comparands_plain(
                 Err(e) => Err(e),
                 Ok(ls) => match intern_ls_node(pers, st, ls) {
                     Err(e) => Err(e),
-                    Ok(lsh) => Ok((lsh, take_eidx(args, rl.ctor_params as usize))),
+                    Ok(lsh) => Ok((lsh, take_eidx_n(args, rl.ctor_params))),
                 },
             },
         },
@@ -6526,7 +6553,7 @@ pub fn iota_rec_params(
         Err(e) => Err(e),
         Ok(k) => {
             if crate::kernel::env::certs(mode) || k {
-                let head: Vec<EIdx> = take_eidx(margs, rl.ctor_params as usize);
+                let head: Vec<EIdx> = take_eidx_n(margs, rl.ctor_params);
                 def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &head, comparands, 0)
             } else {
                 Ok(true)
@@ -6605,7 +6632,7 @@ pub fn iota_rec_fam(
         match const_ty_at(pers, st, cv, us) {
             Err(e) => Err(e),
             Ok(ty_r) => {
-                let spine: Vec<EIdx> = snoc_eidx(take_eidx(args, m_i as usize), major);
+                let spine: Vec<EIdx> = snoc_eidx(take_eidx_n(args, m_i), major);
                 match iota_certs(pers, vis, st, mode, lane, fuel, fe, depth, lic, &ty_r, &spine, 0) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
@@ -6620,10 +6647,7 @@ pub fn iota_rec_fam(
                                 Err(e) => Err(e),
                                 Ok(false) => Ok(false),
                                 Ok(true) => {
-                                    let idx: Vec<EIdx> = drop_eidx(
-                                        &take_eidx(args, m_i as usize),
-                                        r_p as usize,
-                                    );
+                                    let idx: Vec<EIdx> = drop_eidx_n(&take_eidx_n(args, m_i), r_p);
                                     iota_index_ok(
                                         pers,
                                         vis,
@@ -6668,8 +6692,8 @@ pub fn iota_rec_reduct(
     match rule_rhs_at(pers, st, rec_c, &rl.ctor, &cv.level_params, &rl.rhs, us) {
         Err(e) => Err(e),
         Ok(rhs) => {
-            let tail: Vec<EIdx> = drop_eidx(margs, rl.ctor_params as usize);
-            let spine: Vec<EIdx> = append_eidx(take_eidx(args, r_p as usize), &tail);
+            let tail: Vec<EIdx> = drop_eidx_n(margs, rl.ctor_params);
+            let spine: Vec<EIdx> = append_eidx(take_eidx_n(args, r_p), &tail);
             match mk_app_n(pers, st, &rhs, &spine) {
                 Err(e) => Err(e),
                 Ok(x) => Ok(Some(x)),
