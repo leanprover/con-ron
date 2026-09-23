@@ -207,21 +207,27 @@ def nameNodup : List NIdx → Bool
 /-- con-leche: ConLeche/Kernel/Level.lean:218-221 Name.isModelSuffix — is
 this a `_model`-suffixed name (the shape of model companions)? -/
 def NIdx.isModelSuffix (n : NIdx) : AM Bool := do
-  match ← viewN n with
-  | .str _ s => pure (s == "_model")
-  | _ => pure false
+  if n.tag == NTag.str then
+    match ← viewN n with
+    | .str _ s => pure (s == "_model")
+    | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/Level.lean:223-230 Name.isProjFnShape — is
 this shaped like an installed projection function's name (`(T.proj).i`) or a
 projection table's (`(T.projTable).0`)?  Both shapes are reserved for the
 checker's own installs. -/
 def NIdx.isProjFnShape (n : NIdx) : AM Bool := do
-  match ← viewN n with
-  | .num p _ => do
-    match ← viewN p with
-    | .str _ s => pure (s == "proj" || s == "projTable")
+  if n.tag == NTag.num then
+    match ← viewN n with
+    | .num p _ => do
+      if p.tag == NTag.str then
+        match ← viewN p with
+        | .str _ s => pure (s == "proj" || s == "projTable")
+        | _ => pure false
+      else pure false
     | _ => pure false
-  | _ => pure false
+  else pure false
 
 /-! ## Level parameters, defined
 
@@ -384,23 +390,23 @@ happens only for the environment index's error text". -/
 def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
     AM IConstantVal := do
   if (fe.find? cv.name).isSome then
-    fail (.invalid s!"duplicate declaration {← readName cv.name}")
+    fail (.invalid "duplicate declaration")
   if (← reservedBasisNames).contains cv.name then
-    fail (.invalid s!"reserved basis name {← readName cv.name}")
+    fail (.invalid "reserved basis name")
   if ← NIdx.isProjFnShape cv.name then
-    fail (.invalid s!"reserved projection name {← readName cv.name}")
+    fail (.invalid "reserved projection name")
   unless nameNodup cv.levelParams do
-    fail (.invalid s!"duplicate universe parameters in {← readName cv.name}")
+    fail (.invalid "duplicate universe parameters")
   unless ← looseBVarsBoundedFast coreWalkFuel 0 cv.type do
-    fail (.invalid s!"loose bound variable in type of {← readName cv.name}")
+    fail (.invalid "loose bound variable in type")
   if ← hasFvarFast coreWalkFuel cv.type then
-    fail (.invalid s!"unexpected free variable in type of {← readName cv.name}")
+    fail (.invalid "unexpected free variable in type")
   let type ← annotateCore mode fe checkFuel 0 cv.type
   unless ← allLevelParamsDefined cv.levelParams type do
     fail (.invalid
-      s!"undeclared universe parameter in type of {← readName cv.name}")
+      "undeclared universe parameter in type")
   unless ← constsResolveFFast fe type do
-    fail (← unresolvedConstsError s!"type of {← readName cv.name}" type)
+    fail (← unresolvedConstsError "type" type)
   let stype ← inferTypeCore mode fe checkFuel 0 type
   let _u ← ensureSortCore mode fe checkFuel 0 stype
   pure { cv with type := type }
@@ -427,14 +433,16 @@ is the binder domain, instantiated with the earlier fvars).  Structural on
 def openPisAtFvars : Nat → EIdx → Nat → AM (Option (List EIdx × EIdx))
   | 0, e, _ => pure (some ([], e))
   | n + 1, h, i => do
-    match ← view h with
-    | .forallE dom body _ => do
-      let fv ← internE (.fvar i dom)
-      let b ← instantiate1Fast coreWalkFuel body fv 0
-      match ← openPisAtFvars n b (i + 1) with
-      | some (fvs, e) => pure (some (fv :: fvs, e))
-      | none => pure none
-    | _ => pure none
+    if h.tag == ETag.forallE then
+      match ← view h with
+      | .forallE dom body _ => do
+        let fv ← internE (.fvar i dom)
+        let b ← instantiate1Fast coreWalkFuel body fv 0
+        match ← openPisAtFvars n b (i + 1) with
+        | some (fvs, e) => pure (some (fv :: fvs, e))
+        | none => pure none
+      | _ => pure none
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:153-167 openPisAtFvarsFGo —
 core of `openPisAtFvarsF`: `acc` holds the already-created fvars, innermost
@@ -444,14 +452,16 @@ def openPisAtFvarsFGo (acc : Array EIdx) :
     Nat → EIdx → Nat → AM (Option (List EIdx × EIdx))
   | 0, e, _ => do pure (some ([], ← instantiateListFast coreWalkFuel e acc 0))
   | n + 1, h, i => do
-    match ← view h with
-    | .forallE dom body _ => do
-      let d ← instantiateListFast coreWalkFuel dom acc 0
-      let fv ← internE (.fvar i d)
-      match ← openPisAtFvarsFGo (acc.push fv) n body (i + 1) with
-      | some (fvs, e) => pure (some (fv :: fvs, e))
-      | none => pure none
-    | _ => pure none
+    if h.tag == ETag.forallE then
+      match ← view h with
+      | .forallE dom body _ => do
+        let d ← instantiateListFast coreWalkFuel dom acc 0
+        let fv ← internE (.fvar i d)
+        match ← openPisAtFvarsFGo (acc.push fv) n body (i + 1) with
+        | some (fvs, e) => pure (some (fv :: fvs, e))
+        | none => pure none
+      | _ => pure none
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:169-176 openPisAtFvarsF —
 one-pass `openPisAtFvars` (the fallback covers telescopes whose binders only
@@ -490,22 +500,26 @@ def checkAnnotList (mode : CheckMode) (fe : IFEnv) (depth : Nat) :
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:208-211 isEqHead — is the
 expression the pinned equality former at one level? -/
 def isEqHead (h : EIdx) : AM Bool := do
-  match ← view h with
-  | .const c us => do
-    let en ← pinEq
-    if c == en then pure ((← viewLs us).length == 1) else pure false
-  | _ => pure false
+  if h.tag == ETag.const then
+    match ← view h with
+    | .const c us => do
+      let en ← pinEq
+      if c == en then pure ((← viewLs us).length == 1) else pure false
+    | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:213-220 eqHeadLevel — the
 level an equality head carries.  Off shape it is `.zero`, which `isEqHead` has
 already rejected wherever the result is used. -/
 def eqHeadLevel (h : EIdx) : AM LIdx := do
-  match ← view h with
-  | .const _ us => do
-    match ← viewLs us with
-    | [l] => pure l
+  if h.tag == ETag.const then
+    match ← view h with
+    | .const _ us => do
+      match ← viewLs us with
+      | [l] => pure l
+      | _ => zeroLevel
     | _ => zeroLevel
-  | _ => zeroLevel
+  else zeroLevel
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:222-231 checkDefEqList —
 pairwise definitional-equality check of two spines (throws on any mismatch,
@@ -537,9 +551,12 @@ def IFEnv.findCV? (fe : IFEnv) (n : NIdx) : AM (Option IConstantVal) := do
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:249-254 piResultSort — the
 result sort of a syntactic pi telescope, if it ends in a sort at all. -/
 def piResultSort (e : EIdx) : AM (Option LIdx) := do
-  match ← view (← piResult coreWalkFuel e) with
-  | .sort u => pure (some u)
-  | _ => pure none
+  let r ← piResult coreWalkFuel e
+  if r.tag == ETag.sort then
+    match ← view r with
+    | .sort u => pure (some u)
+    | _ => pure none
+  else pure none
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:257-272 checkProjShape — stage
 2b: the projection type's parameter telescope is *syntactically* the
@@ -552,9 +569,12 @@ def checkProjShape (pty ctorTy : EIdx) (nP nF : Nat) : AM Unit := do
     | fail (.notImplemented "projection constructor telescope")
   unless (← getAppArgs coreWalkFuel cbody).length == nP do
     fail (.notImplemented "projection constructor residual arity")
-  match ← view (← getAppFn coreWalkFuel cbody) with
-  | .const _ _ => pure ()
-  | _ => fail (.notImplemented "projection constructor residual head")
+  let f ← getAppFn coreWalkFuel cbody
+  if f.tag == ETag.const then
+    match ← view f with
+    | .const _ _ => pure ()
+    | _ => fail (.notImplemented "projection constructor residual head")
+  else fail (.notImplemented "projection constructor residual head")
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:274-311 checkProjRule
 con-leche: ConLeche/Kernel/DeclCheck.lean:763-795 checkProjRuleF

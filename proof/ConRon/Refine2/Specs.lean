@@ -12993,17 +12993,6 @@ theorem intern_n_node_run {pers st lst} (hrel : AStateRel pers st lst)
   (intern_n_node_run₀ hrel.to₀ hinv v hvwf hrun).toSim
     (fun _ _ hx => (internNNode_run_view hrel.storeWF hview hx).2) (fun _ _ => trivial)
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_l_node_run₀`.
- `arena::monad::intern_l_node` against `Arena.internLNode`. -/
-theorem intern_l_node_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    (v : arena.store.LNodeView)
-    (hview : lst.store.ls.ViewOK (absLNodeView v)) {o}
-    (hrun : arena.monad.intern_l_node pers st v = ok o) :
-    Sim absLIdx (fun _ => True) pers lst o (Arena.internLNode (absLNodeView v)) :=
-  (intern_l_node_run₀ hrel.to₀ hinv v hrun).toSim
-    (fun _ _ hx => (internLNode_run_view hrel.storeWF hview hx).2) (fun _ _ => trivial)
-
 theorem internLevel_run_denote : ∀ (u : ConLeche.Level) {lst lst' : AState} {h : LIdx},
     StoreWF lst.store →
     (Arena.internLevel u).run lst = .ok (h, lst') →

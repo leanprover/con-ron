@@ -121,13 +121,212 @@ structure SnapRel (rs : arena.checker_base.AttemptSnapshot) (ls : AttemptSnapsho
   lScrInv : LTablesInv rs.l_scr
   nScrInv : NTablesInv rs.n_scr
 
+/-! ### The copies are the identity
+
+Every `Dup` dictionary the snapshot copies with returns its argument in the
+model: the handles, `u64`, `LDer` and the node records by `Refine2/Inv.lean`
+and `Refine2/Specs.lean`; the key records, `bool`, and task #97-T2-LOCKSTEP
+D4's `Level`/`Name`/`Vec<Level>` here.  `HashMap2::dup` is then the identity
+(`Refine/HashMap2.lean`'s `dup_spec`), `Tbl::dup`'s halved row walk copies
+row by row (`tbl_dup_rows_spec`, the shape of `HashMap2`'s `dup_slots_spec`),
+and each `dup` is literally `o = input`. -/
+
+section DupCopies
+
+open ConRon.Refine.HashMap (DupId)
+
+theorem dupId_bool : DupId Bool.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h; exact (Result.ok_injective h).symm
+theorem dupId_eidxNat : DupId arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  simp only [arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapDup.dup2,
+    arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+  exact h.symm
+theorem dupId_eidxPair : DupId arena.core_state.EIdxPair.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  simp only [arena.core_state.EIdxPair.Insts.Con_ron_coreRonHashmapDup.dup2,
+    arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+  exact h.symm
+theorem dupId_lidxPair : DupId arena.core_state.LIdxPair.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  simp only [arena.core_state.LIdxPair.Insts.Con_ron_coreRonHashmapDup.dup2,
+    arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+  exact h.symm
+theorem dupId_lsidxPair : DupId arena.core_state.LsIdxPair.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  simp only [arena.core_state.LsIdxPair.Insts.Con_ron_coreRonHashmapDup.dup2,
+    arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+  exact h.symm
+theorem dupId_nlsKey : DupId arena.core_state.NLsKey.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  simp only [arena.core_state.NLsKey.Insts.Con_ron_coreRonHashmapDup.dup2,
+    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2,
+    arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+  exact h.symm
+theorem dupId_nnlsKey : DupId arena.core_state.NNLsKey.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  simp only [arena.core_state.NNLsKey.Insts.Con_ron_coreRonHashmapDup.dup2,
+    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2,
+    arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+  exact h.symm
+theorem dupId_level : DupId kernel.level.Level.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  simp only [kernel.level.Level.Insts.Con_ron_coreRonHashmapDup.dup2,
+    ConRon.Refine.level_dup_eq, ok.injEq] at h
+  exact h.symm
+theorem dupId_name : DupId kernel.name.Name.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  simp only [kernel.name.Name.Insts.Con_ron_coreRonHashmapDup.dup2,
+    ConRon.Refine.name_dup_eq, ok.injEq] at h
+  exact h.symm
+theorem dupId_vecLevel : DupId alloc.vec.VecLevel.Insts.Con_ron_coreRonHashmapDup := by
+  intro a b h
+  exact alloc.vec.Vec.ext _ _ (level_list_dup_val h)
+
+open ConRon.Refine.HashMap (take_one_drop uscalar_sub_eq uscalar_div_eq uscalar_add_eq vec_push_eq)
+
+/-- `Tbl::dup_rows` copies `src[lo..hi]` onto `out`, halving as
+`HashMap2::dup_slots` does; under `DupId` on both columns each row is itself. -/
+theorem tbl_dup_rows_spec {A I D : Type} {HA : ron.hashmap.Hashable A}
+    {EA : ron.hashmap.Eq2 A} {DA : ron.hashmap.Dup A} {DI : ron.hashmap.Dup I}
+    {DD : ron.hashmap.Dup D} {DDef : arena.store.DerDefault D}
+    (hA : DupId DA) (hD : DupId DD) (N : Nat) :
+    ∀ (src out out' : alloc.vec.Vec (A × D)) (lo hi : Std.Usize),
+      hi.val - lo.val = N → hi.val ≤ src.val.length →
+      arena.store.Tbl.dup_rows HA EA DA DI DD DDef src out lo hi = ok out' →
+      out'.val = out.val ++ (src.val.drop lo.val).take (hi.val - lo.val) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro src out out' lo hi hN hhi h
+    rw [arena.store.Tbl.dup_rows.eq_def] at h
+    split at h
+    · rename_i hgt
+      have hlt : lo.val < hi.val := by scalar_tac
+      obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hnv : n.val = hi.val - lo.val := uscalar_sub_eq hn
+      split at h
+      · rename_i h1
+        have hn1 : hi.val = lo.val + 1 := by
+          have : n.val = 1 := by scalar_tac
+          omega
+        have hlo : lo.val < src.val.length := by omega
+        have : Inhabited (A × D) := ⟨src.val[lo.val]⟩
+        obtain ⟨⟨a, d⟩, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨-, hx⟩ := ConRon.Refine.HashMap.vec_index_eq ha
+        obtain ⟨a', ha', h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨d', hd', hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        rw [hA _ _ ha', hD _ _ hd'] at hp
+        rw [vec_push_eq hp, hn1, show lo.val + 1 - lo.val = 1 by omega,
+          take_one_drop hlo, hx]
+      · rename_i h1
+        have hn2 : 2 ≤ n.val := by
+          have : n.val ≠ 1 := by scalar_tac
+          omega
+        obtain ⟨i, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨mid, hmid, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨out1, hs1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hiv : i.val = n.val / 2 := by
+          rw [uscalar_div_eq hi2, show (2#usize : Std.Usize).val = 2 by scalar_tac]
+        have hmv : mid.val = lo.val + i.val := uscalar_add_eq hmid
+        have e1 := ih (mid.val - lo.val) (by omega) src out out1 lo mid rfl (by omega) hs1
+        have e2 := ih (hi.val - mid.val) (by omega) src out1 out' mid hi rfl hhi h2
+        rw [e2, e1, List.append_assoc,
+          show hi.val - lo.val = (mid.val - lo.val) + (hi.val - mid.val) by omega,
+          List.take_add, List.drop_drop,
+          show lo.val + (mid.val - lo.val) = mid.val by omega]
+    · rename_i hgt
+      have hle : hi.val ≤ lo.val := by scalar_tac
+      rw [← Result.ok_injective h, show hi.val - lo.val = 0 by omega]
+      simp
+
+/-- **`Tbl::dup` is the identity**: the row column by `dup_rows`, the cons
+table by `HashMap2::dup`. -/
+theorem tbl_dup_eq {A I D : Type} {HA : ron.hashmap.Hashable A}
+    {EA : ron.hashmap.Eq2 A} {DA : ron.hashmap.Dup A} {DI : ron.hashmap.Dup I}
+    {DD : ron.hashmap.Dup D} {DDef : arena.store.DerDefault D}
+    (hA : DupId DA) (hI : DupId DI) (hD : DupId DD) {t o : arena.store.Tbl A I D}
+    (h : arena.store.Tbl.dup HA EA DA DI DD DDef t = ok o) : o = t := by
+  rw [arena.store.Tbl.dup] at h
+  obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hm, hhm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hr := tbl_dup_rows_spec hA hD _ t.rows _ v1 0#usize (alloc.vec.Vec.len t.rows) rfl
+    (by simp) hv1
+  have hc := ConRon.Refine.HashMap2.dup_spec hA hI hhm
+  rw [← Result.ok_injective h, hc]
+  obtain ⟨rows, cons⟩ := t
+  simp only at hr ⊢
+  congr
+  exact alloc.vec.Vec.ext _ _ (by simpa [alloc.vec.Vec.with_capacity] using hr)
+
+
+/-- Discharges a `DupId` goal at every dictionary the snapshot copies with. -/
+local macro "dup_id" : tactic => `(tactic| first
+  | exact dupId_eidx | exact dupId_nidx | exact dupId_lidx | exact dupId_lsidx
+  | exact dupId_bmidx | exact dupId_u64 | exact dupId_bool | exact dupId_lder
+  | exact dupId_eidxNat | exact dupId_eidxPair | exact dupId_lidxPair
+  | exact dupId_lsidxPair | exact dupId_nlsKey | exact dupId_nnlsKey
+  | exact dupId_level | exact dupId_name | exact dupId_vecLevel
+  | exact dupId_bvarnode | exact dupId_fvarnode | exact dupId_sortnode
+  | exact dupId_constnode | exact dupId_appnode | exact dupId_projnode
+  | exact dupId_letnode | exact dupId_bindnode | exact dupId_litnode
+  | exact dupId_bmnode | exact dupId_anonnode | exact dupId_strnode
+  | exact dupId_numnode | exact dupId_zeronode | exact dupId_succnode
+  | exact dupId_binlnode | exact dupId_paramnode | exact dupId_listnode)
+
+-- One copy step of a `dup` chain: the copied field is the field.
+set_option hygiene false in
+local macro "dup_step" : tactic => `(tactic|
+  (obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+   first
+   | obtain rfl := ConRon.Refine.HashMap2.dup_spec (by dup_id) (by dup_id) hx
+   | obtain rfl := tbl_dup_eq (by dup_id) (by dup_id) (by dup_id) hx))
+
+theorem memos_dup_eq {rm o : arena.monad.Memos}
+    (h : arena.checker_base.memos_dup rm = ok o) : o = rm := by
+  unfold arena.checker_base.memos_dup at h
+  repeat dup_step
+  rw [← Result.ok_injective h]
+
+theorem caches_dup_eq {rc o : arena.core_state.Caches}
+    (h : arena.checker_base.caches_dup rc = ok o) : o = rc := by
+  unfold arena.checker_base.caches_dup at h
+  repeat dup_step
+  rw [← Result.ok_injective h]
+
+theorem etables_dup_eq {rt o : arena.store.ETables}
+    (h : arena.store.ETables.dup rt = ok o) : o = rt := by
+  unfold arena.store.ETables.dup at h
+  repeat dup_step
+  rw [← Result.ok_injective h]
+
+theorem lstables_dup_eq {rt o : arena.store.LsTables}
+    (h : arena.store.LsTables.dup rt = ok o) : o = rt := by
+  unfold arena.store.LsTables.dup at h
+  repeat dup_step
+  rw [← Result.ok_injective h]
+
+theorem ltables_dup_eq {rt o : arena.store.LTables}
+    (h : arena.store.LTables.dup rt = ok o) : o = rt := by
+  unfold arena.store.LTables.dup at h
+  repeat dup_step
+  rw [← Result.ok_injective h]
+
+theorem ntables_dup_eq {rt o : arena.store.NTables}
+    (h : arena.store.NTables.dup rt = ok o) : o = rt := by
+  unfold arena.store.NTables.dup at h
+  repeat dup_step
+  rw [← Result.ok_injective h]
+
+end DupCopies
+
 /-- `memos_dup` is the identity on the abstraction: `ron::hashmap::Dup`'s
 `dup2` is `DupId` at every one of the thirteen tables (`Refine2/Inv.lean`). -/
 theorem memos_dup_refines {rm lm} {o}
     (hrel : MemosRel rm lm) (hinv : MemosInv rm)
     (hrun : arena.checker_base.memos_dup rm = ok o) :
     MemosRel o lm ∧ MemosInv o := by
-  sorry
+  obtain rfl := memos_dup_eq hrun
+  exact ⟨hrel, hinv⟩
 
 /-- `caches_dup` is the identity on the abstraction — including the three
 readback memos, which task #97-T2-LOCKSTEP D4 made it copy (they used to be
@@ -136,7 +335,8 @@ theorem caches_dup_refines {rc lc} {o}
     (hrel : CachesRel rc lc) (hinv : CachesInv rc)
     (hrun : arena.checker_base.caches_dup rc = ok o) :
     CachesRel o lc ∧ CachesInv o := by
-  sorry
+  obtain rfl := caches_dup_eq hrun
+  exact ⟨hrel, hinv⟩
 
 /-- `ETables::dup` is the identity on the abstraction (`Tbl::dup` per table:
 the row column copied by `dup2`, the cons table by `HashMap2::dup`). -/
@@ -144,28 +344,32 @@ theorem etables_dup_refines {rt lt} {o}
     (hrel : ETablesRel rt lt) (hinv : ETablesInv rt)
     (hrun : arena.store.ETables.dup rt = ok o) :
     ETablesRel o lt ∧ ETablesInv o := by
-  sorry
+  obtain rfl := etables_dup_eq hrun
+  exact ⟨hrel, hinv⟩
 
 /-- `LsTables::dup` is the identity on the abstraction. -/
 theorem lstables_dup_refines {rt lt} {o}
     (hrel : LsTablesRel rt lt) (hinv : LsTablesInv rt)
     (hrun : arena.store.LsTables.dup rt = ok o) :
     LsTablesRel o lt ∧ LsTablesInv o := by
-  sorry
+  obtain rfl := lstables_dup_eq hrun
+  exact ⟨hrel, hinv⟩
 
 /-- `LTables::dup` is the identity on the abstraction. -/
 theorem ltables_dup_refines {rt lt} {o}
     (hrel : LTablesRel rt lt) (hinv : LTablesInv rt)
     (hrun : arena.store.LTables.dup rt = ok o) :
     LTablesRel o lt ∧ LTablesInv o := by
-  sorry
+  obtain rfl := ltables_dup_eq hrun
+  exact ⟨hrel, hinv⟩
 
 /-- `NTables::dup` is the identity on the abstraction. -/
 theorem ntables_dup_refines {rt lt} {o}
     (hrel : NTablesRel rt lt) (hinv : NTablesInv rt)
     (hrun : arena.store.NTables.dup rt = ok o) :
     NTablesRel o lt ∧ NTablesInv o := by
-  sorry
+  obtain rfl := ntables_dup_eq hrun
+  exact ⟨hrel, hinv⟩
 
 /-- `attempt_snapshot` ⊑ `attemptSnapshot` — in Lean a read of six fields, in
 Rust the six copies above. -/
@@ -1734,6 +1938,27 @@ end Lockstep
 
 /-- info: 'ConRon.Refine2.or_else_attempt_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms or_else_attempt_refines
+
+/-- info: 'ConRon.Refine2.memos_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms memos_dup_refines
+
+/-- info: 'ConRon.Refine2.caches_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms caches_dup_refines
+
+/-- info: 'ConRon.Refine2.etables_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms etables_dup_refines
+
+/-- info: 'ConRon.Refine2.lstables_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lstables_dup_refines
+
+/-- info: 'ConRon.Refine2.ltables_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ltables_dup_refines
+
+/-- info: 'ConRon.Refine2.ntables_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ntables_dup_refines
+
+/-- info: 'ConRon.Refine2.attempt_snapshot_refines₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms attempt_snapshot_refines₀
 
 /-- info: 'ConRon.Refine2.attempt_restore_refines₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms attempt_restore_refines₀

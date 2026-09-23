@@ -1104,22 +1104,33 @@ theorem check_div_mod_pin_attempt_refines₀ {pers st lst} {vis : Std.U64} {rf l
       · show absAErrKind _ = lAErrKind le
         rw [hk]; rfl
 
-/-- **`check_div_mod_pin_try` — one variant's attempt, then the loop.**  The
-attempt is `check_div_mod_pin_attempt` (the `orElseAttempt` seam,
-`check_div_mod_pin_attempt_refines₀` above, lockstep since task
-#97-T2-LOCKSTEP D4); what is left is the twin's `match` on the step. -/
+/-- **`check_div_mod_pin_try` — one variant's attempt, then the loop**
+(restated lockstep, task #97-T2-LOCKSTEP lane Checker).  The Rust function is
+the loop's body PAST the two guards, so its twin is `checkDivModPinTrySpec`
+at the variant `variants[i]` and the rest of the list, not the whole loop.
+The attempt is `check_div_mod_pin_attempt` (the `orElseAttempt` seam,
+`check_div_mod_pin_attempt_refines₀` above), then the four-way `match`.
+
+**Open, and blocked on a ruling, not on work**: the seam lemma takes the
+Rust attempt's `ScratchFrame` (pins, persistent tiers and flags unchanged),
+which nothing proves; DESIGN's lane Checker section prices it against a Rust
+change that makes it unnecessary.  The loop and this step are one mutual
+recursion, proved together once that is settled. -/
 theorem check_div_mod_pin_try_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {c : arena.handle.NIdx}
     {value2 : arena.handle.EIdx}
     {variants : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {i : Std.Usize}
     {tried : alloc.vec.Vec Std.U32} {o} {ltried : List String}
+    {ps : arena.nat_op_pin_set.INatOpPinSet}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
+    (hps : variants.val[i.val]? = some ps)
     (hrun : arena.decl_check.check_div_mod_pin_try pers vis st mode rf c value2
       variants i tried = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
-      (checkDivModPinLoop (ConRon.Refine.absMode mode) lf (absNIdx c)
-        (absEIdx value2) (absINatOpPinSetLFrom variants i) ltried) := by
+      (checkDivModPinTrySpec (ConRon.Refine.absMode mode) lf (absNIdx c)
+        (absEIdx value2) (absINatOpPinSet ps)
+        (absINatOpPinSetLFrom variants i).tail ltried) := by
   sorry
 
 /-- `check_div_mod_pin_loop` ⊑ `checkDivModPinLoop` at the cursor. -/

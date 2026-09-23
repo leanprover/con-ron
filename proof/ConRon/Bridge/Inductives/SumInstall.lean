@@ -1208,6 +1208,10 @@ theorem openPisAtFvars_run : ∀ (n : Nat) {i : Nat} {h : EIdx} {hP : Expr}
   | succ n ih =>
     intro i h hP s₀ s' r hok hh hrun
     simp only [Arena.openPisAtFvars] at hrun
+    -- the tag-first twin (task #97-T2-LOCKSTEP lane Checker, D1)
+    obtain ⟨v₀, hv₀⟩ := denoteE_view hh
+    replace hrun := tagIf_view_run hv₀
+      (fun hne => by cases v₀ <;> first | rfl | exact absurd rfl hne) hrun
     obtain ⟨v, s1, k1, z1⟩ := bindOk hrun
     obtain ⟨hs1, hv⟩ := view_run k1
     rw [hs1] at z1
@@ -1283,6 +1287,10 @@ theorem openPisAtFvarsFGo_run : ∀ (n : Nat) {acc : Array EIdx} {ws : List Expr
   | succ n ih =>
     intro acc ws i h hP s₀ s' r hok hacc hh hrun
     simp only [Arena.openPisAtFvarsFGo] at hrun
+    -- the tag-first twin (task #97-T2-LOCKSTEP lane Checker, D1)
+    obtain ⟨v₀, hv₀⟩ := denoteE_view hh
+    replace hrun := tagIf_view_run hv₀
+      (fun hne => by cases v₀ <;> first | rfl | exact absurd rfl hne) hrun
     obtain ⟨v, s1, k1, z1⟩ := bindOk hrun
     obtain ⟨hs1, hv⟩ := view_run k1
     rw [hs1] at z1

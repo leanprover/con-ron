@@ -59631,6 +59631,118 @@ deletions above); `Refine2/Specs.lean` (the shims); `Tactic/Lockstep.lean`
 (above); `Refine2/Checker/Phased.lean` (the pool's file — the one statement
 there had to lose `BrOK`/`DeclResolves` with the family).
 
+#### Slice 2 — the twin fixes, the round-4 items, the D4 follow-ups
+
+**D1 at `checker_base.rs`'s eight sites, fixed in the twin**
+(`Arena/CheckerBase.lean`): `NIdx.isModelSuffix`, `NIdx.isProjFnShape` (two
+tag tests), `openPisAtFvars`, `openPisAtFvarsFGo`, `isEqHead`,
+`eqHeadLevel`, `piResultSort`, `checkProjShape`'s residual head — each now
+`if h.tag == T then match ← view h with <old arms> else <old catch-all>`,
+the Rust's own order (the shared tactic's `@[lockstep_twin]` rules read a
+`view` under a known tag as the projection).  Theorem 1 repaired with no
+statement changed: `isProjFnShape_run` (new `NTables.tagOf_of_get`/
+`NStore.tagOf_of_view`, `Bridge/Checker/Base.lean`),
+`openPisAtFvars(FGo)_run` (`Bridge/Inductives/SumInstall.lean`),
+`checkProjShape_spec`/`eqHeadLevel_run`/`isEqHead_run`
+(`Bridge/Inductives/ProjRule.lean`), all by one `tagIf_view_run` step;
+`Refine2/Checker/Shape.lean`'s `openPisAtFvars*_length` by one tag split.
+
+**The `readName`-in-decline divergence, fixed in the twin** at every site the
+brief named: `checkConstantVal` (`CheckerBase.lean`), `installConstantVal`/
+`installValue` (`CheckerSplit.lean`), `checkDivModPinLoop`/`checkDivModPin`/
+`checkReducePin`/`checkDefnVal`/`checkThmVal`/`checkOpaqueVal`/
+`installBasisDecl` (`DeclCheck.lean`), `checkDecl`'s `.defnDecl` and
+`.axiomDecl` arms (`Checker.lean`) — 40 `readName` reads gone; the messages
+are constants, as the Rust's are (`unresolvedConstsError` takes `"type"`/
+`"value"`).  `check_value_group` was the model.  The two differential tests
+(`Arena/CheckerTest.lean`, `InductivesTest.lean`) compare error KINDS now
+(DESIGN §3.1), as `chkInstall` already did.  Theorem 1: the `Never` lemmas at
+those guards lost their `readName` bind (`Bridge/Checker/{Base,Basis,DeclVal,
+DivMod,Arms,Split}.lean`), nothing else.  `Refine2/Checker/Spec.lean`'s
+transcriptions follow.
+
+**The round-4 items, revisited:**
+* *The defn arm's `readName`* — **dissolved**: `checkDecl_defnDecl` is an
+  equation now, and `check_decl_refines`' last `sorry` arm is the arm lemma
+  (`check_defn_decl_refines`, a leaf).
+* *`check_opaque_reduce_pin_refines` missing the Rust's `reduce_op_names`
+  test* — **restated**: its twin side is `checkOpaqueDeclSpec`'s tail
+  (`if (← reduceOpNames).contains n then checkReducePin …; pure lf2`).  Not
+  dissolved by the shapes alone; it was a wrong statement.
+* *`hkpre : lf = lf2.restrictTo k_pre`* (six statements) — **not
+  dissolved: it is a genuine twin/Rust divergence.**  The Rust runs the three
+  pin gates (structural `Nat`, `div`/`mod`, reduce) at `restrict(fe2,
+  k_pre)` — the post-install environment at the pre-install counter — and the
+  twin at `fe`, the pre-install environment.  `CoreCtx` relates the Rust's
+  environment to the twin's by exact data, and `fe.push ci` has one more
+  constant, so no twin environment is both `lf` and related; the hypothesis
+  is unsatisfiable.  The lockstep fix is in the twin: run the gates at
+  `fe2.restrictTo fe.visibleBelow` (the Rust's arrangement).  Theorem 1 then
+  owes that a gate reads its environment only through `find?`, which agrees
+  on `fe` and `(fe.push ci).restrictTo fe.visibleBelow` when `ci.name` is
+  fresh — a congruence of the Core knot over `find?`-equal environments, the
+  size of a Core-tier frame.  Not done this round; the six statements are
+  left `sorry` with `hkpre`, to be restated at `lf2.restrictTo (absU k_pre)`
+  together with the twin change.
+
+**D4 follow-ups:** the six copy lemmas are closed (`memos_dup_refines`,
+`caches_dup_refines`, `{e,ls,l,n}tables_dup_refines`: each `dup` is the
+identity in the model, so `attempt_snapshot_refines₀` and
+`check_div_mod_pin_attempt_refines₀` are axiom-clean; a helper did this).
+`check_div_mod_pin_try_refines` is restated against the Rust function it
+names: `checkDivModPinTrySpec` (new, `Checker/Spec.lean`), the loop's body
+PAST the two guards, at `variants[i]` and the tail — the old statement named
+the whole loop.  It stays `sorry`: its proof needs the seam's `ScratchFrame`.
+
+**`ScratchFrame`, priced (not started, per the coordinator).**  The attempt
+`check_div_mod_pin_at`'s call closure in `Generated/Funs.lean` is **1 187
+functions** (core 317, store 268, monad 87, expr_ops 85, pins 52, decl_check
+48, …); the frame is a statement over every state-threading one of them
+(~400: pins untouched, each store's persistent tier and both flags
+unchanged), through the 100-function `partial_fixpoint` knot by a fuel
+induction, and it is only true under `scratch_on = true` (an intern with the
+tier closed writes the persistent tier), so that precondition threads too.
+That is a Core-tier-sized proof — several rounds.  **The coordinator's
+alternative** (snapshot the pins, truncate the persistent tier to its recorded
+length) does not remove it: truncating the node columns does not restore the
+cons `HashMap2`s, and "the persistent tier only grew" is itself the frame.
+**Recommended instead — a third option, no frame at all:** the Rust runs the
+attempt on a FROZEN tier.  `attempt_snapshot` moves the four persistent
+tables out (`freeze_tier`, O(1) `mem::replace`s, flags up) and copies the
+pins (68 handles) and the four `scratch_on` flags; the attempt reads the
+persistent tier through the `PersTier` parameter, as phase B already does;
+`attempt_restore` moves them back (`thaw_tier`) and restores pins and flags.
+The restored state is then the pre-attempt state FIELD BY FIELD, by
+construction, and the recovered arm is `AStateRel₀` with no hypothesis.  The
+proof needs the freeze relation (the attempt's `Sim₀` at `tierOf st.store`;
+`Refine2/Checker/Phased.lean`'s `worker_state_rel`/`freeze_tier_ok` are the
+pattern, ~100 lines) instead of a frame over the core.  Runtime: eight
+attempts on `Init`, each O(1) moves plus a 68-handle copy — noise next to the
++8.0 M instructions D4's scratch copies measured.  Needs a ruling (it is a
+Rust change).
+
+**Promote tier (brief item 5): not done here.**  A separate
+`T2-Lane Promote` agent was already rebasing `p5-top-3-promote` (worktree
+`_tmp/wt-t2-promote`, branch `t2-promote`, built on this lane's slice 1) when
+this lane's helper started, so this lane stood down to avoid two agents on
+`Promote.lean`.
+
+**Shims:** `Specs.lean`'s `intern_l_node_run` (no consumer left once
+`Checker/Pins.lean` moved to `intern_l_node_run₀`) deleted.
+
+#### Frontier, gates, submission
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`: **start** (`f216c474`) 65 items in 16
+modules, 174 tainted, dead weight 647; **after slice 1** (`2c05bb85`, with
+the Frontend lane's landing 1 merged) 54 / 12 / 139 / 632; **after slice 2**
+(this branch, `arena` `ecee8ea4` merged) 54 / 12 / 140 / 625.  No resolves
+hypothesis is left on either Theorem-2 capstone (`install_then_check_refines`,
+`check_decls_phased_refines`, and the binary's `pool_accepts_refines`): each
+takes `AStateRel₀` and `AStateInv` and nothing else.  `scripts/gates.sh`:
+**all 16 OK** on both slices (slice 2: `extract-check` 192 s, `lake-refine2`
+177 s).  Both submitted to the merge queue (task #97-MQ), not landed by hand.
+
 ### Task #97-T2-LANE-Promote — `Refine2/Promote/**` lockstep, the tier closed but one statement gap (2026-09-23, Opus under Fable)
 
 The lockstep migration's step 6 (task #97-T2-AUDIT §7): `Refine2/Promote/`

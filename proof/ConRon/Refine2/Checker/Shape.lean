@@ -872,6 +872,11 @@ theorem openPisAtFvars_length {n : Nat} {e : EIdx} {i : Nat} {ls ls' : AState}
     rfl
   | succ n ih =>
     rw [openPisAtFvars] at h
+    -- the tag-first twin (task #97-T2-LOCKSTEP lane Checker, D1)
+    by_cases ht : (e.tag == ETag.forallE) = true
+    swap
+    · rw [if_neg ht] at h; exact (pure_none_ne h).elim
+    rw [if_pos ht] at h
     obtain ⟨v, ls1, -, h⟩ := am_run_bind_ok h
     cases v
     case forallE dom body mm =>
@@ -909,6 +914,11 @@ theorem openPisAtFvarsFGo_length : ∀ {acc : Array EIdx} {n : Nat} {e : EIdx}
   | succ n ih =>
     intro e i ls ls' fvs r h
     rw [openPisAtFvarsFGo] at h
+    -- the tag-first twin (task #97-T2-LOCKSTEP lane Checker, D1)
+    by_cases ht : (e.tag == ETag.forallE) = true
+    swap
+    · rw [if_neg ht] at h; exact (pure_none_ne h).elim
+    rw [if_pos ht] at h
     obtain ⟨v, ls1, -, h⟩ := am_run_bind_ok h
     cases v
     case forallE dom body mm =>

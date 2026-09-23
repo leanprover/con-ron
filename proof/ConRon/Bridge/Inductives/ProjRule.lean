@@ -197,6 +197,10 @@ theorem checkProjShape_spec (pty cty : EIdx) (ptyP ctyP : Expr) (nP nF : Nat) :
   replace z4 := AM.pure_bind_ok z4
   obtain ⟨hd, s₄, k4, z5⟩ := bindOk z4
   obtain ⟨rfl, hhd⟩ := getAppFn_run hok hcb k4
+  -- the tag-first twin (task #97-T2-LOCKSTEP lane Checker, D1)
+  obtain ⟨v₀, hv₀⟩ := denoteE_view hhd
+  replace z5 := tagIf_view_run hv₀
+    (fun hne => by cases v₀ <;> first | rfl | exact absurd rfl hne) z5
   obtain ⟨v, s₅, k5, z6⟩ := bindOk z5
   obtain ⟨rfl, hv⟩ := view_run k5
   have hlenP : cbodyP.getAppArgs.length = nP := by
@@ -498,6 +502,10 @@ theorem eqHeadLevel_run {s s' : AState} {h : EIdx} {hP : Expr} {u : LIdx}
     (hrun : Arena.eqHeadLevel h s = .ok (u, s')) :
     s' = s ∧ denoteL s.store.ls u = some (ConLeche.eqHeadLevel hP) := by
   simp only [Arena.eqHeadLevel] at hrun
+  -- the tag-first twin (task #97-T2-LOCKSTEP lane Checker, D1)
+  obtain ⟨v₀, hv₀⟩ := denoteE_view hd
+  replace hrun := tagIf_view_run hv₀
+    (fun hne => by cases v₀ <;> first | rfl | exact absurd rfl hne) hrun
   obtain ⟨v, s₁, k1, z1⟩ := bindOk hrun
   obtain ⟨hs1, hv⟩ := view_run k1
   subst s₁
@@ -625,6 +633,10 @@ theorem isEqHead_run {s s' : AState} {h : EIdx} {hP : Expr} {b : Bool}
     (hrun : Arena.isEqHead h s = .ok (b, s')) :
     s' = s ∧ b = ConLeche.isEqHead hP := by
   simp only [Arena.isEqHead] at hrun
+  -- the tag-first twin (task #97-T2-LOCKSTEP lane Checker, D1)
+  obtain ⟨v₀, hv₀⟩ := denoteE_view hd
+  replace hrun := tagIf_view_run hv₀
+    (fun hne => by cases v₀ <;> first | rfl | exact absurd rfl hne) hrun
   obtain ⟨v, s₁, k1, z1⟩ := bindOk hrun
   obtain ⟨hs1, hv⟩ := view_run k1
   subst s₁

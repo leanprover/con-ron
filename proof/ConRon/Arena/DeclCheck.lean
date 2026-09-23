@@ -501,9 +501,8 @@ verdict. -/
 def checkDivModPinLoop (mode : CheckMode) (fe : IFEnv) (c : NIdx)
     (value' : EIdx) : List INatOpPinSet → List String → AM Unit
   | [], tried => do
-    let cn ← readName c
-    fail (.notImplemented s!"unsupported Nat.div/mod spelling ({cn}: \
-      no pin variant matched — {String.intercalate "; " tried})")
+    fail (.notImplemented s!"unsupported Nat.div/mod spelling (no pin variant \
+      matched — {String.intercalate "; " tried})")
   | ps :: rest, tried => do
     if (← divModPinGuard ps fe c) && (← divModCertsGuard ps fe c value') then
       match ← orElseAttempt (checkDivModPinAt mode fe c value' ps) with
@@ -532,9 +531,9 @@ def checkDivModPin (mode : CheckMode) (pins : List INatOpPinSet)
     match fe2.find? c with
     | some (.defnInfo _ value' _) =>
       checkDivModPinLoop mode fe c value' pins []
-    | _ => fail (.internal s!"Nat.div/mod operation not stored ({← readName c})")
+    | _ => fail (.internal "Nat.div/mod operation not stored")
   else fail (.notImplemented
-    s!"unsupported Nat.div/mod environment ({← readName c})")
+    "unsupported Nat.div/mod environment")
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:390-425 checkReducePin
 con-leche: ConLeche/Kernel/DeclCheck.lean:915-934 checkReducePinF
@@ -555,13 +554,13 @@ def checkReducePin (mode : CheckMode) (fe fe2 : IFEnv) (c : NIdx)
         let ok ← isDefEqCore mode fe checkFuel 1 ax x
         if ok then pure ()
         else fail (.internal
-          s!"pinned compiler-trust opaque is not the identity ({← readName c})")
+          "pinned compiler-trust opaque is not the identity")
       else fail (.notImplemented
-        s!"unsupported compiler-trust opaque spelling ({← readName c})")
+        "unsupported compiler-trust opaque spelling")
     else fail (.notImplemented
-      s!"unsupported compiler-trust opaque spelling ({← readName c}: pin ground constants absent)")
+      "unsupported compiler-trust opaque spelling (pin ground constants absent)")
   else fail (.notImplemented
-    s!"unsupported compiler-trust opaque declaration ({← readName c})")
+    "unsupported compiler-trust opaque declaration")
 
 /-! ## The structural-`Nat` recurrence certification -/
 
@@ -598,7 +597,7 @@ def checkDefnVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   let value ← installValue mode fe cv value
   let vtype ← inferTypeCore mode fe checkFuel 0 value
   unless ← isDefEqCore mode fe checkFuel 0 vtype cv.type do
-    fail (.invalid s!"type mismatch in definition {← readName cv.name}")
+    fail (.invalid "type mismatch in definition")
   pure (fe.push (.defnInfo cv value hint))
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:52-82 checkThmVal — check a
@@ -612,11 +611,11 @@ def checkThmVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   let u ← ensureSortCore mode fe checkFuel 0 stype
   let z ← zeroLevel
   unless ← liftFueled "level comparison" (← lvlEq? u z) do
-    fail (.invalid s!"type of theorem {← readName cv.name} is not a proposition")
+    fail (.invalid "type of theorem is not a proposition")
   let jv ← installValue mode fe cv value
   let vtype ← inferTypeCore mode fe checkFuel 0 jv
   unless ← isDefEqCore mode fe checkFuel 0 vtype cv.type do
-    fail (.invalid s!"type mismatch in theorem {← readName cv.name}")
+    fail (.invalid "type mismatch in theorem")
   pure (fe.push (.thmInfo cv value))
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:84-107 checkOpaqueVal — check an
@@ -629,7 +628,7 @@ def checkOpaqueVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   let value ← installValue mode fe cv value
   let vtype ← inferTypeCore mode fe checkFuel 0 value
   unless ← isDefEqCore mode fe checkFuel 0 vtype cv.type do
-    fail (.invalid s!"type mismatch in opaque {← readName cv.name}")
+    fail (.invalid "type mismatch in opaque")
   pure (fe.push (.axiomInfo cv))
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:26-30 installBasisDecl
@@ -638,7 +637,7 @@ Install one pinned basis declaration (duplicate-checked), returning the
 pushed index. -/
 def installBasisDecl (fe : IFEnv) (ci : IConstantInfo) : AM IFEnv := do
   unless (fe.find? ci.name).isNone do
-    fail (.invalid s!"duplicate declaration {← readName ci.name}")
+    fail (.invalid "duplicate declaration")
   pure (fe.push ci)
 
 /-- con-leche: none — `kind.declsA.foldlM installBasisDecl`, as an explicit

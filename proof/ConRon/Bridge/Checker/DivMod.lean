@@ -156,7 +156,7 @@ theorem substConstAll_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx} {x : Expr
   induction fuel with
   | zero =>
     intro h h' e s s' _ _ _ _ _ hrun
-    exact absurd hrun (AM.Never.fail _ _ _ _)
+    exact absurd hrun (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
   | succ fuel ih =>
     intro h h' e s s' hst hp hn hx he hrun
     have hwf := hst.wf
@@ -1757,7 +1757,7 @@ theorem checkDivModPinLoop_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
   | nil =>
     intro psP tried triedP s s' _ _ _ _ hrun
     simp only [Arena.checkDivModPinLoop] at hrun
-    exact absurd hrun (AM.Never.bind (fun _ => AM.Never.fail _) s () s')
+    exact absurd hrun (AM.Never.fail _ s () s')
   | cons p rest ih =>
     intro psP tried triedP s s' hck hps hn hv hrun
     cases psP with
@@ -1833,7 +1833,7 @@ theorem checkDivModPinLoop_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
           exact recurse s3 _ hck3 (hx02.trans hx3) (by rw [hp3, hp02]) r3
       · cases e <;> (simp only [orElseStepOf] at ho; subst ho)
         all_goals first
-          | exact absurd r3 (AM.Never.fail _ _ _ _)
+          | exact absurd r3 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
           | exact recurse _ _ hck2 hx02 hp02 r3
     · exact recurse s2 _ hck2 hx02 hp02 r2
 
@@ -1867,7 +1867,7 @@ theorem checkDivModPin_bridge {μ : CheckMode}
     cases hf : fe2.find? cn with
     | none =>
       rw [hf] at r1
-      exact absurd r1 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+      exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
     | some ci =>
     rw [hf] at r1
     match ci, hf, r1 with
@@ -1895,12 +1895,12 @@ theorem checkDivModPin_bridge {μ : CheckMode}
       refine ⟨hck'.state, hx1.trans hx', by rw [hp', hp1], F, ?_⟩
       simp only [ConLeche.checkDivModPin, hG, hfindP, if_true]
       exact hF
-    | .axiomInfo _, _, r1 => exact absurd r1 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-    | .thmInfo _ _, _, r1 => exact absurd r1 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-    | .indInfo _ _, _, r1 => exact absurd r1 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-    | .ctorInfo _ _ _, _, r1 => exact absurd r1 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-    | .recInfo _ _ _ _, _, r1 => exact absurd r1 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-    | .projInfo _, _, r1 => exact absurd r1 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-  · exact absurd r1 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+    | .axiomInfo _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
+    | .thmInfo _ _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
+    | .indInfo _ _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
+    | .ctorInfo _ _ _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
+    | .recInfo _ _ _ _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
+    | .projInfo _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
+  · exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
 
 end ConRon.Bridge

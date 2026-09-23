@@ -507,7 +507,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
       hext02.trans ((hx4.trans hx5).trans hx6)
     have hpin06 : s6.pins = s.pins := by rw [hp6, hp5, hp4, hpin02]
     have hden6 : denoteFEnv s6.store fe2 = some env2 := hie6.denote
-    obtain ⟨hy6, r7⟩ := AM.dunless_ok (AM.Never.bind fun _ => AM.Never.fail _) r6
+    obtain ⟨hy6, r7⟩ := AM.dunless_ok AM.Never.fail_any r6
     replace r7 := AM.pure_bind_ok r7
     have hgP : (ConLeche.natOpGuard env2 cA.name &&
         (ConLeche.natOpDeps cA.name).all (ConLeche.natOpStoredOk env2))
@@ -515,7 +515,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
       rw [← he5, ← he6]; exact hy6
     -- the stored value
     cases hfind : fe2.find? cvA.name with
-    | none => rw [hfind] at r7; exact absurd r7 AM.readFail_ne
+    | none => rw [hfind] at r7; exact absurd r7 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
     | some ci =>
       rw [hfind] at r7
       match ci, hfind with
@@ -551,7 +551,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
               certifyNatEqs_bridge hμ hk hok8 hdps
                 (natOpEqs_wscoped hst2.envWF hfindP) g9
             obtain ⟨hy10, r11⟩ :=
-              AM.dunless_ok (AM.Never.bind fun _ => AM.Never.fail _) r10
+              AM.dunless_ok AM.Never.fail_any r10
             replace r11 := AM.pure_bind_ok r11
             obtain ⟨FC, hcert⟩ := hcertOf hy10
             have hok9 : FoldOK μ env fe s9 := hok8.ofCore hstepC
@@ -586,7 +586,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
       | .indInfo _ _, hfind
       | .ctorInfo _ _ _, hfind
       | .recInfo _ _ _ _, hfind
-      | .projInfo _, hfind => exact absurd r7 AM.readFail_ne
+      | .projInfo _, hfind => exact absurd r7 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
   · -- the structural-`Nat` gate is skipped
     have hnatP : ConLeche.natOpNames.contains cA.name = false := by
       rw [← hcont3]
@@ -761,7 +761,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
       BasisKind.decls_run hok.check.state g2
     have hcv2 : Frontend.denoteCV s2.store cv = some c := denoteCV_ext hcv hx2
     cases hb4 : blk[4]? with
-    | none => rw [hb4] at r2; exact absurd r2 (AM.Never.fail _ _ _ _)
+    | none => rw [hb4] at r2; exact absurd r2 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
     | some pinned =>
       rw [hb4] at r2
       obtain ⟨x4, hx4, hd4⟩ :=
@@ -795,7 +795,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
             coh := hok.coh
             pushed := Pushed.refl _
             run := ⟨env, 0, hden3, hpureQ⟩ }
-      · exact absurd hbad3 (AM.Never.fail _ _ _ _)
+      · exact absurd hbad3 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
   · -- the ordinary axiom route
     have hnmP : ¬ (c.name = ConLeche.quotSoundName) := fun h => hno (hqs.mpr h)
     obtain ⟨cvA, s2, g2, r2⟩ := AM.bind_ok hgood
@@ -863,7 +863,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
               coh := hok.coh.push _
               pushed := Pushed.push _ _
               run := ⟨⟨.axiomInfo cA :: env.consts⟩, F2, hden, hpureT⟩ }
-        · exact absurd hbad5 AM.readFail_ne
+        · exact absurd hbad5 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
       · -- not `trustCompiler`
         have htcP : ¬ (cA.name = ConLeche.trustCompilerName) :=
           fun h => hn4 (htc.mpr h)
@@ -905,7 +905,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
                 coh := hok.coh.push _
                 pushed := Pushed.push _ _
                 run := ⟨⟨.axiomInfo cA :: env.consts⟩, F2, hden, hpureR⟩ }
-          · exact absurd hbad8 AM.readFail_ne
+          · exact absurd hbad8 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
         · -- neither: `propext`/`choice` decline, `sorryAx` skip, else decline
           have horP : ¬ (cA.name = ConLeche.ofReduceNatName ∨
               cA.name = ConLeche.ofReduceBoolName) := by
@@ -927,7 +927,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
           have hch : (cvA.name == ch) = true ↔ cA.name = ConLeche.choiceName :=
             beq_handle_iff hst3.wf hnmA3 d10
           rcases AM.ite_ok r10 with ⟨_, hbad10⟩ | ⟨hn10, hg10⟩
-          · exact absurd hbad10 AM.readFail_ne
+          · exact absurd hbad10 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
           · have hstdShape : ¬ (cA.name = ConLeche.propextName ∨
                 cA.name = ConLeche.choiceName) := by
               intro h
@@ -954,7 +954,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
                   coh := hok.coh
                   pushed := Pushed.refl _
                   run := ⟨env, F2, hden, hpureA⟩ }
-            · exact absurd hbad11 AM.readFail_ne
+            · exact absurd hbad11 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:562 checkDecl (the `.basisDecl`
 arm) — the fold's own pinned-block record.
@@ -1078,6 +1078,6 @@ theorem checkDecl_bridge_quot {μ : CheckMode}
             pushed := Pushed.refl _
             run := ⟨env, 0, hok1.denote,
               checkDecl_quot_other_pure (by simp) hhit⟩ })
-  · exact absurd hbad (AM.Never.fail _ _ _ _)
+  · exact absurd hbad (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
 
 end ConRon.Bridge
