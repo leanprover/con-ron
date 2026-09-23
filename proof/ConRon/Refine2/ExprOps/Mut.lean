@@ -20,8 +20,8 @@ value, which is the shape task #97s round 2 measured and round 3 showed the
 task-#70 idiom does not mind.  `Sim`'s success arm quantifies the twin's
 post-state (the cons and memo tables are related by a probe agreement, so the
 abstraction of the state is a RELATION — `RefineOld/State.lean`'s own shape)
-and carries `Ext lst.store lst'.store`, which is what `orElseAttempt` will
-need at the checker tier (task #97-LC's ledger row).
+and carries `Ext lst.store lst'.store`, which `orElseAttempt` needed at the
+checker tier until task #97-T2-LOCKSTEP D4 made that seam lockstep.
 
 `WF` is `fun _ => True` throughout this file: every result is a handle, a
 `Bool`, a count or a list of handles, and the well-formedness a caller wants

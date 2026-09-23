@@ -8,24 +8,24 @@ checker's common ground — the per-declaration constant check, the two
 memoised guard walks, the projection-rule stages, the attempt bracket — and
 the install/check seam of a value declaration.
 
-## The one seam where (B) and (C) are not the same state
+## The attempt seam is lockstep (task #97-T2-LOCKSTEP D4)
 
-`orElseAttempt` (DESIGN §8.3 and task #97-LC's ledger row).  The port keeps
-its `&mut AState` across a failing attempt, so it restores the memos and the
-caches and **KEEPS the store** — the attempt's appended nodes stay,
-unreachable.  A throw in `StateT AState (Except ε)` carries no state at all,
-so the twin's error arm can only resume at the pre-attempt state, whose store
-is the pre-attempt one.  The two therefore differ on the handle NUMBERING
-after a recovered variant attempt, never on a denotation and never on a
-verdict.
+`orElseAttempt` (DESIGN §8.3 and task #97-LC's ledger row) used to be the one
+seam where (B) and (C) were not the same state: the port restored the memos
+and the caches and KEPT the store, while the twin's error arm (a throw in
+`StateT AState (Except ε)` carries no state) resumes at the pre-attempt
+state.  The kept scratch nodes lengthened the port's scratch tier, so every
+later scratch handle had a different word — no relation short of a renaming
+absorbs that, and it is why `Refine2/Shape.lean`'s old `AOut` carried `Ext`.
 
-*What the refinement owes at this seam is `Ext` rather than store equality* —
-which is exactly why `Refine2/Shape.lean`'s `AOut` carries `Ext lst.store
-lst'.store` in EVERY success arm rather than store equality, at no cost
-(`Ext.refl` for a reader, `Ext.trans` through a bind).  `attempt_restore` and
-`or_else_attempt` below are where that decision is cashed, and their
-conclusions are the only ones in the tier that are `Ext`-ONLY: nothing is
-claimed about the two stores beyond one extending the other.
+The maintainer's ruling moved the Rust: `attempt_snapshot`/`attempt_restore`
+also copy and restore the four stores' scratch tiers (and the readback memos,
+which `caches_dup` used to restore empty).  `attempt_restore_refines₀` is
+then lockstep, and `attempt_recover_refines₀` relates the port's restored
+state to the twin's pre-attempt state under `ScratchFrame` — a fact about the
+Rust attempt alone (the persistent tiers, the flags and the pins are not
+written inside a declaration's bracket).  The seam itself is
+`Refine2/Checker/DeclCheck.lean`'s `check_div_mod_pin_attempt_refines₀`.
 
 ## Finding 10 — `vis` out of the index is a hypothesis at seventy-one sites
 
@@ -100,18 +100,26 @@ namespace ConRon.Refine2
 open ConRon.Arena
 open ConRon.Refine (NameWF NamesWF ExprWF)
 
-/-! ## The attempt bracket — the `Ext`-only seam -/
+/-! ## The attempt bracket — lockstep since task #97-T2-LOCKSTEP D4 -/
 
 /-- `arena::checker_base::AttemptSnapshot` against the twin's: the per-call
-memo tables and the per-declaration caches, and **not** the store (task
-#97-P6-2's ledger entry).  Related rather than abstracted, for the reason
-every memo table in this tower is. -/
+memo tables, the per-declaration caches and the four stores' SCRATCH tiers,
+field by field, with the Rust-side invariant of each copy.  Related rather
+than abstracted, for the reason every memo table in this tower is. -/
 structure SnapRel (rs : arena.checker_base.AttemptSnapshot) (ls : AttemptSnapshot) :
     Prop where
   memos : MemosRel rs.memos ls.memos
   caches : CachesRel rs.caches ls.caches
   memosInv : MemosInv rs.memos
   cachesInv : CachesInv rs.caches
+  eScr : ETablesRel rs.e_scr ls.eScr
+  lsScr : LsTablesRel rs.ls_scr ls.lsScr
+  lScr : LTablesRel rs.l_scr ls.lScr
+  nScr : NTablesRel rs.n_scr ls.nScr
+  eScrInv : ETablesInv rs.e_scr
+  lsScrInv : LsTablesInv rs.ls_scr
+  lScrInv : LTablesInv rs.l_scr
+  nScrInv : NTablesInv rs.n_scr
 
 /-- `memos_dup` is the identity on the abstraction: `ron::hashmap::Dup`'s
 `dup2` is `DupId` at every one of the thirteen tables (`Refine2/Inv.lean`). -/
@@ -121,34 +129,146 @@ theorem memos_dup_refines {rm lm} {o}
     MemosRel o lm ∧ MemosInv o := by
   sorry
 
-/-- `caches_dup` is the identity on the abstraction. -/
+/-- `caches_dup` is the identity on the abstraction — including the three
+readback memos, which task #97-T2-LOCKSTEP D4 made it copy (they used to be
+restored EMPTY, which made this statement false). -/
 theorem caches_dup_refines {rc lc} {o}
     (hrel : CachesRel rc lc) (hinv : CachesInv rc)
     (hrun : arena.checker_base.caches_dup rc = ok o) :
     CachesRel o lc ∧ CachesInv o := by
   sorry
 
-/-- `attempt_snapshot` ⊑ `attemptSnapshot` — in Lean a read of two fields, in
-Rust the two `dup`s above. -/
-theorem attempt_snapshot_refines {pers st lst} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.checker_base.attempt_snapshot st = ok o) :
-    SnapRel o (attemptSnapshot lst) := by
+/-- `ETables::dup` is the identity on the abstraction (`Tbl::dup` per table:
+the row column copied by `dup2`, the cons table by `HashMap2::dup`). -/
+theorem etables_dup_refines {rt lt} {o}
+    (hrel : ETablesRel rt lt) (hinv : ETablesInv rt)
+    (hrun : arena.store.ETables.dup rt = ok o) :
+    ETablesRel o lt ∧ ETablesInv o := by
   sorry
 
-/-- `attempt_restore` ⊑ `attemptRestore` — **the attempt's cache rows and memo
-rows go, its interned nodes STAY**, which is why the conclusion is `Ext` and
-not store equality: the Rust's post-state and the twin's agree on the memos
-and the caches and on the STORE ONLY UP TO `Ext` (the Rust keeps the attempt's
-unreachable appends; the twin, throwing in `StateT σ (Except ε)`, cannot). -/
-theorem attempt_restore_refines {pers st lst} {snap lsnap} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+/-- `LsTables::dup` is the identity on the abstraction. -/
+theorem lstables_dup_refines {rt lt} {o}
+    (hrel : LsTablesRel rt lt) (hinv : LsTablesInv rt)
+    (hrun : arena.store.LsTables.dup rt = ok o) :
+    LsTablesRel o lt ∧ LsTablesInv o := by
+  sorry
+
+/-- `LTables::dup` is the identity on the abstraction. -/
+theorem ltables_dup_refines {rt lt} {o}
+    (hrel : LTablesRel rt lt) (hinv : LTablesInv rt)
+    (hrun : arena.store.LTables.dup rt = ok o) :
+    LTablesRel o lt ∧ LTablesInv o := by
+  sorry
+
+/-- `NTables::dup` is the identity on the abstraction. -/
+theorem ntables_dup_refines {rt lt} {o}
+    (hrel : NTablesRel rt lt) (hinv : NTablesInv rt)
+    (hrun : arena.store.NTables.dup rt = ok o) :
+    NTablesRel o lt ∧ NTablesInv o := by
+  sorry
+
+/-- `attempt_snapshot` ⊑ `attemptSnapshot` — in Lean a read of six fields, in
+Rust the six copies above. -/
+theorem attempt_snapshot_refines₀ {pers st lst} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.checker_base.attempt_snapshot st = ok o) :
+    SnapRel o (attemptSnapshot lst) := by
+  unfold arena.checker_base.attempt_snapshot at hrun
+  obtain ⟨m, hm, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨c, hc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨ls, hls, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  simp only [ok.injEq] at hrun
+  subst hrun
+  obtain ⟨hm1, hm2⟩ := memos_dup_refines hrel.memos hinv.memos hm
+  obtain ⟨hc1, hc2⟩ := caches_dup_refines hrel.caches hinv.caches hc
+  obtain ⟨he1, he2⟩ := etables_dup_refines hrel.store.scrt hinv.store.scrt he
+  obtain ⟨hls1, hls2⟩ := lstables_dup_refines hrel.store.lss.scrt hinv.store.lss.scrt hls
+  obtain ⟨hl1, hl2⟩ := ltables_dup_refines hrel.store.lss.lvl.scrt
+    hinv.store.lss.lvl.scrt hl
+  obtain ⟨hn1, hn2⟩ := ntables_dup_refines hrel.store.lss.lvl.ns.scrt
+    hinv.store.lss.lvl.ns.scrt hn
+  exact ⟨hm1, hc1, hm2, hc2, he1, hls1, hl1, hn1, he2, hls2, hl2, hn2⟩
+
+/-- `attempt_restore` ⊑ `attemptRestore` — **lockstep**: the two write the
+same six fields back, from related snapshots, into related states. -/
+theorem attempt_restore_refines₀ {pers st lst} {snap lsnap} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hsnap : SnapRel snap lsnap)
     (hrun : arena.checker_base.attempt_restore st snap = ok o) :
-    ∃ lst', AStateRel pers o lst' ∧ AStateInv pers o ∧
-      lst'.memos = lsnap.memos ∧ lst'.caches = lsnap.caches ∧
-      Ext lst.store lst'.store := by
-  sorry
+    AStateRel₀ pers o (attemptRestore lst lsnap) ∧ AStateInv pers o := by
+  unfold arena.checker_base.attempt_restore at hrun
+  simp only [ok.injEq] at hrun
+  subst hrun
+  refine ⟨⟨⟨⟨⟨⟨hrel.store.lss.lvl.ns.perst, hsnap.nScr,
+      hrel.store.lss.lvl.ns.scratchOn⟩, hrel.store.lss.lvl.perst, hsnap.lScr,
+      hrel.store.lss.lvl.scratchOn⟩, hrel.store.lss.perst, hsnap.lsScr,
+      hrel.store.lss.scratchOn⟩, hrel.store.perst, hsnap.eScr, hrel.store.scratchOn⟩,
+    hsnap.memos, hsnap.caches, hrel.pins⟩, ⟨⟨⟨⟨⟨hinv.store.lss.lvl.ns.perst,
+      hsnap.nScrInv⟩, hinv.store.lss.lvl.perst, hsnap.lScrInv⟩,
+      hinv.store.lss.perst, hsnap.lsScrInv⟩, hinv.store.perst, hsnap.eScrInv⟩,
+    hsnap.memosInv, hsnap.cachesInv⟩⟩
+
+/-- The twin's restore of its own snapshot is the identity — what makes its
+error arm "resume at the pre-attempt state". -/
+@[simp] theorem attemptRestore_self (s : AState) :
+    attemptRestore s (attemptSnapshot s) = s := rfl
+
+/-- **The port's frame at a recovered attempt**: the post-attempt state `st₁`
+agrees with the pre-attempt `st` everywhere `attempt_restore` does not write —
+the pins, and each of the four stores' persistent tier and two flags.  It is
+a fact about the RUST attempt only (task #97-T2-LOCKSTEP D4): the attempt
+runs inside a declaration's bracket, where the scratch flag is on and every
+append is a scratch append, and nothing in it toggles a flag or re-pins.  The
+twin needs no such fact, because its error arm resumes at `st`'s image
+itself. -/
+structure ScratchFrame (st st₁ : arena.monad.AState) : Prop where
+  pins : st₁.pins = st.pins
+  ePers : st₁.store.pers = st.store.pers
+  eOn : st₁.store.scratch_on = st.store.scratch_on
+  eShared : st₁.store.shared_on = st.store.shared_on
+  lsPers : st₁.store.lss.pers = st.store.lss.pers
+  lsOn : st₁.store.lss.scratch_on = st.store.lss.scratch_on
+  lsShared : st₁.store.lss.shared_on = st.store.lss.shared_on
+  lPers : st₁.store.lss.ls.pers = st.store.lss.ls.pers
+  lOn : st₁.store.lss.ls.scratch_on = st.store.lss.ls.scratch_on
+  lShared : st₁.store.lss.ls.shared_on = st.store.lss.ls.shared_on
+  nPers : st₁.store.lss.ls.ns.pers = st.store.lss.ls.ns.pers
+  nOn : st₁.store.lss.ls.ns.scratch_on = st.store.lss.ls.ns.scratch_on
+  nShared : st₁.store.lss.ls.ns.shared_on = st.store.lss.ls.ns.shared_on
+
+/-- Under the frame, restoring into the post-attempt state is restoring into
+the pre-attempt one: `attempt_restore` overwrites everything else. -/
+theorem attempt_restore_frame {st st₁ : arena.monad.AState}
+    {snap : arena.checker_base.AttemptSnapshot} (h : ScratchFrame st st₁) :
+    arena.checker_base.attempt_restore st₁ snap =
+      arena.checker_base.attempt_restore st snap := by
+  obtain ⟨⟨⟨⟨⟨np, ns, non, nsh⟩, lp, ls, lon, lsh⟩, lsp, lss, lson, lssh⟩, ep, es, eon,
+    esh⟩, m, c, p⟩ := st
+  obtain ⟨⟨⟨⟨⟨np₁, ns₁, non₁, nsh₁⟩, lp₁, ls₁, lon₁, lsh₁⟩, lsp₁, lss₁, lson₁, lssh₁⟩,
+    ep₁, es₁, eon₁, esh₁⟩, m₁, c₁, p₁⟩ := st₁
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13⟩ := h
+  simp only at h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13
+  subst h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13
+  rfl
+
+/-- **The recovered arm of `orElseAttempt`, lockstep.**  The port restores
+the snapshot into the post-attempt state; the twin resumes at the
+pre-attempt state.  Under the port's frame those are related by
+`AStateRel₀` — the twin's `attemptRestore lst (attemptSnapshot lst)` is `lst`
+itself.  This is what task #97-T2-LOCKSTEP D4 bought: before it the port
+kept the attempt's scratch nodes and the conclusion could only be `Ext`. -/
+theorem attempt_recover_refines₀ {pers st st₁ lst} {snap} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hsnap : SnapRel snap (attemptSnapshot lst))
+    (hframe : ScratchFrame st st₁)
+    (hrun : arena.checker_base.attempt_restore st₁ snap = ok o) :
+    AStateRel₀ pers o lst ∧ AStateInv pers o := by
+  rw [attempt_restore_frame hframe] at hrun
+  have h := attempt_restore_refines₀ hrel hinv hsnap hrun
+  rwa [attemptRestore_self] at h
 
 /-- `or_else_attempt` ⊑ `orElseStepOf` — the four-way step as a PURE function
 of the attempt's outcome, which is the shape the port has and which the twin
@@ -1763,6 +1883,15 @@ theorem check_value_group_refines {pers st lst} {vis : Std.U64} {rf lf}
 
 /-- info: 'ConRon.Refine2.or_else_attempt_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms or_else_attempt_refines
+
+/-- info: 'ConRon.Refine2.attempt_restore_refines₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms attempt_restore_refines₀
+
+/-- info: 'ConRon.Refine2.attempt_restore_frame' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in #print axioms attempt_restore_frame
+
+/-- info: 'ConRon.Refine2.attempt_recover_refines₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms attempt_recover_refines₀
 
 /-- info: 'ConRon.Refine2.is_rec_info_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms is_rec_info_refines

@@ -58964,6 +58964,115 @@ Scratch (binaries, patches, profiles) was in `_tmp/perf-fresh/`, deleted
 after this section.  All the patches are local to the task worktree and none
 was committed.  No gates were run: the change is to DESIGN.md only.
 
+### Task #97-T2-LOCKSTEP D4 — the port restores its scratch tiers; the `orElseAttempt` seam is lockstep (2026-09-23, Opus under Fable)
+
+Task #97-T2-AUDIT's D4: the twin's `orElseAttempt` resumes a recovered
+attempt at the whole pre-attempt state (a throw in `StateT AState (Except ε)`
+carries no state), while `attempt_restore` put back only the memos and the
+caches.  The attempt's scratch appends stayed, the two scratch tiers differed
+in LENGTH, and every later scratch handle had a different word.  The
+maintainer ruled that the Rust changes.  Worktree `_tmp/wt-t2-d4` off `arena`
+`5108218b`.
+
+#### 1. The Rust
+
+* `AttemptSnapshot` gains `e_scr`/`ls_scr`/`l_scr`/`n_scr`, the four stores'
+  scratch tiers; `attempt_snapshot` copies them and `attempt_restore` moves
+  them back.  The copy is new: `Tbl::dup` (row column by a halved recursion,
+  `dup_rows`, `log2 n` deep for `vec_dup_range`'s reason; cons table by
+  `HashMap2::dup`) and `{E,Ls,L,N}Tables::dup`.  A `Vec::truncate` to the
+  snapshot's length would be cheaper; Aeneas models neither it nor `clear`,
+  so the restore is a whole value moved back.
+* **A second, smaller divergence of the same kind, found on the way:**
+  `caches_dup` restored the three readback memos (`read_l_c`/`read_n_c`/
+  `read_ls_c`, task #97-P6-13) EMPTY.  The twin's `readLC`/`readNC`/`readLsC`
+  come back pre-attempt, and `CachesRel` compares key by key, so
+  `caches_dup_refines` (a `sorry`) was false as stated.  They are now copied
+  (`HashMap2::dup`, with new `Dup` impls for `Level`, `Name`, `Vec<Level>` in
+  `arena::monad`).
+* The seam is one function now: `decl_check::check_div_mod_pin_attempt` =
+  snapshot, `check_div_mod_pin_at`, `or_else_attempt`, restore on
+  `Recovered`, and `Failed` returned as its `Native` error.  It is the Rust
+  of `orElseAttempt (checkDivModPinAt …)`; `check_div_mod_pin_try` matches on
+  its step, as the twin's loop matches on `orElseAttempt`'s.
+* The scratch flag at the call site: `check_div_mod_pin` is reached only
+  from `check_decl`'s bracket (`enter_scratch` … `drop_scratch`), so every
+  append inside the attempt is a scratch append; the persistent tiers are
+  not copied (that was the 12.3 M-node overflow of task #97-P6-2).
+* Re-extracted (`Types.lean`, `Funs.lean`) in the same commit;
+  `twin-lines.py update` relocated 49 citations (the twin edit moved
+  `CheckerBase.lean`'s lines).
+
+#### 2. The twin
+
+`AttemptSnapshot` gains `eScr`/`lsScr`/`lScr`/`nScr` and `attemptRestore`
+writes them back, so the twin's snapshot/restore pair mirrors the port's
+field for field; `attemptRestore s (attemptSnapshot s) = s` is still `rfl`
+(`attemptRestore_self`).  `orElseAttempt`'s doc comment now says the two
+resume at the same state.  Theorem 1 (`Bridge/Checker/Base.lean`'s
+`orElseAttempt_run`) went through unchanged; its note was updated.
+
+#### 3. Theorem 2
+
+`Refine2/Checker/Base.lean`:
+* `SnapRel` gains the four tier relations and their `*TablesInv`.
+* `attempt_snapshot_refines₀` — **proved** from six copy lemmas, which stay
+  `sorry` (`memos_dup_refines`, `caches_dup_refines`, and the new
+  `{e,ls,l,n}tables_dup_refines`: "a `dup` is the identity on the
+  abstraction"; `Refine/HashMap2.lean`'s `dup` identity plus `DupId` per
+  node type is the route).
+* `attempt_restore_refines₀` — lockstep, **proved, axiom-clean**.
+* `ScratchFrame st st₁` — the port's frame: pins, each store's persistent
+  tier and both flags unchanged by the attempt.  A fact about the Rust
+  attempt alone, taken as a hypothesis (owed by `check_div_mod_pin_at`'s
+  lane).  `attempt_restore_frame` (restore into `st₁` = restore into `st`)
+  and `attempt_recover_refines₀` (the port's restored state is
+  `AStateRel₀`-related to the twin's PRE-attempt state) — **proved,
+  axiom-clean**.
+* The old `Ext`-only `attempt_snapshot_refines`/`attempt_restore_refines`
+  (no consumers) are replaced by the ₀ forms.
+
+`Refine2/Checker/DeclCheck.lean`: `OrElseRel` (matched/continued; a
+recovered error related by its kind) and
+**`check_div_mod_pin_attempt_refines₀`** — `SimRel₀ OrElseRel` against
+`orElseAttempt (checkDivModPinAt …)`, from `hrel₀ hinv`, the attempt's own
+`Sim₀` (`hat`, another lane's) and `hframe`.  **Proved**; its axioms show
+`sorryAx` only through the six copy lemmas.  The `lockstep` tactic does not
+apply here: the seam is the one place the programs are not a zip (the twin
+throws the state away, the port restores it), which is what this lemma
+proves once.  `check_div_mod_pin_try_refines` (still `sorry`, old shape)
+had its doc updated; restating it lockstep is the checker lane's.
+
+Docs only: `Refine2/Shape.lean` (D4 fixed in the Rust), `Refine2/ExprOps/Mut.lean`.
+
+**Theorem-1 repairs forced by the regeneration: none.**  `lake build ConRon
+ConRonBridge ConRonRefine2 ConRonCapstone` green (2 821 jobs) before the
+`arena` merge.
+
+#### 4. `Init`
+
+`perf stat -e instructions:u` of `--verified` on `_tmp/corpus/init.ndjson`,
+before (`5108218b`) / after interleaved, `timeout 900`, `ulimit -v 8388608`
+at `--jobs=1` and `27000000` at the default; every run accepts 57 977.
+
+| binary | `--jobs=1` | default jobs |
+|---|---|---|
+| before | 211 955 784 523 / 211 954 336 658 | 214.60 G / 214.29 G |
+| after | 211 962 732 629 / 211 963 399 193 (**+8.0 M, +0.004 %**) | 214.33 G / 214.68 G (within the spread) |
+
+The eight attempts' copies are noise, as the audit expected.
+
+#### 5. Out-of-lane edits
+
+| file | why |
+|---|---|
+| `crates/con-ron-core/src/arena/{store,monad}.rs` | the copies (`Tbl::dup` & co.; `Dup` for the readback values) |
+| `Bridge/Checker/Base.lean` | docs |
+| `Refine2/Shape.lean`, `Refine2/ExprOps/Mut.lean` | docs |
+Gates: `scripts/gates.sh` on the branch after merging `arena` (`f216c474`...`4f6f3961`): **all 16 OK** (`extract-check` 125 s, `lake-bridge` 536 s).  The shared Lake cache was seeded from this state (`ConRonRefine2 ConRonBridge ConRonCapstone`).
+**Second merge**, `arena` at `5453ac2e` (T2-LOCKSTEP step 1's slice: `arena::monad`/`Arena/Monad.lean`, `Refine2/Specs.lean`, `Bridge/Specs.lean`): `DESIGN.md` conflict only.  `scripts/gates.sh`: the first 14 OK (`extract-check` 115 s, `lake-refine2` 180 s); `lake-bridge` failed on `con-leche` `.olean`s reported missing / "incompatible header" in the shared packages directory, which a concurrent write had touched.  Re-running `lake build ConRonBridge ConRonCapstone` was green (2 805 jobs).  The cache was re-seeded from this state.
+**Third merge**, `arena` at `9308f410` (task #97-P5-POOL): clean; `scripts/gates.sh` **all 16 OK** (`extract-check` 128 s); cache re-seeded.  **Fourth**, `cc726e46` (the shared `lockstep` tactic, `Refine2/Tactic/**` only): clean; `lake build ConRonRefine2 ConRonCapstone` green (2 805 jobs); landed.
+
 ### Task #97-T2-LOCKSTEP step 1 — the foundation: lockstep shapes, twin fixes D2/D3/D5/D6, `Specs.lean`, the bracket (2026-09-23, Opus under Fable)
 
 The maintainer's ruling on #97-T2-AUDIT: *"the lockstep is clearly the right
