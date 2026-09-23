@@ -60739,3 +60739,8 @@ a change to `Lockstep.lean`'s olean (every downstream module re-elaborated,
 `LAKE_JOBS=4`, `LEAN_NUM_THREADS=4`): **before 5 292 G instructions (68
 modules), after 5 303 G (69 modules, `Tests` included): +0.2 %**.  Summed
 per-module build time (one run each, noisy): 466 s → 428 s.
+
+**Gates** on the branch (`arena` `b5f0d431` already its base): **all 16 OK**
+(`extract-check` 100 s, `lake-bridge` 552 s).  Submitted as slice 1; the
+workaround cleanups follow as slice 2 (their sites are in the Checker round-2
+slice-2 branch, still in the queue when this was submitted).
