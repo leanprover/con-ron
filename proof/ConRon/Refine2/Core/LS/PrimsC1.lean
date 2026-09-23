@@ -124,6 +124,53 @@ theorem drop_eidx_n_from_aux (m : Nat) :
 
 attribute [lockstep_simp] ConRon.Refine.absBinderMeta
 
+/-! ## `PropWhen` comparison and the binder datum's well-formedness -/
+
+/-- `prop_when::beq` against the twin's `==` on the abstraction: exact on
+well-formed data (`Refine/PropWhen.lean`'s `beq_refines`). -/
+@[lockstep] theorem prop_when_beq_ls (a b : kernel.prop_when.PropWhen)
+    (ha : ConRon.Refine.PropWhenWF a) (hb : ConRon.Refine.PropWhenWF b) :
+    LSP (kernel.prop_when.beq a b)
+      (fun c => c = (ConRon.Refine.absPropWhen a == ConRon.Refine.absPropWhen b)) :=
+  fun _ h => ConRon.Refine.PropWhen.beq_refines ha hb h
+
+/-- `view_bind` with the datum's well-formedness (`AStateInv`'s `bms` clause)
+carried in the answer relation.  Not `@[lockstep]`: a body that needs the
+fact takes it as a local hypothesis, which `lockstep` tries first. -/
+theorem view_bind_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx)
+    (hbind : ETag.isBind (absEIdx h).tag = true) :
+    LSV pers (fun a b => (∀ t, a = some t → ConRon.Refine.PropWhenWF t.2.2.pw) ∧
+        b = Option.map absBindM a)
+      (arena.monad.view_bind pers st h) st lst (Arena.viewBind (absEIdx h)) := by
+  intro o hrun
+  obtain ⟨b, lst', hx, hR, h1, h2⟩ := view_bind_ls hrel hinv h hbind o hrun
+  refine ⟨b, lst', hx, ⟨fun t ht => ?_, hR⟩, h1, h2⟩
+  subst ht
+  obtain ⟨ty, bo, m⟩ := t
+  exact view_bind_meta_wf hinv hrun
+
+/-- `view_bind_wf_ls` as a proposition, for a body to take into its context
+(`have hvb := viewBindWF_holds pers; unfold ViewBindWF at hvb`). -/
+def ViewBindWF (pers : arena.store.PersTier) : Prop :=
+  ∀ {st : arena.monad.AState} {lst : AState}, AStateRel₀ pers st lst → AStateInv pers st →
+    ∀ (h : arena.handle.EIdx), ETag.isBind (absEIdx h).tag = true →
+    LSV pers (fun a b => (∀ t, a = some t → ConRon.Refine.PropWhenWF t.2.2.pw) ∧
+        b = Option.map absBindM a)
+      (arena.monad.view_bind pers st h) st lst (Arena.viewBind (absEIdx h))
+
+theorem viewBindWF_holds (pers : arena.store.PersTier) : ViewBindWF pers :=
+  fun hrel hinv h hb => view_bind_wf_ls hrel hinv h hb
+
+/-! ## Interns -/
+
+@[lockstep] theorem intern_e_fvar_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (i : Std.U64) (ty : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_fvar pers st i ty) lst
+      (Arena.internFVarE (absU i) (absEIdx ty)) := by
+  -- PENDING foundation intern slice (T2-LOCKSTEP slice 3)
+  sorry
+
 /-! ## Twin-side shapes -/
 
 /-- The twin's `if ← x then pure true else pure false` is `x`: the port tail-calls. -/

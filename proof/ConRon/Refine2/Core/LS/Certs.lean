@@ -20,6 +20,13 @@ namespace ConRon.Refine2.Lockstep
 
 open ConRon.Arena ConRon.Refine2
 
+/-- Drop a metadata wrapper on the goal (a `have` leaves one, and the lockstep
+judgement tests do not look through it). -/
+elab "strip_mdata" : tactic => do
+  let g ← Lean.Elab.Tactic.getMainGoal
+  let t ← Lean.instantiateMVars (← g.getType)
+  Lean.Elab.Tactic.replaceMainGoal [← g.replaceTargetDefEq t.consumeMData]
+
 /-! ## `defEqList` (`def_eq_list`, a cursor loop) -/
 
 theorem def_eq_list_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
@@ -146,8 +153,6 @@ theorem iota_certs_aux_aux {f : Nat} (hk : KnotRel f) (N : Nat) :
     · rw [dif_neg hi]
       simp only [absEIdxArr_size, absSz] at hi
       lockstep_core
-    all_goals trace_state
-    all_goals sorry
 
 @[lockstep] theorem iota_certs_aux_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth lic h acc args i lst}
@@ -214,6 +219,30 @@ attribute [lockstep_inline] arena.core.prop_sorts_zero arena.core.prop_sorts_zer
   -- port's second `zero_level` has no twin partner.  Fix: `let z ← zeroLevel`
   -- again before `lvlEq? vT z` (see `proof_irrel_fix_ls`, which closes).
   all_goals sorry
+
+/-! ## `etaCert` (fragment `eta_cert_body`) -/
+
+attribute [lockstep_inline] arena.core.eta_cert_body
+
+/-- `hm1`: the λ's binder datum is well formed — a representation fact about
+the port's input (every binder datum the port reads out of the store is, by
+`AStateInv`'s `bms` clause; `PropWhen.beq` is exact only there). -/
+@[lockstep] theorem eta_cert_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth ty1 body1 m1 b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hm1 : ConRon.Refine.PropWhenWF m1.pw) :
+    LS pers (fun a b => b = a)
+      (arena.core.eta_cert pers vis st mode lane fu fe depth ty1 body1 m1 b) lst
+      (etaCert (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        lfe (absU depth) (absEIdx ty1) (absEIdx body1) (ConRon.Refine.absBinderMeta m1)
+        (absEIdx b)) := by
+  rw [arena.core.eta_cert, etaCert]
+  have hvb : PC1.ViewBindWF pers := PC1.viewBindWF_holds pers
+  unfold PC1.ViewBindWF at hvb
+  strip_mdata
+  lockstep_core
 
 /-! ## Divergence evidence (D-C1-1)
 
