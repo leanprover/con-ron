@@ -1086,8 +1086,8 @@ theorem openPisAtFvars_run : ∀ (n : Nat) {i : Nat} {h : EIdx} {hP : Expr}
         refine ⟨p24, ?_⟩
         rw [hx]
         exact denoteOpen_some (by
-          simp only [Frontend.denoteEList, denote_ext hfv' (p3.ext.trans p4.ext), h1,
-            opt2]) h2
+          simp only [Frontend.denoteEList, denote_ext hfv' (p3.ext.trans p4.ext),
+            h1]) h2
     all_goals
       obtain ⟨rfl, rfl⟩ := pureOk z1
       refine ⟨PStep.refl hok, ?_⟩

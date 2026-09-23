@@ -26,6 +26,8 @@ here for the third time in the campaign (after the Core tier's stuck-tag
 branch and `defeqPeel_chain`'s two equality short-circuits).
 -/
 import ConRon.Bridge.Inductives.NativeInstall
+import ConRon.Bridge.Checker.Canon
+import ConRon.Bridge.Frontend.Shared
 
 namespace ConRon.Bridge.Inductives
 
@@ -534,17 +536,114 @@ theorem domsMatchRenamed_spec (tbl : List (NIdx × NIdx))
       simp only [Bool.not_eq_true] at hc
       rw [hc, Bool.and_false]
 
+/-- con-leche: none — `Frontend.denoteCV` is injective (a local copy of
+`Bridge/Checker/Basis.lean`'s, which this tier does not import). -/
+theorem denoteCV_inj' {st : EStore} (hwf : StoreWF st) {v w : IConstantVal}
+    {c : ConstantVal} (hv : Frontend.denoteCV st v = some c)
+    (hw : Frontend.denoteCV st w = some c) : v = w := by
+  have hwf' := hwf
+  obtain ⟨rk, hrk⟩ := hwf'
+  obtain ⟨h1, h2, h3⟩ := denoteCV_inv hv
+  obtain ⟨g1, g2, g3⟩ := denoteCV_inv hw
+  cases v; cases w
+  simp only at h1 h2 h3 g1 g2 g3
+  rw [denoteN_inj hrk.nsWF h1 g1, denoteNList_inj hwf _ _ _ h2 g2,
+    denoteE_inj hwf h3 g3]
+
+/-- con-leche: none — `Frontend.denoteCI` is injective at an inductive (it is
+NOT injective at a projection table, whose `tableName` it drops).  A local
+copy of `Bridge/Checker/Basis.lean`'s `denoteCI_inj_ind`. -/
+theorem denoteCI_inj_ind' {st : EStore} (hwf : StoreWF st) {ci ci' : IConstantInfo}
+    {cv : ConstantVal} {d : IndCaps}
+    (h : Frontend.denoteCI st ci = some (.indInfo cv d))
+    (h' : Frontend.denoteCI st ci' = some (.indInfo cv d)) : ci = ci' := by
+  have hwf' := hwf
+  obtain ⟨rk, hrk⟩ := hwf'
+  have key : ∀ {x : IConstantInfo}, Frontend.denoteCI st x = some (.indInfo cv d) →
+      ∃ v cap, x = .indInfo v cap ∧ Frontend.denoteCV st v = some cv ∧
+        Frontend.denoteCaps st cap = some d := by
+    intro x hx
+    cases x with
+    | indInfo v cap =>
+      obtain ⟨cv', d', he, hv, hc⟩ := denoteCI_ind_inv hx
+      cases he
+      exact ⟨v, cap, rfl, hv, hc⟩
+    | axiomInfo v => obtain ⟨_, he, _⟩ := denoteCI_axiom_inv hx; cases he
+    | ctorInfo v _ _ => obtain ⟨_, he, _⟩ := denoteCI_ctor_inv hx; cases he
+    | defnInfo v _ _ => obtain ⟨_, _, he, _⟩ := denoteCI_defn_inv hx; cases he
+    | thmInfo v _ => obtain ⟨_, _, he, _⟩ := denoteCI_thm_inv hx; cases he
+    | recInfo v _ _ _ => obtain ⟨_, _, he, _⟩ := denoteCI_rec_inv hx; cases he
+    | projInfo t => obtain ⟨_, he, _⟩ := denoteCI_proj_inv hx; cases he
+  obtain ⟨v, cap, rfl, hv, hc⟩ := key h
+  obtain ⟨w, cap', rfl, hw, hc'⟩ := key h'
+  obtain rfl := denoteCV_inj' hwf hv hw
+  congr 1
+  simp only [Frontend.denoteCaps] at hc hc'
+  cases he : denoteN st.ns cap.etaCtor with
+  | none => rw [he] at hc; simp at hc
+  | some ct =>
+    cases he' : denoteN st.ns cap'.etaCtor with
+    | none => rw [he'] at hc'; simp at hc'
+    | some ct' =>
+      rw [he] at hc; rw [he'] at hc'
+      rw [← hc'] at hc
+      simp only [Option.some.injEq, IndCaps.mk.injEq] at hc
+      obtain ⟨e1, rfl, e3, e4, e5, e6, e7, e8⟩ := hc
+      have := denoteN_inj hrk.nsWF he he'
+      cases cap; cases cap'
+      simp_all
+
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
 The "requires the pinned `Eq` basis" guard: `env.find? eqName = some eqA`.
 
-`sorry`: `IFEnvOK`'s `hit`/`cover` pair (`Bridge/StateOK.lean`, via
-`IFEnvOK_of_denote`), `Bridge/Specs.lean`'s `pinEq` reader, and `denoteE_inj`
-for the handle comparison — the module note's third cashing of injectivity. -/
+**CLOSED** (task #97-P3-Ind round 7): `pinAt_run` for the name,
+`IFEnvOK`'s `hit`/`miss` pair for the lookup, `Bridge/Frontend/Shared.lean`'s
+scratch-agnostic `internCI_sstep` for the interned `eqA` (round 6's wall 3,
+removed by task #97-P3-Frontend round 6), and `denoteCI_inj_ind'` for the
+handle comparison — `eqA` is an inductive, where the denotation IS injective.
+The frame is `IStepS`'s, read as a `CoreStep`. -/
 theorem eqBasisStored_spec {μ : CheckMode} {env : Env} (fe : IFEnv) :
     CSpec μ env fe (fun st => denoteFEnv st fe = some env)
       (Arena.eqBasisStored fe)
       (RV (decide (env.find? ConLeche.eqName = some ConLeche.eqA))) := by
-  sorry
+  intro s₀ s' r hok _ hrun
+  simp only [Arena.eqBasisStored] at hrun
+  obtain ⟨n, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨hs1, hn⟩ := pinAt_run (x := ConLeche.eqName) hok.pins rfl k1
+  rw [hs1] at z1
+  cases hf : fe.find? n with
+  | none =>
+    rw [hf] at z1
+    obtain ⟨rfl, rfl⟩ := pureOk z1
+    refine ⟨CoreStep.refl hok, ?_⟩
+    show false = _
+    simp [IFEnvOK.miss hok.state hok.ienv hn hf]
+  | some ci =>
+  rw [hf] at z1
+  obtain ⟨nm, cP, hnm, hci, henv⟩ := hok.ienv.hit n ci hf
+  obtain rfl : nm = ConLeche.eqName := Option.some.inj (hnm.symm.trans hn)
+  dsimp only at z1
+  obtain ⟨c, s2, k2, z2⟩ := bindOk z1
+  simp only [Arena.eqA, Arena.internCI] at k2
+  obtain ⟨mc, s3, k3, z3⟩ := bindOk k2
+  obtain ⟨rfl, rfl⟩ := pureOk z3
+  obtain ⟨hstep, hc, -, -⟩ := Frontend.internCI_sstep hok.state (Frontend.EMemoOK.empty _) k3
+  obtain ⟨rfl, rfl⟩ := pureOk z2
+  refine ⟨⟨hok.monoF hstep.ok hstep.ext (CacheFrame.of_eq hstep.caches hstep.ext)
+    hstep.pins, hstep.ext, hstep.pins⟩, ?_⟩
+  show (ci == mc.2) = _
+  rw [henv]
+  have hci' := denoteCI_ext hci hstep.ext
+  obtain ⟨cvE, dE, hE⟩ : ∃ cv d, ConLeche.eqA = .indInfo cv d := ⟨_, _, rfl⟩
+  rw [hE] at hc ⊢
+  by_cases heq : ci = mc.2
+  · subst heq
+    rw [hci'] at hc
+    simp [Option.some.inj hc]
+  · have : cP ≠ .indInfo cvE dE := by
+      rintro rfl
+      exact heq (denoteCI_inj_ind' hstep.ok.wf hci' hc)
+    simp [heq, this]
 
 /-! ## The iota certificates -/
 
