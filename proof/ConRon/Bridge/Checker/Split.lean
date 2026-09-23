@@ -56,6 +56,7 @@ punchline lands on `Bridge/Checker/Fold.lean`'s `checkDeclsPure` statement, so
 import ConRon.Bridge.Checker.Fold
 import ConLeche.Verify.EnvBound
 import ConRon.Bridge.Checker.Nodup
+import ConRon.Bridge.Promote.Coh
 
 open ConLeche ConRon.Arena
 
@@ -956,6 +957,165 @@ theorem PhaseA.nodup {μ : CheckMode} {pinsP : List NatOpPinSet}
   | full F h rest ih => exact fun hnd => ih (checkDecl_nodup h hnd)
   | split vg F h rest ih => exact fun hnd => ih (h.nodup hnd)
 
+/-! ## The bracket's close, shared
+
+`Arena.annotStep` and `Arena.checkDeclStep` close the same way: the step body
+has run in the scratch tier from the boundary `s0` and left an index `fe1`
+pushed onto `fe`; `promoteNew` copies the `k` new constants into the
+persistent tier and re-indexes, and `dropScratch` takes the tier.  What the
+body must hand the close is `BodyOut` — the index facts at the pushed
+environment `env'` that the next boundary's `FoldOK` needs and the close
+cannot conjure: `EnvWF env'`, the membership-shaped projection clause
+`IFEnvOK_of_denote` takes, and `promoteNew_spec`'s `NamesDistinct`. -/
+
+/-- con-leche: ConLeche/Verify/Cached/PushChain.lean PushChain — **what a step
+body leaves for the bracket's close**, at the scratch-tier state `s2` it ended
+in: the pushed index `fe1` denotes a well-formed `env'`, its stored tables are
+well shaped, and the constants it pushed name pairwise different names. -/
+structure BodyOut (env' : Env) (fe fe1 : IFEnv) (s2 : AState) : Prop where
+  state : StateOK s2
+  coh : IFEnvCoh fe1
+  pushed : Pushed fe fe1
+  denote : denoteFEnv s2.store fe1 = some env'
+  envWF : EnvWF env'
+  proj : ∀ t, IConstantInfo.projInfo t ∈ fe1.env.consts → IProjTableOK s2.store t
+  distinct : NamesDistinct s2.store
+    (fe1.env.consts.take (fe1.visibleBelow - fe.visibleBelow))
+
+/-- con-leche: none — distinct names stay distinct across an append. -/
+theorem NamesDistinct.mono {st st' : EStore} {cs : List IConstantInfo}
+    (h : NamesDistinct st cs) (hx : Ext st st') : NamesDistinct st' cs :=
+  List.Pairwise.imp (fun ⟨x, y, h1, h2, h3⟩ =>
+    ⟨x, y, denoteN_ext h1 hx, denoteN_ext h2 hx, h3⟩) h
+
+/-- con-leche: none — a stored table's shape survives a `PExt` at a
+persistent table (`IFEnvOK.pmono`'s `proj` clause, standing alone). -/
+theorem IProjTableOK.pmono {st st' : EStore} {t : IProjTable} (h : IProjTableOK st t)
+    (hp : PersProjTable t) (hx : PExt st st') : IProjTableOK st' t := by
+  obtain ⟨sn, h1, h2⟩ := h.named
+  exact ⟨h.bodies, h.guards, sn, denoteN_pext hx hp.structName h1,
+    denoteN_pext hx hp.tableName h2⟩
+
+/-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
+**the bracket closes onto a boundary**: from `FoldOK` at the step's opening
+boundary `s0` and the body's `BodyOut`, the promotion (`promoteNew_spec`,
+`promoteNew_pushed`, `promoteNew_projOK`) and the drop
+(`promoteBracket_close`) leave `FoldOK` at the pushed environment.  `m` is
+the memo the promotion starts from (`promoteVG`'s, in phase A's split arms);
+`hext` is everything between the opening `enterScratch` and the promotion,
+which only appended; the body ended at `sb`, and whatever ran between it and
+the promotion (`promoteVG`, or nothing) only appended too. -/
+theorem bracketClose_foldOK {μ : CheckMode} {env env' : Env} {fe fe1 fe' : IFEnv}
+    {s0 sb s2 s3 : AState} {m m' : PMemo} {fuel : Nat}
+    (hok : FoldOK μ env fe s0) (hb : BodyOut env' fe fe1 sb)
+    (hxb : Ext sb.store s2.store)
+    (hwf2 : StoreWF' s2.store) (hm : PMemoOK m s2.store)
+    (hext : Ext s0.store.enableScratch s2.store) (hpins : s2.pins = s0.pins)
+    (hrun : promoteNew m fuel (fe1.visibleBelow - fe.visibleBelow) fe1 s2
+      = .ok ((m', fe'), s3)) :
+    FoldOK μ env' fe'
+        ({ store := s3.store.dropScratch, memos := s3.memos, caches := Caches.empty,
+           pins := s3.pins } : AState) ∧
+      PExt s0.store s3.store.dropScratch ∧ Pushed fe fe' ∧
+      PMemoOK m' s3.store ∧ Ext s2.store s3.store ∧ s3.pins = s0.pins ∧
+      StoreWF' s3.store := by
+  obtain ⟨hwf3, hx23, hm3, hp3, hcoh3, hd3, -, hfr⟩ :=
+    promoteNew_spec hwf2 hm hok.coh hok.persEnv hb.coh hb.pushed rfl (hb.distinct.mono hxb)
+      (denoteFEnv_mono hxb hb.denote) hrun
+  have hpush := promoteNew_pushed hok.coh hb.coh hb.pushed rfl hrun
+  have hproj3 := promoteNew_projOK hwf2 hm (fun t ht => (hb.proj t ht).mono hxb) hrun
+  obtain ⟨-, hwf4, hx04, hx34⟩ :=
+    promoteBracket_close hok.check.state.wf hwf3 (hext.trans hx23)
+  have hpins3 : s3.pins = s0.pins := by rw [hfr.pins, hpins]
+  have hd4 : denoteFEnv s3.store.dropScratch fe' = some env' :=
+    denoteFEnv_pext hx34 hp3 hd3
+  refine ⟨?_, hx04, hpush, hm3, hx23, hpins3, hwf3⟩
+  exact
+    { check :=
+        { state := ⟨hwf4⟩
+          caches := CacheOK.of_empty rfl
+          pins := hok.check.pins.pmono hok.persPins hx04 hpins3
+          ienv := IFEnvOK_of_denote (μ := μ) ⟨hwf4⟩ hcoh3
+            (fun t ht => (hproj3 t ht).pmono (hp3.env _ ht) hx34) hd4 }
+      envWF := hb.envWF
+      persPins := hok.persPins.mono hpins3
+      persEnv := hp3
+      coh := hcoh3
+      denote := hd4 }
+
+/-- con-leche: none — a push onto a denoting index extends the denoted
+environment by the pushed constants' denotations. -/
+theorem envExt_of_pushed {st : EStore} {fe fe1 : IFEnv} {env env' : Env}
+    (hd : denoteFEnv st fe = some env) (hd1 : denoteFEnv st fe1 = some env')
+    (hp : Pushed fe fe1) : ∃ new, env'.consts = new ++ env.consts := by
+  obtain ⟨newI, hn⟩ := hp
+  simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hd hd1
+  obtain ⟨zs, hzs, rfl⟩ := hd
+  obtain ⟨zs1, hzs1, rfl⟩ := hd1
+  rw [hn] at hzs1
+  obtain ⟨za, zb, -, hzb, rfl⟩ := denoteCIList_append _ _ zs1 hzs1
+  rw [hzs] at hzb
+  obtain rfl := Option.some.inj hzb
+  exact ⟨za, rfl⟩
+
+/-- con-leche: none — the bracket's opening (`flushCaches`, `enterScratch`)
+keeps the boundary invariant: the caches are empty, the store is the same up
+to the (empty) scratch tier, and everything `FoldOK` names is persistent. -/
+theorem FoldOK.enter {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+    (hok : FoldOK μ env fe s) :
+    FoldOK μ env fe
+      ({ store := s.store.enableScratch, memos := Memos.empty,
+         caches := Caches.empty, pins := s.pins } : AState) := by
+  have hwf := hok.check.state.wf
+  have hx : PExt s.store s.store.enableScratch := PExt.enterScratch hwf
+  exact
+    { check :=
+        { state := ⟨(EStore.enableScratch_spec hwf).1⟩
+          caches := CacheOK.of_empty rfl
+          pins := hok.check.pins.pmono hok.persPins hx rfl
+          ienv := hok.check.ienv.pmono hok.persEnv hx }
+      envWF := hok.envWF
+      persPins := hok.persPins.mono rfl
+      persEnv := hok.persEnv
+      coh := hok.coh
+      denote := denoteFEnv_pext hx hok.persEnv hok.denote }
+
+/-- con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC — **phase A's
+step body, unbracketed**: `annotStepGo`'s four arms, from the state the
+bracket's opening left, deliver what the close needs (`BodyOut`) and the
+pure half the fold rebuilds `checkDecl` from — a full `checkDecl` step, or a
+split install owing the value group it returns.
+
+`sorry` (the round-9 child of `Arena.annotStep_split`, whose bracket is now
+PROVED around it, `bracketClose_foldOK`).  The arms are in hand for the pure
+half and for the store (`installConstantVal_bridge`, `installValue_bridge`,
+`Arena.checkDecl_bridge`), but **`BodyOut`'s `envWF` and `proj` clauses are
+not delivered by the full arm**: `Arena.checkDecl_bridge`'s `DeclOut` carries
+neither `EnvWF env'` nor the pushed tables' `IProjTableOK` (and `IndSpec` for
+the inductive arm carries neither either; `IndOut` has the tables as
+`ProjOut`, not `EnvWF`).  The value arms prove both internally (`StepOK`,
+`constWF_*`); the basis, axiom, quotient and inductive arms do not.  That is a
+change of `DeclOut`'s conclusion — task #97-P3-Checker round 9's finding,
+reported for a ruling. -/
+theorem Arena.annotStepGo_bridge {μ : CheckMode}
+    {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
+    {fe fe1 : IFEnv} {vg? : Option Arena.ValueGroup}
+    {pd : IDeclaration} {d : Declaration} {s1 s2 : AState}
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
+    (hok : FoldOK μ env fe s1) (hnd : NodupNames env)
+    (hpins : PinsDenote s1.store pins pinsP)
+    (hd : Frontend.denoteDecl s1.store pd = some d)
+    (hrun : Arena.annotStepGo μ pins fe pd s1 = .ok ((fe1, vg?), s2)) :
+    ∃ env', BodyOut env' fe fe1 s2 ∧ Ext s1.store s2.store ∧ s2.pins = s1.pins ∧
+      ((vg? = none ∧ ∃ F,
+          ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env') ∨
+        ∃ vg gP F, vg? = some vg ∧ SplitInstall μ F env d gP env' ∧
+          KindRel vg.kind gP.kind ∧
+          Frontend.denoteCV s2.store vg.cvA = some gP.cvA ∧
+          denoteE s2.store vg.jv = some gP.jv ∧
+          Expr.WScoped 0 gP.cvA.type ∧ (gP.kind ≠ .thm → Expr.WScoped 0 gP.jv)) := by
+  sorry
+
 /-- con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC — **phase A's
 step with the pure half it ran**: `Arena.annotStep_bridge`'s conclusion plus
 what the fold needs to rebuild `checkDecl` — a full step's `checkDecl` at
@@ -963,21 +1123,30 @@ what the fold needs to rebuild `checkDecl` — a full step's `checkDecl` at
 `PendRel` — and the two frame facts phase B reads (the caches are empty after
 the bracket's `dropScratch`; the environment only grows).
 
-`sorry`: `annotStepGo`'s four arms — `installConstantVal_bridge` and
-`installValue_bridge` (both PROVED) for the split arms, `Arena.checkDecl_bridge`
-for the rest — then the bracket: `promoteVG_spec` / `promoteNew_spec` at ONE
-memo, `PExt.dropScratch`, and `IFEnvOK` at the pushed index.  The bracket is
-`Arena.checkDeclStep_bridge`'s with one promotion more, and the arms' install
-halves are the round-4 lemmas, so this is one round once the bracket's store
-lemmas are in (DESIGN, task #97-P3-Checker's sorry list, item 19). -/
+**SKELETONISED** (task #97-P3-Checker round 9): the bracket is PROVED —
+`FoldOK.enter` for the opening, `promoteVG_spec` for the split arms' record,
+and `bracketClose_foldOK` (`promoteNew_spec`, `promoteNew_pushed`,
+`promoteNew_projOK`, `promoteBracket_close`) for the close — around ONE child,
+`Arena.annotStepGo_bridge`, the step body.
+
+**The statement gained `hnd : NodupNames env`** (a precondition repair, round
+9): the close's `IFEnvOK_of_denote` needs every stored table of the pushed
+index well shaped, and `FoldOK` states that only for tables a LOOKUP reaches;
+under name uniqueness the two agree (`FoldOK.projMem`).  The fold has it
+(`PhaseA.nodup` from the empty environment, carried by
+`Arena.annotFold_bridge`).  **And `hpd : PersDecl pd`**: the record must be
+persistent for its denotation to survive the opening `enterScratch` —
+`Arena.checkDeclStep_bridge`'s repair of the same kind; the fold carries it
+(`Arena.annotFold_bridge`'s `hpd`). -/
 theorem Arena.annotStep_split {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {i : Nat} {fe fe' : IFEnv} {pend pend' : Array PendingCheck}
     {pd : IDeclaration} {d : Declaration} {s s' : AState}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
-    (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
+    (hok : FoldOK μ env fe s) (hnd : NodupNames env)
+    (hpins : PinsDenote s.store pins pinsP)
     (hpp : PersPinSets pins) (hpend : ∀ pc ∈ pend.toList, PersVG pc.vg)
-    (hd : Frontend.denoteDecl s.store pd = some d)
+    (hpd : PersDecl pd) (hd : Frontend.denoteDecl s.store pd = some d)
     (hrun : Arena.annotStep μ pins i fe pend pd s = .ok ((fe', pend'), s')) :
     ∃ env', FoldOK μ env' fe' s' ∧ PExt s.store s'.store ∧
       Pushed fe fe' ∧ (∀ pc ∈ pend'.toList, PersVG pc.vg) ∧
@@ -987,7 +1156,81 @@ theorem Arena.annotStep_split {μ : CheckMode}
         ∃ pc gP F, pend'.toList = pend.toList ++ [pc] ∧ pc.pos = i ∧
           pc.vis = fe.visibleBelow ∧ SplitInstall μ F env d gP env' ∧
           PendRel s'.store env' pc (env, gP)) := by
-  sorry
+  have hwf := hok.check.state.wf
+  have hx1 : PExt s.store s.store.enableScratch := PExt.enterScratch hwf
+  simp only [Arena.annotStep] at hrun
+  obtain ⟨u0, s0, g0, r0⟩ := AM.bind_ok hrun
+  rw [flushCaches_run] at g0
+  simp only [Except.ok.injEq, Prod.mk.injEq] at g0
+  obtain ⟨-, rfl⟩ := g0
+  obtain ⟨u1, s1, g1, r1⟩ := AM.bind_ok r0
+  rw [enterScratch_run] at g1
+  simp only [Except.ok.injEq, Prod.mk.injEq] at g1
+  obtain ⟨-, rfl⟩ := g1
+  obtain ⟨⟨fe1, vg?⟩, s2, g2, r2⟩ := AM.bind_ok r1
+  have hok1 := hok.enter
+  obtain ⟨env', hb, hx12, hp12, hcase⟩ :=
+    Arena.annotStepGo_bridge hμ hk hind hok1 hnd (PinsDenote.pmono hx1 _ _ hpp hpins)
+      (denoteDecl_pext hx1 hpd hd) g2
+  have hdenv := hok.denote
+  have hnew : ∃ new, env'.consts = new ++ env.consts :=
+    envExt_of_pushed (fe := fe) (fe1 := fe1)
+      (denoteFEnv_mono hx12 (denoteFEnv_pext hx1 hok.persEnv hdenv)) hb.denote hb.pushed
+  rcases hcase with ⟨rfl, F, hF⟩ | ⟨vg, gP, F, rfl, hsplit, hkind, hcv, hjv, hwsty, hwsjv⟩
+  · -- a full step: promote the pushed constants, drop
+    simp only at r2
+    obtain ⟨⟨m', fe2⟩, s3, g3, r3⟩ := AM.bind_ok r2
+    obtain ⟨u4, s4, g4, r4⟩ := AM.bind_ok r3
+    rw [dropScratch_run] at g4
+    simp only [Except.ok.injEq, Prod.mk.injEq] at g4
+    obtain ⟨-, rfl⟩ := g4
+    obtain ⟨hv, rfl⟩ := AM.pure_ok r4
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨rfl, rfl⟩ := hv
+    obtain ⟨hfold, hx04, hpush, -, -, -, -⟩ :=
+      bracketClose_foldOK (s0 := s) (hok := hok)
+        hb (Ext.refl _) (StoreWF'.of_wf hb.state.wf) (PMemoOK.empty _) hx12 hp12 g3
+    exact ⟨env', hfold, hx04, hpush, hpend, rfl, hnew, Or.inl ⟨rfl, F, hF⟩⟩
+  · -- a split step: promote the record, then the pushed constant, drop
+    simp only at r2
+    obtain ⟨⟨m, vg'⟩, s2', g2', r2'⟩ := AM.bind_ok r2
+    obtain ⟨hwf2', hx22', hm2', hpvg, hkd, hcv', hjv', hfr2⟩ :=
+      promoteVG_spec (StoreWF'.of_wf hb.state.wf) (PMemoOK.empty _) hcv hjv g2'
+    obtain ⟨⟨m', fe2⟩, s3, g3, r3⟩ := AM.bind_ok r2'
+    obtain ⟨u4, s4, g4, r4⟩ := AM.bind_ok r3
+    rw [dropScratch_run] at g4
+    simp only [Except.ok.injEq, Prod.mk.injEq] at g4
+    obtain ⟨-, rfl⟩ := g4
+    obtain ⟨hv, rfl⟩ := AM.pure_ok r4
+    simp only [Prod.mk.injEq] at hv
+    obtain ⟨rfl, rfl⟩ := hv
+    obtain ⟨hfold, hx04, hpush, -, hx2'3, hpins3, hwf3⟩ :=
+      bracketClose_foldOK (s0 := s) (hok := hok)
+        hb hx22' hwf2' hm2' (hx12.trans hx22') (by rw [hfr2.pins, hp12]) g3
+    have hx34 : PExt s3.store s3.store.dropScratch := PExt.dropScratch' hwf3
+    have hx2'4 : PExt s2'.store s3.store.dropScratch := (PExt.of_ext hx2'3).trans hx34
+    have hvis : fe.visibleBelow = env.consts.length := by
+      rw [hok.coh.1]
+      simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at hdenv
+      obtain ⟨zs, hzs, rfl⟩ := hdenv
+      exact denoteCIList_length _ _ hzs
+    refine ⟨env', hfold, hx04, hpush, ?_, rfl, hnew,
+      Or.inr ⟨⟨vg', i, fe.visibleBelow⟩, gP, F, Array.toList_push, rfl, rfl, hsplit, ?_⟩⟩
+    · intro pc hpc
+      rw [Array.toList_push] at hpc
+      rcases List.mem_append.mp hpc with hpc | hpc
+      · exact hpend pc hpc
+      · rw [List.mem_singleton] at hpc; subst hpc; exact hpvg
+    · exact
+        { kind := by rw [hkd]; exact hkind
+          cv := denoteCV_pext hx2'4 hpvg.cvA hcv'
+          jv := hx2'4.expr _ _ hpvg.jv hjv'
+          wsty := hwsty
+          wsjv := hwsjv
+          envWF := hok.envWF
+          vis := hvis
+          ext := hnew
+          pers := hpvg }
 
 /-- con-leche: none — every related record is persistent. -/
 theorem PendRel.listRel_pers {st : EStore} {envF : Env} :
@@ -1029,7 +1272,7 @@ theorem Arena.annotFold_bridge {μ : CheckMode}
     ∀ (ds : List IDeclaration) (dsP : List Declaration) (env : Env) (i i' : Nat)
       (fe fe' : IFEnv) (pend pend' : Array PendingCheck)
       (pendP : List (Env × ConLeche.ValueGroup)) (s s' : AState),
-      FoldOK μ env fe s → PinsDenote s.store pins pinsP →
+      FoldOK μ env fe s → NodupNames env → PinsDenote s.store pins pinsP →
       (∀ x ∈ ds, PersDecl x) → denoteDecls s.store ds = some dsP →
       ListRel (PendRel s.store env) pend.toList pendP →
       Arena.annotFold μ pins (i, fe, pend) ds s = .ok (.ok (i', fe', pend'), s') →
@@ -1040,7 +1283,7 @@ theorem Arena.annotFold_bridge {μ : CheckMode}
   intro ds
   induction ds with
   | nil =>
-    intro dsP env i i' fe fe' pend pend' pendP s s' hok _ _ hden hrel hrun
+    intro dsP env i i' fe fe' pend pend' pendP s s' hok _ _ _ hden hrel hrun
     simp only [denoteDecls, Option.some.injEq] at hden
     subst hden
     simp only [Arena.annotFold] at hrun
@@ -1050,7 +1293,7 @@ theorem Arena.annotFold_bridge {μ : CheckMode}
     exact ⟨env, [], hok, PExt.refl _, .nil env, by simpa using hrel,
       fun _ => rfl, fun h => absurd rfl h⟩
   | cons a as ih =>
-    intro dsP env i i' fe fe' pend pend' pendP s s' hok hpins hpd hden hrel hrun
+    intro dsP env i i' fe fe' pend pend' pendP s s' hok hnd hpins hpd hden hrel hrun
     simp only [denoteDecls] at hden
     cases ha : Frontend.denoteDecl s.store a with
     | none => rw [ha] at hden; simp at hden
@@ -1079,8 +1322,8 @@ theorem Arena.annotFold_bridge {μ : CheckMode}
           subst h1
           subst s₁'
           obtain ⟨env₁, hok₁, hx₁, -, -, hc₁, hext₁, hcase⟩ :=
-            Arena.annotStep_split hμ hk hind hok hpins hpp
-              (PendRel.listRel_pers hrel) ha hA
+            Arena.annotStep_split hμ hk hind hok hnd hpins hpp
+              (PendRel.listRel_pers hrel) (hpd a (by simp)) ha hA
           have hrel₁ := PendRel.listRel_mono hx₁ hext₁ hrel
           have hpins₁ := PinsDenote.pmono hx₁ _ _ hpp hpins
           have hpd₁ : ∀ c ∈ as, PersDecl c := fun c hc => hpd c (by simp [hc])
@@ -1089,8 +1332,8 @@ theorem Arena.annotFold_bridge {μ : CheckMode}
           · have hrelA : ListRel (PendRel s₁.store env₁) pend₁.toList pendP := by
               rw [hpeq]; exact hrel₁
             obtain ⟨env', pendP', hok', hx', hA', hrel', hnil', hc'⟩ :=
-              ih xs env₁ (i + 1) i' fe₁ fe' pend₁ pend' pendP s₁ s' hok₁ hpins₁ hpd₁
-                has₁ hrelA htail
+              ih xs env₁ (i + 1) i' fe₁ fe' pend₁ pend' pendP s₁ s' hok₁
+                (checkDecl_nodup hF hnd) hpins₁ hpd₁ has₁ hrelA htail
             refine ⟨env', pendP', hok', hx₁.trans hx', .full F hF hA', hrel',
               fun h => absurd h (by simp), fun _ => ?_⟩
             by_cases hnil : as = []
@@ -1101,7 +1344,7 @@ theorem Arena.annotFold_bridge {μ : CheckMode}
               rw [hpeq]; exact ListRel.snoc hrel₁ hpc
             obtain ⟨env', pendP', hok', hx', hA', hrel', hnil', hc'⟩ :=
               ih xs env₁ (i + 1) i' fe₁ fe' pend₁ pend' (pendP ++ [(env, gP)]) s₁ s'
-                hok₁ hpins₁ hpd₁ has₁ hrelA htail
+                hok₁ (hsplit.nodup hnd) hpins₁ hpd₁ has₁ hrelA htail
             refine ⟨env', (env, gP) :: pendP', hok', hx₁.trans hx',
               .split gP F hsplit hA', by simpa [List.append_assoc] using hrel',
               fun h => absurd h (by simp), fun _ => ?_⟩
@@ -1372,7 +1615,8 @@ conclusion is `Bridge/Checker/Decl.lean`'s `DeclOut`.
 conclusion says every record of `pend'` is persistent, and `pend'` contains
 `pend` — so without the same of `pend` it was false at a non-persistent
 input.  A missing precondition, free at the one call site (`annotFold`
-starts from `#[]` and carries it).
+starts from `#[]` and carries it).  Round 9 added `hnd : NodupNames env` and
+`hpd : PersDecl pd`, `Arena.annotStep_split`'s own repairs.
 
 PROVED from `Arena.annotStep_split` (round 8), which carries this conclusion
 and the pure half the fold needs; the `sorry` lives there. -/
@@ -1381,9 +1625,10 @@ theorem Arena.annotStep_bridge {μ : CheckMode}
     {i : Nat} {fe fe' : IFEnv} {pend pend' : Array PendingCheck}
     {pd : IDeclaration} {d : Declaration} {s s' : AState}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
-    (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
+    (hok : FoldOK μ env fe s) (hnd : NodupNames env)
+    (hpins : PinsDenote s.store pins pinsP)
     (hpp : PersPinSets pins) (hpend : ∀ pc ∈ pend.toList, PersVG pc.vg)
-    (hd : Frontend.denoteDecl s.store pd = some d)
+    (hpd : PersDecl pd) (hd : Frontend.denoteDecl s.store pd = some d)
     (hrun : Arena.annotStep μ pins i fe pend pd s = .ok ((fe', pend'), s')) :
     ∃ env', FoldOK μ env' fe' s' ∧ PExt s.store s'.store ∧
       Pushed fe fe' ∧ (∀ pc ∈ pend'.toList, PersVG pc.vg) ∧
@@ -1391,7 +1636,7 @@ theorem Arena.annotStep_bridge {μ : CheckMode}
         ∃ pc, pend'.toList = pend.toList ++ [pc] ∧ pc.pos = i ∧
           pc.vis = fe.visibleBelow) := by
   obtain ⟨env', h1, h2, h3, h4, -, -, hcase⟩ :=
-    Arena.annotStep_split hμ hk hind hok hpins hpp hpend hd hrun
+    Arena.annotStep_split hμ hk hind hok hnd hpins hpp hpend hpd hd hrun
   refine ⟨env', h1, h2, h3, h4, ?_⟩
   rcases hcase with ⟨hpeq, -⟩ | ⟨pc, gP, F, hpeq, hpos, hvis, -, -⟩
   · exact Or.inl hpeq
@@ -1489,7 +1734,7 @@ theorem Arena.installThenCheck_bridge {μ : CheckMode}
     obtain ⟨n, fe₁, pend⟩ := p
     obtain ⟨env₁, pendP, hok₁, -, hPA, hrel, hnil, hc₁⟩ :=
       Arena.annotFold_bridge hμ hk hind hpp ds.toList dsP Env.empty 0 n
-        (mkIFEnv IEnv.empty) fe₁ #[] pend [] s s₁ hok hpins hpd hden .nil hA
+        (mkIFEnv IEnv.empty) fe₁ #[] pend [] s s₁ hok hnd0 hpins hpd hden .nil hA
     simp only [List.nil_append] at hrel
     obtain ⟨r2, s₂, hB, hrest2⟩ := AM.bind_ok hrest
     cases r2 with
