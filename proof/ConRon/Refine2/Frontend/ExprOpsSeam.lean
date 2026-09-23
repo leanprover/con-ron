@@ -14,7 +14,7 @@ lane's names.  **When the ExprOps lane lands, this file is deleted** and its
 uses become the lane's `_ls` lemmas (the `@[lockstep]` index finds them by the
 Rust head, so the proofs that use the tactic do not change).
 
-## `sorry` count in this file: 9
+## `sorry` count in this file: 7 (`get_app_fn`/`get_app_args` are the Core lane's `_refines₀`)
 -/
 import ConRon.Refine2.Frontend.Spec
 
