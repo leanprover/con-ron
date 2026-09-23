@@ -655,4 +655,407 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       | assumption
       | (apply CheckOK.wf'; assumption)
 
+/-- con-leche: none — `List.{p} (bvar k)`, the `List.cons` shape's two
+applications. -/
+abbrev listApp (P : ConLeche.Name) (k : Nat) : Expr :=
+  .app (.const ConLeche.listName [.param P]) (.bvar k)
+
+/-- con-leche: none — `listConsTyOk`'s innermost `∀`, in the twin's order. -/
+def listConsR2 (P : ConLeche.Name) : Expr → Bool
+  | .forallE D3 C3 _ => D3 == listApp P 1 && C3 == listApp P 2
+  | _ => false
+
+/-- con-leche: none — `listConsTyOk`'s middle `∀`, in the twin's order. -/
+def listConsR (P : ConLeche.Name) : Expr → Bool
+  | .forallE D2 R2 _ => D2 == .bvar 0 && listConsR2 P R2
+  | _ => false
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:343-360 listConsTyOk — in the
+twin's order: each binder's domain against its interned comparand, one `∀`
+at a time. -/
+theorem listConsTyOk_forallE {c : ConstantInfo} {P : ConLeche.Name}
+    {D R : Expr} {m : BinderMeta} (hl : c.toConstantVal.levelParams = [P])
+    (ht : c.toConstantVal.type = .forallE D R m) :
+    ConLeche.listConsTyOk (some c) = (D == typeAt P && listConsR P R) := by
+  simp only [ConLeche.listConsTyOk, hl, ht]
+  cases D <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt]; done))
+  cases R <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt, listConsR]; done))
+  rename_i D2 R2 _
+  cases D2 <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt, listConsR]; done))
+  rename_i k
+  cases k <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt, listConsR]; done))
+  cases R2 <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt, listConsR, listConsR2]; done))
+  rename_i D3 C3 _
+  cases D3 <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt, listConsR, listConsR2]; done))
+  rename_i F3 A3
+  cases F3 <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt, listConsR, listConsR2]; done))
+  cases A3 <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt, listConsR, listConsR2]; done))
+  rename_i k3
+  cases C3 <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt, listConsR, listConsR2]; done))
+  rename_i F4 A4
+  cases F4 <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt, listConsR, listConsR2]; done))
+  cases A4 <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt, listConsR, listConsR2]; done))
+  all_goals (rw [Bool.eq_iff_iff]; simp [typeAt, listConsR, listConsR2]; try grind)
+
+/-- con-leche: none — `listConsR` at a codomain that is not a `∀`. -/
+theorem listConsR_of_not {P : ConLeche.Name} {R : Expr}
+    (h : ∀ D B m, R ≠ .forallE D B m) : listConsR P R = false := by
+  unfold listConsR; split
+  · rename_i D B m; exact absurd rfl (h D B m)
+  · rfl
+
+/-- con-leche: none — `listConsR2` at a codomain that is not a `∀`. -/
+theorem listConsR2_of_not {P : ConLeche.Name} {R : Expr}
+    (h : ∀ D B m, R ≠ .forallE D B m) : listConsR2 P R = false := by
+  unfold listConsR2; split
+  · rename_i D B m; exact absurd rfl (h D B m)
+  · rfl
+
+/-! ### The interned comparands' denotations, one node at a time -/
+
+/-- con-leche: none — an interned `bvar k`. -/
+theorem denote_view_bvar {st : EStore} {h : EIdx} {k : Nat}
+    (hd : denoteE st h = denoteEView st (.bvar k)) :
+    denoteE st h = some (.bvar k) := by rw [hd]; rfl
+
+/-- con-leche: none — an interned constant. -/
+theorem denote_view_const {st : EStore} {h : EIdx} {n : NIdx} {us : LsIdx}
+    {N : ConLeche.Name} {US : List Level}
+    (hd : denoteE st h = denoteEView st (.const n us))
+    (hn : denoteN st.ns n = some N) (hus : denoteLs st.lss us = some US) :
+    denoteE st h = some (.const N US) := by
+  rw [hd]; simp [denoteEView, opt2, hn, hus]
+
+/-- con-leche: none — an interned application. -/
+theorem denote_view_app {st : EStore} {h f a : EIdx} {F A : Expr}
+    (hd : denoteE st h = denoteEView st (.app f a))
+    (hf : denoteE st f = some F) (ha : denoteE st a = some A) :
+    denoteE st h = some (.app F A) := by
+  rw [hd]; simp [denoteEView, opt2, hf, ha]
+
+/-- con-leche: none — an interned `param`. -/
+theorem denoteL_view_param {st : EStore} {h : LIdx} {p : NIdx}
+    {P : ConLeche.Name}
+    (hd : denoteL st.ls h = denoteLView st.ls (.param p))
+    (hp : denoteN st.ns p = some P) : denoteL st.ls h = some (.param P) := by
+  rw [hd]; simp only [denoteLView]
+  rw [show denoteN st.ls.ns p = some P from hp]; rfl
+
+/-- con-leche: none — an interned one-element level list. -/
+theorem denoteLs_view_single {st : EStore} {h : LsIdx} {u : LIdx}
+    {U : Level} (hd : denoteLs st.lss h = denoteLsView st.lss [u])
+    (hu : denoteL st.ls u = some U) : denoteLs st.lss h = some [U] := by
+  rw [hd]
+  simp [denoteLsView, denoteLList, opt2,
+    show denoteL st.lss.ls u = some U from hu]
+
+/-- con-leche: none — a denoting level-list handle has a view. -/
+theorem lsview_isSome_of_denote {st : LsStore} {h : LsIdx}
+    {xs : List Level} (hd : denoteLs st h = some xs) :
+    (st.view h).isSome = true := by
+  obtain ⟨w, hw, _⟩ := denoteLs_view hd; rw [hw]; rfl
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:343-360 listConsTyOk — **THEOREM
+1 for `listConsTyOk`**. -/
+theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
+    (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
+    (hrel : OptCI s₀.store oc oc') :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.listConsTyOk oc
+    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.listConsTyOk oc'⌝⦄ := by
+  cases oc with
+  | none =>
+    simp only [OptCI] at hrel; subst hrel
+    mvcgen [ConRon.Arena.listConsTyOk]
+    all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
+  | some ci =>
+    obtain ⟨c, hci, rfl⟩ := hrel
+    have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
+      s₀ ci c hok hci
+    mvcgen [ConRon.Arena.listConsTyOk, ConRon.Arena.pinList, htc]
+    all_goals (bridge_peel; subst_vars)
+    case vc3.hv =>
+      rename_i s1 r0 p0 hsingle s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
+      obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      exact lviewOK_param (denoteN_ext hdp x_s1_s0)
+    case vc5.hv =>
+      rename_i s2 r1 p0 hsingle s1 r0 s0 ck_s1 wf_s0 x_s1_s0 _ d_r1_type_s1 _ _ _
+        c_s0_s1 p_s0_s1 vl_r0_s0 dl_r0_s0 x_s2_s1 p_s1_s2 hlps
+      exact lviewOK_succ vl_r0_s0
+    case vc7.hv =>
+      rename_i s3 r2 p0 hsingle s2 r1 s1 r0 s0 ck_s2 wf_s1 wf_s0 x_s2_s1 x_s1_s0 _
+        _ d_r2_type_s2 _ _ _ _ _ _ c_s1_s2 c_s0_s1 p_s1_s2 p_s0_s1 vl_r1_s1
+        dl_r1_s1 vl_r0_s0 dl_r0_s0 x_s3_s2 p_s2_s3 hlps
+      exact viewOK_sort (by rw [vl_r0_s0]; rfl)
+    case vc9.hv =>
+      rename_i s4 r3 p0 hsingle s3 r2 s2 r1 s1 r0 s0 ck_s3 wf_s2 wf_s1 wf_s0 x_s3_s2
+        x_s2_s1 x_s1_s0 _ _ _ d_r3_type_s3 _ _ _ _ _ c_s0_s1 _ _ p_s0_s1 c_s2_s3
+        c_s1_s2 _ p_s2_s3 p_s1_s2 _ vl_r2_s2 dl_r2_s2 vl_r1_s1 dl_r1_s1 v_r0_s0
+        d_r0_s0 x_s4_s3 p_s3_s4 hlps
+      obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      have hpl := denoteL_view_param dl_r2_s2
+        (denoteN_ext hdp (x_s4_s3.trans x_s3_s2))
+      intro c hc
+      simp only [List.mem_singleton] at hc; subst hc
+      exact lview_isSome_of_denote (denoteL_ext hpl (x_s2_s1.trans x_s1_s0))
+    case vc10.hp =>
+      rename_i s5 r4 p0 hsingle s4 r3 s3 r2 s2 r1 s1 r0 s0 ck_s4 wf_s3 wf_s2 wf_s1
+        wf_s0 x_s4_s3 x_s3_s2 x_s2_s1 x_s1_s0 _ _ _ _ d_r4_type_s4 _ _ _ _ _ _
+        c_s1_s2 _ _ _ p_s1_s2 _ c_s3_s4 c_s2_s3 _ c_s0_s1 p_s3_s4 p_s2_s3 _
+        p_s0_s1 vl_r3_s3 dl_r3_s3 vl_r2_s2 dl_r2_s2 v_r1_s1 d_r1_s1 vls_r0_s0
+        dls_r0_s0 x_s5_s4 p_s4_s5 hlps
+      exact ck_s4.pins.mono (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))
+        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4)))
+    case vc18.hv =>
+      rename_i s8 r8 p0 hsingle s7 r7 s6 r6 s5 r5 s4 r4 r3 s3 r2 s2 r1 s1 r0 s0
+        ck_s7 wf_s6 wf_s5 wf_s4 wf_s2 wf_s1 wf_s0 x_s7_s6 x_s6_s5 x_s5_s4 x_s3_s2
+        x_s2_s1 x_s1_s0 _ _ _ _ _ _ d_r8_type_s7 _ _ _ _ _ _ _ _ c_s4_s5 c_s2_s3
+        c_s1_s2 c_s0_s1 _ _ p_s4_s5 p_s2_s3 p_s1_s2 p_s0_s1 c_s6_s7 c_s5_s6 _ _ _
+        _ p_s6_s7 p_s5_s6 _ _ _ _ vl_r7_s6 dl_r7_s6 vl_r6_s5 dl_r6_s5 v_r5_s4
+        d_r5_s4 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 v_r0_s0 d_r0_s0 x_s8_s7 p_s7_s8
+        hlps wf_s3 hpin x_s4_s3 _ _ _ _ c_s3_s4 p_s3_s4 vls_r4_s3 dls_r4_s3
+      obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      have hpl := denoteL_view_param dl_r7_s6
+        (denoteN_ext hdp (x_s8_s7.trans x_s7_s6))
+      have hps := denoteLs_view_single dls_r4_s3
+        (denoteL_ext hpl (x_s6_s5.trans (x_s5_s4.trans x_s4_s3)))
+      have x30 := x_s3_s2.trans (x_s2_s1.trans x_s1_s0)
+      exact viewOK_const (nview_isSome_of_denote (denoteN_ext (hpin _ rfl) x30))
+        (lsview_isSome_of_denote (denoteLs_ext hps x30))
+    case vc20.hv =>
+      rename_i s9 r9 p0 hsingle s8 r8 s7 r7 s6 r6 s5 r5 r4 s4 r3 s3 r2 s2 r1 s1 r0 s0
+        ck_s8 wf_s7 wf_s6 wf_s5 wf_s3 wf_s2 wf_s1 wf_s0 x_s8_s7 x_s7_s6 x_s6_s5
+        x_s4_s3 x_s3_s2 x_s2_s1 x_s1_s0 _ _ _ _ _ _ _ d_r9_type_s8 _ _ _ _ _ _ _ _
+        _ c_s5_s6 c_s3_s4 c_s2_s3 c_s1_s2 c_s0_s1 _ _ p_s5_s6 p_s3_s4 p_s2_s3
+        p_s1_s2 p_s0_s1 c_s7_s8 c_s6_s7 _ _ _ _ _ p_s7_s8 p_s6_s7 _ _ _ _ _
+        vl_r8_s7 dl_r8_s7 vl_r7_s6 dl_r7_s6 v_r6_s5 d_r6_s5 v_r3_s3 d_r3_s3
+        v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 v_r0_s0 d_r0_s0 x_s9_s8 p_s8_s9 hlps
+        wf_s4 hpin x_s5_s4 _ _ _ _ c_s4_s5 p_s4_s5 vls_r5_s4 dls_r5_s4
+      obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      have hpl := denoteL_view_param dl_r8_s7
+        (denoteN_ext hdp (x_s9_s8.trans x_s8_s7))
+      have hps := denoteLs_view_single dls_r5_s4
+        (denoteL_ext hpl (x_s7_s6.trans (x_s6_s5.trans x_s5_s4)))
+      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
+      have hl1 := denote_view_const d_r0_s0 (denoteN_ext (hpin _ rfl) x40)
+        (denoteLs_ext hps x40)
+      have hb1 := denote_ext (denote_view_bvar d_r2_s2) (x_s2_s1.trans x_s1_s0)
+      exact viewOK_app (by rw [hl1]; rfl) (by rw [hb1]; rfl)
+    case vc22.hv =>
+      rename_i s10 r10 p0 hsingle s9 r9 s8 r8 s7 r7 s6 r6 r5 s5 r4 s4 r3 s3 r2 s2
+        r1 s1 r0 s0 ck_s9 wf_s8 wf_s7 wf_s6 wf_s4 wf_s3 wf_s2 wf_s1 wf_s0 x_s9_s8
+        x_s8_s7 x_s7_s6 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 x_s1_s0 _ _ _ _ _ _ _ _
+        d_r10_type_s9 _ _ _ _ _ _ _ _ _ _ c_s6_s7 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2
+        c_s0_s1 _ _ p_s6_s7 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 p_s0_s1 c_s8_s9
+        c_s7_s8 _ _ _ _ _ _ p_s8_s9 p_s7_s8 _ _ _ _ _ _ vl_r9_s8 dl_r9_s8
+        vl_r8_s7 dl_r8_s7 v_r7_s6 d_r7_s6 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2
+        d_r2_s2 v_r1_s1 d_r1_s1 v_r0_s0 d_r0_s0 x_s10_s9 p_s9_s10 hlps wf_s5 hpin
+        x_s6_s5 _ _ _ _ c_s5_s6 p_s5_s6 vls_r6_s5 dls_r6_s5
+      obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      have hpl := denoteL_view_param dl_r9_s8
+        (denoteN_ext hdp (x_s10_s9.trans x_s9_s8))
+      have hps := denoteLs_view_single dls_r6_s5
+        (denoteL_ext hpl (x_s8_s7.trans (x_s7_s6.trans x_s6_s5)))
+      have x51 := x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans x_s2_s1))
+      have hl1 := denote_view_const d_r1_s1 (denoteN_ext (hpin _ rfl) x51)
+        (denoteLs_ext hps x51)
+      exact viewOK_app (by rw [denote_ext hl1 x_s1_s0]; rfl)
+        (by rw [denote_ext (denote_view_bvar d_r2_s2) (x_s2_s1.trans x_s1_s0)]; rfl)
+    case vc23.some.post.success.h_1.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.h_1.isTrue =>
+      rename_i s11 r11 p0 hsingle s10 r10 s9 r9 s8 r8 s7 r7 r6 s6 r5 s5 r4 s4
+        r3 s3 r2 s2 r1 s1 r0 dom0 body0 mb0 hbeq0 s0 ck_s10 wf_s9 wf_s8 wf_s7
+        wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4
+        x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _ _
+        _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _ _ p_s7_s8
+        p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _
+        p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8
+        v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3
+        v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps wf_s6 hpin
+        x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 wf_s0
+        v_r11_type_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
+      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
+      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))),
+        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))).trans p_s10_s11, ?_⟩
+      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
+      have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
+        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
+      have hty0 := denote_ext d_r11_type_s10 x100
+      have hwf0 := wf_s0
+      obtain ⟨D, R, hT, hD, _⟩ := denote_forallE_inv hwf0 v_r11_type_s0 hty0
+      rw [bne, beq_of_denoteE hwf0 hD hso] at hbeq0
+      simp only [Bool.not_eq_true', Bool.eq_false_iff] at hbeq0
+      rw [listConsTyOk_forallE hP hT]; simp [hbeq0]
+    case vc24.some.post.success.h_1.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.h_1.isFalse.post.success.h_1.isTrue =>
+      rename_i s11 r11 p0 hsingle s10 r10 s9 r9 s8 r8 s7 r7 r6 s6 r5 s5 r4 s4
+        r3 s3 r2 s2 r1 s1 r0 dom1 body1 mb1 hneg0 dom0 body0 mb0 hbeq0 s0
+        ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9
+        x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _
+        _ d_r11_type_s10 _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4
+        c_s2_s3 c_s1_s2 _ _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2
+        c_s9_s10 c_s8_s9 _ _ _ _ _ _ p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9
+        dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4
+        d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10
+        p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6
+        dls_r7_s6 v_body1_s0 wf_s0 v_r11_type_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _
+        _ v_r0_s0 d_r0_s0
+      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
+      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))),
+        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))).trans p_s10_s11, ?_⟩
+      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
+      have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
+        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
+      have hty0 := denote_ext d_r11_type_s10 x100
+      have hwf0 := wf_s0
+      have hpl := denoteL_view_param dl_r10_s9 hp9
+      have hps := denoteLs_view_single dls_r7_s6 (denoteL_ext hpl (x_s9_s8.trans (x_s8_s7.trans x_s7_s6)))
+      have hl1 := denote_view_const d_r2_s2 (denoteN_ext (hpin _ rfl) (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
+        (denoteLs_ext hps (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
+      have hb0 := denote_ext (denote_view_bvar d_r5_s5) (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))
+      have hd3 := denote_ext (denote_view_app d_r1_s1 (denote_ext hl1 x_s2_s1)
+        (denote_ext (denote_view_bvar d_r4_s4) (x_s4_s3.trans (x_s3_s2.trans x_s2_s1)))) x_s1_s0
+      have hc3 := denote_view_app d_r0_s0 (denote_ext hl1 (x_s2_s1.trans x_s1_s0))
+        (denote_ext (denote_view_bvar d_r3_s3) (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))
+      obtain ⟨D, R, hT, hD, hR⟩ := denote_forallE_inv hwf0 v_r11_type_s0 hty0
+      obtain ⟨D2, R2, rfl, hD2, _⟩ := denote_forallE_inv hwf0 v_body1_s0 hR
+      rw [bne, beq_of_denoteE hwf0 hD2 hb0] at hbeq0
+      simp only [Bool.not_eq_true', Bool.eq_false_iff] at hbeq0
+      rw [listConsTyOk_forallE hP hT]; simp [listConsR, hbeq0]
+    case vc25.some.post.success.h_1.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.h_1.isFalse.post.success.h_1.isFalse.post.success.h_1 =>
+      rename_i s11 r11 p0 hsingle s10 r10 s9 r9 s8 r8 s7 r7 r6 s6 r5 s5 r4 s4
+        r3 s3 r2 s2 r1 s1 r0 dom2 body2 mb2 hneg0 dom1 body1 mb1 hneg1 dom0
+        body0 mb0 s0 ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1
+        x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _
+        _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5
+        c_s3_s4 c_s2_s3 c_s1_s2 _ _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3
+        p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _ p_s9_s10 p_s8_s9 _ _ _ _ _ _
+        vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5
+        v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1
+        x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7
+        vls_r7_s6 dls_r7_s6 v_body1_s0 v_body2_s0 wf_s0 v_r11_type_s0 x_s1_s0
+        _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
+      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
+      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))),
+        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))).trans p_s10_s11, ?_⟩
+      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
+      have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
+        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
+      have hty0 := denote_ext d_r11_type_s10 x100
+      have hwf0 := wf_s0
+      have hpl := denoteL_view_param dl_r10_s9 hp9
+      have hps := denoteLs_view_single dls_r7_s6 (denoteL_ext hpl (x_s9_s8.trans (x_s8_s7.trans x_s7_s6)))
+      have hl1 := denote_view_const d_r2_s2 (denoteN_ext (hpin _ rfl) (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
+        (denoteLs_ext hps (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
+      have hb0 := denote_ext (denote_view_bvar d_r5_s5) (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))
+      have hd3 := denote_ext (denote_view_app d_r1_s1 (denote_ext hl1 x_s2_s1)
+        (denote_ext (denote_view_bvar d_r4_s4) (x_s4_s3.trans (x_s3_s2.trans x_s2_s1)))) x_s1_s0
+      have hc3 := denote_view_app d_r0_s0 (denote_ext hl1 (x_s2_s1.trans x_s1_s0))
+        (denote_ext (denote_view_bvar d_r3_s3) (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))
+      obtain ⟨D, R, hT, hD, hR⟩ := denote_forallE_inv hwf0 v_r11_type_s0 hty0
+      obtain ⟨D2, R2, rfl, hD2, hR2⟩ := denote_forallE_inv hwf0 v_body2_s0 hR
+      obtain ⟨D3, C3, rfl, hD3, hC3⟩ := denote_forallE_inv hwf0 v_body1_s0 hR2
+      have hDe : D = typeAt P := by
+        rw [bne, beq_of_denoteE hwf0 hD hso] at hneg0; simpa using hneg0
+      have hD2e : D2 = .bvar 0 := by
+        rw [bne, beq_of_denoteE hwf0 hD2 hb0] at hneg1; simpa using hneg1
+      subst hDe hD2e
+      rw [beq_of_denoteE hwf0 hD3 hd3, beq_of_denoteE hwf0 hC3 hc3,
+        listConsTyOk_forallE hP hT]
+      simp [listConsR, listConsR2]
+    case vc26.some.post.success.h_1.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.h_1.isFalse.post.success.h_1.isFalse.post.success.h_2 =>
+      rename_i s11 r11 p0 hsingle s10 r10 s9 r9 s8 r8 s7 r7 r6 s6 r5 s5 r4 s4
+        r3 s3 r2 s2 r1 s1 r0 dom1 body1 mb1 hneg0 dom0 body0 mb0 hneg1 x1
+        hnot0 s0 ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1
+        x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _
+        _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5
+        c_s3_s4 c_s2_s3 c_s1_s2 _ _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3
+        p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _ p_s9_s10 p_s8_s9 _ _ _ _ _ _
+        vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5
+        v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1
+        x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7
+        vls_r7_s6 dls_r7_s6 v_body0_s0 v_body1_s0 wf_s0 v_r11_type_s0 x_s1_s0
+        _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
+      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
+      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))),
+        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))).trans p_s10_s11, ?_⟩
+      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
+      have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
+        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
+      have hty0 := denote_ext d_r11_type_s10 x100
+      have hwf0 := wf_s0
+      have hpl := denoteL_view_param dl_r10_s9 hp9
+      have hps := denoteLs_view_single dls_r7_s6 (denoteL_ext hpl (x_s9_s8.trans (x_s8_s7.trans x_s7_s6)))
+      have hl1 := denote_view_const d_r2_s2 (denoteN_ext (hpin _ rfl) (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
+        (denoteLs_ext hps (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
+      have hb0 := denote_ext (denote_view_bvar d_r5_s5) (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))
+      have hd3 := denote_ext (denote_view_app d_r1_s1 (denote_ext hl1 x_s2_s1)
+        (denote_ext (denote_view_bvar d_r4_s4) (x_s4_s3.trans (x_s3_s2.trans x_s2_s1)))) x_s1_s0
+      have hc3 := denote_view_app d_r0_s0 (denote_ext hl1 (x_s2_s1.trans x_s1_s0))
+        (denote_ext (denote_view_bvar d_r3_s3) (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))
+      obtain ⟨D, R, hT, hD, hR⟩ := denote_forallE_inv hwf0 v_r11_type_s0 hty0
+      obtain ⟨D2, R2, rfl, hD2, hR2⟩ := denote_forallE_inv hwf0 v_body1_s0 hR
+      rw [listConsTyOk_forallE hP hT]
+      simp only [listConsR,
+        listConsR2_of_not (denote_not_forallE hwf0 v_body0_s0 hR2 hnot0)]
+      simp
+    case vc27.some.post.success.h_1.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.h_1.isFalse.post.success.h_2 =>
+      rename_i s11 r11 p0 hsingle s10 r10 s9 r9 s8 r8 s7 r7 r6 s6 r5 s5 r4 s4
+        r3 s3 r2 s2 r1 s1 r0 dom0 body0 mb0 hneg0 x1 hnot0 s0 ck_s10 wf_s9
+        wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9 x_s9_s8 x_s8_s7
+        x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _ d_r11_type_s10
+        _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _
+        _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _
+        _ _ _ _ p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8
+        dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3
+        d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps wf_s6
+        hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 v_body0_s0
+        wf_s0 v_r11_type_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
+      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
+      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))),
+        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))).trans p_s10_s11, ?_⟩
+      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
+      have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
+        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
+      have hty0 := denote_ext d_r11_type_s10 x100
+      have hwf0 := wf_s0
+      obtain ⟨D, R, hT, hD, hR⟩ := denote_forallE_inv hwf0 v_r11_type_s0 hty0
+      rw [listConsTyOk_forallE hP hT,
+        listConsR_of_not (denote_not_forallE hwf0 v_body0_s0 hR hnot0)]
+      simp
+    case vc28.some.post.success.h_1.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.post.success.h_2 =>
+      rename_i s11 r11 p0 hsingle s10 r10 s9 r9 s8 r8 s7 r7 r6 s6 r5 s5 r4 s4
+        r3 s3 r2 s2 r1 s1 r0 x1 hnot0 s0 ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4
+        wf_s3 wf_s2 wf_s1 x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3
+        x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _ _ _ _
+        c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _ _ p_s7_s8 p_s5_s6
+        p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _ p_s9_s10
+        p_s8_s9 _ _ _ _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7
+        d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2
+        d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _
+        _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 wf_s0 v_r11_type_s0 x_s1_s0
+        _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
+      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
+      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))),
+        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans p_s9_s10))))))))).trans p_s10_s11, ?_⟩
+      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
+      have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
+        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
+      have hty0 := denote_ext d_r11_type_s10 x100
+      have hwf0 := wf_s0
+      exact (listNilConsTyOk_not_forallE hP
+        (denote_not_forallE hwf0 v_r11_type_s0 hty0 hnot0)).2.symm
+    case vc29.some.post.success.h_2 =>
+      rename_i s1 r0 s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps hnotsingle
+      exact ⟨ck_s0, x_s1_s0, p_s0_s1,
+        (listTyOks_not_single (denoteNList_not_single hlps hnotsingle)).2.2.symm⟩
+    all_goals first
+      | assumption
+      | (apply CheckOK.wf'; assumption)
+      | exact viewOK_bvar
+
 end ConRon.Bridge.Core
