@@ -489,20 +489,38 @@ theorem reduce_bool_cv_a_refines {pers st lst} {o}
       (reduceBoolCvA) := by
   sorry
 
-/-- `of_reduce_nat_a` ⊑ `ofReduceNatA`. -/
+/-- `of_reduce_nat_a` ⊑ the RAW `ofReduceRaw ofReduceNatName`, interned.
+
+**Restated by task #97-P5-Top: the old statement (against the twin's
+`ofReduceNatA`) was false.**  The port interns
+`kernel::trust_axioms::of_reduce_pin_a`, which is the RAW pin (that module's
+note: `matchesPin` cannot tell it from the annotated one), and con-leche's
+`ofReduceNatA ≠ ofReduceRaw ofReduceNatName` — they differ in the binder
+`pw` data, so they intern different `BMNode`s.  `of_reduce_pin_a_refines`
+below has the same defect and is left for the ruling (DESIGN.md, task
+#97-P5-Top). -/
 theorem of_reduce_nat_a_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.trust_axioms.of_reduce_nat_a pers st = ok o) :
     Sim absIConstantVal (fun _ => True) pers lst o
-      (ofReduceNatA) := by
+      (internCV (ConLeche.ofReduceRaw ConLeche.ofReduceNatName)) := by
   sorry
 
-/-- `of_reduce_bool_a` ⊑ `ofReduceBoolA`. -/
+/-- `of_reduce_bool_a` ⊑ the RAW `ofReduceRaw ofReduceBoolName`, interned.
+
+**Restated by task #97-P5-Top: the old statement (against the twin's
+`ofReduceBoolA`) was false.**  The port interns
+`kernel::trust_axioms::of_reduce_pin_a`, which is the RAW pin (that module's
+note: `matchesPin` cannot tell it from the annotated one), and con-leche's
+`ofReduceBoolA ≠ ofReduceRaw ofReduceBoolName` — they differ in the binder
+`pw` data, so they intern different `BMNode`s.  `of_reduce_pin_a_refines`
+below has the same defect and is left for the ruling (DESIGN.md, task
+#97-P5-Top). -/
 theorem of_reduce_bool_a_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.trust_axioms.of_reduce_bool_a pers st = ok o) :
     Sim absIConstantVal (fun _ => True) pers lst o
-      (ofReduceBoolA) := by
+      (internCV (ConLeche.ofReduceRaw ConLeche.ofReduceBoolName)) := by
   sorry
 
 /-- `reduce_op_cv_a` ⊑ `reduceOpCvA`. -/
