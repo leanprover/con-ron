@@ -957,22 +957,34 @@ theorem eqApp3?_spec (h : EIdx) (hP : Expr) :
           hP = .app (.app (.app (.const cP [uP]) tyP) lP) rrP) := by
   intro s₀ s' r hok hd hrun
   simp only [Arena.eqApp3?] at hrun
-  obtain ⟨v1, s1, g1, k1⟩ := bindOk hrun
+  obtain ⟨v10, hv10⟩ := denoteE_view hd
+  obtain ⟨v1, s1, g1, k1⟩ := bindOk (tagIf_view_run hv10
+    (fun hne => by cases v10 <;> first | exact absurd rfl hne | rfl) hrun)
+  clear hv10 v10
   obtain ⟨rfl, hw1⟩ := view_run g1
   cases v1
   case app f1 rr =>
     obtain ⟨efP, errP, rfl, hf1, hrr⟩ := denote_app_inv hok.wf hw1 hd
-    obtain ⟨v2, s2, g2, k2⟩ := bindOk k1
+    obtain ⟨v20, hv20⟩ := denoteE_view hf1
+    obtain ⟨v2, s2, g2, k2⟩ := bindOk (tagIf_view_run hv20
+      (fun hne => by cases v20 <;> first | exact absurd rfl hne | rfl) k1)
+    clear hv20 v20
     obtain ⟨rfl, hw2⟩ := view_run g2
     cases v2
     case app f2 l =>
       obtain ⟨ef2P, elP, hfe, hf2, hl⟩ := denote_app_inv hok.wf hw2 hf1
-      obtain ⟨v3, s3, g3, k3⟩ := bindOk k2
+      obtain ⟨v30, hv30⟩ := denoteE_view hf2
+      obtain ⟨v3, s3, g3, k3⟩ := bindOk (tagIf_view_run hv30
+        (fun hne => by cases v30 <;> first | exact absurd rfl hne | rfl) k2)
+      clear hv30 v30
       obtain ⟨rfl, hw3⟩ := view_run g3
       cases v3
       case app f3 ty =>
         obtain ⟨ef3P, etyP, hfe2, hf3, hty⟩ := denote_app_inv hok.wf hw3 hf2
-        obtain ⟨v4, s4, g4, k4⟩ := bindOk k3
+        obtain ⟨v40, hv40⟩ := denoteE_view hf3
+        obtain ⟨v4, s4, g4, k4⟩ := bindOk (tagIf_view_run hv40
+          (fun hne => by cases v40 <;> first | exact absurd rfl hne | rfl) k3)
+        clear hv40 v40
         obtain ⟨rfl, hw4⟩ := view_run g4
         cases v4
         case const c us =>
@@ -1032,22 +1044,34 @@ theorem eqApp3?_none (h : EIdx) (hP : Expr) :
   intro s₀ s' r hok hd hrun
   have hwf := hok.wf
   simp only [Arena.eqApp3?] at hrun
-  obtain ⟨v1, s1, g1, k1⟩ := bindOk hrun
+  obtain ⟨v10, hv10⟩ := denoteE_view hd
+  obtain ⟨v1, s1, g1, k1⟩ := bindOk (tagIf_view_run hv10
+    (fun hne => by cases v10 <;> first | exact absurd rfl hne | rfl) hrun)
+  clear hv10 v10
   obtain ⟨rfl, hw1⟩ := view_run g1
   cases v1
   case app f1 rr =>
     obtain ⟨efP, errP, rfl, hf1, hrr⟩ := denote_app_inv hwf hw1 hd
-    obtain ⟨v2, s2, g2, k2⟩ := bindOk k1
+    obtain ⟨v20, hv20⟩ := denoteE_view hf1
+    obtain ⟨v2, s2, g2, k2⟩ := bindOk (tagIf_view_run hv20
+      (fun hne => by cases v20 <;> first | exact absurd rfl hne | rfl) k1)
+    clear hv20 v20
     obtain ⟨rfl, hw2⟩ := view_run g2
     cases v2
     case app f2 l =>
       obtain ⟨ef2P, elP, rfl, hf2, hl⟩ := denote_app_inv hwf hw2 hf1
-      obtain ⟨v3, s3, g3, k3⟩ := bindOk k2
+      obtain ⟨v30, hv30⟩ := denoteE_view hf2
+      obtain ⟨v3, s3, g3, k3⟩ := bindOk (tagIf_view_run hv30
+        (fun hne => by cases v30 <;> first | exact absurd rfl hne | rfl) k2)
+      clear hv30 v30
       obtain ⟨rfl, hw3⟩ := view_run g3
       cases v3
       case app f3 ty =>
         obtain ⟨ef3P, etyP, rfl, hf3, hty⟩ := denote_app_inv hwf hw3 hf2
-        obtain ⟨v4, s4, g4, k4⟩ := bindOk k3
+        obtain ⟨v40, hv40⟩ := denoteE_view hf3
+        obtain ⟨v4, s4, g4, k4⟩ := bindOk (tagIf_view_run hv40
+          (fun hne => by cases v40 <;> first | exact absurd rfl hne | rfl) k3)
+        clear hv40 v40
         obtain ⟨rfl, hw4⟩ := view_run g4
         cases v4
         case const c us =>
@@ -1124,7 +1148,7 @@ theorem checkIotaSidesTy_spec {μ : CheckMode} {env : Env} (feSelf : IFEnv)
         denoteE st lhsS = some lhsSP ∧ denoteE st rhsS = some rhsSP ∧
         denoteL st.ls lA = some lAP ∧ denoteN st.ns cvName = some cvNameP ∧
         denoteFEnv st feSelf = some envSelf ∧ denoteFEnv st feSelf = some env)
-      (Arena.checkIotaSidesTy μ feSelf depth alphaS lhsS rhsS lA cvName)
+      (Arena.checkIotaSidesTy μ feSelf depth alphaS lhsS rhsS lA)
       (fun _ _ => ∃ F, ConLeche.checkIotaSidesTy μ (ConLeche.fueledOps μ F)
         envSelf depth alphaSP lhsSP rhsSP lAP cvNameP = .ok ()) := by
   intro s₀ s' r hok hpre hrun
@@ -1132,9 +1156,6 @@ theorem checkIotaSidesTy_spec {μ : CheckMode} {env : Env} (feSelf : IFEnv)
   obtain rfl : envSelf = env := Option.some.inj (hfeS.symm.trans hfe)
   obtain ⟨hwa, hwl, hwr⟩ := hws
   have hknot := hk.knot envSelf feSelf henv
-  have hnever : ∀ {α β γ : Type} {x : AM α} {f : α → Arena.CheckError}
-      {g : γ → AM β}, AM.Never (x >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
-    fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
   simp only [Arena.checkIotaSidesTy] at hrun
   -- the left side's type
   obtain ⟨tl, s1, k1, z1⟩ := bindOk hrun
@@ -1147,7 +1168,7 @@ theorem checkIotaSidesTy_spec {μ : CheckMode} {env : Env} (feSelf : IFEnv)
     (Q := fun r u => CheckOK μ envSelf feSelf u ∧ Ext s1.store u.store ∧
       u.pins = s1.pins ∧ Core.SimV (ConLeche.isDefEqCore μ envSelf) depth tlP alphaSP r)
     rfl k2 (hknot.defeq s1 depth tl alphaS tlP alphaSP ok1 htl (denote_ext hal x1) hwtl hwa)
-  obtain ⟨hb1, z3⟩ := AM.dunless_ok hnever z2
+  obtain ⟨hb1, z3⟩ := AM.dunless_ok (AM.Never.fail _) z2
   replace z3 := AM.pure_bind_ok z3
   subst hb1
   -- the right side's type
@@ -1163,7 +1184,7 @@ theorem checkIotaSidesTy_spec {μ : CheckMode} {env : Env} (feSelf : IFEnv)
       u.pins = s3.pins ∧ Core.SimV (ConLeche.isDefEqCore μ envSelf) depth trP alphaSP r)
     rfl k4 (hknot.defeq s3 depth tr alphaS trP alphaSP ok3 htr
       (denote_ext hal (x12.trans x3)) hwtr hwa)
-  obtain ⟨hb2, z6⟩ := AM.dunless_ok hnever z5
+  obtain ⟨hb2, z6⟩ := AM.dunless_ok (AM.Never.fail _) z5
   replace z6 := AM.pure_bind_ok z6
   subst hb2
   have x14 := (x12.trans x3).trans x4
@@ -1204,7 +1225,7 @@ theorem checkIotaSidesTy_spec {μ : CheckMode} {env : Env} (feSelf : IFEnv)
         u.pins = s6.pins ∧ Core.SimV (ConLeche.isDefEqCore μ envSelf) depth taP (.sort lAP) r)
       rfl k7 (hknot.defeq s6 depth ta so taP (.sort lAP) ok6 (denote_ext hta p6.ext) hso hwta
         (by simp [Expr.WScoped]))
-    obtain ⟨hb3, z10⟩ := AM.dunless_ok (AM.Never.bind fun _ => AM.Never.fail _) z9
+    obtain ⟨hb3, z10⟩ := AM.dunless_ok (AM.Never.fail _) z9
     subst hb3
     obtain ⟨rfl, rfl⟩ := pureOk z10
     refine ⟨⟨ok7, (x14.trans x5).trans (p6.ext.trans x7), by rw [p7, p6.pins, p5, c4.pins]⟩,
@@ -1339,12 +1360,8 @@ theorem checkIotaThm_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
   obtain ⟨hctorN, -⟩ := denoteRule_ctor hr
   simp only [Arena.checkIotaThm] at hrun
-  -- the recursor's name, for the messages
-  obtain ⟨nm, s₁, k1, z1⟩ := bindOk hrun
-  obtain ⟨hs1, -⟩ := Frontend.readName_run k1
-  subst s₁
   -- the stored theorem
-  obtain ⟨thm, s₂, k2, z2⟩ := bindOk z1
+  obtain ⟨thm, s₂, k2, z2⟩ := bindOk hrun
   obtain ⟨p2, hthm⟩ := iotaThmName_spec cvName cvNameP j s₀ s₂ thm hck.state hcn k2
   have c2 := p2.toCore hck
   obtain ⟨o, s₃, k3, z3⟩ := bindOk z2
@@ -1400,6 +1417,10 @@ theorem checkIotaThm_spec {μ : CheckMode} (fe' feSelf : IFEnv)
   replace z12 := AM.pure_bind_ok z12
   have h3P : tbodyP.getAppArgs.length = 3 := by
     rw [← h3]; exact (ExprOps.denoteEList_length _ _ htargs)
+  -- the equation's level, read in the prologue (as the port does)
+  obtain ⟨lA, s₄₆, k46, z12⟩ := bindOk z12
+  obtain ⟨hs46, hlA⟩ := eqHeadLevel_run c5.ok.state c5.ok.pins htfn k46
+  subst s₄₆
   -- the two sides
   obtain ⟨b0, s₁₀, k10, z13⟩ := bindOk z12
   obtain ⟨q10, hb0⟩ := internBVarE_run c5.ok.state k10
@@ -1708,10 +1729,7 @@ theorem checkIotaThm_spec {μ : CheckMode} (fe' feSelf : IFEnv)
   replace z55 := AM.pure_bind_ok z55
   subst hbd
   -- the two sides' types
-  obtain ⟨lA, s₄₆, k46, z56⟩ := bindOk z55
   have x5_45 : Ext s₅.store s₄₅.store := q10.ext.trans (x10_44.trans x45)
-  obtain ⟨hs46, hlA⟩ := eqHeadLevel_run c45.ok.state c45.ok.pins (denote_ext htfn x5_45) k46
-  subst s₄₆
   have x10_45 := x10_44.trans x45
   have htg45 := denoteEList_ext x10_45 _ _ htg
   obtain ⟨c47, F₇, hF₇⟩ := checkIotaSidesTy_spec feSelf envSelf hk henv (rP + cnF)
@@ -1721,8 +1739,8 @@ theorem checkIotaThm_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     cvNameP ⟨ConLeche.WScoped_getD' htargsW 0, hlhsW, hrhsSW⟩ s₄₅ s' x c45.ok
     ⟨denoteEList_getD_fb (denote_ext hb0 x10_45) htg45 0,
       denoteEList_getD_fb (denote_ext hb0 x10_45) htg45 1,
-      denoteEList_getD_fb (denote_ext hb0 x10_45) htg45 2, hlA,
-      denoteN_ext hcn c45.ext, denoteFEnv_ext c45.ext hfeS, denoteFEnv_ext c45.ext hfeS⟩ z56
+      denoteEList_getD_fb (denote_ext hb0 x10_45) htg45 2, denoteL_ext hlA x5_45,
+      denoteN_ext hcn c45.ext, denoteFEnv_ext c45.ext hfeS, denoteFEnv_ext c45.ext hfeS⟩ z55
   refine ⟨c45.trans c47, max (max (max F₁ F₂) (max F₃ F₄)) (max F₅ (max F₆ F₇)), ?_⟩
   -- the pure side, at the joined fuel
   have g1 := checkDefEqList_mono (F' := max (max (max F₁ F₂) (max F₃ F₄)) (max F₅ (max F₆ F₇)))
@@ -1758,6 +1776,9 @@ theorem checkIotaThm_spec {μ : CheckMode} (fe' feSelf : IFEnv)
   rw [if_pos trivial]
   exact g7
 
+-- task #97-T2-LOCKSTEP lane Inductives: the twin reads `rest` and the head tag-first now,
+-- and the two `simp_all` closers of the off-shape arms need twice the default budget.
+set_option maxHeartbeats 400000 in
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:151-190 nestedRuleShape
 The nested rule's levels and pinned arguments, read off the stored recursor
 type.  PURE on both sides (con-leche's is not even in `m`), and the answer is
@@ -1828,7 +1849,10 @@ theorem nestedRuleShape_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     simp only [ConLeche.nestedRuleShape, if_pos hcond, stripPis_none hsp]
   obtain ⟨bsP, restP, hspP, -, hrest⟩ := denoteBP_someB' hsp
   dsimp only at z3
-  obtain ⟨v1, s₄, k4, z4⟩ := bindOk z3
+  obtain ⟨v10, hv10⟩ := denoteE_view hrest
+  obtain ⟨v1, s₄, k4, z4⟩ := bindOk (tagIf_view_run hv10
+    (fun hne => by cases v10 <;> first | exact absurd rfl hne | rfl) z3)
+  clear hv10 v10
   obtain ⟨hs4, hv1⟩ := view_run k4
   subst s₄
   by_cases hfa : ¬ ∃ dom b m, v1 = .forallE dom b m
@@ -1847,7 +1871,10 @@ theorem nestedRuleShape_spec {μ : CheckMode} (fe' feSelf : IFEnv)
   obtain ⟨hd, s₅, k5, z5⟩ := bindOk z4
   obtain ⟨hs5, hhd⟩ := getAppFn_run c02.ok.state hdom k5
   subst s₅
-  obtain ⟨v2, s₆, k6, z6⟩ := bindOk z5
+  obtain ⟨v20, hv20⟩ := denoteE_view hhd
+  obtain ⟨v2, s₆, k6, z6⟩ := bindOk (tagIf_view_run hv20
+    (fun hne => by cases v20 <;> first | exact absurd rfl hne | rfl) z5)
+  clear hv20 v20
   obtain ⟨hs6, hv2⟩ := view_run k6
   subst s₆
   by_cases hco : ¬ ∃ D us, v2 = .const D us
@@ -2030,12 +2057,8 @@ theorem checkIotaThmN_spec {μ : CheckMode} (fe' feSelf : IFEnv)
   obtain ⟨⟨lvlsP, pinsV⟩, hnsP, hlvls0, hpins0⟩ := hns
   have hpinsF : ∀ p ∈ pinsV, p.hasFvar = false := ConLeche.nestedRuleShape_pins hnsP
   dsimp only at z0
-  -- the recursor's name, for the messages
-  obtain ⟨nm, s₁, k1, z1⟩ := bindOk z0
-  obtain ⟨hs1, -⟩ := Frontend.readName_run k1
-  subst s₁
   -- the stored theorem
-  obtain ⟨thm, s₂, k2, z2⟩ := bindOk z1
+  obtain ⟨thm, s₂, k2, z2⟩ := bindOk z0
   obtain ⟨p2, hthm⟩ := iotaThmName_spec cvName cvNameP j s₀' s₂ thm c0.ok.state
     (denoteN_ext hcn c0.ext) k2
   have c2 := c0.trans (p2.toCore c0.ok)
@@ -2093,6 +2116,10 @@ theorem checkIotaThmN_spec {μ : CheckMode} (fe' feSelf : IFEnv)
   replace z12 := AM.pure_bind_ok z12
   have h3P : tbodyP.getAppArgs.length = 3 := by
     rw [← h3]; exact (ExprOps.denoteEList_length _ _ htargs)
+  -- the equation's level, read in the prologue (as the port does)
+  obtain ⟨lA, uR, kuR, z12⟩ := bindOk z12
+  obtain ⟨hsuR, hlA⟩ := eqHeadLevel_run c5.ok.state c5.ok.pins htfn kuR
+  subst uR
   -- the two sides
   obtain ⟨b0, s₁₀, k10, z13⟩ := bindOk z12
   obtain ⟨q10, hb0⟩ := internBVarE_run c5.ok.state k10
@@ -2201,7 +2228,10 @@ theorem checkIotaThmN_spec {μ : CheckMode} (fe' feSelf : IFEnv)
   obtain ⟨hd0, tK, kK, zO⟩ := bindOk zN
   obtain ⟨hsK, hhd0⟩ := getAppFn_run cH.ok.state hcbody0 kK
   subst tK
-  obtain ⟨v0, tL, kL, zP⟩ := bindOk zO
+  obtain ⟨v00, hv00⟩ := denoteE_view hhd0
+  obtain ⟨v0, tL, kL, zP⟩ := bindOk (tagIf_view_run hv00
+    (fun hne => by cases v00 <;> first | exact absurd rfl hne | rfl) zO)
+  clear hv00 v00
   obtain ⟨hsL, hv0⟩ := view_run kL
   subst tL
   obtain ⟨hcst, zQ⟩ := AM.dunless_ok hnever zP
@@ -2485,13 +2515,10 @@ theorem checkIotaThmN_spec {μ : CheckMode} (fe' feSelf : IFEnv)
   replace zAY := AM.pure_bind_ok zAY
   subst hbd
   -- the two sides' types
-  obtain ⟨lA, uR, kuR, zAZ⟩ := bindOk zAY
   have x5_Q : Ext s₅.store uQ.store := q10.ext.trans (x10_P.trans xQ)
-  obtain ⟨hsuR, hlA⟩ := eqHeadLevel_run cuQ.ok.state cuQ.ok.pins (denote_ext htfn x5_Q) kuR
-  subst uR
   have x10_Q := x10_P.trans xQ
   have htgQ := denoteEList_ext x10_Q _ _ htg
-  obtain ⟨uS, uT, kuT, zBA⟩ := bindOk zAZ
+  obtain ⟨uS, uT, kuT, zBA⟩ := bindOk zAY
   obtain ⟨cuT, F₇, hF₇⟩ := checkIotaSidesTy_spec feSelf envSelf hk henv (rP + cnF)
     (targs.getD 0 b0) (targs.getD 1 b0) (targs.getD 2 b0)
     (tbodyP.getAppArgs.getD 0 (.bvar 0)) (tbodyP.getAppArgs.getD 1 (.bvar 0))
@@ -2499,7 +2526,7 @@ theorem checkIotaThmN_spec {μ : CheckMode} (fe' feSelf : IFEnv)
     cvNameP ⟨ConLeche.WScoped_getD' htargsW 0, hlhsW, hrhsSW⟩ uQ uT uS cuQ.ok
     ⟨denoteEList_getD_fb (denote_ext hb0 x10_Q) htgQ 0,
       denoteEList_getD_fb (denote_ext hb0 x10_Q) htgQ 1,
-      denoteEList_getD_fb (denote_ext hb0 x10_Q) htgQ 2, hlA,
+      denoteEList_getD_fb (denote_ext hb0 x10_Q) htgQ 2, denoteL_ext hlA x5_Q,
       denoteN_ext hcn cuQ.ext, denoteFEnv_ext cuQ.ext hfeS, denoteFEnv_ext cuQ.ext hfeS⟩ kuT
   obtain ⟨hxe, hsT⟩ := pureOk zBA
   subst hxe
@@ -2588,15 +2615,12 @@ theorem checkIotaRule_spec {μ : CheckMode} (fe' feSelf : IFEnv)
   rw [hc1, hc2, hc3] at hr
   obtain rfl := (Option.some.inj hr).symm
   simp only [Arena.checkIotaRule] at hrun
-  -- the rule's name, for the messages
-  obtain ⟨nm, s₁, k1, z1⟩ := bindOk hrun
-  obtain ⟨hs1, -⟩ := Frontend.readName_run k1
-  rw [hs1] at z1
+  have z1 := hrun
   -- the stored constructor, at `fe'`
   cases hf : fe'.find? r.ctor with
   | none =>
     rw [hf] at z1
-    exact absurd z1 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+    exact absurd z1 (AM.Never.fail _ _ _ _)
   | some ci =>
   rw [hf] at z1
   obtain ⟨nm', cP, hnm', hcP, henvC⟩ := hienv₀.hit r.ctor ci hf
@@ -2789,7 +2813,7 @@ theorem checkIotaRule_spec {μ : CheckMode} (fe' feSelf : IFEnv)
           tyAP mI rP j ⟨ctorP, r.nfields, r.ctorParams, fireP, rhsP, r.k, r.eta,
             r.paramsBlind⟩ cvjP cnP cnF rhsAP).property (by omega) hF₃
       simp only [bind, Except.bind, hu', pure, Except.pure]
-  all_goals exact absurd z1 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+  all_goals exact absurd z1 (AM.Never.fail _ _ _ _)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:362-371 checkIotaRules
 The whole rule list.
@@ -2918,7 +2942,7 @@ theorem checkMemberVal_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
   cases hf : fe'.find? mn with
   | none =>
     rw [hf] at z4
-    exact absurd z4 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+    exact absurd z4 (AM.Never.fail _ _ _ _)
   | some ci =>
   rw [hf] at z4
   obtain ⟨nm', cm, hnm', hcm, henvm⟩ := hienv.hit mn ci hf
@@ -2952,7 +2976,7 @@ theorem checkMemberVal_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
       simpa using hms
     simp only [ConLeche.checkMemberVal, bind, Except.bind, hF, hms', Bool.false_eq_true,
       if_false, henvm, hlpsP, if_true, hty, pure, Except.pure]
-  all_goals exact absurd z4 (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+  all_goals exact absurd z4 (AM.Never.fail _ _ _ _)
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeCS4.lean:164 checkIndMemberS_run
 (its `EnvWF` half, pure) — **one member step leaves a well-formed environment
@@ -3073,11 +3097,11 @@ theorem checkIndMember_push {μ : CheckMode} {bn : List NIdx} {caps : IIndCaps}
   | ctorInfo v a b =>
     obtain ⟨rfl, rfl⟩ := pureOk h
     exact ⟨_, rfl, fun t h => IConstantInfo.noConfusion h⟩
-  | axiomInfo v => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-  | defnInfo v e hint => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-  | thmInfo v e => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-  | recInfo v a b c => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-  | projInfo t => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+  | axiomInfo v => exact absurd h (AM.Never.fail _ _ _ _)
+  | defnInfo v e hint => exact absurd h (AM.Never.fail _ _ _ _)
+  | thmInfo v e => exact absurd h (AM.Never.fail _ _ _ _)
+  | recInfo v a b c => exact absurd h (AM.Never.fail _ _ _ _)
+  | projInfo t => exact absurd h (AM.Never.fail _ _ _ _)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:403-414 checkIndMember
 One member checked and installed at its real inductive kind.
@@ -3111,11 +3135,11 @@ theorem checkIndMember_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
     cases ci with
     | indInfo v c => exact Or.inl ⟨v, c, rfl⟩
     | ctorInfo v a b => exact Or.inr ⟨v, a, b, rfl⟩
-    | axiomInfo v => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-    | defnInfo v e hint => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-    | thmInfo v e => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-    | recInfo v a b c => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
-    | projInfo t => exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+    | axiomInfo v => exact absurd h (AM.Never.fail _ _ _ _)
+    | defnInfo v e hint => exact absurd h (AM.Never.fail _ _ _ _)
+    | thmInfo v e => exact absurd h (AM.Never.fail _ _ _ _)
+    | recInfo v a b c => exact absurd h (AM.Never.fail _ _ _ _)
+    | projInfo t => exact absurd h (AM.Never.fail _ _ _ _)
   rcases hkind with ⟨v, c, rfl⟩ | ⟨v, a, b, rfl⟩
   · obtain ⟨vP, cP, rfl, hv, hc⟩ := denoteCI_ind_inv hci
     obtain ⟨rfl, rfl⟩ := pureOk k2
@@ -4493,15 +4517,15 @@ theorem checkEtaThm_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
         obtain ⟨sq1, s5, k5, z5⟩ := bindOk z4
         obtain ⟨hs5, hsq1⟩ := stripPis_pstep c04.ok.state (denoteCV_type htcv4) k5
         rw [hs5] at z5
-        obtain ⟨sq2, s6, k6, z6⟩ := bindOk z5
-        obtain ⟨hs6, hsq2⟩ := stripPis_pstep c04.ok.state (denoteCV_type hcvmT4) k6
-        rw [hs6] at z6
         rcases sq1 with _ | ⟨sbs, sbody⟩
-        · obtain ⟨rfl, rfl⟩ := pureOk z6
+        · obtain ⟨rfl, rfl⟩ := pureOk z5
           refine ⟨c04, ?_⟩
           show false = _
           rw [stripPis_none hsq1]
         obtain ⟨sxs, sbodyP, hsps, hsbs, hsbody⟩ := denoteBP_someB hsq1
+        obtain ⟨sq2, s6, k6, z6⟩ := bindOk z5
+        obtain ⟨hs6, hsq2⟩ := stripPis_pstep c04.ok.state (denoteCV_type hcvmT4) k6
+        rw [hs6] at z6
         rcases sq2 with _ | ⟨tbs, tbody⟩
         · obtain ⟨rfl, rfl⟩ := pureOk z6
           refine ⟨c04, ?_⟩
@@ -4608,57 +4632,64 @@ theorem checkEtaThm_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
         dsimp only at z13
         obtain ⟨b0, s14, k14, z14⟩ := bindOk z13
         obtain ⟨q14, hb0⟩ := internBVarE_run q13.ok k14
-        obtain ⟨cHd, s15, k15, z15⟩ := bindOk z14
+        -- the constructor model's head, at levels read afresh (as the port does)
         have x4_14 : Ext s4.store s14.store :=
           q4_10.ext.trans (q11.ext.trans (q12.ext.trans (q13.ext.trans q14.ext)))
-        have hus14 : denoteLs s14.store.lss us = some (lpsP.map Level.param) :=
-          denoteLs_ext hus (q8.ext.trans (q9.ext.trans (q10.ext.trans (q11.ext.trans
-            (q12.ext.trans (q13.ext.trans q14.ext))))))
-        obtain ⟨q15, hcHd⟩ := internConstE_run q14.ok
-          (denoteN_ext hcm ((c3.ext.trans c4.ext).trans x4_14)) hus14 k15
+        have hlps14 := denoteNListE_ext x4_14 _ _ (denoteNListE_ext c4.ext _ _ hlps3)
+        obtain ⟨us2, s14u, k14u, z14⟩ := bindOk z14
+        obtain ⟨q14u, hus2⟩ := paramLevels_spec lps lpsP s14 s14u us2 q14.ok hlps14 k14u
+        obtain ⟨cHd, s15, k15, z15⟩ := bindOk z14
+        obtain ⟨q15, hcHd⟩ := internConstE_run q14u.ok
+          (denoteN_ext hcm (((c3.ext.trans c4.ext).trans x4_14).trans q14u.ext)) hus2 k15
         obtain ⟨pas, s16, k16, z16⟩ := bindOk z15
         have hT15 : denoteN s15.store.ns T = some TP :=
-          denoteN_ext hT2 (((c3.ext.trans c4.ext).trans x4_14).trans q15.ext)
-        have hus15 := denoteLs_ext hus14 q15.ext
-        have hps15 := denoteEList_ext ((q12.ext.trans (q13.ext.trans q14.ext)).trans q15.ext)
-          _ _ hps1
-        have hb015 := denote_ext hb0 q15.ext
+          denoteN_ext hT2 (((c3.ext.trans c4.ext).trans x4_14).trans (q14u.ext.trans q15.ext))
+        have hlps15 := denoteNListE_ext (q14u.ext.trans q15.ext) _ _ hlps14
+        have hps15 := denoteEList_ext ((q12.ext.trans (q13.ext.trans q14.ext)).trans
+          (q14u.ext.trans q15.ext)) _ _ hps1
+        have hb015 := denote_ext hb0 (q14u.ext.trans q15.ext)
         obtain ⟨q16, hpas⟩ := mapM_pstep
           (fun j => (do
-            let pHd ← internE (.const (← Arena.projModelName T j) us)
+            let pHd ← internE (.const (← Arena.projModelName T j) (← Arena.paramLevels lps))
             Arena.mkAppN pHd (ps1 ++ [b0]) : AM EIdx))
           (fun j => Expr.mkAppN (.const (ConLeche.projModelName TP j) (lpsP.map .param))
             (((List.range nP).map fun k => Expr.bvar (nP - k)) ++ [Expr.bvar 0]))
           (fun st b c => denoteE st b = some c)
           (fun _ st => denoteN st.ns T = some TP ∧
-            denoteLs st.lss us = some (lpsP.map Level.param) ∧
+            Frontend.denoteNList st.ns lps = some lpsP ∧
             Frontend.denoteEList st ps1 = some ((List.range nP).map fun k => Expr.bvar (nP - k)) ∧
             denoteE st b0 = some (.bvar 0))
           (fun hx h => denote_ext h hx)
-          (fun hx h => ⟨denoteN_ext h.1 hx, denoteLs_ext h.2.1 hx,
+          (fun hx h => ⟨denoteN_ext h.1 hx, denoteNListE_ext hx _ _ h.2.1,
             denoteEList_ext hx _ _ h.2.2.1, denote_ext h.2.2.2 hx⟩)
           (by
             intro j t₀ t' b hokt hP hrun
-            obtain ⟨hTt, hust, hpst, hb0t⟩ := hP
+            obtain ⟨hTt, hlpst, hpst, hb0t⟩ := hP
             obtain ⟨nmh, t1, g1, y1⟩ := bindOk hrun
             obtain ⟨r1, hnmh⟩ := projModelName_run hokt hTt g1
-            obtain ⟨pHd, t2, g2, y2⟩ := bindOk y1
-            obtain ⟨r2, hpHd⟩ := internConstE_run r1.ok hnmh (denoteLs_ext hust r1.ext) g2
+            obtain ⟨ust, t1u, g1u, y1u⟩ := bindOk y1
+            obtain ⟨r1u, hust⟩ := paramLevels_spec lps lpsP t1 t1u ust r1.ok
+              (denoteNListE_ext r1.ext _ _ hlpst) g1u
+            obtain ⟨pHd, t2, g2, y2⟩ := bindOk y1u
+            obtain ⟨r2, hpHd⟩ := internConstE_run r1u.ok (denoteN_ext hnmh r1u.ext) hust g2
+            have x02 : Ext t₀.store t2.store := r1.ext.trans (r1u.ext.trans r2.ext)
             obtain ⟨r3, hr⟩ := mkAppN_run _ _ r2.ok hpHd
-              (denoteEList_append (denoteEList_ext (r1.ext.trans r2.ext) _ _ hpst)
+              (denoteEList_append (denoteEList_ext x02 _ _ hpst)
                 (show Frontend.denoteEList t2.store [b0] = some [Expr.bvar 0] by
-                  simp [Frontend.denoteEList, denote_ext hb0t (r1.ext.trans r2.ext)]))
+                  simp [Frontend.denoteEList, denote_ext hb0t x02]))
               y2
-            exact ⟨r1.trans (r2.trans r3), hr⟩)
-          (List.range nF) s15 s16 pas q15.ok (fun _ _ => ⟨hT15, hus15, hps15, hb015⟩) k16
+            exact ⟨r1.trans (r1u.trans (r2.trans r3)), hr⟩)
+          (List.range nF) s15 s16 pas q15.ok (fun _ _ => ⟨hT15, hlps15, hps15, hb015⟩) k16
         have hpasE := ListRel.toEList hpas
         obtain ⟨want, s17, k17, z17⟩ := bindOk z16
         obtain ⟨q17, hwant⟩ := mkAppN_run _ _ q16.ok (denote_ext hcHd q16.ext)
           (denoteEList_append (denoteEList_ext q16.ext _ _ hps15) hpasE) k17
         obtain ⟨sortA, s18, k18, z18⟩ := bindOk z17
         obtain ⟨q18, hsortA⟩ := internSortE_run q17.ok
-          (denoteL_ext hlA (q14.ext.trans (q15.ext.trans (q16.ext.trans q17.ext)))) k18
-        have q13_18 : PStep s13 s18 := q14.trans (q15.trans (q16.trans (q17.trans q18)))
+          (denoteL_ext hlA (q14.ext.trans (q14u.ext.trans (q15.ext.trans (q16.ext.trans
+            q17.ext))))) k18
+        have q13_18 : PStep s13 s18 :=
+          q14.trans (q14u.trans (q15.trans (q16.trans (q17.trans q18))))
         have c18 : CoreStep μ env fe' s₀ s18 := c13.trans (q13_18.toCore c13.ok)
         obtain ⟨pe, s19, k19, z19⟩ := bindOk z18
         obtain ⟨hs19, hpe⟩ := pinAt_run (x := ConLeche.eqName) c18.ok.pins rfl k19
@@ -4672,11 +4703,12 @@ theorem checkEtaThm_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
           (!μ.ttChecks || tbody == sortA)) = _
         rw [beq_handle_eq hwf18 (denoteN_ext hcc x13) hpe,
           beq_ehandle_eq hwf18 (denote_ext hlhs x13)
-            (denote_ext hb0 (q15.ext.trans (q16.ext.trans (q17.ext.trans q18.ext)))),
+            (denote_ext hb0 (q14u.ext.trans (q15.ext.trans (q16.ext.trans (q17.ext.trans
+              q18.ext))))),
           beq_ehandle_eq hwf18 (denote_ext htyS x13) (denote_ext hfam1 (q13.ext.trans x13)),
           beq_ehandle_eq hwf18 (denote_ext hrhs x13) (denote_ext hwant q18.ext),
-          beq_ehandle_eq hwf18 (denote_ext htbody (x4_14.trans
-            (q15.ext.trans (q16.ext.trans (q17.ext.trans q18.ext))))) hsortA]
+          beq_ehandle_eq hwf18 (denote_ext htbody (x4_14.trans (q14u.ext.trans
+            (q15.ext.trans (q16.ext.trans (q17.ext.trans q18.ext)))))) hsortA]
       all_goals
         (rw [hf1, hf2, hf3] at z2'
          obtain ⟨rfl, rfl⟩ := pureOk z2'
@@ -4836,15 +4868,15 @@ theorem checkUnitThm_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
       obtain ⟨sq1, s4, k4, z4⟩ := bindOk z3
       obtain ⟨hs4, hsq1⟩ := stripPis_pstep c03.ok.state (denoteCV_type htcv3) k4
       rw [hs4] at z4
-      obtain ⟨sq2, s5, k5, z5⟩ := bindOk z4
-      obtain ⟨hs5, hsq2⟩ := stripPis_pstep c03.ok.state (denoteCV_type hcvmT3) k5
-      rw [hs5] at z5
       rcases sq1 with _ | ⟨sbs, sbody⟩
-      · obtain ⟨rfl, rfl⟩ := pureOk z5
+      · obtain ⟨rfl, rfl⟩ := pureOk z4
         refine ⟨c03, ?_⟩
         show false = _
         rw [stripPis_none hsq1]
       obtain ⟨sxs, sbodyP, hsps, hsbs, hsbody⟩ := denoteBP_someB hsq1
+      obtain ⟨sq2, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨hs5, hsq2⟩ := stripPis_pstep c03.ok.state (denoteCV_type hcvmT3) k5
+      rw [hs5] at z5
       rcases sq2 with _ | ⟨tbs, tbody⟩
       · obtain ⟨rfl, rfl⟩ := pureOk z5
         refine ⟨c03, ?_⟩
@@ -5279,7 +5311,8 @@ theorem piResultIsProp_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s₀ s' : 
   have hprd := hpr eP he
   obtain ⟨v0, hv0⟩ := denoteE_view hprd
   obtain ⟨v, s2, k2, z2⟩ := bindOk (tagIf_view_run hv0
-    (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) z1)
+    (fun hne => by cases v0 <;> first | exact absurd rfl hne | rfl) z1)
+  clear hv0 v0
   obtain ⟨hs2, hv⟩ := view_run k2
   rw [hs2] at z2
   cases v
@@ -5320,7 +5353,8 @@ theorem piResultZ_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s₀ s' : AStat
   have hprd := hpr eP he
   obtain ⟨v0, hv0⟩ := denoteE_view hprd
   obtain ⟨v, s2, k2, z2⟩ := bindOk (tagIf_view_run hv0
-    (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) z1)
+    (fun hne => by cases v0 <;> first | exact absurd rfl hne | rfl) z1)
+  clear hv0 v0
   obtain ⟨hs2, hv⟩ := view_run k2
   rw [hs2] at z2
   cases v
@@ -5654,7 +5688,7 @@ theorem checkIndMember_kind {μ : CheckMode} {bn : List NIdx} {caps : IIndCaps}
   obtain ⟨_, _, _, h⟩ := bindOk h
   obtain ⟨_, _, _, h⟩ := bindOk h
   obtain ⟨_, _, _, h⟩ := bindOk h
-  exact absurd h (AM.Never.bind (fun _ => AM.Never.fail _) _ _ _)
+  exact absurd h (AM.Never.fail _ _ _ _)
 
 /-- con-leche: none — and so is every member of an accepted member fold. -/
 theorem checkIndMembers_kind {μ : CheckMode} {bn : List NIdx} {caps : IIndCaps} :

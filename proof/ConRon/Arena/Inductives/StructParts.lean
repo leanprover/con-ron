@@ -130,14 +130,16 @@ data to `pw` (the domains are kept). -/
 def replacePisPw (pw : PropWhen) : Nat → EIdx → EIdx → AM (Option EIdx)
   | 0, _, b => pure (some b)
   | k + 1, h, b => do
-    match ← view h with
-    | .forallE ty rest _ => do
-      match ← replacePisPw pw k rest b with
-      | some r => do
-        let n ← internE (.forallE ty r ⟨pw⟩)
-        pure (some n)
-      | none => pure none
-    | _ => pure none
+    if h.tag == ETag.forallE then
+      match ← view h with
+      | .forallE ty rest _ => do
+        match ← replacePisPw pw k rest b with
+        | some r => do
+          let n ← internE (.forallE ty r ⟨pw⟩)
+          pure (some n)
+        | none => pure none
+      | _ => pure none
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:160-167 Expr.pisToLamsPw
 Convert the first `k` `∀`-binders into `λ`-binders with datum `pw` over a
@@ -145,14 +147,16 @@ body. -/
 def pisToLamsPw (pw : PropWhen) : Nat → EIdx → EIdx → AM (Option EIdx)
   | 0, _, b => pure (some b)
   | k + 1, h, b => do
-    match ← view h with
-    | .forallE ty rest _ => do
-      match ← pisToLamsPw pw k rest b with
-      | some r => do
-        let n ← internE (.lam ty r ⟨pw⟩)
-        pure (some n)
-      | none => pure none
-    | _ => pure none
+    if h.tag == ETag.forallE then
+      match ← view h with
+      | .forallE ty rest _ => do
+        match ← pisToLamsPw pw k rest b with
+        | some r => do
+          let n ← internE (.lam ty r ⟨pw⟩)
+          pure (some n)
+        | none => pure none
+      | _ => pure none
+    else pure none
 
 /-! ## The generated recursor at an indexed family -/
 
@@ -217,48 +221,60 @@ structure StructParts where
 The *shape* facts the model reads off the stored (annotated) types. -/
 def structShape (T C : NIdx) (lps : List NIdx) (elim : NIdx) (large : Bool)
     (nP nF : Nat) (tty cty rty : EIdx) : AM Bool := do
-  match ← stripPis nP tty, ← stripPis (nP + nF) cty, ← stripPis (nP + 3) rty with
-  | some (_, tbody), some (_, cbody), some (rbs, rbody) => do
-    match ← view tbody with
-    | .sort _ => do
-      let fam ← structFam T lps nP nF
-      let b2 ← internE (.bvar 2)
-      let b0 ← internE (.bvar 0)
-      let want ← internE (.app b2 b0)
-      if !(cbody == fam && rbody == want) then pure false else do
-      -- the motive's codomain: `Sort elim` for the large eliminator, `Prop`
-      -- for the small one (task #175 W4c/O4)
-      let motiveOk ← match rbs[nP]? with
-        | some (mdom, _) => do
-          match ← view mdom with
-          | .forallE mmaj mcod _ => do
-            match ← view mcod with
-            | .sort s' => do
-              let want ← if large then internLNode (.param elim) else internLNode .zero
-              let fam0 ← structFam T lps nP 0
-              pure (s' == want && mmaj == fam0)
-            | _ => pure false
-          | _ => pure false
-        | _ => pure false
-      if !motiveOk then pure false else do
-      let minorOk ← match rbs[nP + 1]? with
-        | some (mindom, _) => do
-          match ← stripPis nF mindom with
-          | some (_, mbody) => do
-            let hd ← internE (.bvar nF)
-            let sp ← structCtorSpine C lps nP nF
-            let want ← internE (.app hd sp)
-            pure (mbody == want)
-          | none => pure false
-        | none => pure false
-      if !minorOk then pure false else do
-      match rbs[nP + 2]? with
-      | some (majdom, _) => do
-        let fam2 ← structFam T lps nP 2
-        pure (majdom == fam2)
+  match ← stripPis nP tty with
+  | none => pure false
+  | some (_, tbody) =>
+    match ← stripPis (nP + nF) cty with
+    | none => pure false
+    | some (_, cbody) =>
+      match ← stripPis (nP + 3) rty with
       | none => pure false
-    | _ => pure false
-  | _, _, _ => pure false
+      | some (rbs, rbody) =>
+        if tbody.tag == ETag.sort then
+          match ← view tbody with
+          | .sort _ => do
+            let fam ← structFam T lps nP nF
+            let b2 ← internE (.bvar 2)
+            let b0 ← internE (.bvar 0)
+            let want ← internE (.app b2 b0)
+            if !(cbody == fam && rbody == want) then pure false else do
+            -- the motive's codomain: `Sort elim` for the large eliminator, `Prop`
+            -- for the small one (task #175 W4c/O4)
+            let motiveOk ← match rbs[nP]? with
+              | some (mdom, _) => do
+                if mdom.tag == ETag.forallE then
+                  match ← view mdom with
+                  | .forallE mmaj mcod _ => do
+                    if mcod.tag == ETag.sort then
+                      match ← view mcod with
+                      | .sort s' => do
+                        let want ← if large then internLNode (.param elim) else internLNode .zero
+                        let fam0 ← structFam T lps nP 0
+                        pure (s' == want && mmaj == fam0)
+                      | _ => pure false
+                    else pure false
+                  | _ => pure false
+                else pure false
+              | _ => pure false
+            if !motiveOk then pure false else do
+            let minorOk ← match rbs[nP + 1]? with
+              | some (mindom, _) => do
+                match ← stripPis nF mindom with
+                | some (_, mbody) => do
+                  let hd ← internE (.bvar nF)
+                  let sp ← structCtorSpine C lps nP nF
+                  let want ← internE (.app hd sp)
+                  pure (mbody == want)
+                | none => pure false
+              | none => pure false
+            if !minorOk then pure false else do
+            match rbs[nP + 2]? with
+            | some (majdom, _) => do
+              let fam2 ← structFam T lps nP 2
+              pure (majdom == fam2)
+            | none => pure false
+          | _ => pure false
+        else pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:283-329 structPartsCore?
 Recognise a direct simple-structure block.  `none` means "not this class". -/
@@ -283,29 +299,33 @@ def structPartsCore? (block : List IConstantInfo) : AM (Option StructParts) := d
         rule.ctor == C && rule.nfields == nF && rhsOk then do
       match ← stripPis nP cvT.type with
       | some (_, tbody) => do
-        match ← view tbody with
-        | .sort s => do
-          let z ← zeroLevel
-          let isProp := (← lvlEq? s z) == some true
-          -- the large eliminator: a fresh elimination level parameter in
-          -- front of the block's own; else the small eliminator
-          let large? : Option NIdx ← match cvR.levelParams with
-            | elim :: relps => do
-              if relps == lps && !lps.contains elim &&
-                  (← structShape T C lps elim true nP nF cvT.type cvC.type cvR.type) then
-                pure (some elim)
+        if tbody.tag == ETag.sort then
+          match ← view tbody with
+          | .sort s => do
+            let z ← zeroLevel
+            let isProp := (← lvlEq? s z) == some true
+            -- the large eliminator: a fresh elimination level parameter in
+            -- front of the block's own; else the small eliminator
+            let large? : Option NIdx ← match cvR.levelParams with
+              | elim :: relps => do
+                if relps == lps && !lps.contains elim then
+                  if ← structShape T C lps elim true nP nF cvT.type cvC.type cvR.type then
+                    pure (some elim)
+                  else pure none
+                else pure none
+              | [] => pure none
+            match large? with
+            | some elim =>
+              pure (some ⟨cvT, cvC, nP, nF, cvR, elim, s, rule.rhs, true, isProp⟩)
+            | none => do
+              let anon ← internNNode .anonymous
+              if cvR.levelParams == lps then
+                if ← structShape T C lps anon false nP nF cvT.type cvC.type cvR.type then
+                  pure (some ⟨cvT, cvC, nP, nF, cvR, anon, s, rule.rhs, false, isProp⟩)
+                else pure none
               else pure none
-            | [] => pure none
-          match large? with
-          | some elim =>
-            pure (some ⟨cvT, cvC, nP, nF, cvR, elim, s, rule.rhs, true, isProp⟩)
-          | none => do
-            let anon ← internNNode .anonymous
-            if cvR.levelParams == lps &&
-                (← structShape T C lps anon false nP nF cvT.type cvC.type cvR.type) then
-              pure (some ⟨cvT, cvC, nP, nF, cvR, anon, s, rule.rhs, false, isProp⟩)
-            else pure none
-        | _ => pure none
+          | _ => pure none
+        else pure none
       | _ => pure none
     else pure none
   | _ => pure none
@@ -457,14 +477,16 @@ subject's projection `.proj T i (bvar 0)` before the walk continues. -/
 def structProjBodiesGo (T : NIdx) : Nat → Nat → EIdx → AM (Option (List EIdx))
   | 0, _, _ => pure (some [])
   | k + 1, i, h => do
-    match ← view h with
-    | .forallE fdom body _ => do
-      let a ← structProjArgP T i
-      let b ← instantiate1LiftFast coreWalkFuel body a 0
-      match ← structProjBodiesGo T k (i + 1) b with
-      | some r => pure (some (fdom :: r))
-      | none => pure none
-    | _ => pure none
+    if h.tag == ETag.forallE then
+      match ← view h with
+      | .forallE fdom body _ => do
+        let a ← structProjArgP T i
+        let b ← instantiate1LiftFast coreWalkFuel body a 0
+        match ← structProjBodiesGo T k (i + 1) b with
+        | some r => pure (some (fdom :: r))
+        | none => pure none
+      | _ => pure none
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:768-771 structProjBodies
 The block's projection bodies, as the table stores them. -/

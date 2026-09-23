@@ -328,7 +328,9 @@ theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   obtain ⟨bs, body⟩ := q
   obtain ⟨xs, x, hxs, hbody⟩ := stripPis_some hsq
   dsimp only at z1
-  obtain ⟨v, s₂, k2, z2⟩ := bindOk z1
+  obtain ⟨v0, hv0⟩ := denoteE_view hbody
+  obtain ⟨v, s₂, k2, z2⟩ := bindOk (tagIf_view_run hv0
+    (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) z1)
   obtain ⟨hs2, hv⟩ := view_run k2
   rw [hs2] at z2
   cases v
@@ -930,7 +932,9 @@ theorem normPosDom_run {μ : CheckMode} {env : Env} (fe : IFEnv)
       simp [hmw, pure, Except.pure]
     | true =>
     rw [hmw] at z3
-    obtain ⟨v, s4, k4, z4⟩ := bindOk z3
+    obtain ⟨v0, hv0⟩ := denoteE_view hwP3
+    obtain ⟨v, s4, k4, z4⟩ := bindOk (tagIf_view_run hv0
+      (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) z3)
     obtain ⟨hs4, hv⟩ := view_run k4
     rw [hs4] at z4
     have hwf3 := c3.ok.state.wf
@@ -1102,7 +1106,9 @@ theorem normFieldDoms_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     intro s₀ s' r hok hpre hrun
     obtain ⟨hT, hh, hfe⟩ := hpre
     simp only [Arena.normFieldDoms] at hrun
-    obtain ⟨v, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨v0, hv0⟩ := denoteE_view hh
+    obtain ⟨v, s1, k1, z1⟩ := bindOk (tagIf_view_run hv0
+      (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) hrun)
     obtain ⟨hs1, hv⟩ := view_run k1
     rw [hs1] at z1
     cases v

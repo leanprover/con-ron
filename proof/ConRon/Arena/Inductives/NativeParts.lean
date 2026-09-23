@@ -68,33 +68,49 @@ def recFamOk (T : NIdx) (lps : List NIdx) (nP nIdx o : Nat) (e : EIdx) : AM Bool
   else (args.drop nP).allM fun a => do pure !(← mentionsConst T a)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:89-111 recPositivity
+The leaf of `recPositivity`'s walk, at a term that mentions the block (the
+Rust's `rec_positivity_at`, named apart so that the tag-first dispatch below
+does not spell it twice): a head that is the family at exactly the parameter
+variables is finitary (`k = 0`) or reflexive, any other occurrence of the
+block is negative, and a head that is another constant is unsupported. -/
+def recPositivityAt (T : NIdx) (lps : List NIdx) (nP nIdx o : Nat) (h : EIdx) (k : Nat) :
+    AM RecFieldKind := do
+  let us ← paramLevels lps
+  let hd ← internE (.const T us)
+  let fn ← getAppFn coreWalkFuel h
+  let args ← getAppArgs coreWalkFuel h
+  if fn == hd then do
+    let ps ← structPsAt (o + k) nP
+    if args.length == nP + nIdx && args.take nP == ps then
+      if ← recFamOk T lps nP nIdx (o + k) h then
+        pure (if k == 0 then .recursive else .reflexive)
+      else pure .negative
+    else pure .negative
+  else
+    if fn.tag == ETag.const then
+      match ← view fn with
+      | .const T' _ => pure (if T' == T then .negative else .unsupported)
+      | _ => pure .unsupported
+    else pure .unsupported
+
+/-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:89-111 recPositivity
 Official `check_positivity`'s telescope walk on a field domain that mentions
 the block, syntactically. -/
 def recPositivity (T : NIdx) (lps : List NIdx) (nP nIdx o : Nat) :
     Nat → EIdx → Nat → AM RecFieldKind
   | 0, _, _ => fail (.internal "fuel exhausted: recPositivity")
   | fuel + 1, h, k => do
-    match ← view h with
-    | .forallE dom body _ => do
-      if ← mentionsConst T dom then pure .negative
-      else recPositivity T lps nP nIdx o fuel body (k + 1)
-    | _ => do
-      if !(← mentionsConst T h) then pure .ordinary else do
-      let us ← paramLevels lps
-      let hd ← internE (.const T us)
-      let fn ← getAppFn coreWalkFuel h
-      let args ← getAppArgs coreWalkFuel h
-      if fn == hd then do
-        let ps ← structPsAt (o + k) nP
-        if args.length == nP + nIdx && args.take nP == ps then
-          if ← recFamOk T lps nP nIdx (o + k) h then
-            pure (if k == 0 then .recursive else .reflexive)
-          else pure .negative
-        else pure .negative
-      else
-        match ← view fn with
-        | .const T' _ => pure (if T' == T then .negative else .unsupported)
-        | _ => pure .unsupported
+    if h.tag == ETag.forallE then
+      match ← view h with
+      | .forallE dom body _ => do
+        if ← mentionsConst T dom then pure .negative
+        else recPositivity T lps nP nIdx o fuel body (k + 1)
+      | _ => do
+        if !(← mentionsConst T h) then pure .ordinary
+        else recPositivityAt T lps nP nIdx o h k
+    else do
+      if !(← mentionsConst T h) then pure .ordinary
+      else recPositivityAt T lps nP nIdx o h k
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:113-116 recFieldKind
 The kind of a field whose domain is `dom`, `o` fields into the constructor's
@@ -130,11 +146,13 @@ All leading `∀` binders of an expression (outermost first) and the body. -/
 def piBinders : Nat → EIdx → AM (List (EIdx × BinderMeta) × EIdx)
   | 0, _ => fail (.internal "fuel exhausted: piBinders")
   | fuel + 1, h => do
-    match ← view h with
-    | .forallE ty b m => do
-      let (bs, e) ← piBinders fuel b
-      pure ((ty, m) :: bs, e)
-    | _ => pure ([], h)
+    if h.tag == ETag.forallE then
+      match ← view h with
+      | .forallE ty b m => do
+        let (bs, e) ← piBinders fuel b
+        pure ((ty, m) :: bs, e)
+      | _ => pure ([], h)
+    else pure ([], h)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:156-161 structFieldTeleOf
 Field `i`'s own telescope `a⃗ : A⃗` (at the field's frame), off the
@@ -391,27 +409,30 @@ the rule binds the recursor's parameters, its motive, its minor premises and
 constructor `j`'s fields, and every one of those binder types appears again in
 the recursor RECORD's own type. -/
 def nativeRulePrefixOk (recTy : EIdx) (nP n j nF : Nat) (rhs : EIdx) : AM Bool := do
-  match ← stripLams (nP + 1 + n + nF) rhs, ← stripPis (nP + 1 + n) recTy with
-  | some (rbs, _), some (tbs, _) => do
-    let prefixOk ← (List.range (nP + 1 + n)).allM fun i => do
-      match rbs[i]?, tbs[i]? with
-      | some b, some t => do
-        pure ((← resetMetaFast coreWalkFuel b.1) == (← resetMetaFast coreWalkFuel t.1))
-      | _, _ => pure false
-    if !prefixOk then pure false else
-    match tbs[nP + 1 + j]? with
-    | some mty => do
-      let lifted ← liftLooseBVarsFast coreWalkFuel (n - j) 0 mty.1
-      match ← stripPis nF lifted with
-      | some (fbs, _) =>
-        (List.range nF).allM fun i => do
-          match rbs[nP + 1 + n + i]?, fbs[i]? with
-          | some b, some f => do
-            pure ((← resetMetaFast coreWalkFuel b.1) == (← resetMetaFast coreWalkFuel f.1))
-          | _, _ => pure false
-      | none => pure false
+  match ← stripLams (nP + 1 + n + nF) rhs with
+  | none => pure false
+  | some (rbs, _) =>
+    match ← stripPis (nP + 1 + n) recTy with
     | none => pure false
-  | _, _ => pure false
+    | some (tbs, _) => do
+        let prefixOk ← (List.range (nP + 1 + n)).allM fun i => do
+          match rbs[i]?, tbs[i]? with
+          | some b, some t => do
+            pure ((← resetMetaFast coreWalkFuel b.1) == (← resetMetaFast coreWalkFuel t.1))
+          | _, _ => pure false
+        if !prefixOk then pure false else
+        match tbs[nP + 1 + j]? with
+        | some mty => do
+          let lifted ← liftLooseBVarsFast coreWalkFuel (n - j) 0 mty.1
+          match ← stripPis nF lifted with
+          | some (fbs, _) =>
+            (List.range nF).allM fun i => do
+              match rbs[nP + 1 + n + i]?, fbs[i]? with
+              | some b, some f => do
+                pure ((← resetMetaFast coreWalkFuel b.1) == (← resetMetaFast coreWalkFuel f.1))
+              | _, _ => pure false
+          | none => pure false
+        | none => pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:447-475 nativeRulesOk
 **The stream's rules against the generated ones** (at install): rule `j` fires
@@ -442,9 +463,13 @@ them. -/
 def nativeCounts? (nPd : Nat) (cvT : IConstantVal)
     (cs : List (IConstantVal × Nat × Nat)) (mI rP : Nat) : AM (Option (Nat × Nat)) := do
   let (bs, body) ← piBinders coreWalkFuel cvT.type
-  match ← view body with
-  | .sort _ => pure (if nPd ≤ bs.length then some (nPd, bs.length - nPd) else none)
-  | _ =>
+  if body.tag == ETag.sort then
+    match ← view body with
+    | .sort _ => pure (if nPd ≤ bs.length then some (nPd, bs.length - nPd) else none)
+    | _ =>
+      if rP < cs.length + 1 || mI < rP then pure none
+      else if rP - (cs.length + 1) == nPd then pure (some (nPd, mI - rP)) else pure none
+  else
     if rP < cs.length + 1 || mI < rP then pure none
     else if rP - (cs.length + 1) == nPd then pure (some (nPd, mI - rP)) else pure none
 
@@ -497,9 +522,11 @@ def nativeShape? (nPd : Nat) (block : List IConstantInfo) :
           -- whnf loop replaces (task #195)
           let s ← match ← stripPis (nP + nIdx) cvT.type with
             | some (_, body) => do
-              match ← view body with
-              | .sort s => pure s
-              | _ => zeroLevel
+              if body.tag == ETag.sort then
+                match ← view body with
+                | .sort s => pure s
+                | _ => zeroLevel
+              else zeroLevel
             | _ => zeroLevel
           let z ← zeroLevel
           let isProp := (← lvlEq? s z) == some true
