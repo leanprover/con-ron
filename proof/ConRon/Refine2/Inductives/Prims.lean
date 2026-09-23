@@ -2015,6 +2015,16 @@ open Lockstep in
 
 end IndPrims
 
+theorem IFEnv.restrictTo_of_eq {lf : IFEnv} {k : Nat} (h : k = lf.visibleBelow) :
+    lf.restrictTo k = lf := by
+  subst h; rfl
+
+-- A checker-tier statement at a split counter reads `lf.restrictTo (absU vis)`;
+-- where the counter is the environment's own (`hvis`), that IS `lf`.
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (apply IFEnv.restrictTo_of_eq; assumption))
+
 attribute [lockstep] proj_table_name_lss
 
 end ConRon.Refine2

@@ -907,6 +907,40 @@ macro_rules
   | `(tactic| lockstep_side_ext) =>
     `(tactic| (simp only [IFEnv.restrictTo] at *; checker_env_facts; simp_all; done))
 
+/-! ## The cursor recipe in `LS` form (task #97-T2-LOCKSTEP lane Inductives round 4)
+
+The Rust walks a `Vec` by an index, the twin recurses structurally on the
+list from that index (DESIGN §3.4's `List`-as-cursor deviation).  `ls_cursor`
+is the induction once: a caller proves the stop case and the step case, each
+by unfolding one equation on each side and `lockstep`, with the induction
+hypothesis in the context for the recursive call. -/
+
+open Lockstep in
+theorem ls_cursor {α β γ δ : Type} {pers : arena.store.PersTier} {R : γ → δ → Prop}
+    (xs : alloc.vec.Vec α) (a : α → β) (G : List β → AM δ)
+    (F : arena.monad.AState → Std.Usize →
+      Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState))
+    (hstop : ∀ st lst (i : Std.Usize), xs.val.length ≤ i.val →
+      AStateRel₀ pers st lst → AStateInv pers st → LS pers R (F st i) lst (G []))
+    (hstep : ∀ st lst (i : Std.Usize) (hb : i.val < xs.val.length),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      (∀ st' lst' (j : Std.Usize), j.val = i.val + 1 →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers R (F st' j) lst' (G ((xs.val.drop j.val).map a))) →
+      LS pers R (F st i) lst (G (a xs.val[i.val] :: (xs.val.drop (i.val + 1)).map a))) :
+    ∀ (i : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers R (F st i) lst (G ((xs.val.drop i.val).map a)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) xs.val.length
+    (fun i (_ : Unit) => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers R (F st i) lst (G ((xs.val.drop i.val).map a))) ?_ ?_ i ()
+  · intro i _ hn st lst hrel hinv
+    rw [List.drop_eq_nil_of_le hn, List.map_nil]
+    exact hstop st lst i hn hrel hinv
+  · intro i _ hi ih st lst hrel hinv
+    rw [List.drop_eq_getElem_cons hi, List.map_cons]
+    exact hstep st lst i hi hrel hinv (fun st' lst' j hj => ih j () hj st' lst')
+
 /-! ## The axiom census -/
 
 /-- info: 'ConRon.Refine2.list_allM_counted' depends on axioms: [propext, Classical.choice, Quot.sound] -/
