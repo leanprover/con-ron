@@ -1011,6 +1011,78 @@ theorem toConstantVal_run {s s' : AState} (hok : StateOK s)
     · exact denoteNListE_ext hx _ _ hdlps
     · exact hdty'
 
+/-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo.toConstantVal —
+**the TYPE half alone, which needs no name clause.**  The `.projInfo` arm's
+common data is the closed dummy `Sort 1` whatever the table is called, so this
+half is true of a table that is NOT rightly named, and `CIProjNamed` buys
+nothing here.
+
+Stated separately because `Bridge/Frontend/Prepare.lean`'s `usedConsts_run`
+reads only the type: taking `toConstantVal_run` there would force
+`DeclProjNamed` into a statement that does not need it, which is the wrong
+direction for a hypothesis to travel.  The six non-projection arms are
+`toConstantVal_run` at a vacuous clause; the seventh is its three interns
+without the name half. -/
+theorem toConstantVal_type_run {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) {ci : IConstantInfo} {c : ConstantInfo}
+    (hd : ConRon.Arena.Frontend.denoteCI s.store ci = some c) {v : IConstantVal}
+    (hrun : IConstantInfo.toConstantVal ci s = .ok (v, s')) :
+    ParseStep s s' ∧ denoteE s'.store v.type = some c.toConstantVal.type := by
+  cases ci with
+  | axiomInfo w =>
+    obtain ⟨a, -, -, b⟩ :=
+      toConstantVal_run hok hoff (CIProjNamed.of_ne (by simp)) hd hrun
+    exact ⟨a, b⟩
+  | ctorInfo w nP nF =>
+    obtain ⟨a, -, -, b⟩ :=
+      toConstantVal_run hok hoff (CIProjNamed.of_ne (by simp)) hd hrun
+    exact ⟨a, b⟩
+  | defnInfo w e hh =>
+    obtain ⟨a, -, -, b⟩ :=
+      toConstantVal_run hok hoff (CIProjNamed.of_ne (by simp)) hd hrun
+    exact ⟨a, b⟩
+  | thmInfo w e =>
+    obtain ⟨a, -, -, b⟩ :=
+      toConstantVal_run hok hoff (CIProjNamed.of_ne (by simp)) hd hrun
+    exact ⟨a, b⟩
+  | indInfo w cps =>
+    obtain ⟨a, -, -, b⟩ :=
+      toConstantVal_run hok hoff (CIProjNamed.of_ne (by simp)) hd hrun
+    exact ⟨a, b⟩
+  | recInfo w mI rP rs =>
+    obtain ⟨a, -, -, b⟩ :=
+      toConstantVal_run hok hoff (CIProjNamed.of_ne (by simp)) hd hrun
+    exact ⟨a, b⟩
+  | projInfo tbl =>
+    simp only [ConRon.Arena.Frontend.denoteCI, Option.map_eq_some_iff] at hd
+    obtain ⟨pt, -, rfl⟩ := hd
+    rw [IConstantInfo.toConstantVal] at hrun
+    obtain ⟨z, s₁, h1, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hstep1, -, hdz⟩ :=
+      internLNode_istep hok hoff
+        ⟨by intro c hc; simp only [LNodeView.lchildren] at hc; exact absurd hc (by simp),
+         by intro c hc; simp only [LNodeView.nchildren] at hc; exact absurd hc (by simp)⟩ h1
+    have hdz' : denoteL s₁.store.ls z = some .zero := by rw [hdz]; rfl
+    obtain ⟨one, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hstep2, -, hdo⟩ :=
+      internLNode_istep hstep1.ok hstep1.off
+        ⟨by intro c hc
+            simp only [LNodeView.lchildren, List.mem_singleton] at hc
+            subst hc; exact lview_isSome_of_denote hdz',
+         by intro c hc; simp only [LNodeView.nchildren] at hc; exact absurd hc (by simp)⟩ h2
+    have hdo' : denoteL s₂.store.ls one = some (.succ .zero) := by
+      rw [hdo]
+      simp only [denoteLView, denoteL_ext hdz' hstep2.ext, Option.map_some]
+    obtain ⟨ty, s₃, h3, hrest3⟩ := AM.bind_ok hrest2
+    obtain ⟨hstep3, -, hdty⟩ :=
+      internE_istep hstep2.ok hstep2.off (viewOK_sort (lview_isSome_of_denote hdo')) h3
+    have hdty' : denoteE s₃.store ty = some (.sort (.succ .zero)) := by
+      rw [hdty]
+      simp only [denoteEView, denoteL_ext hdo' hstep3.ext, Option.map_some]
+    obtain ⟨hvv, hss⟩ := AM.pure_ok hrest3
+    subst hss; subst hvv
+    exact ⟨((hstep1.trans hstep2).trans hstep3).toParse hoff, hdty'⟩
+
 /-- con-leche: none — the relation `StateDRel.constTypes` carries, named once
 because `noteDecl`'s fold is stated at it three times. -/
 def CTRel (st : EStore) (p : List NIdx × EIdx)

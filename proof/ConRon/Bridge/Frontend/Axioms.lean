@@ -33,6 +33,16 @@ statement defects, not proof gaps: finding 15 (`projIotaLevel_run`'s frame was
 `.projInfo` without `IProjTableOK`) is reported and left open, because the
 repair adds a hypothesis and that is the maintainer's call.
 
+**Round six** makes the intern family scratch-agnostic (the `IStepS` face of
+`Bridge/Frontend/Shared.lean`, with the `IStep` one as a corollary through
+`Bridge/Frontend/Rel.lean`'s `Pers…_of_denote`) and closes the two gray-memo
+walks the tier still owed: `occursConstFast_run` — whose memo turns out to be
+BLACK-only, so it needed no rank — and `usedConsts_run` with its three helpers,
+whose memo IS gray and whose two sets are keyed differently on the two sides
+(handle against `Expr`), which is where `denoteE_inj` earns its keep.
+`toConstantVal_type_run` is the half of `toConstantVal` that needs no name
+clause, stated so that `usedConsts_run` does not have to assume one.
+
 **Round five** repairs finding 16 and closes five more.  The repair is two
 things, and the census records both: the frame half is a CORRECTION (five
 statements said `s' = s` of a run that interns `Sort 1` at a `.projInfo`) and
@@ -369,6 +379,7 @@ can tell the two apart.
 #print axioms parseBytes_run
 #print axioms parseChunksGo_run
 #print axioms toConstantVal_run
+#print axioms toConstantVal_type_run
 #print axioms noteBlock_run
 #print axioms noteFold_rel
 #print axioms noteDecl_run
@@ -382,6 +393,17 @@ can tell the two apart.
 #print axioms preludeKey_run
 #print axioms pick_denote
 #print axioms frontOf_run
+#print axioms UCSeen.contains
+#print axioms UCSeen.insert
+#print axioms UCSeen.mono
+#print axioms denoteNList_snoc
+#print axioms usedConstsGo_run
+#print axioms usedConstsRules_run
+#print axioms ucBlockStep_denote
+#print axioms usedConstsBlock_run
+#print axioms usedConsts_run
+#print axioms OccSeen.insert
+#print axioms occursConstGo_run
 
 #print axioms parseChunks_run
 #print axioms builtinPreludeE_run

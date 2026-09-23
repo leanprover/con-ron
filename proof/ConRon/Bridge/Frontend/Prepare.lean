@@ -516,6 +516,539 @@ theorem frontOf_run :
 
 /-! ## The ground hoist -/
 
+/-! ### The used-constant walk's memo, and why THIS one is gray
+
+`usedConstsGo` (`Arena/Frontend/NatOpGround.lean:52-71`) inserts the node into
+`seen` BEFORE it matches — so unlike `Bridge/Frontend/ProjRec.lean`'s
+`occursConstGo`, whose insert is at the end of the all-`false` branch, this
+memo does carry nodes on the descent path.  It costs nothing here all the
+same, because the walk's answer does not depend on WHY a key is in the set:
+`seen` is only ever consulted as "stop", and the statement below relates the
+two sets ELEMENTWISE rather than claiming anything about their members.
+
+**What the two sets are keyed by is the whole content of this section.**
+con-leche's memo is a `Std.HashSet Expr` and the twin's a `Std.HashSet EIdx`
+(`Arena/Frontend/NatOpGround.lean`'s module note: "the visited set is DESIGN
+§8.3's identity hash and a shared subterm costs one probe").  The two walks
+therefore stop in the same places exactly when one handle per expression is
+reachable — which is DESIGN §8.3's soundness obligation `denoteE_inj`, the
+store being hash-consed.  Without it the twin would re-walk a subterm
+con-leche skips and push its constants twice, and the array equality below
+would be false.  This is the third place in the campaign where `denoteE_inj`
+is load-bearing rather than convenient.  DESIGN #97-P3-Frontend round 6. -/
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:56-58 usedConstsGo — **the
+two memos are the same memo**, one keyed by handle and one by the expression
+the handle denotes.  Three clauses, because the correspondence has to survive
+an arena EXTENSION (`usedConstsBlock` interns at a projection table) and the
+`bwd` clause is what makes a NEW handle's absence from `seen` provable. -/
+structure UCSeen (st : EStore) (seen : Std.HashSet EIdx)
+    (seenP : Std.HashSet ConLeche.Expr) : Prop where
+  fwd : ∀ h e, denoteE st h = some e → seen.contains h = true →
+    seenP.contains e = true
+  bwd : ∀ eP, seenP.contains eP = true →
+    ∃ h, seen.contains h = true ∧ denoteE st h = some eP
+  dom : ∀ h, seen.contains h = true → (denoteE st h).isSome = true
+
+/-- con-leche: none — both walks start empty. -/
+theorem UCSeen.empty {st : EStore} :
+    UCSeen st (∅ : Std.HashSet EIdx) (∅ : Std.HashSet ConLeche.Expr) where
+  fwd := by intro h e _ hc; simp at hc
+  bwd := by intro eP hc; simp at hc
+  dom := by intro h hc; simp at hc
+
+/-- con-leche: none — **the stop test agrees**, which is the one thing the
+walk reads of the memo.  The `←` direction is `denoteE_inj`. -/
+theorem UCSeen.contains {st : EStore} (hwf : StoreWF st)
+    {seen : Std.HashSet EIdx} {seenP : Std.HashSet ConLeche.Expr}
+    (hs : UCSeen st seen seenP) {h : EIdx} {e : Expr}
+    (he : denoteE st h = some e) : seen.contains h = seenP.contains e := by
+  cases hc : seen.contains h with
+  | true => exact (hs.fwd h e he hc).symm
+  | false =>
+    cases hp : seenP.contains e with
+    | false => rfl
+    | true =>
+      obtain ⟨k, hk, hdk⟩ := hs.bwd e hp
+      obtain rfl : k = h := Arena.denoteE_inj hwf hdk he
+      rw [hk] at hc; exact absurd hc (by simp)
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:59 usedConstsGo — the two
+inserts, at a handle and at what it denotes. -/
+theorem UCSeen.insert {st : EStore} {seen : Std.HashSet EIdx}
+    {seenP : Std.HashSet ConLeche.Expr} (hs : UCSeen st seen seenP)
+    {h : EIdx} {e : Expr} (he : denoteE st h = some e) :
+    UCSeen st (seen.insert h) (seenP.insert e) where
+  fwd := by
+    intro k ek hk hc
+    rw [Std.HashSet.contains_insert] at hc ⊢
+    rcases Bool.or_eq_true .. |>.mp hc with h1 | h2
+    · have hhk : h = k := eq_of_beq h1
+      subst hhk
+      obtain rfl : e = ek := Option.some.inj (he.symm.trans hk)
+      simp
+    · rw [hs.fwd k ek hk h2]; simp
+  bwd := by
+    intro eP hc
+    rw [Std.HashSet.contains_insert] at hc
+    rcases Bool.or_eq_true .. |>.mp hc with h1 | h2
+    · obtain rfl : e = eP := eq_of_beq h1
+      exact ⟨h, by rw [Std.HashSet.contains_insert]; simp, he⟩
+    · obtain ⟨k, hk, hdk⟩ := hs.bwd eP h2
+      exact ⟨k, by rw [Std.HashSet.contains_insert, hk]; simp, hdk⟩
+  dom := by
+    intro k hk
+    rw [Std.HashSet.contains_insert] at hk
+    rcases Bool.or_eq_true .. |>.mp hk with h1 | h2
+    · have hhk : h = k := eq_of_beq h1
+      subst hhk; rw [he]; rfl
+    · exact hs.dom k h2
+
+/-- con-leche: none — the correspondence survives an arena EXTENSION, which
+is what `usedConstsBlock` needs: `toConstantVal` interns `Sort 1` at a
+projection table (round 4's finding 16).  A handle the extension ADDED cannot
+denote anything the old set already holds, because `denoteE_inj` holds at the
+bigger store too — which is the `bwd` clause's whole purpose. -/
+theorem UCSeen.mono {st st' : EStore} {seen : Std.HashSet EIdx}
+    {seenP : Std.HashSet ConLeche.Expr} (hs : UCSeen st seen seenP)
+    (hx : Ext st st') : UCSeen st' seen seenP where
+  fwd := by
+    intro k ek hk hc
+    obtain ⟨e₀, he₀⟩ := Option.isSome_iff_exists.mp (hs.dom k hc)
+    have hq : e₀ = ek := Option.some.inj ((denote_ext he₀ hx).symm.trans hk)
+    have hr := hs.fwd k e₀ he₀ hc
+    rwa [hq] at hr
+  bwd := by
+    intro eP hc
+    obtain ⟨k, hk, hdk⟩ := hs.bwd eP hc
+    exact ⟨k, hk, denote_ext hdk hx⟩
+  dom := by
+    intro h hc
+    obtain ⟨e₀, he₀⟩ := Option.isSome_iff_exists.mp (hs.dom h hc)
+    rw [denote_ext he₀ hx]; rfl
+
+/-- con-leche: none — the accumulator's own step: a name pushed on both
+sides. -/
+theorem denoteNList_snoc {st : NStore} :
+    ∀ {l : List NIdx} {lP : List ConLeche.Name} {n : NIdx}
+      {nP : ConLeche.Name}, denoteNList st l = some lP →
+      denoteN st n = some nP → denoteNList st (l ++ [n]) = some (lP ++ [nP]) := by
+  intro l
+  induction l with
+  | nil =>
+    intro lP n nP hl hn
+    simp only [denoteNList, Option.some.injEq] at hl
+    subst hl
+    simp only [List.nil_append, denoteNList, hn]
+  | cons a as ih =>
+    intro lP n nP hl hn
+    rw [denoteNList] at hl
+    cases ha : denoteN st a with
+    | none => rw [ha] at hl; simp at hl
+    | some x =>
+      cases has : denoteNList st as with
+      | none => rw [ha, has] at hl; simp at hl
+      | some xs =>
+        rw [ha, has] at hl
+        simp only [Option.some.injEq] at hl
+        subst hl
+        simp only [List.cons_append, denoteNList, ha, ih has hn]
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:54-77 usedConstsGo — **the
+arena side of the used-constant walk**: the twin's walk over handles visits
+the same nodes and pushes the same names, in the same order, as con-leche's
+over the denoted tree.  Read-only: it never interns, so the state stands
+still. -/
+theorem usedConstsGo_run {s : AState} (hok : StateOK s) :
+    ∀ (fuel : Nat) {seen seen' : Std.HashSet EIdx} {acc acc' : Array NIdx}
+      {seenP : Std.HashSet ConLeche.Expr} {accP : Array ConLeche.Name}
+      {h : EIdx} {e : Expr} {s' : AState},
+      UCSeen s.store seen seenP →
+      denoteNList s.store.ns acc.toList = some accP.toList →
+      denoteE s.store h = some e →
+      usedConstsGo seen acc fuel h s = .ok ((seen', acc'), s') →
+      s' = s ∧
+        UCSeen s.store seen' (ConLeche.Frontend.usedConstsGo seenP accP e).1 ∧
+        denoteNList s.store.ns acc'.toList
+          = some (ConLeche.Frontend.usedConstsGo seenP accP e).2.toList := by
+  have hwf : StoreWF s.store := hok.wf
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro seen seen' acc acc' seenP accP h e s' _ _ _ hrun
+    rw [ConRon.Arena.Frontend.usedConstsGo] at hrun
+    exact absurd (AM.fail_ok hrun) (by simp)
+  | succ fuel ih =>
+    intro seen seen' acc acc' seenP accP h e s' hseen hacc he hrun
+    rw [ConRon.Arena.Frontend.usedConstsGo] at hrun
+    rw [ConLeche.Frontend.usedConstsGo]
+    rw [← hseen.contains hwf he]
+    by_cases hc : seen.contains h = true
+    · rw [if_pos hc] at hrun ⊢
+      obtain ⟨hv, hs⟩ := AM.pure_ok hrun
+      subst hs
+      injection hv with e1 e2
+      subst e1; subst e2
+      exact ⟨rfl, hseen, hacc⟩
+    · rw [if_neg hc] at hrun ⊢
+      simp only [] at hrun
+      obtain ⟨v, s₁, hv, hrest⟩ := AM.bind_ok hrun
+      obtain ⟨rfl, hview⟩ := view_run hv
+      have hins := hseen.insert he
+      match v, hview with
+      | .const m us, hview =>
+        obtain ⟨mP, ls, rfl, hm, -⟩ := denote_const_inv hwf hview he
+        simp only [] at hrest
+        obtain ⟨hv2, hs⟩ := AM.pure_ok hrest
+        subst hs
+        injection hv2 with e1 e2
+        subst e1; subst e2
+        refine ⟨rfl, hins, ?_⟩
+        simp only [Array.toList_push]
+        exact denoteNList_snoc hacc hm
+      | .bvar i, hview =>
+        obtain rfl := denote_bvar_inv hwf hview he
+        simp only [] at hrest
+        obtain ⟨hv2, hs⟩ := AM.pure_ok hrest
+        subst hs
+        injection hv2 with e1 e2
+        subst e1; subst e2
+        exact ⟨rfl, hins, hacc⟩
+      | .sort u, hview =>
+        obtain ⟨l, rfl, -⟩ := denote_sort_inv hwf hview he
+        simp only [] at hrest
+        obtain ⟨hv2, hs⟩ := AM.pure_ok hrest
+        subst hs
+        injection hv2 with e1 e2
+        subst e1; subst e2
+        exact ⟨rfl, hins, hacc⟩
+      | .lit l, hview =>
+        obtain rfl := denote_lit_inv hwf hview he
+        simp only [] at hrest
+        obtain ⟨hv2, hs⟩ := AM.pure_ok hrest
+        subst hs
+        injection hv2 with e1 e2
+        subst e1; subst e2
+        exact ⟨rfl, hins, hacc⟩
+      | .fvar k ty, hview =>
+        obtain ⟨t, rfl, hdt⟩ := denote_fvar_inv hwf hview he
+        simp only [] at hrest
+        exact ih hins hacc hdt hrest
+      | .proj nn i sub, hview =>
+        obtain ⟨nm, es, rfl, hnn, hsub⟩ := denote_proj_inv hwf hview he
+        simp only [] at hrest
+        exact ih hins (by
+          simp only [Array.toList_push]
+          exact denoteNList_snoc hacc hnn) hsub hrest
+      | .app f a, hview =>
+        obtain ⟨ef, ea, rfl, hf, ha⟩ := denote_app_inv hwf hview he
+        simp only [] at hrest
+        obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok hrest
+        obtain ⟨sn1, ac1⟩ := p1
+        obtain ⟨rfl, hs1, ha1⟩ := ih hins hacc hf hg1
+        simp only [] at hr1
+        exact ih hs1 ha1 ha hr1
+      | .lam ty body mt, hview =>
+        obtain ⟨et, eb, rfl, hf, ha⟩ := denote_lam_inv hwf hview he
+        simp only [] at hrest
+        obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok hrest
+        obtain ⟨sn1, ac1⟩ := p1
+        obtain ⟨rfl, hs1, ha1⟩ := ih hins hacc hf hg1
+        simp only [] at hr1
+        exact ih hs1 ha1 ha hr1
+      | .forallE ty body mt, hview =>
+        obtain ⟨et, eb, rfl, hf, ha⟩ := denote_forallE_inv hwf hview he
+        simp only [] at hrest
+        obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok hrest
+        obtain ⟨sn1, ac1⟩ := p1
+        obtain ⟨rfl, hs1, ha1⟩ := ih hins hacc hf hg1
+        simp only [] at hr1
+        exact ih hs1 ha1 ha hr1
+      | .letE ty w body, hview =>
+        obtain ⟨et, ew, eb, rfl, h1d, h2d, h3d⟩ := denote_letE_inv hwf hview he
+        simp only [] at hrest
+        obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok hrest
+        obtain ⟨sn1, ac1⟩ := p1
+        obtain ⟨rfl, hs1, ha1⟩ := ih hins hacc h1d hg1
+        simp only [] at hr1
+        obtain ⟨p2, s₃, hg2, hr2⟩ := AM.bind_ok hr1
+        obtain ⟨sn2, ac2⟩ := p2
+        obtain ⟨rfl, hs2, ha2⟩ := ih hs1 ha1 h2d hg2
+        simp only [] at hr2
+        exact ih hs2 ha2 h3d hr2
+
+/-! ### con-leche's two inline folds, named
+
+con-leche writes the block walk as a `List.foldl` over a closure and the rule
+walk as another inside it (`ConLeche/Frontend/NatOpGround.lean:87-93`).  DESIGN
+§3.4's rule for a fold — "a `List` fold is a named recursion" — is why the twin
+has `usedConstsBlock` and `usedConstsRules` as top-level functions; read in the
+other direction it is why the theorems below need con-leche's closures to have
+names too.  Both equations are `rfl`. -/
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:92 Declaration.usedConsts —
+the inner closure: one recursor rule's right-hand side. -/
+def ucRuleStep (p : Std.HashSet ConLeche.Expr × Array ConLeche.Name)
+    (r : ConLeche.RecRule) : Std.HashSet ConLeche.Expr × Array ConLeche.Name :=
+  ConLeche.Frontend.usedConstsGo p.1 p.2 r.rhs
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:88-93 Declaration.usedConsts
+— the outer closure: one block member's type, and its rules if it is a
+recursor. -/
+def ucBlockStep (p : Std.HashSet ConLeche.Expr × Array ConLeche.Name)
+    (ci : ConLeche.ConstantInfo) :
+    Std.HashSet ConLeche.Expr × Array ConLeche.Name :=
+  let q := ConLeche.Frontend.usedConstsGo p.1 p.2 ci.toConstantVal.type
+  match ci with
+  | .recInfo _ _ _ rules => rules.foldl ucRuleStep q
+  | _ => q
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:87-93 Declaration.usedConsts
+— the named fold IS con-leche's inline one. -/
+theorem usedConsts_indDecl_eq (block : List ConLeche.ConstantInfo) (nP : Nat) :
+    ConLeche.Declaration.usedConsts (.indDecl block nP)
+      = (block.foldl ucBlockStep
+          (({} : Std.HashSet ConLeche.Expr), (#[] : Array ConLeche.Name))).2 :=
+  rfl
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:92 Declaration.usedConsts —
+**a recursor's rules**, folded over the block's one visited set.  No intern, so
+the state stands still. -/
+theorem usedConstsRules_run {s : AState} (hok : StateOK s) :
+    ∀ (rs : List IRecRule) {rsP : List ConLeche.RecRule}
+      {seen seen' : Std.HashSet EIdx} {acc acc' : Array NIdx}
+      {seenP : Std.HashSet ConLeche.Expr} {accP : Array ConLeche.Name}
+      {s' : AState},
+      ConRon.Arena.Frontend.denoteRules s.store rs = some rsP →
+      UCSeen s.store seen seenP →
+      denoteNList s.store.ns acc.toList = some accP.toList →
+      usedConstsRules seen acc rs s = .ok ((seen', acc'), s') →
+      s' = s ∧ UCSeen s.store seen' (rsP.foldl ucRuleStep (seenP, accP)).1 ∧
+        denoteNList s.store.ns acc'.toList
+          = some (rsP.foldl ucRuleStep (seenP, accP)).2.toList := by
+  intro rs
+  induction rs with
+  | nil =>
+    intro rsP seen seen' acc acc' seenP accP s' hd hseen hacc hrun
+    simp only [ConRon.Arena.Frontend.denoteRules, Option.some.injEq] at hd
+    subst hd
+    rw [ConRon.Arena.Frontend.usedConstsRules] at hrun
+    obtain ⟨hv, hs⟩ := AM.pure_ok hrun
+    subst hs
+    injection hv with e1 e2
+    subst e1; subst e2
+    exact ⟨rfl, hseen, hacc⟩
+  | cons r rs ih =>
+    intro rsP seen seen' acc acc' seenP accP s' hd hseen hacc hrun
+    rw [ConRon.Arena.Frontend.denoteRules] at hd
+    cases h1 : ConRon.Arena.Frontend.denoteRule s.store r with
+    | none => rw [h1] at hd; simp at hd
+    | some x =>
+      cases h2 : ConRon.Arena.Frontend.denoteRules s.store rs with
+      | none => rw [h1, h2] at hd; simp at hd
+      | some xs =>
+        rw [h1, h2] at hd
+        simp only [Option.some.injEq] at hd
+        subst hd
+        have hrhs : denoteE s.store r.rhs = some x.rhs := by
+          rw [ConRon.Arena.Frontend.denoteRule] at h1
+          cases hc : denoteN s.store.ns r.ctor with
+          | none => rw [hc] at h1; simp at h1
+          | some c =>
+            cases hf : ConRon.Arena.Frontend.denoteFire s.store r.fire with
+            | none => rw [hc, hf] at h1; simp at h1
+            | some f =>
+              cases hr : denoteE s.store r.rhs with
+              | none => rw [hc, hf, hr] at h1; simp at h1
+              | some rhs =>
+                rw [hc, hf, hr] at h1
+                simp only [Option.some.injEq] at h1
+                subst h1
+                rfl
+        rw [ConRon.Arena.Frontend.usedConstsRules] at hrun
+        obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok hrun
+        obtain ⟨sn1, ac1⟩ := p1
+        obtain ⟨rfl, hs1, ha1⟩ := usedConstsGo_run hok coreWalkFuel hseen hacc hrhs hg1
+        simp only [] at hr1
+        simp only [List.foldl_cons, ucRuleStep]
+        exact ih h2 hs1 ha1 hr1
+
+/-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo — the denotation
+preserves the CONSTRUCTOR: only a recursor denotes a recursor. -/
+theorem denoteCI_recInfo {st : EStore} {ci : IConstantInfo}
+    {v : ConLeche.ConstantVal} {mI rP : Nat} {rs : List ConLeche.RecRule}
+    (hd : ConRon.Arena.Frontend.denoteCI st ci = some (.recInfo v mI rP rs)) :
+    ∃ iv imI irP irs, ci = .recInfo iv imI irP irs := by
+  cases ci with
+  | recInfo w a b c => exact ⟨w, a, b, c, rfl⟩
+  | axiomInfo w =>
+    rw [ConRon.Arena.Frontend.denoteCI] at hd
+    rcases Option.map_eq_some_iff.mp hd with ⟨_, -, hh⟩; exact nomatch hh
+  | ctorInfo w a b =>
+    rw [ConRon.Arena.Frontend.denoteCI] at hd
+    rcases Option.map_eq_some_iff.mp hd with ⟨_, -, hh⟩; exact nomatch hh
+  | projInfo t =>
+    rw [ConRon.Arena.Frontend.denoteCI] at hd
+    rcases Option.map_eq_some_iff.mp hd with ⟨_, -, hh⟩; exact nomatch hh
+  | defnInfo w e hint =>
+    rw [ConRon.Arena.Frontend.denoteCI] at hd
+    split at hd
+    · exact nomatch (Option.some.inj hd)
+    · exact absurd hd (by simp)
+  | thmInfo w e =>
+    rw [ConRon.Arena.Frontend.denoteCI] at hd
+    split at hd
+    · exact nomatch (Option.some.inj hd)
+    · exact absurd hd (by simp)
+  | indInfo w c =>
+    rw [ConRon.Arena.Frontend.denoteCI] at hd
+    split at hd
+    · exact nomatch (Option.some.inj hd)
+    · exact absurd hd (by simp)
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:89-93 Declaration.usedConsts
+— `ucBlockStep`'s match reads the constructor and nothing else, so at a member
+that is not a recursor on the twin's side the fold's rule branch is dead. -/
+theorem ucBlockStep_denote {st : EStore} {ci : IConstantInfo}
+    {x : ConLeche.ConstantInfo}
+    (hd : ConRon.Arena.Frontend.denoteCI st ci = some x)
+    (h : ∀ v mI rP rs, ci ≠ .recInfo v mI rP rs)
+    (p : Std.HashSet ConLeche.Expr × Array ConLeche.Name) :
+    ucBlockStep p x
+      = ConLeche.Frontend.usedConstsGo p.1 p.2 x.toConstantVal.type := by
+  cases x with
+  | recInfo a b c d =>
+    obtain ⟨iv, imI, irP, irs, hh⟩ := denoteCI_recInfo hd
+    exact absurd hh (h iv imI irP irs)
+  | axiomInfo _ => rfl
+  | defnInfo _ _ _ => rfl
+  | thmInfo _ _ => rfl
+  | indInfo _ _ => rfl
+  | ctorInfo _ _ _ => rfl
+  | projInfo _ => rfl
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:87-93 Declaration.usedConsts
+— **an inductive block**, folded over ONE visited set.
+
+The frame is `ParseStep` and not `s' = s`: `toConstantVal`'s `.projInfo` arm
+interns `Sort 1` (`Arena/Env.lean:224-230` — round 4's finding 16), so the
+store grows at a block that holds a projection table, and `UCSeen.mono`,
+`denoteNListE_ext` and `denoteCIList_ext` are what carry the induction's data
+across that. -/
+theorem usedConstsBlock_run :
+    ∀ (cs : List IConstantInfo) {csP : List ConLeche.ConstantInfo}
+      {s s' : AState} {seen seen' : Std.HashSet EIdx} {acc acc' : Array NIdx}
+      {seenP : Std.HashSet ConLeche.Expr} {accP : Array ConLeche.Name},
+      StateOK s → s.store.scratchOn = false →
+      ConRon.Arena.Frontend.denoteCIList s.store cs = some csP →
+      UCSeen s.store seen seenP →
+      denoteNList s.store.ns acc.toList = some accP.toList →
+      usedConstsBlock seen acc cs s = .ok ((seen', acc'), s') →
+      ParseStep s s' ∧ UCSeen s'.store seen' (csP.foldl ucBlockStep (seenP, accP)).1 ∧
+        denoteNList s'.store.ns acc'.toList
+          = some (csP.foldl ucBlockStep (seenP, accP)).2.toList := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro csP s s' seen seen' acc acc' seenP accP hok hoff hd hseen hacc hrun
+    simp only [ConRon.Arena.Frontend.denoteCIList, Option.some.injEq] at hd
+    subst hd
+    rw [ConRon.Arena.Frontend.usedConstsBlock] at hrun
+    obtain ⟨hv, hs⟩ := AM.pure_ok hrun
+    subst hs
+    injection hv with e1 e2
+    subst e1; subst e2
+    exact ⟨ParseStep.refl hok, hseen, hacc⟩
+  | cons ci cs ih =>
+    intro csP s s' seen seen' acc acc' seenP accP hok hoff hd hseen hacc hrun
+    rw [ConRon.Arena.Frontend.denoteCIList] at hd
+    cases h1 : ConRon.Arena.Frontend.denoteCI s.store ci with
+    | none => rw [h1] at hd; simp at hd
+    | some x =>
+      cases h2 : ConRon.Arena.Frontend.denoteCIList s.store cs with
+      | none => rw [h1, h2] at hd; simp at hd
+      | some xs =>
+        rw [h1, h2] at hd
+        simp only [Option.some.injEq] at hd
+        subst hd
+        rw [ConRon.Arena.Frontend.usedConstsBlock] at hrun
+        obtain ⟨cv, s₁, hcv, hrest⟩ := AM.bind_ok hrun
+        obtain ⟨hstep1, hty⟩ := toConstantVal_type_run hok hoff h1 hcv
+        simp only [] at hrest
+        obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok hrest
+        obtain ⟨sn1, ac1⟩ := p1
+        obtain ⟨rfl, hs1, ha1⟩ :=
+          usedConstsGo_run hstep1.ok coreWalkFuel (hseen.mono hstep1.ext)
+            (denoteNListE_ext hstep1.ext _ _ hacc) hty hg1
+        simp only [] at hr1
+        -- the tail of the fold, shared by all seven constructors
+        have tail : ∀ {sn2 : Std.HashSet EIdx} {ac2 : Array NIdx} {t : AState},
+            UCSeen s₂.store sn2 (ucBlockStep (seenP, accP) x).1 →
+            denoteNList s₂.store.ns ac2.toList
+              = some (ucBlockStep (seenP, accP) x).2.toList →
+            usedConstsBlock sn2 ac2 cs s₂ = .ok ((seen', acc'), t) →
+            ParseStep s t ∧
+              UCSeen t.store seen' ((x :: xs).foldl ucBlockStep (seenP, accP)).1 ∧
+              denoteNList t.store.ns acc'.toList
+                = some ((x :: xs).foldl ucBlockStep (seenP, accP)).2.toList := by
+          intro sn2 ac2 t hs2 ha2 hr2
+          obtain ⟨hstep2, hs3, ha3⟩ :=
+            ih hstep1.ok (by rw [hstep1.scratch]; exact hoff)
+              (denoteCIList_ext hstep1.ext _ _ h2) hs2 ha2 hr2
+          exact ⟨hstep1.trans hstep2,
+            by simpa only [List.foldl_cons] using hs3,
+            by simpa only [List.foldl_cons] using ha3⟩
+        -- the six non-recursor constructors run no rules
+        have hnorules : ∀ {t : AState},
+            (do let y ← (pure (sn1, ac1) : AM (Std.HashSet EIdx × Array NIdx))
+                usedConstsBlock y.1 y.2 cs) s₂ = .ok ((seen', acc'), t) →
+            usedConstsBlock sn1 ac1 cs s₂ = .ok ((seen', acc'), t) := by
+          intro t hh
+          obtain ⟨p2, s₃, hg2, hr2⟩ := AM.bind_ok hh
+          obtain ⟨hv2, hs2⟩ := AM.pure_ok hg2
+          subst hs2; subst hv2
+          exact hr2
+        have hgen : (∀ v mI rP rs, ci ≠ IConstantInfo.recInfo v mI rP rs) →
+            usedConstsBlock sn1 ac1 cs s₂ = .ok ((seen', acc'), s') →
+            ParseStep s s' ∧
+              UCSeen s'.store seen' ((x :: xs).foldl ucBlockStep (seenP, accP)).1 ∧
+              denoteNList s'.store.ns acc'.toList
+                = some ((x :: xs).foldl ucBlockStep (seenP, accP)).2.toList := by
+          intro hne hh
+          exact tail (by rw [ucBlockStep_denote h1 hne]; exact hs1)
+            (by rw [ucBlockStep_denote h1 hne]; exact ha1) hh
+        cases ci with
+        | recInfo v mI rP rls =>
+          rw [ConRon.Arena.Frontend.denoteCI] at h1
+          cases hc : ConRon.Arena.Frontend.denoteCV s.store v with
+          | none => rw [hc] at h1; simp at h1
+          | some cvP =>
+            cases hr : ConRon.Arena.Frontend.denoteRules s.store rls with
+            | none => rw [hc, hr] at h1; simp at h1
+            | some rlsP =>
+              rw [hc, hr] at h1
+              simp only [Option.some.injEq] at h1
+              subst h1
+              obtain ⟨p2, s₃, hg2, hr2⟩ := AM.bind_ok hr1
+              obtain ⟨sn2, ac2⟩ := p2
+              obtain ⟨rfl, hq2, hq3⟩ :=
+                usedConstsRules_run hstep1.ok rls
+                  (denoteRules_ext hstep1.ext _ _ hr) hs1 ha1 hg2
+              exact tail (by simpa only [ucBlockStep] using hq2)
+                (by simpa only [ucBlockStep] using hq3) hr2
+        | axiomInfo v =>
+          exact hgen (by intro _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
+        | defnInfo v e hint =>
+          exact hgen (by intro _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
+        | thmInfo v e =>
+          exact hgen (by intro _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
+        | indInfo v c =>
+          exact hgen (by intro _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
+        | ctorInfo v a b =>
+          exact hgen (by intro _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
+        | projInfo t =>
+          exact hgen (by intro _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
+
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:82 Declaration.usedConsts —
 the constants a record mentions.  A walk over the record's terms with a `seen`
 set, so the GRAY-invariant shape again.
@@ -528,15 +1061,139 @@ builds the closed dummy type as a VALUE), so `s' = s` is false at a block that
 holds a projection table.  `ParseStep s s'` is the honest frame and the answer
 is read at `s'.store` — round 4's own finding 15, one module over.
 
-`sorry`: the fuel induction with the `seen` set — `Bridge/ExprOps/Leaves.lean`'s
-open shape.  Task #97-P3-Frontend's sorry list, item 21. -/
+**CLOSED** (round 6).  `usedConstsGo_run` is the walk, `usedConstsRules_run`
+and `usedConstsBlock_run` the two folds, and the whole of what makes them line
+up is `UCSeen`: con-leche's memo is keyed by `Expr` and the twin's by handle,
+and the two stop in the same places because `denoteE` is INJECTIVE.
+
+**No `DeclProjNamed` hypothesis.**  The block arm reads `toConstantVal`, whose
+`.projInfo` arm is the one that interns — but only its TYPE, and the dummy
+`Sort 1` is the same whatever the table is called.  `toConstantVal_type_run`
+(`Bridge/Frontend/Lines.lean`) is that half, stated without the name clause so
+that it does not have to be assumed here. -/
 theorem usedConsts_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {d : IDeclaration}
     {dP : Declaration} (hd : ConRon.Arena.Frontend.denoteDecl s.store d = some dP)
     {ns : Array NIdx} (hrun : IDeclaration.usedConsts d s = .ok (ns, s')) :
     ParseStep s s' ∧ denoteNList s'.store.ns ns.toList
       = some (ConLeche.Declaration.usedConsts dP).toList := by
-  sorry
+  -- the four record arms that walk a `ConstantVal`'s type
+  have hcvty : ∀ (w : IConstantVal) (cw : ConstantVal),
+      ConRon.Arena.Frontend.denoteCV s.store w = some cw →
+      denoteE s.store w.type = some cw.type := by
+    intro w cw hw
+    simp only [ConRon.Arena.Frontend.denoteCV] at hw
+    cases h1 : denoteN s.store.ns w.name with
+    | none => rw [h1] at hw; simp at hw
+    | some n =>
+      cases h2 : ConRon.Arena.Frontend.denoteNList s.store.ns w.levelParams with
+      | none => rw [h1, h2] at hw; simp at hw
+      | some lps =>
+        cases h3 : denoteE s.store w.type with
+        | none => rw [h1, h2, h3] at hw; simp at hw
+        | some ty =>
+          rw [h1, h2, h3] at hw
+          obtain rfl := Option.some.inj hw
+          rfl
+  have hempty : denoteNList s.store.ns (#[] : Array NIdx).toList
+      = some (#[] : Array ConLeche.Name).toList := rfl
+  -- a value record: the header's type, then the value, over one visited set
+  have hval : ∀ {w : IConstantVal} {cw : ConstantVal} {e : EIdx} {x : Expr},
+      ConRon.Arena.Frontend.denoteCV s.store w = some cw →
+      denoteE s.store e = some x →
+      (do let p ← usedConstsGo ∅ #[] coreWalkFuel w.type
+          (do pure (← usedConstsGo p.1 p.2 coreWalkFuel e).2 : AM (Array NIdx)))
+        s = .ok (ns, s') →
+      ParseStep s s' ∧ denoteNList s'.store.ns ns.toList
+        = some (ConLeche.Frontend.usedConstsGo
+            (ConLeche.Frontend.usedConstsGo {} #[] cw.type).1
+            (ConLeche.Frontend.usedConstsGo {} #[] cw.type).2 x).2.toList := by
+    intro w cw e x hw he hh
+    obtain ⟨p1, s₁, hg1, hr1⟩ := AM.bind_ok hh
+    obtain ⟨sn1, ac1⟩ := p1
+    obtain ⟨rfl, hs1, ha1⟩ :=
+      usedConstsGo_run hok coreWalkFuel UCSeen.empty hempty (hcvty w cw hw) hg1
+    simp only [] at hr1
+    obtain ⟨p2, s₂, hg2, hr2⟩ := AM.bind_ok hr1
+    obtain ⟨sn2, ac2⟩ := p2
+    obtain ⟨rfl, -, ha2⟩ := usedConstsGo_run hok coreWalkFuel hs1 ha1 he hg2
+    obtain ⟨hvv, hss⟩ := AM.pure_ok hr2
+    subst hss; subst hvv
+    exact ⟨ParseStep.refl hok, ha2⟩
+  cases d with
+  | basisDecl k =>
+    rw [ConRon.Arena.Frontend.IDeclaration.usedConsts] at hrun
+    obtain ⟨hvv, hss⟩ := AM.pure_ok hrun
+    subst hss; subst hvv
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.some.injEq] at hd
+    subst hd
+    exact ⟨ParseStep.refl hok, rfl⟩
+  | quotDecl k w =>
+    rw [ConRon.Arena.Frontend.IDeclaration.usedConsts] at hrun
+    obtain ⟨hvv, hss⟩ := AM.pure_ok hrun
+    subst hss; subst hvv
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
+    obtain ⟨cw, -, rfl⟩ := hd
+    exact ⟨ParseStep.refl hok, rfl⟩
+  | axiomDecl w =>
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
+    obtain ⟨cw, hw, rfl⟩ := hd
+    rw [ConRon.Arena.Frontend.IDeclaration.usedConsts] at hrun
+    obtain ⟨p1, s₁, hg1, hr1⟩ := AM.bind_ok hrun
+    obtain ⟨sn1, ac1⟩ := p1
+    obtain ⟨rfl, -, ha1⟩ :=
+      usedConstsGo_run hok coreWalkFuel UCSeen.empty hempty (hcvty w cw hw) hg1
+    obtain ⟨hvv, hss⟩ := AM.pure_ok hr1
+    subst hss; subst hvv
+    exact ⟨ParseStep.refl hok, ha1⟩
+  | defnDecl w e hint =>
+    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
+    cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
+    | none => rw [hw] at hd; simp at hd
+    | some cw =>
+      cases he : denoteE s.store e with
+      | none => rw [hw, he] at hd; simp at hd
+      | some x =>
+        rw [hw, he] at hd
+        obtain rfl := Option.some.inj hd
+        rw [ConRon.Arena.Frontend.IDeclaration.usedConsts] at hrun
+        exact hval hw he hrun
+  | thmDecl w e =>
+    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
+    cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
+    | none => rw [hw] at hd; simp at hd
+    | some cw =>
+      cases he : denoteE s.store e with
+      | none => rw [hw, he] at hd; simp at hd
+      | some x =>
+        rw [hw, he] at hd
+        obtain rfl := Option.some.inj hd
+        rw [ConRon.Arena.Frontend.IDeclaration.usedConsts] at hrun
+        exact hval hw he hrun
+  | opaqueDecl w e =>
+    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
+    cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
+    | none => rw [hw] at hd; simp at hd
+    | some cw =>
+      cases he : denoteE s.store e with
+      | none => rw [hw, he] at hd; simp at hd
+      | some x =>
+        rw [hw, he] at hd
+        obtain rfl := Option.some.inj hd
+        rw [ConRon.Arena.Frontend.IDeclaration.usedConsts] at hrun
+        exact hval hw he hrun
+  | indDecl block nP =>
+    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
+    obtain ⟨bP, hbP, rfl⟩ := hd
+    rw [ConRon.Arena.Frontend.IDeclaration.usedConsts] at hrun
+    obtain ⟨p1, s₁, hg1, hr1⟩ := AM.bind_ok hrun
+    obtain ⟨sn1, ac1⟩ := p1
+    obtain ⟨hstep1, -, ha1⟩ :=
+      usedConstsBlock_run block hok hoff hbP UCSeen.empty hempty hg1
+    obtain ⟨hvv, hss⟩ := AM.pure_ok hr1
+    subst hss; subst hvv
+    rw [usedConsts_indDecl_eq]
+    exact ⟨hstep1, ha1⟩
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:110 hoistTargets — **the
 hoist's index, and where `denoteN_inj` is load-bearing**: the stream is
