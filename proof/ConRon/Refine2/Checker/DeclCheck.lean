@@ -1514,6 +1514,33 @@ is `substConst0Pairs` over the whole list. -/
   simp only [e1, e2, List.nil_append, bind_pure] at h1
   exact h1
 
+open Lockstep in
+theorem consts_resolve_all_aux (k : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rf lf}
+      (hs : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize),
+      hs.val.length - i.val = k → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf lf → absU vis = lf.visibleBelow →
+      LS pers (fun a b => b = id a)
+        (arena.decl_check.consts_resolve_all pers vis st rf hs i) lst
+        (constsResolveAll lf (absEIdxLFrom hs i)) := by
+  induction k with
+  | zero =>
+    intro pers st lst vis rf lf hs i hn hrel hinv hfe hvis
+    have hl := alloc.vec.Vec.len_val hs
+    have : absEIdxLFrom hs i = [] := by
+      simp only [absEIdxLFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
+    rw [arena.decl_check.consts_resolve_all, this, constsResolveAll, if_pos (by scalar_tac)]
+    exact LS.pure rfl hrel hinv
+  | succ m ih =>
+    intro pers st lst vis rf lf hs i hn hrel hinv hfe hvis
+    have hl := alloc.vec.Vec.len_val hs
+    have hi : i.val < hs.val.length := by omega
+    have : absEIdxLFrom hs i = absEIdx hs.val[i.val] :: (hs.val.drop (i.val + 1)).map absEIdx := by
+      simp only [absEIdxLFrom]; rw [List.drop_eq_getElem_cons hi]; rfl
+    rw [arena.decl_check.consts_resolve_all, this, constsResolveAll, if_neg (by scalar_tac)]
+    simp only [absEIdxLFrom] at ih
+    lockstep
+
 /-- `consts_resolve_all` ⊑ `constsResolveAll` at the cursor. -/
 theorem consts_resolve_all_refines {pers st lst} {vis : Std.U64} {rf lf}
     {hs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
@@ -1521,8 +1548,8 @@ theorem consts_resolve_all_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.consts_resolve_all pers vis st rf hs i = ok o) :
     Sim₀ id pers lst o
-      (constsResolveAll lf (absEIdxLFrom hs i)) := by
-  sorry
+      (constsResolveAll lf (absEIdxLFrom hs i)) :=
+  Lockstep.LS.toSim₀ (consts_resolve_all_aux _ hs i rfl hrel hinv ⟨hfe, hfinv⟩ hvis) hrun
 
 open Lockstep in
 @[lockstep] theorem consts_resolve_all_ls {pers st lst}
@@ -2282,7 +2309,21 @@ theorem div_mod_cert_applied_hyps_refines {pers st lst}
     (hrun : arena.decl_check.div_mod_cert_applied_hyps pers st base hyps = ok o) :
     Sim₀ absEIdx pers lst o
       (divModCertAppliedHypsSpec (absEIdx base) (absEIdxL hyps)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.div_mod_cert_applied_hyps]
+  have hl := alloc.vec.Vec.len_val hyps
+  simp only [absEIdxL]
+  rcases hh : hyps.val with _ | ⟨h1, _ | ⟨h2, _ | ⟨h3, r⟩⟩⟩
+  all_goals simp only [alloc.vec.Vec.length, hh, List.length_cons, List.length_nil] at hl
+  · rw [if_neg (by scalar_tac)]; rw [if_neg (by scalar_tac)]
+    exact Lockstep.LS.pure rfl hrel hinv
+  · rw [if_pos (by scalar_tac)]; simp only [List.map_cons, List.map_nil, divModCertAppliedHypsSpec]
+    lockstep
+  · rw [if_neg (by scalar_tac)]; rw [if_pos (by scalar_tac)]
+    simp only [List.map_cons, List.map_nil, divModCertAppliedHypsSpec]
+    lockstep
+  · rw [if_neg (by scalar_tac)]; rw [if_neg (by scalar_tac)]
+    exact Lockstep.LS.pure rfl hrel hinv
 
 open Lockstep in
 @[lockstep] theorem div_mod_cert_applied_hyps_ls {pers st lst}
