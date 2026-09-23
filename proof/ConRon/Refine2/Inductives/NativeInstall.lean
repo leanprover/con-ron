@@ -801,11 +801,21 @@ it. -/
 theorem check_native_refines {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
     {p0 : arena.inductives.native_parts.NativeParts} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf lf)
     (hrun : arena.inductives.native_install.check_native pers st mode rf p0 = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkNative (ConRon.Refine.absMode mode) lf (absNativeParts p0)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_native_ls {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
+    {p0 : arena.inductives.native_parts.NativeParts}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers IFEnvRelI
+      (arena.inductives.native_install.check_native pers st mode rf p0) lst
+      (checkNative (ConRon.Refine.absMode mode) lf (absNativeParts p0)) :=
+  LS.ofSimRel₀ fun _ h => check_native_refines hrel hinv hfe h
 
 /-! ## The axiom census
 
