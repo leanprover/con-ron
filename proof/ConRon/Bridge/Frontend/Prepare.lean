@@ -627,33 +627,6 @@ theorem UCSeen.mono {st st' : EStore} {seen : Std.HashSet EIdx}
     obtain ⟨e₀, he₀⟩ := Option.isSome_iff_exists.mp (hs.dom h hc)
     rw [denote_ext he₀ hx]; rfl
 
-/-- con-leche: none — the accumulator's own step: a name pushed on both
-sides. -/
-theorem denoteNList_snoc {st : NStore} :
-    ∀ {l : List NIdx} {lP : List ConLeche.Name} {n : NIdx}
-      {nP : ConLeche.Name}, denoteNList st l = some lP →
-      denoteN st n = some nP → denoteNList st (l ++ [n]) = some (lP ++ [nP]) := by
-  intro l
-  induction l with
-  | nil =>
-    intro lP n nP hl hn
-    simp only [denoteNList, Option.some.injEq] at hl
-    subst hl
-    simp only [List.nil_append, denoteNList, hn]
-  | cons a as ih =>
-    intro lP n nP hl hn
-    rw [denoteNList] at hl
-    cases ha : denoteN st a with
-    | none => rw [ha] at hl; simp at hl
-    | some x =>
-      cases has : denoteNList st as with
-      | none => rw [ha, has] at hl; simp at hl
-      | some xs =>
-        rw [ha, has] at hl
-        simp only [Option.some.injEq] at hl
-        subst hl
-        simp only [List.cons_append, denoteNList, ha, ih has hn]
-
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:54-77 usedConstsGo — **the
 arena side of the used-constant walk**: the twin's walk over handles visits
 the same nodes and pushes the same names, in the same order, as con-leche's

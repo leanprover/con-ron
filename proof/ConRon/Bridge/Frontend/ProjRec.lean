@@ -1026,7 +1026,7 @@ comparisons), `ctorsMentionBlock_run`, then the reordering argument — a
 sides — and finally the two `isSome` lemmas above, under `PinsOK`.  Task
 #97-P3-Frontend's sorry list, item 13. -/
 theorem projRecOwners_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {fuel : Nat} {block : List IConstantInfo}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {fuel : Nat} {block : List IConstantInfo}
     {blockP : List ConstantInfo} (hb : denoteCIList s.store block = some blockP)
     {types : List (NIdx × List NIdx × EIdx × Nat × Nat × List NIdx × Bool)}
     {typesP : List (ConLeche.Name × List ConLeche.Name × Expr × Nat × Nat ×
@@ -1063,7 +1063,7 @@ census, recorded in the parse state's two tables.
 `sorry`: `projRecOwners_run` plus `MapRel.insert` at `projOwners`.  Task
 #97-P3-Frontend's sorry list, item 13. -/
 theorem registerProjOwners_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {sd sd' : StateD}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd sd' : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {tys : List ConLeche.Frontend.IndTypeRec}
     {cts : List ConLeche.Frontend.IndCtorRec}
