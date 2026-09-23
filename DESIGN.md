@@ -49695,7 +49695,7 @@ branch point; the round adds `Walks/Nat.lean`).
 
 #### Round 5 — top-down from `hk`: the five bodies skeletonised, staging, and the frontier from 5 to 8 (2026-09-23, Opus under Fable)
 
-Branch `p3-core-5` off `arena` `61313dfd`, merged forward twice (`arena` `a7bb3aac` — task #97-P3-Promote — and `79321ffb` — task #97-P3-Frontend round 8, which touched `Walks/{Cached,Frame}.lean` and `Bridge/StateOK.lean`; both merged clean).  Three
+Branch `p3-core-5` off `arena` `61313dfd`, merged forward three times (`arena` `a7bb3aac` — task #97-P3-Promote; `79321ffb` — task #97-P3-Frontend round 8, which touched `Walks/{Cached,Frame}.lean` and `Bridge/StateOK.lean`; `e899ecd1` — task #97-P3-Checker round 9, see §8's last paragraph); all merged clean.  Three
 helper branches ran beside it and were merged into it: `p3-core-5-propread`
 (`Arena/PropRead.lean`'s bridge, round 4 §5), `p3-core-5-leaves` (the cheap
 per-tag children of `Arms/{Infer,InferIO,Annotate}.lean`, `Walks/StrLit.lean`)
@@ -49913,7 +49913,7 @@ by fan-in:
 | root | start (`61313dfd`) | tip | top item at the tip |
 |---|---|---|---|
 | **`ConRon.Bridge.CoreSpec.of_core`** (discharges `hk`) | 5 items / 5 modules / 9 tainted | **8 items / 6 modules / 39 tainted** (22 right after the skeleton) | `structEtaCertWith_spec` (fan-in 15, reach 26) |
-| `ConRon.Capstone.{model_exists,no_False_declaration}` | 15 items / 9 modules / 51 tainted, dead 911 | 32 items / 13 modules / 98 tainted, dead 796 | `Refine2.Frontend.apply_line_refines` (fan-in 7) |
+| `ConRon.Capstone.{model_exists,no_False_declaration}` | 15 items / 9 modules / 51 tainted, dead 911 | 32 items / 13 modules / 101 tainted, dead 794 | `Refine2.Frontend.apply_line_refines` (fan-in 7) |
 
 The capstone's numbers moved with `arena` (the Promote, P5 and Frontend
 tiers' skeletons landed in between), not with this round: **the capstone
@@ -49925,8 +49925,8 @@ capstone — replacing it by `CoreSpec.of_core rfl` — is a one-line
 change the day `CoreSpec.of_core` is sorry-free; today it would only move
 the eight items from one frontier to the other.
 
-`lake build ConRonBridge`: **632 jobs, green** (619 at the branch point; the
-round adds `Walks/{PropRead,StrLit,StrCtor,ProjLit,Stuck}.lean`).  Every
+`lake build ConRonBridge`: **634 jobs, green** (619 at the branch point; the
+round adds `Walks/{PropRead,StrLit,StrCtor,ProjLit,Stuck,Reserved}.lean`).  Every
 module census of the tier prints `[propext, Classical.choice, Quot.sound]`
 on each closed theorem and `sorryAx` only on the nine open children and the
 theorems proved over them.  No non-standard axiom.
@@ -49936,12 +49936,26 @@ OK** — `cargo-build` 3 s, `cargo-test` 8 s, `lint-rust` 1 s, `provenance`
 1 s, `provenance-self` 0 s, `twin-lines` 1 s, `overview-links` 0 s, `holes`
 0 s, `gen-pins` 1 s, `gen-prelude` 0 s, `gen-prelude-lean` 0 s,
 `extract-check` 127 s, `lake-build` 111 s, `lake-refine2` 145 s,
-`lake-bridge` 1 s, `lake-capstone` 3 s.
+`lake-bridge` 1 s, `lake-capstone` 3 s.  After the third merge (`arena`
+`e899ecd1`) and the fix below, **all 16 OK** again (`extract-check` 102 s;
+the three lake steps were already built).
+
+**The third merge made an import cycle, and the fix is a copy — an ask for
+the Checker lane.**  `Walks/Stuck.lean` imported `Bridge/Checker/Names.lean`
+for `reservedBasisNames_run` (the 1.4 s no-accumulator chain); task
+#97-P3-Checker round 9 made `Checker/Names.lean` import `Checker/Hyp.lean`,
+which imports this tier's `Induction.lean`.  The Checker lane is not this
+tier's, so the new `Walks/Reserved.lean` COPIES the seven small pieces
+(`pinAt_run`, `PinStep`, `internName_run`, `reservedBasisNames_run`,
+`denoteNL_toList`, `denoteNList_contains`) under `…C` names, importing only
+`Memo.lean` and `Promote/Pers.lean` (for `AM.bind_ok`).  They mention nothing
+above `Bridge/Specs.lean` and `StateOK.lean`; **moved below both tiers, the
+copy goes.**
 
 | | |
 |---|---|
 | branch | `p3-core-5` off `arena` `61313dfd`; helpers `p3-core-5-propread` (tip `d823cc08`), `p3-core-5-leaves` (`fb5b1fa6`), `p3-core-5-defeq` (`e319598f`), each merged into it and dropped |
-| the diff | `proof/ConRon/Bridge/Core/**` (five new `Walks/` modules; `Memo.lean`, the five `Arms/`, `Walks/{Owed,Walks}.lean`) and this section.  No Rust file, no generated model, no `Arena/`, no `Refine2/`, no other `Bridge/` module — `Walks/Stuck.lean` IMPORTS `Bridge/Checker/Names.lean` (for `reservedBasisNames_run`), which is new for the tier and builds clean |
+| the diff | `proof/ConRon/Bridge/Core/**` (five new `Walks/` modules; `Memo.lean`, the five `Arms/`, `Walks/{Owed,Walks}.lean`) and this section.  No Rust file, no generated model, no `Arena/`, no `Refine2/`, no other `Bridge/` module; `Walks/Reserved.lean` imports `Bridge/Promote/Pers.lean`, new for the tier |
 
 
 ### Task #97-P5-Ind — Theorem 2: the inductives tier, round 2 (2026-09-22, Opus under Fable)
