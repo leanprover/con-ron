@@ -560,19 +560,6 @@ theorem divModEnvGuardRestSpec_split (fe2 : IFEnv) :
     cases b <;> rfl
   · simp [h, bne]
 
-/-- `checkDivModCerts`' tail at one certificate, past the applied proof. -/
-def checkDivModCertTailSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
-    (annVal : EIdx) (stmts : List (List EIdx × EIdx)) (proofs : List EIdx)
-    (appliedA : EIdx) : AM Bool := do
-  match stmts, proofs with
-  | (_, eqE) :: srest, _ :: prest => do
-    let tp ← inferTypeCore mode fe checkFuel 4 appliedA
-    let rhs ← substConst0 c annVal coreWalkFuel eqE
-    if ← isDefEqCore mode fe checkFuel 4 tp rhs then
-      checkDivModCerts mode fe c annVal srest prest
-    else pure false
-  | _, _ => pure false
-
 /-- `checkDivModPinLoop`'s step at a variant whose two guards passed — the
 Rust's `check_div_mod_pin_try`: the `orElseAttempt` seam, then the twin's
 `match` on the step (task #97-T2-LOCKSTEP lane Checker: the old statement
