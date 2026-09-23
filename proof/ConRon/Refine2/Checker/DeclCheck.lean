@@ -94,7 +94,12 @@ theorem eq_basis_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.eq_basis_pinned pers vis st rf = ok o) :
     Sim₀ id pers lst o (eqBasisPinnedSpec lf) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.eq_basis_pinned]
+  try unfold eqBasisPinnedSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem eq_basis_pinned_ls {pers st lst}
@@ -2523,7 +2528,10 @@ theorem div_mod_slot_2_refines {pers st lst} {c : arena.handle.NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.div_mod_slot_2 st c = ok o) :
     Sim₀ absU pers lst o (divModSlot2Spec (absNIdx c)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.div_mod_slot_2]
+  try unfold divModSlot2Spec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem div_mod_slot_2_ls {pers st lst}
@@ -2538,7 +2546,10 @@ theorem div_mod_slot_1_refines {pers st lst} {c : arena.handle.NIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.div_mod_slot_1 st c = ok o) :
     Sim₀ absU pers lst o (divModSlot1Spec (absNIdx c)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.div_mod_slot_1]
+  try unfold divModSlot1Spec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem div_mod_slot_1_ls {pers st lst}
