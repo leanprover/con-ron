@@ -441,5 +441,8 @@ nor `IndSpec`, which are hypotheses of the statement. -/
 -- `Arena.checkDecl_wfProj` (reached through `Arena.annotStepGo_full`)
 #print axioms Arena.annotStepGo_bridge
 #print axioms Arena.annotStep_split
+-- `checkDivModPin_bridge` skeletonised: the loop is proved, over four pieces
+#print axioms checkDivModPinLoop_bridge
+#print axioms checkDivModPin_bridge
 
 end ConRon.Bridge
