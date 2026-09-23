@@ -19,7 +19,7 @@ state by shared reference and return a value or a `LineErr`; `note_decl`,
 `&mut StateD` is Aeneas's return value, so the second family's outcome is
 `(Result () LineErr) × AState × StateD`, which is `SimD`.
 
-## `sorry` count in this file: 53
+## `sorry` count in this file: 46
 -/
 import ConRon.Refine2.Frontend.ProjRec
 
@@ -495,36 +495,326 @@ theorem push_decl_refines {pers rst lst rsd lsd d o}
 
 /-! ## The index tables -/
 
+/-- A reader's answer, then the rest. -/
+theorem SimLR.bind_ok {α β γ δ : Type} {A : α → β} {B : δ → γ} {lst : AState} {o}
+    {x : AM γ} {r : δ} {f : γ → AM β}
+    (hx : SimLR B lst (.Ok r) x) (h : SimLR A lst o (f (B r))) :
+    SimLR A lst o (x >>= f) := by
+  simp only [SimLR] at hx
+  rcases o with r' | e
+  · simp only [SimLR] at h ⊢
+    rw [am_run_bind', hx, except_ok_bind]; exact h
+  · simp only [SimLR] at h ⊢
+    rw [am_run_bind', hx, except_ok_bind]; exact h
+
+/-- A reader's failure, then anything. -/
+theorem SimLR.bind_err {α β γ δ : Type} {A : α → β} {B : δ → γ} {lst : AState}
+    {e : frontend.export_c.LineErr} {x : AM γ} {f : γ → AM β}
+    (hx : SimLR B lst (.Err e) x) : SimLR A lst (.Err e) (x >>= f) := by
+  simp only [SimLR] at hx ⊢
+  rw [am_run_bind']; exact ALineErrSim.bind hx _
+
+/-- **`scan_types::id_table_get` refines `IdTable.get?`**
+(`ConLeche/Frontend/Scan/Types.lean:346-348`), ported from
+`RefineOld/Frontend/StateDR.lean` by task #97-P5-Front round 2.  The port's
+extra guard — the `u64` index cast to a `usize` and back, the overflow map
+taken when the round trip is not the identity — costs nothing: a `u64` that
+does not fit a `usize` is above every `Vec`'s length. -/
+theorem id_table_get_refines {T α : Type} {A : T → α}
+    {t : frontend.scan_types.IdTable T} {lt : ConLeche.Frontend.IdTable α}
+    {i : Std.U64} {o : Option T} (hrel : IdTableRel A t lt)
+    (h : frontend.scan_types.id_table_get t i = ok o) :
+    o.map A = lt.get? i.val := by
+  rw [frontend.scan_types.id_table_get] at h
+  simp only [lift, bind_tc_ok] at h
+  have hsize : lt.dense.size = t.dense.val.length := by
+    have h := congrArg List.length hrel.dense; simpa using h.symm
+  have hdense : ∀ j : Nat, lt.dense[j]? = (t.dense.val[j]?).map A := by
+    intro j; rw [← Array.getElem?_toList, ← hrel.dense, List.getElem?_map]
+  have hsparse : ∀ {o : Option T},
+      ron.hashmap.HashMap.get hU64 eU64 t.sparse i = ok o → o.map A = lt.sparse[i.val]? :=
+    fun h => ConRon.Refine.HashMap.Rel_get_wf u64Eq2Fwd hrel.inv (u64KeysOk _) hrel.sparse
+      trivial h
+  split at h
+  · rename_i hc
+    have hkv : (Std.UScalar.cast .Usize i : Std.Usize).val = i.val := by
+      rw [← usize_cast_u64_val' (Std.UScalar.cast .Usize i), hc]
+    split at h
+    · rename_i hlt
+      have hltv : i.val < t.dense.val.length := by rw [← hkv]; scalar_tac
+      obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      cases Result.ok_injective h
+      have hgx := vec_index_some hx
+      rw [hkv] at hgx
+      have hlt' : i.val < lt.dense.size := by rw [hsize]; exact hltv
+      simp only [ConLeche.Frontend.IdTable.get?, hlt', _root_.dite_true]
+      rw [← Array.getElem?_eq_getElem hlt', hdense, hgx]
+    · rename_i hge
+      have hgev : ¬ i.val < t.dense.val.length := by rw [← hkv]; scalar_tac
+      simp only [ConLeche.Frontend.IdTable.get?, hsize, hgev, _root_.dite_false]
+      exact hsparse h
+  · rename_i hc
+    have hbig : Std.Usize.max < i.val := by
+      by_contra hle
+      exact hc (ConRon.Refine.Env.u64_val_inj (by
+        rw [usize_cast_u64_val', ConRon.Refine.Env.u64_cast_usize_val (by omega)]))
+    have hgev : ¬ i.val < t.dense.val.length := by
+      have := t.dense.property; omega
+    simp only [ConLeche.Frontend.IdTable.get?, hsize, hgev, _root_.dite_false]
+    exact hsparse h
+
+/-- The three table readers share one shape: a hit is the handle, a miss is
+`merr` (an `internal` failure) against the twin's `fail (.internal …)`. -/
+theorem st_get_refines {T α : Type} {A : T → α} {lt : ConLeche.Frontend.IdTable α}
+    {t : frontend.scan_types.IdTable T} {i : Std.U64} {lst : AState} {g : Option T}
+    {x : AM α} (hrel : IdTableRel A t lt)
+    (hxs : ∀ n, lt.get? i.val = some n → x.run lst = .ok (n, lst))
+    (hxn : lt.get? i.val = none → ∃ le, x.run lst = .error le ∧ lAErrKind le = some .internal)
+    {o : core.result.Result T frontend.export_c.LineErr}
+    (hg : frontend.scan_types.id_table_get t i = ok g)
+    (hn : g = none → ∃ m, o = .Err (.Err (.Internal m)))
+    (hs : ∀ n, g = some n → o = .Ok n) :
+    SimLR A lst o x := by
+  have hG := id_table_get_refines hrel hg
+  cases g with
+  | none =>
+    obtain ⟨m, rfl⟩ := hn rfl
+    obtain ⟨le, hle, hk⟩ := hxn (by rw [← hG]; rfl)
+    intro k hk'
+    simp only [absAErrKind, Option.some.injEq] at hk'
+    subst hk'
+    exact ⟨le, hle, hk⟩
+  | some n =>
+    rw [hs n rfl]
+    exact hxs _ (by rw [← hG]; rfl)
+
+theorem st_miss {T : Type} {k : Std.Usize} {M : Std.Array Std.U32 k} {i : Std.U64}
+    {r : core.result.Result T frontend.export_c.LineErr}
+    (h : (do
+        let s ← lift (Std.Array.to_slice M)
+        let v ← kernel.core_types.code_points s
+        let v1 ← frontend.text.u64_str i
+        let v2 ← frontend.text.cat v v1
+        frontend.export_c.merr T v2) = ok r) :
+    ∃ m, r = .Err (.Err (.Internal m)) := by
+  simp only [lift, bind_tc_ok] at h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  exact merr_refines h
+
+
 /-- **`st_name` refines `StateD.name`** (`ExportC.lean:163-166`). -/
 theorem st_name_refines {rsd lsd lst i o} (hd : StateDRel rsd lsd)
     (h : frontend.export_c.st_name rsd i = ok o) :
-    SimLR absNIdx lst o (lsd.name (absU i)) := by sorry
+    SimLR absNIdx lst o (lsd.name (absU i)) := by
+  rw [frontend.export_c.st_name] at h
+  obtain ⟨g, hg, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  refine st_get_refines hd.names (fun n hn => by simp only [StateD.name, absU, hn]; rfl)
+    (fun hn => ⟨_, by simp only [StateD.name, absU, hn]; rfl, rfl⟩) hg (fun hgn => ?_) (fun n hgs => ?_)
+  · subst hgn; exact st_miss h
+  · subst hgs
+    obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    rw [dupId_nidx _ _ hn1]
 
 /-- **`st_level` refines `StateD.level`** (`ExportC.lean:170-173`). -/
 theorem st_level_refines {rsd lsd lst i o} (hd : StateDRel rsd lsd)
     (h : frontend.export_c.st_level rsd i = ok o) :
-    SimLR absLIdx lst o (lsd.level (absU i)) := by sorry
+    SimLR absLIdx lst o (lsd.level (absU i)) := by
+  rw [frontend.export_c.st_level] at h
+  obtain ⟨g, hg, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  refine st_get_refines hd.levels (fun n hn => by simp only [StateD.level, absU, hn]; rfl)
+    (fun hn => ⟨_, by simp only [StateD.level, absU, hn]; rfl, rfl⟩) hg (fun hgn => ?_) (fun n hgs => ?_)
+  · subst hgn; exact st_miss h
+  · subst hgs
+    obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    rw [dupId_lidx _ _ hn1]
 
 /-- **`st_expr` refines `StateD.expr`** (`ExportC.lean:177-180`). -/
 theorem st_expr_refines {rsd lsd lst i o} (hd : StateDRel rsd lsd)
     (h : frontend.export_c.st_expr rsd i = ok o) :
-    SimLR absEIdx lst o (lsd.expr (absU i)) := by sorry
+    SimLR absEIdx lst o (lsd.expr (absU i)) := by
+  rw [frontend.export_c.st_expr] at h
+  obtain ⟨g, hg, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  refine st_get_refines hd.exprs (fun n hn => by simp only [StateD.expr, absU, hn]; rfl)
+    (fun hn => ⟨_, by simp only [StateD.expr, absU, hn]; rfl, rfl⟩) hg (fun hgn => ?_) (fun n hgs => ?_)
+  · subst hgn; exact st_miss h
+  · subst hgs
+    obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    rw [dupId_eidx _ _ hn1]
 
 /-- **`st_names`** — the twin's `ns.mapM st.name`. -/
 theorem st_names_refines {rsd lsd lst is o} (hd : StateDRel rsd lsd)
     (h : frontend.export_c.st_names rsd is = ok o) :
-    SimLR absNIdxL lst o ((is.val.map absU).mapM lsd.name) := by sorry
+    SimLR absNIdxL lst o ((is.val.map absU).mapM lsd.name) := by
+  rw [frontend.export_c.st_names] at h
+  have key : ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.handle.NIdx) o,
+      frontend.export_c.st_names_loop rsd is out (alloc.vec.Vec.len is) i = ok o →
+      SimLR absNIdxL lst o (do
+        let rest ← ((is.val.drop i.val).map absU).mapM lsd.name
+        pure (absNIdxL out ++ rest)) := by
+    refine cursor_induction (fun i : Std.Usize => i.val) is.val.length
+      (fun i (out : alloc.vec.Vec arena.handle.NIdx) => ∀ o,
+        frontend.export_c.st_names_loop rsd is out (alloc.vec.Vec.len is) i = ok o →
+        SimLR absNIdxL lst o (do
+          let rest ← ((is.val.drop i.val).map absU).mapM lsd.name
+          pure (absNIdxL out ++ rest))) ?_ ?_
+    · intro i out hn o h
+      rw [frontend.export_c.st_names_loop.eq_def] at h
+      rw [if_neg (show ¬ i < alloc.vec.Vec.len is by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le hn]
+      show Except.ok _ = _
+      simp
+    · intro i out hi ih o h
+      rw [frontend.export_c.st_names_loop.eq_def] at h
+      rw [if_pos (show i < alloc.vec.Vec.len is by scalar_tac)] at h
+      obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hxv : is.val[i.val]'hi = x := by
+        have h1 := vec_index_some hx
+        rw [List.getElem?_eq_getElem hi] at h1
+        exact Option.some_injective _ h1
+      have hN := st_name_refines (lst := lst) hd hr
+      rw [List.drop_eq_getElem_cons hi, hxv, List.map_cons, List.mapM_cons]
+      cases r with
+      | Err e =>
+        cases Result.ok_injective h
+        show ALineErrSim e _
+        simp only [bind_assoc, am_run_bind']
+        exact ALineErrSim.bind hN _
+      | Ok v =>
+        obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := by
+          have := ConRon.Refine.Nat.uadd_val hi2; simpa using this
+        have hR := ih i2 out1 hi2v o h
+        rw [hi2v] at hR
+        simp only [SimLR] at hN
+        revert hR
+        cases o with
+        | Ok w =>
+          intro hR
+          show _ = _
+          simp only [bind_assoc, am_run_bind', hN, except_ok_bind, pure_bind]
+          have hR' : ((List.map absU (List.drop (i.val + 1) is.val)).mapM lsd.name >>=
+              fun rest => pure (absNIdxL out1 ++ rest) : AM _).run lst = .ok (absNIdxL w, lst) := hR
+          rw [am_run_bind'] at hR'
+          revert hR'
+          cases hm : ((List.map absU (List.drop (i.val + 1) is.val)).mapM lsd.name).run lst with
+          | error e => intro hR'; exact absurd hR' (by simp [Bind.bind, Except.bind])
+          | ok p =>
+            intro hR'
+            simp only [except_ok_bind] at hR' ⊢
+            rw [← hR']
+            simp [absNIdxL, ConRon.Refine.vec_push_val hout1]
+        | Err e =>
+          intro hR
+          simp only [SimLR] at hR ⊢
+          refine ALineErrSim.of_eq hR ?_
+          simp only [bind_assoc, am_run_bind', hN, except_ok_bind, pure_bind]
+          cases hm : ((List.map absU (List.drop (i.val + 1) is.val)).mapM lsd.name).run lst with
+          | error e => rfl
+          | ok p => simp [absNIdxL, ConRon.Refine.vec_push_val hout1]
+  have := key 0#usize _ o h
+  have e0 : absNIdxL (alloc.vec.Vec.with_capacity arena.handle.NIdx (alloc.vec.Vec.len is))
+      = [] := rfl
+  simp only [e0, List.nil_append, show ((0#usize : Std.Usize)).val = 0 by rfl, List.drop_zero,
+    bind_pure] at this
+  exact this
 
 /-- **`st_levels`** — the twin's `us.mapM st.level`. -/
 theorem st_levels_refines {rsd lsd lst is o} (hd : StateDRel rsd lsd)
     (h : frontend.export_c.st_levels rsd is = ok o) :
     SimLR (fun v => v.val.map absLIdx) lst o
-      ((is.val.map absU).mapM lsd.level) := by sorry
+      ((is.val.map absU).mapM lsd.level) := by
+  rw [frontend.export_c.st_levels] at h
+  have key : ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.handle.LIdx) o,
+      frontend.export_c.st_levels_loop rsd is out (alloc.vec.Vec.len is) i = ok o →
+      SimLR absLIdxL lst o (do
+        let rest ← ((is.val.drop i.val).map absU).mapM lsd.level
+        pure (absLIdxL out ++ rest)) := by
+    refine cursor_induction (fun i : Std.Usize => i.val) is.val.length
+      (fun i (out : alloc.vec.Vec arena.handle.LIdx) => ∀ o,
+        frontend.export_c.st_levels_loop rsd is out (alloc.vec.Vec.len is) i = ok o →
+        SimLR absLIdxL lst o (do
+          let rest ← ((is.val.drop i.val).map absU).mapM lsd.level
+          pure (absLIdxL out ++ rest))) ?_ ?_
+    · intro i out hn o h
+      rw [frontend.export_c.st_levels_loop.eq_def] at h
+      rw [if_neg (show ¬ i < alloc.vec.Vec.len is by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le hn]
+      show Except.ok _ = _
+      simp
+    · intro i out hi ih o h
+      rw [frontend.export_c.st_levels_loop.eq_def] at h
+      rw [if_pos (show i < alloc.vec.Vec.len is by scalar_tac)] at h
+      obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hxv : is.val[i.val]'hi = x := by
+        have h1 := vec_index_some hx
+        rw [List.getElem?_eq_getElem hi] at h1
+        exact Option.some_injective _ h1
+      have hN := st_level_refines (lst := lst) hd hr
+      rw [List.drop_eq_getElem_cons hi, hxv, List.map_cons, List.mapM_cons]
+      cases r with
+      | Err e =>
+        cases Result.ok_injective h
+        show ALineErrSim e _
+        simp only [bind_assoc, am_run_bind']
+        exact ALineErrSim.bind hN _
+      | Ok v =>
+        obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := by
+          have := ConRon.Refine.Nat.uadd_val hi2; simpa using this
+        have hR := ih i2 out1 hi2v o h
+        rw [hi2v] at hR
+        simp only [SimLR] at hN
+        revert hR
+        cases o with
+        | Ok w =>
+          intro hR
+          show _ = _
+          simp only [bind_assoc, am_run_bind', hN, except_ok_bind, pure_bind]
+          have hR' : ((List.map absU (List.drop (i.val + 1) is.val)).mapM lsd.level >>=
+              fun rest => pure (absLIdxL out1 ++ rest) : AM _).run lst = .ok (absLIdxL w, lst) := hR
+          rw [am_run_bind'] at hR'
+          revert hR'
+          cases hm : ((List.map absU (List.drop (i.val + 1) is.val)).mapM lsd.level).run lst with
+          | error e => intro hR'; exact absurd hR' (by simp [Bind.bind, Except.bind])
+          | ok p =>
+            intro hR'
+            simp only [except_ok_bind] at hR' ⊢
+            rw [← hR']
+            simp [absLIdxL, ConRon.Refine.vec_push_val hout1]
+        | Err e =>
+          intro hR
+          simp only [SimLR] at hR ⊢
+          refine ALineErrSim.of_eq hR ?_
+          simp only [bind_assoc, am_run_bind', hN, except_ok_bind, pure_bind]
+          cases hm : ((List.map absU (List.drop (i.val + 1) is.val)).mapM lsd.level).run lst with
+          | error e => rfl
+          | ok p => simp [absLIdxL, ConRon.Refine.vec_push_val hout1]
+  have := key 0#usize _ o h
+  have e0 : absLIdxL (alloc.vec.Vec.with_capacity arena.handle.LIdx (alloc.vec.Vec.len is))
+      = [] := rfl
+  simp only [e0, List.nil_append, show ((0#usize : Std.Usize)).val = 0 by rfl, List.drop_zero,
+    bind_pure] at this
+  exact this
+
+
 
 /-- **`get_decl_d` refines `getDeclD`** (`ExportC.lean:185-186`). -/
 theorem get_decl_d_refines {rsd lsd lst i o} (hd : StateDRel rsd lsd)
     (h : frontend.export_c.get_decl_d rsd i = ok o) :
-    SimLR absEIdx lst o (getDeclD lsd (absU i)) := by sorry
+    SimLR absEIdx lst o (getDeclD lsd (absU i)) := by
+  rw [frontend.export_c.get_decl_d] at h
+  exact st_expr_refines hd h
 
 /-- **`parse_pw_d` refines `parsePwD`** (`ExportC.lean:192-197`): the `pw`
 datum over the direct name table.  `PropWhen` holds con-leche `Name`s, so the
@@ -614,7 +904,35 @@ theorem parse_expr_entry_d_refines {pers rst lst rsd lsd i r o}
 /-- **`parse_cv_d` refines `parseCVD`** (`ExportC.lean:286-290`). -/
 theorem parse_cv_d_refines {rsd lsd lst cv o} (hd : StateDRel rsd lsd)
     (h : frontend.export_c.parse_cv_d rsd cv = ok o) :
-    SimLR absIConstantVal lst o (parseCVD lsd (absCVRec cv)) := by sorry
+    SimLR absIConstantVal lst o (parseCVD lsd (absCVRec cv)) := by
+  rw [frontend.export_c.parse_cv_d] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hN := st_name_refines (lst := lst) hd hr
+  simp only [parseCVD, absCVRec]
+  cases r with
+  | Err e =>
+    cases Result.ok_injective h
+    exact SimLR.bind_err hN
+  | Ok nm =>
+    refine SimLR.bind_ok hN ?_
+    obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hG := get_decl_d_refines (lst := lst) hd hr1
+    cases r1 with
+    | Err e =>
+      cases Result.ok_injective h
+      exact SimLR.bind_err hG
+    | Ok ty =>
+      refine SimLR.bind_ok hG ?_
+      obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hL := st_names_refines (lst := lst) hd hr2
+      cases r2 with
+      | Err e =>
+        cases Result.ok_injective h
+        exact SimLR.bind_err hL
+      | Ok lps =>
+        cases Result.ok_injective h
+        refine SimLR.bind_ok hL ?_
+        rfl
 
 /-! ## The projection rewrite's hooks -/
 

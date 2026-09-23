@@ -39,7 +39,7 @@ the code after a loop into every exit of it.
    well-founded argument of task #87 §18, with the twin's lemma as its
    measure.
 
-## `sorry` count in this file: 27
+## `sorry` count in this file: 11
 -/
 import ConRon.Refine2.Frontend.Prepare
 import ConRon.Refine2.Checker.Base
