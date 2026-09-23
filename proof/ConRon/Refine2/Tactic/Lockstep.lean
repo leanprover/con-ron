@@ -188,6 +188,50 @@ theorem LSW.ofSimS₀ {pers : arena.store.PersTier} {m : Result arena.monad.ASta
   obtain ⟨lst', hx, h1, h2⟩ := h st' hm
   exact ⟨(), lst', hx, trivial, h1, h2⟩
 
+/-- **A READ-ONLY Rust function in the `LS` judgement**: a Rust function that
+takes `st : &AState` answers `Result (Result α CheckError)`; threading the
+unchanged state through its result makes it a state-threading computation, so
+its body is stepped by `lockstep` like any other.  State the lemma as `LSR`
+(which is what a caller's bind rule wants), `apply LSR.ofLS`, unfold, and
+`lockstep`. -/
+theorem LSR.ofLS {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError)}
+    {st : arena.monad.AState} {lst : AState} {x : AM β}
+    (h : LS pers R (m >>= fun r => ok (r, st)) lst x) : LSR pers R m st lst x := by
+  intro o hm
+  exact h o st (by rw [hm, Aeneas.Std.bind_tc_ok])
+
+/-- A read-only Rust callee in TAIL position of a read-only function
+(`f … >>= fun r => ok (r, st)` after `LSR.ofLS`), against the twin's tail call. -/
+theorem LSR.tail {α β : Type} {pers : arena.store.PersTier} {R₁ R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError)}
+    {st : arena.monad.AState} {lst : AState} {x' x : AM β}
+    (hf : LSR pers R₁ m st lst x') (hx : x' = x) (hR : ∀ a b, R₁ a b → R a b) :
+    LS pers R (m >>= fun r => ok (r, st)) lst x := by
+  subst hx
+  intro o st' hm
+  obtain ⟨r, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h2)
+  have := hf _ h1
+  cases r with
+  | Err e => exact this
+  | Ok a =>
+    obtain ⟨b, lst', hx', hR', h3, h4⟩ := this
+    exact ⟨b, lst', hx', hR a b hR', h3, h4⟩
+
+/-- The public `AOut₀` statement of a read-only function from its `LSR`. -/
+theorem LSR.toAOut₀ {α β : Type} {A : α → β} {pers : arena.store.PersTier}
+    {m : Result (core.result.Result α kernel.core_types.CheckError)}
+    {st : arena.monad.AState} {lst : AState} {x : AM β} {o}
+    (h : LSR pers (fun a b => b = A a) m st lst x) (hm : m = ok o) :
+    AOut₀ A pers o st (x.run lst) := by
+  have := h o hm
+  cases o with
+  | Err e => exact this
+  | Ok a =>
+    obtain ⟨b, lst', hx, rfl, h1, h2⟩ := this
+    exact ⟨lst', hx, h1, h2⟩
+
 /-! ## The bind rules
 
 Each takes the spec of the Rust callee `f` against a twin action `x'`, and
@@ -349,6 +393,51 @@ theorem LS.ite {α β : Type} {pers : arena.store.PersTier} {R : α → β → P
   · rw [if_pos hc]; exact h₁ hc
   · rw [if_neg hc]; exact h₂ hc
 
+/-- A Rust bind whose callee is itself an `if` (Aeneas's rendering of a
+`let x = if c { … } else { … };` — a short-circuit `&&`, or a pair with the
+state): push the continuation into both arms, so the next step splits. -/
+theorem LS.bind_ite {α γ β : Type} {pers : arena.store.PersTier} {R : γ → β → Prop}
+    {c : Prop} [Decidable c] {f g : Result α}
+    {k : α → Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β}
+    (h : LS pers R (if c then f >>= k else g >>= k) lst x) :
+    LS pers R ((if c then f else g) >>= k) lst x := by
+  by_cases hc : c
+  · rw [if_pos hc]; rw [if_pos hc] at h; exact h
+  · rw [if_neg hc]; rw [if_neg hc] at h; exact h
+
+/-- Monad-law normalisation of the Rust side: a bind whose callee is itself a
+bind (a `let (a, b) ← do …` block), and a bind of an `ok`. -/
+theorem LS.bind_assoc {α δ γ β : Type} {pers : arena.store.PersTier} {R : γ → β → Prop}
+    {f : Result α} {g : α → Result δ}
+    {k : δ → Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β}
+    (h : LS pers R (f >>= fun a => g a >>= k) lst x) : LS pers R ((f >>= g) >>= k) lst x := by
+  rw [Aeneas.Std.bind_assoc_eq]; exact h
+
+theorem LS.bind_ok {α γ β : Type} {pers : arena.store.PersTier} {R : γ → β → Prop}
+    {a : α}
+    {k : α → Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β}
+    (h : LS pers R (k a) lst x) : LS pers R (ok a >>= k) lst x := by
+  rw [Aeneas.Std.bind_tc_ok]; exact h
+
+theorem LSP.bind_assoc {α δ β : Type} {f : Result α} {g : α → Result δ} {k : δ → Result β}
+    {Q : β → Prop} (h : LSP (f >>= fun a => g a >>= k) Q) : LSP ((f >>= g) >>= k) Q := by
+  rw [Aeneas.Std.bind_assoc_eq]; exact h
+
+theorem LSP.bind_ok {α β : Type} {a : α} {k : α → Result β} {Q : β → Prop}
+    (h : LSP (k a) Q) : LSP (ok a >>= k) Q := by
+  rw [Aeneas.Std.bind_tc_ok]; exact h
+
+theorem LSP.bind_ite {α β : Type} {c : Prop} [Decidable c] {f g : Result α}
+    {k : α → Result β} {Q : β → Prop}
+    (h : LSP (if c then f >>= k else g >>= k) Q) :
+    LSP ((if c then f else g) >>= k) Q := by
+  by_cases hc : c
+  · rw [if_pos hc]; rw [if_pos hc] at h; exact h
+  · rw [if_neg hc]; rw [if_neg hc] at h; exact h
+
 theorem LS.twin_ite_pos {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
     {c : Prop} [Decidable c]
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
@@ -363,6 +452,22 @@ theorem LS.twin_ite_neg {α β : Type} {pers : arena.store.PersTier} {R : α →
     LS pers R m lst (if c then x else y) := by
   rw [if_neg hc]; exact h
 
+/-- The twin's DEPENDENT `if` (`if h : c then … else …`, e.g. an array read
+under its bound), decided the same way. -/
+theorem LS.twin_dite_pos {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {c : Prop} [Decidable c]
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : c → AM β} {y : ¬ c → AM β} (hc : c) (h : LS pers R m lst (x hc)) :
+    LS pers R m lst (dite c x y) := by
+  rw [dif_pos hc]; exact h
+
+theorem LS.twin_dite_neg {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {c : Prop} [Decidable c]
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : c → AM β} {y : ¬ c → AM β} (hc : ¬ c) (h : LS pers R m lst (y hc)) :
+    LS pers R m lst (dite c x y) := by
+  rw [dif_neg hc]; exact h
+
 /-- The twin's own error leaf. -/
 theorem errSim_fail {γ : Type} {e : kernel.core_types.CheckError} {le : Arena.CheckError}
     {lst : AState} (hk : absAErrKind e = lAErrKind le) :
@@ -375,6 +480,12 @@ theorem errSim_throw {γ : Type} {e : kernel.core_types.CheckError} {le : Arena.
 theorem errArm_ok {γ : Type} {e : kernel.core_types.CheckError} {st : arena.monad.AState} :
     ErrArm (γ := γ) (ok (.Err e, st)) e := by
   intro o st' h; cases Result.ok_injective h; rfl
+
+/-- The error arm of a read-only callee's continuation, before the state is
+threaded back (`ok (Err e) >>= fun r => ok (r, st)`). -/
+theorem errArm_ok_bind {γ : Type} {e : kernel.core_types.CheckError} {st : arena.monad.AState} :
+    ErrArm (γ := γ) (ok (.Err e) >>= fun r => ok (r, st)) e := by
+  intro o st' h; rw [Aeneas.Std.bind_tc_ok] at h; cases Result.ok_injective h; rfl
 
 theorem uncurry_apply_proj {α β γ : Type} (f : α → β → γ) (p : α × β) :
     Aeneas.Std.uncurry f p = f p.1 p.2 := by
@@ -642,6 +753,12 @@ partial def headNorm (e : Expr) : MetaM Expr := do
     match ← withTransparency .default (Meta.reduceMatcher? e) with
     | ReduceMatcherResult.reduced e' => return ← headNorm e'
     | _ => return e
+  -- the callee of a head bind (a `match` Aeneas left in callee position)
+  if e.isAppOfArity ``Bind.bind 6 then
+    let f := e.getArg! 4
+    let f' ← headNorm f
+    if f' != f then
+      return e.setArg 4 f'
   return e
 
 /-- The twin side's `simp only [lockstep_simp]`, on the twin argument alone. -/
@@ -725,7 +842,7 @@ def errArm (g : MVarId) (names : List Name) : TacticM Unit := do
     let ty ← instantiateMVars (← g'.getType)
     let m ← headNorm (ty.getArg! 1)
     g'.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
-  runClosed g' (evalT `(tactic| exact errArm_ok))
+  runClosed g' (evalT `(tactic| first | exact errArm_ok | exact errArm_ok_bind))
 
 /-- Drop the branches whose condition contradicts the context. -/
 def contra (gs : List MVarId) : TacticM (List MVarId) := do
@@ -772,6 +889,15 @@ def stepPure (g : MVarId) : TacticM (List MVarId) := g.withContext do
         out := out ++ (← tidy sg.mvarId none)
       return out
     | _ => return ← runOn g (evalT `(tactic| split))
+  if m.isAppOfArity ``Bind.bind 6 && (m.getArg! 4).headBeta.isAppOfArity ``Bind.bind 6 then
+    let gs ← applyRule g ``LSP.bind_assoc
+    return ← tidy (← pick gs `h) none
+  if m.isAppOfArity ``Bind.bind 6 && (m.getArg! 4).headBeta.isAppOfArity ``Result.ok 2 then
+    let gs ← applyRule g ``LSP.bind_ok
+    return ← tidy (← pick gs `h) none
+  if m.isAppOfArity ``Bind.bind 6 && (m.getArg! 4).headBeta.isAppOfArity ``ite 5 then
+    let gs ← applyRule g ``LSP.bind_ite
+    return ← tidy (← pick gs `h) none
   if m.isAppOfArity ``Bind.bind 6 then
     let s ← saveState
     try
@@ -792,6 +918,15 @@ def stepPure (g : MVarId) : TacticM (List MVarId) := g.withContext do
 
 /-- The Rust side moves: a bind, a leaf, or a tail call. -/
 def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.withContext do
+  if m.isAppOfArity ``Bind.bind 6 && (m.getArg! 4).headBeta.isAppOfArity ``Bind.bind 6 then
+    let gs ← applyRule g ``LS.bind_assoc
+    return ← tidy (← pick gs `h) none
+  if m.isAppOfArity ``Bind.bind 6 && (m.getArg! 4).headBeta.isAppOfArity ``Result.ok 2 then
+    let gs ← applyRule g ``LS.bind_ok
+    return ← tidy (← pick gs `h) none
+  if m.isAppOfArity ``Bind.bind 6 && (m.getArg! 4).headBeta.isAppOfArity ``ite 5 then
+    let gs ← applyRule g ``LS.bind_ite
+    return ← tidy (← pick gs `h) none
   if m.isAppOfArity ``Bind.bind 6 then
     let f := m.getArg! 4
     let kind ← classify (← inferType f).appArg!
@@ -824,6 +959,16 @@ def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.withContext 
       s.restore
       match kind with
       | .state | .write => throw e
+      | .read =>
+        -- a read-only callee in tail position (`… >>= fun r => ok (r, st)`)
+        try
+          let gs ← applyRule g ``LSR.tail
+          specCore (← pick gs `hf)
+          runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+          runClosed (← pick gs `hR)
+            (evalT `(tactic| (intro _ _ h; first | exact h | (subst h; rfl) | lockstep_side)))
+          return []
+        catch _ => s.restore
       | _ => pure ()
     try
       let gs ← applyRule g ``LSP.bind
@@ -899,8 +1044,26 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
         out := out ++ (← tidy sg.mvarId none)
       return out
     | _ => return ← runOn g (evalT `(tactic| split))
+  -- a `match` on a variable in the callee position of the Rust's bind
+  if m.isAppOfArity ``Bind.bind 6 then
+    let f := (m.getArg! 4).headBeta
+    if f.isAppOfArity ``Aeneas.Std.uncurry 5 then
+      if let .fvar fv := f.appArg! then
+        let subs ← g.cases fv
+        let mut out := []
+        for sg in subs do
+          out := out ++ (← tidy sg.mvarId none)
+        return out
+    if let some mapp ← matchMatcherApp? (m.getArg! 4).headBeta then
+      if let some (.fvar fv) := mapp.discrs.find? (·.isFVar) then
+        let subs ← g.cases fv
+        let mut out := []
+        for sg in subs do
+          out := out ++ (← tidy sg.mvarId none)
+        return out
   -- the twin side, when it moves first
-  if x.isAppOfArity ``ite 5 then
+  if x.isAppOfArity ``ite 5 || x.isAppOfArity ``dite 5 then
+    let isD := x.isAppOfArity ``dite 5
     let cheap ← `(tactic| lockstep_side_cheap)
     let dear ← `(tactic| lockstep_side_ite)
     -- polarity: the twin's test usually goes the way the last Rust test went
@@ -910,8 +1073,9 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
         if d.userName.eraseMacroScopes == `hc then
           r := (← instantiateMVars d.type).isAppOfArity ``Not 1
       pure r
-    let rules := if lastNeg then [``LS.twin_ite_neg, ``LS.twin_ite_pos]
-      else [``LS.twin_ite_pos, ``LS.twin_ite_neg]
+    let (rp, rn) := if isD then (``LS.twin_dite_pos, ``LS.twin_dite_neg)
+      else (``LS.twin_ite_pos, ``LS.twin_ite_neg)
+    let rules := if lastNeg then [rn, rp] else [rp, rn]
     let tryIte (tac : TSyntax `tactic) : TacticM (Option (List MVarId)) := do
       for rule in rules do
         let s ← saveState

@@ -1011,4 +1011,57 @@ theorem listFrom_nil (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize)
   simp only [absEIdxListFrom]
   rw [List.drop_eq_nil_of_le hi]; rfl
 
+/-- `subst_level_list` hands back well-formed levels. -/
+theorem subst_level_list_from_wf
+    (ks : alloc.vec.Vec kernel.name.Name) (us vs : alloc.vec.Vec kernel.level.Level)
+    (hks : ∀ k ∈ ks.val, ConRon.Refine.NameWF k)
+    (hus : ∀ u ∈ us.val, ConRon.Refine.LevelWF u)
+    (hvs : ∀ v ∈ vs.val, ConRon.Refine.LevelWF v) :
+    ∀ (n : Nat) (i : Std.Usize) (out r : alloc.vec.Vec kernel.level.Level),
+      vs.val.length ≤ i.val + n → (∀ v ∈ out.val, ConRon.Refine.LevelWF v) →
+      arena.expr_ops.subst_level_list_from ks us vs i out = ok r →
+      ∀ v ∈ r.val, ConRon.Refine.LevelWF v := by
+  intro n
+  induction n with
+  | zero =>
+    intro i out r hn hout h
+    rw [arena.expr_ops.subst_level_list_from.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len vs by scalar_tac), Result.ok.injEq] at h
+    rw [← h]; exact hout
+  | succ n ih =>
+    intro i out r hn hout h
+    rw [arena.expr_ops.subst_level_list_from.eq_def] at h
+    by_cases hx : i.val ≥ vs.val.length
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len vs by scalar_tac), Result.ok.injEq] at h
+      rw [← h]; exact hout
+    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len vs by scalar_tac)] at h
+      obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨l1, hl1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨hb, hlv⟩ := ExprOps.vecIndexAt hl
+      have hlwf : ConRon.Refine.LevelWF l := by
+        rw [← hlv]; exact hvs _ (List.getElem_mem hb)
+      obtain ⟨-, hwf1⟩ := ConRon.Refine.Level.subst_use hl1 hlwf hks hus
+      have hov : out1.val = out.val ++ [l1] := ConRon.Refine.vec_push_val hout1
+      have hi2v : i2.val = i.val + 1 :=
+        (ConRon.Refine.Nat.uadd_val hi2).trans (by simp)
+      refine ih i2 out1 r (by omega) ?_ h
+      intro v hv
+      rw [hov] at hv
+      rcases List.mem_append.mp hv with hv | hv
+      · exact hout v hv
+      · simp at hv; rw [hv]; exact hwf1
+
+theorem subst_level_list_wf {ks : alloc.vec.Vec kernel.name.Name}
+    {us vs r : alloc.vec.Vec kernel.level.Level}
+    (hks : ∀ k ∈ ks.val, ConRon.Refine.NameWF k)
+    (hus : ∀ u ∈ us.val, ConRon.Refine.LevelWF u)
+    (hvs : ∀ v ∈ vs.val, ConRon.Refine.LevelWF v)
+    (h : arena.expr_ops.subst_level_list ks us vs = ok r) :
+    ∀ v ∈ r.val, ConRon.Refine.LevelWF v := by
+  rw [arena.expr_ops.subst_level_list] at h
+  exact subst_level_list_from_wf ks us vs hks hus hvs vs.val.length _ _ _ (by scalar_tac)
+    (by intro v hv; simp at hv) h
+
 end ConRon.Refine2
