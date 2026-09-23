@@ -41683,7 +41683,11 @@ clauses from the pure run the arm already proves:
   `Verify/Cached/BridgeCS4.lean`'s private `constWF_le'`) moves them to the
   installed environment.  **Upstream asks, added to the `ConstWF` list beside
   `cvA_type_facts'` and `constWF_intro'`: make `constWF_le'` public, and
-  export a `declBasisRun_envWF` beside `DeclBasisRun`.**
+  export a `declBasisRun_envWF` beside `DeclBasisRun`.**  (Task #97-P3-Ind round 8: the
+  inductive route's `EnvWF` — round 7's `indDecl_envWF` ask — needs NOTHING
+  more exported: it is closed from con-leche's public V-free lemmas, with
+  `constWF_le'` and `cvA_type_facts'` replicated; the same two lines above
+  are the whole wish.)
 * `projMem_of_noTower`: the index's pushed front denotes the environment's
   pushed front, and `denoteCI` keeps the constructor, so it holds no table.
 
@@ -51142,6 +51146,242 @@ round closed**, and still no `bv_decide` axiom anywhere in `Refine2/`.
 
 ### Task #97-P3-Ind — Theorem 1: the inductive tier
 
+#### Round 8 — the capstone takes `indSpec_of_bridge`, the install frame, both routes composed, and `indDecl_envWF` closed here (2026-09-23, Opus under Fable)
+
+Branch `ind-r8` off `arena` `6cfd995d`, merged forward to `b7c84da1` (which
+brought task #97-P3-Checker round 10's restated `checkConstantVal_bridge`
+and task #97-P3-Core round 6's `CoreSpec.of_core`) and then to `b1961867`
+(task #97-P5-Driver's phased pipeline).  The diff is
+`Bridge/Inductives/**`, `Capstone.lean` (the authorised edit, R8.1) and this
+section.  No Rust, no generated model; `Bridge/Checker/**` untouched.
+
+Gates on the merged tip (`b1961867`): **all 16 OK** (`extract-check` 106 s,
+`lake-refine2` 112 s, `lake-bridge` 40 s, `lake-capstone` 3 s).
+
+**The tier went from 28 open statements to 5**, all five in `Modeled.lean`
+and all five under the modeled route's iota and projection certificates:
+
+| module | open (r7 → r8) |
+|---|---:|
+| `Rel.lean`, `StructParts.lean`, `SumParts.lean`, `NativeParts.lean` | 0 → **0** |
+| `Decl.lean` | 1 → **0** (`indDecl_envWF`, R8.4) |
+| `StructInstall.lean` | 1 → **0** |
+| `SumInstall.lean` | 5 → **0** |
+| `NativeInstall.lean` | 5 → **0** |
+| `Modeled.lean` | 16 → **5** |
+| **the tier** | **28 → 5** |
+
+The five: `checkIotaThm_spec`, `checkIotaThmN_spec`, `nestedRuleShape_spec`,
+`checkProjIota_spec` (the certificates) and `checkProjFn_spec` (whose pieces
+`checkProjShape`, `checkProjRule`, `projFnRule` — `Arena/CheckerBase.lean` /
+`Arena/Core.lean` twins — have no Theorem 1 anywhere yet).  **The whole
+fixpoint route is closed**: `checkNative_spec` prints
+`[propext, Classical.choice, Quot.sound]`.  The modeled route is closed as a
+composition (`checkModeled_spec`, `checkIndMembers_spec`, `checkIndRecs_spec`,
+`provisionRecs_spec`, `installIndRecs_spec`, `checkIotaRules_spec`,
+`checkIotaRule_spec`, `installProjFns_spec`, `installProjFnStep_spec` are
+proved) and inherits `sorryAx` from the five only.  `Axioms.lean` gained a
+round-8 block and a "group 1½" for the compositions over the five.
+
+##### R8.0 The frontier, before and after
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`:
+
+* before (`6cfd995d`, `hind` still a hypothesis): **34 items in 14 modules,
+  109 tainted, dead weight 756**; top `Refine2.Frontend.apply_line_refines`
+  (fan-in 7, reach 14); no item of this lane (it was not in the closure).
+* just after the `Capstone.lean` edit (R8.1, before any proof): the lane
+  entered the closure with six items (`checkSumCtors_spec`,
+  `checkSumInd_spec`, `checkNativePass_spec`, `checkNativeTail_spec`,
+  `checkModeled_spec`, `indDecl_envWF`).
+* after (the landing tip, over `arena` `b1961867`): **59 items in 15 modules,
+  162 tainted, dead weight 641**; top **`Bridge.IndSpec.wf`** (fan-in 9,
+  reach 15 — the Checker tier's statement owed by this tier, R8.5).  This
+  lane's own items: `checkProjFn_spec` (fan-in 2, reach 9),
+  `checkIotaThm_spec`, `checkIotaThmN_spec`.  The growth of the total is
+  other lanes' work landed in between (T2 lock-step, Core round 6).
+* the lane's own root, `frontier.sh ConRon.Bridge.Inductives.indSpec_of_bridge`:
+  **3 items in 1 module, 12 tainted, dead weight 7** (round 7 ended at 3
+  items / 43).
+
+##### R8.1 `Capstone.lean`: `hind` discharged
+
+`model_exists` and `no_False_declaration` no longer take
+`hind : IndSpec .verified`: each builds it as its first step,
+`Bridge.Inductives.indSpec_of_bridge rfl (CoreSpec.of_core rfl)` (Core round 6
+discharged `hk` the same way), and passes it on.  The stage lemmas
+(`stages_model`, `stages_installThenCheck`, `declResolves_of_stages`,
+`rust_stages`) keep `hind` as a parameter — the second arena merge (task
+#97-P5-Driver's phased pipeline) rewrote them, and the minimal edit on top of
+that is at the two roots.
+
+##### R8.2 The install frame (ruling 2 executed)
+
+`Rel.lean` gained the frame the ruling asked for and three companions:
+
+* `InstStep s s'` — `StateOK s' ∧ Ext ∧ pins`; `ISpec P c R`, the statement
+  shape with a STATE precondition and a state-level answer relation (so `R`
+  can name `CheckOK` at the index the run ended on).
+* `ReadOK env fe s` — `CheckOK` less its cache clause: what a state satisfies
+  at an index its caches were not computed for.  `ReadOK.flush` turns it
+  into `CheckOK` (the flush empties the caches, `CacheOK.of_empty`);
+  `ReadOK.push` carries it over a non-table push (`IFEnvOK.push`).  Every
+  flush-first twin (`checkIndMember`, `provisionRecs`' step,
+  `installProjFnStep`) now takes `ReadOK` at entry.
+* `IFEnvOKS env fe st` — `IFEnvOK` as a store predicate, so a `CSpec` can
+  name the index spec at an index OTHER than the one its caches serve.
+* `RenameRelW` — `RenameRel` at every well-formed extension (R7.5's lesson);
+  `blockRenameTable_specW` supplies it.
+
+The restatements.  **Authorised (ruling 2):** `checkNativePass` (ISpec;
+concludes `CheckOK μ qP.env₁ r.1.env₁` at the end — the pass flushes after
+the former, so its caches serve `env₁`), `checkNativeTail` (ISpec; entry
+`CheckOK` at `env₁`, `ReadOK` at the entry index for `nativeFieldsOk`),
+`checkNative` (ISpec); the iota family `checkIotaThm`, `checkIotaThmN`,
+`checkIotaRule`, `checkIotaRules`, `nestedRuleShape`, `checkProjIota` are
+now `CSpec μ envSelf feSelf` with `IFEnvOKS env' fe'` in the precondition
+(their knot calls run at `feSelf`, their lookups at `fe'`) — `CoreStep` at
+`feSelf` IS the install frame plus `CheckOK` at the index the run ended on;
+`installIndRecs` (also: its old conclusion `InstRel acc (fun _ => csP.length
+= cs.length)` with `csP` unconstrained was **false** — it now takes
+`denoteRecs st cs = some csP` and concludes the pure fold, plus
+`IFEnvOKS` at the answer), `checkIndRecs`, `checkModeled` (ISpec).
+**The same defect, same fix, beyond the ruling's list — please confirm:**
+`checkIndMembers`, `provisionRecs` and `installProjFns` (and the entry of
+`installProjFnStep`) switch index between steps exactly as the listed ones
+do (each member / recursor / projection function is checked at the index the
+previous one pushed), so `CoreStep` at the entry index was false for any
+block with two members; they are ISpec now, concluding `ReadOK` at the
+answer (what the next stage reads).  **`CheckOK` at the final index is NOT
+concluded where it is false**: after `checkNativeTail` and `checkIndRecs` the
+caches serve the index BEFORE the last push (`feR`, `feSelf`), and nothing
+proves a cache row survives an environment extension (con-leche flushes for
+exactly this reason); the consumer (`Decl.lean`) reads `.state/.ext/.pins`
+only.
+
+##### R8.3 Preconditions repaired (hypothesis changes only)
+
+* `hμ : μ.verifiedChecks = true` on every statement that reaches
+  `checkConstantVal_bridge` (`checkSumTele`, `checkSumInd`, `normCtorVal`,
+  `checkSumCtor(s)`, `checkNativeRec`, `checkMemberVal`, …).
+* `IFEnvCoh` of the index an install pushes onto: `checkSumInd`,
+  `checkNativeRec`, `checkIndMember(s)`, `provisionRecs`, `checkIndRecs`,
+  `checkProjFn`, `installProjFn(s|Step)`, `checkNativeTable`,
+  `checkStructProjTable` (ruling 3) — `InstRel.coh` and `ProjOut.push` need it.
+* `IFEnvOKS env₀ fe₀` on `checkSumCtor(s)` (the pre-block resolution reads
+  `fe₀`), on `checkStructProjTable_run`/`checkNativeTable_run` (the twin reads
+  the index for the name family and the table name).
+* `hkcs` (every recursive-field index below its field count) on
+  `checkNativeRec` and `checkNativeTail` — `structRecTyR_spec`'s own; the
+  caller derives it from the pass's classification (`classifyFixKinds_hcs`).
+* `EnvWF` of the intermediate environments (`henv₁`, `henv₂`, `hTf` on the
+  tail; `EnvWF envSelf` on the iota family and `installIndRecs`), derived by
+  the callers from con-leche's pure lemmas (R8.4).
+* `hpins` (the block's `EtaPins`) on `checkIndMembers` — `indCapsWF_of_pins`
+  needs it for the former's `EnvWF`; `checkModeled` gets it from
+  `etaPins_of_indBlockCaps`.
+* `nativeFieldsOk`/`nativeOpenedOk`/`checkNativeRules` and their helpers
+  weakened from `CheckOK` to `ReadOK` (they read no cache); the old `CSpec`
+  forms are corollaries.
+
+##### R8.4 `indDecl_envWF` CLOSED — no con-leche export needed, no `EtaFamiliesClosed`
+
+Round 7 left `indDecl_envWF` as an ask of con-leche.  It is closed here from
+what con-leche already exports, assembled along the pure route exactly as
+its cached bridge assembles it (`checkNativeS_run`, `checkIndDeclSF_run`):
+`checkNative_envWF` (`checkNativePass_inv`, `direct_sum_ind_wf`,
+`checkSumCtors_inv` + `direct_sum_ctor_typeWF` + `envWF_consSumCtors`,
+`direct_fix_rec_wf`, `direct_table_wf`) and `checkModeled_envWF`
+(`checkIndMember_inv` + `indCapsWF_of_pins` at `etaPins_of_indBlockCaps` +
+`EtaPins.step`; `provisionRecs_facts`, `rulesFold_inv`, `chains_swapSh`,
+`swapSh_find?_corr`, `rulesChain_mem`, `checkIotaRules_inv` for the recursor
+group; `checkProjFn_inv`/`checkProjTy_inv`/`checkProjRule_inv` for the
+projection functions).  **`EtaFamiliesClosed env` is not needed**: every step
+reads only syntactic facts of the pure run.  The upstream list (R8.8) gets
+one line: the two private helpers replicated locally.  The same lemmas give
+the routes their intermediate `EnvWF` (R8.3).
+
+##### R8.5 FINDING — `IndSpec.wf` (the capstone frontier's top) needs `IndSpec.run` to carry a membership-shaped table clause
+
+Task #97-P3-Checker round 10 added `Bridge/Checker/Hyp.lean`'s
+`IndSpec.wf : μ.verifiedChecks = true → IndSpec μ → IndWFSpec μ` (`sorry`,
+owed by this tier; fan-in 9 on the capstone frontier).  `IndWFSpec.run` has
+two clauses: `EnvWF` at the pushed denotation — which `IndSpec.run` already
+concludes (R7.6) and which is now proved (R8.4) — and the RELATIVE
+MEMBERSHIP-shaped table clause `∀ t, .projInfo t ∈ fe'.env.consts →
+.projInfo t ∈ fe.env.consts ∨ IProjTableOK s'.store t`.  From an arbitrary
+`IndSpec` the second clause is not derivable: `IndSpec.run` does not state
+it.  The tier CAN supply it (every install pushes explicitly; the one table
+push, `checkStructProjTable_run`, has `IProjTableOK` of the table it pushes
+in hand — `ProjOut.push_table`), by adding a membership-form clause to
+`InstRel`/`IndOut` and one conjunct to `IndSpec.run`.  **That is a conclusion
+change to `IndSpec` (strengthening), not authorised this round — ruling
+requested.**  With it, `IndSpec.wf` is a projection.
+
+##### R8.6 What closed, by stage
+
+* **SumInstall (5):** `checkSumTele` (the slow arm: `whnfTelescope_spec`,
+  `internSortE_run`, `closeTelescope_spec`, `checkConstantVal_bridge`),
+  `checkSumInd`, `normCtorVal` (with `zipFvarDoms_run`, which names the
+  zipped list `zipFvarDoms_spec` only measured), `checkSumCtor` (≈120 steps:
+  two openings, the domain pins, the residual spine, the two pre-block
+  resolutions at `fe₀`, the field sorts; `open_fvar_scope` gives every
+  opened variable's domain its scope), `checkSumCtors`.
+* **NativeInstall (5):** `checkNativeRec` (the recursor pin, the generated
+  type, its four guards, infer/ensureSort/defeq, the rule-less push, the
+  rules at `ReadOK envR feR`), `checkNativeTable_run`, `checkNativePass`,
+  `checkNativeTail`, `checkNative`.
+* **StructInstall (1):** `checkStructProjTable_run` (+ `ProjOut.push_table`).
+* **Modeled (11):** `checkMemberVal`, `checkIndMember(s)`, `provisionRecs`,
+  `checkIndRecs` (+ `eqBasisStored_run` at `ReadOK`), `installIndRecs`,
+  `checkIotaRules`, `checkIotaRule` (the rescue bits read at `fe'` with the
+  caches at `feSelf`: `recRuleBits_runX`), `installProjFnStep`,
+  `installProjFns`, `checkModeled` (the four list reads by tag are exact on a
+  denoting block: `denoteCIList_filter`, `recsFormSuffix_denote`,
+  `blockRecSuffixDec_decide`, `denoteCIList_names` after
+  `checkIndMembers_kind` rules projection tables out), `checkIndRecs_envWF`.
+* **Decl (1):** `indDecl_envWF`.
+
+##### R8.7 Lessons worth keeping
+
+* **`subst`/`obtain rfl` keeps the LEFT variable**: `h : a = b` with both
+  locals eliminates `b`.  `pureOk`'s `r = a ∧ s' = s` therefore renames the
+  OLDER state to the newer one's name — every later reference to the old
+  name breaks.  Write `obtain ⟨hq, hs⟩ := pureOk k; subst hq; rw [hs] at z`
+  to keep the names you planned.
+* **A `match` inside `do` over the ARENA is applied to the state**, so
+  `split at h` fails ("could not find discriminants").  `generalize hI :
+  List.filter (fun ci => match ci with …) block = LI at z1` works — `kabstract`
+  compares up to defeq, so a restated matcher lambda matches the twin's — and
+  `rcases LI` then reduces the `match` by `exact z1`.
+* **`erw` where `rw` refuses a restated matcher**: con-leche's
+  `block.filter (fun ci => match ci with …)` and a proof's own spelling are
+  different auxiliary matchers; `erw [heqI]` rewrites across them.
+* **Pure-side inversions: peel with `ConLeche.exceptBind_ok`, never `simp only
+  [bind, Except.bind]`** (con-leche's own advice in `Verify/ExceptBind.lean`):
+  the do-block duplicates its continuation into every `if` branch, and
+  `simp`/`split` then drown.
+* **A lemma quantified over `fueledOps μ G` loses its match after
+  `simp only [ConLeche.fueledOps]`** (the record is unfolded inside every
+  argument); state the one slot you need as a `have` at the folded form
+  (`(fueledOps μ G).annotate … = .ok …`) and `simp only` with that.
+
+##### R8.8 What the next round should do
+
+0. **R8.5's ruling** — then `IndSpec.wf` is a projection and the capstone
+   frontier's top item goes.
+1. **Confirm R8.2's extension** (`checkIndMembers`, `provisionRecs`,
+   `installProjFns`).
+2. `checkProjFn`: state and prove `checkProjShape_spec` (small), `projFnRule`'s
+   run form (small: `recRulePlain` + `projFnName` + `recRuleBits_runX`) and
+   `checkProjRule_spec` (a Checker-tier twin with no Theorem 1: `pisToLams`,
+   `instPisAtF`, `instLamsAtF`, `checkDefEqList_bridge`) — owner arguably the
+   Checker tier.
+3. The certificates: `checkIotaThm`, `nestedRuleShape`, `checkIotaThmN`,
+   `checkProjIota` — the round's remaining mathematics (their con-leche
+   `_wfimp` lemmas in `Verify/BridgeWfImp.lean` give the scope side).
+
 #### Round 7 — the precondition repairs, the capability theorems, the opener, and a frame defect at every index switch (2026-09-23, Opus under Fable)
 
 Branch `ind-r7` off `arena` `f240dd91`, merged forward to `a7bb3aac` (task
@@ -57872,3 +58112,262 @@ and `stages_installThenCheck`; `lake build ConRonBridge ConRonCapstone` green
 **Ninth**, `12fd2d46` (T2-LOCKSTEP step 1: `Refine2` shape shims): clean;
 `lake build ConRonRefine2 ConRonCapstone` green (2 790 jobs); cache re-seeded;
 landed.
+
+### Task #97-T2-TACTIC — a uniform `lockstep` tactic for Theorem 2 (2026-09-23, Opus under Fable)
+
+The maintainer's question: *"it would be great if we could just blaze through
+these proofs using a uniform tactic."*  The hypothesis to test: once Theorem 2
+is lockstep (task #97-T2-AUDIT §6: `AStateRel₀`, no `Ext`, no resolves
+clause), a `_refines` proof is a zip of two do-blocks.  Peel one bind on each
+side, close the callee pair with a registered lemma, continue with the related
+results.  Worktree `_tmp/wt-t2-tactic` off `arena` `900615df`, rebased onto the
+definitions slice of the migration (`bd3a71f2`, `AStateRel₀`/`AOut₀`/`Sim₀`/`SimS₀`)
+once it landed.
+
+**Answer: yes for every lemma whose two sides are do-blocks over the arena
+state.**  The memoised walks, the intern wrappers, the knot arm and the
+checker arm are each `refine LS.toSim₀ ?_ hrun; rw [rust_f, twin_f]; lockstep`,
+and the case bodies of the two recursive walks are exactly that call.  Where
+the zip stops, it stops at the bind where the two programs stop doing the same
+thing, and on this sample that was always a D1 function.  So the tactic is also
+the divergence detector.  It does not fit the state-free list copies
+(inductives) or the frontend's line steps; see §4.
+
+#### 1. What was built
+
+`proof/ConRon/Refine2/Tactic/`:
+
+| file | what |
+|---|---|
+| `Attr.lean` | the `@[lockstep]` attribute (lemmas filed under the head constant of their RUST computation) and the `lockstep_simp` simp set |
+| `Lockstep.lean` | the judgements, the bind/leaf/branch rules, the tactic (`lockstep`, `lockstep_step`, `lockstep_spec`, `lockstep_side`, `lockstep_stats`), and the recipe in the module note |
+| `Prims.lean` | 33 `@[lockstep]` primitive pairs (views, `derived_e`, `inst_list_cutoff`, the `lift`/`inst1` memo get/set, tag and scalar steps, `fail`, `fail_dangling_e`, `dup2`, `Vec.index`/`push`, the seven interns) and 9 `@[lockstep_simp]` tag-test correspondences (`absU32_beq_app` …), beside the abstraction equations the twin side reduces with |
+| `Sample.lean`, `SampleCore.lean`, `SampleChecker.lean`, `SampleInd.lean` | the sample: primed copies of existing Theorem-2 lemmas, restated lockstep |
+
+**The judgement.**  The judgement is `LS pers R m lst x`: *every outcome of the Rust
+computation `m` is matched by the twin action `x` run from `lst`*.  An `Ok a`
+is matched by `ok (b, lst')` with `R a b`, `AStateRel₀`, `AStateInv`.  An
+`Err e` is matched by `AErrSim`.  It is `Sim₀` with the Rust equation moved
+into the judgement, so both programs are in the goal.  `LS.toSim₀` is the
+bridge.  The Rust callee shapes each get a companion judgement:
+
+* `LSR`: a read that can fail (`view`);
+* `LSV`: a total read (`lift_get`, `derived_e`);
+* `LSW`: a write (`lift_set`);
+* `LSP`: a Rust-only step (`fuel - 1`, `dup2`, `tag`, `fail`).
+
+Each has one bind rule.
+
+**Why `progress` and not `mvcgen`.**  Aeneas's `progress`/`step` keys a spec
+on the program being stepped and introduces the outputs.  `mvcgen` computes a
+weakest precondition over a whole block and leaves verification conditions.
+Lockstep is the first kind: the Rust's next callee picks the lemma, and the
+results come back as hypotheses.  With a VC generator, a divergence would show
+up as an unprovable VC far from its cause.  Here it shows up as a goal stuck at
+the bind where the programs part, with a message naming the Rust callee.
+
+Three design points carry most of the weight:
+
+* **The twin side of a spec is not unified with the goal.**  Every bind rule
+  takes `x' = x` as a separate premise, closed by `congr 1` plus the side
+  tactic.  So `liftLooseBVarsGo … (absU i1)` against `… (absU c + 1)` becomes a
+  side goal, not a unification failure.
+* **Local hypotheses are candidates.**  The induction hypothesis and the knot
+  slots are candidates beside the `@[lockstep]` lemmas, filtered to the same
+  judgement.  Without that filter, an `LSV` lemma unified with an `LSP` goal
+  through `def` unfolding.
+* **A Rust callee that reads the state must have a twin partner.**  If no
+  lemma pairs it, the step fails with *"the Rust reads the state at `f` and no
+  @[lockstep] lemma pairs it with the twin's next action"*.  A Rust-only
+  value step with no lemma instead keeps its equation (`LS.bind_eq`).
+
+**Cost engineering (measured, §3).**
+
+* Head normalisation is by definitional steps only (`headNorm`: beta, `let`,
+  `uncurry` at a pair, `match` on constructors).
+* `simp only [lockstep_simp]` runs on the TWIN argument alone.  A `dsimp` of
+  the whole goal re-traverses the entire remaining Rust program at every step.
+* The side tactic is tiered, cheap first.
+* An arithmetic goal (`=`/`<`/`≤` on `Nat`) goes to `omega`/`scalar_tac` early.
+* A twin `if` is tried in the polarity of the last Rust test.
+* A Rust bind moves before a twin `if` is decided with the expensive tier.
+* Relation hypotheses about states the goal no longer mentions are cleared.
+* Contradicted branches are tried only when stuck.
+
+Together these took `instantiate1_go` from 250 k to 110 k heartbeats.
+`lockstep_stats` prints the per-alternative timings.
+
+**No `grind`.**  The one `decide` path is `simp (config := {decide := true})`.
+Every sample is kernel-checked by the build.  `#print axioms` closes each
+sample file.  The D1-fixed samples, `check_value_group` and `ctors_copy_from`
+are `[propext, Classical.choice, Quot.sound]`.  The others show `sorryAx`
+only through the seven intern prims and the two deliberately stuck lemmas.
+
+#### 2. The seven intern prims are `sorry`, and false until D2
+
+Under `AStateRel₀`, `intern_e_*` needs `hchild`, a fact about the twin store.
+The Rust skips the persistent probe when a child is scratch, and the twin
+always probes.  That is D2, and the audit's twin fix removes it.  The prims
+are stated as the migration's intern slice will prove them: `hrel₀`, `hinv`,
+nothing else.  `intern_e_bind_i` also waits on finding 15.  They are labelled
+in `Prims.lean` and used by nothing outside `Tactic/Sample*`.  Every other
+prim is proved; each is the existing proof with `AStateRel₀`, because all of
+them read only `hrel.store`/`hrel.memos`.
+
+#### 3. The sample
+
+Heartbeats (`#count_heartbeats`, in maxHeartbeats units) are the measure of
+record: they are deterministic, which wall time on this shared machine is not.
+Wall time is the `trace.profiler` "elaborating proof" figure with
+`Elab.async false`.  I took one run of each new lemma and two of each old one;
+the old range is given.
+
+"Old" is the existing proof over the OLD statement.  That statement is
+heavier: `WOutE`, `MemoRes`, `EResolves`, `storeWF`, `Ext`.  Part of the
+line saving is therefore the migration's, not the tactic's.  "Setup" is
+everything except the `lockstep` calls: `refine LS.toSim₀`, the two `rw`s, the
+induction, the `intro`s, and the one `attribute [local lockstep_simp]` line
+naming a walk's twin arm definitions.
+
+| # | lemma (tier) | old lines (decl / proof) | new proof lines (setup + tactic) | case bodies = `lockstep`? | heartbeats old → new | wall old → new | result |
+|---|---|---:|---|---|---|---|---|
+| 1 | `intern_rebuilt_app` (straight-line intern wrapper) | 27 / 17 | 3 (2 + 1) | yes | 364 → 294 (0.8×) | 0.03 → 0.02 s | closes |
+| 2 | `intern_rebuilt_bind` (wrapper with a tag test) | 44 / 31 | 3 (2 + 1) | yes | 1 200 → 568 (0.5×) | 0.08 → 0.03 s | closes |
+| 3 | `lift_loose_bvars_go` (memoised `_go` walk, 5 arms) | 509 / 500 | 9 + 1 attr (7 + 2) | **yes, both fuel cases** | 16 830 → 18 418 (1.1×) | 3.7–4.4 → 0.9 s | closes |
+| 4 | `instantiate1_go` (the canonical memoised walk, 5 arms + cutoff) | 518 / 515 | 9 + 1 attr (7 + 2) | **yes, both fuel cases** | 54 551 → 110 386 (2.0×) | 3.0–3.9 → 5.6–6.0 s | closes |
+| 5 | `inst_pis_from` (telescope), twin as it is | 73 / 63 | 11 (8 + 2 + the `sorry`) | zero case yes; succ **stuck** | 2 496 → 7 272 to the stuck point | 2.6–3.0 → 0.4–0.6 s | **D1: `inst_pis_from`**, stops at the Rust's `view_bind` against the twin's `view` |
+| 6 | the same, twin tag-first (`instPisTF`, 9-line twin def) | — | 10 (8 + 2) | yes | 2 496 (#5 old) → 9 455 (3.8×) | 2.6–3.0 → 0.6 s | closes, axiom-clean |
+| 7 | `ensure_sort` (knot arm, `Core/Arms/Sort`), twin as it is | 95 / 79 | 5 (3 + 1 + the `sorry`) | **stuck** | 1 466 → 5 193 to the stuck point | 0.11 → 0.3 s | **D1: `ensure_sort`**, stops at `view_sort` against `view` |
+| 8 | the same, twin tag-first (`ensureSortTF`, 6-line twin def) | — | 4 (3 + 1) | yes | 1 466 → 3 068 (2.1×) | 0.11 → 0.16 s | closes, axiom-clean |
+| 9 | `check_value_group` (checker arm, 3 callees) | 62 / 49 | 4 (3 + 1) | yes | 738 → 789 (1.07×) | 0.05 → 0.04 s | closes, axiom-clean |
+| 10 | `ctors_copy_from` (inductives state-free copy) | 26 / 21 | 15 (7 + 2 + **6 by hand**) | zero yes; succ **no** | 917 → 13 173 (14×) | 0.06 → 0.7 s | closes, axiom-clean; the succ case needs the loop invariant's list algebra |
+| 11 | `parse_level_entry_d` (frontend line step) | `sorry` today | — | — | — | — | **not attempted: out of the judgement's shape**, §4 |
+
+Notes on the rows:
+
+* **The recursion setup is the same size everywhere: 7 lines.**  It is the
+  `induction n with`, the two case headers, and one `intro` and one `rw` per
+  case.  It does not automate: the twin's `_zero`/`_succ` equation and the
+  measure are per function.  That confirms the earlier rounds.
+* The callee lemmas of rows 5–8 are other lanes' walks and knot slots:
+  `instantiate1_fast`, `KnotRel.whnf`.  So are row 9's
+  `infer_type_core`, `ensure_sort_core` and `check_value_group_value`.  All are
+  taken in `LS` form as HYPOTHESES, and the tactic finds them in the context.
+  In row 9 those statements are 22 of its 30 lines; after the migration they
+  are the callees' own `@[lockstep]` lemmas.
+* Rows 3 and 4 close with interns that are `sorry` today (§2).  Everything
+  else in them is proved.
+* **Cost.**
+  * On the zip-shaped lemmas: 0.5–2.1× heartbeats.
+  * By wall time, the walks range from 4× faster (#3) to 1.6× slower (#4).
+    The old walks spend their wall time on `rw` inside the whole unfolded
+    body, which heartbeats do not see.
+  * The telescope is 3.8×, because its list-cursor correspondences
+    (`absEIdxListFrom args i3 = List.map absEIdx (List.drop (i+1) args)`) go
+    through `simp_all`/`scalar_tac`.
+  * The state-free copy is 14×: it has no zip to speed up.
+
+#### 4. Where the zip fails, and why
+
+* **D1, twice** (rows 5 and 7).  Each time, the stuck goal is at the Rust's
+  typed projection (`view_bind`, `view_sort`) after a `tag` test.  The twin's
+  next action is `view`.  The tactic's message names the Rust callee and prints
+  the twin action.  Spelling the twin tag-first, as task #97-T2-AUDIT §4
+  prescribes, makes both close unchanged (rows 6 and 8).  **The tactic is a
+  working D1 detector.**  `instantiate1_go` (row 4) is not on the D1 list, and
+  it closed: its twin is already tag-first.
+* **No twin/Rust divergence on the non-D1 rows.**  The two memo walks, both
+  wrappers and the checker arm zip end to end.  That includes the Rust's
+  `if b < i then (if b ≤ d then … else Y) else Y` against the twin's single
+  `if b < sat && b ≤ d`: the twin test is decided by the second Rust test, and
+  `Y` is zipped twice.
+* **Not a fit: state-free copies** (row 10).  There is no twin program, only a
+  list combinator (`absCtorsL out ++ absCtorsLFrom cs i`).  The tactic peels
+  the Rust (`LSP` goals work), but the loop invariant's algebra stays by hand.
+  `vec_cursor_copy` already is the uniform proof for these (27 lines, 917
+  heartbeats), and should stay.
+* **Not a fit today: the frontend** (row 11).  Two independent reasons:
+  1. **The judgement family.**  The frontend's statements are `SimD`,
+     `SimDV`, `SimL`, `SimLR`, `SimStreamRel`, `SimStreamD` and `SimGen`.
+     They carry a second state (`StateD`) and the error type `LineErr`, and
+     the Rust threads the bare `EStore` rather than `AState`.  None of them is
+     `LS`.  Supporting them means one more judgement family with its bind
+     rules, as for `LS`, generic over the error sim.
+  2. **The factoring differs.**  `parse_level_entry_d` decodes the record
+     (`parse_level_rec_d`: every `st_level` lookup) and then interns once.
+     `parseLevelEntryD` matches on the record and interns inside each arm.
+     The operations are the same and in the same order, so the zip would need
+     a twin helper `parseLevelRecD`.  That is the pattern
+     `checkValueGroupValueSpec` already uses in the checker tier.  This is a
+     factoring divergence, not D1.
+
+#### 5. Recommendation
+
+**Mandate the tactic for the lockstep migration's remaining lanes in
+`ExprOps`, `Core`, `Checker` and `Promote`.**  The rule for a lemma whose Rust
+and twin are both do-blocks over `AState`:
+
+1. Its statement is `LS` (`_aux`) or `Sim₀` (public).
+2. Its proof is the recipe below.
+3. A goal the tactic leaves is REPORTED, not proved by hand.  It is one of:
+   * a missing `@[lockstep]` pair, which becomes one lemma in `Prims`;
+   * a divergence, which becomes a twin fix: D1 tag-first, or a twin helper
+     for a factoring difference.
+
+This turns the 300–665-line walk proofs into ~10 lines, at 1–2× heartbeats.
+It also finds the D1 sites mechanically instead of by reading.
+
+**Exceptions:**
+
+* the state-free cursor copies and scans (`vec_cursor_copy`/`_all`/`_any`
+  stay);
+* the frontend, until someone either writes its judgement family (§4, about
+  the size of `Lockstep.lean`'s rule section) or keeps it by hand;
+* the store-level primitives themselves (`estore_*_abs`), which are not zips.
+
+**Prerequisites, in this order:**
+
+1. The D2 twin fix and the intern slice, which turn §2's seven `sorry`s into
+   one-line wrappers.
+2. The remaining primitive pairs, which are mechanical:
+   * the other eleven memo get/set pairs (four lines each, like `lift_*_ls`);
+   * the remaining views (one line each, with `LSV.of_store_read`);
+   * the level/name/list stores.
+3. Per lane, D1 as the tactic finds it.
+
+`Prims.lean` and `lockstep_simp` should move to `Refine2/Specs.lean`'s
+neighbourhood when the intern slice lands, so that every lane shares one set.
+
+#### 6. How to use it (for the lane briefs)
+
+    theorem f_refines … (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+        (hrun : rust_f pers st args = ok o) : Sim₀ A pers lst o (twinF …) := by
+      refine LS.toSim₀ ?_ hrun
+      rw [rust_f, twinF]            -- or the twin's `_zero`/`_succ`/`_unfold`
+      lockstep
+
+* **Recursion.**  State `f_aux (n)` with an `LS` conclusion and
+  `fuel.val = n → hrel₀ → hinv →` premises, then `induction n`.  In each case
+  write `intro …; rw [rust_f, twin_zero/_succ]; lockstep`.  The IH is found
+  in the context.
+* **Twin arms defined separately** (well-founded mutual defs): add
+  `attribute [local lockstep_simp] armApp armLam …`.
+* **A callee from another lane.**  Tag its lemma `@[lockstep]` in
+  `LS`/`LSR`/`LSV`/`LSW`/`LSP` form (`LS.ofSim₀`/`LSW.ofSimS₀` convert), or
+  take it as a hypothesis.
+* **A new primitive pair** is one `@[lockstep]` lemma; `Prims.lean` has every
+  shape.
+* **A new condition correspondence** (a twin test against a Rust test) is one
+  `@[lockstep_simp]` equation, e.g. `absU32_beq_app`.
+* **When a goal is left, read it.**  The message either names a Rust callee
+  with no lemma, or says the Rust reads the state where the twin's next action
+  is different.  The second is a divergence: report it.
+* **When it is slow**, `lockstep_stats` before and after the call prints which
+  side-tactic alternatives the time went to.
+* **Keep** `attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp` at the top
+  of every file.  The tactic uses no `grind`, but the rule is per file.
+
+#### 7. Gates
+
+`scripts/gates.sh` on the branch after merging `arena` (`545dee59`): **all 16
+OK** (`lake-refine2` 108 s, which builds the four sample modules).

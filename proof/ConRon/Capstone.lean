@@ -8,6 +8,7 @@ import ConRon.Refine2.Checker.PinsWF
 import ConRon.Refine2.Checker.Phased
 import ConRon.Bridge.Checker.Phased
 import ConRon.Refine2.Frontend.Source
+import ConRon.Bridge.Inductives.Decl
 
 /-!
 # `ConRon.Capstone` — THE COMPOSITION: Theorem 2 ∘ Theorem 1 ∘ con-leche
@@ -77,8 +78,11 @@ task #97-COMPOSE section tags each with its owning lane):
 * ~~`hk : CoreSpec .verified Arena.checkFuel`~~ — Theorem 1's Core tier
   spec: a theorem since task #97-P3-Core round 6
   (`Bridge/Checker/Hyp.lean`'s `CoreSpec.of_core`, passed here);
-* `hind : IndSpec .verified` — Theorem 1's inductive tier spec (as on
-  `Arena.no_False_declaration_pipeline`);
+* ~~`hind : IndSpec .verified`~~ — Theorem 1's inductive tier spec:
+  discharged by `Bridge/Inductives/Decl.lean`'s `indSpec_of_bridge` since task
+  #97-P3-Ind round 8 (the two headline theorems build it; the stage lemmas
+  below still take it as a parameter), so the inductive tier's open
+  statements are on the capstone's frontier;
 * `hbytes` — the prelude gate (`scripts/gen-prelude-lean.sh --check`);
 * ~~`hsc : ScanSpec`~~ — Theorem 2's scanner seam: a theorem since task
   #97-P5-Front (`Refine2/Frontend/Scan/Spec.lean`'s `scanSpec`);
@@ -456,7 +460,6 @@ the twin.  The original campaign's `absEnv e` has no counterpart.)
 Composition only: `rust_stages` (Theorem 2), `stages_model` (Theorem 1 +
 con-leche). -/
 theorem model_exists (V : Type w) [ConLeche.SetTheory V]
-    (hind : ConRon.Bridge.IndSpec .verified)
     (hbytes : ConRon.Arena.Frontend.preludeText =
       ConLeche.Frontend.builtinPreludeText.toUTF8)
     {G : Type} {inst : frontend.types.Modeller G} {m : G}
@@ -490,6 +493,9 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
       AStateRel pers st6 lst ∧ IFEnvRel fe lfe ∧
       ConRon.Bridge.denoteFEnv lst.store lfe = some env ∧
       Nonempty (ConLeche.Model.EnvModelM V .verified env) := by
+  -- Theorem 1's inductive tier, discharged (task #97-P3-Ind round 8)
+  have hind : ConRon.Bridge.IndSpec .verified :=
+    ConRon.Bridge.Inductives.indSpec_of_bridge rfl (ConRon.Bridge.CoreSpec.of_core rfl)
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, hrelF, hfe⟩ :=
     rust_stages (ConRon.Bridge.CoreSpec.of_core rfl) hind hbytes hmr hdec hpers hest hst0
       h1 h2 hreads h3 h4 h5 h6
@@ -510,7 +516,6 @@ twin runs, `stages_installThenCheck` turns the driver's fold into
 (which is con-leche's `no_proof_of_False_pure` through the bridge) refutes
 it. -/
 theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
-    (hind : ConRon.Bridge.IndSpec .verified)
     (hbytes : ConRon.Arena.Frontend.preludeText =
       ConLeche.Frontend.builtinPreludeText.toUTF8)
     {G : Type} {inst : frontend.types.Modeller G} {m : G}
@@ -542,6 +547,9 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     (h6 : arena.checker.check_decls_phased hinst pers st5 .Verified ipins ds hook
       = ok (.Ok fe, st6)) :
     False := by
+  -- Theorem 1's inductive tier, discharged (task #97-P3-Ind round 8)
+  have hind : ConRon.Bridge.IndSpec .verified :=
+    ConRon.Bridge.Inductives.indSpec_of_bridge rfl (ConRon.Bridge.CoreSpec.of_core rfl)
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, -, -⟩ :=
     rust_stages (ConRon.Bridge.CoreSpec.of_core rfl) hind hbytes hmr hdec hpers hest hst0
       h1 h2 hreads h3 h4 h5 h6
