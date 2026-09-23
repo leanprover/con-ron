@@ -158,9 +158,43 @@ macro_rules | `(tactic| sp_auto) => `(tactic| repeat' sp_step)
 theorem view_sp (b : Bool) (h : EIdx) : SPb b (view h) := by unfold view; sp_auto
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact view_sp _ _)
 
-/-- con-leche: none — `internE` interns in the tier it found. -/
+/-- con-leche: none — the typed projections the tag-first twins read
+(task #97-T2-LOCKSTEP), and their dangling-handle arm, read only. -/
+theorem viewBind_sp (b : Bool) (h : EIdx) : SPb b (viewBind h) := by unfold viewBind; sp_auto
+macro_rules | `(tactic| sp_lemma) => `(tactic| exact viewBind_sp _ _)
+theorem viewBindI_sp (b : Bool) (h : EIdx) : SPb b (viewBindI h) := by unfold viewBindI; sp_auto
+macro_rules | `(tactic| sp_lemma) => `(tactic| exact viewBindI_sp _ _)
+theorem viewFVarTy_sp (b : Bool) (h : EIdx) : SPb b (viewFVarTy h) := by
+  unfold viewFVarTy; sp_auto
+macro_rules | `(tactic| sp_lemma) => `(tactic| exact viewFVarTy_sp _ _)
+theorem failDanglingE_sp (b : Bool) {α : Type} : SPb b (failDanglingE : AM α) := by
+  unfold failDanglingE; sp_auto
+macro_rules | `(tactic| sp_lemma) => `(tactic| exact failDanglingE_sp _)
+
+/-- con-leche: none — `internNodeE` interns in the tier it found. -/
+theorem internNodeE_sp (b : Bool) (w : ENodeView) : SPb b (internNodeE w) := by
+  unfold internNodeE; sp_auto
+
+/-- con-leche: none — `internE` interns in the tier it found: the eight node
+arms are `internNodeE`, and the two binder arms (task #97-T2-LOCKSTEP D6) are
+the datum step and the node step, neither of which moves the flag. -/
 theorem internE_sp (b : Bool) (w : ENodeView) : SPb b (internE w) := by
-  unfold internE; sp_auto
+  intro s s' r hs h
+  cases w
+  case lam ty bd m =>
+    obtain ⟨mi, s₁, h1, h2⟩ := internE_lam_split h
+    obtain ⟨-, rfl, rfl⟩ := internBME_ok h1
+    obtain ⟨-, rfl⟩ := internLamIE_ok h2
+    simp only [EStore.internLamI, EStore.scratchOn_internBindI, EStore.scratchOn_internBM]
+    exact hs
+  case forallE ty bd m =>
+    obtain ⟨mi, s₁, h1, h2⟩ := internE_forallE_split h
+    obtain ⟨-, rfl, rfl⟩ := internBME_ok h1
+    obtain ⟨-, rfl⟩ := internForallEIE_ok h2
+    simp only [EStore.internForallEI, EStore.scratchOn_internBindI,
+      EStore.scratchOn_internBM]
+    exact hs
+  all_goals exact internNodeE_sp b _ s s' r hs h
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact internE_sp _ _)
 
 /-- con-leche: none — `internNNode`. -/

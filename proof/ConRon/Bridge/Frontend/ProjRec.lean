@@ -950,24 +950,34 @@ theorem lamBody_run {s : AState} (hok : StateOK s) :
   | succ fuel ih =>
     intro h e he b s' hrun
     rw [lamBody] at hrun
-    obtain ⟨v, s₁, hv, hrest⟩ := AM.bind_ok hrun
-    obtain ⟨hs1, hview⟩ := view_run hv
-    rw [hs1] at hrest
-    have hde : denoteEView s.store v = some e := by
-      rw [denoteE_view_eq hok.wf hview] at he; exact he
-    cases v
-    case lam ty body m =>
-      obtain ⟨et, eb, rfl, -, hb⟩ := denote_lam_inv hok.wf hview he
-      obtain ⟨rfl, hdb⟩ := ih hb hrest
-      exact ⟨rfl, hdb⟩
-    all_goals
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrest
+    -- the twin tests the tag, then reads the binder projection, as the port
+    -- does (task #97-T2-LOCKSTEP)
+    by_cases ht : (h.tag == ETag.lam) = true
+    · rw [if_pos ht] at hrun
+      obtain ⟨o, s₁, ho, hrest⟩ := AM.bind_ok hrun
+      obtain ⟨hs1, hvb⟩ := AM.of_run (P := fun t => t = s) rfl ho (viewBind_spec s h)
+      subst hs1
+      cases hoc : o with
+      | none =>
+        rw [hoc] at hrest
+        exact absurd (AM.fail_ok hrest) (by simp)
+      | some p =>
+        obtain ⟨ty, body, m⟩ := p
+        rw [hoc] at hrest hvb
+        have hview := view_of_viewBind_tag_lam ht hvb.symm
+        obtain ⟨et, eb, rfl, -, hb⟩ := denote_lam_inv hok.wf hview he
+        obtain ⟨rfl, hdb⟩ := ih hb hrest
+        exact ⟨rfl, hdb⟩
+    · rw [if_neg ht] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨rfl, ?_⟩
+      obtain ⟨v, hv, hne⟩ := not_lam_of_tag (by rw [he]; rfl) ht
       rw [he]
       cases e with
       | lam x y m =>
-        obtain ⟨_, _, hc, -, -⟩ := denoteEView_lam hde
-        exact absurd hc (by simp)
+        rw [denoteE_view_eq hok.wf hv] at he
+        cases v <;> simp_all [denoteEView, opt2_eq_some_iff, opt3_eq_some_iff,
+          Option.map_eq_some_iff]
       | _ => rfl
 
 /-- con-leche: none — two handle lists that denote are equal exactly when

@@ -66,6 +66,7 @@ the line.
 import ConRon.Bridge.StateOK
 import ConRon.Bridge.StoreNested
 import ConRon.Bridge.StoreBind
+import ConRon.Arena.PersistentRun
 import Std.Tactic.Do
 
 namespace ConRon.Bridge
@@ -262,30 +263,138 @@ theorem EStore.scratchOn_intern (st : EStore) (w : ENodeView) :
   rw [EStore.intern, EStore.scratchOn_internAt]
   rcases EStore.internBMOfView_cases st w with he | ⟨m, he⟩ | ⟨m, he⟩ <;> rw [he]
 
-/-- con-leche: none — **the one spec that carries the arena**: a handle for
-the node, the store still well formed, the arena only grown, the three other
-state fields untouched, and the three nested stores literally unchanged (so a
-name or level handle that had a view still has one).
+/-! ### The two binder faces over a datum HANDLE (task #97-P6-16)
 
-The capacity test is `internE`'s own branch (DESIGN §8.3: "the Rust raises
+`internLamIE` / `internForallEIE` do NOT go through `internE`: they call
+`EStore.internLamI` / `internForallEI`, whose cons key is the datum's handle
+and which never decode it.  `Bridge/StoreBind.lean`'s
+`EStore.internBindI_spec` is the store fact; the two specs below are that fact
+under the monadic wrapper's own capacity branch.
+
+Both wrappers PROBE FIRST since task #97-P5-Twin, as `internE` has since
+#97-P3-1, so each proof has two arms: the cons HIT, where the store does not
+move and `EStore.view_of_findBindI` names the handle's view, and the MISS,
+which is `internBindI_spec` at the tier the append goes to. -/
+
+@[spec] theorem internLamIE_spec (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
+    (m : BinderMeta) (hwf : StoreWF s₀.store) (hmi0 : mi.tag = 0)
+    (hbm : s₀.store.viewBM mi = some m)
+    (hty : (s₀.store.view ty).isSome = true)
+    (hb : (s₀.store.view b).isSome = true) :
+    ⦃fun s => ⌜s = s₀⌝⦄ internLamIE ty b mi
+    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
+        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        s'.store.view h = some (.lam ty b m) ∧
+        denoteE s'.store h = denoteEView s'.store (.lam ty b m)⌝⦄ := by
+  mvcgen [internLamIE]
+  spec_fails
+  -- **The cons HIT**: the probe comes first, so this arm answers the handle
+  -- the `lams` table already holds and moves nothing.
+  case vc1.h_1 =>
+    rename_i s hs i hfind
+    subst hs
+    have hview :=
+      EStore.view_of_findBindI (tag := ETag.lam) hwf (by decide) hbm hmi0 hfind
+    have heb : eBindView ETag.lam ty b m = ENodeView.lam ty b m := by
+      simp [eBindView]
+    rw [heb] at hview
+    obtain ⟨rk, hwf'⟩ := hwf
+    exact ⟨⟨rk, hwf'⟩, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl, hview,
+      denoteE_unfold hwf' hview⟩
+  rename_i s hs _hfind _n hcap _st _s'
+  subst hs
+  obtain ⟨h1, h2, hbe, h3, h4, h5, h6⟩ :=
+    EStore.internBindI_spec (tag := ETag.lam) hwf (by decide) hbm hmi0 hty hb hcap
+  have heb : eBindView ETag.lam ty b m = ENodeView.lam ty b m := by
+    simp [eBindView]
+  rw [heb] at h5 h6
+  exact ⟨h1, h2, hbe, h3, h4, rfl, rfl, rfl, h5, h6⟩
+
+@[spec] theorem internForallEIE_spec (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
+    (m : BinderMeta) (hwf : StoreWF s₀.store) (hmi0 : mi.tag = 0)
+    (hbm : s₀.store.viewBM mi = some m)
+    (hty : (s₀.store.view ty).isSome = true)
+    (hb : (s₀.store.view b).isSome = true) :
+    ⦃fun s => ⌜s = s₀⌝⦄ internForallEIE ty b mi
+    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
+        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        s'.store.view h = some (.forallE ty b m) ∧
+        denoteE s'.store h = denoteEView s'.store (.forallE ty b m)⌝⦄ := by
+  mvcgen [internForallEIE]
+  spec_fails
+  case vc1.h_1 =>
+    rename_i s hs i hfind
+    subst hs
+    have hview :=
+      EStore.view_of_findBindI (tag := ETag.forallE) hwf (by decide) hbm hmi0 hfind
+    have heb : eBindView ETag.forallE ty b m = ENodeView.forallE ty b m := by
+      simp [eBindView, ETag.lam, ETag.forallE]
+    rw [heb] at hview
+    obtain ⟨rk, hwf'⟩ := hwf
+    exact ⟨⟨rk, hwf'⟩, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl, hview,
+      denoteE_unfold hwf' hview⟩
+  rename_i s hs _hfind _n hcap _st _s'
+  subst hs
+  obtain ⟨h1, h2, hbe, h3, h4, h5, h6⟩ :=
+    EStore.internBindI_spec (tag := ETag.forallE) hwf (by decide) hbm hmi0 hty hb hcap
+  have heb : eBindView ETag.forallE ty b m = ENodeView.forallE ty b m := by
+    simp [eBindView, ETag.lam, ETag.forallE]
+  rw [heb] at h5 h6
+  exact ⟨h1, h2, hbe, h3, h4, rfl, rfl, rfl, h5, h6⟩
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — the two binder
+arms at a tag the caller carries.  One spec, stated at `eBindView`, so that a
+walk whose binder clause is shared between `lam` and `forallE` needs no case
+split (which is the whole point of the tag-carrying form). -/
+theorem internBindIE_spec (s₀ : AState) (tag : UInt32) (ty b : EIdx)
+    (mi : BMIdx) (m : BinderMeta) (hwf : StoreWF s₀.store) (hmi0 : mi.tag = 0)
+    (htag : ETag.isBind tag = true) (hbm : s₀.store.viewBM mi = some m)
+    (hty : (s₀.store.view ty).isSome = true)
+    (hb : (s₀.store.view b).isSome = true) :
+    ⦃fun s => ⌜s = s₀⌝⦄ internBindIE tag ty b mi
+    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
+        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        s'.store.view h = some (eBindView tag ty b m) ∧
+        denoteE s'.store h = denoteEView s'.store (eBindView tag ty b m)⌝⦄ := by
+  rcases (show tag = ETag.lam ∨ tag = ETag.forallE by
+      simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at htag; exact htag)
+    with rfl | rfl
+  · simpa [internBindIE, eBindView] using
+      internLamIE_spec s₀ ty b mi m hwf hmi0 hbm hty hb
+  · simpa [internBindIE, eBindView, ETag.lam, ETag.forallE] using
+      internForallEIE_spec s₀ ty b mi m hwf hmi0 hbm hty hb
+
+/-- con-leche: none — **the eight non-binder arms**: a handle for the node, the
+store still well formed, the arena only grown, the three other state fields
+untouched, and the three nested stores literally unchanged (so a name or level
+handle that had a view still has one).
+
+The capacity test is `internNodeE`'s own branch (DESIGN §8.3: "the Rust raises
 `Native` at the limit, the Lean `throw`s the same kind"), which is what
 discharges `EStore.intern_spec`'s `capOK` hypothesis without a precondition
 here — task #97a follow-up 3 made `capOK` *literally* that branch condition
-for exactly this reason. -/
-@[spec] theorem internE_spec (s₀ : AState) (w : ENodeView)
+for exactly this reason; its datum half is vacuous at a non-binder view. -/
+theorem internNodeE_spec (s₀ : AState) (w : ENodeView)
+    (hnb : EStore.eViewNeedsBM w = false)
     (hwf : StoreWF s₀.store) (hv : s₀.store.ViewOK w) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internE w
+    ⦃fun s => ⌜s = s₀⌝⦄ internNodeE w
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some w ∧
         denoteE s'.store h = denoteEView s'.store w⌝⦄ := by
-  mvcgen [internE]
+  mvcgen [internNodeE]
   spec_fails
   -- **The cons HIT** (task #97-P5-1's finding 9, fixed in the twin at
-  -- #97-P3-1): `internE` probes before it tests the capacity, exactly as the
-  -- Rust does, so this branch answers the handle the cons table already
+  -- #97-P3-1): `internNodeE` probes before it tests the capacity, exactly as
+  -- the Rust does, so this branch answers the handle the cons table already
   -- holds and moves nothing.  `EStore.view_of_find` is `StoreWF`'s own
   -- `consP`/`consS` clause read left to right — no capacity in it.
   case vc1.h_1 =>
@@ -295,18 +404,116 @@ for exactly this reason. -/
     obtain ⟨rk, hwf'⟩ := hwf
     exact ⟨⟨rk, hwf'⟩, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl, hview,
       denoteE_unfold hwf' hview⟩
-  rename_i s hs _hfind _n _nbm hcap _st _s'
+  rename_i s hs _hfind _n hcap _st _s'
   subst hs
-  simp only [Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq] at hcap
   have hcap' : EStore.capOK s.store w := by
-    refine ⟨hcap.1, fun hbm => ?_⟩
-    simp only [EStore.capOKBM]
-    rcases hcap.2 with hh | hh
-    · rw [hbm] at hh; exact absurd hh (by simp)
-    · exact hh
+    refine ⟨hcap, fun hbm => ?_⟩
+    cases w <;> simp_all [EStore.eViewNeedsBM, EStore.findBMOfView]
   obtain ⟨h1, h2, h3, h4⟩ := EStore.intern_spec hwf hv hcap'
   exact ⟨h1, h2, BMExt.intern _ _, EStore.lss_intern _ _,
     EStore.scratchOn_intern _ _, rfl, rfl, rfl, h3, h4⟩
+
+/-- con-leche: none — `AM.of_run`'s converse at a fixed pre-state: a
+partial-correctness triple from a statement about every accepting run. -/
+theorem AM.triple_of_run_at {α : Type} {x : AM α} {s₀ : AState}
+    {Q : α → AState → Prop}
+    (h : ∀ r s', x s₀ = .ok (r, s') → Q r s') :
+    ⦃fun s => ⌜s = s₀⌝⦄ x ⦃⇓? r s' => ⌜Q r s'⌝⦄ := by
+  intro s hs
+  have hs' : s = s₀ := hs
+  subst hs'
+  simp only [WP.wp, PredTrans.apply_pushArg]
+  cases hx : StateT.run x s with
+  | error e => exact trivial
+  | ok p =>
+    obtain ⟨r, s'⟩ := p
+    exact h r s' hx
+
+/-- con-leche: none — **the binder datum's step** (task #97-T2-LOCKSTEP D6):
+`internBME`'s run is `EStore.internBM`'s, so `EStore.internBM_spec` is its
+spec — the store stays well formed, no node read moves, and the handle decodes
+to the datum it was asked for. -/
+theorem internBME_run_spec {s₀ s₁ : AState} {m : BinderMeta} {mi : BMIdx}
+    (hwf : StoreWF s₀.store) (h : internBME m s₀ = .ok (mi, s₁)) :
+    s₁ = { s₀ with store := (s₀.store.internBM m).1 } ∧
+      StoreWF s₁.store ∧ Ext s₀.store s₁.store ∧ BMExt s₀.store s₁.store ∧
+      s₁.store.lss = s₀.store.lss ∧ s₁.store.scratchOn = s₀.store.scratchOn ∧
+      (∀ i : EIdx, s₁.store.view i = s₀.store.view i) ∧
+      s₁.store.viewBM mi = some m ∧ mi.tag = 0 := by
+  obtain ⟨hc, rfl, rfl⟩ := internBME_ok h
+  obtain ⟨rk, hw⟩ := hwf
+  obtain ⟨h1, h2, h3, h4, -, -, h7, h8⟩ := EStore.internBM_spec hw hc
+  exact ⟨rfl, h1, EStore.internBM_ext _ _,
+    fun _ _ hb => EStore.viewBM_internBM_mono _ m hb, h2, h3, h4, h7, h8⟩
+
+/-- con-leche: none — **the binder arms** (task #97-T2-LOCKSTEP D6): the datum
+step, then `internLamIE_spec` / `internForallEIE_spec` at the state and handle
+it answered.  The same postcondition as the node arms. -/
+theorem internE_bind_spec (s₀ : AState) (w : ENodeView) (tag : UInt32)
+    (ty b : EIdx) (m : BinderMeta)
+    (hw : w = eBindView tag ty b m) (htag : ETag.isBind tag = true)
+    (hstep : ∀ s, internE w s = (internBME m >>= fun mi => internBindIE tag ty b mi) s)
+    (hwf : StoreWF s₀.store) (hv : s₀.store.ViewOK w) :
+    ⦃fun s => ⌜s = s₀⌝⦄ internE w
+    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
+        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        s'.store.view h = some w ∧
+        denoteE s'.store h = denoteEView s'.store w⌝⦄ := by
+  refine AM.triple_of_run_at fun h s' hrun => ?_
+  rw [hstep] at hrun
+  obtain ⟨⟨mi, s₁⟩, h1, h2⟩ : ∃ p : BMIdx × AState, internBME m s₀ = .ok p ∧
+      internBindIE tag ty b p.1 p.2 = .ok (h, s') := by
+    simp only [bind, StateT.bind] at hrun
+    cases hx : internBME m s₀ with
+    | error e => rw [hx] at hrun; simp [Except.bind] at hrun
+    | ok p => rw [hx] at hrun; exact ⟨p, rfl, hrun⟩
+  obtain ⟨rfl, hwf1, hx1, hbx1, hlss1, hsc1, hview1, hvbm1, htag1⟩ :=
+    internBME_run_spec hwf h1
+  have hch : ∀ c, c ∈ w.echildren →
+      (({ s₀ with store := (s₀.store.internBM m).1 } : AState).store.view c).isSome
+        = true := by
+    intro c hc
+    rw [hview1]; exact hv.expr c hc
+  have hty := hch ty (by rw [hw]; rcases ETag.isBind_eq htag with rfl | rfl <;>
+    simp [eBindView, ENodeView.echildren, ETag.lam, ETag.forallE])
+  have hb := hch b (by rw [hw]; rcases ETag.isBind_eq htag with rfl | rfl <;>
+    simp [eBindView, ENodeView.echildren, ETag.lam, ETag.forallE])
+  obtain ⟨p1, p2, p3, p4, p5, p6, p7, p8, p9, p10⟩ :=
+    AM.of_run (P := fun t => t = { s₀ with store := (s₀.store.internBM m).1 }) rfl h2
+      (internBindIE_spec _ tag ty b mi m hwf1 htag1 htag hvbm1 hty hb)
+  rw [← hw] at p9 p10
+  exact ⟨p1, Ext.trans hx1 p2, BMExt.trans hbx1 p3, p4.trans hlss1, p5.trans hsc1,
+    p6, p7, p8, p9, p10⟩
+
+/-- con-leche: none — **the one spec that carries the arena**: a handle for
+the node, the store still well formed, the arena only grown, the three other
+state fields untouched, and the three nested stores literally unchanged (so a
+name or level handle that had a view still has one).
+
+Since task #97-T2-LOCKSTEP D6 `internE` is the Rust's dispatch — the two
+binder arms are the datum step then the node step at its handle
+(`internE_bind_spec`), the eight others `internNodeE` (`internNodeE_spec`) —
+so this is a case split over the two. -/
+@[spec] theorem internE_spec (s₀ : AState) (w : ENodeView)
+    (hwf : StoreWF s₀.store) (hv : s₀.store.ViewOK w) :
+    ⦃fun s => ⌜s = s₀⌝⦄ internE w
+    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        BMExt s₀.store s'.store ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
+        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        s'.store.view h = some w ∧
+        denoteE s'.store h = denoteEView s'.store w⌝⦄ := by
+  cases w
+  case lam ty b m =>
+    exact internE_bind_spec s₀ _ ETag.lam ty b m (by simp [eBindView]) (by decide)
+      (fun _ => by simp [internE, internBindIE]) hwf hv
+  case forallE ty b m =>
+    exact internE_bind_spec s₀ _ ETag.forallE ty b m
+      (by simp [eBindView, ETag.lam, ETag.forallE]) (by decide)
+      (fun _ => by simp [internE, internBindIE, ETag.lam, ETag.forallE]) hwf hv
+  all_goals exact internNodeE_spec s₀ _ rfl hwf hv
 
 /-! ### The ten per-constructor faces of `internE`
 
@@ -431,113 +638,6 @@ for exactly this reason. -/
         s'.store.view h = some (.proj n i e) ∧
         denoteE s'.store h = denoteEView s'.store (.proj n i e)⌝⦄ :=
   internE_spec s₀ (.proj n i e) hwf (viewOK_proj hn he)
-
-/-! ### The two binder faces over a datum HANDLE (task #97-P6-16)
-
-`internLamIE` / `internForallEIE` do NOT go through `internE`: they call
-`EStore.internLamI` / `internForallEI`, whose cons key is the datum's handle
-and which never decode it.  `Bridge/StoreBind.lean`'s
-`EStore.internBindI_spec` is the store fact; the two specs below are that fact
-under the monadic wrapper's own capacity branch.
-
-Both wrappers PROBE FIRST since task #97-P5-Twin, as `internE` has since
-#97-P3-1, so each proof has two arms: the cons HIT, where the store does not
-move and `EStore.view_of_findBindI` names the handle's view, and the MISS,
-which is `internBindI_spec` at the tier the append goes to. -/
-
-@[spec] theorem internLamIE_spec (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
-    (m : BinderMeta) (hwf : StoreWF s₀.store) (hmi0 : mi.tag = 0)
-    (hbm : s₀.store.viewBM mi = some m)
-    (hty : (s₀.store.view ty).isSome = true)
-    (hb : (s₀.store.view b).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internLamIE ty b mi
-    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        s'.store.view h = some (.lam ty b m) ∧
-        denoteE s'.store h = denoteEView s'.store (.lam ty b m)⌝⦄ := by
-  mvcgen [internLamIE]
-  spec_fails
-  -- **The cons HIT**: the probe comes first, so this arm answers the handle
-  -- the `lams` table already holds and moves nothing.
-  case vc1.h_1 =>
-    rename_i s hs i hfind
-    subst hs
-    have hview :=
-      EStore.view_of_findBindI (tag := ETag.lam) hwf (by decide) hbm hmi0 hfind
-    have heb : eBindView ETag.lam ty b m = ENodeView.lam ty b m := by
-      simp [eBindView]
-    rw [heb] at hview
-    obtain ⟨rk, hwf'⟩ := hwf
-    exact ⟨⟨rk, hwf'⟩, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl, hview,
-      denoteE_unfold hwf' hview⟩
-  rename_i s hs _hfind _n hcap _st _s'
-  subst hs
-  obtain ⟨h1, h2, hbe, h3, h4, h5, h6⟩ :=
-    EStore.internBindI_spec (tag := ETag.lam) hwf (by decide) hbm hmi0 hty hb hcap
-  have heb : eBindView ETag.lam ty b m = ENodeView.lam ty b m := by
-    simp [eBindView]
-  rw [heb] at h5 h6
-  exact ⟨h1, h2, hbe, h3, h4, rfl, rfl, rfl, h5, h6⟩
-
-@[spec] theorem internForallEIE_spec (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
-    (m : BinderMeta) (hwf : StoreWF s₀.store) (hmi0 : mi.tag = 0)
-    (hbm : s₀.store.viewBM mi = some m)
-    (hty : (s₀.store.view ty).isSome = true)
-    (hb : (s₀.store.view b).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internForallEIE ty b mi
-    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        s'.store.view h = some (.forallE ty b m) ∧
-        denoteE s'.store h = denoteEView s'.store (.forallE ty b m)⌝⦄ := by
-  mvcgen [internForallEIE]
-  spec_fails
-  case vc1.h_1 =>
-    rename_i s hs i hfind
-    subst hs
-    have hview :=
-      EStore.view_of_findBindI (tag := ETag.forallE) hwf (by decide) hbm hmi0 hfind
-    have heb : eBindView ETag.forallE ty b m = ENodeView.forallE ty b m := by
-      simp [eBindView, ETag.lam, ETag.forallE]
-    rw [heb] at hview
-    obtain ⟨rk, hwf'⟩ := hwf
-    exact ⟨⟨rk, hwf'⟩, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl, hview,
-      denoteE_unfold hwf' hview⟩
-  rename_i s hs _hfind _n hcap _st _s'
-  subst hs
-  obtain ⟨h1, h2, hbe, h3, h4, h5, h6⟩ :=
-    EStore.internBindI_spec (tag := ETag.forallE) hwf (by decide) hbm hmi0 hty hb hcap
-  have heb : eBindView ETag.forallE ty b m = ENodeView.forallE ty b m := by
-    simp [eBindView, ETag.lam, ETag.forallE]
-  rw [heb] at h5 h6
-  exact ⟨h1, h2, hbe, h3, h4, rfl, rfl, rfl, h5, h6⟩
-
-/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — the two binder
-arms at a tag the caller carries.  One spec, stated at `eBindView`, so that a
-walk whose binder clause is shared between `lam` and `forallE` needs no case
-split (which is the whole point of the tag-carrying form). -/
-theorem internBindIE_spec (s₀ : AState) (tag : UInt32) (ty b : EIdx)
-    (mi : BMIdx) (m : BinderMeta) (hwf : StoreWF s₀.store) (hmi0 : mi.tag = 0)
-    (htag : ETag.isBind tag = true) (hbm : s₀.store.viewBM mi = some m)
-    (hty : (s₀.store.view ty).isSome = true)
-    (hb : (s₀.store.view b).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internBindIE tag ty b mi
-    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        s'.store.view h = some (eBindView tag ty b m) ∧
-        denoteE s'.store h = denoteEView s'.store (eBindView tag ty b m)⌝⦄ := by
-  rcases (show tag = ETag.lam ∨ tag = ETag.forallE by
-      simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at htag; exact htag)
-    with rfl | rfl
-  · simpa [internBindIE, eBindView] using
-      internLamIE_spec s₀ ty b mi m hwf hmi0 hbm hty hb
-  · simpa [internBindIE, eBindView, ETag.lam, ETag.forallE] using
-      internForallEIE_spec s₀ ty b mi m hwf hmi0 hbm hty hb
 
 /-! ## The per-constructor projections of `view` (tasks #97-P6-10, #97-P6-13)
 

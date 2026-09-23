@@ -12,7 +12,7 @@ A read-only Rust function answers `Result (Result α CheckError)`; its
 of `Refine2/Tactic/Lockstep.lean` (what a caller's bind rule wants), and its
 public form is `AOut₀ A pers o st ((twinF …).run lst)` (`LSR.toAOut₀`).  The
 premises are `AStateRel₀` and `AStateInv` — representation facts only.
-Every proof is `apply LSR.ofLS` (thread the unchanged state through the
+Every proof is `apply LSR.of_LS` (thread the unchanged state through the
 result), `rw [rust_f, twinF]`, `lockstep`; a fuel recursion states the `_aux`
 at `fuel.val = n` and runs that line in each case of `induction n`.
 
@@ -171,12 +171,12 @@ theorem size_b_aux (n : Nat) :
   induction n with
   | zero =>
     intro pers st lst fuel h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.size_b, sizeB_zero]
     lockstep
   | succ m ih =>
     intro pers st lst fuel h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.size_b, sizeB_succ]
     lockstep
 
@@ -206,12 +206,12 @@ theorem size_f_aux (n : Nat) :
   induction n with
   | zero =>
     intro pers st lst fuel h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.size_f, sizeF_zero]
     lockstep
   | succ m ih =>
     intro pers st lst fuel h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.size_f, sizeF_succ]
     lockstep
 
@@ -241,12 +241,12 @@ theorem has_fvar_aux (n : Nat) :
   induction n with
   | zero =>
     intro pers st lst fuel h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.has_fvar, hasFvar_zero]
     lockstep
   | succ m ih =>
     intro pers st lst fuel h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.has_fvar, hasFvar_succ]
     lockstep
 
@@ -276,12 +276,12 @@ theorem fvar_leaves_aux (n : Nat) :
   induction n with
   | zero =>
     intro pers st lst fuel h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.fvar_leaves, fvarLeaves_zero]
     lockstep
   | succ m ih =>
     intro pers st lst fuel h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.fvar_leaves, fvarLeaves_succ]
     lockstep
 
@@ -311,12 +311,12 @@ theorem wscoped_b_aux (n : Nat) :
   induction n with
   | zero =>
     intro pers st lst fuel d h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.wscoped_b, wscopedB_zero]
     lockstep
   | succ m ih =>
     intro pers st lst fuel d h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.wscoped_b, wscopedB_succ]
     lockstep
 
@@ -346,12 +346,12 @@ theorem loose_bvars_bounded_aux (n : Nat) :
   induction n with
   | zero =>
     intro pers st lst fuel k h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.loose_bvars_bounded, looseBVarsBounded_zero]
     lockstep
   | succ m ih =>
     intro pers st lst fuel k h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.loose_bvars_bounded, looseBVarsBounded_succ]
     lockstep
 
@@ -380,12 +380,12 @@ theorem result_sort_aux (n : Nat) :
   induction n with
   | zero =>
     intro pers st lst fuel h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.result_sort, resultSort]
     lockstep
   | succ m ih =>
     intro pers st lst fuel h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.result_sort, resultSort]
     lockstep
 
@@ -414,12 +414,12 @@ theorem get_app_fn_aux (n : Nat) :
   induction n with
   | zero =>
     intro pers st lst fuel h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.get_app_fn, getAppFn]
     lockstep
   | succ m ih =>
     intro pers st lst fuel h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.get_app_fn, getAppFn]
     lockstep
 
@@ -448,12 +448,12 @@ theorem pi_result_aux (n : Nat) :
   induction n with
   | zero =>
     intro pers st lst fuel h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.pi_result, piResult]
     lockstep
   | succ m ih =>
     intro pers st lst fuel h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.pi_result, piResult]
     lockstep
 
@@ -482,12 +482,12 @@ theorem pi_arity_aux (n : Nat) :
   induction n with
   | zero =>
     intro pers st lst fuel h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.pi_arity, piArity]
     lockstep
   | succ m ih =>
     intro pers st lst fuel h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.pi_arity, piArity]
     lockstep
 
@@ -517,12 +517,12 @@ theorem get_app_args_go_aux (n : Nat) :
   induction n with
   | zero =>
     intro pers st lst fuel h k hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.get_app_args_go, getAppArgs]
     lockstep
   | succ m ih =>
     intro pers st lst fuel h k hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.get_app_args_go, getAppArgs]
     lockstep
 
@@ -533,7 +533,7 @@ section oneNode
 theorem is_lam_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (h : arena.handle.EIdx) :
     LSR pers (fun a b => b = a) (arena.expr_ops.is_lam pers st h) st lst (isLam (absEIdx h)) := by
-  apply LSR.ofLS
+  apply LSR.of_LS
   rw [arena.expr_ops.is_lam, isLam]
   lockstep
 
@@ -541,7 +541,7 @@ theorem lam_pw_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AState
     (h : arena.handle.EIdx) :
     LSR pers (fun a b => b = absPwOpt a) (arena.expr_ops.lam_pw pers st h) st lst
       (lamPw (absEIdx h)) := by
-  apply LSR.ofLS
+  apply LSR.of_LS
   rw [arena.expr_ops.lam_pw, lamPw]
   lockstep
 
@@ -549,7 +549,7 @@ theorem forall_pw_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : ASt
     (h : arena.handle.EIdx) :
     LSR pers (fun a b => b = absPwOpt a) (arena.expr_ops.forall_pw pers st h) st lst
       (forallPw (absEIdx h)) := by
-  apply LSR.ofLS
+  apply LSR.of_LS
   rw [arena.expr_ops.forall_pw, forallPw]
   lockstep
 
@@ -557,7 +557,7 @@ theorem fvar_type_d_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : A
     (h : arena.handle.EIdx) :
     LSR pers (fun a b => b = absEIdx a) (arena.expr_ops.fvar_type_d pers st h) st lst
       (fvarTypeD (absEIdx h)) := by
-  apply LSR.ofLS
+  apply LSR.of_LS
   rw [arena.expr_ops.fvar_type_d, fvarTypeD]
   lockstep
 
@@ -590,12 +590,12 @@ theorem strip_lams_aux (n : Nat) :
   induction n with
   | zero =>
     intro pers st lst k h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.strip_lams, stripLams]
     lockstep
   | succ m ih =>
     intro pers st lst k h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.strip_lams, stripLams]
     lockstep
 
@@ -608,12 +608,12 @@ theorem strip_pis_aux (n : Nat) :
   induction n with
   | zero =>
     intro pers st lst k h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.strip_pis, stripPis]
     lockstep
   | succ m ih =>
     intro pers st lst k h hn hrel hinv
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.strip_pis, stripPis]
     lockstep
 
@@ -646,12 +646,12 @@ theorem wscoped_b_go_aux (n : Nat) :
   induction n with
   | zero =>
     intro pers st lst rm lm fuel d h hn hrel hinv hm
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.wscoped_b_go, wscopedBGo_zero]
     lockstep
   | succ m ih =>
     intro pers st lst rm lm fuel d h hn hrel hinv hm
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.wscoped_b_go, wscopedBGo_succ]
     unfold arena.expr_ops.wscoped_b_node arena.expr_ops.wscoped_b_two
     lockstep
@@ -674,12 +674,12 @@ theorem fvar_leaves_go_aux (n : Nat) :
   induction n with
   | zero =>
     intro pers st lst racc rs ls fuel h hn hrel hinv hs
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.fvar_leaves_go, fvarLeavesGo_zero]
     lockstep
   | succ m ih =>
     intro pers st lst racc rs ls fuel h hn hrel hinv hs
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.fvar_leaves_go, fvarLeavesGo_succ]
     unfold arena.expr_ops.fvar_leaves_node arena.expr_ops.fvar_leaves_two
     lockstep
@@ -701,12 +701,12 @@ theorem leaves_sub_go_aux (n : Nat) :
   induction n with
   | zero =>
     intro pers st lst bl rm lm fuel h hn hrel hinv hm
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.leaves_sub_go, leavesSubGo_zero]
     lockstep
   | succ m ih =>
     intro pers st lst bl rm lm fuel h hn hrel hinv hm
-    apply LSR.ofLS
+    apply LSR.of_LS
     rw [arena.expr_ops.leaves_sub_go, leavesSubGo_succ]
     unfold arena.expr_ops.leaves_sub_node arena.expr_ops.leaves_sub_two
     lockstep
@@ -746,7 +746,7 @@ section entries
     (hinv : AStateInv pers st) (fuel d : Std.U64) (h : arena.handle.EIdx) :
     LSR pers (fun a b => b = a) (arena.expr_ops.wscoped_b_fast pers st fuel d h) st lst
       (wscopedBFast (absU fuel) (absU d) (absEIdx h)) := by
-  apply LSR.ofLS
+  apply LSR.of_LS
   rw [arena.expr_ops.wscoped_b_fast, wscopedBFast]
   lockstep
 
@@ -755,7 +755,7 @@ section entries
     LSR pers (fun a b => b = (absLeaves a).reverse)
       (arena.expr_ops.fvar_leaves_fast pers st fuel h) st lst
       (fvarLeavesFast (absU fuel) (absEIdx h)) := by
-  apply LSR.ofLS
+  apply LSR.of_LS
   rw [arena.expr_ops.fvar_leaves_fast, fvarLeavesFast]
   lockstep
 
@@ -763,7 +763,7 @@ section entries
     (hinv : AStateInv pers st) (fuel : Std.U64) (fab base : arena.handle.EIdx) :
     LSR pers (fun a b => b = a) (arena.expr_ops.leaf_guard pers st fuel fab base) st lst
       (leafGuard (absU fuel) (absEIdx fab) (absEIdx base)) := by
-  apply LSR.ofLS
+  apply LSR.of_LS
   rw [arena.expr_ops.leaf_guard, leafGuard]
   lockstep
 

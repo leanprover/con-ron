@@ -120,6 +120,7 @@ arrive peeled into the context and the blocks read exactly like
 -/
 import ConRon.Bridge.Specs
 import ConRon.Bridge.ExprOps.Ranges
+import ConRon.Bridge.ExprOps.TagFirst
 
 namespace ConRon.Bridge.ExprOps
 
@@ -2139,6 +2140,7 @@ theorem instPisAtLift_spec (fuel : Nat) :
       next =>
         bridge_peel
         subst_vars
+        tf_views
         intro hok2 hx2 hbm2 hcc hpp hans
         refine ⟨hok2, by grind only [Ext.trans],
           by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
@@ -2150,12 +2152,14 @@ theorem instPisAtLift_spec (fuel : Nat) :
       next =>
         bridge_peel
         subst_vars
+        tf_views
         intro _ _ hx2 _ _ _ _ _
         rw [denoteEList_ext hx2 _ _ heas]
         rfl
       next =>
         bridge_peel
         subst_vars
+        tf_views
         refine ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, ?_⟩
         intro xs hxs
         simp only [Frontend.denoteEList, hea, heas] at hxs
