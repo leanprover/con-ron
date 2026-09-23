@@ -782,10 +782,15 @@ theorem check_thm_val_witness_refines {pers st lst} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.decl_check.check_thm_val_witness pers st mode rf cv value = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkThmValWitnessSpec (ConRon.Refine.absMode mode) lf
         (absIConstantVal cv) (absEIdx value)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtxSelf hfe hfinv
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.decl_check.check_thm_val_witness]
+  unfold checkThmValWitnessSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_thm_val_witness_ls {pers st lst}
@@ -796,7 +801,7 @@ open Lockstep in
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rf lf) :
-    LS pers (fun r v => IFEnvRel r v)
+    LS pers IFEnvRelI
       (arena.decl_check.check_thm_val_witness pers st mode rf cv value) lst
       (checkThmValWitnessSpec (ConRon.Refine.absMode mode) lf
         (absIConstantVal cv) (absEIdx value)) :=
@@ -813,7 +818,12 @@ theorem check_thm_val_refines {pers st lst} {rf lf}
     SimRel₀ IFEnvRelI pers lst o
       (checkThmVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
         (absEIdx value)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtxSelf hfe hfinv
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.decl_check.check_thm_val]
+  rw [checkThmVal_split]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_thm_val_ls {pers st lst}

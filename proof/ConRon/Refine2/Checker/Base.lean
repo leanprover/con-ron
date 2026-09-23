@@ -1355,8 +1355,9 @@ open Lockstep in
 /-- `lift_fueled` ⊑ `liftFueled`: a fuel-out `none` is an `internal` error on
 both sides (the messages are not compared). -/
 @[lockstep] theorem lift_fueled_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (o : Option Bool) (w : String) :
-    LSR pers (fun a b => b = a) (arena.core.lift_fueled o) st lst (liftFueled w o) := by
+    (hinv : AStateInv pers st) (o : Option Bool) :
+    LSR pers (fun a b => b = a) (arena.core.lift_fueled o) st lst
+      (liftFueled "level comparison" o) := by
   intro r h
   cases o with
   | some b =>
@@ -1386,6 +1387,10 @@ is pure on both sides, `ifenv_find_abs` is the correspondence. -/
     (absIConstantVal cv).type = absEIdx cv.ty := rfl
 
 attribute [lockstep_simp] core.option.Option.is_some Option.isSome_map
+
+/-- The environment viewed at its own counter is itself. -/
+@[lockstep_simp] theorem IFEnv.restrictTo_visibleBelow (fe : IFEnv) :
+    fe.restrictTo fe.visibleBelow = fe := rfl
 
 namespace Lockstep
 

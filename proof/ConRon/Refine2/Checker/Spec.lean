@@ -505,6 +505,23 @@ def checkThmValWitnessSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     fail (.invalid "type mismatch in theorem")
   pure (fe.push (.thmInfo cv value))
 
+/-- `checkThmVal` past its proposition test is `checkThmValWitnessSpec` — the
+Rust's `check_thm_val` / `check_thm_val_witness` split. -/
+theorem checkThmVal_split (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
+    (value : EIdx) :
+    checkThmVal mode fe cv value = (do
+      let stype ← inferTypeCore mode fe checkFuel 0 cv.type
+      let u ← ensureSortCore mode fe checkFuel 0 stype
+      let z ← zeroLevel
+      if ← liftFueled "level comparison" (← lvlEq? u z) then
+        checkThmValWitnessSpec mode fe cv value
+      else fail (.invalid "type of theorem is not a proposition")) := by
+  unfold checkThmVal checkThmValWitnessSpec
+  refine ConRon.Refine2.am_bind_congr _ fun _ => ConRon.Refine2.am_bind_congr _ fun _ =>
+    ConRon.Refine2.am_bind_congr _ fun _ => ConRon.Refine2.am_bind_congr _ fun _ =>
+    ConRon.Refine2.am_bind_congr _ fun b => ?_
+  cases b <;> simp [ConRon.Refine2.am_fail_bind]
+
 /-! ### The `Nat`-operation pin gate's splits -/
 
 /-- `divModCertGuard`'s tail past the substituted proof's own ground guards. -/
