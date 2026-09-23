@@ -149,7 +149,8 @@ theorem cons_sum_ctors_f_refines {n_p : Std.U64}
     (hrun : arena.inductives.sum_install_f.cons_sum_ctors_f n_p ctors i rf = ok o) :
     IFEnvRel o (consSumCtorsF (absU n_p) (absCtorsLFrom ctors i) lf) ∧
       IFEnvInv o := by
-  sorry
+  rw [arena.inductives.sum_install_f.cons_sum_ctors_f] at hrun
+  exact cons_sum_ctors_refines hfe hfinv hrun
 
 /-- `sum_install_f::native_caps_at` ⊑ `nativeCapsAt` — the re-export under the
 name `arena::inductives::native_install` looks for. -/

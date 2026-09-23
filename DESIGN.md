@@ -48249,19 +48249,22 @@ will build on.
 
 #### Round 4 — the stateful recursion factored out, and the REAL block behind the 250 (2026-09-23, Opus under Fable)
 
-Branch `p5-ind-4` off `arena`'s `b0d3fb18`, merged forward once (`a80ea04d`,
-task #97-P3-Checker round 5 — `Bridge/**` and `DESIGN.md` only, textual for
-this tier).  The diff is five files, all in this lane:
-`proof/ConRon/Refine2/Inductives/{Shape,Spec,SpecModeled,StructParts,Top}.lean`
+Branch `p5-ind-4` off `arena`'s `b0d3fb18`, merged forward twice (`a80ea04d`,
+task #97-P3-Checker round 5, and `8f96148b`, task #97-P5-Checker round 3 —
+`Bridge/**`, `Refine2/Checker/**`, `Refine2/Core/**` and `DESIGN.md`; the
+second merge is the one that landed `ifenv_push_refines` and it cashed two of
+this round's ten, §R4.8).  The diff is seven files, all in this lane:
+`proof/ConRon/Refine2/Inductives/{Shape,Spec,SpecModeled,StructParts,SumInstall,SumInstallF,Top}.lean`
 and this section.  No Rust file, no generated model, no `Arena/`, no
 `Refine/`, no `Bridge/`, no other `Refine2/` file — in particular **not**
 `Specs.lean`, `ExprOps/**`, `Checker/**` or `Promote/**`.
 
-**The tier went from 270 open `sorry` to 262 — eight closed**: five of the ten
-remaining deep `_unfold`s and the tier's first three STATEFUL `_refines`.  The
-round's brief was "the stateful `_refines` are unblocked now that `Specs.lean`
-is at zero; take them and report the per-lemma cost".  §R4.1 is the answer,
-and it is not the one the brief expected.
+**The tier went from 270 open `sorry` to 260 — ten closed**: five of the ten
+remaining deep `_unfold`s, the tier's first three STATEFUL `_refines`, and the
+two `cons_*` folds `ifenv_push_refines` unblocked.  The round's brief was
+"the stateful `_refines` are unblocked now that `Specs.lean` is at zero; take
+them and report the per-lemma cost".  §R4.1 is the answer, and it is not the
+one the brief expected.
 
 ##### R4.1 THE FINDING — `Specs.lean` reaching zero did NOT unblock the tier, and here is the number
 
@@ -48294,9 +48297,10 @@ scratch_on = false` the port answers `Internal("arena: append to a frozen
 persistent tier")` where the twin appends, and `Internal` abstracts to
 `some .internal`, so the refinement is genuinely FALSE without the hypothesis.
 
-**The census.**  Taking each open `_refines`' Rust function and closing its
-callee graph in `ConRon/Generated/Funs.lean`, then asking which
-`arena::monad::intern*` entry points it reaches:
+**The census**, measured at the round's START (270 open, of which 257
+`_refines` with an `hrun` and 13 `_unfold`s).  Taking each open `_refines`'
+Rust function and closing its callee graph in `ConRon/Generated/Funs.lean`,
+then asking which `arena::monad::intern*` entry points it reaches:
 
 | what the statement reaches | how many of the 257 open `_refines` |
 |---|---:|
@@ -48518,9 +48522,10 @@ with no `globs`, so `lake build ConRonRefine2` never elaborated it.  Round 3's
 five closed proofs in that file were never checked by a gate run; nor were
 this round's three until they were.  `Refine2/Inductives/Top.lean` now imports
 it (one line, with a comment saying why), the build goes 2 221 → **2 222**
-jobs, and the tier's gate-visible `sorry` count goes 220 → **262**.
+jobs, and the tier's gate-visible `sorry` count goes 218 → **260**.
 
-**The tier's numbers in this section are the 262 count, not the 220 one**; so
+**The tier's numbers in this section are the whole-directory count, not the
+gate-visible one it used to be**; so
 are round 2's and round 3's (they counted the file by `grep`, which is why
 their totals were right and the gate's was not).  The general lesson is worth
 a line for the campaign: **a `roots`-only Lean library silently drops leaf
@@ -48536,16 +48541,57 @@ modules**, and the arena census does not catch it because it reads sources.
 | `Modeled.lean` | 84 | 84 | — |
 | `NativeParts.lean` | 53 | 53 | — |
 | `NativeInstall.lean` | 31 | 31 | — |
-| `SumInstall.lean` | 23 | 23 | — |
-| `SumInstallF.lean` | 9 | 9 | — |
+| `SumInstall.lean` | 23 | **22** | 1 (`cons_sum_ctors`, §R4.8b) |
+| `SumInstallF.lean` | 9 | **8** | 1 (`cons_sum_ctors_f`, two lines at the above) |
 | `StructInstall.lean` / `NativeInstallF.lean` | 5 / 5 | 5 / 5 | — |
 | `StructInstallF.lean` | 3 | 3 | — |
 | `SumParts.lean` / `Top.lean` | 1 / 1 | 1 / 1 | — |
-| the tier | **270** | **262** | **8** |
+| the tier | **270** | **260** | **10** |
+
+##### R4.8b `ifenv_push_refines` landed mid-round, and it cost 34 lines to cash
+
+Round 3 §R3.5 stated `ifenv_push` as an obligation for
+`Checker/**`/`Promote/**` and carried on.  It landed in `arena` `8f96148b` as
+`Refine2/Checker/Shape.lean`'s `ifenv_push_refines`, with the signature round 3
+asked for and one repair: **`IFEnvInv`'s third clause is strengthened from
+"the stored position fits a `usize`" to `p.2.val < |consts|`**, because
+`IFEnvRel.idx` reads the index through `consts[p.2]?` and an out-of-range
+stored position answers `none` against a twin index with no entry — then one
+`push` puts that row in range and the relation breaks.  The new clause
+SUBSUMES the old through `Vec.property`, `IFEnvInv.idxPos` survives as a
+derived accessor, **and nothing in this tier moved**: the eleven statements of
+`SumInstall`/`SumInstallF`/`NativeInstall` that carry `hfinv : IFEnvInv rf`
+take it as a black box.
+
+`cons_sum_ctors_refines` is then round 3's `cursor_induction` with the
+environment as the accumulator — **34 lines**, and the only content beyond the
+induction is `ifenv_push_refines` plus `i_constant_val_dup_abs` for the copied
+record.  `cons_sum_ctors_f_refines` is two lines: the Rust is a re-export and
+`consSumCtorsF` is `abbrev … := @consSumCtors`.
+
+**This is also the shape §R4.1's ruling should take**: `IFEnvInv` grew a
+clause, every consumer carried on, and the tier's statements never mentioned
+it.  A `StoreUnfrozen`-style bundle on `AStateInv` would land the same way.
+
+**And one methodological note the Checker agent's repair earns.**  The 32-bit
+`as usize` species (round 3 §R3.5) now has a resolved instance:
+`ifenv_find`'s truncating `pos as usize` is sound **because an invariant
+bounds it**, not because the Rust was narrowed.  So the first question at a
+new one is whether some invariant already bounds the index — this round met
+**no new instance**, and round 3's four (`kind_get_d`, `used_get_d`,
+`sort_get_d`, `rules_pin_ok`) are unbounded by anything: `j` is universally
+quantified and the only bound in sight is another universally quantified `n`.
+
+**Two duplications the import graph forced**, flagged by the Checker agent and
+recorded here so they are not rediscovered: `i_constant_info_name_abs`, and
+`eidx_eq2_abs` / `nidx_eq2_abs`, exist privately in `Refine2/Checker/**` and
+publicly in `Refine2/Inductives/Shape.lean`.  Both belong in
+`Checker/Shape.lean`; the move is a two-tier edit and is **scheduled, not
+done** — neither round touched the other's copy.
 
 ##### R4.9 What the next round needs, and from whom
 
-* **A ruling on §R4.1's hypothesis shape.**  212 of 257 open `_refines` are
+* **A ruling on §R4.1's hypothesis shape.**  212 of 252 open `_refines` are
   behind it and no amount of effort in this lane shortens that list.  This
   round recommends one bundle (`scratch_on = true` at all four tiers, plus the
   handle-decoding conjunct) stated once in `Refine2/Inductives/Shape.lean` and
@@ -48556,7 +48602,7 @@ modules**, and the arena census does not catch it because it reads sources.
   `Ext` only via a `denote`-to-`view` lemma this tier does not own, and it is
   what `param_levels_go_refines` (19 statements behind it) and every
   `intern_e_const`/`intern_e_forall_e` cursor waits on.
-* **`ifenv_push`** (round 3 §R3.5) — unchanged, `Checker/**` or `Promote/**`.
+* ~~**`ifenv_push`**~~ — **landed** (§R4.8b), and cashed in this round.
 * **`openPisAtFvarsF_length`** (round 2 §R2.7) — unchanged.
 * **A decision on round 3 §R3.5's four 32-bit casts** — unchanged; `rules_pin_ok`,
   `kind_get_d`, `used_get_d`, `sort_get_d` are still `sorry` and
@@ -48569,9 +48615,10 @@ modules**, and the arena census does not catch it because it reads sources.
 
 ##### R4.10 The axiom census
 
-Eight `#print axioms` rows were added: two in `Inductives/Shape.lean` (the two
+Nine `#print axioms` rows were added: two in `Inductives/Shape.lean` (the two
 stateful cursor shapes), three in `Spec.lean`, two in `SpecModeled.lean`, one
-in `StructParts.lean` (the tier's first stateful `_refines`).  Every one reads
+in `StructParts.lean` (the tier's first stateful `_refines`) and one in
+`SumInstall.lean` (the `ifenv_push` fold).  Every one reads
 `[propext, Classical.choice, Quot.sound]` — **no `sorryAx` on anything this
 round closed**, and still no `bv_decide` axiom anywhere in `Refine2/`.
 
@@ -48579,11 +48626,11 @@ round closed**, and still no `bv_decide` axiom anywhere in `Refine2/`.
 
 | gate | result |
 |---|---|
-| `scripts/gates.sh` | **all 13 OK** (`cargo-build` 3 s / `cargo-test` 8 s / `lint-rust` 1 s / `provenance` + selftest / `twin-lines` / `overview-links` / `holes` / `gen-pins` / `gen-prelude` / `gen-prelude-lean` / `extract-check` 99 s / `lake-build` 134 s; 4 m 12 s wall in all) |
+| `scripts/gates.sh` | **all 13 OK** (`cargo-build` / `cargo-test` / `lint-rust` / `provenance` + selftest / `twin-lines` / `overview-links` / `holes` / `gen-pins` / `gen-prelude` / `gen-prelude-lean` / `extract-check` / `lake-build`) |
 | `cd proof && lake build ConRonRefine2` | green, **2 222 jobs** (was 2 221 — §R4.7), 0 errors |
-| `scripts/arena-census.py --summary` | `Arena/Inductives` **T2 stated 130, closed 13** (was 11); the tier's `sorry` count 270 → **262** |
-| the merge | `arena` at `a80ea04d` merged in cleanly (`Bridge/**` and `DESIGN.md` only), so landing is a fast-forward |
-| the diff | `proof/ConRon/Refine2/Inductives/{Shape,Spec,SpecModeled,StructParts,Top}.lean` and this section |
+| `scripts/arena-census.py --summary` | `Arena/Inductives` **T2 stated 130, closed 15** (was 11); the tier's `sorry` count 270 → **260** |
+| the merges | `arena` at `a80ea04d` and at `8f96148b`, both clean (no file of this lane touched by either), so landing is a fast-forward |
+| the diff | `proof/ConRon/Refine2/Inductives/{Shape,Spec,SpecModeled,StructParts,SumInstall,SumInstallF,Top}.lean` and this section |
 
 
 
