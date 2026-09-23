@@ -450,6 +450,372 @@ theorem iotaIndexOk_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 
 /-! ## 4. The ι step -/
 
+/-! ### `iotaRec`'s pure side at its exits
+
+Each exit is con-leche's `iotaRec` at a subject `E` whose spine head and
+arguments are known (`hE1`, `hE2`), with the facts the twin's stages name. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — the head is not a
+constant. -/
+theorem iotaRecFueled_nohead {F d : Nat} {E : Expr}
+    (hE1 : ∀ c us, E.getAppFn ≠ .const c us) :
+    ConLeche.iotaRecFueled mode env F d E = .ok none := by
+  simp only [ConLeche.iotaRecFueled, ConLeche.iotaRec]
+  first
+    | rfl
+    | (split
+       · rename_i c us heq; exact absurd heq (hE1 c us)
+       · rfl)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — the head is not a
+stored recursor. -/
+theorem iotaRecFueled_norec {F d : Nat} {E : Expr} {c : ConLeche.Name}
+    {us : List Level} (hE1 : E.getAppFn = .const c us)
+    (hf : ∀ cv mI rP rules, env.find? c ≠ some (.recInfo cv mI rP rules)) :
+    ConLeche.iotaRecFueled mode env F d E = .ok none := by
+  simp only [ConLeche.iotaRecFueled, ConLeche.iotaRec, hE1]
+  first
+    | rfl
+    | (split
+       · rename_i cv mI rP rules heq; exact absurd heq (hf cv mI rP rules)
+       · rfl)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — the arity or level
+guard fails. -/
+theorem iotaRecFueled_guard {F d : Nat} {E : Expr} {c : ConLeche.Name}
+    {us : List Level} {cv : ConstantVal} {mI rP : Nat} {rules : List RecRule}
+    (hE1 : E.getAppFn = .const c us)
+    (hf : env.find? c = some (.recInfo cv mI rP rules))
+    (hg : ¬ (E.getAppArgs.length = mI + 1 ∧ us.length = cv.levelParams.length)) :
+    ConLeche.iotaRecFueled mode env F d E = .ok none := by
+  simp only [ConLeche.iotaRecFueled, ConLeche.iotaRec, hE1, hf]
+  rw [if_neg hg]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — past the guard and
+the major's preparation, as a function of the prepared major: every later exit
+is a statement about this tail. -/
+def iotaTail (mode : CheckMode) (env : Env) (F d : Nat) (us : List Level)
+    (cv : ConstantVal) (mI rP : Nat) (rules : List RecRule) (args : List Expr)
+    (major : Expr) : CheckM (Option Expr) :=
+  match major.getAppFn with
+  | .const cj usj =>
+    match env.find? cj with
+    | some (.ctorInfo cvj _ _) =>
+      match rules.find? (fun r' => r'.ctor == cj) with
+      | some rl =>
+        let margs := major.getAppArgs
+        if margs.length = rl.ctorParams + rl.nfields then
+          if rl.fire = .inert then
+            throw (.notImplemented
+              "iota reduction over a nested auxiliary recursor rule")
+          else do
+            if ← ConLeche.liftFueled "level comparison" (Level.isEquivList usj
+                (ConLeche.recFireComparands rl cv.levelParams us
+                  cvj.levelParams args rP).1) then
+              if ← (if rl.compareParams then
+                  ConLeche.defEqListFueled mode env F d
+                    (margs.take rl.ctorParams)
+                    (ConLeche.recFireComparands rl cv.levelParams us
+                      cvj.levelParams args rP).2
+                  else pure true) then
+                if ← ConLeche.iotaCertsFueled mode env F d mode.betaGate
+                    (cv.type.instantiateLevelParams cv.levelParams us)
+                    (args.take mI ++ [major]) then
+                  if ← ConLeche.iotaCertsFueled mode env F d mode.betaGate
+                      (cvj.type.instantiateLevelParams cvj.levelParams usj)
+                      margs then
+                    if ← ConLeche.iotaIndexOkFueled mode env F d mI rP
+                        rl.ctorParams
+                        (cvj.type.instantiateLevelParams cvj.levelParams usj)
+                        margs ((args.take mI).drop rP) then
+                      pure (some (Expr.mkAppN
+                        (rl.rhs.instantiateLevelParams cv.levelParams us)
+                        (args.take rP ++ margs.drop rl.ctorParams)))
+                    else pure none
+                  else pure none
+                else pure none
+              else pure none
+            else pure none
+        else pure none
+      | none => pure none
+    | _ => pure none
+  | _ => pure none
+
+/-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — the prefix: head,
+recursor, guard, the prepared major; the rest is `iotaTail`. -/
+theorem iotaRecFueled_pre {F d : Nat} {E : Expr} {c : ConLeche.Name}
+    {us : List Level} {cv : ConstantVal} {mI rP : Nat} {rules : List RecRule}
+    {major : Expr}
+    (hE1 : E.getAppFn = .const c us)
+    (hf : env.find? c = some (.recInfo cv mI rP rules))
+    (hg : E.getAppArgs.length = mI + 1 ∧ us.length = cv.levelParams.length)
+    (hpm : ConLeche.prepareMajorFueled mode env F d c rules
+      (E.getAppArgs.getD mI (.bvar 0)) = .ok major) :
+    ConLeche.iotaRecFueled mode env F d E =
+      iotaTail mode env F d us cv mI rP rules E.getAppArgs major := by
+  have hpm' : ConLeche.prepareMajor mode (ConLeche.pureFns mode env F) env d c
+      rules (E.getAppArgs.getD mI (.bvar 0)) = .ok major := hpm
+  simp only [ConLeche.iotaRecFueled, ConLeche.iotaRec, hE1, hf]
+  rw [if_pos hg]
+  simp only [hpm', bind, Except.bind]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — the prepared
+major's head is not a constant. -/
+theorem iotaTail_nohead {F d : Nat} {us : List Level} {cv : ConstantVal}
+    {mI rP : Nat} {rules : List RecRule} {args : List Expr} {major : Expr}
+    (hm : ∀ cj usj, major.getAppFn ≠ .const cj usj) :
+    iotaTail mode env F d us cv mI rP rules args major = .ok none := by
+  simp only [iotaTail]
+  first
+    | rfl
+    | (split
+       · rename_i c us heq; exact absurd heq (hm c us)
+       · rfl)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — the head is not a
+stored constructor. -/
+theorem iotaTail_noctor {F d : Nat} {us : List Level} {cv : ConstantVal}
+    {mI rP : Nat} {rules : List RecRule} {args : List Expr} {major : Expr}
+    {cj : ConLeche.Name} {usj : List Level}
+    (hm : major.getAppFn = .const cj usj)
+    (hf : ∀ cvj a b, env.find? cj ≠ some (.ctorInfo cvj a b)) :
+    iotaTail mode env F d us cv mI rP rules args major = .ok none := by
+  simp only [iotaTail, hm]
+  first
+    | rfl
+    | (split
+       · rename_i cvj a b heq; exact absurd heq (hf cvj a b)
+       · rfl)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — no rule matches the
+constructor. -/
+theorem iotaTail_norule {F d : Nat} {us : List Level} {cv : ConstantVal}
+    {mI rP : Nat} {rules : List RecRule} {args : List Expr} {major : Expr}
+    {cj : ConLeche.Name} {usj : List Level} {cvj : ConstantVal} {a b : Nat}
+    (hm : major.getAppFn = .const cj usj)
+    (hf : env.find? cj = some (.ctorInfo cvj a b))
+    (hr : rules.find? (fun r' => r'.ctor == cj) = none) :
+    iotaTail mode env F d us cv mI rP rules args major = .ok none := by
+  simp only [iotaTail, hm, hf, hr]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — the constructor is
+not fully applied. -/
+theorem iotaTail_len {F d : Nat} {us : List Level} {cv : ConstantVal}
+    {mI rP : Nat} {rules : List RecRule} {args : List Expr} {major : Expr}
+    {cj : ConLeche.Name} {usj : List Level} {cvj : ConstantVal} {a b : Nat}
+    {rl : RecRule}
+    (hm : major.getAppFn = .const cj usj)
+    (hf : env.find? cj = some (.ctorInfo cvj a b))
+    (hr : rules.find? (fun r' => r'.ctor == cj) = some rl)
+    (hl : ¬ major.getAppArgs.length = rl.ctorParams + rl.nfields) :
+    iotaTail mode env F d us cv mI rP rules args major = .ok none := by
+  simp only [iotaTail, hm, hf, hr]
+  rw [if_neg hl]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — **the firing
+block**, as a function of the five verdicts: the level comparison, the
+parameter comparison, the two telescope runs and the index comparison, each
+needed only once the ones before it passed. -/
+theorem iotaTail_fire {F d : Nat} {us : List Level} {cv : ConstantVal}
+    {mI rP : Nat} {rules : List RecRule} {args : List Expr} {major : Expr}
+    {cj : ConLeche.Name} {usj : List Level} {cvj : ConstantVal} {a b : Nat}
+    {rl : RecRule} {b1 b2 b3 b4 b5 : Bool}
+    (hm : major.getAppFn = .const cj usj)
+    (hf : env.find? cj = some (.ctorInfo cvj a b))
+    (hr : rules.find? (fun r' => r'.ctor == cj) = some rl)
+    (hl : major.getAppArgs.length = rl.ctorParams + rl.nfields)
+    (hin : rl.fire ≠ .inert)
+    (h1 : Level.isEquivList usj (ConLeche.recFireComparands rl cv.levelParams us
+      cvj.levelParams args rP).1 = some b1)
+    (h2 : b1 = true → (if rl.compareParams then
+        ConLeche.defEqListFueled mode env F d
+          (major.getAppArgs.take rl.ctorParams)
+          (ConLeche.recFireComparands rl cv.levelParams us cvj.levelParams args
+            rP).2
+        else pure true : CheckM Bool) = .ok b2)
+    (h3 : b1 = true → b2 = true → ConLeche.iotaCertsFueled mode env F d
+      mode.betaGate (cv.type.instantiateLevelParams cv.levelParams us)
+      (args.take mI ++ [major]) = .ok b3)
+    (h4 : b1 = true → b2 = true → b3 = true → ConLeche.iotaCertsFueled mode env
+      F d mode.betaGate (cvj.type.instantiateLevelParams cvj.levelParams usj)
+      major.getAppArgs = .ok b4)
+    (h5 : b1 = true → b2 = true → b3 = true → b4 = true →
+      ConLeche.iotaIndexOkFueled mode env F d mI rP rl.ctorParams
+        (cvj.type.instantiateLevelParams cvj.levelParams usj)
+        major.getAppArgs ((args.take mI).drop rP) = .ok b5) :
+    iotaTail mode env F d us cv mI rP rules args major =
+      .ok (if b1 && b2 && b3 && b4 && b5 then
+        some (Expr.mkAppN (rl.rhs.instantiateLevelParams cv.levelParams us)
+          (args.take rP ++ major.getAppArgs.drop rl.ctorParams))
+      else none) := by
+  simp only [iotaTail, hm, hf, hr]
+  rw [if_pos hl, if_neg hin]
+  simp only [ConLeche.liftFueled, h1, bind, Except.bind, pure, Except.pure]
+  simp only [pure, Except.pure] at h2
+  cases b1
+  · rfl
+  · simp only [h2 rfl, if_true]
+    cases b2
+    · rfl
+    · simp only [h3 rfl rfl, if_true]
+      cases b3
+      · rfl
+      · simp only [h4 rfl rfl rfl, if_true]
+        cases b4
+        · rfl
+        · simp only [h5 rfl rfl rfl rfl, if_true]
+          cases b5 <;> rfl
+
+/-! ### The twin side's index and rule facts -/
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index's HIT half at a
+recursor. -/
+theorem env_rec_of_index {s : AState} (hok : CheckOK mode env fe s)
+    {c : NIdx} {cn : ConLeche.Name} {icv : IConstantVal} {mI rP : Nat}
+    {rules : List IRecRule} (hn : denoteN s.store.ns c = some cn)
+    (hfd : fe.find? c = some (.recInfo icv mI rP rules)) :
+    ∃ dcv drules, Frontend.denoteCV s.store icv = some dcv ∧
+      Frontend.denoteRules s.store rules = some drules ∧
+      env.find? cn = some (.recInfo dcv mI rP drules) := by
+  obtain ⟨nm', cc, hn', hci, hfind⟩ := hok.ienv.hit c _ hfd
+  obtain rfl := Option.some.inj (hn'.symm.trans hn)
+  simp only [Frontend.denoteCI] at hci
+  split at hci
+  · rename_i dcv dr hdcv hdr
+    cases hci
+    exact ⟨dcv, dr, hdcv, hdr, hfind⟩
+  · simp at hci
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the MISS half at a
+recursor. -/
+theorem env_not_rec_of_index {s : AState} (hok : CheckOK mode env fe s)
+    {c : NIdx} {cn : ConLeche.Name} (hn : denoteN s.store.ns c = some cn)
+    (hnd : ∀ v mI rP rs, fe.find? c ≠ some (.recInfo v mI rP rs)) :
+    ∀ cv mI rP rs, env.find? cn ≠ some (.recInfo cv mI rP rs) := by
+  intro cv mI rP rs hcon
+  cases hf : fe.find? c with
+  | none => rw [IFEnvOK.miss hok.state hok.ienv hn hf] at hcon; simp at hcon
+  | some ci =>
+    obtain ⟨nm', cc, hn', hci, hfind⟩ := hok.ienv.hit c ci hf
+    obtain rfl := Option.some.inj (hn'.symm.trans hn)
+    rw [hfind] at hcon
+    obtain rfl := Option.some.inj hcon
+    cases ci with
+    | recInfo v mI' rP' rs' => exact hnd v mI' rP' rs' hf
+    | _ =>
+      simp only [Frontend.denoteCI] at hci
+      first
+        | (simp at hci)
+        | (split at hci <;> simp at hci)
+
+/-- con-leche: none — a denoted rule's fields. -/
+theorem rule_denote {st : EStore} {rl : IRecRule} {rl' : RecRule}
+    (h : Frontend.denoteRule st rl = some rl') :
+    rl.compareParams = rl'.compareParams ∧ (rl.fire = .inert ↔ rl'.fire = .inert) ∧
+      rl'.ctorParams = rl.ctorParams ∧ rl'.nfields = rl.nfields ∧
+      denoteN st.ns rl.ctor = some rl'.ctor ∧ denoteE st rl.rhs = some rl'.rhs ∧
+      (∀ lvls pins, rl'.fire = .nested lvls pins →
+        ∃ ilvls ipins, rl.fire = .nested ilvls ipins) := by
+  simp only [Frontend.denoteRule] at h
+  split at h
+  · rename_i c f r hc hf hr
+    cases h
+    refine ⟨?_, ?_, rfl, rfl, hc, hr, ?_⟩
+    · simp only [IRecRule.compareParams, RecRule.compareParams]
+      cases hfi : rl.fire with
+      | inert => rw [hfi] at hf; simp only [Frontend.denoteFire, Option.some.injEq] at hf
+                 subst hf; rfl
+      | plain => rw [hfi] at hf; simp only [Frontend.denoteFire, Option.some.injEq] at hf
+                 subst hf; rfl
+      | nested l p =>
+        rw [hfi] at hf; simp only [Frontend.denoteFire] at hf
+        split at hf
+        · cases hf; rfl
+        · simp at hf
+    · cases hfi : rl.fire with
+      | inert => rw [hfi] at hf; simp only [Frontend.denoteFire, Option.some.injEq] at hf
+                 subst hf; simp
+      | plain => rw [hfi] at hf; simp only [Frontend.denoteFire, Option.some.injEq] at hf
+                 subst hf; simp
+      | nested l p =>
+        rw [hfi] at hf; simp only [Frontend.denoteFire] at hf
+        split at hf
+        · cases hf; simp
+        · simp at hf
+    · intro lvls pins hn
+      cases hfi : rl.fire with
+      | inert => rw [hfi] at hf; simp only [Frontend.denoteFire, Option.some.injEq] at hf
+                 subst hf; cases hn
+      | plain => rw [hfi] at hf; simp only [Frontend.denoteFire, Option.some.injEq] at hf
+                 subst hf; cases hn
+      | nested l p => exact ⟨l, p, rfl⟩
+  · simp at h
+
+/-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — `findRule` IS the
+rule lookup `rules.find? (fun r' => r'.ctor == cj)`, across the denotation. -/
+theorem findRule_denote {st : EStore} (hwf : StoreWF st) {cj : NIdx}
+    {cjn : ConLeche.Name} (hcj : denoteN st.ns cj = some cjn) :
+    ∀ {rules : List IRecRule} {rules' : List RecRule},
+      Frontend.denoteRules st rules = some rules' →
+      (∀ rl, ConRon.Arena.findRule rules cj = some rl →
+        ∃ rl', Frontend.denoteRule st rl = some rl' ∧
+          rules'.find? (fun r => r.ctor == cjn) = some rl') ∧
+      (ConRon.Arena.findRule rules cj = none →
+        rules'.find? (fun r => r.ctor == cjn) = none)
+  | [], rules', h => by
+    simp only [Frontend.denoteRules, Option.some.injEq] at h
+    subst h
+    exact ⟨fun rl h => by simp [ConRon.Arena.findRule] at h, fun _ => rfl⟩
+  | r :: rs, rules', h => by
+    simp only [Frontend.denoteRules] at h
+    split at h
+    · rename_i x xs hx hxs
+      cases h
+      obtain ⟨hr1, hr2⟩ := findRule_denote hwf hcj hxs
+      obtain ⟨_, _, _, _, hc, _, _⟩ := rule_denote hx
+      obtain ⟨rk, hrk⟩ := hwf
+      have hbeq : (r.ctor == cj) = (x.ctor == cjn) := beq_of_denoteN hrk.nsWF hc hcj
+      by_cases hb : (r.ctor == cj) = true
+      · have hb' : (x.ctor == cjn) = true := hbeq ▸ hb
+        refine ⟨fun rl hrl => ?_, fun hn => ?_⟩
+        · simp only [ConRon.Arena.findRule, hb, if_true, Option.some.injEq] at hrl
+          subst hrl
+          exact ⟨x, hx, by simp [List.find?, hb']⟩
+        · simp [ConRon.Arena.findRule, hb] at hn
+      · have hb' : (x.ctor == cjn) = false := by rw [← hbeq]; simpa using hb
+        have hbf : (r.ctor == cj) = false := by simpa using hb
+        refine ⟨fun rl hrl => ?_, fun hn => ?_⟩
+        · simp only [ConRon.Arena.findRule, hbf, Bool.false_eq_true, if_false] at hrl
+          obtain ⟨rl', h1, h2⟩ := hr1 rl hrl
+          exact ⟨rl', h1, by simp [List.find?, hb', h2]⟩
+        · simp only [ConRon.Arena.findRule, hbf, Bool.false_eq_true, if_false] at hn
+          simp [List.find?, hb', hr2 hn]
+    · simp at h
+
+/-- con-leche: none — an in-range `getD` of a denoting list denotes the
+`getD` of the denotation, whatever the two defaults. -/
+theorem denoteEList_getD_lt {st : EStore} :
+    ∀ {hs : List EIdx} {xs : List Expr}, Frontend.denoteEList st hs = some xs →
+      ∀ {i : Nat}, i < hs.length → ∀ (a : EIdx) (b : Expr),
+        denoteE st (hs.getD i a) = some (xs.getD i b)
+  | [], _, _, _, hi, _, _ => by simp at hi
+  | h :: hs, xs, hd, i, hi, a, b => by
+    obtain ⟨x, xs', hx, hxs, rfl⟩ := denoteEList_cons_inv hd
+    cases i with
+    | zero => simpa using hx
+    | succ i =>
+      simp only [List.getD_cons_succ]
+      exact denoteEList_getD_lt hxs (by simp at hi; omega) a b
+
+/-- con-leche: none — `SimOOp` at a `none` answer. -/
+theorem simOOp_none {P : Nat → CheckM (Option Expr)} {d F : Nat} {st : EStore}
+    (h : P F = .ok none) : SimOOp P d st none :=
+  ⟨none, rfl, fun _ hx => absurd hx (by simp), F, h⟩
+
 /-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — **THEOREM 1 for
 `iotaRecAt`**: one ι step at a spine the caller already holds (task
 #97-P6-9's hoist).  The held head `h` is not an application (it is a spine
