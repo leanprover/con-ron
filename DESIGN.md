@@ -41769,6 +41769,34 @@ ConRon.Capstone.no_False_declaration`:
 | start | `arena` `29ec471f` (clean) | 32 | 101 | 794 | `checkDivModPinAt_bridge`, `divModCertsGuard_run`, `divModPinGuard_run` (reach 14), `divModEnvGuard_run` (13), `Arena.checkDecl_wfProj` (10) |
 | part 1 | `checker-r10` on `6cfd995d` | 32 | 109 | 756 | `IndSpec.wf` (fan-in 1, reach 13 — the Inductives tier's debt), `divModCertsGuard_run`, `checkDivModPinAt_bridge` (15), `declResolves_of_stages` (4, §3, added to the capstone meanwhile) |
 
+##### 6. Part 2 — the divMod gate closed
+
+Branch `checker-r10b` off `arena`'s `38a7e0c2` (part 1's landing).  All in
+`Checker/DivMod.lean`; **`checkDivModPin_bridge` now prints the three standard
+axioms only**.
+
+* **`divModCertsGuard_run` PROVED**: `divModCertStmts_run` (the seven
+  branches of pinned statements, interned — generated text over the shared
+  prologue, with `natVar_run`, `natOne_run`, `eqAt1_run` new; the relation is
+  `StmtsDenote`, statement by statement; the `Nat.div`/`Nat.mod` branch is
+  special because the `do`-elaborator pushes the rest of the block into both
+  arms of BOTH `c == divN` tests), `divModCertProofs_run`, then
+  `divModCertsGuardGo_run` over the zip, each step `divModCertGuard_run`.
+  The guard chain reads through the Fast walks and interns substitutions, so
+  its frame is `CoreStep`: **`RunsC`** is `RunsB` at that frame (`ret`, `bind`,
+  `bindB`, `guard`, `guardT`, four walk lemmas, `constsResolveAll_runsC`),
+  plus `substConst0List_run`.
+* **`checkDivModPinAt_bridge` PROVED**: `divModDeclPin_run`,
+  `KnotSpec.annotate` / `defeq` at depth 0, then `checkDivModCerts_bridge_aux`
+  (per certificate: the guard, `substConstAll_run`, `substConst0List_run`,
+  `divModCertApplied_run`, `KnotSpec.annotate` / `infer` / `defeq` at depth 4,
+  scoped by `divModCertApplied_wscoped` and `divModCertStmts_wscoped`), one
+  fuel through `checkDivModCerts_mono` (con-leche's `_datF`).
+  **Precondition repair: `hpg : divModPinGuard psP env nm = true`** — the pin
+  goes through `KnotSpec.annotate`, which needs it `WScoped 0`, and nothing
+  else said it was closed; the loop, its one caller, runs the attempt only
+  after the guard answered `true`.
+
 ### Task #97-P5-2 — Theorem 2: `intern` at every expression array, and the fuel-induction idiom (2026-09-22, Opus under Fable)
 
 The third phase of DESIGN §8.6's **P5**: task #97-P5-1 left `Specs.lean` at 32
