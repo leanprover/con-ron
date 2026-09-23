@@ -35,7 +35,6 @@ theorem native_opened_ok_f_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     Sim₀ id pers lst o
       (nativeOpenedOkF lf0 (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absEIdx cty) (absU n_f) (absKindL ks)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.native_install_f.native_opened_ok_f, nativeOpenedOkF]
   lockstep
@@ -75,7 +74,6 @@ theorem native_fields_ok_f_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     Sim₀ id pers lst o
       (nativeFieldsOkF lf0 (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absCtorsL ctors_a) (absKindLL kinds)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.native_install_f.native_fields_ok_f, nativeFieldsOkF]
   lockstep
@@ -119,7 +117,6 @@ theorem check_native_rules_f_refines {pers st lst} {vis : Std.U64} {rfR lfR}
           (absNIdx elim) large (absU n_p) (absU n_idx) (absEIdx tty)
           (absCtors4L ctors) (absNIdx rec_c) (absLsIdx rlvls) (absU k)
           (absU j)))) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.native_install_f.check_native_rules_f]
   lockstep
@@ -183,7 +180,6 @@ theorem check_native_table_f_refines {pers st lst}
     SimRel₀ IFEnvRelI pers lst o
       (checkNativeTableF (absNativeParts p) (absCtorsL ctors_a) (absLIdxLL sortss)
         lf) := by
-  -- lockstep trial
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.inductives.native_install_f.check_native_table_f, checkNativeTableF]
   lockstep

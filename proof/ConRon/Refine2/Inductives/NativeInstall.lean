@@ -188,7 +188,6 @@ theorem native_caps_refines {pers st lst}
     (hrun : arena.inductives.native_install.native_caps pers st p = ok o) :
     Sim₀ absIIndCaps pers lst o
       (nativeCaps (absNativeParts p)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.native_install.native_caps, nativeCaps]
   lockstep
@@ -1075,7 +1074,6 @@ theorem check_native_pass_refines {pers st lst} {mode : kernel.env.CheckMode}
     SimRel₀ (fun r v => NativePassRel r.1 v.1 ∧ v.2 = r.2) pers lst o
       (checkNativePass (ConRon.Refine.absMode mode) lf (absNativeParts p0)
         is_rec) := by
-  -- lockstep trial
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.inductives.native_install.check_native_pass, checkNativePass]
   lockstep

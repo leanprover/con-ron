@@ -37,7 +37,6 @@ theorem check_sum_tele_f_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ (fun r => (absIConstantVal r.1, absLIdx r.2)) pers lst o
       (checkSumTeleF (ConRon.Refine.absMode mode) lf (absIConstantVal cv) (absU n)
         (absIConstantVal cv_ta0)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.sum_install_f.check_sum_tele_f, checkSumTeleF]
   lockstep
@@ -74,7 +73,6 @@ theorem check_sum_ind_f_refines {pers st lst} {mode : kernel.env.CheckMode} {rf 
       pers lst o
       (checkSumIndF (ConRon.Refine.absMode mode) lf (absInductiveShape p)
         is_rec) := by
-  -- lockstep trial
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.inductives.sum_install_f.check_sum_ind_f, checkSumIndF]
   lockstep
@@ -107,7 +105,6 @@ theorem check_struct_field_sorts_i_f_refines {pers st lst} {vis : Std.U64} {rf l
     Sim₀ absLIdxL pers lst o
       (checkStructFieldSortsIF (ConRon.Refine.absMode mode) lf is_prop large
         (absLIdx s) (absU n_p) (absEIdxL fvs) (absEIdxL idx_args) (absU k)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.sum_install_f.check_struct_field_sorts_i_f, checkStructFieldSortsIF]
   lockstep
@@ -146,7 +143,6 @@ theorem check_struct_field_sorts_i_fa_refines {pers st lst} {vis : Std.U64} {rf 
     Sim₀ absLIdxL pers lst o
       (checkStructFieldSortsIFA (ConRon.Refine.absMode mode) lf is_prop large
         (absLIdx s) (absU n_p) (absEIdxL fvs) (absEIdxL idx_args) (absU k)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.sum_install_f.check_struct_field_sorts_i_fa, checkStructFieldSortsIFA]
   lockstep
@@ -183,7 +179,6 @@ theorem norm_ctor_val_f_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ absIConstantVal pers lst o
       (normCtorValF (ConRon.Refine.absMode mode) lf (absNIdx t) (absU n_p)
         (absU n_f) (absIConstantVal cv_c) (absIConstantVal cv_ca)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.sum_install_f.norm_ctor_val_f, normCtorValF]
   lockstep
@@ -222,7 +217,6 @@ theorem check_sum_ctor_f_refines {pers st lst} {mode : kernel.env.CheckMode}
       (checkSumCtorF (ConRon.Refine.absMode mode) lf0 lf (absNIdx t) (absNIdxL lps)
         (absU n_p) (absU n_idx) (absLIdx res_sort) is_prop large
         (absIConstantVal cv_c) (absU n_f) (absIConstantVal cv_ta)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.sum_install_f.check_sum_ctor_f, checkSumCtorF]
   lockstep
@@ -272,7 +266,6 @@ theorem check_sum_ctors_f_refines {pers st lst} {mode : kernel.env.CheckMode}
           (absNIdxL lps) (absU n_p) (absU n_idx) (absLIdx res_sort) is_prop large
           (absIConstantVal cv_ta) (absCtorsLFrom ctors i)
         pure (absCtorsL out ++ q.1, absLIdxLL sout ++ q.2)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.sum_install_f.check_sum_ctors_f]
   lockstep
@@ -324,7 +317,6 @@ theorem native_caps_at_f_refines {pers st lst}
     (hrun : arena.inductives.sum_install_f.native_caps_at pers st p is_rec = ok o) :
     Sim₀ absIIndCaps pers lst o
       (nativeCapsAt (absInductiveShape p) is_rec) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.sum_install_f.native_caps_at, nativeCapsAt]
   lockstep

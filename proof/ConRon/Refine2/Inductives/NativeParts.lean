@@ -365,7 +365,6 @@ theorem rec_field_kind_refines {pers st lst} {t : arena.handle.NIdx}
     Sim₀ absRecFieldKind pers lst o
       (recFieldKind (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx) (absU ofs)
         (absEIdx dom)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.native_parts.rec_field_kind, recFieldKind]
   lockstep
@@ -795,7 +794,6 @@ theorem struct_tele_vars_refines {pers st lst} {m : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_tele_vars pers st m = ok o) :
     Sim₀ absEIdxL pers lst o (structTeleVars (absU m)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.native_parts.struct_tele_vars, structTeleVars]
   lockstep
@@ -2377,7 +2375,6 @@ theorem native_shape_small_refines {pers st lst}
     Sim₀ (Option.map absInductiveShape) pers lst o
       (nativeShapeSmallSpec (absIConstantVal cv_t) (absIConstantVal cv_r) (absU n_p)
         (absU n_idx) (absLIdx s) is_prop (absCtorsL ctors) (absEIdxL rhss)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.native_parts.native_shape_small, nativeShapeSmallSpec]
   lockstep
@@ -2471,7 +2468,6 @@ theorem native_shape_at_refines {pers st lst} {n_pd : Std.U64}
     Sim₀ (Option.map absInductiveShape) pers lst o
       (nativeShapeAtSpec (absU n_pd) (absIConstantVal cv_t) (absCtors3L cs)
         (absIConstantVal cv_r) (absU m_i) (absU r_p) (absIRecRuleL rules)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.native_parts.native_shape_at, nativeShapeAtSpec]
   lockstep
@@ -2520,7 +2516,6 @@ theorem native_parts_refines {pers st lst} {n_pd : Std.U64}
     (hrun : arena.inductives.native_parts.native_parts pers st n_pd block = ok o) :
     Sim₀ (Option.map absNativeParts) pers lst o
       (nativeParts? (absU n_pd) (absICIL block)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.native_parts.native_parts, nativeParts?]
   lockstep

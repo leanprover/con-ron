@@ -881,7 +881,6 @@ theorem struct_proj_ps_refines {pers st lst} {n_p : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.struct_parts.struct_proj_ps pers st n_p = ok o) :
     Sim₀ absEIdxL pers lst o (structProjPs (absU n_p)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.struct_parts.struct_proj_ps, structProjPs]
   lockstep

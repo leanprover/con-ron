@@ -60021,3 +60021,112 @@ now are the tier's `native_parts_refines`, `check_native_refines`,
 `check_modeled_refines` and the checker tier's `ind_params_ok_refines`,
 `basis_pin_hit_refines` (reached for the first time).  The item count going
 UP is the point: the tier is on the capstone's path.
+
+#### Slice 2 — fan-in by `lockstep`: the companions, the primitives, 35 closures
+
+Branch `t2-ind-3b` (worktree `_tmp/wt-t2-ind3b`) off slice 1's tip.  The
+method: every `_refines` of the tier gets an `@[lockstep]` companion, every
+`sorry` body is replaced by the recipe (`refine LS.toSim₀/toSimRel₀ ?_ hrun;
+rw [rust, twin(_unfold)]; lockstep`) and kept where it builds, and each stuck
+goal is read for the Rust callee it stopped at.  Scripts in the session
+scratchpad (`gen.py migrate|companions|trial|revert`, `zero.py`, `loop.sh`);
+nothing of them is committed.
+
+**Statements (no semantic premise added).**
+* Every environment-returning statement concludes `SimRel₀ IFEnvRelI` (or
+  `IFEnvRelI r.1 v.1 ∧ …`) and takes `hfe : IFEnvRelI` — the top promised
+  the Rust environment's `IFEnvInv`, so every step owes it; the two PURE
+  folds (`cons_sum_ctors(_f)_refines`) keep their `IFEnvRel`+`IFEnvInv` pair.
+* **All 73 `hknot : KnotRel checkFuel` binders are gone** (redundant since
+  `knotRel_checkFuel'`; the Core front doors reach the knot themselves).
+* `check_iota_slot_ty`/`check_iota_sides_ty` lost an unused `{lcv : NIdx}`
+  binder (left behind when round 2 removed the name argument).
+* `native_counts_refines` is stated at the constructor COUNT
+  (`nativeCountsLen`, `NativeParts.lean`): finding 17's free twin list `cs`
+  with `hlen` cannot be found by the tactic, so the twin is normalised by the
+  `@[lockstep_simp]` equation `nativeCounts?_len` and the count is a side goal.
+
+**Companions.**  241 `LS`/`LSR` companions (`LS.ofSim₀`/`ofSimRel₀`,
+`LSR.ofSimRE`), 49 `TwinEq` companions for the tier's pure refinements
+(`LSP (f …) (fun o => TwinEq twin (abs o))`), and 17 cursor-zero variants
+(`…_twin0`, at `0#usize` and an empty accumulator, stated at the caller's
+list form and registered BEFORE the general one so a caller's `TwinEq`
+rewrites its twin).
+
+**`Inductives/Prims.lean` (new)** files the other tiers' lemmas for the
+tactic without touching them: 147 `LS` companions of `Checker/{Base,Pins,
+Axioms,Canon}.lean`'s `_refines` in their own namespace `IndPrims` (so a
+companion the checker lane adds later cannot clash), `zero_level`,
+`read_level_m`, `intern_n_node`, `lvl_eq`, the `usize→u64` cast, `sub_nat`,
+the five mode gates (`tt_checks` … as `TwinEq`), `proj_table_name_lss`.
+`Inductives/Shape.lean` gained the error constructors (`invalid`/
+`not_implemented`/`internal` ARE their constructor), the two copies,
+`nidx_vec_contains`, `lift (to_slice X)`/`code_points` (a constant name part
+is its literal), `i_ind_caps_default` (`{}`), `recs_form_suffix` at 0,
+`ifenv_find`/`find_ci` (`TwinEq` with the twin environment fixed by a
+`CoreCtx` side goal), `ite_true`/`ite_false` as `lockstep_simp`, and four
+`lockstep_side_ext` alternatives (extension points only; `Tactic/Lockstep.lean`
+untouched): `TwinEq` + the list abstractions by `simp_all`; `CoreCtx` from
+`IFEnvRelI` (+ the split counter); constant-string goals (`absString`/
+`StrWF`/`NNodeViewWF`, guarded, `simp only [global_simps]`); `restrictTo` at
+the split counter.
+
+**Imports.**  `Shape` imports `Prims`, which imports `Checker/Base` (no cycle:
+nothing under `Checker/Base` imports the tier).  `StructInstall` imports
+`StructParts`, so `StructParts` is no longer a leaf and every `struct_parts`
+callee is visible to the tier (it was invisible to `NativeParts`, whose
+`param_levels` steps failed with "no lemma").
+
+**Closed by one `lockstep` call (35):** `with_sort`, `struct_proj_ps`,
+`check_struct_doms_at_f(a)`, `check_struct_proj_table_f`, `check_sum_ind`,
+`check_sum_ctor_sorts`, the eight `SumInstallF` delegations, `native_parts`
+(frontier), `native_shape_at`, `native_shape_small`, `rec_field_kind`,
+`struct_tele_vars`, `native_caps`, `check_native_pass`, four `NativeInstallF`
+delegations, `check_modeled` (frontier, through `checkModeled_unfold`),
+`check_modeled_struct`, `check_modeled_projs`, `check_iota_slot_ty`,
+`check_iota_sides_ty`, `check_iota_thm_n` (through `checkIotaThmN_unfold`),
+`nested_rule_shape`, `check_proj_fn`, `check_proj_lookups`.  Tier `sorry`s
+**248 → 213**.
+
+**What the rest waits on** (the stuck goal's first Rust callee):
+* **ExprOps primitives not on `arena` (60 items):** `strip_pis` (22),
+  `mk_app_n` (8), `get_app_args` (8), `rename_consts_fast` (5),
+  `lift_loose_bvars_fast` (5), `get_app_fn` (5), `strip_lams` (3),
+  `loose_bvars_bounded_fast`, `inst_pis_at_lift`, `inst_pis_at_f`,
+  `inst_lams_at_f` — arena's `ExprOps/{Read,Mut}.lean` still state these over
+  `AStateRel`/`StoreWF`/`EResolves`; the lane's lockstep versions were bounced
+  from the queue.  Skipped per the brief.
+* **Cursor/list recursions (37):** the twin is a structural recursion on
+  `absXFrom v i`, which `rw` cannot unfold at a variable cursor.  Each needs the
+  `_aux` induction recipe (~12 lines; `sim_vec_cursor_copy` for the copies).
+  Not done this slice.
+* **Core-tier callees without a lemma:** `arena.core.pi_result_is_prop`/
+  `pi_result_z` (`ind_block_caps`, frontier), `proj_model_name` (3),
+  `rec_rule_bits`, `whnf` at a non-front-door fuel.
+* **Heartbeats:** `check_native_table_refines` runs out at `whnf` even at
+  1 000 000 (kernel side of a closed zip); left `sorry`.
+* **`native_shape_refines` (frontier):** the twin matches the LIST head
+  (`.indInfo cvT _ :: rest`), the port indexes `block[0]` and copies from 1 —
+  a hand step before the zip (not done).
+
+**Divergences found (not fixed; rulings requested):**
+1. **Cached vs uncached level readback.**  Six twin sites read `readLevel`
+   (uncached) where the port calls `read_level_m` (writes `caches.readLC`):
+   `checkNativeTail` (`NativeInstall.lean:344`), `structRecTyR`/`structRecRhsR`
+   (`NativeParts.lean:344,374`), `nativeCapsAt` (`SumInstall.lean:114`),
+   `checkStructFieldSortsI` (`:158,159`).  Under `AStateRel₀` the caches are
+   related pointwise, so the post-states differ; the twin fix is `readLevelM`.
+   Its Theorem-1 repair is NOT local for three of them: `structRecTyR`,
+   `structRecRhsR` and `nativeCapsAt` are `PSpec`/`PSpecP` (StateOK grade),
+   and `readLevelM`'s answer needs `ReadLCacheOK`, which only the core grade
+   carries — they move to `CSpec` with their callers, as `lvlEq?` did in task
+   #97-P3-Frame.  (The alternative, the port calling the uncached `read_level`,
+   is a Rust change.)
+2. **The native tail's environment.**  `check_native_tail_kinds` runs
+   `native_fields_ok` at `q.env1` with `visible_below - 1` (the pass's
+   environment with the former hidden), the twin's `checkNativeTail` at `fe`;
+   `check_native`'s second pass runs at `ifenv_pop_temp(q.env1)`, the twin's
+   at `fe`.  `IFEnvRel` relates by exact data and `q.env1` has one more
+   constant — the same class as the checker lane's `hkpre` finding (run the
+   gates at `fe2.restrictTo …`); the twin fix needs Theorem 1's congruence of
+   a `find?`-only reader over `find?`-equal environments.

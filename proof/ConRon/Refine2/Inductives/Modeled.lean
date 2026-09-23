@@ -400,7 +400,6 @@ theorem check_iota_slot_ty_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     Sim₀ (fun _ => ()) pers lst o
       (checkIotaSlotTySpec (ConRon.Refine.absMode mode) lfS (absU depth)
         (absEIdx alpha_s) (absLIdx l_a)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_slot_ty, checkIotaSlotTySpec]
   lockstep
@@ -438,7 +437,6 @@ theorem check_iota_sides_ty_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     Sim₀ (fun _ => ()) pers lst o
       (checkIotaSidesTy (ConRon.Refine.absMode mode) lfS (absU depth)
         (absEIdx alpha_s) (absEIdx lhs_s) (absEIdx rhs_s) (absLIdx l_a)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_sides_ty, checkIotaSidesTy_unfold]
   lockstep
@@ -1127,7 +1125,6 @@ theorem nested_rule_shape_refines {pers st lst} {rf2 lf2} {rfS lfS}
     Sim₀ (Option.map fun q => (absLIdxL q.1, absEIdxL q.2)) pers lst o
       (nestedRuleShape lf2 lfS (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a)
         (absU m_i) (absU r_p) (absU cn_p) (absU j)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.nested_rule_shape, nestedRuleShape_unfold]
   lockstep
@@ -1609,7 +1606,6 @@ theorem check_iota_thm_n_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a) (absU m_i) (absU r_p)
         (absU j) (absIRecRule r) (absIConstantVal cvj) (absU cn_p) (absU cn_f)
         (absEIdx rhs_a)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_thm_n, checkIotaThmN_unfold]
   lockstep
@@ -2126,7 +2122,6 @@ theorem check_proj_lookups_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
       pers lst o
       (checkProjLookups lf2 (absNIdx t) (absNIdx ctor_name) (absNIdxL lps)
         (absU n_p) (absU n_f) (absU i)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_proj_lookups, checkProjLookups_unfold]
   lockstep
@@ -2443,7 +2438,6 @@ theorem check_proj_fn_refines {pers st lst} {mode : kernel.env.CheckMode}
     SimRel₀ IFEnvRelI pers lst o
       (checkProjFn (ConRon.Refine.absMode mode) lf2 (absNIdx t)
         (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f) (absU i)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.inductives.modeled.check_proj_fn, checkProjFn]
   lockstep
@@ -3280,7 +3274,6 @@ theorem check_modeled_projs_refines {pers st lst} {mode : kernel.env.CheckMode}
       (checkModeledProjsSpec (ConRon.Refine.absMode mode) lf3
         (absIConstantVal cv_t) (absIConstantVal cv_c) (absU n_p) (absU n_f)
         eta) := by
-  -- lockstep trial
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.inductives.modeled.check_modeled_projs, checkModeledProjsSpec]
   lockstep
@@ -3317,7 +3310,6 @@ theorem check_modeled_struct_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absNIdxL block_names) (absICIL nonrecs) (absICIL recs)
         (absIConstantVal cv_t) (absIConstantVal cv_c) (absU n_p)
         (absU n_f)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.inductives.modeled.check_modeled_struct, checkModeledStructSpec]
   lockstep
@@ -3351,7 +3343,6 @@ theorem check_modeled_refines {pers st lst} {mode : kernel.env.CheckMode}
     (hrun : arena.inductives.modeled.check_modeled pers st mode rf block = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkModeled (ConRon.Refine.absMode mode) lf (absICIL block)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.inductives.modeled.check_modeled, checkModeled_unfold]
   lockstep

@@ -238,7 +238,6 @@ theorem check_sum_ind_refines {pers st lst} {mode : kernel.env.CheckMode} {rf lf
         v.2.2 = absInductiveShape r.2.2)
       pers lst o
       (checkSumInd (ConRon.Refine.absMode mode) lf (absInductiveShape p) is_rec) := by
-  -- lockstep trial
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.inductives.sum_install.check_sum_ind, checkSumInd]
   lockstep
@@ -621,7 +620,6 @@ theorem check_sum_ctor_sorts_refines {pers st lst} {mode : kernel.env.CheckMode}
       (checkSumCtorSortsSpec (ConRon.Refine.absMode mode) lf0 lf (absU n_p)
         (absLIdx res_sort) is_prop large (absU n_f) (absIConstantVal cv_ca)
         (absEIdxL x_fvs) (absEIdxL idx_args)) := by
-  -- lockstep trial
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.sum_install.check_sum_ctor_sorts, checkSumCtorSortsSpec]
   lockstep
