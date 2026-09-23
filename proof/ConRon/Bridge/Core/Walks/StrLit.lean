@@ -408,4 +408,251 @@ theorem listTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       | assumption
       | (apply CheckOK.wf'; assumption)
 
+/-- con-leche: none — `listNilCod` at a codomain that is not
+`List.{_} (bvar 0)`. -/
+theorem listNilCod_of_not {P : ConLeche.Name} {B : Expr}
+    (h : ∀ L US, B ≠ .app (.const L US) (.bvar 0)) : listNilCod P B = false := by
+  unfold listNilCod
+  split
+  · rename_i l1 us1; exact absurd rfl (h l1 us1)
+  · rfl
+
+/-- con-leche: none — a handle whose view is not `bvar 0` does not denote
+`bvar 0`. -/
+theorem denote_ne_bvar0 {st : EStore} (hwf : StoreWF st) {h : EIdx}
+    {e : Expr} {v : ENodeView} (hv : st.view h = some v)
+    (he : denoteE st h = some e) (hne : v = .bvar 0 → False) :
+    e ≠ .bvar 0 := by
+  rintro rfl
+  rw [denoteE_view_eq hwf hv] at he
+  cases v <;> simp [denoteEView, Option.map_eq_some_iff, opt2_eq_some_iff] at he
+  · subst he; exact hne rfl
+
+/-- con-leche: none — the level-list store's well-formedness, off the
+whole store's. -/
+theorem StoreWF.lssWF' {st : EStore} (h : StoreWF st) : LsStoreWF st.lss := by
+  obtain ⟨rk, hrk⟩ := h; exact hrk.lss
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:330-341 listNilTyOk — **THEOREM
+1 for `listNilTyOk`**. -/
+theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
+    (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
+    (hrel : OptCI s₀.store oc oc') :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.listNilTyOk oc
+    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.listNilTyOk oc'⌝⦄ := by
+  cases oc with
+  | none =>
+    simp only [OptCI] at hrel; subst hrel
+    mvcgen [ConRon.Arena.listNilTyOk]
+    all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
+  | some ci =>
+    obtain ⟨c, hci, rfl⟩ := hrel
+    have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
+      s₀ ci c hok hci
+    mvcgen [ConRon.Arena.listNilTyOk, ConRon.Arena.pinList, htc]
+    all_goals (bridge_peel; subst_vars)
+    case vc3.hv =>
+      rename_i s1 r0 p0 hsingle s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
+      obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      exact lviewOK_param (denoteN_ext hdp x_s1_s0)
+    case vc5.hv =>
+      rename_i s2 r1 p0 hsingle s1 r0 s0 ck_s1 wf_s0 x_s1_s0 _ d_r1_type_s1 _ _ _
+        c_s0_s1 p_s0_s1 vl_r0_s0 dl_r0_s0 x_s2_s1 p_s1_s2 hlps
+      exact lviewOK_succ vl_r0_s0
+    case vc7.hv =>
+      rename_i s3 r2 p0 hsingle s2 r1 s1 r0 s0 ck_s2 wf_s1 wf_s0 x_s2_s1 x_s1_s0 _
+        _ d_r2_type_s2 _ _ _ _ _ _ c_s1_s2 c_s0_s1 p_s1_s2 p_s0_s1 vl_r1_s1
+        dl_r1_s1 vl_r0_s0 dl_r0_s0 x_s3_s2 p_s2_s3 hlps
+      exact viewOK_sort (by rw [vl_r0_s0]; rfl)
+    case vc9.hv =>
+      rename_i s4 r3 p0 hsingle s3 r2 s2 r1 s1 r0 s0 ck_s3 wf_s2 wf_s1 wf_s0 x_s3_s2
+        x_s2_s1 x_s1_s0 _ _ _ d_r3_type_s3 _ _ _ _ _ c_s0_s1 _ _ p_s0_s1 c_s2_s3
+        c_s1_s2 _ p_s2_s3 p_s1_s2 _ vl_r2_s2 dl_r2_s2 vl_r1_s1 dl_r1_s1 v_r0_s0
+        d_r0_s0 x_s4_s3 p_s3_s4 hlps
+      obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      have hpl : denoteL s2.store.ls r2 = some (.param P) := by
+        rw [dl_r2_s2]; simp only [denoteLView]
+        rw [show denoteN s2.store.ls.ns p0 = some P from
+          denoteN_ext hdp (x_s4_s3.trans x_s3_s2)]; rfl
+      intro c hc
+      simp only [List.mem_singleton] at hc; subst hc
+      exact lview_isSome_of_denote (denoteL_ext hpl (x_s2_s1.trans x_s1_s0))
+    case vc10.hp =>
+      rename_i s5 r4 p0 hsingle s4 r3 s3 r2 s2 r1 s1 r0 s0 ck_s4 wf_s3 wf_s2 wf_s1
+        wf_s0 x_s4_s3 x_s3_s2 x_s2_s1 x_s1_s0 _ _ _ _ d_r4_type_s4 _ _ _ _ _ _
+        c_s1_s2 _ _ _ p_s1_s2 _ c_s3_s4 c_s2_s3 _ c_s0_s1 p_s3_s4 p_s2_s3 _
+        p_s0_s1 vl_r3_s3 dl_r3_s3 vl_r2_s2 dl_r2_s2 v_r1_s1 d_r1_s1 vls_r0_s0
+        dls_r0_s0 x_s5_s4 p_s4_s5 hlps
+      exact ck_s4.pins.mono (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))
+        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4)))
+    case vc11.some.post.success.h_1.post.success.post.success.post.success.post.success.post.success.post.success.h_1.isTrue =>
+      rename_i s5 r5 p0 hsingle s4 r4 s3 r3 s2 r2 s1 r1 r0 dom0 body0 mb0 hbeq0 s0
+        ck_s4 wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _
+        _ c_s1_s2 _ _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3
+        dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4 p_s4_s5 hlps
+        v_r5_type_s0 wf_s0 _ x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
+      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
+      refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
+          (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
+          (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))),
+        x_s5_s4.trans x40,
+        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))).trans p_s4_s5,
+        ?_⟩
+      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      have hty0 := denote_ext d_r5_type_s4 x40
+      have hso := denote_ext (denote_typeAt
+        (denoteN_ext hdp (x_s5_s4.trans x_s4_s3)) dl_r4_s3 dl_r3_s2 d_r2_s1
+        x_s3_s2 x_s2_s1) x_s1_s0
+      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv wf_s0 v_r5_type_s0 hty0
+      have hDb := beq_of_denoteE wf_s0 hD hso
+      rw [listNilTyOk_forallE hP hT]
+      rw [bne, hDb] at hbeq0
+      simp only [Bool.not_eq_true', Bool.eq_false_iff] at hbeq0
+      simp [hbeq0]
+    case vc12.some.post.success.h_1.post.success.post.success.post.success.post.success.post.success.post.success.h_1.isFalse.post.success.h_1.post.success.h_1.post.success.h_1 =>
+      rename_i s5 r5 p0 hsingle s4 r4 s3 r3 s2 r2 s1 r1 r0 dom0 body0 mb0 hneg0 f20
+        a0 c0 us0 s0 ck_s4 wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _
+        d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4
+        p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4
+        p_s4_s5 hlps v_a0_s0 v_f20_s0 v_body0_s0 v_r5_type_s0 wf_s0 hpin x_s1_s0
+        _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
+      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
+      refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
+          (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
+          (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))),
+        x_s5_s4.trans x40,
+        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))).trans p_s4_s5,
+        ?_⟩
+      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      have hty0 := denote_ext d_r5_type_s4 x40
+      have hso := denote_ext (denote_typeAt
+        (denoteN_ext hdp (x_s5_s4.trans x_s4_s3)) dl_r4_s3 dl_r3_s2 d_r2_s1
+        x_s3_s2 x_s2_s1) x_s1_s0
+      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv wf_s0 v_r5_type_s0 hty0
+      have hDb := beq_of_denoteE wf_s0 hD hso
+      rw [listNilTyOk_forallE hP hT]
+      rw [bne, hDb] at hneg0
+      have hDe : D = typeAt P := by simpa using hneg0
+      subst hDe
+      obtain ⟨F, A, rfl, hF, hA⟩ := denote_app_inv wf_s0 v_body0_s0 hB
+      obtain ⟨L, US, rfl, hL, hUS⟩ := denote_const_inv wf_s0 v_f20_s0 hF
+      obtain rfl := denote_bvar_inv wf_s0 v_a0_s0 hA
+      have hpl : denoteL s0.store.ls r4 = some (.param P) := by
+        refine denoteL_ext ?_ (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
+        rw [dl_r4_s3]; simp only [denoteLView]
+        rw [show denoteN s3.store.ls.ns p0 = some P from
+          denoteN_ext hdp (x_s5_s4.trans x_s4_s3)]; rfl
+      have hps : denoteLs s0.store.lss r1 = some [.param P] := by
+        rw [dls_r1_s0]
+        simp [denoteLsView, denoteLList, opt2,
+          show denoteL s0.store.lss.ls r4 = some (Level.param P) from hpl]
+      rw [pinBeq wf_s0 hL (hpin _ rfl),
+        beq_of_denoteLs (StoreWF.lssWF' wf_s0) hUS hps]
+      simp [listNilCod]
+    case vc13.some.post.success.h_1.post.success.post.success.post.success.post.success.post.success.post.success.h_1.isFalse.post.success.h_1.post.success.h_1.post.success.h_2 =>
+      rename_i s5 r5 p0 hsingle s4 r4 s3 r3 s2 r2 s1 r1 r0 dom0 body0 mb0 hneg0 f20
+        a0 c0 us0 x1 hnb s0 ck_s4 wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _
+        d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4
+        p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4
+        p_s4_s5 hlps v_a0_s0 v_f20_s0 v_body0_s0 v_r5_type_s0 wf_s0 hpin x_s1_s0
+        _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
+      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
+      refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
+          (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
+          (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))),
+        x_s5_s4.trans x40,
+        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))).trans p_s4_s5,
+        ?_⟩
+      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      have hty0 := denote_ext d_r5_type_s4 x40
+      have hso := denote_ext (denote_typeAt
+        (denoteN_ext hdp (x_s5_s4.trans x_s4_s3)) dl_r4_s3 dl_r3_s2 d_r2_s1
+        x_s3_s2 x_s2_s1) x_s1_s0
+      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv wf_s0 v_r5_type_s0 hty0
+      have hDb := beq_of_denoteE wf_s0 hD hso
+      rw [listNilTyOk_forallE hP hT]
+      obtain ⟨F, A, rfl, hF, hA⟩ := denote_app_inv wf_s0 v_body0_s0 hB
+      have hA0 := denote_ne_bvar0 wf_s0 v_a0_s0 hA hnb
+      rw [listNilCod_of_not (fun L US h => by cases h; exact hA0 rfl)]
+      simp
+    case vc14.some.post.success.h_1.post.success.post.success.post.success.post.success.post.success.post.success.h_1.isFalse.post.success.h_1.post.success.h_2 =>
+      rename_i s5 r5 p0 hsingle s4 r4 s3 r3 s2 r2 s1 r1 r0 dom0 body0 mb0 hneg0 f20
+        a0 x1 hnot0 s0 ck_s4 wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _
+        d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4
+        p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4
+        p_s4_s5 hlps v_f20_s0 v_body0_s0 v_r5_type_s0 wf_s0 hpin x_s1_s0 _ _ _ _
+        c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
+      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
+      refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
+          (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
+          (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))),
+        x_s5_s4.trans x40,
+        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))).trans p_s4_s5,
+        ?_⟩
+      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      have hty0 := denote_ext d_r5_type_s4 x40
+      have hso := denote_ext (denote_typeAt
+        (denoteN_ext hdp (x_s5_s4.trans x_s4_s3)) dl_r4_s3 dl_r3_s2 d_r2_s1
+        x_s3_s2 x_s2_s1) x_s1_s0
+      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv wf_s0 v_r5_type_s0 hty0
+      have hDb := beq_of_denoteE wf_s0 hD hso
+      rw [listNilTyOk_forallE hP hT]
+      obtain ⟨F, A, rfl, hF, hA⟩ := denote_app_inv wf_s0 v_body0_s0 hB
+      have hF0 := denote_not_const wf_s0 v_f20_s0 hF hnot0
+      rw [listNilCod_of_not (fun L US h => by cases h; exact hF0 L US rfl)]
+      simp
+    case vc15.some.post.success.h_1.post.success.post.success.post.success.post.success.post.success.post.success.h_1.isFalse.post.success.h_2 =>
+      rename_i s5 r5 p0 hsingle s4 r4 s3 r3 s2 r2 s1 r1 r0 dom0 body0 mb0 hneg0 x1
+        hnot0 s0 ck_s4 wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _
+        d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4
+        p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4
+        p_s4_s5 hlps v_body0_s0 v_r5_type_s0 wf_s0 _ x_s1_s0 _ _ _ _ c_s0_s1
+        p_s0_s1 vls_r1_s0 dls_r1_s0
+      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
+      refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
+          (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
+          (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))),
+        x_s5_s4.trans x40,
+        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))).trans p_s4_s5,
+        ?_⟩
+      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      have hty0 := denote_ext d_r5_type_s4 x40
+      have hso := denote_ext (denote_typeAt
+        (denoteN_ext hdp (x_s5_s4.trans x_s4_s3)) dl_r4_s3 dl_r3_s2 d_r2_s1
+        x_s3_s2 x_s2_s1) x_s1_s0
+      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv wf_s0 v_r5_type_s0 hty0
+      have hDb := beq_of_denoteE wf_s0 hD hso
+      rw [listNilTyOk_forallE hP hT]
+      have hB0 := denote_not_app wf_s0 v_body0_s0 hB hnot0
+      rw [listNilCod_of_not (fun L US h => hB0 _ _ h)]
+      simp
+    case vc16.some.post.success.h_1.post.success.post.success.post.success.post.success.post.success.post.success.h_2 =>
+      rename_i s5 r5 p0 hsingle s4 r4 s3 r3 s2 r2 s1 r1 r0 x1 hnot0 s0 ck_s4 wf_s3
+        wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _
+        _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2
+        dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4 p_s4_s5 hlps v_r5_type_s0 wf_s0 _
+        x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
+      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
+      refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
+          (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
+          (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))),
+        x_s5_s4.trans x40,
+        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))).trans p_s4_s5,
+        ?_⟩
+      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
+      have hty0 := denote_ext d_r5_type_s4 x40
+      have hso := denote_ext (denote_typeAt
+        (denoteN_ext hdp (x_s5_s4.trans x_s4_s3)) dl_r4_s3 dl_r3_s2 d_r2_s1
+        x_s3_s2 x_s2_s1) x_s1_s0
+      exact (listNilConsTyOk_not_forallE hP
+        (denote_not_forallE wf_s0 v_r5_type_s0 hty0 hnot0)).1.symm
+    case vc17.some.post.success.h_2 =>
+      rename_i s1 r0 s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps hnotsingle
+      exact ⟨ck_s0, x_s1_s0, p_s0_s1,
+        (listTyOks_not_single (denoteNList_not_single hlps hnotsingle)).2.1.symm⟩
+    all_goals first
+      | assumption
+      | (apply CheckOK.wf'; assumption)
+
 end ConRon.Bridge.Core
