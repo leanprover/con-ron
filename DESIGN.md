@@ -58654,3 +58654,299 @@ Gates: `scripts/gates.sh` all 16 OK on the branch after the third `arena` merge.
 ConRonRefine2 ConRonBridge"` to stop a build of my own that I had started
 twice.  The pattern matched only that worktree's build, and nothing else was
 killed, but the brief says never `pkill`; it is recorded here.
+
+### Task #97-PERF-FRESH — what a fresh `worker_state` per record costs, profiled (2026-09-23, Opus under Fable)
+
+**The question.**  Task #97-P5-Driver §4 measured the master-shaped
+alternative (a fresh `worker_state` per phase-B record) at **+16.4 %
+instructions on `Init`** and explained it, unprofiled, as tables re-growing
+from minimum size.  The maintainer doubted that freeing and starting fresh
+costs ~600 k instructions per record.  Measurement only: no landed Rust
+changed, nothing under `proof/` touched.
+
+**Method.**  Worktree at `arena` `5108218b`, release profile (fat LTO) as
+shipped.  The fresh variant is one line in `pool::check_worker`,
+`st = checker::worker_state(pins);` before each `check_one` (at `--jobs=1` the
+binary runs the pool with one worker).  Every run: `--verified --jobs=1
+_tmp/corpus/init.ndjson`, `timeout 900`, `ulimit -v 8388608`, accepts 57 977;
+phase B has **m = 57 362 records**.  Attribution: `perf record -e
+instructions:u -c 2000003` (no throttling: 105 970 / 123 364 samples
+= 211.94 G / 246.73 G), flat by symbol.  Two caveats found on the way:
+**rustc's merge-functions folds identical monomorphisations**, so a
+`HashMap2<SortNode,…>::allocate_slots` symbol stands for every table with the
+same slot layout, and per-type symbol names are not per-table costs; so the
+per-table counts below come from a throw-away instrumented build
+(`#[track_caller]` counters on `ensure_slots`/`try_resize`/`clear_fit`'s
+re-make, keyed by type and call site; its instruction counts are not used).
+And `perf record --call-graph` cannot run here (`perf_event_max_stack` is
+160 000, the kernel's callchain buffers fail with ENOMEM, and the sysctl is
+not ours).
+
+#### 1. The gap, confirmed
+
+| binary | `instructions:u` |
+|---|---|
+| reuse (the landed pool) | 211 953 553 993 / 211 953 591 318 (4 more runs later: 211 952 950 168 – 211 954 689 176) |
+| fresh per record | 246 744 777 448 / 246 744 613 378 |
+
+**+34.79 G (+16.41 %)**, i.e. **606 k instructions per record**; spread
+±0.9 M across six reuse runs, ±0.1 M across the fresh pair.  Runs
+interleaved.
+
+#### 2. Where the 606 k go
+
+Flat profile, fresh minus reuse, grouped (G instructions):
+
+| group | Δ | per record |
+|---|---:|---:|
+| `HashMap2::insert_no_resize` (ordinary inserts **and** every rehash insert) | +10.78 | 188 k |
+| `HashMap2::move_slots` (the recursive walk of the old slot vector) | +10.29 | 179 k |
+| `HashMap2::allocate_slots` (pushing `Vacant` slots) | +9.98 | 174 k |
+| `HashMap2::insert`, `clear_fit`, rest of `HashMap2` | +0.77 | 13 k |
+| building and dropping the state (`worker_state`, `EStore::empty`, `pins_dup`, drop of `Caches`/`AState`) | +0.07 | **1.2 k** |
+| mimalloc `malloc`/`free` + `memmove` | −0.22 | −4 k |
+| everything else | +3.1 | 54 k |
+
+**It is table growth: 91 % is `HashMap2`'s grow path.**  The maintainer's
+doubt is right about what it doubted — freeing the state and allocating a new
+one costs ~1.2 k instructions a record and the allocator nets out slightly
+*negative* — but the fresh state then **re-grows ~38 tables from 32 slots
+every record**.  The "everything else" row is at the attribution noise floor:
+two recordings of the SAME reuse binary move ±1.3 G between these groups
+(same function sizes in both binaries, so not a codegen change); what is real
+in it is presumably longer probe runs in tables grown up to their load limit
+instead of pre-sized at a quarter load, in callers that inline `get`.
+
+**Counts** (instrumented build, phase B; phase A is identical in both: 51.5 M
+slots allocated, 16.3 M entries rehashed):
+
+| per phase-B record, fresh − reuse | events | slots allocated | entries rehashed |
+|---|---:|---:|---:|
+| first allocation of an unallocated table (`ensure_slots`) | +23.0 | +738 | — |
+| doubling (`try_resize`) | +15.0 | +7 162 | +2 701 |
+| `clear_fit` re-making the table larger at `drop_scratch` | +5.9 | +3 333 | — |
+| **total** (B: 266.4 M → 910.1 M slots, 62.4 M → 217.3 M rehashed) | | **+11 233** | **+2 701** |
+
+Unit costs from the two: **`allocate_slots` ≈ 15.5 instructions per slot**
+(9.98 G / 644 M) — it pushes one `Vacant` at a time through a halving
+recursion, it is not a `memset` — and **≈ 136 per rehashed entry** (move +
+reinsert, 21.07 G / 155 M, including the walk over the old table's vacant
+slots).  11.2 k × 15.5 + 2.7 k × 136 = 541 k of the 606 k.
+
+The third row is **waste specific to the fresh variant**: `drop_scratch`'s
+`clear_fit` re-sizes the tables to the decaying high-water mark for a next
+round that a fresh state never sees (~191 M slots, ≈ 3 G).  A fresh variant
+without that reset would still be ≈ +15 %.
+
+**Which tables** (Δ slots / Δ rehashed over the run; call sites at
+`5108218b`):
+
+| table | Δ slots | Δ rehashed |
+|---|---:|---:|
+| scratch `app` cons table (`store.rs:303` insert, `:345` reset) | +295 M | +78 M |
+| `whnf_core_c` (`core.rs:11144`, `core_state.rs:534`) | +87 M | +24 M |
+| scratch `bind` cons table | +52 M | +13.5 M |
+| `annot_c` (`core.rs:11193`, `core_state.rs:538`) | +44 M | +10.6 M |
+| the `instantiate`-family memos, `EIdxNat` key (`monad.rs:1377/1384/1473/1480`) | +55 M | +12 M |
+| `infer_c` (`core.rs:11168`, `core_state.rs:536`) | +27 M | +6 M |
+| `defeq_c` | +17 M | +3.3 M |
+| `const_ty_c`, `const_val_c`, `read_ls_c`, `whnf_c`, `infer_io_c`, `proj` table | +2–6 M each | ≤ 1.9 M each |
+
+The scratch `app` table is ~45 % of it: fresh, it doubles 2.9 times a record
+on average (165 836 doublings against 3 525 reused) and moves 1.7 k entries a
+record in doing so; the distribution is skewed (task #97-P6-7's histograms),
+so most records grow it little and a few grow it a lot.  Those sizes are
+real per-record work, so growing to them from 32 slots every record is
+inherent to a fresh state. The only question is the price per slot and per
+rehash, and see §3.2 for that.  The explanation task #97-P5-Driver offered is
+right; it was not profiled then, and now it is.
+
+#### 3. The status quo: two opportunities (measured, not landed)
+
+1. **The two per-call walk memos are fresh tables on every call, in both
+   phases.**  `checker_base::all_level_params_defined` (`:689`) and
+   `consts_resolve_f_fast` (`:811`) each build `HashMap::new()` per call and
+   grow it by doubling: phase A 155 k first allocations + 142 k doublings
+   (22 M slots, 6.5 M rehashed), phase B 84 k + 201 k (71 M slots, 26 M
+   rehashed).  This is the very cost §2 prices, paid by the landed binary.
+   A measurement hack that keeps each memo in a `thread_local` and resets it
+   with `clear_fit` per call: **205 751 968 912 / 205 752 054 335 against
+   211 953 232 419 / 211 952 950 168, −6.20 G (−2.93 %)**, verdict
+   unchanged.  The landable shape keeps the two memos in `Memos` (or
+   `AState`), reset by `reset_map` at the call, which is the twin's `:= ∅`
+   as the other thirteen memos have it.  That changes the model and the
+   `constsResolveF`/`allLevelParamsDefined` refinement statements, so it is
+   proof work to schedule.
+2. **`allocate_slots` costs ~15 instructions a slot**, 4.76 G of the status
+   quo's 211.95 G (318 M slots, phases A+B), with `move_slots` another
+   5.06 G.  Replacing its body by `slots.resize_with(len + n, ||
+   Slot::Vacant)`: **209 711 313 202 / 209 711 542 741 against 211 954 689 176
+   / 211 953 267 267, −2.24 G (−1.06 %)**.  It is not landable as written:
+   a closure is outside §3.4's style, and `Vec::resize` wants the `Clone`
+   that three slot types lack (`allocate_slots`' own note).  It needs a
+   modelled bulk-fill primitive, or a `Slot` whose `Vacant` is `Copy`-fillable.
+   It would also cut the fresh variant's gap by about a third.
+
+Nothing else turned up in the status quo: building and dropping a worker state
+costs 1.2 k instructions, and the first record of each worker pays the growth
+once per worker, so neither is worth pursuing.  `cycles:u` was recorded with
+every run but moved by up to 10 % between runs of the same binary on the
+shared machine, so it is not reported.
+
+#### 4. Artifacts
+
+Scratch (binaries, patches, profiles) was in `_tmp/perf-fresh/`, deleted
+after this section.  All the patches are local to the task worktree and none
+was committed.  No gates were run: the change is to DESIGN.md only.
+
+### Task #97-T2-LOCKSTEP step 1 — the foundation: lockstep shapes, twin fixes D2/D3/D5/D6, `Specs.lean`, the bracket (2026-09-23, Opus under Fable)
+
+The maintainer's ruling on #97-T2-AUDIT: *"the lockstep is clearly the right
+design"*.  Theorem 2 relates two programs that do the same operations from
+related states; the relation says only that the two sides hold the same data
+in different representations.  `StoreWF`, `Ext` and every "handles resolve"
+clause are Theorem 1's.  This step lays the foundation the lanes migrate onto.
+Coordinator worktrees under `_tmp/wt-t2-*`, helper lanes for D2, D3, D5,
+slice 3 and D6; landed in five gated slices, each all 16 gates OK.
+
+#### Landings
+
+| slice | commit on `arena` | what |
+|---|---|---|
+| 1 | `12fd2d46` | definitions + deprecated shims |
+| 4 | `b7c84da1` | the bracket (landed early: needs only slice 1) |
+| 2 | `98b2ba68` | twin fixes D2, D3, D5, the `check_value_group` messages |
+| 3 | `f216c474` | `Refine2/Specs.lean` on the lockstep shapes |
+| 5 | this landing | twin fix D6 (found by slice 3), the three binder `₀` interns |
+
+#### 1. The shapes (slice 1)
+
+`AStateRel₀` (store/memos/caches/pins), `AOut₀`/`Sim₀`/`SimS₀` were taken
+byte for byte from the core lane's p5-core-4 so the two merged cleanly; so
+`AOut₀` has **no `WF` slot** (a result that wants one states it through the
+relation of the new `SimRel₀`/`AOutRel₀`, `Refine2/Checker/Shape.lean`, as
+`SimRel` already did).  Kit: `AOut₀.native/.dest/.destErr`, `Sim₀.mk/.dest`,
+`Sim.to₀`, `Sim₀.toSim`, `SimS.to₀`, `SimS₀.toSimS`, `Sim₀.toSimRel₀`,
+`SimRel.to₀`, `SimRel₀.mono`.  The old `AStateRel` (= `AStateRel₀ ∧ StoreWF`),
+`AOut`, `Sim`, `SimS`, `AOutRel`, `SimRel` are **deprecated shims** in their
+doc comments (not `@[deprecated]`: that would flood every build).
+
+#### 2. The twin fixes (slices 2 and 5) — no Rust changed
+
+* **D2** — `EStore.persFindMaybe`/`persFindBindMaybe` (`Arena/Store.lean`)
+  skip the persistent probe exactly where the Rust's `sk` prologue does:
+  `eViewHasScratchChild` (the Rust function 1:1) at the eight non-binder
+  records, `bindHasScratchChild ty b mi` (datum handle included) at the
+  binder records.  **`findAt` uses the record test**, not the view-only test
+  of the Rust `EStore::find`: that one is `mod tests`-only, and `findAt`'s one
+  real use is `internE`'s probe, whose Rust is `intern_e` → `intern_lam_i`
+  (coordinator's ruling; noted in the doc comment).  Theorem 1:
+  `Arena/WFSkip.lean` — `persFindMaybe_eq`/`persFindBindMaybe_eq` under
+  `StoreWF`, and the six `hchild_*` (+ `persFind?_none_of_*child`,
+  `persFind_bind_none_of_child`) moved there unchanged; 5 Bridge/Arena
+  lemmas took a one-line rewrite.  The N/L/Ls stores skip nothing in the Rust.
+* **D3** — `internPersistentE` follows `EStore::intern_persistent`: datum
+  persistent-intern (capacity tested on its miss only), node probe at that
+  handle, node capacity on a miss, push.  `EStore.internPersistentAt` +
+  `rfl` back to `internPersistent`; `Arena/PersistentRun.lean`;
+  `Bridge.internPersistentE_run` is two lines.  Resolves the promote tier's
+  `promote_e` false-at-full-table corner (`intern_persistent_e_run_nocap` on
+  the unmerged `p5-top-3-promote` becomes one line from `intern_persistent_e_run₀`).
+* **D5** — `reservedBasisNames := pinReserved`, the Rust wrapper; all seven
+  call sites incl. the startup walk read the table.  Theorem 1 shrank
+  (`reservedBasisNames_run` is one `pinReserved_spec` read); Theorem 2 gained
+  `reserved_basis_names_refines` and closed `intern_all_names_refines`.
+* **Messages** — `checkValueGroup`'s two declines are the Rust constants
+  (`M_THM_NOT_PROP`, `value_kind_word`); no `readName`.
+  `check_value_group_tail_refines` closed.  `Arena/CheckerTest.lean`'s
+  `chkInstall` now compares error KINDS only (`errKindEq`; ruled OK).
+* **D6 (new, found by slice 3)** — `internE` at a binder view tested the
+  node array on a datum miss before the probe, and recomputed the derived
+  word from the datum VALUE; the Rust interns the datum (`intern_bm`) and
+  runs `intern_lam_i` at the HANDLE.  Counterexamples: a stale key
+  `⟨ty, b, mi⟩` with `mi` = the datum array's length at a full `lams` (Rust
+  `Ok`, twin `native`); a datum row whose stored derived pair is not the
+  datum's.  Fix: `internBME` (mirrors `intern_bm`) then `internLamIE`/
+  `internForallEIE`; `internNodeE` for the eight other views.  Theorem 1:
+  `internE_spec`/`_specV`/`_sp`/`internE_scratchOn` case-split.
+* **D4 is not here**: `AM = StateT AState (Except CheckError)` cannot keep
+  a failed attempt's store.  Ruled: the Rust restores the scratch tiers
+  (separate agent).  The scratch tier is on at every `check_div_mod_pin`
+  call (`check_decl` is reached only from `check_decl_step` and
+  `annot_step`, both after `enter_scratch`).
+* The Rust side changed in comments only: `twin-lines.py update`
+  (line-neutral, so `Generated/` did not move) and D2's two stale notes.
+
+#### 3. `Specs.lean` (slices 3 and 5)
+
+110 lockstep `₀` statements (hypotheses `AStateRel₀`, `AStateInv`,
+Rust-side representation facts, `hrun`; no `StoreWF`/`Ext`/`hview`/
+`hchild`/`hbmcap`/`EBindWFAt`/`EViewPers`): the 25 `SimR` readers, 15
+`AOut`/`Sim` readers, 24 memo gets/sets/clears, the `estore_intern_*_abs₀`,
+all ten expression interns + the dispatcher `intern_e_run₀`, the `_i`
+binders, node interns, the level/name walks, and the four
+`intern_persistent_{e,n,l,ls}_run₀` (the promote window is not special under
+`AStateRel₀`).  39 old statements deleted (no consumer), with
+`intern_storeWF_of_cap`, the `internPersistent*_storeWF'` and `ECapPAt`.
+Proofs shrank (`intern_e_app_run` 30 → 25 lines, `intern_level_run'` 294 →
+205); the file grew net because the shims coexist.  `Refine2/Tactic/Prims.lean`:
+five `intern_e_*_ls` closed from the `₀` lemmas; `intern_e_{lam,forall_e}_ls`
+stay `sorry` — their statements lack the input datum's `PropWhenWF`, a
+statement gap, not a divergence.  No lockstep proof needed a deleted clause
+once D2/D3/D6 were in.
+
+#### 4. The bracket (slice 4)
+
+`flush_caches_sim₀`, `enter_scratch_sim₀`, `drop_scratch_sim₀` in
+`Refine2/Core/Bracket.lean`: three plain `SimS₀` lemmas.
+
+#### 5. The shims that remain, and who deletes them
+
+**`Specs.lean`** — 80 deprecated shims, each "use `<name>₀`", each a 2–4 line
+proof from its `₀` lemma plus the twin's own `StoreWF`/`Ext` (except
+`intern_persistent_n_run`, which concludes `SimW`).  A lane deletes a shim
+when its last consumer below has moved:
+
+| consumer (lane) | # | shims |
+|---|---:|---|
+| `Refine2/Checker/Base.lean` | 1 | `read_level_m_run` |
+| `Refine2/Checker/Pins.lean` | 3 | `intern_e_sort_run`, `intern_l_node_run`, `intern_ls_node_run` |
+| `Refine2/Core/Arms/Sort.lean` | 1 | `view_run` |
+| `Refine2/Core/Probes.lean` | 2 | `inst1_get_run`, `inst1_set_run` |
+| `Refine2/ExprOps/Mut.lean` | 72 | `abs1_clear_run`, `abs1_get_run`, `abs1_set_run`, `bvar_b_clear_run`, `bvar_b_get_run`, `bvar_b_set_run`, `estore_intern_app_abs`, `estore_intern_const_abs`, `estore_intern_forall_e_i_abs`, `estore_intern_fvar_abs`, `estore_intern_lam_i_abs`, `estore_intern_let_e_abs`, `estore_intern_proj_abs`, `estore_intern_sort_abs`, `fvar_b_clear_run`, `fvar_b_get_run`, `fvar_b_set_run`, `inst1_clear_run`, `inst1_get_run`, `inst1_l_clear_run`, `inst1_l_get_run`, `inst1_l_set_run`, `inst1_set_run`, `inst_l_clear_run`, `inst_l_get_run`, `inst_l_set_run`, `inst_lp_clear_run`, `inst_lp_get_run`, `inst_lp_l_get_run`, `inst_lp_l_set_run`, `inst_lp_ls_get_run`, `inst_lp_ls_set_run`, `inst_lp_set_run`, `intern_e_app_run`, `intern_e_bind_i_run`, `intern_e_bvar_flags`, `intern_e_bvar_run`, `intern_e_const_run`, `intern_e_forall_e_run`, `intern_e_fvar_run`, `intern_e_lam_run`, `intern_e_let_e_run`, `intern_e_lit_run`, `intern_e_proj_run`, `intern_e_run`, `intern_e_sort_run`, `intern_level_run'`, `intern_levels_run'`, `lift_clear_run`, `lift_get_run`, `lift_set_run`, `lower_clear_run`, `lower_get_run`, `lower_set_run`, `read_level_m_run`, `read_levels_m_run`, `read_name_m_run`, `read_names_m_run`, `rename_clear_run`, `rename_get_run`, `rename_set_run`, `reset_clear_run`, `reset_get_run`, `reset_set_run`, `view_app_run`, `view_bind_i_run`, `view_bind_run`, `view_bvar_run`, `view_fvar_idx_run`, `view_let_run`, `view_proj_run`, `view_run` |
+| `Refine2/ExprOps/Read.lean` | 6 | `derived_l_run`, `view_app_run`, `view_bind_i_run`, `view_bind_run`, `view_fvar_ty_run`, `view_run` |
+| `Refine2/Frontend/ExportC.lean` | 3 | `intern_e_run`, `intern_l_node_run`, `view_run` |
+| `Refine2/Frontend/Prepare.lean` | 1 | `intern_n_node_run` |
+| `Refine2/Inductives/StructParts.lean` | 1 | `intern_e_bvar_run` |
+| `Refine2/Promote/Intern.lean` | 1 | `intern_name_run'` |
+| `Refine2/Promote/Promote.lean` | 2 | `intern_persistent_n_run`, `view_n_run` |
+| `Refine2/Tactic/Prims.lean` | 1 | `view_run` |
+
+**Shape-level shims** (delete in the audit's step 11, when no file names them):
+
+| shim | still used in |
+|---|---|
+| `AStateRel`, `AOut`, `Sim` | every Refine2 lane + `Capstone.lean` |
+| `SimS` | Checker, Core, ExprOps |
+| `AOutRel`, `SimRel` | Checker, Core, Frontend, Inductives |
+| `BrOK`, `TwinWF`, `bracket_open`, `bracket_close`, `ext_bracket`, `ScratchClosed` | Checker (`Checker/Top.lean`), Core, `Capstone.lean` |
+| `AStateRelW`, `AOutW`, `SimW` | Promote (`Promote/Promote.lean`), Checker |
+| `WOutE`/`WOutR`, `EBindWFAt`, `intern_storeWF`, the `viewOK_*` builders | ExprOps (`ExprOps/Mut.lean`) |
+
+#### 6. Findings beyond D1–D5
+
+* **D6** (above, fixed).
+* **`readName` inside decline messages**, same pattern as the fixed
+  `checkValueGroup` pair (the twin can fail `.internal` where the Rust raises
+  a constant `Invalid`/`NotImplemented`): `CheckerSplit.lean`
+  `installConstantVal`/`installValue`, `CheckerBase.lean:373-389`,
+  `DeclCheck.lean:535-641`, `Checker.lean:119-183`, possibly
+  `Frontend/ExportC.lean:476-585`.  Ruled: the checker and frontend lanes fix
+  them as twin divergences.
+
+#### 7. Frontier
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists ConRon.Capstone.no_False_declaration`:
+54 items / 151 tainted / 694 dead at the start (`4ce7df20`); per slice, the
+movement is other lanes' landings except slice 2 (59/162/650 → 58/161/649:
+two sorries closed by D5).  At this landing: 65 / 174 / 642 (arena before it: 65 / 174 / 647; the five dead-weight sorries are `Tactic/Prims.lean`'s closed `intern_e_*_ls`).  Gates: all 16 OK at every slice.
