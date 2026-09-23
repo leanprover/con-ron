@@ -19,7 +19,7 @@ state by shared reference and return a value or a `LineErr`; `note_decl`,
 `&mut StateD` is Aeneas's return value, so the second family's outcome is
 `(Result () LineErr) × AState × StateD`, which is `SimD`.
 
-## `sorry` count in this file: 46
+## `sorry` count in this file: 40
 -/
 import ConRon.Refine2.Frontend.ProjRec
 
@@ -443,13 +443,279 @@ theorem state_model_ctx_refines {rsd lsd rc} (hd : StateDRel rsd lsd)
     CtxRel rc ⟨fun n => lsd.constTypes[n]?, fun n => lsd.heights.getD n 0,
       fun n => lsd.indBlocks[n]?⟩ := by sorry
 
+/-! ## The twin's `noteDecl`, split, and the port's `toConstantVal`
+
+Task #97-P5-Front round 3.  `noteDecl` is `noteEntries ∘ noteDeclEntries`
+(`Spec.lean`'s `noteDecl_unfold`), `noteEntries` touches `constTypes` and
+`heights` only, and `pushDecl` is therefore `noteDecl` with the record
+appended — the port does the two in the other order (`note_decl` first, then
+the push, so that a failing record is not pushed), which the twin cannot
+observe: `noteDecl` never reads `decls`, and on a failure the twin throws.
+`arena::env::i_constant_info_to_constant_val` is `toConstantVal` arm for arm,
+including the `.projInfo` arm's three interns in the same order. -/
+
+theorem noteEntries_decls (st : StateD) (X : Array IDeclaration) es :
+    noteEntries { st with decls := X } es = { noteEntries st es with decls := X } := rfl
+
+theorem noteEntries_nil (st : StateD) : noteEntries st [] = st := rfl
+
+theorem noteEntries_cons (st : StateD) x xs :
+    noteEntries st (x :: xs) = noteEntries (noteEntries st [x]) xs := rfl
+
+theorem noteEntries_single (st : StateD) (n : NIdx) (lps : List NIdx) (ty : EIdx)
+    (h : Option Nat) :
+    noteEntries st [(n, lps, ty, h)] =
+      { st with constTypes := st.constTypes.insert n (lps, ty),
+                heights := match h with
+                  | some h => st.heights.insert n h
+                  | none => st.heights } := by
+  cases h <;> rfl
+
+/-- `pushDecl` is `noteDecl` with the record appended to `decls`. -/
+theorem pushDecl_run (st : StateD) (d : IDeclaration) (lst : AState) :
+    (pushDecl st d).run lst = ((noteDecl st d).run lst).map
+      (fun p => ({ p.1 with decls := st.decls.push d }, p.2)) := by
+  rw [pushDecl, noteDecl_unfold, noteDecl_unfold, am_run_bind', am_run_bind']
+  cases (noteDeclEntries d).run lst <;> rfl
+
+theorem noteDecl_run_decls {st st' : StateD} {d : IDeclaration} {lst lst' : AState}
+    (h : (noteDecl st d).run lst = .ok (st', lst')) : st'.decls = st.decls := by
+  rw [noteDecl_unfold, am_run_bind'] at h
+  revert h
+  cases (noteDeclEntries d).run lst with
+  | error e => intro h; cases h
+  | ok p => intro h; cases h; rfl
+
+theorem AErrSim.of_kind {γ : Type} {e e' : kernel.core_types.CheckError}
+    {x : Except Arena.CheckError γ} (h : AErrSim e x)
+    (hk : absAErrKind e' = absAErrKind e) : AErrSim e' x := by
+  intro k hk'; exact h k (hk ▸ hk')
+
+theorem LOut.rebase {α β : Type} {A : α → β} {pers : arena.store.PersTier}
+    {lst lst1 : AState} {o : core.result.Result α frontend.export_c.LineErr}
+    {rst' : arena.monad.AState} {x : Except Arena.CheckError (β × AState)}
+    (hext : Ext lst.store lst1.store) (h : LOut A pers lst1 o rst' x) :
+    LOut A pers lst o rst' x := by
+  cases o with
+  | Err e => exact h
+  | Ok r =>
+    obtain ⟨lst2, hx, h1, h2, h3⟩ := h
+    exact ⟨lst2, hx, h1, h2, Ext.trans hext h3⟩
+
+/-- **`arena::env::i_constant_info_to_constant_val` refines
+`IConstantInfo.toConstantVal`** (`Arena/Env.lean:222-229`): six arms are a
+copy, the `.projInfo` arm interns `Sort 1` in both, in the same order. -/
+theorem i_constant_info_to_constant_val_refines {pers rst lst c o}
+    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (h : arena.env.i_constant_info_to_constant_val pers rst.store c = ok o) :
+    Sim absIConstantVal (fun _ => True) pers lst (o.1, withStore rst o.2)
+      (absIConstantInfo c).toConstantVal := by
+  have plain : ∀ v iv, arena.env.i_constant_val_dup v = ok iv →
+      o = (.Ok iv, rst.store) →
+      (absIConstantInfo c).toConstantVal = pure (absIConstantVal v) →
+      Sim absIConstantVal (fun _ => True) pers lst (o.1, withStore rst o.2)
+        (absIConstantInfo c).toConstantVal := by
+    intro v iv hiv ho hx
+    subst ho
+    refine AOut.ok (lst' := lst) ?_ hrel hinv (Ext.refl _) trivial
+    rw [hx, i_constant_val_dup_abs hiv]; rfl
+  cases c with
+  | AxiomInfo v =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | DefnInfo v _ _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | ThmInfo v _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | IndInfo v _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | CtorInfo v _ _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | RecInfo v _ _ _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | ProjInfo tbl =>
+    clear plain
+    simp only [arena.env.i_constant_info_to_constant_val] at h
+    show AOut _ _ _ _ _ _ _
+    simp only [absIConstantInfo, IConstantInfo.toConstantVal]
+    -- 1. the level `0`
+    obtain ⟨⟨r1, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hv0 : lst.store.ls.ViewOK (absLNodeView arena.store.LNodeView.Zero) := by
+      constructor
+      · intro c hc; simp [absLNodeView, LNodeView.lchildren] at hc
+      · intro c hc; simp [absLNodeView, LNodeView.nchildren] at hc
+    have hS1 := intern_l_node_run hrel hinv arena.store.LNodeView.Zero hv0
+      (o := (r1, withStore rst ar1))
+      (by rw [arena.monad.intern_l_node, h1]; simp only [bind_tc_ok]; rfl)
+    rw [show Arena.internLNode LNodeView.zero
+        = Arena.internLNode (absLNodeView arena.store.LNodeView.Zero) from rfl]
+    cases r1 with
+    | Err e =>
+      have ho := Result.ok_injective h
+      subst ho
+      exact AOut.errBind hS1
+    | Ok z =>
+    obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+    rw [run_bind_ok hx1]
+    refine AOut.rebase hext1 ?_
+    -- 2. the level `1`
+    obtain ⟨⟨r2, ar2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hvz, -, -⟩ := internLNode_run_view hrel.storeWF hv0 hx1
+    have hv1 : lst1.store.ls.ViewOK (absLNodeView (arena.store.LNodeView.Succ z)) := by
+      constructor
+      · intro c hc
+        simp only [absLNodeView, LNodeView.lchildren, List.mem_singleton] at hc
+        subst hc; rw [hvz]; rfl
+      · intro c hc; simp [absLNodeView, LNodeView.nchildren] at hc
+    have hS2 := intern_l_node_run hrel1 hinv1 (arena.store.LNodeView.Succ z) hv1
+      (o := (r2, withStore rst ar2))
+      (by rw [arena.monad.intern_l_node]; rw [h2]; simp only [bind_tc_ok]; rfl)
+    rw [show Arena.internLNode (.succ (absLIdx z))
+        = Arena.internLNode (absLNodeView (arena.store.LNodeView.Succ z)) from rfl]
+    cases r2 with
+    | Err e =>
+      have ho := Result.ok_injective h
+      subst ho
+      exact AOut.errBind hS2
+    | Ok one =>
+    obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+    rw [run_bind_ok hx2]
+    refine AOut.rebase hext2 ?_
+    -- 3. the expression `Sort 1`
+    obtain ⟨⟨r3, ar3⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hvo, -, -⟩ := internLNode_run_view hrel1.storeWF hv1 hx2
+    have hv2 : lst2.store.ViewOK (absENodeView (arena.store.ENodeView.Sort one)) := by
+      constructor
+      · intro c hc; simp [absENodeView, ENodeView.echildren] at hc
+      · intro c hc; simp [absENodeView, ENodeView.nchildren] at hc
+      · intro c hc
+        simp only [absENodeView, ENodeView.lchildren, List.mem_singleton] at hc
+        subst hc; rw [hvo]; rfl
+      · intro c hc; simp [absENodeView, ENodeView.lschildren] at hc
+    have hS3 := intern_e_run hrel2 hinv2 (arena.store.ENodeView.Sort one) hv2
+      (fun l hl => by cases hl) (fun ty b m hm => by rcases hm with hm | hm <;> cases hm)
+      (o := (r3, withStore rst ar3))
+      (by rw [arena.monad.intern_e]; rw [h3]; simp only [bind_tc_ok]; rfl)
+    rw [show Arena.internE (.sort (absLIdx one))
+        = Arena.internE (absENodeView (arena.store.ENodeView.Sort one)) from rfl]
+    cases r3 with
+    | Err e =>
+      have ho := Result.ok_injective h
+      subst ho
+      exact AOut.errBind hS3
+    | Ok ty =>
+    obtain ⟨lst3, hx3, hrel3, hinv3, hext3, -⟩ := Sim.apply hS3
+    rw [run_bind_ok hx3]
+    refine AOut.rebase hext3 ?_
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have ho := Result.ok_injective h
+    subst ho
+    refine AOut.ok (lst' := lst3) ?_ hrel3 hinv3 (Ext.refl _) trivial
+    show Except.ok _ = _
+    simp only [absIConstantVal, absIProjTable, dupId_nidx _ _ hn, nidx_vec_dup_val hv]
+
 /-! ## Booking a pushed record -/
 
 /-- **`note_one`** — one constant's entry. -/
 theorem note_one_refines {cv h' v} (h : frontend.export_c.note_one cv h' = ok v) :
     absNoteEntryL v =
       [(absNIdx cv.name, cv.level_params.val.map absNIdx, absEIdx cv.ty,
-        h'.map absU)] := by sorry
+        h'.map absU)] := by
+  rw [frontend.export_c.note_one] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [absNoteEntryL, ConRon.Refine.vec_push_val h]
+  have e0 : (alloc.vec.Vec.with_capacity (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx)
+      × arena.handle.EIdx × (Option Std.U64)) 1#usize).val = [] := rfl
+  rw [e0, dupId_nidx _ _ hn, dupId_eidx _ _ he]
+  simp [absNoteEntry, nidx_vec_dup_val hv1]
+
+/-- The loop of `note_block`, at a cursor. -/
+theorem note_block_loop_refines {pers : arena.store.PersTier}
+    {bl : alloc.vec.Vec arena.env.IConstantInfo} :
+    ∀ (k : Std.Usize) (out : alloc.vec.Vec (arena.handle.NIdx ×
+        (alloc.vec.Vec arena.handle.NIdx) × arena.handle.EIdx × (Option Std.U64)))
+      {rst lst o}, AStateRel pers rst lst → AStateInv pers rst →
+      frontend.export_c.note_block_loop pers rst.store bl out (alloc.vec.Vec.len bl) k
+        = ok o →
+      SimL absNoteEntryL pers lst (o.1, withStore rst o.2)
+        (do
+          let es ← (absICILFrom bl k).mapM fun ci => do
+            let v ← ci.toConstantVal
+            pure (v.name, v.levelParams, v.type, (none : Option Nat))
+          pure (absNoteEntryL out ++ es)) := by
+  refine cursor_induction (fun k : Std.Usize => k.val) bl.val.length
+    (fun k out => ∀ {rst lst o}, AStateRel pers rst lst → AStateInv pers rst →
+      frontend.export_c.note_block_loop pers rst.store bl out (alloc.vec.Vec.len bl) k
+        = ok o →
+      SimL absNoteEntryL pers lst (o.1, withStore rst o.2)
+        (do
+          let es ← (absICILFrom bl k).mapM fun ci => do
+            let v ← ci.toConstantVal
+            pure (v.name, v.levelParams, v.type, (none : Option Nat))
+          pure (absNoteEntryL out ++ es))) ?_ ?_
+  · intro k out hk rst lst o hrel hinv h
+    rw [frontend.export_c.note_block_loop.eq_def] at h
+    rw [if_neg (show ¬ k < alloc.vec.Vec.len bl by scalar_tac)] at h
+    cases Result.ok_injective h
+    have hnil : absICILFrom bl k = [] := by
+      simp [absICILFrom, List.drop_eq_nil_of_le hk]
+    refine LOut.ok (lst' := lst) ?_ hrel hinv (Ext.refl _)
+    rw [hnil]; show Except.ok _ = _; simp
+  · intro k out hk ih rst lst o hrel hinv h
+    rw [frontend.export_c.note_block_loop.eq_def] at h
+    rw [if_pos (show k < alloc.vec.Vec.len bl by scalar_tac)] at h
+    obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨⟨r, ar1⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hiiv : bl.val[k.val]'hk = ii := by
+      have h1 := vec_index_some hii
+      rw [List.getElem?_eq_getElem hk] at h1
+      exact Option.some_injective _ h1
+    have hdrop : absICILFrom bl k =
+        absIConstantInfo ii :: (bl.val.drop (k.val + 1)).map absIConstantInfo := by
+      simp only [absICILFrom]
+      rw [List.drop_eq_getElem_cons hk, hiiv]; rfl
+    have hT := i_constant_info_to_constant_val_refines hrel hinv hr
+    show LOut _ _ _ _ _ _
+    rw [hdrop]
+    simp only [List.mapM_cons, bind_assoc, pure_bind]
+    cases r with
+    | Err e =>
+      obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      cases Result.ok_injective h
+      obtain ⟨e', rfl, hk'⟩ := fail_refines hr1
+      show AErrSim e' _
+      rw [am_run_bind']
+      exact AErrSim.of_kind (AErrSim.bind (Sim.apply_err hT) _) hk'
+    | Ok cv =>
+      obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hT
+      have hk1v : k1.val = k.val + 1 := usize_add_one_inv hk1
+      have hR := ih k1 out1 hk1v (rst := withStore rst ar1) (lst := lst1) hrel1 hinv1 h
+      rw [run_bind_ok hx1]
+      refine LOut.rebase hext1 ?_
+      have hout : absNoteEntryL out1 = absNoteEntryL out ++
+          [((absIConstantVal cv).name, (absIConstantVal cv).levelParams,
+            (absIConstantVal cv).type, (none : Option Nat))] := by
+        rw [absNoteEntryL, ConRon.Refine.vec_push_val hout1, dupId_nidx _ _ hn1,
+          dupId_eidx _ _ he]
+        simp [absNoteEntryL, absNoteEntry, absIConstantVal, nidx_vec_dup_val hv]
+      have hrest : absICILFrom bl k1 = (bl.val.drop (k.val + 1)).map absIConstantInfo := by
+        simp only [absICILFrom, hk1v]
+      rw [hout, hrest] at hR
+      simp only [List.append_assoc, List.singleton_append] at hR
+      exact hR
 
 /-- **`note_block`** — the `indDecl` arm's `block.mapM`, at a cursor. -/
 theorem note_block_refines {pers rst lst bl i out o}
@@ -460,7 +726,9 @@ theorem note_block_refines {pers rst lst bl i out o}
         let es ← (absICILFrom bl i).mapM fun ci => do
           let v ← ci.toConstantVal
           pure (v.name, v.levelParams, v.type, (none : Option Nat))
-        pure (absNoteEntryL out ++ es)) := by sorry
+        pure (absNoteEntryL out ++ es)) := by
+  rw [frontend.export_c.note_block] at h
+  exact note_block_loop_refines i out hrel hinv h
 
 /-- **`note_decl_entries`** — the twin's `cvs`: the constants one pushed
 declaration declares.  The `.basisDecl` arm fails loudly on both sides (the
@@ -469,13 +737,153 @@ theorem note_decl_entries_refines {pers rst lst d o}
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.note_decl_entries pers rst.store d = ok o) :
     SimL absNoteEntryL pers lst (o.1, withStore rst o.2)
-      (noteDeclEntries (absIDeclaration d)) := by sorry
+      (noteDeclEntries (absIDeclaration d)) := by
+  have one : ∀ cv hh v, frontend.export_c.note_one cv hh = ok v →
+      o = (.Ok v, rst.store) →
+      noteDeclEntries (absIDeclaration d) =
+        pure [((absIConstantVal cv).name, (absIConstantVal cv).levelParams,
+          (absIConstantVal cv).type, hh.map absU)] →
+      SimL absNoteEntryL pers lst (o.1, withStore rst o.2)
+        (noteDeclEntries (absIDeclaration d)) := by
+    intro cv hh v hv ho hx
+    subst ho
+    refine LOut.ok (lst' := lst) ?_ hrel hinv (Ext.refl _)
+    rw [hx, note_one_refines hv]; rfl
+  cases d with
+  | AxiomDecl cv =>
+    simp only [frontend.export_c.note_decl_entries] at h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact one cv none v hv (Result.ok_injective h).symm rfl
+  | DefnDecl cv _ hint =>
+    simp only [frontend.export_c.note_decl_entries] at h
+    obtain ⟨i, hi, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine one cv (some i) v hv (Result.ok_injective h).symm ?_
+    simp only [absIDeclaration, noteDeclEntries, Option.map_some, hint_height_refines hi]
+  | ThmDecl cv _ =>
+    simp only [frontend.export_c.note_decl_entries] at h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact one cv none v hv (Result.ok_injective h).symm rfl
+  | OpaqueDecl cv _ =>
+    simp only [frontend.export_c.note_decl_entries] at h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact one cv none v hv (Result.ok_injective h).symm rfl
+  | QuotDecl _ cv =>
+    simp only [frontend.export_c.note_decl_entries] at h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact one cv none v hv (Result.ok_injective h).symm rfl
+  | BasisDecl k =>
+    clear one
+    simp only [frontend.export_c.note_decl_entries, lift, bind_tc_ok] at h
+    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    obtain ⟨m, rfl⟩ := merr_refines hr
+    exact AErrSim.internal rfl
+  | IndDecl bl np =>
+    clear one
+    simp only [frontend.export_c.note_decl_entries] at h
+    have hB := note_block_refines hrel hinv h
+    have e0 : absNoteEntryL (alloc.vec.Vec.new (arena.handle.NIdx ×
+        (alloc.vec.Vec arena.handle.NIdx) × arena.handle.EIdx × (Option Std.U64))) = [] := rfl
+    have ed : absICILFrom bl 0#usize = bl.val.map absIConstantInfo := by
+      simp [absICILFrom, show ((0#usize : Std.Usize)).val = 0 by rfl]
+    rw [e0, ed] at hB
+    simp only [List.nil_append, bind_pure] at hB
+    exact hB
+
+/-- The loop of `note_entries`, at a cursor. -/
+theorem note_entries_loop_refines {es : alloc.vec.Vec (arena.handle.NIdx ×
+      (alloc.vec.Vec arena.handle.NIdx) × arena.handle.EIdx × (Option Std.U64))} :
+    ∀ (i : Std.Usize) (rsd : frontend.export_c.StateD) {lsd rsd'},
+      StateDRel rsd lsd → StateDInv rsd →
+      frontend.export_c.note_entries_loop rsd es (alloc.vec.Vec.len es) i = ok rsd' →
+      StateDRel rsd' (noteEntries lsd (absNoteEntryLFrom es i)) ∧ StateDInv rsd' := by
+  refine cursor_induction (fun i : Std.Usize => i.val) es.val.length
+    (fun i rsd => ∀ {lsd rsd'}, StateDRel rsd lsd → StateDInv rsd →
+      frontend.export_c.note_entries_loop rsd es (alloc.vec.Vec.len es) i = ok rsd' →
+      StateDRel rsd' (noteEntries lsd (absNoteEntryLFrom es i)) ∧ StateDInv rsd') ?_ ?_
+  · intro i rsd hn lsd rsd' hd hi h
+    rw [frontend.export_c.note_entries_loop.eq_def] at h
+    rw [if_neg (show ¬ i < alloc.vec.Vec.len es by scalar_tac)] at h
+    cases Result.ok_injective h
+    have hnil : absNoteEntryLFrom es i = [] := by
+      simp [absNoteEntryLFrom, List.drop_eq_nil_of_le hn]
+    rw [hnil, noteEntries_nil]
+    exact ⟨hd, hi⟩
+  · intro i rsd hlt ih lsd rsd' hd hi h
+    rw [frontend.export_c.note_entries_loop.eq_def] at h
+    rw [if_pos (show i < alloc.vec.Vec.len es by scalar_tac)] at h
+    obtain ⟨⟨n1, v, e, oh⟩, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hxv : es.val[i.val]'hlt = (n1, v, e, oh) := by
+      have h1 := vec_index_some hx
+      rw [List.getElem?_eq_getElem hlt] at h1
+      exact Option.some_injective _ h1
+    have hdrop : absNoteEntryLFrom es i =
+        (absNIdx n1, v.val.map absNIdx, absEIdx e, oh.map absU) ::
+          (es.val.drop (i.val + 1)).map absNoteEntry := by
+      simp only [absNoteEntryLFrom]
+      rw [List.drop_eq_getElem_cons hlt, hxv]; rfl
+    -- the heights write
+    obtain ⟨st1, hst1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hH : StateDRel st1 { lsd with heights := match oh.map absU with
+        | some hh => lsd.heights.insert (absNIdx n1) hh
+        | none => lsd.heights } ∧ StateDInv st1 := by
+      cases oh with
+      | none =>
+        cases Result.ok_injective hst1
+        exact ⟨hd, hi⟩
+      | some hv =>
+        obtain ⟨n2, hn2, hst1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hst1
+        obtain ⟨⟨old, hm⟩, hhm, hst1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hst1
+        cases Result.ok_injective hst1
+        rw [dupId_nidx _ _ hn2] at hhm
+        obtain ⟨hrel', -⟩ := ConRon.Refine.HashMap2.Rel_insert_wf nidx_eq2
+          (fun a b _ _ hab => absNIdx_inj hab) hi.heights (anyNKeysOk _) hd.heights
+          trivial hhm
+        obtain ⟨hinv', -, -, -⟩ := ConRon.Refine.HashMap2.insert_refines_wf nidx_eq2
+          hi.heights (anyNKeysOk _) trivial hhm
+        exact ⟨{ hd with heights := hrel' }, { hi with heights := hinv' }⟩
+    obtain ⟨hd1, hi1⟩ := hH
+    -- the constTypes write
+    obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨⟨old, hm⟩, hhm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i1, hi1v, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [dupId_nidx _ _ hn2] at hhm
+    obtain ⟨hrel', -⟩ := ConRon.Refine.HashMap2.Rel_insert_wf nidx_eq2
+      (fun a b _ _ hab => absNIdx_inj hab) hi1.constTypes (anyNKeysOk _) hd1.constTypes
+      trivial hhm
+    obtain ⟨hinv', -, -, -⟩ := ConRon.Refine.HashMap2.insert_refines_wf nidx_eq2
+      hi1.constTypes (anyNKeysOk _) trivial hhm
+    have hi1' : i1.val = i.val + 1 := usize_add_one_inv hi1v
+    have hct : ConRon.Refine.HashMap2.RelOn anyN hm
+        (lsd.constTypes.insert (absNIdx n1) (v.val.map absNIdx, absEIdx e)) absNIdx
+        (fun p => (p.1.val.map absNIdx, absEIdx p.2)) := by
+      simpa [nidx_vec_dup_val hv1, dupId_eidx _ _ he1] using hrel'
+    have hR := ih i1 { st1 with const_types := hm } hi1' (lsd := { lsd with
+        constTypes := lsd.constTypes.insert (absNIdx n1) (v.val.map absNIdx, absEIdx e),
+        heights := match oh.map absU with
+          | some hh => lsd.heights.insert (absNIdx n1) hh
+          | none => lsd.heights })
+      ({ hd1 with constTypes := hct })
+      { hi1 with constTypes := hinv' } h
+    rw [hdrop, noteEntries_cons, noteEntries_single]
+    have hfrom : absNoteEntryLFrom es i1 = (es.val.drop (i.val + 1)).map absNoteEntry := by
+      simp only [absNoteEntryLFrom, hi1']
+    rw [← hfrom]
+    exact hR
 
 /-- **`note_entries`** — the twin's `cvs.foldl` into `constTypes`/`heights`. -/
 theorem note_entries_refines {rsd lsd es rsd'} (hd : StateDRel rsd lsd)
     (hi : StateDInv rsd)
     (h : frontend.export_c.note_entries rsd es = ok rsd') :
-    StateDRel rsd' (noteEntries lsd (absNoteEntryL es)) ∧ StateDInv rsd' := by sorry
+    StateDRel rsd' (noteEntries lsd (absNoteEntryL es)) ∧ StateDInv rsd' := by
+  rw [frontend.export_c.note_entries] at h
+  have := note_entries_loop_refines 0#usize rsd hd hi h
+  simpa [absNoteEntryLFrom, absNoteEntryL, show ((0#usize : Std.Usize)).val = 0 by rfl]
+    using this
 
 /-- **`note_decl` refines `noteDecl`** (`ExportC.lean:138-155`). -/
 theorem note_decl_refines {pers rst lst rsd lsd d o}
@@ -483,7 +891,23 @@ theorem note_decl_refines {pers rst lst rsd lsd d o}
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.note_decl pers rst.store rsd d = ok o) :
     SimD pers lst (o.1, withStore rst o.2.1, o.2.2)
-      (noteDecl lsd (absIDeclaration d)) := by sorry
+      (noteDecl lsd (absIDeclaration d)) := by
+  rw [frontend.export_c.note_decl] at h
+  obtain ⟨⟨r, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hE := note_decl_entries_refines hrel hinv h1
+  rw [noteDecl_unfold]
+  cases r with
+  | Ok es =>
+    obtain ⟨st1, hst1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    obtain ⟨lst', hx, hrel', hinv', hext⟩ := hE
+    obtain ⟨hd', hi'⟩ := note_entries_refines hd hi hst1
+    refine ⟨_, lst', ?_, hd', hi', hrel', hinv', hext⟩
+    rw [am_run_bind', hx]; rfl
+  | Err e =>
+    cases Result.ok_injective h
+    show ALineErrSim e _
+    rw [am_run_bind']; exact ALineErrSim.bind hE _
 
 /-- **`push_decl` refines `pushDecl`** (`ExportC.lean:158-159`). -/
 theorem push_decl_refines {pers rst lst rsd lsd d o}
@@ -491,7 +915,33 @@ theorem push_decl_refines {pers rst lst rsd lsd d o}
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.push_decl pers rst.store rsd d = ok o) :
     SimD pers lst (o.1, withStore rst o.2.1, o.2.2)
-      (pushDecl lsd (absIDeclaration d)) := by sorry
+      (pushDecl lsd (absIDeclaration d)) := by
+  rw [frontend.export_c.push_decl] at h
+  obtain ⟨⟨r, ar1, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hN := note_decl_refines hrel hinv hd hi h1
+  cases r with
+  | Ok u =>
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    obtain ⟨lsd', lst', hx, hd', hi', hrel', hinv', hext⟩ := hN
+    refine ⟨{ lsd' with decls := lsd.decls.push (absIDeclaration d) }, lst', ?_, ?_,
+      ⟨hi'.1, hi'.2, hi'.3, hi'.4, hi'.5, hi'.6⟩, hrel', hinv', hext⟩
+    · rw [pushDecl_run, hx]; rfl
+    · refine { hd' with decls := ?_ }
+      show lsd.decls.push (absIDeclaration d) = absIDeclArr v
+      rw [← noteDecl_run_decls hx, hd'.decls]
+      simp [absIDeclArr, ConRon.Refine.vec_push_val hv]
+  | Err e =>
+    cases Result.ok_injective h
+    show ALineErrSim e _
+    have hN' : ALineErrSim e ((noteDecl lsd (absIDeclaration d)).run lst) := hN
+    rw [pushDecl_run]
+    cases e with
+    | Verdict v => exact hN'.elim
+    | Err ce =>
+      intro k hk
+      obtain ⟨le, hle, hk'⟩ := hN' k hk
+      exact ⟨le, by rw [hle]; rfl, hk'⟩
 
 /-! ## The index tables -/
 
@@ -1201,5 +1651,21 @@ statements are `trivial` and carry no axiom at all.) -/
 /-- info: 'ConRon.Refine2.Frontend.rel_offset_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms rel_offset_refines
+
+/--
+info: 'ConRon.Refine2.Frontend.i_constant_info_to_constant_val_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms i_constant_info_to_constant_val_refines
+
+/-- info: 'ConRon.Refine2.Frontend.note_entries_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms note_entries_refines
+
+/-- info: 'ConRon.Refine2.Frontend.push_decl_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms push_decl_refines
 
 end ConRon.Refine2.Frontend
