@@ -383,8 +383,8 @@ def divModCertGuard (fe : IFEnv) (c : NIdx) (annVal : EIdx)
     pure false
   else constsResolveFFast fe (← substConst0 c annVal coreWalkFuel eqE)
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:285-290 divModEnvGuard (one
-`Bool` constructor's clause) — is `n` stored with the type `Bool` itself?  The
+/-- con-leche: ConLeche/Kernel/Checker.lean:282-290 divModEnvGuard
+One `Bool` constructor's clause: is `n` stored with the type `Bool` itself?  The
 lookup first, then the stored type, then `Bool` interned: the Rust's order
 (`bool_ctor_typed`).  The twin used to intern `.const Bool []` once, BEFORE
 both lookups, which writes the store where the Rust (on a miss) does not —
