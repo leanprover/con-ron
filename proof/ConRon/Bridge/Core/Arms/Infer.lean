@@ -36,6 +36,8 @@ a twin SUCCESS is what each success lemma is the licence for.
    `Bridge/StateOK.lean`'s `IFEnvOK` absorbs with no clause of its own here.
 -/
 import ConRon.Bridge.Core.Memo
+import ConRon.Bridge.Core.Walks.Proj
+import ConRon.Bridge.Core.Walks.Frame
 
 namespace ConRon.Bridge.Core
 
@@ -346,7 +348,11 @@ theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
 clause**: `KnotSpec.infer`, `KnotSpec.whnf'`, `getAppFn`/`getAppArgs`,
 `IFEnv.findProj?_spec`, `lvlEq?_spec`, the three readbacks and
 `IProjEntry.typeAt_spec` (`Walks/Proj.lean`, CLOSED); pure side
-`infer_proj_prop`/`infer_proj_nonprop`. -/
+`infer_proj_prop`/`infer_proj_nonprop`.
+
+**CLOSED** (round 5), staged by `triple_seq` (`Memo.lean`): every
+callee is applied at a subject whose denotation the previous stage NAMED,
+and every callee rule it needs was already closed. -/
 theorem inferBody_proj {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
@@ -359,7 +365,162 @@ theorem inferBody_proj {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  cases v
+  case proj sn k pe =>
+    obtain ⟨nm, es, rfl, hsn, hpe⟩ := denote_proj_inv hwf hv hden
+    have hwes : Expr.WScoped d es := by simpa [Expr.WScoped] using hw
+    refine view_bind_triple hv ?_
+    dsimp only
+    -- stage 1: the subject's type
+    refine triple_seq (hsim.infer s₀ d pe es hok hpe hwes) ?_
+    rintro t1 s1 ⟨hok1, hx1, hp1, vt, hvt, hwvt, F1, hF1⟩
+    -- stage 2: its head normal form
+    refine triple_seq (hsim.whnf s1 d t1 vt hok1 hvt hwvt) ?_
+    rintro te s2 ⟨hok2, hx2, hp2, vte, hvte, hwvte, F2, hF2⟩
+    have hx02 : Ext s₀.store s2.store := hx1.trans hx2
+    have hp02 : s2.pins = s₀.pins := hp2.trans hp1
+    have hwf2 := hok2.state.wf
+    obtain ⟨rk2, hrk2⟩ := hok2.state.wf
+    -- stage 3: its head
+    refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s2 te hok2.state
+      (by rw [hvte]; rfl)) ?_
+    rintro hd s3 ⟨hs3, hrelF⟩
+    subst s3
+    have hdd : denoteE s2.store hd = some vte.getAppFn := hrelF vte hvte
+    obtain ⟨vh, hvh⟩ := denoteE_view hdd
+    refine view_bind_triple hvh ?_
+    cases vh
+    case const T us =>
+      obtain ⟨Tn, ls, hgf, hTn, hus⟩ := denote_const_inv hwf2 hvh hdd
+      dsimp only
+      -- stage 4: the table
+      refine triple_seq (IFEnv.findProj?_spec s2 T k Tn hok2 hTn) ?_
+      rintro oe s4 ⟨hok4, hx4, _hm4, _hc4, hp4, hsome, _hnone⟩
+      cases oe with
+      | none => exact triple_fail
+      | some entry =>
+        obtain ⟨p, hpd, hfp⟩ := hsome entry rfl
+        dsimp only
+        have hvte4 := denote_ext hvte hx4
+        have hx04 : Ext s₀.store s4.store := hx02.trans hx4
+        have hp04 : s4.pins = s₀.pins := hp4.trans hp02
+        -- stage 5: the type's arguments
+        refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s4 te
+          hok4.state (by rw [hvte4]; rfl)) ?_
+        rintro targs s5 ⟨hs5, hrelA⟩
+        subst s5
+        have hargs : Frontend.denoteEList s4.store targs = some vte.getAppArgs :=
+          hrelA vte hvte4
+        have hus4 := denoteLs_ext hus hx4
+        -- stage 6: the level list's length
+        refine triple_seq (viewLsLen_spec s4 us) ?_
+        rintro ol s6 ⟨hs6, hol⟩
+        subst s6
+        rw [viewLen_of_denoteLs hus4] at hol
+        subst hol
+        dsimp only
+        obtain ⟨_hsnp, hlps, _hctor, _hbody, hfs, hss, _hidx, hnp, _hnf, _hoff⟩ :=
+          denoteProjEntry_inv hpd
+        split
+        next hg =>
+          obtain ⟨hT, hlenA, hlenL⟩ := hg
+          have hTnm : Tn = nm := by
+            have h1 := denoteN_ext hsn (hx02.trans hx4)
+            have h2 := denoteN_ext hTn hx4
+            rw [hT] at h2
+            exact Option.some.inj (h2.symm.trans h1)
+          have hlen' : vte.getAppArgs.length = p.numParams := by
+            rw [denoteEList_len hargs, hlenA, hnp]
+          have hlenL' : ls.length = p.levelParams.length := by
+            rw [hlenL, denoteNList_len hlps]
+          have hgP : Tn = nm ∧ vte.getAppArgs.length = p.numParams ∧
+              ls.length = p.levelParams.length := ⟨hTnm, hlen', hlenL'⟩
+          have hwhnf : ConLeche.whnf mode env (max F1 F2) d vt = .ok vte :=
+            ConLeche.whnf_mono (Nat.le_max_right _ _) hF2
+          have hinf : ConLeche.inferTypeCore mode env (max F1 F2) d es =
+              .ok vt :=
+            ConLeche.inferTypeCore_mono (Nat.le_max_left _ _) hF1
+          have hwty : Expr.WScoped d (p.typeAt ls vte.getAppArgs es) :=
+            ConLeche.projEntry_typeAt_WScoped henv hfp ls hlen'
+              (Expr.WScoped.getAppArgs hwvte) hwes
+          -- the answer, at any state the fence leaves behind
+          have hfin : ∀ (s : AState), CheckOK mode env fe s →
+              s.store = s4.store → s.pins = s₀.pins →
+              (∃ F, ConLeche.inferTypeCore mode env F d (.proj nm k es) =
+                .ok (p.typeAt ls vte.getAppArgs es)) →
+              ⦃fun s' => ⌜s' = s⌝⦄ entry.typeAt us targs pe
+              ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+                  s'.pins = s₀.pins ∧
+                  SimE (ConLeche.inferTypeCore mode env) d (.proj nm k es)
+                    s'.store r⌝⦄ := by
+            intro s hs hst hps hF
+            refine triple_mono (IProjEntry.typeAt_spec s entry us targs pe p ls
+              vte.getAppArgs es hs (by rw [hst]; exact hpd)
+              (by rw [hst]; exact hus4) (by rw [hst]; exact hargs)
+              (by rw [hst]; exact denote_ext hpe hx04)) ?_
+            rintro r s' ⟨hok', hx', hp', hd'⟩
+            exact ⟨hok', by rw [hst] at hx'; exact hx04.trans hx',
+              hp'.trans hps, _, hd', hwty, hF⟩
+          -- stage 7: the possibly-`Prop` fence
+          refine triple_seq (pinZeroLevel_spec s4 hok4.pins) ?_
+          rintro z s7 ⟨hs7, hz⟩
+          subst s7
+          refine triple_seq (lvlEq?_spec s4 entry.structSort z hok4) ?_
+          rintro rq s8 ⟨hok8, hst8, hp8, lu, lv, hlu, hlv, hrq⟩
+          rw [hss] at hlu
+          rw [hz] at hlv
+          obtain rfl : lu = p.structSort := (Option.some.inj hlu).symm
+          obtain rfl : lv = Level.zero := (Option.some.inj hlv).symm
+          subst hrq
+          split
+          next hprop =>
+            -- a `Prop` structure: the field's sort must be `Prop` too
+            refine triple_seq (readNamesM_spec s8 entry.levelParams
+              hok8.caches.readN) ?_
+            rintro ks s9 ⟨hst9, hm9, hp9, hc9, hks, hN9⟩
+            have hok9 := CheckOK.ofReadbackFrame hok8
+              (ReadbackFrame.ofReadN hst9 hm9 hp9 hc9 hN9)
+            refine triple_seq (readLevelsM_spec s9 us hok9.caches.readLs) ?_
+            rintro vs s10 ⟨hst10, hm10, hp10, hc10, hvs, hLs10⟩
+            have hok10 := CheckOK.ofReadbackFrame hok9
+              (ReadbackFrame.ofReadLs hst10 hm10 hp10 hc10 hLs10)
+            refine triple_seq (readLevelM_spec s10 entry.fieldSort
+              hok10.caches.readL) ?_
+            rintro fs s11 ⟨hst11, hm11, hp11, hc11, hfs11, hL11⟩
+            have hok11 := CheckOK.ofReadbackFrame hok10
+              (ReadbackFrame.ofReadL hst11 hm11 hp11 hc11 hL11)
+            have hst411 : s11.store = s4.store :=
+              hst11.trans (hst10.trans (hst9.trans hst8))
+            rw [hst8, hlps] at hks
+            rw [hst9, hst8, hus4] at hvs
+            rw [hst10, hst9, hst8, hfs] at hfs11
+            obtain rfl : ks = p.levelParams := (Option.some.inj hks).symm
+            obtain rfl : vs = ls := (Option.some.inj hvs).symm
+            obtain rfl : fs = p.fieldSort := (Option.some.inj hfs11).symm
+            split
+            next => exact triple_fail
+            next hfield =>
+              exact hfin s11 hok11 hst411
+                (hp11.trans (hp10.trans (hp9.trans (hp8.trans hp04))))
+                ⟨max F1 F2 + 1, infer_proj_prop hinf hwhnf hgf hfp hgP
+                  (by simpa using hprop) (by simpa using hfield)⟩
+          next hprop =>
+            exact hfin s8 hok8 hst8 (hp8.trans hp04)
+              ⟨max F1 F2 + 1, infer_proj_nonprop hinf hwhnf hgf hfp hgP
+                (by simpa using hprop)⟩
+        next => exact triple_fail
+    all_goals (dsimp only; exact triple_fail)
+  all_goals
+    exfalso
+    rw [htag] at htg
+    simp [ENodeView.tagOf, ETag.proj, ETag.app, ETag.bvar, ETag.fvar,
+      ETag.sort, ETag.const, ETag.lam, ETag.forallE, ETag.letE,
+      ETag.lit] at htg
+
+#print axioms inferBody_proj
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1115-1125 inferBody — **the leaf
 clauses**: `.sort` (one level intern and one node intern), `.fvar` (the

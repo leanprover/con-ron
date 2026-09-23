@@ -855,4 +855,25 @@ theorem triple_mono {α : Type} {x : AM α} {s₀ : AState}
   intro s hp
   exact hq r s hp
 
+
+/-- con-leche: none — **a failure claims nothing** (`⇓?`), at any pinned
+state and any postcondition: every throwing exit of a staged arm is this. -/
+theorem triple_fail {α : Type} {s₀ : AState} {e : ConRon.Arena.CheckError}
+    {Q : α → AState → Prop} :
+    ⦃fun s => ⌜s = s₀⌝⦄ (fail e : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ := by
+  mvcgen [fail]
+  exact fun h => h.elim
+
+/-- con-leche: none — `triple_fail` at the dangling-handle exits. -/
+theorem triple_failDanglingLs {α : Type} {s₀ : AState}
+    {Q : α → AState → Prop} :
+    ⦃fun s => ⌜s = s₀⌝⦄ (failDanglingLs : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ :=
+  triple_fail (Q := Q)
+
+/-- con-leche: none — the same at the expression store. -/
+theorem triple_failDanglingE {α : Type} {s₀ : AState}
+    {Q : α → AState → Prop} :
+    ⦃fun s => ⌜s = s₀⌝⦄ (failDanglingE : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ :=
+  triple_fail (Q := Q)
+
 end ConRon.Bridge.Core

@@ -39,6 +39,7 @@ the ζ reduct (con-leche's task #217).
    which claims exactly `RelE`'s `.self` when the children did not move.
 -/
 import ConRon.Bridge.Core.Memo
+import ConRon.Bridge.Core.Walks.Proj
 
 namespace ConRon.Bridge.Core
 
@@ -309,7 +310,11 @@ theorem annotateBody_letE {fe : IFEnv} {fuel : Nat}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1882-1900 annotateBody — **the `.proj`
 clause**: `KnotSpec.annotate`, `KnotSpec.inferIO'`, `KnotSpec.whnf'`,
-`getAppFn`/`getAppArgs`, `IFEnv.findProj?_spec`; pure side `annot_proj`. -/
+`getAppFn`/`getAppArgs`, `IFEnv.findProj?_spec`; pure side `annot_proj`.
+
+**CLOSED** (round 5), staged by `triple_seq` (`Memo.lean`): every
+callee is applied at a subject whose denotation the previous stage NAMED,
+and every callee rule it needs was already closed. -/
 theorem annotateBody_proj {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
@@ -322,7 +327,105 @@ theorem annotateBody_proj {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  cases v
+  case proj sn k pe =>
+    obtain ⟨nm, es, rfl, hsn, hpe⟩ := denote_proj_inv hwf hv hden
+    have hwes : Expr.WScoped d es := by simpa [Expr.WScoped] using hw
+    refine view_bind_triple hv ?_
+    dsimp only
+    -- stage 1: annotate the subject
+    refine triple_seq (hsim.annotate s₀ d pe es hok hpe hwes) ?_
+    rintro e' s1 ⟨hok1, hx1, hp1, v', hv', hwv', F1, hF1⟩
+    -- stage 2: its io-grade type
+    refine triple_seq (hsim.inferIO s1 d e' v' hok1 hv' hwv') ?_
+    rintro t s2 ⟨hok2, hx2, hp2, vt, hvt, hwvt, F2, hF2⟩
+    -- stage 3: that type's head normal form
+    refine triple_seq (hsim.whnf s2 d t vt hok2 hvt hwvt) ?_
+    rintro te s3 ⟨hok3, hx3, hp3, vte, hvte, _hwvte, F3, hF3⟩
+    have hx03 : Ext s₀.store s3.store := hx1.trans (hx2.trans hx3)
+    have hp03 : s3.pins = s₀.pins := hp3.trans (hp2.trans hp1)
+    have hwf3 := hok3.state.wf
+    -- stage 4: its head
+    refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s3 te hok3.state
+      (by rw [hvte]; rfl)) ?_
+    rintro hd s4 ⟨hs4, hrelF⟩
+    subst s4
+    have hdd : denoteE s3.store hd = some vte.getAppFn := hrelF vte hvte
+    obtain ⟨vh, hvh⟩ := denoteE_view hdd
+    refine view_bind_triple hvh ?_
+    cases vh
+    case const T us =>
+      obtain ⟨Tn, ls, hgf, hTn, _hus⟩ := denote_const_inv hwf3 hvh hdd
+      dsimp only
+      -- stage 5: the table
+      refine triple_seq (IFEnv.findProj?_spec s3 T k Tn hok3 hTn) ?_
+      rintro oe s5 ⟨hok5, hx5, _hm5, _hc5, hp5, hsome, _hnone⟩
+      cases oe with
+      | none =>
+        dsimp only
+        refine triple_seq (IFEnv.findProj?_spec s5 T 0 Tn hok5
+          (denoteN_ext hTn hx5)) ?_
+        intro _ _ _
+        exact triple_fail
+      | some entry =>
+        obtain ⟨p, hpd, hfp⟩ := hsome entry rfl
+        obtain ⟨_hsnp, _hlps, _hctor, _hbody, _hfs, _hss, _hidx, hnp, _hnf,
+          _hoff⟩ := denoteProjEntry_inv hpd
+        dsimp only
+        split
+        next => exact triple_fail
+        next hT =>
+          have hT' : T = sn := by simpa using hT
+          subst hT'
+          have hTnm : Tn = nm := by
+            have h1 := denoteN_ext hsn hx03
+            exact Option.some.inj (hTn.symm.trans h1)
+          subst hTnm
+          have hvte5 := denote_ext hvte hx5
+          -- stage 6: the type's arguments
+          refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s5 te
+            hok5.state (by rw [hvte5]; rfl)) ?_
+          rintro targs s6 ⟨hs6, hrelA⟩
+          subst s6
+          have hargs : Frontend.denoteEList s5.store targs =
+              some vte.getAppArgs := hrelA vte hvte5
+          split
+          next => exact triple_fail
+          next hlen =>
+            have hlen' : vte.getAppArgs.length = p.numParams := by
+              rw [denoteEList_len hargs, hnp]; simpa using hlen
+            have hx05 : Ext s₀.store s5.store := hx03.trans hx5
+            have hv'5 := denote_ext hv' (hx2.trans (hx3.trans hx5))
+            have hsn5 := denoteN_ext hsn hx05
+            have hvw : s5.store.ViewOK (.proj T k e') :=
+              viewOK_proj (nview_isSome_of_denote hsn5) (by rw [hv'5]; rfl)
+            refine triple_mono (internE_spec s5 _ hok5.state.wf hvw) ?_
+            rintro r s' ⟨hwf', hx', _hbm, _hl, _hsc, _hm, hc', hp', _hview,
+              hden'⟩
+            refine ⟨hok5.mono ⟨hwf'⟩ hx' hc' hp', hx05.trans hx',
+              hp'.trans (hp5.trans hp03), .proj Tn k v', ?_,
+              by simpa [Expr.WScoped] using hwv', ?_⟩
+            · rw [hden']
+              simp only [denoteEView, denoteN_ext hsn5 hx', denote_ext hv'5 hx',
+                opt2]
+            · refine ⟨max F1 (max F2 F3) + 1, annot_proj
+                (ConLeche.annotateCore_mono (Nat.le_max_left _ _) hF1)
+                (ConLeche.inferTypeIO_mono (Nat.le_trans (Nat.le_max_left F2 F3)
+                  (Nat.le_max_right _ _)) hF2)
+                (ConLeche.whnf_mono (Nat.le_trans (Nat.le_max_right F2 F3)
+                  (Nat.le_max_right _ _)) hF3) hgf hfp rfl hlen'⟩
+    all_goals (dsimp only; exact triple_fail)
+  all_goals
+    exfalso
+    rw [htag] at htg
+    simp [ENodeView.tagOf, ETag.proj, ETag.app, ETag.bvar, ETag.fvar,
+      ETag.sort, ETag.const, ETag.lam, ETag.forallE, ETag.letE,
+      ETag.lit] at htg
+
+#print axioms annotateBody_proj
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1808-1816 annotateBody — **the leaf
 clauses**: `.bvar`, `.fvar` (the scope check), `.sort` and `.const` answer
