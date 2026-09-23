@@ -61,29 +61,71 @@ elab "lockstep_twin_tail" : tactic => do
   let gs ← g.apply (← mkConstWithFreshMVarLevels ``LS.twin_bind_pure)
   replaceMainGoal gs
 
+theorem LS.twin_bind_ite_pos {α β δ : Type} {pers : arena.store.PersTier} {R : α → δ → Prop}
+    {c : Prop} [Decidable c]
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x y : AM β} {g : β → AM δ} (hc : c) (h : LS pers R m lst (x >>= g)) :
+    LS pers R m lst ((if c then x else y) >>= g) := by
+  rw [if_pos hc]; exact h
+
+theorem LS.twin_bind_ite_neg {α β δ : Type} {pers : arena.store.PersTier} {R : α → δ → Prop}
+    {c : Prop} [Decidable c]
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x y : AM β} {g : β → AM δ} (hc : ¬ c) (h : LS pers R m lst (y >>= g)) :
+    LS pers R m lst ((if c then x else y) >>= g) := by
+  rw [if_neg hc]; exact h
+
 open Lean Meta Elab Tactic in
-/-- The twin matches on a `Bool` the Rust already tested (`match some b with
-| some true => …`, where the Rust wrote `if b then …`): case-split the
-`Bool`, so that the match reduces and the Rust test's hypothesis decides the
-branch. -/
-elab "lockstep_bool_cases" : tactic => do
+/-- Is `T` an inductive type with more than one constructor? -/
+def multiCtor (T : Expr) : MetaM Bool := do
+  let T ← whnfR T
+  let some n := T.getAppFn.constName? | return false
+  match (← getEnv).find? n with
+  | some (.inductInfo v) => return v.ctors.length > 1
+  | _ => return false
+
+open Lean Meta Elab Tactic in
+/-- The twin's next action is a `match` that does not reduce (the port tested
+the value earlier, with an `if` or a match of its own, and the twin matches on
+it again — a `Bool` flag, a literal's payload, `toNat` of a bignum): case-split
+the value the match is stuck on, so that the match reduces and the Rust's own
+test decides the branch.  An fvar of a multi-constructor type in a
+discriminant is split; failing that, a non-fvar discriminant of such a type is
+generalized (with its equation) and split. -/
+elab "lockstep_twin_cases" : tactic => do
   let g ← getMainGoal
   g.withContext do
     let ty ← instantiateMVars (← g.getType)
     unless ty.isAppOfArity ``LS 7 do throwError "not LS"
     let x := (ty.getArg! 6).headBeta
     let x := if x.isAppOfArity ``Bind.bind 6 then (x.getArg! 4).headBeta else x
-    unless (← matchMatcherApp? x).isSome do throwError "twin not a match"
-    for d in (← getLCtx) do
-      if d.isImplementationDetail then continue
-      if (← instantiateMVars d.type).isConstOf ``Bool && x.containsFVar d.fvarId then
-        let subs ← g.cases d.fvarId
-        let gs ← subs.toList.mapM fun sg => do
-          let g' ← normGoal sg.mvarId
-          pure g'
-        replaceMainGoal gs
+    let some mapp ← matchMatcherApp? x | throwError "twin not a match"
+    let finish (subs : Array MVarId) : TacticM Unit := do
+      let gs ← subs.toList.mapM fun sg => normGoal sg
+      replaceMainGoal gs
+    -- an fvar of a multi-constructor type inside a discriminant
+    for d in mapp.discrs do
+      let fvs := (collectFVars {} (← instantiateMVars d)).fvarIds
+      for fv in fvs do
+        let some decl := (← getLCtx).find? fv | continue
+        if decl.isImplementationDetail then continue
+        if ← multiCtor decl.type then
+          let subs ← g.cases fv
+          finish (subs.map (·.mvarId))
+          return
+    -- a non-fvar discriminant of a multi-constructor type (`toNat n`)
+    for d in mapp.discrs do
+      let d ← instantiateMVars d
+      if d.isFVar then continue
+      if d.getAppFn.isConst then
+        if let some (.ctorInfo _) := (← getEnv).find? d.getAppFn.constName! then continue
+      let T ← inferType d
+      if ← multiCtor T then
+        let (fvs, g') ← g.generalize #[{ expr := d, xName? := `N, hName? := `hN }]
+        let subs ← g'.cases fvs[0]!
+        finish (subs.map (·.mvarId))
         return
-    throwError "no Bool fvar"
+    throwError "lockstep_twin_cases: nothing to split"
 
 open Lean Meta Elab Tactic in
 /-- `simp_all` on a small side goal: first clear every hypothesis that is a
@@ -103,7 +145,10 @@ elab "lockstep_simp_all_small" : tactic => do
         g ← (try g.clear d.fvarId catch _ => pure g)
     pure g
   replaceMainGoal [g]
-  evalTactic (← `(tactic| simp_all))
+  evalTactic (← `(tactic| simp_all only [lockstep_simp, decide_eq_false_iff_not,
+    Bool.or_eq_false_iff, not_or, bne_iff_ne, ne_eq, ConRon.Refine2.Lockstep.PF.absU32_eq_lam,
+    ConRon.Refine2.Lockstep.PF.absU32_eq_forallE, ConRon.Refine2.Lockstep.PF.absU32_eq_absU32,
+    not_not]))
 
 /-- A twin `if` the side tiers of `lockstep_core` could not decide, decided
 by the full `simp_all` on the small facts (the Rust's tag tests are in
@@ -112,12 +157,37 @@ recursion depth when added to `lockstep_simp`, whose `simpTwin` runs over the
 whole twin program). -/
 macro "lockstep_twin_ite_full" : tactic =>
   `(tactic| first
-    | (refine LS.twin_ite_neg ?_ ?_; (· lockstep_simp_all_small))
-    | (refine LS.twin_ite_pos ?_ ?_; (· lockstep_simp_all_small)))
+    | (apply LS.twin_ite_neg; case hc => lockstep_simp_all_small)
+    | (apply LS.twin_ite_pos; case hc => lockstep_simp_all_small)
+    | (apply LS.twin_bind_ite_neg; case hc => lockstep_simp_all_small)
+    | (apply LS.twin_bind_ite_pos; case hc => lockstep_simp_all_small))
+
+theorem LS.twin_bind_assoc {α β γ δ : Type} {pers : arena.store.PersTier} {R : α → δ → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β} {f : β → AM γ} {g : γ → AM δ}
+    (h : LS pers R m lst (x >>= fun a => f a >>= g)) : LS pers R m lst ((x >>= f) >>= g) := by
+  rwa [bind_assoc]
+
+open Lean Meta Elab Tactic in
+/-- The twin's next action is itself a bind (a `do` block the Rust's tail
+wrapped): re-associate it. -/
+elab "lockstep_twin_assoc" : tactic => do
+  let g ← getMainGoal
+  let ty ← instantiateMVars (← g.getType)
+  unless ty.isAppOfArity ``LS 7 do throwError "not LS"
+  let x := (ty.getArg! 6).headBeta
+  unless x.isAppOfArity ``Bind.bind 6 && (x.getArg! 4).headBeta.isAppOfArity ``Bind.bind 6 do
+    throwError "twin head not a bind"
+  let gs ← g.apply (← mkConstWithFreshMVarLevels ``LS.twin_bind_assoc)
+  replaceMainGoal gs
+
+/-- A branch the port's own tests rule out, found by `simp_all` on the small
+facts (the last resort). -/
+macro "lockstep_contra_small" : tactic => `(tactic| (exfalso; lockstep_simp_all_small; done))
 
 /-- `lockstep_core` with the local moves as fallbacks. -/
 macro "lockstep_f" : tactic =>
-  `(tactic| repeat' (first | lockstep_step | lockstep_twin_ite_full | lockstep_twin_tail | lockstep_bool_cases))
+  `(tactic| repeat' (first | lockstep_step | lockstep_twin_ite_full | lockstep_twin_cases | lockstep_twin_assoc | lockstep_twin_tail | lockstep_contra_small))
 
 /-! ## Stubs (other regions' lemmas; deleted at merge) -/
 
@@ -297,8 +367,10 @@ theorem defeq_peel_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
     lockstep
   | succ m ih =>
     intro st lst peel a b k fvs mism mismLam hn hrel hinv
+    have hpush := @PF.vec_push_eidx_ls
     rw [arena.core.defeq_peel, defeqPeel_succ]
-    sorry
+    lockstep_f
+
 
 @[lockstep] theorem defeq_peel_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe d peel a b k fvs mism mismLam lst}
@@ -310,5 +382,159 @@ theorem defeq_peel_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
       (defeqPeel (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
         (absU d) (absU peel) (absEIdx a) (absEIdx b) (absU k) (absEIdxArr fvs) mism mismLam) :=
   defeq_peel_aux hk hx hctx hf d _ peel a b k fvs mism mismLam rfl hrel hinv
+
+/-! ## The binder-congruence arm -/
+
+@[lockstep] theorem defeq_binders_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth ty1 body1 m1 ty2 body2 m2 isLam lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
+    (hm1 : ConRon.Refine.PropWhenWF m1.pw) (hm2 : ConRon.Refine.PropWhenWF m2.pw) :
+    LS pers (fun a b => b = a)
+      (arena.core.defeq_binders pers vis st mode lane fu fe depth ty1 body1 m1 ty2 body2 m2
+        isLam) lst
+      (defeqBinders (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        (absU depth) (absEIdx ty1) (absEIdx body1) (ConRon.Refine.absBinderMeta m1)
+        (absEIdx ty2) (absEIdx body2) (ConRon.Refine.absBinderMeta m2) isLam) := by
+  have hpush := @PF.vec_push_eidx_ls
+  rw [arena.core.defeq_binders, defeqBinders]
+  lockstep_f
+
+/-! ## The lazy-delta loop
+
+`defeq_step`'s fragments have no twin of their own: they are the tail of
+`defeqStep` (task #97-P5-0's finding-6 splits), so they are unfolded in place. -/
+
+attribute [lockstep_inline] arena.core.defeq_after_whnf arena.core.defeq_delta
+  arena.core.defeq_delta_both arena.core.defeq_unfold_both arena.core.defeq_struct
+  arena.core.defeq_apps arena.core.defeq_lit_app arena.core.defeq_lit_const
+
+set_option maxRecDepth 8000 in
+set_option maxHeartbeats 40000000 in
+/-- `defeq_step`'s body, once, parametric in the continuation: the port's
+`n` IS the twin's `defeqLoop … (absU n)` (finding 13), and `hcont` — the
+loop at `n` — is found by `lockstep_core` in the context under
+`arena.core.defeq_loop`. -/
+theorem defeq_step_of_cont {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
+    (hx : ExprOpsHyp pers) {vis mode lane fu fe lfe} (hctx : CoreCtx vis fe lfe)
+    (hf : absU fu = f) (depth n : Std.U64)
+    (hcont : ∀ {st : arena.monad.AState} {lst : AState} (pi : Bool) (a b : arena.handle.EIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a)
+        (arena.core.defeq_loop pers vis st mode lane fu fe depth n pi a b) lst
+        (defeqLoop (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+          lfe (absU depth) (absU n) pi (absEIdx a) (absEIdx b)))
+    {st : arena.monad.AState} {lst : AState} (pi : Bool) (a b : arena.handle.EIdx)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a)
+      (arena.core.defeq_step pers vis st mode lane fu fe depth n pi a b) lst
+      (defeqStep (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        lfe (absU depth)
+        (defeqLoop (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+          lfe (absU depth) (absU n)) pi (absEIdx a) (absEIdx b)) := by
+  have hview := @PF.view_wf_ls
+  have hpush := @PF.vec_push_eidx_ls
+  -- `lift_fueled_ls` takes the twin's message as an explicit argument, which
+  -- the port's step does not determine: specialised to `defeqStep`'s.
+  have hlift : ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState},
+      AStateRel₀ pers st lst → AStateInv pers st → ∀ (o : Option Bool),
+      LSR pers (fun a b => b = a) (arena.core.lift_fueled o) st lst
+        (liftFueled "level comparison" o) :=
+    fun hrel hinv o => lift_fueled_ls hrel hinv o "level comparison"
+  rw [arena.core.defeq_step]
+  delta defeqStep
+  lockstep_f
+
+theorem defeqLoop_zero (mode : ConLeche.CheckMode) (r : CoreFnsA) (fe : IFEnv) (d : Nat)
+    (pi : Bool) (a b : EIdx) :
+    defeqLoop mode r fe d 0 pi a b = Arena.fail (.internal "fuel exhausted: defeq loop") := rfl
+
+theorem defeqLoop_succ (mode : ConLeche.CheckMode) (r : CoreFnsA) (fe : IFEnv) (d m : Nat)
+    (pi : Bool) (a b : EIdx) :
+    defeqLoop mode r fe d (m + 1) pi a b = defeqStep mode r fe d (defeqLoop mode r fe d m) pi a b :=
+  rfl
+
+@[lockstep_simp] theorem defeq_loop_fuel_val :
+    absU arena.core.DEFEQ_LOOP_FUEL = Arena.defeqLoopFuel := by
+  rw [arena.core.DEFEQ_LOOP_FUEL, Arena.defeqLoopFuel]; rfl
+
+/-- The loop, by induction on the port's counter (`Core/Arms/Loops.lean`'s
+`whnf_loop_aux` shape): the step at `n - 1` is `defeq_step_of_cont` with the
+induction hypothesis as its continuation. -/
+theorem defeq_loop_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
+    (hx : ExprOpsHyp pers) {vis mode lane fu fe lfe} (hctx : CoreCtx vis fe lfe)
+    (hf : absU fu = f) (depth : Std.U64) (m : Nat) :
+    ∀ {st : arena.monad.AState} {lst : AState} (n : Std.U64) (pi : Bool) (a b : arena.handle.EIdx),
+      absU n = m → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a)
+        (arena.core.defeq_loop pers vis st mode lane fu fe depth n pi a b) lst
+        (defeqLoop (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+          lfe (absU depth) m pi (absEIdx a) (absEIdx b)) := by
+  induction m with
+  | zero =>
+    intro st lst n pi a b hn hrel hinv
+    rw [arena.core.defeq_loop, defeqLoop_zero]
+    lockstep_f
+  | succ m ih =>
+    intro st lst n pi a b hn hrel hinv
+    have hstep : ∀ {st : arena.monad.AState} {lst : AState} (i : Std.U64) (pi : Bool)
+        (a b : arena.handle.EIdx), absU i = m → AStateRel₀ pers st lst → AStateInv pers st →
+        LS pers (fun a b => b = a)
+          (arena.core.defeq_step pers vis st mode lane fu fe depth i pi a b) lst
+          (defeqStep (ConRon.Refine.absMode mode)
+            (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
+            (defeqLoop (ConRon.Refine.absMode mode)
+              (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth) m)
+            pi (absEIdx a) (absEIdx b)) := by
+      intro st lst i pi a b hi hrel hinv
+      subst hi
+      exact defeq_step_of_cont hk hx hctx hf depth i
+        (fun pi a b hr hv => ih i pi a b rfl hr hv) pi a b hrel hinv
+    clear ih
+    rw [arena.core.defeq_loop, defeqLoop_succ]
+    lockstep_f
+
+/-- `arena::core::defeq_loop` against `Arena.defeqLoop`. -/
+@[lockstep] theorem defeq_loop_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth n pi a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.defeq_loop pers vis st mode lane fu fe depth n pi a b) lst
+      (defeqLoop (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        lfe (absU depth) (absU n) pi (absEIdx a) (absEIdx b)) :=
+  defeq_loop_aux hk hx hctx hf depth _ n pi a b rfl hrel hinv
+
+/-- `arena::core::defeq_step` against `Arena.defeqStep` with the rest of the
+loop named — the port's `n` IS the twin's continuation `defeqLoop … (absU n)`. -/
+@[lockstep] theorem defeq_step_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth n pi a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.defeq_step pers vis st mode lane fu fe depth n pi a b) lst
+      (defeqStep (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        lfe (absU depth)
+        (defeqLoop (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+          lfe (absU depth) (absU n)) pi (absEIdx a) (absEIdx b)) :=
+  defeq_step_of_cont hk hx hctx hf depth n
+    (fun _ _ _ hr hv => defeq_loop_ls hk hx hr hv hctx hf) pi a b hrel hinv
+
+/-- `arena::core::defeq_body` against `Arena.defeqBody` — `BodyRel`'s `defeq`
+field, in `LS` form: the loop at its own step budget, at `pi = true`. -/
+@[lockstep] theorem defeq_body_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.defeq_body pers vis st mode lane fu fe depth a b) lst
+      (defeqBody (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        lfe (absU depth) (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.defeq_body, defeqBody]
+  lockstep_f
 
 end ConRon.Refine2.Lockstep

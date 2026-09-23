@@ -80,6 +80,9 @@ ETAG_LAM`); these put the two in the same `decide` form. -/
   by_cases h : x = y <;> simp [h]
 
 attribute [lockstep_simp] ETag.isBind Bool.or_eq_true Bool.not_eq_true' Bool.not_true
+  false_or or_false true_or or_true false_and and_false Bool.not_eq_false Bool.not_eq_true
+  Bool.true_or Bool.false_or Bool.or_true Bool.or_false Bool.true_and Bool.and_true Bool.false_and
+  Bool.and_false Bool.and_eq_true decide_not ite_true ite_false and_self
 
 /-- A tag equality on the twin's word, as the port's scalar test . -/
 theorem absU32_eq_absU32 (t c : Std.U32) : (absU32 t = absU32 c) = (t = c) := by
@@ -87,9 +90,92 @@ theorem absU32_eq_absU32 (t c : Std.U32) : (absU32 t = absU32 c) = (t = c) := by
   · intro h; exact absU32_inj h
   · intro h; rw [h]
 
+@[lockstep_simp] theorem absU32_eq_lam (t : Std.U32) :
+    (absU32 t = ETag.lam) = (t = arena.handle.ETAG_LAM) := by
+  rw [← etag_lam_abs, absU32_eq_absU32]
+
+@[lockstep_simp] theorem absU32_eq_forallE (t : Std.U32) :
+    (absU32 t = ETag.forallE) = (t = arena.handle.ETAG_FORALL_E) := by
+  rw [← etag_forallE_abs, absU32_eq_absU32]
+
+@[lockstep_simp] theorem etag_forallE_ne_lam : (ETag.forallE = ETag.lam) = False := by
+  simp [ETag.forallE, ETag.lam]
+
+@[lockstep_simp] theorem etag_lam_ne_forallE : (ETag.lam = ETag.forallE) = False := by
+  simp [ETag.forallE, ETag.lam]
+
+@[lockstep_simp] theorem etag_FORALL_ne_LAM :
+    (arena.handle.ETAG_FORALL_E = arena.handle.ETAG_LAM) = False := by
+  apply propext; constructor
+  · intro h
+    have := congrArg absU32 h
+    rw [etag_forallE_abs, etag_lam_abs] at this
+    exact absurd this (by simp [ETag.forallE, ETag.lam])
+  · intro h; exact h.elim
+
+@[lockstep_simp] theorem etag_LAM_ne_FORALL :
+    (arena.handle.ETAG_LAM = arena.handle.ETAG_FORALL_E) = False := by
+  apply propext; constructor
+  · intro h
+    have := congrArg absU32 h
+    rw [etag_forallE_abs, etag_lam_abs] at this
+    exact absurd this (by simp [ETag.forallE, ETag.lam])
+  · intro h; exact h.elim
+
 @[lockstep_simp] theorem absU32_eq_const (t : Std.U32) :
     (absU32 t = ETag.const) = (t = arena.handle.ETAG_CONST) := by
   rw [← etag_const_abs, absU32_eq_absU32]
+
+/-! ## Reducibility hints -/
+
+@[lockstep] theorem reducibility_hint_lt_ls (a b : kernel.env.ReducibilityHint) :
+    LSP (kernel.env.reducibility_hint_lt a b)
+      (fun r => r = ConLeche.ReducibilityHint.lt (ConRon.Refine.absHint a)
+        (ConRon.Refine.absHint b)) := by
+  intro r h
+  cases a <;> cases b <;>
+    simp only [kernel.env.reducibility_hint_lt, Result.ok.injEq] at h <;> subst h <;>
+    simp [ConLeche.ReducibilityHint.lt, ConRon.Refine.absHint]
+
+@[lockstep] theorem reducibility_hint_same_regular_ls (a b : kernel.env.ReducibilityHint) :
+    LSP (kernel.env.reducibility_hint_same_regular a b)
+      (fun r => r = ConLeche.ReducibilityHint.sameRegular (ConRon.Refine.absHint a)
+        (ConRon.Refine.absHint b)) := by
+  intro r h
+  cases a <;> cases b <;>
+    simp only [kernel.env.reducibility_hint_same_regular, Result.ok.injEq] at h <;> subst h <;>
+    simp [ConLeche.ReducibilityHint.sameRegular, ConRon.Refine.absHint]
+  rename_i x y
+  by_cases h : x = y
+  · subst h; simp
+  · have : x.val ≠ y.val := fun e => h (UScalar.eq_imp x y e)
+    simp [h, this]
+
+@[lockstep_simp] theorem internLitE_eq (l : ConLeche.Literal) :
+    Arena.internLitE l = Arena.internE (.lit l) := rfl
+
+/-! ## The accumulated free variables -/
+
+/-- The port pushes onto its `Vec`, the twin onto its `Array`: the push
+step stated in the twin's shape.  Not `@[lockstep]` (the generic
+`vec_push_spec` is registered first); the proofs that need it take it as a
+local hypothesis, which `lockstep` tries before the registered lemmas. -/
+theorem vec_push_eidx_ls (v : alloc.vec.Vec arena.handle.EIdx) (x : arena.handle.EIdx) :
+    LSP (alloc.vec.Vec.push v x) (fun w => absEIdxArr w = (absEIdxArr v).push (absEIdx x)) := by
+  intro w h
+  have := ConRon.Refine.vec_push_val h
+  simp [absEIdxArr, this]
+
+@[lockstep_simp] theorem absBinderMeta_pw (m : kernel.expr.BinderMeta) :
+    (ConRon.Refine.absBinderMeta m).pw = ConRon.Refine.absPropWhen m.pw := rfl
+
+@[lockstep_simp] theorem absEIdxArr_new :
+    absEIdxArr (alloc.vec.Vec.new arena.handle.EIdx) = #[] := rfl
+
+@[lockstep_simp] theorem arr_empty_push (x : EIdx) : (#[] : Array EIdx).push x = #[x] := rfl
+
+@[lockstep_simp] theorem peel_fuel_val : (arena.core.PEEL_FUEL).val = peelFuel := by
+  rw [arena.core.PEEL_FUEL]; rfl
 
 /-! ## Spine lengths -/
 
@@ -129,15 +215,20 @@ theorem absU32_eq_absU32 (t c : Std.U32) : (absU32 t = absU32 c) = (t = c) := by
         ConRon.Refine.Nat.toNat c = ConRon.Refine.Nat.toNat n - 1) :=
   fun _ h => let r := ConRon.Refine.Nat.pred_refines hn h; ⟨r.2, r.1⟩
 
-@[lockstep] theorem nat_clone_ls (n : ron.nat.Nat) :
-    LSP (ron.nat.clone n)
-      (fun m => m.limbs.val = n.limbs.val ∧
-        ConRon.Refine.Nat.toNat m = ConRon.Refine.Nat.toNat n) :=
-  fun _ h => ConRon.Refine.Nat.clone_refines h
-
 theorem natWF_of_limbs {m n : ron.nat.Nat} (h : m.limbs.val = n.limbs.val)
     (hn : ConRon.Refine.Nat.NatWF n) : ConRon.Refine.Nat.NatWF m := by
   unfold ConRon.Refine.Nat.NatWF; rw [h]; exact hn
+
+@[lockstep] theorem nat_clone_ls (n : ron.nat.Nat) (hn : ConRon.Refine.Nat.NatWF n) :
+    LSP (ron.nat.clone n)
+      (fun m => ConRon.Refine.Nat.NatWF m ∧
+        ConRon.Refine.Nat.toNat m = ConRon.Refine.Nat.toNat n) :=
+  fun _ h => let r := ConRon.Refine.Nat.clone_refines h; ⟨natWF_of_limbs r.1 hn, r.2⟩
+
+@[lockstep_simp] theorem nat_beq_decide' (a b : Nat) : (a == b) = decide (a = b) := by
+  by_cases h : a = b <;> simp [h]
+
+attribute [lockstep_simp] ConRon.Refine.absLiteral ConRon.Refine.LiteralWF
 
 @[lockstep] theorem literal_nat_ls (k : ron.nat.Nat) :
     LSP (kernel.expr.literal_nat k) (fun l => l = .NatVal k) := by
