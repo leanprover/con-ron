@@ -660,20 +660,57 @@ one at the same place, against the persistent array; the error is the same
 `Native` kind.  `Arena/Promote.lean` is the only caller.
 -/
 
-/-- con-leche: none — arena infrastructure; hash-cons an expression node into
-the persistent tier. -/
-def internPersistentE (v : ENodeView) : AM EIdx := do
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — arena
+infrastructure; the binder datum's promote-intern, with the Rust's
+`intern_bm_persistent` capacity test where it makes it: on the persistent
+datum MISS only.  (The Rust's `shared_on` / `M_FROZEN` arm before it is a
+`Native`, which claims nothing, and has no twin — task #97-P5-Unfreeze.) -/
+def internBMPersistentE (m : ConLeche.BinderMeta) : AM BMIdx := do
   let s ← get
-  -- **Probe first** (task #97-P5-1's finding 9), at the PERSISTENT tier,
-  -- which is the only one `internPersistent` probes.
-  match s.store.persFind? v with
-  | some h => pure h
+  match s.store.persFindBM m with
+  | some i => pure i
   | none =>
-    if s.store.pers.sizeOf v < Idx.idxCap &&
-        (!EStore.eViewNeedsBM v || s.store.pers.bmSize < Idx.idxCap) then
+    if s.store.pers.bmSize < Idx.idxCap then
       let st := s.store
       let s := { s with store := EStore.empty }
-      let (st, h) := st.internPersistent v
+      let (st, i) := st.internBMPersistent m
+      set { s with store := st }
+      pure i
+    else
+      fail (.native "arena: expression constructor array full")
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — arena
+infrastructure; the datum a view names, made persistent: the Rust's
+`intern_bm_of_view_persistent`.  A non-binder view names no datum. -/
+def internBMOfViewPersistentE (v : ENodeView) : AM BMIdx :=
+  match v with
+  | .lam _ _ m => internBMPersistentE m
+  | .forallE _ _ m => internBMPersistentE m
+  | _ => pure (Idx.ofWord 0)
+
+/-- con-leche: none — arena infrastructure; hash-cons an expression node into
+the persistent tier.
+
+**In the Rust's order** (task #97-T2-LOCKSTEP, audit D3): the DATUM first,
+with its own capacity test on its own miss path only
+(`internBMOfViewPersistentE`); then the node probe at the persistent tier with
+the datum handle that step answered; then the NODE array's test, on the node
+miss only (task #97-P5-1's finding 9); then the append.  The wrapper used to
+probe `persFind?` and test `bmSize` on every binder-node miss, so at a full
+datum array a new binder node over an EXISTING datum threw `native` where the
+port answers `Ok` — the corner task #97-P5-Twin round 2 closed in `internE`.
+`EStore.internPersistent` is still the composition of the two store halves
+(`EStore.internPersistent_eq_at`). -/
+def internPersistentE (v : ENodeView) : AM EIdx := do
+  let mi ← internBMOfViewPersistentE v
+  let s ← get
+  match s.store.pers.find? v mi with
+  | some h => pure h
+  | none =>
+    if s.store.pers.sizeOf v < Idx.idxCap then
+      let st := s.store
+      let s := { s with store := EStore.empty }
+      let (st, h) := st.internPersistentAt v mi
       set { s with store := st }
       pure h
     else
