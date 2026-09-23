@@ -1172,4 +1172,594 @@ theorem inferForall_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
         ConLeche.inferTypeCore_WScoped henv F hF hw, F, hF⟩
   next => exact triple_fail
 
+/-! ## 4. The annotation loops
+
+### 4.1 The shared outward rebuild -/
+
+/-- con-leche: none — the node a rebuild interns, by the loop's kind. -/
+def mkB (isLam : Bool) (ty b : Expr) (m : BinderMeta) : Expr :=
+  if isLam then .lam ty b m else .forallE ty b m
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:1018-1024 annotBinderMeta — the
+twin's copy is the same function. -/
+theorem annotBinderMeta_eq (pw? : Option PropWhen) (mb : BinderMeta) :
+    ConRon.Arena.annotBinderMeta pw? mb = ConLeche.annotBinderMeta pw? mb := by
+  cases pw? <;> rfl
+
+/-- con-leche: none — `internLamE`/`internForallEE` by the loop's kind. -/
+theorem internBinderE_spec (isLam : Bool) (s₀ : AState) (ty b : EIdx)
+    (m : BinderMeta) (tx bx : Expr) (hwf : StoreWF s₀.store)
+    (hty : denoteE s₀.store ty = some tx) (hb : denoteE s₀.store b = some bx) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      (if isLam then internLamE ty b m else internForallEE ty b m)
+    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        denoteE s'.store h = some (mkB isLam tx bx m)⌝⦄ := by
+  cases isLam
+  · simp only [Bool.false_eq_true, if_false]
+    refine triple_mono (internForallEE_spec s₀ ty b m hwf (by rw [hty]; rfl)
+      (by rw [hb]; rfl)) ?_
+    rintro h s' ⟨h1, h2, -, -, -, -, h3, h4, -, h5⟩
+    refine ⟨h1, h2, h3, h4, ?_⟩
+    rw [h5]; simp [denoteEView, denote_ext hty h2, denote_ext hb h2, mkB]
+  · simp only [if_true]
+    refine triple_mono (internLamE_spec s₀ ty b m hwf (by rw [hty]; rfl)
+      (by rw [hb]; rfl)) ?_
+    rintro h s' ⟨h1, h2, -, -, -, -, h3, h4, -, h5⟩
+    refine ⟨h1, h2, h3, h4, ?_⟩
+    rw [h5]; simp [denoteEView, denote_ext hty h2, denote_ext hb h2, mkB]
+
+/-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:890
+annotateBindersOutC_sim — **the annotation loops' rebuild carries**, with
+task #161's datum threading. -/
+theorem annotateBindersOut_carry (isLam : Bool) (d : Nat)
+    (stk : Array (EIdx × BinderMeta)) :
+    ∀ (n : Nat) (s₀ : AState) (pw? : Option PropWhen) (cur : EIdx)
+      (curx : Expr) (stkx : List (Expr × BinderMeta)),
+      CheckOK mode env fe s₀ → denoteE s₀.store cur = some curx →
+      n ≤ stk.size → StkRel (LamR s₀.store) (stk.toList.take n).reverse stkx →
+      ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.annotateBindersOut isLam d pw? stk n cur
+      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
+          ConLeche.annotateBindersOut (m := CheckM) (mkB isLam) d pw? stkx
+            (n - 1) curx = .ok v⌝⦄
+  | 0, s₀, pw?, cur, curx, stkx, hok, hcur, _, hstk => by
+    cases stkx with
+    | cons _ _ => exact hstk.elim
+    | nil =>
+      rw [ConRon.Arena.annotateBindersOut]
+      simp only [if_true]
+      mvcgen
+      bridge_peel; subst_vars
+      exact ⟨hok, Ext.refl _, rfl, curx, hcur, rfl⟩
+  | j + 1, s₀, pw?, cur, curx, stkx, hok, hcur, hle, hstk => by
+    obtain ⟨⟨tyx, mbx⟩, rest, rfl, ⟨hty, hmb⟩, hrest⟩ :=
+      StkRel.take_succ (Nat.lt_of_succ_le hle) hstk
+    rw [ConRon.Arena.annotateBindersOut]
+    simp only [Nat.add_one_ne_zero, if_false, Nat.add_sub_cancel]
+    dsimp only at hmb
+    refine triple_seq (ExprOps.abstractRangeFast_spec fvarBSpec
+      coreWalkFuel s₀ stk[j]!.1 d j 0 hok.state (by rw [hty]; rfl)) ?_
+    rintro tyAbs s1 ⟨hs1, hx1, -, hc1, hp1, -, hrel1⟩
+    have hok1 := hok.mono hs1 hx1 hc1 hp1
+    have hta : denoteE s1.store tyAbs = some (tyx.abstractRange d j) :=
+      hrel1 _ hty
+    have hk : ∀ (nd : EIdx) (s2 : AState), (StoreWF s2.store ∧
+        Ext s1.store s2.store ∧ s2.caches = s1.caches ∧ s2.pins = s1.pins ∧
+        denoteE s2.store nd = some (mkB isLam (tyx.abstractRange d j) curx
+          (ConRon.Arena.annotBinderMeta pw? stk[j]!.2))) →
+        ⦃fun s => ⌜s = s2⌝⦄
+          ConRon.Arena.annotateBindersOut isLam d
+            (if pw?.isSome = true then
+              some (ConRon.Arena.annotBinderMeta pw? stk[j]!.2).pw else none)
+            stk j nd
+        ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+            s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
+            ConLeche.annotateBindersOut (m := CheckM) (mkB isLam) d pw?
+              ((tyx, mbx) :: rest) j curx = .ok v⌝⦄ := by
+      rintro nd s2 ⟨hwf2, hx2, hc2, hp2, hnd⟩
+      have hok2 := hok1.mono ⟨hwf2⟩ hx2 hc2 hp2
+      have hx02 : Ext s₀.store s2.store := hx1.trans hx2
+      refine triple_mono (annotateBindersOut_carry isLam d stk j s2 _ nd _ rest
+        hok2 hnd (Nat.le_of_succ_le hle) (StkRel.imp (LamR.ext hx02) hrest)) ?_
+      rintro r s' ⟨hok', hx', hp', v, hv, hrun⟩
+      refine ⟨hok', hx02.trans hx', hp'.trans (hp2.trans hp1), v, hv, ?_⟩
+      rw [hmb, annotBinderMeta_eq] at hrun
+      have hpw2 : (if pw?.isSome = true then
+            some (ConLeche.annotBinderMeta pw? mbx).pw else none)
+          = pw?.map (fun _ => (ConLeche.annotBinderMeta pw? mbx).pw) := by
+        cases pw? <;> rfl
+      rw [hpw2] at hrun
+      exact hrun
+    have hint := internBinderE_spec isLam s1 tyAbs cur
+      (ConRon.Arena.annotBinderMeta pw? stk[j]!.2) _ _ hs1.wf hta
+      (denote_ext hcur hx1)
+    cases isLam
+    · simp only [Bool.false_eq_true, if_false] at hint ⊢
+      exact triple_seq hint hk
+    · simp only [if_true] at hint ⊢
+      exact triple_seq hint hk
+
+/-! ### 4.2 The ∀-annotation loop -/
+
+/-- con-leche: ConLeche/Verify/BinderLoop.lean:217-230 annotatePisLeaf — the
+mirror's leaf, from its three facts. -/
+theorem mAnnotatePisLeaf {F d k : Nat} {tx leaf' v : Expr} {p : PropWhen}
+    {ws : List Expr} {stkx : List (Expr × BinderMeta)}
+    (ha : ConLeche.annotateCore mode env F (d + k) (tx.instantiateList ws)
+      = .ok leaf')
+    (hp : ConLeche.annotPwPi (ConLeche.pureFns mode env F) env (d + k) leaf'
+      = .ok p)
+    (hout : ConLeche.annotateBindersOut (m := CheckM) (mkB false) d (some p) stkx
+      (k - 1) (leaf'.abstractRange d k) = .ok v) :
+    ConLeche.annotatePisLeaf (ConLeche.pureFns mode env F) env d tx k ws stkx
+      = .ok v := by
+  unfold ConLeche.annotatePisLeaf ConLeche.annotatePisPw
+  rw [annotate_def, ha, ConLeche.okB_bind]
+  simp only [hp, bind, Except.bind, pure, Except.pure]
+  exact hout
+
+/-- con-leche: none — the ∀-annotation mirror is fuel-monotone
+(`annotatePis_atF`). -/
+theorem mAnnotatePis_mono {d peel k : Nat} {t v : Expr} {ws : List Expr}
+    {stkx : List (Expr × BinderMeta)} {F F' : Nat} (hle : F ≤ F')
+    (h : ConLeche.annotatePis (ConLeche.pureFns mode env F) env d peel t k ws
+      stkx = .ok v) :
+    ConLeche.annotatePis (ConLeche.pureFns mode env F') env d peel t k ws stkx
+      = .ok v := by
+  rw [← ConLeche.annotatePis_atF] at h ⊢
+  exact (ConLeche.annotatePis (ConLeche.fueledFns mode env) env d peel t k ws
+    stkx).property hle h
+
+/-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:1037
+annotatePisLeafC_sim — **the ∀-annotation leaf carries**. -/
+theorem annotatePisLeaf_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (t : EIdx) (k : Nat) (fvs : Array EIdx)
+    (stk : Array (EIdx × BinderMeta)) (tx : Expr) (ws : List Expr)
+    (stkx : List (Expr × BinderMeta))
+    (hok : CheckOK mode env fe s₀) (ht : denoteE s₀.store t = some tx)
+    (hvec : ExprOps.InstLVec s₀.store fvs ws)
+    (hstk : StkRel (LamR s₀.store) stk.toList.reverse stkx)
+    (hk : stk.size = k)
+    (hw : Expr.WScoped (d + k) (tx.instantiateList ws)) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      ConRon.Arena.annotatePisLeaf (coreKnot mode fe id fuel) fe d t k fvs stk
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
+        ∃ F, ConLeche.annotatePisLeaf (ConLeche.pureFns mode env F) env d tx k
+          ws stkx = .ok v⌝⦄ := by
+  unfold ConRon.Arena.annotatePisLeaf
+  refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀ t fvs 0 ws
+    hok.state hvec (by rw [ht]; rfl)) ?_
+  rintro ob s1 ⟨hs1, hx1, -, hc1, hp1, -, hrel1⟩
+  have hok1 := hok.mono hs1 hx1 hc1 hp1
+  have hob : denoteE s1.store ob = some (tx.instantiateList ws) := hrel1 _ ht
+  refine triple_seq (hsim.annotate s1 (d + k) ob _ hok1 hob hw) ?_
+  rintro lp s2 ⟨hok2, hx2, hp2, lx, hlx, hwlx, F1, hF1⟩
+  refine triple_seq (annotPwPi_spec hsim s2 (d + k) lp lx hok2 hlx hwlx) ?_
+  rintro p s3 ⟨hok3, hx3, hp3, F2, hF2⟩
+  have hlx3 := denote_ext hlx hx3
+  refine triple_seq (ExprOps.abstractRangeFast_spec fvarBSpec coreWalkFuel s3 lp
+    d k 0 hok3.state (by rw [hlx3]; rfl)) ?_
+  rintro cur s4 ⟨hs4, hx4, -, hc4, hp4, -, hrel4⟩
+  have hok4 := hok3.mono hs4 hx4 hc4 hp4
+  have hcur : denoteE s4.store cur = some (lx.abstractRange d k) := hrel4 _ hlx3
+  have hx04 := hx1.trans (hx2.trans (hx3.trans hx4))
+  refine triple_mono (annotateBindersOut_carry false d stk stk.size s4 (some p)
+    cur _ stkx hok4 hcur (Nat.le_refl _)
+    (StkRel.take_size (StkRel.imp (LamR.ext hx04) hstk))) ?_
+  rintro r s' ⟨hok', hx', hp', v, hv, hrun⟩
+  refine ⟨hok', hx04.trans hx', hp'.trans (hp4.trans (hp3.trans (hp2.trans hp1))),
+    v, hv, max F1 F2, ?_⟩
+  rw [hk] at hrun
+  exact mAnnotatePisLeaf (ConLeche.annotateCore_mono (Nat.le_max_left _ _) hF1)
+    (ConLeche.annotPwPi_mono (Nat.le_max_right _ _) hF2) hrun
+
+/-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:1064 annotatePisC_sim
+— **THE ∀-ANNOTATION LOOP CARRIES**. -/
+theorem annotatePis_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (d : Nat) :
+    ∀ (peel : Nat) (s₀ : AState) (t : EIdx) (k : Nat) (fvs : Array EIdx)
+      (stk : Array (EIdx × BinderMeta)) (tx : Expr) (ws : List Expr)
+      (stkx : List (Expr × BinderMeta)),
+      CheckOK mode env fe s₀ → denoteE s₀.store t = some tx →
+      ExprOps.InstLVec s₀.store fvs ws →
+      StkRel (LamR s₀.store) stk.toList.reverse stkx → stk.size = k →
+      Expr.WScoped (d + k) (tx.instantiateList ws) →
+      ⦃fun s => ⌜s = s₀⌝⦄
+        ConRon.Arena.annotatePis (coreKnot mode fe id fuel) fe d peel t k fvs stk
+      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
+          ∃ F, ConLeche.annotatePis (ConLeche.pureFns mode env F) env d peel tx
+            k ws stkx = .ok v⌝⦄
+  | 0, s₀, t, k, fvs, stk, tx, ws, stkx, hok, ht, hvec, hstk, hk, hw => by
+    rw [ConRon.Arena.annotatePis]
+    refine triple_mono (annotatePisLeaf_carry hsim s₀ d t k fvs stk tx ws stkx
+      hok ht hvec hstk hk hw) ?_
+    rintro r s' ⟨h1, h2, h3, v, hv, F, hF⟩
+    exact ⟨h1, h2, h3, v, hv, F, by rw [ConLeche.annotatePis_zero]; exact hF⟩
+  | peel + 1, s₀, t, k, fvs, stk, tx, ws, stkx, hok, ht, hvec, hstk, hk, hw => by
+    have hwf := hok.state.wf
+    rw [ConRon.Arena.annotatePis]
+    split
+    next htg =>
+      have htp : t.tag = ETag.forallE := by simpa using htg
+      refine triple_seq (viewBind_spec s₀ t) ?_
+      rintro ob s1 ⟨hs1, hob⟩
+      subst s1
+      cases ob with
+      | none => exact triple_failDanglingE
+      | some p =>
+        obtain ⟨ty, body, mb⟩ := p
+        dsimp only
+        have hv := view_forallE_of_viewBind htp hob.symm
+        obtain ⟨tyx, bodyx, rfl, hty, hbody⟩ := denote_forallE_inv hwf hv ht
+        have hpiL : (Expr.forallE tyx bodyx mb).instantiateList ws
+            = .forallE (tyx.instantiateList ws) (bodyx.instantiateList ws 1)
+              mb := by
+          simp [Expr.instantiateList]
+        have hwc : Expr.WScoped (d + k) (tyx.instantiateList ws) ∧
+            Expr.WScoped (d + k) (bodyx.instantiateList ws 1) := by
+          rw [hpiL] at hw; simpa only [Expr.WScoped] using hw
+        refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀ ty fvs
+          0 ws hok.state hvec (by rw [hty]; rfl)) ?_
+        rintro tyo s1 ⟨hs1, hx1, -, hc1, hp1, -, hrel1⟩
+        have hok1 := hok.mono hs1 hx1 hc1 hp1
+        have htyo : denoteE s1.store tyo = some (tyx.instantiateList ws) :=
+          hrel1 _ hty
+        refine triple_seq (hsim.annotate s1 (d + k) tyo _ hok1 htyo hwc.1) ?_
+        rintro typ s2 ⟨hok2, hx2, hp2, typx, htypx, hwtypx, F1, hF1⟩
+        refine triple_seq (internFVarE_spec s2 (d + k) typ hok2.state.wf
+          (by rw [htypx]; rfl)) ?_
+        rintro fv s3 ⟨hwf3, hx3, -, -, -, -, hc3, hp3, -, hd3⟩
+        have hok3 := hok2.mono ⟨hwf3⟩ hx3 hc3 hp3
+        have hfv : denoteE s3.store fv = some (.fvar (d + k) typx) := by
+          rw [hd3]; simp [denoteEView, denote_ext htypx hx3]
+        have hx03 := hx1.trans (hx2.trans hx3)
+        refine triple_mono (annotatePis_carry hsim d peel s3 body (k + 1)
+          (fvs.push fv) (stk.push (typ, mb)) bodyx
+          (Expr.fvar (d + k) typx :: ws) ((typx, mb) :: stkx) hok3
+          (denote_ext hbody hx03)
+          (InstLVec.push (hvec.ext hx03) hfv)
+          (StkRel.push (StkRel.imp (LamR.ext hx03) hstk)
+            ⟨denote_ext htypx hx3, rfl⟩)
+          (by simp [hk])
+          (by rw [show d + (k + 1) = d + k + 1 by omega, Expr.instantiateList_cons]
+              exact Expr.WScoped.instantiate1 hwtypx 0 hwc.2)) ?_
+        rintro r s' ⟨hok', hx', hp', v, hv', F2, hF2⟩
+        refine ⟨hok', hx03.trans hx', hp'.trans (hp3.trans (hp2.trans hp1)), v,
+          hv', max F1 F2, ?_⟩
+        rw [ConLeche.annotatePis_succ_pi, annotate_def,
+          ConLeche.annotateCore_mono (Nat.le_max_left _ _) hF1, ConLeche.okB_bind]
+        exact mAnnotatePis_mono (Nat.le_max_right _ _) hF2
+    next htg =>
+      have hne : t.tag ≠ ETag.forallE := by simpa using htg
+      have hnp := denote_not_forallE_of_tag hwf ht hne
+      refine triple_mono (annotatePisLeaf_carry hsim s₀ d t k fvs stk tx ws stkx
+        hok ht hvec hstk hk hw) ?_
+      rintro r s' ⟨h1, h2, h3, v, hv, F, hF⟩
+      exact ⟨h1, h2, h3, v, hv, F,
+        by rw [ConLeche.annotatePis_succ_ne_pi _ hnp]; exact hF⟩
+
+/-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:1272
+annotatePisC_tail_sim (its `himp` half) — **the pure side of the `.forallE`
+annotation clause**, by con-leche's `annotatePis_sound`. -/
+theorem annotateCore_forallE_of_loop {d F1 F3 : Nat} {tyx bodyx typx : Expr}
+    {mb : BinderMeta} {v : Expr} {peel : Nat}
+    (hF1 : ConLeche.annotateCore mode env F1 d tyx = .ok typx)
+    (hF3 : ConLeche.annotatePis (ConLeche.pureFns mode env F3) env d peel bodyx 1
+      [Expr.fvar d typx] [(typx, mb)] = .ok v) :
+    ∃ F, ConLeche.annotateCore mode env F d (.forallE tyx bodyx mb) = .ok v := by
+  obtain ⟨F', hchain⟩ := ConLeche.annotatePis_sound (env := env) peel bodyx 1
+    [Expr.fvar d typx] [(typx, mb)] F3 v rfl hF3
+  obtain ⟨body', hbody', hwrap⟩ := ConLeche.bind_okB hchain
+  let G := max F1 F'
+  have hle1 : F1 ≤ G := Nat.le_max_left _ _
+  have hle3 : F' ≤ G := Nat.le_max_right _ _
+  refine ⟨G + 1, ?_⟩
+  rw [ConLeche.annotateCore_forallE_eq, ConLeche.annotateCore_mono hle1 hF1,
+    ConLeche.okB_bind]
+  have hb' : ConLeche.annotateCore mode env G (d + 1)
+      (bodyx.instantiate1 (.fvar d typx)) = .ok body' := by
+    rw [← ConLeche.instList_single bodyx (Expr.fvar d typx)]
+    exact ConLeche.annotateCore_mono hle3 hbody'
+  rw [hb', ConLeche.okB_bind]
+  rw [ConLeche.annotatePisWrap_cons] at hwrap
+  simp only [ConLeche.annotatePisWrap_nil, show (1 : Nat) - 1 = 0 from rfl,
+    Nat.add_zero] at hwrap
+  revert hwrap
+  split
+  · intro hwrap
+    obtain ⟨pw, hpw, hwrap⟩ := ConLeche.bind_okB hwrap
+    rw [ConLeche.annotPwPi_mono hle3 hpw, ConLeche.okB_bind]
+    exact hwrap
+  · exact id
+
+/-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:1272
+annotatePisC_tail_sim — **THE `.forallE` ANNOTATION CLAUSE CARRIES**: the
+domain annotated, the first free variable, `annotatePis` from `k = 1`. -/
+theorem annotateForall_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (ty body : EIdx) (mb : BinderMeta)
+    (tyx bodyx : Expr) (hok : CheckOK mode env fe s₀)
+    (hty : denoteE s₀.store ty = some tyx)
+    (hbody : denoteE s₀.store body = some bodyx)
+    (hw : Expr.WScoped d (.forallE tyx bodyx mb)) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (do
+      let typ ← (coreKnot mode fe id fuel).annotate d ty
+      let fv ← internFVarE d typ
+      ConRon.Arena.annotatePis (coreKnot mode fe id fuel) fe d peelFuel body 1
+        #[fv] #[(typ, mb)])
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.annotateCore mode env) d (.forallE tyx bodyx mb)
+          s'.store r⌝⦄ := by
+  have hwty : Expr.WScoped d tyx := by unfold Expr.WScoped at hw; exact hw.1
+  have hwbody : Expr.WScoped d bodyx := by unfold Expr.WScoped at hw; exact hw.2
+  refine triple_seq (hsim.annotate s₀ d ty tyx hok hty hwty) ?_
+  rintro typ s1 ⟨hok1, hx1, hp1, typx, htypx, hwtypx, F1, hF1⟩
+  refine triple_seq (internFVarE_spec s1 d typ hok1.state.wf
+    (by rw [htypx]; rfl)) ?_
+  rintro fv s2 ⟨hwf2, hx2, -, -, -, -, hc2, hp2, -, hd2⟩
+  have hok2 := hok1.mono ⟨hwf2⟩ hx2 hc2 hp2
+  have hfv : denoteE s2.store fv = some (.fvar d typx) := by
+    rw [hd2]; simp [denoteEView, denote_ext htypx hx2]
+  have hx02 := hx1.trans hx2
+  have hvec : ExprOps.InstLVec s2.store #[fv] [Expr.fvar d typx] :=
+    InstLVec.push (InstLVec.empty _) hfv
+  have hstk : StkRel (LamR s2.store) (#[(typ, mb)] : Array _).toList.reverse
+      [(typx, mb)] :=
+    StkRel.push (stk := #[]) (stkx := []) trivial ⟨denote_ext htypx hx2, rfl⟩
+  have hwopen : Expr.WScoped (d + 1)
+      (bodyx.instantiateList [Expr.fvar d typx]) := by
+    rw [ConLeche.instList_single]
+    exact Expr.WScoped.instantiate1 hwtypx 0 hwbody
+  refine triple_mono (annotatePis_carry hsim d peelFuel s2 body 1 #[fv]
+    #[(typ, mb)] bodyx [Expr.fvar d typx] [(typx, mb)] hok2
+    (denote_ext hbody hx02) hvec hstk rfl hwopen) ?_
+  rintro r s' ⟨hok', hx', hp', v, hv, F3, hF3⟩
+  obtain ⟨F, hF⟩ := annotateCore_forallE_of_loop hF1 hF3
+  exact ⟨hok', hx02.trans hx', hp'.trans (hp2.trans hp1), v, hv,
+    ConLeche.annotateCore_WScoped F _ hF hw, F, hF⟩
+
+/-! ### 4.3 The λ-annotation loop -/
+
+/-- con-leche: ConLeche/Verify/BinderLoop.lean:245-258 annotateLamsLeaf — the
+mirror's leaf, from its three facts. -/
+theorem mAnnotateLamsLeaf {F d k : Nat} {tx leaf' v : Expr} {p : PropWhen}
+    {ws : List Expr} {stkx : List (Expr × BinderMeta)}
+    (ha : ConLeche.annotateCore mode env F (d + k) (tx.instantiateList ws)
+      = .ok leaf')
+    (hp : ConLeche.annotPwLam (ConLeche.pureFns mode env F) env (d + k) leaf'
+      = .ok p)
+    (hout : ConLeche.annotateBindersOut (m := CheckM) (mkB true) d (some p) stkx
+      (k - 1) (leaf'.abstractRange d k) = .ok v) :
+    ConLeche.annotateLamsLeaf (ConLeche.pureFns mode env F) env d tx k ws stkx
+      = .ok v := by
+  unfold ConLeche.annotateLamsLeaf ConLeche.annotateLamsPw
+  rw [annotate_def, ha, ConLeche.okB_bind]
+  simp only [hp, bind, Except.bind, pure, Except.pure]
+  exact hout
+
+/-- con-leche: none — the λ-annotation mirror is fuel-monotone
+(`annotateLams_atF`). -/
+theorem mAnnotateLams_mono {d peel k : Nat} {t v : Expr} {ws : List Expr}
+    {stkx : List (Expr × BinderMeta)} {F F' : Nat} (hle : F ≤ F')
+    (h : ConLeche.annotateLams (ConLeche.pureFns mode env F) env d peel t k ws
+      stkx = .ok v) :
+    ConLeche.annotateLams (ConLeche.pureFns mode env F') env d peel t k ws stkx
+      = .ok v := by
+  rw [← ConLeche.annotateLams_atF] at h ⊢
+  exact (ConLeche.annotateLams (ConLeche.fueledFns mode env) env d peel t k ws
+    stkx).property hle h
+
+/-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:1138
+annotateLamsLeafC_sim — **the λ-annotation leaf carries**. -/
+theorem annotateLamsLeaf_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (t : EIdx) (k : Nat) (fvs : Array EIdx)
+    (stk : Array (EIdx × BinderMeta)) (tx : Expr) (ws : List Expr)
+    (stkx : List (Expr × BinderMeta))
+    (hok : CheckOK mode env fe s₀) (ht : denoteE s₀.store t = some tx)
+    (hvec : ExprOps.InstLVec s₀.store fvs ws)
+    (hstk : StkRel (LamR s₀.store) stk.toList.reverse stkx)
+    (hk : stk.size = k)
+    (hw : Expr.WScoped (d + k) (tx.instantiateList ws)) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      ConRon.Arena.annotateLamsLeaf (coreKnot mode fe id fuel) fe d t k fvs stk
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
+        ∃ F, ConLeche.annotateLamsLeaf (ConLeche.pureFns mode env F) env d tx k
+          ws stkx = .ok v⌝⦄ := by
+  unfold ConRon.Arena.annotateLamsLeaf
+  refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀ t fvs 0 ws
+    hok.state hvec (by rw [ht]; rfl)) ?_
+  rintro ob s1 ⟨hs1, hx1, -, hc1, hp1, -, hrel1⟩
+  have hok1 := hok.mono hs1 hx1 hc1 hp1
+  have hob : denoteE s1.store ob = some (tx.instantiateList ws) := hrel1 _ ht
+  refine triple_seq (hsim.annotate s1 (d + k) ob _ hok1 hob hw) ?_
+  rintro lp s2 ⟨hok2, hx2, hp2, lx, hlx, hwlx, F1, hF1⟩
+  refine triple_seq (annotPwLam_spec hsim s2 (d + k) lp lx hok2 hlx hwlx) ?_
+  rintro p s3 ⟨hok3, hx3, hp3, F2, hF2⟩
+  have hlx3 := denote_ext hlx hx3
+  refine triple_seq (ExprOps.abstractRangeFast_spec fvarBSpec coreWalkFuel s3 lp
+    d k 0 hok3.state (by rw [hlx3]; rfl)) ?_
+  rintro cur s4 ⟨hs4, hx4, -, hc4, hp4, -, hrel4⟩
+  have hok4 := hok3.mono hs4 hx4 hc4 hp4
+  have hcur : denoteE s4.store cur = some (lx.abstractRange d k) := hrel4 _ hlx3
+  have hx04 := hx1.trans (hx2.trans (hx3.trans hx4))
+  refine triple_mono (annotateBindersOut_carry true d stk stk.size s4 (some p)
+    cur _ stkx hok4 hcur (Nat.le_refl _)
+    (StkRel.take_size (StkRel.imp (LamR.ext hx04) hstk))) ?_
+  rintro r s' ⟨hok', hx', hp', v, hv, hrun⟩
+  refine ⟨hok', hx04.trans hx', hp'.trans (hp4.trans (hp3.trans (hp2.trans hp1))),
+    v, hv, max F1 F2, ?_⟩
+  rw [hk] at hrun
+  exact mAnnotateLamsLeaf (ConLeche.annotateCore_mono (Nat.le_max_left _ _) hF1)
+    (ConLeche.annotPwLam_mono (Nat.le_max_right _ _) hF2) hrun
+
+/-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:1165 annotateLamsC_sim
+— **THE ∀-ANNOTATION LOOP CARRIES**. -/
+theorem annotateLams_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (d : Nat) :
+    ∀ (peel : Nat) (s₀ : AState) (t : EIdx) (k : Nat) (fvs : Array EIdx)
+      (stk : Array (EIdx × BinderMeta)) (tx : Expr) (ws : List Expr)
+      (stkx : List (Expr × BinderMeta)),
+      CheckOK mode env fe s₀ → denoteE s₀.store t = some tx →
+      ExprOps.InstLVec s₀.store fvs ws →
+      StkRel (LamR s₀.store) stk.toList.reverse stkx → stk.size = k →
+      Expr.WScoped (d + k) (tx.instantiateList ws) →
+      ⦃fun s => ⌜s = s₀⌝⦄
+        ConRon.Arena.annotateLams (coreKnot mode fe id fuel) fe d peel t k fvs stk
+      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
+          ∃ F, ConLeche.annotateLams (ConLeche.pureFns mode env F) env d peel tx
+            k ws stkx = .ok v⌝⦄
+  | 0, s₀, t, k, fvs, stk, tx, ws, stkx, hok, ht, hvec, hstk, hk, hw => by
+    rw [ConRon.Arena.annotateLams]
+    refine triple_mono (annotateLamsLeaf_carry hsim s₀ d t k fvs stk tx ws stkx
+      hok ht hvec hstk hk hw) ?_
+    rintro r s' ⟨h1, h2, h3, v, hv, F, hF⟩
+    exact ⟨h1, h2, h3, v, hv, F, by rw [ConLeche.annotateLams_zero]; exact hF⟩
+  | peel + 1, s₀, t, k, fvs, stk, tx, ws, stkx, hok, ht, hvec, hstk, hk, hw => by
+    have hwf := hok.state.wf
+    rw [ConRon.Arena.annotateLams]
+    split
+    next htg =>
+      have htl : t.tag = ETag.lam := by simpa using htg
+      refine triple_seq (viewBind_spec s₀ t) ?_
+      rintro ob s1 ⟨hs1, hob⟩
+      subst s1
+      cases ob with
+      | none => exact triple_failDanglingE
+      | some p =>
+        obtain ⟨ty, body, mb⟩ := p
+        dsimp only
+        have hv := view_lam_of_viewBind htl hob.symm
+        obtain ⟨tyx, bodyx, rfl, hty, hbody⟩ := denote_lam_inv hwf hv ht
+        have hlamL : (Expr.lam tyx bodyx mb).instantiateList ws
+            = .lam (tyx.instantiateList ws) (bodyx.instantiateList ws 1)
+              mb := by
+          simp [Expr.instantiateList]
+        have hwc : Expr.WScoped (d + k) (tyx.instantiateList ws) ∧
+            Expr.WScoped (d + k) (bodyx.instantiateList ws 1) := by
+          rw [hlamL] at hw; simpa only [Expr.WScoped] using hw
+        refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀ ty fvs
+          0 ws hok.state hvec (by rw [hty]; rfl)) ?_
+        rintro tyo s1 ⟨hs1, hx1, -, hc1, hp1, -, hrel1⟩
+        have hok1 := hok.mono hs1 hx1 hc1 hp1
+        have htyo : denoteE s1.store tyo = some (tyx.instantiateList ws) :=
+          hrel1 _ hty
+        refine triple_seq (hsim.annotate s1 (d + k) tyo _ hok1 htyo hwc.1) ?_
+        rintro typ s2 ⟨hok2, hx2, hp2, typx, htypx, hwtypx, F1, hF1⟩
+        refine triple_seq (internFVarE_spec s2 (d + k) typ hok2.state.wf
+          (by rw [htypx]; rfl)) ?_
+        rintro fv s3 ⟨hwf3, hx3, -, -, -, -, hc3, hp3, -, hd3⟩
+        have hok3 := hok2.mono ⟨hwf3⟩ hx3 hc3 hp3
+        have hfv : denoteE s3.store fv = some (.fvar (d + k) typx) := by
+          rw [hd3]; simp [denoteEView, denote_ext htypx hx3]
+        have hx03 := hx1.trans (hx2.trans hx3)
+        refine triple_mono (annotateLams_carry hsim d peel s3 body (k + 1)
+          (fvs.push fv) (stk.push (typ, mb)) bodyx
+          (Expr.fvar (d + k) typx :: ws) ((typx, mb) :: stkx) hok3
+          (denote_ext hbody hx03)
+          (InstLVec.push (hvec.ext hx03) hfv)
+          (StkRel.push (StkRel.imp (LamR.ext hx03) hstk)
+            ⟨denote_ext htypx hx3, rfl⟩)
+          (by simp [hk])
+          (by rw [show d + (k + 1) = d + k + 1 by omega, Expr.instantiateList_cons]
+              exact Expr.WScoped.instantiate1 hwtypx 0 hwc.2)) ?_
+        rintro r s' ⟨hok', hx', hp', v, hv', F2, hF2⟩
+        refine ⟨hok', hx03.trans hx', hp'.trans (hp3.trans (hp2.trans hp1)), v,
+          hv', max F1 F2, ?_⟩
+        rw [ConLeche.annotateLams_succ_lam, annotate_def,
+          ConLeche.annotateCore_mono (Nat.le_max_left _ _) hF1, ConLeche.okB_bind]
+        exact mAnnotateLams_mono (Nat.le_max_right _ _) hF2
+    next htg =>
+      have hne : t.tag ≠ ETag.lam := by simpa using htg
+      have hnl := denote_not_lam_of_tag hwf ht hne
+      refine triple_mono (annotateLamsLeaf_carry hsim s₀ d t k fvs stk tx ws stkx
+        hok ht hvec hstk hk hw) ?_
+      rintro r s' ⟨h1, h2, h3, v, hv, F, hF⟩
+      exact ⟨h1, h2, h3, v, hv, F,
+        by rw [ConLeche.annotateLams_succ_ne_lam _ hnl]; exact hF⟩
+
+/-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:1376
+annotateLamsC_tail_sim (its `himp` half) — **the pure side of the `.lam`
+annotation clause**, by con-leche's `annotateLams_sound`. -/
+theorem annotateCore_lam_of_loop {d F1 F3 : Nat} {tyx bodyx typx : Expr}
+    {mb : BinderMeta} {v : Expr} {peel : Nat}
+    (hF1 : ConLeche.annotateCore mode env F1 d tyx = .ok typx)
+    (hF3 : ConLeche.annotateLams (ConLeche.pureFns mode env F3) env d peel bodyx 1
+      [Expr.fvar d typx] [(typx, mb)] = .ok v) :
+    ∃ F, ConLeche.annotateCore mode env F d (.lam tyx bodyx mb) = .ok v := by
+  obtain ⟨F', hchain⟩ := ConLeche.annotateLams_sound (env := env) peel bodyx 1
+    [Expr.fvar d typx] [(typx, mb)] F3 v rfl hF3
+  obtain ⟨body', hbody', hwrap⟩ := ConLeche.bind_okB hchain
+  let G := max F1 F'
+  have hle1 : F1 ≤ G := Nat.le_max_left _ _
+  have hle3 : F' ≤ G := Nat.le_max_right _ _
+  refine ⟨G + 1, ?_⟩
+  rw [ConLeche.annotateCore_lam_eq, ConLeche.annotateCore_mono hle1 hF1,
+    ConLeche.okB_bind]
+  have hb' : ConLeche.annotateCore mode env G (d + 1)
+      (bodyx.instantiate1 (.fvar d typx)) = .ok body' := by
+    rw [← ConLeche.instList_single bodyx (Expr.fvar d typx)]
+    exact ConLeche.annotateCore_mono hle3 hbody'
+  rw [hb', ConLeche.okB_bind]
+  rw [ConLeche.annotateLamsWrap_cons] at hwrap
+  simp only [ConLeche.annotateLamsWrap_nil, show (1 : Nat) - 1 = 0 from rfl,
+    Nat.add_zero] at hwrap
+  revert hwrap
+  split
+  · intro hwrap
+    obtain ⟨pw, hpw, hwrap⟩ := ConLeche.bind_okB hwrap
+    rw [ConLeche.annotPwLam_mono hle3 hpw, ConLeche.okB_bind]
+    exact hwrap
+  · exact id
+
+/-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:1376
+annotateLamsC_tail_sim — **THE `.lam` ANNOTATION (bvar-closed branch) CLAUSE CARRIES**: the
+domain annotated, the first free variable, `annotateLams` from `k = 1`. -/
+theorem annotateLamLoop_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (ty body : EIdx) (mb : BinderMeta)
+    (tyx bodyx : Expr) (hok : CheckOK mode env fe s₀)
+    (hty : denoteE s₀.store ty = some tyx)
+    (hbody : denoteE s₀.store body = some bodyx)
+    (hw : Expr.WScoped d (.lam tyx bodyx mb)) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (do
+      let typ ← (coreKnot mode fe id fuel).annotate d ty
+      let fv ← internFVarE d typ
+      ConRon.Arena.annotateLams (coreKnot mode fe id fuel) fe d peelFuel body 1
+        #[fv] #[(typ, mb)])
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.annotateCore mode env) d (.lam tyx bodyx mb)
+          s'.store r⌝⦄ := by
+  have hwty : Expr.WScoped d tyx := by unfold Expr.WScoped at hw; exact hw.1
+  have hwbody : Expr.WScoped d bodyx := by unfold Expr.WScoped at hw; exact hw.2
+  refine triple_seq (hsim.annotate s₀ d ty tyx hok hty hwty) ?_
+  rintro typ s1 ⟨hok1, hx1, hp1, typx, htypx, hwtypx, F1, hF1⟩
+  refine triple_seq (internFVarE_spec s1 d typ hok1.state.wf
+    (by rw [htypx]; rfl)) ?_
+  rintro fv s2 ⟨hwf2, hx2, -, -, -, -, hc2, hp2, -, hd2⟩
+  have hok2 := hok1.mono ⟨hwf2⟩ hx2 hc2 hp2
+  have hfv : denoteE s2.store fv = some (.fvar d typx) := by
+    rw [hd2]; simp [denoteEView, denote_ext htypx hx2]
+  have hx02 := hx1.trans hx2
+  have hvec : ExprOps.InstLVec s2.store #[fv] [Expr.fvar d typx] :=
+    InstLVec.push (InstLVec.empty _) hfv
+  have hstk : StkRel (LamR s2.store) (#[(typ, mb)] : Array _).toList.reverse
+      [(typx, mb)] :=
+    StkRel.push (stk := #[]) (stkx := []) trivial ⟨denote_ext htypx hx2, rfl⟩
+  have hwopen : Expr.WScoped (d + 1)
+      (bodyx.instantiateList [Expr.fvar d typx]) := by
+    rw [ConLeche.instList_single]
+    exact Expr.WScoped.instantiate1 hwtypx 0 hwbody
+  refine triple_mono (annotateLams_carry hsim d peelFuel s2 body 1 #[fv]
+    #[(typ, mb)] bodyx [Expr.fvar d typx] [(typx, mb)] hok2
+    (denote_ext hbody hx02) hvec hstk rfl hwopen) ?_
+  rintro r s' ⟨hok', hx', hp', v, hv, F3, hF3⟩
+  obtain ⟨F, hF⟩ := annotateCore_lam_of_loop hF1 hF3
+  exact ⟨hok', hx02.trans hx', hp'.trans (hp2.trans hp1), v, hv,
+    ConLeche.annotateCore_WScoped F _ hF hw, F, hF⟩
+
 end ConRon.Bridge.Core
