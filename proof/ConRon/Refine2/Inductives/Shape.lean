@@ -820,9 +820,9 @@ tier's extension unfolds `TwinEq` and the abstractions and asks `simp_all`. -/
 
 macro_rules
   | `(tactic| lockstep_side_ext) =>
-    `(tactic| (simp only [Lockstep.TwinEq] at *; first
+    `(tactic| ((try simp only [Lockstep.TwinEq] at *); first
       | (simp_all [absNIdxL, absCtors3L, absCtors3LFrom, absCtorsL, absCtorsLFrom,
-          absIConstantVal, absICIL, absICILFrom, absEIdxL, absEIdxLFrom]; done)))
+          absIConstantVal, absICIL, absICILFrom, absEIdxL, absEIdxLFrom, NNodeViewWF]; done)))
 
 /-! ## The axiom census -/
 

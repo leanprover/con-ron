@@ -20,7 +20,7 @@ settles inside the proof.
 **`KnotRel` reaches it too**, at one site: `check_struct_doms_at` calls
 `is_def_eq_core`, which is the Core tier's.
 -/
-import ConRon.Refine2.Inductives.Spec
+import ConRon.Refine2.Inductives.StructParts
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

@@ -345,7 +345,10 @@ theorem rec_field_kind_refines {pers st lst} {t : arena.handle.NIdx}
     Sim₀ absRecFieldKind pers lst o
       (recFieldKind (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx) (absU ofs)
         (absEIdx dom)) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.rec_field_kind, recFieldKind]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem rec_field_kind_ls
@@ -772,7 +775,10 @@ theorem struct_tele_vars_refines {pers st lst} {m : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_parts.struct_tele_vars pers st m = ok o) :
     Sim₀ absEIdxL pers lst o (structTeleVars (absU m)) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.struct_tele_vars, structTeleVars]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_tele_vars_ls
@@ -2298,7 +2304,10 @@ theorem native_shape_small_refines {pers st lst}
     Sim₀ (Option.map absInductiveShape) pers lst o
       (nativeShapeSmallSpec (absIConstantVal cv_t) (absIConstantVal cv_r) (absU n_p)
         (absU n_idx) (absLIdx s) is_prop (absCtorsL ctors) (absEIdxL rhss)) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.native_shape_small, nativeShapeSmallSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_shape_small_ls

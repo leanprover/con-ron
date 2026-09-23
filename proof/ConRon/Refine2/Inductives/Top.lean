@@ -26,12 +26,6 @@ has no consumer left: the Checker tier calls this theorem directly.
 task #97-P5-Checker's finding 10 stops at this door.
 -/
 import ConRon.Refine2.Inductives.Modeled
--- `StructParts.lean` is a LEAF of the tier: `struct_install.rs` calls its
--- generators, but no other `Refine2/Inductives` module imports it, so until
--- round 4 it was outside `lake build ConRonRefine2` altogether — 47
--- declarations of the tier that the landing gate never elaborated.  The index
--- imports it for that reason and for no other.
-import ConRon.Refine2.Inductives.StructParts
 -- `checker_base::ind_params_ok` is the checker tier's (`Checker/Base.lean`); the
 -- top zips with it.
 import ConRon.Refine2.Checker.Base
