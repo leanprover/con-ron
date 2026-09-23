@@ -825,4 +825,34 @@ theorem view_bind_triple {α : Type} {s₀ : AState} {i : EIdx} {v : ENodeView}
   obtain rfl := Option.some.inj hv'
   exact h _ rfl
 
+
+/-- con-leche: none — **sequencing at a pinned state**: a triple for `x`
+whose postcondition names its facts, and one for the continuation at every
+state those facts hold of, make a triple for `x >>= f`.  This is what lets
+a long arm be proved stage by stage, each stage's facts introduced by NAME,
+instead of as one `mvcgen` whose verification conditions carry forty
+inaccessible hypotheses. -/
+theorem triple_seq {α β : Type} {x : AM α} {f : α → AM β} {s₀ : AState}
+    {Q : α → AState → Prop} {R : β → AState → Prop}
+    (hx : ⦃fun s => ⌜s = s₀⌝⦄ x ⦃⇓? a s => ⌜Q a s⌝⦄)
+    (hf : ∀ a s₁, Q a s₁ → ⦃fun s => ⌜s = s₁⌝⦄ f a ⦃⇓? b s => ⌜R b s⌝⦄) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (x >>= f) ⦃⇓? b s => ⌜R b s⌝⦄ := by
+  apply Std.Do.Triple.bind x f hx
+  intro a s hs
+  exact hf a s hs s rfl
+
+
+/-- con-leche: none — **the consequence rule at a pinned state**, for the
+same reason as `triple_seq`: a callee's published postcondition, read by
+name. -/
+theorem triple_mono {α : Type} {x : AM α} {s₀ : AState}
+    {Q Q' : α → AState → Prop}
+    (h : ⦃fun s => ⌜s = s₀⌝⦄ x ⦃⇓? r s => ⌜Q r s⌝⦄)
+    (hq : ∀ r s, Q r s → Q' r s) :
+    ⦃fun s => ⌜s = s₀⌝⦄ x ⦃⇓? r s => ⌜Q' r s⌝⦄ := by
+  refine Std.Do.Triple.of_entails_wp (Std.Do.Triple.entails_wp_of_post h ?_)
+  refine ⟨fun r => ?_, Std.Do.ExceptConds.entails.refl _⟩
+  intro s hp
+  exact hq r s hp
+
 end ConRon.Bridge.Core
