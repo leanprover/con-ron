@@ -1019,6 +1019,27 @@ open Lockstep in
       (unresolvedConstsError w (absEIdx e)) :=
   LS.ofSimRel₀ fun _ h => unresolved_consts_error_refines hrel hinv h
 
+/-- `unresolved_consts_error` at the two call sites' fixed subjects (the
+`what` string is the twin's message only, so the generic lemma leaves it
+free, which the tactic cannot pick). -/
+@[lockstep] theorem Lockstep.unresolved_consts_error_type_ls {pers st lst}
+    {e : arena.handle.EIdx} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun r v => absAErrKind r = lAErrKind v)
+      (arena.checker_base.unresolved_consts_error pers st e) lst
+      (unresolvedConstsError "type" (absEIdx e)) :=
+  unresolved_consts_error_ls hrel hinv
+
+theorem Lockstep.unresolved_consts_error_value_ls {pers st lst}
+    {e : arena.handle.EIdx} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun r v => absAErrKind r = lAErrKind v)
+      (arena.checker_base.unresolved_consts_error pers st e) lst
+      (unresolvedConstsError "value" (absEIdx e)) :=
+  unresolved_consts_error_ls hrel hinv
+
+@[lockstep] theorem Lockstep.nidx_vec_dup_spec (v : alloc.vec.Vec arena.handle.NIdx) :
+    LSP (arena.env.nidx_vec_dup v) (fun r => r = v) :=
+  fun _ h => alloc.vec.Vec.ext _ _ (nidx_vec_dup_val h)
+
 /-! ### Twin readers leave the state alone
 
 The twin's pin reads (`natOpNames`, `natDivModNames`, `reduceOpNames`) read
@@ -1386,7 +1407,7 @@ is pure on both sides, `ifenv_find_abs` is the correspondence. -/
 @[lockstep_simp] theorem absIConstantVal_type (cv : arena.env.IConstantVal) :
     (absIConstantVal cv).type = absEIdx cv.ty := rfl
 
-attribute [lockstep_simp] core.option.Option.is_some Option.isSome_map
+attribute [lockstep_simp] core.option.Option.is_some Option.isSome_map ite_true ite_false
 
 /-- The environment viewed at its own counter is itself. -/
 @[lockstep_simp] theorem IFEnv.restrictTo_visibleBelow (fe : IFEnv) :
@@ -1541,7 +1562,14 @@ theorem install_constant_val_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrun : arena.checker_base.install_constant_val_tail pers vis st rf cv ty = ok o) :
     Sim₀ absIConstantVal pers lst o
       (installConstantValTailSpec lf (absIConstantVal cv) (absEIdx ty)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_base.install_constant_val_tail]
+  try unfold installConstantValTailSpec
+  lockstep
+  all_goals (try (rw [bind_pure]; rw [if_neg (by assumption)]))
+  all_goals lockstep
 
 open Lockstep in
 @[lockstep] theorem install_constant_val_tail_ls {pers st lst}
@@ -2497,7 +2525,17 @@ theorem install_value_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ absEIdx pers lst o
       (installValueTailSpec (lf.restrictTo (absU vis)) (absIConstantVal cv)
         (absEIdx value_a)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtxSelf hfe hfinv
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_split.install_value_tail]
+  try unfold installValueTailSpec
+  lockstep
+  all_goals (try (rw [bind_pure]; rw [if_neg (by assumption)]))
+  all_goals
+    refine Lockstep.LS.bind (Lockstep.unresolved_consts_error_value_ls ‹_› ‹_›) rfl
+      (fun e st1 => Lockstep.errArm_ok) (fun a b st1 lst1 hR hrel hinv => ?_)
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem install_value_tail_ls {pers st lst}

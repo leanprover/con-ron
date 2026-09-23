@@ -84,13 +84,13 @@ def checkConstantValGuardsSpec (fe : IFEnv) (cv : IConstantVal) : AM Unit := do
 /-- The two guards on the ANNOTATED type and the header they produce —
 `installConstantVal`'s tail, which `checkConstantVal` shares. -/
 def installConstantValTailSpec (fe : IFEnv) (cv : IConstantVal) (ty : EIdx) :
-    AM IConstantVal := do
-  unless ← allLevelParamsDefined cv.levelParams ty do
-    fail (.invalid
-      "undeclared universe parameter in type")
-  unless ← constsResolveFFast fe ty do
-    fail (← unresolvedConstsError "type" ty)
-  pure { cv with type := ty }
+    AM IConstantVal :=
+  allLevelParamsDefined cv.levelParams ty >>= fun d =>
+    if d then
+      constsResolveFFast fe ty >>= fun r =>
+        if r then pure { cv with type := ty }
+        else unresolvedConstsError "type" ty >>= fun e => fail e
+    else fail (.invalid "undeclared universe parameter in type")
 
 /-- `checkConstantVal`'s tail past the annotation: the install-side tail, then
 the type's own inference and sort check. -/
@@ -103,13 +103,13 @@ def checkConstantValAfterAnnotSpec (mode : CheckMode) (fe : IFEnv)
 
 /-- `installValue`'s tail past the annotation. -/
 def installValueTailSpec (fe : IFEnv) (cv : IConstantVal) (valueA : EIdx) :
-    AM EIdx := do
-  unless ← allLevelParamsDefined cv.levelParams valueA do
-    fail (.invalid
-      "undeclared universe parameter in value")
-  unless ← constsResolveFFast fe valueA do
-    fail (← unresolvedConstsError "value" valueA)
-  pure valueA
+    AM EIdx :=
+  allLevelParamsDefined cv.levelParams valueA >>= fun d =>
+    if d then
+      constsResolveFFast fe valueA >>= fun r =>
+        if r then pure valueA
+        else unresolvedConstsError "value" valueA >>= fun e => fail e
+    else fail (.invalid "undeclared universe parameter in value")
 
 /-! ## `checkValueGroup`, in three -/
 
