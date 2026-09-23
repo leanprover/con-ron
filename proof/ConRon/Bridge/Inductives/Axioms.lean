@@ -197,6 +197,56 @@ namespace ConRon.Bridge.Inductives
 #print axioms renameConstsFast_ns
 #print axioms domsMatchRenamed_spec
 
+-- round 7: the EnvWF/WScoped repairs, the opener, the capability theorems,
+-- and (after task #97-P3-Checker round 9's layout move) the scoping guards
+#print axioms whnfTelescope_mono
+#print axioms whnfTelescope_spec
+#print axioms checkStructFieldSortsI_mono
+#print axioms checkStructFieldSortsI_spec
+#print axioms denoteLList_append'
+#print axioms denoteEList_contains
+#print axioms normPosDom_mono
+#print axioms normPosDom_run
+#print axioms normPosDom_spec
+#print axioms normFieldDoms_mono
+#print axioms normFieldDoms_spec
+#print axioms denoteOpen_ext
+#print axioms openPisAtFvars_run
+#print axioms InstLVec_push
+#print axioms openPisAtFvarsFGo_run
+#print axioms openPisAtFvarsF_run
+#print axioms allM_E_ck
+#print axioms anyM_E_pstep
+#print axioms constsResolveFFast_pstep
+#print axioms allM_ck
+#print axioms famTail_run
+#print axioms nativeOpenedOk_spec
+#print axioms nativeFieldsOk_spec
+#print axioms CoreStep.of_readonly
+#print axioms checkNativeRules_spec
+#print axioms denoteCV_inj'
+#print axioms denoteCI_inj_ind'
+#print axioms eqBasisStored_spec
+#print axioms eqApp3?_none
+#print axioms checkIotaSidesTy_spec
+#print axioms denoteCI_kind
+#print axioms domsMatchAux_eq
+#print axioms IFEnvOK.find_thm
+#print axioms IFEnvOK.find_defn
+#print axioms checkProjLookups_spec
+#print axioms allM_cstep
+#print axioms etaProjOk_run
+#print axioms checkEtaThm_spec
+#print axioms checkUnitThm_spec
+#print axioms piResultIsProp_run
+#print axioms piResultZ_run
+#print axioms indBlockCaps_spec
+#print axioms projBackGo_runW
+#print axioms projFwdGo_runW
+#print axioms projBack_specW
+#print axioms projFwd_specW
+#print axioms checkProjTy_spec
+
 /-! ## Group 2 — the two headline theorems -/
 
 #print axioms checkIndDecl_bridge
