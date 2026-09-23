@@ -283,9 +283,10 @@ theorem view_app_of_denote {st : EStore} (hwf : StoreWF st) {i f a : EIdx}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1828-1834 annotateBody — **the
 `.app` clause**: two `KnotSpec.annotate` calls and the rebuilt node
-(`internRebuiltApp`, task #97-P6-7's upward cutoff); pure side `annot_app`. -/
+(`internRebuiltApp`, task #97-P6-7's upward cutoff); pure side `annot_app`.
+**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem annotateBody_app {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
@@ -343,11 +344,12 @@ theorem annotateBody_app {fe : IFEnv} {fuel : Nat}
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1817-1827 annotateBody — **the two
-literal clauses**: `natLitSupported_spec` (CLOSED) and `strLitSupported`
-(OPEN); pure side `annot_natLit`/`annot_strLit`. -/
+literal clauses**: `natLitSupported_spec` (CLOSED) and `strLitSupported_spec`
+(`Walks/StrLit.lean`, CLOSED); pure side `annot_natLit`/`annot_strLit`.
+**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem annotateBody_lit {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel)
+    (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
+    (_hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
@@ -424,10 +426,11 @@ theorem annotateBody_proj {fe : IFEnv} {fuel : Nat}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1808-1816 annotateBody — **the leaf
 clauses**: `.bvar`, `.fvar` (the scope check), `.sort` and `.const` answer
-themselves; pure side `annot_bvar`/`_fvar`/`_sort`/`_const`. -/
+themselves; pure side `annot_bvar`/`_fvar`/`_sort`/`_const`.
+**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem annotateBody_leaf {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel)
+    (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
+    (_hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
@@ -497,5 +500,17 @@ theorem annotateBody_spec {fe : IFEnv} {fuel : Nat}
   · exact annotateBody_proj henv hμ hsim s₀ d i e hok hden hw hp
   exact annotateBody_leaf henv hμ hsim s₀ d i e hok hden hw ha hl
     (Bool.eq_false_iff.mpr hb) he hp
+
+/-! ## The axiom census of the closed children (task #97-P3-Core round 5,
+sub-lane Leaves) -/
+
+section Census
+
+#print axioms view_app_of_denote
+#print axioms annotateBody_app
+#print axioms annotateBody_lit
+#print axioms annotateBody_leaf
+
+end Census
 
 end ConRon.Bridge.Core

@@ -254,10 +254,11 @@ theorem inferBodyIO_lam {fe : IFEnv} {fuel : Nat}
   sorry
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1299-1310 inferBodyIO — **the `.const`
-clause**, `inferBody`'s verbatim at the io grade. -/
+clause**, `inferBody`'s verbatim at the io grade.
+**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hg : mode.betaGate = true)     (hsim : KnotSpec mode env fe fuel)
+    (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
+    (_hg : mode.betaGate = true)     (_hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
@@ -319,10 +320,11 @@ theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1311-1317 inferBodyIO — **the two
-literal clauses**, `inferBody`'s verbatim at the io grade. -/
+literal clauses**, `inferBody`'s verbatim at the io grade.
+**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem inferBodyIO_lit {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hg : mode.betaGate = true)     (hsim : KnotSpec mode env fe fuel)
+    (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
+    (_hg : mode.betaGate = true)     (_hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
@@ -389,10 +391,11 @@ theorem inferBodyIO_proj {fe : IFEnv} {fuel : Nat}
   sorry
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1295-1298 inferBodyIO — **the leaf
-clauses**: `.sort`, `.fvar`, and the two throws. -/
+clauses**: `.sort`, `.fvar`, and the two throws.
+**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem inferBodyIO_leaf {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hg : mode.betaGate = true)     (hsim : KnotSpec mode env fe fuel)
+    (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
+    (_hg : mode.betaGate = true)     (_hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
@@ -479,5 +482,21 @@ theorem inferBodyIO_spec {fe : IFEnv} {fuel : Nat}
   by_cases hl : i.tag = ETag.lit
   · exact inferBodyIO_lit henv hμ hg hsim s₀ d i e hok hden hw hl
   exact inferBodyIO_leaf henv hμ hg hsim s₀ d i e hok hden hw ha hp hf hm hc hl
+
+/-! ## The axiom census of the closed children (task #97-P3-Core round 5,
+sub-lane Leaves) -/
+
+section Census
+
+#print axioms inferIO_sort
+#print axioms inferIO_fvar
+#print axioms inferIO_const
+#print axioms inferIO_natLit
+#print axioms inferIO_strLit
+#print axioms inferBodyIO_const
+#print axioms inferBodyIO_lit
+#print axioms inferBodyIO_leaf
+
+end Census
 
 end ConRon.Bridge.Core

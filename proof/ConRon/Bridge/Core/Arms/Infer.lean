@@ -292,9 +292,12 @@ the other four are here. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1216-1228 inferBody — **the `.app`
 clause**, at the body: the dispatch hands the node to `inferApp`, whose
-carry is `inferBody_app_batched`. -/
+carry is `inferBody_app_batched`.
+**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves) as a dispatch: its
+own proof is sorry-free, and its census line shows `sorryAx` only through
+`inferBody_app_batched`, the real content, which stays open. -/
 theorem inferBody_app {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
@@ -316,10 +319,11 @@ theorem inferBody_app {fe : IFEnv} {fuel : Nat}
 /-- con-leche: ConLeche/Kernel/Core.lean:1126-1137 inferBody — **the `.const`
 clause**: the index lookup, the tower-entry and level-arity guards, and the
 stored type through `constTyAt` (`Walks/Cached.lean`'s `constTyAt_spec'`,
-CLOSED); pure side `infer_const`. -/
+CLOSED); pure side `infer_const`.
+**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem inferBody_const {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel)
+    (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
+    (_hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
@@ -381,11 +385,12 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1138-1147 inferBody — **the two
 literal clauses**: `natLitSupported_spec` (`Walks/Nat.lean`, CLOSED) and
-`strLitSupported` (OPEN — no bridge spec yet), then `constE_spec`; pure side
-`infer_natLit`/`infer_strLit`. -/
+`strLitSupported_spec` (`Walks/StrLit.lean`, CLOSED), then `constE_spec`;
+pure side `infer_natLit`/`infer_strLit`.
+**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel)
+    (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
+    (_hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
@@ -456,10 +461,11 @@ theorem inferBody_proj {fe : IFEnv} {fuel : Nat}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1115-1125 inferBody — **the leaf
 clauses**: `.sort` (one level intern and one node intern), `.fvar` (the
-scope check), and the two throws (`.letE`, `.bvar`). -/
+scope check), and the two throws (`.letE`, `.bvar`).
+**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel)
+    (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
+    (_hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
@@ -544,5 +550,18 @@ theorem inferBody_spec {fe : IFEnv} {fuel : Nat}
   · exact inferBody_lit henv hμ hsim s₀ d i e hok hden hw hl
   exact inferBody_leaf henv hμ hsim s₀ d i e hok hden hw ha hp
     (Bool.eq_false_iff.mpr hb) hc hl
+
+/-! ## The axiom census of the closed children (task #97-P3-Core round 5,
+sub-lane Leaves) -/
+
+section Census
+
+-- `sorryAx` here is `inferBody_app_batched`'s, inherited through the dispatch
+#print axioms inferBody_app
+#print axioms inferBody_const
+#print axioms inferBody_lit
+#print axioms inferBody_leaf
+
+end Census
 
 end ConRon.Bridge.Core
