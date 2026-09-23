@@ -492,6 +492,22 @@ route's twins at `lf`, with `hvis : absU vis = lf.visibleBelow`). -/
 @[lockstep_simp] theorem IFEnv_restrictTo_self (fe : IFEnv) :
     fe.restrictTo fe.visibleBelow = fe := rfl
 
+/-- The same at a related Rust environment's counter: the port reads
+`consts_resolve_f_fast` at `fe.visible_below`, the twin at `fe`. -/
+theorem IFEnvRelI_restrictTo_self {rf : arena.env.IFEnv} {lf : IFEnv}
+    (h : IFEnvRelI rf lf) : lf.restrictTo (absU rf.visible_below) = lf := by
+  rw [← h.1.visibleBelow]; rfl
+
+/-- `unresolved_consts_error` at the modeled route's subject `"rule"`
+(`Checker/Base.lean`'s `unresolved_consts_error_type_ls` pattern: the twin's
+message is not fixed by the Rust call). -/
+@[lockstep] theorem unresolved_consts_error_rule_ls {pers st lst}
+    {e : arena.handle.EIdx} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun r v => absAErrKind r = lAErrKind v)
+      (arena.checker_base.unresolved_consts_error pers st e) lst
+      (unresolvedConstsError "rule" (absEIdx e)) :=
+  unresolved_consts_error_ls hrel hinv
+
 /-- `ifenv_dup` in `LSP` form: the copy stands for the same twin environment. -/
 @[lockstep] theorem ifenv_dup_spec {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
     LSP (arena.env.ifenv_dup rf) (fun a => IFEnvRelI a lf) :=
@@ -506,6 +522,11 @@ elab "ind_opt_guard" : tactic => do
   unless t.containsConst (fun n => n == ``core.option.Option.is_some ||
       n == ``core.option.Option.is_none || n == ``Option.isSome || n == ``Option.isNone) do
     throwError "ind_opt_guard: no Option test"
+
+/-- `lf.restrictTo (absU rf.visible_below) = lf` from `IFEnvRelI rf lf`. -/
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (apply IndModeledPrims.IFEnvRelI_restrictTo_self; assumption))
 
 /-- A twin test on `o.isSome`/`o.isNone` decided by the port's `is_some o` or
 `is_none o`, in either polarity. -/

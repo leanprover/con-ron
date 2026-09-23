@@ -1811,7 +1811,9 @@ theorem check_iota_rule_fire_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a) (absU m_i) (absU r_p)
         (absU j) (absIRecRule r) (absIConstantVal cvj) (absU cn_p) (absU cn_f)
         (absEIdx rhs_a)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_iota_rule_fire, checkIotaRuleFireSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_iota_rule_fire_ls
