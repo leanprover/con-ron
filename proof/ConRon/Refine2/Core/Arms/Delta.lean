@@ -182,7 +182,7 @@ theorem ifenv_find_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
   obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have hto := ConRon.Refine.HashMap2.get_refines_wf nidx_eq2 hctx.idxInv
     ConRon.Refine.HashMap2.KeysOk_true trivial hr
-  have hidx := hctx.fenv.idx n
+  have hidx := hctx.idx n
   rw [← hto] at hidx
   cases hr2 : r with
   | none =>

@@ -44,6 +44,41 @@ tier carry it**, and like task #97-P5-0's finding 3
 it is a fact about the port's own calling convention rather than a
 divergence.
 
+## Where `hvis` is FALSE, and the nine statements that dropped it
+
+**Task #97-P5-Bracket's finding 3, repaired by task #97-P5-Checker round 3.**
+*"The call sites all pass `fe.visible_below`"* is true of phase A and false of
+phase B.  `arena::checker::check_pending` (`checker.rs:1229`) passes
+`pc.vis` — the counter the pending declaration was installed at — against the
+WHOLE environment phase A ended with, and that difference is the entire point
+of phase B.  Paired with `hfe : IFEnvRel rf lf`, whose third clause is
+`lf.visibleBelow = absU rf.visible_below`, the `hvis` above forces
+`vis = rf.visible_below`: the statement is then satisfiable nowhere on phase
+B's path, and `check_pending_refines` has nothing to be proved from.
+
+The repair moves the restriction from the hypothesis to the CONCLUSION:
+`hfe` stays at the unrestricted environment, `hvis` goes, and the twin is
+called at `lf.restrictTo (absU vis)` — which is what the twin's own
+`checkValueGroup mode (fe.restrictTo pc.vis) pc.vg` says anyway.  The old form
+is recovered at a phase-A call site by rewriting with `IFEnvRel.visibleBelow`,
+since `lf.restrictTo lf.visibleBelow = lf`.
+
+**Which nine.**  Exactly the functions the port can reach from
+`check_value_group` while still threading that `vis`, computed from the Rust
+call graph and no wider: `check_value_group`, `check_value_group_value`,
+`check_value_group_tail`, `install_value`, `install_value_tail`
+(`arena::checker_split`) and `consts_resolve_f_{go,node,two,fast}`
+(`arena::checker_base`).  The rest of the closure is `arena::core`'s, where
+the same repair is `Refine2/Core/KnotRel.lean`'s `CoreCtx` (its `fenv` clause
+is now `IFEnvRel fe (lfe.restrictTo (absU fe.visible_below))`, so the counter
+is the `vis` clause's business alone) — and `arena::prop_read`'s five readers
+and `arena::env::ifenv_find_proj`, which have no `Refine2` tier yet and must
+take the general form when they get one.
+
+Every OTHER `hvis` of this tier and of `Refine2/Checker/DeclCheck.lean` is
+sound as it stands: those functions are phase A's, where the port really is
+only ever called at `fe.visible_below`.
+
 ## What these lemmas wait on
 
 `Refine2/Specs.lean`'s `view`/`intern_e` family (closed and open
@@ -229,10 +264,11 @@ theorem memo_b_get_refines {rm lm} {k : arena.handle.EIdx} {o}
 theorem consts_resolve_f_go_refines {pers st lst} {vis : Std.U64} {rf lf}
     {rm lm} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hm : ExprOps.LMemoRel rm lm)
     (hrun : arena.checker_base.consts_resolve_f_go pers vis st rf rm fuel h = ok o) :
-    SimBM id pers lst o (constsResolveFGo lf lm (absU fuel) (absEIdx h)) := by
+    SimBM id pers lst o
+      (constsResolveFGo (lf.restrictTo (absU vis)) lm (absU fuel) (absEIdx h)) := by
   sorry
 
 /-- `consts_resolve_f_node` is `consts_resolve_f_go`'s miss arm past the
@@ -240,12 +276,13 @@ theorem consts_resolve_f_go_refines {pers st lst} {vis : Std.U64} {rf lf}
 theorem consts_resolve_f_node_refines {pers st lst} {vis : Std.U64} {rf lf}
     {rm lm} {fuel : Std.U64} {v : arena.store.ENodeView} {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hm : ExprOps.LMemoRel rm lm)
     (hview : lst.store.view (absEIdx h) = some (absENodeView v))
     (hrun : arena.checker_base.consts_resolve_f_node pers vis st rf rm fuel v = ok o) :
     SimBM id pers lst o
-      (constsResolveFNodeSpec lf lm (absU fuel) (absEIdx h) (absENodeView v)) := by
+      (constsResolveFNodeSpec (lf.restrictTo (absU vis)) lm (absU fuel) (absEIdx h)
+        (absENodeView v)) := by
   sorry
 
 /-- `consts_resolve_f_two` is the two-child arms' pair, in the twin's order
@@ -253,13 +290,15 @@ and WITHOUT a short-circuit (the twin's `.app` arm walks both and `&&`s). -/
 theorem consts_resolve_f_two_refines {pers st lst} {vis : Std.U64} {rf lf}
     {rm lm} {fuel : Std.U64} {a b : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hm : ExprOps.LMemoRel rm lm)
     (hrun : arena.checker_base.consts_resolve_f_two pers vis st rf rm fuel a b = ok o) :
     SimBM id pers lst o
       (do
-        let (b₁, memo) ← constsResolveFGo lf lm (absU fuel) (absEIdx a)
-        let (b₂, memo) ← constsResolveFGo lf memo (absU fuel) (absEIdx b)
+        let (b₁, memo) ←
+          constsResolveFGo (lf.restrictTo (absU vis)) lm (absU fuel) (absEIdx a)
+        let (b₂, memo) ←
+          constsResolveFGo (lf.restrictTo (absU vis)) memo (absU fuel) (absEIdx b)
         pure (b₁ && b₂, memo)) := by
   sorry
 
@@ -268,9 +307,10 @@ which is what every front door below calls. -/
 theorem consts_resolve_f_fast_refines {pers st lst} {vis : Std.U64} {rf lf}
     {e : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.checker_base.consts_resolve_f_fast pers vis st rf e = ok o) :
-    Sim id (fun _ => True) pers lst o (constsResolveFFast lf (absEIdx e)) := by
+    Sim id (fun _ => True) pers lst o
+      (constsResolveFFast (lf.restrictTo (absU vis)) (absEIdx e)) := by
   sorry
 
 /-- `all_params_defined_list` is `ls.all (Level.allParamsDefined params)` from
@@ -813,10 +853,11 @@ theorem install_constant_val_refines {pers st lst} {vis : Std.U64} {rf lf}
 theorem install_value_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     {cv : arena.env.IConstantVal} {value_a : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.checker_split.install_value_tail pers vis st rf cv value_a = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
-      (installValueTailSpec lf (absIConstantVal cv) (absEIdx value_a)) := by
+      (installValueTailSpec (lf.restrictTo (absU vis)) (absIConstantVal cv)
+        (absEIdx value_a)) := by
   sorry
 
 /-- **`install_value` ⊑ `installValue`** — the value half of
@@ -825,11 +866,11 @@ theorem install_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
     {value : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.checker_split.install_value pers vis st mode rf cv value = ok o) :
     Sim absEIdx (fun _ => True) pers lst o
-      (installValue (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
-        (absEIdx value)) := by
+      (installValue (ConRon.Refine.absMode mode) (lf.restrictTo (absU vis))
+        (absIConstantVal cv) (absEIdx value)) := by
   sorry
 
 /-- `check_value_group_value` is `check_value_group`'s middle: the theorem's
@@ -838,12 +879,12 @@ theorem check_value_group_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
     {u : arena.handle.LIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.checker_split.check_value_group_value pers vis st mode rf g u
       = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
-      (checkValueGroupValueSpec (ConRon.Refine.absMode mode) lf (absValueGroup g)
-        (absLIdx u)) := by
+      (checkValueGroupValueSpec (ConRon.Refine.absMode mode)
+        (lf.restrictTo (absU vis)) (absValueGroup g) (absLIdx u)) := by
   sorry
 
 /-- `check_value_group_tail` is `check_value_group`'s tail: the value's type
@@ -852,12 +893,12 @@ theorem check_value_group_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
     {jv : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.checker_split.check_value_group_tail pers vis st mode rf g jv
       = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
-      (checkValueGroupTailSpec (ConRon.Refine.absMode mode) lf (absValueGroup g)
-        (absEIdx jv)) := by
+      (checkValueGroupTailSpec (ConRon.Refine.absMode mode)
+        (lf.restrictTo (absU vis)) (absValueGroup g) (absEIdx jv)) := by
   sorry
 
 /-- **`check_value_group` ⊑ `checkValueGroup`** — the check half of a value
@@ -865,10 +906,11 @@ declaration, at the environment the constant was installed at. -/
 theorem check_value_group_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.checker_split.check_value_group pers vis st mode rf g = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
-      (checkValueGroup (ConRon.Refine.absMode mode) lf (absValueGroup g)) := by
+      (checkValueGroup (ConRon.Refine.absMode mode) (lf.restrictTo (absU vis))
+        (absValueGroup g)) := by
   sorry
 
 
