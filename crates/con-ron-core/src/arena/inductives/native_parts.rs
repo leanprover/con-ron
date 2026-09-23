@@ -148,7 +148,7 @@ pub fn kindss_copy(
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:160-164 recIdxOf` —
 /// the out-of-range fallback the kind readers spell.
 pub fn kind_get_d(ks: &Vec<RecFieldKind>, i: u64) -> RecFieldKind {
-    if (i as usize) < ks.len() {
+    if i < ks.len() as u64 {
         rec_field_kind_dup(&ks[i as usize])
     } else {
         RecFieldKind::Ordinary
@@ -381,7 +381,7 @@ pub fn rec_ctor_kinds(
                 Ok(ks) => match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, &q.1) {
                     Err(e) => Err(e),
                     Ok(cargs) => {
-                        let idx: Vec<EIdx> = core::drop_eidx(&cargs, n_p as usize);
+                        let idx: Vec<EIdx> = core::drop_eidx_n(&cargs, n_p);
                         match idx_free_of(pers, st, t, &idx, 0) {
                             Err(e) => Err(e),
                             Ok(true) => Ok(Some(ks)),
@@ -414,7 +414,7 @@ pub fn rec_ctor_kinds_from(
     if i >= n_f {
         Ok(out)
     } else {
-        let dom: EIdx = if ((n_p + i) as usize) < cbs.len() {
+        let dom: EIdx = if n_p + i < cbs.len() as u64 {
             cbs[(n_p + i) as usize].0.dup2()
         } else {
             EIdx::of_word(0)
@@ -519,7 +519,7 @@ pub fn struct_field_tele_of(
         Err(e) => Err(e),
         Ok(None) => Ok(Vec::new()),
         Ok(Some(q)) => {
-            let dom: EIdx = if ((n_p + i) as usize) < q.0.len() {
+            let dom: EIdx = if n_p + i < q.0.len() as u64 {
                 q.0[(n_p + i) as usize].0.dup2()
             } else {
                 EIdx::of_word(0)
@@ -548,7 +548,7 @@ pub fn struct_field_idx_of(
         Err(e) => Err(e),
         Ok(None) => Ok(Vec::new()),
         Ok(Some(q)) => {
-            let dom: EIdx = if ((n_p + i) as usize) < q.0.len() {
+            let dom: EIdx = if n_p + i < q.0.len() as u64 {
                 q.0[(n_p + i) as usize].0.dup2()
             } else {
                 EIdx::of_word(0)
@@ -557,7 +557,7 @@ pub fn struct_field_idx_of(
                 Err(e) => Err(e),
                 Ok(p) => match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, &p.1) {
                     Err(e) => Err(e),
-                    Ok(args) => Ok(core::drop_eidx(&args, n_p as usize)),
+                    Ok(args) => Ok(core::drop_eidx_n(&args, n_p)),
                 },
             }
         }
@@ -1131,7 +1131,7 @@ pub fn struct_minor_ty_at(
         Ok(motive) => match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, r2) {
             Err(e) => Err(e),
             Ok(rargs) => {
-                let tail: Vec<EIdx> = core::drop_eidx(&rargs, n_p as usize);
+                let tail: Vec<EIdx> = core::drop_eidx_n(&rargs, n_p);
                 match lift_list(pers, st, o, n_f, &tail, 0, Vec::new()) {
                     Err(e) => Err(e),
                     Ok(idx) => match struct_parts::struct_ctor_spine_at(pers, st, c, lps, o, n_p, n_f) {
@@ -1476,7 +1476,7 @@ pub fn struct_rec_rhs_r(
             Ok(lv) => {
                 let pw: PropWhen = level::zeroness_of(&lv);
                 let n: u64 = ctors.len() as u64;
-                if (j as usize) >= ctors.len() {
+                if j >= ctors.len() as u64 {
                     Ok(None)
                 } else {
                     let n_f: u64 = ctors[j as usize].1;
@@ -1634,7 +1634,7 @@ pub fn native_rule_prefix_ok(
                 Err(e) => Err(e),
                 Ok(false) => Ok(false),
                 Ok(true) => {
-                    if ((n_p + 1 + j) as usize) >= tq.0.len() {
+                    if n_p + 1 + j >= tq.0.len() as u64 {
                         Ok(false)
                     } else {
                         let mty: EIdx = tq.0[(n_p + 1 + j) as usize].0.dup2();
@@ -1777,7 +1777,7 @@ pub fn native_rules_ok_from(
 ) -> Result<bool, CheckError> {
     if j >= n {
         Ok(true)
-    } else if (j as usize) >= rhss.len() || (j as usize) >= cs.len() || (j as usize) >= kinds.len()
+    } else if j >= rhss.len() as u64 || j >= cs.len() as u64 || j >= kinds.len() as u64
     {
         Ok(false)
     } else {
@@ -1935,7 +1935,7 @@ pub fn rules_pin_ok(
 ) -> bool {
     if j >= n {
         true
-    } else if (j as usize) >= rules.len() || (j as usize) >= cs.len() {
+    } else if j >= rules.len() as u64 || j >= cs.len() as u64 {
         false
     } else if rules[j as usize].ctor.eq2(&cs[j as usize].0.name)
         && rules[j as usize].nfields == cs[j as usize].2

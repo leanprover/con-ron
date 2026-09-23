@@ -379,7 +379,7 @@ theorem check_thm_val_refines {pers st lst} {rf lf}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.decl_check.check_thm_val pers st mode rf cv value = ok o) :
-    SimRel (fun r v => IFEnvRel r v) pers lst o
+    SimRel IFEnvRelI pers lst o
       (checkThmVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
         (absEIdx value)) := by
   sorry
