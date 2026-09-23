@@ -55236,3 +55236,12 @@ agreement.
 `lake-refine2` 21 s, `lake-bridge` 402 s, `lake-capstone` 3 s).  The capstone
 builds unchanged: its `hsc` is still passed through, and can now be
 `scanSpec`.  The shared Lake cache was not seeded from this worktree.
+
+**Landing** (coordinator's instruction): `arena` merged a third time at
+`b8e3003a` (the Promote round, P5-Top, `land.sh`), and `Capstone.lean`'s `hsc`
+hypothesis retired, as authorised — `rust_stages`, `model_exists` and
+`no_False_declaration` lose the `(hsc : ScanSpec)` binder, the two stage calls
+pass `scanSpec`, the hypothesis list's entry is struck through.  Axiom census
+unchanged.  Re-gated what the delta touches: `lake build ConRonRefine2
+ConRonCapstone ConRonBridge` green (2 766 jobs); no Rust, generated-model or
+gate-script change came with the merge.
