@@ -64,6 +64,24 @@ def absCertCtx (cx : arena.decl_check.CertCtx) : CertCtxA :=
     absNIdx cx.sl_n, absNIdx cx.sr_n, absNIdx cx.land_n, absNIdx cx.lor_n,
     absNIdx cx.xor_n⟩
 
+/-! ## Rust-only steps this file's zips meet (task #97-T2-LOCKSTEP lane Checker DeclCheck) -/
+
+open Lockstep in
+/-- `arena::env::eidx_vec_dup` is the identity on the value. -/
+@[lockstep] theorem eidx_vec_dup_spec (es : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.env.eidx_vec_dup es) (fun r => absEIdxL r = absEIdxL es) :=
+  fun _ h => by simp only [absEIdxL, eidx_vec_dup_val h]
+
+open Lockstep in
+/-- `arena::canon::i_constant_info_beq` is the twin's `==` (at `some`, the
+shape `reduceElemOk` compares at). -/
+@[lockstep] theorem i_constant_info_beq_spec (a b : arena.env.IConstantInfo) :
+    LSP (arena.canon.i_constant_info_beq a b)
+      (fun o => o = (some (absIConstantInfo a) == some (absIConstantInfo b))) := by
+  intro o h
+  rw [i_constant_info_beq_refines h]
+  cases h' : decide (absIConstantInfo a = absIConstantInfo b) <;> simp_all
+
 /-! ## The standard axioms' gate
 
 `stdAxiomOk` accepts exactly `propext` and `Classical.choice`, each against
@@ -480,7 +498,10 @@ theorem reduce_elem_ok_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.reduce_elem_ok pers vis st rf c = ok o) :
     Sim₀ id pers lst o (reduceElemOk lf (absNIdx c)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.reduce_elem_ok, reduceElemOk]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem reduce_elem_ok_ls {pers st lst}
@@ -577,7 +598,10 @@ theorem ground_guards_rest_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.ground_guards_rest pers vis st rf p = ok o) :
     Sim₀ id pers lst o (groundGuardsRestSpec lf (absEIdx p)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.ground_guards_rest, groundGuardsRestSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem ground_guards_rest_ls {pers st lst}
@@ -601,7 +625,10 @@ theorem ground_guards_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.ground_guards pers vis st rf p = ok o) :
     Sim₀ id pers lst o (groundGuardsSpec lf (absEIdx p)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.ground_guards, groundGuardsSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem ground_guards_ls {pers st lst}
@@ -1297,6 +1324,105 @@ open Lockstep in
       (fun o => TwinEq (defnValueOf lf (absNIdx c)) (o.map absEIdx)) :=
   fun _ h => (defn_value_refines hfe.rel hfe.inv hvis h).symm
 
+theorem absEqPairsFrom_cons' (v : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx))
+    (i : Std.Usize) (hi : i.val < v.val.length) :
+    absEqPairsFrom v i = (absEIdx v.val[i.val].1, absEIdx v.val[i.val].2) ::
+      (v.val.drop (i.val + 1)).map (fun p => (absEIdx p.1, absEIdx p.2)) := by
+  simp only [absEqPairsFrom]; rw [List.drop_eq_getElem_cons hi]; rfl
+
+theorem absEqPairsFrom_nil' (v : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx))
+    (i : Std.Usize) (hi : v.val.length ≤ i.val) : absEqPairsFrom v i = [] := by
+  simp only [absEqPairsFrom]; rw [List.drop_eq_nil_of_le hi]; rfl
+
+open Lockstep in
+theorem subst_const0_aux (k : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (n : arena.handle.NIdx) (r : arena.handle.EIdx)
+      (fuel : Std.U64) (h : arena.handle.EIdx),
+      fuel.val = k → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdx a) (arena.core.subst_const0 pers st n r fuel h) lst
+        (substConst0 (absNIdx n) (absEIdx r) k (absEIdx h)) := by
+  induction k with
+  | zero =>
+    intro pers st lst n r fuel h hn hrel hinv
+    rw [arena.core.subst_const0, substConst0]
+    lockstep
+  | succ m ih =>
+    intro pers st lst n r fuel h hn hrel hinv
+    rw [arena.core.subst_const0, substConst0]
+    lockstep
+
+open Lockstep in
+/-- `arena::core::subst_const0` ⊑ `substConst0` (task #97-T2-LOCKSTEP lane
+Checker DeclCheck: `arena::core`'s, stated here for its two callers). -/
+@[lockstep] theorem subst_const0_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : arena.handle.NIdx) (r : arena.handle.EIdx)
+    (fuel : Std.U64) (h : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.subst_const0 pers st n r fuel h) lst
+      (substConst0 (absNIdx n) (absEIdx r) (absU fuel) (absEIdx h)) :=
+  subst_const0_aux _ n r fuel h rfl hrel hinv
+
+section SubstConst0
+attribute [local lockstep_simp] core_walk_fuel_abs
+
+open Lockstep in
+theorem subst_const0_list_aux (k : Nat) :
+    ∀ {pers st lst} (n : arena.handle.NIdx) (r : arena.handle.EIdx)
+      (hs : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize)
+      (out : alloc.vec.Vec arena.handle.EIdx),
+      hs.val.length - i.val = k → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun v b => b = absEIdxL v)
+        (arena.decl_check.subst_const0_list pers st n r hs i out) lst
+        (do pure (absEIdxL out ++
+          (← substConst0List (absNIdx n) (absEIdx r) (absEIdxLFrom hs i)))) := by
+  induction k with
+  | zero =>
+    intro pers st lst n r hs i out hn hrel hinv
+    have hl := alloc.vec.Vec.len_val hs
+    have : absEIdxLFrom hs i = [] := by
+      simp only [absEIdxLFrom]; rw [List.drop_eq_nil_of_le (by scalar_tac)]; rfl
+    rw [arena.decl_check.subst_const0_list, this, substConst0List]
+    rw [if_pos (by scalar_tac)]
+    lockstep
+  | succ m ih =>
+    intro pers st lst n r hs i out hn hrel hinv
+    have hl := alloc.vec.Vec.len_val hs
+    have hi : i.val < hs.val.length := by omega
+    have : absEIdxLFrom hs i = absEIdx hs.val[i.val] :: (hs.val.drop (i.val + 1)).map absEIdx := by
+      simp only [absEIdxLFrom]; rw [List.drop_eq_getElem_cons hi]; rfl
+    rw [arena.decl_check.subst_const0_list, this, substConst0List]
+    rw [if_neg (by scalar_tac)]
+    simp only [absEIdxLFrom] at ih
+    lockstep
+
+open Lockstep in
+theorem subst_const0_pairs_aux (k : Nat) :
+    ∀ {pers st lst} (n : arena.handle.NIdx) (r : arena.handle.EIdx)
+      (eqs : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx)) (i : Std.Usize)
+      (out : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx)),
+      eqs.val.length - i.val = k → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun v b => b = absEqPairs v)
+        (arena.decl_check.subst_const0_pairs pers st n r eqs i out) lst
+        (do pure (absEqPairs out ++
+          (← substConst0Pairs (absNIdx n) (absEIdx r) (absEqPairsFrom eqs i)))) := by
+  induction k with
+  | zero =>
+    intro pers st lst n r eqs i out hn hrel hinv
+    rw [arena.decl_check.subst_const0_pairs, absEqPairsFrom_nil' eqs i (by omega),
+      substConst0Pairs]
+    have hl := alloc.vec.Vec.len_val eqs
+    rw [if_pos (by scalar_tac)]
+    lockstep
+  | succ m ih =>
+    intro pers st lst n r eqs i out hn hrel hinv
+    rw [arena.decl_check.subst_const0_pairs, absEqPairsFrom_cons' eqs i (by omega),
+      substConst0Pairs]
+    have hl := alloc.vec.Vec.len_val eqs
+    rw [if_neg (by scalar_tac)]
+    lockstep
+
+end SubstConst0
+
 /-- `subst_const0_list` ⊑ `substConst0List` at the cursor. -/
 theorem subst_const0_list_refines {pers st lst} {n : arena.handle.NIdx}
     {r : arena.handle.EIdx} {hs : alloc.vec.Vec arena.handle.EIdx}
@@ -1305,8 +1431,8 @@ theorem subst_const0_list_refines {pers st lst} {n : arena.handle.NIdx}
     (hrun : arena.decl_check.subst_const0_list pers st n r hs i out = ok o) :
     Sim₀ absEIdxL pers lst o
       (do pure (absEIdxL out ++
-        (← substConst0List (absNIdx n) (absEIdx r) (absEIdxLFrom hs i)))) := by
-  sorry
+        (← substConst0List (absNIdx n) (absEIdx r) (absEIdxLFrom hs i)))) :=
+  Lockstep.LS.toSim₀ (subst_const0_list_aux _ n r hs i out rfl hrel hinv) hrun
 
 open Lockstep in
 @[lockstep] theorem subst_const0_list_ls {pers st lst}
@@ -1331,10 +1457,10 @@ theorem subst_const0_pairs_refines {pers st lst} {n : arena.handle.NIdx}
     {out : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx)} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.subst_const0_pairs pers st n r eqs i out = ok o) :
-    Sim₀ (fun v => absEqPairs out ++ absEqPairs v) pers lst o
+    Sim₀ absEqPairs pers lst o
       (do pure (absEqPairs out ++
-        (← substConst0Pairs (absNIdx n) (absEIdx r) (absEqPairsFrom eqs i)))) := by
-  sorry
+        (← substConst0Pairs (absNIdx n) (absEIdx r) (absEqPairsFrom eqs i)))) :=
+  Lockstep.LS.toSim₀ (subst_const0_pairs_aux _ n r eqs i out rfl hrel hinv) hrun
 
 open Lockstep in
 /-- `subst_const0_pairs` from its entry — cursor `0`, nothing accumulated —
@@ -1380,16 +1506,6 @@ open Lockstep in
       (arena.decl_check.consts_resolve_all pers vis st rf hs i) lst
       (constsResolveAll lf (absEIdxLFrom hs i)) :=
   LS.ofSim₀ fun _ h => consts_resolve_all_refines hrel hinv hfe.rel hfe.inv hvis h
-
-theorem absEqPairsFrom_cons' (v : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx))
-    (i : Std.Usize) (hi : i.val < v.val.length) :
-    absEqPairsFrom v i = (absEIdx v.val[i.val].1, absEIdx v.val[i.val].2) ::
-      (v.val.drop (i.val + 1)).map (fun p => (absEIdx p.1, absEIdx p.2)) := by
-  simp only [absEqPairsFrom]; rw [List.drop_eq_getElem_cons hi]; rfl
-
-theorem absEqPairsFrom_nil' (v : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx))
-    (i : Std.Usize) (hi : v.val.length ≤ i.val) : absEqPairsFrom v i = [] := by
-  simp only [absEqPairsFrom]; rw [List.drop_eq_nil_of_le hi]; rfl
 
 open Lockstep in
 theorem certify_nat_eqs_aux (n : Nat) :
@@ -2236,6 +2352,7 @@ open Lockstep in
         (absEIdx eq_e) (absEIdx proof)) :=
   LS.ofSim₀ fun _ h => div_mod_cert_guard_refines hrel hinv hfe.rel hfe.inv hvis h
 
+attribute [local lockstep_simp] absINatOpPinSet in
 /-- `div_mod_cert_proofs` ⊑ `divModCertProofs`. -/
 theorem div_mod_cert_proofs_refines {pers st lst}
     {ps : arena.nat_op_pin_set.INatOpPinSet} {c : arena.handle.NIdx} {o}
@@ -2243,7 +2360,11 @@ theorem div_mod_cert_proofs_refines {pers st lst}
     (hrun : arena.decl_check.div_mod_cert_proofs st ps c = ok o) :
     Sim₀ absEIdxL pers lst o
       (divModCertProofs (absINatOpPinSet ps) (absNIdx c)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.div_mod_cert_proofs, divModCertProofs]
+  simp only [arena.decl_check.div_mod_slot, arena.decl_check.div_mod_slot_1,
+    arena.decl_check.div_mod_slot_2]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem div_mod_cert_proofs_ls {pers st lst}
@@ -2361,6 +2482,7 @@ open Lockstep in
 
 
 
+attribute [local lockstep_simp] absINatOpPinSet in
 /-- `div_mod_decl_pin` ⊑ `divModDeclPin`. -/
 theorem div_mod_decl_pin_refines {pers st lst}
     {ps : arena.nat_op_pin_set.INatOpPinSet} {c : arena.handle.NIdx} {o}
@@ -2368,7 +2490,11 @@ theorem div_mod_decl_pin_refines {pers st lst}
     (hrun : arena.decl_check.div_mod_decl_pin st ps c = ok o) :
     Sim₀ absEIdx pers lst o
       (divModDeclPin (absINatOpPinSet ps) (absNIdx c)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.div_mod_decl_pin, divModDeclPin]
+  simp only [arena.decl_check.div_mod_slot, arena.decl_check.div_mod_slot_1,
+    arena.decl_check.div_mod_slot_2]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem div_mod_decl_pin_ls {pers st lst}

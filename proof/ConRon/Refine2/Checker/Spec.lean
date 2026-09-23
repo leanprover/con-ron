@@ -448,16 +448,17 @@ def ofReduceAxOkRestSpec (fe : IFEnv) (cvA : IConstantVal) (c : NIdx) :
 `reducePinGuard` and `divModPinGuard` are the same four tests at two different
 pins, and the Rust factors them. -/
 
-/-- The three tests past the loose-bound-variable one. -/
+/-- The two tests past the free-variable one (the Rust's `ground_guards_rest`
+starts at `all_level_params_defined`). -/
 def groundGuardsRestSpec (fe : IFEnv) (p : EIdx) : AM Bool := do
-  if ← hasFvarFast coreWalkFuel p then pure false
-  else if !(← allLevelParamsDefined [] p) then pure false
+  if !(← allLevelParamsDefined [] p) then pure false
   else constsResolveFFast fe p
 
 /-- The four tests: closed, free-variable-free, no undeclared universe
 parameter, and every constant resolves. -/
 def groundGuardsSpec (fe : IFEnv) (p : EIdx) : AM Bool := do
   if !(← looseBVarsBoundedFast coreWalkFuel 0 p) then pure false
+  else if ← hasFvarFast coreWalkFuel p then pure false
   else groundGuardsRestSpec fe p
 
 /-! ### The reduce-operation install pin, in three -/
