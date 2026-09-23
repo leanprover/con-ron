@@ -43,7 +43,11 @@ threads its `seen` table as an argument-and-result pair INSIDE the `Result`
    twin's at any value.  (Task #97-P4e part 2 asks for the argument to come
    off the LEAN side too; until it does, this is where the difference lives.)
 
-## `sorry` count in this file: 54
+## `sorry` count in this file: 0
+
+Round 3 (task #97-T2-LOCKSTEP lane Frontend): every statement proved on the
+shared `lockstep` tactic; the walks `expr_ops` owns are consumed through
+`ExprOpsSeam.lean` until that lane lands.
 -/
 import ConRon.Refine2.Frontend.ExprOpsSeam
 import ConRon.Refine2.Inductives.NativeParts
@@ -1660,55 +1664,7 @@ on the port's, split at the twin's own `let` boundaries (P4c's arrangement for
 this shape).  The five splits are stated against the twin's arm inline; the
 entry point is stated against the twin. -/
 
-/-- **`proj_rec_value_app`** — the recursor application, once the parameters,
-motives and minors are built. -/
-theorem proj_rec_value_app_refines {pers rst lst o' lbs us params motives minors o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.proj_rec_value_app pers rst o' lbs us params motives
-      minors = ok o) :
-    Sim₀ (Option.map absEIdx) pers lst o
-      (projRecValueApp (absProjRecOwner o') (absBinderPairs lbs) (absLsIdx us)
-        (absEIdxL params) (absEIdxL motives) (absEIdxL minors)) := by sorry
 
-/-- **`proj_rec_value_major`** — the major premise and the application above
-it. -/
-theorem proj_rec_value_major_refines
-    {pers rst lst fuel o' lbs us params motives minors rty3 o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.proj_rec_value_major pers rst fuel o' lbs us params
-      motives minors rty3 = ok o) :
-    Sim₀ (Option.map absEIdx) pers lst o
-      (projRecValueMajor (absU fuel) (absProjRecOwner o') (absBinderPairs lbs)
-        (absLsIdx us) (absEIdxL params) (absEIdxL motives) (absEIdxL minors)
-        (absEIdx rty3)) := by sorry
-
-/-- **`proj_rec_value_binders`** — the motive and the minors. -/
-theorem proj_rec_value_binders_refines
-    {pers rst lst fuel o' l r i lbs us params rty1 o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.proj_rec_value_binders pers rst fuel o' l r i lbs us
-      params rty1 = ok o) :
-    Sim₀ (Option.map absEIdx) pers lst o
-      (projRecValueBinders (absU fuel) (absProjRecOwner o') (absLIdx l)
-        (absEIdx r) (absU i) (absBinderPairs lbs) (absLsIdx us)
-        (absEIdxL params) (absEIdx rty1)) := by sorry
-
-/-- **`proj_rec_value_at`** — the universe arguments and the recursor's type
-at the chosen elimination level. -/
-theorem proj_rec_value_at_refines {pers rst lst fuel o' l r i lbs o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.proj_rec_value_at pers rst fuel o' l r i lbs = ok o) :
-    Sim₀ (Option.map absEIdx) pers lst o
-      (projRecValueAt (absU fuel) (absProjRecOwner o') (absLIdx l) (absEIdx r)
-        (absU i) (absBinderPairs lbs)) := by sorry
-
-/-- **`proj_rec_value_ty`** — the projection's own codomain, stripped. -/
-theorem proj_rec_value_ty_refines {pers rst lst fuel o' l ty i lbs o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.proj_rec_value_ty pers rst fuel o' l ty i lbs = ok o) :
-    Sim₀ (Option.map absEIdx) pers lst o
-      (projRecValueTy (absU fuel) (absProjRecOwner o') (absLIdx l) (absEIdx ty)
-        (absU i) (absBinderPairs lbs)) := by sorry
 
 open ConRon.Refine2.Lockstep in
 @[lockstep] theorem one_lidx_spec (l : arena.handle.LIdx) :
