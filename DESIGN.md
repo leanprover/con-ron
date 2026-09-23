@@ -2994,7 +2994,9 @@ Things deliberately left for the end, recorded here so they are not lost.
   the ~20 `M_FROZEN` sites in `arena::store` (`shared_on` set during a
   persistent intern) from `Internal` to `Native` — "fine for now, it gives
   partial correctness; but if there is an invariant why we do not hit this
-  code path we should be able to prove this."  So, once every `sorry` is
+  code path we should be able to prove this."  `M_REFREEZE` joins them (task
+  #97-T2-LOCKSTEP D4c: the pin attempt reached on an already-frozen store;
+  unreachable because phase B never calls `check_decl`).  So, once every `sorry` is
   gone: for each `Native` site, either prove it unreachable from the
   checker's entry (the frozen guard should follow from the phase discipline:
   nothing interns persistently while the tier is shared), or document why it
