@@ -110,42 +110,17 @@ inductive OrElseStep where
   | recovered (e : CheckError)
   | failed (e : CheckError)
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — what a
-variant attempt must put back when it is abandoned: the per-call memo tables,
-the per-declaration caches, and the SCRATCH tiers of the four stores
-(expression, level-list, level, name).  The persistent tiers are not in it:
-the attempt runs inside a declaration's bracket, where every append is a
-scratch append.  Here the snapshot is free (a read of six fields); the port
-copies them (`attempt_snapshot`), which is the only reason the record exists. -/
-structure AttemptSnapshot where
-  memos : Memos
-  caches : Caches
-  eScr : ETables
-  lsScr : LsTables
-  lScr : LTables
-  nScr : NTables
-
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — take the
-snapshot, which in Lean is a read of six fields (the port's `memos_dup`,
-`caches_dup` and four `ETables`/`LsTables`/`LTables`/`NTables` `dup`s). -/
-@[inline] def attemptSnapshot (st : AState) : AttemptSnapshot :=
-  ⟨st.memos, st.caches, st.store.scr, st.store.lss.scr, st.store.lss.ls.scr,
-    st.store.lss.ls.ns.scr⟩
+snapshot a variant attempt is restored from: the WHOLE state (task
+#97-T2-LOCKSTEP D4b).  In Lean it is the state itself; the port copies it
+(`attempt_snapshot`: the four stores with both tiers, the memos, the caches
+and the pins). -/
+@[inline] def attemptSnapshot (st : AState) : AState := st
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — the restore
-of `OrElseStep.recovered`: the attempt's cache rows, memo rows and scratch
-nodes all go. -/
-@[inline] def attemptRestore (st : AState) (snap : AttemptSnapshot) : AState :=
-  { st with
-    memos := snap.memos
-    caches := snap.caches
-    store := { st.store with
-      scr := snap.eScr
-      lss := { st.store.lss with
-        scr := snap.lsScr
-        ls := { st.store.lss.ls with
-          scr := snap.lScr
-          ns := { st.store.lss.ls.ns with scr := snap.nScr } } } } }
+of `OrElseStep.recovered`: the snapshot becomes the state, so everything the
+attempt did goes.  The port moves its copy back (`attempt_restore`). -/
+@[inline] def attemptRestore (_st : AState) (snap : AState) : AState := snap
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — **the
 four-way step itself**, as a PURE function of the attempt's outcome, which is
@@ -168,19 +143,16 @@ Written as a state function rather than with `try`/`catch`: `AM = StateT AState
 (Except CheckError)`, so the PRE-attempt state `s` is what the error arm has
 in hand, and `attemptRestore s (attemptSnapshot s)` is `s` itself.
 
-**The port and the twin now resume at the same state** (task
-#97-T2-LOCKSTEP D4).  A throw in `StateT σ (Except ε)` carries no state, so
-the twin's error arm can only resume at `s`.  The port keeps its `&mut
-AState` across the failing attempt and restores, from its snapshot, the
-memos, the caches and the four stores' scratch tiers
-(`arena::decl_check::check_div_mod_pin_attempt`).  The attempt runs inside a
-declaration's bracket, so the scratch flag is on and every append it makes is
-a scratch append; with the scratch tiers put back, the two stores agree on
-the handle NUMBERING as well as on every denotation.  (Until D4 the port kept
-the attempt's appended nodes, and the two scratch tiers then differed in
-length for the rest of the declaration — a difference no lockstep relation
-absorbs.)  The attempt runs **eight times on the whole of `Init`** (task
-#97-P6-4a §4), so the copies cost nothing measurable.
+**The port and the twin resume at the same state** (tasks #97-T2-LOCKSTEP
+D4, D4b).  A throw in `StateT σ (Except ε)` carries no state, so the twin's
+error arm can only resume at `s`.  The port keeps its `&mut AState` across
+the failing attempt and moves back a full copy of the pre-attempt state taken
+before it (`arena::decl_check::check_div_mod_pin_attempt`).  (Until D4 the
+port kept the attempt's appended nodes, and the two scratch tiers then
+differed in length — a difference no lockstep relation absorbs; D4 restored
+the scratch tiers only, which is the whole state only given a frame over the
+attempt; D4b copies everything.)  The attempt runs **eight times on the whole
+of `Init`** (task #97-P6-4a §4).
 
 The continuation is the caller's own tail call (`checkDivModPinLoop`), so it
 does not appear here — DESIGN §3.4 forbids the closure con-leche passes. -/

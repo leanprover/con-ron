@@ -483,12 +483,16 @@ def checkReducePinValueSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
   else fail (.notImplemented
     "unsupported compiler-trust opaque spelling")
 
-/-- `checkReducePin`'s guard prefix. -/
+/-- `checkReducePin`'s guard prefix at the pre-insertion view: the element
+guard, then the pin's own ground guards (the Rust's `check_reduce_pin_pre`). -/
 def checkReducePinPreSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
     (value : EIdx) : AM Unit := do
-  if ← reducePinGuard fe c then checkReducePinValueSpec mode fe c value
+  if ← reduceElemOk fe c then
+    if ← reducePinGuard fe c then checkReducePinValueSpec mode fe c value
+    else fail (.notImplemented
+      "unsupported compiler-trust opaque spelling (pin ground constants absent)")
   else fail (.notImplemented
-    "unsupported compiler-trust opaque spelling (pin ground constants absent)")
+    "unsupported compiler-trust opaque declaration")
 
 /-! ### The three value kinds' tails -/
 
@@ -935,7 +939,7 @@ def checkOpaqueDeclSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   let cv ← checkConstantVal mode fe cv
   let fe2 ← checkOpaqueVal mode fe cv value
   if (← reduceOpNames).contains cv.name then
-    checkReducePin mode fe fe2 cv.name value
+    checkReducePin mode (fe2.restrictTo fe.visibleBelow) fe2 cv.name value
   pure fe2
 
 /-- The structural-`Nat` pins' certification, at the equations already built. -/
@@ -959,8 +963,9 @@ def checkStructuralNatPinEqsSpec (mode : CheckMode) (fe fe2 : IFEnv) (n : NIdx) 
 structural recursions. -/
 def checkStructuralNatPinSpec (mode : CheckMode) (fe fe2 : IFEnv) (n : NIdx) :
     AM IFEnv := do
+  let g ← natOpGuard fe2 n
   let deps ← natOpDeps n
-  unless (← natOpGuard fe2 n) && (← natOpStoredOkAll fe2 deps) do
+  unless g && (← natOpStoredOkAll fe2 deps) do
     fail (.notImplemented
       "nonstandard structural Nat operation environment")
   checkStructuralNatPinEqsSpec mode fe fe2 n
@@ -977,15 +982,15 @@ def checkDefnPinsSpec (mode : CheckMode) (pins : List INatOpPinSet)
     (fe fe2 : IFEnv) (n : NIdx) : AM IFEnv := do
   if (← natOpNames).contains n then
     let _ ← checkStructuralNatPinSpec mode fe fe2 n
-    pure ()
-  checkDefnDivModPinSpec mode pins fe fe2 n
+    checkDefnDivModPinSpec mode pins fe fe2 n
+  else checkDefnDivModPinSpec mode pins fe fe2 n
 
 /-- `checkDecl`'s `.defnDecl` arm, whole. -/
 def checkDefnDeclSpec (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     (cv : IConstantVal) (value : EIdx) (hint : ReducibilityHint) : AM IFEnv := do
   let cv ← checkConstantVal mode fe cv
   let fe2 ← checkDefnVal mode fe cv value hint
-  checkDefnPinsSpec mode pins fe fe2 cv.name
+  checkDefnPinsSpec mode pins (fe2.restrictTo fe.visibleBelow) fe2 cv.name
 
 /-! ### Phase A's step body, in six -/
 
@@ -1135,6 +1140,58 @@ theorem checkDecl_axiomDecl (mode : CheckMode) (pins : List INatOpPinSet)
     twin_reduce [checkAxiomDeclStdSpec, checkAxiomDeclTrustSpec,
       checkAxiomDeclOfReduceSpec, checkAxiomDeclRestSpec, checkConstantVal_unfold,
       checkConstantValAfterAnnotSpec, installConstantValTailSpec]
+
+/-- The stored definition's value — the twin's `match fe2.find? c with |
+some (.defnInfo _ v _)`, under the name the Rust gives it (`defn_value`). -/
+def defnValueOf (fe : IFEnv) (c : NIdx) : Option EIdx :=
+  match fe.find? c with
+  | some (.defnInfo _ v _) => some v
+  | _ => none
+
+/-- `checkDivModPin` with its stored-value lookup named `defnValueOf`, as the
+Rust's `check_div_mod_pin` calls `defn_value`. -/
+theorem checkDivModPin_split (mode : CheckMode) (pins : List INatOpPinSet)
+    (fe fe2 : IFEnv) (c : NIdx) :
+    checkDivModPin mode pins fe fe2 c = (do
+      if ← divModEnvGuard fe2 c then
+        match defnValueOf fe2 c with
+        | some v => checkDivModPinLoop mode fe c v pins []
+        | none => fail (.internal "Nat.div/mod operation not stored")
+      else fail (.notImplemented "unsupported Nat.div/mod environment")) := by
+  unfold checkDivModPin defnValueOf
+  refine ConRon.Refine2.am_bind_congr _ fun g => ?_
+  split
+  · cases fe2.find? c with
+    | none => rfl
+    | some ci => cases ci <;> rfl
+  · rfl
+
+/-- `checkStructuralNatPinEqsSpec` with its stored-value lookup named
+`defnValueOf`, as the Rust's `check_structural_nat_pin_eqs` calls
+`defn_value`. -/
+theorem checkStructuralNatPinEqsSpec_split (mode : CheckMode) (fe fe2 : IFEnv)
+    (n : NIdx) :
+    checkStructuralNatPinEqsSpec mode fe fe2 n =
+      match defnValueOf fe2 n with
+      | some v => (do
+          let eqs ← natOpEquations 0 n
+          checkStructuralNatPinCertifySpec mode fe fe2 (← substConst0Pairs n v eqs))
+      | none => fail (.internal "structural Nat operation not stored") := by
+  unfold checkStructuralNatPinEqsSpec defnValueOf
+  cases fe2.find? n with
+  | none => rfl
+  | some ci => cases ci <;> rfl
+
+/-- `checkReducePin` is the stored guard at the post-insertion index, then
+`checkReducePinPreSpec` at the pre-insertion one — the Rust's
+`check_reduce_pin` / `check_reduce_pin_pre` split (task #97-T2-LOCKSTEP lane
+Checker round 2). -/
+theorem checkReducePin_split (mode : CheckMode) (fe fe2 : IFEnv) (c : NIdx)
+    (value : EIdx) :
+    checkReducePin mode fe fe2 c value = (do
+      if ← reduceStoredOk fe2 c then checkReducePinPreSpec mode fe c value
+      else fail (.notImplemented "unsupported compiler-trust opaque declaration")) := by
+  rfl
 
 /-- **The seventh arm is an equation too** (task #97-T2-LOCKSTEP lane
 Checker): the twin's `.defnDecl` declines carry the Rust's constant messages

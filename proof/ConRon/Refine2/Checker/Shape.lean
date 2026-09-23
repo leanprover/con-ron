@@ -954,31 +954,6 @@ theorem openPisAtFvarsF_length {n : Nat} {e : EIdx} {i : Nat} {ls ls' : AState}
     rw [← h.1.1]
     exact openPisAtFvarsFGo_length ho
 
-/-! ## The Inductives seam (task #97-P5-Checker's finding 14)
-
-**Moved down from `Refine2/Checker/Top.lean` by task #97-P5-Checker-2.**  The
-seam has to be declared BELOW the tier that discharges it: task #97-P5-Ind's
-`ind_rel : IndRel` is unconditional (`Refine2/Inductives/Top.lean`), and
-`Refine2/Checker/Top.lean`'s thirteen `hind : IndRel` binders can only go if
-that file may *import* the proof.  So `IndRel` lives here — in the shared base
-both `Refine2/Checker/**` and `Refine2/Inductives/**` already import — and
-`Refine2/Checker/Top.lean` imports `Refine2/Inductives/Top.lean` instead of
-the other way round.  Nothing about the statement changed. -/
-
-/-- **`arena::inductives`'s obligation as the declaration checker's seam.**
-The `.indDecl` arm of `check_decl` is the only place the declaration checker
-reaches the inductive routes, and they are 6 705 lines of their own tier.
-This is the seam in `KnotRel`'s shape: one clause, discharged by
-`Refine2/Inductives/Top.lean`'s `ind_rel`. -/
-structure IndRel : Prop where
-  checkIndDecl : ∀ {pers st lst rf lf mode block n_p o},
-    AStateRel pers st lst → AStateInv pers st →
-    IFEnvRel rf lf → IFEnvInv rf →
-    arena.inductives.check_ind_decl pers mode rf block n_p st = ok o →
-    SimRel (fun r v => IFEnvRel r v) pers lst o
-      (ConRon.Arena.Inductives.checkIndDecl (ConRon.Refine.absMode mode) lf
-        (absICIL block) (absU n_p))
-
 /-! ## `arena::checker_split`'s seam datum -/
 
 /-- `arena::checker_split::ValueKind`. -/
