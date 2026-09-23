@@ -1058,4 +1058,134 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       | (apply CheckOK.wf'; assumption)
       | exact viewOK_bvar
 
+/-! ## 5. The two function shapes: `Char.ofNat` and `String.ofList` -/
+
+/-- con-leche: none — `constE_spec` in ANSWER shape: the name handle comes
+off a pin, so its denotation goes in as an existential and out as a
+universal (round 3's rule; two `constE`s at different names share one
+`mvcgen` call here). -/
+theorem constE_spec' (s₀ : AState) (n : NIdx) (hok : CheckOK mode env fe s₀)
+    (hn : ∃ nm, denoteN s₀.store.ns n = some nm) :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.constE n
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ ∀ nm, denoteN s₀.store.ns n = some nm →
+          denoteE s'.store r = some (.const nm [])⌝⦄ := by
+  obtain ⟨nm, hnm⟩ := hn
+  have h := constE_spec (mode := mode) (env := env) (fe := fe) s₀ n nm hok hnm
+  mvcgen [h]
+  intro hck hx hp hd
+  refine ⟨hck, hx, hp, fun nm' hn' => ?_⟩
+  rw [hnm] at hn'; obtain rfl := Option.some.inj hn'; exact hd
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:362-371 charOfNatTyOk — in the
+twin's order, at a level-monomorphic constant whose type is a `∀`. -/
+theorem charOfNatTyOk_forallE {c : ConstantInfo} {D B : Expr}
+    {m : BinderMeta} (hl : c.toConstantVal.levelParams.isEmpty = true)
+    (ht : c.toConstantVal.type = .forallE D B m) :
+    ConLeche.charOfNatTyOk (some c) =
+      (D == .const ConLeche.natName [] && B == .const ConLeche.charName []) := by
+  simp only [ConLeche.charOfNatTyOk, hl, ht, Bool.true_and]
+  cases D <;> (try (rw [Bool.eq_iff_iff]; simp; done))
+  rename_i n1 us1
+  cases us1 <;> (try (rw [Bool.eq_iff_iff]; simp; done))
+  cases B <;> (try (rw [Bool.eq_iff_iff]; simp; done))
+  rename_i n2 us2
+  cases us2 <;> (rw [Bool.eq_iff_iff]; simp)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:362-383 — the two function
+guards at a constant whose type is not a `∀`. -/
+theorem fnTyOks_not_forallE {c : ConstantInfo}
+    (ht : ∀ D B m, c.toConstantVal.type ≠ .forallE D B m) :
+    ConLeche.charOfNatTyOk (some c) = false ∧
+      ConLeche.stringOfListTyOk (some c) = false := by
+  refine ⟨?_, ?_⟩
+  · simp only [ConLeche.charOfNatTyOk]
+    split
+    · rename_i heq; exact absurd heq (ht _ _ _)
+    · simp
+  · simp only [ConLeche.stringOfListTyOk]
+    split
+    · rename_i heq; exact absurd heq (ht _ _ _)
+    · simp
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:362-383 — the two function
+guards at a level-polymorphic constant. -/
+theorem fnTyOks_not_empty {c : ConstantInfo}
+    (hl : c.toConstantVal.levelParams.isEmpty = false) :
+    ConLeche.charOfNatTyOk (some c) = false ∧
+      ConLeche.stringOfListTyOk (some c) = false := by
+  simp [ConLeche.charOfNatTyOk, ConLeche.stringOfListTyOk, hl]
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:362-371 charOfNatTyOk — **THEOREM
+1 for `charOfNatTyOk`**. -/
+theorem charOfNatTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
+    (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
+    (hrel : OptCI s₀.store oc oc') :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.charOfNatTyOk oc
+    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.charOfNatTyOk oc'⌝⦄ := by
+  cases oc with
+  | none =>
+    simp only [OptCI] at hrel; subst hrel
+    mvcgen [ConRon.Arena.charOfNatTyOk]
+    all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
+  | some ci =>
+    obtain ⟨c, hci, rfl⟩ := hrel
+    have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
+      s₀ ci c hok hci
+    have hce := fun (s : AState) (n : NIdx) =>
+      constE_spec' (mode := mode) (env := env) (fe := fe) s n
+    mvcgen [ConRon.Arena.charOfNatTyOk, ConRon.Arena.pinNat,
+      ConRon.Arena.pinChar, htc, hce]
+    all_goals (bridge_peel; subst_vars)
+    case vc2.some.post.success.isTrue =>
+      rename_i s1 r0 hne s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
+      refine ⟨ck_s0, x_s1_s0, p_s0_s1, ?_⟩
+      rw [isEmpty_of_denoteNList hlps] at hne
+      simp only [Bool.not_eq_true', Bool.eq_false_iff] at hne
+      exact (fnTyOks_not_empty (by simpa using hne)).1.symm
+    case vc3.hp =>
+      rename_i s1 r0 hneg0 s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
+      exact ck_s0.pins
+    case vc4.hok =>
+      rename_i s1 r1 hneg0 r0 s0 hlps ck_s0 hpin d_r1_type_s0 x_s1_s0 p_s0_s1
+      exact ck_s0
+    case vc5.hn =>
+      rename_i s1 r1 hneg0 r0 s0 hlps ck_s0 hpin d_r1_type_s0 x_s1_s0 p_s0_s1
+      exact ⟨_, hpin _ rfl⟩
+    case vc6.hp =>
+      rename_i s2 r2 hneg0 r1 s1 r0 s0 ck_s0 x_s1_s0 p_s0_s1 _ hlps ck_s1 hpin
+        d_r2_type_s1 x_s2_s1 p_s1_s2
+      exact ck_s0.pins
+    case vc7.hok =>
+      rename_i s2 r3 hneg0 r2 s1 r1 r0 s0 hlps ck_s1 hpin d_r3_type_s1 x_s2_s1
+        p_s1_s2 ck_s0 hpin_2 x_s1_s0 p_s0_s1 _
+      exact ck_s0
+    case vc8.hn =>
+      rename_i s2 r3 hneg0 r2 s1 r1 r0 s0 hlps ck_s1 hpin d_r3_type_s1 x_s2_s1
+        p_s1_s2 ck_s0 hpin_2 x_s1_s0 p_s0_s1 _
+      exact ⟨_, hpin_2 _ rfl⟩
+    case vc9.some.post.success.isFalse.post.success.post.success.post.success.post.success.post.success.h_1 =>
+      rename_i s3 r4 hneg0 r3 s2 r2 r1 s1 r0 dom0 body0 mb0 s0 hlps ck_s2 hpin
+        d_r4_type_s2 x_s3_s2 p_s2_s3 ck_s1 hpin_2 x_s2_s1 p_s1_s2 hc1 ck_s0
+        v_r4_type_s0 x_s1_s0 p_s0_s1 hc2
+      have x20 := x_s2_s1.trans x_s1_s0
+      refine ⟨ck_s0, x_s3_s2.trans x20, p_s0_s1.trans (p_s1_s2.trans p_s2_s3), ?_⟩
+      rw [isEmpty_of_denoteNList hlps] at hneg0
+      have hle : c.toConstantVal.levelParams.isEmpty = true := by simpa using hneg0
+      have hwf0 := ck_s0.state.wf
+      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv hwf0 v_r4_type_s0
+        (denote_ext d_r4_type_s2 x20)
+      rw [beq_of_denoteE hwf0 hD (denote_ext (hc1 _ (hpin _ rfl)) x_s1_s0),
+        beq_of_denoteE hwf0 hB (hc2 _ (hpin_2 _ rfl)),
+        charOfNatTyOk_forallE hle hT]
+    case vc10.some.post.success.isFalse.post.success.post.success.post.success.post.success.post.success.h_2 =>
+      rename_i s3 r4 hneg0 r3 s2 r2 r1 s1 r0 x1 hnot0 s0 hlps ck_s2 hpin
+        d_r4_type_s2 x_s3_s2 p_s2_s3 ck_s1 hpin_2 x_s2_s1 p_s1_s2 hc1 ck_s0
+        v_r4_type_s0 x_s1_s0 p_s0_s1 hc2
+      have x20 := x_s2_s1.trans x_s1_s0
+      refine ⟨ck_s0, x_s3_s2.trans x20, p_s0_s1.trans (p_s1_s2.trans p_s2_s3), ?_⟩
+      exact (fnTyOks_not_forallE (denote_not_forallE ck_s0.state.wf v_r4_type_s0
+        (denote_ext d_r4_type_s2 x20) hnot0)).1.symm
+
 end ConRon.Bridge.Core
