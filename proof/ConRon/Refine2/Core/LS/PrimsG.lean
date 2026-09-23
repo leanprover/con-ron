@@ -123,11 +123,13 @@ theorem stk_index_twin (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.Bind
     simp [hab, this]
 
 /-- `level::zeroness_of` against the twin's pure `Level.zeronessOf`; the
-level is well formed (`read_level_m_ls` says so). -/
+level is well formed (`read_level_m_ls` says so); the datum it answers is
+well formed too (a representation fact, as in region E's `zeroness_of_ls`). -/
 @[lockstep] theorem zeroness_of_spec {l : kernel.level.Level} (hl : ConRon.Refine.LevelWF l) :
     LSP (kernel.level.zeroness_of l)
-      (fun pw => ConRon.Refine.absPropWhen pw = ConLeche.Level.zeronessOf (ConRon.Refine.absLevel l)) :=
-  fun pw h => (ConRon.Refine.ExprOps.zeroness_of_refines hl pw h).1
+      (fun pw => ConRon.Refine.PropWhenWF pw ∧
+        ConRon.Refine.absPropWhen pw = ConLeche.Level.zeronessOf (ConRon.Refine.absLevel l)) :=
+  fun pw h => (ConRon.Refine.ExprOps.zeroness_of_refines hl pw h).symm
 
 /-! ## Reads -/
 
