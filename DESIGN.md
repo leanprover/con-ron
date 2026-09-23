@@ -60683,3 +60683,59 @@ Two fallouts on the merged tree, both fixed here.  `Frontend/ExportCInd`
 first `lockstep`; with the atomic `twin_bind_pure` fallback (§7) that first
 `lockstep` closes the goal, so the hand tail is deleted (one `lockstep` call
 now).
+
+### Task #97-T2-TACTIC round 2 — twin-only spec arguments, and a twin `if` against a Rust bind (2026-09-23, Opus under Fable)
+
+Worktree `_tmp/wt-tactic`, branch `t2-tactic` off `arena` `b5f0d431` (the
+ExprOps lane's atomic `twin_bind_pure` fallback included).  The owner of the
+shared `lockstep` tactic fixes the two limits the Checker lane (round 2 slice
+2) reported and worked around per proof.
+
+#### Slice 1 — the core fix (`Tactic/Lockstep.lean`, one commit)
+
+1. **Twin-only arguments.**  A `@[lockstep]` lemma (or a local hypothesis)
+   whose twin side has an argument the Rust does not determine —
+   `liftFueled what`, `unresolvedConstsError what`, the div/mod loop's
+   `tried` list — was never selected: `apply` left the argument as a goal of
+   type `String`/`List String`, `lockstep_side`'s `assumption` took whatever
+   term of that type the context had (or failed), and the `x' = x` check then
+   rejected the candidate.  `specCore` now DEFERS a candidate's non-`Prop`
+   premises, and a `Prop` premise that fails while it still mentions one,
+   until after the caller's `x' = x` check (`lockstep_congr`, whose `rfl`
+   unifies the argument with the goal's twin action); what is still open
+   afterwards goes to `lockstep_side` as before.  Propositional premises are
+   still tried first, in the old order, so a data argument a premise fixes
+   (`IFEnvRelI rf ?lf` by `assumption`) is fixed exactly as before.
+2. **A Rust bind against a twin `if`.**  With the atomic fallback, the
+   Checker lane's `(if …) >>= pure` leftover no longer arises from the
+   tactic, but two shapes still stopped the zip: a twin `if` in BIND position
+   (`(if c then a else b) >>= k`, a twin `do` block's last-line `if` bound to
+   `pure`), which no rule looked through; and a twin `if` neither side tier
+   decides while the Rust steps first.  New rules `LS.twin_ite_bind`/
+   `twin_dite_bind` distribute the `if` over its continuation (tried with the
+   twin's `pure`/`get` binds, before the Rust step), after which the existing
+   polarity/cheap/dear decision applies; and `LS.twin_ite_split`/
+   `twin_dite_split` split a twin `if` as the LAST resort of `stepCore` (after
+   every other move failed), so both branches continue and the one a later
+   Rust test rules out closes by `lockstep_contra`.  Neither rule produces a
+   bind with `pure`, so neither can cycle with `twin_bind_pure`.
+
+**Regression tests** — `Tactic/Tests.lean` (new; in `ConRonRefine2` by its
+glob): `lift_fueled_any_ls` (a `liftFueled` lemma for EVERY message) picked
+at `"level comparison"`; the generic `unresolved_consts_error_ls` (free `w`)
+picked at `"value"`; a local induction hypothesis quantified over the twin's
+`tried` list used at `ltried ++ [msg]`; **`install_value_tail_refines'` — the
+reported site — closed by one `lockstep`** (the lane's version is
+`lockstep; rw [bind_pure, if_neg …]; LS.bind unresolved_consts_error_value_ls
+…; lockstep`); a twin `(if b then … else …) >>= pure` against a Rust bind
+with `b` decided; an undecided twin `if` split; and a no-cycle test under
+`maxHeartbeats 20000` with `#guard_msgs` (a Rust state step with no partner
+against an undecided twin `if`: `lockstep` must stop).  Reverting the
+fallback to the non-atomic form makes `ExprOps/Mut.lean` time out at
+200 000 heartbeats before this module is reached (checked).
+
+**Cost** — `perf stat -e instructions:u` of `lake build ConRonRefine2` after
+a change to `Lockstep.lean`'s olean (every downstream module re-elaborated,
+`LAKE_JOBS=4`, `LEAN_NUM_THREADS=4`): **before 5 292 G instructions (68
+modules), after 5 303 G (69 modules, `Tests` included): +0.2 %**.  Summed
+per-module build time (one run each, noisy): 466 s → 428 s.
