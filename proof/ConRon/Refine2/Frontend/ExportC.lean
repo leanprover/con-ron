@@ -2272,15 +2272,66 @@ theorem proj_rewrite_d_refines {pers rst lst rsd lsd cv vl o}
           | _ => cases Result.ok_injective h; exact hnone rfl
       | _ => cases Result.ok_injective h; exact hnone rfl
 
-/-- **`note_proj_iota` refines `noteProjIota`** (`ExportC.lean:325-335`). -/
+/-- **`note_proj_iota` refines `noteProjIota`** (`ExportC.lean:325-335`).
+Round 3: stated with its ERROR arm (it was success-only, which left
+`push_gen_d`'s `ThmDecl` arm nothing for a failing `proj_iota_level`). -/
 theorem note_proj_iota_refines {pers rst lst rsd lsd cvp o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.note_proj_iota pers rst rsd cvp = ok o) :
-    ∀ _u, o.1 = .Ok _u → ∃ lsd' lst',
+    match o.1 with
+    | .Ok _ => ∃ lsd' lst',
       (noteProjIota lsd (absIConstantVal cvp)).run lst = .ok (lsd', lst') ∧
       StateDRel o.2.2 lsd' ∧ StateDInv o.2.2 ∧ AStateRel₀ pers o.2.1 lst' ∧
-      AStateInv pers o.2.1 := by sorry
+      AStateInv pers o.2.1
+    | .Err e => AErrSim e ((noteProjIota lsd (absIConstantVal cvp)).run lst) := by
+  rw [frontend.export_c.note_proj_iota] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hI := is_proj_iota_name_refines hrel hinv hr
+  unfold noteProjIota
+  rw [am_run_bind']
+  cases r with
+  | Err e => cases Result.ok_injective h; exact AErrSim.bind hI _
+  | Ok b =>
+  have hI' : (isProjIotaName (absIConstantVal cvp).name).run lst = .ok (b, lst) := hI
+  rw [hI', except_ok_bind]
+  cases b with
+  | false =>
+    cases Result.ok_injective h
+    exact ⟨lsd, lst, rfl, hd, hi, hrel, hinv⟩
+  | true =>
+  simp only [if_true] at h ⊢
+  obtain ⟨fuel, hf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hF : storeFuel.run lst = .ok (absU fuel, lst) := store_fuel_refines hrel hinv hf
+  rw [am_run_bind', hF, except_ok_bind]
+  dsimp only
+  obtain ⟨⟨r1, ar1⟩, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hL : Sim₀ (Option.map absLIdx) pers lst (r1, ar1)
+      (projIotaLevel (absU fuel) (absIConstantVal cvp).type) :=
+    proj_iota_level_refines hrel hinv hr1
+  rw [am_run_bind']
+  cases r1 with
+  | Err e =>
+    cases Result.ok_injective h
+    exact AErrSim.bind (Sim₀.apply_err hL) _
+  | Ok ol =>
+  obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hL
+  rw [hx1, except_ok_bind]
+  cases ol with
+  | none =>
+    cases Result.ok_injective h
+    exact ⟨lsd, lst1, rfl, hd, hi, hrel1, hinv1⟩
+  | some l =>
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [dupId_nidx _ _ hn] at h
+  obtain ⟨⟨old, hm⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  obtain ⟨hR, -⟩ := ConRon.Refine.HashMap2.Rel_insert_wf nidx_eq2
+    (fun a b _ _ e => absNIdx_inj e) hi.projLevels (anyNKeysOk _) hd.projLevels trivial hins
+  obtain ⟨hI2, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen nidx_eq2 hi.projLevels
+    (anyNKeysOk _) trivial hins
+  exact ⟨_, lst1, rfl, { hd with projLevels := hR }, { hi with projLevels := hI2 },
+    hrel1, hinv1⟩
 
 /-! ## The modeller's booking -/
 
@@ -2289,7 +2340,42 @@ theorem push_gen_d_refines {pers rst lst rsd lsd d o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.push_gen_d pers rst rsd d = ok o) :
-    SimD pers lst o (pushGenD lsd (absIDeclaration d)) := by sorry
+    SimD pers lst o (pushGenD lsd (absIDeclaration d)) := by
+  have plain : ∀ {r : core.result.Result Unit frontend.export_c.LineErr}
+      {e : arena.store.EStore} {st1 : frontend.export_c.StateD},
+      frontend.export_c.push_decl pers rst.store rsd d = ok (r, e, st1) →
+      SimD pers lst (r, { rst with store := e }, st1) (pushDecl lsd (absIDeclaration d)) :=
+    fun hp => push_decl_refines hrel hinv hd hi hp
+  rw [frontend.export_c.push_gen_d.eq_def] at h
+  cases d
+  case ThmDecl cv v =>
+    simp only at h
+    obtain ⟨cv2, hcv2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hcv := i_constant_val_dup_abs hcv2
+    obtain ⟨⟨r, ar1, st1⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hN := note_proj_iota_refines hrel hinv hd hi hr
+    simp only [absIDeclaration, pushGenD]
+    rw [hcv] at hN
+    unfold SimD
+    rw [am_run_bind']
+    cases r with
+    | Err e =>
+      obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [frontend.export_c.fail] at hr1
+      cases Result.ok_injective hr1
+      cases Result.ok_injective h
+      exact AErrSim.bind hN _
+    | Ok u =>
+      obtain ⟨lsd1, lst1, hx1, hd1, hi1, hrel1, hinv1⟩ := hN
+      rw [hx1, except_ok_bind]
+      obtain ⟨⟨r1, e, st2⟩, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      cases Result.ok_injective h
+      exact push_decl_refines hrel1 hinv1 hd1 hi1 hp
+  all_goals
+    simp only at h
+    obtain ⟨⟨r, e, st1⟩, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    exact plain hp
 
 /-- **`note_gen_names`** — the twin's `ns.foldl` into `genOwner`. -/
 theorem note_gen_names_refines {rsd lsd names t0 rsd'} (hd : StateDRel rsd lsd)
@@ -2371,7 +2457,62 @@ theorem push_gen_list_refines {pers rst lst rsd lsd gen t0 o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.push_gen_list pers rst rsd gen t0 = ok o) :
-    SimD pers lst o (pushGenList lsd (absIDeclL gen) (absNIdx t0)) := by sorry
+    SimD pers lst o (pushGenList lsd (absIDeclL gen) (absNIdx t0)) := by
+  rw [frontend.export_c.push_gen_list] at h
+  have key : ∀ (n : Nat) (i : Std.Usize) (rst : arena.monad.AState) (lst : AState)
+      (rsd : frontend.export_c.StateD) (lsd : StateD) o,
+      gen.val.length - i.val = n →
+      AStateRel₀ pers rst lst → AStateInv pers rst → StateDRel rsd lsd → StateDInv rsd →
+      frontend.export_c.push_gen_list_loop pers rst rsd gen t0 (alloc.vec.Vec.len gen) i = ok o →
+      SimD pers lst o (pushGenList lsd ((gen.val.drop i.val).map absIDeclaration) (absNIdx t0)) := by
+    intro n
+    induction n with
+    | zero =>
+      intro i rst lst rsd lsd o hn hrel hinv hd hi h
+      rw [frontend.export_c.push_gen_list_loop, if_neg (by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le (by omega)]
+      exact ⟨lsd, lst, rfl, hd, hi, hrel, hinv⟩
+    | succ k ih =>
+      intro i rst lst rsd lsd o hn hrel hinv hd hi h
+      have hi' : i.val < gen.val.length := by omega
+      rw [frontend.export_c.push_gen_list_loop, if_pos (by scalar_tac),
+        vec_index_ok_eq gen i hi', bind_tc_ok] at h
+      obtain ⟨names, hnames, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hnm := i_declaration_names_abs hnames
+      obtain ⟨d2, hd2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hdd := i_declaration_dup_abs hd2
+      obtain ⟨⟨r, ar1, st1⟩, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hP := push_gen_d_refines hrel hinv hd hi hp
+      rw [hdd] at hP
+      rw [List.drop_eq_getElem_cons hi', List.map_cons]
+      unfold SimD
+      simp only [pushGenList]
+      rw [am_run_bind']
+      unfold SimD at hP
+      cases r with
+      | Err e =>
+        cases Result.ok_injective h
+        cases e with
+        | Err ce => exact AErrSim.bind hP _
+        | Verdict v => exact hP.elim
+      | Ok u =>
+        obtain ⟨lsd1, lst1, hx1, hd1, hi1, hrel1, hinv1⟩ := hP
+        rw [hx1, except_ok_bind]
+        obtain ⟨st2, hst2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨hd2', hi2'⟩ := note_gen_names_refines hd1 hi1 hst2
+        obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi3v : i3.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi3).trans (by simp)
+        have hrec := ih i3 ar1 lst1 st2 _ o (by omega) hrel1 hinv1 hd2' hi2' h
+        rw [hi3v] at hrec
+        rw [am_run_bind']
+        show SimD pers lst1 o _ 
+        refine SimD.of_run_eq hrec ?_
+        simp only [noteGen]
+        rw [← hnm]
+        rfl
+  have := key _ 0#usize rst lst rsd lsd o rfl hrel hinv hd hi h
+  simpa [absIDeclL] using this
 
 /-! ## Two spine walks -/
 
