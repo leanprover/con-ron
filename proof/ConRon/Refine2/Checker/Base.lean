@@ -2060,10 +2060,60 @@ theorem install_value_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ absEIdx pers lst o
       (installValueTailSpec (lf.restrictTo (absU vis)) (absIConstantVal cv)
         (absEIdx value_a)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_split.install_value_tail, installValueTailSpec]
+  simp only [am_fail_bind]
+  have hU : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun r v => absAErrKind r = lAErrKind v)
+        (arena.checker_base.unresolved_consts_error pers st value_a) lst
+        (unresolvedConstsError "value" (absEIdx value_a)) :=
+    fun hrel hinv => Lockstep.unresolved_consts_error_ls "value" hrel hinv
+  chk_lockstep
+
+open Lockstep in
+@[lockstep] theorem install_value_tail_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {cv : arena.env.IConstantVal} {value_a : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.checker_split.install_value_tail pers vis st rf cv value_a) lst
+      (installValueTailSpec (lf.restrictTo (absU vis)) (absIConstantVal cv)
+        (absEIdx value_a)) :=
+  LS.ofSim₀ fun _ h => install_value_tail_refines hrel hinv hfe.rel hfe.inv h
+
+/-- `install_value` by `lockstep`, with its two `arena::expr_ops` callees as
+hypotheses (the ExprOps lane's `loose_bvars_bounded_fast_ls`/`has_fvar_fast_ls`,
+not on `arena` yet). -/
+theorem install_value_of {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
+    {value : arena.handle.EIdx} {o}
+    (hL : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = id a)
+        (arena.expr_ops.loose_bvars_bounded_fast pers st arena.core.CORE_WALK_FUEL 0#u64
+          value) lst
+        (looseBVarsBoundedFast coreWalkFuel 0 (absEIdx value)))
+    (hH : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = id a)
+        (arena.expr_ops.has_fvar_fast pers st arena.core.CORE_WALK_FUEL value) lst
+        (hasFvarFast coreWalkFuel (absEIdx value)))
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hrun : arena.checker_split.install_value pers vis st mode rf cv value = ok o) :
+    Sim₀ absEIdx pers lst o
+      (installValue (ConRon.Refine.absMode mode) (lf.restrictTo (absU vis))
+        (absIConstantVal cv) (absEIdx value)) := by
+  have hctx := IFEnvInv.coreCtxAt vis hfe hfinv
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_split.install_value, installValue_unfold]
+  simp only [am_fail_bind]
+  chk_lockstep
 
 /-- **`install_value` ⊑ `installValue`** — the value half of
-`check{Defn,Thm,Opaque}Val` minus its inference. -/
+`check{Defn,Thm,Opaque}Val` minus its inference.  **Closed modulo the ExprOps
+lane**: `install_value_of` is the whole proof; the two `sorry`s are
+`loose_bvars_bounded_fast_ls`/`has_fvar_fast_ls` (branch `t2-lock-exprops-b`). -/
 theorem install_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
     {value : arena.handle.EIdx} {o}
@@ -2072,8 +2122,99 @@ theorem install_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrun : arena.checker_split.install_value pers vis st mode rf cv value = ok o) :
     Sim₀ absEIdx pers lst o
       (installValue (ConRon.Refine.absMode mode) (lf.restrictTo (absU vis))
-        (absIConstantVal cv) (absEIdx value)) := by
-  sorry
+        (absIConstantVal cv) (absEIdx value)) :=
+  install_value_of (fun _ _ => sorry) (fun _ _ => sorry) hrel hinv hfe hfinv hrun
+
+open Lockstep in
+/-- `install_value` at the restricted index (`check_value_group_value`'s call). -/
+@[lockstep] theorem install_value_at_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
+    {value : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.checker_split.install_value pers vis st mode rf cv value) lst
+      (installValue (ConRon.Refine.absMode mode) (lf.restrictTo (absU vis))
+        (absIConstantVal cv) (absEIdx value)) :=
+  LS.ofSim₀ fun _ h => install_value_refines hrel hinv hfe.rel hfe.inv h
+
+/-- `check_value_group_tail` is `check_value_group`'s tail: the value's type
+against the declared one.
+
+**PROVED** (task #97-T2-LOCKSTEP step 1), once the twin's type-mismatch
+decline became the Rust's constant `s!"type mismatch in {g.kind.word}"`: the
+old twin message read the constant's name (`readName`), a twin-only store read
+that throws `.internal` at a dangling name, and that divergence was what
+stopped task #97-P5-Top round 3 here.  Since task #97-T2-LOCKSTEP lane
+Checker it is one `lockstep` call (`infer_type_core ; is_def_eq_core` at the
+prefix view), with no precondition on the twin. -/
+theorem check_value_group_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
+    {jv : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hrun : arena.checker_split.check_value_group_tail pers vis st mode rf g jv
+      = ok o) :
+    Sim₀ (fun _ : Unit => ()) pers lst o
+      (checkValueGroupTailSpec (ConRon.Refine.absMode mode)
+        (lf.restrictTo (absU vis)) (absValueGroup g) (absEIdx jv)) := by
+  have hctx := IFEnvInv.coreCtxAt vis hfe hfinv
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.checker_split.check_value_group_tail, checkValueGroupTailSpec]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_value_group_tail_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
+    {jv : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun _ b => b = ())
+      (arena.checker_split.check_value_group_tail pers vis st mode rf g jv) lst
+      (checkValueGroupTailSpec (ConRon.Refine.absMode mode)
+        (lf.restrictTo (absU vis)) (absValueGroup g) (absEIdx jv)) :=
+  LS.ofSim₀ fun _ h => check_value_group_tail_refines hrel hinv hfe.rel hfe.inv h
+
+namespace Lockstep
+
+@[lockstep] theorem chk_zero_level_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absLIdx a) (arena.core.zero_level st) st lst zeroLevel := by
+  rw [arena.core.zero_level, zeroLevel]
+  exact LSR.ofSimRE hrel hinv fun _ h => pin_zero_level_refines hrel hinv h
+
+@[lockstep] theorem chk_lvl_eq_ls {pers st lst} {u v : arena.handle.LIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.core.lvl_eq pers st u v) lst
+      (lvlEq? (absLIdx u) (absLIdx v)) :=
+  LS.ofSim₀ fun _ h => lvl_eq_refines hrel hinv h
+
+@[lockstep] theorem is_thm_spec (k : arena.checker_split.ValueKind) :
+    LSP (arena.checker_split.is_thm k) (fun o => TwinEq (absValueKind k == .thm) o) :=
+  fun _ h => (is_thm_refines h).symm
+
+/-- `lift_fueled` against `liftFueled what`: the twin's `what` is message text,
+so a caller passes this at its word as a local hypothesis. -/
+theorem lift_fueled_ls {pers st lst} (what : String) (o : Option Bool)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = a) (arena.core.lift_fueled o) st lst (liftFueled what o) := by
+  intro r h
+  cases o with
+  | some a =>
+    simp only [arena.core.lift_fueled, Result.ok.injEq] at h
+    subst h
+    exact ⟨a, lst, rfl, rfl, hrel, hinv⟩
+  | none =>
+    rw [arena.core.lift_fueled] at h
+    obtain ⟨_, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain rfl := fail_run h
+    exact errSim_fail rfl
+
+end Lockstep
+
+attribute [lockstep_simp] absIConstantInfo absValueGroup absValueKind Option.map_some
+  Option.map_none
 
 /-- `check_value_group_value` is `check_value_group`'s middle: the theorem's
 is-a-proposition test and, for a theorem, the value's guards and annotation.
@@ -2100,32 +2241,17 @@ theorem check_value_group_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ (fun _ : Unit => ()) pers lst o
       (checkValueGroupValueSpec (ConRon.Refine.absMode mode)
         (lf.restrictTo (absU vis)) (absValueGroup g) (absLIdx u)) := by
-  sorry
-
-/-- `check_value_group_tail` is `check_value_group`'s tail: the value's type
-against the declared one.
-
-**PROVED** (task #97-T2-LOCKSTEP step 1), once the twin's type-mismatch
-decline became the Rust's constant `s!"type mismatch in {g.kind.word}"`: the
-old twin message read the constant's name (`readName`), a twin-only store read
-that throws `.internal` at a dangling name, and that divergence was what
-stopped task #97-P5-Top round 3 here.  Since task #97-T2-LOCKSTEP lane
-Checker it is one `lockstep` call (`infer_type_core ; is_def_eq_core` at the
-prefix view), with no precondition on the twin. -/
-theorem check_value_group_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
-    {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
-    {jv : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.checker_split.check_value_group_tail pers vis st mode rf g jv
-      = ok o) :
-    Sim₀ (fun _ : Unit => ()) pers lst o
-      (checkValueGroupTailSpec (ConRon.Refine.absMode mode)
-        (lf.restrictTo (absU vis)) (absValueGroup g) (absEIdx jv)) := by
-  have hctx := IFEnvInv.coreCtxAt vis hfe hfinv
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
   refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.checker_split.check_value_group_tail, checkValueGroupTailSpec]
-  lockstep
+  rw [arena.checker_split.check_value_group_value, checkValueGroupValueSpec]
+  have hF : ∀ {st lst} (o : Option Bool), AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LSR pers (fun a b => b = a) (arena.core.lift_fueled o) st lst
+        (liftFueled "level comparison" o) :=
+    fun o hrel hinv => Lockstep.lift_fueled_ls "level comparison" o hrel hinv
+  rcases g with ⟨k, cva, jv⟩
+  cases k <;> chk_lockstep
+  -- the Rust's `is_thm` at a theorem answered `false`: ruled out by its spec
+  all_goals exfalso; simp_all [Lockstep.TwinEq, absValueKind]
 
 open Lockstep in
 @[lockstep] theorem check_value_group_value_ls {pers st lst} {vis : Std.U64} {rf lf}
@@ -2316,9 +2442,6 @@ macro_rules
 
 @[lockstep_simp] theorem absNIdxLFrom_zero (ns : alloc.vec.Vec arena.handle.NIdx) :
     absNIdxLFrom ns 0#usize = absNIdxL ns := by simp [absNIdxLFrom, absNIdxL]
-
-attribute [lockstep_simp] absIConstantInfo absValueGroup absValueKind Option.map_some
-  Option.map_none
 
 @[lockstep_simp] theorem absINatOpPinSetLFrom_zero
     (v : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet) :
