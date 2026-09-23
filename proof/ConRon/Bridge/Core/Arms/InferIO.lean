@@ -193,6 +193,26 @@ theorem inferIO_strLit {F d : Nat} {s : String}
   split <;> simp only [ConLeche.inferBodyIO, ConLeche.inferBody, h, if_true,
     pure, Except.pure]
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1318-1327 inferBodyIO — **the io
+∀-formation rule**: `Infer.lean`'s `infer_forallE` with both inferences at
+the io grade (the record `CoreFns.ioView` passes down). -/
+theorem inferIO_forallE {F d : Nat} {ty body tty bt : Expr} {mb : BinderMeta}
+    {u v : Level} (hg : mode.betaGate = true)
+    (hty : ConLeche.inferTypeIO mode env F d ty = .ok tty)
+    (hw : ConLeche.whnf mode env F d tty = .ok (.sort u))
+    (hb : ConLeche.inferTypeIO mode env F (d + 1)
+      (body.instantiate1 (.fvar d ty)) = .ok bt)
+    (hv : ConLeche.whnf mode env F (d + 1) bt = .ok (.sort v))
+    (hz : mode.verifiedChecks = true → (Level.zeronessOf v == mb.pw) = true) :
+    ConLeche.inferTypeIO mode env (F + 1) d (.forallE ty body mb) =
+      .ok (.sort (.imax u v)) := by
+  rw [ConLeche.inferTypeIO_succ, if_pos hg]
+  simp only [ConLeche.inferBodyIO, CoreFns.ioView, ConLeche.inferTypeIO_def,
+    ConLeche.ensureSort, ConLeche.whnf_def, hty, hw, hb, hv, bind, Except.bind]
+  cases hm : mode.verifiedChecks with
+  | false => simp [pure, Except.pure]
+  | true => simp only [hz hm, pure, Except.pure]; simp
+
 /-! ### The dispatch's children (task #97-P3-Core round 5)
 
 `inferBodyIO_spec` below is a case split on the tag: one child per group of
@@ -220,7 +240,8 @@ theorem inferBodyIO_app {fe : IFEnv} {fuel : Nat}
 /-- con-leche: ConLeche/Kernel/Core.lean:1318-1327 inferBodyIO — **the `.forallE`
 clause**, chained: `KnotSpec.infer`, `KnotSpec.whnf'`, `instantiate1Fast`,
 `ensureSort`, `readLevelM`; pure side `Infer.lean`'s `infer_forallE` at the
-io grade. -/
+io grade.
+**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem inferBodyIO_forallE {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
     (hg : mode.betaGate = true)     (hsim : KnotSpec mode env fe fuel)
@@ -233,7 +254,156 @@ theorem inferBodyIO_forallE {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v
+  case forallE ty b m =>
+    obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_forallE_inv hwf hv hden
+    have hwt : Expr.WScoped d et := by unfold Expr.WScoped at hw; exact hw.1
+    have hwb : Expr.WScoped d eb := by unfold Expr.WScoped at hw; exact hw.2
+    have hi : ∀ (s : AState) (d' : Nat) (j : EIdx), CheckOK mode env fe s →
+        (∃ e, denoteE s.store j = some e ∧ Expr.WScoped d' e) →
+        ⦃fun s' => ⌜s' = s⌝⦄ (CoreFnsA.ioView (coreKnot mode fe id fuel)).infer d' j
+        ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s.store s'.store ∧
+            s'.pins = s.pins ∧ ∀ e, denoteE s.store j = some e →
+              SimE (ConLeche.inferTypeIO mode env) d' e s'.store r⌝⦄ :=
+      fun s d' j hck hdw => hsim.inferIO' s d' j hck hdw
+    have hn : ∀ (s : AState) (d' : Nat) (j : EIdx), CheckOK mode env fe s →
+        (∃ e, denoteE s.store j = some e ∧ Expr.WScoped d' e) →
+        ⦃fun s' => ⌜s' = s⌝⦄ (CoreFnsA.ioView (coreKnot mode fe id fuel)).whnf d' j
+        ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s.store s'.store ∧
+            s'.pins = s.pins ∧ ∀ e, denoteE s.store j = some e →
+              SimE (ConLeche.whnf mode env) d' e s'.store r⌝⦄ :=
+      fun s d' j hck hdw => hsim.whnf' s d' j hck hdw
+    have hin := fun (s : AState) (fv : EIdx) (hs : StateOK s)
+        (hvs : (denoteE s.store fv).isSome = true)
+        (hbs : (denoteE s.store b).isSome = true) =>
+      instantiate1Fast_specE coreWalkFuel s b fv 0 hs hvs hbs
+    mvcgen [ConRon.Arena.ensureSort, hi, hn, hin]
+    all_goals (bridge_peel; subst_vars)
+    case vc2.a => exact ⟨et, hdt, hwt⟩
+    case vc4.a =>
+      rename_i s1 r0 s0 ck_s0 x_s1_s0 p_s0_s1 hse
+      exact SimE.exists_denote (hse et hdt)
+    case vc6.hv =>
+      rename_i s2 r1 s1 r0 u0 s0 ck_s1 x_s2_s1 p_s1_s2 hse ck_s0 v_r0_s0 x_s1_s0
+        p_s0_s1 hse_2
+      exact viewOK_fvar (by rw [denote_ext hdt (x_s2_s1.trans x_s1_s0)]; rfl)
+    case vc8.hvs =>
+      rename_i s3 r2 s2 r1 u0 s1 r0 s0 ck_s2 wf_s0 x_s3_s2 x_s1_s0 p_s2_s3 hse _ _
+        c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 ck_s1 v_r1_s1 x_s2_s1 p_s1_s2 hse_2
+      rw [d_r0_s0]
+      simp [denoteEView, denote_ext hdt (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))]
+    case vc9.hbs =>
+      rename_i s3 r2 s2 r1 u0 s1 r0 s0 ck_s2 wf_s0 x_s3_s2 x_s1_s0 p_s2_s3 hse _ _
+        c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 ck_s1 v_r1_s1 x_s2_s1 p_s1_s2 hse_2
+      rw [denote_ext hdb (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))]; rfl
+    case vc10.a =>
+      rename_i s4 r3 s3 r2 u0 s2 r1 s1 r0 s0 ck_s3 wf_s1 sok x_s4_s3 x_s2_s1
+        x_s1_s0 p_s3_s4 hse _ c_s0_s1 _ p_s0_s1 c_s1_s2 _ hia p_s1_s2 _ _ v_r1_s1
+        d_r1_s1 ck_s2 v_r2_s2 x_s3_s2 p_s2_s3 hse_2
+      exact ck_s2.mono sok (x_s2_s1.trans x_s1_s0) (c_s0_s1.trans c_s1_s2)
+        (p_s0_s1.trans p_s1_s2)
+    case vc11.a =>
+      rename_i s4 r3 s3 r2 u0 s2 r1 s1 r0 s0 ck_s3 wf_s1 sok x_s4_s3 x_s2_s1
+        x_s1_s0 p_s3_s4 hse _ c_s0_s1 _ p_s0_s1 c_s1_s2 _ hia p_s1_s2 _ _ v_r1_s1
+        d_r1_s1 ck_s2 v_r2_s2 x_s3_s2 p_s2_s3 hse_2
+      have x41 := x_s4_s3.trans (x_s3_s2.trans x_s2_s1)
+      have hfv : denoteE s1.store r1 = some (.fvar d et) := by
+        rw [d_r1_s1]; simp [denoteEView, denote_ext hdt x41]
+      exact ⟨_, hia _ hfv eb (denote_ext hdb x41),
+        Expr.WScoped.instantiate1 hwt 0 hwb⟩
+    case vc13.a =>
+      rename_i s5 r4 s4 r3 u0 s3 r2 s2 r1 s1 r0 s0 ck_s4 wf_s2 sok ck_s0 x_s5_s4
+        x_s3_s2 x_s2_s1 x_s1_s0 p_s4_s5 hse _ c_s1_s2 p_s0_s1 hse_2 _ p_s1_s2
+        c_s2_s3 _ hia p_s2_s3 _ _ v_r2_s2 d_r2_s2 ck_s3 v_r3_s3 x_s4_s3 p_s3_s4
+        hse_3
+      have x52 := x_s5_s4.trans (x_s4_s3.trans x_s3_s2)
+      have hfv : denoteE s2.store r2 = some (.fvar d et) := by
+        rw [d_r2_s2]; simp [denoteEView, denote_ext hdt x52]
+      exact SimE.exists_denote (hse_2 _ (hia _ hfv eb (denote_ext hdb x52)))
+    case vc16.hwf =>
+      rename_i s7 r6 s6 r5 u1 s5 r4 s4 r3 s3 r2 s2 r1 u0 s1 _ _ r0 s0 hbeq0 ck_s6
+        wf_s4 sok ck_s2 hst01 x_s7_s6 x_s5_s4 x_s4_s3 x_s3_s2 _ p_s6_s7 hse _
+        c_s3_s4 p_s2_s3 hse_2 p_s0_s1 _ p_s3_s4 _ c_s4_s5 _ hia dl_u0_s1 _ p_s4_s5
+        _ _ v_r4_s4 d_r4_s4 ck_s5 v_r5_s5 x_s6_s5 p_s5_s6 hse_3 ck_s1 v_r1_s1
+        x_s2_s1 p_s1_s2 hse_4
+      rw [hst01]; exact ck_s1.state.wf
+    case vc17.hv =>
+      rename_i s7 r6 s6 r5 u1 s5 r4 s4 r3 s3 r2 s2 r1 u0 s1 _ _ r0 s0 hbeq0 ck_s6
+        wf_s4 sok ck_s2 hst01 x_s7_s6 x_s5_s4 x_s4_s3 x_s3_s2 _ p_s6_s7 hse _
+        c_s3_s4 p_s2_s3 hse_2 p_s0_s1 _ p_s3_s4 _ c_s4_s5 _ hia dl_u0_s1 _ p_s4_s5
+        _ _ v_r4_s4 d_r4_s4 ck_s5 v_r5_s5 x_s6_s5 p_s5_s6 hse_3 ck_s1 v_r1_s1
+        x_s2_s1 p_s1_s2 hse_4
+      obtain ⟨T, hT, _⟩ := hse et hdt
+      obtain ⟨W, hW, _⟩ := hse_3 T hT
+      obtain ⟨U1, rfl, hU1⟩ := denote_sort_inv ck_s5.state.wf v_r5_s5 hW
+      have hU1' := denoteL_ext hU1
+        (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans x_s2_s1)))
+      rw [hst01]
+      constructor
+      · intro c hc
+        simp only [LNodeView.lchildren, List.mem_cons, List.mem_singleton,
+          List.not_mem_nil, or_false] at hc
+        rcases hc with rfl | rfl
+        · exact lview_isSome_of_denote hU1'
+        · exact lview_isSome_of_denote dl_u0_s1
+      · intro c hc; simp [LNodeView.nchildren] at hc
+    case vc18.post.success.post.success.post.success.h_1.post.success.post.success.post.success.post.success.post.success.h_1.isTrue.post.success.isFalse.post.success.post.success =>
+      rename_i s9 r8 s8 r7 u1 s7 r6 s6 r5 s5 r4 s4 r3 u0 s3 _ hμ2 r2 s2 hbeq0 r1 s1
+        r0 s0 ck_s8 wf_s6 sok ck_s4 hst23 wf_s1 x_s9_s8 x_s7_s6 x_s6_s5 x_s5_s4
+        hm23 x_s2_s1 p_s8_s9 hse _ c_s5_s6 p_s4_s5 hse_2 p_s2_s3 _ _ p_s5_s6 hc23
+        _ c_s6_s7 _ hia dl_u0_s3 hL2 _ p_s6_s7 _ _ c_s1_s2 _ p_s1_s2 v_r6_s6
+        d_r6_s6 vl_r1_s1 dl_r1_s1 ck_s7 v_r7_s7 x_s8_s7 p_s7_s8 hse_3 ck_s3
+        v_r3_s3 x_s4_s3 p_s3_s4 hse_4
+      intro wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ _ d_r0_s0
+      have ck2 := CheckOK.ofReadbackFrame ck_s3
+        (ReadbackFrame.ofReadL hst23 hm23 p_s2_s3 hc23 hL2)
+      have x32 : Ext s3.store s2.store := by rw [hst23]; exact Ext.refl _
+      have x96 := x_s9_s8.trans (x_s8_s7.trans x_s7_s6)
+      have x71 := x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
+        (x32.trans x_s2_s1))))
+      refine ⟨ck2.mono ⟨wf_s0⟩ (x_s2_s1.trans x_s1_s0) (c_s0_s1.trans c_s1_s2)
+          (p_s0_s1.trans p_s1_s2),
+        x_s9_s8.trans (x_s8_s7.trans (x71.trans x_s1_s0)),
+        p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans
+          (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans p_s8_s9))))))), ?_⟩
+      obtain ⟨T, hT, _, F1, hF1⟩ := hse et hdt
+      obtain ⟨W, hW, _, F2, hF2⟩ := hse_3 T hT
+      obtain ⟨U1, rfl, hU1⟩ := denote_sort_inv ck_s7.state.wf v_r7_s7 hW
+      have hfv : denoteE s6.store r6 = some (.fvar d et) := by
+        rw [d_r6_s6]; simp [denoteEView, denote_ext hdt x96]
+      obtain ⟨TB, hTB, _, F3, hF3⟩ := hse_2 _ (hia _ hfv eb (denote_ext hdb x96))
+      obtain ⟨W2, hW2, _, F4, hF4⟩ := hse_4 TB hTB
+      obtain ⟨U0, rfl, hU0⟩ := denote_sort_inv ck_s3.state.wf v_r3_s3 hW2
+      obtain rfl : r2 = U0 := Option.some.inj (dl_u0_s3.symm.trans hU0)
+      have hz : mode.verifiedChecks = true → (r2.zeronessOf == m.pw) = true :=
+        fun _ => by simpa using hbeq0
+      have hl1 : denoteL s1.store.ls r1 = some (.imax U1 r2) := by
+        rw [dl_r1_s1]
+        simp [denoteLView, opt2, denoteL_ext hU1 x71,
+          denoteL_ext hU0 (x32.trans x_s2_s1)]
+      refine ⟨.sort (.imax U1 r2), ?_, by unfold Expr.WScoped; trivial,
+        max F1 (max F2 (max F3 F4)) + 1, ?_⟩
+      · rw [d_r0_s0]; simp [denoteEView, denoteL_ext hl1 x_s1_s0]
+      · exact inferIO_forallE hg
+          (ConLeche.inferTypeIO_mono (by omega) hF1)
+          (ConLeche.whnf_mono (by omega) hF2)
+          (ConLeche.inferTypeIO_mono (by omega) hF3)
+          (ConLeche.whnf_mono (by omega) hF4) hz
+    case vc19 => intro s hwf _ _ _ _ _ _ _ _ _; exact hwf
+    case vc20 =>
+      intro s _ _ _ _ _ _ _ _ hview _
+      exact viewOK_sort (by rw [hview]; rfl)
+    all_goals first
+      | assumption
+      | exact fun h => h.elim
+      | (apply CheckOK.wf'; assumption)
+      | (constructor; assumption)
+      | (apply CacheOK.readL; apply CheckOK.caches; assumption)
+  all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1328-1349 inferBodyIO — **the `.lam`
 clause**, chained and with no domain-sort run: `instantiate1Fast`,
@@ -496,7 +666,8 @@ section Census
 #print axioms inferBodyIO_const
 #print axioms inferBodyIO_lit
 #print axioms inferBodyIO_leaf
-
+#print axioms inferIO_forallE
+#print axioms inferBodyIO_forallE
 end Census
 
 end ConRon.Bridge.Core
