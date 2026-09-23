@@ -71,21 +71,18 @@ abstraction is `absEIdxList` with no reversal.  The same holds of
 
 ## Proofs
 
-**Eight of the sixty-five are closed (task #97-P5-3): the packed-range family**
-— `bvar_bound_go`, `bvar_bound_memo`, `fvar_range_go`, `fvar_range_memo`,
-`bvar_b`, `fvar_b`, `has_fvar_fast`, `loose_bvars_bounded_fast` — which read
-the derived column and the per-declaration memo and **intern nothing**.  They
-are `ExprOps/Read.lean`'s memo idiom at a walk whose memo lives in the STATE
-(`bvarBGet`/`bvarBSet`) rather than being threaded, so they are `Sim` and not
-`WOut`.
-
-**The other fifty-seven all intern**, and every intern wrapper they reach is
-one of `Refine2/Specs.lean`'s remaining twelve — `intern_e_run` above all,
-which waits on `Arena/WFProofs.lean`'s `EStore.internBindI_ext` (written on
-branch `wf-ext`, not yet on `arena`).  So the thirteen `intern_rebuilt_*` are
-only the most visible of fifty-seven blocked by one merge.  The STATEMENT is the deliverable, and it elaborates — which is
-what makes it worth anything.  The `Specs.lean` primitives each group waits on
-are named in its section note.
+**All sixty-five are closed** (task #97-P5-Mut round 2 closed the last 41).
+The packed-range family (task #97-P5-3) interns nothing and is `Sim` directly.
+Every interning walk is proved at `WOutE Q` — `AOut` plus "the answer
+resolves", `EViewExt` (what decoded still decodes), the port's tier flags and
+a side invariant `Q` of the post-state, the memo clause `MemoRes` for a
+memoised walk — and projects its public `Sim` at the boundary (finding 19).
+The public statements were CORRECTED, never weakened: each gained only the
+hypotheses the port genuinely needs (`hfrozen`; that the handles walked or
+substituted in resolve; the memo clause for a `_go` walk; `RenameRes` for the
+renaming dictionary; well-formed level substitutions and the nested store
+flags for `instLP*`).  DESIGN.md's `### Task #97-P5-Mut` `#### Round 2` has
+the list and the costs.
 -/
 import ConRon.Refine2.Specs
 import ConRon.Refine2.ExprOps.Pure
@@ -14964,5 +14961,143 @@ still a `sorry`: see the module note. -/
 
 /-- info: 'ConRon.Refine2.intern_rebuilt_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms intern_rebuilt_refines
+
+
+/-! ### Task #97-P5-Mut round 2's rows: every walk of the file -/
+
+/-- info: 'ConRon.Refine2.abstract1_fast_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms abstract1_fast_refines
+
+/-- info: 'ConRon.Refine2.abstract1_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms abstract1_go_refines
+
+/-- info: 'ConRon.Refine2.abstract_range_fast_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms abstract_range_fast_refines
+
+/-- info: 'ConRon.Refine2.abstract_range_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms abstract_range_go_refines
+
+/-- info: 'ConRon.Refine2.abstract_range_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms abstract_range_refines
+
+/-- info: 'ConRon.Refine2.bvar_range_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms bvar_range_refines
+
+/-- info: 'ConRon.Refine2.instantiate1_fast_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms instantiate1_fast_refines
+
+/-- info: 'ConRon.Refine2.instantiate1_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms instantiate1_go_refines
+
+/-- info: 'ConRon.Refine2.instantiate1_lift_fast_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms instantiate1_lift_fast_refines
+
+/-- info: 'ConRon.Refine2.instantiate1_lift_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms instantiate1_lift_go_refines
+
+/-- info: 'ConRon.Refine2.instantiate_list_fast_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms instantiate_list_fast_refines
+
+/-- info: 'ConRon.Refine2.instantiate_list_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms instantiate_list_go_refines
+
+/-- info: 'ConRon.Refine2.instantiate_list_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms instantiate_list_refines
+
+/-- info: 'ConRon.Refine2.inst_lams_at_f_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_lams_at_f_go_refines
+
+/-- info: 'ConRon.Refine2.inst_lams_at_f_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_lams_at_f_refines
+
+/-- info: 'ConRon.Refine2.inst_lams_at_from_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_lams_at_from_refines
+
+/-- info: 'ConRon.Refine2.inst_lams_at_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_lams_at_refines
+
+/-- info: 'ConRon.Refine2.inst_lp_fast_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_lp_fast_refines
+
+/-- info: 'ConRon.Refine2.inst_lp_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_lp_go_refines
+
+/-- info: 'ConRon.Refine2.inst_pis_at_f_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_pis_at_f_go_refines
+
+/-- info: 'ConRon.Refine2.inst_pis_at_f_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_pis_at_f_refines
+
+/-- info: 'ConRon.Refine2.inst_pis_at_from_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_pis_at_from_refines
+
+/-- info: 'ConRon.Refine2.inst_pis_at_lift_from_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_pis_at_lift_from_refines
+
+/-- info: 'ConRon.Refine2.inst_pis_at_lift_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_pis_at_lift_refines
+
+/-- info: 'ConRon.Refine2.inst_pis_at_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_pis_at_refines
+
+/-- info: 'ConRon.Refine2.inst_pis_from_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_pis_from_refines
+
+/-- info: 'ConRon.Refine2.inst_pis_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_pis_refines
+
+/-- info: 'ConRon.Refine2.inst_spine_from_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_spine_from_refines
+
+/-- info: 'ConRon.Refine2.inst_spine_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms inst_spine_refines
+
+/-- info: 'ConRon.Refine2.intern_rebuilt_bind_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_rebuilt_bind_refines
+
+/-- info: 'ConRon.Refine2.intern_rebuilt_forall_e_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_rebuilt_forall_e_refines
+
+/-- info: 'ConRon.Refine2.intern_rebuilt_lam_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms intern_rebuilt_lam_refines
+
+/-- info: 'ConRon.Refine2.lift_loose_bvars_fast_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lift_loose_bvars_fast_refines
+
+/-- info: 'ConRon.Refine2.lift_loose_bvars_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lift_loose_bvars_go_refines
+
+/-- info: 'ConRon.Refine2.lower_bvars_fast_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lower_bvars_fast_refines
+
+/-- info: 'ConRon.Refine2.lower_bvars_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lower_bvars_go_refines
+
+/-- info: 'ConRon.Refine2.pis_to_lams_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pis_to_lams_refines
+
+/-- info: 'ConRon.Refine2.rec_rule_plain_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms rec_rule_plain_refines
+
+/-- info: 'ConRon.Refine2.rename_consts_fast_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms rename_consts_fast_refines
+
+/-- info: 'ConRon.Refine2.rename_consts_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms rename_consts_go_refines
+
+/-- info: 'ConRon.Refine2.replace_pi_body_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms replace_pi_body_refines
+
+/-- info: 'ConRon.Refine2.reset_meta_fast_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms reset_meta_fast_refines
+
+/-- info: 'ConRon.Refine2.reset_meta_go_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms reset_meta_go_refines
+
+/-- info: 'ConRon.Refine2.subst_l_memo_at_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms subst_l_memo_at_refines
+
+/-- info: 'ConRon.Refine2.subst_ls_memo_at_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms subst_ls_memo_at_refines
 
 end ConRon.Refine2
