@@ -358,7 +358,8 @@ theorem LS.twin_get_bind {α δ : Type} {pers : arena.store.PersTier} {R : α �
 
 /-! ## The tactic -/
 
-attribute [lockstep_simp] Aeneas.Std.uncurry_apply_pair
+attribute [lockstep_simp] Aeneas.Std.uncurry_apply_pair not_false_eq_true not_true_eq_false
+  Bool.false_eq_true Bool.true_eq_false eq_self_iff_true and_true true_and ne_eq
 
 
 open Lean Meta Elab Tactic
@@ -474,7 +475,8 @@ elab "lockstep_spec" : tactic => do
 def tidy (g : MVarId) (hR : Option Name) : TacticM (List MVarId) := do
   runOn g do
     if let some h := hR then
-      evalT `(tactic| try subst $(mkIdent h):ident)
+      let hi := mkIdent h
+      evalT `(tactic| first | subst $hi:ident | (obtain ⟨_, $hi:ident⟩ := $hi:ident; subst $hi:ident) | skip)
     evalT `(tactic| try dsimp only)
     evalT `(tactic| try simp only [lockstep_simp])
 
@@ -523,9 +525,16 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
   -- the Rust side branches
   if m.isAppOfArity ``ite 5 then
     let gs ← applyRule g ``LS.ite
-    let g1 ← contra (← cont (← pick gs `h₁) [`hc] none)
+    let g1 ← contra (← cont (← pick gs `h₁) [`hc] (some `hc))
     let g2 ← contra (← cont (← pick gs `h₂) [`hc] none)
     return g1 ++ g2
+  if m.isAppOfArity ``Aeneas.Std.uncurry 5 then
+    if let .fvar fv := m.appArg! then
+      let subs ← g.cases fv
+      let mut out := []
+      for sg in subs do
+        out := out ++ (← tidy sg.mvarId none)
+      return out
   if let some mapp ← matchMatcherApp? m then
     let d := mapp.discrs.find? (·.isFVar)
     match d with
@@ -543,11 +552,12 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
       let gs ← applyRule g ``LS.twin_ite_pos
       runClosed (← pick gs `hc) (evalT `(tactic| lockstep_side))
       return [← pick gs `h]
-    catch _ =>
-      s.restore
+    catch _ => s.restore
+    try
       let gs ← applyRule g ``LS.twin_ite_neg
       runClosed (← pick gs `hc) (evalT `(tactic| lockstep_side))
       return [← pick gs `h]
+    catch _ => s.restore
   if x.isAppOfArity ``Bind.bind 6 then
     let a := (x.getArg! 4).headBeta
     if a.isAppOfArity ``Pure.pure 4 then
@@ -599,6 +609,11 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
       match kind with
       | .read => throw e
       | _ => pure ()
+    -- a Rust call that reads the state must have a twin partner
+    for arg in f.getAppArgs do
+      if (← whnfR (← inferType arg)).isConstOf ``arena.monad.AState then
+        throwError "lockstep: the Rust reads the state at `{f.getAppFn}` and no \
+          @[lockstep] lemma pairs it with the twin's next action{indentExpr x}"
     let gs ← applyRule g ``LS.bind_eq
     return ← cont (← pick gs `hk) [`a, `hf] none
   -- the leaves

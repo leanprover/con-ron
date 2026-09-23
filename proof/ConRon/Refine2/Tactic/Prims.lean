@@ -30,6 +30,29 @@ open ConRon.Arena ConRon.Refine2
 
 attribute [lockstep_simp] absENodeView Option.map_some Option.map_none absU
 
+/-! ## Condition correspondences (`lockstep_simp`) -/
+
+@[lockstep_simp] theorem absU32_beq_lam (t : Std.U32) :
+    (absU32 t == ETag.lam) = decide (t = arena.handle.ETAG_LAM) := by
+  rw [← etag_lam_abs]
+  by_cases h : t = arena.handle.ETAG_LAM
+  · subst h; simp
+  · have : absU32 t ≠ absU32 arena.handle.ETAG_LAM := fun hc => h (absU32_inj hc)
+    simp [h, this]
+
+@[lockstep_simp] theorem absU32_beq_forallE (t : Std.U32) :
+    (absU32 t == ETag.forallE) = decide (t = arena.handle.ETAG_FORALL_E) := by
+  rw [← etag_forallE_abs]
+  by_cases h : t = arena.handle.ETAG_FORALL_E
+  · subst h; simp
+  · have : absU32 t ≠ absU32 arena.handle.ETAG_FORALL_E := fun hc => h (absU32_inj hc)
+    simp [h, this]
+
+@[lockstep_simp] theorem isBind_forallE : ETag.isBind ETag.forallE = true := rfl
+@[lockstep_simp] theorem isBind_lam : ETag.isBind ETag.lam = true := rfl
+
+attribute [lockstep_simp] decide_eq_true_eq etag_forallE_abs etag_lam_abs absBindM beq_self_eq_true
+
 /-! ## Rust-only steps -/
 
 @[lockstep] theorem dup2_eidx (h : arena.handle.EIdx) :
@@ -44,13 +67,50 @@ attribute [lockstep_simp] absENodeView Option.map_some Option.map_none absU
     LSP (arena.monad.eidx_nat_key h d) (fun k => absEIdxNat k = (absEIdx h, absU d)) :=
   fun _ hk => eidx_nat_key_abs hk
 
-@[lockstep] theorem u64_sub (x y : Std.U64) :
-    LSP (x - y) (fun z => z.val = x.val - y.val ∧ y.val ≤ x.val) := LSP.u64_sub x y
+@[lockstep] theorem uscalar_sub {ty} (x y : Std.UScalar ty) :
+    LSP (x - y) (fun z => z.val = x.val - y.val ∧ y.val ≤ x.val) := by
+  intro z h
+  have := ConRon.Refine.Nat.usub_val h
+  exact ⟨this.2, this.1⟩
 
-@[lockstep] theorem u64_add (x y : Std.U64) :
-    LSP (x + y) (fun z => z.val = x.val + y.val) := LSP.u64_add x y
+@[lockstep] theorem uscalar_add {ty} (x y : Std.UScalar ty) :
+    LSP (x + y) (fun z => z.val = x.val + y.val) :=
+  fun _ h => ConRon.Refine.Nat.uadd_val h
+
+attribute [lockstep_simp] absEIdxListFrom absOptE
+
+@[lockstep] theorem eidx_tag_spec (i : arena.handle.EIdx) :
+    LSP (arena.handle.EIdx.tag i) (fun t => (absEIdx i).tag = absU32 t) :=
+  fun _ h => eidx_tag_abs h
+
+@[lockstep] theorem vec_index_spec {α : Type} (v : alloc.vec.Vec α) (i : Std.Usize) :
+    LSP (alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i)
+      (fun x => ∃ hb : i.val < v.val.length, x = v.val[i.val]) := by
+  intro x h
+  obtain ⟨hb, hx⟩ := ExprOps.vecIndexAt h
+  exact ⟨hb, hx.symm⟩
+
+@[lockstep] theorem fail_dangling_e_spec (T : Type) :
+    LSP (arena.monad.fail_dangling_e T) (fun r => ∃ v, r = .Err (.Internal v)) := by
+  intro r h
+  rw [arena.monad.fail_dangling_e] at h
+  obtain ⟨s, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  exact ⟨v, fail_run h⟩
 
 /-! ## Reads -/
+
+/-- `arena::monad::view_bind` against `Arena.viewBind`, at a binder tag. -/
+@[lockstep] theorem view_bind_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx)
+    (hbind : ETag.isBind (absEIdx h).tag = true) :
+    LSV pers (fun a b => b = Option.map absBindM a) (arena.monad.view_bind pers st h) st lst
+      (Arena.viewBind (absEIdx h)) := by
+  intro o hrun
+  refine ⟨_, lst, rfl, ?_, hrel, hinv⟩
+  rw [arena.monad.view_bind] at hrun
+  exact estore_view_bind_abs hrel.store hbind hrun
+
 
 /-- `arena::monad::view` against `Arena.view` (`view_run` over `AStateRel₀`). -/
 @[lockstep] theorem view_ls {pers st lst} (hrel : AStateRel₀ pers st lst)

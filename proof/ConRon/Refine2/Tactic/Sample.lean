@@ -18,12 +18,40 @@ namespace ConRon.Refine2.Lockstep.Sample
 
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
 
+/-! ## 0. Straight-line intern wrappers: `intern_rebuilt_{app,bind}` (old: 29 / 57 lines) -/
+
+set_option profiler true in
+set_option profiler.threshold 10 in
+theorem intern_rebuilt_app_refines' {pers st lst} {h : arena.handle.EIdx}
+    {same : Bool} {f a : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.expr_ops.intern_rebuilt_app pers st h same f a = ok o) :
+    Sim₀ absEIdx pers lst o (internRebuiltApp (absEIdx h) same (absEIdx f) (absEIdx a)) := by
+  refine LS.toSim₀ ?_ hrun
+  rw [arena.expr_ops.intern_rebuilt_app, internRebuiltApp]
+  lockstep
+
+set_option profiler true in
+set_option profiler.threshold 10 in
+theorem intern_rebuilt_bind_refines' {pers st lst} {h : arena.handle.EIdx}
+    {same : Bool} {tag : Std.U32} {ty body : arena.handle.EIdx}
+    {m : kernel.expr.BinderMeta} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.expr_ops.intern_rebuilt_bind pers st h same tag ty body m = ok o) :
+    Sim₀ absEIdx pers lst o
+      (internRebuiltBind (absEIdx h) same (absU32 tag) (absEIdx ty) (absEIdx body)
+        (ConRon.Refine.absBinderMeta m)) := by
+  refine LS.toSim₀ ?_ hrun
+  rw [arena.expr_ops.intern_rebuilt_bind, internRebuiltBind]
+  lockstep
+
 /-! ## 1. A memoised `_go` walk: `lift_loose_bvars_go` (old: `ExprOps/Mut.lean`, 495 + 9 lines) -/
 
 section lift
 attribute [local lockstep_simp] liftArmApp liftArmLam liftArmForallE liftArmLet liftArmProj
 
 set_option profiler true in
+set_option profiler.threshold 10 in
 theorem lift_loose_bvars_go_aux' (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
       (amount fuel : Std.U64) (h : arena.handle.EIdx) (c : Std.U64),
@@ -53,5 +81,73 @@ theorem lift_loose_bvars_go_refines' {pers st lst} {amount fuel : Std.U64}
 end lift
 
 #print axioms lift_loose_bvars_go_refines'
+
+/-! ## 2. A telescope: `inst_pis_from` (old: `ExprOps/Mut.lean`, 76 + 10 lines) — a D1 function
+
+`instantiate1_fast` is a sibling walk of sample 1; its lockstep statement is
+taken as a hypothesis (`hI1`), which the tactic finds in the context. -/
+
+/-- The lockstep statement of `instantiate1_fast` (the shape sample 1 proves). -/
+def I1Spec : Prop :=
+  ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    (fuel : Std.U64) (e v : arena.handle.EIdx) (d : Std.U64),
+    AStateRel₀ pers st lst → AStateInv pers st →
+    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate1_fast pers st fuel e v d) lst
+      (instantiate1Fast (absU fuel) (absEIdx e) (absEIdx v) (absU d))
+
+set_option profiler true in
+theorem inst_pis_from_aux' (hI1 : I1Spec) (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (fuel : Std.U64) (e : arena.handle.EIdx) (args : alloc.vec.Vec arena.handle.EIdx)
+      (i : Std.Usize),
+      args.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absOptE a) (arena.expr_ops.inst_pis_from pers st fuel e args i) lst
+        (instPis (absU fuel) (absEIdx e) (absEIdxListFrom args i)) := by
+  unfold I1Spec at hI1
+  induction n with
+  | zero =>
+    intro pers st lst fuel e args i hn hrel hinv
+    rw [arena.expr_ops.inst_pis_from, listFrom_nil args i (by omega), instPis]
+    lockstep
+  | succ k ih =>
+    intro pers st lst fuel e args i hn hrel hinv
+    rw [arena.expr_ops.inst_pis_from, listFrom_cons args i (by omega), instPis]
+    lockstep
+    -- STUCK: D1 (see DESIGN #97-T2-TACTIC); the zip stops at the Rust's `view_bind`
+    all_goals sorry
+
+/-- **`instPis` with the D1 fix applied** — the twin spelled tag-first, as the
+Rust is (`if h.tag == ETag.forallE then match ← viewBind h with …`).  This is
+the twin edit task #97-T2-AUDIT §4 prescribes for the 94 D1 functions. -/
+def instPisTF (fuel : Nat) : EIdx → List EIdx → AM (Option EIdx)
+  | e, [] => pure (some e)
+  | h, a :: rest => do
+    if h.tag == ETag.forallE then
+      match ← viewBind h with
+      | none => failDanglingE
+      | some (_, body, _) => do
+        let b ← instantiate1Fast fuel body a 0
+        instPisTF fuel b rest
+    else pure none
+
+set_option profiler true in
+theorem inst_pis_from_tf_aux' (hI1 : I1Spec) (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (fuel : Std.U64) (e : arena.handle.EIdx) (args : alloc.vec.Vec arena.handle.EIdx)
+      (i : Std.Usize),
+      args.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absOptE a) (arena.expr_ops.inst_pis_from pers st fuel e args i) lst
+        (instPisTF (absU fuel) (absEIdx e) (absEIdxListFrom args i)) := by
+  unfold I1Spec at hI1
+  induction n with
+  | zero =>
+    intro pers st lst fuel e args i hn hrel hinv
+    rw [arena.expr_ops.inst_pis_from, listFrom_nil args i (by omega), instPisTF]
+    lockstep
+  | succ k ih =>
+    intro pers st lst fuel e args i hn hrel hinv
+    rw [arena.expr_ops.inst_pis_from, listFrom_cons args i (by omega), instPisTF]
+    lockstep
+
 
 end ConRon.Refine2.Lockstep.Sample
