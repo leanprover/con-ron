@@ -212,14 +212,19 @@ theorem store_fuel_refines {pers rst lst v}
 of the name table is the format's implicit `Name.anonymous` and index 0 of the
 level table its `Level.zero`, and over handles that means the handles those
 two nodes intern at — in the PERSISTENT tier, which is the tier the whole
-parse appends to. -/
+parse appends to.
+
+Both arms (task #97-P5-Front restated it from a success-only statement, which
+left `parse_bytes`/`parse_chunks` nothing to say about their `(e, 0)` arm).
+**Open on the `M_FROZEN` ruling**, like `prepare::prelude_key`: at a frozen
+tier the port's intern answers `Internal` where the twin appends, so the error
+arm holds only once the frozen guard is `Native`; with
+`estore_intern_name_abs`/`estore_intern_level_abs`'s `hfrozen` it closes. -/
 theorem state_d_init_refines {pers rst lst in_model census o}
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.state_d_init pers rst.store in_model census = ok o) :
-    ∀ rsd, o.1 = .Ok rsd → ∃ lsd lst',
-      (StateD.init in_model census).run lst = .ok (lsd, lst') ∧ StateDRel rsd lsd ∧
-      StateDInv rsd ∧ AStateRel pers (withStore rst o.2) lst' ∧
-      AStateInv pers (withStore rst o.2) ∧ Ext lst.store lst'.store := by sorry
+    SimRel (fun rsd lsd => StateDRel rsd lsd ∧ StateDInv rsd) pers lst
+      (o.1, withStore rst o.2) (StateD.init in_model census) := by sorry
 
 /-- **`state_model_ctx`** — the three tables the modeller reads, borrowed off
 the state (`types::ModelCtx`'s deviation).  The twin builds the three closures

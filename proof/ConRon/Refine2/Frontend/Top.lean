@@ -92,6 +92,121 @@ theorem apply_line_refines {G : Type} {inst : frontend.types.Modeller G}
     (h : frontend.export_c.apply_line inst pers m rst rsd r = ok o) :
     SimDV pers lst o (applyLine lmd lsd (absLineRec r)) := by sorry
 
+/-! ## Stream plumbing (task #97-P5-Front)
+
+Three moves every chunk driver's proof makes: the twin's result-reshaping
+wrapper (`match ← x with | .error e => pure (.error e) | .ok … => pure (.ok …)`)
+is a `map` on the run; a `StreamErrSim` survives a continuation that passes an
+error value through; and `SimStreamD`'s success arm, read back through the
+wrapper, is a run of the unwrapped action. -/
+
+theorem except_pure_bind {ε α β : Type} (a : α) (f : α → Except ε β) :
+    (pure a : Except ε α) >>= f = f a := rfl
+
+theorem stream_run_map {β γ : Type} (x : AM (Except (Arena.CheckError × Nat) β))
+    (f : β → γ) (lst : AState) :
+    (x >>= fun r => pure (r.map f) : AM (Except (Arena.CheckError × Nat) γ)).run lst =
+      (x.run lst) >>= fun p => .ok (p.1.map f, p.2) := rfl
+
+/-- The wrapper IS a map: `g` passes an error value through and maps a
+success by `f`.  Stated over an arbitrary `g` because every `match ← x with`
+elaborates to its own auxiliary matcher, which no rewrite can key on. -/
+theorem wrap_map {β γ : Type} (x : AM (Except (Arena.CheckError × Nat) β))
+    {g : Except (Arena.CheckError × Nat) β → AM (Except (Arena.CheckError × Nat) γ)}
+    (f : β → γ) (h1 : ∀ e, g (.error e) = pure (.error e))
+    (h2 : ∀ b, g (.ok b) = pure (.ok (f b))) :
+    (x >>= g) = (x >>= fun r => pure (r.map f)) := by
+  congr 1; funext r; cases r with
+  | error e => exact h1 e
+  | ok b => exact h2 b
+
+/-- An error pair's claim survives a continuation that passes an error value
+through unchanged. -/
+theorem StreamErrSim.bind {γ δ : Type} {p : kernel.core_types.CheckError × Std.U64}
+    {x : Except Arena.CheckError (Except (Arena.CheckError × Nat) γ × AState)}
+    (h : StreamErrSim p x)
+    (g : Except (Arena.CheckError × Nat) γ × AState →
+      Except Arena.CheckError (Except (Arena.CheckError × Nat) δ × AState))
+    (hg : ∀ e s, g (.error e, s) = .ok (.error e, s)) :
+    StreamErrSim p (x >>= g) := by
+  intro k hk
+  rcases h k hk with ⟨le, lst', hx, hle⟩ | ⟨le, hx, hle⟩
+  · exact Or.inl ⟨le, lst', by rw [hx]; exact hg _ _, hle⟩
+  · exact Or.inr ⟨le, by rw [hx]; rfl, hle⟩
+
+/-- `SimStreamD`'s success arm at a wrapper, as the unwrapped run. -/
+theorem stream_map_ok {β γ : Type} {x : Except Arena.CheckError
+      (Except (Arena.CheckError × Nat) β × AState)} {f : β → γ}
+    {c : γ} {lst' : AState}
+    (h : (x >>= fun p => .ok (p.1.map f, p.2)) = .ok (.ok c, lst')) :
+    ∃ b, x = .ok (.ok b, lst') ∧ f b = c := by
+  revert h
+  rcases x with e | ⟨r, s⟩
+  · intro h; cases h
+  · rcases r with e | b
+    · intro h; cases h
+    · intro h
+      have h' : (Except.ok (Except.ok (f b), s) :
+          Except Arena.CheckError (Except (Arena.CheckError × Nat) γ × AState))
+          = .ok (.ok c, lst') := h
+      injection h' with h''
+      injection h'' with h1 h2
+      injection h1 with h1
+      subst h2
+      exact ⟨b, rfl, h1⟩
+
+/-- `SimStreamD`'s error arm at a wrapper, as the unwrapped run's. -/
+theorem StreamErrSim.of_map {β γ : Type} {p : kernel.core_types.CheckError × Std.U64}
+    {x : Except Arena.CheckError (Except (Arena.CheckError × Nat) β × AState)} {f : β → γ}
+    (h : StreamErrSim p (x >>= fun q => .ok (q.1.map f, q.2))) :
+    StreamErrSim p x := by
+  intro k hk
+  rcases h k hk with ⟨le, lst', hx, hle⟩ | ⟨le, hx, hle⟩
+  · left
+    revert hx
+    rcases x with e | ⟨r, s⟩
+    · intro hx; cases hx
+    · rcases r with e | b
+      · intro hx
+        have hx' : (Except.ok (Except.error e, s) :
+            Except Arena.CheckError (Except (Arena.CheckError × Nat) γ × AState))
+            = .ok (.error (le, absU p.2), lst') := hx
+        injection hx' with h1
+        injection h1 with h1 h2
+        injection h1 with h1
+        subst h1; subst h2
+        exact ⟨le, s, rfl, hle⟩
+      · intro hx; cases hx
+  · right
+    revert hx
+    rcases x with e | ⟨r, s⟩
+    · intro hx; cases hx; exact ⟨le, rfl, hle⟩
+    · rcases r with e | b <;> (intro hx; cases hx)
+
+/-- `SimStreamD`'s success arm, through a wrapper, as the unwrapped run.  The
+hypothesis comes first so that it fixes `x` and `g` before the two `rfl`s are
+checked. -/
+theorem stream_unwrap_ok {β γ : Type} {x : AM (Except (Arena.CheckError × Nat) β)}
+    {g : Except (Arena.CheckError × Nat) β → AM (Except (Arena.CheckError × Nat) γ)}
+    {lst lst' : AState} {c : γ}
+    (hx : (x >>= g).run lst = .ok (.ok c, lst')) (f : β → γ)
+    (h1 : ∀ e, g (.error e) = pure (.error e))
+    (h2 : ∀ b, g (.ok b) = pure (.ok (f b))) :
+    ∃ b, x.run lst = .ok (.ok b, lst') ∧ f b = c := by
+  rw [wrap_map x f h1 h2, stream_run_map] at hx
+  exact stream_map_ok hx
+
+/-- The same, at the error arm. -/
+theorem stream_unwrap_err {β γ : Type} {x : AM (Except (Arena.CheckError × Nat) β)}
+    {g : Except (Arena.CheckError × Nat) β → AM (Except (Arena.CheckError × Nat) γ)}
+    {lst : AState} {p : kernel.core_types.CheckError × Std.U64}
+    (hx : StreamErrSim p ((x >>= g).run lst)) (f : β → γ)
+    (h1 : ∀ e, g (.error e) = pure (.error e))
+    (h2 : ∀ b, g (.ok b) = pure (.ok (f b))) :
+    StreamErrSim p (x.run lst) := by
+  rw [wrap_map x f h1 h2, stream_run_map] at hx
+  exact StreamErrSim.of_map hx
+
 /-! ## The chunk drivers
 
 Four functions, and their error channel is a PAIR — the position travels as a
@@ -112,6 +227,50 @@ theorem size_error_refines {o} (h : frontend.export_c.size_error = ok o) :
   simp only [Result.ok.injEq] at hce h
   subst h
   refine ⟨by rw [← hce]; rfl, rfl⟩
+
+/-- `USIZE_SIZE` is `USize.size`: `1 << usize::BITS` in `u128`. -/
+theorem usize_size_val {x : Std.U128} (h : frontend.export_c.USIZE_SIZE = ok x) :
+    x.val = USize.size := by
+  rw [frontend.export_c.USIZE_SIZE] at h
+  have hb : (core.num.Usize.BITS).val = System.Platform.numBits := by
+    simp [core.num.Usize.BITS, UScalarTy.numBits]
+  have hy : (core.num.Usize.BITS).val < UScalarTy.numBits .U128 := by
+    rw [hb]; simp only [UScalarTy.numBits]
+    cases System.Platform.numBits_eq with
+    | inl h => rw [h]; omega
+    | inr h => rw [h]; omega
+  obtain ⟨z, hz, hzv, -⟩ := WP.spec_imp_exists
+    (UScalar.ShiftLeft_spec (1#u128 : Std.U128) core.num.Usize.BITS _ hy rfl)
+  rw [hz] at h
+  cases Result.ok_injective h
+  have h1 : (1#u128 : Std.U128).val = 1 := rfl
+  rw [hzv, hb, h1]
+  simp only [USize.size, UScalar.size, UScalarTy.numBits, Nat.shiftLeft_eq, Nat.one_mul]
+  apply Nat.mod_eq_of_lt
+  cases System.Platform.numBits_eq with
+  | inl h => rw [h]; decide
+  | inr h => rw [h]; decide
+
+/-- `as u128` on a `usize` or a `u64`: a widening. -/
+theorem cast_u128_val {ty : UScalarTy} {i : UScalar ty} {r : Std.U128}
+    (hty : ty.numBits ≤ 64)
+    (h : lift (UScalar.cast .U128 i) = ok r) : r.val = i.val := by
+  simp only [lift, Result.ok.injEq] at h
+  subst h
+  rw [UScalar.cast_val_eq]
+  apply Nat.mod_eq_of_lt
+  have h1 := i.hBounds
+  have h2 : 2 ^ ty.numBits ≤ 2 ^ 64 := Nat.pow_le_pow_right (by omega) hty
+  have h3 : UScalarTy.numBits .U128 = 128 := rfl
+  rw [h3]
+  have h4 : (2 : Nat) ^ 64 < 2 ^ 128 := by decide
+  omega
+
+theorem usize_numBits_le : UScalarTy.numBits .Usize ≤ 64 := by
+  simp only [UScalarTy.numBits]
+  cases System.Platform.numBits_eq with
+  | inl h => rw [h]; omega
+  | inr h => rw [h]
 
 /-- **`CHUNK_SIZE` refines `chunkSize`** (`ExportC.lean:768`). -/
 theorem chunk_size_refines {v} (h : frontend.export_c.CHUNK_SIZE = ok v) :
@@ -171,7 +330,46 @@ theorem parse_bytes_final_refines {G : Type} {inst : frontend.types.Modeller G}
         match ← applyFinalLine lmd lsd (absBytes b) (absPos tail) (absU line_no + 1) with
         | .error e => pure (.error e)
         | .ok st => pure (.ok (ParseResultD.ofState st))
-      else pure (.ok (ParseResultD.ofState lsd))) := by sorry
+      else pure (.ok (ParseResultD.ofState lsd))) := by
+  rw [frontend.export_c.parse_bytes_final] at h
+  simp only [SimStreamRel]
+  split at h
+  · rename_i hlt
+    have hlt' : absPos tail < (absBytes b).usize := absPos_lt_usize.mpr (by scalar_tac)
+    rw [if_pos hlt']
+    obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨⟨r, ar1, st1⟩, hap, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hA := apply_final_line_refines hsc hmr hrel hinv hd hi hap
+    have hl : absU i1 = absU line_no + 1 := absU_add_one hi1
+    rw [hl] at hA
+    simp only [SimStreamD] at hA
+    rw [am_run_bind']
+    cases r with
+    | Ok u =>
+      simp only at hA
+      obtain ⟨prd, hprd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have ho := Result.ok_injective h; subst ho
+      obtain ⟨lsd', lst', hx, hd', hi', hrel', hinv', hext'⟩ := hA
+      obtain ⟨b', hb, hfb⟩ := stream_unwrap_ok hx (fun st => (st, ())) (fun _ => rfl)
+        (fun _ => rfl)
+      simp only [Prod.mk.injEq] at hfb
+      obtain ⟨rfl, -⟩ := hfb
+      refine ⟨ParseResultD.ofState b', lst', ?_, parse_result_of_state_refines hd' hprd,
+        hrel', hinv', hext'⟩
+      rw [hb]; rfl
+    | Err e =>
+      simp only at hA
+      have ho := Result.ok_injective h; subst ho
+      have hA' := stream_unwrap_err hA (fun st => (st, ())) (fun _ => rfl) (fun _ => rfl)
+      exact StreamErrSim.bind hA' _ (fun _ _ => rfl)
+  · rename_i hge
+    have hge' : ¬ absPos tail < (absBytes b).usize := by
+      rw [absPos_lt_usize]; scalar_tac
+    rw [if_neg hge']
+    obtain ⟨prd, hprd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have ho := Result.ok_injective h; subst ho
+    exact ⟨ParseResultD.ofState lsd, lst, rfl, parse_result_of_state_refines hd hprd,
+      hrel, hinv, Ext.refl _⟩
 
 /-- **`parse_bytes` refines `parseBytes`** (`ExportC.lean:779-790`) —
 wholesale direct parse of a byte buffer, the specification the streaming parse
@@ -182,7 +380,62 @@ theorem parse_bytes_refines {G : Type} {inst : frontend.types.Modeller G}
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.parse_bytes inst pers m rst b in_model census = ok o) :
     SimStreamRel ParseResultDRel pers lst o
-      (parseBytes lmd (absBytes b) in_model census) := by sorry
+      (parseBytes lmd (absBytes b) in_model census) := by
+  rw [frontend.export_c.parse_bytes] at h
+  obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hv1 : i1.val = b.val.length := by
+    rw [cast_u128_val usize_numBits_le hi1]; simp
+  have hv2 := usize_size_val hi2
+  have hlt : b.val.length < USize.size := by
+    have := absBytes_usize b
+    have := (absBytes b).usize.toNat_lt_size
+    simp_all
+  split at h
+  · rename_i hge; exfalso; scalar_tac
+  have hsz : ¬ (absBytes b).size ≥ USize.size := by rw [absBytes_size]; omega
+  obtain ⟨⟨r, e⟩, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hS := state_d_init_refines hrel hinv hs
+  simp only [SimRel] at hS
+  simp only [SimStreamRel, parseBytes, hsz, if_false, am_run_bind']
+  simp only [except_pure_bind, StateT.run_pure]
+  cases r with
+  | Err e1 =>
+    have ho := Result.ok_injective h; subst ho
+    exact StreamErrSim.of_throw (n := 0#u64) hS
+  | Ok v =>
+    try simp only at h
+    obtain ⟨lsd, lst1, hx1, ⟨hd1, hi1'⟩, hrel1, hinv1, hext1⟩ := hS
+    rw [hx1]
+    simp only [except_ok_bind]
+    obtain ⟨⟨r1, ar1, v1⟩, hf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hF := feed_chunk_refines hsc hmr hrel1 hinv1 hd1 hi1' hf
+    simp only [SimStreamD] at hF
+    have h00 : absPos 0#usize = 0 := rfl
+    have h00' : absU 0#u64 = 0 := rfl
+    rw [h00, h00'] at hF
+    cases r1 with
+    | Ok p =>
+      obtain ⟨line_no, tail⟩ := p
+      obtain ⟨lsd', lst', hx, hd', hi', hrel', hinv', hext'⟩ := hF
+      obtain ⟨⟨st2, n2, j2⟩, hb, hfb⟩ := stream_unwrap_ok hx (fun q => (q.1, q.2.1, q.2.2))
+        (fun _ => rfl) (fun _ => rfl)
+      simp only [Prod.mk.injEq] at hfb
+      obtain ⟨rfl, rfl, rfl⟩ := hfb
+      have hP := parse_bytes_final_refines hsc hmr hrel' hinv' hd' hi' h
+      simp only [SimStreamRel] at hP ⊢
+      rw [hb]
+      simp only [except_ok_bind]
+      rcases o with ⟨r2, st'⟩
+      cases r2 with
+      | Ok r =>
+        obtain ⟨v, l2, hx2, hR, hr2, hi2, he2⟩ := hP
+        exact ⟨v, l2, hx2, hR, hr2, hi2, Ext.trans (Ext.trans hext1 hext') he2⟩
+      | Err p => exact hP
+    | Err p =>
+      have ho := Result.ok_injective h; subst ho
+      have hF' := stream_unwrap_err hF (fun q => (q.1, q.2.1, q.2.2)) (fun _ => rfl) (fun _ => rfl)
+      exact StreamErrSim.bind hF' _ (fun _ _ => rfl)
 
 /-- **`parse_export_d` refines `parseExportD`** (`ExportC.lean:795-797`).
 Aeneas reads a `&str` as its bytes and `core::str::as_bytes` is con-ron-core's
@@ -226,7 +479,61 @@ theorem chunk_finish_refines {G : Type} {inst : frontend.types.Modeller G}
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.chunk_finish inst pers m rst rsd carry line_no = ok o) :
     SimStreamRel ParseResultDRel pers lst o
-      (chunkFinish lmd lsd (absBytes carry) (absU line_no)) := by sorry
+      (chunkFinish lmd lsd (absBytes carry) (absU line_no)) := by
+  rw [frontend.export_c.chunk_finish] at h
+  simp only [SimStreamRel]
+  split at h
+  · rename_i hlen
+    obtain ⟨prd, hprd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have ho := Result.ok_injective h; subst ho
+    have hempty : (absBytes carry).isEmpty = true := by
+      simp only [ByteArray.isEmpty, absBytes_size]
+      have : carry.val.length = 0 := by scalar_tac
+      simp [this]
+    refine ⟨ParseResultD.ofState lsd, lst, ?_, parse_result_of_state_refines hd hprd,
+      hrel, hinv, Ext.refl _⟩
+    simp only [chunkFinish, hempty]
+    rfl
+  · rename_i hlen
+    have hne : (absBytes carry).isEmpty = false := by
+      simp only [ByteArray.isEmpty, absBytes_size]
+      have : carry.val.length ≠ 0 := by scalar_tac
+      simp [this]
+    obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨⟨r, ar1, st1⟩, hap, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hA := apply_final_line_refines hsc hmr hrel hinv hd hi hap
+    have hl : absU i1 = absU line_no + 1 := absU_add_one hi1
+    have h0 : absPos 0#usize = 0 := rfl
+    rw [hl, h0] at hA
+    have hrun : (chunkFinish lmd lsd (absBytes carry) (absU line_no)).run lst =
+        (applyFinalLine lmd lsd (absBytes carry) 0 (absU line_no + 1)).run lst >>=
+          fun p => (match p.1 with
+            | .error e => (pure (.error e) : AM (Except (Arena.CheckError × Nat) ParseResultD))
+            | .ok st => pure (.ok (.ofState st))).run p.2 := by
+      simp only [chunkFinish, hne]
+      rfl
+    rw [hrun]
+    simp only [SimStreamD] at hA
+    cases r with
+    | Ok u =>
+      simp only at hA
+      obtain ⟨prd, hprd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have ho := Result.ok_injective h; subst ho
+      obtain ⟨lsd', lst', hx, hd', hi', hrel', hinv', hext'⟩ := hA
+      obtain ⟨b, hb, hfb⟩ := stream_unwrap_ok hx (fun st => (st, ())) (fun _ => rfl)
+        (fun _ => rfl)
+      simp only [Prod.mk.injEq] at hfb
+      obtain ⟨rfl, -⟩ := hfb
+      refine ⟨ParseResultD.ofState b, lst', ?_, parse_result_of_state_refines hd' hprd,
+        hrel', hinv', hext'⟩
+      rw [hb]; rfl
+    | Err e =>
+      simp only at hA
+      have ho := Result.ok_injective h; subst ho
+      have hA' : StreamErrSim e
+          ((applyFinalLine lmd lsd (absBytes carry) 0 (absU line_no + 1)).run lst) :=
+        stream_unwrap_err hA (fun st => (st, ())) (fun _ => rfl) (fun _ => rfl)
+      exact StreamErrSim.bind hA' _ (fun _ _ => rfl)
 
 /-! ## The tier's first top statement -/
 

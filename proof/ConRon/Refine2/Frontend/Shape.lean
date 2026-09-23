@@ -440,7 +440,10 @@ structure ParseResultDRel (rp : frontend.export_c.ParseResultD)
 /-! ## `SimD` / `SimDV` — a line function, which threads the parse state too
 
 The port's line functions take `&mut AState` (or `&mut EStore`) AND
-`&mut StateD`; the twin takes the `StateD` by value and returns it.  `SimD` is
+`&mut StateD`; the twin takes the `StateD` by value and returns it.  The
+success arm carries the post-state's `StateDInv` beside its `StateDRel`
+(task #97-P5-Front, finding F2): without it no loop over lines can hand the
+next line the invariant its probes need.  `SimD` is
 the `AM StateD`-valued family and `SimDV` the `AM (StateD ⊕ RecordVerdict)`
 one; `SimDV.of_bind` is where `ALineErrSim`'s `False` arm pays. -/
 
@@ -450,7 +453,7 @@ def SimD (pers : arena.store.PersTier) (lst : AState)
       arena.monad.AState × frontend.export_c.StateD)
     (x : AM Arena.Frontend.StateD) : Prop :=
   match o.1 with
-  | .Ok _ => ∃ lsd' lst', x.run lst = .ok (lsd', lst') ∧ StateDRel o.2.2 lsd' ∧
+  | .Ok _ => ∃ lsd' lst', x.run lst = .ok (lsd', lst') ∧ StateDRel o.2.2 lsd' ∧ StateDInv o.2.2 ∧
       AStateRel pers o.2.1 lst' ∧ AStateInv pers o.2.1 ∧ Ext lst.store lst'.store
   | .Err e => ALineErrSim e (x.run lst)
 
@@ -458,10 +461,11 @@ theorem SimD.mk {pers : arena.store.PersTier} {lst lst' : AState}
     {lsd' : Arena.Frontend.StateD} {rst' : arena.monad.AState}
     {rsd' : frontend.export_c.StateD} {x : AM Arena.Frontend.StateD}
     (hx : x.run lst = .ok (lsd', lst')) (hd : StateDRel rsd' lsd')
+    (hi : StateDInv rsd')
     (hrel : AStateRel pers rst' lst') (hinv : AStateInv pers rst')
     (hext : Ext lst.store lst'.store) :
     SimD pers lst (.Ok (), rst', rsd') x :=
-  ⟨lsd', lst', hx, hd, hrel, hinv, hext⟩
+  ⟨lsd', lst', hx, hd, hi, hrel, hinv, hext⟩
 
 theorem SimD.err {pers : arena.store.PersTier} {lst : AState}
     {e : frontend.export_c.LineErr}
@@ -478,7 +482,7 @@ def SimDV (pers : arena.store.PersTier) (lst : AState)
       arena.monad.AState × frontend.export_c.StateD)
     (x : AM (Arena.Frontend.StateD ⊕ Arena.Frontend.RecordVerdict)) : Prop :=
   match o.1 with
-  | .Ok _ => ∃ lsd' lst', x.run lst = .ok (.inl lsd', lst') ∧ StateDRel o.2.2 lsd' ∧
+  | .Ok _ => ∃ lsd' lst', x.run lst = .ok (.inl lsd', lst') ∧ StateDRel o.2.2 lsd' ∧ StateDInv o.2.2 ∧
       AStateRel pers o.2.1 lst' ∧ AStateInv pers o.2.1 ∧ Ext lst.store lst'.store
   | .Err (.Err ce) => AErrSim ce (x.run lst)
   | .Err (.Verdict v) => ∃ lv lst', x.run lst = .ok (.inr lv, lst') ∧
@@ -489,10 +493,11 @@ theorem SimDV.mk {pers : arena.store.PersTier} {lst lst' : AState}
     {rsd' : frontend.export_c.StateD}
     {x : AM (Arena.Frontend.StateD ⊕ Arena.Frontend.RecordVerdict)}
     (hx : x.run lst = .ok (.inl lsd', lst')) (hd : StateDRel rsd' lsd')
+    (hi : StateDInv rsd')
     (hrel : AStateRel pers rst' lst') (hinv : AStateInv pers rst')
     (hext : Ext lst.store lst'.store) :
     SimDV pers lst (.Ok (), rst', rsd') x :=
-  ⟨lsd', lst', hx, hd, hrel, hinv, hext⟩
+  ⟨lsd', lst', hx, hd, hi, hrel, hinv, hext⟩
 
 theorem SimDV.verdict {pers : arena.store.PersTier} {lst lst' : AState}
     {v : frontend.types.RecordVerdict}
@@ -604,7 +609,7 @@ def SimStreamD {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst
     (x : AM (Except (Arena.CheckError × Nat) (Arena.Frontend.StateD × β))) : Prop :=
   match o.1 with
   | .Ok r => ∃ lsd' lst', x.run lst = .ok (.ok (lsd', A r), lst') ∧
-      StateDRel o.2.2 lsd' ∧ AStateRel pers o.2.1 lst' ∧ AStateInv pers o.2.1 ∧
+      StateDRel o.2.2 lsd' ∧ StateDInv o.2.2 ∧ AStateRel pers o.2.1 lst' ∧ AStateInv pers o.2.1 ∧
       Ext lst.store lst'.store
   | .Err p => StreamErrSim p (x.run lst)
 
