@@ -34,8 +34,7 @@ hypothesis of con-leche's own `iotaRec_WScoped` / `prepareMajorFueled_WScoped`
 (the answer's scoping, which `SimOOp` states) and of `const_ty_hasFvar` (the
 certificate runs' subjects).
 -/
-import ConRon.Bridge.Core.Walks.Stuck
-import ConRon.Bridge.Core.Walks.ProjLit
+import ConRon.Bridge.Core.Walks.IotaMajor
 
 namespace ConRon.Bridge.Core
 
@@ -46,135 +45,6 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
-
-/-! ## 1. State-only readers -/
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:46-53 isCtorApp — **THEOREM 1
-for `isCtorApp`**: an equation with con-leche's reader. -/
-theorem isCtorApp_spec (s₀ : AState) (a : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.isCtorApp fe a
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ r = ConLeche.isCtorApp env x⌝⦄ := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:264-268 litToCtorIfNat —
-**THEOREM 1 for `litToCtorIfNat`**: a supported `Nat` literal one layer. -/
-theorem litToCtorIfNat_spec (s₀ : AState) (h : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store h = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.litToCtorIfNat fe h
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        denoteE s'.store r = some (ConLeche.litToCtorIfNat env x)⌝⦄ := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:93-95 capsNeverZero —
-**THEOREM 1 for `capsNeverZero`**. -/
-theorem capsNeverZero_spec (s₀ : AState) (lps : List NIdx) (us : LsIdx)
-    (icaps : IIndCaps) (ks : List ConLeche.Name) (vs : List Level)
-    (caps : IndCaps) (hok : CheckOK mode env fe s₀)
-    (hks : Frontend.denoteNList s₀.store.ns lps = some ks)
-    (hvs : denoteLs s₀.store.lss us = some vs)
-    (hcaps : Frontend.denoteCaps s₀.store icaps = some caps) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.capsNeverZero lps us icaps
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ r = ConLeche.capsNeverZero ks vs caps⌝⦄ := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/Core.lean:586-588 majorToCtor (the scope
-guard) — **THEOREM 1 for `fabScopeOk`**: the executed tier's three memoised
-walks decide con-leche's syntactic guard. -/
-theorem fabScopeOk_spec (s₀ : AState) (d : Nat) (fab major : EIdx)
-    (ef em : Expr) (hok : CheckOK mode env fe s₀)
-    (hf : denoteE s₀.store fab = some ef) (hm : denoteE s₀.store major = some em) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.fabScopeOk d fab major
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧
-        r = (ef.wscopedB d && ef.looseBVarsBounded 0 &&
-          ef.fvarLeaves.all (fun l => em.fvarLeaves.contains l))⌝⦄ := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:761-766 etaFabArgsE — **THEOREM
-1 for `etaFabArgsE`**: the η rescue's fabricated argument spine. -/
-theorem etaFabArgsE_spec (s₀ : AState) (T : NIdx) (ust : LsIdx)
-    (targs : List EIdx) (major : EIdx) (nF : Nat) (Tn : ConLeche.Name)
-    (ls : List Level) (ts : List Expr) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hT : denoteN s₀.store.ns T = some Tn)
-    (hus : denoteLs s₀.store.lss ust = some ls)
-    (hts : Frontend.denoteEList s₀.store targs = some ts)
-    (hx : denoteE s₀.store major = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.etaFabArgsE fe T ust targs major nF
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        Frontend.denoteEList s'.store r =
-          some (ConLeche.etaFabArgsE env Tn ls ts x nF)⌝⦄ := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:796-813 andRescueSlots —
-**THEOREM 1 for `andRescueSlots`**: the pinned `And`'s two slots, ready to
-fire. -/
-theorem andRescueSlots_spec (s₀ : AState) (ctor : NIdx) (nP : Nat)
-    (ust : LsIdx) (cn : ConLeche.Name) (ls : List Level)
-    (hok : CheckOK mode env fe s₀) (hc : denoteN s₀.store.ns ctor = some cn)
-    (hus : denoteLs s₀.store.lss ust = some ls) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.andRescueSlots fe ctor nP ust
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ r = ConLeche.andRescueSlots env cn nP ls⌝⦄ := by
-  sorry
-
-/-! ## 2. The major's preparation -/
-
-/-- con-leche: ConLeche/Kernel/Core.lean:728-740 litMajorToCtor — **THEOREM
-1 for `litMajorToCtor`**: a `Nat` literal one layer, a supported `String`
-literal to its reduced constructor form. -/
-theorem litMajorToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (h : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x)
-    (hw : Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.litMajorToCtor (coreKnot mode fe id fuel) fe d h
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimEOp (fun F => ConLeche.litMajorToCtorFueled mode env F d x) d
-          s'.store r⌝⦄ := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor — **THEOREM 1
-for `majorToCtor`**, the stuck-major rescue: K, η, and the pinned `And`.
-The recursor's name is unused on both sides (`_recName`). -/
-theorem majorToCtor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (c : NIdx) (rules : List IRecRule) (major : EIdx)
-    (cn : ConLeche.Name) (rules' : List RecRule) (x : Expr)
-    (hok : CheckOK mode env fe s₀)
-    (hr : Frontend.denoteRules s₀.store rules = some rules')
-    (hden : denoteE s₀.store major = some x) (hw : Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.majorToCtor mode (coreKnot mode fe id fuel) fe d c rules
-        major
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimEOp (fun F => ConLeche.majorToCtorFueled mode env F d cn rules' x) d
-          s'.store r⌝⦄ := by
-  sorry
-
-/-- con-leche: ConLeche/Kernel/Core.lean:758-795 prepareMajor — **THEOREM 1
-for `prepareMajor`**: the official kernel's order, K rescue on the raw major
-or head normalisation first. -/
-theorem prepareMajor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (c : NIdx) (rules : List IRecRule) (major : EIdx)
-    (cn : ConLeche.Name) (rules' : List RecRule) (x : Expr)
-    (hok : CheckOK mode env fe s₀)
-    (hr : Frontend.denoteRules s₀.store rules = some rules')
-    (hden : denoteE s₀.store major = some x) (hw : Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.prepareMajor mode (coreKnot mode fe id fuel) fe d c rules
-        major
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimEOp (fun F => ConLeche.prepareMajorFueled mode env F d cn rules' x) d
-          s'.store r⌝⦄ := by
-  sorry
 
 /-! ## 3. The firing rule's comparands and the index comparison -/
 
@@ -226,14 +96,17 @@ theorem iotaIndexOk_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 `iotaRecAt`**: one ι step at a spine the caller already holds (task
 #97-P6-9's hoist).  The held head `h` is not an application (it is a spine
 head), so `getAppFn`/`getAppArgs` of `Expr.mkAppN h xs` are `h` and `xs`,
-which is the equation the hoist owes. -/
+which is the equation the hoist owes.  The count `n` is the whole held
+vector (`hn`): both callers pass `size`, and at a larger `n` the twin's
+arity guard reads `n` where con-leche's reads the spine. -/
 theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (hd : EIdx) (sargs : Array EIdx) (n : Nat)
     (h : Expr) (xs : List Expr)
     (hok : CheckOK mode env fe s₀) (hdh : denoteE s₀.store hd = some h)
     (hnapp : ∀ f a, h ≠ .app f a)
-    (hxs : Frontend.denoteEList s₀.store (sargs.toList.take n) = some xs)
+    (hn : n = sargs.size)
+    (hxs : Frontend.denoteEList s₀.store sargs.toList = some xs)
     (hw : Expr.WScoped d (Expr.mkAppN h xs)) :
     ⦃fun s => ⌜s = s₀⌝⦄
       ConRon.Arena.iotaRecAt mode (coreKnot mode fe id fuel) fe d hd sargs n
@@ -258,24 +131,22 @@ theorem iotaRec_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         s'.pins = s₀.pins ∧
         SimOOp (fun F => ConLeche.iotaRecFueled mode env F d x) d
           s'.store r⌝⦄ := by
-  sorry
+  unfold ConRon.Arena.iotaRec
+  refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ e hok.state
+    (by rw [hden]; rfl)) ?_
+  rintro hd s1 ⟨hs1, hrelF⟩
+  subst s1
+  refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s₀ e hok.state
+    (by rw [hden]; rfl)) ?_
+  rintro args s2 ⟨hs2, hrelA⟩
+  subst s2
+  have hmk : Expr.mkAppN x.getAppFn x.getAppArgs = x := Expr.mkAppN_getApp x
+  refine triple_mono (iotaRecAt_spec hμ henv hsim s₀ d hd args.toArray
+    args.length x.getAppFn x.getAppArgs hok (hrelF x hden)
+    (fun f a => ConLeche.Expr.getAppFn_not_app x f a) (by simp)
+    (by simpa using hrelA x hden) (by rw [hmk]; exact hw)) ?_
+  rintro r s' ⟨h1, h2, h3, h4⟩
+  rw [hmk] at h4
+  exact ⟨h1, h2, h3, h4⟩
 
 section Census
-
-#print axioms isCtorApp_spec
-#print axioms litToCtorIfNat_spec
-#print axioms capsNeverZero_spec
-#print axioms fabScopeOk_spec
-#print axioms etaFabArgsE_spec
-#print axioms andRescueSlots_spec
-#print axioms litMajorToCtor_spec
-#print axioms majorToCtor_spec
-#print axioms prepareMajor_spec
-#print axioms recFireComparands_spec
-#print axioms iotaIndexOk_spec
-#print axioms iotaRecAt_spec
-#print axioms iotaRec_spec
-
-end Census
-
-end ConRon.Bridge.Core
