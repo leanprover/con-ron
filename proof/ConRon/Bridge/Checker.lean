@@ -48,5 +48,6 @@ import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.Checker.Basis
 import ConRon.Bridge.Checker.Pins
 import ConRon.Bridge.Checker.DeclVal
+import ConRon.Bridge.Checker.Nodup
 import ConRon.Bridge.Checker.Split
 import ConRon.Bridge.Checker.Axioms

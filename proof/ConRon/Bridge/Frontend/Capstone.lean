@@ -115,14 +115,14 @@ theorem FoldOK_of_start {μ : CheckMode} {s : AState} (hok : StateOK s)
     { state := hok
       caches := hc
       pins := hpins
-      ienv := IFEnvOK_of_denote (μ := μ) hok rfl
+      ienv := IFEnvOK_of_denote (μ := μ) hok (IFEnvCoh.mk _)
         (by intro t hn
             simp [mkIFEnv, IEnv.empty] at hn) rfl }
   envWF := by intro c hc'; exact absurd hc' (by simp [Env.empty])
   persPins := hpp
   persEnv := { env := by intro c hc'; simp [mkIFEnv, IEnv.empty] at hc'
                idx := by intro n p hn; simp [mkIFEnv, mkIFEnvGo, IEnv.empty] at hn }
-  coh := rfl
+  coh := IFEnvCoh.mk _
   denote := rfl
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
