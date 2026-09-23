@@ -379,12 +379,12 @@ theorem mentionsFvar_spec (q : Nat) (e : EIdx) (eP : Expr) :
 /-- con-leche: none — a pure-grade step carries `CheckOK` (`PStep.toCore`).
 The list lemmas below are `allM_pstep`'s, with the body allowed to read the
 index. -/
-theorem allM_E_ck {μ : CheckMode} {env : Env} {fe : IFEnv} {f : EIdx → AM Bool}
+theorem allM_E_ck {env : Env} {fe : IFEnv} {f : EIdx → AM Bool}
     {F : Expr → Bool}
-    (hf : ∀ (e : EIdx) (eP : Expr) (s₀ s' : AState) (x : Bool), CheckOK μ env fe s₀ →
+    (hf : ∀ (e : EIdx) (eP : Expr) (s₀ s' : AState) (x : Bool), ReadOK env fe s₀ →
       denoteE s₀.store e = some eP → f e s₀ = .ok (x, s') → PStep s₀ s' ∧ x = F eP) :
     ∀ (es : List EIdx) (esP : List Expr) (s₀ s' : AState) (x : Bool),
-      CheckOK μ env fe s₀ → Frontend.denoteEList s₀.store es = some esP →
+      ReadOK env fe s₀ → Frontend.denoteEList s₀.store es = some esP →
       es.allM f s₀ = .ok (x, s') → PStep s₀ s' ∧ x = esP.all F := by
   intro es
   induction es with
@@ -414,7 +414,7 @@ theorem allM_E_ck {μ : CheckMode} {env : Env} {fe : IFEnv} {f : EIdx → AM Boo
       obtain ⟨rfl, rfl⟩ := pureOk z1
       exact ⟨p1, by simp only [List.all_cons, ← hc, Bool.false_and]⟩
     | true =>
-      obtain ⟨p2, hx⟩ := ih rest s1 s' x (p1.toCore hok).ok
+      obtain ⟨p2, hx⟩ := ih rest s1 s' x (hok.mono p1.ok p1.ext p1.pins)
         (denoteEList_ext p1.ext _ _ hr) z1
       exact ⟨p1.trans p2, by simp only [List.all_cons, ← hc, Bool.true_and, hx]⟩
 
@@ -456,21 +456,39 @@ theorem anyM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool}
       obtain ⟨p2, hx⟩ := ih rest s1 s' x p1.ok (denoteEList_ext p1.ext _ _ hr) z1
       exact ⟨p1.trans p2, by simp only [List.any_cons, ← hc, Bool.false_or, hx]⟩
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean constsResolveFFast — `Bridge/Checker/Names.lean`'s
+`constsResolveFFast_run` at `ReadOK`: the walk reads the store, the pins and
+the index, never the caches (task #97-P3-Ind round 8). -/
+theorem constsResolveFFast_runR {env : Env} {fe : IFEnv}
+    {e : EIdx} {x : Expr} {r : Bool} {s s' : AState}
+    (hck : ReadOK env fe s) (hd : denoteE s.store e = some x)
+    (hrun : Arena.constsResolveFFast fe e s = .ok (r, s')) :
+    s'.store = s.store ∧ s'.caches = s.caches ∧ s'.pins = s.pins ∧
+      r = Expr.constsResolve env x := by
+  simp only [Arena.constsResolveFFast] at hrun
+  obtain ⟨p, s1, g1, k1⟩ :=
+    AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) hrun
+  obtain ⟨b, tb⟩ := p
+  obtain ⟨rfl, hb, -⟩ := constsResolveFGo_run coreWalkFuel hck.state
+    hck.pins hck.ienv CRMemoOK.empty hd g1
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok k1
+  exact ⟨rfl, rfl, rfl, hb⟩
+
 /-- con-leche: none — `constsResolveFFast` at the pure-grade frame: it moves
 neither the store, the caches nor the pins. -/
-theorem constsResolveFFast_pstep {μ : CheckMode} {env : Env} {fe : IFEnv}
-    {s₀ s' : AState} {e : EIdx} {eP : Expr} {r : Bool} (hok : CheckOK μ env fe s₀)
+theorem constsResolveFFast_pstep {env : Env} {fe : IFEnv}
+    {s₀ s' : AState} {e : EIdx} {eP : Expr} {r : Bool} (hok : ReadOK env fe s₀)
     (he : denoteE s₀.store e = some eP)
     (hrun : Arena.constsResolveFFast fe e s₀ = .ok (r, s')) :
     PStep s₀ s' ∧ r = eP.constsResolve env := by
-  obtain ⟨h1, h2, h3, h4⟩ := constsResolveFFast_run hok he hrun
+  obtain ⟨h1, h2, h3, h4⟩ := constsResolveFFast_runR hok he hrun
   refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.state.wf⟩ (by rw [h1]; exact Ext.refl _)
     (by rw [h1]; exact BMExt.refl _) h2 h3, h4⟩
 
 /-- con-leche: none — a field type's resolution, the body of two of
 `nativeOpenedOk`'s walks. -/
-theorem crFvarType_pstep {μ : CheckMode} {env : Env} {fe : IFEnv} (e : EIdx) (eP : Expr)
-    (s₀ s' : AState) (x : Bool) (hok : CheckOK μ env fe s₀)
+theorem crFvarType_pstep {env : Env} {fe : IFEnv} (e : EIdx) (eP : Expr)
+    (s₀ s' : AState) (x : Bool) (hok : ReadOK env fe s₀)
     (he : denoteE s₀.store e = some eP)
     (hrun : (do Arena.constsResolveFFast fe (← fvarTypeD e) : AM Bool) s₀ = .ok (x, s')) :
     PStep s₀ s' ∧ x = eP.fvarTypeD.constsResolve env := by
@@ -491,12 +509,12 @@ theorem mfFvarType_pstep (q : Nat) (e : EIdx) (eP : Expr) (s₀ s' : AState) (x 
   exact mentionsFvar_spec q t eP.fvarTypeD s₀ s' x hok ht z1
 
 /-- con-leche: none — `allM_pstep` with a body that reads the index. -/
-theorem allM_ck {μ : CheckMode} {env : Env} {fe : IFEnv} {α : Type} {f : α → AM Bool}
+theorem allM_ck {env : Env} {fe : IFEnv} {α : Type} {f : α → AM Bool}
     {g : α → Bool} (P : α → EStore → Prop)
     (hPx : ∀ {a : α} {st st' : EStore}, Ext st st' → P a st → P a st')
-    (hf : ∀ (a : α) (s₀ s' : AState) (b : Bool), CheckOK μ env fe s₀ → P a s₀.store →
+    (hf : ∀ (a : α) (s₀ s' : AState) (b : Bool), ReadOK env fe s₀ → P a s₀.store →
       f a s₀ = .ok (b, s') → PStep s₀ s' ∧ b = g a) :
-    ∀ (xs : List α) (s₀ s' : AState) (b : Bool), CheckOK μ env fe s₀ →
+    ∀ (xs : List α) (s₀ s' : AState) (b : Bool), ReadOK env fe s₀ →
       (∀ a ∈ xs, P a s₀.store) → xs.allM f s₀ = .ok (b, s') →
       PStep s₀ s' ∧ b = xs.all g := by
   intro xs
@@ -516,7 +534,7 @@ theorem allM_ck {μ : CheckMode} {env : Env} {fe : IFEnv} {α : Type} {f : α �
       obtain ⟨rfl, rfl⟩ := pureOk z1
       exact ⟨p1, by simp only [List.all_cons, ← hc, Bool.false_and]⟩
     | true =>
-      obtain ⟨p2, hb⟩ := ih s1 s' b (p1.toCore hok).ok
+      obtain ⟨p2, hb⟩ := ih s1 s' b (hok.mono p1.ok p1.ext p1.pins)
         (fun x hx => hPx p1.ext (hP x (by simp [hx]))) z1
       exact ⟨p1.trans p2, by simp only [List.all_cons, ← hc, Bool.true_and, hb]⟩
 
@@ -531,10 +549,10 @@ recursive or reflexive field's family test) — the family head, the parameter
 prefix, the index count and resolution, and the two occurrence tests, over a
 handle `bd` whose denotation is the field's target.  Shared by the
 `.recursive` and `.reflexive` arms. -/
-theorem famTail_run {μ : CheckMode} {env₀ : Env} {fe₀ : IFEnv} {nP nIdx i : Nat}
+theorem famTail_run {env₀ : Env} {fe₀ : IFEnv} {nP nIdx i : Nat}
     {hd bd xrest : EIdx} {fvs xFvs : List EIdx} {hdP bdP xrestP : Expr}
     {fvsPP xFvsP : List Expr} {t₀ t' : AState} {b : Bool}
-    (ck : CheckOK μ env₀ fe₀ t₀) (hhd : denoteE t₀.store hd = some hdP)
+    (ck : ReadOK env₀ fe₀ t₀) (hhd : denoteE t₀.store hd = some hdP)
     (hbd : denoteE t₀.store bd = some bdP)
     (hfv : Frontend.denoteEList t₀.store fvs = some fvsPP)
     (hxf : Frontend.denoteEList t₀.store xFvs = some xFvsP)
@@ -631,14 +649,14 @@ over `mentionsFvar_spec`); a reflexive field's own telescope through
 task #97-P3-Checker round 9 moved `constsResolveFFast_run` within reach):
 `constsResolveFFast` answers what the index `fe₀` answers, so its Theorem 1
 needs `IFEnvOK env₀ fe₀`, which the statement's `denoteFEnv st fe₀ = some env₀`
-does not give.  The precondition is now `CheckOK μ env₀ fe₀ s₀` (the only
+does not give.  The precondition is now `ReadOK env₀ fe₀ s₀` (the only
 consumer, `nativeFieldsOk` inside `checkNativeTail`, runs at that grade); the
 conclusion — `PStep` and the verdict — is unchanged. -/
-theorem nativeOpenedOk_spec {μ : CheckMode} (fe₀ : IFEnv) (env₀ : Env) (T : NIdx)
+theorem nativeOpenedOk_spec (fe₀ : IFEnv) (env₀ : Env) (T : NIdx)
     (TP : ConLeche.Name) (lps : List NIdx) (lpsP : List ConLeche.Name)
     (nP nIdx : Nat) (cty : EIdx) (ctyP : Expr) (nF : Nat)
     (ks : List Arena.RecFieldKind) :
-    ∀ (s₀ s' : AState) (r : Bool), CheckOK μ env₀ fe₀ s₀ →
+    ∀ (s₀ s' : AState) (r : Bool), ReadOK env₀ fe₀ s₀ →
       (denoteN s₀.store.ns T = some TP ∧
         Frontend.denoteNList s₀.store.ns lps = some lpsP ∧
         denoteE s₀.store cty = some ctyP ∧ denoteFEnv s₀.store fe₀ = some env₀) →
@@ -682,7 +700,7 @@ theorem nativeOpenedOk_spec {μ : CheckMode} (fe₀ : IFEnv) (env₀ : Env) (T :
   obtain ⟨hs5, hxargs⟩ := getAppArgs_run p4.ok (denote_ext hxrest (p3.ext.trans p4.ext)) k5
   rw [hs5] at z5
   have p04 : PStep s₀ s4 := p1.trans (p2.trans (p3.trans p4))
-  have ck4 := (p04.toCore hok).ok
+  have ck4 := (hok.mono p04.ok p04.ext p04.pins)
   obtain ⟨ro, s6, k6, z6⟩ := bindOk z5
   obtain ⟨p6, hro⟩ := allM_E_ck
     (fun e eP s₀ s' x hok he hrun => constsResolveFFast_pstep hok he hrun)
@@ -700,7 +718,7 @@ theorem nativeOpenedOk_spec {μ : CheckMode} (fe₀ : IFEnv) (env₀ : Env) (T :
   have x46 : Ext s4.store s6.store := p6.ext
   have x16 : Ext s1.store s6.store := p2.ext.trans (p3.ext.trans (p4.ext.trans x46))
   have x26 : Ext s2.store s6.store := p3.ext.trans (p4.ext.trans x46)
-  have hall := allM_ck (μ := μ) (env := env₀) (fe := fe₀)
+  have hall := allM_ck (env := env₀) (fe := fe₀)
     (g := fun i =>
       match xFvsP[i]?, (ks.map kindOf).getD i .ordinary with
       | some x, .ordinary => x.fvarTypeD.constsResolve env₀
@@ -765,7 +783,7 @@ theorem nativeOpenedOk_spec {μ : CheckMode} (fe₀ : IFEnv) (env₀ : Env) (T :
         obtain ⟨q2, hpb1, -⟩ := piBinders_spec Arena.coreWalkFuel xt xP.fvarTypeD t₀ t2 pb
           ck.state hxt g2
         have hlen : pb.1.length = (xP.fvarTypeD.piBinders).1.length := denoteBinders_length hpb1
-        have ck2 := (q2.toCore ck).ok
+        have ck2 := (ck.mono q2.ok q2.ext q2.pins)
         obtain ⟨o, t3, g3, y3⟩ := bindOk y2
         obtain ⟨q3, ho⟩ := openPisAtFvarsF_run q2.ok (denote_ext hxt q2.ext) g3
         rw [hlen] at ho
@@ -783,7 +801,7 @@ theorem nativeOpenedOk_spec {μ : CheckMode} (fe₀ : IFEnv) (env₀ : Env) (T :
         dsimp only at y3
         have hla : afvs.length = afvsP.length := (ExprOps.denoteEList_length _ _ hafvs).symm
         rw [hla] at y3
-        have ck3 := (q3.toCore ck2).ok
+        have ck3 := (ck2.mono q3.ok q3.ext q3.pins)
         cases hl0 : (afvsP.length == 0) with
         | true =>
           rw [hl0] at y3
@@ -811,7 +829,7 @@ theorem nativeOpenedOk_spec {μ : CheckMode} (fe₀ : IFEnv) (env₀ : Env) (T :
         simp only [Bool.not_true, Bool.false_eq_true, if_false] at y4
         rw [Bool.true_and]
         have x04 : Ext t₀.store t4.store := q2.ext.trans (q3.ext.trans q4.ext)
-        obtain ⟨q5, hr5⟩ := famTail_run (q4.toCore ck3).ok (denote_ext hhd' x04)
+        obtain ⟨q5, hr5⟩ := famTail_run (ck3.mono q4.ok q4.ext q4.pins) (denote_ext hhd' x04)
           (denote_ext hbody' q4.ext) (denoteEList_ext x04 _ _ hfv)
           (denoteEList_ext x04 _ _ hxf) (denote_ext hxr x04) y4
         exact ⟨q2.trans (q3.trans (q4.trans q5)), hr5⟩
@@ -819,7 +837,7 @@ theorem nativeOpenedOk_spec {μ : CheckMode} (fe₀ : IFEnv) (env₀ : Env) (T :
         (rw [hk] at hbody
          obtain ⟨rfl, rfl⟩ := pureOk hbody
          exact ⟨PStep.refl ck.state, rfl⟩))
-    (List.range nF) s6 s' r (p6.toCore ck4).ok
+    (List.range nF) s6 s' r (ck4.mono p6.ok p6.ext p6.pins)
     (fun _ _ => ⟨denoteEList_ext x26 _ _ hxfvs, denoteEList_ext x16 _ _ hfvs,
       denote_ext hhd x46, denote_ext hxrest x26⟩) z6
   exact ⟨p04.trans (p6.trans hall.1), hall.2⟩
@@ -832,12 +850,12 @@ The same over the whole constructor list.
 `denoteCtors_getElem?` for the pairing, and `nativeOpenedOk_spec` at each.
 **The same precondition repair** as `nativeOpenedOk_spec`: `CheckOK μ env₀ fe₀`
 in place of `StateOK`; the conclusion is unchanged. -/
-theorem nativeFieldsOk_spec {μ : CheckMode} (fe₀ : IFEnv) (env₀ : Env) (T : NIdx)
+theorem nativeFieldsOk_spec (fe₀ : IFEnv) (env₀ : Env) (T : NIdx)
     (TP : ConLeche.Name) (lps : List NIdx) (lpsP : List ConLeche.Name)
     (nP nIdx : Nat) (ctorsA : List (IConstantVal × Nat))
     (ctorsAP : List (ConstantVal × Nat))
     (kinds : List (List Arena.RecFieldKind)) :
-    ∀ (s₀ s' : AState) (r : Bool), CheckOK μ env₀ fe₀ s₀ →
+    ∀ (s₀ s' : AState) (r : Bool), ReadOK env₀ fe₀ s₀ →
       (denoteN s₀.store.ns T = some TP ∧
         Frontend.denoteNList s₀.store.ns lps = some lpsP ∧
         denoteCtors s₀.store ctorsA = some ctorsAP ∧ denoteFEnv s₀.store fe₀ = some env₀) →
@@ -860,7 +878,7 @@ theorem nativeFieldsOk_spec {μ : CheckMode} (fe₀ : IFEnv) (env₀ : Env) (T :
   rw [hl] at hrun
   simp only [Bool.not_true, Bool.false_eq_true, if_false] at hrun
   rw [Bool.true_and]
-  exact allM_ck (μ := μ) (env := env₀) (fe := fe₀)
+  exact allM_ck (env := env₀) (fe := fe₀)
     (g := fun j =>
       match ctorsAP[j]?, (kinds.map (·.map kindOf))[j]? with
       | some cA, some ks =>
@@ -1050,6 +1068,21 @@ theorem checkNativeRec_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         Frontend.denoteCV st r.1 = some cvRaP ∧
         Frontend.denoteEList st r.2 = some rhssP) := by
   sorry
+
+/-- con-leche: none — a list of level lists keeps its denotation as the
+arena grows. -/
+theorem denoteLLists_ext {st st' : EStore} (hx : Ext st st') :
+    ∀ {ss : List (List LIdx)} {ssP : List (List Level)},
+      denoteLLists st ss = some ssP → denoteLLists st' ss = some ssP
+  | [], ssP, h => h
+  | l :: ls, ssP, h => by
+    simp only [denoteLLists] at h ⊢
+    split at h
+    · rename_i a b ha hb
+      have e1 : denoteLList st'.ls l = some a := denoteLList_ext hx.lss.ls _ _ ha
+      rw [e1, denoteLLists_ext hx hb]
+      exact h
+    · exact nomatch h
 
 /-- con-leche: none — a list of level lists denotes elementwise, so its
 length is kept. -/
@@ -1421,6 +1454,58 @@ theorem checkSumCtors_up {μ : CheckMode} {F G : Nat} {env₀ env : Env} {T : Co
   exact (ConLeche.checkSumCtors (ConLeche.fueledOpsM μ) env₀ env T lps nP nIdx rs isProp
     large cvTa cs).property hle h
 
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:269-272 consSumCtors
+— **the read invariant survives the constructors' conses** (`ReadOK.push`
+at each, none of them a projection table). -/
+theorem ReadOK.consSumCtors {nP : Nat} {s : AState} :
+    ∀ {cs : List (IConstantVal × Nat)} {csP : List (ConstantVal × Nat)}
+      {fe : IFEnv} {env : Env},
+      ReadOK env fe s → IFEnvCoh fe → denoteCtors s.store cs = some csP →
+      denoteFEnv s.store fe = some env →
+      ReadOK (ConLeche.consSumCtors nP csP env) (Arena.consSumCtors nP cs fe) s
+  | [], csP, fe, env, h, _, hcs, _ => by
+    simp only [denoteCtors, Option.some.injEq] at hcs
+    subst hcs
+    exact h
+  | c :: cs, csP, fe, env, h, hcoh, hcs, hfe => by
+    obtain ⟨cv, n⟩ := c
+    simp only [denoteCtors] at hcs
+    cases hcv : Frontend.denoteCV s.store cv with
+    | none => rw [hcv] at hcs; simp at hcs
+    | some cP =>
+    cases hrest : denoteCtors s.store cs with
+    | none => rw [hcv, hrest] at hcs; simp at hcs
+    | some restP =>
+    rw [hcv, hrest] at hcs
+    obtain rfl := (Option.some.inj hcs).symm
+    have hci : Frontend.denoteCI s.store (.ctorInfo cv nP n) = some (.ctorInfo cP nP n) := by
+      simp only [Frontend.denoteCI, hcv, Option.map_some]
+    have hpush := denoteFEnv_push hfe hci
+    have h1 : ReadOK ⟨.ctorInfo cP nP n :: env.consts⟩ (fe.push (.ctorInfo cv nP n)) s :=
+      h.push hcoh (fun t ht => IConstantInfo.noConfusion ht) hfe hpush
+    have := ReadOK.consSumCtors (nP := nP) h1 (hcoh.push _) hrest hpush
+    simp only [Arena.consSumCtors, ConLeche.consSumCtors]
+    exact this
+
+theorem checkNativeRec_up {μ : CheckMode} {F G : Nat} {env : Env}
+    {p : ConLeche.NativeParts} {cvTa : ConstantVal} {ctorsA : List (ConstantVal × Nat)}
+    {v : ConstantVal × List Expr} (hle : F ≤ G)
+    (h : ConLeche.checkNativeRec (ConLeche.fueledOps μ F) env p cvTa ctorsA = .ok v) :
+    ConLeche.checkNativeRec (ConLeche.fueledOps μ G) env p cvTa ctorsA = .ok v := by
+  rw [← ConLeche.checkNativeRec_datF] at h ⊢
+  exact (ConLeche.checkNativeRec (ConLeche.fueledOpsM μ) env p cvTa ctorsA).property hle h
+
+theorem checkStructFieldSortsI_up {μ : CheckMode} {F G : Nat} {env : Env}
+    {isProp large : Bool} {s : Level} {nP : Nat} {fvs idxArgs : List Expr} {j : Nat}
+    {v : List Level} (hle : F ≤ G)
+    (h : ConLeche.checkStructFieldSortsI (ConLeche.fueledOps μ F) env isProp large s nP fvs
+      idxArgs j = .ok v) :
+    ConLeche.checkStructFieldSortsI (ConLeche.fueledOps μ G) env isProp large s nP fvs
+      idxArgs j = .ok v := by
+  rw [← ConLeche.checkStructFieldSortsI_datF] at h ⊢
+  exact (ConLeche.checkStructFieldSortsI (ConLeche.fueledOpsM μ) env isProp large s nP fvs
+    idxArgs j).property hle h
+
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:556-574 checkNativePass
 **One pass over the former and the constructors** at a given `is_rec` verdict,
 with the flag that says whether the classification confirms it.
@@ -1501,7 +1586,30 @@ theorem checkNativePass_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     have := c24.ext.trans p5.ext
     rw [hst₂] at this
     exact this
-  sorry
+  obtain ⟨p6, hcb⟩ := nativeCapsAt_spec p₁ qP₁ isRec s₅ s₆ cb p5.ok
+    (c24.ok.pins.mono p5.ext p5.pins) (hsh₁.ext x15) k6
+  obtain ⟨rfl, rfl⟩ := pureOk z6
+  have c26 : CoreStep μ envP' fe₁ s₂ s' := (c24.trans (p5.toCore c24.ok)).trans
+    (p6.toCore (c24.trans (p5.toCore c24.ok)).ok)
+  have x2' : Ext s₂.store s'.store := c26.ext
+  have x1' : Ext s₁.store s'.store := by rw [← hst₂]; exact x2'
+  have x5' : Ext s₅.store s'.store := p6.ext
+  have hks' : ks = kinds.map (·.map kindOf) := hkr.symm
+  subst hks'
+  have hcaEq := denoteCaps_beq c26.ok.state.wf (denoteCaps_ext hca x5') hcb
+  refine ⟨c1.toInst.trans (hi₂.trans c26.toInst), max F₁ F₂,
+    ⟨envP', cvTaP, (q₀.complete qP₁).withKinds (kinds.map (·.map kindOf)), ctorsAP, sortssP⟩,
+    ConLeche.nativeCaps ((q₀.complete qP₁).withKinds (kinds.map (·.map kindOf))) ==
+      ConLeche.nativeCapsAt qP₁ isRec, ?_, ?_, hcaEq, hinst₁.ext x1', c26.ok⟩
+  · have g₁ := checkSumInd_up (Nat.le_max_left F₁ F₂) hF₁
+    have g₂ := checkSumCtors_up (Nat.le_max_right F₁ F₂) hF₂
+    rw [hsh₁'.nP, hsh₁'.nIdx, hsh₁'.isProp, hsh₁'.large] at g₂
+    rw [hsh₁'.nP, hsh₁'.nIdx] at hks
+    simp only [ConLeche.checkNativePass, bind, Except.bind, g₁, g₂, hks, pure, Except.pure]
+  · have x4' : Ext s₄.store s'.store := p5.ext.trans x5'
+    have x3' : Ext s₃.store s'.store := c4.ext.trans x4'
+    exact ⟨denoteFEnv_ext x1' hden₁, denoteCV_ext hcv₁ x1', hpk.ext x4',
+      denoteCtors_ext x3' _ _ hct₃, denoteLLists_ext x3' hss₃⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:576-611 checkNativeTail
 **The install after the pass**: the elimination restriction, the index
@@ -1527,7 +1635,163 @@ theorem checkNativeTail_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (fun s fe' => InstRel fe (fun env' => ∃ F,
         ConLeche.checkNativeTail (ConLeche.fueledOps μ F) env qP = .ok env')
         s.store fe') := by
-  sorry
+  intro s₀ s' fe' hpre hrun
+  obtain ⟨hck, hread, hpass, hfe, hinst₁⟩ := hpre
+  have hsh := hpass.p.shape
+  simp only [Arena.checkNativeTail] at hrun
+  -- the elimination restriction
+  obtain ⟨u, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨rfl, hu⟩ := readLevel_run k1
+  obtain rfl : u = qP.p.resSort := Option.some.inj (hu.symm.trans hsh.resSort)
+  have hlen : r.p.ctors.length = qP.p.ctors.length := denoteCtors_length _ _ hsh.ctors
+  have hlarge : r.p.large = qP.p.large := hsh.large
+  split at z1
+  · exact absurd z1 (AM.Never.fail_any _ _ _)
+  rename_i hg
+  replace z1 := AM.pure_bind_ok z1
+  have hck₀ := hck
+  -- the former's telescope, opened
+  obtain ⟨o, s₂, k2, z2⟩ := bindOk z1
+  obtain ⟨p2, ho⟩ := openPisAtFvarsF_run hck.state (denoteCV_type hpass.cvTa) k2
+  obtain ⟨tq, s₃, k3, z3⟩ := bindOk z2
+  cases o with
+  | none => simp only [Arena.unwrapOr] at k3; exact absurd k3 (fun h => failOk h)
+  | some tq' =>
+  simp only [Arena.unwrapOr] at k3
+  obtain ⟨rfl, rfl⟩ := pureOk k3
+  obtain ⟨fvsP, bodyP, htq, hfvs, hbody⟩ := denoteOpen_some_inv ho
+  rw [hsh.nP, hsh.nIdx] at htq
+  -- the index binders' sorts
+  obtain ⟨is, s₄, k4, z4⟩ := bindOk z3
+  have hTw : Expr.WScoped 0 qP.cvTa.type := Expr.WScoped.of_not_hasFvar hTf
+  obtain ⟨htqW, -⟩ := ConLeche.openPisAtFvars_WScoped _ _ _ htq hTw
+  have hidxT := ConLeche.openPisAtFvars_index _ _ _ htq
+  have hxPos : ∀ i, i < qP.p.nIdx → ∀ (x : Expr), (fvsP.drop qP.p.nP)[i]? = some x →
+      Expr.WScoped (qP.p.nP + i) (Expr.fvarTypeD x) := by
+    intro i _ x hx
+    rw [List.getElem?_drop] at hx
+    obtain ⟨ty, rfl⟩ := hidxT (qP.p.nP + i) x hx
+    have hw := htqW _ (List.mem_of_getElem? hx)
+    simp only [Expr.WScoped, Nat.zero_add] at hw
+    exact hw.2
+  have c2 : CoreStep μ qP.env₁ r.env₁ s₁ s₃ := p2.toCore hck
+  obtain ⟨c4, F₀, isP, hF₀, his⟩ := checkStructFieldSortsI_spec r.env₁ hk henv₁ true false
+    r.p.resSort qP.p.resSort r.p.nP (tq.1.drop r.p.nP) [] (fvsP.drop qP.p.nP) [] r.p.nIdx
+    (by rw [hsh.nP, hsh.nIdx]; exact hxPos) s₃ s₄ is c2.ok
+    ⟨denoteL_ext hsh.resSort p2.ext, by rw [hsh.nP]; exact denoteEList_drop hfvs _, rfl,
+      denoteFEnv_ext p2.ext hpass.env₁⟩ k4
+  have x14 : Ext s₁.store s₄.store := p2.ext.trans c4.ext
+  -- the kinds, re-checked on the stored constructors (at the ENTRY index)
+  obtain ⟨b5, s₅, k5, z5⟩ := bindOk z4
+  obtain ⟨p5, hb5⟩ := nativeFieldsOk_spec fe env r.p.cvT.name qP.p.cvT.name
+    r.p.cvT.levelParams qP.p.cvT.levelParams r.p.nP r.p.nIdx r.ctorsA qP.ctorsA r.p.kinds
+    s₄ s₅ b5 (hread.mono c4.ok.state x14 (by rw [c4.pins, p2.pins]))
+    ⟨denoteN_ext (denoteCV_name hsh.cvT) x14, denoteNListE_ext x14 _ _ (denoteCV_lps hsh.cvT),
+      denoteCtors_ext x14 _ _ hpass.ctorsA, denoteFEnv_ext x14 hfe⟩ k5
+  obtain ⟨hb5', z6⟩ := AM.dunless_ok AM.Never.fail_any z5
+  replace z6 := AM.pure_bind_ok z6
+  rw [hb5, hsh.nP, hsh.nIdx, hpass.p.kinds] at hb5'
+  -- the stream's rules against the generated ones
+  have x15 : Ext s₁.store s₅.store := x14.trans p5.ext
+  obtain ⟨rl, s₆, k6, z6⟩ := bindOk z6
+  obtain ⟨p6, hrl⟩ := paramLevels_spec r.p.cvR.levelParams qP.p.cvR.levelParams s₅ s₆ rl p5.ok
+    (denoteNListE_ext x15 _ _ (denoteCV_lps hsh.cvR)) k6
+  have x16 : Ext s₁.store s₆.store := x15.trans p6.ext
+  obtain ⟨b7, s₇, k7, z7⟩ := bindOk z6
+  obtain ⟨p7, hb7⟩ := nativeRulesOk_spec r.p.cvR.name qP.p.cvR.name rl _ .never r.p.nP
+    r.p.ctors.length r.ctorsA qP.ctorsA r.p.kinds r.p.rhss qP.p.rhss r.p.cvR.type qP.p.cvR.type
+    s₆ s₇ b7 p6.ok ⟨denoteN_ext (denoteCV_name hsh.cvR) x16, hrl,
+      denoteCtors_ext x16 _ _ hpass.ctorsA, denoteEList_ext x16 _ _ hsh.rhss,
+      denote_ext (denoteCV_type hsh.cvR) x16⟩ k7
+  obtain ⟨hb7', z8⟩ := AM.dunless_ok AM.Never.fail_any z7
+  replace z8 := AM.pure_bind_ok z8
+  have hb7'' := hb7'
+  rw [hb7, hsh.nP, hlen, hpass.p.kinds] at hb7''
+  have x17 : Ext s₁.store s₇.store := x16.trans p7.ext
+  -- the constructors consed, and the flush
+  obtain ⟨u8, s₈, k8, z9⟩ := bindOk z8
+  have hread₁ : ReadOK qP.env₁ r.env₁ s₇ :=
+    hck.toR.mono p7.ok x17 (by rw [p7.pins, p6.pins, p5.pins, c4.pins, p2.pins])
+  have hcoh₁ : IFEnvCoh r.env₁ := hinst₁.coh
+  have hread₂ : ReadOK (ConLeche.consSumCtors qP.p.nP qP.ctorsA qP.env₁)
+      (Arena.consSumCtors r.p.nP r.ctorsA r.env₁) s₇ := by
+    rw [← hsh.nP]
+    exact ReadOK.consSumCtors hread₁ hcoh₁
+      (denoteCtors_ext x17 _ _ hpass.ctorsA) (denoteFEnv_ext x17 hpass.env₁)
+  have hinst₂ : InstRel r.env₁ (fun e => e = ConLeche.consSumCtors qP.p.nP qP.ctorsA qP.env₁)
+      s₇.store (Arena.consSumCtors r.p.nP r.ctorsA r.env₁) := by
+    rw [← hsh.nP]
+    exact consSumCtors_spec s₇.store r.p.nP r.ctorsA qP.ctorsA r.env₁ qP.env₁
+      (denoteCtors_ext x17 _ _ hpass.ctorsA) (denoteFEnv_ext x17 hpass.env₁) hcoh₁
+  have hden₂ : denoteFEnv s₇.store (Arena.consSumCtors r.p.nP r.ctorsA r.env₁)
+      = some (ConLeche.consSumCtors qP.p.nP qP.ctorsA qP.env₁) := by
+    obtain ⟨e, he, rfl⟩ := hinst₂.denote
+    exact he
+  obtain ⟨hck₈, hi₈, hst₈⟩ := hread₂.flush (μ := μ) k8
+  have x18 : Ext s₁.store s₈.store := by rw [hst₈]; exact x17
+  -- the recursor, generated and compared, at the constructors' environment
+  obtain ⟨rr, s₉, k9, z10⟩ := bindOk z9
+  obtain ⟨c9, F₃, cvRaP, rhssP, hF₃, hcvRa, hrhss⟩ := checkNativeRec_spec
+    (Arena.consSumCtors r.p.nP r.ctorsA r.env₁) hμ hk henv₂ r.p qP.p r.cvTa qP.cvTa
+    r.ctorsA qP.ctorsA s₈ s₉ rr hck₈
+    ⟨hpass.p.ext x18, denoteCV_ext hpass.cvTa x18, denoteCtors_ext x18 _ _ hpass.ctorsA,
+      by rw [hst₈]; exact hden₂⟩ k9
+  obtain ⟨cvRa, rhss⟩ := rr
+  simp only at hcvRa hrhss z10
+  have x19 : Ext s₁.store s₉.store := x18.trans c9.ext
+  have x79 : Ext s₇.store s₉.store := by
+    have := c9.ext
+    rw [hst₈] at this
+    exact this
+  -- the rules
+  obtain ⟨rules, s₁₀, k10, z11⟩ := bindOk z10
+  obtain ⟨c10, hrules⟩ := sumRules_spec (Arena.consSumCtors r.p.nP r.ctorsA r.env₁)
+    cvRa.name cvRaP.name r.p.nP r.p.majorIdx r.p.rulePrefix cvRa.type cvRaP.type r.ctorsA
+    qP.ctorsA rhss rhssP s₉ s₁₀ rules c9.ok
+    ⟨denoteCV_name hcvRa, denoteCV_type hcvRa, denoteCtors_ext x19 _ _ hpass.ctorsA, hrhss,
+      denoteFEnv_ext x79 hden₂⟩ k10
+  have x9' : Ext s₉.store s₁₀.store := c10.ext
+  have hmI : r.p.majorIdx = qP.p.majorIdx := majorIdx_spec hsh
+  have hrP : r.p.rulePrefix = qP.p.rulePrefix := rulePrefix_spec hsh
+  rw [hsh.nP, hmI, hrP] at hrules
+  -- the recursor pushed, and the table
+  have hci : Frontend.denoteCI s₁₀.store (.recInfo cvRa r.p.majorIdx r.p.rulePrefix rules)
+      = some (.recInfo cvRaP qP.p.majorIdx qP.p.rulePrefix
+          (ConLeche.sumRules (ConLeche.consSumCtors qP.p.nP qP.ctorsA qP.env₁).find?
+            cvRaP.name qP.p.nP qP.p.majorIdx qP.p.rulePrefix cvRaP.type qP.ctorsA rhssP)) := by
+    simp only [Frontend.denoteCI, denoteCV_ext hcvRa x9', hrules, hmI, hrP]
+  have x7' : Ext s₇.store s₁₀.store := x79.trans x9'
+  have hden₃ := denoteFEnv_push (denoteFEnv_ext x7' hden₂) hci
+  have hcoh₂ : IFEnvCoh (Arena.consSumCtors r.p.nP r.ctorsA r.env₁) := hinst₂.coh
+  obtain ⟨p11, hinst₄⟩ := checkNativeTable_run _ _ (hcoh₂.push _) r.p qP.p r.ctorsA qP.ctorsA
+    r.sortss qP.sortss s₁₀ s' fe' c10.ok.state c10.ok.pins
+    ⟨hpass.p.ext (x19.trans x9'), denoteCtors_ext (x19.trans x9') _ _ hpass.ctorsA,
+      denoteLLists_ext (x19.trans x9') hpass.sortss, hden₃⟩ z11
+  have x1' : Ext s₁.store s'.store := (x19.trans x9').trans p11.ext
+  have x7'' : Ext s₇.store s'.store := x7'.trans p11.ext
+  have hinst₃ : InstRel (Arena.consSumCtors r.p.nP r.ctorsA r.env₁) (fun _ => True)
+      s₁₀.store ((Arena.consSumCtors r.p.nP r.ctorsA r.env₁).push
+        (.recInfo cvRa r.p.majorIdx r.p.rulePrefix rules)) :=
+    ⟨hcoh₂.push _, Pushed.push _ _, Nat.le_succ _, ⟨_, hden₃, trivial⟩,
+      ProjOut.push hcoh₂ _ (fun t h => IConstantInfo.noConfusion h)⟩
+  refine ⟨(p2.toInst.trans c4.toInst).trans ((p5.toInst.trans (p6.toInst.trans p7.toInst)).trans
+    (hi₈.trans (c9.toInst.trans (c10.toInst.trans p11.toInst)))), ?_⟩
+  have hall := InstRel.trans x1' hinst₁
+    (InstRel.trans x7'' hinst₂ (InstRel.trans p11.ext hinst₃ hinst₄))
+  refine hall.imp ?_
+  rintro e he
+  rw [hsh.nP, hsh.nIdx] at hF₀
+  rw [hlarge, hlen] at hg
+  refine ⟨max F₀ F₃, ?_⟩
+  have g₀ := checkStructFieldSortsI_up (Nat.le_max_left F₀ F₃) hF₀
+  have g₃ := checkNativeRec_up (Nat.le_max_right F₀ F₃) hF₃
+  simp only [ConLeche.checkNativeTail, bind, Except.bind, pure, Except.pure]
+  rw [if_neg hg]
+  simp only [htq, ConLeche.unwrapOr, pure, Except.pure]
+  rw [g₀]
+  simp only [if_pos hb5', if_pos hb7'']
+  rw [g₃]
+  exact he
 
 /-! ## The route's pure side: fuel and well-formedness (task #97-P3-Ind round 8)
 
@@ -1642,13 +1906,6 @@ theorem denoteCtors_nodup {st : EStore} (hwf : StoreWF st) :
     obtain rfl := (Option.some.inj h).symm
     simp only [List.map_cons, List.nodup_cons,
       denoteCtors_mem hwf (denoteCV_name hcv) hrest, ih hrest]
-
-/-- con-leche: none — an `InstRel` whose pure-side claim is implied by
-another's. -/
-theorem InstRel.imp {fe fe' : IFEnv} {P Q : Env → Prop} {st : EStore}
-    (h : InstRel fe P st fe') (hPQ : ∀ e, P e → Q e) : InstRel fe Q st fe' := by
-  obtain ⟨e, he, hp⟩ := h.denote
-  exact ⟨h.coh, h.pushed, h.visible, ⟨e, he, hPQ e hp⟩, h.proj⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:613-640 checkNative
 **THE FIXPOINT ROUTE**, one of the two `checkIndDecl` dispatches to.  The
