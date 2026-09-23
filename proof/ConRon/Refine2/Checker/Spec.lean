@@ -615,16 +615,16 @@ def divModSlot2Spec (c : NIdx) : AM Nat := do
   else if c == (← natShiftRightName) then pure 6
   else pure 7
 
-/-- … past the two bitwise conjunctions. -/
+/-- … past `Nat.div` (the Rust's `div_mod_slot_1`: `gcd`, `land`, `lor`). -/
 def divModSlot1Spec (c : NIdx) : AM Nat := do
-  if c == (← natLandName) then pure 2
+  if c == (← natGcdName) then pure 1
+  else if c == (← natLandName) then pure 2
   else if c == (← natLorName) then pure 3
   else divModSlot2Spec c
 
 /-- … from the top. -/
 def divModSlotSpec (c : NIdx) : AM Nat := do
   if c == (← natDivName) then pure 0
-  else if c == (← natGcdName) then pure 1
   else divModSlot1Spec c
 
 /-! ### `divModCertStmts`' context and its seven arms

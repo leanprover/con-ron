@@ -2509,4 +2509,118 @@ namespace Lockstep
 
 end Lockstep
 
+
+/-- **`arena::env::i_constant_info_to_constant_val` refines
+`IConstantInfo.toConstantVal`** (`Arena/Env.lean:222-229`): six arms are a
+copy, the `.projInfo` arm interns `Sort 1` in both, in the same order. -/
+theorem i_constant_info_to_constant_val_refines {pers rst lst c o}
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
+    (h : arena.env.i_constant_info_to_constant_val pers rst.store c = ok o) :
+    Sim₀ absIConstantVal pers lst (o.1, withStore rst o.2)
+      (absIConstantInfo c).toConstantVal := by
+  have plain : ∀ v iv, arena.env.i_constant_val_dup v = ok iv →
+      o = (.Ok iv, rst.store) →
+      (absIConstantInfo c).toConstantVal = pure (absIConstantVal v) →
+      Sim₀ absIConstantVal pers lst (o.1, withStore rst o.2)
+        (absIConstantInfo c).toConstantVal := by
+    intro v iv hiv ho hx
+    subst ho
+    refine AOut₀.ok (lst' := lst) ?_ hrel hinv
+    rw [hx, i_constant_val_dup_abs hiv]; rfl
+  cases c with
+  | AxiomInfo v =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | DefnInfo v _ _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | ThmInfo v _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | IndInfo v _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | CtorInfo v _ _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | RecInfo v _ _ _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | ProjInfo tbl =>
+    clear plain
+    simp only [arena.env.i_constant_info_to_constant_val] at h
+    show AOut₀ _ _ _ _ _
+    simp only [absIConstantInfo, IConstantInfo.toConstantVal]
+    -- 1. the level `0`
+    obtain ⟨⟨r1, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hS1 := intern_l_node_run₀ hrel hinv arena.store.LNodeView.Zero
+      (o := (r1, withStore rst ar1))
+      (by rw [arena.monad.intern_l_node, h1]; simp only [bind_tc_ok]; rfl)
+    rw [show Arena.internLNode LNodeView.zero
+        = Arena.internLNode (absLNodeView arena.store.LNodeView.Zero) from rfl]
+    cases r1 with
+    | Err e =>
+      have ho := Result.ok_injective h
+      subst ho
+      exact AOut₀.errBind hS1
+    | Ok z =>
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS1
+    rw [run_bind_ok hx1]
+    -- 2. the level `1`
+    obtain ⟨⟨r2, ar2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hS2 := intern_l_node_run₀ hrel1 hinv1 (arena.store.LNodeView.Succ z)
+      (o := (r2, withStore rst ar2))
+      (by rw [arena.monad.intern_l_node]; rw [h2]; simp only [bind_tc_ok]; rfl)
+    rw [show Arena.internLNode (.succ (absLIdx z))
+        = Arena.internLNode (absLNodeView (arena.store.LNodeView.Succ z)) from rfl]
+    cases r2 with
+    | Err e =>
+      have ho := Result.ok_injective h
+      subst ho
+      exact AOut₀.errBind hS2
+    | Ok one =>
+    obtain ⟨lst2, hx2, hrel2, hinv2⟩ := Sim₀.apply hS2
+    rw [run_bind_ok hx2]
+    -- 3. the expression `Sort 1`
+    obtain ⟨⟨r3, ar3⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hS3 := intern_e_sort_run₀ hrel2 hinv2 one
+      (o := (r3, withStore rst ar3))
+      (by rw [arena.monad.intern_e_sort]
+          rw [show arena.store.EStore.intern_sort (withStore rst ar2).store pers one
+              = arena.store.EStore.intern ar2 pers (arena.store.ENodeView.Sort one) from rfl,
+            h3]
+          simp only [bind_tc_ok]; rfl)
+    rw [show Arena.internE (.sort (absLIdx one)) = Arena.internSortE (absLIdx one) from rfl]
+    cases r3 with
+    | Err e =>
+      have ho := Result.ok_injective h
+      subst ho
+      exact AOut₀.errBind hS3
+    | Ok ty =>
+    obtain ⟨lst3, hx3, hrel3, hinv3⟩ := Sim₀.apply hS3
+    rw [run_bind_ok hx3]
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have ho := Result.ok_injective h
+    subst ho
+    refine AOut₀.ok (lst' := lst3) ?_ hrel3 hinv3
+    show Except.ok _ = _
+    simp only [absIConstantVal, absIProjTable, dupId_nidx _ _ hn, nidx_vec_dup_val hv]
+
+open Lockstep in
+@[lockstep] theorem Lockstep.i_constant_info_to_constant_val_lss {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (c : arena.env.IConstantInfo) :
+    LSS pers (fun a b => b = absIConstantVal a)
+      (arena.env.i_constant_info_to_constant_val pers st.store c) st lst
+      (absIConstantInfo c).toConstantVal := by
+  intro o s' h
+  have := i_constant_info_to_constant_val_refines (o := (o, s')) hrel hinv h
+  cases o with
+  | Err e => exact this
+  | Ok a =>
+    obtain ⟨lst', hx, hrel', hinv'⟩ := Sim₀.apply this
+    exact ⟨_, lst', hx, rfl, hrel', hinv'⟩
+
+
 end ConRon.Refine2
