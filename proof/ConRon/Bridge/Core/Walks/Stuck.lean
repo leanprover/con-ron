@@ -10,7 +10,7 @@ statement over a tower; this module skeletonises the tower top-down:
 | walk | twin | con-leche | status |
 |---|---|---|---|
 | `stuckIrrel_spec` | `Arena/Core.lean:1564` | `Kernel/Core.lean:532-542` | **proved** from the three below |
-| `structEtaCert_spec` | `:1502` | `:450-473` | **proved** from `etaCtorShape_spec` (closed) and `structEtaCertWith_spec` (`:1416` / `:376-448`, OPEN) |
+| `structEtaCert_spec` | `:1502` | `:450-473` | **proved** from `etaCtorShape_spec` (closed) and `structEtaCertWith_spec` (`:1416` / `:376-448`, **CLOSED** round 6, over `Walks/Eta.lean`) |
 | `structUnitCert_spec` | `:1513` | `:475-503` | **CLOSED** |
 | `proofIrrel_spec` | `:1265` | `:284-305` | **CLOSED**, over `isUnitLikeTy_spec` (new) |
 
@@ -30,6 +30,7 @@ is what every body theorem of this tier already has in hand
 -/
 import ConRon.Bridge.Core.Walks.PropRead
 import ConRon.Bridge.Core.Walks.Reserved
+import ConRon.Bridge.Core.Walks.Eta
 
 namespace ConRon.Bridge.Core
 
@@ -514,19 +515,282 @@ theorem etaCtorShape_spec (s₀ : AState) (a : EIdx) (x : Expr)
          · rename_i c us heq; exact absurd heq (hnc c us)
          · rfl)
 
+/-! ### `structEtaCertWith`'s pure side at its exits -/
+
+/-- con-leche: none — a `pure` is a triple for any postcondition its value
+and the unchanged state satisfy. -/
+theorem triple_pureC {α : Type} {s₀ : AState} {a : α}
+    {Q : α → AState → Prop} (h : Q a s₀) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (pure a : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ :=
+  triple_of_run fun r s' hr => by
+    simp only [StateT.run, pure, StateT.pure, Except.pure] at hr
+    cases hr
+    exact h
+
+/-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — the
+candidate's head is not a constant. -/
+theorem structEtaCertWith_nohead {F d : Nat} {x y w : Expr}
+    (hh : ∀ c us, x.getAppFn ≠ .const c us) :
+    ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false := by
+  simp only [ConLeche.structEtaCertWithFueled, ConLeche.structEtaCertWith]
+  first
+    | rfl
+    | (split
+       · rename_i c us heq; exact absurd heq (hh c us)
+       · rfl)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — the
+head is not a stored constructor. -/
+theorem structEtaCertWith_noctor {F d : Nat} {x y w : Expr} {c : Name}
+    {us : List Level} (hh : x.getAppFn = .const c us)
+    (hf : ∀ cv nP nF, env.find? c ≠ some (.ctorInfo cv nP nF)) :
+    ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false := by
+  simp only [ConLeche.structEtaCertWithFueled, ConLeche.structEtaCertWith, hh]
+  first
+    | rfl
+    | (split
+       · rename_i cv nP nF heq; exact absurd heq (hf cv nP nF)
+       · rfl)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — the
+constructor is not applied to exactly its parameters and fields. -/
+theorem structEtaCertWith_len {F d : Nat} {x y w : Expr} {c : Name}
+    {us : List Level} {cvc : ConstantVal} {cnP cnF : Nat}
+    (hh : x.getAppFn = .const c us)
+    (hf : env.find? c = some (.ctorInfo cvc cnP cnF))
+    (hlen : ¬ x.getAppArgs.length = cnP + cnF) :
+    ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false := by
+  simp only [ConLeche.structEtaCertWithFueled, ConLeche.structEtaCertWith, hh, hf]
+  rw [if_neg hlen]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — the
+stuck side's type's head is not a constant. -/
+theorem structEtaCertWith_nohead_w {F d : Nat} {x y w : Expr} {c : Name}
+    {us : List Level} {cvc : ConstantVal} {cnP cnF : Nat}
+    (hh : x.getAppFn = .const c us)
+    (hf : env.find? c = some (.ctorInfo cvc cnP cnF))
+    (hlen : x.getAppArgs.length = cnP + cnF)
+    (hw : ∀ T us', w.getAppFn ≠ .const T us') :
+    ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false := by
+  simp only [ConLeche.structEtaCertWithFueled, ConLeche.structEtaCertWith, hh, hf]
+  rw [if_pos hlen]
+  first
+    | rfl
+    | (split
+       · rename_i T us' heq; exact absurd heq (hw T us')
+       · rfl)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — that
+head is not a stored inductive. -/
+theorem structEtaCertWith_noind {F d : Nat} {x y w : Expr} {c T : Name}
+    {us us' : List Level} {cvc : ConstantVal} {cnP cnF : Nat}
+    (hh : x.getAppFn = .const c us)
+    (hf : env.find? c = some (.ctorInfo cvc cnP cnF))
+    (hlen : x.getAppArgs.length = cnP + cnF)
+    (hw : w.getAppFn = .const T us')
+    (hfT : ∀ cv caps, env.find? T ≠ some (.indInfo cv caps)) :
+    ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false := by
+  simp only [ConLeche.structEtaCertWithFueled, ConLeche.structEtaCertWith, hh, hf,
+    hw]
+  rw [if_pos hlen]
+  first
+    | rfl
+    | (split
+       · rename_i cv caps heq; exact absurd heq (hfT cv caps)
+       · rfl)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — the
+structure-η guard, as con-leche states it. -/
+def EtaGuard (env : Env) (w : Expr) (c T : Name) (us' : List Level)
+    (cvc cvT : ConstantVal) (caps : IndCaps) : Prop :=
+  caps.eta = true ∧ caps.etaCtor = c ∧
+    ConLeche.reservedBasisNames.contains T = false ∧
+    ConLeche.reservedBasisNames.contains c = false ∧
+    w.getAppArgs.length = caps.etaParams ∧
+    us'.length = cvT.levelParams.length ∧
+    cvc.levelParams = cvT.levelParams ∧
+    (ConLeche.towerSlotsAll env T caps.etaFields ||
+      ConLeche.recSlotsAll env T caps.etaFields) = true
+
+/-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — the
+guard fails. -/
+theorem structEtaCertWith_guard {F d : Nat} {x y w : Expr} {c T : Name}
+    {us us' : List Level} {cvc cvT : ConstantVal} {cnP cnF : Nat}
+    {caps : IndCaps}
+    (hh : x.getAppFn = .const c us)
+    (hf : env.find? c = some (.ctorInfo cvc cnP cnF))
+    (hlen : x.getAppArgs.length = cnP + cnF)
+    (hw : w.getAppFn = .const T us')
+    (hfT : env.find? T = some (.indInfo cvT caps))
+    (hg : ¬ EtaGuard env w c T us' cvc cvT caps) :
+    ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false := by
+  simp only [ConLeche.structEtaCertWithFueled, ConLeche.structEtaCertWith, hh, hf,
+    hw, hfT]
+  unfold EtaGuard at hg
+  rw [if_pos hlen, if_neg hg]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — past
+the guard: the level comparison and the four certificates, verbatim. -/
+theorem structEtaCertWith_tail {F d : Nat} {x y w : Expr} {c T : Name}
+    {us us' : List Level} {cvc cvT : ConstantVal} {cnP cnF : Nat}
+    {caps : IndCaps}
+    (hh : x.getAppFn = .const c us)
+    (hf : env.find? c = some (.ctorInfo cvc cnP cnF))
+    (hlen : x.getAppArgs.length = cnP + cnF)
+    (hw : w.getAppFn = .const T us')
+    (hfT : env.find? T = some (.indInfo cvT caps))
+    (hg : EtaGuard env w c T us' cvc cvT caps) :
+    ConLeche.structEtaCertWithFueled mode env F d x y w =
+      (do
+        if ← ConLeche.liftFueled "level comparison"
+            (Level.isEquivList us us') then
+          if ← ConLeche.iotaCertsFueled mode env F d false
+              (cvT.type.instantiateLevelParams cvT.levelParams us')
+              w.getAppArgs then
+            if ← (if ConLeche.towerSlotsAll env T caps.etaFields then pure true
+                else ConLeche.structEtaProjCertsFueled mode env F d T us'
+                  w.getAppArgs y cvT.levelParams
+                  (List.range caps.etaFields)) then
+              if ← ConLeche.defEqListFueled mode env F d
+                  (x.getAppArgs.take caps.etaParams) w.getAppArgs then
+                if ← (if mode.ttChecks then
+                    ConLeche.iotaCertsFueled mode env F d false
+                      (cvc.type.instantiateLevelParams cvc.levelParams us)
+                      (w.getAppArgs ++ ConLeche.etaProjs env T us'
+                        w.getAppArgs y caps.etaFields)
+                  else pure true) then
+                  ConLeche.defEqListFueled mode env F d
+                    (x.getAppArgs.drop caps.etaParams)
+                    (ConLeche.etaProjs env T us' w.getAppArgs y caps.etaFields)
+                else pure false
+              else pure false
+            else pure false
+          else pure false
+        else pure false : CheckM Bool) := by
+  simp only [ConLeche.structEtaCertWithFueled, ConLeche.structEtaCertWith, hh, hf,
+    hw, hfT]
+  unfold EtaGuard at hg
+  rw [if_pos hlen, if_pos hg]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — the
+tail's exits, each stated at the facts the twin's stages name. -/
+theorem structEtaCertWith_exits {F d : Nat} {x y w : Expr} {c T : Name}
+    {us us' : List Level} {cvc cvT : ConstantVal} {cnP cnF : Nat}
+    {caps : IndCaps}
+    (hh : x.getAppFn = .const c us)
+    (hf : env.find? c = some (.ctorInfo cvc cnP cnF))
+    (hlen : x.getAppArgs.length = cnP + cnF)
+    (hw : w.getAppFn = .const T us')
+    (hfT : env.find? T = some (.indInfo cvT caps))
+    (hg : EtaGuard env w c T us' cvc cvT caps) :
+    (Level.isEquivList us us' = some false →
+      ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false) ∧
+    (Level.isEquivList us us' = some true →
+      ConLeche.iotaCertsFueled mode env F d false
+        (cvT.type.instantiateLevelParams cvT.levelParams us') w.getAppArgs
+        = .ok false →
+      ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false) ∧
+    (Level.isEquivList us us' = some true →
+      ConLeche.iotaCertsFueled mode env F d false
+        (cvT.type.instantiateLevelParams cvT.levelParams us') w.getAppArgs
+        = .ok true →
+      ∀ pc, (if ConLeche.towerSlotsAll env T caps.etaFields then pure true
+          else ConLeche.structEtaProjCertsFueled mode env F d T us'
+            w.getAppArgs y cvT.levelParams (List.range caps.etaFields) :
+            CheckM Bool) = .ok pc →
+      (pc = false →
+        ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false) ∧
+      (pc = true →
+        ∀ dq, ConLeche.defEqListFueled mode env F d
+          (x.getAppArgs.take caps.etaParams) w.getAppArgs = .ok dq →
+        (dq = false →
+          ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false) ∧
+        (dq = true →
+          ∀ tt, (if mode.ttChecks then
+              ConLeche.iotaCertsFueled mode env F d false
+                (cvc.type.instantiateLevelParams cvc.levelParams us)
+                (w.getAppArgs ++ ConLeche.etaProjs env T us' w.getAppArgs y
+                  caps.etaFields)
+            else pure true : CheckM Bool) = .ok tt →
+          (tt = false →
+            ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false) ∧
+          (tt = true → ∀ r, ConLeche.defEqListFueled mode env F d
+              (x.getAppArgs.drop caps.etaParams)
+              (ConLeche.etaProjs env T us' w.getAppArgs y caps.etaFields)
+              = .ok r →
+            ConLeche.structEtaCertWithFueled mode env F d x y w = .ok r)))) := by
+  rw [structEtaCertWith_tail hh hf hlen hw hfT hg]
+  refine ⟨fun hl => ?_, fun hl h1 => ?_, fun hl h1 pc hpc => ⟨fun hp => ?_,
+    fun hp dq hdq => ⟨fun hd => ?_, fun hd tt htt => ⟨fun ht => ?_,
+      fun ht r hr => ?_⟩⟩⟩⟩
+  all_goals subst_vars
+  all_goals clear hg hh hf hlen hw hfT
+  all_goals simp_all only [ConLeche.liftFueled, pure, Except.pure, bind,
+    Except.bind, if_true, Bool.false_eq_true, if_false]
+
+/-- con-leche: none — **a conditional, staged**: a triple for each branch,
+under the branch's hypothesis, is a triple for the `if`.  (`split` on a
+staged goal whose program is a hundred lines long runs `simp` over all of
+it; this is the same step with nothing to simplify.) -/
+theorem triple_ite {α : Type} {c : Prop} [Decidable c] {x y : AM α}
+    {s₀ : AState} {Q : α → AState → Prop}
+    (h1 : c → ⦃fun s => ⌜s = s₀⌝⦄ x ⦃⇓? a s => ⌜Q a s⌝⦄)
+    (h2 : ¬ c → ⦃fun s => ⌜s = s₀⌝⦄ y ⦃⇓? a s => ⌜Q a s⌝⦄) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (if c then x else y) ⦃⇓? a s => ⌜Q a s⌝⦄ := by
+  by_cases hc : c
+  · rw [if_pos hc]; exact h1 hc
+  · rw [if_neg hc]; exact h2 hc
+
+/-- con-leche: none — **a conditional with a shared continuation**: the
+`do` elaborator copies the join point into both branches of
+`let v ← if c then x else y`, and this puts it back. -/
+theorem triple_ite_seq {α β : Type} {c : Prop} [Decidable c] {x y : AM α}
+    {k : α → AM β} {s₀ : AState} {Q : α → AState → Prop}
+    {R : β → AState → Prop}
+    (hxy : ⦃fun s => ⌜s = s₀⌝⦄ (if c then x else y) ⦃⇓? a s => ⌜Q a s⌝⦄)
+    (hk : ∀ a s₁, Q a s₁ → ⦃fun s => ⌜s = s₁⌝⦄ k a ⦃⇓? b s => ⌜R b s⌝⦄) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (if c then x >>= k else y >>= k)
+      ⦃⇓? b s => ⌜R b s⌝⦄ := by
+  have e : (if c then x >>= k else y >>= k) = ((if c then x else y) >>= k) := by
+    split <;> rfl
+  rw [e]
+  exact triple_seq hxy hk
+
+/-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the merge at
+the per-slot certificates' conditional. -/
+theorem pcIte_mono {F F' : Nat} (hle : F ≤ F') {d : Nat} {Tn : Name}
+    {ls : List Level} {xs : List Expr} {y : Expr} {lps : List Name}
+    {nF : Nat} {c r : Bool}
+    (h : (if c = true then pure true else
+      ConLeche.structEtaProjCertsFueled mode env F d Tn ls xs y lps
+        (List.range nF) : CheckM Bool) = .ok r) :
+    (if c = true then pure true else
+      ConLeche.structEtaProjCertsFueled mode env F' d Tn ls xs y lps
+        (List.range nF) : CheckM Bool) = .ok r := by
+  cases c
+  · simp only [Bool.false_eq_true, if_false] at h ⊢
+    exact structEtaProjCertsFueled_mono hle h
+  · simp only [if_true] at h ⊢; exact h
+
 /-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — **THEOREM
 1 for `structEtaCertWith`**, the structure-η certificate against a GIVEN
 weak-head-normal type `wtb` of the stuck side.
 
-**OPEN** — the round's next item under `stuckIrrel`: seventy lines over
-`getAppFn`/`getAppArgs` (twice), the index at the constructor and at the
-type former, `reservedBasisNames_spec`, `viewLsLen`, `towerSlotsAll` /
-`recSlotsAll` (two counted recursions over `IFEnv.findProj?_spec` /
-`projFnName`), `lvlsEq?_spec`, `liftFueled_spec`, `constTyAt_spec` +
-`iotaCerts_spec` (the family certificate, gated on `mode.certs`),
-`structEtaProjCerts` (a `List Nat` recursion over `projFnName`, `stripPis`,
-`constTyAt`, `iotaCerts`), `defEqList_spec` twice, and `etaProjs`
-(`projNodesGo`/`projAppsGo` over `internE`/`mkAppN`) under the TT gate. -/
+**CLOSED** (round 6), staged over the twin's program order: `getAppFn` /
+`getAppArgs` at both sides, the index at the constructor and the type former
+(`env_ctor_of_index`, `env_ind_of_index`), `reservedBasisNames_spec`,
+`viewLsLen`, the slot discipline (`Walks/Eta.lean`'s `towerSlotsAll_spec` /
+`recSlotsAll_spec`), the guard (`EtaGuard`, identified by name injectivity
+and `denoteNList_containsC`), `lvlsEq?_spec` + `liftFueled_spec`, the
+family certificate (`constTyAt_spec` + `iotaCerts_spec`, where `hμ` is
+spent), the per-slot certificates (`structEtaProjCerts_spec`), the
+parameters (`defEqList_spec`), the TT-lane synthetic spine (`constTyAt_spec`,
+`etaProjs_spec`, `iotaCerts_spec`) and the fields (`etaProjs_spec`,
+`defEqList_spec`).  The pure side is `structEtaCertWith_exits`, one
+statement per exit over `structEtaCertWith_tail`; the do elaborator's
+copied join points are put back by `triple_ite_seq`. -/
 theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (a b wtb : EIdx) (x y w : Expr)
@@ -540,7 +804,381 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.structEtaCertWithFueled mode env F d x y w)
           r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨rk, hrk⟩ := hok.state.wf
+  unfold ConRon.Arena.structEtaCertWith
+  -- stage 1: the candidate's head
+  refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ a hok.state
+    (by rw [hda]; rfl)) ?_
+  rintro hd s1 ⟨hs1, hrelF⟩
+  subst s1
+  have hdd : denoteE s₀.store hd = some x.getAppFn := hrelF x hda
+  obtain ⟨vh, hvh⟩ := denoteE_view hdd
+  refine view_bind_triple hvh ?_
+  cases vh
+  case const c us =>
+    obtain ⟨cn, ls, hgf, hcn, hus⟩ := denote_const_inv hwf hvh hdd
+    dsimp only
+    split
+    next icvc cnP cnF hfdc =>
+      obtain ⟨dcvc, hdcvc, hfindc⟩ := env_ctor_of_index hok hcn hfdc
+      -- stage 2: its arguments
+      refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s₀ a hok.state
+        (by rw [hda]; rfl)) ?_
+      rintro aargs s2 ⟨hs2, hrelA⟩
+      subst s2
+      have haargs : Frontend.denoteEList s₀.store aargs = some x.getAppArgs :=
+        hrelA x hda
+      have hlenEq : x.getAppArgs.length = aargs.length := denoteEList_len haargs
+      by_cases hlenT : aargs.length = cnP + cnF
+      · rw [if_pos hlenT]
+        have hlenP : x.getAppArgs.length = cnP + cnF := hlenEq ▸ hlenT
+        -- stage 3: the stuck side's type's head
+        refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ wtb hok.state
+          (by rw [hdw]; rfl)) ?_
+        rintro hw' s3 ⟨hs3, hrelW⟩
+        subst s3
+        have hdw' : denoteE s₀.store hw' = some w.getAppFn := hrelW w hdw
+        obtain ⟨vw, hvw⟩ := denoteE_view hdw'
+        refine view_bind_triple hvw ?_
+        cases vw
+        case const T us' =>
+          obtain ⟨Tn, ls', hgw, hTn, hus'⟩ := denote_const_inv hwf hvw hdw'
+          dsimp only
+          split
+          next icvT icaps hfdT =>
+            obtain ⟨dcvT, dcaps, hdcvT, hdcaps, hfindT⟩ :=
+              env_ind_of_index hok hTn hfdT
+            have hcapsD : ∃ ct, denoteN s₀.store.ns icaps.etaCtor = some ct ∧
+                dcaps = ⟨icaps.eta, ct, icaps.etaParams, icaps.etaFields,
+                  icaps.unitlike, icaps.unitParams, icaps.ruleK, icaps.sortZ⟩ := by
+              simp only [Frontend.denoteCaps] at hdcaps
+              split at hdcaps
+              · rename_i ct hct; exact ⟨ct, hct, (Option.some.inj hdcaps).symm⟩
+              · simp at hdcaps
+            obtain ⟨ct, hct, rfl⟩ := hcapsD
+            -- stage 4: the type's arguments, the reserved names, the levels
+            refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s₀ wtb
+              hok.state (by rw [hdw]; rfl)) ?_
+            rintro targs s4 ⟨hs4, hrelT⟩
+            subst s4
+            have htargs : Frontend.denoteEList s₀.store targs = some w.getAppArgs :=
+              hrelT w hdw
+            refine triple_seq (reservedBasisNames_spec s₀ hok) ?_
+            rintro res s5 ⟨hok5, hx5, hp5, hres⟩
+            have hwf5 := hok5.state.wf
+            refine triple_seq (viewLsLen_spec s5 us') ?_
+            rintro ol s6 ⟨hs6, hol⟩
+            subst s6
+            rw [viewLen_of_denoteLs (denoteLs_ext hus' hx5)] at hol
+            subst hol
+            dsimp only
+            -- stage 5: the slot discipline
+            refine triple_seq (towerSlotsAll_spec s5 T Tn icaps.etaFields hok5
+              (denoteN_ext hTn hx5)) ?_
+            rintro tw s6 ⟨hok6, hx6, hp6, htw⟩
+            refine triple_ite_seq (Q := fun slots s => CheckOK mode env fe s ∧
+              Ext s6.store s.store ∧ s.pins = s6.pins ∧
+              slots = (ConLeche.towerSlotsAll env Tn icaps.etaFields ||
+                ConLeche.recSlotsAll env Tn icaps.etaFields)) ?_ ?_
+            · refine triple_ite (fun htt => ?_) (fun htf => ?_)
+              · refine triple_pureC ⟨hok6, Ext.refl _, rfl, ?_⟩
+                have : ConLeche.towerSlotsAll env Tn icaps.etaFields = true :=
+                  htw ▸ htt
+                rw [this, Bool.true_or]
+              · refine triple_mono (recSlotsAll_spec s6 T Tn icaps.etaFields hok6
+                  (denoteN_ext hTn (hx5.trans hx6))) ?_
+                rintro r s' ⟨h1, h2, h3, h4⟩
+                refine ⟨h1, h2, h3, ?_⟩
+                have : ConLeche.towerSlotsAll env Tn icaps.etaFields = false := by
+                  rw [← htw]; simpa using htf
+                rw [h4, this, Bool.false_or]
+            rintro slots s7 ⟨hok7, hx7, hp7, hslots⟩
+            have hx07 : Ext s₀.store s7.store := hx5.trans (hx6.trans hx7)
+            have hp07 : s7.pins = s₀.pins := hp7.trans (hp6.trans hp5)
+            obtain ⟨_, hlpsC, _⟩ := denoteCV_inv hdcvc
+            obtain ⟨_, hlpsT, _⟩ := denoteCV_inv hdcvT
+            have hctr : icaps.etaCtor = c ↔ ct = cn :=
+              ⟨fun h => by subst h; exact Option.some.inj (hct.symm.trans hcn),
+               fun h => by subst h; exact denoteN_inj hrk.nsWF hct hcn⟩
+            have hguard : (icaps.eta = true ∧ icaps.etaCtor = c ∧
+                res.contains T = false ∧ res.contains c = false ∧
+                targs.length = icaps.etaParams ∧
+                ls'.length = icvT.levelParams.length ∧
+                icvc.levelParams = icvT.levelParams ∧ slots = true) ↔
+                EtaGuard env w cn Tn ls' dcvc dcvT
+                  ⟨icaps.eta, ct, icaps.etaParams, icaps.etaFields,
+                    icaps.unitlike, icaps.unitParams, icaps.ruleK, icaps.sortZ⟩ := by
+              unfold EtaGuard
+              rw [hctr, denoteNList_containsC hwf5 res _ hres T Tn
+                  (denoteN_ext hTn hx5),
+                denoteNList_containsC hwf5 res _ hres c cn (denoteN_ext hcn hx5),
+                ← denoteEList_len htargs, denoteNList_len hlpsT,
+                denoteNList_eq_iff hwf hlpsC hlpsT, hslots]
+            have hwx : ∀ z ∈ x.getAppArgs, Expr.WScoped d z :=
+              Expr.WScoped.getAppArgs hwa
+            have hwtargs : ∀ z ∈ w.getAppArgs, Expr.WScoped d z :=
+              Expr.WScoped.getAppArgs hww
+            refine triple_ite (fun hgT => ?_) (fun hgF => ?_)
+            · have hgP := hguard.mp hgT
+              have hEx := fun F => structEtaCertWith_exits (mode := mode) (F := F)
+                (d := d) (y := y) hgf hfindc hlenP hgw hfindT hgP
+              -- stage 6: the two level lists
+              refine triple_seq (lvlsEq?_spec s7 us us' hok7) ?_
+              rintro q s8 ⟨hok8, hst8, hp8, lus, lvs, hlus, hlvs, hq⟩
+              rw [denoteLs_ext hus hx07] at hlus
+              rw [denoteLs_ext hus' hx07] at hlvs
+              obtain rfl := Option.some.inj hlus
+              obtain rfl := Option.some.inj hlvs
+              refine triple_seq (liftFueled_spec s8 _ q) ?_
+              rintro okL s9 ⟨hs9, hokL⟩
+              subst s9
+              have hlv : Level.isEquivList ls ls' = some okL := hq ▸ hokL
+              have hx08 : Ext s₀.store s8.store := by rw [hst8]; exact hx07
+              have hp08 : s8.pins = s₀.pins := hp8.trans hp07
+              refine triple_ite (fun hokT => ?_) (fun hokF => ?_)
+              · have hokL' : okL = true := hokT
+                subst hokL'
+                have hc := ConLeche.certs_of_verifiedChecks hμ
+                refine triple_ite (fun _ => ?_) (fun hnc => absurd hc hnc)
+                -- stage 7: the type former's telescope certificate
+                have hcv8 := denoteCV_ext hdcvT hx08
+                have hnameT : dcvT.name = Tn := env_find_name hfindT
+                refine triple_seq (constTyAt_spec s8 icvT us' Tn ls' _ hok8
+                  (by rw [denoteCV_name hcv8, hnameT]) (denoteLs_ext hus' hx08)
+                  hfindT hcv8) ?_
+                rintro ty s10 ⟨hok10, hx10, hp10, hty⟩
+                have hx010 := hx08.trans hx10
+                have htargs10 := denoteEList_ext hx010 _ _ htargs
+                refine triple_seq (iotaCerts_spec hsim d false ty targs s10 hok10
+                  ⟨_, _, hty, Expr.WScoped.of_not_hasFvar
+                    (ConLeche.const_ty_hasFvar henv hfindT ls'), htargs10,
+                    hwtargs⟩) ?_
+                rintro fam s11 ⟨hok11, hx11, hp11, hfam⟩
+                obtain ⟨F1, hF1⟩ := hfam _ _ hty htargs10
+                have hx011 := hx010.trans hx11
+                have hp011 : s11.pins = s₀.pins := hp11.trans (hp10.trans hp08)
+                refine triple_ite (fun hfT' => ?_) (fun hfF => ?_)
+                · have hfam' : fam = true := hfT'
+                  subst hfam'
+                  -- stage 8: the per-slot certificates
+                  refine triple_seq (towerSlotsAll_spec s11 T Tn icaps.etaFields
+                    hok11 (denoteN_ext hTn hx011)) ?_
+                  rintro tw2 s12 ⟨hok12, hx12, hp12, htw2⟩
+                  refine triple_ite (fun hnc => absurd hnc (by simp [hc]))
+                    (fun _ => ?_)
+                  have hx012 := hx011.trans hx12
+                  refine triple_ite_seq (Q := fun pc s => CheckOK mode env fe s ∧
+                    Ext s12.store s.store ∧ s.pins = s12.pins ∧
+                    SimBOp (fun F => (if ConLeche.towerSlotsAll env Tn
+                        icaps.etaFields then pure true
+                      else ConLeche.structEtaProjCertsFueled mode env F d Tn ls'
+                        w.getAppArgs y dcvT.levelParams
+                        (List.range icaps.etaFields) : CheckM Bool)) pc) ?_ ?_
+                  · refine triple_ite (fun htt => ?_) (fun htf => ?_)
+                    · have ht : ConLeche.towerSlotsAll env Tn icaps.etaFields =
+                          true := htw2 ▸ htt
+                      exact triple_pureC ⟨hok12, Ext.refl _, rfl, 0,
+                        by dsimp only; rw [if_pos ht]; rfl⟩
+                    · have ht : ConLeche.towerSlotsAll env Tn icaps.etaFields =
+                          false := by rw [← htw2]; simpa using htf
+                      refine triple_mono (structEtaProjCerts_spec henv hsim d T us'
+                        targs b icvT.levelParams Tn ls' w.getAppArgs y
+                        dcvT.levelParams hwtargs hwb (List.range icaps.etaFields)
+                        s12 hok12 (denoteN_ext hTn hx012) (denoteLs_ext hus' hx012)
+                        (denoteEList_ext hx012 _ _ htargs) (denote_ext hdb hx012)
+                        (denoteNList_ext hx012.lss.ls.ns _ _ hlpsT)) ?_
+                      rintro r s' ⟨h1, h2, h3, F, hF⟩
+                      exact ⟨h1, h2, h3, F, by
+                        dsimp only; rw [if_neg (by simp [ht])]; exact hF⟩
+                  rintro pc s13 ⟨hok13, hx13, hp13, F2, hF2⟩
+                  have hx013 := hx012.trans hx13
+                  have hp013 : s13.pins = s₀.pins :=
+                    hp13.trans (hp12.trans hp011)
+                  refine triple_ite (fun hpT => ?_) (fun hpF => ?_)
+                  · have hpc : pc = true := hpT
+                    subst hpc
+                    -- stage 9: the parameters agree
+                    have haargs13 := denoteEList_ext hx013 _ _
+                      (ExprOps.denoteEList_take icaps.etaParams aargs _ haargs)
+                    refine triple_seq (defEqList_spec hsim s13 d
+                      (aargs.take icaps.etaParams) targs _ _ hok13 haargs13
+                      (denoteEList_ext hx013 _ _ htargs)
+                      (fun z hz => hwx z (List.mem_of_mem_take hz)) hwtargs) ?_
+                    rintro dq s14 ⟨hok14, hx14, hp14, F3, hF3⟩
+                    have hx014 := hx013.trans hx14
+                    have hp014 : s14.pins = s₀.pins := hp14.trans hp013
+                    refine triple_ite (fun hdT => ?_) (fun hdF => ?_)
+                    · have hdq : dq = true := hdT
+                      subst hdq
+                      -- stage 11: the fabricated fields agree
+                      have hfin : ∀ (s15 : AState) (G0 : Nat),
+                          CheckOK mode env fe s15 → Ext s₀.store s15.store →
+                          s15.pins = s₀.pins →
+                          (∀ G, G0 ≤ G → (if mode.ttChecks then
+                              ConLeche.iotaCertsFueled mode env G d false
+                                (dcvc.type.instantiateLevelParams dcvc.levelParams
+                                  ls)
+                                (w.getAppArgs ++ ConLeche.etaProjs env Tn ls'
+                                  w.getAppArgs y icaps.etaFields)
+                            else pure true : CheckM Bool) = .ok true) →
+                          ⦃fun s => ⌜s = s15⌝⦄
+                            (do
+                              let projs ← ConRon.Arena.etaProjs fe T us' targs b
+                                icaps.etaFields
+                              ConRon.Arena.defEqList (coreKnot mode fe id fuel) fe d
+                                (aargs.drop icaps.etaParams) projs)
+                          ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧
+                            Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+                            SimBOp (fun F => ConLeche.structEtaCertWithFueled mode
+                              env F d x y w) r⌝⦄ := by
+                        intro s15 G0 hok15 hx015 hp015 hG0
+                        refine triple_seq (etaProjs_spec s15 T us' targs b
+                          icaps.etaFields Tn ls' w.getAppArgs y hok15
+                          (denoteN_ext hTn hx015) (denoteLs_ext hus' hx015)
+                          (denoteEList_ext hx015 _ _ htargs)
+                          (denote_ext hdb hx015)) ?_
+                        rintro projs s16 ⟨hok16, hx16, hp16, hprojs⟩
+                        have hx016 := hx015.trans hx16
+                        refine triple_mono (defEqList_spec hsim s16 d
+                          (aargs.drop icaps.etaParams) projs _ _ hok16
+                          (denoteEList_ext hx016 _ _
+                            (ExprOps.denoteEList_drop icaps.etaParams aargs _
+                              haargs))
+                          hprojs (fun z hz => hwx z (List.mem_of_mem_drop hz))
+                          (etaProjs_WScoped hwtargs hwb)) ?_
+                        rintro r s17 ⟨hok17, hx17, hp17, F5, hF5⟩
+                        refine ⟨hok17, hx016.trans hx17,
+                          hp17.trans (hp16.trans hp015), F1 + F2 + F3 + G0 + F5, ?_⟩
+                        exact (((((hEx (F1 + F2 + F3 + G0 + F5)).2.2 hlv
+                          (iotaCertsFueled_mono (by omega) hF1) true
+                          (pcIte_mono (by omega) hF2)).2 rfl true
+                          (defEqListFueled_mono (by omega) hF3)).2 rfl true
+                          (hG0 _ (by omega))).2 rfl r
+                          (defEqListFueled_mono (by omega) hF5))
+                      refine triple_ite (fun httT => ?_) (fun httF => ?_)
+                      · -- stage 10: the synthetic-spine certificate (TT lane)
+                        have hcv14 := denoteCV_ext hdcvc hx014
+                        have hnameC : dcvc.name = cn := env_find_name hfindc
+                        refine triple_seq (constTyAt_spec s14 icvc us cn ls _ hok14
+                          (by rw [denoteCV_name hcv14, hnameC])
+                          (denoteLs_ext hus hx014) hfindc hcv14) ?_
+                        rintro tyC s15 ⟨hok15, hx15, hp15, htyC⟩
+                        have hx015 := hx014.trans hx15
+                        refine triple_seq (etaProjs_spec s15 T us' targs b
+                          icaps.etaFields Tn ls' w.getAppArgs y hok15
+                          (denoteN_ext hTn hx015) (denoteLs_ext hus' hx015)
+                          (denoteEList_ext hx015 _ _ htargs)
+                          (denote_ext hdb hx015)) ?_
+                        rintro projs s16 ⟨hok16, hx16, hp16, hprojs⟩
+                        have hx016 := hx015.trans hx16
+                        have happ := denoteEList_appendC targs projs _ _
+                          (denoteEList_ext hx016 _ _ htargs) hprojs
+                        have hwapp : ∀ z ∈ w.getAppArgs ++ ConLeche.etaProjs env Tn
+                            ls' w.getAppArgs y icaps.etaFields,
+                            Expr.WScoped d z := by
+                          intro z hz
+                          rcases List.mem_append.mp hz with hz | hz
+                          · exact hwtargs z hz
+                          · exact etaProjs_WScoped hwtargs hwb z hz
+                        have htyC16 := denote_ext htyC hx16
+                        refine triple_seq (iotaCerts_spec hsim d false tyC
+                          (targs ++ projs) s16 hok16
+                          ⟨_, _, htyC16, Expr.WScoped.of_not_hasFvar
+                            (ConLeche.const_ty_hasFvar henv hfindc ls), happ,
+                            hwapp⟩) ?_
+                        rintro ttb s17 ⟨hok17, hx17, hp17, httb⟩
+                        obtain ⟨F4, hF4⟩ := httb _ _ htyC16 happ
+                        have hx017 := hx016.trans hx17
+                        have hp017 : s17.pins = s₀.pins :=
+                          hp17.trans (hp16.trans (hp15.trans hp014))
+                        have hF4' : ∀ G, F4 ≤ G → (if mode.ttChecks then
+                            ConLeche.iotaCertsFueled mode env G d false
+                              (dcvc.type.instantiateLevelParams dcvc.levelParams ls)
+                              (w.getAppArgs ++ ConLeche.etaProjs env Tn ls'
+                                w.getAppArgs y icaps.etaFields)
+                          else pure true : CheckM Bool) = .ok ttb := fun G hle => by
+                          rw [if_pos httT]; exact iotaCertsFueled_mono hle hF4
+                        refine triple_ite (fun htbT => ?_) (fun htbF => ?_)
+                        · have htb : ttb = true := htbT
+                          subst htb
+                          exact hfin s17 F4 hok17 hx017 hp017 hF4'
+                        · have htb : ttb = false := by simpa using htbF
+                          subst htb
+                          exact triple_pureC ⟨hok17, hx017, hp017,
+                            F1 + F2 + F3 + F4,
+                            (((((hEx (F1 + F2 + F3 + F4)).2.2 hlv
+                              (iotaCertsFueled_mono (by omega) hF1) true
+                              (pcIte_mono (by omega) hF2)).2 rfl true
+                              (defEqListFueled_mono (by omega) hF3)).2 rfl false
+                              (hF4' _ (by omega))).1 rfl)⟩
+                      · refine triple_seq (triple_pureC
+                          (Q := fun (r : Bool) s => r = true ∧ s = s14)
+                          ⟨rfl, rfl⟩) ?_
+                        rintro ttb s' ⟨rfl, hs'⟩
+                        subst s'
+                        refine triple_ite (fun _ => ?_) (fun h => absurd rfl h)
+                        exact hfin s14 0 hok14 hx014 hp014
+                          (fun G _ => by rw [if_neg httF]; rfl)
+                    · have hdq : dq = false := by simpa using hdF
+                      subst hdq
+                      exact triple_pureC ⟨hok14, hx014, hp014, F1 + F2 + F3,
+                        ((((hEx (F1 + F2 + F3)).2.2 hlv
+                          (iotaCertsFueled_mono (by omega) hF1) true
+                          (pcIte_mono (by omega) hF2)).2 rfl false
+                          (defEqListFueled_mono (by omega) hF3)).1 rfl)⟩
+                  · have hpc : pc = false := by simpa using hpF
+                    subst hpc
+                    exact triple_pureC ⟨hok13, hx013, hp013, F1 + F2,
+                      (((hEx (F1 + F2)).2.2 hlv
+                        (iotaCertsFueled_mono (by omega) hF1) false
+                        (pcIte_mono (by omega) hF2)).1 rfl)⟩
+                · have hfam' : fam = false := by simpa using hfF
+                  subst hfam'
+                  exact triple_pureC ⟨hok11, hx011, hp011, F1,
+                    (hEx F1).2.1 hlv hF1⟩
+              · have hokL' : okL = false := by simpa using hokF
+                subst hokL'
+                exact triple_pureC ⟨hok8, hx08, hp08, 0, (hEx 0).1 hlv⟩
+            · exact triple_pureC ⟨hok7, hx07, hp07, 0,
+                structEtaCertWith_guard hgf hfindc hlenP hgw hfindT
+                  (fun h => hgF (hguard.mpr h))⟩
+          next hnd =>
+            have hnf := env_not_ind_of_index hok hTn (fun v c h => hnd v c h)
+            have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
+                .ok false := structEtaCertWith_noind hgf hfindc hlenP hgw hnf
+            mvcgen
+            bridge_peel; subst_vars
+            exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
+        all_goals
+          have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
+              .ok false := structEtaCertWith_nohead_w hgf hfindc hlenP
+                (denote_not_const hwf hvw hdw' (by intro c us h; cases h))
+          dsimp only
+          mvcgen
+          bridge_peel; subst_vars
+          exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
+      · rw [if_neg hlenT]
+        have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
+            .ok false := structEtaCertWith_len hgf hfindc (by rw [hlenEq]; exact hlenT)
+        mvcgen
+        bridge_peel; subst_vars
+        exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
+    next hnd =>
+      have hnc := env_not_ctor_of_index hok hcn (fun v p q h => hnd v p q h)
+      have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
+          .ok false := structEtaCertWith_noctor hgf hnc
+      mvcgen
+      bridge_peel; subst_vars
+      exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
+  all_goals
+    have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
+        .ok false := structEtaCertWith_nohead
+          (denote_not_const hwf hvh hdd (by intro c us h; cases h))
+    dsimp only
+    mvcgen
+    bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
 
 /-! ## 2. The three children -/
 
@@ -1092,13 +1730,15 @@ section Census
 #print axioms structUnitCert_cmp
 #print axioms structUnitCert_spec
 #print axioms etaCtorShape_spec
+#print axioms structEtaCertWith_tail
+#print axioms structEtaCertWith_exits
+#print axioms structEtaCertWith_spec
 #print axioms structEtaCert_spec
 #print axioms stuckIrrelFueled_eta1
 #print axioms stuckIrrelFueled_eta2
 #print axioms stuckIrrelFueled_unit
 #print axioms stuckIrrelFueled_proof
-/-! `sorryAx` expected on the three children and, through them, on
-`stuckIrrel_spec`. -/
+/-! No `sorryAx` since round 6: `structEtaCertWith_spec` closed. -/
 #print axioms stuckIrrel_spec
 
 end Census
