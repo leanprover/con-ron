@@ -51154,7 +51154,9 @@ diff is `Bridge/Inductives/**` (one new module, `ProjRule.lean`),
 `Bridge/Checker/Hyp.lean` (the authorised edit, R9.1) and this section.  No
 Rust, no generated model.
 
-__GATES__
+Gates on the merged tip (`4f6f3961` merged in): **all 16 OK**
+(`extract-check` 100 s, `lake-build` 35 s, `lake-refine2` 1 s, `lake-bridge`
+1 s, `lake-capstone` 2 s).
 
 **The tier went from 5 open statements to 0**, and with them the whole
 Inductives tier is `sorry`-free: `Axioms.lean` prints
