@@ -256,9 +256,9 @@ theorem i_declaration_names_abs {d : arena.env.IDeclaration} {v}
 con-leche's `.anonymous` fall-through, which over handles is an intern — and
 the intern is `Specs.lean`'s `intern_n_node_run` at the lifted state. -/
 theorem prelude_key_refines {pers rst lst d o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.prepare.prelude_key pers rst.store d = ok o) :
-    Sim absNIdx (fun _ => True) pers lst (o.1, withStore rst o.2)
+    Sim₀ absNIdx pers lst (o.1, withStore rst o.2)
       (preludeKey (absIDeclaration d)) := by
   rw [frontend.prepare.prelude_key] at h
   obtain ⟨ns, hns, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -271,8 +271,7 @@ theorem prelude_key_refines {pers rst lst d o}
     have hrun : arena.monad.intern_n_node pers rst .Anonymous =
         ok (o.1, withStore rst o.2) := by
       rw [arena.monad.intern_n_node, h]; cases o; simp
-    have H := intern_n_node_run hrel hinv .Anonymous trivial
-      (by intro c hc; simp [absNNodeView, NNodeView.children] at hc) hrun
+    have H := intern_n_node_run₀ hrel hinv .Anonymous trivial hrun
     simp only [preludeKey, hnil, List.head?_nil]
     exact H
   · obtain ⟨n, hnn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -288,7 +287,7 @@ theorem prelude_key_refines {pers rst lst d o}
         simp only [hns', h0', List.getElem_cons_zero] at hx
         simp [hns', hx]
     simp only [preludeKey, hhead]
-    exact ⟨lst, by rw [e1]; rfl, hrel, hinv, Ext.refl _, trivial⟩
+    exact ⟨lst, by rw [e1]; rfl, hrel, hinv⟩
 
 /-- **`prepare::declares` refines `declares`**
 (`Arena/Frontend/Prepare.lean:74-75`).  Pure on both sides: over handles
@@ -450,6 +449,14 @@ def PlanWF (ps ds : alloc.vec.Vec arena.env.IDeclaration)
     (p : alloc.vec.Vec Std.Usize × alloc.vec.Vec Bool) : Prop :=
   p.1.val.length = ps.val.length ∧ p.2.val.length = ds.val.length
 
+/-- `front_of`'s outcome relation: the plan stands for the twin's front and
+rest, and has the shape its consumers need (`SimRel₀`'s way of carrying a
+representation predicate on the Rust result). -/
+def PlanRel (ps ds : alloc.vec.Vec arena.env.IDeclaration)
+    (p : alloc.vec.Vec Std.Usize × alloc.vec.Vec Bool)
+    (v : Array IDeclaration × Array IDeclaration) : Prop :=
+  v = absPlan ps ds p ∧ PlanWF ps ds p
+
 theorem vec_index_mut_set {v w : alloc.vec.Vec Bool} {k : Std.Usize}
     (h : (do
       let (_, back) ← alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Bool) v k
@@ -472,24 +479,24 @@ twin's remaining stream is the records the mask does not carry. -/
 theorem front_of_loop_refines {pers ps ds} :
     ∀ (j : Std.Usize) (picked : alloc.vec.Vec Bool) (picks : alloc.vec.Vec Std.Usize)
       (rst : arena.monad.AState) (lst : AState) (o),
-      AStateRel pers rst lst → AStateInv pers rst →
+      AStateRel₀ pers rst lst → AStateInv pers rst →
       picked.val.length = ds.val.length → picks.val.length = j.val →
       j.val ≤ ps.val.length →
       frontend.prepare.front_of_loop pers rst.store ps ds (alloc.vec.Vec.len ds)
         picked (alloc.vec.Vec.len ps) picks j = ok o →
-      Sim (absPlan ps ds) (PlanWF ps ds) pers lst (o.1, withStore rst o.2)
+      SimRel₀ (PlanRel ps ds) pers lst (o.1, withStore rst o.2)
         (frontOf (preparedFront (absIDeclArr ps) (absIDeclArr ds) (picks.val.map (·.val)))
           ((absIDeclArr ps).toList.drop j.val)
           (preparedRest (absIDeclArr ds) picked.val)) := by
   suffices H : ∀ (k : Nat) (j : Std.Usize) (picked : alloc.vec.Vec Bool)
       (picks : alloc.vec.Vec Std.Usize) (rst : arena.monad.AState) (lst : AState) (o),
       ps.val.length - j.val = k →
-      AStateRel pers rst lst → AStateInv pers rst →
+      AStateRel₀ pers rst lst → AStateInv pers rst →
       picked.val.length = ds.val.length → picks.val.length = j.val →
       j.val ≤ ps.val.length →
       frontend.prepare.front_of_loop pers rst.store ps ds (alloc.vec.Vec.len ds)
         picked (alloc.vec.Vec.len ps) picks j = ok o →
-      Sim (absPlan ps ds) (PlanWF ps ds) pers lst (o.1, withStore rst o.2)
+      SimRel₀ (PlanRel ps ds) pers lst (o.1, withStore rst o.2)
         (frontOf (preparedFront (absIDeclArr ps) (absIDeclArr ds) (picks.val.map (·.val)))
           ((absIDeclArr ps).toList.drop j.val)
           (preparedRest (absIDeclArr ds) picked.val)) from
@@ -505,8 +512,8 @@ theorem front_of_loop_refines {pers ps ds} :
       simp only [absIDeclArr, List.toList_toArray, List.drop_eq_nil_iff, List.length_map]
       omega
     rw [hnil]
-    exact ⟨lst, rfl, hrel, hinv, Ext.refl _,
-      ⟨by show picks.val.length = ps.val.length; omega, hpl⟩⟩
+    exact ⟨_, lst, rfl, ⟨rfl, by show picks.val.length = ps.val.length; omega, hpl⟩,
+      hrel, hinv⟩
   | succ k ih =>
     intro j picked picks rst lst o hk hrel hinv hpl hpk hj h
     rw [frontend.prepare.front_of_loop] at h
@@ -523,14 +530,15 @@ theorem front_of_loop_refines {pers ps ds} :
       obtain ⟨_, hx⟩ := List.getElem?_eq_some_iff.mp hdi
       rw [hx]
     rw [hcons]
-    simp only [Sim] at hK ⊢
+    simp only [Sim₀] at hK
+    simp only [SimRel₀]
     simp only [frontOf, am_run_bind']
     cases r with
     | Err e =>
       have ho := Result.ok_injective h; subst ho
       exact AErrSim.bind hK _
     | Ok v =>
-      obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hK
+      obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hK
       rw [hx1]
       simp only [except_ok_bind]
       obtain ⟨kk, hkk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -560,20 +568,14 @@ theorem front_of_loop_refines {pers ps ds} :
         simp only [List.length_map, hpk, absIDeclArr]
         simp [hdi]
       rw [hF, ← hp1v, show j.val + 1 = j1.val by omega]
-      simp only [Sim] at hR
-      rcases o with ⟨r2, e2⟩
-      cases r2 with
-      | Ok q =>
-        obtain ⟨l2, hx2, hr2, hi2, he2, hw2⟩ := hR
-        exact ⟨l2, hx2, hr2, hi2, Ext.trans hext1 he2, hw2⟩
-      | Err e => exact hR
+      exact hR
 
 /-- **`prepare::front_of` refines `frontOf`** — the plan and the mask, which
 stand for the twin's front and rest (`absPlan`). -/
 theorem front_of_refines {pers rst lst ps ds o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.prepare.front_of pers rst.store ps ds = ok o) :
-    Sim (absPlan ps ds) (PlanWF ps ds) pers lst (o.1, withStore rst o.2)
+    SimRel₀ (PlanRel ps ds) pers lst (o.1, withStore rst o.2)
       (frontOf #[] (absIDeclArr ps).toList (absIDeclArr ds)) := by
   rw [frontend.prepare.front_of] at h
   obtain ⟨picked, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

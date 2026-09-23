@@ -98,8 +98,7 @@ def UOutS (pers : arena.store.PersTier) (lst : AState)
     (x : AM (Std.HashSet EIdx × Array NIdx)) : Prop :=
   match o.1 with
   | .Ok acc => ∃ s' lst', x.run lst = .ok ((s', absNIdxArr acc), lst') ∧
-      HSetRel o.2.2 s' ∧ AStateRel pers o.2.1 lst' ∧ AStateInv pers o.2.1 ∧
-      Ext lst.store lst'.store
+      HSetRel o.2.2 s' ∧ AStateRel₀ pers o.2.1 lst' ∧ AStateInv pers o.2.1
   | .Err e => AErrSim e (x.run lst)
 
 /-! ## The three probes (task #97-P5-Front round 2)
@@ -153,7 +152,7 @@ stated against the twin's own arm. -/
 /-- **`nat_op_ground::used_consts_go` refines `usedConstsGo`**
 (`Arena/Frontend/NatOpGround.lean:50-71`). -/
 theorem used_consts_go_refines {pers rst lst seen ls acc fuel e o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hs : HSetRel seen ls)
     (h : frontend.nat_op_ground.used_consts_go pers rst seen acc fuel e = ok o) :
     UOut lst o (usedConstsGo ls (absNIdxArr acc) (absU fuel) (absEIdx e)) := by
@@ -162,7 +161,7 @@ theorem used_consts_go_refines {pers rst lst seen ls acc fuel e o}
 /-- **`used_consts_node`** — the port-only split at a resolved view: the twin's
 `match ← view e with` arms, inline. -/
 theorem used_consts_node_refines {pers rst lst seen ls acc fuel e o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hs : HSetRel seen ls)
     (h : frontend.nat_op_ground.used_consts_node pers rst seen acc fuel e = ok o) :
     UOut lst o (usedConstsGo ls (absNIdxArr acc) (absU fuel + 1) (absEIdx e)) := by
@@ -171,7 +170,7 @@ theorem used_consts_node_refines {pers rst lst seen ls acc fuel e o}
 /-- **`used_consts_two`** — the twin's four identical two-child `match` nests,
 as one function. -/
 theorem used_consts_two_refines {pers rst lst seen ls acc fuel a b o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hs : HSetRel seen ls)
     (h : frontend.nat_op_ground.used_consts_two pers rst seen acc fuel a b = ok o) :
     UOut lst o (do
@@ -181,7 +180,7 @@ theorem used_consts_two_refines {pers rst lst seen ls acc fuel a b o}
 /-- **`used_consts_rules` refines `usedConstsRules`**
 (`Arena/Frontend/NatOpGround.lean:77-83`). -/
 theorem used_consts_rules_refines {pers rst lst seen ls acc rules o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hs : HSetRel seen ls)
     (h : frontend.nat_op_ground.used_consts_rules pers rst seen acc rules = ok o) :
     UOut lst o (usedConstsRules ls (absNIdxArr acc) (absIRecRuleL rules)) := by
@@ -191,7 +190,7 @@ theorem used_consts_rules_refines {pers rst lst seen ls acc rules o}
 (`Arena/Frontend/NatOpGround.lean:86-96`).  The one walk of the group that
 APPENDS: `toConstantVal` interns a `Sort 1` for a projection table. -/
 theorem used_consts_block_refines {pers rst lst seen ls acc block o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hs : HSetRel seen ls)
     (h : frontend.nat_op_ground.used_consts_block pers rst seen acc block = ok o) :
     UOutS pers lst o (usedConstsBlock ls (absNIdxArr acc) (absICIL block)) := by
@@ -200,16 +199,16 @@ theorem used_consts_block_refines {pers rst lst seen ls acc block o}
 /-- **`decl_used_consts` refines `IDeclaration.usedConsts`**
 (`Arena/Frontend/NatOpGround.lean:100-106`). -/
 theorem decl_used_consts_refines {pers rst lst d o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.nat_op_ground.decl_used_consts pers rst d = ok o) :
-    Sim absNIdxArr (fun _ => True) pers lst o
+    Sim₀ absNIdxArr pers lst o
       (IDeclaration.usedConsts (absIDeclaration d)) := by sorry
 
 /-- **`decl_used_consts_value`** — the cited three-arm case of
 `IDeclaration.usedConsts` (a definition, a theorem, an opaque), which the port
 factors out because the three arms share a body. -/
 theorem decl_used_consts_value_refines {pers rst lst seen ls ty v o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hs : HSetRel seen ls)
     (h : frontend.nat_op_ground.decl_used_consts_value pers rst seen ty v = ok o) :
     UOut lst o (do
@@ -259,51 +258,372 @@ theorem nidx_contains_refines {ns n v}
   have := key 0#usize () v h
   simpa [absNIdxL] using this
 
+/-! ## The pin readers over `AStateRel₀` (local)
+
+`Refine2/Checker/Pins.lean`'s `pin_at_refines` and `Refine2/Checker/Base.lean`'s
+`nat_op_names_refines` / `nat_div_mod_names_refines` read only `hrel.pins`,
+but are stated over the deprecated `AStateRel`, and that lane is live.  These
+are their lockstep copies (the same proofs, `AStateRel₀`, no `Ext`), for
+`is_nat_op_record` below; they go when the Checker lane's migration lands. -/
+
+theorem pin_at_refines₀ {pers st lst} {i : Std.Usize} {o}
+    (hrel : AStateRel₀ pers st lst)
+    (hrun : arena.pins.pin_at st i = ok o) :
+    SimRE absNIdx lst o (pinAt (absSz i)) := by
+  rw [arena.pins.pin_at] at hrun
+  have hnames := hrel.pins.names
+  have hlen : lst.pins.names.size = st.pins.names.val.length := by
+    have h := congrArg List.length hnames
+    simpa using h
+  have hrun2 : (Arena.pinAt (absSz i)).run lst
+      = (if h : absSz i < lst.pins.names.size
+         then Except.ok (lst.pins.names[absSz i], lst)
+         else Except.error
+           (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
+    by_cases h : absSz i < lst.pins.names.size
+    · rw [dif_pos h]
+      show (Arena.pinAt (absSz i)) lst = _
+      rw [Arena.pinAt]
+      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+        Pure.pure, StateT.pure, Except.pure, Except.bind, dif_pos h]
+    · rw [dif_neg h]
+      show (Arena.pinAt (absSz i)) lst = _
+      rw [Arena.pinAt]
+      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+        Pure.pure, Except.pure, Except.bind, dif_neg h,
+        Arena.fail, throwThe, MonadExceptOf.throw,
+        Function.comp_apply, StateT.lift]
+  split at hrun
+  case isTrue hge =>
+    obtain ⟨sl, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨cps, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [arena.monad.fail] at hrun
+    have h2 : core.result.Result.Err (T := arena.handle.NIdx)
+        (kernel.core_types.CheckError.Internal cps) = o := Result.ok_injective hrun
+    subst h2
+    have hnl : ¬ (absSz i < lst.pins.names.size) := by
+      rw [hlen]
+      have hle : st.pins.names.val.length ≤ i.val := by scalar_tac
+      show ¬ (i.val < st.pins.names.val.length)
+      omega
+    exact AErrSim.internal (s := "arena: reserved-name pins not interned")
+      (by rw [hrun2, dif_neg hnl])
+  case isFalse hlt =>
+    obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨n1, hn1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have h2 : core.result.Result.Ok n1 = o := Result.ok_injective hrun
+    subst h2
+    rw [dupId_nidx _ _ hn1]
+    obtain ⟨hlt2, rfl⟩ := ConRon.Refine.ExprOps.vec_index_val hn
+    have hlt3 : absSz i < lst.pins.names.size := by rw [hlen]; exact hlt2
+    show (Arena.pinAt (absSz i)).run lst = _
+    rw [hrun2, dif_pos hlt3]
+    have hi : lst.pins.names.toList[absSz i]? =
+        (st.pins.names.val.map absNIdx)[absSz i]? := by rw [hnames]
+    simp only [List.getElem?_map, Array.getElem?_toList] at hi
+    have hsome : lst.pins.names[absSz i]? = some (absNIdx st.pins.names.val[absSz i]) := by
+      simpa [hlt2] using hi
+    rw [Array.getElem?_eq_getElem hlt3] at hsome
+    rw [Option.some_inj.mp hsome]
+
+/-- One pin slot, by its index. -/
+theorem pin_slot₀ {pers st lst} {i : Std.Usize} {j : Nat} {o}
+    (hrel : AStateRel₀ pers st lst) (hij : absSz i = j)
+    (hrun : arena.pins.pin_at st i = ok o) : SimRE absNIdx lst o (pinAt j) := by
+  have h := pin_at_refines₀ hrel hrun
+  rw [hij] at h
+  exact h
+
+theorem nat_op_names_refines₀ {pers st lst} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.core.nat_op_names st = ok o) :
+    Sim₀ absNIdxL pers lst o natOpNames := by
+  unfold natOpNames
+  rw [arena.core.nat_op_names] at hrun
+  unfold Sim₀
+  obtain ⟨q0, hq0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_pred_name] at hq0
+  obtain ⟨r0, hr0, hq0⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq0
+  have hS0 := pin_slot₀ (j := Arena.PIN_NAT_PRED) hrel
+    (by show (arena.pins.PIN_NAT_PRED).val = _; rw [arena.pins.PIN_NAT_PRED]; rfl)
+    (by rw [arena.pins.pin_nat_pred] at hr0; exact hr0)
+  obtain rfl := (Result.ok_injective hq0).symm
+  cases r0 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut₀.err (pin_err (tw := natPredName) hS0)
+  | Ok a0 =>
+  rw [pin_ok (tw := natPredName) hS0]
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_add_name] at hq1
+  obtain ⟨r1, hr1, hq1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq1
+  have hS1 := pin_slot₀ (j := Arena.PIN_NAT_ADD) hrel
+    (by show (arena.pins.PIN_NAT_ADD).val = _; rw [arena.pins.PIN_NAT_ADD]; rfl)
+    (by rw [arena.pins.pin_nat_add] at hr1; exact hr1)
+  obtain rfl := (Result.ok_injective hq1).symm
+  cases r1 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut₀.err (pin_err (tw := natAddName) hS1)
+  | Ok a1 =>
+  rw [pin_ok (tw := natAddName) hS1]
+  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_sub_name] at hq2
+  obtain ⟨r2, hr2, hq2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq2
+  have hS2 := pin_slot₀ (j := Arena.PIN_NAT_SUB) hrel
+    (by show (arena.pins.PIN_NAT_SUB).val = _; rw [arena.pins.PIN_NAT_SUB]; rfl)
+    (by rw [arena.pins.pin_nat_sub] at hr2; exact hr2)
+  obtain rfl := (Result.ok_injective hq2).symm
+  cases r2 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut₀.err (pin_err (tw := natSubName) hS2)
+  | Ok a2 =>
+  rw [pin_ok (tw := natSubName) hS2]
+  obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_mul_name] at hq3
+  obtain ⟨r3, hr3, hq3⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq3
+  have hS3 := pin_slot₀ (j := Arena.PIN_NAT_MUL) hrel
+    (by show (arena.pins.PIN_NAT_MUL).val = _; rw [arena.pins.PIN_NAT_MUL]; rfl)
+    (by rw [arena.pins.pin_nat_mul] at hr3; exact hr3)
+  obtain rfl := (Result.ok_injective hq3).symm
+  cases r3 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut₀.err (pin_err (tw := natMulName) hS3)
+  | Ok a3 =>
+  rw [pin_ok (tw := natMulName) hS3]
+  obtain ⟨q4, hq4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_pow_name] at hq4
+  obtain ⟨r4, hr4, hq4⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq4
+  have hS4 := pin_slot₀ (j := Arena.PIN_NAT_POW) hrel
+    (by show (arena.pins.PIN_NAT_POW).val = _; rw [arena.pins.PIN_NAT_POW]; rfl)
+    (by rw [arena.pins.pin_nat_pow] at hr4; exact hr4)
+  obtain rfl := (Result.ok_injective hq4).symm
+  cases r4 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut₀.err (pin_err (tw := natPowName) hS4)
+  | Ok a4 =>
+  rw [pin_ok (tw := natPowName) hS4]
+  obtain ⟨q5, hq5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_beq_name] at hq5
+  obtain ⟨r5, hr5, hq5⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq5
+  have hS5 := pin_slot₀ (j := Arena.PIN_NAT_BEQ) hrel
+    (by show (arena.pins.PIN_NAT_BEQ).val = _; rw [arena.pins.PIN_NAT_BEQ]; rfl)
+    (by rw [arena.pins.pin_nat_beq] at hr5; exact hr5)
+  obtain rfl := (Result.ok_injective hq5).symm
+  cases r5 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut₀.err (pin_err (tw := natBeqName) hS5)
+  | Ok a5 =>
+  rw [pin_ok (tw := natBeqName) hS5]
+  obtain ⟨q6, hq6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_ble_name] at hq6
+  obtain ⟨r6, hr6, hq6⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq6
+  have hS6 := pin_slot₀ (j := Arena.PIN_NAT_BLE) hrel
+    (by show (arena.pins.PIN_NAT_BLE).val = _; rw [arena.pins.PIN_NAT_BLE]; rfl)
+    (by rw [arena.pins.pin_nat_ble] at hr6; exact hr6)
+  obtain rfl := (Result.ok_injective hq6).symm
+  cases r6 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut₀.err (pin_err (tw := natBleName) hS6)
+  | Ok a6 =>
+  rw [pin_ok (tw := natBleName) hS6]
+  obtain ⟨w0, hw0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w1, hw1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w2, hw2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w3, hw3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w4, hw4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w5, hw5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w6, hw6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain rfl := (Result.ok_injective hrun).symm
+  have hv : w6.val = [a0, a1, a2, a3, a4, a5, a6] := by
+    rw [push_nidx_val hw6, push_nidx_val hw5, push_nidx_val hw4, push_nidx_val hw3, push_nidx_val hw2, push_nidx_val hw1, push_nidx_val hw0]
+    rfl
+  refine ⟨lst, ?_, hrel, hinv⟩
+  simp only [absNIdxL, hv, List.map_cons, List.map_nil]
+  rfl
+
+theorem nat_div_mod_names_refines₀ {pers st lst} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.core.nat_div_mod_names st = ok o) :
+    Sim₀ absNIdxL pers lst o natDivModNames := by
+  unfold natDivModNames
+  rw [arena.core.nat_div_mod_names] at hrun
+  unfold Sim₀
+  obtain ⟨q0, hq0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_div_name] at hq0
+  obtain ⟨r0, hr0, hq0⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq0
+  have hS0 := pin_slot₀ (j := Arena.PIN_NAT_DIV) hrel
+    (by show (arena.pins.PIN_NAT_DIV).val = _; rw [arena.pins.PIN_NAT_DIV]; rfl)
+    (by rw [arena.pins.pin_nat_div] at hr0; exact hr0)
+  obtain rfl := (Result.ok_injective hq0).symm
+  cases r0 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut₀.err (pin_err (tw := natDivName) hS0)
+  | Ok a0 =>
+  rw [pin_ok (tw := natDivName) hS0]
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_mod_name] at hq1
+  obtain ⟨r1, hr1, hq1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq1
+  have hS1 := pin_slot₀ (j := Arena.PIN_NAT_MOD) hrel
+    (by show (arena.pins.PIN_NAT_MOD).val = _; rw [arena.pins.PIN_NAT_MOD]; rfl)
+    (by rw [arena.pins.pin_nat_mod] at hr1; exact hr1)
+  obtain rfl := (Result.ok_injective hq1).symm
+  cases r1 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut₀.err (pin_err (tw := natModName) hS1)
+  | Ok a1 =>
+  rw [pin_ok (tw := natModName) hS1]
+  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_gcd_name] at hq2
+  obtain ⟨r2, hr2, hq2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq2
+  have hS2 := pin_slot₀ (j := Arena.PIN_NAT_GCD) hrel
+    (by show (arena.pins.PIN_NAT_GCD).val = _; rw [arena.pins.PIN_NAT_GCD]; rfl)
+    (by rw [arena.pins.pin_nat_gcd] at hr2; exact hr2)
+  obtain rfl := (Result.ok_injective hq2).symm
+  cases r2 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut₀.err (pin_err (tw := natGcdName) hS2)
+  | Ok a2 =>
+  rw [pin_ok (tw := natGcdName) hS2]
+  obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_land_name] at hq3
+  obtain ⟨r3, hr3, hq3⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq3
+  have hS3 := pin_slot₀ (j := Arena.PIN_NAT_LAND) hrel
+    (by show (arena.pins.PIN_NAT_LAND).val = _; rw [arena.pins.PIN_NAT_LAND]; rfl)
+    (by rw [arena.pins.pin_nat_land] at hr3; exact hr3)
+  obtain rfl := (Result.ok_injective hq3).symm
+  cases r3 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut₀.err (pin_err (tw := natLandName) hS3)
+  | Ok a3 =>
+  rw [pin_ok (tw := natLandName) hS3]
+  obtain ⟨q4, hq4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_lor_name] at hq4
+  obtain ⟨r4, hr4, hq4⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq4
+  have hS4 := pin_slot₀ (j := Arena.PIN_NAT_LOR) hrel
+    (by show (arena.pins.PIN_NAT_LOR).val = _; rw [arena.pins.PIN_NAT_LOR]; rfl)
+    (by rw [arena.pins.pin_nat_lor] at hr4; exact hr4)
+  obtain rfl := (Result.ok_injective hq4).symm
+  cases r4 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut₀.err (pin_err (tw := natLorName) hS4)
+  | Ok a4 =>
+  rw [pin_ok (tw := natLorName) hS4]
+  obtain ⟨q5, hq5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_xor_name] at hq5
+  obtain ⟨r5, hr5, hq5⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq5
+  have hS5 := pin_slot₀ (j := Arena.PIN_NAT_XOR) hrel
+    (by show (arena.pins.PIN_NAT_XOR).val = _; rw [arena.pins.PIN_NAT_XOR]; rfl)
+    (by rw [arena.pins.pin_nat_xor] at hr5; exact hr5)
+  obtain rfl := (Result.ok_injective hq5).symm
+  cases r5 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut₀.err (pin_err (tw := natXorName) hS5)
+  | Ok a5 =>
+  rw [pin_ok (tw := natXorName) hS5]
+  obtain ⟨q6, hq6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_shift_left_name] at hq6
+  obtain ⟨r6, hr6, hq6⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq6
+  have hS6 := pin_slot₀ (j := Arena.PIN_NAT_SHIFT_LEFT) hrel
+    (by show (arena.pins.PIN_NAT_SHIFT_LEFT).val = _; rw [arena.pins.PIN_NAT_SHIFT_LEFT]; rfl)
+    (by rw [arena.pins.pin_nat_shift_left] at hr6; exact hr6)
+  obtain rfl := (Result.ok_injective hq6).symm
+  cases r6 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut₀.err (pin_err (tw := natShiftLeftName) hS6)
+  | Ok a6 =>
+  rw [pin_ok (tw := natShiftLeftName) hS6]
+  obtain ⟨q7, hq7, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.nat_shift_right_name] at hq7
+  obtain ⟨r7, hr7, hq7⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq7
+  have hS7 := pin_slot₀ (j := Arena.PIN_NAT_SHIFT_RIGHT) hrel
+    (by show (arena.pins.PIN_NAT_SHIFT_RIGHT).val = _; rw [arena.pins.PIN_NAT_SHIFT_RIGHT]; rfl)
+    (by rw [arena.pins.pin_nat_shift_right] at hr7; exact hr7)
+  obtain rfl := (Result.ok_injective hq7).symm
+  cases r7 with
+  | Err e =>
+    have hrun' : (ok (core.result.Result.Err e, st) : Result _) = ok o := hrun
+    obtain rfl := (Result.ok_injective hrun').symm
+    exact AOut₀.err (pin_err (tw := natShiftRightName) hS7)
+  | Ok a7 =>
+  rw [pin_ok (tw := natShiftRightName) hS7]
+  obtain ⟨w0, hw0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w1, hw1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w2, hw2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w3, hw3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w4, hw4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w5, hw5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w6, hw6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨w7, hw7, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain rfl := (Result.ok_injective hrun).symm
+  have hv : w7.val = [a0, a1, a2, a3, a4, a5, a6, a7] := by
+    rw [push_nidx_val hw7, push_nidx_val hw6, push_nidx_val hw5, push_nidx_val hw4, push_nidx_val hw3, push_nidx_val hw2, push_nidx_val hw1, push_nidx_val hw0]
+    rfl
+  refine ⟨lst, ?_, hrel, hinv⟩
+  simp only [absNIdxL, hv, List.map_cons, List.map_nil]
+  rfl
+
 /-- **`nat_op_ground::is_nat_op_record` refines `isNatOpRecord`**
 (`Arena/Frontend/NatOpGround.lean:111-117`). -/
 theorem is_nat_op_record_refines {pers rst lst d o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.nat_op_ground.is_nat_op_record rst d = ok o) :
-    Sim (Option.map absNIdx) (fun _ => True) pers lst o
+    Sim₀ (Option.map absNIdx) pers lst o
       (isNatOpRecord (absIDeclaration d)) := by
   rw [frontend.nat_op_ground.is_nat_op_record.eq_def] at h
   have hnone : ∀ x : AM (Option NIdx), x = pure none →
-      Sim (Option.map absNIdx) (fun _ => True) pers lst (.Ok none, rst) x := by
+      Sim₀ (Option.map absNIdx) pers lst (.Ok none, rst) x := by
     intro x hx; subst hx
-    exact ⟨lst, rfl, hrel, hinv, Ext.refl _, trivial⟩
+    exact ⟨lst, rfl, hrel, hinv⟩
   cases d with
   | DefnDecl cv v hint =>
     dsimp only at h
     obtain ⟨⟨r, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hD := nat_div_mod_names_refines hrel.to₀ hinv h1
-    simp only [Sim₀] at hD
-    simp only [Sim]
+    have hD := nat_div_mod_names_refines₀ hrel hinv h1
+    simp only [Sim₀] at hD ⊢
     simp only [absIDeclaration, isNatOpRecord, am_run_bind']
     cases r with
     | Err e =>
       cases Result.ok_injective h
       exact AErrSim.bind hD _
     | Ok dsn =>
-      obtain ⟨lst1, hx1, hrel1₀, hinv1⟩ := hD
-      -- a pin read: the twin state is unchanged (task #97-T2-LOCKSTEP lane Checker)
-      have hl1 := natDivModNames_reads _ _ _ hx1
-      subst hl1
-      have hrel1 := hrel1₀.of₀ hrel.storeWF
-      have hext1 := Ext.refl lst1.store
+      obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hD
       rw [hx1]; simp only [except_ok_bind]
       obtain ⟨⟨r1, st2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hN := nat_op_names_refines hrel1.to₀ hinv1 h2
+      have hN := nat_op_names_refines₀ hrel1 hinv1 h2
       simp only [Sim₀] at hN
       cases r1 with
       | Err e =>
         cases Result.ok_injective h
         exact AErrSim.bind hN _
       | Ok nsn =>
-        obtain ⟨lst2, hx2, hrel2₀, hinv2⟩ := hN
-        have hl2 := natOpNames_reads _ _ _ hx2
-        subst hl2
-        have hrel2 := hrel2₀.of₀ hrel1.storeWF
-        have hext2 := Ext.refl lst2.store
+        obtain ⟨lst2, hx2, hrel2, hinv2⟩ := hN
         rw [hx2]; simp only [except_ok_bind]
         obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have hbv := nidx_contains_refines hb
@@ -314,7 +634,7 @@ theorem is_nat_op_record_refines {pers rst lst d o}
           have hnv : n = cv.name := dupId_nidx _ _ hn
           subst hnv
           rw [hbt] at hbv
-          refine ⟨lst2, ?_, hrel2, hinv2, Ext.trans hext1 hext2, trivial⟩
+          refine ⟨lst2, ?_, hrel2, hinv2⟩
           simp only [absIConstantVal, ← hbv, Bool.true_or, if_true]; rfl
         · rename_i hbf
           obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -328,13 +648,13 @@ theorem is_nat_op_record_refines {pers rst lst d o}
             have hnv : n = cv.name := dupId_nidx _ _ hn
             subst hnv
             rw [hb1t] at hb1v
-            refine ⟨lst2, ?_, hrel2, hinv2, Ext.trans hext1 hext2, trivial⟩
+            refine ⟨lst2, ?_, hrel2, hinv2⟩
             simp only [absIConstantVal, hbv', ← hb1v, Bool.false_or, if_true]; rfl
           · rename_i hb1f
             cases Result.ok_injective h
             have hb1v' : (absNIdxL nsn).contains (absNIdx cv.name) = false := by
               rw [← hb1v]; simpa using hb1f
-            refine ⟨lst2, ?_, hrel2, hinv2, Ext.trans hext1 hext2, trivial⟩
+            refine ⟨lst2, ?_, hrel2, hinv2⟩
             simp only [absIConstantVal, hbv', hb1v', Bool.false_or, Bool.false_eq_true,
               if_false]; rfl
   | AxiomDecl _ => cases Result.ok_injective h; exact hnone _ rfl
@@ -618,14 +938,14 @@ theorem hoist_push_deps_refines {rm lm used stack sp i k o}
 /-- **`hoist_close` refines `hoistClosure`**
 (`Arena/Frontend/NatOpGround.lean:171-199`). -/
 theorem hoist_close_refines {pers rst lst ds rm lm target ltarget j i o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hr : NameIdxRel rm lm) (ht : TargetRel target ltarget)
     (h : frontend.nat_op_ground.hoist_close pers rst ds rm target j i = ok o) :
     (∀ t, o.1 = .Ok t → ∃ lt lst',
       (hoistClosure (absIDeclArr ds) lm (absU i)
         (absIDeclArr ds).size ltarget
         [absU j]).run lst = .ok (lt, lst') ∧ TargetRel t lt ∧
-      AStateRel pers o.2 lst' ∧ AStateInv pers o.2 ∧ Ext lst.store lst'.store) ∧
+      AStateRel₀ pers o.2 lst' ∧ AStateInv pers o.2) ∧
     (∀ e, o.1 = .Err e → AErrSim e ((hoistClosure (absIDeclArr ds) lm (absU i)
         (absIDeclArr ds).size ltarget [absU j]).run lst)) := by
   sorry
@@ -633,14 +953,14 @@ theorem hoist_close_refines {pers rst lst ds rm lm target ltarget j i o}
 /-- **`hoist_targets_at` refines `hoistTargetsGo.hoistDeps`** at one pinned
 operation's `natOpDeps`. -/
 theorem hoist_targets_at_refines {pers rst lst ds rm lm target ltarget c i o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hr : NameIdxRel rm lm) (ht : TargetRel target ltarget)
     (h : frontend.nat_op_ground.hoist_targets_at pers rst ds rm target c i = ok o) :
     (∀ t, o.1 = .Ok t → ∃ lt lst1 lst' deps,
       (natOpDeps (absNIdx c)).run lst = .ok (deps, lst1) ∧
       (hoistTargetsGo.hoistDeps (absIDeclArr ds) lm ltarget (absU i) deps).run lst1
         = .ok (lt, lst') ∧ TargetRel t lt ∧
-      AStateRel pers o.2 lst' ∧ AStateInv pers o.2 ∧ Ext lst.store lst'.store) ∧
+      AStateRel₀ pers o.2 lst' ∧ AStateInv pers o.2) ∧
     (∀ e, o.1 = .Err e → AErrSim e ((do
         let deps ← natOpDeps (absNIdx c)
         hoistTargetsGo.hoistDeps (absIDeclArr ds) lm ltarget (absU i) deps).run lst)) := by
@@ -658,12 +978,12 @@ success-only, which leaves `hoist_nat_op_ground_refines`' `Sim` nothing for a
 index (the twin inserts only stack entries, which are name-index values, at
 loop indices). -/
 theorem hoist_targets_refines {pers rst lst ds o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.nat_op_ground.hoist_targets pers rst ds = ok o) :
     (∀ t, o.1 = .Ok t → ∃ lt lst',
       (hoistTargets (absIDeclArr ds)).run lst = .ok (lt, lst') ∧ TargetRel t lt ∧
       (∀ k tk, lt[k]? = some tk → k < (absIDeclArr ds).size ∧ tk < (absIDeclArr ds).size) ∧
-      AStateRel pers o.2 lst' ∧ AStateInv pers o.2 ∧ Ext lst.store lst'.store) ∧
+      AStateRel₀ pers o.2 lst' ∧ AStateInv pers o.2) ∧
     (∀ e, o.1 = .Err e → AErrSim e ((hoistTargets (absIDeclArr ds)).run lst)) := by
   sorry
 
@@ -1357,20 +1677,20 @@ theorem apply_hoist_refines {ds rm lm o} (hr : TargetRel rm lm)
 (`Arena/Frontend/NatOpGround.lean:413-417`) — **the hoist**, and one of the
 tier's named deliverables. -/
 theorem hoist_nat_op_ground_refines {pers rst lst ds o}
-    (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.nat_op_ground.hoist_nat_op_ground pers rst ds = ok o) :
-    Sim (fun p => (absIDeclArr p.1, absNIdxArr p.2)) (fun _ => True) pers lst o
+    Sim₀ (fun p => (absIDeclArr p.1, absNIdxArr p.2)) pers lst o
       (hoistNatOpGround (absIDeclArr ds)) := by
   rw [frontend.nat_op_ground.hoist_nat_op_ground] at h
   obtain ⟨⟨r, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨hOk, hErr⟩ := hoist_targets_refines hrel hinv h1
-  simp only [Sim, hoistNatOpGround, am_run_bind']
+  simp only [Sim₀, hoistNatOpGround, am_run_bind']
   cases r with
   | Err e =>
     cases Result.ok_injective h
     exact AErrSim.bind (hErr e rfl) _
   | Ok t =>
-    obtain ⟨lt, lst', hx, hT, hb, hrel', hinv', hext'⟩ := hOk t rfl
+    obtain ⟨lt, lst', hx, hT, hb, hrel', hinv'⟩ := hOk t rfl
     rw [hx]
     simp only [except_ok_bind]
     obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1418,14 +1738,14 @@ theorem hoist_nat_op_ground_refines {pers rst lst ds o}
     · rw [if_pos hn0] at h
       cases Result.ok_injective h
       rw [if_pos (hemp.mpr hn0)]
-      exact ⟨lst', rfl, hrel', hinv', hext', trivial⟩
+      exact ⟨lst', rfl, hrel', hinv'⟩
     · rw [if_neg hn0] at h
       obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       cases Result.ok_injective h
       have hne : ¬ lt.isEmpty = true := fun he => hn0 (hemp.mp he)
       rw [if_neg hne]
       have hA := apply_hoist_refines hT (fun k tk hk _ => (hb k tk hk).2) hp
-      refine ⟨lst', ?_, hrel', hinv', hext', trivial⟩
+      refine ⟨lst', ?_, hrel', hinv'⟩
       rw [← hA]; rfl
 
 

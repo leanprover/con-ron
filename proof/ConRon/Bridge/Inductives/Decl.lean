@@ -404,6 +404,6 @@ theorem indSpec_of_bridge {μ : CheckMode} (hμ : μ.verifiedChecks = true)
   have out := checkIndDecl_bridge (pinsP := pinsP) hμ hk hok hb hpin hrun
   obtain ⟨env', hden, F, hrunP⟩ := out.denote
   exact ⟨out.state, out.ext, out.pins, out.coh, out.pushed, out.visible, env',
-    F, hden, hrunP, out.envWF env' hden⟩
+    F, hden, hrunP, out.envWF env' hden, out.proj.2⟩
 
 end ConRon.Bridge.Inductives

@@ -58,6 +58,7 @@ import ConRon.Refine2.Checker.Init
 import ConRon.Refine2.Checker.PinsWF
 import ConRon.Refine2.Inductives.Top
 import ConRon.Refine2.Frontend.Abs
+import ConRon.Refine2.Frontend.Text
 import ConRon.Refine2.Frontend.Shape
 import ConRon.Refine2.Frontend.Types
 import ConRon.Refine2.Frontend.Prepare
