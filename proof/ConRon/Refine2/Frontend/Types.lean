@@ -207,7 +207,7 @@ theorem decline_modeller_refines :
     obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     simp only [Result.ok.injEq] at h
     subst h
-    refine ⟨lst, ?_, ?_, Ext.refl _, ?_⟩
+    refine ⟨lst, ?_, ?_, ?_⟩
     · simpa using hrel
     · simpa using hinv
     · exact ⟨_, rfl⟩

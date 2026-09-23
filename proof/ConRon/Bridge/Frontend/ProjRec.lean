@@ -426,36 +426,209 @@ caller uses; the pure definition above stays as its specification"*).
 
 The twin's `occursConstFast` is stated against `ConLeche.Frontend.
 occursConstFast`, so this tier needs the two, and they belong beside
-`occursConst` in con-leche rather than here.  They are stated here in task
+`occursConst` in con-leche rather than here.  They were stated here in task
 #97-P3-Frontend §5's **finding 6** shape — a con-leche-tier lemma stated in
 this tier so the gap is a LEMMA and not a hole in a proof — exactly as
-`checkDeclsPure_thmDecl_const` is in `Bridge/Frontend/Capstone.lean`. -/
+`checkDeclsPure_thmDecl_const` is in `Bridge/Frontend/Capstone.lean`.  Task
+#97-T1-OCC proved them here (a proof about con-leche's definitions is not a
+re-derivation of them); they remain upstream candidates. -/
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:152-178 occursConstB — **the
 budgeted descent answers `occursConst` whenever it answers at all.**
 
-`sorry`: a con-leche-tier lemma (finding 6's shape).  A structural induction on
-the `Expr` with the budget generalised; the `some false` arms compose and every
-`none` arm is vacuous.  It belongs in `ConLeche/Verify/Frontend/ProjRec.lean`
-beside `occursConst`, and this tier may not re-derive con-leche's own
-functions. -/
+A con-leche-tier lemma (finding 6's shape), proved here: a structural
+induction on the `Expr` with the budget generalised; the `some false` arms
+compose and every `none` arm is vacuous.  An upstream candidate for
+`ConLeche/Verify/Frontend/ProjRec.lean`, beside `occursConst`. -/
 theorem clOccursConstB_eq {n : ConLeche.Name} :
     ∀ {fuel : Nat} {e : ConLeche.Expr} {r : Bool},
       (ConLeche.Frontend.occursConstB n fuel e).1 = some r →
       r = ConLeche.Frontend.occursConst n e := by
-  sorry
+  intro fuel e
+  induction e generalizing fuel with
+  | bvar | fvar | sort | lit =>
+    intro r h; cases fuel <;> simp_all [ConLeche.Frontend.occursConstB,
+      ConLeche.Frontend.occursConst]
+  | const m us =>
+    intro r h; cases fuel <;> simp_all [ConLeche.Frontend.occursConstB,
+      ConLeche.Frontend.occursConst]
+  | app f a ihf iha =>
+    intro r h
+    cases fuel with
+    | zero => simp [ConLeche.Frontend.occursConstB] at h
+    | succ fuel =>
+      simp only [ConLeche.Frontend.occursConstB] at h
+      simp only [ConLeche.Frontend.occursConst]
+      rcases hf : ConLeche.Frontend.occursConstB n fuel f with ⟨_ | _ | _, k⟩ <;>
+        rw [hf] at h <;> simp only at h
+      · simp at h
+      · rw [← ihf (by rw [hf]), ← iha h]; simp
+      · cases h; rw [← ihf (by rw [hf])]; simp
+  | lam ty b m iht ihb =>
+    intro r h
+    cases fuel with
+    | zero => simp [ConLeche.Frontend.occursConstB] at h
+    | succ fuel =>
+      simp only [ConLeche.Frontend.occursConstB] at h
+      simp only [ConLeche.Frontend.occursConst]
+      rcases ht : ConLeche.Frontend.occursConstB n fuel ty with ⟨_ | _ | _, k⟩ <;>
+        rw [ht] at h <;> simp only at h
+      · simp at h
+      · rw [← iht (by rw [ht]), ← ihb h]; simp
+      · cases h; rw [← iht (by rw [ht])]; simp
+  | forallE ty b m iht ihb =>
+    intro r h
+    cases fuel with
+    | zero => simp [ConLeche.Frontend.occursConstB] at h
+    | succ fuel =>
+      simp only [ConLeche.Frontend.occursConstB] at h
+      simp only [ConLeche.Frontend.occursConst]
+      rcases ht : ConLeche.Frontend.occursConstB n fuel ty with ⟨_ | _ | _, k⟩ <;>
+        rw [ht] at h <;> simp only at h
+      · simp at h
+      · rw [← iht (by rw [ht]), ← ihb h]; simp
+      · cases h; rw [← iht (by rw [ht])]; simp
+  | letE t v b iht ihv ihb =>
+    intro r h
+    cases fuel with
+    | zero => simp [ConLeche.Frontend.occursConstB] at h
+    | succ fuel =>
+      simp only [ConLeche.Frontend.occursConstB] at h
+      simp only [ConLeche.Frontend.occursConst]
+      rcases ht : ConLeche.Frontend.occursConstB n fuel t with ⟨_ | _ | _, k⟩ <;>
+        rw [ht] at h <;> simp only at h
+      · simp at h
+      · rcases hv : ConLeche.Frontend.occursConstB n k v with ⟨_ | _ | _, k'⟩ <;>
+          rw [hv] at h <;> simp only at h
+        · simp at h
+        · rw [← iht (by rw [ht]), ← ihv (by rw [hv]), ← ihb h]; simp
+        · cases h; rw [← iht (by rw [ht]), ← ihv (by rw [hv])]; simp
+      · cases h; rw [← iht (by rw [ht])]; simp
+  | proj s i e ih =>
+    intro r h
+    cases fuel with
+    | zero => simp [ConLeche.Frontend.occursConstB] at h
+    | succ fuel =>
+      simp only [ConLeche.Frontend.occursConstB] at h
+      simp only [ConLeche.Frontend.occursConst]
+      exact ih h
+
+/-- `occursConstGo`'s memo invariant: every member of the set is a term
+that does not mention `n`. -/
+def clOccursMemoInv (n : ConLeche.Name) (s : Std.HashSet ConLeche.Expr) : Prop :=
+  ∀ x, s.contains x = true → ConLeche.Frontend.occursConst n x = false
+
+theorem clOccursMemoInv_insert {n : ConLeche.Name} {s : Std.HashSet ConLeche.Expr}
+    {e : ConLeche.Expr} (hs : clOccursMemoInv n s)
+    (he : ConLeche.Frontend.occursConst n e = false) :
+    clOccursMemoInv n (s.insert e) := by
+  intro x hx
+  rw [Std.HashSet.contains_insert] at hx
+  rcases Bool.or_eq_true_iff.mp hx with h | h
+  · rw [← eq_of_beq h]; exact he
+  · exact hs x h
+
+/-- con-leche: ConLeche/Frontend/ProjRec.lean:182-227 occursConstGo — **the
+memoised descent answers `occursConst` from any set satisfying
+`clOccursMemoInv`, and returns a set that still satisfies it.**  Induction on
+the `Expr` with the set generalised. -/
+theorem clOccursConstGo_inv {n : ConLeche.Name} :
+    ∀ {e : ConLeche.Expr} {s : Std.HashSet ConLeche.Expr}, clOccursMemoInv n s →
+      (ConLeche.Frontend.occursConstGo n s e).1
+          = ConLeche.Frontend.occursConst n e ∧
+        clOccursMemoInv n (ConLeche.Frontend.occursConstGo n s e).2 := by
+  intro e
+  induction e with
+  | bvar | fvar | sort | lit | const =>
+    intro s hs; simp [ConLeche.Frontend.occursConstGo, ConLeche.Frontend.occursConst, hs]
+  | app f a ihf iha =>
+    intro s hs
+    by_cases hc : s.contains (.app f a) = true
+    · simp [ConLeche.Frontend.occursConstGo, hc, hs _ hc, hs]
+    · simp only [ConLeche.Frontend.occursConstGo, hc, ConLeche.Frontend.occursConst]
+      obtain ⟨hf1, hf2⟩ := ihf hs
+      rcases hf : ConLeche.Frontend.occursConstGo n s f with ⟨_ | _, s1⟩ <;>
+        rw [hf] at hf1 hf2 <;> simp only at hf1 hf2 ⊢
+      · obtain ⟨ha1, ha2⟩ := iha hf2
+        rcases ha : ConLeche.Frontend.occursConstGo n s1 a with ⟨_ | _, s2⟩ <;>
+          rw [ha] at ha1 ha2 <;> simp only at ha1 ha2 ⊢
+        · exact ⟨by simp [← hf1, ← ha1],
+            clOccursMemoInv_insert ha2 (by simp [ConLeche.Frontend.occursConst, ← hf1, ← ha1])⟩
+        · exact ⟨by simp [← ha1], ha2⟩
+      · exact ⟨by simp [← hf1], hf2⟩
+  | lam ty b m iht ihb =>
+    intro s hs
+    by_cases hc : s.contains (.lam ty b m) = true
+    · simp [ConLeche.Frontend.occursConstGo, hc, hs _ hc, hs]
+    · simp only [ConLeche.Frontend.occursConstGo, hc, ConLeche.Frontend.occursConst]
+      obtain ⟨hf1, hf2⟩ := iht hs
+      rcases hf : ConLeche.Frontend.occursConstGo n s ty with ⟨_ | _, s1⟩ <;>
+        rw [hf] at hf1 hf2 <;> simp only at hf1 hf2 ⊢
+      · obtain ⟨ha1, ha2⟩ := ihb hf2
+        rcases ha : ConLeche.Frontend.occursConstGo n s1 b with ⟨_ | _, s2⟩ <;>
+          rw [ha] at ha1 ha2 <;> simp only at ha1 ha2 ⊢
+        · exact ⟨by simp [← hf1, ← ha1],
+            clOccursMemoInv_insert ha2 (by simp [ConLeche.Frontend.occursConst, ← hf1, ← ha1])⟩
+        · exact ⟨by simp [← ha1], ha2⟩
+      · exact ⟨by simp [← hf1], hf2⟩
+  | forallE ty b m iht ihb =>
+    intro s hs
+    by_cases hc : s.contains (.forallE ty b m) = true
+    · simp [ConLeche.Frontend.occursConstGo, hc, hs _ hc, hs]
+    · simp only [ConLeche.Frontend.occursConstGo, hc, ConLeche.Frontend.occursConst]
+      obtain ⟨hf1, hf2⟩ := iht hs
+      rcases hf : ConLeche.Frontend.occursConstGo n s ty with ⟨_ | _, s1⟩ <;>
+        rw [hf] at hf1 hf2 <;> simp only at hf1 hf2 ⊢
+      · obtain ⟨ha1, ha2⟩ := ihb hf2
+        rcases ha : ConLeche.Frontend.occursConstGo n s1 b with ⟨_ | _, s2⟩ <;>
+          rw [ha] at ha1 ha2 <;> simp only at ha1 ha2 ⊢
+        · exact ⟨by simp [← hf1, ← ha1],
+            clOccursMemoInv_insert ha2 (by simp [ConLeche.Frontend.occursConst, ← hf1, ← ha1])⟩
+        · exact ⟨by simp [← ha1], ha2⟩
+      · exact ⟨by simp [← hf1], hf2⟩
+  | letE t v b iht ihv ihb =>
+    intro s hs
+    by_cases hc : s.contains (.letE t v b) = true
+    · simp [ConLeche.Frontend.occursConstGo, hc, hs _ hc, hs]
+    · simp only [ConLeche.Frontend.occursConstGo, hc, ConLeche.Frontend.occursConst]
+      obtain ⟨hf1, hf2⟩ := iht hs
+      rcases hf : ConLeche.Frontend.occursConstGo n s t with ⟨_ | _, s1⟩ <;>
+        rw [hf] at hf1 hf2 <;> simp only at hf1 hf2 ⊢
+      · obtain ⟨hv1, hv2⟩ := ihv hf2
+        rcases hv : ConLeche.Frontend.occursConstGo n s1 v with ⟨_ | _, s2⟩ <;>
+          rw [hv] at hv1 hv2 <;> simp only at hv1 hv2 ⊢
+        · obtain ⟨ha1, ha2⟩ := ihb hv2
+          rcases ha : ConLeche.Frontend.occursConstGo n s2 b with ⟨_ | _, s3⟩ <;>
+            rw [ha] at ha1 ha2 <;> simp only at ha1 ha2 ⊢
+          · exact ⟨by simp [← hf1, ← hv1, ← ha1],
+              clOccursMemoInv_insert ha2
+                (by simp [ConLeche.Frontend.occursConst, ← hf1, ← hv1, ← ha1])⟩
+          · exact ⟨by simp [← ha1], ha2⟩
+        · exact ⟨by simp [← hv1], hv2⟩
+      · exact ⟨by simp [← hf1], hf2⟩
+  | proj nm i sub ih =>
+    intro s hs
+    by_cases hc : s.contains (.proj nm i sub) = true
+    · simp [ConLeche.Frontend.occursConstGo, hc, hs _ hc, hs]
+    · simp only [ConLeche.Frontend.occursConstGo, hc, ConLeche.Frontend.occursConst]
+      obtain ⟨hf1, hf2⟩ := ih hs
+      rcases hf : ConLeche.Frontend.occursConstGo n s sub with ⟨_ | _, s1⟩ <;>
+        rw [hf] at hf1 hf2 <;> simp only at hf1 hf2 ⊢
+      · exact ⟨by simp [← hf1],
+          clOccursMemoInv_insert hf2 (by simp [ConLeche.Frontend.occursConst, ← hf1])⟩
+      · exact ⟨by simp [← hf1], hf2⟩
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:182-227 occursConstGo — **the
 memoised descent answers `occursConst` at a fresh set.**
 
-`sorry`: a con-leche-tier lemma (finding 6's shape).  The induction needs the
-set's invariant — *every member is a subterm already shown not to mention `n`*
-— which is the GRAY shape, and `∅` is where it starts true.  Same home as
-`clOccursConstB_eq`. -/
+A con-leche-tier lemma (finding 6's shape), proved here from the set's
+invariant `clOccursMemoInv` — *every member does not mention `n`* — which
+`∅` satisfies and `occursConstGo` preserves (`clOccursConstGo_inv`).  Same
+upstream home as `clOccursConstB_eq`. -/
 theorem clOccursConstGo_eq {n : ConLeche.Name} {e : ConLeche.Expr} :
     (ConLeche.Frontend.occursConstGo n ∅ e).1
-      = ConLeche.Frontend.occursConst n e := by
-  sorry
+      = ConLeche.Frontend.occursConst n e :=
+  (clOccursConstGo_inv (by simp [clOccursMemoInv])).1
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:228-231 occursConstFast — **what
 the twin is stated against is the pure `occursConst`**, which is the only
@@ -784,8 +957,8 @@ arm.
 **CLOSED** (round 6).  Round 5's two con-leche-tier lemmas put the con-leche
 side at the pure `occursConst` (`clOccursConstFast_eq`), and the arena side is
 `occursConstGo_run` above — a plain fuel induction, because the memo is
-black-only and there is no gray phase to account for.  What remains under this
-theorem is the two con-leche-tier `sorry`s and nothing of this tier's. -/
+black-only and there is no gray phase to account for.  The two con-leche-tier
+lemmas were proved in task #97-T1-OCC, so nothing remains under it. -/
 theorem occursConstFast_run {s s' : AState} (hok : StateOK s) {fuel : Nat}
     {n : NIdx} {nP : ConLeche.Name} (hn : denoteN s.store.ns n = some nP)
     {h : EIdx} {e : Expr} (he : denoteE s.store h = some e) {b : Bool}

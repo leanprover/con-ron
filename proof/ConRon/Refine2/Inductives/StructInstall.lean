@@ -40,12 +40,12 @@ recursion and not a cursor. -/
 theorem check_struct_doms_at_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {off : Std.U64}
     {fvs doms : alloc.vec.Vec arena.handle.EIdx} {k : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hvis : absU vis = lf.visibleBelow) (hknot : KnotRel checkFuel)
     (hrun : arena.inductives.struct_install.check_struct_doms_at pers vis st mode rf
       off fvs doms k = ok o) :
-    Sim (fun _ => ()) (fun _ => True) pers lst o
+    Sim₀ (fun _ => ()) pers lst o
       (checkStructDomsAt (ConRon.Refine.absMode mode) lf (absU off) (absEIdxL fvs)
         (absEIdxL doms) (absU k)) := by
   sorry
@@ -57,12 +57,12 @@ cursor on. -/
 theorem proj_bodies_scoped_refines {pers st lst} {vis : Std.U64} {rf lf}
     {lps : alloc.vec.Vec arena.handle.NIdx} {n_p : Std.U64}
     {bodies : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.inductives.struct_install.proj_bodies_scoped pers vis st rf lps n_p
       bodies i = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (projBodiesScopedSpec lf (absNIdxL lps) (absU n_p)
         (absEIdxLFrom bodies i)) := by
   sorry
@@ -71,12 +71,12 @@ theorem proj_bodies_scoped_refines {pers st lst} {vis : Std.U64} {rf lf}
 from field `j` on — the twin's `(List.range nF).allM`. -/
 theorem proj_fn_family_free_refines {pers st lst} {vis : Std.U64} {rf lf}
     {t : arena.handle.NIdx} {n_f j : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.inductives.struct_install.proj_fn_family_free pers vis st rf t n_f
       j = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (projFnFamilyFreeSpec lf (absNIdx t) (absU n_f - absU j) (absU j)) := by
   sorry
 
@@ -86,11 +86,11 @@ theorem check_struct_proj_table_names_refines {pers st lst}
     {n_p n_f : Std.U64} {res_sort : arena.handle.LIdx}
     {guards : alloc.vec.Vec arena.handle.LIdx} {off : Std.U64}
     {bodies : alloc.vec.Vec arena.handle.EIdx} {rf lf} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.inductives.struct_install.check_struct_proj_table_names pers st t c
       lps n_p n_f res_sort guards off bodies rf = ok o) :
-    SimRel (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
       (checkStructProjTableNamesSpec (absNIdx t) (absNIdx c) (absNIdxL lps)
         (absU n_p) (absU n_f) (absLIdx res_sort) (absLIdxL guards) (absU off)
         (absEIdxL bodies).toArray lf) := by
@@ -104,11 +104,11 @@ theorem check_struct_proj_table_refines {pers st lst}
     {n_p n_f : Std.U64} {res_sort : arena.handle.LIdx}
     {guards : alloc.vec.Vec arena.handle.LIdx} {off : Std.U64}
     {cv_ca : arena.env.IConstantVal} {rf lf} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.inductives.struct_install.check_struct_proj_table pers st t c lps
       n_p n_f res_sort guards off cv_ca rf = ok o) :
-    SimRel (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
       (checkStructProjTable (absNIdx t) (absNIdx c) (absNIdxL lps) (absU n_p)
         (absU n_f) (absLIdx res_sort) (absLIdxL guards) (absU off)
         (absIConstantVal cv_ca) lf) := by

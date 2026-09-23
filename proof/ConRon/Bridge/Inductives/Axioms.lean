@@ -280,11 +280,35 @@ namespace ConRon.Bridge.Inductives
 #print axioms checkModeled_envWF
 #print axioms indDecl_envWF
 
-/-! ## Group 1½ — closed compositions over the five open leaves (round 8)
+-- round 9 (task #97-P3-Ind): the five leaves of the modeled route, the three
+-- Checker-tier twins `checkProjFn` needed (`Bridge/Inductives/ProjRule.lean`),
+-- and their helpers
+#print axioms instListSpec
+#print axioms fvarTypeDs_run
+#print axioms checkProjShape_spec
+#print axioms checkProjRule_spec
+#print axioms projFnRule_run
+#print axioms eqHeadLevel_run
+#print axioms denoteEList_getD_fb
+#print axioms denote_not_forallE
+#print axioms allM_E_cstep
+#print axioms isEqHead_run
+#print axioms denoteEList_getLastD
+#print axioms unwrapOr_ok
+#print axioms instLPFast_cstep
+#print axioms mapM_E_pstepQ
+#print axioms findCV?_run
+#print axioms provisionRecs_tys
+#print axioms checkIotaThm_spec
+#print axioms nestedRuleShape_spec
+#print axioms checkIotaThmN_spec
+#print axioms checkProjIota_spec
+#print axioms checkProjFn_spec
 
-Each is proved, but prints `sorryAx` through the modeled route's five open
-statements (`checkIotaThm_spec`, `checkIotaThmN_spec`, `nestedRuleShape_spec`,
-`checkProjIota_spec`, `checkProjFn_spec`). -/
+/-! ## Group 1½ — the round-8 compositions (sorry-free since round 9)
+
+They printed `sorryAx` through the modeled route's five open statements until
+round 9 closed them. -/
 
 #print axioms checkIotaRules_spec
 #print axioms installIndRecs_spec

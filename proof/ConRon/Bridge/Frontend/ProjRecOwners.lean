@@ -25,8 +25,8 @@ clause `PStep` does not have — the scratch flag — is
   name comparison), `readLevel`'s answer IS `denoteL`, so `Level.isEquiv`
   sees the same level on both sides.
 * `ctorsMentionBlock_run` — read-only, over `stripPisAll_run` and
-  `occursConstFast_run` (which rests on the two con-leche-tier asks
-  `clOccursConstB_eq`/`clOccursConstGo_eq` and on nothing of this tier's).
+  `occursConstFast_run` (whose two con-leche-tier lemmas
+  `clOccursConstB_eq`/`clOccursConstGo_eq` task #97-T1-OCC proved).
 * the reordering (the module note's deviation 3): the twin runs the guards
   only on a non-empty candidate list, and an empty `filterMap` makes
   con-leche's answer `[]` whichever guard fires.
@@ -542,8 +542,8 @@ moves `readLC`/`lvlEqC`; that is `ParseStep.cframe`'s `CacheFrame`, and this
 walk reads the recognisers through `.isSome` alone, so the verdict never
 reaches the answer.  The frame is composed at `Inductives.PStep` and the
 scratch clause is `Bridge/Frontend/Scratch.lean`'s `projRecOwners_scratch`.
-What remains under it is `occursConstFast_run`'s two con-leche-tier asks
-(`clOccursConstB_eq`, `clOccursConstGo_eq`) and nothing of this tier's. -/
+`occursConstFast_run`'s two con-leche-tier lemmas (`clOccursConstB_eq`,
+`clOccursConstGo_eq`) were proved in task #97-T1-OCC, so it is closed. -/
 theorem projRecOwners_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {fuel : Nat} {block : List IConstantInfo}
     {blockP : List ConstantInfo} (hb : denoteCIList s.store block = some blockP)

@@ -24,7 +24,7 @@ each is a `do`-block equation in `StateT AState (Except CheckError)`, which
 needs that section's rule-10 reduction discipline.  They are open here for the
 same reason they were open there.
 
-## `sorry` count in this file: 8
+## `sorry` count in this file: 6
 -/
 import ConRon.Refine2.Frontend.NatOpGround
 
@@ -308,7 +308,8 @@ theorem parseLevelEntryD_unfold (st : StateD) (i : Nat) (r : ConLeche.Frontend.L
     parseLevelEntryD st i r = (do
       st.freshLevel i
       let l ← internLNode (← parseLevelRecD st r)
-      pure { st with levels := st.levels.insert i l }) := by sorry
+      pure { st with levels := st.levels.insert i l }) := by
+  cases r <;> simp only [parseLevelEntryD, parseLevelRecD, bind_assoc, pure_bind]
 
 /-- The value half of `parseExprEntryD`, which the twin writes inline. -/
 def parseExprRecD (st : StateD) : ConLeche.Frontend.ExprRec → AM EIdx
@@ -334,7 +335,8 @@ theorem parseExprEntryD_unfold (st : StateD) (i : Nat) (r : ConLeche.Frontend.Ex
     parseExprEntryD st i r = (do
       st.freshExpr i
       let e ← parseExprRecD st r
-      pure { st with exprs := st.exprs.insert i e }) := by sorry
+      pure { st with exprs := st.exprs.insert i e }) := by
+  cases r <;> simp only [parseExprEntryD, parseExprRecD, bind_assoc, pure_bind]
 
 /-- The twin's `types ++ ctors ++ recs` of `installIndD`, which the port
 factors out as `ind_block_of`. -/
