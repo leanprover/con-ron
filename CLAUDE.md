@@ -62,7 +62,14 @@ section for every task you land.
   several runs of a benchmark small enough to repeat (`Init`, the fixtures) —
   never from one run of a large one.  Report the spread when you report wall
   time.
-* **A new worktree should copy the build, not rebuild it.**  A fresh
+* **A new worktree should NOT copy the build now that the shared Lake cache
+  is seeded** (found 2026-09-23 by task #97-P3-Ind round 7): copying the
+  main tree's `proof/.lake/build` made Lake rebuild `Generated/Types` and
+  then miss the cache all the way down to `Refine2/Core/Eqns.lean`, while a
+  worktree with *no* build directory restored everything from the cache.
+  Start with no `proof/.lake/build`.  The copy advice below is the fallback
+  for an unseeded cache only.
+* **(Fallback) A new worktree can copy the build instead of rebuilding it.**  A fresh
   worktree with no `proof/.lake/build` pays ~17 minutes and 6 GB
   re-deriving `Refine2/Core/Eqns.lean`'s 109 `partial_fixpoint` equations.
   `cp -a --reflink=auto <a tree that has it>/proof/.lake/build
