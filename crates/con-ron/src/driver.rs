@@ -483,10 +483,11 @@ impl InstallHook for Silent {
 ///
 /// Everything else here is the observer, which only ever holds `&` the state
 /// (the hook of phase A by the trait's own signature, the other lines through
-/// `&st.store`), so it cannot change an outcome.  So the capstone, which is
-/// stated about `check_decls_phased`, is about this function modulo the
-/// pool's one claim: its merged table, walked in record order, is what the
-/// verified one-worker walk `checker::check_pending_worker` returns
+/// `&st.store`), so it cannot change an outcome.  So the capstone, whose
+/// stage 6 is `PoolAccepts` (phase A, the freeze, and one accepting
+/// `checker::check_pending_worker` per worker over the records it checked,
+/// together covering the pending list; task #97-P5-POOL), is about this
+/// function modulo the pool's one claim: that its accept has that shape
 /// (`pool.rs`'s note states it and what it rests on).
 ///
 /// **The boundary is where the tier is FROZEN** (task #97-P6-6b).  Phase A
