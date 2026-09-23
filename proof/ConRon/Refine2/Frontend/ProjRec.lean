@@ -88,11 +88,196 @@ theorem proj_rec_owner_dup_refines {o o'}
     (h : frontend.proj_rec.proj_rec_owner_dup o = ok o') :
     absProjRecOwner o' = absProjRecOwner o := by sorry
 
+/-! ### `text::cps_beq` (moved here from `ExportC.lean`, round 3: `is_proj_iota_name` reads it) -/
+
+theorem slice_index_some {α : Type} {s : Slice α} {i : Std.Usize} {x : α}
+    (h : Slice.index_usize s i = ok x) : s.val[i.val]? = some x := by
+  rw [Slice.index_usize] at h
+  have hb : s[i]? = s.val[i.val]? := rfl
+  rcases hi : s.val[i.val]? with _ | y
+  · rw [hb, hi] at h; simp at h
+  · rw [hb, hi] at h
+    exact congrArg some (Result.ok_injective h)
+
+theorem cps_beq_loop_val (N : Nat) :
+    ∀ (s : alloc.vec.Vec Std.U32) (lit : Slice Std.U32) (n i : Std.Usize) (b : Bool),
+      s.val.length - i.val = N → n.val = s.val.length → s.val.length = lit.val.length →
+      frontend.text.cps_beq_loop s lit n i = ok b →
+      (b = true ↔ s.val.drop i.val = lit.val.drop i.val) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro s lit n i b hN hn hlen h
+    rw [frontend.text.cps_beq_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      have hltv : i.val < s.val.length := by scalar_tac
+      obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨c2, hc2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hcv : s.val[i.val]'(by omega) = c := by
+        have hg := vec_index_some hc
+        rw [List.getElem?_eq_getElem (by omega)] at hg
+        exact Option.some_injective _ hg
+      have hc2v : lit.val[i.val]'(by omega) = c2 := by
+        have hg := slice_index_some hc2
+        rw [List.getElem?_eq_getElem (by omega)] at hg
+        exact Option.some_injective _ hg
+      have hds : s.val.drop i.val = c :: s.val.drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons (show i.val < s.val.length by omega), hcv]
+      have hdl : lit.val.drop i.val = c2 :: lit.val.drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons (show i.val < lit.val.length by omega), hc2v]
+      rw [hds, hdl]
+      split at h
+      · rename_i hne
+        simp only [Result.ok.injEq] at h
+        have hval : ¬ (c.val = c2.val) := by simpa using hne
+        have hcc : c ≠ c2 := fun hq => hval (congrArg Std.UScalar.val hq)
+        simp [← h, hcc]
+      · rename_i hne
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := ConRon.Refine.Nat.uadd_val hi2
+        have hceq : c = c2 := Std.UScalar.val_eq_imp_iff.mpr (by simpa using hne)
+        rw [ih (s.val.length - i2.val) (by omega) s lit n i2 b rfl hn hlen h, hi2v]
+        simp [hceq]
+    · rename_i hge
+      have hle : s.val.length ≤ i.val := by scalar_tac
+      rw [← Result.ok_injective h]
+      rw [List.drop_eq_nil_of_le (by omega), List.drop_eq_nil_of_le (by omega)]
+      simp
+
+/-- `text::cps_beq` is list equality of the code points. -/
+theorem cps_beq_val {s : alloc.vec.Vec Std.U32} {lit : Slice Std.U32} {b : Bool}
+    (h : frontend.text.cps_beq s lit = ok b) : (b = true ↔ s.val = lit.val) := by
+  rw [frontend.text.cps_beq] at h
+  split at h
+  · rename_i hne
+    have hl : s.val.length ≠ lit.val.length := by
+      simpa [alloc.vec.Vec.len, Slice.len] using hne
+    simp only [Result.ok.injEq] at h
+    refine ⟨fun hb => absurd (h ▸ hb) (by simp), fun he => ?_⟩
+    exact absurd (congrArg List.length he) hl
+  · rename_i hne
+    have hl : s.val.length = lit.val.length := by
+      simpa [alloc.vec.Vec.len, Slice.len] using hne
+    have hh := cps_beq_loop_val _ s lit _ 0#usize b rfl (by simp [alloc.vec.Vec.len]) hl h
+    simpa [show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hh
+
+/-- A scanned spelling equals a literal exactly when `cps_beq` says so. -/
+theorem cps_beq_str {s : alloc.vec.Vec Std.U32} {lit : Slice Std.U32} {b : Bool}
+    (hs : ConRon.Refine.StrWF s) (hL : ∀ c ∈ lit.val, Nat.isValidChar c.val)
+    (h : frontend.text.cps_beq s lit = ok b) :
+    (b = true ↔ ConRon.Refine.absString s = String.ofList (lit.val.map fun c => Char.ofNat c.val)) := by
+  rw [cps_beq_val h]
+  constructor
+  · intro he; simp only [ConRon.Refine.absString, he]
+  · intro he
+    have hlen : lit.val.length ≤ Std.Usize.max := by scalar_tac
+    have ht : ConRon.Refine.StrWF (alloc.vec.Vec.from lit.val hlen) := by
+      intro c hc; exact hL c (by simpa using hc)
+    have := ConRon.Refine.Name.absString_inj hs ht
+      (by rw [he]; simp [ConRon.Refine.absString, alloc.vec.Vec.from_val])
+    rw [this, alloc.vec.Vec.from_val]
+
 /-- **`cps_starts_with`** — `String.startsWith` on code points. -/
+theorem cps_starts_with_loop_val (N : Nat) :
+    ∀ (s : alloc.vec.Vec Std.U32) (lit : Slice Std.U32) (n i : Std.Usize) (b : Bool),
+      lit.val.length - i.val = N → n.val = lit.val.length → lit.val.length ≤ s.val.length →
+      frontend.proj_rec.cps_starts_with_loop s lit n i = ok b →
+      (b = true ↔ (lit.val.drop i.val).map (fun c => c.val) <+:
+        (s.val.drop i.val).map (fun c => c.val)) := by
+  induction N with
+  | zero =>
+    intro s lit n i b hN hn hle h
+    rw [frontend.proj_rec.cps_starts_with_loop, if_neg (by scalar_tac)] at h
+    cases Result.ok_injective h
+    rw [List.drop_eq_nil_of_le (show lit.val.length ≤ i.val by omega)]
+    simp
+  | succ k ih =>
+    intro s lit n i b hN hn hle h
+    have hil : i.val < lit.val.length := by omega
+    have his : i.val < s.val.length := by omega
+    rw [frontend.proj_rec.cps_starts_with_loop, if_pos (by scalar_tac)] at h
+    obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨c2, hc2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hcv : s.val[i.val] = c := by
+      have hg := vec_index_some hc
+      rw [List.getElem?_eq_getElem his] at hg
+      exact Option.some_injective _ hg
+    have hc2v : lit.val[i.val] = c2 := by
+      have hg := slice_index_some hc2
+      rw [List.getElem?_eq_getElem hil] at hg
+      exact Option.some_injective _ hg
+    rw [List.drop_eq_getElem_cons his, List.drop_eq_getElem_cons hil, hcv, hc2v,
+      List.map_cons, List.map_cons, List.cons_prefix_cons]
+    split at h
+    · rename_i hne
+      cases Result.ok_injective h
+      have hval : ¬ (c.val = c2.val) := by simpa using hne
+      simp only [Bool.false_eq_true, false_iff, not_and]
+      intro he; exact absurd he.symm hval
+    · rename_i hne
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := ConRon.Refine.Nat.uadd_val hi2
+      have hceq : c.val = c2.val := by simpa using hne
+      rw [ih s lit n i2 b (by omega) hn hle h, hi2v]
+      simp [hceq]
+
 theorem cps_starts_with_refines {s : alloc.vec.Vec Std.U32} {lit : Slice Std.U32}
     {v : Bool} (h : frontend.proj_rec.cps_starts_with s lit = ok v) :
     v = (lit.val.map (fun c => c.val)).isPrefixOf (s.val.map (fun c => c.val)) := by
-  sorry
+  rw [frontend.proj_rec.cps_starts_with] at h
+  split at h
+  · rename_i hlt
+    cases Result.ok_injective h
+    have hl : s.val.length < lit.val.length := by
+      simpa [alloc.vec.Vec.len, Slice.len] using hlt
+    symm
+    rw [Bool.eq_false_iff]
+    intro hp
+    rw [List.isPrefixOf_iff_prefix] at hp
+    have := hp.length_le
+    simp at this; omega
+  · rename_i hge
+    have hl : lit.val.length ≤ s.val.length := by
+      simpa [alloc.vec.Vec.len, Slice.len] using hge
+    have hh := cps_starts_with_loop_val _ s lit _ 0#usize v rfl (by simp [Slice.len]) hl h
+    have e0 : ((0#usize : Std.Usize)).val = 0 := by scalar_tac
+    rw [e0, List.drop_zero, List.drop_zero] at hh
+    rw [Bool.eq_iff_iff, hh, List.isPrefixOf_iff_prefix]
+
+/-- `Char.ofNat` is injective on valid code points: a prefix test survives it. -/
+theorem prefix_map_ofNat : ∀ {A B : List Nat}, (∀ x ∈ A, Nat.isValidChar x) →
+    (∀ x ∈ B, Nat.isValidChar x) →
+    (A.map Char.ofNat <+: B.map Char.ofNat ↔ A <+: B)
+  | [], _, _, _ => by simp
+  | a :: A, [], _, _ => by simp
+  | a :: A, b :: B, hA, hB => by
+    have ha := hA a List.mem_cons_self
+    have hb := hB b List.mem_cons_self
+    have hinj : Char.ofNat a = Char.ofNat b ↔ a = b := by
+      constructor
+      · intro he
+        have h1 := congrArg Char.toNat he
+        simpa [Char.ofNat, Char.ofNatAux, Char.toNat, ha, hb] using h1
+      · intro he; rw [he]
+    simp only [List.map_cons, List.cons_prefix_cons, hinj]
+    rw [prefix_map_ofNat (fun x hx => hA x (List.mem_cons_of_mem a hx))
+      (fun x hx => hB x (List.mem_cons_of_mem b hx))]
+
+/-- `String.startsWith` at a literal of valid code points, on a well-formed
+`absString`, is the port's code-point prefix test. -/
+theorem absString_startsWith {s : alloc.vec.Vec Std.U32} (hs : ConRon.Refine.StrWF s)
+    (L : List Std.U32) (hL : ∀ c ∈ L, Nat.isValidChar c.val) :
+    (ConRon.Refine.absString s).startsWith (absCodesF L) =
+      (L.map (fun c => c.val)).isPrefixOf (s.val.map (fun c => c.val)) := by
+  rw [Bool.eq_iff_iff, String.startsWith_string_iff, List.isPrefixOf_iff_prefix]
+  simp only [ConRon.Refine.absString, absCodesF, String.toList_ofList]
+  have e1 : L.map (fun c => Char.ofNat c.val) = (L.map (fun c => c.val)).map Char.ofNat := by
+    simp [List.map_map, Function.comp_def]
+  have e2 : s.val.map (fun c => Char.ofNat c.val) =
+      (s.val.map (fun c => c.val)).map Char.ofNat := by
+    simp [List.map_map, Function.comp_def]
+  rw [e1, e2]
+  exact prefix_map_ofNat (by simpa using hL) (by simpa [ConRon.Refine.StrWF] using hs)
 
 /-- An in-bounds `Vec` index answers the element. -/
 theorem vec_index_ok_eq {α : Type} (v : alloc.vec.Vec α) (i : Std.Usize)
@@ -292,22 +477,194 @@ theorem proj_iota_name_refines {pers rst lst t i o}
       rw [ha3] at hS3
       exact hS3
 
-/-- **`is_proj_iota_pre`** — the port's split of the two inner `viewN`s
-(extraction rule 5: the outer view's loan must be dead where the next is
-taken).  No twin; stated against `isProjIotaName`'s inner test. -/
-theorem is_proj_iota_pre_refines {pers rst lst p1 o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.is_proj_iota_pre pers rst p1 = ok o) :
-    SimRE id lst o (do
-      match ← viewN (absNIdx p1) with
-      | .str p s => pure (s == "iota" && (← viewN p) matches .str _ _)
-      | _ => pure false) := by sorry
+/-! ### `is_proj_iota_name` (round 3)
 
-/-- **`is_proj_iota_name` refines `isProjIotaName`** (`ProjRec.lean:85-97`). -/
+The port reads the three spellings with `text::cps_beq` / `cps_starts_with`
+against its code-point literals, the twin matches string literals; on a
+well-formed name string (`NNodeViewWF`, from the store) the two agree. -/
+
+theorem slice_lit_val {n : Std.Usize} {M : Std.Array Std.U32 n} {sl : Slice Std.U32}
+    (hs : lift (Std.Array.to_slice M) = ok sl) : sl.val = M.val := by
+  simp only [lift, Result.ok.injEq] at hs
+  subst hs
+  rw [Std.Array.val_to_slice]
+
+theorem iota_spelling {sl : Slice Std.U32}
+    (hsl : lift (Std.Array.to_slice frontend.proj_rec.M_IOTA) = ok sl)
+    {s : alloc.vec.Vec Std.U32} {b : Bool} (hwf : ConRon.Refine.StrWF s)
+    (hb : frontend.text.cps_beq s sl = ok b) :
+    (b = true ↔ ConRon.Refine.absString s = "iota") := by
+  have hv := slice_lit_val hsl
+  simp only [frontend.proj_rec.M_IOTA, Std.Array.make] at hv
+  rw [cps_beq_str hwf (by rw [hv]; decide) hb, hv]
+  rfl
+
+theorem model_spelling {sl : Slice Std.U32}
+    (hsl : lift (Std.Array.to_slice frontend.proj_rec.M_MODEL) = ok sl)
+    {s : alloc.vec.Vec Std.U32} {b : Bool} (hwf : ConRon.Refine.StrWF s)
+    (hb : frontend.text.cps_beq s sl = ok b) :
+    (b = true ↔ ConRon.Refine.absString s = "_model") := by
+  have hv := slice_lit_val hsl
+  simp only [frontend.proj_rec.M_MODEL, Std.Array.make] at hv
+  rw [cps_beq_str hwf (by rw [hv]; decide) hb, hv]
+  rfl
+
+theorem proj_prefix_spelling {sl : Slice Std.U32}
+    (hsl : lift (Std.Array.to_slice frontend.proj_rec.M_PROJ) = ok sl)
+    {s : alloc.vec.Vec Std.U32} {b : Bool} (hwf : ConRon.Refine.StrWF s)
+    (hb : frontend.proj_rec.cps_starts_with s sl = ok b) :
+    b = (ConRon.Refine.absString s).startsWith "proj_" := by
+  have hv := slice_lit_val hsl
+  simp only [frontend.proj_rec.M_PROJ, Std.Array.make] at hv
+  have hv' : sl.val = [112#u32, 114#u32, 111#u32, 106#u32, 95#u32] := by rw [hv]; rfl
+  rw [cps_starts_with_refines hb, hv']
+  have := absString_startsWith hwf [112#u32, 114#u32, 111#u32, 106#u32, 95#u32] (by decide)
+  rw [← this]
+  rfl
+
+/-- The twin's `viewN` at a handle the port viewed. -/
+theorem viewN_step {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {h : arena.handle.NIdx} {o} (hv : arena.monad.view_n pers st h = ok o) :
+    match o with
+    | .Ok v => (viewN (absNIdx h)).run lst = .ok (absNNodeView v, lst) ∧ NNodeViewWF v
+    | .Err e => AErrSim e ((viewN (absNIdx h)).run lst) := by
+  have hL := Lockstep.view_n_ls hrel hinv h o hv
+  have hrun : (viewN (absNIdx h)).run lst = (match lst.store.ns.view (absNIdx h) with
+      | some v => Except.ok (v, lst)
+      | none => Except.error (Arena.CheckError.internal "arena: dangling name handle")) := by
+    show ((match lst.store.ns.view (absNIdx h) with
+      | some v => (pure v : AM NNodeView)
+      | none => Arena.fail (.internal "arena: dangling name handle")).run lst) = _
+    cases lst.store.ns.view (absNIdx h) <;> rfl
+  cases o with
+  | Err e => exact hL
+  | Ok v =>
+    obtain ⟨b, lst', hx, ⟨hb, hwf⟩, -, -⟩ := hL
+    refine ⟨?_, hwf⟩
+    rw [hx, hb]
+    rw [hrun] at hx
+    split at hx
+    · cases hx; rfl
+    · cases hx
+
+/-- **`is_proj_iota_name` refines `isProjIotaName`** (`ProjRec.lean:85-97`),
+the port's `is_proj_iota_pre` (its split of the two inner `viewN`s) inline. -/
 theorem is_proj_iota_name_refines {pers rst lst n o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.proj_rec.is_proj_iota_name pers rst n = ok o) :
-    SimRE id lst o (isProjIotaName (absNIdx n)) := by sorry
+    SimRE id lst o (isProjIotaName (absNIdx n)) := by
+  have htagstr : ∀ {m : arena.handle.NIdx} {t : Std.U32}, arena.handle.NIdx.tag m = ok t →
+      (((absNIdx m).tag == NTag.str) = true ↔ t = arena.handle.NTAG_STR) := by
+    intro m t ht
+    rw [nidx_tag_abs ht, ← ntag_str_abs]
+    constructor
+    · intro he; exact absU32_inj (by simpa using he)
+    · intro he; rw [he]; simp
+  unfold SimRE
+  rw [frontend.proj_rec.is_proj_iota_name] at h
+  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  unfold isProjIotaName
+  by_cases hts : t = arena.handle.NTAG_STR
+  swap
+  · rw [if_neg hts] at h
+    cases Result.ok_injective h
+    rw [if_neg (by rw [htagstr ht]; exact hts)]
+    rfl
+  rw [if_pos hts] at h
+  rw [if_pos ((htagstr ht).mpr hts)]
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hv := viewN_step hrel hinv hr
+  rw [am_run_bind']
+  cases r with
+  | Err e => cases Result.ok_injective h; exact AErrSim.bind hv _
+  | Ok nv =>
+  obtain ⟨hrun, hwf⟩ := hv
+  rw [hrun, except_ok_bind]
+  cases nv with
+  | Anonymous => cases Result.ok_injective h; rfl
+  | Num p k => cases Result.ok_injective h; rfl
+  | Str p1 last =>
+  simp only [absNNodeView]
+  obtain ⟨sl, hsl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hbi := iota_spelling hsl hwf hb
+  by_cases hbt : b = true
+  swap
+  · rw [if_neg hbt] at h
+    cases Result.ok_injective h
+    have hne : ConRon.Refine.absString last ≠ "iota" := fun e => hbt (hbi.mpr e)
+    dsimp only
+    split
+    · rename_i heq; simp at heq; exact absurd heq.2 hne
+    · rfl
+  rw [if_pos hbt] at h
+  rw [hbi.mp hbt]
+  simp only []
+  -- `is_proj_iota_pre`
+  rw [frontend.proj_rec.is_proj_iota_pre] at h
+  obtain ⟨t1, ht1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  by_cases hts1 : t1 = arena.handle.NTAG_STR
+  swap
+  · rw [if_neg hts1] at h
+    cases Result.ok_injective h
+    rw [if_neg (by rw [htagstr ht1]; exact hts1)]
+    rfl
+  rw [if_pos hts1] at h
+  rw [if_pos ((htagstr ht1).mpr hts1)]
+  obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hv1 := viewN_step hrel hinv hr1
+  rw [am_run_bind']
+  cases r1 with
+  | Err e => cases Result.ok_injective h; exact AErrSim.bind hv1 _
+  | Ok nv1 =>
+  obtain ⟨hrun1, hwf1⟩ := hv1
+  rw [hrun1, except_ok_bind]
+  cases nv1 with
+  | Anonymous => cases Result.ok_injective h; rfl
+  | Num p k => cases Result.ok_injective h; rfl
+  | Str p2 s2 =>
+  simp only [absNNodeView]
+  obtain ⟨t2, ht2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  by_cases hts2 : t2 = arena.handle.NTAG_STR
+  swap
+  · rw [if_neg hts2] at h
+    cases Result.ok_injective h
+    rw [if_neg (by rw [htagstr ht2]; exact hts2)]
+    rfl
+  rw [if_pos hts2] at h
+  rw [if_pos ((htagstr ht2).mpr hts2)]
+  obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hv2 := viewN_step hrel hinv hr2
+  rw [am_run_bind']
+  cases r2 with
+  | Err e => cases Result.ok_injective h; exact AErrSim.bind hv2 _
+  | Ok nv2 =>
+  obtain ⟨hrun2, hwf2⟩ := hv2
+  rw [hrun2, except_ok_bind]
+  cases nv2 with
+  | Anonymous => cases Result.ok_injective h; rfl
+  | Num p k => cases Result.ok_injective h; rfl
+  | Str p3 m =>
+  simp only [absNNodeView]
+  obtain ⟨sl2, hsl2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hbm := model_spelling hsl2 hwf2 hb2
+  by_cases hbt2 : b2 = true
+  swap
+  · rw [if_neg hbt2] at h
+    cases Result.ok_injective h
+    have hne : ConRon.Refine.absString m ≠ "_model" := fun e => hbt2 (hbm.mpr e)
+    dsimp only
+    split
+    · rename_i heq; simp at heq; exact absurd heq.2 hne
+    · rfl
+  rw [if_pos hbt2] at h
+  rw [hbm.mp hbt2]
+  obtain ⟨sl3, hsl3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨b3, hb3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  rw [proj_prefix_spelling hsl3 hwf1 hb3]
+  rfl
 
 /-- **`proj_iota_level_at`** — the port's split at the resolved view of the
 artifact's type (rule 5: the `.const` arm interns `Eq`). -/
