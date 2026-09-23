@@ -52,6 +52,7 @@ thirty-four**.
 -/
 import ConRon.Refine2.Inductives.SpecModeled
 import ConRon.Refine2.ExprOps.Mut
+import ConRon.Refine2.Inductives.PrimsModeled
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -468,7 +469,12 @@ theorem iota_thm_name_refines {pers st lst} {cv_name : arena.handle.NIdx}
     (hrun : arena.inductives.modeled.iota_thm_name pers st cv_name j = ok o) :
     Sim₀ absNIdx pers lst o
       (iotaThmName (absNIdx cv_name) (absU j)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.iota_thm_name, iotaThmName]
+  lockstep
+  refine IndModeledPrims.intern_n_node_cat_ls ‹_› ‹_› _
+    arena.inductives.modeled.iota_thm_name.IOTA_ _ ?_ ?_ (by assumption) ?_ ?_ <;>
+    first | assumption | (simp only [global_simps]; decide) | simp_all
 
 open Lockstep in
 @[lockstep] theorem iota_thm_name_ls
@@ -1940,6 +1946,30 @@ open Lockstep in
         (absIIndCaps caps) lf2 (absIConstantInfo ci)) :=
   LS.ofSimRel₀ fun _ h => check_ind_member_refines hrel hinv hfe h
 
+/-- `check_ind_members` in `LS` form, by induction on the members left. -/
+theorem check_ind_members_aux (n : Nat) :
+    ∀ {pers st lst} {mode : kernel.env.CheckMode}
+      {block_names : alloc.vec.Vec arena.handle.NIdx} {caps : arena.env.IIndCaps}
+      {rf lf} {nonrecs : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize},
+      nonrecs.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf lf →
+      Lockstep.LS pers IFEnvRelI
+        (arena.inductives.modeled.check_ind_members pers st mode block_names caps rf
+          nonrecs i) lst
+        (checkIndMembers (ConRon.Refine.absMode mode) (absNIdxL block_names)
+          (absIIndCaps caps) lf (absICILFrom nonrecs i)) := by
+  induction n with
+  | zero =>
+    intro pers st lst mode block_names caps rf lf nonrecs i hn hrel hinv hfe
+    rw [arena.inductives.modeled.check_ind_members, if_pos (by scalar_tac), absICILFrom,
+      vecFrom_nil _ _ _ (by omega), checkIndMembers]
+    lockstep
+  | succ m ih =>
+    intro pers st lst mode block_names caps rf lf nonrecs i hn hrel hinv hfe
+    rw [arena.inductives.modeled.check_ind_members, if_neg (by scalar_tac), absICILFrom,
+      vecFrom_cons _ _ _ (by omega), checkIndMembers]
+    lockstep
+
 /-- `check_ind_members` ⊑ `checkIndMembers` from the cursor on. -/
 theorem check_ind_members_refines {pers st lst} {mode : kernel.env.CheckMode}
     {block_names : alloc.vec.Vec arena.handle.NIdx} {caps : arena.env.IIndCaps}
@@ -1950,8 +1980,8 @@ theorem check_ind_members_refines {pers st lst} {mode : kernel.env.CheckMode}
       rf nonrecs i = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkIndMembers (ConRon.Refine.absMode mode) (absNIdxL block_names)
-        (absIIndCaps caps) lf (absICILFrom nonrecs i)) := by
-  sorry
+        (absIIndCaps caps) lf (absICILFrom nonrecs i)) :=
+  Lockstep.LS.toSimRel₀ (check_ind_members_aux _ rfl hrel hinv hfe) hrun
 
 open Lockstep in
 @[lockstep] theorem check_ind_members_ls
@@ -2056,7 +2086,9 @@ theorem check_ind_recs_refines {pers st lst} {mode : kernel.env.CheckMode}
     SimRel₀ IFEnvRelI pers lst o
       (checkIndRecs (ConRon.Refine.absMode mode) (absNIdxL block_names) lf2
         (absICIL recs)) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.modeled.check_ind_recs, checkIndRecs]
+  lockstep_ite
 
 open Lockstep in
 @[lockstep] theorem check_ind_recs_ls
@@ -2884,7 +2916,9 @@ theorem install_proj_fn_step_refines {pers st lst} {mode : kernel.env.CheckMode}
       (installProjFnStep (ConRon.Refine.absMode mode) (absNIdx t)
         (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f) le
         (absU i)) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.modeled.install_proj_fn_step, installProjFnStep]
+  lockstep_ite
 
 open Lockstep in
 @[lockstep] theorem install_proj_fn_step_ls
@@ -2904,6 +2938,27 @@ open Lockstep in
         (absU i)) :=
   LS.ofSimRel₀ fun _ h => install_proj_fn_step_refines hrel hinv hfe h
 
+/-- `install_proj_fns` in `LS` form, by induction on the remaining count. -/
+theorem install_proj_fns_aux (n : Nat) :
+    ∀ {pers st lst} {mode : kernel.env.CheckMode}
+      {t ctor_name : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
+      {n_p n_f : Std.U64} {rf lf} {k i : Std.U64},
+      k.val = n → AStateRel₀ pers st lst → AStateInv pers st → IFEnvRelI rf lf →
+      Lockstep.LS pers IFEnvRelI
+        (arena.inductives.modeled.install_proj_fns pers st mode t ctor_name lps n_p n_f
+          rf k i) lst
+        (installProjFns (ConRon.Refine.absMode mode) (absNIdx t)
+          (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f) lf n (absU i)) := by
+  induction n with
+  | zero =>
+    intro pers st lst mode t ctor_name lps n_p n_f rf lf k i hk hrel hinv hfe
+    rw [arena.inductives.modeled.install_proj_fns, if_pos (by scalar_tac), installProjFns]
+    lockstep
+  | succ m ih =>
+    intro pers st lst mode t ctor_name lps n_p n_f rf lf k i hk hrel hinv hfe
+    rw [arena.inductives.modeled.install_proj_fns, if_neg (by scalar_tac), installProjFns]
+    lockstep
+
 /-- `install_proj_fns` ⊑ `installProjFns` — the projection fold. -/
 theorem install_proj_fns_refines {pers st lst} {mode : kernel.env.CheckMode}
     {t ctor_name : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
@@ -2915,8 +2970,8 @@ theorem install_proj_fns_refines {pers st lst} {mode : kernel.env.CheckMode}
     SimRel₀ IFEnvRelI pers lst o
       (installProjFns (ConRon.Refine.absMode mode) (absNIdx t)
         (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f) lf (absU k)
-        (absU i)) := by
-  sorry
+        (absU i)) :=
+  Lockstep.LS.toSimRel₀ (install_proj_fns_aux _ rfl hrel hinv hfe) hrun
 
 open Lockstep in
 @[lockstep] theorem install_proj_fns_ls
@@ -3234,6 +3289,27 @@ open Lockstep in
     LSP (arena.inductives.modeled.single_ind_ctor block) (fun o => TwinEq (singleIndCtorSpec (absICIL block)) ((o.map fun q => (absIConstantVal q.1, absIConstantVal q.2.1, absU q.2.2.1, absU q.2.2.2)))) :=
   fun o h => (single_ind_ctor_refines h).symm
 
+/-- `proj_fn_family_free` in `LS` form, by induction on the fields left. -/
+theorem proj_fn_family_free_modeled_aux (n : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rf lf}
+      {t : arena.handle.NIdx} {n_f j : Std.U64},
+      n_f.val - j.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf lf → absU vis = lf.visibleBelow →
+      Lockstep.LS pers (fun a b => b = id a)
+        (arena.inductives.modeled.proj_fn_family_free pers vis st rf t n_f j) lst
+        (projFnFamilyFreeSpec lf (absNIdx t) n (absU j)) := by
+  induction n with
+  | zero =>
+    intro pers st lst vis rf lf t n_f j hk hrel hinv hfe hvis
+    rw [arena.inductives.modeled.proj_fn_family_free, if_pos (by scalar_tac),
+      projFnFamilyFreeSpec]
+    lockstep
+  | succ m ih =>
+    intro pers st lst vis rf lf t n_f j hk hrel hinv hfe hvis
+    rw [arena.inductives.modeled.proj_fn_family_free, if_neg (by scalar_tac),
+      projFnFamilyFreeSpec]
+    lockstep
+
 /-- `proj_fn_family_free` ⊑ the projection-function name family's freeness
 from field `j` on — the same test the direct route's table install makes. -/
 theorem proj_fn_family_free_modeled_refines {pers st lst} {vis : Std.U64} {rf lf}
@@ -3244,8 +3320,8 @@ theorem proj_fn_family_free_modeled_refines {pers st lst} {vis : Std.U64} {rf lf
     (hrun : arena.inductives.modeled.proj_fn_family_free pers vis st rf t n_f j
       = ok o) :
     Sim₀ id pers lst o
-      (projFnFamilyFreeSpec lf (absNIdx t) (absU n_f - absU j) (absU j)) := by
-  sorry
+      (projFnFamilyFreeSpec lf (absNIdx t) (absU n_f - absU j) (absU j)) :=
+  Lockstep.LS.toSim₀ (proj_fn_family_free_modeled_aux _ rfl hrel hinv hfe hvis) hrun
 
 open Lockstep in
 @[lockstep] theorem proj_fn_family_free_modeled_ls
