@@ -584,33 +584,8 @@ theorem vec_cursor_any {α : Type} (xs : alloc.vec.Vec α) (p : α → Bool)
     · rw [ho, hp, Bool.true_or]
     · rw [ih j () hj o hF, hj, hp, Bool.false_or]
 
-/-- **A handle comparison IS the abstraction's.**  `eq2` on an `NIdx` is word
-equality and `absNIdx` is injective, so the port's test and the twin's `==`
-agree at both signs. -/
-theorem nidx_eq2_abs {a b : arena.handle.NIdx} {o : Bool}
-    (h : arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b = ok o) :
-    o = (absNIdx a == absNIdx b) := by
-  rw [arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
-  rw [← Result.ok_injective h]
-  by_cases hab : a = b
-  · subst hab; simp
-  · have h1 : a.word ≠ b.word := by
-      intro hc; exact hab (by cases a; cases b; simp_all)
-    have h2 : absNIdx a ≠ absNIdx b := fun hc => hab (absNIdx_inj hc)
-    simp [h1, h2]
-
-/-- The same at an `EIdx`. -/
-theorem eidx_eq2_abs {a b : arena.handle.EIdx} {o : Bool}
-    (h : arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b = ok o) :
-    o = (absEIdx a == absEIdx b) := by
-  rw [arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
-  rw [← Result.ok_injective h]
-  by_cases hab : a = b
-  · subst hab; simp
-  · have h1 : a.word ≠ b.word := by
-      intro hc; exact hab (by cases a; cases b; simp_all)
-    have h2 : absEIdx a ≠ absEIdx b := fun hc => hab (absEIdx_inj hc)
-    simp [h1, h2]
+-- `nidx_eq2_abs` / `eidx_eq2_abs` moved down to `Refine2/Checker/Shape.lean`
+-- (task #97-P5-Checker round 4).
 
 /-- **`arena::env::nidx_vec_contains` ⊑ `List.contains`.** -/
 theorem nidx_vec_contains_abs {ns : alloc.vec.Vec arena.handle.NIdx}
@@ -869,13 +844,8 @@ theorem i_constant_info_dup_abs {c o : arena.env.IConstantInfo}
     rw [← Result.ok_injective h]
     simp only [absIConstantInfo, i_proj_table_dup_abs hit]
 
-/-- `arena::env::i_constant_info_name` is the twin's `IConstantInfo.name`. -/
-theorem i_constant_info_name_abs {c : arena.env.IConstantInfo}
-    {o : arena.handle.NIdx} (h : arena.env.i_constant_info_name c = ok o) :
-    absNIdx o = (absIConstantInfo c).name := by
-  rw [arena.env.i_constant_info_name.eq_def] at h
-  cases c <;> simp only [absIConstantInfo, IConstantInfo.name, absIConstantVal,
-    absIProjTable, dupId_nidx _ _ h]
+-- `i_constant_info_name_abs` moved down to `Refine2/Checker/Shape.lean`
+-- (task #97-P5-Checker round 4).
 
 /-- `arena::checker_base::is_rec_info` ⊑ `isRecInfo`, restated for this tier. -/
 theorem is_rec_info_abs {ci : arena.env.IConstantInfo} {o : Bool}
