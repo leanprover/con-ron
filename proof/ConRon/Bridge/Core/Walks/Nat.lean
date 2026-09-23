@@ -16,6 +16,7 @@ interned constant, where con-leche compares the values; `denoteN_inj`,
 `denoteLs_inj` and `denoteE_inj` make the two the same test.
 -/
 import ConRon.Bridge.Core.Walks.Spine
+import ConRon.Bridge.Core.Walks.Proj
 
 namespace ConRon.Bridge.Core
 
@@ -327,5 +328,276 @@ theorem natOpResult_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
   all_goals nat_tests
   all_goals nat_frame
   all_goals nat_answer
+
+/-! ## 5. `natLitSupported` — the three stored-declaration shapes -/
+
+/-- con-leche: none — the index's answer at a name, against the
+environment's, as ONE relation: a miss is a miss and a hit denotes the hit. -/
+def OptCI (st : EStore) : Option IConstantInfo → Option ConstantInfo → Prop
+  | none, oc' => oc' = none
+  | some ci, oc' => ∃ c, Frontend.denoteCI st ci = some c ∧ oc' = some c
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index's two halves at
+one denoted name, packaged as `OptCI`. -/
+theorem optCI_find {s : AState} (hok : CheckOK mode env fe s) {n : NIdx}
+    {nm : ConLeche.Name} (hn : denoteN s.store.ns n = some nm) :
+    OptCI s.store (fe.find? n) (env.find? nm) := by
+  cases hf : fe.find? n with
+  | none => exact IFEnvOK.miss hok.state hok.ienv hn hf
+  | some ci =>
+    obtain ⟨nm', c, hn', hci, hfind⟩ := hok.ienv.hit n ci hf
+    obtain rfl := Option.some.inj (hn'.symm.trans hn)
+    exact ⟨c, hci, hfind⟩
+
+/-- con-leche: none — a stored inductive denotes an inductive, and nothing
+else does. -/
+theorem denoteCI_ind_iff {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
+    (h : Frontend.denoteCI st ci = some c) :
+    (∃ v caps, ci = .indInfo v caps) ↔ ∃ cv caps, c = .indInfo cv caps := by
+  cases ci <;> simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+  all_goals first
+    | (obtain ⟨_, _, rfl⟩ := h; simp)
+    | (split at h
+       · rename_i heq1 heq2; cases h; simp
+       · simp at h)
+
+/-- con-leche: none — the same at a constructor. -/
+theorem denoteCI_ctor_iff {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
+    (h : Frontend.denoteCI st ci = some c) :
+    (∃ v nP nF, ci = .ctorInfo v nP nF) ↔ ∃ cv nP nF, c = .ctorInfo cv nP nF := by
+  cases ci <;> simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+  all_goals first
+    | (obtain ⟨_, _, rfl⟩ := h; simp)
+    | (split at h
+       · rename_i heq1 heq2; cases h; simp
+       · simp at h)
+
+/-- con-leche: none — a denoting name-handle list is empty exactly when its
+denotation is. -/
+theorem isEmpty_of_denoteNList {st : NStore} {hs : List NIdx}
+    {xs : List ConLeche.Name} (h : Frontend.denoteNList st hs = some xs) :
+    hs.isEmpty = xs.isEmpty := by
+  have := denoteNList_len h
+  cases hs <;> cases xs <;> simp_all
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:202-206 natIndOk — **THEOREM 1
+for `natIndOk`**. -/
+theorem natIndOk_spec (s₀ : AState) (oc : Option IConstantInfo)
+    (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
+    (hrel : OptCI s₀.store oc oc') :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natIndOk oc
+    ⦃⇓? b s' => ⌜s' = s₀ ∧ b = ConLeche.natIndOk oc'⌝⦄ := by
+  have hp := hok.pins
+  have hwf := hok.state.wf
+  cases oc with
+  | none =>
+    simp only [OptCI] at hrel; subst hrel
+    mvcgen [ConRon.Arena.natIndOk]
+    all_goals (bridge_peel; subst_vars; exact ⟨rfl, rfl⟩)
+  | some ci =>
+    obtain ⟨c, hci, rfl⟩ := hrel
+    cases ci
+    case indInfo v caps =>
+      simp only [Frontend.denoteCI] at hci
+      split at hci
+      · rename_i cv caps' hcv _hcaps
+        cases hci
+        obtain ⟨_hnm, hlps, hty⟩ := denoteCV_inv hcv
+        mvcgen [ConRon.Arena.natIndOk, ConRon.Arena.sortOne]
+        all_goals (bridge_peel; subst_vars)
+        · exact hp
+        · rename_i hs1
+          refine ⟨rfl, ?_⟩
+          simp only [ConLeche.natIndOk, isEmpty_of_denoteNList hlps,
+            beq_of_denoteE hwf hty hs1]
+      · simp at hci
+    all_goals
+      (have hn : ¬ ∃ cv caps, c = .indInfo cv caps := fun h' => by
+         obtain ⟨v, caps, hv⟩ := (denoteCI_ind_iff hci).mpr h'; cases hv
+       mvcgen [ConRon.Arena.natIndOk]
+       bridge_peel; subst_vars
+       refine ⟨rfl, ?_⟩
+       cases c <;> simp_all [ConLeche.natIndOk])
+
+/-- con-leche: none — **THEOREM 1 for `constE`**: the level-monomorphic
+constant at a denoted name. -/
+theorem constE_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
+    (hok : CheckOK mode env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.constE n
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ denoteE s'.store r = some (.const nm [])⌝⦄ := by
+  have hp := hok.pins
+  have hwf := hok.state.wf
+  mvcgen [ConRon.Arena.constE, ConRon.Arena.emptyLevels]
+  all_goals (bridge_peel; subst_vars)
+  case vc1.hp => exact hp
+  case vc2 =>
+    rename_i hel
+    intro hwf' hx _ _ hc hp' _ _ _ hd
+    refine ⟨hok.mono ⟨hwf'⟩ hx hc hp', hx, hp', ?_⟩
+    rw [hd]
+    simp only [denoteEView, denoteN_ext hn hx, denoteLs_ext hel hx, opt2]
+  case vc3 => intro s hs _; subst hs; exact hwf
+  case vc4 =>
+    intro s hs hel; subst hs
+    obtain ⟨w, hw, _⟩ := denoteLs_view hel
+    exact viewOK_const (nview_isSome_of_denote hn) (by rw [hw]; rfl)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:208-212 natZeroOk — **THEOREM 1
+for `natZeroOk`**. -/
+theorem natZeroOk_spec (s₀ : AState) (oc : Option IConstantInfo)
+    (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
+    (hrel : OptCI s₀.store oc oc') :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natZeroOk oc
+    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.natZeroOk oc'⌝⦄ := by
+  have hp := hok.pins
+  have hwf := hok.state.wf
+  cases oc with
+  | none =>
+    simp only [OptCI] at hrel; subst hrel
+    mvcgen [ConRon.Arena.natZeroOk]
+    all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
+  | some ci =>
+    obtain ⟨c, hci, rfl⟩ := hrel
+    cases ci
+    case ctorInfo v nP nF =>
+      obtain ⟨cv, hcv, rfl⟩ := denoteCI_ctorInfo_inv hci
+      obtain ⟨_hnm, hlps, hty⟩ := denoteCV_inv hcv
+      have hce := fun (s : AState) (n : NIdx) =>
+        constE_spec (mode := mode) (env := env) (fe := fe) s n ConLeche.natName
+      mvcgen [ConRon.Arena.natZeroOk, ConRon.Arena.pinNat, hce]
+      all_goals (bridge_peel; subst_vars)
+      · exact hp
+      · exact hok
+      · rename_i hnt; exact hnt _ rfl
+      · rename_i hck hx hp' hd _
+        refine ⟨hck, hx, hp', ?_⟩
+        simp only [ConLeche.natZeroOk, isEmpty_of_denoteNList hlps,
+          beq_of_denoteE hck.state.wf (denote_ext hty hx) hd]
+    all_goals
+      (have hn : ¬ ∃ cv nP nF, c = .ctorInfo cv nP nF := fun h' => by
+         obtain ⟨v, nP, nF, hv⟩ := (denoteCI_ctor_iff hci).mpr h'; cases hv
+       mvcgen [ConRon.Arena.natZeroOk]
+       all_goals (bridge_peel; subst_vars)
+       refine ⟨hok, Ext.refl _, rfl, ?_⟩
+       cases c <;> simp_all [ConLeche.natZeroOk])
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:214-223 natSuccOk — **THEOREM 1
+for `natSuccOk`**. -/
+theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
+    (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
+    (hrel : OptCI s₀.store oc oc') :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natSuccOk oc
+    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.natSuccOk oc'⌝⦄ := by
+  have hp := hok.pins
+  have hwf := hok.state.wf
+  cases oc with
+  | none =>
+    simp only [OptCI] at hrel; subst hrel
+    mvcgen [ConRon.Arena.natSuccOk]
+    all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
+  | some ci =>
+    obtain ⟨c, hci, rfl⟩ := hrel
+    cases ci
+    case ctorInfo v nP nF =>
+      obtain ⟨cv, hcv, rfl⟩ := denoteCI_ctorInfo_inv hci
+      obtain ⟨_hnm, hlps, hty⟩ := denoteCV_inv hcv
+      have hce := fun (s : AState) (n : NIdx) =>
+        constE_spec (mode := mode) (env := env) (fe := fe) s n ConLeche.natName
+      mvcgen [ConRon.Arena.natSuccOk, ConRon.Arena.pinNat, hce]
+      all_goals (bridge_peel; subst_vars)
+      case vc1.isTrue =>
+        rename_i hne _
+        refine ⟨hok, Ext.refl _, rfl, ?_⟩
+        rw [isEmpty_of_denoteNList hlps] at hne
+        simp only [Bool.not_eq_true', Bool.not_eq_eq_eq_not, Bool.not_true] at hne
+        simp only [ConLeche.natSuccOk, hne, Bool.false_and]
+      case vc2.hp => exact hp
+      case vc3.hok => exact hok
+      case vc4.hn => rename_i hnt; exact hnt _ rfl
+      case vc5 =>
+        rename_i hne _ _ _ _ _ _ _ _ hck hview hx hp' hd
+        refine ⟨hck, hx, hp', ?_⟩
+        rw [isEmpty_of_denoteNList hlps] at hne
+        obtain ⟨p, q, hpq, hp1, hq1⟩ :=
+          denote_forallE_inv hck.state.wf hview (denote_ext hty hx)
+        simp only [ConLeche.natSuccOk, hpq,
+          beq_of_denoteE hck.state.wf hp1 hd, beq_of_denoteE hck.state.wf hq1 hd]
+        have hle : cv.levelParams.isEmpty = true := by simpa using hne
+        rw [hle, Bool.true_and]
+        split
+        · rename_i c1 c2 mb heq
+          simp only [Expr.forallE.injEq] at heq
+          obtain ⟨rfl, rfl, rfl⟩ := heq
+          rw [Bool.eq_iff_iff]; simp
+        · rename_i hne'
+          by_cases hp : p = .const ConLeche.natName []
+          · by_cases hq : q = .const ConLeche.natName []
+            · subst hp hq; exact absurd rfl (hne' _ _ _)
+            · simp [hq]
+          · simp [hp]
+      case vc6 =>
+        rename_i hne _ _ _ _ hnf _ _ hck hview hx hp' _
+        refine ⟨hck, hx, hp', ?_⟩
+        have hnot := denote_not_forallE hck.state.wf hview (denote_ext hty hx) hnf
+        simp only [ConLeche.natSuccOk]
+        split
+        · rename_i heq; exact absurd heq (hnot _ _ _)
+        · simp
+    all_goals
+      (have hn : ¬ ∃ cv nP nF, c = .ctorInfo cv nP nF := fun h' => by
+         obtain ⟨v, nP, nF, hv⟩ := (denoteCI_ctor_iff hci).mpr h'; cases hv
+       mvcgen [ConRon.Arena.natSuccOk]
+       all_goals (bridge_peel; subst_vars)
+       refine ⟨hok, Ext.refl _, rfl, ?_⟩
+       cases c <;> simp_all [ConLeche.natSuccOk])
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:225-233 natLitSupported —
+**THEOREM 1 for `natLitSupported`**: the three stored-declaration shapes. -/
+theorem natLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natLitSupported fe
+    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.natLitSupported env⌝⦄ := by
+  have hp := hok.pins
+  have hi := fun (s : AState) (oc : Option IConstantInfo) =>
+    natIndOk_spec (mode := mode) (env := env) (fe := fe) s oc (env.find? ConLeche.natName)
+  have hz := fun (s : AState) (oc : Option IConstantInfo) =>
+    natZeroOk_spec (mode := mode) (env := env) (fe := fe) s oc (env.find? ConLeche.natZeroName)
+  have hs := fun (s : AState) (oc : Option IConstantInfo) =>
+    natSuccOk_spec (mode := mode) (env := env) (fe := fe) s oc (env.find? ConLeche.natSuccName)
+  mvcgen [ConRon.Arena.natLitSupported, ConRon.Arena.pinNat,
+    ConRon.Arena.pinNatZero, ConRon.Arena.pinNatSucc, hi, hz, hs]
+  all_goals (bridge_peel; subst_vars)
+  all_goals first
+    | exact hp
+    | exact hok
+    | (apply CheckOK.pins; assumption)
+    | (exact optCI_find hok
+        (‹∀ x, pinNames[PIN_NAT]? = some x → denoteN _ _ = some x› _ rfl))
+    | (exact optCI_find (by assumption)
+        (‹∀ x, pinNames[PIN_NAT_ZERO]? = some x → denoteN _ _ = some x› _ rfl))
+    | (intro s hs _; subst hs; assumption)
+    | (intro s hs hsucc; subst hs
+       exact optCI_find (by assumption) (hsucc _ rfl))
+    | skip
+  -- the three declines and the conjunction
+  case vc4 =>
+    rename_i hni
+    refine ⟨hok, Ext.refl _, rfl, ?_⟩
+    simp_all [ConLeche.natLitSupported]
+  case vc8 =>
+    rename_i hck hx hp' _ _ _ hnz
+    refine ⟨hck, hx, hp', ?_⟩
+    simp_all [ConLeche.natLitSupported]
+  case vc10 =>
+    rename_i _ _ _ _ _ _ _ hni _ _ hnz hck1 _ hx01 hp10
+    intro hck hx12 hp21 hr
+    refine ⟨hck, hx01.trans hx12, hp21.trans hp10, ?_⟩
+    subst hr
+    cases h1 : ConLeche.natIndOk (env.find? ConLeche.natName) <;>
+      cases h2 : ConLeche.natZeroOk (env.find? ConLeche.natZeroName) <;>
+      simp_all [ConLeche.natLitSupported]
 
 end ConRon.Bridge.Core
