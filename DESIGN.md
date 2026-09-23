@@ -50858,6 +50858,236 @@ round closed**, and still no `bv_decide` axiom anywhere in `Refine2/`.
 
 ### Task #97-P3-Ind — Theorem 1: the inductive tier
 
+#### Round 7 — the precondition repairs, the capability theorems, the opener, and a frame defect at every index switch (2026-09-23, Opus under Fable)
+
+Branch `ind-r7` off `arena` `f240dd91`, merged forward to `a7bb3aac` (task
+#97-P3-Promote) and then to @ARENA@ (which brought task #97-P3-Checker
+round 9's layout move, `5ce4890e`).  The diff is `Bridge/Inductives/{Rel,SumInstall,
+NativeInstall,Modeled,Decl,Axioms}.lean`, this section, and — for the one
+authorised conclusion change (R7.6) — `IndSpec` in `Bridge/Checker/Hyp.lean`
+plus the one pattern in `Bridge/Checker/Arms.lean` that destructures it.  No
+Rust, no generated model.  `PStep` was not touched (the coordinator asked).
+
+**The tier went from 41 open statements to 28** (27 of round 6's 41 are left
+open, and one new statement, `indDecl_envWF`, is the con-leche ask R7.6
+names) — every new closed result at `[propext, Classical.choice, Quot.sound]` (the census block round 7 added to
+`Axioms.lean` lists forty-seven of them; the only `sorryAx` lines are still the
+two headline theorems).
+
+| module | open (r6 → r7) |
+|---|---:|
+| `Rel.lean`, `StructParts.lean`, `SumParts.lean`, `NativeParts.lean` | 0 → **0** |
+| `Decl.lean` | 0 → **1** (`indDecl_envWF`, R7.6) |
+| `StructInstall.lean` | 1 → **1** |
+| `SumInstall.lean` | 9 → **5** |
+| `NativeInstall.lean` | 8 → **5** |
+| `Modeled.lean` | 23 → **16** |
+| **the tier** | **41 → 28** |
+
+##### R7.0 The frontier, before and after
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`:
+
+* before (`f240dd91`): **14 items in 9 modules, 45 tainted, dead weight 927**;
+  top `Bridge.Frontend.processLineCoreD_run` (fan-in 11, reach 18);
+* after (@TIP@): @AFTER@.
+
+**None of the capstone's items is in this lane, before or after, and none can
+be**: `Capstone.model_exists` and `no_False_declaration` take
+`hind : IndSpec .verified` as a HYPOTHESIS, so nothing under
+`Bridge/Inductives/**` is in their closure — the whole tier is dead weight
+from the capstone's point of view until someone discharges `hind` with
+`indSpec_of_bridge`.  The lane's own root is therefore the useful measure:
+`scripts/frontier.sh --tag indspec ConRon.Bridge.Inductives.indSpec_of_bridge`
+reports **2 items** (`checkModeled_spec`, `checkNative_spec` — the two route
+tops, each a sorried composition whose subtree is not yet in its closure) and
+97 dead-weight declarations across `Bridge/**` before the round, @INDAFTER@
+after.  The two tops cannot be skeletonised honestly before finding R7.4 is
+ruled on: both carry the frame defect.
+
+##### R7.1 What closed
+
+* **Blocker 3, the `EnvWF`/`WScoped` repair, executed** — `normPosDom` first,
+  as round 6 asked, then `normFieldDoms`, `whnfTelescope` and
+  `checkStructFieldSortsI`, all **closed**.  Each gained `(henv : EnvWF env)`
+  and the scope its first knot call needs (`Expr.WScoped d eP` at the walk's
+  depth; for the field sorts, round 6's `checkStructDomsAt` hypothesis on the
+  left column).  The scope is threaded through each OPENING by
+  `Expr.WScoped.instantiate1` at `.fvar d dom` and out of each slot by
+  `SimE`'s own conjunct.  `normPosDom_run` is the form with the answer's
+  scope (`WScoped.abstract1` on the way back up); `normPosDom_spec` is it
+  with the conjunct dropped.  One fuel per walk by a `…_mono` lemma at `max`
+  (four new ones: `normPosDom`, `normFieldDoms`, `whnfTelescope`,
+  `checkStructFieldSortsI`, each a `whnf_mono`/`inferTypeCore_mono`/
+  `ensureSortCore_mono` induction).
+* **`EnvWF env` added to EVERY knot-calling statement of the tier** — the
+  five of `SumInstall.lean`, the five of `NativeInstall.lean`, the sixteen of
+  `Modeled.lean` — plus `WScoped` at `checkSumTele` (`cvTa₀P.type` at 0),
+  `normCtorVal` (`cvCaP.type` at 0), `checkSumCtor(s)` (`cvTaP.type` at 0)
+  and `checkIotaSidesTy` (its three subjects at `depth`).  Every one of those
+  scope facts is available to its caller: a checked constant's type is
+  fvar-free (con-leche's `checkConstantVal_typeWF`), and
+  `WScoped.of_not_hasFvar` is the step.  `Decl.lean` passes `hok.envWF` to
+  the two routes.  **Preconditions only; no conclusion changed.**
+  `checkIotaSidesTy` is closed on it (knot `infer` ×3, `defeq` ×3).
+* **Blocker 2, `eqBasisStored`, closed** on `Frontend.internCI_sstep` (task
+  #97-P3-Frontend round 6's scratch-agnostic family) — `Modeled.lean` imports
+  `Bridge/Frontend/Shared.lean` and `Bridge/Checker/Canon.lean` (both below
+  every module that imports this tier; no cycle).  The handle comparison is
+  `denoteCI_inj_ind'` (a local copy of `Checker/Basis.lean`'s: `eqA` is an
+  inductive, where `denoteCI` IS injective).  **And four of its five guarded
+  statements with it**: `checkProjLookups`, `checkUnitThm`, `checkEtaThm`,
+  `indBlockCaps` (the fifth, `checkIndRecs`, carries finding R7.4); and
+  `checkProjTy` (below).  On the
+  way: `eqApp3?_none` (the `none` half `eqApp3?_spec` lacked — the capability
+  theorems read both), `denoteCI_kind` (a stored constant's constructor is
+  its denotation's, which is what makes every lookup's fallthrough arm the
+  same arm on both sides), `IFEnvOK.find_thm`/`find_defn` (`cover` read at a
+  kind), `domsMatchAux_eq` (the arena's array comparison IS con-leche's at
+  `g := fun _ e => e`), `allM_cstep`/`etaProjOk_run`, and — on loan from the
+  Core tier — `piResultIsProp_run`, `piResultZ_run`.
+* **Blocker 1, after the layout move landed**: `checkNativeRules`,
+  `nativeOpenedOk`, `nativeFieldsOk` **closed**, the last two with the
+  precondition repair round 6 named: `CheckOK μ env₀ fe₀ s₀` in place of
+  `StateOK s₀` (the index `constsResolveFFast` reads must answer what `env₀`
+  answers; `PSpec`'s `denoteFEnv` does not give that).  Conclusion (`PStep`
+  and the verdict) unchanged.  `checkNativeRules` had a second missing
+  precondition, `structRecRhsR_spec`'s own `hcs` (every listed recursive
+  field index is below the field count), repaired.  `famTail_run` is the
+  recursive and reflexive arms' shared family test.
+* **`checkProjTy`, closed** on stable rename tables (R7.5).
+* **The telescope opener, on loan from the Checker tier** —
+  `openPisAtFvars_run`, `openPisAtFvarsFGo_run`, `openPisAtFvarsF_run`
+  (`Arena/CheckerBase.lean`'s three had no Theorem 1).  The one-pass form is
+  related walk for walk (the arena's push-order vector is `InstLVec` of
+  con-leche's cons-order list) and con-leche's `openPisAtFvarsF_eq` turns the
+  answer into the binder-at-a-time `openPisAtFvars` con-leche's callers read.
+  **Owner: the Checker tier**; `Arena/CheckerBase.lean:570`'s own caller will
+  want it.
+
+##### R7.2 A lesson worth keeping: a restated `match` IS usable, by `exact`
+
+Round 6 said a `match` cannot be restated for `rw`.  It can for `exact`:
+`nativeOpenedOk_spec` builds its per-field `allM` with the pure lambda
+RESTATED (a new matcher), and the final `exact ⟨…, hall.2⟩` against
+con-leche's own lambda goes through, because the defeq check unfolds both
+matchers.  So: restate the pure function once where a lemma needs it as an
+argument, prove everything against the restatement, and close with `exact`
+(or `rfl`) — never `rw`.  `checkUnitThm`/`checkEtaThm`'s `hpure` (the pure
+side after its lookups, restated) closes by `cases … <;> simp only […] <;> rfl`
+the same way.
+
+##### R7.3 FINDING — `checkConstantVal_bridge` asks for `PersIFEnv fe`, which is false inside the bracket, and it does not need it
+
+Every remaining statement of `SumInstall.lean` (`checkSumTele`,
+`checkSumInd`, `normCtorVal`, `checkSumCtor`, `checkSumCtors`), plus
+`checkNativeRec` and `Modeled.lean`'s member checks, calls
+`checkConstantVal` — whose Theorem 1, `Bridge/Checker/Base.lean`'s
+`checkConstantVal_bridge`, is still in `Base.lean` (the layout move took the
+two scoping walks and not it) **and** takes `FoldOK`, whose `persEnv :
+PersIFEnv fe` is false for every index the inductive route has pushed a
+scratch constant into (the reason `IndSpec` dropped `PersIFEnv fe'`, task
+#97-P3-Checker-2).  Its two uses of `hok.persEnv` are both
+`denoteFEnv_pext (PExt.of_ext X) hok.persEnv hok.denote` with `X` an `Ext`,
+where `denoteFEnv_ext` needs no persistence.  **Ask of the Checker tier**:
+restate `checkConstantVal_bridge` at `CheckOK` + `EnvWF env` +
+`denoteFEnv s.store fe = some env` (a hypothesis weakening, no conclusion
+change) and move it where this tier can import it.  Seven statements of this
+tier wait on it.
+
+##### R7.4 FINDING — every statement whose run switches the index claims `CheckOK` at the OLD index at the end, and that is false
+
+`checkNativePass` runs `checkSumCtors μ fe₁ fe₁` after pushing the former
+(`fe₁ = fe.push …`) and flushing; `checkNativeTail` runs
+`checkStructFieldSortsI μ q.env₁` and `checkNativeRec μ fe₂`; the modeled
+route's iota family runs every knot call at `feSelf` (the provisioned
+recursors) while the statements are `CSpec μ env fe'`.  `CSpec μ env fe`
+concludes `CoreStep μ env fe s₀ s'`, whose `CheckOK μ env fe s'` includes
+`CacheOK μ env s'` — and the rows the later knot calls leave are rows of the
+NEW environment: `ConstTyCacheOK env` asks `env.find? nm = some ci` for every
+cached constant type, and the constructor-type inferences cache the former's
+own type, which the entry environment does not have.  **So the stated
+conclusions are false in general** for `checkNativePass`, `checkNativeTail`,
+`checkNative`, `checkIotaThm`, `checkIotaThmN`, `checkIotaRule(s)`,
+`installIndRecs`, `checkIndRecs`, `checkProjIota` (at `feSelf ≠ fe'`) and
+`checkModeled`; `nestedRuleShape` has the matching precondition defect (it
+reads `feSelf`'s index under `CheckOK` at `fe'`).  **Not changed** — a
+changed conclusion needs the maintainer's ruling.  The consumer
+(`Decl.lean`'s `checkIndDecl_bridge`) reads only `.ok.state`, `.ext` and
+`.pins` of the route's `CoreStep`, so the repair that costs nothing
+downstream is an install frame `StateOK s' ∧ Ext ∧ s'.pins = s₀.pins`
+(plus, where the run ends at a new index `fe'`, `CheckOK μ env' fe' s'`,
+which the next stage needs).  **Ruling requested.**
+
+##### R7.5 Other findings
+
+* **`checkStructProjTable_spec` lacks `IFEnvCoh fe`** — `InstRel.coh` of
+  `fe.push …` needs it (`consSumCtors_spec` takes it for the same reason).
+  Not repaired this round: `IFEnvCoh` became the extensional `IFEnvCohX`
+  with task #97-P3-Checker round 9 (which also fixed `ProjOut.push` in
+  `Rel.lean`), and it landed only as this round closed; the
+  projection-table push needs a `ProjOut` lemma of its own on the new
+  definition.  Next round.
+* **`checkProjTy` read `RenameRel` at a LATER store than the one it was
+  proved at** — the twin builds the back and forward tables and only then
+  renames, and `RenameRel` is not monotone in general (a handle new at the
+  later store is unconstrained).  It IS stable for the two projection tables:
+  `projBack_specW`/`projFwd_specW` (and their `…GoW` loops) restate the two
+  closed specs at every well-formed extension of the final store — the same
+  proofs, with `denoteN_inj` taken at the extension — and `checkProjTy_spec`
+  is closed on them.  The originals are left as they were.
+* **`CoreSpec` is not the capstone's problem here**: `model_exists` and
+  `no_False_declaration` take `IndSpec` as a hypothesis (R7.0), so this
+  tier's `sorry`s reach the capstone only once `hind` is discharged.
+* **Worktree setup**: copying the main tree's `proof/.lake/build` into the
+  new worktree (CLAUDE.md's advice) made Lake rebuild `Generated/Types`
+  (same `depHash`, rebuilt anyway), after which every downstream module
+  missed the shared cache and `Refine2/Core/Eqns.lean` started re-deriving;
+  deleting the copied build and letting Lake restore from `_tmp/lake-cache`
+  gave a synthetic (cache-restored) `Types` and no rebuild.  With the cache
+  seeded, **a fresh worktree should NOT copy the build.**
+
+##### R7.6 The authorised conclusion change — `IndOut`/`IndSpec` gain `EnvWF env'`
+
+The coordinator's ruling (task #97-P3-Checker round 9's finding: the fold
+boundary after each declaration needs `EnvWF` at the pushed index, and
+`DeclOut` gains the same clause).  `IndOut` has a ninth field
+`envWF : ∀ env', denoteFEnv s'.store fe' = some env' → EnvWF env'`;
+`IndSpec.run`'s existential gains `∧ EnvWF env'`; `indSpec_of_bridge` passes
+it through; `Bridge/Checker/Arms.lean`'s one destructuring of `hind.run` takes
+one more `-`.
+
+**Where it comes from.**  The brief said to look in con-leche's model tier
+first.  It is there, but only INSIDE the model construction:
+`Model/Fold.lean`'s `declStep_preserves` gets the new environment's `EnvWF`
+from `declNative`/`declInd`'s `EnvModelM … env₂` (`toEnvFacts.wf`), and every
+stage lemma on the way takes the input MODEL (and `EtaFamiliesClosed`), which
+the bridge's `FoldOK` does not have.  The V-free pieces exist
+(`Verify/Inductives/SumWF.lean`'s `direct_sum_ind_wf`, `envWF_consSumCtors`,
+`FixWF.lean`'s `direct_fix_rec_wf`, `BridgeWfImp.lean`'s `…_wfimp` family) but
+no route-level statement assembles them.  So `Decl.lean` states the V-free
+extraction once — `indDecl_envWF : EnvWF env → basisPinHit b = none →
+checkDecl … (.indDecl b nP) = .ok env' → EnvWF env'` — and `checkIndDecl_bridge`
+discharges the new clause from it, the pure run it already has and `FoldOK`'s
+`envWF`.  **`indDecl_envWF` is open: an ask of con-leche**
+(`Verify/Inductives/*WF.lean` is where it belongs).  One caveat for whoever
+proves it: the model tier's stages take `EtaFamiliesClosed env`; if the
+syntactic facts turn out to need it, the fold would have to carry it too.
+
+##### R7.7 What the next round should do
+
+0. **`indDecl_envWF`** (R7.6) — con-leche's, or assembled here from the
+   `*WF.lean` pieces if con-leche will not take it.
+1. **R7.4's ruling**, then the two route tops (`checkNative_spec`,
+   `checkModeled_spec`) skeletonised on the repaired frames — that is what
+   puts this tier's remaining subtree into `indSpec_of_bridge`'s closure.
+2. **R7.3's restatement** (Checker tier), then `SumInstall.lean`'s five and
+   `checkNativeRec`.
+3. `checkStructProjTable` on `IFEnvCohX` (with its missing `IFEnvCoh fe`
+   precondition), and `checkProjIota` on `projBack_specW`/`projFwd_specW`
+   once R7.4 fixes its index.
+
 #### Round 6 — the recognisers, groups 3 and 4, two files to zero, and the three walls that are left (2026-09-23, Opus under Fable)
 
 Branch `ind-r6` off `arena` `7f4b4a86`, merged forward once (`8d995437`,
