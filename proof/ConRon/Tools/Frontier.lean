@@ -405,6 +405,10 @@ def report (roots : Array Name) (cfg : Cfg := {}) : CoreM String := do
     IO.FS.writeFile (d / s!"{cfg.tag}.dead.tsv") (tsvItems r.dead false)
     IO.FS.writeFile (d / s!"{cfg.tag}.summary.txt") text
     IO.FS.writeFile (d / s!"{cfg.tag}.line.txt") (summaryLine r ++ "\n")
+    -- one machine-readable row for `scripts/frontier.sh`'s history file
+    let top := match r.items[0]? with | some i => s!"{i.owner}\t{i.fanIn}" | none => "-\t0"
+    IO.FS.writeFile (d / s!"{cfg.tag}.stats.tsv")
+      s!"{r.items.size}\t{r.tainted}\t{r.dead.size}\t{r.nonStd.size}\t{top}\n"
   return text
 
 /-- `#sorry_frontier T₁ … Tₙ`: the frontier of the given theorems (no dead

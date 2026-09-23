@@ -19,8 +19,10 @@
 #   --summary   print only the one-line summary.
 #   --top N     how many frontier items the report lists (default 20).
 #   --tag T     output file stem (default: the roots' last components).
+#   --history   print the history file (one row per run, every worktree) and exit.
 #
-# Output: `_tmp/frontier-<checkout key>/<tag>.{frontier.tsv,dead.tsv,summary.txt,line.txt}`.
+# Output: `_tmp/frontier-<checkout key>/<tag>.{frontier.tsv,dead.tsv,summary.txt,line.txt}`,
+# and one row appended to `_tmp/frontier-history.tsv` (shared, see below).
 # Several roots are analysed TOGETHER (one closure); they must be importable
 # into one environment.  `ConRonBridge` and `ConRonRefine2` are not: run one
 # root per call there.
@@ -36,7 +38,10 @@ while [ $# -gt 0 ]; do
     --scope=*) scope=${1#--scope=}; shift;;
     --top) top=$2; shift 2;;
     --tag) tag=$2; shift 2;;
-    -h|--help) sed -n '2,27p' "$0"; exit 0;;
+    --history) hist="$root/_tmp/frontier-history.tsv"
+               if [ -s "$hist" ]; then column -t -s $'\t' "$hist"; else echo "no history yet ($hist)"; fi
+               exit 0;;
+    -h|--help) sed -n '2,32p' "$0"; exit 0;;
     -*) echo "unknown option $1" >&2; exit 2;;
     *) roots+=("$1"); shift;;
   esac
@@ -153,7 +158,7 @@ if ! lake build "${targets[@]}" > "$scratch/build.log" 2>&1; then
   tail -20 "$scratch/build.log" >&2
   exit 1
 fi
-rm -f "$out/$tag.summary.txt" "$out/$tag.line.txt"
+rm -f "$out/$tag.summary.txt" "$out/$tag.line.txt" "$out/$tag.stats.tsv"
 start=$(date +%s%N)
 if ! lake env lean "$file" > "$scratch/run.log" 2>&1; then
   echo "error: the frontier run failed; see $scratch/run.log" >&2
@@ -162,6 +167,16 @@ if ! lake env lean "$file" > "$scratch/run.log" 2>&1; then
 fi
 end=$(date +%s%N)
 wall="$(( (end - start) / 1000000 )) ms"
+# The frontier's size OVER TIME: one row per run, in a history file shared by
+# every worktree (`_tmp` is one directory), so gate runs on every branch add
+# to the same series.  `--history` prints it.
+hist="$root/_tmp/frontier-history.tsv"
+[ -s "$hist" ] || printf 'date\tcommit\tbranch\tdirty\ttag\titems\ttainted\tdead\tnonstd_axioms\ttop\ttop_fan_in\n' > "$hist"
+rev=$(git -C "$root" rev-parse --short HEAD 2>/dev/null || echo -)
+br=$(git -C "$root" symbolic-ref --quiet --short HEAD 2>/dev/null || echo -)
+dirty=$(git -C "$root" status --porcelain --untracked-files=no -- proof 2>/dev/null | grep -q . && echo dirty || echo clean)
+printf '%s\t%s\t%s\t%s\t%s\t%s' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rev" "$br" "$dirty" "$tag" \
+  "$(cat "$out/$tag.stats.tsv")" >> "$hist"
 if [ $summary = 1 ]; then
   echo "$(cat "$out/$tag.line.txt") [${wall}]"
 else
