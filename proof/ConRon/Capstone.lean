@@ -258,6 +258,33 @@ theorem declResolves_of_stages
       ConRon.Refine2.DeclResolves .verified ipins ds.toList sE Good := by
   sorry
 
+/-- **The startup walk's `ReservedNamesRead`, discharged from Theorem 1**
+(task #97-P5-Top round 3).  The port's `reserved_basis_names` reads the pin
+table; the twin's `reservedBasisNames` re-interns thirteen of the nineteen
+names.  `Refine2/Checker/Top.lean`'s `intern_all_names_refines` needs the two
+to agree at the state the walk's basis and axiom-pin children leave the twin
+in, which is a fact about the TWIN run — so, like `DeclResolves`, it is
+discharged here.
+
+**Open (`sorry`), and Theorem 1's to close.**  `internReservedPins_run` gives
+`PinsOK sA` (the table's slots and `reserved` denote the names); the four
+stages and the two walks are `IStepS`/`PinStep` frames (the store only grows,
+the pin table is untouched); and a name already interned is a probe hit in
+`internNNode`, so each of the thirteen interns hands back the table's handle
+and leaves the state alone.  Alternatively, a twin edit retires it: make
+`Arena.reservedBasisNames` the table read `pinReserved`, as the port's has
+been since task #97-P6-4a — then it is `rfl`. -/
+theorem reservedNamesRead_of_stages
+    (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
+    {chunks : List ByteArray} {sA sB sC sD : AState} {pre : PreludeIx}
+    {r : ParseResultD} {ds : Array IDeclaration}
+    (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
+    (hB : builtinPreludeE inProcessModeller sA = .ok (.ok pre, sB))
+    (hC : parseChunks inProcessModeller chunks true false sB = .ok (.ok r, sC))
+    (hD : preparePrelude pre r.decls sC = .ok (ds, sD)) :
+    ConRon.Refine2.ReservedNamesRead sD := by
+  sorry
+
 end Twin
 
 /-! ## 2. The Rust side: the six stages, walked into the twin by Theorem 2 -/
@@ -350,15 +377,17 @@ theorem rust_stages
   -- 4. the preparation
   obtain ⟨sD, hD, hrelD, hinvD, -, -⟩ :=
     (prepare_prelude_refines hrelC hinvC h4).dest
-  -- 5. the startup pin walk
-  obtain ⟨sE, hE, hrelE, hinvE, -, -⟩ :=
-    (intern_all_pins_refines hrelD hinvD
-      (ConRon.Refine.PinsWF.decode_wf_refine2 hdec) h5).dest
-  -- the fold's entry: the twin's scratch tier is closed there
   have hdecls : rv.decls = absIDeclArr r.decls := hrv.decls
   have hD' : ConRon.Arena.Frontend.preparePrelude (absPreludeIx pre) rv.decls sC
       = .ok ((absIDeclL ds).toArray, sD) := by
     rw [hdecls]; exact hD
+  -- 5. the startup pin walk (its reserved-name read: Theorem 1's
+  -- `reservedNamesRead_of_stages`)
+  obtain ⟨sE, hE, hrelE, hinvE, -, -⟩ :=
+    (intern_all_pins_refines hrelD hinvD
+      (ConRon.Refine.PinsWF.decode_wf_refine2 hdec)
+      (reservedNamesRead_of_stages hbytes hA hB hC hD') h5).dest
+  -- the fold's entry: the twin's scratch tier is closed there
   have hoff : sE.store.scratchOn = false :=
     (stages_frame (pins := ConRon.Refine.absPins pins) hbytes hA hB hC
       hD' hE).1

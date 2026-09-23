@@ -1782,6 +1782,9 @@ for the rest. -/
 /-- info: 'ConRon.Refine2.pin_empty_levels_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms pin_empty_levels_refines
 
+/-- info: 'ConRon.Refine2.pin_reserved_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pin_reserved_refines
+
 /-- info: 'ConRon.Refine2.pin_zero_level_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms pin_zero_level_refines
 

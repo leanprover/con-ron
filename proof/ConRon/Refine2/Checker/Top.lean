@@ -1938,12 +1938,100 @@ theorem at_decl_refines {e : kernel.core_types.CheckError} {n : Std.U64} {o}
          rfl)
       | simp at hle
 
-/-- `intern_all_names` — the reserved names the guards compare by handle. -/
+/-- `intern_all_names` — the reserved names the guards compare by handle.
+
+**`hres` is a precondition this statement lacked** (task #97-P5-Top round 3).
+The port's `arena::core::reserved_basis_names` is `pin_reserved`, a READ of the
+pin table (task #97-P6-4a); the twin's `reservedBasisNames` (`Arena/Core.lean`)
+still re-interns thirteen of the nineteen names.  The two agree exactly when
+those interns are lookups that hand back the table's handles — true after
+`internReservedPins` has run and the store has only grown, which is what the
+driver does, but not of every related state (at a state whose table is filled
+and whose store lacks `Eq.refl`, the twin's store grows and the Rust's does
+not, so no `AStateRel` holds after).  `hres` is exactly that agreement, a
+twin-only fact; `intern_all_pins_refines` carries it up to the capstone. -/
 theorem intern_all_names_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hres : reservedBasisNames.run lst = pinReserved.run lst)
     (hrun : arena.checker.intern_all_names st = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o internAllNamesSpec := by
-  sorry
+  rw [arena.checker.intern_all_names] at hrun
+  unfold Sim
+  rw [internAllNamesSpec]
+  -- 1. the nineteen reserved names: a table read on both sides, through `hres`
+  obtain ⟨r0, hr0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.core.reserved_basis_names] at hr0
+  have hS0 := pin_reserved_refines hrel hinv hr0
+  cases r0 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    refine AOut.err ?_
+    rw [am_run_bind', hres]
+    exact AErrSim.bind hS0 _
+  | Ok v0 =>
+  rw [run_bind_ok (hres.trans (SimRE.apply hS0))]
+  have hrel0 := hrel
+  have hinv0 := hinv
+  -- 2. the three name lists
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r1, st1⟩ := q1
+  have hS1 := nat_op_names_refines hrel0 hinv0 hq1
+  cases r1 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS1
+  | Ok u1 =>
+  obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+  rw [run_bind_ok hx1]
+  refine AOut.rebase hext1 ?_
+  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r2, st2⟩ := q2
+  have hS2 := nat_div_mod_names_refines hrel1 hinv1 hq2
+  cases r2 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS2
+  | Ok u2 =>
+  obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+  rw [run_bind_ok hx2]
+  refine AOut.rebase hext2 ?_
+  obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r3, st3⟩ := q3
+  have hS3 := reduce_op_names_refines hrel2 hinv2 hq3
+  cases r3 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS3
+  | Ok u3 =>
+  obtain ⟨lst3, hx3, hrel3, hinv3, hext3, -⟩ := Sim.apply hS3
+  rw [run_bind_ok hx3]
+  refine AOut.rebase hext3 ?_
+  -- 3. the two single pins, read at the state the lists ended in
+  obtain ⟨r4, hr4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hS4 := pin_sorry_ax_refines hrel3 hinv3 hr4
+  cases r4 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.err (pin_err hS4)
+  | Ok a4 =>
+  rw [pin_ok hS4]
+  obtain ⟨r5, hr5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hS5 := pin_quot_sound_refines hrel3 hinv3 hr5
+  cases r5 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.err (pin_err hS5)
+  | Ok a5 =>
+  rw [pin_ok hS5]
+  have ho := Result.ok_injective hrun
+  subst ho
+  exact AOut.ok rfl hrel3 hinv3 (Ext.refl _) trivial
 
 /-- `intern_all_reduce_pins` — the two reduce pins. -/
 theorem intern_all_reduce_pins_refines {pers st lst} {o}
@@ -1951,7 +2039,86 @@ theorem intern_all_reduce_pins_refines {pers st lst} {o}
     (hrun : arena.checker.intern_all_reduce_pins pers st = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
       internAllReducePinsSpec := by
-  sorry
+  rw [arena.checker.intern_all_reduce_pins] at hrun
+  unfold Sim
+  rw [internAllReducePinsSpec]
+  have hrel0 := hrel
+  have hinv0 := hinv
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r1, st1⟩ := q1
+  have hS1 := reduce_nat_cv_a_refines hrel0 hinv0 hq1
+  cases r1 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS1
+  | Ok u1 =>
+  obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+  rw [run_bind_ok hx1]
+  refine AOut.rebase hext1 ?_
+  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r2, st2⟩ := q2
+  have hS2 := reduce_bool_cv_a_refines hrel1 hinv1 hq2
+  cases r2 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS2
+  | Ok u2 =>
+  obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+  rw [run_bind_ok hx2]
+  refine AOut.rebase hext2 ?_
+  obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r3, st3⟩ := q3
+  have hS3 := of_reduce_nat_a_refines hrel2 hinv2 hq3
+  cases r3 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS3
+  | Ok u3 =>
+  obtain ⟨lst3, hx3, hrel3, hinv3, hext3, -⟩ := Sim.apply hS3
+  rw [run_bind_ok hx3]
+  refine AOut.rebase hext3 ?_
+  obtain ⟨q4, hq4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r4, st4⟩ := q4
+  have hS4 := of_reduce_bool_a_refines hrel3 hinv3 hq4
+  cases r4 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS4
+  | Ok u4 =>
+  obtain ⟨lst4, hx4, hrel4, hinv4, hext4, -⟩ := Sim.apply hS4
+  rw [run_bind_ok hx4]
+  refine AOut.rebase hext4 ?_
+  obtain ⟨q5, hq5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r5, st5⟩ := q5
+  have hS5 := reduce_nat_decl_pin_refines hrel4 hinv4 hq5
+  cases r5 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS5
+  | Ok u5 =>
+  obtain ⟨lst5, hx5, hrel5, hinv5, hext5, -⟩ := Sim.apply hS5
+  rw [run_bind_ok hx5]
+  refine AOut.rebase hext5 ?_
+  obtain ⟨q6, hq6, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r6, st6⟩ := q6
+  have hS6 := reduce_bool_decl_pin_refines hrel5 hinv5 hq6
+  cases r6 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS6
+  | Ok u6 =>
+  obtain ⟨lst6, hx6, hrel6, hinv6, hext6, -⟩ := Sim.apply hS6
+  rw [run_bind_ok hx6]
+  refine AOut.rebase hext6 ?_
+  have ho := Result.ok_injective hrun
+  subst ho
+  exact AOut.ok rfl hrel6 hinv6 (Ext.refl _) trivial
 
 /-- `intern_all_trust_pins` — the compiler-trust axiom pins. -/
 theorem intern_all_trust_pins_refines {pers st lst} {o}
@@ -1959,7 +2126,60 @@ theorem intern_all_trust_pins_refines {pers st lst} {o}
     (hrun : arena.checker.intern_all_trust_pins pers st = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
       internAllTrustPinsSpec := by
-  sorry
+  rw [arena.checker.intern_all_trust_pins] at hrun
+  unfold Sim
+  rw [internAllTrustPinsSpec]
+  have hrel0 := hrel
+  have hinv0 := hinv
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r1, st1⟩ := q1
+  have hS1 := true_cv_a_refines hrel0 hinv0 hq1
+  cases r1 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS1
+  | Ok u1 =>
+  obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+  rw [run_bind_ok hx1]
+  refine AOut.rebase hext1 ?_
+  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r2, st2⟩ := q2
+  have hS2 := true_intro_cv_a_refines hrel1 hinv1 hq2
+  cases r2 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS2
+  | Ok u2 =>
+  obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+  rw [run_bind_ok hx2]
+  refine AOut.rebase hext2 ?_
+  obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r3, st3⟩ := q3
+  have hS3 := trust_compiler_a_refines hrel2 hinv2 hq3
+  cases r3 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS3
+  | Ok u3 =>
+  obtain ⟨lst3, hx3, hrel3, hinv3, hext3, -⟩ := Sim.apply hS3
+  rw [run_bind_ok hx3]
+  refine AOut.rebase hext3 ?_
+  obtain ⟨q4, hq4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r4, st4⟩ := q4
+  have hS4 := bool_cv_a_refines hrel3 hinv3 hq4
+  cases r4 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS4
+  | Ok u4 =>
+  obtain ⟨lst4, hx4, hrel4, hinv4, hext4, -⟩ := Sim.apply hS4
+  rw [run_bind_ok hx4]
+  refine AOut.rebase hext4 ?_
+  exact intern_all_reduce_pins_refines hrel4 hinv4 hrun
 
 /-- `intern_all_axiom_pins_rest` — the standard axiom pins past the `Iff`
 family. -/
@@ -1968,7 +2188,60 @@ theorem intern_all_axiom_pins_rest_refines {pers st lst} {o}
     (hrun : arena.checker.intern_all_axiom_pins_rest pers st = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
       internAllAxiomPinsRestSpec := by
-  sorry
+  rw [arena.checker.intern_all_axiom_pins_rest] at hrun
+  unfold Sim
+  rw [internAllAxiomPinsRestSpec]
+  have hrel0 := hrel
+  have hinv0 := hinv
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r1, st1⟩ := q1
+  have hS1 := nonempty_intro_raw_refines hrel0 hinv0 hq1
+  cases r1 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS1
+  | Ok u1 =>
+  obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+  rw [run_bind_ok hx1]
+  refine AOut.rebase hext1 ?_
+  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r2, st2⟩ := q2
+  have hS2 := nonempty_rec_raw_refines hrel1 hinv1 hq2
+  cases r2 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS2
+  | Ok u2 =>
+  obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+  rw [run_bind_ok hx2]
+  refine AOut.rebase hext2 ?_
+  obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r3, st3⟩ := q3
+  have hS3 := propext_raw_refines hrel2 hinv2 hq3
+  cases r3 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS3
+  | Ok u3 =>
+  obtain ⟨lst3, hx3, hrel3, hinv3, hext3, -⟩ := Sim.apply hS3
+  rw [run_bind_ok hx3]
+  refine AOut.rebase hext3 ?_
+  obtain ⟨q4, hq4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r4, st4⟩ := q4
+  have hS4 := choice_raw_refines hrel3 hinv3 hq4
+  cases r4 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS4
+  | Ok u4 =>
+  obtain ⟨lst4, hx4, hrel4, hinv4, hext4, -⟩ := Sim.apply hS4
+  rw [run_bind_ok hx4]
+  refine AOut.rebase hext4 ?_
+  exact intern_all_trust_pins_refines hrel4 hinv4 hrun
 
 /-- `intern_all_axiom_pins` — the standard axiom pins. -/
 theorem intern_all_axiom_pins_refines {pers st lst} {o}
@@ -1976,7 +2249,60 @@ theorem intern_all_axiom_pins_refines {pers st lst} {o}
     (hrun : arena.checker.intern_all_axiom_pins pers st = ok o) :
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
       internAllAxiomPinsSpec := by
-  sorry
+  rw [arena.checker.intern_all_axiom_pins] at hrun
+  unfold Sim
+  rw [internAllAxiomPinsSpec]
+  have hrel0 := hrel
+  have hinv0 := hinv
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r1, st1⟩ := q1
+  have hS1 := iff_raw_refines hrel0 hinv0 hq1
+  cases r1 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS1
+  | Ok u1 =>
+  obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+  rw [run_bind_ok hx1]
+  refine AOut.rebase hext1 ?_
+  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r2, st2⟩ := q2
+  have hS2 := iff_intro_raw_refines hrel1 hinv1 hq2
+  cases r2 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS2
+  | Ok u2 =>
+  obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+  rw [run_bind_ok hx2]
+  refine AOut.rebase hext2 ?_
+  obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r3, st3⟩ := q3
+  have hS3 := iff_rec_raw_refines hrel2 hinv2 hq3
+  cases r3 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS3
+  | Ok u3 =>
+  obtain ⟨lst3, hx3, hrel3, hinv3, hext3, -⟩ := Sim.apply hS3
+  rw [run_bind_ok hx3]
+  refine AOut.rebase hext3 ?_
+  obtain ⟨q4, hq4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r4, st4⟩ := q4
+  have hS4 := nonempty_raw_refines hrel3 hinv3 hq4
+  cases r4 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS4
+  | Ok u4 =>
+  obtain ⟨lst4, hx4, hrel4, hinv4, hext4, -⟩ := Sim.apply hS4
+  rw [run_bind_ok hx4]
+  refine AOut.rebase hext4 ?_
+  exact intern_all_axiom_pins_rest_refines hrel4 hinv4 hrun
 
 /-- `all_basis_kinds` is the six basis kinds in `internAllPins`' order. -/
 theorem all_basis_kinds_refines {o}
@@ -1995,6 +2321,71 @@ theorem all_basis_kinds_refines {o}
     ConRon.Refine.ExprOps.with_capacity_val]
   rfl
 
+/-- The cursor's measure induction behind `intern_all_basis_refines`. -/
+private theorem intern_all_basis_aux {pers : arena.store.PersTier} (m : Nat) :
+    ∀ {st lst} {i : Std.Usize} {o},
+      6 - i.val = m →
+      AStateRel pers st lst → AStateInv pers st →
+      arena.checker.intern_all_basis pers st i = ok o →
+      Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
+        (internAllBasisSpec
+          ([ConLeche.BasisKind.eqK, .natK, .punitK, .emptyK, .falseK,
+            .quotK].drop i.val)) := by
+  induction m using Nat.strong_induction_on with
+  | _ m ih =>
+    intro st lst i o hm hrel hinv hrun
+    rw [arena.checker.intern_all_basis.eq_def] at hrun
+    dsimp only at hrun
+    obtain ⟨ks, hks, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hk := all_basis_kinds_refines hks
+    have hlen6 : ks.val.length = 6 := by
+      have h := congrArg List.length hk
+      simpa using h
+    have hl := alloc.vec.Vec.len_val ks
+    unfold Sim
+    by_cases hge : i ≥ ks.len
+    · have hle : 6 ≤ i.val := by scalar_tac
+      rw [if_pos hge] at hrun
+      have ho := Result.ok_injective hrun
+      subst ho
+      rw [List.drop_eq_nil_of_le (by simpa using hle)]
+      exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
+    · have hlt : i.val < ks.val.length := by scalar_tac
+      rw [if_neg hge] at hrun
+      obtain ⟨bk, hbk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨hlt', rfl⟩ := ConRon.Refine.ExprOps.vec_index_val hbk
+      rw [← hk, ← List.map_drop, List.drop_eq_getElem_cons hlt, List.map_cons,
+        internAllBasisSpec]
+      obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r1, st1⟩ := q1
+      have hS1 := basis_kind_decls_refines hrel hinv hq1
+      cases r1 with
+      | Err e =>
+        have ho := Result.ok_injective hrun
+        subst ho
+        exact AOut.errBind hS1
+      | Ok u1 =>
+      obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+      rw [run_bind_ok hx1]
+      refine AOut.rebase hext1 ?_
+      obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r2, st2⟩ := q2
+      have hS2 := basis_kind_decls_a_refines hrel1 hinv1 hq2
+      cases r2 with
+      | Err e =>
+        have ho := Result.ok_injective hrun
+        subst ho
+        exact AOut.errBind hS2
+      | Ok u2 =>
+      obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+      rw [run_bind_ok hx2]
+      refine AOut.rebase hext2 ?_
+      obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+      have hrec := ih (6 - i2.val) (by omega) rfl hrel2 hinv2 hrun
+      rw [← hk, ← List.map_drop, hi2v] at hrec
+      exact hrec
+
 /-- `intern_all_basis` — the six basis blocks in BOTH forms, at the cursor. -/
 theorem intern_all_basis_refines {pers st lst} {i : Std.Usize} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
@@ -2003,7 +2394,19 @@ theorem intern_all_basis_refines {pers st lst} {i : Std.Usize} {o}
       (internAllBasisSpec
         ([ConLeche.BasisKind.eqK, .natK, .punitK, .emptyK, .falseK,
           .quotK].drop i.val)) := by
-  sorry
+  exact intern_all_basis_aux _ rfl hrel hinv hrun
+
+/-- **The startup walk's `hres`** (task #97-P5-Top round 3;
+`intern_all_names_refines` says why it is needed): at the state the walk's
+first two children leave the twin in, the twin's `reservedBasisNames` is the
+port's table read `pinReserved`.  A twin-only fact about the state the walk is
+entered in — Theorem 1's to discharge, at the capstone. -/
+def ReservedNamesRead (lst : AState) : Prop :=
+  ∀ lst' : AState,
+    (do
+      let _ ← internAllBasisSpec [.eqK, .natK, .punitK, .emptyK, .falseK, .quotK]
+      internAllAxiomPinsSpec).run lst = .ok ((), lst') →
+    reservedBasisNames.run lst' = pinReserved.run lst'
 
 /-- **`intern_all_pins` ⊑ the port's startup walk** — DESIGN §8.6 P2d's
 one-time tree walk, as the port runs it (task #97-P5-Top): the basis blocks,
@@ -2018,6 +2421,7 @@ theorem intern_all_pins_port_refines {pers st lst}
     {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hwf : ∀ p ∈ pins.val, NatOpPinSetWF p)
+    (hres : ReservedNamesRead lst)
     (hrun : arena.checker.intern_all_pins pers st pins = ok o) :
     Sim absINatOpPinSetL (fun _ => True) pers lst o
       (internAllPinsPortSpec (ConRon.Refine.absPins pins)) := by
@@ -2051,7 +2455,9 @@ theorem intern_all_pins_port_refines {pers st lst}
   refine AOut.rebase hext2 ?_
   obtain ⟨q3, hq3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r3, st3⟩ := q3
-  have hS3 := intern_all_names_refines hrel2 hinv2 hq3
+  have hres2 : reservedBasisNames.run lst2 = pinReserved.run lst2 :=
+    hres lst2 (by rw [run_bind_ok hx1]; exact hx2)
+  have hS3 := intern_all_names_refines hrel2 hinv2 hres2 hq3
   cases r3 with
   | Err e =>
     have ho := Result.ok_injective hrun
@@ -2094,11 +2500,12 @@ theorem intern_all_pins_refines {pers st lst}
     {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hwf : ∀ p ∈ pins.val, NatOpPinSetWF p)
+    (hres : ReservedNamesRead lst)
     (hrun : arena.checker.intern_all_pins pers st pins = ok o) :
     Sim absINatOpPinSetL (fun _ => True) pers lst o
       (internAllPins (ConRon.Refine.absPins pins)) := by
   rw [← internAllPinsPortSpec_eq]
-  exact intern_all_pins_port_refines hrel hinv hwf hrun
+  exact intern_all_pins_port_refines hrel hinv hwf hres hrun
 
 
 /-! ## The axiom census
