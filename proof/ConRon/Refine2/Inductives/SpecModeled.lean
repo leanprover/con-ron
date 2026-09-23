@@ -362,7 +362,35 @@ theorem nestedRuleShape_unfold (fe' feSelf : IFEnv) (cvName : NIdx)
       let thm ← iotaThmName cvName j
       if !((← fe'.findCV? thm).isSome && decide (rP ≤ mI)) then pure none
       else nestedRuleShapeAtSpec feSelf lps tyA mI rP cnP) := by
-  sorry
+  rw [nestedRuleShape]
+  refine am_bind_congr _ ?_; intro thm
+  refine am_bind_congr _ ?_; intro fcv
+  refine if_congr Iff.rfl rfl ?_
+  rw [nestedRuleShapeAtSpec]
+  refine am_bind_congr _ ?_; intro sp
+  rcases sp with _ | ⟨_, rest⟩ <;> simp only []
+  refine am_bind_congr _ ?_; intro v
+  cases v <;> simp only []
+  refine am_bind_congr _ ?_; intro fn
+  refine am_bind_congr _ ?_; intro v2
+  cases v2 <;> simp only []
+  rw [nestedRuleShapeArgsSpec]
+  refine am_bind_congr _ ?_; intro args
+  refine am_bind_congr₂ ?_ ?_
+  · exact list_mapM_counted _ (lowerBVarsListSpec (mI - rP)) rfl (fun a l => rfl) _
+  intro pins
+  refine am_bind_congr₂ ?_ ?_
+  · exact list_mapM_counted _ (liftBVarsListSpec (mI - rP)) rfl (fun a l => rfl) _
+  intro lifted
+  refine am_bind_congr _ ?_; intro idxSpine
+  refine am_bind_congr _ ?_; intro ks
+  refine am_bind_congr _ ?_; intro lvls
+  refine am_bind_congr _ ?_; intro lvlVals
+  refine am_bind_congr₂ ?_ (fun _ => rfl)
+  refine list_allM_counted _ (nestedPinsOkSpec feSelf lps rP) rfl ?_ _
+  intro a l
+  rw [nestedPinsOkSpec]
+  twin_reduce
 
 /-! ## `checkIotaThmN`, split eleven ways -/
 
@@ -920,7 +948,26 @@ theorem checkUnitThm_unfold (mode : ConLeche.CheckMode) (fe' : IFEnv) (T : NIdx)
         checkUnitThmAtSpec mode fe' lps nP tm tcv.type tcv.levelParams cvmT.type
           cvmT.levelParams
       | _, _ => pure false) := by
-  sorry
+  rw [checkUnitThm]
+  refine am_bind_congr _ ?_; intro tm
+  refine am_bind_congr _ ?_; intro utn
+  rcases fe'.find? utn with _ | ci1 <;> rcases fe'.find? tm with _ | ci2 <;>
+    simp only [] <;> (try rfl)
+  cases ci1 <;> cases ci2 <;> simp only [] <;> (try rfl)
+  rw [checkUnitThmAtSpec]
+  refine am_bind_congr _ ?_; intro eb
+  refine if_congr Iff.rfl rfl ?_
+  refine if_congr Iff.rfl rfl ?_
+  refine am_bind_congr _ ?_; intro sp1
+  refine am_bind_congr _ ?_; intro sp2
+  rcases sp1 with _ | ⟨sbinders, sbody⟩ <;> rcases sp2 with _ | ⟨tbindersM, tbodyM⟩ <;>
+    simp only [] <;> (try rfl)
+  refine if_congr Iff.rfl rfl ?_
+  rw [checkUnitThmShapeSpec]
+  simp only [famAtSpec]
+  simp only [checkUnitThmEqSpec]
+  twin_reduce
+  rfl
 
 /-! ## `checkModeled`, split eight ways
 
