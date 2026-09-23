@@ -28,17 +28,20 @@ together because the recursion threads all three:
 makes `.mono` across an `Ext` the only transport it needs: a row recorded
 before an append is still a promoted pair after it.
 
-**The shape of the sorries** (task #97-P3-Checker, sorry list items 3-5): the
-four handle-kind recursions are the tier's inductions — `promoteE_spec` is a
-ten-arm fuel induction in `Bridge/ExprOps/Inst1.lean`'s shape, and the three
-below it are the same at three / five / one constructors.  The declaration
-layer above them (`promoteCV`, `promoteCI`, `promoteVG`, `promoteNew`) is
-mechanical do-notation over those four and is stated here for its consumers —
-`Bridge/Checker/Fold.lean`'s per-declaration bridge reads `promoteNew_spec`
-and `promoteVG_spec` and nothing else from this file.
+**Status (task #97-P3-Promote).**  Every statement here is PROVED except one
+conjunct: the four handle-kind specs and the declaration layer's four are the
+walks of `Bridge/Promote/Walk.lean` / `WalkDecl.lean` (fuel and list
+inductions over `EStore.internPersistent_spec'`, at `Arena/WF.lean`'s promote
+window invariant `StoreWF'`), and `promoteNew_spec` is `promoteCIList` plus
+the two index passes.  Its `IFEnvCoh fe'` conjunct needs
+`Bridge/Promote/Coh.lean`'s `promoteNew_cohX`, so `promoteNew_spec` itself
+lives there (task #97-P3-Checker round 9, on the coordinator's ruling that
+`IFEnvCoh` is the EXTENSIONAL coherence — see its definition).
+`Bridge/Checker/**`'s per-declaration brackets read `promoteNew_spec`,
+`promoteVG_spec`, `promoteNew_pushed`, `promoteNew_projOK` and
+`promoteBracket_close`.
 -/
-import ConRon.Bridge.Promote.StoreP
-import ConRon.Arena.PromoteExt
+import ConRon.Bridge.Promote.WalkDecl
 
 namespace ConRon.Bridge
 
@@ -46,147 +49,59 @@ set_option autoImplicit false
 
 open ConLeche ConRon.Arena
 
-/-! ## The promotion memo -/
-
-/-- con-leche: none — arena infrastructure; a promotion memo's expression
-rows are promoted pairs: the answer is persistent and denotes what the key
-denotes. -/
-def PMemoEOK (tbl : Std.HashMap EIdx EIdx) (st : EStore) : Prop :=
-  ∀ h r, tbl[h]? = some r →
-    PersE r ∧ ∃ e, denoteE st h = some e ∧ denoteE st r = some e
-
-/-- con-leche: none — arena infrastructure; the same at a NAME handle. -/
-def PMemoNOK (tbl : Std.HashMap NIdx NIdx) (st : EStore) : Prop :=
-  ∀ h r, tbl[h]? = some r →
-    PersN r ∧ ∃ x, denoteN st.ns h = some x ∧ denoteN st.ns r = some x
-
-/-- con-leche: none — arena infrastructure; the same at a LEVEL handle. -/
-def PMemoLOK (tbl : Std.HashMap LIdx LIdx) (st : EStore) : Prop :=
-  ∀ h r, tbl[h]? = some r →
-    PersL r ∧ ∃ u, denoteL st.ls h = some u ∧ denoteL st.ls r = some u
-
-/-- con-leche: none — arena infrastructure; the same at a universe-argument
-LIST handle. -/
-def PMemoLsOK (tbl : Std.HashMap LsIdx LsIdx) (st : EStore) : Prop :=
-  ∀ h r, tbl[h]? = some r →
-    PersLs r ∧ ∃ us, denoteLs st.lss h = some us ∧ denoteLs st.lss r = some us
-
-/-- con-leche: none — arena infrastructure; **the promotion memo denotes**:
-all four tables at once, which is the record `Arena/Promote.lean` threads. -/
-structure PMemoOK (m : PMemo) (st : EStore) : Prop where
-  eM : PMemoEOK m.eM st
-  nM : PMemoNOK m.nM st
-  lM : PMemoLOK m.lM st
-  lsM : PMemoLsOK m.lsM st
-
-/-- con-leche: none — arena infrastructure; the EMPTY memo is sound, which is
-what every declaration's promotion starts from (`PMemo.empty`). -/
-theorem PMemoOK.empty (st : EStore) : PMemoOK PMemo.empty st where
-  eM := by intro h r hk; simp [PMemo.empty] at hk
-  nM := by intro h r hk; simp [PMemo.empty] at hk
-  lM := by intro h r hk; simp [PMemo.empty] at hk
-  lsM := by intro h r hk; simp [PMemo.empty] at hk
-
-/-- con-leche: none — arena infrastructure; the memo invariant transports
-across an append: a row recorded before an `internPersistent` is still a
-promoted pair after it. -/
-theorem PMemoOK.mono {m : PMemo} {st st' : EStore} (h : PMemoOK m st)
-    (hx : Ext st st') : PMemoOK m st' where
-  eM := by
-    intro k r hk
-    obtain ⟨hp, e, h1, h2⟩ := h.eM k r hk
-    exact ⟨hp, e, hx.expr _ _ h1, hx.expr _ _ h2⟩
-  nM := by
-    intro k r hk
-    obtain ⟨hp, x, h1, h2⟩ := h.nM k r hk
-    exact ⟨hp, x, hx.lss.ls.ns _ _ h1, hx.lss.ls.ns _ _ h2⟩
-  lM := by
-    intro k r hk
-    obtain ⟨hp, u, h1, h2⟩ := h.lM k r hk
-    exact ⟨hp, u, hx.lss.ls.lvl _ _ h1, hx.lss.ls.lvl _ _ h2⟩
-  lsM := by
-    intro k r hk
-    obtain ⟨hp, us, h1, h2⟩ := h.lsM k r hk
-    exact ⟨hp, us, hx.lss.lst _ _ h1, hx.lss.lst _ _ h2⟩
-
-/-! ## The four handle kinds
-
-Each spec has the same six conjuncts: the invariant survives, the arena only
-grows, the memo stays sound, the answer is persistent, the answer denotes what
-the subject denoted, and the rest of the state (the per-call memos, the
-caches, the pin table, the scratch flag) stood still.
-
-The last conjunct is the per-call memo FRAME task #97-P3-0 §7 asks for, at the
-one place it is free: a promotion touches no memo table of `Monad.lean` at
-all. -/
-
-/-- con-leche: none — arena infrastructure; a promotion leaves everything but
-the store alone.  One predicate rather than four conjuncts, so that a caller's
-composition is one `trans` per step. -/
-structure PFrame (s s' : AState) : Prop where
-  memos : s'.memos = s.memos
-  caches : s'.caches = s.caches
-  pins : s'.pins = s.pins
-  scratchOn : s'.store.scratchOn = s.store.scratchOn
-
-theorem PFrame.refl (s : AState) : PFrame s s := ⟨rfl, rfl, rfl, rfl⟩
-
-theorem PFrame.trans {a b c : AState} (h₁ : PFrame a b) (h₂ : PFrame b c) :
-    PFrame a c :=
-  ⟨by rw [h₂.memos, h₁.memos], by rw [h₂.caches, h₁.caches],
-   by rw [h₂.pins, h₁.pins], by rw [h₂.scratchOn, h₁.scratchOn]⟩
-
 /-- con-leche: none — arena infrastructure; **`promoteN` is exact.**
 
-`sorry`: the three-arm fuel induction over `internPersistentN`.  Task
-#97-P3-Checker's sorry list, item 3. -/
+PROVED (task #97-P3-Promote): `Bridge/Promote/Walk.lean`'s `promoteN_core`, with `Ext` and the frame from `Arena/PromoteExt.lean`. -/
 theorem promoteN_spec {m m' : PMemo} {fuel : Nat} {h r : NIdx} {x : ConLeche.Name}
-    {s s' : AState} (hwf : StoreWFP s.store) (hm : PMemoOK m s.store)
+    {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
     (hd : denoteN s.store.ns h = some x)
     (hrun : promoteN m fuel h s = .ok ((m', r), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
+    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersN r ∧ denoteN s'.store.ns r = some x ∧ PFrame s s' := by
-  sorry
+  obtain ⟨a, b, c, d⟩ := promoteN_core fuel m h s m' r s' hwf hm hrun
+  have hx := promoteN_aext m fuel h s (m', r) s' hrun
+  exact ⟨a, hx.ext, b, c, d x hd, PFrame.of_aext hx⟩
 
 /-- con-leche: none — arena infrastructure; **`promoteL` is exact.**
 
-`sorry`: the five-arm fuel induction, `promoteN_spec` at the `.param` arm.
-Task #97-P3-Checker's sorry list, item 3. -/
+PROVED (task #97-P3-Promote): `promoteL_core`. -/
 theorem promoteL_spec {m m' : PMemo} {fuel : Nat} {h r : LIdx} {u : Level}
-    {s s' : AState} (hwf : StoreWFP s.store) (hm : PMemoOK m s.store)
+    {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
     (hd : denoteL s.store.ls h = some u)
     (hrun : promoteL m fuel h s = .ok ((m', r), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
+    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersL r ∧ denoteL s'.store.ls r = some u ∧ PFrame s s' := by
-  sorry
+  obtain ⟨a, b, c, d⟩ := promoteL_core fuel m h s m' r s' hwf hm hrun
+  have hx := promoteL_aext m fuel h s (m', r) s' hrun
+  exact ⟨a, hx.ext, b, c, d u hd, PFrame.of_aext hx⟩
 
 /-- con-leche: none — arena infrastructure; **`promoteLs` is exact.**
 
-`sorry`: the list recursion over `promoteL_spec`.  Task #97-P3-Checker's
-sorry list, item 3. -/
+PROVED (task #97-P3-Promote): `promoteLs_step`. -/
 theorem promoteLs_spec {m m' : PMemo} {fuel : Nat} {h r : LsIdx}
-    {us : List Level} {s s' : AState} (hwf : StoreWFP s.store)
+    {us : List Level} {s s' : AState} (hwf : StoreWF' s.store)
     (hm : PMemoOK m s.store) (hd : denoteLs s.store.lss h = some us)
     (hrun : promoteLs m fuel h s = .ok ((m', r), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
+    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersLs r ∧ denoteLs s'.store.lss r = some us ∧ PFrame s s' := by
-  sorry
+  obtain ⟨a, b, -, c, d⟩ := promoteLs_step hwf hm hrun
+  have hx := promoteLs_aext m fuel h s (m', r) s' hrun
+  exact ⟨a, hx.ext, b, c, d us hd, PFrame.of_aext hx⟩
 
 /-- con-leche: none — arena infrastructure; **`promoteE` is exact** — THE
 exactness lemma `Arena/Promote.lean` names ("`denote (promote h) = denote h`
 is the exactness lemma P3 owes").
 
-`sorry`: the ten-arm fuel induction, in `Bridge/ExprOps/Inst1.lean`'s shape
-(a `…Spec` record for one level, the per-arm step lemmas, `arm_hyp`), over
-`EStore.internPersistent_spec` and the three lemmas above.  Task
-#97-P3-Checker's sorry list, item 3, and the largest of them. -/
+PROVED (task #97-P3-Promote): `promoteE_core`, the ten-arm fuel induction. -/
 theorem promoteE_spec {m m' : PMemo} {fuel : Nat} {h r : EIdx} {e : Expr}
-    {s s' : AState} (hwf : StoreWFP s.store) (hm : PMemoOK m s.store)
+    {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
     (hd : denoteE s.store h = some e)
     (hrun : promoteE m fuel h s = .ok ((m', r), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
+    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersE r ∧ denoteE s'.store r = some e ∧ PFrame s s' := by
-  sorry
+  obtain ⟨a, b, c, d⟩ := promoteE_core fuel m h s m' r s' hwf hm hrun
+  have hx := promoteE_aext m fuel h s (m', r) s' hrun
+  exact ⟨a, hx.ext, b, c, d e hd, PFrame.of_aext hx⟩
 
 /-! ## The declaration layer
 
@@ -199,60 +114,64 @@ family. -/
 /-- con-leche: none — arena infrastructure; **promoting a constant's header
 keeps its denotation.**
 
-`sorry`: three calls of `promoteN_spec`/`promoteE_spec` and the list lift.
-Task #97-P3-Checker's sorry list, item 4. -/
+PROVED (task #97-P3-Promote): `Bridge/Promote/WalkDecl.lean`'s `promoteCV_step`. -/
 theorem promoteCV_spec {m m' : PMemo} {fuel : Nat} {cv cv' : IConstantVal}
-    {c : ConstantVal} {s s' : AState} (hwf : StoreWFP s.store)
+    {c : ConstantVal} {s s' : AState} (hwf : StoreWF' s.store)
     (hm : PMemoOK m s.store) (hd : Frontend.denoteCV s.store cv = some c)
     (hrun : promoteCV m fuel cv s = .ok ((m', cv'), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
+    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersCV cv' ∧ Frontend.denoteCV s'.store cv' = some c ∧ PFrame s s' := by
-  sorry
+  obtain ⟨a, b, -, c, -, d⟩ := promoteCV_step hwf hm hrun
+  have hx := promoteCV_aext m fuel cv s (m', cv') s' hrun
+  exact ⟨a, hx.ext, b, c, d _ hd, PFrame.of_aext hx⟩
 
 /-- con-leche: none — arena infrastructure; **promoting a stored constant
 keeps its denotation** — the seven `IConstantInfo` constructors.
 
-`sorry`: `promoteCV_spec` plus the rule / capability / projection-table
-lifts.  Task #97-P3-Checker's sorry list, item 4. -/
+PROVED (task #97-P3-Promote): `promoteCI_step`. -/
 theorem promoteCI_spec {m m' : PMemo} {fuel : Nat} {ci ci' : IConstantInfo}
-    {c : ConstantInfo} {s s' : AState} (hwf : StoreWFP s.store)
+    {c : ConstantInfo} {s s' : AState} (hwf : StoreWF' s.store)
     (hm : PMemoOK m s.store) (hd : Frontend.denoteCI s.store ci = some c)
     (hrun : promoteCI m fuel ci s = .ok ((m', ci'), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
+    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersCI ci' ∧ Frontend.denoteCI s'.store ci' = some c ∧ PFrame s s' := by
-  sorry
+  obtain ⟨a, b, -, c, -, -, d⟩ := promoteCI_step hwf hm hrun
+  have hx := promoteCI_aext m fuel ci s (m', ci') s' hrun
+  exact ⟨a, hx.ext, b, c, d _ hd, PFrame.of_aext hx⟩
 
 /-- con-leche: none — arena infrastructure; a block's constants, at ONE memo.
 
-`sorry`: the list recursion over `promoteCI_spec`.  Task #97-P3-Checker's
-sorry list, item 4. -/
+PROVED (task #97-P3-Promote): `promoteCIList_step`. -/
 theorem promoteCIList_spec {m m' : PMemo} {fuel : Nat}
     {cs cs' : List IConstantInfo} {xs : List ConstantInfo} {s s' : AState}
-    (hwf : StoreWFP s.store) (hm : PMemoOK m s.store)
+    (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
     (hd : Frontend.denoteCIList s.store cs = some xs)
     (hrun : promoteCIList m fuel cs s = .ok ((m', cs'), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
+    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersCIList cs' ∧ Frontend.denoteCIList s'.store cs' = some xs ∧
       PFrame s s' := by
-  sorry
+  obtain ⟨a, b, -, c, -, -, d⟩ := promoteCIList_step cs hwf hm hrun
+  have hx := promoteCIList_aext m fuel cs s (m', cs') s' hrun
+  exact ⟨a, hx.ext, b, c, d _ hd, PFrame.of_aext hx⟩
 
 /-- con-leche: none — arena infrastructure; **the install/check seam is
 promoted exactly**: an `opaque`'s value is not in the environment, so the
 `ValueGroup` is promoted beside it and at the SAME memo, and phase B therefore
 checks the same term phase A installed.
 
-`sorry`: `promoteCV_spec` and `promoteE_spec`.  Task #97-P3-Checker's sorry
-list, item 4. -/
+PROVED (task #97-P3-Promote): `promoteVG_step`. -/
 theorem promoteVG_spec {m m' : PMemo} {fuel : Nat} {g g' : Arena.ValueGroup}
-    {c : ConstantVal} {e : Expr} {s s' : AState} (hwf : StoreWFP s.store)
+    {c : ConstantVal} {e : Expr} {s s' : AState} (hwf : StoreWF' s.store)
     (hm : PMemoOK m s.store) (hcv : Frontend.denoteCV s.store g.cvA = some c)
     (hjv : denoteE s.store g.jv = some e)
     (hrun : promoteVG m fuel g s = .ok ((m', g'), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
+    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersVG g' ∧ g'.kind = g.kind ∧
       Frontend.denoteCV s'.store g'.cvA = some c ∧
       denoteE s'.store g'.jv = some e ∧ PFrame s s' := by
-  sorry
+  obtain ⟨a, b, -, c, d, e1, e2⟩ := promoteVG_step hwf hm hrun
+  have hx := promoteVG_aext m fuel g s (m', g') s' hrun
+  exact ⟨a, hx.ext, b, c, d, e1 _ hcv, e2 _ hjv, PFrame.of_aext hx⟩
 
 /-! ## The fold's entry
 
@@ -278,12 +197,37 @@ environment is the denotation of its list (the index is a cache of the list,
 DESIGN §8.3 lesson 13). -/
 def denoteFEnv (st : EStore) (fe : IFEnv) : Option Env := denoteIEnv st fe.env
 
+/-- con-leche: ConLeche/Kernel/FEnv.lean:62-66 mkFEnv — the counter the index
+build ends at is the list's length. -/
+theorem mkIFEnvGo_fst' : ∀ (cs : List IConstantInfo), (mkIFEnvGo cs).1 = cs.length := by
+  intro cs
+  induction cs with
+  | nil => rfl
+  | cons a as ih => simp only [mkIFEnvGo, List.length_cons, ih]
+
 /-- con-leche: ConLeche/Kernel/FEnv.lean:62-66 mkFEnv — **the index is its
 list's index**, which is con-leche's own join-point clause
-(`Verify/Cached/BridgeC.lean:609`'s `fe' = mkFEnv fe'.env`).  `IFEnv.push`
-preserves it; `IFEnv.restrictTo` does not, which is why phase B's prefix view
-is handled by a congruence (`mkFEnv_find?_visibleBelow`) and not by this. -/
-def IFEnvCoh (fe : IFEnv) : Prop := fe = mkIFEnv fe.env
+(`Verify/Cached/BridgeC.lean:609`'s `fe' = mkFEnv fe'.env`), stated
+EXTENSIONALLY: the same counter, and the same answer at every key.
+`IFEnv.push` preserves it; `IFEnv.restrictTo` does not, which is why phase
+B's prefix view is handled by a congruence (`mkFEnv_find?_visibleBelow`) and
+not by this.
+
+**Redefined** (task #97-P3-Checker round 9, the coordinator's ruling on task
+#97-P3-Promote's finding).  It was `fe = mkIFEnv fe.env`, an equation between
+two `Std.HashMap` VALUES, which includes their bucket layout: `promoteNew`
+inserts newest-first where `mkIFEnv` inserts oldest-first, so the two differ
+under a bucket collision and the promotion could not meet it.  Every consumer
+reads only the counter and the lookups, which is what this says (it was
+`Bridge/Promote/Coh.lean`'s `IFEnvCohX`). -/
+def IFEnvCoh (fe : IFEnv) : Prop :=
+  fe.visibleBelow = fe.env.consts.length ∧
+    ∀ n : NIdx, fe.idx[n]? = (mkIFEnvGo fe.env.consts).2[n]?
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:62-66 mkFEnv — an index built by
+`mkIFEnv` is coherent. -/
+theorem IFEnvCoh.mk (e : IEnv) : IFEnvCoh (mkIFEnv e) :=
+  ⟨mkIFEnvGo_fst' e.consts, fun _ => rfl⟩
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **what a push does
 to the denotation**: one more constant at the front, which is exactly what
@@ -312,11 +256,9 @@ One of the two `IFEnv.push` lemmas task #97-P3-Ind §8 asks for (the other is
 `Bridge/Inductives/**` want the pair. -/
 theorem IFEnvCoh.push {fe : IFEnv} (h : IFEnvCoh fe) (ci : IConstantInfo) :
     IFEnvCoh (fe.push ci) := by
-  have hidx : fe.idx = (mkIFEnvGo fe.env.consts).2 := congrArg IFEnv.idx h
-  have hvb : fe.visibleBelow = (mkIFEnvGo fe.env.consts).1 :=
-    congrArg IFEnv.visibleBelow h
-  show fe.push ci = mkIFEnv (fe.push ci).env
-  simp only [IFEnv.push, mkIFEnv, mkIFEnvGo, hidx, hvb]
+  refine ⟨by simp [IFEnv.push, h.1], fun n => ?_⟩
+  simp only [IFEnv.push, mkIFEnvGo, mkIFEnvGo_fst', Std.HashMap.getElem?_insert, h.2 n,
+    h.1]
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:51-60 mkFEnvGo — **every counter the
 index build hands out is BELOW the counter it stops at**, which is what makes
@@ -361,29 +303,273 @@ theorem Pushed.trans {a b c : IFEnv} (h₁ : Pushed a b) (h₂ : Pushed b c) :
 theorem Pushed.push (fe : IFEnv) (ci : IConstantInfo) : Pushed fe (fe.push ci) :=
   ⟨[ci], rfl⟩
 
-/-- con-leche: none — arena infrastructure; **the fold's promotion is
-exact**: the `k` constants the step installed are copied into the persistent
-tier and re-indexed, and the environment denotes what it denoted.
+/-! ### The fold's entry, run
 
-`fe0` is the PRE-step environment and `k` the counter difference, which is
-what `Arena/Checker.lean`'s `checkDeclStep` and `annotStep` compute; the
-hypotheses say the step only pushed and that everything below it was already
-persistent, which is the fold's own invariant one step earlier.
+`promoteNew` is `promoteCIList` on the step's `k` newest constants plus two
+index passes.  The lemmas below read the run (`promoteNew_run_zero`,
+`promoteNew_run_pos`), locate the step's constants in the list
+(`Pushed.split`), and say what the two index passes can answer
+(`eraseInstalled_getElem?`, `indexPromoted_getElem?`). -/
 
-`sorry`: `promoteCIList_spec` on the `take k`, plus the index bookkeeping
-(`eraseInstalled` / `indexPromoted` rebuild exactly the rows `mkIFEnv` would
-give, which is what `IFEnvCoh` on both sides reduces the index clause to).
-Task #97-P3-Checker's sorry list, item 5. -/
-theorem promoteNew_spec {m m' : PMemo} {fuel k : Nat} {fe0 fe fe' : IFEnv}
-    {env : Env} {s s' : AState} (hwf : StoreWFP s.store)
-    (hm : PMemoOK m s.store) (hcoh0 : IFEnvCoh fe0) (hp0 : PersIFEnv fe0)
+/-- con-leche: ConLeche/Kernel/FEnv.lean:51-60 mkFEnvGo — a row of the index
+build is an entry of its list, filed under that entry's own name. -/
+theorem mkIFEnvGo_key : ∀ (cs : List IConstantInfo) (n : NIdx) (p : Nat × IConstantInfo),
+    (mkIFEnvGo cs).2[n]? = some p → p.2 ∈ cs ∧ p.2.name = n := by
+  intro cs
+  induction cs with
+  | nil => intro n p h; simp [mkIFEnvGo] at h
+  | cons a as ih =>
+    intro n p h
+    simp only [mkIFEnvGo] at h
+    rw [Std.HashMap.getElem?_insert] at h
+    split at h
+    · rename_i hEq
+      obtain rfl := Option.some.inj h
+      exact ⟨by simp, eq_of_beq hEq⟩
+    · obtain ⟨h1, h2⟩ := ih n p h
+      exact ⟨List.mem_cons_of_mem _ h1, h2⟩
+
+theorem IFEnvCoh.vb_eq {fe : IFEnv} (h : IFEnvCoh fe) :
+    fe.visibleBelow = fe.env.consts.length := h.1
+
+/-- con-leche: none — arena infrastructure; **the step's constants are the
+`k` newest**: with both ends coherent and the step only pushing, `k` is the
+number of entries it pushed. -/
+theorem Pushed.split {fe0 fe : IFEnv} {k : Nat} (hcoh0 : IFEnvCoh fe0)
     (hcoh : IFEnvCoh fe) (hpush : Pushed fe0 fe)
-    (hk : k = fe.visibleBelow - fe0.visibleBelow)
-    (hd : denoteFEnv s.store fe = some env)
+    (hk : k = fe.visibleBelow - fe0.visibleBelow) :
+    fe.env.consts.take k ++ fe0.env.consts = fe.env.consts ∧
+      fe.env.consts.drop k = fe0.env.consts ∧ (fe.env.consts.take k).length = k := by
+  obtain ⟨new, hnew⟩ := hpush
+  have hl : k = new.length := by
+    rw [hk, hcoh.vb_eq, hcoh0.vb_eq, hnew, List.length_append]; omega
+  subst hl
+  rw [hnew]
+  simp
+
+theorem persCI_name {ci : IConstantInfo} (h : PersCI ci) : PersN ci.name := by
+  cases ci with
+  | axiomInfo v => exact (show PersCV v from h).name
+  | defnInfo v e hint => exact h.1.name
+  | thmInfo v e => exact h.1.name
+  | indInfo v c => exact h.1.name
+  | ctorInfo v nP nF => exact (show PersCV v from h).name
+  | recInfo v mI rP rs => exact h.1.name
+  | projInfo t => exact (show PersProjTable t from h).tableName
+
+theorem eraseInstalled_getElem? : ∀ (cs : List IConstantInfo)
+    (idx : Std.HashMap NIdx (Nat × IConstantInfo)) (n : NIdx) (p : Nat × IConstantInfo),
+    (eraseInstalled idx cs)[n]? = some p → idx[n]? = some p ∧ ∀ ci ∈ cs, ci.name ≠ n := by
+  intro cs
+  induction cs with
+  | nil => intro idx n p h; exact ⟨h, fun _ h => absurd h (by simp)⟩
+  | cons c cs ih =>
+    intro idx n p h
+    simp only [eraseInstalled] at h
+    obtain ⟨h1, h2⟩ := ih _ n p h
+    rw [Std.HashMap.getElem?_erase] at h1
+    split at h1
+    · exact absurd h1 (by simp)
+    · rename_i hne
+      refine ⟨h1, ?_⟩
+      intro ci hci
+      simp only [List.mem_cons] at hci
+      rcases hci with rfl | hci
+      · intro heq; exact hne (by rw [heq]; exact BEq.rfl)
+      · exact h2 ci hci
+
+theorem indexPromoted_getElem? : ∀ (cs : List IConstantInfo)
+    (idx : Std.HashMap NIdx (Nat × IConstantInfo)) (c : Nat) (n : NIdx)
+    (p : Nat × IConstantInfo),
+    (indexPromoted idx c cs)[n]? = some p → (p.2 ∈ cs ∧ p.2.name = n) ∨ idx[n]? = some p := by
+  intro cs
+  induction cs with
+  | nil => intro idx c n p h; exact Or.inr h
+  | cons a as ih =>
+    intro idx c n p h
+    simp only [indexPromoted] at h
+    rcases ih _ _ n p h with ⟨h1, h2⟩ | h1
+    · exact Or.inl ⟨List.mem_cons_of_mem _ h1, h2⟩
+    · rw [Std.HashMap.getElem?_insert] at h1
+      split at h1
+      · rename_i hEq
+        obtain rfl := Option.some.inj h1
+        exact Or.inl ⟨by simp, eq_of_beq hEq⟩
+      · exact Or.inr h1
+
+theorem denoteCIList_append {st : EStore} : ∀ (a b : List IConstantInfo)
+    (zs : List ConstantInfo), Frontend.denoteCIList st (a ++ b) = some zs →
+    ∃ za zb, Frontend.denoteCIList st a = some za ∧ Frontend.denoteCIList st b = some zb ∧
+      zs = za ++ zb := by
+  intro a
+  induction a with
+  | nil => intro b zs h; exact ⟨[], zs, rfl, h, rfl⟩
+  | cons c cs ih =>
+    intro b zs h
+    simp only [List.cons_append, Frontend.denoteCIList] at h ⊢
+    cases hc : Frontend.denoteCI st c with
+    | none => rw [hc] at h; simp at h
+    | some x =>
+      cases hcs : Frontend.denoteCIList st (cs ++ b) with
+      | none => rw [hc, hcs] at h; simp at h
+      | some xs =>
+        rw [hc, hcs] at h
+        simp only [Option.some.injEq] at h
+        subst h
+        obtain ⟨za, zb, h1, h2, rfl⟩ := ih b xs hcs
+        exact ⟨x :: za, zb, by rw [h1], h2, rfl⟩
+
+theorem denoteCIList_append_of {st : EStore} : ∀ (a b : List IConstantInfo)
+    (za zb : List ConstantInfo), Frontend.denoteCIList st a = some za →
+    Frontend.denoteCIList st b = some zb →
+    Frontend.denoteCIList st (a ++ b) = some (za ++ zb) := by
+  intro a
+  induction a with
+  | nil =>
+    intro b za zb ha hb
+    simp only [Frontend.denoteCIList, Option.some.injEq] at ha
+    subst ha; exact hb
+  | cons c cs ih =>
+    intro b za zb ha hb
+    simp only [Frontend.denoteCIList] at ha
+    cases hc : Frontend.denoteCI st c with
+    | none => rw [hc] at ha; simp at ha
+    | some x =>
+      cases hcs : Frontend.denoteCIList st cs with
+      | none => rw [hc, hcs] at ha; simp at ha
+      | some xs =>
+        rw [hc, hcs] at ha
+        simp only [Option.some.injEq] at ha
+        subst ha
+        simp only [List.cons_append, Frontend.denoteCIList, hc, ih b xs zb hcs hb,
+          List.cons_append]
+
+/-- con-leche: none — arena infrastructure; `promoteNew` at `k = 0` does
+nothing. -/
+theorem promoteNew_run_zero {m m' : PMemo} {fuel : Nat} {fe fe' : IFEnv}
+    {s s' : AState} (hrun : promoteNew m fuel 0 fe s = .ok ((m', fe'), s')) :
+    m' = m ∧ fe' = fe ∧ s' = s := by
+  simp only [promoteNew] at hrun
+  obtain ⟨hr, rfl⟩ := AM.pure_ok hrun
+  simp only [Prod.mk.injEq] at hr
+  exact ⟨hr.1, hr.2, rfl⟩
+
+/-- con-leche: none — arena infrastructure; `promoteNew` at `k ≠ 0` is the
+block promotion and the two index passes. -/
+theorem promoteNew_run_pos {m m' : PMemo} {fuel k : Nat} {fe fe' : IFEnv}
+    {s s' : AState} (hk : k ≠ 0)
     (hrun : promoteNew m fuel k fe s = .ok ((m', fe'), s')) :
-    StoreWFP s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
-      PersIFEnv fe' ∧ IFEnvCoh fe' ∧ denoteFEnv s'.store fe' = some env ∧
-      fe'.visibleBelow = fe.visibleBelow ∧ PFrame s s' := by
-  sorry
+    ∃ cs', promoteCIList m fuel (fe.env.consts.take k) s = .ok ((m', cs'), s') ∧
+      fe' = ⟨⟨cs' ++ fe.env.consts.drop k⟩,
+        indexPromoted (eraseInstalled fe.idx (fe.env.consts.take k)) fe.visibleBelow cs',
+        fe.visibleBelow⟩ := by
+  obtain ⟨⟨consts⟩, idx, vb⟩ := fe
+  unfold promoteNew at hrun
+  rcases AM.ite_ok hrun with ⟨hk0, _⟩ | ⟨_, hrun⟩
+  · exact absurd (by simpa using hk0) hk
+  obtain ⟨⟨m1, cs1⟩, s1, h1, h2⟩ := AM.bind_ok hrun
+  obtain ⟨hr, rfl⟩ := AM.pure_ok h2
+  simp only [Prod.mk.injEq] at hr
+  obtain ⟨rfl, rfl⟩ := hr
+  exact ⟨cs1, h1, rfl⟩
+
+/-! ## What the fold's step needs beside the spec
+
+Three facts about the same run, stated separately so that
+`promoteNew_spec`'s statement stays the one its consumers were written
+against: the environment after the promotion still only PUSHED onto the one
+before the step (`Arena.annotStep_split`'s `Pushed fe fe'`), `IFEnvOK`'s
+`proj` clause survives it (the other half of "`IFEnvOK` at the pushed index"),
+and the bracket's closing `dropScratch` turns the promote window's invariant
+back into the strong one with every persistent denotation kept. -/
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **the promotion
+keeps the step's environment a push onto the one before it**: the step's
+constants are replaced by their promoted copies, the tail is untouched. -/
+theorem promoteNew_pushed {m m' : PMemo} {fuel k : Nat} {fe0 fe fe' : IFEnv}
+    {s s' : AState} (hcoh0 : IFEnvCoh fe0) (hcoh : IFEnvCoh fe)
+    (hpush : Pushed fe0 fe) (hk : k = fe.visibleBelow - fe0.visibleBelow)
+    (hrun : promoteNew m fuel k fe s = .ok ((m', fe'), s')) : Pushed fe0 fe' := by
+  obtain ⟨-, hdrop, -⟩ := Pushed.split hcoh0 hcoh hpush hk
+  by_cases hk0 : k = 0
+  · subst hk0
+    obtain ⟨-, h2, -⟩ := promoteNew_run_zero hrun
+    subst fe'; exact hpush
+  · obtain ⟨cs', -, rfl⟩ := promoteNew_run_pos hk0 hrun
+    exact ⟨cs', by simp only [hdrop]⟩
+
+/-- con-leche: none — arena infrastructure; **the projection tables survive
+the promotion**: every table of the promoted environment is well shaped and
+rightly named in the promoted store, given that every table of the
+environment was before it.  (`IFEnvOK_of_denote`'s `hproj`, carried.) -/
+theorem promoteNew_projOK {m m' : PMemo} {fuel k : Nat} {fe fe' : IFEnv}
+    {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
+    (hproj : ∀ t, IConstantInfo.projInfo t ∈ fe.env.consts → IProjTableOK s.store t)
+    (hrun : promoteNew m fuel k fe s = .ok ((m', fe'), s')) :
+    ∀ t, IConstantInfo.projInfo t ∈ fe'.env.consts → IProjTableOK s'.store t := by
+  by_cases hk0 : k = 0
+  · subst hk0
+    obtain ⟨-, h2, h3⟩ := promoteNew_run_zero hrun
+    subst fe'; subst s'; exact hproj
+  · obtain ⟨cs', h1, rfl⟩ := promoteNew_run_pos hk0 hrun
+    obtain ⟨-, -, hx1, -, -, ht1, -⟩ := promoteCIList_step _ hwf hm h1
+    intro t' ht'
+    rcases List.mem_append.mp ht' with h | h
+    · obtain ⟨t, hmem, hpt⟩ := ht1 t' h
+      exact (hproj t (List.mem_of_mem_take hmem)).promoted hpt
+    · exact (hproj t' (List.mem_of_mem_drop h)).mono hx1
+
+/-- con-leche: none — arena infrastructure; **the promotion bracket closes**
+— Theorem 1's `bracket_close_w` (`Refine2/Checker/Shape.lean`, the Theorem 2
+side's bridge between its weak and strong relations), in the same shape: the
+bracket was OPENED at a well-formed boundary `s0`, everything between the
+opening `enterScratch` and the closing `dropScratch` only appended (`hext`),
+and the promotions left the promote window's invariant; the drop then gives
+the strong invariant back and every persistent denotation of the boundary. -/
+theorem promoteBracket_close {s0 s : AState} (hwf0 : StoreWF s0.store)
+    (hwf : StoreWF' s.store) (hext : Ext s0.store.enableScratch s.store) :
+    (dropScratch : AM Unit) s = .ok ((),
+      { store := s.store.dropScratch, memos := s.memos, caches := Caches.empty,
+        pins := s.pins }) ∧
+      StoreWF s.store.dropScratch ∧ PExt s0.store s.store.dropScratch ∧
+      PExt s.store s.store.dropScratch :=
+  ⟨rfl, StoreWF'.dropScratch_wf hwf,
+    ((PExt.enterScratch hwf0).trans (PExt.of_ext hext)).trans (PExt.dropScratch' hwf),
+    PExt.dropScratch' hwf⟩
+
+/-! ## Census -/
+
+/-- info: 'ConRon.Bridge.promoteN_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteN_spec
+
+/-- info: 'ConRon.Bridge.promoteL_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteL_spec
+
+/-- info: 'ConRon.Bridge.promoteLs_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteLs_spec
+
+/-- info: 'ConRon.Bridge.promoteE_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteE_spec
+
+/-- info: 'ConRon.Bridge.promoteCV_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteCV_spec
+
+/-- info: 'ConRon.Bridge.promoteCI_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteCI_spec
+
+/-- info: 'ConRon.Bridge.promoteCIList_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteCIList_spec
+
+/-- info: 'ConRon.Bridge.promoteVG_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteVG_spec
+
+/-- info: 'ConRon.Bridge.promoteNew_pushed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteNew_pushed
+
+/-- info: 'ConRon.Bridge.promoteNew_projOK' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteNew_projOK
+
+/-- info: 'ConRon.Bridge.promoteBracket_close' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteBracket_close
 
 end ConRon.Bridge

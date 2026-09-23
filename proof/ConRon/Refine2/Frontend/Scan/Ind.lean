@@ -54,13 +54,17 @@ come from `ScanObj.kitFacts`, and the two value scanners a slot reads
   `rfl` fails (measured: agent E lost twenty minutes to the same trap).
 
 ## `sorry` count in this file: 0
+
+**Moved back from `RefineOld/Frontend/ScanInd.lean` by task #97-P5-Front** (namespace
+`ConRon.Refine2.Frontend`, the `#guard_msgs` strings re-spelled, nothing else).
 -/
-import ConRon.RefineOld.Frontend.ScanObj
+import ConRon.Refine2.Frontend.Scan.Obj
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
 
-namespace ConRon.Refine.Frontend
+namespace ConRon.Refine2.Frontend
+open ConRon.Refine (bind_eq_ok_iff)
 
 open ConLeche.Frontend
 
@@ -2144,13 +2148,13 @@ theorem scan_ind_ctors_refines {b : Slice Std.U8} {i : Std.Usize}
 Nothing here evaluates a key table or a byte literal, so the three products
 carry only Lean's own axioms. -/
 
-/-- info: 'ConRon.Refine.Frontend.scan_ind_types_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.Frontend.scan_ind_types_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms scan_ind_types_refines
 
-/-- info: 'ConRon.Refine.Frontend.scan_ind_ctors_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.Frontend.scan_ind_ctors_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms scan_ind_ctors_refines
 
-/-- info: 'ConRon.Refine.Frontend.scan_ind_recs_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.Frontend.scan_ind_recs_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms scan_ind_recs_refines
 
-end ConRon.Refine.Frontend
+end ConRon.Refine2.Frontend

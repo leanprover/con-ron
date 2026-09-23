@@ -77,8 +77,8 @@ task #97-COMPOSE section tags each with its owning lane):
 * `hk : CoreSpec .verified Arena.checkFuel`, `hind : IndSpec .verified` —
   Theorem 1's two tier specs (as on `Arena.no_False_declaration_pipeline`);
 * `hbytes` — the prelude gate (`scripts/gen-prelude-lean.sh --check`);
-* `hsc : ScanSpec` — Theorem 2's scanner seam, discharged only in the
-  out-of-build `RefineOld/Frontend/`;
+* ~~`hsc : ScanSpec`~~ — Theorem 2's scanner seam: a theorem since task
+  #97-P5-Front (`Refine2/Frontend/Scan/Spec.lean`'s `scanSpec`);
 * `hmr : Refine2.Frontend.ModellerRefines inst m inProcessModeller` — the
   Rust modeller against the twin's (the modeller seam, by design);
 * `hreads : ReadsAs sinst src chunks.val` — the reads are the chunks
@@ -189,12 +189,14 @@ theorem stages_frame {chunks : List ByteArray} {pins : List NatOpPinSet}
   have hc0 : (AState.init EStore.empty).caches = Caches.empty := rfl
   obtain ⟨hokA, -, hpinsA, hppA, hoffA, -, hcachesA⟩ :=
     internReservedPins_run hok0 hoff0 hA
+  have hrbA : ReadCachesOK sA := ReadCachesOK.ofEmpty (by rw [hcachesA]; exact hc0)
   obtain ⟨hstep1, hpersPre, hnPre, preC, -, hrelPre⟩ :=
     builtinPreludeE_run inProcessModeller_wf inProcessModeller_refines hbytes
-      hokA hoffA hpinsA hB
+      hokA hoffA hpinsA hrbA hB
   obtain ⟨hstep2, hpersR, rc, -, hrelR⟩ :=
     parseChunks_run inProcessModeller_wf inProcessModeller_refines hstep1.ok
-      (by rw [hstep1.scratch, hoffA]) (hpinsA.mono hstep1.ext hstep1.pins) hC
+      (by rw [hstep1.scratch, hoffA]) (hpinsA.mono hstep1.ext hstep1.pins)
+      (hrbA.step hstep1) hC
   obtain ⟨hstep3, hpersDs, -, hclPrep⟩ :=
     preparePrelude_run (preC := preC) hstep2.ok
       (by rw [hstep2.scratch, hstep1.scratch, hoffA])
@@ -302,7 +304,6 @@ startup walk) and `AStateRel.storeWF`. -/
 theorem rust_stages
     (hbytes : ConRon.Arena.Frontend.preludeText =
       ConLeche.Frontend.builtinPreludeText.toUTF8)
-    (hsc : ScanSpec)
     {G : Type} {inst : frontend.types.Modeller G} {m : G}
     (hmr : ConRon.Refine2.Frontend.ModellerRefines inst m
       ConRon.Arena.Frontend.inProcessModeller)
@@ -351,12 +352,12 @@ theorem rust_stages
     (intern_reserved_pins_refines hrel0 hinv0 h1).dest
   -- 2. the prelude
   obtain ⟨preL, sB, hB, hpreL, hrelB, hinvB, -⟩ :=
-    builtin_prelude_e_refines hsc hmr hrelA hinvA h2
+    builtin_prelude_e_refines scanSpec hmr hrelA hinvA h2
   subst hpreL
   -- 3. the stream: the reader loop IS `parse_chunks` over the chunks read
   have h3' := parse_source_eq hreads h3
   obtain ⟨rv, sC, hC, hrv, hrelC, hinvC, -⟩ :=
-    parse_chunks_refines hsc hmr hrelB hinvB h3'
+    parse_chunks_refines scanSpec hmr hrelB hinvB h3'
   -- 4. the preparation
   obtain ⟨sD, hD, hrelD, hinvD, -, -⟩ :=
     (prepare_prelude_refines hrelC hinvC h4).dest
@@ -405,7 +406,6 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
     (hind : ConRon.Bridge.IndSpec .verified)
     (hbytes : ConRon.Arena.Frontend.preludeText =
       ConLeche.Frontend.builtinPreludeText.toUTF8)
-    (hsc : ScanSpec)
     {G : Type} {inst : frontend.types.Modeller G} {m : G}
     (hmr : ConRon.Refine2.Frontend.ModellerRefines inst m
       ConRon.Arena.Frontend.inProcessModeller)
@@ -438,7 +438,7 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
       ConRon.Bridge.denoteFEnv lst.store lfe = some env ∧
       Nonempty (ConLeche.Model.EnvModelM V .verified env) := by
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, hrelF, hfe⟩ :=
-    rust_stages hbytes hsc hmr hdec hpers hest hst0 h1 h2 hreads h3 h4 h5 h6
+    rust_stages hbytes hmr hdec hpers hest hst0 h1 h2 hreads h3 h4 h5 h6
   obtain ⟨env, hden, hmod⟩ := stages_model V hk hind hbytes hA hB hC hD hE hF
   exact ⟨sF, lfe, env, hrelF, hfe, hden, hmod⟩
 
@@ -459,7 +459,6 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     (hind : ConRon.Bridge.IndSpec .verified)
     (hbytes : ConRon.Arena.Frontend.preludeText =
       ConLeche.Frontend.builtinPreludeText.toUTF8)
-    (hsc : ScanSpec)
     {G : Type} {inst : frontend.types.Modeller G} {m : G}
     (hmr : ConRon.Refine2.Frontend.ModellerRefines inst m
       ConRon.Arena.Frontend.inProcessModeller)
@@ -490,7 +489,7 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
       = ok (.Ok fe, st6)) :
     False := by
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, -, -⟩ :=
-    rust_stages hbytes hsc hmr hdec hpers hest hst0 h1 h2 hreads h3 h4 h5 h6
+    rust_stages hbytes hmr hdec hpers hest hst0 h1 h2 hreads h3 h4 h5 h6
   obtain ⟨sF', hF'⟩ := stages_installThenCheck hk hind hbytes hA hB hC hD hE hF
   obtain ⟨n, hn⟩ := runPipeline_ok_of_stages hA hB hC hD hE hF'
   obtain ⟨e, he⟩ := ConRon.Bridge.Frontend.Arena.no_False_declaration_pipeline V

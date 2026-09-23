@@ -43,7 +43,8 @@ git worktree unlock "$path" 2>/dev/null || true
 git worktree remove --force "$path"
 git branch -d "$branch" >/dev/null
 key=$(printf '%s' "$path" | sha256sum | cut -c1-12)
-rm -rf "_tmp/gates-$key" "_tmp/extract-$key" "_tmp/extract-check-$key"
+rm -rf "_tmp/gates-$key" "_tmp/extract-$key" "_tmp/extract-check-$key" \
+       "_tmp/frontier-$key" "_tmp/gen-prelude-lean-$key"
 echo "dropped $path ($branch, merged into $into), $(git worktree list | wc -l) worktree(s) remain"
 # The worktree is only half of a landing.  An agent that has reported is still
 # a live subagent holding its context until it is stopped explicitly, and
