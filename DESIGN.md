@@ -60388,3 +60388,38 @@ Gates: `scripts/gates.sh` on the branch after merging `arena` (`5901271c`):
 ConRonRefine2 ConRonCapstone` green (2 825 jobs) before the merge.  The
 shared Lake cache was seeded from this state (`ConRonCapstone ConRonRefine2
 ConRonBridge` + default targets).
+
+### Task #97-T2-LOCKSTEP lane Inductives round 4 — the rulings on round 3's divergences, then the hand recipes (2026-09-23, Opus under Fable)
+
+Worktree `_tmp/wt-t2-ind4`, branch `t2-ind-4` off `arena` `924e25b4`.
+
+#### Ruling 1 — the cached level readback (slice 1)
+
+**Twin.**  The six sites read a level back through `readLevelM` (the cached
+readback, writing `caches.readLC`), as the port's `read_level_m` does:
+`checkNativeTail`, `structRecTyR`, `structRecRhsR`, `nativeCapsAt`,
+`checkStructFieldSortsI`'s two (`Arena/Inductives/{NativeInstall,NativeParts,
+SumInstall}.lean`); `Refine2/Inductives/Spec.lean`'s transcriptions follow.
+No Rust change.
+
+**Theorem 1 — the cascade, measured: smaller than `lvlEq?`'s.**  Two helpers
+(`Bridge/Inductives/Rel.lean`): `readLevelM_pstep` (the frame, from
+`Core.readLevelM_frame`, needs nothing) and `readLevelM_denote_L`/`_core`
+(the answer, under `ReadLCacheOK`).  Then:
+* `nativeCapsAt_spec`, `nativeCaps_spec`: `PSpecP` → `CSpec`, as ruled;
+  their two callers (`checkSumInd_spec`, `checkNativePass_spec`) already
+  core grade, one line each.
+* `structRecTyR_spec`, `structRecRhsR_spec`: **NOT `CSpec`, a new grade
+  `PSpecL`** (`PSpec` plus `ReadLCacheOK` of the start state; `PSpecL.toCSpec`
+  gives the core grade).  `CSpec` was unsatisfiable at their call sites:
+  `checkNativeRec` runs the generators at the environment with the rule-less
+  recursor PUSHED, and `CheckOK`'s `CacheOK` pins the knot caches to one
+  environment, so no `CheckOK` is available there — which is why
+  `checkNativeRules_run` was at `ReadOK`/`PStep` to begin with.  The readback
+  needs only its own table, and `PStep`'s `CacheFrame.readL` carries it.
+  `checkNativeRules_run` gained that one hypothesis; `checkNativeRec_spec`
+  supplies it from its `CheckOK`.
+* `checkStructFieldSortsI_spec` and `checkNativeTail_spec` were already at the
+  core/install grade: the reads take `CacheOK.readL` and give a `CoreStep`.
+Six theorems touched in `Bridge/Inductives/{Rel,NativeParts,SumInstall,
+NativeInstall}.lean`; no `sorry` added.
