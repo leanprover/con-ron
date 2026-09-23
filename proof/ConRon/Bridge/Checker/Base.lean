@@ -864,7 +864,7 @@ unmemoised leaves.  `IFEnvOK.find_isSome` is the whole `.const`/`.proj`
 content, and its MISS half is `denoteN_inj`. -/
 theorem constsResolveFFast_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     {e : EIdx} {x : Expr} {r : Bool} {s s' : AState}
-    (hok : FoldOK μ env fe s) (hd : denoteE s.store e = some x)
+    (hck : CheckOK μ env fe s) (hd : denoteE s.store e = some x)
     (hrun : constsResolveFFast fe e s = .ok (r, s')) :
     s'.store = s.store ∧ s'.caches = s.caches ∧ s'.pins = s.pins ∧
       r = Expr.constsResolve env x := by
@@ -872,8 +872,8 @@ theorem constsResolveFFast_run {μ : CheckMode} {env : Env} {fe : IFEnv}
   obtain ⟨p, s1, g1, k1⟩ :=
     AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) hrun
   obtain ⟨b, tb⟩ := p
-  obtain ⟨rfl, hb, -⟩ := constsResolveFGo_run coreWalkFuel hok.check.state
-    hok.check.pins hok.check.ienv CRMemoOK.empty hd g1
+  obtain ⟨rfl, hb, -⟩ := constsResolveFGo_run coreWalkFuel hck.state
+    hck.pins hck.ienv CRMemoOK.empty hd g1
   obtain ⟨rfl, rfl⟩ := AM.pure_ok k1
   exact ⟨rfl, rfl, rfl, hb⟩
 
@@ -1452,8 +1452,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
   obtain ⟨b9, s9, g9r, r14⟩ := AM.bind_ok r13
   have hpins8 : s8.pins = s.pins := by rw [h8p, hp7, h6p, h5p, hp2.pins]
   obtain ⟨h9st, h9c, h9p, h9r⟩ :=
-    constsResolveFFast_run ⟨hck8, hok.envWF, hok.persPins.mono hpins8,
-      hok.persEnv, hok.coh, hden8⟩ hv8 g9r
+    constsResolveFFast_run hck8 hv8 g9r
   obtain ⟨hcr, r15⟩ := AM.dunless_ok
     (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail_any) r14
   replace r15 := AM.pure_bind_ok r15

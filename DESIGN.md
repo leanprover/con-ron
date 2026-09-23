@@ -40671,6 +40671,254 @@ assemble once.
 | `scripts/arena-census.py` (gates' tail) | `Arena/Checker` **T1 stated 62/242, closed 39** (round 4: 61/242 stated, 36 closed) |
 | the diff | `proof/ConRon/Bridge/Checker/**`, three prose lines of `proof/ConRon/Bridge/StateOK.lean`, three lines of `proof/ConRon/Bridge/Frontend/Capstone.lean` (§2) and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no `Promote/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
 
+#### Round 6 — `EnvWF` at a push, and the three value checks (2026-09-22, Opus under Fable)
+
+Branch `p3-checker-6` off `arena`'s `a80ea04d`, merged forward once (the
+`ExprOps` round's `4b28bf9d`).  The diff is `proof/ConRon/Bridge/Checker/**`
+and this text: no Rust file, no generated model, no `Arena/`, no `Refine/`,
+no `Refine2/`, no `Promote/`, no `Frontend/`, no `lakefile.toml`.
+
+**27 open → 23**, and `Bridge/Checker/Split.lean` joins the closers.  The
+round took round 5 §8's scheduling finding as written — *the three value
+checks are not three proofs, they are one missing theorem* — and the finding
+was right: one theorem, `StepOK.push`, and all three arms fall out of it, with
+`checkValueGroup_bridge` following on the same machinery.
+
+##### 1. The one theorem: `ConstWF` at a push
+
+`checkDefnVal_bridge` / `checkThmVal_bridge` / `checkOpaqueVal_bridge` each
+conclude `StepOK env' fe' s'` at the EXTENDED environment, and `StepOK`
+carries `EnvWF env'`.  con-leche does not prove that `checkDefnVal` preserves
+`EnvWF` — `Verify/BridgeWfImp.lean`'s `checkDefnVal_wfimp` is about the fuel
+family, and the model tier takes `EnvWF` as a hypothesis
+(`EnvModelM.toEnvFacts.wf`) rather than re-establishing it.  What it *does*
+have, in `Verify/EnvWF.lean`, is `EnvWF.cons`, so the whole debt is
+`ConstWF ⟨c :: env.consts⟩ c`.
+
+It is paid in two halves, and **which half is which is the round's finding**.
+
+| half | where it comes from |
+|---|---|
+| the four clauses about the constant's **TYPE** | *nothing in the run establishes them* — `checkDefnVal` never looks at the type, because the value checks run at an already-checked header.  So they are a HYPOTHESIS, `CVTypeWF env c`, discharged at every call site by `checkConstantVal_typeWF` off the front door's own pure run |
+| the four clauses about its **VALUE** | `installValue` checks them: two directly (`allLevelParamsDefined`, `constsResolve`) and two at the RAW value, which `annotateCore` then preserves.  That is `installValue_valueWF`, and it is con-leche's own `installValue_inv` plus `annotateCore_looseBVars` and `annotateCore_WScoped` |
+
+`.thmInfo` and `.axiomInfo` need only the type half — `ConstWF` gives a
+theorem's stored value **no clause at all** (it is opaque to reduction and
+stored by its statement) and an `axiomInfo` has no value — so the SAME
+hypothesis serves all three arms and only the `defn` arm spends the value
+half.  `CVTypeWF` is an eighth statement repair of the tier at round 4's
+`PinsOK` / round 5's `hwsty` precedent: **a missing precondition, repaired in
+place**, free at the one call site.
+
+The three `constWF_{defnInfo,thmInfo,axiomInfo}` introductions are then three
+lines each, and the whole thing assembles as
+
+```lean
+theorem StepOK.push (h : StepOK env fe s) (hst : StateOK s)
+    (hnp : ∀ t, ci ≠ .projInfo t)
+    (hci : Frontend.denoteCI s.store ci = some c)
+    (hcw : ConstWF ⟨c :: env.consts⟩ c) :
+    StepOK ⟨c :: env.consts⟩ (fe.push ci) s
+```
+
+— the third and fourth members of the `IFEnv.push` family, beside round 2's
+`Pushed.push` and `IFEnvCoh.push`.
+
+##### 1.1 `IFEnvOK.push` costs nothing extra, and `hnp` is why
+
+The index half is round 5's move again: with `IFEnvCoh` on both sides
+(`IFEnvCoh.push` gives the second), `(fe.push ci).find? n` is `List.find?` on
+a cons, con-leche's side is `Env.find?_cons`, and the two negative cases are
+`denoteN_inj` — a handle the pushed key is not cannot denote the pushed
+constant's name, because the two handles would then be equal.  Sixty-five lines,
+no induction.
+
+The `proj` clause is where `hnp` earns its place: the pushed constant is a
+VALUE kind, so the push creates no `.projInfo` row and every projection hit of
+the new index is a hit of the old one.  **That is why the three value checks
+do not have to carry the tier's standing `.projInfo` hypothesis** — the one
+`IFEnvOK_of_denote`, `IFEnvOK_restrictTo`, `installBasisDecl_bridge` and
+`IConstantInfo.canonEq_run` all take.  Going through `IFEnvOK_of_denote`
+instead would have propagated it to the capstone.
+
+##### 2. `checkDecl_bridge_thm` is the first of the seven arms to close completely
+
+With `checkThmVal_bridge` proved, `Bridge/Checker/Arms.lean`'s `.thmDecl` arm
+prints `[propext, Classical.choice, Quot.sound]` and nothing else: the
+`thmDecl` route has no pin gate behind it, so `checkConstantVal_bridge` and
+`checkThmVal_bridge` are the whole of it.  Six arms remain in group 2, and
+each of the six is waiting on a *gate*, not on a value check:
+`defn` on `natOpGuard_run`/`checkDivModPin_bridge`, `opaque` on
+`checkReducePin_bridge`, `axiom` on `stdAxiomOk_run` and its two siblings,
+`basis`/`quot` on `Basis.lean`, `ind` on `basisPinHit_run` and `IndSpec`.
+
+##### 3. `checkThmVal_bridge` is the widest of the three, and what it costs
+
+The `defn` and `opaque` arms are one proof written twice (install, infer,
+convert, push) at 60 lines.  The theorem check adds three steps neither has —
+`EnsureSortSpec`, the pinned `zeroLevel` (`pinZeroLevel_spec`) and
+`lvlEq?_spec`, whose verdict IS `Level.isEquiv` at the two handles'
+denotations — and it spends `CVTypeWF` TWICE, once for `WScoped 0 c.type` at
+the FIRST inference (which the other two do not make) and once at the
+conversion.  The `liftFueled` in front of the is-a-proposition test is
+inverted by `cases` on the `Option`, its `none` arm being `AM.Never.fail`.
+
+Two notes for whoever writes the next do-block of this shape.
+
+* **`Core.lvlEq?_spec` was not in the Checker tier's import closure**, though
+  it sits two tiers down: `Core/Walks/Cached.lean` is reached only from
+  `Core/Walks/{Spine,Proj}.lean`, which `Core/Induction.lean` does not import.
+  One line in `DeclVal.lean` fixes it and nothing else changes.
+* **Re-ascribe before you rewrite an `if` whose condition was `dsimp`ed.**
+  Adding that import broke `IFEnv.restrictTo_find?_le`, a *closed* proof three
+  hundred lines away: `dsimp only` reduces `(fe.restrictTo k).visibleBelow` to
+  `k` in the PROPOSITION but leaves the `Decidable` instance at the unreduced
+  spelling, so neither `rw [if_pos hc]` nor `simp only [if_pos hc]` matches.
+  `have hh : (if c0 < k then some ci0 else none) = some ci := h` re-elaborates
+  it at the canonical instance — the two are defeq — and everything below is
+  ordinary again.  A `dsimp only`-then-`rw [if_pos …]` pair is a latent
+  failure that a change of import closure can trigger.
+
+##### 4. Two moves inside the tier, both forced by the import DAG
+
+* **`installValue_pure` / `installValue_bridge`, `Split.lean` → `DeclVal.lean`.**
+  Round 4 stated and proved them in `Split.lean`, which is the wrong side of
+  the DAG for their first consumer: `Split → Fold → Arms → DeclVal`, and each
+  of the three value checks BEGINS with `Arena.installValue`.  They move
+  unchanged; `Split.lean` still reads them, transitively.
+* **`FoldOK.step`, `Arms.lean` → `Inv.lean`**, beside `FoldOK` itself, for the
+  same reason.
+
+##### 5. `checkValueGroup_bridge` (item 17) — PROVED, and a finding about phase B
+
+The check half of the install/check seam is §3's chain with the theorem's
+install BEHIND the kind test rather than in front of it.  One structural
+difference and it is worth recording: **the kind test copies the tail into
+both arms**, so the value's inference and the conversion are a local lemma
+(`tail`) rather than a continuation, and the two arms are joined into ONE
+postcondition — a value, a fuel, and three implications keyed on
+`gP.kind = .thm` — before that lemma runs.  Round 3's rule at a branch instead
+of at a loop.
+
+**The finding: no theorem phase B reaches may ask for `FoldOK`.**
+`Arena/Checker.lean`'s `checkPending` calls `checkValueGroup` at
+`fe.restrictTo pc.vis`, and `IFEnvCoh` is FALSE of a proper restriction —
+`mkIFEnv` sets `visibleBelow` to the list's length, and `restrictTo k` lowers
+it — so `FoldOK μ envK (fe.restrictTo pc.vis) s` is unobtainable at the call
+site.  None of the three theorems involved actually needs it:
+
+| theorem | what it used of `FoldOK` |
+|---|---|
+| `constsResolveFFast_run` | `hok.check` and nothing else |
+| `installValue_bridge` | that, plus `EnvWF env` for the knot |
+| `checkValueGroup_bridge` | the same two |
+
+All three now take `(henv : EnvWF env) (hck : CheckOK μ env fe s)`.  That is a
+weakening of a HYPOTHESIS, hence a strengthening of the theorem, and it is
+what makes `checkValueGroup_bridge` usable at all.
+
+##### 6. What `Arena.checkPending_bridge` still owes — three clauses missing from its statement
+
+Taking §5's repair as far as it goes leaves phase B's step blocked on its own
+statement rather than on machinery, and the three gaps are worth naming before
+someone rediscovers them one at a time.
+
+1. **`CacheOK` at the PREFIX environment.**  `checkPending` opens with
+   `enterScratch`, which does NOT flush the caches (only `dropScratch` does),
+   so the run enters `checkValueGroup` with `CacheOK μ env s` where the call
+   needs `CacheOK μ envK s` at `envK = env.prefixTo pc.vis` — and cache rows
+   are not monotone downward (a `whnf` that delta-unfolded a constant above
+   the bound is simply wrong at `envK`).  It is TRUE at the call site for a
+   different reason: every `checkPending` is preceded by a `dropScratch` (of
+   phase A's last step or of the previous record's), so `s.caches` is empty;
+   but the statement has to say so.
+2. **`EnvWF envK`.**  `EnvWF env` does not give it: `ConstWF` asks for
+   `constsResolve` at the environment the constant is stored in, and lowering
+   the environment can only break that clause.  It is the install fold's to
+   carry.
+3. **`Expr.WScoped 0 gP.cvA.type` and `Expr.WScoped 0 gP.jv`** — round 5 §7's
+   two clauses, which `checkValueGroup_bridge` takes and `checkPending_bridge`
+   cannot conjure: phase A's `installConstantVal`/`installValue` tested
+   exactly that guard, so they travel in the `PendingCheck`, not in the state.
+
+##### 7. Two corrections to round 4's table, checked
+
+* **`natOpGuard_run` / `natOpStoredOkAll_run` are NOT blocked by the import
+  wall**, as the coordinator's brief says: `natLitSupported`,
+  `natIndOk`/`natZeroOk`/`natSuccOk`, `natOpDepsStored`, `natOpTyPinned` and
+  `natOpCod` read pins (`pinNat`, `sortOne`, `boolName`, …), build `constE`
+  and compare HANDLES; none of them interns a whole `ConstantInfo`, so none of
+  them needs the frontend tier's intern exactness.  What they need locally is
+  four things — `constE_run` (off `Bridge/Specs.lean`'s `internConstE_spec`,
+  in `Canon.lean`'s `internNNode_run` shape), `beq_handle_iff`'s twin at
+  EXPRESSIONS (off `denoteE_inj`), `denoteNList`'s emptiness transfer, and a
+  run form of `IConstantInfo.toConstantVal`.  **The fourth is the only one
+  with content**: `toConstantVal`'s `.projInfo` arm interns a `Sort 1`, so its
+  bridge is the tier's FIFTH `.projInfo` site and takes the same standing
+  hypothesis.  The round did not take them.
+* **`Basis.lean`'s eight are the wall, and the wall is a cycle, not a
+  distance.**  `Bridge/Frontend/Rel.lean` imports `ConRon.Bridge.Checker` —
+  the whole index — so `Frontend/Shared.lean`, which is where
+  `internCI_istep` / `internCIList_istep` live, is DOWNSTREAM of every module
+  of this tier.  A third fact matters for whoever narrows it: those lemmas ask
+  for **`s.store.scratchOn = false`**, because they conclude `PersCI`, and
+  `basisPinHit` runs INSIDE the per-declaration bracket, where the scratch
+  tier is open.  The narrowing therefore needs a scratch-agnostic *denotation*
+  half of the intern exactness, separate from the persistence half — which is
+  the frontend round's own "finding 11: the persistence clause was never an
+  intern lemma", read from this side.
+
+##### 8. What the remaining 23 wait on
+
+| where | open | waits on |
+|---|---:|---|
+| `Basis.lean` | 8 | the import wall, for all eight (§7) |
+| `DeclVal.lean` | 7 | `natOpGuard_run` / `natOpStoredOkAll_run` (§7's four helpers), `natOpEquations_run` / `substConst0Pairs_run` (the wall), `natOpEqs_wscoped`, and the two pin gates |
+| `Pins.lean` | 3 | the wall for two; `internAllPins_run` is composition over `internPinSets_run` |
+| `Split.lean` | 3 | `annotStep_bridge`, `checkPending_bridge` (§6), `installThenCheck_bridge` |
+| `Inv.lean` | 1 | `projTableOK_of_install` — the Inductives tier's |
+| `Fold.lean` | 1 | `checkDeclStep_bridge` — the promotion tier |
+
+##### 9. The layer, and its size
+
+Per-module `instructions:u` for `lake env lean <module>` (the measure of
+record), and the net above the 7.58 G import baseline that `Mono.lean`
+measures exactly:
+
+| module | instructions | net | open |
+|---|---:|---:|---:|
+| `Inv.lean` | 14.0 G | 6.4 G | 1 |
+| `Hyp.lean` | 7.8 G | 0.2 G | 0 |
+| `Decl.lean` | 7.8 G | 0.2 G | 0 |
+| `Canon.lean` | 28.1 G | 20.5 G | 0 |
+| `Base.lean` | 24.3 G | 16.7 G | 0 |
+| `Basis.lean` | 7.9 G | 0.3 G | 8 |
+| `DeclVal.lean` | 18.6 G | **11.0 G** | 7 |
+| `Arms.lean` | 33.8 G | 26.2 G | 0 |
+| `Mono.lean` | 7.6 G | 0.0 G | 0 |
+| `Fold.lean` | 9.7 G | 2.2 G | 1 |
+| `Pins.lean` | 7.6 G | 0.0 G | 3 |
+| `Split.lean` | 13.4 G | **5.8 G** | 3 |
+| `Capstone.lean` | 7.9 G | 0.3 G | 0 |
+| `Axioms.lean` | 8.0 G | 0.4 G | — |
+| **the tier's net** | | **~90 G** | **23** |
+
+Round 5's net was ~85 G, so the round adds **5.3 G**: 4.4 G in `DeclVal.lean`
+(the three value checks and the two moved `installValue` lemmas), 1.2 G in
+`Split.lean` (§5, net of the two lemmas that left it) and 0.3 G in
+`Inv.lean` (§1).  **No theorem is near the 20 s flag**; the slowest module is
+still `Arms.lean` at 26.2 G net.
+
+##### 10. Gates
+
+| gate | |
+|---|---|
+| `scripts/gates.sh` | **all 14 OK** (`extract-check` 94 s, `lake-build` 111 s, the new `lake-refine2` 105 s), on the merge forward onto `arena`'s `4b28bf9d` |
+| `cd proof && lake build ConRonBridge` | **0 errors, 617 jobs**; 158 `sorry` warnings, of which **23** are this tier's (round 5: 162 / 27) |
+| `#print axioms` | `Bridge/Checker/Axioms.lean` lists **229 results: 217 closed** and **12 with `sorryAx`** (round 5: 217 / 204 / 13).  The twelve are `CoreSpec.of_knot`, SIX of the seven arms, the three headline theorems, `Arena.no_proof_of_False` and `Arena.installThenCheck_bridge` — **`checkDecl_bridge_thm` has left the list** (§2).  None carries `CoreSpec` or `IndSpec`; no `bv_decide` axiom anywhere |
+| `scripts/arena-census.py` (gates' tail) | `Arena/Checker` **T1 stated 62/242, closed 43** (round 5: 62/242 stated, 39 closed) |
+| the diff | `proof/ConRon/Bridge/Checker/**` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no `Promote/`, no `Frontend/`, no `lakefile.toml` — so `cargo build`/`cargo test`/`extract.sh --check`/`diff-e2e.sh` cannot be affected |
+
 
 ### Task #97-P5-2 — Theorem 2: `intern` at every expression array, and the fuel-induction idiom (2026-09-22, Opus under Fable)
 
