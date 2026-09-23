@@ -41640,7 +41640,8 @@ proved over its pieces.  `projTableOK_of_install` (`Inv.lean`) and
 (the capstone path is the two-phase fold and reaches neither); they are left.
 
 `scripts/gates.sh`: **all 16 OK** on the merge onto `arena`'s `43958f6c`
-(`extract-check` 146 s, `lake-build` 47 s); `Arena/Checker` T1 **stated
+(`extract-check` 146 s, `lake-build` 47 s), and again on the merge onto
+`79321ffb` (the Frontend round 8 landing: `lake-bridge` 558 s); `Arena/Checker` T1 **stated
 83/242, closed 78** (round 8: 77/242, 74).  `Bridge/Checker/Axioms.lean`'s
 round-9 group: `checkDecl_nodup`, `Arena.checkPending_prefix`,
 `denoteN_default_of_pinNames`, `internPinSets_run`, `bracketClose_foldOK`,
