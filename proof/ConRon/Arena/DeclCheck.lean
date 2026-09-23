@@ -47,10 +47,10 @@ open ConLeche
 con-leche: ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF
 Is this checked axiom one of the two recognized standard axioms, over
 standardly-shaped stored `Iff` / `Nonempty` families (and the pinned `Eq`
-basis)?  All three of each family's constants are pinned, not just the type,
-because the verification has to REALIZE the axiom and nothing turns an
-inhabitant of an opaque family into its fields except that family's own
-recursor. -/
+basis)?  All three of each family's constants are pinned (the check must
+REALIZE the axiom).  The comparands are the RAW pins, as in the port (task
+#97-P5-Top round 2, ruling (a)); `matchesPin` erases `pw`, so con-leche's
+annotated `iffA` … `choiceA` give the same verdicts (`Bridge/Checker/Basis`). -/
 def stdAxiomOk (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
   let pn ← propextName
   let cn ← choiceName
@@ -60,30 +60,30 @@ def stdAxiomOk (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
     if fe.find? en != some ea then pure false else do
       match fe.find? (← iffName) with
       | some (.indInfo cvI _) => do
-        if !(← cvI.matchesPin (← (← iffA).toConstantVal)) then pure false else do
+        if !(← cvI.matchesPin (← (← iffRaw).toConstantVal)) then pure false else do
           match fe.find? (← iffIntroName) with
           | some (.ctorInfo cvIi 2 2) => do
-            if !(← cvIi.matchesPin (← (← iffIntroA).toConstantVal)) then pure false
+            if !(← cvIi.matchesPin (← (← iffIntroRaw).toConstantVal)) then pure false
             else do
               match fe.find? (← iffRecName) with
               | some (.recInfo cvIr 4 4 _) => do
-                if !(← cvIr.matchesPin (← (← iffRecA).toConstantVal)) then pure false
-                else cvA.matchesPin (← propextA)
+                if !(← cvIr.matchesPin (← (← iffRecRaw).toConstantVal)) then pure false
+                else cvA.matchesPin (← propextRaw)
               | _ => pure false
           | _ => pure false
       | _ => pure false
   else if cvA.name == cn then do
     match fe.find? (← nonemptyName) with
     | some (.indInfo cvN _) => do
-      if !(← cvN.matchesPin (← (← nonemptyA).toConstantVal)) then pure false else do
+      if !(← cvN.matchesPin (← (← nonemptyRaw).toConstantVal)) then pure false else do
         match fe.find? (← nonemptyIntroName) with
         | some (.ctorInfo cvNi 1 1) => do
-          if !(← cvNi.matchesPin (← (← nonemptyIntroA).toConstantVal)) then pure false
+          if !(← cvNi.matchesPin (← (← nonemptyIntroRaw).toConstantVal)) then pure false
           else do
             match fe.find? (← nonemptyRecName) with
             | some (.recInfo cvNr 3 3 _) => do
-              if !(← cvNr.matchesPin (← (← nonemptyRecA).toConstantVal)) then pure false
-              else cvA.matchesPin (← choiceA)
+              if !(← cvNr.matchesPin (← (← nonemptyRecRaw).toConstantVal)) then pure false
+              else cvA.matchesPin (← choiceRaw)
             | _ => pure false
         | _ => pure false
     | _ => pure false

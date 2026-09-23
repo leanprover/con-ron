@@ -328,16 +328,23 @@ twin's at the same kind and the same fold position, except the port's own
 `Native`, which claims nothing.*
 
 `install_then_check_refines`' statement with the driver's fold in place of
-`install_then_check` on both sides, and its hypotheses verbatim —
-`AStateRel`, `AStateInv`, `BrOK` — for ANY install hook: the hook is the
-driver's `--progress` line, and `annot_fold_hooked_eq` says it cannot
-matter. -/
+`install_then_check` on both sides, and its hypotheses — `AStateRel`,
+`AStateInv`, `BrOK`, ruling 2's `DeclResolves` — plus ONE more about the same
+abstract invariant `Good`: `hwork`, that it survives `AState.worker` (the twin
+worker drops only scratch nodes, memos and caches, none of which a resolving
+handle of the environment can depend on; the capstone takes it from
+`declResolves_of_stages` with the rest of `Good`).  For ANY install hook: the
+hook is the driver's `--progress` line, and `annot_fold_hooked_eq` says it
+cannot matter. -/
 theorem check_decls_phased_refines {H : Type} {inst : arena.checker.InstallHook H}
     {h : H} {pers st lst}
     {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-    {ds : alloc.vec.Vec arena.env.IDeclaration} {o}
+    {ds : alloc.vec.Vec arena.env.IDeclaration} {o} {Good : IFEnv → AState → Prop}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hbr : BrOK lst)
+    (hres : DeclResolves (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
+      (absIDeclL ds) lst Good)
+    (hwork : ∀ {fe : IFEnv} {s : AState}, Good fe s → Good fe s.worker)
     (hrun : arena.checker.check_decls_phased inst pers st mode pins ds h = ok o) :
     SimFold (fun r v => IFEnvRel r v) pers lst o
       (installThenCheckPhased (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
@@ -352,10 +359,11 @@ theorem check_decls_phased_refines {H : Type} {inst : arena.checker.InstallHook 
   obtain ⟨hfe, hfinv⟩ := mk_ifenv_empty_refines' he hf
   obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have hq' := annot_fold_hooked_eq hq
+  have hz1 : absIDeclLFrom ds 0#usize = absIDeclL ds := by simp
   have hA := annot_fold_refines
     (p := (0#u64, f, alloc.vec.Vec.new arena.checker.PendingCheck))
-    (lf := mkIFEnv IEnv.empty) (i := 0#usize) hrel hinv hbr hfe hfinv hq'
-  have hz1 : absIDeclLFrom ds 0#usize = absIDeclL ds := by simp
+    (lf := mkIFEnv IEnv.empty) (i := 0#usize) hrel hinv hbr hfe hfinv hres.inv hres.entry
+    (by rw [hz1]; exact hres.decls) hq'
   have hz2 : (absPendingCheckL (alloc.vec.Vec.new arena.checker.PendingCheck)).toArray
       = (#[] : Array PendingCheck) := rfl
   have hz3 : absU (0#u64) = 0 := rfl
@@ -408,9 +416,17 @@ theorem check_decls_phased_refines {H : Type} {inst : arena.checker.InstallHook 
       have hr2' : wres = r2 := Result.ok_injective hr2
       subst hr2'
       obtain ⟨hrelW, hinvW, hbrW⟩ := worker_state_rel hrel1 hinv1 hth hw
-      have hB := check_pending_list_refines (lf := fe1) (pend := pd1) (i := 0#usize)
-        hrelW hinvW hbrW hv2.rel hv2.inv hwr
+      have hx' : annotFold (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
+          (0, mkIFEnv IEnv.empty, #[]) (absIDeclL ds) lst
+          = .ok (.ok (n1, fe1, (absPendingCheckL pd1).toArray), lst') := hx
+      have hg1 : Good fe1 lst' := annotFold_good hres.inv _ hres.entry hx'
       have hz4 : absPendingCheckLFrom pd1 0#usize = absPendingCheckL pd1 := by simp
+      have hB := check_pending_list_refines (lf := fe1) (pend := pd1) (i := 0#usize)
+        hrelW hinvW hbrW hv2.rel hv2.inv hres.inv (hwork hg1)
+        (by
+          rw [hz4]
+          intro pc hpc
+          exact hres.pending _ _ _ _ hx' pc (by simpa using hpc)) hwr
       simp only [SimFold, hz4] at hB
       rw [hx]
       simp only [toList_toArray'']
