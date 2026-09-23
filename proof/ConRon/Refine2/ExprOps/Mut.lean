@@ -78,10 +78,11 @@ resolves", `EViewExt` (what decoded still decodes), the port's tier flags and
 a side invariant `Q` of the post-state, the memo clause `MemoRes` for a
 memoised walk — and projects its public `Sim` at the boundary (finding 19).
 The public statements were CORRECTED, never weakened: each gained only the
-hypotheses the port genuinely needs (`hfrozen`; that the handles walked or
-substituted in resolve; the memo clause for a `_go` walk; `RenameRes` for the
-renaming dictionary; well-formed level substitutions and the nested store
-flags for `instLP*`).  DESIGN.md's `### Task #97-P5-Mut` `#### Round 2` has
+hypotheses the port genuinely needs (that the handles walked or substituted
+in resolve; the memo clause for a `_go` walk; `RenameRes` for the renaming
+dictionary; well-formed level substitutions for `instLP*`).  The frozen-tier
+`hfrozen` they also carried is retired (task #97-P5-Usize made those arms
+`Native`).  DESIGN.md's `### Task #97-P5-Mut` `#### Round 2` has
 the list and the costs.
 -/
 import ConRon.Refine2.Specs
@@ -378,7 +379,8 @@ that will intern again: it needs
   say, because it never sees `lst'`;
 * `EViewExt` — "what decoded before still decodes", for the handles the walk
   read before the intern;
-* the two Rust tier flags, which is what carries `hfrozen` across the step;
+* the two Rust tier flags (a true frame fact; they carried `hfrozen` across a
+  step until task #97-P5-Unfreeze retired it);
 * and a side invariant `Q` of the post-state — the memo clause `MemoRes` for
   a memoised walk. -/
 def WOutR (Q : AState → Prop) (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -2611,8 +2613,7 @@ theorem instantiate1_fast_wout {pers st lst} {fuel : Std.U64}
 it carried `hrel`/`hinv` and nothing else, and it was FALSE — a memo mapping
 `(h, d)` to a handle that decodes nowhere satisfies both, the `app` arm
 answers that handle, and the caller's intern breaks `StoreWF`.  What went in
-is what the port genuinely needs: `hfrozen` (the tier flag the port's
-`intern` tests), that the substituted term and the handle walked resolve, and
+is what the port genuinely needs: that the substituted term and the handle walked resolve, and
 the memo clause `MemoRes` — the smallest hypotheses under which it is true,
 and exactly what the walk re-establishes one step down. -/
 theorem instantiate1_go_refines {pers st lst} {v : arena.handle.EIdx}
@@ -3110,7 +3111,7 @@ private theorem instantiate_list_aux (n : Nat) : ILAt n := by
     exact wout_dup hrel hinv hh hq hrun
 
 /-- `Arena/ExprOps.lean:346 instantiateList` — the UNMEMOIZED bulk walk.
-**Corrected** (task #97-P5-Mut round 2, finding 19): `hfrozen`, and that the
+**Corrected** (task #97-P5-Mut round 2, finding 19): that the
 handle walked and every entry of the substitution resolve — the `bvar` arm
 answers an entry, or walks into it. -/
 theorem instantiate_list_refines {pers st lst} {vs : alloc.vec.Vec arena.handle.EIdx}
@@ -4317,7 +4318,7 @@ theorem lift_loose_bvars_fast_wout {pers st lst} {fuel amount c : Std.U64}
       (by rw [hs3, hfl2, hs1]) (MemoRes.of_empty rfl)
 
 /-- `Arena/ExprOps.lean:491 liftLooseBVarsGo`.  **Corrected** (task #97-P5-Mut
-round 2, finding 19): `hfrozen`, the handle walked resolves, and the memo
+round 2, finding 19): the handle walked resolves, and the memo
 clause. -/
 theorem lift_loose_bvars_go_refines {pers st lst} {amount fuel : Std.U64}
     {h : arena.handle.EIdx} {c : Std.U64} {o}
@@ -5009,7 +5010,7 @@ theorem reset_meta_fast_wout {pers st lst} {fuel : Std.U64} {e : arena.handle.EI
       (by rw [hs3, hfl2, hs1]) (MemoRes.of_empty rfl)
 
 /-- `Arena/ExprOps.lean:567 resetMetaGo`.  **Corrected** (task #97-P5-Mut round
-2, finding 19): `hfrozen`, the handle walked resolves, and the memo clause. -/
+2, finding 19): the handle walked resolves, and the memo clause. -/
 theorem reset_meta_go_refines {pers st lst} {fuel : Std.U64}
     {h : arena.handle.EIdx} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
@@ -5985,7 +5986,7 @@ theorem rename_consts_fast_wout {pers st lst} {F : Type} {inst : arena.expr_ops.
       (by rw [hs3, hfl2, hs1]) (MemoRes.of_empty rfl)
 
 /-- `Arena/ExprOps.lean:1102 renameConstsGo`.  **Corrected** (task #97-P5-Mut
-round 2, finding 19): `hfrozen`, the handle walked resolves, the memo clause,
+round 2, finding 19): the handle walked resolves, the memo clause,
 and `RenameRes` — the dictionary names LIVE constants, without which the
 `const` arm interns a node over a dangling name and `StoreWF` fails. -/
 theorem rename_consts_go_refines {F : Type}
@@ -6024,9 +6025,7 @@ increasing cursor.  `Specs.lean` primitives: `internE`, `internAppE`. -/
 
 **Task #97-P5-Mut corrected both statements**: they carried `hrel`/`hinv` and
 nothing else, and the `app` each step interns has the PREVIOUS step's answer
-as its function child.  What goes in is `hfrozen` (the tier flag the port's
-own `intern` tests, carried across the step by `estore_intern_app_abs`'s
-third conjunct) and the
+as its function child.  What goes in is the
 two `EResolves` the `ViewOK` at each step needs — of the head and of every
 argument.  They are the smallest hypotheses that make the statement true, and
 they are what `WOutE` then re-establishes one step down. -/
@@ -7233,8 +7232,8 @@ and `getAppArgs` through `ExprOps/Read.lean`. -/
 **The one walk of this file that finding 14 fully unblocks.**  `bvarRange`
 interns `bvar` nodes and nothing else, so its leaf wrapper
 (`intern_e_bvar_run`) has no `hchild` at all (a `bvar` has no children) and,
-after this round, no `hcap` either — leaving `hfrozen` as the only side
-condition, which `intern_e_bvar_flags` carries across a step.  Every other
+after this round, no `hcap` either (and since task #97-P5-Unfreeze no
+`hfrozen`).  Every other
 interning walk of this file descends into a node WITH children and is blocked
 on §6's finding 16.
 
@@ -7521,8 +7520,7 @@ theorem bvarRange_length (mI : Nat) : ∀ (n k : Nat) {lst lst' : AState} {l : L
         rw [← h'.1, List.length_cons, ih (k + 1) h2]
 
 /-- `Arena/ExprOps.lean:1330 recRulePlain`.  **Corrected** (task #97-P5-Mut
-round 2, finding 19's READ half): `hfrozen` (the comparand is interned) and
-that the recursor type resolves — the port tests the stripped residual's tag
+round 2, finding 19's READ half): that the recursor type resolves — the port tests the stripped residual's tag
 where the twin `view`s it, and the two agree only on a residual that decodes,
 which a resolving type guarantees (`stripPis_res`). -/
 theorem rec_rule_plain_refines {pers st lst} {fuel : Std.U64}
@@ -7782,7 +7780,7 @@ private theorem pis_to_lams_aux (n : Nat) : P2LAt n := by
           EViewExt.refl _, rfl, rfl⟩
 
 /-- `Arena/ExprOps.lean:1348 pisToLams`.  **Corrected** (task #97-P5-Mut round
-2, finding 19): `hfrozen`, and the telescope and the body resolve — the body
+2, finding 19): the telescope and the body resolve — the body
 is interned under the rebuilt binders. -/
 theorem pis_to_lams_refines {pers st lst} {k : Std.U64}
     {h body : arena.handle.EIdx} {o}
@@ -7914,7 +7912,7 @@ private theorem replace_pi_body_aux (n : Nat) : RPBAt n := by
 
 
 /-- `Arena/ExprOps.lean:1362 replacePiBody`.  **Corrected** (task #97-P5-Mut
-round 2, finding 19): `hfrozen`, and the telescope and the new body resolve —
+round 2, finding 19): the telescope and the new body resolve —
 the body is interned under the rebuilt binders. -/
 theorem replace_pi_body_refines {pers st lst} {k : Std.U64}
     {h b : arena.handle.EIdx} {o}
@@ -10440,7 +10438,7 @@ theorem abstract1_fast_wout {pers st lst} {fuel : Std.U64} {e : arena.handle.EId
       (by rw [hs3, hfl2, hs1]) (MemoRes.of_empty rfl)
 
 /-- `Arena/ExprOps.lean:1520 abstract1Go`.  **Corrected** (task #97-P5-Mut
-round 2, finding 19): `hfrozen`, the handle walked resolves, and the memo
+round 2, finding 19): the handle walked resolves, and the memo
 clause at `abs1C`. -/
 theorem abstract1_go_refines {pers st lst} {d fuel : Std.U64}
     {h : arena.handle.EIdx} {k : Std.U64} {o}
@@ -11680,7 +11678,7 @@ theorem lower_bvars_fast_wout {pers st lst} {fuel amount c : Std.U64} {e : arena
       (by rw [hs3, hfl2, hs1]) (MemoRes.of_empty rfl)
 
 /-- `Arena/ExprOps.lean:1700 lowerBVarsGo`.  **Corrected** (task #97-P5-Mut
-round 2, finding 19): `hfrozen`, the handle walked resolves, and the memo
+round 2, finding 19): the handle walked resolves, and the memo
 clause at `lowerC`. -/
 theorem lower_bvars_go_refines {pers st lst} {amount fuel : Std.U64}
     {h : arena.handle.EIdx} {c : Std.U64} {o}
@@ -12289,7 +12287,7 @@ theorem instantiate1_lift_fast_wout {pers st lst} {fuel : Std.U64} {e v : arena.
       (by rw [hs3, hfl2, hs1]) (MemoRes.of_empty rfl)
 
 /-- `Arena/ExprOps.lean:1779 instantiate1LiftGo`.  **Corrected** (task
-#97-P5-Mut round 2, finding 19): `hfrozen`, the substituted term and the handle
+#97-P5-Mut round 2, finding 19): the substituted term and the handle
 walked resolve, and the memo clause at `inst1LC`. -/
 theorem instantiate1_lift_go_refines {pers st lst} {v : arena.handle.EIdx}
     {fuel : Std.U64} {h : arena.handle.EIdx} {d : Std.U64} {o}
@@ -12440,7 +12438,7 @@ private theorem inst_pis_at_lift_from_aux (n : Nat) :
       all_goals exact AOut.ok rfl hrel hinv (Ext.refl _) trivial
 
 /-- `Arena/ExprOps.lean:1851 instPisAtLift` — the cursor companion.
-**Corrected** (task #97-P5-Mut round 2, finding 19): `hfrozen`, and that the
+**Corrected** (task #97-P5-Mut round 2, finding 19): that the
 handle and every argument resolve — each step instantiates a binder body at
 an argument through `instantiate1LiftFast`, which interns. -/
 theorem inst_pis_at_lift_from_refines {pers st lst} {fuel : Std.U64}
@@ -14297,8 +14295,7 @@ theorem inst_lp_go_wout {pers st lst} {ks : alloc.vec.Vec kernel.name.Name}
   inst_lp_go_aux _ rfl hrel hinv hks hus hh hq hrun
 
 /-- `Arena/ExprOps.lean:1941 instLPGo`.  **Corrected** (task #97-P5-Mut round
-2, finding 19): `hfrozen` and `NFrz` (the walk interns expressions and, at
-`.sort`/`.const`, levels), the substitution well formed (as
+2, finding 19): the substitution well formed (as
 `subst_l_memo_at_refines`), the handle walked resolves, and `LPInv` (the memo
 clause of `instLPC` and the resolution of `instLPLC`/`instLPLsC`'s values). -/
 theorem inst_lp_go_refines {pers st lst} {ks : alloc.vec.Vec kernel.name.Name}
@@ -14414,7 +14411,7 @@ theorem inst_lp_fast_wout {pers st lst} {fuel : Std.U64}
 
 /-- `Arena/ExprOps.lean:2016 instLPFast` — the entry that takes the level
 parameters as HANDLES, reads them back and clears the three tables.
-**Corrected** (task #97-P5-Mut round 2, finding 19): `hfrozen`, `NFrz` and the
+**Corrected** (task #97-P5-Mut round 2, finding 19): the
 handle walked resolves, as `inst_lp_go_refines`; the substitution's
 well-formedness and `LPInv` are discharged here (the readbacks' values, the
 clear). -/
