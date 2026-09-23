@@ -1112,6 +1112,35 @@ pub fn level_list_dup_from(us: &Vec<Level>, i: usize, out: Vec<Level>) -> Vec<Le
     }
 }
 
+/// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
+/// The readback memo's value copy, for `HashMap2::dup` of `Caches::read_l_c`
+/// in `arena::checker_base::caches_dup` (task #97-T2-LOCKSTEP D4): a
+/// reference bump.
+impl Dup for Level {
+    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
+    fn dup2(&self) -> Level {
+        level::dup(self)
+    }
+}
+
+/// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
+/// The same for `Caches::read_n_c`'s values.
+impl Dup for Name {
+    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
+    fn dup2(&self) -> Name {
+        name::dup(self)
+    }
+}
+
+/// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
+/// The same for `Caches::read_ls_c`'s values (`level_list_dup`).
+impl Dup for Vec<Level> {
+    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
+    fn dup2(&self) -> Vec<Level> {
+        level_list_dup(self)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // The readback memo (task #97-P6-13; DESIGN.md §8.3's "memoised readback per
 // declaration", which nothing had built)
