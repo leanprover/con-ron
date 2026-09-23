@@ -614,4 +614,87 @@ theorem allM_E_cstep {μ : CheckMode} {env : Env} {fe : IFEnv} {f : EIdx → AM 
       refine ⟨p1.trans p2, ?_⟩
       simp only [List.all_cons, ← hc, Bool.true_and, hb]
 
+/-! ## `isEqHead`, and a list read at its end -/
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:209-211 isEqHead — the head of
+an equation is the pinned `Eq` at one level, in run form (read-only).  The
+twin compares the head's name HANDLE with the pinned one, which is the name
+comparison because `denoteN` is injective. -/
+theorem isEqHead_run {s s' : AState} {h : EIdx} {hP : Expr} {b : Bool}
+    (hok : StateOK s) (hp : PinsOK s) (hd : denoteE s.store h = some hP)
+    (hrun : Arena.isEqHead h s = .ok (b, s')) :
+    s' = s ∧ b = ConLeche.isEqHead hP := by
+  simp only [Arena.isEqHead] at hrun
+  obtain ⟨v, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨hs1, hv⟩ := view_run k1
+  subst s₁
+  cases v
+  case const c us =>
+    obtain ⟨nm, ls, rfl, hc, hls⟩ := denote_const_inv hok.wf hv hd
+    obtain ⟨en, s₂, k2, z2⟩ := bindOk z1
+    simp only [Arena.pinEq] at k2
+    obtain ⟨hs2, hen⟩ := pinAt_run (x := ConLeche.eqName) hp rfl k2
+    subst s₂
+    have hwf := hok.wf
+    obtain ⟨rk, hrk⟩ := hwf
+    by_cases hce : c = en
+    · subst hce
+      obtain rfl := Option.some.inj (hc.symm.trans hen)
+      rw [if_pos (by simp)] at z2
+      obtain ⟨w, s₃, k3, z3⟩ := bindOk z2
+      obtain ⟨hs3, hw⟩ := viewLs_run k3
+      subst s₃
+      obtain ⟨rfl, rfl⟩ := pureOk z3
+      have hlen := denoteLList_length _ _ (denoteLs_of_view hw hls)
+      refine ⟨rfl, ?_⟩
+      rcases ls with _ | ⟨x, _ | ⟨y, ys⟩⟩ <;> simp_all [ConLeche.isEqHead]
+    · rw [if_neg (by simpa using hce)] at z2
+      obtain ⟨rfl, rfl⟩ := pureOk z2
+      refine ⟨rfl, ?_⟩
+      have hne : nm ≠ ConLeche.eqName := fun h' => hce (denoteN_inj hrk.nsWF hc (h' ▸ hen))
+      rcases ls with _ | ⟨x, _ | ⟨y, ys⟩⟩ <;> simp [ConLeche.isEqHead, hne]
+  all_goals
+    obtain ⟨rfl, rfl⟩ := pureOk z1
+    refine ⟨rfl, ?_⟩
+    have hne := denote_not_const hok.wf hv hd (fun _ _ h => nomatch h)
+    cases hP with
+    | const n ls => exact absurd rfl (hne n ls)
+    | _ => rfl
+
+/-- con-leche: none — a handle list read at its END with a fallback handle. -/
+theorem denoteEList_getLastD {st : EStore} {b : EIdx} {bP : Expr}
+    (hb : denoteE st b = some bP) :
+    ∀ {hs : List EIdx} {xs : List Expr}, Frontend.denoteEList st hs = some xs →
+      denoteE st (hs.getLastD b) = some (xs.getLastD bP) := by
+  intro hs
+  induction hs with
+  | nil =>
+    intro xs h
+    simp only [Frontend.denoteEList, Option.some.injEq] at h
+    subst h
+    simpa using hb
+  | cons a as ih =>
+    intro xs h
+    obtain ⟨x, xs', hx, hxs', rfl⟩ := denoteEList_cons h
+    cases as with
+    | nil =>
+      simp only [Frontend.denoteEList, Option.some.injEq] at hxs'
+      subst hxs'
+      simpa using hx
+    | cons a' as' =>
+      obtain ⟨y, ys, hy, hys, rfl⟩ := denoteEList_cons hxs'
+      have := ih hxs'
+      simpa [List.getLastD] using this
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:233-239 unwrapOr — an
+accepting `unwrapOr` had a value, and moved nothing. -/
+theorem unwrapOr_ok {α : Type} {o : Option α} {e : Arena.CheckError} {a : α}
+    {s s' : AState} (h : Arena.unwrapOr o e s = .ok (a, s')) : o = some a ∧ s' = s := by
+  cases o with
+  | none => exact absurd h (AM.Never.fail _ _ _ _)
+  | some x =>
+    simp only [Arena.unwrapOr] at h
+    obtain ⟨rfl, rfl⟩ := pureOk h
+    exact ⟨rfl, rfl⟩
+
 end ConRon.Bridge.Inductives
