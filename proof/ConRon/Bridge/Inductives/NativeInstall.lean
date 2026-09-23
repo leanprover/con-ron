@@ -256,7 +256,63 @@ theorem recCtorKindsAll_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
         denoteCtors st cs = some csP)
       (Arena.recCtorKindsAll T lps nP nIdx cs)
       (ROp RKss (csP.mapM (ConLeche.recCtorKinds TP lpsP nP nIdx))) := by
-  sorry
+  induction cs generalizing csP with
+  | nil =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨_, _, hcs⟩ := hpre
+    simp only [denoteCtors, Option.some.injEq] at hcs
+    subst hcs
+    simp only [Arena.recCtorKindsAll] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, [], rfl, rfl⟩
+  | cons c cs ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hT, hlps, hcs⟩ := hpre
+    obtain ⟨cv, n⟩ := c
+    simp only [denoteCtors] at hcs
+    cases hcv : Frontend.denoteCV s₀.store cv with
+    | none => rw [hcv] at hcs; simp at hcs
+    | some cP =>
+    cases hrest : denoteCtors s₀.store cs with
+    | none => rw [hcv, hrest] at hcs; simp at hcs
+    | some restP =>
+    rw [hcv, hrest] at hcs
+    obtain rfl := (Option.some.inj hcs).symm
+    simp only [Arena.recCtorKindsAll] at hrun
+    obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, ho⟩ := recCtorKinds_spec T TP lps lpsP nP nIdx (cv, n) (cP, n) s₀ s1 o hok
+      ⟨hT, hlps, hcv, rfl⟩ k1
+    cases o with
+    | none =>
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      refine ⟨p1, ?_⟩
+      have ho' : ConLeche.recCtorKinds TP lpsP nP nIdx (cP, n) = none := ho
+      show _ = none
+      simp only [List.mapM_cons, ho']
+      rfl
+    | some ks =>
+    obtain ⟨ksP, hkP, hkr⟩ := ho
+    obtain ⟨o2, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, ho2⟩ := ih restP s1 s2 o2 p1.ok
+      ⟨denoteN_ext hT p1.ext, denoteNListE_ext p1.ext _ _ hlps,
+        denoteCtors_ext p1.ext _ _ hrest⟩ k2
+    cases o2 with
+    | none =>
+      obtain ⟨rfl, rfl⟩ := pureOk z2
+      refine ⟨p1.trans p2, ?_⟩
+      have ho2' : restP.mapM (ConLeche.recCtorKinds TP lpsP nP nIdx) = none := ho2
+      show _ = none
+      simp only [List.mapM_cons, hkP, ho2']
+      rfl
+    | some rest =>
+    obtain ⟨restKP, hrkP, hrkr⟩ := ho2
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨p1.trans p2, ksP :: restKP, ?_, ?_⟩
+    · simp only [List.mapM_cons, hkP, hrkP]
+      rfl
+    · show (ks :: rest).map (·.map kindOf) = _
+      simp only [List.map_cons]
+      rw [show ks.map kindOf = ksP from hkr, show rest.map (·.map kindOf) = restKP from hrkr]
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:539-554 classifyFixKinds
 The kinds classified on the stored constructors, with the two declines
@@ -275,7 +331,55 @@ theorem classifyFixKinds_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (fun _ r => ∃ ks,
         ConLeche.classifyFixKinds (m := CheckM) TP lpsP nP nIdx ctorsAP
           = .ok ks ∧ r.map (·.map kindOf) = ks) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  simp only [Arena.classifyFixKinds] at hrun
+  obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, ho⟩ := recCtorKindsAll_spec T TP lps lpsP nP nIdx ctorsA ctorsAP s₀ s1 o
+    hok.state hpre k1
+  cases o with
+  | none =>
+    obtain ⟨_, s2, k2, _⟩ := bindOk z1
+    simp only [Arena.unwrapOr] at k2
+    exact absurd k2 (fun h => failOk h)
+  | some kinds =>
+  obtain ⟨kP, hkP, hkr⟩ := ho
+  have hkr' : kinds.map (·.map kindOf) = kP := hkr
+  obtain ⟨kk, s2, k2, z2⟩ := bindOk z1
+  simp only [Arena.unwrapOr] at k2
+  obtain ⟨hkk, rfl⟩ := pureOk k2
+  subst kk
+  have hneg : (kP.any fun ks => ks.any (· == .negative)) =
+      (kinds.any fun ks => ks.any (· == .negative)) := by
+    rw [← hkr']
+    simp only [List.any_map, Function.comp_def]
+    congr 1; funext ks; congr 1; funext k; cases k <;> rfl
+  have huns : (kP.any fun ks => ks.any (· == .unsupported)) =
+      (kinds.any fun ks => ks.any (· == .unsupported)) := by
+    rw [← hkr']
+    simp only [List.any_map, Function.comp_def]
+    congr 1; funext ks; congr 1; funext k; cases k <;> rfl
+  split at z2
+  case isTrue _ =>
+    obtain ⟨_, s3, k3, _⟩ := bindOk z2
+    exact absurd k3 (fun h => failOk h)
+  case isFalse hn =>
+  obtain ⟨_, s3, k3, z3⟩ := bindOk z2
+  obtain ⟨-, rfl⟩ := pureOk k3
+  split at z3
+  case isTrue _ =>
+    obtain ⟨_, s4, k4, _⟩ := bindOk z3
+    exact absurd k4 (fun h => failOk h)
+  case isFalse hu =>
+  obtain ⟨_, s4, k4, z4⟩ := bindOk z3
+  obtain ⟨-, rfl⟩ := pureOk k4
+  obtain ⟨rfl, rfl⟩ := pureOk z4
+  refine ⟨p1.toCore hok, kP, ?_, hkr'⟩
+  have hn' : (kP.any fun ks => ks.any (· == .negative)) = false := by
+    rw [hneg]; simpa using hn
+  have hu' : (kP.any fun ks => ks.any (· == .unsupported)) = false := by
+    rw [huns]; simpa using hu
+  simp only [ConLeche.classifyFixKinds, hkP, ConLeche.unwrapOr, pure, Except.pure, bind,
+    Except.bind, hn', hu', Bool.false_eq_true, if_false]
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:556-574 checkNativePass
 **One pass over the former and the constructors** at a given `is_rec` verdict,
