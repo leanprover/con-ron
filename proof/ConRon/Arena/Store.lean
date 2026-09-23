@@ -1573,7 +1573,12 @@ def persFindMaybe (st : EStore) (v : ENodeView) (mi : BMIdx) : Option EIdx :=
 
 /-- con-leche: none — probe both tiers, persistent first (nanoda's
 `alloc_expr`, `util.rs:391-400`), at an already-probed datum handle; the
-persistent half is `persFindMaybe`, skipped as the Rust skips it. -/
+persistent half is `persFindMaybe`, skipped as the Rust skips it.  **The skip
+is the RECORD test** (datum included at a binder), not the view-only test of
+the Rust's `EStore::find`/`pers_find_maybe`: that function is called from
+`mod tests` only, and this probe's one real use is `internE`'s, whose Rust
+counterpart is `intern_e` → `intern_lam_i`, which tests the record (the
+coordinator's ruling, task #97-T2-LOCKSTEP). -/
 def findAt (st : EStore) (v : ENodeView) (mi : BMIdx) : Option EIdx :=
   match st.persFindMaybe v mi with
   | some i => some i
