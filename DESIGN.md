@@ -50564,7 +50564,7 @@ is about the store the walk is at, k steps in, so it can be neither a
 hypothesis of a public `Sim` nor a conclusion of anything, and it **gates 38
 of `Refine2/ExprOps/Mut.lean`'s 41 open statements**.
 
-Branch `p5-twin-2` off `arena` `c87b3ee6`; merged `arena` once (`4b28bf9d`).
+Branch `p5-twin-2` off `arena` `c87b3ee6`; merged `arena` twice (`4b28bf9d`, `8c92c196`).
 
 ##### 1. The port is right, and the twin was wrong
 
@@ -50699,37 +50699,37 @@ failed to do.
 | tier | before | after |
 |---|---|---|
 | `ConRonArena` (the twin, layer B) | **0** | **0** |
-| `ConRonBridge` (Theorem 1) | **162** | **162** |
+| `ConRonBridge` (Theorem 1) | **149** | **149** |
 | `ConRonBridge`, the `ExprOps` tier's modules | **0** | **0** |
-| `ConRonRefine2` (Theorem 2) | **679** | **679** |
+| `ConRonRefine2` (Theorem 2) | **669** | **669** |
 | `Refine2/ExprOps/Mut.lean` | **41** | **41** |
 | `Refine2/Specs.lean` | **0** | **0** |
 
 Counted as `grep -cE '^\s*sorry\s*$'` over each tier's sources at the same two
-commits (`arena` `4b28bf9d` and this branch's tip), because **`lake build`'s
-warning replay covers only the modules an invocation rebuilt** and is
-therefore not comparable across runs — a warm `lake build ConRonBridge` on
-this tree reported 162 in one run and 5 in another, both green.  The
-declaration-level numbers from a run that elaborated the whole tier are
-`ConRonBridge` **162** and `ConRonRefine2` **849** (of which
-`ExprOps/Mut.lean` is 41 and `Bridge/ExprOps/**` is 0); the Refine2 figure is
-above task #97-P5-Mut's 823 because `arena` moved (`Refine2/Inductives/**`
-grew and `proof/lakefile.toml` gave `ConRonRefine2` a `globs` line, so
-orphaned modules are elaborated now).
+commits — `arena` `8c92c196` (the second merge) and this branch's tip —
+because **`lake build`'s warning replay covers only what an invocation
+rebuilt** and is therefore not comparable across runs: a warm
+`lake build ConRonBridge` on this tree reported 162 in one run and 5 in
+another, both green.  The declaration-level numbers from the runs that
+elaborated each whole tier are `ConRonBridge` **149** and `ConRonRefine2`
+**849** (of which `ExprOps/Mut.lean` is 41 and `Bridge/ExprOps/**` is 0); the
+Refine2 figure is above task #97-P5-Mut's 823 because `arena` moved —
+`Refine2/Inductives/**` grew and `proof/lakefile.toml` gave `ConRonRefine2` a
+`globs` line, so orphaned modules are elaborated now.
 
 The statement that the repair is a repair is the diff's own:
-`git diff 4b28bf9d -- '*.lean' | grep -c '^[+-].*sorry'` reads **0**.
+`git diff 8c92c196 HEAD -- '*.lean' | grep -c '^[+-].*sorry'` reads **0**.
 
 ##### 8. The gates
 
 | gate | result |
 |---|---|
-| `scripts/gates.sh` (`LAKE_JOBS=4`) | **all 14 OK** — `cargo-build` 1 s, `cargo-test` 4 s, `lint-rust` 2 s, `provenance` `6 737 item(s) (4 099 Rust, 2 638 arena Lean), 4 201 citation(s), all current at pin 78ded4b6`, `provenance-self`, `twin-lines`, `overview-links` 48 links / 31 files, `holes`, `gen-pins`, `gen-prelude`, `gen-prelude-lean`, **`extract-check` 89 s OK** (this round's Rust diff is `Lean twin:` DIGITS only, so it cannot move the generated model), `lake-build` 114 s, `lake-refine2` |
+| `scripts/gates.sh` (`LAKE_JOBS=4`) | **all 15 OK** — `cargo-build` 0 s, `cargo-test` 6 s, `lint-rust` 1 s, `provenance` `6 737 item(s) (4 099 Rust, 2 638 arena Lean), 4 201 citation(s), all current at pin 78ded4b6`, `provenance-self`, `twin-lines`, `overview-links`, `holes`, `gen-pins`, `gen-prelude`, `gen-prelude-lean`, **`extract-check` 89 s OK** (this round's Rust diff is `Lean twin:` DIGITS only, so it cannot move the generated model), `lake-build` 2 s, `lake-refine2` 1 s, **`lake-bridge` 388 s**.  Run twice, once at each merge; the first was **all 14 OK** — the fifteenth step arrived on `arena` between them |
 | `cd proof && lake build ConRonArena` | **green**, **106 jobs**, **0 `sorry`** — `ExprOpsTest` / `CheckerTest` elaborate, so their `#guard`s pass on the new capacity test |
-| `cd proof && lake build ConRonBridge` | **green**, **617 jobs**, **162 `sorry`** — `Bridge/ExprOps/**` still **0**, which is the number this round was told not to lose |
+| `cd proof && lake build ConRonBridge` | **green**, **617 jobs**, **149 `sorry`** — `Bridge/ExprOps/**` still **0 across all thirteen modules**, which is the number this round was told not to lose |
 | `cd proof && lake build ConRonRefine2` | **green**, **2 221 jobs**, **849 `sorry`**, of which `ExprOps/Mut.lean` is **41** and `Specs.lean` **0** |
 | `scripts/twin-lines.py update`, twice | **220 citations relocated in all, 0 GONE** (122, then 98 after `internE`'s note grew by nine lines) — `Arena/Monad.lean` is +11 net and `Arena/Store.lean` +4, so every `Lean twin:` range below them moved.  Digits only in four Rust files (`arena/{env,intern,monad,store}.rs`); no prose rewrapped, so `extract.sh --check` cannot move |
-| merged `arena` once (`4b28bf9d`) | auto-merged every hunk.  What moved on `arena` is `Bridge/ExprOps/**`, `Refine2/Inductives/**`, `proof/lakefile.toml` (`ConRonRefine2` gains `globs`), DESIGN/OVERVIEW and `CLAUDE.md` — no file this round edits |
+| merged `arena` twice — `4b28bf9d`, then `8c92c196` | both auto-merged every hunk.  What moved on `arena` is `Bridge/{Inductives, Checker, StateOK, Core, Frontend, ExprOps}/**`, `Refine2/Inductives/**`, `proof/lakefile.toml` (`ConRonRefine2` gains `globs`), `scripts/gates.sh` (the fifteenth step) and DESIGN/OVERVIEW/`CLAUDE.md` — no file this round edits, and the gates were re-run in full after the second |
 | the diff | `proof/ConRon/Arena/{Monad,Store,WFProofs}.lean`, `proof/ConRon/Bridge/{Specs,ExprOps/MemoSpecs}.lean`, `proof/ConRon/Refine2/{Specs,ExprOps/Mut}.lean`, the four Rust files' `Lean twin:` digits, and this section |
 
 
