@@ -103,6 +103,66 @@ attribute [lockstep_inline] arena.core.whnf_core_proj arena.core.whnf_core_proj_
       (fun r => absEIdx r = (absEIdxList xs).getD (absU i) (absEIdx d)) := by
   sorry
 
+/-! ## The batched β spine: `whnf_app` / `beta_peel`
+
+One joint induction on the spine's remaining length `args.size - i` (the twin's
+`termination_by (args.size - i, 0/1)`): at each length `whnf_app` is proved
+first (it calls `beta_peel` and itself one argument further on), then
+`beta_peel` (it calls itself one further on and `whnf_app` at the SAME
+cursor). -/
+
+section spine
+
+theorem vec_new_val_eidx : (alloc.vec.Vec.new arena.handle.EIdx).val = [] := by simp
+
+theorem map_getElem!_absEIdx (l : List arena.handle.EIdx) (i : Nat) (h : i < l.length) :
+    (l.map absEIdx).toArray[i]! = absEIdx l[i] := by
+  rw [getElem!_pos (l.map absEIdx).toArray i (by simpa using h)]
+  simp
+
+attribute [local lockstep_simp] absEIdxArr ExprOps.absEIdxL List.push_toArray List.map_append
+  List.map_cons List.map_nil List.nil_append List.size_toArray List.length_map
+  List.getElem_toArray List.getElem_map vec_new_val_eidx map_getElem!_absEIdx absU_eq_val
+
+/-- The spine at remaining length `n`. -/
+def WhnfAppAt (f : Nat) (n : Nat) : Prop :=
+  ∀ {pers vis st mode lane fu fe lfe depth v hd vargs same args nodes i lst},
+    ExprOpsHyp pers → args.val.length - i.val = n →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe → absU fu = f →
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.whnf_app pers vis st mode lane fu fe depth v hd vargs same args nodes i) lst
+      (whnfApp (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        lfe (absU depth) (absEIdx v) (absEIdx hd) (absEIdxArr vargs) same (absEIdxArr args)
+        (absEIdxArr nodes) (absSz i))
+
+/-- The peel at remaining length `n`. -/
+def BetaPeelAt (f : Nat) (n : Nat) : Prop :=
+  ∀ {pers vis st mode lane fu fe lfe depth t acc args nodes i lst},
+    ExprOpsHyp pers → args.val.length - i.val = n →
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe → absU fu = f →
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.beta_peel pers vis st mode lane fu fe depth t acc args nodes i) lst
+      (betaPeel (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        lfe (absU depth) (absEIdx t) (absEIdxArr acc) (absEIdxArr args) (absEIdxArr nodes)
+        (absSz i))
+
+theorem whnf_app_step {f : Nat} (hk : KnotRel f) (n : Nat)
+    (ihA : ∀ m < n, WhnfAppAt f m) (ihB : ∀ m < n, BetaPeelAt f m) : WhnfAppAt f n := by
+  intro pers vis st mode lane fu fe lfe depth v hd vargs same args nodes i lst hx hn hrel hinv
+    hctx hf
+  rw [arena.core.whnf_app, whnfApp]
+  by_cases hi : absSz i < (absEIdxArr args).size
+  · rw [dif_pos hi]
+    lockstep_core
+    all_goals trace_state
+    all_goals sorry
+  · rw [dif_neg hi]
+    lockstep_core
+    all_goals trace_state
+    all_goals sorry
+
+end spine
+
 /-! ## `whnf_core_body` -/
 
 attribute [local lockstep_simp] absU_eq_val

@@ -509,8 +509,9 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
       let g' ← g.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! rp m'))
       return some [g']
     if f.isAppOfArity ``Result.ok 2 then
-      let m' := (mkApp k (f.getArg! 1)).headBeta
-      let g' ← g.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! rp m'))
+      -- `ok v >>= k` is `k v` only propositionally (`bind_tc_ok`): a rewrite
+      -- lemma, not a `replaceTargetDefEq`, or the kernel rejects the proof
+      let g' ← applyWith g (if isLS then ``LS.rust_ok_bind else ``LSP.rust_ok_bind) [] `h
       return some (← normAll [g'])
     if f.isAppOfArity ``Bind.bind 6 then
       let g' ← applyWith g (if isLS then ``LS.rust_assoc else ``LSP.rust_assoc) [] `h

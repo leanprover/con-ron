@@ -306,6 +306,15 @@ theorem LS.bind_eq {α γ δ : Type} {pers : arena.store.PersTier} {R : γ → �
   obtain ⟨a, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   exact hk a hf1 o st' hk1
 
+/-- A Rust `ok v >>= k`: the continuation at `v`.  NOT a definitional step —
+`Result` is an `ITree` and `bind_tc_ok` is a `simp` proof, so a
+`replaceTargetDefEq` here is accepted by the elaborator and rejected by the
+kernel (task #97-P5-Core round 5, region D). -/
+theorem LS.rust_ok_bind {γ α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {v : γ} {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β} (h : LS pers R (k v) lst x) : LS pers R (ok v >>= k) lst x := by
+  rw [bind_tc_ok]; exact h
+
 /-- A tail call. -/
 theorem LS.tail {α β : Type} {pers : arena.store.PersTier} {R₁ R : α → β → Prop}
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
@@ -393,6 +402,11 @@ theorem LSP.bind_eq {α β : Type} {f : Result α} {k : α → Result β}
   intro b hb
   obtain ⟨a, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hb
   exact hk a h1 b h2
+
+/-- `LS.rust_ok_bind` for a Rust-only step. -/
+theorem LSP.rust_ok_bind {γ α : Type} {v : γ} {k : γ → Result α} {Q : α → Prop}
+    (h : LSP (k v) Q) : LSP (ok v >>= k) Q := by
+  rw [bind_tc_ok]; exact h
 
 theorem LSP.ite {α : Type} {c : Prop} [Decidable c] {m₁ m₂ : Result α} {Q : α → Prop}
     (h₁ : c → LSP m₁ Q) (h₂ : ¬ c → LSP m₂ Q) : LSP (if c then m₁ else m₂) Q := by
