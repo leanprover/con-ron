@@ -33,7 +33,7 @@ slot.  So every `r.infer` below is `ConLeche.inferTypeIO mode env F`, which
 is what the hypotheses say.  This is official's `infer_type_core` passing
 `infer_only` down, without a textual twin.
 -/
-import ConRon.Bridge.Core.Memo
+import ConRon.Bridge.Core.Arms.Infer
 
 namespace ConRon.Bridge.Core
 
@@ -267,7 +267,56 @@ theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v
+  case const n us =>
+    obtain ⟨nm, ls, rfl, hn, hus⟩ := denote_const_inv hwf hv hden
+    dsimp only
+    cases hf : fe.find? n with
+    | none =>
+      mvcgen [ConRon.Arena.unknownConstError, ConRon.Arena.pinSorryAx]
+      all_goals (bridge_peel; subst_vars)
+      all_goals first
+        | exact hok.pins
+        | exact hok.caches.readN
+        | exact fun h => h.elim
+    | some ci =>
+      obtain ⟨nm', c, hn', hci, hfind⟩ := hok.ienv.hit n ci hf
+      obtain rfl := Option.some.inj (hn.symm.trans hn')
+      cases ht : ci.isTowerEntry
+      · obtain ⟨hct, cv, hcv_eq, hcv⟩ := denoteCI_nonTower hci ht
+        have hname : denoteN s₀.store.ns cv.name = some nm := by
+          rw [denoteCV_name hcv]; exact congrArg some (env_find_name hfind)
+        have hlp := denoteNList_len (denoteCV_inv hcv).2.1
+        have hvl := viewLen_of_denoteLs hus
+        have hcta := constTyAt_spec' (mode := mode) (env := env) (fe := fe)
+          s₀ cv us hok ⟨nm, ls, c, hname, hus, hfind, hcv⟩
+        simp only [hcv_eq, Bool.false_eq_true, if_false]
+        mvcgen [hcta]
+        all_goals (bridge_peel; subst_vars)
+        all_goals first
+          | exact hok.pins
+          | exact hok.caches.readN
+          | exact fun h => h.elim
+          | rfl
+          | skip
+        rename_i _ usl hlen s₁ r s₂ hvl'
+        intro hck hx hp hd
+        have hlen' : usl = cv.levelParams.length := by simpa using hlen
+        have hl : ls.length = c.toConstantVal.levelParams.length := by
+          rw [hvl] at hvl'; rw [← Option.some.inj hvl', hlen', hlp]
+        exact ⟨hck, hx, hp, _, hd nm ls c hname hus hfind,
+          Expr.WScoped.of_not_hasFvar (ConLeche.const_ty_hasFvar henv hfind ls),
+          1, inferIO_const hfind hct hl⟩
+      · mvcgen
+        all_goals (bridge_peel; subst_vars)
+        all_goals first
+          | exact hok.caches.readN
+          | exact fun h => h.elim
+  all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1311-1317 inferBodyIO — **the two
 literal clauses**, `inferBody`'s verbatim at the io grade. -/
@@ -350,7 +399,7 @@ theorem inferBodyIO_leaf {fe : IFEnv} {fuel : Nat}
         fun c hc => by simp [LNodeView.nchildren] at hc⟩
     case vc3.sort.post.success.post.success =>
       rename_i s₁ r₁ s₂ r₂ s₃ _ hx1 _ _ _ _ hc1 hp1 _ hd1
-      intro hwf2 hx2 _ _ _ _ hc2 hp2 _ hd2
+      intro hwf2 hx2 _ _ hc2 hp2 _ _ _ hd2
       refine ⟨hok.mono ⟨hwf2⟩ (hx1.trans hx2) (hc2.trans hc1) (hp2.trans hp1),
         hx1.trans hx2, hp2.trans hp1, .sort (.succ l), ?_,
         by unfold Expr.WScoped; trivial, 1, inferIO_sort⟩

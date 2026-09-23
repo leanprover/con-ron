@@ -36,6 +36,7 @@ a twin SUCCESS is what each success lemma is the licence for.
    `Bridge/StateOK.lean`'s `IFEnvOK` absorbs with no clause of its own here.
 -/
 import ConRon.Bridge.Core.Memo
+import ConRon.Bridge.Core.Walks.Nat
 
 namespace ConRon.Bridge.Core
 
@@ -281,6 +282,53 @@ theorem inferBody_binders_batched {fe : IFEnv} {fuel : Nat}
   sorry
 
 
+/-! ### The constant lookup's two facts (task #97-P3-Core round 5)
+
+The `.const` clause of both inference bodies reads a stored constant off the
+environment index and, behind the tower-entry guard, projects its common
+data.  At a non-tower entry that projection is `pure` (only a projection
+table BUILDS its value), and the stored constant denotes one whose value is
+the projection's denotation. -/
+
+/-- con-leche: ConLeche/Kernel/Env.lean:639-651 ConstantInfo.toConstantVal /
+isTowerEntry — a stored non-tower constant projects its value purely, and
+denotes a non-tower constant with that value. -/
+theorem denoteCI_nonTower {st : EStore} {ci : IConstantInfo}
+    {c : ConstantInfo} (h : Frontend.denoteCI st ci = some c)
+    (ht : ci.isTowerEntry = false) :
+    c.isTowerEntry = false ∧ ∃ v, ci.toConstantVal = (pure v : AM _) ∧
+      Frontend.denoteCV st v = some c.toConstantVal := by
+  cases ci with
+  | projInfo t => simp [IConstantInfo.isTowerEntry] at ht
+  | axiomInfo v =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨cv, hcv, rfl⟩ := h
+    exact ⟨rfl, v, rfl, hcv⟩
+  | ctorInfo v nP nF =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨cv, hcv, rfl⟩ := h
+    exact ⟨rfl, v, rfl, hcv⟩
+  | defnInfo v e hh =>
+    simp only [Frontend.denoteCI] at h
+    split at h
+    · rename_i cv x hcv _; cases h; exact ⟨rfl, v, rfl, hcv⟩
+    · simp at h
+  | thmInfo v e =>
+    simp only [Frontend.denoteCI] at h
+    split at h
+    · rename_i cv x hcv _; cases h; exact ⟨rfl, v, rfl, hcv⟩
+    · simp at h
+  | indInfo v caps =>
+    simp only [Frontend.denoteCI] at h
+    split at h
+    · rename_i cv x hcv _; cases h; exact ⟨rfl, v, rfl, hcv⟩
+    · simp at h
+  | recInfo v mI rP rs =>
+    simp only [Frontend.denoteCI] at h
+    split at h
+    · rename_i cv x hcv _; cases h; exact ⟨rfl, v, rfl, hcv⟩
+    · simp at h
+
 /-! ### The dispatch's children (task #97-P3-Core round 5)
 
 `inferBody_spec` below is a case split on the tag and nothing else: one
@@ -328,7 +376,55 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v
+  case const n us =>
+    obtain ⟨nm, ls, rfl, hn, hus⟩ := denote_const_inv hwf hv hden
+    dsimp only
+    cases hf : fe.find? n with
+    | none =>
+      mvcgen [ConRon.Arena.unknownConstError, ConRon.Arena.pinSorryAx]
+      all_goals (bridge_peel; subst_vars)
+      all_goals first
+        | exact hok.pins
+        | exact hok.caches.readN
+        | exact fun h => h.elim
+    | some ci =>
+      obtain ⟨nm', c, hn', hci, hfind⟩ := hok.ienv.hit n ci hf
+      obtain rfl := Option.some.inj (hn.symm.trans hn')
+      cases ht : ci.isTowerEntry
+      · obtain ⟨hct, cv, hcv_eq, hcv⟩ := denoteCI_nonTower hci ht
+        have hname : denoteN s₀.store.ns cv.name = some nm := by
+          rw [denoteCV_name hcv]; exact congrArg some (env_find_name hfind)
+        have hlp := denoteNList_len (denoteCV_inv hcv).2.1
+        have hcta := constTyAt_spec' (mode := mode) (env := env) (fe := fe)
+          s₀ cv us hok ⟨nm, ls, c, hname, hus, hfind, hcv⟩
+        simp only [hcv_eq, Bool.false_eq_true, if_false]
+        mvcgen [hcta]
+        all_goals (bridge_peel; subst_vars)
+        all_goals first
+          | exact hok.pins
+          | exact hok.caches.readN
+          | exact fun h => h.elim
+          | rfl
+          | skip
+        rename_i _ usl hlen s₁ r s₂ hview
+        intro hck hx hp hd
+        have hlen' : usl.length = cv.levelParams.length := by simpa using hlen
+        have hl : ls.length = c.toConstantVal.levelParams.length := by
+          rw [← view_len_of_denoteLs hus hview, hlen', hlp]
+        exact ⟨hck, hx, hp, _, hd nm ls c hname hus hfind,
+          Expr.WScoped.of_not_hasFvar (ConLeche.const_ty_hasFvar henv hfind ls),
+          1, infer_const hfind hct hl⟩
+      · mvcgen
+        all_goals (bridge_peel; subst_vars)
+        all_goals first
+          | exact hok.caches.readN
+          | exact fun h => h.elim
+  all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1138-1147 inferBody — **the two
 literal clauses**: `natLitSupported_spec` (`Walks/Nat.lean`, CLOSED) and
@@ -419,7 +515,7 @@ theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
         fun c hc => by simp [LNodeView.nchildren] at hc⟩
     case vc3.sort.post.success.post.success =>
       rename_i s₁ r₁ s₂ r₂ s₃ _ hx1 _ _ _ _ hc1 hp1 _ hd1
-      intro hwf2 hx2 _ _ _ _ hc2 hp2 _ hd2
+      intro hwf2 hx2 _ _ hc2 hp2 _ _ _ hd2
       refine ⟨hok.mono ⟨hwf2⟩ (hx1.trans hx2) (hc2.trans hc1) (hp2.trans hp1),
         hx1.trans hx2, hp2.trans hp1, .sort (.succ l), ?_,
         by unfold Expr.WScoped; trivial, 1, infer_sort⟩
