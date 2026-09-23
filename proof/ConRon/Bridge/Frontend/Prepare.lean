@@ -1193,18 +1193,122 @@ theorem hoistTargets_run {s s' : AState} (hok : StateOK s)
     ParseStep s s' ∧ target = ConLeche.Frontend.hoistTargets dsP := by
   sorry
 
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist — the
+twin's `reorder` fold, as a `filterMap` over the index list. -/
+theorem reorder_toList (ds : Array IDeclaration) :
+    ∀ (order : List Nat) (acc : Array IDeclaration),
+      (order.foldl (fun acc k => acc ++ (ds[k]?.toArray)) acc).toList
+        = acc.toList ++ order.filterMap (fun k => ds[k]?) := by
+  intro order
+  induction order with
+  | nil => intro acc; simp
+  | cons k ks ih =>
+    intro acc
+    simp only [List.foldl_cons, ih, Array.toList_append, List.filterMap_cons]
+    cases h : ds[k]? <;> simp
+
+/-- con-leche: none — the records at a list of indices denote the denoted
+records at the same indices. -/
+theorem denoteDecls_filterMap {st : EStore} {ds : Array IDeclaration}
+    {dsP : Array Declaration} (hds : denoteDecls st ds.toList = some dsP.toList) :
+    ∀ (order : List Nat),
+      denoteDecls st (order.filterMap (fun k => ds[k]?))
+        = some (order.filterMap (fun k => dsP[k]?)) := by
+  intro order
+  induction order with
+  | nil => rfl
+  | cons k ks ih =>
+    have h := denoteDecls_getElem? ds.toList dsP.toList hds k
+    simp only [Array.getElem?_toList] at h
+    simp only [List.filterMap_cons]
+    cases h1 : ds[k]? with
+    | none =>
+      rw [h1] at h
+      rw [h.none_left rfl] ; exact ih
+    | some d =>
+      obtain ⟨dP, h2, h3⟩ := h.some_left h1
+      rw [h2]
+      simp only [denoteDecls, h3, ih]
+
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist — the
+twin's `movedNames` loop, as con-leche's `filter` then `flatMap`. -/
+theorem movedNames_toList (ds : Array IDeclaration) (target : Std.HashMap Nat Nat) :
+    ∀ (n k : Nat) (acc : Array NIdx), ds.size - k = n →
+      (movedNames ds target acc k).toList
+        = acc.toList ++ ((List.range' k (ds.size - k)).filter (fun i => target.contains i)).flatMap
+            (fun i => (ds[i]?.map IDeclaration.names).getD []) := by
+  intro n
+  induction n with
+  | zero =>
+    intro k acc hn
+    rw [movedNames, dif_neg (by omega)]
+    simp [hn]
+  | succ n ih =>
+    intro k acc hn
+    have hk : k < ds.size := by omega
+    rw [movedNames, dif_pos hk, ih (k + 1) _ (by omega)]
+    have hr : ds.size - k = (ds.size - (k + 1)) + 1 := by omega
+    rw [hr, List.range'_succ]
+    by_cases hc : target.contains k = true
+    · rw [if_pos hc]
+      simp [hc, Array.getElem?_eq_getElem hk, List.flatMap_cons]
+    · rw [if_neg hc]
+      simp [hc]
+
+/-- con-leche: none — `denoteNList` through `++`. -/
+theorem denoteNList_append' {st : NStore} :
+    ∀ {a : List NIdx} {b : List NIdx} {aP bP : List ConLeche.Name},
+      denoteNList st a = some aP → denoteNList st b = some bP →
+      denoteNList st (a ++ b) = some (aP ++ bP) := by
+  intro a
+  induction a with
+  | nil => intro b aP bP ha hb; simp only [denoteNList, Option.some.injEq] at ha; subst ha; simpa using hb
+  | cons x xs ih =>
+    intro b aP bP ha hb
+    simp only [denoteNList] at ha
+    cases hx : denoteN st x with
+    | none => rw [hx] at ha; simp at ha
+    | some y =>
+      cases hxs : denoteNList st xs with
+      | none => rw [hx, hxs] at ha; simp at ha
+      | some ys =>
+        rw [hx, hxs] at ha
+        obtain rfl := Option.some.inj ha
+        simp only [List.cons_append, denoteNList, hx, ih hxs hb]
+
+/-- con-leche: ConLeche/Kernel/Env.lean:659-670 Declaration.names — the names
+of the records at a list of in-range indices denote (`declNames_denote`). -/
+theorem denoteNList_flatMap_names {st : EStore} {ds : Array IDeclaration}
+    {dsP : Array Declaration} (hds : denoteDecls st ds.toList = some dsP.toList)
+    (hnds : DeclsProjNamed st ds) :
+    ∀ (idx : List Nat), (∀ i ∈ idx, i < ds.size) →
+      denoteNList st.ns (idx.flatMap (fun i => (ds[i]?.map IDeclaration.names).getD []))
+        = some (idx.flatMap (fun i => (dsP[i]!).names)) := by
+  intro idx
+  induction idx with
+  | nil => intro _; rfl
+  | cons i is ih =>
+    intro hb
+    have hi := hb i (by simp)
+    have h := denoteDecls_getElem? ds.toList dsP.toList hds i
+    simp only [Array.getElem?_toList, Array.getElem?_eq_getElem hi] at h
+    obtain ⟨dP, h2, h3⟩ := h.some_left rfl
+    have hn := declNames_denote (hnds _ (Array.getElem_mem hi)) h3
+    have hiP : i < dsP.size := by
+      rw [Array.getElem?_eq_some_iff] at h2; exact h2.1
+    have hdP : dsP[i]! = dP := by
+      rw [getElem!_pos dsP i hiP]; exact (Array.getElem?_eq_some_iff.mp h2).2
+    simp only [List.flatMap_cons, Array.getElem?_eq_getElem hi, Option.map_some,
+      Option.getD_some, hdP]
+    exact denoteNList_append' hn (ih (fun j hj => hb j (by simp [hj])))
+
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist — **the
 reorder, at one and the same target map**: the twin's `reorder` over the sorted
 index list is con-leche's `List.map` over the same list (the two comparators
 are the same function of the map), and the moved names are the declared names
 of the moved records, in index order (`declNames_denote`, so `DeclsProjNamed`).
-Pure on both sides.
-
-`sorry`: round 7's skeleton child of `hoistNatOpGround_run` — the comparator
-equality (`hoistLt`/`hoistKey` against con-leche's two local lambdas, a
-`funext` and a case split on the two lookups), `reorder` as `List.map` by
-induction over the index list, and `movedNames` against `filter`/`flatMap` by
-induction over the index. -/
+Pure on both sides.  Round 7's child of `hoistNatOpGround_run`; the two
+comparators close by `congr` (they are the same term up to the matcher). -/
 theorem applyHoist_run {st : EStore} {ds : Array IDeclaration}
     {dsP : Array Declaration} (hds : denoteDeclArray st ds = some dsP)
     (hpds : PersDecls ds) (hnds : DeclsProjNamed st ds)
@@ -1214,7 +1318,49 @@ theorem applyHoist_run {st : EStore} {ds : Array IDeclaration}
         = some (ConLeche.Frontend.applyHoist dsP target).1 ∧
       denoteNList st.ns (applyHoist ds target).2.toList
         = some (ConLeche.Frontend.applyHoist dsP target).2.toList := by
-  sorry
+  have hL := denoteDeclArray_iff.mp hds
+  have hsz : ds.size = dsP.size := by
+    have := denoteDecls_length _ _ hL; simpa using this
+  simp only [applyHoist, ConLeche.Frontend.applyHoist]
+  generalize hO : ((List.range ds.size).mergeSort fun a b => !hoistLt target b a) = ord
+  rw [show (List.range dsP.size).mergeSort _ = ord from ?_]
+  rotate_left
+  · rw [← hO, ← hsz]
+    congr 1
+  have hbd : ∀ k ∈ ord, k < ds.size := by
+    intro k hk
+    rw [← hO] at hk
+    have := (List.mergeSort_perm (List.range ds.size) _).mem_iff.mp hk
+    simpa using this
+  have hre : (reorder ds ord).toList = ord.filterMap (fun k => ds[k]?) := by
+    rw [reorder, reorder_toList]; simp
+  have hmemR : ∀ x ∈ reorder ds ord, x ∈ ds := by
+    intro x hx
+    rw [← Array.mem_toList_iff, hre, List.mem_filterMap] at hx
+    obtain ⟨k, -, hk⟩ := hx
+    exact Array.mem_of_getElem? hk
+  refine ⟨fun x hx => hpds x (hmemR x hx), fun x hx => hnds x (hmemR x hx), ?_, ?_⟩
+  · rw [denoteDeclArray_iff, hre]
+    rw [denoteDecls_filterMap hL ord]
+    congr 1
+    have key : ∀ l : List Nat, (∀ k ∈ l, k < dsP.size) →
+        l.filterMap (fun k => dsP[k]?) = l.map (fun k => dsP[k]!) := by
+      intro l
+      induction l with
+      | nil => intro _; rfl
+      | cons k ks ih =>
+        intro hb
+        have hk := hb k (by simp)
+        simp only [List.filterMap_cons, Array.getElem?_eq_getElem hk, List.map_cons,
+          getElem!_pos dsP k hk, ih (fun j hj => hb j (by simp [hj]))]
+    exact key ord (fun k hk => hsz ▸ hbd k hk)
+  · rw [movedNames_toList ds target _ 0 #[] rfl]
+    simp only [List.nil_append, Nat.sub_zero, ← List.range_eq_range']
+    simp only [Array.toList_flatMap, Array.toList_filter, Array.toList_range]
+    rw [← hsz]
+    refine denoteNList_flatMap_names hL hnds _ (fun i hi => ?_)
+    simp only [List.mem_filter, List.mem_range] at hi
+    exact hi.1
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:167 hoistNatOpGround — the
 hoist.  Its answer is a PERMUTATION of its argument, so the denotation of the
