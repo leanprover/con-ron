@@ -25,117 +25,6 @@ namespace ConRon.Refine2.Lockstep
 
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PA2
 
-/-! ## Glue: a Rust read as a state-threading computation -/
-
-/-! ### A local `lockstep_core` variant (region A2's tactic gap workaround)
-
-`Result`'s bind is an `ITree` bind, so `ok v >>= k` is NOT definitionally
-`k v` for the kernel: `lockstep_core`'s `coreMove` feeds an `ok v` bind to its
-continuation by `replaceTargetDefEq`, which the elaborator accepts and the
-kernel then rejects ("application type mismatch").  And `lockstep`'s `errArm`
-closes a read's error arm by `exact errArm_ok`, which needs the arm to BE
-`ok (.Err e, st)`, not `ok (.Err e) >>= k`.  `lockstep_a2` handles both by
-REWRITING (`bind_tc_ok`) before `lockstep_core_step` sees the goal. -/
-
-theorem LS.rust_ok_bind {γ α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
-    {v : γ}
-    {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
-    {lst : AState} {x : AM β} (h : LS pers R (k v) lst x) :
-    LS pers R (ok v >>= k) lst x := by
-  rw [bind_tc_ok]; exact h
-
-theorem LSP.rust_ok_bind {γ α : Type} {v : γ} {k : γ → Result α} {Q : α → Prop}
-    (h : LSP (k v) Q) : LSP (ok v >>= k) Q := by
-  rw [bind_tc_ok]; exact h
-
-theorem errArm_of_eq {γ : Type} {e : kernel.core_types.CheckError} {st : arena.monad.AState}
-    {m : Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
-    (h : m = ok (.Err e, st)) : ErrArm m e := by
-  subst h; exact errArm_ok
-
-/-- A Rust read in tail position: `f >>= fun o => ok (o, st)`. -/
-theorem LSR.tail_ls {α β : Type} {pers : arena.store.PersTier} {R₁ R : α → β → Prop}
-    {f : Result (core.result.Result α kernel.core_types.CheckError)}
-    {st : arena.monad.AState} {lst : AState} {x' x : AM β}
-    (hf : LSR pers R₁ f st lst x') (hx : x' = x) (hR : ∀ a b, R₁ a b → R a b) :
-    LS pers R (f >>= fun o => ok (o, st)) lst x := by
-  subst hx
-  intro o st' hm
-  obtain ⟨r, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
-  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h2)
-  have h := hf r h1
-  cases r with
-  | Err e => exact h
-  | Ok a =>
-    obtain ⟨b, lst', h1, h2, h3, h4⟩ := h
-    exact ⟨b, lst', h1, hR _ _ h2, h3, h4⟩
-
-open Lean Meta Elab Tactic in
-/-- The two moves above, tried before `lockstep_core_step`. -/
-elab "lockstep_a2_step" : tactic => do
-  let g ← getMainGoal
-  let others := (← getGoals).tail
-  g.withContext do
-  let ty ← instantiateMVars (← g.getType)
-  let some rp := rustPos ty | throwError "a2: not a judgement"
-  let m := (ty.getArg! rp).headBeta
-  unless m.isAppOfArity ``Bind.bind 6 do throwError "a2: not a bind"
-  let f ← headNorm (m.getArg! 4)
-  if f.isAppOfArity ``Result.ok 2 then
-    let gs ← applyRule g (if rp == 4 then ``LS.rust_ok_bind else ``LSP.rust_ok_bind)
-    let rest ← normAll [← pick gs `h]
-    setGoals (rest ++ others)
-    return
-  -- a pattern `let (x, y) := p` in bind position (`uncurry`): split the tuple
-  if f.isAppOfArity ``Aeneas.Std.uncurry 5 then
-    if let .fvar fv := f.appArg! then
-      let subs ← g.cases fv
-      let rest ← normAll (subs.toList.map (·.mvarId))
-      setGoals (rest ++ others)
-      return
-  if let some mapp ← matchMatcherApp? f then
-    for d in mapp.discrs do
-      let d ← instantiateMVars d
-      for fv in (Lean.collectFVars {} d).fvarIds do
-        if (← whnfR (← fv.getType)).isAppOf ``Prod then
-          let subs ← g.cases fv
-          let rest ← normAll (subs.toList.map (·.mvarId))
-          setGoals (rest ++ others)
-          return
-  if rp == 4 then
-    match ← classify (← inferType f).appArg! with
-    | .read =>
-      let s ← saveState
-      try
-        let gs ← applyRule g ``LSR.tail_ls
-        specCore (← pick gs `hf)
-        runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
-        runClosed (← pick gs `hR)
-          (evalT `(tactic| (intro _ _ h; first | exact h | (subst h; rfl) | lockstep_side)))
-        setGoals others
-        return
-      catch _ => s.restore
-      let gs ← applyRule g ``LSR.bind
-      specCore (← pick gs `hf)
-      runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
-      runClosed (← pick gs `he) (evalT `(tactic| (intro _; apply errArm_of_eq; (first | rfl | (simp only [bind_tc_ok]; done) | (simp only [bind_tc_ok]; rfl)))))
-      let rest ← cont (← pick gs `hk) [`a, `b, `lst1, `hR, `hrel, `hinv] (some `hR)
-      setGoals ((← normAll rest) ++ others)
-      return
-    | _ => pure ()
-  throwError "a2: no move"
-
-/-- `lockstep_core` with region A2's two rewriting moves first. -/
-macro "lockstep_a2" : tactic =>
-  `(tactic| repeat' (first | lockstep_a2_step | lockstep_core_step))
-
-theorem LSR.of_LS {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
-    {m : Result (core.result.Result α kernel.core_types.CheckError)}
-    {st : arena.monad.AState} {lst : AState} {x : AM β}
-    (h : LS pers R (m >>= fun o => ok (o, st)) lst x) : LSR pers R m st lst x := by
-  intro o hm
-  exact h o st (by rw [hm, bind_tc_ok])
-
 /-! ## Pure helpers -/
 
 @[lockstep] theorem pw_written_ls (pw : kernel.prop_when.PropWhen) :
@@ -188,7 +77,7 @@ theorem LSR.of_LS {α β : Type} {pers : arena.store.PersTier} {R : α → β �
       (defeqPeelDone mism mism_lam) := by
   apply LSR.of_LS
   rw [arena.core.defeq_peel_done, defeqPeelDone]
-  lockstep_a2
+  lockstep
 
 theorem get_app_spine_go_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
@@ -202,12 +91,12 @@ theorem get_app_spine_go_aux (n : Nat) :
     intro pers st lst fuel h k hn hrel hinv
     apply LSR.of_LS
     rw [arena.core.get_app_spine_go, getAppSpineGo]
-    lockstep_a2
+    lockstep
   | succ m ih =>
     intro pers st lst fuel h k hn hrel hinv
     apply LSR.of_LS
     rw [arena.core.get_app_spine_go, getAppSpineGo]
-    lockstep_a2
+    lockstep
 
 @[lockstep] theorem get_app_spine_go_ls {pers st fuel h k lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -231,7 +120,7 @@ theorem get_app_spine_go_aux (n : Nat) :
       (headAndArgs (absEIdx v)) := by
   apply LSR.of_LS
   rw [arena.core.head_and_args, headAndArgs]
-  lockstep_a2
+  lockstep
 
 /-! ## Straight-line state-threading helpers -/
 
@@ -243,7 +132,7 @@ attribute [local lockstep_inline] arena.core.intern_app
     LS pers (fun a b => b = absEIdx a) (arena.core.intern_app_rebuilt pers st h same f a) lst
       (internAppRebuilt (absEIdx h) same (absEIdx f) (absEIdx a)) := by
   rw [arena.core.intern_app_rebuilt, internAppRebuilt]
-  lockstep_a2
+  lockstep
 
 end
 
@@ -254,21 +143,21 @@ end
     LS pers (fun a b => b = a) (arena.core.defeq_no_fvars pers st a b) lst
       (defeqNoFvars (absEIdx a) (absEIdx b)) := by
   rw [arena.core.defeq_no_fvars, defeqNoFvars]
-  lockstep_a2
+  lockstep
 
 @[lockstep] theorem fab_scope_ok_ls {pers st depth fab major lst}
     (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = a) (arena.core.fab_scope_ok pers st depth fab major) lst
       (fabScopeOk (absU depth) (absEIdx fab) (absEIdx major)) := by
   rw [arena.core.fab_scope_ok, fabScopeOk]
-  lockstep_a2
+  lockstep
 
 @[lockstep] theorem infer_lam_result_ls {pers st ty bt depth mb lst}
     (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = absEIdx a) (arena.core.infer_lam_result pers st ty bt depth mb) lst
       (inferLamResult (absEIdx ty) (absEIdx bt) (absU depth) (ConRon.Refine.absBinderMeta mb)) := by
   rw [arena.core.infer_lam_result, inferLamResult]
-  lockstep_a2
+  lockstep
 
 theorem decide_u64_eq (a b : Std.U64) : decide (a = b) = (a.val == b.val) := by
   by_cases h : a = b
@@ -286,7 +175,7 @@ attribute [local lockstep_simp] decide_u64_eq ExprOps.absEIdxList List.length_ma
     LS pers (fun a b => b = a) (arena.core.eta_ctor_shape pers vis st fe a) lst
       (etaCtorShape lfe (absEIdx a)) := by
   rw [arena.core.eta_ctor_shape, etaCtorShape]
-  lockstep_a2
+  lockstep
 
 end
 
@@ -301,11 +190,11 @@ theorem pi_residual_aux (n : Nat) :
   | zero =>
     intro pers st lst e args i hx hn hrel hinv
     rw [arena.core.pi_residual, listFrom_nil args i (by omega), piResidual]
-    lockstep_a2
+    lockstep
   | succ k ih =>
     intro pers st lst e args i hx hn hrel hinv
     rw [arena.core.pi_residual, listFrom_cons args i (by omega), piResidual]
-    lockstep_a2
+    lockstep
 
 @[lockstep] theorem pi_residual_ls {pers st e args i lst}
     (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -339,11 +228,11 @@ theorem tower_slots_all_go_aux (n : Nat) :
   | zero =>
     intro pers vis st fe lfe lst t nn j hn hrel hinv hctx
     rw [arena.core.tower_slots_all_go, towerSlotsAllGo]
-    lockstep_a2
+    lockstep
   | succ m ih =>
     intro pers vis st fe lfe lst t nn j hn hrel hinv hctx
     rw [arena.core.tower_slots_all_go, towerSlotsAllGo]
-    lockstep_a2
+    lockstep
 
 @[lockstep] theorem tower_slots_all_go_ls {pers vis st fe lfe t n j lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -358,7 +247,7 @@ theorem tower_slots_all_go_aux (n : Nat) :
     LS pers (fun a b => b = a) (arena.core.tower_slots_all pers vis st fe t n_f) lst
       (towerSlotsAll lfe (absNIdx t) (absU n_f)) := by
   rw [arena.core.tower_slots_all, towerSlotsAll]
-  lockstep_a2
+  lockstep
 
 theorem rec_slots_all_go_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {vis : Std.U64} {st : arena.monad.AState}
@@ -371,11 +260,11 @@ theorem rec_slots_all_go_aux (n : Nat) :
   | zero =>
     intro pers vis st fe lfe lst t nn j hn hrel hinv hctx
     rw [arena.core.rec_slots_all_go, recSlotsAllGo]
-    lockstep_a2
+    lockstep
   | succ m ih =>
     intro pers vis st fe lfe lst t nn j hn hrel hinv hctx
     rw [arena.core.rec_slots_all_go, recSlotsAllGo]
-    lockstep_a2
+    lockstep
 
 @[lockstep] theorem rec_slots_all_go_ls {pers vis st fe lfe t n j lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -390,7 +279,7 @@ theorem rec_slots_all_go_aux (n : Nat) :
     LS pers (fun a b => b = a) (arena.core.rec_slots_all pers vis st fe t n_f) lst
       (recSlotsAll lfe (absNIdx t) (absU n_f)) := by
   rw [arena.core.rec_slots_all, recSlotsAll]
-  lockstep_a2
+  lockstep
 
 end slots
 
@@ -407,11 +296,11 @@ theorem proj_nodes_go_aux (n : Nat) :
   | zero =>
     intro pers st lst t b nn j hn hrel hinv
     rw [arena.core.proj_nodes_go, projNodesGo]
-    lockstep_a2
+    lockstep
   | succ m ih =>
     intro pers st lst t b nn j hn hrel hinv
     rw [arena.core.proj_nodes_go, projNodesGo]
-    lockstep_a2
+    lockstep
 
 @[lockstep] theorem proj_nodes_go_ls {pers st t b n j lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -431,11 +320,11 @@ theorem proj_apps_go_aux (n : Nat) :
   | zero =>
     intro pers st lst t us targs b nn j hx hn hrel hinv
     rw [arena.core.proj_apps_go, projAppsGo]
-    lockstep_a2
+    lockstep
   | succ m ih =>
     intro pers st lst t us targs b nn j hx hn hrel hinv
     rw [arena.core.proj_apps_go, projAppsGo]
-    lockstep_a2
+    lockstep
 
 @[lockstep] theorem proj_apps_go_ls {pers st t us targs b n j lst}
     (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -451,7 +340,7 @@ theorem proj_apps_go_aux (n : Nat) :
       (arena.core.eta_projs pers vis st fe t us targs b n_f) lst
       (etaProjs lfe (absNIdx t) (absLsIdx us) (absEIdxList targs) (absEIdx b) (absU n_f)) := by
   rw [arena.core.eta_projs, etaProjs]
-  lockstep_a2
+  lockstep
 
 end projs
 
@@ -481,11 +370,11 @@ theorem and_rescue_slots_go_aux (n : Nat) :
   | zero =>
     intro pers vis st fe lfe lst an ctor n_p ust nn j hn hrel hinv hctx
     rw [arena.core.and_rescue_slots_go, andRescueSlotsGo]
-    lockstep_a2
+    lockstep
   | succ m ih =>
     intro pers vis st fe lfe lst an ctor n_p ust nn j hn hrel hinv hctx
     rw [arena.core.and_rescue_slots_go, andRescueSlotsGo]
-    lockstep_a2
+    lockstep
 
 @[lockstep] theorem and_rescue_slots_go_ls {pers vis st fe lfe an ctor n_p ust n j lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -503,7 +392,7 @@ theorem and_rescue_slots_go_aux (n : Nat) :
       (arena.core.and_rescue_slots pers vis st fe ctor n_p ust) lst
       (andRescueSlots lfe (absNIdx ctor) (absU n_p) (absLsIdx ust)) := by
   rw [arena.core.and_rescue_slots, andRescueSlots]
-  lockstep_a2
+  lockstep
 
 end rescue
 
@@ -566,9 +455,9 @@ elab "a2_idx" : tactic => withMainContext do
 
 attribute [local lockstep_simp] ConRon.Refine.absBinderMeta
 
-/-- `lockstep_a2` with the stack-read rewrite `a2_idx` as a last resort. -/
+/-- `lockstep` with the stack-read rewrite `a2_idx` as a last resort. -/
 macro "lockstep_a2_stk" : tactic =>
-  `(tactic| repeat' (first | lockstep_a2_step | lockstep_core_step | a2_idx))
+  `(tactic| repeat' (first | lockstep_step | a2_idx))
 
 theorem infer_lams_out_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}

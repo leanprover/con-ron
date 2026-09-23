@@ -68,7 +68,7 @@ elab "a1_twin_eqs" : tactic => do
 stops: a constructed level's fact is `WF u ∧ TwinEq …` (`PrimsA1.lean`), which
 the tidy step leaves whole. -/
 macro "lockstep_a1" : tactic =>
-  `(tactic| repeat' (first | lockstep_core_step | (casesm* _ ∧ _) | a1_twin_eqs))
+  `(tactic| repeat' (first | lockstep_step | (casesm* _ ∧ _) | a1_twin_eqs))
 
 theorem some_beq_some_true (b : Bool) : (some b == some true) = b := by cases b <;> rfl
 
