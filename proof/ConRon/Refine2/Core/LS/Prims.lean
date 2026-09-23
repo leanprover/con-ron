@@ -105,4 +105,143 @@ pure expression, so the pair is a `TwinEq` the twin side is rewritten with. -/
   rw [arena.monad.view_const_name] at hrun
   exact (estore_view_const_name_abs hrel.store hrun).symm ▸ rfl
 
+/-! ## The `ExprOps` walks, through the `ExprOpsHyp` seam
+
+Each wrapper's `hx : ExprOpsHyp pers` premise is closed from the context by
+`assumption`: a body lemma carries the bundle as a hypothesis, and
+`Core/Arms.lean`'s `exprOpsHyp` is the one place it is discharged. -/
+
+@[lockstep] theorem inst_lp_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel lps us value) :
+    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.inst_lp_fast pers st fuel lps us value)
+      lst (instLPFast (absU fuel) (lps.val.map absNIdx) (absLsIdx us) (absEIdx value)) :=
+  LS.ofSim₀ fun _ h => hx.instLPFast hrel hinv h
+
+@[lockstep] theorem mk_app_n_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (f args) :
+    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.mk_app_n pers st f args)
+      lst (Arena.mkAppN (absEIdx f) (absEIdxList args)) :=
+  LS.ofSim₀ fun _ h => hx.mkAppN hrel hinv h
+
+@[lockstep] theorem mk_app_n_from_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (f args i) :
+    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.mk_app_n_from pers st f args i)
+      lst (mkAppNFrom (absEIdx f) (absEIdxArr args) (absSz i)) :=
+  LS.ofSim₀ fun _ h => hx.mkAppNFrom hrel hinv h
+
+@[lockstep] theorem instantiate1_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel e v d) :
+    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate1_fast pers st fuel e v d)
+      lst (instantiate1Fast (absU fuel) (absEIdx e) (absEIdx v) (absU d)) :=
+  LS.ofSim₀ fun _ h => hx.instantiate1Fast hrel hinv h
+
+@[lockstep] theorem instantiate_list_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel e vs d) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.expr_ops.instantiate_list_fast pers st fuel e vs d)
+      lst (instantiateListFast (absU fuel) (absEIdx e) (absEIdxArr vs) (absU d)) :=
+  LS.ofSim₀ fun _ h => hx.instantiateListFast hrel hinv h
+
+@[lockstep] theorem abstract1_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel e d k) :
+    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.abstract1_fast pers st fuel e d k)
+      lst (abstract1Fast (absU fuel) (absEIdx e) (absU d) (absU k)) :=
+  LS.ofSim₀ fun _ h => hx.abstract1Fast hrel hinv h
+
+@[lockstep] theorem abstract_range_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel e d k c) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.expr_ops.abstract_range_fast pers st fuel e d k c)
+      lst (abstractRangeFast (absU fuel) (absEIdx e) (absU d) (absU k) (absU c)) :=
+  LS.ofSim₀ fun _ h => hx.abstractRangeFast hrel hinv h
+
+@[lockstep] theorem inst_spine_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel args t e) :
+    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.inst_spine pers st fuel args t e)
+      lst (instSpine (absU fuel) (absEIdxList args) (absU t) (absEIdx e)) :=
+  LS.ofSim₀ fun _ h => hx.instSpine hrel hinv h
+
+@[lockstep] theorem intern_rebuilt_app_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (h same f a) :
+    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.intern_rebuilt_app pers st h same f a)
+      lst (internRebuiltApp (absEIdx h) same (absEIdx f) (absEIdx a)) :=
+  LS.ofSim₀ fun _ hr => hx.internRebuiltApp hrel hinv hr
+
+@[lockstep] theorem bvar_b_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel e) :
+    LS pers (fun a b => b = absU a) (arena.expr_ops.bvar_b pers st fuel e)
+      lst (bvarB (absU fuel) (absEIdx e)) :=
+  LS.ofSim₀ fun _ h => hx.bvarB hrel hinv h
+
+@[lockstep] theorem has_fvar_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel e) :
+    LS pers (fun a b => b = a) (arena.expr_ops.has_fvar_fast pers st fuel e)
+      lst (hasFvarFast (absU fuel) (absEIdx e)) :=
+  LS.ofSim₀ (A := id) fun _ h => hx.hasFvarFast hrel hinv h
+
+@[lockstep] theorem loose_bvars_bounded_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel k e) :
+    LS pers (fun a b => b = a) (arena.expr_ops.loose_bvars_bounded_fast pers st fuel k e)
+      lst (looseBVarsBoundedFast (absU fuel) (absU k) (absEIdx e)) :=
+  LS.ofSim₀ (A := id) fun _ h => hx.looseBVarsBoundedFast hrel hinv h
+
+@[lockstep] theorem lam_pw_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (h) :
+    LSR pers (fun a b => b = ExprOps.absPwOpt a) (arena.expr_ops.lam_pw pers st h) st lst
+      (lamPw (absEIdx h)) :=
+  LSR.ofAOut₀ fun _ hr => hx.lamPw hrel hinv hr
+
+@[lockstep] theorem pi_result_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel h) :
+    LSR pers (fun a b => b = absEIdx a) (arena.expr_ops.pi_result pers st fuel h) st lst
+      (piResult (absU fuel) (absEIdx h)) :=
+  LSR.ofAOut₀ fun _ hr => hx.piResult hrel hinv hr
+
+@[lockstep] theorem strip_pis_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (k h) :
+    LSR pers (fun a b => b = ExprOps.absStrip a) (arena.expr_ops.strip_pis pers st k h) st lst
+      (stripPis (absU k) (absEIdx h)) :=
+  LSR.ofAOut₀ fun _ hr => hx.stripPis hrel hinv hr
+
+@[lockstep] theorem wscoped_b_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel d h) :
+    LSR pers (fun a b => b = a) (arena.expr_ops.wscoped_b_fast pers st fuel d h) st lst
+      (wscopedBFast (absU fuel) (absU d) (absEIdx h)) :=
+  LSR.ofAOut₀ (A := id) fun _ hr => hx.wscopedBFast hrel hinv hr
+
+@[lockstep] theorem leaf_guard_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel fab base) :
+    LSR pers (fun a b => b = a) (arena.expr_ops.leaf_guard pers st fuel fab base) st lst
+      (leafGuard (absU fuel) (absEIdx fab) (absEIdx base)) :=
+  LSR.ofAOut₀ (A := id) fun _ hr => hx.leafGuard hrel hinv hr
+
+@[lockstep] theorem proof_pw_ls {pers} (hx : ExprOpsHyp pers) {st lst vis fe lfe}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
+    (fuel a) :
+    LS pers (fun a b => b = ExprOps.absPwOpt a) (arena.prop_read.proof_pw pers vis st fe fuel a)
+      lst (proofPW lfe (absU fuel) (absEIdx a)) :=
+  LS.ofSim₀ fun _ h => hx.proofPW hrel hinv hctx h
+
+@[lockstep] theorem type_sort_pw_ls {pers} (hx : ExprOpsHyp pers) {st lst vis fe lfe}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
+    (fuel t) :
+    LS pers (fun a b => b = ExprOps.absPwOpt a)
+      (arena.prop_read.type_sort_pw pers vis st fe fuel t)
+      lst (typeSortPW lfe (absU fuel) (absEIdx t)) :=
+  LS.ofSim₀ fun _ h => hx.typeSortPW hrel hinv hctx h
+
+@[lockstep] theorem is_proof_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst vis fe lfe}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
+    (fuel a) :
+    LS pers (fun a b => b = a) (arena.prop_read.is_proof_fast pers vis st fe fuel a)
+      lst (isProofFast lfe (absU fuel) (absEIdx a)) :=
+  LS.ofSim₀ (A := id) fun _ h => hx.isProofFast hrel hinv hctx h
+
+@[lockstep] theorem not_proof_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst vis fe lfe}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
+    (fuel a) :
+    LS pers (fun a b => b = a) (arena.prop_read.not_proof_fast pers vis st fe fuel a)
+      lst (notProofFast lfe (absU fuel) (absEIdx a)) :=
+  LS.ofSim₀ (A := id) fun _ h => hx.notProofFast hrel hinv hctx h
+
 end ConRon.Refine2.Lockstep

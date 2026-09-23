@@ -75,3 +75,8 @@ register_simp_attr lockstep_simp
 place instead of stepping over with a lemma: the port's fragments of one twin
 function (task #97-P5-Core round 5). -/
 register_simp_attr lockstep_inline
+
+/-- Twin-side rewriting rules `lockstep_core` tries when the twin's next action
+is a whole-node `view` and the port's is a typed projection: each is tried and
+kept only if the port's next step then goes through (task #97-P5-Core round 5). -/
+register_simp_attr lockstep_twin

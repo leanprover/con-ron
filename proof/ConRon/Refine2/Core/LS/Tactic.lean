@@ -181,7 +181,7 @@ theorem view_bind_of_proj {γ δ : Type} (h : EIdx) (Q : AM (Option γ)) (P : ES
   rw [StateT.run_bind, StateT.run_bind, view_run_of, hv, hQ]
   cases P lst.store <;> rfl
 
-theorem LS.twin_view_const {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+@[lockstep_twin] theorem LS.twin_view_const {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
     {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.const)
     (hls : LS pers R m lst (viewConst h >>= danglingOr fun p => g (.const p.1 p.2))) :
@@ -190,7 +190,7 @@ theorem LS.twin_view_const {α β : Type} {pers : arena.store.PersTier} {R : α 
     (fun p => .const p.1 p.2) (fun st => EStore_view_of_tag_const st h ht)]
   exact hls
 
-theorem LS.twin_view_sort {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+@[lockstep_twin] theorem LS.twin_view_sort {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
     {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.sort)
     (hls : LS pers R m lst (viewSort h >>= danglingOr fun p => g (.sort p))) :
@@ -212,7 +212,7 @@ theorem EStore_viewConstName_eq (st : EStore) (i : EIdx) :
 
 /-- The port reads the NAME of a `const`-tagged handle, the twin its whole
 view, and uses only the name. -/
-theorem LS.twin_view_const_name {α β : Type} {pers : arena.store.PersTier}
+@[lockstep_twin] theorem LS.twin_view_const_name {α β : Type} {pers : arena.store.PersTier}
     {R : α → β → Prop}
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
     {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.const)
@@ -232,6 +232,177 @@ theorem LS.twin_view_const_name {α β : Type} {pers : arena.store.PersTier}
       rw [hg]
   rw [key]; exact hls
 
+theorem EStore_view_of_tag_app (st : EStore) (i : EIdx) (hi : i.tag = ETag.app) :
+    st.view i = (st.viewApp i).map (fun p => ENodeView.app p.1 p.2) := by
+  have key : ∀ t : ETables, t.get i = (t.getApp i).map (fun p => ENodeView.app p.1 p.2) := by
+    intro t
+    simp only [ETables.get, ETables.getApp, hi, Option.map_map]
+    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
+      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    rfl
+  rw [EStore.view, EStore.viewApp,
+    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.app])]
+  by_cases hp : i.isPersistent
+  · rw [if_pos hp, if_pos hp, EStore.persGetApp]; exact key _
+  · rw [if_neg hp, if_neg hp]
+    by_cases hs : st.scratchOn
+    · rw [if_pos hs, if_pos hs]; exact key _
+    · rw [if_neg hs, if_neg hs]; rfl
+
+theorem EStore_view_of_tag_lit (st : EStore) (i : EIdx) (hi : i.tag = ETag.lit) :
+    st.view i = (st.viewLit i).map ENodeView.lit := by
+  have key : ∀ t : ETables, t.get i = (t.getLit i).map ENodeView.lit := by
+    intro t
+    simp only [ETables.get, ETables.getLit, hi, Option.map_map]
+    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
+      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    rfl
+  rw [EStore.view, EStore.viewLit,
+    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.lit])]
+  by_cases hp : i.isPersistent
+  · rw [if_pos hp, if_pos hp, EStore.persGetLit]; exact key _
+  · rw [if_neg hp, if_neg hp]
+    by_cases hs : st.scratchOn
+    · rw [if_pos hs, if_pos hs]; exact key _
+    · rw [if_neg hs, if_neg hs]; rfl
+
+theorem EStore_view_of_tag_letE (st : EStore) (i : EIdx) (hi : i.tag = ETag.letE) :
+    st.view i = (st.viewLet i).map (fun p => ENodeView.letE p.1 p.2.1 p.2.2) := by
+  have key : ∀ t : ETables, t.get i = (t.getLet i).map (fun p => ENodeView.letE p.1 p.2.1 p.2.2) := by
+    intro t
+    simp only [ETables.get, ETables.getLet, hi, Option.map_map]
+    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
+      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    rfl
+  rw [EStore.view, EStore.viewLet,
+    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.letE])]
+  by_cases hp : i.isPersistent
+  · rw [if_pos hp, if_pos hp, EStore.persGetLet]; exact key _
+  · rw [if_neg hp, if_neg hp]
+    by_cases hs : st.scratchOn
+    · rw [if_pos hs, if_pos hs]; exact key _
+    · rw [if_neg hs, if_neg hs]; rfl
+
+theorem EStore_view_of_tag_proj (st : EStore) (i : EIdx) (hi : i.tag = ETag.proj) :
+    st.view i = (st.viewProj i).map (fun p => ENodeView.proj p.1 p.2.1 p.2.2) := by
+  have key : ∀ t : ETables, t.get i = (t.getProj i).map (fun p => ENodeView.proj p.1 p.2.1 p.2.2) := by
+    intro t
+    simp only [ETables.get, ETables.getProj, hi, Option.map_map]
+    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
+      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    rfl
+  rw [EStore.view, EStore.viewProj,
+    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.proj])]
+  by_cases hp : i.isPersistent
+  · rw [if_pos hp, if_pos hp, EStore.persGetProj]; exact key _
+  · rw [if_neg hp, if_neg hp]
+    by_cases hs : st.scratchOn
+    · rw [if_pos hs, if_pos hs]; exact key _
+    · rw [if_neg hs, if_neg hs]; rfl
+
+theorem EStore_view_of_tag_bvar (st : EStore) (i : EIdx) (hi : i.tag = ETag.bvar) :
+    st.view i = (st.viewBVar i).map ENodeView.bvar := by
+  have key : ∀ t : ETables, t.get i = (t.getBVar i).map ENodeView.bvar := by
+    intro t
+    simp only [ETables.get, ETables.getBVar, hi, Option.map_map]
+    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
+      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    rfl
+  rw [EStore.view, EStore.viewBVar,
+    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.bvar])]
+  by_cases hp : i.isPersistent
+  · rw [if_pos hp, if_pos hp, EStore.persGetBVar]; exact key _
+  · rw [if_neg hp, if_neg hp]
+    by_cases hs : st.scratchOn
+    · rw [if_pos hs, if_pos hs]; exact key _
+    · rw [if_neg hs, if_neg hs]; rfl
+
+theorem EStore_view_of_tag_lam (st : EStore) (i : EIdx) (hi : i.tag = ETag.lam) :
+    st.view i = (st.viewBind i).map (fun p => ENodeView.lam p.1 p.2.1 p.2.2) := by
+  rw [EStore.view, if_pos (by rw [hi]; rfl)]
+  cases st.viewBind i with
+  | none => rfl
+  | some p => obtain ⟨ty, b, m⟩ := p; simp [eBindView, hi]
+
+theorem EStore_view_of_tag_forallE (st : EStore) (i : EIdx) (hi : i.tag = ETag.forallE) :
+    st.view i = (st.viewBind i).map (fun p => ENodeView.forallE p.1 p.2.1 p.2.2) := by
+  rw [EStore.view, if_pos (by rw [hi]; rfl)]
+  cases st.viewBind i with
+  | none => rfl
+  | some p =>
+    obtain ⟨ty, b, m⟩ := p
+    simp [eBindView, hi, ETag.forallE, ETag.lam]
+
+@[lockstep_twin] theorem LS.twin_view_app {α β : Type} {pers : arena.store.PersTier}
+    {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.app)
+    (hls : LS pers R m lst (viewApp h >>= danglingOr fun p => g ((fun p => ENodeView.app p.1 p.2) p))) :
+    LS pers R m lst (Arena.view h >>= g) := by
+  rw [view_bind_of_proj h (viewApp h) (fun s => s.viewApp h) (fun _ => rfl)
+    (fun p => (fun p => ENodeView.app p.1 p.2) p) (fun st => EStore_view_of_tag_app st h ht)]
+  exact hls
+
+@[lockstep_twin] theorem LS.twin_view_lit {α β : Type} {pers : arena.store.PersTier}
+    {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.lit)
+    (hls : LS pers R m lst (viewLit h >>= danglingOr fun p => g (ENodeView.lit p))) :
+    LS pers R m lst (Arena.view h >>= g) := by
+  rw [view_bind_of_proj h (viewLit h) (fun s => s.viewLit h) (fun _ => rfl)
+    (fun p => ENodeView.lit p) (fun st => EStore_view_of_tag_lit st h ht)]
+  exact hls
+
+@[lockstep_twin] theorem LS.twin_view_letE {α β : Type} {pers : arena.store.PersTier}
+    {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.letE)
+    (hls : LS pers R m lst (viewLet h >>= danglingOr fun p => g ((fun p => ENodeView.letE p.1 p.2.1 p.2.2) p))) :
+    LS pers R m lst (Arena.view h >>= g) := by
+  rw [view_bind_of_proj h (viewLet h) (fun s => s.viewLet h) (fun _ => rfl)
+    (fun p => (fun p => ENodeView.letE p.1 p.2.1 p.2.2) p) (fun st => EStore_view_of_tag_letE st h ht)]
+  exact hls
+
+@[lockstep_twin] theorem LS.twin_view_proj {α β : Type} {pers : arena.store.PersTier}
+    {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.proj)
+    (hls : LS pers R m lst (viewProj h >>= danglingOr fun p => g ((fun p => ENodeView.proj p.1 p.2.1 p.2.2) p))) :
+    LS pers R m lst (Arena.view h >>= g) := by
+  rw [view_bind_of_proj h (viewProj h) (fun s => s.viewProj h) (fun _ => rfl)
+    (fun p => (fun p => ENodeView.proj p.1 p.2.1 p.2.2) p) (fun st => EStore_view_of_tag_proj st h ht)]
+  exact hls
+
+@[lockstep_twin] theorem LS.twin_view_bvar {α β : Type} {pers : arena.store.PersTier}
+    {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.bvar)
+    (hls : LS pers R m lst (viewBVar h >>= danglingOr fun p => g (ENodeView.bvar p))) :
+    LS pers R m lst (Arena.view h >>= g) := by
+  rw [view_bind_of_proj h (viewBVar h) (fun s => s.viewBVar h) (fun _ => rfl)
+    (fun p => ENodeView.bvar p) (fun st => EStore_view_of_tag_bvar st h ht)]
+  exact hls
+
+@[lockstep_twin] theorem LS.twin_view_lam {α β : Type} {pers : arena.store.PersTier}
+    {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.lam)
+    (hls : LS pers R m lst (viewBind h >>= danglingOr fun p => g ((fun p => ENodeView.lam p.1 p.2.1 p.2.2) p))) :
+    LS pers R m lst (Arena.view h >>= g) := by
+  rw [view_bind_of_proj h (viewBind h) (fun s => s.viewBind h) (fun _ => rfl)
+    (fun p => (fun p => ENodeView.lam p.1 p.2.1 p.2.2) p) (fun st => EStore_view_of_tag_lam st h ht)]
+  exact hls
+
+@[lockstep_twin] theorem LS.twin_view_forallE {α β : Type} {pers : arena.store.PersTier}
+    {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.forallE)
+    (hls : LS pers R m lst (viewBind h >>= danglingOr fun p => g ((fun p => ENodeView.forallE p.1 p.2.1 p.2.2) p))) :
+    LS pers R m lst (Arena.view h >>= g) := by
+  rw [view_bind_of_proj h (viewBind h) (fun s => s.viewBind h) (fun _ => rfl)
+    (fun p => (fun p => ENodeView.forallE p.1 p.2.1 p.2.2) p) (fun st => EStore_view_of_tag_forallE st h ht)]
+  exact hls
+
 /-! ## The tactic -/
 
 open Lean Meta Elab Tactic
@@ -244,6 +415,14 @@ def isInline (n : Name) : MetaM Bool := do
   return thms.lemmaNames.toList.any fun o => match o with
     | .decl d .. => d.getPrefix == n
     | _ => false
+
+/-- The registered twin-side rules. -/
+def twinRules : MetaM (List Name) := do
+  let some ext ← getSimpExtension? `lockstep_twin | return []
+  let thms ← ext.getTheorems
+  return thms.lemmaNames.toList.filterMap fun o => match o with
+    | .decl d .. => some d
+    | _ => none
 
 /-- Replace argument `i` of the judgement `ty` (the goal of `g`) by `r.expr`. -/
 def replaceArg (g : MVarId) (i : Nat) (r : Simp.Result) : MetaM MVarId := g.withContext do
@@ -363,15 +542,20 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
   if isLS && m.isAppOfArity ``Bind.bind 6 then
     let x := (ty.getArg! 6).headBeta
     if x.isAppOfArity ``Bind.bind 6 && ((x.getArg! 4).headBeta.isAppOf ``Arena.view) then
-      let fn := (m.getArg! 4).getAppFn.constName?
-      let rule? : Option (Name × List Name) := match fn with
-        | some ``arena.monad.view_const => some (``LS.twin_view_const, [])
-        | some ``arena.monad.view_sort => some (``LS.twin_view_sort, [])
-        | some ``arena.monad.view_const_name => some (``LS.twin_view_const_name, [`hg])
-        | _ => none
-      if let some (rule, extra) := rule? then
-        let g' ← applyWith g rule [`ht] `hls extra
-        return some (← normAll [g'])
+      for rule in ← twinRules do
+        let s ← saveState
+        try
+          let gs ← applyRule g rule
+          for (n, sg) in gs do
+            if ← sg.isAssigned then continue
+            if n == `ht then runClosed sg (evalT `(tactic| lockstep_side))
+            else if n == `hg then runClosed sg (evalT `(tactic| (intros; rfl)))
+          let g' ← pick gs `hls
+          let g' ← normGoal g'
+          -- keep the rule only if the port's projection now steps
+          let rest ← stepCore g'
+          return some (← normAll rest)
+        catch _ => s.restore
   return none
 
 /-- One Core step: the extra moves first, then `lockstep_step`'s. -/
