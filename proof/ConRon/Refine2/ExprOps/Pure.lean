@@ -929,3 +929,86 @@ info: 'ConRon.Refine2.ExprOps.fvl_record_refines' depends on axioms: [propext, C
 #print axioms subst_level_list_refines
 
 end ConRon.Refine2.ExprOps
+
+/-! ## Shared abstractions of the `ExprOps` tier (namespace `ConRon.Refine2`)
+
+Moved here from `ExprOps/Mut.lean` (task #97-T2-LOCKSTEP lane ExprOps) so that
+`Refine2/Tactic/Prims.lean` can state its primitive pairs without importing
+the walks it is the vocabulary of. -/
+
+namespace ConRon.Refine2
+
+open ConRon.Arena
+
+/-! ## The handle-vector abstractions
+
+Three readings of one Rust type.  `Vec<EIdx>` is the twin's `Array EIdx` where
+it is a substitution ACCUMULATOR (task #97-P6-15's push order) and its
+`List EIdx` where it is an argument SPINE (con-leche's own shape); a `_from`
+cursor companion reads the spine from the cursor on. -/
+
+/-- A `Vec<EIdx>` as the twin's push-order `Array EIdx`. -/
+def absEIdxArr (v : alloc.vec.Vec arena.handle.EIdx) : Array EIdx :=
+  (v.val.map absEIdx).toArray
+
+/-- A `Vec<EIdx>` as the twin's `List EIdx`. -/
+def absEIdxList (v : alloc.vec.Vec arena.handle.EIdx) : List EIdx :=
+  v.val.map absEIdx
+
+/-- A `Vec<EIdx>` read from a cursor on — DESIGN §3.4's standing
+`List`-as-cursor deviation, and the only abstraction here that mentions one. -/
+def absEIdxListFrom (v : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) :
+    List EIdx := (v.val.drop i.val).map absEIdx
+
+/-- A `Vec<NIdx>` as the twin's `List NIdx` (`instLPFast`'s level-parameter
+names, which the arena keeps as handles). -/
+def absNIdxList (v : alloc.vec.Vec arena.handle.NIdx) : List NIdx :=
+  v.val.map absNIdx
+
+/-- `Option<EIdx>`. -/
+def absOptE (o : Option arena.handle.EIdx) : Option EIdx := o.map absEIdx
+
+/-- `Option<(Vec<EIdx>, EIdx)>` — the domain list and the residual that
+`inst_pis_at` and its three siblings answer. -/
+def absOptArgsE (o : Option (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)) :
+    Option (List EIdx × EIdx) :=
+  o.map fun p => (absEIdxList p.1, absEIdx p.2)
+
+attribute [simp] absEIdxArr absEIdxList absEIdxListFrom absNIdxList absOptE
+  absOptArgsE
+
+@[simp] theorem absEIdxArr_size (v : alloc.vec.Vec arena.handle.EIdx) :
+    (absEIdxArr v).size = v.val.length := by
+  simp [absEIdxArr]
+
+theorem absEIdxArr_get (v : alloc.vec.Vec arena.handle.EIdx) (k : Nat)
+    (h : k < v.val.length) :
+    (absEIdxArr v)[k]'(by simpa using h) = absEIdx (v.val[k]) := by
+  simp [absEIdxArr]
+
+
+/-- The memo key: `eidx_nat_key` is the pair. -/
+theorem eidx_nat_key_abs {h : arena.handle.EIdx} {d : Std.U64}
+    {k : arena.monad.EIdxNat} (hk : arena.monad.eidx_nat_key h d = ok k) :
+    absEIdxNat k = (absEIdx h, absU d) := by
+  rw [arena.monad.eidx_nat_key] at hk
+  obtain ⟨e, he, hk⟩ := ConRon.Refine.bind_eq_ok_iff.mp hk
+  have hee : e = h := dupId_eidx h e he
+  have hkk : ({ h := e, d := d } : arena.monad.EIdxNat) = k := Result.ok_injective hk
+  rw [← hkk, hee]; rfl
+
+/-- A cursor below the length reads the element and moves on. -/
+theorem listFrom_cons (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize)
+    (hi : i.val < args.val.length) :
+    absEIdxListFrom args i =
+      absEIdx args.val[i.val] :: (args.val.drop (i.val + 1)).map absEIdx := by
+  simp only [absEIdxListFrom]
+  rw [List.drop_eq_getElem_cons hi]
+  rfl
+
+theorem listFrom_nil (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize)
+    (hi : args.val.length ≤ i.val) : absEIdxListFrom args i = [] := by
+  simp only [absEIdxListFrom]
+  rw [List.drop_eq_nil_of_le hi]; rfl
+
+end ConRon.Refine2

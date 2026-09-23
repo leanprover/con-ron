@@ -65,7 +65,7 @@ gets a local `*NodeSpec` transcription of the twin's `match` plus the
 `*_unfold` equation tying it back to the twin — which is the one genuinely
 owed lemma of this file that is not a `Specs.lean` primitive.
 -/
-import ConRon.Refine2.Specs
+import ConRon.Refine2.Tactic.Prims
 import ConRon.Refine2.ExprOps.Pure
 import ConRon.Arena.ExprOps
 

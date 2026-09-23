@@ -20,7 +20,8 @@ outside the `Tactic/Sample*.lean` measurements may use them; `#print axioms`
 on each sample shows `sorryAx` exactly through these.
 -/
 import ConRon.Refine2.Tactic.Lockstep
-import ConRon.Refine2.ExprOps.Mut
+import ConRon.Refine2.Specs
+import ConRon.Refine2.ExprOps.Pure
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
