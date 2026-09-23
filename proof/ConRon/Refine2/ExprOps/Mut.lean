@@ -71,6 +71,17 @@ def RenameRel {F : Type} (inst : arena.expr_ops.NIdxToNIdx F) (f : F)
     (g : NIdx → NIdx) : Prop :=
   ∀ n r, inst.rename f n = ok r → g (absNIdx n) = absNIdx r
 
+/-- A `u64` cast to a `usize` keeps its value when it fits (kept for
+`Frontend/ExportCInd`; the walks here no longer need it). -/
+theorem u64_cast_usize_val' {x : Std.U64} {n : Nat} (hn : n ≤ Std.Usize.max)
+    (hx : x.val < n) : (Std.UScalar.cast .Usize x : Std.Usize).val = x.val := by
+  rw [Std.UScalar.cast_val_eq, Std.UScalarTy.Usize_numBits_eq]
+  refine Nat.mod_eq_of_lt ?_
+  have hmax : Std.Usize.max = 2 ^ System.Platform.numBits - 1 := by
+    simp only [Std.Usize.max, Std.Usize.numBits, Std.UScalarTy.Usize_numBits_eq]
+  have hpos : 0 < 2 ^ System.Platform.numBits := Nat.two_pow_pos _
+  omega
+
 /-- `kernel::expr_ops::sub_nat` is `Nat` subtraction on the abstraction. -/
 theorem sub_nat_val {a b r : Std.U64}
     (h : kernel.expr_ops.sub_nat a b = ok r) : absU r = absU a - absU b := by

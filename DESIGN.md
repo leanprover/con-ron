@@ -60588,3 +60588,11 @@ against the `view`/`.lam` shape, is adapted: the twin's read is now
 `pi_result` doc comment takes arena's text; `proj_rec.rs`'s 45 citations
 relocated by `twin-lines.py update`.  `nidx_dup2_spec` has no user on the
 merged tree (the Inductives rounds 3/3b included).
+
+Two fallouts on the merged tree, both fixed here.  `Frontend/ExportCInd`
+(Inductives round 3) cites `u64_cast_usize_val'`, which lived in the old
+`Mut.lean`; it is restored there verbatim.  `Checker/Top`'s
+`check_defn_pins` proof finished the twin `if … >>= pure` by hand after a
+first `lockstep`; with the atomic `twin_bind_pure` fallback (§7) that first
+`lockstep` closes the goal, so the hand tail is deleted (one `lockstep` call
+now).
