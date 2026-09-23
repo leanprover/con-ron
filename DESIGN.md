@@ -46159,7 +46159,12 @@ finding 18) is also not so — the port's loop is unfuelled.  Not this lane;
 
 ##### 6. Gates
 
-GATES_PLACEHOLDER
+`scripts/gates.sh` at the merge with `arena` `d31b1c00`: **all 16 OK**
+(`extract-check` 117 s, `lake-build` 163 s, `lake-refine2` 150 s,
+`lake-bridge` 21 s, `lake-capstone` 3 s).  The diff is
+`proof/ConRon/Bridge/Frontend/**`, `Arena/Main.lean` (the two flags),
+`ConRon/Capstone.lean` (three call sites: the flags and `PinsOK`) and this
+section; no Rust file, no generated model, no `Refine2/`, no `lakefile.toml`.
 
 ### Task #97-P3-Ind — Theorem 1: the inductive tier, and what `IndSpec` actually says (2026-09-22, Opus under Fable)
 
