@@ -854,14 +854,45 @@ theorem mk_proj_minor_refines {pers rst lst pb fuel dom o}
       (mkProjMinor (absProjBuild pb) (absU fuel) (absEIdx dom)) :=
   Lockstep.LS.toSim₀ (mk_proj_minor_ls hrel hinv pb fuel dom) h
 
-/-- **`build_binders_at`** — the port's split under the peeled binder. -/
-theorem build_binders_at_refines {pers rst lst kind pb fuel k dom body o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.proj_rec.build_binders_at pers rst kind pb fuel k dom body
-      = ok o) :
-    Sim₀ (Option.map fun p => (absEIdxL p.1, absEIdx p.2)) pers lst o
-      (buildBindersAt (absProjBinderKind kind) (absProjBuild pb) (absU fuel)
-        (absU k) (absEIdx dom) (absEIdx body)) := by sorry
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem cons_eidx_spec (a : arena.handle.EIdx) (xs : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.expr_ops.cons_eidx a xs) (fun r => absEIdxL r = absEIdx a :: absEIdxL xs) :=
+  fun _ h => by simpa [ExprOps.absEIdxL, absEIdxL] using ExprOps.cons_eidx_refines h
+
+open ConRon.Refine2.Lockstep in
+/-- `build_binders` against `buildBinders`, by induction on the count.  The
+port's `build_binders_at` (the `.forallE` arm, split off for rule 5) is
+unfolded in place: it takes the count BEFORE the decrement, so it has no
+statement of its own against the twin's arm (which takes the count after). -/
+theorem build_binders_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (kind : frontend.proj_rec.ProjBinderKind) (pb : frontend.proj_rec.ProjBuild)
+      (fuel k : Std.U64) (h : arena.handle.EIdx),
+      k.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = Option.map (fun p => (absEIdxL p.1, absEIdx p.2)) a)
+        (frontend.proj_rec.build_binders pers st kind pb fuel k h) lst
+        (buildBinders (absProjBinderKind kind) (absProjBuild pb) (absU fuel) n (absEIdx h)) := by
+  induction n with
+  | zero =>
+    intro pers st lst kind pb fuel k h hn hrel hinv
+    rw [frontend.proj_rec.build_binders, buildBinders, if_pos (by scalar_tac)]
+    lockstep
+  | succ m ih =>
+    intro pers st lst kind pb fuel k h hn hrel hinv
+    rw [frontend.proj_rec.build_binders, buildBinders, if_neg (by scalar_tac)]
+    cases kind <;>
+    · simp only [frontend.proj_rec.build_binders_at, absProjBinderKind]
+      lockstep
+
+open ConRon.Refine2.Lockstep in
+@[lockstep] theorem build_binders_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (kind : frontend.proj_rec.ProjBinderKind)
+    (pb : frontend.proj_rec.ProjBuild) (fuel k : Std.U64) (h : arena.handle.EIdx) :
+    LS pers (fun a b => b = Option.map (fun p => (absEIdxL p.1, absEIdx p.2)) a)
+      (frontend.proj_rec.build_binders pers st kind pb fuel k h) lst
+      (buildBinders (absProjBinderKind kind) (absProjBuild pb) (absU fuel) (absU k)
+        (absEIdx h)) :=
+  build_binders_aux _ kind pb fuel k h rfl hrel hinv
 
 /-- **`build_binders` refines `buildBinders`** (`ProjRec.lean:314-339`).  The
 recursion is on `k`, as the twin's is: a motive or minor count is never
@@ -871,7 +902,8 @@ theorem build_binders_refines {pers rst lst kind pb fuel k h' o}
     (h : frontend.proj_rec.build_binders pers rst kind pb fuel k h' = ok o) :
     Sim₀ (Option.map fun p => (absEIdxL p.1, absEIdx p.2)) pers lst o
       (buildBinders (absProjBinderKind kind) (absProjBuild pb) (absU fuel)
-        (absU k) (absEIdx h')) := by sorry
+        (absU k) (absEIdx h')) :=
+  Lockstep.LS.toSim₀ (build_binders_ls hrel hinv kind pb fuel k h') h
 
 /-! ## The rewrite itself
 
