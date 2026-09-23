@@ -1173,6 +1173,44 @@ theorem promoteE_core : ∀ (fuel : Nat) (m : PMemo) (h : EIdx) (s : AState)
               by simp [ENodeView.lchildren], by simp [ENodeView.lschildren]⟩ h7
           exact fin m3 r2 _ hwf5 (hm4.mono hx5) ((hx13.trans hx34).trans hx5) hp5 hd5 hr rfl
 
+/-! ## A persistent handle promotes to itself -/
+
+/-- con-leche: none — arena infrastructure; `promoteN`'s first test: a
+persistent name handle is its own promotion. -/
+theorem promoteN_pers_self {m m' : PMemo} {fuel : Nat} {h r : NIdx} {s s' : AState}
+    (hp : PersN h) (hrun : promoteN m fuel h s = .ok ((m', r), s')) : r = h := by
+  cases fuel with
+  | zero =>
+    simp only [promoteN, ConRon.Bridge.fail_apply] at hrun
+    exact absurd hrun (by simp)
+  | succ fuel =>
+    unfold promoteN at hrun
+    rcases AM.ite_ok hrun with ⟨-, hrun⟩ | ⟨hn, -⟩
+    · obtain ⟨hr, -⟩ := AM.pure_ok hrun
+      simp only [Prod.mk.injEq] at hr
+      exact hr.2
+    · exact absurd hp hn
+
+/-- con-leche: none — arena infrastructure; **what a promotion does to one
+name handle**: it denotes what it denoted, and a persistent one did not
+move. -/
+structure NameKept (st st' : EStore) (n n' : NIdx) : Prop where
+  denote : ∀ x, denoteN st.ns n = some x → denoteN st'.ns n' = some x
+  pers : PersN n → n' = n
+
+theorem NameKept.post {st st' st'' : EStore} {n n' : NIdx} (h : NameKept st st' n n')
+    (hx : Ext st' st'') : NameKept st st'' n n' :=
+  ⟨fun x hd => hx.lss.ls.ns _ _ (h.denote x hd), h.pers⟩
+
+theorem NameKept.pre {st0 st st' : EStore} {n n' : NIdx} (h : NameKept st st' n n')
+    (hx : Ext st0 st) : NameKept st0 st' n n' :=
+  ⟨fun x hd => h.denote x (hx.lss.ls.ns _ _ hd), h.pers⟩
+
+theorem promoteN_kept {m m' : PMemo} {fuel : Nat} {h r : NIdx} {s s' : AState}
+    (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
+    (hrun : promoteN m fuel h s = .ok ((m', r), s')) : NameKept s.store s'.store h r :=
+  ⟨(promoteN_step hwf hm hrun).2.2.2.2, fun hp => promoteN_pers_self hp hrun⟩
+
 /-! ## Census -/
 
 /-- info: 'ConRon.Bridge.promoteN_core' depends on axioms: [propext, Classical.choice, Quot.sound] -/

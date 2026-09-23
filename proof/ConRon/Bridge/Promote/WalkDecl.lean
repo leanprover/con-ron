@@ -126,12 +126,13 @@ theorem promoteCV_step {m m' : PMemo} {fuel : Nat} {cv cv' : IConstantVal}
     {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
     (hrun : promoteCV m fuel cv s = .ok ((m', cv'), s')) :
     StoreWF' s'.store ∧ PMemoOK m' s'.store ∧ Ext s.store s'.store ∧ PersCV cv' ∧
-      (∀ x, denoteN s.store.ns cv.name = some x → denoteN s'.store.ns cv'.name = some x) ∧
+      NameKept s.store s'.store cv.name cv'.name ∧
       (∀ c, Frontend.denoteCV s.store cv = some c →
         Frontend.denoteCV s'.store cv' = some c) := by
   simp only [promoteCV] at hrun
   obtain ⟨⟨m1, n1⟩, s1, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨hwf1, hm1, hx1, hp1, hd1⟩ := promoteN_step hwf hm h1
+  have hk1 := promoteN_kept hwf hm h1
   obtain ⟨⟨m2, l2⟩, s2, h3, h4⟩ := AM.bind_ok h2
   obtain ⟨hwf2, hm2, hx2, hp2, -, hd2⟩ := promoteNList_step _ hwf1 hm1 h3
   obtain ⟨⟨m3, t3⟩, s3, h5, h6⟩ := AM.bind_ok h4
@@ -142,7 +143,7 @@ theorem promoteCV_step {m m' : PMemo} {fuel : Nat} {cv cv' : IConstantVal}
   obtain ⟨rfl, rfl⟩ := hr
   have hN : ∀ x, denoteN s.store.ns cv.name = some x → denoteN s'.store.ns n1 = some x :=
     fun x hx => (hx2.trans hx3).lss.ls.ns _ _ (hd1 x hx)
-  refine ⟨hwf3, hm3, (hx1.trans hx2).trans hx3, ⟨hp1, hp2, hp3⟩, hN, ?_⟩
+  refine ⟨hwf3, hm3, (hx1.trans hx2).trans hx3, ⟨hp1, hp2, hp3⟩, hk1.post (hx2.trans hx3), ?_⟩
   intro c hc
   simp only [Frontend.denoteCV] at hc ⊢
   cases hn : denoteN s.store.ns cv.name with
@@ -325,6 +326,7 @@ structure PromotedTable (st st' : EStore) (t t' : IProjTable) : Prop where
     denoteN st'.ns t'.structName = some x
   tableName : ∀ x, denoteN st.ns t.tableName = some x →
     denoteN st'.ns t'.tableName = some x
+  tablePers : PersN t.tableName → t'.tableName = t.tableName
 
 theorem PromotedTable.mono {st st' st'' : EStore} {t t' : IProjTable}
     (h : PromotedTable st st' t t') (hx : Ext st' st'') : PromotedTable st st'' t t' where
@@ -333,6 +335,7 @@ theorem PromotedTable.mono {st st' st'' : EStore} {t t' : IProjTable}
   guards := h.guards
   structName := fun x hx' => hx.lss.ls.ns _ _ (h.structName x hx')
   tableName := fun x hx' => hx.lss.ls.ns _ _ (h.tableName x hx')
+  tablePers := h.tablePers
 
 /-- con-leche: none — arena infrastructure; **`IProjTableOK` survives the
 promotion** of its table. -/
@@ -356,6 +359,7 @@ theorem promoteProjTable_step {m m' : PMemo} {fuel : Nat} {t t' : IProjTable}
   obtain ⟨hwf1, hm1, hx1, hp1, hd1⟩ := promoteN_step hwf hm h1
   obtain ⟨⟨m2, tn2⟩, s2, h3, h4⟩ := AM.bind_ok h2
   obtain ⟨hwf2, hm2, hx2, hp2, hd2⟩ := promoteN_step hwf1 hm1 h3
+  have htp : PersN t.tableName → tn2 = t.tableName := fun hp => promoteN_pers_self hp h3
   obtain ⟨⟨m3, lps3⟩, s3, h5, h6⟩ := AM.bind_ok h4
   obtain ⟨hwf3, hm3, hx3, hp3, -, hd3⟩ := promoteNList_step _ hwf2 hm2 h5
   obtain ⟨⟨m4, c4⟩, s4, h7, h8⟩ := AM.bind_ok h6
@@ -382,7 +386,7 @@ theorem promoteProjTable_step {m m' : PMemo} {fuel : Nat} {t t' : IProjTable}
   have x67 := hx6.trans hx7
   refine ⟨hwf7, hm7, x17, ⟨hp1, hp2, hp3, hp4, hp5, by simpa using hp6, hp7⟩,
     ⟨rfl, by simp [hl6], hl7, fun x h => x27.lss.ls.ns _ _ (hd1 x h),
-      fun x h => x37.lss.ls.ns _ _ (hd2 x (hx1.lss.ls.ns _ _ h))⟩, ?_⟩
+      fun x h => x37.lss.ls.ns _ _ (hd2 x (hx1.lss.ls.ns _ _ h)), htp⟩, ?_⟩
   intro x hx
   simp only [Frontend.denoteProjTable] at hx ⊢
   cases hsn : denoteN s.store.ns t.structName with
@@ -438,7 +442,7 @@ theorem promoteProjTable_step {m m' : PMemo} {fuel : Nat} {t t' : IProjTable}
 denotes what it denoted.  At the six term kinds this is the header's name; at
 a projection table it is `tableName`. -/
 def CINameKept (st st' : EStore) (ci ci' : IConstantInfo) : Prop :=
-  ∀ x, denoteN st.ns ci.name = some x → denoteN st'.ns ci'.name = some x
+  NameKept st st' ci.name ci'.name
 
 /-- con-leche: none — arena infrastructure; `CINameKept` entry by entry. -/
 inductive CIListKept (st st' : EStore) : List IConstantInfo → List IConstantInfo → Prop
@@ -451,13 +455,13 @@ theorem CIListKept.post {st st' st'' : EStore} {cs cs' : List IConstantInfo}
     (h : CIListKept st st' cs cs') (hx : Ext st' st'') : CIListKept st st'' cs cs' := by
   induction h with
   | nil => exact .nil
-  | cons hc _ ih => exact .cons (fun x h => hx.lss.ls.ns _ _ (hc x h)) ih
+  | cons hc _ ih => exact .cons (NameKept.post hc hx) ih
 
 theorem CIListKept.pre {st0 st st' : EStore} {cs cs' : List IConstantInfo}
     (h : CIListKept st st' cs cs') (hx : Ext st0 st) : CIListKept st0 st' cs cs' := by
   induction h with
   | nil => exact .nil
-  | cons hc _ ih => exact .cons (fun x h => hc x (hx.lss.ls.ns _ _ h)) ih
+  | cons hc _ ih => exact .cons (NameKept.pre hc hx) ih
 
 theorem CIListKept.length {st st' : EStore} {cs cs' : List IConstantInfo}
     (h : CIListKept st st' cs cs') : cs'.length = cs.length := by
@@ -510,7 +514,7 @@ theorem promoteCI_step {m m' : PMemo} {fuel : Nat} {ci ci' : IConstantInfo}
     simp only [Prod.mk.injEq] at hr
     obtain ⟨rfl, rfl⟩ := hr
     refine ⟨hwf2, hm2, hx1.trans hx2, ⟨hp1, hp2⟩,
-      fun x h => hx2.lss.ls.ns _ _ (hn1 x h), (fun _ h => by cases h), ?_⟩
+      hn1.post hx2, (fun _ h => by cases h), ?_⟩
     intro c hc
     simp only [Frontend.denoteCI] at hc ⊢
     cases hcv : Frontend.denoteCV s.store v with
@@ -533,7 +537,7 @@ theorem promoteCI_step {m m' : PMemo} {fuel : Nat} {ci ci' : IConstantInfo}
     simp only [Prod.mk.injEq] at hr
     obtain ⟨rfl, rfl⟩ := hr
     refine ⟨hwf2, hm2, hx1.trans hx2, ⟨hp1, hp2⟩,
-      fun x h => hx2.lss.ls.ns _ _ (hn1 x h), (fun _ h => by cases h), ?_⟩
+      hn1.post hx2, (fun _ h => by cases h), ?_⟩
     intro c hc
     simp only [Frontend.denoteCI] at hc ⊢
     cases hcv : Frontend.denoteCV s.store v with
@@ -555,7 +559,7 @@ theorem promoteCI_step {m m' : PMemo} {fuel : Nat} {ci ci' : IConstantInfo}
     simp only [Prod.mk.injEq] at hr
     obtain ⟨rfl, rfl⟩ := hr
     refine ⟨hwf2, hm2, hx1.trans hx2, ⟨hp1, hp2⟩,
-      fun x h => hx2.lss.ls.ns _ _ (hn1 x h), (fun _ h => by cases h), ?_⟩
+      hn1.post hx2, (fun _ h => by cases h), ?_⟩
     intro c hc
     simp only [Frontend.denoteCI] at hc ⊢
     cases hcv : Frontend.denoteCV s.store v with
@@ -577,7 +581,7 @@ theorem promoteCI_step {m m' : PMemo} {fuel : Nat} {ci ci' : IConstantInfo}
     simp only [Prod.mk.injEq] at hr
     obtain ⟨rfl, rfl⟩ := hr
     refine ⟨hwf2, hm2, hx1.trans hx2, ⟨hp1, hp2⟩,
-      fun x h => hx2.lss.ls.ns _ _ (hn1 x h), (fun _ h => by cases h), ?_⟩
+      hn1.post hx2, (fun _ h => by cases h), ?_⟩
     intro c hc
     simp only [Frontend.denoteCI] at hc ⊢
     cases hcv : Frontend.denoteCV s.store v with
@@ -596,7 +600,7 @@ theorem promoteCI_step {m m' : PMemo} {fuel : Nat} {ci ci' : IConstantInfo}
     obtain ⟨hr, rfl⟩ := AM.pure_ok h2
     simp only [Prod.mk.injEq] at hr
     obtain ⟨rfl, rfl⟩ := hr
-    refine ⟨hwf1, hm1, hx1, hp1, hpt.tableName, ?_, ?_⟩
+    refine ⟨hwf1, hm1, hx1, hp1, ⟨hpt.tableName, hpt.tablePers⟩, ?_, ?_⟩
     · intro t' h
       simp only [IConstantInfo.projInfo.injEq] at h
       subst h
@@ -663,7 +667,7 @@ theorem promoteCIList_step {fuel : Nat} : ∀ (cs : List IConstantInfo) {m m' : 
       rcases hx with rfl | hx
       · exact hp1
       · exact hp2 x hx
-    · refine .cons (fun x h => hx2.lss.ls.ns _ _ (hn1 x h)) ?_
+    · refine .cons (NameKept.post hn1 hx2) ?_
       exact hn2.pre hx1
     · intro t' ht'
       simp only [List.mem_cons] at ht'
@@ -674,7 +678,7 @@ theorem promoteCIList_step {fuel : Nat} : ∀ (cs : List IConstantInfo) {m m' : 
         refine ⟨t, by simp [hmem], ?_⟩
         exact ⟨hpt.numFields, hpt.bodies, hpt.guards,
           fun x h => hpt.structName x (hx1.lss.ls.ns _ _ h),
-          fun x h => hpt.tableName x (hx1.lss.ls.ns _ _ h)⟩
+          fun x h => hpt.tableName x (hx1.lss.ls.ns _ _ h), hpt.tablePers⟩
     · intro xs hxs
       simp only [Frontend.denoteCIList] at hxs ⊢
       cases ha : Frontend.denoteCI s.store c with

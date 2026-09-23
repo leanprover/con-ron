@@ -28,14 +28,18 @@ together because the recursion threads all three:
 makes `.mono` across an `Ext` the only transport it needs: a row recorded
 before an append is still a promoted pair after it.
 
-**The shape of the sorries** (task #97-P3-Checker, sorry list items 3-5): the
-four handle-kind recursions are the tier's inductions — `promoteE_spec` is a
-ten-arm fuel induction in `Bridge/ExprOps/Inst1.lean`'s shape, and the three
-below it are the same at three / five / one constructors.  The declaration
-layer above them (`promoteCV`, `promoteCI`, `promoteVG`, `promoteNew`) is
-mechanical do-notation over those four and is stated here for its consumers —
-`Bridge/Checker/Fold.lean`'s per-declaration bridge reads `promoteNew_spec`
-and `promoteVG_spec` and nothing else from this file.
+**Status (task #97-P3-Promote).**  Every statement here is PROVED except one
+conjunct: the four handle-kind specs and the declaration layer's four are the
+walks of `Bridge/Promote/Walk.lean` / `WalkDecl.lean` (fuel and list
+inductions over `EStore.internPersistent_spec'`, at `Arena/WF.lean`'s promote
+window invariant `StoreWF'`), and `promoteNew_spec` is `promoteCIList` plus
+the two index passes — EXCEPT its `IFEnvCoh fe'` conjunct, which is
+`promoteNew_coh` below and is FALSE as stated for `k ≠ 0` (a hash map's
+representation depends on its insertion order; `Bridge/Promote/Coh.lean`
+proves the extensional coherence instead, at one added precondition).
+`Bridge/Checker/**`'s per-declaration brackets read `promoteNew_spec`,
+`promoteVG_spec`, `promoteNew_pushed`, `promoteNew_projOK` and
+`promoteBracket_close` from this file.
 -/
 import ConRon.Bridge.Promote.WalkDecl
 
@@ -635,5 +639,43 @@ theorem promoteBracket_close {s0 s : AState} (hwf0 : StoreWF s0.store)
   ⟨rfl, StoreWF'.dropScratch_wf hwf,
     ((PExt.enterScratch hwf0).trans (PExt.of_ext hext)).trans (PExt.dropScratch' hwf),
     PExt.dropScratch' hwf⟩
+
+/-! ## Census -/
+
+/-- info: 'ConRon.Bridge.promoteN_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteN_spec
+
+/-- info: 'ConRon.Bridge.promoteL_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteL_spec
+
+/-- info: 'ConRon.Bridge.promoteLs_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteLs_spec
+
+/-- info: 'ConRon.Bridge.promoteE_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteE_spec
+
+/-- info: 'ConRon.Bridge.promoteCV_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteCV_spec
+
+/-- info: 'ConRon.Bridge.promoteCI_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteCI_spec
+
+/-- info: 'ConRon.Bridge.promoteCIList_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteCIList_spec
+
+/-- info: 'ConRon.Bridge.promoteVG_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteVG_spec
+
+/-- info: 'ConRon.Bridge.promoteNew_pushed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteNew_pushed
+
+/-- info: 'ConRon.Bridge.promoteNew_projOK' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteNew_projOK
+
+/-- info: 'ConRon.Bridge.promoteBracket_close' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteBracket_close
+
+/-- info: 'ConRon.Bridge.promoteNew_spec' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promoteNew_spec
 
 end ConRon.Bridge
