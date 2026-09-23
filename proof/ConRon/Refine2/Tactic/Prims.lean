@@ -618,16 +618,44 @@ attribute [lockstep_simp] absPairE absLetT absProjT absBindI
   rw [arena.monad.view_sort] at hrun
   exact estore_view_sort_abs hrel.store hrun
 
-/-- `arena::monad::view_bind` against `Arena.viewBind`, at a binder tag. -/
+/-- The datum `view_bind` answers is well formed (kind 1, from `AStateInv`). -/
+theorem view_bind_meta_wf {pers st} (hinv : AStateInv pers st) {h : arena.handle.EIdx}
+    {ty b : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
+    (hrun : arena.monad.view_bind pers st h = ok (some (ty, b, m))) :
+    ConRon.Refine.PropWhenWF m.pw := by
+  rw [arena.monad.view_bind, arena.store.EStore.view_bind] at hrun
+  obtain ⟨o1, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  cases ho1 : o1 with
+  | none => rw [ho1] at hrun; cases Result.ok_injective hrun
+  | some t3 =>
+    rw [ho1] at hrun
+    obtain ⟨e1, e2, bmi⟩ := t3
+    obtain ⟨o2, ho2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    cases ho2c : o2 with
+    | none => rw [ho2c] at hrun; cases Result.ok_injective hrun
+    | some m2 =>
+      rw [ho2c] at hrun ho2
+      have h3 := Result.ok_injective hrun
+      simp only [Option.some.injEq, Prod.mk.injEq] at h3
+      rw [← h3.2.2]
+      exact estore_view_bm_wf hinv.store ho2 m2 rfl
+
+/-- `arena::monad::view_bind` against `Arena.viewBind`, at a binder tag; the
+datum it answers is well formed (the `PropWhenWF` an intern of a rebuilt binder
+needs). -/
 @[lockstep] theorem view_bind_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx)
     (hbind : ETag.isBind (absEIdx h).tag = true) :
-    LSV pers (fun a b => b = Option.map absBindM a) (arena.monad.view_bind pers st h) st lst
+    LSV pers (fun a b => (∀ t, a = some t → ConRon.Refine.PropWhenWF t.2.2.pw) ∧
+        b = Option.map absBindM a) (arena.monad.view_bind pers st h) st lst
       (Arena.viewBind (absEIdx h)) := by
   intro o hrun
-  refine ⟨_, lst, rfl, ?_, hrel, hinv⟩
-  rw [arena.monad.view_bind] at hrun
-  exact estore_view_bind_abs hrel.store hbind hrun
+  refine ⟨_, lst, rfl, ⟨fun t ht => ?_, ?_⟩, hrel, hinv⟩
+  · subst ht
+    obtain ⟨ty, b, m⟩ := t
+    exact view_bind_meta_wf hinv hrun
+  · rw [arena.monad.view_bind] at hrun
+    exact estore_view_bind_abs hrel.store hbind hrun
 
 
 /-- What a caller of `view` may assume of the RUST view beyond its abstraction
@@ -1291,6 +1319,16 @@ theorem LSV.toAOut₀ {α β : Type} {A : α → β} {pers : arena.store.PersTie
   apply Array.ext'
   simp only [absEIdxArr, List.toList_toArray] at this ⊢
   rw [← this]
+
+/-- `arena::monad::intern_e` (the view dispatcher) against `internE`, under the
+view's own well-formedness (the literal's payload, the binder's datum). -/
+@[lockstep] theorem intern_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (v : arena.store.ENodeView)
+    (hlit : ∀ l, v = .Lit l → ConRon.Refine.LiteralWF l)
+    (hpw : ∀ ty b m, v = .Lam ty b m ∨ v = .ForallE ty b m → ConRon.Refine.PropWhenWF m.pw) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e pers st v) lst
+      (Arena.internE (absENodeView v)) :=
+  LS.ofSim₀ fun _ h => intern_e_run₀ hrel hinv v hlit hpw h
 
 /-! ### The remaining memo probes, writes and clears (from `Specs.lean`'s `₀` lemmas) -/
 

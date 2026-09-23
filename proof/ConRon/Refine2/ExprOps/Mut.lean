@@ -129,6 +129,13 @@ variable {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
   (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
 include hrel hinv
 
+@[lockstep] theorem intern_rebuilt_ls (h : arena.handle.EIdx) (same : Bool)
+    (v : arena.store.ENodeView) (hlit : ∀ l, v = .Lit l → ConRon.Refine.LiteralWF l)
+    (hpw : ∀ ty b m, v = .Lam ty b m ∨ v = .ForallE ty b m → ConRon.Refine.PropWhenWF m.pw) :
+    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.intern_rebuilt pers st h same v) lst
+      (internRebuilt (absEIdx h) same (absENodeView v)) := by
+  rw [arena.expr_ops.intern_rebuilt, internRebuilt]; lockstep
+
 @[lockstep] theorem intern_rebuilt_bvar_ls (h : arena.handle.EIdx) (same : Bool) (i : Std.U64) :
     LS pers (fun a b => b = absEIdx a) (arena.expr_ops.intern_rebuilt_bvar pers st h same i) lst
       (internRebuiltBVar (absEIdx h) same (absU i)) := by
@@ -159,14 +166,16 @@ include hrel hinv
   rw [arena.expr_ops.intern_rebuilt_app, internRebuiltApp]; lockstep
 
 @[lockstep] theorem intern_rebuilt_lam_ls (h : arena.handle.EIdx) (same : Bool)
-    (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) :
+    (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
+    (hpw : ConRon.Refine.PropWhenWF m.pw) :
     LS pers (fun a b => b = absEIdx a) (arena.expr_ops.intern_rebuilt_lam pers st h same ty b m)
       lst (internRebuiltLam (absEIdx h) same (absEIdx ty) (absEIdx b)
         (ConRon.Refine.absBinderMeta m)) := by
   rw [arena.expr_ops.intern_rebuilt_lam, internRebuiltLam]; lockstep
 
 @[lockstep] theorem intern_rebuilt_forall_e_ls (h : arena.handle.EIdx) (same : Bool)
-    (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) :
+    (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
+    (hpw : ConRon.Refine.PropWhenWF m.pw) :
     LS pers (fun a b => b = absEIdx a)
       (arena.expr_ops.intern_rebuilt_forall_e pers st h same ty b m)
       lst (internRebuiltForallE (absEIdx h) same (absEIdx ty) (absEIdx b)
@@ -192,7 +201,8 @@ include hrel hinv
   rw [arena.expr_ops.intern_rebuilt_proj, internRebuiltProj]; lockstep
 
 @[lockstep] theorem intern_rebuilt_bind_ls (h : arena.handle.EIdx) (same : Bool)
-    (tag : Std.U32) (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) :
+    (tag : Std.U32) (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
+    (hpw : ConRon.Refine.PropWhenWF m.pw) :
     LS pers (fun a b => b = absEIdx a)
       (arena.expr_ops.intern_rebuilt_bind pers st h same tag ty b m)
       lst (internRebuiltBind (absEIdx h) same (absU32 tag) (absEIdx ty) (absEIdx b)
@@ -210,6 +220,14 @@ include hrel hinv
 end rebuilt
 
 /-! ### The public statements -/
+
+theorem intern_rebuilt_refines {pers st lst} (h : arena.handle.EIdx) (same : Bool)
+    (v : arena.store.ENodeView) {o} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hlit : ∀ l, v = .Lit l → ConRon.Refine.LiteralWF l)
+    (hpw : ∀ ty b m, v = .Lam ty b m ∨ v = .ForallE ty b m → ConRon.Refine.PropWhenWF m.pw)
+    (hrun : arena.expr_ops.intern_rebuilt pers st h same v = ok o) :
+    Sim₀ absEIdx pers lst o (internRebuilt (absEIdx h) same (absENodeView v)) :=
+  LS.toSim₀ (intern_rebuilt_ls hrel hinv h same v hlit hpw) hrun
 
 theorem intern_rebuilt_bvar_refines {pers st lst} (h : arena.handle.EIdx) (same : Bool) (i : Std.U64) {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -242,16 +260,16 @@ theorem intern_rebuilt_app_refines {pers st lst} (h : arena.handle.EIdx) (same :
   LS.toSim₀ (intern_rebuilt_app_ls hrel hinv h same f a) hrun
 
 theorem intern_rebuilt_lam_refines {pers st lst} (h : arena.handle.EIdx) (same : Bool) (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hpw : ConRon.Refine.PropWhenWF m.pw)
     (hrun : arena.expr_ops.intern_rebuilt_lam pers st h same ty b m = ok o) :
     Sim₀ absEIdx pers lst o (internRebuiltLam (absEIdx h) same (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
-  LS.toSim₀ (intern_rebuilt_lam_ls hrel hinv h same ty b m) hrun
+  LS.toSim₀ (intern_rebuilt_lam_ls hrel hinv h same ty b m hpw) hrun
 
 theorem intern_rebuilt_forall_e_refines {pers st lst} (h : arena.handle.EIdx) (same : Bool) (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hpw : ConRon.Refine.PropWhenWF m.pw)
     (hrun : arena.expr_ops.intern_rebuilt_forall_e pers st h same ty b m = ok o) :
     Sim₀ absEIdx pers lst o (internRebuiltForallE (absEIdx h) same (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
-  LS.toSim₀ (intern_rebuilt_forall_e_ls hrel hinv h same ty b m) hrun
+  LS.toSim₀ (intern_rebuilt_forall_e_ls hrel hinv h same ty b m hpw) hrun
 
 theorem intern_rebuilt_let_e_refines {pers st lst} (h : arena.handle.EIdx) (same : Bool) (t v b : arena.handle.EIdx) {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -266,10 +284,10 @@ theorem intern_rebuilt_proj_refines {pers st lst} (h : arena.handle.EIdx) (same 
   LS.toSim₀ (intern_rebuilt_proj_ls hrel hinv h same n i e) hrun
 
 theorem intern_rebuilt_bind_refines {pers st lst} (h : arena.handle.EIdx) (same : Bool) (tag : Std.U32) (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hpw : ConRon.Refine.PropWhenWF m.pw)
     (hrun : arena.expr_ops.intern_rebuilt_bind pers st h same tag ty b m = ok o) :
     Sim₀ absEIdx pers lst o (internRebuiltBind (absEIdx h) same (absU32 tag) (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
-  LS.toSim₀ (intern_rebuilt_bind_ls hrel hinv h same tag ty b m) hrun
+  LS.toSim₀ (intern_rebuilt_bind_ls hrel hinv h same tag ty b m hpw) hrun
 
 theorem intern_rebuilt_bind_i_refines {pers st lst} (h : arena.handle.EIdx) (same : Bool) (tag : Std.U32) (ty b : arena.handle.EIdx) (m : arena.handle.BMIdx) {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
