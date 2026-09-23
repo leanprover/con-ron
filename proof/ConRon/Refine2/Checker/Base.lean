@@ -1561,14 +1561,12 @@ is-a-proposition test and, for a theorem, the value's guards and annotation.
 **Open, and stopped on a divergence** (task #97-P5-Top round 3).  The glue is
 written in the round-3 log (`is_thm ; zero_level ; lvl_eq ; lift_fueled ;
 install_value ; check_value_group_tail`, with `lvl_eq_refines` above), but it
-closes only with three clauses the statement does not have and, by the
-coordinator's round-3 rule, must not grow:
+closes only with clauses the statement does not have and, by the
+coordinator's round-3 rule, must not grow.  (The NOT-A-PROPOSITION decline,
+the third blocker of round 3, is gone: task #97-T2-LOCKSTEP step 1 made the
+twin's message the Rust's constant `M_THM_NOT_PROP`, so the twin no longer
+reads the name there.)
 
-* the NOT-A-PROPOSITION decline: the Rust fails with the constant message
-  `M_THM_NOT_PROP`, the twin with `s!"… {← readName g.cvA.name} …"` — a store
-  READ on the twin side only, which throws `.internal` where the name does not
-  decode, so the kinds differ there (the same divergence as `checkDecl`'s
-  `.defnDecl` arm, round 4 §4);
 * `Good` across `lvlEq?` and `installValue` (two `ResolveInv` fields), needed
   only because `install_value_refines` and the tail's Core front door take
   `Good`/`EResolves` — the front doors' tag-versus-view divergence (task
@@ -1590,12 +1588,13 @@ theorem check_value_group_value_refines {pers st lst} {vis : Std.U64} {rf lf}
 /-- `check_value_group_tail` is `check_value_group`'s tail: the value's type
 against the declared one.
 
-**Open, and stopped on a divergence** (task #97-P5-Top round 3): the
-type-mismatch decline is `Invalid (value_kind_word g.kind)` in the Rust and
-`s!"type mismatch in {g.kind.word} {← readName g.cvA.name}"` in the twin — a
-twin-only store read that throws `.internal` at a dangling name.  Everything
-else composes from the statement's own hypotheses (`infer_type_core`,
-`is_def_eq_core` at the prefix view, `ResolveInv.infer`, `VGResolves`). -/
+**PROVED** (task #97-T2-LOCKSTEP step 1), once the twin's type-mismatch
+decline became the Rust's constant `s!"type mismatch in {g.kind.word}"`: the
+old twin message read the constant's name (`readName`), a twin-only store read
+that throws `.internal` at a dangling name, and that divergence was what
+stopped task #97-P5-Top round 3 here.  Everything else composes from the
+statement's own hypotheses (`infer_type_core`, `is_def_eq_core` at the prefix
+view, `ResolveInv.infer`, `VGResolves`). -/
 theorem check_value_group_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
     {jv : arena.handle.EIdx} {o} {Good : IFEnv → AState → Prop}
@@ -1609,7 +1608,56 @@ theorem check_value_group_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
       (checkValueGroupTailSpec (ConRon.Refine.absMode mode)
         (lf.restrictTo (absU vis)) (absValueGroup g) (absEIdx jv)) := by
-  sorry
+  have hctx := IFEnvInv.coreCtxAt vis hfe hfinv
+  have h0 : absU (0#u64) = 0 := rfl
+  rw [arena.checker_split.check_value_group_tail] at hrun
+  unfold Sim
+  rw [checkValueGroupTailSpec,
+    show (absValueGroup g).cvA.type = absEIdx g.cv_a.ty from rfl]
+  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r1, st1⟩ := q1
+  have hS1 := infer_type_core_refines knotRel_checkFuel' hrel hinv hctx hrel.storeWF
+    hjv check_fuel_abs hq1
+  rw [h0] at hS1
+  cases r1 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS1
+  | Ok vtype =>
+  obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := Sim.apply hS1
+  obtain ⟨hres1, hg1⟩ := hR.infer hg hjv hx1
+  have hty1 : ExprOps.EResolves lst1 (absEIdx g.cv_a.ty) := (hvg lst1 hg1).1
+  rw [run_bind_ok hx1]
+  refine AOut.rebase hext1 ?_
+  obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r2, st2⟩ := q2
+  have hS2 := is_def_eq_core_refines knotRel_checkFuel' hrel1 hinv1 hctx hrel1.storeWF
+    hres1 hty1 check_fuel_abs hq2
+  rw [h0] at hS2
+  cases r2 with
+  | Err e =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.errBind hS2
+  | Ok b =>
+  obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := Sim.apply hS2
+  rw [run_bind_ok hx2]
+  refine AOut.rebase hext2 ?_
+  cases b with
+  | true =>
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AOut.ok rfl hrel2 hinv2 (Ext.refl _) trivial
+  | false =>
+    obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [arena.monad.fail] at hrun
+    obtain ⟨r2, hr2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have h2 := Result.ok_injective hr2
+    subst h2
+    have ho := Result.ok_injective hrun
+    subst ho
+    exact AErrSim.invalid (s := s!"type mismatch in {(absValueGroup g).kind.word}") rfl
 
 /-- **`check_value_group` ⊑ `checkValueGroup`** — the check half of a value
 declaration, at the environment the constant was installed at.

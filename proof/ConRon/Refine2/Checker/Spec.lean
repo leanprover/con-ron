@@ -118,8 +118,7 @@ def checkValueGroupTailSpec (mode : CheckMode) (fe : IFEnv) (g : ValueGroup)
     (jv : EIdx) : AM Unit := do
   let vtype ← inferTypeCore mode fe checkFuel 0 jv
   unless ← isDefEqCore mode fe checkFuel 0 vtype g.cvA.type do
-    fail (.invalid
-      s!"type mismatch in {g.kind.word} {← readName g.cvA.name}")
+    fail (.invalid s!"type mismatch in {g.kind.word}")
 
 /-- `checkValueGroup`'s middle: the theorem's is-a-proposition test and, for a
 theorem, the value's guards and annotation. -/
@@ -128,8 +127,7 @@ def checkValueGroupValueSpec (mode : CheckMode) (fe : IFEnv) (g : ValueGroup)
   let jv ← if g.kind == .thm then do
       let z ← zeroLevel
       unless ← liftFueled "level comparison" (← lvlEq? u z) do
-        fail (.invalid
-          s!"type of theorem {← readName g.cvA.name} is not a proposition")
+        fail (.invalid "type of theorem is not a proposition")
       installValue mode fe g.cvA g.jv
     else pure g.jv
   checkValueGroupTailSpec mode fe g jv
