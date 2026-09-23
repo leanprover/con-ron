@@ -113,6 +113,7 @@ import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.ExprOps.Spine
 import ConRon.Bridge.ExprOps.Ranges
 import ConRon.Bridge.ExprOps.Subst
+import ConRon.Bridge.ExprOps.Owed
 
 namespace ConRon.Bridge.Inductives
 
@@ -659,6 +660,53 @@ theorem denoteCtors3_getElem? {st : EStore} :
           · intro cv' a b hb
             simp only [List.getElem?_cons_succ] at hb
             obtain ⟨c', hc', hd⟩ := hA cv' a b hb
+            exact ⟨c', by simpa using hc', hd⟩
+          · intro hb
+            simp only [List.getElem?_cons_succ] at hb ⊢
+            exact hB hb
+
+/-- con-leche: none — the shape record's constructor list at an index, with
+the `Option` carried. -/
+theorem denoteCtors_getElem? {st : EStore} :
+    ∀ {cs : List (IConstantVal × Nat)} {csP : List (ConstantVal × Nat)},
+      denoteCtors st cs = some csP → ∀ (j : Nat),
+        (∀ cv a, cs[j]? = some (cv, a) →
+          ∃ c, csP[j]? = some (c, a) ∧ Frontend.denoteCV st cv = some c) ∧
+        (cs[j]? = none → csP[j]? = none) := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro csP h j
+    simp only [denoteCtors, Option.some.injEq] at h
+    subst h
+    exact ⟨by intro cv a hb; simp at hb, by intro _; simp⟩
+  | cons e es ih =>
+    intro csP h j
+    obtain ⟨cv, x⟩ := e
+    simp only [denoteCtors] at h
+    cases hcv : Frontend.denoteCV st cv with
+    | none => rw [hcv] at h; simp at h
+    | some c =>
+      cases has : denoteCtors st es with
+      | none => rw [hcv, has] at h; simp at h
+      | some rest =>
+        rw [hcv, has] at h
+        obtain rfl := Option.some.inj h
+        cases j with
+        | zero =>
+          refine ⟨?_, ?_⟩
+          · intro cv' a hb
+            simp only [List.getElem?_cons_zero, Option.some.injEq,
+              Prod.mk.injEq] at hb
+            obtain ⟨rfl, rfl⟩ := hb
+            exact ⟨c, by simp, hcv⟩
+          · intro hb; simp at hb
+        | succ j =>
+          obtain ⟨hA, hB⟩ := ih has j
+          refine ⟨?_, ?_⟩
+          · intro cv' a hb
+            simp only [List.getElem?_cons_succ] at hb
+            obtain ⟨c', hc', hd⟩ := hA cv' a hb
             exact ⟨c', by simpa using hc', hd⟩
           · intro hb
             simp only [List.getElem?_cons_succ] at hb ⊢
@@ -2156,6 +2204,48 @@ theorem denoteBP_some' {st : EStore} {v : Option (List (Expr × BinderMeta) × E
     | some x =>
       rw [hb, he] at h
       exact ⟨xs, x, (Option.some.inj h).symm, rfl⟩
+
+/-- con-leche: none — `denoteBP_someB` at any pure peel (`stripLams`'s too):
+the binders and the residual both denote. -/
+theorem denoteBP_someB' {st : EStore} {v : Option (List (Expr × BinderMeta) × Expr)}
+    {bs : List (EIdx × BinderMeta)} {e : EIdx}
+    (h : ExprOps.denoteBP st (some (bs, e)) = some v) :
+    ∃ xs x, v = some (xs, x) ∧ denoteBinders st bs = some xs ∧ denoteE st e = some x := by
+  simp only [ExprOps.denoteBP] at h
+  cases hb : ExprOps.denoteBL st bs with
+  | none => rw [hb] at h; simp at h
+  | some xs =>
+    cases he : denoteE st e with
+    | none => rw [hb, he] at h; simp at h
+    | some x =>
+      rw [hb, he] at h
+      refine ⟨xs, x, (Option.some.inj h).symm, ?_, rfl⟩
+      rw [denoteBinders_eq_denoteBL]; exact hb
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean resetMeta — `resetMetaFast` in run
+form at this tier's frame. -/
+theorem resetMeta_pstep {fuel : Nat} {s₀ s' : AState} {e r : EIdx} {eP : Expr}
+    (hok : StateOK s₀) (hd : denoteE s₀.store e = some eP)
+    (hrun : Arena.resetMetaFast fuel e s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ denoteE s'.store r = some eP.resetMeta := by
+  obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.resetMetaFast_spec fuel s₀ e hok (by rw [hd]; rfl))
+  exact ⟨PStep.of_caches h1 h2 h3 h4 h5, h7 eP hd⟩
+
+/-- con-leche: none — the recogniser's binder comparison "`resetMeta a ==
+resetMeta b`" in run form. -/
+theorem resetPair_pstep {fuel : Nat} {s₀ s' : AState} {a b : EIdx} {aP bP : Expr}
+    {r : Bool} (hok : StateOK s₀) (ha : denoteE s₀.store a = some aP)
+    (hb : denoteE s₀.store b = some bP)
+    (hrun : (do pure ((← Arena.resetMetaFast fuel a) == (← Arena.resetMetaFast fuel b)) :
+      AM Bool) s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ r = (aP.resetMeta == bP.resetMeta) := by
+  obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, hx⟩ := resetMeta_pstep hok ha k1
+  obtain ⟨y, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨p2, hy⟩ := resetMeta_pstep p1.ok (denote_ext hb p1.ext) k2
+  obtain ⟨rfl, rfl⟩ := pureOk z2
+  exact ⟨p1.trans p2, beq_ehandle_eq p2.ok.wf (denote_ext hx p2.ext) hy⟩
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1120-1126 stripLams — the run form
 of `Bridge/ExprOps/Spine.lean`'s closed `stripLams_spec`, `stripPis_pstep`'s

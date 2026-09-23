@@ -1537,7 +1537,155 @@ theorem nativeRulePrefixOk_spec (recTy : EIdx) (recTyP : Expr)
         denoteE st rhs = some rhsP)
       (Arena.nativeRulePrefixOk recTy nP n j nF rhs)
       (RV (ConLeche.nativeRulePrefixOk recTyP nP n j nF rhsP)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hrt, hrhs⟩ := hpre
+  simp only [Arena.nativeRulePrefixOk] at hrun
+  obtain ⟨lq, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨hs1, hlq⟩ := stripLams_pstep hok hrhs k1
+  rw [hs1] at z1
+  obtain ⟨pq, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨hs2, hpq⟩ := stripPis_pstep hok hrt k2
+  rw [hs2] at z2
+  rcases lq with _ | ⟨rbs, rb⟩
+  · obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨PStep.refl hok, ?_⟩
+    show false = ConLeche.nativeRulePrefixOk recTyP nP n j nF rhsP
+    have h0 : rhsP.stripLams (nP + 1 + n + nF) = none := (Option.some.inj hlq).symm
+    simp only [ConLeche.nativeRulePrefixOk, h0]
+  obtain ⟨rxs, rbP, hslP, hrbs, -⟩ := denoteBP_someB' hlq
+  rcases pq with _ | ⟨tbs, tb⟩
+  · obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨PStep.refl hok, ?_⟩
+    show false = ConLeche.nativeRulePrefixOk recTyP nP n j nF rhsP
+    simp only [ConLeche.nativeRulePrefixOk, hslP, stripPis_none hpq]
+  obtain ⟨txs, tbP, hspP, htbs, -⟩ := denoteBP_someB hpq
+  dsimp only at z2
+  obtain ⟨po, s3, k3, z3⟩ := bindOk z2
+  obtain ⟨p3, hpo⟩ := allM_pstep (g := fun i => match rxs[i]?, txs[i]? with
+      | some b, some t => Expr.resetMeta b.1 == Expr.resetMeta t.1
+      | _, _ => false)
+    (fun _ st => denoteBinders st rbs = some rxs ∧ denoteBinders st tbs = some txs)
+    (fun hx h => ⟨denoteBinders_ext hx _ _ h.1, denoteBinders_ext hx _ _ h.2⟩)
+    (by
+      intro i t0 t1 b hok0 hP hrun0
+      obtain ⟨hr0, ht0⟩ := hP
+      obtain ⟨hrA, hrB⟩ := denoteBinders_getElem? hr0 i
+      obtain ⟨htA, htB⟩ := denoteBinders_getElem? ht0 i
+      cases hri : rbs[i]? with
+      | none =>
+        rw [hri] at hrun0
+        obtain ⟨rfl, rfl⟩ := pureOk hrun0
+        exact ⟨PStep.refl hok0, by simp only [hrB hri]⟩
+      | some bm =>
+      obtain ⟨bb, bmm⟩ := bm
+      obtain ⟨bP, hbP, hbd⟩ := hrA bb bmm hri
+      cases hti : tbs[i]? with
+      | none =>
+        rw [hri, hti] at hrun0
+        obtain ⟨rfl, rfl⟩ := pureOk hrun0
+        exact ⟨PStep.refl hok0, by simp only [hbP, htB hti]⟩
+      | some tm =>
+      obtain ⟨tt, tmm⟩ := tm
+      obtain ⟨tP, htP, htd⟩ := htA tt tmm hti
+      rw [hri, hti] at hrun0
+      obtain ⟨o1, hb⟩ := resetPair_pstep hok0 hbd htd hrun0
+      exact ⟨o1, by simp only [hbP, htP, hb]⟩)
+    (List.range (nP + 1 + n)) s₀ s3 po hok (fun _ _ => ⟨hrbs, htbs⟩) k3
+  rw [hpo] at z3
+  split at z3
+  case isTrue hc =>
+    obtain ⟨rfl, rfl⟩ := pureOk z3
+    refine ⟨p3, ?_⟩
+    show false = ConLeche.nativeRulePrefixOk recTyP nP n j nF rhsP
+    simp only [Bool.not_eq_true'] at hc
+    simp only [ConLeche.nativeRulePrefixOk, hslP, hspP]
+    change false = (((List.range (nP + 1 + n)).all fun i => match rxs[i]?, txs[i]? with
+        | some b, some t => Expr.resetMeta b.1 == Expr.resetMeta t.1
+        | _, _ => false) && _)
+    rw [hc]; rfl
+  case isFalse hc =>
+  simp only [Bool.not_eq_true', Bool.not_eq_false] at hc
+  have hrbs3 := denoteBinders_ext p3.ext _ _ hrbs
+  have htbs3 := denoteBinders_ext p3.ext _ _ htbs
+  obtain ⟨hmA, hmB⟩ := denoteBinders_getElem? htbs3 (nP + 1 + j)
+  have hpre : ConLeche.nativeRulePrefixOk recTyP nP n j nF rhsP =
+      (match txs[nP + 1 + j]? with
+       | some mty =>
+         (match (mty.1.liftLooseBVars (n - j) 0).stripPis nF with
+          | some (fbs, _) =>
+            (List.range nF).all fun i =>
+              match rxs[nP + 1 + n + i]?, fbs[i]? with
+              | some b, some f => Expr.resetMeta b.1 == Expr.resetMeta f.1
+              | _, _ => false
+          | none => false)
+       | none => false) := by
+    simp only [ConLeche.nativeRulePrefixOk, hslP, hspP]
+    change (((List.range (nP + 1 + n)).all fun i => match rxs[i]?, txs[i]? with
+        | some b, some t => Expr.resetMeta b.1 == Expr.resetMeta t.1
+        | _, _ => false) && _) = _
+    rw [hc]; rfl
+  cases hm : tbs[nP + 1 + j]? with
+  | none =>
+    rw [hm] at z3
+    obtain ⟨rfl, rfl⟩ := pureOk z3
+    refine ⟨p3, ?_⟩
+    show false = _
+    rw [hpre, hmB hm]
+  | some mq =>
+  obtain ⟨mt, mm⟩ := mq
+  obtain ⟨mtP, hmP, hmd⟩ := hmA mt mm hm
+  rw [hm] at z3
+  dsimp only at z3
+  obtain ⟨lf, s4, k4, z4⟩ := bindOk z3
+  obtain ⟨p4, hlf⟩ := liftFast_pstep p3.ok hmd k4
+  obtain ⟨fq, s5, k5, z5⟩ := bindOk z4
+  obtain ⟨hs5, hfq⟩ := stripPis_pstep p4.ok hlf k5
+  rw [hs5] at z5
+  rcases fq with _ | ⟨fbs, fb⟩
+  · obtain ⟨rfl, rfl⟩ := pureOk z5
+    refine ⟨p3.trans p4, ?_⟩
+    show false = _
+    rw [hpre, hmP]
+    dsimp only
+    rw [stripPis_none hfq]
+  obtain ⟨fxs, fbP, hfP, hfbs, -⟩ := denoteBP_someB hfq
+  dsimp only at z5
+  obtain ⟨p6, hr⟩ := allM_pstep (g := fun i => match rxs[nP + 1 + n + i]?, fxs[i]? with
+      | some b, some f => Expr.resetMeta b.1 == Expr.resetMeta f.1
+      | _, _ => false)
+    (fun _ st => denoteBinders st rbs = some rxs ∧ denoteBinders st fbs = some fxs)
+    (fun hx h => ⟨denoteBinders_ext hx _ _ h.1, denoteBinders_ext hx _ _ h.2⟩)
+    (by
+      intro i t0 t1 b hok0 hP hrun0
+      obtain ⟨hr0, hf0⟩ := hP
+      obtain ⟨hrA, hrB⟩ := denoteBinders_getElem? hr0 (nP + 1 + n + i)
+      obtain ⟨hfA, hfB⟩ := denoteBinders_getElem? hf0 i
+      cases hri : rbs[nP + 1 + n + i]? with
+      | none =>
+        rw [hri] at hrun0
+        obtain ⟨rfl, rfl⟩ := pureOk hrun0
+        exact ⟨PStep.refl hok0, by simp only [hrB hri]⟩
+      | some bm =>
+      obtain ⟨bb, bmm⟩ := bm
+      obtain ⟨bP, hbP, hbd⟩ := hrA bb bmm hri
+      cases hfi : fbs[i]? with
+      | none =>
+        rw [hri, hfi] at hrun0
+        obtain ⟨rfl, rfl⟩ := pureOk hrun0
+        exact ⟨PStep.refl hok0, by simp only [hbP, hfB hfi]⟩
+      | some fm =>
+      obtain ⟨ff, fmm⟩ := fm
+      obtain ⟨fP, hfP', hfd⟩ := hfA ff fmm hfi
+      rw [hri, hfi] at hrun0
+      obtain ⟨o1, hb⟩ := resetPair_pstep hok0 hbd hfd hrun0
+      exact ⟨o1, by simp only [hbP, hfP', hb]⟩)
+    (List.range nF) s4 s' r p4.ok
+    (fun _ _ => ⟨denoteBinders_ext p4.ext _ _ hrbs3, hfbs⟩) z5
+  refine ⟨p3.trans (p4.trans p6), ?_⟩
+  show r = _
+  rw [hpre, hmP]
+  dsimp only
+  rw [hfP, hr]
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:447-475 nativeRulesOk
 **The stream's rules are the generated ones**, constructor by constructor.
@@ -1556,7 +1704,127 @@ theorem nativeRulesOk_spec (recC : NIdx) (recCP : ConLeche.Name)
       (Arena.nativeRulesOk recC rlvls pw nP n cs kinds rhss recTy)
       (RV (ConLeche.nativeRulesOk recCP rlvlsP pw nP n csP
         (kinds.map (·.map kindOf)) rhssP recTyP)) := by
-  sorry
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hrc, hrl, hcs, hrh, hrt⟩ := hpre
+  have hrlen : rhssP.length = rhss.length := denoteEList_len hrh
+  simp only [Arena.nativeRulesOk] at hrun
+  have e0 : (rhss.length == n && kinds.length == n) =
+      (rhssP.length == n && (kinds.map (·.map kindOf)).length == n) := by
+    rw [hrlen, List.length_map]
+  rw [e0] at hrun
+  split at hrun
+  case isTrue hc =>
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    refine ⟨PStep.refl hok, ?_⟩
+    show false = _
+    simp only [Bool.not_eq_true'] at hc
+    simp only [ConLeche.nativeRulesOk, hc, Bool.false_and]
+  case isFalse hc =>
+  simp only [Bool.not_eq_true', Bool.not_eq_false] at hc
+  obtain ⟨p1, hr⟩ := allM_pstep (g := fun j =>
+      match rhssP[j]?, csP[j]?, (kinds.map (·.map kindOf))[j]? with
+      | some rhs, some (cA, nF), some ks =>
+        ks.length == nF &&
+        (match rhs.stripLams (nP + 1 + n + nF) with
+         | some (_, rbody) =>
+           rbody == Expr.resetMeta (ConLeche.structRuleBodyR recCP rlvlsP pw nP n nF j
+             (ConLeche.recIdxOf ks) (ConLeche.structFieldTeleOf cA.type nP nF)
+             (ConLeche.structFieldIdxOf cA.type nP nF))
+         | none => false) &&
+        ConLeche.nativeRulePrefixOk recTyP nP n j nF rhs
+      | _, _, _ => false)
+    (fun _ st => denoteN st.ns recC = some recCP ∧ denoteLs st.lss rlvls = some rlvlsP ∧
+      denoteCtors st cs = some csP ∧ Frontend.denoteEList st rhss = some rhssP ∧
+      denoteE st recTy = some recTyP)
+    (fun hx h => ⟨denoteN_ext h.1 hx, denoteLs_ext h.2.1 hx, denoteCtors_ext hx _ _ h.2.2.1,
+      denoteEList_ext hx _ _ h.2.2.2.1, denote_ext h.2.2.2.2 hx⟩)
+    (by
+      intro j t0 t1 b hok0 hP hrun0
+      obtain ⟨hrc0, hrl0, hcs0, hrh0, hrt0⟩ := hP
+      obtain ⟨hcA, hcB⟩ := denoteCtors_getElem? hcs0 j
+      cases hrj : rhss[j]? with
+      | none =>
+        rw [hrj] at hrun0
+        obtain ⟨rfl, rfl⟩ := pureOk hrun0
+        refine ⟨PStep.refl hok0, ?_⟩
+        have : rhssP[j]? = none := by
+          rw [List.getElem?_eq_none_iff] at hrj ⊢
+          rw [denoteEList_len hrh0]; exact hrj
+        simp only [this]
+      | some rhs =>
+      obtain ⟨rhsP, hrjP, hrhs⟩ := ExprOps.denoteEList_getElem? rhss rhssP hrh0 j rhs hrj
+      cases hcj : cs[j]? with
+      | none =>
+        rw [hrj, hcj] at hrun0
+        obtain ⟨rfl, rfl⟩ := pureOk hrun0
+        exact ⟨PStep.refl hok0, by simp only [hrjP, hcB hcj]⟩
+      | some cq =>
+      obtain ⟨cA, nF⟩ := cq
+      obtain ⟨cAP, hcjP, hcA'⟩ := hcA cA nF hcj
+      cases hkj : kinds[j]? with
+      | none =>
+        rw [hrj, hcj, hkj] at hrun0
+        obtain ⟨rfl, rfl⟩ := pureOk hrun0
+        exact ⟨PStep.refl hok0, by simp only [hrjP, hcjP, List.getElem?_map, hkj,
+          Option.map_none]⟩
+      | some ks =>
+      rw [hrj, hcj, hkj] at hrun0
+      dsimp only at hrun0
+      have hkP : (kinds.map (·.map kindOf))[j]? = some (ks.map kindOf) := by
+        simp only [List.getElem?_map, hkj, Option.map_some]
+      show PStep t0 t1 ∧ b = _
+      simp only [hrjP, hcjP, hkP, List.length_map]
+      split at hrun0
+      case isTrue hc1 =>
+        obtain ⟨rfl, rfl⟩ := pureOk hrun0
+        simp only [Bool.not_eq_true'] at hc1
+        exact ⟨PStep.refl hok0, by simp only [hc1, Bool.false_and]⟩
+      case isFalse hc1 =>
+      simp only [Bool.not_eq_true', Bool.not_eq_false] at hc1
+      have hnF : ks.length = nF := by simpa using hc1
+      have hri : ∀ i ∈ Arena.recIdxOf ks, i < nF := by
+        intro i hi
+        simp only [Arena.recIdxOf, List.mem_filter, List.mem_range] at hi
+        omega
+      have hty0 := denoteCV_type hcA'
+      obtain ⟨lq, t2, q1, w1⟩ := bindOk hrun0
+      obtain ⟨hs2, hlq⟩ := stripLams_pstep hok0 hrhs q1
+      rw [hs2] at w1
+      rcases lq with _ | ⟨lbs, rbody⟩
+      · have h0 : rhsP.stripLams (nP + 1 + n + nF) = none := (Option.some.inj hlq).symm
+        obtain ⟨y, t3, q2, w2⟩ := bindOk w1
+        obtain ⟨rfl, rfl⟩ := pureOk q2
+        obtain ⟨rfl, rfl⟩ := pureOk w2
+        exact ⟨PStep.refl hok0, by simp only [h0, hnF, beq_self_eq_true, Bool.true_and,
+          Bool.false_and]⟩
+      obtain ⟨_, rbodyP, hslP, hrbd⟩ := denoteBP_some' hlq
+      obtain ⟨wt, u1, v1, y1⟩ := bindOk w1
+      obtain ⟨o1, hwt⟩ := structRuleBodyR_spec recC recCP rlvls rlvlsP pw nP n nF j
+        (Arena.recIdxOf ks) cA.type cAP.type hri t0 u1 wt hok0 ⟨hrc0, hrl0, hty0⟩ v1
+      obtain ⟨rw', u2, v2, y2⟩ := bindOk y1
+      obtain ⟨o2, hrw⟩ := resetMeta_pstep o1.ok hwt v2
+      obtain ⟨y, u3, v3, y3⟩ := bindOk y2
+      obtain ⟨rfl, rfl⟩ := pureOk v3
+      have hbeq := beq_ehandle_eq o2.ok.wf (denote_ext hrbd (o1.ext.trans o2.ext)) hrw
+      rw [hbeq, recIdxOf_spec] at y3
+      split at y3
+      case isTrue hc2 =>
+        obtain ⟨rfl, rfl⟩ := pureOk y3
+        simp only [Bool.not_eq_true'] at hc2
+        exact ⟨o1.trans o2, by simp only [hslP, hnF, beq_self_eq_true, hc2, Bool.true_and,
+          Bool.false_and]⟩
+      case isFalse hc2 =>
+        simp only [Bool.not_eq_true', Bool.not_eq_false] at hc2
+        obtain ⟨p3, hb⟩ := nativeRulePrefixOk_spec recTy recTyP nP n j nF rhs rhsP _ t1 b
+          o2.ok ⟨denote_ext hrt0 (o1.ext.trans o2.ext), denote_ext hrhs (o1.ext.trans o2.ext)⟩ y3
+        exact ⟨o1.trans (o2.trans p3), by simp only [hslP, hnF, beq_self_eq_true, hc2,
+          Bool.true_and, hb]⟩)
+    (List.range n) s₀ s' r hok (fun _ _ => ⟨hrc, hrl, hcs, hrh, hrt⟩) hrun
+  refine ⟨p1, ?_⟩
+  show r = ConLeche.nativeRulesOk recCP rlvlsP pw nP n csP (kinds.map (·.map kindOf)) rhssP recTyP
+  rw [hr]
+  simp only [ConLeche.nativeRulesOk, hc, Bool.true_and]
+  rfl
 
 /-! ## The recogniser -/
 
