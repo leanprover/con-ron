@@ -58904,3 +58904,4 @@ The eight attempts' copies are noise, as the audit expected.
 | `crates/con-ron-core/src/arena/{store,monad}.rs` | the copies (`Tbl::dup` & co.; `Dup` for the readback values) |
 | `Bridge/Checker/Base.lean` | docs |
 | `Refine2/Shape.lean`, `Refine2/ExprOps/Mut.lean` | docs |
+Gates: `scripts/gates.sh` on the branch after merging `arena` (`f216c474`...`4f6f3961`): **all 16 OK** (`extract-check` 125 s, `lake-bridge` 536 s).  The shared Lake cache was seeded from this state (`ConRonRefine2 ConRonBridge ConRonCapstone`).
