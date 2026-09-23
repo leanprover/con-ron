@@ -39,6 +39,7 @@ import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.Proj
 import ConRon.Bridge.Core.Walks.Frame
 import ConRon.Bridge.Core.Walks.StrLit
+import ConRon.Bridge.Core.Walks.BinderLoop
 
 namespace ConRon.Bridge.Core
 
@@ -281,7 +282,18 @@ theorem inferBody_binders_batched {fe : IFEnv} {fuel : Nat}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v
+  case forallE ty b m =>
+    obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_forallE_inv hwf hv hden
+    exact inferForall_spec henv hsim s₀ d ty b m et eb hok hdt hdb hw
+  case lam ty b m =>
+    obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_lam_inv hwf hv hden
+    exact inferLam_spec henv hsim s₀ d ty b m et eb hok hdt hdb hw
+  all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 
 /-! ### The dispatch's children (task #97-P3-Core round 5)
