@@ -349,8 +349,9 @@ where
     /// A copy of this table that shares nothing with it: the row column, and
     /// the cons table by `HashMap2::dup`.  It exists for one caller,
     /// `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4), which
-    /// copies a tier's SCRATCH tables so that `attempt_restore` can put them
-    /// back after a failed variant attempt.  Aeneas models neither
+    /// copies every table of both tiers (task #97-T2-LOCKSTEP D4b) so that
+    /// `attempt_restore` can put the whole state back after a failed variant
+    /// attempt.  Aeneas models neither
     /// `Vec::truncate` nor `Vec::clear` (this module's note on `drop_scratch`),
     /// so a restore is a whole value moved back, and this is the copy it moves.
     pub fn dup(&self) -> Tbl<A, I, D> {
@@ -1410,8 +1411,8 @@ impl NTables {
     }
 
     /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-    /// A copy of this tier, table by table (`Tbl::dup`): the scratch-tier
-    /// snapshot of `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4).
+    /// A copy of this tier, table by table (`Tbl::dup`): one tier of the
+    /// snapshot of `arena::checker_base::attempt_snapshot` (tasks #97-T2-LOCKSTEP D4, D4b).
     pub fn dup(&self) -> NTables {
         NTables {
             anons: self.anons.dup(),
@@ -1530,6 +1531,19 @@ impl NStore {
             scr: NTables::empty(),
             scratch_on: false,
             shared_on: false,
+        }
+    }
+
+    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
+    /// A copy of the whole store: both tiers (`NTables::dup`) and
+    /// both flags — the full-state snapshot of
+    /// `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4b).
+    pub fn dup(&self) -> NStore {
+        NStore {
+            pers: self.pers.dup(),
+            scr: self.scr.dup(),
+            scratch_on: self.scratch_on,
+            shared_on: self.shared_on,
         }
     }
 
@@ -1854,8 +1868,8 @@ impl LTables {
     }
 
     /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-    /// A copy of this tier, table by table (`Tbl::dup`): the scratch-tier
-    /// snapshot of `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4).
+    /// A copy of this tier, table by table (`Tbl::dup`): one tier of the
+    /// snapshot of `arena::checker_base::attempt_snapshot` (tasks #97-T2-LOCKSTEP D4, D4b).
     pub fn dup(&self) -> LTables {
         LTables {
             zeros: self.zeros.dup(),
@@ -2001,6 +2015,20 @@ impl LStore {
             scr: LTables::empty(),
             scratch_on: false,
             shared_on: false,
+        }
+    }
+
+    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
+    /// A copy of the whole store: the inner store, both tiers (`LTables::dup`) and
+    /// both flags — the full-state snapshot of
+    /// `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4b).
+    pub fn dup(&self) -> LStore {
+        LStore {
+            ns: self.ns.dup(),
+            pers: self.pers.dup(),
+            scr: self.scr.dup(),
+            scratch_on: self.scratch_on,
+            shared_on: self.shared_on,
         }
     }
 
@@ -2241,8 +2269,8 @@ impl LsTables {
     }
 
     /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-    /// A copy of this tier, table by table (`Tbl::dup`): the scratch-tier
-    /// snapshot of `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4).
+    /// A copy of this tier, table by table (`Tbl::dup`): one tier of the
+    /// snapshot of `arena::checker_base::attempt_snapshot` (tasks #97-T2-LOCKSTEP D4, D4b).
     pub fn dup(&self) -> LsTables {
         LsTables {
             lists: self.lists.dup(),
@@ -2329,6 +2357,20 @@ impl LsStore {
             scr: LsTables::empty(),
             scratch_on: false,
             shared_on: false,
+        }
+    }
+
+    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
+    /// A copy of the whole store: the inner store, both tiers (`LsTables::dup`) and
+    /// both flags — the full-state snapshot of
+    /// `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4b).
+    pub fn dup(&self) -> LsStore {
+        LsStore {
+            ls: self.ls.dup(),
+            pers: self.pers.dup(),
+            scr: self.scr.dup(),
+            scratch_on: self.scratch_on,
+            shared_on: self.shared_on,
         }
     }
 
@@ -2609,8 +2651,8 @@ impl ETables {
     }
 
     /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-    /// A copy of this tier, table by table (`Tbl::dup`): the scratch-tier
-    /// snapshot of `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4).
+    /// A copy of this tier, table by table (`Tbl::dup`): one tier of the
+    /// snapshot of `arena::checker_base::attempt_snapshot` (tasks #97-T2-LOCKSTEP D4, D4b).
     pub fn dup(&self) -> ETables {
         ETables {
             bvars: self.bvars.dup(),
@@ -3203,6 +3245,20 @@ impl EStore {
             scr: ETables::empty(),
             scratch_on: false,
             shared_on: false,
+        }
+    }
+
+    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
+    /// A copy of the whole store: the inner store, both tiers (`ETables::dup`) and
+    /// both flags — the full-state snapshot of
+    /// `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4b).
+    pub fn dup(&self) -> EStore {
+        EStore {
+            lss: self.lss.dup(),
+            pers: self.pers.dup(),
+            scr: self.scr.dup(),
+            scratch_on: self.scratch_on,
+            shared_on: self.shared_on,
         }
     }
 

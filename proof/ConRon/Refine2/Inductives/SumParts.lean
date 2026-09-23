@@ -62,6 +62,24 @@ theorem ctors_copy_from_refines
     exact ⟨i2, (iv1, nf), out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
       by simp [i_constant_val_dup_abs hiv1], h⟩
 
+open Lockstep in
+/-- `ctors_copy_from_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem ctors_copy_from_twin0
+    {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} :
+    LSP (arena.inductives.sum_parts.ctors_copy_from cs 0#usize (alloc.vec.Vec.new (arena.env.IConstantVal × Std.U64))) (fun o => TwinEq (absCtorsL cs) (absCtorsL o)) := by
+  intro o h
+  have h' := (ctors_copy_from_refines h).symm
+  simpa [Lockstep.TwinEq, absCtorsLFrom, absCtorsL, alloc.vec.Vec.new] using h'
+
+open Lockstep in
+@[lockstep] theorem ctors_copy_from_twin
+    {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} :
+    LSP (arena.inductives.sum_parts.ctors_copy_from cs i out) (fun o => TwinEq (absCtorsL out ++ absCtorsLFrom cs i) (absCtorsL o)) :=
+  fun o h => (ctors_copy_from_refines h).symm
+
 /-- `ctors_copy` is the identity on the abstraction. -/
 theorem ctors_copy_refines
     {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {o}
@@ -71,6 +89,12 @@ theorem ctors_copy_refines
   have h := ctors_copy_from_refines hrun
   simpa [absCtorsL, absCtorsLFrom, alloc.vec.Vec.new,
     show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using h
+
+open Lockstep in
+@[lockstep] theorem ctors_copy_twin
+    {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} :
+    LSP (arena.inductives.sum_parts.ctors_copy cs) (fun o => TwinEq (absCtorsL cs) (absCtorsL o)) :=
+  fun o h => (ctors_copy_refines h).symm
 
 /-- `inductive_shape_dup` is the identity on the abstraction — the twin's
 `InductiveShape` is a value and has no copy. -/
@@ -89,6 +113,12 @@ theorem inductive_shape_dup_refines
   simp only [absInductiveShape, i_constant_val_dup_abs hiv,
     i_constant_val_dup_abs hiv1, dupId_nidx _ _ hn, dupId_lidx _ _ hl,
     ctors_copy_refines hv, absEIdxL, eidx_vec_dup_val hv1]
+
+open Lockstep in
+@[lockstep] theorem inductive_shape_dup_twin
+    {p : arena.inductives.sum_parts.InductiveShape} :
+    LSP (arena.inductives.sum_parts.inductive_shape_dup p) (fun o => TwinEq (absInductiveShape p) (absInductiveShape o)) :=
+  fun o h => (inductive_shape_dup_refines h).symm
 
 /-! ## The member split
 
@@ -169,6 +199,14 @@ theorem sum_split_from_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
         · simp only [absIConstantInfo, List.map_cons, Option.map_none]
           rfl
 
+open Lockstep in
+@[lockstep] theorem sum_split_from_twin
+    {block : alloc.vec.Vec arena.env.IConstantInfo}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)} :
+    LSP (arena.inductives.sum_parts.sum_split_from block i out) (fun o => TwinEq ((sumSplit (absICILFrom block i)).map fun q => (absCtors3L out ++ q.1, q.2)) ((o.map fun q => (absCtors3L q.1, absIConstantVal q.2.1, absU q.2.2.1, absU q.2.2.2.1, q.2.2.2.2.val.map absIRecRule)))) :=
+  fun o h => (sum_split_from_refines h).symm
+
 /-- `sum_split` ⊑ `sumSplit`. -/
 theorem sum_split_refines {block : alloc.vec.Vec arena.env.IConstantInfo} {o}
     (hrun : arena.inductives.sum_parts.sum_split block = ok o) :
@@ -180,6 +218,12 @@ theorem sum_split_refines {block : alloc.vec.Vec arena.env.IConstantInfo} {o}
   simpa [absCtors3L, absICIL, absICILFrom, alloc.vec.Vec.new,
     show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using h
 
+open Lockstep in
+@[lockstep] theorem sum_split_twin
+    {block : alloc.vec.Vec arena.env.IConstantInfo} :
+    LSP (arena.inductives.sum_parts.sum_split block) (fun o => TwinEq (sumSplit (absICIL block)) ((o.map fun q => (absCtors3L q.1, absIConstantVal q.2.1, absU q.2.2.1, absU q.2.2.2.1, q.2.2.2.2.val.map absIRecRule)))) :=
+  fun o h => (sum_split_refines h).symm
+
 /-! ## The completion, and the two readers -/
 
 /-- `with_sort` ⊑ `InductiveShape.withSort` — the one function of this module
@@ -190,7 +234,20 @@ theorem with_sort_refines {pers st lst}
     (hrun : arena.inductives.sum_parts.with_sort pers st p s = ok o) :
     Sim₀ absInductiveShape pers lst o
       ((absInductiveShape p).withSort (absLIdx s)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.sum_parts.with_sort, absInductiveShape]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem with_sort_ls
+    {pers st lst}
+    {p : arena.inductives.sum_parts.InductiveShape}
+    {s : arena.handle.LIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absInductiveShape a) (arena.inductives.sum_parts.with_sort pers st p s) lst
+      ((absInductiveShape p).withSort (absLIdx s)) :=
+  LS.ofSim₀ fun _ h => with_sort_refines hrel hinv h
 
 /-- `rule_prefix` ⊑ `InductiveShape.rulePrefix` — `nP + 1 + |ctors|`, and the
 port's `ctors.len() as u64` against the twin's `List.length` is the one place
@@ -213,6 +270,12 @@ theorem rule_prefix_refines {p : arena.inductives.sum_parts.InductiveShape} {o}
   rw [h3, h1, hc]
   scalar_tac
 
+open Lockstep in
+@[lockstep] theorem rule_prefix_twin
+    {p : arena.inductives.sum_parts.InductiveShape} :
+    LSP (arena.inductives.sum_parts.rule_prefix p) (fun o => TwinEq ((absInductiveShape p).rulePrefix) (absU o)) :=
+  fun o h => (rule_prefix_refines h).symm
+
 /-- `major_idx` ⊑ `InductiveShape.majorIdx`. -/
 theorem major_idx_refines {p : arena.inductives.sum_parts.InductiveShape} {o}
     (hrun : arena.inductives.sum_parts.major_idx p = ok o) :
@@ -223,6 +286,12 @@ theorem major_idx_refines {p : arena.inductives.sum_parts.InductiveShape} {o}
   have h3 := ConRon.Refine.Nat.uadd_val hrun
   simp only [InductiveShape.majorIdx, absInductiveShape, absU] at *
   omega
+
+open Lockstep in
+@[lockstep] theorem major_idx_twin
+    {p : arena.inductives.sum_parts.InductiveShape} :
+    LSP (arena.inductives.sum_parts.major_idx p) (fun o => TwinEq ((absInductiveShape p).majorIdx) (absU o)) :=
+  fun o h => (major_idx_refines h).symm
 
 /-! ## The axiom census
 

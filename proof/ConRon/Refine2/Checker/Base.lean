@@ -8,7 +8,7 @@ checker's common ground — the per-declaration constant check, the two
 memoised guard walks, the projection-rule stages, the attempt bracket — and
 the install/check seam of a value declaration.
 
-## The attempt seam is lockstep (task #97-T2-LOCKSTEP D4)
+## The attempt seam is lockstep (tasks #97-T2-LOCKSTEP D4, D4b)
 
 `orElseAttempt` (DESIGN §8.3 and task #97-LC's ledger row) used to be the one
 seam where (B) and (C) were not the same state: the port restored the memos
@@ -18,13 +18,17 @@ state.  The kept scratch nodes lengthened the port's scratch tier, so every
 later scratch handle had a different word — no relation short of a renaming
 absorbs that, and it is why `Refine2/Shape.lean`'s old `AOut` carried `Ext`.
 
-The maintainer's ruling moved the Rust: `attempt_snapshot`/`attempt_restore`
-also copy and restore the four stores' scratch tiers (and the readback memos,
-which `caches_dup` used to restore empty).  `attempt_restore_refines₀` is
-then lockstep, and `attempt_recover_refines₀` relates the port's restored
-state to the twin's pre-attempt state under `ScratchFrame` — a fact about the
-Rust attempt alone (the persistent tiers, the flags and the pins are not
-written inside a declaration's bracket).  The seam itself is
+The maintainer's rulings moved the Rust: D4 restored the scratch tiers too,
+which is the whole state only given a frame over the attempt (the old
+`ScratchFrame`: pins, persistent tiers and flags untouched — a statement over
+the attempt's 1 187-function closure); D4b made `attempt_snapshot` a FULL
+copy of the state and `attempt_restore` a move of it back; D4c moves the
+persistent tier aside (`freeze_tier`) before that copy and thaws it back
+after the attempt, which runs against the frozen tier.  So the snapshot is
+the identity in the model (`attempt_snapshot_eq`, from the `dup` lemmas
+below), `attempt_restore` is `ok snap`, the freeze/thaw pair reads the same
+(`TierView`, `freeze_tier_view`, `thaw_read_tier_view`), and all of it is
+lockstep with no hypothesis about the attempt.  The seam itself is
 `Refine2/Checker/DeclCheck.lean`'s `check_div_mod_pin_attempt_refines₀`.
 
 ## Finding 10 — `vis` out of the index is a hypothesis at seventy-one sites
@@ -100,26 +104,7 @@ namespace ConRon.Refine2
 open ConRon.Arena
 open ConRon.Refine (NameWF NamesWF ExprWF)
 
-/-! ## The attempt bracket — lockstep since task #97-T2-LOCKSTEP D4 -/
-
-/-- `arena::checker_base::AttemptSnapshot` against the twin's: the per-call
-memo tables, the per-declaration caches and the four stores' SCRATCH tiers,
-field by field, with the Rust-side invariant of each copy.  Related rather
-than abstracted, for the reason every memo table in this tower is. -/
-structure SnapRel (rs : arena.checker_base.AttemptSnapshot) (ls : AttemptSnapshot) :
-    Prop where
-  memos : MemosRel rs.memos ls.memos
-  caches : CachesRel rs.caches ls.caches
-  memosInv : MemosInv rs.memos
-  cachesInv : CachesInv rs.caches
-  eScr : ETablesRel rs.e_scr ls.eScr
-  lsScr : LsTablesRel rs.ls_scr ls.lsScr
-  lScr : LTablesRel rs.l_scr ls.lScr
-  nScr : NTablesRel rs.n_scr ls.nScr
-  eScrInv : ETablesInv rs.e_scr
-  lsScrInv : LsTablesInv rs.ls_scr
-  lScrInv : LTablesInv rs.l_scr
-  nScrInv : NTablesInv rs.n_scr
+/-! ## The attempt bracket — lockstep since task #97-T2-LOCKSTEP D4b -/
 
 /-! ### The copies are the identity
 
@@ -129,7 +114,9 @@ and `Refine2/Specs.lean`; the key records, `bool`, and task #97-T2-LOCKSTEP
 D4's `Level`/`Name`/`Vec<Level>` here.  `HashMap2::dup` is then the identity
 (`Refine/HashMap2.lean`'s `dup_spec`), `Tbl::dup`'s halved row walk copies
 row by row (`tbl_dup_rows_spec`, the shape of `HashMap2`'s `dup_slots_spec`),
-and each `dup` is literally `o = input`. -/
+and each `dup` is literally `o = input`; `vec_dup`'s halved walk
+(`vec_dup_range_spec`) likewise, and so the four stores' `dup`, `pins_dup` and
+the whole-state `attempt_snapshot` (task #97-T2-LOCKSTEP D4b). -/
 
 section DupCopies
 
@@ -317,162 +304,350 @@ theorem ntables_dup_eq {rt o : arena.store.NTables}
   repeat dup_step
   rw [← Result.ok_injective h]
 
+/-- `checker_base::vec_dup_range` copies `xs[lo..hi]` onto `out`, halving as
+`Tbl::dup_rows` does; under `DupId` each element is itself. -/
+theorem vec_dup_range_spec {T : Type} {DT : ron.hashmap.Dup T} (hT : DupId DT)
+    (N : Nat) :
+    ∀ (xs out out' : alloc.vec.Vec T) (lo hi : Std.Usize),
+      hi.val - lo.val = N → hi.val ≤ xs.val.length →
+      arena.checker_base.vec_dup_range DT xs out lo hi = ok out' →
+      out'.val = out.val ++ (xs.val.drop lo.val).take (hi.val - lo.val) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro xs out out' lo hi hN hhi h
+    rw [arena.checker_base.vec_dup_range.eq_def] at h
+    split at h
+    · rename_i hgt
+      have hlt : lo.val < hi.val := by scalar_tac
+      obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hnv : n.val = hi.val - lo.val := uscalar_sub_eq hn
+      split at h
+      · rename_i h1
+        have hn1 : hi.val = lo.val + 1 := by
+          have : n.val = 1 := by scalar_tac
+          omega
+        have hlo : lo.val < xs.val.length := by omega
+        have : Inhabited T := ⟨xs.val[lo.val]⟩
+        obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨-, hx⟩ := ConRon.Refine.HashMap.vec_index_eq ht
+        obtain ⟨t', ht', hp⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        rw [hT _ _ ht'] at hp
+        rw [vec_push_eq hp, hn1, show lo.val + 1 - lo.val = 1 by omega,
+          take_one_drop hlo, hx]
+      · rename_i h1
+        have hn2 : 2 ≤ n.val := by
+          have : n.val ≠ 1 := by scalar_tac
+          omega
+        obtain ⟨i, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨mid, hmid, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨out1, hs1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hiv : i.val = n.val / 2 := by
+          rw [uscalar_div_eq hi2, show (2#usize : Std.Usize).val = 2 by scalar_tac]
+        have hmv : mid.val = lo.val + i.val := uscalar_add_eq hmid
+        have e1 := ih (mid.val - lo.val) (by omega) xs out out1 lo mid rfl (by omega) hs1
+        have e2 := ih (hi.val - mid.val) (by omega) xs out1 out' mid hi rfl hhi h2
+        rw [e2, e1, List.append_assoc,
+          show hi.val - lo.val = (mid.val - lo.val) + (hi.val - mid.val) by omega,
+          List.take_add, List.drop_drop,
+          show lo.val + (mid.val - lo.val) = mid.val by omega]
+    · rename_i hgt
+      have hle : hi.val ≤ lo.val := by scalar_tac
+      rw [← Result.ok_injective h, show hi.val - lo.val = 0 by omega]
+      simp
+
+/-- **`checker_base::vec_dup` is the identity.** -/
+theorem vec_dup_eq {T : Type} {DT : ron.hashmap.Dup T} (hT : DupId DT)
+    {xs o : alloc.vec.Vec T} (h : arena.checker_base.vec_dup DT xs = ok o) :
+    o = xs := by
+  rw [arena.checker_base.vec_dup] at h
+  have hr := vec_dup_range_spec hT _ xs _ o 0#usize (alloc.vec.Vec.len xs) rfl
+    (by simp) h
+  exact alloc.vec.Vec.ext _ _ (by simpa [alloc.vec.Vec.with_capacity] using hr)
+
+/-- `pins_dup` is the identity: two `vec_dup`s and three handle copies. -/
+theorem pins_dup_eq {p o : arena.pins.Pins}
+    (h : arena.checker_base.pins_dup p = ok o) : o = p := by
+  unfold arena.checker_base.pins_dup at h
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := vec_dup_eq dupId_nidx hx
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := vec_dup_eq dupId_nidx hx
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := dupId_lsidx _ _ hx
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := dupId_lidx _ _ hx
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := dupId_eidx _ _ hx
+  rw [← Result.ok_injective h]
+
+theorem nstore_dup_eq {s o : arena.store.NStore}
+    (h : arena.store.NStore.dup s = ok o) : o = s := by
+  unfold arena.store.NStore.dup at h
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := ntables_dup_eq hx
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := ntables_dup_eq hx
+  rw [← Result.ok_injective h]
+
+theorem lstore_dup_eq {s o : arena.store.LStore}
+    (h : arena.store.LStore.dup s = ok o) : o = s := by
+  unfold arena.store.LStore.dup at h
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := nstore_dup_eq hx
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := ltables_dup_eq hx
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := ltables_dup_eq hx
+  rw [← Result.ok_injective h]
+
+theorem lsstore_dup_eq {s o : arena.store.LsStore}
+    (h : arena.store.LsStore.dup s = ok o) : o = s := by
+  unfold arena.store.LsStore.dup at h
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := lstore_dup_eq hx
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := lstables_dup_eq hx
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := lstables_dup_eq hx
+  rw [← Result.ok_injective h]
+
+theorem estore_dup_eq {s o : arena.store.EStore}
+    (h : arena.store.EStore.dup s = ok o) : o = s := by
+  unfold arena.store.EStore.dup at h
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := lsstore_dup_eq hx
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := etables_dup_eq hx
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := etables_dup_eq hx
+  rw [← Result.ok_injective h]
+
+/-- **`attempt_snapshot` is the identity in the model** (task #97-T2-LOCKSTEP
+D4b): the store, the memos, the caches and the pins, each copied by a `dup`
+that returns its argument. -/
+theorem attempt_snapshot_eq {st o : arena.monad.AState}
+    (h : arena.checker_base.attempt_snapshot st = ok o) : o = st := by
+  unfold arena.checker_base.attempt_snapshot at h
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := estore_dup_eq hx
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := memos_dup_eq hx
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := caches_dup_eq hx
+  obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := pins_dup_eq hx
+  rw [← Result.ok_injective h]
+
 end DupCopies
 
-/-- `memos_dup` is the identity on the abstraction: `ron::hashmap::Dup`'s
-`dup2` is `DupId` at every one of the thirteen tables (`Refine2/Inv.lean`). -/
-theorem memos_dup_refines {rm lm} {o}
-    (hrel : MemosRel rm lm) (hinv : MemosInv rm)
-    (hrun : arena.checker_base.memos_dup rm = ok o) :
-    MemosRel o lm ∧ MemosInv o := by
-  obtain rfl := memos_dup_eq hrun
-  exact ⟨hrel, hinv⟩
-
-/-- `caches_dup` is the identity on the abstraction — including the three
-readback memos, which task #97-T2-LOCKSTEP D4 made it copy (they used to be
-restored EMPTY, which made this statement false). -/
-theorem caches_dup_refines {rc lc} {o}
-    (hrel : CachesRel rc lc) (hinv : CachesInv rc)
-    (hrun : arena.checker_base.caches_dup rc = ok o) :
-    CachesRel o lc ∧ CachesInv o := by
-  obtain rfl := caches_dup_eq hrun
-  exact ⟨hrel, hinv⟩
-
-/-- `ETables::dup` is the identity on the abstraction (`Tbl::dup` per table:
-the row column copied by `dup2`, the cons table by `HashMap2::dup`). -/
-theorem etables_dup_refines {rt lt} {o}
-    (hrel : ETablesRel rt lt) (hinv : ETablesInv rt)
-    (hrun : arena.store.ETables.dup rt = ok o) :
-    ETablesRel o lt ∧ ETablesInv o := by
-  obtain rfl := etables_dup_eq hrun
-  exact ⟨hrel, hinv⟩
-
-/-- `LsTables::dup` is the identity on the abstraction. -/
-theorem lstables_dup_refines {rt lt} {o}
-    (hrel : LsTablesRel rt lt) (hinv : LsTablesInv rt)
-    (hrun : arena.store.LsTables.dup rt = ok o) :
-    LsTablesRel o lt ∧ LsTablesInv o := by
-  obtain rfl := lstables_dup_eq hrun
-  exact ⟨hrel, hinv⟩
-
-/-- `LTables::dup` is the identity on the abstraction. -/
-theorem ltables_dup_refines {rt lt} {o}
-    (hrel : LTablesRel rt lt) (hinv : LTablesInv rt)
-    (hrun : arena.store.LTables.dup rt = ok o) :
-    LTablesRel o lt ∧ LTablesInv o := by
-  obtain rfl := ltables_dup_eq hrun
-  exact ⟨hrel, hinv⟩
-
-/-- `NTables::dup` is the identity on the abstraction. -/
-theorem ntables_dup_refines {rt lt} {o}
-    (hrel : NTablesRel rt lt) (hinv : NTablesInv rt)
-    (hrun : arena.store.NTables.dup rt = ok o) :
-    NTablesRel o lt ∧ NTablesInv o := by
-  obtain rfl := ntables_dup_eq hrun
-  exact ⟨hrel, hinv⟩
-
-/-- `attempt_snapshot` ⊑ `attemptSnapshot` — in Lean a read of six fields, in
-Rust the six copies above. -/
+/-- `attempt_snapshot` ⊑ `attemptSnapshot` — in Lean the state itself, in Rust
+a full copy of it, which is the identity in the model. -/
 theorem attempt_snapshot_refines₀ {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker_base.attempt_snapshot st = ok o) :
-    SnapRel o (attemptSnapshot lst) := by
-  unfold arena.checker_base.attempt_snapshot at hrun
-  obtain ⟨m, hm, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨c, hc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨ls, hls, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  simp only [ok.injEq] at hrun
-  subst hrun
-  obtain ⟨hm1, hm2⟩ := memos_dup_refines hrel.memos hinv.memos hm
-  obtain ⟨hc1, hc2⟩ := caches_dup_refines hrel.caches hinv.caches hc
-  obtain ⟨he1, he2⟩ := etables_dup_refines hrel.store.scrt hinv.store.scrt he
-  obtain ⟨hls1, hls2⟩ := lstables_dup_refines hrel.store.lss.scrt hinv.store.lss.scrt hls
-  obtain ⟨hl1, hl2⟩ := ltables_dup_refines hrel.store.lss.lvl.scrt
-    hinv.store.lss.lvl.scrt hl
-  obtain ⟨hn1, hn2⟩ := ntables_dup_refines hrel.store.lss.lvl.ns.scrt
-    hinv.store.lss.lvl.ns.scrt hn
-  exact ⟨hm1, hc1, hm2, hc2, he1, hls1, hl1, hn1, he2, hls2, hl2, hn2⟩
+    AStateRel₀ pers o (attemptSnapshot lst) ∧ AStateInv pers o := by
+  obtain rfl := attempt_snapshot_eq hrun
+  exact ⟨hrel, hinv⟩
 
-/-- `attempt_restore` ⊑ `attemptRestore` — **lockstep**: the two write the
-same six fields back, from related snapshots, into related states. -/
+/-- `attempt_restore` ⊑ `attemptRestore` — **lockstep**: both make the
+snapshot the state, whatever state they are handed. -/
 theorem attempt_restore_refines₀ {pers st lst} {snap lsnap} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hsnap : SnapRel snap lsnap)
+    (hsnap : AStateRel₀ pers snap lsnap) (hsinv : AStateInv pers snap)
     (hrun : arena.checker_base.attempt_restore st snap = ok o) :
     AStateRel₀ pers o (attemptRestore lst lsnap) ∧ AStateInv pers o := by
   unfold arena.checker_base.attempt_restore at hrun
-  simp only [ok.injEq] at hrun
-  subst hrun
-  refine ⟨⟨⟨⟨⟨⟨hrel.store.lss.lvl.ns.perst, hsnap.nScr,
-      hrel.store.lss.lvl.ns.scratchOn⟩, hrel.store.lss.lvl.perst, hsnap.lScr,
-      hrel.store.lss.lvl.scratchOn⟩, hrel.store.lss.perst, hsnap.lsScr,
-      hrel.store.lss.scratchOn⟩, hrel.store.perst, hsnap.eScr, hrel.store.scratchOn⟩,
-    hsnap.memos, hsnap.caches, hrel.pins⟩, ⟨⟨⟨⟨⟨hinv.store.lss.lvl.ns.perst,
-      hsnap.nScrInv⟩, hinv.store.lss.lvl.perst, hsnap.lScrInv⟩,
-      hinv.store.lss.perst, hsnap.lsScrInv⟩, hinv.store.perst, hsnap.eScrInv⟩,
-    hsnap.memosInv, hsnap.cachesInv⟩⟩
+  obtain rfl := Result.ok_injective hrun
+  exact ⟨hsnap, hsinv⟩
 
 /-- The twin's restore of its own snapshot is the identity — what makes its
 error arm "resume at the pre-attempt state". -/
 @[simp] theorem attemptRestore_self (s : AState) :
     attemptRestore s (attemptSnapshot s) = s := rfl
 
-/-- **The port's frame at a recovered attempt**: the post-attempt state `st₁`
-agrees with the pre-attempt `st` everywhere `attempt_restore` does not write —
-the pins, and each of the four stores' persistent tier and two flags.  It is
-a fact about the RUST attempt only (task #97-T2-LOCKSTEP D4): the attempt
-runs inside a declaration's bracket, where the scratch flag is on and every
-append is a scratch append, and nothing in it toggles a flag or re-pins.  The
-twin needs no such fact, because its error arm resumes at `st`'s image
-itself. -/
-structure ScratchFrame (st st₁ : arena.monad.AState) : Prop where
-  pins : st₁.pins = st.pins
-  ePers : st₁.store.pers = st.store.pers
-  eOn : st₁.store.scratch_on = st.store.scratch_on
-  eShared : st₁.store.shared_on = st.store.shared_on
-  lsPers : st₁.store.lss.pers = st.store.lss.pers
-  lsOn : st₁.store.lss.scratch_on = st.store.lss.scratch_on
-  lsShared : st₁.store.lss.shared_on = st.store.lss.shared_on
-  lPers : st₁.store.lss.ls.pers = st.store.lss.ls.pers
-  lOn : st₁.store.lss.ls.scratch_on = st.store.lss.ls.scratch_on
-  lShared : st₁.store.lss.ls.shared_on = st.store.lss.ls.shared_on
-  nPers : st₁.store.lss.ls.ns.pers = st.store.lss.ls.ns.pers
-  nOn : st₁.store.lss.ls.ns.scratch_on = st.store.lss.ls.ns.scratch_on
-  nShared : st₁.store.lss.ls.ns.shared_on = st.store.lss.ls.ns.shared_on
+/-! ### The frozen tier (task #97-T2-LOCKSTEP D4c)
 
-/-- Under the frame, restoring into the post-attempt state is restoring into
-the pre-attempt one: `attempt_restore` overwrites everything else. -/
-theorem attempt_restore_frame {st st₁ : arena.monad.AState}
-    {snap : arena.checker_base.AttemptSnapshot} (h : ScratchFrame st st₁) :
-    arena.checker_base.attempt_restore st₁ snap =
-      arena.checker_base.attempt_restore st snap := by
-  obtain ⟨⟨⟨⟨⟨np, ns, non, nsh⟩, lp, ls, lon, lsh⟩, lsp, lss, lson, lssh⟩, ep, es, eon,
-    esh⟩, m, c, p⟩ := st
-  obtain ⟨⟨⟨⟨⟨np₁, ns₁, non₁, nsh₁⟩, lp₁, ls₁, lon₁, lsh₁⟩, lsp₁, lss₁, lson₁, lssh₁⟩,
-    ep₁, es₁, eon₁, esh₁⟩, m₁, c₁, p₁⟩ := st₁
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13⟩ := h
-  simp only at h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13
-  subst h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13
+The seam moves the persistent tier aside for the attempt (`freeze_tier`) and
+back after it (`thaw_tier` on `Recovered`, `thaw_read_tier` otherwise).  The
+relation reads a store's persistent arm through `rPers*`, which is the store's
+own table with its flag down and the tier's with it up, so the whole story is
+one congruence: two stores whose four persistent READS, scratch tiers and
+scratch flags agree are related to the same twin store (`TierView`). -/
+
+/-- The four `shared_on` flags of a store, down: the shape of every store the
+parse and phase A work in, and what `freeze_tier`'s guard checks. -/
+def Thawed (ar : arena.store.EStore) : Prop :=
+  ar.shared_on = false ∧ ar.lss.shared_on = false ∧ ar.lss.ls.shared_on = false ∧
+    ar.lss.ls.ns.shared_on = false
+
+/-- The persistent tier `freeze_tier` moves out of a store: its four own
+persistent tables. -/
+def tierOf (ar : arena.store.EStore) : arena.store.PersTier :=
+  { n := ar.lss.ls.ns.pers, l := ar.lss.ls.pers, ls := ar.lss.pers, e := ar.pers }
+
+/-- **`freeze_tier`'s decline is the port's own**: it claims nothing. -/
+theorem freeze_tier_err {ar ar' : arena.store.EStore} {e : kernel.core_types.CheckError}
+    (h : arena.checker.freeze_tier ar = ok (.Err e, ar')) :
+    absAErrKind e = none := by
+  rw [arena.checker.freeze_tier] at h
+  split at h
+  · obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have h' := Result.ok_injective h
+    simp only [Prod.mk.injEq, core.result.Result.Err.injEq] at h'
+    rw [← h'.1]; rfl
+  split at h
+  · obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have h' := Result.ok_injective h
+    simp only [Prod.mk.injEq, core.result.Result.Err.injEq] at h'
+    rw [← h'.1]; rfl
+  split at h
+  · obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have h' := Result.ok_injective h
+    simp only [Prod.mk.injEq, core.result.Result.Err.injEq] at h'
+    rw [← h'.1]; rfl
+  split at h
+  · obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have h' := Result.ok_injective h
+    simp only [Prod.mk.injEq, core.result.Result.Err.injEq] at h'
+    rw [← h'.1]; rfl
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h' := Result.ok_injective h
+  simp at h'
+
+/-- **`freeze_tier` accepts only a thawed store, and hands back its own
+tier**; and `thaw_tier` of what it left, with that tier, is the store it was
+handed — the boundary is invisible outside phase B. -/
+theorem freeze_tier_ok {ar ar' : arena.store.EStore} {tier : arena.store.PersTier}
+    (h : arena.checker.freeze_tier ar = ok (.Ok tier, ar')) :
+    Thawed ar ∧ tier = tierOf ar ∧ arena.checker.thaw_tier ar' tier = ok ar := by
+  rw [arena.checker.freeze_tier] at h
+  split at h
+  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have h' := Result.ok_injective h
+    simp at h'
+  rename_i h0
+  split at h
+  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have h' := Result.ok_injective h
+    simp at h'
+  rename_i h1
+  split at h
+  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have h' := Result.ok_injective h
+    simp at h'
+  rename_i h2
+  split at h
+  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have h' := Result.ok_injective h
+    simp at h'
+  rename_i h3
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h' := Result.ok_injective h
+  simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at h'
+  obtain ⟨rfl, rfl⟩ := h'
+  simp only [Bool.not_eq_true] at h0 h1 h2 h3
+  refine ⟨⟨h0, h1, h2, h3⟩, rfl, ?_⟩
+  rw [arena.checker.thaw_tier]
+  obtain ⟨⟨⟨⟨np, ns, nsc, nsh⟩, lp, ls, lsc, lsh⟩, lsp, lss, lssc, lssh⟩, ep, es, esc, esh⟩ :=
+    ar
+  simp only at h0 h1 h2 h3
+  subst h0 h1 h2 h3
   rfl
 
-/-- **The recovered arm of `orElseAttempt`, lockstep.**  The port restores
-the snapshot into the post-attempt state; the twin resumes at the
-pre-attempt state.  Under the port's frame those are related by
-`AStateRel₀` — the twin's `attemptRestore lst (attemptSnapshot lst)` is `lst`
-itself.  This is what task #97-T2-LOCKSTEP D4 bought: before it the port
-kept the attempt's scratch nodes and the conclusion could only be `Ext`. -/
-theorem attempt_recover_refines₀ {pers st st₁ lst} {snap} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hsnap : SnapRel snap (attemptSnapshot lst))
-    (hframe : ScratchFrame st st₁)
-    (hrun : arena.checker_base.attempt_restore st₁ snap = ok o) :
-    AStateRel₀ pers o lst ∧ AStateInv pers o := by
-  rw [attempt_restore_frame hframe] at hrun
-  have h := attempt_restore_refines₀ hrel hinv hsnap hrun
-  rwa [attemptRestore_self] at h
+/-- Two (tier, store) pairs that READ the same: the four persistent arms, the
+four scratch tiers and the four scratch flags agree. -/
+structure TierView (p₁ : arena.store.PersTier) (r₁ : arena.store.EStore)
+    (p₂ : arena.store.PersTier) (r₂ : arena.store.EStore) : Prop where
+  n : rPersN p₂ r₂.lss.ls.ns = rPersN p₁ r₁.lss.ls.ns
+  l : rPersL p₂ r₂.lss.ls = rPersL p₁ r₁.lss.ls
+  ls : rPersLs p₂ r₂.lss = rPersLs p₁ r₁.lss
+  e : rPersE p₂ r₂ = rPersE p₁ r₁
+  nScr : r₂.lss.ls.ns.scr = r₁.lss.ls.ns.scr
+  lScr : r₂.lss.ls.scr = r₁.lss.ls.scr
+  lsScr : r₂.lss.scr = r₁.lss.scr
+  eScr : r₂.scr = r₁.scr
+  nOn : r₂.lss.ls.ns.scratch_on = r₁.lss.ls.ns.scratch_on
+  lOn : r₂.lss.ls.scratch_on = r₁.lss.ls.scratch_on
+  lsOn : r₂.lss.scratch_on = r₁.lss.scratch_on
+  eOn : r₂.scratch_on = r₁.scratch_on
+
+/-- **The congruence**: a state's relation and invariant carry over to the
+same state at a store that reads the same. -/
+theorem TierView.transfer {p₁ p₂ : arena.store.PersTier} {r₂ : arena.store.EStore}
+    {st : arena.monad.AState} {lst : AState} (hv : TierView p₁ st.store p₂ r₂)
+    (hrel : AStateRel₀ p₁ st lst) (hinv : AStateInv p₁ st) :
+    AStateRel₀ p₂ { st with store := r₂ } lst ∧ AStateInv p₂ { st with store := r₂ } := by
+  obtain ⟨⟨⟨⟨⟨np, ns, non⟩, lp, ls, lon⟩, lsp, lss, lson⟩, ep, es, eon⟩, m, c, pn⟩ := hrel
+  obtain ⟨⟨⟨⟨⟨npi, nsi⟩, lpi, lsi⟩, lspi, lssi⟩, epi, esi⟩, mi, ci⟩ := hinv
+  refine ⟨⟨⟨⟨⟨⟨?_, ?_, ?_⟩, ?_, ?_, ?_⟩, ?_, ?_, ?_⟩, ?_, ?_, ?_⟩, m, c, pn⟩,
+    ⟨⟨⟨⟨⟨?_, ?_⟩, ?_, ?_⟩, ?_, ?_⟩, ?_, ?_⟩, mi, ci⟩⟩ <;>
+    simp only [hv.n, hv.l, hv.ls, hv.e, hv.nScr, hv.lScr, hv.lsScr, hv.eScr, hv.nOn,
+      hv.lOn, hv.lsOn, hv.eOn] <;> assumption
+
+/-- **`freeze_tier` reads the same**: the frozen store at the tier it handed
+back reads what the thawed store read at any tier. -/
+theorem freeze_tier_view {pers : arena.store.PersTier} {ar ar' : arena.store.EStore}
+    {tier : arena.store.PersTier}
+    (h : arena.checker.freeze_tier ar = ok (.Ok tier, ar')) :
+    TierView pers ar tier ar' := by
+  rw [arena.checker.freeze_tier] at h
+  split at h
+  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    simp at h
+  rename_i h0
+  split at h
+  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    simp at h
+  rename_i h1
+  split at h
+  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    simp at h
+  rename_i h2
+  split at h
+  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    simp at h
+  rename_i h3
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h' := Result.ok_injective h
+  simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at h'
+  obtain ⟨rfl, rfl⟩ := h'
+  simp only [Bool.not_eq_true] at h0 h1 h2 h3
+  constructor <;> simp [rPersN, rPersL, rPersLs, rPersE, core.mem.replace, h0, h1, h2, h3]
+
+/-- **`thaw_read_tier` reads the same**: each store gets back the table its
+reads went to, so at ANY tier the thawed store reads what the frozen store
+read at `tier` — whatever the four flags were. -/
+theorem thaw_read_tier_view {pers : arena.store.PersTier} {ar ar' : arena.store.EStore}
+    {tier : arena.store.PersTier}
+    (h : arena.checker.thaw_read_tier ar tier = ok ar') :
+    TierView tier ar pers ar' := by
+  rw [arena.checker.thaw_read_tier] at h
+  obtain ⟨⟨⟨⟨np, ns, non, nsh⟩, lp, ls, lon, lsh⟩, lsp, lss, lson, lssh⟩, ep, es, eon, esh⟩ :=
+    ar
+  cases nsh <;> cases lsh <;> cases lssh <;> cases esh <;>
+    simp only [bind_tc_ok, if_true, if_false, Bool.false_eq_true, ok.injEq] at h <;>
+    subst h <;> constructor <;> simp [rPersN, rPersL, rPersLs, rPersE]
+
 
 /-- `or_else_attempt` ⊑ `orElseStepOf` — the four-way step as a PURE function
 of the attempt's outcome, which is the shape the port has and which the twin
@@ -510,7 +685,8 @@ theorem vec_dup_refines {T β : Type} {A : T → β} {inst : ron.hashmap.Dup T}
     (hdup : ConRon.Refine.HashMap.DupId inst)
     (hrun : arena.checker_base.vec_dup inst xs = ok o) :
     o.val.map A = xs.val.map A := by
-  sorry
+  obtain rfl := vec_dup_eq hdup hrun
+  rfl
 
 /-! ## The name-shape tests
 
@@ -1838,6 +2014,37 @@ namespace Lockstep
       (fun o => o = (absNIdxLFrom ns i).contains (absNIdx n)) :=
   fun _ h => nidx_contains_from_refines h
 
+/-- **`ifenv_restrict_to` is a field update** (task #97-T2-LOCKSTEP lane
+Checker round 2), filed as a Rust-only step whose answer the tactic
+substitutes: the twin's partner is the pure `IFEnv.restrictTo` at the call
+site, and `IFEnvRelI.restrict` below relates the two. -/
+@[lockstep] theorem ifenv_restrict_to_spec (rf : arena.env.IFEnv) (k : Std.U64) :
+    LSP (arena.env.ifenv_restrict_to rf k)
+      (fun r => r = { rf with visible_below := k }) := by
+  intro r h
+  simp only [arena.env.ifenv_restrict_to, Result.ok.injEq] at h
+  exact h.symm
+
+/-- **The restricted index is related to the restricted twin index** — the
+invariant's counter bound is the one thing that needs the new counter to fit
+the constant list. -/
+theorem IFEnvRelI.restrict {rf : arena.env.IFEnv} {lf : IFEnv}
+    (h : IFEnvRelI rf lf) {k : Std.U64}
+    (hk : k.val ≤ rf.env.consts.val.length) :
+    IFEnvRelI { rf with visible_below := k } (lf.restrictTo (absU k)) :=
+  ⟨⟨h.rel.env, h.rel.idx, rfl⟩, ⟨h.inv.1, hk, h.inv.2.2⟩⟩
+
+/-- The side tier's extension for the pin gates' pre-insertion view: a
+restricted index against the restricted twin index, its bound by `omega` over
+the context's counters. -/
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (apply IFEnvRelI.restrict (by assumption); (checker_env_facts; (try simp only at *); omega)))
+
+/-- `IFEnv.restrictTo` twice is the second one. -/
+@[lockstep_simp] theorem IFEnv.restrictTo_restrictTo (fe : IFEnv) (a b : Nat) :
+    (fe.restrictTo a).restrictTo b = fe.restrictTo b := rfl
+
 @[lockstep] theorem ifenv_push_spec {rf lf} (hfe : IFEnvRelI rf lf)
     (ci : arena.env.IConstantInfo) :
     LSP (arena.env.ifenv_push rf ci)
@@ -1916,6 +2123,12 @@ namespace Lockstep
 attribute [lockstep_simp] absIConstantInfo absValueGroup absValueKind Option.map_some
   Option.map_none
 
+@[lockstep_simp] theorem absINatOpPinSetLFrom_zero
+    (v : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet) :
+    absINatOpPinSetLFrom v 0#usize = absINatOpPinSetL v := by
+  simp [absINatOpPinSetLFrom, absINatOpPinSetL]
+
+
 @[lockstep] theorem check_value_group_ls {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1939,35 +2152,53 @@ end Lockstep
 /-- info: 'ConRon.Refine2.or_else_attempt_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms or_else_attempt_refines
 
-/-- info: 'ConRon.Refine2.memos_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms memos_dup_refines
+/-- info: 'ConRon.Refine2.vec_dup_range_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms vec_dup_range_spec
 
-/-- info: 'ConRon.Refine2.caches_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms caches_dup_refines
+/-- info: 'ConRon.Refine2.vec_dup_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms vec_dup_eq
 
-/-- info: 'ConRon.Refine2.etables_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms etables_dup_refines
+/-- info: 'ConRon.Refine2.vec_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms vec_dup_refines
 
-/-- info: 'ConRon.Refine2.lstables_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms lstables_dup_refines
+/-- info: 'ConRon.Refine2.pins_dup_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms pins_dup_eq
 
-/-- info: 'ConRon.Refine2.ltables_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ltables_dup_refines
+/-- info: 'ConRon.Refine2.nstore_dup_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nstore_dup_eq
 
-/-- info: 'ConRon.Refine2.ntables_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ntables_dup_refines
+/-- info: 'ConRon.Refine2.lstore_dup_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lstore_dup_eq
+
+/-- info: 'ConRon.Refine2.lsstore_dup_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms lsstore_dup_eq
+
+/-- info: 'ConRon.Refine2.estore_dup_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms estore_dup_eq
+
+/-- info: 'ConRon.Refine2.attempt_snapshot_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms attempt_snapshot_eq
+
+/-- info: 'ConRon.Refine2.TierView.transfer' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms TierView.transfer
+
+/-- info: 'ConRon.Refine2.freeze_tier_view' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms freeze_tier_view
+
+/-- info: 'ConRon.Refine2.thaw_read_tier_view' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms thaw_read_tier_view
+
+/-- info: 'ConRon.Refine2.freeze_tier_ok' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms freeze_tier_ok
+
+/-- info: 'ConRon.Refine2.freeze_tier_err' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms freeze_tier_err
 
 /-- info: 'ConRon.Refine2.attempt_snapshot_refines₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms attempt_snapshot_refines₀
 
 /-- info: 'ConRon.Refine2.attempt_restore_refines₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms attempt_restore_refines₀
-
-/-- info: 'ConRon.Refine2.attempt_restore_frame' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in #print axioms attempt_restore_frame
-
-/-- info: 'ConRon.Refine2.attempt_recover_refines₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms attempt_recover_refines₀
 
 /-- info: 'ConRon.Refine2.is_rec_info_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms is_rec_info_refines

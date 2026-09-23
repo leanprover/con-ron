@@ -26,12 +26,9 @@ has no consumer left: the Checker tier calls this theorem directly.
 task #97-P5-Checker's finding 10 stops at this door.
 -/
 import ConRon.Refine2.Inductives.Modeled
--- `StructParts.lean` is a LEAF of the tier: `struct_install.rs` calls its
--- generators, but no other `Refine2/Inductives` module imports it, so until
--- round 4 it was outside `lake build ConRonRefine2` altogether — 47
--- declarations of the tier that the landing gate never elaborated.  The index
--- imports it for that reason and for no other.
-import ConRon.Refine2.Inductives.StructParts
+-- `checker_base::ind_params_ok` is the checker tier's (`Checker/Base.lean`); the
+-- top zips with it.
+import ConRon.Refine2.Checker.Base
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -41,6 +38,23 @@ attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 namespace ConRon.Refine2
 
 open ConRon.Arena
+
+open Lockstep in
+/-- `checker_base::ind_params_ok` from the cursor `0`, the one call site
+(`Refine2/Checker/Base.lean`'s `ind_params_ok_refines` in `LS` form). -/
+@[lockstep] theorem ind_params_ok_zero_ls {pers st lst} {n_p : Std.U64}
+    {block : alloc.vec.Vec arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a)
+      (arena.checker_base.ind_params_ok pers st n_p block 0#usize) lst
+      (indParamsOk (absU n_p) (absICIL block)) := by
+  have h : LS pers (fun a b => b = id a)
+      (arena.checker_base.ind_params_ok pers st n_p block 0#usize) lst
+      (indParamsOk (absU n_p) (absICILFrom block 0#usize)) :=
+    LS.ofSim₀ fun _ h => ind_params_ok_refines hrel hinv h
+  have hz : absICILFrom block 0#usize = absICIL block := by simp [absICILFrom, absICIL]
+  rw [hz] at h
+  exact h
 
 /-- **`arena::inductives::check_ind_decl` ⊑ `Inductives.checkIndDecl`** — the
 `.indDecl` arm.  The name carries the module qualifier because
@@ -63,6 +77,23 @@ theorem inductives_check_ind_decl_refines {pers st lst} {mode : kernel.env.Check
     SimRel₀ IFEnvRelI pers lst o
       (Inductives.checkIndDecl (ConRon.Refine.absMode mode) lf (absICIL block)
         (absU n_p)) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.check_ind_decl, Inductives.checkIndDecl]
+  lockstep
+
+open Lockstep in
+/-- The tier's top in `LS` form, for `Refine2/Checker/Top.lean`'s
+`check_ind_decl_refines` (task #97-T2-LOCKSTEP lane Inductives round 3: the
+wire that puts the tier under the capstone). -/
+@[lockstep] theorem inductives_check_ind_decl_ls {pers st lst}
+    {mode : kernel.env.CheckMode} {rf lf}
+    {block : alloc.vec.Vec arena.env.IConstantInfo} {n_p : Std.U64}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers IFEnvRelI
+      (arena.inductives.check_ind_decl pers mode rf block n_p st) lst
+      (Inductives.checkIndDecl (ConRon.Refine.absMode mode) lf (absICIL block)
+        (absU n_p)) :=
+  LS.ofSimRel₀ fun _ h => inductives_check_ind_decl_refines hrel hinv hfe h
 
 end ConRon.Refine2

@@ -189,6 +189,15 @@ def clProjCand (ctors : List (ConLeche.Name × Nat × Expr))
       guard (rlps.length == lps.length + 1)
       pure ⟨T, lps, nP, C, nF, rn, rlps, rty, nM, nm⟩
 
+/-- con-leche: none — a `readLevelM` run is a parse step: the store, the
+memos and the pins do not move, and the caches move by a `CacheFrame`
+(`Bridge/Core/Walks/Cached.lean`'s frame). -/
+theorem pstep_of_readLevelM {s s' : AState} {u : LIdx} {l : Level} (hok : StateOK s)
+    (h : readLevelM u s = .ok (l, s')) : Inductives.PStep s s' := by
+  obtain ⟨hst, -, hpins, -⟩ := Core.readLevelM_frame h
+  exact ⟨⟨by rw [hst]; exact hok.wf⟩, by rw [hst]; exact Ext.refl _,
+    by rw [hst]; exact BMExt.refl _, Core.CacheFrame.ofReadLevelM h, hpins⟩
+
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:360-369 projRecOwners — **the
 candidates**: the twin's explicit recursion is con-leche's `filterMap`.  The
 tail is computed first; the element is read at the state it left. -/
@@ -200,7 +209,7 @@ theorem projRecCandidates_run {fuel : Nat} :
       {recs : List (NIdx × List NIdx × EIdx × Nat × Nat)}
       {recsP : List (ConLeche.Name × List ConLeche.Name × Expr × Nat × Nat)}
       {s s' : AState} {os : List ProjRecOwner},
-      StateOK s → ListRel (TyRel s.store) types typesP →
+      StateOK s → ReadLCacheOK s.caches.readLC s.store → ListRel (TyRel s.store) types typesP →
       ListRel (CtorRel s.store) ctors ctorsP → ListRel (RecRel s.store) recs recsP →
       projRecCandidates fuel ctors recs types s = .ok (os, s') →
       Inductives.PStep s s' ∧
@@ -208,13 +217,13 @@ theorem projRecCandidates_run {fuel : Nat} :
   intro types
   induction types with
   | nil =>
-    intro typesP ctors ctorsP recs recsP s s' os hok htys _ _ hrun
+    intro typesP ctors ctorsP recs recsP s s' os hok _ htys _ _ hrun
     cases htys
     rw [projRecCandidates] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨Inductives.PStep.refl hok, ListRel.nil⟩
   | cons x rest ih =>
-    intro typesP ctors ctorsP recs recsP s s' os hok htys hcts hrcs hrun
+    intro typesP ctors ctorsP recs recsP s s' os hok hrl htys hcts hrcs hrun
     cases htys with
     | @cons _ xP _ restP hx hrest =>
     obtain ⟨t, lps, tty, nP, nI, cs, rf⟩ := x
@@ -223,7 +232,7 @@ theorem projRecCandidates_run {fuel : Nat} :
     rw [projRecCandidates] at hrun
     obtain ⟨tail, s₁, h1, hel⟩ := AM.bind_ok hrun
     try dsimp only at hel
-    obtain ⟨p1, htail⟩ := ih hok hrest hcts hrcs h1
+    obtain ⟨p1, htail⟩ := ih hok hrl hrest hcts hrcs h1
     have hx1 := p1.ext
     rw [List.filterMap_cons]
     -- the element, at `s₁`
@@ -291,6 +300,9 @@ theorem projRecCandidates_run {fuel : Nat} :
     try dsimp only at hsp
     try dsimp only at hbody
     try dsimp only at hel1
+    obtain ⟨w0, hw0⟩ := view_of_denote_isSome (Option.isSome_iff_exists.mpr ⟨_, hbody⟩)
+    replace hel1 := tagIf_view_runF hw0
+      (fun hne => by cases w0 with | sort u => exact absurd rfl hne | _ => rfl) hel1
     obtain ⟨v, s₃, h3, hel2⟩ := AM.bind_ok hel1
     obtain ⟨rfl, hv⟩ := view_run h3
     have hdv := (denoteE_view_eq p1.ok.wf hv).symm.trans hbody
@@ -299,12 +311,15 @@ theorem projRecCandidates_run {fuel : Nat} :
       try dsimp only at hel2
       obtain ⟨l, rfl, hl⟩ := denote_sort_inv p1.ok.wf hv hbody
       obtain ⟨sP, s₄, h4, hel3⟩ := AM.bind_ok hel2
-      obtain ⟨rfl, hsP⟩ := readLevel_run h4
+      -- the port's `read_level_m`, memoised: the readback cache moves
+      have hrl1 := p1.cframe.readL hrl
+      obtain ⟨hsP, -⟩ := Core.readLevelM_denote hrl1 h4
       obtain rfl : sP = l := Option.some.inj (hsP.symm.trans hl)
+      have p4 := pstep_of_readLevelM p1.ok h4
       by_cases hz : (Level.isEquiv sP .zero == some true) = true
       · rw [if_pos hz] at hel3
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hel3
-        refine hnone ⟨rfl, rfl⟩ ?_
+        refine ⟨p4, Or.inl ⟨rfl, ?_⟩⟩
         have : Level.isEquiv sP .zero = some true := by simpa using hz
         simp [clProjCand, hsp, this, guard]
       rw [if_neg hz] at hel3
@@ -314,7 +329,7 @@ theorem projRecCandidates_run {fuel : Nat} :
       | none =>
         rw [hfc'] at hel3 hfc
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hel3
-        refine hnone ⟨rfl, rfl⟩ ?_
+        refine ⟨p4, Or.inl ⟨rfl, ?_⟩⟩
         have hn := hfc.none_left rfl
         simp [clProjCand, hsp, hn, guard]
       | some cr =>
@@ -325,14 +340,14 @@ theorem projRecCandidates_run {fuel : Nat} :
       obtain ⟨-, rfl, -⟩ := hcrel
       simp only [] at hel3
       obtain ⟨rn, s₅, h5, hel4⟩ := AM.bind_ok hel3
-      obtain ⟨p5, hrn⟩ := Inductives.internStrN_run p1.ok hT1 h5
-      have hrcs5 := ListRel.mono (fun _ _ h => RecRel.ext p5.ext h) hrcs1
+      obtain ⟨p5, hrn⟩ := Inductives.internStrN_run p4.ok (denoteN_ext hT1 p4.ext) h5
+      have hrcs5 := ListRel.mono (fun _ _ h => RecRel.ext (p4.ext.trans p5.ext) h) hrcs1
       have hfr := findRecRec_rel (nsWF_of_StateOK p5.ok) hrn hrcs5
       cases hfr' : findRecRec rn recs with
       | none =>
         rw [hfr'] at hel4 hfr
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hel4
-        refine ⟨p5, Or.inl ⟨rfl, ?_⟩⟩
+        refine ⟨p4.trans p5, Or.inl ⟨rfl, ?_⟩⟩
         have hn := hfr.none_left rfl
         simp [clProjCand, hsp, hcP, hn, guard]
       | some rr =>
@@ -347,7 +362,7 @@ theorem projRecCandidates_run {fuel : Nat} :
       by_cases hL : (rlps.length != lps.length + 1) = true
       · rw [if_pos hL] at hel4
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hel4
-        refine ⟨p5, Or.inl ⟨rfl, ?_⟩⟩
+        refine ⟨p4.trans p5, Or.inl ⟨rfl, ?_⟩⟩
         rw [hlen] at hL
         have : rlpsP.length ≠ lpsP.length + 1 := by simpa using hL
         simp [clProjCand, hsp, hz', hcP, hrP, this, guard]
@@ -355,13 +370,13 @@ theorem projRecCandidates_run {fuel : Nat} :
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hel4
         rw [hlen] at hL
         have hL' : rlpsP.length = lpsP.length + 1 := by simpa using hL
-        refine ⟨p5, Or.inr ⟨_, ⟨T, lpsP, nP, C, nF, rnP, rlpsP, rtyP, nM, nm⟩, rfl,
+        refine ⟨p4.trans p5, Or.inr ⟨_, ⟨T, lpsP, nP, C, nF, rnP, rlpsP, rtyP, nM, nm⟩, rfl,
           by simp [clProjCand, hsp, hz', hcP, hrP, hL', guard], ?_⟩⟩
         exact
-          { T := denoteN_ext hT1 p5.ext
-            lps := denoteNList_ext' p5.ext hlps1
+          { T := denoteN_ext hT1 (p4.ext.trans p5.ext)
+            lps := denoteNList_ext' (p4.ext.trans p5.ext) hlps1
             nP := rfl
-            ctor := denoteN_ext hC1 p5.ext
+            ctor := denoteN_ext hC1 (p4.ext.trans p5.ext)
             nF := rfl
             recName := hrn'
             recLps := hrlps
@@ -545,7 +560,8 @@ scratch clause is `Bridge/Frontend/Scratch.lean`'s `projRecOwners_scratch`.
 `occursConstFast_run`'s two con-leche-tier lemmas (`clOccursConstB_eq`,
 `clOccursConstGo_eq`) were proved in task #97-T1-OCC, so it is closed. -/
 theorem projRecOwners_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {fuel : Nat} {block : List IConstantInfo}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
+    (hrl : ReadLCacheOK s.caches.readLC s.store) {fuel : Nat} {block : List IConstantInfo}
     {blockP : List ConstantInfo} (hb : denoteCIList s.store block = some blockP)
     {types : List (NIdx × List NIdx × EIdx × Nat × Nat × List NIdx × Bool)}
     {typesP : List (ConLeche.Name × List ConLeche.Name × Expr × Nat × Nat ×
@@ -578,7 +594,7 @@ theorem projRecOwners_run {s s' : AState} (hok : StateOK s)
   have hw := nsWF_of_StateOK hok
   rw [projRecOwners] at hrun
   obtain ⟨owners, s₁, h1, hr1⟩ := AM.bind_ok hrun
-  obtain ⟨p1, hown⟩ := projRecCandidates_run hok htys hcts hrcs h1
+  obtain ⟨p1, hown⟩ := projRecCandidates_run hok hrl htys hcts hrcs h1
   suffices H : Inductives.PStep s₁ s' ∧
       ListRel (ProjRecOwnerRel s'.store) os
         (ConLeche.Frontend.projRecOwners blockP typesP ctorsP recsP) by

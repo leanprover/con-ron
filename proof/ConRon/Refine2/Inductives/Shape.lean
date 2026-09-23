@@ -41,6 +41,7 @@ the Rust takes the whole `Vec` and an index.
 -/
 import ConRon.Refine2.Checker.KnotHyp
 import ConRon.Refine2.Tactic.Prims
+import ConRon.Refine2.Inductives.Prims
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -451,6 +452,14 @@ theorem nidx_vec_contains_abs {ns : alloc.vec.Vec arena.handle.NIdx}
   rw [hcomm]
   simp only [List.contains_eq_any_beq, List.any_map, Function.comp_def]
 
+
+open Lockstep in
+@[lockstep] theorem nidx_vec_contains_twin (ns : alloc.vec.Vec arena.handle.NIdx)
+    (n : arena.handle.NIdx) :
+    LSP (arena.env.nidx_vec_contains ns n)
+      (fun o => TwinEq ((absNIdxL ns).contains (absNIdx n)) o) :=
+  fun _ h => (nidx_vec_contains_abs h).symm
+
 /-- **`arena::core::nidx_vec_beq` ⊑ `==` on the abstraction.** -/
 theorem nidx_vec_beq_abs {a b : alloc.vec.Vec arena.handle.NIdx} {o : Bool}
     (h : arena.core.nidx_vec_beq a b = ok o) :
@@ -761,6 +770,181 @@ attribute [simp] absNatL absNatLFrom absBoolL absBoolLFrom absLIdxLL absLIdxLLFr
   absCtors4L absCtors4LFrom absRecsL absRecsLFrom absRenameTbl
   absRenameTblFrom absRenameBy absInductiveShape absStructParts absRecFieldKind
   absKindL absKindLFrom absKindLL absKindLLFrom absNativeParts
+
+/-! ## Rust-only copies, for the `lockstep` tactic (task #97-T2-LOCKSTEP lane
+Inductives round 3)
+
+The two copies `arena::checker::check_ind_decl` makes before it moves its
+arguments into the tier: each is the identity on the abstraction. -/
+
+open Lockstep in
+@[lockstep] theorem check_mode_dup_spec (m : kernel.env.CheckMode) :
+    LSP (kernel.env.check_mode_dup m) (fun o => o = m) := by
+  intro o h
+  cases m <;> simp only [kernel.env.check_mode_dup, Result.ok.injEq] at h <;> exact h.symm
+
+open Lockstep in
+@[lockstep] theorem i_constant_infos_dup_spec (cs : alloc.vec.Vec arena.env.IConstantInfo) :
+    LSP (arena.env.i_constant_infos_dup cs) (fun o => absICIL o = absICIL cs) :=
+  fun _ h => i_constant_infos_dup_abs h
+
+/-! ## The error constructors, for the `lockstep` tactic
+
+The port builds a decline's error as `invalid (code_points M_…)` (or
+`not_implemented`/`internal`) and then `fail`s with it; the twin fails with the
+kind and a message string.  The kinds are what `AErrSim` compares, so each
+constructor is a Rust-only step whose spec is the constructor itself. -/
+
+open Lockstep in
+@[lockstep] theorem core_types_invalid_ls (m : alloc.vec.Vec Std.U32) :
+    LSP (kernel.core_types.invalid m) (fun e => e = .Invalid m) := by
+  intro e h; simp only [kernel.core_types.invalid, Result.ok.injEq] at h; exact h.symm
+
+open Lockstep in
+@[lockstep] theorem core_types_not_implemented_ls (m : alloc.vec.Vec Std.U32) :
+    LSP (kernel.core_types.not_implemented m) (fun e => e = .NotImplemented m) := by
+  intro e h; simp only [kernel.core_types.not_implemented, Result.ok.injEq] at h
+  exact h.symm
+
+open Lockstep in
+@[lockstep] theorem core_types_internal_ls (m : alloc.vec.Vec Std.U32) :
+    LSP (kernel.core_types.internal m) (fun e => e = .Internal m) := by
+  intro e h; simp only [kernel.core_types.internal, Result.ok.injEq] at h; exact h.symm
+
+/-! ## The tier's side-goal extension
+
+A twin `if` over values the port computed in Rust-only steps is decided by
+their `TwinEq` facts; those are stated at the port's cursor forms
+(`absCtors3LFrom cs 0`, `absNIdxL v`), the twin's at its list forms, so the
+tier's extension unfolds `TwinEq` and the abstractions and asks `simp_all`. -/
+
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| ((try simp only [Lockstep.TwinEq] at *); first
+      | (simp_all [absNIdxL, absCtors3L, absCtors3LFrom, absCtorsL, absCtorsLFrom,
+          absIConstantVal, absICIL, absICILFrom, absEIdxL, absEIdxLFrom, NNodeViewWF]; done)))
+
+/-- The Core front doors (`Refine2/Checker/KnotHyp.lean`) take `CoreCtx vis rf
+lf`; the tier carries `IFEnvRelI rf lf` and, at a split counter, `absU vis =
+lf.visibleBelow` — `IFEnvInv.coreCtx`/`coreCtxSelf` turn those into it. -/
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| first
+      | (apply IFEnvInv.coreCtxSelf <;> first
+          | (apply IFEnvRelI.rel; assumption) | (apply IFEnvRelI.inv; assumption))
+      | (apply IFEnvInv.coreCtx <;> first
+          | (apply IFEnvRelI.rel; assumption) | (apply IFEnvRelI.inv; assumption)
+          | assumption | (checker_env_facts; simp_all; done)))
+
+/-! ## The port's message and name-part constants
+
+A name the port builds from a constant (`intern_n_node (Str n (code_points
+REC))`) is the twin's `.str n "rec"`: the literal is `lift (to_slice REC)` then
+`code_points`, two Rust-only steps whose specs carry the code points, and the
+side goals `absString v = "rec"` / `StrWF v` are then a computation on a
+three-element list. -/
+
+open Lockstep in
+@[lockstep] theorem lift_to_slice_spec {n : Std.Usize} (X : Array Std.U32 n) :
+    LSP (lift (Array.to_slice X)) (fun s => s.val = X.val) := by
+  intro s h
+  simp only [lift, Result.ok.injEq] at h
+  subst h
+  simp
+
+open Lockstep in
+@[lockstep] theorem code_points_spec (s : Slice Std.U32) :
+    LSP (kernel.core_types.code_points s) (fun v => v.val = s.val) :=
+  fun _ h => ConRon.Refine.Env.code_points_val h
+
+open Lean Elab Tactic in
+/-- Fails unless the goal mentions a name-part string (`absString`, `StrWF`,
+`NNodeViewWF`): the string tier's `simp only [global_simps] at *` is not free. -/
+elab "ind_str_guard" : tactic => do
+  let t ← getMainTarget
+  unless t.containsConst (fun n => n == ``ConRon.Refine.absString ||
+      n == ``ConRon.Refine.StrWF || n == ``NNodeViewWF || n == ``absNNodeView) do
+    throwError "ind_str_guard: no string goal"
+
+/-- The string side goals of a constant name part. -/
+macro "ind_str_side" : tactic =>
+  `(tactic| (ind_str_guard
+             try simp only [global_simps] at *
+             simp_all [Array.make, ConRon.Refine.absString, ConRon.Refine.StrWF, NNodeViewWF, absNNodeView]
+             try decide))
+
+macro_rules
+  | `(tactic| lockstep_side_ext) => `(tactic| (ind_str_side; done))
+
+-- A twin `if` whose test a `TwinEq` rewrote to a literal.
+attribute [lockstep_simp] ite_true ite_false
+
+/-! ## Two environment-record constants -/
+
+open Lockstep in
+/-- `i_ind_caps_default` is the twin's `{}` (the zero word is `default`, the
+empty `if_all_zero` is `.ifAllZero []`). -/
+@[lockstep] theorem i_ind_caps_default_twin :
+    LSP arena.env.i_ind_caps_default (fun o => TwinEq ({} : IIndCaps) (absIIndCaps o)) := by
+  intro o h
+  simp only [arena.env.i_ind_caps_default, arena.handle.NIdx.of_word,
+    kernel.prop_when.if_all_zero, kernel.prop_when.of_repr, alloc.vec.Vec.new,
+    alloc.vec.Vec.len] at h
+  simp at h
+  rw [if_pos (by rfl)] at h
+  simp at h
+  subst h
+  simp [TwinEq, absIIndCaps]
+  rfl
+
+open Lockstep in
+/-- `checker_base::recs_form_suffix` from the cursor `0`
+(`Refine2/Checker/Base.lean`'s `recs_form_suffix_refines`). -/
+@[lockstep] theorem recs_form_suffix_twin0 (block : alloc.vec.Vec arena.env.IConstantInfo) :
+    LSP (arena.checker_base.recs_form_suffix block 0#usize)
+      (fun o => TwinEq (recsFormSuffix (absICIL block)) o) := by
+  intro o h
+  have h' := recs_form_suffix_refines h
+  simpa [TwinEq, absICILFrom, absICIL] using h'.symm
+
+/-! ## The environment index's readers, as `TwinEq`s
+
+`ifenv_find`/`find_ci` read the Rust index; the twin's `find?` is the same
+lookup (`ifenv_find_abs`, `Refine2/Core/Arms/Delta.lean`).  The twin
+environment is fixed by the `CoreCtx` side goal, which the tier's side
+extension discharges from `IFEnvRelI` (and the split counter). -/
+
+open Lockstep in
+@[lockstep] theorem ifenv_find_twin {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (n : arena.handle.NIdx) (hctx : CoreCtx vis rf lf) :
+    LSP (arena.env.ifenv_find vis rf n)
+      (fun o => TwinEq (lf.find? (absNIdx n)) (o.map absIConstantInfo)) :=
+  fun _ h => (ifenv_find_abs hctx h).symm
+
+open Lockstep in
+@[lockstep] theorem find_ci_twin {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (n : arena.handle.NIdx) (hctx : CoreCtx vis rf lf) :
+    LSP (arena.env.find_ci vis rf n)
+      (fun o => TwinEq (lf.find? (absNIdx n)) (o.map absIConstantInfo)) := by
+  intro o h
+  rw [arena.env.find_ci] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hf := ifenv_find_abs hctx hr
+  cases r with
+  | none =>
+    obtain rfl := (Result.ok_injective h).symm
+    exact hf.symm
+  | some ci =>
+    obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain rfl := (Result.ok_injective h).symm
+    rw [← hf]
+    simp [TwinEq, i_constant_info_dup_abs hii]
+
+-- `lf.restrictTo (absU vis)` at the split counter IS `lf` (`hvis`): the
+-- checker tier's statements are at the restriction, the tier's twins at `lf`.
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (simp only [IFEnv.restrictTo] at *; checker_env_facts; simp_all; done))
 
 /-! ## The axiom census -/
 

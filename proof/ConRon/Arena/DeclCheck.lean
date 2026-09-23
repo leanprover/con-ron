@@ -540,25 +540,34 @@ con-leche: ConLeche/Kernel/DeclCheck.lean:915-934 checkReducePinF
 The `Lean.reduceNat`/`Lean.reduceBool` install gate, run after the ordinary
 opaque check: the stored constant carries the pinned type, the witness value
 is definitionally equal to the build-time pin, and the *identity certificate*
-`value x ≡ x` over an opened `fvar` at the element type holds. -/
+`value x ≡ x` over an opened `fvar` at the element type holds.
+
+**The two guards short-circuit**, as the Rust's do (`check_reduce_pin` tests
+`reduce_stored_ok` and fails before `check_reduce_pin_pre` runs
+`reduce_elem_ok`): a `(← a) && (← b)` would run the element guard (pin reads)
+even when the stored one has already declined (task #97-T2-LOCKSTEP lane
+Checker round 2). -/
 def checkReducePin (mode : CheckMode) (fe fe2 : IFEnv) (c : NIdx)
     (value : EIdx) : AM Unit := do
-  if (← reduceStoredOk fe2 c) && (← reduceElemOk fe c) then
-    if ← reducePinGuard fe c then do
-      let valA ← annotateCore mode fe checkFuel 0 value
-      let pinA ← annotateCore mode fe checkFuel 0 (← reduceDeclPin c)
-      let okPin ← isDefEqCore mode fe checkFuel 0 valA pinA
-      if okPin then do
-        let x ← reduceCertVar c
-        let ax ← internE (.app valA x)
-        let ok ← isDefEqCore mode fe checkFuel 1 ax x
-        if ok then pure ()
-        else fail (.internal
-          "pinned compiler-trust opaque is not the identity")
+  if ← reduceStoredOk fe2 c then
+    if ← reduceElemOk fe c then
+      if ← reducePinGuard fe c then do
+        let valA ← annotateCore mode fe checkFuel 0 value
+        let pinA ← annotateCore mode fe checkFuel 0 (← reduceDeclPin c)
+        let okPin ← isDefEqCore mode fe checkFuel 0 valA pinA
+        if okPin then do
+          let x ← reduceCertVar c
+          let ax ← internE (.app valA x)
+          let ok ← isDefEqCore mode fe checkFuel 1 ax x
+          if ok then pure ()
+          else fail (.internal
+            "pinned compiler-trust opaque is not the identity")
+        else fail (.notImplemented
+          "unsupported compiler-trust opaque spelling")
       else fail (.notImplemented
-        "unsupported compiler-trust opaque spelling")
+        "unsupported compiler-trust opaque spelling (pin ground constants absent)")
     else fail (.notImplemented
-      "unsupported compiler-trust opaque spelling (pin ground constants absent)")
+      "unsupported compiler-trust opaque declaration")
   else fail (.notImplemented
     "unsupported compiler-trust opaque declaration")
 
