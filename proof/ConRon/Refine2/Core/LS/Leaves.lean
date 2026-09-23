@@ -295,4 +295,167 @@ refinement needs it). -/
   rw [arena.core.proj_entry_type_at, IProjEntry.typeAt]
   lockstep_a1
 
+/-! ## The comparand walks (cursor loops against list recursions)
+
+The port walks a `Vec` with a cursor and an accumulator; the twin recurses on
+the list and conses on the way back.  So the recursive call is a TAIL call on
+the port's side and a bind-then-`pure` on the twin's: `LS.tail_bind_pure` is
+that one step, and the statement carries the accumulator
+(`a.val.map abs = out.val.map abs ++ b`). -/
+
+theorem LS.tail_bind_pure {α β γ : Type} {pers : arena.store.PersTier}
+    {R₁ : α → β → Prop} {R : α → γ → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β} {f : β → γ}
+    (hf : LS pers R₁ m lst x) (hR : ∀ a b, R₁ a b → R a (f b)) :
+    LS pers R m lst (x >>= fun b => Pure.pure (f b)) := by
+  intro o st' hm
+  have h := hf o st' hm
+  cases o with
+  | Err e => exact errSim_bind h
+  | Ok a =>
+    obtain ⟨b, lst', hx, hr, h1, h2⟩ := h
+    exact ⟨f b, lst', by rw [run_bind_ok hx]; rfl, hR _ _ hr, h1, h2⟩
+
+attribute [local lockstep_simp] substLevelsAt substParamLevels instSpinePins
+  List.map_cons List.map_nil
+
+theorem subst_levels_at_aux {pers} (ks : alloc.vec.Vec kernel.name.Name)
+    (vs : alloc.vec.Vec kernel.level.Level) (us : alloc.vec.Vec arena.handle.LIdx)
+    (hks : ConRon.Refine.NamesWF ks) (hvs : ConRon.Refine.LevelsWF vs) :
+    ∀ n (i : Std.Usize) (out : alloc.vec.Vec arena.handle.LIdx) {st lst},
+      us.length - i.val ≤ n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => a.val.map absLIdx = out.val.map absLIdx ++ b)
+        (arena.core.subst_levels_at pers st ks vs us i out) lst
+        (substLevelsAt (ConRon.Refine.absNames ks) (ConRon.Refine.absLevels vs)
+          ((us.val.drop i.val).map absLIdx)) := by
+  intro n
+  induction n with
+  | zero =>
+    intro i out st lst hk hrel hinv
+    rw [arena.core.subst_levels_at, List.drop_eq_nil_of_le (by scalar_tac)]
+    lockstep_a1
+  | succ n ih =>
+    intro i out st lst hk hrel hinv
+    rw [arena.core.subst_levels_at]
+    by_cases hlt : i.val < us.val.length
+    · rw [List.drop_eq_getElem_cons hlt]
+      lockstep_a1
+      -- glue: the port's tail call against the twin's bind-then-cons
+      rw [show i.val + 1 = a.val by scalar_tac]
+      refine LS.tail_bind_pure (ih _ _ (by scalar_tac) hrel hinv) ?_
+      · intro x y hxy
+        rw [hxy]
+        simp [*]
+    · rw [List.drop_eq_nil_of_le (by omega)]
+      lockstep_a1
+
+@[lockstep] theorem subst_levels_at_ls {pers st ks vs us lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hks : ConRon.Refine.NamesWF ks) (hvs : ConRon.Refine.LevelsWF vs) :
+    LS pers (fun a b => b = a.val.map absLIdx)
+      (arena.core.subst_levels_at pers st ks vs us 0#usize (alloc.vec.Vec.new _)) lst
+      (substLevelsAt (ConRon.Refine.absNames ks) (ConRon.Refine.absLevels vs)
+        (us.val.map absLIdx)) := by
+  have h := subst_levels_at_aux ks vs us hks hvs _ 0#usize (alloc.vec.Vec.new _)
+    (Nat.le_refl _) hrel hinv
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at h
+  exact LS.tail h rfl (fun a b hab => by simp [hab, alloc.vec.Vec.new])
+
+theorem subst_param_levels_aux {pers} (ks : alloc.vec.Vec kernel.name.Name)
+    (vs : alloc.vec.Vec kernel.level.Level) (ps : alloc.vec.Vec arena.handle.NIdx)
+    (hks : ConRon.Refine.NamesWF ks) (hvs : ConRon.Refine.LevelsWF vs) :
+    ∀ n (i : Std.Usize) (out : alloc.vec.Vec arena.handle.LIdx) {st lst},
+      ps.length - i.val ≤ n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => a.val.map absLIdx = out.val.map absLIdx ++ b)
+        (arena.core.subst_param_levels pers st ks vs ps i out) lst
+        (substParamLevels (ConRon.Refine.absNames ks) (ConRon.Refine.absLevels vs)
+          ((ps.val.drop i.val).map absNIdx)) := by
+  intro n
+  induction n with
+  | zero =>
+    intro i out st lst hk hrel hinv
+    rw [arena.core.subst_param_levels, List.drop_eq_nil_of_le (by scalar_tac)]
+    lockstep_a1
+  | succ n ih =>
+    intro i out st lst hk hrel hinv
+    rw [arena.core.subst_param_levels]
+    by_cases hlt : i.val < ps.val.length
+    · rw [List.drop_eq_getElem_cons hlt]
+      lockstep_a1
+      -- glue: the port's tail call against the twin's bind-then-cons
+      rw [show i.val + 1 = a.val by scalar_tac]
+      refine LS.tail_bind_pure (ih _ _ (by scalar_tac) hrel hinv) ?_
+      · intro x y hxy
+        rw [hxy]
+        simp [*]
+    · rw [List.drop_eq_nil_of_le (by omega)]
+      lockstep_a1
+
+@[lockstep] theorem subst_param_levels_ls {pers st ks vs ps lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hks : ConRon.Refine.NamesWF ks) (hvs : ConRon.Refine.LevelsWF vs) :
+    LS pers (fun a b => b = a.val.map absLIdx)
+      (arena.core.subst_param_levels pers st ks vs ps 0#usize (alloc.vec.Vec.new _)) lst
+      (substParamLevels (ConRon.Refine.absNames ks) (ConRon.Refine.absLevels vs)
+        (ps.val.map absNIdx)) := by
+  have h := subst_param_levels_aux ks vs ps hks hvs _ 0#usize (alloc.vec.Vec.new _)
+    (Nat.le_refl _) hrel hinv
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at h
+  exact LS.tail h rfl (fun a b hab => by simp [hab, alloc.vec.Vec.new])
+
+theorem inst_spine_pins_aux {pers} (hx : ExprOpsHyp pers) (lps : alloc.vec.Vec arena.handle.NIdx)
+    (us : arena.handle.LsIdx) (args : alloc.vec.Vec arena.handle.EIdx) (r_p : Std.U64)
+    (pins : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ n (i : Std.Usize) (out : alloc.vec.Vec arena.handle.EIdx) {st lst},
+      pins.length - i.val ≤ n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => a.val.map absEIdx = out.val.map absEIdx ++ b)
+        (arena.core.inst_spine_pins pers st lps us args r_p pins i out) lst
+        (instSpinePins (lps.val.map absNIdx) (absLsIdx us) (absEIdxList args) (absU r_p)
+          ((pins.val.drop i.val).map absEIdx)) := by
+  intro n
+  induction n with
+  | zero =>
+    intro i out st lst hk hrel hinv
+    rw [arena.core.inst_spine_pins, List.drop_eq_nil_of_le (by scalar_tac)]
+    lockstep_a1
+  | succ n ih =>
+    intro i out st lst hk hrel hinv
+    rw [arena.core.inst_spine_pins]
+    by_cases hlt : i.val < pins.val.length
+    · rw [List.drop_eq_getElem_cons hlt]
+      lockstep_a1
+      -- glue: the port's tail call against the twin's bind-then-cons
+      rw [show i.val + 1 = a.val by scalar_tac]
+      refine LS.tail_bind_pure (ih _ _ (by scalar_tac) hrel hinv) ?_
+      · intro x y hxy
+        rw [hxy]
+        simp [*]
+    · rw [List.drop_eq_nil_of_le (by omega)]
+      lockstep_a1
+
+@[lockstep] theorem inst_spine_pins_ls {pers st lps us args r_p pins lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a.val.map absEIdx)
+      (arena.core.inst_spine_pins pers st lps us args r_p pins 0#usize (alloc.vec.Vec.new _)) lst
+      (instSpinePins (lps.val.map absNIdx) (absLsIdx us) (absEIdxList args) (absU r_p)
+        (pins.val.map absEIdx)) := by
+  have h := inst_spine_pins_aux hx lps us args r_p pins _ 0#usize (alloc.vec.Vec.new _)
+    (Nat.le_refl _) hrel hinv
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at h
+  exact LS.tail h rfl (fun a b hab => by simp [hab, alloc.vec.Vec.new])
+
+attribute [lockstep_inline] arena.core.rec_fire_comparands_plain
+
+@[lockstep] theorem rec_fire_comparands_ls {pers st rl lps us cvj_lps args r_p lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = (absLsIdx a.1, absEIdxList a.2))
+      (arena.core.rec_fire_comparands pers st rl lps us cvj_lps args r_p) lst
+      (recFireComparands (absIRecRule rl) (lps.val.map absNIdx) (absLsIdx us)
+        (cvj_lps.val.map absNIdx) (absEIdxList args) (absU r_p)) := by
+  rw [arena.core.rec_fire_comparands, recFireComparands]
+  -- glue: both sides match on the rule's `fire`; split it once for both
+  simp only [absIRecRule]
+  cases hf : rl.fire <;> simp only [absIRecRuleFire] <;> lockstep_a1
+
 end ConRon.Refine2.Lockstep
