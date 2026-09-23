@@ -19,7 +19,7 @@ state by shared reference and return a value or a `LineErr`; `note_decl`,
 `&mut StateD` is Aeneas's return value, so the second family's outcome is
 `(Result () LineErr) × AState × StateD`, which is `SimD`.
 
-## `sorry` count in this file: 40
+## `sorry` count in this file: 36
 -/
 import ConRon.Refine2.Frontend.ProjRec
 
@@ -318,6 +318,71 @@ theorem scan_err_to_check_refines {e ce}
     simp only [kernel.core_types.internal, kernel.core_types.native, Result.ok.injEq] at h <;>
     subst h <;> simp [absErrTag, absAErrKind]
 
+theorem etables_count_abs {rt lt} (hrel : ETablesRel rt lt) {n : Std.Usize}
+    (h : arena.store.ETables.count rt = ok n) : n.val = lt.count := by
+  rw [arena.store.ETables.count] at h
+  obtain ⟨a0, h0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨a1, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨s1, hs1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨a2, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨s2, hs2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨a3, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨s3, hs3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨a4, h4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨s4, hs4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨a5, h5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨s5, hs5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨a6, h6, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨s6, hs6, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨a7, h7, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨s7, hs7, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨a8, h8, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨s8, hs8, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨a9, h9, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have e0 := tbl_size_abs hrel.bvars h0
+  have e1 := tbl_size_abs hrel.fvars h1
+  have e2 := tbl_size_abs hrel.sorts h2
+  have e3 := tbl_size_abs hrel.consts h3
+  have e4 := tbl_size_abs hrel.apps h4
+  have e5 := tbl_size_abs hrel.lams h5
+  have e6 := tbl_size_abs hrel.foralls h6
+  have e7 := tbl_size_abs hrel.lets h7
+  have e8 := tbl_size_abs hrel.lits h8
+  have e9 := tbl_size_abs hrel.projs h9
+  have f1 := ConRon.Refine.Nat.uadd_val hs1
+  have f2 := ConRon.Refine.Nat.uadd_val hs2
+  have f3 := ConRon.Refine.Nat.uadd_val hs3
+  have f4 := ConRon.Refine.Nat.uadd_val hs4
+  have f5 := ConRon.Refine.Nat.uadd_val hs5
+  have f6 := ConRon.Refine.Nat.uadd_val hs6
+  have f7 := ConRon.Refine.Nat.uadd_val hs7
+  have f8 := ConRon.Refine.Nat.uadd_val hs8
+  have f9 := ConRon.Refine.Nat.uadd_val h
+  show n.val = lt.bvars.size + lt.fvars.size + lt.sorts.size + lt.consts.size +
+    lt.apps.size + lt.lams.size + lt.foralls.size + lt.lets.size + lt.lits.size +
+    lt.projs.size
+  omega
+
+theorem estore_node_count_abs {pers rs ls} (hrel : StoreRel pers rs ls)
+    {n : Std.Usize} (h : arena.store.EStore.node_count rs pers = ok n) :
+    n.val = ls.nodeCount := by
+  rw [arena.store.EStore.node_count] at h
+  obtain ⟨a, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have ha' : a.val = ls.pers.count := by
+    rw [arena.store.EStore.pers_count] at ha
+    have hp := hrel.perst
+    rw [rPersE] at hp
+    split at ha <;> rename_i hs
+    · rw [if_pos hs] at hp; exact etables_count_abs hp ha
+    · rw [if_neg hs] at hp; exact etables_count_abs hp ha
+  have hb' : b.val = ls.scr.count := by
+    rw [arena.store.EStore.scr_count] at hb
+    exact etables_count_abs hrel.scrt hb
+  have h' := ConRon.Refine.Nat.uadd_val h
+  show n.val = ls.pers.count + ls.scr.count
+  omega
+
 /-! ## The store fuel
 
 The twin's `storeFuel` is the store's node count plus one, which bounds the
@@ -327,7 +392,19 @@ The port reads the same counter. -/
 theorem store_fuel_refines {pers rst lst v}
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.store_fuel pers rst.store = ok v) :
-    SimR absU lst v storeFuel := by sorry
+    SimR absU lst v storeFuel := by
+  rw [frontend.export_c.store_fuel] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hnv := estore_node_count_abs hrel.store hn
+  have hcv : c.val = n.val := by
+    simp only [lift, Result.ok.injEq] at hc; subst hc; exact usize_cast_u64_val' n
+  have hv := ConRon.Refine.Nat.uadd_val h
+  show Except.ok _ = _
+  simp only [absU]
+  rw [show v.val = lst.store.nodeCount + 1 by
+    have : v.val = c.val + (1#u64 : Std.U64).val := hv
+    rw [this, hcv, hnv]; rfl]
 
 /-! ## The parse state -/
 
@@ -1389,14 +1466,37 @@ theorem parse_cv_d_refines {rsd lsd lst cv o} (hd : StateDRel rsd lsd)
 /-- **`proj_level_of`** — the artifact's recorded field sort. -/
 theorem proj_level_of_refines {rsd lsd k o} (hd : StateDRel rsd lsd)
     (hi : StateDInv rsd) (h : frontend.export_c.proj_level_of rsd k = ok o) :
-    o.map absLIdx = lsd.projLevels[absNIdx k]? := by sorry
+    o.map absLIdx = lsd.projLevels[absNIdx k]? := by
+  rw [frontend.export_c.proj_level_of] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hg := nidx_get hi.projLevels hr
+  have hrel := hd.projLevels k trivial
+  cases r with
+  | none => cases Result.ok_injective h; rw [← hrel, ← hg]
+  | some x => cases Result.ok_injective h; rw [← hrel, ← hg]
 
 /-- **`proj_owner_of`** — the recorded owner of a type former. -/
 theorem proj_owner_of_refines {rsd lsd t o} (hd : StateDRel rsd lsd)
     (hi : StateDInv rsd) (h : frontend.export_c.proj_owner_of rsd t = ok o) :
-    o.map absProjRecOwner = lsd.projOwners[absNIdx t]? := by sorry
+    o.map absProjRecOwner = lsd.projOwners[absNIdx t]? := by
+  rw [frontend.export_c.proj_owner_of] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hg := nidx_get hi.projOwners hr
+  have hrel := hd.projOwners t trivial
+  cases r with
+  | none => cases Result.ok_injective h; rw [← hrel, ← hg]
+  | some x => cases Result.ok_injective h; rw [← hrel, ← hg]
 
-/-- **`proj_rewrite_at`** — the port's split past the two table lookups. -/
+/-- **`proj_rewrite_at`** — the port's split past the two table lookups.
+
+**FALSE AS STATED, and unused** (task #97-P5-Front round 3): the twin side
+here reads `projLevels` at `cv.name` and never compares level parameters,
+where the port's `proj_rewrite_at` (and the twin's `projRewriteD`) tests
+`cv.level_params == o.lps` first and reads `projLevels` at
+`proj_iota_name t i`.  A level-parameter mismatch makes the port answer
+`Ok none` where this statement's twin may run `projRecValue`.
+`proj_rewrite_d_refines` therefore inlines the split rather than calling this;
+restating it is a conclusion change and waits on the coordinator. -/
 theorem proj_rewrite_at_refines {pers rst lst rsd lsd cv vl t i fuel o}
     (hrel : AStateRel pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
@@ -1414,7 +1514,119 @@ theorem proj_rewrite_d_refines {pers rst lst rsd lsd cv vl o}
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.proj_rewrite_d pers rst rsd cv vl = ok o) :
     Sim (Option.map absEIdx) (fun _ => True) pers lst o
-      (projRewriteD lsd (absIConstantVal cv) (absEIdx vl)) := by sorry
+      (projRewriteD lsd (absIConstantVal cv) (absEIdx vl)) := by
+  rw [frontend.export_c.proj_rewrite_d] at h
+  obtain ⟨fuel, hfuel, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hF : storeFuel.run lst = .ok (absU fuel, lst) :=
+    store_fuel_refines hrel hinv hfuel
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hL := lam_body_refines hrel hinv hr
+  show AOut _ _ _ _ _ _ _
+  rw [projRewriteD, run_bind_ok hF]
+  have hnone : ∀ {x : AM (Option EIdx)}, x.run lst = .ok (none, lst) →
+      AOut (Option.map absEIdx) (fun _ => True) pers lst
+        (core.result.Result.Ok (none : Option arena.handle.EIdx)) rst (x.run lst) :=
+    fun hx => AOut.ok (lst' := lst) hx hrel hinv (Ext.refl _) trivial
+  cases r with
+  | Err e =>
+    cases Result.ok_injective h
+    exact AOut.err (by rw [am_run_bind']; exact AErrSim.bind hL _)
+  | Ok v =>
+    have hL' : (lamBody (absU fuel) (absEIdx vl)).run lst = .ok (absEIdx v, lst) := hL
+    rw [run_bind_ok hL']
+    obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hV := view_run hrel hinv hr1
+    cases r1 with
+    | Err e =>
+      cases Result.ok_injective h
+      exact AOut.err (by rw [am_run_bind']; exact AErrSim.bind hV _)
+    | Ok ev =>
+      obtain ⟨lst1, hx1, -, -, -, -⟩ := hV
+      have := view_run_state hx1
+      subst this
+      rw [run_bind_ok hx1]
+      cases ev with
+      | Proj t i sub =>
+        simp only [absENodeView]
+        obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hV2 := view_run hrel hinv hr2
+        cases r2 with
+        | Err e =>
+          cases Result.ok_injective h
+          exact AOut.err (by rw [am_run_bind']; exact AErrSim.bind hV2 _)
+        | Ok ev1 =>
+          obtain ⟨lst2, hx2, -, -, -, -⟩ := hV2
+          have := view_run_state hx2
+          subst this
+          rw [run_bind_ok hx2]
+          cases ev1 with
+          | BVar i1 =>
+            simp only [absENodeView]
+            simp only at h
+            split at h
+            · -- the `.bvar 0` arm: the port's `proj_rewrite_at`, inline
+              show AOut _ _ _ _ _ _ ((match lsd.projOwners[absNIdx t]? with
+                | none => pure none
+                | some o =>
+                  if (absIConstantVal cv).levelParams != o.lps then pure none
+                  else do
+                    match lsd.projLevels[← projIotaName (absNIdx t) (absU i)]? with
+                    | none => pure none
+                    | some l => projRecValue (absU fuel) o l (absIConstantVal cv).type (absEIdx vl) (absU i) :
+                  AM (Option EIdx)).run lst2)
+              rw [frontend.export_c.proj_rewrite_at] at h
+              obtain ⟨ow, how, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+              rw [← proj_owner_of_refines hd hi how]
+              cases ow with
+              | none => cases Result.ok_injective h; exact hnone rfl
+              | some o1 =>
+                simp only [Option.map_some]
+                obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+                have hbv := nidx_vec_beq_refines hb
+                have hbv' : b = decide ((absIConstantVal cv).levelParams =
+                    (absProjRecOwner o1).lps) := by
+                  rw [hbv]
+                  simp [absNIdxLFrom, absIConstantVal, absProjRecOwner]
+                split at h
+                · rename_i hbt
+                  have hne : ((absIConstantVal cv).levelParams != (absProjRecOwner o1).lps)
+                      = false := by
+                    rw [hbv'] at hbt; simpa using hbt
+                  rw [if_neg (by rw [hne]; simp)]
+                  obtain ⟨⟨r3, ar1⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+                  have hN := proj_iota_name_refines hrel hinv h3
+                  cases r3 with
+                  | Err e =>
+                    cases Result.ok_injective h
+                    exact AOut.err (by rw [am_run_bind']; exact AErrSim.bind hN _)
+                  | Ok k =>
+                    obtain ⟨lst3, hx3, hrel3, hinv3, hext3, -⟩ := Sim.apply hN
+                    rw [run_bind_ok hx3]
+                    refine AOut.rebase hext3 ?_
+                    obtain ⟨o2, ho2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+                    rw [← proj_level_of_refines hd hi ho2]
+                    cases o2 with
+                    | none =>
+                      cases Result.ok_injective h
+                      exact AOut.ok (lst' := lst3) rfl hrel3 hinv3 (Ext.refl _) trivial
+                    | some l =>
+                      exact proj_rec_value_refines hrel3 hinv3 h
+                · rename_i hbf
+                  cases Result.ok_injective h
+                  have hne : ((absIConstantVal cv).levelParams != (absProjRecOwner o1).lps)
+                      = true := by
+                    rw [hbv'] at hbf; simpa using hbf
+                  rw [if_pos hne]
+                  exact hnone rfl
+            · rename_i hz
+              cases Result.ok_injective h
+              apply hnone
+              have hz' : absU i1 ≠ 0 := by
+                intro hc; apply hz; apply UScalar.eq_of_val_eq; rw [show (0#64#uscalar : Std.U64).val = 0 from rfl]; simpa [absU] using hc
+              rw [show absU i1 = (absU i1 - 1) + 1 by omega]
+              rfl
+          | _ => cases Result.ok_injective h; exact hnone rfl
+      | _ => cases Result.ok_injective h; exact hnone rfl
 
 /-- **`note_proj_iota` refines `noteProjIota`** (`ExportC.lean:325-335`). -/
 theorem note_proj_iota_refines {pers rst lst rsd lsd cvp o}
