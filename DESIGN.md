@@ -54917,3 +54917,195 @@ private `p5top/` subdirectory) `design.md` at its top level, the last of which
 another agent was also using.  Agents should keep scratch files in a
 per-task subdirectory.
 
+
+### Task #97-P5-Driver — the driver's fold and reader loop, extracted; the capstone restated over them; the pool the one trusted claim (2026-09-23, Opus under Fable)
+
+**The gap** (task #97-COMPOSE's mismatch 11, priced by task #97-P5-Top §6 and
+task #97-P5-Front §4): the capstone
+`ConRon.Capstone.{model_exists,no_False_declaration}` was about
+`parse_chunks` and `install_then_check` at one `PersTier`; the binary instead
+ran two loops of its own in the unverified crate — the reader loop
+`driver::parse_export_handle_d` and `driver::check_decls_driver`, which
+re-froze the persistent tier with `std::mem::replace` of whole tables
+(`freeze_tier` / `thaw_tier`), looped over phase A itself, and ran phase B on
+the pool.  The maintainer's bar, relayed mid-task: **no regression against
+`master`** in what is trusted or in architecture — master's unverified crate
+trusts exactly the modeller, the driver's call sequence, and the pool's
+merge-by-record-index argument against a VERIFIED sequential phase-B fold
+(`installed::check_pending_list`), and its driver calls nothing but verified
+functions.  The reader loop was added to the task by the coordinator so that
+one regeneration of `Generated/Funs.lean` serves both.
+
+#### 1. What moved into `con-ron-core` (and so into the model)
+
+All extracted, `Generated/{Types,Funs}.lean` regenerated in the same commit;
+no new hole (`scripts/holes.sh` unchanged, six).  `mem::replace` is
+`core.mem.replace` in the model (`(dst, src)`), already used by
+`ron::hashmap{,2}`.
+
+| function | what it is | Lean twin |
+|---|---|---|
+| `arena::checker::InstallHook` (trait) | the `--progress` install line, `&self` and `()`-valued — `Modeller`'s arrangement: declared in the core, implemented in the driver (`Heartbeat`, `Silent`) | none |
+| `annot_fold_hooked` | `annot_fold` with `h.install_before(…)` before each step — **phase A is this call** | none — proved EQUAL to `annot_fold` |
+| `fold_start` | `(0, mk_ifenv(i_env_empty()), Vec::new())`, so the driver builds the accumulator with the verified call | none |
+| `freeze_tier` | moved from the driver; **now declines** (`Native`, `M_REFREEZE`) a store with any `shared_on` flag up | none (the twin has no tier) |
+| `thaw_tier` | moved from the driver | none |
+| `pins_dup`, `worker_state` | moved from `pool.rs` | `AState.worker` |
+| `check_pending_worker` | ONE `worker_state` and `check_pending_list` from it over the frozen tier — **the verified sequential phase-B walk**, the pool at one worker call for call | `checkPendingWorker` |
+| `check_decls_phased` | `annot_fold_hooked → freeze_tier → check_pending_worker → thaw_tier` — the driver's fold with the pool replaced by the walk | `installThenCheckPhased` |
+| `frontend::export_c::ChunkSource` (trait) | `next_chunk(&mut self) -> Vec<u8>`, empty at the end — the input seam; the driver implements it over the file handle (`driver::HandleSource`) | none |
+| `frontend::export_c::parse_source` | **the reader loop**, moved from the driver: `state_d_init`, one `chunk_step` per buffer, `chunk_finish` at the first empty one | none — proved EQUAL to `parse_chunks` over the chunks read |
+
+**The driver is now a straight line of calls into the verified crate.**  The
+declaration fold (`driver::check_decls_driver`, doc table):
+`annot_fold_hooked(…, fold_start(), …, &*obs)`, `freeze_tier`,
+`pool::check_pool(&tier, …, &st.pins, …)`, `thaw_tier`, with observer lines
+between them that hold only `&` the state.  The read:
+`export_c::parse_source(…, &mut HandleSource { h, chunk, … }, …)`; a read
+failure ends the source like an end of file and is kept in the source, and
+`parse_export_handle_d` returns it in place of the parse's result — exit 3,
+never a verdict, as before.  Gone from the unverified crate:
+`driver::{freeze_tier, thaw_tier, pins_ref}`, `pool::{pins_dup,
+worker_state}`, the driver's two loops.  `PhaseObserver::install_before`
+became `InstallHook::install_before(&self…)`.
+
+**The freeze guard is the one Rust behaviour added.**  The relation
+(`StoreRel`) reads the persistent arm through `rPersE pers st = if
+st.shared_on then pers.e else st.pers`; nothing in Theorem 2 tracks the flags
+(no frame lemma over the checker says a call preserves them), so a boundary
+lemma about an arbitrary related store would need "flags down" as a
+hypothesis the capstone could not discharge.  The guard makes the Rust check
+it and the proof read it off the run.  It is unreachable in the binary (phase
+A's store has its flags down) and costs four `bool` tests per run.
+
+#### 2. The proofs (all closed, no `sorry`)
+
+* **Twin** — `proof/ConRon/Arena/Phased.lean`: `AState.worker s = { s with
+  store := s.store.dropScratch, memos := ∅, caches := ∅ }`,
+  `checkPendingWorker`, `installThenCheckPhased`; and the one structural fact
+  `enterScratch s.worker = enterScratch s` when `s.caches = ∅`
+  (`enableScratch ∘ dropScratch = enableScratch` by `rfl`), hence
+  `checkPending_worker` and `checkPendingList_worker` (a worker's accepting
+  walk is the phase-A state's).
+* **Theorem 1** — `proof/ConRon/Bridge/Checker/Phased.lean`:
+  `Arena.installThenCheckPhased_bridge`, `installThenCheck_bridge`'s
+  hypotheses verbatim, concluding (i) `installThenCheck` accepts from the same
+  state and (ii) the pure fold accepts at the environment's denotation in the
+  RETURNED (phase-A) state.  The caches-empty fact is `annotFold_bridge`'s own
+  last conjunct, which `installThenCheck_bridge` already uses to enter phase B.
+* **Theorem 2** — `proof/ConRon/Refine2/Checker/Phased.lean`:
+  `annot_fold_hooked_eq` (the hooked fold's outcome IS `annot_fold`'s, any
+  hook); `freeze_tier_err` (its decline is `Native`, claims nothing);
+  `freeze_tier_ok` (accepts only a `Thawed` store, hands back `tierOf` it, and
+  `thaw_tier` restores the store exactly); `pins_dup_val`; `worker_state_rel`
+  (the worker over `tierOf st.store` is related to `lst.worker` AT THE TIER as
+  the reader parameter, with `AStateInv` and `BrOK`); and
+  **`check_decls_phased_refines`** — `install_then_check_refines`' statement
+  and hypotheses verbatim, for any `InstallHook` instance, against
+  `installThenCheckPhased`.  `check_pending_list_refines` is reused at
+  `pers := tierOf st.store`: Theorem 2's statements were already parametric in
+  the tier, which is what made the boundary a composition.
+* **The reader loop** — `proof/ConRon/Refine2/Frontend/Source.lean`:
+  `ReadsAs inst src cs` (the source hands out the chunks `cs`, each nonempty,
+  then an empty buffer) and `parse_source_eq`: under it, `parse_source` returns
+  what `parse_chunks` returns on `cs`, with the same arena state — the two
+  `-loops-to-rec` loops side by side, induction on the chunks left.  A
+  statement about the Rust model alone; no twin, no `ScanSpec`.
+* **The capstone** — `proof/ConRon/Capstone.lean`: stage 3 is
+  `parse_source inst sinst pers m st2 src true false = ok (.Ok r, st3, src')`
+  under the new named hypothesis `hreads : ReadsAs sinst src chunks.val`, and
+  stage 6 is `check_decls_phased hinst pers st5 .Verified ipins ds hook = ok
+  (.Ok fe, st6)` for ANY hook `{Hk} {hinst : InstallHook Hk} {hook}` — the
+  plain run and `--progress` alike.  `rust_stages` routes stage 3 through
+  `parse_source_eq` and stage 6 through `check_decls_phased_refines`;
+  `stages_model` uses `installThenCheckPhased_bridge`; `no_False_declaration`
+  goes through the new `stages_installThenCheck` to reach
+  `runPipeline_ok_of_stages` unchanged.  Census unchanged (`#guard_msgs`).
+
+#### 3. The trusted residue, and the one deliberate difference from master
+
+The unverified crate's rows (OVERVIEW §8.2) are the same three as master's:
+
+* **the modeller** — behind `ModellerWF`/`ModellerRefines`.
+  `in_model.rs`'s `mem::replace` of the store around `intern_decls` is INSIDE
+  `Modeller::generate`, and `ModellerRefines.generate` is a statement about
+  `inst.generate m pers rst.store …`'s whole run, so it is covered;
+* **the driver's call sequence** — the six stages in order, the verdict
+  mapping, and **the reads**: that the handle hands `parse_source` the file's
+  bytes in order is the capstone's `hreads`, the input seam as `hmr` is the
+  modeller's.  Master's driver trusted its reader loop as part of this row;
+  here the loop is verified and only the reads are left;
+* **the pool** — its claim (`pool.rs`'s module note, "THE TRUSTED CLAIM"):
+  `check_pool(pers, mode, fe, pend, pins, n, _)` returns what the verified
+  `check_pending_worker(pers, mode, fe, pins, pend)` returns, at every `n`.
+  It rests on
+  1. **merge by record index** — master's argument, unchanged (the limit is
+     `m` or a failing index, the counter is monotone, the table is complete
+     below the first failure and walked in record order);
+  2. **a record's outcome does not depend on which records its worker checked
+     before it** — the deliberate difference.  Master's pool (and con-leche's
+     `checkPending mode fe pc {}`) checked every record from a fresh state, so
+     (1) was the whole argument.  The arena keeps ONE `AState` per worker
+     (task #97-P6-6b), so record `k` runs on a state its worker's earlier
+     records used — `0..k` in the one-worker walk, a subsequence in the pool.
+     The argument: `enter_scratch` resets the memos and opens an empty scratch
+     tier, `drop_scratch` resets the caches and truncates it, the persistent
+     tier is `&PersTier` and the store's own persistent tables are frozen, the
+     pins are never written — so what crosses a record is CAPACITY
+     (slot-vector lengths, `clear_fit`'s high-water mark, `Vec` capacities),
+     which no lookup's answer depends on.
+
+**Why (2) is taken, measured.**  This task built the master-shaped
+alternative first — a fresh `worker_state` per record in the pool AND in the
+verified walk (`check_pending_fresh{,_list}`), which makes (2) true by
+construction — and it cost **+16.4 % instructions on `Init`** (§4): every
+record re-grows the tables that task #97-P6-7's high-water mark exists to keep
+sized.  So the branch keeps per-worker states and states (2) explicitly;
+`pool_is_check_pending_worker_at_every_jobs` tests the whole claim at 1, 2, 3,
+4 and 8 workers on five lists.  **At `--jobs=1` (2) is vacuous** — one
+worker's history IS the walk's — so the single-worker binary's residue is (1)
+alone, exactly master's.  **(2) is about the verified crate's `check_pending`
+alone**, so it is provable in principle; what it would take is a
+Theorem-2-level invariant "a worker state reached by accepting
+`check_pending`s from `worker_state` is related to `AState.worker lst` up to
+memos", whose missing pieces are frame lemmas nobody has: the Rust checker
+preserves the `shared_on` flags and the pins, and the twin's phase B leaves the
+persistent tier's `Std.HashMap`s literally unchanged (the relation fixes them
+only up to probes).  **Ruling wanted**: accept (2) as the deliberate
+difference, or schedule that proof, or pay the 16 %.
+
+#### 4. No behaviour change: `Init`
+
+`perf stat -e instructions:u` (+ GNU `time`) of `--verified` on
+`_tmp/corpus/init.ndjson`, two runs each, before/after interleaved, `timeout
+900`, `ulimit -v 8388608` at `--jobs=1` and `27000000` at the default (16
+workers).  "before" is the `arena` tip `5facde4c` this branch started from,
+rebuilt here; every run accepts 57 977.
+
+| binary | `--jobs=1` instructions | default-jobs instructions |
+|---|---|---|
+| before | 211 941 759 958 / 211 942 102 263 / 211 942 818 000 / 211 943 038 535 | 214.55 G / 214.37 G / 214.46 G / 214.49 G |
+| **this branch** (fold + reader loop) | 211 955 367 466 / 211 955 556 581 (**+12.5 M, +0.006 %**) | 214.51 G / 214.56 G (within the ±0.1 G spread) |
+| fold only, reader loop still in the driver | 211 947 119 602 / 211 948 304 370 (+5.8 M) | 214.33 G / 214.45 G |
+| the fresh-per-record alternative (not landed) | 246 685 094 595 / 246 683 474 528 (**+16.4 %**) | 246.73 G / 246.72 G |
+
+The +6.7 M the reader loop adds is, presumably, its fresh 4 MiB buffer per
+read where the old loop refilled one (83 reads on `Init`); not profiled.  Peak RSS unchanged (0.54–0.66 GB at
+`--jobs=1`, 0.96–1.04 GB at the default, both binaries).  Wall time is not
+reported: another agent's builds and this task's own extraction ran beside
+every pair (22–42 s at `--jobs=1` for BOTH binaries), so the column would
+measure the machine.
+
+#### 5. Out-of-lane edits
+
+* `proof/ConRon/Arena.lean` — one import line (`ConRon.Arena.Phased`);
+  `Refine2/Checker/Shape.lean`, `Refine2/Frontend/Abs.lean` and
+  `Bridge/Peel.lean` import the aggregator, so they rebuild.
+* NEW files in the two live lanes: `proof/ConRon/Bridge/Checker/Phased.lean`,
+  `proof/ConRon/Refine2/Checker/Phased.lean`,
+  `proof/ConRon/Refine2/Frontend/Source.lean`.  Nothing existing under
+  `Bridge/**` or `Refine2/**` was edited (`Refine2/Checker/Top.lean`'s private
+  `mk_ifenv_empty_refines` and `Capstone.lean`'s `AM.bind_of_ok` are copied,
+  not exported, to keep out of those files).
+* `OVERVIEW.md` §8.2's driver and pool rows, and
+  `scripts/overview-links-expected.txt`.

@@ -28,8 +28,9 @@
 //! path from the bytes to `check_decls` had to be inside the extraction; the
 //! modules that were `crate::frontend::*` are `con_ron_core::frontend::*`.
 //! What of that path stays here is exactly what is not a function of the
-//! input: the **reads** (`driver::read_up_to` and the handle/stream parse
-//! loops, whose pure counterpart `parse_chunks` is the core's), and the
+//! input: the **reads** (`driver::read_up_to` and `driver::HandleSource`, the
+//! file handle as the core's `export_c::ChunkSource`, whose loop
+//! `export_c::parse_source` is the core's since task #97-P5-Driver), and the
 //! **modeller**, which the core calls through the one-method trait
 //! `con_ron_core::frontend::types::Modeller` and this crate implements as
 //! `in_model::InProcess`.

@@ -60,6 +60,7 @@ import ConRon.Arena.Inductives.NativeInstallF
 import ConRon.Arena.Inductives
 import ConRon.Arena.InductivesTest
 import ConRon.Arena.Checker
+import ConRon.Arena.Phased
 import ConRon.Arena.CheckerGated
 import ConRon.Arena.CheckerTest
 import ConRon.Arena.Frontend.NatOpGround

@@ -708,15 +708,87 @@
     13  //! `jobs_count`, `default_jobs`, [`workers_for`], `mark_persistent_note`,
     14  //! `read_up_to`, `STACK_BYTES`) are back in it, unchanged.
 
-== crates/con-ron/src/pool.rs#L49-L56
-    49  //! **The verdict, and the record a rejection names, are the same at every
-    50  //! `--jobs`.**  A worker's result is the record's index with its outcome; the
-    51  //! workers' arrays are merged *by record index* into one table and the table
-    52  //! is walked in **record order**, stopping at the first failing record in
-    53  //! fold order.  That walk is `check_pending_list`'s, whatever the workers'
-    54  //! timing, so the pool cannot report the second failure of a stream that has
-    55  //! two — `pool_reports_the_first_failure_at_every_jobs` is the test, at 1, 2,
-    56  //! 3, 4 and 8 workers on a list whose records 2 and 4 both fail.
+== crates/con-ron/src/driver.rs#L472-L490
+   472  /// **The driver**: `checker::check_decls_phased` with the boundary visible —
+   473  /// a straight line of calls into the verified crate, with the observer's
+   474  /// lines between them and the pool in the place of phase B's sequential walk
+   475  /// (task #97-P5-Driver):
+   476  ///
+   477  /// | step | here | in `check_decls_phased` |
+   478  /// |---|---|---|
+   479  /// | phase A | `checker::annot_fold_hooked(…, fold_start(), ds, 0, obs)` | the same call |
+   480  /// | boundary | `checker::freeze_tier(&mut st.store)` | the same call |
+   481  /// | phase B | `pool::check_pool(&tier, mode, &fe, &pend, &st.pins, workers, …)` | `checker::check_pending_worker(&tier, mode, &fe, &st.pins, &pend)` |
+   482  /// | after | `checker::thaw_tier(&mut st.store, tier)` | the same call |
+   483  ///
+   484  /// Everything else here is the observer, which only ever holds `&` the state
+   485  /// (the hook of phase A by the trait's own signature, the other lines through
+   486  /// `&st.store`), so it cannot change an outcome.  So the capstone, which is
+   487  /// stated about `check_decls_phased`, is about this function modulo the
+   488  /// pool's one claim: its merged table, walked in record order, is what the
+   489  /// verified one-worker walk `checker::check_pending_worker` returns
+   490  /// (`pool.rs`'s note states it and what it rests on).
+
+== crates/con-ron/src/pool.rs#L47-L105
+    47  //! ## THE TRUSTED CLAIM, and the whole of it
+    48  //!
+    49  //! **`check_pool(pers, mode, fe, pend, pins, n, _)` returns what
+    50  //! `checker::check_pending_worker(pers, mode, fe, pins, pend)` returns, at
+    51  //! every worker count `n`** — the same verdict, and on a failure the same fold
+    52  //! position.  `pool_is_check_pending_worker_at_every_jobs` is its test.  It
+    53  //! rests on two arguments, and the second is the one master's pool did not
+    54  //! need.
+    55  //!
+    56  //! **(1) Merge by record index — master's argument.**  A worker's result is
+    57  //! the record's index with its outcome; the workers' arrays are merged *by
+    58  //! record index* into one table and the table is walked in **record order**,
+    59  //! stopping at the first failing record in fold order.  That walk is
+    60  //! `check_pending_list`'s, whatever the workers' timing, so the pool cannot
+    61  //! report the second failure of a stream that has two —
+    62  //! `pool_reports_the_first_failure_at_every_jobs` is the test, at 1, 2, 3, 4
+    63  //! and 8 workers on a list whose records 2 and 4 both fail.
+    64  //!
+    65  //! **The table is complete below the first failure**, which is what makes the
+    66  //! walk total.  con-leche's argument, and the port's: a worker that fails
+    67  //! record `f` lowers the shared `limit` to `f`, and a worker skips a claimed
+    68  //! record at or above the limit.  Every value the limit ever holds is `m` or
+    69  //! a *failing* index, hence at least the first failing index `f`; so a record
+    70  //! below `f` is never skipped, and — the counter being monotone — it was
+    71  //! claimed before `f` was and is finished by the worker that claimed it.
+    72  //! Records above `f` may be missing from the table, and the walk never
+    73  //! reaches them.  (A worker also never checks a record after its own first
+    74  //! failure: every later claim is above it, hence at or above the limit.)
+    75  //!
+    76  //! Every access is `Relaxed`: a stale read of `limit` can only be *larger*
+    77  //! than the current value, i.e. can only make a worker do work it could have
+    78  //! skipped, and the results themselves travel through the `join` at the end
+    79  //! of the scope, which is the release/acquire pair.
+    80  //!
+    81  //! **(2) A record's outcome does not depend on which records its worker
+    82  //! checked before it — the deliberate difference from master.**  Master's
+    83  //! pool checked every record from a fresh `cstate_new()`, so (1) was the
+    84  //! whole argument.  Here a worker keeps ONE `AState` for the whole run, so
+    85  //! record `k` is checked on a state its worker's earlier records have used —
+    86  //! records `0..k` in the one-worker walk, some subsequence of them in a pool.
+    87  //! The claim is that this history is invisible to the outcome, and the
+    88  //! argument is the bracket: `check_pending` opens with `enter_scratch`, which
+    89  //! resets the per-call memos and turns on an EMPTY scratch tier, and closes
+    90  //! with `drop_scratch`, which resets the per-declaration caches and truncates
+    91  //! the scratch tier; the persistent tier is `&PersTier`, immutable, and the
+    92  //! store's own persistent tables are frozen (a persistent append is
+    93  //! `M_FROZEN`'s decline); the pins are never written.  So what one record
+    94  //! hands the next is CAPACITY — slot-vector lengths, `clear_fit`'s high-water
+    95  //! mark, `Vec` capacities — and no lookup's answer depends on a capacity
+    96  //! (`ron::hashmap2`'s refinement lemmas, `clear_fit_refines` included, are
+    97  //! stated on contents).  **Why it is taken**: task #97-P5-Driver built the
+    98  //! master-shaped alternative — a fresh `worker_state` per record, in the pool
+    99  //! and in the verified walk alike, which makes (2) true by construction — and
+   100  //! measured it on `Init` at **+16.4 % instructions** (246.7 G against
+   101  //! 211.9 G, `--jobs=1`), all of it re-growing the tables every record that
+   102  //! the high-water mark of task #97-P6-7 exists to keep.  (2) is a statement
+   103  //! about the verified crate's `check_pending` and nothing else, so it could
+   104  //! be proved; DESIGN.md's task #97-P5-Driver section says what that would
+   105  //! take.
 
 == proof/ConRon/Refine/Abs.lean#L285-L291
    285  /-- The closing call, one fixed configuration for every lemma: `ematch := 12`
