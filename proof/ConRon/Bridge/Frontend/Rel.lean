@@ -621,6 +621,393 @@ theorem DeclsProjNamed.push {st : EStore} {ds : Array IDeclaration}
   · exact h x hx
   · subst hx; exact hd
 
+
+/-! ### Persistence, from the denotation
+
+**The persistence half of an intern is not extra content: it is a CONSEQUENCE
+of the denotation half.**  A handle that denotes has a view (`Arena/
+WFProofs.lean`'s `denoteN_view` / `denoteL_view` / `denoteE_view`), and a
+handle with a view on a store whose scratch tier is closed is persistent
+(`PersN_of_view` / `PersL_of_view` / `PersE_of_view` above).  So `Pers… h`
+follows from `denote… st h = some x` together with `StoreWF st` and
+`st.scratchOn = false`, at the leaf — and every record denotation
+(`Arena/Frontend/Readback.lean:93-199`) reads EVERY handle field of its
+record, so the twelve record layers follow field for field.
+
+**The one field a denotation does not read is a projection table's
+`tableName`** — con-leche recomputes it, so `denoteProjTable` drops it
+(`Readback.lean:156-168`'s own note).  That gap is exactly what `IProjNamed`
+closes, and `internProjTable` carries the clause already, so the two
+projection layers take it as a hypothesis and nothing is weakened.
+
+This is what makes `Bridge/Frontend/Shared.lean`'s intern family
+scratch-agnostic without a second copy of it: the family is stated over
+`IStepS` with the denotation alone, and the `IStep` version — `hoff` in,
+`Pers…` out — is a three-line corollary through these lemmas.  DESIGN
+#97-P3-Frontend round 6. -/
+
+/-- con-leche: none — a name handle that denotes on a closed store is
+persistent. -/
+theorem PersN_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) {h : NIdx} {n : ConLeche.Name}
+    (hd : denoteN st.ns h = some n) : PersN h := by
+  obtain ⟨v, hv⟩ := Arena.denoteN_view hd
+  exact PersN_of_view hwf hoff hv
+
+/-- con-leche: none — the same at a LEVEL handle. -/
+theorem PersL_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) {h : LIdx} {u : Level}
+    (hd : denoteL st.ls h = some u) : PersL h := by
+  obtain ⟨v, hv⟩ := Arena.denoteL_view hd
+  exact PersL_of_view hwf hoff hv
+
+/-- con-leche: none — the same at an EXPRESSION handle. -/
+theorem PersE_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) {h : EIdx} {e : Expr}
+    (hd : denoteE st h = some e) : PersE h := by
+  obtain ⟨v, hv⟩ := Arena.denoteE_view hd
+  exact PersE_of_view hwf hoff hv
+
+/-- con-leche: none — a name-handle list that denotes is persistent. -/
+theorem PersNList_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) :
+    ∀ {hs : List NIdx} {ns : List ConLeche.Name},
+      denoteNList st.ns hs = some ns → PersNList hs := by
+  intro hs
+  induction hs with
+  | nil => intro ns _ n hn; simp at hn
+  | cons a as ih =>
+    intro ns hd
+    rw [denoteNList] at hd
+    cases h1 : denoteN st.ns a with
+    | none => rw [h1] at hd; simp at hd
+    | some x =>
+      cases h2 : denoteNList st.ns as with
+      | none => rw [h1, h2] at hd; simp at hd
+      | some xs =>
+        intro n hn
+        simp only [List.mem_cons] at hn
+        rcases hn with rfl | hn
+        · exact PersN_of_denote hwf hoff h1
+        · exact ih h2 n hn
+
+/-- con-leche: none — a level-handle list that denotes is persistent. -/
+theorem PersLList_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) :
+    ∀ {hs : List LIdx} {us : List Level},
+      denoteLList st.ls hs = some us → PersLList hs := by
+  intro hs
+  induction hs with
+  | nil => intro us _ u hu; simp at hu
+  | cons a as ih =>
+    intro us hd
+    simp only [denoteLList, opt2_eq_some_iff] at hd
+    obtain ⟨x, xs, h1, h2, -⟩ := hd
+    intro u hu
+    simp only [List.mem_cons] at hu
+    rcases hu with rfl | hu
+    · exact PersL_of_denote hwf hoff h1
+    · exact ih h2 u hu
+
+/-- con-leche: none — an expression-handle list that denotes is persistent. -/
+theorem PersEList_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) :
+    ∀ {hs : List EIdx} {es : List Expr},
+      denoteEList st hs = some es → PersEList hs := by
+  intro hs
+  induction hs with
+  | nil => intro es _ e he; simp at he
+  | cons a as ih =>
+    intro es hd
+    rw [denoteEList] at hd
+    cases h1 : denoteE st a with
+    | none => rw [h1] at hd; simp at hd
+    | some x =>
+      cases h2 : denoteEList st as with
+      | none => rw [h1, h2] at hd; simp at hd
+      | some xs =>
+        intro e he
+        simp only [List.mem_cons] at he
+        rcases he with rfl | he
+        · exact PersE_of_denote hwf hoff h1
+        · exact ih h2 e he
+
+/-- con-leche: none — a constant's header: `denoteCV` reads its three handle
+fields and `PersCV` names the same three. -/
+theorem PersCV_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) {icv : IConstantVal} {cv : ConstantVal}
+    (hd : denoteCV st icv = some cv) : PersCV icv := by
+  rw [denoteCV] at hd
+  cases h1 : denoteN st.ns icv.name with
+  | none => rw [h1] at hd; simp at hd
+  | some n =>
+  cases h2 : denoteNList st.ns icv.levelParams with
+  | none => rw [h1, h2] at hd; simp at hd
+  | some lps =>
+  cases h3 : denoteE st icv.type with
+  | none => rw [h1, h2, h3] at hd; simp at hd
+  | some ty =>
+  exact ⟨PersN_of_denote hwf hoff h1, PersNList_of_denote hwf hoff h2,
+    PersE_of_denote hwf hoff h3⟩
+
+/-- con-leche: none — a recursor rule's firing mode; the two constant arms
+carry no handle at all. -/
+theorem PersFire_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) {fr : IRecRuleFire} {f : RecRuleFire}
+    (hd : denoteFire st fr = some f) : PersFire fr := by
+  cases fr with
+  | inert => trivial
+  | plain => trivial
+  | nested lvls pins =>
+    rw [denoteFire] at hd
+    cases h1 : denoteLList st.ls lvls with
+    | none => rw [h1] at hd; simp at hd
+    | some ls =>
+    cases h2 : denoteEList st pins with
+    | none => rw [h1, h2] at hd; simp at hd
+    | some ps =>
+    exact ⟨PersLList_of_denote hwf hoff h1, PersEList_of_denote hwf hoff h2⟩
+
+/-- con-leche: none — one recursor rule. -/
+theorem PersRule_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) {rl : IRecRule} {r : RecRule}
+    (hd : denoteRule st rl = some r) : PersRule rl := by
+  rw [denoteRule] at hd
+  cases h1 : denoteN st.ns rl.ctor with
+  | none => rw [h1] at hd; simp at hd
+  | some c =>
+  cases h2 : denoteFire st rl.fire with
+  | none => rw [h1, h2] at hd; simp at hd
+  | some f =>
+  cases h3 : denoteE st rl.rhs with
+  | none => rw [h1, h2, h3] at hd; simp at hd
+  | some rhs =>
+  exact ⟨PersN_of_denote hwf hoff h1, PersFire_of_denote hwf hoff h2,
+    PersE_of_denote hwf hoff h3⟩
+
+/-- con-leche: none — a rule list. -/
+theorem PersRules_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) :
+    ∀ {rs : List IRecRule} {xs : List RecRule},
+      denoteRules st rs = some xs → PersRules rs := by
+  intro rs
+  induction rs with
+  | nil => intro xs _ r hr; simp at hr
+  | cons a as ih =>
+    intro xs hd
+    rw [denoteRules] at hd
+    cases h1 : denoteRule st a with
+    | none => rw [h1] at hd; simp at hd
+    | some x =>
+      cases h2 : denoteRules st as with
+      | none => rw [h1, h2] at hd; simp at hd
+      | some ys =>
+        intro r hr
+        simp only [List.mem_cons] at hr
+        rcases hr with rfl | hr
+        · exact PersRule_of_denote hwf hoff h1
+        · exact ih h2 r hr
+
+/-- con-leche: none — an inductive's capabilities record; its one handle field
+is the eta constructor's name. -/
+theorem PersCaps_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) {c : IIndCaps} {cc : IndCaps}
+    (hd : denoteCaps st c = some cc) : PersCaps c := by
+  rw [denoteCaps] at hd
+  cases h1 : denoteN st.ns c.etaCtor with
+  | none => rw [h1] at hd; simp at hd
+  | some n => exact PersN_of_denote hwf hoff h1
+
+/-- con-leche: none — a projection table.  Six of its seven handle fields are
+read by `denoteProjTable`; the seventh, `tableName`, is the one con-leche
+recomputes, so `IProjNamed` supplies it. -/
+theorem PersProjTable_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) {ti : IProjTable} {t : ProjTable}
+    (hn : IProjNamed st ti) (hd : denoteProjTable st ti = some t) :
+    PersProjTable ti := by
+  obtain ⟨sn, -, htn⟩ := hn
+  rw [denoteProjTable] at hd
+  cases h1 : denoteN st.ns ti.structName with
+  | none => rw [h1] at hd; simp at hd
+  | some x1 =>
+  cases h2 : denoteNList st.ns ti.levelParams with
+  | none => rw [h1, h2] at hd; simp at hd
+  | some x2 =>
+  cases h3 : denoteN st.ns ti.ctor with
+  | none => rw [h1, h2, h3] at hd; simp at hd
+  | some x3 =>
+  cases h4 : denoteL st.ls ti.structSort with
+  | none => rw [h1, h2, h3, h4] at hd; simp at hd
+  | some x4 =>
+  cases h5 : denoteEArray st ti.bodies with
+  | none => rw [h1, h2, h3, h4, h5] at hd; simp at hd
+  | some x5 =>
+  cases h6 : denoteLList st.ls ti.guards with
+  | none => rw [h1, h2, h3, h4, h5, h6] at hd; simp at hd
+  | some x6 =>
+  refine ⟨PersN_of_denote hwf hoff h1, PersN_of_denote hwf hoff htn,
+    PersNList_of_denote hwf hoff h2, PersN_of_denote hwf hoff h3,
+    PersL_of_denote hwf hoff h4, ?_, PersLList_of_denote hwf hoff h6⟩
+  rw [denoteEArray] at h5
+  cases h7 : denoteEList st ti.bodies.toList with
+  | none => rw [h7] at h5; simp at h5
+  | some x7 => exact PersEList_of_denote hwf hoff h7
+
+/-- con-leche: none — **a stored constant**: seven arms, each of them the
+layers above assembled. -/
+theorem PersCI_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) {ci : IConstantInfo} {c : ConstantInfo}
+    (hn : CIProjNamed st ci) (hd : denoteCI st ci = some c) : PersCI ci := by
+  cases ci with
+  | axiomInfo v =>
+    rw [denoteCI] at hd
+    cases h1 : denoteCV st v with
+    | none => rw [h1] at hd; simp at hd
+    | some cv => exact PersCV_of_denote hwf hoff h1
+  | ctorInfo v nP nF =>
+    rw [denoteCI] at hd
+    cases h1 : denoteCV st v with
+    | none => rw [h1] at hd; simp at hd
+    | some cv => exact PersCV_of_denote hwf hoff h1
+  | defnInfo v e h =>
+    rw [denoteCI] at hd
+    cases h1 : denoteCV st v with
+    | none => rw [h1] at hd; simp at hd
+    | some cv =>
+    cases h2 : denoteE st e with
+    | none => rw [h1, h2] at hd; simp at hd
+    | some x => exact ⟨PersCV_of_denote hwf hoff h1, PersE_of_denote hwf hoff h2⟩
+  | thmInfo v e =>
+    rw [denoteCI] at hd
+    cases h1 : denoteCV st v with
+    | none => rw [h1] at hd; simp at hd
+    | some cv =>
+    cases h2 : denoteE st e with
+    | none => rw [h1, h2] at hd; simp at hd
+    | some x => exact ⟨PersCV_of_denote hwf hoff h1, PersE_of_denote hwf hoff h2⟩
+  | indInfo v cp =>
+    rw [denoteCI] at hd
+    cases h1 : denoteCV st v with
+    | none => rw [h1] at hd; simp at hd
+    | some cv =>
+    cases h2 : denoteCaps st cp with
+    | none => rw [h1, h2] at hd; simp at hd
+    | some caps =>
+      exact ⟨PersCV_of_denote hwf hoff h1, PersCaps_of_denote hwf hoff h2⟩
+  | recInfo v mI rP rs =>
+    rw [denoteCI] at hd
+    cases h1 : denoteCV st v with
+    | none => rw [h1] at hd; simp at hd
+    | some cv =>
+    cases h2 : denoteRules st rs with
+    | none => rw [h1, h2] at hd; simp at hd
+    | some rules =>
+      exact ⟨PersCV_of_denote hwf hoff h1, PersRules_of_denote hwf hoff h2⟩
+  | projInfo t =>
+    rw [denoteCI] at hd
+    cases h1 : denoteProjTable st t with
+    | none => rw [h1] at hd; simp at hd
+    | some pt => exact PersProjTable_of_denote hwf hoff (hn t rfl) h1
+
+/-- con-leche: none — a block. -/
+theorem PersCIList_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) :
+    ∀ {cis : List IConstantInfo} {cs : List ConstantInfo},
+      (∀ ci ∈ cis, CIProjNamed st ci) → denoteCIList st cis = some cs →
+      PersCIList cis := by
+  intro cis
+  induction cis with
+  | nil => intro cs _ _ c hc; simp at hc
+  | cons a as ih =>
+    intro cs hn hd
+    rw [denoteCIList] at hd
+    cases h1 : denoteCI st a with
+    | none => rw [h1] at hd; simp at hd
+    | some x =>
+      cases h2 : denoteCIList st as with
+      | none => rw [h1, h2] at hd; simp at hd
+      | some xs =>
+        intro c hc
+        simp only [List.mem_cons] at hc
+        rcases hc with rfl | hc
+        · exact PersCI_of_denote hwf hoff (hn c (by simp)) h1
+        · exact ih (fun ci hci => hn ci (by simp [hci])) h2 c hc
+
+/-- con-leche: none — **a declaration record**: the frontend tier's
+postcondition, and `Bridge/Checker/Capstone.lean`'s second frontend
+obligation. -/
+theorem PersDecl_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) {di : IDeclaration} {d : Declaration}
+    (hn : DeclProjNamed st di) (hd : denoteDecl st di = some d) :
+    PersDecl di := by
+  cases di with
+  | basisDecl k => trivial
+  | axiomDecl v =>
+    rw [denoteDecl] at hd
+    cases h1 : denoteCV st v with
+    | none => rw [h1] at hd; simp at hd
+    | some cv => exact PersCV_of_denote hwf hoff h1
+  | quotDecl k v =>
+    rw [denoteDecl] at hd
+    cases h1 : denoteCV st v with
+    | none => rw [h1] at hd; simp at hd
+    | some cv => exact PersCV_of_denote hwf hoff h1
+  | defnDecl v e hh =>
+    rw [denoteDecl] at hd
+    cases h1 : denoteCV st v with
+    | none => rw [h1] at hd; simp at hd
+    | some cv =>
+    cases h2 : denoteE st e with
+    | none => rw [h1, h2] at hd; simp at hd
+    | some x => exact ⟨PersCV_of_denote hwf hoff h1, PersE_of_denote hwf hoff h2⟩
+  | thmDecl v e =>
+    rw [denoteDecl] at hd
+    cases h1 : denoteCV st v with
+    | none => rw [h1] at hd; simp at hd
+    | some cv =>
+    cases h2 : denoteE st e with
+    | none => rw [h1, h2] at hd; simp at hd
+    | some x => exact ⟨PersCV_of_denote hwf hoff h1, PersE_of_denote hwf hoff h2⟩
+  | opaqueDecl v e =>
+    rw [denoteDecl] at hd
+    cases h1 : denoteCV st v with
+    | none => rw [h1] at hd; simp at hd
+    | some cv =>
+    cases h2 : denoteE st e with
+    | none => rw [h1, h2] at hd; simp at hd
+    | some x => exact ⟨PersCV_of_denote hwf hoff h1, PersE_of_denote hwf hoff h2⟩
+  | indDecl block nP =>
+    rw [denoteDecl] at hd
+    cases h1 : denoteCIList st block with
+    | none => rw [h1] at hd; simp at hd
+    | some b =>
+      exact PersCIList_of_denote hwf hoff (hn block nP rfl) h1
+
+/-- con-leche: none — a whole declaration STREAM, which is what the modeller
+seam and the parse both hand on. -/
+theorem PersDecls_of_denote {st : EStore} (hwf : StoreWF st)
+    (hoff : st.scratchOn = false) :
+    ∀ {dis : List IDeclaration} {ds : List Declaration},
+      (∀ d ∈ dis, DeclProjNamed st d) →
+      ConRon.Bridge.denoteDecls st dis = some ds → ∀ d ∈ dis, PersDecl d := by
+  intro dis
+  induction dis with
+  | nil => intro ds _ _ d hd; simp at hd
+  | cons a as ih =>
+    intro ds hn hd
+    rw [ConRon.Bridge.denoteDecls] at hd
+    cases h1 : denoteDecl st a with
+    | none => rw [h1] at hd; simp at hd
+    | some x =>
+      cases h2 : ConRon.Bridge.denoteDecls st as with
+      | none => rw [h1, h2] at hd; simp at hd
+      | some xs =>
+        intro d hdm
+        simp only [List.mem_cons] at hdm
+        rcases hdm with rfl | hdm
+        · exact PersDecl_of_denote hwf hoff (hn d (by simp)) h1
+        · exact ih (fun di hdi => hn di (by simp [hdi])) h2 d hdm
+
 /-! ### The name equations the clause buys -/
 
 /-! The non-projection half is `Bridge/StateOK.lean`'s own `denoteCI_name`,
