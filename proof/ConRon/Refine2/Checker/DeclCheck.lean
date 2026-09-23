@@ -1014,13 +1014,100 @@ theorem check_div_mod_pin_at_refines {pers st lst} {vis : Std.U64} {rf lf}
         (absEIdx value2) (absINatOpPinSet ps)) := by
   sorry
 
-/-- **`check_div_mod_pin_try` — the `orElseAttempt` seam.**  This is the ONE
-place (B) recovers from a thrown error and the ONE place the two states are
-not the same: the port restores the memos and the caches and KEEPS the store's
-appends, and the twin's error arm resumes at the pre-attempt state.  The
-conclusion is therefore `Ext` on the store and equality on nothing else — see
-`Refine2/Checker/Base.lean`'s `attempt_restore_refines`, of which this is the
-consumer. -/
+/-- The port's four-way step against the twin's, at a returned step.  The
+port never returns `Failed` as a step (`check_div_mod_pin_attempt` returns its
+`Native` error instead), so that arm relates nothing; a recovered error is
+related by its kind, the one thing `AErrSim` fixes. -/
+def OrElseRel : arena.checker_base.OrElseStep → OrElseStep → Prop
+  | .Matched, .matched => True
+  | .Continued, .continued => True
+  | .Recovered e, .recovered le => absAErrKind e = lAErrKind le
+  | _, _ => False
+
+/-- **`check_div_mod_pin_attempt` ⊑ `orElseAttempt (checkDivModPinAt …)` —
+the `orElseAttempt` seam, lockstep** (task #97-T2-LOCKSTEP D4).  The ONE place
+(B) recovers from a thrown error.  Both sides resume a recovered attempt at
+the same state now: the twin at the pre-attempt state, the port at the
+post-attempt state with the snapshot's memos, caches and scratch tiers put
+back, which `attempt_recover_refines₀` relates to it under the port's frame.
+
+Two hypotheses, both about the callee:
+* `hat` — the attempt itself, lockstep (`check_div_mod_pin_at`'s Theorem-2
+  lemma, another lane's; taken in `Sim₀` form, as the `lockstep` recipe
+  takes a callee from another lane);
+* `hframe` — on a thrown error, the port's attempt wrote nothing outside the
+  memos, the caches and the scratch tiers (`ScratchFrame`, a fact about the
+  Rust alone).
+
+The `lockstep` tactic does not apply: the two programs do the same operations
+only up to the error arm, where the twin throws the state away and the port
+restores it — which is exactly the step this lemma exists to prove once. -/
+theorem check_div_mod_pin_attempt_refines₀ {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {c : arena.handle.NIdx}
+    {value2 : arena.handle.EIdx} {ps : arena.nat_op_pin_set.INatOpPinSet} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hat : ∀ o₁, arena.decl_check.check_div_mod_pin_at pers vis st mode rf c value2 ps
+        = ok o₁ →
+      Sim₀ id pers lst o₁
+        (checkDivModPinAt (ConRon.Refine.absMode mode) lf (absNIdx c)
+          (absEIdx value2) (absINatOpPinSet ps)))
+    (hframe : ∀ e st₁, arena.decl_check.check_div_mod_pin_at pers vis st mode rf c
+        value2 ps = ok (.Err e, st₁) → ScratchFrame st st₁)
+    (hrun : arena.decl_check.check_div_mod_pin_attempt pers vis st mode rf c value2
+      ps = ok o) :
+    SimRel₀ OrElseRel pers lst o
+      (orElseAttempt (checkDivModPinAt (ConRon.Refine.absMode mode) lf (absNIdx c)
+        (absEIdx value2) (absINatOpPinSet ps))) := by
+  unfold arena.decl_check.check_div_mod_pin_attempt at hrun
+  obtain ⟨snap, hs, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hsnap := attempt_snapshot_refines₀ hrel hinv hs
+  obtain ⟨⟨r, st₁⟩, ha, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hsim := hat _ ha
+  unfold SimRel₀ AOutRel₀
+  cases r with
+  | Ok b =>
+    obtain ⟨lst', hx, hrel', hinv'⟩ := Sim₀.apply hsim
+    simp only [StateT.run, id] at hx
+    cases b with
+    | true =>
+      simp [arena.checker_base.or_else_attempt] at hrun
+      subst hrun
+      refine ⟨.matched, lst', ?_, trivial, hrel', hinv'⟩
+      simp only [StateT.run, orElseAttempt, hx, orElseStepOf]
+    | false =>
+      simp [arena.checker_base.or_else_attempt] at hrun
+      subst hrun
+      refine ⟨.continued, lst', ?_, trivial, hrel', hinv'⟩
+      simp only [StateT.run, orElseAttempt, hx, orElseStepOf]
+  | Err e =>
+    have herr := Sim₀.apply_err hsim
+    cases e with
+    | Native m =>
+      simp [arena.checker_base.or_else_attempt] at hrun
+      subst hrun
+      exact AErrSim.native m
+    | NotImplemented m | Invalid m | Internal m =>
+      simp [arena.checker_base.or_else_attempt] at hrun
+      obtain ⟨st₂, hr, hrun⟩ := hrun
+      subst hrun
+      obtain ⟨hrel₂, hinv₂⟩ :=
+        attempt_recover_refines₀ hrel hinv hsnap (hframe _ _ ha) hr
+      obtain ⟨le, hle, hk⟩ := herr _ rfl
+      simp only [StateT.run] at hle
+      refine ⟨.recovered le, lst, ?_, ?_, hrel₂, hinv₂⟩
+      · show orElseAttempt _ lst = _
+        unfold orElseAttempt
+        rw [hle]
+        cases le with
+        | native _ => simp at hk
+        | _ => simp only [orElseStepOf, attemptRestore_self]
+      · show absAErrKind _ = lAErrKind le
+        rw [hk]; rfl
+
+/-- **`check_div_mod_pin_try` — one variant's attempt, then the loop.**  The
+attempt is `check_div_mod_pin_attempt` (the `orElseAttempt` seam,
+`check_div_mod_pin_attempt_refines₀` above, lockstep since task
+#97-T2-LOCKSTEP D4); what is left is the twin's `match` on the step. -/
 theorem check_div_mod_pin_try_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {c : arena.handle.NIdx}
     {value2 : arena.handle.EIdx}

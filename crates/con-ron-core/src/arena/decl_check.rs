@@ -2474,11 +2474,48 @@ pub fn check_div_mod_pin_loop(
     }
 }
 
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps
+/// con-leche: ConLeche/Kernel/Checker.lean:338-360 checkDivModPinLoop
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:159-191 orElseAttempt` —
+/// **`orElseAttempt (checkDivModPinAt …)`, the one recovering seam, as one
+/// function** (task #97-T2-LOCKSTEP D4): snapshot, the variant's attempt, the
+/// four-way step, and on `Recovered` the restore.  The twin gets the
+/// pre-attempt state free from its state function; here `attempt_snapshot`
+/// copies the memos, the caches and the four scratch tiers, and
+/// `attempt_restore` moves them back, so a recovered attempt resumes at the
+/// state the twin resumes at (`arena::checker_base`'s module note 6).
+/// Deviation: `Failed` (a `Native` error only) is returned as that error
+/// rather than as a step, which the twin's caller then `fail`s with — the
+/// same outcome one call earlier.
+#[allow(clippy::too_many_arguments)]
+pub fn check_div_mod_pin_attempt(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    fe: &IFEnv,
+    c: &NIdx,
+    value2: &EIdx,
+    ps: &INatOpPinSet,
+) -> Result<OrElseStep, CheckError> {
+    let snapshot: AttemptSnapshot = attempt_snapshot(st);
+    let attempt: Result<bool, CheckError> =
+        check_div_mod_pin_at(pers, vis, st, mode, fe, c, value2, ps);
+    match or_else_attempt(attempt) {
+        OrElseStep::Matched => Ok(OrElseStep::Matched),
+        OrElseStep::Continued => Ok(OrElseStep::Continued),
+        OrElseStep::Recovered(e) => {
+            attempt_restore(st, snapshot);
+            Ok(OrElseStep::Recovered(e))
+        }
+        OrElseStep::Failed(e) => Err(e),
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Checker.lean:338-360 checkDivModPinLoop
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:488-521 checkDivModPinLoop` —
-/// one variant's attempt and the four-way step it decides.  The snapshot is
-/// taken only here, where the twin's `orElseAttempt` has the pre-attempt state
-/// in hand for free (`arena::checker_base`'s module note 6).
+/// one variant's attempt and the four-way step it decides
+/// (`check_div_mod_pin_attempt`), then the loop's tail call.
 #[allow(clippy::too_many_arguments)]
 pub fn check_div_mod_pin_try(
     pers: &PersTier,
@@ -2492,17 +2529,14 @@ pub fn check_div_mod_pin_try(
     i: usize,
     tried: Vec<u32>,
 ) -> Result<(), CheckError> {
-    let snapshot: AttemptSnapshot = attempt_snapshot(st);
-    let attempt: Result<bool, CheckError> =
-        check_div_mod_pin_at(pers, vis, st, mode, fe, c, value2, &variants[i]);
-    match or_else_attempt(attempt) {
-        OrElseStep::Matched => Ok(()),
-        OrElseStep::Continued => {
-            check_div_mod_pin_loop(pers, vis, st, mode, fe, c, value2, variants, i + 1, tried)
-        }
-        OrElseStep::Recovered(e) => {
-            attempt_restore(st, snapshot);
-            check_div_mod_pin_loop(
+    match check_div_mod_pin_attempt(pers, vis, st, mode, fe, c, value2, &variants[i]) {
+        Err(e) => Err(e),
+        Ok(step) => match step {
+            OrElseStep::Matched => Ok(()),
+            OrElseStep::Continued => {
+                check_div_mod_pin_loop(pers, vis, st, mode, fe, c, value2, variants, i + 1, tried)
+            }
+            OrElseStep::Recovered(e) => check_div_mod_pin_loop(
                 pers,
                 vis,
                 st,
@@ -2513,9 +2547,9 @@ pub fn check_div_mod_pin_try(
                 variants,
                 i + 1,
                 div_mod_attempt_reason(e),
-            )
-        }
-        OrElseStep::Failed(e) => Err(e),
+            ),
+            OrElseStep::Failed(e) => Err(e),
+        },
     }
 }
 
