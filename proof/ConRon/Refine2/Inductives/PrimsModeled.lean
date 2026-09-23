@@ -254,6 +254,167 @@ theorem LS_of_twin_eq {α β : Type} {pers : arena.store.PersTier} {R : α → �
     {lst : AState} {x y : AM β} (h : LS pers R m lst x) (hx : x = y) :
     LS pers R m lst y := hx ▸ h
 
+/-! ### The member-name guard (`check_member_val`)
+
+`level::name_is_model_suffix` on the name `read_name_m` answered.  The three
+lemmas are `RefineOld/IndModeled.lean`'s (task #97-P5-Ind round 1), restated
+here so the tier does not import the old refinement. -/
+
+/-- `"_model"`'s code points as a `Vec<u32>`. -/
+theorem modelStr_witness :
+    ∃ v : alloc.vec.Vec Std.U32,
+      v.val = [95#u32, 109#u32, 111#u32, 100#u32, 101#u32, 108#u32]
+        ∧ ConRon.Refine.StrWF v ∧ ConRon.Refine.absString v = "_model" := by
+  refine ⟨alloc.vec.Vec.from [95#u32, 109#u32, 111#u32, 100#u32, 101#u32,
+    108#u32] (by simp only [List.length_cons, List.length_nil]; scalar_tac),
+    ?_, ?_, ?_⟩
+  · exact alloc.vec.Vec.from_val _ _
+  · intro c hc
+    rw [alloc.vec.Vec.from_val] at hc
+    fin_cases hc <;> decide
+  · rw [ConRon.Refine.absString, alloc.vec.Vec.from_val]; rfl
+
+/-- `level::is_model_str` decides `absString s = "_model"`. -/
+theorem is_model_str_refines {s : alloc.vec.Vec Std.U32} (hs : ConRon.Refine.StrWF s)
+    {b : Bool} (h : kernel.level.is_model_str s = ok b) :
+    b = decide (ConRon.Refine.absString s = "_model") := by
+  obtain ⟨w, hwv, hwwf, hwabs⟩ := modelStr_witness
+  have hiff : ConRon.Refine.absString s = "_model" ↔ s.val = w.val := by
+    constructor
+    · intro hstr
+      rw [ConRon.Refine.Name.absString_inj hs hwwf (by rw [hstr, hwabs])]
+    · intro hval
+      rw [ConRon.Refine.absString, hval, ← ConRon.Refine.absString, hwabs]
+  have hgoal : decide (ConRon.Refine.absString s = "_model") = decide (s.val = w.val) := by
+    rw [Bool.eq_iff_iff]
+    simpa using hiff
+  rw [hgoal, hwv]
+  have hgi : ∀ (i : Std.Usize) (x : Std.U32), i.val < s.val.length →
+      s.val[i.val]? = some x →
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
+        = ok x := by
+    intro i x hi hx
+    obtain ⟨y, hy, hyv⟩ :=
+      WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec s i hi)
+    subst hyv
+    rw [alloc.vec.Vec.index_slice_index, hy]
+    rw [List.getElem?_eq_getElem hi] at hx
+    congr 1
+    exact Option.some_inj.mp hx
+  rw [kernel.level.is_model_str] at h
+  by_cases hlen : s.val.length = 6
+  · rw [if_pos (show alloc.vec.Vec.len s = 6#usize by
+      have := alloc.vec.Vec.len_val s; scalar_tac)] at h
+    obtain ⟨a0, a1, a2, a3, a4, a5, hval⟩ :
+        ∃ a0 a1 a2 a3 a4 a5 : Std.U32, s.val = [a0, a1, a2, a3, a4, a5] := by
+      rcases hl : s.val with _ | ⟨a0, l1⟩
+      · rw [hl] at hlen; simp at hlen
+      rcases l1 with _ | ⟨a1, l2⟩
+      · rw [hl] at hlen; simp at hlen
+      rcases l2 with _ | ⟨a2, l3⟩
+      · rw [hl] at hlen; simp at hlen
+      rcases l3 with _ | ⟨a3, l4⟩
+      · rw [hl] at hlen; simp at hlen
+      rcases l4 with _ | ⟨a4, l5⟩
+      · rw [hl] at hlen; simp at hlen
+      rcases l5 with _ | ⟨a5, l6⟩
+      · rw [hl] at hlen; simp at hlen
+      rcases l6 with _ | ⟨a6, l7⟩
+      · exact ⟨a0, a1, a2, a3, a4, a5, rfl⟩
+      · rw [hl] at hlen; simp at hlen
+    rw [hval]
+    rw [hgi 0#usize a0 (by rw [hlen]; scalar_tac) (by rw [hval]; rfl),
+      bind_tc_ok] at h
+    by_cases hc0 : a0 = 95#u32
+    case neg => rw [if_neg hc0, Result.ok.injEq] at h; simp [← h, hc0]
+    rw [if_pos hc0] at h
+    rw [hgi 1#usize a1 (by rw [hlen]; scalar_tac) (by rw [hval]; rfl),
+      bind_tc_ok] at h
+    by_cases hc1 : a1 = 109#u32
+    case neg => rw [if_neg hc1, Result.ok.injEq] at h; simp [← h, hc1]
+    rw [if_pos hc1] at h
+    rw [hgi 2#usize a2 (by rw [hlen]; scalar_tac) (by rw [hval]; rfl),
+      bind_tc_ok] at h
+    by_cases hc2 : a2 = 111#u32
+    case neg => rw [if_neg hc2, Result.ok.injEq] at h; simp [← h, hc2]
+    rw [if_pos hc2] at h
+    rw [hgi 3#usize a3 (by rw [hlen]; scalar_tac) (by rw [hval]; rfl),
+      bind_tc_ok] at h
+    by_cases hc3 : a3 = 100#u32
+    case neg => rw [if_neg hc3, Result.ok.injEq] at h; simp [← h, hc3]
+    rw [if_pos hc3] at h
+    rw [hgi 4#usize a4 (by rw [hlen]; scalar_tac) (by rw [hval]; rfl),
+      bind_tc_ok] at h
+    by_cases hc4 : a4 = 101#u32
+    case neg => rw [if_neg hc4, Result.ok.injEq] at h; simp [← h, hc4]
+    rw [if_pos hc4] at h
+    rw [hgi 5#usize a5 (by rw [hlen]; scalar_tac) (by rw [hval]; rfl),
+      bind_tc_ok, Result.ok.injEq] at h
+    rw [← h, hc0, hc1, hc2, hc3, hc4]
+    simp
+  · rw [if_neg (show ¬ alloc.vec.Vec.len s = 6#usize by
+      have := alloc.vec.Vec.len_val s
+      intro hc; apply hlen; scalar_tac), Result.ok.injEq] at h
+    rw [← h]
+    have hne : s.val ≠ [95#u32, 109#u32, 111#u32, 100#u32, 101#u32, 108#u32] := by
+      intro hc; apply hlen; rw [hc]; rfl
+    simp [hne]
+
+/-- `Name.isModelSuffix` at a `.str` node. -/
+theorem isModelSuffix_str (p : ConLeche.Name) (x : String) :
+    ConLeche.Name.isModelSuffix (.str p x) = decide (x = "_model") := by
+  by_cases hx : x = "_model"
+  · subst hx; rfl
+  · simp only [ConLeche.Name.isModelSuffix, hx, decide_false]
+    split <;> simp_all
+
+/-- `level::name_is_model_suffix` refines `Name.isModelSuffix`. -/
+theorem name_is_model_suffix_refines {n : kernel.name.Name} (hn : ConRon.Refine.NameWF n)
+    {b : Bool} (h : kernel.level.name_is_model_suffix n = ok b) :
+    b = (ConRon.Refine.absName n).isModelSuffix := by
+  cases hn with
+  | @anonymous n' hmk =>
+    rw [ConRon.Refine.name_anonymous_inv hmk] at h ⊢
+    rw [kernel.level.name_is_model_suffix] at h
+    simp at h
+    subst h
+    rfl
+  | @str pre str n' hpre hstr hmk =>
+    obtain ⟨hh, rfl⟩ := ConRon.Refine.mk_str_inv hmk
+    rw [kernel.level.name_is_model_suffix] at h
+    simp only [ConRon.Refine.arc_deref_eq, bind_tc_ok] at h
+    rw [is_model_str_refines hstr h, ConRon.Refine.absName_mk, ConRon.Refine.absNameKind,
+      isModelSuffix_str]
+  | @num pre m n' hpre hmk =>
+    obtain ⟨hh, rfl⟩ := ConRon.Refine.mk_num_inv hmk
+    rw [kernel.level.name_is_model_suffix] at h
+    simp at h
+    subst h
+    rfl
+
+/-- `level::name_is_model_suffix` in `LSP` form, at a well-formed name. -/
+@[lockstep] theorem name_is_model_suffix_spec {n : kernel.name.Name}
+    (hn : ConRon.Refine.NameWF n) :
+    LSP (kernel.level.name_is_model_suffix n)
+      (fun b => TwinEq ((ConRon.Refine.absName n).isModelSuffix) b) :=
+  fun _ h => (name_is_model_suffix_refines hn h).symm
+
+/-- `arena::monad::read_name_m` ⊑ `readNameM` (`Refine2/Specs.lean`'s
+`read_name_m_run₀`), with the answer's well-formedness (`read_name_m_wf`) —
+the name guard reads it. -/
+@[lockstep] theorem read_name_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.NIdx) :
+    LS pers (fun a b => ConRon.Refine.NameWF a ∧ b = ConRon.Refine.absName a)
+      (arena.monad.read_name_m pers st h) lst (Arena.readNameM (absNIdx h)) := by
+  intro o st' hm
+  have hs := read_name_m_run₀ hrel hinv hm
+  have hwf := (read_name_m_wf hinv hm).1
+  cases o with
+  | Err e => exact hs
+  | Ok a =>
+    obtain ⟨lst', hx, h1, h2⟩ := hs
+    exact ⟨_, lst', hx, ⟨hwf a rfl, rfl⟩, h1, h2⟩
+
 /-- `ifenv_dup` in `LSP` form: the copy stands for the same twin environment. -/
 @[lockstep] theorem ifenv_dup_spec {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
     LSP (arena.env.ifenv_dup rf) (fun a => IFEnvRelI a lf) :=

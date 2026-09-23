@@ -1846,6 +1846,38 @@ open Lockstep in
         (absU j) (absIRecRule r)) :=
   LS.ofSim₀ fun _ h => check_iota_rule_refines hrel hinv hfe2 hfeS h
 
+/-- `check_iota_rules` in `LS` form, by induction on the rules left. -/
+theorem check_iota_rules_aux (n : Nat) :
+    ∀ {pers st lst} {mode : kernel.env.CheckMode}
+      {rf2 lf2} {rfS lfS} {f : arena.inductives.modeled.RenameBy}
+      {cv_name : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
+      {ty_a : arena.handle.EIdx} {m_i r_p j : Std.U64}
+      {rules : alloc.vec.Vec arena.env.IRecRule} {i : Std.Usize}
+      {out : alloc.vec.Vec arena.env.IRecRule},
+      rules.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf2 lf2 → IFEnvRelI rfS lfS →
+      Lockstep.LS pers (fun a b => b = absIRecRuleL a)
+        (arena.inductives.modeled.check_iota_rules pers st mode rf2 rfS f cv_name
+          lps ty_a m_i r_p j rules i out) lst
+        (do pure (absIRecRuleL out ++
+          (← checkIotaRules (ConRon.Refine.absMode mode) lf2 lfS (absRenameBy f)
+            (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a) (absU m_i) (absU r_p)
+            (absU j) (absIRecRuleLFrom rules i)))) := by
+  induction n with
+  | zero =>
+    intro pers st lst mode rf2 lf2 rfS lfS f cv_name lps ty_a m_i r_p j rules i out hn hrel
+      hinv hfe2 hfeS
+    rw [arena.inductives.modeled.check_iota_rules, if_pos (by scalar_tac), absIRecRuleLFrom,
+      vecFrom_nil _ _ _ (by omega), checkIotaRules]
+    lockstep
+  | succ m ih =>
+    intro pers st lst mode rf2 lf2 rfS lfS f cv_name lps ty_a m_i r_p j rules i out hn hrel
+      hinv hfe2 hfeS
+    rw [arena.inductives.modeled.check_iota_rules, if_neg (by scalar_tac), absIRecRuleLFrom,
+      vecFrom_cons _ _ _ (by omega), checkIotaRules]
+    simp only [bind_assoc, pure_bind]
+    lockstep
+
 /-- `check_iota_rules` ⊑ `checkIotaRules` from the cursor on, with the
 accumulated rules in front. -/
 theorem check_iota_rules_refines {pers st lst} {mode : kernel.env.CheckMode}
@@ -1863,8 +1895,8 @@ theorem check_iota_rules_refines {pers st lst} {mode : kernel.env.CheckMode}
       (do pure (absIRecRuleL out ++
         (← checkIotaRules (ConRon.Refine.absMode mode) lf2 lfS (absRenameBy f)
           (absNIdx cv_name) (absNIdxL lps) (absEIdx ty_a) (absU m_i) (absU r_p)
-          (absU j) (absIRecRuleLFrom rules i)))) := by
-  sorry
+          (absU j) (absIRecRuleLFrom rules i)))) :=
+  Lockstep.LS.toSim₀ (check_iota_rules_aux _ rfl hrel hinv hfe2 hfeS) hrun
 
 open Lockstep in
 @[lockstep] theorem check_iota_rules_ls
@@ -1938,7 +1970,11 @@ theorem check_member_val_refines {pers st lst} {vis : Std.U64}
     Sim₀ absIConstantVal pers lst o
       (checkMemberVal (ConRon.Refine.absMode mode) (absNIdxL block_names) lf2
         (absIConstantVal cv)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_member_val, checkMemberVal_unfold]
+  lockstep
+  -- the model stage's statement is general in the twin's message arguments
+  all_goals exact check_member_model_ls ‹_› ‹_› hfe hvis
 
 open Lockstep in
 @[lockstep] theorem check_member_val_ls

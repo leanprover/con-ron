@@ -622,7 +622,7 @@ theorem checkMemberVal_unfold (mode : ConLeche.CheckMode) (blockNames : List NId
     checkMemberVal mode blockNames fe' cv = (do
       let f ← blockRenameTable blockNames
       let cvA ← checkConstantVal mode fe' cv
-      let an ← readName cvA.name
+      let an ← readNameM cvA.name
       if ConLeche.Name.isModelSuffix an then
         fail (.invalid s!"model-shaped member name {an}")
       checkMemberModelSpec f fe' cvA blockNames an) := by
