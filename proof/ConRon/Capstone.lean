@@ -59,8 +59,8 @@ the proof is:
 
 1. **Theorem 2, per stage** — `Refine2`'s six `…_refines` lemmas walk the
    Rust runs into six TWIN runs from the twin's own start state
-   `AState.init EStore.empty`, related at every step (`AStateRel`/
-   `AStateInv`);
+   `AState.init EStore.empty`, related at every step (`AStateRel₀`/
+   `AStateInv`: lockstep);
 2. **Theorem 1** — the twin runs feed `Arena.pooledAccepts_bridge`, whose
    pure fold accepts the denoted stream: con-leche's
    `checkDeclsPure_sound_of` gives the model, and
@@ -71,9 +71,10 @@ the proof is:
    model.
 
 Every step is an existing theorem; what this file adds is glue: the Rust
-runs threaded through `Sim`/`SimStream`/`SimFold`, and the twin frame facts
-(`scratchOn = false`) that Theorem 2's `BrOK` asks for, read off Theorem 1's
-stage lemmas.
+runs threaded through `Sim₀`/`SimStream`/`SimFold`, and the one twin-store
+fact the composition needs from Theorem 1 — `StoreWF` at the headline's
+`AStateRel` (`stages_storeWF`) — read off its stage lemmas.  Theorem 2 itself
+carries no fact about the twin's store (task #97-T2-AUDIT).
 
 ## The named hypotheses
 
@@ -142,8 +143,8 @@ theorem AM.bind_of_ok {α β : Type} {x : AM α} {f : α → AM β} {s s₁ : AS
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
 **the stages' frame, up to the fold**: after the first five stages from the
-driver's start state, the scratch tier is closed (Theorem 2's `BrOK` asks for
-it at `install_then_check`), the fold's start invariant holds, and the pins
+driver's start state, the scratch tier is closed, the fold's start invariant
+holds, and the pins
 and the prepared stream denote.  `Arena.no_False_declaration_pipeline`'s own
 steps, stopped before the fold. -/
 theorem stages_frame {chunks : List ByteArray} {pins : List NatOpPinSet}
@@ -193,44 +194,6 @@ theorem stages_frame {chunks : List ByteArray} {pins : List NatOpPinSet}
         hxP hcachesP),
     hipins, hpps, fun x hx => hpersDs x (by simpa using hx), _,
     denoteDeclArray_iff.mp (denoteDeclArray_ext hxP hclPrep)⟩
-
-/-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
-**the twin's store is well formed after the preparation**: Theorem 1's
-`StateOK` along the first four stages (`stages_frame`'s own chain, stopped at
-`preparePrelude`).  Theorem 2 is lockstep (task #97-T2-LOCKSTEP): the
-frontend's statements relate the stores by `AStateRel₀` only, and the checker
-tier's front door (`intern_all_pins_refines`, still over the deprecated
-`AStateRel`) takes the twin's `StoreWF` from here — Theorem 1's fact about the
-twin's own run, supplied from outside Theorem 2 (`AStateRel₀.of₀`). -/
-theorem stages_prep_wf {chunks : List ByteArray}
-    (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
-    {sA sB sC sD : AState} {pre : PreludeIx} {r : ParseResultD}
-    {ds : Array IDeclaration}
-    (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
-    (hB : builtinPreludeE inProcessModeller sA = .ok (.ok pre, sB))
-    (hC : parseChunks inProcessModeller chunks true false sB = .ok (.ok r, sC))
-    (hD : preparePrelude pre r.decls sC = .ok (ds, sD)) :
-    StoreWF sD.store := by
-  have hok0 : StateOK (AState.init EStore.empty) := ⟨EStore.empty_wf⟩
-  have hoff0 : (AState.init EStore.empty).store.scratchOn = false := rfl
-  have hc0 : (AState.init EStore.empty).caches = Caches.empty := rfl
-  obtain ⟨hokA, -, hpinsA, -, hoffA, -, hcachesA⟩ :=
-    internReservedPins_run hok0 hoff0 hA
-  have hrbA : ReadCachesOK sA := ReadCachesOK.ofEmpty (by rw [hcachesA]; exact hc0)
-  obtain ⟨hstep1, hpersPre, hnPre, preC, -, hrelPre⟩ :=
-    builtinPreludeE_run inProcessModeller_wf inProcessModeller_refines hbytes
-      hokA hoffA hpinsA hrbA hB
-  obtain ⟨hstep2, hpersR, rc, -, hrelR⟩ :=
-    parseChunks_run inProcessModeller_wf inProcessModeller_refines hstep1.ok
-      (by rw [hstep1.scratch, hoffA]) (hpinsA.mono hstep1.ext hstep1.pins)
-      (hrbA.step hstep1) hC
-  obtain ⟨hstep3, -, -, -⟩ :=
-    preparePrelude_run (preC := preC) hstep2.ok
-      (by rw [hstep2.scratch, hstep1.scratch, hoffA])
-      (hpinsA.mono (hstep1.trans hstep2).ext (hstep1.trans hstep2).pins)
-      (denoteDeclArray_ext hstep2.ext hrelPre) hpersPre
-      (hnPre.mono hstep2.ext) hrelR.decls hpersR hrelR.projNamed hD
-  exact hstep3.ok.wf
 
 /-- con-leche: ConLeche/Model/Fold.lean:254 checkDeclsPure_sound_of — **the
 model at (B), at the pipeline**: `Bridge/Checker/Capstone.lean`'s
@@ -341,46 +304,34 @@ theorem stages_no_False (V : Type w) [ConLeche.SetTheory V]
     Arena.pooledAccepts_bridge rfl hk hind hpps hfold hipins hpd hden hF
   exact ConRon.Bridge.Frontend.no_False_theorem_accepted_pure V rfl hmem hty hpure
 
-/-- **Ruling 2's `DeclResolves`, discharged from Theorem 1** (task
-#97-P5-Top round 2).  Theorem 2's fold (`install_then_check_refines`) needs the
-declaration's handles and the Core answers to resolve in the twin store; that
-is a fact about what the TWIN run keeps, so `Refine2` takes it as a
-precondition stated over an abstract invariant `Good`
-(`Refine2/Checker/Base.lean`'s `ResolveInv`, `Refine2/Checker/Top.lean`'s
-`DeclResolves`), and this is where it is discharged — here, the one module
-that sees both theorems, the way `BrOK` is (`stages_frame`).
-
-**Open (`sorry`), and Theorem 1's to close.**  The witness is Theorem 1's
-fold invariant: `Good fe s := ∃ env, FoldOK .verified env fe s ∧ (the prepared
-stream's handles resolve in `s`) ∧ (every handle of `fe` resolves in `s`)`.
-`entry` is `stages_frame` (`FoldOK_of_start` and `denoteDecls`), `decls` is
-`PersDecl` plus the store only growing, each `ResolveInv` field is the frame of
-one Theorem-1 run lemma (`inferType`/`whnf`/`ensureSort` under `hk`, whose
-answers DENOTE, hence resolve; `annotStep_run`, `checkPending_run`,
-`checkDeclStep_run`, `installConstantVal`/`checkConstantVal`'s), and
-`pending` is phase A's record invariant (a recorded value group is the
-installed constant's type and value, hence `fe`'s).  **The last conjunct**
-(task #97-P5-Driver) is what the driver's phase B needs of the same witness:
-`Good` survives `AState.worker` — the phase-B worker drops the scratch tier,
-the memos and the caches, and `FoldOK` and "resolves" are statements about
-the persistent tier, so the witness above keeps it (`StoreWF` through
-`EStore.dropScratch_wf`, persistent denotation through the drop, `CacheOK` of
-empty caches). -/
-theorem declResolves_of_stages
+/-- con-leche: none — **the fold's end state is well formed** (Theorem 1).
+Theorem 2 is a lockstep refinement and its relation `AStateRel₀` carries no
+fact about the twin's store (task #97-T2-AUDIT); the headline states the full
+`AStateRel`, whose one extra clause, `StoreWF`, is Theorem 1's:
+phase A's `annotFold_bridge` (the first step of `Arena.pooledAccepts_bridge`)
+ends at `FoldOK`, whose `CheckOK` carries `StateOK`, and the pooled fold hands
+the phase-A state back. -/
+theorem stages_storeWF
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
     (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
     {chunks : List ByteArray} {pins : List NatOpPinSet}
-    {sA sB sC sD sE : AState} {pre : PreludeIx} {r : ParseResultD}
-    {ds : Array IDeclaration} {ipins : List INatOpPinSet}
+    {sA sB sC sD sE sF : AState} {pre : PreludeIx} {r : ParseResultD}
+    {ds : Array IDeclaration} {ipins : List INatOpPinSet} {fe' : IFEnv}
     (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
     (hB : builtinPreludeE inProcessModeller sA = .ok (.ok pre, sB))
     (hC : parseChunks inProcessModeller chunks true false sB = .ok (.ok r, sC))
     (hD : preparePrelude pre r.decls sC = .ok (ds, sD))
-    (hE : internAllPins pins sD = .ok (ipins, sE)) :
-    ∃ Good : IFEnv → AState → Prop,
-      ConRon.Refine2.DeclResolves .verified ipins ds.toList sE Good ∧
-      ∀ {fe : IFEnv} {s : AState}, Good fe s → Good fe s.worker := by
-  sorry
+    (hE : internAllPins pins sD = .ok (ipins, sE))
+    (hF : Arena.PooledAccepts .verified ipins ds sE fe' sF) :
+    StoreWF sF.store := by
+  obtain ⟨-, hfold, hipins, hpps, hpd, dsP, hden⟩ :=
+    stages_frame hbytes hA hB hC hD hE
+  obtain ⟨n, pend, -, hA', -⟩ := hF
+  obtain ⟨env₁, pendP, hok₁, -⟩ :=
+    Arena.annotFold_bridge rfl hk hind hpps ds.toList dsP Env.empty 0 n
+      (mkIFEnv IEnv.empty) fe' #[] pend [] sE sF hfold List.nodup_nil hipins hpd hden
+      .nil hA'
+  exact hok₁.check.state.wf
 
 end Twin
 
@@ -400,7 +351,7 @@ def InitRel : Prop :=
     (st : arena.monad.AState),
     arena.store.PersTier.empty = ok pers → arena.store.EStore.empty = ok est →
     arena.monad.AState.init est = ok st →
-    AStateRel pers st (ConRon.Arena.AState.init ConRon.Arena.EStore.empty) ∧
+    AStateRel₀ pers st (ConRon.Arena.AState.init ConRon.Arena.EStore.empty) ∧
       AStateInv pers st
 
 theorem initRel : InitRel := fun _ _ _ _ hest hst =>
@@ -411,11 +362,9 @@ the driver's start state give six accepting twin runs from the twin's, at the
 abstracted values, with the Rust's final state related to the twin's and the
 Rust's environment related to the twin's.
 
-Theorem 2's six top lemmas, one per stage, and `BrOK` at the fold's entry from
-`stages_frame` (the twin's frame: the scratch tier is closed after the
-startup walk) and `AStateRel.storeWF`; ruling 2's `DeclResolves` at the fold's
-entry from `declResolves_of_stages` (Theorem 1's, which is why `hk` and `hind`
-are here). -/
+Theorem 2's six top lemmas, one per stage, all lockstep (`AStateRel₀`, no
+precondition on the twin: task #97-T2-LOCKSTEP lane Checker deleted `BrOK`
+and ruling 2's `DeclResolves`). -/
 theorem rust_stages
     (hk : ConRon.Bridge.CoreSpec .verified ConRon.Arena.checkFuel)
     (hind : ConRon.Bridge.IndSpec .verified)
@@ -461,14 +410,14 @@ theorem rust_stages
           = .ok (absINatOpPinSetL ipins, sE) ∧
       ConRon.Arena.PooledAccepts .verified (absINatOpPinSetL ipins)
           (absIDeclL ds).toArray sE lfe sF ∧
-      AStateRel pers st6 sF ∧ IFEnvRel fe lfe := by
+      AStateRel₀ pers st6 sF ∧ IFEnvRel fe lfe := by
   obtain ⟨hrel0, hinv0, -⟩ := init_rel (pers := pers) hest hst0
   -- 1. the reserved pins
-  obtain ⟨sA, hA, hrelA, hinvA, -, -⟩ :=
+  obtain ⟨sA, hA, hrelA, hinvA⟩ :=
     (intern_reserved_pins_refines hrel0 hinv0 h1).dest
-  -- 2. the prelude (lockstep: `AStateRel₀` from here to the preparation)
+  -- 2. the prelude
   obtain ⟨preL, sB, hB, hpreL, hrelB, hinvB⟩ :=
-    builtin_prelude_e_refines scanSpec hmr hrelA.to₀ hinvA h2
+    builtin_prelude_e_refines scanSpec hmr hrelA hinvA h2
   subst hpreL
   -- 3. the stream: the reader loop IS `parse_chunks` over the chunks read
   have h3' := parse_source_eq hreads h3
@@ -481,25 +430,13 @@ theorem rust_stages
   have hD' : ConRon.Arena.Frontend.preparePrelude (absPreludeIx pre) rv.decls sC
       = .ok ((absIDeclL ds).toArray, sD) := by
     rw [hdecls]; exact hD
-  -- the twin's own store is well formed there (Theorem 1), for the checker
-  -- tier's front door, which is still over the deprecated `AStateRel`
-  have hwfD : ConRon.Arena.StoreWF sD.store := stages_prep_wf hbytes hA hB hC hD'
   -- 5. the startup pin walk
-  obtain ⟨sE, hE, hrelE, hinvE, -, -⟩ :=
-    (intern_all_pins_refines (hrelD.of₀ hwfD) hinvD
+  obtain ⟨sE, hE, hrelE, hinvE⟩ :=
+    (intern_all_pins_refines hrelD hinvD
       (ConRon.Refine.PinsWF.decode_wf_refine2 hdec) h5).dest
-  -- the fold's entry: the twin's scratch tier is closed there
-  have hoff : sE.store.scratchOn = false :=
-    (stages_frame (pins := ConRon.Refine.absPins pins) hbytes hA hB hC
-      hD' hE).1
-  -- the fold's entry, ruling 2: the declarations' handles and the Core answers
-  -- resolve (Theorem 1's `declResolves_of_stages`), and the invariant survives
-  -- the phase-B worker
-  obtain ⟨Good, hres, hwork⟩ := declResolves_of_stages hk hind hbytes hA hB hC hD' hE
-  rw [List.toList_toArray] at hres
-  -- 6. the fold, as the driver runs it
+  -- 6. the fold, as the binary runs it, pool and all
   obtain ⟨lfe, sF, hF, hfe, hrelF⟩ := pool_accepts_refines (mode := .Verified) (ds := ds)
-    (pins := ipins) hrelE hinvE ⟨hrelE.storeWF, hoff⟩ hres hwork h6
+    (pins := ipins) hrelE hinvE h6
   exact ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD', hE, hF, hrelF, hfe⟩
 
 end Rust
@@ -566,7 +503,10 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
       h1 h2 hreads h3 h4 h5 h6
   obtain ⟨env, hden, hmod⟩ := stages_model V (ConRon.Bridge.CoreSpec.of_core rfl) hind
     hbytes hA hB hC hD hE hF
-  exact ⟨sF, lfe, env, hrelF, hfe, hden, hmod⟩
+  -- the relation's `StoreWF` clause is Theorem 1's (Theorem 2 is lockstep)
+  have hwfF := stages_storeWF (ConRon.Bridge.CoreSpec.of_core rfl) hind hbytes
+    hA hB hC hD hE hF
+  exact ⟨sF, lfe, env, hrelF.of₀ hwfF, hfe, hden, hmod⟩
 
 /-- con-leche: ConLeche/MainTheorem.lean:110 no_False_declaration — **A FILE
 THAT DECLARES A THEOREM OF TYPE `False` IS REJECTED BY THE RUST CHECKER**:

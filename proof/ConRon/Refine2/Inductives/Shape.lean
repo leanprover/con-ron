@@ -40,6 +40,7 @@ Every one is a `Vec` against the container the twin chose, and — as in
 the Rust takes the whole `Vec` and an index.
 -/
 import ConRon.Refine2.Checker.KnotHyp
+import ConRon.Refine2.Tactic.Prims
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated

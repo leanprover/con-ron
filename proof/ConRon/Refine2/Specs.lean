@@ -3048,19 +3048,6 @@ theorem view_n_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     rw [hrunl, EStore.ns, hview]
     rfl
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `view_n_run₀`. -/
-theorem view_n_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st) {h : arena.handle.NIdx} {o}
-    (hrun : arena.monad.view_n pers st h = ok o) :
-    AOut absNNodeView (fun _ => True) pers lst o st
-      ((Arena.viewN (absNIdx h)).run lst) := by
-  refine AOut₀.toAOut_of_store (view_n_run₀ hrel.to₀ hinv hrun) hrel.storeWF ?_
-  intro b lst' hx
-  simp only [Arena.viewN, run_get_bind] at hx
-  split at hx
-  · cases hx; rfl
-  · cases hx
-
 theorem view_l_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {h : arena.handle.LIdx} {o}
     (hrun : arena.monad.view_l pers st h = ok o) :
@@ -11381,68 +11368,6 @@ theorem intern_ls_node_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     rw [internLsNode_run_of_cap hcap, hhd]
   | Err ee => exact AOut₀.err (AErrSim.of_none (herr ee hr))
 
-/-! ### The promote window's relation, and its `Sim`
-
-**Task #97-P5-Fresh.**  `Arena/WF.lean`'s section note has the ruling and the
-parallel-checking argument: `NWFAt.fresh` holds only LOCALLY, so a lemma about
-`internPersistent` cannot conclude `StoreWF` and therefore cannot conclude
-`AStateRel`.  What it concludes instead is the sibling below — `AStateRel`
-with `storeWF` at the weak invariant `StoreWF'`, and `AOut`/`Sim` rebuilt on
-it.  Everything else about the shape is unchanged, and `AStateRelW.of_rel`
-lets a caller that holds the STRONG relation feed a lemma that wants the weak
-one, which is what keeps the restatement additive: no existing lemma moves.
-
-These belong beside `AOut`/`Sim` in `Refine2/Shape.lean`; they are here
-because `Refine2/Shape.lean` is not this task's lane and the definitions are
-purely additive.  Moving them up is a two-line follow-up. -/
-
-/-- `AStateRel` at the promote window's invariant. -/
-structure AStateRelW (pers : arena.store.PersTier) (rs : arena.monad.AState)
-    (ls : AState) : Prop where
-  store : StoreRel pers rs.store ls.store
-  memos : MemosRel rs.memos ls.memos
-  caches : CachesRel rs.caches ls.caches
-  pins : PinsRel rs.pins ls.pins
-  storeWF : StoreWF' ls.store
-
-/-- The strong relation is the weak one: two clauses of the twin's store
-invariant forgotten, nothing else. -/
-theorem AStateRelW.of_rel {pers rs ls} (h : AStateRel pers rs ls) :
-    AStateRelW pers rs ls :=
-  ⟨h.store, h.memos, h.caches, h.pins, StoreWF'.of_wf h.storeWF⟩
-
-/-- `AOut` at the promote window's relation. -/
-def AOutW {α β : Type} (A : α → β) (WF : α → Prop)
-    (pers : arena.store.PersTier) (lst : AState)
-    (o : core.result.Result α kernel.core_types.CheckError)
-    (st' : arena.monad.AState)
-    (x : Except Arena.CheckError (β × AState)) : Prop :=
-  match o with
-  | .Ok r => ∃ lst', x = .ok (A r, lst') ∧ AStateRelW pers st' lst' ∧
-      AStateInv pers st' ∧ Ext lst.store lst'.store ∧ WF r
-  | .Err e => AErrSim e x
-
-theorem AOutW.ok {α β : Type} {A : α → β} {WF : α → Prop} {r : α}
-    {pers : arena.store.PersTier} {lst lst' : AState} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError (β × AState)}
-    (hx : x = .ok (A r, lst')) (hrel : AStateRelW pers st' lst')
-    (hinv : AStateInv pers st') (hext : Ext lst.store lst'.store) (hr : WF r) :
-    AOutW A WF pers lst (.Ok r) st' x :=
-  ⟨lst', hx, hrel, hinv, hext, hr⟩
-
-theorem AOutW.err {α β : Type} {A : α → β} {WF : α → Prop}
-    {e : kernel.core_types.CheckError} {pers : arena.store.PersTier}
-    {lst : AState} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError (β × AState)} (h : AErrSim e x) :
-    AOutW A WF pers lst (.Err e) st' x := h
-
-/-- `Sim` at the promote window's relation. -/
-def SimW {α β : Type} (A : α → β) (WF : α → Prop)
-    (pers : arena.store.PersTier) (lst : AState)
-    (o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState)
-    (x : AM β) : Prop :=
-  AOutW A WF pers lst o.1 o.2 (x.run lst)
-
 /-! ### The persistent tier's capacity predicates at the level and level-list
 stores -/
 
@@ -11808,6 +11733,10 @@ theorem internPersistentLs_run_of_cap {lst : AState} {v : LsNodeView}
     | mk st1 h1 => rfl
 
 /-! ### The four `intern_persistent_*_run`
+
+**Superseded** (task #97-T2-LOCKSTEP): the promote window's `AStateRelW`/`SimW`
+are deleted; the four are the `…_run₀` lemmas over `AStateRel₀`, and what
+follows is the old history.
 
 **Finding 17, discharged** (task #97-P5-Fresh).  Three things changed against
 the statements round 2 left `sorry`:
@@ -12630,41 +12559,6 @@ theorem intern_persistent_n_run₀ {pers st lst} (hrel : AStateRel₀ pers st ls
     rw [internPersistentN_run_of_cap hcap, hhd]
   | Err ee => exact AOut₀.err (AErrSim.of_none (herr ee hr))
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_persistent_n_run₀`.
- `arena::monad::intern_persistent_n` against `Arena.internPersistentN`. -/
-theorem intern_persistent_n_run {pers st lst} (hrel : AStateRelW pers st lst)
-    (hinv : AStateInv pers st)
-    (v : arena.store.NNodeView) (hvwf : NNodeViewWF v)
-    (hview : lst.store.ns.ViewOK (absNNodeView v))
-    (hpers : NViewPers (absNNodeView v)) {o}
-    (hrun : arena.monad.intern_persistent_n pers st v = ok o) :
-    SimW absNIdx (fun r => (absNIdx r).isPersistent = true) pers lst o
-      (Arena.internPersistentN (absNNodeView v)) := by
-  rw [arena.monad.intern_persistent_n] at hrun
-  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨r, e⟩ := p
-  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
-    Result.ok_injective hrun
-  subst ho
-  obtain ⟨hok, herr, -⟩ :=
-    estore_intern_name_persistent_abs (ls := lst.store) hrel.store hinv.store
-      hvwf hp
-  show AOutW absNIdx _ pers lst r { st with store := e } _
-  cases hr : r with
-  | Ok hh =>
-    obtain ⟨hhd, hrel', hinv', hcap⟩ := hok hh hr
-    refine AOutW.ok
-      (lst' := { lst with
-        store := (lst.store.internNamePersistent (absNNodeView v)).1 }) ?_
-      ⟨hrel', hrel.memos, hrel.caches, hrel.pins,
-        internNamePersistent_storeWF' hrel.storeWF hview hpers hcap⟩
-      ⟨hinv', hinv.memos, hinv.caches⟩
-      (EStore.internNamePersistent_ext _ _) ?_
-    · rw [internPersistentN_run_of_cap hcap, hhd]
-    · rw [hhd]
-      exact NStore.internPersistent_pers hrel.storeWF.nsWF hcap
-  | Err ee => exact AOutW.err (AErrSim.of_none (herr ee hr))
-
 /-- `arena::monad::intern_persistent_l` against `Arena.internPersistentL`. -/
 theorem intern_persistent_l_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
@@ -12949,30 +12843,6 @@ theorem intern_n_node_run {pers st lst} (hrel : AStateRel pers st lst)
     Sim absNIdx (fun _ => True) pers lst o (Arena.internNNode (absNNodeView v)) :=
   (intern_n_node_run₀ hrel.to₀ hinv v hvwf hrun).toSim
     (fun _ _ hx => (internNNode_run_view hrel.storeWF hview hx).2) (fun _ _ => trivial)
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_l_node_run₀`.
- `arena::monad::intern_l_node` against `Arena.internLNode`. -/
-theorem intern_l_node_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    (v : arena.store.LNodeView)
-    (hview : lst.store.ls.ViewOK (absLNodeView v)) {o}
-    (hrun : arena.monad.intern_l_node pers st v = ok o) :
-    Sim absLIdx (fun _ => True) pers lst o (Arena.internLNode (absLNodeView v)) :=
-  (intern_l_node_run₀ hrel.to₀ hinv v hrun).toSim
-    (fun _ _ hx => (internLNode_run_view hrel.storeWF hview hx).2) (fun _ _ => trivial)
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_ls_node_run₀`.
- `arena::monad::intern_ls_node` against `Arena.internLsNode`. -/
-theorem intern_ls_node_run {pers st lst} (hrel : AStateRel pers st lst)
-    (hinv : AStateInv pers st)
-    (v : alloc.vec.Vec arena.handle.LIdx)
-    (hview : lst.store.lss.ViewOK (absLsNodeView v)) {o}
-    (hrun : arena.monad.intern_ls_node pers st v = ok o) :
-    Sim absLsIdx (fun _ => True) pers lst o
-      (Arena.internLsNode (absLsNodeView v)) :=
-  (intern_ls_node_run₀ hrel.to₀ hinv v hrun).toSim
-    (fun _ _ hx => (internLsNode_run_view hrel.storeWF hview hx).2) (fun _ _ => trivial)
-
 
 theorem internLevel_run_denote : ∀ (u : ConLeche.Level) {lst lst' : AState} {h : LIdx},
     StoreWF lst.store →
@@ -13521,21 +13391,6 @@ theorem intern_name_run'₀ :
           = ConLeche.Name.num (ConRon.Refine.absName pre) m.val from rfl,
         Arena.internName, run_bind_ok hy1]
       exact hsim2
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `intern_name_run'₀`. -/
-theorem intern_name_run' :
-    ∀ (n : kernel.name.Name) (_hwf : ConRon.Refine.NameWF n)
-      {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState} {o},
-      AStateRel pers st lst → AStateInv pers st →
-      arena.monad.intern_name pers st n = ok o →
-      Sim absNIdx (fun _ => True) pers lst o
-        (Arena.internName (ConRon.Refine.absName n)) ∧
-      FlagsEq st.store o.2.store := by
-  intro n hwf pers st lst o hrel hinv hrun
-  obtain ⟨h1, h2⟩ := intern_name_run'₀ n hwf hrel.to₀ hinv hrun
-  exact ⟨h1.toSim (fun _ _ hx => (internName_run_denote _ hrel.storeWF hx).2)
-    (fun _ _ => trivial), h2⟩
-
 
 theorem intern_level_run'₀ :
     ∀ (l : kernel.level.Level) (_hwf : ConRon.Refine.LevelWF l)
@@ -15182,8 +15037,6 @@ the census that would have caught it. -/
 /-- info: 'ConRon.Refine2.lidx_vec_dup_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms lidx_vec_dup_eq
 
-/-- info: 'ConRon.Refine2.view_n_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms view_n_run
 
 /-- info: 'ConRon.Refine2.view_l_run₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms view_l_run₀
@@ -15594,8 +15447,6 @@ Finding 14's two halves and the binder composition of §2. -/
 /-- info: 'ConRon.Refine2.estore_intern_levels_persistent_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms estore_intern_levels_persistent_abs
 
-/-- info: 'ConRon.Refine2.intern_persistent_n_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_persistent_n_run
 
 /-- info: 'ConRon.Refine2.intern_persistent_l_run₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms intern_persistent_l_run₀

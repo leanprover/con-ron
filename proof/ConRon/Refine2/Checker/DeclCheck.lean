@@ -71,18 +71,18 @@ The Rust splits the two arms and their "is the family pinned" prefixes. -/
 
 /-- `eq_basis_pinned` — is the `Eq` basis block installed as pinned? -/
 theorem eq_basis_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.eq_basis_pinned pers vis st rf = ok o) :
-    Sim id (fun _ => True) pers lst o (eqBasisPinnedSpec lf) := by
+    Sim₀ id pers lst o (eqBasisPinnedSpec lf) := by
   sorry
 
 /-- `matches_pin_of_ci` — the header of a pinned constant, matched. -/
 theorem matches_pin_of_ci_refines {pers st lst} {cv : arena.env.IConstantVal}
     {pin_ci : arena.env.IConstantInfo} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.matches_pin_of_ci pers st cv pin_ci = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (do
         let pcv ← (absIConstantInfo pin_ci).toConstantVal
         (absIConstantVal cv).matchesPin pcv) := by
@@ -90,89 +90,89 @@ theorem matches_pin_of_ci_refines {pers st lst} {cv : arena.env.IConstantVal}
 
 /-- `iff_pinned` — is `Iff` installed at its pinned shape? -/
 theorem iff_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.iff_pinned pers vis st rf = ok o) :
-    Sim id (fun _ => True) pers lst o (iffPinnedSpec lf) := by
+    Sim₀ id pers lst o (iffPinnedSpec lf) := by
   sorry
 
 /-- `iff_intro_pinned`. -/
 theorem iff_intro_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.iff_intro_pinned pers vis st rf = ok o) :
-    Sim id (fun _ => True) pers lst o (iffIntroPinnedSpec lf) := by
+    Sim₀ id pers lst o (iffIntroPinnedSpec lf) := by
   sorry
 
 /-- `iff_rec_pinned`. -/
 theorem iff_rec_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.iff_rec_pinned pers vis st rf = ok o) :
-    Sim id (fun _ => True) pers lst o (iffRecPinnedSpec lf) := by
+    Sim₀ id pers lst o (iffRecPinnedSpec lf) := by
   sorry
 
 /-- `nonempty_pinned`. -/
 theorem nonempty_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.nonempty_pinned pers vis st rf = ok o) :
-    Sim id (fun _ => True) pers lst o (nonemptyPinnedSpec lf) := by
+    Sim₀ id pers lst o (nonemptyPinnedSpec lf) := by
   sorry
 
 /-- `nonempty_intro_pinned`. -/
 theorem nonempty_intro_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.nonempty_intro_pinned pers vis st rf = ok o) :
-    Sim id (fun _ => True) pers lst o (nonemptyIntroPinnedSpec lf) := by
+    Sim₀ id pers lst o (nonemptyIntroPinnedSpec lf) := by
   sorry
 
 /-- `nonempty_rec_pinned`. -/
 theorem nonempty_rec_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.nonempty_rec_pinned pers vis st rf = ok o) :
-    Sim id (fun _ => True) pers lst o (nonemptyRecPinnedSpec lf) := by
+    Sim₀ id pers lst o (nonemptyRecPinnedSpec lf) := by
   sorry
 
 /-- `std_axiom_ok_propext_rest` — `propext`'s arm past its name test. -/
 theorem std_axiom_ok_propext_rest_refines {pers st lst} {vis : Std.U64} {rf lf}
     {cv_a : arena.env.IConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.std_axiom_ok_propext_rest pers vis st rf cv_a = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (stdAxiomOkPropextRestSpec lf (absIConstantVal cv_a)) := by
   sorry
 
 /-- `std_axiom_ok_propext` — `propext`'s arm. -/
 theorem std_axiom_ok_propext_refines {pers st lst} {vis : Std.U64} {rf lf}
     {cv_a : arena.env.IConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.std_axiom_ok_propext pers vis st rf cv_a = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (stdAxiomOkPropextSpec lf (absIConstantVal cv_a)) := by
   sorry
 
 /-- `std_axiom_ok_choice_rest` — `Classical.choice`'s arm past its name test. -/
 theorem std_axiom_ok_choice_rest_refines {pers st lst} {vis : Std.U64} {rf lf}
     {cv_a : arena.env.IConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.std_axiom_ok_choice_rest pers vis st rf cv_a = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (stdAxiomOkChoiceRestSpec lf (absIConstantVal cv_a)) := by
   sorry
 
 /-- `std_axiom_ok_choice` — `Classical.choice`'s arm. -/
 theorem std_axiom_ok_choice_refines {pers st lst} {vis : Std.U64} {rf lf}
     {cv_a : arena.env.IConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.std_axiom_ok_choice pers vis st rf cv_a = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (stdAxiomOkChoiceSpec lf (absIConstantVal cv_a)) := by
   sorry
 
@@ -180,83 +180,83 @@ theorem std_axiom_ok_choice_refines {pers st lst} {vis : Std.U64} {rf lf}
 pinned shape and with its supporting family pinned. -/
 theorem std_axiom_ok_refines {pers st lst} {vis : Std.U64} {rf lf}
     {cv_a : arena.env.IConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.std_axiom_ok pers vis st rf cv_a = ok o) :
-    Sim id (fun _ => True) pers lst o (stdAxiomOk lf (absIConstantVal cv_a)) := by
+    Sim₀ id pers lst o (stdAxiomOk lf (absIConstantVal cv_a)) := by
   sorry
 
 /-! ## The compiler-trust axioms' gate -/
 
 /-- `true_pinned`. -/
 theorem true_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.true_pinned pers vis st rf = ok o) :
-    Sim id (fun _ => True) pers lst o (truePinnedSpec lf) := by
+    Sim₀ id pers lst o (truePinnedSpec lf) := by
   sorry
 
 /-- `true_intro_pinned`. -/
 theorem true_intro_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.true_intro_pinned pers vis st rf = ok o) :
-    Sim id (fun _ => True) pers lst o (trueIntroPinnedSpec lf) := by
+    Sim₀ id pers lst o (trueIntroPinnedSpec lf) := by
   sorry
 
 /-- **`trust_compiler_ok` ⊑ `trustCompilerOk`**. -/
 theorem trust_compiler_ok_refines {pers st lst} {vis : Std.U64} {rf lf}
     {cv_a : arena.env.IConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.trust_compiler_ok pers vis st rf cv_a = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (trustCompilerOk lf (absIConstantVal cv_a)) := by
   sorry
 
 /-- `reduce_elem_ok_bool` — the `Bool` element type's arm. -/
 theorem reduce_elem_ok_bool_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.reduce_elem_ok_bool pers vis st rf = ok o) :
-    Sim id (fun _ => True) pers lst o (reduceElemOkBoolSpec lf) := by
+    Sim₀ id pers lst o (reduceElemOkBoolSpec lf) := by
   sorry
 
 /-- `reduce_elem_ok` ⊑ `reduceElemOk`. -/
 theorem reduce_elem_ok_refines {pers st lst} {vis : Std.U64} {rf lf}
     {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.reduce_elem_ok pers vis st rf c = ok o) :
-    Sim id (fun _ => True) pers lst o (reduceElemOk lf (absNIdx c)) := by
+    Sim₀ id pers lst o (reduceElemOk lf (absNIdx c)) := by
   sorry
 
 /-- `reduce_stored_ok` ⊑ `reduceStoredOk`. -/
 theorem reduce_stored_ok_refines {pers st lst} {vis : Std.U64} {rf lf}
     {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.reduce_stored_ok pers vis st rf c = ok o) :
-    Sim id (fun _ => True) pers lst o (reduceStoredOk lf (absNIdx c)) := by
+    Sim₀ id pers lst o (reduceStoredOk lf (absNIdx c)) := by
   sorry
 
 /-- `of_reduce_ax_ok_rest` — `ofReduceAxOk`'s tail past the operation it names. -/
 theorem of_reduce_ax_ok_rest_refines {pers st lst} {vis : Std.U64} {rf lf}
     {cv_a : arena.env.IConstantVal} {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.of_reduce_ax_ok_rest pers vis st rf cv_a c = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (ofReduceAxOkRestSpec lf (absIConstantVal cv_a) (absNIdx c)) := by
   sorry
 
 /-- **`of_reduce_ax_ok` ⊑ `ofReduceAxOk`**. -/
 theorem of_reduce_ax_ok_refines {pers st lst} {vis : Std.U64} {rf lf}
     {cv_a : arena.env.IConstantVal} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.of_reduce_ax_ok pers vis st rf cv_a = ok o) :
-    Sim id (fun _ => True) pers lst o (ofReduceAxOk lf (absIConstantVal cv_a)) := by
+    Sim₀ id pers lst o (ofReduceAxOk lf (absIConstantVal cv_a)) := by
   sorry
 
 /-! ## The reduce-operation install pin -/
@@ -264,29 +264,29 @@ theorem of_reduce_ax_ok_refines {pers st lst} {vis : Std.U64} {rf lf}
 /-- `ground_guards_rest` — the ground-term guards past the first. -/
 theorem ground_guards_rest_refines {pers st lst} {vis : Std.U64} {rf lf}
     {p : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.ground_guards_rest pers vis st rf p = ok o) :
-    Sim id (fun _ => True) pers lst o (groundGuardsRestSpec lf (absEIdx p)) := by
+    Sim₀ id pers lst o (groundGuardsRestSpec lf (absEIdx p)) := by
   sorry
 
 /-- `ground_guards` — a pinned value is closed, free-variable-free, has no
 undeclared universe parameter and resolves. -/
 theorem ground_guards_refines {pers st lst} {vis : Std.U64} {rf lf}
     {p : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.ground_guards pers vis st rf p = ok o) :
-    Sim id (fun _ => True) pers lst o (groundGuardsSpec lf (absEIdx p)) := by
+    Sim₀ id pers lst o (groundGuardsSpec lf (absEIdx p)) := by
   sorry
 
 /-- `reduce_pin_guard` ⊑ `reducePinGuard`. -/
 theorem reduce_pin_guard_refines {pers st lst} {vis : Std.U64} {rf lf}
     {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.reduce_pin_guard pers vis st rf c = ok o) :
-    Sim id (fun _ => True) pers lst o (reducePinGuard lf (absNIdx c)) := by
+    Sim₀ id pers lst o (reducePinGuard lf (absNIdx c)) := by
   sorry
 
 /-- `check_reduce_identity` — the pinned value is the identity on its element
@@ -294,11 +294,11 @@ type, definitionally. -/
 theorem check_reduce_identity_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {c : arena.handle.NIdx}
     {val_a : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.check_reduce_identity pers vis st mode rf c val_a
       = ok o) :
-    Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
+    Sim₀ (fun _ : Unit => ()) pers lst o
       (checkReduceIdentitySpec (ConRon.Refine.absMode mode) lf (absNIdx c)
         (absEIdx val_a)) := by
   sorry
@@ -307,11 +307,11 @@ theorem check_reduce_identity_refines {pers st lst} {vis : Std.U64} {rf lf}
 theorem check_reduce_pin_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {c : arena.handle.NIdx}
     {value : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.check_reduce_pin_value pers vis st mode rf c value
       = ok o) :
-    Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
+    Sim₀ (fun _ : Unit => ()) pers lst o
       (checkReducePinValueSpec (ConRon.Refine.absMode mode) lf (absNIdx c)
         (absEIdx value)) := by
   sorry
@@ -320,11 +320,11 @@ theorem check_reduce_pin_value_refines {pers st lst} {vis : Std.U64} {rf lf}
 theorem check_reduce_pin_pre_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {c : arena.handle.NIdx}
     {value : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.check_reduce_pin_pre pers vis st mode rf c value
       = ok o) :
-    Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
+    Sim₀ (fun _ : Unit => ()) pers lst o
       (checkReducePinPreSpec (ConRon.Refine.absMode mode) lf (absNIdx c)
         (absEIdx value)) := by
   sorry
@@ -336,11 +336,11 @@ takes `fe2` with the counter that restricts it — which is `hkpre`. -/
 theorem check_reduce_pin_refines {pers st lst} {rf2 lf2 lf}
     {mode : kernel.env.CheckMode} {k_pre : Std.U64} {c : arena.handle.NIdx}
     {value : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
     (hkpre : lf = lf2.restrictTo (absU k_pre))
     (hrun : arena.decl_check.check_reduce_pin pers st mode rf2 k_pre c value = ok o) :
-    SimRel (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
       (do checkReducePin (ConRon.Refine.absMode mode) lf lf2 (absNIdx c)
             (absEIdx value)
           pure lf2) := by
@@ -352,54 +352,96 @@ theorem check_reduce_pin_refines {pers st lst} {rf2 lf2 lf}
 theorem check_defn_val_refines {pers st lst} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
     {value : arena.handle.EIdx} {hint : kernel.env.ReducibilityHint} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.decl_check.check_defn_val pers st mode rf cv value hint = ok o) :
-    SimRel (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
       (checkDefnVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
         (absEIdx value) (ConRon.Refine.absHint hint)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_defn_val_ls {pers st lst}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {cv : arena.env.IConstantVal}
+    {value : arena.handle.EIdx}
+    {hint : kernel.env.ReducibilityHint}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun r v => IFEnvRel r v)
+      (arena.decl_check.check_defn_val pers st mode rf cv value hint) lst
+      (checkDefnVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
+        (absEIdx value) (ConRon.Refine.absHint hint)) :=
+  LS.ofSimRel₀ fun _ h => check_defn_val_refines hrel hinv hfe.rel hfe.inv h
 
 /-- `check_thm_val_witness` — `checkThmVal`'s tail past the proposition test. -/
 theorem check_thm_val_witness_refines {pers st lst} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
     {value : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.decl_check.check_thm_val_witness pers st mode rf cv value = ok o) :
-    SimRel (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
       (checkThmValWitnessSpec (ConRon.Refine.absMode mode) lf
         (absIConstantVal cv) (absEIdx value)) := by
   sorry
 
-/-- **`check_thm_val` ⊑ `checkThmVal`**.  Ruling 2's precondition (task
-#97-P5-Top round 2): the checked constant's (annotated) type resolves here,
-and the value resolves in every `Good` state. -/
+/-- **`check_thm_val` ⊑ `checkThmVal`** (lockstep: no precondition on the
+twin since task #97-T2-LOCKSTEP lane Checker). -/
 theorem check_thm_val_refines {pers st lst} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
-    {value : arena.handle.EIdx} {o} {Good : IFEnv → AState → Prop}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    {value : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hR : ResolveInv (ConRon.Refine.absMode mode) Good) (hg : Good lf lst)
-    (hty : ExprOps.EResolves lst (absEIdx cv.ty))
-    (hv : ResolvesAt Good lf [absEIdx value])
     (hrun : arena.decl_check.check_thm_val pers st mode rf cv value = ok o) :
-    SimRel IFEnvRelI pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkThmVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
         (absEIdx value)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_thm_val_ls {pers st lst}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {cv : arena.env.IConstantVal}
+    {value : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers IFEnvRelI
+      (arena.decl_check.check_thm_val pers st mode rf cv value) lst
+      (checkThmVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
+        (absEIdx value)) :=
+  LS.ofSimRel₀ fun _ h => check_thm_val_refines hrel hinv hfe.rel hfe.inv h
 
 /-- **`check_opaque_val` ⊑ `checkOpaqueVal`**. -/
 theorem check_opaque_val_refines {pers st lst} {rf lf}
     {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal}
     {value : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hrun : arena.decl_check.check_opaque_val pers st mode rf cv value = ok o) :
-    SimRel (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
       (checkOpaqueVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
         (absEIdx value)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_opaque_val_ls {pers st lst}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {cv : arena.env.IConstantVal}
+    {value : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun r v => IFEnvRel r v)
+      (arena.decl_check.check_opaque_val pers st mode rf cv value) lst
+      (checkOpaqueVal (ConRon.Refine.absMode mode) lf (absIConstantVal cv)
+        (absEIdx value)) :=
+  LS.ofSimRel₀ fun _ h => check_opaque_val_refines hrel hinv hfe.rel hfe.inv h
 
 /-! ## The `Nat`-operation pin certification
 
@@ -409,10 +451,10 @@ DESIGN §8.3's one recovering seam sits at the end of this section
 /-- `nat_op_stored_ok_all` ⊑ `natOpStoredOkAll` at the cursor. -/
 theorem nat_op_stored_ok_all_refines {pers st lst} {vis : Std.U64} {rf lf}
     {ns : alloc.vec.Vec arena.handle.NIdx} {i : Std.Usize} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.nat_op_stored_ok_all pers vis st rf ns i = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (natOpStoredOkAll lf (absNIdxLFrom ns i)) := by
   sorry
 
@@ -432,9 +474,9 @@ theorem defn_value_refines {vis : Std.U64} {rf lf} {c : arena.handle.NIdx} {o}
 theorem subst_const0_list_refines {pers st lst} {n : arena.handle.NIdx}
     {r : arena.handle.EIdx} {hs : alloc.vec.Vec arena.handle.EIdx}
     {i : Std.Usize} {out : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.subst_const0_list pers st n r hs i out = ok o) :
-    Sim absEIdxL (fun _ => True) pers lst o
+    Sim₀ absEIdxL pers lst o
       (do pure (absEIdxL out ++
         (← substConst0List (absNIdx n) (absEIdx r) (absEIdxLFrom hs i)))) := by
   sorry
@@ -445,9 +487,9 @@ theorem subst_const0_pairs_refines {pers st lst} {n : arena.handle.NIdx}
     {eqs : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx)}
     {i : Std.Usize}
     {out : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx)} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.subst_const0_pairs pers st n r eqs i out = ok o) :
-    Sim (fun v => absEqPairs out ++ absEqPairs v) (fun _ => True) pers lst o
+    Sim₀ (fun v => absEqPairs out ++ absEqPairs v) pers lst o
       (do pure (absEqPairs out ++
         (← substConst0Pairs (absNIdx n) (absEIdx r) (absEqPairsFrom eqs i)))) := by
   sorry
@@ -455,10 +497,10 @@ theorem subst_const0_pairs_refines {pers st lst} {n : arena.handle.NIdx}
 /-- `consts_resolve_all` ⊑ `constsResolveAll` at the cursor. -/
 theorem consts_resolve_all_refines {pers st lst} {vis : Std.U64} {rf lf}
     {hs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.consts_resolve_all pers vis st rf hs i = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (constsResolveAll lf (absEIdxLFrom hs i)) := by
   sorry
 
@@ -467,10 +509,10 @@ theorem certify_nat_eqs_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode}
     {eqs : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx)}
     {i : Std.Usize} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.certify_nat_eqs pers vis st mode rf eqs i = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (certifyNatEqs (ConRon.Refine.absMode mode) lf (absEqPairsFrom eqs i)) := by
   sorry
 
@@ -488,24 +530,24 @@ theorem div_mod_attempt_reason_refines {e : kernel.core_types.CheckError} {o}
 
 /-- `nat_one` ⊑ `natOne` — the numeral `1` as `Nat.succ Nat.zero`. -/
 theorem nat_one_refines {pers st lst} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.nat_one pers st = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o natOne := by
+    Sim₀ absEIdx pers lst o natOne := by
   sorry
 
 /-- `nat_var` ⊑ `natVar` — `fvar i` at `Nat`. -/
 theorem nat_var_refines {pers st lst} {i : Std.U64} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.nat_var pers st i = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (natVar (absU i)) := by
+    Sim₀ absEIdx pers lst o (natVar (absU i)) := by
   sorry
 
 /-- `eq_at1_app` is `eq_at1`'s tail past the universe-argument list. -/
 theorem eq_at1_app_refines {pers st lst} {hus : arena.handle.LsIdx}
     {ty a b : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.eq_at1_app pers st hus ty a b = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (do
         let en ← pinEq
         let e ← internE (.const en (absLsIdx hus))
@@ -516,9 +558,9 @@ theorem eq_at1_app_refines {pers st lst} {hus : arena.handle.LsIdx}
 
 /-- `eq_at1` ⊑ `eqAt1` — the statements' `Eq.{1} τ a b` former. -/
 theorem eq_at1_refines {pers st lst} {ty a b : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.eq_at1 pers st ty a b = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (eqAt1 (absEIdx ty) (absEIdx a) (absEIdx b)) := by
   sorry
 
@@ -557,9 +599,9 @@ theorem cert_push_refines {out : alloc.vec.Vec (alloc.vec.Vec arena.handle.EIdx 
 shape all seven branches are written with. -/
 theorem cert_guard_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {a b r : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_guard pers st cx a b r = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (certGuardSpec (absCertCtx cx) (absEIdx a) (absEIdx b) (absEIdx r)) := by
   sorry
 
@@ -567,9 +609,9 @@ theorem cert_guard_refines {pers st lst} {cx : arena.decl_check.CertCtx}
 characteristic equation all seven branches are written with. -/
 theorem cert_eq_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {c : arena.handle.NIdx} {rhs : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_eq pers st cx c rhs = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (certEqSpec (absCertCtx cx) (absNIdx c) (absEIdx rhs)) := by
   sorry
 
@@ -577,44 +619,44 @@ theorem cert_eq_refines {pers st lst} {cx : arena.decl_check.CertCtx}
 times in the twin. -/
 theorem cert_halves_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_halves pers st cx c = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (certHalvesSpec (absCertCtx cx) (absNIdx c)) := by
   sorry
 
 /-- `cert_rec_rhs` is the `div`/`mod` branch's `c (x - y) y`. -/
 theorem cert_rec_rhs_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_rec_rhs pers st cx c = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (certRecRhsSpec (absCertCtx cx) (absNIdx c)) := by
   sorry
 
 /-- `cert_lor_rhs` is `|||`'s right-hand side. -/
 theorem cert_lor_rhs_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_lor_rhs pers st cx c = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (certLorRhsSpec (absCertCtx cx) (absNIdx c)) := by
+    Sim₀ absEIdx pers lst o (certLorRhsSpec (absCertCtx cx) (absNIdx c)) := by
   sorry
 
 /-- `cert_xor_rhs` is `^^^`'s right-hand side. -/
 theorem cert_xor_rhs_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_xor_rhs pers st cx c = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o (certXorRhsSpec (absCertCtx cx) (absNIdx c)) := by
+    Sim₀ absEIdx pers lst o (certXorRhsSpec (absCertCtx cx) (absNIdx c)) := by
   sorry
 
 /-- `cert_two_eqs` is the six bitwise/shift branches' shared shape: two
 one-hypothesis certificates. -/
 theorem cert_two_eqs_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {c : arena.handle.NIdx} {h1 h2 r1 r2 : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_two_eqs pers st cx c h1 h2 r1 r2 = ok o) :
-    Sim absStmts (fun _ => True) pers lst o
+    Sim₀ absStmts pers lst o
       (certTwoEqsSpec (absCertCtx cx) (absNIdx c) (absEIdx h1) (absEIdx h2)
         (absEIdx r1) (absEIdx r2)) := by
   sorry
@@ -622,58 +664,58 @@ theorem cert_two_eqs_refines {pers st lst} {cx : arena.decl_check.CertCtx}
 /-- `cert_gcd` — `1 ≤ x → gcd x y = gcd (y % x) x`, `x = 0 → gcd x y = y`. -/
 theorem cert_gcd_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_gcd pers st cx c = ok o) :
-    Sim absStmts (fun _ => True) pers lst o (certGcdSpec (absCertCtx cx) (absNIdx c)) := by
+    Sim₀ absStmts pers lst o (certGcdSpec (absCertCtx cx) (absNIdx c)) := by
   sorry
 
 /-- `cert_shift_left` — `1 ≤ y → x <<< y = (2*x) <<< (y-1)`, `y = 0 → x <<< y = x`. -/
 theorem cert_shift_left_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_shift_left pers st cx c = ok o) :
-    Sim absStmts (fun _ => True) pers lst o (certShiftLeftSpec (absCertCtx cx) (absNIdx c)) := by
+    Sim₀ absStmts pers lst o (certShiftLeftSpec (absCertCtx cx) (absNIdx c)) := by
   sorry
 
 /-- `cert_shift_right` — `1 ≤ y → x >>> y = (x >>> (y-1)) / 2`. -/
 theorem cert_shift_right_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_shift_right pers st cx c = ok o) :
-    Sim absStmts (fun _ => True) pers lst o (certShiftRightSpec (absCertCtx cx) (absNIdx c)) := by
+    Sim₀ absStmts pers lst o (certShiftRightSpec (absCertCtx cx) (absNIdx c)) := by
   sorry
 
 /-- `cert_land` — `1 ≤ x → x &&& y = 2*((x/2) &&& (y/2)) + (x%2)*(y%2)`. -/
 theorem cert_land_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_land pers st cx c = ok o) :
-    Sim absStmts (fun _ => True) pers lst o (certLandSpec (absCertCtx cx) (absNIdx c)) := by
+    Sim₀ absStmts pers lst o (certLandSpec (absCertCtx cx) (absNIdx c)) := by
   sorry
 
 /-- `cert_lor` — `1 ≤ x → x ||| y = 2*((x/2) ||| (y/2)) + (x%2 + y%2 - (x%2)*(y%2))`. -/
 theorem cert_lor_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_lor pers st cx c = ok o) :
-    Sim absStmts (fun _ => True) pers lst o (certLorSpec (absCertCtx cx) (absNIdx c)) := by
+    Sim₀ absStmts pers lst o (certLorSpec (absCertCtx cx) (absNIdx c)) := by
   sorry
 
 /-- `cert_xor` — `1 ≤ x → x ^^^ y = 2*((x/2) ^^^ (y/2)) + (x%2 + y%2) % 2`. -/
 theorem cert_xor_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_xor pers st cx c = ok o) :
-    Sim absStmts (fun _ => True) pers lst o (certXorSpec (absCertCtx cx) (absNIdx c)) := by
+    Sim₀ absStmts pers lst o (certXorSpec (absCertCtx cx) (absNIdx c)) := by
   sorry
 
 /-- `cert_div_mod_guards` — the `div`/`mod` branch's four guards. -/
 theorem cert_div_mod_guards_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {c : arena.handle.NIdx} {rec_rhs base_rhs : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_div_mod_guards pers st cx c rec_rhs base_rhs
       = ok o) :
-    Sim absStmts (fun _ => True) pers lst o
+    Sim₀ absStmts pers lst o
       (certDivModGuardsSpec (absCertCtx cx) (absNIdx c) (absEIdx rec_rhs) (absEIdx base_rhs)) := by
   sorry
 
@@ -681,10 +723,10 @@ theorem cert_div_mod_guards_refines {pers st lst} {cx : arena.decl_check.CertCtx
 four guards already built. -/
 theorem cert_div_mod_eqs_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {c : arena.handle.NIdx} {h1 h2 h3 h4 rec_rhs base_rhs : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_div_mod_eqs pers st cx c h1 h2 h3 h4 rec_rhs
       base_rhs = ok o) :
-    Sim absStmts (fun _ => True) pers lst o
+    Sim₀ absStmts pers lst o
       (certDivModEqsSpec (absCertCtx cx) (absNIdx c) (absEIdx h1) (absEIdx h2)
         (absEIdx h3) (absEIdx h4) (absEIdx rec_rhs) (absEIdx base_rhs)) := by
   sorry
@@ -692,26 +734,26 @@ theorem cert_div_mod_eqs_refines {pers st lst} {cx : arena.decl_check.CertCtx}
 /-- `cert_div_mod` — the `div`/`mod` branch, whole. -/
 theorem cert_div_mod_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_div_mod pers st cx c = ok o) :
-    Sim absStmts (fun _ => True) pers lst o (certDivModSpec (absCertCtx cx) (absNIdx c)) := by
+    Sim₀ absStmts pers lst o (certDivModSpec (absCertCtx cx) (absNIdx c)) := by
   sorry
 
 /-- `div_mod_cert_stmts_at` — the seven-way dispatch over the operation name. -/
 theorem div_mod_cert_stmts_at_refines {pers st lst} {cx : arena.decl_check.CertCtx}
     {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.div_mod_cert_stmts_at pers st cx c = ok o) :
-    Sim absStmts (fun _ => True) pers lst o (divModCertStmtsAtSpec (absCertCtx cx) (absNIdx c)) := by
+    Sim₀ absStmts pers lst o (divModCertStmtsAtSpec (absCertCtx cx) (absNIdx c)) := by
   sorry
 
 /-- `cert_ctx_bool` — the context, through the `Bool` type and its two
 constructors. -/
 theorem cert_ctx_bool_refines {pers st lst}
     {nat_ty x y one : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_ctx_bool pers st nat_ty x y one = ok o) :
-    Sim absCertCtx (fun _ => True) pers lst o
+    Sim₀ absCertCtx pers lst o
       (certCtxBoolFullSpec (absEIdx nat_ty) (absEIdx x) (absEIdx y)
         (absEIdx one)) := by
   sorry
@@ -720,10 +762,10 @@ theorem cert_ctx_bool_refines {pers st lst}
 theorem cert_ctx_nums_refines {pers st lst}
     {nat_ty x y one : arena.handle.EIdx} {ble_n : arena.handle.NIdx}
     {bool_ty b_t b_f : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_ctx_nums pers st nat_ty x y one ble_n bool_ty
       b_t b_f = ok o) :
-    Sim absCertCtx (fun _ => True) pers lst o
+    Sim₀ absCertCtx pers lst o
       (certCtxNumsFullSpec (absEIdx nat_ty) (absEIdx x) (absEIdx y) (absEIdx one)
         (absNIdx ble_n) (absEIdx bool_ty) (absEIdx b_t) (absEIdx b_f)) := by
   sorry
@@ -732,10 +774,10 @@ theorem cert_ctx_nums_refines {pers st lst}
 theorem cert_ctx_names_refines {pers st lst}
     {nat_ty x y one : arena.handle.EIdx} {ble_n : arena.handle.NIdx}
     {bool_ty b_t b_f z two : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_ctx_names st nat_ty x y one ble_n bool_ty b_t
       b_f z two = ok o) :
-    Sim absCertCtx (fun _ => True) pers lst o
+    Sim₀ absCertCtx pers lst o
       (certCtxNamesFullSpec (absEIdx nat_ty) (absEIdx x) (absEIdx y) (absEIdx one)
         (absNIdx ble_n) (absEIdx bool_ty) (absEIdx b_t) (absEIdx b_f) (absEIdx z)
         (absEIdx two)) := by
@@ -746,10 +788,10 @@ theorem cert_ctx_names_rest_refines {pers st lst}
     {nat_ty x y one : arena.handle.EIdx} {ble_n : arena.handle.NIdx}
     {bool_ty b_t b_f z two : arena.handle.EIdx}
     {mod_n div_n add_n mul_n sub_n gcd_n : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_ctx_names_rest st nat_ty x y one ble_n bool_ty
       b_t b_f z two mod_n div_n add_n mul_n sub_n gcd_n = ok o) :
-    Sim absCertCtx (fun _ => True) pers lst o
+    Sim₀ absCertCtx pers lst o
       (certCtxNamesRestFullSpec (absEIdx nat_ty) (absEIdx x) (absEIdx y)
         (absEIdx one) (absNIdx ble_n) (absEIdx bool_ty) (absEIdx b_t)
         (absEIdx b_f) (absEIdx z) (absEIdx two) (absNIdx mod_n) (absNIdx div_n)
@@ -760,9 +802,9 @@ theorem cert_ctx_names_rest_refines {pers st lst}
 bundled because a `let`-bound handle that outlives a `match` arm is a loan the
 Aeneas subset will not take (finding 11). -/
 theorem cert_ctx_refines {pers st lst} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.cert_ctx pers st = ok o) :
-    Sim absCertCtx (fun _ => True) pers lst o certCtxFullSpec := by
+    Sim₀ absCertCtx pers lst o certCtxFullSpec := by
   sorry
 
 /-- **`div_mod_cert_stmts` ⊑ `divModCertStmts`** — the pinned characterization
@@ -770,9 +812,9 @@ statements of a pin-certified WF-recursive op, in *open* form over
 `x := fvar 0`, `y := fvar 1`.  This is the entry the whole `cert_*` family
 exists to build, and the one lemma of the family a caller ever uses. -/
 theorem div_mod_cert_stmts_refines {pers st lst} {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.div_mod_cert_stmts pers st c = ok o) :
-    Sim absStmts (fun _ => True) pers lst o (divModCertStmts (absNIdx c)) := by
+    Sim₀ absStmts pers lst o (divModCertStmts (absNIdx c)) := by
   sorry
 
 /-! ### The certificates, checked -/
@@ -781,9 +823,9 @@ theorem div_mod_cert_stmts_refines {pers st lst} {c : arena.handle.NIdx} {o}
 application. -/
 theorem div_mod_cert_applied_hyps_refines {pers st lst}
     {base : arena.handle.EIdx} {hyps : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.div_mod_cert_applied_hyps pers st base hyps = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (divModCertAppliedHypsSpec (absEIdx base) (absEIdxL hyps)) := by
   sorry
 
@@ -791,9 +833,9 @@ theorem div_mod_cert_applied_hyps_refines {pers st lst}
 to the statement's free variables. -/
 theorem div_mod_cert_applied_refines {pers st lst}
     {proof_s : arena.handle.EIdx} {hyps : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.div_mod_cert_applied pers st proof_s hyps = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (divModCertApplied (absEIdx proof_s) (absEIdxL hyps)) := by
   sorry
 
@@ -802,11 +844,11 @@ proof's own guards. -/
 theorem div_mod_cert_guard_rest_refines {pers st lst} {vis : Std.U64} {rf lf}
     {c : arena.handle.NIdx} {ann_val : arena.handle.EIdx}
     {hyps : alloc.vec.Vec arena.handle.EIdx} {eq_e : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.div_mod_cert_guard_rest pers vis st rf c ann_val hyps
       eq_e = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (divModCertGuardRestSpec lf (absNIdx c) (absEIdx ann_val)
         (absEIdxL hyps) (absEIdx eq_e)) := by
   sorry
@@ -815,11 +857,11 @@ theorem div_mod_cert_guard_rest_refines {pers st lst} {vis : Std.U64} {rf lf}
 theorem div_mod_cert_guard_refines {pers st lst} {vis : Std.U64} {rf lf}
     {c : arena.handle.NIdx} {ann_val : arena.handle.EIdx}
     {hyps : alloc.vec.Vec arena.handle.EIdx} {eq_e proof : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.div_mod_cert_guard pers vis st rf c ann_val hyps eq_e
       proof = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (divModCertGuard lf (absNIdx c) (absEIdx ann_val) (absEIdxL hyps)
         (absEIdx eq_e) (absEIdx proof)) := by
   sorry
@@ -829,11 +871,11 @@ theorem div_mod_certs_guard_go_refines {pers st lst} {vis : Std.U64} {rf lf}
     {c : arena.handle.NIdx} {ann_val : arena.handle.EIdx}
     {stmts : alloc.vec.Vec (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)}
     {proofs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.div_mod_certs_guard_go pers vis st rf c ann_val stmts
       proofs i = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (divModCertsGuardGo lf (absNIdx c) (absEIdx ann_val)
         (absStmtsFrom stmts i) (absEIdxLFrom proofs i)) := by
   sorry
@@ -842,10 +884,10 @@ theorem div_mod_certs_guard_go_refines {pers st lst} {vis : Std.U64} {rf lf}
 theorem div_mod_certs_guard_refines {pers st lst} {vis : Std.U64} {rf lf}
     {ps : arena.nat_op_pin_set.INatOpPinSet} {c : arena.handle.NIdx}
     {ann_val : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.div_mod_certs_guard pers vis st ps rf c ann_val = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (divModCertsGuard (absINatOpPinSet ps) lf (absNIdx c) (absEIdx ann_val)) := by
   sorry
 
@@ -853,48 +895,48 @@ theorem div_mod_certs_guard_refines {pers st lst} {vis : Std.U64} {rf lf}
 eight-slot family, which the twin spells as a chain of handle comparisons
 inside `divModDeclPin` and `divModCertProofs`. -/
 theorem div_mod_slot_refines {pers st lst} {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.div_mod_slot st c = ok o) :
-    Sim absU (fun _ => True) pers lst o (divModSlotSpec (absNIdx c)) := by
+    Sim₀ absU pers lst o (divModSlotSpec (absNIdx c)) := by
   sorry
 
 theorem div_mod_slot_1_refines {pers st lst} {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.div_mod_slot_1 st c = ok o) :
-    Sim absU (fun _ => True) pers lst o (divModSlot1Spec (absNIdx c)) := by
+    Sim₀ absU pers lst o (divModSlot1Spec (absNIdx c)) := by
   sorry
 
 theorem div_mod_slot_2_refines {pers st lst} {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.div_mod_slot_2 st c = ok o) :
-    Sim absU (fun _ => True) pers lst o (divModSlot2Spec (absNIdx c)) := by
+    Sim₀ absU pers lst o (divModSlot2Spec (absNIdx c)) := by
   sorry
 
 /-- `div_mod_cert_proofs` ⊑ `divModCertProofs`. -/
 theorem div_mod_cert_proofs_refines {pers st lst}
     {ps : arena.nat_op_pin_set.INatOpPinSet} {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.div_mod_cert_proofs st ps c = ok o) :
-    Sim absEIdxL (fun _ => True) pers lst o
+    Sim₀ absEIdxL pers lst o
       (divModCertProofs (absINatOpPinSet ps) (absNIdx c)) := by
   sorry
 
 /-- `div_mod_decl_pin` ⊑ `divModDeclPin`. -/
 theorem div_mod_decl_pin_refines {pers st lst}
     {ps : arena.nat_op_pin_set.INatOpPinSet} {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.decl_check.div_mod_decl_pin st ps c = ok o) :
-    Sim absEIdx (fun _ => True) pers lst o
+    Sim₀ absEIdx pers lst o
       (divModDeclPin (absINatOpPinSet ps) (absNIdx c)) := by
   sorry
 
 /-- `div_mod_pin_guard` ⊑ `divModPinGuard`. -/
 theorem div_mod_pin_guard_refines {pers st lst} {vis : Std.U64} {rf lf}
     {ps : arena.nat_op_pin_set.INatOpPinSet} {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.div_mod_pin_guard pers vis st ps rf c = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (divModPinGuard (absINatOpPinSet ps) lf (absNIdx c)) := by
   sorry
 
@@ -906,11 +948,11 @@ theorem check_div_mod_cert_tail_refines {pers st lst} {vis : Std.U64} {rf lf}
     {stmts : alloc.vec.Vec (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)}
     {proofs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
     {applied_a : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.check_div_mod_cert_tail pers vis st mode rf c ann_val
       stmts proofs i applied_a = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (checkDivModCertTailSpec (ConRon.Refine.absMode mode) lf (absNIdx c)
         (absEIdx ann_val) (absStmtsFrom stmts i) (absEIdxLFrom proofs i)
         (absEIdx applied_a)) := by
@@ -922,11 +964,11 @@ theorem check_div_mod_cert_at_refines {pers st lst} {vis : Std.U64} {rf lf}
     {ann_val : arena.handle.EIdx}
     {stmts : alloc.vec.Vec (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)}
     {proofs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.check_div_mod_cert_at pers vis st mode rf c ann_val
       stmts proofs i = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (checkDivModCerts (ConRon.Refine.absMode mode) lf (absNIdx c)
         (absEIdx ann_val) (absStmtsFrom stmts i) (absEIdxLFrom proofs i)) := by
   sorry
@@ -937,11 +979,11 @@ theorem check_div_mod_certs_refines {pers st lst} {vis : Std.U64} {rf lf}
     {ann_val : arena.handle.EIdx}
     {stmts : alloc.vec.Vec (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)}
     {proofs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.check_div_mod_certs pers vis st mode rf c ann_val stmts
       proofs i = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (checkDivModCerts (ConRon.Refine.absMode mode) lf (absNIdx c)
         (absEIdx ann_val) (absStmtsFrom stmts i) (absEIdxLFrom proofs i)) := by
   sorry
@@ -950,11 +992,11 @@ theorem check_div_mod_certs_refines {pers st lst} {vis : Std.U64} {rf lf}
 theorem check_div_mod_pin_certs_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {c : arena.handle.NIdx}
     {value2 : arena.handle.EIdx} {ps : arena.nat_op_pin_set.INatOpPinSet} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.check_div_mod_pin_certs pers vis st mode rf c value2 ps
       = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (checkDivModPinCertsSpec (ConRon.Refine.absMode mode) lf (absNIdx c)
         (absEIdx value2) (absINatOpPinSet ps)) := by
   sorry
@@ -963,11 +1005,11 @@ theorem check_div_mod_pin_certs_refines {pers st lst} {vis : Std.U64} {rf lf}
 theorem check_div_mod_pin_at_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {c : arena.handle.NIdx}
     {value2 : arena.handle.EIdx} {ps : arena.nat_op_pin_set.INatOpPinSet} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.check_div_mod_pin_at pers vis st mode rf c value2 ps
       = ok o) :
-    Sim id (fun _ => True) pers lst o
+    Sim₀ id pers lst o
       (checkDivModPinAt (ConRon.Refine.absMode mode) lf (absNIdx c)
         (absEIdx value2) (absINatOpPinSet ps)) := by
   sorry
@@ -1062,22 +1104,33 @@ theorem check_div_mod_pin_attempt_refines₀ {pers st lst} {vis : Std.U64} {rf l
       · show absAErrKind _ = lAErrKind le
         rw [hk]; rfl
 
-/-- **`check_div_mod_pin_try` — one variant's attempt, then the loop.**  The
-attempt is `check_div_mod_pin_attempt` (the `orElseAttempt` seam,
-`check_div_mod_pin_attempt_refines₀` above, lockstep since task
-#97-T2-LOCKSTEP D4); what is left is the twin's `match` on the step. -/
+/-- **`check_div_mod_pin_try` — one variant's attempt, then the loop**
+(restated lockstep, task #97-T2-LOCKSTEP lane Checker).  The Rust function is
+the loop's body PAST the two guards, so its twin is `checkDivModPinTrySpec`
+at the variant `variants[i]` and the rest of the list, not the whole loop.
+The attempt is `check_div_mod_pin_attempt` (the `orElseAttempt` seam,
+`check_div_mod_pin_attempt_refines₀` above), then the four-way `match`.
+
+**Open, and blocked on a ruling, not on work**: the seam lemma takes the
+Rust attempt's `ScratchFrame` (pins, persistent tiers and flags unchanged),
+which nothing proves; DESIGN's lane Checker section prices it against a Rust
+change that makes it unnecessary.  The loop and this step are one mutual
+recursion, proved together once that is settled. -/
 theorem check_div_mod_pin_try_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {c : arena.handle.NIdx}
     {value2 : arena.handle.EIdx}
     {variants : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {i : Std.Usize}
     {tried : alloc.vec.Vec Std.U32} {o} {ltried : List String}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    {ps : arena.nat_op_pin_set.INatOpPinSet}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
+    (hps : variants.val[i.val]? = some ps)
     (hrun : arena.decl_check.check_div_mod_pin_try pers vis st mode rf c value2
       variants i tried = ok o) :
-    Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
-      (checkDivModPinLoop (ConRon.Refine.absMode mode) lf (absNIdx c)
-        (absEIdx value2) (absINatOpPinSetLFrom variants i) ltried) := by
+    Sim₀ (fun _ : Unit => ()) pers lst o
+      (checkDivModPinTrySpec (ConRon.Refine.absMode mode) lf (absNIdx c)
+        (absEIdx value2) (absINatOpPinSet ps)
+        (absINatOpPinSetLFrom variants i).tail ltried) := by
   sorry
 
 /-- `check_div_mod_pin_loop` ⊑ `checkDivModPinLoop` at the cursor. -/
@@ -1086,11 +1139,11 @@ theorem check_div_mod_pin_loop_refines {pers st lst} {vis : Std.U64} {rf lf}
     {value2 : arena.handle.EIdx}
     {variants : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {i : Std.Usize}
     {tried : alloc.vec.Vec Std.U32} {o} {ltried : List String}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.check_div_mod_pin_loop pers vis st mode rf c value2
       variants i tried = ok o) :
-    Sim (fun _ : Unit => ()) (fun _ => True) pers lst o
+    Sim₀ (fun _ : Unit => ()) pers lst o
       (checkDivModPinLoop (ConRon.Refine.absMode mode) lf (absNIdx c)
         (absEIdx value2) (absINatOpPinSetLFrom variants i) ltried) := by
   sorry
@@ -1098,31 +1151,31 @@ theorem check_div_mod_pin_loop_refines {pers st lst} {vis : Std.U64} {rf lf}
 /-- `bool_ctor_typed` — is this `Bool` constructor stored at the pinned type? -/
 theorem bool_ctor_typed_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     {n : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
     (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.decl_check.bool_ctor_typed pers vis st rf2 n = ok o) :
-    Sim id (fun _ => True) pers lst o (boolCtorTypedSpec lf2 (absNIdx n)) := by
+    Sim₀ id pers lst o (boolCtorTypedSpec lf2 (absNIdx n)) := by
   sorry
 
 /-- `div_mod_env_guard_rest` — `divModEnvGuard`'s tail past the operation's
 own dependencies. -/
 theorem div_mod_env_guard_rest_refines {pers st lst} {vis : Std.U64} {rf2 lf2} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
     (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.decl_check.div_mod_env_guard_rest pers vis st rf2 = ok o) :
-    Sim id (fun _ => True) pers lst o (divModEnvGuardRestSpec lf2) := by
+    Sim₀ id pers lst o (divModEnvGuardRestSpec lf2) := by
   sorry
 
 /-- `div_mod_env_guard` ⊑ `divModEnvGuard`. -/
 theorem div_mod_env_guard_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
     {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
     (hvis : absU vis = lf2.visibleBelow)
     (hrun : arena.decl_check.div_mod_env_guard pers vis st rf2 c = ok o) :
-    Sim id (fun _ => True) pers lst o (divModEnvGuard lf2 (absNIdx c)) := by
+    Sim₀ id pers lst o (divModEnvGuard lf2 (absNIdx c)) := by
   sorry
 
 /-- `check_div_mod_pin_at_pre` — `checkDivModPin`'s body at the restricted
@@ -1131,12 +1184,12 @@ theorem check_div_mod_pin_at_pre_refines {pers st lst} {rf2 lf2 lf}
     {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {k_pre : Std.U64}
     {c : arena.handle.NIdx} {value2 : arena.handle.EIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
     (hkpre : lf = lf2.restrictTo (absU k_pre))
     (hrun : arena.decl_check.check_div_mod_pin_at_pre pers st mode pins rf2 k_pre c
       value2 = ok o) :
-    SimRel (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
       (do checkDivModPinLoop (ConRon.Refine.absMode mode) lf (absNIdx c)
             (absEIdx value2) (absINatOpPinSetL pins) []
           pure lf2) := by
@@ -1149,11 +1202,11 @@ theorem check_div_mod_pin_refines {pers st lst} {rf2 lf2 lf}
     {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet} {k_pre : Std.U64}
     {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf2 lf2) (hfinv : IFEnvInv rf2)
     (hkpre : lf = lf2.restrictTo (absU k_pre))
     (hrun : arena.decl_check.check_div_mod_pin pers st mode pins rf2 k_pre c = ok o) :
-    SimRel (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
       (do checkDivModPin (ConRon.Refine.absMode mode) (absINatOpPinSetL pins) lf lf2
             (absNIdx c)
           pure lf2) := by

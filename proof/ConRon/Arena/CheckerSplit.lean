@@ -64,23 +64,23 @@ does this, clause for clause. -/
 def installConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
     AM IConstantVal := do
   if (fe.find? cv.name).isSome then
-    fail (.invalid s!"duplicate declaration {← readName cv.name}")
+    fail (.invalid "duplicate declaration")
   if (← reservedBasisNames).contains cv.name then
-    fail (.invalid s!"reserved basis name {← readName cv.name}")
+    fail (.invalid "reserved basis name")
   if ← NIdx.isProjFnShape cv.name then
-    fail (.invalid s!"reserved projection name {← readName cv.name}")
+    fail (.invalid "reserved projection name")
   unless nameNodup cv.levelParams do
-    fail (.invalid s!"duplicate universe parameters in {← readName cv.name}")
+    fail (.invalid "duplicate universe parameters")
   unless ← looseBVarsBoundedFast coreWalkFuel 0 cv.type do
-    fail (.invalid s!"loose bound variable in type of {← readName cv.name}")
+    fail (.invalid "loose bound variable in type")
   if ← hasFvarFast coreWalkFuel cv.type then
-    fail (.invalid s!"unexpected free variable in type of {← readName cv.name}")
+    fail (.invalid "unexpected free variable in type")
   let type ← annotateCore mode fe checkFuel 0 cv.type
   unless ← allLevelParamsDefined cv.levelParams type do
     fail (.invalid
-      s!"undeclared universe parameter in type of {← readName cv.name}")
+      "undeclared universe parameter in type")
   unless ← constsResolveFFast fe type do
-    fail (← unresolvedConstsError s!"type of {← readName cv.name}" type)
+    fail (← unresolvedConstsError "type" type)
   pure { cv with type := type }
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:87-100 installValue — the
@@ -89,15 +89,15 @@ the annotation of the value. -/
 def installValue (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     (value : EIdx) : AM EIdx := do
   unless ← looseBVarsBoundedFast coreWalkFuel 0 value do
-    fail (.invalid s!"loose bound variable in value of {← readName cv.name}")
+    fail (.invalid "loose bound variable in value")
   if ← hasFvarFast coreWalkFuel value then
-    fail (.invalid s!"unexpected free variable in value of {← readName cv.name}")
+    fail (.invalid "unexpected free variable in value")
   let value ← annotateCore mode fe checkFuel 0 value
   unless ← allLevelParamsDefined cv.levelParams value do
     fail (.invalid
-      s!"undeclared universe parameter in value of {← readName cv.name}")
+      "undeclared universe parameter in value")
   unless ← constsResolveFFast fe value do
-    fail (← unresolvedConstsError s!"value of {← readName cv.name}" value)
+    fail (← unresolvedConstsError "value" value)
   pure value
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:102-119 checkValueGroup —

@@ -131,6 +131,12 @@ section for every task you land.
   of bisection.  Iterate with `lake build <module>`, or with
   `lake env lean -Dbackward.isDefEq.respectTransparency=false
   -Dbackward.do.legacy=true <file>`.
+* **Never run `lake -d proof …` from the worktree root.**  The root has no
+  `lean-toolchain` matching `proof/`'s, so elan picks a different Lean (4.34
+  on 2026-09-23) and the build rewrites shared con-leche `.olean`s under
+  `_tmp/aeneas-lean` with an incompatible header, breaking every other
+  agent's build until restored from `_tmp/lake-cache`.  Always `cd proof`
+  (or `env -C proof lake build …`).
 * **An agent's `cd` does not persist between tool calls.**  `cd <main tree>
   && python3 …` in one call edits the MAIN TREE, and the next call's
   `git commit` then runs back in the worktree — so the edit lands on the

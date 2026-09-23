@@ -14,8 +14,10 @@ tiers down (DESIGN §8.4, "correctness before proofs"):
 The comparison is over the **whole outcome**: an accept must meet an accept
 at the same environment — every constant, its annotated type and its stored
 value compared as `ConstantInfo` values — and a failure must meet a failure
-of the same KIND and the same MESSAGE (`errEq`).  So the rejects and the
-declines below are real tests, not "both sides threw".
+of the same KIND (`errEq`; messages are not compared, DESIGN §3.1 — since
+task #97-T2-LOCKSTEP lane Checker the twin's declines carry the Rust port's
+constant messages, with no declaration name read back).  So the rejects and
+the declines below are real tests, not "both sides threw".
 
 **Why this file carries the weight of the phase.**  `scripts/diff-e2e.sh`
 cannot reach an accept yet: every one of the 348 fixtures declares an
@@ -53,13 +55,14 @@ private def F : Nat := 200
 private def OPS : ConLeche.CheckerOps ConLeche.CheckM := ConLeche.fueledOps MU F
 
 /-- con-leche: none — the arena's error against con-leche's: same
-constructor, same message.  The arena's fourth constructor (`native`) has no
-con-leche counterpart and never matches, which is right: a `native` claims
-nothing. -/
+constructor; the message is not compared (DESIGN §3.1: the twin declines with
+the Rust port's constant messages, task #97-T2-LOCKSTEP lane Checker).  The
+arena's fourth constructor (`native`) has no con-leche counterpart and never
+matches, which is right: a `native` claims nothing. -/
 private def errEq : CheckError → ConLeche.CheckError → Bool
-  | .notImplemented a, .notImplemented b => a == b
-  | .invalid a, .invalid b => a == b
-  | .internal a, .internal b => a == b
+  | .notImplemented _, .notImplemented _ => true
+  | .invalid _, .invalid _ => true
+  | .internal _, .internal _ => true
   | _, _ => false
 
 /-- con-leche: none — the arena's error against con-leche's: same
@@ -67,8 +70,8 @@ constructor, message NOT compared (DESIGN §3.1).  The two-phase fold's check
 half (`checkValueGroup`) declines with the Rust port's constant messages,
 which carry no declaration name (task #97-T2-LOCKSTEP step 1: the twin reads
 no name on those paths, as `check_value_group_{value,tail}` do not), so
-`chkInstall` compares the kind; the one-phase `chkDecl`/`chkDecls` still
-compare messages with `errEq`. -/
+`chkInstall` compares the kind — and since task #97-T2-LOCKSTEP lane Checker
+so does `errEq`, the one-phase `chkDecl`/`chkDecls`' comparison. -/
 private def errKindEq : CheckError → ConLeche.CheckError → Bool
   | .notImplemented _, .notImplemented _ => true
   | .invalid _, .invalid _ => true

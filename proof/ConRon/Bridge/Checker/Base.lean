@@ -140,6 +140,39 @@ theorem nameNodup_spec {st : EStore} (hwf : StoreWF st) :
         simp only [nameNodup, ConLeche.Name.nodup,
           denoteNList_contains hwf as ys has a y ha, ih ys has]
 
+/-- con-leche: none — **a name handle's tag is its view's constructor**
+(unconditionally: `NTables.get` dispatches on the tag).  What turns the
+tag-first twin's tag test into the con-leche constructor test. -/
+theorem NTables.tagOf_of_get {t : NTables} {i : NIdx} {v : NNodeView}
+    (h : t.get i = some v) : i.tag = v.tagOf := by
+  simp only [NTables.get] at h
+  split at h
+  · rename_i h1
+    simp only [Option.map_eq_some_iff] at h
+    obtain ⟨_, _, rfl⟩ := h
+    exact eq_of_beq h1
+  · split at h
+    · rename_i _ h1
+      simp only [Option.map_eq_some_iff] at h
+      obtain ⟨_, _, rfl⟩ := h
+      exact eq_of_beq h1
+    · split at h
+      · rename_i _ _ h1
+        simp only [Option.map_eq_some_iff] at h
+        obtain ⟨_, _, rfl⟩ := h
+        exact eq_of_beq h1
+      · exact absurd h (by simp)
+
+/-- con-leche: none — `NTables.tagOf_of_get` at the store. -/
+theorem NStore.tagOf_of_view {st : NStore} {i : NIdx} {v : NNodeView}
+    (h : st.view i = some v) : i.tag = v.tagOf := by
+  simp only [NStore.view] at h
+  split at h
+  · exact NTables.tagOf_of_get h
+  · split at h
+    · exact NTables.tagOf_of_get h
+    · exact absurd h (by simp)
+
 /-- con-leche: ConLeche/Kernel/Level.lean:223-230 Name.isProjFnShape — the
 handle test is the name test: two `viewN` reads, two `denoteN` inversions, and
 the four shapes con-leche's `match` distinguishes. -/
@@ -152,36 +185,52 @@ theorem isProjFnShape_run {st : EStore} {n : NIdx} {x : ConLeche.Name}
   obtain ⟨rk, hrk⟩ := hok.wf
   have hns : NStoreWF s.store.ns := hrk.nsWF
   obtain ⟨rkn, hn⟩ := hns
-  simp only [NIdx.isProjFnShape] at hrun
-  obtain ⟨v, s₁, h1, h2⟩ := AM.bind_ok hrun
-  obtain ⟨rfl, hv⟩ := viewN_run h1
+  -- the tag-first twin (task #97-T2-LOCKSTEP lane Checker, D1): the handle's
+  -- tag is its view's constructor, and a denoting handle has a view
+  obtain ⟨v, hv⟩ := denoteN_view hd
+  have htv := NStore.tagOf_of_view hv
   rw [denoteN_unfold hn hv] at hd
+  simp only [NIdx.isProjFnShape] at hrun
   cases v with
   | anonymous =>
     simp only [denoteNView, Option.some.injEq] at hd
     subst hd
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
+    rw [if_neg (by rw [htv]; simp only [NNodeView.tagOf]; decide)] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨rfl, rfl⟩
   | str p t =>
     simp only [denoteNView, Option.map_eq_some_iff] at hd
     obtain ⟨q, _, rfl⟩ := hd
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
+    rw [if_neg (by rw [htv]; simp only [NNodeView.tagOf]; decide)] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨rfl, rfl⟩
   | num p k =>
     simp only [denoteNView, Option.map_eq_some_iff] at hd
     obtain ⟨q, hq, rfl⟩ := hd
-    obtain ⟨w, s₂, h3, h4⟩ := AM.bind_ok h2
-    obtain ⟨rfl, hw⟩ := viewN_run h3
+    rw [if_pos (by rw [htv]; simp only [NNodeView.tagOf]; decide)] at hrun
+    obtain ⟨v', s₁, h1, h2⟩ := AM.bind_ok hrun
+    obtain ⟨rfl, hv'⟩ := viewN_run h1
+    rw [hv] at hv'
+    obtain rfl := Option.some.inj hv'
+    dsimp only at h2
+    obtain ⟨w, hw⟩ := denoteN_view hq
+    have htw := NStore.tagOf_of_view hw
     rw [denoteN_unfold hn hw] at hq
     cases w with
     | anonymous =>
       simp only [denoteNView, Option.some.injEq] at hq
       subst hq
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
+      rw [if_neg (by rw [htw]; simp only [NNodeView.tagOf]; decide)] at h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       exact ⟨rfl, rfl⟩
     | str p' t' =>
       simp only [denoteNView, Option.map_eq_some_iff] at hq
       obtain ⟨q', _, rfl⟩ := hq
+      rw [if_pos (by rw [htw]; simp only [NNodeView.tagOf]; decide)] at h2
+      obtain ⟨w', s₂, h3, h4⟩ := AM.bind_ok h2
+      obtain ⟨rfl, hw'⟩ := viewN_run h3
+      rw [hw] at hw'
+      obtain rfl := Option.some.inj hw'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
       refine ⟨rfl, ?_⟩
       simp only [ConLeche.Name.isProjFnShape]
@@ -193,7 +242,8 @@ theorem isProjFnShape_run {st : EStore} {n : NIdx} {x : ConLeche.Name}
     | num p' k' =>
       simp only [denoteNView, Option.map_eq_some_iff] at hq
       obtain ⟨q', _, rfl⟩ := hq
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
+      rw [if_neg (by rw [htw]; simp only [NNodeView.tagOf]; decide)] at h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       exact ⟨rfl, rfl⟩
 
 /-! ## The per-declaration constant check -/
@@ -258,7 +308,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
     fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
   simp only [Arena.checkConstantVal] at hrun
   -- 1. the duplicate-declaration guard
-  obtain ⟨hdup, r1⟩ := AM.dguard_ok hnever hrun
+  obtain ⟨hdup, r1⟩ := AM.dguard_ok AM.Never.fail_any hrun
   replace r1 := AM.pure_bind_ok r1
   have hfind : fe.find? cv.name = none := by
     cases hf : fe.find? cv.name with
@@ -274,7 +324,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
   have hlps2 : Frontend.denoteNList s2.store.ns cv.levelParams
       = some c.levelParams := denoteNList_ext hp2.ext.lss.ls.ns _ _ hlps
   have hty2 : denoteE s2.store cv.type = some c.type := denote_ext hty hp2.ext
-  obtain ⟨hres, r3⟩ := AM.dguard_ok hnever r2
+  obtain ⟨hres, r3⟩ := AM.dguard_ok AM.Never.fail_any r2
   replace r3 := AM.pure_bind_ok r3
   have hresP : ConLeche.reservedBasisNames.contains c.name = false := by
     have hc := denoteNList_contains hck2.state.wf rs reservedBasisNameValues
@@ -286,7 +336,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
   -- 3. the reserved-projection-name guard
   obtain ⟨b3, s3, g3r, r4⟩ := AM.bind_ok r3
   obtain ⟨hs3, hb3⟩ := isProjFnShape_run hck2.state rfl hnm2 g3r
-  obtain ⟨hproj, r5⟩ := AM.dguard_ok hnever r4
+  obtain ⟨hproj, r5⟩ := AM.dguard_ok AM.Never.fail_any r4
   replace r5 := AM.pure_bind_ok r5
   have hprojP : c.name.isProjFnShape = false := by
     rw [← hb3]
@@ -294,7 +344,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
     | false => rfl
     | true => rw [hb] at hproj; exact absurd rfl hproj
   -- 4. the duplicate-universe-parameter guard
-  obtain ⟨hnod, r6⟩ := AM.dunless_ok hnever r5
+  obtain ⟨hnod, r6⟩ := AM.dunless_ok AM.Never.fail_any r5
   replace r6 := AM.pure_bind_ok r6
   have hnodP : ConLeche.Name.nodup c.levelParams = true := by
     rw [← nameNodup_spec hck2.state.wf cv.levelParams c.levelParams hlps2]
@@ -307,7 +357,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
       t.pins = s3.pins ∧ RelV (Expr.looseBVarsBounded 0) s3.store cv.type r)
     rfl g5r (ConRon.Bridge.ExprOps.looseBVarsBoundedFast_spec coreWalkFuel 0 s3 cv.type
       hck2.state (by rw [hty2]; rfl))
-  obtain ⟨hlbb, r8⟩ := AM.dunless_ok hnever r7
+  obtain ⟨hlbb, r8⟩ := AM.dunless_ok AM.Never.fail_any r7
   replace r8 := AM.pure_bind_ok r8
   have hlbbP : c.type.looseBVarsBounded 0 = true := by
     rw [← h5r c.type hty2]; exact hlbb
@@ -325,7 +375,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
       t.pins = s5.pins ∧ RelV Expr.hasFvar s5.store cv.type r)
     rfl g6r (ConRon.Bridge.ExprOps.hasFvarFast_spec coreWalkFuel s5 cv.type hck5.state
       (by rw [hty5]; rfl))
-  obtain ⟨hfv, r10⟩ := AM.dguard_ok hnever r9
+  obtain ⟨hfv, r10⟩ := AM.dguard_ok AM.Never.fail_any r9
   replace r10 := AM.pure_bind_ok r10
   have hfvP : c.type.hasFvar = false := by
     rw [← h6r c.type hty5]
@@ -355,7 +405,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
   obtain ⟨b8, s8, g8r, r12⟩ := AM.bind_ok r11
   obtain ⟨h8st, h8c, h8p, h8r⟩ :=
     allLevelParamsDefined_run hck7.state hlps7 hv7 g8r
-  obtain ⟨hlpd, r13⟩ := AM.dunless_ok hnever r12
+  obtain ⟨hlpd, r13⟩ := AM.dunless_ok AM.Never.fail_any r12
   replace r13 := AM.pure_bind_ok r13
   have hlpdP : v.allLevelParamsDefined c.levelParams = true := by
     rw [← h8r]; exact hlpd
@@ -372,7 +422,7 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
   obtain ⟨h9st, h9c, h9p, h9r⟩ :=
     constsResolveFFast_run hck8 hv8 g9r
   obtain ⟨hcr, r15⟩ := AM.dunless_ok
-    (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail_any) r14
+    (AM.Never.bind fun _ => AM.Never.fail_any) r14
   replace r15 := AM.pure_bind_ok r15
   have hcrP : v.constsResolve env = true := by rw [← h9r]; exact hcr
   have hck9 : CheckOK μ env fe s9 :=

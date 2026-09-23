@@ -408,6 +408,16 @@ theorem errArm_ok {γ : Type} {e : kernel.core_types.CheckError} {st : arena.mon
     ErrArm (γ := γ) (ok (.Err e, st)) e := by
   intro o st' h; cases Result.ok_injective h; rfl
 
+/-- An error arm that does Rust-only work before returning the error (the
+Rust's `let st3 ← drop_scratch st2; ok (r, st3)` after a failed body: the twin
+throws, and the error claims nothing about the state). -/
+theorem errArm_bind {α γ : Type} {e : kernel.core_types.CheckError} {m : Result α}
+    {k : α → Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
+    (h : ∀ a, ErrArm (k a) e) : ErrArm (m >>= k) e := by
+  intro o st' hm
+  obtain ⟨a, _, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  exact h a o st' h2
+
 theorem uncurry_apply_proj {α β γ : Type} (f : α → β → γ) (p : α × β) :
     Aeneas.Std.uncurry f p = f p.1 p.2 := by
   obtain ⟨a, b⟩ := p; rfl
@@ -462,6 +472,15 @@ theorem LS.twin_pure_bind {α β δ : Type} {pers : arena.store.PersTier} {R : �
     {lst : AState} {v : β} {g : β → AM δ} (h : LS pers R m lst (g v)) :
     LS pers R m lst (Pure.pure v >>= g) := by
   rw [pure_bind]; exact h
+
+/-- The twin's tail action is a bind with `pure` (task #97-T2-LOCKSTEP lane
+Checker): the Rust still has a bind to make — `drop_scratch` and then the leaf
+— where the twin's program ENDS in the partner action (`…; dropScratch`). -/
+theorem LS.twin_bind_pure {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β} (h : LS pers R m lst (x >>= fun b => Pure.pure b)) :
+    LS pers R m lst x := by
+  rw [bind_pure] at h; exact h
 
 /-- A twin-only `get`. -/
 theorem LS.twin_get_bind {α δ : Type} {pers : arena.store.PersTier} {R : α → δ → Prop}
@@ -964,6 +983,13 @@ def firstTimed (label : String) (alts : List (TSyntax `tactic)) : TacticM Unit :
     failRef.set (fs.push (f!"{label}: " ++ (← Meta.ppExpr (← instantiateMVars (← getMainTarget)))))
   throwError "{label}: no alternative closes the goal"
 
+/-- **A tier the lanes extend** (task #97-T2-LOCKSTEP lane Checker): a side
+goal that needs a lane's own relation facts (the checker tier's `IFEnvRel`
+counters) — each lane adds one `macro_rules` alternative; the default fails,
+so it costs nothing where no lane has one. -/
+syntax "lockstep_side_ext" : tactic
+macro_rules | `(tactic| lockstep_side_ext) => `(tactic| fail "lockstep_side_ext: no lane extension")
+
 def sideCheap : TacticM (List (TSyntax `tactic)) := do return [
     ← `(tactic| assumption),
     ← `(tactic| rfl),
@@ -986,7 +1012,8 @@ def sideDear : TacticM (List (TSyntax `tactic)) := do return [
     ← `(tactic| (simp_all only [lockstep_simp]; done)),
     ← `(tactic| (simp_all (config := { decide := true }) only [lockstep_simp]; done)),
     ← `(tactic| (simp_all only [lockstep_simp, Bool.and_eq_true]; scalar_tac)),
-    ← `(tactic| (simp_all; done))]
+    ← `(tactic| (simp_all; done)),
+    ← `(tactic| lockstep_side_ext)]
 
 /-- Side goals: the relation and the invariant at the current state, an
 argument correspondence, a branch condition.  Cheap alternatives first. -/
@@ -999,7 +1026,8 @@ elab "lockstep_side" : tactic => do
     firstTimed "sideA" [← `(tactic| assumption), ← `(tactic| rfl),
       ← `(tactic| (simp only [lockstep_simp]; done)),
       ← `(tactic| (simp only [lockstep_simp] at *; omega)), ← `(tactic| scalar_tac),
-      ← `(tactic| (simp_all only [lockstep_simp]; done)), ← `(tactic| (simp_all; done))]
+      ← `(tactic| (simp_all only [lockstep_simp]; done)), ← `(tactic| (simp_all; done)),
+      ← `(tactic| lockstep_side_ext)]
   else
     try firstTimed "side" ((← sideCheap) ++ (← sideDear))
     catch e =>
@@ -1021,7 +1049,7 @@ elab "lockstep_side_dear" : tactic => do
 /-- A twin test the cheap tier could not decide: arithmetic, then the context. -/
 elab "lockstep_side_ite" : tactic => do
   firstTimed "sideI" [← `(tactic| scalar_tac), ← `(tactic| (simp_all only [lockstep_simp]; done)),
-    ← `(tactic| (simp_all only [lockstep_simp, beq_iff_eq]; scalar_tac))]
+    ← `(tactic| lockstep_side_ext)]
 
 elab "lockstep_stats" : tactic => do
   let m ← statsRef.get
@@ -1066,12 +1094,9 @@ macro_rules
   | `(tactic| lockstep_errarm) => `(tactic| first
       | exact errArm_ok
       | (show ErrArm (ok _ >>= _) _; rw [bind_tc_ok]; exact errArm_ok)
-      | (apply errArm_of_eq; simp only [bind_tc_ok, Aeneas.Std.uncurry_apply_pair]; try rfl; done)
+      | (apply errArm_of_eq; simp only [bind_tc_ok, Aeneas.Std.uncurry_apply_pair])
       | (intro o st2 h; simp only [Aeneas.Std.uncurry_apply_pair, bind_tc_ok, Result.ok.injEq, Prod.mk.injEq] at h; all_goals first | exact h.1.symm | exact h.symm)
-      -- the Aeneas `let (st1, body) ← let (r2, st3) := y; …` shape: reduce it all
-      | (simp only [bind_tc_ok, Aeneas.Std.uncurry_apply_pair]; exact errArm_ok)
-      | (intro o st2 h; simp only [bind_tc_ok, Aeneas.Std.uncurry_apply_pair, Result.ok.injEq,
-          Prod.mk.injEq] at h; obtain ⟨h1, -⟩ := h; exact h1.symm))
+      | (refine errArm_bind fun _ => ?_; exact errArm_ok))
 
 /-- Apply `rule` to `g` and return its new goals by binder name. -/
 def applyRule (g : MVarId) (rule : Name) : MetaM (Array (Name × MVarId)) := do
@@ -1219,15 +1244,42 @@ def clearStale (g : MVarId) : MetaM MVarId := g.withContext do
         g ← (try g.clear d.fvarId catch _ => pure g)
   return g
 
-/-- Split a conjunction hypothesis into its parts (recursively on the right). -/
-partial def splitAnd (g : MVarId) (fv : FVarId) : MetaM MVarId := g.withContext do
-  let ty ← whnfR (← instantiateMVars (← fv.getType))
-  unless ty.isAppOfArity ``And 2 do return g
-  let subs ← g.cases fv
-  let some sg := subs[0]? | return g
-  match sg.fields[1]? with
-  | some (Expr.fvar f2) => splitAnd sg.mvarId f2
-  | _ => return sg.mvarId
+/-- **Pair answers and conjunctive relations** (task #97-T2-LOCKSTEP lane
+Checker).  A twin answer `b` of a pair type is taken apart (the twin's own
+`let (x, y) ← …` then reduces), every relation hypothesis `hR` has its pair
+projections reduced, a syntactic conjunction is split, and each equation
+component is `subst`ed where it can be.  Only a syntactic `And` is split: a
+named relation (`IFEnvRelI`) stays whole, because the specs take it whole. -/
+partial def splitRels (g : MVarId) : TacticM MVarId := g.withContext do
+  -- a pair-valued twin answer
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    if d.userName.eraseMacroScopes == `b then
+      let ty ← whnfR (← instantiateMVars d.type)
+      if ty.isAppOfArity ``Prod 2 then
+        let gs ← g.cases d.fvarId
+        if h : gs.size = 1 then return ← splitRels gs[0].mvarId
+  -- a relation hypothesis
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    if d.userName.eraseMacroScopes == `hR then
+      let hi := mkIdent `hR
+      let hl := mkIdent `hRl
+      let rest ← runOn g (evalT `(tactic| try dsimp only at $hi:ident))
+      let [g1] := rest | return g
+      let t ← g1.withContext do
+        match (← getLCtx).findFromUserName? `hR with
+        | some d => instantiateMVars d.type
+        | none => pure (mkConst ``True)
+      if t.isAppOfArity ``And 2 then
+        let rest ← runOn g1 (evalT `(tactic| (obtain ⟨$hl:ident, $hi:ident⟩ := $hi:ident; try subst $hl:ident)))
+        let [g2] := rest | return g1
+        return ← splitRels g2
+      else
+        let rest ← runOn g1 (evalT `(tactic| first | subst $hi:ident | skip))
+        let [g2] := rest | return g1
+        return g2
+  return g
 
 /-- Tidy a continuation: `subst` the answer relation, normalise the heads. -/
 def tidy (g : MVarId) (hR : Option Name) : TacticM (List MVarId) := do
@@ -1256,15 +1308,7 @@ def tidy (g : MVarId) (hR : Option Name) : TacticM (List MVarId) := do
             | rw [$hi:ident]
             | skip)
       | none => pure ()
-  -- a conjunction that did not `subst` (a relation with side facts): its parts,
-  -- each a candidate for `assumption`
-  let rest ← match hR with
-    | some h => rest.mapM fun g => g.withContext do
-        match (← getLCtx).findFromUserName? h with
-        | some d => splitAnd g d.fvarId
-        | none => pure g
-    | none => pure rest
-  rest.mapM fun g => do clearStale (← normGoal g)
+  rest.mapM fun g => do clearStale (← normGoal (← splitRels g))
 
 /-- The Rust computation's shape. -/
 inductive RKind where
@@ -1365,7 +1409,7 @@ def stepPure (g : MVarId) : TacticM (List MVarId) := g.withContext do
   return []
 
 /-- The Rust side moves: a bind, a leaf, or a tail call. -/
-def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.withContext do
+partial def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.withContext do
   if m.isAppOfArity ``Bind.bind 6 then
     let f := m.getArg! 4
     let kind ← classify (← inferType f).appArg!
@@ -1397,7 +1441,20 @@ def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.withContext 
     catch e =>
       s.restore
       match kind with
-      | .state | .write => throw e
+      | .state | .write =>
+        -- the twin ends in the partner action where the Rust still binds.
+        -- Atomic: the bind is taken on the rewritten goal at once, or the
+        -- rewrite is undone — a bare `x >>= pure` goal would be normalised back
+        -- to `x` and `lockstep` would loop on it (task #97-T2-LOCKSTEP lane
+        -- ExprOps: `inst_lp_fast_ls` never terminated).
+        if !(x.isAppOfArity ``Bind.bind 6) then
+          try
+            let gs ← applyRule g ``LS.twin_bind_pure
+            let g' ← pick gs `h
+            let x' := (← instantiateMVars (← g'.getType)).getAppArgs.back!
+            return ← rustStep g' m x'
+          catch _ => s.restore
+        throw e
       | _ => pure ()
     try
       let gs ← applyRule g ``LSP.bind

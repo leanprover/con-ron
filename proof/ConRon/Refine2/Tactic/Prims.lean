@@ -1618,4 +1618,68 @@ Registered BEFORE the `sorry` statement below, so `lockstep` tries it first. -/
       (Arena.internLevel (ConRon.Refine.absLevel l)) :=
   LS.ofSim₀ fun _ h => intern_level_run₀ hrel hinv hwf h
 
+/-! ## Extension alternatives (task #97-T2-LOCKSTEP lane ExprOps)
+
+Added as `macro_rules` rather than edits of the core's alternatives: a later
+`macro_rules` is tried first, and falls back to the core's on failure. -/
+
+namespace ConRon.Refine2.Lockstep
+
+/-- The ExprOps walks' error arms: the `uncurry` repack must close outright
+(`done`), and the Aeneas `let (st1, body) ← let (r2, st3) := y; …` shape is
+reduced whole. -/
+macro_rules
+  | `(tactic| lockstep_errarm) => `(tactic| first
+      | exact errArm_ok
+      | (show ErrArm (ok _ >>= _) _; rw [bind_tc_ok]; exact errArm_ok)
+      | (apply errArm_of_eq; simp only [bind_tc_ok, Aeneas.Std.uncurry_apply_pair]; try rfl; done)
+      | (intro o st2 h; simp only [Aeneas.Std.uncurry_apply_pair, bind_tc_ok, Result.ok.injEq, Prod.mk.injEq] at h; all_goals first | exact h.1.symm | exact h.symm)
+      | (simp only [bind_tc_ok, Aeneas.Std.uncurry_apply_pair]; exact errArm_ok)
+      | (intro o st2 h; simp only [bind_tc_ok, Aeneas.Std.uncurry_apply_pair, Result.ok.injEq,
+          Prod.mk.injEq] at h; obtain ⟨h1, -⟩ := h; exact h1.symm))
+
+open Lean Elab Tactic in
+/-- Fails unless the goal mentions a `==` (keeps the `beq_iff_eq` alternative
+below off every other side goal: `simp_all` over a large context is dear). -/
+elab "lockstep_guard_beq" : tactic => do
+  let t ← instantiateMVars (← getMainTarget)
+  unless t.containsConst (· == ``BEq.beq) do
+    throwError "lockstep_guard_beq: no `==` in the goal"
+
+/-- A twin test on a `==` of a decoded field (`(fvarOfData b).toNat == 0`) that
+the Rust decided on its machine word: the decode facts in the context, the
+`BEq` read as `=`, then arithmetic. -/
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (lockstep_guard_beq; simp_all only [lockstep_simp, beq_iff_eq]; scalar_tac))
+
+open Lean Meta Elab Tactic in
+/-- A premise that is one part of a syntactic conjunction in the context (a
+fresh walk memo's `LMemoRel a ∅ ∧ SeenRel a ∅`), matched at reducible
+transparency, no case split. -/
+elab "lockstep_and_part" : tactic => do
+  let g ← getMainGoal
+  g.withContext do
+    let tgt ← instantiateMVars (← g.getType)
+    -- the parts of a syntactic conjunction, as proof terms
+    let rec parts (e t : Expr) (fuel : Nat) : List Expr :=
+      match fuel, t.consumeMData with
+      | f + 1, .app (.app (.const ``And _) a) b =>
+        mkApp3 (mkConst ``And.left) a b e :: mkApp3 (mkConst ``And.right) a b e ::
+          (parts (mkApp3 (mkConst ``And.left) a b e) a f ++
+           parts (mkApp3 (mkConst ``And.right) a b e) b f)
+      | _, _ => []
+    for d in (← getLCtx) do
+      if d.isImplementationDetail then continue
+      let t ← instantiateMVars d.type
+      for (p : Expr) in parts d.toExpr t 4 do
+        if ← withReducible (isDefEq (← inferType p) tgt) then
+          g.assign p
+          replaceMainGoal []
+          return
+    throwError "lockstep_and_part: no conjunct matches"
+
+macro_rules
+  | `(tactic| lockstep_side_ext) => `(tactic| lockstep_and_part)
+
 end ConRon.Refine2.Lockstep
