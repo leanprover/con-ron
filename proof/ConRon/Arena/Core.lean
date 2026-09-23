@@ -933,6 +933,12 @@ def natOpEquations (d : Nat) (c : NIdx) : AM (List (EIdx × EIdx)) := do
   let pr ← natPredName; let ad ← natAddName; let su ← natSubName
   let mu ← natMulName; let po ← natPowName; let be ← natBeqName
   let bl ← natBleName
+  -- the Rust reads all fifteen operation pins at once (`nat_op_pins`), so the
+  -- twin does too: a pin read can fail (task #97-T2-LOCKSTEP lane Checker
+  -- DeclCheck)
+  let _di ← natDivName; let _mo ← natModName; let _gc ← natGcdName
+  let _la ← natLandName; let _lo ← natLorName; let _xo ← natXorName
+  let _sl ← natShiftLeftName; let _sr ← natShiftRightName
   if c == pr then do
     let l1 ← natAp1 c z
     let l2 ← natAp1 c sx

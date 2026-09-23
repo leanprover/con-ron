@@ -42,6 +42,7 @@ Everything `Refine2/Checker/Base.lean` waits on, plus `Refine2/Checker/Pins.lean
 `substConst0` / `substConstAll`, which belong to P5-Core.
 -/
 import ConRon.Refine2.Checker.Base
+import ConRon.Refine2.Inductives.Shape
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -922,6 +923,308 @@ open Lockstep in
 DESIGN §8.3's one recovering seam sits at the end of this section
 (`check_div_mod_pin_try`, which is `orElseAttempt` at a variant). -/
 
+section NatReaders
+
+/-! ### `arena::core`'s structural-`Nat` readers
+
+`arena::core` functions no other tier states, reached from the pin gates
+(task #97-T2-LOCKSTEP lane Checker DeclCheck).  Each is one `lockstep` zip;
+the Rust helpers the twin writes inline (`bool_ty_ok`, `lp_empty`,
+`nat_eq_ctx`, `nat_op_pins`, `nat_op_equations_at` and its arms) are
+unfolded on the Rust side first. -/
+
+/-- A twin `if` on `a || b` is the Rust's two tests in a row (the Rust
+short-circuits with a bind between them). -/
+theorem ite_bor {α : Sort _} (a b : Bool) (x y : α) :
+    (if (a || b) = true then x else y) = if a = true then x else if b = true then x else y := by
+  cases a <;> cases b <;> rfl
+
+/-- Local workaround for the shared tactic's known limit 2 (a Rust bind
+against a twin `if` leaves the twin as `(if …) >>= pure`): decide the twin
+`if` from the context and continue.  Sites: `bool_ctors_lp_empty_ls`,
+`nat_op_guard_aux`. -/
+local macro "lockstep_ite_bp" : tactic => `(tactic| (lockstep; all_goals (repeat' (first
+  | (rw [bind_pure]; refine Lockstep.LS.twin_ite_pos ?hc ?_
+     case hc => (simp only [Lockstep.TwinEq] at *; simp_all)
+     lockstep)
+  | (rw [bind_pure]; refine Lockstep.LS.twin_ite_neg ?hc ?_
+     case hc => (simp only [Lockstep.TwinEq] at *; simp_all)
+     lockstep)))))
+
+/-- The Rust's `cv.level_params.len() == 0` is the twin's `levelParams.isEmpty`. -/
+theorem absIConstantVal_levelParams_isEmpty (cv : arena.env.IConstantVal) :
+    (absIConstantVal cv).levelParams.isEmpty = decide (cv.level_params.len = 0#usize) := by
+  rw [Bool.eq_iff_iff]
+  simp only [absIConstantVal, List.isEmpty_map, List.isEmpty_iff, decide_eq_true_eq]
+  rw [← List.length_eq_zero_iff]
+  have h1 := alloc.vec.Vec.len_val cv.level_params
+  simp only [alloc.vec.Vec.length] at h1
+  constructor <;> intro h <;> scalar_tac
+
+attribute [local lockstep_simp] absIConstantVal_levelParams_isEmpty
+
+open Lockstep in
+/-- `arena::core::nat_ind_ok` ⊑ `natIndOk`. -/
+@[lockstep] theorem nat_ind_ok_ls {pers st lst} {ci : Option arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.core.nat_ind_ok st ci) lst
+      (natIndOk (ci.map absIConstantInfo)) := by
+  rcases ci with _ | ci
+  · simp only [arena.core.nat_ind_ok, Option.map_none, natIndOk]; lockstep
+  · cases ci <;> simp only [arena.core.nat_ind_ok, Option.map_some, absIConstantInfo, natIndOk] <;>
+      lockstep
+
+open Lockstep in
+/-- `arena::core::nat_zero_ok` ⊑ `natZeroOk`. -/
+@[lockstep] theorem nat_zero_ok_ls {pers st lst} {ci : Option arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.core.nat_zero_ok pers st ci) lst
+      (natZeroOk (ci.map absIConstantInfo)) := by
+  rcases ci with _ | ci
+  · simp only [arena.core.nat_zero_ok, Option.map_none, natZeroOk]; lockstep
+  · cases ci <;> simp only [arena.core.nat_zero_ok, Option.map_some, absIConstantInfo,
+      natZeroOk] <;> lockstep
+
+open Lockstep in
+/-- `arena::core::nat_succ_ok` ⊑ `natSuccOk`. -/
+@[lockstep] theorem nat_succ_ok_ls {pers st lst} {ci : Option arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.core.nat_succ_ok pers st ci) lst
+      (natSuccOk (ci.map absIConstantInfo)) := by
+  rcases ci with _ | ci
+  · simp only [arena.core.nat_succ_ok, Option.map_none, natSuccOk]; lockstep
+  · cases ci <;> simp only [arena.core.nat_succ_ok, Option.map_some, absIConstantInfo,
+      natSuccOk] <;> lockstep
+
+open Lockstep in
+/-- `arena::core::nat_lit_supported` ⊑ `natLitSupported`. -/
+@[lockstep] theorem nat_lit_supported_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.core.nat_lit_supported pers vis st rf) lst
+      (natLitSupported lf) := by
+  rw [arena.core.nat_lit_supported, natLitSupported]
+  lockstep
+
+open Lockstep in
+/-- `arena::core::nat_op_cod` ⊑ `natOpCod` (the Rust's `bool_ty_ok` is the
+twin's inline `match`). -/
+@[lockstep] theorem nat_op_cod_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {c : arena.handle.NIdx} {e : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.core.nat_op_cod pers vis st rf c e) lst
+      (natOpCod lf (absNIdx c) (absEIdx e)) := by
+  rw [arena.core.nat_op_cod, natOpCod]
+  simp only [arena.core.bool_ty_ok]
+  lockstep
+  -- tactic limit 2 (Rust bind vs twin `if`): the twin's `||` decided by hand
+  all_goals (rw [bind_pure, if_pos (by simp_all)]; lockstep)
+  all_goals (rw [bind_pure, if_neg (by simp_all)]; lockstep)
+
+open Lockstep in
+/-- `arena::core::nat_op_ty_pinned` ⊑ `natOpTyPinned`. -/
+@[lockstep] theorem nat_op_ty_pinned_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {c : arena.handle.NIdx} {e : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.core.nat_op_ty_pinned pers vis st rf c e) lst
+      (natOpTyPinned lf (absNIdx c) (absEIdx e)) := by
+  rw [arena.core.nat_op_ty_pinned, natOpTyPinned]
+  lockstep
+
+open Lockstep in
+/-- `arena::core::nat_op_stored_ok` ⊑ `natOpStoredOk`. -/
+@[lockstep] theorem nat_op_stored_ok_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {c : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.core.nat_op_stored_ok pers vis st rf c) lst
+      (natOpStoredOk lf (absNIdx c)) := by
+  rw [arena.core.nat_op_stored_ok, natOpStoredOk]
+  lockstep
+
+open Lockstep in
+/-- `arena::core::push_nidx` is `Vec::push`. -/
+@[lockstep] theorem push_nidx_spec (out : alloc.vec.Vec arena.handle.NIdx)
+    (n : arena.handle.NIdx) :
+    LSP (arena.core.push_nidx out n) (fun w => w.val = out.val ++ [n]) :=
+  fun _ h => push_nidx_val h
+
+open Lockstep in
+/-- `arena::core::push_eq` is `Vec::push` of the pair. -/
+@[lockstep] theorem push_eq_spec
+    (out : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx)) (l r : arena.handle.EIdx) :
+    LSP (arena.core.push_eq out l r) (fun w => w.val = out.val ++ [(l, r)]) := by
+  intro w h
+  rw [arena.core.push_eq] at h
+  obtain ⟨l1, hl1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [dupId_eidx _ _ hl1, dupId_eidx _ _ hr1] at h
+  exact ConRon.Refine.vec_push_val h
+
+theorem absNIdxL_val (v : alloc.vec.Vec arena.handle.NIdx) :
+    absNIdxL v = v.val.map absNIdx := rfl
+
+theorem absEqPairs_val (v : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx)) :
+    absEqPairs v = v.val.map fun p => (absEIdx p.1, absEIdx p.2) := rfl
+
+attribute [local lockstep_simp] absNIdxL_val absEqPairs_val
+
+open Lockstep in
+set_option maxHeartbeats 2000000 in
+/-- `arena::core::nat_op_deps` ⊑ `natOpDeps` — the operation's dependency list,
+pin reads only.  The Rust reads its fifteen pins through `nat_op_pins`. -/
+@[lockstep] theorem nat_op_deps_ls {pers st lst} {c : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNIdxL a)
+      (arena.core.nat_op_deps st c) lst (natOpDeps (absNIdx c)) := by
+  rw [arena.core.nat_op_deps, natOpDeps]
+  simp only [arena.core.nat_op_pins, arena.core.nat_op_pins_rest]
+  lockstep
+
+theorem nat_op_deps_refines {pers st lst} {c : arena.handle.NIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.core.nat_op_deps st c = ok o) :
+    Sim₀ absNIdxL pers lst o (natOpDeps (absNIdx c)) :=
+  Lockstep.LS.toSim₀ (nat_op_deps_ls hrel hinv) hrun
+
+open Lockstep in
+set_option maxHeartbeats 4000000 in
+/-- `arena::core::nat_op_equations` ⊑ `natOpEquations` — the operation's
+recurrence equations, built.  The twin reads all fifteen operation pins, as
+the Rust's `nat_op_pins` does (fixed in the twin, this lane). -/
+@[lockstep] theorem nat_op_equations_ls {pers st lst} {d : Std.U64}
+    {c : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEqPairs a)
+      (arena.core.nat_op_equations pers st d c) lst
+      (natOpEquations (absU d) (absNIdx c)) := by
+  rw [arena.core.nat_op_equations, natOpEquations]
+  simp only [arena.core.nat_eq_ctx, arena.core.nat_eq_ctx_rest, arena.core.nat_op_pins,
+    arena.core.nat_op_pins_rest, arena.core.nat_op_equations_at, arena.core.nat_op_equations_pow,
+    arena.core.nat_op_equations_beq, arena.core.nat_op_equations_ble]
+  lockstep
+
+theorem nat_op_equations_refines {pers st lst} {d : Std.U64}
+    {c : arena.handle.NIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.core.nat_op_equations pers st d c = ok o) :
+    Sim₀ absEqPairs pers lst o (natOpEquations (absU d) (absNIdx c)) :=
+  Lockstep.LS.toSim₀ (nat_op_equations_ls hrel hinv) hrun
+
+theorem absNIdxLFrom_cons' (v : alloc.vec.Vec arena.handle.NIdx)
+    (i : Std.Usize) (hi : i.val < v.val.length) :
+    absNIdxLFrom v i = absNIdx v.val[i.val] :: (v.val.drop (i.val + 1)).map absNIdx := by
+  simp only [absNIdxLFrom]; rw [List.drop_eq_getElem_cons hi]; rfl
+
+theorem absNIdxLFrom_nil' (v : alloc.vec.Vec arena.handle.NIdx)
+    (i : Std.Usize) (hi : v.val.length ≤ i.val) : absNIdxLFrom v i = [] := by
+  simp only [absNIdxLFrom]; rw [List.drop_eq_nil_of_le hi]; rfl
+
+open Lockstep in
+theorem nat_op_deps_stored_aux (n : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rf lf}
+      (ns : alloc.vec.Vec arena.handle.NIdx) (i : Std.Usize),
+      ns.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf lf → absU vis = lf.visibleBelow →
+      LS pers (fun a b => b = id a)
+        (arena.core.nat_op_deps_stored pers vis st rf ns i) lst
+        (natOpDepsStored lf (absNIdxLFrom ns i)) := by
+  induction n with
+  | zero =>
+    intro pers st lst vis rf lf ns i hn hrel hinv hfe hvis
+    rw [arena.core.nat_op_deps_stored, absNIdxLFrom_nil' ns i (by omega), natOpDepsStored]
+    have hl := alloc.vec.Vec.len_val ns
+    rw [if_pos (by scalar_tac)]
+    exact LS.pure rfl hrel hinv
+  | succ k ih =>
+    intro pers st lst vis rf lf ns i hn hrel hinv hfe hvis
+    rw [arena.core.nat_op_deps_stored, absNIdxLFrom_cons' ns i (by omega), natOpDepsStored]
+    have hl := alloc.vec.Vec.len_val ns
+    rw [if_neg (by scalar_tac)]
+    refine LSP.bind (vec_index_spec _ _) fun p ⟨_, hp⟩ => ?_
+    subst hp
+    simp only [absNIdxLFrom] at ih
+    lockstep
+
+open Lockstep in
+/-- `arena::core::nat_op_deps_stored` ⊑ `natOpDepsStored` at the cursor. -/
+@[lockstep] theorem nat_op_deps_stored_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {ns : alloc.vec.Vec arena.handle.NIdx} {i : Std.Usize}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = id a)
+      (arena.core.nat_op_deps_stored pers vis st rf ns i) lst
+      (natOpDepsStored lf (absNIdxLFrom ns i)) :=
+  nat_op_deps_stored_aux _ ns i rfl hrel hinv hfe hvis
+
+open Lockstep in
+/-- `arena::core::bool_ctors_lp_empty` ⊑ `natOpGuard`'s tail (the two `Bool`
+constructors stored at no level parameters), written inline in the twin. -/
+@[lockstep] theorem bool_ctors_lp_empty_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = id a)
+      (arena.core.bool_ctors_lp_empty pers vis st rf) lst
+      (do
+        let bt ← boolTrueName
+        let okT ←
+          match lf.find? bt with
+          | some ci => do let cv ← ci.toConstantVal; pure cv.levelParams.isEmpty
+          | none => pure false
+        if !okT then pure false else do
+          let bf ← boolFalseName
+          match lf.find? bf with
+          | some ci => do let cv ← ci.toConstantVal; pure cv.levelParams.isEmpty
+          | none => pure false) := by
+  rw [arena.core.bool_ctors_lp_empty]
+  simp only [arena.core.lp_empty]
+  lockstep_ite_bp
+
+open Lockstep in
+set_option maxHeartbeats 1000000 in
+theorem nat_op_guard_aux {pers st lst} {vis : Std.U64} {rf lf}
+    {c : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = id a)
+      (arena.core.nat_op_guard pers vis st rf c) lst
+      (natOpGuard lf (absNIdx c)) := by
+  rw [arena.core.nat_op_guard, natOpGuard]
+  simp only [ite_bor]
+  lockstep_ite_bp
+
+open Lockstep in
+theorem nat_op_stored_ok_all_aux (n : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rf lf}
+      (ns : alloc.vec.Vec arena.handle.NIdx) (i : Std.Usize),
+      ns.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf lf → absU vis = lf.visibleBelow →
+      LS pers (fun a b => b = id a)
+        (arena.decl_check.nat_op_stored_ok_all pers vis st rf ns i) lst
+        (natOpStoredOkAll lf (absNIdxLFrom ns i)) := by
+  induction n with
+  | zero =>
+    intro pers st lst vis rf lf ns i hn hrel hinv hfe hvis
+    rw [arena.decl_check.nat_op_stored_ok_all, absNIdxLFrom_nil' ns i (by omega),
+      natOpStoredOkAll]
+    have hl := alloc.vec.Vec.len_val ns
+    rw [if_pos (by scalar_tac)]
+    exact LS.pure rfl hrel hinv
+  | succ k ih =>
+    intro pers st lst vis rf lf ns i hn hrel hinv hfe hvis
+    rw [arena.decl_check.nat_op_stored_ok_all, absNIdxLFrom_cons' ns i (by omega),
+      natOpStoredOkAll]
+    have hl := alloc.vec.Vec.len_val ns
+    rw [if_neg (by scalar_tac)]
+    refine LSP.bind (vec_index_spec _ _) fun p ⟨_, hp⟩ => ?_
+    subst hp
+    simp only [absNIdxLFrom] at ih
+    lockstep
+
+end NatReaders
+
 /-- `nat_op_stored_ok_all` ⊑ `natOpStoredOkAll` at the cursor. -/
 theorem nat_op_stored_ok_all_refines {pers st lst} {vis : Std.U64} {rf lf}
     {ns : alloc.vec.Vec arena.handle.NIdx} {i : Std.Usize} {o}
@@ -929,8 +1232,8 @@ theorem nat_op_stored_ok_all_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.nat_op_stored_ok_all pers vis st rf ns i = ok o) :
     Sim₀ id pers lst o
-      (natOpStoredOkAll lf (absNIdxLFrom ns i)) := by
-  sorry
+      (natOpStoredOkAll lf (absNIdxLFrom ns i)) :=
+  Lockstep.LS.toSim₀ (nat_op_stored_ok_all_aux _ ns i rfl hrel hinv ⟨hfe, hfinv⟩ hvis) hrun
 
 open Lockstep in
 @[lockstep] theorem nat_op_stored_ok_all_ls {pers st lst} {vis : Std.U64} {rf lf}
@@ -950,8 +1253,8 @@ theorem nat_op_guard_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.core.nat_op_guard pers vis st rf c = ok o) :
-    Sim₀ id pers lst o (natOpGuard lf (absNIdx c)) := by
-  sorry
+    Sim₀ id pers lst o (natOpGuard lf (absNIdx c)) :=
+  Lockstep.LS.toSim₀ (nat_op_guard_aux hrel hinv ⟨hfe, hfinv⟩ hvis) hrun
 
 open Lockstep in
 @[lockstep] theorem nat_op_guard_ls {pers st lst} {vis : Std.U64} {rf lf}
@@ -962,40 +1265,6 @@ open Lockstep in
       (arena.core.nat_op_guard pers vis st rf c) lst
       (natOpGuard lf (absNIdx c)) :=
   LS.ofSim₀ fun _ h => nat_op_guard_refines hrel hinv hfe.rel hfe.inv hvis h
-
-/-- `arena::core::nat_op_deps` ⊑ `natOpDeps` — the operation's dependency list,
-pin reads only (`arena::core`'s; stated here for the same reason). -/
-theorem nat_op_deps_refines {pers st lst} {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.core.nat_op_deps st c = ok o) :
-    Sim₀ absNIdxL pers lst o (natOpDeps (absNIdx c)) := by
-  sorry
-
-open Lockstep in
-@[lockstep] theorem nat_op_deps_ls {pers st lst} {c : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdxL a)
-      (arena.core.nat_op_deps st c) lst (natOpDeps (absNIdx c)) :=
-  LS.ofSim₀ fun _ h => nat_op_deps_refines hrel hinv h
-
-/-- `arena::core::nat_op_equations` ⊑ `natOpEquations` — the operation's
-recurrence equations, built (`arena::core`'s; stated here for the same
-reason). -/
-theorem nat_op_equations_refines {pers st lst} {d : Std.U64}
-    {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.core.nat_op_equations pers st d c = ok o) :
-    Sim₀ absEqPairs pers lst o (natOpEquations (absU d) (absNIdx c)) := by
-  sorry
-
-open Lockstep in
-@[lockstep] theorem nat_op_equations_ls {pers st lst} {d : Std.U64}
-    {c : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absEqPairs a)
-      (arena.core.nat_op_equations pers st d c) lst
-      (natOpEquations (absU d) (absNIdx c)) :=
-  LS.ofSim₀ fun _ h => nat_op_equations_refines hrel hinv h
 
 /-- **Finding 12** — `defn_value` is `fe.find? c` matched for `.defnInfo`,
 lifted out of three call sites so the borrow of `fe` is dead before the
