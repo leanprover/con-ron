@@ -25,6 +25,7 @@ calls `inferTypeCore` and `ensureSort`, `normPosDom` calls `whnf`,
   `hit`/`cover` pair says the index is.
 -/
 import ConRon.Bridge.Inductives.StructInstall
+import ConLeche.Verify.FastOps
 
 namespace ConRon.Bridge.Inductives
 
@@ -983,6 +984,219 @@ theorem normFieldDoms_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         rfl
       · simp only [denoteBinders, denote_ext hd' (p3.ext.trans (p4.ext.trans c5.ext)), hbs]
     all_goals exact absurd z1 (fun h => failOk h)
+
+/-! ## The telescope opener (task #97-P3-Ind round 7, on loan)
+
+`Arena/CheckerBase.lean`'s `openPisAtFvars` / `openPisAtFvarsFGo` /
+`openPisAtFvarsF` had no Theorem 1 anywhere in the Bridge; `normCtorVal`,
+`checkSumCtor` and the native install's field walks are their first
+consumers.  **Owner: the Checker tier** (`Bridge/Checker/**`, beside the
+other `CheckerBase` twins; `Arena/CheckerBase.lean:570`'s own caller will want
+it).  The one-pass form is related to con-leche's one-pass form walk for walk
+(the arena's push-order vector is `ExprOps.InstLVec` of con-leche's cons-order
+list), and con-leche's own `openPisAtFvarsF_eq` turns the answer into the
+binder-at-a-time `openPisAtFvars` that con-leche's callers read. -/
+
+/-- con-leche: none — the denotation of an opener's answer: `none` is
+`none`, a `some` denotes when its free variables and its residual do. -/
+def denoteOpen (st : EStore) :
+    Option (List EIdx × EIdx) → Option (Option (List Expr × Expr))
+  | none => some none
+  | some (fvs, e) =>
+    (Frontend.denoteEList st fvs).bind fun xs => (denoteE st e).map fun x => some (xs, x)
+
+/-- con-leche: none — `denoteOpen` at a `some`, from its two halves. -/
+theorem denoteOpen_some {st : EStore} {fvs : List EIdx} {e : EIdx}
+    {xs : List Expr} {x : Expr} (h1 : Frontend.denoteEList st fvs = some xs)
+    (h2 : denoteE st e = some x) : denoteOpen st (some (fvs, e)) = some (some (xs, x)) := by
+  simp [denoteOpen, h1, h2]
+
+/-- con-leche: none — and read back into its two halves. -/
+theorem denoteOpen_some_inv {st : EStore} {fvs : List EIdx} {e : EIdx}
+    {o : Option (List Expr × Expr)} (h : denoteOpen st (some (fvs, e)) = some o) :
+    ∃ xs x, o = some (xs, x) ∧ Frontend.denoteEList st fvs = some xs ∧
+      denoteE st e = some x := by
+  simp only [denoteOpen, Option.bind_eq_some_iff, Option.map_eq_some_iff] at h
+  obtain ⟨xs, h1, x, h2, rfl⟩ := h
+  exact ⟨xs, x, rfl, h1, h2⟩
+
+/-- con-leche: none — `denoteOpen` survives an arena extension. -/
+theorem denoteOpen_ext {st st' : EStore} (hx : Ext st st')
+    {r : Option (List EIdx × EIdx)} {o : Option (List Expr × Expr)}
+    (h : denoteOpen st r = some o) : denoteOpen st' r = some o := by
+  cases r with
+  | none => exact h
+  | some p =>
+    obtain ⟨fvs, e⟩ := p
+    obtain ⟨xs, x, rfl, h1, h2⟩ := denoteOpen_some_inv h
+    exact denoteOpen_some (denoteEList_ext hx _ _ h1) (denote_ext h2 hx)
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:130-140 openPisAtFvars — **the
+binder-at-a-time opener, as a run**: pure grade, and the answer denotes
+con-leche's. -/
+theorem openPisAtFvars_run : ∀ (n : Nat) {i : Nat} {h : EIdx} {hP : Expr}
+    {s₀ s' : AState} {r : Option (List EIdx × EIdx)},
+    StateOK s₀ → denoteE s₀.store h = some hP →
+    Arena.openPisAtFvars n h i s₀ = .ok (r, s') →
+    PStep s₀ s' ∧ denoteOpen s'.store r = some (ConLeche.openPisAtFvars n hP i) := by
+  intro n
+  induction n with
+  | zero =>
+    intro i h hP s₀ s' r hok hh hrun
+    simp only [Arena.openPisAtFvars] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, by simp [denoteOpen, Frontend.denoteEList, hh,
+      ConLeche.openPisAtFvars]⟩
+  | succ n ih =>
+    intro i h hP s₀ s' r hok hh hrun
+    simp only [Arena.openPisAtFvars] at hrun
+    obtain ⟨v, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨hs1, hv⟩ := view_run k1
+    rw [hs1] at z1
+    cases v
+    case forallE dom body bm =>
+      obtain ⟨domP, bodyP, rfl, hd, hb⟩ := denote_forallE_inv hok.wf hv hh
+      dsimp only at z1
+      obtain ⟨fv, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨p2, hfv⟩ := internE_run hok (viewOK_fvar (by rw [hd]; rfl)) k2
+      have hfv' : denoteE s2.store fv = some (.fvar i domP) := by
+        rw [hfv]; simp [denoteEView, denote_ext hd p2.ext]
+      obtain ⟨op, s3, k3, z3⟩ := bindOk z2
+      have hb2 : denoteE s2.store body = some bodyP := denote_ext hb p2.ext
+      obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.instantiate1Fast_run p2.ok hfv'
+        (by rw [hb2]; rfl) k3
+      have p3 : PStep s2 s3 := PStep.of_caches h1 h2 h3 h4 h5
+      have hop : denoteE s3.store op = some (bodyP.instantiate1 (.fvar i domP) 0) :=
+        h7 _ hb2
+      obtain ⟨o, s4, k4, z4⟩ := bindOk z3
+      obtain ⟨p4, ho⟩ := ih p3.ok hop k4
+      have p24 := p2.trans (p3.trans p4)
+      simp only [ConLeche.openPisAtFvars]
+      cases o with
+      | none =>
+        obtain ⟨rfl, rfl⟩ := pureOk z4
+        refine ⟨p24, ?_⟩
+        have hn : ConLeche.openPisAtFvars n (bodyP.instantiate1 (.fvar i domP)) (i + 1)
+            = none := (Option.some.inj ho).symm
+        simp [denoteOpen, hn]
+      | some q =>
+        obtain ⟨fvs, e⟩ := q
+        obtain ⟨xs, x, hx, h1, h2⟩ := denoteOpen_some_inv ho
+        obtain ⟨rfl, rfl⟩ := pureOk z4
+        refine ⟨p24, ?_⟩
+        rw [hx]
+        exact denoteOpen_some (by
+          simp only [Frontend.denoteEList, denote_ext hfv' (p3.ext.trans p4.ext), h1,
+            opt2]) h2
+    all_goals
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      refine ⟨PStep.refl hok, ?_⟩
+      rw [denoteE_view_eq hok.wf hv] at hh
+      cases hP
+      case forallE a b m => simp [denoteEView] at hh
+      all_goals rfl
+
+/-- con-leche: none — `InstLVec` grows by a push at the front of the list. -/
+theorem InstLVec_push {st : EStore} {acc : Array EIdx} {ws : List Expr} {x : EIdx}
+    {xP : Expr} (h : ExprOps.InstLVec st acc ws) (hx : denoteE st x = some xP) :
+    ExprOps.InstLVec st (acc.push x) (xP :: ws) := by
+  simp only [ExprOps.InstLVec, Array.toList_push, List.reverse_cons]
+  exact denoteEList_append h (by simp [Frontend.denoteEList, hx])
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:153-167 openPisAtFvarsFGo — **the
+one-pass opener's core, as a run**: the arena's push-order vector is
+`InstLVec` of con-leche's cons-order list. -/
+theorem openPisAtFvarsFGo_run : ∀ (n : Nat) {acc : Array EIdx} {ws : List Expr}
+    {i : Nat} {h : EIdx} {hP : Expr} {s₀ s' : AState} {r : Option (List EIdx × EIdx)},
+    StateOK s₀ → ExprOps.InstLVec s₀.store acc ws → denoteE s₀.store h = some hP →
+    Arena.openPisAtFvarsFGo acc n h i s₀ = .ok (r, s') →
+    PStep s₀ s' ∧ denoteOpen s'.store r = some (ConLeche.openPisAtFvarsFGo ws n hP i) := by
+  intro n
+  induction n with
+  | zero =>
+    intro acc ws i h hP s₀ s' r hok hacc hh hrun
+    simp only [Arena.openPisAtFvarsFGo] at hrun
+    obtain ⟨e, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.instantiateListFast_run hok hacc
+      (by rw [hh]; rfl) k1
+    obtain ⟨rfl, rfl⟩ := pureOk z1
+    refine ⟨PStep.of_caches h1 h2 h3 h4 h5, ?_⟩
+    simp [denoteOpen, Frontend.denoteEList, h7 _ hh, ConLeche.openPisAtFvarsFGo]
+  | succ n ih =>
+    intro acc ws i h hP s₀ s' r hok hacc hh hrun
+    simp only [Arena.openPisAtFvarsFGo] at hrun
+    obtain ⟨v, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨hs1, hv⟩ := view_run k1
+    rw [hs1] at z1
+    cases v
+    case forallE dom body bm =>
+      obtain ⟨domP, bodyP, rfl, hd, hb⟩ := denote_forallE_inv hok.wf hv hh
+      dsimp only at z1
+      obtain ⟨dd, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.instantiateListFast_run hok hacc
+        (by rw [hd]; rfl) k2
+      have p2 : PStep s₀ s2 := PStep.of_caches h1 h2 h3 h4 h5
+      have hdd : denoteE s2.store dd = some (domP.instantiateList ws 0) := h7 _ hd
+      obtain ⟨fv, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨p3, hfv⟩ := internE_run p2.ok (viewOK_fvar (by rw [hdd]; rfl)) k3
+      have hfv' : denoteE s3.store fv = some (.fvar i (domP.instantiateList ws 0)) := by
+        rw [hfv]; simp [denoteEView, denote_ext hdd p3.ext]
+      obtain ⟨o, s4, k4, z4⟩ := bindOk z3
+      obtain ⟨p4, ho⟩ := ih p3.ok (InstLVec_push (hacc.ext (p2.ext.trans p3.ext)) hfv')
+        (denote_ext hb (p2.ext.trans p3.ext)) k4
+      have p24 := p2.trans (p3.trans p4)
+      simp only [ConLeche.openPisAtFvarsFGo]
+      cases o with
+      | none =>
+        obtain ⟨rfl, rfl⟩ := pureOk z4
+        refine ⟨p24, ?_⟩
+        have hn : ConLeche.openPisAtFvarsFGo (.fvar i (domP.instantiateList ws) :: ws) n
+            bodyP (i + 1) = none := (Option.some.inj ho).symm
+        simp [denoteOpen, hn]
+      | some q =>
+        obtain ⟨fvs, e⟩ := q
+        obtain ⟨xs, x, hx, h1, h2⟩ := denoteOpen_some_inv ho
+        obtain ⟨rfl, rfl⟩ := pureOk z4
+        refine ⟨p24, ?_⟩
+        rw [hx]
+        exact denoteOpen_some (by
+          simp only [Frontend.denoteEList, denote_ext hfv' p4.ext, h1]) h2
+    all_goals
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      refine ⟨PStep.refl hok, ?_⟩
+      rw [denoteE_view_eq hok.wf hv] at hh
+      cases hP
+      case forallE a b m => simp [denoteEView] at hh
+      all_goals rfl
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:169-176 openPisAtFvarsF — **the
+one-pass opener, as a run**, answering con-leche's binder-at-a-time
+`openPisAtFvars` (through con-leche's `openPisAtFvarsF_eq`), which is what
+con-leche's `normCtorVal` and `checkSumCtor` call. -/
+theorem openPisAtFvarsF_run {n i : Nat} {h : EIdx} {hP : Expr} {s₀ s' : AState}
+    {r : Option (List EIdx × EIdx)} (hok : StateOK s₀)
+    (hh : denoteE s₀.store h = some hP)
+    (hrun : Arena.openPisAtFvarsF n h i s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ denoteOpen s'.store r = some (ConLeche.openPisAtFvars n hP i) := by
+  rw [← ConLeche.openPisAtFvarsF_eq]
+  simp only [Arena.openPisAtFvarsF] at hrun
+  obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, ho⟩ := openPisAtFvarsFGo_run n hok
+    (show ExprOps.InstLVec s₀.store #[] [] from rfl) hh k1
+  simp only [ConLeche.openPisAtFvarsF]
+  cases o with
+  | some q =>
+    obtain ⟨fvs, e⟩ := q
+    obtain ⟨xs, x, hx, h1, h2⟩ := denoteOpen_some_inv ho
+    obtain ⟨rfl, rfl⟩ := pureOk z1
+    refine ⟨p1, ?_⟩
+    rw [hx]
+    exact denoteOpen_some h1 h2
+  | none =>
+    have hn : ConLeche.openPisAtFvarsFGo [] n hP i = none := (Option.some.inj ho).symm
+    rw [hn]
+    obtain ⟨p2, h2⟩ := openPisAtFvars_run n p1.ok (denote_ext hh p1.ext) z1
+    exact ⟨p1.trans p2, h2⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:190-205 normCtorVal
 `zipFvarDoms` is task #97d-2's replacement for con-leche's `zipWith` inside
