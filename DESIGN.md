@@ -56612,5 +56612,8 @@ theirs added `hk hind` and `DeclResolves`, mine `hreads` and the phased fold;
 both kept).  `scripts/gates.sh` on the second merge `ad2dd999`: **all 16 OK**
 (`extract-check` 98 s); frontier **34 items in 14 modules, 111 tainted
 declarations** (still none in this task's four modules).  `arena` then moved
-by a `CLAUDE.md` edit only, merged without re-gating.
+to `6cfd995d` (`CLAUDE.md`, and a `Bridge/Inductives/**` +
+`Bridge/Checker/{Arms,Hyp}.lean` landing): merged cleanly, and the gates that
+delta can reach re-run — `lake build ConRonBridge ConRonCapstone` green (2 790
+jobs); no Rust, `Refine2/**` or default-target module is downstream of it.
 
