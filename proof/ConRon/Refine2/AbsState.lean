@@ -491,4 +491,12 @@ own smart constructors, so its `PropWhen` is canonical), and
 theorem ifenvRel_envWF_push (ci : arena.env.IConstantInfo) : IConstantInfoWF ci := by
   sorry
 
+/-- **SEAM, routed to the Promote lane** (task #97-P5-Core round 5, ruling
+(d)): a constant `index_promoted` writes back (a promoted copy of a stored one)
+is canonical Rust data.  False for an arbitrary `ci`; it stands for "promotion
+preserves `IConstantInfoWF`" (the copy keeps its `PropWhen` data), which the
+Promote lane owes at `index_promoted_step`, its one consumer. -/
+theorem ifenvRel_envWF_promote (ci : arena.env.IConstantInfo) : IConstantInfoWF ci := by
+  sorry
+
 end ConRon.Refine2
