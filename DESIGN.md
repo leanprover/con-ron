@@ -41381,6 +41381,113 @@ lines, all of it in shapes this round built.
 The tier is **12 943 lines**, from 10 703; `Basis.lean` 802 → 1 741,
 `DeclVal.lean` 1 164 → 2 249, `Pins.lean` 120 → 313.
 
+##### 9. The coordinator's priority: the capstone's three items, skeletonised
+
+The end-to-end capstone (`ConRon.Capstone`, task #97-COMPOSE) landed during
+the round, and three of its twelve frontier items were this lane's:
+`Arena.installThenCheck_bridge`, `internAllPins_run` and
+`internReservedPins_run`.  All three are now PROVED over named children; none
+of them uses `sorry` directly.
+
+**`Arena.installThenCheck_bridge`** (`Split.lean`) — the binary's two-phase
+fold is one accept of `checkDeclsPure`:
+
+| piece | status | what it is |
+|---|---|---|
+| `SplitInstall`, `PhaseA` | defs | the pure record of phase A: per declaration a full `checkDecl` step, or the install halves (`checkDecl_of_split_*`'s premises) owing a check at `(env, vg)` |
+| `PhaseA.foldlM` | **PROVED** | every owed check paid ⇒ `checkDecl`'s fold, at one fuel (`SplitInstall.checkDecl`, `checkDecl_mono`, `installConstantVal_mono`, `installValue_mono`, `checkValueGroup_mono`) |
+| `PendRel`, `ListRel`, `KindRel` | defs | what crosses the seam per record: denotations, the two scope facts, the install environment (`EnvWF`, `pc.vis` = its length, the final environment extends it — so `env'.prefixTo pc.vis` IS it, `PendRel.prefix`), persistence |
+| `Arena.annotFold_bridge` | **PROVED** | phase A over handles, an induction over … |
+| `Arena.annotStep_split` | `sorry` (child) | … one bracketed step: `annotStep_bridge`'s conclusion plus the pure half and the two frames phase B reads |
+| `Arena.checkPendingList_bridge` | **PROVED** | phase B over handles, an induction over … |
+| `Arena.checkPending_prefix` | `sorry` (child) | … one record checked AT `env.prefixTo pc.vis` |
+| `PhaseA.nodup` | **PROVED** over `checkDecl_nodup` (`sorry`, child) and `SplitInstall.nodup` (**PROVED**) | name uniqueness at the end of phase A, which `IFEnvOK_restrictTo` needs |
+
+`Arena.annotStep_bridge` and `Arena.checkPending_bridge` are now PROVED from
+the two children (they are no longer on any path, but they stay as the
+statements round 4 wrote).
+
+**Four statement defects, found by the skeleton** (all repairs of
+PRECONDITIONS; no conclusion moved):
+
+1. `Arena.annotStep_bridge` concluded every record of `pend'` persistent
+   without assuming it of `pend ⊆ pend'` — false at a non-persistent input.
+   Gains `hpend`.
+2. `Arena.checkPending_bridge` had no hypothesis tying the handle record's kind
+   to the pure record's (`Arena.ValueKind` and `ConLeche.ValueKind` are
+   different types), and `checkValueGroup` branches on the kind — false at a
+   mismatched pair.  Gains `hkind : KindRel pc.vg.kind gP.kind`.
+3. `hwsjv : WScoped 0 gP.jv` on `checkPending_bridge` and
+   `checkValueGroup_bridge` is **not dischargeable at the fold**: a theorem's
+   pending value is its RAW value, which phase A never guards (a theorem
+   installs by statement).  `checkValueGroup_bridge` only used it on the other
+   two kinds, so it is weakened to `gP.kind ≠ .thm → …` — a strengthening of
+   both theorems.
+4. `checkPending_bridge`'s EXISTENTIAL `envK` (equal to the prefix only up to
+   `find?`) cannot feed `checkDecl_of_split_*`, which needs the check half at
+   the SAME environment as the install halves, without a `find?`-congruence of
+   the whole pure core that con-leche does not state (it has one for the
+   cached knot only, `Verify/Cached/KnotCongr.lean`).  Not a defect of the
+   statement but of its shape for this consumer: `checkPending_prefix`
+   instantiates the knot at `env.prefixTo pc.vis` directly
+   (`IFEnvOK_restrictTo` gives the index invariant there), and the old
+   theorem follows with `envK := env.prefixTo pc.vis`.
+
+**`internReservedPins_run`** (`Pins.lean`) is PROVED from the frontend
+tier's `IStepS` leaves (a local `internNameList_pins_sstep`, since
+`Arena/Pins.lean` has its own `internNameList`), persistence off
+`Pers…_of_denote` at the closed store (`PersLs_of_denote` new), and ONE child,
+`denoteN_default_of_pinNames` — `PinsOK.anon`, the zero name handle is
+`.anonymous` (a fact about the persistent `anons` table).  Round 7's note that
+it waited on "`internName_spec`'s missing persistence clause" was stale: the
+frontend round's `Pers…_of_denote` already supplied it.
+
+**`internAllPins_run`** was closed earlier in the round (§4); its one child
+is `internPinSets_run`.
+
+**Which arms of `checkDecl` the capstone's fold reaches.**  Phase A
+(`annotStepGo`) runs the full `checkDecl` for: `defn` records whose name is a
+pinned `Nat` operation or `Nat.div`/`mod` (the `defn` arm, with `natOpGuard`,
+`certifyNatEqs` and `checkDivModPin`), `opaque` records named
+`Lean.reduceNat`/`reduceBool` (the `opaque` arm — closed), and every non-value
+record (`axiom` — closed; `ind`, `basis`, `quot` — closed).  Every other
+`defn`/`opaque`, and EVERY `thm`, takes the split route and never enters
+`checkDecl`.  So on the capstone path the one open arm is `defn`, i.e.
+**`checkDivModPin_bridge`**; `checkDecl_bridge_thm` is unreached, and
+`Arena.checkDeclStep_bridge` (`Fold.lean`) is on the one-phase
+`checkDeclsPure` path only.
+
+**The capstone frontier in this lane is now**: `Arena.annotStep_split`,
+`Arena.checkPending_prefix`, `checkDecl_nodup`, `denoteN_default_of_pinNames`,
+`internPinSets_run` — and, behind `annotStep_split` once it is proved,
+`checkDivModPin_bridge`.  Pricing:
+
+| item | size | depends on |
+|---|---|---|
+| `checkPending_prefix` | one round | `IFEnvOK_restrictTo` (its `hproj` from `IFEnvOK.proj` under uniqueness), `checkValueGroup_bridge` at the prefix, `PExt.enterScratch`/`dropScratch` |
+| `checkDecl_nodup` | one round | `checkDecl`'s arms' duplicate guards (con-leche proves it for the cached fold only, `installRun_trace`'s `PushChain`) |
+| `denoteN_default_of_pinNames` | one round | `Arena/Store.lean`'s `anons` table |
+| `internPinSets_run` | one round | sixteen `internExpr_istep` per variant and a list recursion |
+| `annotStep_split` | **more than one** | the four arms are in hand (`installConstantVal_bridge`, `installValue_bridge`, `Arena.checkDecl_bridge`); the bracket needs `promoteVG_spec` / `promoteNew_spec` (Promote tier, stated, open) and `IFEnvOK` at the pushed index (`IFEnvOK_of_denote`, which `Arena.checkDeclStep_bridge`'s note ties to `denoteProjTable` pinning `tableName`).  A shared bracket lemma would serve it and `checkDeclStep_bridge` both; the round did not state one because its interface depends on those Promote-tier statements |
+
+`Bridge/Checker/Axioms.lean` now prints **280 results**; the ones with
+`sorryAx` are the seven of §8 plus the six skeleton results that reach their
+named children (`Arena.annotFold_bridge`, `Arena.checkPendingList_bridge`,
+`Arena.annotStep_bridge`, `Arena.checkPending_bridge`,
+`internReservedPins_run`, `internAllPins_run`).  The tier's `sorry`
+declarations: **8** — `DeclVal.lean` 1 (`checkDivModPin_bridge`),
+`Pins.lean` 2 (`internPinSets_run`, `denoteN_default_of_pinNames`),
+`Split.lean` 3 (`annotStep_split`, `checkPending_prefix`, `checkDecl_nodup`),
+`Inv.lean` 1, `Fold.lean` 1.
+
+`scripts/frontier.sh ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration` on the merge forward onto `arena`'s
+`eb05ac35`: **14 items**, of which this lane's are exactly the five above
+(`checkDivModPin_bridge` is behind `annotStep_split`'s `sorry`, so not yet in
+the closure).  `scripts/gates.sh`: **all 16 OK** (`extract-check` 100 s; the
+Lean steps were already up to date from the edit loop); `Arena/Checker` T1
+**stated 77/242, closed 74**.
+
 
 ### Task #97-P5-2 — Theorem 2: `intern` at every expression array, and the fuel-induction idiom (2026-09-22, Opus under Fable)
 
