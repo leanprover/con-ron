@@ -1673,11 +1673,21 @@ real inductive-kind constant. -/
 theorem check_modeled_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf lf} {block : alloc.vec.Vec arena.env.IConstantInfo} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf lf)
     (hrun : arena.inductives.modeled.check_modeled pers st mode rf block = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkModeled (ConRon.Refine.absMode mode) lf (absICIL block)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_modeled_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {rf lf} {block : alloc.vec.Vec arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers IFEnvRelI
+      (arena.inductives.modeled.check_modeled pers st mode rf block) lst
+      (checkModeled (ConRon.Refine.absMode mode) lf (absICIL block)) :=
+  LS.ofSimRel₀ fun _ h => check_modeled_refines hrel hinv hfe h
 
 /-! ## The axiom census
 

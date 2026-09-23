@@ -60087,3 +60087,48 @@ items on the frontier are now leaves: `certify_nat_eqs`,
 
 **Rulings needed:** none for this slice.  `check_div_mod_pin_try_refines` /
 `ScratchFrame` and the `IFEnvRel` fields remain the coordinator's.
+
+### Task #97-T2-LOCKSTEP lane Inductives round 3 — the tier wired into the capstone; fan-in by `lockstep` (2026-09-23, Opus under Fable)
+
+Worktree `_tmp/wt-t2-ind3`, branch `t2-ind-3` off `arena` `ef5e1eec`.  The
+brief: (1) make `Checker/Top.lean`'s `check_ind_decl_refines` a consequence
+of the tier's top, so the tier stops being dead weight; (2) close the tier's
+items by fan-in with the shared `lockstep` tactic.
+
+#### Slice 1 — the wire
+
+**`check_ind_decl_refines` is one `lockstep` call** (`rw
+[arena.checker.check_ind_decl, checkIndDeclArmSpec]; lockstep`) over four
+`@[lockstep]` wrappers: `basis_pin_hit_ls` (new, `Checker/Top.lean`, beside
+it — the one glue lemma added in the checker's file), `check_basis_decl_ls`
+(the checker lane's), `inductives_check_ind_decl_ls` (new,
+`Inductives/Top.lean`), and the two Rust-only copies `check_mode_dup_spec`/
+`i_constant_infos_dup_spec` (new `LSP` specs, `Inductives/Shape.lean`).
+
+**The tier's top, `inductives_check_ind_decl_refines`, is one `lockstep` call
+too**, over `ind_params_ok_zero_ls` (the checker tier's
+`ind_params_ok_refines` at cursor `0`, in `LS` form; `Inductives/Top.lean`
+now imports `Checker/Base.lean` for it — no cycle, `Checker/Base` imports no
+inductives module), `native_parts_ls`, `check_native_ls`, `check_modeled_ls`
+(new, beside their statements), and three error-constructor specs
+(`core_types_{invalid,not_implemented,internal}_ls`, `Inductives/Shape.lean`:
+`invalid m` IS `.Invalid m`, so `fail`'s `AErrSim` compares the kind; no
+lemma for them existed on `arena`).
+
+**Two statements restated** so the zip closes: `check_native_refines` and
+`check_modeled_refines` conclude `SimRel₀ IFEnvRelI` (they concluded
+`IFEnvRel` alone; the checker's fold needs the Rust environment's
+`IFEnvInv` for its next step, and the top already promised it), take
+`hfe : IFEnvRelI`, and **lost their `hknot : KnotRel checkFuel` binder**
+(redundant: `knotRel_checkFuel'` is a theorem, and the tier's callees reach
+the knot through the checker lane's front doors at `checkFuel`).  Both are
+still `sorry`; nothing consumed them.  No semantic premise was added.
+
+**Frontier** (`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`): before (`ef5e1eec`) **50 items in 11
+modules, 129 tainted, dead weight 574**; after **54 items in 14 modules, 142
+tainted, dead weight 568**.  `check_ind_decl_refines` left the frontier; on it
+now are the tier's `native_parts_refines`, `check_native_refines`,
+`check_modeled_refines` and the checker tier's `ind_params_ok_refines`,
+`basis_pin_hit_refines` (reached for the first time).  The item count going
+UP is the point: the tier is on the capstone's path.
