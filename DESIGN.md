@@ -57180,4 +57180,10 @@ go with it.
 #### 8. Gates
 
 This is a DESIGN-only change, so the only gate is `scripts/overview-links.sh`.
-Its result is recorded in the landing commit.
+**It FAILS, and the failure is already on `arena`**, not caused by this
+branch.  I reproduced it at `arena` `38a7e0c2` in a detached checkout.  The
+failing citation is `README.md:13`'s
+`proof/ConRon/RefineOld/Installed.lean#L3289-L3305` (`check_decls_refines`),
+whose cited lines moved under it.  This section adds no link, so I landed on
+the rule that the gate is unchanged by the diff.  The README anchor needs
+someone to re-read the paragraph that cites it and then run `--update`.
