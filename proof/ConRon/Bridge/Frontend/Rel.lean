@@ -269,6 +269,13 @@ theorem ReadCachesOK.ofCacheOK {μ : CheckMode} {env : Env} {s : AState}
     (h : CacheOK μ env s) : ReadCachesOK s :=
   ⟨h.readL, h.readN, h.readLs⟩
 
+/-- con-leche: none — the capstones' start: the caches are empty. -/
+theorem ReadCachesOK.ofEmpty {s : AState} (h : s.caches = Caches.empty) :
+    ReadCachesOK s where
+  readL := by intro k u hk; rw [h] at hk; simp [Caches.empty] at hk
+  readN := by intro k x hk; rw [h] at hk; simp [Caches.empty] at hk
+  readLs := by intro k us hk; rw [h] at hk; simp [Caches.empty] at hk
+
 /-! ## The two generic shapes -/
 
 /-- con-leche: none — a relation lifted to `Option`: `none` relates to `none`

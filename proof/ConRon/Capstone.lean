@@ -164,12 +164,14 @@ theorem stages_frame {chunks : List ByteArray} {pins : List NatOpPinSet}
   have hc0 : (AState.init EStore.empty).caches = Caches.empty := rfl
   obtain ⟨hokA, -, hpinsA, hppA, hoffA, -, hcachesA⟩ :=
     internReservedPins_run hok0 hoff0 hA
+  have hrbA : ReadCachesOK sA := ReadCachesOK.ofEmpty (by rw [hcachesA]; exact hc0)
   obtain ⟨hstep1, hpersPre, hnPre, preC, -, hrelPre⟩ :=
     builtinPreludeE_run inProcessModeller_wf inProcessModeller_refines hbytes
-      hokA hoffA hpinsA hB
+      hokA hoffA hpinsA hrbA hB
   obtain ⟨hstep2, hpersR, rc, -, hrelR⟩ :=
     parseChunks_run inProcessModeller_wf inProcessModeller_refines hstep1.ok
-      (by rw [hstep1.scratch, hoffA]) (hpinsA.mono hstep1.ext hstep1.pins) hC
+      (by rw [hstep1.scratch, hoffA]) (hpinsA.mono hstep1.ext hstep1.pins)
+      (hrbA.step hstep1) hC
   obtain ⟨hstep3, hpersDs, -, hclPrep⟩ :=
     preparePrelude_run (preC := preC) hstep2.ok
       (by rw [hstep2.scratch, hstep1.scratch, hoffA])

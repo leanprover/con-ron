@@ -31,6 +31,7 @@ import ConRon.Bridge.Frontend.Modeller
 import ConRon.Bridge.Frontend.Shared
 import ConRon.Bridge.Frontend.ProjRec
 import ConRon.Bridge.Frontend.ProjRecValue
+import ConRon.Bridge.Frontend.ProjRecOwners
 
 namespace ConRon.Bridge.Frontend
 
@@ -3297,7 +3298,8 @@ skeletonised it: its own proof is closed, and what it rests on is
 for `installIndD_run`. -/
 theorem processLineCoreD_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd : StateD}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
+    (hrc : ReadCachesOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {d : ConLeche.Frontend.DeclRec}
     {x : StateD ⊕ RecordVerdict}
@@ -3343,7 +3345,7 @@ theorem processLineCoreD_run {md : Modeller} (hmw : ModellerWF md)
         rw [hs2] at hrun
         rw [he, except_ok_bind]
         obtain ⟨o, s₃, h3, hrun⟩ := AM.bind_ok hrun
-        obtain ⟨hstep3, hpe, hopt⟩ := projRewriteD_run hok hoff hrel hdc hde h3
+        obtain ⟨hstep3, hpe, hopt⟩ := projRewriteD_run hok hoff hrc hrel hdc hde h3
         have hoff3 : s₃.store.scratchOn = false := by rw [hstep3.scratch]; exact hoff
         have hrel3 := hrel.ext hstep3.ext
         have hdc3 := denoteCV_ext hdc hstep3.ext
@@ -3387,7 +3389,7 @@ theorem processLineCoreD_run {md : Modeller} (hmw : ModellerWF md)
     rw [hs2] at hrun
     rw [he, except_ok_bind]
     obtain ⟨o, s₃, h3, hrun⟩ := AM.bind_ok hrun
-    obtain ⟨hstep3, hpe, hopt⟩ := projRewriteD_run hok hoff hrel hdc hde h3
+    obtain ⟨hstep3, hpe, hopt⟩ := projRewriteD_run hok hoff hrc hrel hdc hde h3
     have hoff3 : s₃.store.scratchOn = false := by rw [hstep3.scratch]; exact hoff
     have hrel3 := hrel.ext hstep3.ext
     have hdc3 := denoteCV_ext hdc hstep3.ext
@@ -3485,14 +3487,15 @@ theorem processLineCoreD_run {md : Modeller} (hmw : ModellerWF md)
 on both sides, by definition. -/
 theorem applyDeclD_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd : StateD}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
+    (hrc : ReadCachesOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {d : ConLeche.Frontend.DeclRec}
     {x : StateD ⊕ RecordVerdict}
     (hrun : applyDeclD md sd d s = .ok (x, s')) :
     ParseStep s s' ∧ (∀ sd', x = .inl sd' → PersStateD sd') ∧
       ∃ y, ConLeche.Frontend.applyDeclD sc d = .ok y ∧ SumRel s'.store x y :=
-  processLineCoreD_run hmw hmr hok hoff hpins hrel hp hrun
+  processLineCoreD_run hmw hmr hok hoff hpins hrc hrel hp hrun
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:719 applyLine — **THE SEMANTIC
 LAYER**: one scanned line applied.  Six arms; the two trivial ones (`header`,
@@ -3505,7 +3508,8 @@ Six arms over `parseExprEntryD_run` / `parseNameEntryD_run` /
 `Scan/Fast.lean` rather than twinning it. -/
 theorem applyLine_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd : StateD}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
+    (hrc : ReadCachesOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {r : ConLeche.Frontend.LineRec}
     {x : StateD ⊕ RecordVerdict}
@@ -3546,7 +3550,7 @@ theorem applyLine_run {md : Modeller} (hmw : ModellerWF md)
   | decl d =>
     rw [applyLine] at hrun
     obtain ⟨hstep, hpers, y, hcl, hxy⟩ :=
-      applyDeclD_run hmw hmr hok hoff hpins hrel hp hrun
+      applyDeclD_run hmw hmr hok hoff hpins hrc hrel hp hrun
     exact ⟨hstep, hpers, y, by rw [ConLeche.Frontend.applyLine]; exact hcl, hxy⟩
   | header =>
     rw [applyLine] at hrun

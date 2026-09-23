@@ -90,7 +90,7 @@ theorem builtinPreludeE_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md)
     (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
     {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false)
-    (hpins : PinsOK s)
+    (hpins : PinsOK s) (hrb : ReadCachesOK s)
     {pre : PreludeIx} (hrun : builtinPreludeE md s = .ok (.ok pre, s')) :
     ParseStep s s' ∧ PersPreludeIx pre ∧ DeclsProjNamed s'.store pre.decls ∧
       ∃ preC, ConLeche.Frontend.builtinPreludeE = .ok preC ∧
@@ -107,7 +107,7 @@ theorem builtinPreludeE_run {md : Modeller} (hmw : ModellerWF md)
     simp only [Except.ok.injEq] at hv
     subst hv; subst hs
     rw [hbytes] at hpb
-    obtain ⟨hstep, hpers, rc, hcl, hrel⟩ := parseBytes_run hmw hmr hok hoff hpins hpb
+    obtain ⟨hstep, hpers, rc, hcl, hrel⟩ := parseBytes_run hmw hmr hok hoff hpins hrb hpb
     refine ⟨hstep, hpers, hrel.projNamed, ⟨rc.decls⟩, ?_, hrel.decls⟩
     rw [ConLeche.Frontend.builtinPreludeE, ConLeche.Frontend.parseExportD, hcl]
     rfl

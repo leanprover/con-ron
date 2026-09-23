@@ -68,6 +68,7 @@ import ConRon.Bridge.Frontend.Rel
 import ConRon.Bridge.Frontend.Scratch
 import ConRon.Bridge.Frontend.ProjRec
 import ConRon.Bridge.Frontend.ProjRecValue
+import ConRon.Bridge.Frontend.ProjRecOwners
 import ConRon.Bridge.Frontend.Shared
 import ConRon.Bridge.Frontend.Modeller
 import ConRon.Bridge.Frontend.Lines
