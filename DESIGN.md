@@ -48522,7 +48522,12 @@ with no `globs`, so `lake build ConRonRefine2` never elaborated it.  Round 3's
 five closed proofs in that file were never checked by a gate run; nor were
 this round's three until they were.  `Refine2/Inductives/Top.lean` now imports
 it (one line, with a comment saying why), the build goes 2 221 → **2 222**
-jobs, and the tier's gate-visible `sorry` count goes 218 → **260**.
+jobs, and the tier's gate-visible `sorry` count goes 218 → **260**.  (Task
+#97-P5-Mut found the OTHER half of the same hole at the same time — the gate's
+`lake build` step never built `ConRonRefine2` at all, because it is not a
+default target — and `arena` `c87b3ee6` added a fourteenth gate step for it.
+The two are independent: that step now builds the library, and this import is
+what puts `StructParts.lean` INTO the library.)
 
 **The tier's numbers in this section are the whole-directory count, not the
 gate-visible one it used to be**; so
@@ -48626,11 +48631,12 @@ round closed**, and still no `bv_decide` axiom anywhere in `Refine2/`.
 
 | gate | result |
 |---|---|
-| `scripts/gates.sh` | **all 13 OK** (`cargo-build` / `cargo-test` / `lint-rust` / `provenance` + selftest / `twin-lines` / `overview-links` / `holes` / `gen-pins` / `gen-prelude` / `gen-prelude-lean` / `extract-check` / `lake-build`) |
+| `scripts/gates.sh` | **all 14 OK** (`cargo-build` / `cargo-test` / `lint-rust` / `provenance` + selftest / `twin-lines` / `overview-links` / `holes` / `gen-pins` / `gen-prelude` / `gen-prelude-lean` / `extract-check` / `lake-build` / `lake-refine2`) — the fourteenth step arrived in the third `arena` merge (`c87b3ee6`), which is task #97-P5-Mut's half of §R4.7's finding |
 | `cd proof && lake build ConRonRefine2` | green, **2 222 jobs** (was 2 221 — §R4.7), 0 errors |
 | `scripts/arena-census.py --summary` | `Arena/Inductives` **T2 stated 130, closed 14** (was 11); the tier's `sorry` count 270 → **260** |
-| the merges | `arena` at `a80ea04d` and at `8f96148b`, both clean (no file of this lane touched by either), so landing is a fast-forward |
-| the diff | `proof/ConRon/Refine2/Inductives/{Shape,Spec,SpecModeled,StructParts,SumInstall,SumInstallF,Top}.lean` and this section |
+| the merges | `arena` at `a80ea04d`, `8f96148b` and `c87b3ee6`, all three clean (no file of this lane touched by any), so landing is a fast-forward |
+| the diff | `proof/ConRon/Refine2/Inductives/{Shape,Spec,SpecModeled,StructParts,SumInstall,SumInstallF,Top}.lean`, this section, and the `overview-links` repair below |
+| one repair outside the lane | `c87b3ee6` moved `scripts/gates.sh`'s step list without regenerating `scripts/overview-links-expected.txt`, so the `overview-links` gate was RED on `arena` and no branch could land.  `OVERVIEW.md` §12 now says fourteen steps at `#L60-L82` and lists the new one; the expected file is regenerated.  Two files, no judgement call, and it is named here because it is not this lane's |
 
 
 
