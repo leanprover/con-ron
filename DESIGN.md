@@ -54093,3 +54093,8 @@ branch 211 928 888 206 / 211 927 990 581 — **+75 M, +0.035 %**, against a
 0.4 M run-to-run spread; both accept 57 977.  That is `take_eidx_n`'s growing
 `Vec::new()` against `take_eidx`'s pre-sized one on the ι path.  (Measured
 before §3's flip, which only renames the kind of a cold error.)
+
+**Gates**: all 15 OK on the task commit `464200a6`; `arena` then moved
+(task #97-P3-Checker round 8, #97-FRONTIER — no Rust), merged as `cace9da8`,
+and **all 16 OK** there (the new `lake-capstone` step included).  The shared
+Lake cache was not seeded from this worktree.
