@@ -48,7 +48,7 @@ theorem view_of_viewBind_forallE {st : EStore} {i ty b : EIdx}
   simp [ETag.lam, ETag.forallE]
 
 /-- con-leche: none — a handle whose tag is not `.forallE` denotes no `∀`. -/
-theorem denote_not_forallE_of_tag {st : EStore} (hwf : StoreWF st)
+theorem denote_not_forallE_of_tagB {st : EStore} (hwf : StoreWF st)
     {h : EIdx} {e : Expr} (he : denoteE st h = some e)
     (htag : ¬ (h.tag == ETag.forallE) = true) :
     ∀ p q m, e ≠ .forallE p q m := by
@@ -283,7 +283,7 @@ theorem inferSpine_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
             exact ConLeche.inferSpine_mono (by omega) hF3
     · -- not syntactically a `∀`: flush, normalise, retry
       rename_i htag
-      have hne := denote_not_forallE_of_tag hwf hty htag
+      have hne := denote_not_forallE_of_tagB hwf hty htag
       refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀
         ty acc 0 ws hok.state hacc (by rw [hty]; rfl)) ?_
       rintro ty2 s2 ⟨hst2, hx2, _, hc2, hp2, _, hrel2⟩
@@ -448,7 +448,7 @@ theorem inferSpineIO_go {fuel : Nat} (hμ : mode.verifiedChecks = true)
           exact hF3
     · -- not syntactically a `∀`: flush, normalise, retry
       rename_i htag
-      have hne := denote_not_forallE_of_tag hwf hty htag
+      have hne := denote_not_forallE_of_tagB hwf hty htag
       refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀
         ty acc 0 ws hok.state hacc (by rw [hty]; rfl)) ?_
       rintro ty2 s2 ⟨hst2, hx2, _, hc2, hp2, _, hrel2⟩
@@ -517,7 +517,7 @@ theorem inferSpineIO_go {fuel : Nat} (hμ : mode.verifiedChecks = true)
 
 section Census
 #print axioms view_of_viewBind_forallE
-#print axioms denote_not_forallE_of_tag
+#print axioms denote_not_forallE_of_tagB
 #print axioms headAndArgs_app_spec
 #print axioms inferSpine_pi_step
 #print axioms inferSpine_whnf_step
