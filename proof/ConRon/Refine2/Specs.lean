@@ -4243,7 +4243,6 @@ theorem absBVarNode_inj :
 
 theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {i : Std.U64} {r} {rs'}
     (h : arena.store.EStore.intern_bvar rs pers i = ok (r, rs')) :
     (∀ hh, r = .Ok hh →
@@ -4377,9 +4376,17 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
               (tbl_not_full_size hrelT hb1 hfull)⟩
     · -- the persistent tier
       rw [if_neg hsc]
-      have hsh : rs.shared_on = false := by
-        by_contra hc
-        exact hsc (hfrozen (by simpa using hc))
+      by_cases hfz : rs.shared_on = true
+      · -- the frozen tier: `Native`, which claims nothing
+        rw [hfz] at h
+        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have he := Result.ok_injective h
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨hr, hs2⟩ := he
+        subst hr; subst hs2
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
+      have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -4742,7 +4749,6 @@ theorem viewOK_forallE {st : EStore} {ty b : EIdx} {m : ConLeche.BinderMeta}
 
 theorem intern_e_bvar_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (i : Std.U64)
     {o}
     (hrun : arena.monad.intern_e_bvar pers st i = ok o) :
@@ -4754,7 +4760,7 @@ theorem intern_e_bvar_run {pers st lst} (hrel : AStateRel pers st lst)
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, -⟩ :=
-    estore_intern_bvar_abs (ls := lst.store) hrel.store hinv.store hfrozen hp
+    estore_intern_bvar_abs (ls := lst.store) hrel.store hinv.store hp
   show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
   | Ok hh =>
@@ -4776,7 +4782,6 @@ seven non-binder arrays want the same one-line addition; this round made it
 only here, at `bvar_range`'s leaf (task #97-P5-3 round 3 §4). -/
 theorem intern_e_bvar_flags {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     {i : Std.U64} {o} (hrun : arena.monad.intern_e_bvar pers st i = ok o) :
     o.2.store.shared_on = st.store.shared_on ∧
       o.2.store.scratch_on = st.store.scratch_on := by
@@ -4786,7 +4791,7 @@ theorem intern_e_bvar_flags {pers st lst} (hrel : AStateRel pers st lst)
   have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
     Result.ok_injective hrun
   subst ho
-  exact (estore_intern_bvar_abs (ls := lst.store) hrel.store hinv.store hfrozen hp).2.2
+  exact (estore_intern_bvar_abs (ls := lst.store) hrel.store hinv.store hp).2.2
 
 
 /-! ## The level-list tier's derived column, and the three inner `der` readers
@@ -5219,7 +5224,6 @@ are persistent — `Arena/WF.lean`'s `childOK`, a `StoreWF` clause and
 therefore Theorem 1's.  It arrives here as `hchild`. -/
 theorem estore_intern_fvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {idx : Std.U64} {ty : arena.handle.EIdx}
     (hchild : (absEIdx ty).isPersistent = false →
       ls.pers.fvars.find? ⟨absU idx, absEIdx ty⟩ = none)
@@ -5387,9 +5391,17 @@ theorem estore_intern_fvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
               (tbl_not_full_size hrelT hb2 hfull)⟩
     · -- the persistent tier
       rw [if_neg hsc]
-      have hsh : rs.shared_on = false := by
-        by_contra hc
-        exact hsc (hfrozen (by simpa using hc))
+      by_cases hfz : rs.shared_on = true
+      · -- the frozen tier: `Native`, which claims nothing
+        rw [hfz] at h
+        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have he := Result.ok_injective h
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨hr, hs2⟩ := he
+        subst hr; subst hs2
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
+      have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -5635,7 +5647,6 @@ scratch, and the two agree only under `StoreWF`'s persistent-children clause,
 which arrives here as `hchild`. -/
 theorem estore_intern_sort_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {u : arena.handle.LIdx}
     (hchild : (absLIdx u).isPersistent = false →
       ls.pers.sorts.find? ⟨absLIdx u⟩ = none)
@@ -5803,9 +5814,17 @@ theorem estore_intern_sort_abs {pers rs ls} (hrel : StoreRel pers rs ls)
               (tbl_not_full_size hrelT hb2 hfull)⟩
     · -- the persistent tier
       rw [if_neg hsc]
-      have hsh : rs.shared_on = false := by
-        by_contra hc
-        exact hsc (hfrozen (by simpa using hc))
+      by_cases hfz : rs.shared_on = true
+      · -- the frozen tier: `Native`, which claims nothing
+        rw [hfz] at h
+        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have he := Result.ok_injective h
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨hr, hs2⟩ := he
+        subst hr; subst hs2
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
+      have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -5881,7 +5900,6 @@ scratch, and the two agree only under `StoreWF`'s persistent-children clause,
 which arrives here as `hchild`. -/
 theorem estore_intern_const_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {n : arena.handle.NIdx} {us : arena.handle.LsIdx}
     (hchild : ((absNIdx n).isPersistent = false ∨ (absLsIdx us).isPersistent = false) →
       ls.pers.consts.find? ⟨absNIdx n, absLsIdx us⟩ = none)
@@ -6052,9 +6070,17 @@ theorem estore_intern_const_abs {pers rs ls} (hrel : StoreRel pers rs ls)
               (tbl_not_full_size hrelT hb2 hfull)⟩
     · -- the persistent tier
       rw [if_neg hsc]
-      have hsh : rs.shared_on = false := by
-        by_contra hc
-        exact hsc (hfrozen (by simpa using hc))
+      by_cases hfz : rs.shared_on = true
+      · -- the frozen tier: `Native`, which claims nothing
+        rw [hfz] at h
+        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have he := Result.ok_injective h
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨hr, hs2⟩ := he
+        subst hr; subst hs2
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
+      have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -6130,7 +6156,6 @@ scratch, and the two agree only under `StoreWF`'s persistent-children clause,
 which arrives here as `hchild`. -/
 theorem estore_intern_app_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {f a : arena.handle.EIdx}
     (hchild : ((absEIdx f).isPersistent = false ∨ (absEIdx a).isPersistent = false) →
       ls.pers.apps.find? ⟨absEIdx f, absEIdx a⟩ = none)
@@ -6301,9 +6326,17 @@ theorem estore_intern_app_abs {pers rs ls} (hrel : StoreRel pers rs ls)
               (tbl_not_full_size hrelT hb2 hfull)⟩
     · -- the persistent tier
       rw [if_neg hsc]
-      have hsh : rs.shared_on = false := by
-        by_contra hc
-        exact hsc (hfrozen (by simpa using hc))
+      by_cases hfz : rs.shared_on = true
+      · -- the frozen tier: `Native`, which claims nothing
+        rw [hfz] at h
+        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have he := Result.ok_injective h
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨hr, hs2⟩ := he
+        subst hr; subst hs2
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
+      have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -6379,7 +6412,6 @@ scratch, and the two agree only under `StoreWF`'s persistent-children clause,
 which arrives here as `hchild`. -/
 theorem estore_intern_proj_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {n : arena.handle.NIdx} {i : Std.U64} {ep : arena.handle.EIdx}
     (hchild : ((absNIdx n).isPersistent = false ∨ (absEIdx ep).isPersistent = false) →
       ls.pers.projs.find? ⟨absNIdx n, absU i, absEIdx ep⟩ = none)
@@ -6550,9 +6582,17 @@ theorem estore_intern_proj_abs {pers rs ls} (hrel : StoreRel pers rs ls)
               (tbl_not_full_size hrelT hb2 hfull)⟩
     · -- the persistent tier
       rw [if_neg hsc]
-      have hsh : rs.shared_on = false := by
-        by_contra hc
-        exact hsc (hfrozen (by simpa using hc))
+      by_cases hfz : rs.shared_on = true
+      · -- the frozen tier: `Native`, which claims nothing
+        rw [hfz] at h
+        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have he := Result.ok_injective h
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨hr, hs2⟩ := he
+        subst hr; subst hs2
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
+      have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -6628,7 +6668,6 @@ scratch, and the two agree only under `StoreWF`'s persistent-children clause,
 which arrives here as `hchild`. -/
 theorem estore_intern_let_e_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {ty val bo : arena.handle.EIdx}
     (hchild : ((absEIdx ty).isPersistent = false ∨ (absEIdx val).isPersistent = false ∨ (absEIdx bo).isPersistent = false) →
       ls.pers.lets.find? ⟨absEIdx ty, absEIdx val, absEIdx bo⟩ = none)
@@ -6804,9 +6843,17 @@ theorem estore_intern_let_e_abs {pers rs ls} (hrel : StoreRel pers rs ls)
               (tbl_not_full_size hrelT hb2 hfull)⟩
     · -- the persistent tier
       rw [if_neg hsc]
-      have hsh : rs.shared_on = false := by
-        by_contra hc
-        exact hsc (hfrozen (by simpa using hc))
+      by_cases hfz : rs.shared_on = true
+      · -- the frozen tier: `Native`, which claims nothing
+        rw [hfz] at h
+        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have he := Result.ok_injective h
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨hr, hs2⟩ := he
+        subst hr; subst hs2
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
+      have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -6883,7 +6930,6 @@ is a cons key carrying a VALUE, so `TblRel`'s `RelOn P` asks the caller for
 caller owes"). -/
 theorem estore_intern_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {l : kernel.expr.Literal}
     (hwf : ConRon.Refine.LiteralWF l) {r} {rs'}
     (h : arena.store.EStore.intern_lit rs pers l = ok (r, rs')) :
@@ -7015,9 +7061,17 @@ theorem estore_intern_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
               (tbl_not_full_size hrelT hb1 hfull)⟩
     · -- the persistent tier
       rw [if_neg hsc]
-      have hsh : rs.shared_on = false := by
-        by_contra hc
-        exact hsc (hfrozen (by simpa using hc))
+      by_cases hfz : rs.shared_on = true
+      · -- the frozen tier: `Native`, which claims nothing
+        rw [hfz] at h
+        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have he := Result.ok_injective h
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨hr, hs2⟩ := he
+        subst hr; subst hs2
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl⟩
+      have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -7077,7 +7131,6 @@ pure hash, which is why `ETablesRel`'s `bms` row observes NOTHING and the
 `RelOn P` asks the caller for `PropWhenWF`. -/
 theorem estore_intern_bm_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {m : kernel.expr.BinderMeta}
     (hwf : ConRon.Refine.PropWhenWF m.pw) {r} {rs'}
     (h : arena.store.EStore.intern_bm rs pers m = ok (r, rs')) :
@@ -7211,9 +7264,17 @@ theorem estore_intern_bm_abs {pers rs ls} (hrel : StoreRel pers rs ls)
               (tbl_not_full_size hrelT hbfull hfull)⟩
     · -- the persistent tier
       rw [if_neg hsc]
-      have hsh : rs.shared_on = false := by
-        by_contra hc
-        exact hsc (hfrozen (by simpa using hc))
+      by_cases hfz : rs.shared_on = true
+      · -- the frozen tier: `Native`, which claims nothing
+        rw [hfz] at h
+        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have he := Result.ok_injective h
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨hr, hs2⟩ := he
+        subst hr; subst hs2
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl⟩
+      have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨bfull, hbfull, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -7415,7 +7476,6 @@ binder arm at a datum HANDLE (task #97-P6-16).  Three children, the third a
 `findBind`/`pushBind` are the tag's own array by `rfl`. -/
 theorem estore_intern_lam_i_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {ty bo : arena.handle.EIdx} {mi : arena.handle.BMIdx}
     (hchild : ((absEIdx ty).isPersistent = false ∨
         (absEIdx bo).isPersistent = false ∨ (absBMIdx mi).isPersistent = false) →
@@ -7583,9 +7643,17 @@ theorem estore_intern_lam_i_abs {pers rs ls} (hrel : StoreRel pers rs ls)
             ⟨hinv.lss, hinv.perst, { hinv.scrt with lams := hinv1 }⟩⟩
     · -- the persistent tier
       rw [if_neg hsc]
-      have hsh : rs.shared_on = false := by
-        by_contra hc
-        exact hsc (hfrozen (by simpa using hc))
+      by_cases hfz : rs.shared_on = true
+      · -- the frozen tier: `Native`, which claims nothing
+        rw [hfz] at h
+        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have he := Result.ok_injective h
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨hr, hs2⟩ := he
+        subst hr; subst hs2
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
+      have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b2, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -7672,7 +7740,6 @@ binder arm at a datum HANDLE (task #97-P6-16).  Three children, the third a
 `findBind`/`pushBind` are the tag's own array by `rfl`. -/
 theorem estore_intern_forall_e_i_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {ty bo : arena.handle.EIdx} {mi : arena.handle.BMIdx}
     (hchild : ((absEIdx ty).isPersistent = false ∨
         (absEIdx bo).isPersistent = false ∨ (absBMIdx mi).isPersistent = false) →
@@ -7840,9 +7907,17 @@ theorem estore_intern_forall_e_i_abs {pers rs ls} (hrel : StoreRel pers rs ls)
             ⟨hinv.lss, hinv.perst, { hinv.scrt with foralls := hinv1 }⟩⟩
     · -- the persistent tier
       rw [if_neg hsc]
-      have hsh : rs.shared_on = false := by
-        by_contra hc
-        exact hsc (hfrozen (by simpa using hc))
+      by_cases hfz : rs.shared_on = true
+      · -- the frozen tier: `Native`, which claims nothing
+        rw [hfz] at h
+        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have he := Result.ok_injective h
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨hr, hs2⟩ := he
+        subst hr; subst hs2
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, by simp [hfz, hsc]⟩
+      have hsh : rs.shared_on = false := by simpa using hfz
       rw [hsh] at h
       have hpersE : rPersE pers rs = rs.pers := by unfold rPersE; rw [hsh]; rfl
       obtain ⟨b2, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -7926,7 +8001,6 @@ for it. -/
 /-- `EStore::intern_lam` against the twin's `internLam`. -/
 theorem estore_intern_lam_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {ty bo : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
     (hpw : ConRon.Refine.PropWhenWF m.pw)
     (hchild : ((absEIdx ty).isPersistent = false ∨ (absEIdx bo).isPersistent = false ∨
@@ -7948,7 +8022,7 @@ theorem estore_intern_lam_abs {pers rs ls} (hrel : StoreRel pers rs ls)
   rw [arena.store.EStore.intern_lam] at h
   obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨rb, rs1⟩ := q
-  obtain ⟨hok1, herr1⟩ := estore_intern_bm_abs (ls := ls) hrel hinv hfrozen hpw hq
+  obtain ⟨hok1, herr1⟩ := estore_intern_bm_abs (ls := ls) hrel hinv hpw hq
   cases hrb : rb with
   | Err ee =>
     rw [hrb] at h
@@ -7963,15 +8037,13 @@ theorem estore_intern_lam_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     exact herr1 ee hrb
   | Ok mi =>
     rw [hrb] at h
-    obtain ⟨hmi, hrel1, hinv1, hsh, hsc, hcb⟩ := hok1 mi hrb
-    have hfrozen1 : rs1.shared_on = true → rs1.scratch_on = true := by
-      intro hs; rw [hsc]; exact hfrozen (hsh ▸ hs)
+    obtain ⟨hmi, hrel1, hinv1, -, -, hcb⟩ := hok1 mi hrb
     have htw : ls.internLam (absEIdx ty) (absEIdx bo) (ConRon.Refine.absBinderMeta m)
         = (ls.internBM (ConRon.Refine.absBinderMeta m)).1.internLamI (absEIdx ty)
             (absEIdx bo) (ls.internBM (ConRon.Refine.absBinderMeta m)).2 := rfl
     rw [htw, ← hmi]
     obtain ⟨hok2, herr2, -⟩ := estore_intern_lam_i_abs
-      (ls := (ls.internBM (ConRon.Refine.absBinderMeta m)).1) hrel1 hinv1 hfrozen1
+      (ls := (ls.internBM (ConRon.Refine.absBinderMeta m)).1) hrel1 hinv1
       (by rw [hmi]; exact hchild) h
     refine ⟨fun hh hokk => ?_, herr2⟩
     obtain ⟨a1, a2, a3⟩ := hok2 hh hokk
@@ -7980,7 +8052,6 @@ theorem estore_intern_lam_abs {pers rs ls} (hrel : StoreRel pers rs ls)
 /-- `EStore::intern_forall_e` against the twin's `internForallE`. -/
 theorem estore_intern_forall_e_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {ty bo : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
     (hpw : ConRon.Refine.PropWhenWF m.pw)
     (hchild : ((absEIdx ty).isPersistent = false ∨ (absEIdx bo).isPersistent = false ∨
@@ -8002,7 +8073,7 @@ theorem estore_intern_forall_e_abs {pers rs ls} (hrel : StoreRel pers rs ls)
   rw [arena.store.EStore.intern_forall_e] at h
   obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨rb, rs1⟩ := q
-  obtain ⟨hok1, herr1⟩ := estore_intern_bm_abs (ls := ls) hrel hinv hfrozen hpw hq
+  obtain ⟨hok1, herr1⟩ := estore_intern_bm_abs (ls := ls) hrel hinv hpw hq
   cases hrb : rb with
   | Err ee =>
     rw [hrb] at h
@@ -8017,15 +8088,13 @@ theorem estore_intern_forall_e_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     exact herr1 ee hrb
   | Ok mi =>
     rw [hrb] at h
-    obtain ⟨hmi, hrel1, hinv1, hsh, hsc, hcb⟩ := hok1 mi hrb
-    have hfrozen1 : rs1.shared_on = true → rs1.scratch_on = true := by
-      intro hs; rw [hsc]; exact hfrozen (hsh ▸ hs)
+    obtain ⟨hmi, hrel1, hinv1, -, -, hcb⟩ := hok1 mi hrb
     have htw : ls.internForallE (absEIdx ty) (absEIdx bo) (ConRon.Refine.absBinderMeta m)
         = (ls.internBM (ConRon.Refine.absBinderMeta m)).1.internForallEI (absEIdx ty)
             (absEIdx bo) (ls.internBM (ConRon.Refine.absBinderMeta m)).2 := rfl
     rw [htw, ← hmi]
     obtain ⟨hok2, herr2, -⟩ := estore_intern_forall_e_i_abs
-      (ls := (ls.internBM (ConRon.Refine.absBinderMeta m)).1) hrel1 hinv1 hfrozen1
+      (ls := (ls.internBM (ConRon.Refine.absBinderMeta m)).1) hrel1 hinv1
       (by rw [hmi]; exact hchild) h
     refine ⟨fun hh hokk => ?_, herr2⟩
     obtain ⟨a1, a2, a3⟩ := hok2 hh hokk
@@ -8045,7 +8114,6 @@ CACHED VALUE (`StrNode`'s code points, `ListNode`'s handle vector, `LitNode`'s
 /-- `arena::monad::intern_e_fvar` against `internFVarE`. -/
 theorem intern_e_fvar_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (idx : Std.U64) (ty : arena.handle.EIdx)
     (hchild : (absEIdx ty).isPersistent = false →
       lst.store.pers.fvars.find? ⟨absU idx, absEIdx ty⟩ = none)
@@ -8060,7 +8128,7 @@ theorem intern_e_fvar_run {pers st lst} (hrel : AStateRel pers st lst)
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, -⟩ :=
-    estore_intern_fvar_abs (ls := lst.store) hrel.store hinv.store hfrozen hchild hp
+    estore_intern_fvar_abs (ls := lst.store) hrel.store hinv.store hchild hp
   show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
   | Ok hh =>
@@ -8077,7 +8145,6 @@ theorem intern_e_fvar_run {pers st lst} (hrel : AStateRel pers st lst)
 /-- `arena::monad::intern_e_sort` against `internSortE`. -/
 theorem intern_e_sort_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (u : arena.handle.LIdx)
     (hchild : (absLIdx u).isPersistent = false →
       lst.store.pers.sorts.find? ⟨absLIdx u⟩ = none)
@@ -8092,7 +8159,7 @@ theorem intern_e_sort_run {pers st lst} (hrel : AStateRel pers st lst)
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, -⟩ :=
-    estore_intern_sort_abs (ls := lst.store) hrel.store hinv.store hfrozen hchild hp
+    estore_intern_sort_abs (ls := lst.store) hrel.store hinv.store hchild hp
   show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
   | Ok hh =>
@@ -8109,7 +8176,6 @@ theorem intern_e_sort_run {pers st lst} (hrel : AStateRel pers st lst)
 /-- `arena::monad::intern_e_const` against `internConstE`. -/
 theorem intern_e_const_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (n : arena.handle.NIdx) (us : arena.handle.LsIdx)
     (hchild : ((absNIdx n).isPersistent = false ∨ (absLsIdx us).isPersistent = false) →
       lst.store.pers.consts.find? ⟨absNIdx n, absLsIdx us⟩ = none)
@@ -8124,7 +8190,7 @@ theorem intern_e_const_run {pers st lst} (hrel : AStateRel pers st lst)
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, -⟩ :=
-    estore_intern_const_abs (ls := lst.store) hrel.store hinv.store hfrozen hchild hp
+    estore_intern_const_abs (ls := lst.store) hrel.store hinv.store hchild hp
   show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
   | Ok hh =>
@@ -8141,7 +8207,6 @@ theorem intern_e_const_run {pers st lst} (hrel : AStateRel pers st lst)
 /-- `arena::monad::intern_e_app` against `internAppE`. -/
 theorem intern_e_app_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (f a : arena.handle.EIdx)
     (hchild : ((absEIdx f).isPersistent = false ∨ (absEIdx a).isPersistent = false) →
       lst.store.pers.apps.find? ⟨absEIdx f, absEIdx a⟩ = none)
@@ -8156,7 +8221,7 @@ theorem intern_e_app_run {pers st lst} (hrel : AStateRel pers st lst)
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, -⟩ :=
-    estore_intern_app_abs (ls := lst.store) hrel.store hinv.store hfrozen hchild hp
+    estore_intern_app_abs (ls := lst.store) hrel.store hinv.store hchild hp
   show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
   | Ok hh =>
@@ -8173,7 +8238,6 @@ theorem intern_e_app_run {pers st lst} (hrel : AStateRel pers st lst)
 /-- `arena::monad::intern_e_let_e` against `internLetEE`. -/
 theorem intern_e_let_e_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (ty val bo : arena.handle.EIdx)
     (hchild : ((absEIdx ty).isPersistent = false ∨ (absEIdx val).isPersistent = false ∨ (absEIdx bo).isPersistent = false) →
       lst.store.pers.lets.find? ⟨absEIdx ty, absEIdx val, absEIdx bo⟩ = none)
@@ -8188,7 +8252,7 @@ theorem intern_e_let_e_run {pers st lst} (hrel : AStateRel pers st lst)
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, -⟩ :=
-    estore_intern_let_e_abs (ls := lst.store) hrel.store hinv.store hfrozen hchild hp
+    estore_intern_let_e_abs (ls := lst.store) hrel.store hinv.store hchild hp
   show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
   | Ok hh =>
@@ -8205,7 +8269,6 @@ theorem intern_e_let_e_run {pers st lst} (hrel : AStateRel pers st lst)
 /-- `arena::monad::intern_e_proj` against `internProjE`. -/
 theorem intern_e_proj_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (n : arena.handle.NIdx) (i : Std.U64) (ep : arena.handle.EIdx)
     (hchild : ((absNIdx n).isPersistent = false ∨ (absEIdx ep).isPersistent = false) →
       lst.store.pers.projs.find? ⟨absNIdx n, absU i, absEIdx ep⟩ = none)
@@ -8220,7 +8283,7 @@ theorem intern_e_proj_run {pers st lst} (hrel : AStateRel pers st lst)
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, -⟩ :=
-    estore_intern_proj_abs (ls := lst.store) hrel.store hinv.store hfrozen hchild hp
+    estore_intern_proj_abs (ls := lst.store) hrel.store hinv.store hchild hp
   show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
   | Ok hh =>
@@ -8237,7 +8300,6 @@ theorem intern_e_proj_run {pers st lst} (hrel : AStateRel pers st lst)
 /-- `arena::monad::intern_e_lit` against `internLitE`. -/
 theorem intern_e_lit_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (l : kernel.expr.Literal)
     (hwf : ConRon.Refine.LiteralWF l)
     {o}
@@ -8250,7 +8312,7 @@ theorem intern_e_lit_run {pers st lst} (hrel : AStateRel pers st lst)
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr⟩ :=
-    estore_intern_lit_abs (ls := lst.store) hrel.store hinv.store hfrozen hwf hp
+    estore_intern_lit_abs (ls := lst.store) hrel.store hinv.store hwf hp
   show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
   | Ok hh =>
@@ -8370,7 +8432,6 @@ theorem internForallEIE_run_of_cap {lst : AState} {ty b : EIdx} {mi : BMIdx}
 /-- `arena::monad::intern_e_lam_i` against `Arena.internLamIE`. -/
 theorem intern_e_lam_i_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (ty : arena.handle.EIdx) (b : arena.handle.EIdx) (mi : arena.handle.BMIdx)
     (hchild : ((absEIdx ty).isPersistent = false ∨
         (absEIdx b).isPersistent = false ∨ (absBMIdx mi).isPersistent = false) →
@@ -8388,7 +8449,7 @@ theorem intern_e_lam_i_run {pers st lst} (hrel : AStateRel pers st lst)
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, -⟩ :=
-    estore_intern_lam_i_abs (ls := lst.store) hrel.store hinv.store hfrozen hchild hp
+    estore_intern_lam_i_abs (ls := lst.store) hrel.store hinv.store hchild hp
   show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
   | Ok hh =>
@@ -8406,7 +8467,6 @@ theorem intern_e_lam_i_run {pers st lst} (hrel : AStateRel pers st lst)
 /-- `arena::monad::intern_e_forall_e_i` against `Arena.internForallEIE`. -/
 theorem intern_e_forall_e_i_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (ty : arena.handle.EIdx) (b : arena.handle.EIdx) (mi : arena.handle.BMIdx)
     (hchild : ((absEIdx ty).isPersistent = false ∨
         (absEIdx b).isPersistent = false ∨ (absBMIdx mi).isPersistent = false) →
@@ -8424,7 +8484,7 @@ theorem intern_e_forall_e_i_run {pers st lst} (hrel : AStateRel pers st lst)
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, -⟩ :=
-    estore_intern_forall_e_i_abs (ls := lst.store) hrel.store hinv.store hfrozen
+    estore_intern_forall_e_i_abs (ls := lst.store) hrel.store hinv.store
       hchild hp
   show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
@@ -8444,7 +8504,6 @@ theorem intern_e_forall_e_i_run {pers st lst} (hrel : AStateRel pers st lst)
 dispatch, and nothing but. -/
 theorem intern_e_bind_i_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (tag : Std.U32) (ty : arena.handle.EIdx) (b : arena.handle.EIdx)
     (mi : arena.handle.BMIdx)
     (hchildL : absU32 tag = ETag.lam →
@@ -8476,7 +8535,7 @@ theorem intern_e_bind_i_run {pers st lst} (hrel : AStateRel pers st lst)
     rw [if_pos rfl] at hrun
     rw [if_pos (show (absU32 arena.handle.ETAG_LAM == ETag.lam) = true by
       rw [etag_lam_abs]; simp)]
-    exact intern_e_lam_i_run hrel hinv hfrozen ty b mi
+    exact intern_e_lam_i_run hrel hinv ty b mi
       (hchildL (by rw [etag_lam_abs])) (hcapL (by rw [etag_lam_abs]))
       (hwfL (by rw [etag_lam_abs])) hrun
   · rw [if_neg hc] at hrun
@@ -8484,7 +8543,7 @@ theorem intern_e_bind_i_run {pers st lst} (hrel : AStateRel pers st lst)
       rw [← etag_lam_abs]
       intro hcc; exact hc (absU32_inj hcc)
     rw [if_neg (show ¬ ((absU32 tag == ETag.lam) = true) by simp [hne])]
-    exact intern_e_forall_e_i_run hrel hinv hfrozen ty b mi
+    exact intern_e_forall_e_i_run hrel hinv ty b mi
       (hchildF hne) (hcapF hne) (hwfF hne) hrun
 
 /-! ## `intern` at a binder view IS the datum intern then `internBindI`
@@ -8606,7 +8665,6 @@ hypothesis: this round's **finding 15**. -/
 /-- `arena::monad::intern_e_lam` against `Arena.internLamE`. -/
 theorem intern_e_lam_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (ty : arena.handle.EIdx) (b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
     (hpw : ConRon.Refine.PropWhenWF m.pw)
     (hchild : ((absEIdx ty).isPersistent = false ∨ (absEIdx b).isPersistent = false ∨
@@ -8628,7 +8686,7 @@ theorem intern_e_lam_run {pers st lst} (hrel : AStateRel pers st lst)
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr⟩ :=
-    estore_intern_lam_abs (ls := lst.store) hrel.store hinv.store hfrozen hpw hchild hp
+    estore_intern_lam_abs (ls := lst.store) hrel.store hinv.store hpw hchild hp
   show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
   | Ok hh =>
@@ -8652,7 +8710,6 @@ theorem intern_e_lam_run {pers st lst} (hrel : AStateRel pers st lst)
 /-- `arena::monad::intern_e_forall_e` against `Arena.internForallEE`. -/
 theorem intern_e_forall_e_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (ty : arena.handle.EIdx) (b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
     (hpw : ConRon.Refine.PropWhenWF m.pw)
     (hchild : ((absEIdx ty).isPersistent = false ∨ (absEIdx b).isPersistent = false ∨
@@ -8674,7 +8731,7 @@ theorem intern_e_forall_e_run {pers st lst} (hrel : AStateRel pers st lst)
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr⟩ :=
-    estore_intern_forall_e_abs (ls := lst.store) hrel.store hinv.store hfrozen hpw
+    estore_intern_forall_e_abs (ls := lst.store) hrel.store hinv.store hpw
       hchild hp
   show AOut absEIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
@@ -8717,7 +8774,6 @@ persistent binder probe and `ECapAt` (finding 15 is why the last two are not
 free here either). -/
 theorem intern_e_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (v : arena.store.ENodeView)
     (hview : lst.store.ViewOK (absENodeView v))
     (hlit : ∀ l, v = .Lit l → ConRon.Refine.LiteralWF l)
@@ -8741,33 +8797,33 @@ theorem intern_e_run {pers st lst} (hrel : AStateRel pers st lst)
     (hrun : arena.monad.intern_e pers st v = ok o) :
     Sim absEIdx (fun _ => True) pers lst o (Arena.internE (absENodeView v)) := by
   cases v with
-  | BVar i => exact intern_e_bvar_run hrel hinv hfrozen i hrun
+  | BVar i => exact intern_e_bvar_run hrel hinv i hrun
   | FVar idx ty =>
-    exact intern_e_fvar_run hrel hinv hfrozen idx ty
+    exact intern_e_fvar_run hrel hinv idx ty
       (fun h => hchild_fvar hrel.storeWF h) hview hrun
   | «Sort» u =>
-    exact intern_e_sort_run hrel hinv hfrozen u
+    exact intern_e_sort_run hrel hinv u
       (fun h => hchild_sort hrel.storeWF h) hview hrun
   | Const n us =>
-    exact intern_e_const_run hrel hinv hfrozen n us
+    exact intern_e_const_run hrel hinv n us
       (fun h => hchild_const hrel.storeWF h) hview hrun
   | App f a =>
-    exact intern_e_app_run hrel hinv hfrozen f a
+    exact intern_e_app_run hrel hinv f a
       (fun h => hchild_app hrel.storeWF h) hview hrun
   | Lam ty b m =>
-    exact intern_e_lam_run hrel hinv hfrozen ty b m
+    exact intern_e_lam_run hrel hinv ty b m
       (hpw ty b m (Or.inl rfl)) (hchildL ty b m rfl) (hcapB ty b m (Or.inl rfl))
       hview hrun
   | ForallE ty b m =>
-    exact intern_e_forall_e_run hrel hinv hfrozen ty b m
+    exact intern_e_forall_e_run hrel hinv ty b m
       (hpw ty b m (Or.inr rfl)) (hchildF ty b m rfl) (hcapB ty b m (Or.inr rfl))
       hview hrun
   | LetE ty val b =>
-    exact intern_e_let_e_run hrel hinv hfrozen ty val b
+    exact intern_e_let_e_run hrel hinv ty val b
       (fun h => hchild_let_e hrel.storeWF h) hview hrun
-  | Lit l => exact intern_e_lit_run hrel hinv hfrozen l (hlit l rfl) hrun
+  | Lit l => exact intern_e_lit_run hrel hinv l (hlit l rfl) hrun
   | Proj n i e =>
-    exact intern_e_proj_run hrel hinv hfrozen n i e
+    exact intern_e_proj_run hrel hinv n i e
       (fun h => hchild_proj hrel.storeWF h) hview hrun
 
 /-! ## The name, level and level-list tiers' `intern` (task #97-P5-Specs
@@ -8996,7 +9052,6 @@ three constructor arrays are `ntables_find_abs`, `ntables_full_abs` and
 `ntables_push_abs` above, and this lemma is only the control flow. -/
 theorem nstore_intern_other_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
     (hinv : NStoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {v : arena.store.NNodeView} (hvwf : NNodeViewWF v) {r} {rs'}
     (h : arena.store.NStore.intern_other rs pers v = ok (r, rs')) :
     (∀ hh, r = .Ok hh →
@@ -9096,7 +9151,15 @@ theorem nstore_intern_other_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
     · -- the persistent tier
       rw [if_neg hsc]
       split at h <;> rename_i hsh2
-      · exact absurd (hfrozen hsh2) hsc
+      · -- the frozen tier: `Native`, which claims nothing
+        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have he := Result.ok_injective h
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨hr, hs2⟩ := he
+        subst hr; subst hs2
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
+          by simp [hsh2, hsc]⟩
       · have hsh : rs.shared_on = false := by simpa using hsh2
         have hpersN : rPersN pers rs = rs.pers := by unfold rPersN; rw [hsh]; rfl
         obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -9165,7 +9228,6 @@ theorem nstore_pers_strs_find_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
 view. -/
 theorem nstore_intern_str_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
     (hinv : NStoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {p : arena.handle.NIdx} {s : alloc.vec.Vec Std.U32}
     (hvwf : ConRon.Refine.StrWF s) {d : Std.U64} {r} {rs'}
     (h : arena.store.NStore.intern_str rs pers ⟨p, s⟩ d = ok (r, rs')) :
@@ -9279,7 +9341,15 @@ theorem nstore_intern_str_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
     · -- the persistent tier
       rw [if_neg hsc]
       split at h <;> rename_i hsh2
-      · exact absurd (hfrozen hsh2) hsc
+      · -- the frozen tier: `Native`, which claims nothing
+        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have he := Result.ok_injective h
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨hr, hs2⟩ := he
+        subst hr; subst hs2
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
+          by simp [hsh2, hsc]⟩
       · have hsh : rs.shared_on = false := by simpa using hsh2
         have hpersN : rPersN pers rs = rs.pers := by unfold rPersN; rw [hsh]; rfl
         obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -9331,7 +9401,6 @@ dispatcher's name-tier twin, two arms wide.  `Anonymous` and `Num` go through
 `intern_str`. -/
 theorem nstore_intern_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
     (hinv : NStoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {v : arena.store.NNodeView} (hvwf : NNodeViewWF v) {r} {rs'}
     (h : arena.store.NStore.intern rs pers v = ok (r, rs')) :
     (∀ hh, r = .Ok hh →
@@ -9343,17 +9412,17 @@ theorem nstore_intern_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
   cases v with
   | Anonymous =>
     simp only [arena.store.NStore.intern] at h
-    exact nstore_intern_other_abs hrel hinv hfrozen hvwf h
+    exact nstore_intern_other_abs hrel hinv hvwf h
   | Str p s =>
     simp only [arena.store.NStore.intern] at h
     obtain ⟨i, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i2, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨d, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    exact nstore_intern_str_abs hrel hinv hfrozen hvwf h
+    exact nstore_intern_str_abs hrel hinv hvwf h
   | Num p n =>
     simp only [arena.store.NStore.intern] at h
-    exact nstore_intern_other_abs hrel hinv hfrozen hvwf h
+    exact nstore_intern_other_abs hrel hinv hvwf h
 
 /-! ### The persistent tier's own `intern`
 
@@ -9453,7 +9522,6 @@ update happens at each level. -/
 
 theorem estore_intern_name_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
-    (hfrozen : rs.lss.ls.ns.shared_on = true → rs.lss.ls.ns.scratch_on = true)
     {v : arena.store.NNodeView} (hvwf : NNodeViewWF v) {r} {rs'}
     (h : arena.store.EStore.intern_name rs pers v = ok (r, rs')) :
     (∀ hh, r = .Ok hh →
@@ -9484,7 +9552,7 @@ theorem estore_intern_name_abs {pers rs ls} (hrel : StoreRel pers rs ls)
   obtain ⟨e0a, e0b⟩ := e0
   subst e0a; subst e0b
   obtain ⟨hok, herr, -⟩ :=
-    nstore_intern_abs (ls := ls.ns) hrel.lss.lvl.ns hinv.lss.lvl.ns hfrozen hvwf h3
+    nstore_intern_abs (ls := ls.ns) hrel.lss.lvl.ns hinv.lss.lvl.ns hvwf h3
   refine ⟨?_, herr, rfl, rfl⟩
   intro hh hoc
   obtain ⟨hhd, hrel1, hinv1, hcap⟩ := hok hh hoc
@@ -9544,8 +9612,6 @@ theorem internNNode_run_of_cap {lst : AState} {v : NNodeView}
 /-- `arena::monad::intern_n_node` against `Arena.internNNode`. -/
 theorem intern_n_node_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.lss.ls.ns.shared_on = true →
-      st.store.lss.ls.ns.scratch_on = true)
     (v : arena.store.NNodeView) (hvwf : NNodeViewWF v)
     (hview : lst.store.ns.ViewOK (absNNodeView v)) {o}
     (hrun : arena.monad.intern_n_node pers st v = ok o) :
@@ -9557,7 +9623,7 @@ theorem intern_n_node_run {pers st lst} (hrel : AStateRel pers st lst)
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, -⟩ :=
-    estore_intern_name_abs (ls := lst.store) hrel.store hinv.store hfrozen hvwf hp
+    estore_intern_name_abs (ls := lst.store) hrel.store hinv.store hvwf hp
   show AOut absNIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
   | Ok hh =>
@@ -9921,7 +9987,6 @@ constructors — and, like the name tier, with no case split: `ltables_find_abs`
 `ltables_full_abs` and `ltables_push_abs` do the dispatch. -/
 theorem lstore_intern_abs {pers rs ls} (hrel : LStoreRel pers rs ls)
     (hinv : LStoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {v : arena.store.LNodeView} {r} {rs'}
     (h : arena.store.LStore.intern rs pers v = ok (r, rs')) :
     (∀ hh, r = .Ok hh →
@@ -10023,7 +10088,15 @@ theorem lstore_intern_abs {pers rs ls} (hrel : LStoreRel pers rs ls)
     · -- the persistent tier
       rw [if_neg hsc]
       split at h <;> rename_i hsh2
-      · exact absurd (hfrozen hsh2) hsc
+      · -- the frozen tier: `Native`, which claims nothing
+        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have he := Result.ok_injective h
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨hr, hs2⟩ := he
+        subst hr; subst hs2
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
+          by simp [hsh2, hsc]⟩
       · have hsh : rs.shared_on = false := by simpa using hsh2
         have hpersL : rPersL pers rs = rs.pers := by unfold rPersL; rw [hsh]; rfl
         obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -10065,7 +10138,6 @@ theorem lstore_intern_abs {pers rs ls} (hrel : LStoreRel pers rs ls)
 
 theorem estore_intern_level_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
-    (hfrozen : rs.lss.ls.shared_on = true → rs.lss.ls.scratch_on = true)
     {v : arena.store.LNodeView} {r} {rs'}
     (h : arena.store.EStore.intern_level rs pers v = ok (r, rs')) :
     (∀ hh, r = .Ok hh →
@@ -10089,7 +10161,7 @@ theorem estore_intern_level_abs {pers rs ls} (hrel : StoreRel pers rs ls)
   obtain ⟨e0a, e0b⟩ := e0
   subst e0a; subst e0b
   obtain ⟨hok, herr, -⟩ :=
-    lstore_intern_abs (ls := ls.ls) hrel.lss.lvl hinv.lss.lvl hfrozen h2
+    lstore_intern_abs (ls := ls.ls) hrel.lss.lvl hinv.lss.lvl h2
   refine ⟨?_, herr, rfl, rfl⟩
   intro hh hoc
   obtain ⟨hhd, hrel1, hinv1, hcap⟩ := hok hh hoc
@@ -10143,7 +10215,6 @@ theorem internLNode_run_of_cap {lst : AState} {v : LNodeView}
 /-- `arena::monad::intern_l_node` against `Arena.internLNode`. -/
 theorem intern_l_node_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.lss.ls.shared_on = true → st.store.lss.ls.scratch_on = true)
     (v : arena.store.LNodeView)
     (hview : lst.store.ls.ViewOK (absLNodeView v)) {o}
     (hrun : arena.monad.intern_l_node pers st v = ok o) :
@@ -10155,7 +10226,7 @@ theorem intern_l_node_run {pers st lst} (hrel : AStateRel pers st lst)
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, -⟩ :=
-    estore_intern_level_abs (ls := lst.store) hrel.store hinv.store hfrozen hp
+    estore_intern_level_abs (ls := lst.store) hrel.store hinv.store hp
   show AOut absLIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
   | Ok hh =>
@@ -10339,7 +10410,6 @@ theorem lsstore_pers_find_abs {pers rs ls} (hrel : LsStoreRel pers rs ls)
 flow at the one constructor array the level-list tier has. -/
 theorem lsstore_intern_abs {pers rs ls} (hrel : LsStoreRel pers rs ls)
     (hinv : LsStoreInv pers rs)
-    (hfrozen : rs.shared_on = true → rs.scratch_on = true)
     {v : alloc.vec.Vec arena.handle.LIdx} {r} {rs'}
     (h : arena.store.LsStore.intern rs pers v = ok (r, rs')) :
     (∀ hh, r = .Ok hh →
@@ -10441,7 +10511,15 @@ theorem lsstore_intern_abs {pers rs ls} (hrel : LsStoreRel pers rs ls)
     · -- the persistent tier
       rw [if_neg hsc]
       split at h <;> rename_i hsh2
-      · exact absurd (hfrozen hsh2) hsc
+      · -- the frozen tier: `Native`, which claims nothing
+        obtain ⟨s1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have he := Result.ok_injective h
+        simp only [Prod.mk.injEq] at he
+        obtain ⟨hr, hs2⟩ := he
+        subst hr; subst hs2
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
+          by simp [hsh2, hsc]⟩
       · have hsh : rs.shared_on = false := by simpa using hsh2
         have hpersLs : rPersLs pers rs = rs.pers := by unfold rPersLs; rw [hsh]; rfl
         obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -10483,7 +10561,6 @@ theorem lsstore_intern_abs {pers rs ls} (hrel : LsStoreRel pers rs ls)
 
 theorem estore_intern_levels_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
-    (hfrozen : rs.lss.shared_on = true → rs.lss.scratch_on = true)
     {v : alloc.vec.Vec arena.handle.LIdx} {r} {rs'}
     (h : arena.store.EStore.intern_levels rs pers v = ok (r, rs')) :
     (∀ hh, r = .Ok hh →
@@ -10500,7 +10577,7 @@ theorem estore_intern_levels_abs {pers rs ls} (hrel : StoreRel pers rs ls)
   obtain ⟨e0a, e0b⟩ := e0
   subst e0a; subst e0b
   obtain ⟨hok, herr, -⟩ :=
-    lsstore_intern_abs (ls := ls.lss) hrel.lss hinv.lss hfrozen h1
+    lsstore_intern_abs (ls := ls.lss) hrel.lss hinv.lss h1
   refine ⟨?_, herr, rfl, rfl⟩
   intro hh hoc
   obtain ⟨hhd, hrel1, hinv1, hcap⟩ := hok hh hoc
@@ -10551,7 +10628,6 @@ theorem internLsNode_run_of_cap {lst : AState} {v : LsNodeView}
 /-- `arena::monad::intern_ls_node` against `Arena.internLsNode`. -/
 theorem intern_ls_node_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.lss.shared_on = true → st.store.lss.scratch_on = true)
     (v : alloc.vec.Vec arena.handle.LIdx)
     (hview : lst.store.lss.ViewOK (absLsNodeView v)) {o}
     (hrun : arena.monad.intern_ls_node pers st v = ok o) :
@@ -10564,7 +10640,7 @@ theorem intern_ls_node_run {pers st lst} (hrel : AStateRel pers st lst)
     Result.ok_injective hrun
   subst ho
   obtain ⟨hok, herr, -⟩ :=
-    estore_intern_levels_abs (ls := lst.store) hrel.store hinv.store hfrozen hp
+    estore_intern_levels_abs (ls := lst.store) hrel.store hinv.store hp
   show AOut absLsIdx (fun _ => True) pers lst r { st with store := e } _
   cases hr : r with
   | Ok hh =>
@@ -12467,24 +12543,6 @@ theorem FlagsEq.trans {a b c : arena.store.EStore} (h1 : FlagsEq a b)
    h2.lsSh.trans h1.lsSh, h2.lsScr.trans h1.lsScr,
    h2.nsSh.trans h1.nsSh, h2.nsScr.trans h1.nsScr⟩
 
-/-- `intern_n_node_run`'s side condition, carried across a step. -/
-theorem FlagsEq.unfrozenN {rs rs' : arena.store.EStore} (h : FlagsEq rs rs')
-    (hu : rs.lss.ls.ns.shared_on = true → rs.lss.ls.ns.scratch_on = true) :
-    rs'.lss.ls.ns.shared_on = true → rs'.lss.ls.ns.scratch_on = true := by
-  rw [h.nsSh, h.nsScr]; exact hu
-
-/-- `intern_l_node_run`'s side condition, carried across a step. -/
-theorem FlagsEq.unfrozenL {rs rs' : arena.store.EStore} (h : FlagsEq rs rs')
-    (hu : rs.lss.ls.shared_on = true → rs.lss.ls.scratch_on = true) :
-    rs'.lss.ls.shared_on = true → rs'.lss.ls.scratch_on = true := by
-  rw [h.lsSh, h.lsScr]; exact hu
-
-/-- `intern_ls_node_run`'s side condition, carried across a step. -/
-theorem FlagsEq.unfrozenLs {rs rs' : arena.store.EStore} (h : FlagsEq rs rs')
-    (hu : rs.lss.shared_on = true → rs.lss.scratch_on = true) :
-    rs'.lss.shared_on = true → rs'.lss.scratch_on = true := by
-  rw [h.lssSh, h.lssScr]; exact hu
-
 theorem nstore_intern_other_flags {pers rs v r rs'}
     (h : arena.store.NStore.intern_other rs pers v = ok (r, rs')) :
     rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on := by
@@ -12649,7 +12707,6 @@ theorem intern_name_run' :
     ∀ (n : kernel.name.Name) (_hwf : ConRon.Refine.NameWF n)
       {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState} {o},
       AStateRel pers st lst → AStateInv pers st →
-      (st.store.lss.ls.ns.shared_on = true → st.store.lss.ls.ns.scratch_on = true) →
       arena.monad.intern_name pers st n = ok o →
       Sim absNIdx (fun _ => True) pers lst o
         (Arena.internName (ConRon.Refine.absName n)) ∧
@@ -12657,18 +12714,18 @@ theorem intern_name_run' :
   intro n hwf
   induction n, hwf using ConRon.Refine.NameWF.ind_node with
   | anonymous hh w =>
-    intro pers st lst o hrel hinv hfr hrun
+    intro pers st lst o hrel hinv hrun
     rw [arena.monad.intern_name, ConRon.Refine.bind_arc_deref] at hrun
     replace hrun : arena.monad.intern_n_node pers st arena.store.NNodeView.Anonymous
         = ok o := hrun
     refine ⟨?_, intern_n_node_flags hrun⟩
     have hv : lst.store.ns.ViewOK (absNNodeView arena.store.NNodeView.Anonymous) := by
       intro c hc; simp [absNNodeView, NNodeView.children] at hc
-    have hsim := intern_n_node_run hrel hinv hfr arena.store.NNodeView.Anonymous
+    have hsim := intern_n_node_run hrel hinv arena.store.NNodeView.Anonymous
       trivial hv hrun
     exact hsim
   | str hh pre s w ih =>
-    intro pers st lst o hrel hinv hfr hrun
+    intro pers st lst o hrel hinv hrun
     rw [arena.monad.intern_name, ConRon.Refine.bind_arc_deref] at hrun
     replace hrun : (do
         let (r, st1) ← arena.monad.intern_name pers st pre
@@ -12679,7 +12736,7 @@ theorem intern_name_run' :
         | .Err _ => ok (r, st1)) = ok o := hrun
     obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r1, st1⟩ := p1
-    obtain ⟨hsim1, hfl1⟩ := ih w.str_kids.1 hrel hinv hfr hp1
+    obtain ⟨hsim1, hfl1⟩ := ih w.str_kids.1 hrel hinv hp1
     cases hr : r1 with
     | Err e =>
       simp only [hr] at hrun
@@ -12699,7 +12756,6 @@ theorem intern_name_run' :
       rw [ConRon.Refine.Expr.str_copy_eq hv] at hrun
       obtain ⟨lst1, hy1, hrel1, hinv1, hext1, -⟩ :=
         (hr ▸ hsim1 : AOut _ _ _ _ (.Ok hp) _ _)
-      have hfr1 := hfl1.unfrozenN hfr
       obtain ⟨hden, -, -⟩ :=
         internName_run_denote (ConRon.Refine.absName pre) hrel.storeWF hy1
       obtain ⟨v1, hv1⟩ := denoteN_view hden
@@ -12707,7 +12763,7 @@ theorem intern_name_run' :
         intro c hc
         simp only [absNNodeView, NNodeView.children, List.mem_singleton] at hc
         subst hc; rw [hv1]; rfl
-      have hsim2 := intern_n_node_run hrel1 hinv1 hfr1
+      have hsim2 := intern_n_node_run hrel1 hinv1
         (arena.store.NNodeView.Str hp s) w.str_kids.2 hvo hrun
       refine ⟨?_, hfl1.trans (intern_n_node_flags hrun)⟩
       show AOut absNIdx (fun _ => True) pers lst _ _ _
@@ -12717,7 +12773,7 @@ theorem intern_name_run' :
         from rfl, Arena.internName, run_bind_ok hy1]
       exact AOut.rebase hext1 hsim2
   | num hh pre m w ih =>
-    intro pers st lst o hrel hinv hfr hrun
+    intro pers st lst o hrel hinv hrun
     rw [arena.monad.intern_name, ConRon.Refine.bind_arc_deref] at hrun
     replace hrun : (do
         let (r, st1) ← arena.monad.intern_name pers st pre
@@ -12726,7 +12782,7 @@ theorem intern_name_run' :
         | .Err _ => ok (r, st1)) = ok o := hrun
     obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r1, st1⟩ := p1
-    obtain ⟨hsim1, hfl1⟩ := ih w.num_kids hrel hinv hfr hp1
+    obtain ⟨hsim1, hfl1⟩ := ih w.num_kids hrel hinv hp1
     cases hr : r1 with
     | Err e =>
       simp only [hr] at hrun
@@ -12743,7 +12799,6 @@ theorem intern_name_run' :
       simp only [hr] at hrun
       obtain ⟨lst1, hy1, hrel1, hinv1, hext1, -⟩ :=
         (hr ▸ hsim1 : AOut _ _ _ _ (.Ok hp) _ _)
-      have hfr1 := hfl1.unfrozenN hfr
       obtain ⟨hden, -, -⟩ :=
         internName_run_denote (ConRon.Refine.absName pre) hrel.storeWF hy1
       obtain ⟨v1, hv1⟩ := denoteN_view hden
@@ -12751,7 +12806,7 @@ theorem intern_name_run' :
         intro c hc
         simp only [absNNodeView, NNodeView.children, List.mem_singleton] at hc
         subst hc; rw [hv1]; rfl
-      have hsim2 := intern_n_node_run hrel1 hinv1 hfr1
+      have hsim2 := intern_n_node_run hrel1 hinv1
         (arena.store.NNodeView.Num hp m) trivial hvo hrun
       refine ⟨?_, hfl1.trans (intern_n_node_flags hrun)⟩
       show AOut absNIdx (fun _ => True) pers lst _ _ _
@@ -12766,8 +12821,6 @@ theorem intern_level_run' :
     ∀ (l : kernel.level.Level) (_hwf : ConRon.Refine.LevelWF l)
       {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState} {o},
       AStateRel pers st lst → AStateInv pers st →
-      (st.store.lss.ls.ns.shared_on = true → st.store.lss.ls.ns.scratch_on = true) →
-      (st.store.lss.ls.shared_on = true → st.store.lss.ls.scratch_on = true) →
       arena.monad.intern_level pers st l = ok o →
       Sim absLIdx (fun _ => True) pers lst o
         (Arena.internLevel (ConRon.Refine.absLevel l)) ∧
@@ -12775,7 +12828,7 @@ theorem intern_level_run' :
   intro l hwf
   induction l, hwf using ConRon.Refine.LevelWF.ind_node with
   | zero hh w =>
-    intro pers st lst o hrel hinv hfrN hfrL hrun
+    intro pers st lst o hrel hinv hrun
     rw [arena.monad.intern_level, ConRon.Refine.bind_arc_deref] at hrun
     replace hrun : arena.monad.intern_l_node pers st arena.store.LNodeView.Zero
         = ok o := hrun
@@ -12784,9 +12837,9 @@ theorem intern_level_run' :
       constructor
       · intro c hc; simp [absLNodeView, LNodeView.lchildren] at hc
       · intro c hc; simp [absLNodeView, LNodeView.nchildren] at hc
-    exact intern_l_node_run hrel hinv hfrL arena.store.LNodeView.Zero hv hrun
+    exact intern_l_node_run hrel hinv arena.store.LNodeView.Zero hv hrun
   | succ hh a w ih =>
-    intro pers st lst o hrel hinv hfrN hfrL hrun
+    intro pers st lst o hrel hinv hrun
     rw [arena.monad.intern_level, ConRon.Refine.bind_arc_deref] at hrun
     replace hrun : (do
         let (r, st1) ← arena.monad.intern_level pers st a
@@ -12795,7 +12848,7 @@ theorem intern_level_run' :
         | .Err _ => ok (r, st1)) = ok o := hrun
     obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r1, st1⟩ := p1
-    obtain ⟨hsim1, hfl1⟩ := ih (ConRon.Refine.Level.LevelWF.succ_inv w) hrel hinv hfrN hfrL hp1
+    obtain ⟨hsim1, hfl1⟩ := ih (ConRon.Refine.Level.LevelWF.succ_inv w) hrel hinv hp1
     cases hr : r1 with
     | Err e =>
       simp only [hr] at hrun
@@ -12812,8 +12865,6 @@ theorem intern_level_run' :
       simp only [hr] at hrun
       obtain ⟨lst1, hy1, hrel1, hinv1, hext1, -⟩ :=
         (hr ▸ hsim1 : AOut _ _ _ _ (.Ok hu) _ _)
-      have hfrN1 := hfl1.unfrozenN hfrN
-      have hfrL1 := hfl1.unfrozenL hfrL
       obtain ⟨hden, -, -⟩ :=
         internLevel_run_denote (ConRon.Refine.absLevel a) hrel.storeWF hy1
       obtain ⟨v1, hv1⟩ := denoteL_view hden
@@ -12823,7 +12874,7 @@ theorem intern_level_run' :
           simp only [absLNodeView, LNodeView.lchildren, List.mem_singleton] at hc
           subst hc; rw [hv1]; rfl
         · intro c hc; simp [absLNodeView, LNodeView.nchildren] at hc
-      have hsim2 := intern_l_node_run hrel1 hinv1 hfrL1
+      have hsim2 := intern_l_node_run hrel1 hinv1
         (arena.store.LNodeView.Succ hu) hvo hrun
       refine ⟨?_, hfl1.trans (intern_l_node_flags hrun)⟩
       show AOut absLIdx (fun _ => True) pers lst _ _ _
@@ -12833,7 +12884,7 @@ theorem intern_level_run' :
         Arena.internLevel, run_bind_ok hy1]
       exact AOut.rebase hext1 hsim2
   | max hh a b w iha ihb =>
-    intro pers st lst o hrel hinv hfrN hfrL hrun
+    intro pers st lst o hrel hinv hrun
     rw [arena.monad.intern_level, ConRon.Refine.bind_arc_deref] at hrun
     replace hrun : (do
         let (r, st1) ← arena.monad.intern_level pers st a
@@ -12847,7 +12898,7 @@ theorem intern_level_run' :
     obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r1, st1⟩ := p1
     obtain ⟨hsim1, hfl1⟩ :=
-      iha (ConRon.Refine.Level.LevelWF.max_inv w).1 hrel hinv hfrN hfrL hp1
+      iha (ConRon.Refine.Level.LevelWF.max_inv w).1 hrel hinv hp1
     have habs : ConRon.Refine.absLevel
         (kernel.level.Level.mk (kernel.level.LevelNode.mk hh (.Max a b)))
       = ConLeche.Level.max (ConRon.Refine.absLevel a) (ConRon.Refine.absLevel b) := rfl
@@ -12865,14 +12916,12 @@ theorem intern_level_run' :
       simp only [hr] at hrun
       obtain ⟨lst1, hy1, hrel1, hinv1, hext1, -⟩ :=
         (hr ▸ hsim1 : AOut _ _ _ _ (.Ok hu) _ _)
-      have hfrN1 := hfl1.unfrozenN hfrN
-      have hfrL1 := hfl1.unfrozenL hfrL
       obtain ⟨hdena, -, -⟩ :=
         internLevel_run_denote (ConRon.Refine.absLevel a) hrel.storeWF hy1
       obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨r2, st2⟩ := p2
       obtain ⟨hsim2, hfl2⟩ :=
-        ihb (ConRon.Refine.Level.LevelWF.max_inv w).2 hrel1 hinv1 hfrN1 hfrL1 hp2
+        ihb (ConRon.Refine.Level.LevelWF.max_inv w).2 hrel1 hinv1 hp2
       cases hr2 : r2 with
       | Err e =>
         simp only [hr2] at hrun
@@ -12887,8 +12936,6 @@ theorem intern_level_run' :
         simp only [hr2] at hrun
         obtain ⟨lst2, hy2, hrel2, hinv2, hext2, -⟩ :=
           (hr2 ▸ hsim2 : AOut _ _ _ _ (.Ok hv) _ _)
-        have hfrN2 := hfl2.unfrozenN hfrN1
-        have hfrL2 := hfl2.unfrozenL hfrL1
         obtain ⟨hdenb, -, -⟩ :=
           internLevel_run_denote (ConRon.Refine.absLevel b) hrel1.storeWF hy2
         have hdena2 : denoteL lst2.store.ls (absLIdx hu) = some (ConRon.Refine.absLevel a) :=
@@ -12904,14 +12951,14 @@ theorem intern_level_run' :
             · rw [hv1]; rfl
             · rw [hv2]; rfl
           · intro c hc; simp [absLNodeView, LNodeView.nchildren] at hc
-        have hsim3 := intern_l_node_run hrel2 hinv2 hfrL2
+        have hsim3 := intern_l_node_run hrel2 hinv2
           (arena.store.LNodeView.Max hu hv) hvo hrun
         refine ⟨?_, (hfl1.trans hfl2).trans (intern_l_node_flags hrun)⟩
         show AOut absLIdx (fun _ => True) pers lst _ _ _
         rw [habs, Arena.internLevel, run_bind_ok hy1, run_bind_ok hy2]
         exact AOut.rebase (hext1.trans hext2) hsim3
   | imax hh a b w iha ihb =>
-    intro pers st lst o hrel hinv hfrN hfrL hrun
+    intro pers st lst o hrel hinv hrun
     rw [arena.monad.intern_level, ConRon.Refine.bind_arc_deref] at hrun
     replace hrun : (do
         let (r, st1) ← arena.monad.intern_level pers st a
@@ -12925,7 +12972,7 @@ theorem intern_level_run' :
     obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r1, st1⟩ := p1
     obtain ⟨hsim1, hfl1⟩ :=
-      iha (ConRon.Refine.Level.LevelWF.imax_inv w).1 hrel hinv hfrN hfrL hp1
+      iha (ConRon.Refine.Level.LevelWF.imax_inv w).1 hrel hinv hp1
     have habs : ConRon.Refine.absLevel
         (kernel.level.Level.mk (kernel.level.LevelNode.mk hh (.Imax a b)))
       = ConLeche.Level.imax (ConRon.Refine.absLevel a) (ConRon.Refine.absLevel b) := rfl
@@ -12943,14 +12990,12 @@ theorem intern_level_run' :
       simp only [hr] at hrun
       obtain ⟨lst1, hy1, hrel1, hinv1, hext1, -⟩ :=
         (hr ▸ hsim1 : AOut _ _ _ _ (.Ok hu) _ _)
-      have hfrN1 := hfl1.unfrozenN hfrN
-      have hfrL1 := hfl1.unfrozenL hfrL
       obtain ⟨hdena, -, -⟩ :=
         internLevel_run_denote (ConRon.Refine.absLevel a) hrel.storeWF hy1
       obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨r2, st2⟩ := p2
       obtain ⟨hsim2, hfl2⟩ :=
-        ihb (ConRon.Refine.Level.LevelWF.imax_inv w).2 hrel1 hinv1 hfrN1 hfrL1 hp2
+        ihb (ConRon.Refine.Level.LevelWF.imax_inv w).2 hrel1 hinv1 hp2
       cases hr2 : r2 with
       | Err e =>
         simp only [hr2] at hrun
@@ -12965,8 +13010,6 @@ theorem intern_level_run' :
         simp only [hr2] at hrun
         obtain ⟨lst2, hy2, hrel2, hinv2, hext2, -⟩ :=
           (hr2 ▸ hsim2 : AOut _ _ _ _ (.Ok hv) _ _)
-        have hfrN2 := hfl2.unfrozenN hfrN1
-        have hfrL2 := hfl2.unfrozenL hfrL1
         obtain ⟨hdenb, -, -⟩ :=
           internLevel_run_denote (ConRon.Refine.absLevel b) hrel1.storeWF hy2
         have hdena2 : denoteL lst2.store.ls (absLIdx hu) = some (ConRon.Refine.absLevel a) :=
@@ -12982,14 +13025,14 @@ theorem intern_level_run' :
             · rw [hv1]; rfl
             · rw [hv2]; rfl
           · intro c hc; simp [absLNodeView, LNodeView.nchildren] at hc
-        have hsim3 := intern_l_node_run hrel2 hinv2 hfrL2
+        have hsim3 := intern_l_node_run hrel2 hinv2
           (arena.store.LNodeView.Imax hu hv) hvo hrun
         refine ⟨?_, (hfl1.trans hfl2).trans (intern_l_node_flags hrun)⟩
         show AOut absLIdx (fun _ => True) pers lst _ _ _
         rw [habs, Arena.internLevel, run_bind_ok hy1, run_bind_ok hy2]
         exact AOut.rebase (hext1.trans hext2) hsim3
   | param hh n w =>
-    intro pers st lst o hrel hinv hfrN hfrL hrun
+    intro pers st lst o hrel hinv hrun
     rw [arena.monad.intern_level, ConRon.Refine.bind_arc_deref] at hrun
     replace hrun : (do
         let (r, st1) ← arena.monad.intern_name pers st n
@@ -13000,7 +13043,7 @@ theorem intern_level_run' :
     obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r1, st1⟩ := p1
     obtain ⟨hsim1, hfl1⟩ :=
-      intern_name_run' n (ConRon.Refine.Level.LevelWF.param_inv w) hrel hinv hfrN hp1
+      intern_name_run' n (ConRon.Refine.Level.LevelWF.param_inv w) hrel hinv hp1
     have habs : ConRon.Refine.absLevel
         (kernel.level.Level.mk (kernel.level.LevelNode.mk hh (.Param n)))
       = ConLeche.Level.param (ConRon.Refine.absName n) := rfl
@@ -13018,8 +13061,6 @@ theorem intern_level_run' :
       simp only [hr] at hrun
       obtain ⟨lst1, hy1, hrel1, hinv1, hext1, -⟩ :=
         (hr ▸ hsim1 : AOut _ _ _ _ (.Ok hn) _ _)
-      have hfrN1 := hfl1.unfrozenN hfrN
-      have hfrL1 := hfl1.unfrozenL hfrL
       obtain ⟨hden, -, -⟩ :=
         internName_run_denote (ConRon.Refine.absName n) hrel.storeWF hy1
       obtain ⟨v1, hv1⟩ := denoteN_view hden
@@ -13031,7 +13072,7 @@ theorem intern_level_run' :
           subst hc
           show (lst1.store.ns.view _).isSome = true
           rw [hv1]; rfl
-      have hsim2 := intern_l_node_run hrel1 hinv1 hfrL1
+      have hsim2 := intern_l_node_run hrel1 hinv1
         (arena.store.LNodeView.Param hn) hvo hrun
       refine ⟨?_, hfl1.trans (intern_l_node_flags hrun)⟩
       show AOut absLIdx (fun _ => True) pers lst _ _ _
@@ -13073,8 +13114,6 @@ theorem intern_level_list_from_run' {pers} {us : alloc.vec.Vec kernel.level.Leve
     (hwf : ConRon.Refine.LevelsWF us) :
     ∀ k {st : arena.monad.AState} {lst : AState}, AStateRel pers st lst →
       AStateInv pers st →
-      (st.store.lss.ls.ns.shared_on = true → st.store.lss.ls.ns.scratch_on = true) →
-      (st.store.lss.ls.shared_on = true → st.store.lss.ls.scratch_on = true) →
       ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.handle.LIdx),
       us.length - i.val ≤ k → ∀ {o},
       arena.monad.intern_level_list_from pers st us i out = ok o →
@@ -13087,7 +13126,7 @@ theorem intern_level_list_from_run' {pers} {us : alloc.vec.Vec kernel.level.Leve
   intro k
   induction k with
   | zero =>
-    intro st lst hrel hinv hfrN hfrL i out hk o hrun
+    intro st lst hrel hinv i out hk o hrun
     rw [arena.monad.intern_level_list_from.eq_def] at hrun; simp only [] at hrun
     rw [if_pos (by scalar_tac)] at hrun
     rw [List.drop_eq_nil_of_le (by scalar_tac), List.map_nil]
@@ -13100,7 +13139,7 @@ theorem intern_level_list_from_run' {pers} {us : alloc.vec.Vec kernel.level.Leve
     show Except.ok (out.val.map absLIdx ++ [], lst) = _
     rw [List.append_nil]
   | succ k ih =>
-    intro st lst hrel hinv hfrN hfrL i out hk o hrun
+    intro st lst hrel hinv i out hk o hrun
     rw [arena.monad.intern_level_list_from.eq_def] at hrun; simp only [] at hrun
     split at hrun
     · rw [List.drop_eq_nil_of_le (by scalar_tac), List.map_nil]
@@ -13123,7 +13162,7 @@ theorem intern_level_list_from_run' {pers} {us : alloc.vec.Vec kernel.level.Leve
       obtain ⟨r, st1⟩ := p1
       have hlwf : ConRon.Refine.LevelWF l := by
         rw [← hlv]; exact hwf _ (List.getElem_mem hb)
-      obtain ⟨hstep, hfl1⟩ := intern_level_run' l hlwf hrel hinv hfrN hfrL hp1
+      obtain ⟨hstep, hfl1⟩ := intern_level_run' l hlwf hrel hinv hp1
       rw [List.drop_eq_getElem_cons hb, List.map_cons, hlv, internLevelList_run_cons]
       cases hrc : r with
       | Err e =>
@@ -13149,9 +13188,7 @@ theorem intern_level_list_from_run' {pers} {us : alloc.vec.Vec kernel.level.Leve
         have hi2v : i2.val = i.val + 1 := by
           have := ConRon.Refine.Nat.uadd_val hi2; simpa using this
         have hout1v : out1.val = out.val ++ [x] := ConRon.Refine.vec_push_val hout1
-        have hfrN1 := hfl1.unfrozenN hfrN
-        have hfrL1 := hfl1.unfrozenL hfrL
-        obtain ⟨hih, hfl2⟩ := ih hrel1 hinv1 hfrN1 hfrL1 i2 out1 (by scalar_tac) hrun
+        obtain ⟨hih, hfl2⟩ := ih hrel1 hinv1 i2 out1 (by scalar_tac) hrun
         rw [hi2v] at hih
         refine ⟨?_, hfl1.trans hfl2⟩
         show AOut _ _ pers lst o.1 o.2
@@ -13206,8 +13243,6 @@ theorem intern_level_list_from_run' {pers} {us : alloc.vec.Vec kernel.level.Leve
 
 theorem intern_level_list_run' {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrN : st.store.lss.ls.ns.shared_on = true → st.store.lss.ls.ns.scratch_on = true)
-    (hfrL : st.store.lss.ls.shared_on = true → st.store.lss.ls.scratch_on = true)
     {us : alloc.vec.Vec kernel.level.Level} {o}
     (hwf : ConRon.Refine.LevelsWF us)
     (hrun : arena.monad.intern_level_list pers st us = ok o) :
@@ -13216,7 +13251,7 @@ theorem intern_level_list_run' {pers st lst} (hrel : AStateRel pers st lst)
       (Arena.internLevelList (ConRon.Refine.absLevels us)) ∧
     FlagsEq st.store o.2.store := by
   rw [arena.monad.intern_level_list] at hrun
-  obtain ⟨h1, h2⟩ := intern_level_list_from_run' hwf us.length hrel hinv hfrN hfrL 0#usize
+  obtain ⟨h1, h2⟩ := intern_level_list_from_run' hwf us.length hrel hinv 0#usize
     (alloc.vec.Vec.new arena.handle.LIdx) (by simp) hrun
   refine ⟨?_, h2⟩
   show AOut _ _ pers lst o.1 o.2 _
@@ -13232,9 +13267,6 @@ theorem intern_level_list_run' {pers st lst} (hrel : AStateRel pers st lst)
 
 theorem intern_levels_run' {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrN : st.store.lss.ls.ns.shared_on = true → st.store.lss.ls.ns.scratch_on = true)
-    (hfrL : st.store.lss.ls.shared_on = true → st.store.lss.ls.scratch_on = true)
-    (hfrLs : st.store.lss.shared_on = true → st.store.lss.scratch_on = true)
     {us : alloc.vec.Vec kernel.level.Level} {o}
     (hwf : ConRon.Refine.LevelsWF us)
     (hrun : arena.monad.intern_levels pers st us = ok o) :
@@ -13244,7 +13276,7 @@ theorem intern_levels_run' {pers st lst} (hrel : AStateRel pers st lst)
   rw [arena.monad.intern_levels] at hrun
   obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r1, st1⟩ := p1
-  obtain ⟨hsim1, hfl1⟩ := intern_level_list_run' hrel hinv hfrN hfrL hwf hp1
+  obtain ⟨hsim1, hfl1⟩ := intern_level_list_run' hrel hinv hwf hp1
   cases hr : r1 with
   | Err e =>
     simp only [hr] at hrun
@@ -13259,11 +13291,10 @@ theorem intern_levels_run' {pers st lst} (hrel : AStateRel pers st lst)
     simp only [hr] at hrun
     obtain ⟨lst1, hy1, hrel1, hinv1, hext1, -⟩ :=
       (hr ▸ hsim1 : AOut _ _ _ _ (.Ok hs) _ _)
-    have hfrLs1 := hfl1.unfrozenLs hfrLs
     obtain ⟨hden, -, -⟩ :=
       internLevelList_run_denote (ConRon.Refine.absLevels us) hrel.storeWF hy1
     have hvo : lst1.store.lss.ViewOK (absLsNodeView hs) := denoteLList_isSome hden
-    have hsim2 := intern_ls_node_run hrel1 hinv1 hfrLs1 hs hvo hrun
+    have hsim2 := intern_ls_node_run hrel1 hinv1 hs hvo hrun
     refine ⟨?_, hfl1.trans (intern_ls_node_flags hrun)⟩
     show AOut absLsIdx (fun _ => True) pers lst _ _ _
     rw [Arena.internLevels, run_bind_ok hy1]
@@ -13277,111 +13308,81 @@ not a DAG").  `hfrozen` is `intern_n_node_run`'s side condition at the NAME
 store, which is the only tier this walk appends to. -/
 theorem intern_name_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.lss.ls.ns.shared_on = true →
-      st.store.lss.ls.ns.scratch_on = true)
     {n : kernel.name.Name} {o}
     (hwf : ConRon.Refine.NameWF n)
     (hrun : arena.monad.intern_name pers st n = ok o) :
     Sim absNIdx (fun _ => True) pers lst o
       (Arena.internName (ConRon.Refine.absName n)) :=
-  (intern_name_run' n hwf hrel hinv hfrozen hrun).1
+  (intern_name_run' n hwf hrel hinv hrun).1
 
 /-- The name walk moves no tier flag. -/
 theorem intern_name_flags {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozen : st.store.lss.ls.ns.shared_on = true →
-      st.store.lss.ls.ns.scratch_on = true)
     {n : kernel.name.Name} {o}
     (hwf : ConRon.Refine.NameWF n)
     (hrun : arena.monad.intern_name pers st n = ok o) :
     FlagsEq st.store o.2.store :=
-  (intern_name_run' n hwf hrel hinv hfrozen hrun).2
+  (intern_name_run' n hwf hrel hinv hrun).2
 
 /-- `arena::monad::intern_level` against `Arena.internLevel`.  Two side
 conditions, because `.param` recurses into the NAME tier. -/
 theorem intern_level_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozenN : st.store.lss.ls.ns.shared_on = true →
-      st.store.lss.ls.ns.scratch_on = true)
-    (hfrozenL : st.store.lss.ls.shared_on = true →
-      st.store.lss.ls.scratch_on = true)
     {l : kernel.level.Level} {o}
     (hwf : ConRon.Refine.LevelWF l)
     (hrun : arena.monad.intern_level pers st l = ok o) :
     Sim absLIdx (fun _ => True) pers lst o
       (Arena.internLevel (ConRon.Refine.absLevel l)) :=
-  (intern_level_run' l hwf hrel hinv hfrozenN hfrozenL hrun).1
+  (intern_level_run' l hwf hrel hinv hrun).1
 
 /-- The level walk moves no tier flag. -/
 theorem intern_level_flags {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozenN : st.store.lss.ls.ns.shared_on = true →
-      st.store.lss.ls.ns.scratch_on = true)
-    (hfrozenL : st.store.lss.ls.shared_on = true →
-      st.store.lss.ls.scratch_on = true)
     {l : kernel.level.Level} {o}
     (hwf : ConRon.Refine.LevelWF l)
     (hrun : arena.monad.intern_level pers st l = ok o) :
     FlagsEq st.store o.2.store :=
-  (intern_level_run' l hwf hrel hinv hfrozenN hfrozenL hrun).2
+  (intern_level_run' l hwf hrel hinv hrun).2
 
 /-- `arena::monad::intern_level_list` against `Arena.internLevelList`. -/
 theorem intern_level_list_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozenN : st.store.lss.ls.ns.shared_on = true →
-      st.store.lss.ls.ns.scratch_on = true)
-    (hfrozenL : st.store.lss.ls.shared_on = true →
-      st.store.lss.ls.scratch_on = true)
     {us : alloc.vec.Vec kernel.level.Level} {o}
     (hwf : ConRon.Refine.LevelsWF us)
     (hrun : arena.monad.intern_level_list pers st us = ok o) :
     Sim (fun v : alloc.vec.Vec arena.handle.LIdx => v.val.map absLIdx)
       (fun _ => True) pers lst o
       (Arena.internLevelList (ConRon.Refine.absLevels us)) :=
-  (intern_level_list_run' hrel hinv hfrozenN hfrozenL hwf hrun).1
+  (intern_level_list_run' hrel hinv hwf hrun).1
 
 /-- The level-list walk moves no tier flag. -/
 theorem intern_level_list_flags {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozenN : st.store.lss.ls.ns.shared_on = true →
-      st.store.lss.ls.ns.scratch_on = true)
-    (hfrozenL : st.store.lss.ls.shared_on = true →
-      st.store.lss.ls.scratch_on = true)
     {us : alloc.vec.Vec kernel.level.Level} {o}
     (hwf : ConRon.Refine.LevelsWF us)
     (hrun : arena.monad.intern_level_list pers st us = ok o) :
     FlagsEq st.store o.2.store :=
-  (intern_level_list_run' hrel hinv hfrozenN hfrozenL hwf hrun).2
+  (intern_level_list_run' hrel hinv hwf hrun).2
 
 /-- `arena::monad::intern_levels` against `Arena.internLevels` — the list
 walk, then the list node, so all three tiers. -/
 theorem intern_levels_run {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozenN : st.store.lss.ls.ns.shared_on = true →
-      st.store.lss.ls.ns.scratch_on = true)
-    (hfrozenL : st.store.lss.ls.shared_on = true →
-      st.store.lss.ls.scratch_on = true)
-    (hfrozenLs : st.store.lss.shared_on = true → st.store.lss.scratch_on = true)
     {us : alloc.vec.Vec kernel.level.Level} {o}
     (hwf : ConRon.Refine.LevelsWF us)
     (hrun : arena.monad.intern_levels pers st us = ok o) :
     Sim absLsIdx (fun _ => True) pers lst o
       (Arena.internLevels (ConRon.Refine.absLevels us)) :=
-  (intern_levels_run' hrel hinv hfrozenN hfrozenL hfrozenLs hwf hrun).1
+  (intern_levels_run' hrel hinv hwf hrun).1
 
 /-- The levels walk moves no tier flag. -/
 theorem intern_levels_flags {pers st lst} (hrel : AStateRel pers st lst)
     (hinv : AStateInv pers st)
-    (hfrozenN : st.store.lss.ls.ns.shared_on = true →
-      st.store.lss.ls.ns.scratch_on = true)
-    (hfrozenL : st.store.lss.ls.shared_on = true →
-      st.store.lss.ls.scratch_on = true)
-    (hfrozenLs : st.store.lss.shared_on = true → st.store.lss.scratch_on = true)
     {us : alloc.vec.Vec kernel.level.Level} {o}
     (hwf : ConRon.Refine.LevelsWF us)
     (hrun : arena.monad.intern_levels pers st us = ok o) :
     FlagsEq st.store o.2.store :=
-  (intern_levels_run' hrel hinv hfrozenN hfrozenL hfrozenLs hwf hrun).2
+  (intern_levels_run' hrel hinv hwf hrun).2
 
 /-! ### The memo writes and the per-call clears
 
