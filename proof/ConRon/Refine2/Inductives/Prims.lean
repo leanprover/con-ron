@@ -22,22 +22,6 @@ namespace ConRon.Refine2
 open ConRon.Arena
 
 open Lockstep in
-/-- `arena::core::lvl_eq` ⊑ `lvlEq?` (`Refine2/Checker/Base.lean`). -/
-@[lockstep] theorem lvl_eq_ls {pers st lst} {u v : arena.handle.LIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a) (arena.core.lvl_eq pers st u v) lst
-      (lvlEq? (absLIdx u) (absLIdx v)) :=
-  LS.ofSim₀ fun _ h => lvl_eq_refines hrel hinv h
-
-open Lockstep in
-/-- `arena::core::zero_level` ⊑ `zeroLevel` (= `pinZeroLevel`). -/
-@[lockstep] theorem zero_level_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absLIdx a) (arena.core.zero_level st) st lst zeroLevel := by
-  rw [arena.core.zero_level, zeroLevel]
-  exact LSR.ofSimRE hrel hinv fun _ h => pin_zero_level_refines hrel hinv h
-
-open Lockstep in
 /-- `arena::monad::read_level_m` ⊑ `readLevelM` (`Refine2/Specs.lean`). -/
 @[lockstep] theorem read_level_m_ls {pers st lst} {h : arena.handle.LIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :

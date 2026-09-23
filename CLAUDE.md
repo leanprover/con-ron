@@ -175,7 +175,11 @@ section for every task you land.
   `@[lockstep_inline]` lemmas and the side-goal tier's `macro_rules` — and do
   not edit existing alternatives.  If a change to the core is unavoidable,
   make it a separate small commit and name it in the report, so the queue can
-  land it ahead of dependent work.
+  land it ahead of dependent work.  Handle-level `@[lockstep]` prims
+  (`*_eq2_spec`, `*_dup2*`, and similar) live only in
+  `Refine2/Tactic/Prims.lean`.  Before adding one, grep for it there; if it
+  is missing, add it there as a separate small commit (found by the merge
+  queue: `dup2_*` and `eidx_eq2_spec` each broke a merge).
 * **Landing a branch (merge discipline).**  The *agent* merges master into
   its branch and runs the gates there; the landing is then a fast-forward
   merge of that branch into master.  If master moved in between so the
