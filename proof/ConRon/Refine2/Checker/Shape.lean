@@ -680,6 +680,140 @@ theorem ifenv_push_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
       have := hfinv.idxRange m p hp
       omega
 
+/-! ## The telescope opens' LENGTH (task #97-P5-Checker round 3)
+
+`Arena/CheckerBase.lean`'s `openPisAtFvarsF n cty i` opens the first `n`
+`∀`-binders at fresh free variables and hands back the list it made.  **That
+list has exactly `n` entries**, and the fact is not decoration:
+`Arena/Inductives/NativeInstall.lean`'s `nativeOpenedOk` dispatches its
+per-field walk on TWO scrutinees,
+
+    match xFvs[i]?, ks.getD i .ordinary with … | _, _ => pure false
+
+over `i ∈ List.range nF`, where `Refine2/Inductives/Spec.lean`'s transcription
+dispatches on the kind alone and reads the variable totally.  The two agree
+exactly when `xFvs.length = nF`, so `nativeOpenedOk_unfold` — the Inductives
+tier's owed equation — cannot be repaired without this.
+
+It lives here because `openPisAtFvarsF` is `arena::checker_base`'s twin and
+this is the shared base both tiers import; `Arena/**` carries definitions and
+no theorems (DESIGN §8.4), so a fact ABOUT a twin belongs on this side of the
+line.
+
+`am_run_bind_ok` is the peel these three inductions run on — the `ok` half of
+`Core/Induction.lean`'s `am_run_bind`, which is a sibling of this file rather
+than below it, hence the second spelling. -/
+
+theorem am_run_bind' {α β : Type} (m : AM α) (k : α → AM β) (lst : AState) :
+    ((m >>= k)).run lst = (m.run lst) >>= fun p => (k p.1).run p.2 := rfl
+
+theorem am_run_bind_ok {α β : Type} {m : AM α} {k : α → AM β} {ls ls' : AState}
+    {b : β} (h : (m >>= k).run ls = .ok (b, ls')) :
+    ∃ a ls₁, m.run ls = .ok (a, ls₁) ∧ (k a).run ls₁ = .ok (b, ls') := by
+  rw [am_run_bind'] at h
+  revert h
+  cases m.run ls with
+  | error e => intro h; exact absurd h (by simp [Bind.bind, Except.bind])
+  | ok p =>
+    obtain ⟨a, s⟩ := p
+    intro h
+    exact ⟨a, s, rfl, h⟩
+
+private theorem pure_none_ne {ls ls' : AState} {fvs : List EIdx} {r : EIdx}
+    (h : (pure none : AM (Option (List EIdx × EIdx))).run ls
+      = .ok (some (fvs, r), ls')) : False := by
+  replace h : (Except.ok ((none : Option (List EIdx × EIdx)), ls)
+      : Except Arena.CheckError (Option (List EIdx × EIdx) × AState))
+      = Except.ok (some (fvs, r), ls') := h
+  simp at h
+
+theorem openPisAtFvars_length {n : Nat} {e : EIdx} {i : Nat} {ls ls' : AState}
+    {fvs : List EIdx} {r : EIdx}
+    (h : (openPisAtFvars n e i).run ls = .ok (some (fvs, r), ls')) :
+    fvs.length = n := by
+  induction n generalizing e i ls ls' fvs r with
+  | zero =>
+    rw [openPisAtFvars] at h
+    replace h : (Except.ok (((some ([], e)) : Option (List EIdx × EIdx)), ls)
+        : Except Arena.CheckError (Option (List EIdx × EIdx) × AState))
+        = Except.ok (some (fvs, r), ls') := h
+    simp only [Except.ok.injEq, Prod.mk.injEq, Option.some.injEq] at h
+    rw [← h.1.1]
+    rfl
+  | succ n ih =>
+    rw [openPisAtFvars] at h
+    obtain ⟨v, ls1, -, h⟩ := am_run_bind_ok h
+    cases v
+    case forallE dom body mm =>
+      obtain ⟨fv, ls2, -, h⟩ := am_run_bind_ok h
+      obtain ⟨b, ls3, -, h⟩ := am_run_bind_ok h
+      obtain ⟨o, ls4, ho, h⟩ := am_run_bind_ok h
+      cases o with
+      | none => exact (pure_none_ne h).elim
+      | some p =>
+        obtain ⟨fvs₀, r₀⟩ := p
+        replace h : (Except.ok (((some (fv :: fvs₀, r₀)) : Option (List EIdx × EIdx)), ls4)
+            : Except Arena.CheckError (Option (List EIdx × EIdx) × AState))
+            = Except.ok (some (fvs, r), ls') := h
+        simp only [Except.ok.injEq, Prod.mk.injEq, Option.some.injEq] at h
+        rw [← h.1.1]
+        simp [ih ho]
+    all_goals exact (pure_none_ne h).elim
+
+theorem openPisAtFvarsFGo_length : ∀ {acc : Array EIdx} {n : Nat} {e : EIdx}
+    {i : Nat} {ls ls' : AState} {fvs : List EIdx} {r : EIdx},
+    (openPisAtFvarsFGo acc n e i).run ls = .ok (some (fvs, r), ls') →
+    fvs.length = n := by
+  intro acc n
+  induction n generalizing acc with
+  | zero =>
+    intro e i ls ls' fvs r h
+    rw [openPisAtFvarsFGo] at h
+    obtain ⟨x, ls1, -, h⟩ := am_run_bind_ok h
+    replace h : (Except.ok (((some ([], x)) : Option (List EIdx × EIdx)), ls1)
+        : Except Arena.CheckError (Option (List EIdx × EIdx) × AState))
+        = Except.ok (some (fvs, r), ls') := h
+    simp only [Except.ok.injEq, Prod.mk.injEq, Option.some.injEq] at h
+    rw [← h.1.1]
+    rfl
+  | succ n ih =>
+    intro e i ls ls' fvs r h
+    rw [openPisAtFvarsFGo] at h
+    obtain ⟨v, ls1, -, h⟩ := am_run_bind_ok h
+    cases v
+    case forallE dom body mm =>
+      obtain ⟨d, ls2, -, h⟩ := am_run_bind_ok h
+      obtain ⟨fv, ls3, -, h⟩ := am_run_bind_ok h
+      obtain ⟨o, ls4, ho, h⟩ := am_run_bind_ok h
+      cases o with
+      | none => exact (pure_none_ne h).elim
+      | some p =>
+        obtain ⟨fvs₀, r₀⟩ := p
+        replace h : (Except.ok (((some (fv :: fvs₀, r₀)) : Option (List EIdx × EIdx)), ls4)
+            : Except Arena.CheckError (Option (List EIdx × EIdx) × AState))
+            = Except.ok (some (fvs, r), ls') := h
+        simp only [Except.ok.injEq, Prod.mk.injEq, Option.some.injEq] at h
+        rw [← h.1.1]
+        simp [ih ho]
+    all_goals exact (pure_none_ne h).elim
+
+theorem openPisAtFvarsF_length {n : Nat} {e : EIdx} {i : Nat} {ls ls' : AState}
+    {fvs : List EIdx} {r : EIdx}
+    (h : (openPisAtFvarsF n e i).run ls = .ok (some (fvs, r), ls')) :
+    fvs.length = n := by
+  rw [openPisAtFvarsF] at h
+  obtain ⟨o, ls1, ho, h⟩ := am_run_bind_ok h
+  cases o with
+  | none => exact openPisAtFvars_length h
+  | some p =>
+    obtain ⟨fvs₀, r₀⟩ := p
+    replace h : (Except.ok (((some (fvs₀, r₀)) : Option (List EIdx × EIdx)), ls1)
+        : Except Arena.CheckError (Option (List EIdx × EIdx) × AState))
+        = Except.ok (some (fvs, r), ls') := h
+    simp only [Except.ok.injEq, Prod.mk.injEq, Option.some.injEq] at h
+    rw [← h.1.1]
+    exact openPisAtFvarsFGo_length ho
+
 /-! ## The Inductives seam (task #97-P5-Checker's finding 14)
 
 **Moved down from `Refine2/Checker/Top.lean` by task #97-P5-Checker-2.**  The
@@ -788,5 +922,8 @@ attribute [simp] absPendingCheck absPendingCheckL absPendingCheckLFrom
 
 /-- info: 'ConRon.Refine2.ifenv_push_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ifenv_push_refines
+
+/-- info: 'ConRon.Refine2.openPisAtFvarsF_length' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms openPisAtFvarsF_length
 
 end ConRon.Refine2
