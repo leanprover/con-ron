@@ -621,7 +621,10 @@ theorem check_sum_ctor_sorts_refines {pers st lst} {mode : kernel.env.CheckMode}
       (checkSumCtorSortsSpec (ConRon.Refine.absMode mode) lf0 lf (absU n_p)
         (absLIdx res_sort) is_prop large (absU n_f) (absIConstantVal cv_ca)
         (absEIdxL x_fvs) (absEIdxL idx_args)) := by
-  sorry
+  -- lockstep trial
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.sum_install.check_sum_ctor_sorts, checkSumCtorSortsSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_sum_ctor_sorts_ls
