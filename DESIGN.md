@@ -51207,12 +51207,13 @@ ConRon.Capstone.no_False_declaration`:
 ##### R8.1 `Capstone.lean`: `hind` discharged
 
 `model_exists` and `no_False_declaration` no longer take
-`hind : IndSpec .verified`: `stages_model`, `declResolves_of_stages` and
-`rust_stages` lost the parameter, and the one use (`installThenCheck_bridge`,
-`no_False_declaration_pipeline`) passes
-`Bridge.Inductives.indSpec_of_bridge rfl hk` — after the merge,
-`indSpec_of_bridge rfl (CoreSpec.of_core rfl)`, since Core round 6 discharged
-`hk` the same way.  The merge conflict was exactly that: both hypotheses gone.
+`hind : IndSpec .verified`: each builds it as its first step,
+`Bridge.Inductives.indSpec_of_bridge rfl (CoreSpec.of_core rfl)` (Core round 6
+discharged `hk` the same way), and passes it on.  The stage lemmas
+(`stages_model`, `stages_installThenCheck`, `declResolves_of_stages`,
+`rust_stages`) keep `hind` as a parameter — the second arena merge (task
+#97-P5-Driver's phased pipeline) rewrote them, and the minimal edit on top of
+that is at the two roots.
 
 ##### R8.2 The install frame (ruling 2 executed)
 
