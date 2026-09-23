@@ -1695,6 +1695,41 @@ theorem ListRel.singleton_left {α β : Type} {P : α → β → Prop} {x : α} 
   cases h with
   | cons hxy hr => cases hr; exact ⟨_, rfl, hxy⟩
 
+/-- con-leche: ConLeche/Frontend/ExportC.lean:412-413 validateIndD — the two
+answers agree: a verdict against a verdict of the same KIND (`VerdictRel`, the
+relation the capstone reads), the validated constructors and count against
+the same ones. -/
+def VRes : RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat) →
+    ConLeche.Frontend.RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat) → Prop
+  | .inl v, .inl w => VerdictRel v w
+  | .inr p, .inr q => p = q
+  | _, _ => False
+
+/-- con-leche: none — what a loop of `validateIndD` carries in its early-exit
+slot: nothing, or an `.invalid` verdict, on each side.  Every `return` inside
+the two loops is an `.invalid`, and this is what lets the two answers be
+related without the verdict strings (which name handles on one side and names
+on the other). -/
+def VInv (o : Option (RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat)))
+    (p : Option (ConLeche.Frontend.RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat))) :
+    Prop :=
+  (∀ x, o = some x → ∃ m, x = .inl (.invalid m)) ∧
+    (∀ y, p = some y → ∃ m, y = .inl (.invalid m))
+
+theorem VInv.nil : VInv none none :=
+  ⟨(fun _ h => by cases h), (fun _ h => by cases h)⟩
+
+theorem VInv.inv {m m' : String} :
+    VInv (some (.inl (.invalid m))) (some (.inl (.invalid m'))) :=
+  ⟨(fun _ h => by cases h; exact ⟨_, rfl⟩), (fun _ h => by cases h; exact ⟨_, rfl⟩)⟩
+
+theorem VInv.res {a : RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat)}
+    {w : ConLeche.Frontend.RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat)}
+    (h : VInv (some a) (some w)) : VRes a w := by
+  obtain ⟨m, rfl⟩ := h.1 a rfl
+  obtain ⟨m', rfl⟩ := h.2 w rfl
+  trivial
+
 /-- con-leche: none — two `ForInStep`s agree in kind and relate. -/
 def StepRel {β γ : Type} (R : β → γ → Prop) : ForInStep β → ForInStep γ → Prop
   | .yield b, .yield c => R b c
@@ -1960,11 +1995,11 @@ macro "vind_ctor_num" : tactic => `(tactic| (
   split at hsti
   · rename_i hnf; rw [if_pos hnf]
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hsti
-    exact ⟨rfl, _, rfl, ⟨rfl, (fun _ h => by cases h), (by show _ + 1 = _ + 1; rw [hj]), (by show Array.push _ c = Array.push _ c; rw [hord2])⟩⟩
+    exact ⟨rfl, _, rfl, ⟨rfl, VInv.nil, (by show _ + 1 = _ + 1; rw [hj]), (by show Array.push _ c = Array.push _ c; rw [hord2])⟩⟩
   · rename_i hnf; rw [if_neg hnf]
     obtain ⟨x, hsti⟩ := readName_bind hsti
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hsti
-    exact ⟨rfl, _, rfl, ⟨rfl, (fun _ h => by cases h; rfl), hj, hord2⟩⟩))
+    exact ⟨rfl, _, rfl, ⟨rfl, VInv.inv, hj, hord2⟩⟩))
 
 set_option hygiene false in
 /-- con-leche: none — `validateIndD`'s constructor-loop step after the
@@ -1996,20 +2031,20 @@ macro "vind_ctor_ind" : tactic => `(tactic| (
       obtain ⟨x, hsti⟩ := readName_bind hsti
       obtain ⟨x, hsti⟩ := readName_bind hsti
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hsti
-      exact ⟨rfl, _, rfl, ⟨rfl, (fun _ h => by cases h; rfl), hj, hord2⟩⟩))
+      exact ⟨rfl, _, rfl, ⟨rfl, VInv.inv, hj, hord2⟩⟩))
 
 set_option hygiene false in
 /-- con-leche: none — `validateIndD`'s recursor loop, set against con-leche's: the step and the continuation are left as two goals. -/
 macro "vind_rec_loop" : tactic => `(tactic| (
   obtain ⟨r2, s₂, hloop2, hrun⟩ := AM.bind_ok hrun
-  refine except_bind_of
+  refine except_bind_ex
     (forIn_sim (P := fun (a b : ConLeche.Frontend.IndRecRec) => a = b)
       (R := fun (b : MProd (Option (RecordVerdict ⊕ List ConLeche.Frontend.IndCtorRec × Nat))
           PUnit)
         (c : Option (ConLeche.Frontend.RecordVerdict ⊕ List ConLeche.Frontend.IndCtorRec × Nat)
           × Unit) =>
-          b.1.isNone = c.1.isNone ∧ (∀ x, b.1 = some x → x.isLeft))
-      ?_ (ListRel.refl_eq _) (c := (none, ())) ⟨rfl, by simp⟩ hloop2) ?_))
+          b.1.isNone = c.1.isNone ∧ VInv b.1 c.1)
+      ?_ (ListRel.refl_eq _) (c := (none, ())) ⟨rfl, VInv.nil⟩ hloop2) ?_))
 
 set_option hygiene false in
 /-- con-leche: none — the recursor-loop step up to the `k` guard: the name and the three count guards. -/
@@ -2024,21 +2059,21 @@ macro "vind_rec_head" : tactic => `(tactic| (
   · rename_i hc; rw [if_neg hc]
     obtain ⟨x, hstep⟩ := readName_bind hstep
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
-    exact ⟨rfl, _, rfl, rfl, fun _ h => by cases h; rfl⟩
+    exact ⟨rfl, _, rfl, rfl, VInv.inv⟩
   rename_i hc1; rw [if_pos hc1]
   split at hstep
   rotate_left
   · rename_i hc; rw [if_neg hc]
     obtain ⟨x, hstep⟩ := readName_bind hstep
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
-    exact ⟨rfl, _, rfl, rfl, fun _ h => by cases h; rfl⟩
+    exact ⟨rfl, _, rfl, rfl, VInv.inv⟩
   rename_i hc2; rw [if_pos hc2]
   split at hstep
   rotate_left
   · rename_i hc; rw [if_neg hc]
     obtain ⟨x, hstep⟩ := readName_bind hstep
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
-    exact ⟨rfl, _, rfl, rfl, fun _ h => by cases h; rfl⟩
+    exact ⟨rfl, _, rfl, rfl, VInv.inv⟩
   rename_i hc3; rw [if_pos hc3]
 ))
 
@@ -2049,20 +2084,23 @@ macro "vind_rec_fin" : tactic => `(tactic| (
   cases hr2 : r2.1 with
   | some a =>
     rw [hr2] at hrun
-    obtain ⟨rfl, -⟩ := AM.pure_ok hrun
-    exact absurd (hl2 _ hr2) (by simp)
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    obtain ⟨w, hc2⟩ : ∃ w, c2.1 = some w := by
+      cases h : c2.1 with
+      | none => rw [hr2, h] at hn2; exact absurd hn2 (by simp)
+      | some w => exact ⟨w, rfl⟩
+    rw [hc2]
+    rw [hr2, hc2] at hl2
+    exact ⟨rfl, _, rfl, VInv.res hl2⟩
   | none =>
     rw [hr2] at hrun
     dsimp only at hrun
-    obtain ⟨hvf, rfl⟩ := AM.pure_ok hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     have hc2 : c2.1 = none := by
       have h1 : c2.1.isNone = true := by rw [← hn2, hr2]; rfl
       exact Option.isNone_iff_eq_none.mp h1
     rw [hc2]
-    injection hvf with hvf
-    injection hvf with h1 h2
-    subst h1; subst h2
-    exact ⟨rfl, rfl⟩))
+    exact ⟨rfl, _, rfl, rfl⟩))
 
 set_option hygiene false in
 /-- con-leche: none — the tail of `validateIndD`'s recursor-loop step, after
@@ -2090,8 +2128,8 @@ macro "vind_rec_tail" : tactic => `(tactic| (
             PUnit)
           (c : Option (ConLeche.Frontend.RecordVerdict ⊕ List ConLeche.Frontend.IndCtorRec × Nat)
             × Unit) =>
-            b.1.isNone = c.1.isNone ∧ (∀ x, b.1 = some x → x.isLeft))
-        ?_ (ListRel.zip htyR httR) (c := (none, ())) ⟨rfl, by simp⟩ hloop3) ?_
+            b.1.isNone = c.1.isNone ∧ VInv b.1 c.1)
+        ?_ (ListRel.zip htyR httR) (c := (none, ())) ⟨rfl, VInv.nil⟩ hloop3) ?_
     · intro tt ttC b3 c3 s3' st3 hP3 hR3 hst3
       obtain ⟨hdn3, hde3⟩ := hP3
       have hbeq : (tt.1 == p) = (ttC.1 == q) := by
@@ -2106,7 +2144,7 @@ macro "vind_rec_tail" : tactic => `(tactic| (
       rotate_left
       · rw [if_neg ht] at hst3; rw [hbeq] at ht; rw [if_neg ht]
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hst3
-        exact ⟨rfl, _, rfl, rfl, fun _ h => by cases h⟩
+        exact ⟨rfl, _, rfl, rfl, VInv.nil⟩
       rw [if_pos ht] at hst3; rw [hbeq] at ht; rw [if_pos ht]
       obtain ⟨o, s₄, ho, hst3⟩ := AM.bind_ok hst3
       obtain ⟨hs4, rfl⟩ := piSortTeleLen?_run hok fuel hde3 ho
@@ -2115,19 +2153,19 @@ macro "vind_rec_tail" : tactic => `(tactic| (
       | none =>
         rw [hpo] at hst3
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hst3
-        exact ⟨rfl, _, rfl, rfl, fun _ h => by cases h⟩
+        exact ⟨rfl, _, rfl, rfl, VInv.nil⟩
       | some n =>
         rw [hpo] at hst3
         dsimp only at hst3 ⊢
         by_cases hn : ((List.map (fun x => x.numParams) tys).head?.getD 0 + r0.numIndices == n) = true
         · rw [if_pos hn] at hst3; rw [if_pos hn]
           obtain ⟨rfl, rfl⟩ := AM.pure_ok hst3
-          exact ⟨rfl, _, rfl, rfl, fun _ h => by cases h⟩
+          exact ⟨rfl, _, rfl, rfl, VInv.nil⟩
         · rw [if_neg hn] at hst3; rw [if_neg hn]
           obtain ⟨x, hst3⟩ := readName_bind hst3
           obtain ⟨y, hst3⟩ := readName_bind hst3
           obtain ⟨rfl, rfl⟩ := AM.pure_ok hst3
-          exact ⟨rfl, _, rfl, rfl, fun _ h => by cases h; rfl⟩
+          exact ⟨rfl, _, rfl, rfl, VInv.inv⟩
     · rintro c3 ⟨hs3, hn3, hl3⟩
       cases hr3 : r3.1 with
       | none =>
@@ -2138,7 +2176,7 @@ macro "vind_rec_tail" : tactic => `(tactic| (
         rw [hc3]
         dsimp only at hstep ⊢
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
-        exact ⟨hs3, _, rfl, rfl, fun _ h => by cases h⟩
+        exact ⟨hs3, _, rfl, rfl, VInv.nil⟩
       | some a =>
         rw [hr3] at hstep
         obtain ⟨c3a, hc3⟩ : ∃ w, c3.1 = some w := by
@@ -2149,16 +2187,15 @@ macro "vind_rec_tail" : tactic => `(tactic| (
         dsimp only at hstep ⊢
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
         refine ⟨hs3, _, rfl, rfl, ?_⟩
-        intro x hx
-        cases hx
-        exact hl3 _ hr3
+        rw [hr3, hc3] at hl3
+        exact hl3
   · rename_i hnotrec
     split
     · rename_i T
       obtain ⟨p, rfl, -⟩ := view_str_of_denoteN hwr hview hdrn
       exact absurd rfl (hnotrec p)
     · obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
-      exact ⟨rfl, _, rfl, rfl, fun _ h => by cases h⟩))
+      exact ⟨rfl, _, rfl, rfl, VInv.nil⟩))
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:412-413 validateIndD — the half
 of an `inductive` record's processing that READS: the block's redundant fields
@@ -2172,27 +2209,29 @@ sound by `denoteN_inj` (`ListRel.nodup_iff_denoteN`, `ctorIx_fold_rel`, the
 both sides; the two telescope walks are `indPiTeleLen_run` and
 `piSortTeleLen?_run`.  Every step is read-only, so the frame is `s' = s`.
 Task #97-P3-Frontend round 7. -/
-theorem validateIndD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
+theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     {tys : List ConLeche.Frontend.IndTypeRec}
     {cts : List ConLeche.Frontend.IndCtorRec}
     {rcs : List ConLeche.Frontend.IndRecRec}
-    {cts' : List ConLeche.Frontend.IndCtorRec} {nPd : Nat}
-    (hrun : validateIndD sd tys cts rcs s = .ok (.inr (cts', nPd), s')) :
-    s' = s ∧ ConLeche.Frontend.validateIndD sc tys cts rcs = .ok (.inr (cts', nPd)) := by
+    {x : RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat)}
+    (hrun : validateIndD sd tys cts rcs s = .ok (x, s')) :
+    s' = s ∧ ∃ y, ConLeche.Frontend.validateIndD sc tys cts rcs = .ok y ∧ VRes x y := by
   rw [validateIndD] at hrun
   rw [ConLeche.Frontend.validateIndD]
   simp only [pure_bind] at hrun ⊢
   by_cases hu : (tys.any fun x => x.isUnsafe) = true
-  · rw [if_pos hu] at hrun
-    obtain ⟨h1, -⟩ := AM.pure_ok hrun; cases h1
+  · rw [if_pos hu] at hrun; rw [if_pos hu]
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨rfl, _, rfl, trivial⟩
   rw [if_neg hu] at hrun
   rw [if_neg hu]
   by_cases hall : ((List.map (fun x => x.numParams) tys).all
       fun x => x == (List.map (fun x => x.numParams) tys).head?.getD 0) = true
   rotate_left
-  · rw [if_neg hall] at hrun
-    obtain ⟨h1, -⟩ := AM.pure_ok hrun; cases h1
+  · rw [if_neg hall] at hrun; rw [if_neg hall]
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨rfl, _, rfl, trivial⟩
   rw [if_pos hall] at hrun
   rw [if_pos hall]
   have hnw : NStoreWF s.store.ns := nsWF_of_StateOK hok
@@ -2232,14 +2271,16 @@ theorem validateIndD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
   have hlen := ListRel.length_eq hflat
   by_cases hnodup : listed.flatten.Nodup
   rotate_left
-  · rw [if_neg hnodup] at hrun
-    obtain ⟨h1, -⟩ := AM.pure_ok hrun; cases h1
+  · rw [if_neg hnodup] at hrun; rw [if_neg (fun h => hnodup (hnd.mpr h))]
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨rfl, _, rfl, trivial⟩
   rw [if_pos hnodup] at hrun
   rw [if_pos (hnd.mp hnodup)]
   by_cases hlg : (listed.flatten.length == cts.length) = true
   rotate_left
-  · rw [if_neg hlg] at hrun
-    obtain ⟨h1, -⟩ := AM.pure_ok hrun; cases h1
+  · rw [if_neg hlg] at hrun; rw [if_neg (by rw [← hlen]; exact hlg)]
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨rfl, _, rfl, trivial⟩
   rw [if_pos hlg] at hrun
   rw [if_pos (by rw [← hlen]; exact hlg)]
   obtain ⟨fuel, s₁, h1, hrun⟩ := AM.bind_ok hrun
@@ -2248,7 +2289,7 @@ theorem validateIndD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
   have hIx := ctorIx_fold_rel hnw hcnR (m := ∅) (mc := ∅) 0 (by intro h n _; simp)
   obtain ⟨r, s₁, hloop, hrun⟩ := AM.bind_ok hrun
   have hz := ListRel.zip htyR hlsR
-  refine except_bind_of
+  refine except_bind_ex
     (forIn_sim (P := fun (p : NIdx × List NIdx) (q : ConLeche.Name × List ConLeche.Name) =>
         denoteN s.store.ns p.1 = some q.1 ∧
         ListRel (fun h n => denoteN s.store.ns h = some n) p.2 q.2)
@@ -2256,8 +2297,8 @@ theorem validateIndD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
           (Array ConLeche.Frontend.IndCtorRec))
         (c : Option (ConLeche.Frontend.RecordVerdict ⊕ List ConLeche.Frontend.IndCtorRec × Nat) ×
           Array ConLeche.Frontend.IndCtorRec) =>
-          b.1.isNone = c.1.isNone ∧ (∀ x, b.1 = some x → x.isLeft) ∧ b.2 = c.2)
-      ?_ hz (c := (none, #[])) ⟨rfl, by simp, rfl⟩ hloop) ?_
+          b.1.isNone = c.1.isNone ∧ VInv b.1 c.1 ∧ b.2 = c.2)
+      ?_ hz (c := (none, #[])) ⟨rfl, VInv.nil, rfl⟩ hloop) ?_
   · intro tn tnC b c0 s0' st hP hR hstep
     obtain ⟨hdT, hns⟩ := hP
     obtain ⟨hn0, hl0, h20⟩ := hR
@@ -2268,9 +2309,9 @@ theorem validateIndD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
             (MProd Nat (Array ConLeche.Frontend.IndCtorRec)))
           (c : Option (ConLeche.Frontend.RecordVerdict ⊕ List ConLeche.Frontend.IndCtorRec × Nat)
             × (Array ConLeche.Frontend.IndCtorRec × Nat)) =>
-            b.1.isNone = c.1.isNone ∧ (∀ x, b.1 = some x → x.isLeft) ∧
+            b.1.isNone = c.1.isNone ∧ VInv b.1 c.1 ∧
               b.2.1 = c.2.2 ∧ b.2.2 = c.2.1)
-        ?_ hns (c := (none, c0.2, 0)) ⟨rfl, by simp, rfl, h20⟩ hin) ?_
+        ?_ hns (c := (none, c0.2, 0)) ⟨rfl, VInv.nil, rfl, h20⟩ hin) ?_
     · intro n nm bi ci s0'' sti hdn hRi hsti
       obtain ⟨hni, hli, hj, hord2⟩ := hRi
       rw [← hIx n nm hdn]
@@ -2280,7 +2321,7 @@ theorem validateIndD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
         simp only [hk] at hsti ⊢
         obtain ⟨x, hsti⟩ := readName_bind hsti
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hsti
-        exact ⟨rfl, _, rfl, ⟨rfl, (fun _ h => by cases h; rfl), hj, hord2⟩⟩
+        exact ⟨rfl, _, rfl, ⟨rfl, VInv.inv, hj, hord2⟩⟩
       | some k =>
         simp only [hk] at hsti ⊢
         cases hc : cts.toArray[k]? with
@@ -2288,7 +2329,7 @@ theorem validateIndD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
           simp only [hc] at hsti ⊢
           obtain ⟨x, hsti⟩ := readName_bind hsti
           obtain ⟨rfl, rfl⟩ := AM.pure_ok hsti
-          exact ⟨rfl, _, rfl, ⟨rfl, (fun _ h => by cases h; rfl), hj, hord2⟩⟩
+          exact ⟨rfl, _, rfl, ⟨rfl, VInv.inv, hj, hord2⟩⟩
         | some c =>
           simp only [hc] at hsti ⊢
           cases hcid : c.cidx with
@@ -2304,7 +2345,7 @@ theorem validateIndD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
               obtain ⟨x, hsti⟩ := readName_bind hsti
               obtain ⟨x, hsti⟩ := readName_bind hsti
               obtain ⟨rfl, rfl⟩ := AM.pure_ok hsti
-              exact ⟨rfl, _, rfl, ⟨rfl, (fun _ h => by cases h; rfl), hj, hord2⟩⟩
+              exact ⟨rfl, _, rfl, ⟨rfl, VInv.inv, hj, hord2⟩⟩
     · rintro ci ⟨hs1, hni, hli, hj, hord2⟩
       rw [hs1] at hstep
       cases hr : ri.1 with
@@ -2315,7 +2356,7 @@ theorem validateIndD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
           exact Option.isNone_iff_eq_none.mp h1
         rw [hc]
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
-        exact ⟨rfl, _, rfl, ⟨rfl, (fun _ h => by cases h), hord2⟩⟩
+        exact ⟨rfl, _, rfl, ⟨rfl, VInv.nil, hord2⟩⟩
       | some a =>
         rw [hr] at hstep
         obtain ⟨w, hc⟩ : ∃ w, ci.1 = some w := by
@@ -2324,17 +2365,21 @@ theorem validateIndD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
           | some w => exact ⟨w, rfl⟩
         rw [hc]
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
-        refine ⟨rfl, _, rfl, ⟨rfl, ?_, hord2⟩⟩
-        intro x hx
-        cases hx
-        exact hli _ hr
+        rw [hr, hc] at hli
+        exact ⟨rfl, _, rfl, ⟨rfl, hli, hord2⟩⟩
   · rintro c ⟨hs1, hnone, hleft, hord⟩
     subst s₁
     cases hr1 : r.1 with
     | some a =>
       rw [hr1] at hrun
-      obtain ⟨rfl, -⟩ := AM.pure_ok hrun
-      exact absurd (hleft _ hr1) (by simp)
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      obtain ⟨w, hc1⟩ : ∃ w, c.1 = some w := by
+        cases h : c.1 with
+        | none => rw [hr1, h] at hnone; exact absurd hnone (by simp)
+        | some w => exact ⟨w, rfl⟩
+      rw [hc1]
+      rw [hr1, hc1] at hleft
+      exact ⟨rfl, _, rfl, VInv.res hleft⟩
     | none =>
     rw [hr1] at hrun
     dsimp only at hrun
@@ -2376,7 +2421,7 @@ theorem validateIndD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
           · rename_i hk; rw [if_neg hk]
             obtain ⟨x, hstep⟩ := readName_bind hstep
             obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
-            exact ⟨rfl, _, rfl, rfl, fun _ h => by cases h; rfl⟩
+            exact ⟨rfl, _, rfl, rfl, VInv.inv⟩
           rename_i hk; rw [if_pos hk]
           vind_rec_tail
         · rintro c2 ⟨hs2, hn2, hl2⟩
@@ -2421,7 +2466,7 @@ theorem validateIndD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
             · rw [if_neg hk] at hstep; rw [if_neg hk]
               obtain ⟨x, hstep⟩ := readName_bind hstep
               obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
-              exact ⟨rfl, _, rfl, rfl, fun _ h => by cases h; rfl⟩
+              exact ⟨rfl, _, rfl, rfl, VInv.inv⟩
             rw [if_pos hk] at hstep; rw [if_pos hk]
             vind_rec_tail
         · rename_i kE0 hne
@@ -2436,6 +2481,21 @@ theorem validateIndD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
           · rfl
       · rintro c2 ⟨hs2, hn2, hl2⟩
         vind_rec_fin
+
+/-- con-leche: ConLeche/Frontend/ExportC.lean:412-413 validateIndD — the
+accepting arm of `validateIndD_run'`, in the shape round 1 stated. -/
+theorem validateIndD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
+    {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
+    {tys : List ConLeche.Frontend.IndTypeRec}
+    {cts : List ConLeche.Frontend.IndCtorRec}
+    {rcs : List ConLeche.Frontend.IndRecRec}
+    {cts' : List ConLeche.Frontend.IndCtorRec} {nPd : Nat}
+    (hrun : validateIndD sd tys cts rcs s = .ok (.inr (cts', nPd), s')) :
+    s' = s ∧ ConLeche.Frontend.validateIndD sc tys cts rcs = .ok (.inr (cts', nPd)) := by
+  obtain ⟨hs, y, hy, hr⟩ := validateIndD_run' hok hrel hrun
+  cases y with
+  | inl w => exact absurd hr (by simp [VRes])
+  | inr q => exact ⟨hs, by rw [hy]; cases hr; rfl⟩
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:564-565 installIndD — the half
 that WRITES: the block's constants, the projection-owner registration and the

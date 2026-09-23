@@ -379,6 +379,10 @@ the `induct`/`T.rec` comparisons. -/
 #print axioms ListRel.flatten
 #print axioms ListRel.zip
 #print axioms ctorIx_fold_rel
+#print axioms VInv.nil
+#print axioms VInv.inv
+#print axioms VInv.res
+#print axioms validateIndD_run'
 #print axioms validateIndD_run
 
 /-! ## PROVED, but resting on an open leaf
