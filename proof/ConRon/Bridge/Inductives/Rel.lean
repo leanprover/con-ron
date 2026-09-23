@@ -2525,6 +2525,134 @@ theorem ListRel.toBinders {st : EStore} :
       subst h1'
       simp only [denoteBinders, h1, ih h2]
 
+/-! ## `FvarBSpec`, discharged (task #97-P3-Ind round 6)
+
+`Bridge/ExprOps/Abs.lean` takes `fvarB`'s Theorem 1 as the hypothesis
+`FvarBSpec`, and `Bridge/ExprOps/Ranges.lean`'s `fvarB_spec` states everything
+it asks EXCEPT the `abs1C` frame (`fvarB` writes only `fvarBC`).  This section
+supplies that frame — a program-level fact, proved over `fvarRangeGo`'s
+mutual block the way `NestProg` is over `reservedBasisNames` — and assembles
+the record, so `abstract1Fast_spec` has its hypothesis and `closeTelescope`
+(`SumInstall.lean`) can call it.  **On loan from the `ExprOps` tier**, whose
+module it belongs in: `Ranges.lean`'s `fvarB_spec` gaining the conjunct makes
+this section one line. -/
+
+/-- con-leche: none — `AM.of_run`'s converse: a partial-correctness triple
+from a statement about every accepting run. -/
+theorem AM.triple_of_run {α : Type} {prog : AM α} {P : AState → Prop}
+    {Q : α → AState → Prop}
+    (h : ∀ (s : AState) (a : α) (s' : AState), P s → prog.run s = .ok (a, s') → Q a s') :
+    ⦃fun s => ⌜P s⌝⦄ prog ⦃⇓? r s'' => ⌜Q r s''⌝⦄ := by
+  intro s hp
+  simp only [WP.wp, PredTrans.apply_pushArg]
+  cases hr : prog.run s with
+  | error e => trivial
+  | ok p => exact h s p.1 p.2 hp hr
+
+/-- con-leche: none — every accepting run leaves `abs1C` alone. -/
+def A1Prog {α : Type} (c : AM α) : Prop :=
+  ∀ (s s' : AState) (a : α), c s = .ok (a, s') → s'.memos.abs1C = s.memos.abs1C
+
+theorem A1Prog.pure {α : Type} (a : α) : A1Prog (pure a : AM α) := by
+  intro s s' b h; obtain ⟨-, rfl⟩ := pureOk h; rfl
+
+theorem A1Prog.bind {α β : Type} {x : AM α} {f : α → AM β}
+    (hx : A1Prog x) (hf : ∀ a, A1Prog (f a)) : A1Prog (x >>= f) := by
+  intro s s' b h
+  obtain ⟨a, s₁, h1, h2⟩ := bindOk h
+  exact (hf a s₁ s' b h2).trans (hx s s₁ a h1)
+
+theorem A1Prog.fail {α : Type} (e : Arena.CheckError) : A1Prog (Arena.fail e : AM α) := by
+  intro s s' a h; exact absurd h (fun hc => failOk hc)
+
+theorem A1Prog.fvarBGet (k : EIdx) : A1Prog (Arena.fvarBGet k) := by
+  intro s s' a h
+  simp only [Arena.fvarBGet] at h
+  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
+  obtain ⟨rfl, rfl⟩ := Core.AM.get_ok h1
+  obtain ⟨-, rfl⟩ := pureOk h2; rfl
+
+theorem A1Prog.fvarBSet (k : EIdx) (r : Nat) : A1Prog (Arena.fvarBSet k r) := by
+  intro s s' a h
+  simp only [Arena.fvarBSet] at h
+  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
+  obtain ⟨rfl, rfl⟩ := Core.AM.get_ok h1
+  rw [Core.AM.set_ok h2]
+
+theorem A1Prog.fvarBClear : A1Prog Arena.fvarBClear := by
+  intro s s' a h
+  simp only [Arena.fvarBClear] at h
+  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
+  obtain ⟨rfl, rfl⟩ := Core.AM.get_ok h1
+  rw [Core.AM.set_ok h2]
+
+theorem A1Prog.view (k : EIdx) : A1Prog (Arena.view k) := by
+  intro s s' a h
+  obtain ⟨rfl, -⟩ := view_run h; rfl
+
+theorem A1Prog.derivedE (k : EIdx) : A1Prog (Arena.derivedE k) := by
+  intro s s' a h
+  simp only [Arena.derivedE] at h
+  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
+  obtain ⟨rfl, rfl⟩ := Core.AM.get_ok h1
+  obtain ⟨-, rfl⟩ := pureOk h2; rfl
+
+/-- con-leche: none — `fvarRangeGo`'s mutual block leaves `abs1C` alone, at
+every fuel. -/
+theorem fvarRangeGo_a1 : ∀ (fuel : Nat) (h : EIdx), A1Prog (Arena.fvarRangeGo fuel h) := by
+  intro fuel
+  induction fuel with
+  | zero => intro h; rw [Arena.fvarRangeGo_zero]; exact A1Prog.fail _
+  | succ fuel ih =>
+    intro h
+    rw [Arena.fvarRangeGo_succ]
+    refine A1Prog.bind (A1Prog.fvarBGet h) (fun o => ?_)
+    cases o with
+    | some r => exact A1Prog.pure r
+    | none =>
+      refine A1Prog.bind ?_ (fun r => A1Prog.bind (A1Prog.fvarBSet h r) (fun _ => A1Prog.pure r))
+      refine A1Prog.bind (A1Prog.view h) (fun v => ?_)
+      cases v with
+      | fvar idx t => exact A1Prog.pure _
+      | bvar _ => exact A1Prog.pure _
+      | sort _ => exact A1Prog.pure _
+      | const _ _ => exact A1Prog.pure _
+      | lit _ => exact A1Prog.pure _
+      | app f a =>
+        simp only [Arena.fvarRangeArmApp]
+        exact A1Prog.bind (ih f) (fun _ => A1Prog.bind (ih a) (fun _ => A1Prog.pure _))
+      | lam ty b _ =>
+        simp only [Arena.fvarRangeArmBind]
+        exact A1Prog.bind (ih ty) (fun _ => A1Prog.bind (ih b) (fun _ => A1Prog.pure _))
+      | forallE ty b _ =>
+        simp only [Arena.fvarRangeArmBind]
+        exact A1Prog.bind (ih ty) (fun _ => A1Prog.bind (ih b) (fun _ => A1Prog.pure _))
+      | letE ty w b =>
+        simp only [Arena.fvarRangeArmLet]
+        exact A1Prog.bind (ih ty) (fun _ => A1Prog.bind (ih w)
+          (fun _ => A1Prog.bind (ih b) (fun _ => A1Prog.pure _)))
+      | proj _ _ sub => exact ih sub
+
+/-- con-leche: none — and so does `fvarB`. -/
+theorem fvarB_a1 (fuel : Nat) (e : EIdx) : A1Prog (Arena.fvarB fuel e) := by
+  simp only [Arena.fvarB]
+  refine A1Prog.bind (A1Prog.derivedE e) (fun der => ?_)
+  split
+  · simp only [Arena.fvarRangeMemo]
+    exact A1Prog.bind A1Prog.fvarBClear (fun _ => A1Prog.bind (fvarRangeGo_a1 fuel e)
+      (fun r => A1Prog.bind A1Prog.fvarBClear (fun _ => A1Prog.pure r)))
+  · exact A1Prog.pure _
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1436-1441 fvarB — **`Abs.lean`'s
+hypothesis, discharged**: `Ranges.lean`'s `fvarB_spec` plus `fvarB_a1`. -/
+theorem fvarBSpec : ExprOps.FvarBSpec where
+  run := fun fuel s₁ h hok hden => AM.triple_of_run (P := fun s => s = s₁) (by
+    intro s a s' hs hr
+    subst hs
+    obtain ⟨h1, h2, h3, h4⟩ := AM.of_run (P := fun t => t = s) rfl hr
+      (ExprOps.fvarB_spec fuel s h hok hden)
+    exact ⟨h1, h2, h3, fvarB_a1 fuel h s s' a hr, h4⟩)
+
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
 **what an inductive install route leaves behind**.  Seven clauses, and the
 correspondence with `DeclOut` is one-for-one except that the `run` clause is

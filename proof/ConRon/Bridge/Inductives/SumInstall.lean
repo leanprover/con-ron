@@ -79,15 +79,48 @@ theorem whnfTelescope_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 Close a body under a telescope, abstracting the free variables as it goes.
 PURE grade: `abstract1Fast` and `internE`, no knot.
 
-`sorry`: a list induction over `Bridge/ExprOps/Abs.lean`'s
-`abstract1Fast_spec` and `internE_spec` at `.forallE`. -/
+**CLOSED** (task #97-P3-Ind round 6): a list induction over
+`Bridge/ExprOps/Owed.lean`'s `abstract1Fast_spec` — at `Rel.lean`'s
+`fvarBSpec`, the `FvarBSpec` hypothesis discharged — and `internForallEE_run`. -/
 theorem closeTelescope_spec (bs : List (EIdx × BinderMeta))
     (bsP : List (Expr × BinderMeta)) (i : Nat) (body : EIdx) (bodyP : Expr) :
     PSpec (fun st => denoteBinders st bs = some bsP ∧
         denoteE st body = some bodyP)
       (Arena.closeTelescope bs i body)
       (RE (ConLeche.closeTelescope bsP i bodyP)) := by
-  sorry
+  induction bs generalizing bsP i with
+  | nil =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hbs, hbody⟩ := hpre
+    simp only [denoteBinders, Option.some.injEq] at hbs
+    subst hbs
+    simp only [Arena.closeTelescope] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, hbody⟩
+  | cons b bs ih =>
+    intro s₀ s' r hok hpre hrun
+    obtain ⟨hbs, hbody⟩ := hpre
+    obtain ⟨dom, bm⟩ := b
+    simp only [denoteBinders] at hbs
+    cases hdom : denoteE s₀.store dom with
+    | none => rw [hdom] at hbs; simp at hbs
+    | some domP =>
+    cases hrest : denoteBinders s₀.store bs with
+    | none => rw [hdom, hrest] at hbs; simp at hbs
+    | some rest =>
+    rw [hdom, hrest] at hbs
+    obtain rfl := (Option.some.inj hbs).symm
+    simp only [Arena.closeTelescope] at hrun
+    obtain ⟨inner, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hin⟩ := ih rest (i + 1) s₀ s1 inner hok ⟨hrest, hbody⟩ k1
+    obtain ⟨cl, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s1) rfl k2
+      (ExprOps.abstract1Fast_spec fvarBSpec Arena.coreWalkFuel s1 inner i 0 p1.ok
+        (by rw [hin]; rfl))
+    have p2 : PStep s1 s2 := PStep.of_caches h1 h2 h3 h4 h5
+    obtain ⟨p3, hr⟩ := internForallEE_run p2.ok (denote_ext hdom (p1.ext.trans p2.ext))
+      (h7 _ hin) z2
+    exact ⟨p1.trans (p2.trans p3), hr⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:80-94 checkSumTele
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:20-30 checkSumTeleF
