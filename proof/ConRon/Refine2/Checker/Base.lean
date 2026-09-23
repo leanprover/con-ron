@@ -2032,7 +2032,7 @@ theorem IFEnvRelI.restrict {rf : arena.env.IFEnv} {lf : IFEnv}
     (h : IFEnvRelI rf lf) {k : Std.U64}
     (hk : k.val ≤ rf.env.consts.val.length) :
     IFEnvRelI { rf with visible_below := k } (lf.restrictTo (absU k)) :=
-  ⟨⟨h.rel.env, h.rel.idx, rfl⟩, ⟨h.inv.1, hk, h.inv.2.2⟩⟩
+  ⟨⟨h.rel.env, h.rel.idx, rfl, h.rel.envWF, h.rel.keys⟩, ⟨h.inv.1, hk, h.inv.2.2⟩⟩
 
 /-- The side tier's extension for the pin gates' pre-insertion view: a
 restricted index against the restricted twin index, its bound by `omega` over

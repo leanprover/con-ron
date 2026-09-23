@@ -74,7 +74,6 @@ attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 namespace ConRon.Refine2
 
 open ConRon.Arena
-open ConRon.Refine2.ExprOps (EResolves)
 
 /-! ## The lane, as the twin knot it stands for -/
 
@@ -309,9 +308,10 @@ hoisted it into the memoized slot only; task #97-P3-CoreWalks put the test in
 port's `knot_*` do and `Core/Induction.lean` reads the agreement off the
 knot's own equation (`coreKnotGated_succ_whnfCore_stuck`,
 `coreKnotGated_succ_whnf_stuck`) instead of off a body obligation.  The first
-of the two is nonetheless TRUE and stays proved, as a fact about the twin, in
-`Core/Arms/Gated.lean`; the second, which was false at `f = 0` and carried
-`1 ≤ f` for it, has no consumer and is not restated. -/
+of the two, a fact about the twin alone that needed its argument to resolve
+(`EResolves`), was kept proved in `Core/Arms/Gated.lean` until task #97-P5-Core
+round 5 deleted it (no consumer; lockstep reads the knot's equation); the
+second, false at `f = 0`, has no consumer and is not restated. -/
 /- **`inferIO`'s call-site premise** (task #97-P5-Core round 5, region E's
 finding).  The port's `infer_body_io` is called at exactly two points,
 `knot_infer_io`'s `(LANE_IO, false)` and `(LANE_FULL, true)`; its `.lam`

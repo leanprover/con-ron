@@ -26,9 +26,13 @@ Every handle kind is a word; `eq2` compares the words, and the abstraction is
 injective.  The conclusions are in `decide` form, and the twin's `==` on a
 handle (a `LawfulBEq`) is `decide` by `idx_beq_decide`. -/
 
-@[lockstep_simp] theorem idx_beq_decide {k : IdxKind} (a b : Idx k) :
+theorem idx_beq_decide {k : IdxKind} (a b : Idx k) :
     (a == b) = decide (a = b) := by
   by_cases h : a = b <;> simp [h]
+
+-- local: globally it rewrites other tiers' twins off their definitions
+-- (`Inductives/SumInstall`'s `checkSumIndAtSpec`); `Core/LS/Defeq` re-declares it
+attribute [local lockstep_simp] idx_beq_decide
 
 private theorem word_decide {k : IdxKind} {α : Type} (w : α → Std.U32)
     (A : α → Idx k) (hA : ∀ x, A x = ⟨absU32 (w x)⟩) (a b : α) :
@@ -198,8 +202,12 @@ theorem vec_push_eidx_ls (v : alloc.vec.Vec arena.handle.EIdx) (x : arena.handle
 
 /-- `==` at a type whose `BEq` is its `DecidableEq` (`ConLeche.Literal`,
 `ConLeche.PropWhen`) is `decide`. -/
-@[lockstep_simp] theorem beq_of_decEq {α : Type} [DecidableEq α] (a b : α) :
+theorem beq_of_decEq {α : Type} [DecidableEq α] (a b : α) :
     (@BEq.beq α instBEqOfDecidableEq a b) = decide (a = b) := rfl
+
+-- local: globally it rewrites other tiers' twins off their definitions
+-- (`Inductives/SumInstall`'s `checkSumIndAtSpec`); `Core/LS/Defeq` re-declares it
+attribute [local lockstep_simp] beq_of_decEq
 
 @[lockstep] theorem arc_deref_ls {T : Type} (A : Type) (x : alloc.sync.Arc T) :
     LSP (alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref A x) (fun y => y = x) :=
@@ -225,8 +233,12 @@ theorem natWF_of_limbs {m n : ron.nat.Nat} (h : m.limbs.val = n.limbs.val)
         ConRon.Refine.Nat.toNat m = ConRon.Refine.Nat.toNat n) :=
   fun _ h => let r := ConRon.Refine.Nat.clone_refines h; ⟨natWF_of_limbs r.1 hn, r.2⟩
 
-@[lockstep_simp] theorem nat_beq_decide' (a b : Nat) : (a == b) = decide (a = b) := by
+theorem nat_beq_decide' (a b : Nat) : (a == b) = decide (a = b) := by
   by_cases h : a = b <;> simp [h]
+
+-- local: globally it rewrites other tiers' twins off their definitions
+-- (`Inductives/SumInstall`'s `checkSumIndAtSpec`); `Core/LS/Defeq` re-declares it
+attribute [local lockstep_simp] nat_beq_decide'
 
 attribute [lockstep_simp] ConRon.Refine.absLiteral ConRon.Refine.LiteralWF
 

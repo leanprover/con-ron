@@ -625,11 +625,8 @@ theorem check_defn_pins_refines {pers st lst} {rf2 lf2}
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.checker.check_defn_pins, checkDefnPinsSpec]
   -- The Rust's structural gate is a state bind right after the `contains`
-  -- test, so the tactic moves the Rust first and wraps the undecided twin
-  -- `if` as `if … >>= pure`; the test is the Rust's, decided here.
-  lockstep
-  rw [am_ite_bind, if_pos (by simpa [absNIdxLFrom, absNIdxL] using hc)]
-  simp only [bind_pure]
+  -- test; the tactic decides the twin's `if` first (its `twin_bind_pure`
+  -- fallback is not taken at an undecided `if`, task #97-P5-Core round 5).
   lockstep
 
 open Lockstep in

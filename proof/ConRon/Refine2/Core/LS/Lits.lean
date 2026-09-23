@@ -283,7 +283,11 @@ set_option maxHeartbeats 4000000 in
 
 /-! ## String literals -/
 
-@[lockstep] theorem cast_u32_u64_spec (x : Std.U32) :
+/-- Local: `lockstep`'s `apply` unifies its `UScalar.cast .U64 x` with a
+`usize` cast by unfolding `cast` (an ill-typed assignment the kernel rejects,
+`Inductives/NativeParts`' `native_shape_at`), so it is filed for this file
+only. -/
+@[local lockstep] theorem cast_u32_u64_spec (x : Std.U32) :
     LSP (lift (UScalar.cast .U64 x)) (fun y => y.val = x.val) := by
   intro y h
   simp only [ConRon.Refine.lift_eq, Result.ok.injEq] at h

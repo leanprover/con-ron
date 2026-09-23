@@ -34,7 +34,6 @@ set_option maxRecDepth 4000
 namespace ConRon.Refine2
 
 open ConRon.Arena
-open ConRon.Refine2.ExprOps (EResolves)
 
 /-- `arena::core::whnf_app` against `Arena.whnfApp` — the batched β spine's
 head (task #97-P6-9). -/

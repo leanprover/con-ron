@@ -70,7 +70,6 @@ set_option maxRecDepth 4000
 namespace ConRon.Refine2
 
 open ConRon.Arena
-open ConRon.Refine2.ExprOps (EResolves)
 
 /-! ## The fuel reading
 
