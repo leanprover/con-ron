@@ -235,19 +235,6 @@ theorem projModelName_run {s s' : AState} {T : NIdx} {TP : ConLeche.Name}
   obtain ⟨p2, hr⟩ := internStrN_run p1.ok hm h2
   exact ⟨p1.trans p2, hr⟩
 
-/-- con-leche: ConLeche/Kernel/Env.lean:629 projFnName — the run form:
-`(TP.str "proj").num i`, two interns. -/
-theorem projFnName_run {s s' : AState} {T : NIdx} {TP : ConLeche.Name}
-    {i : Nat} {h : NIdx} (hok : StateOK s)
-    (hT : denoteN s.store.ns T = some TP)
-    (hrun : Arena.projFnName T i s = .ok (h, s')) :
-    PStep s s' ∧ denoteN s'.store.ns h = some (ConLeche.projFnName TP i) := by
-  simp only [Arena.projFnName] at hrun
-  obtain ⟨m, s1, k1, h2⟩ := bindOk hrun
-  obtain ⟨p1, hm⟩ := internStrN_run hok hT k1
-  obtain ⟨p2, hr⟩ := internNumN_run p1.ok hm h2
-  exact ⟨p1.trans p2, hr⟩
-
 /-- con-leche: none — the rename table's lookup at the empty table. -/
 theorem renameBy_nil (n : NIdx) : Arena.renameBy [] n = n := rfl
 

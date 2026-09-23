@@ -2152,6 +2152,38 @@ theorem ProjOut.push {fe : IFEnv} (hcoh : IFEnvCoh fe) (st : EStore)
       simp only [IFEnv.find?, hg, if_pos hlt]
       exact hf
 
+/-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **a pushed
+projection table owes its own shape**: the one install that pushes a
+`.projInfo` row (`checkStructProjTable`) discharges `ProjOut` with the new
+table's `IProjTableOK` (task #97-P3-Ind round 8). -/
+theorem ProjOut.push_table {fe : IFEnv} (hcoh : IFEnvCoh fe) (st : EStore)
+    {t : IProjTable} (ht : IProjTableOK st t) :
+    ProjOut fe st (fe.push (.projInfo t)) := by
+  intro n t' hf
+  have hvb : fe.visibleBelow = (mkIFEnvGo fe.env.consts).1 := by
+    rw [hcoh.1, mkIFEnvGo_fst']
+  simp only [IFEnv.find?, IFEnv.push, Std.HashMap.getElem?_insert] at hf
+  by_cases hEq : ((IConstantInfo.projInfo t).name == n) = true
+  · rw [if_pos hEq] at hf
+    simp only [Nat.lt_succ_self, if_true] at hf
+    obtain rfl : t = t' := by
+      have := Option.some.inj hf
+      injection this
+    exact Or.inr ht
+  · rw [if_neg hEq] at hf
+    left
+    cases hg : fe.idx[n]? with
+    | none => rw [hg] at hf; exact nomatch hf
+    | some p =>
+      obtain ⟨cnt, cinfo⟩ := p
+      rw [hg] at hf
+      have hlt : cnt < fe.visibleBelow := by
+        rw [hvb]
+        exact mkIFEnvGo_counter_lt fe.env.consts n cnt cinfo (hcoh.2 n ▸ hg)
+      simp only [if_pos (Nat.lt_succ_of_lt hlt)] at hf
+      simp only [IFEnv.find?, hg, if_pos hlt]
+      exact hf
+
 /-- con-leche: none — **the absolute form**, which is what
 `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` asks for: the fold's invariant
 at the index the step started from, plus the step's own `ProjOut`, is the
@@ -2989,5 +3021,93 @@ theorem allM_E_ck {env : Env} {fe : IFEnv} {f : EIdx → AM Bool}
       obtain ⟨p2, hx⟩ := ih rest s1 s' x (hok.mono p1.ok p1.ext p1.pins)
         (denoteEList_ext p1.ext _ _ hr) z1
       exact ⟨p1.trans p2, by simp only [List.all_cons, ← hc, Bool.true_and, hx]⟩
+
+/-- con-leche: none — `allM_E_ck` with a store invariant the body may read. -/
+theorem allM_E_ckQ {env : Env} {fe : IFEnv} {f : EIdx → AM Bool}
+    {F : Expr → Bool} (Q : EStore → Prop)
+    (hQ : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
+    (hf : ∀ (e : EIdx) (eP : Expr) (s₀ s' : AState) (x : Bool), ReadOK env fe s₀ →
+      Q s₀.store → denoteE s₀.store e = some eP → f e s₀ = .ok (x, s') →
+      PStep s₀ s' ∧ x = F eP) :
+    ∀ (es : List EIdx) (esP : List Expr) (s₀ s' : AState) (x : Bool),
+      ReadOK env fe s₀ → Q s₀.store → Frontend.denoteEList s₀.store es = some esP →
+      es.allM f s₀ = .ok (x, s') → PStep s₀ s' ∧ x = esP.all F := by
+  intro es
+  induction es with
+  | nil =>
+    intro esP s₀ s' x hok _ h hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at h
+    subst h
+    simp only [List.allM] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok.state, rfl⟩
+  | cons e es ih =>
+    intro esP s₀ s' x hok hq h hrun
+    simp only [Frontend.denoteEList] at h
+    cases he : denoteE s₀.store e with
+    | none => rw [he] at h; simp at h
+    | some eP =>
+    cases hr : Frontend.denoteEList s₀.store es with
+    | none => rw [he, hr] at h; simp at h
+    | some rest =>
+    rw [he, hr] at h
+    obtain rfl := (Option.some.inj h).symm
+    simp only [List.allM] at hrun
+    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hc⟩ := hf e eP s₀ s1 c hok hq he k1
+    cases c with
+    | false =>
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      exact ⟨p1, by simp only [List.all_cons, ← hc, Bool.false_and]⟩
+    | true =>
+      obtain ⟨p2, hx⟩ := ih rest s1 s' x (hok.mono p1.ok p1.ext p1.pins) (hQ p1.ext hq)
+        (denoteEList_ext p1.ext _ _ hr) z1
+      exact ⟨p1.trans p2, by simp only [List.all_cons, ← hc, Bool.true_and, hx]⟩
+
+
+/-- con-leche: none — `allM_pstep` with a body that reads the index. -/
+theorem allM_ck {env : Env} {fe : IFEnv} {α : Type} {f : α → AM Bool}
+    {g : α → Bool} (P : α → EStore → Prop)
+    (hPx : ∀ {a : α} {st st' : EStore}, Ext st st' → P a st → P a st')
+    (hf : ∀ (a : α) (s₀ s' : AState) (b : Bool), ReadOK env fe s₀ → P a s₀.store →
+      f a s₀ = .ok (b, s') → PStep s₀ s' ∧ b = g a) :
+    ∀ (xs : List α) (s₀ s' : AState) (b : Bool), ReadOK env fe s₀ →
+      (∀ a ∈ xs, P a s₀.store) → xs.allM f s₀ = .ok (b, s') →
+      PStep s₀ s' ∧ b = xs.all g := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro s₀ s' b hok _ hrun
+    simp only [List.allM] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok.state, rfl⟩
+  | cons a as ih =>
+    intro s₀ s' b hok hP hrun
+    simp only [List.allM] at hrun
+    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hc⟩ := hf a s₀ s1 c hok (hP a (by simp)) k1
+    cases c with
+    | false =>
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      exact ⟨p1, by simp only [List.all_cons, ← hc, Bool.false_and]⟩
+    | true =>
+      obtain ⟨p2, hb⟩ := ih s1 s' b (hok.mono p1.ok p1.ext p1.pins)
+        (fun x hx => hPx p1.ext (hP x (by simp [hx]))) z1
+      exact ⟨p1.trans p2, by simp only [List.all_cons, ← hc, Bool.true_and, hb]⟩
+
+
+/-- con-leche: ConLeche/Kernel/Env.lean:629 projFnName — the run form:
+`(TP.str "proj").num i`, two interns. -/
+theorem projFnName_run {s s' : AState} {T : NIdx} {TP : ConLeche.Name}
+    {i : Nat} {h : NIdx} (hok : StateOK s)
+    (hT : denoteN s.store.ns T = some TP)
+    (hrun : Arena.projFnName T i s = .ok (h, s')) :
+    PStep s s' ∧ denoteN s'.store.ns h = some (ConLeche.projFnName TP i) := by
+  simp only [Arena.projFnName] at hrun
+  obtain ⟨m, s1, k1, h2⟩ := bindOk hrun
+  obtain ⟨p1, hm⟩ := internStrN_run hok hT k1
+  obtain ⟨p2, hr⟩ := internNumN_run p1.ok hm h2
+  exact ⟨p1.trans p2, hr⟩
+
 
 end ConRon.Bridge.Inductives

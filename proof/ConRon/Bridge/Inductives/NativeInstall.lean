@@ -425,36 +425,6 @@ theorem mfFvarType_pstep (q : Nat) (e : EIdx) (eP : Expr) (s₀ s' : AState) (x 
   rw [hs1] at z1
   exact mentionsFvar_spec q t eP.fvarTypeD s₀ s' x hok ht z1
 
-/-- con-leche: none — `allM_pstep` with a body that reads the index. -/
-theorem allM_ck {env : Env} {fe : IFEnv} {α : Type} {f : α → AM Bool}
-    {g : α → Bool} (P : α → EStore → Prop)
-    (hPx : ∀ {a : α} {st st' : EStore}, Ext st st' → P a st → P a st')
-    (hf : ∀ (a : α) (s₀ s' : AState) (b : Bool), ReadOK env fe s₀ → P a s₀.store →
-      f a s₀ = .ok (b, s') → PStep s₀ s' ∧ b = g a) :
-    ∀ (xs : List α) (s₀ s' : AState) (b : Bool), ReadOK env fe s₀ →
-      (∀ a ∈ xs, P a s₀.store) → xs.allM f s₀ = .ok (b, s') →
-      PStep s₀ s' ∧ b = xs.all g := by
-  intro xs
-  induction xs with
-  | nil =>
-    intro s₀ s' b hok _ hrun
-    simp only [List.allM] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
-    exact ⟨PStep.refl hok.state, rfl⟩
-  | cons a as ih =>
-    intro s₀ s' b hok hP hrun
-    simp only [List.allM] at hrun
-    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
-    obtain ⟨p1, hc⟩ := hf a s₀ s1 c hok (hP a (by simp)) k1
-    cases c with
-    | false =>
-      obtain ⟨rfl, rfl⟩ := pureOk z1
-      exact ⟨p1, by simp only [List.all_cons, ← hc, Bool.false_and]⟩
-    | true =>
-      obtain ⟨p2, hb⟩ := ih s1 s' b (hok.mono p1.ok p1.ext p1.pins)
-        (fun x hx => hPx p1.ext (hP x (by simp [hx]))) z1
-      exact ⟨p1.trans p2, by simp only [List.all_cons, ← hc, Bool.true_and, hb]⟩
-
 /-- con-leche: none — `getD` commutes with the kind map. -/
 theorem getD_kindOf (ks : List Arena.RecFieldKind) (i : Nat) :
     (ks.map kindOf).getD i .ordinary = kindOf (ks.getD i .ordinary) := by
@@ -1298,13 +1268,14 @@ theorem checkNativeTable_run (fe : IFEnv) (env : Env) (hcoh : IFEnvCoh fe)
     (sortss : List (List LIdx)) (sortssP : List (List Level)) :
     PSpecP
       (fun st => PartsRel st p q ∧ denoteCtors st ctorsA = some ctorsAP ∧
-        denoteLLists st sortss = some sortssP ∧ denoteFEnv st fe = some env)
+        denoteLLists st sortss = some sortssP ∧ denoteFEnv st fe = some env ∧
+        IFEnvOKS env fe st)
       (Arena.checkNativeTable p ctorsA sortss fe)
       (InstRel fe (fun env' =>
         @ConLeche.checkNativeTable CheckM _ _ q ctorsAP sortssP env
           = .ok env')) := by
   intro s₀ s' r hok hpins hpre hrun
-  obtain ⟨hp, hcs, hss, hfe⟩ := hpre
+  obtain ⟨hp, hcs, hss, hfe, hienv⟩ := hpre
   have hrefl : InstRel fe (fun env' =>
       @ConLeche.checkNativeTable CheckM _ _ q ctorsAP sortssP env = .ok env') s₀.store fe →
       PStep s₀ s₀ ∧ InstRel fe (fun env' =>
@@ -1348,7 +1319,7 @@ theorem checkNativeTable_run (fe : IFEnv) (env : Env) (hcoh : IFEnvCoh fe)
         1 cv cP hglen hcoh s₁ s' r p1.ok (hpins.mono p1.ext p1.pins)
         ⟨denoteN_ext (denoteCV_name hsh.cvT) x1, denoteN_ext (denoteCV_name hcv) x1,
           denoteNListE_ext x1 _ _ (denoteCV_lps hsh.cvT), denoteL_ext hsh.resSort x1, hg,
-          denoteCV_ext hcv x1, denoteFEnv_ext x1 hfe⟩ h2
+          denoteCV_ext hcv x1, denoteFEnv_ext x1 hfe, hienv.mono x1⟩ h2
       refine ⟨p1.trans p2, ?_⟩
       have hi' : (q.nIdx == 0) = true := by rw [← hnIdx]; exact hi
       simp only [ConLeche.checkNativeTable, if_pos hi']
@@ -1405,7 +1376,11 @@ theorem checkNativeTable_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (InstRel fe (fun env' =>
         @ConLeche.checkNativeTable CheckM _ _ q ctorsAP sortssP env
           = .ok env')) :=
-  (checkNativeTable_run fe env hcoh p q ctorsA ctorsAP sortss sortssP).toCSpec μ env fe
+  (checkNativeTable_run fe env hcoh p q ctorsA ctorsAP sortss sortssP).toCSpec μ env fe |>
+    fun h => by
+      intro s₀ s' r hok hpre hrun
+      obtain ⟨a1, a2, a3, a4⟩ := hpre
+      exact h s₀ s' r hok ⟨a1, a2, a3, a4, hok.ienv.toS⟩ hrun
 
 /-! ## The pass -/
 
@@ -1943,10 +1918,13 @@ theorem checkNativeTail_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   have x7' : Ext s₇.store s₁₀.store := x79.trans x9'
   have hden₃ := denoteFEnv_push (denoteFEnv_ext x7' hden₂) hci
   have hcoh₂ : IFEnvCoh (Arena.consSumCtors r.p.nP r.ctorsA r.env₁) := hinst₂.coh
+  have hread₁₀ := hread₂.ofInst (hi₈.trans (c9.toInst.trans c10.toInst))
+  have hienv₃ := ((hread₁₀.push hcoh₂ (fun t h => IConstantInfo.noConfusion h)
+    (denoteFEnv_ext x7' hden₂) hden₃).ienv).toS
   obtain ⟨p11, hinst₄⟩ := checkNativeTable_run _ _ (hcoh₂.push _) r.p qP.p r.ctorsA qP.ctorsA
     r.sortss qP.sortss s₁₀ s' fe' c10.ok.state c10.ok.pins
     ⟨hpass.p.ext (x19.trans x9'), denoteCtors_ext (x19.trans x9') _ _ hpass.ctorsA,
-      denoteLLists_ext (x19.trans x9') hpass.sortss, hden₃⟩ z11
+      denoteLLists_ext (x19.trans x9') hpass.sortss, hden₃, hienv₃⟩ z11
   have x1' : Ext s₁.store s'.store := (x19.trans x9').trans p11.ext
   have x7'' : Ext s₇.store s'.store := x7'.trans p11.ext
   have hinst₃ : InstRel (Arena.consSumCtors r.p.nP r.ctorsA r.env₁) (fun _ => True)
