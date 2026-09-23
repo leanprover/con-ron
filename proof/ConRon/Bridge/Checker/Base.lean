@@ -10,9 +10,8 @@ and the three list checks.
 
 `Arena/CheckerBase.lean`'s `orElseAttempt` is the one place (B) recovers from
 a thrown error.  A throw in `StateT σ (Except ε)` carries no state at all, so
-the twin's error arm can only resume at `s`; the port restores the memos, the
-caches and the four scratch tiers from its snapshot, which since task
-#97-T2-LOCKSTEP D4 is the same state.
+the twin's error arm can only resume at `s`; the port moves back a full copy
+of the pre-attempt state (task #97-T2-LOCKSTEP D4b), which is the same state.
 
 `orElseAttempt_run` below is that, as a theorem: the attempt's outcome
 determines the step, and on a recovered error the state is *literally* the
@@ -56,11 +55,10 @@ field) — **the attempt's snapshot and restore, closed.**  Three outcomes, and
 on the recovered one the state handed back is the pre-attempt state itself.
 
 The `rfl` in the last arm is the whole content of the snapshot/restore pair:
-`attemptRestore s (attemptSnapshot s)` writes back `s`'s own memos, caches
-and scratch tiers, which is `s`.  In (C) the restore writes the SNAPSHOT's
-copies into the post-attempt state, and Theorem 2
-(`Refine2/Checker/Base.lean`'s `attempt_restore_refines₀`) relates that to
-`s` (task #97-T2-LOCKSTEP D4). -/
+`attemptRestore s (attemptSnapshot s)` is `s`.  In (C) the restore moves the
+snapshot, a full copy of the pre-attempt state, back as the state, and
+Theorem 2 (`Refine2/Checker/Base.lean`'s `attempt_restore_refines₀`) relates
+that to `s` (task #97-T2-LOCKSTEP D4b). -/
 theorem orElseAttempt_run {att : AM Bool} {s s' : AState} {r : OrElseStep}
     (h : orElseAttempt att s = .ok (r, s')) :
     (∃ b, att s = .ok (b, s') ∧ r = orElseStepOf (.ok b)) ∨

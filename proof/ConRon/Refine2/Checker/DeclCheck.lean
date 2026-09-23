@@ -2322,20 +2322,35 @@ def OrElseRel : arena.checker_base.OrElseStep → OrElseStep → Prop
   | .Recovered e, .recovered le => absAErrKind e = lAErrKind le
   | _, _ => False
 
-/-- **`check_div_mod_pin_attempt` ⊑ `orElseAttempt (checkDivModPinAt …)` —
-the `orElseAttempt` seam, lockstep** (task #97-T2-LOCKSTEP D4).  The ONE place
-(B) recovers from a thrown error.  Both sides resume a recovered attempt at
-the same state now: the twin at the pre-attempt state, the port at the
-post-attempt state with the snapshot's memos, caches and scratch tiers put
-back, which `attempt_recover_refines₀` relates to it under the port's frame.
+/-- The attempt's own lockstep lemma, in the shape the seam consumes it: at
+ANY tier and state related to the twin's pre-attempt state — the seam runs it
+at the frozen tier (task #97-T2-LOCKSTEP D4c).  `check_div_mod_pin_at_refines`
+is this statement. -/
+def DivModPinAtSim (vis : Std.U64) (rf : arena.env.IFEnv) (lf : IFEnv)
+    (mode : kernel.env.CheckMode) (c : arena.handle.NIdx) (value2 : arena.handle.EIdx)
+    (ps : arena.nat_op_pin_set.INatOpPinSet) (lst : AState) : Prop :=
+  ∀ (pers' : arena.store.PersTier) (st' : arena.monad.AState) o₁,
+    AStateRel₀ pers' st' lst → AStateInv pers' st' →
+    arena.decl_check.check_div_mod_pin_at pers' vis st' mode rf c value2 ps = ok o₁ →
+    Sim₀ id pers' lst o₁
+      (checkDivModPinAt (ConRon.Refine.absMode mode) lf (absNIdx c)
+        (absEIdx value2) (absINatOpPinSet ps))
 
-Two hypotheses, both about the callee:
-* `hat` — the attempt itself, lockstep (`check_div_mod_pin_at`'s Theorem-2
-  lemma, another lane's; taken in `Sim₀` form, as the `lockstep` recipe
-  takes a callee from another lane);
-* `hframe` — on a thrown error, the port's attempt wrote nothing outside the
-  memos, the caches and the scratch tiers (`ScratchFrame`, a fact about the
-  Rust alone).
+/-- **`check_div_mod_pin_attempt` ⊑ `orElseAttempt (checkDivModPinAt …)` —
+the `orElseAttempt` seam, lockstep** (tasks #97-T2-LOCKSTEP D4, D4b, D4c).
+The ONE place (B) recovers from a thrown error.  Both sides resume a
+recovered attempt at the pre-attempt state: the twin because its error arm
+has nothing else, the port because it moves the persistent tier aside
+(`freeze_tier`), copies the rest (`attempt_snapshot_eq`: the identity in the
+model), and on `Recovered` moves the copy back and thaws the tier into it —
+`freeze_tier_ok`'s round trip, field by field.  On the kept arms the thawed
+state reads what the frozen one read (`thaw_read_tier_view`), so the
+attempt's own relation carries over; the frozen start reads what the thawed
+one read (`freeze_tier_view`).  Nothing about what the Rust attempt leaves
+alone is needed.
+
+One hypothesis, about the callee: `hat`, the attempt itself, lockstep at any
+tier (`DivModPinAtSim`).
 
 The `lockstep` tactic does not apply: the two programs do the same operations
 only up to the error arm, where the twin throws the state away and the port
@@ -2344,76 +2359,109 @@ theorem check_div_mod_pin_attempt_refines₀ {pers st lst} {vis : Std.U64} {rf l
     {mode : kernel.env.CheckMode} {c : arena.handle.NIdx}
     {value2 : arena.handle.EIdx} {ps : arena.nat_op_pin_set.INatOpPinSet} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hat : ∀ o₁, arena.decl_check.check_div_mod_pin_at pers vis st mode rf c value2 ps
-        = ok o₁ →
-      Sim₀ id pers lst o₁
-        (checkDivModPinAt (ConRon.Refine.absMode mode) lf (absNIdx c)
-          (absEIdx value2) (absINatOpPinSet ps)))
-    (hframe : ∀ e st₁, arena.decl_check.check_div_mod_pin_at pers vis st mode rf c
-        value2 ps = ok (.Err e, st₁) → ScratchFrame st st₁)
+    (hat : DivModPinAtSim vis rf lf mode c value2 ps lst)
     (hrun : arena.decl_check.check_div_mod_pin_attempt pers vis st mode rf c value2
       ps = ok o) :
     SimRel₀ OrElseRel pers lst o
       (orElseAttempt (checkDivModPinAt (ConRon.Refine.absMode mode) lf (absNIdx c)
         (absEIdx value2) (absINatOpPinSet ps))) := by
   unfold arena.decl_check.check_div_mod_pin_attempt at hrun
-  obtain ⟨snap, hs, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hsnap := attempt_snapshot_refines₀ hrel hinv hs
-  obtain ⟨⟨r, st₁⟩, ha, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hsim := hat _ ha
+  obtain ⟨⟨fr, ar⟩, hfz, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   unfold SimRel₀ AOutRel₀
-  cases r with
-  | Ok b =>
-    obtain ⟨lst', hx, hrel', hinv'⟩ := Sim₀.apply hsim
-    simp only [StateT.run, id] at hx
-    cases b with
-    | true =>
-      simp [arena.checker_base.or_else_attempt] at hrun
-      subst hrun
-      refine ⟨.matched, lst', ?_, trivial, hrel', hinv'⟩
-      simp only [StateT.run, orElseAttempt, hx, orElseStepOf]
-    | false =>
-      simp [arena.checker_base.or_else_attempt] at hrun
-      subst hrun
-      refine ⟨.continued, lst', ?_, trivial, hrel', hinv'⟩
-      simp only [StateT.run, orElseAttempt, hx, orElseStepOf]
+  cases fr with
   | Err e =>
-    have herr := Sim₀.apply_err hsim
-    cases e with
-    | Native m =>
-      simp [arena.checker_base.or_else_attempt] at hrun
-      subst hrun
-      exact AErrSim.native m
-    | NotImplemented m | Invalid m | Internal m =>
-      simp [arena.checker_base.or_else_attempt] at hrun
-      obtain ⟨st₂, hr, hrun⟩ := hrun
-      subst hrun
-      obtain ⟨hrel₂, hinv₂⟩ :=
-        attempt_recover_refines₀ hrel hinv hsnap (hframe _ _ ha) hr
-      obtain ⟨le, hle, hk⟩ := herr _ rfl
-      simp only [StateT.run] at hle
-      refine ⟨.recovered le, lst, ?_, ?_, hrel₂, hinv₂⟩
-      · show orElseAttempt _ lst = _
-        unfold orElseAttempt
-        rw [hle]
-        cases le with
-        | native _ => simp at hk
-        | _ => simp only [orElseStepOf, attemptRestore_self]
-      · show absAErrKind _ = lAErrKind le
-        rw [hk]; rfl
+    obtain rfl := (Result.ok_injective hrun).symm
+    exact AErrSim.of_none (freeze_tier_err hfz)
+  | Ok tier =>
+    obtain ⟨-, -, hthaw⟩ := freeze_tier_ok hfz
+    obtain ⟨hrelF, hinvF⟩ := (freeze_tier_view (pers := pers) hfz).transfer hrel hinv
+    obtain ⟨snap, hs, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain rfl := attempt_snapshot_eq hs
+    obtain ⟨⟨r, st₁⟩, ha, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have hsim := hat _ _ _ hrelF hinvF ha
+    obtain ⟨oes, hoes, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    cases r with
+    | Ok b =>
+      obtain ⟨lst', hx, hrel', hinv'⟩ := Sim₀.apply hsim
+      simp only [StateT.run, id] at hx
+      cases b with
+      | true =>
+        simp [arena.checker_base.or_else_attempt] at hoes
+        subst hoes
+        try dsimp only at hrun
+        obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain rfl := (Result.ok_injective hrun).symm
+        obtain ⟨hrel₂, hinv₂⟩ := (thaw_read_tier_view (pers := pers) he1).transfer hrel' hinv'
+        refine ⟨.matched, lst', ?_, trivial, hrel₂, hinv₂⟩
+        simp only [StateT.run, orElseAttempt, hx, orElseStepOf]
+      | false =>
+        simp [arena.checker_base.or_else_attempt] at hoes
+        subst hoes
+        try dsimp only at hrun
+        obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain rfl := (Result.ok_injective hrun).symm
+        obtain ⟨hrel₂, hinv₂⟩ := (thaw_read_tier_view (pers := pers) he1).transfer hrel' hinv'
+        refine ⟨.continued, lst', ?_, trivial, hrel₂, hinv₂⟩
+        simp only [StateT.run, orElseAttempt, hx, orElseStepOf]
+    | Err e =>
+      have herr := Sim₀.apply_err hsim
+      cases e with
+      | Native m =>
+        simp [arena.checker_base.or_else_attempt] at hoes
+        subst hoes
+        try dsimp only at hrun
+        obtain ⟨e1, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain rfl := (Result.ok_injective hrun).symm
+        exact AErrSim.native m
+      | NotImplemented m | Invalid m | Internal m =>
+        simp [arena.checker_base.or_else_attempt] at hoes
+        subst hoes
+        try dsimp only at hrun
+        obtain ⟨st₂, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        rw [arena.checker_base.attempt_restore] at hr
+        obtain rfl := (Result.ok_injective hr).symm
+        obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        rw [hthaw] at he1
+        obtain rfl := (Result.ok_injective he1).symm
+        obtain rfl := (Result.ok_injective hrun).symm
+        obtain ⟨le, hle, hk⟩ := herr _ rfl
+        simp only [StateT.run] at hle
+        refine ⟨.recovered le, lst, ?_, ?_, hrel, hinv⟩
+        · show orElseAttempt _ lst = _
+          unfold orElseAttempt
+          rw [hle]
+          cases le with
+          | native _ => simp at hk
+          | _ => simp only [orElseStepOf, attemptRestore_self]
+        · show absAErrKind _ = lAErrKind le
+          rw [hk]; rfl
+
+/-- `orElseAttempt` never throws: its error arm is a step. -/
+theorem orElseAttempt_run_ne_error {att : AM Bool} {s : AState}
+    {le : Arena.CheckError} : (orElseAttempt att).run s ≠ .error le := by
+  simp only [StateT.run, orElseAttempt]
+  cases att s <;> simp
 
 /-- **`check_div_mod_pin_try` — one variant's attempt, then the loop**
-(restated lockstep, task #97-T2-LOCKSTEP lane Checker).  The Rust function is
-the loop's body PAST the two guards, so its twin is `checkDivModPinTrySpec`
-at the variant `variants[i]` and the rest of the list, not the whole loop.
-The attempt is `check_div_mod_pin_attempt` (the `orElseAttempt` seam,
+(restated lockstep, task #97-T2-LOCKSTEP lane Checker; proved, task
+#97-T2-LOCKSTEP D4b).  The Rust function is the loop's body PAST the two
+guards, so its twin is `checkDivModPinTrySpec` at the variant `variants[i]`
+and the rest of the list, not the whole loop.  The attempt is
+`check_div_mod_pin_attempt` (the `orElseAttempt` seam,
 `check_div_mod_pin_attempt_refines₀` above), then the four-way `match`.
 
-**Open, and blocked on a ruling, not on work**: the seam lemma takes the
-Rust attempt's `ScratchFrame` (pins, persistent tiers and flags unchanged),
-which nothing proves; DESIGN's lane Checker section prices it against a Rust
-change that makes it unnecessary.  The loop and this step are one mutual
-recursion, proved together once that is settled. -/
+Two hypotheses, both about callees, so that the loop and this step — one
+mutual recursion — can be proved together by an induction on the cursor:
+* `hat` — the variant's attempt, lockstep at any tier (`DivModPinAtSim`,
+  `check_div_mod_pin_at_refines`);
+* `hloop` — the loop at the NEXT cursor, from any related state and for any
+  `tried` list (the twin's `tried` is only an error message's text, which
+  `AErrSim` does not compare).
+
+The Rust passes `tried` on unchanged after `Continued` and replaces it by
+the one reason after `Recovered`, where the twin appends; the list reaches
+only the `NotImplemented` message, and Theorem 2 relates an error by its
+kind. -/
 theorem check_div_mod_pin_try_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {c : arena.handle.NIdx}
     {value2 : arena.handle.EIdx}
@@ -2421,15 +2469,60 @@ theorem check_div_mod_pin_try_refines {pers st lst} {vis : Std.U64} {rf lf}
     {tried : alloc.vec.Vec Std.U32} {o} {ltried : List String}
     {ps : arena.nat_op_pin_set.INatOpPinSet}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hps : variants.val[i.val]? = some ps)
+    (hat : DivModPinAtSim vis rf lf mode c value2 ps lst)
+    (hloop : ∀ (st' : arena.monad.AState) (lst' : AState) (i' : Std.Usize)
+        (tried' : alloc.vec.Vec Std.U32) (ltried' : List String) o',
+      i'.val = i.val + 1 → AStateRel₀ pers st' lst' → AStateInv pers st' →
+      arena.decl_check.check_div_mod_pin_loop pers vis st' mode rf c value2
+        variants i' tried' = ok o' →
+      Sim₀ (fun _ : Unit => ()) pers lst' o'
+        (checkDivModPinLoop (ConRon.Refine.absMode mode) lf (absNIdx c)
+          (absEIdx value2) (absINatOpPinSetLFrom variants i') ltried'))
     (hrun : arena.decl_check.check_div_mod_pin_try pers vis st mode rf c value2
       variants i tried = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
       (checkDivModPinTrySpec (ConRon.Refine.absMode mode) lf (absNIdx c)
         (absEIdx value2) (absINatOpPinSet ps)
         (absINatOpPinSetLFrom variants i).tail ltried) := by
-  sorry
+  rw [arena.decl_check.check_div_mod_pin_try] at hrun
+  obtain ⟨ps', hix, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hps' : ps' = ps := by
+    rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize] at hix
+    rw [show variants[i.val]? = variants.val[i.val]? from rfl, hps] at hix
+    exact (Result.ok_injective hix).symm
+  subst hps'
+  obtain ⟨⟨r, st₁⟩, hatt, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hseam := check_div_mod_pin_attempt_refines₀ hrel hinv hat hatt
+  unfold SimRel₀ AOutRel₀ at hseam
+  have htail : ∀ i' : Std.Usize, i'.val = i.val + 1 →
+      absINatOpPinSetLFrom variants i' = (absINatOpPinSetLFrom variants i).tail := by
+    intro i' hi'
+    simp only [absINatOpPinSetLFrom, ← List.map_tail, List.tail_drop, hi']
+  cases r with
+  | Err e =>
+    obtain rfl := (Result.ok_injective hrun).symm
+    intro k hk
+    obtain ⟨le, hx, -⟩ := hseam k hk
+    exact absurd hx orElseAttempt_run_ne_error
+  | Ok step =>
+    obtain ⟨v, lst₁, hx, hR, hrel₁, hinv₁⟩ := hseam
+    unfold Sim₀ checkDivModPinTrySpec
+    rw [run_bind_ok hx]
+    cases step <;> cases v <;> simp only [OrElseRel] at hR
+    · obtain rfl := (Result.ok_injective hrun).symm
+      exact ⟨lst₁, rfl, hrel₁, hinv₁⟩
+    · obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hi1v : i1.val = i.val + 1 := by
+        have := ConRon.Refine.HashMap.uscalar_add_eq hi1; simpa using this
+      rw [← htail i1 hi1v]
+      exact hloop _ _ _ _ _ _ hi1v hrel₁ hinv₁ hrun
+    · obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨tv, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hi1v : i1.val = i.val + 1 := by
+        have := ConRon.Refine.HashMap.uscalar_add_eq hi1; simpa using this
+      rw [← htail i1 hi1v]
+      exact hloop _ _ _ _ _ _ hi1v hrel₁ hinv₁ hrun
 
 open Lockstep in
 @[lockstep] theorem div_mod_pin_guard_ls {pers st lst} {vis : Std.U64} {rf lf}
@@ -2737,6 +2830,15 @@ theorem install_basis_decls_refines {lst} {rf lf}
 
 
 /-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.check_div_mod_pin_attempt_refines₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms check_div_mod_pin_attempt_refines₀
+
+/-- info: 'ConRon.Refine2.orElseAttempt_run_ne_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms orElseAttempt_run_ne_error
+
+/-- info: 'ConRon.Refine2.check_div_mod_pin_try_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms check_div_mod_pin_try_refines
 
 /-- info: 'ConRon.Refine2.cert_hyp1_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms cert_hyp1_refines

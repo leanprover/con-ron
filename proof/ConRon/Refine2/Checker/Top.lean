@@ -233,6 +233,16 @@ open Lockstep in
       (checkQuotDeclSpec lf (ConRon.Refine.absQuotKind k) (absIConstantVal cv)) :=
   LS.ofSimRel₀ fun _ h => check_quot_decl_refines hrel hinv hfe.rel hfe.inv h
 
+open Lockstep in
+/-- `basis_pin_hit` in `LS` form: the glue `check_ind_decl_refines` zips with
+(task #97-T2-LOCKSTEP lane Inductives round 3). -/
+@[lockstep] theorem basis_pin_hit_ls {pers st lst}
+    {block : alloc.vec.Vec arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = Option.map ConRon.Refine.absBasisKind a)
+      (arena.basis.basis_pin_hit pers st block) lst (basisPinHit (absICIL block)) :=
+  LS.ofSim₀ fun _ h => basis_pin_hit_refines hrel hinv h
+
 /-- `check_ind_decl` ⊑ `checkDecl`'s `.indDecl` arm — the pinned basis blocks
 recognised first (a stream's `Nat` block arrives as an ordinary `indDecl`),
 then the inductive routes.  **Finding 14's `hind`.** -/
@@ -245,7 +255,10 @@ theorem check_ind_decl_refines {pers st lst} {rf lf}
     SimRel₀ IFEnvRelI pers lst o
       (checkIndDeclArmSpec (ConRon.Refine.absMode mode) lf (absICIL block)
         (absU n_p)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.checker.check_ind_decl, checkIndDeclArmSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_ind_decl_ls {pers st lst}

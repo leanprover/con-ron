@@ -30,8 +30,9 @@
 use crate::arena::canon::i_constant_info_beq;
 use crate::arena::checker_base::{
     all_level_params_defined, attempt_restore, attempt_snapshot, consts_resolve_f_fast,
-    or_else_attempt, AttemptSnapshot, OrElseStep,
+    or_else_attempt, OrElseStep,
 };
+use crate::arena::checker::{freeze_tier, thaw_read_tier, thaw_tier};
 use crate::arena::checker_split::{
     install_value, M_THM_NOT_PROP, M_TYPE_MISMATCH_DEFN, M_TYPE_MISMATCH_OPAQUE,
     M_TYPE_MISMATCH_THM,
@@ -2476,20 +2477,32 @@ pub fn check_div_mod_pin_loop(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps
 /// con-leche: ConLeche/Kernel/Checker.lean:338-360 checkDivModPinLoop
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:159-191 orElseAttempt` —
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:134-163 orElseAttempt` —
 /// **`orElseAttempt (checkDivModPinAt …)`, the one recovering seam, as one
-/// function** (task #97-T2-LOCKSTEP D4): snapshot, the variant's attempt, the
-/// four-way step, and on `Recovered` the restore.  The twin gets the
-/// pre-attempt state free from its state function; here `attempt_snapshot`
-/// copies the memos, the caches and the four scratch tiers, and
-/// `attempt_restore` moves them back, so a recovered attempt resumes at the
-/// state the twin resumes at (`arena::checker_base`'s module note 6).
-/// Deviation: `Failed` (a `Native` error only) is returned as that error
-/// rather than as a step, which the twin's caller then `fail`s with — the
-/// same outcome one call earlier.
+/// function** (tasks #97-T2-LOCKSTEP D4, D4b, D4c).  The twin gets the
+/// pre-attempt state free from its state function; here:
+///
+/// 1. **the persistent tier is moved aside** (`freeze_tier`, O(1) moves, the
+///    four `shared_on` flags up), and the attempt reads it through the `tier`
+///    parameter — phase B's arrangement.  The attempt cannot write it: it runs
+///    inside a declaration's bracket, where every append is a scratch append,
+///    and a persistent append with the tier frozen is `M_FROZEN`;
+/// 2. **the rest of the state is copied** (`attempt_snapshot`, a full `AState`
+///    copy, now of a store whose persistent tables are empty: the scratch
+///    tiers, the memos, the caches, the pins, the flags);
+/// 3. on `Recovered` the copy is moved back and the tier thawed into it
+///    (`thaw_tier`), which is the pre-attempt state field by field; on every
+///    other step the kept state is thawed (`thaw_read_tier`).
+///
+/// `pers` is the caller's tier and is not read: phase A's store is thawed, so
+/// its reads went to its own tables, which `tier` now is.  A store that is
+/// already frozen is declined by `freeze_tier` (`M_REFREEZE`, `Native`); the
+/// checker never reaches this seam from phase B.  Deviation: `Failed` (a
+/// `Native` error only) is returned as that error rather than as a step, which
+/// the twin's caller then `fail`s with — the same outcome one call earlier.
 #[allow(clippy::too_many_arguments)]
 pub fn check_div_mod_pin_attempt(
-    pers: &PersTier,
+    _pers: &PersTier,
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
@@ -2498,17 +2511,32 @@ pub fn check_div_mod_pin_attempt(
     value2: &EIdx,
     ps: &INatOpPinSet,
 ) -> Result<OrElseStep, CheckError> {
-    let snapshot: AttemptSnapshot = attempt_snapshot(st);
-    let attempt: Result<bool, CheckError> =
-        check_div_mod_pin_at(pers, vis, st, mode, fe, c, value2, ps);
-    match or_else_attempt(attempt) {
-        OrElseStep::Matched => Ok(OrElseStep::Matched),
-        OrElseStep::Continued => Ok(OrElseStep::Continued),
-        OrElseStep::Recovered(e) => {
-            attempt_restore(st, snapshot);
-            Ok(OrElseStep::Recovered(e))
+    match freeze_tier(&mut st.store) {
+        Err(e) => Err(e),
+        Ok(tier) => {
+            let snapshot: AState = attempt_snapshot(st);
+            let attempt: Result<bool, CheckError> =
+                check_div_mod_pin_at(&tier, vis, st, mode, fe, c, value2, ps);
+            match or_else_attempt(attempt) {
+                OrElseStep::Matched => {
+                    thaw_read_tier(&mut st.store, tier);
+                    Ok(OrElseStep::Matched)
+                }
+                OrElseStep::Continued => {
+                    thaw_read_tier(&mut st.store, tier);
+                    Ok(OrElseStep::Continued)
+                }
+                OrElseStep::Recovered(e) => {
+                    attempt_restore(st, snapshot);
+                    thaw_tier(&mut st.store, tier);
+                    Ok(OrElseStep::Recovered(e))
+                }
+                OrElseStep::Failed(e) => {
+                    thaw_read_tier(&mut st.store, tier);
+                    Err(e)
+                }
+            }
         }
-        OrElseStep::Failed(e) => Err(e),
     }
 }
 
