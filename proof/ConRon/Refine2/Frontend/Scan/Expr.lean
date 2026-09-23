@@ -68,13 +68,17 @@ What stays here is the `seen`-bitset bridges (one lemma per literal, so that
 `simp only` can pick the one the key in hand uses) and `scan_binder_info`.
 
 ## `sorry` count in this file: 0
+
+**Moved back from `RefineOld/Frontend/ScanExpr.lean` by task #97-P5-Front** (namespace
+`ConRon.Refine2.Frontend`, the `#guard_msgs` strings re-spelled, nothing else).
 -/
-import ConRon.RefineOld.Frontend.ScanObj
+import ConRon.Refine2.Frontend.Scan.Obj
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
 
-namespace ConRon.Refine.Frontend
+namespace ConRon.Refine2.Frontend
+open ConRon.Refine
 
 open ConRon.Refine
 open ConLeche.Frontend
@@ -1366,4 +1370,4 @@ theorem scan_proj_expr_refines {i : Std.Usize} {o}
 
 end Step
 
-end ConRon.Refine.Frontend
+end ConRon.Refine2.Frontend

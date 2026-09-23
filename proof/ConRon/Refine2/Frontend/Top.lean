@@ -42,9 +42,10 @@ declaration `Modeller::generate` returns is well formed"*, and over handles
 `DeclRecStrWF` does not appear either — it is inside `ScanSpec.scanLineStr`,
 which is where the scanner owes it.
 
-## `sorry` count in this file: 7
+## `sorry` count in this file: 6
 -/
 import ConRon.Refine2.Frontend.ExportCInd
+import ConRon.Refine2.Frontend.Scan.Spec
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -382,17 +383,6 @@ theorem apply_final_line_refines {G : Type} {inst : frontend.types.Modeller G}
         ⟨e.offset.val - (absPos i).toNat, tg⟩), lst, ?_, rfl⟩
       simp only [applyFinalLine, hscan]
       rfl
-
-/-- **A line the con-leche scanner accepts with a continue position ends at a
-newline at or after its start** — `scanLineFwd`'s `0` is exactly "the buffer
-ran out before a newline did".  A fact about con-leche's recogniser alone
-(task #97-P5-Front): `skipWs` and `scanLineLoop` only move forward, and the
-only nonzero continue position is one past a `10` byte.  It is what lets the
-port's "scan error, no newline ahead: an incomplete tail" arm agree with the
-twin whatever the twin's scanner answers there, `IndexOverflow` included. -/
-theorem scanLineFwd_ok_newline {b : ByteArray} {i : USize} {r : LineRec} {j : USize}
-    (h : ConLeche.Frontend.scanLineFwd b i = .ok r j) (hj : j ≠ 0) :
-    ConLeche.Frontend.newlineFrom b i = true := by sorry
 
 theorem absPos_beq_zero (j : Std.Usize) : (absPos j == 0) = decide (j.val = 0) := by
   by_cases hj : j.val = 0

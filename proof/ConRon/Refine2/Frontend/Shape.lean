@@ -675,11 +675,13 @@ sides of this seam are **the same two sides tasks #85-#87 proved equal**, and
 what this tier owes is a record of the statements that tier proved, not a new
 argument.
 
-`ScanSpec`'s three clauses are, verbatim, `RefineOld/Frontend/`'s
-`ScanLine.scan_line_fwd_refines`, `ScanLine.scan_line_fwd_str_wf` and
-`ScanKit.newline_from_refines`.  `RefineOld` is out of the build, so they are
-hypotheses here; DESIGN.md's task section says what moving that tier back is
-worth and why it was not this round's job. -/
+`ScanSpec`'s three clauses are, verbatim, `Scan/Line.lean`'s
+`scan_line_fwd_refines`, `scan_line_fwd_str_wf` (+ `scan_line_fwd_digits`) and
+`Scan/Kit.lean`'s `newline_from_refines` — the scanner tier task #97-P5-Front
+moved back from `RefineOld/Frontend/` — and **`Scan/Spec.lean`'s `scanSpec :
+ScanSpec` discharges it**.  The record stays a parameter of the tier's
+statements so that they do not import the scanner tier; a caller passes
+`scanSpec`. -/
 
 /-- The declaration record's two SPELLING payloads hold valid code points —
 task #87 §8's `DeclRecStrWF`, the one place this tier needs a well-formedness

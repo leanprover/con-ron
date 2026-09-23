@@ -45,13 +45,17 @@ with -- directly, or inside `slot_nat`.  `next_member_lt` supplies the `i <
 b.len()` that makes the drop strict.
 
 ## `sorry` count in this file: 0
+
+**Moved back from `RefineOld/Frontend/ScanWF.lean` by task #97-P5-Front** (namespace
+`ConRon.Refine2.Frontend`, the `#guard_msgs` strings re-spelled, nothing else).
 -/
-import ConRon.RefineOld.Frontend.Base
+import ConRon.Refine2.Frontend.Scan.WFBase
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
 
-namespace ConRon.Refine.Frontend
+namespace ConRon.Refine2.Frontend
+open ConRon.Refine (bind_eq_ok_iff)
 
 open ConRon.Refine
 
@@ -1312,7 +1316,7 @@ theorem scan_line_fwd_wf {b : Slice Std.U8} {i : Std.Usize}
 -- `[u8; N]`, which carries no axiom; nothing here evaluates a key either way,
 -- so the theorem holds for every byte slice.
 
-/-- info: 'ConRon.Refine.Frontend.scan_line_fwd_wf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.Frontend.scan_line_fwd_wf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms scan_line_fwd_wf
 
-end ConRon.Refine.Frontend
+end ConRon.Refine2.Frontend
