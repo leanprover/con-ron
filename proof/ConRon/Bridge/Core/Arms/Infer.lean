@@ -255,6 +255,7 @@ theorem inferBody_app_batched {fe : IFEnv} {fuel : Nat}
     (hw : Expr.WScoped d e) (htag : (i.tag == ETag.app) = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ inferApp mode (coreKnot mode fe id fuel) fe d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
   sorry
 
@@ -275,6 +276,107 @@ theorem inferBody_binders_batched {fe : IFEnv} {fuel : Nat}
     ⦃fun s => ⌜s = s₀⌝⦄
       inferBody mode (coreKnot mode fe id fuel) fe d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
+  sorry
+
+
+/-! ### The dispatch's children (task #97-P3-Core round 5)
+
+`inferBody_spec` below is a case split on the tag and nothing else: one
+child per group of the twin's `view` dispatch, each a triple at the same
+body under its tag hypothesis.  The two batched clauses above are two of
+them (`inferBody_app` reaches `inferBody_app_batched` through the dispatch);
+the other four are here. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1216-1228 inferBody — **the `.app`
+clause**, at the body: the dispatch hands the node to `inferApp`, whose
+carry is `inferBody_app_batched`. -/
+theorem inferBody_app {fe : IFEnv} {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hw : Expr.WScoped d e)
+    (htag : i.tag = ETag.app) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      inferBody mode (coreKnot mode fe id fuel) fe d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1126-1137 inferBody — **the `.const`
+clause**: the index lookup, the tower-entry and level-arity guards, and the
+stored type through `constTyAt` (`Walks/Cached.lean`'s `constTyAt_spec'`,
+CLOSED); pure side `infer_const`. -/
+theorem inferBody_const {fe : IFEnv} {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hw : Expr.WScoped d e)
+    (htag : i.tag = ETag.const) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      inferBody mode (coreKnot mode fe id fuel) fe d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1138-1147 inferBody — **the two
+literal clauses**: `natLitSupported_spec` (`Walks/Nat.lean`, CLOSED) and
+`strLitSupported` (OPEN — no bridge spec yet), then `constE_spec`; pure side
+`infer_natLit`/`infer_strLit`. -/
+theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hw : Expr.WScoped d e)
+    (htag : i.tag = ETag.lit) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      inferBody mode (coreKnot mode fe id fuel) fe d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1229-1264 inferBody — **the `.proj`
+clause**: `KnotSpec.infer`, `KnotSpec.whnf'`, `getAppFn`/`getAppArgs`,
+`IFEnv.findProj?_spec`, `lvlEq?_spec`, the three readbacks and
+`IProjEntry.typeAt_spec` (`Walks/Proj.lean`, CLOSED); pure side
+`infer_proj_prop`/`infer_proj_nonprop`. -/
+theorem inferBody_proj {fe : IFEnv} {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hw : Expr.WScoped d e)
+    (htag : i.tag = ETag.proj) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      inferBody mode (coreKnot mode fe id fuel) fe d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1115-1125 inferBody — **the leaf
+clauses**: `.sort` (one level intern and one node intern), `.fvar` (the
+scope check), and the two throws (`.letE`, `.bvar`). -/
+theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hw : Expr.WScoped d e)
+    (hna : i.tag ≠ ETag.app) (hnp : i.tag ≠ ETag.proj)
+    (hnb : ETag.isBind i.tag = false) (hnc : i.tag ≠ ETag.const)
+    (hnl : i.tag ≠ ETag.lit) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      inferBody mode (coreKnot mode fe id fuel) fe d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
   sorry
 
@@ -291,6 +393,18 @@ theorem inferBody_spec {fe : IFEnv} {fuel : Nat}
     (hsim : KnotSpec mode env fe fuel) :
     BodySpec mode env fe (inferBody mode (coreKnot mode fe id fuel) fe)
       (ConLeche.inferTypeCore mode env) := by
-  sorry
+  intro s₀ d i e hok hden hw
+  by_cases ha : i.tag = ETag.app
+  · exact inferBody_app henv hμ hsim s₀ d i e hok hden hw ha
+  by_cases hp : i.tag = ETag.proj
+  · exact inferBody_proj henv hμ hsim s₀ d i e hok hden hw hp
+  by_cases hb : ETag.isBind i.tag = true
+  · exact inferBody_binders_batched henv hsim s₀ d i e hok hden hw hb
+  by_cases hc : i.tag = ETag.const
+  · exact inferBody_const henv hμ hsim s₀ d i e hok hden hw hc
+  by_cases hl : i.tag = ETag.lit
+  · exact inferBody_lit henv hμ hsim s₀ d i e hok hden hw hl
+  exact inferBody_leaf henv hμ hsim s₀ d i e hok hden hw ha hp
+    (Bool.eq_false_iff.mpr hb) hc hl
 
 end ConRon.Bridge.Core

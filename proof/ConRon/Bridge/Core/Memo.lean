@@ -801,4 +801,28 @@ theorem memoDefeq_step {mode : CheckMode} {env : Env} {fe : IFEnv}
             exact hF⟩) rfl rfl,
       hx, hpn, F, hF⟩
 
+
+/-! ## 6. The dispatch step (task #97-P3-Core round 5)
+
+Every body of the knot opens with `match ← view e with …`.  The body theorems
+are proved as a case split on the tag, with one child per group of that
+dispatch, and each child starts here: at a state whose store views the
+handle as `v`, the program `view i >>= f` is `f v`. -/
+
+/-- con-leche: none — **the `view` dispatch**: `view i` reads the store and
+touches nothing, so a triple for the arm the store selects is a triple for
+the whole dispatch. -/
+theorem view_bind_triple {α : Type} {s₀ : AState} {i : EIdx} {v : ENodeView}
+    (hv : s₀.store.view i = some v) {f : ENodeView → AM α}
+    {Q : α → AState → Prop}
+    (h : ⦃fun s => ⌜s = s₀⌝⦄ f v ⦃⇓? r s' => ⌜Q r s'⌝⦄) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (view i >>= f) ⦃⇓? r s' => ⌜Q r s'⌝⦄ := by
+  mvcgen [h]
+  rename_i v'
+  intro s hs hv'
+  subst_vars
+  rw [hv] at hv'
+  obtain rfl := Option.some.inj hv'
+  exact h _ rfl
+
 end ConRon.Bridge.Core

@@ -244,6 +244,102 @@ theorem annotateBody_binders_batched {fe : IFEnv} {fuel : Nat}
     (hw : Expr.WScoped d e) (htag : ETag.isBind i.tag = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ annotateBody (coreKnot mode fe id fuel) fe d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
+  sorry
+
+
+/-! ### The dispatch's children (task #97-P3-Core round 5)
+
+`annotateBody_spec` below is a case split on the tag: one child per group of
+the twin's `view` dispatch, each a triple at the same body under its tag
+hypothesis; the batched binder clause above is one of them. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1828-1834 annotateBody — **the
+`.app` clause**: two `KnotSpec.annotate` calls and the rebuilt node
+(`internRebuiltApp`, task #97-P6-7's upward cutoff); pure side `annot_app`. -/
+theorem annotateBody_app {fe : IFEnv} {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hw : Expr.WScoped d e)
+    (htag : i.tag = ETag.app) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      annotateBody (coreKnot mode fe id fuel) fe d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1817-1827 annotateBody — **the two
+literal clauses**: `natLitSupported_spec` (CLOSED) and `strLitSupported`
+(OPEN); pure side `annot_natLit`/`annot_strLit`. -/
+theorem annotateBody_lit {fe : IFEnv} {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hw : Expr.WScoped d e)
+    (htag : i.tag = ETag.lit) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      annotateBody (coreKnot mode fe id fuel) fe d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1852-1881 annotateBody — **the `.letE`
+clause** (con-leche's task #217): `KnotSpec.annotate`, `ensureSort`,
+`KnotSpec.infer`, `KnotSpec.defeq'`, `instantiate1Fast`; pure side
+`annot_letE`. -/
+theorem annotateBody_letE {fe : IFEnv} {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hw : Expr.WScoped d e)
+    (htag : i.tag = ETag.letE) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      annotateBody (coreKnot mode fe id fuel) fe d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1882-1900 annotateBody — **the `.proj`
+clause**: `KnotSpec.annotate`, `KnotSpec.inferIO'`, `KnotSpec.whnf'`,
+`getAppFn`/`getAppArgs`, `IFEnv.findProj?_spec`; pure side `annot_proj`. -/
+theorem annotateBody_proj {fe : IFEnv} {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hw : Expr.WScoped d e)
+    (htag : i.tag = ETag.proj) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      annotateBody (coreKnot mode fe id fuel) fe d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1808-1816 annotateBody — **the leaf
+clauses**: `.bvar`, `.fvar` (the scope check), `.sort` and `.const` answer
+themselves; pure side `annot_bvar`/`_fvar`/`_sort`/`_const`. -/
+theorem annotateBody_leaf {fe : IFEnv} {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hw : Expr.WScoped d e)
+    (hna : i.tag ≠ ETag.app) (hnl : i.tag ≠ ETag.lit)
+    (hnb : ETag.isBind i.tag = false) (hne : i.tag ≠ ETag.letE)
+    (hnp : i.tag ≠ ETag.proj) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      annotateBody (coreKnot mode fe id fuel) fe d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
   sorry
 
@@ -260,6 +356,18 @@ theorem annotateBody_spec {fe : IFEnv} {fuel : Nat}
     (hsim : KnotSpec mode env fe fuel) :
     BodySpec mode env fe (annotateBody (coreKnot mode fe id fuel) fe)
       (ConLeche.annotateCore mode env) := by
-  sorry
+  intro s₀ d i e hok hden hw
+  by_cases ha : i.tag = ETag.app
+  · exact annotateBody_app henv hμ hsim s₀ d i e hok hden hw ha
+  by_cases hb : ETag.isBind i.tag = true
+  · exact annotateBody_binders_batched henv hsim s₀ d i e hok hden hw hb
+  by_cases hl : i.tag = ETag.lit
+  · exact annotateBody_lit henv hμ hsim s₀ d i e hok hden hw hl
+  by_cases he : i.tag = ETag.letE
+  · exact annotateBody_letE henv hμ hsim s₀ d i e hok hden hw he
+  by_cases hp : i.tag = ETag.proj
+  · exact annotateBody_proj henv hμ hsim s₀ d i e hok hden hw hp
+  exact annotateBody_leaf henv hμ hsim s₀ d i e hok hden hw ha hl
+    (Bool.eq_false_iff.mpr hb) he hp
 
 end ConRon.Bridge.Core

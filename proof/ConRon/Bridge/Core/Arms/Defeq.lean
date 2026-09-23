@@ -355,7 +355,81 @@ theorem defeqPeel_chain {fe : IFEnv} {fuel : Nat}
           (if isLam then .lam t2 b2 m2 else .forallE t2 b2 m2) x⌝⦄ := by
   sorry
 
-/-! ## 6. The body theorem -/
+/-! ## 6. The loop, skeletonised (task #97-P3-Core round 5)
+
+`defeqBody_spec` below is proved from ONE child, `defeqStep_spec`: the twin's
+`defeqStep` at an arbitrary continuation `k`, against con-leche's
+`defeqLoop … (n + 1)`, under the hypothesis that `k` refines
+`defeqLoop … n`.  `defeqLoop_spec` is the `Nat` induction over it
+(`Arms/Whnf.lean`'s `whnfLoop_spec` is the template), and the entry bracket
+is `defeq_of_loop`.  Every `sorry` of the `defeq` body is therefore the step's:
+`defeqPeel_chain` above and the five certificate walks of `Walks/Owed.lean`
+are its callee rules.
+
+The step's subjects arrive as the loop's own reducts (a `reduceNat` answer,
+an unfolding), so the step and the loop take their denotations in answer
+shape: ∃ in the precondition, ∀ in the postcondition. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1703-1708 defeqLoop — what a
+continuation of the lazy-delta loop at budget `n` promises: the frame, and
+con-leche's loop at `n` on every denotation of the two subjects. -/
+def DefeqLoopK (mode : CheckMode) (env : Env) (fe : IFEnv) (d n : Nat)
+    (k : Bool → EIdx → EIdx → AM Bool) : Prop :=
+  ∀ (pi : Bool) (a b : EIdx) (s₀ : AState),
+    CheckOK mode env fe s₀ →
+    (∃ x, denoteE s₀.store a = some x ∧ Expr.WScoped d x) →
+    (∃ y, denoteE s₀.store b = some y ∧ Expr.WScoped d y) →
+    ⦃fun s => ⌜s = s₀⌝⦄ k pi a b
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        ∀ x y, denoteE s₀.store a = some x → denoteE s₀.store b = some y →
+          ∃ F, ConLeche.defeqLoop mode (ConLeche.pureFns mode env F) env d n
+            pi x y = .ok r⌝⦄
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1461-1701 defeqStep — **THEOREM 1
+for one step of the lazy-delta loop**, at a continuation that refines the
+loop one budget down.
+
+**OPEN** — the `defeq` body's whole content: the entry group (§2's four
+exits, `isBoolTrue_spec`, `hasFvarFast`, `boolTrueShortcut`, two
+`KnotSpec.whnfCore'`, `propIrrel_spec'`), the literal group
+(`reduceNat_spec`, §2's two), lazy delta (`unfoldableHead_spec`,
+`unfoldDefinition_spec`, `headHint_spec`, `sameConstHeads_spec`,
+`defeqSpine_spec`, all CLOSED in `Walks/Spine.lean`), and the congruence
+group (`lvlEq?`/`lvlsEq?`, `strLitToConstructor`, `defeqPeel_chain`,
+`defEqList_spec`, `etaCert_spec`, `stuckIrrel_spec`). -/
+theorem defeqStep_spec {fe : IFEnv} {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel) (d n : Nat)
+    (k : Bool → EIdx → EIdx → AM Bool) (hk : DefeqLoopK mode env fe d n k) :
+    DefeqLoopK mode env fe d (n + 1)
+      (defeqStep mode (coreKnot mode fe id fuel) fe d k) := by
+  sorry
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1703-1708 defeqLoop — **THEOREM 1
+for the lazy-delta LOOP**, at every budget: the `Nat` induction over
+`defeqStep_spec`. -/
+theorem defeqLoop_spec {fe : IFEnv} {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel) (d : Nat) :
+    ∀ n, DefeqLoopK mode env fe d n
+      (ConRon.Arena.defeqLoop mode (coreKnot mode fe id fuel) fe d n) := by
+  intro n
+  induction n with
+  | zero =>
+    intro pi a b s₀ _ _ _
+    mvcgen [ConRon.Arena.defeqLoop]
+    exact fun h => h.elim
+  | succ n ih =>
+    exact defeqStep_spec henv hμ hsim d n _ ih
+
+unseal ConLeche.defeqLoopFuel in
+/-- con-leche: ConLeche/Kernel/Core.lean:1710-1714 defeqLoopFuel — the two
+budgets are the same number (task #97c); con-leche's is `@[irreducible]`. -/
+theorem defeqLoopFuel_eq :
+    ConRon.Arena.defeqLoopFuel = ConLeche.defeqLoopFuel := rfl
+
+/-! ## 7. The body theorem -/
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC6.lean defeqBodyC_sim — **THEOREM 1
 for `defeqBody`**.
@@ -371,6 +445,13 @@ theorem defeqBody_spec {fe : IFEnv} {fuel : Nat}
     (hsim : KnotSpec mode env fe fuel) :
     BodySpecV mode env fe (defeqBody mode (coreKnot mode fe id fuel) fe)
       (ConLeche.isDefEqCore mode env) := by
-  sorry
+  intro s₀ d i j a b hok hda hdb hwa hwb
+  have hloop := defeqLoop_spec henv hμ hsim d ConRon.Arena.defeqLoopFuel true
+    i j s₀ hok ⟨a, hda, hwa⟩ ⟨b, hdb, hwb⟩
+  mvcgen [ConRon.Arena.defeqBody, hloop]
+  intro hck hx hp hres
+  obtain ⟨F, hF⟩ := hres a b hda hdb
+  rw [defeqLoopFuel_eq] at hF
+  exact ⟨hck, hx, hp, F + 1, defeq_of_loop hF⟩
 
 end ConRon.Bridge.Core

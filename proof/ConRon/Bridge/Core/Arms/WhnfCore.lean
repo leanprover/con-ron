@@ -264,10 +264,96 @@ theorem whnfCoreBody_app_batched {fe : IFEnv} {fuel : Nat}
     ⦃fun s => ⌜s = s₀⌝⦄
       whnfCoreBody mode (coreKnot mode fe id fuel) fe d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
         SimE (ConLeche.whnfCore mode env) d e s'.store r⌝⦄ := by
   sorry
 
-/-! ## 4. The body theorem -/
+/-! ## 4. The body theorem, skeletonised (task #97-P3-Core round 5)
+
+`whnfCoreBody_spec` is proved from THREE children, one per group of the
+twin's `view` dispatch, each a triple at the same body under a tag
+hypothesis: the batched `.app` clause (`whnfCoreBody_app_batched` above), the
+`.proj` clause (`whnfCoreBody_proj`, below), and every other tag
+(`whnfCoreBody_leaf`: the six values answer themselves, `.letE`/`.bvar`
+throw).  The parent is a case split on the tag and nothing else, so the
+`sorry`s the Core tier owes at this body are exactly the children's. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:968-975 whnfCoreBody — **the leaf
+clauses**: at a tag that is neither `.app` nor `.proj`, the six values answer
+themselves and `.letE`/`.bvar` throw. -/
+theorem whnfCoreBody_leaf {fe : IFEnv} {fuel : Nat}
+    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hw : Expr.WScoped d e)
+    (hna : i.tag ≠ ETag.app) (hnp : i.tag ≠ ETag.proj) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      whnfCoreBody mode (coreKnot mode fe id fuel) fe d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.whnfCore mode env) d e s'.store r⌝⦄ := by
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  -- the value arms answer the handle itself
+  have hval : (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨
+      (∃ n us, e = .const n us) ∨ (∃ l, e = .lit l) ∨
+      (∃ t b m, e = .lam t b m) ∨ (∃ t b m, e = .forallE t b m) →
+      SimE (ConLeche.whnfCore mode env) d e s₀.store i :=
+    fun hs => ⟨e, hden, hw, 1, whnfCore_of_stuck hs 0 d⟩
+  refine view_bind_triple hv ?_
+  cases v with
+  | app f a => exact absurd htg hna
+  | proj n k sub => exact absurd htg hnp
+  | letE ty w b => mvcgen; exact fun h => h.elim
+  | bvar k => mvcgen; exact fun h => h.elim
+  | fvar k t =>
+    obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv hden
+    mvcgen; bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, hval (Or.inl ⟨k, t', rfl⟩)⟩
+  | sort u =>
+    obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv hden
+    mvcgen; bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inl ⟨l, rfl⟩))⟩
+  | const n us =>
+    obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hv hden
+    mvcgen; bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inr (Or.inl ⟨nm, ls, rfl⟩)))⟩
+  | lit l =>
+    obtain rfl := denote_lit_inv hwf hv hden
+    mvcgen; bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inr (Or.inr (Or.inl ⟨l, rfl⟩))))⟩
+  | lam ty b m =>
+    obtain ⟨et, eb, rfl, _, _⟩ := denote_lam_inv hwf hv hden
+    mvcgen; bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨et, eb, m, rfl⟩)))))⟩
+  | forallE ty b m =>
+    obtain ⟨et, eb, rfl, _, _⟩ := denote_forallE_inv hwf hv hden
+    mvcgen; bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨et, eb, m, rfl⟩)))))⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1005-1037 whnfCoreBody — **the
+`.proj` clause**: normalise the scrutinee, expand a string literal, consult
+the projection table, and fire behind the guards and the certificate.
+
+**OPEN**.  Callee rules: `KnotSpec.whnf'`, `projLitToCtor_spec`
+(`Walks/Owed.lean`, open), `getAppFn`/`getAppArgs` (`ExprOps` tier),
+`IProjEntry.fireOk_spec` and `projCertAt_spec` (`Walks/Proj.lean`, closed),
+`KnotSpec.whnfCore'`; pure side `whnfCore_proj_{none,fire,cert_false,guard}`
+above plus the non-constant-head exit. -/
+theorem whnfCoreBody_proj {fe : IFEnv} {fuel : Nat}
+    (henv : ConLeche.EnvWF env)
+    (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hw : Expr.WScoped d e) (htag : i.tag = ETag.proj) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      whnfCoreBody mode (coreKnot mode fe id fuel) fe d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.whnfCore mode env) d e s'.store r⌝⦄ := by
+  sorry
+
+/-! ## 5. The body theorem -/
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC4.lean whnfCoreBodyC_sim —
 **THEOREM 1 for `whnfCoreBody`**, at a knot record one fuel level down.
@@ -291,6 +377,12 @@ theorem whnfCoreBody_spec {fe : IFEnv} {fuel : Nat}
     (hsim : KnotSpec mode env fe fuel) :
     BodySpec mode env fe (whnfCoreBody mode (coreKnot mode fe id fuel) fe)
       (ConLeche.whnfCore mode env) := by
-  sorry
+  intro s₀ d i e hok hden hw
+  by_cases ha : i.tag = ETag.app
+  · exact whnfCoreBody_app_batched henv hsim s₀ d i e hok hden hw
+      (by simp [ha])
+  by_cases hp : i.tag = ETag.proj
+  · exact whnfCoreBody_proj henv hsim s₀ d i e hok hden hw hp
+  exact whnfCoreBody_leaf s₀ d i e hok hden hw ha hp
 
 end ConRon.Bridge.Core
