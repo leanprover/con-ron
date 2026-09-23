@@ -9967,6 +9967,271 @@ theorem subst_ls_memo_at_step {pers st lst} {ks : alloc.vec.Vec kernel.name.Name
           · simp only [Option.some.injEq] at hk; rw [← hk]; exact hres
           · exact hq2.2.2 k r hk
 
+
+/-! ### `instLPGo`'s steps -/
+
+theorem lidx_eq2_beq {a b : arena.handle.LIdx} {c : Bool}
+    (h : arena.handle.LIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b = ok c) :
+    (absLIdx a == absLIdx b) = c := by
+  have := lidx_eq2 a b c trivial trivial h
+  subst this
+  by_cases hab : a = b
+  · subst hab; simp
+  · have : absLIdx a ≠ absLIdx b := fun hh => hab (absLIdx_inj hh)
+    simp [hab, this]
+
+theorem lsidx_eq2_beq {a b : arena.handle.LsIdx} {c : Bool}
+    (h : arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b = ok c) :
+    (absLsIdx a == absLsIdx b) = c := by
+  have := lsidx_eq2 a b c trivial trivial h
+  subst this
+  by_cases hab : a = b
+  · subst hab; simp
+  · have : absLsIdx a ≠ absLsIdx b := fun hh => hab (absLsIdx_inj hh)
+    simp [hab, this]
+
+/-- `arena::monad::intern_e_sort` at `WOutE`. -/
+theorem intern_e_sort_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    (u : arena.handle.LIdx) (hu : (lst.store.ls.view (absLIdx u)).isSome = true)
+    {o} (hrun : arena.monad.intern_e_sort pers st u = ok o) :
+    WOutE Q pers st lst o (Arena.internE (.sort (absLIdx u))) := by
+  rw [arena.monad.intern_e_sort] at hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨r, e⟩ := p
+  have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
+    Result.ok_injective hrun
+  subst ho
+  obtain ⟨hok, herr, hfl⟩ :=
+    estore_intern_sort_abs (ls := lst.store) hrel.store hinv.store hfrozen
+      (fun h => hchild_sort hrel.storeWF h) hp
+  exact wout_intern_tail hQ hrel hinv hq (viewOK_sort hu)
+    (fun hcap _ => internE_run_of_cap rfl hcap) (nb_hok rfl hok hfl) herr
+
+theorem intern_rebuilt_sort_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    {h : arena.handle.EIdx} {same : Bool} {u : arena.handle.LIdx}
+    (hh : EResolves lst (absEIdx h)) (hu : (lst.store.ls.view (absLIdx u)).isSome = true)
+    {o} (hrun : arena.expr_ops.intern_rebuilt_sort pers st h same u = ok o) :
+    WOutE Q pers st lst o (internRebuiltSort (absEIdx h) same (absLIdx u)) := by
+  rw [arena.expr_ops.intern_rebuilt_sort] at hrun
+  show WOutR Q pers st lst o ((internRebuiltSort (absEIdx h) same (absLIdx u)).run lst)
+  rw [internRebuiltSort]
+  cases same with
+  | true => rw [if_pos rfl] at hrun; rw [if_pos rfl]; exact wout_dup hrel hinv hh hq hrun
+  | false =>
+    rw [if_neg (by simp)] at hrun; rw [if_neg (by simp)]
+    exact intern_e_sort_res hQ hrel hinv hfrozen hq u hu hrun
+
+theorem intern_rebuilt_const_res {Q : AState → Prop} (hQ : QStable Q) {pers st lst}
+    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+    (hfrozen : st.store.shared_on = true → st.store.scratch_on = true) (hq : Q lst)
+    {h : arena.handle.EIdx} {same : Bool} {n : arena.handle.NIdx} {us : arena.handle.LsIdx}
+    (hh : EResolves lst (absEIdx h)) (hn : (lst.store.ns.view (absNIdx n)).isSome = true)
+    (hus : (lst.store.lss.view (absLsIdx us)).isSome = true)
+    {o} (hrun : arena.expr_ops.intern_rebuilt_const pers st h same n us = ok o) :
+    WOutE Q pers st lst o (internRebuiltConst (absEIdx h) same (absNIdx n) (absLsIdx us)) := by
+  rw [arena.expr_ops.intern_rebuilt_const] at hrun
+  show WOutR Q pers st lst o ((internRebuiltConst (absEIdx h) same (absNIdx n)
+    (absLsIdx us)).run lst)
+  rw [internRebuiltConst]
+  cases same with
+  | true => rw [if_pos rfl] at hrun; rw [if_pos rfl]; exact wout_dup hrel hinv hh hq hrun
+  | false =>
+    rw [if_neg (by simp)] at hrun; rw [if_neg (by simp)]
+    exact intern_e_const_res hQ hrel hinv hfrozen hq n us (viewOK_const hn hus) hrun
+
+/-- A rebuilt node moves no nested store: the cutoff moves nothing, and the
+port's `intern_*` records `rs'.lss = rs.lss`. -/
+theorem rebuilt_lss {same : Bool} {st : arena.monad.AState} {h : arena.handle.EIdx}
+    {rest : Result ((core.result.Result arena.handle.EIdx kernel.core_types.CheckError) ×
+      arena.monad.AState)} {o}
+    (hrun : (if same then (do
+        let e ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h
+        ok (core.result.Result.Ok e, st)) else rest) = ok o)
+    (hrest : rest = ok o → o.2.store.lss = st.store.lss) : o.2.store.lss = st.store.lss := by
+  cases same with
+  | true =>
+    rw [if_pos rfl] at hrun
+    obtain ⟨e, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [← Result.ok_injective hrun]
+  | false => rw [if_neg (by simp)] at hrun; exact hrest hrun
+
+section rebuiltLss
+variable {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+  (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+  (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
+include hrel hinv hfrozen
+
+theorem rb_fvar_lss {h : arena.handle.EIdx} {same : Bool} {i : Std.U64}
+    {t : arena.handle.EIdx} {o}
+    (hrun : arena.expr_ops.intern_rebuilt_fvar pers st h same i t = ok o) :
+    o.2.store.lss = st.store.lss := by
+  rw [arena.expr_ops.intern_rebuilt_fvar] at hrun
+  refine rebuilt_lss hrun (fun hr => ?_)
+  rw [arena.monad.intern_e_fvar] at hr
+  obtain ⟨p, hp, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+  rw [← Result.ok_injective hr]
+  exact (estore_intern_fvar_abs (ls := lst.store) hrel.store hinv.store hfrozen
+    (fun h => hchild_fvar hrel.storeWF h) hp).2.2.2.2
+
+theorem rb_sort_lss {h : arena.handle.EIdx} {same : Bool} {u : arena.handle.LIdx} {o}
+    (hrun : arena.expr_ops.intern_rebuilt_sort pers st h same u = ok o) :
+    o.2.store.lss = st.store.lss := by
+  rw [arena.expr_ops.intern_rebuilt_sort] at hrun
+  refine rebuilt_lss hrun (fun hr => ?_)
+  rw [arena.monad.intern_e_sort] at hr
+  obtain ⟨p, hp, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+  rw [← Result.ok_injective hr]
+  exact (estore_intern_sort_abs (ls := lst.store) hrel.store hinv.store hfrozen
+    (fun h => hchild_sort hrel.storeWF h) hp).2.2.2.2
+
+theorem rb_const_lss {h : arena.handle.EIdx} {same : Bool} {n : arena.handle.NIdx}
+    {us : arena.handle.LsIdx} {o}
+    (hrun : arena.expr_ops.intern_rebuilt_const pers st h same n us = ok o) :
+    o.2.store.lss = st.store.lss := by
+  rw [arena.expr_ops.intern_rebuilt_const] at hrun
+  refine rebuilt_lss hrun (fun hr => ?_)
+  rw [arena.monad.intern_e_const] at hr
+  obtain ⟨p, hp, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+  rw [← Result.ok_injective hr]
+  exact (estore_intern_const_abs (ls := lst.store) hrel.store hinv.store hfrozen
+    (fun h => hchild_const hrel.storeWF h) hp).2.2.2.2
+
+theorem rb_app_lss {h : arena.handle.EIdx} {same : Bool} {f a : arena.handle.EIdx} {o}
+    (hrun : arena.expr_ops.intern_rebuilt_app pers st h same f a = ok o) :
+    o.2.store.lss = st.store.lss := by
+  rw [arena.expr_ops.intern_rebuilt_app] at hrun
+  refine rebuilt_lss hrun (fun hr => ?_)
+  rw [arena.monad.intern_e_app] at hr
+  obtain ⟨p, hp, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+  rw [← Result.ok_injective hr]
+  exact (estore_intern_app_abs (ls := lst.store) hrel.store hinv.store hfrozen
+    (fun h => hchild_app hrel.storeWF h) hp).2.2.2.2
+
+theorem rb_let_e_lss {h : arena.handle.EIdx} {same : Bool} {t v b : arena.handle.EIdx} {o}
+    (hrun : arena.expr_ops.intern_rebuilt_let_e pers st h same t v b = ok o) :
+    o.2.store.lss = st.store.lss := by
+  rw [arena.expr_ops.intern_rebuilt_let_e] at hrun
+  refine rebuilt_lss hrun (fun hr => ?_)
+  rw [arena.monad.intern_e_let_e] at hr
+  obtain ⟨p, hp, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+  rw [← Result.ok_injective hr]
+  exact (estore_intern_let_e_abs (ls := lst.store) hrel.store hinv.store hfrozen
+    (fun h => hchild_let_e hrel.storeWF h) hp).2.2.2.2
+
+theorem rb_proj_lss {h : arena.handle.EIdx} {same : Bool} {n : arena.handle.NIdx}
+    {i : Std.U64} {e0 : arena.handle.EIdx} {o}
+    (hrun : arena.expr_ops.intern_rebuilt_proj pers st h same n i e0 = ok o) :
+    o.2.store.lss = st.store.lss := by
+  rw [arena.expr_ops.intern_rebuilt_proj] at hrun
+  refine rebuilt_lss hrun (fun hr => ?_)
+  rw [arena.monad.intern_e_proj] at hr
+  obtain ⟨p, hp, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+  rw [← Result.ok_injective hr]
+  exact (estore_intern_proj_abs (ls := lst.store) hrel.store hinv.store hfrozen
+    (fun h => hchild_proj hrel.storeWF h) hp).2.2.2.2
+
+theorem rb_lam_lss {h : arena.handle.EIdx} {same : Bool} {t b : arena.handle.EIdx}
+    {m : kernel.expr.BinderMeta} (hpw : ConRon.Refine.PropWhenWF m.pw) {o}
+    (hrun : arena.expr_ops.intern_rebuilt_lam pers st h same t b m = ok o) :
+    ∀ r, o.1 = .Ok r → o.2.store.lss = st.store.lss := by
+  rw [arena.expr_ops.intern_rebuilt_lam] at hrun
+  cases same with
+  | true =>
+    rw [if_pos rfl] at hrun
+    obtain ⟨e, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [← Result.ok_injective hrun]; intro _ _; rfl
+  | false =>
+    rw [if_neg (by simp), arena.monad.intern_e_lam] at hrun
+    obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r0, e⟩ := p
+    rw [← Result.ok_injective hrun]
+    intro r hr
+    exact ((estore_intern_lam_abs (ls := lst.store) hrel.store hinv.store hfrozen
+      hrel.storeWF hpw hp).1 r hr).2.2.2.2.2.2.2
+
+theorem rb_forall_e_lss {h : arena.handle.EIdx} {same : Bool} {t b : arena.handle.EIdx}
+    {m : kernel.expr.BinderMeta} (hpw : ConRon.Refine.PropWhenWF m.pw) {o}
+    (hrun : arena.expr_ops.intern_rebuilt_forall_e pers st h same t b m = ok o) :
+    ∀ r, o.1 = .Ok r → o.2.store.lss = st.store.lss := by
+  rw [arena.expr_ops.intern_rebuilt_forall_e] at hrun
+  cases same with
+  | true =>
+    rw [if_pos rfl] at hrun
+    obtain ⟨e, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [← Result.ok_injective hrun]; intro _ _; rfl
+  | false =>
+    rw [if_neg (by simp), arena.monad.intern_e_forall_e] at hrun
+    obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨r0, e⟩ := p
+    rw [← Result.ok_injective hrun]
+    intro r hr
+    exact ((estore_intern_forall_e_abs (ls := lst.store) hrel.store hinv.store hfrozen
+      hrel.storeWF hpw hp).1 r hr).2.2.2.2.2.2.2
+
+end rebuiltLss
+
+/-! #### `instLPC` -/
+
+theorem inst_lp_get_val {pers st lst} (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st) {k : arena.monad.EIdxNat} {op : Option arena.handle.EIdx}
+    (hop : arena.monad.inst_lp_get st k = ok op) :
+    lst.memos.instLPC[absEIdxNat k]? = op.map absEIdx :=
+  memo_get_val (sel := Memos.instLPC) (fun _ _ => rfl) (inst_lp_get_run hrel hinv hop)
+
+theorem inst_lp_set_store {st st' : arena.monad.AState} {k r}
+    (h : arena.monad.inst_lp_set st k r = ok st') : st'.store = st.store := by
+  rw [arena.monad.inst_lp_set] at h
+  obtain ⟨e, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨p, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [← Result.ok_injective h]
+
+/-- The memo write at `LPInv`: the expression memo gains a resolving entry,
+the two level memos do not move. -/
+theorem wout_lp_set {pers : arena.store.PersTier} {st st3 st4 : arena.monad.AState}
+    {lst : AState} {x : AM EIdx} {k : arena.monad.EIdxNat} {r3 : arena.handle.EIdx}
+    (hstep : WOutE LPInv pers st lst (.Ok r3, st3) x)
+    (hset : arena.monad.inst_lp_set st3 k r3 = ok st4) :
+    WOutE LPInv pers st lst (.Ok r3, st4)
+      (do let r ← x; Arena.instLPSet (absEIdxNat k) r; pure r) := by
+  obtain ⟨lst1, hx1, hrel1, hinv1, hext1, hres1, hmono1, hfl1, hfl2, hq1⟩ :=
+    WOutE.dest hstep
+  have hs4 := inst_lp_set_store hset
+  obtain ⟨lst2, hx2, hrel2, hinv2, hext2⟩ := inst_lp_set_run hrel1 hinv1 hset
+  have h2 : (Arena.instLPSet (absEIdxNat k) (absEIdx r3)).run lst1
+      = .ok ((), { lst1 with memos := { lst1.memos with
+        instLPC := lst1.memos.instLPC.insert (absEIdxNat k) (absEIdx r3) } }) := rfl
+  rw [h2] at hx2
+  simp only [Except.ok.injEq, Prod.mk.injEq, true_and] at hx2
+  subst hx2
+  refine WOutR.ok (lst' := { lst1 with memos := { lst1.memos with
+      instLPC := lst1.memos.instLPC.insert (absEIdxNat k) (absEIdx r3) } }) ?_ hrel2 hinv2
+    (Ext.trans hext1 hext2) hres1 hmono1 (by rw [hs4]; exact hfl1)
+    (by rw [hs4]; exact hfl2) ⟨?_, hq1.2.1, hq1.2.2⟩
+  · rw [StateT.run_bind, hx1]
+    rfl
+  · intro kk rr hk
+    simp only [Std.HashMap.getElem?_insert] at hk
+    split at hk
+    · simp only [Option.some.injEq] at hk
+      rw [← hk]; exact hres1
+    · exact hq1.1 kk rr hk
+
+/-- `lp_of_data` is the twin's `lpOfData` of the derived word. -/
+theorem lp_cutoff_val {pers st lst} (hrel : AStateRel pers st lst)
+    {h : arena.handle.EIdx} {der : Std.U64} {b : Bool}
+    (hder : arena.monad.derived_e pers st h = ok der)
+    (hb : kernel.expr.lp_of_data der = ok b) :
+    ConLeche.lpOfData (lst.store.derived (absEIdx h)) = b := by
+  have hderE := hder
+  rw [arena.monad.derived_e] at hderE
+  obtain ⟨-, -, hlp⟩ := derObsE_fields (estore_derived_abs hrel.store hderE)
+  rw [hlp, ConRon.Refine.Expr.lp_of_data_val hb]
+  by_cases hc : der.val % 2 = 1 <;> simp [hc]
+
 /-! ## The level substitution
 
 DESIGN §8.3's lesson 4, "intern the representation, not the algorithm": the
