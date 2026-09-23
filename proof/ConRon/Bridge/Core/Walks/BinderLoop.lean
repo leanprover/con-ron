@@ -26,6 +26,7 @@ import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.PropRead
 import ConRon.Bridge.Core.Walks.Frame
 import ConRon.Bridge.ExprOps.Owed
+import ConRon.Bridge.ExprOps.Walks
 import ConRon.Bridge.Core.Walks.FvarB
 import ConLeche.Verify.BinderLoop
 
@@ -389,5 +390,417 @@ theorem inferLamsLeafCheck_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         cases h
         exact hz
       next => exact triple_fail
+
+/-! ### 2.4 The λ leaf -/
+
+/-- con-leche: ConLeche/Verify/BinderLoop.lean:123-129 inferLamsLeaf — the
+datum the rebuild starts from: the residual's own λ datum, else the
+innermost peeled binder's, else `never`. -/
+def mPrev (o : Option PropWhen) (stkx : List (Expr × BinderMeta)) : PropWhen :=
+  match o with
+  | some p => p
+  | none =>
+    match stkx with
+    | (_, mb0) :: _ => mb0.pw
+    | [] => .never
+
+/-- con-leche: ConLeche/Verify/BinderLoop.lean:108-129 inferLamsLeaf — the
+mirror's leaf, from its three facts. -/
+theorem mInferLamsLeaf {F d k : Nat} {tx bt v : Expr} {ws : List Expr}
+    {stkx : List (Expr × BinderMeta)}
+    (hb : ConLeche.inferTypeCore mode env F (d + k) (tx.instantiateList ws)
+      = .ok bt)
+    (hchk : tx.lamPw = none → LamLeafOK mode env d k bt stkx F)
+    (hout : ConLeche.inferLamsOut (m := CheckM) mode d stkx (k - 1)
+      (bt.abstractRange d k) (mPrev tx.lamPw stkx) = .ok v) :
+    ConLeche.inferLamsLeaf mode (ConLeche.pureFns mode env F) d tx k ws stkx
+      = .ok v := by
+  unfold ConLeche.inferLamsLeaf
+  rw [infer_def, hb, ConLeche.okB_bind]
+  cases tx
+  case lam =>
+    simpa [mPrev, Expr.lamPw] using hout
+  all_goals
+    by_cases hv : mode.verifiedChecks = true
+    · obtain ⟨btt, vb, h1, h2, h3⟩ := hchk rfl hv
+      dsimp only
+      rw [if_pos hv, inferTypeIO_def, h1, ConLeche.okB_bind, whnf_def, h2,
+        ConLeche.okB_bind]
+      dsimp only
+      cases stkx with
+      | nil => exact hout
+      | cons e rest =>
+        obtain ⟨x, mb0⟩ := e
+        dsimp only
+        rw [if_pos (h3 _ _ _ rfl)]
+        exact hout
+    · dsimp only
+      rw [if_neg hv]
+      exact hout
+
+/-- con-leche: none — the twin's rebuild datum is the mirror's. -/
+theorem prevPw_none {stk : Array (EIdx × BinderMeta)} {st : EStore}
+    {stkx : List (Expr × BinderMeta)}
+    (hstk : StkRel (LamR st) stk.toList.reverse stkx) :
+    (if stk.size = 0 then PropWhen.never else stk[stk.size - 1]!.2.pw)
+      = mPrev none stkx := by
+  split
+  next hn => rw [StkRel.nil_of_size hstk hn]; rfl
+  next hn =>
+    obtain ⟨⟨x0, mb0⟩, rest0, rfl, _, hmb⟩ := StkRel.last hstk hn
+    simp only [mPrev]
+    rw [hmb]
+
+/-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:168 inferLamsLeafC_sim
+— **the λ loop's leaf carries**: bulk open, infer, the codomain check at a
+datum-free residual, the leaf's `abstractRange`, and the rebuild. -/
+theorem inferLamsLeaf_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (t : EIdx) (k : Nat) (fvs : Array EIdx)
+    (stk : Array (EIdx × BinderMeta)) (tx : Expr) (ws : List Expr)
+    (stkx : List (Expr × BinderMeta))
+    (hok : CheckOK mode env fe s₀) (ht : denoteE s₀.store t = some tx)
+    (hvec : ExprOps.InstLVec s₀.store fvs ws)
+    (hstk : StkRel (LamR s₀.store) stk.toList.reverse stkx)
+    (hk : stk.size = k)
+    (hw : Expr.WScoped (d + k) (tx.instantiateList ws)) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      ConRon.Arena.inferLamsLeaf mode (coreKnot mode fe id fuel) fe d t k fvs stk
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
+        ∃ F, ConLeche.inferLamsLeaf mode (ConLeche.pureFns mode env F) d tx k
+          ws stkx = .ok v⌝⦄ := by
+  unfold ConRon.Arena.inferLamsLeaf
+  -- stage 1: the residual, opened in bulk
+  refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀ t fvs 0 ws
+    hok.state hvec (by rw [ht]; rfl)) ?_
+  rintro ob s1 ⟨hs1, hx1, -, hc1, hp1, -, hrel1⟩
+  have hok1 := hok.mono hs1 hx1 hc1 hp1
+  have hob : denoteE s1.store ob = some (tx.instantiateList ws) := hrel1 _ ht
+  -- stage 2: its type
+  refine triple_seq (hsim.infer s1 (d + k) ob _ hok1 hob hw) ?_
+  rintro bt s2 ⟨hok2, hx2, hp2, btx, hbtx, hwbtx, F1, hF1⟩
+  have hx02 := hx1.trans hx2
+  have ht2 := denote_ext ht hx02
+  -- stage 3: the residual's own datum
+  refine triple_seq (ExprOps.lamPw_spec s2 t hok2.state (by rw [ht2]; rfl)) ?_
+  rintro lpw s3' ⟨hs3', hlpw⟩
+  subst s3'
+  have hlpw' : lpw = tx.lamPw := hlpw tx ht2
+  have hstk2 := StkRel.imp (LamR.ext hx02) hstk
+  -- the rest, from a state and the leaf-check facts
+  have hrest : ∀ (s3 : AState) (F2 : Nat), CheckOK mode env fe s3 →
+      Ext s2.store s3.store → s3.pins = s2.pins →
+      (tx.lamPw = none → LamLeafOK mode env d k btx stkx F2) →
+      ∀ (prevPw : PropWhen), prevPw = mPrev tx.lamPw stkx →
+      ⦃fun s => ⌜s = s3⌝⦄ (do
+        let cur ← abstractRangeFast coreWalkFuel bt d k 0
+        ConRon.Arena.inferLamsOut mode d stk stk.size cur prevPw)
+      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
+          ∃ F, ConLeche.inferLamsLeaf mode (ConLeche.pureFns mode env F) d tx
+            k ws stkx = .ok v⌝⦄ := by
+    intro s3 F2 hok3 hx3 hp3 hchk prevPw hprev
+    have hbt3 := denote_ext hbtx hx3
+    refine triple_seq (ExprOps.abstractRangeFast_spec fvarBSpec coreWalkFuel s3 bt
+      d k 0 hok3.state (by rw [hbt3]; rfl)) ?_
+    rintro cur s4 ⟨hs4, hx4, -, hc4, hp4, -, hrel4⟩
+    have hok4 := hok3.mono hs4 hx4 hc4 hp4
+    have hcur : denoteE s4.store cur = some (btx.abstractRange d k) :=
+      hrel4 _ hbt3
+    have hx24 := hx3.trans hx4
+    refine triple_mono (inferLamsOut_carry d stk stk.size s4 cur _ prevPw stkx
+      hok4 hcur (Nat.le_refl _)
+      (StkRel.take_size (StkRel.imp (LamR.ext hx24) hstk2))) ?_
+    rintro r s' ⟨hok', hx', hp', v, hv, hrun⟩
+    refine ⟨hok', hx02.trans (hx24.trans hx'), hp'.trans (hp4.trans (hp3.trans
+      (hp2.trans hp1))), v, hv, max F1 F2, ?_⟩
+    rw [hk, hprev] at hrun
+    exact mInferLamsLeaf (ConLeche.inferTypeCore_mono (Nat.le_max_left _ _) hF1)
+      (fun hn => (hchk hn).mono (Nat.le_max_right _ _)) hrun
+  cases lpw with
+  | some p =>
+    dsimp only
+    rw [pure_bind]
+    exact hrest s2 0 hok2 (Ext.refl _) rfl
+      (fun hn => by rw [← hlpw'] at hn; cases hn) p (by rw [← hlpw']; rfl)
+  | none =>
+    dsimp only
+    refine triple_seq (inferLamsLeafCheck_carry hsim s2 d k stk stkx bt btx hok2
+      hbtx hwbtx hstk2) ?_
+    rintro _ s3 ⟨hok3, hx3, hp3, F2, hchk⟩
+    exact hrest s3 F2 hok3 hx3 hp3 (fun _ => hchk) _
+      (by rw [← hlpw', prevPw_none hstk2])
+
+/-! ### 2.5 The peel -/
+
+/-- con-leche: none — the mirror is fuel-monotone (it is a `FueledM` run,
+`inferLams_atF`). -/
+theorem mInferLams_mono {d peel k : Nat} {t v : Expr} {ws : List Expr}
+    {stkx : List (Expr × BinderMeta)} {F F' : Nat} (hle : F ≤ F')
+    (h : ConLeche.inferLams mode (ConLeche.pureFns mode env F) d peel t k ws stkx
+      = .ok v) :
+    ConLeche.inferLams mode (ConLeche.pureFns mode env F') d peel t k ws stkx
+      = .ok v := by
+  rw [← ConLeche.inferLams_atF] at h ⊢
+  exact (ConLeche.inferLams mode (ConLeche.fueledFns mode env) d peel t k ws
+    stkx).property hle h
+
+/-- con-leche: none — opening a binder's body at the next free variable
+keeps it scoped one level deeper (con-leche's `hwopen`, BinderLoopC.lean). -/
+theorem wscoped_open_cons {D : Nat} {ty body : Expr} {ws : List Expr}
+    (hty : Expr.WScoped D (ty.instantiateList ws))
+    (hbody : Expr.WScoped D (body.instantiateList ws 1)) :
+    Expr.WScoped (D + 1)
+      (body.instantiateList (Expr.fvar D (ty.instantiateList ws) :: ws)) := by
+  rw [Expr.instantiateList_cons]
+  exact Expr.WScoped.instantiate1 hty 0 hbody
+
+/-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:264 inferLamsC_sim —
+**THE λ-TELESCOPE LOOP CARRIES**: the twin's `inferLams` at a residual `t`,
+a push-order free-variable vector and a push-order stack denotes the
+mirror's `inferLams` at the same peel budget. -/
+theorem inferLams_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (d : Nat) :
+    ∀ (peel : Nat) (s₀ : AState) (t : EIdx) (k : Nat) (fvs : Array EIdx)
+      (stk : Array (EIdx × BinderMeta)) (tx : Expr) (ws : List Expr)
+      (stkx : List (Expr × BinderMeta)),
+      CheckOK mode env fe s₀ → denoteE s₀.store t = some tx →
+      ExprOps.InstLVec s₀.store fvs ws →
+      StkRel (LamR s₀.store) stk.toList.reverse stkx → stk.size = k →
+      Expr.WScoped (d + k) (tx.instantiateList ws) →
+      ⦃fun s => ⌜s = s₀⌝⦄
+        ConRon.Arena.inferLams mode (coreKnot mode fe id fuel) fe d peel t k
+          fvs stk
+      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
+          ∃ F, ConLeche.inferLams mode (ConLeche.pureFns mode env F) d peel tx
+            k ws stkx = .ok v⌝⦄
+  | 0, s₀, t, k, fvs, stk, tx, ws, stkx, hok, ht, hvec, hstk, hk, hw => by
+    rw [ConRon.Arena.inferLams]
+    refine triple_mono (inferLamsLeaf_carry hsim s₀ d t k fvs stk tx ws stkx hok
+      ht hvec hstk hk hw) ?_
+    rintro r s' ⟨h1, h2, h3, v, hv, F, hF⟩
+    exact ⟨h1, h2, h3, v, hv, F, by rw [ConLeche.inferLams_zero]; exact hF⟩
+  | peel + 1, s₀, t, k, fvs, stk, tx, ws, stkx, hok, ht, hvec, hstk, hk, hw => by
+    have hwf := hok.state.wf
+    rw [ConRon.Arena.inferLams]
+    split
+    next htg =>
+      have hne : t.tag ≠ ETag.lam := by simpa using htg
+      have hnl := denote_not_lam_of_tag hwf ht hne
+      refine triple_mono (inferLamsLeaf_carry hsim s₀ d t k fvs stk tx ws stkx
+        hok ht hvec hstk hk hw) ?_
+      rintro r s' ⟨h1, h2, h3, v, hv, F, hF⟩
+      exact ⟨h1, h2, h3, v, hv, F,
+        by rw [ConLeche.inferLams_succ_ne_lam _ hnl]; exact hF⟩
+    next htg =>
+      have htl : t.tag = ETag.lam := by simpa using htg
+      refine triple_seq (viewBind_spec s₀ t) ?_
+      rintro ob s1 ⟨hs1, hob⟩
+      subst s1
+      cases ob with
+      | none => exact triple_failDanglingE
+      | some p =>
+        obtain ⟨ty, body, mb⟩ := p
+        dsimp only
+        have hv := view_lam_of_viewBind htl hob.symm
+        obtain ⟨tyx, bodyx, rfl, hty, hbody⟩ := denote_lam_inv hwf hv ht
+        have hlamL : (Expr.lam tyx bodyx mb).instantiateList ws
+            = .lam (tyx.instantiateList ws) (bodyx.instantiateList ws 1) mb := by
+          simp [Expr.instantiateList]
+        have hwc : Expr.WScoped (d + k) (tyx.instantiateList ws) ∧
+            Expr.WScoped (d + k) (bodyx.instantiateList ws 1) := by
+          rw [hlamL] at hw; simpa only [Expr.WScoped] using hw
+        -- stage 1: the domain, opened in bulk
+        refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀ ty fvs
+          0 ws hok.state hvec (by rw [hty]; rfl)) ?_
+        rintro tyo s1 ⟨hs1, hx1, -, hc1, hp1, -, hrel1⟩
+        have hok1 := hok.mono hs1 hx1 hc1 hp1
+        have htyo : denoteE s1.store tyo = some (tyx.instantiateList ws) :=
+          hrel1 _ hty
+        -- stage 2: its type
+        refine triple_seq (hsim.infer s1 (d + k) tyo _ hok1 htyo hwc.1) ?_
+        rintro tty s2 ⟨hok2, hx2, hp2, ttyx, httyx, hwttyx, F1, hF1⟩
+        -- stage 3: reduced
+        refine triple_seq (hsim.whnf s2 (d + k) tty ttyx hok2 httyx hwttyx) ?_
+        rintro w s3 ⟨hok3, hx3, hp3, wx, hwx, -, F2, hF2⟩
+        split
+        next hsort =>
+          obtain ⟨l, rfl⟩ := denote_sort_of_tag hok3.state.wf hwx hsort
+          have hx03 := hx1.trans (hx2.trans hx3)
+          have htyo3 := denote_ext htyo (hx2.trans hx3)
+          -- stage 4: the free variable
+          refine triple_seq (internFVarE_spec s3 (d + k) tyo hok3.state.wf
+            (by rw [htyo3]; rfl)) ?_
+          rintro fv s4 ⟨hwf4, hx4, -, -, -, -, hc4, hp4, -, hd4⟩
+          have hok4 := hok3.mono ⟨hwf4⟩ hx4 hc4 hp4
+          have hfv : denoteE s4.store fv =
+              some (.fvar (d + k) (tyx.instantiateList ws)) := by
+            rw [hd4]; simp [denoteEView, denote_ext htyo3 hx4]
+          have hx04 := hx03.trans hx4
+          -- stage 5: the rest of the chain
+          refine triple_mono (inferLams_carry hsim d peel s4 body (k + 1)
+            (fvs.push fv) (stk.push (tyo, mb)) bodyx
+            (Expr.fvar (d + k) (tyx.instantiateList ws) :: ws)
+            ((tyx.instantiateList ws, mb) :: stkx) hok4
+            (denote_ext hbody hx04)
+            (InstLVec.push (hvec.ext hx04) hfv)
+            (StkRel.push (StkRel.imp (LamR.ext hx04) hstk)
+              ⟨denote_ext htyo (hx2.trans (hx3.trans hx4)), rfl⟩)
+            (by simp [hk])
+            (by rw [show d + (k + 1) = d + k + 1 by omega]
+                exact wscoped_open_cons hwc.1 hwc.2)) ?_
+          rintro r s' ⟨hok', hx', hp', v, hv', F3, hF3⟩
+          refine ⟨hok', hx04.trans hx', hp'.trans (hp4.trans (hp3.trans
+            (hp2.trans hp1))), v, hv', max (max F1 F2) F3, ?_⟩
+          rw [ConLeche.inferLams_succ_lam, infer_def,
+            ConLeche.inferTypeCore_mono (Nat.le_trans (Nat.le_max_left F1 F2)
+              (Nat.le_max_left _ F3)) hF1, ConLeche.okB_bind, whnf_def,
+            ConLeche.whnf_mono (Nat.le_trans (Nat.le_max_right F1 F2)
+              (Nat.le_max_left _ F3)) hF2, ConLeche.okB_bind]
+          exact mInferLams_mono (Nat.le_max_right _ _) hF3
+        next => exact triple_fail
+
+/-! ### 2.6 The `.lam` clause -/
+
+/-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:595 inferLamsC_tail_sim
+(its `himp` half) — **the pure side of the `.lam` clause**: a mirror run of
+the loop at the one-binder start is the chained `inferBody` λ clause at a
+larger fuel, by con-leche's `inferLams_sound`. -/
+theorem inferTypeCore_lam_of_loop {d F1 F2 F3 : Nat} {tyx bodyx ttyx : Expr}
+    {u : Level} {mb : BinderMeta} {v : Expr} {peel : Nat}
+    (hF1 : ConLeche.inferTypeCore mode env F1 d tyx = .ok ttyx)
+    (hF2 : ConLeche.whnf mode env F2 d ttyx = .ok (.sort u))
+    (hF3 : ConLeche.inferLams mode (ConLeche.pureFns mode env F3) d peel bodyx 1
+      [Expr.fvar d tyx] [(tyx, mb)] = .ok v) :
+    ∃ F, ConLeche.inferTypeCore mode env F d (.lam tyx bodyx mb) = .ok v := by
+  obtain ⟨F', hchain⟩ := ConLeche.inferLams_sound (env := env) peel bodyx 1
+    [Expr.fvar d tyx] [(tyx, mb)] F3 v rfl
+    (by
+      intro x hx
+      rcases List.mem_singleton.mp hx with rfl
+      exact ⟨_, _, rfl⟩) hF3
+  obtain ⟨bt, hbt, htail⟩ := ConLeche.bind_okB hchain
+  let G := max (max F1 F2) F'
+  have hle1 : F1 ≤ G := Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_left _ _)
+  have hle2 : F2 ≤ G := Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_left _ _)
+  have hle3 : F' ≤ G := Nat.le_max_right _ _
+  refine ⟨G + 1, ?_⟩
+  rw [ConLeche.inferTypeCore_lam_eq, ConLeche.inferTypeCore_mono hle1 hF1,
+    ConLeche.okB_bind, ConLeche.whnf_mono hle2 hF2, ConLeche.okB_bind]
+  dsimp only
+  have hbt' : ConLeche.inferTypeCore mode env G (d + 1)
+      (bodyx.instantiate1 (.fvar d tyx)) = .ok bt := by
+    rw [← ConLeche.instList_single bodyx (Expr.fvar d tyx)]
+    exact ConLeche.inferTypeCore_mono hle3 hbt
+  rw [hbt', ConLeche.okB_bind]
+  unfold ConLeche.inferLamsTail at htail
+  revert htail
+  cases hbp : bodyx.lamPw with
+  | some pwI =>
+    intro htail
+    have hbl : bodyx.isLam = true := by
+      cases bodyx <;> first | rfl | exact nomatch hbp
+    simp only [hbl, Bool.not_true, Bool.and_false,
+      Bool.false_eq_true, ↓reduceIte] at htail
+    unfold ConLeche.inferLamsWrap at htail
+    dsimp only
+    by_cases hg : (mode.verifiedChecks && !(mb.pw == pwI)) = true
+    · rw [if_pos hg] at htail
+      exact nomatch htail
+    rw [if_neg hg] at htail
+    by_cases hv : mode.verifiedChecks = true
+    · rw [if_pos hv]
+      have hpw : (mb.pw == pwI) = true := by
+        by_cases hc : (mb.pw == pwI) = true
+        · exact hc
+        · exact absurd (by simp [hv, hc]) hg
+      rw [if_pos hpw]
+      exact htail
+    · rw [if_neg hv]
+      exact htail
+  | none =>
+    intro htail
+    have hbl : bodyx.isLam = false := by
+      cases bodyx <;> first | rfl | exact nomatch hbp
+    simp only [hbl, Bool.not_false, Bool.and_true] at htail
+    dsimp only
+    by_cases hv : mode.verifiedChecks = true
+    case neg =>
+      rw [if_neg hv] at htail ⊢
+      unfold ConLeche.inferLamsWrap at htail
+      rw [if_neg (by simp [hv])] at htail
+      exact htail
+    rw [if_pos hv] at htail ⊢
+    rw [ConLeche.inferTypeIO_def] at htail
+    obtain ⟨btt, hbtt, htail⟩ := ConLeche.bind_okB htail
+    rw [ConLeche.inferTypeIO_mono hle3 hbtt, ConLeche.okB_bind]
+    rw [ConLeche.ensureSort_def] at htail
+    obtain ⟨w, hww, htail⟩ := ConLeche.bind_okB htail
+    rw [ConLeche.ensureSortCore_mono hle3 hww, ConLeche.okB_bind]
+    try dsimp only at htail ⊢
+    by_cases hz : (Level.zeronessOf w == mb.pw) = true
+    case neg =>
+      rw [if_neg hz] at htail
+      exact nomatch htail
+    rw [if_pos hz] at htail
+    rw [if_pos hz]
+    unfold ConLeche.inferLamsWrap at htail
+    rw [if_neg (by simp)] at htail
+    exact htail
+
+/-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:595 inferLamsC_tail_sim
+— **THE `.lam` CLAUSE CARRIES**: the twin's `inferLam` (domain type, its
+sort, the first free variable, then `inferLams` from `k = 1`) against
+con-leche's chained `inferBody` λ clause. -/
+theorem inferLam_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
+    (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (ty body : EIdx) (mb : BinderMeta)
+    (tyx bodyx : Expr) (hok : CheckOK mode env fe s₀)
+    (hty : denoteE s₀.store ty = some tyx)
+    (hbody : denoteE s₀.store body = some bodyx)
+    (hw : Expr.WScoped d (.lam tyx bodyx mb)) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      ConRon.Arena.inferLam mode (coreKnot mode fe id fuel) fe d ty body mb
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.inferTypeCore mode env) d (.lam tyx bodyx mb)
+          s'.store r⌝⦄ := by
+  have hwty : Expr.WScoped d tyx := by unfold Expr.WScoped at hw; exact hw.1
+  have hwbody : Expr.WScoped d bodyx := by unfold Expr.WScoped at hw; exact hw.2
+  unfold ConRon.Arena.inferLam
+  refine triple_seq (hsim.infer s₀ d ty tyx hok hty hwty) ?_
+  rintro tty s1 ⟨hok1, hx1, hp1, ttyx, httyx, hwttyx, F1, hF1⟩
+  refine triple_seq (hsim.whnf s1 d tty ttyx hok1 httyx hwttyx) ?_
+  rintro w s2 ⟨hok2, hx2, hp2, wx, hwx, -, F2, hF2⟩
+  split
+  next hsort =>
+    obtain ⟨u, rfl⟩ := denote_sort_of_tag hok2.state.wf hwx hsort
+    have hx02 := hx1.trans hx2
+    have hty2 := denote_ext hty hx02
+    refine triple_seq (internFVarE_spec s2 d ty hok2.state.wf
+      (by rw [hty2]; rfl)) ?_
+    rintro fv s3 ⟨hwf3, hx3, -, -, -, -, hc3, hp3, -, hd3⟩
+    have hok3 := hok2.mono ⟨hwf3⟩ hx3 hc3 hp3
+    have hfv : denoteE s3.store fv = some (.fvar d tyx) := by
+      rw [hd3]; simp [denoteEView, denote_ext hty2 hx3]
+    have hx03 := hx02.trans hx3
+    have hvec : ExprOps.InstLVec s3.store #[fv] [Expr.fvar d tyx] :=
+      InstLVec.push (InstLVec.empty _) hfv
+    have hstk : StkRel (LamR s3.store) (#[(ty, mb)] : Array _).toList.reverse
+        [(tyx, mb)] :=
+      StkRel.push (stk := #[]) (stkx := []) trivial ⟨denote_ext hty hx03, rfl⟩
+    have hwopen : Expr.WScoped (d + 1)
+        (bodyx.instantiateList [Expr.fvar d tyx]) := by
+      rw [ConLeche.instList_single]
+      exact Expr.WScoped.instantiate1 hwty 0 hwbody
+    refine triple_mono (inferLams_carry hsim d peelFuel s3 body 1 #[fv]
+      #[(ty, mb)] bodyx [Expr.fvar d tyx] [(tyx, mb)] hok3
+      (denote_ext hbody hx03) hvec hstk rfl hwopen) ?_
+    rintro r s' ⟨hok', hx', hp', v, hv, F3, hF3⟩
+    obtain ⟨F, hF⟩ := inferTypeCore_lam_of_loop hF1 hF2 hF3
+    exact ⟨hok', hx03.trans hx', hp'.trans (hp3.trans (hp2.trans hp1)), v, hv,
+      ConLeche.inferTypeCore_WScoped henv F hF hw, F, hF⟩
+  next => exact triple_fail
 
 end ConRon.Bridge.Core
