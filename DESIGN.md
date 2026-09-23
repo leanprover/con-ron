@@ -2994,7 +2994,9 @@ Things deliberately left for the end, recorded here so they are not lost.
   the ~20 `M_FROZEN` sites in `arena::store` (`shared_on` set during a
   persistent intern) from `Internal` to `Native` — "fine for now, it gives
   partial correctness; but if there is an invariant why we do not hit this
-  code path we should be able to prove this."  So, once every `sorry` is
+  code path we should be able to prove this."  `M_REFREEZE` joins them (task
+  #97-T2-LOCKSTEP D4c: the pin attempt reached on an already-frozen store;
+  unreachable because phase B never calls `check_decl`).  So, once every `sorry` is
   gone: for each `Native` site, either prove it unreachable from the
   checker's entry (the frozen guard should follow from the phase discipline:
   nothing interns persistently while the tier is shared), or document why it
@@ -60389,6 +60391,91 @@ ConRonRefine2 ConRonCapstone` green (2 825 jobs) before the merge.  The
 shared Lake cache was seeded from this state (`ConRonCapstone ConRonRefine2
 ConRonBridge` + default targets).
 
+### Task #97-T2-LOCKSTEP D4c — the div/mod-pin attempt freezes the persistent tier instead of copying it (2026-09-23, Opus under Fable)
+
+Maintainer's follow-up to D4b (landed at `e97d21b8`, +6.4 % instructions, +~200 MB
+peak RSS on `Init`): move the persistent tier aside in O(1) for the attempt,
+keep copying only the small parts, and still use no frame lemma.  Worktree
+`_tmp/wt-d4c` (branch `t2-d4c`, off `96be299b`, `arena` merged).
+
+#### 0. First, can the attempt WRITE the persistent tier?  No.
+
+* `check_div_mod_pin_at`'s call closure in `Generated/Funs.lean` (1 240
+  functions) contains no `promote*`, no `intern_persistent_*`
+  (`arena::promote` is their only caller), no `enter_scratch`/`drop_scratch`/
+  `enable_scratch`, no `freeze`/`thaw`, and no function that writes a
+  `scratch_on`/`shared_on` flag to anything but its own value (the
+  `scratch_on :=`/`shared_on :=` in `EStore::intern_*` is Aeneas re-building
+  the record).  The only persistent appends in the closure are the
+  `scratch_on == false && shared_on == false` arms of the ordinary interns.
+* `check_div_mod_pin` is reached only via `check_defn_div_mod_pin` ←
+  `check_defn_pins` ← `check_defn_decl` ← `check_decl`, and `check_decl` only
+  from `check_decl_step` and `annot_step` (via `annot_step_go`/
+  `annot_step_other`) — both open the bracket (`enter_scratch`, all four
+  scratch flags up) first and nothing in `check_decl`'s closure drops it.  So
+  every intern in the attempt is a scratch intern.
+* With the tier frozen a persistent append would be `M_FROZEN` (`Native`)
+  rather than a write, so even a future violation would fail loudly.
+
+#### 1. The Rust
+
+`decl_check::check_div_mod_pin_attempt`: `freeze_tier(&mut st.store)`
+(existing, O(1) `mem::replace`s, flags up; an already-frozen store is
+declined `M_REFREEZE`, unreachable here — phase B never reaches `check_decl`),
+then `attempt_snapshot` (D4b's full copy, now of a store whose persistent
+tables are EMPTY: scratch tiers, memos, caches, pins, flags), the attempt
+against `&tier`, and:
+* `Recovered`: `attempt_restore` (the copy back) then `thaw_tier` — the
+  pre-attempt state field by field;
+* `Matched`/`Continued`/`Failed`: new `checker::thaw_read_tier` — each store
+  gets back the table its reads went to (`tier`'s if its `shared_on` is up,
+  its own otherwise), flags down.  Always `thaw_tier` in practice; written
+  this way so the proof needs no fact about the flags after the attempt.
+The caller's `pers` parameter is now unused (`_pers`): phase A's store is
+thawed, so its reads went to its own tables, which `tier` now is.  Module
+note 6 and the doc comments updated.  Re-extracted.  No twin change
+(`orElseAttempt` already resumes at the whole state).
+
+#### 2. Theorem 2
+
+`Refine2/Checker/Base.lean`: `Thawed`, `tierOf`, `freeze_tier_err`,
+`freeze_tier_ok` moved down from `Checker/Phased.lean`; new `TierView` (two
+(tier, store) pairs that read the same: four `rPers*` arms, four scratch
+tiers, four scratch flags), `TierView.transfer` (the relation and invariant
+carry over), `freeze_tier_view`, `thaw_read_tier_view`.
+`Refine2/Checker/DeclCheck.lean`: `DivModPinAtSim` (the attempt's lockstep
+lemma at ANY tier/state — `check_div_mod_pin_at_refines`' statement), and
+`check_div_mod_pin_attempt_refines₀`/`check_div_mod_pin_try_refines`
+re-proved on the new seam.  All axiom-clean (standard three; the Base
+lemmas `#guard_msgs`-checked).  No frame lemma.
+
+#### 3. `Init`
+
+`perf stat -e instructions:u,cycles:u` of `--verified` on
+`_tmp/corpus/init.ndjson`, `a2f8fd64` (before D4b) / this branch
+interleaved, `timeout 900`, `ulimit -v 8388608` at `--jobs=1` and `27000000`
+at the default; peak RSS by GNU `time`; every run accepts 57 977.
+
+| binary | `--jobs=1` instructions | peak RSS `--jobs=1` | default-jobs instructions | peak RSS default |
+|---|---|---|---|---|
+| `a2f8fd64` | 211 960 932 146 / 211 959 893 353 / 211 960 908 447 | 568 / 650 / 569 MB | 214.51 G / 214.42 G | 973 / 970 MB |
+| D4c | 211 976 326 407 / 211 976 871 431 / 211 976 898 296 (**+16 M, +0.008 %**) | 644 / 569 / 569 MB (same spread) | 214.63 G / 214.47 G (within spread) | 972 / 1 020 MB |
+
+Back to within noise of `a2f8fd64` (D4b was +13.6 G, +~200 MB).  Wall
+(secondary): 22.5–22.8 s before, 22.3–22.5 s after at `--jobs=1`.
+
+#### 4. Out-of-lane edits
+
+| file | why |
+|---|---|
+| `crates/con-ron-core/src/arena/{checker,checker_base,decl_check}.rs` | `thaw_read_tier`; the frozen-tier seam; docs |
+| `Refine2/Checker/Phased.lean` | the four freeze lemmas moved down to `Base.lean` |
+
+Gates: `scripts/gates.sh` on the branch after merging `arena` (`924e25b4`):
+**all 16 OK** (`extract-check` 100 s).  `lake build ConRon ConRonBridge
+ConRonRefine2 ConRonCapstone` green (2 826 jobs) before the merge.  Shared
+Lake cache seeded from this state.
+
 ### Task #97-T2-LOCKSTEP lane ExprOps — `arena::expr_ops` lockstep, its D1 twins, the `lockstep` tactic's walk moves (2026-09-23, Opus under Fable)
 
 The lane brief: move every `Refine2/ExprOps/**` statement to the lockstep
@@ -60596,3 +60683,32 @@ Two fallouts on the merged tree, both fixed here.  `Frontend/ExportCInd`
 first `lockstep`; with the atomic `twin_bind_pure` fallback (§7) that first
 `lockstep` closes the goal, so the hand tail is deleted (one `lockstep` call
 now).
+
+#### 9. Slice 3 — the Inductives' ExprOps companions; the last deprecated shapes
+
+Every `arena::expr_ops` function the inductives Rust calls (25, counted off
+`Generated/Funs.lean`) now has an `@[lockstep]` companion.  Already there:
+`strip_pis_ls`, `mk_app_n_ls`, `get_app_args_ls`, `get_app_fn_ls`,
+`rename_consts_fast_ls`, `lift_loose_bvars_fast_ls`, `strip_lams_ls`,
+`loose_bvars_bounded_fast_ls`, `inst_pis_at_lift_ls`, `inst_pis_at_f_ls`,
+`inst_lams_at_f_ls`, `has_fvar_fast_ls`, `reset_meta_fast_ls`,
+`instantiate1_fast_ls`, `instantiate1_lift_fast_ls`, `abstract1_fast_ls`,
+`lower_bvars_fast_ls`, `inst_spine_ls`, `inst_lp_fast_ls`,
+`rec_rule_plain_ls`, `bvar_b_ls`, `eidx_take_beq_spec` (all in
+`ExprOps/{Mut,Read}.lean` or `Tactic/Prims.lean`; the Inductives modules reach
+them by importing `ConRon.Refine2.ExprOps.Mut`, which `Modeled.lean` already
+does).  Added: `take_eidx_n_spec` (`take_eidx_n` against `takeEidx` at the
+`u64` count, over a new `take_eidx_n_from_aux`/`take_eidx_n_refines` in
+`ExprOps/Pure.lean`), `binder_copy_from_spec`, and the missing
+`@[lockstep]` on `fvar_type_d_ls`.
+
+Deleted: `Read.lean`'s `WOut`/`LOut`/`FOut` (no consumer; `Inductives/Shape`
+and `StructParts` still name `WOut` in doc comments only); `Specs.lean`'s last
+18 deprecated `AStateRel` shims — `view_run`, `inst1_get_run`,
+`inst1_set_run`, `read_level_m_run`, `intern_n_node_run`, and the
+`intern_e_run` chain (`intern_e_{bvar,fvar,sort,const,app,let_e,proj,lit,
+bind_i,lam,forall_e}_run`, `intern_e_bvar_flags`) — with the three helpers only
+they used (`internNodeE_run_wf`, `internLamE_run_wf`, `internForallEE_run_wf`)
+and their census entries; the `₀` statements stay.  `EResolves` stays:
+`Core/Arms/Gated.lean`'s `bodyRel_stuckGatedCore` takes it as a premise
+(Core lane), and five Core files `open` it.

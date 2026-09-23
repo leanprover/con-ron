@@ -1180,7 +1180,7 @@ structure arena.core.NatEqCtx where
   b_f : arena.handle.EIdx
 
 /-- [con_ron_core::arena::decl_check::CertCtx]
-    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 1085:0-1107:1
+    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 1086:0-1108:1
     Visibility: public -/
 structure arena.decl_check.CertCtx where
   nat_ty : arena.handle.EIdx
@@ -1206,7 +1206,7 @@ structure arena.decl_check.CertCtx where
   xor_n : arena.handle.NIdx
 
 /-- [con_ron_core::arena::checker_base::OrElseStep]
-    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 411:0-416:1
+    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 414:0-419:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.checker_base.OrElseStep where
