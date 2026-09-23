@@ -63,6 +63,7 @@ of them):
   `Arena.no_False_declaration_pipeline` carries neither.
 -/
 import ConRon.Bridge.Frontend.Prepare
+import ConRon.Bridge.Checker
 import ConRon.Arena.Main
 import ConLeche.MainTheorem
 

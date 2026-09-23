@@ -37,6 +37,14 @@ order.
   (task #97-P3-Frontend): the parse-state relation, DESIGN §8.2's parser
   statement `denoteDecls (Arena.parse chunks) = parseChunks chunks`, and
   `Arena.no_False_declaration` with its `_prelude` and `_pipeline` letters.
+  **Its bottom sits BELOW the checker tier and its top above it** (task
+  #97-P3-Layout): `Bridge/Frontend/Rel.lean` imports `Bridge/Checker/Inv.lean`
+  — `FoldOK`, `denoteDecls` and `denoteDecl_pext`, the only three names the
+  bottom of the tier uses — and only `Bridge/Frontend/Capstone.lean` imports
+  the whole of `Bridge/Checker.lean`.  That is what lets
+  `Bridge/Checker/Pins.lean` (and `Basis.lean`, `DeclVal.lean`, `Base.lean`
+  after it) import `Bridge/Frontend/Shared.lean` for the intern exactness the
+  pin walks read.
 It imports `ConRon.Arena` and con-leche and **nothing else**: no
 `ConRon.Refine`, no `ConRon.Generated`, no Aeneas, no Mathlib.  `mvcgen`
 comes from `Std.Tactic.Do`, which is in core.

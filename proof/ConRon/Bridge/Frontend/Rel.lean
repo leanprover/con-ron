@@ -56,8 +56,17 @@ the one place the transliteration is knowingly too crude.  So every theorem of
 this tier is *one-directional*: **the twin accepting implies con-leche
 accepting**, with the denotation of the answer.  A twin `fail` claims nothing,
 exactly as `Bridge/Checker`'s arms claim nothing about a `native` decline.
+
+**The import is `Bridge/Checker/Inv.lean`, not `Bridge/Checker.lean`** (task
+#97-P3-Layout).  This module uses exactly three names of the checker tier —
+`FoldOK`, `denoteDecls` and `denoteDecl_pext` — and all three are in
+`Inv.lean`, the BOTTOM of that tier.  The blanket import that used to stand
+here pulled all fourteen checker modules in for those three, which put
+`Bridge/Frontend/Shared.lean`'s intern exactness ABOVE every module that needs
+to read it; `Bridge/Checker/Pins.lean` now imports `Shared.lean` instead, and
+only `Bridge/Frontend/Capstone.lean` imports the checker tier whole.
 -/
-import ConRon.Bridge.Checker
+import ConRon.Bridge.Checker.Inv
 import ConLeche.Frontend.ExportC
 
 namespace ConRon.Bridge.Frontend
