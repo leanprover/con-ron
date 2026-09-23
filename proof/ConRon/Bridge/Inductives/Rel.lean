@@ -2106,22 +2106,44 @@ theorem denoteLList_length {st : LStore} :
 clause) — **what an install owes about projection tables**: every table the
 new index holds is either one the old index already held, or one that is well
 shaped and rightly named at the new store. -/
-def ProjOut (fe : IFEnv) (st : EStore) (fe' : IFEnv) : Prop :=
+def ProjOutF (fe : IFEnv) (st : EStore) (fe' : IFEnv) : Prop :=
   ∀ n t, fe'.find? n = some (.projInfo t) →
     fe.find? n = some (.projInfo t) ∨ IProjTableOK st t
 
+/-- con-leche: ConLeche/Verify/EnvWF.lean:191 ConstWF (the `.projInfo`
+clause) — **the same obligation over MEMBERSHIP** (task #97-P3-Ind round 9,
+the coordinator's round-8 ruling 1): every table the new index's list holds
+is in the old list, or well shaped at the new store.  This is the shape
+`Bridge/Checker/Hyp.lean`'s `IndWFSpec.run` asks for (the bracket's close,
+`IFEnvOK_of_denote`, consumes membership), and it is NOT derivable from
+`ProjOutF`: a later push of the same name would hide a table from `find?`
+while leaving it in the list. -/
+def ProjOutM (fe : IFEnv) (st : EStore) (fe' : IFEnv) : Prop :=
+  ∀ t, IConstantInfo.projInfo t ∈ fe'.env.consts →
+    IConstantInfo.projInfo t ∈ fe.env.consts ∨ IProjTableOK st t
+
+/-- con-leche: ConLeche/Verify/EnvWF.lean:191 ConstWF (the `.projInfo`
+clause) — **what an install owes about projection tables**, in both shapes:
+`find?` (`ProjOutF`, what `ProjOut.absolute` turns into the fold's
+`IFEnvOK.proj`) and membership (`ProjOutM`, what `IndSpec.run` concludes). -/
+def ProjOut (fe : IFEnv) (st : EStore) (fe' : IFEnv) : Prop :=
+  ProjOutF fe st fe' ∧ ProjOutM fe st fe'
+
 /-- con-leche: none — an install that changes nothing owes nothing. -/
 theorem ProjOut.refl (fe : IFEnv) (st : EStore) : ProjOut fe st fe :=
-  fun _ _ h => Or.inl h
+  ⟨fun _ _ h => Or.inl h, fun _ h => Or.inl h⟩
 
 /-- con-leche: none — the obligation survives the arena's growth, by
 `IProjTableOK.mono`. -/
 theorem ProjOut.mono {fe fe' : IFEnv} {st st' : EStore}
     (h : ProjOut fe st fe') (hx : Ext st st') : ProjOut fe st' fe' := by
-  intro n t hf
-  rcases h n t hf with h' | h'
-  · exact Or.inl h'
-  · exact Or.inr (h'.mono hx)
+  refine ⟨fun n t hf => ?_, fun t hm => ?_⟩
+  · rcases h.1 n t hf with h' | h'
+    · exact Or.inl h'
+    · exact Or.inr (h'.mono hx)
+  · rcases h.2 t hm with h' | h'
+    · exact Or.inl h'
+    · exact Or.inr (h'.mono hx)
 
 /-- con-leche: none — **the obligation chains**, which is what a route's
 dozen stages need of it.  The older half's tables are transported over the
@@ -2129,12 +2151,17 @@ store the later stages grew. -/
 theorem ProjOut.trans {fe₀ fe₁ fe₂ : IFEnv} {st₁ st₂ : EStore}
     (h₁ : ProjOut fe₀ st₁ fe₁) (h₂ : ProjOut fe₁ st₂ fe₂) (hx : Ext st₁ st₂) :
     ProjOut fe₀ st₂ fe₂ := by
-  intro n t hf
-  rcases h₂ n t hf with h' | h'
-  · rcases h₁ n t h' with h'' | h''
-    · exact Or.inl h''
-    · exact Or.inr (h''.mono hx)
-  · exact Or.inr h'
+  refine ⟨fun n t hf => ?_, fun t hm => ?_⟩
+  · rcases h₂.1 n t hf with h' | h'
+    · rcases h₁.1 n t h' with h'' | h''
+      · exact Or.inl h''
+      · exact Or.inr (h''.mono hx)
+    · exact Or.inr h'
+  · rcases h₂.2 t hm with h' | h'
+    · rcases h₁.2 t h' with h'' | h''
+      · exact Or.inl h''
+      · exact Or.inr (h''.mono hx)
+    · exact Or.inr h'
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **a push that is
 not a projection table owes nothing**.  Thirteen of this tier's fourteen
@@ -2149,7 +2176,10 @@ hiding.  `mkIFEnvGo_counter_lt` is what rules that out. -/
 theorem ProjOut.push {fe : IFEnv} (hcoh : IFEnvCoh fe) (st : EStore)
     {ci : IConstantInfo} (hci : ∀ t, ci ≠ .projInfo t) :
     ProjOut fe st (fe.push ci) := by
-  intro n t hf
+  refine ⟨fun n t hf => ?_, fun t hm => by
+    rcases List.mem_cons.1 hm with h | h
+    · exact absurd h.symm (hci t)
+    · exact Or.inl h⟩
   left
   have hvb : fe.visibleBelow = (mkIFEnvGo fe.env.consts).1 := by
     rw [hcoh.1, mkIFEnvGo_fst']
@@ -2178,7 +2208,11 @@ table's `IProjTableOK` (task #97-P3-Ind round 8). -/
 theorem ProjOut.push_table {fe : IFEnv} (hcoh : IFEnvCoh fe) (st : EStore)
     {t : IProjTable} (ht : IProjTableOK st t) :
     ProjOut fe st (fe.push (.projInfo t)) := by
-  intro n t' hf
+  refine ⟨fun n t' hf => ?_, fun t' hm => by
+    rcases List.mem_cons.1 hm with h | h
+    · obtain rfl : t' = t := by injection h
+      exact Or.inr ht
+    · exact Or.inl h⟩
   have hvb : fe.visibleBelow = (mkIFEnvGo fe.env.consts).1 := by
     rw [hcoh.1, mkIFEnvGo_fst']
   simp only [IFEnv.find?, IFEnv.push, Std.HashMap.getElem?_insert] at hf
@@ -2212,7 +2246,7 @@ theorem ProjOut.absolute {env : Env} {fe fe' : IFEnv} {s : AState}
     (h : ProjOut fe st' fe') :
     ∀ n t, fe'.find? n = some (.projInfo t) → IProjTableOK st' t := by
   intro n t hf
-  rcases h n t hf with h' | h'
+  rcases h.1 n t hf with h' | h'
   · exact (hfe.proj n t h').mono hx
   · exact h'
 
