@@ -1255,7 +1255,17 @@ theorem struct_proj_guards_col_refines {pers st lst} {used : alloc.vec.Vec Bool}
     Sim₀ absLIdx pers lst o
       (structProjGuardsColSpec (absBoolL used) (absLIdxL sorts) (absLIdx z)
         (absU j) (absU k) (absLIdx acc)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  induction hk : k.val generalizing k j acc st lst with
+  | zero =>
+    rw [arena.inductives.struct_parts.struct_proj_guards_col.eq_def,
+      if_pos (by scalar_tac), show absU k = 0 from hk, structProjGuardsColSpec]
+    lockstep
+  | succ m ih =>
+    rw [arena.inductives.struct_parts.struct_proj_guards_col.eq_def,
+      if_neg (by scalar_tac), show absU k = m + 1 from hk, structProjGuardsColSpec]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_proj_guards_col_ls
