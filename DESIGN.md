@@ -61157,6 +61157,32 @@ gates):
 | `Checker/DeclCheck.lean` | `check_div_mod_pin_loop_aux` succ: `lockstep` + a 5-line tail applying the IH at `tried ++ [msg]` | `lockstep` |
 | `Checker/DeclCheck.lean` | `check_div_mod_pin_loop_nil_ls` (twin `tried` fixed at `[]`) | `check_div_mod_pin_loop_ls`, any `ltried` (no other user of the old name) |
 
+#### Slice 3 — two findings of the Inductives Modeled lane (core, one commit)
+
+1. **A loop in the twin term-`match` fallback.**  `stepCore`'s last move for a
+   twin `match` on a TERM (`cases _hdisc : t`, from the ExprOps landing) never
+   ended when `t` is a constructor application: `cases _hdisc : some (!c)`
+   rebuilt `some x`, the `match` still did not reduce, and the move repeated
+   (`check_eta_thm` hit the heartbeat limit).  It now cases on
+   `caseTarget? t`: `t` itself, or for a constructor application the first
+   field, left to right and recursively, that is not one (a literal is never
+   a target).  Test: a twin `match some (!c) with | some true … | some false …
+   | none …` against the Rust leaf `ok (.Ok (!c), st)` under
+   `maxHeartbeats 20000` — with the old target it times out (checked), with
+   the new one it closes.
+2. **A failing read reported the wrong error.**  When `LSR.bind` failed,
+   `rustStep` fell through to the Rust-only `LSP.bind` and rethrew THAT
+   failure ("no @[lockstep] lemma for `…view`").  The judgement-specific
+   attempt's error is now kept and rethrown for a read.  Test: a Rust `view h`
+   against a twin `view h'` must fail with "no candidate for `…view` closes"
+   (a small `lockstep_step_fails_with "<substring>"` checker in `Tests.lean`).
+
+`lake build ConRonRefine2` green.  The lane's workaround to remove once its
+branch (`t2-ind-mod`, not on `arena` at the time) and this are both landed:
+`Inductives/PrimsModeled.lean`'s `ind_twin_split` and the `lockstep_mod` /
+`lockstep_ite` drivers (their `rw [bind_pure]; twin_ite_pos/neg` tail is slice
+1b's case), whose uses in `Inductives/Modeled.lean` become `lockstep`.
+
 ### Task #97-T2-LOCKSTEP lane Inductives Modeled — the modeled route by `lockstep`; one twin divergence fixed (2026-09-23, Opus under Fable)
 
 Worktree `_tmp/wt-t2-ind-mod`, branch `t2-ind-mod` off `arena` `70ea5a33`
