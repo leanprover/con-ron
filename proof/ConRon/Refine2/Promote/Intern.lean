@@ -40,6 +40,7 @@ them.  Nothing here waits on an idea.
 -/
 import ConRon.Refine2.Checker.Shape
 import ConRon.Arena.Intern
+import ConRon.Refine2.Promote.Prims
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
