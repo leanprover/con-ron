@@ -1385,7 +1385,146 @@ theorem majorToCtor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         s'.pins = s₀.pins ∧
         SimEOp (fun F => ConLeche.majorToCtorFueled mode env F d cn rules' x) d
           s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  have hcert : mode.certs = true := ConLeche.certs_of_verifiedChecks hμ
+  have hxit : ∀ (s' : AState), CheckOK mode env fe s' → Ext s₀.store s'.store →
+      s'.pins = s₀.pins →
+      (∀ F, ConLeche.majorToCtorFueled mode env F d cn rules' x = .ok x) →
+      CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        SimEOp (fun F => ConLeche.majorToCtorFueled mode env F d cn rules' x) d
+          s'.store major :=
+    fun s' h1 h2 h3 h4 => ⟨h1, h2, h3, x, denote_ext hden h2, hw, 0, h4 0⟩
+  unfold ConRon.Arena.majorToCtor
+  refine triple_seq (isCtorApp_spec s₀ major x hok hden) ?_
+  rintro ic s1 ⟨hs1, hic⟩
+  subst s1
+  by_cases hict : ic = true
+  · rw [if_pos hict]
+    have hc : ConLeche.isCtorApp env x = true := hic ▸ hict
+    have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn rules' x = .ok x := (fun F => majorToCtorFueled_ctor hc)
+    mvcgen
+    bridge_peel; subst_vars
+    exact hxit _ hok (Ext.refl _) rfl hF
+  · rw [if_neg hict]
+    have hnc : ConLeche.isCtorApp env x = false := by rw [← hic]; simpa using hict
+    split
+    next rl =>
+      obtain ⟨rl', hrl', rfl⟩ : ∃ rl', Frontend.denoteRule s₀.store rl = some rl' ∧
+          rules' = [rl'] := by
+        simp only [Frontend.denoteRules] at hr
+        split at hr
+        · rename_i y ys hy hys
+          simp only [Frontend.denoteRules, Option.some.injEq] at hys
+          subst hys
+          cases hr
+          exact ⟨y, hy, rfl⟩
+        · simp at hr
+      obtain ⟨_, _, _, _, hrlc, _, _⟩ := rule_denote hrl'
+      obtain ⟨hk', he'⟩ : rl'.k = rl.k ∧ rl'.eta = rl.eta := by
+        simp only [Frontend.denoteRule] at hrl'
+        split at hrl'
+        · cases hrl'; exact ⟨rfl, rfl⟩
+        · simp at hrl'
+      split
+      next icvj cnP cnF hfj =>
+        obtain ⟨dcvj, hdcvj, hfindj⟩ := env_ctor_of_index hok hrlc hfj
+        obtain ⟨_, _, htyj⟩ := denoteCV_inv hdcvj
+        have hcj : denoteN s₀.store.ns icvj.name = some rl'.ctor := by
+          rw [denoteCV_name hdcvj]; exact congrArg some (env_find_name hfindj)
+        refine triple_seq (ExprOps.piResult_spec coreWalkFuel s₀ icvj.type hok.state
+          (by rw [htyj]; rfl)) ?_
+        rintro pr s2 ⟨hs2, hrelP⟩
+        subst s2
+        have hpr := hrelP dcvj.type htyj
+        refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ pr hok.state
+          (by rw [hpr]; rfl)) ?_
+        rintro ph s3 ⟨hs3, hrelF⟩
+        subst s3
+        have hph := hrelF _ hpr
+        obtain ⟨vh, hvh⟩ := denoteE_view hph
+        refine view_bind_triple hvh ?_
+        cases vh
+        case const T lus =>
+          obtain ⟨Tn, lusv, hgf, hTn, _⟩ := denote_const_inv hwf hvh hph
+          dsimp only
+          split
+          next icvT icaps hfT =>
+            obtain ⟨dcvT, dcaps, hdcvT, hdcaps, hfindT⟩ := env_ind_of_index hok hTn hfT
+            have hpre := fun F => majorToCtorFueled_pre (F := F) (d := d) (cn := cn)
+              (mode := mode) hnc hfindj hgf hfindT
+            by_cases hk : rl.k = true
+            · rw [if_pos hk]
+              refine triple_mono (majorK_spec hμ henv hsim s₀ d rl rl' major x icvj dcvj
+                cnP cnF T Tn hok hrl' hden hw hdcvj hTn hfindj) ?_
+              rintro r s' ⟨h1, h2, h3, v, hv, hwv, F, hF⟩
+              exact ⟨h1, h2, h3, v, hv, hwv, F, by dsimp only; rw [hpre, if_pos (hk' ▸ hk)]; exact hF⟩
+            · rw [if_neg hk]
+              have hkf : (rl'.k = true) = False := by rw [hk']; simpa using hk
+              by_cases he : rl.eta = true
+              · rw [if_pos he]
+                refine triple_mono (majorEta_spec hμ henv hsim s₀ d rl' major x icvj dcvj
+                  cnP cnF icvT dcvT icaps dcaps T Tn hok hden hw hdcvj hdcvT hdcaps hTn
+                  hcj hfindj) ?_
+                rintro r s' ⟨h1, h2, h3, v, hv, hwv, F, hF⟩
+                exact ⟨h1, h2, h3, v, hv, hwv, F, by
+                  dsimp only; rw [hpre, if_neg (by rw [hk']; exact hk), if_pos (he' ▸ he)]; exact hF⟩
+              · rw [if_neg he]
+                unfold ConRon.Arena.pinAnd
+                refine triple_seq (pinAt_spec s₀ PIN_AND hok.pins) ?_
+                rintro an s4 ⟨hs4, han⟩
+                subst s4
+                have hTan := nidx_eq_iff hwf hTn (han _ rfl)
+                by_cases hta : T = an
+                · rw [if_pos hta]
+                  have hta' : Tn = ConLeche.andName := hTan.mp hta
+                  refine triple_mono (majorAnd_spec hμ henv hsim s₀ d rl rl' major x icvj
+                    dcvj cnP cnF T Tn hok hrl' hden hw hdcvj hTn hfindj) ?_
+                  rintro r s' ⟨h1, h2, h3, v, hv, hwv, F, hF⟩
+                  exact ⟨h1, h2, h3, v, hv, hwv, F, by
+                    dsimp only; rw [hpre, if_neg (by rw [hk']; exact hk),
+                      if_neg (by rw [he']; exact he), if_pos hta']; exact hF⟩
+                · rw [if_neg hta]
+                  have hta' : ¬ Tn = ConLeche.andName := fun h => hta (hTan.mpr h)
+                  have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn [rl'] x = .ok x := (fun F => by
+                    rw [hpre, if_neg (by rw [hk']; exact hk),
+                      if_neg (by rw [he']; exact he), if_neg hta']; rfl)
+                  mvcgen
+                  bridge_peel; subst_vars
+                  exact hxit _ hok (Ext.refl _) rfl hF
+          next hnd =>
+            have hni := env_not_ind_of_index hok hTn (fun v c h => hnd v c h)
+            have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn [rl'] x = .ok x := (fun F =>
+              majorToCtorFueled_nind hnc hfindj hgf hni)
+            mvcgen
+            bridge_peel; subst_vars
+            exact hxit _ hok (Ext.refl _) rfl hF
+        all_goals
+          dsimp only
+          have hncT := denote_not_const hwf hvh hph (by intro c us h; cases h)
+          have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn [rl'] x = .ok x := (fun F =>
+            majorToCtorFueled_nhead hnc hfindj hncT)
+          mvcgen
+          bridge_peel; subst_vars
+          exact hxit _ hok (Ext.refl _) rfl hF
+      next hnd =>
+        have hnc' := env_not_ctor_of_index hok hrlc (fun v p q h => hnd v p q h)
+        have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn [rl'] x = .ok x := (fun F =>
+          majorToCtorFueled_nctor hnc hnc')
+        mvcgen
+        bridge_peel; subst_vars
+        exact hxit _ hok (Ext.refl _) rfl hF
+    next hnr =>
+      have hns : ∀ rl, rules' ≠ [rl] := by
+        intro rl h
+        subst h
+        have hl := denoteRules_len hr
+        match rules, hl, hnr with
+        | [r], _, hnr => exact hnr r rfl
+      have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn rules' x = .ok x := (fun F =>
+        majorToCtorFueled_nrules hnc hns)
+      mvcgen
+      bridge_peel; subst_vars
+      exact hxit _ hok (Ext.refl _) rfl hF
 
 /-- con-leche: none — a denoting rule list has the same K bit. -/
 theorem recRuleK_denote {st : EStore} {rules : List IRecRule}

@@ -448,7 +448,16 @@ theorem iotaIndexOk_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
           (e'.getAppArgs.drop cnP) is = .ok r := hF
       simp [ConLeche.iotaIndexOkFueled, ConLeche.iotaIndexOk, hm, hpe, hF']
 
-/-! ## 4. The ι step -/
+/-! ## 4. The ι step
+
+`iotaRecAt_spec` is staged over the twin's `do` block; past the parameter
+comparison the legacy `do` elaborator inlines the certificate-family
+continuation into each of the comparison's three branches, so that
+continuation is one lemma (`iotaFam_spec`, stated at the same `do` text) and
+the three branches `exact` it.  The pure side is `iotaTail`, a copy of
+con-leche's clause past the major's preparation that `iotaRecFueled_pre` ties
+to the original by `rfl`, and `iotaTail_fire` evaluates it at the five
+verdicts. -/
 
 /-! ### `iotaRec`'s pure side at its exits
 
@@ -1424,3 +1433,25 @@ theorem iotaRec_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
   exact ⟨h1, h2, h3, h4⟩
 
 section Census
+#print axioms isCtorApp_spec
+#print axioms litToCtorIfNat_spec
+#print axioms capsNeverZero_spec
+#print axioms fabScopeOk_spec
+#print axioms etaFabArgsE_spec
+#print axioms andRescueSlots_spec
+#print axioms litMajorToCtor_spec
+#print axioms majorK_spec
+#print axioms majorEta_spec
+#print axioms majorAnd_spec
+#print axioms majorToCtor_spec
+#print axioms prepareMajor_spec
+#print axioms recFireComparands_spec
+#print axioms piResidual_spec
+#print axioms iotaIndexOk_spec
+#print axioms iotaFam_spec
+#print axioms iotaRecAt_spec
+#print axioms iotaRec_spec
+
+end Census
+
+end ConRon.Bridge.Core
