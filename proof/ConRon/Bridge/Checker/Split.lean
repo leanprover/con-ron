@@ -571,22 +571,6 @@ theorem mkIFEnvGo_below_of : ∀ (cs : List IConstantInfo) (n : NIdx) (k : Nat)
           exact ⟨c0, rfl,
             Nat.lt_succ_of_lt (mkIFEnvGo_lt as n c0 ci0 hg)⟩
 
-/-- con-leche: none — the readback is elementwise, so a member of the list has
-a member of its denotation. -/
-theorem denoteCIList_mem {st : EStore} : ∀ (cs : List IConstantInfo)
-    (zs : List ConstantInfo), Frontend.denoteCIList st cs = some zs →
-    ∀ b ∈ cs, ∃ z ∈ zs, Frontend.denoteCI st b = some z := by
-  intro cs
-  induction cs with
-  | nil => intro zs _ b hb; simp at hb
-  | cons a as ih =>
-    intro zs hz b hb
-    obtain ⟨x, xs, ha, has, rfl⟩ := denoteCIList_cons hz
-    rcases List.mem_cons.mp hb with rfl | hb
-    · exact ⟨x, List.mem_cons_self, ha⟩
-    · obtain ⟨z, hzm, hzd⟩ := ih xs has b hb
-      exact ⟨z, List.mem_cons_of_mem _ hzm, hzd⟩
-
 /-- con-leche: none — the readback is elementwise, so it commutes with
 `List.drop`. -/
 theorem denoteCIList_drop {st : EStore} : ∀ (m : Nat) (cs : List IConstantInfo)

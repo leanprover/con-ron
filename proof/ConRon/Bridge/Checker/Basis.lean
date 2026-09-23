@@ -274,15 +274,241 @@ theorem internCV_fresh {c : ConstantVal} {cv : IConstantVal} {s s' : AState}
     Frontend.internCV_sstep hok (Frontend.EMemoOK.empty s.store) hgo
   exact ⟨hstep, hden⟩
 
+/-! ## No pinned block declares a projection table
+
+Six of the seven `IConstantInfo` constructors need nothing of the tier's
+standing `.projInfo` hypothesis; the seventh is a projection table, and **no
+basis block contains one** — a table never occurs in parsed input, and the six
+pinned blocks are `axiomInfo`/`defnInfo`/`indInfo`/`ctorInfo`/`recInfo` only.
+That is a fact about con-leche's data and `decide` settles it on six blocks of
+at most five constants, so every `.projInfo` obligation of the install below
+is discharged rather than carried. -/
+
+/-- con-leche: ConLeche/Kernel/BasisA.lean:51-57 BasisKind.declsA — no member
+of an annotated pinned block is a projection table. -/
+theorem basis_declsA_no_proj (k : BasisKind) :
+    ∀ x ∈ ConLeche.BasisKind.declsA k, x.isTowerEntry = false := by
+  cases k <;> decide
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:41-46 BasisKind.decls — the same of
+the RAW block, which `basisPinHit` compares against. -/
+theorem basis_decls_no_proj (k : BasisKind) :
+    ∀ x ∈ ConLeche.BasisKind.decls k, x.isTowerEntry = false := by
+  cases k <;> decide
+
+/-- con-leche: none — a handle whose denotation is not a table is not a
+table: `Frontend.denoteCI` preserves the constructor. -/
+theorem ci_ne_proj_of_denote {st : EStore} {ci : IConstantInfo}
+    {c : ConstantInfo} (hd : Frontend.denoteCI st ci = some c)
+    (hc : c.isTowerEntry = false) : ∀ t, ci ≠ .projInfo t := by
+  intro t ht
+  subst ht
+  simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hd
+  obtain ⟨pt, -, rfl⟩ := hd
+  simp [ConstantInfo.isTowerEntry] at hc
+
 /-! ## The recognisers -/
+
+/-- con-leche: none — **the block's name handles denote the block's names**,
+with no `.projInfo` hypothesis: the clause `denoteCI_name_of` needs at a
+projection table is replaced by the *denotation's* own shape, which every
+consumer below can check on con-leche's side. -/
+theorem denoteCIList_names {st : EStore} :
+    ∀ (cs : List IConstantInfo) (zs : List ConstantInfo),
+      Frontend.denoteCIList st cs = some zs →
+      (∀ x ∈ zs, x.isTowerEntry = false) →
+      Frontend.denoteNList st.ns (blockNames cs) = some (zs.map (·.name)) := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro zs h _
+    simp only [Frontend.denoteCIList, Option.some.injEq] at h
+    subst h; rfl
+  | cons a as ih =>
+    intro zs h hnt
+    obtain ⟨x, xs, hx, hxs, rfl⟩ := denoteCIList_cons h
+    have hn := denoteCI_name_of
+      (fun t ht => absurd ht (ci_ne_proj_of_denote hx (hnt x (by simp)) t)) hx
+    have hih := ih xs hxs (fun y hy => hnt y (List.mem_cons_of_mem _ hy))
+    simp only [ConRon.Arena.blockNames] at hih
+    simp only [ConRon.Arena.blockNames, List.map_cons, Frontend.denoteNList,
+      hn, hih]
+
+/-- con-leche: none — is this name a `.num` node?  `ConstantInfo.projTableName`
+always is (`(T.str "projTable").num 0`) and **no pinned basis constant is**,
+which is what rules a projection table out of a block whose names match a
+pin's. -/
+def nameIsNum : ConLeche.Name → Bool
+  | .num _ _ => true
+  | _ => false
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:41-46 BasisKind.decls — no pinned
+name is a `.num` node. -/
+theorem basis_decls_name_not_num (k : BasisKind) :
+    ∀ x ∈ ConLeche.BasisKind.decls k, nameIsNum x.name = false := by
+  cases k <;> decide
+
+/-- con-leche: ConLeche/Kernel/Env.lean:630-634 projTableName — a projection
+table's name always is. -/
+theorem nameIsNum_projTable (T : ConLeche.Name) :
+    nameIsNum (ConLeche.projTableName T) = true := rfl
+
+/-- con-leche: ConLeche/Kernel/Canon.lean:250-252 ConstantInfo.canon — the
+canonical form renames level parameters and nothing else, so it cannot turn a
+projection table into a term or back. -/
+theorem canon_isTowerEntry (x : ConstantInfo) :
+    (ConLeche.ConstantInfo.canon x).isTowerEntry = x.isTowerEntry := by
+  cases x <;> rfl
+
+/-- con-leche: none — **a block whose NAMES are a pin's holds no projection
+table**: a table's name is a `.num` node and no pinned name is. -/
+theorem noTable_of_names {b : List ConstantInfo} {k : BasisKind}
+    (h : ((ConLeche.BasisKind.decls k).map (·.name) == b.map (·.name)) = true) :
+    ∀ x ∈ b, x.isTowerEntry = false := by
+  intro x hx
+  have hm : x.name ∈ (ConLeche.BasisKind.decls k).map (·.name) := by
+    rw [(by simpa using h : (ConLeche.BasisKind.decls k).map (·.name)
+      = b.map (·.name))]
+    exact List.mem_map_of_mem hx
+  obtain ⟨y, hy, hyx⟩ := List.mem_map.mp hm
+  cases x with
+  | projInfo t =>
+    exact absurd (hyx ▸ basis_decls_name_not_num k y hy)
+      (by simp [ConstantInfo.name, ConstantInfo.toConstantVal,
+        nameIsNum_projTable])
+  | _ => rfl
+
+/-- con-leche: none — **a block whose CANONICAL FORMS are a pin's holds no
+projection table**, for the same reason one step further back:
+`ConstantInfo.canon` preserves the constructor. -/
+theorem noTable_of_canon {b : List ConstantInfo} {k : BasisKind}
+    (h : ConLeche.canonEqList b (ConLeche.BasisKind.decls k) = true) :
+    ∀ x ∈ b, x.isTowerEntry = false := by
+  intro x hx
+  have hmaps : b.map ConLeche.ConstantInfo.canon
+      = (ConLeche.BasisKind.decls k).map ConLeche.ConstantInfo.canon := by
+    simpa [ConLeche.canonEqList] using h
+  have hm : ConLeche.ConstantInfo.canon x
+      ∈ (ConLeche.BasisKind.decls k).map ConLeche.ConstantInfo.canon := by
+    rw [← hmaps]; exact List.mem_map_of_mem hx
+  obtain ⟨y, hy, hyx⟩ := List.mem_map.mp hm
+  rw [← canon_isTowerEntry x, ← hyx, canon_isTowerEntry]
+  exact basis_decls_no_proj k y hy
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:68-75 basisPinHit — the search, kind
+by kind.  con-leche's `find?`-then-`filter` and the arena's explicit recursion
+are the same answer: the first kind whose NAMES match decides, and the
+canonical comparison then keeps or drops it.
+
+**The statement takes no `.projInfo` hypothesis, and that is the round's
+finding about this theorem.**  The obvious route — `denoteCI_name_of` at every
+member of the incoming block — would ask for `CIProjNamed` of a STREAM record,
+and that clause travels through `checkDecl_bridge_ind`, `checkDecl_bridge`,
+`checkDeclStep_bridge` and the fold all the way to `Arena.model_exists`.  It
+is not needed: a block that matches a pin — by names or by canonical forms —
+can hold no projection table at all, because a table's name is a `.num` node
+(`projTableName T = (T.str "projTable").num 0`) and no pinned name is.  So the
+`.projInfo` case is DISCHARGED inside the theorem instead of hypothesised
+above it. -/
+theorem basisPinHitGo_run {block : List IConstantInfo} {b : List ConstantInfo} :
+    ∀ (ks : List BasisKind) {r : Option BasisKind} {s s' : AState},
+      StateOK s →
+      Frontend.denoteCIList s.store block = some b →
+      basisPinHitGo block ks s = .ok (r, s') →
+      StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
+        s'.pins = s.pins ∧
+        r = (ks.find? fun k =>
+              (ConLeche.BasisKind.decls k).map (·.name) == b.map (·.name)).filter
+              fun k => ConLeche.canonEqList b (ConLeche.BasisKind.decls k) := by
+  intro ks
+  induction ks with
+  | nil =>
+    intro r s s' hok _ hrun
+    simp only [ConRon.Arena.basisPinHitGo] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨hok, Ext.refl _, rfl, rfl, by simp⟩
+  | cons k ks ih =>
+    intro r s s' hok hb hrun
+    simp only [ConRon.Arena.basisPinHitGo] at hrun
+    obtain ⟨pinned, s₁, g1, k1⟩ := AM.bind_ok hrun
+    obtain ⟨hok1, hx1, hc1, hp1, hdp⟩ := BasisKind.decls_run hok g1
+    have hb1 := denoteCIList_mono hx1 _ _ hb
+    have hnA : Frontend.denoteNList s₁.store.ns (blockNames pinned)
+        = some ((ConLeche.BasisKind.decls k).map (·.name)) :=
+      denoteCIList_names pinned _ hdp (basis_decls_no_proj k)
+    have hblock : (∀ x ∈ b, x.isTowerEntry = false) →
+        Frontend.denoteNList s₁.store.ns (blockNames block)
+          = some (b.map (·.name)) :=
+      fun h => denoteCIList_names block _ hb1 h
+    rcases AM.ite_ok k1 with ⟨hy, k2⟩ | ⟨hn, k2⟩
+    · -- the handle lists agree: this kind decides, whatever con-leche's
+      -- name test says
+      have hbn : blockNames pinned = blockNames block := by simpa using hy
+      have hsame : (∀ x ∈ b, x.isTowerEntry = false) →
+          ((ConLeche.BasisKind.decls k).map (·.name) == b.map (·.name))
+            = true := by
+        intro hnt
+        have h1 := hblock hnt
+        rw [← hbn, hnA] at h1
+        simpa using Option.some.inj h1
+      obtain ⟨c0, s₂, g2, k3⟩ := AM.bind_ok k2
+      obtain ⟨hok2, hx2, hc2, hp2, he⟩ :=
+        canonEqList_run hok1
+          (fun t t' _ hb' => by
+            obtain ⟨y, hy1, hy2⟩ := denoteCIList_mem pinned _ hdp _ hb'
+            simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hy2
+            obtain ⟨pt, -, rfl⟩ := hy2
+            exact absurd (basis_decls_no_proj k _ hy1)
+              (by simp [ConstantInfo.isTowerEntry]))
+          hb1 hdp g2
+      rcases AM.ite_ok k3 with ⟨hc, k4⟩ | ⟨hc, k4⟩
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
+        refine ⟨hok2, hx1.trans hx2, by rw [hc2, hc1], by rw [hp2, hp1], ?_⟩
+        have hQ : ConLeche.canonEqList b (ConLeche.BasisKind.decls k) = true := by
+          rw [← he]; simpa using hc
+        have hP := hsame (noTable_of_canon hQ)
+        simp [List.find?_cons, hP, Option.filter, hQ]
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
+        refine ⟨hok2, hx1.trans hx2, by rw [hc2, hc1], by rw [hp2, hp1], ?_⟩
+        have hQ : ConLeche.canonEqList b (ConLeche.BasisKind.decls k) = false := by
+          rw [← he]; simpa using hc
+        by_cases hPk : ((ConLeche.BasisKind.decls k).map (·.name)
+            == b.map (·.name)) = true
+        · simp [List.find?_cons, hPk, Option.filter, hQ]
+        · -- no later kind can match either: one that did would make THIS
+          -- kind's name test pass
+          cases hf : (k :: ks).find? (fun k' =>
+              (ConLeche.BasisKind.decls k').map (·.name) == b.map (·.name)) with
+          | none => simp [hf]
+          | some k' =>
+            cases hQ' : ConLeche.canonEqList b (ConLeche.BasisKind.decls k') with
+            | false => simp [hf, Option.filter, hQ']
+            | true =>
+              exact absurd (hsame (noTable_of_canon hQ')) hPk
+    · -- the handle lists differ, and so do the names: on to the next kind
+      have hbn : blockNames pinned ≠ blockNames block := by simpa using hn
+      have hP : ((ConLeche.BasisKind.decls k).map (·.name)
+          == b.map (·.name)) = false := by
+        cases hpk : ((ConLeche.BasisKind.decls k).map (·.name)
+            == b.map (·.name)) with
+        | false => rfl
+        | true =>
+          refine absurd (denoteNList_inj hok1.wf _ _ _ hnA ?_) hbn
+          have h1 := hblock (noTable_of_names hpk)
+          rw [(by simpa using hpk : (ConLeche.BasisKind.decls k).map (·.name)
+            = b.map (·.name))]
+          exact h1
+      obtain ⟨hok2, hx2, hc2, hp2, he⟩ := ih hok1 hb1 k2
+      refine ⟨hok2, hx1.trans hx2, by rw [hc2, hc1], by rw [hp2, hp1], ?_⟩
+      rw [he]
+      simp [List.find?_cons, hP]
 
 /-- con-leche: ConLeche/Kernel/Basis.lean:68-75 basisPinHit — **the
 recogniser**: a stream block under a pinned name that matches the pin.  The
 arena's answer is con-leche's at the denoted block.
 
-`sorry`: `blockNames` through `denoteN`'s injectivity, then
-`canonEqList_run` (`Bridge/Checker/Canon.lean`) at the raw pin.  Task
-#97-P3-Checker's sorry list, item 15 — and it is what `checkDecl`'s
+**PROVED** (task #97-P3-Checker round 7), and at the statement round 1 wrote:
+no `.projInfo` hypothesis, see `basisPinHitGo_run`.  It is what `checkDecl`'s
 `.indDecl` arm needs before it may hand the block to `IndSpec`. -/
 theorem basisPinHit_run {block : List IConstantInfo} {b : List ConstantInfo}
     {r : Option BasisKind} {s s' : AState} (hok : StateOK s)
@@ -290,13 +516,16 @@ theorem basisPinHit_run {block : List IConstantInfo} {b : List ConstantInfo}
     (hrun : basisPinHit block s = .ok (r, s')) :
     StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
       s'.pins = s.pins ∧ r = ConLeche.basisPinHit b := by
-  sorry
+  obtain ⟨h1, h2, h3, h4, h5⟩ := basisPinHitGo_run _ hok hb hrun
+  exact ⟨h1, h2, h3, h4, by rw [h5]; rfl⟩
 
 /-- con-leche: ConLeche/Kernel/Basis.lean:77-84 quotPinHit — the quotient
 package's four-record recogniser.
 
-`sorry`: `IConstantVal.canonEq_run` at the pinned quotient block's `k`-th
-constant.  Task #97-P3-Checker's sorry list, item 15. -/
+**PROVED** (task #97-P3-Checker round 7): `BasisKind.decls_run` for the pinned
+block, `toConstantVal_sstep` at the slot `QuotKind.slot` names, and
+`IConstantVal.canonEq_run`.  The `none` arm of the slot read is unreachable —
+the quotient block has five members and `slot` is below five. -/
 theorem quotPinHit_run {k : QuotKind} {cv : IConstantVal} {c : ConstantVal}
     {r : Bool} {s s' : AState} (hok : StateOK s)
     (hcv : Frontend.denoteCV s.store cv = some c)
@@ -335,39 +564,6 @@ theorem quotPinHit_run {k : QuotKind} {cv : IConstantVal} {c : ConstantVal}
           (.axiomInfo default) = x := by
         rw [List.getD_eq_getElem?_getD, hx]; rfl
       simp only [ConLeche.quotPinHit, hgetD]
-
-/-! ## No pinned block declares a projection table
-
-Six of the seven `IConstantInfo` constructors need nothing of the tier's
-standing `.projInfo` hypothesis; the seventh is a projection table, and **no
-basis block contains one** — a table never occurs in parsed input, and the six
-pinned blocks are `axiomInfo`/`defnInfo`/`indInfo`/`ctorInfo`/`recInfo` only.
-That is a fact about con-leche's data and `decide` settles it on six blocks of
-at most five constants, so every `.projInfo` obligation of the install below
-is discharged rather than carried. -/
-
-/-- con-leche: ConLeche/Kernel/BasisA.lean:51-57 BasisKind.declsA — no member
-of an annotated pinned block is a projection table. -/
-theorem basis_declsA_no_proj (k : BasisKind) :
-    ∀ x ∈ ConLeche.BasisKind.declsA k, x.isTowerEntry = false := by
-  cases k <;> decide
-
-/-- con-leche: ConLeche/Kernel/Basis.lean:41-46 BasisKind.decls — the same of
-the RAW block, which `basisPinHit` compares against. -/
-theorem basis_decls_no_proj (k : BasisKind) :
-    ∀ x ∈ ConLeche.BasisKind.decls k, x.isTowerEntry = false := by
-  cases k <;> decide
-
-/-- con-leche: none — a handle whose denotation is not a table is not a
-table: `Frontend.denoteCI` preserves the constructor. -/
-theorem ci_ne_proj_of_denote {st : EStore} {ci : IConstantInfo}
-    {c : ConstantInfo} (hd : Frontend.denoteCI st ci = some c)
-    (hc : c.isTowerEntry = false) : ∀ t, ci ≠ .projInfo t := by
-  intro t ht
-  subst ht
-  simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hd
-  obtain ⟨pt, -, rfl⟩ := hd
-  simp [ConstantInfo.isTowerEntry] at hc
 
 /-! ## The install -/
 
