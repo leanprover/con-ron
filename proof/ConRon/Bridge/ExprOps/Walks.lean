@@ -49,6 +49,7 @@ arrive already carrying their `view` equation and `Bridge/Rel.lean`'s group 5
 inversions fire on it without help.
 -/
 import ConRon.Bridge.Specs
+import ConRon.Bridge.ExprOps.TagFirst
 
 namespace ConRon.Bridge.ExprOps
 
@@ -433,6 +434,32 @@ the `Option PropWhen` and nothing below looks inside: the `BinderMeta` the
 twin reads off the node IS the one the denotation carries
 (`denote_lam_inv`'s `e = .lam et eb m`), so `m.pw` needs no unfolding. -/
 
+/-- con-leche: none — `isLam`'s tag-first `then` arm (task #97-T2-LOCKSTEP): a
+λ-tagged handle whose binder projection reads is a λ. -/
+theorem relV_isLam_true {st : EStore} (hwf : StoreWF st) {h : EIdx}
+    (htg : (h.tag == ETag.lam) = true) {p : EIdx × EIdx × BMIdx}
+    (hp : some p = st.viewBindI h) : RelV Expr.isLam st h true := by
+  obtain ⟨ty, b, mi⟩ := p
+  have ht : h.tag = ETag.lam := by simpa using htg
+  obtain ⟨m, -, -, hv⟩ := view_of_viewBindI_wf hwf (by rw [ht]; rfl) hp.symm
+  rw [eBindView, ht] at hv
+  simp only [beq_self_eq_true, if_true] at hv
+  intro e he
+  obtain ⟨_, _, rfl, -⟩ := denote_lam_inv hwf hv he
+  rfl
+
+/-- con-leche: none — `isLam`'s tag-first `else` arm: a handle that denotes
+and is not λ-tagged denotes a non-λ. -/
+theorem relV_isLam_false {st : EStore} (hwf : StoreWF st) {h : EIdx}
+    (hd : (denoteE st h).isSome = true) (ht : ¬ (h.tag == ETag.lam) = true) :
+    RelV Expr.isLam st h false := by
+  obtain ⟨v, hv⟩ := view_of_denote_isSome hd
+  have hne := view_tagOf_ne hv ht
+  intro e he
+  rcases denote_lam_or hwf hv he with ⟨ty, b, m, rfl⟩ | ⟨h1, -⟩
+  · exact absurd rfl hne
+  · exact h1.symm
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:879-885 isLam — **THEOREM 1 for
 `isLam`**. -/
 theorem isLam_spec (s₀ : AState) (h : EIdx) (hok : StateOK s₀)
@@ -440,7 +467,13 @@ theorem isLam_spec (s₀ : AState) (h : EIdx) (hok : StateOK s₀)
     ⦃fun s => ⌜s = s₀⌝⦄ isLam h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ RelV Expr.isLam s₀.store h r⌝⦄ := by
   mvcgen [isLam]
-  all_goals bridge_vcs [Expr.isLam, RelV]
+  all_goals try bridge_vcs [Expr.isLam, RelV]
+  all_goals
+    (bridge_peel
+     subst_vars
+     first
+     | exact ⟨rfl, relV_isLam_true hok.wf (by assumption) (by assumption)⟩
+     | exact ⟨rfl, relV_isLam_false hok.wf hden (by assumption)⟩)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:879-885 isLam — the run form. -/
 theorem isLam_run {s₀ s' : AState} {h : EIdx} {r : Bool} (hok : StateOK s₀)
@@ -485,7 +518,19 @@ theorem forallPw_spec (s₀ : AState) (h : EIdx) (hok : StateOK s₀)
     ⦃fun s => ⌜s = s₀⌝⦄ forallPw h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ RelV Expr.forallPw s₀.store h r⌝⦄ := by
   mvcgen [forallPw]
-  all_goals bridge_vcs [Expr.forallPw, RelV]
+  all_goals first
+    | bridge_vcs [Expr.forallPw, RelV, denote_forallE_inv]
+    -- the tag-first `else` arm (task #97-T2-LOCKSTEP)
+    | (bridge_peel
+       subst_vars
+       obtain ⟨v, hv⟩ := view_of_denote_isSome (by assumption)
+       have hne := view_tagOf_ne hv (t := ETag.forallE) (by assumption)
+       refine ⟨rfl, fun e he => ?_⟩
+       rw [denoteE_view_eq hok.wf hv] at he
+       cases v <;> first
+         | exact absurd rfl hne
+         | grind [denoteEView, Expr.forallPw, opt2_eq_some_iff, opt3_eq_some_iff,
+             Option.map_eq_some_iff])
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:896-902 forallPw — the run
 form. -/

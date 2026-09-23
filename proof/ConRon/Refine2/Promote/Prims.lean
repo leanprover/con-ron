@@ -249,6 +249,21 @@ theorem LSR.withWF {α β : Type} {R : α → β → Prop} {P : α → Prop}
     obtain ⟨b, lst', hx, hR, h1, h2⟩ := this
     exact ⟨b, lst', hx, ⟨hR, hP a hm⟩, h1, h2⟩
 
+/-- A reader's `LSR`, its relation weakened. -/
+theorem LSR.mono {α β : Type} {R R' : α → β → Prop}
+    {pers : arena.store.PersTier}
+    {m : Result (core.result.Result α kernel.core_types.CheckError)}
+    {st : arena.monad.AState} {lst : AState} {x : AM β}
+    (h : LSR pers R m st lst x) (hR : ∀ a b, R a b → R' a b) :
+    LSR pers R' m st lst x := by
+  intro o hm
+  have := h o hm
+  cases o with
+  | Err e => exact this
+  | Ok a =>
+    obtain ⟨b, lst', hx, hr, h1, h2⟩ := this
+    exact ⟨b, lst', hx, hR a b hr, h1, h2⟩
+
 /-- The promotion tier's statement shape from the judgement. -/
 theorem LS.toSimPM {α β : Type} {R : α → β → Prop} {pers : arena.store.PersTier}
     {m : Result (core.result.Result (arena.promote.PMemo × α) kernel.core_types.CheckError ×
@@ -307,7 +322,7 @@ theorem view_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
     LSR pers (fun a b => b = absENodeView a ∧ ENodeViewWF a) (arena.monad.view pers st h)
       st lst (Arena.view (absEIdx h)) := by
-  refine LSR.withWF (view_ls hrel hinv h) ?_
+  refine LSR.mono (LSR.withWF (view_ls hrel hinv h) ?_) (fun _ _ h => ⟨h.1.2, h.2⟩)
   intro a ha
   rw [arena.monad.view] at ha
   obtain ⟨q, hq, ha⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha
@@ -366,18 +381,6 @@ attribute [lockstep_simp] absNNodeView absLNodeView absLsNodeView absLIdxL absNI
 @[lockstep] theorem lsidx_is_persistent_spec (h : arena.handle.LsIdx) :
     LSP (arena.handle.LsIdx.is_persistent h) (fun b => (absLsIdx h).isPersistent = b) :=
   fun _ hb => lsidx_is_persistent_abs hb
-
-@[lockstep] theorem dup2_nidx (h : arena.handle.NIdx) :
-    LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun e he => dupId_nidx _ _ he
-
-@[lockstep] theorem dup2_lidx (h : arena.handle.LIdx) :
-    LSP (arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun e he => dupId_lidx _ _ he
-
-@[lockstep] theorem dup2_lsidx (h : arena.handle.LsIdx) :
-    LSP (arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun e he => dupId_lsidx _ _ he
 
 /-! ## Rust-only copies of the value types the records carry -/
 

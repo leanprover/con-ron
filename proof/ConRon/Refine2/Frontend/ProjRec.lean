@@ -338,25 +338,11 @@ theorem lam_body_refines {pers rst lst fuel h' o}
       have hlam : (absEIdx h').tag = ETag.lam := by rw [htag, etag_lam_abs]
       have hbind : ETag.isBind (absEIdx h').tag = true := by rw [hlam]; decide
       obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hqa : lst.store.viewBind (absEIdx h') = q.map absBindM := by
-        have := view_bind_run₀ hrel hbind hq
-        have h2 : (Except.ok (lst.store.viewBind (absEIdx h'), lst) :
-            Except Arena.CheckError _) = Except.ok (q.map absBindM, lst) := this
-        simp only [Except.ok.injEq, Prod.mk.injEq] at h2
-        exact h2.1
-      have hv := view_of_bind_tag (st := lst.store) hbind
-      rw [hqa, hlam] at hv
+      have hvbr : (Arena.viewBind (absEIdx h')).run lst = Except.ok (q.map absBindM, lst) :=
+        view_bind_run₀ hrel hbind hq
       rw [if_pos (by rw [hlam]; rfl)]
-      show SimRE absEIdx lst o (Arena.view (absEIdx h') >>= _)
       unfold SimRE
-      have hvr : (Arena.view (absEIdx h')).run lst = (match lst.store.view (absEIdx h') with
-          | some v => Except.ok (v, lst)
-          | none => Except.error (.internal "arena: dangling expression handle")) := by
-        show ((match lst.store.view (absEIdx h') with
-          | some v => (pure v : AM ENodeView)
-          | none => Arena.fail (.internal "arena: dangling expression handle")).run lst) = _
-        cases lst.store.view (absEIdx h') <;> rfl
-      rw [am_run_bind', hvr, hv]
+      rw [am_run_bind', hvbr]
       cases q with
       | none =>
         rw [arena.monad.fail_dangling_e] at h
@@ -372,8 +358,7 @@ theorem lam_body_refines {pers rst lst fuel h' o}
           have := (ConRon.Refine.Nat.usub_val hi1).2
           rw [this, hn]; rfl
         have := ih i1 b hi1v h
-        simp only [Option.map_some, absBindM, eBindView, beq_self_eq_true, if_true,
-          except_ok_bind]
+        simp only [Option.map_some, absBindM, except_ok_bind]
         rw [show absU i1 = k from hi1v] at this
         exact this
     · rw [if_neg hc] at h
