@@ -58,11 +58,18 @@ Top-down, by composition only — every step below is a named lemma:
     prepare_prelude    = prepare_d
     prepare_d          = front_of ; prepared_stream ; hoist_nat_op_ground ; sat_sub
 
-The open leaves under them: `apply_line_refines` (the line layer),
-`state_d_init_refines` (the fresh record's `StateDRel`),
-`builtin_prelude_text_refines` (16 922 committed bytes),
-`hoist_nat_op_ground_refines` (`NatOpGround.lean`'s tier) and
-`Prepare.lean`'s `i_declaration_dup_abs`.
+Round 2 closed `state_d_init_refines`, `builtin_prelude_text_refines`
+(`PreludeText.lean`), `i_declaration_dup_abs` (`Refine2/Dup.lean`) and
+`hoist_nat_op_ground_refines` (by composition), and proved the line layer
+from its children:
+
+    apply_line          = parse_{name,level,expr}_entry_d | apply_decl_d | header/blank
+    apply_decl_d        = process_line_core_d
+    process_line_core_d = plc_{ax,defn,thm,opaq,quot,ind}
+    plc_*               = parse_cv_d ; get_decl_d ; push_decl ; proj_rewrite_d ;
+                          quot_kind_of ; validate_ind_d ; install_ind_d
+
+so the frontier below `apply_line_refines` is its real subtree.
 
 ## `sorry` count in this file: 2
 -/
