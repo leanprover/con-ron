@@ -3069,7 +3069,48 @@ theorem proj_types_of_refines {rsd lsd lst tys o} (hd : StateDRel rsd lsd)
       ((absIndTypeRecs tys).mapM fun t => do
         let cv ← parseCVD lsd t.cv
         pure (cv.name, cv.levelParams, cv.type, t.numParams, t.numIndices,
-          ← t.ctors.mapM lsd.name, t.isRec)) := by sorry
+          ← t.ctors.mapM lsd.name, t.isRec)) := by
+  rw [frontend.export_c.proj_types_of] at h
+  exact simLR_cursor0 (absY := absProjTypeRec) (absX := absIndTypeRec) (xs := tys)
+    (loop := fun out i =>
+      frontend.export_c.proj_types_of_loop rsd tys (alloc.vec.Vec.len tys) out i)
+    (fun out i o hn h => by
+      rw [frontend.export_c.proj_types_of_loop.eq_def] at h
+      rw [if_neg (show ¬ i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      exact (Result.ok_injective h).symm)
+    (fun out i o hi h => by
+      rw [frontend.export_c.proj_types_of_loop.eq_def] at h
+      rw [if_pos (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hxv := vec_index_eq hi hx
+      obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hP := parse_cv_d_refines (lst := lst) hd hr
+      cases r with
+      | Err e =>
+        refine ⟨.Err e, ?_, Or.inl ⟨e, rfl, (Result.ok_injective h).symm⟩⟩
+        rw [hxv]
+        exact SimLR.bind_err hP
+      | Ok v =>
+        obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hN := st_names_refines (lst := lst) hd hr1
+        cases r1 with
+        | Err e =>
+          refine ⟨.Err e, ?_, Or.inl ⟨e, rfl, (Result.ok_injective h).symm⟩⟩
+          rw [hxv]
+          refine SimLR.bind_ok hP ?_
+          exact SimLR.bind_err hN
+        | Ok v1 =>
+          obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          obtain ⟨e1, e2⟩ := cursor_push hout1 hi1
+          refine ⟨.Ok (v.name, v.level_params, v.ty, x.num_params, x.num_indices, v1, x.is_rec),
+            ?_, Or.inr ⟨_, out1, i1, rfl, e1, e2, h⟩⟩
+          rw [hxv]
+          refine SimLR.bind_ok hP ?_
+          refine SimLR.bind_ok hN ?_
+          show Except.ok _ = _
+          rfl)
+    rfl h
 
 /-- **`proj_ctors_of`** — the census's constructor tuples. -/
 theorem proj_ctors_of_refines {rsd lsd lst cts o} (hd : StateDRel rsd lsd)
@@ -3077,7 +3118,37 @@ theorem proj_ctors_of_refines {rsd lsd lst cts o} (hd : StateDRel rsd lsd)
     SimLR absProjCtorRecL lst o
       ((absIndCtorRecs cts).mapM fun c => do
         let cv ← parseCVD lsd c.cv
-        pure (cv.name, c.numFields, cv.type)) := by sorry
+        pure (cv.name, c.numFields, cv.type)) := by
+  rw [frontend.export_c.proj_ctors_of] at h
+  exact simLR_cursor0 (absY := absProjCtorRec) (absX := absIndCtorRec) (xs := cts)
+    (loop := fun out i =>
+      frontend.export_c.proj_ctors_of_loop rsd cts (alloc.vec.Vec.len cts) out i)
+    (fun out i o hn h => by
+      rw [frontend.export_c.proj_ctors_of_loop.eq_def] at h
+      rw [if_neg (show ¬ i < alloc.vec.Vec.len cts by scalar_tac)] at h
+      exact (Result.ok_injective h).symm)
+    (fun out i o hi h => by
+      rw [frontend.export_c.proj_ctors_of_loop.eq_def] at h
+      rw [if_pos (show i < alloc.vec.Vec.len cts by scalar_tac)] at h
+      obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hxv := vec_index_eq hi hx
+      obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hP := parse_cv_d_refines (lst := lst) hd hr
+      cases r with
+      | Err e =>
+        refine ⟨.Err e, ?_, Or.inl ⟨e, rfl, (Result.ok_injective h).symm⟩⟩
+        rw [hxv]
+        exact SimLR.bind_err hP
+      | Ok v =>
+        obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨e1, e2⟩ := cursor_push hout1 hi1
+        refine ⟨.Ok (v.name, x.num_fields, v.ty), ?_, Or.inr ⟨_, out1, i1, rfl, e1, e2, h⟩⟩
+        rw [hxv]
+        refine SimLR.bind_ok hP ?_
+        show Except.ok _ = _
+        rfl)
+    rfl h
 
 /-- **`proj_recs_of`** — the census's recursor tuples. -/
 theorem proj_recs_of_refines {rsd lsd lst rcs o} (hd : StateDRel rsd lsd)
@@ -3086,7 +3157,37 @@ theorem proj_recs_of_refines {rsd lsd lst rcs o} (hd : StateDRel rsd lsd)
       ((absIndRecRecs rcs).mapM fun r => do
         let cv ← parseCVD lsd r.cv
         pure (cv.name, cv.levelParams, cv.type, r.numMotives, r.numMinors)) := by
-  sorry
+  rw [frontend.export_c.proj_recs_of] at h
+  exact simLR_cursor0 (absY := absProjRecRec) (absX := absIndRecRec) (xs := rcs)
+    (loop := fun out i =>
+      frontend.export_c.proj_recs_of_loop rsd rcs (alloc.vec.Vec.len rcs) out i)
+    (fun out i o hn h => by
+      rw [frontend.export_c.proj_recs_of_loop.eq_def] at h
+      rw [if_neg (show ¬ i < alloc.vec.Vec.len rcs by scalar_tac)] at h
+      exact (Result.ok_injective h).symm)
+    (fun out i o hi h => by
+      rw [frontend.export_c.proj_recs_of_loop.eq_def] at h
+      rw [if_pos (show i < alloc.vec.Vec.len rcs by scalar_tac)] at h
+      obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hxv := vec_index_eq hi hx
+      obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hP := parse_cv_d_refines (lst := lst) hd hr
+      cases r with
+      | Err e =>
+        refine ⟨.Err e, ?_, Or.inl ⟨e, rfl, (Result.ok_injective h).symm⟩⟩
+        rw [hxv]
+        exact SimLR.bind_err hP
+      | Ok v =>
+        obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨e1, e2⟩ := cursor_push hout1 hi1
+        refine ⟨.Ok (v.name, v.level_params, v.ty, x.num_motives, x.num_minors), ?_,
+          Or.inr ⟨_, out1, i1, rfl, e1, e2, h⟩⟩
+        rw [hxv]
+        refine SimLR.bind_ok hP ?_
+        show Except.ok _ = _
+        rfl)
+    rfl h
 
 /-- **`note_proj_owners`** — the twin's `owners.foldl` into `projOwners`.  The
 port writes the table unconditionally where the twin's `match` sends `[]` to
@@ -3098,7 +3199,49 @@ theorem note_proj_owners_refines {rsd lsd owners rsd'} (hd : StateDRel rsd lsd)
     StateDRel rsd'
       { lsd with projOwners := (absProjRecOwnerL owners).foldl
                    (fun m o => m.insert o.T o) lsd.projOwners } ∧
-      StateDInv rsd' := by sorry
+      StateDInv rsd' := by
+  rw [frontend.export_c.note_proj_owners] at h
+  have key : ∀ (n : Nat) (i : Std.Usize) (st : frontend.export_c.StateD)
+      (M : Std.HashMap NIdx ProjRecOwner) (st' : frontend.export_c.StateD),
+      owners.val.length - i.val = n →
+      StateDRel st { lsd with projOwners := M } → StateDInv st →
+      frontend.export_c.note_proj_owners_loop st owners (alloc.vec.Vec.len owners) i = ok st' →
+      StateDRel st' { lsd with projOwners := (List.foldl (fun m o => m.insert o.T o) M
+          ((owners.val.drop i.val).map absProjRecOwner)) } ∧ StateDInv st' := by
+    intro n
+    induction n with
+    | zero =>
+      intro i st M st' hn hd hi h
+      rw [frontend.export_c.note_proj_owners_loop, if_neg (by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le (by omega)]
+      exact ⟨hd, hi⟩
+    | succ k ih =>
+      intro i st M st' hn hd hi h
+      have hi' : i.val < owners.val.length := by omega
+      rw [frontend.export_c.note_proj_owners_loop, if_pos (by scalar_tac)] at h
+      obtain ⟨pro, hpro, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hpro' := vec_index_eq hi' hpro
+      obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [dupId_nidx _ _ hn1] at h
+      obtain ⟨pro1, hpro1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hdup := proj_rec_owner_dup_refines hpro1
+      obtain ⟨⟨old, hm⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨hR, -⟩ := ConRon.Refine.HashMap2.Rel_insert_wf nidx_eq2
+        (fun a b _ _ e => absNIdx_inj e) hi.projOwners (anyNKeysOk _) hd.projOwners trivial hins
+      obtain ⟨hI, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen nidx_eq2 hi.projOwners
+        (anyNKeysOk _) trivial hins
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi2).trans (by simp)
+      rw [hdup] at hR
+      have := ih i2 { st with proj_owners := hm }
+        (M.insert (absNIdx pro.t) (absProjRecOwner pro)) st' (by omega)
+        { hd with projOwners := hR } { hi with projOwners := hI } h
+      rw [hi2v] at this
+      rw [List.drop_eq_getElem_cons hi', hpro', List.map_cons, List.foldl_cons]
+      exact this
+  have := key _ 0#usize rsd lsd.projOwners rsd' rfl hd hi h
+  simpa [absProjRecOwnerL] using this
 
 /-- **`register_proj_owners` refines `registerProjOwners`**
 (`ExportC.lean:401-421`). -/
@@ -3109,7 +3252,79 @@ theorem register_proj_owners_refines {pers rst lst rsd lsd tys cts rcs block o}
       = ok o) :
     SimD pers lst o
       (registerProjOwners lsd (absIndTypeRecs tys) (absIndCtorRecs cts)
-        (absIndRecRecs rcs) (absICIL block)) := by sorry
+        (absIndRecRecs rcs) (absICIL block)) := by
+  rw [frontend.export_c.register_proj_owners] at h
+  unfold SimD
+  simp only [registerProjOwners]
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hT := proj_types_of_refines (lst := lst) hd hr
+  rw [am_run_bind']
+  cases r with
+  | Err e =>
+    cases Result.ok_injective h
+    unfold SimLR at hT
+    cases e with
+    | Err ce => exact AErrSim.bind hT _
+    | Verdict v => exact hT.elim
+  | Ok v =>
+  rw [SimLR.apply hT, except_ok_bind]
+  obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hC := proj_ctors_of_refines (lst := lst) hd hr1
+  rw [am_run_bind']
+  cases r1 with
+  | Err e =>
+    cases Result.ok_injective h
+    unfold SimLR at hC
+    cases e with
+    | Err ce => exact AErrSim.bind hC _
+    | Verdict v => exact hC.elim
+  | Ok v1 =>
+  rw [SimLR.apply hC, except_ok_bind]
+  obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hR := proj_recs_of_refines (lst := lst) hd hr2
+  rw [am_run_bind']
+  cases r2 with
+  | Err e =>
+    cases Result.ok_injective h
+    unfold SimLR at hR
+    cases e with
+    | Err ce => exact AErrSim.bind hR _
+    | Verdict v => exact hR.elim
+  | Ok v2 =>
+  rw [SimLR.apply hR, except_ok_bind]
+  obtain ⟨fuel, hf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hF : storeFuel.run lst = .ok (absU fuel, lst) := store_fuel_refines hrel hinv hf
+  rw [am_run_bind', hF, except_ok_bind]
+  dsimp only
+  obtain ⟨⟨r3, ar1⟩, hr3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hO : Sim₀ absProjRecOwnerL pers lst (r3, ar1)
+      (projRecOwners (absU fuel) (absICIL block) (absProjTypeRecL v)
+        (absProjCtorRecL v1) (absProjRecRecL v2)) := proj_rec_owners_refines hrel hinv hr3
+  rw [am_run_bind']
+  cases r3 with
+  | Err e =>
+    obtain ⟨r4, hr4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [frontend.export_c.fail] at hr4
+    cases Result.ok_injective hr4
+    cases Result.ok_injective h
+    exact AErrSim.bind (Sim₀.apply_err hO) _
+  | Ok owners =>
+  obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hO
+  rw [hx1, except_ok_bind]
+  obtain ⟨st1, hst1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  obtain ⟨hd1, hi1⟩ := note_proj_owners_refines hd hi hst1
+  refine ⟨_, lst1, ?_, hd1, hi1, hrel1, hinv1⟩
+  cases hown : owners.val with
+  | nil =>
+    have : absProjRecOwnerL owners = [] := by simp [absProjRecOwnerL, hown]
+    simp only [this, List.foldl_nil]
+    rfl
+  | cons o os =>
+    have : absProjRecOwnerL owners = absProjRecOwner o :: os.map absProjRecOwner := by
+      simp [absProjRecOwnerL, hown]
+    simp only [this]
+    rfl
 
 /-! ## The parse result -/
 
