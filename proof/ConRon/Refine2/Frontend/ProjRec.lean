@@ -95,7 +95,7 @@ theorem cps_starts_with_refines {s : alloc.vec.Vec Std.U32} {lit : Slice Std.U32
   sorry
 
 /-- An in-bounds `Vec` index answers the element. -/
-theorem vec_index_eq {α : Type} (v : alloc.vec.Vec α) (i : Std.Usize)
+theorem vec_index_ok_eq {α : Type} (v : alloc.vec.Vec α) (i : Std.Usize)
     (hi : i.val < v.val.length) :
     alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i = ok v.val[i.val] := by
   simp only [alloc.vec.Vec.index_slice_index]
@@ -127,7 +127,7 @@ theorem cons_lidx_loop_val (us : alloc.vec.Vec arena.handle.LIdx) :
     intro out i r hk h
     have hlt : i.val < us.val.length := by omega
     rw [frontend.proj_rec.cons_lidx_loop, if_pos (by scalar_tac),
-      vec_index_eq us i hlt, bind_tc_ok] at h
+      vec_index_ok_eq us i hlt, bind_tc_ok] at h
     obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [dupId_lidx _ _ hd] at h
     obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -163,7 +163,7 @@ theorem append_eidx_loop_val (xs : alloc.vec.Vec arena.handle.EIdx) :
     intro out i r hk h
     have hlt : i.val < xs.val.length := by omega
     rw [frontend.proj_rec.append_eidx_loop, if_pos (by scalar_tac),
-      vec_index_eq xs i hlt, bind_tc_ok] at h
+      vec_index_ok_eq xs i hlt, bind_tc_ok] at h
     obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [dupId_eidx _ _ hd] at h
     obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -888,7 +888,7 @@ open ConRon.Refine2.Lockstep in
       simp [absBinderPairs, hp]
     have hidx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice _) bs 0#usize
         = ok (e, bm) := by
-      rw [vec_index_eq bs 0#usize (by simp [hp])]
+      rw [vec_index_ok_eq bs 0#usize (by simp [hp])]
       simp [hp]
     rw [habs, mkProjMotiveAt, if_neg (by scalar_tac), hidx, bind_tc_ok]
     refine LSR.bind (head_is_ls hrel hinv fuel pb.t e) (by simp [absProjBuild])

@@ -2343,7 +2343,54 @@ theorem note_ind_blocks_refines {rsd lsd b rsd'} (hd : StateDRel rsd lsd)
     StateDRel rsd'
       { lsd with indBlocks := (absBlockRec b).types.foldl
                    (fun m t => m.insert t.cv.name (absBlockRec b)) lsd.indBlocks } ∧
-      StateDInv rsd' := by sorry
+      StateDInv rsd' := by
+  rw [frontend.export_c.note_ind_blocks] at h
+  have key : ∀ (n : Nat) (i : Std.Usize) (st : frontend.export_c.StateD)
+      (M : Std.HashMap NIdx BlockRec) (st' : frontend.export_c.StateD),
+      b.types.val.length - i.val = n →
+      StateDRel st { lsd with indBlocks := M } → StateDInv st →
+      frontend.export_c.note_ind_blocks_loop st b.types b.ctors b.recs
+        (alloc.vec.Vec.len b.types) i = ok st' →
+      StateDRel st' { lsd with indBlocks := (List.foldl
+          (fun m t => m.insert t.cv.name (absBlockRec b)) M
+          ((absBlockRec b).types.drop i.val)) } ∧ StateDInv st' := by
+    intro n
+    induction n with
+    | zero =>
+      intro i st M st' hn hd hi h
+      rw [frontend.export_c.note_ind_blocks_loop, if_neg (by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le (by simp [absBlockRec]; omega)]
+      exact ⟨hd, hi⟩
+    | succ k ih =>
+      intro i st M st' hn hd hi h
+      have hi' : i.val < b.types.val.length := by omega
+      rw [frontend.export_c.note_ind_blocks_loop, if_pos (by scalar_tac)] at h
+      obtain ⟨mtr, hmtr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hmtr' := vec_index_eq hi' hmtr
+      obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [dupId_nidx _ _ hn1] at h
+      obtain ⟨br, hbr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hbr' := block_rec_dup_refines hbr
+      obtain ⟨⟨old, hm⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨hR, -⟩ := ConRon.Refine.HashMap2.Rel_insert_wf nidx_eq2
+        (fun a b _ _ e => absNIdx_inj e) hi.indBlocks (anyNKeysOk _) hd.indBlocks trivial hins
+      obtain ⟨hI, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen nidx_eq2 hi.indBlocks
+        (anyNKeysOk _) trivial hins
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi2).trans (by simp)
+      have hbrb : absBlockRec br = absBlockRec b := hbr'
+      rw [hbrb] at hR
+      have := ih i2 { st with ind_blocks := hm } (M.insert (absNIdx mtr.cv.name) (absBlockRec b))
+        st' (by omega) { hd with indBlocks := hR } { hi with indBlocks := hI } h
+      rw [hi2v] at this
+      rw [show (absBlockRec b).types.drop i.val =
+          absMIndTypeRec mtr :: (absBlockRec b).types.drop (i.val + 1) by
+        simp only [absBlockRec, ← List.map_drop, List.drop_eq_getElem_cons hi', hmtr',
+          List.map_cons], List.foldl_cons]
+      exact this
+  have := key _ 0#usize rsd lsd.indBlocks rsd' rfl hd hi h
+  simpa using this
 
 /-! ## The install and the modeller seam -/
 
