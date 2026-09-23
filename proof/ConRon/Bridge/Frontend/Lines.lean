@@ -1497,8 +1497,9 @@ theorem blockRecOf_run {s s' : AState} (hok : StateOK s) {sd : StateD}
   have htys : ∀ (ts : List ConLeche.Frontend.IndTypeRec)
       {out : List MIndTypeRec} {t : AState},
       (ts.mapM fun (x : ConLeche.Frontend.IndTypeRec) => do
+        let ctors ← x.ctors.mapM sd.name
         pure { cv := ← parseCVD sd x.cv, nP := x.numParams, nIdx := x.numIndices,
-               ctors := ← x.ctors.mapM sd.name, isRec := x.isRec,
+               ctors := ctors, isRec := x.isRec,
                isReflexive := x.isReflexive,
                numNested := x.numNested : MIndTypeRec }) s = .ok (out, t) →
       t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndTypeRec) => do
@@ -1520,11 +1521,11 @@ theorem blockRecOf_run {s s' : AState} (hok : StateOK s) {sd : StateD}
       intro out t hrun
       simp only [List.mapM_cons] at hrun
       obtain ⟨y, s₁, hone, hrest⟩ := AM.bind_ok hrun
-      obtain ⟨cv, s₂, hcv, hone2⟩ := AM.bind_ok hone
-      obtain ⟨hs2, cvP, hclcv, hdcv⟩ := parseCVD_run hok hrel hcv
+      obtain ⟨cs, s₂, hcs, hone2⟩ := AM.bind_ok hone
+      obtain ⟨hs2, csP, hclcs, hdcs⟩ := StateD_names_run hrel x.ctors hcs
       rw [hs2] at hone2
-      obtain ⟨cs, s₃, hcs, hone3⟩ := AM.bind_ok hone2
-      obtain ⟨hs3, csP, hclcs, hdcs⟩ := StateD_names_run hrel x.ctors hcs
+      obtain ⟨cv, s₃, hcv, hone3⟩ := AM.bind_ok hone2
+      obtain ⟨hs3, cvP, hclcv, hdcv⟩ := parseCVD_run hok hrel hcv
       rw [hs3] at hone3
       obtain ⟨hv1, hst1⟩ := AM.pure_ok hone3
       rw [hst1] at hrest
@@ -2427,7 +2428,7 @@ theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
       obtain ⟨lC, rfl, hlC⟩ := ListRel.singleton_left hlsR
       obtain ⟨hC, rfl, -⟩ := ListRel.singleton_left hlC
       obtain ⟨pr, s₂, hpr, hrun⟩ := AM.bind_ok hrun
-      obtain ⟨hs2, hdpr⟩ := piResult_run hok htyd hpr
+      obtain ⟨hs2, hdpr⟩ := piResultD_run hok htyd hpr
       rw [hs2] at hrun
       obtain ⟨v, s₂, hv, hrun⟩ := AM.bind_ok hrun
       obtain ⟨hs2, hview⟩ := view_run hv
@@ -2927,7 +2928,8 @@ the shape `projRecOwners_run` asks), then `projRecOwners_run` and
 states) and proved it from `projRecOwners_run`; it inherits that leaf's frame
 finding (DESIGN, task #97-P3-Frontend round 7). -/
 theorem registerProjOwners_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd sd' : StateD}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
+    (hrl : ReadLCacheOK s.caches.readLC s.store) {sd sd' : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {tys : List ConLeche.Frontend.IndTypeRec}
     {cts : List ConLeche.Frontend.IndCtorRec}
@@ -3003,7 +3005,7 @@ theorem registerProjOwners_run {s s' : AState} (hok : StateOK s)
   have hs1 := storeFuel_run h1
   rw [hs1] at hrun
   obtain ⟨os, s₂, h2, hrun⟩ := AM.bind_ok hrun
-  obtain ⟨hstep, hos⟩ := projRecOwners_run hok hoff hpins hb htR hcR hrR h2
+  obtain ⟨hstep, hos⟩ := projRecOwners_run hok hoff hpins hrl hb htR hcR hrR h2
   have hrel2 := hrel.ext hstep.ext
   generalize ConLeche.Frontend.projRecOwners blockP typesC ctorsC recsC = osC at hos ⊢
   cases hos with
@@ -3038,7 +3040,8 @@ now frames a DECLINING run too, and `ModellerRefines` names con-leche's
 reason, because the census books it (`Bridge/Frontend/Modeller.lean`). -/
 theorem installIndD_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd : StateD}
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
+    (hrl : ReadLCacheOK s.caches.readLC s.store) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {tys : List ConLeche.Frontend.IndTypeRec}
     {cts : List ConLeche.Frontend.IndCtorRec}
@@ -3097,7 +3100,7 @@ theorem installIndD_run {md : Modeller} (hmw : ModellerWF md)
   have hb := denoteCIList_of_listRel hbR
   dsimp only
   obtain ⟨sd₄, s₄, h4, hrun⟩ := AM.bind_ok hrun
-  obtain ⟨hstep4, hp4, sc₄, hreg, hrel4⟩ := registerProjOwners_run hok hoff hpins hrel hp hb h4
+  obtain ⟨hstep4, hp4, sc₄, hreg, hrel4⟩ := registerProjOwners_run hok hoff hpins hrl hrel hp hb h4
   rw [hreg, except_ok_bind]
   have hoff4 : s₄.store.scratchOn = false := by rw [hstep4.scratch]; exact hoff
   have hbR4 := hbR.mono
@@ -3481,7 +3484,7 @@ theorem processLineCoreD_run {md : Modeller} (hmw : ModellerWF md)
       | inl w => exact absurd hvr (by simp [VRes])
       | inr q =>
         obtain rfl : p = q := hvr
-        exact installIndD_run hmw hmr hok hoff hpins hrel.bumpIndCount { hp with } hrun
+        exact installIndD_run hmw hmr hok hoff hpins hrc.readL hrel.bumpIndCount { hp with } hrun
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:710 applyDeclD — `processLineCoreD`
 on both sides, by definition. -/

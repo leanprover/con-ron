@@ -762,6 +762,46 @@ attribute [simp] absNatL absNatLFrom absBoolL absBoolLFrom absLIdxLL absLIdxLLFr
   absRenameTblFrom absRenameBy absInductiveShape absStructParts absRecFieldKind
   absKindL absKindLFrom absKindLL absKindLLFrom absNativeParts
 
+/-! ## Rust-only copies, for the `lockstep` tactic (task #97-T2-LOCKSTEP lane
+Inductives round 3)
+
+The two copies `arena::checker::check_ind_decl` makes before it moves its
+arguments into the tier: each is the identity on the abstraction. -/
+
+open Lockstep in
+@[lockstep] theorem check_mode_dup_spec (m : kernel.env.CheckMode) :
+    LSP (kernel.env.check_mode_dup m) (fun o => o = m) := by
+  intro o h
+  cases m <;> simp only [kernel.env.check_mode_dup, Result.ok.injEq] at h <;> exact h.symm
+
+open Lockstep in
+@[lockstep] theorem i_constant_infos_dup_spec (cs : alloc.vec.Vec arena.env.IConstantInfo) :
+    LSP (arena.env.i_constant_infos_dup cs) (fun o => absICIL o = absICIL cs) :=
+  fun _ h => i_constant_infos_dup_abs h
+
+/-! ## The error constructors, for the `lockstep` tactic
+
+The port builds a decline's error as `invalid (code_points M_…)` (or
+`not_implemented`/`internal`) and then `fail`s with it; the twin fails with the
+kind and a message string.  The kinds are what `AErrSim` compares, so each
+constructor is a Rust-only step whose spec is the constructor itself. -/
+
+open Lockstep in
+@[lockstep] theorem core_types_invalid_ls (m : alloc.vec.Vec Std.U32) :
+    LSP (kernel.core_types.invalid m) (fun e => e = .Invalid m) := by
+  intro e h; simp only [kernel.core_types.invalid, Result.ok.injEq] at h; exact h.symm
+
+open Lockstep in
+@[lockstep] theorem core_types_not_implemented_ls (m : alloc.vec.Vec Std.U32) :
+    LSP (kernel.core_types.not_implemented m) (fun e => e = .NotImplemented m) := by
+  intro e h; simp only [kernel.core_types.not_implemented, Result.ok.injEq] at h
+  exact h.symm
+
+open Lockstep in
+@[lockstep] theorem core_types_internal_ls (m : alloc.vec.Vec Std.U32) :
+    LSP (kernel.core_types.internal m) (fun e => e = .Internal m) := by
+  intro e h; simp only [kernel.core_types.internal, Result.ok.injEq] at h; exact h.symm
+
 /-! ## The axiom census -/
 
 /-- info: 'ConRon.Refine2.list_allM_counted' depends on axioms: [propext, Classical.choice, Quot.sound] -/

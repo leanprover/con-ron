@@ -1508,6 +1508,15 @@ theorem native_parts_refines {pers st lst} {n_pd : Std.U64}
       (nativeParts? (absU n_pd) (absICIL block)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem native_parts_ls {pers st lst} {n_pd : Std.U64}
+    {block : alloc.vec.Vec arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = Option.map absNativeParts a)
+      (arena.inductives.native_parts.native_parts pers st n_pd block) lst
+      (nativeParts? (absU n_pd) (absICIL block)) :=
+  LS.ofSim₀ fun _ h => native_parts_refines hrel hinv h
+
 /-! ## The axiom census
 
 DESIGN.md §8.2's discipline (task #97-P5-0 §8): every CLOSED lemma of the tier
