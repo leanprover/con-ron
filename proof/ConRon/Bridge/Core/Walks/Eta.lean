@@ -639,4 +639,23 @@ theorem etaProjs_WScoped {d : Nat} {Tn : ConLeche.Name} {ls : List Level}
     · exact hwxs z hz
     · exact hwy
 
+/-! ## 6. The axiom census -/
+
+section Census
+
+#print axioms denoteNList_injC
+#print axioms relBP_isSome
+#print axioms optCI_rec_some
+#print axioms optCI_rec_none
+#print axioms projFnName_ok_spec
+#print axioms towerSlotsAll_spec
+#print axioms recSlotsAll_spec
+#print axioms structEtaProjCerts_spec
+#print axioms projNodesGo_spec
+#print axioms projAppsGo_spec
+#print axioms etaProjs_spec
+#print axioms etaProjs_WScoped
+
+end Census
+
 end ConRon.Bridge.Core
