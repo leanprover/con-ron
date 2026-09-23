@@ -892,8 +892,7 @@ theorem intern_resolves {ls : EStore} {v : ENodeView} (hwf : StoreWF ls)
     rw [intern_of_find hf]
     exact EStore.view_of_find hwf hf
   | none =>
-    refine EStore.intern_view_spec hwf hview ⟨hcap hf, ?_⟩
-    intro hb; rw [hbm] at hb; simp at hb
+    exact EStore.intern_view_spec hwf hview ⟨hcap hf, ECapBMAt.of_no_bm hbm⟩
 
 /-- The twin store's `view` only grows.  `Ext` (`Arena/Denote.lean`) is the
 DENOTATION half of the same monotonicity and is what the tier already carries;
@@ -1337,7 +1336,6 @@ theorem intern_rebuilt_refines {pers st lst} {h : arena.handle.EIdx} {same : Boo
     (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
     (hview : same = false → lst.store.ViewOK (absENodeView v))
     (hlit : same = false → ∀ l, v = .Lit l → ConRon.Refine.LiteralWF l)
-    (hbmcap : same = false → lst.store.capOKBM)
     (hpw : same = false → ∀ ty b m, v = .Lam ty b m ∨ v = .ForallE ty b m →
       ConRon.Refine.PropWhenWF m.pw)
     (hchildL : same = false → ∀ ty b m, v = .Lam ty b m →
@@ -1373,7 +1371,7 @@ theorem intern_rebuilt_refines {pers st lst} {h : arena.handle.EIdx} {same : Boo
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_run hrel hinv hfrozen v (hview rfl) (hlit rfl) (hbmcap rfl)
+    exact intern_e_run hrel hinv hfrozen v (hview rfl) (hlit rfl)
       (hpw rfl) (hchildL rfl) (hchildF rfl) (hcapB rfl) hrun
 
 
@@ -1383,7 +1381,6 @@ theorem intern_rebuilt_lam_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {ty body : arena.handle.EIdx} {m : kernel.expr.BinderMeta} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
-    (hbmcap : same = false → lst.store.capOKBM)
     (hpw : same = false → ConRon.Refine.PropWhenWF m.pw)
     (hchild : same = false →
       ((absEIdx ty).isPersistent = false ∨ (absEIdx body).isPersistent = false ∨
@@ -1416,7 +1413,7 @@ theorem intern_rebuilt_lam_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_lam_run hrel hinv hfrozen (hbmcap rfl) ty body m
+    exact intern_e_lam_run hrel hinv hfrozen ty body m
       (hpw rfl) (hchild rfl) (hcap rfl) (hview rfl) hrun
 
 /-- `Arena/ExprOps.lean:163 internRebuiltForallE`. -/
@@ -1424,7 +1421,6 @@ theorem intern_rebuilt_forall_e_refines {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {ty body : arena.handle.EIdx} {m : kernel.expr.BinderMeta} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
-    (hbmcap : same = false → lst.store.capOKBM)
     (hpw : same = false → ConRon.Refine.PropWhenWF m.pw)
     (hchild : same = false →
       ((absEIdx ty).isPersistent = false ∨ (absEIdx body).isPersistent = false ∨
@@ -1457,7 +1453,7 @@ theorem intern_rebuilt_forall_e_refines {pers st lst} {h : arena.handle.EIdx}
   · simp only [Bool.not_eq_true] at hs
     subst hs
     simp only [Bool.false_eq_true, if_false]
-    exact intern_e_forall_e_run hrel hinv hfrozen (hbmcap rfl) ty body m
+    exact intern_e_forall_e_run hrel hinv hfrozen ty body m
       (hpw rfl) (hchild rfl) (hcap rfl) (hview rfl) hrun
 
 
@@ -1469,7 +1465,6 @@ theorem intern_rebuilt_bind_refines {pers st lst} {h : arena.handle.EIdx}
     {m : kernel.expr.BinderMeta} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hfrozen : st.store.shared_on = true → st.store.scratch_on = true)
-    (hbmcap : same = false → lst.store.capOKBM)
     (hpw : same = false → ConRon.Refine.PropWhenWF m.pw)
     (hchildL : same = false → absU32 tag = ETag.lam →
       ((absEIdx ty).isPersistent = false ∨ (absEIdx body).isPersistent = false ∨
@@ -1517,7 +1512,7 @@ theorem intern_rebuilt_bind_refines {pers st lst} {h : arena.handle.EIdx}
       rw [if_pos rfl] at hrun
       rw [if_pos (show (absU32 arena.handle.ETAG_LAM == ETag.lam) = true by
         rw [etag_lam_abs]; simp)]
-      exact intern_e_lam_run hrel hinv hfrozen (hbmcap rfl) ty body m
+      exact intern_e_lam_run hrel hinv hfrozen ty body m
         (hpw rfl) (hchildL rfl (by rw [etag_lam_abs])) (hcapL rfl (by rw [etag_lam_abs]))
         (hviewL rfl (by rw [etag_lam_abs])) hrun
     · rw [if_neg hc] at hrun
@@ -1525,7 +1520,7 @@ theorem intern_rebuilt_bind_refines {pers st lst} {h : arena.handle.EIdx}
         rw [← etag_lam_abs]
         intro hcc; exact hc (absU32_inj hcc)
       rw [if_neg (show ¬ ((absU32 tag == ETag.lam) = true) by simp [hne])]
-      exact intern_e_forall_e_run hrel hinv hfrozen (hbmcap rfl) ty body m
+      exact intern_e_forall_e_run hrel hinv hfrozen ty body m
         (hpw rfl) (hchildF rfl hne) (hcapF rfl hne) (hviewF rfl hne) hrun
 
 
