@@ -54806,3 +54806,10 @@ Two name clashes surfaced only at the `ConRonBridge` build: `viewL_run` and
 `Base.lean`), so this lane's are `view{N,L,Ls,}_ok`.  **Rule**: a
 `ConRon.Bridge`-namespace helper in a low lane must be grepped against the
 whole of `Bridge/**`, not only its importers.
+
+**Gates**: merged `arena` twice (`77dc39c2`, then `6a90ba86` at `fe77a367`,
+a `DESIGN.md`-only conflict of two appended sections); `scripts/gates.sh`
+**all 16 OK** on the merge (`extract-check` 104 s, `lake-build` 112 s,
+`lake-refine2` 147 s, `lake-bridge` 30 s).  The gate's frontier line on the
+merged tip: **15 items, 51 tainted, dead weight 898** — the moves against the
+numbers above are the other lanes' landings in `arena`, not this lane's.
