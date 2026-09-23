@@ -25,6 +25,7 @@ is `getAppFn`/`getAppArgs` over.
 import ConRon.Bridge.Core.Walks.PropRead
 import ConRon.Bridge.Core.Walks.StrCtor
 import ConLeche.Verify.BetaSpine
+import ConRon.Bridge.Core.Walks.Iota
 
 namespace ConRon.Bridge.Core
 
@@ -219,30 +220,9 @@ because its two spine reads are fuelled walks whose success at the spine
 `whnfApp` holds is not provable (a `⇓?` triple claims nothing when they
 throw). -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — **THEOREM 1 for
-`iotaRecAt`**: one ι step at a spine the caller already holds, as a head `hd`
-denoting `H` and a push-order argument vector `sargs` denoting `xs`.  The
-pure side is con-leche's `iotaRec` at the reassembled `mkAppN H xs` (whose
-`getAppFn`/`getAppArgs` are `H`/`xs` when `H` is not an application — and
-when it is, `iotaRecAt`'s tag test answers `none` on both sides).
-
-**OPEN** — the ι tower's entry point, the same statement `iotaRec_spec`
-(`Walks/Owed.lean`) reduces to; owned by the `iota` lane of round 6. -/
-theorem iotaRecAt_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
-    (hμ : mode.verifiedChecks = true) (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (hd : EIdx) (sargs : Array EIdx) (H : Expr)
-    (xs : List Expr) (hok : CheckOK mode env fe s₀)
-    (hdh : denoteE s₀.store hd = some H)
-    (hdx : Frontend.denoteEList s₀.store sargs.toList = some xs)
-    (hw : Expr.WScoped d (Expr.mkAppN H xs)) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.iotaRecAt mode (coreKnot mode fe id fuel) fe d hd sargs
-        sargs.size
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
-          (Expr.mkAppN H xs)) d s'.store r⌝⦄ := by
-  sorry
+/-! `iotaRecAt_spec` is `Walks/Iota.lean`'s (the `iota` lane of round 6,
+CLOSED there): the held head is not an application (`hnapp`, a spine head) and
+the count is the whole vector (`hn`), both discharged at the call below. -/
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:224 iotaRec_head_not_const —
 **the iota step `whnfApp` runs at a non-λ head**: `iotaRecAt` when the
@@ -273,8 +253,9 @@ theorem whnfApp_iotaStep_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
         some (V.getAppArgs ++ [A]) := by
       simp only [Array.toList_push]
       exact ExprOps.denoteEList_snoc hda _ _ hdv
-    have h := iotaRecAt_spec henv hμ hsim s₀ d hd (vargs.push a) V.getAppFn
-      (V.getAppArgs ++ [A]) hok hdh hdx (by rw [happ]; exact hw)
+    have h := iotaRecAt_spec hμ henv hsim s₀ d hd (vargs.push a) (vargs.push a).size
+      V.getAppFn (V.getAppArgs ++ [A]) hok hdh
+      (fun f a => ConLeche.Expr.getAppFn_not_app V f a) rfl hdx (by rw [happ]; exact hw)
     rw [happ] at h
     exact h
   · rw [if_neg htc]
