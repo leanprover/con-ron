@@ -2149,7 +2149,7 @@ impl LStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1729-1734 LStore.internName
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1790-1795 LStore.internName
     /// Intern a name from the level store.  The Lean detaches the nested store
     /// before handing it down (lesson 14); `&mut` is that, so the Rust is the
     /// delegation the detaching exists to make safe.
@@ -2485,12 +2485,12 @@ impl LsStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1736-1742 LsStore.internName
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1797-1803 LsStore.internName
     pub fn intern_name(&mut self, pers: &PersTier, v: NNodeView) -> Result<NIdx, CheckError> {
         self.ls.intern_name(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1744-1750 LsStore.internLevel
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1805-1811 LsStore.internLevel
     pub fn intern_level(&mut self, pers: &PersTier, v: LNodeView) -> Result<LIdx, CheckError> {
         self.ls.intern(pers, v)
     }
@@ -3027,7 +3027,8 @@ pub fn e_bind_view(tag: u32, ty: EIdx, body: EIdx, m: BinderMeta) -> ENodeView {
     }
 }
 
-/// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin: none —
+/// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
+/// `proof/ConRon/Arena/Store.lean:1532-1543 EStore.eViewHasScratchChild` —
 /// **a tier test on the children, not a decode**: does any child handle of
 /// this view name the scratch tier?
 ///
@@ -3962,11 +3963,12 @@ impl EStore {
 
     /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
     /// `proof/ConRon/Arena/Store.lean:90-91 EStore.find?` — **the
-    /// persistent half of the twin's probe**, skipped when the view has a
-    /// scratch child, which `e_view_has_scratch_child`'s note argues it may
-    /// be.  The twin probes unconditionally and is not changed by this; what
-    /// is owed is one Theorem-2 lemma, `pers_find_maybe st v = st.pers.find v`
-    /// under `StoreWF`, after which every `intern` lemma reads as before.
+    /// persistent half of the probe**, skipped when the view has a scratch
+    /// child, which `e_view_has_scratch_child`'s note argues it may be.  The
+    /// twin skips too since task #97-T2-LOCKSTEP (divergence D2):
+    /// `EStore.persFindMaybe`/`persFindBindMaybe`, and Theorem 1 owns the
+    /// equation that the skip changes nothing under `StoreWF`
+    /// (`Arena/WFSkip.lean`).
     pub fn pers_find_maybe(&self, pers: &PersTier, v: &ENodeView, mi: &BMIdx) -> Option<EIdx> {
         if self.scratch_on {
             if e_view_has_scratch_child(v) {
@@ -4047,7 +4049,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1593-1594 EStore.internBVar` —
+    /// `proof/ConRon/Arena/Store.lean:1646-1647 EStore.internBVar` —
     /// `EStore.internBVar`, the `bvar` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4099,7 +4101,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1593-1597 EStore.internFVar` —
+    /// `proof/ConRon/Arena/Store.lean:1646-1650 EStore.internFVar` —
     /// `EStore.internFVar`, the `fvar` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4167,7 +4169,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1598-1599 EStore.internSort` —
+    /// `proof/ConRon/Arena/Store.lean:1651-1652 EStore.internSort` —
     /// `EStore.internSort`, the `sort` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4235,7 +4237,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1598-1602 EStore.internConst` —
+    /// `proof/ConRon/Arena/Store.lean:1651-1655 EStore.internConst` —
     /// `EStore.internConst`, the `const` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4295,7 +4297,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1603-1604 EStore.internApp` —
+    /// `proof/ConRon/Arena/Store.lean:1656-1657 EStore.internApp` —
     /// `EStore.internApp`, the `app` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4355,7 +4357,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1670-1674 EStore.internLam` —
+    /// `proof/ConRon/Arena/Store.lean:1731-1735 EStore.internLam` —
     /// `EStore.internLam`, the `lam` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4371,7 +4373,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1662-1665 EStore.internLamI` —
+    /// `proof/ConRon/Arena/Store.lean:1723-1726 EStore.internLamI` —
     /// `EStore.internLamI`, the `lam` arm over a node record whose binder datum
     /// is already a HANDLE.
     ///
@@ -4437,7 +4439,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1675-1679 EStore.internForallE` —
+    /// `proof/ConRon/Arena/Store.lean:1736-1740 EStore.internForallE` —
     /// `EStore.internForallE`, the `forall_e` arm of `EStore.intern`, over the
     /// node RECORD rather than over the view.
     ///
@@ -4453,7 +4455,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1666-1669 EStore.internForallEI` —
+    /// `proof/ConRon/Arena/Store.lean:1727-1730 EStore.internForallEI` —
     /// `EStore.internForallEI`, the `forall_e` arm over a node record whose
     /// binder datum is already a HANDLE.
     ///
@@ -4519,7 +4521,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1603-1607 EStore.internLetE` —
+    /// `proof/ConRon/Arena/Store.lean:1656-1660 EStore.internLetE` —
     /// `EStore.internLetE`, the `let_e` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4583,7 +4585,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1608-1610 EStore.internLit` —
+    /// `proof/ConRon/Arena/Store.lean:1661-1663 EStore.internLit` —
     /// `EStore.internLit`, the `lit` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4635,7 +4637,7 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1611-1613 EStore.internProj` —
+    /// `proof/ConRon/Arena/Store.lean:1664-1666 EStore.internProj` —
     /// `EStore.internProj`, the `proj` arm of `EStore.intern`, over the node
     /// RECORD rather than over the view.
     ///
@@ -4722,19 +4724,19 @@ impl EStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1752-1757 EStore.internName
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1813-1818 EStore.internName
     /// Intern a name from the expression store.
     pub fn intern_name(&mut self, pers: &PersTier, v: NNodeView) -> Result<NIdx, CheckError> {
         self.lss.intern_name(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1759-1764 EStore.internLevel
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1820-1825 EStore.internLevel
     /// Intern a level from the expression store.
     pub fn intern_level(&mut self, pers: &PersTier, v: LNodeView) -> Result<LIdx, CheckError> {
         self.lss.intern_level(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1766-1773 EStore.internLevels
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1827-1834 EStore.internLevels
     /// Intern a universe-argument list from the expression store.
     pub fn intern_levels(&mut self, pers: &PersTier, v: LsNodeView) -> Result<LsIdx, CheckError> {
         self.lss.intern(pers, v)
@@ -4769,10 +4771,10 @@ impl EStore {
 // persistent") and the transient `fresh` exception the bracket repairs — are
 // the twin's section note, and P3's.
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1819-1830 NStore.internPersistent
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1880-1891 NStore.internPersistent
 /// The name store's promote-intern.
 impl NStore {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1819-1830 NStore.internPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1880-1891 NStore.internPersistent
     /// Hash-cons a name node into the PERSISTENT tier whatever tier the store
     /// is in: `intern`'s `else` branch, verbatim, with no scratch probe.
     pub fn intern_persistent(&mut self, pers: &PersTier, v: NNodeView) -> Result<NIdx, CheckError> {
@@ -4791,7 +4793,7 @@ impl NStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1832-1835 NStore.capOKPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1893-1896 NStore.capOKPersistent
     /// `intern_persistent`'s capacity precondition, as a test rather than a
     /// `Prop`: the constructor's PERSISTENT array has room for one more node.
     pub fn cap_ok_persistent(&self, pers: &PersTier, v: &NNodeView) -> bool {
@@ -4799,10 +4801,10 @@ impl NStore {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1837-1847 LStore.internPersistent
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1898-1908 LStore.internPersistent
 /// The level store's promote-intern, and the name lift through it.
 impl LStore {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1837-1847 LStore.internPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1898-1908 LStore.internPersistent
     /// Hash-cons a level node into the persistent tier.
     pub fn intern_persistent(&mut self, pers: &PersTier, v: LNodeView) -> Result<LIdx, CheckError> {
         match self.pers_find(pers, &v) {
@@ -4820,13 +4822,13 @@ impl LStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1849-1852 LStore.capOKPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1910-1913 LStore.capOKPersistent
     /// The level store's capacity precondition for `intern_persistent`.
     pub fn cap_ok_persistent(&self, pers: &PersTier, v: &LNodeView) -> bool {
         !self.pers_full_of(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1897-1904 LStore.internNamePersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1996-2003 LStore.internNamePersistent
     /// Promote-intern a name from the level store.
     pub fn intern_name_persistent(
         &mut self,
@@ -4837,10 +4839,10 @@ impl LStore {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1854-1864 LsStore.internPersistent
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1915-1925 LsStore.internPersistent
 /// The level-list store's promote-intern, and the two lifts through it.
 impl LsStore {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1854-1864 LsStore.internPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1915-1925 LsStore.internPersistent
     /// Hash-cons a level list into the persistent tier.
     pub fn intern_persistent(
         &mut self,
@@ -4862,13 +4864,13 @@ impl LsStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1866-1869 LsStore.capOKPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1927-1930 LsStore.capOKPersistent
     /// The level-list store's capacity precondition for `intern_persistent`.
     pub fn cap_ok_persistent(&self, pers: &PersTier, v: &LsNodeView) -> bool {
         !self.pers_full_of(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1906-1913 LsStore.internNamePersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:2005-2012 LsStore.internNamePersistent
     /// Promote-intern a name from the level-list store.
     pub fn intern_name_persistent(
         &mut self,
@@ -4878,7 +4880,7 @@ impl LsStore {
         self.ls.intern_name_persistent(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1915-1922 LsStore.internLevelPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:2014-2021 LsStore.internLevelPersistent
     /// Promote-intern a level from the level-list store.
     pub fn intern_level_persistent(
         &mut self,
@@ -4889,10 +4891,10 @@ impl LsStore {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1871-1882 EStore.internPersistent
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1932-1943 EStore.internPersistent
 /// The expression store's promote-intern, and the three lifts through it.
 impl EStore {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1871-1882 EStore.internPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1932-1943 EStore.internPersistent
     /// Hash-cons an expression node into the persistent tier whatever tier the
     /// store is in.
     pub fn intern_persistent(&mut self, pers: &PersTier, v: ENodeView) -> Result<EIdx, CheckError> {
@@ -4914,13 +4916,13 @@ impl EStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1884-1889 EStore.capOKPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1983-1988 EStore.capOKPersistent
     /// The expression store's capacity precondition for `intern_persistent`.
     pub fn cap_ok_persistent(&self, pers: &PersTier, v: &ENodeView) -> bool {
         !self.pers_full_of(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1924-1931 EStore.internNamePersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:2023-2030 EStore.internNamePersistent
     /// Promote-intern a name from the expression store.
     pub fn intern_name_persistent(
         &mut self,
@@ -4930,7 +4932,7 @@ impl EStore {
         self.lss.intern_name_persistent(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1933-1940 EStore.internLevelPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:2032-2039 EStore.internLevelPersistent
     /// Promote-intern a level from the expression store.
     pub fn intern_level_persistent(
         &mut self,
@@ -4940,7 +4942,7 @@ impl EStore {
         self.lss.intern_level_persistent(pers, v)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1942-1949 EStore.internLevelsPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:2041-2048 EStore.internLevelsPersistent
     /// Promote-intern a universe-argument list from the expression store.
     pub fn intern_levels_persistent(
         &mut self,

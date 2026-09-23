@@ -260,7 +260,7 @@ pub fn install_value_tail(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:102-119 checkValueGroup
-/// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:103-123 checkValueGroup` —
+/// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:103-121 checkValueGroup` —
 /// **the check half of a value declaration**, at the environment the constant
 /// was installed at: the type's sort, the theorem's is-a-proposition test, for
 /// a theorem the value's guards and annotation, and the value's type against
@@ -284,7 +284,7 @@ pub fn check_value_group(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:102-119 checkValueGroup
-/// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:103-123 checkValueGroup` —
+/// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:103-121 checkValueGroup` —
 /// the cited `let jv ← if g.kind = .thm then … else pure g.jv`: a theorem's
 /// statement must be a proposition, and its raw value's guards and annotation
 /// run here.  A definition's or an opaque's value was annotated at the install
@@ -324,7 +324,7 @@ pub fn check_value_group_value(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:102-119 checkValueGroup
-/// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:103-123 checkValueGroup` —
+/// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:103-121 checkValueGroup` —
 /// the cited tail past the `let jv ← if …` join: the value's inferred type
 /// against the declared one.  Split off so the two branches of the join are
 /// tail calls.
