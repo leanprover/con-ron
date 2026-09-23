@@ -201,7 +201,13 @@ its own.
 authorised conclusion change): the fold boundary after a declaration needs
 the pushed index's environment well formed (task #97-P3-Checker round 9's
 finding); `Bridge/Inductives/Rel.lean`'s `IndOut` carries the same clause and
-`indSpec_of_bridge` passes it through. -/
+`indSpec_of_bridge` passes it through.
+**The membership-shaped projection-table clause, added** (task #97-P3-Ind
+round 9, the coordinator's authorised conclusion change on round 8's
+finding R8.5): every `.projInfo` row of the new index's list is an old row or
+well shaped at the new store.  `IndOut.proj` (`ProjOut`, both shapes) carries
+it; the one table push, `checkStructProjTable`, has `IProjTableOK` in hand
+(`ProjOut.push_table`).  With it `IndSpec.wf` below is a projection. -/
 structure IndSpec (μ : CheckMode) : Prop where
   run : ∀ {env : Env} {fe fe' : IFEnv} {s s' : AState}
       {block : List IConstantInfo} {b : List ConstantInfo} {nP : Nat}
@@ -213,7 +219,9 @@ structure IndSpec (μ : CheckMode) : Prop where
       IFEnvCoh fe' ∧ Pushed fe fe' ∧ fe.visibleBelow ≤ fe'.visibleBelow ∧
       ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
         ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.indDecl b nP)
-          = .ok env' ∧ EnvWF env'
+          = .ok env' ∧ EnvWF env' ∧
+        ∀ t, IConstantInfo.projInfo t ∈ fe'.env.consts →
+          IConstantInfo.projInfo t ∈ fe.env.consts ∨ IProjTableOK s'.store t
 
 /-- con-leche: ConLeche/Verify/Inductives/{SumWF,FixWF,StructWF}.lean
 direct_sum_ind_wf / direct_fix_rec_wf / direct_table_wf — **what the
@@ -247,16 +255,20 @@ structure IndWFSpec (μ : CheckMode) : Prop where
 /-- con-leche: none — **the Inductives tier's debt to `DeclOut`, at the
 hypothesis the capstone already takes**.
 
-`sorry` — OWED by the Inductives tier (task #97-P3-Checker round 10; the
-coordinator's ruling routes `envWF` through `IndOut`/`IndSpec`).  It is
+**PROVED** (task #97-P3-Ind round 9): a projection of `IndSpec.run`, whose
+last two conjuncts are exactly `IndWFSpec.run`'s two clauses.  Owed by the
+Inductives tier since task #97-P3-Checker round 10.  It is
 stated from `IndSpec` so that no statement above this tier changes: the
 capstones take `hind : IndSpec .verified`, and once `IndSpec.run` carries
 `IndWFSpec.run`'s two clauses this is `⟨fun hok hb hpin hrun => …⟩`, a
 projection.  Nothing in the checker tier can prove it: the route lives in
 `Bridge/Inductives/**`, one tier above. -/
-theorem IndSpec.wf {μ : CheckMode} (_hμ : μ.verifiedChecks = true) (_hind : IndSpec μ) :
+theorem IndSpec.wf {μ : CheckMode} (_hμ : μ.verifiedChecks = true) (hind : IndSpec μ) :
     IndWFSpec μ := by
-  sorry
+  refine ⟨fun {env fe fe' s s' block b nP} hok hb hpin hrun => ?_⟩
+  obtain ⟨-, -, -, -, -, -, env', -, hden, -, hwf, hproj⟩ :=
+    hind.run (pinsP := []) hok hb hpin hrun
+  exact ⟨fun env'' h => by rw [hden] at h; cases h; exact hwf, hproj⟩
 
 /-! ## One reader inversion both siblings want
 

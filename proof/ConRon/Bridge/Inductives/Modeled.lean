@@ -25,7 +25,7 @@ compares HANDLES (`ci == (← eqA)`), which is the same predicate because
 here for the third time in the campaign (after the Core tier's stuck-tag
 branch and `defeqPeel_chain`'s two equality short-circuits).
 -/
-import ConRon.Bridge.Inductives.NativeInstall
+import ConRon.Bridge.Inductives.ProjRule
 import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.Frontend.Shared
 import ConLeche.Verify.Extend.Iota
@@ -714,19 +714,6 @@ theorem renameConstsFast_pstep {fuel : Nat} {tbl : List (NIdx × NIdx)}
   obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
     (renameConstsFast_ns fuel _ fP s₀ e hok hren (by rw [hd]; rfl))
   exact ⟨PStep.of_caches h1 h2 h3 h4 h5, h6, h7 eP hd⟩
-
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux — the
-range peeled at its TOP, which is the order the twin's recursion runs in. -/
-theorem domsMatchAux_succ (g : Nat → Expr → Expr) (bs₁ bs₂ : List (Expr × BinderMeta))
-    (o₁ o₂ k : Nat) :
-    ConLeche.domsMatchAux g bs₁ bs₂ o₁ o₂ (k + 1) =
-      (ConLeche.domsMatchAux g bs₁ bs₂ o₁ o₂ k &&
-        (match bs₁[o₁ + k]?, bs₂[o₂ + k]? with
-         | some b₁, some b₂ => b₁.1 == g k b₂.1
-         | _, _ => false)) := by
-  simp only [ConLeche.domsMatchAux, List.range_succ, List.all_append, List.all_cons,
-    List.all_nil, Bool.and_true]
-  rfl
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux —
 `domsMatchAux` with the right side renamed; con-leche's higher-order `g` is
@@ -2620,8 +2607,14 @@ theorem checkProjIota_spec {μ : CheckMode} (fe' feSelf : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:565-584 checkProjFn
 One projection function checked and installed.
 
-`sorry`: `checkProjLookups_spec`, `checkProjTy_spec`, `checkProjIota_spec`,
-`CoreSpec.knot`'s `defeq` slot and `IFEnv.push`. -/
+**CLOSED** (task #97-P3-Ind round 9) as a composition: `checkProjLookups_spec`,
+`checkProjTy_spec`, `Bridge/Inductives/ProjRule.lean`'s `checkProjShape_spec`,
+`checkProjRule_spec` and `projFnRule_run`, `checkProjIota_spec` (still open:
+this theorem inherits its `sorryAx` from there alone), `projFnName_run` and
+`denoteFEnv_push`.  The two scoping facts `checkProjRule_spec` takes are the
+pure run's own, exactly as con-leche's `checkProjFn_wfimp` reads them:
+`checkProjTy_wf` for the projection type and `EnvWF` at the stored
+constructor. -/
 theorem checkProjFn_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
     (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (hcoh : IFEnvCoh fe')
     (T ctorName : NIdx)
@@ -2635,7 +2628,84 @@ theorem checkProjFn_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
       (Arena.checkProjFn μ fe' T ctorName lps nP nF i)
       (InstRel fe' (fun e => ∃ F, ConLeche.checkProjFn
         μ (ConLeche.fueledOps μ F) env TP ctorNameP lpsP nP nF i = .ok e)) := by
-  sorry
+  intro s₀ s' r hck hpre hrun
+  obtain ⟨hT, hC, hlps, hfe⟩ := hpre
+  have hnever : ∀ {α β : Type} {e : Arena.CheckError} {g : α → AM β},
+      AM.Never ((Arena.fail e : AM α) >>= g) := fun {_ _ _ _} => AM.Never.fail_any
+  simp only [Arena.checkProjFn] at hrun
+  -- stage 1, the lookups
+  obtain ⟨pr, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨c1, cvjP, mcvP, hlk, hcvj, hmcv⟩ := checkProjLookups_spec fe' T ctorName TP
+    ctorNameP lps lpsP nP nF i s₀ s₁ pr hck ⟨hT, hC, hlps, hfe⟩ k1
+  obtain ⟨cvj, mcv⟩ := pr
+  have x01 := c1.ext
+  -- stage 2, the type
+  obtain ⟨pty, s₂, k2, z2⟩ := bindOk z1
+  obtain ⟨c2, ptyP, hty, hpty⟩ := checkProjTy_spec fe' T ctorName TP ctorNameP lps lpsP
+    mcv.type mcvP.type nP nF s₁ s₂ pty c1.ok
+    ⟨denoteN_ext hT x01, denoteN_ext hC x01, denoteNListE_ext x01 _ _ hlps,
+      denoteCV_type hmcv, denoteFEnv_ext x01 hfe⟩ k2
+  have c02 := c1.trans c2
+  -- stage 2b, the shape
+  obtain ⟨u, s₃, k3, z3⟩ := bindOk z2
+  obtain ⟨p3, hshape⟩ := checkProjShape_spec pty cvj.type ptyP cvjP.type nP nF s₂ s₃ u
+    c02.ok.state ⟨hpty, denote_ext (denoteCV_type hcvj) c2.ext⟩ k3
+  have c03 := c02.trans (p3.toCore c02.ok)
+  obtain ⟨hi, z4⟩ := AM.dunless_ok hnever z3
+  replace z4 := AM.pure_bind_ok z4
+  -- the scoping facts the rule's frame pins need
+  obtain ⟨cnP0, cnF0, hctor⟩ := ConLeche.checkProjLookups_ctor hlk
+  obtain ⟨hptyf, -⟩ := ConLeche.checkProjTy_wf hty
+  have hCf : cvjP.type.hasFvar = false := (henv _ (ConLeche.find?_mem hctor)).1
+  -- stage 3, the rule
+  have x13 : Ext s₁.store s₃.store := c2.ext.trans p3.ext
+  obtain ⟨rhsA, s₄, k4, z5⟩ := bindOk z4
+  obtain ⟨c4, F₁, rhsAP, hF₁, hrhsA⟩ := checkProjRule_spec fe' hk henv pty ptyP cvj cvjP
+    lps lpsP nP nF i hptyf hCf s₃ s₄ rhsA c03.ok
+    ⟨denote_ext hpty p3.ext, denoteCV_ext hcvj x13,
+      denoteNListE_ext c03.ext _ _ hlps⟩ k4
+  have c04 := c03.trans c4
+  -- stage 4, the iota certificate
+  obtain ⟨u2, s₅, k5, z6⟩ := bindOk z5
+  obtain ⟨c5, F₂, hF₂⟩ := checkProjIota_spec fe' fe' env env hk henv T ctorName TP
+    ctorNameP lps lpsP cvj cvjP nP nF i s₄ s₅ u2 c04.ok
+    ⟨denoteN_ext hT c04.ext, denoteN_ext hC c04.ext, denoteNListE_ext c04.ext _ _ hlps,
+      denoteCV_ext hcvj (x13.trans c4.ext), denoteFEnv_ext c04.ext hfe,
+      denoteFEnv_ext c04.ext hfe, c04.ok.ienv.toS⟩ k5
+  have c05 := c04.trans c5
+  -- the install
+  obtain ⟨pn, s₆, k6, z7⟩ := bindOk z6
+  obtain ⟨p6, hpn⟩ := projFnName_run c05.ok.state (denoteN_ext hT c05.ext) k6
+  have c06 := c05.trans (p6.toCore c05.ok)
+  have x26 : Ext s₂.store s₆.store := p3.ext.trans (c4.ext.trans (c5.ext.trans p6.ext))
+  have x46 : Ext s₄.store s₆.store := c5.ext.trans p6.ext
+  obtain ⟨rule, s₇, k7, z8⟩ := bindOk z7
+  obtain ⟨c7, hrule⟩ := projFnRule_run c06.ok c06.ok.ienv.toS (denoteN_ext hT c06.ext)
+    (denoteN_ext hC c06.ext) (denote_ext hpty x26) (denote_ext hrhsA x46) k7
+  have c07 := c06.trans c7
+  obtain ⟨rfl, rfl⟩ := pureOk z8
+  have hdci : Frontend.denoteCI s'.store (.recInfo ⟨pn, lps, pty⟩ nP nP [rule]) =
+      some (.recInfo ⟨ConLeche.projFnName TP i, lpsP, ptyP⟩ nP nP
+        [ConLeche.projFnRule env.find? TP ctorNameP ptyP nP nF i rhsAP]) := by
+    simp [Frontend.denoteCI, Frontend.denoteCV, Frontend.denoteRules,
+      denoteN_ext hpn c7.ext, denoteNListE_ext c07.ext _ _ hlps,
+      denote_ext hpty (x26.trans c7.ext), hrule]
+  refine ⟨c07, hcoh.push _, Pushed.push _ _, Nat.le_succ _,
+    ⟨_, denoteFEnv_push (denoteFEnv_ext c07.ext hfe) hdci, max F₁ F₂, ?_⟩,
+    ProjOut.push hcoh _ (fun t h => IConstantInfo.noConfusion h)⟩
+  have g1 : ConLeche.checkProjRule (ConLeche.fueledOps μ (max F₁ F₂)) env ptyP cvjP lpsP
+      nP nF i = .ok rhsAP := by
+    rw [← ConLeche.checkProjRule_datF] at hF₁ ⊢
+    exact (ConLeche.checkProjRule (ConLeche.fueledOpsM μ) env ptyP cvjP lpsP nP nF i).property
+      (by omega) hF₁
+  have g2 : ConLeche.checkProjIota μ (ConLeche.fueledOps μ (max F₁ F₂)) env env TP ctorNameP
+      lpsP cvjP nP nF i = .ok () := by
+    rw [← ConLeche.checkProjIota_datF] at hF₂ ⊢
+    exact (ConLeche.checkProjIota μ (ConLeche.fueledOpsM μ) env env TP ctorNameP lpsP cvjP
+      nP nF i).property (by omega) hF₂
+  simp only [ConLeche.checkProjFn, bind, Except.bind, hlk, hty, hshape]
+  rw [if_pos hi]
+  simp only [g1, g2, pure, Except.pure]
 
 /-! ## The capability theorems -/
 
@@ -2662,45 +2732,6 @@ theorem denoteCI_kind {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
   case ctorInfo v _ _ => obtain ⟨_, rfl, _⟩ := denoteCI_ctor_inv h; rfl
   case recInfo v _ _ _ => obtain ⟨_, _, rfl, _⟩ := denoteCI_rec_inv h; rfl
   case projInfo t => obtain ⟨_, rfl, _⟩ := denoteCI_proj_inv h; rfl
-
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux — **the
-arena's binder comparison IS con-leche's at `g := fun _ e => e`**: the handle
-arrays are the lists' `toArray`, and each handle comparison is
-`beq_ehandle_eq`. -/
-theorem domsMatchAux_eq {st : EStore} (hwf : StoreWF st)
-    {bs₁ bs₂ : List (EIdx × BinderMeta)} {xs₁ xs₂ : List (Expr × BinderMeta)}
-    (h1 : denoteBinders st bs₁ = some xs₁) (h2 : denoteBinders st bs₂ = some xs₂)
-    (o₁ o₂ : Nat) : ∀ n, Arena.domsMatchAux bs₁.toArray bs₂.toArray o₁ o₂ n =
-      ConLeche.domsMatchAux (fun _ e => e) xs₁ xs₂ o₁ o₂ n := by
-  intro n
-  induction n with
-  | zero => rfl
-  | succ k ih =>
-    rw [domsMatchAux_succ]
-    have hA : Arena.domsMatchAux bs₁.toArray bs₂.toArray o₁ o₂ (k + 1) =
-        (Arena.domsMatchAux bs₁.toArray bs₂.toArray o₁ o₂ k &&
-          (match bs₁[o₁ + k]?, bs₂[o₂ + k]? with
-           | some b₁, some b₂ => b₁.1 == b₂.1
-           | _, _ => false)) := by
-      simp only [Arena.domsMatchAux, List.range_succ, List.all_append, List.all_cons,
-        List.all_nil, Bool.and_true, List.getElem?_toArray]
-      rfl
-    rw [hA, ih]
-    congr 1
-    obtain ⟨hA1, hB1⟩ := denoteBinders_getElem? h1 (o₁ + k)
-    obtain ⟨hA2, hB2⟩ := denoteBinders_getElem? h2 (o₂ + k)
-    cases hb1 : bs₁[o₁ + k]? with
-    | none => simp [hB1 hb1]
-    | some p1 =>
-    obtain ⟨t1, m1⟩ := p1
-    obtain ⟨t1P, hp1, hd1⟩ := hA1 t1 m1 hb1
-    cases hb2 : bs₂[o₂ + k]? with
-    | none => simp [hp1, hB2 hb2]
-    | some p2 =>
-    obtain ⟨t2, m2⟩ := p2
-    obtain ⟨t2P, hp2, hd2⟩ := hA2 t2 m2 hb2
-    simp only [hp1, hp2]
-    exact beq_ehandle_eq hwf hd1 hd2
 
 /-- con-leche: none — **a stored theorem, read back through the index**:
 `IFEnvOK`'s `cover` at a theorem, with the handle it is stored under pinned by
