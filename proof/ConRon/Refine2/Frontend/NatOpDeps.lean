@@ -5,7 +5,8 @@
 operation pins into a `NatOpPins` record (`nat_op_pins`, split in two by the
 extraction) and tests `c` against them; the twin (`Arena/Core.lean:882`) reads
 the same fifteen pins in the same order and tests the same chain.  The pin
-readers are one `@[lockstep]` lemma each; the record is a Rust-only repack.
+readers are `Checker/Pins.lean`'s `@[lockstep]` `nat_*_name_ls`; the record is
+a Rust-only repack.
 
 ## `sorry` count in this file: 0
 -/
@@ -20,96 +21,6 @@ namespace ConRon.Refine2.Frontend
 
 open ConRon.Arena
 open ConRon.Refine2.Lockstep
-
-@[lockstep] theorem nat_pred_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.nat_pred_name st) lst natPredName :=
-  LS.ofSim₀ fun _ h => name_read_sim hrel hinv
-    (fun _ hr => pin_nat_pred_refines hrel hinv hr) (by rw [arena.core.nat_pred_name] at h; exact h)
-
-@[lockstep] theorem nat_add_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.nat_add_name st) lst natAddName :=
-  LS.ofSim₀ fun _ h => name_read_sim hrel hinv
-    (fun _ hr => pin_nat_add_refines hrel hinv hr) (by rw [arena.core.nat_add_name] at h; exact h)
-
-@[lockstep] theorem nat_sub_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.nat_sub_name st) lst natSubName :=
-  LS.ofSim₀ fun _ h => name_read_sim hrel hinv
-    (fun _ hr => pin_nat_sub_refines hrel hinv hr) (by rw [arena.core.nat_sub_name] at h; exact h)
-
-@[lockstep] theorem nat_mul_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.nat_mul_name st) lst natMulName :=
-  LS.ofSim₀ fun _ h => name_read_sim hrel hinv
-    (fun _ hr => pin_nat_mul_refines hrel hinv hr) (by rw [arena.core.nat_mul_name] at h; exact h)
-
-@[lockstep] theorem nat_pow_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.nat_pow_name st) lst natPowName :=
-  LS.ofSim₀ fun _ h => name_read_sim hrel hinv
-    (fun _ hr => pin_nat_pow_refines hrel hinv hr) (by rw [arena.core.nat_pow_name] at h; exact h)
-
-@[lockstep] theorem nat_beq_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.nat_beq_name st) lst natBeqName :=
-  LS.ofSim₀ fun _ h => name_read_sim hrel hinv
-    (fun _ hr => pin_nat_beq_refines hrel hinv hr) (by rw [arena.core.nat_beq_name] at h; exact h)
-
-@[lockstep] theorem nat_ble_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.nat_ble_name st) lst natBleName :=
-  LS.ofSim₀ fun _ h => name_read_sim hrel hinv
-    (fun _ hr => pin_nat_ble_refines hrel hinv hr) (by rw [arena.core.nat_ble_name] at h; exact h)
-
-@[lockstep] theorem nat_div_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.nat_div_name st) lst natDivName :=
-  LS.ofSim₀ fun _ h => name_read_sim hrel hinv
-    (fun _ hr => pin_nat_div_refines hrel hinv hr) (by rw [arena.core.nat_div_name] at h; exact h)
-
-@[lockstep] theorem nat_mod_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.nat_mod_name st) lst natModName :=
-  LS.ofSim₀ fun _ h => name_read_sim hrel hinv
-    (fun _ hr => pin_nat_mod_refines hrel hinv hr) (by rw [arena.core.nat_mod_name] at h; exact h)
-
-@[lockstep] theorem nat_gcd_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.nat_gcd_name st) lst natGcdName :=
-  LS.ofSim₀ fun _ h => name_read_sim hrel hinv
-    (fun _ hr => pin_nat_gcd_refines hrel hinv hr) (by rw [arena.core.nat_gcd_name] at h; exact h)
-
-@[lockstep] theorem nat_land_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.nat_land_name st) lst natLandName :=
-  LS.ofSim₀ fun _ h => name_read_sim hrel hinv
-    (fun _ hr => pin_nat_land_refines hrel hinv hr) (by rw [arena.core.nat_land_name] at h; exact h)
-
-@[lockstep] theorem nat_lor_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.nat_lor_name st) lst natLorName :=
-  LS.ofSim₀ fun _ h => name_read_sim hrel hinv
-    (fun _ hr => pin_nat_lor_refines hrel hinv hr) (by rw [arena.core.nat_lor_name] at h; exact h)
-
-@[lockstep] theorem nat_xor_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.nat_xor_name st) lst natXorName :=
-  LS.ofSim₀ fun _ h => name_read_sim hrel hinv
-    (fun _ hr => pin_nat_xor_refines hrel hinv hr) (by rw [arena.core.nat_xor_name] at h; exact h)
-
-@[lockstep] theorem nat_shift_left_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.nat_shift_left_name st) lst natShiftLeftName :=
-  LS.ofSim₀ fun _ h => name_read_sim hrel hinv
-    (fun _ hr => pin_nat_shift_left_refines hrel hinv hr) (by rw [arena.core.nat_shift_left_name] at h; exact h)
-
-@[lockstep] theorem nat_shift_right_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.nat_shift_right_name st) lst natShiftRightName :=
-  LS.ofSim₀ fun _ h => name_read_sim hrel hinv
-    (fun _ hr => pin_nat_shift_right_refines hrel hinv hr) (by rw [arena.core.nat_shift_right_name] at h; exact h)
 
 /-! ## The pin record
 

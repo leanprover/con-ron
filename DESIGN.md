@@ -2994,7 +2994,9 @@ Things deliberately left for the end, recorded here so they are not lost.
   the ~20 `M_FROZEN` sites in `arena::store` (`shared_on` set during a
   persistent intern) from `Internal` to `Native` — "fine for now, it gives
   partial correctness; but if there is an invariant why we do not hit this
-  code path we should be able to prove this."  So, once every `sorry` is
+  code path we should be able to prove this."  `M_REFREEZE` joins them (task
+  #97-T2-LOCKSTEP D4c: the pin attempt reached on an already-frozen store;
+  unreachable because phase B never calls `check_decl`).  So, once every `sorry` is
   gone: for each `Native` site, either prove it unreachable from the
   checker's entry (the frozen guard should follow from the phase discipline:
   nothing interns persistently while the tier is shared), or document why it
@@ -60042,6 +60044,1103 @@ itself a frontier `sorry` and does not route through this tier yet.
 `scripts/gates.sh` on the tip after the one `arena` merge: **all 16 OK**.
 Slice 1 was gated separately before it landed (all 16 OK).
 
+### Task #97-T2-LOCKSTEP lane Checker round 2 — the `hkpre` divergence fixed in the twin; pin gates by `lockstep` (2026-09-23, Opus under Fable)
+
+Worktree `_tmp/wt-t2-checker3` off `arena` `ef5e1eec`.  Lane
+`Refine2/Checker/**`, under the lockstep rule.
+
+#### 1. `hkpre`: the twin runs the pin gates where the Rust does
+
+**The divergence** (round 1's finding): the Rust keeps one environment index
+and runs `checkDecl`'s three pin gates (structural `Nat` certification,
+`Nat.div`/`mod`, compiler-trust `reduce*`) at `restrict(fe2, k_pre)`; the twin
+ran them at `fe`, the pre-install environment, a different value.  **Fixed in
+the twin** (`Arena/Checker.lean`'s `.defnDecl`/`.opaqueDecl` arms): the gates
+run at `fe2.restrictTo fe.visibleBelow`.  Two smaller divergences the zip
+exposed on the same path, also fixed in the twin:
+
+* `checkReducePin` tested `(← reduceStoredOk fe2 c) && (← reduceElemOk fe c)`
+  — both reads always; the Rust (`check_reduce_pin`) fails on the stored test
+  before `check_reduce_pin_pre` reads the element one.  Now nested `if`s
+  (`Arena/DeclCheck.lean`).
+* the structural gate read `natOpDeps` before `natOpGuard`; the Rust
+  (`check_structural_nat_pin`) calls the guard first.  Reordered (both are
+  pin reads and state-free in effect, but the zip is by operation).
+
+**Theorem 1's repair is small, not a Core-tier congruence.**  Every gate lemma
+in Bridge is stated at the invariant `CheckOK μ env fe`, and `CheckOK` reads
+its index only through `find?` (`IFEnvOK`'s three clauses; `CacheOK`/`PinsOK`
+do not mention it).  So the "congruence of the knot over `find?`-equal
+environments" round 1 priced is not needed: the knot (`CoreSpec.knot`) is
+stated for EVERY index satisfying `CheckOK`, and `CheckOK.congr_find` moves the
+invariant to the restricted index.  New in `Bridge/Checker/Hyp.lean`:
+`IFEnv.find?_push_restrict` (the restricted push of a fresh name answers the
+old `find?`), `IFEnvOK/CheckOK/CoreStep.congr_find`, `IFEnvOK.find?_none`; in
+`Bridge/Checker/Arms.lean`: `checkDefnVal_pushed`, `checkOpaqueVal_pushed`,
+`checkConstantVal_fresh`, `restrict_pushed_find` (~110 lines together).
+`certifyNatEqs_bridge`, `checkDivModPin_bridge`, `checkReducePin_bridge` now
+take `CheckOK` + `EnvWF` instead of `FoldOK` (they never used the rest), and
+the two arm proofs pass the restricted invariant.  No Bridge statement
+consumed from outside changed; `lake build ConRonBridge` green.
+
+**The six `hkpre` statements are restated** at `lf2.restrictTo (absU k_pre)`
+with the Rust-input bound `hk : k_pre ≤ rf2.visible_below` (legit: the
+restricted `IFEnvInv`'s counter bound), and **all nine pin-gate statements
+are closed by `lockstep`**: `check_reduce_pin`, `check_div_mod_pin`,
+`check_div_mod_pin_at_pre` (DeclCheck), `check_opaque_reduce_pin`,
+`check_structural_nat_pin{,_eqs,_certify}`, `check_defn_div_mod_pin`,
+`check_defn_pins` (Top), and the two arms above them, `check_defn_decl` and
+`check_opaque_decl`.  Each is `rw [rust, twinSpec]; lockstep` (plus one
+`simp only` and, in `check_defn_pins`, one manual `if` decision where the
+tactic moves the Rust bind first).  The three structural-gate statements
+answer `fun r _ => IFEnvRelI r lf2` (the Rust hands back `restrict(fe_pre,
+k2)`, a new record equal to `fe2` in every field the twin sees; the twin
+answers its `fe2`).  `check_defn_val`/`check_opaque_val` now also conclude
+`rf.visible_below ≤ r.visible_below` (a Rust fact about the push) so the
+arms can discharge `hk`.
+
+Extension points only (no edit to `Tactic/Lockstep.lean`): `@[lockstep]`
+`ifenv_restrict_to_spec` (Rust-only step, answer substituted),
+`IFEnvRelI.restrict` via a second `lockstep_side_ext` rule, and wrappers
+`reduce_stored_ok_ls`, `check_reduce_pin_pre_ls`, `defn_value_spec`
+(`TwinEq` over the new twin-side name `defnValueOf`),
+`check_div_mod_pin_loop_nil_ls`, `div_mod_env_guard_ls`,
+`nat_op_{guard,deps,equations,stored_ok_all}_ls`, `subst_const0_pairs_nil_ls`,
+`certify_nat_eqs_ls`, and the `_ls` of every restated statement.  Twin-side
+splits in `Checker/Spec.lean`: `checkReducePin_split`, `checkDivModPin_split`,
+`checkStructuralNatPinEqsSpec_split`; `checkReducePinPreSpec` gained the
+element guard; `checkDefnPinsSpec`'s join point written out.
+
+New leaf statements (stated, `sorry`, the frontier's new items):
+`nat_op_guard_refines`, `nat_op_deps_refines`, `nat_op_equations_refines`
+(`arena::core` readers no tier had stated).  `defn_value_refines` closed
+(`ifenv_find_abs`).
+
+#### 2. Duplicates and dead shapes
+
+* `Frontend/NatOpGround.lean`'s `pin_at_refines₀`, `pin_slot₀`,
+  `nat_op_names_refines₀`, `nat_div_mod_names_refines₀` deleted (~330
+  lines); `is_nat_op_record_refines` uses the Checker copies, which are
+  `AStateRel₀` since round 1.
+* `IndRel` (`Checker/Shape.lean`) deleted: old `AStateRel`/`SimRel` shape, no
+  consumer.
+
+#### 3. Frontier items closed
+
+`Checker/Axioms.lean`: 26 pin readers (`iff_*_raw`, `iff_rec_intro`,
+`{iff,nonempty}_family`, `propext_raw`, `choice_raw`, `eq_a`, `nat_a`,
+`true_cv_a`, `true_intro_cv_a`, `trust_compiler_a`, `bool_cv_a`,
+`reduce_{nat,bool}_cv_a`, `of_reduce_{nat,bool}_a`,
+`reduce_{nat,bool}_decl_pin`, `basis_kind_decls{,_a}`), each one line through
+four new helpers `sim_intern_{ci,cv,expr,ci_list}_of` = the pinned-data tier's
+`*_refines` (`Refine/{StdAxioms,TrustAxioms,BasisPins,BasisRaw,BasisTables}`)
+composed with `Promote/Intern.lean`'s intern entries.
+
+#### Frontier, gates, submission
+
+`scripts/frontier.sh ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`: **start** (`arena` `ef5e1eec`) 50
+items / 129 tainted / dead weight 574; **after this slice** 41 / 145 / 550.
+(Tainted grew because the closed arms now reach their leaves; the Checker
+items on the frontier are now leaves: `certify_nat_eqs`,
+`check_div_mod_pin_loop`, the guard readers, `check_constant_val`,
+`install_*`, `check_{defn,thm,opaque}_val`.)
+
+**Rulings needed:** none for this slice.  `check_div_mod_pin_try_refines` /
+`ScratchFrame` and the `IFEnvRel` fields remain the coordinator's.
+
+
+#### Slice 2 — the frontier leaves (worktree `_tmp/wt-t2-checker4`)
+
+**One more divergence, fixed in the twin: `bool_ctor_typed`.**  The twin's
+`divModEnvGuard` interned `.const Bool []` ONCE, before looking up the two
+`Bool` constructors; the Rust (`bool_ctor_typed`) looks the constructor up
+first and interns `Bool` only on a hit, per constructor.  On a miss the twin
+wrote the store where the Rust did not.  The twin now has
+`Arena.boolCtorTyped` in the Rust's order; Theorem 1's repair is one
+`RunsB` lemma (`Bridge/Checker/DivMod.lean`'s `boolCtorTyped_runsB`) and a
+four-line change to `divModEnvGuard_run`.
+
+**Transcriptions corrected to the Rust's split points** (`Checker/Spec.lean`;
+no twin change): `divModSlotSpec`/`divModSlot1Spec` (the Rust's `div_mod_slot_1`
+starts at `gcd`), `installConstantValTailSpec`/`installValueTailSpec` (explicit
+binds: the `unless` join point made the tactic stop), `boolCtorTypedSpec` (now
+the twin's function), and new split equations `checkThmVal_split`,
+`checkReducePin_split`, `checkDivModPin_split`,
+`checkStructuralNatPinEqsSpec_split`, `divModEnvGuardRestSpec_split`.
+
+**Closed, all by `lockstep`** (≈55 statements): `certify_nat_eqs` (cursor
+induction), `check_div_mod_pin_loop` (cursor induction; after the D4c merge the
+try step takes the loop at `i + 1` as `hloop`, which the induction hypothesis
+supplies, and the attempt as `hat`, which `check_div_mod_pin_at_refines`
+supplies — so the loop, the try and the seam are one closed recursion modulo
+their leaves), `check_constant_val{,_guards,_after_annot}`,
+`install_constant_val{,_tail}`, `install_value_tail`,
+`check_{defn,thm,opaque}_val`, `check_thm_val_witness`,
+`check_value_group_value`, `ifenv_find_cv`, `bool_ctor_typed`,
+`div_mod_env_guard`, `div_mod_pin_guard`, `div_mod_certs_guard`,
+`check_div_mod_pin_{certs,at}`, `check_reduce_pin_{pre,value}`,
+`check_reduce_identity`, `reduce_{stored,pin_guard,elem_ok_bool}`,
+`{iff,nonempty,true}_pinned`, `matches_pin_of_ci`, `eq_at1{,_app}`, `nat_one`,
+`nat_var`, the certificate readers `cert_{guard,eq,halves,lor,xor,lor_rhs,
+xor_rhs,shift_left,shift_right,land,div_mod_guards}`, `cert_ctx{,_names,
+_names_rest}`, `div_mod_cert_{stmts_at,applied}`, `div_mod_slot`, the Axioms
+pin readers `of_reduce_op`, `reduce_elem_{name,ty}`, `reduce_op_cv_a`,
+`of_reduce_pin_a`, `reduce_decl_pin`, `reduce_cert_var`, and the Top arms
+`check_quot_decl`, `check_axiom_decl_rest`, `open_pis_at_fvars_f`.
+
+**Extension points only** (no edit to `Tactic/Lockstep.lean`): `@[lockstep]`
+wrappers for every `_refines` statement of `Checker/{Axioms,Pins,Base,
+DeclCheck}.lean` (generated, `_tmp/t2c4-scratch/genls.py`, now also for
+`SimRE` → `LSR`); specs for the pinned-name readers, `ifenv_find` (a `TwinEq`
+rewrite), `ifenv_push` (now also concludes the counter grows),
+`lift_fueled`, `nidx_vec_dup`, `is_thm`, `eidx eq2`, `const_e`/`nat_ap1`/
+`nat_ap2`, `i_constant_info_to_constant_val` (`LSS`), `install_value` at a
+split scalar, `unresolved_consts_error` at its two subjects; `@[lockstep_simp]`
+`ite_true`/`ite_false`, `Option.isSome_map`, `IFEnv.restrictTo_visibleBelow`.
+Moves: `LSR.ofSimRE` from `KnotHyp` to `Checker/Pins` (so the pin readers can
+be filed there); `i_constant_info_to_constant_val_refines` and `withStore`
+from the Frontend tier down to `Checker/{Pins,Shape}` (the checker's lookups
+need them); on merging `arena`, the Inductives lane's duplicate `lvl_eq_ls`/
+`zero_level_ls` (`Inductives/Prims.lean`) removed in favour of the Checker
+tier's, and this lane's `basis_pin_hit_ls` removed in favour of `Top.lean`'s.
+
+**Two tactic limits met, worked around per proof** (for the tactic's owner):
+a lemma whose twin carries a parameter the Rust does not determine (`liftFueled
+what`, `unresolvedConstsError what`, the loop's `tried` list) is never picked —
+its free argument becomes a side goal — so such lemmas are filed at their
+call sites' constants; and when the Rust binds while the twin tests an `if`,
+the Rust step wins through `LS.twin_bind_pure` and the twin `if` is left
+wrapped as `(if …) >>= pure` (`install_value_tail` finishes with one
+`rw [bind_pure, if_neg]`).
+
+**Blocked on other lanes:** `install_value`, `check_constant_val_guards_rest`,
+`ground_guards`, `proj_rule_wf` call the ExprOps walks
+`loose_bvars_bounded_fast`/`has_fvar_fast`, whose statements are still on the
+old `AStateRel`; `check_div_mod_pin_attempt` is the D4c seam.
+
+**Lane split** (coordinator, mid-slice): `Checker/Base.lean` and
+`Checker/Top.lean` pass to a new agent from this commit on; this lane keeps
+`Checker/{DeclCheck,Axioms}.lean`.
+
+Frontier (`model_exists` + `no_False_declaration`), before the `arena` merge:
+**41 / 145 / 550 → 42 items / 198 tainted / 487 dead weight**; the item count
+holds because each closed arm exposes its leaves, and the dead weight (the
+direct `sorry`s off the frontier) fell by 63.
+
+### Task #97-T2-LOCKSTEP lane Inductives round 3 — the tier wired into the capstone; fan-in by `lockstep` (2026-09-23, Opus under Fable)
+
+Worktree `_tmp/wt-t2-ind3`, branch `t2-ind-3` off `arena` `ef5e1eec`.  The
+brief: (1) make `Checker/Top.lean`'s `check_ind_decl_refines` a consequence
+of the tier's top, so the tier stops being dead weight; (2) close the tier's
+items by fan-in with the shared `lockstep` tactic.
+
+#### Slice 1 — the wire
+
+**`check_ind_decl_refines` is one `lockstep` call** (`rw
+[arena.checker.check_ind_decl, checkIndDeclArmSpec]; lockstep`) over four
+`@[lockstep]` wrappers: `basis_pin_hit_ls` (new, `Checker/Top.lean`, beside
+it — the one glue lemma added in the checker's file), `check_basis_decl_ls`
+(the checker lane's), `inductives_check_ind_decl_ls` (new,
+`Inductives/Top.lean`), and the two Rust-only copies `check_mode_dup_spec`/
+`i_constant_infos_dup_spec` (new `LSP` specs, `Inductives/Shape.lean`).
+
+**The tier's top, `inductives_check_ind_decl_refines`, is one `lockstep` call
+too**, over `ind_params_ok_zero_ls` (the checker tier's
+`ind_params_ok_refines` at cursor `0`, in `LS` form; `Inductives/Top.lean`
+now imports `Checker/Base.lean` for it — no cycle, `Checker/Base` imports no
+inductives module), `native_parts_ls`, `check_native_ls`, `check_modeled_ls`
+(new, beside their statements), and three error-constructor specs
+(`core_types_{invalid,not_implemented,internal}_ls`, `Inductives/Shape.lean`:
+`invalid m` IS `.Invalid m`, so `fail`'s `AErrSim` compares the kind; no
+lemma for them existed on `arena`).
+
+**Two statements restated** so the zip closes: `check_native_refines` and
+`check_modeled_refines` conclude `SimRel₀ IFEnvRelI` (they concluded
+`IFEnvRel` alone; the checker's fold needs the Rust environment's
+`IFEnvInv` for its next step, and the top already promised it), take
+`hfe : IFEnvRelI`, and **lost their `hknot : KnotRel checkFuel` binder**
+(redundant: `knotRel_checkFuel'` is a theorem, and the tier's callees reach
+the knot through the checker lane's front doors at `checkFuel`).  Both are
+still `sorry`; nothing consumed them.  No semantic premise was added.
+
+**Frontier** (`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`): before (`ef5e1eec`) **50 items in 11
+modules, 129 tainted, dead weight 574**; after **54 items in 14 modules, 142
+tainted, dead weight 568**.  `check_ind_decl_refines` left the frontier; on it
+now are the tier's `native_parts_refines`, `check_native_refines`,
+`check_modeled_refines` and the checker tier's `ind_params_ok_refines`,
+`basis_pin_hit_refines` (reached for the first time).  The item count going
+UP is the point: the tier is on the capstone's path.
+
+#### Slice 2 — fan-in by `lockstep`: the companions, the primitives, 35 closures
+
+Branch `t2-ind-3b` (worktree `_tmp/wt-t2-ind3b`) off slice 1's tip.  The
+method: every `_refines` of the tier gets an `@[lockstep]` companion, every
+`sorry` body is replaced by the recipe (`refine LS.toSim₀/toSimRel₀ ?_ hrun;
+rw [rust, twin(_unfold)]; lockstep`) and kept where it builds, and each stuck
+goal is read for the Rust callee it stopped at.  Scripts in the session
+scratchpad (`gen.py migrate|companions|trial|revert`, `zero.py`, `loop.sh`);
+nothing of them is committed.
+
+**Statements (no semantic premise added).**
+* Every environment-returning statement concludes `SimRel₀ IFEnvRelI` (or
+  `IFEnvRelI r.1 v.1 ∧ …`) and takes `hfe : IFEnvRelI` — the top promised
+  the Rust environment's `IFEnvInv`, so every step owes it; the two PURE
+  folds (`cons_sum_ctors(_f)_refines`) keep their `IFEnvRel`+`IFEnvInv` pair.
+* **All 73 `hknot : KnotRel checkFuel` binders are gone** (redundant since
+  `knotRel_checkFuel'`; the Core front doors reach the knot themselves).
+* `check_iota_slot_ty`/`check_iota_sides_ty` lost an unused `{lcv : NIdx}`
+  binder (left behind when round 2 removed the name argument).
+* `native_counts_refines` is stated at the constructor COUNT
+  (`nativeCountsLen`, `NativeParts.lean`): finding 17's free twin list `cs`
+  with `hlen` cannot be found by the tactic, so the twin is normalised by the
+  `@[lockstep_simp]` equation `nativeCounts?_len` and the count is a side goal.
+
+**Companions.**  241 `LS`/`LSR` companions (`LS.ofSim₀`/`ofSimRel₀`,
+`LSR.ofSimRE`), 49 `TwinEq` companions for the tier's pure refinements
+(`LSP (f …) (fun o => TwinEq twin (abs o))`), and 17 cursor-zero variants
+(`…_twin0`, at `0#usize` and an empty accumulator, stated at the caller's
+list form and registered BEFORE the general one so a caller's `TwinEq`
+rewrites its twin).
+
+**`Inductives/Prims.lean` (new)** files the other tiers' lemmas for the
+tactic without touching them: 147 `LS` companions of `Checker/{Base,Pins,
+Axioms,Canon}.lean`'s `_refines` in their own namespace `IndPrims` (so a
+companion the checker lane adds later cannot clash), `zero_level`,
+`read_level_m`, `intern_n_node`, `lvl_eq`, the `usize→u64` cast, `sub_nat`,
+the five mode gates (`tt_checks` … as `TwinEq`), `proj_table_name_lss`.
+`Inductives/Shape.lean` gained the error constructors (`invalid`/
+`not_implemented`/`internal` ARE their constructor), the two copies,
+`nidx_vec_contains`, `lift (to_slice X)`/`code_points` (a constant name part
+is its literal), `i_ind_caps_default` (`{}`), `recs_form_suffix` at 0,
+`ifenv_find`/`find_ci` (`TwinEq` with the twin environment fixed by a
+`CoreCtx` side goal), `ite_true`/`ite_false` as `lockstep_simp`, and four
+`lockstep_side_ext` alternatives (extension points only; `Tactic/Lockstep.lean`
+untouched): `TwinEq` + the list abstractions by `simp_all`; `CoreCtx` from
+`IFEnvRelI` (+ the split counter); constant-string goals (`absString`/
+`StrWF`/`NNodeViewWF`, guarded, `simp only [global_simps]`); `restrictTo` at
+the split counter.
+
+**Imports.**  `Shape` imports `Prims`, which imports `Checker/Base` (no cycle:
+nothing under `Checker/Base` imports the tier).  `StructInstall` imports
+`StructParts`, so `StructParts` is no longer a leaf and every `struct_parts`
+callee is visible to the tier (it was invisible to `NativeParts`, whose
+`param_levels` steps failed with "no lemma").
+
+**Closed by one `lockstep` call (35):** `with_sort`, `struct_proj_ps`,
+`check_struct_doms_at_f(a)`, `check_struct_proj_table_f`, `check_sum_ind`,
+`check_sum_ctor_sorts`, the eight `SumInstallF` delegations, `native_parts`
+(frontier), `native_shape_at`, `native_shape_small`, `rec_field_kind`,
+`struct_tele_vars`, `native_caps`, `check_native_pass`, four `NativeInstallF`
+delegations, `check_modeled` (frontier, through `checkModeled_unfold`),
+`check_modeled_struct`, `check_modeled_projs`, `check_iota_slot_ty`,
+`check_iota_sides_ty`, `check_iota_thm_n` (through `checkIotaThmN_unfold`),
+`nested_rule_shape`, `check_proj_fn`, `check_proj_lookups`.  Tier `sorry`s
+**248 → 213**.
+
+**What the rest waits on** (the stuck goal's first Rust callee):
+* **ExprOps primitives not on `arena` (60 items):** `strip_pis` (22),
+  `mk_app_n` (8), `get_app_args` (8), `rename_consts_fast` (5),
+  `lift_loose_bvars_fast` (5), `get_app_fn` (5), `strip_lams` (3),
+  `loose_bvars_bounded_fast`, `inst_pis_at_lift`, `inst_pis_at_f`,
+  `inst_lams_at_f` — arena's `ExprOps/{Read,Mut}.lean` still state these over
+  `AStateRel`/`StoreWF`/`EResolves`; the lane's lockstep versions were bounced
+  from the queue.  Skipped per the brief.
+* **Cursor/list recursions (37):** the twin is a structural recursion on
+  `absXFrom v i`, which `rw` cannot unfold at a variable cursor.  Each needs the
+  `_aux` induction recipe (~12 lines; `sim_vec_cursor_copy` for the copies).
+  Not done this slice.
+* **Core-tier callees without a lemma:** `arena.core.pi_result_is_prop`/
+  `pi_result_z` (`ind_block_caps`, frontier), `proj_model_name` (3),
+  `rec_rule_bits`, `whnf` at a non-front-door fuel.
+* **Heartbeats:** `check_native_table_refines` runs out at `whnf` even at
+  1 000 000 (kernel side of a closed zip); left `sorry`.
+* **`native_shape_refines` (frontier):** the twin matches the LIST head
+  (`.indInfo cvT _ :: rest`), the port indexes `block[0]` and copies from 1 —
+  a hand step before the zip (not done).
+
+**Divergences found (not fixed; rulings requested):**
+1. **Cached vs uncached level readback.**  Six twin sites read `readLevel`
+   (uncached) where the port calls `read_level_m` (writes `caches.readLC`):
+   `checkNativeTail` (`NativeInstall.lean:344`), `structRecTyR`/`structRecRhsR`
+   (`NativeParts.lean:344,374`), `nativeCapsAt` (`SumInstall.lean:114`),
+   `checkStructFieldSortsI` (`:158,159`).  Under `AStateRel₀` the caches are
+   related pointwise, so the post-states differ; the twin fix is `readLevelM`.
+   Its Theorem-1 repair is NOT local for three of them: `structRecTyR`,
+   `structRecRhsR` and `nativeCapsAt` are `PSpec`/`PSpecP` (StateOK grade),
+   and `readLevelM`'s answer needs `ReadLCacheOK`, which only the core grade
+   carries — they move to `CSpec` with their callers, as `lvlEq?` did in task
+   #97-P3-Frame.  (The alternative, the port calling the uncached `read_level`,
+   is a Rust change.)
+2. **The native tail's environment.**  `check_native_tail_kinds` runs
+   `native_fields_ok` at `q.env1` with `visible_below - 1` (the pass's
+   environment with the former hidden), the twin's `checkNativeTail` at `fe`;
+   `check_native`'s second pass runs at `ifenv_pop_temp(q.env1)`, the twin's
+   at `fe`.  `IFEnvRel` relates by exact data and `q.env1` has one more
+   constant — the same class as the checker lane's `hkpre` finding (run the
+   gates at `fe2.restrictTo …`); the twin fix needs Theorem 1's congruence of
+   a `find?`-only reader over `find?`-equal environments.
+
+**Frontier and gates.**  `scripts/frontier.sh --summary …`: slice 1 landed at
+54 items / 14 modules / 142 tainted / dead weight 568; slice 2 before the
+`arena` merge **62 / 15 / 165 / 525** (the tier's frontier items: `native_shape`,
+`check_native`, `checkModeled_unfold`, `check_ind_members`, `check_ind_recs`,
+`ind_block_caps`, `ctor_residual_ok`, `ctor_targets_fam`, `install_proj_fns`,
+`proj_fn_family_free_modeled`); after merging `arena` `6ae149bc` (the D4b and
+Frontend landings) **48 / 15 / 175 / 465**.  `scripts/gates.sh` after the
+merge: **all 16 OK**.
+
+### Task #97-T2-LOCKSTEP D4b — a failed div/mod-pin attempt restores the WHOLE state from a full copy (2026-09-23, Opus under Fable)
+
+Maintainer's decision after the Checker lane priced D4's `ScratchFrame` (the
+frame over the attempt's 1 187-function closure, "several rounds"): the Rust
+takes a full copy of the checker state before a `Nat.div`/`Nat.mod` pin
+attempt and moves it back on `Recovered`, exactly as the twin's
+`orElseAttempt` keeps the old state.  Performance explicitly not a concern.
+Worktree `_tmp/wt-d4b` off `arena` `a2f8fd64`.
+
+#### 1. The Rust
+
+* `attempt_snapshot(st) -> AState` is a full copy: `EStore::dup` (new, with
+  `LsStore`/`LStore`/`NStore::dup`: both tiers by the existing `Tbl::dup`
+  and `HashMap2::dup`, both flags), `memos_dup`, `caches_dup`, and the new
+  `pins_dup` (two `vec_dup`s, three handle copies).  `attempt_restore` is
+  `*st = snap`.  `AttemptSnapshot` is gone.  Every copy is a halved
+  recursion (`log2 n` deep), so task #97-P4d's stack overflow (a recursion
+  one frame per node) does not recur.  `checker_base`'s module note 6
+  rewritten (history kept).
+* Twin: `AttemptSnapshot` gone; `attemptSnapshot st := st`,
+  `attemptRestore _ snap := snap` (`attemptRestore_self` still `rfl`,
+  `Bridge/Checker/Base.lean`'s `orElseAttempt_run` unchanged, docs updated).
+* Re-extracted (`Types.lean`, `Funs.lean`); `twin-lines.py update` relocated
+  49 citations.
+
+#### 2. Theorem 2
+
+`Refine2/Checker/Base.lean`: new `vec_dup_range_spec`/`vec_dup_eq`,
+`pins_dup_eq`, `{n,l,ls,e}store_dup_eq` and **`attempt_snapshot_eq`** (the
+copy is the identity in the model); `attempt_snapshot_refines₀` and
+`attempt_restore_refines₀` restated on `AStateRel₀` directly (no
+hypothesis about the attempt).  `vec_dup_refines` (was `sorry`) closed as a
+corollary.  **Deleted**: `SnapRel`, `ScratchFrame`, `attempt_restore_frame`,
+`attempt_recover_refines₀`, and the six `*_dup_refines` wrappers that only fed
+`SnapRel` (their `*_dup_eq` cores stay).
+
+`Refine2/Checker/DeclCheck.lean`: `check_div_mod_pin_attempt_refines₀` loses
+`hframe`; **`check_div_mod_pin_try_refines` proved**, restated with its two
+callees as hypotheses so the loop/step mutual recursion can be closed by an
+induction on the cursor: `hat` (the attempt, `Sim₀`) and `hloop` (the loop
+at cursor `i+1`, from any related state, any `tried`).  All axiom-clean
+(standard three, `#guard_msgs`).  `check_div_mod_pin_loop_refines` itself
+stays `sorry` (the checker lane's; it now has everything it needs).
+
+Observation, no ruling needed: the Rust passes `tried` on unchanged after
+`Continued` and replaces it by the one reason after `Recovered`, where the
+twin appends.  The list reaches only the `NotImplemented` message text, which
+`AErrSim` does not compare, so it is not a lockstep divergence.
+
+#### 3. `Init`
+
+`perf stat -e instructions:u,cycles:u` of `--verified` on
+`_tmp/corpus/init.ndjson`, before (`a2f8fd64`) / after interleaved,
+`timeout 900`, `ulimit -v 8388608` at `--jobs=1`, `27000000` at the default;
+peak RSS by GNU `time`.  Every run accepts 57 977.
+
+| binary | `--jobs=1` instructions | peak RSS (`--jobs=1`) | default jobs instructions | peak RSS (default) |
+|---|---|---|---|---|
+| before | 211 961 216 620 / 211 961 111 729 | 645 / 611 MB | 214.59 G | 942 MB |
+| after | 225 573 227 436 / 225 573 215 940 (**+13.6 G, +6.4 %**) | 835 / 835 MB (**+~200 MB**) | 228.17 G (+13.6 G) | 983 MB |
+
+The eight attempts each copy the whole persistent tier (the `Init`
+store is most of it by then), hence ~1.7 G instructions per copy and one
+extra store's worth of peak memory at `--jobs=1`.  Wall (secondary, two
+runs): 23.4/22.9 s → 29.9/24.9 s.
+
+#### 4. Out-of-lane edits
+
+| file | why |
+|---|---|
+| `crates/con-ron-core/src/arena/{store,checker_base,decl_check}.rs` | the full copy |
+| `Arena/CheckerBase.lean`, `Bridge/Checker/Base.lean`, `Refine2/Shape.lean` | twin mirror; docs |
+
+Gates: `scripts/gates.sh` on the branch after merging `arena` (`5901271c`):
+**all 16 OK** (`extract-check` 104 s).  `lake build ConRon ConRonBridge
+ConRonRefine2 ConRonCapstone` green (2 825 jobs) before the merge.  The
+shared Lake cache was seeded from this state (`ConRonCapstone ConRonRefine2
+ConRonBridge` + default targets).
+
+### Task #97-T2-LOCKSTEP lane Inductives round 4 — the rulings on round 3's divergences, then the hand recipes (2026-09-23, Opus under Fable)
+
+Worktree `_tmp/wt-t2-ind4`, branch `t2-ind-4` off `arena` `924e25b4`.
+
+#### Ruling 1 — the cached level readback (slice 1)
+
+**Twin.**  The six sites read a level back through `readLevelM` (the cached
+readback, writing `caches.readLC`), as the port's `read_level_m` does:
+`checkNativeTail`, `structRecTyR`, `structRecRhsR`, `nativeCapsAt`,
+`checkStructFieldSortsI`'s two (`Arena/Inductives/{NativeInstall,NativeParts,
+SumInstall}.lean`); `Refine2/Inductives/Spec.lean`'s transcriptions follow.
+No Rust change.
+
+**Theorem 1 — the cascade, measured: smaller than `lvlEq?`'s.**  Two helpers
+(`Bridge/Inductives/Rel.lean`): `readLevelM_pstep` (the frame, from
+`Core.readLevelM_frame`, needs nothing) and `readLevelM_denote_L`/`_core`
+(the answer, under `ReadLCacheOK`).  Then:
+* `nativeCapsAt_spec`, `nativeCaps_spec`: `PSpecP` → `CSpec`, as ruled;
+  their two callers (`checkSumInd_spec`, `checkNativePass_spec`) already
+  core grade, one line each.
+* `structRecTyR_spec`, `structRecRhsR_spec`: **NOT `CSpec`, a new grade
+  `PSpecL`** (`PSpec` plus `ReadLCacheOK` of the start state; `PSpecL.toCSpec`
+  gives the core grade).  `CSpec` was unsatisfiable at their call sites:
+  `checkNativeRec` runs the generators at the environment with the rule-less
+  recursor PUSHED, and `CheckOK`'s `CacheOK` pins the knot caches to one
+  environment, so no `CheckOK` is available there — which is why
+  `checkNativeRules_run` was at `ReadOK`/`PStep` to begin with.  The readback
+  needs only its own table, and `PStep`'s `CacheFrame.readL` carries it.
+  `checkNativeRules_run` gained that one hypothesis; `checkNativeRec_spec`
+  supplies it from its `CheckOK`.
+* `checkStructFieldSortsI_spec` and `checkNativeTail_spec` were already at the
+  core/install grade: the reads take `CacheOK.readL` and give a `CoreStep`.
+Six theorems touched in `Bridge/Inductives/{Rel,NativeParts,SumInstall,
+NativeInstall}.lean`; no `sorry` added.
+
+#### Slice 2 — three Core readers in `Inductives/Prims.lean` (submitted early, for the Modeled lane too)
+
+* **`proj_model_name_refines` — closed**: one `lockstep` call, plus the
+  second name part by hand (`proj_name_part`: the port concatenates the
+  literal `PROJ_` and `nat_to_dec i`, the twin writes `"proj_" ++ toString i`;
+  `absCodes_append` splits it).  New `LSP` specs `nat_to_dec_spec`,
+  `code_points_from_zero_spec`; the constant-name-part specs
+  (`lift_to_slice_spec`, `code_points_spec`, `ind_str_side`) moved from
+  `Inductives/Shape.lean` to `Prims.lean`, which the Modeled lane's files also
+  see.  `proj_model_name_ls` filed.
+* **`pi_result_is_prop_refines`, `pi_result_z_refines` — stated, `sorry`,
+  with `@[lockstep]` companions**: both open with `expr_ops::pi_result`, whose
+  lockstep lemma is on the ExprOps lane's branch (arena's
+  `ExprOps.pi_result_refines` is still at `AStateRel`+`StoreWF`+`EResolves`).
+  Every other callee is filed (`tag`, `view_sort`, `zero_level`, `lvl_eq`,
+  `read_level_m`), so each is one `lockstep` call once that lemma lands.
+
+### Task #97-T2-LOCKSTEP D4c — the div/mod-pin attempt freezes the persistent tier instead of copying it (2026-09-23, Opus under Fable)
+
+Maintainer's follow-up to D4b (landed at `e97d21b8`, +6.4 % instructions, +~200 MB
+peak RSS on `Init`): move the persistent tier aside in O(1) for the attempt,
+keep copying only the small parts, and still use no frame lemma.  Worktree
+`_tmp/wt-d4c` (branch `t2-d4c`, off `96be299b`, `arena` merged).
+
+#### 0. First, can the attempt WRITE the persistent tier?  No.
+
+* `check_div_mod_pin_at`'s call closure in `Generated/Funs.lean` (1 240
+  functions) contains no `promote*`, no `intern_persistent_*`
+  (`arena::promote` is their only caller), no `enter_scratch`/`drop_scratch`/
+  `enable_scratch`, no `freeze`/`thaw`, and no function that writes a
+  `scratch_on`/`shared_on` flag to anything but its own value (the
+  `scratch_on :=`/`shared_on :=` in `EStore::intern_*` is Aeneas re-building
+  the record).  The only persistent appends in the closure are the
+  `scratch_on == false && shared_on == false` arms of the ordinary interns.
+* `check_div_mod_pin` is reached only via `check_defn_div_mod_pin` ←
+  `check_defn_pins` ← `check_defn_decl` ← `check_decl`, and `check_decl` only
+  from `check_decl_step` and `annot_step` (via `annot_step_go`/
+  `annot_step_other`) — both open the bracket (`enter_scratch`, all four
+  scratch flags up) first and nothing in `check_decl`'s closure drops it.  So
+  every intern in the attempt is a scratch intern.
+* With the tier frozen a persistent append would be `M_FROZEN` (`Native`)
+  rather than a write, so even a future violation would fail loudly.
+
+#### 1. The Rust
+
+`decl_check::check_div_mod_pin_attempt`: `freeze_tier(&mut st.store)`
+(existing, O(1) `mem::replace`s, flags up; an already-frozen store is
+declined `M_REFREEZE`, unreachable here — phase B never reaches `check_decl`),
+then `attempt_snapshot` (D4b's full copy, now of a store whose persistent
+tables are EMPTY: scratch tiers, memos, caches, pins, flags), the attempt
+against `&tier`, and:
+* `Recovered`: `attempt_restore` (the copy back) then `thaw_tier` — the
+  pre-attempt state field by field;
+* `Matched`/`Continued`/`Failed`: new `checker::thaw_read_tier` — each store
+  gets back the table its reads went to (`tier`'s if its `shared_on` is up,
+  its own otherwise), flags down.  Always `thaw_tier` in practice; written
+  this way so the proof needs no fact about the flags after the attempt.
+The caller's `pers` parameter is now unused (`_pers`): phase A's store is
+thawed, so its reads went to its own tables, which `tier` now is.  Module
+note 6 and the doc comments updated.  Re-extracted.  No twin change
+(`orElseAttempt` already resumes at the whole state).
+
+#### 2. Theorem 2
+
+`Refine2/Checker/Base.lean`: `Thawed`, `tierOf`, `freeze_tier_err`,
+`freeze_tier_ok` moved down from `Checker/Phased.lean`; new `TierView` (two
+(tier, store) pairs that read the same: four `rPers*` arms, four scratch
+tiers, four scratch flags), `TierView.transfer` (the relation and invariant
+carry over), `freeze_tier_view`, `thaw_read_tier_view`.
+`Refine2/Checker/DeclCheck.lean`: `DivModPinAtSim` (the attempt's lockstep
+lemma at ANY tier/state — `check_div_mod_pin_at_refines`' statement), and
+`check_div_mod_pin_attempt_refines₀`/`check_div_mod_pin_try_refines`
+re-proved on the new seam.  All axiom-clean (standard three; the Base
+lemmas `#guard_msgs`-checked).  No frame lemma.
+
+#### 3. `Init`
+
+`perf stat -e instructions:u,cycles:u` of `--verified` on
+`_tmp/corpus/init.ndjson`, `a2f8fd64` (before D4b) / this branch
+interleaved, `timeout 900`, `ulimit -v 8388608` at `--jobs=1` and `27000000`
+at the default; peak RSS by GNU `time`; every run accepts 57 977.
+
+| binary | `--jobs=1` instructions | peak RSS `--jobs=1` | default-jobs instructions | peak RSS default |
+|---|---|---|---|---|
+| `a2f8fd64` | 211 960 932 146 / 211 959 893 353 / 211 960 908 447 | 568 / 650 / 569 MB | 214.51 G / 214.42 G | 973 / 970 MB |
+| D4c | 211 976 326 407 / 211 976 871 431 / 211 976 898 296 (**+16 M, +0.008 %**) | 644 / 569 / 569 MB (same spread) | 214.63 G / 214.47 G (within spread) | 972 / 1 020 MB |
+
+Back to within noise of `a2f8fd64` (D4b was +13.6 G, +~200 MB).  Wall
+(secondary): 22.5–22.8 s before, 22.3–22.5 s after at `--jobs=1`.
+
+#### 4. Out-of-lane edits
+
+| file | why |
+|---|---|
+| `crates/con-ron-core/src/arena/{checker,checker_base,decl_check}.rs` | `thaw_read_tier`; the frozen-tier seam; docs |
+| `Refine2/Checker/Phased.lean` | the four freeze lemmas moved down to `Base.lean` |
+
+Gates: `scripts/gates.sh` on the branch after merging `arena` (`924e25b4`):
+**all 16 OK** (`extract-check` 100 s).  `lake build ConRon ConRonBridge
+ConRonRefine2 ConRonCapstone` green (2 826 jobs) before the merge.  Shared
+Lake cache seeded from this state.
+
+#### Slice 3 — hand recipes (Native/Struct/Sum; Modeled moved to its own lane)
+
+* **`ls_cursor`** (`Inductives/Shape.lean`): the `Vec`-cursor / list-recursion
+  induction in `LS` form, once; a caller writes the stop and step cases as
+  `rw [rust.eq_def, twin]; rw [if_pos/if_neg …]; lockstep`, the induction
+  hypothesis sitting in the context for the recursive call.  Closed with it:
+  `idx_args_resolve`, `any_dom_mentions`, `idx_free_of`.
+* **Counted recursions** (the twin recurses on a count the Rust decrements):
+  `induction hk : k.val generalizing …`, the same two lines per case —
+  `struct_proj_guards_col` closed.
+* **`native_shape_refines` (frontier) closed**: the block head by hand (the
+  twin matches the LIST head, the port indexes `block[0]` and copies from `1`;
+  a local `TwinEq` spec of the copy rewrites the twin's tail to the port's
+  copy), then `lockstep` in each of the seven constructor cases.
+* A side-tier alternative: a checker-tier statement at a split counter reads
+  `lf.restrictTo (absU vis)`; where `hvis` says the counter is `lf`'s own,
+  `IFEnv.restrictTo_of_eq` closes the congruence (`Inductives/Prims.lean`).
+* Tried and left: `rec_ctor_kind_at` (the zip times out at `isDefEq` in the
+  `struct_used_later` arms), `native_rules_ok_from` (the port tests three
+  bounds with `if`s where the twin matches three `[j]?`s — a hand step per
+  bound, not done), `check_native_table_refines` and `checkIotaThm(N)_unfold`
+  (not reached this round; the latter is the Modeled lane's now).
+* Tier `sorry`s (all files, Modeled included): **213 → 210** this slice.
+
+#### Ruling 2 — NOT done: the Rust does not hide the former
+
+The ruling was to run the twin's fields check "at `q.env1` with the counter
+decremented, as the Rust does".  **The Rust does not do that.**
+`check_native_tail_kinds` lowers `q.env1.visible_below` to `vis - 1` but
+passes the UNLOWERED `vis` to `native_fields_ok`, and every lookup under it
+(`ifenv_find(vis, …)`, `consts_resolve_f_fast(pers, vis, …)`,
+`idx_args_resolve(pers, vis, …)`, …) reads the explicit counter, never the
+record's field: the former's row (counter `vis - 1 < vis`) is VISIBLE, and the
+lowering is dead code.  So the lockstep twin is `nativeFieldsOk q.env₁` (the
+former visible), not the decremented view — and Theorem 1's `find?`-congruence
+(the Checker lane's `hkpre` approach) does not apply: `q.env₁` and `fe` differ
+at the former's name.  The comment in the Rust says the intent is to hide it.
+**Ruling needed**: either (a) a Rust change — pass `vis - 1` (the lowered
+counter) to `native_fields_ok`, after which the ruled twin fix and the
+`find?`-congruence go through as planned; or (b) the twin reads `q.env₁` and
+Theorem 1 proves `nativeFieldsOk` never looks the former up (a semantic fact,
+not a congruence).  The second pass at `ifenv_pop_temp(q.env1)` needs no Rust
+change (a twin `IFEnv.popTemp` and `IFEnv.row?`, and `find?` agreement with
+`fe`), and waits for the same round to keep ruling 2 in one piece.
+
+### Task #97-T2-LOCKSTEP lane ExprOps — `arena::expr_ops` lockstep, its D1 twins, the `lockstep` tactic's walk moves (2026-09-23, Opus under Fable)
+
+The lane brief: move every `Refine2/ExprOps/**` statement to the lockstep
+shapes (`AStateRel₀`, `AStateInv`, `Sim₀`/`AOut₀`, no `Ext`, no store
+invariant), prove them with `lockstep`, fix the lane's D1 twins and repair
+Theorem 1, provide `ExprOpsHyp`'s `instLPFast`/`mkAppN` early, and delete the
+`Specs.lean` shims the lane kept alive.  Worktrees `_tmp/wt-t2-exprops`
+(slice 1) and `_tmp/wt-t2-exprops-b` (slice 2).
+
+#### 1. What landed
+
+* **Slice 1** (merge queue, `8e8a879c`, gates 16/16): `Tactic/Prims.lean` no
+  longer imports `ExprOps/Mut.lean` (the shared abstractions `absEIdxArr`,
+  `absEIdxList(From)`, `absOptE`, `eidx_nat_key_abs`, `listFrom_*` moved to
+  `ExprOps/Pure.lean`; `Read` and `Mut` import `Prims`).  `Mut.lean` restated
+  for `mk_app_n(_from)`, `inst_lp_go`/`inst_lp_fast`, `subst_l(s)_memo_at` and
+  the twelve `intern_rebuilt_*` — **`ExprOpsHyp.instLPFast` and `.mkAppN` are
+  `inst_lp_fast_refines` and `mk_app_n_refines`**, exactly the bundle's field
+  shapes.
+* **Slice 2** (this section): the rest of `Read.lean` (every read-only walk)
+  and `Mut.lean` (every state-writing walk), the D1 twins and their Theorem-1
+  repairs, the shim deletion.
+
+Every function of `expr_ops.rs` that reads or writes the state has two
+lemmas: `f_ls` (the `LS`/`LSR`/`LSV` judgement, `@[lockstep]`, so a caller's
+`lockstep` steps over the call) and `f_refines` (the public `Sim₀`/`AOut₀`,
+one line from `f_ls`).  The Rust-only splits `*_node`/`*_two` of the three
+memoised DAG walks are unfolded in place before `lockstep` and have no
+statement of their own.  **Sizes**: `Mut.lean` 14 661 → 1 485 lines,
+`Read.lean` 4 880 → 878; `MemoRes`, `WOutE`/`WOutR`, `WOutX`, `WOutO`,
+`WOutN`, `WOutLv`, `EViewExt`, `QStable`, `RenameRes`, `LPInv`, `LssStep`, the
+`EResolves` premises and the `hview`/`StoreWF` threading are gone (the
+definitions `EResolves`, `WOut`/`LOut`/`FOut` stay in `Read.lean`, marked
+deprecated, for the Core, Checker and Inductives statements that still name
+them).  Of the 223 theorems in the two files, **90 are proved by `lockstep`**
+(`rw [rust_f, twinF]; lockstep`, per case of a fuel/cursor/count induction in
+41 of them); the others are the `_ls` instances of an `_aux` and the one-line
+public statements, plus four twin-only equations (`mkAppNFrom_eq`,
+`mkAppN_absEIdxList`, `leafMem_reverse`, `denoteEList_length_tf`).  No proof
+in the lane is by hand against a goal `lockstep` left.  `#print axioms` over
+all 175 `_ls`/`_refines`: `[propext, Classical.choice, Quot.sound]`.
+
+#### 2. D1 and the other divergences, fixed in the twin
+
+The tactic stopped exactly at each of these, at the Rust's typed projection
+against the twin's `view`:
+
+| twin (`Arena/ExprOps.lean`) | Rust reads | was |
+|---|---|---|
+| `isLam` | tag, `view_bind_i` | `view` |
+| `lamPw`, `forallPw`, `stripLams`, `stripPis`, `piArity` | tag, `view_bind` | `view` (`lamPw`/`stripPis` tag-first but still `view`) |
+| `instPis`, `instPisAt`, `instLamsAt`, `instPisAtFGo`, `instLamsAtFGo`, `instPisAtLift` | tag, `view_bind` | `view` |
+| `pisToLams`, `replacePiBody` | tag, `view_bind`, `intern_e_lam`/`_forall_e` | `view`, `internE (.lam …)` |
+| `fvarTypeD` | tag, `view_fvar_ty` | `view` |
+| `recRulePlain` | tag, `view_bind` | tag, `view` |
+| `Frontend.lamBody` (`Arena/Frontend/ProjRec.lean`) | tag, `view_bind` | `view` |
+
+`piResult` (already `viewBindI`) and `abstractRangeGo` (already the Rust's
+tag dispatch) needed nothing: `lockstep` closed them as they were.  Two
+divergences outside the audit's list, both found by the tactic:
+
+* **`renameConstsGo` cut off where the Rust interns.**  The Rust's
+  `rename_consts_go` interns unconditionally in every arm; the twin used
+  `internRebuilt*` (`if same then pure h`).  On a store where a view's cons
+  entry is not the handle itself the two answer different handles.  The twin
+  now interns in every arm.
+* **`recRulePlain` compared `args.take cnP`, the Rust `args.take want.len()`**
+  (`eidx_take_beq`).  The twin now takes `want.length`; Theorem 1 gets `cnP`
+  back from `bvarRangeSpec`'s length.
+
+**Theorem 1 repairs** (`Bridge/**`): a new `Bridge/ExprOps/TagFirst.lean`
+(the projections as views: `@[grind →]` lemmas at both tag spellings, the
+`else` arm's "view, not that constructor" lemmas, and `tf_views`, a meta
+tactic that adds them to an arm's context); `Spine.lean`'s `arm_pre` calls
+`tf_views`, which repaired all nine `Spine.lean` specs and
+`TelescopeF.lean`'s unchanged; `Walks.lean`'s `isLam_spec` (two helper
+lemmas); `Subst.lean`'s `instPisAtLift` arms (`tf_views`);
+`Owed.lean`'s `renameConstsGo_specS` (unconditional-intern specs at the
+`internRebuilt*_specV` shape, `attribute [local spec high]`);
+`TelescopeF.lean`'s `recRulePlain_canonical`;
+`Frontend/Scratch.lean` (scratch-flag lemmas for `viewBind`, `viewBindI`,
+`viewFVarTy`, `failDanglingE`); `Frontend/ProjRec.lean`'s `lamBody_run`;
+`Specs.lean`'s two stale matcher-owner lemmas (the matchers no longer exist).
+`Refine2/Frontend/ProjRec.lean`'s `lam_body_refines` (a `sorry`, the
+frontend lane's) is now provable as the brief's audit said.
+
+#### 3. The shared tactic and its primitives
+
+Merged onto the coordinator's shared `lockstep` (`cc726e46`); this lane's
+earlier copies of ok-bind, `dite`, error-arm and tail-read moves were dropped
+in its favour.  What the walks needed on top, now in the shared
+`Tactic/Lockstep.lean`:
+
+* an answer relation with an existential (a walk-local memo: `∃ m', WMemoRel
+  a.2 m' ∧ b = (a.1, m')`) is destructured and substituted, and its witness
+  supplied at a leaf; a relation with side facts is split into its conjuncts;
+* a Rust `match` on a TERM in callee position (an inline memo probe) is cased
+  on after rewriting the term with the context's key equation (`absEIdxNat k =
+  (h, d)`), so the twin's match on the same term reduces with it; a twin
+  `match` on a term the Rust decided by its own test is cased on with the
+  contradicting branch closed;
+* the spec's twin action is checked inside candidate selection (a candidate
+  whose twin action is not the goal's gives way to the next: the two
+  `inst_list_cutoff` pairings, `derivedE`-inline and `instListCutoff`);
+* tag-constant disequalities, index equalities of two vector reads, `beq` on
+  `Nat` in twin tests, and error arms of the `let (st1, body) ← let (r2, st3)
+  := y; …` shape.
+
+`Prims.lean` gained the lane's pairs: the eleven memo get/set/clear families,
+`view_fvar_ty`/`view_fvar_idx`/`derived_l`, the level readbacks with their
+`LevelWF`/`NameWF`, level/`PropWhen`/binder-datum Rust-only steps
+(`level::subst`, `subst_level_list`, `subst_pw`, `binder_meta(_beq)`,
+`never`), the three walk-local memos (`WMemoRel`/`LMemoRel`/`SeenRel`, moved
+to `Pure.lean`), handle `eq2`/`dup2`, the `u64`/`usize` casts, `max_u64`,
+`sub_nat`, `last_eidx`, the `Pure.lean` helpers, `intern_e`; `view_ls` and
+`view_bind_ls` carry the answered datum's `PropWhenWF` (kind 1, from
+`AStateInv`), `derived_e_ls` all three observed fields.
+
+#### 4. Shims
+
+49 `Specs.lean` deprecated shims had no consumer left and are deleted (the 72
++ 6 the step-1 table assigned to `ExprOps/Mut`/`Read`, less those still named
+elsewhere): the memo `*_run`s, the eleven clears, the eight `view_*_run`s,
+`read_{level(s),name(s)}_m_run`, `intern_level(s)_run'`, `derived_l_run`,
+`bvar_b_get_run`.  Still alive, with consumers in other lanes:
+`intern_e_run` (and the `intern_e_*_run`/`estore_intern_*_abs` chain its proof
+uses: `Frontend/ExportC`), `intern_e_bvar_run` (`Inductives/StructParts`),
+`intern_e_sort_run`, `intern_l(s)_node_run` (`Checker/Pins`),
+`inst1_get_run`/`inst1_set_run` (`Core/Probes`), `read_level_m_run`
+(`Checker/Base`), `view_run` (`Core/Arms/Sort`, `Frontend/ExportC`).
+
+#### 5. An incident, and its repair
+
+A `lake -d proof build` run from the worktree ROOT (where no
+`lean-toolchain` is) used elan's default toolchain (a local 4.34 build) and
+rewrote two oleans of the SHARED con-leche package
+(`ConLeche/Semantics/Syntax`, `ConLeche/Frontend/Scan/Fast`) and 35 traces,
+for about fifteen minutes; builds importing them failed with "incompatible
+header" (the lane's own gate run did).  Repaired from the Lake artifact cache
+(`_tmp/lake-cache/artifacts`, by the outputs each module's trace records):
+both oleans and their `.olean.server`/`.private`/`.ir`/`.ir.sig` restored,
+every con-leche olean scanned for a 4.34 header (none left), `lake build
+--no-build` on them clean.  **Always run `lake` from inside `proof/`.**
+
+#### 6. Gates
+
+Slice 1: `scripts/gates.sh` all 16 OK after each of three `arena` merges
+(the last at `8e8a879c`, submitted to the merge queue).  Slice 2: `arena`
+merged at `ecee8ea4` (`DESIGN.md` conflict, both appends kept; `Mut.lean`
+conflict, this lane's file kept); `twin-lines.py update` relocated 106 Rust
+citations (digits only); then **all 16 OK** (`extract-check` 109 s,
+`lake-refine2` 215 s, `lake-bridge` 534 s).
+
+#### 7. The bounce, and one tactic again
+
+The queue bounced both slices against `arena` `ef5e1eec` (the Checker lane's
+tactic additions, Promote, Inductives round 2).  One branch now carries both
+(`t2-lock-exprops` merged into `t2-lock-exprops-b`, then `arena`):
+
+* **`Tactic/Lockstep.lean`**: every conflict resolved to arena's side (the
+  `lockstep_side_ext` tier, `errArm_bind`, `splitRels` in place of this
+  lane's `splitAnd`).  What this lane had put *into* the core alternatives
+  now comes in through extension points in `Tactic/Prims.lean`: a
+  `lockstep_errarm` `macro_rules` (the `uncurry` repack closed with `done`,
+  the `let (st1, body) ← let (r2, st3) := y` shape), and two
+  `lockstep_side_ext` alternatives — `beq_iff_eq` + `scalar_tac`, guarded by
+  `lockstep_guard_beq` to goals that mention `==` (it was the `sideI` tier's
+  third alternative; unguarded, it would run on every failing side goal), and
+  `lockstep_and_part`, a premise matched against the parts of a syntactic
+  conjunction at reducible transparency (the fresh memo's
+  `LMemoRel a ∅ ∧ SeenRel a ∅`, which `splitAnd` used to split and
+  `splitRels` does not, because it is not named `hR`).
+* **One core edit, unavoidable**: the Checker lane's `LS.twin_bind_pure`
+  fallback in `rustStep` rewrote the goal to `x >>= pure` and returned it;
+  the next step normalised it back to `x`, and `lockstep` looped
+  (`inst_lp_fast_ls` ran past 20 minutes with the heartbeat limit off).  It
+  is now atomic: the bind is taken on the rewritten goal at once
+  (`rustStep` is `partial`), or the rewrite is undone and the original
+  failure rethrown.
+* **`Promote/Prims.lean`**: `view_wf_ls` adapted to `view_ls`'s relation
+  (`EViewMetaWF a ∧ b = absENodeView a`) by a new `LSR.mono`; its
+  `dup2_{nidx,lidx,lsidx}` copies deleted (the `Tactic/Prims` ones kept);
+  the Inductives lane's `nidx_dup2_spec` deleted likewise.
+
+`lake build ConRonRefine2` clean after the merge; `scripts/gates.sh` on the
+merged tip: **all 16 OK** (`extract-check` 129 s, `lake-bridge` 561 s).
+
+#### 8. The second bounce (`arena` `924e25b4`)
+
+Conflict with the Frontend lane's round 2 over the `lamBody` twin.  Ruling
+(coordinator): this lane's shape stands — `viewBind h` with
+`none => failDanglingE`, which is what `proj_rec.rs` `lam_body` does
+(`view_bind`, `None => fail_dangling_e`) — and so does this lane's
+`lamBody_run`.  The Frontend lane's `lam_body_refines` (Theorem 2), written
+against the `view`/`.lam` shape, is adapted: the twin's read is now
+`view_bind_run₀` directly, no `view_of_bind_tag` detour.  `export_c.rs`'s
+`pi_result` doc comment takes arena's text; `proj_rec.rs`'s 45 citations
+relocated by `twin-lines.py update`.  `nidx_dup2_spec` has no user on the
+merged tree (the Inductives rounds 3/3b included).
+
+Two fallouts on the merged tree, both fixed here.  `Frontend/ExportCInd`
+(Inductives round 3) cites `u64_cast_usize_val'`, which lived in the old
+`Mut.lean`; it is restored there verbatim.  `Checker/Top`'s
+`check_defn_pins` proof finished the twin `if … >>= pure` by hand after a
+first `lockstep`; with the atomic `twin_bind_pure` fallback (§7) that first
+`lockstep` closes the goal, so the hand tail is deleted (one `lockstep` call
+now).
+
+#### 9. Slice 3 — the Inductives' ExprOps companions; the last deprecated shapes
+
+Every `arena::expr_ops` function the inductives Rust calls (25, counted off
+`Generated/Funs.lean`) now has an `@[lockstep]` companion.  Already there:
+`strip_pis_ls`, `mk_app_n_ls`, `get_app_args_ls`, `get_app_fn_ls`,
+`rename_consts_fast_ls`, `lift_loose_bvars_fast_ls`, `strip_lams_ls`,
+`loose_bvars_bounded_fast_ls`, `inst_pis_at_lift_ls`, `inst_pis_at_f_ls`,
+`inst_lams_at_f_ls`, `has_fvar_fast_ls`, `reset_meta_fast_ls`,
+`instantiate1_fast_ls`, `instantiate1_lift_fast_ls`, `abstract1_fast_ls`,
+`lower_bvars_fast_ls`, `inst_spine_ls`, `inst_lp_fast_ls`,
+`rec_rule_plain_ls`, `bvar_b_ls`, `eidx_take_beq_spec` (all in
+`ExprOps/{Mut,Read}.lean` or `Tactic/Prims.lean`; the Inductives modules reach
+them by importing `ConRon.Refine2.ExprOps.Mut`, which `Modeled.lean` already
+does).  Added: `take_eidx_n_spec` (`take_eidx_n` against `takeEidx` at the
+`u64` count, over a new `take_eidx_n_from_aux`/`take_eidx_n_refines` in
+`ExprOps/Pure.lean`), `binder_copy_from_spec`, and the missing
+`@[lockstep]` on `fvar_type_d_ls`.
+
+Deleted: `Read.lean`'s `WOut`/`LOut`/`FOut` (no consumer; `Inductives/Shape`
+and `StructParts` still name `WOut` in doc comments only); `Specs.lean`'s last
+18 deprecated `AStateRel` shims — `view_run`, `inst1_get_run`,
+`inst1_set_run`, `read_level_m_run`, `intern_n_node_run`, and the
+`intern_e_run` chain (`intern_e_{bvar,fvar,sort,const,app,let_e,proj,lit,
+bind_i,lam,forall_e}_run`, `intern_e_bvar_flags`) — with the three helpers only
+they used (`internNodeE_run_wf`, `internLamE_run_wf`, `internForallEE_run_wf`)
+and their census entries; the `₀` statements stay.  `EResolves` stays:
+`Core/Arms/Gated.lean`'s `bodyRel_stuckGatedCore` takes it as a premise
+(Core lane), and five Core files `open` it.
+
+#### Slice 4 — the ExprOps-unblocked fan-in
+
+After merging `arena` with the ExprOps lane's lockstep primitives
+(`b047603a`; `Inductives/Prims.lean` now imports `ExprOps/Mut.lean`), the
+trial loop closed **19** more by one `lockstep` call: nine in `StructParts`
+(`struct_fam`, `struct_motive_ty_i`, `struct_parts_core_sort`,
+`struct_parts_rhs_ok`, `struct_proj_guards`, `struct_rule_body`, …), seven in
+`NativeParts` (`native_rule_body_ok`, `native_rule_fields_ok`,
+`native_shape_sort`, `struct_idx_at`, `struct_minor_ty_close`,
+`struct_minor_ty_r`, `struct_rec_rhs_at`), `check_sum_tele(_slow)`,
+`native_rule_scoped`.  Four kernel/elaboration timeouts were reverted
+(`struct_parts_core_at`, `native_caps_at`, `native_shape_elim`,
+`native_raw_rec`) — each a split-into-helpers job like `check_native_table`.
+Cursor-at-`0` `lockstep_simp` equations (`absXLFrom v 0 = absXL v`, fifteen
+families) added; they closed nothing new on their own.
+
+**What stops the rest** (Native/Struct/Sum, 111 `sorry`s, 135 at round 3's
+end):
+* **21 structural recursions** (`replace_pis_pw`, `pis_to_lams_pw`,
+  `mk_pis_of`, `close_telescope`, the node dispatches of the three memo walks,
+  …): the `ls_cursor` / counted recipe per function, as slice 3 did five.
+* **~20 accumulator-vs-`mapM` factoring gaps**: the Rust calls a cursor fold
+  with an accumulator (`struct_ih_list … 0 (Vec.new)`), the twin (or its
+  transcription) writes `List.mapM F l`; the companion's twin is
+  `do pure (absXL out ++ (← FSpec l))`.  Each wants one `@[lockstep_simp]`
+  equation `List.mapM F l = FSpec l` (the tier's `*_counted` closers are the
+  pattern) — mechanical, not done.
+* **The three memo walks** (`mentions_const`, `mentions_fvar`,
+  `has_loose_bvar_b`): fuel induction with the memo relation, as the tactic
+  sample's `lift_loose_bvars_go`; `mentions_const` is being moved by the
+  Checker lane and was left alone.
+* **Ruling 2** (above) and the heartbeat splits.
+
+**Frontier** (`model_exists` + `no_False_declaration`) after this slice (with
+`arena`'s ExprOps and Checker landings merged): **51 items in 15 modules, 241
+tainted, dead weight 378**.
+
+### Task #97-T2-LOCKSTEP lane Checker Base/Top — the `Top` arms, the name/cursor leaves, the constant check's blocked tails as `_of` lemmas (2026-09-23, Opus under Fable)
+
+Worktree `_tmp/wt-t2-chk-base` off `arena` `70ea5a33`.  Lane: `Refine2/Checker/
+{Base,Top}.lean` only (`DeclCheck.lean`/`Axioms.lean` are the Checker lane's).
+Under the lockstep rule; no Rust change, no twin change, no new Theorem-2
+invariant, no edit to `Tactic/Lockstep.lean`.
+
+#### Slice 1
+
+**Merged `t2-checker-4` `4265c378`** (the Checker lane's round-2 slice 2, which
+had closed much of `Base`/`Top` before the lane split) mid-slice, at the
+coordinator's word.  Where both branches had proved the same statement
+(`check_constant_val{,_guards,_after_annot}`, `install_constant_val{,_tail}`,
+`install_value_tail`, `check_value_group_value`, `check_quot_decl`,
+`check_axiom_decl_rest`), `4265c378`'s proof and wrappers were kept and this
+branch's dropped; `Base.lean`/`Top.lean` were taken from `4265c378` whole and
+this branch's other work re-applied on top.
+
+**Closed by `lockstep`** (`Top`): `check_basis_decl` (per kind; twin-side
+equations `checkBasisDecl_quotK`/`_ne` in `Top`), `check_quot_sound_record`
+(`checkQuotSoundRecordSpec_split`: the Rust's length test, then slot 4),
+`check_axiom_decl_{std,trust,of_reduce}` and the `_ls` of the last two.
+
+**Closed by hand** (`Base`; state-free cursors, task #97-T2-TACTIC §4's
+exception, and one `SimRE` reader): `name_nodup(_from)`, `all_rec_info`,
+`recs_form_suffix`, `nidx_is_proj_fn_shape` (two tag tests, two `view_n`, two
+literal `str_eq`s; new `viewN_run`, `view_n_simre`, `lit_abs`).
+
+**Closed by `lockstep` once the ExprOps lane landed** (`arena` `b047603a`,
+`loose_bvars_bounded_fast_ls`/`has_fvar_fast_ls`): `check_constant_val_guards_rest`
+and `install_value` (both were written first as `_of` lemmas taking those two
+walks as hypotheses; the hypotheses are gone).
+
+**Closed modulo one hypothesis, module order:** `unresolved_consts_error_of`
+(`lockstep`) takes `mentions_const_ls` as a hypothesis; that statement lives in
+`Inductives/StructParts.lean`, a module ABOVE `Checker/Base.lean`, and is
+itself `sorry` there, so `unresolved_consts_error_refines` passes `sorry` for
+it.  **Ruling needed:** move the Inductives tier's `mentions_const` statements
+below `Checker/Base.lean` (they need only `Checker/Shape`-level shapes), or
+thread the hypothesis up to `Top`.
+
+**Extension points added**: `@[lockstep]` `nidx_is_proj_fn_shape_ls`,
+`name_nodup_spec`, `top_i_constant_info_dup_spec`, `check_basis_decl_install_ls`;
+`@[lockstep_simp]` `absIConstantVal_levelParams`, `absICIL_length`.
+
+**The tactic issue** (the Checker lane met it too: its "two tactic limits"):
+when the twin's head is an `if` the LAST Rust test decided (`hc` in context)
+and the Rust's next step is a state bind, `stepCore` moves the Rust first,
+that bind's spec does not match (its partner is inside the `if`), and
+`rustStep`'s fallback `LS.twin_bind_pure` then SUCCEEDS on the `if`, burying it
+under `>>= pure`.  Worked around by `chk_lockstep` (a macro in `Base`: try
+`LS.twin_ite_neg/pos` decided from the context — `assumption`, the twin's
+`a || b` against the Rust's two nested tests, `lockstep_side_cheap`,
+`lockstep_side_ite` — before each `lockstep_step`).  **Suggested shared fix**
+for the tactic's owner: in `rustStep`'s catch, do not apply
+`LS.twin_bind_pure` when the twin is an `ite`/`dite`; or in `stepCore`, try the
+cheap `if` decision before the Rust bind when an `hc` decides it.
+
+**Statement gap (DeclCheck's, reported, not edited):**
+`install_basis_decls_refines` concludes `SimRelR (fun r v => IFEnvRel r v)`,
+without `IFEnvInv` of the result, and `check_basis_decl_install_refines` must
+answer `IFEnvRelI`; it is the one `Top` item left `sorry` on the path.  The
+leaf needs to carry `IFEnvRelI` as `ifenv_push_refines` does — the
+`IFEnvRel`-fields work the coordinator holds.
+
+**No twin/Rust divergence found** on these paths.
+
+Frontier (`scripts/frontier.sh ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`): `arena` `b047603a` (with the Checker
+lane's `4265c378` and the ExprOps lane) 50 items / 233 tainted / dead weight
+401; **this branch** 50 / 246 / 389.  This lane's items left on the frontier:
+`unresolved_consts_error` (fan-in 3; the module-order hypothesis above),
+the two memoised guard walks `all_level_params_defined` and
+`consts_resolve_f_fast` (next slice), `ind_params_ok`, and
+`check_basis_decl_install` (the `install_basis_decls` statement gap).
+
+#### Slice 2 (worktree `_tmp/wt-t2-chk-base2`, off slice 1's `410f9c65`)
+
+**`arena::core::consts_resolve` stated and closed** (`Base`; no tier had
+stated it — the Core knot does not call it, the guard walk's leaf arms do):
+`consts_resolve_aux`, a fuel induction whose two cases are one `lockstep`
+each, filed as `Lockstep.consts_resolve_ls`.  The Rust's
+`nat_trio_stored`/`str_support_stored` split the twin's inline literal arms at
+the same pin reads in the same order, so the twin side is two transcriptions
+(`natTrioStoredSpec`, `strSupportStoredSpec`, in `Base`) and one equation
+(`constsResolve_succ`); `nat_trio_stored_ls`/`str_support_stored_ls` and
+`stored_spec` (`arena::core::stored` as a `TwinEq` probe) by `lockstep`.
+Axiom-clean (`#guard_msgs`), as are `nidx_is_proj_fn_shape_refines`,
+`name_nodup_refines`, `recs_form_suffix_refines`.
+
+**The two memoised guard walks, a Rust-shape question (ruling needed).**
+`consts_resolve_f_{go,node,two}` and `all_level_params_defined_{go,node,binder}`
+return their memo OUTSIDE the `Result` (`(Result<bool>, AState, memo)` /
+`(Result<bool>, memo)`), where every other memo walk the tactic zips
+(`expr_ops::leaves_sub_go`, `struct_parts::mentions_const_go`, …) returns it
+inside (`Result<(bool, memo)>`); so neither is an `LS`/`LSR` judgement and
+both are hand proofs (`SimBM`/`SimBR`) today.  Reshaping the two Rust walks
+to the `mentions_const_go` shape would make each a fuel induction closed by
+`lockstep`, as `consts_resolve` above.  Also found: `consts_resolve_f_node_refines`
+as stated is FALSE at the four leaf views (the Rust answers `false`, the
+twin's transcription `constsResolveFNodeSpec` calls `constsResolve`, which is
+`true` at a `bvar`); it holds only at the non-leaf views its one caller passes
+and must say so (a Rust-input hypothesis) whichever way the walk is proved.
+
+**`ind_params_ok`, module order again**: its leaf `arena::env::pi_sort_tele_len`
+is proved (`env_pi_sort_tele_len_run`) in `Frontend/ExportCInd.lean`, above
+`Checker/Base.lean`.
+
+#### Slice 3 (worktree `_tmp/wt-t2-chk-base3`, off slice 2; `arena` `ddb4acdb` merged)
+
+Coordinator's rulings on slice 2: (1) no Rust reshape of the two guard walks —
+they wait for `LSM` (Promote's memo-outside judgement) to become a shape of the
+shared tactic; (2)+(3) move the leaf statements down, do not thread
+hypotheses; (4) `install_basis_decls`'s `IFEnvRelI` is the DeclCheck lane's,
+`check_basis_decl_install` stays open; the not-a-leaf hypothesis on
+`consts_resolve_f_node_refines` approved.
+
+* **The move, its own commit** (`Move leaf statements below Checker/Base`):
+  new `Refine2/Checker/Leaves.lean` (imported by `Checker/Base.lean` and
+  `Refine2.lean`) holds, unchanged, `mentions_const_refines`/`_ls` (from
+  `Inductives/StructParts.lean`, still `sorry`) and
+  `Frontend.env_pi_sort_tele_len_run` (from `Frontend/ExportCInd.lean`, proved)
+  with its two helpers `Frontend.env_view_e_run`/`view_bind_run` (from
+  `Frontend/ExportC.lean`).  Full names kept; the three old modules only lost
+  those declarations (their imports reach `Leaves` through `Checker/Base`).
+  When `mentions_const` is proved, its arm lemmas (`mentions_const_go`/`_node`)
+  and their shapes (`LOutRel`, `mentionsConstNodeSpec`) must follow it down.
+* `unresolved_consts_error_refines` now `unresolved_consts_error_of` at
+  `mentions_const_ls`: its only `sorry` is that walk's.
+* `ind_params_ok_at` (per kind, `lockstep`; new `pi_sort_tele_len_ls`,
+  `@[lockstep_simp]` `absU_beq_u64`/`absU_le_u64`) and `ind_params_ok` (cursor
+  induction, each step one `lockstep`, `indParamsOk_unfold`): closed.
+* `consts_resolve_f_node_refines` takes `hnl` (the view is not a leaf).
+
+Frontier: `arena` `ddb4acdb` 50 / 244 / 389 → this branch 49 items /
+244 tainted / dead weight 387.  This lane's items on it: `mentions_const`
+(now in `Leaves`, Inductives' walk), the two guard walks (waiting on `LSM`),
+`check_basis_decl_install` (DeclCheck's statement).
+
+### Task #97-T2-TACTIC round 2 — twin-only spec arguments, and a twin `if` against a Rust bind (2026-09-23, Opus under Fable)
+
+Worktree `_tmp/wt-tactic`, branch `t2-tactic` off `arena` `b5f0d431` (the
+ExprOps lane's atomic `twin_bind_pure` fallback included).  The owner of the
+shared `lockstep` tactic fixes the two limits the Checker lane (round 2 slice
+2) reported and worked around per proof.
+
+#### Slice 1 — the core fix (`Tactic/Lockstep.lean`, one commit)
+
+1. **Twin-only arguments.**  A `@[lockstep]` lemma (or a local hypothesis)
+   whose twin side has an argument the Rust does not determine —
+   `liftFueled what`, `unresolvedConstsError what`, the div/mod loop's
+   `tried` list — was never selected: `apply` left the argument as a goal of
+   type `String`/`List String`, `lockstep_side`'s `assumption` took whatever
+   term of that type the context had (or failed), and the `x' = x` check then
+   rejected the candidate.  `specCore` now DEFERS a candidate's non-`Prop`
+   premises, and a `Prop` premise that fails while it still mentions one,
+   until after the caller's `x' = x` check (`lockstep_congr`, whose `rfl`
+   unifies the argument with the goal's twin action); what is still open
+   afterwards goes to `lockstep_side` as before.  Propositional premises are
+   still tried first, in the old order, so a data argument a premise fixes
+   (`IFEnvRelI rf ?lf` by `assumption`) is fixed exactly as before.
+2. **A Rust bind against a twin `if`.**  With the atomic fallback, the
+   Checker lane's `(if …) >>= pure` leftover no longer arises from the
+   tactic, but two shapes still stopped the zip: a twin `if` in BIND position
+   (`(if c then a else b) >>= k`, a twin `do` block's last-line `if` bound to
+   `pure`), which no rule looked through; and a twin `if` neither side tier
+   decides while the Rust steps first.  New rules `LS.twin_ite_bind`/
+   `twin_dite_bind` distribute the `if` over its continuation (tried with the
+   twin's `pure`/`get` binds, before the Rust step), after which the existing
+   polarity/cheap/dear decision applies; and `LS.twin_ite_split`/
+   `twin_dite_split` split a twin `if` as the LAST resort of `stepCore` (after
+   every other move failed), so both branches continue and the one a later
+   Rust test rules out closes by `lockstep_contra`.  Neither rule produces a
+   bind with `pure`, so neither can cycle with `twin_bind_pure`.
+
+**Regression tests** — `Tactic/Tests.lean` (new; in `ConRonRefine2` by its
+glob): `lift_fueled_any_ls` (a `liftFueled` lemma for EVERY message) picked
+at `"level comparison"`; the generic `unresolved_consts_error_ls` (free `w`)
+picked at `"value"`; a local induction hypothesis quantified over the twin's
+`tried` list used at `ltried ++ [msg]`; **`install_value_tail_refines'` — the
+reported site — closed by one `lockstep`** (the lane's version is
+`lockstep; rw [bind_pure, if_neg …]; LS.bind unresolved_consts_error_value_ls
+…; lockstep`); a twin `(if b then … else …) >>= pure` against a Rust bind
+with `b` decided; an undecided twin `if` split; and a no-cycle test under
+`maxHeartbeats 20000` with `#guard_msgs` (a Rust state step with no partner
+against an undecided twin `if`: `lockstep` must stop).  Reverting the
+fallback to the non-atomic form makes `ExprOps/Mut.lean` time out at
+200 000 heartbeats before this module is reached (checked).
+
+**Cost** — `perf stat -e instructions:u` of `lake build ConRonRefine2` after
+a change to `Lockstep.lean`'s olean (every downstream module re-elaborated,
+`LAKE_JOBS=4`, `LEAN_NUM_THREADS=4`): **before 5 292 G instructions (68
+modules), after 5 303 G (69 modules, `Tests` included): +0.2 %**.  Summed
+per-module build time (one run each, noisy): 466 s → 428 s.
+
+**Gates** on the branch (`arena` `b5f0d431` already its base): **all 16 OK**
+(`extract-check` 100 s, `lake-bridge` 552 s).  Submitted as slice 1; the
+workaround cleanups follow as slice 2 (their sites are in the Checker round-2
+slice-2 branch, still in the queue when this was submitted).
+
+#### Slice 1b — `twin_bind_pure` skips a twin `if` (core, one commit)
+
+Reported by the Checker Base/Top lane through the coordinator (its local
+`chk_lockstep` wrapper in `Checker/Base.lean`): when the twin's next step is
+an `if` the last Rust test already decided and the Rust's next step is a
+state bind whose partner is INSIDE the branch, the `rustStep` fallback
+`LS.twin_bind_pure` could take the whole `if` as the partner and bury it under
+`>>= pure`.  The fallback now does not fire at a twin `ite`/`dite`; `stepCore`
+then decides the `if` (cheap tier, then dear) or, failing that, splits it
+(slice 1).  New test in `Tactic/Tests.lean` (a twin `if b then … else
+unresolvedConstsError …` with `¬ b = true` in context against the Rust's
+`unresolved_consts_error` bind).  `lake build ConRonRefine2` green.  The lane's
+`chk_lockstep` can become `lockstep` once this and its branch are both on
+`arena`.
+
 ### Task #97-T2-LOCKSTEP lane Frontend round 3 — the modeller seam; the lane's frontier (2026-09-23, Opus under Fable)
 
 Worktree `_tmp/wt-t2-front3` off `65b6f721` (round 2's tip, which already
@@ -60156,3 +61255,76 @@ that `crate::in_model::generate` (the task-#37 port) is con-leche's
    intern's message: no verdict, which is what the twin's throw is.  The
    failure is a table at capacity (`IDX_CAP`), unreachable on any export
    measured.
+
+**Item 2 — the lane frontier.**  Every Frontend statement the capstones reach
+through this lane is proved; the lane's `sorry`s left are `Top.lean`'s two
+(`concat_bytes`, `parse_export_d`, off both capstones' paths).  In order:
+
+* `proj_rec_value` (`ProjRec.lean`, all of it on `lockstep`), and with it the
+  owner census `register_proj_owners` / `proj_rec_owners` /
+  `proj_rec_candidates`.  Restated on the way: `find_ctor_rec` /
+  `find_rec_rec` as `LSP` specs answering `TwinEq (findCtorRec …) …` (the twin
+  reads the record the port's index names), `note_proj_iota`'s error arm.
+  `Spec.lean`'s stale `projRecValue` / owner-census transcriptions (and six
+  `unfold`s of them) deleted: they transcribed the twin before round 2's D1
+  and no longer matched it.
+* `install_gen`, `note_ind_blocks` (`ExportCInd.lean`); ExportC's twelve.
+* `hoist_targets` (`NatOpGround.lean`): `used_consts_go` (the node/two split
+  inline), `used_consts_{rules,block}`, `decl_used_consts(_value)`,
+  `hoist_close` (the unfuelled worklist against the fuelled twin, by the
+  `hoistPending` measure; restated with the index-bound premise `hidx` and the
+  `HCOut` shape), `hoist_targets_at` (restated in the same shape) and
+  `hoist_targets`.  New `Frontend/NatOpDeps.lean`: `nat_op_deps` against
+  `natOpDeps` — the port reads the fifteen pins into a `NatOpPins` record
+  (split in two by the extraction), the twin reads them one by one;
+  `natOpPinsT` names that prefix of the twin (a Refine2-side definition, no
+  twin change) and `natOpDeps_eq` splits it there, so `nat_op_pins` is one
+  `lockstep` call.  The twin's target map stays within the stream
+  (`hoistTargetsGo_bound`): a fact about the twin's runs alone, what
+  `apply_hoist_refines` needs.
+* The interim `Frontend/ExprOpsSeam.lean` (the ExprOps lane's statements,
+  sorried, while that lane was unlanded) is deleted at the `arena` merge; the
+  uses are the lane's `ExprOps.*_ls`.  Duplicates the merge brought in are
+  dropped here, not there: `i_constant_info_to_constant_val_refines` (now
+  `Checker/Pins.lean`), the fifteen `nat_*_name_ls` (now `Checker/Pins.lean`),
+  `cons_binder_spec` / `hashmap2_new_eidx_spec` (now `Tactic/Prims.lean`;
+  the census's visited set keeps its own `HSetRel` spec, not `@[lockstep]`,
+  taken by hand in `occurs_const_fast`).
+
+**What the merge did to this lane's `lockstep` proofs.**  Four proofs
+(`occurs_const_go`, `proj_rec_value`, `proj_rec_candidates_from`,
+`proj_rec_owners`) relied on the zip STOPPING at a twin test it could not
+decide and finished by hand there.  With `arena`'s tactic (round 2's twin
+fallbacks: an undecided twin `if` split, a twin `match` on a term cased) the
+zip no longer stops; it walks the doomed arm and runs out of heartbeats.  A
+second cause: the side tiers' `simp only [lockstep_simp, *]` tries a live
+induction hypothesis `ih` as a conditional rewrite at every step, which does
+not terminate in `proj_rec_candidates_from`.  Repaired inside the lane, with
+no edit to `Tactic/Lockstep.lean`:
+
+* local tactics in `ProjRec.lean`, each FAILING unless its shape is present,
+  so they sit in front of `lockstep_step` in a `repeat' (first | … |
+  lockstep_step)` driver: `ls_bool_false` (the port's `if b` against the
+  twin's `match (b, seen)`), `ls_subst_bne` (a failed `x != c` test
+  substituted), `ls_view_sort` (`LS.twin_view_sort` from the tag fact),
+  `ls_clear_ih_candidates` (clear `ih` once the port no longer calls the
+  recursion), `ls_ctor_record` (the `ctors[j]` the twin's `findCtorRec` cased
+  on); `lockstep_step_nosplit` refuses a step whose result is ≥ 2 goals with
+  the port's program unchanged (the fallback split);
+* `proj_rec_value`: the thirteen-step prefix and the port's three tests
+  against the twin's one `||` test decided explicitly;
+* `proj_rec_owners`: a port branch its own `false` rules out closes at once,
+  and a local Boolean `lockstep_simp` folds the twin's `direct && !recursive`;
+* `proj_rec_candidates_from` needs `maxHeartbeats 1000000`.
+
+Ruling asked (tactic owner): whether the twin fallbacks should be opt-out
+(`lockstep_nosplit` is a lane-local emulation), and whether `lockstep_side`'s
+`simp [*]` should skip ∀-hypotheses — both would make these workarounds
+unnecessary.
+
+**Frontier after the round** (`scripts/frontier.sh`, both capstones, on the
+merged tip): 46 items in 14 modules, 244 tainted, dead weight 284 — **no
+Frontend module on the frontier**; `Frontend/Top.lean`'s two are dead weight.
+(Before the round: 46 items, 540 dead weight on the round-2 tip; the item
+count is unchanged because the Checker/Inductives items it now shows were
+behind the Frontend ones.)

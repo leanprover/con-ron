@@ -375,10 +375,13 @@ exactly this record, so at every multi-constructor fixpoint install
 The singleton arm is the shape relation's fields, `readLevel_run` (the twin
 does NOT call `lvlEq?`) and `denoteCV_name` at the constructor handle. -/
 theorem nativeCapsAt_spec (p : Arena.InductiveShape)
-    (q : ConLeche.InductiveShape) (isRec : Bool) :
-    PSpecP (fun st => ShapeRel st p q)
+    (q : ConLeche.InductiveShape) (isRec : Bool) {μ : CheckMode} {env : Env}
+    (fe : IFEnv) :
+    CSpec μ env fe (fun st => ShapeRel st p q)
       (Arena.nativeCapsAt p isRec) (RCaps (ConLeche.nativeCapsAt q isRec)) := by
-  intro s₀ s' r hok hpins hrel hrun
+  intro s₀ s' r hc hrel hrun
+  have hok := hc.state
+  have hpins := hc.pins
   simp only [Arena.nativeCapsAt] at hrun
   have hct : denoteCtors s₀.store p.ctors = some q.ctors := hrel.ctors
   cases hcs : p.ctors with
@@ -386,7 +389,7 @@ theorem nativeCapsAt_spec (p : Arena.InductiveShape)
     rw [hcs] at hrun hct
     have hqc : q.ctors = [] := (Option.some.inj hct).symm
     obtain ⟨rfl, rfl⟩ := pureOk hrun
-    refine ⟨PStep.refl hok, ?_⟩
+    refine ⟨(PStep.refl hok).toCore hc, ?_⟩
     show Frontend.denoteCaps _ _ = _
     simp only [ConLeche.nativeCapsAt, hqc, Frontend.denoteCaps, hpins.anon]
   | cons a as =>
@@ -406,12 +409,14 @@ theorem nativeCapsAt_spec (p : Arena.InductiveShape)
           simp only [denoteCtors, Option.some.injEq] at has
           subst has
           obtain ⟨l, s1, k1, hz⟩ := bindOk hrun
-          obtain ⟨hs1, hl⟩ := readLevel_run k1
-          rw [hs1] at hz
+          have hl := readLevelM_denote_core hc (PStep.refl hok) k1
+          have p1 := readLevelM_pstep hok k1
+          have hst := (Core.readLevelM_frame k1).1
           obtain rfl := Option.some.inj (hl.symm.trans hrel.resSort)
           obtain ⟨rfl, rfl⟩ := pureOk hz
-          refine ⟨PStep.refl hok, ?_⟩
+          refine ⟨p1.toCore hc, ?_⟩
           show Frontend.denoteCaps _ _ = _
+          rw [hst]
           simp only [ConLeche.nativeCapsAt, hqc, Frontend.denoteCaps,
             denoteCV_name hcv, hrel.nP, hrel.nIdx, hrel.isProp]
         | cons b bs =>
@@ -427,7 +432,7 @@ theorem nativeCapsAt_spec (p : Arena.InductiveShape)
               have hrp : restP = (cv2P, nf2) :: rest2 :=
                 (Option.some.inj has).symm
               obtain ⟨rfl, rfl⟩ := pureOk hrun
-              refine ⟨PStep.refl hok, ?_⟩
+              refine ⟨(PStep.refl hok).toCore hc, ?_⟩
               show Frontend.denoteCaps _ _ = _
               simp only [ConLeche.nativeCapsAt, hqc, hrp, Frontend.denoteCaps,
                 hpins.anon]
@@ -499,10 +504,10 @@ theorem checkSumInd_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     ⟨hsh.ext x15, denoteL_ext hsP p5.ext⟩ k6
   have c16 := c15.trans c6
   obtain ⟨caps, s₇, k7, z8⟩ := bindOk z7
-  obtain ⟨p7, hcaps⟩ := nativeCapsAt_spec p' (q.withSort sP) isRec s₆ s₇ caps c16.ok.state
-    c16.ok.pins hp' k7
+  obtain ⟨p7, hcaps⟩ := nativeCapsAt_spec p' (q.withSort sP) isRec fe s₆ s₇ caps c16.ok
+    hp' k7
   obtain ⟨rfl, rfl⟩ := pureOk z8
-  have c17 := c16.trans (p7.toCore c16.ok)
+  have c17 := c16.trans p7
   have x7 : Ext s₄.store s'.store := p5.ext.trans (c6.ext.trans p7.ext)
   have hci : Frontend.denoteCI s'.store (.indInfo cvTa caps) =
       some (.indInfo cvTaP (ConLeche.nativeCapsAt (q.withSort sP) isRec)) := by
@@ -720,14 +725,15 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     | false =>
       simp only [Bool.not_false, if_true] at z4
       obtain ⟨lu, s5, k5, z5⟩ := bindOk z4
-      obtain ⟨hs5, hlu⟩ := readLevel_run k5
-      rw [hs5] at z5
+      have hlu := (Core.readLevelM_denote hok4.caches.readL k5).1
+      have c5 : CoreStep μ env fe s4 s5 := (readLevelM_pstep hok4.state k5).toCore hok4
       obtain ⟨ls, s6, k6, z6⟩ := bindOk z5
-      obtain ⟨hs6, hls⟩ := readLevel_run k6
-      rw [hs6] at z6
+      have hls := (Core.readLevelM_denote c5.ok.caches.readL k6).1
+      have c6 : CoreStep μ env fe s5 s6 := (readLevelM_pstep c5.ok.state k6).toCore c5.ok
       obtain ⟨b, s7, k7, z7⟩ := bindOk z6
       have hlu' : lu = uP := Option.some.inj (hlu.symm.trans huP)
-      have hls' : ls = sP := Option.some.inj (hls.symm.trans (denoteL_ext hs c4.ext))
+      have hls' : ls = sP :=
+        Option.some.inj (hls.symm.trans (denoteL_ext hs (c4.ext.trans c5.ext)))
       subst hlu' hls'
       cases hleq : Level.leq lu ls with
       | none =>
@@ -746,7 +752,7 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       simp only [if_true] at z7
       obtain ⟨_, s8, k8, z8⟩ := bindOk z7
       obtain ⟨-, rfl⟩ := pureOk k8
-      obtain ⟨c, F3, restP, hF3, hr⟩ := tail _ (CoreStep.refl hok4) z8
+      obtain ⟨c, F3, restP, hF3, hr⟩ := tail _ (c5.trans c6) z8
       refine ⟨c, max (max F1 F2) F3, restP ++ [lu], ?_, hr⟩
       have e1 := hF1' (max (max F1 F2) F3)
         (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_left _ _))

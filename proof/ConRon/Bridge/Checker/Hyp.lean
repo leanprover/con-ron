@@ -85,6 +85,68 @@ theorem CoreStep.trans {μ : CheckMode} {env : Env} {fe : IFEnv} {a b c : AState
     CoreStep μ env fe a c :=
   ⟨h₂.ok, h₁.ext.trans h₂.ext, by rw [h₂.pins, h₁.pins]⟩
 
+/-! ## The pre-insertion view (task #97-T2-LOCKSTEP lane Checker round 2)
+
+The Rust keeps ONE environment index and runs `checkDecl`'s three pin gates
+at `restrict(fe2, k_pre)` — the post-install index at the pre-install
+counter — and the twin does the same since this round.  Nothing in the
+invariant reads an index except through `find?` (`IFEnvOK`'s three clauses;
+`CacheOK` and `PinsOK` do not mention it), so the invariant at `fe` IS the
+invariant at any index answering `fe`'s `find?`, and the core knot, which is
+stated for every index, needs nothing more. -/
+
+/-- con-leche: none — **the restricted push answers the old `find?`**: the
+pushed key is fresh, and its row sits at the old counter, which the
+restriction hides. -/
+theorem IFEnv.find?_push_restrict (fe : IFEnv) (ci : IConstantInfo)
+    (hfresh : fe.find? ci.name = none) (n : NIdx) :
+    ((fe.push ci).restrictTo fe.visibleBelow).find? n = fe.find? n := by
+  simp only [IFEnv.find?, IFEnv.push, IFEnv.restrictTo, Std.HashMap.getElem?_insert]
+  by_cases h : (ci.name == n) = true
+  · have hn : ci.name = n := by simpa using h
+    subst hn
+    simp only [IFEnv.find?] at hfresh
+    simp only [h, if_true, Nat.lt_irrefl, if_false]
+    rw [hfresh]
+  · simp only [h, Bool.false_eq_true, if_false]
+
+/-- con-leche: none — `IFEnvOK` reads its index through `find?` only. -/
+theorem IFEnvOK.congr_find {env : Env} {fe fe' : IFEnv} {s : AState}
+    (h : IFEnvOK env fe s) (hf : ∀ n, fe'.find? n = fe.find? n) :
+    IFEnvOK env fe' s where
+  hit := fun n ci hn => h.hit n ci (by rw [← hf]; exact hn)
+  cover := fun nm c he => by
+    obtain ⟨n, ci, hd, hfn, hc⟩ := h.cover nm c he
+    exact ⟨n, ci, hd, by rw [hf]; exact hfn, hc⟩
+  proj := fun n t hn => h.proj n t (by rw [← hf]; exact hn)
+
+/-- con-leche: none — so does the whole checker invariant. -/
+theorem CheckOK.congr_find {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
+    {s : AState} (h : CheckOK μ env fe s) (hf : ∀ n, fe'.find? n = fe.find? n) :
+    CheckOK μ env fe' s :=
+  ⟨h.state, h.caches, h.pins, h.ienv.congr_find hf⟩
+
+/-- con-leche: none — and so does a core step's frame. -/
+theorem CoreStep.congr_find {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
+    {s s' : AState} (h : CoreStep μ env fe s s')
+    (hf : ∀ n, fe'.find? n = fe.find? n) : CoreStep μ env fe' s s' :=
+  ⟨h.ok.congr_find hf, h.ext, h.pins⟩
+
+/-- con-leche: none — **a name the environment lacks, the index lacks**:
+`IFEnvOK.hit`'s contrapositive at a handle that denotes it. -/
+theorem IFEnvOK.find?_none {env : Env} {fe : IFEnv} {s : AState}
+    (h : IFEnvOK env fe s) {n : NIdx} {nm : ConLeche.Name}
+    (hd : denoteN s.store.ns n = some nm) (he : env.find? nm = none) :
+    fe.find? n = none := by
+  cases hf : fe.find? n with
+  | none => rfl
+  | some ci =>
+    obtain ⟨nm', c, hd', -, he'⟩ := h.hit n ci hf
+    rw [hd] at hd'
+    obtain rfl := Option.some.inj hd'
+    rw [he] at he'
+    exact absurd he' (by simp)
+
 /-! ## The seventh entry point -/
 
 /-- con-leche: none — the LEVEL-valued answer relation, for `ensureSort`.

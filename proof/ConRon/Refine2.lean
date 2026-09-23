@@ -28,7 +28,7 @@ readings of the machine-word operations are all imported rather than rebuilt.
 | `Refine2/Dup.lean` | the `arena::env` record copies are identities (the `*_dup_abs` family, moved down by task #97-P5-Front round 2) |
 | `Refine2/ExprOps/*.lean` | the `arena::expr_ops` tier: 120 functions, one `_refines` each |
 | `Refine2/Core/*.lean` | the `arena::core` tier: `KnotRel`, the knot's memo floor, the fuel induction and the six entry points |
-| `Refine2/Inductives/*.lean` | the `arena::inductives` tier: 306 functions, one `_refines` each, and `IndRel` |
+| `Refine2/Inductives/*.lean` | the `arena::inductives` tier: 306 functions, one `_refines` each |
 | `Refine2/Frontend/*.lean` | the `arena::frontend` tier: the syntax vocabulary, `StateDRel`, the six Rust modules, and `parse_chunks_refines` / `builtin_prelude_e_refines` |
 | `Refine2/Tactic/*.lean` | task #97-T2-TACTIC: the `lockstep` tactic and `@[lockstep]` attribute (`Lockstep.lean`, `Attr.lean`), the primitive pairs (`Prims.lean`), and the measured sample (`Sample*.lean`); built by the library's `globs`, imported by nothing |
 -/
@@ -47,6 +47,7 @@ import ConRon.Refine2.Checker.Shape
 import ConRon.Refine2.Promote.Intern
 import ConRon.Refine2.Promote.Promote
 import ConRon.Refine2.Checker.KnotHyp
+import ConRon.Refine2.Checker.Leaves
 import ConRon.Refine2.Checker.Pins
 import ConRon.Refine2.Checker.Canon
 import ConRon.Refine2.Checker.Axioms

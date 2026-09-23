@@ -1881,14 +1881,15 @@ theorem certifyNatEqs_bridge_aux {μ : CheckMode} {env : Env} {fe : IFEnv}
 theorem certifyNatEqs_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {eqs : List (EIdx × EIdx)} {xs : List (Expr × Expr)}
     {r : Bool} {s s' : AState} (hμ : μ.verifiedChecks = true)
-    (hk : CoreSpec μ Arena.checkFuel) (hok : FoldOK μ env fe s)
+    (hk : CoreSpec μ Arena.checkFuel) (hck : CheckOK μ env fe s)
+    (henv : EnvWF env)
     (hden : EqPairsDenote s.store eqs xs)
     (hws : ∀ q ∈ xs, Expr.WScoped 2 q.1 ∧ Expr.WScoped 2 q.2)
     (hrun : certifyNatEqs μ fe eqs s = .ok (r, s')) :
     CoreStep μ env fe s s' ∧
       (r = true → ∃ F, ConLeche.certifyNatEqs (ConLeche.fueledOps μ F) env xs
         = .ok true) :=
-  certifyNatEqs_bridge_aux hk hok.envWF eqs xs r s s' hok.check hden hws hrun
+  certifyNatEqs_bridge_aux hk henv eqs xs r s s' hck hden hws hrun
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:614-620 Expr.substConst0 — the
 spine substitution preserves scoping at a scoped replacement. -/
@@ -2142,7 +2143,8 @@ pinned term.  Task #97-P3-Checker's sorry list, item 24. -/
 theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
     {fe fe2 : IFEnv} {cn : NIdx} {nm : ConLeche.Name} {value : EIdx}
     {x : Expr} {s s' : AState} (hμ : μ.verifiedChecks = true)
-    (hk : CoreSpec μ Arena.checkFuel) (hok : FoldOK μ env fe s)
+    (hk : CoreSpec μ Arena.checkFuel) (hck : CheckOK μ env fe s)
+    (henv : EnvWF env)
     (hok2 : StepOK env2 fe2 s)
     (hn : denoteN s.store.ns cn = some nm)
     (hv : denoteE s.store value = some x) (hws : Expr.WScoped 0 x)
@@ -2150,20 +2152,26 @@ theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
     StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
       ∃ F, ConLeche.checkReducePin (ConLeche.fueledOps μ F) env env2 nm x
         = .ok () := by
-  have hknot := hk.knot env fe hok.envWF
-  have hck := hok.check
+  have hknot := hk.knot env fe henv
   simp only [Arena.checkReducePin] at hrun
   obtain ⟨b1, s1, g1, r1⟩ := AM.bind_ok hrun
   obtain ⟨hs1, rfl⟩ := reduceStoredOk_run hck.state hck.pins hok2.ienv hn _ _ g1
-  obtain ⟨b2, s2, g2, r2⟩ := AM.bind_ok r1
+  rcases AM.ite_ok r1 with ⟨hc0, r1'⟩ | ⟨-, r1'⟩
+  rotate_left
+  · exact absurd r1' (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
+  obtain ⟨b2, s2, g2, r2⟩ := AM.bind_ok r1'
   obtain ⟨hs2, rfl⟩ := reduceElemOk_run hs1.ok (hck.pins.mono hs1.ext hs1.pins)
     (hck.ienv.mono hs1.ext) (denoteN_ext hn hs1.ext) _ _ g2
   have hs12 := hs1.trans hs2
   have hck2 : CheckOK μ env fe s2 :=
     hck.mono hs12.ok hs12.ext hs12.caches hs12.pins
-  rcases AM.ite_ok r2 with ⟨hc1, r3⟩ | ⟨-, r3⟩
+  rcases AM.ite_ok r2 with ⟨hc1', r3⟩ | ⟨-, r3⟩
   rotate_left
   · exact absurd r3 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
+  have hc1 : (ConLeche.reduceStoredOk env2 nm && ConLeche.reduceElemOk env nm)
+      = true := by
+    rw [Bool.and_eq_true]
+    exact ⟨hc0, hc1'⟩
   obtain ⟨b3, s3, g3, r4⟩ := AM.bind_ok r3
   obtain ⟨hck3, hx3, hp3, rfl⟩ :=
     reducePinGuard_run hck2 (denoteN_ext hn hs12.ext) g3

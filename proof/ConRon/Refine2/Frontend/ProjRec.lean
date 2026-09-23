@@ -46,10 +46,12 @@ threads its `seen` table as an argument-and-result pair INSIDE the `Result`
 ## `sorry` count in this file: 0
 
 Round 3 (task #97-T2-LOCKSTEP lane Frontend): every statement proved on the
-shared `lockstep` tactic; the walks `expr_ops` owns are consumed through
-`ExprOpsSeam.lean` until that lane lands.
+shared `lockstep` tactic; the walks `expr_ops` owns are the ExprOps lane's
+`@[lockstep]` `_ls` lemmas (`Refine2/ExprOps/{Read,Mut}.lean`; the round's
+interim `ExprOpsSeam.lean` statements were deleted at the `arena` merge).
 -/
-import ConRon.Refine2.Frontend.ExprOpsSeam
+import ConRon.Refine2.Frontend.Spec
+import ConRon.Refine2.ExprOps.Mut
 import ConRon.Refine2.Inductives.NativeParts
 import ConRon.Refine2.Inductives.StructParts
 
@@ -914,6 +916,11 @@ open ConRon.Refine2.Lockstep in
 attribute [local lockstep_inline] frontend.proj_rec.occurs_const_node
   frontend.proj_rec.occurs_const_two
 
+/-- The port's `if b` on a `Bool` the twin matches on (`match (b, seen) with
+| (false, seen) => …`), in its negative arm: `b` is `false`, substituted. -/
+local macro "ls_bool_false" : tactic => `(tactic| (
+  rename_i hcx; revert hcx; simp only [Bool.not_eq_true]; intro hcx; subst hcx; dsimp only))
+
 open ConRon.Refine2.Lockstep in
 /-- **`occurs_const_go` refines `occursConstGo`** (`ProjRec.lean:141-186`):
 does the constant `n` occur in the DAG under `h`, each node visited once.  The
@@ -937,15 +944,11 @@ theorem occurs_const_go_aux (N : Nat) :
     intro pers st lst n seen ls fuel h hn hs hrel hinv
     apply LSR.of_LS
     rw [frontend.proj_rec.occurs_const_go, occursConstGo, if_neg (by scalar_tac)]
-    lockstep
     -- the twin's `match (b, seen) with | (false, seen) => …` at the port's
-    -- `if b` (the negative arm): the Bool is `false`, the match reduces
-    iterate 3
-      all_goals
-        simp only [Bool.not_eq_true] at hc
-        subst hc
-        dsimp only
-        lockstep
+    -- `if b` (the negative arm): the Bool is `false`, the match reduces.  The
+    -- step is taken before the zip's next one (since the tactic's round-2
+    -- twin-`if` rules, a zip step at that undecided `match` does not stop).
+    repeat (first | ls_bool_false | lockstep_step)
 
 /-! ## The telescope helpers -/
 
@@ -992,25 +995,11 @@ theorem lam_body_refines {pers rst lst fuel h' o}
       have hlam : (absEIdx h').tag = ETag.lam := by rw [htag, etag_lam_abs]
       have hbind : ETag.isBind (absEIdx h').tag = true := by rw [hlam]; decide
       obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hqa : lst.store.viewBind (absEIdx h') = q.map absBindM := by
-        have := view_bind_run₀ hrel hbind hq
-        have h2 : (Except.ok (lst.store.viewBind (absEIdx h'), lst) :
-            Except Arena.CheckError _) = Except.ok (q.map absBindM, lst) := this
-        simp only [Except.ok.injEq, Prod.mk.injEq] at h2
-        exact h2.1
-      have hv := view_of_bind_tag (st := lst.store) hbind
-      rw [hqa, hlam] at hv
+      have hvbr : (Arena.viewBind (absEIdx h')).run lst = Except.ok (q.map absBindM, lst) :=
+        view_bind_run₀ hrel hbind hq
       rw [if_pos (by rw [hlam]; rfl)]
-      show SimRE absEIdx lst o (Arena.view (absEIdx h') >>= _)
       unfold SimRE
-      have hvr : (Arena.view (absEIdx h')).run lst = (match lst.store.view (absEIdx h') with
-          | some v => Except.ok (v, lst)
-          | none => Except.error (.internal "arena: dangling expression handle")) := by
-        show ((match lst.store.view (absEIdx h') with
-          | some v => (pure v : AM ENodeView)
-          | none => Arena.fail (.internal "arena: dangling expression handle")).run lst) = _
-        cases lst.store.view (absEIdx h') <;> rfl
-      rw [am_run_bind', hvr, hv]
+      rw [am_run_bind', hvbr]
       cases q with
       | none =>
         rw [arena.monad.fail_dangling_e] at h
@@ -1026,8 +1015,7 @@ theorem lam_body_refines {pers rst lst fuel h' o}
           have := (ConRon.Refine.Nat.usub_val hi1).2
           rw [this, hn]; rfl
         have := ih i1 b hi1v h
-        simp only [Option.map_some, absBindM, eBindView, beq_self_eq_true, if_true,
-          except_ok_bind]
+        simp only [Option.map_some, absBindM, except_ok_bind]
         rw [show absU i1 = k from hi1v] at this
         exact this
     · rw [if_neg hc] at h
@@ -1054,13 +1042,10 @@ attribute [lockstep_simp] etag_const_abs etag_sort_abs
 
 /-! ### `strip_pis_all`, lockstep (round 3) -/
 
-open ConRon.Refine2.Lockstep in
-@[lockstep] theorem cons_binder_spec (ty : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
-    (xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
-    LSP (arena.expr_ops.cons_binder ty m xs)
-      (fun r => absBinderPairs r = (absEIdx ty, ConRon.Refine.absBinderMeta m) ::
-        absBinderPairs xs) :=
-  fun _ h => ExprOps.cons_binder_refines h
+/-- `absBinderPairs` is the ExprOps lane's `absBinderL` (`Tactic/Prims.lean`'s
+`cons_binder_spec` speaks of the latter). -/
+@[lockstep_simp] theorem absBinderPairs_eq (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
+    absBinderPairs v = ExprOps.absBinderL v := rfl
 
 open ConRon.Refine2.Lockstep in
 theorem strip_pis_all_aux (n : Nat) :
@@ -1165,7 +1150,7 @@ theorem strip_pis_all_wf {pers st} (hinv : AStateInv pers st) :
       | some q =>
         obtain ⟨ty, b, m⟩ := q
         simp only at hr
-        have hm := view_bind_meta_wf hinv ho
+        have hm := Lockstep.view_bind_meta_wf hinv ho
         obtain ⟨i1, hi1, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
         obtain ⟨r, hrr, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
         cases r with
@@ -1215,7 +1200,7 @@ open ConRon.Refine2.Lockstep in
     (fun a ha => strip_pis_all_wf hinv _ fuel h a rfl ha)
 
 open ConRon.Refine2.Lockstep in
-/-- `get_app_args_seam` / `head_is`: the port's `view_const_name`. -/
+/-- `get_app_args_ls` / `head_is`: the port's `view_const_name`. -/
 @[lockstep] theorem view_const_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
     LSV pers (fun a b => b = Option.map absNIdx a) (arena.monad.view_const_name pers st h) st lst
@@ -1571,7 +1556,7 @@ open ConRon.Refine2.Lockstep in
     (fun _ => by lockstep_errarm) (fun a b lst1 hR hrel1 hinv1 => ?_)
   obtain ⟨hwf, rfl⟩ := hR
   obtain ⟨v, e⟩ := a
-  refine LSR.bind (get_app_args_seam hrel1 hinv1 fuel e) rfl
+  refine LSR.bind (ExprOps.get_app_args_ls hrel1 hinv1 fuel e) rfl
     (fun _ => by lockstep_errarm) (fun args b lst2 hR hrel2 hinv2 => ?_)
   subst hR
   by_cases hnil : args.val = []
@@ -1710,7 +1695,7 @@ theorem strip_lams_wf {pers st} (hinv : AStateInv pers st) :
       | some q =>
         obtain ⟨ty, b, m⟩ := q
         simp only at hr
-        have hm := view_bind_meta_wf hinv ho
+        have hm := Lockstep.view_bind_meta_wf hinv ho
         obtain ⟨i1, hi1, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
         obtain ⟨r, hrr, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
         cases r with
@@ -1739,7 +1724,7 @@ theorem strip_lams_wls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (k : Std.U64) (h : arena.handle.EIdx) :
     LSR pers (fun a b => (∀ p, a = some p → BindersWF p.1) ∧ b = ExprOps.absStrip a)
       (arena.expr_ops.strip_lams pers st k h) st lst (stripLams (absU k) (absEIdx h)) :=
-  LSR.and_rust (strip_lams_seam hrel hinv k h)
+  LSR.and_rust (ExprOps.strip_lams_ls hrel hinv k h)
     (fun a ha p hp => by subst hp; exact strip_lams_wf hinv _ k h p rfl ha)
 
 theorem absBinders_eq (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
@@ -1770,15 +1755,47 @@ splits are unfolded in place (`lockstep_inline`), the twin is its one block. -/
   obtain ⟨lbs, body⟩ := p
   have hwf' : BindersWF lbs := hwf _ rfl
   simp only [ExprOps.absStrip, Option.map_some, absBinders_eq]
-  lockstep
-  -- the port's `match i4 with | 0#uscalar => …` splits the scalar into its
-  -- bit-vector, which the twin's `match .bvar ↑i4 with | .bvar 0 => …` does
-  -- not see: split the twin's match and close the crossed arms
-  all_goals split
-  all_goals first
-    | (exfalso; exact bvar_zero_contra₁ (by assumption) (by assumption))
-    | (exfalso; exact bvar_zero_contra₂ (by assumption) (by assumption))
-    | lockstep
+  -- Thirteen zip steps reach the port's `match i4 with | 0#uscalar => …`,
+  -- which splits the scalar into its bit-vector, which the twin's `match .bvar
+  -- ↑i4 with | .bvar 0 => …` does not see: split the twin's match and close
+  -- the crossed arms.  Then the port's three tests (`eq2`, `!=`, `≥`) against
+  -- the twin's one combined `||` test, decided explicitly: since the tactic's
+  -- round-2 twin-`if` rules, the zip does not stop at an undecided twin test.
+  iterate 13 lockstep_step
+  on_goal 2 =>
+    split
+    all_goals try (exfalso; exact bvar_zero_contra₁ (by assumption) (by assumption))
+    all_goals try (exfalso; exact bvar_zero_contra₂ (by assumption) (by assumption))
+    on_goal 1 =>
+      iterate 3 lockstep_step
+      on_goal 2 =>
+        rename_i hb
+        have hfi := ‹¬(_ != _) = true›
+        simp only [beq_iff_eq, bne_iff_ne, ne_eq, Decidable.not_not] at hb hfi
+        lockstep_step
+        · rw [if_pos (by simp [absProjRecOwner, hb, hfi]; scalar_tac)]
+          lockstep
+        · rw [if_neg (by simp [absProjRecOwner, hb, hfi]; scalar_tac)]
+          lockstep
+      all_goals
+        rw [if_pos (by
+          first
+          | (have h1 := ‹¬(_ == _) = true›
+             simp only [beq_iff_eq] at h1
+             simp [absProjRecOwner, bne_iff_ne, h1])
+          | (have h1 := ‹(_ != _) = true›
+             simp only [bne_iff_ne, ne_eq] at h1
+             have h2 : ¬ (UScalar.val _ = UScalar.val _) := fun h => h1 (UScalar.eq_of_val_eq h)
+             simp [absProjRecOwner, bne_iff_ne, h2]))]
+        lockstep
+    -- the port's other scalars: the twin's match, split, is at its `_` arm
+    all_goals
+      split
+      all_goals first
+        | (exfalso; exact bvar_zero_contra₁ (by assumption) (by assumption))
+        | (exfalso; exact bvar_zero_contra₂ (by assumption) (by assumption))
+        | lockstep
+  all_goals lockstep
 
 /-- **`proj_rec_value` refines `projRecValue`** (`ProjRec.lean:343-403`) —
 **the rewrite**, and one of the tier's named deliverables. -/
@@ -1793,7 +1810,10 @@ theorem proj_rec_value_refines {pers rst lst fuel o' l ty val i o}
 /-! ## The owner census -/
 
 open ConRon.Refine2.Lockstep in
-@[lockstep] theorem hashmap2_new_eidx_spec :
+/-- The visited set starts empty.  Not `@[lockstep]`: `Tactic/Prims.lean`'s
+`hashmap2_new_eidx_spec` (the ExprOps memos' relations) is filed under the same
+Rust head, so `occurs_const_fast` takes this one by hand. -/
+theorem hashmap2_new_hset_spec :
     LSP (ron.hashmap2.HashMap2.new arena.handle.EIdx Bool)
       (fun m => HSetRel m (∅ : Std.HashSet EIdx)) := by
   intro m h
@@ -1818,6 +1838,7 @@ open ConRon.Refine2.Lockstep in
       (occursConstFast (absU fuel) (absNIdx n) (absEIdx h)) := by
   apply LSR.of_LS
   rw [frontend.proj_rec.occurs_const_fast, occursConstFast]
+  refine LS.rust_assoc (LSP.bind hashmap2_new_hset_spec (fun m hm => ?_))
   lockstep
 
 open ConRon.Refine2.Lockstep in
@@ -2209,6 +2230,123 @@ theorem absProjTypeRecLFrom_cons (v : alloc.vec.Vec (arena.handle.NIdx × (alloc
       (v.val.drop (i.val + 1)).map absProjTypeRec := by
   simp only [absProjTypeRecLFrom]; rw [List.drop_eq_getElem_cons hi]; rfl
 
+/- **`lockstep_nosplit`** (task #97-T2-LOCKSTEP lane Frontend round 3, at the
+`arena` merge).  The tactic's round-2 fallbacks split a twin test (an `if`, a
+`match` on a term) that nothing decides and walk both arms; this census proof
+decides those tests itself, after the zip stops at them.  So a step whose
+result is two or more goals with the port's program UNCHANGED (the fallback
+split, never a port step) is refused, and the zip stops there as it did before
+the fallbacks.  Built on `lockstep_step`, not a change to it. -/
+open Lean Elab Tactic Meta in
+elab "lockstep_step_nosplit" : tactic => do
+  let g ← getMainGoal
+  let ty ← instantiateMVars (← g.getType)
+  unless ty.isAppOf ``ConRon.Refine2.Lockstep.LS do
+    evalTactic (← `(tactic| lockstep_step)); return
+  let m := ty.getArg! 4
+  let before ← getGoals
+  evalTactic (← `(tactic| lockstep_step))
+  let after ← getGoals
+  let new := after.filter (fun g' => !before.contains g')
+  if new.length ≥ 2 then
+    let same ← new.allM fun g' => do
+      let t ← instantiateMVars (← g'.getType)
+      return t.isAppOf ``ConRon.Refine2.Lockstep.LS && t.getArg! 4 == m
+    if same then throwError "lockstep_step_nosplit: a twin-side fallback split"
+
+/- **`ls_subst_bne`**: a port test `x != c` it failed (`¬(x != c) = true`, `x` a
+local) is `x = c`; substituted, the twin's tests on `x` fold (the tag
+correspondences are `lockstep_simp`).  Found by its shape, not `‹…›`, whose
+`assumption` unfolds every hypothesis. -/
+open Lean Elab Tactic Meta in
+elab "ls_subst_bne" : tactic => withMainContext do
+  for d in ← getLCtx do
+    if d.isImplementationDetail then continue
+    let t ← instantiateMVars d.type
+    unless t.isAppOfArity ``Not 1 do continue
+    let e := t.appArg!
+    unless e.isAppOfArity ``Eq 3 && (e.getArg! 2).isConstOf ``Bool.true do continue
+    let b := e.getArg! 1
+    unless b.isAppOfArity ``bne 4 && (b.getArg! 2).isFVar do continue
+    let stx ← Term.exprToSyntax (mkFVar d.fvarId)
+    evalTactic (← `(tactic| (have h := $stx
+                             simp only [bne_iff_ne, ne_eq, Decidable.not_not] at h
+                             subst h)))
+    return
+  throwError "ls_subst_bne: no failed `!=` test on a local"
+
+/- **`ls_view_sort`**: the twin's `view h` where the port read `view_sort` under
+a tag test it passed (`Idx.tag h = absU32 ETAG_SORT` in context):
+`LS.twin_view_sort`. -/
+open Lean Elab Tactic Meta in
+elab "ls_view_sort" : tactic => withMainContext do
+  for d in ← getLCtx do
+    if d.isImplementationDetail then continue
+    let t ← instantiateMVars d.type
+    unless t.isAppOfArity ``Eq 3 do continue
+    let r := t.getArg! 2
+    unless r.isAppOfArity ``ConRon.Refine2.absU32 1 && (r.getArg! 0).isConstOf ``arena.handle.ETAG_SORT do
+      continue
+    let stx ← Term.exprToSyntax (mkFVar d.fvarId)
+    evalTactic (← `(tactic| apply Lockstep.LS.twin_view_sort (by rw [$stx:term, etag_sort_abs])))
+    return
+  throwError "ls_view_sort: no sort tag fact"
+
+/- **`ls_clear_ih_candidates`**: once the port's program no longer calls
+`proj_rec_candidates_from`, the
+induction hypothesis `ih` is spent; it is cleared, because the side tiers'
+`simp only [lockstep_simp, *]` would otherwise try it (a ∀-conditional
+rewrite) at every later step — that search does not terminate here.  Fails
+(so the zip moves on) while `f` is still called or `ih` is gone. -/
+open Lean Elab Tactic Meta in
+elab "ls_clear_ih_candidates" : tactic => withMainContext do
+  let g ← getMainGoal
+  let ty ← instantiateMVars (← g.getType)
+  let some d := (← getLCtx).findFromUserName? `ih | throwError "no ih"
+  let fn := ``frontend.proj_rec.proj_rec_candidates_from
+  if (ty.find? fun e => e.isConstOf fn).isSome then throwError "still called"
+  replaceMainGoal [← g.clear d.fvarId]
+
+/- **`ls_ctor_record`**: the twin's `findCtorRec` answer, cased on by the zip
+(`(some j).bind (fun j => (absProjCtorRecL ctors)[j]?) = some v`), is the
+port's `ctors[j]`: substituted, and that record split into its fields. -/
+open Lean Elab Tactic Meta in
+elab "ls_ctor_record" : tactic => withMainContext do
+  for d in ← getLCtx do
+    if d.isImplementationDetail then continue
+    let t ← instantiateMVars d.type
+    unless t.isAppOfArity ``Eq 3 do continue
+    let l := t.getArg! 1
+    let r := t.getArg! 2
+    unless l.isAppOfArity ``Option.bind 4 && r.isAppOfArity ``Option.some 2 do continue
+    let s := l.getArg! 2
+    unless s.isAppOfArity ``Option.some 2 do continue
+    let some cl := (l.getArg! 3).find? fun e => e.isAppOfArity ``absProjCtorRecL 1 | continue
+    let cs ← Term.exprToSyntax (cl.getArg! 0)
+    let j := s.getArg! 1
+    let v := r.getArg! 1
+    unless j.isFVar && v.isFVar do continue
+    let hs ← Term.exprToSyntax (mkFVar d.fvarId)
+    let js ← Term.exprToSyntax j
+    evalTactic (← `(tactic| (
+      have hd := $hs
+      have hjb : ($js).val < ($cs).val.length := by
+        have := congrArg Option.isSome hd
+        simpa [absProjCtorRecL] using this
+      simp only [Option.bind_some, absProjCtorRecL, List.getElem?_map,
+        List.getElem?_eq_getElem hjb, Option.map_some, Option.some.injEq] at hd
+      subst hd
+      generalize ($cs).val[($js).val]'hjb = rc
+      rcases rc with ⟨c1, nf1, e1⟩
+      dsimp only [absProjCtorRec])))
+    return
+  throwError "ls_ctor_record: none"
+
+/-- `lockstep` without the twin-side fallback splits (see above). -/
+macro "lockstep_nosplit" : tactic => `(tactic| repeat' lockstep_step_nosplit)
+
+-- the zip's many small steps over the census's four branches exceed the default budget
+set_option maxHeartbeats 1000000 in
 open ConRon.Refine2.Lockstep in
 theorem proj_rec_candidates_from_aux (fuel : Nat) (N : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
@@ -2228,7 +2366,7 @@ theorem proj_rec_candidates_from_aux (fuel : Nat) (N : Nat) :
     intro pers st lst ctors recs types i hn hrel hinv
     rw [frontend.proj_rec.proj_rec_candidates_from, absProjTypeRecLFrom_nil types i (by omega),
       projRecCandidates, if_pos (by scalar_tac)]
-    lockstep
+    lockstep_nosplit
   | succ k ih =>
     intro pers st lst ctors recs types i hn hrel hinv
     have hi : i.val < types.val.length := by omega
@@ -2248,65 +2386,30 @@ theorem proj_rec_candidates_from_aux (fuel : Nat) (N : Nat) :
       have hidxL : Lockstep.LSP (alloc.vec.Vec.index
           (core.slice.index.SliceIndexUsizeSlice arena.handle.NIdx) cs 0#usize)
           (fun x => x = c0) := fun x hx => by rw [hidx0] at hx; exact (Result.ok_injective hx).symm
-      lockstep
-      -- the port's `if tag != ETAG_SORT` against the twin's `if tag == ETag.sort`
-      all_goals first
-        | (rw [if_neg (by
-            rw [‹Idx.tag _ = absU32 _›, Lockstep.absU32_beq_sort]
-            have h := ‹(_ != arena.handle.ETAG_SORT) = true›
-            simp only [bne_iff_ne, ne_eq] at h
-            simpa using h)]
-           lockstep)
-        | (have h := ‹¬(_ != arena.handle.ETAG_SORT) = true›
-           simp only [bne_iff_ne, ne_eq, Decidable.not_not] at h
-           subst h
-           rw [if_pos (by rw [‹Idx.tag _ = absU32 _›, Lockstep.absU32_beq_sort]; simp)]
-           apply Lockstep.LS.twin_view_sort (by rw [‹Idx.tag _ = absU32 _›, etag_sort_abs])
-           lockstep)
-      -- the port's `match is_equiv v1 zero with` against the twin's `if isEquiv … == some true`
+      -- The zip, with this proof's own moves (see `lockstep_nosplit` above): the
+      -- spent `ih` cleared, a failed `!=` test substituted, the sort view.  It
+      -- stops at the port's reads of the records `find_rec_rec` / `find_ctor_rec`
+      -- located (`recs[j1]`, `ctors[jc]`), which the twin cased on: each is
+      -- substituted and split into its fields, and the zip goes on.
+      repeat' (first | ls_clear_ih_candidates | ls_subst_bne | ls_view_sort | lockstep_step_nosplit)
       all_goals
-        rw [hP.2]
-        generalize ConLeche.Level.isEquiv (ConRon.Refine.absLevel _) ConLeche.Level.zero = q
-        rcases q with _ | _ | _
-        all_goals simp (config := {decide := true}) only [if_true, if_false, bind_pure]
-        all_goals simp only [frontend.proj_rec.proj_rec_candidate_rec, hidx0, bind_tc_ok]
-        all_goals lockstep
-        -- `find_ctor_rec` found index `j`: the twin's `findCtorRec` is `ctors[j]`
-        all_goals
-          rename_i jc _ _ _ _ _
-          have hbC : jc.val < ctors.val.length :=
-            ‹∀ (j : Std.Usize), some jc = some j → j.val < ctors.val.length› _ rfl
-          simp only [Option.bind_some, absProjCtorRecL, List.getElem?_map,
-            List.getElem?_eq_getElem hbC, Option.map_some, absProjCtorRec, bind_pure]
-          lockstep
-        -- `find_rec_rec` found index `j1`: the twin's `findRecRec` is `recs[j1]`
-        all_goals
-          have hb := ‹∀ (j : Std.Usize), some _ = some j → j.val < recs.val.length›
-          have hbv := hb _ rfl
-          simp only [Option.bind_some, absProjRecRecL, List.getElem?_map,
-            List.getElem?_eq_getElem hbv, Option.map_some, absProjRecRec, bind_pure]
-          rename_i j1 _ _ _
-          generalize recs.val[j1.val]'hbv = rr
-          rcases rr with ⟨n3, v4, e, i1, i2⟩
-          dsimp only
-          lockstep
-        -- the constructor record `ctors[jc]` the port reads its `n_f` from
-        all_goals
-          simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hc
-          rw [if_neg (by
-            simp only [List.length_map, bne_iff_ne, ne_eq, Decidable.not_not]
-            scalar_tac)]
-          simp only [pure_bind]
-          generalize ctors.val[jc.val]'hbC = rc
-          rcases rc with ⟨c1, nf1, e1⟩
-          dsimp only
-          lockstep
-    · lockstep
+        rename_i j1 _ _ w _ hd
+        simp only [Option.bind_some, absProjRecRecL, List.getElem?_map,
+          List.getElem?_eq_getElem w, Option.map_some, Option.some.injEq] at hd
+        subst hd
+        generalize recs.val[j1.val]'w = rr
+        rcases rr with ⟨n3, v4, e, i1, i2⟩
+        dsimp only [absProjRecRec]
+        repeat' (first | ls_subst_bne | lockstep_step_nosplit)
+      all_goals
+        ls_ctor_record
+        repeat' (first | ls_subst_bne | lockstep_step_nosplit)
+    · lockstep_nosplit
       all_goals
         split
         · rename_i heq
           exact absurd (by simpa using congrArg List.length heq) hl
-        · lockstep
+        · lockstep_nosplit
 
 open ConRon.Refine2.Lockstep in
 @[lockstep] theorem proj_rec_candidates_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -2364,6 +2467,12 @@ open ConRon.Refine2.Lockstep in
       (nativeParts? (absU n_pd) (absICIL block)) :=
   LS.ofSim₀ fun _ h => native_parts_refines hrel hinv h
 
+/- The twin's `direct && !recursive` once the port has fixed `recursive`:
+Boolean constant folding on the twin side (an extension of `lockstep_simp`,
+local to the census). -/
+attribute [local lockstep_simp] Bool.true_or Bool.false_or Bool.not_true Bool.not_false
+  Bool.and_false Bool.and_true
+
 open ConRon.Refine2.Lockstep in
 /-- **`proj_rec_owners` refines `projRecOwners`** (`ProjRec.lean:498-517`) —
 the owner census; the port's `proj_rec_owners_guard` (called on a non-empty
@@ -2395,14 +2504,10 @@ candidate list only, which is where the twin runs its guard) inline. -/
     rw [this]
     simp only [frontend.proj_rec.proj_rec_owners_guard]
     rw [← this]
-    lockstep
-    -- the port's `if direct { if recursive {…} }` against the twin's
-    -- `if direct && !recursive`: the recursive arm
-    all_goals
-      rw [if_neg (by simp only [Option.isSome_some, Bool.true_and, Bool.not_eq_true',
-        Bool.not_eq_eq_eq_not, Bool.not_false, Bool.or_eq_true] at *; simp_all)]
-      simp only [bind_pure]
-      lockstep
+    -- a port branch its own `false` rules out closes at once (the zip would
+    -- otherwise walk it against the twin's other arm); the twin's `direct &&
+    -- !recursive` folds by the local Boolean `lockstep_simp` above
+    repeat' (first | exact absurd ‹false = true› Bool.false_ne_true | lockstep_step)
 
 /-- **`proj_rec_owners` refines `projRecOwners`** (`ProjRec.lean:498-517`) —
 the owner census, and one of the tier's named deliverables. -/

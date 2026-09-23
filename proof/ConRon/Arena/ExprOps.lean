@@ -1765,26 +1765,34 @@ Each is a single `view` and a test: no recursion, no fuel. -/
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:879-885 isLam — is the expression
 a λ? -/
 def isLam (h : EIdx) : AM Bool := do
-  match ← view h with
-  | .lam _ _ _ => pure true
-  | _ => pure false
+  -- tag first, then the binder projection at the datum HANDLE, as the port
+  -- (task #97-T2-LOCKSTEP, D1)
+  if h.tag == ETag.lam then
+    match ← viewBindI h with
+    | none => failDanglingE
+    | some _ => pure true
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:887-894 lamPw — a λ node's
 prop-ness annotation, `none` off λs.  `PropWhen` is a value and not a term,
 so it crosses the signature unchanged. -/
 def lamPw (h : EIdx) : AM (Option PropWhen) := do
+  -- tag first, then the binder projection, as the port (task #97-T2-LOCKSTEP, D1)
   if h.tag == ETag.lam then
-    match ← view h with
-    | .lam _ _ m => pure (some m.pw)
-    | _ => pure none
+    match ← viewBind h with
+    | none => failDanglingE
+    | some (_, _, m) => pure (some m.pw)
   else pure none
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:896-902 forallPw — the ∀ twin of
 `lamPw`. -/
 def forallPw (h : EIdx) : AM (Option PropWhen) := do
-  match ← view h with
-  | .forallE _ _ m => pure (some m.pw)
-  | _ => pure none
+  -- tag first, then the binder projection, as the port (task #97-T2-LOCKSTEP, D1)
+  if h.tag == ETag.forallE then
+    match ← viewBind h with
+    | none => failDanglingE
+    | some (_, _, m) => pure (some m.pw)
+  else pure none
 
 mutual
 
@@ -1918,8 +1926,9 @@ def renameConstsGo (f : NIdx → NIdx) (fuel : Nat) (h : EIdx) : AM EIdx :=
     | .sort _ => pure h
     | .lit _ => pure h
     | .const n us => do
-      let n' := f n
-      internRebuiltConst h (n' == n) n' us
+      -- the port interns unconditionally in every arm (no `same` cutoff), and
+      -- so does the twin (task #97-T2-LOCKSTEP)
+      internConstE (f n) us
     | .fvar i ty => renameArmFVar f fuel h i ty
     | .app a b => renameArmApp f fuel h a b
     | .lam ty body m => renameArmLam f fuel h ty body m
@@ -1936,7 +1945,7 @@ def renameArmFVar (f : NIdx → NIdx) (fuel : Nat) (h : EIdx) (i : Nat)
   | some r => pure r
   | none => do
     let t ← renameConstsGo f fuel ty
-    let r ← internRebuiltFVar h (t == ty) i t
+    let r ← internFVarE i t
     renameSet (h, 0) r
     pure r
 termination_by (fuel, 1)
@@ -1950,7 +1959,7 @@ def renameArmApp (f : NIdx → NIdx) (fuel : Nat) (h : EIdx) (a b : EIdx) :
   | none => do
     let a' ← renameConstsGo f fuel a
     let b' ← renameConstsGo f fuel b
-    let r ← internRebuiltApp h (a' == a && b' == b) a' b'
+    let r ← internAppE a' b'
     renameSet (h, 0) r
     pure r
 termination_by (fuel, 1)
@@ -1964,7 +1973,7 @@ def renameArmLam (f : NIdx → NIdx) (fuel : Nat) (h : EIdx) (ty body : EIdx)
   | none => do
     let t ← renameConstsGo f fuel ty
     let b ← renameConstsGo f fuel body
-    let r ← internRebuiltLam h (t == ty && b == body) t b m
+    let r ← internLamE t b m
     renameSet (h, 0) r
     pure r
 termination_by (fuel, 1)
@@ -1978,7 +1987,7 @@ def renameArmForallE (f : NIdx → NIdx) (fuel : Nat) (h : EIdx)
   | none => do
     let t ← renameConstsGo f fuel ty
     let b ← renameConstsGo f fuel body
-    let r ← internRebuiltForallE h (t == ty && b == body) t b m
+    let r ← internForallEE t b m
     renameSet (h, 0) r
     pure r
 termination_by (fuel, 1)
@@ -1993,7 +2002,7 @@ def renameArmLet (f : NIdx → NIdx) (fuel : Nat) (h : EIdx)
     let t ← renameConstsGo f fuel ty
     let w ← renameConstsGo f fuel val
     let b ← renameConstsGo f fuel body
-    let r ← internRebuiltLetE h (t == ty && w == val && b == body) t w b
+    let r ← internLetEE t w b
     renameSet (h, 0) r
     pure r
 termination_by (fuel, 1)
@@ -2006,7 +2015,7 @@ def renameArmProj (f : NIdx → NIdx) (fuel : Nat) (h : EIdx) (n : NIdx)
   | some r => pure r
   | none => do
     let u ← renameConstsGo f fuel sub
-    let r ← internRebuiltProj h (u == sub) n i u
+    let r ← internProjE n i u
     renameSet (h, 0) r
     pure r
 termination_by (fuel, 1)
@@ -2028,8 +2037,7 @@ theorem renameConstsGo_succ (f : NIdx → NIdx) (fuel : Nat) (h : EIdx) :
       | .sort _ => pure h
       | .lit _ => pure h
       | .const n us => do
-        let n' := f n
-        internRebuiltConst h (n' == n) n' us
+        internConstE (f n) us
       | .fvar i ty => renameArmFVar f fuel h i ty
       | .app a b => renameArmApp f fuel h a b
       | .lam ty body m => renameArmLam f fuel h ty body m
@@ -2052,25 +2060,29 @@ leading λs.  The recursion is structural on `k`, so no fuel. -/
 def stripLams : Nat → EIdx → AM (Option (List (EIdx × BinderMeta) × EIdx))
   | 0, h => pure (some ([], h))
   | k + 1, h => do
-    match ← view h with
-    | .lam ty b m => do
-      match ← stripLams k b with
-      | some p => pure (some ((ty, m) :: p.1, p.2))
-      | none => pure none
-    | _ => pure none
+    -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
+    if h.tag == ETag.lam then
+      match ← viewBind h with
+      | none => failDanglingE
+      | some (ty, b, m) => do
+        match ← stripLams k b with
+        | some p => pure (some ((ty, m) :: p.1, p.2))
+        | none => pure none
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1128-1134 stripPis — strip `k`
 leading `∀`s. -/
 def stripPis : Nat → EIdx → AM (Option (List (EIdx × BinderMeta) × EIdx))
   | 0, h => pure (some ([], h))
   | k + 1, h => do
+    -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
     if h.tag == ETag.forallE then
-      match ← view h with
-      | .forallE ty b m => do
+      match ← viewBind h with
+      | none => failDanglingE
+      | some (ty, b, m) => do
         match ← stripPis k b with
         | some p => pure (some ((ty, m) :: p.1, p.2))
         | none => pure none
-      | _ => pure none
     else pure none
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1136-1140 piResult — the body of a
@@ -2093,11 +2105,14 @@ fuel is the one `instantiate1Fast` needs. -/
 def instPis (fuel : Nat) : EIdx → List EIdx → AM (Option EIdx)
   | e, [] => pure (some e)
   | h, a :: as => do
-    match ← view h with
-    | .forallE _ body _ => do
-      let b ← instantiate1Fast fuel body a 0
-      instPis fuel b as
-    | _ => pure none
+    -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
+    if h.tag == ETag.forallE then
+      match ← viewBind h with
+      | none => failDanglingE
+      | some (_, body, _) => do
+        let b ← instantiate1Fast fuel body a 0
+        instPis fuel b as
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1148-1156 instPisAt — instantiate
 the leading `∀`-binders at the given arguments, returning each binder's
@@ -2106,26 +2121,32 @@ pure body becomes an explicit `match`: the body is monadic here. -/
 def instPisAt (fuel : Nat) : List EIdx → EIdx → AM (Option (List EIdx × EIdx))
   | [], e => pure (some ([], e))
   | a :: as, h => do
-    match ← view h with
-    | .forallE dom body _ => do
-      let b ← instantiate1Fast fuel body a 0
-      match ← instPisAt fuel as b with
-      | some p => pure (some (dom :: p.1, p.2))
-      | none => pure none
-    | _ => pure none
+    -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
+    if h.tag == ETag.forallE then
+      match ← viewBind h with
+      | none => failDanglingE
+      | some (dom, body, _) => do
+        let b ← instantiate1Fast fuel body a 0
+        match ← instPisAt fuel as b with
+        | some p => pure (some (dom :: p.1, p.2))
+        | none => pure none
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1158-1164 instLamsAt — `instPisAt`
 for λ-binders. -/
 def instLamsAt (fuel : Nat) : List EIdx → EIdx → AM (Option (List EIdx × EIdx))
   | [], e => pure (some ([], e))
   | a :: as, h => do
-    match ← view h with
-    | .lam dom body _ => do
-      let b ← instantiate1Fast fuel body a 0
-      match ← instLamsAt fuel as b with
-      | some p => pure (some (dom :: p.1, p.2))
-      | none => pure none
-    | _ => pure none
+    -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
+    if h.tag == ETag.lam then
+      match ← viewBind h with
+      | none => failDanglingE
+      | some (dom, body, _) => do
+        let b ← instantiate1Fast fuel body a 0
+        match ← instLamsAt fuel as b with
+        | some p => pure (some (dom :: p.1, p.2))
+        | none => pure none
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1181-1190 instPisAtFGo — the core
 of `instPisAtF`: `acc` holds the pending substitutions, innermost binder
@@ -2136,14 +2157,17 @@ def instPisAtFGo (fuel : Nat) :
     let r ← instantiateListFast fuel e acc 0
     pure (some ([], r))
   | acc, a :: as, h => do
-    match ← view h with
-    | .forallE dom body _ => do
-      match ← instPisAtFGo fuel (acc.push a) as body with
-      | some p => do
-        let d ← instantiateListFast fuel dom acc 0
-        pure (some (d :: p.1, p.2))
-      | none => pure none
-    | _ => pure none
+    -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
+    if h.tag == ETag.forallE then
+      match ← viewBind h with
+      | none => failDanglingE
+      | some (dom, body, _) => do
+        match ← instPisAtFGo fuel (acc.push a) as body with
+        | some p => do
+          let d ← instantiateListFast fuel dom acc 0
+          pure (some (d :: p.1, p.2))
+        | none => pure none
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1192-1196 instPisAtF — one-pass
 `instPisAt`. -/
@@ -2161,14 +2185,17 @@ def instLamsAtFGo (fuel : Nat) :
     let r ← instantiateListFast fuel e acc 0
     pure (some ([], r))
   | acc, a :: as, h => do
-    match ← view h with
-    | .lam dom body _ => do
-      match ← instLamsAtFGo fuel (acc.push a) as body with
-      | some p => do
-        let d ← instantiateListFast fuel dom acc 0
-        pure (some (d :: p.1, p.2))
-      | none => pure none
-    | _ => pure none
+    -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
+    if h.tag == ETag.lam then
+      match ← viewBind h with
+      | none => failDanglingE
+      | some (dom, body, _) => do
+        match ← instLamsAtFGo fuel (acc.push a) as body with
+        | some p => do
+          let d ← instantiateListFast fuel dom acc 0
+          pure (some (d :: p.1, p.2))
+        | none => pure none
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1206-1210 instLamsAtF — one-pass
 `instLamsAt`. -/
@@ -2181,9 +2208,12 @@ def instLamsAtF (fuel : Nat) (args : List EIdx) (e : EIdx) :
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1212-1217 fvarTypeD — the type
 annotation of a free-variable leaf (the expression itself otherwise). -/
 def fvarTypeD (h : EIdx) : AM EIdx := do
-  match ← view h with
-  | .fvar _ ty => pure ty
-  | _ => pure h
+  -- tag first, then the annotation projection (task #97-T2-LOCKSTEP, D1)
+  if h.tag == ETag.fvar then
+    match ← viewFVarTy h with
+    | none => failDanglingE
+    | some ty => pure ty
+  else pure h
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1219-1227 instSpine — instantiate
 a telescope-context expression at an argument spine. -/
@@ -2215,12 +2245,15 @@ def recRulePlain (fuel : Nat) (recTy : EIdx) (mI rP cnP : Nat) : AM Bool := do
     match ← stripPis mI recTy with
     | some p => do
       if p.2.tag == ETag.forallE then
-        match ← view p.2 with
-        | .forallE dom _ _ => do
+        -- the binder projection, as the port (task #97-T2-LOCKSTEP, D1)
+        match ← viewBind p.2 with
+        | none => failDanglingE
+        | some (dom, _, _) => do
           let args ← getAppArgs fuel dom
           let want ← bvarRange mI cnP 0
-          pure (args.take cnP == want)
-        | _ => pure false
+          -- the prefix the comparand is as long as (`want.length`, which is
+          -- `cnP`), as the port's `eidx_take_beq` takes it (task #97-T2-LOCKSTEP)
+          pure (args.take want.length == want)
       else pure false
     | none => pure false
 
@@ -2231,39 +2264,48 @@ every consumer must annotate it. -/
 def pisToLams : Nat → EIdx → EIdx → AM (Option EIdx)
   | 0, _, body => pure (some body)
   | k + 1, h, body => do
-    match ← view h with
-    | .forallE ty rest _ => do
-      match ← pisToLams k rest body with
-      | some b => do
-        let r ← internE (.lam ty b ⟨.never⟩)
-        pure (some r)
-      | none => pure none
-    | _ => pure none
+    -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
+    if h.tag == ETag.forallE then
+      match ← viewBind h with
+      | none => failDanglingE
+      | some (ty, rest, _) => do
+        match ← pisToLams k rest body with
+        | some b => do
+          let r ← internLamE ty b ⟨.never⟩
+          pure (some r)
+        | none => pure none
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1263-1269 replacePiBody — replace
 the body under the first `k` `∀`-binders, domains and prop-ness data kept. -/
 def replacePiBody : Nat → EIdx → EIdx → AM (Option EIdx)
   | 0, _, b => pure (some b)
   | k + 1, h, b => do
-    match ← view h with
-    | .forallE ty rest m => do
-      match ← replacePiBody k rest b with
-      | some r => do
-        let x ← internE (.forallE ty r ⟨m.pw⟩)
-        pure (some x)
-      | none => pure none
-    | _ => pure none
+    -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
+    if h.tag == ETag.forallE then
+      match ← viewBind h with
+      | none => failDanglingE
+      | some (ty, rest, m) => do
+        match ← replacePiBody k rest b with
+        | some r => do
+          let x ← internForallEE ty r ⟨m.pw⟩
+          pure (some x)
+        | none => pure none
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1271-1274 piArity — the length of
 the leading `∀`-telescope. -/
 def piArity : Nat → EIdx → AM Nat
   | 0, _ => fail (.internal "fuel exhausted: piArity")
   | fuel + 1, h => do
-    match ← view h with
-    | .forallE _ b _ => do
-      let n ← piArity fuel b
-      pure (n + 1)
-    | _ => pure 0
+    -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
+    if h.tag == ETag.forallE then
+      match ← viewBind h with
+      | none => failDanglingE
+      | some (_, b, _) => do
+        let n ← piArity fuel b
+        pure (n + 1)
+    else pure 0
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1276-1280 resultSort — the result
 sort at the end of a `∀`-telescope. -/
@@ -3068,11 +3110,14 @@ instantiate the leading `∀`-binders at *open* arguments. -/
 def instPisAtLift (fuel : Nat) : List EIdx → EIdx → AM (Option EIdx)
   | [], e => pure (some e)
   | a :: as, h => do
-    match ← view h with
-    | .forallE _ body _ => do
-      let b ← instantiate1LiftFast fuel body a 0
-      instPisAtLift fuel as b
-    | _ => pure none
+    -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
+    if h.tag == ETag.forallE then
+      match ← viewBind h with
+      | none => failDanglingE
+      | some (_, body, _) => do
+        let b ← instantiate1LiftFast fuel body a 0
+        instPisAtLift fuel as b
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2384-2390 exprPtrBEq — structural
 expression equality with a physical-equality shortcut.  In the arena it IS

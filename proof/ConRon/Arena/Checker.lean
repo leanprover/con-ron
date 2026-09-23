@@ -104,15 +104,26 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     -- structural recursions — their recurrence equations are checked by
     -- definitional equality here, once, in the PRE-insertion environment with
     -- the operation's self-references replaced by its stored value.
+    --
+    -- **The pre-insertion environment is `fe2` restricted to `fe`'s counter**
+    -- (task #97-T2-LOCKSTEP lane Checker round 2): the Rust keeps ONE index
+    -- and runs the three pin gates at `restrict(fe2, k_pre)`, so the twin
+    -- does too.  It answers every `find?` exactly as `fe` does (the pushed
+    -- name was fresh), which is all Theorem 1 needs
+    -- (`Bridge/Checker/Inv.lean`'s `IFEnv.find?_push_restrict`).
+    -- The guard, then the dependency list, then the stored-dependency test:
+    -- the Rust's order (`check_structural_nat_pin`).
     if (← natOpNames).contains cv.name then do
+      let g ← natOpGuard fe2 cv.name
       let deps ← natOpDeps cv.name
-      unless (← natOpGuard fe2 cv.name) && (← natOpStoredOkAll fe2 deps) do
+      unless g && (← natOpStoredOkAll fe2 deps) do
         fail (.notImplemented
           "nonstandard structural Nat operation environment")
       match fe2.find? cv.name with
       | some (.defnInfo _ value' _) => do
         let eqs ← natOpEquations 0 cv.name
-        let ok ← certifyNatEqs mode fe (← substConst0Pairs cv.name value' eqs)
+        let ok ← certifyNatEqs mode (fe2.restrictTo fe.visibleBelow)
+          (← substConst0Pairs cv.name value' eqs)
         unless ok do
           fail (.notImplemented
             "nonstandard structural Nat operation")
@@ -122,7 +133,7 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     -- definitionally equal to some committed pin variant, and that variant's
     -- certificates must check.  No variant matching is a decline.
     if (← natDivModNames).contains cv.name then
-      checkDivModPin mode pins fe fe2 cv.name
+      checkDivModPin mode pins (fe2.restrictTo fe.visibleBelow) fe2 cv.name
     pure fe2
   | .thmDecl cv value => do
     let cv ← checkConstantVal mode fe cv
@@ -133,7 +144,7 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     -- Compiler-trust opaques (`Lean.reduceNat`/`Lean.reduceBool`): the stored
     -- value must be definitionally equal to the build-time pin.
     if (← reduceOpNames).contains cv.name then
-      checkReducePin mode fe fe2 cv.name value
+      checkReducePin mode (fe2.restrictTo fe.visibleBelow) fe2 cv.name value
     pure fe2
   | .axiomDecl cv => do
     -- **`Quot.sound` is the pinned quotient BLOCK's own record**: the export

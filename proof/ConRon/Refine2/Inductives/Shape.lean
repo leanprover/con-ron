@@ -41,6 +41,7 @@ the Rust takes the whole `Vec` and an index.
 -/
 import ConRon.Refine2.Checker.KnotHyp
 import ConRon.Refine2.Tactic.Prims
+import ConRon.Refine2.Inductives.Prims
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -451,6 +452,14 @@ theorem nidx_vec_contains_abs {ns : alloc.vec.Vec arena.handle.NIdx}
   rw [hcomm]
   simp only [List.contains_eq_any_beq, List.any_map, Function.comp_def]
 
+
+open Lockstep in
+@[lockstep] theorem nidx_vec_contains_twin (ns : alloc.vec.Vec arena.handle.NIdx)
+    (n : arena.handle.NIdx) :
+    LSP (arena.env.nidx_vec_contains ns n)
+      (fun o => TwinEq ((absNIdxL ns).contains (absNIdx n)) o) :=
+  fun _ h => (nidx_vec_contains_abs h).symm
+
 /-- **`arena::core::nidx_vec_beq` ⊑ `==` on the abstraction.** -/
 theorem nidx_vec_beq_abs {a b : alloc.vec.Vec arena.handle.NIdx} {o : Bool}
     (h : arena.core.nidx_vec_beq a b = ok o) :
@@ -761,6 +770,226 @@ attribute [simp] absNatL absNatLFrom absBoolL absBoolLFrom absLIdxLL absLIdxLLFr
   absCtors4L absCtors4LFrom absRecsL absRecsLFrom absRenameTbl
   absRenameTblFrom absRenameBy absInductiveShape absStructParts absRecFieldKind
   absKindL absKindLFrom absKindLL absKindLLFrom absNativeParts
+
+/-! ## Rust-only copies, for the `lockstep` tactic (task #97-T2-LOCKSTEP lane
+Inductives round 3)
+
+The two copies `arena::checker::check_ind_decl` makes before it moves its
+arguments into the tier: each is the identity on the abstraction. -/
+
+open Lockstep in
+@[lockstep] theorem check_mode_dup_spec (m : kernel.env.CheckMode) :
+    LSP (kernel.env.check_mode_dup m) (fun o => o = m) := by
+  intro o h
+  cases m <;> simp only [kernel.env.check_mode_dup, Result.ok.injEq] at h <;> exact h.symm
+
+open Lockstep in
+@[lockstep] theorem i_constant_infos_dup_spec (cs : alloc.vec.Vec arena.env.IConstantInfo) :
+    LSP (arena.env.i_constant_infos_dup cs) (fun o => absICIL o = absICIL cs) :=
+  fun _ h => i_constant_infos_dup_abs h
+
+/-! ## The error constructors, for the `lockstep` tactic
+
+The port builds a decline's error as `invalid (code_points M_…)` (or
+`not_implemented`/`internal`) and then `fail`s with it; the twin fails with the
+kind and a message string.  The kinds are what `AErrSim` compares, so each
+constructor is a Rust-only step whose spec is the constructor itself. -/
+
+open Lockstep in
+@[lockstep] theorem core_types_invalid_ls (m : alloc.vec.Vec Std.U32) :
+    LSP (kernel.core_types.invalid m) (fun e => e = .Invalid m) := by
+  intro e h; simp only [kernel.core_types.invalid, Result.ok.injEq] at h; exact h.symm
+
+open Lockstep in
+@[lockstep] theorem core_types_not_implemented_ls (m : alloc.vec.Vec Std.U32) :
+    LSP (kernel.core_types.not_implemented m) (fun e => e = .NotImplemented m) := by
+  intro e h; simp only [kernel.core_types.not_implemented, Result.ok.injEq] at h
+  exact h.symm
+
+open Lockstep in
+@[lockstep] theorem core_types_internal_ls (m : alloc.vec.Vec Std.U32) :
+    LSP (kernel.core_types.internal m) (fun e => e = .Internal m) := by
+  intro e h; simp only [kernel.core_types.internal, Result.ok.injEq] at h; exact h.symm
+
+/-! ## The tier's side-goal extension
+
+A twin `if` over values the port computed in Rust-only steps is decided by
+their `TwinEq` facts; those are stated at the port's cursor forms
+(`absCtors3LFrom cs 0`, `absNIdxL v`), the twin's at its list forms, so the
+tier's extension unfolds `TwinEq` and the abstractions and asks `simp_all`. -/
+
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| ((try simp only [Lockstep.TwinEq] at *); first
+      | (simp_all [absNIdxL, absCtors3L, absCtors3LFrom, absCtorsL, absCtorsLFrom,
+          absIConstantVal, absICIL, absICILFrom, absEIdxL, absEIdxLFrom, NNodeViewWF]; done)))
+
+/-- The Core front doors (`Refine2/Checker/KnotHyp.lean`) take `CoreCtx vis rf
+lf`; the tier carries `IFEnvRelI rf lf` and, at a split counter, `absU vis =
+lf.visibleBelow` — `IFEnvInv.coreCtx`/`coreCtxSelf` turn those into it. -/
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| first
+      | (apply IFEnvInv.coreCtxSelf <;> first
+          | (apply IFEnvRelI.rel; assumption) | (apply IFEnvRelI.inv; assumption))
+      | (apply IFEnvInv.coreCtx <;> first
+          | (apply IFEnvRelI.rel; assumption) | (apply IFEnvRelI.inv; assumption)
+          | assumption | (checker_env_facts; simp_all; done)))
+
+
+-- A twin `if` whose test a `TwinEq` rewrote to a literal.
+attribute [lockstep_simp] ite_true ite_false
+
+/-! ## Two environment-record constants -/
+
+open Lockstep in
+/-- `i_ind_caps_default` is the twin's `{}` (the zero word is `default`, the
+empty `if_all_zero` is `.ifAllZero []`). -/
+@[lockstep] theorem i_ind_caps_default_twin :
+    LSP arena.env.i_ind_caps_default (fun o => TwinEq ({} : IIndCaps) (absIIndCaps o)) := by
+  intro o h
+  simp only [arena.env.i_ind_caps_default, arena.handle.NIdx.of_word,
+    kernel.prop_when.if_all_zero, kernel.prop_when.of_repr, alloc.vec.Vec.new,
+    alloc.vec.Vec.len] at h
+  simp at h
+  rw [if_pos (by rfl)] at h
+  simp at h
+  subst h
+  simp [TwinEq, absIIndCaps]
+  rfl
+
+open Lockstep in
+/-- `checker_base::recs_form_suffix` from the cursor `0`
+(`Refine2/Checker/Base.lean`'s `recs_form_suffix_refines`). -/
+@[lockstep] theorem recs_form_suffix_twin0 (block : alloc.vec.Vec arena.env.IConstantInfo) :
+    LSP (arena.checker_base.recs_form_suffix block 0#usize)
+      (fun o => TwinEq (recsFormSuffix (absICIL block)) o) := by
+  intro o h
+  have h' := recs_form_suffix_refines h
+  simpa [TwinEq, absICILFrom, absICIL] using h'.symm
+
+/-! ## The environment index's readers, as `TwinEq`s
+
+`ifenv_find`/`find_ci` read the Rust index; the twin's `find?` is the same
+lookup (`ifenv_find_abs`, `Refine2/Core/Arms/Delta.lean`).  The twin
+environment is fixed by the `CoreCtx` side goal, which the tier's side
+extension discharges from `IFEnvRelI` (and the split counter). -/
+
+open Lockstep in
+@[lockstep] theorem ifenv_find_twin {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (n : arena.handle.NIdx) (hctx : CoreCtx vis rf lf) :
+    LSP (arena.env.ifenv_find vis rf n)
+      (fun o => TwinEq (lf.find? (absNIdx n)) (o.map absIConstantInfo)) :=
+  fun _ h => (ifenv_find_abs hctx h).symm
+
+open Lockstep in
+@[lockstep] theorem find_ci_twin {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (n : arena.handle.NIdx) (hctx : CoreCtx vis rf lf) :
+    LSP (arena.env.find_ci vis rf n)
+      (fun o => TwinEq (lf.find? (absNIdx n)) (o.map absIConstantInfo)) := by
+  intro o h
+  rw [arena.env.find_ci] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hf := ifenv_find_abs hctx hr
+  cases r with
+  | none =>
+    obtain rfl := (Result.ok_injective h).symm
+    exact hf.symm
+  | some ci =>
+    obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain rfl := (Result.ok_injective h).symm
+    rw [← hf]
+    simp [TwinEq, i_constant_info_dup_abs hii]
+
+-- `lf.restrictTo (absU vis)` at the split counter IS `lf` (`hvis`): the
+-- checker tier's statements are at the restriction, the tier's twins at `lf`.
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (simp only [IFEnv.restrictTo] at *; checker_env_facts; simp_all; done))
+
+/-! ## The cursor recipe in `LS` form (task #97-T2-LOCKSTEP lane Inductives round 4)
+
+The Rust walks a `Vec` by an index, the twin recurses structurally on the
+list from that index (DESIGN §3.4's `List`-as-cursor deviation).  `ls_cursor`
+is the induction once: a caller proves the stop case and the step case, each
+by unfolding one equation on each side and `lockstep`, with the induction
+hypothesis in the context for the recursive call. -/
+
+open Lockstep in
+theorem ls_cursor {α β γ δ : Type} {pers : arena.store.PersTier} {R : γ → δ → Prop}
+    (xs : alloc.vec.Vec α) (a : α → β) (G : List β → AM δ)
+    (F : arena.monad.AState → Std.Usize →
+      Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState))
+    (hstop : ∀ st lst (i : Std.Usize), xs.val.length ≤ i.val →
+      AStateRel₀ pers st lst → AStateInv pers st → LS pers R (F st i) lst (G []))
+    (hstep : ∀ st lst (i : Std.Usize) (hb : i.val < xs.val.length),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      (∀ st' lst' (j : Std.Usize), j.val = i.val + 1 →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers R (F st' j) lst' (G ((xs.val.drop j.val).map a))) →
+      LS pers R (F st i) lst (G (a xs.val[i.val] :: (xs.val.drop (i.val + 1)).map a))) :
+    ∀ (i : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers R (F st i) lst (G ((xs.val.drop i.val).map a)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) xs.val.length
+    (fun i (_ : Unit) => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers R (F st i) lst (G ((xs.val.drop i.val).map a))) ?_ ?_ i ()
+  · intro i _ hn st lst hrel hinv
+    rw [List.drop_eq_nil_of_le hn, List.map_nil]
+    exact hstop st lst i hn hrel hinv
+  · intro i _ hi ih st lst hrel hinv
+    rw [List.drop_eq_getElem_cons hi, List.map_cons]
+    exact hstep st lst i hi hrel hinv (fun st' lst' j hj => ih j () hj st' lst')
+
+/-! ## The cursor abstractions at `0` (for the `lockstep` side tier)
+
+A caller's twin names the whole list (`absXL v`); the callee's statement is at
+the cursor (`absXLFrom v i`) and the port calls it at `0#usize`. -/
+
+@[lockstep_simp] theorem absNIdxLFrom_zero (v) : absNIdxLFrom v 0#usize = absNIdxL v := by
+  simp [absNIdxLFrom, absNIdxL]
+
+@[lockstep_simp] theorem absEIdxLFrom_zero (v) : absEIdxLFrom v 0#usize = absEIdxL v := by
+  simp [absEIdxLFrom, absEIdxL]
+
+@[lockstep_simp] theorem absLIdxLFrom_zero (v) : absLIdxLFrom v 0#usize = absLIdxL v := by
+  simp [absLIdxLFrom, absLIdxL]
+
+@[lockstep_simp] theorem absICILFrom_zero (v) : absICILFrom v 0#usize = absICIL v := by
+  simp [absICILFrom, absICIL]
+
+@[lockstep_simp] theorem absNatLFrom_zero (v) : absNatLFrom v 0#usize = absNatL v := by
+  simp [absNatLFrom, absNatL]
+
+@[lockstep_simp] theorem absBoolLFrom_zero (v) : absBoolLFrom v 0#usize = absBoolL v := by
+  simp [absBoolLFrom, absBoolL]
+
+@[lockstep_simp] theorem absLIdxLLFrom_zero (v) : absLIdxLLFrom v 0#usize = absLIdxLL v := by
+  simp [absLIdxLLFrom, absLIdxLL]
+
+@[lockstep_simp] theorem absBinderLFrom_zero (v) : absBinderLFrom v 0#usize = absBinderL v := by
+  simp [absBinderLFrom, absBinderL]
+
+@[lockstep_simp] theorem absCtorsLFrom_zero (v) : absCtorsLFrom v 0#usize = absCtorsL v := by
+  simp [absCtorsLFrom, absCtorsL]
+
+@[lockstep_simp] theorem absCtors3LFrom_zero (v) : absCtors3LFrom v 0#usize = absCtors3L v := by
+  simp [absCtors3LFrom, absCtors3L]
+
+@[lockstep_simp] theorem absCtors4LFrom_zero (v) : absCtors4LFrom v 0#usize = absCtors4L v := by
+  simp [absCtors4LFrom, absCtors4L]
+
+@[lockstep_simp] theorem absRecsLFrom_zero (v) : absRecsLFrom v 0#usize = absRecsL v := by
+  simp [absRecsLFrom, absRecsL]
+
+@[lockstep_simp] theorem absRenameTblFrom_zero (v) : absRenameTblFrom v 0#usize = absRenameTbl v := by
+  simp [absRenameTblFrom, absRenameTbl]
+
+@[lockstep_simp] theorem absKindLFrom_zero (v) : absKindLFrom v 0#usize = absKindL v := by
+  simp [absKindLFrom, absKindL]
+
+@[lockstep_simp] theorem absKindLLFrom_zero (v) : absKindLLFrom v 0#usize = absKindLL v := by
+  simp [absKindLLFrom, absKindLL]
 
 /-! ## The axiom census -/
 

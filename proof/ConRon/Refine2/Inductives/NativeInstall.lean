@@ -95,6 +95,23 @@ theorem kinds_any_rec_refines
       rw [if_pos (by simp), Result.ok.injEq] at h
       exact Or.inl ⟨by simp only [← hbv, Bool.true_or], h.symm⟩
 
+open Lockstep in
+/-- `kinds_any_rec_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem kinds_any_rec_twin0
+    {ks : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind} :
+    LSP (arena.inductives.native_install.kinds_any_rec ks 0#usize) (fun o => TwinEq ((absKindL ks).any fun k => k == .recursive || k == .reflexive) (o)) := by
+  intro o h
+  have h' := (kinds_any_rec_refines h).symm
+  simpa [Lockstep.TwinEq, absKindLFrom, absKindL, alloc.vec.Vec.new] using h'
+
+open Lockstep in
+@[lockstep] theorem kinds_any_rec_twin
+    {ks : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind}
+    {i : Std.Usize} :
+    LSP (arena.inductives.native_install.kinds_any_rec ks i) (fun o => TwinEq ((absKindLFrom ks i).any fun k => k == .recursive || k == .reflexive) (o)) :=
+  fun o h => (kinds_any_rec_refines h).symm
+
 /-- `native_is_rec_from` ⊑ `nativeIsRec`'s outer `any` from the cursor on. -/
 theorem native_is_rec_from_refines
     {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
@@ -131,6 +148,23 @@ theorem native_is_rec_from_refines
       rw [if_pos (by simp), Result.ok.injEq] at h
       exact Or.inl ⟨hbv.symm, h.symm⟩
 
+open Lockstep in
+/-- `native_is_rec_from_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem native_is_rec_from_twin0
+    {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)} :
+    LSP (arena.inductives.native_install.native_is_rec_from kinds 0#usize) (fun o => TwinEq ((absKindLL kinds).any fun ks => ks.any fun k => k == .recursive || k == .reflexive) (o)) := by
+  intro o h
+  have h' := (native_is_rec_from_refines h).symm
+  simpa [Lockstep.TwinEq, absKindLLFrom, absKindLL, alloc.vec.Vec.new] using h'
+
+open Lockstep in
+@[lockstep] theorem native_is_rec_from_twin
+    {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
+    {i : Std.Usize} :
+    LSP (arena.inductives.native_install.native_is_rec_from kinds i) (fun o => TwinEq ((absKindLLFrom kinds i).any fun ks => ks.any fun k => k == .recursive || k == .reflexive) (o)) :=
+  fun o h => (native_is_rec_from_refines h).symm
+
 /-- `native_is_rec` ⊑ `nativeIsRec` — official's `is_rec` off the classified
 kinds. -/
 theorem native_is_rec_refines
@@ -141,6 +175,12 @@ theorem native_is_rec_refines
   rw [nativeIsRec, native_is_rec_from_refines hrun]
   simp [absKindLLFrom, absKindLL, show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
 
+open Lockstep in
+@[lockstep] theorem native_is_rec_twin
+    {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)} :
+    LSP (arena.inductives.native_install.native_is_rec kinds) (fun o => TwinEq (nativeIsRec (absKindLL kinds)) (o)) :=
+  fun o h => (native_is_rec_refines h).symm
+
 /-- `native_caps` ⊑ `nativeCaps`. -/
 theorem native_caps_refines {pers st lst}
     {p : arena.inductives.native_parts.NativeParts} {o}
@@ -148,7 +188,19 @@ theorem native_caps_refines {pers st lst}
     (hrun : arena.inductives.native_install.native_caps pers st p = ok o) :
     Sim₀ absIIndCaps pers lst o
       (nativeCaps (absNativeParts p)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_install.native_caps, nativeCaps]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem native_caps_ls
+    {pers st lst}
+    {p : arena.inductives.native_parts.NativeParts}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absIIndCaps a) (arena.inductives.native_install.native_caps pers st p) lst
+      (nativeCaps (absNativeParts p)) :=
+  LS.ofSim₀ fun _ h => native_caps_refines hrel hinv h
 
 /-- `any_dom_mentions` ⊑ `nativeRawRec`'s `anyM`, from the cursor on. -/
 theorem any_dom_mentions_refines {pers st lst} {t : arena.handle.NIdx}
@@ -159,7 +211,34 @@ theorem any_dom_mentions_refines {pers st lst} {t : arena.handle.NIdx}
       = ok o) :
     Sim₀ id pers lst o
       (anyDomMentionsSpec (absNIdx t) (absBinderLFrom cbs i)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  revert st lst hrel hinv hrun
+  simp only [absBinderLFrom]
+  intro st lst hrel hinv _
+  refine ls_cursor cbs (fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)) (anyDomMentionsSpec (absNIdx t))
+    (fun st i => arena.inductives.native_install.any_dom_mentions pers st t cbs i) ?_ ?_ i st lst hrel hinv
+  · intro st lst i hn hrel hinv
+    try simp only []
+    rw [arena.inductives.native_install.any_dom_mentions.eq_def, anyDomMentionsSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst i hb hrel hinv ih
+    try simp only []
+    rw [arena.inductives.native_install.any_dom_mentions.eq_def, anyDomMentionsSpec]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+
+open Lockstep in
+@[lockstep] theorem any_dom_mentions_ls
+    {pers st lst}
+    {t : arena.handle.NIdx}
+    {cbs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {i : Std.Usize}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.inductives.native_install.any_dom_mentions pers st t cbs i) lst
+      (anyDomMentionsSpec (absNIdx t) (absBinderLFrom cbs i)) :=
+  LS.ofSim₀ fun _ h => any_dom_mentions_refines hrel hinv h
 
 /-- `native_raw_rec` ⊑ `nativeRawRec` — **the syntactic reading of `is_rec`**
 (con-leche's task #268). -/
@@ -169,6 +248,16 @@ theorem native_raw_rec_refines {pers st lst}
     (hrun : arena.inductives.native_install.native_raw_rec pers st p = ok o) :
     Sim₀ id pers lst o (nativeRawRec (absNativeParts p)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem native_raw_rec_ls
+    {pers st lst}
+    {p : arena.inductives.native_parts.NativeParts}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.inductives.native_install.native_raw_rec pers st p) lst
+                       (nativeRawRec (absNativeParts p)) :=
+  LS.ofSim₀ fun _ h => native_raw_rec_refines hrel hinv h
 
 /-! ## `mentionsFvar` -/
 
@@ -196,6 +285,15 @@ theorem mf_probe_refines {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
     have h2 : some v = o := Result.ok_injective hrun
     subst h2
     rfl
+
+open Lockstep in
+@[lockstep] theorem mf_probe_twin
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {lm : Std.HashMap EIdx Bool}
+    {k : arena.handle.EIdx}
+    (hm : LMemoRel rm lm) :
+    LSP (arena.inductives.native_install.mf_probe rm k) (fun o => TwinEq (lm[absEIdx k]?) (o)) :=
+  fun o h => (mf_probe_refines hm h).symm
 
 /-- `mentions_fvar_ins` ⊑ `mentionsFvarIns` — one answer recorded. -/
 theorem mentions_fvar_ins_refines {e : arena.handle.EIdx}
@@ -236,6 +334,22 @@ theorem mentions_fvar_node_refines {pers st lst} {q : Std.U64}
         (absENodeView v)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem mentions_fvar_node_ls
+    {pers st lst}
+    {q : Std.U64}
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {lm : Std.HashMap EIdx Bool}
+    {fuel : Std.U64}
+    {v : arena.store.ENodeView}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hm : LMemoRel rm lm) :
+    LS pers LOutRel (arena.inductives.native_install.mentions_fvar_node pers st q rm fuel v) lst
+      (mentionsFvarNodeSpec (absU q) lm (absU fuel)
+        (absENodeView v)) :=
+  LS.ofSimRel₀ fun _ h => mentions_fvar_node_refines hrel hinv hm h
+
 /-- `mentions_fvar_go` ⊑ `mentionsFvarGo`. -/
 theorem mentions_fvar_go_refines {pers st lst} {q : Std.U64}
     {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
@@ -247,6 +361,21 @@ theorem mentions_fvar_go_refines {pers st lst} {q : Std.U64}
       (mentionsFvarGo (absU q) lm (absU fuel) (absEIdx h)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem mentions_fvar_go_ls
+    {pers st lst}
+    {q : Std.U64}
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {lm : Std.HashMap EIdx Bool}
+    {fuel : Std.U64}
+    {h : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hm : LMemoRel rm lm) :
+    LS pers LOutRel (arena.inductives.native_install.mentions_fvar_go pers st q rm fuel h) lst
+      (mentionsFvarGo (absU q) lm (absU fuel) (absEIdx h)) :=
+  LS.ofSimRel₀ fun _ h => mentions_fvar_go_refines hrel hinv hm h
+
 /-- `mentions_fvar` ⊑ `mentionsFvar` — one memoised walk from the empty
 memo. -/
 theorem mentions_fvar_refines {pers st lst} {q : Std.U64}
@@ -256,6 +385,17 @@ theorem mentions_fvar_refines {pers st lst} {q : Std.U64}
     Sim₀ id pers lst o
       (mentionsFvar (absU q) (absEIdx e)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem mentions_fvar_ls
+    {pers st lst}
+    {q : Std.U64}
+    {e : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.inductives.native_install.mentions_fvar pers st q e) lst
+      (mentionsFvar (absU q) (absEIdx e)) :=
+  LS.ofSim₀ fun _ h => mentions_fvar_refines hrel hinv h
 
 /-! ## The field kinds, re-checked on the opened constructors -/
 
@@ -270,6 +410,18 @@ theorem later_mentions_refines {pers st lst} {q : Std.U64}
       (laterMentionsSpec (absU q) (absEIdxLFrom x_fvs i)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem later_mentions_ls
+    {pers st lst}
+    {q : Std.U64}
+    {x_fvs : alloc.vec.Vec arena.handle.EIdx}
+    {i : Std.Usize}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.inductives.native_install.later_mentions pers st q x_fvs i) lst
+      (laterMentionsSpec (absU q) (absEIdxLFrom x_fvs i)) :=
+  LS.ofSim₀ fun _ h => later_mentions_refines hrel hinv h
+
 /-- `native_field_unused_later` ⊑ `nativeOpenedOk`'s "unused later" clause. -/
 theorem native_field_unused_later_refines {pers st lst} {n_p : Std.U64}
     {x_fvs : alloc.vec.Vec arena.handle.EIdx} {xrest : arena.handle.EIdx}
@@ -282,12 +434,26 @@ theorem native_field_unused_later_refines {pers st lst} {n_p : Std.U64}
         (absU i)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem native_field_unused_later_ls
+    {pers st lst}
+    {n_p : Std.U64}
+    {x_fvs : alloc.vec.Vec arena.handle.EIdx}
+    {xrest : arena.handle.EIdx}
+    {i : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.inductives.native_install.native_field_unused_later pers st n_p x_fvs xrest i) lst
+      (nativeFieldUnusedLaterSpec (absU n_p) (absEIdxL x_fvs) (absEIdx xrest)
+        (absU i)) :=
+  LS.ofSim₀ fun _ h => native_field_unused_later_refines hrel hinv h
+
 /-- `native_fam_app_ok` ⊑ `nativeOpenedOk`'s family-application test. -/
 theorem native_fam_app_ok_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     {n_p n_idx : Std.U64} {fvs_p : alloc.vec.Vec arena.handle.EIdx}
     {body hd : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf0 lf0) (hfinv : IFEnvInv rf0)
+    (hfe : IFEnvRelI rf0 lf0)
     (hvis : absU vis = lf0.visibleBelow)
     (hrun : arena.inductives.native_install.native_fam_app_ok pers vis st rf0 n_p
       n_idx fvs_p body hd = ok o) :
@@ -296,12 +462,29 @@ theorem native_fam_app_ok_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
         (absEIdx body) (absEIdx hd)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem native_fam_app_ok_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf0 lf0}
+    {n_p n_idx : Std.U64}
+    {fvs_p : alloc.vec.Vec arena.handle.EIdx}
+    {body hd : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf0 lf0)
+    (hvis : absU vis = lf0.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.native_install.native_fam_app_ok pers vis st rf0 n_p n_idx fvs_p body hd) lst
+      (nativeFamAppOkSpec lf0 (absU n_p) (absU n_idx) (absEIdxL fvs_p)
+        (absEIdx body) (absEIdx hd)) :=
+  LS.ofSim₀ fun _ h => native_fam_app_ok_refines hrel hinv hfe hvis h
+
 /-- `native_field_recursive` ⊑ `nativeOpenedOk`'s `.recursive` arm. -/
 theorem native_field_recursive_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     {n_p n_idx : Std.U64} {fvs_p x_fvs : alloc.vec.Vec arena.handle.EIdx}
     {xrest hd : arena.handle.EIdx} {i : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf0 lf0) (hfinv : IFEnvInv rf0)
+    (hfe : IFEnvRelI rf0 lf0)
     (hvis : absU vis = lf0.visibleBelow)
     (hrun : arena.inductives.native_install.native_field_recursive pers vis st rf0
       n_p n_idx fvs_p x_fvs xrest hd i = ok o) :
@@ -310,12 +493,30 @@ theorem native_field_recursive_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
         (absEIdxL x_fvs) (absEIdx xrest) (absEIdx hd) (absU i)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem native_field_recursive_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf0 lf0}
+    {n_p n_idx : Std.U64}
+    {fvs_p x_fvs : alloc.vec.Vec arena.handle.EIdx}
+    {xrest hd : arena.handle.EIdx}
+    {i : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf0 lf0)
+    (hvis : absU vis = lf0.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.native_install.native_field_recursive pers vis st rf0 n_p n_idx fvs_p x_fvs xrest hd i) lst
+      (nativeFieldRecursiveSpec lf0 (absU n_p) (absU n_idx) (absEIdxL fvs_p)
+        (absEIdxL x_fvs) (absEIdx xrest) (absEIdx hd) (absU i)) :=
+  LS.ofSim₀ fun _ h => native_field_recursive_refines hrel hinv hfe hvis h
+
 /-- `native_field_reflexive` ⊑ `nativeOpenedOk`'s `.reflexive` arm. -/
 theorem native_field_reflexive_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     {n_p n_idx : Std.U64} {fvs_p x_fvs : alloc.vec.Vec arena.handle.EIdx}
     {xrest hd : arena.handle.EIdx} {i : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf0 lf0) (hfinv : IFEnvInv rf0)
+    (hfe : IFEnvRelI rf0 lf0)
     (hvis : absU vis = lf0.visibleBelow)
     (hrun : arena.inductives.native_install.native_field_reflexive pers vis st rf0
       n_p n_idx fvs_p x_fvs xrest hd i = ok o) :
@@ -323,6 +524,24 @@ theorem native_field_reflexive_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
       (nativeFieldReflexiveSpec lf0 (absU n_p) (absU n_idx) (absEIdxL fvs_p)
         (absEIdxL x_fvs) (absEIdx xrest) (absEIdx hd) (absU i)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem native_field_reflexive_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf0 lf0}
+    {n_p n_idx : Std.U64}
+    {fvs_p x_fvs : alloc.vec.Vec arena.handle.EIdx}
+    {xrest hd : arena.handle.EIdx}
+    {i : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf0 lf0)
+    (hvis : absU vis = lf0.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.native_install.native_field_reflexive pers vis st rf0 n_p n_idx fvs_p x_fvs xrest hd i) lst
+      (nativeFieldReflexiveSpec lf0 (absU n_p) (absU n_idx) (absEIdxL fvs_p)
+        (absEIdxL x_fvs) (absEIdx xrest) (absEIdx hd) (absU i)) :=
+  LS.ofSim₀ fun _ h => native_field_reflexive_refines hrel hinv hfe hvis h
 
 /-- `native_fields_at` ⊑ `nativeOpenedOk`'s `(List.range nF).allM` from field
 `i` on. -/
@@ -332,7 +551,7 @@ theorem native_fields_at_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     {fvs_p x_fvs : alloc.vec.Vec arena.handle.EIdx}
     {xrest hd : arena.handle.EIdx} {i : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf0 lf0) (hfinv : IFEnvInv rf0)
+    (hfe : IFEnvRelI rf0 lf0)
     (hvis : absU vis = lf0.visibleBelow)
     (hrun : arena.inductives.native_install.native_fields_at pers vis st rf0 n_p
       n_idx n_f ks fvs_p x_fvs xrest hd i = ok o) :
@@ -342,6 +561,26 @@ theorem native_fields_at_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
         (absU n_f - absU i) (absU i)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem native_fields_at_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf0 lf0}
+    {n_p n_idx n_f : Std.U64}
+    {ks : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind}
+    {fvs_p x_fvs : alloc.vec.Vec arena.handle.EIdx}
+    {xrest hd : arena.handle.EIdx}
+    {i : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf0 lf0)
+    (hvis : absU vis = lf0.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.native_install.native_fields_at pers vis st rf0 n_p n_idx n_f ks fvs_p x_fvs xrest hd i) lst
+      (nativeFieldsAtSpec lf0 (absU n_p) (absU n_idx) (absKindL ks)
+        (absEIdxL fvs_p) (absEIdxL x_fvs) (absEIdx xrest) (absEIdx hd)
+        (absU n_f - absU i) (absU i)) :=
+  LS.ofSim₀ fun _ h => native_fields_at_refines hrel hinv hfe hvis h
+
 /-- `native_opened_ok` ⊑ `nativeOpenedOk` — the kinds the recogniser computed,
 re-checked on the annotated constructor type OPENED at variables. -/
 theorem native_opened_ok_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
@@ -349,7 +588,7 @@ theorem native_opened_ok_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     {n_p n_idx : Std.U64} {cty : arena.handle.EIdx} {n_f : Std.U64}
     {ks : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf0 lf0) (hfinv : IFEnvInv rf0)
+    (hfe : IFEnvRelI rf0 lf0)
     (hvis : absU vis = lf0.visibleBelow)
     (hrun : arena.inductives.native_install.native_opened_ok pers vis st rf0 t lps
       n_p n_idx cty n_f ks = ok o) :
@@ -357,6 +596,26 @@ theorem native_opened_ok_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
       (nativeOpenedOk lf0 (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absEIdx cty) (absU n_f) (absKindL ks)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem native_opened_ok_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf0 lf0}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_idx : Std.U64}
+    {cty : arena.handle.EIdx}
+    {n_f : Std.U64}
+    {ks : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf0 lf0)
+    (hvis : absU vis = lf0.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.native_install.native_opened_ok pers vis st rf0 t lps n_p n_idx cty n_f ks) lst
+      (nativeOpenedOk lf0 (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
+        (absEIdx cty) (absU n_f) (absKindL ks)) :=
+  LS.ofSim₀ fun _ h => native_opened_ok_refines hrel hinv hfe hvis h
 
 /-- `native_fields_ok_from` ⊑ `nativeFieldsOk`'s `allM` from constructor `j`
 on. -/
@@ -367,7 +626,7 @@ theorem native_fields_ok_from_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
     {j : Std.Usize} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf0 lf0) (hfinv : IFEnvInv rf0)
+    (hfe : IFEnvRelI rf0 lf0)
     (hvis : absU vis = lf0.visibleBelow)
     (hrun : arena.inductives.native_install.native_fields_ok_from pers vis st rf0 t
       lps n_p n_idx ctors_a kinds j = ok o) :
@@ -375,6 +634,26 @@ theorem native_fields_ok_from_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
       (nativeFieldsOkFromSpec lf0 (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absCtorsLFrom ctors_a j) (absKindLLFrom kinds j)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem native_fields_ok_from_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf0 lf0}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_idx : Std.U64}
+    {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
+    {j : Std.Usize}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf0 lf0)
+    (hvis : absU vis = lf0.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.native_install.native_fields_ok_from pers vis st rf0 t lps n_p n_idx ctors_a kinds j) lst
+      (nativeFieldsOkFromSpec lf0 (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
+        (absCtorsLFrom ctors_a j) (absKindLLFrom kinds j)) :=
+  LS.ofSim₀ fun _ h => native_fields_ok_from_refines hrel hinv hfe hvis h
 
 /-- `native_fields_ok` ⊑ `nativeFieldsOk`. -/
 theorem native_fields_ok_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
@@ -384,7 +663,7 @@ theorem native_fields_ok_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
     {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf0 lf0) (hfinv : IFEnvInv rf0)
+    (hfe : IFEnvRelI rf0 lf0)
     (hvis : absU vis = lf0.visibleBelow)
     (hrun : arena.inductives.native_install.native_fields_ok pers vis st rf0 t lps
       n_p n_idx ctors_a kinds = ok o) :
@@ -393,19 +672,55 @@ theorem native_fields_ok_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
         (absCtorsL ctors_a) (absKindLL kinds)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem native_fields_ok_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf0 lf0}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_idx : Std.U64}
+    {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf0 lf0)
+    (hvis : absU vis = lf0.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.native_install.native_fields_ok pers vis st rf0 t lps n_p n_idx ctors_a kinds) lst
+      (nativeFieldsOk lf0 (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
+        (absCtorsL ctors_a) (absKindLL kinds)) :=
+  LS.ofSim₀ fun _ h => native_fields_ok_refines hrel hinv hfe hvis h
+
 /-! ## The recursor -/
 
 /-- `native_rule_scoped` ⊑ `checkNativeRules`' four-conjunct scoping test. -/
 theorem native_rule_scoped_refines {pers st lst} {vis : Std.U64} {rfR lfR}
     {rlps : alloc.vec.Vec arena.handle.NIdx} {rhs : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfR lfR) (hfinv : IFEnvInv rfR)
+    (hfe : IFEnvRelI rfR lfR)
     (hvis : absU vis = lfR.visibleBelow)
     (hrun : arena.inductives.native_install.native_rule_scoped pers vis st rfR rlps
       rhs = ok o) :
     Sim₀ id pers lst o
       (nativeRuleScopedSpec lfR (absNIdxL rlps) (absEIdx rhs)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_install.native_rule_scoped, nativeRuleScopedSpec]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem native_rule_scoped_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfR lfR}
+    {rlps : alloc.vec.Vec arena.handle.NIdx}
+    {rhs : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfR lfR)
+    (hvis : absU vis = lfR.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.native_install.native_rule_scoped pers vis st rfR rlps rhs) lst
+      (nativeRuleScopedSpec lfR (absNIdxL rlps) (absEIdx rhs)) :=
+  LS.ofSim₀ fun _ h => native_rule_scoped_refines hrel hinv hfe hvis h
 
 /-- `check_native_rules` ⊑ `checkNativeRules` from the `j`-th rule on, with the
 accumulated right-hand sides in front. -/
@@ -418,7 +733,7 @@ theorem check_native_rules_refines {pers st lst} {vis : Std.U64} {rfR lfR}
     {rec_c : arena.handle.NIdx} {rlvls : arena.handle.LsIdx} {k j : Std.U64}
     {out : alloc.vec.Vec arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rfR lfR) (hfinv : IFEnvInv rfR)
+    (hfe : IFEnvRelI rfR lfR)
     (hvis : absU vis = lfR.visibleBelow)
     (hrun : arena.inductives.native_install.check_native_rules pers vis st rfR rlps t
       lps elim large n_p n_idx tty ctors rec_c rlvls k j out = ok o) :
@@ -429,6 +744,36 @@ theorem check_native_rules_refines {pers st lst} {vis : Std.U64} {rfR lfR}
           (absCtors4L ctors) (absNIdx rec_c) (absLsIdx rlvls) (absU k)
           (absU j)))) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_native_rules_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rfR lfR}
+    {rlps : alloc.vec.Vec arena.handle.NIdx}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {elim : arena.handle.NIdx}
+    {large : Bool}
+    {n_p n_idx : Std.U64}
+    {tty : arena.handle.EIdx}
+    {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
+      (alloc.vec.Vec Std.U64))}
+    {rec_c : arena.handle.NIdx}
+    {rlvls : arena.handle.LsIdx}
+    {k j : Std.U64}
+    {out : alloc.vec.Vec arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfR lfR)
+    (hvis : absU vis = lfR.visibleBelow) :
+    LS pers (fun a b => b = absEIdxL a) (arena.inductives.native_install.check_native_rules pers vis st rfR rlps t lps elim large n_p n_idx tty ctors rec_c rlvls k j out) lst
+      (do pure (absEIdxL out ++
+        (← checkNativeRules lfR (absNIdxL rlps) (absNIdx t) (absNIdxL lps)
+          (absNIdx elim) large (absU n_p) (absU n_idx) (absEIdx tty)
+          (absCtors4L ctors) (absNIdx rec_c) (absLsIdx rlvls) (absU k)
+          (absU j)))) :=
+  LS.ofSim₀ fun _ h => check_native_rules_refines hrel hinv hfe hvis h
 
 /-- `check_native_rec_rules` ⊑ `checkNativeRec`'s rule stage — **finding 19's
 bracket**: the `&mut IFEnv` Aeneas returns as `o.2.2` is the pre-call
@@ -441,7 +786,7 @@ theorem check_native_rec_rules_refines {pers st lst} {rf lf}
       (alloc.vec.Vec Std.U64))}
     {rec_ty : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hfe : IFEnvRelI rf lf)
     (hrun : arena.inductives.native_install.check_native_rec_rules pers st rf p cv_ta
       ctors rec_ty = ok o) :
     Sim₀ (fun r => (absIConstantVal r.1, absEIdxL r.2)) pers lst
@@ -459,7 +804,7 @@ theorem check_native_rec_defeq_refines {pers st lst} {mode : kernel.env.CheckMod
       (alloc.vec.Vec Std.U64))}
     {stream_ty rec_ty : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf lf)
     (hrun : arena.inductives.native_install.check_native_rec_defeq pers st mode rf p
       cv_ta ctors stream_ty rec_ty = ok o) :
     Sim₀ (fun r => (absIConstantVal r.1, absEIdxL r.2)) pers lst
@@ -477,7 +822,7 @@ theorem check_native_rec_ty_refines {pers st lst} {mode : kernel.env.CheckMode}
     {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
     {stream_ty : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf lf)
     (hrun : arena.inductives.native_install.check_native_rec_ty pers st mode rf p
       cv_ta ctors_a stream_ty = ok o) :
     Sim₀ (fun r => (absIConstantVal r.1, absEIdxL r.2)) pers lst
@@ -494,7 +839,7 @@ theorem check_native_rec_refines {pers st lst} {mode : kernel.env.CheckMode}
     {cv_ta : arena.env.IConstantVal}
     {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf lf)
     (hrun : arena.inductives.native_install.check_native_rec pers st mode rf p cv_ta
       ctors_a = ok o) :
     Sim₀ (fun r => (absIConstantVal r.1, absEIdxL r.2)) pers lst
@@ -511,13 +856,28 @@ theorem check_native_table_refines {pers st lst}
     {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
     {sortss : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)} {rf lf} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hfe : IFEnvRelI rf lf)
     (hrun : arena.inductives.native_install.check_native_table pers st p ctors_a
       sortss rf = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkNativeTable (absNativeParts p) (absCtorsL ctors_a) (absLIdxLL sortss)
         lf) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_native_table_ls
+    {pers st lst}
+    {p : arena.inductives.native_parts.NativeParts}
+    {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {sortss : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)}
+    {rf lf}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers IFEnvRelI (arena.inductives.native_install.check_native_table pers st p ctors_a sortss rf) lst
+      (checkNativeTable (absNativeParts p) (absCtorsL ctors_a) (absLIdxLL sortss)
+        lf) :=
+  LS.ofSimRel₀ fun _ h => check_native_table_refines hrel hinv hfe h
 
 /-! ## The two-pass install -/
 
@@ -536,6 +896,23 @@ theorem rec_ctor_kinds_all_refines {pers st lst} {t : arena.handle.NIdx}
         (absU n_idx) (absCtorsLFrom ctors_a i)).map
           fun r => absKindLL out ++ r)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem rec_ctor_kinds_all_ls
+    {pers st lst}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_idx : Std.U64}
+    {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = (Option.map absKindLL) a) (arena.inductives.native_install.rec_ctor_kinds_all pers st t lps n_p n_idx ctors_a i out) lst
+      (do pure ((← recCtorKindsAllSpec (absNIdx t) (absNIdxL lps) (absU n_p)
+        (absU n_idx) (absCtorsLFrom ctors_a i)).map
+          fun r => absKindLL out ++ r)) :=
+  LS.ofSim₀ fun _ h => rec_ctor_kinds_all_refines hrel hinv h
 
 /-- `kinds_any` ⊑ `ks.any (· == k)` from the cursor on. -/
 theorem kinds_any_refines
@@ -569,6 +946,25 @@ theorem kinds_any_refines
     · rw [hbb] at h hbv
       rw [if_pos (by simp), Result.ok.injEq] at h
       exact Or.inl ⟨hbv.symm, h.symm⟩
+
+open Lockstep in
+/-- `kinds_any_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem kinds_any_twin0
+    {ks : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind}
+    {k : arena.inductives.native_parts.RecFieldKind} :
+    LSP (arena.inductives.native_install.kinds_any ks k 0#usize) (fun o => TwinEq ((absKindL ks).any (· == absRecFieldKind k)) (o)) := by
+  intro o h
+  have h' := (kinds_any_refines h).symm
+  simpa [Lockstep.TwinEq, absKindLFrom, absKindL, alloc.vec.Vec.new] using h'
+
+open Lockstep in
+@[lockstep] theorem kinds_any_twin
+    {ks : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind}
+    {k : arena.inductives.native_parts.RecFieldKind}
+    {i : Std.Usize} :
+    LSP (arena.inductives.native_install.kinds_any ks k i) (fun o => TwinEq ((absKindLFrom ks i).any (· == absRecFieldKind k)) (o)) :=
+  fun o h => (kinds_any_refines h).symm
 
 /-- `kindss_any` ⊑ `kinds.any fun ks => ks.any (· == k)` from the cursor on. -/
 theorem kindss_any_refines
@@ -606,6 +1002,25 @@ theorem kindss_any_refines
       rw [if_pos (by simp), Result.ok.injEq] at h
       exact Or.inl ⟨hbv.symm, h.symm⟩
 
+open Lockstep in
+/-- `kindss_any_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem kindss_any_twin0
+    {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
+    {k : arena.inductives.native_parts.RecFieldKind} :
+    LSP (arena.inductives.native_install.kindss_any kinds k 0#usize) (fun o => TwinEq ((absKindLL kinds).any fun ks => ks.any (· == absRecFieldKind k)) (o)) := by
+  intro o h
+  have h' := (kindss_any_refines h).symm
+  simpa [Lockstep.TwinEq, absKindLLFrom, absKindLL, alloc.vec.Vec.new] using h'
+
+open Lockstep in
+@[lockstep] theorem kindss_any_twin
+    {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
+    {k : arena.inductives.native_parts.RecFieldKind}
+    {i : Std.Usize} :
+    LSP (arena.inductives.native_install.kindss_any kinds k i) (fun o => TwinEq ((absKindLLFrom kinds i).any fun ks => ks.any (· == absRecFieldKind k)) (o)) :=
+  fun o h => (kindss_any_refines h).symm
+
 /-- `classify_fix_kinds` ⊑ `classifyFixKinds` — **the fields' kinds, classified
 at install** (con-leche's task #210 Part D). -/
 theorem classify_fix_kinds_refines {pers st lst} {t : arena.handle.NIdx}
@@ -619,6 +1034,20 @@ theorem classify_fix_kinds_refines {pers st lst} {t : arena.handle.NIdx}
         (absCtorsL ctors_a)) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem classify_fix_kinds_ls
+    {pers st lst}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_idx : Std.U64}
+    {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absKindLL a) (arena.inductives.native_install.classify_fix_kinds pers st t lps n_p n_idx ctors_a) lst
+      (classifyFixKinds (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
+        (absCtorsL ctors_a)) :=
+  LS.ofSim₀ fun _ h => classify_fix_kinds_refines hrel hinv h
+
 /-- `check_native_pass_kinds` ⊑ `checkNativePass`'s tail. -/
 theorem check_native_pass_kinds_refines {pers st lst} {rf1 lf1}
     {cv_ta : arena.env.IConstantVal}
@@ -626,7 +1055,7 @@ theorem check_native_pass_kinds_refines {pers st lst} {rf1 lf1}
     {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
     {sortss : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)} {is_rec : Bool} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf1 lf1) (hfinv : IFEnvInv rf1)
+    (hfe : IFEnvRelI rf1 lf1)
     (hrun : arena.inductives.native_install.check_native_pass_kinds pers st rf1 cv_ta
       p_c ctors_a sortss is_rec = ok o) :
     SimRel₀ (fun r v => NativePassRel r.1 v.1 ∧ v.2 = r.2) pers lst o
@@ -634,30 +1063,77 @@ theorem check_native_pass_kinds_refines {pers st lst} {rf1 lf1}
         (absCtorsL ctors_a) (absLIdxLL sortss) is_rec) := by
   sorry
 
+open Lockstep in
+@[lockstep] theorem check_native_pass_kinds_ls
+    {pers st lst}
+    {rf1 lf1}
+    {cv_ta : arena.env.IConstantVal}
+    {p_c : arena.inductives.native_parts.NativeParts}
+    {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {sortss : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)}
+    {is_rec : Bool}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf1 lf1) :
+    LS pers (fun r v => NativePassRel r.1 v.1 ∧ v.2 = r.2) (arena.inductives.native_install.check_native_pass_kinds pers st rf1 cv_ta p_c ctors_a sortss is_rec) lst
+      (checkNativePassKindsSpec lf1 (absIConstantVal cv_ta) (absNativeParts p_c)
+        (absCtorsL ctors_a) (absLIdxLL sortss) is_rec) :=
+  LS.ofSimRel₀ fun _ h => check_native_pass_kinds_refines hrel hinv hfe h
+
 /-- `check_native_pass` ⊑ `checkNativePass` — **one pass over the former and
 the constructors** (con-leche's task #268) at a given `is_rec` verdict. -/
 theorem check_native_pass_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf lf} {p0 : arena.inductives.native_parts.NativeParts} {is_rec : Bool} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf lf)
     (hrun : arena.inductives.native_install.check_native_pass pers st mode rf p0
       is_rec = ok o) :
     SimRel₀ (fun r v => NativePassRel r.1 v.1 ∧ v.2 = r.2) pers lst o
       (checkNativePass (ConRon.Refine.absMode mode) lf (absNativeParts p0)
         is_rec) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.native_install.check_native_pass, checkNativePass]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_native_pass_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf lf}
+    {p0 : arena.inductives.native_parts.NativeParts}
+    {is_rec : Bool}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun r v => NativePassRel r.1 v.1 ∧ v.2 = r.2) (arena.inductives.native_install.check_native_pass pers st mode rf p0 is_rec) lst
+      (checkNativePass (ConRon.Refine.absMode mode) lf (absNativeParts p0)
+        is_rec) :=
+  LS.ofSimRel₀ fun _ h => check_native_pass_refines hrel hinv hfe h
 
 /-- `check_native_tail_install` ⊑ `checkNativeTail`'s install stage. -/
 theorem check_native_tail_install_refines {pers st lst}
     {mode : kernel.env.CheckMode} {rq : arena.inductives.native_install.NativePass}
     {lq : NativePass} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hq : NativePassRel rq lq) (hknot : KnotRel checkFuel)
+    (hq : NativePassRel rq lq)
     (hrun : arena.inductives.native_install.check_native_tail_install pers st mode rq
       = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkNativeTailInstallSpec (ConRon.Refine.absMode mode) lq) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_native_tail_install_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rq : arena.inductives.native_install.NativePass}
+    {lq : NativePass}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hq : NativePassRel rq lq) :
+    LS pers IFEnvRelI (arena.inductives.native_install.check_native_tail_install pers st mode rq) lst
+      (checkNativeTailInstallSpec (ConRon.Refine.absMode mode) lq) :=
+  LS.ofSimRel₀ fun _ h => check_native_tail_install_refines hrel hinv hq h
 
 /-- `check_native_tail_kinds` ⊑ `checkNativeTail`'s kind stage.  **Finding
 19's visibility bound**: the port lowers `env1.visible_below` by one to hide
@@ -666,41 +1142,89 @@ twin's PRE-BLOCK environment `lf`, which is what `hpre` says. -/
 theorem check_native_tail_kinds_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rq : arena.inductives.native_install.NativePass} {lq : NativePass} {lf} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hq : NativePassRel rq lq) (hknot : KnotRel checkFuel)
+    (hq : NativePassRel rq lq)
     (hpre : ∀ n, lf.find? n =
       (if n = lq.p.cvT.name then none else lq.env₁.find? n))
     (hrun : arena.inductives.native_install.check_native_tail_kinds pers st mode rq
       = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkNativeTailKindsSpec (ConRon.Refine.absMode mode) lf lq) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_native_tail_kinds_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rq : arena.inductives.native_install.NativePass}
+    {lq : NativePass}
+    {lf}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hq : NativePassRel rq lq)
+    (hpre : ∀ n, lf.find? n =
+      (if n = lq.p.cvT.name then none else lq.env₁.find? n)) :
+    LS pers IFEnvRelI (arena.inductives.native_install.check_native_tail_kinds pers st mode rq) lst
+      (checkNativeTailKindsSpec (ConRon.Refine.absMode mode) lf lq) :=
+  LS.ofSimRel₀ fun _ h => check_native_tail_kinds_refines hrel hinv hq hpre h
 
 /-- `check_native_tail_sorts` ⊑ `checkNativeTail`'s index-sort stage. -/
 theorem check_native_tail_sorts_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rq : arena.inductives.native_install.NativePass} {lq : NativePass} {lf} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hq : NativePassRel rq lq) (hknot : KnotRel checkFuel)
+    (hq : NativePassRel rq lq)
     (hpre : ∀ n, lf.find? n =
       (if n = lq.p.cvT.name then none else lq.env₁.find? n))
     (hrun : arena.inductives.native_install.check_native_tail_sorts pers st mode rq
       = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkNativeTailSortsSpec (ConRon.Refine.absMode mode) lf lq) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_native_tail_sorts_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rq : arena.inductives.native_install.NativePass}
+    {lq : NativePass}
+    {lf}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hq : NativePassRel rq lq)
+    (hpre : ∀ n, lf.find? n =
+      (if n = lq.p.cvT.name then none else lq.env₁.find? n)) :
+    LS pers IFEnvRelI (arena.inductives.native_install.check_native_tail_sorts pers st mode rq) lst
+      (checkNativeTailSortsSpec (ConRon.Refine.absMode mode) lf lq) :=
+  LS.ofSimRel₀ fun _ h => check_native_tail_sorts_refines hrel hinv hq hpre h
 
 /-- `check_native_tail` ⊑ `checkNativeTail` — **the install after the pass**
 (con-leche's task #268). -/
 theorem check_native_tail_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rq : arena.inductives.native_install.NativePass} {lq : NativePass} {lf} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hq : NativePassRel rq lq) (hknot : KnotRel checkFuel)
+    (hq : NativePassRel rq lq)
     (hpre : ∀ n, lf.find? n =
       (if n = lq.p.cvT.name then none else lq.env₁.find? n))
     (hrun : arena.inductives.native_install.check_native_tail pers st mode rq
       = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkNativeTail (ConRon.Refine.absMode mode) lf lq) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_native_tail_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rq : arena.inductives.native_install.NativePass}
+    {lq : NativePass}
+    {lf}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hq : NativePassRel rq lq)
+    (hpre : ∀ n, lf.find? n =
+      (if n = lq.p.cvT.name then none else lq.env₁.find? n)) :
+    LS pers IFEnvRelI (arena.inductives.native_install.check_native_tail pers st mode rq) lst
+      (checkNativeTail (ConRon.Refine.absMode mode) lf lq) :=
+  LS.ofSimRel₀ fun _ h => check_native_tail_refines hrel hinv hq hpre h
 
 /-- `ctor_name_seen` ⊑ `(ctors.map (·.1.name)).contains n` from the cursor
 on. -/
@@ -741,6 +1265,25 @@ theorem ctor_name_seen_refines
     · rw [hbb] at h hbv
       rw [if_pos (by simp), Result.ok.injEq] at h
       exact Or.inl ⟨hbv.symm, h.symm⟩
+
+open Lockstep in
+/-- `ctor_name_seen_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem ctor_name_seen_twin0
+    {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {n : arena.handle.NIdx} :
+    LSP (arena.inductives.native_install.ctor_name_seen ctors 0#usize n) (fun o => TwinEq (((absCtorsL ctors).map (·.1.name)).contains (absNIdx n)) (o)) := by
+  intro o h
+  have h' := (ctor_name_seen_refines h).symm
+  simpa [Lockstep.TwinEq, absCtorsLFrom, absCtorsL, alloc.vec.Vec.new] using h'
+
+open Lockstep in
+@[lockstep] theorem ctor_name_seen_twin
+    {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {i : Std.Usize}
+    {n : arena.handle.NIdx} :
+    LSP (arena.inductives.native_install.ctor_name_seen ctors i n) (fun o => TwinEq (((absCtorsLFrom ctors i).map (·.1.name)).contains (absNIdx n)) (o)) :=
+  fun o h => (ctor_name_seen_refines h).symm
 
 /-- `ctor_names_nodup` ⊑ `(p₀.ctors.map (·.1.name)).Nodup` from the cursor
 on. -/
@@ -794,6 +1337,23 @@ theorem ctor_names_nodup_refines
       rw [← h]
       simp [List.nodup_cons, hmem, Function.comp_def]
 
+open Lockstep in
+/-- `ctor_names_nodup_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem ctor_names_nodup_twin0
+    {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} :
+    LSP (arena.inductives.native_install.ctor_names_nodup ctors 0#usize) (fun o => TwinEq (decide (((absCtorsL ctors).map (·.1.name)).Nodup)) (o)) := by
+  intro o h
+  have h' := (ctor_names_nodup_refines h).symm
+  simpa [Lockstep.TwinEq, absCtorsLFrom, absCtorsL, alloc.vec.Vec.new] using h'
+
+open Lockstep in
+@[lockstep] theorem ctor_names_nodup_twin
+    {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {i : Std.Usize} :
+    LSP (arena.inductives.native_install.ctor_names_nodup ctors i) (fun o => TwinEq (decide (((absCtorsLFrom ctors i).map (·.1.name)).Nodup)) (o)) :=
+  fun o h => (ctor_names_nodup_refines h).symm
+
 /-- `check_native` ⊑ `checkNative` — check and install a **direct recursive
 block**: the distinct names, the pass over the former and the constructors —
 again where the record's syntactic reading overshot — and the install after
@@ -801,11 +1361,21 @@ it. -/
 theorem check_native_refines {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
     {p0 : arena.inductives.native_parts.NativeParts} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hknot : KnotRel checkFuel)
+    (hfe : IFEnvRelI rf lf)
     (hrun : arena.inductives.native_install.check_native pers st mode rf p0 = ok o) :
-    SimRel₀ (fun r v => IFEnvRel r v) pers lst o
+    SimRel₀ IFEnvRelI pers lst o
       (checkNative (ConRon.Refine.absMode mode) lf (absNativeParts p0)) := by
   sorry
+
+open Lockstep in
+@[lockstep] theorem check_native_ls {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
+    {p0 : arena.inductives.native_parts.NativeParts}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers IFEnvRelI
+      (arena.inductives.native_install.check_native pers st mode rf p0) lst
+      (checkNative (ConRon.Refine.absMode mode) lf (absNativeParts p0)) :=
+  LS.ofSimRel₀ fun _ h => check_native_refines hrel hinv hfe h
 
 /-! ## The axiom census
 

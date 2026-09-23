@@ -82,16 +82,18 @@ theorem nativeIsRec_spec (kinds : List (List Arena.RecFieldKind)) :
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:105-108 nativeCaps
 The capability record the completed parts license.
 
-**CLOSED** (task #97-P3-Ind round 5), at `PSpecP` for the reason
-`nativeCapsAt_spec` is: `nativeCapsAt_spec` at `nativeIsRec p.kinds`, through
+**CLOSED** (task #97-P3-Ind round 5), at `CSpec` for the reason
+`nativeCapsAt_spec` is (the cached level readback, task #97-T2-LOCKSTEP lane
+Inductives round 3): `nativeCapsAt_spec` at `nativeIsRec p.kinds`, through
 `nativeIsRec_spec` above. -/
-theorem nativeCaps_spec (p : Arena.NativeParts) (q : ConLeche.NativeParts) :
-    PSpecP (fun st => PartsRel st p q)
+theorem nativeCaps_spec (p : Arena.NativeParts) (q : ConLeche.NativeParts)
+    {μ : CheckMode} {env : Env} (fe : IFEnv) :
+    CSpec μ env fe (fun st => PartsRel st p q)
       (Arena.nativeCaps p) (RCaps (ConLeche.nativeCaps q)) := by
-  intro s₀ s' r hok hpins hrel hrun
+  intro s₀ s' r hc hrel hrun
   simp only [Arena.nativeCaps] at hrun
   have h := nativeCapsAt_spec p.toInductiveShape q.toInductiveShape
-    (Arena.nativeIsRec p.kinds) s₀ s' r hok hpins hrel.shape hrun
+    (Arena.nativeIsRec p.kinds) fe s₀ s' r hc hrel.shape hrun
   rw [nativeIsRec_spec p.kinds, hrel.kinds] at h
   simpa only [ConLeche.nativeCaps] using h
 
@@ -853,6 +855,7 @@ theorem checkNativeRules_run (feR : IFEnv)
     (recCP : ConLeche.Name) (rlvls : LsIdx) (rlvlsP : List Level) (k j : Nat)
     (hcs : ∀ c ∈ ctorsP, ∀ i ∈ c.2.2.2, i < c.2.1) :
     ∀ (s₀ s' : AState) (r : List EIdx), ReadOK envR feR s₀ →
+      ReadLCacheOK s₀.caches.readLC s₀.store →
       (Frontend.denoteNList s₀.store.ns rlps = some rlpsP ∧
         denoteN s₀.store.ns T = some TP ∧
         Frontend.denoteNList s₀.store.ns lps = some lpsP ∧
@@ -869,17 +872,17 @@ theorem checkNativeRules_run (feR : IFEnv)
         Frontend.denoteEList s'.store r = some rhssP := by
   induction k generalizing j with
   | zero =>
-    intro s₀ s' r hok _ hrun
+    intro s₀ s' r hok _ _ hrun
     simp only [Arena.checkNativeRules] at hrun
     obtain ⟨rfl, rfl⟩ := pureOk hrun
     exact ⟨PStep.refl hok.state, [], rfl, rfl⟩
   | succ k ih =>
-    intro s₀ s' r hok hpre hrun
+    intro s₀ s' r hok hrlc hpre hrun
     obtain ⟨hrl, hT, hlps, hel, hty, hcs4, hrc, hrv, hfeR⟩ := hpre
     simp only [Arena.checkNativeRules] at hrun
     obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
     obtain ⟨p1, ho⟩ := structRecRhsR_spec T TP lps lpsP elim elimP large nP nIdx tty ttyP
-      ctors ctorsP recC recCP rlvls rlvlsP j hcs s₀ s1 o hok.state
+      ctors ctorsP recC recCP rlvls rlvlsP j hcs s₀ s1 o hok.state hrlc
       ⟨hT, hlps, hel, hty, hcs4, hrc, hrv⟩ k1
     have c1 := p1
     cases o with
@@ -921,6 +924,7 @@ theorem checkNativeRules_run (feR : IFEnv)
     obtain ⟨rest, s7, k7, z8⟩ := bindOk z7
     have x06 := c6.ext
     obtain ⟨c7, restP, hrest, hrestd⟩ := ih (j + 1) s6 s7 rest (hok.mono c6.ok c6.ext c6.pins)
+      (c6.cframe.readL hrlc)
       ⟨denoteNListE_ext x06 _ _ hrl, denoteN_ext hT x06, denoteNListE_ext x06 _ _ hlps,
         denoteN_ext hel x06, denote_ext hty x06, denoteCtors4_ext x06 _ _ hcs4,
         denoteN_ext hrc x06, denoteLs_ext hrv x06, denoteFEnv_ext x06 hfeR⟩ k7
@@ -963,7 +967,7 @@ theorem checkNativeRules_spec {μ : CheckMode} {env : Env} (feR : IFEnv)
   obtain rfl : envR = env := Option.some.inj (hfeR.symm.trans hfe)
   obtain ⟨p, hr⟩ := checkNativeRules_run feR envR rlps rlpsP T TP lps lpsP elim elimP large
     nP nIdx tty ttyP ctors ctorsP recC recCP rlvls rlvlsP k j hcs s₀ s' r hok.toR
-    ⟨hrl, hT, hlps, hel, hty, hcs4, hrc, hrv, hfeR⟩ hrun
+    hok.caches.readL ⟨hrl, hT, hlps, hel, hty, hcs4, hrc, hrv, hfeR⟩ hrun
   exact ⟨p.toCore hok, hr⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:134-145 recCtorKinds
@@ -1091,7 +1095,7 @@ theorem checkNativeRec_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   obtain ⟨p3, ho⟩ := structRecTyR_spec p.cvT.name q.cvT.name p.cvT.levelParams
     q.cvT.levelParams p.elim q.elim p.large p.nP p.nIdx cvTa.type cvTaP.type
     (Arena.nativeCtors4 ctorsA p.kinds) (ConLeche.nativeCtors4 ctorsAP q.kinds) hkcs s₂ s₃ o
-    c12.ok.state ⟨denoteN_ext hT x02, denoteNListE_ext x02 _ _ (denoteCV_lps hsh.cvT),
+    c12.ok.state c12.ok.caches.readL ⟨denoteN_ext hT x02, denoteNListE_ext x02 _ _ (denoteCV_lps hsh.cvT),
       denoteN_ext hsh.elim x02, denote_ext (denoteCV_type hcvTa) x02, hc4⟩ k3
   obtain ⟨recTy, s₄, k4, z7⟩ := bindOk z6
   cases o with
@@ -1195,6 +1199,7 @@ theorem checkNativeRec_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (ConLeche.nativeCtors4 ctorsAP q.kinds) p.cvR.name q.cvR.name rl
     (q.cvR.levelParams.map Level.param) (Arena.nativeCtors4 ctorsA p.kinds).length 0 hkcs
     s₁₂ s₁₃ rhss (hreadR.mono p12.ok x11_12 p12.pins)
+    (p12.cframe.readL (c11.ok.caches.readL))
     ⟨denoteNListE_ext (x0_11.trans x11_12) _ _ (denoteCV_lps hsh.cvR),
       denoteN_ext hT (x0_11.trans x11_12),
       denoteNListE_ext (x0_11.trans x11_12) _ _ (denoteCV_lps hsh.cvT),
@@ -1734,17 +1739,16 @@ theorem checkNativePass_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   have hpk : PartsRel s₄.store ((p₀.complete p₁).withKinds kinds)
       ((q₀.complete qP₁).withKinds (kinds.map (·.map kindOf))) :=
     withKinds_spec (hpc.ext c24.ext)
-  obtain ⟨p5, hca⟩ := nativeCaps_spec _ _ s₄ s₅ ca c24.ok.state c24.ok.pins hpk k5
+  obtain ⟨p5, hca⟩ := nativeCaps_spec _ _ _ s₄ s₅ ca c24.ok hpk k5
   obtain ⟨cb, s₆, k6, z6⟩ := bindOk z5
   have x15 : Ext s₁.store s₅.store := by
     have := c24.ext.trans p5.ext
     rw [hst₂] at this
     exact this
-  obtain ⟨p6, hcb⟩ := nativeCapsAt_spec p₁ qP₁ isRec s₅ s₆ cb p5.ok
-    (c24.ok.pins.mono p5.ext p5.pins) (hsh₁.ext x15) k6
+  obtain ⟨p6, hcb⟩ := nativeCapsAt_spec p₁ qP₁ isRec _ s₅ s₆ cb p5.ok
+    (hsh₁.ext x15) k6
   obtain ⟨rfl, rfl⟩ := pureOk z6
-  have c26 : CoreStep μ envP' fe₁ s₂ s' := (c24.trans (p5.toCore c24.ok)).trans
-    (p6.toCore (c24.trans (p5.toCore c24.ok)).ok)
+  have c26 : CoreStep μ envP' fe₁ s₂ s' := (c24.trans p5).trans p6
   have x2' : Ext s₂.store s'.store := c26.ext
   have x1' : Ext s₁.store s'.store := by rw [← hst₂]; exact x2'
   have x5' : Ext s₅.store s'.store := p6.ext
@@ -1796,7 +1800,16 @@ theorem checkNativeTail_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   simp only [Arena.checkNativeTail] at hrun
   -- the elimination restriction
   obtain ⟨u, s₁, k1, z1⟩ := bindOk hrun
-  obtain ⟨rfl, hu⟩ := readLevel_run k1
+  -- the CACHED readback (task #97-T2-LOCKSTEP lane Inductives round 3, ruling
+  -- 1): the store stands still, so every precondition moves to `s₁` as it is
+  have hu := (Core.readLevelM_denote hck.caches.readL k1).1
+  have c0r := (readLevelM_pstep hck.state k1).toCore hck
+  have hst : s₁.store = s₀.store := (Core.readLevelM_frame k1).1
+  have hread := hread.mono c0r.ok.state c0r.ext c0r.pins
+  have hck := c0r.ok
+  rw [← hst] at hpass hfe hinst₁ hu
+  have hsh := hpass.p.shape
+  clear k1 hst
   obtain rfl : u = qP.p.resSort := Option.some.inj (hu.symm.trans hsh.resSort)
   have hlen : r.p.ctors.length = qP.p.ctors.length := denoteCtors_length _ _ hsh.ctors
   have hlarge : r.p.large = qP.p.large := hsh.large
@@ -1932,8 +1945,9 @@ theorem checkNativeTail_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         (.recInfo cvRa r.p.majorIdx r.p.rulePrefix rules)) :=
     ⟨hcoh₂.push _, Pushed.push _ _, Nat.le_succ _, ⟨_, hden₃, trivial⟩,
       ProjOut.push hcoh₂ _ (fun t h => IConstantInfo.noConfusion h)⟩
-  refine ⟨(p2.toInst.trans c4.toInst).trans ((p5.toInst.trans (p6.toInst.trans p7.toInst)).trans
-    (hi₈.trans (c9.toInst.trans (c10.toInst.trans p11.toInst)))), ?_⟩
+  refine ⟨c0r.toInst.trans ((p2.toInst.trans c4.toInst).trans
+    ((p5.toInst.trans (p6.toInst.trans p7.toInst)).trans
+    (hi₈.trans (c9.toInst.trans (c10.toInst.trans p11.toInst))))), ?_⟩
   have hall := InstRel.trans x1' hinst₁
     (InstRel.trans x7'' hinst₂ (InstRel.trans p11.ext hinst₃ hinst₄))
   refine hall.imp ?_
