@@ -90,10 +90,10 @@ pinned type of `Lean.reduceNat` (`#annotate_pins`' `reduceNatCvA`). -/
 def reduceNatCvA : AM IConstantVal := internCV ConLeche.reduceNatCvA
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:139-141 _ — `reduceBoolCvA`. -/
 def reduceBoolCvA : AM IConstantVal := internCV ConLeche.reduceBoolCvA
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:143-146 _ — `ofReduceNatA`. -/
-def ofReduceNatA : AM IConstantVal := internCV ConLeche.ofReduceNatA
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:143-146 _ — `ofReduceBoolA`. -/
-def ofReduceBoolA : AM IConstantVal := internCV ConLeche.ofReduceBoolA
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:143-146 _ — `ofReduceNatA`'s slot, RAW. -/
+def ofReduceNatA : AM IConstantVal := internCV (ConLeche.ofReduceRaw ConLeche.ofReduceNatName)
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:143-146 _ — `ofReduceBoolA`'s slot, RAW. -/
+def ofReduceBoolA : AM IConstantVal := internCV (ConLeche.ofReduceRaw ConLeche.ofReduceBoolName)
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:148-150 reduceOpCvA — the
 annotated pinned type of a reduce operation. -/
@@ -127,5 +127,17 @@ def reduceDeclPin (c : NIdx) : AM EIdx := do
 identity certificate's variable: `fvar 0` at the element type. -/
 def reduceCertVar (c : NIdx) : AM EIdx := do
   internE (.fvar 0 (← reduceElemTy c))
+
+/-! ## Why `ofReduceNatA` / `ofReduceBoolA` intern the RAW pins
+
+Task #97-P5-Top round 2, ruling (a).  The port's `of_reduce_nat_a` /
+`of_reduce_bool_a` intern `kernel::trust_axioms::of_reduce_pin_a`, which is
+the RAW `ofReduceRaw` (con-ron-core's standing ruling: `matchesPin` erases the
+`pw` datum, the only thing `#annotate_pins` writes), and Theorem 2's store
+relation is exact, so the twin interns the same value.  con-leche's annotated
+`ofReduceNatA` differs from it in the three binders' `pw` data alone, so every
+`matchesPin` verdict is unchanged (`Bridge/Checker/Basis.lean`'s
+`ofReducePinA_matchesPin_raw`); the slots keep their names so that the port's
+`Lean twin:` citations stay put. -/
 
 end ConRon.Arena
