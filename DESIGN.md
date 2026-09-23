@@ -60888,3 +60888,40 @@ they used (`internNodeE_run_wf`, `internLamE_run_wf`, `internForallEE_run_wf`)
 and their census entries; the `₀` statements stay.  `EResolves` stays:
 `Core/Arms/Gated.lean`'s `bodyRel_stuckGatedCore` takes it as a premise
 (Core lane), and five Core files `open` it.
+
+#### Slice 4 — the ExprOps-unblocked fan-in
+
+After merging `arena` with the ExprOps lane's lockstep primitives
+(`b047603a`; `Inductives/Prims.lean` now imports `ExprOps/Mut.lean`), the
+trial loop closed **19** more by one `lockstep` call: nine in `StructParts`
+(`struct_fam`, `struct_motive_ty_i`, `struct_parts_core_sort`,
+`struct_parts_rhs_ok`, `struct_proj_guards`, `struct_rule_body`, …), seven in
+`NativeParts` (`native_rule_body_ok`, `native_rule_fields_ok`,
+`native_shape_sort`, `struct_idx_at`, `struct_minor_ty_close`,
+`struct_minor_ty_r`, `struct_rec_rhs_at`), `check_sum_tele(_slow)`,
+`native_rule_scoped`.  Four kernel/elaboration timeouts were reverted
+(`struct_parts_core_at`, `native_caps_at`, `native_shape_elim`,
+`native_raw_rec`) — each a split-into-helpers job like `check_native_table`.
+Cursor-at-`0` `lockstep_simp` equations (`absXLFrom v 0 = absXL v`, fifteen
+families) added; they closed nothing new on their own.
+
+**What stops the rest** (Native/Struct/Sum, 111 `sorry`s, 135 at round 3's
+end):
+* **21 structural recursions** (`replace_pis_pw`, `pis_to_lams_pw`,
+  `mk_pis_of`, `close_telescope`, the node dispatches of the three memo walks,
+  …): the `ls_cursor` / counted recipe per function, as slice 3 did five.
+* **~20 accumulator-vs-`mapM` factoring gaps**: the Rust calls a cursor fold
+  with an accumulator (`struct_ih_list … 0 (Vec.new)`), the twin (or its
+  transcription) writes `List.mapM F l`; the companion's twin is
+  `do pure (absXL out ++ (← FSpec l))`.  Each wants one `@[lockstep_simp]`
+  equation `List.mapM F l = FSpec l` (the tier's `*_counted` closers are the
+  pattern) — mechanical, not done.
+* **The three memo walks** (`mentions_const`, `mentions_fvar`,
+  `has_loose_bvar_b`): fuel induction with the memo relation, as the tactic
+  sample's `lift_loose_bvars_go`; `mentions_const` is being moved by the
+  Checker lane and was left alone.
+* **Ruling 2** (above) and the heartbeat splits.
+
+**Frontier** (`model_exists` + `no_False_declaration`) after this slice (with
+`arena`'s ExprOps and Checker landings merged): **51 items in 15 modules, 241
+tainted, dead weight 378**.
