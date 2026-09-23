@@ -811,10 +811,234 @@ theorem denoteEList_getD_lt {st : EStore} :
       simp only [List.getD_cons_succ]
       exact denoteEList_getD_lt hxs (by simp at hi; omega) a b
 
+/-- con-leche: none — the parameter comparison's pure side is fuel-monotone
+(`defEqListFueled_mono` under the `compareParams` gate). -/
+theorem ifDefEq_mono {c : Bool} {F G d : Nat} {as bs : List Expr} {r : Bool}
+    (hle : F ≤ G)
+    (h : (if c then ConLeche.defEqListFueled mode env F d as bs
+      else pure true : CheckM Bool) = .ok r) :
+    (if c then ConLeche.defEqListFueled mode env G d as bs
+      else pure true : CheckM Bool) = .ok r := by
+  cases c
+  · exact h
+  · exact defEqListFueled_mono hle h
+
 /-- con-leche: none — `SimOOp` at a `none` answer. -/
 theorem simOOp_none {P : Nat → CheckM (Option Expr)} {d F : Nat} {st : EStore}
     (h : P F = .ok none) : SimOOp P d st none :=
   ⟨none, rfl, fun _ hx => absurd hx (by simp), F, h⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:880-905 iotaRec — **the firing
+rule's certificate family and the reduct**, past the level and parameter
+comparisons: the two licensed telescope runs, the index comparison (one
+family, gated on `mode.certs`, `Cached/CoreC.lean:814`), then the rule's
+right-hand side applied to the parameters and the fields.  Stated at the
+continuation the twin's `do` block inlines at every branch of the parameter
+comparison, so the three branches share this proof. -/
+theorem iotaFam_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
+    (s₁ : AState) (d : Nat) (c : NIdx) (icv icvj : IConstantVal)
+    (us usj : LsIdx) (rl : IRecRule) (args margs : List EIdx) (major : EIdx)
+    (mI rP : Nat) (cn cjn : ConLeche.Name) (ls lsj : List Level)
+    (dcv dcvj : ConstantVal) (cnP cnF : Nat) (drules : List RecRule)
+    (rl' : RecRule) (xs : List Expr) (vmaj : Expr) (Fp Fq : Nat)
+    (hok : CheckOK mode env fe s₁)
+    (hcn : denoteN s₁.store.ns c = some cn)
+    (hls : denoteLs s₁.store.lss us = some ls)
+    (hlsj : denoteLs s₁.store.lss usj = some lsj)
+    (hdcv : Frontend.denoteCV s₁.store icv = some dcv)
+    (hdcvj : Frontend.denoteCV s₁.store icvj = some dcvj)
+    (hmaj : denoteE s₁.store major = some vmaj)
+    (hmargs : Frontend.denoteEList s₁.store margs = some vmaj.getAppArgs)
+    (hargs : Frontend.denoteEList s₁.store args = some xs)
+    (hrl' : Frontend.denoteRule s₁.store rl = some rl')
+    (hfind : env.find? cn = some (.recInfo dcv mI rP drules))
+    (hfindj : env.find? cjn = some (.ctorInfo dcvj cnP cnF))
+    (hfind' : drules.find? (fun r => r.ctor == cjn) = some rl')
+    (hgfm : vmaj.getAppFn = .const cjn lsj)
+    (hlP : vmaj.getAppArgs.length = rl'.ctorParams + rl'.nfields)
+    (hin' : rl'.fire ≠ .inert)
+    (hwargs : ∀ z ∈ xs, Expr.WScoped d z) (hwvmaj : Expr.WScoped d vmaj)
+    (hw : Expr.WScoped d (Expr.mkAppN (.const cn ls) xs))
+    (hT : ∀ G, Fp ≤ G → ConLeche.iotaRecFueled mode env G d
+      (Expr.mkAppN (.const cn ls) xs) =
+      iotaTail mode env G d ls dcv mI rP drules xs vmaj)
+    (h1 : Level.isEquivList lsj (ConLeche.recFireComparands rl' dcv.levelParams
+      ls dcvj.levelParams xs rP).1 = some true)
+    (hq : (if rl'.compareParams then
+        ConLeche.defEqListFueled mode env Fq d
+          (vmaj.getAppArgs.take rl'.ctorParams)
+          (ConLeche.recFireComparands rl' dcv.levelParams ls dcvj.levelParams xs
+            rP).2
+      else pure true : CheckM Bool) = .ok true) :
+    ⦃fun s => ⌜s = s₁⌝⦄ (do
+      let fam ←
+        if mode.certs then do
+          let tyR ← constTyAt icv us
+          if ← ConRon.Arena.iotaCerts (coreKnot mode fe id fuel) fe d
+              mode.betaGate tyR (args.take mI ++ [major]) then do
+            let tyC ← constTyAt icvj usj
+            if ← ConRon.Arena.iotaCerts (coreKnot mode fe id fuel) fe d
+                mode.betaGate tyC margs then
+              ConRon.Arena.iotaIndexOk (coreKnot mode fe id fuel) fe d mI rP
+                rl.ctorParams tyC margs ((args.take mI).drop rP)
+            else pure false
+          else pure false
+        else pure true
+      if fam then do
+        let rhs ← ruleRhsAt c rl.ctor icv.levelParams rl.rhs us
+        let x ← mkAppN rhs (args.take rP ++ margs.drop rl.ctorParams)
+        pure (some x)
+      else pure none : AM (Option EIdx))
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
+        s'.pins = s₁.pins ∧
+        SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
+          (Expr.mkAppN (.const cn ls) xs)) d s'.store r⌝⦄ := by
+  have hwf := hok.state.wf
+  obtain ⟨_hcp, _hinert, hctp, _hnf, hrlc, hrlrhs, _⟩ := rule_denote hrl'
+  obtain ⟨_, hlps, _⟩ := denoteCV_inv hdcv
+  have hname : dcv.name = cn := env_find_name hfind
+  have hnamej : dcvj.name = cjn := env_find_name hfindj
+  have hctor : rl'.ctor = cjn := by
+    have := List.find?_some hfind'
+    simpa using this
+  have hwtyR : Expr.WScoped d (dcv.type.instantiateLevelParams dcv.levelParams ls) :=
+    Expr.WScoped.of_not_hasFvar (ConLeche.const_ty_hasFvar henv hfind ls)
+  have hwtyC : Expr.WScoped d
+      (dcvj.type.instantiateLevelParams dcvj.levelParams lsj) :=
+    Expr.WScoped.of_not_hasFvar (ConLeche.const_ty_hasFvar henv hfindj lsj)
+  have hwA : ∀ z ∈ xs.take mI ++ [vmaj], Expr.WScoped d z := by
+    intro z hz
+    rcases List.mem_append.mp hz with hz | hz
+    · exact hwargs z (List.mem_of_mem_take hz)
+    · rw [List.mem_singleton.mp hz]; exact hwvmaj
+  have hwM : ∀ z ∈ vmaj.getAppArgs, Expr.WScoped d z := Expr.WScoped.getAppArgs hwvmaj
+  rw [if_pos (ConLeche.certs_of_verifiedChecks hμ)]
+  -- stage: the recursor's instantiated type, and its telescope run
+  refine triple_seq (constTyAt_spec s₁ icv us cn ls (.recInfo dcv mI rP drules) hok
+    (by rw [denoteCV_name hdcv, hname]) hls hfind hdcv) ?_
+  rintro tyR s2 ⟨hok2, hx2, hp2, htyR⟩
+  have hA : Frontend.denoteEList s2.store (args.take mI ++ [major]) =
+      some (xs.take mI ++ [vmaj]) :=
+    denoteEList_appendI (ExprOps.denoteEList_take mI _ _ (denoteEList_ext hx2 _ _ hargs))
+      (by simp [Frontend.denoteEList, denote_ext hmaj hx2])
+  refine triple_seq (iotaCerts_spec hsim d mode.betaGate tyR _ s2 hok2
+    ⟨_, _, htyR, hwtyR, hA, hwA⟩) ?_
+  rintro c1 s3 ⟨hok3, hx3, hp3, hc1⟩
+  obtain ⟨F1, hF1⟩ := hc1 _ _ htyR hA
+  have hx13 := hx2.trans hx3
+  have hp13 : s3.pins = s₁.pins := hp3.trans hp2
+  by_cases hc1t : c1 = true
+  · rw [if_pos hc1t]
+    subst hc1t
+    refine triple_seq (constTyAt_spec s3 icvj usj cjn lsj (.ctorInfo dcvj cnP cnF) hok3
+      (by rw [denoteCV_name (denoteCV_ext hdcvj hx13), hnamej])
+      (denoteLs_ext hlsj hx13) hfindj (denoteCV_ext hdcvj hx13)) ?_
+    rintro tyC s4 ⟨hok4, hx4, hp4, htyC⟩
+    have hM4 := denoteEList_ext (hx13.trans hx4) _ _ hmargs
+    refine triple_seq (iotaCerts_spec hsim d mode.betaGate tyC _ s4 hok4
+      ⟨_, _, htyC, hwtyC, hM4, hwM⟩) ?_
+    rintro c2 s5 ⟨hok5, hx5, hp5, hc2⟩
+    obtain ⟨F2, hF2⟩ := hc2 _ _ htyC hM4
+    have hx15 := hx13.trans (hx4.trans hx5)
+    have hp15 : s5.pins = s₁.pins := hp5.trans (hp4.trans hp13)
+    by_cases hc2t : c2 = true
+    · rw [if_pos hc2t]
+      subst hc2t
+      have hI := ExprOps.denoteEList_drop rP _ _
+        (ExprOps.denoteEList_take mI _ _ (denoteEList_ext hx15 _ _ hargs))
+      refine triple_seq (iotaIndexOk_spec hsim s5 d mI rP rl.ctorParams tyC margs
+        ((args.take mI).drop rP) _ _ _ hok5 (denote_ext htyC hx5)
+        (denoteEList_ext hx5 _ _ hM4) hI hwtyC hwM
+        (fun z hz => hwargs z (List.mem_of_mem_take (List.mem_of_mem_drop hz)))) ?_
+      rintro c3 s6 ⟨hok6, hx6, hp6, F3, hF3⟩
+      have hx16 := hx15.trans hx6
+      have hp16 : s6.pins = s₁.pins := hp6.trans hp15
+      have hval : ∀ b5, ConLeche.iotaIndexOkFueled mode env F3 d mI rP rl.ctorParams
+          (dcvj.type.instantiateLevelParams dcvj.levelParams lsj) vmaj.getAppArgs
+          ((xs.take mI).drop rP) = .ok b5 →
+          ConLeche.iotaRecFueled mode env (max Fp (max Fq (max F1 (max F2 F3)))) d
+            (Expr.mkAppN (.const cn ls) xs) = .ok (if b5 then
+              some (Expr.mkAppN (rl'.rhs.instantiateLevelParams dcv.levelParams ls)
+                (xs.take rP ++ vmaj.getAppArgs.drop rl'.ctorParams)) else none) := by
+        intro b5 hb5
+        rw [hT _ (by omega), iotaTail_fire (b2 := true) (b3 := true) (b4 := true)
+          (b5 := b5) hgfm hfindj hfind' hlP hin' h1
+          (fun _ => ifDefEq_mono (by omega) hq)
+          (fun _ _ => iotaCertsFueled_mono (by omega) hF1)
+          (fun _ _ _ => iotaCertsFueled_mono (by omega) hF2)
+          (fun _ _ _ _ => by rw [hctp]; exact iotaIndexOkFueled_mono (by omega) hb5)]
+        cases b5 <;> rfl
+      dsimp only
+      by_cases hc3t : c3 = true
+      · rw [if_pos hc3t]
+        subst hc3t
+        have hv := hval true hF3
+        refine triple_seq (ruleRhsAt_spec s6 c rl.ctor icv.levelParams rl.rhs us cn
+          cjn ls dcv mI rP drules rl' hok6 (denoteN_ext hcn hx16)
+          (by rw [← hctor]; exact denoteN_ext hrlc hx16) (denoteLs_ext hls hx16)
+          (denoteNListE_ext hx16 _ _ hlps)
+          (denote_ext hrlrhs hx16) hfind hfind') ?_
+        rintro rhs s7 ⟨hok7, hx7, hp7, hrhs⟩
+        have hB : Frontend.denoteEList s7.store (args.take rP ++ margs.drop rl.ctorParams) =
+            some (xs.take rP ++ vmaj.getAppArgs.drop rl'.ctorParams) := by
+          rw [hctp]
+          exact denoteEList_appendI
+            (ExprOps.denoteEList_take rP _ _ (denoteEList_ext (hx16.trans hx7) _ _ hargs))
+            (ExprOps.denoteEList_drop _ _ _ (denoteEList_ext (hx16.trans hx7) _ _ hmargs))
+        refine triple_seq (ExprOps.mkAppN_spec _ s7 rhs hok7.state (by rw [hrhs]; rfl)
+          (by rw [hB]; rfl)) ?_
+        rintro x s8 ⟨hst8, hx8, _, _, hc8, hp8, hrel⟩
+        have hok8 : CheckOK mode env fe s8 := hok7.mono hst8 hx8 hc8 hp8
+        have hxd := hrel _ _ hrhs hB
+        have hvw := ConLeche.iotaRec_WScoped henv hv hw
+        have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
+            (Expr.mkAppN (.const cn ls) xs)) d s8.store (some x) :=
+          ⟨_, by simp [denoteEO, hxd], fun y hy => by
+            cases hy; exact hvw, _, hv⟩
+        mvcgen
+        bridge_peel; subst_vars
+        exact ⟨hok8, hx16.trans (hx7.trans hx8), hp8.trans (hp7.trans hp16), hfin⟩
+      · rw [if_neg hc3t]
+        have hc3f : c3 = false := by simpa using hc3t
+        subst hc3f
+        have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
+            (Expr.mkAppN (.const cn ls) xs)) d s6.store none :=
+          simOOp_none (hval false hF3)
+        mvcgen
+        bridge_peel; subst_vars
+        exact ⟨hok6, hx16, hp16, hfin⟩
+    · rw [if_neg hc2t]
+      have hc2f : c2 = false := by simpa using hc2t
+      subst hc2f
+      have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
+          (Expr.mkAppN (.const cn ls) xs)) d s5.store none := by
+        refine simOOp_none (F := max Fp (max Fq (max F1 F2))) ?_
+        rw [hT _ (by omega), iotaTail_fire (b2 := true) (b3 := true) (b4 := false)
+          (b5 := false) hgfm hfindj hfind' hlP hin' h1
+          (fun _ => ifDefEq_mono (by omega) hq)
+          (fun _ _ => iotaCertsFueled_mono (by omega) hF1)
+          (fun _ _ _ => iotaCertsFueled_mono (by omega) hF2)
+          (fun _ _ _ h => by cases h)]
+        rfl
+      mvcgen
+      bridge_peel; subst_vars
+      exact ⟨hok5, hx15, hp15, hfin⟩
+  · rw [if_neg hc1t]
+    have hc1f : c1 = false := by simpa using hc1t
+    subst hc1f
+    have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
+        (Expr.mkAppN (.const cn ls) xs)) d s3.store none := by
+      refine simOOp_none (F := max Fp (max Fq F1)) ?_
+      rw [hT _ (by omega), iotaTail_fire (b2 := true) (b3 := false) (b4 := false)
+        (b5 := false) hgfm hfindj hfind' hlP hin' h1
+        (fun _ => ifDefEq_mono (by omega) hq)
+        (fun _ _ => iotaCertsFueled_mono (by omega) hF1)
+        (fun _ _ h => by cases h) (fun _ _ h => by cases h)]
+      rfl
+    mvcgen
+    bridge_peel; subst_vars
+    exact ⟨hok3, hx13, hp13, hfin⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — **THEOREM 1 for
 `iotaRecAt`**: one ι step at a spine the caller already holds (task
@@ -838,7 +1062,376 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         s'.pins = s₀.pins ∧
         SimOOp (fun F => ConLeche.iotaRecFueled mode env F d (Expr.mkAppN h xs))
           d s'.store r⌝⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  subst hn
+  have hxl : xs.length = sargs.size := by rw [denoteEList_len hxs]; simp
+  unfold ConRon.Arena.iotaRecAt
+  by_cases htag : (hd.tag == ETag.const) = true
+  · rw [if_pos htag]
+    refine triple_seq (viewConst_spec s₀ hd) ?_
+    rintro oc s1 ⟨hs1, hoc⟩
+    subst s1
+    cases oc with
+    | none => exact triple_failDanglingE
+    | some cu =>
+      obtain ⟨c, us⟩ := cu
+      have hv := view_of_viewConst_tag htag hoc.symm
+      obtain ⟨cn, ls, rfl, hcn, hls⟩ := denote_const_inv hwf hv hdh
+      have hE1 : (Expr.mkAppN (.const cn ls) xs).getAppFn = .const cn ls := by
+        rw [Expr.getAppFn_mkAppN]; rfl
+      have hE2 : (Expr.mkAppN (.const cn ls) xs).getAppArgs = xs := by
+        rw [Expr.getAppArgs_mkAppN]; rfl
+      have hwargs : ∀ z ∈ xs, Expr.WScoped d z := fun z hz =>
+        Expr.WScoped.getAppArgs hw z (by rw [hE2]; exact hz)
+      dsimp only
+      split
+      next icv mI rP rules hfc =>
+        obtain ⟨dcv, drules, hdcv, hdr, hfind⟩ := env_rec_of_index hok hcn hfc
+        obtain ⟨_, hlps, _⟩ := denoteCV_inv hdcv
+        have hlenlps := denoteNList_len hlps
+        by_cases hne : sargs.size ≠ mI + 1
+        · rw [if_pos hne]
+          have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
+              (Expr.mkAppN (.const cn ls) xs)) d s₀.store none :=
+            simOOp_none (F := 0) (iotaRecFueled_guard hE1 hfind (by
+              rw [hE2]; intro hg; exact hne (by rw [← hxl, hg.1])))
+          mvcgen
+          bridge_peel; subst_vars
+          exact ⟨hok, Ext.refl _, rfl, hfin⟩
+        · rw [if_neg hne]
+          have hmI : sargs.size = mI + 1 := by simpa using hne
+          have hargs : Frontend.denoteEList s₀.store
+              (takeEidx sargs sargs.size).toList = some xs := by
+            rw [ExprOps.takeEidx_toList, List.take_of_length_le (by simp)]
+            exact hxs
+          have hal : (takeEidx sargs sargs.size).toList.length = mI + 1 := by
+            rw [← denoteEList_len hargs, hxl, hmI]
+          refine triple_seq (viewLsLen_spec s₀ us) ?_
+          rintro ol s2 ⟨hs2, hol⟩
+          subst s2
+          rw [viewLen_of_denoteLs hls] at hol
+          subst hol
+          dsimp only
+          by_cases hg : (takeEidx sargs sargs.size).toList.length = mI + 1 ∧
+              ls.length = icv.levelParams.length
+          · rw [if_pos hg]
+            have hgP : xs.length = mI + 1 ∧ ls.length = dcv.levelParams.length :=
+              ⟨by rw [hxl, hmI], by rw [hg.2, hlenlps]⟩
+            refine triple_seq (internE_ok_spec (mode := mode) (env := env) (fe := fe)
+              s₀ (.bvar 0) hok viewOK_bvar) ?_
+            rintro b0 s3 ⟨hok3, hx3, hp3, _⟩
+            have hargs3 := denoteEList_ext hx3 _ _ hargs
+            have hmaj := denoteEList_getD_lt hargs3 (i := mI) (by rw [hal]; omega) b0
+              (.bvar 0)
+            have hmI' : mI < xs.length := by omega
+            have hwmaj : Expr.WScoped d (xs.getD mI (.bvar 0)) := by
+              simp only [List.getD, List.getElem?_eq_getElem hmI', Option.getD_some]
+              exact hwargs _ (List.getElem_mem hmI')
+            refine triple_seq (prepareMajor_spec hμ henv hsim s3 d c rules _ cn drules _
+              hok3 (denoteRules_ext hx3 _ _ hdr) hmaj hwmaj) ?_
+            rintro major s4 ⟨hok4, hx4, hp4, vmaj, hvmaj, hwvmaj, Fp, hFp⟩
+            have hx04 := hx3.trans hx4
+            have hp04 : s4.pins = s₀.pins := hp4.trans hp3
+            have hwf4 := hok4.state.wf
+            have hT : ∀ G, Fp ≤ G → ConLeche.iotaRecFueled mode env G d
+                (Expr.mkAppN (.const cn ls) xs) =
+                iotaTail mode env G d ls dcv mI rP drules xs vmaj := by
+              intro G hG
+              rw [iotaRecFueled_pre hE1 hfind (by rw [hE2]; exact hgP)
+                (by rw [hE2]; exact prepareMajorFueled_mono hG hFp), hE2]
+            refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s4 major hok4.state
+              (by rw [hvmaj]; rfl)) ?_
+            rintro mh s5 ⟨hs5, hrelF⟩
+            subst s5
+            have hmh := hrelF vmaj hvmaj
+            obtain ⟨vh, hvh⟩ := denoteE_view hmh
+            refine view_bind_triple hvh ?_
+            cases vh
+            case const cj usj =>
+              obtain ⟨cjn, lsj, hgfm, hcjn, hlsj⟩ := denote_const_inv hwf4 hvh hmh
+              dsimp only
+              split
+              next icvj cnP cnF hfj =>
+                obtain ⟨dcvj, hdcvj, hfindj⟩ := env_ctor_of_index hok4 hcjn hfj
+                obtain ⟨_, hlpsj, _⟩ := denoteCV_inv hdcvj
+                have hdr4 := denoteRules_ext hx04 _ _ hdr
+                obtain ⟨hfr1, hfr2⟩ := findRule_denote hwf4 hcjn hdr4
+                split
+                next rl hrl =>
+                  obtain ⟨rl', hrl', hfind'⟩ := hfr1 rl hrl
+                  obtain ⟨hcp, hinert, hctp, hnf, hrlc, hrlrhs, hnest⟩ := rule_denote hrl'
+                  refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s4 major
+                    hok4.state (by rw [hvmaj]; rfl)) ?_
+                  rintro margs s6 ⟨hs6, hrelA⟩
+                  subst s6
+                  have hmargs := hrelA vmaj hvmaj
+                  have hmlen := denoteEList_len hmargs
+                  by_cases hl : margs.length = rl.ctorParams + rl.nfields
+                  · rw [if_pos hl]
+                    have hlP : vmaj.getAppArgs.length = rl'.ctorParams + rl'.nfields := by
+                      rw [hmlen, hl, hctp, hnf]
+                    by_cases hin : rl.fire = .inert
+                    · rw [if_pos hin]; exact triple_fail
+                    · rw [if_neg hin]
+                      have hin' : rl'.fire ≠ .inert := fun h => hin (hinert.mpr h)
+                      have hwmargs : ∀ z ∈ vmaj.getAppArgs, Expr.WScoped d z :=
+                        Expr.WScoped.getAppArgs hwvmaj
+                      have hpinsW : ∀ lvls pins, rl'.fire = .nested lvls pins →
+                          ∀ pin ∈ pins, pin.hasFvar = false := by
+                        intro lvls pins hf' pin hpin
+                        obtain ⟨-, -, -, -, -, hrules, -⟩ :=
+                          henv _ (ConLeche.find?_mem hfind)
+                        obtain ⟨-, -, -, -, g5⟩ := hrules dcv mI rP drules rfl rl'
+                          (List.mem_of_find?_eq_some hfind')
+                        exact ((g5 lvls pins hf').2.2.1 pin hpin).1
+                      have hcmpW := ConLeche.recFireComparands_snd_WScoped rl'
+                        dcv.levelParams ls dcvj.levelParams xs rP hwargs hpinsW
+                      refine triple_seq (recFireComparands_spec s4 rl rl' icv.levelParams us
+                        icvj.levelParams (takeEidx sargs sargs.size).toList rP
+                        dcv.levelParams ls dcvj.levelParams xs hok4 hrl'
+                        (denoteNListE_ext hx04 _ _ hlps) (denoteLs_ext hls hx04) hlpsj
+                        (denoteEList_ext hx04 _ _ hargs)) ?_
+                      rintro cmp s7 ⟨hok7, hx7, hp7, hcm1, hcm2⟩
+                      refine triple_seq (lvlsEq?_spec s7 usj cmp.1 hok7) ?_
+                      rintro rq s8 ⟨hok8, hst8, hp8, lu, lv, hlu, hlv, hrq⟩
+                      rw [denoteLs_ext hlsj hx7] at hlu
+                      obtain rfl := Option.some.inj hlu
+                      rw [hcm1] at hlv
+                      obtain rfl := Option.some.inj hlv
+                      refine triple_seq (liftFueled_spec s8 _ rq) ?_
+                      rintro b1 s9 ⟨hs9, hb1⟩
+                      subst s9
+                      have h1 : Level.isEquivList lsj (ConLeche.recFireComparands rl'
+                          dcv.levelParams ls dcvj.levelParams xs rP).1 = some b1 := by
+                        rw [← hrq, hb1]
+                      have hx48 : Ext s4.store s8.store := by rw [hst8]; exact hx7
+                      have hp48 : s8.pins = s4.pins := hp8.trans hp7
+                      by_cases hb1t : b1 = true
+                      · rw [if_pos hb1t]
+                        subst hb1t
+                        have hcert : mode.certs = true :=
+                          ConLeche.certs_of_verifiedChecks hμ
+                        have hst87 : s8.store = s7.store := hst8
+                        have hmt := ExprOps.denoteEList_take rl.ctorParams _ _
+                          (denoteEList_ext hx48 _ _ hmargs)
+                        have hcm2' : Frontend.denoteEList s8.store cmp.2 = some
+                            (ConLeche.recFireComparands rl' dcv.levelParams ls
+                              dcvj.levelParams xs rP).2 := by rw [hst87]; exact hcm2
+                        -- stage: the parameter comparison (the twin's `do` inlines the rest at
+                        -- each of its three branches; `iotaFam_spec` is that rest)
+                        by_cases hcpt : rl.compareParams = true
+                        · rw [if_pos hcpt]
+                          have hcpt' : rl'.compareParams = true := hcp ▸ hcpt
+                          split
+                          · refine triple_seq (Q := fun _ s' => CheckOK mode env fe s' ∧
+                              s'.store = s8.store ∧ s'.pins = s8.pins) ?_ ?_
+                            · mvcgen
+                              bridge_peel; subst_vars
+                              exact ⟨hok8, rfl, rfl⟩
+                            rintro kp sk ⟨hokk, hstk, hpk⟩
+                            rw [if_pos (by rw [hcert]; rfl : (mode.certs || kp) = true)]
+                            refine triple_seq (defEqList_spec hsim sk d _ _ _ _ hokk
+                              (by rw [hstk]; exact hmt) (by rw [hstk]; exact hcm2')
+                              (fun z hz => hwmargs z (List.mem_of_mem_take hz)) hcmpW) ?_
+                            rintro y s10 ⟨hok10, hx10, hp10, Fq, hFq⟩
+                            have hx410 : Ext s4.store s10.store := hx48.trans (by rw [← hstk]; exact hx10)
+                            have hp410 : s10.pins = s4.pins := hp10.trans (hpk.trans hp48)
+                            have hq : (if rl'.compareParams then
+                                ConLeche.defEqListFueled mode env Fq d
+                                  (vmaj.getAppArgs.take rl'.ctorParams)
+                                  (ConLeche.recFireComparands rl' dcv.levelParams ls dcvj.levelParams xs rP).2
+                                else pure true : CheckM Bool) = .ok y := by
+                              rw [if_pos hcpt', hctp]; exact hFq
+                            by_cases hyt : y = true
+                            · rw [if_pos hyt]
+                              subst hyt
+                              refine triple_mono (iotaFam_spec hμ henv hsim s10 d c icv icvj us usj rl
+                                (takeEidx sargs sargs.size).toList margs major mI rP cn cjn ls lsj dcv dcvj
+                                cnP cnF drules rl' xs vmaj Fp Fq hok10
+                                (denoteN_ext hcn (hx04.trans hx410)) (denoteLs_ext hls (hx04.trans hx410))
+                                (denoteLs_ext hlsj hx410) (denoteCV_ext hdcv (hx04.trans hx410))
+                                (denoteCV_ext hdcvj hx410) (denote_ext hvmaj hx410)
+                                (denoteEList_ext hx410 _ _ hmargs) (denoteEList_ext (hx04.trans hx410) _ _ hargs)
+                                (denoteRule_ext hrl' hx410) hfind hfindj hfind' hgfm hlP hin' hwargs hwvmaj hw
+                                hT h1 hq) ?_
+                              rintro r s' ⟨ha, hb, hc, hd'⟩
+                              exact ⟨ha, hx04.trans (hx410.trans hb), hc.trans (hp410.trans hp04), hd'⟩
+                            · rw [if_neg hyt]
+                              have hyf : y = false := by simpa using hyt
+                              subst hyf
+                              have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
+                                  (Expr.mkAppN (.const cn ls) xs)) d s10.store none := by
+                                refine simOOp_none (F := max Fp Fq) ?_
+                                rw [hT _ (Nat.le_max_left _ _), iotaTail_fire (b2 := false)
+                                  (b3 := false) (b4 := false) (b5 := false) hgfm hfindj hfind'
+                                  hlP hin' h1 (fun _ => ifDefEq_mono (Nat.le_max_right _ _) hq)
+                                  (fun _ h => by cases h) (fun _ h => by cases h)
+                                  (fun _ h => by cases h)]
+                                rfl
+                              mvcgen
+                              bridge_peel; subst_vars
+                              exact ⟨hok10, hx04.trans hx410, hp410.trans hp04, hfin⟩
+                          · refine triple_seq (Q := fun _ s' => CheckOK mode env fe s' ∧
+                              s'.store = s8.store ∧ s'.pins = s8.pins) ?_ ?_
+                            · refine triple_mono (ExprOps.readNameM_specF s8 c hok8.caches.readN) ?_
+                              rintro nm s' ⟨hst, hm, hp, hc, _, hN⟩
+                              exact ⟨CheckOK.ofReadbackFrame hok8 (ReadbackFrame.ofReadN hst hm hp hc hN),
+                                hst, hp⟩
+                            rintro nm sk0 ⟨hokk0, hstk0, hpk0⟩
+                            refine triple_seq (Q := fun _ s' => CheckOK mode env fe s' ∧
+                              s'.store = s8.store ∧ s'.pins = s8.pins) ?_ ?_
+                            · mvcgen
+                              bridge_peel; subst_vars
+                              exact ⟨hokk0, hstk0, hpk0⟩
+                            rintro kp sk ⟨hokk, hstk, hpk⟩
+                            rw [if_pos (by rw [hcert]; rfl : (mode.certs || kp) = true)]
+                            refine triple_seq (defEqList_spec hsim sk d _ _ _ _ hokk
+                              (by rw [hstk]; exact hmt) (by rw [hstk]; exact hcm2')
+                              (fun z hz => hwmargs z (List.mem_of_mem_take hz)) hcmpW) ?_
+                            rintro y s10 ⟨hok10, hx10, hp10, Fq, hFq⟩
+                            have hx410 : Ext s4.store s10.store := hx48.trans (by rw [← hstk]; exact hx10)
+                            have hp410 : s10.pins = s4.pins := hp10.trans (hpk.trans hp48)
+                            have hq : (if rl'.compareParams then
+                                ConLeche.defEqListFueled mode env Fq d
+                                  (vmaj.getAppArgs.take rl'.ctorParams)
+                                  (ConLeche.recFireComparands rl' dcv.levelParams ls dcvj.levelParams xs rP).2
+                                else pure true : CheckM Bool) = .ok y := by
+                              rw [if_pos hcpt', hctp]; exact hFq
+                            by_cases hyt : y = true
+                            · rw [if_pos hyt]
+                              subst hyt
+                              refine triple_mono (iotaFam_spec hμ henv hsim s10 d c icv icvj us usj rl
+                                (takeEidx sargs sargs.size).toList margs major mI rP cn cjn ls lsj dcv dcvj
+                                cnP cnF drules rl' xs vmaj Fp Fq hok10
+                                (denoteN_ext hcn (hx04.trans hx410)) (denoteLs_ext hls (hx04.trans hx410))
+                                (denoteLs_ext hlsj hx410) (denoteCV_ext hdcv (hx04.trans hx410))
+                                (denoteCV_ext hdcvj hx410) (denote_ext hvmaj hx410)
+                                (denoteEList_ext hx410 _ _ hmargs) (denoteEList_ext (hx04.trans hx410) _ _ hargs)
+                                (denoteRule_ext hrl' hx410) hfind hfindj hfind' hgfm hlP hin' hwargs hwvmaj hw
+                                hT h1 hq) ?_
+                              rintro r s' ⟨ha, hb, hc, hd'⟩
+                              exact ⟨ha, hx04.trans (hx410.trans hb), hc.trans (hp410.trans hp04), hd'⟩
+                            · rw [if_neg hyt]
+                              have hyf : y = false := by simpa using hyt
+                              subst hyf
+                              have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
+                                  (Expr.mkAppN (.const cn ls) xs)) d s10.store none := by
+                                refine simOOp_none (F := max Fp Fq) ?_
+                                rw [hT _ (Nat.le_max_left _ _), iotaTail_fire (b2 := false)
+                                  (b3 := false) (b4 := false) (b5 := false) hgfm hfindj hfind'
+                                  hlP hin' h1 (fun _ => ifDefEq_mono (Nat.le_max_right _ _) hq)
+                                  (fun _ h => by cases h) (fun _ h => by cases h)
+                                  (fun _ h => by cases h)]
+                                rfl
+                              mvcgen
+                              bridge_peel; subst_vars
+                              exact ⟨hok10, hx04.trans hx410, hp410.trans hp04, hfin⟩
+                        · rw [if_neg hcpt]
+                          have hcpf : rl'.compareParams = false := by rw [← hcp]; simpa using hcpt
+                          have hq : (if rl'.compareParams then
+                              ConLeche.defEqListFueled mode env 0 d
+                                (vmaj.getAppArgs.take rl'.ctorParams)
+                                (ConLeche.recFireComparands rl' dcv.levelParams ls dcvj.levelParams xs rP).2
+                              else pure true : CheckM Bool) = .ok true := by rw [hcpf]; rfl
+                          refine triple_seq (Q := fun y s' => s' = s8 ∧ y = true) ?_ ?_
+                          · mvcgen
+                          rintro y s10 ⟨hs10, rfl⟩
+                          subst s10
+                          rw [if_pos rfl]
+                          refine triple_mono (iotaFam_spec hμ henv hsim s8 d c icv icvj us usj rl
+                            (takeEidx sargs sargs.size).toList margs major mI rP cn cjn ls lsj dcv dcvj
+                            cnP cnF drules rl' xs vmaj Fp 0 hok8
+                            (denoteN_ext hcn (hx04.trans hx48)) (denoteLs_ext hls (hx04.trans hx48))
+                            (denoteLs_ext hlsj hx48) (denoteCV_ext hdcv (hx04.trans hx48))
+                            (denoteCV_ext hdcvj hx48) (denote_ext hvmaj hx48)
+                            (denoteEList_ext hx48 _ _ hmargs) (denoteEList_ext (hx04.trans hx48) _ _ hargs)
+                            (denoteRule_ext hrl' hx48) hfind hfindj hfind' hgfm hlP hin' hwargs hwvmaj hw
+                            hT h1 hq) ?_
+                          rintro r s' ⟨ha, hb, hc, hd'⟩
+                          exact ⟨ha, hx04.trans (hx48.trans hb), hc.trans (hp48.trans hp04), hd'⟩
+                      · rw [if_neg hb1t]
+                        have hb1f : b1 = false := by simpa using hb1t
+                        have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
+                            (Expr.mkAppN (.const cn ls) xs)) d s8.store none := by
+                          refine simOOp_none (F := Fp) ?_
+                          rw [hT _ (Nat.le_refl _), iotaTail_fire (b2 := false) (b3 := false)
+                            (b4 := false) (b5 := false) hgfm hfindj hfind' hlP hin' h1
+                            (fun h => by rw [hb1f] at h; cases h)
+                            (fun h => by rw [hb1f] at h; cases h)
+                            (fun h => by rw [hb1f] at h; cases h)
+                            (fun h => by rw [hb1f] at h; cases h)]
+                          simp [hb1f]
+                        mvcgen
+                        bridge_peel; subst_vars
+                        exact ⟨hok8, hx04.trans hx48, hp48.trans hp04, hfin⟩
+                  · rw [if_neg hl]
+                    have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
+                        (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
+                      simOOp_none (F := Fp) (by
+                        rw [hT _ (Nat.le_refl _)]
+                        exact iotaTail_len hgfm hfindj hfind' (by rw [hmlen, hctp, hnf]; exact hl))
+                    mvcgen
+                    bridge_peel; subst_vars
+                    exact ⟨hok4, hx04, hp04, hfin⟩
+                next hrl =>
+                  have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
+                      (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
+                    simOOp_none (F := Fp) (by
+                      rw [hT _ (Nat.le_refl _)]
+                      exact iotaTail_norule hgfm hfindj (hfr2 hrl))
+                  mvcgen
+                  bridge_peel; subst_vars
+                  exact ⟨hok4, hx04, hp04, hfin⟩
+              next hnd =>
+                have hnc := env_not_ctor_of_index hok4 hcjn (fun v p q h => hnd v p q h)
+                have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
+                    (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
+                  simOOp_none (F := Fp) (by rw [hT _ (Nat.le_refl _)]
+                                            exact iotaTail_noctor hgfm hnc)
+                mvcgen
+                bridge_peel; subst_vars
+                exact ⟨hok4, hx04, hp04, hfin⟩
+            all_goals
+              dsimp only
+              have hnc := denote_not_const hwf4 hvh hmh (by intro c us h; cases h)
+              have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
+                  (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
+                simOOp_none (F := Fp) (by rw [hT _ (Nat.le_refl _)]
+                                          exact iotaTail_nohead hnc)
+              mvcgen
+              bridge_peel; subst_vars
+              exact ⟨hok4, hx04, hp04, hfin⟩
+          · rw [if_neg hg]
+            have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
+                (Expr.mkAppN (.const cn ls) xs)) d s₀.store none :=
+              simOOp_none (F := 0) (iotaRecFueled_guard hE1 hfind (by
+                rw [hE2]; intro hg'; exact hg ⟨hal, by rw [hg'.2, hlenlps]⟩))
+            mvcgen
+            bridge_peel; subst_vars
+            exact ⟨hok, Ext.refl _, rfl, hfin⟩
+      next hnd =>
+        have hnr := env_not_rec_of_index hok hcn (fun v mI rP rs h => hnd v mI rP rs h)
+        have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
+            (Expr.mkAppN (.const cn ls) xs)) d s₀.store none :=
+          simOOp_none (F := 0) (iotaRecFueled_norec hE1 hnr)
+        mvcgen
+        bridge_peel; subst_vars
+        exact ⟨hok, Ext.refl _, rfl, hfin⟩
+  · rw [if_neg htag]
+    obtain ⟨v, hv⟩ := denoteE_view hdh
+    have hvt := EStore.tagOf_of_view hv
+    have hnc := denote_not_const hwf hv hdh (by
+      intro c us h; subst h; exact htag (by rw [hvt]; rfl))
+    have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
+        (Expr.mkAppN h xs)) d s₀.store none :=
+      simOOp_none (F := 0) (iotaRecFueled_nohead (by
+        rw [Expr.getAppFn_mkAppN]
+        cases h with
+        | app f a => exact absurd rfl (hnapp f a)
+        | _ => exact hnc))
+    mvcgen
+    bridge_peel; subst_vars
+    exact ⟨hok, Ext.refl _, rfl, hfin⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — **THEOREM 1 for
 `iotaRec`**: one ι step at a recursor application, with the stuck-major
