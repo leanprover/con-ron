@@ -238,7 +238,7 @@ theorem check_basis_decl_refines {pers st lst} {rf lf}
   case QuotK =>
     rw [ConRon.Refine.absBasisKind, checkBasisDecl_quotK]
     have hvis := hfe.visibleBelow.symm
-    chk_lockstep
+    lockstep
   all_goals (rw [checkBasisDecl_ne _ _ (by simp [ConRon.Refine.absBasisKind])]; lockstep)
 
 open Lockstep in
@@ -365,7 +365,7 @@ theorem check_axiom_decl_of_reduce_refines {pers st lst} {rf lf}
   have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.checker.check_axiom_decl_of_reduce, checkAxiomDeclOfReduceSpec]
-  chk_lockstep
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_axiom_decl_of_reduce_ls {pers st lst} {rf lf}
@@ -387,7 +387,7 @@ theorem check_axiom_decl_trust_refines {pers st lst} {rf lf}
   have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.checker.check_axiom_decl_trust, checkAxiomDeclTrustSpec]
-  chk_lockstep
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_axiom_decl_trust_ls {pers st lst} {rf lf}
@@ -460,7 +460,7 @@ theorem check_quot_sound_record_refines {pers st lst} {rf lf}
   have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.checker.check_quot_sound_record, checkQuotSoundRecordSpec_split]
-  chk_lockstep
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_quot_sound_record_ls {pers st lst}
@@ -743,8 +743,8 @@ theorem check_defn_pins_refines {pers st lst} {rf2 lf2}
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.checker.check_defn_pins, checkDefnPinsSpec]
   -- The Rust's structural gate is a state bind right after the `contains`
-  -- test; the tactic wraps the twin's `if` as `if … >>= pure` and takes the
-  -- bind at once (the atomic `twin_bind_pure` fallback).
+  -- test; the tactic decides the twin's `if` from that test first (task
+  -- #97-T2-TACTIC round 2).
   lockstep
 
 open Lockstep in
