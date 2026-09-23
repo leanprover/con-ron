@@ -432,6 +432,7 @@ theorem PinsOK.pmono {s s' : AState} (h : PinsOK s) (hp : PersPins s)
   emptyLevels := by rw [hpe]; exact denoteLs_pext hx hp.emptyLevels h.emptyLevels
   zeroLevel := by rw [hpe]; exact denoteL_pext hx hp.zeroLevel h.zeroLevel
   sortOne := by rw [hpe]; exact denoteE_pext hx hp.sortOne h.sortOne
+  anon := denoteN_pext hx (by decide) h.anon
 
 theorem PersPins.mono {s s' : AState} (h : PersPins s) (hpe : s'.pins = s.pins) :
     PersPins s' where

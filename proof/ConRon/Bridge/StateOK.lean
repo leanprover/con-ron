@@ -474,6 +474,27 @@ structure PinsOK (s : AState) : Prop where
   emptyLevels : denoteLs s.store.lss s.pins.emptyLevels = some []
   zeroLevel : denoteL s.store.ls s.pins.zeroLevel = some .zero
   sortOne : denoteE s.store s.pins.sortOne = some (.sort (.succ .zero))
+  /-- **the ZERO name handle decodes, and it decodes to `.anonymous`** (task
+  #97-P3-Ind round 5's finding, ruled on by the maintainer).
+
+  `Arena/Env.lean`'s `IIndCaps.etaCtor` defaults to `(default : NIdx)` — the
+  zero word — where `ConLeche.IndCaps.etaCtor` defaults to `.anonymous`, and
+  `Frontend.denoteCaps` reads the field UNCONDITIONALLY.  So every capability
+  record built at a block that earns nothing — which is every multi-constructor
+  block the fixpoint route installs — denotes only if the zero handle decodes
+  to `.anonymous`, and until this clause nothing said it did:
+  `Frontend.denoteCI` of the pushed `.indInfo` row was `none`, and with it
+  `denoteFEnv`, `InstRel.denote` and `FoldOK.denote`.
+
+  The clause is EXACT rather than a weakening.  `.anonymous` is nullary, so
+  the persistent name store's `anons` table holds at most one element, at slot
+  0; `Idx.ofWord 0` is tag-`anonymous`, tier-persistent, slot 0.  So as soon
+  as `.anonymous` is interned at all its handle IS the zero word, exactly and
+  permanently — and it is interned, because every pin name is a `.str`/`.num`
+  chain that bottoms out there.  False of `EStore.empty` and true after the
+  pin phase, which is what `PinsOK` is for; `Bridge/Checker/Pins.lean`'s
+  `internReservedPins_run` is the debtor. -/
+  anon : denoteN s.store.ns (default : NIdx) = some ConLeche.Name.anonymous
 
 /-! ## The environment index
 
@@ -718,6 +739,7 @@ theorem PinsOK.mono {s s' : AState} (h : PinsOK s) (hx : Ext s.store s'.store)
   emptyLevels := by rw [hp]; exact denoteLs_ext h.emptyLevels hx
   zeroLevel := by rw [hp]; exact denoteL_ext h.zeroLevel hx
   sortOne := by rw [hp]; exact denote_ext h.sortOne hx
+  anon := denoteN_ext h.anon hx
 
 theorem IProjTableOK.mono {st st' : EStore} {t : IProjTable}
     (h : IProjTableOK st t) (hx : Ext st st') : IProjTableOK st' t where

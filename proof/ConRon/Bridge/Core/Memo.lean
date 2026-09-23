@@ -382,12 +382,12 @@ theorem CheckOK.ofCache {mode : CheckMode} {env : Env} {fe : IFEnv}
   state := ⟨hst ▸ h.state.wf⟩
   caches := hc
   pins := by
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
       simp only [hst, hp] <;>
       first
         | exact h.pins.ready | exact h.pins.names | exact h.pins.reserved
         | exact h.pins.emptyLevels | exact h.pins.zeroLevel
-        | exact h.pins.sortOne
+        | exact h.pins.sortOne | exact h.pins.anon
   ienv := by
     refine ⟨?_, ?_, ?_⟩ <;> simp only [hst]
     · exact h.ienv.hit
