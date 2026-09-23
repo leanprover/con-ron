@@ -1050,6 +1050,49 @@ theorem order_block_ctors_refines
 
 /-! ## The K flag and the recursor records -/
 
+/-- `env::view_e` — the store's expression view. -/
+theorem env_view_e_run {pers rst lst} (hrel : AStateRel₀ pers rst lst)
+    {h : arena.handle.EIdx} {o}
+    (hrun : arena.env.view_e pers rst.store h = ok o) :
+    SimRE absENodeView lst o (view (absEIdx h)) := by
+  rw [arena.env.view_e] at hrun
+  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hqa := estore_view_abs hrel.store hq
+  have hrunL : (view (absEIdx h)).run lst
+      = (match lst.store.view (absEIdx h) with
+         | some v => Except.ok (v, lst)
+         | none => Except.error (Arena.CheckError.internal
+             "arena: dangling expression handle")) := by
+    show (match lst.store.view (absEIdx h) with
+          | some v => (pure v : AM _)
+          | none => Arena.fail (.internal "arena: dangling expression handle")).run lst = _
+    cases lst.store.view (absEIdx h) <;> rfl
+  cases q with
+  | none =>
+    obtain ⟨_, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨_, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨ce, hce, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [kernel.core_types.internal] at hce
+    cases Result.ok_injective hce
+    cases Result.ok_injective hrun
+    show AErrSim _ _
+    rw [hrunL, hqa]
+    exact AErrSim.internal rfl
+  | some w =>
+    cases Result.ok_injective hrun
+    show _ = _
+    rw [hrunL, hqa]
+    rfl
+
+/-- **`env::read_level` is `readLevel`** (the store's level readback,
+`denoteL` at `node_count + 1` fuel), with the answer well formed.  A leaf of
+this tier. -/
+theorem env_read_level_run {pers rst lst} (hrel : AStateRel₀ pers rst lst)
+    (hinv : AStateInv pers rst) {h : arena.handle.LIdx} {o}
+    (hrun : arena.env.read_level pers rst.store h = ok o) :
+    (∀ l, o = .Ok l → ConRon.Refine.LevelWF l) ∧
+      SimRE ConRon.Refine.absLevel lst o (readLevel (absLIdx h)) := by sorry
+
 /-- **`k_expected_of`** — official's `is_K_target`, against `kExpectedOfD`: a
 single type former with a single constructor of zero fields whose result sort
 is `Prop`. -/
@@ -1059,7 +1102,190 @@ theorem k_expected_of_refines {pers rst lst fuel ty_types listed cts o}
       = ok o) :
     SimLR id lst o
       (kExpectedOfD (absU fuel) (absEIdxL ty_types) (listed.val.map absNIdxL)
-        (absIndCtorRecs cts)) := by sorry
+        (absIndCtorRecs cts)) := by
+  rw [frontend.export_c.k_expected_of] at h
+  unfold kExpectedOfD
+  -- the shape test: one former, one listed constructor, one record
+  by_cases hs : ∃ e l0 n0 c0, ty_types.val = [e] ∧ listed.val = [l0] ∧ l0.val = [n0] ∧
+      cts.val = [c0]
+  swap
+  · have hRust : o = .Ok (some false) := by
+      simp only [bne_iff_ne, ne_eq] at h
+      split at h
+      · exact (Result.ok_injective h).symm
+      split at h
+      · exact (Result.ok_injective h).symm
+      split at h
+      · exact (Result.ok_injective h).symm
+      rename_i h1 h2 h3
+      obtain ⟨l0, hl0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      split at h
+      · exact (Result.ok_injective h).symm
+      rename_i h4
+      exfalso; apply hs
+      have e1 : ty_types.val.length = 1 := by
+        have := congrArg (·.val) (Classical.not_not.mp h1); simpa using this
+      have e2 : listed.val.length = 1 := by
+        have := congrArg (·.val) (Classical.not_not.mp h2); simpa using this
+      have e3 : cts.val.length = 1 := by
+        have := congrArg (·.val) (Classical.not_not.mp h3); simpa using this
+      have hl0' := vec_index_eq (i := 0#usize) (by simp; omega) hl0
+      have e4 : l0.val.length = 1 := by
+        have := congrArg (·.val) (Classical.not_not.mp h4); simpa using this
+      match hty : ty_types.val, hls : listed.val, hl : l0.val, hc : cts.val with
+      | [e], [l0'], [n0], [c0] =>
+        refine ⟨e, l0', n0, c0, rfl, rfl, ?_, rfl⟩
+        simp only [show (0#usize : Std.Usize).val = 0 from rfl, hls,
+          List.getElem_cons_zero] at hl0'
+        rw [hl0']; exact hl
+      | [], _, _, _ => simp [hty] at e1
+      | _ :: _ :: _, _, _, _ => simp [hty] at e1
+      | _, [], _, _ => simp [hls] at e2
+      | _, _ :: _ :: _, _, _ => simp [hls] at e2
+      | _, _, [], _ => simp [hl] at e4
+      | _, _, _ :: _ :: _, _ => simp [hl] at e4
+      | _, _, _, [] => simp [hc] at e3
+      | _, _, _, _ :: _ :: _ => simp [hc] at e3
+    subst hRust
+    split
+    · rename_i ty hd0 c hty hls hc
+      exfalso; apply hs
+      simp only [absEIdxL, List.map_eq_singleton_iff] at hty
+      simp only [List.map_eq_singleton_iff] at hls
+      simp only [absIndCtorRecs, List.map_eq_singleton_iff] at hc
+      obtain ⟨e, he, -⟩ := hty
+      obtain ⟨l0, hl0, hl0e⟩ := hls
+      obtain ⟨c0, hc0, -⟩ := hc
+      simp only [absNIdxL, List.map_eq_singleton_iff] at hl0e
+      obtain ⟨n0, hn0, -⟩ := hl0e
+      exact ⟨e, l0, n0, c0, he, hl0, hn0, hc0⟩
+    · rfl
+  obtain ⟨e, l0, n0, c0, he, hl0, hn0, hc0⟩ := hs
+  have hty : absEIdxL ty_types = [absEIdx e] := by simp [absEIdxL, he]
+  have hls : listed.val.map absNIdxL = [[absNIdx n0]] := by simp [absNIdxL, hl0, hn0]
+  have hc : absIndCtorRecs cts = [absIndCtorRec c0] := by simp [absIndCtorRecs, hc0]
+  rw [hty, hls, hc]
+  simp only
+  have len1 : ∀ {T : Type} (v : alloc.vec.Vec T) (x : T), v.val = [x] →
+      alloc.vec.Vec.len v = 1#usize := by
+    intro T v x hv; apply UScalar.eq_equiv _ _ |>.mpr; simp [alloc.vec.Vec.len, hv]
+  simp only [len1 ty_types e he, len1 listed l0 hl0, len1 cts c0 hc0, bne_self_eq_false,
+    Bool.false_eq_true, ↓reduceIte] at h
+  obtain ⟨l0', hl0', h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hl0'' := vec_index_eq (i := 0#usize) (by simp [hl0]) hl0'
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, hl0, List.getElem_cons_zero] at hl0''
+  subst hl0''
+  simp only [len1 l0 n0 hn0, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte] at h
+  obtain ⟨e', he', h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have he'' := vec_index_eq (i := 0#usize) (by simp [he]) he'
+  simp only [show (0#usize : Std.Usize).val = 0 from rfl, he, List.getElem_cons_zero] at he''
+  subst he''
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hP := pi_result_refines (lst := lst) hrel hinv hr
+  cases r with
+  | Err err => cases Result.ok_injective h; exact SimLR.bind_err hP
+  | Ok res =>
+  refine SimLR.bind_ok hP ?_
+  obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hV := env_view_e_run hrel hr1
+  cases r1 with
+  | Err err =>
+    obtain ⟨e2, rfl, hk⟩ := fail_refines h
+    show AErrSim _ _
+    rw [am_run_bind']
+    exact AErrSim.bind (fun k hk2 => hV k (by rw [← hk, hk2])) _
+  | Ok ev =>
+  have hV' : (view (absEIdx res)).run lst = .ok (absENodeView ev, lst) := hV
+  have eb : ∀ {β : Type} (f : ENodeView → AM β),
+      ((view (absEIdx res)) >>= f).run lst = (f (absENodeView ev)).run lst := by
+    intro β f; rw [am_run_bind', hV']; rfl
+  unfold SimLR
+  cases o with
+  | Ok ob =>
+    rw [eb]
+    cases ev with
+    | «Sort» s =>
+      simp only at h
+      obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨hwf, hRL⟩ := env_read_level_run hrel hinv hr2
+      cases r2 with
+      | Err err => obtain ⟨_, he2, _⟩ := fail_refines h; cases he2
+      | Ok l =>
+      have hRL' : (readLevel (absLIdx s)).run lst = .ok (ConRon.Refine.absLevel l, lst) := hRL
+      simp only [absENodeView]
+      rw [am_run_bind', hRL']
+      obtain ⟨z, hz, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨oq, hoq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hq := ConRon.Refine.Level.is_equiv_refines (hwf l rfl) (ConRon.Refine.Level.zero_wf hz) hoq
+      obtain ⟨hh, hzeq⟩ := ConRon.Refine.Level.level_zero_inv' hz
+      have hz' : ConRon.Refine.absLevel z = .zero := by rw [hzeq]; rfl
+      obtain ⟨ip, hip, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨icr, hicr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hicr' := vec_index_eq (i := 0#usize) (by simp [hc0]) hicr
+      simp only [show (0#usize : Std.Usize).val = 0 from rfl, hc0, List.getElem_cons_zero]
+        at hicr'
+      subst hicr'
+      have hipv : ip = (ConLeche.Level.isEquiv (ConRon.Refine.absLevel l) .zero == some true) := by
+        rw [hz'] at hq
+        rw [hq]
+        cases oq with
+        | none => have := Result.ok_injective hip; rw [← this]; rfl
+        | some bq => have := Result.ok_injective hip; rw [← this]; cases bq <;> rfl
+      split at h
+      · rename_i hnf
+        cases Result.ok_injective h
+        have : (absIndCtorRec c0).numFields = 0 := by
+          simp only [absIndCtorRec, absU64, hnf]; rfl
+        show Except.ok _ = _
+        simp only [id, this, hipv, beq_self_eq_true, Bool.true_and]
+      · rename_i hnf
+        cases Result.ok_injective h
+        have : (absIndCtorRec c0).numFields ≠ 0 := by
+          simp only [absIndCtorRec, absU64]; intro h0
+          exact hnf (by rw [UScalar.eq_equiv]; simpa using h0)
+        show Except.ok _ = _
+        simp only [id]
+        rw [show ((absIndCtorRec c0).numFields == 0) = false from by simpa using this]
+        rfl
+    | BVar _ => cases Result.ok_injective h; rfl
+    | FVar _ _ => cases Result.ok_injective h; rfl
+    | Const _ _ => cases Result.ok_injective h; rfl
+    | App _ _ => cases Result.ok_injective h; rfl
+    | Lam _ _ _ => cases Result.ok_injective h; rfl
+    | ForallE _ _ _ => cases Result.ok_injective h; rfl
+    | LetE _ _ _ => cases Result.ok_injective h; rfl
+    | Lit _ => cases Result.ok_injective h; rfl
+    | Proj _ _ _ => cases Result.ok_injective h; rfl
+  | Err err =>
+    rw [eb]
+    cases ev with
+    | «Sort» s =>
+      simp only at h
+      obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨-, hRL⟩ := env_read_level_run hrel hinv hr2
+      cases r2 with
+      | Ok l =>
+        obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        split at h <;> cases Result.ok_injective h
+      | Err err2 =>
+        obtain ⟨e3, he3, hk3⟩ := fail_refines h
+        cases he3
+        simp only [absENodeView]
+        show AErrSim _ _
+        rw [am_run_bind']
+        exact AErrSim.bind (fun k hk2 => hRL k (by rw [← hk3, hk2])) _
+    | BVar _ => cases Result.ok_injective h
+    | FVar _ _ => cases Result.ok_injective h
+    | Const _ _ => cases Result.ok_injective h
+    | App _ _ => cases Result.ok_injective h
+    | Lam _ _ _ => cases Result.ok_injective h
+    | ForallE _ _ _ => cases Result.ok_injective h
+    | LetE _ _ _ => cases Result.ok_injective h
+    | Lit _ => cases Result.ok_injective h
+    | Proj _ _ _ => cases Result.ok_injective h
 
 /-- A Rust `CheckError` reader, then a verdict-carrying continuation. -/
 theorem SimLV.bind_re {α β γ δ : Type} {A : α → β} {V : β → Option RecordVerdict}
