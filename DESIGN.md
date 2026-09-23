@@ -58655,6 +58655,149 @@ ConRonRefine2 ConRonBridge"` to stop a build of my own that I had started
 twice.  The pattern matched only that worktree's build, and nothing else was
 killed, but the brief says never `pkill`; it is recorded here.
 
+### Task #97-PERF-FRESH — what a fresh `worker_state` per record costs, profiled (2026-09-23, Opus under Fable)
+
+**The question.**  Task #97-P5-Driver §4 measured the master-shaped
+alternative (a fresh `worker_state` per phase-B record) at **+16.4 %
+instructions on `Init`** and explained it, unprofiled, as tables re-growing
+from minimum size.  The maintainer doubted that freeing and starting fresh
+costs ~600 k instructions per record.  Measurement only: no landed Rust
+changed, nothing under `proof/` touched.
+
+**Method.**  Worktree at `arena` `5108218b`, release profile (fat LTO) as
+shipped.  The fresh variant is one line in `pool::check_worker`,
+`st = checker::worker_state(pins);` before each `check_one` (at `--jobs=1` the
+binary runs the pool with one worker).  Every run: `--verified --jobs=1
+_tmp/corpus/init.ndjson`, `timeout 900`, `ulimit -v 8388608`, accepts 57 977;
+phase B has **m = 57 362 records**.  Attribution: `perf record -e
+instructions:u -c 2000003` (no throttling: 105 970 / 123 364 samples
+= 211.94 G / 246.73 G), flat by symbol.  Two caveats found on the way:
+**rustc's merge-functions folds identical monomorphisations**, so a
+`HashMap2<SortNode,…>::allocate_slots` symbol stands for every table with the
+same slot layout, and per-type symbol names are not per-table costs; so the
+per-table counts below come from a throw-away instrumented build
+(`#[track_caller]` counters on `ensure_slots`/`try_resize`/`clear_fit`'s
+re-make, keyed by type and call site; its instruction counts are not used).
+And `perf record --call-graph` cannot run here (`perf_event_max_stack` is
+160 000, the kernel's callchain buffers fail with ENOMEM, and the sysctl is
+not ours).
+
+#### 1. The gap, confirmed
+
+| binary | `instructions:u` |
+|---|---|
+| reuse (the landed pool) | 211 953 553 993 / 211 953 591 318 (4 more runs later: 211 952 950 168 – 211 954 689 176) |
+| fresh per record | 246 744 777 448 / 246 744 613 378 |
+
+**+34.79 G (+16.41 %)**, i.e. **606 k instructions per record**; spread
+±0.9 M across six reuse runs, ±0.1 M across the fresh pair.  Runs
+interleaved.
+
+#### 2. Where the 606 k go
+
+Flat profile, fresh minus reuse, grouped (G instructions):
+
+| group | Δ | per record |
+|---|---:|---:|
+| `HashMap2::insert_no_resize` (ordinary inserts **and** every rehash insert) | +10.78 | 188 k |
+| `HashMap2::move_slots` (the recursive walk of the old slot vector) | +10.29 | 179 k |
+| `HashMap2::allocate_slots` (pushing `Vacant` slots) | +9.98 | 174 k |
+| `HashMap2::insert`, `clear_fit`, rest of `HashMap2` | +0.77 | 13 k |
+| building and dropping the state (`worker_state`, `EStore::empty`, `pins_dup`, drop of `Caches`/`AState`) | +0.07 | **1.2 k** |
+| mimalloc `malloc`/`free` + `memmove` | −0.22 | −4 k |
+| everything else | +3.1 | 54 k |
+
+**It is table growth: 91 % is `HashMap2`'s grow path.**  The maintainer's
+doubt is right about what it doubted — freeing the state and allocating a new
+one costs ~1.2 k instructions a record and the allocator nets out slightly
+*negative* — but the fresh state then **re-grows ~38 tables from 32 slots
+every record**.  The "everything else" row is at the attribution noise floor:
+two recordings of the SAME reuse binary move ±1.3 G between these groups
+(same function sizes in both binaries, so not a codegen change); what is real
+in it is presumably longer probe runs in tables grown up to their load limit
+instead of pre-sized at a quarter load, in callers that inline `get`.
+
+**Counts** (instrumented build, phase B; phase A is identical in both: 51.5 M
+slots allocated, 16.3 M entries rehashed):
+
+| per phase-B record, fresh − reuse | events | slots allocated | entries rehashed |
+|---|---:|---:|---:|
+| first allocation of an unallocated table (`ensure_slots`) | +23.0 | +738 | — |
+| doubling (`try_resize`) | +15.0 | +7 162 | +2 701 |
+| `clear_fit` re-making the table larger at `drop_scratch` | +5.9 | +3 333 | — |
+| **total** (B: 266.4 M → 910.1 M slots, 62.4 M → 217.3 M rehashed) | | **+11 233** | **+2 701** |
+
+Unit costs from the two: **`allocate_slots` ≈ 15.5 instructions per slot**
+(9.98 G / 644 M) — it pushes one `Vacant` at a time through a halving
+recursion, it is not a `memset` — and **≈ 136 per rehashed entry** (move +
+reinsert, 21.07 G / 155 M, including the walk over the old table's vacant
+slots).  11.2 k × 15.5 + 2.7 k × 136 = 541 k of the 606 k.
+
+The third row is **waste specific to the fresh variant**: `drop_scratch`'s
+`clear_fit` re-sizes the tables to the decaying high-water mark for a next
+round that a fresh state never sees (~191 M slots, ≈ 3 G).  A fresh variant
+without that reset would still be ≈ +15 %.
+
+**Which tables** (Δ slots / Δ rehashed over the run; call sites at
+`5108218b`):
+
+| table | Δ slots | Δ rehashed |
+|---|---:|---:|
+| scratch `app` cons table (`store.rs:303` insert, `:345` reset) | +295 M | +78 M |
+| `whnf_core_c` (`core.rs:11144`, `core_state.rs:534`) | +87 M | +24 M |
+| scratch `bind` cons table | +52 M | +13.5 M |
+| `annot_c` (`core.rs:11193`, `core_state.rs:538`) | +44 M | +10.6 M |
+| the `instantiate`-family memos, `EIdxNat` key (`monad.rs:1377/1384/1473/1480`) | +55 M | +12 M |
+| `infer_c` (`core.rs:11168`, `core_state.rs:536`) | +27 M | +6 M |
+| `defeq_c` | +17 M | +3.3 M |
+| `const_ty_c`, `const_val_c`, `read_ls_c`, `whnf_c`, `infer_io_c`, `proj` table | +2–6 M each | ≤ 1.9 M each |
+
+The scratch `app` table is ~45 % of it: fresh, it doubles 2.9 times a record
+on average (165 836 doublings against 3 525 reused) and moves 1.7 k entries a
+record in doing so; the distribution is skewed (task #97-P6-7's histograms),
+so most records grow it little and a few grow it a lot.  Those sizes are
+real per-record work, so growing to them from 32 slots every record is
+inherent to a fresh state. The only question is the price per slot and per
+rehash, and see §3.2 for that.  The explanation task #97-P5-Driver offered is
+right; it was not profiled then, and now it is.
+
+#### 3. The status quo: two opportunities (measured, not landed)
+
+1. **The two per-call walk memos are fresh tables on every call, in both
+   phases.**  `checker_base::all_level_params_defined` (`:689`) and
+   `consts_resolve_f_fast` (`:811`) each build `HashMap::new()` per call and
+   grow it by doubling: phase A 155 k first allocations + 142 k doublings
+   (22 M slots, 6.5 M rehashed), phase B 84 k + 201 k (71 M slots, 26 M
+   rehashed).  This is the very cost §2 prices, paid by the landed binary.
+   A measurement hack that keeps each memo in a `thread_local` and resets it
+   with `clear_fit` per call: **205 751 968 912 / 205 752 054 335 against
+   211 953 232 419 / 211 952 950 168, −6.20 G (−2.93 %)**, verdict
+   unchanged.  The landable shape keeps the two memos in `Memos` (or
+   `AState`), reset by `reset_map` at the call, which is the twin's `:= ∅`
+   as the other thirteen memos have it.  That changes the model and the
+   `constsResolveF`/`allLevelParamsDefined` refinement statements, so it is
+   proof work to schedule.
+2. **`allocate_slots` costs ~15 instructions a slot**, 4.76 G of the status
+   quo's 211.95 G (318 M slots, phases A+B), with `move_slots` another
+   5.06 G.  Replacing its body by `slots.resize_with(len + n, ||
+   Slot::Vacant)`: **209 711 313 202 / 209 711 542 741 against 211 954 689 176
+   / 211 953 267 267, −2.24 G (−1.06 %)**.  It is not landable as written:
+   a closure is outside §3.4's style, and `Vec::resize` wants the `Clone`
+   that three slot types lack (`allocate_slots`' own note).  It needs a
+   modelled bulk-fill primitive, or a `Slot` whose `Vacant` is `Copy`-fillable.
+   It would also cut the fresh variant's gap by about a third.
+
+Nothing else turned up in the status quo: building and dropping a worker state
+costs 1.2 k instructions, and the first record of each worker pays the growth
+once per worker, so neither is worth pursuing.  `cycles:u` was recorded with
+every run but moved by up to 10 % between runs of the same binary on the
+shared machine, so it is not reported.
+
+#### 4. Artifacts
+
+Scratch (binaries, patches, profiles) was in `_tmp/perf-fresh/`, deleted
+after this section.  All the patches are local to the task worktree and none
+was committed.  No gates were run: the change is to DESIGN.md only.
 ### Task #97-P5-POOL — the pool's claim made structural; stage 6 is the pool (2026-09-23, Opus under Fable)
 
 **The brief** was to prove the pool claim's clause (2), task #97-P5-Driver
