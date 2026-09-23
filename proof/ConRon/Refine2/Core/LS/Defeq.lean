@@ -23,7 +23,7 @@ continuation `defeqLoop … (absU n)`, no `- 1`.
 -/
 import ConRon.Refine2.Core.LS.PrimsF
 import ConRon.Refine2.Core.LS.Leaves
-import ConRon.Refine2.Core.LS.PrimsA2
+import ConRon.Refine2.Core.LS.Shapes
 import ConRon.Refine2.Core.LS.Lits
 import ConRon.Refine2.Core.LS.Certs
 
@@ -35,6 +35,7 @@ attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 namespace ConRon.Refine2.Lockstep
 
 open ConRon.Arena ConRon.Refine2
+open ConRon.Refine2.Lockstep.PF
 
 /-! ## A local move: a Rust bind against a twin tail
 
@@ -205,28 +206,6 @@ macro "lockstep_f" : tactic =>
         (absU d) (absEIdx a) (absEIdx b) (absU k) (absEIdxArr fvs) mism mismLam) := by
   rw [arena.core.defeq_peel_leaf, defeqPeelLeaf]
   lockstep_f
-
-/-! ## Stubs (other regions' lemmas; deleted at merge)
-
-Region A2's two, from `Core/LS/Shapes.lean`, which does not build at
-`p5-core-5` 04914d11 (`tower_slots_all_go_aux` & co.); stated exactly as
-there. -/
-
-section Stubs
-
-@[lockstep] theorem stub_defeq_peel_done_ls {pers st mism mism_lam lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = a) (arena.core.defeq_peel_done mism mism_lam) st lst
-      (defeqPeelDone mism mism_lam) := by
-  sorry
-
-@[lockstep] theorem stub_defeq_no_fvars_ls {pers st a b lst} (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a) (arena.core.defeq_no_fvars pers st a b) lst
-      (defeqNoFvars (absEIdx a) (absEIdx b)) := by
-  sorry
-
-end Stubs
 
 /-! ## The eq-true shortcut and the same-head spine -/
 
