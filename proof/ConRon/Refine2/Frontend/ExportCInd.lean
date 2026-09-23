@@ -38,6 +38,7 @@ than about a twin clause.  DESIGN.md's section lists them.
 ## `sorry` count in this file: 25
 -/
 import ConRon.Refine2.Frontend.ExportC
+import ConRon.Refine2.Frontend.SpecInd
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -210,124 +211,130 @@ theorem ctor_index_of_refines {ns m}
         (mi.1.insert n mi.2, mi.2 + 1)) ({}, 0))).1) := by sorry
 
 /-- **`show_name`** — a handle read back for a message.  The port's readback
-is `denoteN`'s; messages are never compared, so what is claimed is that it
-succeeds wherever the twin's `readName` does. -/
+is `denoteN`'s (`env::read_name`); messages are never compared, so what is
+claimed is that it succeeds, and fails, exactly where the twin's `readName`
+does — at the state it started in. -/
 theorem show_name_refines {pers rst lst h' o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.show_name pers rst.store h' = ok o) :
-    ∀ m, o = .Ok m → ∃ s lst', (readName (absNIdx h')).run lst = .ok (s, lst') := by
+    SimLR (fun _ => ()) lst o ((fun _ => ()) <$> readName (absNIdx h')) := by
   sorry
 
-/-! ## The first `for` loop: the constructors in the block's own order
+/-! ## The verdict-carrying pieces (ruling F12)
 
-`check_one_ctor` is the loop's body — the `cidx`, `induct` and `numFields`
-checks at one constructor — and `order_type_ctors` / `order_block_ctors` are
-the two nested loops themselves.  These three have no twin expression; see
-the module note. -/
+`validateIndD`'s loop bodies can `return` a verdict; the port's return it
+through `LineErr::Verdict`.  `SimLV A V` is `SimLR` with that third arm: a
+port verdict is a twin run that answers, at the state it started in, with a
+value `V` classifies as a verdict of the same kind.  Its twin sides are
+`Refine2/Frontend/SpecInd.lean`'s transcriptions, and `validateIndD_unfold`
+(definitional) composes them into `validateIndD`. -/
+
+/-- A loop state's verdict, if it carries one. -/
+def vOfOpt : Option VRes → Option RecordVerdict
+  | some (.inl v) => some v
+  | _ => none
+
+/-- **A verdict-carrying port reader against its twin.** -/
+def SimLV {α β : Type} (A : α → β) (V : β → Option RecordVerdict) (lst : AState)
+    (o : core.result.Result α frontend.export_c.LineErr) (x : AM β) : Prop :=
+  match o with
+  | .Ok r => x.run lst = .ok (A r, lst)
+  | .Err (.Err ce) => AErrSim ce (x.run lst)
+  | .Err (.Verdict vd) => ∃ b lv, x.run lst = .ok (b, lst) ∧ V b = some lv ∧
+      lVerdictKind lv = absVerdictKind vd
+
+/-! ## The first `for` loop: the constructors in the block's own order -/
 
 /-- **`check_one_ctor`** — the three redundant-field checks at one
-constructor: `cidx` names its position, `induct` names its type former, and
-`numParams + numFields` is the constructor type's own Π-telescope length. -/
+constructor, against `checkOneCtorD`: `cidx` names its position, `induct`
+names its type former, and `numParams + numFields` is the constructor type's
+own Π-telescope length.  Each failing check is an `invalid` verdict on both
+sides. -/
 theorem check_one_ctor_refines {pers rst lst rsd lsd fuel n t c j n_pd o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd)
     (h : frontend.export_c.check_one_ctor pers rst.store fuel rsd n t c j n_pd
       = ok o) :
-    SimLR (fun _ => ()) lst o
-      (do
-        let lc := absIndCtorRec c
-        match lc.cidx with
-        | some ci => if ci != absU j then fail (.internal "cidx") else pure ()
-        | none => pure ()
-        match lc.induct with
-        | some iw => do
-          let iwn ← lsd.name iw
-          if iwn != absNIdx t then fail (.internal "induct") else pure ()
-        | none => pure ()
-        let cty ← getDeclD lsd lc.cv.type
-        let tele ← indPiTeleLen (absU fuel) cty
-        if absU n_pd + lc.numFields != tele then fail (.internal "fields")
-        else pure ()) := by sorry
+    SimLV (fun _ => none) vOfOpt lst o
+      (checkOneCtorD lsd (absU fuel) (absNIdx t) (absNIdx n) (absIndCtorRec c)
+        (absU j) (absU n_pd)) := by sorry
 
-/-- **`order_type_ctors`** — the inner `for n in ns` loop, at one type
-former. -/
+/-- **`order_type_ctors`** — the inner `for n in ns` loop at one type former,
+against `orderTypeCtorsD` from position `0`.  `hix` is `ctor_index_of`'s
+range: every index the table holds is a constructor record's. -/
 theorem order_type_ctors_refines
     {pers rst lst rsd lsd fuel t ns cts ctor_ix lm n_pd out o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hx : NameIdxRel ctor_ix lm)
+    (hix : ∀ (x : NIdx) k, lm[x]? = some k → k < cts.val.length)
     (h : frontend.export_c.order_type_ctors pers rst.store fuel rsd t ns cts
       ctor_ix n_pd out = ok o) :
-    ∀ v, o = .Ok v →
-      ∃ pre, absIndCtorRecs v = absIndCtorRecs out ++ pre ∧
-        pre.length = (absNIdxL ns).length := by sorry
+    SimLV (fun v => ⟨none, (absNIdxL ns).length, (absIndCtorRecs v).toArray⟩)
+      (fun b => vOfOpt b.1) lst o
+      (orderTypeCtorsD lsd (absU fuel) (absNIdx t) lm (absIndCtorRecs cts).toArray
+        (absU n_pd) (absNIdxL ns) 0 (absIndCtorRecs out).toArray) := by sorry
 
-/-- **`order_block_ctors`** — the outer `for tn in tyNames.zip listed` loop:
-the constructors in the block's own order, `types[].ctors` in type order. -/
+/-- **`order_block_ctors`** — the outer `for tn in tyNames.zip listed` loop,
+against `orderBlockCtorsD`: the constructors in the block's own order. -/
 theorem order_block_ctors_refines
     {pers rst lst rsd lsd fuel ty_names listed cts ctor_ix lm n_pd o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hx : NameIdxRel ctor_ix lm)
+    (hix : ∀ (x : NIdx) k, lm[x]? = some k → k < cts.val.length)
     (h : frontend.export_c.order_block_ctors pers rst.store fuel rsd ty_names
       listed cts ctor_ix n_pd = ok o) :
-    ∀ v, o = .Ok v →
-      (absIndCtorRecs v).length = ((listed.val.map absNIdxL).flatten).length := by
-  sorry
+    SimLV (fun v => ⟨none, (absIndCtorRecs v).toArray⟩) (fun b => vOfOpt b.1) lst o
+      (orderBlockCtorsD lsd (absU fuel) lm (absIndCtorRecs cts).toArray (absU n_pd)
+        ((absNIdxL ty_names).zip (listed.val.map absNIdxL)) #[]) := by sorry
 
 /-! ## The K flag and the recursor records -/
 
-/-- **`k_expected_of`** — official's `is_K_target`: a single type former with
-a single constructor of zero fields whose result sort is `Prop`. -/
+/-- **`k_expected_of`** — official's `is_K_target`, against `kExpectedOfD`: a
+single type former with a single constructor of zero fields whose result sort
+is `Prop`. -/
 theorem k_expected_of_refines {pers rst lst fuel ty_types listed cts o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.k_expected_of pers rst.store fuel ty_types listed cts
       = ok o) :
-    SimLR (Option.map id) lst o
-      (match absEIdxL ty_types, listed.val.map absNIdxL, absIndCtorRecs cts with
-       | [ty], [[_]], [c] => do
-         let r ← piResultD (absU fuel) ty
-         match ← view r with
-         | .sort s =>
-           pure (some (c.numFields == 0 &&
-             ConLeche.Level.isEquiv (← readLevel s) .zero == some true))
-         | _ => pure none
-       | _, _, _ => pure (some false)) := by sorry
+    SimLR id lst o
+      (kExpectedOfD (absU fuel) (absEIdxL ty_types) (listed.val.map absNIdxL)
+        (absIndCtorRecs cts)) := by sorry
 
 /-- **`check_rec_indices`** — `numIndices` of `T.rec` is what is left of `T`'s
-own telescope once the parameters are peeled. -/
+own telescope once the parameters are peeled; against `checkRecIndicesD`. -/
 theorem check_rec_indices_refines
     {pers rst lst fuel rn t_pre num_indices ty_names ty_types n_pd o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (h : frontend.export_c.check_rec_indices pers rst.store fuel rn t_pre
       num_indices ty_names ty_types n_pd = ok o) :
-    SimLR (fun _ => ()) lst o
-      ((absNIdxL ty_names).zip (absEIdxL ty_types) |>.forM fun tt => do
-        if tt.1 == absNIdx t_pre then
-          match ← piSortTeleLen? (absU fuel) tt.2 with
-          | some n =>
-            if absU n_pd + absU num_indices != n then fail (.internal "indices")
-            else pure ()
-          | none => pure ()
-        else pure ()) := by sorry
+    SimLV (fun _ => ⟨none, PUnit.unit⟩) (fun b => vOfOpt b.1) lst o
+      (checkRecIndicesD (absU fuel) (absNIdx rn) (absNIdx t_pre) (absU num_indices)
+        (absU n_pd) ((absNIdxL ty_names).zip (absEIdxL ty_types))) := by sorry
 
-/-- **`check_one_rec`** — the four count checks and the K flag at one recursor
-record. -/
+/-- **`check_one_rec`** — the four count checks, the K flag and the indices
+at one recursor record, against `checkOneRecD`. -/
 theorem check_one_rec_refines
     {pers rst lst rsd lsd fuel r ty_names ty_types n_pd n_types n_ctors k_exp o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd)
     (h : frontend.export_c.check_one_rec pers rst.store fuel rsd r ty_names
       ty_types n_pd n_types n_ctors k_exp = ok o) :
-    ∀ u, o = .Ok u → True := by sorry
+    SimLV (fun _ => none) vOfOpt lst o
+      (checkOneRecD lsd (absU fuel) (absNIdxL ty_names) (absEIdxL ty_types) (absU n_pd)
+        (absU n_types) (absU n_ctors) k_exp (absIndRecRec r)) := by sorry
 
-/-- **`check_rec_records`** — the `for r in (if nested then [] else rcs)`
-loop. -/
+/-- **`check_rec_records`** — the `for r in rcs` loop, against
+`checkRecRecordsD` (the caller skips it at a nested block, as the twin's
+`if nested then [] else rcs` does). -/
 theorem check_rec_records_refines
     {pers rst lst rsd lsd fuel rcs ty_names ty_types n_pd n_types n_ctors k_exp o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd)
     (h : frontend.export_c.check_rec_records pers rst.store fuel rsd rcs ty_names
       ty_types n_pd n_types n_ctors k_exp = ok o) :
-    ∀ u, o = .Ok u → True := by sorry
+    SimLV (fun _ => ⟨none, PUnit.unit⟩) (fun b => vOfOpt b.1) lst o
+      (checkRecRecordsD lsd (absU fuel) (absNIdxL ty_names) (absEIdxL ty_types) (absU n_pd)
+        (absU n_types) (absU n_ctors) k_exp (absIndRecRecs rcs)) := by sorry
 
 /-- **`validate_ind_d` refines `validateIndD`** (`ExportC.lean:442-539`) — the
 load-bearing statement of this file: the eleven verdicts, at the same kind and
