@@ -270,6 +270,11 @@ theorem checkIotaThm_unfold (mode : ConLeche.CheckMode) (fe' feSelf : IFEnv)
         fail (.notImplemented "iota statement major mismatch")
       checkIotaThmCtorSpec mode feSelf f tyA mI rP cvj cnP cnF rhsA fvs xFvs largs
         targs rhsS lA b0 cvName) := by
+  -- TRUE since task #97-T2-LOCKSTEP lane Inductives (round 4's defect was the
+  -- twin's three distinct head/arity/prefix messages against this ONE; the twin
+  -- now declines all three with the port's `M_IOTA_HEAD`).  The peel through the
+  -- tier's longest `do` block exhausts the default heartbeats at the prologue's
+  -- `unwrapOr`; left for the round that states the fragments' lockstep proofs.
   sorry
 
 /-! ## `nestedRuleShape`, split six ways -/
@@ -891,8 +896,7 @@ theorem checkEtaThm_unfold (mode : ConLeche.CheckMode) (fe' : IFEnv)
     rw [projModelsOkSpec]
     twin_reduce
     refine am_bind_congr _ ?_; intro pn
-    split <;> split <;> (try rfl) <;> (try simp_all) <;>
-      (first | rfl | (rename_i h1 _ _ _ h2; rw [h1] at h2; cases h2))
+    split <;> split <;> (try simp_all)
   intro po
   refine if_congr Iff.rfl rfl ?_
   rw [checkEtaThmShapeSpec]
