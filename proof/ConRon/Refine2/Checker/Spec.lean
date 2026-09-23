@@ -448,16 +448,17 @@ def ofReduceAxOkRestSpec (fe : IFEnv) (cvA : IConstantVal) (c : NIdx) :
 `reducePinGuard` and `divModPinGuard` are the same four tests at two different
 pins, and the Rust factors them. -/
 
-/-- The three tests past the loose-bound-variable one. -/
+/-- The two tests past the free-variable one (the Rust's `ground_guards_rest`
+starts at `all_level_params_defined`). -/
 def groundGuardsRestSpec (fe : IFEnv) (p : EIdx) : AM Bool := do
-  if ← hasFvarFast coreWalkFuel p then pure false
-  else if !(← allLevelParamsDefined [] p) then pure false
+  if !(← allLevelParamsDefined [] p) then pure false
   else constsResolveFFast fe p
 
 /-- The four tests: closed, free-variable-free, no undeclared universe
 parameter, and every constant resolves. -/
 def groundGuardsSpec (fe : IFEnv) (p : EIdx) : AM Bool := do
   if !(← looseBVarsBoundedFast coreWalkFuel 0 p) then pure false
+  else if ← hasFvarFast coreWalkFuel p then pure false
   else groundGuardsRestSpec fe p
 
 /-! ### The reduce-operation install pin, in three -/
@@ -558,19 +559,6 @@ theorem divModEnvGuardRestSpec_split (fe2 : IFEnv) :
     refine ConRon.Refine2.am_bind_congr _ fun t => ConRon.Refine2.am_bind_congr _ fun b => ?_
     cases b <;> rfl
   · simp [h, bne]
-
-/-- `checkDivModCerts`' tail at one certificate, past the applied proof. -/
-def checkDivModCertTailSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
-    (annVal : EIdx) (stmts : List (List EIdx × EIdx)) (proofs : List EIdx)
-    (appliedA : EIdx) : AM Bool := do
-  match stmts, proofs with
-  | (_, eqE) :: srest, _ :: prest => do
-    let tp ← inferTypeCore mode fe checkFuel 4 appliedA
-    let rhs ← substConst0 c annVal coreWalkFuel eqE
-    if ← isDefEqCore mode fe checkFuel 4 tp rhs then
-      checkDivModCerts mode fe c annVal srest prest
-    else pure false
-  | _, _ => pure false
 
 /-- `checkDivModPinLoop`'s step at a variant whose two guards passed — the
 Rust's `check_div_mod_pin_try`: the `orElseAttempt` seam, then the twin's
