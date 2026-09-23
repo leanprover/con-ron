@@ -75,16 +75,20 @@ spelling proofs below are its member-loop shape, and the port's decoder is
 where a valid code point comes from.
 
 ## `sorry` count in this file: 0
+
+**Moved back from `RefineOld/Frontend/ScanLine.lean` by task #97-P5-Front** (namespace
+`ConRon.Refine2.Frontend`, the `#guard_msgs` strings re-spelled, nothing else).
 -/
-import ConRon.RefineOld.Frontend.ScanStr
-import ConRon.RefineOld.Frontend.ScanExpr
-import ConRon.RefineOld.Frontend.ScanInd
-import ConRon.RefineOld.Frontend.ScanWF
+import ConRon.Refine2.Frontend.Scan.Str
+import ConRon.Refine2.Frontend.Scan.Expr
+import ConRon.Refine2.Frontend.Scan.Ind
+import ConRon.Refine2.Frontend.Scan.WF
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
 
-namespace ConRon.Refine.Frontend
+namespace ConRon.Refine2.Frontend
+open ConRon.Refine (bind_eq_ok_iff absString StrWF)
 
 open ConLeche.Frontend
 
@@ -3301,7 +3305,7 @@ theorem scan_line_fwd_refines {b : Slice Std.U8} (hu : Utf8DecodeSpec) (hun : Un
 -- `scan_bool` carries Aeneas's `decide +native` bound any more and this
 -- statement, which names `scan_line_fwd` and `scanLineFwd`, inherits none.
 
-/-- info: 'ConRon.Refine.Frontend.scan_line_fwd_refines' depends on axioms: [propext,
+/-- info: 'ConRon.Refine2.Frontend.scan_line_fwd_refines' depends on axioms: [propext,
 Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms scan_line_fwd_refines
 
@@ -3484,7 +3488,7 @@ theorem scan_line_fwd_tail {b : Slice Std.U8} {i : Std.Usize}
       (∃ r, scanLineFwd (absBytes b) (absPos i) = .ok r 0) :=
   scanLineFwd_tail_of_no_newline (absBytes b) (absPos i) (newline_from_refines hnl).symm
 
-/-- info: 'ConRon.Refine.Frontend.scan_line_fwd_tail' depends on axioms: [propext,
+/-- info: 'ConRon.Refine2.Frontend.scan_line_fwd_tail' depends on axioms: [propext,
 Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms scan_line_fwd_tail
 
@@ -4182,7 +4186,7 @@ theorem scan_line_fwd_str_wf {b : Slice Std.U8} {i : Std.Usize}
             · exact (err_ne_ok h).elim
         · simp at h
 
-/-- info: 'ConRon.Refine.Frontend.scan_line_fwd_str_wf' depends on axioms: [propext,
+/-- info: 'ConRon.Refine2.Frontend.scan_line_fwd_str_wf' depends on axioms: [propext,
 Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms scan_line_fwd_str_wf
 
@@ -4801,8 +4805,8 @@ theorem scan_line_fwd_digits {b : Slice Std.U8} {i : Std.Usize}
             · exact (err_ne_ok h).elim
         · simp at h
 
-/-- info: 'ConRon.Refine.Frontend.scan_line_fwd_digits' depends on axioms: [propext,
+/-- info: 'ConRon.Refine2.Frontend.scan_line_fwd_digits' depends on axioms: [propext,
 Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms scan_line_fwd_digits
 
-end ConRon.Refine.Frontend
+end ConRon.Refine2.Frontend

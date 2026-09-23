@@ -109,13 +109,17 @@ else …`, with the byte read as `absByte (pByteAt b i.val)` and the step as
   definitional (`rfl`).  `absU32_inj`, `absU32_beq` go with them.
 
 ## `sorry` count in this file: 0
+
+**Moved back from `RefineOld/Frontend/ScanKit.lean` by task #97-P5-Front** (namespace
+`ConRon.Refine2.Frontend`, the `#guard_msgs` strings re-spelled, nothing else).
 -/
-import ConRon.RefineOld.Frontend.Abs
+import ConRon.Refine2.Frontend.Abs
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
 
-namespace ConRon.Refine.Frontend
+namespace ConRon.Refine2.Frontend
+open ConRon.Refine
 
 open ConLeche.Frontend
 
@@ -3097,4 +3101,4 @@ theorem skip_braced_refines {b : Slice Std.U8} {i : Std.Usize} {depth : Std.U64}
   skip_braced_loop_refines (b.val.length - i.val) i depth j (le_refl _) h
 
 
-end ConRon.Refine.Frontend
+end ConRon.Refine2.Frontend

@@ -133,6 +133,16 @@ section for every task you land.
   the worktree: do every edit with a path relative to the worktree, and if
   a file genuinely belongs to another checkout, say so in the report
   instead of editing it.
+* **Agents land their own branches** (maintainer's instruction, 2026-09-23:
+  keeps the coordinator's context tidy).  When the round is done: merge the
+  integration branch (`arena` during the campaign) into your branch, run
+  `scripts/gates.sh`, then `scripts/land.sh <your worktree path>` — it
+  fast-forwards the main tree and drops your worktree.  If it is not a
+  fast-forward, merge again, re-run the gates the delta can touch, retry.
+  `land.sh` is the one sanctioned write to the main tree from an agent;
+  everything else still stays inside your worktree.  Then send the
+  coordinator a short report: the landed commit, counts, findings, and every
+  ruling you need.
 * **Landing a branch (merge discipline).**  The *agent* merges master into
   its branch and runs the gates there; the landing is then a fast-forward
   merge of that branch into master.  If master moved in between so the
