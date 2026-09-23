@@ -591,13 +591,21 @@ def firstTimed (label : String) (alts : List (TSyntax `tactic)) : TacticM Unit :
 def sideCheap : TacticM (List (TSyntax `tactic)) := do return [
     ← `(tactic| assumption),
     ← `(tactic| rfl),
+    ← `(tactic| (refine ⟨_, ?_, rfl⟩; assumption)),
     ← `(tactic| (simp only [lockstep_simp]; done)),
     ← `(tactic| (apply Eq.symm; assumption)),
     ← `(tactic| (simp only [lockstep_simp, *]; done)),
-    ← `(tactic| (simp (config := { decide := true }) only [lockstep_simp, *]; done))]
+    ← `(tactic| (simp (config := { decide := true }) only [lockstep_simp, *]; done)),
+    -- two different tag constants (the twin tests its tags in another order)
+    ← `(tactic| (simp (config := { decide := true }) only [lockstep_simp, *,
+        arena.handle.ETAG_PROJ, arena.handle.ETAG_LIT,
+        arena.handle.ETAG_LET_E, arena.handle.ETAG_FORALL_E, arena.handle.ETAG_LAM,
+        arena.handle.ETAG_APP, arena.handle.ETAG_CONST, arena.handle.ETAG_SORT,
+        arena.handle.ETAG_FVAR, arena.handle.ETAG_BVAR]; done))]
 
 def sideDear : TacticM (List (TSyntax `tactic)) := do return [
     ← `(tactic| scalar_tac),
+
     ← `(tactic| (simp_all only [lockstep_simp]; done)),
     ← `(tactic| (simp_all (config := { decide := true }) only [lockstep_simp]; done)),
     ← `(tactic| (simp_all only [lockstep_simp, Bool.and_eq_true]; scalar_tac)),
@@ -616,7 +624,16 @@ elab "lockstep_side" : tactic => do
       ← `(tactic| (simp only [lockstep_simp] at *; omega)), ← `(tactic| scalar_tac),
       ← `(tactic| (simp_all only [lockstep_simp]; done)), ← `(tactic| (simp_all; done))]
   else
-    firstTimed "side" ((← sideCheap) ++ (← sideDear))
+    try firstTimed "side" ((← sideCheap) ++ (← sideDear))
+    catch e =>
+      -- two reads of one vector at indices the context proves equal (a cursor
+      -- the Rust computes in machine words, the twin in `Nat`): tried only on
+      -- an equation that mentions a vector read
+      let isIdx := ty.isAppOfArity ``Eq 3 &&
+        ((ty.find? fun t => t.isAppOf ``GetElem.getElem || t.isAppOf `ConRon.Arena.lastEidx).isSome)
+      unless isIdx do throw e
+      firstTimed "sideX" [← `(tactic| (congr <;> scalar_tac)),
+        ← `(tactic| (simp only [lockstep_simp, *]; congr <;> scalar_tac))]
 
 elab "lockstep_side_cheap" : tactic => do
   firstTimed "side" (← sideCheap)
@@ -626,7 +643,8 @@ elab "lockstep_side_dear" : tactic => do
 
 /-- A twin test the cheap tier could not decide: arithmetic, then the context. -/
 elab "lockstep_side_ite" : tactic => do
-  firstTimed "sideI" [← `(tactic| scalar_tac), ← `(tactic| (simp_all only [lockstep_simp]; done))]
+  firstTimed "sideI" [← `(tactic| scalar_tac), ← `(tactic| (simp_all only [lockstep_simp]; done)),
+    ← `(tactic| (simp_all only [lockstep_simp, beq_iff_eq]; scalar_tac))]
 
 elab "lockstep_stats" : tactic => do
   let m ← statsRef.get
@@ -644,7 +662,7 @@ elab "lockstep_stats" : tactic => do
 syntax "lockstep_contra" : tactic
 elab_rules : tactic
   | `(tactic| lockstep_contra) => do
-    firstTimed "contra" [← `(tactic| (exfalso; scalar_tac))]
+    firstTimed "contra" [← `(tactic| (exfalso; scalar_tac)), ← `(tactic| (exfalso; simp_all))]
 
 /-- The twin-action correspondence `x' = x` a bind rule leaves. -/
 elab "lockstep_congr" : tactic => do
@@ -694,7 +712,7 @@ def evalT (stx : TacticM (TSyntax `tactic)) : TacticM Unit := do evalTactic (←
 
 /-- Close a spec goal (a judgement about one Rust callee) with a `@[lockstep]`
 lemma or a local hypothesis filed under the same head. -/
-def specCore (g : MVarId) : TacticM Unit := g.withContext do
+def specCore (g : MVarId) (after : TacticM Unit := pure ()) : TacticM Unit := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   let some m := judgementRustArg? ty
     | throwError "lockstep_spec: not a judgement{indentExpr ty}"
@@ -725,6 +743,9 @@ def specCore (g : MVarId) : TacticM Unit := g.withContext do
       for sg in gs do
         if ← sg.isAssigned then continue
         runClosed sg (evalT `(tactic| lockstep_side))
+      -- the caller's check on the candidate's twin action (`x' = x`): a
+      -- candidate whose twin action is not the goal's gives way to the next
+      after
       return
     catch e =>
       errs := errs.push m!"{c}: {e.toMessageData}"
@@ -811,12 +832,37 @@ def clearStale (g : MVarId) : MetaM MVarId := g.withContext do
         g ← (try g.clear d.fvarId catch _ => pure g)
   return g
 
+/-- Split a conjunction hypothesis into its parts (recursively on the right),
+so that each part is a candidate for `assumption`. -/
+partial def splitAnd (g : MVarId) (fv : FVarId) : MetaM MVarId := g.withContext do
+  let ty ← whnfR (← instantiateMVars (← fv.getType))
+  unless ty.isAppOfArity ``And 2 do return g
+  let subs ← g.cases fv
+  let some sg := subs[0]? | return g
+  match sg.fields[1]? with
+  | some (Expr.fvar f2) => splitAnd sg.mvarId f2
+  | _ => return sg.mvarId
+
 /-- Tidy a continuation: `subst` the answer relation, normalise the heads. -/
 def tidy (g : MVarId) (hR : Option Name) : TacticM (List MVarId) := do
   let rest ← runOn g do
     if let some h := hR then
       let hi := mkIdent h
-      evalT `(tactic| first | subst $hi:ident | (obtain ⟨_, $hi:ident⟩ := $hi:ident; subst $hi:ident) | skip)
+      evalT `(tactic| first
+        | subst $hi:ident
+        | (obtain ⟨_, $hi:ident⟩ := $hi:ident; subst $hi:ident)
+        | (obtain ⟨_, _, $hi:ident⟩ := $hi:ident; subst $hi:ident)
+        -- an equation between two terms (a memo key's abstraction): rewrite
+        -- the Rust side with it, so a probe on it meets the twin's
+        | rw [$hi:ident]
+        | skip)
+  -- a conjunction that did not `subst` (a relation with side facts): its parts
+  let rest ← match hR with
+    | some h => rest.mapM fun g => g.withContext do
+        match (← getLCtx).findFromUserName? h with
+        | some d => splitAnd g d.fvarId
+        | none => pure g
+    | none => pure rest
   rest.mapM fun g => do clearStale (← normGoal g)
 
 /-- The Rust computation's shape. -/
@@ -842,7 +888,10 @@ def errArm (g : MVarId) (names : List Name) : TacticM Unit := do
     let ty ← instantiateMVars (← g'.getType)
     let m ← headNorm (ty.getArg! 1)
     g'.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
-  runClosed g' (evalT `(tactic| first | exact errArm_ok | exact errArm_ok_bind))
+  runClosed g' (evalT `(tactic| first
+    | exact errArm_ok
+    | exact errArm_ok_bind
+    | (simp only [Aeneas.Std.bind_tc_ok]; exact errArm_ok)))
 
 /-- Drop the branches whose condition contradicts the context. -/
 def contra (gs : List MVarId) : TacticM (List MVarId) := do
@@ -935,25 +984,25 @@ def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.withContext 
       match kind with
       | .state =>
         let gs ← applyRule g ``LS.bind
-        specCore (← pick gs `hf)
-        runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+        let hx ← pick gs `hx
+        specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
         errArm (← pick gs `he) [`e, `st1]
         return ← cont (← pick gs `hk) [`a, `b, `st1, `lst1, `hR, `hrel, `hinv] (some `hR)
       | .read =>
         let gs ← applyRule g ``LSR.bind
-        specCore (← pick gs `hf)
-        runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+        let hx ← pick gs `hx
+        specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
         errArm (← pick gs `he) [`e]
         return ← cont (← pick gs `hk) [`a, `b, `lst1, `hR, `hrel, `hinv] (some `hR)
       | .write =>
         let gs ← applyRule g ``LSW.bind
-        specCore (← pick gs `hf)
-        runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+        let hx ← pick gs `hx
+        specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
         return ← cont (← pick gs `hk) [`st1, `lst1, `hrel, `hinv] none
       | .value =>
         let gs ← applyRule g ``LSV.bind
-        specCore (← pick gs `hf)
-        runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+        let hx ← pick gs `hx
+        specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
         return ← cont (← pick gs `hk) [`a, `b, `lst1, `hR, `hrel, `hinv] (some `hR)
     catch e =>
       s.restore
@@ -963,8 +1012,8 @@ def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.withContext 
         -- a read-only callee in tail position (`… >>= fun r => ok (r, st)`)
         try
           let gs ← applyRule g ``LSR.tail
-          specCore (← pick gs `hf)
-          runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+          let hx ← pick gs `hx
+          specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
           runClosed (← pick gs `hR)
             (evalT `(tactic| (intro _ _ h; first | exact h | (subst h; rfl) | lockstep_side)))
           return []
@@ -1003,8 +1052,8 @@ def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.withContext 
     throwError "lockstep: a Rust leaf the twin does not match{indentExpr (← g.getType)}"
   -- a tail call
   let gs ← applyRule g ``LS.tail
-  specCore (← pick gs `hf)
-  runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+  let hx ← pick gs `hx
+  specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
   runClosed (← pick gs `hR) (evalT `(tactic| (intro _ _ h; first | exact h | (subst h; rfl) | lockstep_side)))
   return []
 
@@ -1061,6 +1110,33 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
         for sg in subs do
           out := out ++ (← tidy sg.mvarId none)
         return out
+      -- a match on a TERM (a memo probe the twin makes inline): case on the
+      -- term everywhere, so the twin's own match on it reduces too
+      if let some t0 := mapp.discrs[0]? then
+        -- first rewrite the term with the context's key equations (a memo key's
+        -- abstraction `absEIdxNat k = (h, d)`), so it is the twin's term
+        let mut g := g
+        let mut t := t0
+        for d in (← getLCtx) do
+          if d.isImplementationDetail then continue
+          let ty ← instantiateMVars d.type
+          if ty.isAppOfArity ``Eq 3 then
+            let lhs := ty.getArg! 1
+            if !lhs.isFVar && (t.find? (· == lhs)).isSome then
+              let hi := mkIdent d.userName
+              let rest ← runOn g (evalT `(tactic| rw [$hi:ident]))
+              if let [g'] := rest then
+                g := g'
+                let ty' ← instantiateMVars (← g.getType)
+                let m' := (ty'.getArg! 4).headBeta
+                if let some mapp' ← matchMatcherApp? (m'.getArg! 4).headBeta then
+                  if let some t' := mapp'.discrs[0]? then t := t'
+        let stx ← Lean.Elab.Term.exprToSyntax t
+        let rest ← runOn g (evalT `(tactic| cases _hdisc : $stx))
+        let mut out := []
+        for sg in rest do
+          out := out ++ (← tidy sg none)
+        return out
   -- the twin side, when it moves first
   if x.isAppOfArity ``ite 5 || x.isAppOfArity ``dite 5 then
     let isD := x.isAppOfArity ``dite 5
@@ -1101,7 +1177,23 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
     if a.isAppOfArity ``MonadState.get 3 then
       let gs ← applyRule g ``LS.twin_get_bind
       return ← tidy (← pick gs `h) none
-  rustStep g m x
+  let s0 ← saveState
+  try rustStep g m x
+  catch e =>
+    s0.restore
+    -- a twin `match` on a TERM (an inline memo probe) the Rust decided by a test
+    -- of its own: case on the term; the branch the Rust's test rules out closes
+    -- by `lockstep_contra`
+    if let some mapp ← matchMatcherApp? x then
+      if let some t := mapp.discrs[0]? then
+        if !t.isFVar then
+          let stx ← Lean.Elab.Term.exprToSyntax t
+          let rest ← runOn g (evalT `(tactic| cases _hdisc : $stx))
+          let mut out := []
+          for sg in rest do
+            out := out ++ (← tidy sg none)
+          return ← contra out
+    throw e
 
 /-- **One lockstep step** on the main goal. -/
 elab "lockstep_step" : tactic => do

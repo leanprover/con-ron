@@ -593,6 +593,31 @@ cursor, so `Refine2/AbsState.lean`'s `eidxNat_eq2` / `eidx_eq2` are
 unrestricted), and each `insert` is `Rel_insert_wf` plus the `Inv` its first
 component carries. -/
 
+/-! ## The memo relations (finding 2, and finding 3 for `SeenRel`) -/
+
+/-- `wscoped_b_go`'s memo, keyed on `(handle, depth)`. -/
+def WMemoRel (rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool)
+    (lm : Std.HashMap (EIdx × Nat) Bool) : Prop :=
+  RelOn (fun _ => True) rm lm absEIdxNat id ∧
+    Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable rm
+
+/-- `leaves_sub_go`'s memo, keyed on the handle alone (`bl` is fixed for the
+call, which is why it is not in the key). -/
+def LMemoRel (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+    (lm : Std.HashMap EIdx Bool) : Prop :=
+  RelOn (fun _ => True) rm lm absEIdx id ∧
+    Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm
+
+/-- `fvar_leaves_go`'s `seen` set.  **Membership, not value** (finding 3): the
+Rust's table is `bool`-valued and the twin's `Unit`-valued, and no reader
+looks at either value — which is what `RelOn` at the value abstraction
+`fun _ => ()` says, and stating it that way (rather than as an `isSome`
+agreement) is what lets `Refine/HashMap2WF.lean`'s kit apply unchanged. -/
+def SeenRel (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+    (lm : Std.HashMap EIdx Unit) : Prop :=
+  RelOn (fun _ => True) rm lm absEIdx (fun _ => ()) ∧
+    Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm
+
 theorem wscoped_memo_get_refines
     {memo : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
     {lmemo : Std.HashMap (EIdx × Nat) Bool} {k : arena.monad.EIdxNat}

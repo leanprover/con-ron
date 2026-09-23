@@ -200,9 +200,12 @@ value's binders). -/
 def lamBody : Nat → EIdx → AM EIdx
   | 0, _ => fail (.internal "fuel exhausted: lamBody")
   | fuel + 1, h => do
-    match ← view h with
-    | .lam _ b _ => lamBody fuel b
-    | _ => pure h
+    -- tag first, then the binder projection, as the port (task #97-T2-LOCKSTEP, D1)
+    if h.tag == ETag.lam then
+      match ← viewBind h with
+      | none => failDanglingE
+      | some (_, b, _) => lamBody fuel b
+    else pure h
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:239-245 stripPisAll — strip every
 leading `∀`: the binder list (outermost first) and the body. -/

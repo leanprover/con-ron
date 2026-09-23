@@ -178,6 +178,12 @@ attribute [lockstep_simp] absEIdxArr_size
     LSP kernel.expr.sat_range (fun r => r.val = ConLeche.satRange) :=
   fun _ h => ConRon.Refine.Expr.sat_range_val h
 
+end ConRon.Refine2.Lockstep
+
+namespace ConRon.Refine2
+
+open ConRon.Arena
+
 /-! ## Representation facts the `ExprOps` walks read (task #97-T2-LOCKSTEP lane ExprOps)
 
 Kind 1 of task #97-T2-AUDIT §2: well-formedness of the RUST values a read
@@ -525,6 +531,12 @@ theorem read_names_m_from_wf {pers} {ks : alloc.vec.Vec arena.handle.NIdx} :
           · exact hout nn hnn
           · rw [List.mem_singleton.mp hnn]; exact hw.1 x rfl) hrun
         exact ⟨hih.1, hih.2.trans hw.2⟩
+
+end ConRon.Refine2
+
+namespace ConRon.Refine2.Lockstep
+
+open ConRon.Arena ConRon.Refine2
 
 /-! ## Reads -/
 
@@ -977,6 +989,19 @@ attribute [lockstep_simp] ExprOps.absEIdxL ExprOps.absFvlL ExprOps.absBinderL
     (alloc.vec.Vec.with_capacity α n).val = [] := rfl
 @[lockstep_simp] theorem usize_zero_val' : ((0#usize : Std.Usize)).val = 0 := rfl
 
+-- The twin's nested `do` blocks, flattened so that its next action is at the head.
+attribute [lockstep_simp] bind_assoc
+
+/-- The twin's `if` in callee position (`let y ← if c then x else y`), pushed to
+the head so that it is decided like any other twin test. -/
+@[lockstep_simp] theorem twin_ite_bind {α β : Type} {c : Prop} [Decidable c] (x y : AM α)
+    (f : α → AM β) : ((if c then x else y) >>= f) = if c then x >>= f else y >>= f := by
+  by_cases h : c <;> simp [h]
+
+@[lockstep_simp] theorem twin_pure_bind' {α β : Type} (a : α) (f : α → AM β) :
+    ((pure a : AM α) >>= f) = f a := pure_bind a f
+
+attribute [lockstep_simp] List.reverse_append List.reverse_cons List.reverse_nil List.reverse_singleton
 attribute [lockstep_simp] List.map_append List.map_cons List.map_nil List.drop_zero
   List.nil_append List.cons_append List.singleton_append List.append_nil
 
@@ -985,10 +1010,31 @@ attribute [lockstep_simp] List.map_append List.map_cons List.map_nil List.drop_z
       (fun r => ExprOps.absEIdxL r = absEIdx a :: ExprOps.absEIdxL xs) :=
   fun _ h => ExprOps.cons_eidx_refines h
 
+/-- `snoc_eidx_of` is the twin's `Array.push` (the accumulators' push order). -/
 @[lockstep] theorem snoc_eidx_of_spec (xs : alloc.vec.Vec arena.handle.EIdx) (y : arena.handle.EIdx) :
     LSP (arena.expr_ops.snoc_eidx_of xs y)
-      (fun r => ExprOps.absEIdxL r = ExprOps.absEIdxL xs ++ [absEIdx y]) :=
-  fun _ h => ExprOps.snoc_eidx_of_refines h
+      (fun r => absEIdxArr r = (absEIdxArr xs).push (absEIdx y)) := by
+  intro r h
+  have := ExprOps.snoc_eidx_of_refines h
+  simp only [ExprOps.absEIdxL] at this
+  simp only [absEIdxArr, this, List.push_toArray]
+
+@[lockstep] theorem eidx_take_beq_spec (args want : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.expr_ops.eidx_take_beq args want)
+      (fun r => r = ((ExprOps.absEIdxL args).take (ExprOps.absEIdxL want).length ==
+        ExprOps.absEIdxL want)) := by
+  intro r h
+  have := ExprOps.eidx_take_beq_refines h
+  cases r <;> simp_all
+
+/-- `bne` of two machine words is `bne` of their values. -/
+@[lockstep_simp] theorem u64_bne_val (a b : Std.U64) : (a != b) = (a.val != b.val) := by
+  rw [Bool.eq_iff_iff, bne_iff_ne, bne_iff_ne]
+  exact ⟨fun h hv => h (Std.UScalar.eq_of_val_eq hv), fun h hab => h (by rw [hab])⟩
+
+@[lockstep_simp] theorem u64_zero_val' : ((0#u64 : Std.U64)).val = 0 := rfl
+
+attribute [lockstep_simp] id_eq
 
 @[lockstep] theorem cons_binder_spec (ty : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
     (xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
@@ -1008,6 +1054,24 @@ attribute [lockstep_simp] List.map_append List.map_cons List.map_nil List.drop_z
       (fun r => ExprOps.absFvlL r = ExprOps.absFvlL x ++ ExprOps.absFvlL y) :=
   fun _ h => ExprOps.fvl_append_refines h
 
+theorem leafMem_app' (l1 l2 : List (Nat × EIdx)) (i : Nat) (t : EIdx) :
+    leafMem (l1 ++ l2) i t = (leafMem l1 i t || leafMem l2 i t) := by
+  induction l1 with
+  | nil => simp [leafMem]
+  | cons p r ih =>
+    rw [List.cons_append, ExprOps.leafMem_cons, ExprOps.leafMem_cons, ih, Bool.or_assoc]
+
+/-- **`leafMem` is order blind**, which is what makes `fvar_leaves_go`'s
+push-order deviation (the accumulator is the twin's list reversed) sound at its
+one reader, `leaves_sub_go`. -/
+@[lockstep_simp] theorem leafMem_reverse (l : List (Nat × EIdx)) (i : Nat) (t : EIdx) :
+    leafMem l.reverse i t = leafMem l i t := by
+  induction l with
+  | nil => rfl
+  | cons p r ih =>
+    rw [List.reverse_cons, leafMem_app', ih, ExprOps.leafMem_cons, ExprOps.leafMem_cons,
+      leafMem, Bool.or_false, Bool.or_comm]
+
 @[lockstep] theorem leaf_mem_spec (bl : alloc.vec.Vec (Std.U64 × arena.handle.EIdx))
     (idx : Std.U64) (ty : arena.handle.EIdx) :
     LSP (arena.expr_ops.leaf_mem bl idx ty)
@@ -1017,6 +1081,349 @@ attribute [lockstep_simp] List.map_append List.map_cons List.map_nil List.drop_z
 @[lockstep] theorem expr_ptr_beq_spec (a b : arena.handle.EIdx) :
     LSP (arena.expr_ops.expr_ptr_beq a b) (fun r => r = exprPtrBEq (absEIdx a) (absEIdx b)) :=
   fun _ h => (ExprOps.expr_ptr_beq_refines h).symm
+
+/-! ### Tag tests the `ExprOps` walks make (suffix `_eo`: the Core lane has its own copies) -/
+
+@[lockstep_simp] theorem absU32_beq_fvar_eo (t : Std.U32) :
+    (absU32 t == ETag.fvar) = decide (t = arena.handle.ETAG_FVAR) := by
+  rw [← etag_fvar_abs]
+  by_cases h : t = arena.handle.ETAG_FVAR
+  · subst h; simp
+  · have : absU32 t ≠ absU32 arena.handle.ETAG_FVAR := fun hc => h (absU32_inj hc)
+    simp [h, this]
+
+@[lockstep_simp] theorem absU32_beq_const_eo (t : Std.U32) :
+    (absU32 t == ETag.const) = decide (t = arena.handle.ETAG_CONST) := by
+  rw [← etag_const_abs]
+  by_cases h : t = arena.handle.ETAG_CONST
+  · subst h; simp
+  · have : absU32 t ≠ absU32 arena.handle.ETAG_CONST := fun hc => h (absU32_inj hc)
+    simp [h, this]
+
+@[lockstep_simp] theorem absU32_beq_lit_eo (t : Std.U32) :
+    (absU32 t == ETag.lit) = decide (t = arena.handle.ETAG_LIT) := by
+  rw [← etag_lit_abs]
+  by_cases h : t = arena.handle.ETAG_LIT
+  · subst h; simp
+  · have : absU32 t ≠ absU32 arena.handle.ETAG_LIT := fun hc => h (absU32_inj hc)
+    simp [h, this]
+
+attribute [lockstep_simp] etag_fvar_abs etag_const_abs etag_lit_abs
+
+/-! ## More reads and Rust-only steps of the `ExprOps` walks -/
+
+@[lockstep] theorem view_fvar_ty_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSV pers (fun a b => b = Option.map absEIdx a) (arena.monad.view_fvar_ty pers st h) st lst
+      (Arena.viewFVarTy (absEIdx h)) :=
+  LSV.ofSimR (fun _ hr => view_fvar_ty_run₀ hrel hr) hrel hinv
+
+@[lockstep] theorem view_fvar_idx_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSV pers (fun a b => b = Option.map absU a) (arena.monad.view_fvar_idx pers st h) st lst
+      (Arena.viewFVarIdx (absEIdx h)) :=
+  LSV.ofSimR (fun _ hr => view_fvar_idx_run₀ hrel hr) hrel hinv
+
+@[lockstep] theorem derived_l_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.LIdx) :
+    LSV pers (fun (a : arena.store.LDer) (b : LDer) => b.hasParam = a.has_param)
+      (arena.monad.derived_l pers st h) st lst (Arena.derivedL (absLIdx h)) := by
+  intro a ha
+  obtain ⟨v, hx, hobs⟩ := derived_l_run₀ hrel ha
+  exact ⟨v, lst, hx, hobs, hrel, hinv⟩
+
+@[lockstep] theorem fvar_of_data_spec (w : Std.U64) :
+    LSP (kernel.expr.fvar_of_data w) (fun r => r.val = w.val / 2 % 32768) :=
+  fun _ h => ConRon.Refine.Expr.fvar_of_data_val h
+
+/-- A total Rust READ in the `LS` judgement (the `LSV` twin of `LSR.ofLS`). -/
+theorem LSV.ofLS {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {m : Result α} {st : arena.monad.AState} {lst : AState} {x : AM β}
+    (h : LS pers R (m >>= fun a => ok (.Ok a, st)) lst x) : LSV pers R m st lst x := by
+  intro a hm
+  exact h (.Ok a) st (by rw [hm, Aeneas.Std.bind_tc_ok])
+
+/-- The public `SimR`-shaped statement of a total read from its `LSV`, when the
+twin action leaves the state alone. -/
+theorem LSV.toAOut₀ {α β : Type} {A : α → β} {pers : arena.store.PersTier}
+    {m : Result α} {st : arena.monad.AState} {lst : AState} {x : AM β} {a : α}
+    (h : LSV pers (fun a b => b = A a) m st lst x) (hm : m = ok a) :
+    ∃ lst', x.run lst = .ok (A a, lst') ∧ AStateRel₀ pers st lst' ∧ AStateInv pers st := by
+  obtain ⟨b, lst', hx, rfl, h1, h2⟩ := h a hm
+  exact ⟨lst', hx, h1, h2⟩
+
+/-! ### The three walk-local memos (`ExprOps/Pure.lean`'s relations) -/
+
+@[lockstep] theorem wscoped_memo_get_spec {memo : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
+    {lm : Std.HashMap (EIdx × Nat) Bool} (hm : ExprOps.WMemoRel memo lm) (k : arena.monad.EIdxNat) :
+    LSP (arena.expr_ops.wscoped_memo_get memo k) (fun o => o = lm[absEIdxNat k]?) :=
+  fun _ h => (ExprOps.wscoped_memo_get_refines hm.2 ConRon.Refine.HashMap2.KeysOk_true hm.1 h).symm
+
+@[lockstep] theorem wscoped_memo_set_spec {memo : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
+    {lm : Std.HashMap (EIdx × Nat) Bool} (hm : ExprOps.WMemoRel memo lm) (k : arena.monad.EIdxNat)
+    (r : Bool) :
+    LSP (arena.expr_ops.wscoped_memo_set memo k r)
+      (fun m' => ExprOps.WMemoRel m' (lm.insert (absEIdxNat k) r)) := by
+  intro m' h
+  obtain ⟨h1, h2, -⟩ :=
+    ExprOps.wscoped_memo_set_refines hm.2 ConRon.Refine.HashMap2.KeysOk_true hm.1 h
+  exact ⟨h1, h2⟩
+
+@[lockstep] theorem leaves_sub_get_spec {memo : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {lm : Std.HashMap EIdx Bool} (hm : ExprOps.LMemoRel memo lm) (k : arena.handle.EIdx) :
+    LSP (arena.expr_ops.leaves_sub_get memo k) (fun o => o = lm[absEIdx k]?) :=
+  fun _ h => (ExprOps.leaves_sub_get_refines hm.2 ConRon.Refine.HashMap2.KeysOk_true hm.1 h).symm
+
+@[lockstep] theorem leaves_sub_set_spec {memo : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {lm : Std.HashMap EIdx Bool} (hm : ExprOps.LMemoRel memo lm) (k : arena.handle.EIdx)
+    (r : Bool) :
+    LSP (arena.expr_ops.leaves_sub_set memo k r)
+      (fun m' => ExprOps.LMemoRel m' (lm.insert (absEIdx k) r)) := by
+  intro m' h
+  obtain ⟨h1, h2, -⟩ :=
+    ExprOps.leaves_sub_set_refines hm.2 ConRon.Refine.HashMap2.KeysOk_true hm.1 h
+  exact ⟨h1, h2⟩
+
+@[lockstep] theorem fvl_seen_spec {seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {ls : Std.HashMap EIdx Unit} (hs : ExprOps.SeenRel seen ls) (k : arena.handle.EIdx) :
+    LSP (arena.expr_ops.fvl_seen seen k) (fun b => b = (ls[absEIdx k]?).isSome) := by
+  intro b h
+  rw [ExprOps.fvl_seen_refines hs.2 ConRon.Refine.HashMap2.KeysOk_true hs.1 h,
+    Std.HashMap.contains_eq_isSome_getElem?]
+
+@[lockstep] theorem fvl_record_spec {seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {ls : Std.HashMap EIdx Unit} (hs : ExprOps.SeenRel seen ls) (k : arena.handle.EIdx) :
+    LSP (arena.expr_ops.fvl_record seen k)
+      (fun m' => ExprOps.SeenRel m' (ls.insert (absEIdx k) ())) := by
+  intro m' h
+  obtain ⟨h1, h2, -⟩ :=
+    ExprOps.fvl_record_refines hs.2 ConRon.Refine.HashMap2.KeysOk_true hs.1 h
+  exact ⟨h1, h2⟩
+
+@[lockstep] theorem hashmap2_new_eidxnat_spec :
+    LSP (ron.hashmap2.HashMap2.new arena.monad.EIdxNat Bool) (fun m => ExprOps.WMemoRel m ∅) := by
+  intro m h
+  obtain ⟨hnInv, -, hnNone⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable) h
+  exact ⟨ConRon.Refine.HashMap2.RelOn_empty hnNone, hnInv⟩
+
+@[lockstep] theorem hashmap2_new_eidx_spec :
+    LSP (ron.hashmap2.HashMap2.new arena.handle.EIdx Bool)
+      (fun m => ExprOps.LMemoRel m ∅ ∧ ExprOps.SeenRel m ∅) := by
+  intro m h
+  obtain ⟨hnInv, -, hnNone⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable) h
+  exact ⟨⟨ConRon.Refine.HashMap2.RelOn_empty hnNone, hnInv⟩,
+    ⟨ConRon.Refine.HashMap2.RelOn_empty hnNone, hnInv⟩⟩
+
+/-! ### Casts and the `never` datum -/
+
+@[lockstep] theorem lift_cast_u64_of_usize (x : Std.Usize) :
+    LSP (lift (Std.UScalar.cast .U64 x)) (fun r => r.val = x.val) := by
+  intro r h
+  simp only [lift, Result.ok.injEq] at h
+  subst h
+  rw [Std.UScalar.cast_val_eq]
+  refine Nat.mod_eq_of_lt ?_
+  have h1 : x.val ≤ Std.Usize.max := by scalar_tac
+  have hmax : Std.Usize.max = 2 ^ System.Platform.numBits - 1 := by
+    simp only [Std.Usize.max, Std.Usize.numBits, Std.UScalarTy.Usize_numBits_eq]
+  have h64 : 2 ^ System.Platform.numBits ≤ 2 ^ 64 := by
+    rcases System.Platform.numBits_eq with h | h <;> rw [h] <;> decide
+  have : Std.UScalarTy.U64.numBits = 64 := rfl
+  rw [this]
+  have hpos : 0 < 2 ^ System.Platform.numBits := Nat.two_pow_pos _
+  omega
+
+@[lockstep] theorem lift_cast_usize_of_u64 (x : Std.U64) :
+    LSP (lift (Std.UScalar.cast .Usize x)) (fun r => r.val = x.val ∨ Std.Usize.max < x.val) := by
+  intro r h
+  simp only [lift, Result.ok.injEq] at h
+  subst h
+  by_cases hx : x.val ≤ Std.Usize.max
+  · left
+    rw [Std.UScalar.cast_val_eq, Std.UScalarTy.Usize_numBits_eq]
+    refine Nat.mod_eq_of_lt ?_
+    have hmax : Std.Usize.max = 2 ^ System.Platform.numBits - 1 := by
+      simp only [Std.Usize.max, Std.Usize.numBits, Std.UScalarTy.Usize_numBits_eq]
+    have hpos : 0 < 2 ^ System.Platform.numBits := Nat.two_pow_pos _
+    omega
+  · right; omega
+
+@[lockstep] theorem max_u64_spec (a b : Std.U64) :
+    LSP (kernel.expr.max_u64 a b) (fun r => r.val = max a.val b.val) := by
+  intro r h
+  rw [kernel.expr.max_u64] at h
+  split at h <;> (have := Result.ok_injective h; subst this) <;> scalar_tac
+
+/-- `kernel::expr_ops::sub_nat`: `Nat` subtraction (truncated at `0`). -/
+@[lockstep] theorem sub_nat_spec (a b : Std.U64) :
+    LSP (kernel.expr_ops.sub_nat a b) (fun r => r.val = a.val - b.val) := by
+  intro r h
+  rw [kernel.expr_ops.sub_nat] at h
+  split at h
+  · exact (ConRon.Refine.Nat.usub_val h).2
+  · simp only [Result.ok.injEq] at h
+    rw [← h]
+    show (0 : Nat) = a.val - b.val
+    scalar_tac
+
+@[lockstep] theorem never_spec :
+    LSP kernel.prop_when.never (fun r => ConRon.Refine.PropWhenWF r ∧
+      ConRon.Refine.absPropWhen r = ConLeche.PropWhen.never) := by
+  intro r h
+  exact ⟨ConRon.Refine.PropWhenWF.never h,
+    ConRon.Refine.PropWhen.absPropWhen_never (ConRon.Refine.PropWhen.never_shape h).2⟩
+
+@[lockstep] theorem last_eidx_spec (xs : alloc.vec.Vec arena.handle.EIdx) (k : Std.Usize) :
+    LSP (arena.expr_ops.last_eidx xs k)
+      (fun r => absEIdxArr r = lastEidx (absEIdxArr xs) k.val) := by
+  intro r h
+  have := ExprOps.last_eidx_refines h
+  simp only [ExprOps.absEIdxArr, ExprOps.absEIdxL] at this
+  apply Array.ext'
+  simp only [absEIdxArr, List.toList_toArray] at this ⊢
+  rw [← this]
+
+/-! ### The remaining memo probes, writes and clears (from `Specs.lean`'s `₀` lemmas) -/
+
+@[lockstep] theorem inst1_clear_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSW pers (arena.monad.inst1_clear st) lst Arena.inst1Clear :=
+  LSW.ofSimS₀ fun _ h => inst1_clear_run₀ hrel hinv h
+
+@[lockstep] theorem inst_l_get_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) :
+    LSV pers (fun a b => b = Option.map absEIdx a) (arena.monad.inst_l_get st k) st lst
+      (Arena.instLGet (absEIdxNat k)) :=
+  LSV.ofSimR (fun _ h => inst_l_get_run₀ hrel hinv h) hrel hinv
+
+@[lockstep] theorem inst_l_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) (r : arena.handle.EIdx) :
+    LSW pers (arena.monad.inst_l_set st k r) lst (Arena.instLSet (absEIdxNat k) (absEIdx r)) :=
+  LSW.ofSimS₀ fun _ h => inst_l_set_run₀ hrel hinv h
+
+@[lockstep] theorem inst_l_clear_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSW pers (arena.monad.inst_l_clear st) lst Arena.instLClear :=
+  LSW.ofSimS₀ fun _ h => inst_l_clear_run₀ hrel hinv h
+
+@[lockstep] theorem lift_clear_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSW pers (arena.monad.lift_clear st) lst Arena.liftClear :=
+  LSW.ofSimS₀ fun _ h => lift_clear_run₀ hrel hinv h
+
+@[lockstep] theorem reset_get_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) :
+    LSV pers (fun a b => b = Option.map absEIdx a) (arena.monad.reset_get st k) st lst
+      (Arena.resetGet (absEIdxNat k)) :=
+  LSV.ofSimR (fun _ h => reset_get_run₀ hrel hinv h) hrel hinv
+
+@[lockstep] theorem reset_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) (r : arena.handle.EIdx) :
+    LSW pers (arena.monad.reset_set st k r) lst (Arena.resetSet (absEIdxNat k) (absEIdx r)) :=
+  LSW.ofSimS₀ fun _ h => reset_set_run₀ hrel hinv h
+
+@[lockstep] theorem reset_clear_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSW pers (arena.monad.reset_clear st) lst Arena.resetClear :=
+  LSW.ofSimS₀ fun _ h => reset_clear_run₀ hrel hinv h
+
+@[lockstep] theorem rename_get_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) :
+    LSV pers (fun a b => b = Option.map absEIdx a) (arena.monad.rename_get st k) st lst
+      (Arena.renameGet (absEIdxNat k)) :=
+  LSV.ofSimR (fun _ h => rename_get_run₀ hrel hinv h) hrel hinv
+
+@[lockstep] theorem rename_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) (r : arena.handle.EIdx) :
+    LSW pers (arena.monad.rename_set st k r) lst (Arena.renameSet (absEIdxNat k) (absEIdx r)) :=
+  LSW.ofSimS₀ fun _ h => rename_set_run₀ hrel hinv h
+
+@[lockstep] theorem rename_clear_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSW pers (arena.monad.rename_clear st) lst Arena.renameClear :=
+  LSW.ofSimS₀ fun _ h => rename_clear_run₀ hrel hinv h
+
+@[lockstep] theorem abs1_get_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) :
+    LSV pers (fun a b => b = Option.map absEIdx a) (arena.monad.abs1_get st k) st lst
+      (Arena.abs1Get (absEIdxNat k)) :=
+  LSV.ofSimR (fun _ h => abs1_get_run₀ hrel hinv h) hrel hinv
+
+@[lockstep] theorem abs1_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) (r : arena.handle.EIdx) :
+    LSW pers (arena.monad.abs1_set st k r) lst (Arena.abs1Set (absEIdxNat k) (absEIdx r)) :=
+  LSW.ofSimS₀ fun _ h => abs1_set_run₀ hrel hinv h
+
+@[lockstep] theorem abs1_clear_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSW pers (arena.monad.abs1_clear st) lst Arena.abs1Clear :=
+  LSW.ofSimS₀ fun _ h => abs1_clear_run₀ hrel hinv h
+
+@[lockstep] theorem lower_get_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) :
+    LSV pers (fun a b => b = Option.map absEIdx a) (arena.monad.lower_get st k) st lst
+      (Arena.lowerGet (absEIdxNat k)) :=
+  LSV.ofSimR (fun _ h => lower_get_run₀ hrel hinv h) hrel hinv
+
+@[lockstep] theorem lower_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) (r : arena.handle.EIdx) :
+    LSW pers (arena.monad.lower_set st k r) lst (Arena.lowerSet (absEIdxNat k) (absEIdx r)) :=
+  LSW.ofSimS₀ fun _ h => lower_set_run₀ hrel hinv h
+
+@[lockstep] theorem lower_clear_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSW pers (arena.monad.lower_clear st) lst Arena.lowerClear :=
+  LSW.ofSimS₀ fun _ h => lower_clear_run₀ hrel hinv h
+
+@[lockstep] theorem inst1_l_get_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) :
+    LSV pers (fun a b => b = Option.map absEIdx a) (arena.monad.inst1_l_get st k) st lst
+      (Arena.inst1LGet (absEIdxNat k)) :=
+  LSV.ofSimR (fun _ h => inst1_l_get_run₀ hrel hinv h) hrel hinv
+
+@[lockstep] theorem inst1_l_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) (r : arena.handle.EIdx) :
+    LSW pers (arena.monad.inst1_l_set st k r) lst (Arena.inst1LSet (absEIdxNat k) (absEIdx r)) :=
+  LSW.ofSimS₀ fun _ h => inst1_l_set_run₀ hrel hinv h
+
+@[lockstep] theorem inst1_l_clear_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSW pers (arena.monad.inst1_l_clear st) lst Arena.inst1LClear :=
+  LSW.ofSimS₀ fun _ h => inst1_l_clear_run₀ hrel hinv h
+
+@[lockstep] theorem bvar_b_get_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.handle.EIdx) :
+    LSV pers (fun a b => b = Option.map absU a) (arena.monad.bvar_b_get st k) st lst
+      (Arena.bvarBGet (absEIdx k)) :=
+  LSV.ofSimR (fun _ h => bvar_b_get_run₀ hrel hinv h) hrel hinv
+
+@[lockstep] theorem bvar_b_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.handle.EIdx) (r : Std.U64) :
+    LSW pers (arena.monad.bvar_b_set st k r) lst (Arena.bvarBSet (absEIdx k) (absU r)) :=
+  LSW.ofSimS₀ fun _ h => bvar_b_set_run₀ hrel hinv h
+
+@[lockstep] theorem bvar_b_clear_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSW pers (arena.monad.bvar_b_clear st) lst Arena.bvarBClear :=
+  LSW.ofSimS₀ fun _ h => bvar_b_clear_run₀ hrel hinv h
+
+@[lockstep] theorem fvar_b_get_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.handle.EIdx) :
+    LSV pers (fun a b => b = Option.map absU a) (arena.monad.fvar_b_get st k) st lst
+      (Arena.fvarBGet (absEIdx k)) :=
+  LSV.ofSimR (fun _ h => fvar_b_get_run₀ hrel hinv h) hrel hinv
+
+@[lockstep] theorem fvar_b_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : arena.handle.EIdx) (r : Std.U64) :
+    LSW pers (arena.monad.fvar_b_set st k r) lst (Arena.fvarBSet (absEIdx k) (absU r)) :=
+  LSW.ofSimS₀ fun _ h => fvar_b_set_run₀ hrel hinv h
+
+@[lockstep] theorem fvar_b_clear_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSW pers (arena.monad.fvar_b_clear st) lst Arena.fvarBClear :=
+  LSW.ofSimS₀ fun _ h => fvar_b_clear_run₀ hrel hinv h
 
 /-! ## The four expression interns `Prims.lean` does not pair yet -/
 
