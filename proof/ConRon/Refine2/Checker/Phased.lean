@@ -27,7 +27,7 @@ for that function, against `Arena/Phased.lean`'s `installThenCheckPhased`:
   applies at `pers := tier`;
 * **the result** — the Rust's state after the fold is the phase-A state (the
   store thawed back), which is what the twin's `checkPendingWorker` hands
-  back too, so `AStateRel` carries over unchanged.
+  back too, so `AStateRel₀` carries over unchanged.
 
 Nothing here is a hypothesis: the flags, which the relation never mentions,
 are read off the Rust's own guard in `freeze_tier`.
@@ -222,10 +222,9 @@ phase-A store relates to — at the TIER as the reader parameter, the one
 `check_pending_list_refines` is then instantiated at. -/
 theorem worker_state_rel {pers : arena.store.PersTier} {st : arena.monad.AState}
     {lst : AState} {w : arena.monad.AState}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hth : Thawed st.store)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hth : Thawed st.store)
     (hw : arena.checker.worker_state st.pins = ok w) :
-    AStateRel (tierOf st.store) w lst.worker ∧ AStateInv (tierOf st.store) w ∧
-      BrOK lst.worker := by
+    AStateRel₀ (tierOf st.store) w lst.worker ∧ AStateInv (tierOf st.store) w := by
   obtain ⟨h0, h1, h2, h3⟩ := hth
   rw [arena.checker.worker_state] at hw
   obtain ⟨est, hest, hw⟩ := ConRon.Refine.bind_eq_ok_iff.mp hw
@@ -272,9 +271,8 @@ theorem worker_state_rel {pers : arena.store.PersTier} {st : arena.monad.AState}
   have hS := hrel.store
   have hSI := hinv.store
   refine ⟨⟨⟨⟨⟨⟨?_, hNR, rfl⟩, ?_, hLR, rfl⟩, ?_, hLsR, rfl⟩, ?_, hER, rfl⟩, hMR, hCR,
-      hrel.pins, EStore.dropScratch_wf hrel.storeWF⟩,
-    ⟨⟨⟨⟨⟨?_, hNI⟩, ?_, hLI⟩, ?_, hLsI⟩, ?_, hEI⟩, hMI, hCI⟩,
-    EStore.dropScratch_wf hrel.storeWF, rfl⟩
+      hrel.pins⟩,
+    ⟨⟨⟨⟨⟨?_, hNI⟩, ?_, hLI⟩, ?_, hLsI⟩, ?_, hEI⟩, hMI, hCI⟩⟩
   · simpa [rPersN, tierOf, h3, AState.worker, EStore.dropScratch, LsStore.dropScratch,
       LStore.dropScratch, NStore.dropScratch] using hS.lss.lvl.ns.perst
   · simpa [rPersL, tierOf, h2, AState.worker, EStore.dropScratch, LsStore.dropScratch,
@@ -328,7 +326,7 @@ twin's at the same kind and the same fold position, except the port's own
 `Native`, which claims nothing.*
 
 `install_then_check_refines`' statement with the driver's fold in place of
-`install_then_check` on both sides, and its hypotheses — `AStateRel`,
+`install_then_check` on both sides, and its hypotheses — `AStateRel₀`,
 `AStateInv`, `BrOK`, ruling 2's `DeclResolves` — plus ONE more about the same
 abstract invariant `Good`: `hwork`, that it survives `AState.worker` (the twin
 worker drops only scratch nodes, memos and caches, none of which a resolving
@@ -340,11 +338,8 @@ theorem check_decls_phased_refines {H : Type} {inst : arena.checker.InstallHook 
     {h : H} {pers st lst}
     {mode : kernel.env.CheckMode}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-    {ds : alloc.vec.Vec arena.env.IDeclaration} {o} {Good : IFEnv → AState → Prop}
-    (hrel : AStateRel pers st lst) (hinv : AStateInv pers st) (hbr : BrOK lst)
-    (hres : DeclResolves (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
-      (absIDeclL ds) lst Good)
-    (hwork : ∀ {fe : IFEnv} {s : AState}, Good fe s → Good fe s.worker)
+    {ds : alloc.vec.Vec arena.env.IDeclaration} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker.check_decls_phased inst pers st mode pins ds h = ok o) :
     SimFold (fun r v => IFEnvRel r v) pers lst o
       (installThenCheckPhased (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
@@ -362,8 +357,7 @@ theorem check_decls_phased_refines {H : Type} {inst : arena.checker.InstallHook 
   have hz1 : absIDeclLFrom ds 0#usize = absIDeclL ds := by simp
   have hA := annot_fold_refines
     (p := (0#u64, f, alloc.vec.Vec.new arena.checker.PendingCheck))
-    (lf := mkIFEnv IEnv.empty) (i := 0#usize) hrel hinv hbr hfe hfinv hres.inv hres.entry
-    (by rw [hz1]; exact hres.decls) hq'
+    (lf := mkIFEnv IEnv.empty) (i := 0#usize) hrel hinv hfe hfinv hq'
   have hz2 : (absPendingCheckL (alloc.vec.Vec.new arena.checker.PendingCheck)).toArray
       = (#[] : Array PendingCheck) := rfl
   have hz3 : absU (0#u64) = 0 := rfl
@@ -381,7 +375,7 @@ theorem check_decls_phased_refines {H : Type} {inst : arena.checker.InstallHook 
     exact ⟨le, lst', by rw [hx]; rfl, hlk⟩
   | Ok p' =>
     rw [hqr] at hA hrun
-    obtain ⟨v, lst', hx, hR, hrel1, hinv1, hext1⟩ := hA
+    obtain ⟨v, lst', hx, hR, hrel1, hinv1⟩ := hA
     obtain ⟨n1, fe1, pend1⟩ := v
     obtain ⟨p1, f1, pd1⟩ := p'
     obtain ⟨hv1, hv2, hv3⟩ := hR
@@ -415,18 +409,10 @@ theorem check_decls_phased_refines {H : Type} {inst : arena.checker.InstallHook 
       obtain ⟨wres, wst⟩ := wr
       have hr2' : wres = r2 := Result.ok_injective hr2
       subst hr2'
-      obtain ⟨hrelW, hinvW, hbrW⟩ := worker_state_rel hrel1 hinv1 hth hw
-      have hx' : annotFold (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
-          (0, mkIFEnv IEnv.empty, #[]) (absIDeclL ds) lst
-          = .ok (.ok (n1, fe1, (absPendingCheckL pd1).toArray), lst') := hx
-      have hg1 : Good fe1 lst' := annotFold_good hres.inv _ hres.entry hx'
+      obtain ⟨hrelW, hinvW⟩ := worker_state_rel hrel1 hinv1 hth hw
       have hz4 : absPendingCheckLFrom pd1 0#usize = absPendingCheckL pd1 := by simp
       have hB := check_pending_list_refines (lf := fe1) (pend := pd1) (i := 0#usize)
-        hrelW hinvW hbrW hv2.rel hv2.inv hres.inv (hwork hg1)
-        (by
-          rw [hz4]
-          intro pc hpc
-          exact hres.pending _ _ _ _ hx' pc (by simpa using hpc)) hwr
+        hrelW hinvW hv2.rel hv2.inv hwr
       simp only [SimFold, hz4] at hB
       rw [hx]
       simp only [toList_toArray'']
@@ -446,10 +432,10 @@ theorem check_decls_phased_refines {H : Type} {inst : arena.checker.InstallHook 
         rfl
       | Ok _ =>
         rw [hwres] at hB hrun
-        obtain ⟨_, lst2, hy, -, -, -, -⟩ := hB
+        obtain ⟨_, lst2, hy, -, -, -⟩ := hB
         have ho := Result.ok_injective hrun
         subst ho
-        refine ⟨fe1, lst', ?_, hv2.rel, hrel1, hinv1, hext1⟩
+        refine ⟨fe1, lst', ?_, hv2.rel, hrel1, hinv1⟩
         have hW : (checkPendingWorker (ConRon.Refine.absMode mode) fe1
             (absPendingCheckL pd1)).run lst' = .ok (.ok (), lst') :=
           checkPendingWorker_run hy

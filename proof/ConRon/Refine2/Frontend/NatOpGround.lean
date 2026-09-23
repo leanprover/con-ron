@@ -275,25 +275,35 @@ theorem is_nat_op_record_refines {pers rst lst d o}
   | DefnDecl cv v hint =>
     dsimp only at h
     obtain ⟨⟨r, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hD := nat_div_mod_names_refines hrel hinv h1
-    simp only [Sim] at hD ⊢
+    have hD := nat_div_mod_names_refines hrel.to₀ hinv h1
+    simp only [Sim₀] at hD
+    simp only [Sim]
     simp only [absIDeclaration, isNatOpRecord, am_run_bind']
     cases r with
     | Err e =>
       cases Result.ok_injective h
       exact AErrSim.bind hD _
     | Ok dsn =>
-      obtain ⟨lst1, hx1, hrel1, hinv1, hext1, -⟩ := hD
+      obtain ⟨lst1, hx1, hrel1₀, hinv1⟩ := hD
+      -- a pin read: the twin state is unchanged (task #97-T2-LOCKSTEP lane Checker)
+      have hl1 := natDivModNames_reads _ _ _ hx1
+      subst hl1
+      have hrel1 := hrel1₀.of₀ hrel.storeWF
+      have hext1 := Ext.refl lst1.store
       rw [hx1]; simp only [except_ok_bind]
       obtain ⟨⟨r1, st2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hN := nat_op_names_refines hrel1 hinv1 h2
-      simp only [Sim] at hN
+      have hN := nat_op_names_refines hrel1.to₀ hinv1 h2
+      simp only [Sim₀] at hN
       cases r1 with
       | Err e =>
         cases Result.ok_injective h
         exact AErrSim.bind hN _
       | Ok nsn =>
-        obtain ⟨lst2, hx2, hrel2, hinv2, hext2, -⟩ := hN
+        obtain ⟨lst2, hx2, hrel2₀, hinv2⟩ := hN
+        have hl2 := natOpNames_reads _ _ _ hx2
+        subst hl2
+        have hrel2 := hrel2₀.of₀ hrel1.storeWF
+        have hext2 := Ext.refl lst2.store
         rw [hx2]; simp only [except_ok_bind]
         obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have hbv := nidx_contains_refines hb
