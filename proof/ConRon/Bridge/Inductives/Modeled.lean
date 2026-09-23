@@ -31,6 +31,7 @@ import ConRon.Bridge.Frontend.Shared
 import ConLeche.Verify.Extend.Iota
 import ConLeche.Verify.Extend.Modeled
 import ConLeche.Verify.Extend.Proj
+import ConLeche.Verify.Extend.Recs
 import ConRon.Bridge.Frontend.Lines
 
 namespace ConRon.Bridge.Inductives
@@ -3971,7 +3972,94 @@ theorem checkIndRecs_envWF {μ : CheckMode} {F : Nat} {bn : List ConLeche.Name}
     (hbn : ∀ ci ∈ recs, bn.contains ci.name = true)
     (h : ConLeche.checkIndRecs μ (ConLeche.fueledOps μ F) bn env₂ recs = .ok e) :
     EnvWF e := by
-  sorry
+  unfold ConLeche.checkIndRecs at h
+  by_cases hemp : recs.isEmpty = true
+  · rw [if_pos hemp] at h
+    simp only [pure, Except.pure, Except.ok.injEq] at h
+    subst h; exact henv
+  rw [if_neg hemp] at h
+  dsimp only at h
+  by_cases heqf : env₂.find? ConLeche.eqName = some ConLeche.eqA
+  case neg =>
+    rw [if_neg heqf] at h
+    simp [throw, throwThe, MonadExceptOf.throw, bind, Except.bind] at h
+  rw [if_pos heqf] at h
+  simp only [pure, Except.pure, bind, Except.bind] at h
+  split at h
+  · exact nomatch h
+  rename_i p hprovP
+  obtain ⟨envSelf, checked⟩ := p
+  simp only at h
+  have hProv := ConLeche.provisionRecs_facts (F := F) recs env₂ (envSelf, checked) hprovP hbn
+  obtain ⟨zipped, hmap, hchain⟩ := ConLeche.rulesFold_inv checked env₂ e h
+  rw [show checked = zipped.map Prod.fst from hmap.symm] at hProv
+  have hswSh := ConLeche.chains_swapSh hProv hchain (ConLeche.SwapShList.of_eq env₂.consts)
+  have hcorr := ConLeche.swapSh_find?_corr hswSh
+  have hisoSome : ∀ n, (envSelf.find? n).isSome = (e.find? n).isSome := by
+    intro n
+    rcases hcorr n with heq | ⟨cv, a, b, e0, h₀, h₃, -⟩
+    · rw [heq]
+    · rw [h₀, h₃]
+      rfl
+  have constWF_le : ∀ {envA envB : Env},
+      (∀ n, (envA.find? n).isSome = true → (envB.find? n).isSome = true) →
+      ∀ {c : ConstantInfo}, ConstWF envA c → ConstWF envB c := by
+    intro envA envB hle c hc
+    obtain ⟨h1, h2, h3, h4, h5, h6, h8, h9⟩ := hc
+    refine ⟨h1, h2, Expr.constsResolve_le hle h3, h4, ?_, ?_,
+      fun tbl heq =>
+        let ⟨hs, hb⟩ := h8 tbl heq
+        ⟨hs, fun i b hbi =>
+          let ⟨g1, g2, g3, g4⟩ := hb i b hbi
+          ⟨g1, g2, Expr.constsResolve_le hle g3, g4⟩⟩, h9⟩
+    · intro cv v hint heq
+      obtain ⟨g1, g2, g3, g4⟩ := h5 cv v hint heq
+      exact ⟨g1, g2, Expr.constsResolve_le hle g3, g4⟩
+    · intro cv a b e heq r hr
+      obtain ⟨g1, g2, g3, g4, g5⟩ := h6 cv a b e heq r hr
+      refine ⟨g1, g2, Expr.constsResolve_le hle g3, g4, ?_⟩
+      intro lvls pins hf
+      obtain ⟨n1, n2, n3, n4⟩ := g5 lvls pins hf
+      refine ⟨n1, n2, ?_, n4⟩
+      intro pin hp
+      obtain ⟨p1, p2, p3, p4⟩ := n3 pin hp
+      exact ⟨p1, p2, Expr.constsResolve_le hle p3, p4⟩
+  intro c₃ hc₃
+  rcases ConLeche.rulesChain_mem hchain c₃ hc₃ with hc₂ | ⟨z, hz, rfl⟩
+  · refine constWF_le (fun n hn => ?_) (henv c₃ hc₂)
+    rw [← hisoSome n]
+    cases hf2 : env₂.find? n with
+    | none =>
+      rw [hf2] at hn
+      exact nomatch hn
+    | some ci₂ =>
+      rw [ConLeche.ProvFacts.find?_preserved hProv n ci₂ hf2]
+      rfl
+  · have hz1 : z.1 ∈ zipped.map Prod.fst := List.mem_map_of_mem hz
+    obtain ⟨-, -, -, -, htyf, htyb, htlp, htres, -, -⟩ :=
+      ConLeche.ProvFacts.mem_facts hProv z.1 hz1
+    have hkits0 := ConLeche.checkIotaRules_inv 0 _ _
+      (ConLeche.RulesChain.mem_facts hchain z hz)
+    refine ⟨htyf, htlp, ?_, htyb, (fun _ _ _ heq => nomatch heq), ?_,
+      (fun _ heq => nomatch heq), (fun _ _ heq => nomatch heq)⟩
+    · rw [← Expr.constsResolve_congr hisoSome]
+      exact htres
+    · intro cvR mI' rP' rules'' heq r hr
+      injection heq with e1 e2 e3 e4
+      subst e1; subst e2; subst e3; subst e4
+      obtain ⟨k, hk⟩ := List.getElem?_of_mem hr
+      obtain ⟨cvj, cnP, cnF, raw, rhsTy, rbinders, rbody, -, -, -, -,
+        hnest, -, -, -, hrf, hrb, hrlp, hrres, -, -, -⟩ := hkits0 k r hk
+      refine ⟨hrf, hrlp, ?_, hrb, ?_⟩
+      · rw [← Expr.constsResolve_congr hisoSome]
+        exact hrres
+      · intro lvls pins hfe
+        obtain ⟨hmi, hlvls, hpins, hshape, -⟩ := hnest lvls pins hfe
+        refine ⟨hmi, hlvls, ?_, hshape⟩
+        intro pin hp
+        obtain ⟨p1, p2, p3, p4⟩ := hpins pin hp
+        exact ⟨p1, p2,
+          by rw [← Expr.constsResolve_congr hisoSome]; exact p3, p4⟩
 
 /-- con-leche: none — a one-element block list denotes one constant. -/
 theorem denoteCIList_single {st : EStore} {ci : IConstantInfo} {L : List ConstantInfo}
