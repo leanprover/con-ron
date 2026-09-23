@@ -60468,3 +60468,8 @@ Back to within noise of `a2f8fd64` (D4b was +13.6 G, +~200 MB).  Wall
 |---|---|
 | `crates/con-ron-core/src/arena/{checker,checker_base,decl_check}.rs` | `thaw_read_tier`; the frozen-tier seam; docs |
 | `Refine2/Checker/Phased.lean` | the four freeze lemmas moved down to `Base.lean` |
+
+Gates: `scripts/gates.sh` on the branch after merging `arena` (`924e25b4`):
+**all 16 OK** (`extract-check` 100 s).  `lake build ConRon ConRonBridge
+ConRonRefine2 ConRonCapstone` green (2 826 jobs) before the merge.  Shared
+Lake cache seeded from this state.
