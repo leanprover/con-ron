@@ -41647,6 +41647,128 @@ round-9 group: `checkDecl_nodup`, `Arena.checkPending_prefix`,
 `denoteN_default_of_pinNames`, `internPinSets_run`, `bracketClose_foldOK`,
 `FoldOK.projMem` print the three standard axioms only.
 
+#### Round 10 — `DeclOut`'s two clauses, the pinned blocks' `ConstWF`, and the first two divMod guards (2026-09-23, Opus under Fable)
+
+Branch `checker-r10` off `arena`'s `e899ecd1`, merged forward three times
+(`aa1dc3e2`, `6cfd995d`).  **Landed in two parts**: this part lands early
+because the Inductives tier waits on §4; part 2 (the remaining divMod pieces)
+follows in a new worktree.  Diff: `Bridge/Checker/**` only.
+
+##### 1. `DeclOut` gains `envWF` and `proj` (the coordinator's ruling on round 9)
+
+`DeclOut` (`Checker/Decl.lean`) has two new clauses:
+`envWF : ∀ env', denoteFEnv s'.store fe' = some env' → EnvWF env'` (stated at
+every denotation, which `run` makes the one) and
+`proj : ∀ t, .projInfo t ∈ fe'.env.consts → .projInfo t ∈ fe.env.consts ∨
+IProjTableOK s'.store t` — `IFEnvOK.proj`'s conclusion, over MEMBERSHIP (the
+shape `IFEnvOK_of_denote` takes) and RELATIVE to the step (the shape
+`Inductives/Rel.lean`'s `ProjOut` has), so no arm needs the incoming tables'
+shape and no arm gains a hypothesis.  The six old clauses are `DeclCore`;
+every non-inductive exit is `DeclCore.out hok hd {…}`, which derives both
+clauses from the pure run the arm already proves:
+
+* **`checkDecl_wf_pure`** (new pure module `Checker/DeclWF.lean`): off the
+  unpinned inductive route, an accepted `checkDecl` keeps `EnvWF` and pushes
+  only non-tower constants (`NoTowerPush`) — read off con-leche's `DeclRun`
+  (`checkDeclRun_ofEnvFactsE`), whose value-arm records carry the type's and
+  value's guards and annotate outputs (`annotate_syntax`);
+* **the pinned blocks** (basis, a pinned `ind` block, the quotient `.type`
+  record): `declBasisRun_envWF`.  con-leche's model tier proves each block's
+  `EnvWF` only INLINE (`Model/Basis*.lean`'s `declBasisPB_*K`, the `have hwf1
+  … hwfN` steps inside a `Nonempty (EnvModelM …)` proof), so there was nothing
+  to cite: `declsA_constWF` proves the 19 pinned constants' `ConstWF` at their
+  own block (the quotient block also at `eqA`) as CLOSED facts by
+  `decide +kernel` (a `constWF_closed` macro; the recursors' rules through one
+  `List.all`, `recRules_ok`), and `constWF_le` (a local copy of
+  `Verify/Cached/BridgeCS4.lean`'s private `constWF_le'`) moves them to the
+  installed environment.  **Upstream asks, added to the `ConstWF` list beside
+  `cvA_type_facts'` and `constWF_intro'`: make `constWF_le'` public, and
+  export a `declBasisRun_envWF` beside `DeclBasisRun`.**
+* `projMem_of_noTower`: the index's pushed front denotes the environment's
+  pushed front, and `denoteCI` keeps the constructor, so it holds no table.
+
+The unpinned inductive route is the one exception: `checkDecl_bridge_ind`
+reads both clauses off **`IndSpec.wf : μ.verifiedChecks = true → IndSpec μ →
+IndWFSpec μ`** (`Checker/Hyp.lean`, `sorry`, OWED by the Inductives tier).
+`IndWFSpec.run` states exactly what the route owes: `EnvWF` at the pushed
+denotation and the relative membership-shaped table clause.  It is stated
+from `IndSpec` so that nothing above this tier changes (the capstones take
+`hind : IndSpec .verified`); once `IndSpec.run` concludes the two clauses it
+is a projection.  The table clause is asked for over membership, not `find?`,
+because turning `ProjOut` into membership needs the index to answer for every
+stored table — which is what the membership clause is used to prove; the
+route pushes its tables explicitly and can state it directly.
+
+**`Arena.checkDecl_wfProj` is PROVED** from the two clauses (the old tables
+through `FoldOK.projMem` under `hnd`, carried by `IProjTableOK.mono`).
+
+##### 2. The divMod pieces — part 1
+
+`checkDivModPin`'s section moved to its own module, `Checker/DivMod.lean`
+(`DeclVal.lean` keeps `pinGuardWalk_run`, the four-walk pin guard lifted out
+of `reducePinGuard_run`, which both gates share).
+
+* **`divModEnvGuard_run` PROVED**: `natOpGuard_runsB` (the chain inside
+  `natOpGuard_run`, now a `RunsB` of its own), `natOpDeps_run` +
+  `natOpStoredOkAll_runs`, the `eqA` test (`IFEnvOK.find_beq_ind` at the
+  freshly interned `eqA`) and the two `Bool` constructors' types
+  (`RunsB.matchTyAnd`, `RunsB.matchTy`, new).
+* **`divModPinGuard_run` PROVED**: `divModDeclPin_run` (seven pin reads and
+  handle tests), then `pinGuardWalk_run`.  `divModCertProofs_run` is the same
+  seven tests at the proof lists.
+* `substConstAll_run` (the full substitution, a fuel induction over
+  `substConst0_run`'s shape plus the four binder/`proj` arms) — the first
+  leaf of `divModCertsGuard_run`.
+
+Open: `divModCertsGuard_run`, `checkDivModPinAt_bridge` (part 2).
+
+##### 3. `declResolves_of_stages` (the coordinator's added item) — FINDING, ruling needed
+
+`Capstone.lean`'s `declResolves_of_stages` asks for a `Good` with
+`Refine2.DeclResolves`, whose `ResolveInv` fields quantify over EVERY
+resolving handle at every depth: `infer : Good fe s → EResolves s e →
+inferTypeCore mode (fe.restrictTo v) checkFuel d e s = .ok (w, s') →
+EResolves s' w ∧ Good fe s'` (likewise `whnf`, `ensureSort`).  Theorem 1's run
+lemmas cannot supply that: `KnotSpec.infer` needs `CheckOK` at the call's own
+environment (`fe.restrictTo v`'s), `denoteE s e = some x` AND `Expr.WScoped d
+x` — a merely resolving handle at an arbitrary depth has no such facts, and
+no choice of `Good` supplies `WScoped d` for an arbitrary `d`.  Worse,
+`CheckOK` at a phase-B prefix needs empty caches (round 9 §2's repair), and
+`infer` fills them, so a `FoldOK`-based `Good` is not closed under the
+`infer` field either.  What the fields DO state is a closure property of the
+twin — the Core never answers a dangling handle — which is true but is a
+whole-Core induction of its own (every answer is an input subterm, an intern,
+a cache/memo row, a pin or an environment constant, and each of those must
+resolve), not a frame of any existing Theorem-1 lemma.  **Ruling needed**,
+two options: (a) strengthen `ResolveInv`'s Core fields' preconditions to what
+the call sites have and Theorem 1 can use (e.g. `denoteE s e = some x ∧
+Expr.WScoped d x` and the prefix environment's invariant — the one call site
+read, `check_value_group_refines`, has them: the value group's type is
+`WScoped 0` and denotes); or (b) a new "no dangling handle" tier over the
+Core.  Not attempted this round; `declResolves_of_stages` stays `sorry`.
+
+##### 4. `checkConstantVal_bridge` restated (the coordinator's ruling, for the Inductives tier)
+
+Hypotheses `CheckOK μ env fe s` and `EnvWF env` instead of `FoldOK`: the
+inductive routes call it at an index already holding a scratch constant,
+where `FoldOK`'s `PersIFEnv` is false.  The proof never needed `PersIFEnv`
+(its two uses computed a denotation nothing read — so the restatement does not
+take `denoteFEnv` either).  The arms call `checkConstantVal_bridge_of_fold`.
+
+##### 5. Part 1's frontier and gates
+
+`scripts/gates.sh`: **all 16 OK** on the merge onto `arena`'s `6cfd995d`
+(`extract-check` 406 s, `lake-refine2` 148 s, `lake-bridge` 65 s);
+`Arena/Checker` T1 **stated 88/242, closed 85** (round 9: 83/242, 78).
+
+`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`:
+
+| run | tree | items | tainted | dead weight | this lane's items |
+|---|---|---:|---:|---:|---|
+| start | `arena` `29ec471f` (clean) | 32 | 101 | 794 | `checkDivModPinAt_bridge`, `divModCertsGuard_run`, `divModPinGuard_run` (reach 14), `divModEnvGuard_run` (13), `Arena.checkDecl_wfProj` (10) |
+| part 1 | `checker-r10` on `6cfd995d` | 32 | 109 | 756 | `IndSpec.wf` (fan-in 1, reach 13 — the Inductives tier's debt), `divModCertsGuard_run`, `checkDivModPinAt_bridge` (15), `declResolves_of_stages` (4, §3, added to the capstone meanwhile) |
+
 ### Task #97-P5-2 — Theorem 2: `intern` at every expression array, and the fuel-induction idiom (2026-09-22, Opus under Fable)
 
 The third phase of DESIGN §8.6's **P5**: task #97-P5-1 left `Specs.lean` at 32

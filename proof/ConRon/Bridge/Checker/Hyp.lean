@@ -215,6 +215,49 @@ structure IndSpec (μ : CheckMode) : Prop where
         ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.indDecl b nP)
           = .ok env' ∧ EnvWF env'
 
+/-- con-leche: ConLeche/Verify/Inductives/{SumWF,FixWF,StructWF}.lean
+direct_sum_ind_wf / direct_fix_rec_wf / direct_table_wf — **what the
+inductive route owes `DeclOut`'s two round-10 clauses** (task #97-P3-Checker
+round 10): the environment the route's index denotes is well formed, and
+every projection table of that index is an old one or well shaped and rightly
+named at the new store.
+
+**A named hypothesis, owed by the INDUCTIVES tier.**  `IndSpec` above carries
+neither (`Bridge/Inductives/Rel.lean`'s `IndOut` has the tables, as the
+`find?`-shaped `ProjOut`, and not `EnvWF`); the coordinator's round-10 ruling
+has the Inductives agent add `envWF` to `IndOut`/`IndSpec`.  The table clause
+is asked for over MEMBERSHIP, not over `find?`: that is the shape the
+bracket's close consumes (`IFEnvOK_of_denote`), and turning a `find?`-shaped
+clause into it needs the index to answer for every stored table, which is
+itself what the membership clause is used to prove.  The route pushes its
+tables explicitly, so it can state this shape directly.
+
+Once `IndSpec.run` concludes both clauses, `IndSpec.wf` below is a record
+projection. -/
+structure IndWFSpec (μ : CheckMode) : Prop where
+  run : ∀ {env : Env} {fe fe' : IFEnv} {s s' : AState}
+      {block : List IConstantInfo} {b : List ConstantInfo} {nP : Nat},
+    FoldOK μ env fe s → Frontend.denoteCIList s.store block = some b →
+    ConLeche.basisPinHit b = none →
+    Inductives.checkIndDecl μ fe block nP s = .ok (fe', s') →
+    (∀ env', denoteFEnv s'.store fe' = some env' → EnvWF env') ∧
+      ∀ t, IConstantInfo.projInfo t ∈ fe'.env.consts →
+        IConstantInfo.projInfo t ∈ fe.env.consts ∨ IProjTableOK s'.store t
+
+/-- con-leche: none — **the Inductives tier's debt to `DeclOut`, at the
+hypothesis the capstone already takes**.
+
+`sorry` — OWED by the Inductives tier (task #97-P3-Checker round 10; the
+coordinator's ruling routes `envWF` through `IndOut`/`IndSpec`).  It is
+stated from `IndSpec` so that no statement above this tier changes: the
+capstones take `hind : IndSpec .verified`, and once `IndSpec.run` carries
+`IndWFSpec.run`'s two clauses this is `⟨fun hok hb hpin hrun => …⟩`, a
+projection.  Nothing in the checker tier can prove it: the route lives in
+`Bridge/Inductives/**`, one tier above. -/
+theorem IndSpec.wf {μ : CheckMode} (_hμ : μ.verifiedChecks = true) (_hind : IndSpec μ) :
+    IndWFSpec μ := by
+  sorry
+
 /-! ## One reader inversion both siblings want
 
 `Bridge/Checker/Base.lean` and `Bridge/Checker/Canon.lean` are siblings of
