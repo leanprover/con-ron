@@ -761,7 +761,10 @@ theorem struct_parts_core_small_refines {pers st lst}
       (structPartsCoreSmallSpec (absIConstantVal cv_t) (absIConstantVal cv_c)
         (absU n_p) (absU n_f) (absIConstantVal cv_r) (absIRecRule rule)
         (absLIdx s) is_prop) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_parts_core_small, structPartsCoreSmallSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_parts_core_small_ls

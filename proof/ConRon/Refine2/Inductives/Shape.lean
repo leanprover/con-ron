@@ -832,7 +832,8 @@ macro_rules
   | `(tactic| lockstep_side_ext) =>
     `(tactic| ((try simp only [Lockstep.TwinEq] at *); first
       | (simp_all [absNIdxL, absCtors3L, absCtors3LFrom, absCtorsL, absCtorsLFrom,
-          absIConstantVal, absICIL, absICILFrom, absEIdxL, absEIdxLFrom, NNodeViewWF]; done)))
+          absIConstantVal, absICIL, absICILFrom, absEIdxL, absEIdxLFrom, NNodeViewWF]; done)
+      | (simp_all [absStructParts, absInductiveShape, absNativeParts, absIRecRule]; done)))
 
 /-- The Core front doors (`Refine2/Checker/KnotHyp.lean`) take `CoreCtx vis rf
 lf`; the tier carries `IFEnvRelI rf lf` and, at a split counter, `absU vis =
