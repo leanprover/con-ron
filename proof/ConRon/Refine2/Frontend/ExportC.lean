@@ -19,7 +19,7 @@ state by shared reference and return a value or a `LineErr`; `note_decl`,
 `&mut StateD` is Aeneas's return value, so the second family's outcome is
 `(Result () LineErr) × AState × StateD`, which is `SimD`.
 
-## `sorry` count in this file: 12
+## `sorry` count in this file: 0
 -/
 import ConRon.Refine2.Frontend.ProjRec
 
@@ -99,93 +99,6 @@ theorem line_err_to_check_refines {e line_no o}
 Ported from `RefineOld/Frontend/IndR.lean` (task #87 §8) by task #97-P5-Front
 round 2: list equality of the code points, and — on a `StrWF` payload and a
 literal of valid code points — equality of the abstracted strings. -/
-
-theorem slice_index_some {α : Type} {s : Slice α} {i : Std.Usize} {x : α}
-    (h : Slice.index_usize s i = ok x) : s.val[i.val]? = some x := by
-  rw [Slice.index_usize] at h
-  have hb : s[i]? = s.val[i.val]? := rfl
-  rcases hi : s.val[i.val]? with _ | y
-  · rw [hb, hi] at h; simp at h
-  · rw [hb, hi] at h
-    exact congrArg some (Result.ok_injective h)
-
-theorem cps_beq_loop_val (N : Nat) :
-    ∀ (s : alloc.vec.Vec Std.U32) (lit : Slice Std.U32) (n i : Std.Usize) (b : Bool),
-      s.val.length - i.val = N → n.val = s.val.length → s.val.length = lit.val.length →
-      frontend.text.cps_beq_loop s lit n i = ok b →
-      (b = true ↔ s.val.drop i.val = lit.val.drop i.val) := by
-  induction N using Nat.strong_induction_on with
-  | _ N ih =>
-    intro s lit n i b hN hn hlen h
-    rw [frontend.text.cps_beq_loop.eq_def] at h
-    split at h
-    · rename_i hlt
-      have hltv : i.val < s.val.length := by scalar_tac
-      obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨c2, hc2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hcv : s.val[i.val]'(by omega) = c := by
-        have hg := vec_index_some hc
-        rw [List.getElem?_eq_getElem (by omega)] at hg
-        exact Option.some_injective _ hg
-      have hc2v : lit.val[i.val]'(by omega) = c2 := by
-        have hg := slice_index_some hc2
-        rw [List.getElem?_eq_getElem (by omega)] at hg
-        exact Option.some_injective _ hg
-      have hds : s.val.drop i.val = c :: s.val.drop (i.val + 1) := by
-        rw [List.drop_eq_getElem_cons (show i.val < s.val.length by omega), hcv]
-      have hdl : lit.val.drop i.val = c2 :: lit.val.drop (i.val + 1) := by
-        rw [List.drop_eq_getElem_cons (show i.val < lit.val.length by omega), hc2v]
-      rw [hds, hdl]
-      split at h
-      · rename_i hne
-        simp only [Result.ok.injEq] at h
-        have hval : ¬ (c.val = c2.val) := by simpa using hne
-        have hcc : c ≠ c2 := fun hq => hval (congrArg Std.UScalar.val hq)
-        simp [← h, hcc]
-      · rename_i hne
-        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have hi2v : i2.val = i.val + 1 := ConRon.Refine.Nat.uadd_val hi2
-        have hceq : c = c2 := Std.UScalar.val_eq_imp_iff.mpr (by simpa using hne)
-        rw [ih (s.val.length - i2.val) (by omega) s lit n i2 b rfl hn hlen h, hi2v]
-        simp [hceq]
-    · rename_i hge
-      have hle : s.val.length ≤ i.val := by scalar_tac
-      rw [← Result.ok_injective h]
-      rw [List.drop_eq_nil_of_le (by omega), List.drop_eq_nil_of_le (by omega)]
-      simp
-
-/-- `text::cps_beq` is list equality of the code points. -/
-theorem cps_beq_val {s : alloc.vec.Vec Std.U32} {lit : Slice Std.U32} {b : Bool}
-    (h : frontend.text.cps_beq s lit = ok b) : (b = true ↔ s.val = lit.val) := by
-  rw [frontend.text.cps_beq] at h
-  split at h
-  · rename_i hne
-    have hl : s.val.length ≠ lit.val.length := by
-      simpa [alloc.vec.Vec.len, Slice.len] using hne
-    simp only [Result.ok.injEq] at h
-    refine ⟨fun hb => absurd (h ▸ hb) (by simp), fun he => ?_⟩
-    exact absurd (congrArg List.length he) hl
-  · rename_i hne
-    have hl : s.val.length = lit.val.length := by
-      simpa [alloc.vec.Vec.len, Slice.len] using hne
-    have hh := cps_beq_loop_val _ s lit _ 0#usize b rfl (by simp [alloc.vec.Vec.len]) hl h
-    simpa [show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hh
-
-/-- A scanned spelling equals a literal exactly when `cps_beq` says so. -/
-theorem cps_beq_str {s : alloc.vec.Vec Std.U32} {lit : Slice Std.U32} {b : Bool}
-    (hs : ConRon.Refine.StrWF s) (hL : ∀ c ∈ lit.val, Nat.isValidChar c.val)
-    (h : frontend.text.cps_beq s lit = ok b) :
-    (b = true ↔ ConRon.Refine.absString s = String.ofList (lit.val.map fun c => Char.ofNat c.val)) := by
-  rw [cps_beq_val h]
-  constructor
-  · intro he; simp only [ConRon.Refine.absString, he]
-  · intro he
-    have hlen : lit.val.length ≤ Std.Usize.max := by scalar_tac
-    have ht : ConRon.Refine.StrWF (alloc.vec.Vec.from lit.val hlen) := by
-      intro c hc; exact hL c (by simpa using hc)
-    have := ConRon.Refine.Name.absString_inj hs ht
-      (by rw [he]; simp [ConRon.Refine.absString, alloc.vec.Vec.from_val])
-    rw [this, alloc.vec.Vec.from_val]
 
 /-- **The `"safe"` test of `process_line_core_d`'s `defn` arm.** -/
 theorem safe_spelling_refines {s : alloc.vec.Vec Std.U32} {b : Bool}
@@ -517,7 +430,13 @@ inline in `installIndD`; this is `CtxRel` at them. -/
 theorem state_model_ctx_refines {rsd lsd rc} (hd : StateDRel rsd lsd)
     (hi : StateDInv rsd) (h : frontend.export_c.state_model_ctx rsd = ok rc) :
     CtxRel rc ⟨fun n => lsd.constTypes[n]?, fun n => lsd.heights.getD n 0,
-      fun n => lsd.indBlocks[n]?⟩ := by sorry
+      fun n => lsd.indBlocks[n]?⟩ := by
+  rw [frontend.export_c.state_model_ctx] at h
+  cases Result.ok_injective h
+  refine ⟨fun n => (hd.constTypes n trivial).symm, fun n => ?_,
+    fun n => (hd.indBlocks n trivial).symm, hi.constTypes, hi.heights, hi.indBlocks⟩
+  show lsd.heights.getD (absNIdx n) 0 = _
+  rw [Std.HashMap.getD_eq_getD_getElem?, ← hd.heights n trivial]
 
 /-! ## The twin's `noteDecl`, split, and the port's `toConstantVal`
 
@@ -2260,15 +2179,66 @@ theorem proj_rewrite_d_refines {pers rst lst rsd lsd cv vl o}
           | _ => cases Result.ok_injective h; exact hnone rfl
       | _ => cases Result.ok_injective h; exact hnone rfl
 
-/-- **`note_proj_iota` refines `noteProjIota`** (`ExportC.lean:325-335`). -/
+/-- **`note_proj_iota` refines `noteProjIota`** (`ExportC.lean:325-335`).
+Round 3: stated with its ERROR arm (it was success-only, which left
+`push_gen_d`'s `ThmDecl` arm nothing for a failing `proj_iota_level`). -/
 theorem note_proj_iota_refines {pers rst lst rsd lsd cvp o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.note_proj_iota pers rst rsd cvp = ok o) :
-    ∀ _u, o.1 = .Ok _u → ∃ lsd' lst',
+    match o.1 with
+    | .Ok _ => ∃ lsd' lst',
       (noteProjIota lsd (absIConstantVal cvp)).run lst = .ok (lsd', lst') ∧
       StateDRel o.2.2 lsd' ∧ StateDInv o.2.2 ∧ AStateRel₀ pers o.2.1 lst' ∧
-      AStateInv pers o.2.1 := by sorry
+      AStateInv pers o.2.1
+    | .Err e => AErrSim e ((noteProjIota lsd (absIConstantVal cvp)).run lst) := by
+  rw [frontend.export_c.note_proj_iota] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hI := is_proj_iota_name_refines hrel hinv hr
+  unfold noteProjIota
+  rw [am_run_bind']
+  cases r with
+  | Err e => cases Result.ok_injective h; exact AErrSim.bind hI _
+  | Ok b =>
+  have hI' : (isProjIotaName (absIConstantVal cvp).name).run lst = .ok (b, lst) := hI
+  rw [hI', except_ok_bind]
+  cases b with
+  | false =>
+    cases Result.ok_injective h
+    exact ⟨lsd, lst, rfl, hd, hi, hrel, hinv⟩
+  | true =>
+  simp only [if_true] at h ⊢
+  obtain ⟨fuel, hf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hF : storeFuel.run lst = .ok (absU fuel, lst) := store_fuel_refines hrel hinv hf
+  rw [am_run_bind', hF, except_ok_bind]
+  dsimp only
+  obtain ⟨⟨r1, ar1⟩, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hL : Sim₀ (Option.map absLIdx) pers lst (r1, ar1)
+      (projIotaLevel (absU fuel) (absIConstantVal cvp).type) :=
+    proj_iota_level_refines hrel hinv hr1
+  rw [am_run_bind']
+  cases r1 with
+  | Err e =>
+    cases Result.ok_injective h
+    exact AErrSim.bind (Sim₀.apply_err hL) _
+  | Ok ol =>
+  obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hL
+  rw [hx1, except_ok_bind]
+  cases ol with
+  | none =>
+    cases Result.ok_injective h
+    exact ⟨lsd, lst1, rfl, hd, hi, hrel1, hinv1⟩
+  | some l =>
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [dupId_nidx _ _ hn] at h
+  obtain ⟨⟨old, hm⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  obtain ⟨hR, -⟩ := ConRon.Refine.HashMap2.Rel_insert_wf nidx_eq2
+    (fun a b _ _ e => absNIdx_inj e) hi.projLevels (anyNKeysOk _) hd.projLevels trivial hins
+  obtain ⟨hI2, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen nidx_eq2 hi.projLevels
+    (anyNKeysOk _) trivial hins
+  exact ⟨_, lst1, rfl, { hd with projLevels := hR }, { hi with projLevels := hI2 },
+    hrel1, hinv1⟩
 
 /-! ## The modeller's booking -/
 
@@ -2277,7 +2247,42 @@ theorem push_gen_d_refines {pers rst lst rsd lsd d o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.push_gen_d pers rst rsd d = ok o) :
-    SimD pers lst o (pushGenD lsd (absIDeclaration d)) := by sorry
+    SimD pers lst o (pushGenD lsd (absIDeclaration d)) := by
+  have plain : ∀ {r : core.result.Result Unit frontend.export_c.LineErr}
+      {e : arena.store.EStore} {st1 : frontend.export_c.StateD},
+      frontend.export_c.push_decl pers rst.store rsd d = ok (r, e, st1) →
+      SimD pers lst (r, { rst with store := e }, st1) (pushDecl lsd (absIDeclaration d)) :=
+    fun hp => push_decl_refines hrel hinv hd hi hp
+  rw [frontend.export_c.push_gen_d.eq_def] at h
+  cases d
+  case ThmDecl cv v =>
+    simp only at h
+    obtain ⟨cv2, hcv2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hcv := i_constant_val_dup_abs hcv2
+    obtain ⟨⟨r, ar1, st1⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hN := note_proj_iota_refines hrel hinv hd hi hr
+    simp only [absIDeclaration, pushGenD]
+    rw [hcv] at hN
+    unfold SimD
+    rw [am_run_bind']
+    cases r with
+    | Err e =>
+      obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [frontend.export_c.fail] at hr1
+      cases Result.ok_injective hr1
+      cases Result.ok_injective h
+      exact AErrSim.bind hN _
+    | Ok u =>
+      obtain ⟨lsd1, lst1, hx1, hd1, hi1, hrel1, hinv1⟩ := hN
+      rw [hx1, except_ok_bind]
+      obtain ⟨⟨r1, e, st2⟩, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      cases Result.ok_injective h
+      exact push_decl_refines hrel1 hinv1 hd1 hi1 hp
+  all_goals
+    simp only at h
+    obtain ⟨⟨r, e, st1⟩, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    exact plain hp
 
 /-- **`note_gen_names`** — the twin's `ns.foldl` into `genOwner`. -/
 theorem note_gen_names_refines {rsd lsd names t0 rsd'} (hd : StateDRel rsd lsd)
@@ -2287,20 +2292,134 @@ theorem note_gen_names_refines {rsd lsd names t0 rsd'} (hd : StateDRel rsd lsd)
       { lsd with genRecords := lsd.genRecords + 1,
                  genOwner := (absNIdxL names).foldl
                    (fun m n => m.insert n (absNIdx t0)) lsd.genOwner } ∧
-      StateDInv rsd' := by sorry
+      StateDInv rsd' := by
+  rw [frontend.export_c.note_gen_names] at h
+  obtain ⟨i, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hm, hhm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  have hiv : absU i = absU rsd.gen_records + 1 := by
+    have := ConRon.Refine.Nat.uadd_val hi1; simp only [absU]; simpa using this
+  have key : ∀ (n : Nat) (j : Std.Usize) (m : ron.hashmap2.HashMap2 arena.handle.NIdx arena.handle.NIdx)
+      (M : Std.HashMap NIdx NIdx) m',
+      names.val.length - j.val = n →
+      ConRon.Refine.HashMap2.RelOn anyN m M absNIdx absNIdx →
+      ConRon.Refine.HashMap2.Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable m →
+      frontend.export_c.note_gen_names_loop m names t0 (alloc.vec.Vec.len names) j = ok m' →
+      ConRon.Refine.HashMap2.RelOn anyN m' (((names.val.drop j.val).map absNIdx).foldl
+          (fun m n => m.insert n (absNIdx t0)) M) absNIdx absNIdx ∧
+        ConRon.Refine.HashMap2.Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable m' := by
+    intro n
+    induction n with
+    | zero =>
+      intro j m M m' hn hR hI h
+      rw [frontend.export_c.note_gen_names_loop, if_neg (by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le (by omega)]
+      exact ⟨hR, hI⟩
+    | succ k ih =>
+      intro j m M m' hn hR hI h
+      have hj : j.val < names.val.length := by omega
+      rw [frontend.export_c.note_gen_names_loop, if_pos (by scalar_tac)] at h
+      obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hn1' : names.val[j.val] = n1 := by
+        rw [vec_index_ok_eq names j hj] at hn1; exact Result.ok_injective hn1
+      obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [dupId_nidx _ _ hn2] at h
+      obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [dupId_nidx _ _ hn3] at h
+      obtain ⟨⟨old, hm1⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨hR1, -⟩ := ConRon.Refine.HashMap2.Rel_insert_wf nidx_eq2
+        (fun a b _ _ e => absNIdx_inj e) hI (anyNKeysOk _) hR trivial hins
+      obtain ⟨hI1, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen nidx_eq2 hI
+        (anyNKeysOk _) trivial hins
+      obtain ⟨j2, hj2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hj2v : j2.val = j.val + 1 := (ConRon.Refine.Nat.uadd_val hj2).trans (by simp)
+      have := ih j2 hm1 _ m' (by omega) hR1 hI1 h
+      rw [hj2v] at this
+      rw [List.drop_eq_getElem_cons hj, hn1', List.map_cons, List.foldl_cons]
+      exact this
+  obtain ⟨hR, hI⟩ := key (names.val.length - (0#usize : Std.Usize).val) 0#usize rsd.gen_owner
+    lsd.genOwner hm rfl hd.genOwner hi.genOwner hhm
+  refine ⟨{ hd with genRecords := ?_, genOwner := ?_ }, { hi with genOwner := hI }⟩
+  · show lsd.genRecords + 1 = absU i
+    rw [hiv, hd.genRecords]
+  · simpa [absNIdxL] using hR
 
 /-- **`note_gen` refines `noteGen`** (`ExportC.lean:347-353`). -/
 theorem note_gen_refines {rsd lsd lst d t0 rsd'} (hd : StateDRel rsd lsd)
     (hi : StateDInv rsd) (h : frontend.export_c.note_gen rsd d t0 = ok rsd') :
     ∃ lsd', (noteGen lsd (absIDeclaration d) (absNIdx t0)).run lst = .ok (lsd', lst) ∧
-      StateDRel rsd' lsd' ∧ StateDInv rsd' := by sorry
+      StateDRel rsd' lsd' ∧ StateDInv rsd' := by
+  rw [frontend.export_c.note_gen] at h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hv' := i_declaration_names_abs hv
+  obtain ⟨hd', hi'⟩ := note_gen_names_refines hd hi h
+  refine ⟨_, rfl, ?_, hi'⟩
+  simp only [noteGen]
+  rw [← hv']
+  exact hd'
 
 /-- **`push_gen_list` refines `pushGenList`** (`ExportC.lean:425-428`). -/
 theorem push_gen_list_refines {pers rst lst rsd lsd gen t0 o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : frontend.export_c.push_gen_list pers rst rsd gen t0 = ok o) :
-    SimD pers lst o (pushGenList lsd (absIDeclL gen) (absNIdx t0)) := by sorry
+    SimD pers lst o (pushGenList lsd (absIDeclL gen) (absNIdx t0)) := by
+  rw [frontend.export_c.push_gen_list] at h
+  have key : ∀ (n : Nat) (i : Std.Usize) (rst : arena.monad.AState) (lst : AState)
+      (rsd : frontend.export_c.StateD) (lsd : StateD) o,
+      gen.val.length - i.val = n →
+      AStateRel₀ pers rst lst → AStateInv pers rst → StateDRel rsd lsd → StateDInv rsd →
+      frontend.export_c.push_gen_list_loop pers rst rsd gen t0 (alloc.vec.Vec.len gen) i = ok o →
+      SimD pers lst o (pushGenList lsd ((gen.val.drop i.val).map absIDeclaration) (absNIdx t0)) := by
+    intro n
+    induction n with
+    | zero =>
+      intro i rst lst rsd lsd o hn hrel hinv hd hi h
+      rw [frontend.export_c.push_gen_list_loop, if_neg (by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le (by omega)]
+      exact ⟨lsd, lst, rfl, hd, hi, hrel, hinv⟩
+    | succ k ih =>
+      intro i rst lst rsd lsd o hn hrel hinv hd hi h
+      have hi' : i.val < gen.val.length := by omega
+      rw [frontend.export_c.push_gen_list_loop, if_pos (by scalar_tac),
+        vec_index_ok_eq gen i hi', bind_tc_ok] at h
+      obtain ⟨names, hnames, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hnm := i_declaration_names_abs hnames
+      obtain ⟨d2, hd2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hdd := i_declaration_dup_abs hd2
+      obtain ⟨⟨r, ar1, st1⟩, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hP := push_gen_d_refines hrel hinv hd hi hp
+      rw [hdd] at hP
+      rw [List.drop_eq_getElem_cons hi', List.map_cons]
+      unfold SimD
+      simp only [pushGenList]
+      rw [am_run_bind']
+      unfold SimD at hP
+      cases r with
+      | Err e =>
+        cases Result.ok_injective h
+        cases e with
+        | Err ce => exact AErrSim.bind hP _
+        | Verdict v => exact hP.elim
+      | Ok u =>
+        obtain ⟨lsd1, lst1, hx1, hd1, hi1, hrel1, hinv1⟩ := hP
+        rw [hx1, except_ok_bind]
+        obtain ⟨st2, hst2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨hd2', hi2'⟩ := note_gen_names_refines hd1 hi1 hst2
+        obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi3v : i3.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi3).trans (by simp)
+        have hrec := ih i3 ar1 lst1 st2 _ o (by omega) hrel1 hinv1 hd2' hi2' h
+        rw [hi3v] at hrec
+        rw [am_run_bind']
+        show SimD pers lst1 o _ 
+        refine SimD.of_run_eq hrec ?_
+        simp only [noteGen]
+        rw [← hnm]
+        rfl
+  have := key _ 0#usize rst lst rsd lsd o rfl hrel hinv hd hi h
+  simpa [absIDeclL] using this
 
 /-! ## Two spine walks -/
 
@@ -2817,7 +2936,48 @@ theorem proj_types_of_refines {rsd lsd lst tys o} (hd : StateDRel rsd lsd)
       ((absIndTypeRecs tys).mapM fun t => do
         let cv ← parseCVD lsd t.cv
         pure (cv.name, cv.levelParams, cv.type, t.numParams, t.numIndices,
-          ← t.ctors.mapM lsd.name, t.isRec)) := by sorry
+          ← t.ctors.mapM lsd.name, t.isRec)) := by
+  rw [frontend.export_c.proj_types_of] at h
+  exact simLR_cursor0 (absY := absProjTypeRec) (absX := absIndTypeRec) (xs := tys)
+    (loop := fun out i =>
+      frontend.export_c.proj_types_of_loop rsd tys (alloc.vec.Vec.len tys) out i)
+    (fun out i o hn h => by
+      rw [frontend.export_c.proj_types_of_loop.eq_def] at h
+      rw [if_neg (show ¬ i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      exact (Result.ok_injective h).symm)
+    (fun out i o hi h => by
+      rw [frontend.export_c.proj_types_of_loop.eq_def] at h
+      rw [if_pos (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hxv := vec_index_eq hi hx
+      obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hP := parse_cv_d_refines (lst := lst) hd hr
+      cases r with
+      | Err e =>
+        refine ⟨.Err e, ?_, Or.inl ⟨e, rfl, (Result.ok_injective h).symm⟩⟩
+        rw [hxv]
+        exact SimLR.bind_err hP
+      | Ok v =>
+        obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hN := st_names_refines (lst := lst) hd hr1
+        cases r1 with
+        | Err e =>
+          refine ⟨.Err e, ?_, Or.inl ⟨e, rfl, (Result.ok_injective h).symm⟩⟩
+          rw [hxv]
+          refine SimLR.bind_ok hP ?_
+          exact SimLR.bind_err hN
+        | Ok v1 =>
+          obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          obtain ⟨e1, e2⟩ := cursor_push hout1 hi1
+          refine ⟨.Ok (v.name, v.level_params, v.ty, x.num_params, x.num_indices, v1, x.is_rec),
+            ?_, Or.inr ⟨_, out1, i1, rfl, e1, e2, h⟩⟩
+          rw [hxv]
+          refine SimLR.bind_ok hP ?_
+          refine SimLR.bind_ok hN ?_
+          show Except.ok _ = _
+          rfl)
+    rfl h
 
 /-- **`proj_ctors_of`** — the census's constructor tuples. -/
 theorem proj_ctors_of_refines {rsd lsd lst cts o} (hd : StateDRel rsd lsd)
@@ -2825,7 +2985,37 @@ theorem proj_ctors_of_refines {rsd lsd lst cts o} (hd : StateDRel rsd lsd)
     SimLR absProjCtorRecL lst o
       ((absIndCtorRecs cts).mapM fun c => do
         let cv ← parseCVD lsd c.cv
-        pure (cv.name, c.numFields, cv.type)) := by sorry
+        pure (cv.name, c.numFields, cv.type)) := by
+  rw [frontend.export_c.proj_ctors_of] at h
+  exact simLR_cursor0 (absY := absProjCtorRec) (absX := absIndCtorRec) (xs := cts)
+    (loop := fun out i =>
+      frontend.export_c.proj_ctors_of_loop rsd cts (alloc.vec.Vec.len cts) out i)
+    (fun out i o hn h => by
+      rw [frontend.export_c.proj_ctors_of_loop.eq_def] at h
+      rw [if_neg (show ¬ i < alloc.vec.Vec.len cts by scalar_tac)] at h
+      exact (Result.ok_injective h).symm)
+    (fun out i o hi h => by
+      rw [frontend.export_c.proj_ctors_of_loop.eq_def] at h
+      rw [if_pos (show i < alloc.vec.Vec.len cts by scalar_tac)] at h
+      obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hxv := vec_index_eq hi hx
+      obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hP := parse_cv_d_refines (lst := lst) hd hr
+      cases r with
+      | Err e =>
+        refine ⟨.Err e, ?_, Or.inl ⟨e, rfl, (Result.ok_injective h).symm⟩⟩
+        rw [hxv]
+        exact SimLR.bind_err hP
+      | Ok v =>
+        obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨e1, e2⟩ := cursor_push hout1 hi1
+        refine ⟨.Ok (v.name, x.num_fields, v.ty), ?_, Or.inr ⟨_, out1, i1, rfl, e1, e2, h⟩⟩
+        rw [hxv]
+        refine SimLR.bind_ok hP ?_
+        show Except.ok _ = _
+        rfl)
+    rfl h
 
 /-- **`proj_recs_of`** — the census's recursor tuples. -/
 theorem proj_recs_of_refines {rsd lsd lst rcs o} (hd : StateDRel rsd lsd)
@@ -2834,7 +3024,37 @@ theorem proj_recs_of_refines {rsd lsd lst rcs o} (hd : StateDRel rsd lsd)
       ((absIndRecRecs rcs).mapM fun r => do
         let cv ← parseCVD lsd r.cv
         pure (cv.name, cv.levelParams, cv.type, r.numMotives, r.numMinors)) := by
-  sorry
+  rw [frontend.export_c.proj_recs_of] at h
+  exact simLR_cursor0 (absY := absProjRecRec) (absX := absIndRecRec) (xs := rcs)
+    (loop := fun out i =>
+      frontend.export_c.proj_recs_of_loop rsd rcs (alloc.vec.Vec.len rcs) out i)
+    (fun out i o hn h => by
+      rw [frontend.export_c.proj_recs_of_loop.eq_def] at h
+      rw [if_neg (show ¬ i < alloc.vec.Vec.len rcs by scalar_tac)] at h
+      exact (Result.ok_injective h).symm)
+    (fun out i o hi h => by
+      rw [frontend.export_c.proj_recs_of_loop.eq_def] at h
+      rw [if_pos (show i < alloc.vec.Vec.len rcs by scalar_tac)] at h
+      obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hxv := vec_index_eq hi hx
+      obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hP := parse_cv_d_refines (lst := lst) hd hr
+      cases r with
+      | Err e =>
+        refine ⟨.Err e, ?_, Or.inl ⟨e, rfl, (Result.ok_injective h).symm⟩⟩
+        rw [hxv]
+        exact SimLR.bind_err hP
+      | Ok v =>
+        obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨e1, e2⟩ := cursor_push hout1 hi1
+        refine ⟨.Ok (v.name, v.level_params, v.ty, x.num_motives, x.num_minors), ?_,
+          Or.inr ⟨_, out1, i1, rfl, e1, e2, h⟩⟩
+        rw [hxv]
+        refine SimLR.bind_ok hP ?_
+        show Except.ok _ = _
+        rfl)
+    rfl h
 
 /-- **`note_proj_owners`** — the twin's `owners.foldl` into `projOwners`.  The
 port writes the table unconditionally where the twin's `match` sends `[]` to
@@ -2846,7 +3066,49 @@ theorem note_proj_owners_refines {rsd lsd owners rsd'} (hd : StateDRel rsd lsd)
     StateDRel rsd'
       { lsd with projOwners := (absProjRecOwnerL owners).foldl
                    (fun m o => m.insert o.T o) lsd.projOwners } ∧
-      StateDInv rsd' := by sorry
+      StateDInv rsd' := by
+  rw [frontend.export_c.note_proj_owners] at h
+  have key : ∀ (n : Nat) (i : Std.Usize) (st : frontend.export_c.StateD)
+      (M : Std.HashMap NIdx ProjRecOwner) (st' : frontend.export_c.StateD),
+      owners.val.length - i.val = n →
+      StateDRel st { lsd with projOwners := M } → StateDInv st →
+      frontend.export_c.note_proj_owners_loop st owners (alloc.vec.Vec.len owners) i = ok st' →
+      StateDRel st' { lsd with projOwners := (List.foldl (fun m o => m.insert o.T o) M
+          ((owners.val.drop i.val).map absProjRecOwner)) } ∧ StateDInv st' := by
+    intro n
+    induction n with
+    | zero =>
+      intro i st M st' hn hd hi h
+      rw [frontend.export_c.note_proj_owners_loop, if_neg (by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le (by omega)]
+      exact ⟨hd, hi⟩
+    | succ k ih =>
+      intro i st M st' hn hd hi h
+      have hi' : i.val < owners.val.length := by omega
+      rw [frontend.export_c.note_proj_owners_loop, if_pos (by scalar_tac)] at h
+      obtain ⟨pro, hpro, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hpro' := vec_index_eq hi' hpro
+      obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [dupId_nidx _ _ hn1] at h
+      obtain ⟨pro1, hpro1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hdup := proj_rec_owner_dup_refines hpro1
+      obtain ⟨⟨old, hm⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨hR, -⟩ := ConRon.Refine.HashMap2.Rel_insert_wf nidx_eq2
+        (fun a b _ _ e => absNIdx_inj e) hi.projOwners (anyNKeysOk _) hd.projOwners trivial hins
+      obtain ⟨hI, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen nidx_eq2 hi.projOwners
+        (anyNKeysOk _) trivial hins
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi2).trans (by simp)
+      rw [hdup] at hR
+      have := ih i2 { st with proj_owners := hm }
+        (M.insert (absNIdx pro.t) (absProjRecOwner pro)) st' (by omega)
+        { hd with projOwners := hR } { hi with projOwners := hI } h
+      rw [hi2v] at this
+      rw [List.drop_eq_getElem_cons hi', hpro', List.map_cons, List.foldl_cons]
+      exact this
+  have := key _ 0#usize rsd lsd.projOwners rsd' rfl hd hi h
+  simpa [absProjRecOwnerL] using this
 
 /-- **`register_proj_owners` refines `registerProjOwners`**
 (`ExportC.lean:401-421`). -/
@@ -2857,7 +3119,79 @@ theorem register_proj_owners_refines {pers rst lst rsd lsd tys cts rcs block o}
       = ok o) :
     SimD pers lst o
       (registerProjOwners lsd (absIndTypeRecs tys) (absIndCtorRecs cts)
-        (absIndRecRecs rcs) (absICIL block)) := by sorry
+        (absIndRecRecs rcs) (absICIL block)) := by
+  rw [frontend.export_c.register_proj_owners] at h
+  unfold SimD
+  simp only [registerProjOwners]
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hT := proj_types_of_refines (lst := lst) hd hr
+  rw [am_run_bind']
+  cases r with
+  | Err e =>
+    cases Result.ok_injective h
+    unfold SimLR at hT
+    cases e with
+    | Err ce => exact AErrSim.bind hT _
+    | Verdict v => exact hT.elim
+  | Ok v =>
+  rw [SimLR.apply hT, except_ok_bind]
+  obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hC := proj_ctors_of_refines (lst := lst) hd hr1
+  rw [am_run_bind']
+  cases r1 with
+  | Err e =>
+    cases Result.ok_injective h
+    unfold SimLR at hC
+    cases e with
+    | Err ce => exact AErrSim.bind hC _
+    | Verdict v => exact hC.elim
+  | Ok v1 =>
+  rw [SimLR.apply hC, except_ok_bind]
+  obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hR := proj_recs_of_refines (lst := lst) hd hr2
+  rw [am_run_bind']
+  cases r2 with
+  | Err e =>
+    cases Result.ok_injective h
+    unfold SimLR at hR
+    cases e with
+    | Err ce => exact AErrSim.bind hR _
+    | Verdict v => exact hR.elim
+  | Ok v2 =>
+  rw [SimLR.apply hR, except_ok_bind]
+  obtain ⟨fuel, hf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hF : storeFuel.run lst = .ok (absU fuel, lst) := store_fuel_refines hrel hinv hf
+  rw [am_run_bind', hF, except_ok_bind]
+  dsimp only
+  obtain ⟨⟨r3, ar1⟩, hr3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hO : Sim₀ absProjRecOwnerL pers lst (r3, ar1)
+      (projRecOwners (absU fuel) (absICIL block) (absProjTypeRecL v)
+        (absProjCtorRecL v1) (absProjRecRecL v2)) := proj_rec_owners_refines hrel hinv hr3
+  rw [am_run_bind']
+  cases r3 with
+  | Err e =>
+    obtain ⟨r4, hr4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [frontend.export_c.fail] at hr4
+    cases Result.ok_injective hr4
+    cases Result.ok_injective h
+    exact AErrSim.bind (Sim₀.apply_err hO) _
+  | Ok owners =>
+  obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hO
+  rw [hx1, except_ok_bind]
+  obtain ⟨st1, hst1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  obtain ⟨hd1, hi1⟩ := note_proj_owners_refines hd hi hst1
+  refine ⟨_, lst1, ?_, hd1, hi1, hrel1, hinv1⟩
+  cases hown : owners.val with
+  | nil =>
+    have : absProjRecOwnerL owners = [] := by simp [absProjRecOwnerL, hown]
+    simp only [this, List.foldl_nil]
+    rfl
+  | cons o os =>
+    have : absProjRecOwnerL owners = absProjRecOwner o :: os.map absProjRecOwner := by
+      simp [absProjRecOwnerL, hown]
+    simp only [this]
+    rfl
 
 /-! ## The parse result -/
 
@@ -2875,7 +3209,21 @@ theorem parse_result_of_state_refines {rsd lsd p} (hd : StateDRel rsd lsd)
 folded into the message.  The KIND — hence the exit code — is untouched, and
 the kind is all the theorem reads. -/
 theorem at_line_refines {e n ce} (h : frontend.export_c.at_line e n = ok ce) :
-    absAErrKind ce = absAErrKind e := by sorry
+    absAErrKind ce = absAErrKind e := by
+  rw [frontend.export_c.at_line] at h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases e <;>
+  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    first
+    | (rw [kernel.core_types.not_implemented] at h; cases Result.ok_injective h; rfl)
+    | (rw [kernel.core_types.invalid] at h; cases Result.ok_injective h; rfl)
+    | (rw [kernel.core_types.internal] at h; cases Result.ok_injective h; rfl)
+    | (rw [kernel.core_types.native] at h; cases Result.ok_injective h; rfl)
 
 /-! ## Line-layer shape lemmas (moved from `Top.lean` by task #97-P5-Front round 3,
 so that `ExportCInd.lean`'s `install_ind_d` can compose with them) -/

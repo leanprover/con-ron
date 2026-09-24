@@ -61157,6 +61157,32 @@ gates):
 | `Checker/DeclCheck.lean` | `check_div_mod_pin_loop_aux` succ: `lockstep` + a 5-line tail applying the IH at `tried ++ [msg]` | `lockstep` |
 | `Checker/DeclCheck.lean` | `check_div_mod_pin_loop_nil_ls` (twin `tried` fixed at `[]`) | `check_div_mod_pin_loop_ls`, any `ltried` (no other user of the old name) |
 
+#### Slice 3 — two findings of the Inductives Modeled lane (core, one commit)
+
+1. **A loop in the twin term-`match` fallback.**  `stepCore`'s last move for a
+   twin `match` on a TERM (`cases _hdisc : t`, from the ExprOps landing) never
+   ended when `t` is a constructor application: `cases _hdisc : some (!c)`
+   rebuilt `some x`, the `match` still did not reduce, and the move repeated
+   (`check_eta_thm` hit the heartbeat limit).  It now cases on
+   `caseTarget? t`: `t` itself, or for a constructor application the first
+   field, left to right and recursively, that is not one (a literal is never
+   a target).  Test: a twin `match some (!c) with | some true … | some false …
+   | none …` against the Rust leaf `ok (.Ok (!c), st)` under
+   `maxHeartbeats 20000` — with the old target it times out (checked), with
+   the new one it closes.
+2. **A failing read reported the wrong error.**  When `LSR.bind` failed,
+   `rustStep` fell through to the Rust-only `LSP.bind` and rethrew THAT
+   failure ("no @[lockstep] lemma for `…view`").  The judgement-specific
+   attempt's error is now kept and rethrown for a read.  Test: a Rust `view h`
+   against a twin `view h'` must fail with "no candidate for `…view` closes"
+   (a small `lockstep_step_fails_with "<substring>"` checker in `Tests.lean`).
+
+`lake build ConRonRefine2` green.  The lane's workaround to remove once its
+branch (`t2-ind-mod`, not on `arena` at the time) and this are both landed:
+`Inductives/PrimsModeled.lean`'s `ind_twin_split` and the `lockstep_mod` /
+`lockstep_ite` drivers (their `rw [bind_pure]; twin_ite_pos/neg` tail is slice
+1b's case), whose uses in `Inductives/Modeled.lean` become `lockstep`.
+
 ### Task #97-T2-LOCKSTEP lane Inductives Modeled — the modeled route by `lockstep`; one twin divergence fixed (2026-09-23, Opus under Fable)
 
 Worktree `_tmp/wt-t2-ind-mod`, branch `t2-ind-mod` off `arena` `70ea5a33`
@@ -61447,3 +61473,190 @@ passes to the Inductives Modeled lane).  Note for the maintainer: the port's
 `cert_*` doc comments still cite `Lean twin: … divModCertStmts`; they could
 now name their own twin helpers (a Rust doc change, not made).
 
+### Task #97-T2-LOCKSTEP lane Frontend round 3 — the modeller seam; the lane's frontier (2026-09-23, Opus under Fable)
+
+Worktree `_tmp/wt-t2-front3` off `65b6f721` (round 2's tip, which already
+contains `arena` `5901271c`).
+
+#### Item 1 — `ModellerRefines` against the concrete modeller
+
+`ModellerRefines inst m inProcessModeller` (`Refine2/Frontend/Shape.lean`) is
+a named hypothesis `hmr` of the capstone.  It quantifies over EVERY related
+state and fixes the modeller value `m`; the concrete modeller the binary
+passes (`crates/con-ron/src/in_model.rs`, `InProcess`) carried state across
+calls.  Findings:
+
+**Who consumes `hmr`.**  Both headline theorems.  `rust_stages` uses it at
+stage 2 (`builtin_prelude_e_refines`) and stage 3 (`parse_chunks_refines`),
+and `model_exists` and **`no_False_declaration` both call `rust_stages`**, so
+soundness rests on `hmr` as much as `model_exists` does.  (It is a hypothesis,
+not an axiom, so `#print axioms` does not list it; the dependency is the
+term.)  Removing it from `no_False_declaration` would need Theorem 1 and the
+capstone to be modeller-agnostic — con-leche's `no_False_theorem_accepted`
+is (any stream holding the `False` theorem is rejected), but the arena's
+`stages_no_False` goes through the parse's exactness against con-leche's
+parse at `inProcessModeller`, so that is a Theorem-1 restructure, not a seam
+fix.  Not proposed.
+
+**(a) the `blocks` cache — FIXED (authorised), `9fa4d24f`.**  The tree
+blocks `Ctx::blocks` returns were `Box::leak`ed into a per-RUN map keyed by
+the member type's name handle; `export_c::note_ind_blocks` overwrites that
+key when a later inductive record declares a type of the same name, so the
+port served the first block where the twin's `ctxOf` (`ctx.blocks h`, read
+afresh per call) reads the second.  Now per call: a `Vec<OnceCell<Box<BlockRec>>>`
+of `ctx.blocks.len()` cells, allocated at the call's first ask, and a
+per-call handle-word map; within one call the context and the store are
+fixed, so it cannot disagree with the twin.  No leak any more.  The driver
+crate is not extracted; `cargo test -p con-ron` 32/32, outputs of
+`tower_nested`/`nested_struct_proj` byte-identical.
+
+**(b) the readback `memo`** (`HashMap<u32, Expr>`, per run).  Sound along a
+run (append-only persistent tier, scratch off during the parse, so every
+entry is the readback in the current store), false for an arbitrary related
+state — so `hmr` as stated is false of `InProcess`.  Options:
+
+| option | what changes | cost |
+|---|---|---|
+| **A. per-call memo** (Rust: the memo becomes a local of `generate`, `InProcess` a unit struct) | `InProcess` is then a pure function of `(pers, store, ctx, b)`, exactly the twin's shape (`denoteBlockRec` at `∅`, `denoteEShared` fresh); `hmr` keeps its statement | measured below: nothing |
+| B. coherence parameter (`ModellerRefines` over a predicate `Coh m pers store`) | not expressible: the memo is interior mutability behind `&self`, invisible in the Aeneas model, where `inst.generate m` is a function of its arguments | — |
+| C. narrow the quantifier to states reachable along the run | a reachability predicate in a trusted hypothesis, threaded through `parse_chunks_refines`/`builtin_prelude_e_refines`; the trusted text grows an argument (append-only + scratch off) instead of shrinking | proof work in the lane, no runtime cost |
+
+Measured (`perf stat -e instructions:u`, `CON_LECHE_INMODEL_CENSUS=1`, which
+stops after the parse, so the modeller's share is not diluted by the check;
+`--verified --jobs=1`; release, mimalloc):
+
+| export (modelled blocks) | base (per-run memo + blocks) | (a) only | A: (a) + per-call memo |
+|---|---:|---:|---:|
+| `init` (1) | 15 979 254 517 – 15 979 321 879 (4 runs) | 15 979 169 290 | 15 979 171 771 |
+| `core` (45) | 37 805 109 415 – 37 805 180 374 (4 runs) | 37 899 105 882 – 37 899 309 391 (4 runs, **+0.25 %**) | 37 805 671 204, 37 805 851 394 (**+0.002 %**) |
+| `mathlib` (49) | 274 390 707 674, 274 390 839 840 | 274 390 854 175 | 274 386 940 108 |
+| `tower_struct` (0) | 145 128 796 | — | 145 129 182 |
+| `tower_nested` (1) | 186 100 078 | — | 186 099 080 |
+
+`tower_struct` — the fixture that motivated the memo — has **no** modelled
+block in the port (`census: 0 modelled`); the DAG argument is about the
+readback *within* one call, which a per-call memo keeps.  The memo across
+calls saves nothing measurable on any export.  With the modeller off
+(`CON_LECHE_INMODEL=0`) base and (a) are equal on `core`, so (a)'s +0.25 % is
+in the modeller path; A, which also drops the memo, does not pay it (not
+diagnosed further — A is the one proposed).
+
+**(c) two more divergences at the seam, found on the way** (not authorised;
+rulings needed):
+
+1. **dangling readback**: the port DECLINES (`Err("arena: dangling handle in a
+   modelled block")`), the twin THROWS (`fail (.internal …)`).  `SimGen`'s
+   decline arm needs the twin to answer `.ok (.error _)`, so `hmr` is false at
+   a block that does not read back.  Fix in the TWIN: `none => pure (.error
+   "arena: dangling handle in a modelled block")`; Theorem 1 repair is
+   `inProcessModeller_wf`'s `none` case (a decline frame, as the other decline)
+   — `inProcessModeller_refines` never reaches it (`BlockRecRel` gives `some`).
+2. **intern failure**: `intern_decls` erroring (a capacity `Native`) makes the
+   port DECLINE with the partially-interned store kept (`*ar = ast.store`);
+   the twin's `internDecls` throws.  A decline is not expressible on the twin
+   without restoring the store the Rust keeps, and the trait's error is a
+   `Vec<u32>`, so the port cannot say `Native`.  Proposed: the port **panics**
+   there (the process aborts with the message: no verdict, the model's `fail`),
+   which is what the twin's throw means.
+
+**Recommendation: A + (c1) twin + (c2) panic.**  Then `hmr`'s statement is
+unchanged and true of `InProcess` up to the one trust it is meant to carry —
+that `crate::in_model::generate` (the task-#37 port) is con-leche's
+`InModel.generate`.
+
+**Rulings (coordinator) and what was done.**
+
+1. **A — approved, done.**  `InProcess` carries no state (`pub struct
+   InProcess {}`); the readback memo is a local of `generate`, as the tree
+   blocks already were.  `core` parse: 37 809 244 061 / 37 809 642 425
+   (+0.01 % on base); `tower_nested`, `tower_mutual`, `nested_struct_proj`
+   output byte-identical; `cargo test -p con-ron` 32/32.
+2. **c1 — approved, done in the twin.**  `inProcessModeller`'s `none` arm is
+   `pure (.error "arena: dangling handle in a modelled block")` (the port's
+   own message).  Theorem 1: `inProcessModeller_wf`'s two `none` cases — the
+   decline half now gives the decline frame (`Ext.refl`), the accept half
+   refutes `.error = .ok` — and nothing else unfolded the modeller.
+3. **c2 — the port PANICS**, because the twin cannot represent the store the
+   port keeps.  `AM` is `StateT AState (Except CheckError)`: a throw's result
+   is `.error e` with no state, and `tryCatch`'s handler resumes at the state
+   the `try` STARTED in — so a caught `internDecls` failure is a decline at
+   the pre-call store, never at the partly-interned store the port kept
+   (`*ar = ast.store`).  Representing it would mean an error-carrying-state
+   monad for the whole intern chain (the audit's D4 twin-side alternative,
+   rejected there as disproportionate).  The port now `panic!`s with the
+   intern's message: no verdict, which is what the twin's throw is.  The
+   failure is a table at capacity (`IDX_CAP`), unreachable on any export
+   measured.
+
+**Item 2 — the lane frontier.**  Every Frontend statement the capstones reach
+through this lane is proved; the lane's `sorry`s left are `Top.lean`'s two
+(`concat_bytes`, `parse_export_d`, off both capstones' paths).  In order:
+
+* `proj_rec_value` (`ProjRec.lean`, all of it on `lockstep`), and with it the
+  owner census `register_proj_owners` / `proj_rec_owners` /
+  `proj_rec_candidates`.  Restated on the way: `find_ctor_rec` /
+  `find_rec_rec` as `LSP` specs answering `TwinEq (findCtorRec …) …` (the twin
+  reads the record the port's index names), `note_proj_iota`'s error arm.
+  `Spec.lean`'s stale `projRecValue` / owner-census transcriptions (and six
+  `unfold`s of them) deleted: they transcribed the twin before round 2's D1
+  and no longer matched it.
+* `install_gen`, `note_ind_blocks` (`ExportCInd.lean`); ExportC's twelve.
+* `hoist_targets` (`NatOpGround.lean`): `used_consts_go` (the node/two split
+  inline), `used_consts_{rules,block}`, `decl_used_consts(_value)`,
+  `hoist_close` (the unfuelled worklist against the fuelled twin, by the
+  `hoistPending` measure; restated with the index-bound premise `hidx` and the
+  `HCOut` shape), `hoist_targets_at` (restated in the same shape) and
+  `hoist_targets`.  New `Frontend/NatOpDeps.lean`: `nat_op_deps` against
+  `natOpDeps` — the port reads the fifteen pins into a `NatOpPins` record
+  (split in two by the extraction), the twin reads them one by one;
+  `natOpPinsT` names that prefix of the twin (a Refine2-side definition, no
+  twin change) and `natOpDeps_eq` splits it there, so `nat_op_pins` is one
+  `lockstep` call.  The twin's target map stays within the stream
+  (`hoistTargetsGo_bound`): a fact about the twin's runs alone, what
+  `apply_hoist_refines` needs.
+* The interim `Frontend/ExprOpsSeam.lean` (the ExprOps lane's statements,
+  sorried, while that lane was unlanded) is deleted at the `arena` merge; the
+  uses are the lane's `ExprOps.*_ls`.  Duplicates the merge brought in are
+  dropped here, not there: `i_constant_info_to_constant_val_refines` (now
+  `Checker/Pins.lean`), the fifteen `nat_*_name_ls` (now `Checker/Pins.lean`),
+  `cons_binder_spec` / `hashmap2_new_eidx_spec` (now `Tactic/Prims.lean`;
+  the census's visited set keeps its own `HSetRel` spec, not `@[lockstep]`,
+  taken by hand in `occurs_const_fast`).
+
+**What the merge did to this lane's `lockstep` proofs.**  Four proofs
+(`occurs_const_go`, `proj_rec_value`, `proj_rec_candidates_from`,
+`proj_rec_owners`) relied on the zip STOPPING at a twin test it could not
+decide and finished by hand there.  With `arena`'s tactic (round 2's twin
+fallbacks: an undecided twin `if` split, a twin `match` on a term cased) the
+zip no longer stops; it walks the doomed arm and runs out of heartbeats.  A
+second cause: the side tiers' `simp only [lockstep_simp, *]` tries a live
+induction hypothesis `ih` as a conditional rewrite at every step, which does
+not terminate in `proj_rec_candidates_from`.  Repaired inside the lane, with
+no edit to `Tactic/Lockstep.lean`:
+
+* local tactics in `ProjRec.lean`, each FAILING unless its shape is present,
+  so they sit in front of `lockstep_step` in a `repeat' (first | … |
+  lockstep_step)` driver: `ls_bool_false` (the port's `if b` against the
+  twin's `match (b, seen)`), `ls_subst_bne` (a failed `x != c` test
+  substituted), `ls_view_sort` (`LS.twin_view_sort` from the tag fact),
+  `ls_clear_ih_candidates` (clear `ih` once the port no longer calls the
+  recursion), `ls_ctor_record` (the `ctors[j]` the twin's `findCtorRec` cased
+  on); `lockstep_step_nosplit` refuses a step whose result is ≥ 2 goals with
+  the port's program unchanged (the fallback split);
+* `proj_rec_value`: the thirteen-step prefix and the port's three tests
+  against the twin's one `||` test decided explicitly;
+* `proj_rec_owners`: a port branch its own `false` rules out closes at once,
+  and a local Boolean `lockstep_simp` folds the twin's `direct && !recursive`;
+* `proj_rec_candidates_from` needs `maxHeartbeats 1000000`.
+
+Ruling asked (tactic owner): whether the twin fallbacks should be opt-out
+(`lockstep_nosplit` is a lane-local emulation), and whether `lockstep_side`'s
+`simp [*]` should skip ∀-hypotheses — both would make these workarounds
+unnecessary.
+
+**Frontier after the round** (`scripts/frontier.sh`, both capstones, on the
+merged tip): 46 items in 14 modules, 244 tainted, dead weight 284 — **no
+Frontend module on the frontier**; `Frontend/Top.lean`'s two are dead weight.
+(Before the round: 46 items, 540 dead weight on the round-2 tip; the item
+count is unchanged because the Checker/Inductives items it now shows were
+behind the Frontend ones.)

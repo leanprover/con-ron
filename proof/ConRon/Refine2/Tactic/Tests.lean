@@ -164,6 +164,52 @@ example {pers st lst} {e : arena.handle.EIdx} {b : Bool}
   lockstep
   all_goals sorry
 
+/-! ## 4. A twin `match` on a constructor application (the Inductives Modeled lane)
+
+The fallback that cases a twin `match` on a TERM once cased on `some (!c)`
+itself: `cases` rebuilt `some x`, the `match` still did not reduce, and the
+move repeated for ever (`check_eta_thm` hit the heartbeat limit; the lane's
+`ind_twin_split` in `lockstep_mod` split such matches first).  It now cases on
+the first field that is not a constructor application (`!c`). -/
+set_option maxHeartbeats 20000 in
+example {pers st lst} {c : Bool}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (ok (.Ok (!c), st)) lst
+      (match some (!c) with
+        | some true => pure true
+        | some false => pure false
+        | none => pure false) := by
+  lockstep
+
+/-! ## 5. A failing read reports its own failure
+
+When an `LSR` read step fails (here: the twin reads another handle), the error
+is the read's candidates', not the Rust-only fallback's "no @[lockstep] lemma
+for `arena.monad.view`". -/
+
+open Lean Elab Tactic in
+elab "lockstep_step_fails_with " s:str : tactic => do
+  let msg ← try
+      evalTactic (← `(tactic| lockstep_step))
+      pure none
+    catch e => pure (some (← e.toMessageData.toString))
+  match msg with
+  | none => throwError "lockstep_step succeeded"
+  | some m =>
+    unless (m.splitOn s.getString).length > 1 do
+      throwError "lockstep_step failed with another message:\n{m}"
+
+#guard_msgs (drop warning) in
+example {pers st lst} {h h' : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absENodeView a)
+      (arena.monad.view pers st h >>= fun r => match r with
+        | .Ok v => ok (.Ok v, st)
+        | .Err e => ok (.Err e, st)) lst
+      (Arena.view (absEIdx h') >>= fun v => pure v) := by
+  lockstep_step_fails_with "no candidate for `ConRon.Generated.arena.monad.view` closes"
+  sorry
+
 /-! ## The axiom census -/
 
 #print axioms lift_fueled_any_ls

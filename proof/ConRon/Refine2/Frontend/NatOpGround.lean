@@ -39,10 +39,11 @@ the code after a loop into every exit of it.
    well-founded argument of task #87 §18, with the twin's lemma as its
    measure.
 
-## `sorry` count in this file: 10
+## `sorry` count in this file: 0
 -/
 import ConRon.Refine2.Frontend.Prepare
 import ConRon.Refine2.Checker.Base
+import ConRon.Refine2.Frontend.NatOpDeps
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -149,33 +150,169 @@ the port's two extra splits (extraction rule 5: the probe's borrow must be
 dead before the descent mutates the table).  Neither has a twin, so both are
 stated against the twin's own arm. -/
 
+/-- An in-bounds `Vec` index answers the element. -/
+theorem vec_index_ok_eq {α : Type} (v : alloc.vec.Vec α) (i : Std.Usize)
+    (hi : i.val < v.val.length) :
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i = ok v.val[i.val] := by
+  simp only [alloc.vec.Vec.index_slice_index]
+  obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec v i hi)
+  rw [hy, hyv]
+
+/-- The twin's `view` at a handle the port viewed: a read, at the same state. -/
+theorem view_step {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {h : arena.handle.EIdx} {o} (hv : arena.monad.view pers st h = ok o) :
+    match o with
+    | .Ok v => (Arena.view (absEIdx h)).run lst = .ok (absENodeView v, lst)
+    | .Err e => AErrSim e ((Arena.view (absEIdx h)).run lst) := by
+  have hL := Lockstep.view_ls hrel hinv h o hv
+  have hrun := Lockstep.view_run_of (absEIdx h) lst
+  cases o with
+  | Err e => exact hL
+  | Ok v =>
+    obtain ⟨b, lst', hx, hb, -, -⟩ := hL
+    rw [hx, hb.2]
+    rw [hrun] at hx
+    split at hx
+    · cases hx; rfl
+    · cases hx
+
+/-- The visited set's insert (the port records `true`). -/
+theorem seen_insert_rel {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {ls : Std.HashSet EIdx} (hs : HSetRel rm ls) {e : arena.handle.EIdx} {old m'}
+    (h : ron.hashmap2.HashMap2.insert arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable
+      arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2 rm e true = ok (old, m')) :
+    HSetRel m' (ls.insert (absEIdx e)) := by
+  obtain ⟨hinv', -, htf, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen eidx_eq2 hs.2
+    ConRon.Refine.HashMap2.KeysOk_true trivial h
+  refine ⟨fun k => ?_, hinv'⟩
+  rw [htf, Std.HashSet.contains_insert]
+  by_cases hk : k = e
+  · subst hk; simp
+  · have hne : (absEIdx e == absEIdx k) = false := by
+      simp only [beq_eq_false_iff_ne, ne_eq]
+      exact fun h' => hk (absEIdx_inj h').symm
+    rw [Function.update_of_ne hk, hs.1 k, hne, Bool.false_or]
+
+theorem absNIdxArr_push {acc : alloc.vec.Vec arena.handle.NIdx} {n acc'}
+    (h : alloc.vec.Vec.push acc n = ok acc') :
+    absNIdxArr acc' = (absNIdxArr acc).push (absNIdx n) := by
+  simp [absNIdxArr, ConRon.Refine.vec_push_val h]
+
+/-- The used-constants walk, every port split (`used_consts_node`,
+`used_consts_two`) unfolded in place, by induction on the fuel. -/
+theorem used_consts_go_aux {pers rst lst} (hrel : AStateRel₀ pers rst lst)
+    (hinv : AStateInv pers rst) (N : Nat) :
+    ∀ (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool) (ls : Std.HashSet EIdx)
+      (acc : alloc.vec.Vec arena.handle.NIdx) (fuel : Std.U64) (e : arena.handle.EIdx) o,
+      fuel.val = N → HSetRel seen ls →
+      frontend.nat_op_ground.used_consts_go pers rst seen acc fuel e = ok o →
+      UOut lst o (usedConstsGo ls (absNIdxArr acc) N (absEIdx e)) := by
+  induction N with
+  | zero =>
+    intro seen ls acc fuel e o hn hs h
+    rw [frontend.nat_op_ground.used_consts_go, if_pos (by scalar_tac)] at h
+    obtain ⟨sl, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases fail_run hr
+    cases Result.ok_injective h
+    exact AErrSim.internal rfl
+  | succ k ih =>
+    -- the two-child step, used by four arms
+    have two : ∀ (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool) (ls : Std.HashSet EIdx)
+        (acc : alloc.vec.Vec arena.handle.NIdx) (fuel : Std.U64) (a b : arena.handle.EIdx) o,
+        fuel.val = k → HSetRel seen ls →
+        frontend.nat_op_ground.used_consts_two pers rst seen acc fuel a b = ok o →
+        UOut lst o (do
+          let (s, acc) ← usedConstsGo ls (absNIdxArr acc) k (absEIdx a)
+          usedConstsGo s acc k (absEIdx b)) := by
+      intro seen ls acc fuel a b o hn hs h
+      rw [frontend.nat_op_ground.used_consts_two] at h
+      obtain ⟨⟨r, seen1⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h1 := ih seen ls acc fuel a _ hn hs hr
+      unfold UOut at h1 ⊢
+      rw [am_run_bind']
+      cases r with
+      | Err e =>
+        cases Result.ok_injective h
+        exact AErrSim.bind h1 _
+      | Ok acc2 =>
+        obtain ⟨s', hx, hs'⟩ := h1
+        rw [hx, except_ok_bind]
+        exact ih seen1 s' acc2 fuel b o hn hs' h
+    intro seen ls acc fuel e o hn hs h
+    rw [frontend.nat_op_ground.used_consts_go, if_neg (by scalar_tac)] at h
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbv := seen_has_refines hs hb
+    unfold usedConstsGo
+    split at h
+    · rename_i hbt
+      cases Result.ok_injective h
+      rw [if_pos (by rw [← hbv]; exact hbt)]
+      exact ⟨ls, rfl, hs⟩
+    · rename_i hbt
+      rw [if_neg (by rw [← hbv]; exact hbt)]
+      obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [dupId_eidx _ _ he1] at h
+      obtain ⟨⟨old, seen1⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hs1 := seen_insert_rel hs hins
+      obtain ⟨i, hi, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hiv : i.val = k := by
+        have := (ConRon.Refine.Nat.usub_val hi).2; rw [this, hn]; rfl
+      rw [frontend.nat_op_ground.used_consts_node] at h
+      obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hV := view_step hrel hinv hr
+      unfold UOut
+      simp only []
+      rw [am_run_bind']
+      cases r with
+      | Err er =>
+        cases Result.ok_injective h
+        exact AErrSim.bind hV _
+      | Ok v =>
+      rw [hV, except_ok_bind]
+      cases v with
+      | BVar _ => cases Result.ok_injective h; exact ⟨_, rfl, hs1⟩
+      | «Sort» _ => cases Result.ok_injective h; exact ⟨_, rfl, hs1⟩
+      | Lit _ => cases Result.ok_injective h; exact ⟨_, rfl, hs1⟩
+      | Const n us =>
+        obtain ⟨acc1, hacc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        cases Result.ok_injective h
+        exact ⟨_, by simp only [absENodeView, absNIdxArr_push hacc1]; rfl, hs1⟩
+      | FVar _ ty => exact ih seen1 _ acc i ty o hiv hs1 h
+      | App f a => exact two seen1 _ acc i f a o hiv hs1 h
+      | Lam ty b _ => exact two seen1 _ acc i ty b o hiv hs1 h
+      | ForallE ty b _ => exact two seen1 _ acc i ty b o hiv hs1 h
+      | LetE ty v b =>
+        obtain ⟨⟨r1, seen2⟩, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have h2 := two seen1 _ acc i ty v _ hiv hs1 hr1
+        unfold UOut at h2
+        simp only [absENodeView]
+        rw [← bind_assoc]
+        rw [am_run_bind']
+        cases r1 with
+        | Err e =>
+          cases Result.ok_injective h
+          exact AErrSim.bind h2 _
+        | Ok acc2 =>
+          obtain ⟨s', hx, hs'⟩ := h2
+          rw [hx, except_ok_bind]
+          exact ih seen2 s' acc2 i b o hiv hs' h
+      | Proj sn _ x =>
+        obtain ⟨acc1, hacc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have := ih seen1 _ acc1 i x o hiv hs1 h
+        simp only [absENodeView]
+        rw [← absNIdxArr_push hacc1]
+        exact this
+
 /-- **`nat_op_ground::used_consts_go` refines `usedConstsGo`**
 (`Arena/Frontend/NatOpGround.lean:50-71`). -/
 theorem used_consts_go_refines {pers rst lst seen ls acc fuel e o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hs : HSetRel seen ls)
     (h : frontend.nat_op_ground.used_consts_go pers rst seen acc fuel e = ok o) :
-    UOut lst o (usedConstsGo ls (absNIdxArr acc) (absU fuel) (absEIdx e)) := by
-  sorry
-
-/-- **`used_consts_node`** — the port-only split at a resolved view: the twin's
-`match ← view e with` arms, inline. -/
-theorem used_consts_node_refines {pers rst lst seen ls acc fuel e o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (hs : HSetRel seen ls)
-    (h : frontend.nat_op_ground.used_consts_node pers rst seen acc fuel e = ok o) :
-    UOut lst o (usedConstsGo ls (absNIdxArr acc) (absU fuel + 1) (absEIdx e)) := by
-  sorry
-
-/-- **`used_consts_two`** — the twin's four identical two-child `match` nests,
-as one function. -/
-theorem used_consts_two_refines {pers rst lst seen ls acc fuel a b o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (hs : HSetRel seen ls)
-    (h : frontend.nat_op_ground.used_consts_two pers rst seen acc fuel a b = ok o) :
-    UOut lst o (do
-      let (s, acc) ← usedConstsGo ls (absNIdxArr acc) (absU fuel) (absEIdx a)
-      usedConstsGo s acc (absU fuel) (absEIdx b)) := by sorry
+    UOut lst o (usedConstsGo ls (absNIdxArr acc) (absU fuel) (absEIdx e)) :=
+  used_consts_go_aux hrel hinv _ seen ls acc fuel e o rfl hs h
 
 /-- **`used_consts_rules` refines `usedConstsRules`**
 (`Arena/Frontend/NatOpGround.lean:77-83`). -/
@@ -184,7 +321,49 @@ theorem used_consts_rules_refines {pers rst lst seen ls acc rules o}
     (hs : HSetRel seen ls)
     (h : frontend.nat_op_ground.used_consts_rules pers rst seen acc rules = ok o) :
     UOut lst o (usedConstsRules ls (absNIdxArr acc) (absIRecRuleL rules)) := by
-  sorry
+  rw [frontend.nat_op_ground.used_consts_rules] at h
+  have key : ∀ (k : Nat) (i : Std.Usize) (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+      (ls : Std.HashSet EIdx) (out : alloc.vec.Vec arena.handle.NIdx) o,
+      rules.val.length - i.val = k → HSetRel seen ls →
+      frontend.nat_op_ground.used_consts_rules_loop pers rst seen rules out
+        (alloc.vec.Vec.len rules) i = ok o →
+      UOut lst o (usedConstsRules ls (absNIdxArr out) ((rules.val.drop i.val).map absIRecRule)) := by
+    intro k
+    induction k with
+    | zero =>
+      intro i seen ls out o hk hs h
+      rw [frontend.nat_op_ground.used_consts_rules_loop, if_neg (by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le (by omega)]
+      exact ⟨ls, rfl, hs⟩
+    | succ k ih =>
+      intro i seen ls out o hk hs h
+      have hi : i.val < rules.val.length := by omega
+      rw [frontend.nat_op_ground.used_consts_rules_loop, if_pos (by scalar_tac),
+        vec_index_ok_eq rules i hi, bind_tc_ok] at h
+      obtain ⟨⟨r, seen1⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h1 := used_consts_go_refines hrel hinv hs hr
+      rw [core_walk_fuel_abs] at h1
+      rw [List.drop_eq_getElem_cons hi, List.map_cons]
+      unfold UOut at h1 ⊢
+      simp only [usedConstsRules]
+      rw [am_run_bind']
+      cases r with
+      | Err e =>
+        cases Result.ok_injective h
+        exact AErrSim.bind h1 _
+      | Ok a2 =>
+        obtain ⟨s', hx, hs'⟩ := h1
+        have hx' : (usedConstsGo ls (absNIdxArr out) coreWalkFuel (absIRecRule rules.val[i.val]).rhs).run lst
+            = .ok ((s', absNIdxArr a2), lst) := hx
+        rw [hx', except_ok_bind]
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi1v : i1.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi1).trans (by simp)
+        have := ih i1 seen1 s' a2 o (by omega) hs' h
+        rw [hi1v] at this
+        exact this
+  have := key _ 0#usize seen ls acc o rfl hs h
+  simpa [absIRecRuleL] using this
 
 /-- **`used_consts_block` refines `usedConstsBlock`**
 (`Arena/Frontend/NatOpGround.lean:86-96`).  The one walk of the group that
@@ -194,15 +373,92 @@ theorem used_consts_block_refines {pers rst lst seen ls acc block o}
     (hs : HSetRel seen ls)
     (h : frontend.nat_op_ground.used_consts_block pers rst seen acc block = ok o) :
     UOutS pers lst o (usedConstsBlock ls (absNIdxArr acc) (absICIL block)) := by
-  sorry
-
-/-- **`decl_used_consts` refines `IDeclaration.usedConsts`**
-(`Arena/Frontend/NatOpGround.lean:100-106`). -/
-theorem decl_used_consts_refines {pers rst lst d o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.nat_op_ground.decl_used_consts pers rst d = ok o) :
-    Sim₀ absNIdxArr pers lst o
-      (IDeclaration.usedConsts (absIDeclaration d)) := by sorry
+  rw [frontend.nat_op_ground.used_consts_block] at h
+  have key : ∀ (k : Nat) (i : Std.Usize) (st : arena.monad.AState) (lst : AState)
+      (seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+      (ls : Std.HashSet EIdx) (out : alloc.vec.Vec arena.handle.NIdx) o,
+      block.val.length - i.val = k → AStateRel₀ pers st lst → AStateInv pers st →
+      HSetRel seen ls →
+      frontend.nat_op_ground.used_consts_block_loop pers st seen block out
+        (alloc.vec.Vec.len block) i = ok o →
+      UOutS pers lst o (usedConstsBlock ls (absNIdxArr out)
+        ((block.val.drop i.val).map absIConstantInfo)) := by
+    intro k
+    induction k with
+    | zero =>
+      intro i st lst seen ls out o hk hrel hinv hs h
+      rw [frontend.nat_op_ground.used_consts_block_loop, if_neg (by scalar_tac)] at h
+      cases Result.ok_injective h
+      rw [List.drop_eq_nil_of_le (by omega)]
+      exact ⟨ls, lst, rfl, hs, hrel, hinv⟩
+    | succ k ih =>
+      intro i st lst seen ls out o hk hrel hinv hs h
+      have hi : i.val < block.val.length := by omega
+      rw [frontend.nat_op_ground.used_consts_block_loop, if_pos (by scalar_tac),
+        vec_index_ok_eq block i hi, bind_tc_ok] at h
+      obtain ⟨ci, hci, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hcia := i_constant_info_dup_abs hci
+      obtain ⟨⟨r, e⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hT := i_constant_info_to_constant_val_refines hrel hinv hr
+      rw [hcia] at hT
+      rw [List.drop_eq_getElem_cons hi, List.map_cons]
+      unfold UOutS
+      simp only [usedConstsBlock]
+      rw [am_run_bind']
+      unfold Sim₀ at hT
+      cases r with
+      | Err e1 =>
+        cases Result.ok_injective h
+        exact AErrSim.bind hT _
+      | Ok cv =>
+      obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hT
+      rw [hx1, except_ok_bind]
+      obtain ⟨⟨r1, seen1⟩, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hG := used_consts_go_refines hrel1 hinv1 hs hr1
+      rw [core_walk_fuel_abs] at hG
+      unfold UOut at hG
+      rw [am_run_bind']
+      cases r1 with
+      | Err e2 =>
+        cases Result.ok_injective h
+        exact AErrSim.bind hG _
+      | Ok a2 =>
+      obtain ⟨s1, hx2, hs1⟩ := hG
+      have hx2' : (usedConstsGo ls (absNIdxArr out) coreWalkFuel
+          (absIConstantVal cv).type).run lst1 = .ok ((s1, absNIdxArr a2), lst1) := hx2
+      rw [hx2', except_ok_bind]
+      rcases hbi : block.val[i.val] with cvx | ⟨cvx, v, hint⟩ | ⟨cvx, v⟩ | ⟨cvx, caps⟩ |
+        ⟨cvx, np, nf⟩ | ⟨cvx, mi, rp, rules⟩ | tbl
+      all_goals rw [hbi] at h
+      all_goals simp only [absIConstantInfo]
+      case RecInfo =>
+        obtain ⟨⟨r2, seen2⟩, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hR := used_consts_rules_refines hrel1 hinv1 hs1 hr2
+        unfold UOut at hR
+        rw [am_run_bind']
+        cases r2 with
+        | Err e3 =>
+          cases Result.ok_injective h
+          exact AErrSim.bind hR _
+        | Ok a3 =>
+        obtain ⟨s2, hx3, hs2⟩ := hR
+        have hx3' : (usedConstsRules s1 (absNIdxArr a2) (rules.val.map absIRecRule)).run lst1
+            = .ok ((s2, absNIdxArr a3), lst1) := hx3
+        rw [hx3', except_ok_bind]
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi1v : i1.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi1).trans (by simp)
+        have := ih i1 _ lst1 seen2 s2 a3 o (by omega) hrel1 hinv1 hs2 h
+        rw [hi1v] at this
+        exact this
+      all_goals
+        obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi1v : i1.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi1).trans (by simp)
+        have := ih i1 _ lst1 seen1 s1 a2 o (by omega) hrel1 hinv1 hs1 h
+        rw [hi1v] at this
+        simp only [pure_bind]
+        exact this
+  have := key _ 0#usize rst lst seen ls acc o rfl hrel hinv hs h
+  simpa [absICIL] using this
 
 /-- **`decl_used_consts_value`** — the cited three-arm case of
 `IDeclaration.usedConsts` (a definition, a theorem, an opaque), which the port
@@ -213,7 +469,106 @@ theorem decl_used_consts_value_refines {pers rst lst seen ls ty v o}
     (h : frontend.nat_op_ground.decl_used_consts_value pers rst seen ty v = ok o) :
     UOut lst o (do
       let (s, acc) ← usedConstsGo ls #[] coreWalkFuel (absEIdx ty)
-      usedConstsGo s acc coreWalkFuel (absEIdx v)) := by sorry
+      usedConstsGo s acc coreWalkFuel (absEIdx v)) := by
+  rw [frontend.nat_op_ground.decl_used_consts_value] at h
+  obtain ⟨⟨r, seen1⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h1 := used_consts_go_refines hrel hinv hs hr
+  rw [core_walk_fuel_abs] at h1
+  have e0 : absNIdxArr (alloc.vec.Vec.new arena.handle.NIdx) = #[] := rfl
+  rw [e0] at h1
+  unfold UOut at h1 ⊢
+  rw [am_run_bind']
+  cases r with
+  | Err e =>
+    cases Result.ok_injective h
+    exact AErrSim.bind h1 _
+  | Ok acc =>
+    obtain ⟨s', hx, hs'⟩ := h1
+    rw [hx, except_ok_bind]
+    have h2 := used_consts_go_refines hrel hinv hs' h
+    rw [core_walk_fuel_abs] at h2
+    exact h2
+
+/-- **`decl_used_consts` refines `IDeclaration.usedConsts`**
+(`Arena/Frontend/NatOpGround.lean:100-106`). -/
+theorem decl_used_consts_refines {pers rst lst d o}
+    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
+    (h : frontend.nat_op_ground.decl_used_consts pers rst d = ok o) :
+    Sim₀ absNIdxArr pers lst o
+      (IDeclaration.usedConsts (absIDeclaration d)) := by
+  rw [frontend.nat_op_ground.decl_used_consts] at h
+  obtain ⟨seen, hseen, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hs : HSetRel seen (∅ : Std.HashSet EIdx) := by
+    obtain ⟨hi0, -, hnone⟩ := ConRon.Refine.HashMap2.new_refines
+      (HashableInst := arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable) hseen
+    exact ⟨fun k => by rw [hnone k]; simp, hi0⟩
+  have e0 : absNIdxArr (alloc.vec.Vec.new arena.handle.NIdx) = #[] := rfl
+  -- a read-only walk's answer, its second component
+  have snd : ∀ {r : core.result.Result (alloc.vec.Vec arena.handle.NIdx)
+      kernel.core_types.CheckError} {s1} {X : AM (Std.HashSet EIdx × Array NIdx)},
+      UOut lst (r, s1) X →
+      AOut₀ absNIdxArr pers r rst ((X >>= fun p => pure p.2).run lst) := by
+    intro r s1 X hU
+    unfold UOut at hU
+    rw [am_run_bind']
+    cases r with
+    | Err e => exact AErrSim.bind hU _
+    | Ok a =>
+      obtain ⟨s', hx, -⟩ := hU
+      rw [hx, except_ok_bind]
+      exact ⟨lst, rfl, hrel, hinv⟩
+  unfold Sim₀
+  cases d with
+  | AxiomDecl cv =>
+    obtain ⟨⟨r, s1⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    have hG := used_consts_go_refines hrel hinv hs hr
+    rw [core_walk_fuel_abs, e0] at hG
+    exact snd hG
+  | DefnDecl cv v hint =>
+    obtain ⟨⟨r, s1⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    have hV := decl_used_consts_value_refines hrel hinv hs hr
+    have := snd hV
+    simp only [bind_assoc] at this
+    exact this
+  | ThmDecl cv v =>
+    obtain ⟨⟨r, s1⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    have hV := decl_used_consts_value_refines hrel hinv hs hr
+    have := snd hV
+    simp only [bind_assoc] at this
+    exact this
+  | OpaqueDecl cv v =>
+    obtain ⟨⟨r, s1⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    have hV := decl_used_consts_value_refines hrel hinv hs hr
+    have := snd hV
+    simp only [bind_assoc] at this
+    exact this
+  | BasisDecl _ =>
+    cases Result.ok_injective h
+    exact ⟨lst, rfl, hrel, hinv⟩
+  | QuotDecl _ _ =>
+    cases Result.ok_injective h
+    exact ⟨lst, rfl, hrel, hinv⟩
+  | IndDecl block _ =>
+    obtain ⟨⟨r, st1, s1⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    have hB := used_consts_block_refines hrel hinv hs hr
+    rw [e0] at hB
+    unfold UOutS at hB
+    show AOut₀ absNIdxArr pers r st1 _
+    simp only [absIDeclaration, IDeclaration.usedConsts]
+    rw [am_run_bind']
+    cases r with
+    | Err e => exact AErrSim.bind hB _
+    | Ok a =>
+      obtain ⟨s', lst', hx, -, hrel', hinv'⟩ := hB
+      have hx' : (usedConstsBlock ∅ #[] (List.map absIConstantInfo block.val)).run lst
+          = .ok ((s', absNIdxArr a), lst') := hx
+      rw [hx', except_ok_bind]
+      exact ⟨lst', rfl, hrel', hinv'⟩
 
 /-! ## The trigger set -/
 
@@ -604,36 +959,593 @@ theorem hoist_push_deps_refines {rm lm used stack sp i k o}
   have := key 0#usize (stack, sp) o h
   simpa [absNIdxL] using this
 
+/-- The twin's name index holds record positions (a fact about the twin's own
+`nameIndex`; `Bridge/Frontend/Prepare.lean`'s `nameIndex_lt`, restated here
+because this tier does not import Theorem 1). -/
+theorem nameIndex_lt' (ds : Array IDeclaration) :
+    ∀ (n k : Nat) (idx : Std.HashMap NIdx Nat), ds.size - k = n →
+      (∀ (x : NIdx) m, idx[x]? = some m → m < ds.size) →
+      ∀ (x : NIdx) m, (nameIndex ds idx k)[x]? = some m → m < ds.size := by
+  have hins : ∀ (i : Nat), i < ds.size → ∀ (ns : List NIdx) (idx : Std.HashMap NIdx Nat),
+      (∀ (x : NIdx) m, idx[x]? = some m → m < ds.size) →
+      ∀ (x : NIdx) m, (insertNames idx i ns)[x]? = some m → m < ds.size := by
+    intro i hi ns
+    induction ns with
+    | nil => intro idx h; simpa [insertNames] using h
+    | cons n ns ih =>
+      intro idx h
+      rw [insertNames]
+      refine ih _ ?_
+      split
+      · exact h
+      · intro x m hm
+        rw [Std.HashMap.getElem?_insert] at hm
+        split at hm
+        · obtain rfl := Option.some.inj hm; exact hi
+        · exact h x m hm
+  intro n
+  induction n with
+  | zero =>
+    intro k idx hn h
+    rw [nameIndex, dif_neg (by omega)]
+    exact h
+  | succ n ih =>
+    intro k idx hn h
+    have hk : k < ds.size := by omega
+    rw [nameIndex, dif_pos hk]
+    exact ih (k + 1) _ (by omega) (hins k hk _ idx h)
+
+/-- The target map across an insert. -/
+theorem target_insert_rel {rm lm} (ht : TargetRel rm lm) {k v : Std.U64} {old m'}
+    (h : ron.hashmap2.HashMap2.insert U64.Insts.Con_ron_coreRonHashmapHashable
+      U64.Insts.Con_ron_coreRonHashmapEq2 rm k v = ok (old, m')) :
+    TargetRel m' (lm.insert (absU k) (absU v)) :=
+  memo_insert_step u64Eq2Fwd absU_inj_u64 ht.2 ht.1 h
+
+/-- The explicit stack, popped: the top is the prefix's last element. -/
+theorem absStack_pop {stack : alloc.vec.Vec Std.U64} {sp sp1 : Std.Usize}
+    (hsp1 : sp1.val + 1 = sp.val) (hlt : sp1.val < stack.val.length) :
+    absStack stack sp = absU stack.val[sp1.val] :: absStack stack sp1 := by
+  have ht : stack.val.take sp.val = stack.val.take sp1.val ++ [stack.val[sp1.val]] := by
+    rw [← hsp1, List.take_add_one, List.getElem?_eq_getElem hlt]; rfl
+  simp only [absStack, ht, List.map_append, List.map_cons, List.map_nil, List.reverse_append]
+  rfl
+
+theorem absStack_zero {stack : alloc.vec.Vec Std.U64} {sp : Std.Usize} (h : sp.val = 0) :
+    absStack stack sp = [] := by
+  simp [absStack, h]
+
+/-- Some record below `n` not done: the pending count is positive. -/
+theorem hoistPending_pos {n : Nat} {target : Std.HashMap Nat Nat} {i k : Nat}
+    (hk : k < n) (hnd : hoistDone target k i = false) : 0 < hoistPending n target i := by
+  unfold hoistPending
+  exact List.countP_pos_iff.mpr ⟨k, List.mem_range.mpr hk, by simp [hnd]⟩
+
+/-- What `hoist_close` claims: its success and error arms against a twin run. -/
+def HCOut (pers : arena.store.PersTier) (lst : AState)
+    (o : core.result.Result (ron.hashmap2.HashMap2 Std.U64 Std.U64)
+      kernel.core_types.CheckError × arena.monad.AState)
+    (x : AM (Std.HashMap Nat Nat)) : Prop :=
+  (∀ t, o.1 = .Ok t → ∃ lt lst', x.run lst = .ok (lt, lst') ∧ TargetRel t lt ∧
+      AStateRel₀ pers o.2 lst' ∧ AStateInv pers o.2) ∧
+    (∀ e, o.1 = .Err e → AErrSim e (x.run lst))
+
+theorem hoist_close_loop_aux {pers : arena.store.PersTier}
+    {ds : alloc.vec.Vec arena.env.IDeclaration} {rm lm} {i : Std.U64}
+    (hr : NameIdxRel rm lm)
+    (hidx : ∀ (x : NIdx) m, lm[x]? = some m → m < ds.val.length) :
+    ∀ (n : Nat) (m : Nat) (st : arena.monad.AState) (lst : AState)
+      (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) (ltarget : Std.HashMap Nat Nat)
+      (stack : alloc.vec.Vec Std.U64) (sp : Std.Usize) (F : Nat) o,
+      hoistPending ds.val.length ltarget (absU i) ≤ n → sp.val ≤ m →
+      hoistPending ds.val.length ltarget (absU i) ≤ F →
+      (∀ x ∈ absStack stack sp, x < ds.val.length) →
+      AStateRel₀ pers st lst → AStateInv pers st → TargetRel target ltarget →
+      frontend.nat_op_ground.hoist_close_loop pers st ds rm i target stack sp = ok o →
+      HCOut pers lst o (hoistClosure (absIDeclArr ds) lm (absU i) F ltarget
+        (absStack stack sp)) := by
+  have hsize : (absIDeclArr ds).size = ds.val.length := by simp [absIDeclArr]
+  intro n
+  induction n using Nat.strong_induction_on with
+  | _ n ihn =>
+  intro m
+  induction m with
+  | zero =>
+    intro st lst target ltarget stack sp F o hpn hsp hpF hsN hrel hinv ht h
+    rw [frontend.nat_op_ground.hoist_close_loop, if_neg (by scalar_tac)] at h
+    cases Result.ok_injective h
+    rw [absStack_zero (by omega), hoistClosure]
+    exact ⟨fun t ht' => by cases ht'; exact ⟨ltarget, lst, rfl, ht, hrel, hinv⟩,
+      fun e he => by cases he⟩
+  | succ m ihm =>
+    intro st lst target ltarget stack sp F o hpn hsp hpF hsN hrel hinv ht h
+    rw [frontend.nat_op_ground.hoist_close_loop] at h
+    split at h
+    swap
+    · rename_i hsp0
+      cases Result.ok_injective h
+      rw [absStack_zero (by scalar_tac), hoistClosure]
+      exact ⟨fun t ht' => by cases ht'; exact ⟨ltarget, lst, rfl, ht, hrel, hinv⟩,
+        fun e he => by cases he⟩
+    rename_i hsp0
+    obtain ⟨sp1, hsp1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hsp1v : sp1.val + 1 = sp.val := by
+      have := (ConRon.Refine.Nat.usub_val hsp1).2; scalar_tac
+    obtain ⟨k, hk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hkb, hkv⟩ := ExprOps.vecIndexAt hk
+    have hpop := absStack_pop (stack := stack) hsp1v hkb
+    rw [hkv] at hpop
+    rw [hpop] at hsN ⊢
+    have hkN : absU k < ds.val.length := hsN _ List.mem_cons_self
+    have hrest : ∀ x ∈ absStack stack sp1, x < ds.val.length :=
+      fun x hx => hsN x (List.mem_cons_of_mem _ hx)
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbv := target_done_refines ht hb
+    have hbd : b = hoistDone ltarget (absU k) (absU i) := by
+      rw [hbv]; rfl
+    split at h
+    · -- the record is already done: a pop the twin's `hoistDropDone` takes
+      rename_i hbt
+      have hdone : hoistDone ltarget (absU k) (absU i) = true := by rw [← hbd]; exact hbt
+      have heq : hoistClosure (absIDeclArr ds) lm (absU i) F ltarget (absU k :: absStack stack sp1)
+          = hoistClosure (absIDeclArr ds) lm (absU i) F ltarget (absStack stack sp1) := by
+        conv => lhs; rw [hoistClosure]
+        conv => rhs; rw [hoistClosure]
+        simp only [hoistDropDone, hdone, if_true]
+      rw [heq]
+      exact ihm st lst target ltarget stack sp1 F o hpn (by omega) hpF hrest hrel hinv ht h
+    · rename_i hbt
+      have hnd : hoistDone ltarget (absU k) (absU i) = false := by
+        rw [← hbd]; simpa using hbt
+      have hpos := hoistPending_pos hkN hnd
+      obtain ⟨F', rfl⟩ : ∃ F', F = F' + 1 := ⟨F - 1, by omega⟩
+      obtain ⟨⟨old, target1⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have ht1 := target_insert_rel ht hins
+      obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi1v : i1.val = k.val := by
+        simp only [lift, Result.ok.injEq] at hi1
+        subst hi1
+        rw [UScalar.cast_val_eq]
+        apply Nat.mod_eq_of_lt
+        have h2 := ds.property
+        have h3 : Std.Usize.max < 2 ^ UScalarTy.Usize.numBits := by
+          rw [Std.Usize.max_def, Std.Usize.numBits_def]
+          have : 0 < 2 ^ UScalarTy.Usize.numBits := Nat.two_pow_pos _
+          omega
+        have : k.val < ds.val.length := hkN
+        omega
+      have hkN' : i1.val < ds.val.length := by rw [hi1v]; exact hkN
+      rw [vec_index_ok_eq ds i1 hkN', bind_tc_ok] at h
+      obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hda := i_declaration_dup_abs hd
+      obtain ⟨⟨r, st1⟩, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hU := decl_used_consts_refines hrel hinv hr1
+      rw [hda] at hU
+      have hki : absU k = i1.val := hi1v.symm
+      have hdsk : (absIDeclArr ds)[absU k]'(by rw [hsize]; exact hkN)
+          = absIDeclaration ds.val[i1.val] := by
+        simp only [absIDeclArr, List.getElem_toArray, List.getElem_map, hki]
+      -- the twin's step
+      have htw : hoistClosure (absIDeclArr ds) lm (absU i) (F' + 1) ltarget
+          (absU k :: absStack stack sp1) = (do
+            let ns ← IDeclaration.usedConsts (absIDeclaration ds.val[i1.val])
+            hoistClosure (absIDeclArr ds) lm (absU i) F' (ltarget.insert (absU k) (absU i))
+              (hoistClosure.pushOne lm (absU i) (absU k) ns.toList (absStack stack sp1))) := by
+        rw [hoistClosure]
+        simp only [hoistDropDone, hnd, Bool.false_eq_true, if_false]
+        simp only [hoistClosure.pushDeps, dif_pos (show absU k < (absIDeclArr ds).size by
+          rw [hsize]; exact hkN), hdsk, bind_assoc, pure_bind]
+      rw [htw]
+      unfold Sim₀ at hU
+      constructor
+      · intro t ht'
+        cases r with
+        | Err e => cases Result.ok_injective h; cases ht'
+        | Ok used =>
+          obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hU
+          obtain ⟨⟨stack1, sp2⟩, hpd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hpush := hoist_push_deps_refines hr hpd
+          have hpend : hoistPending ds.val.length (ltarget.insert (absU k) (absU i)) (absU i)
+              < hoistPending ds.val.length ltarget (absU i) := hoistPending_insert hkN hnd
+          have hN2 : ∀ x ∈ absStack stack1 sp2, x < ds.val.length := by
+            rw [hpush]
+            have := hoistClosure_pushOne_lt (ds := absIDeclArr ds) (idx := lm) (i := absU i)
+              (fun x m hm => by rw [hsize]; exact hidx x m hm) (absU k) (absNIdxL used)
+              (absStack stack sp1) (fun x hx => by rw [hsize]; exact hrest x hx)
+            intro x hx
+            have := this x hx
+            rwa [hsize] at this
+          have IH := ihn _ (by omega) _ st1 lst1 target1 _ stack1 sp2 F' o
+            le_rfl le_rfl (by omega) hN2 hrel1 hinv1 ht1 h
+          rw [hpush] at IH
+          rw [am_run_bind', hx1, except_ok_bind]
+          have e1 : (absNIdxArr used).toList = absNIdxL used := by simp [absNIdxArr, absNIdxL]
+          rw [e1]
+          exact IH.1 t ht'
+      · intro e he
+        cases r with
+        | Err e' =>
+          cases Result.ok_injective h
+          cases he
+          rw [am_run_bind']
+          exact AErrSim.bind hU _
+        | Ok used =>
+          obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hU
+          obtain ⟨⟨stack1, sp2⟩, hpd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hpush := hoist_push_deps_refines hr hpd
+          have hpend : hoistPending ds.val.length (ltarget.insert (absU k) (absU i)) (absU i)
+              < hoistPending ds.val.length ltarget (absU i) := hoistPending_insert hkN hnd
+          have hN2 : ∀ x ∈ absStack stack1 sp2, x < ds.val.length := by
+            rw [hpush]
+            have := hoistClosure_pushOne_lt (ds := absIDeclArr ds) (idx := lm) (i := absU i)
+              (fun x m hm => by rw [hsize]; exact hidx x m hm) (absU k) (absNIdxL used)
+              (absStack stack sp1) (fun x hx => by rw [hsize]; exact hrest x hx)
+            intro x hx
+            have := this x hx
+            rwa [hsize] at this
+          have IH := ihn _ (by omega) _ st1 lst1 target1 _ stack1 sp2 F' o
+            le_rfl le_rfl (by omega) hN2 hrel1 hinv1 ht1 h
+          rw [hpush] at IH
+          rw [am_run_bind', hx1, except_ok_bind]
+          have e1 : (absNIdxArr used).toList = absNIdxL used := by simp [absNIdxArr, absNIdxL]
+          rw [e1]
+          exact IH.2 e he
+
 /-- **`hoist_close` refines `hoistClosure`**
-(`Arena/Frontend/NatOpGround.lean:171-199`). -/
+(`Arena/Frontend/NatOpGround.lean:171-199`), at the caller's fuel
+`ds.size`: the name index holds record positions and the seed is one. -/
 theorem hoist_close_refines {pers rst lst ds rm lm target ltarget j i o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hr : NameIdxRel rm lm) (ht : TargetRel target ltarget)
+    (hidx : ∀ (x : NIdx) m, lm[x]? = some m → m < ds.val.length)
+    (hj : absU j < ds.val.length)
     (h : frontend.nat_op_ground.hoist_close pers rst ds rm target j i = ok o) :
-    (∀ t, o.1 = .Ok t → ∃ lt lst',
-      (hoistClosure (absIDeclArr ds) lm (absU i)
-        (absIDeclArr ds).size ltarget
-        [absU j]).run lst = .ok (lt, lst') ∧ TargetRel t lt ∧
-      AStateRel₀ pers o.2 lst' ∧ AStateInv pers o.2) ∧
-    (∀ e, o.1 = .Err e → AErrSim e ((hoistClosure (absIDeclArr ds) lm (absU i)
-        (absIDeclArr ds).size ltarget [absU j]).run lst)) := by
-  sorry
+    HCOut pers lst o (hoistClosure (absIDeclArr ds) lm (absU i)
+        (absIDeclArr ds).size ltarget [absU j]) := by
+  rw [frontend.nat_op_ground.hoist_close] at h
+  obtain ⟨stack, hstack, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hsv : stack.val = [j] := ConRon.Refine.push_new_val hstack
+  have habs : absStack stack 1#usize = [absU j] := by simp [absStack, hsv]
+  have hsize : (absIDeclArr ds).size = ds.val.length := by simp [absIDeclArr]
+  have := hoist_close_loop_aux (i := i) hr hidx _ _ rst lst target ltarget stack 1#usize
+    (absIDeclArr ds).size o le_rfl le_rfl
+    (by rw [hsize]; unfold hoistPending; exact List.countP_le_length.trans (by simp))
+    (by rw [habs]; intro x hx; simp at hx; subst hx; exact hj) hrel hinv ht h
+  rwa [habs] at this
+
+/-- The `for g in deps` loop of `hoist_targets_at` against `hoistDeps` on the
+suffix of the dependency list from `k`. -/
+theorem hoist_targets_at_loop_aux {pers : arena.store.PersTier}
+    {ds : alloc.vec.Vec arena.env.IDeclaration} {rm lm} {i : Std.U64}
+    {gs : alloc.vec.Vec arena.handle.NIdx}
+    (hr : NameIdxRel rm lm)
+    (hidx : ∀ (x : NIdx) m, lm[x]? = some m → m < ds.val.length) :
+    ∀ (n : Nat) (k : Std.Usize) (st : arena.monad.AState) (lst : AState)
+      (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) (ltarget : Std.HashMap Nat Nat) o,
+      gs.val.length - k.val = n → k.val ≤ gs.val.length →
+      AStateRel₀ pers st lst → AStateInv pers st → TargetRel target ltarget →
+      frontend.nat_op_ground.hoist_targets_at_loop pers st ds rm i target gs
+        (alloc.vec.Vec.len gs) k = ok o →
+      HCOut pers lst o (hoistTargetsGo.hoistDeps (absIDeclArr ds) lm ltarget (absU i)
+        ((absNIdxL gs).drop k.val)) := by
+  intro n
+  induction n with
+  | zero =>
+    intro k st lst target ltarget o hn hk hrel hinv ht h
+    rw [frontend.nat_op_ground.hoist_targets_at_loop, if_neg (by scalar_tac)] at h
+    cases Result.ok_injective h
+    have hnil : (absNIdxL gs).drop k.val = [] := by
+      simp only [absNIdxL, List.drop_eq_nil_iff, List.length_map]; omega
+    rw [hnil, hoistTargetsGo.hoistDeps]
+    exact ⟨fun t ht' => by cases ht'; exact ⟨ltarget, lst, rfl, ht, hrel, hinv⟩,
+      fun e he => by cases he⟩
+  | succ n ih =>
+    intro k st lst target ltarget o hn hk hrel hinv ht h
+    rw [frontend.nat_op_ground.hoist_targets_at_loop, if_pos (by scalar_tac)] at h
+    obtain ⟨g, hg, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hgb, hgv⟩ := ExprOps.vecIndexAt hg
+    have hdrop : (absNIdxL gs).drop k.val = absNIdx g :: (absNIdxL gs).drop (k.val + 1) := by
+      rw [← hgv]
+      simp only [absNIdxL]
+      rw [List.drop_eq_getElem_cons (by simpa using hgb)]
+      simp
+    rw [hdrop, hoistTargetsGo.hoistDeps]
+    obtain ⟨og, hog, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hgl := idx_get_refines hr hog
+    cases og with
+    | none =>
+      have hlm : lm[absNIdx g]? = none := by rw [← hgl]; rfl
+      simp only [hlm]
+      obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hk1v : k1.val = k.val + 1 := by have := ConRon.Refine.Nat.uadd_val hk1; simpa using this
+      have IH := ih k1 st lst target ltarget o (by omega) (by omega) hrel hinv ht h
+      rwa [hk1v] at IH
+    | some j =>
+      have hlm : lm[absNIdx g]? = some (absU j) := by rw [← hgl]; rfl
+      simp only [hlm]
+      simp only at h
+      split at h
+      · rename_i hji
+        rw [if_pos (show absU j > absU i by show j.val > i.val; scalar_tac)]
+        obtain ⟨⟨r, st1⟩, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have HC := hoist_close_refines hrel hinv hr ht hidx (hidx _ _ hlm) hc
+        cases r with
+        | Err e =>
+          cases Result.ok_injective h
+          refine ⟨fun t ht' => (by cases ht'), fun e' he => ?_⟩
+          cases he
+          rw [am_run_bind']
+          exact AErrSim.bind (HC.2 e rfl) _
+        | Ok t =>
+          obtain ⟨lt, lst1, hx, ht1, hrel1, hinv1⟩ := HC.1 t rfl
+          obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hk1v : k1.val = k.val + 1 := by have := ConRon.Refine.Nat.uadd_val hk1; simpa using this
+          have IH := ih k1 st1 lst1 t lt o (by omega) (by omega) hrel1 hinv1 ht1 h
+          rw [hk1v] at IH
+          unfold HCOut
+          rw [am_run_bind', hx, except_ok_bind]
+          exact IH
+      · rename_i hji
+        rw [if_neg (show ¬ absU j > absU i by show ¬ j.val > i.val; scalar_tac)]
+        obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hk1v : k1.val = k.val + 1 := by have := ConRon.Refine.Nat.uadd_val hk1; simpa using this
+        have IH := ih k1 st lst target ltarget o (by omega) (by omega) hrel hinv ht h
+        rwa [hk1v] at IH
 
 /-- **`hoist_targets_at` refines `hoistTargetsGo.hoistDeps`** at one pinned
-operation's `natOpDeps`. -/
+operation's `natOpDeps`.  Round 3 restated it in the `HCOut` shape of
+`hoist_close_refines`, with that lemma's index bound `hidx`. -/
 theorem hoist_targets_at_refines {pers rst lst ds rm lm target ltarget c i o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hr : NameIdxRel rm lm) (ht : TargetRel target ltarget)
+    (hidx : ∀ (x : NIdx) m, lm[x]? = some m → m < ds.val.length)
     (h : frontend.nat_op_ground.hoist_targets_at pers rst ds rm target c i = ok o) :
-    (∀ t, o.1 = .Ok t → ∃ lt lst1 lst' deps,
-      (natOpDeps (absNIdx c)).run lst = .ok (deps, lst1) ∧
-      (hoistTargetsGo.hoistDeps (absIDeclArr ds) lm ltarget (absU i) deps).run lst1
-        = .ok (lt, lst') ∧ TargetRel t lt ∧
-      AStateRel₀ pers o.2 lst' ∧ AStateInv pers o.2) ∧
-    (∀ e, o.1 = .Err e → AErrSim e ((do
+    HCOut pers lst o (do
         let deps ← natOpDeps (absNIdx c)
-        hoistTargetsGo.hoistDeps (absIDeclArr ds) lm ltarget (absU i) deps).run lst)) := by
-  sorry
+        hoistTargetsGo.hoistDeps (absIDeclArr ds) lm ltarget (absU i) deps) := by
+  rw [frontend.nat_op_ground.hoist_targets_at] at h
+  obtain ⟨⟨r, st1⟩, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have HD := nat_op_deps_ls hrel hinv c r st1 hd
+  cases r with
+  | Err e =>
+    cases Result.ok_injective h
+    refine ⟨fun t ht' => (by cases ht'), fun e' he => ?_⟩
+    cases he
+    rw [am_run_bind']
+    exact AErrSim.bind HD _
+  | Ok v =>
+    obtain ⟨b, lst1, hx, rfl, hrel1, hinv1⟩ := HD
+    have IH := hoist_targets_at_loop_aux (gs := v) (i := i) hr hidx _ 0#usize st1 lst1
+      target ltarget o rfl (by simp) hrel1 hinv1 ht h
+    unfold HCOut
+    rw [am_run_bind', hx, except_ok_bind]
+    exact IH
+
+/-! ### The twin's target map stays within the stream
+
+`hoist_targets_refines` promises its caller that every key and every value of
+the twin's map is a record index.  That is a fact about the twin alone (it
+inserts stack entries, which are name-index values, at loop indices), proved
+here on the twin's runs. -/
+
+/-- Every key and value of a target map is below `N`. -/
+def TargetBound (N : Nat) (t : Std.HashMap Nat Nat) : Prop :=
+  ∀ k tk, t[k]? = some tk → k < N ∧ tk < N
+
+theorem targetBound_insert {N : Nat} {t : Std.HashMap Nat Nat} {k i : Nat}
+    (h : TargetBound N t) (hk : k < N) (hi : i < N) : TargetBound N (t.insert k i) := by
+  intro x tx hx
+  rw [Std.HashMap.getElem?_insert] at hx
+  by_cases hkx : k = x
+  · subst hkx
+    simp only [BEq.rfl, if_true, Option.some.injEq] at hx
+    subst hx
+    exact ⟨hk, hi⟩
+  · have : (k == x) = false := by simpa using hkx
+    rw [this] at hx
+    exact h x tx hx
+
+theorem hoistDropDone_mem {t : Std.HashMap Nat Nat} {i : Nat} :
+    ∀ (L : List Nat) (x : Nat), x ∈ hoistDropDone t i L → x ∈ L
+  | [], x, h => by simp [hoistDropDone] at h
+  | k :: L, x, h => by
+    unfold hoistDropDone at h
+    split at h
+    · exact List.mem_cons_of_mem _ (hoistDropDone_mem L x h)
+    · exact h
+
+private theorem am_pure_run_ok {α : Type} {a b : α} {s s' : AState}
+    (h : (pure a : AM α).run s = .ok (b, s')) : a = b ∧ s = s' := by
+  have h' : (Except.ok (a, s) : Except Arena.CheckError (α × AState)) = .ok (b, s') := h
+  cases h'
+  exact ⟨rfl, rfl⟩
+
+private theorem am_fail_run_ok {α : Type} {e : Arena.CheckError} {b : α} {s s' : AState}
+    (h : (Arena.fail e : AM α).run s = .ok (b, s')) : False := by
+  have h' : (Except.error e : Except Arena.CheckError (α × AState)) = .ok (b, s') := h
+  cases h'
+
+theorem hoistClosure_bound {ds : Array IDeclaration} {idx : Std.HashMap NIdx Nat} {i : Nat}
+    (hidx : ∀ (n : NIdx) m, idx[n]? = some m → m < ds.size) (hi : i < ds.size) :
+    ∀ (fuel : Nat) (target : Std.HashMap Nat Nat) (L : List Nat) (s : AState)
+      (t' : Std.HashMap Nat Nat) (s' : AState),
+      TargetBound ds.size target → (∀ x ∈ L, x < ds.size) →
+      (hoistClosure ds idx i fuel target L).run s = .ok (t', s') →
+      TargetBound ds.size t' := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro target L s t' s' ht hL h
+    rw [hoistClosure] at h
+    split at h
+    · obtain ⟨rfl, -⟩ := am_pure_run_ok h; exact ht
+    · exact (am_fail_run_ok h).elim
+  | succ fuel ih =>
+    intro target L s t' s' ht hL h
+    rw [hoistClosure] at h
+    split at h
+    · obtain ⟨rfl, -⟩ := am_pure_run_ok h; exact ht
+    · rename_i k rest hd
+      have hkr : ∀ x ∈ k :: rest, x < ds.size :=
+        fun x hx => hL x (hoistDropDone_mem L x (hd ▸ hx))
+      obtain ⟨st, s1, hp, h⟩ := am_run_bind_ok h
+      have hst : ∀ x ∈ st, x < ds.size := by
+        unfold hoistClosure.pushDeps at hp
+        split at hp
+        · obtain ⟨ns, s2, -, hp⟩ := am_run_bind_ok hp
+          obtain ⟨rfl, -⟩ := am_pure_run_ok hp
+          exact hoistClosure_pushOne_lt hidx k _ rest
+            (fun x hx => hkr x (List.mem_cons_of_mem _ hx))
+        · obtain ⟨rfl, -⟩ := am_pure_run_ok hp
+          exact fun x hx => hkr x (List.mem_cons_of_mem _ hx)
+      exact ih _ _ _ _ _ (targetBound_insert ht (hkr k List.mem_cons_self) hi) hst h
+
+theorem hoistDeps_bound {ds : Array IDeclaration} {idx : Std.HashMap NIdx Nat} {i : Nat}
+    (hidx : ∀ (n : NIdx) m, idx[n]? = some m → m < ds.size) (hi : i < ds.size) :
+    ∀ (deps : List NIdx) (target : Std.HashMap Nat Nat) (s : AState)
+      (t' : Std.HashMap Nat Nat) (s' : AState),
+      TargetBound ds.size target →
+      (hoistTargetsGo.hoistDeps ds idx target i deps).run s = .ok (t', s') →
+      TargetBound ds.size t' := by
+  intro deps
+  induction deps with
+  | nil =>
+    intro target s t' s' ht h
+    rw [hoistTargetsGo.hoistDeps] at h
+    obtain ⟨rfl, -⟩ := am_pure_run_ok h; exact ht
+  | cons g gs ih =>
+    intro target s t' s' ht h
+    rw [hoistTargetsGo.hoistDeps] at h
+    split at h
+    · rename_i j hj
+      split at h
+      · obtain ⟨t1, s1, h1, h⟩ := am_run_bind_ok h
+        have hb := hoistClosure_bound hidx hi _ _ _ _ _ _ ht
+          (by intro x hx; simp at hx; subst hx; exact hidx _ _ hj) h1
+        exact ih _ _ _ _ hb h
+      · exact ih _ _ _ _ ht h
+    · exact ih _ _ _ _ ht h
+
+theorem hoistTargetsGo_bound {ds : Array IDeclaration} {idx : Std.HashMap NIdx Nat}
+    (hidx : ∀ (n : NIdx) m, idx[n]? = some m → m < ds.size) :
+    ∀ (n i : Nat) (target : Std.HashMap Nat Nat) (s : AState)
+      (t' : Std.HashMap Nat Nat) (s' : AState),
+      ds.size - i = n → TargetBound ds.size target →
+      (hoistTargetsGo ds idx target i).run s = .ok (t', s') →
+      TargetBound ds.size t' := by
+  intro n
+  induction n with
+  | zero =>
+    intro i target s t' s' hn ht h
+    rw [hoistTargetsGo, dif_neg (by omega)] at h
+    obtain ⟨rfl, -⟩ := am_pure_run_ok h; exact ht
+  | succ n ih =>
+    intro i target s t' s' hn ht h
+    rw [hoistTargetsGo, dif_pos (by omega)] at h
+    obtain ⟨r, s1, -, h⟩ := am_run_bind_ok h
+    split at h
+    · exact ih (i + 1) _ _ _ _ (by omega) ht h
+    · obtain ⟨deps, s2, -, h⟩ := am_run_bind_ok h
+      obtain ⟨t2, s3, h2, h⟩ := am_run_bind_ok h
+      exact ih (i + 1) _ _ _ _ (by omega)
+        (hoistDeps_bound hidx (by omega) _ _ _ _ _ ht h2) h
+
+/-- The outer `for i in 0..n` loop of `hoist_targets` against `hoistTargetsGo`
+from `i`. -/
+theorem hoist_targets_loop_aux {pers : arena.store.PersTier}
+    {ds : alloc.vec.Vec arena.env.IDeclaration} {rm lm}
+    (hr : NameIdxRel rm lm)
+    (hidx : ∀ (x : NIdx) m, lm[x]? = some m → m < ds.val.length) :
+    ∀ (n : Nat) (i : Std.Usize) (st : arena.monad.AState) (lst : AState)
+      (target : ron.hashmap2.HashMap2 Std.U64 Std.U64) (ltarget : Std.HashMap Nat Nat) o,
+      ds.val.length - i.val = n → i.val ≤ ds.val.length →
+      AStateRel₀ pers st lst → AStateInv pers st → TargetRel target ltarget →
+      frontend.nat_op_ground.hoist_targets_loop pers st ds rm target
+        (alloc.vec.Vec.len ds) i = ok o →
+      HCOut pers lst o (hoistTargetsGo (absIDeclArr ds) lm ltarget i.val) := by
+  have hsize : (absIDeclArr ds).size = ds.val.length := by simp [absIDeclArr]
+  intro n
+  induction n with
+  | zero =>
+    intro i st lst target ltarget o hn hi hrel hinv ht h
+    rw [frontend.nat_op_ground.hoist_targets_loop, if_neg (by scalar_tac)] at h
+    cases Result.ok_injective h
+    rw [hoistTargetsGo, dif_neg (by rw [hsize]; omega)]
+    exact ⟨fun t ht' => by cases ht'; exact ⟨ltarget, lst, rfl, ht, hrel, hinv⟩,
+      fun e he => by cases he⟩
+  | succ n ih =>
+    intro i st lst target ltarget o hn hi hrel hinv ht h
+    rw [frontend.nat_op_ground.hoist_targets_loop, if_pos (by scalar_tac)] at h
+    have hlt : i.val < (absIDeclArr ds).size := by rw [hsize]; omega
+    rw [hoistTargetsGo, dif_pos hlt]
+    obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hib, hiv⟩ := ExprOps.vecIndexAt hi1
+    obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hdecl : (absIDeclArr ds)[i.val] = absIDeclaration d := by
+      rw [i_declaration_dup_abs hd, ← hiv]; simp [absIDeclArr]
+    rw [hdecl]
+    obtain ⟨⟨r, st1⟩, hrec, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have S := is_nat_op_record_refines hrel hinv hrec
+    cases r with
+    | Err e =>
+      cases Result.ok_injective h
+      refine ⟨fun t ht' => (by cases ht'), fun e' he => ?_⟩
+      cases he
+      unfold Sim₀ at S
+      rw [am_run_bind']
+      exact AErrSim.bind S _
+    | Ok oc =>
+      obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply S
+      unfold HCOut
+      rw [am_run_bind', hx1, except_ok_bind]
+      cases oc with
+      | none =>
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := by
+          have := ConRon.Refine.Nat.uadd_val hi2; simpa using this
+        have IH := ih i2 st1 lst1 target ltarget o (by omega) (by omega) hrel1 hinv1 ht h
+        rw [hi2v] at IH
+        exact IH
+      | some c =>
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi2v : absU i2 = i.val := by
+          simp only [lift, Result.ok.injEq] at hi2; subst hi2
+          show (UScalar.cast .U64 i).val = i.val
+          rw [UScalar.cast_val_eq]
+          apply Nat.mod_eq_of_lt
+          have h3 : Std.Usize.max < 2 ^ 64 := by
+            rw [Std.Usize.max_def, Std.Usize.numBits_def, UScalarTy.Usize_numBits_eq]
+            cases System.Platform.numBits_eq with
+            | inl h => rw [h]; decide
+            | inr h => rw [h]; decide
+          have h4 : UScalarTy.U64.numBits = 64 := rfl
+          rw [h4]
+          scalar_tac
+        obtain ⟨⟨r1, st2⟩, hat, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have HA := hoist_targets_at_refines hrel1 hinv1 hr ht hidx hat
+        rw [hi2v] at HA
+        show HCOut pers lst1 o (do
+          let deps ← natOpDeps (absNIdx c)
+          let target ← hoistTargetsGo.hoistDeps (absIDeclArr ds) lm ltarget i.val deps
+          hoistTargetsGo (absIDeclArr ds) lm target (i.val + 1))
+        rw [← bind_assoc]
+        cases r1 with
+        | Err e =>
+          cases Result.ok_injective h
+          refine ⟨fun t ht' => (by cases ht'), fun e' he => ?_⟩
+          cases he
+          rw [am_run_bind']
+          exact AErrSim.bind (HA.2 e rfl) _
+        | Ok t =>
+          obtain ⟨lt, lst2, hx2, ht2, hrel2, hinv2⟩ := HA.1 t rfl
+          obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hi3v : i3.val = i.val + 1 := by
+            have := ConRon.Refine.Nat.uadd_val hi3; simpa using this
+          have IH := ih i3 st2 lst2 t lt o (by omega) (by omega) hrel2 hinv2 ht2 h
+          rw [hi3v] at IH
+          unfold HCOut
+          rw [am_run_bind', hx2, except_ok_bind]
+          exact IH
 
 /-- **`hoist_targets` refines `hoistTargets`**
 (`Arena/Frontend/NatOpGround.lean:360-363`): the map from a record's index to
@@ -654,7 +1566,23 @@ theorem hoist_targets_refines {pers rst lst ds o}
       (∀ k tk, lt[k]? = some tk → k < (absIDeclArr ds).size ∧ tk < (absIDeclArr ds).size) ∧
       AStateRel₀ pers o.2 lst' ∧ AStateInv pers o.2) ∧
     (∀ e, o.1 = .Err e → AErrSim e ((hoistTargets (absIDeclArr ds)).run lst)) := by
-  sorry
+  have hsize : (absIDeclArr ds).size = ds.val.length := by simp [absIDeclArr]
+  rw [frontend.nat_op_ground.hoist_targets] at h
+  obtain ⟨rm, hrm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hr := hoist_name_index_refines hrm
+  obtain ⟨t0, ht0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨i0, -, n0⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := U64.Insts.Con_ron_coreRonHashmapHashable) ht0
+  have hT0 : TargetRel t0 ∅ := ⟨ConRon.Refine.HashMap2.RelOn_empty n0, i0⟩
+  have hidx' := nameIndex_lt' (absIDeclArr ds) _ 0 ∅ rfl (by simp)
+  have hidx : ∀ (x : NIdx) m, (nameIndex (absIDeclArr ds) ∅ 0)[x]? = some m →
+      m < ds.val.length := fun x m hm => hsize ▸ hidx' x m hm
+  have L := hoist_targets_loop_aux hr hidx _ 0#usize rst lst t0 ∅ o rfl (by simp)
+    hrel hinv hT0 h
+  refine ⟨fun t ht => ?_, fun e he => L.2 e he⟩
+  obtain ⟨lt, lst', hx, hT, hrel', hinv'⟩ := L.1 t ht
+  refine ⟨lt, lst', hx, hT, ?_, hrel', hinv'⟩
+  exact hoistTargetsGo_bound hidx' _ 0 ∅ lst lt lst' rfl (by intro k tk hk; simp at hk) hx
 
 /-! ## The reorder
 
@@ -765,8 +1693,7 @@ theorem hoist_moved_idxs_refines {n rm lm v} (hr : TargetRel rm lm)
       obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hk1v : k1.val = k.val + 1 := by
-        have := ConRon.Refine.Nat.uadd_val hk1; simpa using this
+      have hk1v : k1.val = k.val + 1 := by have := ConRon.Refine.Nat.uadd_val hk1; simpa using this
       have hiv : i.val = k.val := by
         simp only [lift, Result.ok.injEq] at hi; subst hi; exact usize_cast_u64_val' k
       have hbv : b = lm.contains k.val := by
