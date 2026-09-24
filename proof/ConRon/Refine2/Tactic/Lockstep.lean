@@ -878,57 +878,87 @@ Promotion runs inside a declaration bracket, where the store is frozen: it
 reads the frozen state `st` and writes the persistent tier through `&mut
 PersTier`, so its Rust shape is `(Result α, PersTier)` with `st` a plain
 argument.  That is `LS`'s shape once the tier is read back as a STATE: `G t`
-(for promotion, `Refine2/Promote/Glue.lean`'s `glue t st` — the frozen state
-with the tier put back and read as its own).  `packT G` does that, and `LST`
-is `LS` of the packed walk, the relation holding at `G t` after every step:
-the promotion keeps its lockstep proofs over a relation whose persistent arm
-is the tier the walk has written so far.  `packMove` pushes `packT` through
-the Rust program as it pushes `packM`; `LS.bindT` steps a tier walk as a
-callee and `LS.tailT` in tail position. -/
+(for promotion, `Refine2/Promote/Prims.lean`'s `glue t st` — the frozen
+state with the tier put back as its own tables).  `packT G` does that, and
+moves the tier into the ANSWER too, beside the Rust result — `packRM`'s shape
+with the state a function of the tier — so that an answer relation can carry
+a fact about the tier a callee handed back (promotion's: it is still the
+frozen tier).  `LST` is `LS` of the packed walk.  `packTMove` pushes `packT`
+through the Rust program as `packMove` pushes `packRM`; `LS.bindT` steps a
+tier walk as a callee and `LS.tailT` in tail position. -/
 
-/-- A tier walk's outcome, its tier read back as a state by `G`. -/
+/-- A tier walk's outcome with its tier moved into the answer and read back as
+a state by `G`. -/
+def packTOut {α : Type} (G : arena.store.PersTier → arena.monad.AState) :
+    core.result.Result α kernel.core_types.CheckError × arena.store.PersTier →
+    core.result.Result (α × arena.store.PersTier) kernel.core_types.CheckError ×
+      arena.monad.AState
+  | (.Ok a, t) => (.Ok (a, t), G t)
+  | (.Err e, t) => (.Err e, G t)
+
+/-- A tier walk, packed. -/
 def packT {α : Type} (G : arena.store.PersTier → arena.monad.AState)
     (m : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)) :
-    Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState) :=
-  m >>= fun p => ok (p.1, G p.2)
+    Result (core.result.Result (α × arena.store.PersTier) kernel.core_types.CheckError ×
+      arena.monad.AState) :=
+  m >>= fun p => ok (packTOut G p)
 
-/-- **The lockstep judgement of a tier walk**: `LS` of the walk with its tier
-read back as a state by `G`. -/
-def LST {α β : Type} (pers : arena.store.PersTier) (R : α → β → Prop)
+/-- **The lockstep judgement of a tier walk**: `LS` of the packed walk; `R`
+relates `(answer, tier)` to the twin's answer. -/
+def LST {α β : Type} (pers : arena.store.PersTier)
+    (R : α × arena.store.PersTier → β → Prop)
     (G : arena.store.PersTier → arena.monad.AState)
     (m : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier))
     (lst : AState) (x : AM β) : Prop :=
   LS pers R (packT G m) lst x
 
-theorem LST.toLS {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+theorem LST.toLS {α β : Type} {pers : arena.store.PersTier}
+    {R : α × arena.store.PersTier → β → Prop}
     {G : arena.store.PersTier → arena.monad.AState}
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
     {lst : AState} {x : AM β} (h : LST pers R G m lst x) : LS pers R (packT G m) lst x := h
 
 /-- What an `LST` says about one outcome, unpacked. -/
-theorem LST.apply {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+theorem LST.apply {α β : Type} {pers : arena.store.PersTier}
+    {R : α × arena.store.PersTier → β → Prop}
     {G : arena.store.PersTier → arena.monad.AState}
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
     {lst : AState} {x : AM β} (h : LST pers R G m lst x) {o t}
     (hm : m = ok (o, t)) :
-    LOut pers R o (G t) (x.run lst) :=
-  h o (G t) (by simp only [packT, hm, bind_tc_ok])
+    match o with
+    | .Ok a => ∃ b lst', x.run lst = .ok (b, lst') ∧ R (a, t) b ∧
+        AStateRel₀ pers (G t) lst' ∧ AStateInv pers (G t)
+    | .Err e => AErrSim e (x.run lst) := by
+  have := h (packTOut G (o, t)).1 (packTOut G (o, t)).2
+    (by simp only [packT, hm, bind_tc_ok])
+  cases o <;> exact this
 
-theorem LS.packT_bind {γ α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+theorem LS.packT_bind {γ α β : Type} {pers : arena.store.PersTier}
+    {R : α × arena.store.PersTier → β → Prop}
     {G : arena.store.PersTier → arena.monad.AState} {f : Result γ}
     {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
     {lst : AState} {x : AM β} (h : LS pers R (f >>= fun p => packT G (k p)) lst x) :
     LS pers R (packT G (f >>= k)) lst x := by
   unfold packT at h ⊢; rw [Aeneas.Std.bind_assoc_eq]; exact h
 
-theorem LS.packT_ok {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+theorem LS.packT_ok_ok {α β : Type} {pers : arena.store.PersTier}
+    {R : α × arena.store.PersTier → β → Prop}
     {G : arena.store.PersTier → arena.monad.AState}
-    {o : core.result.Result α kernel.core_types.CheckError} {t : arena.store.PersTier}
-    {lst : AState} {x : AM β} (h : LS pers R (ok (o, G t)) lst x) :
-    LS pers R (packT G (ok (o, t))) lst x := by
+    {a : α} {t : arena.store.PersTier} {lst : AState} {x : AM β}
+    (h : LS pers R (ok (.Ok (a, t), G t)) lst x) :
+    LS pers R (packT G (ok (.Ok a, t))) lst x := by
   unfold packT; rw [bind_tc_ok]; exact h
 
-theorem LS.packT_ite {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+theorem LS.packT_ok_err {α β : Type} {pers : arena.store.PersTier}
+    {R : α × arena.store.PersTier → β → Prop}
+    {G : arena.store.PersTier → arena.monad.AState}
+    {e : kernel.core_types.CheckError} {t : arena.store.PersTier} {lst : AState}
+    {x : AM β} (h : LS pers R (ok (.Err e, G t)) lst x) :
+    LS pers R (packT G (ok ((.Err e : core.result.Result α _), t))) lst x := by
+  unfold packT; rw [bind_tc_ok]; exact h
+
+theorem LS.packT_ite {α β : Type} {pers : arena.store.PersTier}
+    {R : α × arena.store.PersTier → β → Prop}
     {G : arena.store.PersTier → arena.monad.AState} {c : Prop} [Decidable c]
     {a b : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
     {lst : AState} {x : AM β}
@@ -950,9 +980,9 @@ theorem ErrArm.packT_bind {γ α : Type} {e : kernel.core_types.CheckError}
   unfold packT at h ⊢; rw [Aeneas.Std.bind_assoc_eq]; exact h
 
 /-- A tier walk as a callee: the relation after it holds at `G` of the tier it
-hands back. -/
+hands back, and the answer relation sees that tier. -/
 theorem LS.bindT {α γ β δ : Type} {pers : arena.store.PersTier}
-    {R₁ : α → β → Prop} {R : γ → δ → Prop}
+    {R₁ : α × arena.store.PersTier → β → Prop} {R : γ → δ → Prop}
     {G : arena.store.PersTier → arena.monad.AState}
     {f : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
     {k : core.result.Result α kernel.core_types.CheckError × arena.store.PersTier →
@@ -960,8 +990,8 @@ theorem LS.bindT {α γ β δ : Type} {pers : arena.store.PersTier}
     {lst : AState} {x' x : AM β} {g : β → AM δ}
     (hf : LST pers R₁ G f lst x') (hx : x' = x)
     (he : ∀ e t1, ErrArm (k (.Err e, t1)) e)
-    (hk : ∀ a t1 b lst1, R₁ a b → AStateRel₀ pers (G t1) lst1 → AStateInv pers (G t1) →
-      LS pers R (k (.Ok a, t1)) lst1 (g b)) :
+    (hk : ∀ a t1 b lst1, R₁ (a, t1) b → AStateRel₀ pers (G t1) lst1 →
+      AStateInv pers (G t1) → LS pers R (k (.Ok a, t1)) lst1 (g b)) :
     LS pers R (f >>= k) lst (x >>= g) := by
   subst hx
   intro o st' hm
@@ -978,11 +1008,12 @@ theorem LS.bindT {α γ β δ : Type} {pers : arena.store.PersTier}
     exact hk a t1 b lst1 hR hrel hinv o st' hk1
 
 /-- A tier walk in tail position of a packed tier walk. -/
-theorem LS.tailT {α β : Type} {pers : arena.store.PersTier} {R₁ R : α → β → Prop}
+theorem LS.tailT {α β : Type} {pers : arena.store.PersTier}
+    {R₁ R : α × arena.store.PersTier → β → Prop}
     {G : arena.store.PersTier → arena.monad.AState}
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
     {lst : AState} {x' x : AM β}
-    (hf : LST pers R₁ G m lst x') (hx : x' = x) (hR : ∀ a b, R₁ a b → R a b) :
+    (hf : LST pers R₁ G m lst x') (hx : x' = x) (hR : ∀ p b, R₁ p b → R p b) :
     LS pers R (packT G m) lst x :=
   LS.tail hf hx hR
 
@@ -2680,8 +2711,11 @@ def packTMove (g : MVarId) (m : Expr) : TacticM (List MVarId) := g.withContext d
     let v ← instantiateMVars t.appArg!
     if v.isAppOfArity ``Prod.mk 4 then
       let r := (v.getArg! 2).headBeta
-      if r.isAppOf ``core.result.Result.Ok || r.isAppOf ``core.result.Result.Err then
-        let gs ← applyRule g ``LS.packT_ok
+      if r.isAppOf ``core.result.Result.Ok then
+        let gs ← applyRule g ``LS.packT_ok_ok
+        return ← normAll [← pick gs `h]
+      if r.isAppOf ``core.result.Result.Err then
+        let gs ← applyRule g ``LS.packT_ok_err
         return ← normAll [← pick gs `h]
       if let .fvar fv := r then
         let subs ← g.cases fv
