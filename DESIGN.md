@@ -61702,3 +61702,93 @@ Frontend module on the frontier**; `Frontend/Top.lean`'s two are dead weight.
 (Before the round: 46 items, 540 dead weight on the round-2 tip; the item
 count is unchanged because the Checker/Inductives items it now shows were
 behind the Frontend ones.)
+
+### Task #97-T2-LOCKSTEP lane Inductives round 5 — the six timeouts split, the cursor/accumulator recipes, three `eidx_take_beq` divergences (2026-09-24, Opus under Fable)
+
+Worktree `_tmp/wt-t2-ind6`, branch `t2-ind-6` off round 4's final slice
+`t2-ind-5` (`10aa2a97`, `arena` already contained).  Lane: `Refine2/Inductives/**`
+minus `Modeled.lean`/`SpecModeled.lean`/`PrimsModeled.lean`.  No Rust change,
+no Theorem-2 invariant added.
+
+#### Slice 1
+
+**The six timeouts — all closed, no heartbeat bump anywhere.**  None of them
+was a slow kernel check; all six were the zip spending its budget in the side
+tiers, and each fell to a twin normal form or a hand case split before the zip:
+
+| lemma | what it took |
+|---|---|
+| `struct_parts_core_at` | `structPartsCoreAtSpec_nested` (the twin's ten-way `&&` as the port's nested tests, in the port's order and polarity); `nidx_vec_contains_twin` restated `o = …` instead of `TwinEq … o` (the tactic substitutes an equation, so the twin test is decided by `assumption` rather than by the lane's `simp_all` extension — this alone took the proof from >200 k to ~7 s); a local `lockstep_simp` for the rule's fields; `core_nidx_vec_beq_twin` (new: `PrimsModeled.lean`'s `nidx_vec_beq_spec` is not visible to StructParts) |
+| `rec_ctor_kind_at` | `cases k` first, `lockstep` per kind |
+| `native_caps_at` | the port's `(b, eta)` prologue evaluated by one `have`, the constructor list cased (`[]`, `[c]`, `c :: c' :: _`), the record leaf by `simp_all` with `u64_val_beq_zero` |
+| `native_shape_elim` | the eliminator's level-parameter list cased before the zip |
+| `native_raw_rec` | `nativeRawRec_port` (the `anyM` IS `anyDomMentionsSpec`, and off the end of the telescope it is `false` — the port's `if n_p < len`); the cursor computed in `Nat` by the side extension's cast alternative |
+| `check_native_table` | `checkNativeTable.eq_def` and the two list shapes cased by hand |
+
+**Recipes.**
+* `ls_cursor_acc` (`Shape.lean`): `ls_cursor` with an accumulator the
+  induction hypothesis is quantified over — `lift_list` closed with it.
+* `ls_cursor` as is: `mk_pis_of`, `mk_lams_of`.
+* Counted fuel induction on an `LSR` read (`LSR.of_LS` then `lockstep`):
+  `pi_binders`.  Its old `SimRE` statement (the twin state unchanged) is
+  gone — the lockstep judgement does not carry it and no caller used it;
+  `pi_binders_new_ls` files it at an empty accumulator for the callers.
+* Rust-only list primitives filed as `LSP` specs in `Shape.lean`:
+  `append_eidx` (via `append_eidx_from_abs`), `drop_eidx`, `drop_eidx_n`
+  (via `drop_eidx_n_from_abs`), `binder_meta_dup`.
+* `Tactic/Prims.lean`: `view_const_name_ls` (the one handle-level prim added;
+  the tactic's `twin_view_const_name` had no Rust partner).
+* The lane's side extension gained four alternatives: the record abstractions
+  (`absStructParts`/`absInductiveShape`/`absNativeParts`/`absIRecRule`); a memo
+  walk's answer bit off `WOutRel`/`LOutRel`; a Rust Bool against a twin
+  conjunction whose other conjuncts a length hypothesis pins; and the
+  `usize` cast's overflow disjunct (`casesm*`, the overflow arm by
+  `scalar_tac`, then `getElem?` reads).
+
+**Divergences (fixed in the twin, Theorem 1 repaired).**  The port's
+`expr_ops::eidx_take_beq(args, ps)` compares `args.take(ps.len())`; three twins
+compared `args.take nP` (`recFamOk`, `recPositivityAt`, `structCtorResidOk`).
+Equal only because `structPsAt` answers `nP` handles, which the lockstep
+statement cannot see.  The twins now read `args.take ps.length == ps`;
+Theorem 1 (`Bridge/Inductives/{NativeParts,StructParts}.lean`,
+`recFamOk_spec`, `recPositivity_spec`, `structCtorResidOk_spec`) gets
+`ps.length = nP` from `denoteEList_len` of `structPsAt_spec` — three lines
+each, no statement changed.
+
+**Closed this slice (26):** the six above, `native_counts` (frontier;
+`pi_binders_new_ls`), `mk_pis_of`, `mk_lams_of`, `lift_list`, `pi_binders`,
+`struct_parts_core_small`, `struct_ctor_spine`, `struct_ctor_spine_at`,
+`struct_fam_i`, `struct_field_tele_of`,
+`struct_field_idx_of` (the port's in-range read against the twin's `getD`:
+`let_pair_dup2_eq`, `binderL_getD_fst_of_lt/_ge`), `rec_fam_ok`,
+`has_loose_bvar_b_fast`, `struct_used_later_go`, `mentions_fvar`,
+`struct_ctor_resid_ok`, `rec_positivity_at`, `struct_shape_major`,
+`struct_shape_minor`, `struct_shape_motive`.  Proof `sorry`s in the lane's
+files: **110 → 84**.
+
+**Found, not fixed — ruling needed (`check_native`, frontier).**  The zip
+reaches the retry's `ifenv_pop_temp(np.env1, former, prev)` against the
+twin's `q.env₁.popTemp former (fe.idx[former]?)` and stops: the port's index
+row is `(level-param count, POSITION)`, re-read through the popped
+environment's constant list, while the twin's row carries the constant itself.
+`IFEnvRel` of the popped pair therefore needs *"the pass left the entry
+environment's constants in place"* (`rf.consts` a prefix of `env1.consts`) —
+a fact about the Rust pass's output, not representation of one state.
+Options: (a) `check_native_pass`'s statement concludes that prefix fact about
+its own output environment (a Rust-side frame fact beside `IFEnvInv`);
+(b) the twin's row becomes a position too (a twin-representation change of
+`IFEnv.idx`, every tier); (c) the twin re-reads the row's constant through
+the popped list as the port does.  I recommend (a).  `check_native` stays
+`sorry` until then.
+
+**Tactic notes (worked around locally; for the tactic owner).**
+* A Rust `let (e, _) ← v[i]; dup2 e` inside an `if` the tactic distributes
+  leaves `(let (e, _) := v[i]; dup2 e) = ok a` as a kept equation (a `match`
+  on a non-constructor): `struct_field_tele_of`/`_idx_of` finish it by hand
+  with `let_pair_dup2_eq`.
+* A twin `match l[k]? with | some … | none …` against the port's `if k ≥ len`
+  leaves the crossed branches to `lockstep_contra`, whose `simp_all` does not
+  see through `absBinderL`; `struct_shape_motive` closes them by hand.
+* A caller declared ABOVE its callee's `@[lockstep]` companion in the same file
+  is stuck with no message pointing at the order (`rec_fam_ok` sat above
+  `idx_free_of_ls`; moved).

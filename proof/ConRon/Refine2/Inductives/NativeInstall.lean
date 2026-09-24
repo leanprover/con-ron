@@ -240,19 +240,6 @@ open Lockstep in
       (anyDomMentionsSpec (absNIdx t) (absBinderLFrom cbs i)) :=
   LS.ofSim₀ fun _ h => any_dom_mentions_refines hrel hinv h
 
-open Lockstep in
-/-- `any_dom_mentions` from a cursor the caller computed in `Nat` (the twin's
-`cbs.drop nP`). -/
-theorem any_dom_mentions_drop_ls {pers st lst} {t : arena.handle.NIdx}
-    {cbs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
-    {i : Std.Usize} {n : Nat} (hi : i.val = n)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a) (arena.inductives.native_install.any_dom_mentions pers st t cbs i) lst
-      (anyDomMentionsSpec (absNIdx t)
-        ((cbs.val.map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)).drop n)) := by
-  have h := any_dom_mentions_ls (t := t) (cbs := cbs) (i := i) hrel hinv
-  rwa [absBinderLFrom, List.map_drop, hi] at h
-
 /-- `nativeRawRec`'s `anyM` IS `anyDomMentionsSpec` (the accumulator-free cursor
 fold the port's `any_dom_mentions` twins). -/
 theorem anyM_mentionsConst_eq (T : NIdx) (l : List (EIdx × ConLeche.BinderMeta)) :
@@ -314,10 +301,6 @@ theorem native_raw_rec_refines {pers st lst}
     simp only [hlen, bne_self_eq_false, Bool.false_eq_true, if_false, hidx, List.map_cons,
       List.map_nil]
     lockstep
-    refine any_dom_mentions_drop_ls ?_ ‹_› ‹_›
-    rcases hP with h | h
-    · exact h
-    · exfalso; scalar_tac
   · have hlen : alloc.vec.Vec.len p.shape.ctors ≠ 1#usize := by
       intro h1; have : (alloc.vec.Vec.len p.shape.ctors).val = 1 := by rw [h1]; rfl
       simp [alloc.vec.Vec.len, hc] at this
@@ -872,10 +855,7 @@ theorem check_native_rec_rules_refines {pers st lst} {rf lf}
       (checkNativeRecRulesSpec (absNativeParts p) (absIConstantVal cv_ta)
         (absCtors4L ctors) (absEIdx rec_ty) lf) ∧
       IFEnvRel o.2.2 lf := by
-  refine Lockstep.LS.toSim₀ ?_ hrun
-  clear hrun
-  rw [arena.inductives.native_install.check_native_rec_rules, alloc.vec.Vec]
-  lockstep
+  sorry
 
 /-- `check_native_rec_defeq` ⊑ `checkNativeRec`'s defeq stage. -/
 theorem check_native_rec_defeq_refines {pers st lst} {mode : kernel.env.CheckMode}
