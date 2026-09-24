@@ -45,31 +45,43 @@ measure survives the change of representation unchanged. -/
 def peelNeverPis : Nat → EIdx → AM (Option EIdx)
   | 0, h => pure (some h)
   | k + 1, h => do
-    match ← view h with
-    | .forallE _ b m => if m.pw.isNever then peelNeverPis k b else pure none
-    | _ => pure none
+    -- tag first, then the binder projection, as the port (task #97-P5-Core
+    -- round 6, D1)
+    if h.tag == ETag.forallE then
+      match ← viewBind h with
+      | none => failDanglingE
+      | some (_, b, m) => if m.pw.isNever then peelNeverPis k b else pure none
+    else pure none
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:58-61 Expr.numArgs — the number
 of arguments of an application spine.  A spine walk, hence fuel. -/
 def numArgs : Nat → EIdx → AM Nat
   | 0, _ => fail (.internal "fuel exhausted: numArgs")
   | fuel + 1, h => do
-    match ← view h with
-    | .app f _ => do
-      let n ← numArgs fuel f
-      pure (n + 1)
-    | _ => pure 0
+    -- tag first, then the `app` projection, as the port (task #97-P5-Core
+    -- round 6, D1)
+    if h.tag == ETag.app then
+      match ← viewApp h with
+      | none => failDanglingE
+      | some (f, _) => do
+        let n ← numArgs fuel f
+        pure (n + 1)
+    else pure 0
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:65-71 residualPW — the
 zero-ness datum of the sort of a *residual type*.  The level is read back
 and `Level.zeronessOf` is con-leche's own (deviation 3). -/
 def residualPW : Option EIdx → AM (Option PropWhen)
   | some h => do
-    match ← view h with
-    | .sort u => do
-      let l ← readLevel u
-      pure (some (Level.zeronessOf l))
-    | _ => pure none
+    -- tag first, then the `sort` projection, as the port (task #97-P5-Core
+    -- round 6, D1)
+    if h.tag == ETag.sort then
+      match ← viewSort h with
+      | none => failDanglingE
+      | some u => do
+        let l ← readLevel u
+        pure (some (Level.zeronessOf l))
+    else pure none
   | none => pure none
 
 /-! ## The head readers -/
@@ -158,9 +170,13 @@ def headProofPW (fe : IFEnv) (fuel : Nat) : EIdx → AM (Option PropWhen)
 datum of the sort of the *type* of `a` ("is `a` a proof?"), read off `a`'s
 head symbol at any arity. -/
 def proofPW (fe : IFEnv) (fuel : Nat) (a : EIdx) : AM (Option PropWhen) := do
-  match ← view a with
-  | .lam _ _ m => pure (some m.pw)
-  | _ => do
+  -- tag first, then the binder projection, as the port (task #97-P5-Core
+  -- round 6, D1)
+  if a.tag == ETag.lam then
+    match ← viewBind a with
+    | none => failDanglingE
+    | some (_, _, m) => pure (some m.pw)
+  else do
     let fn ← getAppFn fuel a
     headProofPW fe fuel fn
 
