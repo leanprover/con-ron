@@ -82,7 +82,7 @@ done
 
 # Per-export address-space cap (KB) and timeout (s).  The caps are CLAUDE.md's
 # budget rule applied to what con-leche needs on the same input (0.48 / 1.22 /
-# 8.75 GB peak RSS, OVERVIEW section 7.2): 2.6 GB, 5 GB, 27 GB.  A checker that
+# 8.75 GB peak RSS, OVERVIEW section 9): 2.6 GB, 5 GB, 27 GB.  A checker that
 # does not fit is a bug to investigate, never a reason to raise the cap.
 limit_kb() { case "$1" in
     init)    echo 2726400 ;;     # 2.6 GB

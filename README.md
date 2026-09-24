@@ -24,7 +24,7 @@ This is not a satisfying state of affairs, and future work will involve refactor
 
 ## Performance
 
-[Performance](./OVERVIEW.md#72-performance) of `con-ron` is currently not particularly impressive (up to 1.6× wall time, more with more threads), likely because by following the Lean code and data structure design closely it implements idioms that are not particularly well suited for Rust.
+[Performance](./OVERVIEW.md#9-performance) of `con-ron` is currently not particularly impressive (up to 1.6× wall time, more with more threads), likely because by following the Lean code and data structure design closely it implements idioms that are not particularly well suited for Rust.
 
 ## Contributions
 

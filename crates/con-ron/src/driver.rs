@@ -164,7 +164,7 @@ pub fn exit_code(e: &CheckError) -> u8 {
     }
 }
 
-/// con-leche: none — the verdict word `OVERVIEW.md` §0 tabulates against each
+/// con-leche: none — the verdict word `OVERVIEW.md` §2.2 tabulates against each
 /// exit code.  con-leche prints the word only for the accept (`accepted N
 /// declarations`); a rejection's line is the error message itself, so this is
 /// the port's own handle for a log to grep.

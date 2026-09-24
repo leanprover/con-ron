@@ -63484,3 +63484,35 @@ names `ConRon.Capstone.model_exists` / `no_False_declaration`, the three
 standard axioms, the §3.1 hypotheses (driver order and file reads, the
 unextracted modeller, the embedded pins, the prelude-bytes gate) and points
 to OVERVIEW §3.1.  No other such claim in `crates/con-ron`.
+
+### Task #97-OVERVIEW — OVERVIEW.md rewritten as the project's explanatory document (2026-09-24, Opus under Fable)
+
+OVERVIEW.md is rewritten from scratch against the `arena` tip, for a reader
+who knows Lean and Rust but not this project's history: no task numbers or
+"used to" in the prose (DESIGN.md is linked once, in the header), every
+claim re-checked against the code, and 95 line-anchored links (was 47).
+The outline was drafted first (`_tmp/overview-outline.md`).  New structure:
+
+| § | section | replaces |
+|---|---|---|
+| 1 | What con-ron is | the intro |
+| 2 | Running it (command line, the `CON_LECHE_INMODEL*` switches and their test, exit codes, building) | old §1, §2 |
+| 3, 3.1 | What is proved; What the theorems assume | old §3, §3.1 (anchor `#31-what-the-theorems-assume` kept) |
+| 4 | The expression representation: handles, stores and hash-consing, the two tiers, sharing the persistent tier, what is still an `Expr` | old §4.2–§4.3, which described the retired `Expr`-tree checker |
+| 5 | Caching: per-call memos, per-declaration caches, when they are emptied, lanes, `HashMap2` | new |
+| 6 | The checking pipeline: the six stages, parsing and the modeller, the two-phase fold, the pool, errors | old §4.4–§4.7 |
+| 7 | How the proof is built: extraction, the twin, Theorem 1 (triples, `PSpec`/`CSpec` grades), Theorem 2 (`AStateRel₀`, `Sim₀`/`SimRel₀`, the `LS` family, `lockstep`, `@[lockstep]`, `PropWhenWF`), the fuel/cursor recipes, the composition, the leaf tier — each with a real example | old §6, §9 (which described `RefineOld/`) |
+| 8, 8.1, 8.2 | Trust; the holes; the rest | old §8 (§8.1/§8.2 numbers and the `holes:` markers kept; old §8.3 "Against master" dropped as a branch comparison) |
+| 9 | Performance: con-ron's latest measured cells beside con-leche and nanoda, each with its task | old §7.2 (the `Expr`-tree checker's numbers) |
+| 10 | Keeping the port honest: provenance, twin lines, the pin, differential testing, gates, the upstream patch | old §5, §6.4, §10, §12 |
+| 11 | Module map | old §11 (which listed the deleted `cached/`) |
+
+Dropped: old §7.1 (the ledger) and §7.3 (what the proof found), which are
+history.  Kept in step: README's `#72-performance` link is now
+`#9-performance`; `scripts/holes.sh` needs no change (§8.1 and its markers
+kept); comment references to OVERVIEW sections were updated in
+`crates/con-ron/src/{driver,lib,pool}.rs`, `crates/con-ron-core/src/frontend/text.rs`
+(same line count, so the model is unchanged) and `scripts/bench-baselines.sh`.
+`proof/ConRon/Arena/CheckerBase.lean`'s "OVERVIEW §4.5 describe con-ron's
+`or_else_step`" is stale and left alone (a comment edit there re-elaborates
+most of the proof); fold it into the next change to that file.
