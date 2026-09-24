@@ -16,8 +16,9 @@ level list and `intern_level`).  The binder interns exist only as
 `intern_e_{lam,forall_e}_wf_ls` (task #97-T2-LOCKSTEP D6):
 `intern_e_{lam,forall_e}_run₀` need `PropWhenWF m.pw` of the Rust INPUT datum
 (the `bms` cons key is a `PropWhen`, so `TblRel` is `RelOn PropWhenWF`).  The
-premise-free `sorry` statements `intern_e_{lam,forall_e}_ls` were deleted
-(task #97-T2-CLEANUP): no proof used them.
+premise-free `sorry` statements `intern_e_{lam,forall_e}_ls` are FALSE and
+stay only until `Inductives/NativeParts.lean` stops relying on them (their
+doc comment lists the consumers).
 -/
 import ConRon.Refine2.Tactic.Lockstep
 import ConRon.Refine2.Specs
@@ -1657,6 +1658,30 @@ view's own well-formedness (the literal's payload, the binder's datum). -/
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_forall_e pers st t b m) lst
       (Arena.internForallEE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
   LS.ofSim₀ fun _ h => intern_e_forall_e_run₀ hrel hinv t b m hpw h
+
+/-- **FALSE as stated** (task #97-T2-LOCKSTEP D6): `intern_e_lam` relates only
+when the datum's `PropWhenWF m.pw` holds, which this statement does not ask
+for; `intern_e_lam_wf_ls` above is the true pair and is registered first.
+Deleted by task #97-T2-CLEANUP, restored by the coordinator's ruling because
+`lockstep` still closes these through it (all in
+`Inductives/NativeParts.lean`): `mk_pis_of_refines`, `mk_lams_of_refines`,
+`struct_ih_pis_refines`, `struct_ih_pis_at_refines`, `intern_binder_refines`,
+`struct_rec_ty_close_refines`, `struct_rec_ty_at_refines`,
+`struct_rec_rhs_close_refines`.  **Delete it (and `intern_e_forall_e_ls`) once
+the Inductives Parts lane has threaded `PropWhenWF` of the binder metas into
+those statements.** -/
+@[lockstep] theorem intern_e_lam_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_lam pers st t b m) lst
+      (Arena.internLamE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
+  sorry
+
+/-- **FALSE as stated** — see `intern_e_lam_ls`: same consumers, same exit. -/
+@[lockstep] theorem intern_e_forall_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_forall_e pers st t b m) lst
+      (Arena.internForallEE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
+  sorry
 
 @[lockstep] theorem intern_e_let_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (t v b : arena.handle.EIdx) :

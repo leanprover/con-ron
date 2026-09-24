@@ -62709,3 +62709,19 @@ both appends):
   calls `close_telescope`; its eventual proof needs the same `PropWhenWF` fact
   of the vector it closes, from `zip_fvar_doms`, `norm_field_doms` and
   `binder_copy_from` (their statements do not carry it yet).
+
+#### The second bounce — the binder interns restored, `sorry`, marked FALSE
+
+After the `arena` merge, eight `Inductives/NativeParts.lean` proofs also
+closed through the premise-free interns (`mk_pis_of_refines`,
+`mk_lams_of_refines`, `struct_ih_pis(_at)_refines`, `intern_binder_refines`,
+`struct_rec_ty_close_refines`, `struct_rec_ty_at_refines`,
+`struct_rec_rhs_close_refines`: `pw` from a telescope vector or a `pw`
+argument).  Ruling (coordinator): `intern_e_lam_ls`/`intern_e_forall_e_ls`
+are restored in `Tactic/Prims.lean`, still `sorry`, AFTER the `_wf_ls` pairs,
+with a doc comment saying they are false as stated, naming those eight
+consumers, and saying they are deleted once the Inductives Parts lane has
+threaded `PropWhenWF` of the binder metas into them.  The `close_telescope`/
+`whnf_telescope` strengthening stays.  The dead-weight count therefore keeps
+these two `sorry`s (the table's row for them reads "restored" rather than
+"deleted").
