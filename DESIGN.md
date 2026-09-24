@@ -62874,6 +62874,46 @@ memo walk `mentions_fvar_{node,go}`, `check_native_rules`, the
 `check_native_rec*` bracket (the Rust returns its `&mut IFEnv` outside the
 `Result`: `LSM` with the environment as the memo, and the push/pop bracket
 through `ifenv_pop_temp_rel`), `check_native_tail_install`.
+#### Slice 2 (worktree `_tmp/wt-t2-ind-inst2`, branch `t2-ind-inst-2`, on slice 1)
+
+**All six lane files are `sorry`-free** (NativeInstall 8 → 0,
+NativeInstallF 1 → 0).
+
+* `mentions_fvar_{go,node}` (the frontier item of fan-in 7): fuel induction
+  in the `mentions_const` recipe, the node dispatch unfolded in place.  The
+  walk's relation is `MFR` (`∃ m', LMemoRel a.2 m' ∧ b = (a.1, m')`, the
+  answer bit shared SYNTACTICALLY so the twin's `match (b, memo)` reduces);
+  the statements' `LOutRel` is its consequence (`LS.mono_ind`).  One hand
+  step: the port's `if b2` on a child's answer against the twin's `match` on
+  the pair in a bind's CALLEE, where the core's twin-`match` move does not
+  look (`subst`, `dsimp only`, `bind_assoc`, then `lockstep`).
+  `mentions_fvar_ins_ls` is the Rust-only insert.
+* `check_native_rules`: counted, the twin's inline scoping test named as the
+  port's `native_rule_scoped` (`checkNativeRules_succ_port`); `_ls0`, the
+  twin's own call at an empty accumulator.
+* **The recursor bracket, `check_native_rec{,_ty,_defeq,_rules}` (+
+  `check_native_rec_f`), restated as `LSM`**: the Rust takes `&mut IFEnv`,
+  so Aeneas returns the environment BESIDE the `Result` — the memoised-walk
+  shape, the environment as the "memo".  The relation says the answer
+  abstracts and the returned environment is `IFEnvRelI`-related to the
+  twin's UNCHANGED `lf` (the old statements claimed that on the error arm
+  too, which `LSM` drops, and nothing read).  `check_native_rec_rules` is by
+  hand (the port binds a state/environment/result TRIPLE out of a `match`,
+  which the tactic's `packM` move does not push through): the push-temp
+  (`ifenv_push_temp_eq`: its environment is `ifenv_push`'s, its answer the
+  displaced row), `check_native_rules_ls0` at the pushed environment, and
+  **the bracket `ifenv_push_pop_rel`** — `ifenv_pop_temp_rel` at the push,
+  then `IFEnvRelI.congr_obs` (the relation observes only the list, the index
+  reads and the counter; `popTemp (push X)` agrees with the original on all
+  three).  The other three are one `lockstep` each over it
+  (`checkNativeRec_unfold`: the twin's inline pipeline IS the pin prologue
+  and `checkNativeRecTySpec`; the literal `rec` of `T.rec` by hand).
+* `check_native_tail_install`: `cons_sum_ctors_ls0`, then `lockstep`, the
+  stored recursor record by `check_native_table_ls_eq`.
+* Local `irreducible` needed again for `lockstep_congr`'s `rfl`:
+  `Arena.structRecTyR` (at `check_native_rec_ty`), `Arena.checkNativeTable`,
+  `Arena.sumRules` (at the tail install), the three knot entries file-wide.
+
 ### Task #97-T2-LOCKSTEP lane Inductives Modeled round 2 — Modeled.lean sorry-free; the tactic workarounds dropped (2026-09-24, Opus under Fable)
 
 Worktree `_tmp/wt-t2-ind-mod3`, branch `t2-ind-mod-3` off slice 3 of the
