@@ -62479,6 +62479,11 @@ plain (uncached) readers with their answers' WF: `read_levels_ls`,
 
 Frontier: `arena` `bf376947` **23 items / 242 tainted / dead weight 166** →
 this slice **16 / 129 / 139**; no item in this lane's files.
+After merging `arena` `911d0d59`: **14 / 117 / 85**.  `scripts/gates.sh`: **all
+16 OK**.  Submitted to the merge queue.  (The Modeled lane's queued
+`t2-ind-mod-4` proves `doms_match_aux`/`all_params_defined_list` pairs of its
+own in `Inductives/PrimsModeled.lean`; this slice's, in `Base`, sit below it,
+so those can become aliases of these.)
 
 ### Task #97-T2-LOCKSTEP lane Inductives round 5 — the six timeouts split, the cursor/accumulator recipes, three `eidx_take_beq` divergences (2026-09-24, Opus under Fable)
 
