@@ -223,7 +223,7 @@ Aeneas cannot translate.
 ## 4. The expression representation
 
 The checker's state is one value,
-[`AState`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/monad.rs#L297-L318):
+[`AState`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/monad.rs#L315-L336):
 the **arena** (the store of all terms), the per-call memo tables and the
 per-declaration caches (§5), and the reserved-name pins (§6.1).  Checker
 functions take it as `&mut AState`, together with the shared persistent tier
@@ -350,7 +350,7 @@ alone is sound because an `fvar` node carries its own type, so a handle
 determines its typing context.
 
 **Per-call memos**
-([`Memos`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/monad.rs#L182-L232)).
+([`Memos`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/monad.rs#L182-L248)).
 Each term walk of con-leche's `ExprOps` (instantiate, abstract, lift, lower,
 instantiate level parameters, the bound computations) has its own table,
 keyed by `(handle, cursor)`.  A walk's top-level entry clears its table, so
@@ -359,6 +359,12 @@ early using the derived column
 ([the cutoffs](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/expr_ops.rs#L35-L51)):
 instantiation returns a subterm unchanged once its loose-bound-variable
 bound is low enough, level substitution once it has no level parameters.
+Two more tables sit in the same record for their allocation only: the
+declaration guards `allLevelParamsDefined` and `constsResolve` thread their
+memo as an argument, as con-leche does, and the port parks it in the state
+between calls, moving it out and emptying it at each entry
+([`take_walk_memo`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L525-L572)),
+or dropping it outright past 2¹⁶ slots.
 
 **Per-declaration caches**
 ([`Caches`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L304-L351)).
@@ -651,11 +657,11 @@ and the Rust, which is fixed by making the two programs agree, not by
 adding an invariant.
 
 **The relation.**
-[`AStateRel₀`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/AbsState.lean#L338-L352)
+[`AStateRel₀`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/AbsState.lean#L346-L360)
 relates the Rust `AState` to the twin's field by field (store, memos,
 caches, pins): the same data, abstracted by functions such as `absEIdx` and,
 for hash maps, by the map they represent.
-[`AStateInv`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/AbsState.lean#L371-L376)
+[`AStateInv`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/AbsState.lean#L379-L384)
 holds the Rust-only invariants, such as each hash map's own well-formedness.
 
 **The statement.**  A state-threading Rust function is specified by

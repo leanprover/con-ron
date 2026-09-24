@@ -167,8 +167,11 @@ theorem memos_empty {rm : arena.monad.Memos} (h : arena.monad.Memos.empty = ok r
   obtain ⟨m1, hm1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨m2, hm2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨m3, hm3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨m4, hm4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have h' := Result.ok_injective h
   subst h'
+  obtain ⟨i4, -, -⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable) hm4
   obtain ⟨i0, -, n0⟩ := ConRon.Refine.HashMap2.new_refines
     (HashableInst := arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable) hm
   obtain ⟨i1, -, n1⟩ := ConRon.Refine.HashMap2.new_refines
@@ -183,7 +186,7 @@ theorem memos_empty {rm : arena.monad.Memos} (h : arena.monad.Memos.empty = ok r
   exact ⟨⟨r0 _, r0 _, r0 _, r0 _, r0 _, r0 _, r0 _, r0 _, r0 _,
       ConRon.Refine.HashMap2.RelOn_empty n1, ConRon.Refine.HashMap2.RelOn_empty n1,
       ConRon.Refine.HashMap2.RelOn_empty n2, ConRon.Refine.HashMap2.RelOn_empty n3⟩,
-    ⟨i0, i0, i0, i0, i0, i0, i0, i0, i0, i1, i1, i2, i3⟩⟩
+    ⟨i0, i0, i0, i0, i0, i0, i0, i0, i0, i1, i1, i2, i3, i4, i4⟩⟩
 
 theorem caches_empty {rc : arena.core_state.Caches}
     (h : arena.core_state.Caches.empty = ok rc) :

@@ -278,19 +278,12 @@ example {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
   rw [arena.checker_base.consts_resolve_f_two]
   lockstep
 
-/-- `consts_resolve_f_fast`: a fresh memo, the walk as a callee, the memo
-dropped. -/
-example {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
-    {e : arena.handle.EIdx}
-    (hgo : ∀ {st lst rm lm} (fuel : Std.U64) (h : arena.handle.EIdx),
-      AStateRel₀ pers st lst → AStateInv pers st → ExprOps.LMemoRel rm lm →
-      LSM pers BMemoR (arena.checker_base.consts_resolve_f_go pers vis st rf rm fuel h) lst
-        (constsResolveFGo lf lm (absU fuel) (absEIdx h)))
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a) (arena.checker_base.consts_resolve_f_fast pers vis st rf e)
-      lst (constsResolveFFast lf (absEIdx e)) := by
-  rw [arena.checker_base.consts_resolve_f_fast, constsResolveFFast]
-  lockstep
+/- `consts_resolve_f_fast` had an example here (a fresh memo, the walk as a
+callee, the memo dropped).  Since task #97-PERF-WALKMEMO the memo is the
+state's parked `crf_c` table, moved out by `take_walk_memo` and put back after
+the walk, so the entry updates the state around the callee;
+`Refine2/Checker/Base.lean`'s `consts_resolve_f_fast_ls` is proved by hand from
+the walk's `LSM` lemma, and the example is retired rather than rewritten. -/
 
 /-- `all_level_params_defined_binder`: a memoised READER walk (`LSRM`), twice,
 with the binder's own test between. -/

@@ -665,7 +665,7 @@ structure arena.monad.EIdxNat where
   d : Std.U64
 
 /-- [con_ron_core::arena::monad::Memos]
-    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 198:0-232:1
+    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 198:0-248:1
     Visibility: public -/
 structure arena.monad.Memos where
   inst1_c : ron.hashmap2.HashMap2 arena.monad.EIdxNat arena.handle.EIdx
@@ -681,6 +681,8 @@ structure arena.monad.Memos where
   fvar_b_c : ron.hashmap2.HashMap2 arena.handle.EIdx Std.U64
   inst_lp_l_c : ron.hashmap2.HashMap2 arena.handle.LIdx arena.handle.LIdx
   inst_lp_ls_c : ron.hashmap2.HashMap2 arena.handle.LsIdx arena.handle.LsIdx
+  lp_def_c : ron.hashmap2.HashMap2 arena.handle.EIdx Bool
+  crf_c : ron.hashmap2.HashMap2 arena.handle.EIdx Bool
 
 /-- [con_ron_core::arena::core_state::NNLsKey]
     Source: 'crates/con-ron-core/src/arena/core_state.rs', lines 239:0-243:1
@@ -739,7 +741,7 @@ structure arena.core_state.Caches where
     kernel.level.Level)
 
 /-- [con_ron_core::arena::monad::AState]
-    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 302:0-318:1
+    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 320:0-336:1
     Visibility: public -/
 structure arena.monad.AState where
   store : arena.store.EStore
@@ -1206,7 +1208,7 @@ structure arena.decl_check.CertCtx where
   xor_n : arena.handle.NIdx
 
 /-- [con_ron_core::arena::checker_base::OrElseStep]
-    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 414:0-419:1
+    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 416:0-421:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.checker_base.OrElseStep where

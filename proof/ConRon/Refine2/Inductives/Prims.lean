@@ -288,7 +288,7 @@ open Lockstep in
     {e : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a) (arena.checker_base.all_level_params_defined pers st lps e) st lst
+    LS pers (fun a b => b = id a) (arena.checker_base.all_level_params_defined pers st lps e) lst
                    (allLevelParamsDefined (absNIdxL lps) (absEIdx e)) :=
   ConRon.Refine2.all_level_params_defined_ls hrel hinv
 

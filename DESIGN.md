@@ -63969,3 +63969,77 @@ state rebuilds only the touched modules — one such run, 3 682 G, is not
 comparable and is discarded): **before 4 602 G (three runs, ±0.01 %),
 after 4 579 G (−0.5 %)**; with the `==` tests of `structPartsCoreAtSpec_nested`
 restored the after was 4 618 G (two runs), hence that row's "kept".
+
+### Task #97-PERF-WALKMEMO — the two guard walks' memos parked in the state (2026-09-24, Opus under Fable)
+
+Task #97-PERF-FRESH §3 item 1, landed.  `checker_base::all_level_params_defined`
+and `consts_resolve_f_fast` built a `HashMap::new()` on every call and grew
+it by doubling (phase A 155 k first allocations + 142 k doublings, phase B
+84 k + 201 k on `Init`).  The tables now live in `Memos` as `lp_def_c` and
+`crf_c`, beside the other thirteen.
+
+**The Rust.**  The two entries move their table out of the state with
+`arena::core_state::take_walk_memo` (a `core::mem::replace` that leaves a
+`HashMap::new()` in the slot, then `reset_map`), walk it exactly as before
+(the `…_go` walks still take the memo as a `&mut` argument, so they, and
+their refinement proofs, are unchanged), and put the grown table back.
+`all_level_params_defined` therefore takes `&mut AState` now; all nine
+callers already had one, so no call site changed in the Rust.
+`memos_dup` copies the two tables like the others (so `attempt_snapshot`
+stays the identity in the model), and `Memos::reset` leaves them alone:
+every entry empties its table anyway.
+
+**nanoda's guard and its threshold.**  `take_walk_memo` hands back a fresh
+table instead of a cleared one when the parked table is past
+`WALK_MEMO_KEEP` slots (nanoda's `inst` does this at 1024 entries).
+Measured on `Init` (`--verified --jobs=1`, `timeout 900`, `ulimit -v
+8388608`, one `perf stat -e instructions:u` run per binary, every run
+accepting 57 977):
+
+| binary | instructions:u | Δ vs before | peak RSS |
+|---|---:|---:|---:|
+| before (arena `c6e5f220`) | 211 976 016 505 | | 552 524 KB |
+| `WALK_MEMO_KEEP` = 2^10 (nanoda's 1024) | 208 379 555 799 | −1.70 % | 557 876 KB |
+| 2^12 | 206 572 063 910 | −2.55 % | 575 056 KB |
+| 2^14 | 205 851 105 938 | −2.89 % | 547 624 KB |
+| **2^16 (landed)** | **205 785 515 243** | **−2.92 %** | 556 788 KB |
+| no guard (2^60) | 205 783 023 575 | −2.92 % | 554 208 KB |
+
+The saving matches the task #97-PERF-FRESH hack's −2.93 %.  A guard that
+trips on ordinary calls gives the saving back — at nanoda's 1024 more than
+two fifths of it — because those calls re-grow by doubling, which is the
+cost being removed; nanoda needs the guard because `std`'s `clear` is
+O(capacity), where `HashMap2::clear` is an epoch bump and `clear_fit`
+already decays an outlier's table.  **2^16 is the smallest power of four
+tried that costs nothing measurable on `Init`** (2.5 M instructions over no
+guard, 0.001 %), so it fires only on an outlier, which is what it is for.
+Peak RSS moves within ±2 % run to run and is unchanged.
+
+**The twin is unchanged**: `allLevelParamsDefined` and `constsResolveFFast`
+already start from `∅`, and the take-and-reset is that `∅`.
+
+**Theorem 2.**  `MemosInv` gains `lpDefC`/`crfC` (`Inv` of the two tables);
+`MemosRel` gains nothing, because the twin has no field to relate them to and
+the port never reads a row across calls — so `AStateRel₀` holds across the
+two state updates by structure-instance reuse (`{ hrel.memos with }`).  No
+twin invariant was added.  In `Refine2/Checker/Base.lean`:
+`take_walk_memo_spec`/`take_walk_memo_lmemo` (the table handed out is `Inv`
+and empty, i.e. `LMemoRel _ ∅`; the one left in the slot is `Inv`), and the
+two entry lemmas are proved by hand from the unchanged walk lemmas
+(`LSM.apply`/`LSRM.apply` at the state with the slot swapped).
+`all_level_params_defined_ls` is an `LS` (state) lemma now instead of `LSR`
+(reader); `Inductives/Prims.lean`'s re-export follows, and every caller's
+`lockstep` proof went through unchanged.  `memos_empty` (`Checker/Init`)
+and `memos_reset` (`Core/Bracket`) carry the two new `Inv` clauses.
+
+`Tactic/Tests.lean`'s `consts_resolve_f_fast` example (the entry by one
+`lockstep`) is retired with a note: the entry now updates the state around
+its callee, and its lemma is proved by hand.  Every caller's `lockstep` proof
+went through unchanged under task #97-T2-TACTIC round 3's strict tactic.
+The Init numbers above were measured on `c6e5f220`, before task
+#97-PERF-BULKFILL landed; the branch was then merged with it and
+re-extracted.  `scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`: 0 items, dead weight 0; both roots at
+`[propext, Classical.choice, Quot.sound]` (`Capstone.lean`'s
+`#guard_msgs`); no `sorry` added.  Scratch (`_tmp/walkmemo/`: the six
+binaries and their logs) deleted after this section.

@@ -522,6 +522,55 @@ pub fn reset_map<K, V>(m: &mut HashMap<K, V>) {
     m.clear_fit()
 }
 
+/// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
+/// The slot count past which `take_walk_memo` hands back a FRESH table
+/// instead of a cleared one; see its note for how the value was chosen.
+pub const WALK_MEMO_KEEP: usize = 1 << 16;
+
+/// con-leche: ConLeche/Kernel/Level.lean:405-407 Expr.allLevelParamsDefinedFast
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:197-199 Expr.constsResolveFFast
+/// Lean twin: the `∅` that `proof/ConRon/Arena/CheckerBase.lean`'s
+/// `allLevelParamsDefined` and `constsResolveFFast` start their walk from —
+/// **the parked walk memo, moved out of the state and emptied** (task
+/// #97-PERF-WALKMEMO).  The slot is left holding `HashMap::new()` (which
+/// allocates nothing) for the length of the walk, and the entry puts the
+/// grown table back afterwards; either way the table this returns is empty,
+/// so the walk starts where the twin's does.
+///
+/// **nanoda's guard** (`nanoda_lib/src/expr.rs`, `inst`): a table past
+/// `WALK_MEMO_KEEP` slots is dropped rather than kept, so that one huge walk
+/// does not leave a huge table behind for every later call.  `reset_map`'s
+/// `clear_fit` already decays such a table, one eighth of its high-water mark
+/// a call, so the guard only decides which of the two is cheaper for an
+/// outlier: re-growing from nothing, or `clear_fit`'s re-make at the decayed
+/// size.  The threshold, measured on `Init` (`--verified --jobs=1`, one
+/// `perf stat -e instructions:u` run each, all accepting 57 977):
+///
+/// | `WALK_MEMO_KEEP` | instructions:u |
+/// |---|---:|
+/// | fresh `HashMap::new()` per call (before) | 211 976 016 505 |
+/// | 2^10 slots (nanoda's 1024) | 208 379 555 799 |
+/// | 2^12 | 206 572 063 910 |
+/// | 2^14 | 205 851 105 938 |
+/// | **2^16** | **205 785 515 243** |
+/// | no guard (2^60) | 205 783 023 575 |
+///
+/// A guard low enough to trip on ordinary calls gives the saving back — at
+/// nanoda's 1024 more than half of it — because those calls re-grow by
+/// doubling, which is exactly the cost this table exists to avoid.  2^16 is
+/// the smallest power tried that costs nothing measurable on `Init` (2.5 M
+/// instructions over no guard), so it only ever fires on an outlier.
+pub fn take_walk_memo<K, V>(slot: &mut HashMap<K, V>) -> HashMap<K, V> {
+    let m: HashMap<K, V> = core::mem::replace(slot, HashMap::new());
+    if m.capacity() > WALK_MEMO_KEEP {
+        HashMap::new()
+    } else {
+        let mut m2: HashMap<K, V> = m;
+        reset_map(&mut m2);
+        m2
+    }
+}
+
 /// con-leche: ConLeche/Cached/StateC.lean:394-398 CState.flushed
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:101-103 Caches.empty` — the
 /// per-declaration flush, as an in-place reset of the eleven tables rather
