@@ -1776,7 +1776,10 @@ theorem struct_rec_ty_at_refines {pers st lst} {t : arena.handle.NIdx}
       (structRecTyAtSpec (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absEIdx tty) (absCtors4L ctors) (ConRon.Refine.absPropWhen pw) (absU n)
         (absEIdx q2) (absEIdx motive_ty)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.struct_rec_ty_at, structRecTyAtSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_rec_ty_at_ls
@@ -1811,7 +1814,10 @@ theorem struct_rec_ty_r_refines {pers st lst} {t : arena.handle.NIdx}
     Sim₀ (Option.map absEIdx) pers lst o
       (structRecTyR (absNIdx t) (absNIdxL lps) (absNIdx elim) large (absU n_p)
         (absU n_idx) (absEIdx tty) (absCtors4L ctors)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.struct_rec_ty_r, structRecTyR]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_rec_ty_r_ls
@@ -1846,7 +1852,10 @@ theorem struct_rec_rhs_close_refines {pers st lst}
       (structRecRhsCloseSpec (absNIdxL lps) (absU n_p) (absEIdx tty)
         (absCtors4L ctors) (ConRon.Refine.absPropWhen pw) (absU n) (absU n_f)
         (absEIdx q2) (absEIdx body) (absEIdx motive_ty)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.struct_rec_rhs_close, structRecRhsCloseSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_rec_rhs_close_ls
@@ -1930,7 +1939,10 @@ theorem struct_rec_rhs_r_refines {pers st lst} {t : arena.handle.NIdx}
       (structRecRhsR (absNIdx t) (absNIdxL lps) (absNIdx elim) large (absU n_p)
         (absU n_idx) (absEIdx tty) (absCtors4L ctors) (absNIdx rec_c)
         (absLsIdx rlvls) (absU j)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.struct_rec_rhs_r, structRecRhsR]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_rec_rhs_r_ls
