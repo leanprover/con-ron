@@ -499,20 +499,11 @@ theorem rec_ctor_kinds_from_refines {pers st lst} {t : arena.handle.NIdx}
   · intro st lst j out m hj hm hrel hinv ih
     rw [arena.inductives.native_parts.rec_ctor_kinds_from.eq_def, recCtorKindsFromSpec]
     rw [if_neg (by scalar_tac)]
+    -- the in-range arm's pair read `let (e, _) := cbs[i4]; dup2 e` is zipped
+    -- (task #97-T2-TACTIC round 3); the off-the-end arm's default handle
     lockstep
-    · have ha := let_pair_dup2_eq _ _ hf
-      subst ha
-      rcases hP with hka | hka
-      · have e := (hka.trans ‹(_ : Nat) = n_p.val + j.val›).symm
-        rw [show absU n_p + absU j = n_p.val + j.val from rfl, e,
-          absBinderL_getD_fst_of_lt _ _ ‹_›]
-        simp only [List.get_eq_getElem]
-        lockstep
-      · exfalso; scalar_tac
-    · simp only [arena.handle.EIdx.of_word, Result.ok.injEq] at hf
-      subst hf
-      rw [absBinderL_getD_fst_of_ge _ _ (by scalar_tac)]
-      lockstep
+    rw [absBinderL_getD_fst_of_ge _ _ (by scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem rec_ctor_kinds_from_ls
