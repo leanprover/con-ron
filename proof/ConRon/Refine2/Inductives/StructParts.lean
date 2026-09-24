@@ -593,6 +593,40 @@ open Lockstep in
 `Refine2/Inductives/Spec.lean`'s four `…Spec` definitions are the subjects;
 `structShape_unfold` is the equation that ties them back. -/
 
+/-- `structShapeMotiveSpec` with the twin's `rbs[nP]?` read as the port's bounds
+test. -/
+theorem structShapeMotiveSpec_port (T : NIdx) (lps : List NIdx) (elim : NIdx) (large : Bool)
+    (nP : Nat) (rbs : List (EIdx × ConLeche.BinderMeta)) :
+    structShapeMotiveSpec T lps elim large nP rbs =
+      (if h : nP < rbs.length then do
+        let mdom := rbs[nP].1
+        if mdom.tag == ETag.forallE then
+          match ← view mdom with
+          | .forallE mmaj mcod _ => do
+            if mcod.tag == ETag.sort then
+              match ← view mcod with
+              | .sort s' => do
+                let want ← structElimLevel elim large
+                let fam0 ← structFam T lps nP 0
+                pure (s' == want && mmaj == fam0)
+              | _ => pure false
+            else pure false
+          | _ => pure false
+        else pure false
+       else pure false) := by
+  rw [structShapeMotiveSpec]
+  split
+  · rename_i mdom _ heq
+    have h : nP < rbs.length := (List.getElem?_eq_some_iff.mp heq).1
+    rw [dif_pos h]
+    have := (List.getElem?_eq_some_iff.mp heq).2
+    rw [this]
+    rfl
+  · rename_i hn
+    have h : ¬ nP < rbs.length := by
+      intro h; exact hn _ _ (List.getElem?_eq_getElem h)
+    rw [dif_neg h]
+
 /-- `struct_shape_motive` ⊑ `structShape`'s `motiveOk` `let`. -/
 theorem struct_shape_motive_refines {pers st lst} {t : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {elim : arena.handle.NIdx}
@@ -606,19 +640,8 @@ theorem struct_shape_motive_refines {pers st lst} {t : arena.handle.NIdx}
         (absU n_p) (absBinderL rbs)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   clear hrun
-  rw [arena.inductives.struct_parts.struct_shape_motive, structShapeMotiveSpec]
+  rw [arena.inductives.struct_parts.struct_shape_motive, structShapeMotiveSpec_port]
   lockstep
-  all_goals (exfalso
-             casesm* (_ : Nat) = _ ∨ Std.Usize.max < _
-             all_goals first
-               | scalar_tac
-               | (simp only [absBinderL, List.getElem?_map] at *
-                  subst_vars
-                  simp_all [List.getElem?_eq_getElem]
-                  subst_vars
-                  first
-                    | (simp_all [lockstep_simp]; done)
-                    | (simp_all [lockstep_simp, forallE_eq_absU32_iff, absU32_eq_forallE_iff])))
 
 open Lockstep in
 @[lockstep] theorem struct_shape_motive_ls

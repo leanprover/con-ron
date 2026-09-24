@@ -834,6 +834,18 @@ macro_rules
       | (simp_all [absNIdxL, absCtors3L, absCtors3LFrom, absCtorsL, absCtorsLFrom,
           absIConstantVal, absICIL, absICILFrom, absEIdxL, absEIdxLFrom, NNodeViewWF]; done)))
 
+/-- A twin tag equal to a Rust tag word's abstraction IS that word (both
+orientations; for a branch the context rules out). -/
+theorem forallE_eq_absU32_iff (a : Std.U32) :
+    (ETag.forallE = absU32 a) ↔ a = arena.handle.ETAG_FORALL_E :=
+  ⟨fun h => absU32_inj (h.symm.trans etag_forallE_abs.symm),
+   fun h => by subst h; exact etag_forallE_abs.symm⟩
+
+theorem absU32_eq_forallE_iff (a : Std.U32) :
+    (absU32 a = ETag.forallE) ↔ a = arena.handle.ETAG_FORALL_E :=
+  ⟨fun h => absU32_inj (h.trans etag_forallE_abs.symm),
+   fun h => by subst h; exact etag_forallE_abs⟩
+
 namespace IndSide
 
 /-- Round 5's side alternatives, SCOPED: active only in the files that
@@ -861,7 +873,10 @@ scoped macro_rules
            | (exfalso; scalar_tac)
            | (simp_all [absNIdxL, absEIdxL, absEIdxLFrom, absCtorsL, absCtorsLFrom]; done)
            | (simp_all [absBinderL, List.getElem?_map, List.getElem?_eq_getElem]
-              subst_vars; simp_all; done))))
+              subst_vars; simp_all; done)
+           | (simp_all [absBinderL, List.getElem_map, etag_forallE_abs, etag_sort_abs,
+               etag_lam_abs, etag_app_abs, etag_const_abs, absU32_eq_forallE_iff,
+               forallE_eq_absU32_iff]; done))))
 
 end IndSide
 
@@ -1233,17 +1248,6 @@ open Lockstep in
   rw [Lockstep.TwinEq, drop_eidx_from_abs h]
   simp [absEIdxL, List.map_drop, alloc.vec.Vec.new]
 
-/-- A twin tag equal to a Rust tag word's abstraction IS that word (both
-orientations; for a branch the context rules out). -/
-theorem forallE_eq_absU32_iff (a : Std.U32) :
-    (ETag.forallE = absU32 a) ↔ a = arena.handle.ETAG_FORALL_E :=
-  ⟨fun h => absU32_inj (h.symm.trans etag_forallE_abs.symm),
-   fun h => by subst h; exact etag_forallE_abs.symm⟩
-
-theorem absU32_eq_forallE_iff (a : Std.U32) :
-    (absU32 a = ETag.forallE) ↔ a = arena.handle.ETAG_FORALL_E :=
-  ⟨fun h => absU32_inj (h.trans etag_forallE_abs.symm),
-   fun h => by subst h; exact etag_forallE_abs⟩
 
 /-! ## Round 5 slice 2: the counted recipe with an accumulator, the domain read -/
 
