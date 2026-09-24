@@ -62423,6 +62423,67 @@ tainted / dead weight 198** → this slice **19 / 270 / 195** (gone:
 After merging `arena` `6296213a` (Inductives Modeled slice 3; `arena` alone:
 29 items / 291 tainted / dead weight 169): **25 / 274 / 166**.
 `scripts/gates.sh`: **all 16 OK**.  Submitted to the merge queue.
+#### Slice 2 (worktree `_tmp/wt-t2-chk-base5`, branch `t2-chk-base-5` off `arena` `bf376947`)
+
+**The two memoised guard walks** (item 3), on the shared tactic's `LSM`/`LSRM`
+(task #97-T2-TACTIC round 2 slice 4): each a fuel induction whose two cases are
+one `lockstep`, the port's `_node`/`_two`/`_binder` helpers unfolded in place,
+at `Lockstep.BoolMemoR` (answers equal, memos `LMemoRel`).
+`consts_resolve_f_go_ls` (`LSM`, at any `CoreCtx vis rf lf`; the front door
+passes `IFEnvInv.coreCtxAt`), `consts_resolve_f_fast_ls`,
+`all_level_params_defined_go_ls` (`LSRM`), `all_level_params_defined_ls`:
+axiom-clean.  The old `SimBM`/`SimBR` arm statements (`consts_resolve_f_{go,
+node,two}_refines`, `all_level_params_defined_{go,node,binder}_refines`, all
+`sorry`) are gone; `consts_resolve_f_node_refines`' `hnl` premise with them.
+
+**Divergence fixed in the twin — `constsResolveFGo` viewed the node twice**
+(once for the leaf test, again for the miss arm's dispatch); the port views it
+once and hands the view to `consts_resolve_f_node`.  The twin now binds
+`let v ← view h` and dispatches on `v` (`Arena/CheckerBase.lean`).  Theorem 1:
+`Bridge/Checker/Names.lean`'s `constsResolveFGo_run` loses its six
+second-view steps, nothing else.  `Checker/Spec.lean`'s `constsResolveFNodeSpec`
+and `constsResolveFGo_unfold` (the two-view transcription, no consumer left)
+deleted with their census line; `twin-lines update` relocated 35 citations.
+
+New prims: `memo_b_get_twin`, `level_all_params_defined_twin`,
+`prop_when_params_defined_twin`, `all_params_defined_list_twin` (with
+`all_params_defined_list_aux`, proved) in `Base`; in `Tactic/Prims.lean` the
+plain (uncached) readers with their answers' WF: `read_levels_ls`,
+`read_names_ls` (and `read_levels_wf`, `read_name_wf`, `read_names_from_wf`).
+
+**The rest of Base's frontier, all closed:**
+* `open_pis_at_fvars`, `open_pis_at_fvars_f_go`: induction on `n`, one
+  `lockstep` per case.
+* `is_eq_head` (glue: the port's `len == 1` against the twin's `length == 1`),
+  `eq_head_level_at` (the twin's `[l]` match against the port's length test
+  and `[0]` read: four glue cases after `lockstep`), `eq_head_level`.
+* `fvar_type_ds` (the port pushes onto `out` before recursing: relation
+  `absEIdxL a = absEIdxL out ++ b`, the recursive tail by hand;
+  `fvar_type_ds_ls` at the fresh vector), `doms_match_aux(_from)` (pure,
+  proved; `doms_match_aux_twin` the `TwinEq` pair).
+* `proj_rule_wf` and `check_proj_rule` with its five tails, each one
+  `lockstep` (`absBinderArr`, `ExprOps.absEIdxList` `local lockstep_simp` there;
+  the wf tail rewrites the twin's four inline guards to one bound conjunct,
+  the port's `proj_rule_wf`, by `bind_assoc`/`pure_bind` only).
+* `check_typed_list`, `check_annot_list`, `check_def_eq_list`: cursor
+  inductions, `lockstep` per case plus the IH applied at the port's `i + 1`.
+* Dead weight: `nidx_is_model_suffix` (the `nidx_is_proj_fn_shape` recipe),
+  `pi_result_sort` (lockstep read) proved; `vec_dup_range_refines`,
+  `value_kind_word_refines`, `unwrap_or_refines`, `Top`'s `cp_append_refines`
+  and `at_decl_text_refines` (no consumer; messages are not compared, DESIGN
+  §3.1) deleted.  `Inductives/Prims.lean`'s wrappers of the replaced
+  statements now point at the new lemmas; its `fvar_type_ds_ls` (a `sorry`'d
+  cursor form) deleted.
+
+`Checker/{Base,Top,Leaves}.lean` have no direct `sorry` left.
+
+Frontier: `arena` `bf376947` **23 items / 242 tainted / dead weight 166** →
+this slice **16 / 129 / 139**; no item in this lane's files.
+After merging `arena` `911d0d59`: **14 / 117 / 85**.  `scripts/gates.sh`: **all
+16 OK**.  Submitted to the merge queue.  (The Modeled lane's queued
+`t2-ind-mod-4` proves `doms_match_aux`/`all_params_defined_list` pairs of its
+own in `Inductives/PrimsModeled.lean`; this slice's, in `Base`, sit below it,
+so those can become aliases of these.)
 
 ### Task #97-T2-LOCKSTEP lane Inductives round 5 — the six timeouts split, the cursor/accumulator recipes, three `eidx_take_beq` divergences (2026-09-24, Opus under Fable)
 
@@ -62813,3 +62874,117 @@ memo walk `mentions_fvar_{node,go}`, `check_native_rules`, the
 `check_native_rec*` bracket (the Rust returns its `&mut IFEnv` outside the
 `Result`: `LSM` with the environment as the memo, and the push/pop bracket
 through `ifenv_pop_temp_rel`), `check_native_tail_install`.
+### Task #97-T2-LOCKSTEP lane Inductives Modeled round 2 — Modeled.lean sorry-free; the tactic workarounds dropped (2026-09-24, Opus under Fable)
+
+Worktree `_tmp/wt-t2-ind-mod3`, branch `t2-ind-mod-3` off slice 3 of the
+previous round (`6296213a`), `arena` merged twice (`b9b64d90`+tactic-7 at
+`09201508`, then `bf376947` with the Checker Base/Top round 2 landing).  The
+lane owns `Refine2/Inductives/{Modeled,SpecModeled,PrimsModeled}.lean`
+(`Checker/Canon.lean` was moved to its own lane mid-round, untouched here).
+No Theorem-2 invariant was added, no twin and no Rust changed.
+
+#### Slice 1
+
+**Closed** (every one `refine LS.toSim₀ ?_ hrun; rw [rust, twin]; lockstep`
+plus, where noted, a few lines):
+* the frontier items `ind_block_caps` (now concluding `PropWhenWF a.sort_z`,
+  the Checker lane's statement: `pi_result_z` zipped in place by
+  `lockstep_inline`, so `zeroness_of_ls` carries the WF, and the empty
+  `if_all_zero` by `Lockstep.IndModWF.if_all_zero_new_wf_twin`, opened at the
+  one proof so it wins over the value-only pair), `nested_rule_shape_args`,
+  `check_iota_thm_idx` / `check_iota_thm_n_idx` (the saturating
+  `cn_p as usize` is exact because the spine is `cn_p + k` long: split the
+  cast's disjunction, `scalar_tac` the other arm), `check_proj_iota_doms`,
+  `iota_lhs_prefix_ok` (the two prefixes by `take_list_of_arr`),
+  `inst_spine_list_renamed`;
+* and the rest of the file: `check_eta_thm_{body,shape}`,
+  `check_unit_thm_{shape,at}`, `check_proj_iota_lhs`, `eq_app3`, and the
+  cursor walks `lower/lift_bvars_list`, `inst_spine_list`, `nested_pins_ok`,
+  `eta_proj_args`, `doms_match_renamed` (each the `_aux` induction; the last
+  with a `RenameBy` specialisation `doms_match_renamed_by_ls`, as
+  `rename_consts_fast_by_ls`).  **Modeled's `sorry`s 19 → 0.**
+
+**Statement change**: `eq_app3_refines` was a `SimRE` (twin state returned
+EXACTLY); it is now proved as the `LSR` `eq_app3_ls` and its public form is
+the read's `AOut₀` (`LSR.toAOut₀`), since a lockstep zip relates the twin's
+post-state, it does not pin it.  Its one consumer was the `LSR` wrapper.
+
+**Written for the zip** (`PrimsModeled.lean` unless noted):
+* `Tactic/Prims.lean` (handle-level, after grepping — none existed):
+  `read_name_ls`, `read_names_ls`, `read_levels_ls` (answers with their
+  `NameWF`/`NamesWF`/`LevelsWF`, `LSR.ofAOut₀WF`), with `read_name_wf`,
+  `read_names_from_wf`, `read_levels_wf`.
+* `all_params_defined_list_ls` (proved: `Checker/Base.lean`'s
+  `all_params_defined_list_refines` is still `sorry` and could be closed from
+  it), `eidx_vec_beq_ls` (from 0, the twin's `==`), `doms_match_aux_ls`
+  (proved by the `doms_match_aux_from` cursor induction, `domsAt`: likewise
+  `Checker/Base.lean`'s `doms_match_aux(_from)_refines` could take it).
+* **`ind_idx_unify` / `lockstep_idx`**: the twin reads a list at its own
+  spelling of the port's index (`bs[o + k]` against the port's
+  `bs[(o + k + 1 - 1) as usize]`); when two reads of one list sit at indices
+  `scalar_tac` proves equal, the second is rewritten into the first
+  (`getElem_idx_eq`).  `lockstep_idx` is `lockstep` with this move in front.
+  The twin's `bs[n]?` is first decided at the port's own bounds test
+  (`absBinderL_get?_lt/_ge` under a `by_cases`), which is how
+  `doms_match_renamed`, `check_eta_thm_body` and `check_unit_thm_shape` go.
+* `pair_let_eq2` / `ind_eq2_facts`: a port read `let (e, _) := v[i]; e.eq2(x)`
+  the zip leaves as an equation, turned into the handles' comparison.
+
+**The tactic workarounds are gone** (tactic-7 on `arena`): `lockstep_mod`,
+`lockstep_ite`, `ind_twin_split` deleted, every proof calls `lockstep`; the
+`attribute [local irreducible] nestedRuleShapeArgsSpec` removed.  Three
+closers had to be rewritten for the new twin splits (the twin's undecided
+`if` is now left for the caller rather than contradicted; `eq_app3`'s `[lv]`
+pattern is cased down to the `LIdx`'s bit-vector, which a `split` and the
+length facts close).  `nidx_vec_beq_spec` dropped (Core's `nidx_vec_beq_ls`);
+`eidx_vec_dup_spec` stays until `t2-ind-7` (with `ind_eidx_vec_dup_twin`)
+lands.
+
+**Tactic findings** (for the tactic's owner): (1) with two `@[lockstep]`
+pairs for one Rust head, the first imported wins even when a later one
+carries more (a local registration does not override; an opened
+`Lockstep.X` namespace does — used for `IndModWF`); `[-lockstep]` is not
+erasable.  (2) The twin-split of a `match` on a list pattern (`[lv]`) cases
+the head `LIdx` down to `UInt32`/`BitVec`/`Fin` constructors.
+
+**Left**: `SpecModeled.lean`'s `checkIotaThm_unfold` / `checkIotaThmN_unfold`
+(frontier, fan-in 0).  The obstacle, measured: the twin's `do` block is
+compiled with join points (`have __do_jp := …; if c then jp () else fail >>=
+jp`), so any `simp` that zeta-reduces duplicates every continuation per
+`unless` (the heartbeat blow-up); the equation needs a join-point-aware peel
+(`am_bind_congr` plus a `letFun` congruence) and a case split at the one
+place the spec merges three `unless`es into `iotaLhsPrefixOkSpec`.
+
+**Frontier** (`scripts/frontier.sh ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`): at the branch start (`6296213a`, with
+the `ind_block_caps` proof in) **30 items in 11 modules, 301 tainted, dead
+weight 167** (Modeled: 8 items); at the submitted tip **19 / 6 / 263 / 151**
+— Modeled: **0**; this lane's items left are SpecModeled's two `_unfold`s.
+
+#### Slice 2 — SpecModeled's two `_unfold`s; the lane's files sorry-free
+
+Branch `t2-ind-mod-4` (worktree `_tmp/wt-t2-ind-mod4`) off slice 1's
+submitted tip `79853fe6`, `arena` `911d0d59` (`t2-ind-7`) merged.
+
+* **`checkIotaThm_unfold`** and **`checkIotaThmN_unfold`** proved.  Slice 1's
+  diagnosis was a `simp` duplicating join points; the fix is to let it: unfold
+  the twin and every spec fragment, then one `simp only` with
+  `Checker/Shape.lean`'s `twin_reduce` lemmas (`bind_assoc`, `pure_bind`,
+  `am_fail_bind`, `am_ite_bind`), `Nat.add_sub_cancel_left` (`depth - rP` is
+  `cnF`) and the Boolean normalisers that split `iotaLhsPrefixOkSpec`'s merged
+  test back into the twin's three `unless`es (`Bool.not_eq_true'`, `ite_not`,
+  `Bool.eq_false_iff`, `beq_iff_eq`, `decide_eq_true_eq`).  It completes in
+  seconds; the earlier heartbeat death was the peel through `rw`, not the
+  duplication.  The N case also rewrites the twin's two `pins.mapM`s to the
+  spec's cursor lists (`list_mapM_counted`) first and closes with `rfl`: the
+  two sides then differ only in the auxiliary matcher of the residual-head
+  test (the twin's own against `checkIotaThmNCtorSpec`'s), which `rfl`
+  unfolds.  **SpecModeled's `sorry`s 2 → 0**; with Modeled at 0 and
+  PrimsModeled at 0, the lane's three files are sorry-free.
+* `eidx_vec_dup_spec` dropped (`Inductives/Shape.lean`'s
+  `ind_eidx_vec_dup_twin`, landed with `t2-ind-7`); two closers read the forms
+  `t2-ind-7`'s pairs now produce (`TwinEq` of a `drop_eidx`; `absEIdxL`).
+
+**Frontier** at this tip: **15 items in 4 modules, 249 tainted, dead weight
+97**; none in the lane's files (slice 1's tip: 19 / 263 / 151, the difference
+also `t2-ind-7`'s).

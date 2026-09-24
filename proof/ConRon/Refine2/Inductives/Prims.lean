@@ -272,7 +272,7 @@ open Lockstep in
     (hfe : IFEnvRelI rf lf) :
     LS pers (fun a b => b = id a) (arena.checker_base.consts_resolve_f_fast pers vis st rf e) lst
       (constsResolveFFast (lf.restrictTo (absU vis)) (absEIdx e)) :=
-  LS.ofSim₀ fun _ h => consts_resolve_f_fast_refines hrel hinv hfe.rel hfe.inv h
+  ConRon.Refine2.consts_resolve_f_fast_ls hrel hinv hfe
 
 
 open Lockstep in
@@ -284,7 +284,7 @@ open Lockstep in
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = id a) (arena.checker_base.all_level_params_defined pers st lps e) st lst
                    (allLevelParamsDefined (absNIdxL lps) (absEIdx e)) :=
-  LSR.ofSimRE hrel hinv fun _ h => all_level_params_defined_refines hrel hinv h
+  ConRon.Refine2.all_level_params_defined_ls hrel hinv
 
 
 open Lockstep in
@@ -399,17 +399,6 @@ open Lockstep in
   LS.ofSim₀ fun _ h => open_pis_at_fvars_f_refines hrel hinv h
 
 
-open Lockstep in
-@[lockstep] theorem fvar_type_ds_ls
-    {pers st lst}
-    {hs : alloc.vec.Vec arena.handle.EIdx}
-    {i : Std.Usize}
-    {out : alloc.vec.Vec arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absEIdxL a) (arena.checker_base.fvar_type_ds pers st hs i out) st lst
-      (do pure (absEIdxL out ++ (← fvarTypeDs (absEIdxLFrom hs i)))) :=
-  LSR.ofSimRE hrel hinv fun _ h => fvar_type_ds_refines hrel hinv h
 
 
 open Lockstep in
@@ -528,7 +517,7 @@ open Lockstep in
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = (Option.map absLIdx) a) (arena.checker_base.pi_result_sort pers st e) st lst
                                      (piResultSort (absEIdx e)) :=
-  LSR.ofSimRE hrel hinv fun _ h => pi_result_sort_refines hrel hinv h
+  ConRon.Refine2.pi_result_sort_ls hrel hinv
 
 
 

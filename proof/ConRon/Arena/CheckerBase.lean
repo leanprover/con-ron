@@ -276,19 +276,22 @@ only callers; the memo is threaded explicitly — the census's own twin column
 con-leche: ConLeche/Kernel/DeclCheck.lean:89-124 Expr.constsResolveFGo
 The memoized walk.  The leaf clauses are `Arena/Core.lean`'s `constsResolve`
 at one node, exactly as con-leche's `…Go` calls the pure walk at its four
-non-recursive constructors. -/
+non-recursive constructors.  The node is viewed ONCE and the miss arm
+dispatches on that view, as the port does (`consts_resolve_f_node` takes the
+view; task #97-T2-LOCKSTEP lane Checker Base/Top round 2). -/
 def constsResolveFGo (fe : IFEnv) (memo : Std.HashMap EIdx Bool) :
     Nat → EIdx → AM (Bool × Std.HashMap EIdx Bool)
   | 0, _ => fail (.internal "fuel exhausted: constsResolveF")
   | fuel + 1, h => do
-    match ← view h with
+    let v ← view h
+    match v with
     | .bvar _ | .sort _ | .lit _ | .const _ _ =>
       pure (← constsResolve fe coreWalkFuel h, memo)
     | _ => do
       match memo[h]? with
       | some r => pure (r, memo)
       | none => do
-        let p : Bool × Std.HashMap EIdx Bool ← match ← view h with
+        let p : Bool × Std.HashMap EIdx Bool ← match v with
           | .fvar _ ty => constsResolveFGo fe memo fuel ty
           | .app f a => do
             let (b₁, memo) ← constsResolveFGo fe memo fuel f
