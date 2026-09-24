@@ -64150,6 +64150,165 @@ headlines), shaped by the maintainer's rulings during the task:
 * README's two headline links and OVERVIEW §3's quotations re-anchored;
   `scripts/overview-links-expected.txt` regenerated.
 
+### Task #98-GROUP — phase B's outcome does not depend on how records are grouped among workers (2026-09-24, Opus under Fable)
+
+**Part 1, proved at the twin** (sorry-free; `lake build ConRonBridge` builds
+it through the library's `globs`, so no new library and no new gate step).
+
+* `proof/ConRon/Bridge/Grouping/` — the **frame** of phase B.  The invariant
+  `Inv k p s` (`Gen.lean`): all four scratch flags up
+  (`AllOn s.store`), the persistent tiers `k` (read as
+  `s.store.enableScratch`, which forgets exactly the scratch tier) and the pin
+  table `p`.  One `@[spec]` Hoare triple
+  `⦃Inv k p⦄ f x₀ … xₙ ⦃⇓? _ => Inv k p⦄` for **every twin function reachable
+  from `checkValueGroup`** — 540 triples, `Monad` → `ExprOps` →
+  `Pins`/`Env`/`PropRead`/`StructParts` (`Misc`) → `Core1`–`Core6` (with the
+  knot, `coreKnot_keeps : FnsKeep (coreKnot mode fe id n)`) → `Checker`
+  (`installValue`, `checkValueGroup`).  The store fact underneath is
+  `Store.lean`: with the scratch flag up, `intern`/`internBM`/`internBindI`
+  and the nested name/level/list interns append to the scratch tier only
+  (`Fr st st'`).  The triples are uniform, so three commands state and prove
+  them (`Gen.lean`): `#keeps f …` (`mvcgen [f]` + `grp_close`),
+  `#keeps_ind f i` (structural recursion on the `i`-th explicit argument) and
+  `#keeps_fuel Go [Arm…]` (template rule 9's `Go_zero`/`Go_succ` walks); the
+  `keeps_step` tactic names every local triple (induction hypotheses,
+  `FnsKeep r`'s six slots) and hands them to `mvcgen`.  Written by hand:
+  the WF recursions (`fun_induction`: `iotaCertsAux`, `inferLamsOut`,
+  `inferPisOut`, `inferSpine`, `inferSpineIO`, `mkAppNFrom`), the
+  `whnfApp`/`betaPeel` mutual block (`whnfApp.mutual_induct`), the
+  continuation-passing `whnfStep`/`whnfLoop`/`defeqStep`/`defeqLoop`, and
+  two copies made for `mvcgen`'s sake: `defeqStep`'s tail (`Defeq.lean`,
+  `dqCongrG`/`dqTailG`, verbatim as the bridge's `dqCongrA`/`dqTailA`,
+  `defeqStep_eq_tail` by `rfl` — the whole body in one `mvcgen` times out on
+  the 11×11-constructor two-view match) and `defeqPeel`'s one level
+  (`peelStepG`, `delta`/`rfl`, because its structural-recursion equation
+  lemmas time out).  ≈ 1 450 lines; the stack elaborates in about two
+  minutes.
+  **Import hygiene** (found by the gate's frontier run, which imports every
+  module into one closure): `mvcgen`'s splits realize match auxiliaries
+  (`X.match_n.congr_eq_m._sparseCasesOn_k`) that `Bridge/Core/Walks/*` and
+  `Bridge/ExprOps/Spine.lean` realize too, and two modules realizing the same
+  one cannot share a closure (`lakefile.toml`'s `ConRonBridge` note).  So
+  `Gen.lean` imports those owners (`Walks/StrLit`, `Walks/PropRead`, which
+  reach the rest) to reuse theirs, and every file of the tier opens with
+  `#erase_foreign_specs`, which erases — in that module only — every
+  `@[spec]` declared outside `ConRon.Bridge.Grouping`, so `mvcgen` sees the
+  frame triples alone.  The triples themselves are `@[scoped spec]` and the
+  store lemmas `@[scoped simp]` (triple names are flat, `keepsName`, because a
+  dotted name would scope them to its own namespace): an importer that does
+  not open `ConRon.Bridge.Grouping` sees none of them.
+* `proof/ConRon/Bridge/Checker/Grouping.lean` — the statements
+  (namespace `ConRon.Bridge.Grouping`):
+  * `PhaseBEquiv s t` := same `store.enableScratch`, same `caches`, same
+    `pins` — everything a phase-B check reads of its start state;
+  * **(a)** `checkPending_congr : PhaseBEquiv s t → checkPending mode fe pc s =
+    checkPending mode fe pc t` (identical runs, state included);
+    `checkPending_frame : checkPending mode fe pc s = .ok ((), s') →
+    s'.store.enableScratch = s.store.enableScratch ∧ s'.caches = Caches.empty ∧
+    s'.pins = s.pins`; together `checkPending_after_accept` — after an
+    accepting record from a cache-empty state, every further record (any
+    mode, environment, record) runs exactly as from that state;
+  * **(b)** `checkPendingList_accepts_iff : s.caches = Caches.empty →
+    (ListAccepts mode fe ks s ↔ ∀ pc ∈ ks, Accepts mode fe pc s)`;
+    `checkPendingList_grouping` — for any `ws` covering the same records as
+    `ks` (`∀ pc, pc ∈ ks ↔ ∃ w ∈ ws, pc ∈ w`: a partition, any order,
+    duplicates allowed) the fold over `ks` accepts iff every `w` does, all
+    from the same cache-empty start; `checkPendingWorker_accepts_iff` /
+    `…_iff'` (per record, from `s.worker`, or from `s` itself when its caches
+    are empty) and `checkPendingWorker_grouping` (the pool's per-worker lists
+    from `s.worker` accept iff `checkPendingWorker` does);
+  * `installThenCheckPhased_of_pooled : PooledAccepts mode pins ds s fe s' →
+    installThenCheckPhased mode pins ds s = .ok (.ok fe, s')` — **whatever
+    grouping the pool used, the twin's pooled accept is the twin's
+    one-worker driver run**, same environment, same final state.
+
+**Part 2, priced (not implemented): lifting (b) to the Rust.**  What the lift
+needs is "Rust record `k` accepted from a used worker state ⇒ accepted from
+the fresh one".  Theorem 2 only goes Rust ⇒ twin (`hrun : … = ok o`), so the
+chain is: Rust used accepts ⇒ twin used accepts (T2) ⇒ twin fresh accepts
+(Part 1) ⇒ **Rust fresh accepts**, and the last arrow is the twin-to-Rust
+direction T2 does not have.  A Rust fresh run that does not accept is one of:
+an error of a kind (T2 contradicts it: the twin would err at that kind), a
+`Native` error (`AErrSim.native` is vacuous — no contradiction), or an Aeneas
+panic / divergence (excluded by T2's hypothesis — no contradiction).
+
+`CheckError::Native` constructions in `crates/con-ron-core/src` reachable
+from phase B (57; `check_pending` runs with `scratch_on` true throughout, so
+only the scratch arms and the Rust-only sites can fire):
+
+| sites | where | guard | class | twin |
+|---|---|---|---|---|
+| 15 | `store.rs` `NStore::intern_str`/`_other`, `LStore::intern`, `LsStore::intern`, `EStore::intern_bm`, `intern_{bvar,fvar,sort,const,app,let_e,lit,proj}`, `intern_lam_i`, `intern_forall_e_i` — scratch arm | scratch table `full()` | (ii) mirrored, **fires in B** | `internNNode`, `internLNode`, `internLsNode`, `internBME`, `internNodeE`, `internLamIE`, `internForallEIE` raise `.native` at the same probe-miss point |
+| 15 | same functions, persistent arm | persistent table full | (ii) mirrored, dead in B | same functions' `else` branch |
+| 5 | `intern_bm_persistent`, `intern_persistent` (N/L/Ls/E) | persistent full | (ii) mirrored, phase A only | `internBMPersistentE`, `internPersistent{E,N,L,Ls}` |
+| 20 | every intern above, `shared_on` arm | `M_FROZEN` | (i) frozen tier, dead in B, being removed | none |
+| 2 | `arena/core.rs` `nat_op_result` `shiftLeft`/`shiftRight` | `nat::to_u64(b) = None` (`M_SHIFT`) | **(iii) Rust-only, fires in B** (literal folding in `whnf`) | none: twin computes `Nat.shiftLeft/Right a b` (`Arena/Core.lean:1012-1014`) |
+| (1) | `checker.rs` `freeze_tier` | `M_REFREEZE` | (i), driver boundary / phase A only | none; unreachable under `Thawed` |
+
+Two refinements of the (ii) row: `Tbl::full` is `rows.len() ≥ IDX_CAP ∨
+cons.is_saturated_full()`, the twin tests `size < idxCap` only — the
+saturation disjunct is unreachable (it needs more than `usize::MAX/2` slots
+for `< 2^27` entries) but T2 today proves only `full = false → size < idxCap`
+(`tbl_not_full_size`, `Refine2/Specs.lean:387`); mirroring needs the
+converse, an unsaturation lemma over the cons map's invariant.  The (iii)
+sites cannot be proved unreachable (the exponent is an input literal, and
+`Nat.pow` folding reaches `2^64`): `shiftRight` should be FIXED in the Rust (for
+`b ≥ 2^64` the answer is `0`: a `ron::Nat` has fewer than `2^64` bits);
+`shiftLeft` gets a mirrored twin guard (`b ≥ 2^64 ∧ a ≠ 0 → fail (.native …)`;
+Theorem 1 is unaffected, a twin `.native` claims nothing there).
+
+**Strengthening T2 so a Rust `Native` is a twin `native`.**  `AErrSim`
+(`Refine2/Shape.lean:129`) is `∀ k, absAErrKind e = some k → ∃ le, x = .error
+le ∧ lAErrKind le = some k`, and both kind maps send native to `none`.  The
+change: `AErrKind.native`, both maps to `some .native`, delete
+`AErrSim.native`/`AErrSim.of_none`.  The lockstep tactic handles error arms
+generically (`errSim_bind`, `errSim_fail`/`errSim_throw`,
+`lockstep_errsim` tries `AErrSim.native` first, `Tactic/Lockstep.lean:1575-1577`):
+dropping that one alternative lets `AErrSim.mk rfl; rfl` close matching
+kinds, so lockstep-proved code re-closes wherever the twin really mirrors.
+By hand: 38 store intern `_abs` specs in `Specs.lean` (`absAErrKind e = none`
+becomes "probe missed ∧ the twin's cap test fails"), ~20–25 `_run₀`
+wrappers (`AErrSim.of_none` → `errSim_fail` on the twin's `else fail
+(.native …)`), 21 `frozen_native_arm` uses (gone with the freeze work),
+`freeze_tier_err` (+2), the two `M_SHIFT` sites, and the frontend's
+`IndexOverflow`/`pins_decode` Natives (reached through `ALineErrSim` /
+`StreamErrSim`; they need mirrors or a frontend-only relation).
+`AErrSim` is mentioned in 34 files / 328 lines of `Refine2`, `absAErrKind`
+in 19 / 104.  **Estimate: 90–110 lemma edits, mostly mechanical**; the
+non-mechanical parts are the unsaturation lemma, the twin `shiftLeft` guard
+and the frontend Natives.
+
+**T2 determinism does not help, and does not hold.**  `AStateRel₀`
+(`Refine2/AbsState.lean:355`) is not functional in the Rust → twin
+direction: the `der` hash bits (and the `bms`/name `der` columns) are not
+constrained, `RelOn` constrains twin `HashMap`s only by lookups at abstracted
+well-formed Rust keys (bucket layout free; keys outside `absK`'s image —
+`Nat` cursors `≥ 2^64`, `BVarNode ⟨n ≥ 2^64⟩`, unrelated `StrNode`/`LitNode`/
+`BMNode` keys — may hold extra rows).  And functionality would not close the
+gap anyway: T2 transports a Rust OUTCOME to the twin, never a twin outcome to
+the Rust.
+
+**The third gap, not asked but real**: Aeneas panics and divergence.  Even
+with every `Native` mirrored, "twin fresh accepts ⇒ Rust fresh accepts" also
+needs the Rust fresh run to return `ok` at all — a progress theorem for
+`check_pending` (no `fail`/`div` of the Aeneas `Result`; e.g. a memo
+`HashMap2::insert` at saturation panics in `try_resize`, unreachable but
+unproved), which is a campaign of its own over the `partial_fixpoint` tier.
+
+**Recommendation.**  Do not replace the capstone's pool premise by the Rust
+sequential fold.  The pool premise is what the binary runs, `PoolAccepts`
+already quantifies over the grouping (`parts`), and the Rust ⇒ twin
+direction is all it needs: `pool_accepts_refines` carries it to the twin's
+`PooledAccepts`, and `installThenCheckPhased_of_pooled` now turns that into
+the twin's ONE-worker driver run, so the capstone can state its conclusion
+about the sequential projection with no change to Theorem 2.  If the
+headline must mention `check_pending_worker … = ok` itself, that costs the
+three gaps above in this order: (1) fix `shiftRight` in the Rust and mirror
+`shiftLeft` in the twin; (2) the `AErrKind.native` strengthening (~100
+mechanical edits, after the freeze work removes `M_FROZEN`); (3) a progress
+theorem for phase B — the expensive one, and the one that makes (2)
+pointless without it.
+
 ### Task #98-POOL — the pool is one generic combinator, `parallel_all` (2026-09-24, Opus under Fable)
 
 **Goal** (maintainer-approved): shrink the trusted, unverified part of
