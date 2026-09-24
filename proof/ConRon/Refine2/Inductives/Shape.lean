@@ -173,6 +173,16 @@ def absStructParts (p : arena.inductives.struct_parts.StructParts) : StructParts
     absIConstantVal p.cv_r, absNIdx p.elim, absLIdx p.res_sort, absEIdx p.rhs,
     p.large, p.is_prop⟩
 
+/-- The rule's fields, abstracted (`rfl`; registered `lockstep_simp` LOCALLY by
+the files that need them — `PrimsModeled.lean` has the modeled route's own
+copies under the unsuffixed names). -/
+theorem absIRecRule_ctor_eq (r : arena.env.IRecRule) :
+    (absIRecRule r).ctor = absNIdx r.ctor := rfl
+theorem absIRecRule_nfields_eq (r : arena.env.IRecRule) :
+    (absIRecRule r).nfields = absU r.nfields := rfl
+theorem absIRecRule_rhs_eq (r : arena.env.IRecRule) :
+    (absIRecRule r).rhs = absEIdx r.rhs := rfl
+
 /-- `arena::inductives::native_parts::RecFieldKind`. -/
 def absRecFieldKind : arena.inductives.native_parts.RecFieldKind → RecFieldKind
   | .Ordinary => .ordinary
@@ -457,8 +467,8 @@ open Lockstep in
 @[lockstep] theorem nidx_vec_contains_twin (ns : alloc.vec.Vec arena.handle.NIdx)
     (n : arena.handle.NIdx) :
     LSP (arena.env.nidx_vec_contains ns n)
-      (fun o => TwinEq ((absNIdxL ns).contains (absNIdx n)) o) :=
-  fun _ h => (nidx_vec_contains_abs h).symm
+      (fun o => o = (absNIdxL ns).contains (absNIdx n)) :=
+  fun _ h => nidx_vec_contains_abs h
 
 /-- **`arena::core::nidx_vec_beq` ⊑ `==` on the abstraction.** -/
 theorem nidx_vec_beq_abs {a b : alloc.vec.Vec arena.handle.NIdx} {o : Bool}
@@ -1013,5 +1023,13 @@ the cursor (`absXLFrom v i`) and the port calls it at `0#usize`. -/
 
 /-- info: 'ConRon.Refine2.sim_vec_cursor_copy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms sim_vec_cursor_copy
+
+open Lockstep in
+/-- `arena::core::nidx_vec_beq` is `==` on the abstracted name lists, for the
+Native/Struct/Sum files (`PrimsModeled.lean`'s `nidx_vec_beq_spec` is the same
+fact, visible to the modeled route only). -/
+@[lockstep] theorem core_nidx_vec_beq_twin (a b : alloc.vec.Vec arena.handle.NIdx) :
+    LSP (arena.core.nidx_vec_beq a b) (fun o => o = (absNIdxL a == absNIdxL b)) :=
+  fun _ h => nidx_vec_beq_abs h
 
 end ConRon.Refine2

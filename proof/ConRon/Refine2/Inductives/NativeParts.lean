@@ -407,7 +407,9 @@ theorem rec_ctor_kind_at_refines {pers st lst} {cty : arena.handle.EIdx}
     Sim₀ absRecFieldKind pers lst o
       (recCtorKindAtSpec (absEIdx cty) (absU n_p) (absU i)
         (absRecFieldKind k)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  cases k <;> simp only [arena.inductives.native_parts.rec_ctor_kind_at,
+    recCtorKindAtSpec, absRecFieldKind] <;> lockstep
 
 open Lockstep in
 @[lockstep] theorem rec_ctor_kind_at_ls

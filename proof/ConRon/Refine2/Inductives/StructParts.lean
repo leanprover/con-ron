@@ -839,6 +839,41 @@ open Lockstep in
         (absU n_p) (absU n_f) (absIConstantVal cv_r) (absIRecRule rule)) :=
   LS.ofSim₀ fun _ h => struct_parts_core_sort_refines hrel hinv h
 
+/-- `structPartsCoreAtSpec`'s one conjunction, spelled as the port's nested
+tests in the port's order (a twin normal form for `lockstep`: deciding the
+ten-way `&&` at each Rust test is what exhausted the heartbeats). -/
+theorem structPartsCoreAtSpec_nested (cvT cvC : IConstantVal) (nP nF : Nat)
+    (cvR : IConstantVal) (mI rP : Nat) (rule : IRecRule) :
+    structPartsCoreAtSpec cvT cvC nP nF cvR mI rP rule = (do
+      let recName ← internNNode (.str cvT.name "rec")
+      let reserved ← reservedBasisNames
+      let rhsOk ← structPartsRhsOkSpec nP nF rule.rhs
+      if cvR.name == recName then
+       if cvC.levelParams == cvT.levelParams then
+        if reserved.contains cvT.name then pure none else
+         if reserved.contains cvC.name then pure none else
+          if reserved.contains cvR.name then pure none else
+           if mI == nP + 2 then
+            if rP == nP + 2 then
+             if rule.ctor == cvC.name then
+              if rule.nfields == nF then
+               if rhsOk then structPartsCoreSortSpec cvT cvC nP nF cvR rule
+               else pure none
+              else pure none
+             else pure none
+            else pure none
+           else pure none
+       else pure none
+      else pure none) := by
+  rw [structPartsCoreAtSpec]
+  refine am_bind_congr _ ?_; intro recName
+  refine am_bind_congr _ ?_; intro reserved
+  refine am_bind_congr _ ?_; intro rhsOk
+  simp only [Bool.and_eq_true, ite_and]
+  cases reserved.contains cvT.name <;> cases reserved.contains cvC.name <;>
+    cases reserved.contains cvR.name <;> simp
+
+attribute [local lockstep_simp] absIRecRule_ctor_eq absIRecRule_nfields_eq absIRecRule_rhs_eq in
 /-- `struct_parts_core_at` ⊑ the recogniser's body past the block match. -/
 theorem struct_parts_core_at_refines {pers st lst}
     {cv_t cv_c : arena.env.IConstantVal} {n_p n_f : Std.U64}
@@ -851,7 +886,10 @@ theorem struct_parts_core_at_refines {pers st lst}
       (structPartsCoreAtSpec (absIConstantVal cv_t) (absIConstantVal cv_c)
         (absU n_p) (absU n_f) (absIConstantVal cv_r) (absU m_i) (absU r_p)
         (absIRecRule rule)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_parts_core_at, structPartsCoreAtSpec_nested]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_parts_core_at_ls
