@@ -859,7 +859,10 @@ theorem struct_rec_prefix_at_refines {pers st lst} {n_p n n_f e : Std.U64} {o}
       = ok o) :
     Sim₀ absEIdxL pers lst o
       (structRecPrefixAt (absU n_p) (absU n) (absU n_f) (absU e)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.struct_rec_prefix_at, structRecPrefixAt]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_rec_prefix_at_ls
