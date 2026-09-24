@@ -68,6 +68,7 @@ ones; `i_ind_caps_beq`'s last link needs `kernel::prop_when::beq` against
 `absPropWhen`, which this file does not yet have.
 -/
 import ConRon.Refine2.Checker.Pins
+import ConRon.Refine.BasisPins
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -627,6 +628,57 @@ theorem i_proj_table_beq_refines {t t2 : arena.env.IProjTable} {o : Bool}
   intro o9 h
   rw [beq_last h]
   exact decide_eq_decide.mpr absU_iff
+
+/-- An interned constant's capabilities keep their `sort_z` (`intern_caps`
+copies it with `prop_when::dup`): canonical input, canonical output. -/
+theorem intern_ci_go_caps_wf {pers st m} {c : kernel.env.ConstantInfo}
+    {ci : arena.env.IConstantInfo} {s' m'}
+    (hc : ∀ v c2, c = .IndInfo v c2 → ConRon.Refine.PropWhenWF c2.sort_z)
+    (h : arena.intern.intern_ci_go pers st m c = ok (.Ok ci, s', m')) :
+    ∀ v caps, ci = .IndInfo v caps → ConRon.Refine.PropWhenWF caps.sort_z := by
+  intro v caps hci
+  subst hci
+  cases c <;> simp only [arena.intern.intern_ci_go] at h <;>
+    obtain ⟨⟨r, s1, m1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h <;>
+    cases r <;> simp [ConRon.Refine.bind_eq_ok_iff] at h
+  all_goals (obtain ⟨a, a1, h⟩ := h)
+  all_goals first
+    | (obtain ⟨b, h2, h⟩ := h
+       cases a <;> simp [ConRon.Refine.bind_eq_ok_iff] at h)
+    | (obtain ⟨h2, h⟩ := h
+       cases a <;> simp at h
+       obtain ⟨-, hc2, -, -⟩ := h
+       subst hc2
+       simp only [arena.intern.intern_caps, ConRon.Refine.bind_eq_ok_iff] at h2
+       obtain ⟨⟨r, s2⟩, h3, h2⟩ := h2
+       cases r <;> simp [ConRon.Refine.bind_eq_ok_iff] at h2
+       obtain ⟨pw, hpw, h2⟩ := h2
+       have hd := ConRon.Refine.PropWhen.dup_eq hpw
+       subst hd
+       obtain ⟨hcaps, -⟩ := h2
+       rw [← hcaps]
+       exact hc _ _ rfl)
+
+
+/-- The pinned `Eq` basis the port interns (`std_axioms::eq_a`) has canonical
+capabilities: con-leche's `eqA`, built by the smart constructors
+(`BasisPins.eq_a_refines`'s `ConstantInfoWF`). -/
+theorem eq_a_caps_wf {pers st} {ci : arena.env.IConstantInfo} {s'}
+    (h : arena.std_axioms.eq_a pers st = ok (.Ok ci, s')) :
+    ∀ v caps, ci = .IndInfo v caps → ConRon.Refine.PropWhenWF caps.sort_z := by
+  rw [arena.std_axioms.eq_a] at h
+  obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hwf := (ConRon.Refine.BasisPins.eq_a_refines hc).2
+  rw [arena.intern.intern_ci] at h
+  obtain ⟨m, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨⟨r, s1, m1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h' : (core.result.Result.Ok ci, s') = (r, s1) := (Result.ok_injective h).symm
+  simp only [Prod.mk.injEq] at h'
+  obtain ⟨rfl, rfl⟩ := h'
+  refine intern_ci_go_caps_wf ?_ h1
+  intro v c2 hc2
+  subst hc2
+  exact hwf.2.2
 
 /-- `PartialEq` on `u64`, lifted, is `decide` of the abstracted equation. -/
 private theorem u64_eq_lift {x y : Std.U64} {b : Bool}
