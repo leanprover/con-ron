@@ -1266,7 +1266,11 @@ theorem struct_rule_body_r_refines {pers st lst} {rec_c : arena.handle.NIdx}
       (structRuleBodyR (absNIdx rec_c) (absLsIdx rlvls)
         (ConRon.Refine.absPropWhen pw) (absU n_p) (absU n) (absU n_f) (absU j)
         (absNatL rec_idx) (absEIdx cty)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.struct_rule_body_r, structRuleBodyR]
+  simp only [mapM_structIhApp_eq]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_rule_body_r_ls
@@ -1461,7 +1465,11 @@ theorem struct_minor_ty_at_refines {pers st lst} {c : arena.handle.NIdx}
       (structMinorTyAtSpec (absNIdx c) (absNIdxL lps) (absU n_p) (absU n_f)
         (absU ofs) (ConRon.Refine.absPropWhen pw) (absEIdx cty) (absNatL rec_idx)
         (absEIdx q2) (absEIdx r2)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.struct_minor_ty_at, structMinorTyAtSpec]
+  simp only [mapM_liftLooseBVarsFast_eq]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_minor_ty_at_ls
