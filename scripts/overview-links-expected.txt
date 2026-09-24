@@ -857,30 +857,30 @@
   1121  theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
   1122      (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
 
-== crates/con-ron-core/src/arena/core.rs#L11712-L11734
- 11712  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
- 11713  /// Lean twin: `proof/ConRon/Arena/Core.lean:3895-3903 dropScratch` — drop the
- 11714  /// scratch tier of the store and the cache entries that name it, in one
- 11715  /// operation, so the two halves cannot drift apart; and **thaw** the store:
- 11716  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
- 11717  /// store is owned and scratch-off again.
- 11718  pub fn drop_scratch(st: &mut AState, tier: PersTier) {
- 11719      flush_caches(st);
- 11720      st.store.thaw(tier);
- 11721  }
- 11722  
- 11723  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
- 11724  /// Lean twin: `proof/ConRon/Arena/Core.lean:3905-3912 enterScratch` — turn the
- 11725  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
- 11726  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
- 11727  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
- 11728  /// are handed back as the `PersTier` every read inside the bracket goes
- 11729  /// through and promotion writes, and every append inside it is a scratch
- 11730  /// append.
- 11731  pub fn enter_scratch(st: &mut AState) -> PersTier {
- 11732      st.memos.reset();
- 11733      st.store.freeze()
- 11734  }
+== crates/con-ron-core/src/arena/core.rs#L11695-L11717
+ 11695  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
+ 11696  /// Lean twin: `proof/ConRon/Arena/Core.lean:3895-3903 dropScratch` — drop the
+ 11697  /// scratch tier of the store and the cache entries that name it, in one
+ 11698  /// operation, so the two halves cannot drift apart; and **thaw** the store:
+ 11699  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
+ 11700  /// store is owned and scratch-off again.
+ 11701  pub fn drop_scratch(st: &mut AState, tier: PersTier) {
+ 11702      flush_caches(st);
+ 11703      st.store.thaw(tier);
+ 11704  }
+ 11705  
+ 11706  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
+ 11707  /// Lean twin: `proof/ConRon/Arena/Core.lean:3905-3912 enterScratch` — turn the
+ 11708  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
+ 11709  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
+ 11710  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
+ 11711  /// are handed back as the `PersTier` every read inside the bracket goes
+ 11712  /// through and promotion writes, and every append inside it is a scratch
+ 11713  /// append.
+ 11714  pub fn enter_scratch(st: &mut AState) -> PersTier {
+ 11715      st.memos.reset();
+ 11716      st.store.freeze()
+ 11717  }
 
 == crates/con-ron-core/src/arena/promote.rs#L1-L40
      1  //! `arena::promote` — the scratch → persistent copy (DESIGN.md §8.3, task #97-P6-2).
@@ -1157,22 +1157,22 @@
    391  /// literal into a comparison (DESIGN.md §8.4, lesson 7).
    392  pub const CACHE_CAP: usize = 4194304;
 
-== crates/con-ron-core/src/arena/core.rs#L440-L454
-   440  /// con-leche: ConLeche/Kernel/Core.lean:1919-1958 coreKnot
-   441  /// Lean twin: `proof/ConRon/Arena/Core.lean:3725-3815 coreKnot` — **the
-   442  /// executed knot**: the memoized one, `pureFnsA`'s.
-   443  pub const LANE_FULL: u32 = 0;
-   444  
-   445  /// con-leche: ConLeche/Kernel/CoreGated.lean:117-150 coreKnotGated
-   446  /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:111-156 coreKnotGated` — the P
-   447  /// knot: `whnfCore` is the gated body and no slot carries a memo.
-   448  pub const LANE_GATED: u32 = 1;
-   449  
-   450  /// con-leche: ConLeche/Kernel/CoreIO.lean:91-119 coreKnotIO
-   451  /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the io knot
-   452  /// (the leaf lane): `infer` and `inferIO` are `inferBodyIO` tied to this knot,
-   453  /// unmemoized; every other slot is the full knot's.
-   454  pub const LANE_IO: u32 = 2;
+== crates/con-ron-core/src/arena/core.rs#L433-L447
+   433  /// con-leche: ConLeche/Kernel/Core.lean:1919-1958 coreKnot
+   434  /// Lean twin: `proof/ConRon/Arena/Core.lean:3725-3815 coreKnot` — **the
+   435  /// executed knot**: the memoized one, `pureFnsA`'s.
+   436  pub const LANE_FULL: u32 = 0;
+   437  
+   438  /// con-leche: ConLeche/Kernel/CoreGated.lean:117-150 coreKnotGated
+   439  /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:111-156 coreKnotGated` — the P
+   440  /// knot: `whnfCore` is the gated body and no slot carries a memo.
+   441  pub const LANE_GATED: u32 = 1;
+   442  
+   443  /// con-leche: ConLeche/Kernel/CoreIO.lean:91-119 coreKnotIO
+   444  /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the io knot
+   445  /// (the leaf lane): `infer` and `inferIO` are `inferBodyIO` tied to this knot,
+   446  /// unmemoized; every other slot is the full knot's.
+   447  pub const LANE_IO: u32 = 2;
 
 == crates/con-ron-core/src/ron/hashmap2.rs#L1-L40
      1  //! con-leche: none — arena infrastructure; a second `Std.HashMap` replacement, proved
