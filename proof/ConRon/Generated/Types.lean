@@ -1124,7 +1124,7 @@ structure arena.env.IProjEntry where
   off : Std.U64
 
 /-- [con_ron_core::arena::core::NatOpPins]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2490:0-2506:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2483:0-2499:1
     Visibility: public -/
 structure arena.core.NatOpPins where
   pr : arena.handle.NIdx
@@ -1166,7 +1166,7 @@ structure arena.expr_ops.NIdxToNIdx (Self : Type) where
   rename : Self → arena.handle.NIdx → Result arena.handle.NIdx
 
 /-- [con_ron_core::arena::core::NatEqCtx]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2711:0-2720:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2704:0-2713:1
     Visibility: public -/
 structure arena.core.NatEqCtx where
   x : arena.handle.EIdx

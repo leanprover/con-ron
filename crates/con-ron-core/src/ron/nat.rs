@@ -320,19 +320,62 @@ fn push_zeros(out: Vec<u64>, count: u64) -> Vec<u64> {
     }
 }
 
-/// `Nat.shiftLeft a k`.
+/// Push `count` zero limbs onto `out`, for a bignum `count`.  There is no
+/// bound: an amount beyond one `u64` pushes `u64::MAX` zeros and recurses on
+/// the rest, so an amount too large for memory fails the way every too-large
+/// allocation does (task #98-SHIFT) — in Rust by exhausting memory, in the
+/// model at `Vec::push`'s `usize::MAX` element limit.  No check, no decline.
+fn push_zeros_nat(out: Vec<u64>, count: &Nat) -> Vec<u64> {
+    match to_u64(count) {
+        Some(c) => push_zeros(out, c),
+        None => {
+            let o = push_zeros(out, 18446744073709551615);
+            let m = from_u64(18446744073709551615);
+            let rest = sub(count, &m);
+            push_zeros_nat(o, &rest)
+        }
+    }
+}
+
+/// The limbs of `a` shifted left by `bits` (`0..=63`) and appended to `out`,
+/// normalised: the tail shared by both left shifts.
+fn shl_onto(a: &Nat, bits: u64, out: Vec<u64>) -> Nat {
+    if bits == 0 {
+        norm(copy_from(&a.limbs, 0, a.limbs.len(), out))
+    } else {
+        norm(shl_bits_from(&a.limbs, 0, bits, 0, out))
+    }
+}
+
+/// `Nat.shiftLeft a k` for a machine-word amount (`mul`'s partial products).
 pub fn shift_left(a: &Nat, k: u64) -> Nat {
     if is_zero(a) {
         zero()
     } else {
-        let words = k / 64;
-        let bits = k % 64;
-        let out = push_zeros(Vec::new(), words);
-        if bits == 0 {
-            norm(copy_from(&a.limbs, 0, a.limbs.len(), out))
-        } else {
-            norm(shl_bits_from(&a.limbs, 0, bits, 0, out))
-        }
+        let out = push_zeros(Vec::new(), k / 64);
+        shl_onto(a, k % 64, out)
+    }
+}
+
+/// The low limb of `a`, i.e. `a % 2^64`.
+fn low_limb(a: &Nat) -> u64 {
+    if a.limbs.len() == 0 {
+        0
+    } else {
+        a.limbs[0]
+    }
+}
+
+/// `Nat.shiftLeft a k` for a bignum amount, unbounded (task #98-SHIFT): the
+/// whole-word part `k / 64` is pushed as zero limbs by `push_zeros_nat`, which
+/// runs out of memory like any allocation when it is too large.
+pub fn shift_left_nat(a: &Nat, k: &Nat) -> Nat {
+    if is_zero(a) {
+        zero()
+    } else {
+        let words = shift_right(k, 6);
+        let out = push_zeros_nat(Vec::new(), &words);
+        shl_onto(a, low_limb(k) % 64, out)
     }
 }
 
@@ -370,15 +413,33 @@ fn skip_index(v: &Vec<u64>, i: usize, remaining: u64) -> usize {
     }
 }
 
-/// `Nat.shiftRight a k`.
-pub fn shift_right(a: &Nat, k: u64) -> Nat {
-    let words = k / 64;
-    let bits = k % 64;
-    let s = skip_index(&a.limbs, 0, words);
+/// The limbs of `a` from index `s` on, shifted right by `bits` (`0..=63`),
+/// normalised: the tail shared by both right shifts.
+fn shr_from(a: &Nat, s: usize, bits: u64) -> Nat {
     if bits == 0 {
         norm(copy_from(&a.limbs, s, a.limbs.len(), Vec::new()))
     } else {
         norm(shr_bits_from(&a.limbs, s, bits, Vec::new()))
+    }
+}
+
+/// `Nat.shiftRight a k` for a machine-word amount.
+pub fn shift_right(a: &Nat, k: u64) -> Nat {
+    let s = skip_index(&a.limbs, 0, k / 64);
+    shr_from(a, s, k % 64)
+}
+
+/// `Nat.shiftRight a k` for a bignum amount: total and exact (task
+/// #98-SHIFT).  A whole-word part `k / 64` beyond `u64` exceeds every limb
+/// count, so the answer there is `0`; otherwise it is the word shift above.
+pub fn shift_right_nat(a: &Nat, k: &Nat) -> Nat {
+    let words = shift_right(k, 6);
+    match to_u64(&words) {
+        Some(w) => {
+            let s = skip_index(&a.limbs, 0, w);
+            shr_from(a, s, low_limb(k) % 64)
+        }
+        None => zero(),
     }
 }
 
@@ -898,6 +959,38 @@ mod tests {
         let a = of_limbs(&[M, 12345]);
         let b = of_limbs(&[7, 0, 9]);
         assert!(eqn(&pow(&mul(&a, &b), 7), &mul(&pow(&a, 7), &pow(&b, 7))));
+    }
+
+    #[test]
+    fn bignum_shift_amounts() {
+        // task #98-SHIFT: the amount is a `Nat`, with no `u64` bound
+        let two64 = of_limbs(&[0, 1]); // 2^64
+        let two70 = of_limbs(&[0, 64]); // 2^70
+        let small = of_u128(12345);
+        assert!(is_zero(&shift_right_nat(&small, &two64)));
+        assert!(is_zero(&shift_right_nat(&small, &two70)));
+        assert!(is_zero(&shift_right_nat(&of_limbs(&[M, M, M]), &two70)));
+        assert!(is_zero(&shift_left_nat(&zero(), &two70)));
+        assert!(is_zero(&shift_left_nat(&zero(), &two64)));
+        // the `64 * len` boundary: exactly all limbs shifted out, and one bit less
+        let a = of_limbs(&[M, 1]); // two limbs
+        assert!(is_zero(&shift_right_nat(&a, &of_u128(128))));
+        assert!(is_zero(&shift_right_nat(&a, &of_u128(129))));
+        assert_eq!(shift_right_nat(&a, &of_u128(127)).limbs, Vec::<u64>::new());
+        assert_eq!(shift_right_nat(&a, &of_u128(64)).limbs, vec![1]);
+        assert_eq!(shift_right_nat(&a, &of_u128(63)).limbs, vec![3]);
+        let b = of_limbs(&[M, M]);
+        assert_eq!(shift_right_nat(&b, &of_u128(127)).limbs, vec![1]);
+        assert!(is_zero(&shift_right_nat(&b, &of_u128(128))));
+        // agreement with the word-amount shifts on small amounts
+        for k in [0u64, 1, 5, 63, 64, 65, 127, 128, 129, 200] {
+            let kn = from_u64(k);
+            assert!(eqn(&shift_left_nat(&a, &kn), &shift_left(&a, k)), "shl k = {k}");
+            assert!(eqn(&shift_right_nat(&a, &kn), &shift_right(&a, k)), "shr k = {k}");
+        }
+        // an amount whose low limb is not the amount itself
+        assert!(is_zero(&shift_right_nat(&a, &of_limbs(&[1, 1]))));
+        assert!(is_zero(&shift_right_nat(&zero(), &two70)));
     }
 
     #[test]

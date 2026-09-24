@@ -170,13 +170,6 @@ pub const M_UNKNOWN_CONST: [u32; 16] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"shift amount beyond u64"`, as code points.
-pub const M_SHIFT: [u32; 23] = [
-    115, 104, 105, 102, 116, 32, 97, 109, 111, 117, 110, 116, 32, 98, 101, 121, 111, 110,
-    100, 32, 117, 54, 52
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"native Nat computation on literals"`, as code points.
 pub const M_NATIVE_NAT: [u32; 34] = [
     110, 97, 116, 105, 118, 101, 32, 78, 97, 116, 32, 99, 111, 109, 112, 117, 116, 97, 116,
@@ -2991,12 +2984,8 @@ pub fn nat_op_equations_ble(
 /// Lean twin: `proof/ConRon/Arena/Core.lean:982-1023 natOpResult` — the reduct of
 /// op `c` on literal arguments (`pred` ignores the second slot).  `ron::Nat` is
 /// con-leche's `Nat` here, and a literal is a `Literal` value in a `lit` node.
-///
-/// Deviation, and it is `con_ron_core::kernel::core_k::nat_op_result`'s own
-/// (task #61): `shiftLeft`/`shiftRight` take a `u64` shift amount, so an
-/// amount beyond `u64` cannot be computed at all and the port **fails**
-/// there rather than answering `None` — a `Native` claims nothing, where a
-/// `None` would be a different verdict.
+/// The shifts take the bignum amount unbounded (task #98-SHIFT): a left shift
+/// too large for memory fails like any other allocation, with no decline.
 pub fn nat_op_result(
     pers: &PersTier,
     st: &mut AState,
@@ -3037,15 +3026,9 @@ pub fn nat_op_result(
             } else if c.eq2(&p.xo) {
                 lit_nat(pers, st, nat::xor(a, b))
             } else if c.eq2(&p.sl) {
-                match nat::to_u64(b) {
-                    Some(k) => lit_nat(pers, st, nat::shift_left(a, k)),
-                    None => fail(CheckError::Native(code_points(&M_SHIFT))),
-                }
+                lit_nat(pers, st, nat::shift_left_nat(a, b))
             } else if c.eq2(&p.sr) {
-                match nat::to_u64(b) {
-                    Some(k) => lit_nat(pers, st, nat::shift_right(a, k)),
-                    None => fail(CheckError::Native(code_points(&M_SHIFT))),
-                }
+                lit_nat(pers, st, nat::shift_right_nat(a, b))
             } else if c.eq2(&p.be) {
                 bool_const(pers, st, nat::beq(a, b))
             } else if c.eq2(&p.bl) {
