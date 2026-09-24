@@ -63458,3 +63458,29 @@ Earlier Rust-side rulings the campaign rests on: P5-Usize (no unbounded
   still describes `ron::tagged`, which the arena no longer has.  OVERVIEW
   §4.4–§4.5, §6.2–§6.3 and §7.1 still describe the `Expr`-tree checker
   (§6.2 now says so).
+
+### Task #97-FLAGS-TEST — the in-process modeller's switches under test; the `--verified` help text (2026-09-24, Opus under Fable)
+
+The two runs OVERVIEW §3.1 puts outside the theorem (`CON_LECHE_INMODEL=0`,
+`CON_LECHE_INMODEL_CENSUS=1`) had no test of their own.
+`crates/con-ron/tests/inmodel_flags.rs` (the crate's first integration test,
+via `CARGO_BIN_EXE_con-ron`, `--jobs=1`, a 60 s timeout, both switches
+cleared from the inherited environment) runs one fixture three ways:
+
+| run | exit | message |
+|---|---|---|
+| default | 0 | stderr `1 inductive blocks modelled in-process: MC (…)`, stdout `accepted 3 declarations (--verified)` |
+| `CON_LECHE_INMODEL=0` | 2 | `declined: no install route for inductive block [at inductive MC, fold position 12]` |
+| `CON_LECHE_INMODEL_CENSUS=1` | 2 | `inmodel census: 1 modelled, 0 declined (--verified, parse only)` |
+
+All three match `--help`'s environment paragraph; nothing was adjusted.  The
+fixture is a verbatim 7.6 KB copy of con-leche's
+`tests/e2e/ind_mutual_sort_defeq.ndjson` (rev `78ded4b6`, one two-member
+mutual block) in `crates/con-ron/tests/fixtures/`, copied so `cargo test`
+does not need `lake update con-leche`.
+
+`--help`'s `--verified` paragraph said the arena proof "is NOT done"; it now
+names `ConRon.Capstone.model_exists` / `no_False_declaration`, the three
+standard axioms, the §3.1 hypotheses (driver order and file reads, the
+unextracted modeller, the embedded pins, the prelude-bytes gate) and points
+to OVERVIEW §3.1.  No other such claim in `crates/con-ron`.
