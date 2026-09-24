@@ -365,16 +365,22 @@ def iffPinnedSpec (fe : IFEnv) : AM Bool := do
   | some (.indInfo cvI _) => cvI.matchesPin (← (← iffRaw).toConstantVal)
   | _ => pure false
 
-/-- `stdAxiomOk`'s `Iff.intro` clause. -/
+/-- `stdAxiomOk`'s `Iff.intro` clause, its arity test an explicit `if` as the
+port writes it (the twin's literal pattern `.ctorInfo cv 2 2`, split by
+`stdAxiomOk_split`). -/
 def iffIntroPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← iffIntroName) with
-  | some (.ctorInfo cvIi 2 2) => cvIi.matchesPin (← (← iffIntroRaw).toConstantVal)
+  | some (.ctorInfo cvIi np nf) =>
+    if np == 2 && nf == 2 then do cvIi.matchesPin (← (← iffIntroRaw).toConstantVal)
+    else pure false
   | _ => pure false
 
 /-- `stdAxiomOk`'s `Iff.rec` clause. -/
 def iffRecPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← iffRecName) with
-  | some (.recInfo cvIr 4 4 _) => cvIr.matchesPin (← (← iffRecRaw).toConstantVal)
+  | some (.recInfo cvIr mi rp _) =>
+    if mi == 4 && rp == 4 then do cvIr.matchesPin (← (← iffRecRaw).toConstantVal)
+    else pure false
   | _ => pure false
 
 /-- `stdAxiomOk`'s `Nonempty` clause. -/
@@ -386,14 +392,17 @@ def nonemptyPinnedSpec (fe : IFEnv) : AM Bool := do
 /-- `stdAxiomOk`'s `Nonempty.intro` clause. -/
 def nonemptyIntroPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← nonemptyIntroName) with
-  | some (.ctorInfo cvNi 1 1) =>
-    cvNi.matchesPin (← (← nonemptyIntroRaw).toConstantVal)
+  | some (.ctorInfo cvNi np nf) =>
+    if np == 1 && nf == 1 then do cvNi.matchesPin (← (← nonemptyIntroRaw).toConstantVal)
+    else pure false
   | _ => pure false
 
 /-- `stdAxiomOk`'s `Nonempty.rec` clause. -/
 def nonemptyRecPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← nonemptyRecName) with
-  | some (.recInfo cvNr 3 3 _) => cvNr.matchesPin (← (← nonemptyRecRaw).toConstantVal)
+  | some (.recInfo cvNr mi rp _) =>
+    if mi == 3 && rp == 3 then do cvNr.matchesPin (← (← nonemptyRecRaw).toConstantVal)
+    else pure false
   | _ => pure false
 
 /-- `trustCompilerOk`'s `True` clause. -/
@@ -405,30 +414,35 @@ def truePinnedSpec (fe : IFEnv) : AM Bool := do
 /-- `trustCompilerOk`'s `True.intro` clause. -/
 def trueIntroPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← trueIntroName) with
-  | some (.ctorInfo cvTi 0 0) => cvTi.matchesPin (← trueIntroCvA)
+  | some (.ctorInfo cvTi np nf) =>
+    if np == 0 && nf == 0 then do cvTi.matchesPin (← trueIntroCvA)
+    else pure false
   | _ => pure false
 
-/-- `stdAxiomOk`'s `propext` arm past the `Eq` basis test. -/
+/-- `stdAxiomOk`'s `propext` arm past the `Eq` basis and `Iff` clauses (the
+port's `std_axiom_ok_propext_rest` starts at `iff_intro_pinned`). -/
 def stdAxiomOkPropextRestSpec (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
-  if !(← iffPinnedSpec fe) then pure false
-  else if !(← iffIntroPinnedSpec fe) then pure false
+  if !(← iffIntroPinnedSpec fe) then pure false
   else if !(← iffRecPinnedSpec fe) then pure false
   else cvA.matchesPin (← propextRaw)
 
 /-- `stdAxiomOk`'s `propext` arm. -/
 def stdAxiomOkPropextSpec (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
   if !(← eqBasisPinnedSpec fe) then pure false
+  else if !(← iffPinnedSpec fe) then pure false
   else stdAxiomOkPropextRestSpec fe cvA
 
-/-- `stdAxiomOk`'s `Classical.choice` arm past the `Nonempty` clause. -/
+/-- `stdAxiomOk`'s `Classical.choice` arm past the `Nonempty` and
+`Nonempty.intro` clauses (the port's `std_axiom_ok_choice_rest` starts at
+`nonempty_rec_pinned`). -/
 def stdAxiomOkChoiceRestSpec (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
-  if !(← nonemptyIntroPinnedSpec fe) then pure false
-  else if !(← nonemptyRecPinnedSpec fe) then pure false
+  if !(← nonemptyRecPinnedSpec fe) then pure false
   else cvA.matchesPin (← choiceRaw)
 
 /-- `stdAxiomOk`'s `Classical.choice` arm. -/
 def stdAxiomOkChoiceSpec (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
   if !(← nonemptyPinnedSpec fe) then pure false
+  else if !(← nonemptyIntroPinnedSpec fe) then pure false
   else stdAxiomOkChoiceRestSpec fe cvA
 
 /-- `reduceElemOk`'s `Bool` arm. -/
@@ -437,13 +451,109 @@ def reduceElemOkBoolSpec (fe : IFEnv) : AM Bool := do
   | some (.indInfo cvB _) => cvB.matchesPin (← boolCvA)
   | _ => pure false
 
-/-- `ofReduceAxOk`'s tail past the operation it names. -/
+/-- `ofReduceAxOk`'s tail past the operation it names and the `Eq` basis test
+(the port's `of_reduce_ax_ok_rest` starts at `reduce_elem_ok`). -/
 def ofReduceAxOkRestSpec (fe : IFEnv) (cvA : IConstantVal) (c : NIdx) :
     AM Bool := do
-  if !(← eqBasisPinnedSpec fe) then pure false
-  else if !(← reduceElemOk fe c) then pure false
+  if !(← reduceElemOk fe c) then pure false
   else if !(← reduceStoredOk fe c) then pure false
   else cvA.matchesPin (← ofReducePinA cvA.name)
+
+/-- `ofReduceAxOk` split where the port splits it. -/
+theorem ofReduceAxOk_split (fe : IFEnv) (cvA : IConstantVal) :
+    ofReduceAxOk fe cvA = (do
+      let c ← ofReduceOp cvA.name
+      if !(← eqBasisPinnedSpec fe) then pure false
+      else ofReduceAxOkRestSpec fe cvA c) := by
+  simp only [ofReduceAxOk, ofReduceAxOkRestSpec, eqBasisPinnedSpec, bind_assoc, pure_bind]
+  rfl
+
+/-- `trustCompilerOk` split where the port splits it, the twin's literal arity
+pattern read as the port's explicit test. -/
+theorem trustCompilerOk_split (fe : IFEnv) (cvA : IConstantVal) :
+    trustCompilerOk fe cvA = (do
+      if !(← truePinnedSpec fe) then pure false
+      else if !(← trueIntroPinnedSpec fe) then pure false
+      else cvA.matchesPin (← trustCompilerA)) := by
+  simp only [trustCompilerOk, truePinnedSpec, trueIntroPinnedSpec, bind_assoc]
+  congr 1; funext n
+  rcases fe.find? n with _ | ci
+  · simp
+  cases ci <;> simp
+  congr 1; funext p; congr 1; funext b
+  cases b
+  · simp
+  simp only [Bool.true_eq_false, if_false]
+  congr 1; funext n2
+  rcases fe.find? n2 with _ | ci
+  · simp
+  cases ci <;> simp
+  rename_i np nf
+  rcases np with _ | np <;> rcases nf with _ | nf <;> simp
+
+/-- `stdAxiomOk` split where the port splits it (`std_axiom_ok` →
+`std_axiom_ok_{propext,choice}`), the literal arity patterns read as the port's
+explicit tests. -/
+theorem stdAxiomOk_split (fe : IFEnv) (cvA : IConstantVal) :
+    stdAxiomOk fe cvA = (do
+      let pn ← propextName
+      if cvA.name == pn then stdAxiomOkPropextSpec fe cvA
+      else do
+        let cn ← choiceName
+        if cvA.name == cn then stdAxiomOkChoiceSpec fe cvA else pure false) := by
+  simp only [stdAxiomOk, stdAxiomOkPropextSpec, stdAxiomOkPropextRestSpec, eqBasisPinnedSpec,
+    iffPinnedSpec, iffIntroPinnedSpec, iffRecPinnedSpec, stdAxiomOkChoiceSpec,
+    stdAxiomOkChoiceRestSpec, nonemptyPinnedSpec, nonemptyIntroPinnedSpec,
+    nonemptyRecPinnedSpec, bind_assoc, pure_bind]
+  congr 1; funext pn
+  split
+  · congr 1; funext en; congr 1; funext ea
+    show (if (fe.find? en != some ea) = true then _ else _) = (if (fe.find? en != some ea) = true then _ else _)
+    split
+    · rfl
+    congr 1; funext n1
+    rcases fe.find? n1 with _ | ci
+    · simp
+    cases ci <;> simp
+    congr 1; funext p; congr 1; funext q; congr 1; funext b
+    cases b <;> simp
+    congr 1; funext n2
+    rcases fe.find? n2 with _ | ci
+    · simp
+    cases ci <;> simp
+    rename_i np nf
+    rcases np with _ | _ | _ | np <;> rcases nf with _ | _ | _ | nf <;> simp
+    congr 1; funext p; congr 1; funext q; congr 1; funext b
+    cases b <;> simp
+    congr 1; funext n3
+    rcases fe.find? n3 with _ | ci
+    · simp
+    cases ci <;> simp
+    rename_i mi rp _
+    rcases mi with _ | _ | _ | _ | _ | mi <;> rcases rp with _ | _ | _ | _ | _ | rp <;> simp
+  · congr 1; funext cn
+    split
+    · congr 1; funext n1
+      rcases fe.find? n1 with _ | ci
+      · simp
+      cases ci <;> simp
+      congr 1; funext p; congr 1; funext q; congr 1; funext b
+      cases b <;> simp
+      congr 1; funext n2
+      rcases fe.find? n2 with _ | ci
+      · simp
+      cases ci <;> simp
+      rename_i np nf
+      rcases np with _ | _ | np <;> rcases nf with _ | _ | nf <;> simp
+      congr 1; funext p; congr 1; funext q; congr 1; funext b
+      cases b <;> simp
+      congr 1; funext n3
+      rcases fe.find? n3 with _ | ci
+      · simp
+      cases ci <;> simp
+      rename_i mi rp _
+      rcases mi with _ | _ | _ | _ | mi <;> rcases rp with _ | _ | _ | _ | rp <;> simp
+    · rfl
 
 /-! ### The ground-term guards
 

@@ -173,7 +173,12 @@ theorem iff_intro_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.iff_intro_pinned pers vis st rf = ok o) :
     Sim₀ id pers lst o (iffIntroPinnedSpec lf) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.iff_intro_pinned]
+  try unfold iffIntroPinnedSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem iff_intro_pinned_ls {pers st lst}
@@ -194,7 +199,12 @@ theorem iff_rec_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.iff_rec_pinned pers vis st rf = ok o) :
     Sim₀ id pers lst o (iffRecPinnedSpec lf) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.iff_rec_pinned]
+  try unfold iffRecPinnedSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem iff_rec_pinned_ls {pers st lst}
@@ -241,7 +251,12 @@ theorem nonempty_intro_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.nonempty_intro_pinned pers vis st rf = ok o) :
     Sim₀ id pers lst o (nonemptyIntroPinnedSpec lf) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.nonempty_intro_pinned]
+  try unfold nonemptyIntroPinnedSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem nonempty_intro_pinned_ls {pers st lst}
@@ -262,7 +277,12 @@ theorem nonempty_rec_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.nonempty_rec_pinned pers vis st rf = ok o) :
     Sim₀ id pers lst o (nonemptyRecPinnedSpec lf) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.nonempty_rec_pinned]
+  try unfold nonemptyRecPinnedSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem nonempty_rec_pinned_ls {pers st lst}
@@ -285,7 +305,12 @@ theorem std_axiom_ok_propext_rest_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrun : arena.decl_check.std_axiom_ok_propext_rest pers vis st rf cv_a = ok o) :
     Sim₀ id pers lst o
       (stdAxiomOkPropextRestSpec lf (absIConstantVal cv_a)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.std_axiom_ok_propext_rest]
+  try unfold stdAxiomOkPropextRestSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem std_axiom_ok_propext_rest_ls {pers st lst}
@@ -309,7 +334,12 @@ theorem std_axiom_ok_propext_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrun : arena.decl_check.std_axiom_ok_propext pers vis st rf cv_a = ok o) :
     Sim₀ id pers lst o
       (stdAxiomOkPropextSpec lf (absIConstantVal cv_a)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.std_axiom_ok_propext]
+  try unfold stdAxiomOkPropextSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem std_axiom_ok_propext_ls {pers st lst}
@@ -333,7 +363,12 @@ theorem std_axiom_ok_choice_rest_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrun : arena.decl_check.std_axiom_ok_choice_rest pers vis st rf cv_a = ok o) :
     Sim₀ id pers lst o
       (stdAxiomOkChoiceRestSpec lf (absIConstantVal cv_a)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.std_axiom_ok_choice_rest]
+  try unfold stdAxiomOkChoiceRestSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem std_axiom_ok_choice_rest_ls {pers st lst}
@@ -357,7 +392,12 @@ theorem std_axiom_ok_choice_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrun : arena.decl_check.std_axiom_ok_choice pers vis st rf cv_a = ok o) :
     Sim₀ id pers lst o
       (stdAxiomOkChoiceSpec lf (absIConstantVal cv_a)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.std_axiom_ok_choice]
+  try unfold stdAxiomOkChoiceSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem std_axiom_ok_choice_ls {pers st lst}
@@ -381,7 +421,11 @@ theorem std_axiom_ok_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.std_axiom_ok pers vis st rf cv_a = ok o) :
     Sim₀ id pers lst o (stdAxiomOk lf (absIConstantVal cv_a)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.std_axiom_ok, stdAxiomOk_split]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem std_axiom_ok_ls {pers st lst}
@@ -431,7 +475,12 @@ theorem true_intro_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.true_intro_pinned pers vis st rf = ok o) :
     Sim₀ id pers lst o (trueIntroPinnedSpec lf) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.true_intro_pinned]
+  try unfold trueIntroPinnedSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem true_intro_pinned_ls {pers st lst}
@@ -454,7 +503,11 @@ theorem trust_compiler_ok_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrun : arena.decl_check.trust_compiler_ok pers vis st rf cv_a = ok o) :
     Sim₀ id pers lst o
       (trustCompilerOk lf (absIConstantVal cv_a)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.trust_compiler_ok, trustCompilerOk_split]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem trust_compiler_ok_ls {pers st lst}
@@ -554,7 +607,12 @@ theorem of_reduce_ax_ok_rest_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrun : arena.decl_check.of_reduce_ax_ok_rest pers vis st rf cv_a c = ok o) :
     Sim₀ id pers lst o
       (ofReduceAxOkRestSpec lf (absIConstantVal cv_a) (absNIdx c)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.of_reduce_ax_ok_rest]
+  try unfold ofReduceAxOkRestSpec
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem of_reduce_ax_ok_rest_ls {pers st lst}
@@ -578,7 +636,11 @@ theorem of_reduce_ax_ok_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.decl_check.of_reduce_ax_ok pers vis st rf cv_a = ok o) :
     Sim₀ id pers lst o (ofReduceAxOk lf (absIConstantVal cv_a)) := by
-  sorry
+  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
+  have hctx := IFEnvInv.coreCtx hfe hfinv hvis
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.decl_check.of_reduce_ax_ok, ofReduceAxOk_split]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem of_reduce_ax_ok_ls {pers st lst}

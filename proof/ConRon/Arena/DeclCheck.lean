@@ -53,7 +53,6 @@ REALIZE the axiom).  The comparands are the RAW pins, as in the port (task
 annotated `iffA` … `choiceA` give the same verdicts (`Bridge/Checker/Basis`). -/
 def stdAxiomOk (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
   let pn ← propextName
-  let cn ← choiceName
   if cvA.name == pn then do
     let en ← pinEq
     let ea ← eqA
@@ -72,22 +71,27 @@ def stdAxiomOk (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
               | _ => pure false
           | _ => pure false
       | _ => pure false
-  else if cvA.name == cn then do
-    match fe.find? (← nonemptyName) with
-    | some (.indInfo cvN _) => do
-      if !(← cvN.matchesPin (← (← nonemptyRaw).toConstantVal)) then pure false else do
-        match fe.find? (← nonemptyIntroName) with
-        | some (.ctorInfo cvNi 1 1) => do
-          if !(← cvNi.matchesPin (← (← nonemptyIntroRaw).toConstantVal)) then pure false
-          else do
-            match fe.find? (← nonemptyRecName) with
-            | some (.recInfo cvNr 3 3 _) => do
-              if !(← cvNr.matchesPin (← (← nonemptyRecRaw).toConstantVal)) then pure false
-              else cvA.matchesPin (← choiceRaw)
-            | _ => pure false
-        | _ => pure false
-    | _ => pure false
-  else pure false
+  else do
+    -- the `Classical.choice` name is read only past the `propext` test, as the
+    -- port's `std_axiom_ok` does (task #97-T2-LOCKSTEP lane Checker DeclCheck
+    -- slice 2: the twin read both names first; a pin read can fail)
+    let cn ← choiceName
+    if cvA.name == cn then do
+      match fe.find? (← nonemptyName) with
+      | some (.indInfo cvN _) => do
+        if !(← cvN.matchesPin (← (← nonemptyRaw).toConstantVal)) then pure false else do
+          match fe.find? (← nonemptyIntroName) with
+          | some (.ctorInfo cvNi 1 1) => do
+            if !(← cvNi.matchesPin (← (← nonemptyIntroRaw).toConstantVal)) then pure false
+            else do
+              match fe.find? (← nonemptyRecName) with
+              | some (.recInfo cvNr 3 3 _) => do
+                if !(← cvNr.matchesPin (← (← nonemptyRecRaw).toConstantVal)) then pure false
+                else cvA.matchesPin (← choiceRaw)
+              | _ => pure false
+          | _ => pure false
+      | _ => pure false
+    else pure false
 
 /-! ## The compiler-trust family's environment shape -/
 
