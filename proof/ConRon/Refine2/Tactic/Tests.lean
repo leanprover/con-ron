@@ -36,6 +36,17 @@ namespace ConRon.Refine2.Lockstep.Tests
 
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
 
+open Lean Elab Tactic in
+/-- **A test of where `lockstep` STOPS, with no `sorry`.**  `in_scratch tac`
+runs `tac` on the goal and then puts the goal back as it was: `tac` must not
+fail (so it holds the test's checks, e.g. `fail_if_success done` for "goals are
+left"), and the example is then closed by a hypothesis `hG` that IS the goal —
+cleared inside `tac`, so that `lockstep` cannot take it for a candidate. -/
+elab "in_scratch " tac:tactic : tactic => do
+  let s ← saveState
+  evalTactic tac
+  s.restore
+
 /-! ## 1. Twin-only arguments -/
 
 /-- `lift_fueled` ⊑ `liftFueled what`, for EVERY message `what`: the Rust's
@@ -160,12 +171,15 @@ example {pers st lst} {e : arena.handle.EIdx} {b : Bool}
 #guard_msgs (drop warning) in
 set_option maxHeartbeats 20000 in
 example {pers st lst} {e : arena.handle.EIdx} {b : Bool}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hG : LS pers (fun r v => absAErrKind r = lAErrKind v)
+      (arena.checker_base.unresolved_consts_error pers st e >>= fun p => ok p) lst
+      (if b then (pure (.invalid "a") : AM Arena.CheckError) else pure (.invalid "b"))) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
       (arena.checker_base.unresolved_consts_error pers st e >>= fun p => ok p) lst
       (if b then (pure (.invalid "a") : AM Arena.CheckError) else pure (.invalid "b")) := by
-  lockstep
-  all_goals sorry
+  in_scratch (clear hG; lockstep; fail_if_success done)
+  exact hG
 
 /-! ## 4. A twin `match` on a constructor application (the Inductives Modeled lane)
 
@@ -218,14 +232,20 @@ elab "lockstep_step_fails_with " s:str : tactic => do
 
 #guard_msgs (drop warning) in
 example {pers st lst} {h h' : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hG : LS pers (fun a b => b = absENodeView a)
+      (arena.monad.view pers st h >>= fun r => match r with
+        | .Ok v => ok (.Ok v, st)
+        | .Err e => ok (.Err e, st)) lst
+      (Arena.view (absEIdx h') >>= fun v => pure v)) :
     LS pers (fun a b => b = absENodeView a)
       (arena.monad.view pers st h >>= fun r => match r with
         | .Ok v => ok (.Ok v, st)
         | .Err e => ok (.Err e, st)) lst
       (Arena.view (absEIdx h') >>= fun v => pure v) := by
-  lockstep_step_fails_with "no candidate for `ConRon.Generated.arena.monad.view` closes"
-  sorry
+  in_scratch (clear hG
+              lockstep_step_fails_with "no candidate for `ConRon.Generated.arena.monad.view` closes")
+  exact hG
 
 /-! ## 6. Memoised walks: `LSM` / `LSRM`
 
@@ -484,11 +504,11 @@ example {pers st lst} (n : Nat) (hrel : AStateRel₀ pers st lst) (hinv : AState
 -- left over.
 #guard_msgs (drop warning) in
 attribute [-lockstep] rust_echo_strong in
-example {pers st lst} (n : Nat) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+example {pers st lst} (n : Nat) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hG : LS pers (fun a b => b = a) (do let a ← rustEcho n; ok (.Ok a, st)) lst (pure n)) :
     LS pers (fun a b => b = a) (do let a ← rustEcho n; ok (.Ok a, st)) lst (pure n) := by
-  lockstep
-  fail_if_success done
-  sorry
+  in_scratch (clear hG; lockstep; fail_if_success done)
+  exact hG
 
 /-- After the erasure's scope, the `high` lemma is back. -/
 example {pers st lst} (n : Nat) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -514,15 +534,20 @@ elab "guard_no_word_split" : tactic => do
 
 #guard_msgs (drop warning) in
 example {pers st lst} {h : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hG : LSR pers (fun a b => b = (Option.map fun q => (absNIdx q.1, absLIdx q.2.1,
+        absEIdx q.2.2.1, absEIdx q.2.2.2.1, absEIdx q.2.2.2.2)) a)
+      (arena.inductives.modeled.eq_app3 pers st h) st lst (eqApp3? (absEIdx h))) :
     LSR pers (fun a b => b = (Option.map fun q => (absNIdx q.1, absLIdx q.2.1, absEIdx q.2.2.1,
         absEIdx q.2.2.2.1, absEIdx q.2.2.2.2)) a)
       (arena.inductives.modeled.eq_app3 pers st h) st lst (eqApp3? (absEIdx h)) := by
-  apply LSR.of_LS
-  rw [arena.inductives.modeled.eq_app3, eqApp3?]
-  lockstep
-  guard_no_word_split
-  all_goals sorry
+  in_scratch
+    (clear hG
+     apply LSR.of_LS
+     rw [arena.inductives.modeled.eq_app3, eqApp3?]
+     lockstep
+     guard_no_word_split)
+  exact hG
 
 /-! ## 12. `lockstep_congr` does not unfold first
 
@@ -618,14 +643,14 @@ section
 local macro_rules | `(tactic| lockstep_side_ext) => `(tactic| (have h : False := ‹False›; exact h.elim))
 
 #guard_msgs (drop warning) in
-example (n : Nat) : n = n + 1 := by
-  fails_with_recovery lockstep_side
-  sorry
+example (n : Nat) : True := by
+  in_scratch (suffices n = n + 1 from trivial; fails_with_recovery lockstep_side)
+  trivial
 
 #guard_msgs (drop warning) in
-example (p : Prop) : p := by
-  fails_with_recovery lockstep_side_ite
-  sorry
+example (p : Prop) : True := by
+  in_scratch (suffices p from trivial; fails_with_recovery lockstep_side_ite)
+  trivial
 end
 
 /-! ## 16. A twin `match` in bind position

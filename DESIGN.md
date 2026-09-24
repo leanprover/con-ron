@@ -61453,6 +61453,15 @@ fail.  OVERVIEW §7.4's anchors (`LSM`/`LSRM`, `lockstep`, `@[lockstep]`)
 moved with the code, and its text now says that alternatives run without
 error recovery, how lemmas for one callee are ordered (priority, then
 registration; `[-lockstep]`), and names `@[lockstep_congr_simp]`.
+No `sorry` left in `Tactic/` (the maintainer's rule for master): the six
+`Tests.lean` examples that ended in one now run their checks in `in_scratch`
+(the goal restored afterwards) and close by a hypothesis `hG` that is the goal
+(cleared inside the check, so `lockstep` cannot take it as a candidate); §15's
+two by `suffices` in the scratch run.  Each still fails if what it checks
+breaks (checked for §10 with the erasure removed).  The two pre-D1 stuck
+demonstrations, `Sample.lean`'s `inst_pis_from_aux'` and `SampleCore.lean`'s
+`ensure_sort_refines'` (rows 5 and 7 of the round-1 table), are deleted; their
+fixed versions stay, with a line saying where the zip used to stop.
 `arena` `c6e5f220` merged (clean), gates re-run.
 
 ### Task #97-T2-LOCKSTEP lane Inductives Modeled — the modeled route by `lockstep`; one twin divergence fixed (2026-09-23, Opus under Fable)
