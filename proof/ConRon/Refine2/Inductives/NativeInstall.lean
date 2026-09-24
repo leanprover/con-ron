@@ -39,6 +39,7 @@ this module rather than a divergence:
 `check_native_pass`), and **finding 10's `hvis` at eleven**.
 -/
 import ConRon.Refine2.Inductives.NativeParts
+import ConRon.Refine2.Checker.Canon
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -188,9 +189,9 @@ theorem native_caps_refines {pers st lst}
     {p : arena.inductives.native_parts.NativeParts} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_install.native_caps pers st p = ok o) :
-    Sim₀ absIIndCaps pers lst o
+    SimRel₀ (fun a b => b = absIIndCaps a ∧ ConRon.Refine.PropWhenWF a.sort_z) pers lst o
       (nativeCaps (absNativeParts p)) := by
-  refine Lockstep.LS.toSim₀ ?_ hrun
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.inductives.native_install.native_caps, nativeCaps]
   lockstep
 
@@ -200,9 +201,10 @@ open Lockstep in
     {p : arena.inductives.native_parts.NativeParts}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absIIndCaps a) (arena.inductives.native_install.native_caps pers st p) lst
+    LS pers (fun a b => b = absIIndCaps a ∧ ConRon.Refine.PropWhenWF a.sort_z)
+      (arena.inductives.native_install.native_caps pers st p) lst
       (nativeCaps (absNativeParts p)) :=
-  LS.ofSim₀ fun _ h => native_caps_refines hrel hinv h
+  LS.ofSimRel₀ fun _ h => native_caps_refines hrel hinv h
 
 /-- `any_dom_mentions` ⊑ `nativeRawRec`'s `anyM`, from the cursor on. -/
 theorem any_dom_mentions_refines {pers st lst} {t : arena.handle.NIdx}
@@ -1186,6 +1188,53 @@ open Lockstep in
 
 /-! ## The two-pass install -/
 
+theorem recCtorKindsAllSpec_cons_map (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
+    (pre : List (List RecFieldKind)) (c : IConstantVal × Nat) (cs : List (IConstantVal × Nat)) :
+    (do pure ((← recCtorKindsAllSpec T lps nP nIdx (c :: cs)).map fun r => pre ++ r))
+    = (do match ← recCtorKinds T lps nP nIdx c with
+          | none => pure none
+          | some ks => do
+            pure ((← recCtorKindsAllSpec T lps nP nIdx cs).map fun r => (pre ++ [ks]) ++ r) :
+        AM (Option (List (List RecFieldKind)))) := by
+  simp only [recCtorKindsAllSpec, bind_assoc]
+  congr 1; funext o
+  cases o with
+  | none => simp
+  | some ks =>
+    simp only [bind_assoc]
+    congr 1; funext r
+    cases r <;> simp
+theorem recCtorKindsAll_eq_spec (T : NIdx) (lps : List NIdx) (nP nIdx : Nat) :
+    ∀ l, recCtorKindsAll T lps nP nIdx l = recCtorKindsAllSpec T lps nP nIdx l
+  | [] => rfl
+  | c :: cs => by
+    simp only [recCtorKindsAll, recCtorKindsAllSpec, recCtorKindsAll_eq_spec T lps nP nIdx cs]
+    congr 1
+
+theorem rec_ctor_kinds_all_aux (m : Nat) :
+    ∀ {pers st lst} {t : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
+      {n_p n_idx : Std.U64} {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+      {i : Std.Usize}
+      {out : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)},
+      ctors_a.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = Option.map absKindLL a)
+        (arena.inductives.native_install.rec_ctor_kinds_all pers st t lps n_p n_idx ctors_a i out)
+        lst
+        (do pure ((← recCtorKindsAllSpec (absNIdx t) (absNIdxL lps) (absU n_p)
+          (absU n_idx) (absCtorsLFrom ctors_a i)).map fun r => absKindLL out ++ r)) := by
+  induction m with
+  | zero =>
+    intro pers st lst t lps n_p n_idx ctors_a i out hn hrel hinv
+    rw [arena.inductives.native_install.rec_ctor_kinds_all, if_pos (by scalar_tac), absCtorsLFrom,
+      vecFrom_nil _ _ _ (by omega)]
+    simp only [recCtorKindsAllSpec]
+    lockstep
+  | succ m ih =>
+    intro pers st lst t lps n_p n_idx ctors_a i out hn hrel hinv
+    rw [arena.inductives.native_install.rec_ctor_kinds_all, if_neg (by scalar_tac), absCtorsLFrom,
+      vecFrom_cons _ _ _ (by omega), recCtorKindsAllSpec_cons_map]
+    lockstep
+
 /-- `rec_ctor_kinds_all` ⊑ `recCtorKindsAll` from the cursor on, with the
 accumulated kind lists in front. -/
 theorem rec_ctor_kinds_all_refines {pers st lst} {t : arena.handle.NIdx}
@@ -1200,7 +1249,7 @@ theorem rec_ctor_kinds_all_refines {pers st lst} {t : arena.handle.NIdx}
       (do pure ((← recCtorKindsAllSpec (absNIdx t) (absNIdxL lps) (absU n_p)
         (absU n_idx) (absCtorsLFrom ctors_a i)).map
           fun r => absKindLL out ++ r)) := by
-  sorry
+  exact Lockstep.LS.toSim₀ (rec_ctor_kinds_all_aux _ rfl hrel hinv) hrun
 
 open Lockstep in
 @[lockstep] theorem rec_ctor_kinds_all_ls
@@ -1218,6 +1267,22 @@ open Lockstep in
         (absU n_idx) (absCtorsLFrom ctors_a i)).map
           fun r => absKindLL out ++ r)) :=
   LS.ofSim₀ fun _ h => rec_ctor_kinds_all_refines hrel hinv h
+
+open Lockstep in
+/-- `rec_ctor_kinds_all` from the cursor `0` and an empty accumulator: the
+twin's `recCtorKindsAll` (the spec's own recursion). -/
+@[lockstep] theorem rec_ctor_kinds_all_ls0 {pers st lst} {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_idx : Std.U64}
+    {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = Option.map absKindLL a)
+      (arena.inductives.native_install.rec_ctor_kinds_all pers st t lps n_p n_idx ctors_a 0#usize
+        (alloc.vec.Vec.new _)) lst
+      (recCtorKindsAll (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx) (absCtorsL ctors_a)) := by
+  have h := rec_ctor_kinds_all_aux (ctors_a := ctors_a) (i := 0#usize) (out := alloc.vec.Vec.new _)
+    (t := t) (lps := lps) (n_p := n_p) (n_idx := n_idx) _ rfl hrel hinv
+  rw [recCtorKindsAll_eq_spec]
+  simpa [absKindLL, absCtorsLFrom, absCtorsL, alloc.vec.Vec.new] using h
 
 /-- `kinds_any` ⊑ `ks.any (· == k)` from the cursor on. -/
 theorem kinds_any_refines
@@ -1326,6 +1391,21 @@ open Lockstep in
     LSP (arena.inductives.native_install.kindss_any kinds k i) (fun o => TwinEq ((absKindLLFrom kinds i).any fun ks => ks.any (· == absRecFieldKind k)) (o)) :=
   fun o h => (kindss_any_refines h).symm
 
+namespace IndInstPrims
+open Lockstep
+
+/-- `unwrap_or` at the classified kinds (`classify_fix_kinds`' decline). -/
+@[lockstep] theorem unwrap_or_kindll_ni {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {o : Option (alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind))}
+    {m : alloc.vec.Vec Std.U32} {s : String} :
+    LSR pers (fun a b => b = absKindLL a)
+      (arena.checker_base.unwrap_or o (kernel.core_types.CheckError.NotImplemented m)) st lst
+      (unwrapOr (o.map absKindLL) (.notImplemented s)) :=
+  unwrap_or_lsr hrel hinv rfl
+
+end IndInstPrims
+
 /-- `classify_fix_kinds` ⊑ `classifyFixKinds` — **the fields' kinds, classified
 at install** (con-leche's task #210 Part D). -/
 theorem classify_fix_kinds_refines {pers st lst} {t : arena.handle.NIdx}
@@ -1337,7 +1417,14 @@ theorem classify_fix_kinds_refines {pers st lst} {t : arena.handle.NIdx}
     Sim₀ absKindLL pers lst o
       (classifyFixKinds (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absCtorsL ctors_a)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_install.classify_fix_kinds, classifyFixKinds]
+  lockstep
+  -- the two kind scans: the port's `kindss_any` from `0` is the twin's `any`
+  all_goals
+    split_ifs <;> first
+      | (lockstep; done)
+      | (exfalso; simp_all [Lockstep.TwinEq, absKindLLFrom, absKindLL])
 
 open Lockstep in
 @[lockstep] theorem classify_fix_kinds_ls
@@ -1366,7 +1453,24 @@ theorem check_native_pass_kinds_refines {pers st lst} {rf1 lf1}
     SimRel₀ (fun r v => NativePassRel r.1 v.1 ∧ v.2 = r.2) pers lst o
       (checkNativePassKindsSpec lf1 (absIConstantVal cv_ta) (absNativeParts p_c)
         (absCtorsL ctors_a) (absLIdxLL sortss) is_rec) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.native_install.check_native_pass_kinds, checkNativePassKindsSpec]
+  lockstep
+  -- the port reads the completed record's shape, the twin the pre-completion
+  -- one: `withKinds` changes only the kinds
+  all_goals
+    have hs := congrArg NativeParts.toInductiveShape
+      (‹Lockstep.TwinEq ((absNativeParts p_c).withKinds _) _› : _ = _)
+    simp only [NativeParts.withKinds] at hs
+    rw [hs]
+    lockstep
+  -- the settled test: `i_ind_caps_beq` at canonical `sort_z`s is the twin's `==`
+  all_goals
+    have hb := fun ha hb' => i_ind_caps_beq_refines ha hb'
+      ‹arena.canon.i_ind_caps_beq _ _ = ok _›
+    specialize hb (by assumption) (by assumption)
+    refine Lockstep.LS.pure ?_ ‹_› ‹_›
+    exact ⟨⟨hfe.1, hfe.2, rfl, rfl, rfl, rfl⟩, by rw [hb]; exact beq_eq_decide _ _⟩
 
 open Lockstep in
 @[lockstep] theorem check_native_pass_kinds_ls
@@ -1385,6 +1489,314 @@ open Lockstep in
         (absCtorsL ctors_a) (absLIdxLL sortss) is_rec) :=
   LS.ofSimRel₀ fun _ h => check_native_pass_kinds_refines hrel hinv hfe h
 
+/-! ## The retry's pop (task #97-T2-LOCKSTEP lane Inductives Install)
+
+`check_native`'s retry pops the pass's push: `ifenv_pop_temp(q.env1, former,
+ifenv_row(fe, former))` against `q.env₁.popTemp former (fe.idx[former]?)`.
+`IFEnvRel` after the pop does not follow from `IFEnvRel` before it — the Rust
+index stores POSITIONS, so a stale row under another name pointing at the
+popped slot would read `none` where the twin's (which stores the constant)
+reads `some`.  It holds because the pass pushed exactly one constant, named
+`former`: a twin-side postcondition of `checkNativePass` (coordinator's
+ruling), proved from the twin alone below (`IndInstTwin`, the Arena-level
+mirror of Theorem 1's `checkNativePass_push`/`_former`), and carried by
+`check_native_pass_refines`'s result relation. -/
+
+namespace IndInstTwin
+
+/-- Every accepting run of the twin action answers a value with `P`. -/
+def Post {α : Type} (x : AM α) (P : α → Prop) : Prop :=
+  ∀ s a s', x s = .ok (a, s') → P a
+
+theorem Post.bind_any {α β : Type} {x : AM α} {f : α → AM β} {P : β → Prop}
+    (hf : ∀ a, Post (f a) P) : Post (x >>= f) P := by
+  intro s b s' h
+  have h' : ((x s) >>= (fun p => f p.1 p.2)) = .ok (b, s') := h
+  revert h'
+  cases hx : x s with
+  | error e => intro h; exact nomatch h
+  | ok p => intro h; exact hf p.1 _ _ _ h
+
+theorem Post.bind {α β : Type} {x : AM α} {f : α → AM β} {Q : α → Prop} {P : β → Prop}
+    (hx : Post x Q) (hf : ∀ a, Q a → Post (f a) P) : Post (x >>= f) P := by
+  intro s b s' h
+  have h' : ((x s) >>= (fun p => f p.1 p.2)) = .ok (b, s') := h
+  revert h'
+  cases hx' : x s with
+  | error e => intro h; exact nomatch h
+  | ok p => intro h; exact hf p.1 (hx _ _ _ hx') _ _ _ h
+
+theorem Post.pure {α : Type} {a : α} {P : α → Prop} (h : P a) : Post (pure a) P := by
+  intro s b s' hh
+  cases hh; exact h
+
+theorem Post.fail {α : Type} {e : CheckError} {P : α → Prop} : Post (Arena.fail e) P := by
+  intro s b s' hh; exact nomatch hh
+
+theorem Post.ite {α : Type} {c : Prop} [Decidable c] {x y : AM α} {P : α → Prop}
+    (hx : Post x P) (hy : Post y P) : Post (if c then x else y) P := by
+  split <;> assumption
+
+macro "ind_post_walk" : tactic => `(tactic| repeat (first
+  | exact Post.pure rfl
+  | exact Post.fail
+  | apply Post.ite
+  | (apply Post.bind_any; intro _)
+  | (split)))
+
+theorem checkConstantVal_name (mode : ConLeche.CheckMode) (fe : IFEnv) (cv : IConstantVal) :
+    Post (checkConstantVal mode fe cv) (fun r => r.name = cv.name) := by
+  unfold checkConstantVal
+  ind_post_walk
+
+
+theorem checkSumTele_name (mode : ConLeche.CheckMode) (fe : IFEnv) (cv : IConstantVal) (n : Nat)
+    (cvTa₀ : IConstantVal) (h0 : cvTa₀.name = cv.name) :
+    Post (checkSumTele mode fe cv n cvTa₀) (fun r => r.1.name = cv.name) := by
+  have hslow : Post (checkSumTele.checkSumTeleSlow mode fe cv n cvTa₀)
+      (fun r => r.1.name = cv.name) := by
+    unfold checkSumTele.checkSumTeleSlow
+    apply Post.bind_any; intro _
+    apply Post.bind_any; intro _
+    apply Post.bind_any; intro _
+    refine Post.bind (checkConstantVal_name _ _ _) ?_
+    intro a ha; exact Post.pure ha
+  unfold checkSumTele
+  apply Post.bind_any; intro o
+  split
+  · split
+    · apply Post.bind_any; intro v
+      split
+      · exact Post.pure h0
+      · exact hslow
+    · exact hslow
+  · exact hslow
+
+theorem checkSumInd_push (mode : ConLeche.CheckMode) (fe : IFEnv) (p : InductiveShape)
+    (isRec : Bool) :
+    Post (checkSumInd mode fe p isRec) (fun r =>
+      ∃ caps, r.1 = fe.push (.indInfo r.2.1 caps) ∧ r.2.1.name = p.cvT.name) := by
+  unfold checkSumInd
+  refine Post.bind (checkConstantVal_name _ _ _) ?_
+  intro a ha
+  refine Post.bind (checkSumTele_name _ _ _ _ _ ha) ?_
+  intro b hb
+  obtain ⟨cvTa, s⟩ := b
+  simp only at hb ⊢
+  repeat (first
+    | exact Post.pure ⟨_, rfl, hb⟩
+    | exact Post.fail
+    | apply Post.ite
+    | (apply Post.bind_any; intro _))
+
+theorem checkNativePass_push (mode : ConLeche.CheckMode) (fe : IFEnv) (p₀ : NativeParts)
+    (isRec : Bool) :
+    Post (checkNativePass mode fe p₀ isRec) (fun r =>
+      ∃ caps, r.1.env₁ = fe.push (.indInfo r.1.cvTa caps) ∧ r.1.cvTa.name = p₀.cvT.name) := by
+  unfold checkNativePass
+  refine Post.bind (checkSumInd_push _ _ _ _) ?_
+  intro b hb
+  obtain ⟨fe₁, cvTa, p₁⟩ := b
+  obtain ⟨caps, h1, h2⟩ := hb
+  simp only at h1 h2 ⊢
+  repeat (first
+    | exact Post.pure ⟨caps, h1, h2⟩
+    | exact Post.fail
+    | apply Post.ite
+    | (apply Post.bind_any; intro _))
+
+
+end IndInstTwin
+
+open IndInstTwin in
+/-- A twin-side postcondition joins an `LS` relation. -/
+theorem Lockstep.LS.and_post {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β} {Q : β → Prop}
+    (h : Lockstep.LS pers R m lst x) (hp : Post x Q) :
+    Lockstep.LS pers (fun a b => R a b ∧ Q b) m lst x := by
+  intro o st' hm
+  have := h o st' hm
+  cases o with
+  | Ok a =>
+    obtain ⟨b, lst', hy, hR, hr, hi⟩ := this
+    exact ⟨b, lst', hy, ⟨hR, hp lst b lst' hy⟩, hr, hi⟩
+  | Err e => exact this
+
+section PopTemp
+open ConRon.Refine.HashMap2 (Inv toFun)
+
+/-- The Rust side of `ifenv_pop_temp`: the constant list cut by one, the index
+row under `n` put back (or removed), the counter lowered. -/
+theorem ifenv_pop_temp_facts {rf1 rf2 : arena.env.IFEnv} {n : arena.handle.NIdx}
+    {prev : Option (Std.U64 × Std.U64)} (hinv1 : IFEnvInv rf1)
+    (h : arena.env.ifenv_pop_temp rf1 n prev = ok rf2) :
+    rf2.env.consts.val = rf1.env.consts.val.take (rf1.env.consts.val.length - 1) ∧
+    ConRon.Refine.HashMap2.toFun rf2.idx =
+      Function.update (ConRon.Refine.HashMap2.toFun rf1.idx) n prev ∧
+    Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf2.idx ∧
+    rf2.visible_below.val + 1 = rf1.visible_below.val := by
+  rw [arena.env.ifenv_pop_temp.eq_def] at h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hm, hhm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨c1, hc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := (Result.ok_injective h).symm
+  have hvv : v.val = rf1.env.consts.val.take (rf1.env.consts.val.length - 1) := by
+    split at hv
+    · rename_i h0
+      obtain rfl := (Result.ok_injective hv).symm
+      have : rf1.env.consts.val.length = 0 := by
+        have := congrArg (·.val) h0; simpa [alloc.vec.Vec.len] using this
+      simp [this, List.eq_nil_of_length_eq_zero this]
+    · obtain ⟨i, hi, hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
+      obtain ⟨ii, -, hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
+      have hiv := ConRon.Refine.Nat.usub_val hi
+      simp [alloc.vec.Vec.len] at hiv
+      rw [alloc.vec.Vec.resize, if_pos (by simp [alloc.vec.Vec.length]; scalar_tac)] at hv
+      obtain rfl := (Result.ok_injective hv).symm
+      simp [List.resize, hiv.2]
+  have hidx : Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable hm ∧
+      toFun hm = Function.update (toFun rf1.idx) n prev := by
+    cases prev with
+    | none =>
+      obtain ⟨⟨o1, hm1⟩, hr, hhm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hhm
+      obtain rfl := (Result.ok_injective hhm).symm
+      obtain ⟨h1, -, h3, -⟩ := ConRon.Refine.HashMap2.remove_refines_wf (P := fun _ => True)
+        nidx_eq2 hinv1.1 ConRon.Refine.HashMap2.KeysOk_true trivial hr
+      exact ⟨h1, h3⟩
+    | some row =>
+      obtain ⟨n1, hn1, hhm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hhm
+      obtain ⟨⟨o1, hm1⟩, hr, hhm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hhm
+      obtain rfl := (Result.ok_injective hhm).symm
+      have : n1 = n := dupId_nidx _ _ hn1
+      subst this
+      obtain ⟨h1, -, h3, -⟩ := ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True)
+        nidx_eq2 hinv1.1 ConRon.Refine.HashMap2.KeysOk_true trivial hr
+      exact ⟨h1, h3⟩
+  have hc := ConRon.Refine.Nat.usub_val hc1
+  refine ⟨hvv, hidx.2, hidx.1, ?_⟩
+  simp at hc ⊢; omega
+
+
+/-- **The retry's pop, relationally.**  The pass pushed exactly one constant,
+named `n`, onto `lf` (the twin-side fact `hlf`/`hX`); popping it at the
+pre-pass row relates the Rust environment to the twin's popped one.  Needs no
+Rust history: a Rust row under another name that pointed at the popped slot
+would contradict `IFEnvRel.keys` (that slot's constant is `X`, named `n`). -/
+theorem ifenv_pop_temp_rel {rf rf1 rf2 : arena.env.IFEnv} {lf lf1 : IFEnv}
+    {n : arena.handle.NIdx} {X : IConstantInfo}
+    (hfe : IFEnvRelI rf lf) (hfe1 : IFEnvRelI rf1 lf1)
+    (hlf : lf1.env.consts = X :: lf.env.consts) (hX : X.name = absNIdx n)
+    (h : arena.env.ifenv_pop_temp rf1 n (toFun rf.idx n) = ok rf2) :
+    IFEnvRelI rf2 (lf1.popTemp (absNIdx n) (lf.idx[absNIdx n]?)) := by
+  obtain ⟨hc2, hi2, hinv2, hv2⟩ := ifenv_pop_temp_facts hfe1.2 h
+  have hA1 : rf1.env.consts.val.map absIConstantInfo
+      = rf.env.consts.val.map absIConstantInfo ++ [X] := by
+    have e : (rf1.env.consts.val.map absIConstantInfo).reverse
+        = X :: (rf.env.consts.val.map absIConstantInfo).reverse := by
+      have e1 := congrArg IEnv.consts hfe1.1.env
+      have e0 := congrArg IEnv.consts hfe.1.env
+      simp only [absIEnv] at e1 e0
+      rw [← e1, hlf, e0]
+    have := congrArg List.reverse e
+    simpa using this
+  have hlen : rf1.env.consts.val.length = rf.env.consts.val.length + 1 := by
+    have := congrArg List.length hA1; simpa using this
+  have hA2 : rf2.env.consts.val.map absIConstantInfo
+      = rf.env.consts.val.map absIConstantInfo := by
+    rw [hc2, List.map_take, hA1, hlen]; simp
+  have hlen2 : rf2.env.consts.val.length = rf.env.consts.val.length := by
+    have := congrArg List.length hA2; simpa using this
+  have getA : ∀ s : Nat, (rf2.env.consts.val[s]?).map absIConstantInfo
+      = (rf.env.consts.val[s]?).map absIConstantInfo := by
+    intro s; rw [← List.getElem?_map, ← List.getElem?_map, hA2]
+  have get12 : ∀ s : Nat, s < rf.env.consts.val.length →
+      rf2.env.consts.val[s]? = rf1.env.consts.val[s]? := by
+    intro s hs; rw [hc2, List.getElem?_take]; simp [hlen, hs]
+  have hlast : ∀ ci, rf1.env.consts.val[rf.env.consts.val.length]? = some ci →
+      absIConstantInfo ci = X := by
+    intro ci hci
+    have := congrArg (·[rf.env.consts.val.length]?) hA1
+    simp only [List.getElem?_map, hci, Option.map_some] at this
+    simpa using this
+  have hrow : ∀ k p, toFun rf1.idx k = some p → k ≠ n →
+      p.2.val < rf.env.consts.val.length := by
+    intro k p hp hk
+    have hr := hfe1.2.2.2 k p hp
+    rcases Nat.lt_or_ge p.2.val rf.env.consts.val.length with hl | hl
+    · exact hl
+    · exfalso
+      have heq : p.2.val = rf.env.consts.val.length := by omega
+      obtain ⟨ci, hci, hname⟩ := hfe1.1.keys k p hp
+      rw [heq] at hci
+      rw [hlast ci hci, hX] at hname
+      exact hk (absNIdx_inj hname).symm
+  have hmapf : ∀ (a : Nat) (o : Option arena.env.IConstantInfo),
+      o.map (fun ci => (a, absIConstantInfo ci)) = (o.map absIConstantInfo).map (fun y => (a, y)) := by
+    intro a o; cases o <;> rfl
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_⟩, hinv2, ?_, ?_⟩
+  · -- the constant list
+    have e0 := hfe.1.env
+    simp only [IFEnv.popTemp, hlf, List.tail_cons]
+    rw [e0]; simp only [absIEnv, hA2]
+  · -- the index
+    intro k
+    rw [hi2, Function.update_apply]
+    simp only [IFEnv.popTemp]
+    by_cases hk : k = n
+    · subst hk
+      rw [if_pos rfl]
+      have hR : (toFun rf.idx k).bind (fun p => (rf2.env.consts.val[p.2.val]?).map
+          fun ci => (absU p.1, absIConstantInfo ci)) = lf.idx[absNIdx k]? := by
+        rw [← hfe.1.idx k]
+        congr 1; funext p; rw [hmapf, hmapf, getA]
+      rw [hR]
+      cases lf.idx[absNIdx k]? <;> simp
+    · rw [if_neg hk]
+      have hne : absNIdx n ≠ absNIdx k := fun he => hk (absNIdx_inj he).symm
+      refine Eq.trans (b := lf1.idx[absNIdx k]?) ?_ ?_
+      · rw [← hfe1.1.idx k]
+        cases hp : toFun rf1.idx k with
+        | none => rfl
+        | some p =>
+          simp only [Option.bind]
+          rw [get12 _ (hrow k p hp hk)]
+      · cases lf.idx[absNIdx n]? <;>
+          simp [Std.HashMap.getElem?_insert, Std.HashMap.getElem?_erase, hne]
+  · -- the counter
+    show lf1.visibleBelow - 1 = absU rf2.visible_below
+    rw [hfe1.1.visibleBelow]; simp only [absU]; omega
+  · intro ci hci
+    rw [hc2] at hci
+    exact hfe1.1.envWF ci (List.mem_of_mem_take hci)
+  · intro k p hp
+    rw [hi2, Function.update_apply] at hp
+    by_cases hk : k = n
+    · subst hk
+      rw [if_pos rfl] at hp
+      obtain ⟨ci', hci', hname⟩ := hfe.1.keys k p hp
+      have := getA p.2.val
+      rw [hci', Option.map_some] at this
+      obtain ⟨ci, hci, habs⟩ := Option.map_eq_some_iff.mp this
+      exact ⟨ci, hci, by rw [habs, hname]⟩
+    · rw [if_neg hk] at hp
+      rw [get12 _ (hrow k p hp hk)]
+      exact hfe1.1.keys k p hp
+  · -- the counter bound
+    have := hfe1.2.2.1
+    omega
+  · intro k p hp
+    rw [hi2, Function.update_apply] at hp
+    by_cases hk : k = n
+    · subst hk
+      rw [if_pos rfl] at hp
+      rw [hlen2]; exact hfe.2.2.2 k p hp
+    · rw [if_neg hk] at hp
+      rw [hlen2]; exact hrow k p hp hk
+
+
+end PopTemp
+
 /-- `check_native_pass` ⊑ `checkNativePass` — **one pass over the former and
 the constructors** (con-leche's task #268) at a given `is_rec` verdict. -/
 theorem check_native_pass_refines {pers st lst} {mode : kernel.env.CheckMode}
@@ -1393,10 +1805,12 @@ theorem check_native_pass_refines {pers st lst} {mode : kernel.env.CheckMode}
     (hfe : IFEnvRelI rf lf)
     (hrun : arena.inductives.native_install.check_native_pass pers st mode rf p0
       is_rec = ok o) :
-    SimRel₀ (fun r v => NativePassRel r.1 v.1 ∧ v.2 = r.2) pers lst o
+    SimRel₀ (fun r v => (NativePassRel r.1 v.1 ∧ v.2 = r.2) ∧
+        ∃ caps, v.1.env₁ = lf.push (.indInfo v.1.cvTa caps) ∧
+          v.1.cvTa.name = (absNativeParts p0).cvT.name) pers lst o
       (checkNativePass (ConRon.Refine.absMode mode) lf (absNativeParts p0)
         is_rec) := by
-  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  refine Lockstep.LS.toSimRel₀ (Lockstep.LS.and_post ?_ (IndInstTwin.checkNativePass_push _ _ _ _)) hrun
   rw [arena.inductives.native_install.check_native_pass, checkNativePass]
   lockstep
 
@@ -1410,7 +1824,10 @@ open Lockstep in
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rf lf) :
-    LS pers (fun r v => NativePassRel r.1 v.1 ∧ v.2 = r.2) (arena.inductives.native_install.check_native_pass pers st mode rf p0 is_rec) lst
+    LS pers (fun r v => (NativePassRel r.1 v.1 ∧ v.2 = r.2) ∧
+        ∃ caps, v.1.env₁ = lf.push (.indInfo v.1.cvTa caps) ∧
+          v.1.cvTa.name = (absNativeParts p0).cvT.name)
+      (arena.inductives.native_install.check_native_pass pers st mode rf p0 is_rec) lst
       (checkNativePass (ConRon.Refine.absMode mode) lf (absNativeParts p0)
         is_rec) :=
   LS.ofSimRel₀ fun _ h => check_native_pass_refines hrel hinv hfe h
@@ -1649,6 +2066,40 @@ open Lockstep in
     LSP (arena.inductives.native_install.ctor_names_nodup ctors i) (fun o => TwinEq (decide (((absCtorsLFrom ctors i).map (·.1.name)).Nodup)) (o)) :=
   fun o h => (ctor_names_nodup_refines h).symm
 
+/-- `env::ifenv_row` reads the raw index row (visible or not). -/
+theorem ifenv_row_toFun {rf : arena.env.IFEnv} {n : arena.handle.NIdx}
+    {prev : Option (Std.U64 × Std.U64)} (hinv : IFEnvInv rf)
+    (h : arena.env.ifenv_row rf n = ok prev) :
+    prev = ConRon.Refine.HashMap2.toFun rf.idx n := by
+  rw [arena.env.ifenv_row] at h
+  obtain ⟨o, ho, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have := ConRon.Refine.HashMap2.get_refines_wf (P := fun _ => True) nidx_eq2 hinv.1
+    ConRon.Refine.HashMap2.KeysOk_true trivial ho
+  cases o <;> simp at h <;> subst h <;> exact this
+
+/-- `check_native`'s retry pop, as the Rust-only step the zip takes: the pass
+`q` pushed one constant named `n` onto `lf` (the twin-side postcondition), and
+`prev` is the pre-pass row. -/
+theorem ifenv_pop_row_ls {rf : arena.env.IFEnv} {lf : IFEnv}
+    {q : arena.inductives.native_install.NativePass} {lq : NativePass}
+    {n : arena.handle.NIdx} {prev : Option (Std.U64 × Std.U64)}
+    (hfe : IFEnvRelI rf lf) (hq : NativePassRel q lq)
+    (hlf : ∃ caps, lq.env₁ = lf.push (.indInfo lq.cvTa caps) ∧ lq.cvTa.name = absNIdx n)
+    (hrow : arena.env.ifenv_row rf n = ok prev) :
+    Lockstep.LSP (arena.env.ifenv_pop_temp q.env1 n prev)
+      (fun rf2 => IFEnvRelI rf2 (lq.env₁.popTemp (absNIdx n) lf.idx[absNIdx n]?)) := by
+  intro rf2 h
+  obtain ⟨caps, h1, h2⟩ := hlf
+  rw [ifenv_row_toFun hfe.2 hrow] at h
+  exact ifenv_pop_temp_rel (X := .indInfo lq.cvTa caps) hfe ⟨hq.env₁, hq.env₁Inv⟩
+    (by rw [h1]; rfl) h2 h
+
+theorem absNativeParts_ctors' (p : arena.inductives.native_parts.NativeParts) :
+    (absNativeParts p).ctors = absCtorsL p.shape.ctors := rfl
+theorem absNativeParts_cvT_name (p : arena.inductives.native_parts.NativeParts) :
+    (absNativeParts p).cvT.name = absNIdx p.shape.cv_t.name := rfl
+
+set_option maxHeartbeats 1000000 in
 /-- `check_native` ⊑ `checkNative` — check and install a **direct recursive
 block**: the distinct names, the pass over the former and the constructors —
 again where the record's syntactic reading overshot — and the install after
@@ -1660,7 +2111,23 @@ theorem check_native_refines {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
     (hrun : arena.inductives.native_install.check_native pers st mode rf p0 = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkNative (ConRon.Refine.absMode mode) lf (absNativeParts p0)) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.native_install.check_native, checkNative]
+  simp only [absNativeParts_ctors', absNativeParts_cvT_name]
+  iterate 14 (try lockstep_step)
+  -- the duplicate-constructor decline: the twin's `Nodup` test is the port's
+  on_goal 2 =>
+    rw [if_neg (by simp_all [Lockstep.TwinEq])]
+    lockstep
+  -- the retry's pop (`ifenv_pop_row_ls`: the pass pushed the former)
+  lockstep_step
+  refine Lockstep.LSP.bind (ifenv_pop_row_ls hfe (‹NativePassRel _ _ ∧ _›).1 ‹∃ caps, _›
+    ‹arena.env.ifenv_row _ _ = ok _›) (fun fe0 hfe0 => ?_)
+  -- the retry's verdict: the twin reads the stored kinds, the port its own copy
+  obtain ⟨hq', -⟩ := ‹NativePassRel _ _ ∧ _›
+  rw [hq'.p]
+  erw [(‹Lockstep.TwinEq (nativeIsRec _) _› : _ = _)]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_native_ls {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
