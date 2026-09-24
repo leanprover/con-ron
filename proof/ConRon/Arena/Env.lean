@@ -336,6 +336,17 @@ def IFEnv.push (fe : IFEnv) (ci : IConstantInfo) : IFEnv :=
   ⟨⟨ci :: fe.env.consts⟩, fe.idx.insert ci.name (fe.visibleBelow, ci),
    fe.visibleBelow + 1⟩
 
+/-- con-leche: none — **the inverse of a temporary push** (the port's
+`env::ifenv_pop_temp`, task #97-P6-5 lever 5): the pushed constant dropped, the
+index row under its name put back as it was before the push (`prev`, the raw
+row read with `idx[n]?` before it), and the visibility bound restored. -/
+def IFEnv.popTemp (fe : IFEnv) (n : NIdx) (prev : Option (Nat × IConstantInfo)) : IFEnv :=
+  ⟨⟨fe.env.consts.tail⟩,
+   (match prev with
+    | some r => fe.idx.insert n r
+    | none => fe.idx.erase n),
+   fe.visibleBelow - 1⟩
+
 /-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? — indexed
 projection-table lookup. -/
 def IFEnv.findProj? (fe : IFEnv) (T : NIdx) (i : Nat) : AM (Option IProjEntry) := do
