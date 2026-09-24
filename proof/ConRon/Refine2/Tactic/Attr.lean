@@ -132,3 +132,10 @@ a caller whose callee is stated at the `mapM` form keeps it — registered
 `lockstep_simp`, the equation rewrote such a twin away from its callee's
 statement (`struct_minor_ty_r`). -/
 register_simp_attr lockstep_congr_simp
+
+/-- Answer relations the zip splits although they are `def`s (task
+#97-T2-TACTIC round 3, the Inductives Parts lane's `WOutRel`): a relation that
+unfolds REDUCIBLY to a conjunction (an `abbrev`) is split at every step and
+leaf anyway; `@[lockstep_rel] def R … := A ∧ B` has the same effect for a
+`def`, which other proofs keep folded. -/
+register_simp_attr lockstep_rel

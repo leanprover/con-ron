@@ -564,14 +564,15 @@ example (mode : ConLeche.CheckMode) (fe : IFEnv) (i4 off k : Std.U64) (e : EIdx)
       inferTypeCore mode fe checkFuel (absU off + (absU k - 1)) e := by
   lockstep_congr
 
-/-! ## 13. The goal as stated is normalised: a nested twin `do` block
+/-! ## 13. A nested twin `do` block in bind position
 
 The Inductives Install lane's `whnf_telescope`: the twin as stated is
 `(do let e' ← whnf …; …) >>= fun q => pure …` once its equation is unfolded.
-Every step's RESULT is normalised (`bind_assoc` is `lockstep_simp`), the stated
-goal was not, so the first bind rule met the nested block; the lane began each
-case with `simp only [bind_assoc]`.  `lockstep` now normalises the goal first
-(`lockstep_norm`). -/
+Every step's RESULT is flattened (`bind_assoc` is `lockstep_simp`), the stated
+goal is not, so the first bind rule met the nested block; the lane began each
+case with `simp only [bind_assoc]`.  The block is now tried whole (a proof may
+group the twin to be one Rust callee's partner: `Checker/Base.lean`'s
+`check_proj_rule_wf`) and then flattened (`LS.twin_assoc`). -/
 example {pers st lst} {e : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
@@ -601,6 +602,84 @@ example {pers st lst} {e : arena.handle.EIdx} (hfalse : False)
     LS pers (fun r v => absAErrKind r = lAErrKind v)
       (arena.checker_base.unresolved_consts_error pers st e) lst
       (unresolvedConstsError "value" (absEIdx e)) := by
+  lockstep
+
+/-! ## 15. A failing alternative fails: no error becomes `sorry`
+
+The Inductives Install lane: a `lockstep_side_ext` rule with a `‹…›` term that
+does not elaborate was recovered to `sorry` and so "closed" the goal (the
+error logged, the alternative taken).  Every `lockstep` entry point now runs
+without error recovery (`strict`). -/
+
+open Lean Elab Tactic in
+/-- `tac` must FAIL, run with error recovery on (as in any tactic block;
+`fail_if_success` itself turns recovery off, so it cannot tell). -/
+elab "fails_with_recovery " tac:tactic : tactic => do
+  let s ← saveState
+  let ok ← withReader (fun ctx => { ctx with recover := true }) do
+    try evalTactic tac; pure true catch _ => pure false
+  s.restore
+  if ok then throwError "the tactic succeeded (through an error recovered to `sorry`?)"
+
+section
+-- a lane extension whose term cannot elaborate here
+local macro_rules | `(tactic| lockstep_side_ext) => `(tactic| (have h : False := ‹False›; exact h.elim))
+
+#guard_msgs (drop warning) in
+example (n : Nat) : n = n + 1 := by
+  fails_with_recovery lockstep_side
+  sorry
+
+#guard_msgs (drop warning) in
+example (p : Prop) : p := by
+  fails_with_recovery lockstep_side_ite
+  sorry
+end
+
+/-! ## 16. A twin `match` in bind position
+
+The Install lane: the twin-`match` fallback looked at the twin's head only,
+not at the callee of its next bind (`(match t with …) >>= k`). -/
+set_option maxHeartbeats 20000 in
+example {pers st lst} {c : Bool} (hc : (!c) = true)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (ok (.Ok (!c), st)) lst
+      ((match some (!c) with
+        | some true => pure true
+        | some false => pure false
+        | none => pure false) >>= fun b => pure b) := by
+  lockstep
+
+/-! ## 17. A memo probe at the key's other spelling
+
+The Inductives Parts lane's `has_loose_bvar_b_go`: the probe's `TwinEq` is
+stated at `lm[absEIdxNat k]?`, the twin probes `memo[(h, i)]?`, and the context
+has the key equation `absEIdxNat k = (absEIdx h, absU i)`.  A key equation
+(a pair on the right) respells the `TwinEq`'s left side, as the scalar facts
+do. -/
+example {pers st lst} (kf : Nat → Nat × Nat) (k a b v : Nat)
+    (lm : Std.HashMap (Nat × Nat) Nat)
+    (hkey : kf k = (a, b)) (hprobe : TwinEq lm[kf k]? (some v))
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (do let w ← ok v; ok (.Ok w, st)) lst
+      (match lm[(a, b)]? with
+        | some x => pure x
+        | none => pure 0) := by
+  lockstep
+
+/-! ## 18. A `def` relation, split
+
+The Parts lane's `WOutRel`: a relation that is a conjunction was split only
+when it unfolds reducibly (an `abbrev`); the lane made it one.  A `def` tagged
+`@[lockstep_rel]` is split too. -/
+
+/-- A pair answer both of whose components are the Rust's. -/
+@[lockstep_rel] def PairRel (a : Nat) (b : Nat × Nat) : Prop := b.1 = a ∧ b.2 = a
+
+/-- At a leaf. -/
+example {pers st lst} (n : Nat)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers PairRel (ok (.Ok n, st)) lst (pure (n, n)) := by
   lockstep
 
 /-! ## The axiom census -/
