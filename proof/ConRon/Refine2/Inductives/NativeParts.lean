@@ -363,7 +363,10 @@ theorem rec_positivity_at_refines {pers st lst} {t : arena.handle.NIdx}
     Sim₀ absRecFieldKind pers lst o
       (recPositivityAt (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absU ofs) (absEIdx h) (absU k)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.rec_positivity_at, recPositivityAt]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem rec_positivity_at_ls
