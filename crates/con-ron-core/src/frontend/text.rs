@@ -8,7 +8,7 @@
 //! and every message in `frontend/` is built out of them.
 //!
 //! Nothing in this module is on a *verdict* path: a message decides no exit
-//! code (the differential compares exit codes, `OVERVIEW.md` §5.4).  It is
+//! code (the differential compares exit codes, `OVERVIEW.md` §10).  It is
 //! here rather than in the unverified crate because the messages travel
 //! inside `CheckError`, which the parse now returns from the verified core.
 

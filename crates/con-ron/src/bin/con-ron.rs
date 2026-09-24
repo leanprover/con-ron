@@ -103,10 +103,18 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
   --verified        the default, and the mode the main theorem is about: every
                     environment the fold accepts in this mode has a model in
                     every set theory (ConLeche.model_exists), so a stream
-                    declaring a theorem of type False is never accepted.  What
-                    the arena rewrite proves is that same statement about this
-                    program's pipeline; the proof itself is phases P3 and P5
-                    (DESIGN.md section 8.6) and is NOT done.
+                    declaring a theorem of type False is never accepted.  The
+                    same two statements are PROVED about this program's
+                    pipeline (ConRon.Capstone.model_exists and
+                    no_False_declaration, on the Aeneas model of the Rust),
+                    using only the axioms propext, Classical.choice and
+                    Quot.sound.  What they still assume are hypotheses, not
+                    axioms: that the driver runs the extracted stages in the
+                    order it does on the file's bytes, that the unextracted
+                    Rust in-process modeller answers as the Lean twin's does,
+                    that the pins are the embedded text, and that the
+                    committed prelude bytes are con-leche's (a gate, not a
+                    proof).  OVERVIEW.md section 3.1 lists them.
   --trusted         the unverified mode: the SAME checker bodies at the mode
                     with the certification-only work switched off.  An accept
                     in this mode is outside the theorem.

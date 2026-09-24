@@ -312,8 +312,7 @@ scratch tier being closed are the driver's, and everything downstream of them
 is a theorem of this tier.
 
 The four steps of the module note, composed.  Every ingredient is a theorem
-of this tier or of the Checker tier; what is open in the composition is what
-each ingredient is open on, and nothing more. -/
+of this tier or of the Checker tier, and none is open any more. -/
 theorem Arena.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     {md : Modeller} (hmw : ModellerWF md) (hmr : ModellerRefines md)
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)

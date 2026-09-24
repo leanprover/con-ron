@@ -304,9 +304,10 @@ open Lockstep in
 
 /-! ## The axiom census
 
-`knotRel_checkFuel'` reads `sorryAx` through `bodyRel_of_knot`, exactly as
-task #97-P5-Arms §7 records; `IFEnvInv.coreCtx` is this file's own and reads
-nothing. -/
+`knotRel_checkFuel'` has read the three standard axioms only since task
+#97-P5-Core round 6 (`exprOpsHyp` discharged; until then it read `sorryAx`
+through `bodyRel_of_knot`, as task #97-P5-Arms §7 recorded);
+`IFEnvInv.coreCtx` is this file's own and reads nothing else either. -/
 
 /-- info: 'ConRon.Refine2.IFEnvInv.coreCtx' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms IFEnvInv.coreCtx

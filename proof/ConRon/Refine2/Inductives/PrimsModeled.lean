@@ -527,18 +527,6 @@ port's fields, abstracted.  Not `lockstep_simp` here (a global registration
 would reach the other lanes' files through `Inductives/Top.lean`): the modeled
 route registers them locally. -/
 
-theorem absIRecRule_ctor (r : arena.env.IRecRule) : (absIRecRule r).ctor = absNIdx r.ctor := rfl
-theorem absIRecRule_nfields (r : arena.env.IRecRule) :
-    (absIRecRule r).nfields = absU r.nfields := rfl
-theorem absIRecRule_ctorParams (r : arena.env.IRecRule) :
-    (absIRecRule r).ctorParams = absU r.ctor_params := rfl
-theorem absIRecRule_fire (r : arena.env.IRecRule) :
-    (absIRecRule r).fire = absIRecRuleFire r.fire := rfl
-theorem absIRecRule_rhs (r : arena.env.IRecRule) : (absIRecRule r).rhs = absEIdx r.rhs := rfl
-theorem absIRecRule_k (r : arena.env.IRecRule) : (absIRecRule r).k = r.k := rfl
-theorem absIRecRule_eta (r : arena.env.IRecRule) : (absIRecRule r).eta = r.eta := rfl
-theorem absIRecRule_paramsBlind (r : arena.env.IRecRule) :
-    (absIRecRule r).paramsBlind = r.params_blind := rfl
 
 /-- A lockstep statement whose twin ends by mapping its answer (`do pure (pre
 ++ (← x))`, a cursor recursion's accumulator in front) is a statement about
@@ -579,7 +567,8 @@ theorem LS_of_twin_map {α β γ : Type} {pers : arena.store.PersTier} {R : α �
   exact lidx_vec_dup_eq h
 
 /-- `checker_base::unwrap_or` ⊑ `unwrapOr` — proved here (the checker tier's
-`unwrap_or_refines` is still `sorry`); the two errors' kinds agree. -/
+`unwrap_or_refines` was `sorry` when this was written); the two errors'
+kinds agree. -/
 theorem unwrap_or_simRE {T β : Type} {A : T → β} {lst} {o : Option T}
     {err : kernel.core_types.CheckError} {lerr : Arena.CheckError} {r}
     (herr : absAErrKind err = lAErrKind lerr)
@@ -693,7 +682,8 @@ theorem take_list_of_arr {a xs : alloc.vec.Vec arena.handle.EIdx} {k : Nat}
 
 /-- `checker_base::fvar_type_ds` ⊑ `List.mapM fvarTypeD` from the cursor on,
 with the accumulator in front — proved here by the cursor induction (the
-checker tier's `fvar_type_ds_refines` is still `sorry`). -/
+checker tier's statement was `sorry` when this was written; it is
+`Checker/Base.lean`'s `fvar_type_ds_ls` now). -/
 theorem fvar_type_ds_aux (n : Nat) :
     ∀ {pers st lst} {hs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
       {out : alloc.vec.Vec arena.handle.EIdx},
@@ -844,19 +834,9 @@ well-formed name (`Refine/CoreKShapes.lean`'s lemma). -/
 
 /-! ### The fields of an abstracted capability record (registered locally) -/
 
-theorem absIIndCaps_eta (c : arena.env.IIndCaps) : (absIIndCaps c).eta = c.eta := rfl
-theorem absIIndCaps_etaCtor (c : arena.env.IIndCaps) :
-    (absIIndCaps c).etaCtor = absNIdx c.eta_ctor := rfl
-theorem absIIndCaps_ruleK (c : arena.env.IIndCaps) : (absIIndCaps c).ruleK = c.rule_k := rfl
 theorem absIIndCaps_unitlike (c : arena.env.IIndCaps) :
     (absIIndCaps c).unitlike = c.unitlike := rfl
 
-/-- `decide (x = 0)` at a `u64` is the twin's `(x : Nat) == 0`. -/
-theorem decide_u64_eq_zero (x : Std.U64) : decide (x = 0#u64) = (x.val == 0) := by
-  by_cases h : x = 0#u64
-  · subst h; rfl
-  · have : x.val ≠ 0 := fun hc => h (by scalar_tac)
-    simp [h, this]
 
 theorem absBinderL_get?_lt {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {n : Nat} (h : n < bs.val.length) :
@@ -1131,36 +1111,6 @@ attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims
   IndModeledPrims.absIRecRule_rhs IndModeledPrims.absIRecRule_k IndModeledPrims.absIRecRule_eta
   IndModeledPrims.absIRecRule_paramsBlind IndModeledPrims.absIIndCaps_eta IndModeledPrims.absIIndCaps_etaCtor IndModeledPrims.absIIndCaps_ruleK IndModeledPrims.decide_u64_eq_zero etag_const_abs
 
-@[lockstep] theorem rec_rule_k_of_ls {pers st lst} {vis : Std.U64} {rf lf}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) (ctor : arena.handle.NIdx) :
-    LS pers (fun a b => b = a) (arena.core.rec_rule_k_of pers vis st rf ctor) lst
-      (recRuleKOf lf (absNIdx ctor)) := by
-  rw [arena.core.rec_rule_k_of, recRuleKOf]
-  lockstep
-
-@[lockstep] theorem rec_rule_eta_of_ls {pers st lst} {vis : Std.U64} {rf lf}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) (rn ctor : arena.handle.NIdx) :
-    LS pers (fun a b => b = a) (arena.core.rec_rule_eta_of pers vis st rf rn ctor) lst
-      (recRuleEtaOf lf (absNIdx rn) (absNIdx ctor)) := by
-  rw [arena.core.rec_rule_eta_of, recRuleEtaOf]
-  lockstep
-  -- the level-parameter comparison, in `nidx_vec_beq`'s `decide` form
-  all_goals
-    refine LS.pure ?_ ‹_› ‹_›
-    simp_all [absNIdxList]
-    exact beq_eq_decide _ _
-
-@[lockstep] theorem rec_rule_bits_ls {pers st lst} {vis : Std.U64} {rf lf}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) (rn : arena.handle.NIdx)
-    (rl : arena.env.IRecRule) :
-    LS pers (fun a b => b = absIRecRule a) (arena.core.rec_rule_bits pers vis st rf rn rl) lst
-      (recRuleBits lf (absNIdx rn) (absIRecRule rl)) := by
-  rw [arena.core.rec_rule_bits, recRuleBits]
-  lockstep
-
 @[lockstep] theorem proj_fn_rule_ls {pers st lst} {vis : Std.U64} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) (t ctor_name : arena.handle.NIdx)
@@ -1194,7 +1144,7 @@ namespace Lockstep.IndModWF
     LSP (kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name))
       (fun pw => TwinEq (ConLeche.PropWhen.ifAllZero []) (ConRon.Refine.absPropWhen pw) ∧
         ConRon.Refine.PropWhenWF pw) :=
-  fun pw h => ⟨ConRon.Refine2.if_all_zero_new_twin pw h,
+  fun pw h => ⟨(ConRon.Refine2.if_all_zero_new_twin pw h).1,
     ConRon.Refine.PropWhen.if_all_zero_wf (by intro n hn; simp [alloc.vec.Vec.new] at hn) h⟩
 
 end Lockstep.IndModWF

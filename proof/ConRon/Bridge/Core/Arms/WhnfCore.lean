@@ -40,8 +40,8 @@ clauses — followed by the body theorem (`whnfCoreBody_spec`) the knot's
 
 ## Status
 
-The step lemmas are CLOSED; `whnfCoreBody_spec` is **`sorry`** — see the note
-at its site and DESIGN §8's task section for what is missing.  Nothing here
+The step lemmas are CLOSED, and so is `whnfCoreBody_spec` (it was the
+module's one `sorry`; the note at its site keeps round 3's inventory).  Nothing here
 depends on the arm split (the coordinator's ruling after task #97-P3-0): a
 pure step lemma is about con-leche's body, which is not split, and the twin's
 side enters only at `whnfCoreBody_spec`.
@@ -365,8 +365,9 @@ the batched `.app` clause's identification with the chained one.
 spine read (`getAppSpine_spec`), the head's normal form (`KnotSpec.whnfCore`),
 `headAndArgs_spec`, then `spine_carry` — the twin's `whnfApp`/`betaPeel`
 denote con-leche's pure mirrors at `pureFns mode env F` — and con-leche's
-own `whnfApp_sound` for the chained side.  It inherits `sorryAx` only through
-`iotaRecAt_spec` (`Walks/BetaSpine.lean` §2, the ι tower's entry point).
+own `whnfApp_sound` for the chained side.  It inherited `sorryAx` only through
+`iotaRecAt_spec` (`Walks/BetaSpine.lean` §2, the ι tower's entry point),
+which is closed since; nothing under it is open now (task #97-MILESTONE).
 
 **One added precondition, `hμ : mode.verifiedChecks = true`** (the body
 theorem already has it): the twin's β site reads `CheckMode.betaSkip`, which
@@ -709,7 +710,7 @@ theorem whnfCoreBody_proj {fe : IFEnv} {fuel : Nat}
 **THEOREM 1 for `whnfCoreBody`**, at a knot record one fuel level down.
 
 **PROVED from its three children** (round 5): a case split on the tag over
-`whnfCoreBody_app_batched` (OPEN), `whnfCoreBody_proj` (proved, over the
+`whnfCoreBody_app_batched` (closed since), `whnfCoreBody_proj` (proved, over the
 walk `projLitToCtor_spec`, closed too) and `whnfCoreBody_leaf` (CLOSED).  The note
 below is round 3's inventory, kept for its reasons:
 
@@ -746,8 +747,8 @@ section Census
 #print axioms IProjEntry.fireOk_spec'
 #print axioms projCertAt_spec'
 #print axioms whnfCoreBody_leaf
-/-! `sorryAx` expected only through `whnfCoreBody_app_batched`, and there only
-through `Walks/BetaSpine.lean`'s `iotaRecAt_spec` (round 6). -/
+/-! No `sorryAx` expected: `whnfCoreBody_app_batched` read it only through
+`Walks/BetaSpine.lean`'s `iotaRecAt_spec` (round 6), which is closed since. -/
 #print axioms whnfCoreBody_app_batched
 #print axioms whnfCoreBody_proj
 #print axioms whnfCoreBody_spec

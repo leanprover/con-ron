@@ -32,8 +32,8 @@
 //!   * `&IFEnv`, the installed index — **by reference, and this is what task
 //!     #97-P6-6b's second half bought**.  `check_pending` used to take the
 //!     index BY VALUE so that it could restrict it to the record's prefix
-//!     bound; a worker would have needed `ifenv_dup`, which OVERVIEW §7.2
-//!     prices at ≈1.4 GB a worker on Mathlib.  The bound is a scalar
+//!     bound; a worker would have needed `ifenv_dup`, which DESIGN.md (task
+//!     #97-P6-6b) prices at ≈1.4 GB a worker on Mathlib.  The bound is a scalar
 //!     parameter now (`pc.vis`), so the environment is shared and **a worker
 //!     costs no environment copy at all**.
 //!

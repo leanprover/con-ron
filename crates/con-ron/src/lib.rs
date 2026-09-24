@@ -23,7 +23,7 @@
 //! command line to the letter.  `crates/con-ron-arena` no longer exists, and
 //! neither does the `Expr`-tree checker the old driver drove.
 //!
-//! **The parser left at task #84** (DESIGN.md §3.8, OVERVIEW §3.7).  con-leche
+//! **The parser left at task #84** (DESIGN.md §3.8, OVERVIEW §6.2).  con-leche
 //! states its main corollary over the file's byte chunks now, so the whole
 //! path from the bytes to `check_decls` had to be inside the extraction; the
 //! modules that were `crate::frontend::*` are `con_ron_core::frontend::*`.

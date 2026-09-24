@@ -56,10 +56,11 @@ and two of those seven clauses are wrong for this arm.
 ## Status: CLOSED of its own (task #97-P3-Ind round 2)
 
 **No `sorry` in this module.**  `indParamsOk_spec` closed on
-`piSortTeleLen?_spec`, so `checkIndDecl_bridge` now carries `sorryAx` through
+`piSortTeleLen?_spec`, so `checkIndDecl_bridge` then carried `sorryAx` through
 exactly THREE sub-statements — `nativeParts?_spec` (the recogniser),
 `checkNative_spec` and `checkModeled_spec` (the two routes) — and through
-nothing of its own.  `IndOut` also gained an eighth clause this round,
+nothing of its own.  All three are closed since (task #97-P3-Ind rounds
+3–9): the tier is `sorry`-free.  `IndOut` also gained an eighth clause this round,
 `ProjOut`, which is what `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` needs
 of the index the arm produced; `indSpec_of_bridge` drops it until
 `Bridge/Checker/Hyp.lean`'s `IndSpec` asks for it.
@@ -396,8 +397,8 @@ needs.  `Bridge/Checker/Decl.lean`'s `DeclOut` always said so in prose.
 **DONE (task #97-P3-Checker-2).**  `Bridge/Checker/Hyp.lean`'s `IndSpec.run`
 now drops `PersIFEnv fe'` and asks for `Pushed fe fe'` in its place, so the
 seven conjuncts are `IndOut`'s seven and this theorem is a record projection
-with no `sorry` of its own.  Its `sorryAx` is `checkIndDecl_bridge`'s four
-sub-statements and nothing else. -/
+with no `sorry` of its own, and since `checkIndDecl_bridge`'s sub-statements
+closed it reads the three standard axioms only. -/
 theorem indSpec_of_bridge {μ : CheckMode} (hμ : μ.verifiedChecks = true)
     (hk : CoreSpec μ Arena.checkFuel) : IndSpec μ := by
   refine ⟨fun {env fe fe' s s' block b nP pinsP} hok hb hpin hrun => ?_⟩

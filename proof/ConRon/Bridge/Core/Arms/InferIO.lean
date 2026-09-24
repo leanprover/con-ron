@@ -1045,7 +1045,8 @@ theorem inferBodyIO_leaf {fe : IFEnv} {fuel : Nat}
 /-- con-leche: ConLeche/Verify/Cached/DiscC5.lean inferBodyIOC_sim —
 **THEOREM 1 for `inferBodyIO`**.
 
-**OPEN** (task #97-P3-Core), and for the same reasons as `inferBody_spec`:
+**CLOSED** (the Core tier is `sorry`-free since task #97-P3-Core round 6).
+It was open for the same reasons as `inferBody_spec`:
 the twin's io `.app` clause is the batched `inferSpineIO`/`inferAppIOAt`
 (task #97-P6-9) and its `.proj` clause needs the same three callee rules.
 The io lane keeps CHAINED binder clauses — con-leche's `inferBodyIOI` does

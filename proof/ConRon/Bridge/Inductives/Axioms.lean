@@ -27,11 +27,13 @@ closed now.)
 
 **Group 2 — the two headline theorems.**  `checkIndDecl_bridge` is the arm
 (DESIGN §8.2's Theorem 1 at the inductive route) and `indSpec_of_bridge` is
-`Bridge/Checker/Hyp.lean`'s `IndSpec`.  Both print `sorryAx`: the first
-because its four sub-statements are open, the second because of that AND of
-the one clause `Bridge/Inductives/Decl.lean`'s module note shows is false.
-Neither prints `CoreSpec` — it is a hypothesis of the statement, as it is
-everywhere else in this library.
+`Bridge/Checker/Hyp.lean`'s `IndSpec`.  Both printed `sorryAx` while the
+tier was open (the first through its four sub-statements, the second through
+those and the one clause `Bridge/Inductives/Decl.lean`'s module note found
+false, since repaired); both print the three standard axioms only now — the
+headline theorems of `ConRon.Capstone` build `indSpec_of_bridge` and are
+`sorry`-free (task #97-MILESTONE).  Neither prints `CoreSpec` — it is a
+hypothesis of the statement, as it is everywhere else in this library.
 -/
 import ConRon.Bridge.Inductives.Decl
 

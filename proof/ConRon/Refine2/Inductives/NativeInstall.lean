@@ -39,6 +39,7 @@ this module rather than a divergence:
 `check_native_pass`), and **finding 10's `hvis` at eleven**.
 -/
 import ConRon.Refine2.Inductives.NativeParts
+import ConRon.Refine2.Checker.Canon
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -51,6 +52,10 @@ open scoped ConRon.Refine2.IndSide
 
 open ConRon.Arena
 open ConRon.Refine2.ExprOps (LMemoRel)
+
+-- `lockstep_congr` tries `rfl` first; at a knot entry whose arguments differ
+-- syntactically that `rfl` unfolds the knot (see `StructInstall.lean`).
+attribute [local irreducible] Arena.isDefEqCore Arena.inferTypeCore Arena.ensureSortCore
 
 /-! ## The capability record -/
 
@@ -188,9 +193,9 @@ theorem native_caps_refines {pers st lst}
     {p : arena.inductives.native_parts.NativeParts} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_install.native_caps pers st p = ok o) :
-    Sim₀ absIIndCaps pers lst o
+    SimRel₀ (fun a b => b = absIIndCaps a ∧ ConRon.Refine.PropWhenWF a.sort_z) pers lst o
       (nativeCaps (absNativeParts p)) := by
-  refine Lockstep.LS.toSim₀ ?_ hrun
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.inductives.native_install.native_caps, nativeCaps]
   lockstep
 
@@ -200,9 +205,10 @@ open Lockstep in
     {p : arena.inductives.native_parts.NativeParts}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absIIndCaps a) (arena.inductives.native_install.native_caps pers st p) lst
+    LS pers (fun a b => b = absIIndCaps a ∧ ConRon.Refine.PropWhenWF a.sort_z)
+      (arena.inductives.native_install.native_caps pers st p) lst
       (nativeCaps (absNativeParts p)) :=
-  LS.ofSim₀ fun _ h => native_caps_refines hrel hinv h
+  LS.ofSimRel₀ fun _ h => native_caps_refines hrel hinv h
 
 /-- `any_dom_mentions` ⊑ `nativeRawRec`'s `anyM`, from the cursor on. -/
 theorem any_dom_mentions_refines {pers st lst} {t : arena.handle.NIdx}
@@ -382,6 +388,66 @@ theorem mentions_fvar_ins_refines {e : arena.handle.EIdx}
   rw [← ho]
   exact ⟨rfl, ⟨hrel', hinv'⟩⟩
 
+open Lockstep in
+/-- `mentions_fvar_ins` in `LSP` form: the answer kept, the memo related. -/
+@[lockstep] theorem mentions_fvar_ins_ls {e : arena.handle.EIdx}
+    {r : Bool × ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {lm : Std.HashMap EIdx Bool} (hm : LMemoRel r.2 lm) :
+    LSP (arena.inductives.native_install.mentions_fvar_ins e r)
+      (fun o => ∃ m', LMemoRel o.2 m' ∧ mentionsFvarIns (absEIdx e) (r.1, lm) = (o.1, m')) := by
+  intro o h
+  obtain ⟨h1, h2⟩ := mentions_fvar_ins_refines hm h
+  exact ⟨_, h2, Prod.ext h1.symm rfl⟩
+
+/-- A weaker relation. -/
+theorem Lockstep.LS.mono_ind {α β : Type} {pers : arena.store.PersTier} {R R' : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β} (hR : ∀ a b, R a b → R' a b)
+    (h : Lockstep.LS pers R m lst x) : Lockstep.LS pers R' m lst x := by
+  intro o st' hm
+  have := h o st' hm
+  cases o with
+  | Ok a =>
+    obtain ⟨b, lst', hy, hr, h1, h2⟩ := this
+    exact ⟨b, lst', hy, hR _ _ hr, h1, h2⟩
+  | Err e => exact this
+
+/-- The walk's relation: the answer bit shared, the memos related. -/
+abbrev MFR (a : Bool × ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+    (b : Bool × Std.HashMap EIdx Bool) : Prop :=
+  ∃ m', LMemoRel a.2 m' ∧ b = (a.1, m')
+
+theorem MFR.toLOutRel {a b} (h : MFR a b) : LOutRel a b := by
+  obtain ⟨m', hm, rfl⟩ := h; exact ⟨rfl, hm⟩
+
+attribute [local lockstep_simp] mentionsFvarNodeSpec
+
+open Lockstep in
+/-- `mentions_fvar_go` ⊑ `mentionsFvarGo`, by induction on the fuel, the node
+dispatch `mentions_fvar_node` unfolded in place. -/
+theorem mentions_fvar_go_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (q : Std.U64) (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+      (lm : Std.HashMap EIdx Bool) (fuel : Std.U64) (h : arena.handle.EIdx),
+      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st → LMemoRel rm lm →
+      LS pers MFR
+        (arena.inductives.native_install.mentions_fvar_go pers st q rm fuel h) lst
+        (mentionsFvarGo (absU q) lm n (absEIdx h)) := by
+  induction n with
+  | zero =>
+    intro pers st lst q rm lm fuel h hn hrel hinv hm
+    rw [arena.inductives.native_install.mentions_fvar_go, if_pos (by scalar_tac), mentionsFvarGo]
+    lockstep
+  | succ m ih =>
+    intro pers st lst q rm lm fuel h hn hrel hinv hm
+    rw [arena.inductives.native_install.mentions_fvar_go, if_neg (by scalar_tac),
+      mentionsFvarGo_unfold]
+    unfold arena.inductives.native_install.mentions_fvar_node
+    lockstep
+    -- the port's `if b2` on the child's answer against the twin's `match` on
+    -- the pair (in a bind's callee, where the core's move does not look)
+    iterate 3 (all_goals (try (simp only [Bool.not_eq_true] at hc; subst hc; dsimp only; simp only [bind_assoc]; lockstep)))
+
 /-- `mentions_fvar_node` ⊑ `mentionsFvarGo`'s arm dispatch. -/
 theorem mentions_fvar_node_refines {pers st lst} {q : Std.U64}
     {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
@@ -392,7 +458,17 @@ theorem mentions_fvar_node_refines {pers st lst} {q : Std.U64}
     SimRel₀ LOutRel pers lst o
       (mentionsFvarNodeSpec (absU q) lm (absU fuel)
         (absENodeView v)) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  have ih : ∀ {st lst} (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+      (lm : Std.HashMap EIdx Bool) (h : arena.handle.EIdx),
+      AStateRel₀ pers st lst → AStateInv pers st → LMemoRel rm lm →
+      Lockstep.LS pers MFR
+        (arena.inductives.native_install.mentions_fvar_go pers st q rm fuel h) lst
+        (mentionsFvarGo (absU q) lm (absU fuel) (absEIdx h)) :=
+    fun rm lm h hrel hinv hm => mentions_fvar_go_aux _ q rm lm fuel h rfl hrel hinv hm
+  refine Lockstep.LS.mono_ind (R := MFR) (fun _ _ h => MFR.toLOutRel h) ?_
+  unfold arena.inductives.native_install.mentions_fvar_node
+  cases v <;> simp only [absENodeView, mentionsFvarNodeSpec] <;> lockstep
 
 open Lockstep in
 @[lockstep] theorem mentions_fvar_node_ls
@@ -418,8 +494,9 @@ theorem mentions_fvar_go_refines {pers st lst} {q : Std.U64}
     (hrun : arena.inductives.native_install.mentions_fvar_go pers st q rm fuel h
       = ok o) :
     SimRel₀ LOutRel pers lst o
-      (mentionsFvarGo (absU q) lm (absU fuel) (absEIdx h)) := by
-  sorry
+      (mentionsFvarGo (absU q) lm (absU fuel) (absEIdx h)) :=
+  Lockstep.LS.toSimRel₀ (Lockstep.LS.mono_ind (fun _ _ h => MFR.toLOutRel h)
+    (mentions_fvar_go_aux _ q rm lm fuel h rfl hrel hinv hm)) hrun
 
 open Lockstep in
 @[lockstep] theorem mentions_fvar_go_ls
@@ -432,9 +509,9 @@ open Lockstep in
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (hm : LMemoRel rm lm) :
-    LS pers LOutRel (arena.inductives.native_install.mentions_fvar_go pers st q rm fuel h) lst
+    LS pers MFR (arena.inductives.native_install.mentions_fvar_go pers st q rm fuel h) lst
       (mentionsFvarGo (absU q) lm (absU fuel) (absEIdx h)) :=
-  LS.ofSimRel₀ fun _ h => mentions_fvar_go_refines hrel hinv hm h
+  mentions_fvar_go_aux _ q rm lm fuel h rfl hrel hinv hm
 
 /-- `mentions_fvar` ⊑ `mentionsFvar` — one memoised walk from the empty
 memo. -/
@@ -983,6 +1060,60 @@ open Lockstep in
       (nativeRuleScopedSpec lfR (absNIdxL rlps) (absEIdx rhs)) :=
   LS.ofSim₀ fun _ h => native_rule_scoped_refines hrel hinv hfe hvis h
 
+/-- `checkNativeRules`' step with the scoping test named as the port's
+`native_rule_scoped` (`nativeRuleScopedSpec`). -/
+theorem checkNativeRules_succ_port (feR : IFEnv) (rlps : List NIdx) (T : NIdx)
+    (lps : List NIdx) (elim : NIdx) (large : Bool) (nP nIdx : Nat) (tty : EIdx)
+    (ctors : List (NIdx × Nat × EIdx × List Nat)) (recC : NIdx) (rlvls : LsIdx)
+    (k j : Nat) :
+    checkNativeRules feR rlps T lps elim large nP nIdx tty ctors recC rlvls (k + 1) j = (do
+      let rhs ← unwrapOr (← structRecRhsR T lps elim large nP nIdx tty ctors recC rlvls j)
+        (.internal "direct rec: recursor rule")
+      unless ← nativeRuleScopedSpec feR rlps rhs do
+        fail (.internal "direct rec: recursor rule scoping")
+      let rest ← checkNativeRules feR rlps T lps elim large nP nIdx tty ctors recC rlvls k
+        (j + 1)
+      pure (rhs :: rest)) := by
+  rw [checkNativeRules]
+  simp only [nativeRuleScopedSpec, bind_assoc, pure_bind]
+
+theorem check_native_rules_aux (m : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rfR lfR}
+      {rlps : alloc.vec.Vec arena.handle.NIdx} {t : arena.handle.NIdx}
+      {lps : alloc.vec.Vec arena.handle.NIdx} {elim : arena.handle.NIdx}
+      {large : Bool} {n_p n_idx : Std.U64} {tty : arena.handle.EIdx}
+      {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
+        (alloc.vec.Vec Std.U64))}
+      {rec_c : arena.handle.NIdx} {rlvls : arena.handle.LsIdx} {k j : Std.U64}
+      {out : alloc.vec.Vec arena.handle.EIdx},
+      k.val = m → AStateRel₀ pers st lst → AStateInv pers st → IFEnvRelI rfR lfR →
+      absU vis = lfR.visibleBelow →
+      Lockstep.LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.native_install.check_native_rules pers vis st rfR rlps t
+          lps elim large n_p n_idx tty ctors rec_c rlvls k j out) lst
+        (do pure (absEIdxL out ++
+          (← checkNativeRules lfR (absNIdxL rlps) (absNIdx t) (absNIdxL lps)
+            (absNIdx elim) large (absU n_p) (absU n_idx) (absEIdx tty)
+            (absCtors4L ctors) (absNIdx rec_c) (absLsIdx rlvls) (absU k)
+            (absU j)))) := by
+  induction m with
+  | zero =>
+    intro pers st lst vis rfR lfR rlps t lps elim large n_p n_idx tty ctors rec_c rlvls k j out
+      hk hrel hinv hfe hvis
+    rw [arena.inductives.native_install.check_native_rules, if_pos (by scalar_tac),
+      show absU k = 0 from hk, checkNativeRules]
+    lockstep
+  | succ m ih =>
+    intro pers st lst vis rfR lfR rlps t lps elim large n_p n_idx tty ctors rec_c rlvls k j out
+      hk hrel hinv hfe hvis
+    rw [arena.inductives.native_install.check_native_rules, if_neg (by scalar_tac),
+      show absU k = m + 1 from hk, checkNativeRules_succ_port]
+    have hk1 : 1 ≤ k.val := by omega
+    obtain rfl : m = k.val - 1 := by omega
+    clear hk
+    simp only [bind_assoc, pure_bind]
+    lockstep
+
 /-- `check_native_rules` ⊑ `checkNativeRules` from the `j`-th rule on, with the
 accumulated right-hand sides in front. -/
 theorem check_native_rules_refines {pers st lst} {vis : Std.U64} {rfR lfR}
@@ -1004,7 +1135,7 @@ theorem check_native_rules_refines {pers st lst} {vis : Std.U64} {rfR lfR}
           (absNIdx elim) large (absU n_p) (absU n_idx) (absEIdx tty)
           (absCtors4L ctors) (absNIdx rec_c) (absLsIdx rlvls) (absU k)
           (absU j)))) := by
-  sorry
+  exact Lockstep.LS.toSim₀ (check_native_rules_aux _ rfl hrel hinv hfe hvis) hrun
 
 open Lockstep in
 @[lockstep] theorem check_native_rules_ls
@@ -1036,79 +1167,613 @@ open Lockstep in
           (absU j)))) :=
   LS.ofSim₀ fun _ h => check_native_rules_refines hrel hinv hfe hvis h
 
+open Lockstep in
+/-- `check_native_rules` from an empty accumulator: the twin's own call. -/
+theorem check_native_rules_ls0 {pers st lst} {vis : Std.U64} {rfR lfR}
+    {rlps : alloc.vec.Vec arena.handle.NIdx} {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx} {elim : arena.handle.NIdx}
+    {large : Bool} {n_p n_idx : Std.U64} {tty : arena.handle.EIdx}
+    {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
+      (alloc.vec.Vec Std.U64))}
+    {rec_c : arena.handle.NIdx} {rlvls : arena.handle.LsIdx} {k j : Std.U64}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rfR lfR) (hvis : absU vis = lfR.visibleBelow) :
+    Lockstep.LS pers (fun a b => b = absEIdxL a)
+      (arena.inductives.native_install.check_native_rules pers vis st rfR rlps t lps elim large
+        n_p n_idx tty ctors rec_c rlvls k j (alloc.vec.Vec.new _)) lst
+      (checkNativeRules lfR (absNIdxL rlps) (absNIdx t) (absNIdxL lps)
+          (absNIdx elim) large (absU n_p) (absU n_idx) (absEIdx tty)
+          (absCtors4L ctors) (absNIdx rec_c) (absLsIdx rlvls) (absU k) (absU j)) := by
+  have h := check_native_rules_ls (out := alloc.vec.Vec.new _) (rlps := rlps) (t := t) (lps := lps)
+    (elim := elim) (large := large) (n_p := n_p) (n_idx := n_idx) (tty := tty) (ctors := ctors)
+    (rec_c := rec_c) (rlvls := rlvls) (k := k) (j := j) hrel hinv hfe hvis
+  simpa [absEIdxL, alloc.vec.Vec.new] using h
+
+/-! ## The retry's pop (task #97-T2-LOCKSTEP lane Inductives Install)
+
+`check_native`'s retry pops the pass's push: `ifenv_pop_temp(q.env1, former,
+ifenv_row(fe, former))` against `q.env₁.popTemp former (fe.idx[former]?)`.
+`IFEnvRel` after the pop does not follow from `IFEnvRel` before it — the Rust
+index stores POSITIONS, so a stale row under another name pointing at the
+popped slot would read `none` where the twin's (which stores the constant)
+reads `some`.  It holds because the pass pushed exactly one constant, named
+`former`: a twin-side postcondition of `checkNativePass` (coordinator's
+ruling), proved from the twin alone below (`IndInstTwin`, the Arena-level
+mirror of Theorem 1's `checkNativePass_push`/`_former`), and carried by
+`check_native_pass_refines`'s result relation. -/
+
+namespace IndInstTwin
+
+/-- Every accepting run of the twin action answers a value with `P`. -/
+def Post {α : Type} (x : AM α) (P : α → Prop) : Prop :=
+  ∀ s a s', x s = .ok (a, s') → P a
+
+theorem Post.bind_any {α β : Type} {x : AM α} {f : α → AM β} {P : β → Prop}
+    (hf : ∀ a, Post (f a) P) : Post (x >>= f) P := by
+  intro s b s' h
+  have h' : ((x s) >>= (fun p => f p.1 p.2)) = .ok (b, s') := h
+  revert h'
+  cases hx : x s with
+  | error e => intro h; exact nomatch h
+  | ok p => intro h; exact hf p.1 _ _ _ h
+
+theorem Post.bind {α β : Type} {x : AM α} {f : α → AM β} {Q : α → Prop} {P : β → Prop}
+    (hx : Post x Q) (hf : ∀ a, Q a → Post (f a) P) : Post (x >>= f) P := by
+  intro s b s' h
+  have h' : ((x s) >>= (fun p => f p.1 p.2)) = .ok (b, s') := h
+  revert h'
+  cases hx' : x s with
+  | error e => intro h; exact nomatch h
+  | ok p => intro h; exact hf p.1 (hx _ _ _ hx') _ _ _ h
+
+theorem Post.pure {α : Type} {a : α} {P : α → Prop} (h : P a) : Post (pure a) P := by
+  intro s b s' hh
+  cases hh; exact h
+
+theorem Post.fail {α : Type} {e : CheckError} {P : α → Prop} : Post (Arena.fail e) P := by
+  intro s b s' hh; exact nomatch hh
+
+theorem Post.ite {α : Type} {c : Prop} [Decidable c] {x y : AM α} {P : α → Prop}
+    (hx : Post x P) (hy : Post y P) : Post (if c then x else y) P := by
+  split <;> assumption
+
+macro "ind_post_walk" : tactic => `(tactic| repeat (first
+  | exact Post.pure rfl
+  | exact Post.fail
+  | apply Post.ite
+  | (apply Post.bind_any; intro _)
+  | (split)))
+
+theorem checkConstantVal_name (mode : ConLeche.CheckMode) (fe : IFEnv) (cv : IConstantVal) :
+    Post (checkConstantVal mode fe cv) (fun r => r.name = cv.name) := by
+  unfold checkConstantVal
+  ind_post_walk
+
+
+theorem checkSumTele_name (mode : ConLeche.CheckMode) (fe : IFEnv) (cv : IConstantVal) (n : Nat)
+    (cvTa₀ : IConstantVal) (h0 : cvTa₀.name = cv.name) :
+    Post (checkSumTele mode fe cv n cvTa₀) (fun r => r.1.name = cv.name) := by
+  have hslow : Post (checkSumTele.checkSumTeleSlow mode fe cv n cvTa₀)
+      (fun r => r.1.name = cv.name) := by
+    unfold checkSumTele.checkSumTeleSlow
+    apply Post.bind_any; intro _
+    apply Post.bind_any; intro _
+    apply Post.bind_any; intro _
+    refine Post.bind (checkConstantVal_name _ _ _) ?_
+    intro a ha; exact Post.pure ha
+  unfold checkSumTele
+  apply Post.bind_any; intro o
+  split
+  · split
+    · apply Post.bind_any; intro v
+      split
+      · exact Post.pure h0
+      · exact hslow
+    · exact hslow
+  · exact hslow
+
+theorem checkSumInd_push (mode : ConLeche.CheckMode) (fe : IFEnv) (p : InductiveShape)
+    (isRec : Bool) :
+    Post (checkSumInd mode fe p isRec) (fun r =>
+      ∃ caps, r.1 = fe.push (.indInfo r.2.1 caps) ∧ r.2.1.name = p.cvT.name) := by
+  unfold checkSumInd
+  refine Post.bind (checkConstantVal_name _ _ _) ?_
+  intro a ha
+  refine Post.bind (checkSumTele_name _ _ _ _ _ ha) ?_
+  intro b hb
+  obtain ⟨cvTa, s⟩ := b
+  simp only at hb ⊢
+  repeat (first
+    | exact Post.pure ⟨_, rfl, hb⟩
+    | exact Post.fail
+    | apply Post.ite
+    | (apply Post.bind_any; intro _))
+
+theorem checkNativePass_push (mode : ConLeche.CheckMode) (fe : IFEnv) (p₀ : NativeParts)
+    (isRec : Bool) :
+    Post (checkNativePass mode fe p₀ isRec) (fun r =>
+      ∃ caps, r.1.env₁ = fe.push (.indInfo r.1.cvTa caps) ∧ r.1.cvTa.name = p₀.cvT.name) := by
+  unfold checkNativePass
+  refine Post.bind (checkSumInd_push _ _ _ _) ?_
+  intro b hb
+  obtain ⟨fe₁, cvTa, p₁⟩ := b
+  obtain ⟨caps, h1, h2⟩ := hb
+  simp only at h1 h2 ⊢
+  repeat (first
+    | exact Post.pure ⟨caps, h1, h2⟩
+    | exact Post.fail
+    | apply Post.ite
+    | (apply Post.bind_any; intro _))
+
+
+end IndInstTwin
+
+open IndInstTwin in
+/-- A twin-side postcondition joins an `LS` relation. -/
+theorem Lockstep.LS.and_post {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β} {Q : β → Prop}
+    (h : Lockstep.LS pers R m lst x) (hp : Post x Q) :
+    Lockstep.LS pers (fun a b => R a b ∧ Q b) m lst x := by
+  intro o st' hm
+  have := h o st' hm
+  cases o with
+  | Ok a =>
+    obtain ⟨b, lst', hy, hR, hr, hi⟩ := this
+    exact ⟨b, lst', hy, ⟨hR, hp lst b lst' hy⟩, hr, hi⟩
+  | Err e => exact this
+
+section PopTemp
+open ConRon.Refine.HashMap2 (Inv toFun)
+
+/-- The Rust side of `ifenv_pop_temp`: the constant list cut by one, the index
+row under `n` put back (or removed), the counter lowered. -/
+theorem ifenv_pop_temp_facts {rf1 rf2 : arena.env.IFEnv} {n : arena.handle.NIdx}
+    {prev : Option (Std.U64 × Std.U64)} (hinv1 : IFEnvInv rf1)
+    (h : arena.env.ifenv_pop_temp rf1 n prev = ok rf2) :
+    rf2.env.consts.val = rf1.env.consts.val.take (rf1.env.consts.val.length - 1) ∧
+    ConRon.Refine.HashMap2.toFun rf2.idx =
+      Function.update (ConRon.Refine.HashMap2.toFun rf1.idx) n prev ∧
+    Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf2.idx ∧
+    rf2.visible_below.val + 1 = rf1.visible_below.val := by
+  rw [arena.env.ifenv_pop_temp.eq_def] at h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hm, hhm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨c1, hc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := (Result.ok_injective h).symm
+  have hvv : v.val = rf1.env.consts.val.take (rf1.env.consts.val.length - 1) := by
+    split at hv
+    · rename_i h0
+      obtain rfl := (Result.ok_injective hv).symm
+      have : rf1.env.consts.val.length = 0 := by
+        have := congrArg (·.val) h0; simpa [alloc.vec.Vec.len] using this
+      simp [this, List.eq_nil_of_length_eq_zero this]
+    · obtain ⟨i, hi, hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
+      obtain ⟨ii, -, hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
+      have hiv := ConRon.Refine.Nat.usub_val hi
+      simp [alloc.vec.Vec.len] at hiv
+      rw [alloc.vec.Vec.resize, if_pos (by simp [alloc.vec.Vec.length]; scalar_tac)] at hv
+      obtain rfl := (Result.ok_injective hv).symm
+      simp [List.resize, hiv.2]
+  have hidx : Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable hm ∧
+      toFun hm = Function.update (toFun rf1.idx) n prev := by
+    cases prev with
+    | none =>
+      obtain ⟨⟨o1, hm1⟩, hr, hhm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hhm
+      obtain rfl := (Result.ok_injective hhm).symm
+      obtain ⟨h1, -, h3, -⟩ := ConRon.Refine.HashMap2.remove_refines_wf (P := fun _ => True)
+        nidx_eq2 hinv1.1 ConRon.Refine.HashMap2.KeysOk_true trivial hr
+      exact ⟨h1, h3⟩
+    | some row =>
+      obtain ⟨n1, hn1, hhm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hhm
+      obtain ⟨⟨o1, hm1⟩, hr, hhm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hhm
+      obtain rfl := (Result.ok_injective hhm).symm
+      have : n1 = n := dupId_nidx _ _ hn1
+      subst this
+      obtain ⟨h1, -, h3, -⟩ := ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True)
+        nidx_eq2 hinv1.1 ConRon.Refine.HashMap2.KeysOk_true trivial hr
+      exact ⟨h1, h3⟩
+  have hc := ConRon.Refine.Nat.usub_val hc1
+  refine ⟨hvv, hidx.2, hidx.1, ?_⟩
+  simp at hc ⊢; omega
+
+
+/-- **The retry's pop, relationally.**  The pass pushed exactly one constant,
+named `n`, onto `lf` (the twin-side fact `hlf`/`hX`); popping it at the
+pre-pass row relates the Rust environment to the twin's popped one.  Needs no
+Rust history: a Rust row under another name that pointed at the popped slot
+would contradict `IFEnvRel.keys` (that slot's constant is `X`, named `n`). -/
+theorem ifenv_pop_temp_rel {rf rf1 rf2 : arena.env.IFEnv} {lf lf1 : IFEnv}
+    {n : arena.handle.NIdx} {X : IConstantInfo}
+    (hfe : IFEnvRelI rf lf) (hfe1 : IFEnvRelI rf1 lf1)
+    (hlf : lf1.env.consts = X :: lf.env.consts) (hX : X.name = absNIdx n)
+    (h : arena.env.ifenv_pop_temp rf1 n (toFun rf.idx n) = ok rf2) :
+    IFEnvRelI rf2 (lf1.popTemp (absNIdx n) (lf.idx[absNIdx n]?)) := by
+  obtain ⟨hc2, hi2, hinv2, hv2⟩ := ifenv_pop_temp_facts hfe1.2 h
+  have hA1 : rf1.env.consts.val.map absIConstantInfo
+      = rf.env.consts.val.map absIConstantInfo ++ [X] := by
+    have e : (rf1.env.consts.val.map absIConstantInfo).reverse
+        = X :: (rf.env.consts.val.map absIConstantInfo).reverse := by
+      have e1 := congrArg IEnv.consts hfe1.1.env
+      have e0 := congrArg IEnv.consts hfe.1.env
+      simp only [absIEnv] at e1 e0
+      rw [← e1, hlf, e0]
+    have := congrArg List.reverse e
+    simpa using this
+  have hlen : rf1.env.consts.val.length = rf.env.consts.val.length + 1 := by
+    have := congrArg List.length hA1; simpa using this
+  have hA2 : rf2.env.consts.val.map absIConstantInfo
+      = rf.env.consts.val.map absIConstantInfo := by
+    rw [hc2, List.map_take, hA1, hlen]; simp
+  have hlen2 : rf2.env.consts.val.length = rf.env.consts.val.length := by
+    have := congrArg List.length hA2; simpa using this
+  have getA : ∀ s : Nat, (rf2.env.consts.val[s]?).map absIConstantInfo
+      = (rf.env.consts.val[s]?).map absIConstantInfo := by
+    intro s; rw [← List.getElem?_map, ← List.getElem?_map, hA2]
+  have get12 : ∀ s : Nat, s < rf.env.consts.val.length →
+      rf2.env.consts.val[s]? = rf1.env.consts.val[s]? := by
+    intro s hs; rw [hc2, List.getElem?_take]; simp [hlen, hs]
+  have hlast : ∀ ci, rf1.env.consts.val[rf.env.consts.val.length]? = some ci →
+      absIConstantInfo ci = X := by
+    intro ci hci
+    have := congrArg (·[rf.env.consts.val.length]?) hA1
+    simp only [List.getElem?_map, hci, Option.map_some] at this
+    simpa using this
+  have hrow : ∀ k p, toFun rf1.idx k = some p → k ≠ n →
+      p.2.val < rf.env.consts.val.length := by
+    intro k p hp hk
+    have hr := hfe1.2.2.2 k p hp
+    rcases Nat.lt_or_ge p.2.val rf.env.consts.val.length with hl | hl
+    · exact hl
+    · exfalso
+      have heq : p.2.val = rf.env.consts.val.length := by omega
+      obtain ⟨ci, hci, hname⟩ := hfe1.1.keys k p hp
+      rw [heq] at hci
+      rw [hlast ci hci, hX] at hname
+      exact hk (absNIdx_inj hname).symm
+  have hmapf : ∀ (a : Nat) (o : Option arena.env.IConstantInfo),
+      o.map (fun ci => (a, absIConstantInfo ci)) = (o.map absIConstantInfo).map (fun y => (a, y)) := by
+    intro a o; cases o <;> rfl
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_⟩, hinv2, ?_, ?_⟩
+  · -- the constant list
+    have e0 := hfe.1.env
+    simp only [IFEnv.popTemp, hlf, List.tail_cons]
+    rw [e0]; simp only [absIEnv, hA2]
+  · -- the index
+    intro k
+    rw [hi2, Function.update_apply]
+    simp only [IFEnv.popTemp]
+    by_cases hk : k = n
+    · subst hk
+      rw [if_pos rfl]
+      have hR : (toFun rf.idx k).bind (fun p => (rf2.env.consts.val[p.2.val]?).map
+          fun ci => (absU p.1, absIConstantInfo ci)) = lf.idx[absNIdx k]? := by
+        rw [← hfe.1.idx k]
+        congr 1; funext p; rw [hmapf, hmapf, getA]
+      rw [hR]
+      cases lf.idx[absNIdx k]? <;> simp
+    · rw [if_neg hk]
+      have hne : absNIdx n ≠ absNIdx k := fun he => hk (absNIdx_inj he).symm
+      refine Eq.trans (b := lf1.idx[absNIdx k]?) ?_ ?_
+      · rw [← hfe1.1.idx k]
+        cases hp : toFun rf1.idx k with
+        | none => rfl
+        | some p =>
+          simp only [Option.bind]
+          rw [get12 _ (hrow k p hp hk)]
+      · cases lf.idx[absNIdx n]? <;>
+          simp [Std.HashMap.getElem?_insert, Std.HashMap.getElem?_erase, hne]
+  · -- the counter
+    show lf1.visibleBelow - 1 = absU rf2.visible_below
+    rw [hfe1.1.visibleBelow]; simp only [absU]; omega
+  · intro ci hci
+    rw [hc2] at hci
+    exact hfe1.1.envWF ci (List.mem_of_mem_take hci)
+  · intro k p hp
+    rw [hi2, Function.update_apply] at hp
+    by_cases hk : k = n
+    · subst hk
+      rw [if_pos rfl] at hp
+      obtain ⟨ci', hci', hname⟩ := hfe.1.keys k p hp
+      have := getA p.2.val
+      rw [hci', Option.map_some] at this
+      obtain ⟨ci, hci, habs⟩ := Option.map_eq_some_iff.mp this
+      exact ⟨ci, hci, by rw [habs, hname]⟩
+    · rw [if_neg hk] at hp
+      rw [get12 _ (hrow k p hp hk)]
+      exact hfe1.1.keys k p hp
+  · -- the counter bound
+    have := hfe1.2.2.1
+    omega
+  · intro k p hp
+    rw [hi2, Function.update_apply] at hp
+    by_cases hk : k = n
+    · subst hk
+      rw [if_pos rfl] at hp
+      rw [hlen2]; exact hfe.2.2.2 k p hp
+    · rw [if_neg hk] at hp
+      rw [hlen2]; exact hrow k p hp hk
+
+
+end PopTemp
+
+section Bracket
+open ConRon.Refine.HashMap2 (Inv toFun)
+
+/-- `IFEnvRelI` only observes the twin environment's list, index reads and
+counter. -/
+theorem IFEnvRelI.congr_obs {rf : arena.env.IFEnv} {a b : IFEnv} (h : IFEnvRelI rf a)
+    (he : a.env = b.env) (hi : ∀ k : NIdx, a.idx[k]? = b.idx[k]?)
+    (hv : a.visibleBelow = b.visibleBelow) : IFEnvRelI rf b := by
+  obtain ⟨⟨h1, h2, h3, h4, h5⟩, hinv⟩ := h
+  exact ⟨⟨he ▸ h1, fun n => (h2 n).trans (hi _), hv ▸ h3, h4, h5⟩, hinv⟩
+
+/-- The push-temp's environment is `ifenv_push`'s, and its answer the
+displaced row. -/
+theorem ifenv_push_temp_eq {rf : arena.env.IFEnv} {ci : arena.env.IConstantInfo}
+    {r : Option (Std.U64 × Std.U64) × arena.env.IFEnv} (hinv : IFEnvInv rf)
+    (h : arena.env.ifenv_push_temp rf ci = ok r) :
+    arena.env.ifenv_push rf ci = ok r.2 ∧
+      ∀ n, arena.env.i_constant_info_name ci = ok n → r.1 = toFun rf.idx n := by
+  rw [arena.env.ifenv_push_temp] at h
+  obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨⟨prev, hm⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨c1, hc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := (Result.ok_injective h).symm
+  refine ⟨?_, ?_⟩
+  · rw [arena.env.ifenv_push, hs]; simp only [bind_tc_ok]
+    rw [hn]; simp only [bind_tc_ok]
+    rw [hq]; simp only [bind_tc_ok]
+    rw [hv]; simp only [bind_tc_ok]
+    rw [hc1]; simp only [bind_tc_ok]
+    rfl
+  · intro n' hn'
+    rw [hn] at hn'
+    obtain rfl := Result.ok_injective hn'
+    exact (ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2 hinv.1
+      ConRon.Refine.HashMap2.KeysOk_true trivial hq).2.1
+
+/-- **The bracket**: a push-temp popped at the displaced row gives back an
+environment related to the twin's unchanged one. -/
+theorem ifenv_push_pop_rel {rf rf1 rf2 : arena.env.IFEnv} {lf : IFEnv}
+    {ci : arena.env.IConstantInfo} {n : arena.handle.NIdx}
+    (hfe : IFEnvRelI rf lf) (hwf : IConstantInfoWF ci)
+    (hpush : arena.env.ifenv_push rf ci = ok rf1)
+    (hn : arena.env.i_constant_info_name ci = ok n)
+    (hpop : arena.env.ifenv_pop_temp rf1 n (toFun rf.idx n) = ok rf2) :
+    IFEnvRelI rf2 lf := by
+  obtain ⟨h1, h2⟩ := ifenv_push_refines hfe.1 hfe.2 hwf hpush
+  have hX : (absIConstantInfo ci).name = absNIdx n := (i_constant_info_name_abs hn).symm
+  have := ifenv_pop_temp_rel (X := absIConstantInfo ci) hfe ⟨h1, h2⟩ rfl hX hpop
+  refine IFEnvRelI.congr_obs this ?_ ?_ ?_
+  · rfl
+  · intro k
+    simp only [IFEnv.popTemp, IFEnv.push]
+    by_cases hk : absNIdx n = k
+    · subst hk
+      cases hq : lf.idx[absNIdx n]? <;> simp [hq]
+    · have hk' : ¬ ((absIConstantInfo ci).name == k) = true := by
+        rw [hX]; simpa using hk
+      cases lf.idx[absNIdx n]? <;>
+        simp [Std.HashMap.getElem?_insert, Std.HashMap.getElem?_erase, hk, hk']
+  · simp [IFEnv.popTemp, IFEnv.push]
+
+/-- `ifenv_push_temp` as the Rust-only step the zip takes. -/
+@[local lockstep] theorem ifenv_push_temp_ls {rf : arena.env.IFEnv} {lf : IFEnv} {ci : arena.env.IConstantInfo}
+    (hfe : IFEnvRelI rf lf) (hwf : IConstantInfoWF ci) :
+    Lockstep.LSP (arena.env.ifenv_push_temp rf ci) (fun r =>
+      IFEnvRelI r.2 (lf.push (absIConstantInfo ci)) ∧ arena.env.ifenv_push rf ci = ok r.2 ∧
+        ∀ n, arena.env.i_constant_info_name ci = ok n → r.1 = toFun rf.idx n) := by
+  intro r h
+  obtain ⟨h1, h2⟩ := ifenv_push_temp_eq hfe.2 h
+  obtain ⟨h3, h4⟩ := ifenv_push_refines hfe.1 hfe.2 hwf h1
+  exact ⟨⟨h3, h4⟩, h1, h2⟩
+
+end Bracket
+
+open ConRon.Refine.HashMap2 (toFun) in
 /-- `check_native_rec_rules` ⊑ `checkNativeRec`'s rule stage — **finding 19's
-bracket**: the `&mut IFEnv` Aeneas returns as `o.2.2` is the pre-call
-environment, because `ifenv_push_temp` / `ifenv_pop_temp` is the identity on
-`fe`. -/
-theorem check_native_rec_rules_refines {pers st lst} {rf lf}
+bracket**: the `&mut IFEnv` Aeneas returns beside the answer is the pre-call
+environment again, because `ifenv_push_temp` / `ifenv_pop_temp` is the
+identity on `fe` (`ifenv_push_pop_rel`).  An `LSM` statement: the environment
+is the walk's "memo", outside the `Result`. -/
+@[lockstep] theorem check_native_rec_rules_refines {pers st lst} {rf lf}
     {p : arena.inductives.native_parts.NativeParts}
     {cv_ta : arena.env.IConstantVal}
     {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
       (alloc.vec.Vec Std.U64))}
-    {rec_ty : arena.handle.EIdx} {o}
+    {rec_ty : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hrun : arena.inductives.native_install.check_native_rec_rules pers st rf p cv_ta
-      ctors rec_ty = ok o) :
-    Sim₀ (fun r => (absIConstantVal r.1, absEIdxL r.2)) pers lst
-      (o.1, o.2.1)
+    (hfe : IFEnvRelI rf lf) :
+    Lockstep.LSM pers
+      (fun a v => v = (absIConstantVal a.1.1, absEIdxL a.1.2) ∧ IFEnvRelI a.2 lf)
+      (arena.inductives.native_install.check_native_rec_rules pers st rf p cv_ta ctors rec_ty)
+      lst
       (checkNativeRecRulesSpec (absNativeParts p) (absIConstantVal cv_ta)
-        (absCtors4L ctors) (absEIdx rec_ty) lf) ∧
-      IFEnvRel o.2.2 lf := by
-  sorry
+        (absCtors4L ctors) (absEIdx rec_ty) lf) := by
+  intro o st' hm
+  simp only [Lockstep.packM] at hm
+  obtain ⟨⟨r0, st0, fe0⟩, hrun, hpk⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  rw [arena.inductives.native_install.check_native_rec_rules] at hrun
+  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain rfl : n = p.shape.cv_r.name := dupId_nidx _ _ hn
+  obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨iv, hiv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨i1, hi1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨rn, hrn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain rfl : rn = p.shape.cv_r.name := dupId_nidx _ _ hrn
+  obtain ⟨⟨prev, fe1⟩, hpush, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨⟨r, st1⟩, hpl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  -- the Rust-only facts
+  have hv' := nidx_vec_dup_val hv
+  have hiv' := i_constant_val_dup_abs hiv
+  have hi' := major_idx_refines hi
+  have hi1' := rule_prefix_refines hi1
+  have hivn : iv.name = p.shape.cv_r.name := by
+    have := congrArg IConstantVal.name hiv'
+    simp only [absIConstantVal] at this
+    exact absNIdx_inj this
+  have hname : arena.env.i_constant_info_name
+      (arena.env.IConstantInfo.RecInfo iv i i1 (alloc.vec.Vec.new arena.env.IRecRule))
+      = ok p.shape.cv_r.name := by
+    rw [arena.env.i_constant_info_name, ← hivn]; rfl
+  obtain ⟨hpush', hprev⟩ := ifenv_push_temp_eq hfe.2 hpush
+  have hprev' := hprev _ hname
+  simp only at hprev'
+  obtain ⟨hfe1a, hfe1b⟩ := ifenv_push_refines hfe.1 hfe.2 (by simp [IConstantInfoWF]) hpush'
+  have hfe1 : IFEnvRelI fe1 _ := ⟨hfe1a, hfe1b⟩
+  have hvis1 : absU fe1.visible_below = (lf.push (absIConstantInfo
+      (arena.env.IConstantInfo.RecInfo iv i i1 (alloc.vec.Vec.new arena.env.IRecRule)))).visibleBelow :=
+    hfe1a.visibleBelow.symm
+  -- the twin's pushed recursor is the port's
+  have hci : absIConstantInfo (arena.env.IConstantInfo.RecInfo iv i i1
+        (alloc.vec.Vec.new arena.env.IRecRule))
+      = IConstantInfo.recInfo ⟨(absNativeParts p).cvR.name, (absNativeParts p).cvR.levelParams,
+          absEIdx rec_ty⟩ (absNativeParts p).majorIdx (absNativeParts p).rulePrefix [] := by
+    simp only [absIConstantInfo, hiv', hi', hi1']
+    simp only [absIConstantVal, hv']
+    rfl
+  rw [hci] at hfe1 hvis1
+  have hPL := param_levels_ls hrel hinv _ _ hpl
+  rw [checkNativeRecRulesSpec]
+  obtain ⟨⟨st2, fe2, r1⟩, hmatch, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨fe3, hpop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  cases r with
+  | Err e =>
+    obtain ⟨rfl, rfl, rfl⟩ : st1 = st2 ∧ fe1 = fe2 ∧ core.result.Result.Err e = r1 := by
+      simpa using hmatch
+    obtain ⟨-, rfl, rfl⟩ : _ ∧ core.result.Result.Err e = r0 ∧ st1 = st0 := by
+      simpa using hrun
+    obtain ⟨rfl, rfl⟩ : core.result.Result.Err e = o ∧ st1 = st' := by
+      simpa [Lockstep.packMemo] using hpk
+    exact Lockstep.errSim_bind hPL
+  | Ok rlvls =>
+    obtain ⟨b, lst1, hx1, hb, hrel1, hinv1⟩ := hPL
+    dsimp only at hmatch
+    obtain ⟨t, ht, hmatch⟩ := ConRon.Refine.bind_eq_ok_iff.mp hmatch
+    obtain rfl : t = p.shape.cv_t.name := dupId_nidx _ _ ht
+    obtain ⟨lps, hlps, hmatch⟩ := ConRon.Refine.bind_eq_ok_iff.mp hmatch
+    obtain ⟨i3, hi3, hmatch⟩ := ConRon.Refine.bind_eq_ok_iff.mp hmatch
+    obtain ⟨⟨r2, st3⟩, hr2, hmatch⟩ := ConRon.Refine.bind_eq_ok_iff.mp hmatch
+    obtain ⟨rfl, rfl, rfl⟩ : st3 = st2 ∧ fe1 = fe2 ∧ r2 = r1 := by simpa using hmatch
+    erw [Lockstep.run_bind_ok hx1]
+    subst hb
+    have hCNR := check_native_rules_ls0 hrel1 hinv1 hfe1 hvis1 _ _ hr2
+    have e1 : absNIdxL lps = (absNativeParts p).cvT.levelParams := by
+      simp [absNIdxL, nidx_vec_dup_val hlps, absNativeParts, absInductiveShape, absIConstantVal]
+    have e2 : absU i3 = (absCtors4L ctors).length := by
+      simp only [lift, Result.ok.injEq] at hi3
+      subst hi3
+      simp [absU, usize_cast_u64_val, absCtors4L, alloc.vec.Vec.len]
+    rw [e1, e2] at hCNR
+    have hpop' : arena.env.ifenv_pop_temp fe1 p.shape.cv_r.name (toFun rf.idx p.shape.cv_r.name)
+        = ok fe3 := by rw [← hprev']; exact hpop
+    have hfe3 := ifenv_push_pop_rel hfe (by simp [IConstantInfoWF]) hpush' hname hpop'
+    cases r2 with
+    | Err e2 =>
+      obtain ⟨-, rfl, rfl⟩ : _ ∧ core.result.Result.Err e2 = r0 ∧ st3 = st0 := by
+        simpa using hrun
+      obtain ⟨rfl, rfl⟩ : core.result.Result.Err e2 = o ∧ st3 = st' := by
+        simpa [Lockstep.packMemo] using hpk
+      exact Lockstep.errSim_bind hCNR
+    | Ok rhs =>
+      obtain ⟨b2, lst2, hx2, hb2, hrel2, hinv2⟩ := hCNR
+      erw [Lockstep.run_bind_ok hx2]
+      obtain ⟨hfe0, rfl, rfl⟩ : _ ∧ core.result.Result.Ok
+          ({ «name» := p.shape.cv_r.name, level_params := v, ty := rec_ty }, rhs) = r0 ∧
+          st3 = st0 := by simpa using hrun
+      obtain ⟨rfl, rfl⟩ : core.result.Result.Ok
+          (({ «name» := p.shape.cv_r.name, level_params := v, ty := rec_ty }, rhs), fe0) = o ∧
+          st3 = st' := by simpa [Lockstep.packMemo] using hpk
+      have : fe0 = fe3 := by rw [hpop] at hfe0; exact (Result.ok_injective hfe0).symm
+      subst this
+      refine ⟨_, lst2, rfl, ⟨?_, hfe3⟩, hrel2, hinv2⟩
+      simp [hb2, absIConstantVal, hv', absNativeParts, absInductiveShape]
 
-/-- `check_native_rec_defeq` ⊑ `checkNativeRec`'s defeq stage. -/
-theorem check_native_rec_defeq_refines {pers st lst} {mode : kernel.env.CheckMode}
+set_option maxHeartbeats 1000000 in
+/-- `check_native_rec_defeq` ⊑ `checkNativeRec`'s defeq stage (`LSM`: the
+environment beside the answer). -/
+@[lockstep] theorem check_native_rec_defeq_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf lf} {p : arena.inductives.native_parts.NativeParts}
     {cv_ta : arena.env.IConstantVal}
     {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
       (alloc.vec.Vec Std.U64))}
-    {stream_ty rec_ty : arena.handle.EIdx} {o}
+    {stream_ty rec_ty : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hrun : arena.inductives.native_install.check_native_rec_defeq pers st mode rf p
-      cv_ta ctors stream_ty rec_ty = ok o) :
-    Sim₀ (fun r => (absIConstantVal r.1, absEIdxL r.2)) pers lst
-      (o.1, o.2.1)
+    (hfe : IFEnvRelI rf lf) :
+    Lockstep.LSM pers (fun a v => v = (absIConstantVal a.1.1, absEIdxL a.1.2) ∧ IFEnvRelI a.2 lf)
+      (arena.inductives.native_install.check_native_rec_defeq pers st mode rf p
+        cv_ta ctors stream_ty rec_ty) lst
       (checkNativeRecDefeqSpec (ConRon.Refine.absMode mode) lf (absNativeParts p)
         (absIConstantVal cv_ta) (absCtors4L ctors) (absEIdx stream_ty)
-        (absEIdx rec_ty)) ∧
-      IFEnvRel o.2.2 lf := by
-  sorry
+        (absEIdx rec_ty)) := by
+  unfold Lockstep.LSM
+  rw [arena.inductives.native_install.check_native_rec_defeq, checkNativeRecDefeqSpec]
+  lockstep
 
+attribute [local irreducible] Arena.structRecTyR in
 /-- `check_native_rec_ty` ⊑ `checkNativeRec`'s type stage. -/
-theorem check_native_rec_ty_refines {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem check_native_rec_ty_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf lf} {p : arena.inductives.native_parts.NativeParts}
     {cv_ta : arena.env.IConstantVal}
     {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
-    {stream_ty : arena.handle.EIdx} {o}
+    {stream_ty : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hrun : arena.inductives.native_install.check_native_rec_ty pers st mode rf p
-      cv_ta ctors_a stream_ty = ok o) :
-    Sim₀ (fun r => (absIConstantVal r.1, absEIdxL r.2)) pers lst
-      (o.1, o.2.1)
+    (hfe : IFEnvRelI rf lf) :
+    Lockstep.LSM pers (fun a v => v = (absIConstantVal a.1.1, absEIdxL a.1.2) ∧ IFEnvRelI a.2 lf)
+      (arena.inductives.native_install.check_native_rec_ty pers st mode rf p
+        cv_ta ctors_a stream_ty) lst
       (checkNativeRecTySpec (ConRon.Refine.absMode mode) lf (absNativeParts p)
-        (absIConstantVal cv_ta) (absCtorsL ctors_a) (absEIdx stream_ty)) ∧
-      IFEnvRel o.2.2 lf := by
-  sorry
+        (absIConstantVal cv_ta) (absCtorsL ctors_a) (absEIdx stream_ty)) := by
+  unfold Lockstep.LSM
+  rw [arena.inductives.native_install.check_native_rec_ty, checkNativeRecTySpec]
+  lockstep
+
+/-- `checkNativeRec` IS the pin prologue and `checkNativeRecTySpec`. -/
+theorem checkNativeRec_unfold (mode : ConLeche.CheckMode) (fe : IFEnv) (p : NativeParts)
+    (cvTa : IConstantVal) (ctorsA : List (IConstantVal × Nat)) :
+    checkNativeRec mode fe p cvTa ctorsA = (do
+      let recName ← internNNode (.str p.cvT.name "rec")
+      unless p.cvR.name == recName do
+        fail (.invalid "direct rec: the block's recursor is not the generated T.rec")
+      unless nativeRecLpsOk p.toInductiveShape do
+        fail (.invalid "direct rec: the recursor's level parameters are not the generated ones")
+      unless p.recPinned do
+        fail (.invalid "direct rec: the recursor record is not the generated recursor")
+      let cvRi ← checkConstantVal mode fe p.cvR
+      checkNativeRecTySpec mode fe p cvTa ctorsA cvRi.type) := by
+  simp only [checkNativeRec, checkNativeRecTySpec, checkNativeRecDefeqSpec,
+    checkNativeRecRulesSpec, nativeRuleScopedSpec, bind_assoc, pure_bind]
 
 /-- `check_native_rec` ⊑ `checkNativeRec` — stage 3: the recursor, generated
 and compared. -/
-theorem check_native_rec_refines {pers st lst} {mode : kernel.env.CheckMode}
+@[lockstep] theorem check_native_rec_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf lf} {p : arena.inductives.native_parts.NativeParts}
     {cv_ta : arena.env.IConstantVal}
-    {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {o}
+    {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hrun : arena.inductives.native_install.check_native_rec pers st mode rf p cv_ta
-      ctors_a = ok o) :
-    Sim₀ (fun r => (absIConstantVal r.1, absEIdxL r.2)) pers lst
-      (o.1, o.2.1)
+    (hfe : IFEnvRelI rf lf) :
+    Lockstep.LSM pers (fun a v => v = (absIConstantVal a.1.1, absEIdxL a.1.2) ∧ IFEnvRelI a.2 lf)
+      (arena.inductives.native_install.check_native_rec pers st mode rf p cv_ta
+        ctors_a) lst
       (checkNativeRec (ConRon.Refine.absMode mode) lf (absNativeParts p)
-        (absIConstantVal cv_ta) (absCtorsL ctors_a)) ∧
-      IFEnvRel o.2.2 lf := by
-  sorry
+        (absIConstantVal cv_ta) (absCtorsL ctors_a)) := by
+  unfold Lockstep.LSM
+  rw [arena.inductives.native_install.check_native_rec, checkNativeRec_unfold]
+  lockstep
+  -- the literal `rec` of the generated recursor's name (a local constant)
+  all_goals
+    have hs : ConRon.Refine.absString a = "rec" ∧ ConRon.Refine.StrWF a := by
+      rename_i sl hsl
+      have hv : a.val = [114#u32, 101#u32, 99#u32] := by
+        rw [hP, hsl, arena.inductives.native_install.check_native_rec.REC, Array.make_val]
+      refine ⟨?_, ?_⟩
+      · rw [ConRon.Refine.absString, hv]; rfl
+      · intro c hc; rw [hv] at hc; fin_cases hc <;> decide
+    lockstep
 
 /-- `check_native_table` ⊑ `checkNativeTable` — stage 4, the projection table
 at a STRUCTURE-LIKE block. -/
@@ -1184,7 +1849,66 @@ open Lockstep in
         lf) :=
   LS.ofSimRel₀ fun _ h => check_native_table_refines hrel hinv hfe h
 
+open Lockstep in
+/-- `check_native_table_ls` at a twin environment given up to equality. -/
+theorem check_native_table_ls_eq {pers st lst}
+    {p : arena.inductives.native_parts.NativeParts}
+    {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {sortss : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)}
+    {rf lf lf'} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (h : lf = lf') :
+    LS pers IFEnvRelI (arena.inductives.native_install.check_native_table pers st p ctors_a sortss rf) lst
+      (checkNativeTable (absNativeParts p) (absCtorsL ctors_a) (absLIdxLL sortss) lf') :=
+  h ▸ check_native_table_ls hrel hinv hfe
+
 /-! ## The two-pass install -/
+
+theorem recCtorKindsAllSpec_cons_map (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
+    (pre : List (List RecFieldKind)) (c : IConstantVal × Nat) (cs : List (IConstantVal × Nat)) :
+    (do pure ((← recCtorKindsAllSpec T lps nP nIdx (c :: cs)).map fun r => pre ++ r))
+    = (do match ← recCtorKinds T lps nP nIdx c with
+          | none => pure none
+          | some ks => do
+            pure ((← recCtorKindsAllSpec T lps nP nIdx cs).map fun r => (pre ++ [ks]) ++ r) :
+        AM (Option (List (List RecFieldKind)))) := by
+  simp only [recCtorKindsAllSpec, bind_assoc]
+  congr 1; funext o
+  cases o with
+  | none => simp
+  | some ks =>
+    simp only [bind_assoc]
+    congr 1; funext r
+    cases r <;> simp
+theorem recCtorKindsAll_eq_spec (T : NIdx) (lps : List NIdx) (nP nIdx : Nat) :
+    ∀ l, recCtorKindsAll T lps nP nIdx l = recCtorKindsAllSpec T lps nP nIdx l
+  | [] => rfl
+  | c :: cs => by
+    simp only [recCtorKindsAll, recCtorKindsAllSpec, recCtorKindsAll_eq_spec T lps nP nIdx cs]
+    congr 1
+
+theorem rec_ctor_kinds_all_aux (m : Nat) :
+    ∀ {pers st lst} {t : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
+      {n_p n_idx : Std.U64} {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+      {i : Std.Usize}
+      {out : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)},
+      ctors_a.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = Option.map absKindLL a)
+        (arena.inductives.native_install.rec_ctor_kinds_all pers st t lps n_p n_idx ctors_a i out)
+        lst
+        (do pure ((← recCtorKindsAllSpec (absNIdx t) (absNIdxL lps) (absU n_p)
+          (absU n_idx) (absCtorsLFrom ctors_a i)).map fun r => absKindLL out ++ r)) := by
+  induction m with
+  | zero =>
+    intro pers st lst t lps n_p n_idx ctors_a i out hn hrel hinv
+    rw [arena.inductives.native_install.rec_ctor_kinds_all, if_pos (by scalar_tac), absCtorsLFrom,
+      vecFrom_nil _ _ _ (by omega)]
+    simp only [recCtorKindsAllSpec]
+    lockstep
+  | succ m ih =>
+    intro pers st lst t lps n_p n_idx ctors_a i out hn hrel hinv
+    rw [arena.inductives.native_install.rec_ctor_kinds_all, if_neg (by scalar_tac), absCtorsLFrom,
+      vecFrom_cons _ _ _ (by omega), recCtorKindsAllSpec_cons_map]
+    lockstep
 
 /-- `rec_ctor_kinds_all` ⊑ `recCtorKindsAll` from the cursor on, with the
 accumulated kind lists in front. -/
@@ -1200,7 +1924,7 @@ theorem rec_ctor_kinds_all_refines {pers st lst} {t : arena.handle.NIdx}
       (do pure ((← recCtorKindsAllSpec (absNIdx t) (absNIdxL lps) (absU n_p)
         (absU n_idx) (absCtorsLFrom ctors_a i)).map
           fun r => absKindLL out ++ r)) := by
-  sorry
+  exact Lockstep.LS.toSim₀ (rec_ctor_kinds_all_aux _ rfl hrel hinv) hrun
 
 open Lockstep in
 @[lockstep] theorem rec_ctor_kinds_all_ls
@@ -1218,6 +1942,22 @@ open Lockstep in
         (absU n_idx) (absCtorsLFrom ctors_a i)).map
           fun r => absKindLL out ++ r)) :=
   LS.ofSim₀ fun _ h => rec_ctor_kinds_all_refines hrel hinv h
+
+open Lockstep in
+/-- `rec_ctor_kinds_all` from the cursor `0` and an empty accumulator: the
+twin's `recCtorKindsAll` (the spec's own recursion). -/
+@[lockstep] theorem rec_ctor_kinds_all_ls0 {pers st lst} {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_idx : Std.U64}
+    {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = Option.map absKindLL a)
+      (arena.inductives.native_install.rec_ctor_kinds_all pers st t lps n_p n_idx ctors_a 0#usize
+        (alloc.vec.Vec.new _)) lst
+      (recCtorKindsAll (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx) (absCtorsL ctors_a)) := by
+  have h := rec_ctor_kinds_all_aux (ctors_a := ctors_a) (i := 0#usize) (out := alloc.vec.Vec.new _)
+    (t := t) (lps := lps) (n_p := n_p) (n_idx := n_idx) _ rfl hrel hinv
+  rw [recCtorKindsAll_eq_spec]
+  simpa [absKindLL, absCtorsLFrom, absCtorsL, alloc.vec.Vec.new] using h
 
 /-- `kinds_any` ⊑ `ks.any (· == k)` from the cursor on. -/
 theorem kinds_any_refines
@@ -1326,6 +2066,21 @@ open Lockstep in
     LSP (arena.inductives.native_install.kindss_any kinds k i) (fun o => TwinEq ((absKindLLFrom kinds i).any fun ks => ks.any (· == absRecFieldKind k)) (o)) :=
   fun o h => (kindss_any_refines h).symm
 
+namespace IndInstPrims
+open Lockstep
+
+/-- `unwrap_or` at the classified kinds (`classify_fix_kinds`' decline). -/
+@[lockstep] theorem unwrap_or_kindll_ni {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {o : Option (alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind))}
+    {m : alloc.vec.Vec Std.U32} {s : String} :
+    LSR pers (fun a b => b = absKindLL a)
+      (arena.checker_base.unwrap_or o (kernel.core_types.CheckError.NotImplemented m)) st lst
+      (unwrapOr (o.map absKindLL) (.notImplemented s)) :=
+  unwrap_or_lsr hrel hinv rfl
+
+end IndInstPrims
+
 /-- `classify_fix_kinds` ⊑ `classifyFixKinds` — **the fields' kinds, classified
 at install** (con-leche's task #210 Part D). -/
 theorem classify_fix_kinds_refines {pers st lst} {t : arena.handle.NIdx}
@@ -1337,7 +2092,14 @@ theorem classify_fix_kinds_refines {pers st lst} {t : arena.handle.NIdx}
     Sim₀ absKindLL pers lst o
       (classifyFixKinds (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absCtorsL ctors_a)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_install.classify_fix_kinds, classifyFixKinds]
+  lockstep
+  -- the two kind scans: the port's `kindss_any` from `0` is the twin's `any`
+  all_goals
+    split_ifs <;> first
+      | (lockstep; done)
+      | (exfalso; simp_all [Lockstep.TwinEq, absKindLLFrom, absKindLL])
 
 open Lockstep in
 @[lockstep] theorem classify_fix_kinds_ls
@@ -1366,7 +2128,24 @@ theorem check_native_pass_kinds_refines {pers st lst} {rf1 lf1}
     SimRel₀ (fun r v => NativePassRel r.1 v.1 ∧ v.2 = r.2) pers lst o
       (checkNativePassKindsSpec lf1 (absIConstantVal cv_ta) (absNativeParts p_c)
         (absCtorsL ctors_a) (absLIdxLL sortss) is_rec) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.native_install.check_native_pass_kinds, checkNativePassKindsSpec]
+  lockstep
+  -- the port reads the completed record's shape, the twin the pre-completion
+  -- one: `withKinds` changes only the kinds
+  all_goals
+    have hs := congrArg NativeParts.toInductiveShape
+      (‹Lockstep.TwinEq ((absNativeParts p_c).withKinds _) _› : _ = _)
+    simp only [NativeParts.withKinds] at hs
+    rw [hs]
+    lockstep
+  -- the settled test: `i_ind_caps_beq` at canonical `sort_z`s is the twin's `==`
+  all_goals
+    have hb := fun ha hb' => i_ind_caps_beq_refines ha hb'
+      ‹arena.canon.i_ind_caps_beq _ _ = ok _›
+    specialize hb (by assumption) (by assumption)
+    refine Lockstep.LS.pure ?_ ‹_› ‹_›
+    exact ⟨⟨hfe.1, hfe.2, rfl, rfl, rfl, rfl⟩, by rw [hb]; exact beq_eq_decide _ _⟩
 
 open Lockstep in
 @[lockstep] theorem check_native_pass_kinds_ls
@@ -1385,6 +2164,7 @@ open Lockstep in
         (absCtorsL ctors_a) (absLIdxLL sortss) is_rec) :=
   LS.ofSimRel₀ fun _ h => check_native_pass_kinds_refines hrel hinv hfe h
 
+
 /-- `check_native_pass` ⊑ `checkNativePass` — **one pass over the former and
 the constructors** (con-leche's task #268) at a given `is_rec` verdict. -/
 theorem check_native_pass_refines {pers st lst} {mode : kernel.env.CheckMode}
@@ -1393,10 +2173,12 @@ theorem check_native_pass_refines {pers st lst} {mode : kernel.env.CheckMode}
     (hfe : IFEnvRelI rf lf)
     (hrun : arena.inductives.native_install.check_native_pass pers st mode rf p0
       is_rec = ok o) :
-    SimRel₀ (fun r v => NativePassRel r.1 v.1 ∧ v.2 = r.2) pers lst o
+    SimRel₀ (fun r v => (NativePassRel r.1 v.1 ∧ v.2 = r.2) ∧
+        ∃ caps, v.1.env₁ = lf.push (.indInfo v.1.cvTa caps) ∧
+          v.1.cvTa.name = (absNativeParts p0).cvT.name) pers lst o
       (checkNativePass (ConRon.Refine.absMode mode) lf (absNativeParts p0)
         is_rec) := by
-  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  refine Lockstep.LS.toSimRel₀ (Lockstep.LS.and_post ?_ (IndInstTwin.checkNativePass_push _ _ _ _)) hrun
   rw [arena.inductives.native_install.check_native_pass, checkNativePass]
   lockstep
 
@@ -1410,11 +2192,26 @@ open Lockstep in
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rf lf) :
-    LS pers (fun r v => NativePassRel r.1 v.1 ∧ v.2 = r.2) (arena.inductives.native_install.check_native_pass pers st mode rf p0 is_rec) lst
+    LS pers (fun r v => (NativePassRel r.1 v.1 ∧ v.2 = r.2) ∧
+        ∃ caps, v.1.env₁ = lf.push (.indInfo v.1.cvTa caps) ∧
+          v.1.cvTa.name = (absNativeParts p0).cvT.name)
+      (arena.inductives.native_install.check_native_pass pers st mode rf p0 is_rec) lst
       (checkNativePass (ConRon.Refine.absMode mode) lf (absNativeParts p0)
         is_rec) :=
   LS.ofSimRel₀ fun _ h => check_native_pass_refines hrel hinv hfe h
 
+open Lockstep in
+/-- `cons_sum_ctors` from the cursor `0`, in `LSP` form. -/
+theorem cons_sum_ctors_ls0 {n_p : Std.U64}
+    {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI rf lf) :
+    LSP (arena.inductives.sum_install.cons_sum_ctors n_p ctors 0#usize rf)
+      (fun o => IFEnvRelI o (consSumCtors (absU n_p) (absCtorsL ctors) lf)) := by
+  intro o h
+  have := cons_sum_ctors_refines hfe.1 hfe.2 h
+  simpa [absCtorsLFrom, absCtorsL, IFEnvRelI] using this
+
+attribute [local irreducible] Arena.checkNativeTable Arena.sumRules in
 /-- `check_native_tail_install` ⊑ `checkNativeTail`'s install stage. -/
 theorem check_native_tail_install_refines {pers st lst}
     {mode : kernel.env.CheckMode} {rq : arena.inductives.native_install.NativePass}
@@ -1425,7 +2222,21 @@ theorem check_native_tail_install_refines {pers st lst}
       = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkNativeTailInstallSpec (ConRon.Refine.absMode mode) lq) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  obtain ⟨e1, cv, pp, ca, ss⟩ := lq
+  have hq' := hq
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hq
+  simp only at h1 h3 h4 h5 h6
+  subst h3 h4 h5 h6
+  have hfe1 : IFEnvRelI rq.env1 e1 := ⟨h1, h2⟩
+  rw [arena.inductives.native_install.check_native_tail_install, checkNativeTailInstallSpec]
+  dsimp only
+  refine Lockstep.LSP.bind (cons_sum_ctors_ls0 hfe1) (fun fe2 hfe2 => ?_)
+  lockstep
+  -- the stored recursor: the twin's record is the port's, abstracted
+  all_goals
+    refine check_native_table_ls_eq hrel hinv (‹IFEnvRelI _ _ ∧ _›).1 ?_
+    simp_all [Lockstep.TwinEq, absIConstantInfo, absIRecRuleL, absNativeParts]
 
 open Lockstep in
 @[lockstep] theorem check_native_tail_install_ls
@@ -1454,7 +2265,25 @@ theorem check_native_tail_kinds_refines {pers st lst} {mode : kernel.env.CheckMo
       = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkNativeTailKindsSpec (ConRon.Refine.absMode mode) lf lq) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  obtain ⟨e1, cv, pp, ca, ss⟩ := lq
+  have hq' := hq
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hq
+  simp only at h1 h3 h4 h5 h6
+  subst h3 h4 h5 h6
+  have hfe1 : IFEnvRelI rq.env1 e1 := ⟨h1, h2⟩
+  rw [arena.inductives.native_install.check_native_tail_kinds, checkNativeTailKindsSpec]
+  dsimp only
+  lockstep_step
+  lockstep_step
+  -- the lowered view: the port's record with the counter lowered, the twin's
+  -- `restrictTo` at the same counter
+  refine Lockstep.LSP.bind (Lockstep.uscalar_sub _ _) (fun a hka => ?_)
+  have hlow : e1.visibleBelow - 1 = absU a := by
+    rw [h1.visibleBelow]; simp only [absU]; scalar_tac
+  have hr := Lockstep.IFEnvRelI.restrict hfe1 (k := a) (by have := h2.2.1; scalar_tac)
+  rw [hlow]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_native_tail_kinds_ls
@@ -1470,6 +2299,27 @@ open Lockstep in
       (checkNativeTailKindsSpec (ConRon.Refine.absMode mode) lf lq) :=
   LS.ofSimRel₀ fun _ h => check_native_tail_kinds_refines hrel hinv hq h
 
+namespace IndInstPrims
+open Lockstep
+
+/-- `unwrap_or` at an opened telescope (`open_pis_at_fvars_f`'s answer). -/
+@[lockstep] theorem unwrap_or_opened_int {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {o : Option (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)}
+    {m : alloc.vec.Vec Std.U32} {s : String} :
+    LSR pers (fun a b => b = (List.map absEIdx a.1.val, absEIdx a.2))
+      (arena.checker_base.unwrap_or o (kernel.core_types.CheckError.Internal m)) st lst
+      (unwrapOr (o.map fun p => (List.map absEIdx p.1.val, absEIdx p.2)) (.internal s)) :=
+  unwrap_or_lsr hrel hinv rfl
+
+/-- `kernel::level::is_never_zero` is the twin's `isNeverZero`. -/
+@[lockstep] theorem level_is_never_zero_ls (l : kernel.level.Level) :
+    LSP (kernel.level.is_never_zero l)
+      (fun b => TwinEq (ConLeche.Level.isNeverZero (ConRon.Refine.absLevel l)) b) :=
+  fun _ h => (ConRon.Refine.Level.is_never_zero_refines h).symm
+
+end IndInstPrims
+
 /-- `check_native_tail_sorts` ⊑ `checkNativeTail`'s index-sort stage. -/
 theorem check_native_tail_sorts_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rq : arena.inductives.native_install.NativePass} {lq : NativePass} {lf} {o}
@@ -1479,7 +2329,16 @@ theorem check_native_tail_sorts_refines {pers st lst} {mode : kernel.env.CheckMo
       = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkNativeTailSortsSpec (ConRon.Refine.absMode mode) lf lq) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  obtain ⟨e1, cv, pp, ca, ss⟩ := lq
+  have hq' := hq
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hq
+  simp only at h1 h3 h4 h5 h6
+  subst h3 h4 h5 h6
+  have hfe1 : IFEnvRelI rq.env1 e1 := ⟨h1, h2⟩
+  rw [arena.inductives.native_install.check_native_tail_sorts, checkNativeTailSortsSpec]
+  dsimp only
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_native_tail_sorts_ls
@@ -1505,7 +2364,21 @@ theorem check_native_tail_refines {pers st lst} {mode : kernel.env.CheckMode}
       = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkNativeTail (ConRon.Refine.absMode mode) lf lq) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  obtain ⟨e1, cv, pp, ca, ss⟩ := lq
+  have hq' := hq
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hq
+  simp only at h1 h3 h4 h5 h6
+  subst h3 h4 h5 h6
+  have hfe1 : IFEnvRelI rq.env1 e1 := ⟨h1, h2⟩
+  rw [arena.inductives.native_install.check_native_tail, checkNativeTail_unfold]
+  dsimp only
+  lockstep
+  -- the port's nested elimination test against the twin's conjunction
+  all_goals
+    first
+      | (rw [if_neg (by simp_all [Lockstep.TwinEq, absNativeParts, absInductiveShape, absCtorsL])]; lockstep)
+      | (rw [if_pos (by simp_all [Lockstep.TwinEq, absNativeParts, absInductiveShape, absCtorsL])]; lockstep)
 
 open Lockstep in
 @[lockstep] theorem check_native_tail_ls
@@ -1649,6 +2522,40 @@ open Lockstep in
     LSP (arena.inductives.native_install.ctor_names_nodup ctors i) (fun o => TwinEq (decide (((absCtorsLFrom ctors i).map (·.1.name)).Nodup)) (o)) :=
   fun o h => (ctor_names_nodup_refines h).symm
 
+/-- `env::ifenv_row` reads the raw index row (visible or not). -/
+theorem ifenv_row_toFun {rf : arena.env.IFEnv} {n : arena.handle.NIdx}
+    {prev : Option (Std.U64 × Std.U64)} (hinv : IFEnvInv rf)
+    (h : arena.env.ifenv_row rf n = ok prev) :
+    prev = ConRon.Refine.HashMap2.toFun rf.idx n := by
+  rw [arena.env.ifenv_row] at h
+  obtain ⟨o, ho, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have := ConRon.Refine.HashMap2.get_refines_wf (P := fun _ => True) nidx_eq2 hinv.1
+    ConRon.Refine.HashMap2.KeysOk_true trivial ho
+  cases o <;> simp at h <;> subst h <;> exact this
+
+/-- `check_native`'s retry pop, as the Rust-only step the zip takes: the pass
+`q` pushed one constant named `n` onto `lf` (the twin-side postcondition), and
+`prev` is the pre-pass row. -/
+theorem ifenv_pop_row_ls {rf : arena.env.IFEnv} {lf : IFEnv}
+    {q : arena.inductives.native_install.NativePass} {lq : NativePass}
+    {n : arena.handle.NIdx} {prev : Option (Std.U64 × Std.U64)}
+    (hfe : IFEnvRelI rf lf) (hq : NativePassRel q lq)
+    (hlf : ∃ caps, lq.env₁ = lf.push (.indInfo lq.cvTa caps) ∧ lq.cvTa.name = absNIdx n)
+    (hrow : arena.env.ifenv_row rf n = ok prev) :
+    Lockstep.LSP (arena.env.ifenv_pop_temp q.env1 n prev)
+      (fun rf2 => IFEnvRelI rf2 (lq.env₁.popTemp (absNIdx n) lf.idx[absNIdx n]?)) := by
+  intro rf2 h
+  obtain ⟨caps, h1, h2⟩ := hlf
+  rw [ifenv_row_toFun hfe.2 hrow] at h
+  exact ifenv_pop_temp_rel (X := .indInfo lq.cvTa caps) hfe ⟨hq.env₁, hq.env₁Inv⟩
+    (by rw [h1]; rfl) h2 h
+
+theorem absNativeParts_ctors' (p : arena.inductives.native_parts.NativeParts) :
+    (absNativeParts p).ctors = absCtorsL p.shape.ctors := rfl
+theorem absNativeParts_cvT_name (p : arena.inductives.native_parts.NativeParts) :
+    (absNativeParts p).cvT.name = absNIdx p.shape.cv_t.name := rfl
+
+set_option maxHeartbeats 1000000 in
 /-- `check_native` ⊑ `checkNative` — check and install a **direct recursive
 block**: the distinct names, the pass over the former and the constructors —
 again where the record's syntactic reading overshot — and the install after
@@ -1660,7 +2567,23 @@ theorem check_native_refines {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
     (hrun : arena.inductives.native_install.check_native pers st mode rf p0 = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkNative (ConRon.Refine.absMode mode) lf (absNativeParts p0)) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.native_install.check_native, checkNative]
+  simp only [absNativeParts_ctors', absNativeParts_cvT_name]
+  iterate 14 (try lockstep_step)
+  -- the duplicate-constructor decline: the twin's `Nodup` test is the port's
+  on_goal 2 =>
+    rw [if_neg (by simp_all [Lockstep.TwinEq])]
+    lockstep
+  -- the retry's pop (`ifenv_pop_row_ls`: the pass pushed the former)
+  lockstep_step
+  refine Lockstep.LSP.bind (ifenv_pop_row_ls hfe (‹NativePassRel _ _ ∧ _›).1 ‹∃ caps, _›
+    ‹arena.env.ifenv_row _ _ = ok _›) (fun fe0 hfe0 => ?_)
+  -- the retry's verdict: the twin reads the stored kinds, the port its own copy
+  obtain ⟨hq', -⟩ := ‹NativePassRel _ _ ∧ _›
+  rw [hq'.p]
+  erw [(‹Lockstep.TwinEq (nativeIsRec _) _› : _ = _)]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_native_ls {pers st lst} {mode : kernel.env.CheckMode} {rf lf}

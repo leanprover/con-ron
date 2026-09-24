@@ -22,7 +22,8 @@ on trees read back from the store, and the readback's own obligation is
 `Bridge/Core/Walks/Frame.lean`'s.  They are the first non-slot walks of
 `Arena/Core.lean` to have a theorem at all.
 
-The last three are **`sorry`**, and for one reason each time: the miss branch
+The last three were **`sorry`** when this was written (all closed since),
+and for one reason each time: the miss branch
 is `instLPFast`, whose callee rule is `Bridge/ExprOps/Owed.lean`'s
 `instLPFast_spec` and is itself `sorry` (task #97-P3-0's open list, item "the
 eight of `ExprOps/Owed.lean`").  Their proofs are otherwise the first two's,

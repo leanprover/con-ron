@@ -33,7 +33,7 @@ bodies' own arms are:
 | body | arms (twin clauses) | port helpers under it |
 |---|---:|---:|
 | `whnf_core_body` | 10 views, of which `app` and `proj` recurse | `whnf_app`, `beta_peel`, `whnf_core_stuck_app`, `whnf_core_proj{,_at,_fire}`, `proj_cert{,_at}`, `iota_rec*` (11) |
-| `whnf_body` | the loop (`whnf_loop`/`whnf_step` at `WHNF_LOOP_FUEL`) — **closed**, `Core/Arms/Loops.lean` | `reduce_nat{,_succ,_bin,_wf}` (open); `unfold_definition` **closed**, `Core/Arms/Delta.lean` |
+| `whnf_body` | the loop (`whnf_loop`/`whnf_step` at `WHNF_LOOP_FUEL`) — **closed**, `Core/Arms/Loops.lean` | `reduce_nat{,_succ,_bin,_wf}` (closed since); `unfold_definition` **closed**, `Core/Arms/Delta.lean` |
 | `infer_body` | 10 views | `infer_forall`, `infer_proj`, `infer_lam{,_open,_cod}`, `infer_spine`, `infer_app`, `infer_lams{,_leaf,_leaf_check}`, `infer_pis{,_leaf}` |
 | `infer_body_io` | 10 views | `infer_forall_io{,_at}`, `infer_app_io_at`, `infer_spine_io`, `infer_proj_io` |
 | `defeq_body` | the loop (`defeq_loop`/`defeq_step` at `DEFEQ_LOOP_FUEL`) | `defeq_{spine,binders,peel,peel_leaf,lit_app,lit_const,struct,apps,unfold_both,delta_both,delta,after_whnf}`, `bool_true_shortcut`, `proof_irrel`, `prop_irrel`, `eta_cert*`, `struct_*_cert*`, `major_to_ctor*` (≈ 40) |
@@ -48,9 +48,10 @@ bodies' own arms are:
 2. **The batched clauses carry an `Array` accumulator and a cursor at once** —
    `Core/Arms/Batched.lean`, which is task #97-P5-0's finding 5.
 
-## Why the six bodies' own dispatches are still open
+## Why the six bodies' own dispatches were still open (round 3)
 
-Round 3's budget is **≈ 20 lines of shape step, 2 lines of idiom and 0.26 s of
+They are closed since (task #97-P5-Core round 5 zipped them in `lockstep`,
+round 6 discharged `exprOpsHyp`).  Round 3's budget is **≈ 20 lines of shape step, 2 lines of idiom and 0.26 s of
 `grind` per residual branch** per function.  At ≈ 95 functions and the arena's
 ten-way bodies that is the tier's whole cost, and it is more than one round;
 what this round owes it is the equation floor (`Core/Eqns.lean`, which turns a
