@@ -53,10 +53,6 @@ open scoped ConRon.Refine2.IndSide
 open ConRon.Arena
 open ConRon.Refine2.ExprOps (LMemoRel)
 
--- `lockstep_congr` tries `rfl` first; at a knot entry whose arguments differ
--- syntactically that `rfl` unfolds the knot (see `StructInstall.lean`).
-attribute [local irreducible] Arena.isDefEqCore Arena.inferTypeCore Arena.ensureSortCore
-
 /-! ## The capability record -/
 
 /-- `kinds_any_rec` ⊑ `ks.any fun k => k == .recursive || k == .reflexive` from
@@ -446,7 +442,7 @@ theorem mentions_fvar_go_aux (n : Nat) :
     lockstep
     -- the port's `if b2` on the child's answer against the twin's `match` on
     -- the pair (in a bind's callee, where the core's move does not look)
-    iterate 3 (all_goals (try (simp only [Bool.not_eq_true] at hc; subst hc; dsimp only; simp only [bind_assoc]; lockstep)))
+    iterate 3 (all_goals (try (simp only [Bool.not_eq_true] at hc; subst hc; lockstep)))
 
 /-- `mentions_fvar_node` ⊑ `mentionsFvarGo`'s arm dispatch. -/
 theorem mentions_fvar_node_refines {pers st lst} {q : Std.U64}
@@ -818,7 +814,6 @@ theorem native_fields_at_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
   · intro st lst j _ m hj hm hrel hinv ih
     rw [arena.inductives.native_install.native_fields_at.eq_def, nativeFieldsAtSpec_succ_port]
     rw [if_neg (by scalar_tac)]
-    dsimp only
     lockstep
 
 open Lockstep in
@@ -1111,7 +1106,6 @@ theorem check_native_rules_aux (m : Nat) :
     have hk1 : 1 ≤ k.val := by omega
     obtain rfl : m = k.val - 1 := by omega
     clear hk
-    simp only [bind_assoc, pure_bind]
     lockstep
 
 /-- `check_native_rules` ⊑ `checkNativeRules` from the `j`-th rule on, with the
@@ -1693,7 +1687,6 @@ is the walk's "memo", outside the `Result`. -/
       refine ⟨_, lst2, rfl, ⟨?_, hfe3⟩, hrel2, hinv2⟩
       simp [hb2, absIConstantVal, hv', absNativeParts, absInductiveShape]
 
-set_option maxHeartbeats 1000000 in
 /-- `check_native_rec_defeq` ⊑ `checkNativeRec`'s defeq stage (`LSM`: the
 environment beside the answer). -/
 @[lockstep] theorem check_native_rec_defeq_refines {pers st lst} {mode : kernel.env.CheckMode}
@@ -1714,7 +1707,6 @@ environment beside the answer). -/
   rw [arena.inductives.native_install.check_native_rec_defeq, checkNativeRecDefeqSpec]
   lockstep
 
-attribute [local irreducible] Arena.structRecTyR in
 /-- `check_native_rec_ty` ⊑ `checkNativeRec`'s type stage. -/
 @[lockstep] theorem check_native_rec_ty_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf lf} {p : arena.inductives.native_parts.NativeParts}
@@ -2211,7 +2203,6 @@ theorem cons_sum_ctors_ls0 {n_p : Std.U64}
   have := cons_sum_ctors_refines hfe.1 hfe.2 h
   simpa [absCtorsLFrom, absCtorsL, IFEnvRelI] using this
 
-attribute [local irreducible] Arena.checkNativeTable Arena.sumRules in
 /-- `check_native_tail_install` ⊑ `checkNativeTail`'s install stage. -/
 theorem check_native_tail_install_refines {pers st lst}
     {mode : kernel.env.CheckMode} {rq : arena.inductives.native_install.NativePass}
@@ -2230,7 +2221,6 @@ theorem check_native_tail_install_refines {pers st lst}
   subst h3 h4 h5 h6
   have hfe1 : IFEnvRelI rq.env1 e1 := ⟨h1, h2⟩
   rw [arena.inductives.native_install.check_native_tail_install, checkNativeTailInstallSpec]
-  dsimp only
   refine Lockstep.LSP.bind (cons_sum_ctors_ls0 hfe1) (fun fe2 hfe2 => ?_)
   lockstep
   -- the stored recursor: the twin's record is the port's, abstracted
@@ -2273,7 +2263,6 @@ theorem check_native_tail_kinds_refines {pers st lst} {mode : kernel.env.CheckMo
   subst h3 h4 h5 h6
   have hfe1 : IFEnvRelI rq.env1 e1 := ⟨h1, h2⟩
   rw [arena.inductives.native_install.check_native_tail_kinds, checkNativeTailKindsSpec]
-  dsimp only
   lockstep_step
   lockstep_step
   -- the lowered view: the port's record with the counter lowered, the twin's

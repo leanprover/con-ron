@@ -110,7 +110,6 @@ theorem fvar_type_ds_aux (n : Nat) :
     apply LSR.of_LS
     rw [arena.checker_base.fvar_type_ds, if_neg (by scalar_tac), absEIdxLFrom,
       vecFrom_cons _ _ _ (by omega), List.mapM_cons]
-    simp only [bind_assoc, pure_bind]
     lockstep
 
 /-- `fvar_type_ds` from the cursor `0` and an empty accumulator: the twin's
@@ -135,11 +134,6 @@ itself).  Scoped: `open scoped ConRon.Refine2.IndInstPrims`. -/
 end IndInstPrims
 
 /-! ## The binder-domain walk -/
-
--- `lockstep_congr` tries `rfl` first; at a twin `isDefEqCore` whose depth
--- argument differs syntactically (`absU i4` against `↑off + (↑k - 1)`), that
--- `rfl` unfolds the knot and never returns.
-attribute [local irreducible] Arena.isDefEqCore
 
 set_option maxHeartbeats 1000000 in
 /-- `check_struct_doms_at` ⊑ `checkStructDomsAt` — the reference kernels'

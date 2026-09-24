@@ -2404,9 +2404,6 @@ theorem nativeRulesOkFromSpec_succ_port (recC : NIdx) (rlvls : LsIdx) (pw : ConL
     · rw [List.getElem?_eq_none (by omega), if_pos (show j ≥ cs.length by omega)]
   · rw [List.getElem?_eq_none (by omega), if_pos (show j ≥ rhss.length by omega)]
 
-set_option maxHeartbeats 400000 in
--- the zip's `rfl` congruence attempts at the two callees fail slowly (~4 s
--- each, measured with `lockstep_stats`: `congr.0`); see DESIGN round 6
 attribute [local lockstep_simp] absNatL_new_append_filter_zero in
 /-- `native_rules_ok_from` ⊑ `nativeRulesOk`'s `(List.range n).allM` from rule
 `j` on. -/
@@ -2565,7 +2562,6 @@ theorem native_rules_ok_refines {pers st lst} {rec_c : arena.handle.NIdx}
   refine Lockstep.LS.toSim₀ ?_ hrun
   clear hrun
   rw [arena.inductives.native_parts.native_rules_ok, nativeRulesOk_port]
-  dsimp only
   lockstep
 
 open Lockstep in

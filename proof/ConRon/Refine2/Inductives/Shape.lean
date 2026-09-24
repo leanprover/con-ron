@@ -765,10 +765,10 @@ statement is `SimRel₀` at the relation below — the answer bit equal and the 
 memos related — which is `ExprOps/Read.lean`'s `WOut`/`LOut` without the
 `Ext`/`StoreWF` those carried. -/
 
-/-- The `(handle, depth)`-keyed memo walk's answer relation.  An `abbrev`, so
-the zip splits a related answer (`splitRels`) where a walk's continuation
-matches on it (round 6). -/
-abbrev WOutRel (r : Bool × ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool)
+/-- The `(handle, depth)`-keyed memo walk's answer relation.  `@[lockstep_rel]`,
+so the zip splits a related answer (`splitRels`) where a walk's continuation
+matches on it. -/
+@[lockstep_rel] def WOutRel (r : Bool × ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool)
     (v : Bool × Std.HashMap (EIdx × Nat) Bool) : Prop :=
   r.1 = v.1 ∧ ExprOps.WMemoRel r.2 v.2
 
@@ -1155,16 +1155,6 @@ open Lockstep in
   simp only [Lockstep.TwinEq, absEIdxL, this]
   simp
 
-/-- The port's `let (e, _) := x; dup2 e` answered `a`: `a` is `x.1` (stated
-with this file's own matcher; the port's is the same up to unfolding, so
-`exact`/`have := … hf` accept it). -/
-theorem let_pair_dup2_eq {β : Type} (x : arena.handle.EIdx × β) (a : arena.handle.EIdx)
-    (h : (let (e, _) := x
-          arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 e) = ok a) : a = x.1 := by
-  obtain ⟨e, b⟩ := x
-  simp only [arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2, Result.ok.injEq] at h
-  exact h.symm
-
 /-- The twin's `(cbs.getD k default).1` over an abstracted binder list, in
 range: the handle at `k`. -/
 theorem binderL_getD_fst_of_lt (v : List (arena.handle.EIdx × kernel.expr.BinderMeta))
@@ -1308,32 +1298,14 @@ theorem absBinderL_getD_fst_of_ge (v : alloc.vec.Vec (arena.handle.EIdx × kerne
   rw [List.getD_eq_default _ _ (by simpa [absBinderL] using hk)]
   rfl
 
-set_option hygiene false in
 /-- The port's `dom := if k < len then v[k].0 else EIdx(0)` against the
-twin's `(cbs.getD k default).1`, after `lockstep` stopped at the pair read
-(`hf : (let (e, _) := v[j]; dup2 e) = ok a`, or `hf : EIdx.of_word 0 = ok a`):
-both arms, then `lockstep` on. -/
-macro "ind_dom_finish" : tactic => `(tactic| first
-  | (have ha := let_pair_dup2_eq _ _ hf
-     subst ha
-     first | rw [binderL_getD_fst_of_lt] | rw [absBinderL_getD_fst_of_lt]
-     · casesm* (_ : Nat) = _ ∨ Std.Usize.max < _
-       all_goals first
-         | (exfalso; scalar_tac)
-         | (simp_all only [List.get_eq_getElem]; lockstep; done)
-     · casesm* (_ : Nat) = _ ∨ Std.Usize.max < _
-       all_goals scalar_tac)
-  | (simp only [arena.handle.EIdx.of_word, Result.ok.injEq] at hf
-     subst hf
-     first | rw [binderL_getD_fst_of_ge] | rw [absBinderL_getD_fst_of_ge]
-     · lockstep; done
-     · scalar_tac)
-  -- `lockstep` zips both reads now (task #97-T2-TACTIC round 3: the pair read
-  -- by structure eta, `EIdx(0)` by `eidx_of_word_spec`); left is the twin's
-  -- `getD` off the end
-  | (first | rw [binderL_getD_fst_of_ge] | rw [absBinderL_getD_fst_of_ge]
-     · lockstep; done
-     · scalar_tac))
+twin's `(cbs.getD k default).1`: `lockstep` zips both reads (task
+#97-T2-TACTIC round 3: the pair read by structure eta, `EIdx(0)` by
+`eidx_of_word_spec`); left is the twin's `getD` off the end. -/
+macro "ind_dom_finish" : tactic => `(tactic|
+  (first | rw [binderL_getD_fst_of_ge] | rw [absBinderL_getD_fst_of_ge]
+   · lockstep; done
+   · scalar_tac))
 
 open Lockstep in
 /-- `ls_counted` at a `usize` cursor bounded by a length `n`. -/

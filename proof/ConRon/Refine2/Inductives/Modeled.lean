@@ -340,7 +340,6 @@ theorem block_rename_table_from_aux (n : Nat) :
     intro pers st lst block_names i out hn hrel hinv
     rw [arena.inductives.modeled.block_rename_table_from, if_neg (by scalar_tac), absNIdxLFrom,
       vecFrom_cons _ _ _ (by omega), blockRenameTable]
-    simp only [bind_assoc, pure_bind]
     lockstep
 
 /-- `block_rename_table_from` ⊑ `blockRenameTable` from the cursor on, with
@@ -1199,7 +1198,6 @@ theorem lower_bvars_list_aux (n : Nat) :
     intro pers st lst k xs i out hn hrel hinv
     rw [arena.inductives.modeled.lower_bvars_list, if_neg (by scalar_tac), absEIdxLFrom,
       vecFrom_cons _ _ _ (by omega), lowerBVarsListSpec]
-    simp only [bind_assoc, pure_bind]
     lockstep
 
 /-- `lower_bvars_list` ⊑ `nestedRuleShape`'s `(args.take cnP).mapM
@@ -1246,7 +1244,6 @@ theorem lift_bvars_list_aux (n : Nat) :
     intro pers st lst k xs i out hn hrel hinv
     rw [arena.inductives.modeled.lift_bvars_list, if_neg (by scalar_tac), absEIdxLFrom,
       vecFrom_cons _ _ _ (by omega), liftBVarsListSpec]
-    simp only [bind_assoc, pure_bind]
     lockstep
 
 /-- `lift_bvars_list` ⊑ `nestedRuleShape`'s `pins.mapM (liftLooseBVarsFast …)`,
@@ -1463,7 +1460,6 @@ theorem inst_spine_list_renamed_aux (n : Nat) :
     intro pers st lst f args t xs i out hn hrel hinv
     rw [arena.inductives.modeled.inst_spine_list_renamed, if_neg (by scalar_tac), absEIdxLFrom,
       vecFrom_cons _ _ _ (by omega), instSpineListRenamedSpec]
-    simp only [bind_assoc, pure_bind]
     lockstep
 
 /-- `inst_spine_list_renamed` ⊑ `checkIotaThmN`'s `pins.mapM fun p =>
@@ -1517,7 +1513,6 @@ theorem inst_spine_list_aux (n : Nat) :
     intro pers st lst args t xs i out hn hrel hinv
     rw [arena.inductives.modeled.inst_spine_list, if_neg (by scalar_tac), absEIdxLFrom,
       vecFrom_cons _ _ _ (by omega), instSpineListSpec]
-    simp only [bind_assoc, pure_bind]
     lockstep
 
 /-- `inst_spine_list` ⊑ the same without the renaming — the public frame's. -/
@@ -2196,7 +2191,6 @@ theorem check_iota_rules_aux (n : Nat) :
       hinv hfe2 hfeS
     rw [arena.inductives.modeled.check_iota_rules, if_neg (by scalar_tac), absIRecRuleLFrom,
       vecFrom_cons _ _ _ (by omega), checkIotaRules]
-    simp only [bind_assoc, pure_bind]
     lockstep
 
 /-- `check_iota_rules` ⊑ `checkIotaRules` from the cursor on, with the
@@ -3067,7 +3061,6 @@ theorem eta_proj_args_aux (n : Nat) :
   | succ m ih =>
     intro pers st lst t lps ps_hi b0 n_f j out hk hrel hinv
     rw [arena.inductives.modeled.eta_proj_args, if_neg (by scalar_tac), etaProjArgsSpec]
-    simp only [bind_assoc, pure_bind]
     lockstep
 
 /-- `eta_proj_args` ⊑ `checkEtaThm`'s `(List.range nF).mapM`, from field `j`
@@ -3159,7 +3152,6 @@ theorem check_eta_thm_body_refines {pers st lst} {mode : kernel.env.CheckMode}
   · rw [IndModeledPrims.absBinderL_get?_lt (n := absU n_p) h1]
     lockstep_idx
     all_goals
-      ind_eq2_facts
       split
       all_goals
         first
@@ -3367,7 +3359,6 @@ theorem check_unit_thm_shape_refines {pers st lst} {mode : kernel.env.CheckMode}
     · rw [IndModeledPrims.absBinderL_get?_lt (n := absU n_p + 1) h2]
       lockstep_idx
       all_goals
-        ind_eq2_facts
         split
         all_goals
           first
@@ -3599,7 +3590,6 @@ open Lockstep in
 -- `pi_result_z` zipped in place, so `zeroness_of_ls` gives the record's
 -- `sort_z` its `PropWhenWF`
 attribute [local lockstep_inline] arena.core.pi_result_z in
-open Lockstep.IndModWF in
 /-- `ind_block_caps` ⊑ `indBlockCaps` — the capabilities recorded for a
 single-constructor modeled block.  **`checkEtaThm` runs whatever the
 level-parameter test says**: Lean lifts the `(← …)` out of the `&&`, so a

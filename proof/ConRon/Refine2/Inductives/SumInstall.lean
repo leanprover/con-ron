@@ -40,11 +40,6 @@ open scoped ConRon.Refine2.IndSide
 
 open ConRon.Arena
 
--- `lockstep_congr` tries `rfl` first; at a twin knot entry whose depth argument
--- differs syntactically from the port's (`absU i4` against `↑n_p + j`), that
--- `rfl` unfolds the knot and never returns.
-attribute [local irreducible] Arena.isDefEqCore Arena.inferTypeCore Arena.ensureSortCore
-
 /-- The positivity walk's fuel (`POS_WALK_FUEL = 1024`, the twin's literal). -/
 @[local lockstep_simp] theorem pos_walk_fuel_abs :
     absU arena.inductives.sum_install.POS_WALK_FUEL = 1024 := by
@@ -269,7 +264,6 @@ theorem whnf_telescope_aux (m : Nat) :
   | zero =>
     intro pers st lst vis rf lf mode i n e out hn hrel hinv hfe hvis hout
     rw [arena.inductives.sum_install.whnf_telescope, show absU n = 0 from hn, whnfTelescope]
-    simp only [bind_assoc]
     lockstep
   | succ m ih =>
     intro pers st lst vis rf lf mode i n e out hn hrel hinv hfe hvis hout
@@ -277,7 +271,6 @@ theorem whnf_telescope_aux (m : Nat) :
     have hn1 : 1 ≤ n.val := by omega
     obtain rfl : m = n.val - 1 := by omega
     clear hn
-    simp only [bind_assoc, pure_bind]
     lockstep
 
 /-- `whnf_telescope` ⊑ `whnfTelescope`, with the accumulated binders in front
@@ -683,7 +676,6 @@ theorem checkStructFieldSortsI_succ_port (mode : ConLeche.CheckMode) (fe : IFEnv
       split <;> simp
     · simp
 
-set_option maxHeartbeats 1000000 in
 /-- `check_struct_field_sorts_i` ⊑ `checkStructFieldSortsI` — the fields'
 sorts over the opened constructor telescope, with the official per-field
 universe bound unless the family is propositional.  Walks the fields from the
@@ -890,7 +882,6 @@ theorem norm_field_doms_aux (m : Nat) :
     have hn1 : 1 ≤ n.val := by omega
     obtain rfl : m = n.val - 1 := by omega
     clear hn
-    simp only [bind_assoc, pure_bind]
     lockstep
 
 /-- `norm_field_doms` ⊑ `normFieldDoms`, with the accumulated binders in
@@ -966,7 +957,7 @@ theorem zip_fvar_doms_aux (m : Nat) :
       vecFrom_cons _ _ _ (by omega)]
     by_cases hb : i.val < bs.val.length
     · rw [if_neg (by scalar_tac), absBinderLFrom, vecFrom_cons _ _ _ hb]
-      simp only [zipFvarDoms, bind_assoc, pure_bind]
+      simp only [zipFvarDoms]
       lockstep
       -- the port's `let (_, bm) := bs[i]` (a tuple pattern on a read value)
       all_goals
@@ -1348,7 +1339,6 @@ theorem check_sum_ctors_aux (m : Nat) :
       out sout hn hrel hinv hfe0 hfe
     rw [arena.inductives.sum_install.check_sum_ctors, if_neg (by scalar_tac), absCtorsLFrom,
       vecFrom_cons _ _ _ (by omega), checkSumCtors]
-    simp only [bind_assoc, pure_bind]
     lockstep
 
 /-- `check_sum_ctors` ⊑ `checkSumCtors` from the cursor on, with the
@@ -1476,7 +1466,7 @@ theorem sum_rules_aux (m : Nat) :
       vecFrom_cons _ _ _ (by omega)]
     by_cases hr : i.val < rhss.val.length
     · rw [if_neg (by scalar_tac), absEIdxLFrom, vecFrom_cons _ _ _ hr]
-      simp only [sumRules, bind_assoc, pure_bind]
+      simp only [sumRules]
       lockstep
     · rw [if_pos (by scalar_tac), absEIdxLFrom, vecFrom_nil _ _ _ (by omega)]
       simp only [sumRules]

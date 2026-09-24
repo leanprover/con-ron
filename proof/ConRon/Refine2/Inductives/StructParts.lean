@@ -1009,12 +1009,12 @@ theorem structPartsCoreAtSpec_nested (cvT cvC : IConstantVal) (nP nF : Nat)
       let reserved ← reservedBasisNames
       let rhsOk ← structPartsRhsOkSpec nP nF rule.rhs
       if cvR.name == recName then
-       if decide (cvC.levelParams = cvT.levelParams) then
+       if cvC.levelParams == cvT.levelParams then
         if reserved.contains cvT.name then pure none else
          if reserved.contains cvC.name then pure none else
           if reserved.contains cvR.name then pure none else
-           if mI = nP + 2 then
-            if rP = nP + 2 then
+           if mI == nP + 2 then
+            if rP == nP + 2 then
              if rule.ctor == cvC.name then
               if rule.nfields == nF then
                if rhsOk then structPartsCoreSortSpec cvT cvC nP nF cvR rule
@@ -1029,7 +1029,7 @@ theorem structPartsCoreAtSpec_nested (cvT cvC : IConstantVal) (nP nF : Nat)
   refine am_bind_congr _ ?_; intro recName
   refine am_bind_congr _ ?_; intro reserved
   refine am_bind_congr _ ?_; intro rhsOk
-  simp only [Bool.and_eq_true, ite_and, beq_iff_eq]
+  simp only [Bool.and_eq_true, ite_and]
   cases reserved.contains cvT.name <;> cases reserved.contains cvC.name <;>
     cases reserved.contains cvR.name <;> simp
 
@@ -1351,14 +1351,7 @@ theorem has_loose_bvar_b_go_aux (n : Nat) :
     rw [arena.inductives.struct_parts.has_loose_bvar_b_go, hasLooseBVarBGo_unfold]
     rw [if_neg (by scalar_tac)]
     lockstep
-    -- the probe: the port's key `eidx_nat_key h i` read back as the twin's
-    -- `(h, i)`, so the probe's answer decides the twin's `memo[(h, i)]?`
-    all_goals
-      have hk := ‹absEIdxNat _ = _›
-      have hp := ‹Lockstep.TwinEq (lm[absEIdxNat _]?) _›
-      simp only [hk, Lockstep.TwinEq, absU] at hp
-      rw [hp]
-      lockstep
+
 /-- `has_loose_bvar_b_node` ⊑ `hasLooseBVarBGo`'s arm dispatch. -/
 theorem has_loose_bvar_b_node_refines {pers st lst}
     {rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
@@ -1511,7 +1504,6 @@ theorem struct_used_later_list_aux {pers} {cty : arena.handle.EIdx} {n_p : Std.U
     intro n base rm lm out st lst hn hrel hinv hm
     rw [arena.inductives.struct_parts.struct_used_later_list.eq_def, if_neg (by scalar_tac),
       show absU n = N + 1 by simp [absU, hn], structUsedLaterList]
-    simp only [bind_assoc, pure_bind]
     lockstep
 
 /-- `struct_used_later_list` ⊑ `structUsedLaterList`, with the accumulated

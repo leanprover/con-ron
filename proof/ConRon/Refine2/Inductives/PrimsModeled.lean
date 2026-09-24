@@ -702,7 +702,6 @@ theorem fvar_type_ds_aux (n : Nat) :
     apply LSR.of_LS
     rw [arena.checker_base.fvar_type_ds, if_neg (by scalar_tac), absEIdxLFrom,
       vecFrom_cons _ _ _ (by omega), List.mapM_cons]
-    simp only [bind_assoc, pure_bind]
     lockstep
 
 /-- `fvar_type_ds` from the cursor `0` and an empty accumulator: the twin's
@@ -1011,35 +1010,6 @@ macro_rules
                simp only [core.option.Option.is_some, core.option.Option.is_none] at *
                simp_all [Option.isSome_iff_ne_none, Option.isNone_iff_eq_none]; done))
 
-
-
-
-/-- The port's `sbinders[a].0 == x`, the pair destructured in a `let` the zip
-leaves as an equation: the comparison of the abstracted handles. -/
-theorem IndModeledPrims.pair_let_eq2
-    {sb : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
-    {a : Nat} {hw : a < sb.val.length} {x : arena.handle.EIdx} {b : Bool}
-    (hf : (let (e, _) := sb.val[a]'hw
-      arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 e x) = ok b) :
-    b = (absEIdx (sb.val[a]'hw).1 == absEIdx x) :=
-  eidx_eq2_abs hf
-
-open Lean Meta Elab Tactic in
-/-- `pair_let_eq2` at every such equation of the context. -/
-elab "ind_eq2_facts" : tactic => withMainContext do
-  let decls := (← getLCtx).decls.toList.filterMap id |>.filter (!·.isImplementationDetail)
-  let mut g ← getMainGoal
-  for d in decls do
-    let t ← instantiateMVars d.type
-    unless t.isAppOfArity ``Eq 3 &&
-        t.containsConst (· == ``arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2) do continue
-    try
-      let pf ← mkAppM ``IndModeledPrims.pair_let_eq2 #[d.toExpr]
-      let (_, g') ← (← g.assert `heq2 (← inferType pf) pf).intro1P
-      g := g'
-    catch _ => pure ()
-  replaceMainGoal [g]
-
 theorem IndModeledPrims.getElem_idx_eq {α : Type} {l : List α} {i j : Nat}
     {hi : i < l.length} {hj : j < l.length} (h : i = j) : l[i]'hi = l[j]'hj := by
   subst h; rfl
@@ -1128,27 +1098,6 @@ attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims
     simp_all [absIRecRule, absIRecRuleFire]
 
 end RuleBits
-
-/-! ### `prop_when::if_all_zero` of the empty list, with its well-formedness
-
-`ind_block_caps` records `pi_result_z`'s answer as the inductive's `sort_z`,
-which `IFEnvRel.envWF` wants canonical (`PropWhenWF`).  Its proof zips
-`pi_result_z` in place (`lockstep_inline`): the `sort` arm's answer is
-`zeroness_of_ls`'s (with its WF), the other arm's is this pair's.  Filed in its
-own namespace so the one proof that opens it gets it before
-`Inductives/Prims.lean`'s value-only `if_all_zero_new_twin`. -/
-
-namespace Lockstep.IndModWF
-
-@[lockstep] theorem if_all_zero_new_wf_twin :
-    LSP (kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name))
-      (fun pw => TwinEq (ConLeche.PropWhen.ifAllZero []) (ConRon.Refine.absPropWhen pw) ∧
-        ConRon.Refine.PropWhenWF pw) :=
-  fun pw h => ⟨(ConRon.Refine2.if_all_zero_new_twin pw h).1,
-    ConRon.Refine.PropWhen.if_all_zero_wf (by intro n hn; simp [alloc.vec.Vec.new] at hn) h⟩
-
-end Lockstep.IndModWF
-
 
 /-! ### Two pure comparisons the modeled route makes: `all_params_defined_list`
 (a Checker-tier walk over con-leche values) and `canon::eidx_vec_beq` -/
