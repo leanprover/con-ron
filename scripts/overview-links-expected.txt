@@ -35,24 +35,40 @@
    116        let ds := preparePrelude pre r.decls
    117        checkDecls .verified pins ds) = .error e := by
 
-== proof/ConRon/RefineOld/Installed.lean#L3289-L3305
-  3289  theorem check_decls_refines {mode : env.CheckMode}
-  3290      (hk : Core.KnotSpec mode IndAbs.checkFuelU)
-  3291      (hraw : CheckerDecl.BasisRawSpec)
-  3292      (hind : IndRoutesSpec mode) (hinde : IndRoutesSpecErr mode)
-  3293      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-  3294      (hvar : CheckerPins.PinsWF pins)
-  3295      {ds : alloc.vec.Vec env.Declaration}
-  3296      {out : core.result.Result env.Env (core_types.CheckError × Std.U64)}
-  3297      (hds : ∀ d ∈ ds.val, DeclarationWF d)
-  3298      (h : cached.installed.check_decls mode pins ds = ok out) :
-  3299      match out with
-  3300      | .Ok e =>
-  3301        leanCheckDecls (absMode mode) (absPins pins) (ds.val.map absDeclaration)
-  3302          = .ok (absEnv e)
-  3303      | .Err er =>
-  3304        ErrSimPos er
-  3305          (leanCheckDecls (absMode mode) (absPins pins) (ds.val.map absDeclaration)) := by
+== proof/ConRon/Capstone.lean#L471-L503
+   471  theorem model_exists (V : Type w) [ConLeche.SetTheory V]
+   472      (hbytes : ConRon.Arena.Frontend.preludeText =
+   473        ConLeche.Frontend.builtinPreludeText.toUTF8)
+   474      {G : Type} {inst : frontend.types.Modeller G} {m : G}
+   475      (hmr : ConRon.Refine2.Frontend.ModellerRefines inst m
+   476        ConRon.Arena.Frontend.inProcessModeller)
+   477      {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+   478      {text : Slice Std.U8}
+   479      (hdec : kernel.pins_decode.decode text = ok (.Ok pins))
+   480      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
+   481      {pers : arena.store.PersTier} {est : arena.store.EStore}
+   482      {st0 st1 st2 st3 st4 st5 st6 : arena.monad.AState}
+   483      {pre : frontend.prepare.PreludeIx} {r : frontend.export_c.ParseResultD}
+   484      {ds : alloc.vec.Vec arena.env.IDeclaration}
+   485      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+   486      {fe : arena.env.IFEnv}
+   487      (hpers : arena.store.PersTier.empty = ok pers)
+   488      (hest : arena.store.EStore.empty = ok est)
+   489      (hst0 : arena.monad.AState.init est = ok st0)
+   490      (h1 : arena.pins.intern_reserved_pins pers st0 = ok (.Ok (), st1))
+   491      (h2 : frontend.prelude.builtin_prelude_e inst pers m st1 = ok (.Ok pre, st2))
+   492      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
+   493      (hreads : ReadsAs sinst src chunks.val)
+   494      (h3 : frontend.export_c.parse_source inst sinst pers m st2 src true false
+   495        = ok (.Ok r, st3, src'))
+   496      (h4 : frontend.prepare.prepare_prelude pers st3 pre r.decls = ok (.Ok ds, st4))
+   497      (h5 : arena.checker.intern_all_pins pers st4 pins = ok (.Ok ipins, st5))
+   498      {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
+   499      (h6 : PoolAccepts hinst pers st5 .Verified ipins ds hook fe st6) :
+   500      ∃ (lst : ConRon.Arena.AState) (lfe : ConRon.Arena.IFEnv) (env : ConLeche.Env),
+   501        AStateRel pers st6 lst ∧ IFEnvRel fe lfe ∧
+   502        ConRon.Bridge.denoteFEnv lst.store lfe = some env ∧
+   503        Nonempty (ConLeche.Model.EnvModelM V .verified env) := by
 
 == crates/con-ron-core/src/kernel/core_types.rs#L87-L92
     87  pub enum CheckError {
@@ -62,24 +78,38 @@
     91      Native(Vec<u32>),
     92  }
 
-== proof/ConRon/RefineOld/Main.lean#L730-L746
-   730  theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
-   731      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
-   732      (hgen : Frontend.ModellerWF inst g)
-   733      (hmr : Frontend.ModellerRefines inst g Frontend.CtxRel)
-   734      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   735      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   736      {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
-   737      (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
-   738      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
-   739      (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
-   740      {r : frontend.export_c.ParseResultD}
-   741      (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
-   742      {ds : alloc.vec.Vec env.Declaration}
-   743      (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
-   744      {e : env.Env}
-   745      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   746      False := by
+== proof/ConRon/Capstone.lean#L530-L560
+   530  theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+   531      (hbytes : ConRon.Arena.Frontend.preludeText =
+   532        ConLeche.Frontend.builtinPreludeText.toUTF8)
+   533      {G : Type} {inst : frontend.types.Modeller G} {m : G}
+   534      (hmr : ConRon.Refine2.Frontend.ModellerRefines inst m
+   535        ConRon.Arena.Frontend.inProcessModeller)
+   536      {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+   537      {text : Slice Std.U8}
+   538      (hdec : kernel.pins_decode.decode text = ok (.Ok pins))
+   539      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
+   540      (hfalse : ConLeche.jsonWithTheoremFalse (absChunks chunks))
+   541      {pers : arena.store.PersTier} {est : arena.store.EStore}
+   542      {st0 st1 st2 st3 st4 st5 st6 : arena.monad.AState}
+   543      {pre : frontend.prepare.PreludeIx} {r : frontend.export_c.ParseResultD}
+   544      {ds : alloc.vec.Vec arena.env.IDeclaration}
+   545      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+   546      {fe : arena.env.IFEnv}
+   547      (hpers : arena.store.PersTier.empty = ok pers)
+   548      (hest : arena.store.EStore.empty = ok est)
+   549      (hst0 : arena.monad.AState.init est = ok st0)
+   550      (h1 : arena.pins.intern_reserved_pins pers st0 = ok (.Ok (), st1))
+   551      (h2 : frontend.prelude.builtin_prelude_e inst pers m st1 = ok (.Ok pre, st2))
+   552      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
+   553      (hreads : ReadsAs sinst src chunks.val)
+   554      (h3 : frontend.export_c.parse_source inst sinst pers m st2 src true false
+   555        = ok (.Ok r, st3, src'))
+   556      (h4 : frontend.prepare.prepare_prelude pers st3 pre r.decls = ok (.Ok ds, st4))
+   557      (h5 : arena.checker.intern_all_pins pers st4 pins = ok (.Ok ipins, st5))
+   558      {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
+   559      (h6 : PoolAccepts hinst pers st5 .Verified ipins ds hook fe st6) :
+   560      False := by
 
 == crates/con-ron/src/bin/con-ron.rs#L87-L202
     87  const USAGE: &str = "\
@@ -234,82 +264,241 @@
     28            packages = [
     29              charonPkgs.rustToolchain   # rustc/cargo nightly pinned by Charon
 
-== proof/ConRon/RefineOld/Main.lean#L730-L746
-   730  theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
-   731      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
-   732      (hgen : Frontend.ModellerWF inst g)
-   733      (hmr : Frontend.ModellerRefines inst g Frontend.CtxRel)
-   734      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   735      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   736      {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
-   737      (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
-   738      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
-   739      (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
-   740      {r : frontend.export_c.ParseResultD}
-   741      (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
-   742      {ds : alloc.vec.Vec env.Declaration}
-   743      (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
-   744      {e : env.Env}
-   745      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   746      False := by
+== proof/ConRon/Capstone.lean#L580-L584
+   580  /-- info: 'ConRon.Capstone.model_exists' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+   581  #guard_msgs in #print axioms model_exists
+   582  
+   583  /-- info: 'ConRon.Capstone.no_False_declaration' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+   584  #guard_msgs in #print axioms no_False_declaration
 
-== proof/ConRon/RefineOld/Main.lean#L550-L564
-   550  well-formedness. -/
-   551  theorem conron.model_exists_parsed (V : Type w) [ConLeche.SetTheory V]
-   552      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
-   553      (hgen : Frontend.ModellerWF inst g)
-   554      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   555      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   556      {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
-   557      (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
-   558      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {in_model census : Bool}
-   559      {r : frontend.export_c.ParseResultD}
-   560      (hparse : frontend.export_c.parse_chunks inst g chunks in_model census = ok (.Ok r))
-   561      {ds : alloc.vec.Vec env.Declaration}
-   562      (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
-   563      {e : env.Env}
-   564      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+== proof/ConRon/Capstone.lean#L530-L560
+   530  theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+   531      (hbytes : ConRon.Arena.Frontend.preludeText =
+   532        ConLeche.Frontend.builtinPreludeText.toUTF8)
+   533      {G : Type} {inst : frontend.types.Modeller G} {m : G}
+   534      (hmr : ConRon.Refine2.Frontend.ModellerRefines inst m
+   535        ConRon.Arena.Frontend.inProcessModeller)
+   536      {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+   537      {text : Slice Std.U8}
+   538      (hdec : kernel.pins_decode.decode text = ok (.Ok pins))
+   539      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
+   540      (hfalse : ConLeche.jsonWithTheoremFalse (absChunks chunks))
+   541      {pers : arena.store.PersTier} {est : arena.store.EStore}
+   542      {st0 st1 st2 st3 st4 st5 st6 : arena.monad.AState}
+   543      {pre : frontend.prepare.PreludeIx} {r : frontend.export_c.ParseResultD}
+   544      {ds : alloc.vec.Vec arena.env.IDeclaration}
+   545      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+   546      {fe : arena.env.IFEnv}
+   547      (hpers : arena.store.PersTier.empty = ok pers)
+   548      (hest : arena.store.EStore.empty = ok est)
+   549      (hst0 : arena.monad.AState.init est = ok st0)
+   550      (h1 : arena.pins.intern_reserved_pins pers st0 = ok (.Ok (), st1))
+   551      (h2 : frontend.prelude.builtin_prelude_e inst pers m st1 = ok (.Ok pre, st2))
+   552      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
+   553      (hreads : ReadsAs sinst src chunks.val)
+   554      (h3 : frontend.export_c.parse_source inst sinst pers m st2 src true false
+   555        = ok (.Ok r, st3, src'))
+   556      (h4 : frontend.prepare.prepare_prelude pers st3 pre r.decls = ok (.Ok ds, st4))
+   557      (h5 : arena.checker.intern_all_pins pers st4 pins = ok (.Ok ipins, st5))
+   558      {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
+   559      (h6 : PoolAccepts hinst pers st5 .Verified ipins ds hook fe st6) :
+   560      False := by
 
-== proof/ConRon/RefineOld/Main.lean#L328-L332
-   328  
-   329  /-- info: 'ConRon.Refine.conron.model_exists_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-   330  #guard_msgs in #print axioms conron.model_exists_decoded
-   331  
-   332  /-- info: 'ConRon.Refine.conron.no_proof_of_False_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+== proof/ConRon/Capstone.lean#L471-L503
+   471  theorem model_exists (V : Type w) [ConLeche.SetTheory V]
+   472      (hbytes : ConRon.Arena.Frontend.preludeText =
+   473        ConLeche.Frontend.builtinPreludeText.toUTF8)
+   474      {G : Type} {inst : frontend.types.Modeller G} {m : G}
+   475      (hmr : ConRon.Refine2.Frontend.ModellerRefines inst m
+   476        ConRon.Arena.Frontend.inProcessModeller)
+   477      {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+   478      {text : Slice Std.U8}
+   479      (hdec : kernel.pins_decode.decode text = ok (.Ok pins))
+   480      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
+   481      {pers : arena.store.PersTier} {est : arena.store.EStore}
+   482      {st0 st1 st2 st3 st4 st5 st6 : arena.monad.AState}
+   483      {pre : frontend.prepare.PreludeIx} {r : frontend.export_c.ParseResultD}
+   484      {ds : alloc.vec.Vec arena.env.IDeclaration}
+   485      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+   486      {fe : arena.env.IFEnv}
+   487      (hpers : arena.store.PersTier.empty = ok pers)
+   488      (hest : arena.store.EStore.empty = ok est)
+   489      (hst0 : arena.monad.AState.init est = ok st0)
+   490      (h1 : arena.pins.intern_reserved_pins pers st0 = ok (.Ok (), st1))
+   491      (h2 : frontend.prelude.builtin_prelude_e inst pers m st1 = ok (.Ok pre, st2))
+   492      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
+   493      (hreads : ReadsAs sinst src chunks.val)
+   494      (h3 : frontend.export_c.parse_source inst sinst pers m st2 src true false
+   495        = ok (.Ok r, st3, src'))
+   496      (h4 : frontend.prepare.prepare_prelude pers st3 pre r.decls = ok (.Ok ds, st4))
+   497      (h5 : arena.checker.intern_all_pins pers st4 pins = ok (.Ok ipins, st5))
+   498      {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
+   499      (h6 : PoolAccepts hinst pers st5 .Verified ipins ds hook fe st6) :
+   500      ∃ (lst : ConRon.Arena.AState) (lfe : ConRon.Arena.IFEnv) (env : ConLeche.Env),
+   501        AStateRel pers st6 lst ∧ IFEnvRel fe lfe ∧
+   502        ConRon.Bridge.denoteFEnv lst.store lfe = some env ∧
+   503        Nonempty (ConLeche.Model.EnvModelM V .verified env) := by
 
-== proof/ConRon/RefineOld/Installed.lean#L3293-L3304
-  3293      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-  3294      (hvar : CheckerPins.PinsWF pins)
-  3295      {ds : alloc.vec.Vec env.Declaration}
-  3296      {out : core.result.Result env.Env (core_types.CheckError × Std.U64)}
-  3297      (hds : ∀ d ∈ ds.val, DeclarationWF d)
-  3298      (h : cached.installed.check_decls mode pins ds = ok out) :
-  3299      match out with
-  3300      | .Ok e =>
-  3301        leanCheckDecls (absMode mode) (absPins pins) (ds.val.map absDeclaration)
-  3302          = .ok (absEnv e)
-  3303      | .Err er =>
-  3304        ErrSimPos er
+== proof/ConRon/Capstone.lean#L14-L119
+    14  # `ConRon.Capstone` — THE COMPOSITION: Theorem 2 ∘ Theorem 1 ∘ con-leche
+    15  
+    16  DESIGN.md §8.2's last line: *"Capstones for the binary = Theorem 2 ∘
+    17  Theorem 1 ∘ con-leche."*  This is the one module that imports both
+    18  `ConRon.Bridge` (Theorem 1, (B) ⇒ (A)) and `ConRon.Refine2` (Theorem 2,
+    19  (C) ⇒ (B)), and it states the binary's two headline theorems in the shape
+    20  the original campaign used (`conron.model_exists` /
+    21  `conron.no_False_declaration`, `proof/ConRon/RefineOld/Main.lean`):
+    22  
+    23  * `ConRon.Capstone.model_exists` — every environment the Aeneas model of the
+    24    Rust pipeline accepts has a model in every set theory;
+    25  * `ConRon.Capstone.no_False_declaration` — a file that declares a theorem of
+    26    type `False` is never accepted by it.
+    27  
+    28  **They are the campaign's root theorems** (task #97-COMPOSE): the sorry
+    29  frontier is measured as the dependency closure of these two, and it is
+    30  EMPTY since `arena` `db1131f1` (task #97-MILESTONE): both depend on
+    31  `[propext, Classical.choice, Quot.sound]` only (§4's census).  What they
+    32  still assume is exactly their hypotheses, listed below.
+    33  
+    34  ## The pipeline, stage by stage
+    35  
+    36  The binary (`crates/con-ron/src/bin/con-ron.rs`) is an unverified driver
+    37  around six extracted core functions, in this order, on one `AState` made
+    38  from `EStore::empty()` and one `PersTier::empty()`:
+    39  
+    40      intern_reserved_pins → builtin_prelude_e → parse_source
+    41        → prepare_prelude → intern_all_pins → (the declaration fold)
+    42  
+    43  and the twin's `Arena.runPipeline` (`Arena/Main.lean`) is the same six
+    44  stages with `installThenCheck` last.  **The sixth stage is the fold the
+    45  binary's driver runs, pool and all** (task #97-P5-POOL):
+    46  `driver::check_decls_driver` runs phase A with the heartbeat as its hook,
+    47  freezes the tier, runs phase B on `pool::check_pool`, and thaws the tier.
+    48  The stage hypothesis is `Refine2/Checker/Phased.lean`'s `PoolAccepts`: phase
+    49  A accepted, the freeze accepted, and one accepting `check_pending_worker`
+    50  per worker over the records that worker checked, together covering the
+    51  pending records — every call a verified one.  That the pool's accept has
+    52  this shape is the pool's trusted claim (OVERVIEW §8.2): control flow of
+    53  `pool.rs`, nothing about the checker.  The sequential walk
+    54  `check_decls_phased` is one such pool (`poolAccepts_of_check_decls_phased`).
+    55  The theorems hold for EVERY install hook, so they cover the plain run and
+    56  `--progress` alike.  `pool_accepts_refines` relates the stage to the twin's
+    57  `Arena.PooledAccepts`, and `Bridge/Checker/Phased.lean`'s
+    58  `Arena.pooledAccepts_bridge` carries that to the pure fold.  So the
+    59  statement takes the six Rust RUNS as hypotheses (the driver's calling order
+    60  is the one trusted line, exactly as it was for the original campaign), and
+    61  the proof is:
+    62  
+    63  1. **Theorem 2, per stage** — `Refine2`'s six `…_refines` lemmas walk the
+    64     Rust runs into six TWIN runs from the twin's own start state
+    65     `AState.init EStore.empty`, related at every step (`AStateRel₀`/
+    66     `AStateInv`: lockstep);
+    67  2. **Theorem 1** — the twin runs feed `Arena.pooledAccepts_bridge`, whose
+    68     pure fold accepts the denoted stream: con-leche's
+    69     `checkDeclsPure_sound_of` gives the model, and
+    70     `no_False_theorem_accepted_pure` refutes a `False` theorem in the stream
+    71     (`stages_no_False`, `Arena.no_False_declaration_pipeline`'s route through
+    72     the pure fold);
+    73  3. **con-leche** — `checkDeclsPure_sound_of` turns the pure accept into a
+    74     model.
+    75  
+    76  Every step is an existing theorem; what this file adds is glue: the Rust
+    77  runs threaded through `Sim₀`/`SimStream`/`SimFold`, and the one twin-store
+    78  fact the composition needs from Theorem 1 — `StoreWF` at the headline's
+    79  `AStateRel` (`stages_storeWF`) — read off its stage lemmas.  Theorem 2 itself
+    80  carries no fact about the twin's store (task #97-T2-AUDIT).
+    81  
+    82  ## The named hypotheses
+    83  
+    84  The tiers have no `sorry` left on the roots' closure, so these hypotheses
+    85  (beside `[ConLeche.SetTheory V]`, the run facts `hpers`/`hest`/`hst0`/
+    86  `h1`…`h6` and `hfalse`) are the whole of what the two theorems assume.
+    87  Struck-through entries were hypotheses once and are theorems now (DESIGN.md's
+    88  task #97-COMPOSE section tags each with its owning lane):
+    89  
+    90  * ~~`InitRel`~~ — the Rust start state is related to the twin's: a theorem
+    91    since task #97-P5-Top (`Refine2/Checker/Init.lean`'s `init_rel`);
+    92  * ~~`hk : CoreSpec .verified Arena.checkFuel`~~ — Theorem 1's Core tier
+    93    spec: a theorem since task #97-P3-Core round 6
+    94    (`Bridge/Checker/Hyp.lean`'s `CoreSpec.of_core`, passed here);
+    95  * ~~`hind : IndSpec .verified`~~ — Theorem 1's inductive tier spec:
+    96    discharged by `Bridge/Inductives/Decl.lean`'s `indSpec_of_bridge` since task
+    97    #97-P3-Ind round 8 (the two headline theorems build it; the stage lemmas
+    98    below still take it as a parameter);
+    99  * `hbytes` — the prelude gate (`scripts/gen-prelude-lean.sh --check`);
+   100  * ~~`hsc : ScanSpec`~~ — Theorem 2's scanner seam: a theorem since task
+   101    #97-P5-Front (`Refine2/Frontend/Scan/Spec.lean`'s `scanSpec`);
+   102  * `hmr : Refine2.Frontend.ModellerRefines inst m inProcessModeller` — the
+   103    Rust modeller against the twin's (the modeller seam, by design): the
+   104    unextracted `crates/con-ron/src/in_model/`, a port of con-leche's
+   105    `InModel.generate`, answers what the twin's `inProcessModeller` (which
+   106    CALLS con-leche's `generate`) answers;
+   107  * `hreads : ReadsAs sinst src chunks.val` — the reads are the chunks
+   108    (task #97-P5-Driver): the binary parses with the verified reader loop
+   109    `parse_source` over the driver's file handle, and
+   110    `Refine2/Frontend/Source.lean`'s `parse_source_eq` makes that
+   111    `parse_chunks` over the chunks the handle hands out; that the handle hands
+   112    out the file's bytes, in order, is the input seam, as `hmr` is the
+   113    modeller's;
+   114  * `hdec : kernel.pins_decode.decode text = ok (.Ok pins)` — the pin list is
+   115    what the port's decoder read (it was `hwf`, the list's well-formedness,
+   116    until task #97-P5-Top ported `RefineOld/PinsWF.lean`'s `decode_wf` to
+   117    `Refine2/Checker/PinsWF.lean`); the binary's `pins_for_run` choosing the
+   118    text is driver code.
+   119  -/
 
-== proof/ConRon/RefineOld/Main.lean#L303-L310
-   303  `conron.model_exists_embedded` below is this theorem at exactly that text. -/
-   304  theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
-   305      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   306      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   307      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
-   308      (hds : ∀ d ∈ ds.val, DeclarationWF d)
-   309      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   310      Nonempty (ConLeche.Model V (absEnv e)) :=
+== crates/con-ron/src/bin/con-ron.rs#L362-L377
+   362      let mut st = AState::init(EStore::empty());
+   363      // THE PERSISTENT TIER a phase-B worker reads (DESIGN.md §8.3, task
+   364      // #97-P6-6b).  The parse and phase A own their own — `shared_on` is
+   365      // false on every store until the boundary — so what they are handed here
+   366      // is the EMPTY tier, and the single-lane computation is unchanged.  Phase
+   367      // B freezes the store's tier into a `PersTier` and hands `&` it to every
+   368      // worker; `check_decls_driver` is where that happens.
+   369      let pers: &PersTier = &PersTier::empty();
+   370      // THE RESERVED-NAME PINS, interned once into that persistent tier before
+   371      // anything else touches it (task #97-P6-4a, `arena::pins`): the scratch
+   372      // tier is closed here, so every pinned handle is persistent and survives
+   373      // every `drop_scratch` of the run.  Until this has run, every `pin_*`
+   374      // read raises `Internal` rather than answering — which is what makes the
+   375      // initialisation-order hazard task #97c named impossible rather than
+   376      // unlikely.
+   377      match con_ron_core::arena::pins::intern_reserved_pins(pers, &mut st) {
 
-== proof/ConRon/RefineOld/Main.lean#L391-L398
-   391  decoder input. -/
-   392  theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
-   393      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   394      (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
-   395      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
-   396      (hds : ∀ d ∈ ds.val, DeclarationWF d)
-   397      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   398      Nonempty (ConLeche.Model V (absEnv e)) :=
+== proof/ConRon/Refine2/Checker/Phased.lean#L380-L397
+   380  def PoolAccepts {H : Type} (inst : arena.checker.InstallHook H)
+   381      (pers : arena.store.PersTier) (st : arena.monad.AState)
+   382      (mode : kernel.env.CheckMode)
+   383      (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+   384      (ds : alloc.vec.Vec arena.env.IDeclaration) (h : H)
+   385      (fe : arena.env.IFEnv) (st' : arena.monad.AState) : Prop :=
+   386    ∃ (t : Std.U64 × arena.env.IFEnv × alloc.vec.Vec arena.checker.PendingCheck)
+   387      (n : Std.U64) (pend : alloc.vec.Vec arena.checker.PendingCheck)
+   388      (tier : arena.store.PersTier) (est : arena.store.EStore)
+   389      (parts : List (alloc.vec.Vec arena.checker.PendingCheck)),
+   390      arena.checker.fold_start = ok t ∧
+   391      arena.checker.annot_fold_hooked inst pers st mode pins t ds 0#usize h
+   392        = ok (.Ok (n, fe, pend), st') ∧
+   393      arena.checker.freeze_tier st'.store = ok (.Ok tier, est) ∧
+   394      (∀ pc ∈ pend.val, ∃ w ∈ parts, pc ∈ w.val) ∧
+   395      (∀ w ∈ parts, ∀ pc ∈ w.val, pc ∈ pend.val) ∧
+   396      (∀ w ∈ parts,
+   397        arena.checker.check_pending_worker tier mode fe st'.pins w = ok (.Ok ()))
+
+== proof/ConRon/Refine2/Frontend/Source.lean#L36-L40
+    36  def ReadsAs {S : Type} (inst : frontend.export_c.ChunkSource S) :
+    37      S → List (alloc.vec.Vec Std.U8) → Prop
+    38    | src, [] => ∃ e src', inst.next_chunk src = ok (e, src') ∧ e.val = []
+    39    | src, c :: cs => c.val ≠ [] ∧
+    40        ∃ src', inst.next_chunk src = ok (c, src') ∧ ReadsAs inst src' cs
+
+== proof/ConRon/Refine2/Frontend/Shape.lean#L662-L667
+   662  structure ModellerRefines {G : Type} (inst : frontend.types.Modeller G) (m : G)
+   663      (lmd : Arena.Frontend.Modeller) : Prop where
+   664    generate : ∀ {pers rst lst rc lc b o},
+   665      AStateRel₀ pers rst lst → AStateInv pers rst → CtxRel rc lc →
+   666      inst.generate m pers rst.store rc b = ok o →
+   667      SimGen pers rst lst o (lmd.generate lc (absBlockRec b))
 
 == Cargo.toml#L23
     23  overflow-checks = true

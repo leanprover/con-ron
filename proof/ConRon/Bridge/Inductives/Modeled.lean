@@ -4091,8 +4091,9 @@ One projection function checked and installed.
 
 **CLOSED** (task #97-P3-Ind round 9) as a composition: `checkProjLookups_spec`,
 `checkProjTy_spec`, `Bridge/Inductives/ProjRule.lean`'s `checkProjShape_spec`,
-`checkProjRule_spec` and `projFnRule_run`, `checkProjIota_spec` (still open:
-this theorem inherits its `sorryAx` from there alone), `projFnName_run` and
+`checkProjRule_spec` and `projFnRule_run`, `checkProjIota_spec` (open at the
+time, closed since: this theorem inherited its `sorryAx` from there alone),
+`projFnName_run` and
 `denoteFEnv_push`.  The two scoping facts `checkProjRule_spec` takes are the
 pure run's own, exactly as con-leche's `checkProjFn_wfimp` reads them:
 `checkProjTy_wf` for the projection type and `EnvWF` at the stored

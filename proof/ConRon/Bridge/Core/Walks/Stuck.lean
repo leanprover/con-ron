@@ -1192,7 +1192,7 @@ for `structEtaCert`**: structural η certification of a fully applied
 constructor `a` against a stuck `b` of an η-capable stored structure.
 
 **PROVED** (round 5) from `etaCtorShape_spec` (closed above), two knot
-slots, and the child `structEtaCertWith_spec` (OPEN, above). -/
+slots, and the child `structEtaCertWith_spec` (above; closed in round 6). -/
 theorem structEtaCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)

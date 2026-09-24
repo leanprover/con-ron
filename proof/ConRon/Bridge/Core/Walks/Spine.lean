@@ -56,7 +56,7 @@ says why the constraint is not about the `ExprOps` tier at all:
 `isPropType_spec`, which needs no `ExprOps` rule and cannot live in
 `Owed.lean` or `Cached.lean` either; and `instantiate1Fast_specE`, which is
 `ExprOps/Inst1.lean`'s spec in answer shape and is what `etaCert_spec`
-(still open, in `Owed.lean`) will need.
+(open when this was written, closed since) needed.
 -/
 import ConRon.Bridge.Core.Walks.Owed
 import ConRon.Bridge.Core.Walks.Cached
@@ -1019,7 +1019,8 @@ theorem instantiate1Fast_specE (fuel : Nat) (s₀ : AState) (e v : EIdx)
 /-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — **THEOREM 1 for
 `etaCert`**: η at a λ against a non-λ.
 
-**OPEN, and the cheapest of the ten** (round 3): its whole PURE side is
+**CLOSED** since (this note is round 3's, when it was the cheapest of the
+ten open walks): its whole PURE side is
 proved above (`etaCertFueled_nf`, `_dom`, `_body`, `_yes`) and so is the one
 callee rule whose published shape it cannot use
 (`instantiate1Fast_specE`, `Bridge/Core/Walks/Spine.lean`).  What is left is

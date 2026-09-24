@@ -17,8 +17,8 @@ carries.  No `sorryAx`, no `bv_decide` axiom.
 STATEMENT; `#print axioms` on it therefore names none of them, which is what
 makes "four named hypotheses" a checkable claim rather than an editorial one
 (`Bridge/Checker/Axioms.lean` makes the same point about its two).  The
-capstone itself carries `sorryAx` today and so is not in the list below; when
-it closes, its census belongs here.
+capstones carried `sorryAx` until the tier closed and are printed in the
+last sections below; they read Lean's own three now (task #97-MILESTONE).
 
 **Round two (task #97-P3-Frontend-2)** added the chunk tier, the preparation's
 composition, the pure fold's stream ingredient and two of the three capstone
@@ -497,14 +497,14 @@ at Lean's own three.  `projRewriteD_run` moved with it and is closed too. -/
 #print axioms projRecValue_run
 #print axioms projRewriteD_run
 
-/-! ## PROVED, but resting on an open leaf
+/-! ## PROVED, and once resting on an open leaf
 
-The campaign's rule is that a result carrying `sorryAx` is not in the census
-above, and these are not: each has a COMPLETE proof of its own and carries
-`sorryAx` only through a lemma of the sorry list it cites.  They are printed
-here because the distance between "proved" and "closed" is exactly what the
-tier's remaining work is, and because the census is the only place a reader
-can tell the two apart.
+When this section was written, each result below had a COMPLETE proof of its
+own and carried `sorryAx` only through a lemma of the sorry list it cites; it
+was printed here because the distance between "proved" and "closed" was
+exactly what the tier's remaining work was.  Every leaf it names is closed
+since, so these read Lean's own three now; the list is kept as the record of
+what rested on what.
 
 * the line and the chunk tier — `applyLine_run` rests on the three entry
   parsers and `processLineCoreD_run` (items 5-7, 9), and **everything below it
@@ -584,16 +584,16 @@ record where each stood when it was written. -/
 
 /-! ## The headlines, and the four named hypotheses
 
-These five are still NOT closed — each reports `sorryAx`, because each rests
-on a leaf of the sorry list (the memoised readback, the intern direction, the
-`ExprOps` walks, the record-assembly steps and `processLineCoreD`'s six arms)
-— and they are printed anyway, for the one thing the census is for: **none of
+These five reported `sorryAx` while they rested on leaves of the sorry list
+(the memoised readback, the intern direction, the `ExprOps` walks, the
+record-assembly steps and `processLineCoreD`'s six arms); those are closed,
+and the five are printed for the one thing the census is for: **none of
 them names `CoreSpec`, `IndSpec`, `ModellerWF` or `ModellerRefines`.**  Those four are hypotheses of
 the statements, not axioms of the environment, which is what makes "four named
 hypotheses" a checkable claim rather than an editorial one
 (`Bridge/Checker/Axioms.lean` makes the same point about its two).
 
-When the tier closes, the expected reading of all five is
+With the tier closed, the reading of all five is
 `[propext, Classical.choice, Quot.sound]` — con-leche's own census for
 `ConLeche.no_False_declaration` (`tests/ConLecheTests/Axioms.lean:121`) and
 the original campaign's for `conron.no_False_declaration`

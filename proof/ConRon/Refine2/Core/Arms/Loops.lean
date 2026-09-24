@@ -46,8 +46,9 @@ now tests the reduct's TAG where the port does — `reduceNat` and
 conclusion any more.  `AOut.widen`, the loop's old re-basing move, is gone
 too: `AOut₀` does not mention the state a call started in.
 
-## What is still `sorry`, and why the cut is here
+## What was still `sorry`, and why the cut is here
 
+(Everything below is closed since task #97-P5-Core rounds 5–6.)
 `unfold_definition_refines` **closed** at task #97-P5-Core-2 and moved to
 `Core/Arms/Delta.lean`.  What is left of the `whnf` loop is `reduce_nat` —
 the fifteen `natOp*` guards and `natOpResult`'s dispatch, a body of its own

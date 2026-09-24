@@ -232,15 +232,18 @@ standard axioms. -/
 #print axioms annot_letE
 #print axioms annot_proj
 
-/-! ### The open list — `sorryAx` is EXPECTED on exactly these
+/-! ### The former open list — closed
 
-Nine declarations, each with its reason at its site and in DESIGN §8's task
-section `### Task #97-P3-Core`: the six body walks, the three batched-clause
-carries and the port-side peel.  `knot_spec` inherits from the six.
+These nine declarations were the tier's open list (each with its reason in
+DESIGN §8's task section `### Task #97-P3-Core`: the six body walks, the three
+batched-clause carries and the port-side peel; `knot_spec` inherited from the
+six).  All of them are closed since task #97-P3-Core round 6 and its
+follow-ups, and print the three standard axioms only.  The paragraph below
+is the history.
 
 **`whnfBody_spec` is no longer one of them in substance** (task
 #97-P3-Core-2): its induction, its fuel merge and its entry bracket are
-written, and the `sorryAx` it still prints comes from two walk theorems of
+written, and the `sorryAx` it then printed came from two walk theorems of
 `Bridge/Core/Walks/Owed.lean` — `reduceNat_spec` and `unfoldDefinition_spec`
 — and from nothing else. -/
 

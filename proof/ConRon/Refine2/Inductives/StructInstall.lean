@@ -36,8 +36,8 @@ open ConRon.Arena
 /-! ## `unwrap_or` at the handle types this lane's walks unwrap
 
 `checker_base::unwrap_or` against `unwrapOr` (the checker tier's
-`unwrap_or_refines` is `sorry`, and `PrimsModeled.lean`'s proved copy is
-downstream of this file).  One `@[lockstep]` lemma per element abstraction
+`unwrap_or_refines` was `sorry` when this was written, and
+`PrimsModeled.lean`'s proved copy is downstream of this file).  One `@[lockstep]` lemma per element abstraction
 and error kind: the tactic applies a spec before it matches the twin, so the
 abstraction cannot be left to unification; the twin's message is free. -/
 
@@ -89,9 +89,9 @@ theorem unwrap_or_lsr {T β : Type} {A : T → β} {pers st lst} {o : Option T}
   fun _ h => ConRon.Refine.Level.leq_refines hl hr h
 
 /-- `checker_base::fvar_type_ds` ⊑ `List.mapM fvarTypeD` from the cursor on,
-with the accumulator in front (the checker tier's `fvar_type_ds_refines` is
-`sorry`; `PrimsModeled.lean` carries the same induction downstream of this
-file). -/
+with the accumulator in front (the checker tier's statement was `sorry` when
+this was written — `Checker/Base.lean`'s `fvar_type_ds_ls` now;
+`PrimsModeled.lean` carries the same induction downstream of this file). -/
 theorem fvar_type_ds_aux (n : Nat) :
     ∀ {pers st lst} {hs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
       {out : alloc.vec.Vec arena.handle.EIdx},

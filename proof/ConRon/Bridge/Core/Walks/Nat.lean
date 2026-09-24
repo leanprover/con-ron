@@ -2,7 +2,7 @@
 # `ConRon.Bridge.Core.Walks.Nat` — the literal acceleration, `reduceNat`
 
 Task #97-P3-Core round 4.  `Bridge/Core/Arms/Whnf.lean`'s `whnfBody_spec`
-inherited `sorryAx` from exactly one walk after this round closed
+inherited `sorryAx` (at the time) from exactly one walk after this round closed
 `unfoldDefinition`: `reduceNat`.  This module is that walk and the six
 state-only walks under it (`rawNatLit?`, `natLitSupported`, `natBinOpName`,
 `natOpStored`, `natOpWfNames`, `natOpResult`), each an EQUATION with the

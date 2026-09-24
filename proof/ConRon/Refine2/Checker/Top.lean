@@ -70,7 +70,8 @@ ONE `lockstep` call over its callees' `@[lockstep]` wrappers.
 The spine is `annot_fold_refines` / `annot_decl_step_refines` /
 `check_pending_list_refines` / `check_decls_pure_go_refines` (cursor folds,
 by hand: the twin is a list recursion with a `tryCatch`, not a zip), all
-closed; the `sorry`s under them are the arms' leaves.
+closed, and so are the arms' leaves under them: the spine is `sorry`-free
+(the census at the end of the file).
 -/
 import ConRon.Refine2.Checker.DeclCheck
 import ConRon.Refine2.Inductives.Top
@@ -534,9 +535,9 @@ ran at, which the twin carries as a second environment.
 **Restated by task #97-T2-LOCKSTEP lane Checker**: the old twin side ran
 `checkReducePin` unconditionally, where the Rust first tests
 `reduce_op_names` (`Ok fe2` for an ordinary opaque) — false as stated; the
-twin side is now `checkOpaqueDeclSpec`'s own tail.  Still open on `hkpre`
-(the Rust runs the gate at `restrict(fe2, k_pre)`, the twin at `fe`; see
-DESIGN's lane Checker section). -/
+twin side is now `checkOpaqueDeclSpec`'s own tail.  It was then open on
+`hkpre` (the Rust ran the gate at `restrict(fe2, k_pre)`, the twin at `fe`);
+lane Checker round 2 fixed that in the twin, and it is closed. -/
 theorem check_opaque_reduce_pin_refines {pers st lst} {rf2 lf2}
     {mode : kernel.env.CheckMode} {k_pre : Std.U64} {n : arena.handle.NIdx}
     {value : arena.handle.EIdx} {o}
@@ -2252,14 +2253,16 @@ theorem intern_all_pins_refines {pers st lst}
 
 /-! ## The axiom census
 
-**The two capstones read `sorryAx`, and that is the honest row.**  Their
-proofs are complete — `install_then_check_refines` is `annot_fold_refines`
-and `check_pending_list_refines` composed, `check_decls_pure_refines` is
-`check_decls_pure_go_refines` at the empty environment — and what the
-`sorryAx` stands for is the three LEAVES the fold stands on:
-`annot_step_refines`, `check_pending_refines` and `check_decl_step_refines`.
-Task #97-P5-Checker-2's section lists them.  Writing the rows out is what
-keeps *"the spine is closed and its leaves are not"* visible. -/
+**The spine is closed, leaves included** (task #97-MILESTONE, `arena`
+`db1131f1`).  `install_then_check_refines` is `annot_fold_refines` and
+`check_pending_list_refines` composed, `check_decls_pure_refines` is
+`check_decls_pure_go_refines` at the empty environment, and the three leaves
+the fold stands on — `annot_step_refines`, `check_pending_refines` and
+`check_decl_step_refines` — are proved; every row below prints the three
+standard axioms and nothing else.  (Until the lane Inductives Install
+slice 2 and lane Inductives round 6 slice 2 landings these rows printed
+`sorryAx` through the leaves' bodies; the `#guard_msgs` pins keep them from
+regressing silently.) -/
 
 /-- info: 'ConRon.Refine2.install_then_check_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms install_then_check_refines
@@ -2268,9 +2271,8 @@ keeps *"the spine is closed and its leaves are not"* visible. -/
 #guard_msgs in #print axioms check_decls_pure_refines
 
 /-! **Task #97-P5-Checker round 4, task #97-P5-Top.**  The two bracketed
-leaves are compositions and read `sorryAx` through their
-BODIES (`check_decl_refines`, `annot_step_go_refines`'s arms) and nothing
-else. -/
+leaves are compositions of their BODIES (`check_decl_refines`,
+`annot_step_go_refines`'s arms), which are closed as well. -/
 
 /-- info: 'ConRon.Refine2.check_decl_step_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms check_decl_step_refines

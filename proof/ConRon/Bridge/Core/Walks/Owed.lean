@@ -1,5 +1,5 @@
 /-
-# `ConRon.Bridge.Core.Walks.Owed` — the sixteen non-slot walks: six CLOSED, TEN open
+# `ConRon.Bridge.Core.Walks.Owed` — the sixteen non-slot walks (all CLOSED now; the notes below keep each round's status)
 
 Task #97-P3-CoreWalks.  DESIGN §8's `### Task #97-P3-Core` §6 ends with the
 round's own estimate of where the next tier's work is:
@@ -152,7 +152,7 @@ it is this round's evidence that the row above really is the cheap one. -/
 `whnfStep`'s two callees (`Bridge/Core/Arms/Whnf.lean`'s `whnfLoop_delta`
 and `whnfLoop_reduceNat` are their pure-side step lemmas, and both are
 closed), which is why `whnfBody_spec` — the most reachable of the six body
-walks — is still open. -/
+walks — was still open then (closed since). -/
 
 /-! `unfoldDefinition_spec` **moved to `Bridge/Core/Walks/Spine.lean`** in
 round 4 and is CLOSED there: it needs `getAppFn`/`getAppArgs`/`mkAppN` from
@@ -503,7 +503,8 @@ and is CLOSED there, over that module's `proofPW`. -/
 /-! ## 6. The axiom census
 
 The round's one CLOSED walk in this module, its induction, and the pure-side
-step equations of the two walks whose arena side is still open. -/
+step equations of the two walks whose arena side was then still open (closed
+since). -/
 
 section Census
 

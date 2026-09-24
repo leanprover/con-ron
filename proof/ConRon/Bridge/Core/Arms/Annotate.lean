@@ -770,7 +770,8 @@ theorem annotateBody_leaf {fe : IFEnv} {fuel : Nat}
 /-- con-leche: ConLeche/Verify/Cached/DiscC6.lean annotateBodyC_sim —
 **THEOREM 1 for `annotateBody`**.
 
-**OPEN** (task #97-P3-Core).  What is missing: the batched binder clause
+**CLOSED** (the Core tier is `sorry`-free since task #97-P3-Core round 6).
+What was missing when this note was written: the batched binder clause
 above, the `.proj` arm's callee rules, and `annotPwPi`/`annotPwLam` — two
 `Arena/Core.lean` walks that read the head symbol before falling back to
 inference and that need `BodySpec`-shaped theorems of their own.  The twelve

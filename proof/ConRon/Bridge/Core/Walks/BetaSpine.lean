@@ -884,8 +884,9 @@ section Census
 #print axioms mBP_nonlam
 #print axioms betaSkip_eq_fires
 #print axioms instantiateListFast_ok_spec
-/-! `sorryAx` expected on exactly `iotaRecAt_spec` (§2, OPEN) and on what
-reaches it: the iota step and the carry. -/
+/-! `sorryAx` was expected on exactly `iotaRecAt_spec` (§2) and on what
+reaches it while §2 was open; it is closed since, and these print the three
+standard axioms. -/
 #print axioms iotaRecAt_spec
 #print axioms whnfApp_iotaStep_spec
 #print axioms whnfApp_carry_step

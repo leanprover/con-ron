@@ -63250,3 +63250,211 @@ threaded `PropWhenWF` of the binder metas into them.  The `close_telescope`/
 `whnf_telescope` strengthening stays.  The dead-weight count therefore keeps
 these two `sorry`s (the table's row for them reads "restored" rather than
 "deleted").
+
+### Task #97-MILESTONE — both capstone roots axiom-clean (2026-09-24, Opus under Fable)
+
+**The milestone.**  On `arena` `db1131f1` (2026-09-24),
+`ConRon.Capstone.model_exists` and `ConRon.Capstone.no_False_declaration`
+depend on `[propext, Classical.choice, Quot.sound]` and nothing else, pinned
+by `#guard_msgs` in `proof/ConRon/Capstone.lean` §4, and `scripts/frontier.sh`
+on the two roots reports **0 items, 0 tainted, dead weight 0**.  The
+binary's pipeline (`intern_reserved_pins → builtin_prelude_e → parse_source
+→ prepare_prelude → intern_all_pins → phase A, freeze, pool, thaw`) is
+proved to refine con-leche, Theorem 2 ∘ Theorem 1 ∘ con-leche, as §8.2
+planned.  The only `sorry`s left under `proof/ConRon/` (outside the retired
+`RefineOld/`) are deliberate and off every root: `Tools/FrontierTest.lean`
+(the frontier tool's fixture), `Refine2/Tactic/Tests.lean`, and the two
+STUCK samples of `Refine2/Tactic/{Sample,SampleCore}.lean` (task
+#97-T2-TACTIC's D1 exhibits).  This task is documentation only: no proof,
+twin or Rust changed.
+
+#### What the theorems assume
+
+Read off the statements (OVERVIEW §3.1 has the table, §8.2 the trust rows,
+§8.3 the comparison with `master`):
+
+* `[ConLeche.SetTheory V]` and con-leche's own soundness at the pinned rev;
+* the run facts `hpers`/`hest`/`hst0`, `h1`…`h5` — the driver's calling
+  order, trusted as on master;
+* `h6 : PoolAccepts` — phase A, the freeze, and one accepting verified
+  `check_pending_worker` per worker covering the pending list; that the
+  pool's accept has this shape is `pool.rs`'s control flow;
+* `hreads : ReadsAs` — the file handle's reads are the file's bytes, in
+  order (the reader loop itself is the verified `parse_source`);
+* `hmr : ModellerRefines inst m inProcessModeller` — the unextracted Rust
+  modeller (the port of con-leche's `InModel.generate`) answers what the
+  twin's delegating modeller answers; the twin side is Theorem 1's
+  `inProcessModeller_refines`;
+* `hdec` — the pins are the verified decoder's output (the binary passes
+  `PINS_TEXT`; `--pins`/`--no-pins` are outside);
+* `hbytes` — the prelude gate `scripts/gen-prelude-lean.sh --check`;
+* the fixed arguments: `parse_source … true false` (default in-model flags)
+  and `.Verified`.
+
+Outside Lean: Aeneas/Charon, `rustc` and the runtime, `overflow-checks`,
+the driver and pool outside the model, and **partial correctness** — no
+claim where the Rust raises `Native` (§8.x's guards).  Against `master`:
+less trusted (no `unsafe`, 6 holes not 23, one modeller promise not two,
+reader loop and fold verified); the same (con-leche, translator, driver
+order, pool argument); more trusted or covering less (`hbytes` is a gate
+not a proof; the in-model flags are fixed where master's letter was
+parametric; more `Native` sites, so completeness is weaker).
+
+#### The frontier, from the lockstep ruling to zero
+
+`scripts/frontier.sh --history`, the rows of landed tips (tag
+`model_exists+no_False_declaration` or `capstone`; items / tainted / dead
+weight):
+
+| when (UTC) | commit | branch | items | tainted | dead |
+|---|---|---|---:|---:|---:|
+| 09-23 16:18 | `f216c474` | lockstep step 1, slice 3 | 65 | 174 | 647 |
+| 09-23 18:08 | `998ccde3` | arena | 61 | 152 | 641 |
+| 09-23 18:32 | `592805b2` | arena | 55 | 122 | 632 |
+| 09-23 19:36 | `ef5e1eec` | mq | 50 | 129 | 574 |
+| 09-23 20:53 | `6ae149bc` | mq | 40 | 152 | 508 |
+| 09-23 21:27 | `70ea5a33` | arena | 48 | 175 | 465 |
+| 09-23 22:24 | `b047603a` | mq | 50 | 233 | 401 |
+| 09-23 23:22 | `9b8cc34e` | mq | 51 | 298 | 326 |
+| 09-23 23:56 | `4cd871a8` | mq | 37 | 293 | 306 |
+| 09-24 01:10 | `5e671407` | mq | 29 | 285 | 204 |
+| 09-24 03:28 | `b9b64d90` | mq | 23 | 281 | 198 |
+| 09-24 04:36 | `bf376947` | mq | 23 | 242 | 166 |
+| 09-24 06:28 | `a1faca8c` | mq | 1 | 21 | 46 |
+| 09-24 06:50 | `61fb6ceb` | mq | 9 | 124 | 3 |
+| 09-24 07:02 | `db1131f1` | mq / arena | **0** | **0** | **0** |
+
+Items went UP twice, and both times it was the campaign working as meant:
+at `70ea5a33` because top-down skeletons expose children as they are
+written, and at `61fb6ceb` because the second T2-CLEANUP bounce restored
+the two false binder interns as `sorry` so that the eight proofs resting on
+them showed up (Inductives round 6 slice 2 then threaded `PropWhenWF` and
+deleted them for good).
+
+#### The lanes, one line each
+
+Theorem 2 (`Refine2/`), under the lockstep ruling:
+
+* **T2-AUDIT** — found Theorem 2 had drifted from "two programs doing the
+  same thing" (tag/view reads booked as invariants); led to the ruling.
+* **T2-LOCKSTEP step 1** — the foundation: `AStateRel₀`/`AOut₀`/`Sim₀`/`LS`
+  shapes, twin fixes D2/D3/D5/D6, `Specs.lean`, the bracket.
+* **T2-TACTIC** (rounds 1–2) — the `lockstep` tactic: a `_refines` proof is
+  a zip of two do-blocks; twin-only arguments, twin `if` against a Rust bind.
+* **lane Frontend** (rounds 1–3) — the parser tier on lockstep shapes, F11
+  closed, F10 deleted; the modeller seam's rulings; `hoist_targets`,
+  `proj_rec_value`.
+* **lane Checker** (rounds 1–2) — `Refine2/{Checker,Promote}` and the
+  capstone's Theorem-2 side; `hkpre` fixed in the twin; pin gates.
+* **lane Checker Base/Top** (rounds 1–2) — the `Top` arms, the name/cursor
+  leaves, the push seam replaced by its premise, the basis install,
+  `mentions_const`, `check_proj_shape`, the memoised guard walks.
+* **lane Checker DeclCheck** — pin-gate leaves, `erase_pw_eq`, basis pins;
+  twin fixes: `natOpEquations` reads all fifteen pins, `stdAxiomOk`'s read
+  order.
+* **lane Checker Canon** — `arena::canon` by `lockstep`; twin tests the
+  reducibility hint first, as the port.
+* **lane Promote** (rounds 1–2) — the promote tier lockstep; the `IFEnvKeys`
+  statement gap; `ifenvRel_envWF_promote` replaced by its premise.
+* **lane ExprOps** — `arena::expr_ops` lockstep, its D1 (tag-first) twins,
+  the tactic's walk moves.
+* **P5-Core** rounds 3–6 — the knot: `KnotRel`/`BodyRel` false at a
+  dangling cache entry → tag/view audit, twin tag-first, lockstep
+  statements; round 5 zipped every body; round 6 discharged `exprOpsHyp`.
+* **lane Inductives** (rounds 1–6) — the tier on lockstep shapes with its
+  divergences fixed in the twin; wired into the capstone; the rulings on
+  the cached level readback and the native tail; the six timeouts split;
+  the recogniser's block match and the rules check; `PropWhenWF` threaded
+  through the binder builders and the false binder interns deleted.
+* **lane Inductives Modeled** (rounds 1–2) — the modeled route by
+  `lockstep`; `Modeled.lean` sorry-free.
+* **lane Inductives Install** (slices 1–2) — `Native`/`Sum`/`StructInstall`
+  by `lockstep`; `check_native`'s retry pop, the last frontier item.
+* **D4 / D4b / D4c** — the div/mod-pin attempt's state restore made
+  lockstep in the Rust (below).
+* **P5-Driver, P5-POOL** — the driver's reader loop and fold extracted; the
+  capstone restated over them; the pool's claim made structural
+  (`PoolAccepts`).
+* **T2-CLEANUP** — the unowned dead-weight `sorry`s proved or deleted;
+  `EResolves` retired.
+
+Theorem 1 (`Bridge/`), finishing in the same window: **P3-Core round 6**
+(`CoreSpec.of_core` sorry-free, `hk` off the capstone), **P3-Ind rounds
+8–9** (the capstone takes `indSpec_of_bridge`; the tier at zero),
+**P3-Promote** (the promotion tier on `StoreWF'`), **T1-OCC** (the last two
+Theorem-1 items, `clOccursConstB_eq`/`clOccursConstGo_eq`, proved about
+con-leche's definitions in `Bridge/Frontend/ProjRec.lean`).
+
+Infrastructure: **FRONTIER** (the `sorry` frontier read off the elaborated
+environment), **CACHE** (the shared Lake artifact cache), **MQ** (lanes
+submit, one queue agent merges and re-gates).
+
+#### The rulings that shaped Theorem 2
+
+1. **Lockstep** (maintainer, on T2-AUDIT).  Theorem 2 relates two programs
+   doing the same operations in the same order; its relation says only that
+   the two sides hold the same data in different representations.
+   `StoreWF`, `Ext` and every "handles resolve" clause are Theorem 1's.  A
+   failing statement is a twin/Rust divergence, fixed in the twin (or by
+   ruling in the Rust), never an added invariant.
+2. **The erased subtype's well-formedness is representation.**  Charon
+   drops the proof field of con-leche's `PropWhen` subtype, so
+   `PropWhenWF` of a datum (on the binder interns, `IConstantInfoWF` of a
+   stored inductive's `caps.sort_z` in `IFEnvRel.envWF`) is a fact about the
+   Rust value, carried from where it was built — allowed in Theorem 2.
+   Seams that claimed it for an arbitrary constant were false and were
+   replaced by premises at their one consumer.
+3. **`IFEnvKeys`** — every index row points at a slot whose constant
+   carries the row's key: a clause of `IFEnvRel` (`IFEnvRel.keys`), because
+   the Rust index stores positions where the twin stores constants.
+4. **D4b, then D4c.**  A failed `Nat.div`/`Nat.mod` pin attempt must resume
+   at the twin's whole pre-attempt state.  D4b made the Rust take a full
+   copy (+6.4 % instructions, +~200 MB on `Init`); D4c moves the persistent
+   tier aside in O(1) (freeze, `M_REFREEZE` guard) and copies only the small
+   parts: +0.008 %, no frame lemma.
+5. **The modeller seam** (lane Frontend round 3): per-call caches (`InProcess`
+   carries no state; +0.01 %), the twin declines a dangling block with the
+   port's message, and the port **panics** on an intern overflow inside the
+   modeller, because the twin's throw cannot represent the partly-interned
+   store the port kept.  `hmr` keeps its statement.
+6. **The native tail hides the former** (lane Inductives round 4, ruling
+   2a): the Rust passed the unlowered counter to `native_fields_ok`, so the
+   lowering its own comment described was dead; fixed in the Rust
+   (`f81ca27d`, noise-level cost, 383/383 differential), as con-leche does.
+
+Earlier Rust-side rulings the campaign rests on: P5-Usize (no unbounded
+`u64 as usize` casts; the frozen-tier guards raise `Native`).
+
+#### Follow-ups
+
+* **Prove the `Native` guards unreachable** (§8.x): the `M_FROZEN` and
+  `M_REFREEZE` guards from the phase discipline, the capacity guards
+  documented as resource limits, the class-(a) `as usize` casts as lemmas.
+  Until then the theorem is partial correctness.
+* **Tactic round 3** is in flight (`t2-tactic-8`): goal normalisation,
+  structure-eta pair reads, reducible `rfl` in `lockstep_congr`,
+  `@[lockstep prio]` — it should let the lanes' local workarounds go.
+* **Coverage of the letter**: `hbytes` could be proved like
+  `Refine2/Frontend/PreludeText.lean`'s per-chunk `decide`; a flag-parametric
+  pipeline letter (task #97-COMPOSE mismatch 4) would cover
+  `CON_LECHE_INMODEL=0`/`CON_LECHE_INMODEL_CENSUS=1` again, as master's did.
+* **Deferred performance** (measured, not landed): the two per-call walk
+  memos kept in `Memos` and reset per call (−2.93 % on `Init`, task
+  #97-PERF-FRESH), a bulk-fill `allocate_slots` (−1.06 %), the arena's
+  peak memory against the 3× budget (§8.7).
+* **Upstream asks**: con-leche — `clOccursConstB_eq`/`clOccursConstGo_eq`
+  belong in `ConLeche/Verify/Frontend/ProjRec.lean`; Aeneas — a Lean v4.33
+  release (`patches/aeneas-433.patch`).
+* **Doc-comment cleanups**: this task rewrote the prose that said a root, the
+  Checker/Top spine or a tier "reads `sorryAx`" or "is open" where the claim
+  is now false (26 Lean files, comments only).  Two stale notes were
+  left on purpose because they sit deep in the import graph and a comment
+  edit there re-elaborates ~100 more modules: `Arena/PromoteExt.lean`'s
+  `promoteE_ext` ("the largest of that file's open items") and
+  `Bridge/StoreBM.lean`'s module note ("still open at its ONE consumer");
+  fold them into the next change that touches those files.  Prose references
+  to the deleted `Bridge/Checker/Capstone.lean` remain in `Bridge/Frontend/*`
+  and `Checker/Split.lean`.  README.md's "Unsafe code" section (human-written)
+  still describes `ron::tagged`, which the arena no longer has.  OVERVIEW
+  §4.4–§4.5, §6.2–§6.3 and §7.1 still describe the `Expr`-tree checker
+  (§6.2 now says so).

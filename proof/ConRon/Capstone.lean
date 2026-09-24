@@ -26,7 +26,10 @@ the original campaign used (`conron.model_exists` /
   type `False` is never accepted by it.
 
 **They are the campaign's root theorems** (task #97-COMPOSE): the sorry
-frontier is measured as the dependency closure of these two.
+frontier is measured as the dependency closure of these two, and it is
+EMPTY since `arena` `db1131f1` (task #97-MILESTONE): both depend on
+`[propext, Classical.choice, Quot.sound]` only (§4's census).  What they
+still assume is exactly their hypotheses, listed below.
 
 ## The pipeline, stage by stage
 
@@ -78,8 +81,10 @@ carries no fact about the twin's store (task #97-T2-AUDIT).
 
 ## The named hypotheses
 
-Beyond the `sorry`s of the tiers, the composition carries these, and they
-are the campaign's remaining obligations that are NOT `sorry`s (DESIGN.md's
+The tiers have no `sorry` left on the roots' closure, so these hypotheses
+(beside `[ConLeche.SetTheory V]`, the run facts `hpers`/`hest`/`hst0`/
+`h1`…`h6` and `hfalse`) are the whole of what the two theorems assume.
+Struck-through entries were hypotheses once and are theorems now (DESIGN.md's
 task #97-COMPOSE section tags each with its owning lane):
 
 * ~~`InitRel`~~ — the Rust start state is related to the twin's: a theorem
@@ -90,13 +95,15 @@ task #97-COMPOSE section tags each with its owning lane):
 * ~~`hind : IndSpec .verified`~~ — Theorem 1's inductive tier spec:
   discharged by `Bridge/Inductives/Decl.lean`'s `indSpec_of_bridge` since task
   #97-P3-Ind round 8 (the two headline theorems build it; the stage lemmas
-  below still take it as a parameter), so the inductive tier's open
-  statements are on the capstone's frontier;
+  below still take it as a parameter);
 * `hbytes` — the prelude gate (`scripts/gen-prelude-lean.sh --check`);
 * ~~`hsc : ScanSpec`~~ — Theorem 2's scanner seam: a theorem since task
   #97-P5-Front (`Refine2/Frontend/Scan/Spec.lean`'s `scanSpec`);
 * `hmr : Refine2.Frontend.ModellerRefines inst m inProcessModeller` — the
-  Rust modeller against the twin's (the modeller seam, by design);
+  Rust modeller against the twin's (the modeller seam, by design): the
+  unextracted `crates/con-ron/src/in_model/`, a port of con-leche's
+  `InModel.generate`, answers what the twin's `inProcessModeller` (which
+  CALLS con-leche's `generate`) answers;
 * `hreads : ReadsAs sinst src chunks.val` — the reads are the chunks
   (task #97-P5-Driver): the binary parses with the verified reader loop
   `parse_source` over the driver's file handle, and
@@ -564,8 +571,11 @@ end Headline
 
 /-! ## 4. The census
 
-`#print axioms` of the two roots: `sorryAx` is the tiers' open leaves, and
-the named hypotheses above are the rest of the ledger. -/
+`#print axioms` of the two roots: con-leche's own three axioms and nothing
+else — no `sorryAx` (since `arena` `db1131f1`, task #97-MILESTONE), no
+`native_decide`.  The named hypotheses of the module note are the whole
+ledger: they are hypotheses of the statements, not axioms of the
+environment, so this census does not list them. -/
 
 /-- info: 'ConRon.Capstone.model_exists' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms model_exists

@@ -39,8 +39,8 @@ this file is where the arena tower collects the interest.
 ## What these lemmas wait on
 
 `Refine2/Promote/Intern.lean`'s four entries, and through them `Specs.lean`'s
-`intern_e` family (task #97-P5-1 §8's twenty-four still open).  Nothing here
-waits on an idea.
+`intern_e` family (task #97-P5-1 §8's twenty-four, open when this was
+written).  All closed since: nothing here waits any more.
 -/
 import ConRon.Refine2.Checker.Canon
 import ConRon.Refine.BasisPins

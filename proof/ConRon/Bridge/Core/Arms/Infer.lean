@@ -338,8 +338,9 @@ the other four are here. -/
 clause**, at the body: the dispatch hands the node to `inferApp`, whose
 carry is `inferBody_app_batched`.
 **CLOSED** (task #97-P3-Core round 5, sub-lane Leaves) as a dispatch: its
-own proof is sorry-free, and its census line shows `sorryAx` only through
-`inferBody_app_batched`, the real content, which stays open. -/
+own proof is sorry-free, and its census line showed `sorryAx` only through
+`inferBody_app_batched`, the real content — closed since (the Core tier is
+`sorry`-free: task #97-MILESTONE). -/
 theorem inferBody_app {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
@@ -731,7 +732,8 @@ theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
 /-- con-leche: ConLeche/Verify/Cached/DiscC5.lean inferBodyC_sim — **THEOREM 1
 for `inferBody`**.
 
-**OPEN** (task #97-P3-Core).  What is missing: the two batched clauses above,
+**CLOSED** (the Core tier is `sorry`-free since task #97-P3-Core round 6).
+What was missing when this note was written: the two batched clauses above,
 and the `.proj` arm's callee rules (`IProjEntry.typeAt`, `lvlEq?`, the three
 memoised readbacks), which are `Arena/Core.lean` walks that are not knot slots
 and need `BodySpec`-shaped theorems of their own.  The nine leaf/binder/app
@@ -760,7 +762,7 @@ sub-lane Leaves) -/
 
 section Census
 
--- `sorryAx` here is `inferBody_app_batched`'s, inherited through the dispatch
+-- no `sorryAx` since `inferBody_app_batched` closed (it was inherited through the dispatch)
 #print axioms inferBody_app
 #print axioms inferBody_binders_batched
 #print axioms inferBody_const

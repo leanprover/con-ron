@@ -567,7 +567,8 @@ theorem LS_of_twin_map {α β γ : Type} {pers : arena.store.PersTier} {R : α �
   exact lidx_vec_dup_eq h
 
 /-- `checker_base::unwrap_or` ⊑ `unwrapOr` — proved here (the checker tier's
-`unwrap_or_refines` is still `sorry`); the two errors' kinds agree. -/
+`unwrap_or_refines` was `sorry` when this was written); the two errors'
+kinds agree. -/
 theorem unwrap_or_simRE {T β : Type} {A : T → β} {lst} {o : Option T}
     {err : kernel.core_types.CheckError} {lerr : Arena.CheckError} {r}
     (herr : absAErrKind err = lAErrKind lerr)
@@ -681,7 +682,8 @@ theorem take_list_of_arr {a xs : alloc.vec.Vec arena.handle.EIdx} {k : Nat}
 
 /-- `checker_base::fvar_type_ds` ⊑ `List.mapM fvarTypeD` from the cursor on,
 with the accumulator in front — proved here by the cursor induction (the
-checker tier's `fvar_type_ds_refines` is still `sorry`). -/
+checker tier's statement was `sorry` when this was written; it is
+`Checker/Base.lean`'s `fvar_type_ds_ls` now). -/
 theorem fvar_type_ds_aux (n : Nat) :
     ∀ {pers st lst} {hs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
       {out : alloc.vec.Vec arena.handle.EIdx},

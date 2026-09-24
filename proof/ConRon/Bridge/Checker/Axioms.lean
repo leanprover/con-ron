@@ -13,18 +13,19 @@ repository already carries.
 
 **Group 2 — the headline theorems.**  `Arena.checkDecl_bridge` and
 `Arena.installThenCheck_bridge` (the sequential fold `Arena.checkDeclsPure_bridge`
-and its `Arena.model_exists` were deleted by task #97-T2-CLEANUP) each print
-`sorryAx` beside the three: the tier's open items
-(DESIGN, task #97-P3-Checker's sorry list as task #97-P3-Checker-2 leaves it)
-are reached from them.  What they do NOT print is `CoreSpec` or `IndSpec` —
+and its `Arena.model_exists` were deleted by task #97-T2-CLEANUP).  They
+printed `sorryAx` beside the three while the tier had open items (DESIGN,
+task #97-P3-Checker's sorry list); since the tier closed they print the
+three standard axioms only, like group 1 (task #97-MILESTONE: the capstone's
+closure, which contains them, is `sorry`-free).  What they do NOT print is `CoreSpec` or `IndSpec` —
 those are HYPOTHESES of the statements, not axioms of the environment, which
 is exactly the discipline `proof/ConRon/RefineOld/Main.lean`'s
 `conron.model_exists` kept with `hk` and `hind`, and it is what makes "two
 named hypotheses" a checkable claim rather than a prose one.
 
-**All seven arms are in group 1 in every sense but one**: they are proved, and
-what they still reach is the leaves below them.  The census prints them in
-group 2 for that reason.
+**The seven arms are printed in group 2** for the historical reason that
+they reached the open leaves below them; they are closed now, leaves
+included.
 -/
 import ConRon.Bridge.Checker.Fold
 import ConRon.Bridge.Checker.Base
@@ -396,12 +397,12 @@ namespace ConRon.Bridge
 
 /-! ## Group 2 — the three headline theorems
 
-Each carries `sorryAx` from the tier's open items; neither carries `CoreSpec`
-nor `IndSpec`, which are hypotheses of the statement. -/
+None carries `sorryAx` any more (the tier's open items are closed); none
+carries `CoreSpec` nor `IndSpec`, which are hypotheses of the statement. -/
 
 -- the Core tier's half of `CoreSpec`, discharged by
--- `Bridge/Core/Induction.lean`'s `knot_spec_checkFuel` (which carries
--- `sorryAx` through its six `…Body_spec` walks)
+-- `Bridge/Core/Induction.lean`'s `knot_spec_checkFuel` (closed since task
+-- #97-P3-Core round 6)
 #print axioms CoreSpec.of_knot
 
 #print axioms checkDecl_defn_pure_nn
@@ -420,7 +421,7 @@ nor `IndSpec`, which are hypotheses of the statement. -/
 #print axioms Arena.installThenCheck_bridge
 
 -- the fold's skeleton and the startup walk (task #97-P3-Checker round 8):
--- each reaches exactly its named children's `sorryAx`
+-- closed, children included
 #print axioms Arena.annotFold_bridge
 #print axioms Arena.checkPendingList_bridge
 #print axioms Arena.annotStep_bridge

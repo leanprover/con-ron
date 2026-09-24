@@ -29,7 +29,8 @@ paid or recorded.
 **Round 5 (DefeqStep sub-lane):** `defeqStep_spec` is PROVED, staged
 (`defeqStep_at`, §8), over the entry and literal groups inline and the tail
 as `dqTailA_spec` / `dqCongrA_spec`.  After the round's merge its `sorryAx`
-comes from two named children only: `defeqPeel_chain` (§5; closed in round
+came from two named children only (both closed since; the tier is
+`sorry`-free): `defeqPeel_chain` (§5; closed in round
 6, see `Arms/DefeqPeel.lean`) and
 `stuckIrrel_spec` (`Walks/Stuck.lean`, through `dq_stuck_exit`, itself proved
 there over `structEtaCertWith_spec`); the three string-literal rules are the
@@ -1232,7 +1233,7 @@ theorem dq_defeq_exit {fe : IFEnv} {fuel d : Nat}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — **the stuck
 fallback** as the verdict, over `stuckIrrel_spec` (`Walks/Owed.lean`,
-OPEN).  The one call site of that rule in this module. -/
+closed since).  The one call site of that rule in this module. -/
 theorem dq_stuck_exit {fe : IFEnv} {fuel d : Nat}
     (hμ : mode.verifiedChecks = true) (henv : ConLeche.EnvWF env)
     (hsim : KnotSpec mode env fe fuel) {s₀ s : AState}
@@ -1282,7 +1283,7 @@ theorem dq_unfold_seq {fe : IFEnv} {d : Nat} (henv : ConLeche.EnvWF env)
     exact hnone s1 hok1 hx1 hp1 (denoteEO_none_inv hdo)
 
 
-/-! ### The string-literal walks — named, OPEN
+/-! ### The string-literal walks — named (closed since: see the round-5 note below)
 
 The two string-literal congruence exits call two arena walks this module has
 no rule for.  They are stated here under names another helper's modules will
@@ -2703,9 +2704,9 @@ for one step of the lazy-delta loop**, at a continuation that refines the
 loop one budget down.
 
 **PROVED** (round 5, DefeqStep sub-lane) from `defeqStep_at`.  Its
-`sorryAx` is inherited from named children, none in this proof:
-since round 6 only through `stuckIrrel_spec` (`Walks/Stuck.lean`, reached through
-`dq_stuck_exit`), `structEtaCertWith_spec`. -/
+`sorryAx` was inherited from named children, none in this proof — after
+round 6 only through `stuckIrrel_spec` (`Walks/Stuck.lean`, reached through
+`dq_stuck_exit`), `structEtaCertWith_spec`, both closed since. -/
 theorem defeqStep_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel) (d n : Nat)
@@ -2769,8 +2770,8 @@ theorem defeqBody_spec {fe : IFEnv} {fuel : Nat}
 
 The pure side and the stage rules this round closed are at
 `[propext, Classical.choice, Quot.sound]` (or fewer); `defeqStep_spec` and
-`defeqBody_spec` are listed to show what they inherit — `sorryAx`, from the
-five named children only. -/
+`defeqBody_spec` were listed to show what they inherited — `sorryAx`, from
+five named children — and print the same three now that those are closed. -/
 
 section Census
 
