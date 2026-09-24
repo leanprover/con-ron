@@ -62423,3 +62423,64 @@ tainted / dead weight 198** → this slice **19 / 270 / 195** (gone:
 After merging `arena` `6296213a` (Inductives Modeled slice 3; `arena` alone:
 29 items / 291 tainted / dead weight 169): **25 / 274 / 166**.
 `scripts/gates.sh`: **all 16 OK**.  Submitted to the merge queue.
+
+### Task #97-T2-LOCKSTEP lane Checker Canon — `arena::canon` closed by `lockstep`; one twin divergence fixed (2026-09-24, Opus under Fable)
+
+Worktree `_tmp/wt-t2-canon`, branch `t2-canon` off `arena` `bf376947`.  The
+lane owns `Refine2/Checker/Canon.lean`.  **The file has no `sorry` left**
+(19 → 0: the three frontier items and all sixteen dead-weight statements).
+
+**The divergence (fixed in the twin).**  `IConstantInfo.canonEq`'s
+`.defnInfo` arm ran `cv.canonEq cv'` — which interns the numbered names
+(`canonNames`) — and only then compared the reducibility hints; the port's
+`i_constant_info_canon_eq` tests `reducibility_hint_beq` FIRST and calls
+`canon_eq_cv_and_value` only when they agree.  At two definitions with
+different hints the twin's store grew and the port's did not, so no
+`AStateRel₀` conclusion could hold.  The twin now tests `h == h'` first
+(`Arena/Canon.lean`, line count unchanged, so no `Lean twin:` citation
+moves).  Theorem 1: `Bridge/Checker/Canon.lean`'s `IConstantInfo.canonEq_run`,
+the `defnInfo/defnInfo` case re-nested (the hint split outermost; the
+mismatched-hint branch is now `Ext.refl`, no intern).  The Rust did not change.
+
+**The proofs** — the shared recipe throughout, no hand zips:
+* `canon_level_eq`/`_at` and `canon_expr_eq`/`_at`/`_two`: one fuel induction
+  each over the walk and its fragments, the shape of `Checker/Axioms.lean`'s
+  `erase_pw_eq` (`Canon{Level,Expr}Eq{,Node,Two}At` props, private); the case
+  bodies and every fragment are one `lockstep` (the node fragment after
+  `cases va <;> cases vb`).  `canonLevelEq_unfold`/`canonExprEq_unfold` are
+  `rw; congr 1`.
+* `canon_level_list_eq`, `canon_rules_eq`, `canon_eq_list`: the cursor `_aux`
+  induction (`by_cases` on the second list's end, `vecFrom_nil/cons`,
+  `simp only [twin]`, `lockstep`).  `canon_names_go`: induction on the count,
+  accumulator in the twin (`do pure (absNIdxL out ++ (← canonNamesGo …))`).
+* `canon_name_map_from`: a pure cursor induction with `canonNameMap_cons`
+  (the lookup moves down both lists at once, which is the port's one cursor).
+* The constants: `i_constant_val_canon_eq`, `canon_eq_cv_and_{rules,value}`,
+  `i_constant_info_canon_eq` are each `rw; simp only [abs…]; lockstep` (the
+  last after `cases ci <;> cases ci2`), in private `LS` forms `…_lsc`; the
+  public `_refines` keep their `Sim₀` statements (`LS.toSim₀`), which
+  `Inductives/Prims.lean` wraps.
+* File-local prims (`@[local lockstep]`, private — each has a global twin in
+  a module that imports this one): `canon_name_map`, `literal_beq`, lifted
+  `u64` `==`, `reducibility_hint_beq`, `i_proj_table_beq`,
+  `i_rec_rule_eq_but_rhs`, and `intern_n_node` at `.Anonymous`/`.Num` (the
+  generic `intern_n_node_ls`'s `NNodeViewWF` premise is not closed by the side
+  tactic; the two instances need none).
+
+**Statement changes.**  The eight read-only walks were `SimRE` (`sorry`,
+and stronger than a zip gives: the twin's state UNCHANGED); they are now
+`@[lockstep]` `LSR` lemmas `canon_{level_eq,level_eq_at,level_list_eq,
+levels_eq,expr_eq,expr_eq_at,expr_eq_two,rules_eq}_ls`, as the DeclCheck lane
+did for `erase_pw_eq`.  `canon_expr_eq_at_ls` takes `EViewMetaWF` of its two
+views (the literal arm; the views come from `view_ls`, which supplies it).
+`canon_expr_eq_two`'s statement compared `a` with `b` where the Rust compares
+`a` with `a2` — false as stated, corrected.  **Out-of-lane edit (forced):**
+`Inductives/Prims.lean`'s eight `IndPrims` wrappers of the old `SimRE`
+statements deleted (the Checker Base/Top lane's precedent, `38f9e920`); the
+Canon lemmas are `@[lockstep]` themselves.  The wrappers of the `Sim₀`
+entries stay.
+
+**Frontier** (`model_exists` + `no_False_declaration`): before (`arena`
+`bf376947`) **23 items in 7 modules, 242 tainted, dead weight 166**; after
+**20 items in 6 modules, 230 tainted, dead weight 150** — Canon off the
+frontier and out of the dead weight.  No new premise, no ruling needed.
