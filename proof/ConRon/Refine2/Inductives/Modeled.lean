@@ -518,27 +518,42 @@ open Lockstep in
 
 /-! ## The equation pattern -/
 
-/-- `eq_app3` ⊑ `eqApp3?` — the shape of every pinned iota/eta/unit statement
-body, read in one function.  A READER with no state in the return at all
-(`SimRE`), and the module's only one. -/
-theorem eq_app3_refines {pers st lst} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.inductives.modeled.eq_app3 pers st h = ok o) :
-    SimRE (Option.map fun q =>
-        (absNIdx q.1, absLIdx q.2.1, absEIdx q.2.2.1, absEIdx q.2.2.2.1,
-          absEIdx q.2.2.2.2))
-      lst o (eqApp3? (absEIdx h)) := by
-  sorry
-
 open Lockstep in
+/-- `eq_app3` ⊑ `eqApp3?` — the shape of every pinned iota/eta/unit statement
+body, read in one function: a READER (`LSR`), the module's only one. -/
 @[lockstep] theorem eq_app3_ls
     {pers st lst}
     {h : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = (Option.map fun q => (absNIdx q.1, absLIdx q.2.1, absEIdx q.2.2.1, absEIdx q.2.2.2.1, absEIdx q.2.2.2.2)) a) (arena.inductives.modeled.eq_app3 pers st h) st lst
-            (eqApp3? (absEIdx h)) :=
-  LSR.ofSimRE hrel hinv fun _ h => eq_app3_refines hrel hinv h
+            (eqApp3? (absEIdx h)) := by
+  apply LSR.of_LS
+  rw [arena.inductives.modeled.eq_app3, eqApp3?]
+  lockstep_mod
+  -- the port's `ls.len() == 1` against the twin's `[lv]` pattern
+  all_goals
+    first
+    | (exfalso
+       have := congrArg List.length ‹List.map absLIdx ↑_ = [_]›
+       simp only [List.length_map, List.length_cons, List.length_nil] at this
+       scalar_tac)
+    | (obtain ⟨x, hx⟩ := List.length_eq_one_iff.mp
+         (by scalar_tac : a.val.length = 1)
+       first
+       | (refine LS.pure ?_ ‹_› ‹_›
+          simp_all [absConstT])
+       | (exfalso; simp_all))
+
+/-- `eq_app3` ⊑ `eqApp3?` in the public `AOut₀` form of a read. -/
+theorem eq_app3_refines {pers st lst} {h : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.inductives.modeled.eq_app3 pers st h = ok o) :
+    AOut₀ (Option.map fun q =>
+        (absNIdx q.1, absLIdx q.2.1, absEIdx q.2.2.1, absEIdx q.2.2.2.1,
+          absEIdx q.2.2.2.2))
+      pers o st ((eqApp3? (absEIdx h)).run lst) :=
+  Lockstep.LSR.toAOut₀ (eq_app3_ls hrel hinv) hrun
 
 /-! ## The iota certificates -/
 
@@ -747,7 +762,16 @@ theorem iota_lhs_prefix_ok_refines {pers st lst}
     Sim₀ id pers lst o
       (iotaLhsPrefixOkSpec (absRenameBy f) (absNIdx cv_name) (absNIdxL lps)
         (absU m_i) (absU r_p) (absEIdxL fvs) (absEIdx lfn) (absEIdxL largs)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.iota_lhs_prefix_ok, iotaLhsPrefixOkSpec]
+  lockstep_mod
+  -- the two prefixes are `take_eidx_n`'s (`take_list_of_arr`)
+  all_goals
+    refine Lockstep.LS.pure ?_ ‹_› ‹_›
+    have h1 := IndModeledPrims.take_list_of_arr ‹absEIdxArr _ = takeEidx (absEIdxArr largs) _›
+    have h2 := IndModeledPrims.take_list_of_arr ‹absEIdxArr _ = takeEidx (absEIdxArr fvs) _›
+    rw [h1, h2]
+    rfl
 
 open Lockstep in
 @[lockstep] theorem iota_lhs_prefix_ok_ls
