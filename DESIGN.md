@@ -62711,3 +62711,105 @@ entries stay.
 `bf376947`) **23 items in 7 modules, 242 tainted, dead weight 166**; after
 **20 items in 6 modules, 230 tainted, dead weight 150** — Canon off the
 frontier and out of the dead weight.  No new premise, no ruling needed.
+
+### Task #97-T2-LOCKSTEP lane Inductives Install — `NativeInstall`/`SumInstall`/`StructInstall` by `lockstep`; `check_native`'s retry pop (2026-09-24, Opus under Fable)
+
+Worktree `_tmp/wt-t2-ind-inst`, branch `t2-ind-inst` off `arena` `bf376947`,
+`t2-ind-7` merged at the start (coordinator's instruction), `arena`
+`5723f896` merged before the gates.  The lane owns
+`Refine2/Inductives/{NativeInstall,NativeInstallF,SumInstall,SumInstallF,
+StructInstall,StructInstallF}.lean`.  No Rust change, no twin change, no
+Theorem-2 invariant added.
+
+#### Slice 1
+
+**Frontier item closed: `check_native_refines`.**  The zip goes through
+`check_native_pass`, the retry's verdict (the twin reads the stored kinds,
+the port its copy: `NativePassRel.p` and `native_is_rec`'s `TwinEq`) and one
+hand step, the retry's pop:
+
+* **Why the pop needs more than `IFEnvRel`.**  `ifenv_pop_temp(q.env1, former,
+  ifenv_row(fe, former))` against `q.env₁.popTemp former (fe.idx[former]?)`:
+  the Rust index stores POSITIONS, the twin's the constants, so a Rust row
+  under a name ≠ `former` pointing at the popped slot would read `none` after
+  the pop where the twin still reads `some`.  It cannot happen only because the
+  pass pushed exactly one constant, named `former`.
+* **Ruling (coordinator):** that fact is a TWIN-side postcondition of
+  `check_native_pass_refines` — its result relation gained
+  `∃ caps, v.1.env₁ = lf.push (.indInfo v.1.cvTa caps) ∧ v.1.cvTa.name =
+  (absNativeParts p0).cvT.name` — a local postcondition of one lemma, not a
+  relation invariant.  Proved from the twin alone (`IndInstTwin`: a `Post`
+  predicate on accepting runs, `checkConstantVal_name`, `checkSumTele_name`,
+  `checkSumInd_push`, `checkNativePass_push` — the Arena-level mirror of
+  Theorem 1's `checkNativePass_push`/`_former`) and joined to the zip by
+  `LS.and_post`.
+* **The pop is then purely relational** (`ifenv_pop_temp_rel`): from
+  `IFEnvRelI` before the pass and after it, the twin push, and
+  `IFEnvRel.keys` + `IFEnvInv.idxRange` + `absNIdx_inj` (a stale row would
+  sit at the slot whose constant is named `former`).  Rust side:
+  `ifenv_pop_temp_facts` (the list cut by one via `resize`, the row put back
+  or removed via `HashMap2.insert/remove_refines_wf`, the counter lowered),
+  `ifenv_row_toFun`.  `ifenv_pop_row_ls` is the step the zip takes.
+
+**Closed** (`sorry`s: StructInstall 5 → 0, SumInstall 14 → 0, NativeInstall
+15 → 8, NativeInstallF 1, the F files' delegations 0):
+* StructInstall: `check_struct_doms_at` (counted on `k`; the twin's `fvs[j]?`
+  rewritten by the bound), `proj_bodies_scoped` (`ls_cursor`),
+  `proj_fn_family_free` (counted), `check_struct_proj_table(_names)`.
+* SumInstall: `check_sum_ind_at`, `field_sort_bound`, `norm_ctor_val`,
+  `check_sum_ctor(_resid/_frames)`, `check_sum_ctors`, `sum_rules`,
+  `whnf_telescope`, `norm_field_doms`, `norm_pos_dom(_at)` (mutual fuel
+  induction: `norm_pos_dom_at_of` given the fuel's `norm_pos_dom`),
+  `zip_fvar_doms` (restated as the `LSR` read — its `SimRE` also pinned the
+  twin's state; unused elsewhere), `check_struct_field_sorts_i` (the twin's
+  inlined bound named as `fieldSortBoundSpec`, `checkStructFieldSortsI_succ_port`).
+* NativeInstall: `check_native` (frontier), `check_native_pass_kinds`,
+  `classify_fix_kinds`, `rec_ctor_kinds_all` (+ `rec_ctor_kinds_all_ls0`, the
+  twin's `recCtorKindsAll` at cursor 0), `check_native_tail(_sorts/_kinds)`
+  (the tail's lowered view is `IFEnvRelI.restrict` at the port's counter).
+
+**Statement changes (no premise added):** `native_caps_at` and `native_caps`
+conclude `PropWhenWF` of the answer's `sort_z` (the `ifenv_push` premise of
+`check_sum_ind_at`, and `i_ind_caps_beq`'s at `check_native_pass_kinds`);
+`check_native_pass` the twin-side push above; `zip_fvar_doms` as `LSR`.
+
+**Prims added in the lane's files** (`IndInstPrims`): `unwrap_or` at `EIdx`,
+`Vec EIdx`, the kinds and an opened telescope (the checker tier's
+`unwrap_or_refines` is `sorry`); `kernel::level::leq`/`is_never_zero`;
+`fvar_type_ds_mapM_ls` (the checker's is `sorry`, `PrimsModeled`'s is
+downstream); `unwrapOr` at a constructor as scoped `lockstep_simp` (opened
+per proof: globally it lets `lockstep_congr`'s `rfl` accept a spec whose
+message is left free, which then reaches the kernel as a non-`Prop` "proof").
+**Out-of-lane (coordinator's ruling):** `rec_rule_bits_ls`,
+`rec_rule_k_of_ls`, `rec_rule_eta_of_ls` and their record-field equations
+moved from `PrimsModeled.lean` down to `Inductives/Prims.lean`, names kept,
+one commit (`141f2b0a`).  `SumInstall` imports `SumParts`,
+`NativeInstall` imports `Checker/Canon`.
+
+**Tactic findings (for the tactic's owner; worked around locally):**
+1. `lockstep_congr` tries `rfl` first: at a twin knot entry whose depth
+   differs syntactically from the port's (`absU i4` against `↑off + (↑k - 1)`)
+   it unfolds `isDefEqCore`/`inferTypeCore`/`ensureSortCore` and never returns
+   (max recursion / heartbeats).  Worked around by
+   `attribute [local irreducible]` in StructInstall/SumInstall; a
+   `with_reducible rfl` would fix it (as `twin_view_const_name`'s `hg`).
+2. A candidate whose twin is a nested `(do x ← f; …) >>= k` fails with
+   "could not unify" at `apply`; `simp only [bind_assoc]` first makes it go
+   (`whnf_telescope`'s zero case).
+3. A deferred twin-only DATA argument (a spec's free message `s`) left
+   unassigned when the congruence closes by definitional unfolding becomes
+   an auxiliary "theorem" of type `String` the kernel rejects.
+4. The port's `let (_, bm) := v[i]` (a tuple pattern on a read) and a Rust
+   `have` at a step's head need `generalize`/`dsimp only` by hand.
+
+**Frontier** (`model_exists` + `no_False_declaration`): at the start
+(`arena` `bf376947`) **23 items in 7 modules, 242 tainted, dead weight 166**;
+at the submitted tip (`arena` `5723f896` merged) **23 / 7 / 300 / 65**.  The
+lane's items now: `mentions_fvar_go_refines` (fan-in 7) and
+`check_native_tail_install_refines`; `intern_e_forall_e_ls` (Tactic/Prims,
+false as stated) is reached through `norm_pos_dom_at`'s forall intern — the
+cleanup lane's `PropWhenWF` change removes it.  Left in NativeInstall: the
+memo walk `mentions_fvar_{node,go}`, `check_native_rules`, the
+`check_native_rec*` bracket (the Rust returns its `&mut IFEnv` outside the
+`Result`: `LSM` with the environment as the memo, and the push/pop bracket
+through `ifenv_pop_temp_rel`), `check_native_tail_install`.
