@@ -1296,6 +1296,69 @@ theorem has_loose_bvar_b_ins_refines {e : arena.handle.EIdx} {i : Std.U64}
   rw [← ho]
   exact ⟨rfl, ⟨hrel', hinv'⟩⟩
 
+open Lockstep in
+/-- `has_loose_bvar_b_ins` against the twin's `hasLooseBVarBIns` at a related
+walk answer. -/
+@[lockstep] theorem has_loose_bvar_b_ins_ls {e : arena.handle.EIdx} {i : Std.U64}
+    {r : Bool × ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
+    {lm : Std.HashMap (EIdx × Nat) Bool} (hm : WMemoRel r.2 lm) :
+    LSP (arena.inductives.struct_parts.has_loose_bvar_b_ins e i r)
+      (fun o => WOutRel o (hasLooseBVarBIns (absEIdx e) (absU i) (r.1, lm))) :=
+  fun _ h => has_loose_bvar_b_ins_refines hm h
+
+open Lockstep in
+/-- `has_loose_bvar_b_node` at fuel `m`, from `has_loose_bvar_b_go` at fuel `m`
+(the fuel induction's hypothesis). -/
+theorem has_loose_bvar_b_node_of_go {pers : arena.store.PersTier} {m : Nat}
+    (hgo : ∀ {st : arena.monad.AState} {lst : AState}
+      (rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool)
+      (lm : Std.HashMap (EIdx × Nat) Bool) (i fuel : Std.U64) (h : arena.handle.EIdx),
+      fuel.val = m → AStateRel₀ pers st lst → AStateInv pers st → WMemoRel rm lm →
+      LS pers WOutRel
+        (arena.inductives.struct_parts.has_loose_bvar_b_go pers st rm i fuel h) lst
+        (hasLooseBVarBGo lm (absU i) m (absEIdx h))) :
+    ∀ (st : arena.monad.AState) (lst : AState)
+      (rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool)
+      (lm : Std.HashMap (EIdx × Nat) Bool) (i fuel : Std.U64) (v : arena.store.ENodeView),
+      fuel.val = m → AStateRel₀ pers st lst → AStateInv pers st → WMemoRel rm lm →
+      LS pers WOutRel
+        (arena.inductives.struct_parts.has_loose_bvar_b_node pers st rm i fuel v) lst
+        (hasLooseBVarBNodeSpec lm (absU i) m (absENodeView v)) := by
+  intro st lst rm lm i fuel v hf hrel hinv hm
+  rw [arena.inductives.struct_parts.has_loose_bvar_b_node.eq_def]
+  cases v <;> simp only [absENodeView, hasLooseBVarBNodeSpec] <;> lockstep
+
+open Lockstep in
+/-- `has_loose_bvar_b_go` ⊑ `hasLooseBVarBGo`, by induction on the fuel. -/
+theorem has_loose_bvar_b_go_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool)
+      (lm : Std.HashMap (EIdx × Nat) Bool) (i fuel : Std.U64) (h : arena.handle.EIdx),
+      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st → WMemoRel rm lm →
+      LS pers WOutRel
+        (arena.inductives.struct_parts.has_loose_bvar_b_go pers st rm i fuel h) lst
+        (hasLooseBVarBGo lm (absU i) n (absEIdx h)) := by
+  induction n with
+  | zero =>
+    intro pers st lst rm lm i fuel h hn hrel hinv hm
+    have h0 : fuel = 0#u64 := by scalar_tac
+    subst h0
+    rw [arena.inductives.struct_parts.has_loose_bvar_b_go, hasLooseBVarBGo]
+    lockstep
+  | succ m ih =>
+    intro pers st lst rm lm i fuel h hn hrel hinv hm
+    have hnode := has_loose_bvar_b_node_of_go (pers := pers) (m := m) (fun {st lst} => @ih pers st lst)
+    rw [arena.inductives.struct_parts.has_loose_bvar_b_go, hasLooseBVarBGo_unfold]
+    rw [if_neg (by scalar_tac)]
+    lockstep
+    -- the probe: the port's key `eidx_nat_key h i` read back as the twin's
+    -- `(h, i)`, so the probe's answer decides the twin's `memo[(h, i)]?`
+    all_goals
+      have hk := ‹absEIdxNat _ = _›
+      have hp := ‹Lockstep.TwinEq (lm[absEIdxNat _]?) _›
+      simp only [hk, Lockstep.TwinEq, absU] at hp
+      rw [hp]
+      lockstep
 /-- `has_loose_bvar_b_node` ⊑ `hasLooseBVarBGo`'s arm dispatch. -/
 theorem has_loose_bvar_b_node_refines {pers st lst}
     {rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
@@ -1305,8 +1368,9 @@ theorem has_loose_bvar_b_node_refines {pers st lst}
     (hrun : arena.inductives.struct_parts.has_loose_bvar_b_node pers st rm i fuel v
       = ok o) :
     SimRel₀ WOutRel pers lst o
-      (hasLooseBVarBNodeSpec lm (absU i) (absU fuel) (absENodeView v)) := by
-  sorry
+      (hasLooseBVarBNodeSpec lm (absU i) (absU fuel) (absENodeView v)) :=
+  Lockstep.LS.toSimRel₀ (has_loose_bvar_b_node_of_go (m := fuel.val)
+    (fun {st lst} => @has_loose_bvar_b_go_aux _ pers st lst) st lst rm lm i fuel v rfl hrel hinv hm) hrun
 
 open Lockstep in
 @[lockstep] theorem has_loose_bvar_b_node_ls
@@ -1331,8 +1395,8 @@ theorem has_loose_bvar_b_go_refines {pers st lst}
     (hrun : arena.inductives.struct_parts.has_loose_bvar_b_go pers st rm i fuel h
       = ok o) :
     SimRel₀ WOutRel pers lst o
-      (hasLooseBVarBGo lm (absU i) (absU fuel) (absEIdx h)) := by
-  sorry
+      (hasLooseBVarBGo lm (absU i) (absU fuel) (absEIdx h)) :=
+  Lockstep.LS.toSimRel₀ (has_loose_bvar_b_go_aux _ rm lm i fuel h rfl hrel hinv hm) hrun
 
 open Lockstep in
 @[lockstep] theorem has_loose_bvar_b_go_ls

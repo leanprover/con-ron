@@ -765,8 +765,10 @@ statement is `SimRel₀` at the relation below — the answer bit equal and the 
 memos related — which is `ExprOps/Read.lean`'s `WOut`/`LOut` without the
 `Ext`/`StoreWF` those carried. -/
 
-/-- The `(handle, depth)`-keyed memo walk's answer relation. -/
-def WOutRel (r : Bool × ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool)
+/-- The `(handle, depth)`-keyed memo walk's answer relation.  An `abbrev`, so
+the zip splits a related answer (`splitRels`) where a walk's continuation
+matches on it (round 6). -/
+abbrev WOutRel (r : Bool × ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool)
     (v : Bool × Std.HashMap (EIdx × Nat) Bool) : Prop :=
   r.1 = v.1 ∧ ExprOps.WMemoRel r.2 v.2
 
