@@ -1194,7 +1194,19 @@ theorem nested_rule_shape_args_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     Sim₀ (Option.map fun q => (absLIdxL q.1, absEIdxL q.2)) pers lst o
       (nestedRuleShapeArgsSpec lfS (absNIdxL lps) (absU m_i) (absU r_p) (absU cn_p)
         (absEIdx dom) (absLsIdx lvls_idx)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.nested_rule_shape_args, nestedRuleShapeArgsSpec]
+  lockstep_mod
+  -- the two branches the port's conjunction and the twin's disagree on are
+  -- contradicted: the prefix is `take_eidx_n`'s (`take_list_of_arr`), the
+  -- suffix `drop_eidx` at the saturated cast (which cannot saturate: the
+  -- spine is `cn_p + k` long)
+  all_goals
+    exfalso
+    have ht := IndModeledPrims.take_list_of_arr ‹absEIdxArr _ = takeEidx _ _›
+    obtain hd | hd := ‹(_ : Nat) = _ ∨ Usize.max < _›
+    · simp_all [List.map_drop, ConRon.Refine.absNames]
+    · scalar_tac
 
 open Lockstep in
 @[lockstep] theorem nested_rule_shape_args_ls

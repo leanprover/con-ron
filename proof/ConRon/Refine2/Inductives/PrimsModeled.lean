@@ -1035,4 +1035,209 @@ attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims
 
 end RuleBits
 
+/-! ### STAGING: handle-level reads, to move to `Tactic/Prims.lean` -/
+
+namespace Lockstep
+
+theorem read_name_wf {pers st} (hinv : AStateInv pers st) {h : arena.handle.NIdx} {o}
+    (hrun : arena.monad.read_name pers st h = ok o) :
+    ∀ n, o = .Ok n → ConRon.Refine.NameWF n := by
+  rw [arena.monad.read_name] at hrun
+  obtain ⟨ns, hns, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.store.EStore.ns] at hns
+  have hns2 : ns = st.store.lss.ls.ns := (Result.ok_injective hns).symm
+  subst hns2
+  obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hdw := denote_n_wf hinv.store.lss.lvl.ns hv
+  intro n hn
+  cases hvc : v with
+  | none =>
+    rw [hvc] at hrun
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨w, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have ho := fail_run hrun
+    subst ho; cases hn
+  | some x =>
+    rw [hvc] at hrun hdw
+    have ho := Result.ok_injective hrun
+    subst ho
+    injection hn with hn
+    subst hn
+    exact hdw _ rfl
+
+theorem read_names_from_wf {pers st} (hinv : AStateInv pers st)
+    {ks : alloc.vec.Vec arena.handle.NIdx} :
+    ∀ k (i : Std.Usize) (out : alloc.vec.Vec kernel.name.Name),
+      ks.length - i.val ≤ k → ConRon.Refine.NamesWF out → ∀ {o},
+      arena.monad.read_names_from pers st ks i out = ok o →
+      ∀ v, o = .Ok v → ConRon.Refine.NamesWF v := by
+  intro k
+  induction k with
+  | zero =>
+    intro i out hk hout o hrun v hv
+    rw [arena.monad.read_names_from.eq_def] at hrun; simp only [] at hrun
+    rw [if_pos (by scalar_tac)] at hrun
+    have ho := Result.ok_injective hrun
+    subst ho; injection hv with hv; subst hv; exact hout
+  | succ k ih =>
+    intro i out hk hout o hrun v hv
+    rw [arena.monad.read_names_from.eq_def] at hrun; simp only [] at hrun
+    split at hrun
+    · have ho := Result.ok_injective hrun
+      subst ho; injection hv with hv; subst hv; exact hout
+    · obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hw := read_name_wf hinv hr
+      cases r with
+      | Err e =>
+        have ho := Result.ok_injective hrun
+        subst ho; cases hv
+      | Ok x =>
+        obtain ⟨out1, hout1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi2v : i2.val = i.val + 1 := by
+          have := ConRon.Refine.Nat.uadd_val hi2; simpa using this
+        have hout1v : out1.val = out.val ++ [x] := ConRon.Refine.vec_push_val hout1
+        refine ih i2 out1 (by scalar_tac) ?_ hrun v hv
+        intro nn hnn
+        rw [hout1v] at hnn
+        rcases List.mem_append.mp hnn with hnn | hnn
+        · exact hout nn hnn
+        · rw [List.mem_singleton.mp hnn]; exact hw x rfl
+
+theorem read_levels_wf {pers st} (hinv : AStateInv pers st) {h : arena.handle.LsIdx} {o}
+    (hrun : arena.monad.read_levels pers st h = ok o) :
+    ∀ l, o = .Ok l → ConRon.Refine.LevelsWF l := by
+  rw [arena.monad.read_levels] at hrun
+  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.store.EStore.ls_s] at hn
+  have hn2 : n = st.store.lss := (Result.ok_injective hn).symm
+  subst hn2
+  obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hdw := denote_ls_wf hinv.store.lss hv
+  intro l hl
+  cases hvc : v with
+  | none =>
+    rw [hvc] at hrun
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨w, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have ho := fail_run hrun
+    subst ho; cases hl
+  | some x =>
+    rw [hvc] at hrun hdw
+    have ho := Result.ok_injective hrun
+    subst ho
+    injection hl with hl
+    subst hl
+    exact hdw _ rfl
+
+/-- A Rust READ's `LSR` from its `_run₀` (`AOut₀`) statement and a
+well-formedness fact about its answer. -/
+theorem LSR.ofAOut₀WF {α β : Type} {A : α → β} {P : α → Prop} {pers : arena.store.PersTier}
+    {m : Result (core.result.Result α kernel.core_types.CheckError)}
+    {st : arena.monad.AState} {lst : AState} {x : AM β}
+    (h : ∀ o, m = ok o → AOut₀ A pers o st (x.run lst))
+    (hP : ∀ o, m = ok o → ∀ a, o = .Ok a → P a) :
+    LSR pers (fun a b => P a ∧ b = A a) m st lst x := by
+  intro o hm
+  have := h o hm
+  cases o with
+  | Err e => exact this
+  | Ok a =>
+    obtain ⟨lst', hx, h1, h2⟩ := this
+    exact ⟨_, lst', hx, ⟨hP _ hm a rfl, rfl⟩, h1, h2⟩
+
+/-- `arena::monad::read_name` against `Arena.readName` (`read_name_run₀`); the
+answer is well formed. -/
+@[lockstep] theorem read_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.NIdx) :
+    LSR pers (fun a b => ConRon.Refine.NameWF a ∧ b = ConRon.Refine.absName a)
+      (arena.monad.read_name pers st h) st lst (Arena.readName (absNIdx h)) :=
+  LSR.ofAOut₀WF (fun _ hm => read_name_run₀ hrel hinv hm) (fun _ hm => read_name_wf hinv hm)
+
+/-- `arena::monad::read_names` against `Arena.readNames` (`read_names_run₀`);
+the answer is well formed. -/
+@[lockstep] theorem read_names_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ks : alloc.vec.Vec arena.handle.NIdx) :
+    LSR pers (fun a b => ConRon.Refine.NamesWF a ∧ b = ConRon.Refine.absNames a)
+      (arena.monad.read_names pers st ks) st lst (Arena.readNames (ks.val.map absNIdx)) :=
+  LSR.ofAOut₀WF (fun _ hm => read_names_run₀ hrel hinv hm) (fun _ hm => by
+    rw [arena.monad.read_names] at hm
+    exact read_names_from_wf hinv ks.length 0#usize (alloc.vec.Vec.new kernel.name.Name)
+      (by scalar_tac) (by intro n hn; exact absurd hn (by simp [alloc.vec.Vec.new])) hm)
+
+/-- `arena::monad::read_levels` against `Arena.readLevels` (`read_levels_run₀`);
+the answer is well formed. -/
+@[lockstep] theorem read_levels_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.LsIdx) :
+    LSR pers (fun a b => ConRon.Refine.LevelsWF a ∧ b = ConRon.Refine.absLevels a)
+      (arena.monad.read_levels pers st h) st lst (Arena.readLevels (absLsIdx h)) :=
+  LSR.ofAOut₀WF (fun _ hm => read_levels_run₀ hrel hinv hm) (fun _ hm => read_levels_wf hinv hm)
+
+/-- `checker_base::all_params_defined_list` (a pure walk over con-leche
+values) against the twin's `List.all`, at well-formed inputs. -/
+@[lockstep] theorem all_params_defined_list_ls {params : alloc.vec.Vec kernel.name.Name}
+    {ls : alloc.vec.Vec kernel.level.Level} (hp : ConRon.Refine.NamesWF params)
+    (hl : ConRon.Refine.LevelsWF ls) (i : Std.Usize) :
+    LSP (arena.checker_base.all_params_defined_list params ls i)
+      (fun b => b = ((ls.val.drop i.val).map ConRon.Refine.absLevel).all
+        (ConLeche.Level.allParamsDefined (ConRon.Refine.absNames params))) := by
+  suffices ∀ k : Nat, ∀ (i : Std.Usize) (b : Bool), ls.val.length - i.val ≤ k →
+      arena.checker_base.all_params_defined_list params ls i = ok b →
+      b = ((ls.val.drop i.val).map ConRon.Refine.absLevel).all
+        (ConLeche.Level.allParamsDefined (ConRon.Refine.absNames params)) from
+    fun b h => this _ i b le_rfl h
+  intro k
+  induction k with
+  | zero =>
+    intro i b hk h
+    rw [arena.checker_base.all_params_defined_list.eq_def] at h; simp only [] at h
+    rw [if_pos (by scalar_tac), Result.ok.injEq] at h
+    rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]
+    rfl
+  | succ k ih =>
+    intro i b hk h
+    rw [arena.checker_base.all_params_defined_list.eq_def] at h; simp only [] at h
+    by_cases hi : i.val ≥ ls.val.length
+    · rw [if_pos (by scalar_tac), Result.ok.injEq] at h
+      rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]
+      rfl
+    · rw [if_neg (by scalar_tac)] at h
+      have hlt : i.val < ls.val.length := by scalar_tac
+      obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hyv : y = ls.val[i.val] := by
+        have h1 : ls.val[i.val]? = some y := vec_index_some hy
+        rw [List.getElem?_eq_getElem hlt] at h1
+        exact (Option.some.inj h1).symm
+      subst hyv
+      obtain ⟨b0, hb0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hb0' := ConRon.Refine.ExprOps.all_params_defined_refines hp _ (hl _ (List.getElem_mem hlt)) b0 hb0
+      rw [List.drop_eq_getElem_cons hlt, List.map_cons, List.all_cons, ← hb0']
+      cases b0 with
+      | false =>
+        simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+        simp only [Bool.false_and]
+        exact h.symm
+      | true =>
+        simp only [if_true] at h
+        obtain ⟨w, hw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hwv : w.val = i.val + 1 := by
+          have := ConRon.Refine.Nat.uadd_val hw; simpa using this
+        have hrec := ih w b (by scalar_tac) h
+        rw [hwv] at hrec
+        simp only [Bool.true_and]
+        exact hrec
+
+/-- `canon::eidx_vec_beq` from the start: the twin's `==` on the two handle
+lists. -/
+@[lockstep] theorem eidx_vec_beq_ls (a b : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.canon.eidx_vec_beq a b 0#usize)
+      (fun o => o = (a.val.map absEIdx == b.val.map absEIdx)) := by
+  intro o h
+  rw [eidx_vec_beq_refines h]
+  simp [absEIdxLFrom]
+  exact (beq_eq_decide _ _).symm
+
+end Lockstep
+
 end ConRon.Refine2
