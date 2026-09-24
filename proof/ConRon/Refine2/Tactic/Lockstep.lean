@@ -872,6 +872,120 @@ theorem LS.tailRM {α β M : Type} {pers : arena.store.PersTier} {R₁ R : α ×
     LS pers R (packRM st m) lst x :=
   LS.tail hf hx hR
 
+/-! ## A walk whose state is the persistent TIER (task #98-FREEZE)
+
+Promotion runs inside a declaration bracket, where the store is frozen: it
+reads the frozen state `st` and writes the persistent tier through `&mut
+PersTier`, so its Rust shape is `(Result α, PersTier)` with `st` a plain
+argument.  That is `LS`'s shape once the tier is read back as a STATE: `G t`
+(for promotion, `Refine2/Promote/Glue.lean`'s `glue t st` — the frozen state
+with the tier put back and read as its own).  `packT G` does that, and `LST`
+is `LS` of the packed walk, the relation holding at `G t` after every step:
+the promotion keeps its lockstep proofs over a relation whose persistent arm
+is the tier the walk has written so far.  `packMove` pushes `packT` through
+the Rust program as it pushes `packM`; `LS.bindT` steps a tier walk as a
+callee and `LS.tailT` in tail position. -/
+
+/-- A tier walk's outcome, its tier read back as a state by `G`. -/
+def packT {α : Type} (G : arena.store.PersTier → arena.monad.AState)
+    (m : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)) :
+    Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState) :=
+  m >>= fun p => ok (p.1, G p.2)
+
+/-- **The lockstep judgement of a tier walk**: `LS` of the walk with its tier
+read back as a state by `G`. -/
+def LST {α β : Type} (pers : arena.store.PersTier) (R : α → β → Prop)
+    (G : arena.store.PersTier → arena.monad.AState)
+    (m : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier))
+    (lst : AState) (x : AM β) : Prop :=
+  LS pers R (packT G m) lst x
+
+theorem LST.toLS {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {G : arena.store.PersTier → arena.monad.AState}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
+    {lst : AState} {x : AM β} (h : LST pers R G m lst x) : LS pers R (packT G m) lst x := h
+
+/-- What an `LST` says about one outcome, unpacked. -/
+theorem LST.apply {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {G : arena.store.PersTier → arena.monad.AState}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
+    {lst : AState} {x : AM β} (h : LST pers R G m lst x) {o t}
+    (hm : m = ok (o, t)) :
+    LOut pers R o (G t) (x.run lst) :=
+  h o (G t) (by simp only [packT, hm, bind_tc_ok])
+
+theorem LS.packT_bind {γ α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {G : arena.store.PersTier → arena.monad.AState} {f : Result γ}
+    {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
+    {lst : AState} {x : AM β} (h : LS pers R (f >>= fun p => packT G (k p)) lst x) :
+    LS pers R (packT G (f >>= k)) lst x := by
+  unfold packT at h ⊢; rw [Aeneas.Std.bind_assoc_eq]; exact h
+
+theorem LS.packT_ok {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {G : arena.store.PersTier → arena.monad.AState}
+    {o : core.result.Result α kernel.core_types.CheckError} {t : arena.store.PersTier}
+    {lst : AState} {x : AM β} (h : LS pers R (ok (o, G t)) lst x) :
+    LS pers R (packT G (ok (o, t))) lst x := by
+  unfold packT; rw [bind_tc_ok]; exact h
+
+theorem LS.packT_ite {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {G : arena.store.PersTier → arena.monad.AState} {c : Prop} [Decidable c]
+    {a b : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
+    {lst : AState} {x : AM β}
+    (h : LS pers R (if c then packT G a else packT G b) lst x) :
+    LS pers R (packT G (if c then a else b)) lst x := by
+  by_cases hc : c
+  · rw [if_pos hc] at h ⊢; exact h
+  · rw [if_neg hc] at h ⊢; exact h
+
+theorem ErrArm.packT_ok_err {α : Type} {e : kernel.core_types.CheckError}
+    {G : arena.store.PersTier → arena.monad.AState} {t : arena.store.PersTier} :
+    ErrArm (packT G (ok ((.Err e : core.result.Result α _), t))) e := by
+  unfold packT; rw [bind_tc_ok]; exact errArm_ok
+
+theorem ErrArm.packT_bind {γ α : Type} {e : kernel.core_types.CheckError}
+    {G : arena.store.PersTier → arena.monad.AState} {f : Result γ}
+    {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
+    (h : ErrArm (f >>= fun p => packT G (k p)) e) : ErrArm (packT G (f >>= k)) e := by
+  unfold packT at h ⊢; rw [Aeneas.Std.bind_assoc_eq]; exact h
+
+/-- A tier walk as a callee: the relation after it holds at `G` of the tier it
+hands back. -/
+theorem LS.bindT {α γ β δ : Type} {pers : arena.store.PersTier}
+    {R₁ : α → β → Prop} {R : γ → δ → Prop}
+    {G : arena.store.PersTier → arena.monad.AState}
+    {f : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
+    {k : core.result.Result α kernel.core_types.CheckError × arena.store.PersTier →
+      Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x' x : AM β} {g : β → AM δ}
+    (hf : LST pers R₁ G f lst x') (hx : x' = x)
+    (he : ∀ e t1, ErrArm (k (.Err e, t1)) e)
+    (hk : ∀ a t1 b lst1, R₁ a b → AStateRel₀ pers (G t1) lst1 → AStateInv pers (G t1) →
+      LS pers R (k (.Ok a, t1)) lst1 (g b)) :
+    LS pers R (f >>= k) lst (x >>= g) := by
+  subst hx
+  intro o st' hm
+  obtain ⟨⟨r, t1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  have h1 := hf.apply hf1
+  cases r with
+  | Err e =>
+    have := he e t1 o st' hk1
+    subst this
+    exact errSim_bind h1
+  | Ok a =>
+    obtain ⟨b, lst1, hx1, hR, hrel, hinv⟩ := h1
+    rw [run_bind_ok hx1]
+    exact hk a t1 b lst1 hR hrel hinv o st' hk1
+
+/-- A tier walk in tail position of a packed tier walk. -/
+theorem LS.tailT {α β : Type} {pers : arena.store.PersTier} {R₁ R : α → β → Prop}
+    {G : arena.store.PersTier → arena.monad.AState}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
+    {lst : AState} {x' x : AM β}
+    (hf : LST pers R₁ G m lst x') (hx : x' = x) (hR : ∀ a b, R₁ a b → R a b) :
+    LS pers R (packT G m) lst x :=
+  LS.tail hf hx hR
+
 /-! ## Rust-side normalisation of an inlined fragment -/
 
 theorem LS.rust_assoc {γ δ α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
@@ -1949,6 +2063,8 @@ inductive RKind where
   | memo
   /-- a memoised reader walk, `(Result α, M)` -/
   | rmemo
+  /-- a tier walk, `(Result α, PersTier)` (task #98-FREEZE) -/
+  | tier
 
 def classify (T : Expr) : MetaM RKind := do
   let T ← whnfR T
@@ -1959,6 +2075,8 @@ def classify (T : Expr) : MetaM RKind := do
         return .memo
     if rest.isConstOf ``arena.monad.AState || rest.isConstOf ``arena.store.EStore then
       return .state
+    if rest.isConstOf ``arena.store.PersTier then
+      return .tier
     return .rmemo
   if T.isAppOfArity ``core.result.Result 2 then return .read
   if T.isConstOf ``arena.monad.AState then return .write
@@ -1981,6 +2099,14 @@ partial def errArmChain (g : MVarId) (depth : Nat := 0) : TacticM Unit := g.with
       pure (mkAppN m.getAppFn (m.getAppArgs.set! 4 (← headNorm (m.getArg! 4) (eta := true))))
     else pure m
   let g ← g.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
+  -- a packed tier walk's error arm
+  if m.isAppOfArity ``packT 3 then
+    let t := m.appArg!
+    if t.isAppOfArity ``Result.ok 2 then
+      return ← runClosed g (evalT `(tactic| exact ErrArm.packT_ok_err))
+    if depth < 16 && t.isAppOfArity ``Bind.bind 6 then
+      let gs ← applyRule g ``ErrArm.packT_bind
+      return ← errArmChain (← pick gs `h) (depth + 1)
   -- a packed memo walk's error arm
   if m.isAppOfArity ``packM 3 || m.isAppOfArity ``packRM 4 then
     let isM := m.isAppOfArity ``packM 3
@@ -2137,11 +2263,17 @@ partial def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.with
         specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
         errArm (← pick gs `he) [`e, `mm]
         return ← cont (← pick gs `hk) [`a, `mm, `b, `lst1, `hR, `hrel, `hinv] (some `hR)
+      | .tier =>
+        let gs ← applyRule g ``LS.bindT
+        let hx ← pick gs `hx
+        specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
+        errArm (← pick gs `he) [`e, `t1]
+        return ← cont (← pick gs `hk) [`a, `t1, `b, `lst1, `hR, `hrel, `hinv] (some `hR)
     catch e =>
       s.restore
       firstErr.set (some e)
       match kind with
-      | .state | .write | .memo | .rmemo =>
+      | .state | .write | .memo | .rmemo | .tier =>
         -- the twin ends in the partner action where the Rust still binds.
         -- Atomic: the bind is taken on the rewritten goal at once, or the
         -- rewrite is undone — a bare `x >>= pure` goal would be normalised back
@@ -2535,6 +2667,43 @@ def applyWith (g : MVarId) (rule : Name) (side : List Name) (next : Name)
     runClosed (← pick gs s) (evalT `(tactic| (intros; rfl)))
   pick gs next
 
+/-- One Rust-side move of a packed tier walk `packT G t` (task #98-FREEZE). -/
+def packTMove (g : MVarId) (m : Expr) : TacticM (List MVarId) := g.withContext do
+  let t ← headNorm m.appArg! (eta := true)
+  if t.isAppOfArity ``Bind.bind 6 then
+    let gs ← applyRule g ``LS.packT_bind
+    return ← normAll [← pick gs `h]
+  if t.isAppOfArity ``ite 5 then
+    let gs ← applyRule g ``LS.packT_ite
+    return ← normAll [← pick gs `h]
+  if t.isAppOfArity ``Result.ok 2 then
+    let v ← instantiateMVars t.appArg!
+    if v.isAppOfArity ``Prod.mk 4 then
+      let r := (v.getArg! 2).headBeta
+      if r.isAppOf ``core.result.Result.Ok || r.isAppOf ``core.result.Result.Err then
+        let gs ← applyRule g ``LS.packT_ok
+        return ← normAll [← pick gs `h]
+      if let .fvar fv := r then
+        let subs ← g.cases fv
+        return ← normAll (subs.toList.map (·.mvarId))
+    throwError "lockstep: a packed Rust leaf with no constructor to read{indentExpr t}"
+  if t.isAppOfArity ``Aeneas.Std.uncurry 5 then
+    if let .fvar fv := t.appArg! then
+      let subs ← g.cases fv
+      return ← normAll (subs.toList.map (·.mvarId))
+  if let some mapp ← matchMatcherApp? t then
+    if let some (.fvar fv) := mapp.discrs.find? (·.isFVar) then
+      let subs ← g.cases fv
+      return ← normAll (subs.toList.map (·.mvarId))
+    throwError "lockstep: a packed Rust `match` on a term{indentExpr t}"
+  -- a tier walk in tail position
+  let gs ← applyRule g ``LS.tailT
+  let hx ← pick gs `hx
+  specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
+  runClosed (← pick gs `hR)
+    (evalT `(tactic| (intro _ _ h; first | exact h | (subst h; rfl) | lockstep_side)))
+  return []
+
 /-- One Rust-side move of a packed memo walk `packM t` / `packRM st t`. -/
 def packMove (g : MVarId) (m : Expr) : TacticM (List MVarId) := g.withContext do
   let isM := m.isAppOfArity ``packM 3
@@ -2585,6 +2754,8 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
   -- a packed memo walk (an unfolded `LSM`/`LSRM`): push the packing through
   if isLS && (m.isAppOfArity ``packM 3 || m.isAppOfArity ``packRM 4) then
     return some (← packMove g m)
+  if isLS && m.isAppOfArity ``packT 3 then
+    return some (← packTMove g m)
   -- a tail call to a fragment
   if let some n := m.getAppFn.constName? then
     if ← isInline n then
@@ -2757,7 +2928,7 @@ elab "lockstep_step" : tactic => strict do
     let g ← if ty.consumeMData != ty then g.replaceTargetDefEq ty.consumeMData else pure g
     -- a memoised walk's judgement is `LS` of the packed walk
     let ty := ty.consumeMData
-    if ty.isAppOfArity ``LSM 8 || ty.isAppOfArity ``LSRM 9 then
+    if ty.isAppOfArity ``LSM 8 || ty.isAppOfArity ``LSRM 9 || ty.isAppOfArity ``LST 8 then
       match ← unfoldDefinition? ty with
       | some ty' => g.replaceTargetDefEq ty'
       | none => pure g
