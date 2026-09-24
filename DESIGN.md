@@ -63960,3 +63960,15 @@ two entry lemmas are proved by hand from the unchanged walk lemmas
 (reader); `Inductives/Prims.lean`'s re-export follows, and every caller's
 `lockstep` proof went through unchanged.  `memos_empty` (`Checker/Init`)
 and `memos_reset` (`Core/Bracket`) carry the two new `Inv` clauses.
+
+`Tactic/Tests.lean`'s `consts_resolve_f_fast` example (the entry by one
+`lockstep`) is retired with a note: the entry now updates the state around
+its callee, and its lemma is proved by hand.  Every caller's `lockstep` proof
+went through unchanged under task #97-T2-TACTIC round 3's strict tactic.
+The Init numbers above were measured on `c6e5f220`, before task
+#97-PERF-BULKFILL landed; the branch was then merged with it and
+re-extracted.  `scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`: 0 items, dead weight 0; both roots at
+`[propext, Classical.choice, Quot.sound]` (`Capstone.lean`'s
+`#guard_msgs`); no `sorry` added.  Scratch (`_tmp/walkmemo/`: the six
+binaries and their logs) deleted after this section.
