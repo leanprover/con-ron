@@ -1710,7 +1710,6 @@ theorem stdAxiomOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
   unfold Arena.stdAxiomOk
   obtain ⟨hst0, hp0, hie0, -⟩ := tr (Frontend.IStepS.refl hst)
   refine RunsB.pin hst hp0 (x := ConLeche.propextName) (by rfl) fun pn dpn => ?_
-  refine RunsB.pin hst hp0 (x := ConLeche.choiceName) (by rfl) fun cn dcn => ?_
   refine RunsB.ite (beq_handle_iff hst.wf hnm dpn) (fun _ => ?_) (fun _ => ?_)
   · -- `propext`, over the pinned `Eq` basis and the `Iff` family
     refine RunsB.pin hst hp0 (x := ConLeche.eqName) (by rfl) fun en den => ?_
@@ -1738,7 +1737,8 @@ theorem stdAxiomOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     obtain ⟨st7, -, -, hcv7⟩ := tr (((hs1.trans hs3).trans hs5).trans hs7)
     refine RunsB.guard st7 (by simp) fun _ => ?_
     exact RunsB.pinCVLast st7 hcv7
-  · refine RunsB.ite (beq_handle_iff hst.wf hnm dcn) (fun _ => ?_)
+  · refine RunsB.pin hst hp0 (x := ConLeche.choiceName) (by rfl) fun cn dcn => ?_
+    refine RunsB.ite (beq_handle_iff hst.wf hnm dcn) (fun _ => ?_)
       (fun _ => RunsB.ret hst)
     -- `Classical.choice`, over the `Nonempty` family
     refine RunsB.pin hst hp0 (x := ConLeche.nonemptyName) (by rfl) fun n2 d2 => ?_
