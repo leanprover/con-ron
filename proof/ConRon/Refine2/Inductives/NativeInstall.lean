@@ -471,7 +471,21 @@ theorem later_mentions_refines {pers st lst} {q : Std.U64}
       = ok o) :
     Sim₀ id pers lst o
       (laterMentionsSpec (absU q) (absEIdxLFrom x_fvs i)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  revert st lst hrel hinv hrun
+  simp only [absEIdxLFrom]
+  intro st lst hrel hinv _
+  refine ls_cursor x_fvs absEIdx (laterMentionsSpec (absU q))
+    (fun st i => arena.inductives.native_install.later_mentions pers st q x_fvs i)
+    ?_ ?_ i st lst hrel hinv
+  · intro st lst i hn hrel hinv
+    rw [arena.inductives.native_install.later_mentions.eq_def, laterMentionsSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst i hb hrel hinv ih
+    rw [arena.inductives.native_install.later_mentions.eq_def, laterMentionsSpec]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem later_mentions_ls
