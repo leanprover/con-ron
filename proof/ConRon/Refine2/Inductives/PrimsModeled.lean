@@ -347,12 +347,6 @@ end Lockstep.CapsWFM
 namespace IndModeledPrims
 open Lockstep
 
-/-- `arena::core::nidx_vec_beq` is `==` on the abstracted name lists
-(`Inductives/Shape.lean`'s `nidx_vec_beq_abs`). -/
-@[lockstep] theorem nidx_vec_beq_spec (a b : alloc.vec.Vec arena.handle.NIdx) :
-    LSP (arena.core.nidx_vec_beq a b) (fun o => o = (absNIdxL a == absNIdxL b)) :=
-  fun _ h => nidx_vec_beq_abs h
-
 /-- `arena::env::i_rec_rules_dup` is the identity on the abstraction. -/
 @[lockstep] theorem i_rec_rules_dup_spec (rs : alloc.vec.Vec arena.env.IRecRule) :
     LSP (arena.env.i_rec_rules_dup rs)
@@ -1189,6 +1183,27 @@ attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims
     simp_all [absIRecRule, absIRecRuleFire]
 
 end RuleBits
+
+/-! ### `prop_when::if_all_zero` of the empty list, with its well-formedness
+
+`ind_block_caps` records `pi_result_z`'s answer as the inductive's `sort_z`,
+which `IFEnvRel.envWF` wants canonical (`PropWhenWF`).  Its proof zips
+`pi_result_z` in place (`lockstep_inline`): the `sort` arm's answer is
+`zeroness_of_ls`'s (with its WF), the other arm's is this pair's.  Filed in its
+own namespace so the one proof that opens it gets it before
+`Inductives/Prims.lean`'s value-only `if_all_zero_new_twin`. -/
+
+namespace Lockstep.IndModWF
+
+@[lockstep] theorem if_all_zero_new_wf_twin :
+    LSP (kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name))
+      (fun pw => TwinEq (ConLeche.PropWhen.ifAllZero []) (ConRon.Refine.absPropWhen pw) ∧
+        ConRon.Refine.PropWhenWF pw) :=
+  fun pw h => ⟨ConRon.Refine2.if_all_zero_new_twin pw h,
+    ConRon.Refine.PropWhen.if_all_zero_wf (by intro n hn; simp [alloc.vec.Vec.new] at hn) h⟩
+
+end Lockstep.IndModWF
+
 
 /-! ### Two pure comparisons the modeled route makes: `all_params_defined_list`
 (a Checker-tier walk over con-leche values) and `canon::eidx_vec_beq` -/

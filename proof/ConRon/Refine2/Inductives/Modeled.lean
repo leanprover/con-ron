@@ -3597,6 +3597,10 @@ open Lockstep in
         (absU i)) :=
   LS.ofSimRel₀ fun _ h => install_proj_fns_refines hrel hinv hfe h
 
+-- `pi_result_z` zipped in place, so `zeroness_of_ls` gives the record's
+-- `sort_z` its `PropWhenWF`
+attribute [local lockstep_inline] arena.core.pi_result_z in
+open Lockstep.IndModWF in
 /-- `ind_block_caps` ⊑ `indBlockCaps` — the capabilities recorded for a
 single-constructor modeled block.  **`checkEtaThm` runs whatever the
 level-parameter test says**: Lean lifts the `(← …)` out of the `&&`, so a
@@ -3617,8 +3621,8 @@ theorem ind_block_caps_refines {pers st lst} {vis : Std.U64}
     SimRel₀ (fun a b => b = absIIndCaps a ∧ ConRon.Refine.PropWhenWF a.sort_z) pers lst o
       (indBlockCaps (ConRon.Refine.absMode mode) lf (absIConstantVal cv_t)
         (absIConstantVal cv_c) (absU n_p) (absU n_f)) := by
-  refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.inductives.modeled.ind_block_caps, indBlockCaps]
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.modeled.ind_block_caps, indBlockCaps, piResultZ]
   lockstep
   -- the record: the port's `lps_eq && thm` split by its own test
   all_goals
