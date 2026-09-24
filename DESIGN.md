@@ -63789,3 +63789,23 @@ counts are stable):
 binaries, with no ordering between them — the fill does not change what is
 allocated, only how it is written, so no change was expected and none is
 visible above that noise.  `cycles:u` is not reported (shared machine).
+
+**Ruling round (coordinator): `resize_with` instead?**  Asked to replace the
+filler-only `Clone` with `slots.resize_with(len, || Slot::Vacant)` if that
+extracts.  It does not without a new hole: Aeneas's library models
+`Vec::resize` but not `Vec::resize_with` (nor any `FnMut`-taking `Vec`
+method), and `scripts/extract.sh --check` on that body fails with
+`FunsExternal.lean does not model the external
+"alloc::vec::{alloc::vec::Vec<@T>}::resize_with"`.  (It would also be the
+first closure in the core; the lint's closure pattern does not see `||`.)  So
+the `Clone` version stays, with a guard against it being used as a copy:
+`scripts/lint-rust-style.sh`'s new `check_slot_clone`.  `Slot` values exist only
+inside `ron/hashmap2.rs` (`HashMap2::slots` is private, no `pub fn` returns a
+slot; `Slot` is `pub` only for `examples/map_bench.rs`'s `size_of`), so the
+check fails (1) any other core file that names `Slot`, and (2) any
+`.clone()`, `Clone::clone`, `.resize(`, `extend_from_slice`, `to_vec` or
+`vec![` in `hashmap2.rs` other than `allocate_slots`' own
+`slots.resize(len, Slot::Vacant);`.  Tested both ways: a `s.clone()` and a
+`to_vec()` on slots inside `hashmap2.rs`, and a `use …::hashmap2::Slot` in
+`hashmap.rs`, each fail it.  The impl's doc comment names the check (same line
+count, so the model is unchanged: `extract --check` OK).

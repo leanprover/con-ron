@@ -285,7 +285,7 @@ where
 /// `Vacant` for every slot, a `Live` one included, because a `Live` slot's key
 /// and value have no generic copy (`dup_slot` is the real copy, and needs
 /// `Dup`).  So it is not a copy of a `Live` slot, and nothing but
-/// `allocate_slots` may call it.  No `#[derive]` (DESIGN.md §3.4).
+/// `allocate_slots` may call it (`scripts/lint-rust-style.sh` enforces that).
 impl<K, V> core::clone::Clone for Slot<K, V> {
     /// con-leche: none — arena infrastructure (task #97-PERF-BULKFILL)
     fn clone(&self) -> Slot<K, V> {
