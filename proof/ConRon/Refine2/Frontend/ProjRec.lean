@@ -2230,30 +2230,6 @@ theorem absProjTypeRecLFrom_cons (v : alloc.vec.Vec (arena.handle.NIdx × (alloc
       (v.val.drop (i.val + 1)).map absProjTypeRec := by
   simp only [absProjTypeRecLFrom]; rw [List.drop_eq_getElem_cons hi]; rfl
 
-/- **`lockstep_nosplit`** (task #97-T2-LOCKSTEP lane Frontend round 3, at the
-`arena` merge).  The tactic's round-2 fallbacks split a twin test (an `if`, a
-`match` on a term) that nothing decides and walk both arms; this census proof
-decides those tests itself, after the zip stops at them.  So a step whose
-result is two or more goals with the port's program UNCHANGED (the fallback
-split, never a port step) is refused, and the zip stops there as it did before
-the fallbacks.  Built on `lockstep_step`, not a change to it. -/
-open Lean Elab Tactic Meta in
-elab "lockstep_step_nosplit" : tactic => do
-  let g ← getMainGoal
-  let ty ← instantiateMVars (← g.getType)
-  unless ty.isAppOf ``ConRon.Refine2.Lockstep.LS do
-    evalTactic (← `(tactic| lockstep_step)); return
-  let m := ty.getArg! 4
-  let before ← getGoals
-  evalTactic (← `(tactic| lockstep_step))
-  let after ← getGoals
-  let new := after.filter (fun g' => !before.contains g')
-  if new.length ≥ 2 then
-    let same ← new.allM fun g' => do
-      let t ← instantiateMVars (← g'.getType)
-      return t.isAppOf ``ConRon.Refine2.Lockstep.LS && t.getArg! 4 == m
-    if same then throwError "lockstep_step_nosplit: a twin-side fallback split"
-
 /- **`ls_subst_bne`**: a port test `x != c` it failed (`¬(x != c) = true`, `x` a
 local) is `x = c`; substituted, the twin's tests on `x` fold (the tag
 correspondences are `lockstep_simp`).  Found by its shape, not `‹…›`, whose
@@ -2292,21 +2268,6 @@ elab "ls_view_sort" : tactic => withMainContext do
     return
   throwError "ls_view_sort: no sort tag fact"
 
-/- **`ls_clear_ih_candidates`**: once the port's program no longer calls
-`proj_rec_candidates_from`, the
-induction hypothesis `ih` is spent; it is cleared, because the side tiers'
-`simp only [lockstep_simp, *]` would otherwise try it (a ∀-conditional
-rewrite) at every later step — that search does not terminate here.  Fails
-(so the zip moves on) while `f` is still called or `ih` is gone. -/
-open Lean Elab Tactic Meta in
-elab "ls_clear_ih_candidates" : tactic => withMainContext do
-  let g ← getMainGoal
-  let ty ← instantiateMVars (← g.getType)
-  let some d := (← getLCtx).findFromUserName? `ih | throwError "no ih"
-  let fn := ``frontend.proj_rec.proj_rec_candidates_from
-  if (ty.find? fun e => e.isConstOf fn).isSome then throwError "still called"
-  replaceMainGoal [← g.clear d.fvarId]
-
 /- **`ls_ctor_record`**: the twin's `findCtorRec` answer, cased on by the zip
 (`(some j).bind (fun j => (absProjCtorRecL ctors)[j]?) = some v`), is the
 port's `ctors[j]`: substituted, and that record split into its fields. -/
@@ -2342,9 +2303,6 @@ elab "ls_ctor_record" : tactic => withMainContext do
     return
   throwError "ls_ctor_record: none"
 
-/-- `lockstep` without the twin-side fallback splits (see above). -/
-macro "lockstep_nosplit" : tactic => `(tactic| repeat' lockstep_step_nosplit)
-
 -- the zip's many small steps over the census's four branches exceed the default budget
 set_option maxHeartbeats 1000000 in
 open ConRon.Refine2.Lockstep in
@@ -2366,7 +2324,7 @@ theorem proj_rec_candidates_from_aux (fuel : Nat) (N : Nat) :
     intro pers st lst ctors recs types i hn hrel hinv
     rw [frontend.proj_rec.proj_rec_candidates_from, absProjTypeRecLFrom_nil types i (by omega),
       projRecCandidates, if_pos (by scalar_tac)]
-    lockstep_nosplit
+    lockstep
   | succ k ih =>
     intro pers st lst ctors recs types i hn hrel hinv
     have hi : i.val < types.val.length := by omega
@@ -2386,12 +2344,12 @@ theorem proj_rec_candidates_from_aux (fuel : Nat) (N : Nat) :
       have hidxL : Lockstep.LSP (alloc.vec.Vec.index
           (core.slice.index.SliceIndexUsizeSlice arena.handle.NIdx) cs 0#usize)
           (fun x => x = c0) := fun x hx => by rw [hidx0] at hx; exact (Result.ok_injective hx).symm
-      -- The zip, with this proof's own moves (see `lockstep_nosplit` above): the
-      -- spent `ih` cleared, a failed `!=` test substituted, the sort view.  It
+      -- The zip, with this proof's own moves: a failed `!=` test substituted,
+      -- the sort view.  It
       -- stops at the port's reads of the records `find_rec_rec` / `find_ctor_rec`
       -- located (`recs[j1]`, `ctors[jc]`), which the twin cased on: each is
       -- substituted and split into its fields, and the zip goes on.
-      repeat' (first | ls_clear_ih_candidates | ls_subst_bne | ls_view_sort | lockstep_step_nosplit)
+      repeat' (first | ls_subst_bne | ls_view_sort | lockstep_step)
       all_goals
         rename_i j1 _ _ w _ hd
         simp only [Option.bind_some, absProjRecRecL, List.getElem?_map,
@@ -2400,16 +2358,16 @@ theorem proj_rec_candidates_from_aux (fuel : Nat) (N : Nat) :
         generalize recs.val[j1.val]'w = rr
         rcases rr with ⟨n3, v4, e, i1, i2⟩
         dsimp only [absProjRecRec]
-        repeat' (first | ls_subst_bne | lockstep_step_nosplit)
+        repeat' (first | ls_subst_bne | lockstep_step)
       all_goals
         ls_ctor_record
-        repeat' (first | ls_subst_bne | lockstep_step_nosplit)
-    · lockstep_nosplit
+        repeat' (first | ls_subst_bne | lockstep_step)
+    · lockstep
       all_goals
         split
         · rename_i heq
           exact absurd (by simpa using congrArg List.length heq) hl
-        · lockstep_nosplit
+        · lockstep
 
 open ConRon.Refine2.Lockstep in
 @[lockstep] theorem proj_rec_candidates_ls {pers st lst} (hrel : AStateRel₀ pers st lst)

@@ -84,9 +84,12 @@ open ConRon.Arena
 `KnotRel` at every fuel — so the hypothesis the sixty-two statements of this
 tier USED to carry is discharged here, once.  **Task #97-P5-Checker-2 deleted
 all sixty-two binders**: a redundant hypothesis is not a seam, and a proof
-that needs the knot takes this theorem by name.  `#print axioms` on it reports
-the `sorryAx` that `bodyRel_of_knot` still stands on. -/
+that needs the knot takes this theorem by name.  `sorry`-free since task
+#97-P5-Core round 6 (the guard below keeps it so). -/
 theorem knotRel_checkFuel' : KnotRel Arena.checkFuel := knotRel _
+
+/-- info: 'ConRon.Refine2.knotRel_checkFuel'' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms knotRel_checkFuel'
 
 /-! ## `CoreCtx`, from the checker tier's own three facts
 

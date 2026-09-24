@@ -322,6 +322,15 @@ theorem substPW_cutoff {ks : List ConLeche.Name} {vs : List Level}
     Level.substPW ks vs pw = pw :=
   Level.substPW_eq_self (by simpa using h)
 
+/-- con-leche: none — the `else` arm of a tag-first twin (task #97-P5-Core
+round 6): a denoting handle whose tag is not `t` views to a node that is not a
+`t` node. -/
+theorem view_not_of_tagB {st : EStore} {h : EIdx} {e : Expr}
+    (he : denoteE st h = some e) {t : UInt32} (ht : ¬ (h.tag == t) = true) :
+    ∃ v, st.view h = some v ∧ v.tagOf ≠ t := by
+  obtain ⟨v, hv⟩ := denoteE_view he
+  exact ⟨v, hv, view_tagOf_ne hv ht⟩
+
 /-! ## 2. The three view-only readers -/
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:44-56 Expr.peelNeverPis —
@@ -345,30 +354,37 @@ theorem peelNeverPis_spec' (k : Nat) : ∀ (s₀ : AState) (h : EIdx),
     obtain ⟨x₀, hx₀⟩ := hpre
     mvcgen [ConRon.Arena.peelNeverPis, ih]
     all_goals (bridge_peel; subst_vars)
-    all_goals clear_tag_hyps
-    case vc2 => intro s hs _; subst hs; exact hok
-    case vc3 =>
-      intro s hs hview; subst hs
-      obtain ⟨_, eb, _, _, hb⟩ := denote_forallE_inv hok.state.wf hview hx₀
-      exact ⟨eb, hb⟩
-    case vc1 =>
-      rename_i ty b m hnev s0 r s1 hview
+    -- tag first, then the binder projection (task #97-P5-Core round 6)
+    next => intro hf; exact hf.elim
+    next =>
+      rename_i htg ty b m hnev s0 r s1 hv
       intro hs hr; subst hs
       refine ⟨rfl, fun x hx => ?_⟩
+      have hview := view_of_viewBind_tag_forallE htg hv.symm
       obtain ⟨et, eb, rfl, _, hb⟩ := denote_forallE_inv hok.state.wf hview hx
       rw [hr eb hb]
       simp only [Expr.peelNeverPis, hnev, if_true]
-    case vc4 =>
-      rename_i ty b m hnev s0 hview
+    next => intro s hs _; subst hs; exact hok
+    next =>
+      rename_i htg s0 ty b m hnev
+      intro s hs hv; subst hs
+      have hview := view_of_viewBind_tag_forallE htg hv.symm
+      obtain ⟨_, eb, _, _, hb⟩ := denote_forallE_inv hok.state.wf hview hx₀
+      exact ⟨eb, hb⟩
+    next =>
+      rename_i htg ty b m hnev s0 hv
       refine ⟨rfl, fun x hx => ?_⟩
+      have hview := view_of_viewBind_tag_forallE htg hv.symm
       obtain ⟨et, eb, rfl, _, hb⟩ := denote_forallE_inv hok.state.wf hview hx
       simp [denoteEO, Expr.peelNeverPis, hnev]
-    case vc5 =>
-      rename_i v hnf s0 hview
+    next =>
+      rename_i hnt s0
       refine ⟨rfl, fun x hx => ?_⟩
-      have hne := denote_not_forallE hok.state.wf hview hx hnf
+      obtain ⟨v, hview, hne⟩ := view_not_of_tagB hx hnt
+      have hnf := denote_not_forallE hok.state.wf hview hx
+        (fun ty b m hh => hne (by rw [hh]; rfl))
       simp only [denoteEO]
-      cases x <;> first | rfl | exact absurd rfl (hne _ _ _)
+      cases x <;> first | rfl | exact absurd rfl (hnf _ _ _)
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:44-56 Expr.peelNeverPis —
 **THEOREM 1 for `peelNeverPis`**, published shape. -/
@@ -404,22 +420,27 @@ theorem numArgs_spec' (fuel : Nat) : ∀ (s₀ : AState) (h : EIdx),
     obtain ⟨x₀, hx₀⟩ := hpre
     mvcgen [ConRon.Arena.numArgs, ih]
     all_goals (bridge_peel; subst_vars)
-    all_goals clear_tag_hyps
-    case vc1.a => exact hok
-    case vc2.a =>
-      rename_i f a s0 hview
-      obtain ⟨ef, _, _, hf, _⟩ := denote_app_inv hok.state.wf hview hx₀
+    -- tag first, then the `app` projection (task #97-P5-Core round 6)
+    next => intro hf; exact hf.elim
+    next => exact hok
+    next =>
+      rename_i htg f a s0 hv
+      obtain ⟨ef, _, _, hf, _⟩ := denote_app_inv hok.state.wf
+        (view_of_viewApp_tag htg hv.symm) hx₀
       exact ⟨ef, hf⟩
-    case vc3 =>
-      rename_i f a r s0 hr hview
+    next =>
+      rename_i htg f a r s0 hr hv
       refine ⟨rfl, fun x hx => ?_⟩
-      obtain ⟨ef, ea, rfl, hf, _⟩ := denote_app_inv hok.state.wf hview hx
+      obtain ⟨ef, ea, rfl, hf, _⟩ := denote_app_inv hok.state.wf
+        (view_of_viewApp_tag htg hv.symm) hx
       rw [hr ef hf]; rfl
-    case vc4 =>
-      rename_i v hna s0 hview
+    next =>
+      rename_i hnt s0
       refine ⟨rfl, fun x hx => ?_⟩
-      have hne := denote_not_app' hok.state.wf hview hx hna
-      cases x <;> first | rfl | exact absurd rfl (hne _ _)
+      obtain ⟨v, hview, hne⟩ := view_not_of_tagB hx hnt
+      have hna := denote_not_app' hok.state.wf hview hx
+        (fun f a hh => hne (by rw [hh]; rfl))
+      cases x <;> first | rfl | exact absurd rfl (hna _ _)
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:65-71 residualPW — **THEOREM 1
 for `residualPW`**, in answer shape (the residual is `peelNeverPis`'s
@@ -432,20 +453,24 @@ theorem residualPW_spec' (s₀ : AState) (r : Option EIdx)
         pw = ConLeche.residualPW ox⌝⦄ := by
   mvcgen [ConRon.Arena.residualPW]
   all_goals (bridge_peel; subst_vars)
-  all_goals clear_tag_hyps
-  case vc1 =>
-    rename_i h u l s0 hl hview
+  -- tag first, then the `sort` projection (task #97-P5-Core round 6)
+  next => intro hf; exact hf.elim
+  next =>
+    rename_i h htg u l s0 hl hv
     refine ⟨rfl, fun ox hox => ?_⟩
     obtain ⟨x, rfl, hx⟩ := denoteEO_some_inv hox
-    obtain ⟨l', rfl, hl'⟩ := denote_sort_inv hok.state.wf hview hx
+    obtain ⟨l', rfl, hl'⟩ := denote_sort_inv hok.state.wf
+      (view_of_viewSort_tag htg hv.symm) hx
     rw [hl] at hl'; cases hl'; rfl
-  case vc2 =>
-    rename_i h v hns s0 hview
+  next =>
+    rename_i h hnt s0
     refine ⟨rfl, fun ox hox => ?_⟩
     obtain ⟨x, rfl, hx⟩ := denoteEO_some_inv hox
-    have hne := denote_not_sort hok.state.wf hview hx hns
-    cases x <;> first | rfl | exact absurd rfl (hne _)
-  case vc3 =>
+    obtain ⟨v, hview, hne⟩ := view_not_of_tagB hx hnt
+    have hns := denote_not_sort hok.state.wf hview hx
+      (fun u hh => hne (by rw [hh]; rfl))
+    cases x <;> first | rfl | exact absurd rfl (hns _)
+  next =>
     refine ⟨rfl, fun ox hox => ?_⟩
     rw [denoteEO_none_inv hox]; rfl
 
@@ -855,24 +880,28 @@ theorem proofPW_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
     headProofPW_spec' (mode := mode) (env := env) (fe := fe) fuel s e
   mvcgen [ConRon.Arena.proofPW, hfn, hhp]
   all_goals (bridge_peel; subst_vars)
-  all_goals clear_tag_hyps
-  case vc2.a => exact hok.state
-  case vc3.a => rw [hx₀]; rfl
-  case vc5 => intro s hs _; subst hs; exact hok
-  case vc6 =>
-    intro s hs hrel; subst hs
-    exact ⟨_, hrel x₀ hx₀⟩
-  case vc1 =>
-    rename_i ty b m s0 hview
+  -- tag first, then the binder projection (task #97-P5-Core round 6)
+  next => intro hf; exact hf.elim
+  next =>
+    rename_i htg ty b m s0 hv
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
-    obtain ⟨_, _, rfl, _, _⟩ := denote_lam_inv hok.state.wf hview hx
+    obtain ⟨_, _, rfl, _, _⟩ := denote_lam_inv hok.state.wf
+      (view_of_viewBind_tag_lam htg hv.symm) hx
     rfl
-  case vc4 =>
-    rename_i v hnl fn s1 r s0 hfn' hview
+  next => exact hok.state
+  next => rw [hx₀]; rfl
+  next =>
+    rename_i hnt fn s1 r s0 hfn'
     intro hck hst hp hr
     refine ⟨hck, hst, hp, fun x hx => ?_⟩
-    rw [proofPW_other (denote_not_lam hok.state.wf hview hx hnl),
-      hr _ (hfn' x hx)]
+    obtain ⟨v, hview, hne⟩ := view_not_of_tagB hx hnt
+    have hnl := denote_not_lam hok.state.wf hview hx
+      (fun ty b m hh => hne (by rw [hh]; rfl))
+    rw [proofPW_other hnl, hr _ (hfn' x hx)]
+  next => intro s hs _; subst hs; exact hok
+  next =>
+    intro s hs hrel; subst hs
+    exact ⟨_, hrel x₀ hx₀⟩
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:124-134 proofPW — published
 shape. -/
