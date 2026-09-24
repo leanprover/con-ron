@@ -834,6 +834,10 @@ macro_rules
       | (simp_all [absNIdxL, absCtors3L, absCtors3LFrom, absCtorsL, absCtorsLFrom,
           absIConstantVal, absICIL, absICILFrom, absEIdxL, absEIdxLFrom, NNodeViewWF]; done)
       | (simp_all [absStructParts, absInductiveShape, absNativeParts, absIRecRule]; done)
+      -- a Rust-computed Bool against the twin's conjunction whose other
+      -- conjuncts the port tested before (a length the context pins)
+      | (simp only [ExprOps.absEIdxL, absEIdxL, List.length_map, alloc.vec.Vec.len] at *
+         simp_all; done)
       -- a memo walk's answer bit, read off its `WOutRel`/`LOutRel`
       | (simp only [WOutRel, LOutRel] at *; simp_all; done)
       -- a `usize` cast of a `u64` the port bounded before (a length, a count):

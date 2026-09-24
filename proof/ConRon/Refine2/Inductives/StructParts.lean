@@ -538,7 +538,10 @@ theorem struct_ctor_resid_ok_refines {pers st lst} {t : arena.handle.NIdx}
     Sim₀ id pers lst o
       (structCtorResidOk (absNIdx t) (absNIdxL lps) (absU n_p) (absU ofs)
         (absU n_idx) (absEIdx cbody)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_ctor_resid_ok, structCtorResidOk]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_ctor_resid_ok_ls

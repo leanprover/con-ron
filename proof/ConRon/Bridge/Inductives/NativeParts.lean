@@ -208,9 +208,12 @@ theorem recPositivity_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
         obtain ⟨ps, s7, k7, z7⟩ := bindOk z6
         obtain ⟨p7, hps⟩ := structPsAt_spec (o + k) nP s4 s7 ps q4.ok trivial k7
         have e2 : args.length = hP.getAppArgs.length := (denoteEList_len hargs).symm
+        have hlen : ps.length = nP := by
+          have := denoteEList_len hps
+          simpa [ConLeche.structPsAt] using this.symm
         have e3 := beq_ehandleList_eq p7.ok.wf
           (denoteEList_take (denoteEList_ext p7.ext _ _ hargs) nP) hps
-        rw [e2, e3] at z7
+        rw [hlen, e2, e3] at z7
         split at z7
         case isTrue hc2 =>
           rw [if_pos hc2]

@@ -83,7 +83,7 @@ def recPositivityAt (T : NIdx) (lps : List NIdx) (nP nIdx o : Nat) (h : EIdx) (k
   let args ← getAppArgs coreWalkFuel h
   if fn == hd then do
     let ps ← structPsAt (o + k) nP
-    if args.length == nP + nIdx && args.take nP == ps then
+    if args.length == nP + nIdx && args.take ps.length == ps then
       if ← recFamOk T lps nP nIdx (o + k) h then
         pure (if k == 0 then .recursive else .reflexive)
       else pure .negative
