@@ -951,6 +951,37 @@ theorem ls_cursor {α β γ δ : Type} {pers : arena.store.PersTier} {R : γ →
     rw [List.drop_eq_getElem_cons hi, List.map_cons]
     exact hstep st lst i hi hrel hinv (fun st' lst' j hj => ih j () hj st' lst')
 
+open Lockstep in
+/-- `ls_cursor` with an accumulator the Rust threads through the cursor walk
+(`out`, pushed at each step) and the twin's statement names
+(`absXL out ++ (← FSpec (the rest))`): the induction hypothesis is
+quantified over the accumulator too. -/
+theorem ls_cursor_acc {α β γ δ ω : Type} {pers : arena.store.PersTier} {R : γ → δ → Prop}
+    (xs : alloc.vec.Vec α) (a : α → β) (G : ω → List β → AM δ)
+    (F : arena.monad.AState → Std.Usize → ω →
+      Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState))
+    (hstop : ∀ st lst (i : Std.Usize) w, xs.val.length ≤ i.val →
+      AStateRel₀ pers st lst → AStateInv pers st → Lockstep.LS pers R (F st i w) lst (G w []))
+    (hstep : ∀ st lst (i : Std.Usize) w (hb : i.val < xs.val.length),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      (∀ st' lst' (j : Std.Usize) w', j.val = i.val + 1 →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        Lockstep.LS pers R (F st' j w') lst' (G w' ((xs.val.drop j.val).map a))) →
+      Lockstep.LS pers R (F st i w) lst
+        (G w (a xs.val[i.val] :: (xs.val.drop (i.val + 1)).map a))) :
+    ∀ (i : Std.Usize) st lst w, AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers R (F st i w) lst (G w ((xs.val.drop i.val).map a)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) xs.val.length
+    (fun i (_ : Unit) => ∀ st lst w, AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers R (F st i w) lst (G w ((xs.val.drop i.val).map a))) ?_ ?_ i ()
+  · intro i _ hn st lst w hrel hinv
+    rw [List.drop_eq_nil_of_le hn, List.map_nil]
+    exact hstop st lst i w hn hrel hinv
+  · intro i _ hi ih st lst w hrel hinv
+    rw [List.drop_eq_getElem_cons hi, List.map_cons]
+    exact hstep st lst i w hi hrel hinv (fun st' lst' j w' hj => ih j () hj st' lst' w')
+
 /-! ## The cursor abstractions at `0` (for the `lockstep` side tier)
 
 A caller's twin names the whole list (`absXL v`); the callee's statement is at

@@ -1136,7 +1136,25 @@ theorem lift_list_refines {pers st lst} {amount c : Std.U64}
     Sim₀ absEIdxL pers lst o
       (do pure (absEIdxL out ++
         (← liftListSpec (absU amount) (absU c) (absEIdxLFrom xs i)))) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  revert st lst hrel hinv
+  simp only [absEIdxLFrom]
+  intro st lst hrel hinv
+  refine ls_cursor_acc xs absEIdx
+    (fun out l => do pure (absEIdxL out ++ (← liftListSpec (absU amount) (absU c) l)))
+    (fun st i out => arena.inductives.native_parts.lift_list pers st amount c xs i out)
+    ?_ ?_ i st lst out hrel hinv
+  · intro st lst i out hn hrel hinv
+    try simp only []
+    rw [arena.inductives.native_parts.lift_list.eq_def, liftListSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst i out hb hrel hinv ih
+    try simp only []
+    rw [arena.inductives.native_parts.lift_list.eq_def, liftListSpec]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem lift_list_ls
