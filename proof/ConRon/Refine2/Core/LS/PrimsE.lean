@@ -1,0 +1,780 @@
+/-
+# `ConRon.Refine2.Core.LS.PrimsE` — region E's primitive pairs (the inference bodies)
+
+Task #97-P5-Core round 5, region E.  The `@[lockstep]` pairs the inference
+bodies (`infer_body`, `infer_body_io`) and their loops (`infer_lams`,
+`infer_pis`, `infer_spine`, `infer_spine_io`) step through that no earlier
+file provides: the two binder stacks' abstractions, the level-list length and
+the `const` projection, the memoised readbacks, the Rust-only value steps on
+binder data, the two pins, and the pending intern prims.
+-/
+import ConRon.Refine2.Core.LS.Prims
+
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg
+
+open Aeneas Aeneas.Std Result
+open ConRon.Generated
+
+attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
+
+namespace ConRon.Refine2.Lockstep.PE
+
+open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
+
+/-! ## Abstractions -/
+
+/-- The λ loop's binder stack (`Vec<(EIdx, BinderMeta)>`, pushed outermost
+first) as the twin's `Array (EIdx × BinderMeta)`. -/
+def absLamStk (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
+    Array (EIdx × ConLeche.BinderMeta) :=
+  (v.val.map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)).toArray
+
+/-- The ∀ loop's sort stack (`Vec<(LIdx, PropWhen)>`) as the twin's
+`Array (LIdx × PropWhen)`. -/
+def absPiStk (v : alloc.vec.Vec (arena.handle.LIdx × kernel.prop_when.PropWhen)) :
+    Array (LIdx × ConLeche.PropWhen) :=
+  (v.val.map fun p => (absLIdx p.1, ConRon.Refine.absPropWhen p.2)).toArray
+
+@[local lockstep_simp] theorem absLamStk_size
+    (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
+    (absLamStk v).size = v.val.length := by
+  simp [absLamStk]
+
+@[local lockstep_simp] theorem absPiStk_size
+    (v : alloc.vec.Vec (arena.handle.LIdx × kernel.prop_when.PropWhen)) :
+    (absPiStk v).size = v.val.length := by
+  simp [absPiStk]
+
+theorem absLamStk_push (v w : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (x)
+    (h : w.val = v.val ++ [x]) :
+    absLamStk w = (absLamStk v).push (absEIdx x.1, ConRon.Refine.absBinderMeta x.2) := by
+  simp [absLamStk, h]
+
+theorem absPiStk_push (v w : alloc.vec.Vec (arena.handle.LIdx × kernel.prop_when.PropWhen)) (x)
+    (h : w.val = v.val ++ [x]) :
+    absPiStk w = (absPiStk v).push (absLIdx x.1, ConRon.Refine.absPropWhen x.2) := by
+  simp [absPiStk, h]
+
+theorem absEIdxArr_push (v w : alloc.vec.Vec arena.handle.EIdx) (x)
+    (h : w.val = v.val ++ [x]) :
+    absEIdxArr w = (absEIdxArr v).push (absEIdx x) := by
+  simp [absEIdxArr, h]
+
+@[local lockstep_simp] theorem vec_len_abs {α : Type} (v : alloc.vec.Vec α) :
+    absSz (alloc.vec.Vec.len v) = v.val.length := by
+  simp [absSz]
+
+@[local lockstep_simp] theorem absEIdxArr_new :
+    absEIdxArr (alloc.vec.Vec.new arena.handle.EIdx) = #[] := rfl
+
+@[local lockstep_simp] theorem absLamStk_new :
+    absLamStk (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)) = #[] := rfl
+
+@[local lockstep_simp] theorem absPiStk_new :
+    absPiStk (alloc.vec.Vec.new (arena.handle.LIdx × kernel.prop_when.PropWhen)) = #[] := rfl
+
+attribute [local lockstep_simp] ConRon.Refine.absBinderMeta absConstT
+attribute [simp] absLamStk absPiStk
+
+
+@[local lockstep_simp] theorem peel_fuel_abs : absU arena.core.PEEL_FUEL = peelFuel := by
+  rw [arena.core.PEEL_FUEL, Arena.peelFuel]
+  rfl
+
+/-! ## The io view of the lane knot
+
+`laneKnotAt … io f` is `laneKnot … f` with (under `io`) its `infer` slot
+rebound to `inferIO`; every other slot is the lane knot's own, by iota. -/
+
+@[local lockstep_simp] theorem laneKnotAt_whnf (m fe l io f) :
+    (laneKnotAt m fe l io f).whnf = (laneKnot m fe l f).whnf := by cases io <;> rfl
+@[local lockstep_simp] theorem laneKnotAt_whnfCore (m fe l io f) :
+    (laneKnotAt m fe l io f).whnfCore = (laneKnot m fe l f).whnfCore := by cases io <;> rfl
+@[local lockstep_simp] theorem laneKnotAt_defeq (m fe l io f) :
+    (laneKnotAt m fe l io f).defeq = (laneKnot m fe l f).defeq := by cases io <;> rfl
+@[local lockstep_simp] theorem laneKnotAt_inferIO (m fe l io f) :
+    (laneKnotAt m fe l io f).inferIO = (laneKnot m fe l f).inferIO := by cases io <;> rfl
+@[local lockstep_simp] theorem laneKnotAt_annotate (m fe l io f) :
+    (laneKnotAt m fe l io f).annotate = (laneKnot m fe l f).annotate := by cases io <;> rfl
+
+/-- Under the io view the `infer` slot IS the lane knot's `inferIO`. -/
+theorem laneKnotAt_true_infer (m fe l f) :
+    (laneKnotAt m fe l true f).infer = (laneKnot m fe l f).inferIO := rfl
+
+/-- `ensureSort` reads its record's `whnf` slot alone. -/
+@[local lockstep_simp] theorem ensureSort_laneKnotAt (m fe l io f lfe d e) :
+    ensureSort (laneKnotAt m fe l io f) lfe d e = ensureSort (laneKnot m fe l f) lfe d e := by
+  cases io <;> rfl
+
+/-- `!=` is `!(==)`, so the tag tests `t.tag != ETag.lam` reduce with the
+`absU32_beq_*` equations. -/
+@[local lockstep_simp] theorem bne_eq_not_beq' {α : Type} [BEq α] (a b : α) : (a != b) = !(a == b) := rfl
+
+attribute [local lockstep_simp] Bool.not_eq_true' decide_eq_false_iff_not not_not
+
+/-- The port's `if t != ETAG_LAM` as a proposition, both polarities. -/
+@[local lockstep_simp] theorem u32_bne_true (a b : Std.U32) : ((a != b) = true) = ¬ a = b := by
+  by_cases h : a = b <;> simp [h]
+@[local lockstep_simp] theorem u32_not_bne_true (a b : Std.U32) : (¬ (a != b) = true) = (a = b) := by
+  by_cases h : a = b <;> simp [h]
+
+/-- The port's `u32` `==` is `decide`, the shape the `absU32_beq_*` equations
+leave on the twin side. -/
+@[local lockstep_simp] theorem u32_beq_decide (a b : Std.U32) : (a == b) = decide (a = b) := by
+  by_cases h : a = b <;> simp [h]
+
+/-! ## Rust-only value steps -/
+
+@[lockstep] theorem verified_checks_ls (m : kernel.env.CheckMode) :
+    LSP (kernel.env.verified_checks m)
+      (fun b => b = (ConRon.Refine.absMode m).verifiedChecks) :=
+  by
+  intro b h
+  cases m <;> (simp only [kernel.env.verified_checks, Result.ok.injEq] at h; rw [← h]; rfl)
+
+@[lockstep] theorem io_skip_ls (m : kernel.env.CheckMode) (pw : kernel.prop_when.PropWhen) :
+    LSP (kernel.env.io_skip m pw)
+      (fun b => b = (ConRon.Refine.absMode m).ioSkip (ConRon.Refine.absPropWhen pw)) :=
+  by
+  intro b h
+  cases m
+  · simp only [kernel.env.io_skip, kernel.env.certs, bind_tc_ok, reduceIte] at h
+    rw [ConRon.Refine.PropWhen.is_never_refines h]; rfl
+  · simp only [kernel.env.io_skip, kernel.env.certs, bind_tc_ok, Bool.false_eq_true, if_false,
+      Result.ok.injEq] at h
+    rw [← h]; rfl
+
+/-- The twin's `(if c then a else b) >>= g`, pushed into the branches so that
+the twin test sits at the head where `lockstep` decides it. -/
+theorem twin_ite_bind {α β : Type} {c : Prop} [Decidable c] (a b : AM α) (g : α → AM β) :
+    ((if c then a else b) >>= g) = (if c then a >>= g else b >>= g) := by
+  split <;> rfl
+
+
+/-! ## Well-formedness carried by a read
+
+`prop_when::beq` is the twin's `==` on the abstraction only at two
+canonical-form data (`PropWhenWF`; `One p` and `Two (p, p)` abstract alike and
+compare unequal).  Every datum the inference loops compare comes out of the
+Rust store (`bms`' `TblInv`, part of `AStateInv`) or out of `zeroness_of`, so
+the reads below carry that representation fact beside the abstraction.  They
+are used as LOCAL hypotheses (`have := …`), which `specCore` tries before the
+registered `view_bind_ls` / `view_ls` / `lam_pw_ls`. -/
+
+/-- The binder datum of a `view_bind` answer is well formed. -/
+def optBindWF : Option (arena.handle.EIdx × arena.handle.EIdx × kernel.expr.BinderMeta) → Prop
+  | some (_, _, m) => ConRon.Refine.PropWhenWF m.pw
+  | none => True
+
+/-- The binder datum of a `view` answer is well formed. -/
+def viewWF : arena.store.ENodeView → Prop
+  | .Lam _ _ m => ConRon.Refine.PropWhenWF m.pw
+  | .ForallE _ _ m => ConRon.Refine.PropWhenWF m.pw
+  | _ => True
+
+/-- A `lam_pw` answer is well formed. -/
+def optPwWF : Option kernel.prop_when.PropWhen → Prop
+  | some p => ConRon.Refine.PropWhenWF p
+  | none => True
+
+attribute [local lockstep_simp] optBindWF viewWF optPwWF ExprOps.absPwOpt
+
+/-- A `view_bind` answer's datum is well formed (`bms`' `TblInv`). -/
+theorem estore_view_bind_optWF {pers rs} (hinv : StoreInv pers rs) {i : arena.handle.EIdx} {o}
+    (h : arena.store.EStore.view_bind rs pers i = ok o) : optBindWF o := by
+  rw [arena.store.EStore.view_bind] at h
+  obtain ⟨q, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases q with
+  | none => cases Result.ok_injective h; trivial
+  | some tt =>
+    obtain ⟨ty, bo, mi⟩ := tt
+    obtain ⟨u, hu, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases u with
+    | none => cases Result.ok_injective h; trivial
+    | some mm =>
+      cases Result.ok_injective h
+      exact estore_view_bm_wf hinv hu mm rfl
+
+theorem view_bind_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx)
+    (hbind : ETag.isBind (absEIdx h).tag = true) :
+    LSV pers (fun a b => optBindWF a ∧ b = Option.map absBindM a)
+      (arena.monad.view_bind pers st h) st lst (Arena.viewBind (absEIdx h)) := by
+  intro o hrun
+  obtain ⟨b, lst', hx, hR, h1, h2⟩ := view_bind_ls hrel hinv h hbind o hrun
+  rw [arena.monad.view_bind] at hrun
+  exact ⟨b, lst', hx, ⟨estore_view_bind_optWF hinv.store hrun, hR.2⟩, h1, h2⟩
+
+theorem view_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSR pers (fun a b => viewWF a ∧ b = absENodeView a) (arena.monad.view pers st h) st lst
+      (Arena.view (absEIdx h)) := by
+  intro o hrun
+  have H := view_ls hrel hinv h o hrun
+  cases o with
+  | Err e => exact H
+  | Ok ev =>
+    obtain ⟨b, lst', hx, hR, h1, h2⟩ := H
+    refine ⟨b, lst', hx, ⟨?_, hR.2⟩, h1, h2⟩
+    have hwf : ∀ {ty b : arena.handle.EIdx} {m : kernel.expr.BinderMeta},
+        ev = .Lam ty b m ∨ ev = .ForallE ty b m → ConRon.Refine.PropWhenWF m.pw := by
+      intro ty b m hv
+      rw [arena.monad.view] at hrun
+      obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      cases hqc : q with
+      | none =>
+        rw [hqc] at hrun
+        obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        rw [arena.monad.fail] at hrun
+        cases Result.ok_injective hrun
+      | some v =>
+        rw [hqc] at hrun hq
+        have := Result.ok_injective hrun
+        simp only [core.result.Result.Ok.injEq] at this
+        subst this
+        exact estore_view_bind_wf (ty := ty) (b := b) hrel.store hinv.store hq
+          (by rcases hv with hv | hv
+              · exact Or.inl (by rw [hv])
+              · exact Or.inr (by rw [hv]))
+    cases ev with
+    | Lam ty b m => exact hwf (Or.inl rfl)
+    | ForallE ty b m => exact hwf (Or.inr rfl)
+    | _ => trivial
+
+theorem lam_pw_wf_ls {pers} (hx : ExprOpsHyp pers) {st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (h) :
+    LSR pers (fun a b => optPwWF a ∧ b = ExprOps.absPwOpt a) (arena.expr_ops.lam_pw pers st h)
+      st lst (lamPw (absEIdx h)) := by
+  intro o hrun
+  have H := lam_pw_ls hx hrel hinv h o hrun
+  cases o with
+  | Err e => exact H
+  | Ok ev =>
+    obtain ⟨b, lst', hxr, hR, h1, h2⟩ := H
+    refine ⟨b, lst', hxr, ⟨?_, hR⟩, h1, h2⟩
+    rw [arena.expr_ops.lam_pw] at hrun
+    obtain ⟨t, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    split at hrun
+    · obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      rw [arena.monad.view_bind] at hq
+      have hw := estore_view_bind_optWF hinv.store hq
+      cases q with
+      | none =>
+        obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        rw [arena.monad.fail] at hrun
+        cases Result.ok_injective hrun
+      | some p =>
+        obtain ⟨ty, bo, m⟩ := p
+        cases Result.ok_injective hrun
+        exact hw
+    · cases Result.ok_injective hrun; trivial
+
+theorem lam_stk_push_wf {stk stk1 : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {x : arena.handle.EIdx × kernel.expr.BinderMeta} (h : stk1.val = stk.val ++ [x])
+    (hs : ∀ p ∈ stk.val, ConRon.Refine.PropWhenWF p.2.pw) (hx : ConRon.Refine.PropWhenWF x.2.pw) :
+    ∀ p ∈ stk1.val, ConRon.Refine.PropWhenWF p.2.pw := by
+  intro p hp
+  rw [h, List.mem_append, List.mem_singleton] at hp
+  rcases hp with hp | rfl
+  · exact hs p hp
+  · exact hx
+
+theorem pi_stk_push_wf {stk stk1 : alloc.vec.Vec (arena.handle.LIdx × kernel.prop_when.PropWhen)}
+    {x : arena.handle.LIdx × kernel.prop_when.PropWhen} (h : stk1.val = stk.val ++ [x])
+    (hs : ∀ p ∈ stk.val, ConRon.Refine.PropWhenWF p.2) (hx : ConRon.Refine.PropWhenWF x.2) :
+    ∀ p ∈ stk1.val, ConRon.Refine.PropWhenWF p.2 := by
+  intro p hp
+  rw [h, List.mem_append, List.mem_singleton] at hp
+  rcases hp with hp | rfl
+  · exact hs p hp
+  · exact hx
+
+/-! ## Reads -/
+
+@[lockstep] theorem view_ls_len_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.LsIdx) :
+    LSV pers (fun a b => b = Option.map absSz a) (arena.monad.view_ls_len pers st h) st lst
+      (Arena.viewLsLen (absLsIdx h)) := by
+  intro o hrun
+  exact ⟨_, lst, view_ls_len_run₀ hrel hrun, rfl, hrel, hinv⟩
+
+@[lockstep] theorem view_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSV pers (fun a b => b = Option.map absConstT a) (arena.monad.view_const pers st h) st lst
+      (Arena.viewConst (absEIdx h)) := by
+  intro o hrun
+  exact ⟨_, lst, view_const_run₀ hrel hrun, rfl, hrel, hinv⟩
+
+/-- `Refine2/ExprOps/Mut.lean`'s `read_names_m_from_wf` over `AStateRel₀`
+(the proof reads the relation only to thread the invariant through
+`read_name_m_run₀`). -/
+theorem read_names_m_from_wf₀ {pers} {ks : alloc.vec.Vec arena.handle.NIdx} :
+    ∀ k {st : arena.monad.AState} {lst : AState}, AStateRel₀ pers st lst →
+      AStateInv pers st → ∀ (i : Std.Usize) (out : alloc.vec.Vec kernel.name.Name),
+      ks.length - i.val ≤ k → (∀ n ∈ out.val, ConRon.Refine.NameWF n) → ∀ {o},
+      arena.monad.read_names_m_from pers st ks i out = ok o →
+      (∀ v, o.1 = .Ok v → ∀ n ∈ v.val, ConRon.Refine.NameWF n) ∧
+        o.2.store = st.store := by
+  intro k
+  induction k with
+  | zero =>
+    intro st lst hrel hinv i out hk hout o hrun
+    rw [arena.monad.read_names_m_from.eq_def] at hrun; simp only [] at hrun
+    rw [if_pos (by scalar_tac)] at hrun
+    have ho : ((core.result.Result.Ok out : core.result.Result _ _), st) = o :=
+      Result.ok_injective hrun
+    rw [← ho]
+    refine ⟨fun v hv => ?_, rfl⟩
+    simp only [core.result.Result.Ok.injEq] at hv
+    rw [← hv]; exact hout
+  | succ k ih =>
+    intro st lst hrel hinv i out hk hout o hrun
+    rw [arena.monad.read_names_m_from.eq_def] at hrun; simp only [] at hrun
+    split at hrun
+    · have ho : ((core.result.Result.Ok out : core.result.Result _ _), st) = o :=
+        Result.ok_injective hrun
+      rw [← ho]
+      refine ⟨fun v hv => ?_, rfl⟩
+      simp only [core.result.Result.Ok.injEq] at hv
+      rw [← hv]; exact hout
+    · rename_i hlt
+      obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨p1, hp1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r, st1⟩ := p1
+      have hstep := read_name_m_run₀ hrel hinv hp1
+      have hw := read_name_m_wf hinv hp1
+      cases hrc : r with
+      | Err e =>
+        simp only [hrc] at hrun
+        have ho : ((core.result.Result.Err e : core.result.Result _ _), st1) = o :=
+          Result.ok_injective hrun
+        rw [← ho]
+        exact ⟨(by intro v hv; cases hv), hw.2⟩
+      | Ok x =>
+        rw [hrc] at hstep hw
+        simp only [hrc] at hrun
+        obtain ⟨lst1, -, hrel1, hinv1⟩ := hstep
+        obtain ⟨out1, hout1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi2v : i2.val = i.val + 1 := by
+          have := ConRon.Refine.Nat.uadd_val hi2; simpa using this
+        have hout1v : out1.val = out.val ++ [x] := ConRon.Refine.vec_push_val hout1
+        have hih := ih hrel1 hinv1 i2 out1 (by scalar_tac) (by
+          intro nn hnn
+          rw [hout1v] at hnn
+          rcases List.mem_append.mp hnn with hnn | hnn
+          · exact hout nn hnn
+          · rw [List.mem_singleton.mp hnn]; exact hw.1 x rfl) hrun
+        exact ⟨hih.1, hih.2.trans hw.2⟩
+
+theorem read_names_m_wf₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {ks : alloc.vec.Vec arena.handle.NIdx} {o}
+    (hrun : arena.monad.read_names_m pers st ks = ok o) :
+    (∀ v, o.1 = .Ok v → ∀ n ∈ v.val, ConRon.Refine.NameWF n) ∧
+      o.2.store = st.store := by
+  rw [arena.monad.read_names_m] at hrun
+  exact read_names_m_from_wf₀ ks.length hrel hinv 0#usize
+    (alloc.vec.Vec.new kernel.name.Name) (by scalar_tac)
+    (by intro n hn; exact absurd hn (by simp [alloc.vec.Vec.new])) hrun
+
+/-- The memoised level readback; the tree it answers is well formed. -/
+@[lockstep] theorem read_level_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.LIdx) :
+    LS pers (fun a b => ConRon.Refine.LevelWF a ∧ b = ConRon.Refine.absLevel a)
+      (arena.monad.read_level_m pers st h) lst (Arena.readLevelM (absLIdx h)) := by
+  intro o st' hrun
+  have H := read_level_m_run₀ hrel hinv hrun
+  have W := read_level_m_wf hinv hrun
+  show LOut _ _ (o, st').1 (o, st').2 _
+  cases o with
+  | Err e => exact H
+  | Ok a =>
+    obtain ⟨lst', hx, h1, h2⟩ := H
+    exact ⟨_, lst', hx, ⟨W.1 a rfl, rfl⟩, h1, h2⟩
+
+@[lockstep] theorem read_levels_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.LsIdx) :
+    LS pers (fun a b => ConRon.Refine.LevelsWF a ∧ b = ConRon.Refine.absLevels a)
+      (arena.monad.read_levels_m pers st h) lst (Arena.readLevelsM (absLsIdx h)) := by
+  intro o st' hrun
+  have H := read_levels_m_run₀ hrel hinv hrun
+  have W := read_levels_m_wf hinv hrun
+  show LOut _ _ (o, st').1 (o, st').2 _
+  cases o with
+  | Err e => exact H
+  | Ok a =>
+    obtain ⟨lst', hx, h1, h2⟩ := H
+    exact ⟨_, lst', hx, ⟨W.1 a rfl, rfl⟩, h1, h2⟩
+
+@[lockstep] theorem read_names_m_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ks : alloc.vec.Vec arena.handle.NIdx) :
+    LS pers (fun a b => ConRon.Refine.NamesWF a ∧ b = ConRon.Refine.absNames a)
+      (arena.monad.read_names_m pers st ks) lst (Arena.readNamesM (ks.val.map absNIdx)) := by
+  intro o st' hrun
+  have H := read_names_m_run₀ hrel hinv hrun
+  have W := read_names_m_wf₀ hrel hinv hrun
+  show LOut _ _ (o, st').1 (o, st').2 _
+  cases o with
+  | Err e => exact H
+  | Ok a =>
+    obtain ⟨lst', hx, h1, h2⟩ := H
+    exact ⟨_, lst', hx, ⟨W.1 a rfl, rfl⟩, h1, h2⟩
+
+/-! ## Rust-only steps on levels and data -/
+
+@[lockstep] theorem zeroness_of_ls {l : kernel.level.Level} (hl : ConRon.Refine.LevelWF l) :
+    LSP (kernel.level.zeroness_of l) (fun pw => ConRon.Refine.PropWhenWF pw ∧
+      ConRon.Refine.absPropWhen pw = ConLeche.Level.zeronessOf (ConRon.Refine.absLevel l)) := by
+  intro pw h
+  have := ConRon.Refine.ExprOps.zeroness_of_refines hl pw h
+  exact ⟨this.2, this.1⟩
+
+theorem absLamStk_getElem! (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (i : Nat) (h : i < v.val.length) :
+    (absLamStk v)[i]! = (absEIdx (v.val[i]).1, ConRon.Refine.absBinderMeta (v.val[i]).2) := by
+  rw [getElem!_pos (absLamStk v) i (by simpa [absLamStk] using h)]
+  simp [absLamStk]
+
+/-- `prop_when::beq` against a λ-stack entry: the answer in the twin's own
+spelling, `(absLamStk stk)[i]!`.  Filed before the general pair, which it
+specialises. -/
+@[lockstep] theorem prop_when_beq_stk_ls
+    {stk : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    (hstk : ∀ p ∈ stk.val, ConRon.Refine.PropWhenWF p.2.pw)
+    {a : kernel.prop_when.PropWhen} (ha : ConRon.Refine.PropWhenWF a) (i : Nat)
+    (hi : i < stk.val.length) :
+    LSP (kernel.prop_when.beq a (stk.val[i]).2.pw)
+      (fun c => c = (ConRon.Refine.absPropWhen a == ((absLamStk stk)[i]!).2.pw)) := by
+  intro c h
+  have := ConRon.Refine.PropWhen.beq_iff (ConRon.Refine.PropWhen.wf_shape ha)
+    (ConRon.Refine.PropWhen.wf_shape (hstk _ (List.getElem_mem hi))) h
+  rw [absLamStk_getElem! stk i hi]
+  cases c <;> simp_all [ConRon.Refine.absBinderMeta]
+
+/-- The same, with the stack entry on the left. -/
+@[lockstep] theorem prop_when_beq_stk_left_ls
+    {stk : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    (hstk : ∀ p ∈ stk.val, ConRon.Refine.PropWhenWF p.2.pw)
+    {b : kernel.prop_when.PropWhen} (hb : ConRon.Refine.PropWhenWF b) (i : Nat)
+    (hi : i < stk.val.length) :
+    LSP (kernel.prop_when.beq (stk.val[i]).2.pw b)
+      (fun c => c = (((absLamStk stk)[i]!).2.pw == ConRon.Refine.absPropWhen b)) := by
+  intro c h
+  have := ConRon.Refine.PropWhen.beq_iff
+    (ConRon.Refine.PropWhen.wf_shape (hstk _ (List.getElem_mem hi)))
+    (ConRon.Refine.PropWhen.wf_shape hb) h
+  rw [absLamStk_getElem! stk i hi]
+  cases c <;> simp_all [ConRon.Refine.absBinderMeta]
+
+@[lockstep] theorem prop_when_beq_ls {a b : kernel.prop_when.PropWhen}
+    (ha : ConRon.Refine.PropWhenWF a) (hb : ConRon.Refine.PropWhenWF b) :
+    LSP (kernel.prop_when.beq a b)
+      (fun c => c = (ConRon.Refine.absPropWhen a == ConRon.Refine.absPropWhen b)) := by
+  intro c h
+  have := ConRon.Refine.PropWhen.beq_iff (ConRon.Refine.PropWhen.wf_shape ha)
+    (ConRon.Refine.PropWhen.wf_shape hb) h
+  cases c <;> simp_all
+
+@[lockstep] theorem prop_when_never_ls :
+    LSP kernel.prop_when.never (fun pw => ConRon.Refine.PropWhenWF pw ∧
+      ConRon.Refine.absPropWhen pw = ConLeche.PropWhen.never) :=
+  fun _ h => ⟨ConRon.Refine.PropWhen.never_wf h, ConRon.Refine.PropWhen.never_refines h⟩
+
+/-- The λ loop's `let (_, bm) = stk[j]; bm.pw.dup()`, with the `dup` (the
+identity) dropped, so that the index step's answer feeds a plain projection. -/
+theorem stk_index_pw_eq (stk : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (j : Std.Usize) :
+    (do
+      let (_, bm) ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.handle.EIdx × kernel.expr.BinderMeta)) stk j
+      kernel.prop_when.dup bm.pw) =
+    (do
+      let e ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.handle.EIdx × kernel.expr.BinderMeta)) stk j
+      ok e.2.pw) := by
+  congr 1
+  funext e
+  obtain ⟨_, bm⟩ := e
+  exact ConRon.Refine.PropWhen.dup_eq' _
+
+theorem absLamStk_last_pw (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (i : Nat) (h : i < v.val.length) (hi : i = v.val.length - 1) :
+    ((absLamStk v)[v.val.length - 1]!).2.pw = ConRon.Refine.absPropWhen (v.val[i]).2.pw := by
+  subst hi; rw [absLamStk_getElem! v _ h]; rfl
+
+@[lockstep] theorem prop_when_dup_ls (pw : kernel.prop_when.PropWhen) :
+    LSP (kernel.prop_when.dup pw) (fun r => r = pw) :=
+  fun _ h => ConRon.Refine.PropWhen.dup_eq h
+
+@[lockstep] theorem binder_meta_dup_ls (m : kernel.expr.BinderMeta) :
+    LSP (kernel.expr.binder_meta_dup m) (fun r => r = m) :=
+  fun _ h => ConRon.Refine.Expr.binder_meta_dup_eq h
+
+@[lockstep] theorem lidx_dup2_ls (h : arena.handle.LIdx) :
+    LSP (arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
+  fun e he => dupId_lidx _ _ he
+
+/-! ## The environment -/
+
+@[lockstep] theorem i_constant_info_is_tower_entry_ls (ci : arena.env.IConstantInfo) :
+    LSP (arena.env.i_constant_info_is_tower_entry ci)
+      (fun b => b = (absIConstantInfo ci).isTowerEntry) := by
+  intro b h
+  cases ci <;> simp only [arena.env.i_constant_info_is_tower_entry, Result.ok.injEq] at h <;>
+    subst h <;> rfl
+
+/-- `i_constant_info_to_constant_val` against `IConstantInfo.toConstantVal`, a
+store-level step.  The `ProjInfo` arm interns `Sort 1` (level `0`, level `1`,
+the sort), in the same order on both sides. -/
+@[lockstep] theorem i_constant_info_to_constant_val_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (ci : arena.env.IConstantInfo) :
+    LSS pers (fun a b => b = absIConstantVal a)
+      (arena.env.i_constant_info_to_constant_val pers st.store ci) st lst
+      (absIConstantInfo ci).toConstantVal := by
+  intro o s' h
+  have plain : ∀ v iv, arena.env.i_constant_val_dup v = ok iv →
+      (o, s') = (.Ok iv, st.store) →
+      (absIConstantInfo ci).toConstantVal = pure (absIConstantVal v) →
+      LOut pers (fun a b => b = absIConstantVal a) o { st with store := s' }
+        ((absIConstantInfo ci).toConstantVal.run lst) := by
+    intro v iv hiv ho hx
+    cases ho
+    rw [hx]
+    exact ⟨_, lst, rfl, (i_constant_val_dup_abs hiv).symm, hrel, hinv⟩
+  cases ci with
+  | AxiomInfo v =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | DefnInfo v _ _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | ThmInfo v _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | IndInfo v _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | CtorInfo v _ _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | RecInfo v _ _ _ =>
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact plain v iv hiv (Result.ok_injective h).symm rfl
+  | ProjInfo tbl =>
+    clear plain
+    simp only [arena.env.i_constant_info_to_constant_val] at h
+    simp only [absIConstantInfo, IConstantInfo.toConstantVal]
+    -- 1. the level `0`
+    obtain ⟨⟨r1, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hS1 := intern_l_node_run₀ hrel hinv arena.store.LNodeView.Zero
+      (o := (r1, { st with store := ar1 }))
+      (by rw [arena.monad.intern_l_node, h1]; simp only [bind_tc_ok]; rfl)
+    rw [show Arena.internLNode LNodeView.zero
+        = Arena.internLNode (absLNodeView arena.store.LNodeView.Zero) from rfl]
+    cases r1 with
+    | Err e =>
+      cases Result.ok_injective h
+      exact errSim_bind hS1
+    | Ok z =>
+    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hS1
+    rw [run_bind_ok hx1]
+    -- 2. the level `1`
+    obtain ⟨⟨r2, ar2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hS2 := intern_l_node_run₀ hrel1 hinv1 (arena.store.LNodeView.Succ z)
+      (o := (r2, { st with store := ar2 }))
+      (by rw [arena.monad.intern_l_node]; rw [show ({ st with store := ar1 } :
+            arena.monad.AState).store = ar1 from rfl, h2]; simp only [bind_tc_ok]; rfl)
+    rw [show Arena.internLNode (.succ (absLIdx z))
+        = Arena.internLNode (absLNodeView (arena.store.LNodeView.Succ z)) from rfl]
+    cases r2 with
+    | Err e =>
+      cases Result.ok_injective h
+      exact errSim_bind hS2
+    | Ok one =>
+    obtain ⟨lst2, hx2, hrel2, hinv2⟩ := hS2
+    rw [run_bind_ok hx2]
+    -- 3. the expression `Sort 1`
+    obtain ⟨⟨r3, ar3⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hS3 := intern_e_sort_run₀ hrel2 hinv2 one
+      (o := (r3, { st with store := ar3 }))
+      (by simp only [arena.store.EStore.intern] at h3
+          rw [arena.monad.intern_e_sort]
+          simp only [h3, bind_tc_ok]
+          rfl)
+    rw [show Arena.internE (.sort (absLIdx one)) = Arena.internSortE (absLIdx one) from rfl]
+    cases r3 with
+    | Err e =>
+      cases Result.ok_injective h
+      exact errSim_bind hS3
+    | Ok ty =>
+    obtain ⟨lst3, hx3, hrel3, hinv3⟩ := hS3
+    rw [run_bind_ok hx3]
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    refine ⟨_, lst3, rfl, ?_, hrel3, hinv3⟩
+    simp only [absIConstantVal, absIProjTable, dupId_nidx _ _ hn, nidx_vec_dup_val hv]
+
+/-! ## Levels (the propositional-structure check of the `.proj` clause) -/
+
+@[lockstep] theorem level_zero_ls :
+    LSP kernel.level.zero (fun u => ConRon.Refine.LevelWF u ∧
+      ConRon.Refine.absLevel u = ConLeche.Level.zero) :=
+  fun _ h => ⟨ConRon.Refine.Level.zero_wf h, ConRon.Refine.Level.zero_refines h⟩
+
+@[lockstep] theorem level_subst_ls {ks : alloc.vec.Vec kernel.name.Name}
+    {vs : alloc.vec.Vec kernel.level.Level} {u : kernel.level.Level}
+    (hks : ConRon.Refine.NamesWF ks) (hvs : ConRon.Refine.LevelsWF vs)
+    (hu : ConRon.Refine.LevelWF u) :
+    LSP (kernel.level.subst ks vs u) (fun u' => ConRon.Refine.LevelWF u' ∧
+      ConRon.Refine.absLevel u' = ConLeche.Level.subst (ConRon.Refine.absNames ks)
+        (ConRon.Refine.absLevels vs) (ConRon.Refine.absLevel u)) := by
+  intro u' h
+  have := ConRon.Refine.Level.subst_refines hu hks hvs h
+  exact ⟨this.2, this.1⟩
+
+@[lockstep] theorem level_is_equiv_ls {l r : kernel.level.Level}
+    (hl : ConRon.Refine.LevelWF l) (hr : ConRon.Refine.LevelWF r) :
+    LSP (kernel.level.is_equiv l r) (fun o =>
+      ConLeche.Level.isEquiv (ConRon.Refine.absLevel l) (ConRon.Refine.absLevel r) = o) :=
+  fun _ h => ConRon.Refine.Level.is_equiv_refines hl hr h
+
+/-! ## Handles and scalars -/
+
+@[lockstep] theorem nidx_eq2_ls (a b : arena.handle.NIdx) :
+    LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
+      (fun c => c = decide (absNIdx a = absNIdx b)) := by
+  intro c h
+  rw [arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
+  cases Result.ok_injective h
+  by_cases hab : a.word = b.word
+  · have : absNIdx a = absNIdx b := by simp [absNIdx, hab]
+    simp [hab, this]
+  · have : absNIdx a ≠ absNIdx b := fun he => hab (by
+      have := absNIdx_inj he; rw [this])
+    simp [hab, this]
+
+@[lockstep] theorem usize_cast_u64_ls (x : Std.Usize) :
+    LSP (lift (Std.UScalar.cast .U64 x)) (fun r : Std.U64 => r.val = x.val) := by
+  intro r h
+  cases Result.ok_injective h
+  exact usize_cast_u64_val' x
+
+@[lockstep] theorem fail_dangling_ls_ls (T : Type) :
+    LSP (arena.monad.fail_dangling_ls T) (fun r => ∃ v, r = .Err (.Internal v)) := by
+  intro r h
+  rw [arena.monad.fail_dangling_ls] at h
+  obtain ⟨s, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  exact ⟨v, fail_run h⟩
+
+@[local lockstep_simp] theorem failDanglingLs_eq {α : Type} :
+    (failDanglingLs : AM α) = Arena.fail (.internal "arena: dangling level-list handle") := rfl
+
+@[local lockstep_simp] theorem usize_bne_true (a b : Std.Usize) : ((a != b) = true) = ¬ a.val = b.val := by
+  by_cases h : a = b
+  · simp [h]
+  · have : a.val ≠ b.val := fun hv => h (Std.UScalar.eq_of_val_eq hv)
+    simp [h, this]
+@[local lockstep_simp] theorem usize_not_bne_true (a b : Std.Usize) :
+    (¬ (a != b) = true) = (a.val = b.val) := by
+  rw [usize_bne_true]; simp
+
+attribute [local lockstep_simp] List.length_map ExprOps.absEIdxList
+
+-- local: the Checker lane reads `absIConstantVal` folded (its `absValueGroup`)
+attribute [local lockstep_simp] absIConstantVal
+
+@[local lockstep_simp] theorem vec_len_val' {α : Type} (v : alloc.vec.Vec α) :
+    (alloc.vec.Vec.len v).val = v.val.length := by
+  simp [alloc.vec.Vec.len_val]
+
+@[local lockstep_simp] theorem opt_beq_some_true (o : Option Bool) :
+    ((o == some true) = true) = (o = some true) := by
+  cases o with
+  | none => simp
+  | some b => cases b <;> simp
+@[local lockstep_simp] theorem opt_beq_some_false (o : Option Bool) :
+    ((o == some true) = false) = ¬ (o = some true) := by
+  cases o with
+  | none => simp
+  | some b => cases b <;> simp
+
+attribute [local lockstep_simp] Option.some.injEq reduceCtorEq
+
+@[local lockstep_simp] theorem nat_beq_false (a b : Nat) : ((a == b) = false) = ¬ a = b := by
+  by_cases h : a = b <;> simp [h]
+
+/-- `viewLs` read only for its length is the length projection (the twin's
+`inferBody` `.const` clause reads the whole list, the port and `inferBodyIO`
+read `view_ls_len`; `Core/Arms/Delta.lean`'s `LsStore_viewLen_eq`). -/
+def danglingLsOr {δ : Type} (k : Nat → AM δ) : Option Nat → AM δ
+  | none => failDanglingLs
+  | some n => k n
+
+@[local lockstep_simp] theorem danglingLsOr_none {δ : Type} (k : Nat → AM δ) :
+    danglingLsOr k none = failDanglingLs := rfl
+@[local lockstep_simp] theorem danglingLsOr_some {δ : Type} (k : Nat → AM δ) (n : Nat) :
+    danglingLsOr k (some n) = k n := rfl
+
+@[local lockstep_simp] theorem viewLs_length_bind {δ : Type} (h : LsIdx) (L : Nat) (A B : AM δ) :
+    (viewLs h >>= fun usl => if ¬ List.length usl = L then A else B) =
+      (viewLsLen h >>= danglingLsOr fun n => if ¬ n = L then A else B) := by
+  funext lst
+  show (viewLs h >>= _).run lst = (viewLsLen h >>= _).run lst
+  rw [StateT.run_bind, StateT.run_bind]
+  show (match lst.store.lss.view h with
+      | some v => (pure v : AM LsNodeView)
+      | none => Arena.fail (.internal "arena: dangling level-list handle")).run lst >>= _ =
+    (pure (lst.store.lss.viewLen h) : AM (Option Nat)).run lst >>= _
+  rw [LsStore_viewLen_eq]
+  cases lst.store.lss.view h <;> rfl
+
+/-! ## Local tactic moves (reported to the coordinator)
+
+`lockstep` plus two moves:
+
+1. **An error arm through a pair-returning inner block that itself matches**
+   (`infer_forall_io_at`'s `let (st5, ok1) ← (do let (r4, st6) ← read_level_m …;
+   let r5 ← match r4 with …; ok (st6, r5))`): `ls_state_bind` is `LS.bind` with
+   the error arm closed by `simp`.
+2. an error leaf whose kind is a hypothesis (the `unknown_const_error` pair's
+   `absAErrKind a = lAErrKind b`). -/
+
+open Lean Meta Elab Tactic in
+/-- `LS.bind` with the error arm closed by `simp`. -/
+elab "ls_state_bind" : tactic => withMainContext do
+  let g ← getMainGoal
+  let others := (← getGoals).tail
+  let gs ← applyRule g ``LS.bind
+  specCore (← pick gs `hf)
+  runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))
+  runClosed (← pick gs `he) (evalT `(tactic| (
+    intro e st1 o st' h
+    simp at h
+    first | exact h.1.symm | exact h.symm | (obtain ⟨rfl, -⟩ := h; rfl))))
+  let rest ← cont (← pick gs `hk) [`a, `b, `st1, `lst1, `hR, `hrel, `hinv] (some `hR)
+  setGoals ((← normAll rest) ++ others)
+
+macro "lockstep_e" : tactic =>
+  `(tactic| repeat' (first
+      | lockstep_step
+      | ls_state_bind
+      | (apply LS.err; exact errSim_fail (by assumption))
+      | (apply LS.err; exact errSim_throw (by assumption))))
+
+end ConRon.Refine2.Lockstep.PE
+
+/-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
+round 5): active under `open scoped ConRon.Refine2.Lockstep.PE.CoreLSReg` only, so that they
+stay out of the other tiers' `lockstep` runs (the Checker lane imports the
+knot since task #97-T2-LOCKSTEP lane Checker DeclCheck). -/
+namespace ConRon.Refine2.Lockstep.PE.CoreLSReg
+open Aeneas Aeneas.Std Result
+open ConRon.Generated
+open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
+attribute [scoped lockstep_simp] absLamStk_size absPiStk_size vec_len_abs absEIdxArr_new absLamStk_new absPiStk_new ConRon.Refine.absBinderMeta absConstT peel_fuel_abs laneKnotAt_whnf laneKnotAt_whnfCore laneKnotAt_defeq laneKnotAt_inferIO laneKnotAt_annotate ensureSort_laneKnotAt bne_eq_not_beq' Bool.not_eq_true' decide_eq_false_iff_not not_not u32_bne_true u32_not_bne_true u32_beq_decide optBindWF viewWF optPwWF ExprOps.absPwOpt failDanglingLs_eq usize_bne_true usize_not_bne_true List.length_map ExprOps.absEIdxList vec_len_val' opt_beq_some_true opt_beq_some_false Option.some.injEq reduceCtorEq nat_beq_false danglingLsOr_none danglingLsOr_some viewLs_length_bind
+end ConRon.Refine2.Lockstep.PE.CoreLSReg

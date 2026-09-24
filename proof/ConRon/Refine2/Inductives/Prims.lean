@@ -23,14 +23,6 @@ namespace ConRon.Refine2
 open ConRon.Arena
 
 open Lockstep in
-/-- `arena::monad::read_level_m` ⊑ `readLevelM` (`Refine2/Specs.lean`). -/
-@[lockstep] theorem read_level_m_ls {pers st lst} {h : arena.handle.LIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = ConRon.Refine.absLevel a) (arena.monad.read_level_m pers st h) lst
-      (Arena.readLevelM (absLIdx h)) :=
-  LS.ofSim₀ fun _ h => read_level_m_run₀ hrel hinv h
-
-open Lockstep in
 /-- `arena::monad::intern_n_node` ⊑ `internNNode` (`Refine2/Specs.lean`). -/
 @[lockstep] theorem intern_n_node_ls {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -47,12 +39,6 @@ open Lockstep in
   simp only [lift, Result.ok.injEq] at h
   subst h
   exact ConRon.Refine.ExprOps.usize_cast_u64_val x
-
-open Lockstep in
-/-- `expr_ops::sub_nat` is truncated `Nat` subtraction. -/
-@[lockstep] theorem sub_nat_spec (a b : Std.U64) :
-    LSP (kernel.expr_ops.sub_nat a b) (fun r => r.val = a.val - b.val) :=
-  fun _ h => ConRon.Refine.ExprOps.sub_nat_val h
 
 /-! ## The mode gates: each is its twin field, a Rust-only step -/
 
@@ -181,6 +167,27 @@ theorem proj_model_name_refines {pers st lst} {t : arena.handle.NIdx} {i : Std.U
     exact intern_n_node_ls ‹_› ‹_› _ hwf
 
 open Lockstep in
+/-- `kernel::level::zeroness_of` is the twin's `Level.zeronessOf` at a
+well-formed level (the cached readback's output carries the `LevelWF`). -/
+@[lockstep] theorem zeroness_of_twin (l : kernel.level.Level) (hl : ConRon.Refine.LevelWF l) :
+    LSP (kernel.level.zeroness_of l)
+      (fun pw => TwinEq ((ConRon.Refine.absLevel l).zeronessOf) (ConRon.Refine.absPropWhen pw)) :=
+  fun pw h => (ConRon.Refine.ExprOps.zeroness_of_refines hl pw h).1.symm
+
+open Lockstep in
+/-- `prop_when::if_all_zero` of the empty list is the twin's `.ifAllZero []`. -/
+@[lockstep] theorem if_all_zero_new_twin :
+    LSP (kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name))
+      (fun pw => TwinEq (ConLeche.PropWhen.ifAllZero []) (ConRon.Refine.absPropWhen pw)) := by
+  intro pw h
+  simp only [kernel.prop_when.if_all_zero, kernel.prop_when.of_repr, alloc.vec.Vec.new,
+    alloc.vec.Vec.len] at h
+  rw [if_pos (by rfl)] at h
+  simp at h
+  subst h
+  rfl
+
+open Lockstep in
 @[lockstep] theorem proj_model_name_ls {pers st lst} {t : arena.handle.NIdx} {i : Std.U64}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = absNIdx a) (arena.core.proj_model_name pers st t i) lst
@@ -194,7 +201,9 @@ theorem pi_result_is_prop_refines {pers st lst} {e : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.core.pi_result_is_prop pers st e = ok o) :
     Sim₀ id pers lst o (piResultIsProp (absEIdx e)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.core.pi_result_is_prop, piResultIsProp]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem pi_result_is_prop_ls {pers st lst} {e : arena.handle.EIdx}
@@ -210,7 +219,9 @@ theorem pi_result_z_refines {pers st lst} {e : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.core.pi_result_z pers st e = ok o) :
     Sim₀ ConRon.Refine.absPropWhen pers lst o (piResultZ (absEIdx e)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.core.pi_result_z, piResultZ]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem pi_result_z_ls {pers st lst} {e : arena.handle.EIdx}
@@ -1603,28 +1614,6 @@ open Lockstep in
     LS pers (fun a b => b = absEIdx a) (arena.trust_axioms.reduce_elem_ty pers st c) lst
       (reduceElemTy (absNIdx c)) :=
   LS.ofSim₀ fun _ h => reduce_elem_ty_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem reduce_op_raw_ls
-    {pers st lst}
-    {c : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absIConstantVal a) (arena.trust_axioms.reduce_op_raw pers st c) lst
-      (reduceOpRaw (absNIdx c)) :=
-  LS.ofSim₀ fun _ h => reduce_op_raw_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem of_reduce_raw_ls
-    {pers st lst}
-    {n : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absIConstantVal a) (arena.trust_axioms.of_reduce_raw pers st n) lst
-      (ofReduceRaw (absNIdx n)) :=
-  LS.ofSim₀ fun _ h => of_reduce_raw_refines hrel hinv h
 
 
 open Lockstep in

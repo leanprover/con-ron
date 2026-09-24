@@ -1224,42 +1224,6 @@ open Lockstep in
       (reduceElemTy (absNIdx c)) :=
   LS.ofSim₀ fun _ h => reduce_elem_ty_refines hrel hinv h
 
-/-- `reduce_op_raw` ⊑ `reduceOpRaw`. -/
-theorem reduce_op_raw_refines {pers st lst} {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.trust_axioms.reduce_op_raw pers st c = ok o) :
-    Sim₀ absIConstantVal pers lst o
-      (reduceOpRaw (absNIdx c)) := by
-  sorry
-
-open Lockstep in
-@[lockstep] theorem reduce_op_raw_ls {pers st lst}
-    {c : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absIConstantVal a)
-      (arena.trust_axioms.reduce_op_raw pers st c) lst
-      (reduceOpRaw (absNIdx c)) :=
-  LS.ofSim₀ fun _ h => reduce_op_raw_refines hrel hinv h
-
-/-- `of_reduce_raw` ⊑ `ofReduceRaw`. -/
-theorem of_reduce_raw_refines {pers st lst} {n : arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.trust_axioms.of_reduce_raw pers st n = ok o) :
-    Sim₀ absIConstantVal pers lst o
-      (ofReduceRaw (absNIdx n)) := by
-  sorry
-
-open Lockstep in
-@[lockstep] theorem of_reduce_raw_ls {pers st lst}
-    {n : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absIConstantVal a)
-      (arena.trust_axioms.of_reduce_raw pers st n) lst
-      (ofReduceRaw (absNIdx n)) :=
-  LS.ofSim₀ fun _ h => of_reduce_raw_refines hrel hinv h
-
 /-- `reduce_nat_cv_a` ⊑ `reduceNatCvA`. -/
 theorem reduce_nat_cv_a_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)

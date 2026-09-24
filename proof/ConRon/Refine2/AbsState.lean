@@ -432,6 +432,37 @@ port's `Vec` is oldest-first, its index storing a position into it. -/
 def absIEnv (e : arena.env.IEnv) : IEnv :=
   ⟨(e.consts.val.map absIConstantInfo).reverse⟩
 
+/-- **The index clause `index_promoted` needs** (a statement gap, found by this
+task): every row of the port's index points at a slot whose constant carries
+the row's key.  `IFEnvRel` reads a row THROUGH its position, so overwriting a
+slot moves every row that points at it; the twin re-indexes by NAME.  The two
+agree exactly when the rows at a slot are keyed by that slot's name.  It is a
+fact about the Rust `IFEnv` alone (every writer — `mk_ifenv_go`,
+`ifenv_push`, `index_promoted` — stores its own constant's name at its own
+slot), a key predicate on the Rust `IFEnv`, carried by `IFEnvRel.keys` (task
+#97-P5-Core round 5, the coordinator's ruling; found by task #97-T2-LOCKSTEP
+lane Promote). -/
+def IFEnvKeys (rf : arena.env.IFEnv) : Prop :=
+  ∀ k p, ConRon.Refine.HashMap2.toFun rf.idx k = some p →
+    ∃ ci, rf.env.consts.val[p.2.val]? = some ci ∧ (absIConstantInfo ci).name = absNIdx k
+
+/-- **The Rust-side representation predicate of a stored constant** (task
+#97-P5-Core round 5, coordinator's ruling (d)): the data a lockstep step reads
+out of the environment and hands to a function that is exact only on
+canonical data — the subtype invariants Charon erased from con-leche's
+types, and nothing else (the maintainer's ruling).  The Rust `PropWhen` is
+con-leche's sealed canonical datum
+with its proof fields erased (`two p q` needs `p < q`, `many ps` sorted and
+longer than two), so the Rust type admits values the twin's `ConLeche.PropWhen`
+cannot represent, on which `prop_when::beq`/`subst_pw` differ — the store side
+carries the same fact as `TblRel`'s `RelOn PropWhenWF` key predicate.  Only
+the clause a proof needs is here: an inductive's result-sort datum, read by
+`arena::core::caps_never_zero`: the erased subtype invariant of con-leche's
+`PropWhen`.  (Add a clause only with the proof that needs it.) -/
+def IConstantInfoWF : arena.env.IConstantInfo → Prop
+  | .IndInfo _ caps => ConRon.Refine.PropWhenWF caps.sort_z
+  | _ => True
+
 /-- **The one clause that is not a field map** (task #97-P6-5's lever 1): the
 Rust's index answers `(counter, position)` and `ifenv_find` reads the constant
 out of `env.consts` at that position, where the twin's index answers
@@ -444,5 +475,28 @@ structure IFEnvRel (rf : arena.env.IFEnv) (lf : IFEnv) : Prop where
       (rf.env.consts.val[p.2.val]?).map fun ci => (absU p.1, absIConstantInfo ci))
     = lf.idx[absNIdx n]?
   visibleBelow : lf.visibleBelow = absU rf.visible_below
+  /-- The stored constants are canonical Rust data (`IConstantInfoWF`): a
+  Rust environment represents a twin one only when it is. -/
+  envWF : ∀ ci ∈ rf.env.consts.val, IConstantInfoWF ci
+  /-- Every index row points at a slot whose constant carries the row's key
+  (`IFEnvKeys`). -/
+  keys : IFEnvKeys rf
+
+/-- **SEAM, routed to the Checker lane** (task #97-P5-Core round 5, ruling
+(d)): a constant the checker PUSHES onto the environment is canonical Rust
+data.  As stated — for an arbitrary `ci` — this is false; it stands for the
+premise every `ifenv_push` site owes (the constant was built by the checker's
+own smart constructors, so its `PropWhen` is canonical), and
+`ifenv_push_refines` is its one consumer.  Replace it by that premise. -/
+theorem ifenvRel_envWF_push (ci : arena.env.IConstantInfo) : IConstantInfoWF ci := by
+  sorry
+
+/-- **SEAM, routed to the Promote lane** (task #97-P5-Core round 5, ruling
+(d)): a constant `index_promoted` writes back (a promoted copy of a stored one)
+is canonical Rust data.  False for an arbitrary `ci`; it stands for "promotion
+preserves `IConstantInfoWF`" (the copy keeps its `PropWhen` data), which the
+Promote lane owes at `index_promoted_step`, its one consumer. -/
+theorem ifenvRel_envWF_promote (ci : arena.env.IConstantInfo) : IConstantInfoWF ci := by
+  sorry
 
 end ConRon.Refine2
