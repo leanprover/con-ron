@@ -33,8 +33,62 @@ open scoped ConRon.Refine2.IndSide
 
 open ConRon.Arena
 
+/-! ## `unwrap_or` at the handle types this lane's walks unwrap
+
+`checker_base::unwrap_or` against `unwrapOr` (the checker tier's
+`unwrap_or_refines` is `sorry`, and `PrimsModeled.lean`'s proved copy is
+downstream of this file).  One `@[lockstep]` lemma per element abstraction
+and error kind: the tactic applies a spec before it matches the twin, so the
+abstraction cannot be left to unification; the twin's message is free. -/
+
+namespace IndInstPrims
+
+open Lockstep
+
+theorem unwrap_or_lsr {T β : Type} {A : T → β} {pers st lst} {o : Option T}
+    {err : kernel.core_types.CheckError} {lerr : Arena.CheckError}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (herr : absAErrKind err = lAErrKind lerr) :
+    LSR pers (fun a b => b = A a) (arena.checker_base.unwrap_or o err) st lst
+      (unwrapOr (o.map A) lerr) := by
+  refine LSR.ofSimRE hrel hinv fun r hrun => ?_
+  cases o with
+  | none =>
+    simp only [arena.checker_base.unwrap_or, Result.ok.injEq] at hrun
+    subst hrun
+    exact errSim_fail herr
+  | some a =>
+    simp only [arena.checker_base.unwrap_or, Result.ok.injEq] at hrun
+    subst hrun
+    rfl
+
+@[lockstep] theorem unwrap_or_eidx_int {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {o : Option arena.handle.EIdx} {m : alloc.vec.Vec Std.U32} {s : String} :
+    LSR pers (fun a b => b = absEIdx a)
+      (arena.checker_base.unwrap_or o (kernel.core_types.CheckError.Internal m)) st lst
+      (unwrapOr (o.map absEIdx) (.internal s)) :=
+  unwrap_or_lsr hrel hinv rfl
+
+@[lockstep] theorem unwrap_or_eidx_vec_int {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {o : Option (alloc.vec.Vec arena.handle.EIdx)} {m : alloc.vec.Vec Std.U32} {s : String} :
+    LSR pers (fun a b => b = (absEIdxL a).toArray)
+      (arena.checker_base.unwrap_or o (kernel.core_types.CheckError.Internal m)) st lst
+      (unwrapOr ((o.map absEIdxL).map List.toArray) (.internal s)) := by
+  rw [Option.map_map]
+  exact unwrap_or_lsr hrel hinv rfl
+
+end IndInstPrims
+
 /-! ## The binder-domain walk -/
 
+-- `lockstep_congr` tries `rfl` first; at a twin `isDefEqCore` whose depth
+-- argument differs syntactically (`absU i4` against `↑off + (↑k - 1)`), that
+-- `rfl` unfolds the knot and never returns.
+attribute [local irreducible] Arena.isDefEqCore
+
+set_option maxHeartbeats 1000000 in
 /-- `check_struct_doms_at` ⊑ `checkStructDomsAt` — the reference kernels'
 binder-domain comparisons, run binder by binder at its own frame.  Walks from
 the last binder to the first, which is why the counter is the twin's `j + 1`
@@ -50,7 +104,30 @@ theorem check_struct_doms_at_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ (fun _ => ()) pers lst o
       (checkStructDomsAt (ConRon.Refine.absMode mode) lf (absU off) (absEIdxL fvs)
         (absEIdxL doms) (absU k)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  induction hk : k.val generalizing k st lst with
+  | zero =>
+    rw [arena.inductives.struct_install.check_struct_doms_at.eq_def,
+      if_pos (by scalar_tac), show absU k = 0 from hk, checkStructDomsAt]
+    lockstep
+  | succ m ih =>
+    rw [arena.inductives.struct_install.check_struct_doms_at.eq_def,
+      if_neg (by scalar_tac), show absU k = m + 1 from hk, checkStructDomsAt]
+    have hk1 : 1 ≤ k.val := by omega
+    obtain rfl : m = k.val - 1 := by omega
+    clear hk
+    dsimp only
+    simp only [absEIdxL]
+    by_cases hf : k.val - 1 < fvs.val.length
+    · rw [List.getElem?_map, List.getElem?_eq_getElem hf, Option.map_some]
+      by_cases hd : k.val - 1 < doms.val.length
+      · rw [List.getElem?_map (l := doms.val), List.getElem?_eq_getElem hd, Option.map_some]
+        lockstep
+      · rw [List.getElem?_map (l := doms.val), List.getElem?_eq_none (by omega), Option.map_none]
+        lockstep
+    · rw [List.getElem?_map, List.getElem?_eq_none (by omega), Option.map_none]
+      lockstep
 
 open Lockstep in
 @[lockstep] theorem check_struct_doms_at_ls
@@ -85,7 +162,21 @@ theorem proj_bodies_scoped_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ id pers lst o
       (projBodiesScopedSpec lf (absNIdxL lps) (absU n_p)
         (absEIdxLFrom bodies i)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  revert st lst hrel hinv hrun
+  simp only [absEIdxLFrom]
+  intro st lst hrel hinv _
+  refine ls_cursor bodies absEIdx (projBodiesScopedSpec lf (absNIdxL lps) (absU n_p))
+    (fun st i => arena.inductives.struct_install.proj_bodies_scoped pers vis st rf lps n_p bodies i)
+    ?_ ?_ i st lst hrel hinv
+  · intro st lst i hn hrel hinv
+    rw [arena.inductives.struct_install.proj_bodies_scoped.eq_def, projBodiesScopedSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst i hb hrel hinv ih
+    rw [arena.inductives.struct_install.proj_bodies_scoped.eq_def, projBodiesScopedSpec]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem proj_bodies_scoped_ls
@@ -116,7 +207,17 @@ theorem proj_fn_family_free_refines {pers st lst} {vis : Std.U64} {rf lf}
       j = ok o) :
     Sim₀ id pers lst o
       (projFnFamilyFreeSpec lf (absNIdx t) (absU n_f - absU j) (absU j)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  induction hk : n_f.val - j.val generalizing j st lst with
+  | zero =>
+    rw [arena.inductives.struct_install.proj_fn_family_free.eq_def,
+      if_pos (by scalar_tac), projFnFamilyFreeSpec]
+    lockstep
+  | succ m ih =>
+    rw [arena.inductives.struct_install.proj_fn_family_free.eq_def,
+      if_neg (by scalar_tac), projFnFamilyFreeSpec]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem proj_fn_family_free_ls
@@ -147,7 +248,13 @@ theorem check_struct_proj_table_names_refines {pers st lst}
       (checkStructProjTableNamesSpec (absNIdx t) (absNIdx c) (absNIdxL lps)
         (absU n_p) (absU n_f) (absLIdx res_sort) (absLIdxL guards) (absU off)
         (absEIdxL bodies).toArray lf) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.struct_install.check_struct_proj_table_names,
+    checkStructProjTableNamesSpec]
+  lockstep
+  all_goals
+    simp only [absIConstantInfo, absIProjTable] at *
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem check_struct_proj_table_names_ls
@@ -185,7 +292,10 @@ theorem check_struct_proj_table_refines {pers st lst}
       (checkStructProjTable (absNIdx t) (absNIdx c) (absNIdxL lps) (absU n_p)
         (absU n_f) (absLIdx res_sort) (absLIdxL guards) (absU off)
         (absIConstantVal cv_ca) lf) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.struct_install.check_struct_proj_table,
+    checkStructProjTable_unfold]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_struct_proj_table_ls
