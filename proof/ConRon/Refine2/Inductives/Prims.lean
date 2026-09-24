@@ -1918,4 +1918,79 @@ macro_rules
 
 attribute [lockstep] proj_table_name_lss
 
+/-! ## The recursor rule's two install bits (`core::rec_rule_bits`)
+
+Moved down from `PrimsModeled.lean` (coordinator's ruling, task #97-T2-LOCKSTEP
+lane Inductives Install), names kept: the sum route's `sum_rules` needs them
+too.  The record-field equations stay in `IndModeledPrims` and are registered
+locally. -/
+
+namespace IndModeledPrims
+
+theorem absIRecRule_ctor (r : arena.env.IRecRule) : (absIRecRule r).ctor = absNIdx r.ctor := rfl
+theorem absIRecRule_nfields (r : arena.env.IRecRule) :
+    (absIRecRule r).nfields = absU r.nfields := rfl
+theorem absIRecRule_ctorParams (r : arena.env.IRecRule) :
+    (absIRecRule r).ctorParams = absU r.ctor_params := rfl
+theorem absIRecRule_fire (r : arena.env.IRecRule) :
+    (absIRecRule r).fire = absIRecRuleFire r.fire := rfl
+theorem absIRecRule_rhs (r : arena.env.IRecRule) : (absIRecRule r).rhs = absEIdx r.rhs := rfl
+theorem absIRecRule_k (r : arena.env.IRecRule) : (absIRecRule r).k = r.k := rfl
+theorem absIRecRule_eta (r : arena.env.IRecRule) : (absIRecRule r).eta = r.eta := rfl
+theorem absIRecRule_paramsBlind (r : arena.env.IRecRule) :
+    (absIRecRule r).paramsBlind = r.params_blind := rfl
+
+theorem absIIndCaps_eta (c : arena.env.IIndCaps) : (absIIndCaps c).eta = c.eta := rfl
+theorem absIIndCaps_etaCtor (c : arena.env.IIndCaps) :
+    (absIIndCaps c).etaCtor = absNIdx c.eta_ctor := rfl
+theorem absIIndCaps_ruleK (c : arena.env.IIndCaps) : (absIIndCaps c).ruleK = c.rule_k := rfl
+
+/-- `decide (x = 0)` at a `u64` is the twin's `(x : Nat) == 0`. -/
+theorem decide_u64_eq_zero (x : Std.U64) : decide (x = 0#u64) = (x.val == 0) := by
+  by_cases h : x = 0#u64
+  · subst h; rfl
+  · have : x.val ≠ 0 := fun hc => h (by scalar_tac)
+    simp [h, this]
+
+end IndModeledPrims
+
+section RuleBits
+open Lockstep IndModeledPrims
+attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims.absIRecRule_nfields
+  IndModeledPrims.absIRecRule_ctorParams IndModeledPrims.absIRecRule_fire
+  IndModeledPrims.absIRecRule_rhs IndModeledPrims.absIRecRule_k IndModeledPrims.absIRecRule_eta
+  IndModeledPrims.absIRecRule_paramsBlind IndModeledPrims.absIIndCaps_eta IndModeledPrims.absIIndCaps_etaCtor IndModeledPrims.absIIndCaps_ruleK IndModeledPrims.decide_u64_eq_zero etag_const_abs
+
+@[lockstep] theorem rec_rule_k_of_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) (ctor : arena.handle.NIdx) :
+    LS pers (fun a b => b = a) (arena.core.rec_rule_k_of pers vis st rf ctor) lst
+      (recRuleKOf lf (absNIdx ctor)) := by
+  rw [arena.core.rec_rule_k_of, recRuleKOf]
+  lockstep
+
+@[lockstep] theorem rec_rule_eta_of_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) (rn ctor : arena.handle.NIdx) :
+    LS pers (fun a b => b = a) (arena.core.rec_rule_eta_of pers vis st rf rn ctor) lst
+      (recRuleEtaOf lf (absNIdx rn) (absNIdx ctor)) := by
+  rw [arena.core.rec_rule_eta_of, recRuleEtaOf]
+  lockstep
+  -- the level-parameter comparison, in `nidx_vec_beq`'s `decide` form
+  all_goals
+    refine LS.pure ?_ ‹_› ‹_›
+    simp_all [absNIdxList]
+    exact beq_eq_decide _ _
+
+@[lockstep] theorem rec_rule_bits_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) (rn : arena.handle.NIdx)
+    (rl : arena.env.IRecRule) :
+    LS pers (fun a b => b = absIRecRule a) (arena.core.rec_rule_bits pers vis st rf rn rl) lst
+      (recRuleBits lf (absNIdx rn) (absIRecRule rl)) := by
+  rw [arena.core.rec_rule_bits, recRuleBits]
+  lockstep
+
+end RuleBits
+
 end ConRon.Refine2
