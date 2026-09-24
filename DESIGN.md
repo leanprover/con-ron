@@ -62948,6 +62948,70 @@ closed); at the submitted tip (`arena` `5723f896` merged) **17 items in 4
 modules, 198 tainted, dead weight 90** — no item of this lane is left on it
 (top `check_iota_thm_n_idx`, Modeled).  `scripts/gates.sh`: all 16 OK.
 
+#### Slice 2 (worktree `_tmp/wt-t2-ind9`, branch `t2-ind-9` off slice 1's `d26429e9`)
+
+**The binder interns' premise threaded; the two false lemmas deleted.**
+`intern_e_{lam,forall_e}_ls` (premise-free, `sorry`, false: the binder cons
+key is a `PropWhen`, `TblRel` is `RelOn PropWhenWF`) are gone from
+`Tactic/Prims.lean`; `intern_e_{lam,forall_e}_wf_ls` are the only binder
+interns.  The lane's consumers now carry the datum's well-formedness:
+* `Shape.lean`: `TeleWF v` (every binder datum of a telescope is well formed —
+  a named predicate, not a `∀`, because the side tactic clears `∀`
+  hypotheses), `TeleWF.new`/`.push`/`.get`, a scoped `IndSide` alternative
+  (`TeleWF` after a `push`; a read datum out of a `TeleWF` telescope), and
+  `ls_counted_sz_inv` (the counted recipe with an accumulator invariant).
+* `struct_tele_at_ls`/`_twin0` conclude `b = absBinderL a ∧ TeleWF a` from
+  `PropWhenWF pw` (every datum it pushes is `pw`); `mk_pis_of`/`mk_lams_of`
+  take `TeleWF tele`; every builder with a `pw` argument takes
+  `PropWhenWF pw` (`struct_ih_app/_list(_twin0)`, `struct_rule_body_r`,
+  `struct_ih_pis(_at)`, `struct_minor_ty_close/_at/_r`, `intern_binder`,
+  `struct_minors_pis_r/_lams_r`, `struct_rec_ty_close/_at`,
+  `struct_rec_rhs_close/_at`, `native_rule_body_ok`, `native_rules_ok(_from)`,
+  `replace_pis_pw`, `pis_to_lams_pw`).  Where `pw` is built it is `never`,
+  `if_all_zero`, `zeroness_of` — all proved canonical — so **the premise does
+  not leave the lane**: the one outside caller, `check_native_tail_kinds`
+  (Install lane), passes `prop_when::never`, whose `prop_when_never_ls`
+  carries the fact.  A dependency walk over the lane's modules
+  (`getUsedConstants`, transitively) found no declaration reaching the false
+  lemmas before they were deleted; `lake build ConRonRefine2 ConRonCapstone`
+  green after.
+* `if_all_zero_new_twin`, `zeroness_of_twin` and `pi_result_z_ls` conclude
+  `PropWhenWF` of their answer (the Modeled lane's request, for
+  `ind_block_caps`).  One out-of-lane edit: `PrimsModeled.lean`'s
+  `if_all_zero_new_wf_twin` reads the value conjunct (`.1`) — its workaround
+  can now simply be `if_all_zero_new_twin`.
+
+**Closed (12), every one axiom-clean:**
+
+| lemma | what it took |
+|---|---|
+| `replace_pis_pw`, `pis_to_lams_pw` | fuel induction on `k` (`_aux`), `PropWhenWF pw` premise |
+| `struct_proj_resid_p` | induction on the count `i`, one `lockstep` per case |
+| `rec_positivity` | fuel induction, one `lockstep` per case |
+| `has_loose_bvar_b_go`, `has_loose_bvar_b_node` | fuel induction; the node dispatch at fuel `m` from the IH as its own theorem (`has_loose_bvar_b_node_of_go`, which splits the heartbeats); `has_loose_bvar_b_ins_ls`; the probe finished by hand (the port's key `eidx_nat_key h i` read back as the twin's `(h, i)`, then the probe's `TwinEq` decides the twin's `memo[(h, i)]?`); `WOutRel` is now an `abbrev` so the zip splits a related answer |
+| `struct_used_later_list`, `struct_proj_guards_row`, `struct_proj_bodies_go` | counted inductions (`_aux`); `struct_proj_bodies_go`'s tail call by hand (`LS.tail` with the IH, the twin's `some (fdom :: r)` against the accumulator grown by `fdom`) |
+| `struct_proj_bodies` | `struct_proj_bodies_go_new_ls` via `LS.twin_map` (new, `Shape.lean`: a twin-only map of the answer) |
+
+No heartbeat bump.  **This lane's files are `sorry`-free** (`Shape`, `Spec`,
+`Prims`, `NativeParts`, `StructParts`, `SumParts`, `Top`: 10 → 0).  The
+`mentions_fvar` memo walk is in `NativeInstall.lean` (Install lane), not here.
+
+**Tactic notes (worked around; for the tactic owner):** a memo probe whose
+`TwinEq` is stated at `lm[absEIdxNat k]?` does not decide the twin's
+`memo[(h, i)]?` when the key fact is `absEIdxNat k = (absEIdx h, absU i)`
+(neither side rewrites the other; `has_loose_bvar_b_go` finishes it by hand).
+A relation that is a `def` conjunction is not split — `WOutRel` became an
+`abbrev`.
+
+**For the Install lane:** its branch `t2-ind-inst-2` still reaches
+`intern_e_lam_ls` (its frontier top, per `_tmp/frontier-history.tsv`); after
+this slice those lemmas no longer exist.
+
+**Frontier** (`model_exists` + `no_False_declaration`): `arena` `a1faca8c`
+**1 item in 1 module, 21 tainted, dead weight 46**; this tip (arena merged)
+**1 item, 21 tainted, dead weight 34** — the item is `check_native` (Install
+lane).
+
 ### Task #97-T2-CLEANUP — the unowned dead-weight `sorry`s, and `EResolves` retired (2026-09-24, Opus under Fable)
 
 Worktree `_tmp/wt-cleanup`, branch `t2-cleanup` off `arena` `bf376947`.  No
