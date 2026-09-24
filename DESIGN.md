@@ -61317,6 +61317,153 @@ All tests of both sides kept (`Tactic/Tests.lean` and Core's region tests).
 module: `Core/LS/Defeq` 521 s → 229 s (and `Core/LS/Infer` 28 s → 11 s), the
 bounded twin splits and the side tiers without callee specs (slice 5).
 
+### Task #97-T2-TACTIC round 3 — the lanes' reported limits, fixed in the shared core (2026-09-24, Opus under Fable)
+
+Worktree `_tmp/wt-tactic8`, branch `t2-tactic-8` off `arena` `bf376947`,
+`arena` `a1faca8c` merged once.  The owner of the shared `lockstep` tactic
+fixes, centrally and each with a regression test in `Tactic/Tests.lean` taken
+from the reported site, the limits the lanes met since tactic-7 landed (the
+brief's four, then five more from the coordinator mid-round).  Core commits:
+`bada9cab` (a prim), `61caa781` (slice 1), `4873b292` (slice 2); `34403368`
+adapts the three lane proofs the merge brought whose hand finishes the new
+core subsumes.
+
+#### Slice 1 — the brief's four limits, and the coordinator's items 5–7 (`61caa781`, `bada9cab`)
+
+| # | limit (reporter, site) | fix | test (`Tests.lean` §) |
+|---|---|---|---|
+| 1 | a Rust `have x := …; do …` at the head of a step: "lockstep_spec: no head constant" (Inductives, `native_fields_at`'s step case, closed with `dsimp only` first) | the goal AS STATED was never head-normalised (every step's result is): `lockstep_step` now head-normalises both programs of its goal first (`headNorm`: definitional, cheap) | §8, the port's `let i1 := Vec.len x_fvs` prefix |
+| 2 | a twin `if` not decided when the Rust test's hypothesis differs by `==` vs `decide (=)`, or by a `lockstep_simp` unfolding (Inductives, `struct_parts_core_at`, against Core's `nidx_vec_beq_ls`; the lane restated its twin in the Core form) | a new tier `lockstep_side_test`, tried after BOTH polarities failed cheaply and before the dear tier: the goal and the Rust tests' facts (`hc`, every Boolean equation) are put in one normal form (`lockstep_simp` + `beq_iff_eq`, `decide_eq_true_eq`, … — `testNormLemmas`) and the goal is closed by those facts alone (first as they stand, reducibly; then as rewrite rules).  `lockstep_side_ite` gains `lockstep_side_test_arith`: `scalar_tac` after the same normalisation, for an arithmetic test (`(↑m_i == ↑n_p + 2)` is not `scalar_tac`'s) | §8 (the whole zip, and each tier on its own) |
+| 3 | the Rust pair read `let (e, _) := v[j]; dup2 e` kept as an equation (Inductives `rec_ctor_kinds_from`, `struct_field_tele_*`; Core `infer_lams_leaf`) | it is Aeneas's `uncurry`/a `match` on a TERM of a structure type, which only structure eta reduces: on the RUST side `headNorm` replaces such a discriminant by its eta expansion (`(v[j].1, v[j].2)`, definitional; the kernel's iota does the same) and reduces — not for a variable (the step cases it and names the fields) nor for a term over a pair variable (`coreMove` cases the variable).  With it, `EIdx.of_word` got its prim (`eidx_of_word_spec`, `Tactic/Prims.lean`, own commit) and the index side tier a bounded `congr n` (two reads at a `Usize` cast of a `U64`, where a full `congr` reaches `a ≍ k`) | §8, `rec_ctor_kinds_from`'s `dom` |
+| 4 | accumulator-versus-`List.mapM` equations (`l.mapM F = FSpec l`) could not be `lockstep_simp` (it rewrote `struct_minor_ty_r`'s twin away from its callee's statement) | **guarded registration**: `@[lockstep_congr_simp]` (`Attr.lean`), used ONLY by `lockstep_congr`, the `x' = x` check of a spec's twin action against the goal's — never on the twin program.  A caller's `l.mapM F` meets a spec stated at `FSpec` (the `…_twin0` companions); a caller whose callee is stated at the `mapM` form keeps it | §9, both directions |
+| 5 | two `@[lockstep]` lemmas for one Rust head: the first registered wins (an `LSP` spec's predicate is a metavariable, so any closes), a local registration does not override, `[-lockstep]` is not erasable (Inductives Modeled, `if_all_zero`'s WF copy in `Lockstep.IndModWF`) | **priorities**: `@[lockstep high]` / `@[lockstep 2000]` / `attribute [local lockstep high] foo` (the `@[simp]` priority syntax; default 1000).  Order: local hypotheses; lemmas by priority; at equal priority an opened region namespace; then registration order (a re-registration moves the lemma to the end).  `attribute [-lockstep] foo` erases (for the section).  Documented at `Attr.lean`'s attribute | §10 (the `high` copy wins; erased, the value-only lemma is taken; back after the scope) |
+| 6 | the twin split of a `match` on a list pattern (`[lv]`) cased the head `LIdx` down to `UInt32`/`BitVec`/`Fin` (Modeled, `eq_app3`) | `caseTarget?` takes no variable of a structure type (one constructor, no index): casing it selects no alternative | §11, `eq_app3` itself: no word-level variable left |
+| 7 | `lockstep_congr`'s first alternative, a default `rfl`, unfolds twin definitions as far as they go before failing (~4 s per candidate at `native_rules_ok_from`, `maxHeartbeats 400000`; the Install lane's knot entries never came back, `attribute [local irreducible] Arena.isDefEqCore …`) | `with_reducible rfl` first (as `twin_view_const_name`'s `hg`); no default `rfl` at all | §12, a 200-element list under 4 000 heartbeats (fails with the old order); the knot case |
+
+The Install lane's items (b), (c) the same day:
+
+* **A twin-only DATA argument the congruence does not fix** (a message
+  `unwrapOr` at a constructor ignores) went to the side tiers; in a dead
+  branch `omega` closed the goal of type `String` by an auxiliary "theorem"
+  the kernel rejects.  Now such an argument is `default` (`Inhabited`), never
+  the side tiers (§14; the old code fails with the kernel error).
+* **A nested twin `do` block in bind position** (the stated
+  `(do let e' ← whnf …; …) >>= k` of `whnf_telescope`): slice 2.
+
+#### Slice 2 — no error becomes `sorry`, and four more (`4873b292`)
+
+* **`strict`** (the coordinator's top priority, from the Install lane): a
+  tactic block elaborates terms with error recovery, so a failing `‹…›` or
+  `have := …` inside an alternative was LOGGED and elaborated to `sorry`, and
+  the alternative "succeeded".  Every `lockstep` entry point
+  (`lockstep_step`, `lockstep_side*`, `lockstep_congr`, `lockstep_spec`,
+  `lockstep_contra`) and every `firstTimed` alternative runs with
+  `withoutRecover` + `Term.withoutErrToSorry` — Lean's own `first` does this
+  for all alternatives but its last.  Test §15: a `local macro_rules`
+  side extension `have h : False := ‹False›; exact h.elim` must make
+  `lockstep_side` and `lockstep_side_ite` FAIL, checked with error recovery on
+  (`fails_with_recovery`: `fail_if_success` turns recovery off itself, so it
+  cannot tell — the old code passes it and fails this).
+  **Arena scan** (a scratch Lean program over all 108 `ConRon.Refine2`
+  modules: every declaration whose own type or value mentions `sorryAx`, by
+  owner, against its source range): 47 owners, **every one with a `sorry` in
+  its source**; `ConRonRefine2` builds with `strict`, so no proof reached a
+  recovered `sorry` through `lockstep`.
+* **A nested twin block is tried whole, then flattened.**  Slice 1 first
+  simp-normalised the stated goal (`bind_assoc` is `lockstep_simp`); that
+  broke `Checker/Base.lean`'s `check_proj_rule_wf`, which GROUPS the twin so
+  that a block is one Rust callee's partner.  Now the stated goal is only
+  head-normalised, and when the Rust step fails at a twin `(a >>= f) >>= k`,
+  `LS.twin_assoc` flattens it and the step is retried (§13; after a step
+  `lockstep_simp` flattens anyway).
+* **A twin `match` in bind position** (Install lane): the match-on-a-term
+  fallback looks at the callee of the twin's next bind too (§16; fails with
+  the old code).
+* **A memo key's other spelling** (Parts lane, `has_loose_bvar_b_go`): a
+  context equation with a pair on the right (`absEIdxNat k = (absEIdx h,
+  absU i)`) respells a `TwinEq`'s left side, as the scalar facts do, so a
+  probe stated at `lm[absEIdxNat k]?` decides the twin's `lm[(h, i)]?` (§17;
+  fails with the old code).
+* **`@[lockstep_rel]`** (Parts lane, `WOutRel`): a `def` relation that is a
+  conjunction is split (at a callee's answer and at a leaf) when tagged; an
+  `abbrev` is, as before (§18).
+
+#### Lane proofs touched (all in this branch)
+
+| file | owner | change |
+|---|---|---|
+| `Core/LS/Lits.lean` `raw_nat_lit_ls` | none active | the `dsimp only` before `lockstep` dropped (item 1) |
+| `Core/LS/Infer.lean` `infer_lams_leaf_ls` | none active | the pair-read glue (`generalize … = p; obtain ⟨x, bm⟩; …`, 5 lines) gone: the tail call's premise and argument only |
+| `Frontend/ProjRec.lean` `proj_rec_candidates_from` | none active | `ls_rec_record` replaces the hand record split; `ls_ctor_record` no longer splits the record (the port reads it through projections) |
+| `Checker/Base.lean` `eq_head_level_at_ls` | Checker Base/Top | the `[l]` closers renamed (the twin split now stops at the list shape) |
+| `Inductives/NativeParts.lean` `rec_ctor_kinds_from` | Inductives | the in-range arm is zipped; the `let_pair_dup2_eq` finish (11 lines) → one `rw` |
+| `Inductives/Shape.lean` `ind_dom_finish` | Inductives | a third alternative without the kept equation `hf` |
+
+#### Workarounds the lanes can now remove (at `arena` `db1131f1`)
+
+* **Inductives** — `NativeInstall.lean`: the `dsimp only` before `lockstep`
+  in `native_fields_at` and its two siblings' step cases (item 1).
+  `NativeParts.lean`: `mapM_structIdxAt_eq`, `mapM_structIhApp_eq`,
+  `mapM_liftLooseBVarsFast_eq` as `@[lockstep_congr_simp]`, and the four
+  `simp only [mapM_…]` before `lockstep` dropped (item 4); the
+  `simp only [bind_assoc]` before `lockstep` (1283, 2529) and the
+  `maxHeartbeats 400000` of `native_rules_ok_from` (items 7, (b)).
+  `Shape.lean`: `let_pair_dup2_eq` and `ind_dom_finish`'s first two
+  alternatives, once no caller keeps `hf` (item 3).
+  `StructInstall.lean`/`SumInstall.lean`: `attribute [local irreducible]
+  Arena.isDefEqCore …` (item 7), `whnf_telescope`'s `simp only [bind_assoc]`
+  ((b)).  `PrimsModeled.lean`: `pair_let_eq2`/`ind_eq2_facts` (item 3); the
+  `Lockstep.IndModWF` namespace and its `open` (item 5; since
+  `if_all_zero_new_twin` concludes the WF itself, the copy can simply go).
+  `StructParts.lean`: `structPartsCoreAtSpec_nested`'s tests may go back to
+  `==` (item 2).  `Modeled.lean` `eq_app3_ls`: the `[lv]` closers see the
+  list shape only (item 6).  Parts: `has_loose_bvar_b_go`'s hand probe
+  finish ((8)); `WOutRel` may be a `@[lockstep_rel] def` again ((9)).
+* **Checker Base/Top** — nothing further.
+
+#### Cost
+
+`perf stat -e instructions:u,cycles:u` of `lake build ConRonRefine2`, a
+comment appended to `Tactic/Lockstep.lean` so that everything downstream of
+it re-elaborates (`LAKE_JOBS=4`, `LEAN_NUM_THREADS=4`):
+
+* slice 1 on `bf376947`: **before 10 391 G instructions, after 10 393 G
+  (+0.02 %)**; cycles 8 740 G → 8 574 G.
+* the round on `arena` `a1faca8c` (before: `a1faca8c`'s `Refine2`; after:
+  this branch's, both slices, the lane adaptations and the new tests):
+  **before 11 962 G instructions, after 11 729 G (−1.9 %)**; cycles
+  10 676 G → 10 254 G.
+
+#### Gates
+
+`scripts/gates.sh` on the branch (`arena` `a1faca8c` merged): **all 16 OK**.
+Frontier (`model_exists` + `no_False_declaration`): 1 item in 1 module,
+21 tainted, dead weight 46 (unchanged: `check_native_refines`).
+
+
+#### The bounce (queue, onto `arena` `c6e5f220`)
+
+Every lane proof built under the strict tactic; only `Tests.lean` §10 failed:
+it borrowed `if_all_zero_new_twin`, which the Inductives round 6 slice 2
+strengthened to carry the WF itself, so the "weak" lemma was no longer weak.
+§10 now has its own Rust step (`rustEcho`) and two pairs that really differ
+(`rust_echo_weak`, registered first, says `True`; `rust_echo_strong` is
+`@[lockstep high]`); checked that without `high` the first and third tests
+fail.  OVERVIEW §7.4's anchors (`LSM`/`LSRM`, `lockstep`, `@[lockstep]`)
+moved with the code, and its text now says that alternatives run without
+error recovery, how lemmas for one callee are ordered (priority, then
+registration; `[-lockstep]`), and names `@[lockstep_congr_simp]`.
+No `sorry` left in `Tactic/` (the maintainer's rule for master): the six
+`Tests.lean` examples that ended in one now run their checks in `in_scratch`
+(the goal restored afterwards) and close by a hypothesis `hG` that is the goal
+(cleared inside the check, so `lockstep` cannot take it as a candidate); §15's
+two by `suffices` in the scratch run.  Each still fails if what it checks
+breaks (checked for §10 with the erasure removed).  The two pre-D1 stuck
+demonstrations, `Sample.lean`'s `inst_pis_from_aux'` and `SampleCore.lean`'s
+`ensure_sort_refines'` (rows 5 and 7 of the round-1 table), are deleted; their
+fixed versions stay, with a line saying where the zip used to stop.
+`arena` `c6e5f220` merged (clean), gates re-run.
+
 ### Task #97-T2-LOCKSTEP lane Inductives Modeled — the modeled route by `lockstep`; one twin divergence fixed (2026-09-23, Opus under Fable)
 
 Worktree `_tmp/wt-t2-ind-mod`, branch `t2-ind-mod` off `arena` `70ea5a33`
@@ -63516,6 +63663,78 @@ kept); comment references to OVERVIEW sections were updated in
 `proof/ConRon/Arena/CheckerBase.lean`'s "OVERVIEW §4.5 describe con-ron's
 `or_else_step`" is stale and left alone (a comment edit there re-elaborates
 most of the proof); fold it into the next change to that file.
+
+### Task #97-PRUNE — unused proof code deleted; the `CON_LECHE_*` help sentence corrected (2026-09-24, Opus under Fable)
+
+**What went.**  The import closure was computed mechanically (every
+`import ConRon.*` line, from the roots of every library and executable in
+`proof/lakefile.toml`: `ConRon.Arena`, `ConRon.Bridge{,.+}`,
+`ConRon.Refine2{,.+}`, `ConRon.Capstone`, `ConRon.Tools.+`,
+`ConRon.Generated`, and the exes `Gen.Main`, `Dump.Pins`, `Arena.Exe`,
+`Arena.Bench`; the `ConRon` root itself is an index and was treated as the
+thing to trim, not as a seed).  Outside the closure:
+
+* `proof/ConRon/RefineOld/` — all of it (69 Lean files, 121 133 lines, plus
+  its `README.md`, `AUTOMATION.md`, `CORE_PLAN.md`).  No library built it.
+* `proof/ConRon/Spike/` — the task-#3/#5 `LevelName` spike (7 files, 3 489
+  lines) and its library `ConRonSpike`, dropped from `defaultTargets`.
+* `proof/ConRon/Refine/Scalars.lean` (79 lines) — imported only by the
+  `ConRon` index.  The other 46 `Refine/` modules are all in
+  `ConRon.Capstone`'s own closure, so `Refine/` keeps them.
+* The `Generated/*_Template.lean` files are outside the closure too but are
+  `extract.sh` output, not proof code, and stay.
+
+Lean lines under `proof/ConRon` (excluding `Generated/`; `wc -l`):
+
+| directory | before | after |
+|---|---:|---:|
+| `Arena/` | 40 519 | 40 519 |
+| `Bridge/` | 108 555 | 108 555 |
+| `Dump/` | 662 | 662 |
+| `Gen/` | 615 | 615 |
+| `Refine/` | 54 866 | 54 787 |
+| `Refine2/` | 125 507 | 125 507 |
+| `RefineOld/` | 121 133 | — |
+| `Spike/` | 3 489 | — |
+| `Tools/` | 468 | 468 |
+| top-level files (`ConRon.lean`, `ConRon/*.lean`) | 913 | 904 |
+| **total** | **456 727** | **332 017** (−124 710) |
+
+**References fixed**: `proof/lakefile.toml` (the `ConRonSpike` library and
+its default-target entry; a note in its place), `proof/ConRon.lean` (the
+`Scalars` import, the module note), `proof/ConRon/Refine/README.md`,
+`scripts/frontier.sh` (its `/RefineOld/`/`/Spike/` exclusion is gone with
+the trees), OVERVIEW §11 (the `RefineOld/` row), and
+`crates/con-ron-core/src/kernel/core_types.rs`'s citation of the long-gone
+`Refine/Core/Statements.lean`'s `Out`, now `Refine2/Shape.lean`'s `Sim₀`
+(same line count; the model is unchanged).  **Left alone on purpose**: the
+historical mentions of `RefineOld/…` and `Spike/…` in the notes of
+`Bridge/**`, `Refine2/**`, `Capstone.lean` and `Refine/{Abs,Level,Name}.lean`
+(and `Refine2/{Inv,Specs}.lean`'s two mentions of `Refine/Scalars.lean`) —
+they cite where a proof was ported from, the tree is in git history before
+this commit, and editing them would re-elaborate most of Theorem 1 and 2.
+`scripts/provenance.py`'s `proof/ConRon/Arena/Spike/` exemption is a
+different path, asserted by `provenance-selftest.py`, and stays.
+
+**Scripts**: none removed.  Every script in `scripts/` is either run by
+`gates.sh` (as a gate or as the post-gate reports `progress.py`,
+`arena-census.py`, `frontier.sh`, `loc.py`), called by one that is, or
+documented in CLAUDE.md or OVERVIEW (`bench-baselines.sh`, `corpus.sh`,
+`diff-e2e.sh`, `land.sh`, `submit.sh`, `drop-worktree.sh`,
+`setup-aeneas-lean.sh`).  `progress.py` is the old tower's report and still
+reads `Refine/`; it is kept as a report.
+
+**The `--help` sentence.**  The text after the `CON_LECHE_*` list said no
+environment variable can shape a verdict, which `CON_LECHE_INMODEL=0` (a
+mutual/nested block declines) and `CON_LECHE_INMODEL_CENSUS=1` (stop after
+the parse, exit 2) contradict.  It now says what each does to the verdict —
+decline or stop, never an accept the default would not give — and that the
+theorems cover the default setting only.  Two lines longer, so OVERVIEW's
+three `con-ron.rs` anchors moved by two (`overview-links.sh --update`).
+
+After: all 16 gates green, both capstone roots at `[propext,
+Classical.choice, Quot.sound]` (`Capstone.lean`'s `#guard_msgs`), frontier
+0 items / 0 dead weight.
 
 ### Task #97-PERF-WALKMEMO — the two guard walks' memos parked in the state (2026-09-24, Opus under Fable)
 

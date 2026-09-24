@@ -26,24 +26,9 @@ def WhnfLS (f : Nat) : Prop :=
       (arena.core.knot_whnf pers vis st mode lane fu fe depth e) lst
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).whnf (absU depth) (absEIdx e))
 
-/-- As the twin is today: the zip stops at the D1 site. -/
-theorem ensure_sort_refines' {f : Nat} (hW : WhnfLS f)
-    {pers vis st mode lane fu fe lfe depth e lst o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
-    (hrun : arena.core.ensure_sort pers vis st mode lane fu fe depth e = ok o) :
-    Sim₀ absLIdx pers lst o
-      (ensureSort (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-        (absU depth) (absEIdx e)) := by
-  unfold WhnfLS at hW
-  refine LS.toSim₀ ?_ hrun
-  rw [arena.core.ensure_sort, ensureSort]
-  lockstep
-  -- STUCK: D1 (`ensure_sort`): the Rust tests the tag and reads `view_sort`,
-  -- the twin reads `view`
-  all_goals sorry
-
-/-- **`ensureSort` with the D1 fix applied** (tag first, as the Rust). -/
+/-- **`ensureSort` with the D1 fix applied** (tag first, as the Rust).  Against
+the twin as it was, the zip stopped at the Rust's `view_sort` (DESIGN
+#97-T2-TACTIC §4, row 7; that stuck demonstration is deleted). -/
 def ensureSortTF (r : CoreFnsA) (_fe : IFEnv) (depth : Nat) (e : EIdx) : AM LIdx := do
   let w ← r.whnf depth e
   if w.tag == ETag.sort then
@@ -68,7 +53,6 @@ theorem ensure_sort_tf_refines' {f : Nat} (hW : WhnfLS f)
 
 /-! ## The axiom census -/
 
-#print axioms ensure_sort_refines'
 #print axioms ensure_sort_tf_refines'
 
 end ConRon.Refine2.Lockstep.Sample

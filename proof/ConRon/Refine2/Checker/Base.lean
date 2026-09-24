@@ -2409,10 +2409,11 @@ open Lockstep in
         | _ => zeroLevel) := by
   rw [arena.checker_base.eq_head_level_at]
   lockstep
+  -- the port's `ls.len() == 1` against the twin's `[l]` pattern: the zip cases
+  -- the list to its shape (not the words below it, task #97-T2-TACTIC round 3)
   all_goals split
   · refine LS.pure ?_ hrel hinv
-    subst_vars
-    rename_i _ tl _ _ _ l heq hmap
+    rename_i _ tl hmap _ l heq
     simp only [List.cons.injEq] at heq
     obtain ⟨rfl, rfl⟩ := heq
     have := congrArg (fun l => l[0]?) hmap
@@ -2420,8 +2421,7 @@ open Lockstep in
     rw [List.getElem?_eq_getElem (by scalar_tac)] at this
     simpa using this.symm
   · exfalso
-    subst_vars
-    rename_i _ tl _ _ _ hn hmap
+    rename_i _ tl hmap _ hn
     have hl := alloc.vec.Vec.len_val a
     have h1 := congrArg List.length hmap
     simp only [List.length_map, List.length_cons] at h1

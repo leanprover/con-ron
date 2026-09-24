@@ -2,8 +2,10 @@
 
 This directory holds the refinement lemmas of DESIGN.md §3.5 / plan phase P3,
 stated about the *generated* model of `crates/con-ron-core` rather than about
-the task-#3 spike.  `ConRon/Spike/LevelName/` stays where it is: it is task
-#3/#5's recorded evidence and is never moved or edited.
+the task-#3 spike.  (The spike, `ConRon/Spike/LevelName/`, and the retired
+`ConRon/RefineOld/` tower were deleted at task #97-PRUNE; both are in git
+history before that commit, which is what the mentions of them below and in
+the Lean files' notes refer to.)
 
 ## What is here after the arena swap (task #97-SWAP)
 
@@ -16,7 +18,7 @@ SUBJECT the arena still calls:
 
 | tier | modules |
 |---|---|
-| infrastructure | `SimpSets`, `Scalars`, `Abs` |
+| infrastructure | `SimpSets`, `Abs` (`Scalars` was deleted at task #97-PRUNE: nothing imported it) |
 | runtime primitives (`ron/`) | `Nat`, `HashMap`, `HashMapWF`, `HashMap2`, `HashMap2WF` |
 | representation-free types (`kernel/`) | `Name`, `Level`, `PropWhen`, `Expr`, `ExprOps`, `ExprOpsFields`, `ExprOpsSubst`, `ExprOpsSpine`, `ExprOpsMeta`, `Env`, `FEnv`, `Canon`, `PropRead` |
 | `core_k`'s readers, names, literals and shape guards | `CoreKBase`, `CoreKNames`, `CoreKVec`, `CoreKLits`, `CoreKSupport`, `CoreKGuards`, `CoreKNatOps`, `CoreKShapes`, `CoreKInfer`, `CoreKProj`, `CoreKPinned` |
@@ -29,8 +31,9 @@ Every lemma in those is still a lemma about code that ships: the arena reads
 `Expr` survives the arena rewrite").  What is NOT here any more is the
 checker's own tier — the knot's arms, the declaration checker, the install
 routes, the cached state, the `Expr`-tree parse and the capstones of
-`Main.lean`.  `ConRon/RefineOld/README.md` says why those are kept and what
-replaces them (§8.6's phases P3 and P5).
+`Main.lean`; `Bridge/` (Theorem 1) and `Refine2/` (Theorem 2) replace them
+(§8.6's phases P3 and P5).  Task #97-PRUNE checked the remaining 46 modules
+mechanically: every one is in `ConRon.Capstone`'s import closure.
 
 **`Refine/<Module>.lean` names a `kernel/` or `ron/` module, not an `arena/`
 one.**  The arena's own refinement will be `Refine/Arena*.lean`;
