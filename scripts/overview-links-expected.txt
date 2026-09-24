@@ -508,29 +508,29 @@
    666      inst.generate m pers rst.store rc b = ok o →
    667      SimGen pers rst lst o (lmd.generate lc (absBlockRec b))
 
-== crates/con-ron-core/src/arena/monad.rs#L297-L318
-   297  /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
-   298  /// Lean twin: `proof/ConRon/Arena/Monad.lean:119-136 AState` — the checker
-   299  /// state of (C): the arena, the per-call memo tables and — since task
-   300  /// #97-P4c — the per-declaration caches (`whnfCore`, `whnf`, the three infer
-   301  /// grades, `defeq`, the level verdicts, the instantiated constants).
-   302  pub struct AState {
-   303      pub store: EStore,
-   304      pub memos: Memos,
-   305      /// The per-DECLARATION caches (task #97-P4c, `arena::core_state`): the
-   306      /// five entry-point memos, the `defeq` verdict table, the two
-   307      /// level-verdict tables and the three lazy instantiated-constant tables.
-   308      /// A record of its own beside `memos`, because the per-call clear and the
-   309      /// per-declaration drop are different operations on different lifetimes.
-   310      pub caches: Caches,
-   311      /// The reserved-name pins (task #97-P6-4a, `arena::pins`): the
-   312      /// forty-nine constant names, the empty level list, the level `0` and
-   313      /// `Sort 1`, interned ONCE into the persistent tier by the driver's
-   314      /// `intern_all_pins` and read by handle ever after.  Empty until then,
-   315      /// which is what makes a premature read a stop rather than a wrong
-   316      /// answer (task #97c's hazard).
-   317      pub pins: Pins,
-   318  }
+== crates/con-ron-core/src/arena/monad.rs#L315-L336
+   315  /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
+   316  /// Lean twin: `proof/ConRon/Arena/Monad.lean:119-136 AState` — the checker
+   317  /// state of (C): the arena, the per-call memo tables and — since task
+   318  /// #97-P4c — the per-declaration caches (`whnfCore`, `whnf`, the three infer
+   319  /// grades, `defeq`, the level verdicts, the instantiated constants).
+   320  pub struct AState {
+   321      pub store: EStore,
+   322      pub memos: Memos,
+   323      /// The per-DECLARATION caches (task #97-P4c, `arena::core_state`): the
+   324      /// five entry-point memos, the `defeq` verdict table, the two
+   325      /// level-verdict tables and the three lazy instantiated-constant tables.
+   326      /// A record of its own beside `memos`, because the per-call clear and the
+   327      /// per-declaration drop are different operations on different lifetimes.
+   328      pub caches: Caches,
+   329      /// The reserved-name pins (task #97-P6-4a, `arena::pins`): the
+   330      /// forty-nine constant names, the empty level list, the level `0` and
+   331      /// `Sort 1`, interned ONCE into the persistent tier by the driver's
+   332      /// `intern_all_pins` and read by handle ever after.  Empty until then,
+   333      /// which is what makes a premature read a stop rather than a wrong
+   334      /// answer (task #97c's hazard).
+   335      pub pins: Pins,
+   336  }
 
 == crates/con-ron-core/src/arena/handle.rs#L4-L15
      4  //! One 32-bit word per handle:
@@ -909,7 +909,7 @@
    158      101, 114,
    159  ];
 
-== crates/con-ron-core/src/arena/monad.rs#L182-L232
+== crates/con-ron-core/src/arena/monad.rs#L182-L248
    182  /// con-leche: ConLeche/Kernel/ExprOps.lean:60-62 Inst1MemoInv
    183  /// Lean twin: `proof/ConRon/Arena/Monad.lean:60-108 Memos` — the memo tables of
    184  /// the `ExprOps` twins, in one record.
@@ -960,7 +960,23 @@
    229      /// con-leche: none — arena infrastructure (task #97-P6-13)
    230      /// The same at a universe-argument LIST handle, for the `.const` arm.
    231      pub inst_lp_ls_c: HashMap<LsIdx, LsIdx>,
-   232  }
+   232      /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
+   233      /// **The two guard walks' memos, kept for their ALLOCATION only.**
+   234      /// `allLevelParamsDefinedGo` and `constsResolveFGo` thread their memo as
+   235      /// an argument (the twin's `(Bool, memo)` result), starting from `∅` at
+   236      /// every entry; the port parks the table here between calls so that the
+   237      /// next call starts from a cleared table instead of a `HashMap::new()`
+   238      /// that re-grows by doubling (task #97-PERF-FRESH §3 item 1).  The entry
+   239      /// moves it out, resets it (`arena::core_state::take_walk_memo`, which is
+   240      /// the twin's `∅`) and puts it back after the walk, so nothing ever reads
+   241      /// a row a previous call left; the twin's `Memos` has no counterpart, and
+   242      /// Theorem 2's `MemosRel` has no clause for either (only `MemosInv`'s
+   243      /// `Inv`).  `all_level_params_defined`'s table.
+   244      pub lp_def_c: HashMap<EIdx, bool>,
+   245      /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
+   246      /// `consts_resolve_f_fast`'s table; see `lp_def_c`.
+   247      pub crf_c: HashMap<EIdx, bool>,
+   248  }
 
 == crates/con-ron-core/src/arena/expr_ops.rs#L35-L51
     35  //!
@@ -980,6 +996,56 @@
     49  //! have none, here as there: a cutoff the original does not have needs its
     50  //! own licence proved.
     51  //!
+
+== crates/con-ron-core/src/arena/core_state.rs#L525-L572
+   525  /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
+   526  /// The slot count past which `take_walk_memo` hands back a FRESH table
+   527  /// instead of a cleared one; see its note for how the value was chosen.
+   528  pub const WALK_MEMO_KEEP: usize = 1 << 16;
+   529  
+   530  /// con-leche: ConLeche/Kernel/Level.lean:405-407 Expr.allLevelParamsDefinedFast
+   531  /// con-leche: ConLeche/Kernel/DeclCheck.lean:197-199 Expr.constsResolveFFast
+   532  /// Lean twin: the `∅` that `proof/ConRon/Arena/CheckerBase.lean`'s
+   533  /// `allLevelParamsDefined` and `constsResolveFFast` start their walk from —
+   534  /// **the parked walk memo, moved out of the state and emptied** (task
+   535  /// #97-PERF-WALKMEMO).  The slot is left holding `HashMap::new()` (which
+   536  /// allocates nothing) for the length of the walk, and the entry puts the
+   537  /// grown table back afterwards; either way the table this returns is empty,
+   538  /// so the walk starts where the twin's does.
+   539  ///
+   540  /// **nanoda's guard** (`nanoda_lib/src/expr.rs`, `inst`): a table past
+   541  /// `WALK_MEMO_KEEP` slots is dropped rather than kept, so that one huge walk
+   542  /// does not leave a huge table behind for every later call.  `reset_map`'s
+   543  /// `clear_fit` already decays such a table, one eighth of its high-water mark
+   544  /// a call, so the guard only decides which of the two is cheaper for an
+   545  /// outlier: re-growing from nothing, or `clear_fit`'s re-make at the decayed
+   546  /// size.  The threshold, measured on `Init` (`--verified --jobs=1`, one
+   547  /// `perf stat -e instructions:u` run each, all accepting 57 977):
+   548  ///
+   549  /// | `WALK_MEMO_KEEP` | instructions:u |
+   550  /// |---|---:|
+   551  /// | fresh `HashMap::new()` per call (before) | 211 976 016 505 |
+   552  /// | 2^10 slots (nanoda's 1024) | 208 379 555 799 |
+   553  /// | 2^12 | 206 572 063 910 |
+   554  /// | 2^14 | 205 851 105 938 |
+   555  /// | **2^16** | **205 785 515 243** |
+   556  /// | no guard (2^60) | 205 783 023 575 |
+   557  ///
+   558  /// A guard low enough to trip on ordinary calls gives the saving back — at
+   559  /// nanoda's 1024 more than half of it — because those calls re-grow by
+   560  /// doubling, which is exactly the cost this table exists to avoid.  2^16 is
+   561  /// the smallest power tried that costs nothing measurable on `Init` (2.5 M
+   562  /// instructions over no guard), so it only ever fires on an outlier.
+   563  pub fn take_walk_memo<K, V>(slot: &mut HashMap<K, V>) -> HashMap<K, V> {
+   564      let m: HashMap<K, V> = core::mem::replace(slot, HashMap::new());
+   565      if m.capacity() > WALK_MEMO_KEEP {
+   566          HashMap::new()
+   567      } else {
+   568          let mut m2: HashMap<K, V> = m;
+   569          reset_map(&mut m2);
+   570          m2
+   571      }
+   572  }
 
 == crates/con-ron-core/src/arena/core_state.rs#L304-L351
    304  pub struct Caches {
@@ -2206,30 +2272,30 @@
     79          memoWhnfCore_step henv
     80            (whnfCoreBody_spec henv hμ (knot_spec henv hμ f)) s₀ d i e hok hden hw
 
-== proof/ConRon/Refine2/AbsState.lean#L338-L352
-   338  /-- **The lockstep relation**: `AStateRel` without `storeWF` (task
-   339  #97-P5-Core round 4, the coordinator's ruling (i) on its finding).  `storeWF`
-   340  is a statement about the TWIN's term DAG — Theorem 1 content — and it is what
-   341  made a knot statement false at a state both programs handle alike: the port
-   342  and the twin both intern `app d a` over a dangling `d` without looking at it,
-   343  their stores stay equal field for field, and only `StoreWF` fails.  The Core
-   344  tier's `KnotRel`/`BodyRel` are stated over this; the rest of the tier moves to
-   345  it later (tier-wide migration, scheduled separately), and until then
-   346  `AStateRel` keeps its five fields and these two lemmas convert. -/
-   347  structure AStateRel₀ (pers : arena.store.PersTier) (rs : arena.monad.AState)
-   348      (ls : AState) : Prop where
-   349    store : StoreRel pers rs.store ls.store
-   350    memos : MemosRel rs.memos ls.memos
-   351    caches : CachesRel rs.caches ls.caches
-   352    pins : PinsRel rs.pins ls.pins
+== proof/ConRon/Refine2/AbsState.lean#L346-L360
+   346  /-- **The lockstep relation**: `AStateRel` without `storeWF` (task
+   347  #97-P5-Core round 4, the coordinator's ruling (i) on its finding).  `storeWF`
+   348  is a statement about the TWIN's term DAG — Theorem 1 content — and it is what
+   349  made a knot statement false at a state both programs handle alike: the port
+   350  and the twin both intern `app d a` over a dangling `d` without looking at it,
+   351  their stores stay equal field for field, and only `StoreWF` fails.  The Core
+   352  tier's `KnotRel`/`BodyRel` are stated over this; the rest of the tier moves to
+   353  it later (tier-wide migration, scheduled separately), and until then
+   354  `AStateRel` keeps its five fields and these two lemmas convert. -/
+   355  structure AStateRel₀ (pers : arena.store.PersTier) (rs : arena.monad.AState)
+   356      (ls : AState) : Prop where
+   357    store : StoreRel pers rs.store ls.store
+   358    memos : MemosRel rs.memos ls.memos
+   359    caches : CachesRel rs.caches ls.caches
+   360    pins : PinsRel rs.pins ls.pins
 
-== proof/ConRon/Refine2/AbsState.lean#L371-L376
-   371  /-- The Rust-side invariant of the whole state. -/
-   372  structure AStateInv (pers : arena.store.PersTier) (rs : arena.monad.AState) :
-   373      Prop where
-   374    store : StoreInv pers rs.store
-   375    memos : MemosInv rs.memos
-   376    caches : CachesInv rs.caches
+== proof/ConRon/Refine2/AbsState.lean#L379-L384
+   379  /-- The Rust-side invariant of the whole state. -/
+   380  structure AStateInv (pers : arena.store.PersTier) (rs : arena.monad.AState) :
+   381      Prop where
+   382    store : StoreInv pers rs.store
+   383    memos : MemosInv rs.memos
+   384    caches : CachesInv rs.caches
 
 == proof/ConRon/Refine2/Shape.lean#L402-L406
    402  /-- The lockstep simulation statement for a state-threading Rust function. -/

@@ -644,7 +644,7 @@ theorem memos_reset {rm rm' : arena.monad.Memos} (hinv : MemosInv rm)
   obtain ⟨t10, e10, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨t11, e11, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨t12, e12, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hst : rm' = {
+  have hst : rm' = { rm with
     inst1_c := t0,
     inst_l_c := t1,
     lift_c := t2,
@@ -661,7 +661,7 @@ theorem memos_reset {rm rm' : arena.monad.Memos} (hinv : MemosInv rm)
   } := (Result.ok_injective h).symm
   subst hst
   refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
-    ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
+    ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hinv.lpDefC, hinv.crfC⟩⟩
   exacts [reset_map_rel hinv.inst1C e0,
     reset_map_rel hinv.instLC e1,
     reset_map_rel hinv.liftC e2,

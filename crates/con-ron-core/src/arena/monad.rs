@@ -229,6 +229,22 @@ pub struct Memos {
     /// con-leche: none — arena infrastructure (task #97-P6-13)
     /// The same at a universe-argument LIST handle, for the `.const` arm.
     pub inst_lp_ls_c: HashMap<LsIdx, LsIdx>,
+    /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
+    /// **The two guard walks' memos, kept for their ALLOCATION only.**
+    /// `allLevelParamsDefinedGo` and `constsResolveFGo` thread their memo as
+    /// an argument (the twin's `(Bool, memo)` result), starting from `∅` at
+    /// every entry; the port parks the table here between calls so that the
+    /// next call starts from a cleared table instead of a `HashMap::new()`
+    /// that re-grows by doubling (task #97-PERF-FRESH §3 item 1).  The entry
+    /// moves it out, resets it (`arena::core_state::take_walk_memo`, which is
+    /// the twin's `∅`) and puts it back after the walk, so nothing ever reads
+    /// a row a previous call left; the twin's `Memos` has no counterpart, and
+    /// Theorem 2's `MemosRel` has no clause for either (only `MemosInv`'s
+    /// `Inv`).  `all_level_params_defined`'s table.
+    pub lp_def_c: HashMap<EIdx, bool>,
+    /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
+    /// `consts_resolve_f_fast`'s table; see `lp_def_c`.
+    pub crf_c: HashMap<EIdx, bool>,
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:182-184 instantiate1Fast
@@ -254,6 +270,8 @@ impl Memos {
             fvar_b_c: HashMap::new(),
             inst_lp_l_c: HashMap::new(),
             inst_lp_ls_c: HashMap::new(),
+            lp_def_c: HashMap::new(),
+            crf_c: HashMap::new(),
         }
     }
 

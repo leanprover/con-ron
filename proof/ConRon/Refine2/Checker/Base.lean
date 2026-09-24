@@ -1421,8 +1421,50 @@ theorem consts_resolve_f_go_aux (n : Nat) :
       (constsResolveFGo lf lm (absU fuel) (absEIdx h)) :=
   consts_resolve_f_go_aux _ rm lm fuel h rfl hrel hinv hctx hm
 
+/-- **`arena::core_state::take_walk_memo`** (task #97-PERF-WALKMEMO): the
+table it hands the walk is empty and well formed — the twin's `∅` — and the
+one it leaves in the state's slot is well formed.  Either branch of nanoda's
+guard: a fresh `HashMap::new()`, or the parked table through `reset_map`. -/
+theorem take_walk_memo_spec {K V : Type} [DecidableEq K]
+    {HashableInst : ron.hashmap.Hashable K} {slot m slot' : ron.hashmap2.HashMap2 K V}
+    (hinv : ConRon.Refine.HashMap2.Inv HashableInst slot)
+    (h : arena.core_state.take_walk_memo slot = ok (m, slot')) :
+    ConRon.Refine.HashMap2.Inv HashableInst m ∧ (∀ k, ConRon.Refine.HashMap2.toFun m k = none) ∧ ConRon.Refine.HashMap2.Inv HashableInst slot' := by
+  rw [arena.core_state.take_walk_memo] at h
+  obtain ⟨hm, hnew, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hi, -, hn⟩ := ConRon.Refine.HashMap2.new_refines (HashableInst := HashableInst) hnew
+  simp only [core.mem.replace] at h
+  obtain ⟨i, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨i1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  split at h
+  · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    exact ⟨hi, hn, hi⟩
+  · obtain ⟨m1, hm1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
+    rw [arena.core_state.reset_map] at hm1
+    obtain ⟨hi1, -, hn1⟩ := ConRon.Refine.HashMap2.clear_fit_refines hinv hm1
+    exact ⟨hi1, hn1, hi⟩
+
+/-- The walk's starting memo, from `take_walk_memo`: related to the twin's `∅`. -/
+theorem take_walk_memo_lmemo {slot m slot' : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    (hinv : ConRon.Refine.HashMap2.Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable slot)
+    (h : arena.core_state.take_walk_memo slot = ok (m, slot')) :
+    ExprOps.LMemoRel m ∅ ∧ ConRon.Refine.HashMap2.Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable slot' :=
+  have H := take_walk_memo_spec hinv h
+  ⟨⟨ConRon.Refine.HashMap2.RelOn_empty H.2.1, H.1⟩, H.2.2⟩
+
+/-- The twin's `pure (← w).1`, run: the walk's run, its memo dropped. -/
+theorem run_fst_eq {β M : Type} (w : AM (β × M)) (lst : AState) :
+    (do pure (← w).1 : AM β).run lst = (w.run lst) >>= fun p => .ok (p.1.1, p.2) := by
+  simp only [StateT.run_bind, StateT.run_pure]
+  rcases w.run lst with _ | ⟨⟨b, mm⟩, l⟩ <;> rfl
+
 /-- `consts_resolve_f_fast` ⊑ `constsResolveFFast` — one memoised DAG walk,
-which is what every front door below calls. -/
+which is what every front door below calls.  The walk's memo is the state's
+parked `crf_c` table, moved out and emptied by `take_walk_memo` and put back
+afterwards (task #97-PERF-WALKMEMO); `MemosRel` has no clause for it, so the
+two state updates are invisible to `AStateRel₀`, and `MemosInv.crfC` is
+carried by the walk's own memo relation. -/
 @[lockstep] theorem consts_resolve_f_fast_ls {pers st lst}
     {vis : Std.U64}
     {rf lf}
@@ -1434,8 +1476,26 @@ which is what every front door below calls. -/
       (arena.checker_base.consts_resolve_f_fast pers vis st rf e) lst
       (constsResolveFFast (lf.restrictTo (absU vis)) (absEIdx e)) := by
   have hctx := IFEnvInv.coreCtxAt vis hfe.rel hfe.inv
-  rw [arena.checker_base.consts_resolve_f_fast, constsResolveFFast]
-  lockstep
+  intro o st' hrun
+  rw [arena.checker_base.consts_resolve_f_fast] at hrun
+  obtain ⟨⟨m, hm⟩, htake, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨hml, hhm⟩ := take_walk_memo_lmemo hinv.memos.crfC htake
+  obtain ⟨⟨r, st1, m1⟩, hgo, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hrun)
+  have hw := LSM.apply (consts_resolve_f_go_ls
+    (st := { st with memos := { st.memos with crf_c := hm } })
+    ⟨hrel.store, { hrel.memos with }, hrel.caches, hrel.pins⟩
+    ⟨hinv.store, { hinv.memos with crfC := hhm }, hinv.caches⟩ hctx hml
+    arena.core.CORE_WALK_FUEL e) hgo
+  rw [core_walk_fuel_abs] at hw
+  rw [constsResolveFFast, run_fst_eq]
+  cases r with
+  | Ok a =>
+    obtain ⟨b, lst', hx, hR, h3, h4⟩ := hw
+    exact ⟨b.1, lst', by rw [hx]; rfl, hR.1, ⟨h3.store, { h3.memos with }, h3.caches, h3.pins⟩,
+      ⟨h4.store, { h4.memos with crfC := hR.2.2 }, h4.caches⟩⟩
+  | Err err =>
+    exact AErrSim.trans hw (fun le hle => by rw [hle]; rfl)
 
 theorem consts_resolve_f_fast_refines {pers st lst} {vis : Std.U64} {rf lf}
     {e : arena.handle.EIdx} {o}
@@ -1534,16 +1594,47 @@ theorem all_level_params_defined_go_aux (n : Nat) :
   all_level_params_defined_go_aux _ params rm lm fuel h rfl hrel hinv hp hm
 
 /-- `all_level_params_defined` ⊑ `allLevelParamsDefined` — one memoised DAG
-walk, at the parameter list read back once. -/
+walk, at the parameter list read back once.  A STATE step since task
+#97-PERF-WALKMEMO: the walk's memo is the state's parked `lp_def_c` table,
+moved out and emptied by `take_walk_memo` and put back afterwards — the
+twin's `∅`, and invisible to `AStateRel₀` (`MemosRel` has no clause for it). -/
 @[lockstep] theorem all_level_params_defined_ls {pers st lst}
     {lps : alloc.vec.Vec arena.handle.NIdx} {e : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a)
-      (arena.checker_base.all_level_params_defined pers st lps e) st lst
+    LS pers (fun a b => b = id a)
+      (arena.checker_base.all_level_params_defined pers st lps e) lst
       (allLevelParamsDefined (absNIdxL lps) (absEIdx e)) := by
-  apply LSR.of_LS
-  rw [arena.checker_base.all_level_params_defined, allLevelParamsDefined]
-  lockstep
+  intro o st' hrun
+  rw [arena.checker_base.all_level_params_defined] at hrun
+  obtain ⟨r0, hr0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hrn := read_names_ls hrel hinv lps r0 hr0
+  rw [allLevelParamsDefined, StateT.run_bind]
+  cases r0 with
+  | Err err =>
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hrun)
+    exact AErrSim.bind hrn _
+  | Ok ks =>
+    obtain ⟨ks', lst1, hx1, ⟨hks, rfl⟩, hrel1, hinv1⟩ := hrn
+    obtain ⟨⟨m, hm⟩, htake, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨hml, hhm⟩ := take_walk_memo_lmemo hinv.memos.lpDefC htake
+    obtain ⟨⟨r, m1⟩, hgo, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hrun)
+    have hw := LSRM.apply (all_level_params_defined_go_ls
+      (st := { st with memos := { st.memos with lp_def_c := hm } })
+      ⟨hrel1.store, { hrel1.memos with }, hrel1.caches, hrel1.pins⟩
+      ⟨hinv.store, { hinv.memos with lpDefC := hhm }, hinv.caches⟩ hks hml
+      arena.core.CORE_WALK_FUEL e) hgo
+    rw [core_walk_fuel_abs] at hw
+    rw [show absNIdxL lps = lps.val.map absNIdx from rfl, hx1]
+    show LOut pers _ _ _ ((do pure (← allLevelParamsDefinedGo _ ∅ coreWalkFuel _).1 : AM Bool).run lst1)
+    rw [run_fst_eq]
+    cases r with
+    | Ok a =>
+      obtain ⟨b, lst', hx, hR, h3, h4⟩ := hw
+      exact ⟨b.1, lst', by rw [hx]; rfl, hR.1, ⟨h3.store, { h3.memos with }, h3.caches, h3.pins⟩,
+        ⟨hinv.store, { hinv.memos with lpDefC := hR.2.2 }, hinv.caches⟩⟩
+    | Err err =>
+      exact AErrSim.trans hw (fun le hle => by rw [hle]; rfl)
 
 end MemoWalks
 

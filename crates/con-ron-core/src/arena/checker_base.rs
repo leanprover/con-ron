@@ -58,7 +58,7 @@ use crate::arena::core::{
     annotate_core, append_eidx, consts_resolve, ensure_sort_core, infer_type_core, is_def_eq_core,
     reserved_basis_names, zero_level, CHECK_FUEL, CORE_WALK_FUEL, M_SORRY, M_UNKNOWN_CONST,
 };
-use crate::arena::core_state::Caches;
+use crate::arena::core_state::{take_walk_memo, Caches};
 use crate::arena::env::{
     i_constant_info_dup, i_constant_info_to_constant_val, ifenv_find, nidx_vec_dup, IConstantInfo,
     IConstantVal, IFEnv,
@@ -318,6 +318,8 @@ pub fn memos_dup(m: &Memos) -> Memos {
         fvar_b_c: m.fvar_b_c.dup(),
         inst_lp_l_c: m.inst_lp_l_c.dup(),
         inst_lp_ls_c: m.inst_lp_ls_c.dup(),
+        lp_def_c: m.lp_def_c.dup(),
+        crf_c: m.crf_c.dup(),
     }
 }
 
@@ -683,15 +685,17 @@ pub fn all_params_defined_list(params: &Vec<Name>, ls: &Vec<Level>, i: usize) ->
 /// parameter list read back once.
 pub fn all_level_params_defined(
     pers: &PersTier,
-    st: &AState,
+    st: &mut AState,
     lps: &Vec<NIdx>,
     e: &EIdx,
 ) -> Result<bool, CheckError> {
     match read_names(pers, st, lps) {
         Err(err) => Err(err),
         Ok(ks) => {
-            let mut memo: HashMap<EIdx, bool> = HashMap::new();
-            all_level_params_defined_go(pers, st, &ks, &mut memo, CORE_WALK_FUEL, e)
+            let mut memo: HashMap<EIdx, bool> = take_walk_memo(&mut st.memos.lp_def_c);
+            let r = all_level_params_defined_go(pers, st, &ks, &mut memo, CORE_WALK_FUEL, e);
+            st.memos.lp_def_c = memo;
+            r
         }
     }
 }
@@ -812,8 +816,10 @@ pub fn consts_resolve_f_fast(
     fe: &IFEnv,
     e: &EIdx,
 ) -> Result<bool, CheckError>  {
-    let mut memo: HashMap<EIdx, bool> = HashMap::new();
-    consts_resolve_f_go(pers, vis, st, fe, &mut memo, CORE_WALK_FUEL, e)
+    let mut memo: HashMap<EIdx, bool> = take_walk_memo(&mut st.memos.crf_c);
+    let r = consts_resolve_f_go(pers, vis, st, fe, &mut memo, CORE_WALK_FUEL, e);
+    st.memos.crf_c = memo;
+    r
 }
 
 /// con-leche: none — `xs.map Expr.fvarTypeD` over a list of handles

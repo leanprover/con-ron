@@ -227,6 +227,14 @@ structure MemosInv (rm : arena.monad.Memos) : Prop where
   instLPLC : Inv arena.handle.LIdx.Insts.Con_ron_coreRonHashmapHashable rm.inst_lp_l_c
   instLPLsC :
     Inv arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapHashable rm.inst_lp_ls_c
+  /-- The two parked guard-walk memos (task #97-PERF-WALKMEMO): an `Inv`
+  clause and NO `MemosRel` clause.  The twin threads these memos as an
+  argument from `∅` and has no field for them; the port keeps the table for
+  its allocation only and empties it at every entry
+  (`arena::core_state::take_walk_memo`), so between calls its contents are
+  nobody's business — and its `Inv` is what the entry's reset needs. -/
+  lpDefC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm.lp_def_c
+  crfC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm.crf_c
 
 /-! ## The per-declaration caches
 
