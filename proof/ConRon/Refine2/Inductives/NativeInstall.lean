@@ -499,6 +499,24 @@ open Lockstep in
       (laterMentionsSpec (absU q) (absEIdxLFrom x_fvs i)) :=
   LS.ofSim₀ fun _ h => later_mentions_refines hrel hinv h
 
+/-- The twin's `unwrapOr xs[i]? e` as the port's bounds test. -/
+theorem unwrapOr_getElem?_eq {α : Type} (l : List α) (i : Nat) (e : CheckError) :
+    unwrapOr l[i]? e = (if h : i < l.length then pure l[i] else Arena.fail e) := by
+  by_cases h : i < l.length
+  · rw [dif_pos h, List.getElem?_eq_getElem h]; rfl
+  · rw [dif_neg h, List.getElem?_eq_none (by omega)]; rfl
+
+open Lockstep in
+/-- `native_install::field_at` (the port's field read, a decline off the end)
+against the twin's `unwrapOr xFvs[i]? (.internal …)`. -/
+@[lockstep] theorem field_at_ls {pers st lst} {x_fvs : alloc.vec.Vec arena.handle.EIdx}
+    {i : Std.U64} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absEIdx a) (arena.inductives.native_install.field_at x_fvs i) st lst
+      (unwrapOr (absEIdxL x_fvs)[absU i]? (.internal "direct rec: field index")) := by
+  apply LSR.of_LS
+  rw [arena.inductives.native_install.field_at, unwrapOr_getElem?_eq]
+  lockstep
+
 /-- `native_field_unused_later` ⊑ `nativeOpenedOk`'s "unused later" clause. -/
 theorem native_field_unused_later_refines {pers st lst} {n_p : Std.U64}
     {x_fvs : alloc.vec.Vec arena.handle.EIdx} {xrest : arena.handle.EIdx}
