@@ -7,8 +7,10 @@
 //! * `CON_LECHE_INMODEL_CENSUS=1` reports every mutual/nested block's
 //!   outcome after the parse and stops with exit 2.
 //!
-//! Both runs are outside the theorem (OVERVIEW.md §3.1), so nothing but this
-//! test checks that the switches still do what the help text says.
+//! Both runs are inside the theorems (the flags are parameters of
+//! `ConRon.Capstone.model_exists` since task #98-HEADLINE, OVERVIEW.md §3.1),
+//! but the theorems only say such a run never accepts unsoundly; that the
+//! switches do what the help text says is checked by this test alone.
 //!
 //! The fixture `fixtures/ind_mutual_sort_defeq.ndjson` is a verbatim copy
 //! (7.6 KB) of con-leche's `tests/e2e/ind_mutual_sort_defeq.ndjson` at rev

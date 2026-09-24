@@ -28,24 +28,24 @@ by declared name, and a collision between two handles denoting one name would
 move a record con-leche does not move.  Injectivity is exactly what rules that
 out.
 
-## The prelude, and its gate
+## The prelude, and why its bytes are not a hypothesis
 
 `Arena/Frontend/Prelude.lean`'s `builtinPreludeE` is `parseBytes` of
 `Arena/Frontend/PreludeText.lean`'s `preludeText`, where con-leche's is
 `parseExportD` of `builtinPreludeText` — an `include_str` of
-`pins/leanprover-lean4-v4.33.0.prelude.ndjson`.  The two are the same bytes,
-and **that is a gate, not a theorem**: `scripts/gen-prelude-lean.sh` generates
-`PreludeText.lean` from con-leche's own committed file and
-`scripts/gen-prelude-lean.sh --check` is step 11 of `scripts/gates.sh`.
-`PreludeText.lean`'s own module note states the wrapping is byte-exact
-("the concatenation of the chunks is the ndjson file, byte for byte,
-including its final newline").
+`pins/leanprover-lean4-v4.33.0.prelude.ndjson`.  The two are the same bytes
+(`scripts/gen-prelude-lean.sh` generates `PreludeText.lean` from con-leche's
+own committed file, and its `--check` is step 11 of `scripts/gates.sh`), but
+**soundness does not depend on it** (task #98-HEADLINE): con-leche's
+`preparePrelude` puts the prelude's declarations INTO the checked stream, so
+whatever the prelude parses to is checked like the file's own records.
 
-So `builtinPreludeE_run` below is stated **parametrically in the bytes** —
-`preludeText = builtinPreludeText.toUTF8` is its hypothesis, discharged by the
-gate — which is the same move `conron.no_False_declaration` makes for the
-pins and the prelude (`RefineOld/Main.lean`'s "The prelude never has to be
-identified with con-leche's") and which keeps the axiom census at three.
+So `builtinPreludeE_run` below is stated **parametrically in the bytes**: the
+prelude index denotes SOME con-leche prelude index — `⟨rc.decls⟩` of
+`parseBytes_run` on `preludeText` — and nothing downstream asks which.  The
+gate stays, as the claim "con-ron ships con-leche's prelude", but it is no
+hypothesis of any theorem (until the arena merge it was `hbytes`, the
+equation `preludeText = builtinPreludeText.toUTF8`).
 -/
 import ConRon.Bridge.Frontend.Chunks
 import ConRon.Arena.Frontend.Prelude
@@ -75,26 +75,23 @@ def PersPreludeIx (pre : PreludeIx) : Prop := PersDecls pre.decls
 /-! ## The prelude's own parse -/
 
 /-- con-leche: ConLeche/Frontend/Prelude.lean:67 builtinPreludeE — **the
-built-in prelude parses to con-leche's**, parametrically in the bytes: the
-hypothesis is that the committed constant IS con-leche's committed file, which
-`scripts/gen-prelude-lean.sh --check` (step 11 of `scripts/gates.sh`) is the
-proof of, and which `Arena/Frontend/PreludeText.lean`'s module note states as
-its own contract.
+built-in prelude parses to a con-leche prelude index**, parametrically in the
+bytes: whatever `preludeText` is, `parseBytes_run` gives the con-leche parse
+`rc` of the same bytes, and `⟨rc.decls⟩` is the index the twin's denotes.
 
-`parseExportD` is `parseBytes` of `String.toUTF8`
-(`ConLeche/Frontend/ExportC.lean:843-845`), so the two sides run the same
-function on the same bytes once the hypothesis is in hand.
+That it is con-leche's own `builtinPreludeE` is not needed: con-leche's
+`preparePrelude` puts the prelude's records into the checked stream, so the
+capstones hold at any prelude (see the module note; the byte equality is the
+gate `scripts/gen-prelude-lean.sh --check`, not a hypothesis).
 
-`parseBytes_run` under `hbytes`. -/
+`parseBytes_run`. -/
 theorem builtinPreludeE_run {md : Modeller} (hmw : ModellerWF md)
     (hmr : ModellerRefines md)
-    (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
     {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false)
     (hpins : PinsOK s) (hrb : ReadCachesOK s)
     {pre : PreludeIx} (hrun : builtinPreludeE md s = .ok (.ok pre, s')) :
     ParseStep s s' ∧ PersPreludeIx pre ∧ DeclsProjNamed s'.store pre.decls ∧
-      ∃ preC, ConLeche.Frontend.builtinPreludeE = .ok preC ∧
-        PreludeIxRel s'.store pre preC := by
+      ∃ preC, PreludeIxRel s'.store pre preC := by
   rw [builtinPreludeE] at hrun
   obtain ⟨x, s₁, hpb, hrest⟩ := AM.bind_ok hrun
   cases x with
@@ -106,11 +103,8 @@ theorem builtinPreludeE_run {md : Modeller} (hmw : ModellerWF md)
     obtain ⟨hv, hs⟩ := AM.pure_ok hrest
     simp only [Except.ok.injEq] at hv
     subst hv; subst hs
-    rw [hbytes] at hpb
-    obtain ⟨hstep, hpers, rc, hcl, hrel⟩ := parseBytes_run hmw hmr hok hoff hpins hrb hpb
-    refine ⟨hstep, hpers, hrel.projNamed, ⟨rc.decls⟩, ?_, hrel.decls⟩
-    rw [ConLeche.Frontend.builtinPreludeE, ConLeche.Frontend.parseExportD, hcl]
-    rfl
+    obtain ⟨hstep, hpers, rc, -, hrel⟩ := parseBytes_run hmw hmr hok hoff hpins hrb hpb
+    exact ⟨hstep, hpers, hrel.projNamed, ⟨rc.decls⟩, hrel.decls⟩
 
 /-! ## The prelude's front -/
 

@@ -348,6 +348,14 @@ impl AState {
             pins: Pins::empty(),
         }
     }
+
+    /// con-leche: none — the driver's start state, the initial state over the
+    /// empty arena (task #98-HEADLINE: the one start value the headline
+    /// theorems' first premise names, `ConRon.Capstone.startState`)
+    /// Lean twin: `proof/ConRon/Arena/Monad.lean:145-146 AState.init`.
+    pub fn empty() -> AState {
+        AState::init(EStore::empty())
+    }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:53-72 CheckError
