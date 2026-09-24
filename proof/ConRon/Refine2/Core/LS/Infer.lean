@@ -165,20 +165,15 @@ end spineIO
   have hlp := @lam_pw_wf_ls pers hx
   rw [arena.core.infer_lams_leaf, inferLamsLeaf]
   lockstep_e
-  -- glue: the port's `let (_, bm) = stk[j]; bm.pw.dup()` is a `match` on a
-  -- non-constructor, which the zip cannot see through
+  -- the port's `let (_, bm) = stk[j]; bm.pw.dup()` is stepped through (task
+  -- #97-T2-TACTIC round 3); the tail call's premise and twin argument
   all_goals
-    simp only [ConRon.Refine.PropWhen.dup_eq'] at hf
-    generalize heq : (GetElem.getElem stk.val (_ : Nat) _ : arena.handle.EIdx × kernel.expr.BinderMeta) = p at hf
-    obtain ⟨x, bm⟩ := p
-    obtain rfl := (Result.ok_injective hf)
     refine LS.tail (infer_lams_out_ls hx hstk ?_ hrel hinv) ?_ (fun _ _ h => h)
-    · have hbm : bm = (x, bm).2 := rfl
-      rw [hbm, ← heq]; exact hstk _ (List.getElem_mem _)
+    · exact hstk _ (List.getElem_mem _)
     · have hne : stk.val.length ≠ 0 := by scalar_tac
       show inferLamsOut _ _ (absLamStk stk) _ _ _ = _
       simp only [vec_len_abs]
-      rw [if_neg hne, absLamStk_last_pw stk _ (by assumption) (by scalar_tac), heq]
+      rw [if_neg hne, absLamStk_last_pw stk _ (by assumption) (by scalar_tac)]
 
 
 theorem infer_lams_aux {f : Nat} (hk : KnotRel f) (n : Nat) :

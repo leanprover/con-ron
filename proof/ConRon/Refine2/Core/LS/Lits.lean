@@ -261,7 +261,6 @@ attribute [local simp] ConRon.Refine.LiteralWF
   refine LSR.bind (PB.view_wf_ls hrel hinv h) rfl (fun e => errArm_ok) ?_
   intro a b lst1 hR hrel1 hinv1
   obtain ⟨hwf, rfl⟩ := hR
-  dsimp only
   lockstep
 
 @[lockstep] theorem lit_to_ctor_if_nat_ls {pers vis st fe lfe h lst}

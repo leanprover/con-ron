@@ -205,9 +205,11 @@ environment (con-leche's):
   CON_LECHE_INMODEL_CENSUS=1   report every mutual/nested block's outcome
                                after the parse and stop (exit 2)
   CON_LECHE_PROJREC_TRACE      name each rewritten projection function
-These are the in-process modeller's debug switches and they go with it: no
-environment variable this program reads can shape a verdict, which is
-con-leche's own rule -- every such switch is a command-line flag.";
+These are the in-process modeller's debug switches.  None of them can make a
+run accept what the default rejects or declines: INMODEL=0 makes a mutual or
+nested block decline (exit 2), CENSUS=1 stops after the parse, before any
+check (exit 2), and PROJREC_TRACE only adds output.  The proved theorems
+(--verified) cover the default setting only, with none of them set.";
 
 /// con-leche: Main.lean:946-960 Args
 /// What the command line asked for — `con-ron`'s `Args`, field for field, so
