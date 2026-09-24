@@ -881,6 +881,43 @@ def structMinorsRSpec (lps : List NIdx) (nP : Nat) (pw : ConLeche.PropWhen) :
       | none => pure none
       | some rest => do pure (some (← internBinderSpec isLam mty rest pw))
 
+/-- The two twins ARE the one recursion at `isLam`. -/
+theorem structMinorsLamsR_eq (lps : List NIdx) (nP : Nat) (pw : ConLeche.PropWhen) :
+    ∀ cs o body, structMinorsLamsR lps nP pw cs o body = structMinorsRSpec lps nP pw cs o body true := by
+  intro cs
+  induction cs with
+  | nil => intro o body; rfl
+  | cons c cs ih =>
+    intro o body
+    obtain ⟨C, nF, cty, recIdx⟩ := c
+    rw [structMinorsLamsR, structMinorsRSpec]
+    refine am_bind_congr _ ?_; intro r
+    rcases r with _ | mty
+    · rfl
+    · simp only [ih]
+      refine am_bind_congr _ ?_; intro r2
+      rcases r2 with _ | rest
+      · rfl
+      · simp only [internBinderSpec, if_true]
+
+theorem structMinorsPisR_eq (lps : List NIdx) (nP : Nat) (pw : ConLeche.PropWhen) :
+    ∀ cs o body, structMinorsPisR lps nP pw cs o body = structMinorsRSpec lps nP pw cs o body false := by
+  intro cs
+  induction cs with
+  | nil => intro o body; rfl
+  | cons c cs ih =>
+    intro o body
+    obtain ⟨C, nF, cty, recIdx⟩ := c
+    rw [structMinorsPisR, structMinorsRSpec]
+    refine am_bind_congr _ ?_; intro r
+    rcases r with _ | mty
+    · rfl
+    · simp only [ih]
+      refine am_bind_congr _ ?_; intro r2
+      rcases r2 with _ | rest
+      · rfl
+      · simp only [internBinderSpec, Bool.false_eq_true, if_false]
+
 /-- `structRecTyR`'s body past the motive type. -/
 def structRecTyCloseSpec (lps : List NIdx) (nP nIdx : Nat) (tty : EIdx)
     (ctors : List (NIdx × Nat × EIdx × List Nat)) (pw : ConLeche.PropWhen) (n : Nat)

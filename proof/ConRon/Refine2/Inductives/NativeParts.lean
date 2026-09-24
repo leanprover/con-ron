@@ -1703,7 +1703,10 @@ theorem struct_minors_lams_r_refines {pers st lst}
     Sim₀ (Option.map absEIdx) pers lst o
       (structMinorsLamsR (absNIdxL lps) (absU n_p) (ConRon.Refine.absPropWhen pw)
         (absCtors4LFrom ctors k) (absU ofs) (absEIdx body)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.struct_minors_lams_r, structMinorsLamsR_eq]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_minors_lams_r_ls
