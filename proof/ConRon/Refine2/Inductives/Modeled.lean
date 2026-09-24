@@ -2582,7 +2582,9 @@ theorem check_proj_iota_lhs_refines {pers st lst} {vis : Std.U64} {rfS lfS}
       (checkProjIotaLhsSpec (ConRon.Refine.absMode mode) lfS (absNIdxL lps)
         (absU n_p) (absU n_f) (absU i) (absNIdx pmn) (absEIdx tty)
         (absEIdx sbody) (absEIdxL p_args) (absEIdx mk_spine)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_proj_iota_lhs, checkProjIotaLhsSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_proj_iota_lhs_ls
@@ -2926,7 +2928,14 @@ theorem check_eta_thm_body_refines {pers st lst} {mode : kernel.env.CheckMode}
       (checkEtaThmBodySpec (ConRon.Refine.absMode mode) (absNIdx t) (absNIdxL lps)
         (absU n_p) (absU n_f) (absEIdx t_hd) (absNIdx cm) (absBinderL sbinders)
         (absEIdx sbody) (absEIdx tbody_m)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_eta_thm_body, checkEtaThmBodySpec]
+  lockstep_mod
+  -- the port's in-bounds read of `sbinders[n_p]` against the twin's `[n_p]?`
+  all_goals
+    exfalso
+    ind_binder_facts
+    simp_all
 
 open Lockstep in
 @[lockstep] theorem check_eta_thm_body_ls
@@ -2959,7 +2968,14 @@ theorem check_eta_thm_shape_refines {pers st lst} {mode : kernel.env.CheckMode}
       (checkEtaThmShapeSpec (ConRon.Refine.absMode mode) (absNIdx t)
         (absNIdxL lps) (absU n_p) (absU n_f) (absNIdx tm) (absNIdx cm)
         (absEIdx tty) (absEIdx mtty)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_eta_thm_shape, checkEtaThmShapeSpec]
+  lockstep_mod
+  -- the port's `doms_match_aux` against the twin's `domsMatchAux`
+  all_goals
+    have := IndModeledPrims.doms_match_aux_ls _ _ _ _ _ _
+      ‹arena.checker_base.doms_match_aux _ _ _ _ _ = ok _›
+    simp_all [absBinderL]
 
 open Lockstep in
 @[lockstep] theorem check_eta_thm_shape_ls
@@ -3115,7 +3131,15 @@ theorem check_unit_thm_shape_refines {pers st lst} {mode : kernel.env.CheckMode}
       (checkUnitThmShapeSpec (ConRon.Refine.absMode mode) (absNIdxL lps)
         (absU n_p) (absNIdx tm) (absBinderL sbinders) (absEIdx sbody)
         (absEIdx tbody_m)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_unit_thm_shape, checkUnitThmShapeSpec]
+  lockstep_mod
+  -- the port's in-bounds reads of `sbinders[n_p]`, `[n_p + 1]` against the
+  -- twin's `[·]?`
+  all_goals
+    exfalso
+    ind_binder_facts
+    simp_all
 
 open Lockstep in
 @[lockstep] theorem check_unit_thm_shape_ls
@@ -3149,7 +3173,14 @@ theorem check_unit_thm_at_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
       (checkUnitThmAtSpec (ConRon.Refine.absMode mode) lf2 (absNIdxL lps)
         (absU n_p) (absNIdx tm) (absEIdx tty) (absNIdxL tlps) (absEIdx mtty)
         (absNIdxL mlps)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_unit_thm_at, checkUnitThmAtSpec]
+  lockstep_mod
+  -- the port's `doms_match_aux` against the twin's `domsMatchAux`
+  all_goals
+    have := IndModeledPrims.doms_match_aux_ls _ _ _ _ _ _
+      ‹arena.checker_base.doms_match_aux _ _ _ _ _ = ok _›
+    simp_all [absBinderL]
 
 open Lockstep in
 @[lockstep] theorem check_unit_thm_at_ls
