@@ -1375,4 +1375,12 @@ open Lockstep in
   rw [dupId_eidx _ _ he] at this
   simp [Lockstep.TwinEq, absEIdxL, this]
 
+open Lockstep in
+/-- `arena::env::eidx_vec_dup` is the identity on the abstraction (the tier's
+copy of `Checker/DeclCheck.lean`'s `eidx_vec_dup_spec`, which this tier does
+not import). -/
+@[lockstep] theorem ind_eidx_vec_dup_twin (es : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.env.eidx_vec_dup es) (fun r => TwinEq (absEIdxL es) (absEIdxL r)) :=
+  fun _ h => by simp only [Lockstep.TwinEq, absEIdxL, eidx_vec_dup_val h]
+
 end ConRon.Refine2

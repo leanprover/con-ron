@@ -1292,6 +1292,56 @@ open Lockstep in
         (absNatL rec_idx) (absEIdx cty)) :=
   LS.ofSim₀ fun _ h => struct_rule_body_r_refines hrel hinv h
 
+/-- `struct_ih_pis` ⊑ `structIhPis` from the cursor on. -/
+theorem struct_ih_pis_refines {pers st lst} {n_f ofs n_p : Std.U64}
+    {pw : kernel.prop_when.PropWhen} {cty : arena.handle.EIdx}
+    {is : alloc.vec.Vec Std.U64} {k : Std.Usize} {l : Std.U64}
+    {body : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.inductives.native_parts.struct_ih_pis pers st n_f ofs n_p pw cty is
+      k l body = ok o) :
+    Sim₀ absEIdx pers lst o
+      (structIhPis (absU n_f) (absU ofs) (absU n_p) (ConRon.Refine.absPropWhen pw)
+        (absEIdx cty) (absNatLFrom is k) (absU l) (absEIdx body)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  revert st lst hrel hinv
+  simp only [absNatLFrom]
+  intro st lst hrel hinv
+  refine ls_cursor_acc is absU
+    (fun l xs => structIhPis (absU n_f) (absU ofs) (absU n_p) (ConRon.Refine.absPropWhen pw)
+      (absEIdx cty) xs (absU l) (absEIdx body))
+    (fun st k l => arena.inductives.native_parts.struct_ih_pis pers st n_f ofs n_p pw cty is k l body)
+    ?_ ?_ k st lst l hrel hinv
+  · intro st lst k l hn hrel hinv
+    try simp only []
+    rw [arena.inductives.native_parts.struct_ih_pis.eq_def, structIhPis]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst k l hb hrel hinv ih
+    try simp only []
+    rw [arena.inductives.native_parts.struct_ih_pis.eq_def, structIhPis]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    simp only [arena.inductives.native_parts.struct_ih_pis_at, mapM_structIdxAt_eq]
+    lockstep
+
+open Lockstep in
+@[lockstep] theorem struct_ih_pis_ls
+    {pers st lst}
+    {n_f ofs n_p : Std.U64}
+    {pw : kernel.prop_when.PropWhen}
+    {cty : arena.handle.EIdx}
+    {is : alloc.vec.Vec Std.U64}
+    {k : Std.Usize}
+    {l : Std.U64}
+    {body : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdx a) (arena.inductives.native_parts.struct_ih_pis pers st n_f ofs n_p pw cty is k l body) lst
+      (structIhPis (absU n_f) (absU ofs) (absU n_p) (ConRon.Refine.absPropWhen pw)
+        (absEIdx cty) (absNatLFrom is k) (absU l) (absEIdx body)) :=
+  LS.ofSim₀ fun _ h => struct_ih_pis_refines hrel hinv h
+
 /-- `struct_ih_pis_at` ⊑ `structIhPis`' cons arm past its three reads. -/
 theorem struct_ih_pis_at_refines {pers st lst} {n_f ofs n_p : Std.U64}
     {pw : kernel.prop_when.PropWhen} {cty : arena.handle.EIdx}
@@ -1308,7 +1358,10 @@ theorem struct_ih_pis_at_refines {pers st lst} {n_f ofs n_p : Std.U64}
         (ConRon.Refine.absPropWhen pw) (absEIdx cty) (absNatLFrom is k |>.tail)
         (absU l) (absEIdx body) (absBinderL tele) (absEIdxL idx2) (absEIdx motive)
         (absU i) (absU m)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.struct_ih_pis_at, structIhPisAtSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_ih_pis_at_ls
@@ -1332,36 +1385,6 @@ open Lockstep in
         (absU l) (absEIdx body) (absBinderL tele) (absEIdxL idx2) (absEIdx motive)
         (absU i) (absU m)) :=
   LS.ofSim₀ fun _ h => struct_ih_pis_at_refines hrel hinv h
-
-/-- `struct_ih_pis` ⊑ `structIhPis` from the cursor on. -/
-theorem struct_ih_pis_refines {pers st lst} {n_f ofs n_p : Std.U64}
-    {pw : kernel.prop_when.PropWhen} {cty : arena.handle.EIdx}
-    {is : alloc.vec.Vec Std.U64} {k : Std.Usize} {l : Std.U64}
-    {body : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.inductives.native_parts.struct_ih_pis pers st n_f ofs n_p pw cty is
-      k l body = ok o) :
-    Sim₀ absEIdx pers lst o
-      (structIhPis (absU n_f) (absU ofs) (absU n_p) (ConRon.Refine.absPropWhen pw)
-        (absEIdx cty) (absNatLFrom is k) (absU l) (absEIdx body)) := by
-  sorry
-
-open Lockstep in
-@[lockstep] theorem struct_ih_pis_ls
-    {pers st lst}
-    {n_f ofs n_p : Std.U64}
-    {pw : kernel.prop_when.PropWhen}
-    {cty : arena.handle.EIdx}
-    {is : alloc.vec.Vec Std.U64}
-    {k : Std.Usize}
-    {l : Std.U64}
-    {body : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absEIdx a) (arena.inductives.native_parts.struct_ih_pis pers st n_f ofs n_p pw cty is k l body) lst
-      (structIhPis (absU n_f) (absU ofs) (absU n_p) (ConRon.Refine.absPropWhen pw)
-        (absEIdx cty) (absNatLFrom is k) (absU l) (absEIdx body)) :=
-  LS.ofSim₀ fun _ h => struct_ih_pis_refines hrel hinv h
 
 /-- `lift_list` ⊑ `structMinorTyR`'s `(rargs.drop nP).mapM` from the cursor
 on. -/
