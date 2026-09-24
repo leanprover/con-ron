@@ -869,7 +869,10 @@ theorem check_native_rec_rules_refines {pers st lst} {rf lf}
       (checkNativeRecRulesSpec (absNativeParts p) (absIConstantVal cv_ta)
         (absCtors4L ctors) (absEIdx rec_ty) lf) ∧
       IFEnvRel o.2.2 lf := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_install.check_native_rec_rules, alloc.vec.Vec]
+  lockstep
 
 /-- `check_native_rec_defeq` ⊑ `checkNativeRec`'s defeq stage. -/
 theorem check_native_rec_defeq_refines {pers st lst} {mode : kernel.env.CheckMode}

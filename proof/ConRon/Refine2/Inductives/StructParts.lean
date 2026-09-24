@@ -510,7 +510,10 @@ theorem struct_fam_i_refines {pers st lst} {t : arena.handle.NIdx}
     Sim₀ absEIdx pers lst o
       (structFamI (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx) (absU e)
         (absU ofs)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_fam_i, structFamI]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_fam_i_ls
