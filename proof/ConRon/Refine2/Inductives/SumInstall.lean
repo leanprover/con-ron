@@ -90,7 +90,25 @@ theorem close_telescope_refines {pers st lst}
     (hrun : arena.inductives.sum_install.close_telescope pers st bs k i body = ok o) :
     Sim₀ absEIdx pers lst o
       (closeTelescope (absBinderLFrom bs k) (absU i) (absEIdx body)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  revert st lst hrel hinv
+  simp only [absBinderLFrom]
+  intro st lst hrel hinv
+  refine ls_cursor_acc bs (fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2))
+    (fun i xs => closeTelescope xs (absU i) (absEIdx body))
+    (fun st k i => arena.inductives.sum_install.close_telescope pers st bs k i body)
+    ?_ ?_ k st lst i hrel hinv
+  · intro st lst k i hn hrel hinv
+    try simp only []
+    rw [arena.inductives.sum_install.close_telescope.eq_def, closeTelescope]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst k i hb hrel hinv ih
+    try simp only []
+    rw [arena.inductives.sum_install.close_telescope.eq_def, closeTelescope]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem close_telescope_ls
