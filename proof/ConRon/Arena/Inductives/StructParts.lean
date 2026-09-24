@@ -180,7 +180,6 @@ def structCtorResidOk (T : NIdx) (lps : List NIdx) (nP o nIdx : Nat)
   let fn ← getAppFn coreWalkFuel cbody
   let args ← getAppArgs coreWalkFuel cbody
   let ps ← structPsAt o nP
-  -- the prefix over `ps.length` (`nP` of them), as the port's `eidx_take_beq`
   pure (fn == hd && args.length == nP + nIdx && args.take ps.length == ps)
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:204-211 structMotiveTyI
