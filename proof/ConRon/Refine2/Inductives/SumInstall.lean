@@ -35,6 +35,8 @@ attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 
 namespace ConRon.Refine2
 
+open scoped ConRon.Refine2.IndSide
+
 open ConRon.Arena
 
 /-! ## The type former's stage -/
@@ -88,7 +90,25 @@ theorem close_telescope_refines {pers st lst}
     (hrun : arena.inductives.sum_install.close_telescope pers st bs k i body = ok o) :
     Sim₀ absEIdx pers lst o
       (closeTelescope (absBinderLFrom bs k) (absU i) (absEIdx body)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  revert st lst hrel hinv
+  simp only [absBinderLFrom]
+  intro st lst hrel hinv
+  refine ls_cursor_acc bs (fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2))
+    (fun i xs => closeTelescope xs (absU i) (absEIdx body))
+    (fun st k i => arena.inductives.sum_install.close_telescope pers st bs k i body)
+    ?_ ?_ k st lst i hrel hinv
+  · intro st lst k i hn hrel hinv
+    try simp only []
+    rw [arena.inductives.sum_install.close_telescope.eq_def, closeTelescope]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst k i hb hrel hinv ih
+    try simp only []
+    rw [arena.inductives.sum_install.close_telescope.eq_def, closeTelescope]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem close_telescope_ls
@@ -176,6 +196,13 @@ open Lockstep in
         (absIConstantVal cv_ta0)) :=
   LS.ofSim₀ fun _ h => check_sum_tele_refines hrel hinv hfe hvis h
 
+/-- A Rust word's zero test is the twin's on its value. -/
+theorem u64_val_beq_zero (x : Std.U64) : ((x : Nat) == 0) = (x == 0#u64) := by
+  by_cases h : x = 0#u64
+  · subst h; rfl
+  · have : (x : Nat) ≠ 0 := by intro h'; apply h; scalar_tac
+    simp [h, this]
+
 /-- `native_caps_at` ⊑ `nativeCapsAt` — the capabilities a block on the
 fixpoint route earns (con-leche's task #210 Part A).  Twinned in
 `SumInstall.lean` rather than in `NativeInstall.lean` because `checkSumInd`
@@ -186,7 +213,42 @@ theorem native_caps_at_refines {pers st lst}
     (hrun : arena.inductives.sum_install.native_caps_at pers st p is_rec = ok o) :
     Sim₀ absIIndCaps pers lst o
       (nativeCapsAt (absInductiveShape p) is_rec) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  have hbe : (if p.n_idx != 0#u64 then ok (p.is_prop, false)
+      else if p.is_prop then ok (true, false)
+      else do
+        let b1 ← if is_rec then ok false else ok true
+        ok (false, b1) : Result (Bool × Bool)) =
+      ok (p.is_prop, (p.n_idx == 0#u64 && !p.is_prop && !is_rec)) := by
+    by_cases h0 : p.n_idx = 0#u64 <;> cases hp : p.is_prop <;> cases is_rec <;> simp_all
+  rw [arena.inductives.sum_install.native_caps_at, nativeCapsAt, hbe]
+  simp only [absInductiveShape, absCtorsL]
+  rcases hc : p.ctors.val with _ | ⟨c, _ | ⟨c2, rest⟩⟩
+  · have hlen : alloc.vec.Vec.len p.ctors ≠ 1#usize := by
+      intro h1; have : (alloc.vec.Vec.len p.ctors).val = 1 := by rw [h1]; rfl
+      simp [alloc.vec.Vec.len, hc] at this
+    simp only [bne_iff_ne, ne_eq, hlen, not_false_eq_true, if_true, List.map_nil]
+    lockstep
+  · have hlen : alloc.vec.Vec.len p.ctors = 1#usize := by
+      have : (alloc.vec.Vec.len p.ctors).val = 1 := by simp [alloc.vec.Vec.len, hc]
+      scalar_tac
+    have hidx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.env.IConstantVal × Std.U64)) p.ctors 0#usize = ok c := by
+      rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+      simp [hc]
+    simp only [hlen, bne_self_eq_false, Bool.false_eq_true, if_false, hidx, List.map_cons,
+      List.map_nil]
+    lockstep
+    all_goals
+      refine Lockstep.LS.pure ?_ ‹_› ‹_›
+      try simp only [Lockstep.TwinEq] at *
+      simp_all [absIIndCaps, u64_val_beq_zero]
+  · have hlen : alloc.vec.Vec.len p.ctors ≠ 1#usize := by
+      intro h1; have : (alloc.vec.Vec.len p.ctors).val = 1 := by rw [h1]; rfl
+      simp [alloc.vec.Vec.len, hc] at this
+    simp only [bne_iff_ne, ne_eq, hlen, not_false_eq_true, if_true, List.map_cons]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem native_caps_at_ls
@@ -565,7 +627,21 @@ theorem field_doms_resolve_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
       = ok o) :
     Sim₀ id pers lst o
       (fieldDomsResolveSpec lf0 (absEIdxLFrom x_fvs i)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  revert st lst hrel hinv hrun
+  simp only [absEIdxLFrom]
+  intro st lst hrel hinv _
+  refine ls_cursor x_fvs absEIdx (fieldDomsResolveSpec lf0)
+    (fun st i => arena.inductives.sum_install.field_doms_resolve pers vis st rf0 x_fvs i)
+    ?_ ?_ i st lst hrel hinv
+  · intro st lst i hn hrel hinv
+    rw [arena.inductives.sum_install.field_doms_resolve.eq_def, fieldDomsResolveSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst i hb hrel hinv ih
+    rw [arena.inductives.sum_install.field_doms_resolve.eq_def, fieldDomsResolveSpec]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem field_doms_resolve_ls

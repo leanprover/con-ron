@@ -44,6 +44,8 @@ open ConRon.Generated
 
 namespace ConRon.Refine2
 
+open scoped ConRon.Refine2.IndSide
+
 open ConRon.Arena
 
 /-! # `arena::inductives::struct_parts` -/
@@ -754,7 +756,7 @@ theorem recCtorKinds_unfold (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
         let cargs ← getAppArgs coreWalkFuel cbody
         let resOk ← idxFreeOfSpec T (cargs.drop nP)
         if resOk then pure (some ks)
-        else pure (some (ks.map fun _ => .negative))
+        else pure (some (List.replicate c.2 .negative))
       | none => pure none) := by
   rw [recCtorKinds]
   refine am_bind_congr _ ?_; intro sp
@@ -787,6 +789,28 @@ def structIdxListSpec (nF o i l m : Nat) : List EIdx → AM (List EIdx)
     let a ← structIdxAt nF o i l m e
     let rest ← structIdxListSpec nF o i l m es
     pure (a :: rest)
+
+/-- `structTeleAt`'s `(List.range tele.length).mapM`, counted, from position `k`
+on — the index the port passes is the ABSOLUTE position (`struct_tele_at`'s
+cursor), so the cursor form is a count and a start, not a dropped list. -/
+def structTeleAtFromSpec (nF o i l : Nat) (pw : ConLeche.PropWhen)
+    (tele : List (EIdx × ConLeche.BinderMeta)) : Nat → Nat → AM (List (EIdx × ConLeche.BinderMeta))
+  | 0, _ => pure []
+  | m + 1, k => do
+    let a ← structIdxAt nF o i l k (tele.getD k default).1
+    let rest ← structTeleAtFromSpec nF o i l pw tele m (k + 1)
+    pure ((a, ⟨pw⟩) :: rest)
+
+/-- The owed equation: `structTeleAt` IS the counted walk from `0`. -/
+theorem structTeleAt_counted (nF o i l : Nat) (pw : ConLeche.PropWhen)
+    (tele : List (EIdx × ConLeche.BinderMeta)) :
+    structTeleAt nF o i l pw tele = structTeleAtFromSpec nF o i l pw tele tele.length 0 := by
+  rw [structTeleAt, List.range_eq_range']
+  refine range_mapM_counted _ (fun m k => structTeleAtFromSpec nF o i l pw tele m k)
+    (fun _ => rfl) ?_ _ 0
+  intro m k
+  rw [structTeleAtFromSpec]
+  simp only [bind_assoc, pure_bind]
 
 /-- `structRuleBodyR`'s `recIdx.mapM`, from the `k`-th position on. -/
 def structIhListSpec (recC : NIdx) (rlvls : LsIdx) (pw : ConLeche.PropWhen)
@@ -856,6 +880,43 @@ def structMinorsRSpec (lps : List NIdx) (nP : Nat) (pw : ConLeche.PropWhen) :
       match ← structMinorsRSpec lps nP pw cs (o + 1) body isLam with
       | none => pure none
       | some rest => do pure (some (← internBinderSpec isLam mty rest pw))
+
+/-- The two twins ARE the one recursion at `isLam`. -/
+theorem structMinorsLamsR_eq (lps : List NIdx) (nP : Nat) (pw : ConLeche.PropWhen) :
+    ∀ cs o body, structMinorsLamsR lps nP pw cs o body = structMinorsRSpec lps nP pw cs o body true := by
+  intro cs
+  induction cs with
+  | nil => intro o body; rfl
+  | cons c cs ih =>
+    intro o body
+    obtain ⟨C, nF, cty, recIdx⟩ := c
+    rw [structMinorsLamsR, structMinorsRSpec]
+    refine am_bind_congr _ ?_; intro r
+    rcases r with _ | mty
+    · rfl
+    · simp only [ih]
+      refine am_bind_congr _ ?_; intro r2
+      rcases r2 with _ | rest
+      · rfl
+      · simp only [internBinderSpec, if_true]
+
+theorem structMinorsPisR_eq (lps : List NIdx) (nP : Nat) (pw : ConLeche.PropWhen) :
+    ∀ cs o body, structMinorsPisR lps nP pw cs o body = structMinorsRSpec lps nP pw cs o body false := by
+  intro cs
+  induction cs with
+  | nil => intro o body; rfl
+  | cons c cs ih =>
+    intro o body
+    obtain ⟨C, nF, cty, recIdx⟩ := c
+    rw [structMinorsPisR, structMinorsRSpec]
+    refine am_bind_congr _ ?_; intro r
+    rcases r with _ | mty
+    · rfl
+    · simp only [ih]
+      refine am_bind_congr _ ?_; intro r2
+      rcases r2 with _ | rest
+      · rfl
+      · simp only [internBinderSpec, Bool.false_eq_true, if_false]
 
 /-- `structRecTyR`'s body past the motive type. -/
 def structRecTyCloseSpec (lps : List NIdx) (nP nIdx : Nat) (tty : EIdx)

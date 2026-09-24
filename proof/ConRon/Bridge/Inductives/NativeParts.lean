@@ -72,9 +72,12 @@ theorem recFamOk_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
   have q5 : PStep s₀ s5 := q2.trans p5
   have e1 := beq_ehandle_eq p5.ok.wf (denote_ext hfn p5.ext) (denote_ext hhd p5.ext)
   have e2 : args.length = eP.getAppArgs.length := (denoteEList_len hargs).symm
+  have hlen : ps.length = nP := by
+    have := denoteEList_len hps
+    simpa [ConLeche.structPsAt] using this.symm
   have e3 := beq_ehandleList_eq p5.ok.wf
     (denoteEList_take (denoteEList_ext p5.ext _ _ hargs) nP) hps
-  rw [e1, e2, e3] at z5
+  rw [hlen, e1, e2, e3] at z5
   split at z5
   case isTrue hc =>
     obtain ⟨rfl, rfl⟩ := pureOk z5
@@ -205,9 +208,12 @@ theorem recPositivity_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
         obtain ⟨ps, s7, k7, z7⟩ := bindOk z6
         obtain ⟨p7, hps⟩ := structPsAt_spec (o + k) nP s4 s7 ps q4.ok trivial k7
         have e2 : args.length = hP.getAppArgs.length := (denoteEList_len hargs).symm
+        have hlen : ps.length = nP := by
+          have := denoteEList_len hps
+          simpa [ConLeche.structPsAt] using this.symm
         have e3 := beq_ehandleList_eq p7.ok.wf
           (denoteEList_take (denoteEList_ext p7.ext _ _ hargs) nP) hps
-        rw [e2, e3] at z7
+        rw [hlen, e2, e3] at z7
         split at z7
         case isTrue hc2 =>
           rw [if_pos hc2]
@@ -434,10 +440,13 @@ theorem recCtorKinds_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     refine ⟨p2.trans p4, ?_⟩
     rw [if_neg hc]
     refine ⟨_, rfl, ?_⟩
-    show (ks.map _).map kindOf = _
-    rw [← hksm]
-    simp only [List.map_map]
-    rfl
+    show (List.replicate c.2 Arena.RecFieldKind.negative).map kindOf = _
+    simp only [List.map_replicate, List.map_map, hc2]
+    apply List.ext_getElem
+    · simp
+    · intro n h1 h2
+      simp only [List.getElem_replicate, List.getElem_map, Function.comp]
+      rfl
 
 /-! ## The telescope readers -/
 
