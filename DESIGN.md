@@ -61452,6 +61452,68 @@ std-axiom gate family (`iff_{intro,rec}_pinned`, `nonempty_{intro,rec}_pinned`,
 out at `whnf`; needs `if`-form splits of the `*PinnedSpec`s (next slice) —
 and the `cert_*` family (the divergence).  `div_mod_attempt_reason` is a
 message string (tactic limit 1).
+#### Slice 2 — `divModCertStmts` in the port's order; the std-axiom gates (branch `t2-chk-decl-2`)
+
+Worktree `_tmp/wt-t2-chk-decl2` off `d32562e9` (`arena` `4bec9058` merged).
+
+**Divergence fixed in the twin: `divModCertStmts`' intern order.**  The twin
+interned each equation's left side `c x y` before its right side; the port
+(`cert_eq`) interns it after, and the `div`/`mod` arm read `Nat.succ`'s pin
+before its two interns where `cert_rec_rhs` reads it after.  The twin now has
+the port's factoring (`Arena/DeclCheck.lean`): `CertCtxA` and `certCtx`, and
+one `def` per port helper — `certGuard`, `certEq`, `certHalves`, `certTwoEqs`,
+`cert{Gcd,ShiftLeft,ShiftRight,Land,LorRhs,Lor,XorRhs,Xor,RecRhs,DivModEqs,
+DivModGuards,DivMod}`, `divModCertStmtsAt` — moved out of
+`Refine2/Checker/Spec.lean` (they were its transcriptions) and renamed without
+`Spec`; `divModCertStmts` is `divModCertStmtsAt (← certCtx) c`.  So
+`divModCertStmts_unfold` (the tier's "COST problem", actually false) is gone.
+**Theorem 1:** `divModCertStmts_run` (`Bridge/Checker/DivMod.lean`) re-proved
+compositionally: `CertCtxOK` (the context's 21 denotations, `.mono` under
+`Ext`), one `_run` per helper, `divModCertStmtsAt_run` dispatching on the
+seven names; a file-local `dmc_move` tactic carries every denotation fact
+along an `IStepS`.  It replaces round 10's generated ~500-line proof; ~70 s
+of elaboration (`certCtx_run` at 2 M heartbeats).
+
+**Divergence fixed in the twin: `stdAxiomOk` read `Classical.choice`'s name
+before the `propext` test;** the port (`std_axiom_ok`) reads it only in the
+`else` branch, and a pin read can fail.  Bridge `stdAxiomOk_run`: the one
+`RunsB.pin` moved into the `else` arm.
+
+**Transcriptions split at the port's points** (`Spec.lean`, no program
+change): `stdAxiomOkPropextSpec` now carries `iffPinnedSpec` (the port's
+`_rest` starts at `iff_intro_pinned`), `stdAxiomOkChoiceSpec` carries
+`nonemptyIntroPinnedSpec` (`_rest` starts at `nonempty_rec_pinned`),
+`ofReduceAxOkRestSpec` no longer repeats the `Eq` basis test.  The
+fixed-arity clauses (`iffIntro`, `iffRec`, `nonemptyIntro`, `nonemptyRec`,
+`trueIntro`) are explicit `if np == 2 && nf == 2 then … else pure false`, as
+the port writes them — the twin's literal patterns (`.ctorInfo cv 2 2`) made
+the zip time out at `whnf`.  New split equations `stdAxiomOk_split`,
+`trustCompilerOk_split`, `ofReduceAxOk_split` relate the twin's inline
+functions to the port's factoring (case splits on the lookups and the arity
+numerals).
+
+**Closed by `lockstep`:** `div_mod_cert_stmts`, `cert_{rec_rhs,two_eqs,gcd,
+div_mod_eqs,div_mod,ctx_bool,ctx_nums}` (new `@[lockstep]` Rust-only specs
+`cert_hyp{1,2}_spec`, `cert_push_spec`; `cert_div_mod`'s pure `baseRhs` `if`
+decided by hand), `{iff,nonempty}_{intro,rec}_pinned`, `true_intro_pinned`,
+`std_axiom_ok{,_propext,_propext_rest,_choice,_choice_rest}`,
+`trust_compiler_ok`, `of_reduce_ax_ok{,_rest}`.
+
+**Deleted:** `reduce_op_raw_refines`/`of_reduce_raw_refines` and their `_ls`
+wrappers (`Axioms.lean`, and the duplicates in `Inductives/Prims.lean`): the
+Rust functions have no caller in the extracted model, nothing used the
+statements.
+
+**Frontier** (`model_exists` + `no_False_declaration`), after this slice
+(before the `arena` merge): 33 items / 293 tainted / dead weight 286 (slice 1
+landed state: 37 / 248 / 343); **after merging `arena`** (`20d02fa8`)
+29 / 285 / 206.  `scripts/gates.sh`: all 16 OK (`LAKE_JOBS=4`).  The lane's four files have **no frontier item
+and one dead-weight `sorry`**: `div_mod_attempt_reason_refines` (a message
+string, tactic limit 1).  Every remaining `sorryAx` below the lane's gates is
+`Checker/Canon.lean`'s `i_constant_info_beq_refines` (now fan-in 28; that file
+passes to the Inductives Modeled lane).  Note for the maintainer: the port's
+`cert_*` doc comments still cite `Lean twin: … divModCertStmts`; they could
+now name their own twin helpers (a Rust doc change, not made).
 
 ### Task #97-T2-LOCKSTEP lane Frontend round 3 — the modeller seam; the lane's frontier (2026-09-23, Opus under Fable)
 
