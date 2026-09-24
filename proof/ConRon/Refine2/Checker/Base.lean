@@ -85,8 +85,8 @@ only ever called at `fe.visible_below`.
 
 ## What these lemmas wait on
 
-`Refine2/Specs.lean`'s `view`/`intern_e` family (closed and open
-respectively), `Refine2/ExprOps/**` (statements only so far) and
+`Refine2/Specs.lean`'s `view`/`intern_e` family, `Refine2/ExprOps/**`
+(statements only when this was written; all closed now) and
 `Refine2/Core/**` — P5-Core's tier, which is where `annotateCore`,
 `inferTypeCore`, `isDefEqCore` and `ensureSortCore` live.  `KnotRel` carries
 them here (`Refine2/Checker/KnotHyp.lean`).

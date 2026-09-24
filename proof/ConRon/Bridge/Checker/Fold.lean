@@ -112,7 +112,7 @@ theorem PinsDenote.pmono {st st' : EStore} (hx : PExt st st') :
 con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run
 **DESIGN §8.2's Theorem 1, per declaration.**  One `cases` over
 `Bridge/Checker/Decl.lean`'s seven arms; the arms are where the content is
-and where the tier's remaining `sorry`s live.
+(all proved: the tier is `sorry`-free).
 
 `Ext` and not `PExt`: `checkDecl` is the UNBRACKETED call (the module note of
 `Arena/Checker.lean`: "What is NOT bracketed is `checkDecl` itself"), so the

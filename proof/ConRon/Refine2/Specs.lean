@@ -2476,8 +2476,8 @@ of the eighteen arrays.
 
 Every statement below is the shape the ExprOps tier consumes, so writing them
 here is what lets `Refine2/ExprOps/*` be stated and proved against a fixed
-interface; the `sorry`s are named in the task's report and are the next
-round's work.  **The statements are not weakened**: each is the full-outcome
+interface; the `sorry`s were named in the task's report (all proved
+since).  **The statements are not weakened**: each is the full-outcome
 claim of DESIGN §8.2 at the abstraction the twin has. -/
 
 /-! ## The three remaining tier bits and the three remaining tag constants -/

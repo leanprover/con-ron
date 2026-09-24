@@ -6,7 +6,7 @@ relates the two pin lists (`PinsDenote`); this module is the seven arms
 themselves, and **all seven are PROVED** — every one is an ASSEMBLY, a chain
 of `AM.bind_ok` inversions over statements that live one tier down, closed by
 a pure step lemma about con-leche's own `checkDecl` clause.  The module has no
-`sorry`; what the arms still reach is the leaves below them.
+`sorry`, and neither do the leaves below it (the tier is closed).
 
 **Why the arms are not in `Decl.lean`** (task #97-P3-Checker-2).  An arm's
 content is `Bridge/Checker/Base.lean`'s `checkConstantVal_bridge`,

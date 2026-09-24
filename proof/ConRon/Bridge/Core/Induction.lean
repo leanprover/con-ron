@@ -17,8 +17,8 @@ theorem knot_spec … : ∀ f, KnotSpec mode env fe f
 Each slot at `f + 1` is its memo wrapper applied to its body walk applied to
 the induction hypothesis at `f`.  Nothing else is in it — which is the point
 of splitting the tower this way: the wrappers are closed
-(`Bridge/Core/Memo.lean`), the induction is closed (here), and every `sorry`
-the tier carries is inside one of the six body walks.
+(`Bridge/Core/Memo.lean`), the induction is closed (here), and the six body
+walks, where every `sorry` of the tier once sat, are closed too.
 
 ## What the Checker tier gets
 

@@ -435,7 +435,7 @@ hypothesis: the batched `.app` clause (`whnfCoreBody_app_batched` above), the
 `.proj` clause (`whnfCoreBody_proj`, below), and every other tag
 (`whnfCoreBody_leaf`: the six values answer themselves, `.letE`/`.bvar`
 throw).  The parent is a case split on the tag and nothing else, so the
-`sorry`s the Core tier owes at this body are exactly the children's. -/
+body closed when its three children did (all three are proved). -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:968-975 whnfCoreBody — **the leaf
 clauses**: at a tag that is neither `.app` nor `.proj`, the six values answer

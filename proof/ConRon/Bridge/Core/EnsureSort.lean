@@ -77,8 +77,8 @@ theorem ensureSortCore_of_whnf {F d : Nat} {e : Expr} {l : Level}
 the fuel every entry is called with).
 
 `Bridge/Checker/Hyp.lean`'s `EnsureSortSpec` is this statement; the Checker
-tier's `CoreSpec` is therefore fully discharged by the Core tier, modulo the
-six body walks `KnotSpec` itself is waiting on. -/
+tier's `CoreSpec` is therefore fully discharged by the Core tier (the six
+body walks `KnotSpec` itself rests on are closed too). -/
 theorem ensureSortCore_spec {fe : IFEnv} {f : Nat}
     (hsim : KnotSpec mode env fe f)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)

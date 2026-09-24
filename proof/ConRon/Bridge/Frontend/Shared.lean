@@ -2242,7 +2242,7 @@ theorem internDecl_istep {s s' : AState} (hok : StateOK s)
     hd, hm', hn⟩
 
 /-- con-leche: none — **the stream**, which is what the modeller seam and
-`Bridge/Checker/Capstone.lean`'s second frontend obligation consume. -/
+the fold theorems' second frontend obligation (`hpd`) consume. -/
 theorem internDecls_istep : ∀ (ds : List Declaration) {s s' : AState}
     {m m' : EMemo} {dis : List IDeclaration}, StateOK s →
     s.store.scratchOn = false → EMemoOK s.store m →

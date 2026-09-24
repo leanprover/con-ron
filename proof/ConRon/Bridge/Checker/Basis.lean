@@ -406,7 +406,7 @@ canonical comparison then keeps or drops it.
 finding about this theorem.**  The obvious route — `denoteCI_name_of` at every
 member of the incoming block — would ask for `CIProjNamed` of a STREAM record,
 and that clause travels through `checkDecl_bridge_ind`, `checkDecl_bridge`,
-`checkDeclStep_bridge` and the fold all the way to `Arena.model_exists`.  It
+the fold theorems and on to `ConRon.Capstone.model_exists`.  It
 is not needed: a block that matches a pin — by names or by canonical forms —
 can hold no projection table at all, because a table's name is a `.num` node
 (`projTableName T = (T.str "projTable").num 0`) and no pinned name is.  So the

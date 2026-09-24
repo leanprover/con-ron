@@ -266,7 +266,7 @@ clause is `EnvWF ⟨c :: env.consts⟩` — and *con-leche does not prove that
 `EnvWF` as a hypothesis (`EnvModelM.toEnvFacts.wf`) rather than
 re-establishing it.  What it DOES have, in `Verify/EnvWF.lean`, is
 `EnvWF.cons` — so the debt is exactly `ConstWF ⟨c :: env.consts⟩ c`, and it is
-one lemma shared by all three arms and by `Arena.checkDeclStep_bridge`'s fold
+one lemma shared by all three arms and by the deleted sequential fold's step
 (`Bridge/Checker/Inv.lean`'s `StepOK.push`).
 
 `ConstWF` splits in two along the constructor:
@@ -2161,9 +2161,9 @@ theorem checkOpaqueVal_noFvar {μ : CheckMode} {env env' : Env} {F : Nat}
 `Lean.reduceNat` / `Lean.reduceBool` install gate: the stored value must be
 definitionally equal to the build-time pin.
 
-`sorry`: `reduceStoredOk` / `reduceElemOk` / `reducePinGuard` through
+Proved: `reduceStoredOk` / `reduceElemOk` / `reducePinGuard` through
 `IFEnvOK`, then `KnotSpec.annotate` and `KnotSpec.defeq` at the
-pinned term.  Task #97-P3-Checker's sorry list, item 24. -/
+pinned term.  Was task #97-P3-Checker's sorry list, item 24. -/
 theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
     {fe fe2 : IFEnv} {cn : NIdx} {nm : ConLeche.Name} {value : EIdx}
     {x : Expr} {s s' : AState} (hμ : μ.verifiedChecks = true)

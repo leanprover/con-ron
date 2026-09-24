@@ -50,8 +50,8 @@ each half with `installConstantVal_mono` / `checkValueGroup_mono`
 It states the five bridge theorems of `Arena/CheckerSplit.lean` and
 `Arena/Checker.lean`'s phase-A/phase-B pair, and the punchline
 `Arena.installThenCheck_bridge`.  It does not restate the model tier: the
-punchline lands on `Bridge/Checker/Fold.lean`'s `checkDeclsPure` statement, so
-`Bridge/Checker/Capstone.lean` covers both folds with one composition.
+punchline lands on con-leche's pure `checkDeclsPure` itself, and the model is
+`ConRon/Capstone.lean`'s (through `Bridge/Checker/Phased.lean`'s pooled fold).
 -/
 import ConRon.Bridge.Checker.Fold
 import ConLeche.Verify.EnvBound
@@ -1505,7 +1505,7 @@ under name uniqueness the two agree (`FoldOK.projMem`).  The fold has it
 (`PhaseA.nodup` from the empty environment, carried by
 `Arena.annotFold_bridge`).  **And `hpd : PersDecl pd`**: the record must be
 persistent for its denotation to survive the opening `enterScratch` —
-`Arena.checkDeclStep_bridge`'s repair of the same kind; the fold carries it
+the deleted `Arena.checkDeclStep_bridge` had the same repair; the fold carries it
 (`Arena.annotFold_bridge`'s `hpd`). -/
 theorem Arena.annotStep_split {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
@@ -1876,7 +1876,7 @@ starts from `#[]` and carries it).  Round 9 added `hnd : NodupNames env` and
 `hpd : PersDecl pd`, `Arena.annotStep_split`'s own repairs.
 
 PROVED from `Arena.annotStep_split` (round 8), which carries this conclusion
-and the pure half the fold needs; the `sorry` lives there. -/
+and the pure half the fold needs (and is proved itself). -/
 theorem Arena.annotStep_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {i : Nat} {fe fe' : IFEnv} {pend pend' : Array PendingCheck}
@@ -1926,7 +1926,7 @@ record's side:
   `checkValueGroup_bridge` only ever used it on the other two kinds.
 
 PROVED from `Arena.checkPending_prefix` (round 8), which states the check AT
-the prefix environment; the `sorry` lives there. -/
+the prefix environment (and is proved itself). -/
 theorem Arena.checkPending_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {pc : PendingCheck} {gP : ConLeche.ValueGroup} {s s' : AState}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
@@ -1952,10 +1952,10 @@ theorem Arena.checkPending_bridge {μ : CheckMode} {env : Env}
 /-- con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls
 con-leche: ConLeche/Verify/CheckerSplit.lean:319-380 checkDecl_of_split_*
 **THE TWO FOLDS ARE ONE ACCEPT**: what the binary runs implies what the
-theorem is about.  With `Bridge/Checker/Fold.lean`'s
-`Arena.checkDeclsPure_bridge` this is the second half of DESIGN §8.2's
-Theorem 1 — the half the history report's fine print 5 prices — and with
-`Bridge/Checker/Capstone.lean` it carries the model to the binary's own fold.
+theorem is about: con-leche's pure `checkDeclsPure`.  This is the second half
+of DESIGN §8.2's Theorem 1 — the half the history report's fine print 5
+prices; `Bridge/Checker/Phased.lean` restates it at the driver's pooled fold,
+and `ConRon/Capstone.lean` carries that to the model.
 
 **SKELETONISED** (task #97-P3-Checker round 8): phase A is
 `Arena.annotFold_bridge` (PROVED, over the child `Arena.annotStep_split`),
@@ -1963,9 +1963,9 @@ phase B is `Arena.checkPendingList_bridge` (PROVED, over the child
 `Arena.checkPending_prefix`), and the two are one accept by `PhaseA.foldlM`
 (PROVED: `checkDecl_of_split_*` at each split step, `checkDecl_mono` for the
 fuel).  Name uniqueness at the end of phase A — what `IFEnvOK_restrictTo`
-needs — is `PhaseA.nodup`, over the child `checkDecl_nodup`.  So the `sorry`s
-this theorem reaches in this tier are exactly `Arena.annotStep_split`,
-`Arena.checkPending_prefix` and `checkDecl_nodup`. -/
+needs — is `PhaseA.nodup`, over the child `checkDecl_nodup`.  Those three
+children were the `sorry`s this theorem reached; all are proved now, and the
+theorem is `sorry`-free (`Bridge/Checker/Axioms.lean`'s census). -/
 theorem Arena.installThenCheck_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     {ds : Array IDeclaration} {dsP : List Declaration} {fe' : IFEnv}

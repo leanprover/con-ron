@@ -78,7 +78,7 @@ namespace ConRon.Refine2
 
 open ConRon.Arena
 
-/-! ## The six bodies, and the tier's open obligations
+/-! ## The six bodies, and the tier's (now closed) obligations
 
 **Task #97-P5-Core round 4: the skeleton.**  `bodyRel_of_knot` is no longer
 one `sorry`: it is the seven `BodyRel` fields assembled from one child per

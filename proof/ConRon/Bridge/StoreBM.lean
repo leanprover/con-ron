@@ -1,8 +1,8 @@
 /-
 # `ConRon.Bridge.StoreBM` — the binder-datum store's monotonicity
 
-The third store obligation this phase found, and the one that is still open at
-its ONE consumer: `Bridge/ExprOps/Inst1.lean`'s binder arm.
+The third store obligation this phase found, closed by `BMExt` below (task
+#97-P3-1) and consumed by every rebuilding walk's binder arm (`ExprOps/*`).
 
 **What the walk does.**  A rebuilding walk takes a binder apart with
 `viewBindI` (getting the datum as a HANDLE, task #97-P6-16), recurses into the
@@ -23,15 +23,15 @@ second does not touch it at all (`ETables.getBM_push`).  The four lemmas below
 are `Arena/WFProofs.lean`'s own `view_intern_mono` argument played at `getBM`
 instead of at `get`.
 
-**What is left to do with them** (the next round's first item): add the
-conjunct
+**What was done with them** (task #97-P3-1): the conjunct
 
     ∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m
 
-to `internE_spec`'s postcondition, to the ten per-constructor faces that
-derive from it, to `internBindIE_spec'`, and to each walk's `…Spec` record —
-a mechanical postcondition change across twelve specs.  Then
-`Inst1.lean`'s two open binder goals close by `arm_hyp`.
+— `BMExt` below — is in `internE_spec`'s postcondition, the ten
+per-constructor faces that derive from it, `internBindIE_spec'`, and each
+walk's `…Spec` record, and `Inst1.lean`'s binder arm closes by threading
+it through the two recursive calls (`BMExt.get`, which is `@[grind →]`),
+with no `sorry` left there.
 -/
 import ConRon.Bridge.Rel
 
@@ -95,8 +95,8 @@ theorem EStore.viewBM_intern_mono (st : EStore) (w : ENodeView) {i : BMIdx}
 The four lemmas above say what one `intern` does; a walk needs the relation
 they generate, with `refl` and `trans`, so that it can be threaded through a
 spec's postcondition exactly as `Ext` is.  That threading is what closes the
-binder arm of every rebuilding walk (task #97-P3-1), and it is what the
-"what is left to do with them" paragraph above asked for. -/
+binder arm of every rebuilding walk (task #97-P3-1), as the "what was done
+with them" paragraph above records. -/
 
 /-- con-leche: none — arena infrastructure: the binder-datum store's own
 extension relation, beside `Ext`.  `Ext` cannot say it (a `BMIdx` denotes

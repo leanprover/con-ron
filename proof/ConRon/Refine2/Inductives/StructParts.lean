@@ -40,7 +40,7 @@ the third time and the answer has not changed.
 `Refine2/Specs.lean`'s `intern_e` family and its `intern_l_node` /
 `intern_n_node` siblings (the generators intern at every step),
 `Refine2/ExprOps/**`'s `strip_pis` / `strip_lams` / `mk_app_n` /
-`instantiate1_lift_fast` / `inst_pis_at_lift` (statements only so far), and
+`instantiate1_lift_fast` / `inst_pis_at_lift` (then statements only), and
 `Refine2/Inductives/Spec.lean`'s own six `_unfold` equations.  **No clause of
 `KnotRel` and no clause of `IndRel`**: this module calls nothing of
 `arena::core` but `zero_level`, `lvl_eq`, `bvar_b` and

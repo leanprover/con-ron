@@ -119,9 +119,9 @@ names are interned: every pin name is a `.str`/`.num` chain bottoming out at
 slot is 0, and `Idx.ofWord 0` is tag-`anonymous`, tier-persistent, slot 0
 (`PinsOK.anon`'s doc comment is the argument).
 
-`sorry`: the chain's last link through `Arena.denoteN_view`, then the `anons`
-table's single slot — a fact about `Arena/Store.lean`'s name tables, one
-round. -/
+Proved: the chain's last link through `Arena.denoteN_view`, then the `anons`
+table's single slot — a fact about `Arena/Store.lean`'s name tables (it was
+estimated at one round). -/
 theorem denoteN_default_of_pinNames {st : EStore} (hwf : StoreWF st)
     (hoff : st.scratchOn = false) {hs : List NIdx}
     (hd : Frontend.denoteNList st.ns hs = some pinNames) :
@@ -433,9 +433,9 @@ theorem PersPinSets_of_denote {st : EStore} (hwf : StoreWF st)
 interned**: `internPinSets` on a closed scratch tier hands back a list that
 denotes its argument, variant by variant, in persistent handles.
 
-`sorry`: sixteen `Frontend.internExpr` calls per variant, over the frontend
+Proved: sixteen `Frontend.internExpr` calls per variant, over the frontend
 tier's intern exactness (`denoteE (internExpr e) = some e`), and the list
-recursion.  Task #97-P3-Checker's sorry list, item 13. -/
+recursion.  Was task #97-P3-Checker's sorry list, item 13. -/
 theorem internPinSets_run {ps : List NatOpPinSet} {r : List INatOpPinSet}
     {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false)
     (hrun : internPinSets ps s = .ok (r, s')) :
@@ -503,9 +503,9 @@ con-leche: ConLeche/Kernel/BasisA.lean:50-57 BasisKind.declsA
 **THE STARTUP WALK**: `internAllPins` interns every datum the checker compares
 a stream record against, and hands back the interned pin list.  Its
 postcondition is the fold's precondition — `PinsOK`, `PersPins`,
-`PinsDenote`, `PersPinSets` — which is why the capstone
-(`Bridge/Checker/Capstone.lean`) can take those four as hypotheses and the
-driver tier can discharge all four here.
+`PinsDenote`, `PersPinSets` — which is why the fold theorems
+(`Arena.installThenCheck_bridge`, `Arena.pooledAccepts_bridge`) can take them
+as hypotheses and the driver tier can discharge all four here.
 
 **`internAllPins` does NOT establish `PinsOK`** — `internReservedPins` does,
 and the driver runs it first (`Arena/Main.lean`).  So `PinsOK` and `PersPins`

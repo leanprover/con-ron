@@ -41,7 +41,7 @@ across `PExt` at persistent handles (`Bridge/Checker/Inv.lean`'s nineteen
 `…_pext` twins) — and the parse never opens the scratch tier, so in this tier
 the transport is always the `Ext` one.
 
-**`PersStateD`** is the second half of what `Bridge/Checker/Capstone.lean`
+**`PersStateD`** is the second half of what the fold theorems' `hpd`
 asks the frontend for: *every handle the parse state holds is persistent*.
 The parse runs with `scratchOn = false` (`Arena/Main.lean` interns the
 reserved pins first, then parses; `enterScratch` is the fold's and the fold
@@ -188,7 +188,7 @@ frontend breaks: **the parse interns, compares levels and reads handles
 back.**  It never enters the scratch tier (`Arena/Main.lean` runs
 `internReservedPins` first and the fold's bracket has not started) and never
 touches the pin table — which is what makes `PersStateD` free and what makes
-`Bridge/Checker/Capstone.lean`'s `FoldOK` reachable at the post-parse state.
+the fold theorems' `FoldOK` (their `hok`) reachable at the post-parse state.
 
 **No memo clause** (task #97-P3-Frontend round 8).  Until then the record
 said `s'.memos = s.memos`, and that is false of the projection rewrite: every
@@ -991,8 +991,8 @@ theorem PersCIList_of_denote {st : EStore} (hwf : StoreWF st)
         · exact ih (fun ci hci => hn ci (by simp [hci])) h2 c hc
 
 /-- con-leche: none — **a declaration record**: the frontend tier's
-postcondition, and `Bridge/Checker/Capstone.lean`'s second frontend
-obligation. -/
+postcondition, and the fold theorems' second frontend obligation
+(`hpd`). -/
 theorem PersDecl_of_denote {st : EStore} (hwf : StoreWF st)
     (hoff : st.scratchOn = false) {di : IDeclaration} {d : Declaration}
     (hn : DeclProjNamed st di) (hd : denoteDecl st di = some d) :
@@ -1645,7 +1645,7 @@ theorem ParseResultRel.ext {st st' : EStore} (hx : Ext st st') {r : ParseResultD
 
 /-! ## Persistence
 
-`Bridge/Checker/Capstone.lean`'s second frontend obligation: every handle the
+The fold theorems' second frontend obligation (`hpd`): every handle the
 parse holds is in the persistent tier.  `Bridge/Promote/Pers.lean`'s `Pers…`
 vocabulary, lifted to the parse state — the clause that matters is the one the
 FOLD reads, which is `decls` and nothing else; the three tables are carried so
@@ -1653,7 +1653,7 @@ that the induction has one invariant rather than two. -/
 
 /-- con-leche: none — every declaration record the parse state holds is
 persistent (`Bridge/Promote/Pers.lean`'s `PersDecl`).  This is the clause
-`Bridge/Checker/Capstone.lean` names `hpd`. -/
+`Arena.installThenCheck_bridge` names `hpd`. -/
 def PersDecls (ds : Array IDeclaration) : Prop := ∀ d ∈ ds, PersDecl d
 
 /-- con-leche: none — the parse state's handles are persistent.  Free (the

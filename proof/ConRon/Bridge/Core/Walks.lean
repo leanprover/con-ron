@@ -35,8 +35,8 @@ six more.
 * `Walks/Cached.lean` — the five cached verdict walks.  **`lvlEq?_spec` and
   `lvlsEq?_spec` are CLOSED** — the first two non-slot walks of
   `Arena/Core.lean` with a theorem — and are the tier's exemplar; the three
-  instantiated-constant caches are stated and wait on
-  `ExprOps.instLPFast_spec`.
+  instantiated-constant caches are CLOSED too (round 4, over
+  `ExprOps.instLPFast_spec`).
 * `Walks/Guards.lean` — the `defeq` body's cheap scalar tests.
   **`isBoolTrue_spec` is CLOSED**, the tier's third closed walk and the first
   that is not a memo wrapper: five verification conditions, no `ExprOps`
@@ -80,10 +80,10 @@ six more.
   `projFnName_spec`, `towerSlotsAll_spec`, `recSlotsAll_spec`,
   `structEtaProjCerts_spec`, `etaProjs_spec` (`projNodesGo`/`projAppsGo`).
   CLOSED.
-* `Walks/Owed.lean` — **the statements not yet reached** (one after round
-  5: `iotaRec`),
-  each with what it is waiting on written at the site.  `defEqList_spec` is
-  the nearest and its fuel merge is now IN HAND (`Walks/Mono.lean`'s
+* `Walks/Owed.lean` — **the statements reached last** (one after round
+  5: `iotaRec`, proved in `Walks/Iota.lean`; all CLOSED now),
+  each with what it was waiting on noted at the site.  `defEqList_spec` was
+  the nearest and its fuel merge came IN HAND (`Walks/Mono.lean`'s
   `defEqListFueled_mono`); `reduceNat_spec` and `unfoldDefinition_spec` were
   RESTATED by task #97-P3-Core-2 in the existential-precondition shape
   (§0 of that module) so that `whnfLoop_spec` can call them.

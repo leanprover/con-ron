@@ -24,8 +24,8 @@ frontend breaks: **the parse interns and does nothing else.**  It never
 enters the scratch tier (`Arena/Main.lean` runs `internReservedPins` first and
 the fold's bracket has not started), never writes a per-declaration cache and
 never touches the pin table — which is what makes `PersStateD` free and what
-makes `Bridge/Checker/Capstone.lean`'s `FoldOK` reachable at the post-parse
-state.
+makes the fold theorems' `FoldOK` (`Arena.installThenCheck_bridge`'s `hok`)
+reachable at the post-parse state.
 -/
 import ConRon.Bridge.Frontend.Modeller
 import ConRon.Bridge.Frontend.Shared

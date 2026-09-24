@@ -6,8 +6,8 @@ equation between `Std.HashMap` VALUES, and `promoteNew` does not preserve it —
 its two index passes (`eraseInstalled`, then `indexPromoted` newest first)
 build the same bindings as `mkIFEnv` (oldest first) in a different insertion
 order, which is a different bucket array whenever two keys share a bucket or
-a resize happened on one side only (`Bridge/Promote/Exact.lean`'s
-`promoteNew_coh`, `sorry`, says why in full).
+a resize happened on one side only (the `sorry` stub `promoteNew_coh` once in
+`Bridge/Promote/Exact.lean` said why in full).
 
 This module is the repair, proved: the EXTENSIONAL coherence (`IFEnvCohX`
 when this module was written, `IFEnvCoh` itself since task #97-P3-Checker

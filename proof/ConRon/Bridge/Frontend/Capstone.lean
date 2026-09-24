@@ -8,10 +8,10 @@ one a reader can check without knowing what an `Env` is:
 > a file whose chunks are one of the shapes `ConLeche.jsonWithTheoremFalse`
 > describes is never accepted by the Lean arena checker.
 
-`Bridge/Checker/Capstone.lean` is the letter at the FOLD (`Arena.model_exists`
-and its two corollaries, at a declaration list); this one is the letter at the
-BYTES, and the distance between them is exactly this tier: the parse's
-exactness, the preparation's, and the prelude.
+`Bridge/Checker/Split.lean`'s `Arena.installThenCheck_bridge` is the statement
+at the FOLD (the twin's accept is con-leche's, at a declaration list); this is
+the letter at the BYTES, and the distance between them is exactly this tier:
+the parse's exactness, the preparation's, and the prelude.
 
 ## The assembly, four steps, one theorem each
 
@@ -77,8 +77,8 @@ universe w
 
 /-! ## 1. The post-parse state
 
-`Bridge/Checker/Capstone.lean`'s §8 asks the frontend tier for three things.
-Two are `Bridge/Frontend/Chunks.lean`'s `parseChunks_exact` (the denotation
+The fold theorem `Arena.installThenCheck_bridge` asks this tier for three
+things.  Two are `Bridge/Frontend/Chunks.lean`'s `parseChunks_exact` (the denotation
 and the persistence); the third is this. -/
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —

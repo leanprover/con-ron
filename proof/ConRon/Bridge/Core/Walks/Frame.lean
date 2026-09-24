@@ -1,8 +1,8 @@
 /-
 # `ConRon.Bridge.Core.Walks.Frame` — the frame every non-slot walk needs
 
-Task #97-P3-CoreWalks.  DESIGN §8's `### Task #97-P3-Core` §6 names what the
-six body walks are waiting on: *"a `BodySpec`-shaped theorem for the
+Task #97-P3-CoreWalks.  DESIGN §8's `### Task #97-P3-Core` §6 named what the
+six body walks were waiting on: *"a `BodySpec`-shaped theorem for the
 `Arena/Core.lean` walks that are not knot slots"*.  This module is that
 tier's foundation — the one fact all of them share, and the item task
 #97-P3-0's own §7 lists as owed ("the per-call memo FRAME").

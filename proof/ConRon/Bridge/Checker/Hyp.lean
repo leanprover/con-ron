@@ -217,8 +217,8 @@ theorem ensureSortSpec_of_knot {mode : CheckMode} {env : Env} {fe : IFEnv}
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:530 ssimC — **`CoreSpec`
 with NOTHING left to supply**: both fields come from `Bridge/Core`, so the
-capstone's Core-tier hypothesis is discharged outright (modulo the six body
-walks `KnotSpec` itself is still waiting on).  Task #97-P3-CoreWalks. -/
+capstone's Core-tier hypothesis is discharged outright (the six body walks
+`KnotSpec` itself rests on are closed too).  Task #97-P3-CoreWalks. -/
 theorem CoreSpec.of_core {μ : CheckMode} (hμ : μ.verifiedChecks = true) :
     CoreSpec μ Arena.checkFuel :=
   CoreSpec.of_knot hμ
@@ -255,8 +255,8 @@ them:
   what makes `checkDeclStep`'s promotion counter `k` mean "the constants this
   step installed", and only the arm can supply it.
 
-The edit is consumer-compatible — `Bridge/Checker/Capstone.lean` never reads
-`IndSpec`, it passes it to `checkDecl_bridge_ind` — and with it
+The edit is consumer-compatible — no fold theorem reads `IndSpec`, they pass
+it down to `checkDecl_bridge_ind` — and with it
 `Bridge/Inductives/Decl.lean`'s `indSpec_of_bridge` closes with no `sorry` of
 its own. 
 **`EnvWF env'`, added** (task #97-P3-Ind round 7, the coordinator's

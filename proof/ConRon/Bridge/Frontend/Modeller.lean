@@ -66,8 +66,8 @@ read — it DENOTES in the store the call leaves behind, and its handles are
 PERSISTENT (the parse runs with the scratch tier closed, so a generated record
 that were not would vanish at the fold's first `dropScratch`).
 
-This is the clause that discharges `Bridge/Checker/Capstone.lean`'s `hpd` for
-the generated half of the stream; the parsed half gets it from the parse.
+This is the clause that discharges the fold theorems' `hpd` for the
+generated half of the stream; the parsed half gets it from the parse.
 
 **`StateOK s` and the closed scratch tier are hypotheses of the promise**
 (task #97-P3-Frontend round 3's finding 14).  Round 1 wrote the promise

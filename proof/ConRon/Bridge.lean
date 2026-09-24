@@ -59,19 +59,19 @@ depth-invariance theorems (`Verify/Deep.lean:3066-3120`) and its six
 well-scopedness preservations, the batched clauses of DESIGN §8.6's items
 9/11/12 are identified against the chain by con-leche's own lemmas
 (`Verify/BetaSpine.lean`, `Verify/BinderLoop.lean`, `Verify/InstList.lean`),
-and the Checker tier takes four declarations in four files —
+and the Checker tier takes three declarations in three files —
 `Verify/BridgeDecl.lean`'s `checkDecl_datF` (`Bridge/Checker/Mono.lean`),
 `Verify/EnvBound.lean`'s `mkFEnv_find?_visibleBelow`
-(`Bridge/Checker/Split.lean`), `Verify/EnvWF.lean`'s `EnvWF`
-(`Bridge/Checker/Inv.lean`) and **`Model/Fold.lean`'s
-`checkDeclsPure_sound_of`** (`Bridge/Checker/Capstone.lean` — the capstone
-cannot be stated without it).  Those modules are already built in the shared
-package, so the cost is loading `olean`s, not elaborating.
+(`Bridge/Checker/Split.lean`) and `Verify/EnvWF.lean`'s `EnvWF`
+(`Bridge/Checker/Inv.lean`).  **`Model/Fold.lean`'s `checkDeclsPure_sound_of`**
+comes in with `Bridge/Frontend/Capstone.lean`'s `ConLeche.MainTheorem` import
+and is applied in `ConRon/Capstone.lean`.  Those modules are already built in
+the shared package, so the cost is loading `olean`s, not elaborating.
 
-`ConRonBridge` is deliberately **not** in `lakefile.toml`'s `defaultTargets`
-while the tier still carries `sorry`s — the precedent is `ConRonArenaSpike`
-(task #97s).  Build it with `lake build ConRonBridge`; promote it to a
-default target when the tier is closed.
+`ConRonBridge` is **not** in `lakefile.toml`'s `defaultTargets`, and no default
+target imports it (`ConRon` reaches only `Generated`/`Refine`/`Dump`; the capstone is
+its own library, `ConRonCapstone`).  The tier is `sorry`-free; `scripts/gates.sh`
+builds it as its own step (`lake build ConRonBridge`, then `ConRonCapstone`).
 -/
 import ConRon.Bridge.Peel
 import ConRon.Bridge.Rel

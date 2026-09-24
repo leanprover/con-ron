@@ -1405,7 +1405,7 @@ structure PassRel (q : ConLeche.NativePass Env) (st : EStore)
 (recCtorKinds …)` at the `Option` monad (the twin of `recCtorKinds` is monadic
 in `AM` and optional in its result, so the `mapM` cannot be written).
 
-`sorry`: a list induction over `recCtorKinds_spec`
+Proved: a list induction over `recCtorKinds_spec`
 (`Bridge/Inductives/NativeParts.lean`). -/
 theorem recCtorKindsAll_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nIdx : Nat)

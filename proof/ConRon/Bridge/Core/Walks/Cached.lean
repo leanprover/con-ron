@@ -29,11 +29,11 @@ is `instLPFast`, whose callee rule is `Bridge/ExprOps/Owed.lean`'s
 eight of `ExprOps/Owed.lean`").  Their proofs are otherwise the first two's,
 table for table — the five insert lemmas below are written for all of them.
 
-**No module of `Bridge/Core/Walks/` imports `Bridge/ExprOps/`**, which is why
-the three are stated here and not proved here: task #97-P3-1 re-stated that
-tier against the split arms while this round ran, and a walk theorem that
-named one of its theorems would have to move with it.  What each owes is
-written at its `sorry`.
+**No module of `Bridge/Core/Walks/` imported `Bridge/ExprOps/`** then, which
+is why the three were only stated here at first: task #97-P3-1 re-stated that
+tier against the split arms while this round ran.  This module has imported
+`Bridge/ExprOps/Owed.lean` since round 4 (the note before `CheckOK.ofInstLP`),
+and the three are proved below.
 
 ## The tier's recipe, in five steps
 

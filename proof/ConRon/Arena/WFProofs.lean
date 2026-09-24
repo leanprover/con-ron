@@ -8736,7 +8736,7 @@ back a persistent handle when the scratch tier is closed*.  The three nested
 stores had no twin, and `Bridge/Frontend/Chunks.lean`'s `StateD_init_run`
 needs two of them: `StateD.init` interns `Name.anonymous` and `Level.zero`
 into the tables the whole parse then reads, and `PersStateD` — the clause
-`Bridge/Checker/Capstone.lean` consumes, without which the fold's first
+behind the fold theorems' `hpd`, without which the fold's first
 `dropScratch` makes the stream undecodable — is about exactly those handles.
 
 Each is `{N,L,Ls}Store.intern_view_spec`'s `else` branch and nothing else: the

@@ -64043,3 +64043,49 @@ ConRon.Capstone.no_False_declaration`: 0 items, dead weight 0; both roots at
 `[propext, Classical.choice, Quot.sound]` (`Capstone.lean`'s
 `#guard_msgs`); no `sorry` added.  Scratch (`_tmp/walkmemo/`: the six
 binaries and their logs) deleted after this section.
+
+### Task #98-NOTES — stale proof notes: "open" claims and the deleted `Bridge/Checker/Capstone.lean` (2026-09-24, Opus under Fable)
+
+Prose only: no statement, proof, import or code changed, and every edited
+file keeps its line count, so no `path:L1-L2` citation moved.  Master has no
+`sorry` outside `Tools/FrontierTest.lean`, so every note that still said
+something was open, `sorry` or "waiting on" was rewritten as history.
+
+* **References to the deleted `Bridge/Checker/Capstone.lean`** (task
+  #97-T2-CLEANUP) now name what consumes the thing today: the fold theorems
+  `Bridge/Checker/Split.lean`'s `Arena.installThenCheck_bridge` and
+  `Bridge/Checker/Phased.lean`'s `Arena.pooledAccepts_bridge` (whose
+  `hok`/`hpins`/`hpd`/`hden` are what the old capstone's `FoldOK`/`hpd`/`hden`
+  were), and `ConRon/Capstone.lean`, which applies
+  `checkDeclsPure_sound_of`.  In `Bridge.lean`,
+  `Bridge/Checker/{Split,Pins,Hyp}.lean`,
+  `Bridge/Frontend/{Capstone,Chunks,Prepare,Lines,Shared,Rel,Modeller}.lean`
+  and `Arena/WFProofs.lean`.  `Bridge/Checker/Fold.lean`'s history paragraph
+  stays.  References to the other deleted names in present tense
+  (`Arena.checkDeclsPure_bridge`, `checkDeclStep_bridge`,
+  `Arena.model_exists`) were fixed in `Split.lean`, `Basis.lean` and
+  `DeclVal.lean`; the ones in `Promote/{Pers,Weak}.lean` are history and stay.
+* **`Bridge.lean`'s build note**: `ConRonBridge` is still not a default target
+  and no default target imports it (`ConRon` reaches only
+  `Generated`/`Refine`/`Dump`; the capstone is its own library
+  `ConRonCapstone`); `scripts/gates.sh` builds both as their own steps.  The
+  note now says that instead of "promote it once the tier is closed".
+* **"Open"/`sorry` claims made false by the proofs**: `Arena/PromoteExt.lean`
+  (`promoteE_ext`, the module note), `Bridge/StoreBM.lean` (the `BMExt`
+  conjunct is threaded and the binder arm closed),
+  `Bridge/Promote/{Exact,Coh}.lean`, `Bridge/Core.lean`,
+  `Bridge/Core/{Induction,EnsureSort,Walks}.lean`,
+  `Bridge/Core/Walks/{Owed,Cached,Frame}.lean` (`Cached.lean` also said no
+  `Walks/` module imports `Bridge/ExprOps/`; it has since round 4),
+  `Bridge/Core/Arms/WhnfCore.lean`, `Bridge/Checker/{Arms,Base,DeclVal,Pins,
+  Fold,Hyp,Split}.lean` (docstrings that began `` `sorry`: `` now say
+  "Proved:"), `Bridge/Frontend/Prepare.lean`,
+  `Bridge/Inductives/NativeInstall.lean`, `Refine2/Specs.lean`,
+  `Refine2/Core/Arms.lean`, `Refine2/Checker/Base.lean`,
+  `Refine2/Inductives/StructParts.lean` and `Refine2/Frontend/Scan/Expr.lean`.
+  Notes that list what a lemma *depends on* ("What these lemmas wait on")
+  were left alone where they claim nothing open.
+* `scripts/overview-links-expected.txt` regenerated: OVERVIEW §7.3 cites
+  `Arena.checkDecl_bridge` (`Fold.lean#L111-L126`), whose docstring line 115
+  changed; the citing paragraph is still accurate.  `scripts/gates.sh`: all
+  16 OK; frontier 0 items, dead weight 0.

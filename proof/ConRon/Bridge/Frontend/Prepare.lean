@@ -402,10 +402,10 @@ stream's front, prelude record by prelude record.
 
 **The persistence clauses travel with the denotations**, because both passes
 of the preparation are PERMUTATIONS: no record is built, so every record out
-is a record in, and `Bridge/Checker/Capstone.lean`'s `hpd` at the fold's
-argument is the parse's and the prelude's, carried.
+is a record in, and the fold theorems' `hpd` (`Arena.installThenCheck_bridge`)
+at the fold's argument is the parse's and the prelude's, carried.
 
-`sorry`: a list induction over `preludeKey_run` and `pick_denote`.  Task
+Proved: a list induction over `preludeKey_run` and `pick_denote`.  Was task
 #97-P3-Frontend's sorry list, item 20. -/
 theorem frontOf_run :
     ∀ (ps : List IDeclaration) {s s' : AState} {acc : Array IDeclaration}

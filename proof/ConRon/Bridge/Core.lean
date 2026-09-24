@@ -51,9 +51,9 @@ stuck-tag branch, **fifty-two per-arm step lemmas** over the six pure bodies,
 its walks, **the whole fuel merge** and **`whnfBody_spec`** — the first of the
 six bodies, and since task #97-P3-Core round 4 **sorry-free** (its two walks,
 `reduceNat_spec` in `Walks/Nat.lean` and `unfoldDefinition_spec` in
-`Walks/Spine.lean`, closed there).  Open: the other five `…Body_spec` walks, the four
-batched-clause carries they wait on, and 127 of the 133 non-slot walks — see
-DESIGN §8's `### Task #97-P3-Core`, `### Task #97-P3-CoreWalks` and
-`### Task #97-P3-Core-2` for the tables and the reason at each site.
+`Walks/Spine.lean`, closed there).  Open then, CLOSED since round 6: the other
+five `…Body_spec` walks, the four batched-clause carries under them, and 127 of
+the 133 non-slot walks — see DESIGN §8's `### Task #97-P3-Core`,
+`### Task #97-P3-CoreWalks` and `### Task #97-P3-Core-2` for the tables.
 -/
 import ConRon.Bridge.Core.Knot

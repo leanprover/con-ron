@@ -872,7 +872,7 @@ definition is needed: the loop lemma's con-leche side is
 `scan_binder_expr_loop_lam` / `scan_binder_expr_loop_forall` below are the two
 statements, one per value of `lam`. -/
 
-/-- **The one `ScanStr` leaf the binder loop still waits on**:
+/-- **The one `ScanStr` leaf the binder loop takes** (a theorem, `binderInfoRefines`):
 `scan_fast::scan_binder_info` against `Scan/Fast.lean:657-666 scanBinderInfo`,
 in `ScanKit`'s port-on-the-left orientation. -/
 def BinderInfoRefines (b : Slice Std.U8) : Prop :=

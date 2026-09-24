@@ -2098,7 +2098,7 @@
    112  con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run
    113  **DESIGN §8.2's Theorem 1, per declaration.**  One `cases` over
    114  `Bridge/Checker/Decl.lean`'s seven arms; the arms are where the content is
-   115  and where the tier's remaining `sorry`s live.
+   115  (all proved: the tier is `sorry`-free).
    116  
    117  `Ext` and not `PExt`: `checkDecl` is the UNBRACKETED call (the module note of
    118  `Arena/Checker.lean`: "What is NOT bracketed is `checkDecl` itself"), so the

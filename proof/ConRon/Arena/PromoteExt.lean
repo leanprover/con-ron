@@ -10,12 +10,12 @@ stated there, because it is MONADIC: twenty walks in
 Task #97-P5-2 §11 item 4 names `promote` beside `internBindI` and the three
 node interns as an `Ext` the refinement demands and the store layer does not
 supply, and `Bridge/Promote/Exact.lean`'s six-conjunct `promote*_spec`s each
-carry `Ext s.store s'.store` and a `PFrame` among their `sorry`s.  Those two
+carried `Ext s.store s'.store` and a `PFrame` among their `sorry`s.  Those two
 conjuncts need **no hypothesis at all** — no `StoreWF`, no `PMemoOK`, no
 denotation — because the promotion's only state-changing primitives are the
 four `internPersistent*`, each of which appends and nothing else.  So they
-are proved here, unconditionally and once, and what is left to the bridge is
-the part that genuinely needs the invariant: `StoreWFP`, `PMemoOK`,
+are proved here, unconditionally and once, and what was left to the bridge
+(proved there since) needs the invariant: `StoreWFP`, `PMemoOK`,
 `PersE`, and `denote (promote h) = denote h`.
 
 ## The shape
@@ -515,8 +515,8 @@ theorem promoteLs_ext {m m' : PMemo} {fuel : Nat} {h r : LsIdx} {s s' : AState}
 
 /-- con-leche: none — arena infrastructure; **promoting an EXPRESSION extends
 the arena** — the `Ext` conjunct of `Bridge/Promote/Exact.lean`'s
-`promoteE_spec`, which is the largest of that file's open items and now owes
-one conjunct less. -/
+`promoteE_spec`, THE exactness lemma of promotion (proved; it takes the
+conjunct from `promoteE_aext` directly, as this lemma does). -/
 theorem promoteE_ext {m m' : PMemo} {fuel : Nat} {h r : EIdx} {s s' : AState}
     (hrun : promoteE m fuel h s = .ok ((m', r), s')) : Ext s.store s'.store :=
   (promoteE_aext m fuel h s (m', r) s' hrun).ext

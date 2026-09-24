@@ -28,8 +28,8 @@ together because the recursion threads all three:
 makes `.mono` across an `Ext` the only transport it needs: a row recorded
 before an append is still a promoted pair after it.
 
-**Status (task #97-P3-Promote).**  Every statement here is PROVED except one
-conjunct: the four handle-kind specs and the declaration layer's four are the
+**Status (task #97-P3-Promote).**  Every statement here is PROVED, one
+conjunct in `Coh.lean`: the four handle-kind specs and the declaration layer's four are the
 walks of `Bridge/Promote/Walk.lean` / `WalkDecl.lean` (fuel and list
 inductions over `EStore.internPersistent_spec'`, at `Arena/WF.lean`'s promote
 window invariant `StoreWF'`), and `promoteNew_spec` is `promoteCIList` plus

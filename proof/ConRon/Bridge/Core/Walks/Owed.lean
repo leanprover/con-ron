@@ -17,8 +17,8 @@ are `Bridge/Core/Walks/{Cached,Frame}.lean` and are CLOSED; `ensureSort` is
 name of the list that is NOT here, and §3 says why; `isBoolTrue` is
 `Bridge/Core/Walks/Guards.lean` and is CLOSED.  The sixteen below are what is
 left of it, each with the con-leche function it refines named through
-`Verify/Knot.lean`'s own `…Fueled` abbreviation, and each `sorry` with what
-it is waiting on written at the site.
+`Verify/Knot.lean`'s own `…Fueled` abbreviation, and each (proved since) with
+what it was waiting on noted at the site.
 
 This is `Bridge/ExprOps/Owed.lean`'s role one tier up: a statement is not a
 proof, but it is the interface, and the six body walks cannot be written

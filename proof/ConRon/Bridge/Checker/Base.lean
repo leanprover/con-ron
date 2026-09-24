@@ -256,14 +256,14 @@ run gives an accepting pure run whose answer the arena's answer denotes.  The
 guards are what make it non-trivial — each must be *exact*, not merely sound,
 because the arena's acceptance has to imply con-leche's.
 
-`sorry`: the six guards (`fe.find?` through `IFEnvOK`, `reservedBasisNames`
+Proved: the six guards (`fe.find?` through `IFEnvOK`, `reservedBasisNames`
 and `isProjFnShape` through the two lemmas above, `nameNodup`,
 `looseBVarsBoundedFast` and `hasFvarFast` through `Bridge/ExprOps/Walks.lean`),
 then `KnotSpec.annotate`, `allLevelParamsDefined_run`,
 `constsResolveFFast_run`, `KnotSpec.infer` and
 `EnsureSortSpec.ensureSort`, in that order.  Task #97-P3-Checker's sorry list,
-item 11 — the single highest-value remaining proof of the tier, since all
-seven arms wait on it. 
+item 11 — then the single highest-value proof of the tier, since all
+seven arms rest on it. 
 
 **Restated in task #97-P3-Checker round 10** (the coordinator's ruling, for
 the Inductives tier): the hypotheses are `CheckOK` and `EnvWF`, not `FoldOK`.

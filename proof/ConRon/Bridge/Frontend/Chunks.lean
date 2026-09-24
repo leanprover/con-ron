@@ -596,7 +596,7 @@ theorem parseChunksGo_run {md : Modeller} (hmw : ModellerWF md)
 **DESIGN §8.2'S PARSER STATEMENT**: the twin's streaming parse denotes
 con-leche's, record for record.
 
-`Bridge/Checker/Capstone.lean`'s two frontend obligations are its two
+The fold theorems' two frontend obligations (`hden`, `hpd`) are its two
 conclusions: `denoteDecls s'.store r.decls.toList = some rc.decls.toList` is
 the `decls` clause of `ParseResultRel` (which is what `denoteDeclArray` is),
 and `PersParseResult r` is `∀ x ∈ ds, PersDecl x`.
