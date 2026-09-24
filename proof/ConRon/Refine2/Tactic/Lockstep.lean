@@ -1715,11 +1715,12 @@ elab "lockstep_congr" : tactic => strict do
     -- the guarded twin equations (`Attr.lean`): here and nowhere else
     ← `(tactic| (simp only [lockstep_simp, lockstep_congr_simp]; done))]
 
-/-- The twin's error leaf. -/
+/-- The twin's error leaf.  (No "any `Native` is fine" alternative since task
+#98-NATIVE: a port `Native` is closed like every other kind, by `AErrSim.mk
+rfl` against the twin's `.native` at the same point.) -/
 syntax "lockstep_errsim" : tactic
 macro_rules
   | `(tactic| lockstep_errsim) => `(tactic| first
-      | exact AErrSim.native _
       | (refine AErrSim.mk rfl ?_; rfl)
       | exact errSim_fail rfl
       | exact errSim_throw rfl
