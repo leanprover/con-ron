@@ -17,17 +17,17 @@
 //!   (`fullyChecked_checkDecls`); the arena's two call the same `checkDecl`
 //!   pieces, which is what keeps them the same computation.
 //!
-//! ## The per-declaration bracket lives in phase B
+//! ## Every step is bracketed
 //!
 //! DESIGN.md §8.3: "Persistent = parse + installed environment; scratch = one
-//! declaration's check."  Phase A's business is exactly the terms the
-//! environment KEEPS, so it runs outside the bracket; phase B's business is
-//! exactly what a declaration merely COMPUTES, so `check_pending` is
-//! `enter_scratch` … `drop_scratch` around `check_value_group` and every node
-//! it appends goes with the tier.  Two things are deliberately NOT bracketed:
-//! phase A's fallback (`annot_step_other`, the whole `check_decl` for the kinds
-//! whose check is not separable from their install — they install what they
-//! check), and `check_decls_pure`, which is the theorem's shape.
+//! declaration's check."  Both phases and both folds run each record inside
+//! `enter_scratch` … `drop_scratch`.  Phase B's `check_pending` brackets
+//! `check_value_group`, and every node it appends goes with the tier.  Phase
+//! A's `annot_step` brackets the install too (the fallback `annot_step_other`
+//! included), because annotation infers and inference interns: `promote`
+//! copies exactly what leaves the step — the installed constants and the
+//! pending record — to the persistent tier before the drop (see `annot_step`).
+//! `check_decls_pure`'s step, `check_decl_step`, is bracketed the same way.
 //!
 //! ## The pins are interned at startup
 //!

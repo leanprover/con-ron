@@ -429,8 +429,8 @@ pub enum OrElseStep {
 /// The twin is a state function, so restoring the pre-attempt state is free
 /// there; here the decision is pure and the caller
 /// (`arena::decl_check::check_div_mod_pin_attempt`) restores its own
-/// `attempt_snapshot` on `Recovered`, which is `con_ron_core::cached::
-/// checker_c::or_else_step`'s arrangement exactly.
+/// `attempt_snapshot` on `Recovered` (`attempt_restore`), the twin's
+/// `orElseAttempt` restoring its snapshot.
 pub fn or_else_attempt(attempt: Result<bool, CheckError>) -> OrElseStep {
     match attempt {
         Ok(true) => OrElseStep::Matched,
