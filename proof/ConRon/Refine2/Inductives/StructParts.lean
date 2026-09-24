@@ -455,15 +455,41 @@ open Lockstep in
         (absU n_f)) :=
   LS.ofSim₀ fun _ h => struct_ctor_spine_at_refines hrel hinv h
 
+open Lockstep in
+/-- `replace_pis_pw` ⊑ `replacePisPw`, by fuel induction on `k`.  The datum `pw` is
+re-interned at every binder, so it must be well formed (`intern_e_*_wf_ls`). -/
+theorem replace_pis_pw_aux {pers} {pw : kernel.prop_when.PropWhen}
+    (hpw : ConRon.Refine.PropWhenWF pw) :
+    ∀ (n : Nat) (k : Std.U64) (h b : arena.handle.EIdx) st lst, k.val = n →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = (Option.map absEIdx) a)
+        (arena.inductives.struct_parts.replace_pis_pw pers st pw k h b) lst
+        (replacePisPw (ConRon.Refine.absPropWhen pw) (absU k) (absEIdx h) (absEIdx b)) := by
+  intro n
+  induction n with
+  | zero =>
+    intro k h b st lst hk hrel hinv
+    have h0 : k = 0#u64 := by scalar_tac
+    subst h0
+    rw [arena.inductives.struct_parts.replace_pis_pw.eq_def, if_pos rfl,
+      show absU (0#u64 : Std.U64) = 0 from rfl, replacePisPw]
+    lockstep
+  | succ n ih =>
+    intro k h b st lst hk hrel hinv
+    rw [arena.inductives.struct_parts.replace_pis_pw.eq_def, if_neg (by scalar_tac),
+      show absU k = n + 1 by simp [absU, hk], replacePisPw]
+    lockstep
+
 /-- `replace_pis_pw` ⊑ `replacePisPw`. -/
 theorem replace_pis_pw_refines {pers st lst} {pw : kernel.prop_when.PropWhen}
     {k : Std.U64} {h b : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.struct_parts.replace_pis_pw pers st pw k h b = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
       (replacePisPw (ConRon.Refine.absPropWhen pw) (absU k) (absEIdx h)
-        (absEIdx b)) := by
-  sorry
+        (absEIdx b)) :=
+  Lockstep.LS.toSim₀ (replace_pis_pw_aux hpw _ k h b st lst rfl hrel hinv) hrun
 
 open Lockstep in
 @[lockstep] theorem replace_pis_pw_ls
@@ -472,21 +498,48 @@ open Lockstep in
     {k : Std.U64}
     {h b : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = (Option.map absEIdx) a) (arena.inductives.struct_parts.replace_pis_pw pers st pw k h b) lst
       (replacePisPw (ConRon.Refine.absPropWhen pw) (absU k) (absEIdx h)
         (absEIdx b)) :=
-  LS.ofSim₀ fun _ h => replace_pis_pw_refines hrel hinv h
+  replace_pis_pw_aux hpw _ k h b st lst rfl hrel hinv
+
+open Lockstep in
+/-- `pis_to_lams_pw` ⊑ `pisToLamsPw`, by fuel induction on `k`.  The datum `pw` is
+re-interned at every binder, so it must be well formed (`intern_e_*_wf_ls`). -/
+theorem pis_to_lams_pw_aux {pers} {pw : kernel.prop_when.PropWhen}
+    (hpw : ConRon.Refine.PropWhenWF pw) :
+    ∀ (n : Nat) (k : Std.U64) (h b : arena.handle.EIdx) st lst, k.val = n →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = (Option.map absEIdx) a)
+        (arena.inductives.struct_parts.pis_to_lams_pw pers st pw k h b) lst
+        (pisToLamsPw (ConRon.Refine.absPropWhen pw) (absU k) (absEIdx h) (absEIdx b)) := by
+  intro n
+  induction n with
+  | zero =>
+    intro k h b st lst hk hrel hinv
+    have h0 : k = 0#u64 := by scalar_tac
+    subst h0
+    rw [arena.inductives.struct_parts.pis_to_lams_pw.eq_def, if_pos rfl,
+      show absU (0#u64 : Std.U64) = 0 from rfl, pisToLamsPw]
+    lockstep
+  | succ n ih =>
+    intro k h b st lst hk hrel hinv
+    rw [arena.inductives.struct_parts.pis_to_lams_pw.eq_def, if_neg (by scalar_tac),
+      show absU k = n + 1 by simp [absU, hk], pisToLamsPw]
+    lockstep
 
 /-- `pis_to_lams_pw` ⊑ `pisToLamsPw`. -/
 theorem pis_to_lams_pw_refines {pers st lst} {pw : kernel.prop_when.PropWhen}
     {k : Std.U64} {h b : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.struct_parts.pis_to_lams_pw pers st pw k h b = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
       (pisToLamsPw (ConRon.Refine.absPropWhen pw) (absU k) (absEIdx h)
-        (absEIdx b)) := by
-  sorry
+        (absEIdx b)) :=
+  Lockstep.LS.toSim₀ (pis_to_lams_pw_aux hpw _ k h b st lst rfl hrel hinv) hrun
 
 open Lockstep in
 @[lockstep] theorem pis_to_lams_pw_ls
@@ -495,11 +548,12 @@ open Lockstep in
     {k : Std.U64}
     {h b : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = (Option.map absEIdx) a) (arena.inductives.struct_parts.pis_to_lams_pw pers st pw k h b) lst
       (pisToLamsPw (ConRon.Refine.absPropWhen pw) (absU k) (absEIdx h)
         (absEIdx b)) :=
-  LS.ofSim₀ fun _ h => pis_to_lams_pw_refines hrel hinv h
+  pis_to_lams_pw_aux hpw _ k h b st lst rfl hrel hinv
 
 /-! ## The generated recursor at an indexed family -/
 
@@ -1115,6 +1169,31 @@ open Lockstep in
       (structProjArgP (absNIdx t) (absU j)) :=
   LS.ofSim₀ fun _ h => struct_proj_arg_p_refines hrel hinv h
 
+open Lockstep in
+/-- `struct_proj_resid_p` by induction on the count `i` (the port recurses on
+`i - 1` first, as the twin's `i + 1` arm does). -/
+theorem struct_proj_resid_p_aux {pers} {t : arena.handle.NIdx}
+    {n_p : Std.U64} {cty : arena.handle.EIdx} :
+    ∀ (n : Nat) (i : Std.U64) st lst, i.val = n →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = (Option.map absEIdx) a)
+        (arena.inductives.struct_parts.struct_proj_resid_p pers st t n_p cty i) lst
+        (structProjResidP (absNIdx t) (absU n_p) (absEIdx cty) (absU i)) := by
+  intro n
+  induction n with
+  | zero =>
+    intro i st lst hi hrel hinv
+    have h0 : i = 0#u64 := by scalar_tac
+    subst h0
+    rw [arena.inductives.struct_parts.struct_proj_resid_p.eq_def, if_pos rfl,
+      show absU (0#u64 : Std.U64) = 0 from rfl, structProjResidP]
+    lockstep
+  | succ n ih =>
+    intro i st lst hi hrel hinv
+    rw [arena.inductives.struct_parts.struct_proj_resid_p.eq_def, if_neg (by scalar_tac),
+      show absU i = n + 1 by simp [absU, hi], structProjResidP]
+    lockstep
+
 /-- `struct_proj_resid_p` ⊑ `structProjResidP`. -/
 theorem struct_proj_resid_p_refines {pers st lst} {t : arena.handle.NIdx}
     {n_p : Std.U64} {cty : arena.handle.EIdx} {i : Std.U64} {o}
@@ -1122,8 +1201,8 @@ theorem struct_proj_resid_p_refines {pers st lst} {t : arena.handle.NIdx}
     (hrun : arena.inductives.struct_parts.struct_proj_resid_p pers st t n_p cty i
       = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
-      (structProjResidP (absNIdx t) (absU n_p) (absEIdx cty) (absU i)) := by
-  sorry
+      (structProjResidP (absNIdx t) (absU n_p) (absEIdx cty) (absU i)) :=
+  Lockstep.LS.toSim₀ (struct_proj_resid_p_aux _ i st lst rfl hrel hinv) hrun
 
 open Lockstep in
 @[lockstep] theorem struct_proj_resid_p_ls

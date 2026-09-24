@@ -171,15 +171,21 @@ open Lockstep in
 well-formed level (the cached readback's output carries the `LevelWF`). -/
 @[lockstep] theorem zeroness_of_twin (l : kernel.level.Level) (hl : ConRon.Refine.LevelWF l) :
     LSP (kernel.level.zeroness_of l)
-      (fun pw => TwinEq ((ConRon.Refine.absLevel l).zeronessOf) (ConRon.Refine.absPropWhen pw)) :=
-  fun pw h => (ConRon.Refine.ExprOps.zeroness_of_refines hl pw h).1.symm
+      (fun pw => TwinEq ((ConRon.Refine.absLevel l).zeronessOf) (ConRon.Refine.absPropWhen pw) ∧
+        ConRon.Refine.PropWhenWF pw) :=
+  fun pw h => ⟨(ConRon.Refine.ExprOps.zeroness_of_refines hl pw h).1.symm,
+    (ConRon.Refine.ExprOps.zeroness_of_refines hl pw h).2⟩
 
 open Lockstep in
 /-- `prop_when::if_all_zero` of the empty list is the twin's `.ifAllZero []`. -/
 @[lockstep] theorem if_all_zero_new_twin :
     LSP (kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name))
-      (fun pw => TwinEq (ConLeche.PropWhen.ifAllZero []) (ConRon.Refine.absPropWhen pw)) := by
+      (fun pw => TwinEq (ConLeche.PropWhen.ifAllZero []) (ConRon.Refine.absPropWhen pw) ∧
+        ConRon.Refine.PropWhenWF pw) := by
   intro pw h
+  have hwf : ConRon.Refine.PropWhenWF pw :=
+    ConRon.Refine.PropWhenWF.if_all_zero (by simp [ConRon.Refine.NamesWF, alloc.vec.Vec.new]) h
+  refine ⟨?_, hwf⟩
   simp only [kernel.prop_when.if_all_zero, kernel.prop_when.of_repr, alloc.vec.Vec.new,
     alloc.vec.Vec.len] at h
   rw [if_pos (by rfl)] at h
@@ -212,23 +218,23 @@ open Lockstep in
       (piResultIsProp (absEIdx e)) :=
   LS.ofSim₀ fun _ h => pi_result_is_prop_refines hrel hinv h
 
-/-- `pi_result_z` ⊑ `piResultZ`.  **Waits on `expr_ops::pi_result`'s lockstep
-lemma**, as above; past it `tag`, `view_sort`, `read_level_m` and the pure
-`zeroness_of`. -/
-theorem pi_result_z_refines {pers st lst} {e : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.core.pi_result_z pers st e = ok o) :
-    Sim₀ ConRon.Refine.absPropWhen pers lst o (piResultZ (absEIdx e)) := by
-  refine Lockstep.LS.toSim₀ ?_ hrun
+open Lockstep in
+/-- `pi_result_z` ⊑ `piResultZ`, and its answer is well formed
+(`PropWhenWF`, the erased subtype invariant: `zeroness_of` and `if_all_zero`
+build canonical data) — `ind_block_caps` pushes it with the inductive. -/
+@[lockstep] theorem pi_result_z_ls {pers st lst} {e : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = ConRon.Refine.absPropWhen a ∧ ConRon.Refine.PropWhenWF a)
+      (arena.core.pi_result_z pers st e) lst (piResultZ (absEIdx e)) := by
   rw [arena.core.pi_result_z, piResultZ]
   lockstep
 
-open Lockstep in
-@[lockstep] theorem pi_result_z_ls {pers st lst} {e : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = ConRon.Refine.absPropWhen a) (arena.core.pi_result_z pers st e) lst
-      (piResultZ (absEIdx e)) :=
-  LS.ofSim₀ fun _ h => pi_result_z_refines hrel hinv h
+/-- `pi_result_z` ⊑ `piResultZ`. -/
+theorem pi_result_z_refines {pers st lst} {e : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.core.pi_result_z pers st e = ok o) :
+    Sim₀ ConRon.Refine.absPropWhen pers lst o (piResultZ (absEIdx e)) :=
+  Lockstep.LS.toSim₀ (Lockstep.LS.tail (pi_result_z_ls hrel hinv) rfl fun _ _ h => h.1) hrun
 
 /-! ## The checker tier's statements in `LS` form
 
