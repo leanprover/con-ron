@@ -1056,6 +1056,60 @@ open Lockstep in
       (nativeRuleScopedSpec lfR (absNIdxL rlps) (absEIdx rhs)) :=
   LS.ofSim₀ fun _ h => native_rule_scoped_refines hrel hinv hfe hvis h
 
+/-- `checkNativeRules`' step with the scoping test named as the port's
+`native_rule_scoped` (`nativeRuleScopedSpec`). -/
+theorem checkNativeRules_succ_port (feR : IFEnv) (rlps : List NIdx) (T : NIdx)
+    (lps : List NIdx) (elim : NIdx) (large : Bool) (nP nIdx : Nat) (tty : EIdx)
+    (ctors : List (NIdx × Nat × EIdx × List Nat)) (recC : NIdx) (rlvls : LsIdx)
+    (k j : Nat) :
+    checkNativeRules feR rlps T lps elim large nP nIdx tty ctors recC rlvls (k + 1) j = (do
+      let rhs ← unwrapOr (← structRecRhsR T lps elim large nP nIdx tty ctors recC rlvls j)
+        (.internal "direct rec: recursor rule")
+      unless ← nativeRuleScopedSpec feR rlps rhs do
+        fail (.internal "direct rec: recursor rule scoping")
+      let rest ← checkNativeRules feR rlps T lps elim large nP nIdx tty ctors recC rlvls k
+        (j + 1)
+      pure (rhs :: rest)) := by
+  rw [checkNativeRules]
+  simp only [nativeRuleScopedSpec, bind_assoc, pure_bind]
+
+theorem check_native_rules_aux (m : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rfR lfR}
+      {rlps : alloc.vec.Vec arena.handle.NIdx} {t : arena.handle.NIdx}
+      {lps : alloc.vec.Vec arena.handle.NIdx} {elim : arena.handle.NIdx}
+      {large : Bool} {n_p n_idx : Std.U64} {tty : arena.handle.EIdx}
+      {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
+        (alloc.vec.Vec Std.U64))}
+      {rec_c : arena.handle.NIdx} {rlvls : arena.handle.LsIdx} {k j : Std.U64}
+      {out : alloc.vec.Vec arena.handle.EIdx},
+      k.val = m → AStateRel₀ pers st lst → AStateInv pers st → IFEnvRelI rfR lfR →
+      absU vis = lfR.visibleBelow →
+      Lockstep.LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.native_install.check_native_rules pers vis st rfR rlps t
+          lps elim large n_p n_idx tty ctors rec_c rlvls k j out) lst
+        (do pure (absEIdxL out ++
+          (← checkNativeRules lfR (absNIdxL rlps) (absNIdx t) (absNIdxL lps)
+            (absNIdx elim) large (absU n_p) (absU n_idx) (absEIdx tty)
+            (absCtors4L ctors) (absNIdx rec_c) (absLsIdx rlvls) (absU k)
+            (absU j)))) := by
+  induction m with
+  | zero =>
+    intro pers st lst vis rfR lfR rlps t lps elim large n_p n_idx tty ctors rec_c rlvls k j out
+      hk hrel hinv hfe hvis
+    rw [arena.inductives.native_install.check_native_rules, if_pos (by scalar_tac),
+      show absU k = 0 from hk, checkNativeRules]
+    lockstep
+  | succ m ih =>
+    intro pers st lst vis rfR lfR rlps t lps elim large n_p n_idx tty ctors rec_c rlvls k j out
+      hk hrel hinv hfe hvis
+    rw [arena.inductives.native_install.check_native_rules, if_neg (by scalar_tac),
+      show absU k = m + 1 from hk, checkNativeRules_succ_port]
+    have hk1 : 1 ≤ k.val := by omega
+    obtain rfl : m = k.val - 1 := by omega
+    clear hk
+    simp only [bind_assoc, pure_bind]
+    lockstep
+
 /-- `check_native_rules` ⊑ `checkNativeRules` from the `j`-th rule on, with the
 accumulated right-hand sides in front. -/
 theorem check_native_rules_refines {pers st lst} {vis : Std.U64} {rfR lfR}
@@ -1077,7 +1131,7 @@ theorem check_native_rules_refines {pers st lst} {vis : Std.U64} {rfR lfR}
           (absNIdx elim) large (absU n_p) (absU n_idx) (absEIdx tty)
           (absCtors4L ctors) (absNIdx rec_c) (absLsIdx rlvls) (absU k)
           (absU j)))) := by
-  sorry
+  exact Lockstep.LS.toSim₀ (check_native_rules_aux _ rfl hrel hinv hfe hvis) hrun
 
 open Lockstep in
 @[lockstep] theorem check_native_rules_ls
