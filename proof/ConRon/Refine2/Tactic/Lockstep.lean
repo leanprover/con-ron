@@ -1808,6 +1808,9 @@ def simpTwinEqs (g : MVarId) : MetaM MVarId := g.withContext do
         scal ← scal.add (.fvar d.fvarId) #[] d.toExpr
         anyScal := true
   let sctx ← Simp.mkContext (simpTheorems := #[scal]) (congrTheorems := ← getSimpCongrTheorems)
+  let some ext ← getSimpExtension? `lockstep_simp | return g
+  let base ← ext.getTheorems
+  let bctx ← Simp.mkContext (simpTheorems := #[base]) (congrTheorems := ← getSimpCongrTheorems)
   let mut thms : SimpTheorems := {}
   let mut any := false
   for d in (← getLCtx) do
@@ -1826,10 +1829,21 @@ def simpTwinEqs (g : MVarId) : MetaM MVarId := g.withContext do
       thms ← thms.add (.fvar d.fvarId) #[] rule
       if rule != pfEq then
         thms ← thms.add (.fvar d.fvarId) #[] pfEq
+      -- the `lockstep_simp` set normalises the twin's subterms before a rule
+      -- sees the enclosing term (`absEIdxList xs` → `xs.val.map absEIdx`,
+      -- `↑0#usize` → `0`), so each left side is offered in that normal form
+      -- too (of the scalar-respelled side as well)
+      let rt ← inferType rule
+      let some (_, a1, _) := rt.eq? | pure ()
+      for (lhs, prf) in [(a, pfEq), (a1, rule)] do
+        let (r, _) ← simp lhs bctx
+        if r.expr != lhs then
+          let pn ← match r.proof? with
+            | some p => mkEqTrans (← mkEqSymm p) prf
+            | none => mkExpectedTypeHint prf (← mkEq r.expr b)
+          thms ← thms.add (.fvar d.fvarId) #[] pn
       any := true
   unless any do return g
-  let some ext ← getSimpExtension? `lockstep_simp | return g
-  let base ← ext.getTheorems
   let x := ty.getArg! 6
   let ctx ← Simp.mkContext (simpTheorems := #[base, thms]) (congrTheorems := ← getSimpCongrTheorems)
   let (r, _) ← simp x ctx
