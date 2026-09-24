@@ -154,21 +154,20 @@ open Lockstep in
   LS.ofSim₀ fun _ h => check_native_rules_f_refines hrel hinv hfe hvis h
 
 /-- `check_native_rec_f` ⊑ `checkNativeRecF` — finding 19's bracket carries
-over: `o.2.2` is the pre-call environment. -/
+over (`LSM`: the environment beside the answer is the pre-call one). -/
 theorem check_native_rec_f_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf lf} {p : arena.inductives.native_parts.NativeParts}
     {cv_ta : arena.env.IConstantVal}
-    {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {o}
+    {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hrun : arena.inductives.native_install_f.check_native_rec_f pers st mode rf p
-      cv_ta ctors_a = ok o) :
-    Sim₀ (fun r => (absIConstantVal r.1, absEIdxL r.2)) pers lst
-      (o.1, o.2.1)
+    (hfe : IFEnvRelI rf lf) :
+    Lockstep.LSM pers
+      (fun a v => v = (absIConstantVal a.1.1, absEIdxL a.1.2) ∧ IFEnvRelI a.2 lf)
+      (arena.inductives.native_install_f.check_native_rec_f pers st mode rf p cv_ta ctors_a) lst
       (checkNativeRecF (ConRon.Refine.absMode mode) lf (absNativeParts p)
-        (absIConstantVal cv_ta) (absCtorsL ctors_a)) ∧
-      IFEnvRel o.2.2 lf := by
-  sorry
+        (absIConstantVal cv_ta) (absCtorsL ctors_a)) := by
+  rw [arena.inductives.native_install_f.check_native_rec_f]
+  exact check_native_rec_refines hrel hinv hfe
 
 /-- `check_native_table_f` ⊑ `checkNativeTableF`. -/
 theorem check_native_table_f_refines {pers st lst}
