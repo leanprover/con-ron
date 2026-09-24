@@ -1581,6 +1581,62 @@ theorem reverse_set' {α : Type} (l : List α) (i : Nat) (x : α) (h : i < l.len
   simp only [List.getElem_reverse, List.getElem_set, List.length_set, List.length_reverse]
   split_ifs <;> first | rfl | omega
 
+/-- **`promote_ci` keeps a constant canonical** (`IConstantInfoWF`): the one
+datum the predicate reads, an inductive's `caps.sort_z`, is copied by
+`i_ind_caps_dup` (the identity) and never promoted.  A fact about the Rust
+program alone; `index_promoted` writes back the promotion of a constant it
+read out of the related environment, so `IFEnvRel.envWF` of the source gives
+the premise (task #97-T2-LANE-Promote round 2, replacing the seam
+`ifenvRel_envWF_promote`). -/
+theorem promote_ci_wf {pers st m fuel} {ci : arena.env.IConstantInfo} {m2 ci' st'}
+    (hwf : IConstantInfoWF ci)
+    (h : arena.promote.promote_ci pers st m fuel ci = ok (.Ok (m2, ci'), st')) :
+    IConstantInfoWF ci' := by
+  cases ci with
+  | IndInfo v c =>
+    rw [arena.promote.promote_ci] at h
+    obtain ⟨⟨r, st1⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases r with
+    | Err e => cases Result.ok_injective h
+    | Ok p =>
+      obtain ⟨⟨r2, st2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      cases r2 with
+      | Err e => cases Result.ok_injective h
+      | Ok p2 =>
+        cases Result.ok_injective h
+        rw [arena.promote.promote_caps] at h2
+        obtain ⟨⟨r3, st3⟩, -, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+        cases r3 with
+        | Err e => cases Result.ok_injective h2
+        | Ok p3 =>
+          obtain ⟨caps, hcaps, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+          cases Result.ok_injective h2
+          cases Lockstep.i_ind_caps_dup_spec c caps hcaps
+          exact hwf
+  | _ =>
+    rw [arena.promote.promote_ci] at h
+    repeat (first
+      | (obtain ⟨⟨_r, _st⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; cases _r <;>
+          try (cases Result.ok_injective h; done))
+      | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h))
+    all_goals (cases Result.ok_injective h; trivial)
+
+/-- A Rust-output fact joined to a lockstep post (the fact is read off the
+Rust run alone). -/
+private theorem LS.and_rust {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {P : α → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β}
+    (h : Lockstep.LS pers R m lst x) (hP : ∀ a st', m = ok (.Ok a, st') → P a) :
+    Lockstep.LS pers (fun a b => R a b ∧ P a) m lst x := by
+  intro o st' hm
+  have h1 := h o st' hm
+  cases o with
+  | Err e => exact h1
+  | Ok a =>
+    obtain ⟨b, lst', h2, h3, h4, h5⟩ := h1
+    exact ⟨b, lst', h2, ⟨h3, hP a st' hm⟩, h4, h5⟩
+
 private theorem index_promoted_step {rf lf : _} {start j i : Std.Usize}
     {c i1 i2 : Std.U64} {ci : arena.env.IConstantInfo} {nn : arena.handle.NIdx}
     {hm : ron.hashmap2.HashMap2 arena.handle.NIdx (Std.U64 × Std.U64)}
@@ -1591,6 +1647,7 @@ private theorem index_promoted_step {rf lf : _} {start j i : Std.Usize}
     (hiv : i.val = j.val - 1) (hi1 : i1.val = c.val - 1) (hc1 : 1 ≤ c.val)
     (hi2 : i2.val = i.val)
     (hnn : absNIdx nn = (absIConstantInfo ci).name)
+    (hciwf : IConstantInfoWF ci)
     (hinvm : Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable hm)
     (hupd : ConRon.Refine.HashMap2.toFun hm =
       Function.update (ConRon.Refine.HashMap2.toFun rf.idx) nn (some (i1, i2))) :
@@ -1648,12 +1705,12 @@ private theorem index_promoted_step {rf lf : _} {start j i : Std.Usize}
         rcases hfree k p hp with h | h <;> omega
   · exact hfe.visibleBelow
   · -- the stored constants stay canonical: the old ones by `hfe`, the
-    -- promoted one is the routed seam `ifenvRel_envWF_promote`
+    -- promoted one by `hciwf` (the promotion of a stored constant, `promote_ci_wf`)
     intro c' hc'
     simp only [rf', alloc.vec.Vec.set_val_eq] at hc'
     rcases List.mem_or_eq_of_mem_set hc' with h | h
     · exact hfe.envWF c' h
-    · rw [h]; exact ifenvRel_envWF_promote ci
+    · rw [h]; exact hciwf
   · -- the keys: the new row by the promoted constant's name, the old rows
     -- point outside `start..j` and so at unmoved slots
     intro k p hp
@@ -1724,11 +1781,16 @@ private theorem index_promoted_aux (d : Nat) :
       have e : rf.env.consts.val.length - 1 - (rf.env.consts.val.length - j.val) = i.val := by
         omega
       simp only [e]
-    refine LS.bind (promote_ci_ls hrel hinv hm fuel ii) (by rw [htw]) ?_ ?_
+    -- the promoted constant is canonical: `ii` is stored in the related source
+    have hiiwf : IConstantInfoWF ii :=
+      hfe.envWF ii (by rw [← hii]; exact List.getElem_mem _)
+    refine LS.bind (LS.and_rust (promote_ci_ls hrel hinv hm fuel ii)
+        (P := fun r => IConstantInfoWF r.2)
+        (fun a st' h => promote_ci_wf hiiwf h)) (by rw [htw]) ?_ ?_
     · intro e st1
       exact errArm_ok
-    · rintro ⟨m2, ci⟩ ⟨m2', ci'⟩ st1 lst1 ⟨hM, hci⟩ hrel1 hinv1
-      simp only at hM hci
+    · rintro ⟨m2, ci⟩ ⟨m2', ci'⟩ st1 lst1 ⟨⟨hM, hci⟩, hciwf⟩ hrel1 hinv1
+      simp only at hM hci hciwf
       subst hci
       try simp only
       refine LS.bind_eq fun nn hnn => ?_
@@ -1753,7 +1815,7 @@ private theorem index_promoted_aux (d : Nat) :
       try simp only
       obtain ⟨hrel', hinv', hlen', hfree'⟩ := index_promoted_step (i := i) (ci := ci) (nn := nn)
         (c := c) (i1 := i1) (i2 := i2) hfe hfinv hfree hsj hj hiv hi1v (by
-          rw [u64_one_val] at hc1; exact hc1) hi2v hnn' hinvm hupd
+          rw [u64_one_val] at hc1; exact hc1) hi2v hnn' hciwf hinvm hupd
       have hrec := ih fuel start i i1 (by omega) (by omega) (by rw [hlen']; omega)
           hrel1 hinv1 hM hrel' hinv' hfree'
       rw [hlen'] at hrec
@@ -1942,13 +2004,13 @@ handle type. -/
 /-- info: 'ConRon.Refine2.erase_installed_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms erase_installed_refines
 
-/-- info: 'ConRon.Refine2.index_promoted_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.index_promoted_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms index_promoted_refines
 
-/-- info: 'ConRon.Refine2.promote_new_refines_keyed' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.promote_new_refines_keyed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms promote_new_refines_keyed
 
-/-- info: 'ConRon.Refine2.promote_new_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.promote_new_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms promote_new_refines
 
 end ConRon.Refine2

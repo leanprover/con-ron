@@ -61990,3 +61990,32 @@ dead weight 218; the Capstone roots 23 items / 281 tainted / dead weight 198
 
 Gates on `a7531cb7` (arena `5e671407` merged): **all 16 OK** (`extract-check`
 85 s); `lake build ConRonRefine2 ConRonCapstone` green.
+
+### Task #97-T2-LANE-Promote round 2 — the `ifenvRel_envWF_promote` seam replaced by its premise (2026-09-24, Opus under Fable)
+
+Worktree `_tmp/wt-t2-promote2` off `arena` `b9b64d90`.
+
+* **The seam is deleted.**  `ifenvRel_envWF_promote` (`Refine2/AbsState.lean`)
+  claimed `IConstantInfoWF ci` for an arbitrary `ci` — false.  Its one
+  consumer, `index_promoted_step`, now takes the premise `hciwf :
+  IConstantInfoWF ci` for the constant it writes back.
+* **Where the fact comes from** (a representation fact, no new invariant):
+  `index_promoted` reads `ii := rf.env.consts[i]` and writes back its
+  promotion.  `ii` is WF by `IFEnvRel.envWF` of the SOURCE environment, and
+  the new `promote_ci_wf` (`Promote/Promote.lean`, about the Rust program
+  alone) shows promotion keeps it: the one datum the predicate reads, an
+  inductive's `caps.sort_z`, is copied by `i_ind_caps_dup` (the identity) and
+  never promoted, and every other constructor comes out non-inductive.
+  `index_promoted_aux` binds `promote_ci_ls` through a small local judgement
+  lemma, `LS.and_rust` (a Rust-output fact joined to the lockstep post),
+  instead of changing `promote_ci_ls`'s statement.
+* No divergence; no twin, Rust or tactic change.  The axiom censuses of
+  `index_promoted_refines`, `promote_new_refines(_keyed)` are clean now.
+* **`LSM` → plain `lockstep`: not done.**  The tactic owner's `LSM`/`LSRM`
+  shape (t2-tactic-5/6) has not landed on `arena` (both bounced in the
+  queue); `Promote/Intern.lean`'s hand judgement is still `LSM`, so it stays.
+
+Frontier (`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`): **23 items / 281 tainted / 198 dead →
+22 / 272 / 198**; the Promote tier has no frontier item and no dead weight.
+Out-of-lane edit: `Refine2/AbsState.lean` (the seam deleted, as authorised).
