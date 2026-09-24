@@ -856,7 +856,24 @@ theorem mk_pis_of_refines {pers st lst}
     (hrun : arena.inductives.native_parts.mk_pis_of pers st tele k body = ok o) :
     Sim₀ absEIdx pers lst o
       (mkPisOf (absBinderLFrom tele k) (absEIdx body)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  revert st lst hrel hinv
+  simp only [absBinderLFrom]
+  intro st lst hrel hinv
+  refine ls_cursor tele (fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2))
+    (fun l => mkPisOf l (absEIdx body))
+    (fun st i => arena.inductives.native_parts.mk_pis_of pers st tele i body) ?_ ?_ k st lst hrel hinv
+  · intro st lst i hn hrel hinv
+    try simp only []
+    rw [arena.inductives.native_parts.mk_pis_of.eq_def, mkPisOf]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst i hb hrel hinv ih
+    try simp only []
+    rw [arena.inductives.native_parts.mk_pis_of.eq_def, mkPisOf]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem mk_pis_of_ls
@@ -878,7 +895,24 @@ theorem mk_lams_of_refines {pers st lst}
     (hrun : arena.inductives.native_parts.mk_lams_of pers st tele k body = ok o) :
     Sim₀ absEIdx pers lst o
       (mkLamsOf (absBinderLFrom tele k) (absEIdx body)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  revert st lst hrel hinv
+  simp only [absBinderLFrom]
+  intro st lst hrel hinv
+  refine ls_cursor tele (fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2))
+    (fun l => mkLamsOf l (absEIdx body))
+    (fun st i => arena.inductives.native_parts.mk_lams_of pers st tele i body) ?_ ?_ k st lst hrel hinv
+  · intro st lst i hn hrel hinv
+    try simp only []
+    rw [arena.inductives.native_parts.mk_lams_of.eq_def, mkLamsOf]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst i hb hrel hinv ih
+    try simp only []
+    rw [arena.inductives.native_parts.mk_lams_of.eq_def, mkLamsOf]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem mk_lams_of_ls

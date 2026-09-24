@@ -1032,4 +1032,10 @@ fact, visible to the modeled route only). -/
     LSP (arena.core.nidx_vec_beq a b) (fun o => o = (absNIdxL a == absNIdxL b)) :=
   fun _ h => nidx_vec_beq_abs h
 
+open Lockstep in
+/-- `kernel::expr::binder_meta_dup` is the identity (a Rust-only copy). -/
+@[lockstep] theorem binder_meta_dup_spec (m : kernel.expr.BinderMeta) :
+    LSP (kernel.expr.binder_meta_dup m) (fun a => a = m) :=
+  fun _ h => ConRon.Refine.Expr.binder_meta_dup_eq h
+
 end ConRon.Refine2
