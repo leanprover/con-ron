@@ -524,20 +524,11 @@ open Lockstep in
 
 /-! ## The telescope readers -/
 
-/-- `pi_binders` ⊑ `piBinders`, with the accumulated binders in front.
-**Finding 18's `SimRE`**: the walk reads the store, appends nothing, and its
-only failure is the fuel. -/
-theorem pi_binders_refines {pers st lst} {fuel : Std.U64} {h : arena.handle.EIdx}
-    {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.inductives.native_parts.pi_binders pers st fuel h out = ok o) :
-    SimRE (fun r => (absBinderL r.1, absEIdx r.2)) lst o
-      (do
-        let q ← piBinders (absU fuel) (absEIdx h)
-        pure (absBinderL out ++ q.1, q.2)) := by
-  sorry
-
 open Lockstep in
+/-- `pi_binders` ⊑ `piBinders`, with the accumulated binders in front — a READ
+(`LSR`), proved by the counted fuel induction.  (Finding 18's `SimRE`
+statement, which also claimed the twin state unchanged, is gone: the lockstep
+judgement does not carry that, and no caller used it.) -/
 @[lockstep] theorem pi_binders_ls
     {pers st lst}
     {fuel : Std.U64}
@@ -548,8 +539,32 @@ open Lockstep in
     LSR pers (fun a b => b = (fun r => (absBinderL r.1, absEIdx r.2)) a) (arena.inductives.native_parts.pi_binders pers st fuel h out) st lst
       (do
         let q ← piBinders (absU fuel) (absEIdx h)
-        pure (absBinderL out ++ q.1, q.2)) :=
-  LSR.ofSimRE hrel hinv fun _ h => pi_binders_refines hrel hinv h
+        pure (absBinderL out ++ q.1, q.2)) := by
+  suffices H : ∀ (n : Nat) (fuel : Std.U64) (h : arena.handle.EIdx)
+      (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (lst : AState),
+      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = (fun r => (absBinderL r.1, absEIdx r.2)) a)
+        (arena.inductives.native_parts.pi_binders pers st fuel h out) st lst
+        (do
+          let q ← piBinders (absU fuel) (absEIdx h)
+          pure (absBinderL out ++ q.1, q.2)) from H _ fuel h out lst rfl hrel hinv
+  clear hrel hinv
+  intro n
+  induction n with
+  | zero =>
+    intro fuel h out lst hf hrel hinv
+    have h0 : fuel = 0#u64 := by scalar_tac
+    subst h0
+    rw [arena.inductives.native_parts.pi_binders.eq_def, if_pos rfl]
+    rw [show absU (0#u64 : Std.U64) = 0 from rfl, piBinders]
+    apply LSR.of_LS
+    lockstep
+  | succ n ih =>
+    intro fuel h out lst hf hrel hinv
+    rw [arena.inductives.native_parts.pi_binders.eq_def, if_neg (by scalar_tac)]
+    rw [show absU fuel = n + 1 by simp [absU, hf], piBinders]
+    apply LSR.of_LS
+    lockstep
 
 open Lockstep in
 /-- `pi_binders` from an empty accumulator IS `piBinders` (the callers' form). -/
