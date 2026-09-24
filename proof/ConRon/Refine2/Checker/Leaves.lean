@@ -7,9 +7,8 @@ module graph is moved down here, unchanged (proof or `sorry` and all), and
 its old module imports this one.  So far:
 
 * `mentions_const_refines`/`_ls` (from `Inductives/StructParts.lean`):
-  `unresolved_consts_error`'s walk.  Its arm lemmas (`mentions_const_go`/
-  `_node`) stay in `StructParts` for now; when the walk is proved they and
-  their shapes (`LOutRel`, `mentionsConstNodeSpec`) must follow it here.
+  `unresolved_consts_error`'s walk, proved here (round 2) by fuel induction
+  with `mc_probe` and the arm statements it replaced.
 * `env_pi_sort_tele_len_run` (from `Frontend/ExportCInd.lean`), with its two
   helpers `env_view_e_run`/`view_bind_run` (from `Frontend/ExportC.lean`):
   `ind_params_ok`'s leaf.
@@ -25,17 +24,89 @@ namespace ConRon.Refine2
 
 open ConRon.Arena
 
-/-- `mentions_const` ⊑ `mentionsConst` — one memoised walk from the empty
-memo. -/
-theorem mentions_const_refines {pers st lst} {t : arena.handle.NIdx}
-    {e : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.inductives.struct_parts.mentions_const pers st t e = ok o) :
-    Sim₀ id pers lst o
-      (mentionsConst (absNIdx t) (absEIdx e)) := by
-  sorry
+/-! ## `mentions_const`: `unresolved_consts_error`'s walk
+
+The walk threads its memo INSIDE the `Result` (`Result<(bool, memo)>`), which
+is the shape the tactic zips: a fuel induction, each case one `lockstep`, with
+the node dispatch `mentions_const_node` unfolded in place against the twin's
+inner `match`.  The Inductives tier's arm statements (`mentions_const_go`/
+`_node`, `mc_probe`, all `sorry` and used by nothing else) moved here with
+it and are proved. -/
+
+/-- `mc_probe` ⊑ `memo[h]?`. -/
+theorem mc_probe_refines {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {lm : Std.HashMap EIdx Bool} {k : arena.handle.EIdx} {o}
+    (hm : ExprOps.LMemoRel rm lm)
+    (hrun : arena.inductives.struct_parts.mc_probe rm k = ok o) :
+    o = lm[absEIdx k]? := by
+  rw [arena.inductives.struct_parts.mc_probe] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨hmr, hminv⟩ := hm
+  have hto := ConRon.Refine.HashMap2.get_refines_wf eidx_eq2 hminv
+    ConRon.Refine.HashMap2.KeysOk_true trivial hr
+  have hrelk := hmr k trivial
+  rw [← hrelk, ← hto]
+  cases hrc : r with
+  | none =>
+    rw [hrc] at hrun
+    have h2 : (none : Option Bool) = o := Result.ok_injective hrun
+    subst h2
+    rfl
+  | some v =>
+    rw [hrc] at hrun
+    have h2 : some v = o := Result.ok_injective hrun
+    subst h2
+    rfl
 
 open Lockstep in
+@[lockstep] theorem mc_probe_twin
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {lm : Std.HashMap EIdx Bool}
+    {k : arena.handle.EIdx}
+    (hm : ExprOps.LMemoRel rm lm) :
+    LSP (arena.inductives.struct_parts.mc_probe rm k) (fun o => TwinEq (lm[absEIdx k]?) (o)) :=
+  fun o h => (mc_probe_refines hm h).symm
+
+open Lockstep in
+/-- `mentions_const_go` ⊑ `mentionsConstGo`, by induction on the fuel. -/
+theorem mentions_const_go_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (t : arena.handle.NIdx) (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+      (lm : Std.HashMap EIdx Bool) (fuel : Std.U64) (h : arena.handle.EIdx),
+      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st → ExprOps.LMemoRel rm lm →
+      LS pers (fun a b => ∃ m', ExprOps.LMemoRel a.2 m' ∧ b = (a.1, m'))
+        (arena.inductives.struct_parts.mentions_const_go pers st t rm fuel h) lst
+        (mentionsConstGo (absNIdx t) lm n (absEIdx h)) := by
+  induction n with
+  | zero =>
+    intro pers st lst t rm lm fuel h hn hrel hinv hm
+    rw [arena.inductives.struct_parts.mentions_const_go, mentionsConstGo]
+    lockstep
+  | succ m ih =>
+    intro pers st lst t rm lm fuel h hn hrel hinv hm
+    rw [arena.inductives.struct_parts.mentions_const_go, mentionsConstGo]
+    unfold arena.inductives.struct_parts.mentions_const_node
+    lockstep
+    -- the `.proj` arm: the port tested `s.eq2(t)` first (false here), the twin
+    -- reads `s == T || b`
+    all_goals
+      simp only [Bool.not_eq_true] at hc
+      simp only [hc, Bool.false_or]
+      exact LS.pure ⟨_, hP, rfl⟩ hrel hinv
+
+open Lockstep in
+@[lockstep] theorem mentions_const_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (t : arena.handle.NIdx)
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool} {lm : Std.HashMap EIdx Bool}
+    (hm : ExprOps.LMemoRel rm lm) (fuel : Std.U64) (h : arena.handle.EIdx) :
+    LS pers (fun a b => ∃ m', ExprOps.LMemoRel a.2 m' ∧ b = (a.1, m'))
+      (arena.inductives.struct_parts.mentions_const_go pers st t rm fuel h) lst
+      (mentionsConstGo (absNIdx t) lm (absU fuel) (absEIdx h)) :=
+  mentions_const_go_aux _ t rm lm fuel h rfl hrel hinv hm
+
+open Lockstep in
+/-- `mentions_const` ⊑ `mentionsConst` — one memoised walk from the empty
+memo. -/
 @[lockstep] theorem mentions_const_ls
     {pers st lst}
     {t : arena.handle.NIdx}
@@ -43,8 +114,17 @@ open Lockstep in
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :
     LS pers (fun a b => b = id a) (arena.inductives.struct_parts.mentions_const pers st t e) lst
+      (mentionsConst (absNIdx t) (absEIdx e)) := by
+  rw [arena.inductives.struct_parts.mentions_const, mentionsConst]
+  lockstep
+
+theorem mentions_const_refines {pers st lst} {t : arena.handle.NIdx}
+    {e : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.inductives.struct_parts.mentions_const pers st t e = ok o) :
+    Sim₀ id pers lst o
       (mentionsConst (absNIdx t) (absEIdx e)) :=
-  LS.ofSim₀ fun _ h => mentions_const_refines hrel hinv h
+  Lockstep.LS.toSim₀ (mentions_const_ls hrel hinv) hrun
 
 end ConRon.Refine2
 

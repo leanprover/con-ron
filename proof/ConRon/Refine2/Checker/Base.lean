@@ -2360,29 +2360,25 @@ theorem doms_match_aux_refines
       (absU o1) (absU o2) (absU n) := by
   sorry
 
-/-- `check_proj_shape_residual` is `check_proj_shape`'s tail: the
-constructor's residual is the family applied to exactly the parameters. -/
-theorem check_proj_shape_residual_refines {pers st lst}
-    {cbody : arena.handle.EIdx} {n_p : Std.U64} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.checker_base.check_proj_shape_residual pers st cbody n_p = ok o) :
-    SimRE (fun _ : Unit => ()) lst o
-      (do
-        unless (← getAppArgs coreWalkFuel (absEIdx cbody)).length == absU n_p do
-          fail (.notImplemented "projection constructor residual arity")
-        match ← view (← getAppFn coreWalkFuel (absEIdx cbody)) with
-        | .const _ _ => pure ()
-        | _ => fail (.notImplemented "projection constructor residual head")) := by
-  sorry
+section ProjShape
+attribute [local lockstep_inline] arena.checker_base.check_proj_shape_residual
 
-/-- `check_proj_shape` ⊑ `checkProjShape` — stage 2b. -/
-theorem check_proj_shape_refines {pers st lst}
-    {pty ctor_ty : arena.handle.EIdx} {n_p n_f : Std.U64} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.checker_base.check_proj_shape pers st pty ctor_ty n_p n_f = ok o) :
-    SimRE (fun _ : Unit => ()) lst o
+open Lockstep in
+/-- `check_proj_shape` ⊑ `checkProjShape` — stage 2b, a read.  The port's
+`check_proj_shape_residual` is the twin's tail past the two telescopes, unfolded
+in place (`lockstep_inline`); its head test is the port's tag test and typed
+projection, which is the twin's since D1. -/
+@[lockstep] theorem check_proj_shape_ls {pers st lst}
+    {pty ctor_ty : arena.handle.EIdx} {n_p n_f : Std.U64}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = (fun _ : Unit => ()) a)
+      (arena.checker_base.check_proj_shape pers st pty ctor_ty n_p n_f) st lst
       (checkProjShape (absEIdx pty) (absEIdx ctor_ty) (absU n_p) (absU n_f)) := by
-  sorry
+  apply LSR.of_LS
+  rw [arena.checker_base.check_proj_shape, checkProjShape]
+  lockstep
+
+end ProjShape
 
 /-- `proj_rule_wf` is `check_proj_rule`'s four-way well-formedness conjunct. -/
 theorem proj_rule_wf_refines {pers st lst} {vis : Std.U64} {rf lf}
