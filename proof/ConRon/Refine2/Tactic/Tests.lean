@@ -139,8 +139,10 @@ example {pers st lst} {e : arena.handle.EIdx} {b : Bool} (hb : ¬ b = true)
         else unresolvedConstsError "type" (absEIdx e)) := by
   lockstep
 
+set_option lockstep.twinSplit true in
 /-- The twin tests `c` where the Rust does not test at all (both branches are
-the same operation): the twin `if` is split and each branch zips. -/
+the same operation): with `lockstep.twinSplit` the twin `if` is split and each
+branch zips (by default the zip stops there, §7). -/
 example {pers st lst} {e : arena.handle.EIdx} {b : Bool}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
@@ -170,9 +172,10 @@ The fallback that cases a twin `match` on a TERM once cased on `some (!c)`
 itself: `cases` rebuilt `some x`, the `match` still did not reduce, and the
 move repeated for ever (`check_eta_thm` hit the heartbeat limit; the lane's
 `ind_twin_split` in `lockstep_mod` split such matches first).  It now cases on
-the first field that is not a constructor application (`!c`). -/
+the first field that is not a constructor application (`!c`); the context
+(`hc`) rules the other branch out, so the split is kept (§7). -/
 set_option maxHeartbeats 20000 in
-example {pers st lst} {c : Bool}
+example {pers st lst} {c : Bool} (hc : (!c) = true)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = a) (ok (.Ok (!c), st)) lst
       (match some (!c) with
@@ -280,6 +283,38 @@ example {pers st lst} {params : alloc.vec.Vec kernel.name.Name} {rm lm}
           pure (b₂ && (ConRon.Refine.absBinderMeta m).pw.paramsDefined
             (ConRon.Refine.absNames params), memo)) := by
   rw [arena.checker_base.all_level_params_defined_binder]
+  lockstep
+
+/-! ## 7. The Frontend lane's two findings
+
+A twin test nothing decides is NOT split by default: the zip stops and hands
+the goal back (here the `else` branch is a program the Rust never runs, and
+walking it would be wasted work — in the lane's census proofs, until the
+heartbeat limit).  And a side goal's `simp [*]` does not use a `∀`/`→`
+hypothesis as a rewrite rule (`hloop` below would rewrite `g n` to `g (n+1)`
+for ever). -/
+
+set_option maxHeartbeats 20000 in
+example {pers st lst} {b : Bool} {n : Nat}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hstuck : LS pers (fun a b => b = a) (ok (.Ok n, st)) lst
+      (if b then pure n else do
+        let k ← pure (n + 1)
+        let j ← pure (k * 2)
+        pure (j - n))) :
+    LS pers (fun a b => b = a) (ok (.Ok n, st)) lst
+      (if b then pure n else do
+        let k ← pure (n + 1)
+        let j ← pure (k * 2)
+        pure (j - n)) := by
+  lockstep
+  exact hstuck
+
+set_option maxHeartbeats 20000 in
+example {pers st lst} {g : Nat → Nat} {x y : Nat}
+    (hloop : ∀ n, g n = g (n + 1)) (hxy : x = y)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => g b = g a) (ok (.Ok x, st)) lst (pure y) := by
   lockstep
 
 /-! ## The axiom census -/

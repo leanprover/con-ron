@@ -1268,6 +1268,37 @@ attribute [lockstep_simp] Aeneas.Std.uncurry_apply_pair not_false_eq_true not_tr
 
 open Lean Meta Elab Tactic
 
+/-- **Twin-side splits** (task #97-T2-TACTIC round 2, the Frontend lane): when
+nothing decides a twin test (an `if`, a `match` on a term) and no step moves,
+`lockstep` splits it only if the context rules out a branch
+(`lockstep_contra` closes it); otherwise it STOPS there and hands the goal
+back.  `set_option lockstep.twinSplit true` lets it split anyway and walk
+every branch. -/
+register_option lockstep.twinSplit : Bool := {
+  defValue := false
+  descr := "lockstep: split a twin test nothing decides even when no branch is ruled out"
+}
+
+/-- The context of a simp-based side tier: every `∀`/`→` hypothesis (an
+induction hypothesis, a knot slot) cleared, because `simp [*]`/`simp_all` would
+use it as a conditional rewrite rule and that search need not terminate (task
+#97-T2-TACTIC round 2, the Frontend lane's `proj_rec_candidates_from`).  The
+goal itself is unchanged; a hypothesis something depends on stays. -/
+def clearForallHyps : TacticM Unit := do
+  let g ← getMainGoal
+  let g ← g.withContext do
+    let mut g := g
+    for d in (← getLCtx) do
+      if d.isImplementationDetail then continue
+      let t ← instantiateMVars d.type
+      unless t.consumeMData.isForall do continue
+      unless ← isProp t do continue
+      g ← g.tryClear d.fvarId
+    return g
+  replaceMainGoal [g]
+
+elab "lockstep_clear_foralls" : tactic => clearForallHyps
+
 /-- Per-alternative timing of the side tactics (`lockstep_stats` prints it). -/
 initialize statsRef : IO.Ref (Std.HashMap String (Nat × Nat × Nat × Nat)) ← IO.mkRef {}
 
@@ -1333,6 +1364,16 @@ def sideDear : TacticM (List (TSyntax `tactic)) := do return [
 /-- Side goals: the relation and the invariant at the current state, an
 argument correspondence, a branch condition.  Cheap alternatives first. -/
 elab "lockstep_side" : tactic => do
+  -- closed by a hypothesis as it stands (a `∀` premise by the matching
+  -- hypothesis): with the whole context
+  let s ← saveState
+  try
+    evalTactic (← `(tactic| first | assumption | rfl | (apply Eq.symm; assumption)))
+    if (← getUnsolvedGoals).isEmpty then return
+    s.restore
+  catch _ => s.restore
+  -- every other tier without the `∀`/`→` hypotheses
+  clearForallHyps
   -- an arithmetic correspondence (`absU i1 = m`) goes to `scalar_tac` early
   let ty ← whnfR (← instantiateMVars (← getMainTarget))
   let arith := (ty.isAppOfArity ``Eq 3 && (ty.getArg! 0).isConstOf ``Nat) ||
@@ -1356,13 +1397,16 @@ elab "lockstep_side" : tactic => do
         ← `(tactic| (simp only [lockstep_simp, *]; congr <;> scalar_tac))]
 
 elab "lockstep_side_cheap" : tactic => do
+  clearForallHyps
   firstTimed "side" (← sideCheap)
 
 elab "lockstep_side_dear" : tactic => do
+  clearForallHyps
   firstTimed "sideD" (← sideDear)
 
 /-- A twin test the cheap tier could not decide: arithmetic, then the context. -/
 elab "lockstep_side_ite" : tactic => do
+  clearForallHyps
   firstTimed "sideI" [← `(tactic| scalar_tac), ← `(tactic| (simp_all only [lockstep_simp]; done)),
     ← `(tactic| lockstep_side_ext)]
 
@@ -1382,6 +1426,7 @@ elab "lockstep_stats" : tactic => do
 syntax "lockstep_contra" : tactic
 elab_rules : tactic
   | `(tactic| lockstep_contra) => do
+    clearForallHyps
     firstTimed "contra" [← `(tactic| (exfalso; scalar_tac)), ← `(tactic| (exfalso; simp_all))]
 
 /-- The twin-action correspondence `x' = x` a bind rule leaves. -/
@@ -1680,8 +1725,9 @@ def classify (T : Expr) : MetaM RKind := do
   let T ← whnfR T
   if T.isAppOfArity ``Prod 2 && (T.getArg! 0).isAppOfArity ``core.result.Result 2 then
     let rest ← whnfR (T.getArg! 1)
-    if rest.isAppOfArity ``Prod 2 && (← whnfR (rest.getArg! 0)).isConstOf ``arena.monad.AState then
-      return .memo
+    if rest.isAppOfArity ``Prod 2 then
+      if (← whnfR (rest.getArg! 0)).isConstOf ``arena.monad.AState then
+        return .memo
     if rest.isConstOf ``arena.monad.AState || rest.isConstOf ``arena.store.EStore then
       return .state
     return .rmemo
@@ -1788,13 +1834,14 @@ def stepPure (g : MVarId) : TacticM (List MVarId) := g.withContext do
 /-- The term a twin `match` on `t` is cased on: `t` itself, or — when `t` is a
 constructor application, which `cases` would only rebuild — the first of its
 fields, left to right, that is not one (recursively). -/
-partial def caseTarget? (t : Expr) : MetaM (Option Expr) := do
+partial def caseTarget? (t : Expr) (fvars := false) : MetaM (Option Expr) := do
   let t ← instantiateMVars t
   if t.isLit then return none
+  if t.isFVar then return if fvars then some t else none
   if let .const n _ := t.getAppFn then
     if let some (.ctorInfo ci) := (← getEnv).find? n then
       for f in t.getAppArgs.extract ci.numParams t.getAppNumArgs do
-        if let some r ← caseTarget? f then return some r
+        if let some r ← caseTarget? f fvars then return some r
       return none
   return some t
 
@@ -2013,28 +2060,47 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
     -- a twin `match` on a TERM (an inline memo probe) the Rust decided by a test
     -- of its own: case on the term; the branch the Rust's test rules out closes
     -- by `lockstep_contra`
+    -- A twin-side split is kept only if the context rules out a branch
+    -- (`lockstep_contra` closes it), unless `lockstep.twinSplit` is set:
+    -- otherwise the zip stops here and hands the goal back, rather than walk
+    -- a dead branch (task #97-T2-TACTIC round 2, the Frontend lane).
+    let anySplit := lockstep.twinSplit.get (← getOptions)
+    let keep (out : List MVarId) : TacticM (Option (List MVarId)) := do
+      let kept ← contra out
+      if anySplit || kept.length < out.length then return some kept
+      return none
     if let some mapp ← matchMatcherApp? x then
-      if let some t0 := mapp.discrs[0]? then
-        -- a constructor application (`some (absIConstantInfo v)`) is not
-        -- cased on — `cases` would rebuild it and this move would never end
-        -- (task #97-T2-TACTIC round 2, the Inductives Modeled lane's
-        -- `check_eta_thm`); its first field that is not one is
-        if !t0.isFVar then if let some t ← caseTarget? t0 then
-          let stx ← Lean.Elab.Term.exprToSyntax t
-          let rest ← runOn g (evalT `(tactic| cases _hdisc : $stx))
-          let mut out := []
-          for sg in rest do
-            out := out ++ (← tidy sg none)
-          return ← contra out
-    -- a twin `if` nothing decides and no step moves past: split it; each
-    -- branch continues the zip, and a branch a later Rust test rules out
-    -- closes by `lockstep_contra`
+      -- the term to case on: a constructor application (`some
+      -- (absIConstantInfo v)`) is not one — `cases` would rebuild it and this
+      -- move would never end (the Inductives Modeled lane's `check_eta_thm`)
+      -- — but its first field that is not; a stuck term in any discriminant
+      -- first, a variable field second
+      let mut target : Option Expr := none
+      for fvars in [false, true] do
+        if target.isSome then break
+        for d in mapp.discrs do
+          if d.isFVar then continue
+          if let some t ← caseTarget? d fvars then
+            target := some t
+            break
+      if let some t := target then
+        let s1 ← saveState
+        let stx ← Lean.Elab.Term.exprToSyntax t
+        let rest ← runOn g (evalT `(tactic| cases _hdisc : $stx))
+        let mut out := []
+        for sg in rest do
+          out := out ++ (← tidy sg none)
+        if let some kept ← keep out then return kept
+        s1.restore
+    -- a twin `if` nothing decides and no step moves past: split it
     if x.isAppOfArity ``ite 5 || x.isAppOfArity ``dite 5 then
+      let s1 ← saveState
       let gs ← applyRule g (if x.isAppOfArity ``ite 5 then ``LS.twin_ite_split
         else ``LS.twin_dite_split)
       let g1 ← cont (← pick gs `h₁) [`hc] (some `hc)
       let g2 ← cont (← pick gs `h₂) [`hc] (some `hc)
-      return g1 ++ g2
+      if let some kept ← keep (g1 ++ g2) then return kept
+      s1.restore
     throw e
 
 /-- Is `n` registered `@[lockstep_inline]`? -/

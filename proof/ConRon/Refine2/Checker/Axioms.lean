@@ -340,6 +340,9 @@ theorem quotPinHit_split (k : ConLeche.QuotKind) (cv : ConRon.Arena.IConstantVal
   · rw [dif_pos h, List.getElem?_eq_getElem h]
   · rw [dif_neg h, List.getElem?_eq_none (by omega)]
 
+-- the twin's bound `dite` is split although no branch is ruled out at once
+-- (the bounds contradiction needs `len_val`, below)
+set_option lockstep.twinSplit true in
 /-- `quot_pin_hit` ⊑ `quotPinHit` — the record is the pinned package's constant at the slot it declares itself at, compared at `toConstantVal`. -/
 theorem quot_pin_hit_refines {pers st lst} {k : kernel.env.QuotKind} {cv : arena.env.IConstantVal} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -354,8 +357,8 @@ theorem quot_pin_hit_refines {pers st lst} {k : kernel.env.QuotKind} {cv : arena
     fun cv cv2 hrel hinv => Lockstep.LS.ofSim₀ fun _ h => i_constant_val_canon_eq_refines hrel hinv h
   rw [arena.basis.quot_pin_hit, quotPinHit_split]
   lockstep
-  -- the shared tactic decides the twin's bound `dite` itself (task #97-T2-TACTIC
-  -- round 2); what is left is the bounds contradiction and the index read
+  -- the shared tactic splits the twin's bound `dite` (`lockstep.twinSplit`,
+  -- task #97-T2-TACTIC round 2); what is left is the bounds contradiction and the index read
   all_goals first
     | (exfalso
        have := alloc.vec.Vec.len_val ‹alloc.vec.Vec arena.env.IConstantInfo›
