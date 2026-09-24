@@ -2437,7 +2437,27 @@ theorem native_shape_elim_refines {pers st lst}
       (nativeShapeElimSpec (absIConstantVal cv_t) (absCtors3L cs)
         (absIConstantVal cv_r) (absIRecRuleL rules) (absU n_p) (absU n_idx)
         (absLIdx s)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.native_shape_elim, nativeShapeElimSpec]
+  simp only [absIConstantVal]
+  rcases hc : cv_r.level_params.val with _ | ⟨elim, relps⟩
+  · have hlen : alloc.vec.Vec.len cv_r.level_params = 0#usize := by
+      have : (alloc.vec.Vec.len cv_r.level_params).val = 0 := by
+        simp [alloc.vec.Vec.len, hc]
+      scalar_tac
+    simp only [hlen, if_true, List.map_nil]
+    lockstep
+  · have hidx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) cv_r.level_params 0#usize = ok elim := by
+      rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+      simp [hc]
+    have hlen : ¬ (alloc.vec.Vec.len cv_r.level_params = 0#usize) := by
+      intro h0
+      have : (alloc.vec.Vec.len cv_r.level_params).val = 0 := by rw [h0]; rfl
+      simp [alloc.vec.Vec.len, hc] at this
+    simp only [if_neg hlen, hidx, List.map_cons]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem native_shape_elim_ls

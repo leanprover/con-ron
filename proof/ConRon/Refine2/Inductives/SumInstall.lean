@@ -176,6 +176,13 @@ open Lockstep in
         (absIConstantVal cv_ta0)) :=
   LS.ofSim₀ fun _ h => check_sum_tele_refines hrel hinv hfe hvis h
 
+/-- A Rust word's zero test is the twin's on its value. -/
+theorem u64_val_beq_zero (x : Std.U64) : ((x : Nat) == 0) = (x == 0#u64) := by
+  by_cases h : x = 0#u64
+  · subst h; rfl
+  · have : (x : Nat) ≠ 0 := by intro h'; apply h; scalar_tac
+    simp [h, this]
+
 /-- `native_caps_at` ⊑ `nativeCapsAt` — the capabilities a block on the
 fixpoint route earns (con-leche's task #210 Part A).  Twinned in
 `SumInstall.lean` rather than in `NativeInstall.lean` because `checkSumInd`
@@ -186,7 +193,42 @@ theorem native_caps_at_refines {pers st lst}
     (hrun : arena.inductives.sum_install.native_caps_at pers st p is_rec = ok o) :
     Sim₀ absIIndCaps pers lst o
       (nativeCapsAt (absInductiveShape p) is_rec) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  have hbe : (if p.n_idx != 0#u64 then ok (p.is_prop, false)
+      else if p.is_prop then ok (true, false)
+      else do
+        let b1 ← if is_rec then ok false else ok true
+        ok (false, b1) : Result (Bool × Bool)) =
+      ok (p.is_prop, (p.n_idx == 0#u64 && !p.is_prop && !is_rec)) := by
+    by_cases h0 : p.n_idx = 0#u64 <;> cases hp : p.is_prop <;> cases is_rec <;> simp_all
+  rw [arena.inductives.sum_install.native_caps_at, nativeCapsAt, hbe]
+  simp only [absInductiveShape, absCtorsL]
+  rcases hc : p.ctors.val with _ | ⟨c, _ | ⟨c2, rest⟩⟩
+  · have hlen : alloc.vec.Vec.len p.ctors ≠ 1#usize := by
+      intro h1; have : (alloc.vec.Vec.len p.ctors).val = 1 := by rw [h1]; rfl
+      simp [alloc.vec.Vec.len, hc] at this
+    simp only [bne_iff_ne, ne_eq, hlen, not_false_eq_true, if_true, List.map_nil]
+    lockstep
+  · have hlen : alloc.vec.Vec.len p.ctors = 1#usize := by
+      have : (alloc.vec.Vec.len p.ctors).val = 1 := by simp [alloc.vec.Vec.len, hc]
+      scalar_tac
+    have hidx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.env.IConstantVal × Std.U64)) p.ctors 0#usize = ok c := by
+      rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+      simp [hc]
+    simp only [hlen, bne_self_eq_false, Bool.false_eq_true, if_false, hidx, List.map_cons,
+      List.map_nil]
+    lockstep
+    all_goals
+      refine Lockstep.LS.pure ?_ ‹_› ‹_›
+      simp only [Lockstep.TwinEq] at *
+      simp_all [absIIndCaps, u64_val_beq_zero]
+  · have hlen : alloc.vec.Vec.len p.ctors ≠ 1#usize := by
+      intro h1; have : (alloc.vec.Vec.len p.ctors).val = 1 := by rw [h1]; rfl
+      simp [alloc.vec.Vec.len, hc] at this
+    simp only [bne_iff_ne, ne_eq, hlen, not_false_eq_true, if_true, List.map_cons]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem native_caps_at_ls

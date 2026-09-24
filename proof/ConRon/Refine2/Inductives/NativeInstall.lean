@@ -240,6 +240,53 @@ open Lockstep in
       (anyDomMentionsSpec (absNIdx t) (absBinderLFrom cbs i)) :=
   LS.ofSim₀ fun _ h => any_dom_mentions_refines hrel hinv h
 
+open Lockstep in
+/-- `any_dom_mentions` from a cursor the caller computed in `Nat` (the twin's
+`cbs.drop nP`). -/
+theorem any_dom_mentions_drop_ls {pers st lst} {t : arena.handle.NIdx}
+    {cbs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {i : Std.Usize} {n : Nat} (hi : i.val = n)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.inductives.native_install.any_dom_mentions pers st t cbs i) lst
+      (anyDomMentionsSpec (absNIdx t)
+        ((cbs.val.map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)).drop n)) := by
+  have h := any_dom_mentions_ls (t := t) (cbs := cbs) (i := i) hrel hinv
+  rwa [absBinderLFrom, List.map_drop, hi] at h
+
+/-- `nativeRawRec`'s `anyM` IS `anyDomMentionsSpec` (the accumulator-free cursor
+fold the port's `any_dom_mentions` twins). -/
+theorem anyM_mentionsConst_eq (T : NIdx) (l : List (EIdx × ConLeche.BinderMeta)) :
+    l.anyM (fun b => mentionsConst T b.1) = anyDomMentionsSpec T l := by
+  induction l with
+  | nil => rfl
+  | cons b bs ih =>
+    rw [List.anyM, anyDomMentionsSpec, ← ih]
+    refine am_bind_congr _ ?_; intro c
+    cases c <;> rfl
+
+/-- `nativeRawRec` in the port's shape: the `anyM` from `nP` on only when the
+telescope is longer than `nP` (off the end it is `false` either way). -/
+theorem nativeRawRec_port (p : NativeParts) :
+    nativeRawRec p = (match p.ctors with
+      | [c] => do
+        match ← stripPis (p.nP + c.2) c.1.type with
+        | some (cbs, _) =>
+          if p.nP < cbs.length then anyDomMentionsSpec p.cvT.name (cbs.drop p.nP)
+          else pure false
+        | none => pure false
+      | _ => pure false) := by
+  rw [nativeRawRec]
+  rcases h : p.ctors with _ | ⟨c, _ | ⟨c2, rest⟩⟩
+  · rfl
+  · refine am_bind_congr _ ?_; intro r
+    rcases r with _ | ⟨cbs, _⟩
+    · rfl
+    · simp only [anyM_mentionsConst_eq]
+      split
+      · rfl
+      · rw [List.drop_eq_nil_of_le (by omega)]; rfl
+  · rfl
+
 /-- `native_raw_rec` ⊑ `nativeRawRec` — **the syntactic reading of `is_rec`**
 (con-leche's task #268). -/
 theorem native_raw_rec_refines {pers st lst}
@@ -247,7 +294,35 @@ theorem native_raw_rec_refines {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.native_install.native_raw_rec pers st p = ok o) :
     Sim₀ id pers lst o (nativeRawRec (absNativeParts p)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_install.native_raw_rec, nativeRawRec_port]
+  simp only [absNativeParts, absInductiveShape, absCtorsL]
+  rcases hc : p.shape.ctors.val with _ | ⟨c, _ | ⟨c2, rest⟩⟩
+  · have hlen : alloc.vec.Vec.len p.shape.ctors ≠ 1#usize := by
+      intro h1; have : (alloc.vec.Vec.len p.shape.ctors).val = 1 := by rw [h1]; rfl
+      simp [alloc.vec.Vec.len, hc] at this
+    simp only [bne_iff_ne, ne_eq, hlen, not_false_eq_true, if_true, List.map_nil]
+    lockstep
+  · have hlen : alloc.vec.Vec.len p.shape.ctors = 1#usize := by
+      have : (alloc.vec.Vec.len p.shape.ctors).val = 1 := by simp [alloc.vec.Vec.len, hc]
+      scalar_tac
+    have hidx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.env.IConstantVal × Std.U64)) p.shape.ctors 0#usize = ok c := by
+      rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+      simp [hc]
+    simp only [hlen, bne_self_eq_false, Bool.false_eq_true, if_false, hidx, List.map_cons,
+      List.map_nil]
+    lockstep
+    refine any_dom_mentions_drop_ls ?_ ‹_› ‹_›
+    rcases hP with h | h
+    · exact h
+    · exfalso; scalar_tac
+  · have hlen : alloc.vec.Vec.len p.shape.ctors ≠ 1#usize := by
+      intro h1; have : (alloc.vec.Vec.len p.shape.ctors).val = 1 := by rw [h1]; rfl
+      simp [alloc.vec.Vec.len, hc] at this
+    simp only [bne_iff_ne, ne_eq, hlen, not_false_eq_true, if_true, List.map_cons]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem native_raw_rec_ls
@@ -862,7 +937,51 @@ theorem check_native_table_refines {pers st lst}
     SimRel₀ IFEnvRelI pers lst o
       (checkNativeTable (absNativeParts p) (absCtorsL ctors_a) (absLIdxLL sortss)
         lf) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_install.check_native_table, checkNativeTable.eq_def]
+  simp only [absNativeParts, absInductiveShape, absCtorsL, absLIdxLL]
+  have hne : ∀ {α : Type} (v : alloc.vec.Vec α), v.val.length ≠ 1 →
+      alloc.vec.Vec.len v ≠ 1#usize := by
+    intro α v h1 h; apply h1
+    have : (alloc.vec.Vec.len v).val = 1 := by rw [h]; rfl
+    simpa [alloc.vec.Vec.len] using this
+  have hle1 : ∀ {α : Type} (v : alloc.vec.Vec α), v.val.length = 1 →
+      alloc.vec.Vec.len v = 1#usize := by
+    intro α v h1
+    have : (alloc.vec.Vec.len v).val = 1 := by simpa [alloc.vec.Vec.len] using h1
+    scalar_tac
+  rcases hc : ctors_a.val with _ | ⟨c, _ | ⟨c2, rest⟩⟩
+  · simp only [bne_iff_ne, ne_eq, hne ctors_a (by simp [hc]), not_false_eq_true, if_true,
+      List.map_nil]
+    lockstep
+  rotate_left
+  · simp only [bne_iff_ne, ne_eq, hne ctors_a (by simp [hc]), not_false_eq_true, if_true,
+      List.map_cons]
+    lockstep
+  have hc1 := hle1 ctors_a (by simp [hc])
+  have hidx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+      (arena.env.IConstantVal × Std.U64)) ctors_a 0#usize = ok c := by
+    rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+    simp [hc]
+  simp only [hc1, bne_self_eq_false, Bool.false_eq_true, if_false, hidx, List.map_cons,
+    List.map_nil]
+  rcases hs : sortss.val with _ | ⟨ss, _ | ⟨s2, srest⟩⟩
+  · simp only [bne_iff_ne, ne_eq, hne sortss (by simp [hs]), not_false_eq_true, if_true,
+      List.map_nil]
+    lockstep
+  rotate_left
+  · simp only [bne_iff_ne, ne_eq, hne sortss (by simp [hs]), not_false_eq_true, if_true,
+      List.map_cons]
+    lockstep
+  have hs1 := hle1 sortss (by simp [hs])
+  have hsidx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+      (alloc.vec.Vec arena.handle.LIdx)) sortss 0#usize = ok ss := by
+    rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+    simp [hs]
+  simp only [hs1, bne_self_eq_false, Bool.false_eq_true, if_false, hsidx, List.map_cons,
+    List.map_nil]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_native_table_ls
