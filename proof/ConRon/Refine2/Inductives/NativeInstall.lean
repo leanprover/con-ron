@@ -839,6 +839,50 @@ open Lockstep in
         (absCtorsLFrom ctors_a j) (absKindLLFrom kinds j)) :=
   LS.ofSim₀ fun _ h => native_fields_ok_from_refines hrel hinv hfe hvis h
 
+/-- `nativeFieldsOk`'s `(List.range …).allM` from position `k` IS the cursor
+transcription on the two lists from `k` (stated for any step function that
+agrees with the twin's in range, so it rewrites the twin's own lambda). -/
+theorem nativeFieldsOk_allM_from (fe₀ : IFEnv) (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
+    (cs : List (IConstantVal × Nat)) (ks : List (List RecFieldKind))
+    (hlen : cs.length = ks.length) (F : Nat → AM Bool)
+    (hF : ∀ j (hc : j < cs.length) (hk : j < ks.length), F j =
+      (if !(ks[j].length == cs[j].2) then pure false
+       else nativeOpenedOk fe₀ T lps nP nIdx cs[j].1.type cs[j].2 ks[j])) :
+    ∀ m k, cs.length - k = m →
+      (List.range' k m).allM F =
+      nativeFieldsOkFromSpec fe₀ T lps nP nIdx (cs.drop k) (ks.drop k) := by
+  intro m
+  induction m with
+  | zero =>
+    intro k hk
+    rw [List.drop_eq_nil_of_le (by omega)]
+    rfl
+  | succ m ih =>
+    intro k hk
+    have hc : k < cs.length := by omega
+    have hks : k < ks.length := by omega
+    rw [List.range'_succ, List.drop_eq_getElem_cons hc, List.drop_eq_getElem_cons hks,
+      nativeFieldsOkFromSpec, List.allM, hF k hc hks, ← ih (k + 1) (by omega)]
+    by_cases h : (!(ks[k].length == cs[k].2)) = true
+    · simp [h]
+    · simp only [h, if_false, Bool.false_eq_true]
+      refine am_bind_congr _ ?_; intro b
+      cases b <;> rfl
+
+/-- `nativeFieldsOk` IS the length test and the cursor transcription from `0`. -/
+theorem nativeFieldsOk_port (fe₀ : IFEnv) (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
+    (cs : List (IConstantVal × Nat)) (ks : List (List RecFieldKind)) :
+    nativeFieldsOk fe₀ T lps nP nIdx cs ks =
+      (if cs.length ≠ ks.length then pure false
+       else nativeFieldsOkFromSpec fe₀ T lps nP nIdx cs ks) := by
+  rw [nativeFieldsOk]
+  by_cases h : cs.length = ks.length
+  · rw [List.range_eq_range', nativeFieldsOk_allM_from fe₀ T lps nP nIdx cs ks h _ ?_ _ 0 (by omega)]
+    · simp [h]
+    · intro j hc hk
+      simp [List.getElem?_eq_getElem hc, List.getElem?_eq_getElem hk]
+  · simp [h]
+
 /-- `native_fields_ok` ⊑ `nativeFieldsOk`. -/
 theorem native_fields_ok_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     {t : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
@@ -854,7 +898,10 @@ theorem native_fields_ok_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     Sim₀ id pers lst o
       (nativeFieldsOk lf0 (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absCtorsL ctors_a) (absKindLL kinds)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_install.native_fields_ok, nativeFieldsOk_port]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_fields_ok_ls
