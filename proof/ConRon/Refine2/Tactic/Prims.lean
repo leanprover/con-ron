@@ -622,6 +622,16 @@ as the three fields every reader uses. -/
 attribute [lockstep_simp] absPairE absLetT absProjT absBindI
 
 
+/-- `arena::monad::view_const_name` against `Arena.viewConstName`. -/
+@[lockstep] theorem view_const_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSV pers (fun a b => b = Option.map absNIdx a) (arena.monad.view_const_name pers st h) st lst
+      (Arena.viewConstName (absEIdx h)) := by
+  intro o hrun
+  refine ⟨_, lst, rfl, ?_, hrel, hinv⟩
+  rw [arena.monad.view_const_name] at hrun
+  exact estore_view_const_name_abs hrel.store hrun
+
 /-- `arena::monad::view_sort` against `Arena.viewSort`. -/
 @[lockstep] theorem view_sort_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) :

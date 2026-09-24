@@ -180,17 +180,6 @@ coordinator's ruling (d) of task #97-P5-Core round 5). -/
       (getAppArgs (absU fuel) (absEIdx h)) :=
   LSR.ofAOut₀ fun _ hr => get_app_args_refines₀ hrel hinv hr
 
-/-! ## The `const` name projection -/
-
-@[lockstep] theorem view_const_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
-    LSV pers (fun a b => b = Option.map absNIdx a) (arena.monad.view_const_name pers st h)
-      st lst (Arena.viewConstName (absEIdx h)) := by
-  intro o hrun
-  refine ⟨_, lst, rfl, ?_, hrel, hinv⟩
-  rw [arena.monad.view_const_name] at hrun
-  exact (estore_view_const_name_abs hrel.store hrun).symm ▸ rfl
-
 /-! ## The `ExprOps` walks, through the `ExprOpsHyp` seam
 
 Each wrapper's `hx : ExprOpsHyp pers` premise is closed from the context by
