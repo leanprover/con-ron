@@ -62947,3 +62947,78 @@ with `arena` `bf376947`, **21 items in 6 modules, 236 tainted, dead weight
 closed); at the submitted tip (`arena` `5723f896` merged) **17 items in 4
 modules, 198 tainted, dead weight 90** — no item of this lane is left on it
 (top `check_iota_thm_n_idx`, Modeled).  `scripts/gates.sh`: all 16 OK.
+
+### Task #97-T2-CLEANUP — the unowned dead-weight `sorry`s, and `EResolves` retired (2026-09-24, Opus under Fable)
+
+Worktree `_tmp/wt-cleanup`, branch `t2-cleanup` off `arena` `bf376947`.  No
+Rust change, no twin change, no new invariant.  The seven direct `sorry`s of
+the capstone frontier's dead-weight list that no lane owns, each proved or
+deleted:
+
+| item | what | outcome |
+|---|---|---|
+| `Bridge/Checker/Fold.lean` `Arena.checkDeclStep_bridge` | the sequential fold's bracketed step (waited on `IFEnvOK` at the new environment) | **deleted with its chain**: its only consumers were `Arena.checkDeclsPureGo_bridge` / `checkDeclsPure_bridge` and `Bridge/Checker/Capstone.lean`'s `Arena.model_exists` / `no_proof_of_False` / `no_proof_of_Empty` (the letters at the SEQUENTIAL fold, all sorry-tainted), none reached by `ConRon.Capstone`, which goes through `installThenCheckPhased`/`pooledAccepts_bridge`.  `Bridge/Checker/Capstone.lean` is deleted, its three `#print axioms` lines in `Checker/Axioms.lean` with it.  `Arena.checkDecl_bridge`, the run equations and `PinsDenote.pmono` stay (`Split.lean` uses them). |
+| `Bridge/Checker/Inv.lean` `projTableOK_of_install` | the named debtor of `IProjTableOK` | **deleted**: no consumer (named in prose only; `StructInstall.lean`'s `checkStructProjTable_spec` is where the fact lives). |
+| `Refine2/Frontend/Top.lean` `concat_bytes_refines` | | **proved** (cursor induction on `concat_bytes_loop`, `vec_index_eq`/`vec_index_full`/`extend_u8_val`; the old tier's proof re-done at `Refine2`'s abstractions; moved below the byte helpers it uses). |
+| `Refine2/Frontend/Top.lean` `parse_export_d_refines` | | **proved** (four lines: `as_bytes`, then `parse_bytes_refines` at `absBytes b = s.toUTF8`). |
+| `Refine2/Tactic/Prims.lean` `intern_e_lam_ls`, `intern_e_forall_e_ls` | the premise-free binder interns (false without the datum's `PropWhenWF`, D6) | **deleted**.  One silent user: `Tactic/Sample.lean`'s `intern_rebuilt_bind_refines'`, which `lockstep` had closed THROUGH the sorry (its census printed `sorryAx`); it now takes `hpw : PropWhenWF m.pw` as `ExprOps/Mut`'s `intern_rebuilt_bind_ls` does, and prints the three standard axioms. |
+| `Refine2/Checker/DeclCheck.lean` `div_mod_attempt_reason_refines` | the decline message | **deleted**: no consumer, and false as stated (the twin's message is `s!"{ps.toolchain}: {reprStr e}"`, the Rust's `message e`, for every `ps`).  The loop's lockstep lemma `check_div_mod_pin_loop_ls` already quantifies over the twin's `tried` list, so no statement needs the strings related. |
+
+**`EResolves` retired.**  The brief's "≈ 400 sites in `ExprOps/Mut.lean`" was
+stale: after the ExprOps lane's slices `Mut.lean` has no pre-lockstep lemma
+left (no `EResolves`, no `StoreWF`, no `AStateRel` without `₀`), and the
+definition in `ExprOps/Read.lean` had no code consumer anywhere (the other
+14 mentions are prose).  The definition and its deprecated section are
+deleted.
+
+**Size**: 12 files, +102 / −415 lines before this section (`Bridge/Checker/
+Capstone.lean` 124, `Fold.lean` −183 net, `Inv.lean` −32, `Prims.lean` −21,
+`Read.lean` −17, `DeclCheck.lean` −10; `Frontend/Top.lean` +63 for the two
+proofs).  **Frontier** (`model_exists` + `no_False_declaration`): 23 items in
+7 modules, 242 tainted — unchanged, as expected for dead weight — and dead
+weight **166 → 159**.
+
+Prose references to `Bridge/Checker/Capstone.lean` in other modules' notes
+(`Bridge/Frontend/*`, `Checker/Split.lean`, …) are historical and were left.
+
+#### The bounce (`arena` `911d0d59`) — `close_telescope` had rested on the false `intern_e_lam_ls`
+
+The queue bounced the branch: `Inductives/SumInstall.lean`'s
+`close_telescope_refines` (Inductives round 7) was closed by `lockstep`
+THROUGH the deleted premise-free `intern_e_{lam,forall_e}_ls`.  Ruling
+(coordinator): keep the deletions — a proof resting on a false `sorry` is what
+the deletion should expose — and supply the representation fact from the Rust
+input.  After merging `arena` (the `DESIGN.md` conflict resolved by keeping
+both appends):
+
+* `close_telescope_refines`/`_ls` take `hpw : ∀ p ∈ bs.val, PropWhenWF
+  p.2.pw` (the telescope's binder metas); the step case adds
+  `have hpwk := hpw _ (List.getElem_mem hb)` and `lockstep` picks
+  `intern_e_forall_e_wf_ls`.
+* Its caller `check_sum_tele_slow` gets `bs` from `whnf_telescope`, so
+  `whnf_telescope_refines`/`_ls` (both `sorry`, statement change approved by
+  the coordinator) now answer `SimRel₀ (fun r b => b = (absBinderL r.1, absLIdx
+  r.2) ∧ ∀ p ∈ r.1.val, PropWhenWF p.2.pw)` and take the matching premise
+  `hout` on the accumulator (discharged at `Vec.new` by `lockstep`'s side
+  tier).  The metas come from `view_bind` reads, whose `view_bind_ls` already
+  carries the datum's `PropWhenWF` from `AStateInv`.  No twin change.
+* **Owed by the Install lane**: `norm_ctor_val_refines` (still `sorry`) also
+  calls `close_telescope`; its eventual proof needs the same `PropWhenWF` fact
+  of the vector it closes, from `zip_fvar_doms`, `norm_field_doms` and
+  `binder_copy_from` (their statements do not carry it yet).
+
+#### The second bounce — the binder interns restored, `sorry`, marked FALSE
+
+After the `arena` merge, eight `Inductives/NativeParts.lean` proofs also
+closed through the premise-free interns (`mk_pis_of_refines`,
+`mk_lams_of_refines`, `struct_ih_pis(_at)_refines`, `intern_binder_refines`,
+`struct_rec_ty_close_refines`, `struct_rec_ty_at_refines`,
+`struct_rec_rhs_close_refines`: `pw` from a telescope vector or a `pw`
+argument).  Ruling (coordinator): `intern_e_lam_ls`/`intern_e_forall_e_ls`
+are restored in `Tactic/Prims.lean`, still `sorry`, AFTER the `_wf_ls` pairs,
+with a doc comment saying they are false as stated, naming those eight
+consumers, and saying they are deleted once the Inductives Parts lane has
+threaded `PropWhenWF` of the binder metas into them.  The `close_telescope`/
+`whnf_telescope` strengthening stays.  The dead-weight count therefore keeps
+these two `sorry`s (the table's row for them reads "restored" rather than
+"deleted").

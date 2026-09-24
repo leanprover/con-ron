@@ -51,9 +51,11 @@ theorem whnf_telescope_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rf lf)
     (hvis : absU vis = lf.visibleBelow)
+    (hout : ∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw)
     (hrun : arena.inductives.sum_install.whnf_telescope pers vis st mode rf i n e out
       = ok o) :
-    Sim₀ (fun r => (absBinderL r.1, absLIdx r.2)) pers lst o
+    SimRel₀ (fun r b => b = (absBinderL r.1, absLIdx r.2) ∧
+        ∀ p ∈ r.1.val, ConRon.Refine.PropWhenWF p.2.pw) pers lst o
       (do
         let q ← whnfTelescope (ConRon.Refine.absMode mode) lf (absU i) (absU n)
           (absEIdx e)
@@ -72,13 +74,15 @@ open Lockstep in
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = (fun r => (absBinderL r.1, absLIdx r.2)) a) (arena.inductives.sum_install.whnf_telescope pers vis st mode rf i n e out) lst
+    (hvis : absU vis = lf.visibleBelow)
+    (hout : ∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw) :
+    LS pers (fun r b => b = (absBinderL r.1, absLIdx r.2) ∧
+        ∀ p ∈ r.1.val, ConRon.Refine.PropWhenWF p.2.pw) (arena.inductives.sum_install.whnf_telescope pers vis st mode rf i n e out) lst
       (do
         let q ← whnfTelescope (ConRon.Refine.absMode mode) lf (absU i) (absU n)
           (absEIdx e)
         pure (absBinderL out ++ q.1, q.2)) :=
-  LS.ofSim₀ fun _ h => whnf_telescope_refines hrel hinv hfe hvis h
+  LS.ofSimRel₀ fun _ h => whnf_telescope_refines hrel hinv hfe hvis hout h
 
 /-- `close_telescope` ⊑ `closeTelescope` from the cursor on: close a telescope
 opened at the free variables `i ..< i + bs.length` back into a syntactic
@@ -87,6 +91,7 @@ theorem close_telescope_refines {pers st lst}
     {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {k : Std.Usize} {i : Std.U64} {body : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ∀ p ∈ bs.val, ConRon.Refine.PropWhenWF p.2.pw)
     (hrun : arena.inductives.sum_install.close_telescope pers st bs k i body = ok o) :
     Sim₀ absEIdx pers lst o
       (closeTelescope (absBinderLFrom bs k) (absU i) (absEIdx body)) := by
@@ -108,6 +113,7 @@ theorem close_telescope_refines {pers st lst}
     try simp only []
     rw [arena.inductives.sum_install.close_telescope.eq_def, closeTelescope]
     rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    have hpwk := hpw _ (List.getElem_mem hb)
     lockstep
 
 open Lockstep in
@@ -118,10 +124,11 @@ open Lockstep in
     {i : Std.U64}
     {body : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ∀ p ∈ bs.val, ConRon.Refine.PropWhenWF p.2.pw) :
     LS pers (fun a b => b = absEIdx a) (arena.inductives.sum_install.close_telescope pers st bs k i body) lst
       (closeTelescope (absBinderLFrom bs k) (absU i) (absEIdx body)) :=
-  LS.ofSim₀ fun _ h => close_telescope_refines hrel hinv h
+  LS.ofSim₀ fun _ h => close_telescope_refines hrel hinv hpw h
 
 /-- `check_sum_tele_slow` ⊑ `checkSumTele`'s `where` clause — the `_` arm of
 its match, named on both sides because over handles the syntactic test is two

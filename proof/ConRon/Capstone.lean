@@ -196,9 +196,8 @@ theorem stages_frame {chunks : List ByteArray} {pins : List NatOpPinSet}
     denoteDeclArray_iff.mp (denoteDeclArray_ext hxP hclPrep)⟩
 
 /-- con-leche: ConLeche/Model/Fold.lean:254 checkDeclsPure_sound_of — **the
-model at (B), at the pipeline**: `Bridge/Checker/Capstone.lean`'s
-`Arena.model_exists` is stated at the PURE fold; the binary runs the
-two-phase one with a pool in phase B, after `internAllPins`, as its driver
+model at (B), at the pipeline**: the binary runs the
+two-phase fold with a pool in phase B, after `internAllPins`, as its driver
 does (`Arena.PooledAccepts`, task #97-P5-POOL).  `stages_frame`, then
 `Arena.pooledAccepts_bridge`, then con-leche.  The environment denotes in the
 phase-A state, which the Rust's thawed store is related to. -/

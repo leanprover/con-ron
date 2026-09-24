@@ -33,6 +33,7 @@ theorem intern_rebuilt_bind_refines' {pers st lst} {h : arena.handle.EIdx}
     {same : Bool} {tag : Std.U32} {ty body : arena.handle.EIdx}
     {m : kernel.expr.BinderMeta} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF m.pw)
     (hrun : arena.expr_ops.intern_rebuilt_bind pers st h same tag ty body m = ok o) :
     Sim₀ absEIdx pers lst o
       (internRebuiltBind (absEIdx h) same (absU32 tag) (absEIdx ty) (absEIdx body)

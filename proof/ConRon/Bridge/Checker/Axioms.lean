@@ -11,9 +11,10 @@ three standard axioms come in through `Std.HashMap`, `Classical` in `Option`'s
 lemmas and `Quot` in `String`, which is the same three every tier of this
 repository already carries.
 
-**Group 2 — the three headline theorems.**  `Arena.checkDecl_bridge`,
-`Arena.checkDeclsPure_bridge` and `Arena.model_exists` are the deliverable's
-(3), and each prints `sorryAx` beside the three: the tier's open items
+**Group 2 — the headline theorems.**  `Arena.checkDecl_bridge` and
+`Arena.installThenCheck_bridge` (the sequential fold `Arena.checkDeclsPure_bridge`
+and its `Arena.model_exists` were deleted by task #97-T2-CLEANUP) each print
+`sorryAx` beside the three: the tier's open items
 (DESIGN, task #97-P3-Checker's sorry list as task #97-P3-Checker-2 leaves it)
 are reached from them.  What they do NOT print is `CoreSpec` or `IndSpec` —
 those are HYPOTHESES of the statements, not axioms of the environment, which
@@ -25,7 +26,7 @@ named hypotheses" a checkable claim rather than a prose one.
 what they still reach is the leaves below them.  The census prints them in
 group 2 for that reason.
 -/
-import ConRon.Bridge.Checker.Capstone
+import ConRon.Bridge.Checker.Fold
 import ConRon.Bridge.Checker.Base
 import ConRon.Bridge.Checker.Basis
 import ConRon.Bridge.Checker.Pins
@@ -416,9 +417,6 @@ nor `IndSpec`, which are hypotheses of the statement. -/
 #print axioms checkDecl_bridge_ind
 #print axioms checkDecl_bridge_quot
 #print axioms Arena.checkDecl_bridge
-#print axioms Arena.checkDeclsPure_bridge
-#print axioms Arena.model_exists
-#print axioms Arena.no_proof_of_False
 #print axioms Arena.installThenCheck_bridge
 
 -- the fold's skeleton and the startup walk (task #97-P3-Checker round 8):
