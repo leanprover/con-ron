@@ -846,7 +846,9 @@ macro_rules
          casesm* (_ : Nat) = _ ∨ Std.Usize.max < _
          all_goals first
            | (exfalso; scalar_tac)
-           | (simp_all [absNIdxL, absEIdxL, absEIdxLFrom, absCtorsL, absCtorsLFrom]; done))))
+           | (simp_all [absNIdxL, absEIdxL, absEIdxLFrom, absCtorsL, absCtorsLFrom]; done)
+           | (simp_all [absBinderL, List.getElem?_map, List.getElem?_eq_getElem]
+              subst_vars; simp_all; done))))
 
 /-- The Core front doors (`Refine2/Checker/KnotHyp.lean`) take `CoreCtx vis rf
 lf`; the tier carries `IFEnvRelI rf lf` and, at a split counter, `absU vis =

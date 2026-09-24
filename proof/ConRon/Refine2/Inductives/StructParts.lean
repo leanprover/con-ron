@@ -656,7 +656,10 @@ theorem struct_shape_major_refines {pers st lst} {t : arena.handle.NIdx}
     Sim₀ id pers lst o
       (structShapeMajorSpec (absNIdx t) (absNIdxL lps) (absU n_p)
         (absBinderL rbs)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_shape_major, structShapeMajorSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_shape_major_ls
