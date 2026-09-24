@@ -62650,3 +62650,56 @@ left); `check_struct_proj_table` and `proj_bodies_scoped` (an `unwrap_or` of an
 the install tail (`check_native_tail*`, `check_native_rec*`,
 `check_native_pass_kinds`, `classify_fix_kinds`, `rec_ctor_kinds_all`) and
 `check_native` (ruling pending).
+
+### Task #97-T2-LOCKSTEP lane Inductives round 6 — the recogniser's block match, the rules check; the lockstep congruence's slow `rfl` (2026-09-24, Opus under Fable)
+
+Worktree `_tmp/wt-t2-ind8`, branch `t2-ind-8` off round 5's `911d0d59`.  Lane:
+`Refine2/Inductives/**` minus `Modeled`/`SpecModeled`/`PrimsModeled` and the
+`{Native,Sum,Struct}Install{,F}` files.  No Rust change, no twin change, no
+Theorem-2 invariant added.
+
+#### Slice 1
+
+**`check_native` dropped** (coordinator's correction: the Install lane owns it
+with an approved approach).  One observation from reading it before the
+correction, for that lane: the ruling's option (c) cannot be written against
+the twin as it is — the twin's index row carries `(counter, constant)` and no
+position, so "re-read the row through the popped list" needs a position,
+i.e. option (b)'s representation change.  The frame fact itself is available
+without touching any statement: Theorem 1's `checkNativePass_push`
+(`Bridge/Inductives/NativeInstall.lean`) is a premise-free fact about the TWIN
+pass (`q.env₁ = fe.push (.indInfo …)`), and with `IFEnvRel np.env1 q.env₁`
+it pins the popped Rust constants to the entry ones.
+
+**Closed (7):**
+
+| lemma | what it took |
+|---|---|
+| `struct_parts_core` (frontier top, fan-in 19) | the block match by hand: `rcases hb : block.val` into the five length shapes, the port's `len != 3` and `[0]`/`[1]`/`[2]` reads rewritten (`alloc.vec.Vec.getElem?_Nat_eq`), the constructor matches cased one member at a time, the wrong-length twin match closed by `split` (its list pattern cannot match), the body `struct_parts_core_at_ls` — ~40 lines, no `lockstep` |
+| `struct_parts_core_elim` (the next top, fan-in 25) | the level-parameter list cased by hand (the port's `len == 0` and `[0]` read), then `structPartsCoreElimSpec_cons` (the twin's `relps == lps && !contains` as the port's two nested tests) and `lockstep` |
+| `binders_reset_beq_from` | `ls_counted`; `bindersResetBeqSpec_succ_port` (the two `[o + i]?` reads as the port's bounds tests and `getD` reads); the pair read `let (e, _) := v[j]` went through unaided |
+| `binders_reset_beq` | the `_from` at `0` |
+| `native_rule_prefix_ok` | `nativeRulePrefixOk_port`: both `(List.range k).allM` pairwise comparisons ARE `bindersResetBeqSpec` (`allM_range'_bindersResetBeq`, generic-step form), the `tbs[nP + 1 + j]?` read the port's bounds test |
+| `native_rules_ok_from` | `ls_counted`; `nativeRulesOkFromSpec_succ_port`; the three bounds decided by hand, the twin's `getD`s stated as element reads, the port's `v[j as usize]` reads resolved BEFORE the zip (`vec_index_cast_usize`, `lift_cast_usize`); `absNatL_new_append_filter_zero` (local `lockstep_simp`) for `rec_idx_of(ks, 0, Vec::new())`.  **400 k heartbeats** — the one bump, see below |
+| `native_rules_ok` | `nativeRulesOk_port` (the length tests, then `nativeRulesOk_allM_from`) |
+
+**Tactic finding (for the tactic owner).**  `lockstep_congr`'s first
+alternative is a plain `rfl`, at default transparency.  At
+`native_rules_ok_from`'s two callees (`native_rule_body_ok`,
+`native_rule_prefix_ok`) it fails, and each failure costs ~4 s
+(`lockstep_stats`: `congr.0: fail 2 / 8642 ms`) before `congr 1 <;>
+lockstep_side` closes the goal in 0.3 s — the same unbounded-`rfl` pattern
+the tactic's slice 4 fixed in `twin_view_const_name`.  With a
+`with_reducible rfl` there the bump should go.  A second observation: without
+the hand resolution of the reads, the zip reached the callees with the port's
+`cs[i6]` (`i6` a cast of `j`, known only through the cast spec's disjunction)
+against the twin's `cs[j]`, and IndSide's cast alternative closed each such
+congruence in ~3.5 s — 22 s of the 38 s the first version took.
+
+**Quirk sites (worked around locally):** a Rust `have i := v.len; do …` at a
+step's head (`native_rules_ok_from`'s step, `native_rules_ok`): `dsimp only`
+first.
+
+Proof `sorry`s in the lane's files (my files: `Shape`, `Spec`, `Prims`,
+`NativeParts`, `StructParts`, `SumParts`, `Top`): **21 → 14**
+(`StructParts` 11 → 9, `NativeParts` 6 → 1).
