@@ -531,12 +531,12 @@ pub fn phase_b_verdict(
 /// |---|---|---|
 /// | phase A | `checker::annot_fold_hooked(…, fold_start(), ds, 0, obs)` | the same call accepts |
 /// | boundary | `checker::freeze_tier(&mut st.store)` | the same call succeeds |
-/// | phase B | `pool::parallel_all(m, workers, ‖ worker_state(pins), ‖w, k‖ check_pending(&tier, w, mode, &fe, &pend[k]), …)` | `ParallelAll pend.len (worker_state pins) (fun st k => check_pending tier st mode fe pend[k])` |
+/// | phase B | `pool::parallel_all(m, workers, ‖ worker_state(pins), ‖w, k‖ check_pending(&tier, w, mode, &fe, &pend[k]), …)` | `h8`: index lists `ws` covering `0..pend.len`, each `w` a `foldlM` of `check_pending tier st mode fe pend[k]` over `k ∈ w` from `worker_state pins`, accepting (internally `ParallelAll`) |
 /// | after | `checker::thaw_tier(&mut st.store, tier)` | restores the store (`freeze_tier_ok`) |
 ///
 /// `init` and `step` are calls into the verified crate; `parallel_all` is the
 /// one trusted piece, and its contract (`pool.rs`'s note) is exactly
-/// `ParallelAll`: on `Ok`, every record was checked by exactly one worker,
+/// `ParallelAll`: on `Ok`, every record was checked by some worker,
 /// each worker folding `check_pending` over the records it claimed on ONE
 /// `worker_state`.  Everything else here is the observer, which only ever
 /// holds `&` the state (the hook of phase A by the trait's own signature, the

@@ -64394,3 +64394,59 @@ phase B to one higher-order combinator that knows nothing about checking.
 * OVERVIEW §3 (the headline and the `h6`–`h8` row), §5, §6.4, §7.3 and §8.2's pool and driver rows describe
   `parallel_all` and `ParallelAll`; `scripts/overview-links-expected.txt`
   regenerated (anchors moved in `driver.rs`, `pool.rs`, `Phased.lean`).
+
+### Task #98-H8 — the pool premise inline, weakened to coverage; start values written out (2026-09-24, Opus under Fable)
+
+* **`h8` is the pool's contract written out**, in all four headlines
+  (`model_exists`, `no_False_declaration`, their `_embedded` corollaries),
+  instead of `ParallelAll … (pendingStep …)`:
+
+      (h8 : ∃ ws : List (List (Fin pend.length)),
+        (∀ k, ∃ w ∈ ws, k ∈ w) ∧
+        ∀ w ∈ ws, ∃ st', (do
+          let st ← arena.checker.worker_state st6.pins
+          w.foldlM (fun st (k : Fin pend.length) => do
+            let (r, st) ← arena.checker.check_pending tier st .Verified fe pend.val[k]
+            match r with
+            | .Ok () => ok st
+            | .Err _ => fail .panic) st) = ok st')
+
+  A reader sees `worker_state` and `check_pending` by name and no auxiliary
+  predicate.  Indices are `Fin pend.length` (Aeneas generates no `Inhabited`
+  for `PendingCheck`, so `pend.val[k]!` is unavailable, and `Fin` makes the
+  out-of-range case vanish — the pool never claims one); a Rust `Err` is the
+  fold's `fail`.  `ParallelAll` stays the internal form:
+  `Capstone.parallelAll_of_pool` (with `foldAllOk_of_foldlM`) reads `h8` as
+  it, so `poolAccepts_intro` and everything below are unchanged in shape.
+* **The contract is weakened to coverage** (maintainer's instruction): no
+  `Pairwise (· < ·)` (increasing claims) and no `Perm (List.range n)`
+  (exactly-once) — just every index in `0..n` claimed by some worker.  Neither
+  was used: `PoolAccepts.toParts` dropped the order clause already, and the
+  twin's `PooledAccepts` (and `checkPendingList_grouping`) only ask for
+  membership.  The one place exactly-once WAS used was a length bound: the
+  old `PoolAcceptsParts` packed each worker's records into a `Vec` (for
+  `check_pending_worker`), which needs `length ≤ Usize.max`, known only from
+  the permutation.  `PoolAcceptsParts` now carries plain `List`s with a
+  `FoldAllOk` of `check_pending` from `worker_state`, and the new
+  `Refine2/Checker/Phased.lean` `foldAllOk_check_pending_refines` walks such
+  a fold into the twin's `checkPendingList` step by step
+  (`check_pending_refines`), replacing `check_pending_worker` +
+  `check_pending_list_refines` in `pool_accepts_refines`
+  (`check_pending_list_of_foldAllOk` deleted).  `ParallelAll` now reads
+  `(∀ k < n, ∃ w ∈ parts, k ∈ w) ∧ ∀ w ∈ parts, ∃ s₀, init = ok s₀ ∧
+  FoldAllOk step s₀ w`; an index `≥ n` needs no clause (the driver's step
+  fails there).  `pool.rs`'s trusted claim says the same ("claimed by some
+  worker", order and uniqueness explicitly not promised, though the code
+  delivers both).
+* **Start values written out**: `startState`/`emptyTier` are no longer
+  `Classical.choose`; they are structure literals built from `emptyMap`
+  (`HashMap2::new()`), `emptyTbl` and the four `empty*Tables`, and
+  `startState_eq`/`emptyTier_eq` prove `AState.empty = ok startState` /
+  `PersTier.empty = ok emptyTier` by unfolding the Aeneas definitions (`simp
+  only […]; rfl`).  `astate_empty_ok`/`persTier_empty_ok` deleted.
+* `rust_stages`' unused hypotheses removed: `hpers`, and the tier specs `hk`/`hind` (the stage lemmas take them; `rust_stages` never did).
+* Docs: Capstone's module note and §4 (the `h8` row and the paragraph
+  justifying the statement's shape), `driver.rs`'s premise table, `pool.rs`'s
+  trusted claim, OVERVIEW §3's quoted statement and `h6`–`h8` row, §8.2's pool
+  row; `scripts/overview-links-expected.txt` regenerated.  Census guards
+  unchanged.

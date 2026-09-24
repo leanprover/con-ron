@@ -51,14 +51,15 @@ binary's driver runs, pool and all** (task #97-P5-POOL):
 freezes the tier, runs phase B on `pool::parallel_all`, and thaws the tier.
 The headlines take one premise per step (`h6` phase A, `h7` the freeze, `h8`
 phase B), which `poolAccepts_intro` assembles into
-`Refine2/Checker/Phased.lean`'s `PoolAccepts`.  Phase B's premise is
-`ParallelAll`, the contract of the generic combinator `pool::parallel_all`
-with the driver's two verified closures (`worker_state`, `check_pending`):
-every pending record claimed by exactly one worker, each worker folding
-`check_pending` over its claims on one `worker_state`, every step
-accepting.  That contract is the pool's trusted claim (OVERVIEW §8.2):
-control flow of `pool.rs`, nothing about the checker; `PoolAccepts.toParts`
-turns it into one accepting `check_pending_worker` per worker.  The sequential walk
+`Refine2/Checker/Phased.lean`'s `PoolAccepts`.  Phase B's premise `h8` is
+the contract of the generic combinator `pool::parallel_all` with the driver's
+two verified closures, written out (task #98-H8): index lists `ws`, one per
+worker, covering every pending record, and for each a `foldlM` of
+`check_pending` over its indices from `worker_state`, accepting.  That
+contract is the pool's trusted claim (OVERVIEW §8.2): control flow of
+`pool.rs`, nothing about the checker.  `parallelAll_of_pool` reads it as
+`Phased.lean`'s `ParallelAll`, and `PoolAccepts.toParts` turns that into one
+accepting fold per worker over the records it checked.  The sequential walk
 `check_decls_phased` is one such pool (`poolAccepts_of_check_decls_phased`).
 The theorems hold for EVERY install hook, so they cover the plain run and
 `--progress` alike.  `pool_accepts_refines` relates the stage to the twin's
@@ -391,8 +392,6 @@ Theorem 2's six top lemmas, one per stage, all lockstep (`AStateRel₀`, no
 precondition on the twin: task #97-T2-LOCKSTEP lane Checker deleted `BrOK`
 and ruling 2's `DeclResolves`). -/
 theorem rust_stages
-    (hk : ConRon.Bridge.CoreSpec .verified ConRon.Arena.checkFuel)
-    (hind : ConRon.Bridge.IndSpec .verified)
     {G : Type} {inst : frontend.types.Modeller G} {m : G}
     (hmr : ConRon.Refine2.Frontend.ModellerRefines inst m
       ConRon.Arena.Frontend.inProcessModeller)
@@ -406,7 +405,6 @@ theorem rust_stages
     {ds : alloc.vec.Vec arena.env.IDeclaration}
     {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
     {fe : arena.env.IFEnv}
-    (hpers : arena.store.PersTier.empty = ok pers)
     (hest : arena.store.EStore.empty = ok est)
     (hst0 : arena.monad.AState.init est = ok st0)
     (h1 : arena.pins.intern_reserved_pins pers st0 = ok (.Ok (), st1))
@@ -469,15 +467,90 @@ end Rust
 `check_main` starts from `AState::empty()` (`bin/con-ron.rs:373`, which is
 `AState::init(EStore::empty())`) and `&PersTier::empty()`
 (`bin/con-ron.rs:381`).  The Aeneas model of each is a `Result` that is
-`ok`; `startState` and `emptyTier` are those values, so the headlines' first
-premise starts from them rather than from universally quantified states with
-equations about them. -/
+`ok`; `startState` and `emptyTier` are those values, written out (task
+#98-H8): every table and map empty, every flag down, no pins.  `startState_eq`
+and `emptyTier_eq` check them against the Aeneas model by unfolding it.  So
+the headlines' first premise starts from them rather than from universally
+quantified states with equations about them. -/
 
 section Defs
 
 open ConRon.Refine2 ConRon.Refine2.Frontend
 
-theorem astate_empty_ok : ∃ st, arena.monad.AState.empty = ok st := by
+/-- `HashMap2::new()` (`ron/hashmap2.rs`): no entries, no slots, epoch 1. -/
+def emptyMap (K V : Type) : ron.hashmap2.HashMap2 K V :=
+  { num_entries := 0#usize, max_load := 0#usize, epoch := 1#u32, fit_hw := 0#usize,
+    slots := alloc.vec.Vec.new _ }
+
+/-- `Tbl::empty()` (`arena/store.rs`): no rows, an empty index. -/
+def emptyTbl (A I D : Type) : arena.store.Tbl A I D :=
+  { rows := alloc.vec.Vec.new _, cons := emptyMap A I }
+
+/-- `NTables::empty()`: the name tables, every one empty. -/
+def emptyNTables : arena.store.NTables :=
+  { anons := emptyTbl _ _ _, strs := emptyTbl _ _ _, nums := emptyTbl _ _ _ }
+
+/-- `LTables::empty()`: the level tables, every one empty. -/
+def emptyLTables : arena.store.LTables :=
+  { zeros := emptyTbl _ _ _, succs := emptyTbl _ _ _, maxs := emptyTbl _ _ _,
+    imaxs := emptyTbl _ _ _, params := emptyTbl _ _ _ }
+
+/-- `LsTables::empty()`: the level-list table, empty. -/
+def emptyLsTables : arena.store.LsTables := { lists := emptyTbl _ _ _ }
+
+/-- `ETables::empty()`: the expression tables, every one empty. -/
+def emptyETables : arena.store.ETables :=
+  { bvars := emptyTbl _ _ _, fvars := emptyTbl _ _ _, sorts := emptyTbl _ _ _,
+    consts := emptyTbl _ _ _, apps := emptyTbl _ _ _, lams := emptyTbl _ _ _,
+    foralls := emptyTbl _ _ _, lets := emptyTbl _ _ _, lits := emptyTbl _ _ _,
+    projs := emptyTbl _ _ _, bms := emptyTbl _ _ _ }
+
+/-- **The binary's persistent tier**, `&PersTier::empty()`
+(`bin/con-ron.rs:381`): the tier every stage up to phase B is handed — its
+four table sets, every table empty (`emptyTier_eq`). -/
+def emptyTier : arena.store.PersTier :=
+  { n := emptyNTables, l := emptyLTables, ls := emptyLsTables, e := emptyETables }
+
+theorem emptyTier_eq : arena.store.PersTier.empty = ok emptyTier := by
+  simp only [arena.store.PersTier.empty, arena.store.Tbl.empty, arena.store.ETables.empty,
+    arena.store.LsTables.empty, arena.store.LTables.empty, arena.store.NTables.empty,
+    ron.hashmap2.HashMap2.new, bind_tc_ok]
+  rfl
+
+/-- **The binary's start state**, `AState::empty()` (`bin/con-ron.rs:373`),
+which is `AState::init(EStore::empty())`: a store whose four layers (names,
+levels, level lists, expressions) have both tiers empty and both flags down,
+empty memo tables and caches, and no pins (`startState_eq`). -/
+def startState : arena.monad.AState :=
+  { store :=
+      { lss :=
+          { ls :=
+              { ns := { pers := emptyNTables, scr := emptyNTables,
+                        scratch_on := false, shared_on := false },
+                pers := emptyLTables, scr := emptyLTables,
+                scratch_on := false, shared_on := false },
+            pers := emptyLsTables, scr := emptyLsTables,
+            scratch_on := false, shared_on := false },
+        pers := emptyETables, scr := emptyETables,
+        scratch_on := false, shared_on := false },
+    memos :=
+      { inst1_c := emptyMap _ _, inst_l_c := emptyMap _ _, lift_c := emptyMap _ _,
+        reset_c := emptyMap _ _, rename_c := emptyMap _ _, abs1_c := emptyMap _ _,
+        lower_c := emptyMap _ _, inst1_l_c := emptyMap _ _, inst_lp_c := emptyMap _ _,
+        bvar_b_c := emptyMap _ _, fvar_b_c := emptyMap _ _, inst_lp_l_c := emptyMap _ _,
+        inst_lp_ls_c := emptyMap _ _, lp_def_c := emptyMap _ _, crf_c := emptyMap _ _ },
+    caches :=
+      { whnf_core_c := emptyMap _ _, whnf_c := emptyMap _ _, infer_c := emptyMap _ _,
+        infer_io_c := emptyMap _ _, annot_c := emptyMap _ _, defeq_c := emptyMap _ _,
+        lvl_eq_c := emptyMap _ _, lvls_eq_c := emptyMap _ _, const_ty_c := emptyMap _ _,
+        const_val_c := emptyMap _ _, rule_rhs_c := emptyMap _ _, read_l_c := emptyMap _ _,
+        read_n_c := emptyMap _ _, read_ls_c := emptyMap _ _ },
+    pins :=
+      { names := alloc.vec.Vec.new _, reserved := alloc.vec.Vec.new _,
+        empty_levels := { word := 0#u32 }, zero_level := { word := 0#u32 },
+        sort_one := { word := 0#u32 } } }
+
+theorem startState_eq : arena.monad.AState.empty = ok startState := by
   simp only [arena.monad.AState.empty, arena.store.Tbl.empty, arena.store.ETables.empty,
     arena.store.LsTables.empty, arena.store.LTables.empty, arena.store.NTables.empty,
     arena.store.NStore.empty, arena.store.LStore.empty, arena.store.LsStore.empty,
@@ -485,27 +558,7 @@ theorem astate_empty_ok : ∃ st, arena.monad.AState.empty = ok st := by
     arena.monad.AState.init, arena.monad.Memos.empty, arena.core_state.Caches.empty,
     arena.pins.Pins.empty, arena.handle.LsIdx.of_word, arena.handle.LIdx.of_word,
     arena.handle.EIdx.of_word, bind_tc_ok]
-  exact ⟨_, rfl⟩
-
-/-- **The binary's start state**, `AState::empty()` (`bin/con-ron.rs:373`):
-the value the Aeneas model of it returns (`astate_empty_ok`: it is `ok`). -/
-noncomputable def startState : arena.monad.AState := Classical.choose astate_empty_ok
-
-theorem startState_eq : arena.monad.AState.empty = ok startState :=
-  Classical.choose_spec astate_empty_ok
-
-theorem persTier_empty_ok : ∃ pers, arena.store.PersTier.empty = ok pers := by
-  simp only [arena.store.PersTier.empty, arena.store.Tbl.empty, arena.store.ETables.empty,
-    arena.store.LsTables.empty, arena.store.LTables.empty, arena.store.NTables.empty,
-    ron.hashmap2.HashMap2.new, bind_tc_ok]
-  exact ⟨_, rfl⟩
-
-/-- **The binary's persistent tier**, `&PersTier::empty()`
-(`bin/con-ron.rs:381`): the tier every stage up to phase B is handed. -/
-noncomputable def emptyTier : arena.store.PersTier := Classical.choose persTier_empty_ok
-
-theorem emptyTier_eq : arena.store.PersTier.empty = ok emptyTier :=
-  Classical.choose_spec persTier_empty_ok
+  rfl
 
 /-- `startState` is `AState::init(EStore::empty())`, the form `rust_stages`
 takes. -/
@@ -550,6 +603,58 @@ theorem decode_of_decode_embedded
   obtain ⟨text, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   exact ⟨text, h⟩
 
+/-- One worker's fold, as `h8` states it, is a `FoldAllOk` of `pendingStep`
+over the claimed indices read as `Nat`s. -/
+theorem foldAllOk_of_foldlM {tier : arena.store.PersTier} {fe : arena.env.IFEnv}
+    {pend : alloc.vec.Vec arena.checker.PendingCheck} :
+    ∀ (w : List (Fin pend.length)) (st st' : arena.monad.AState),
+      w.foldlM (fun st (k : Fin pend.length) => do
+          let (r, st) ← arena.checker.check_pending tier st .Verified fe pend.val[k]
+          match r with
+          | .Ok () => ok st
+          | .Err _ => fail .panic) st = ok st' →
+      FoldAllOk (pendingStep tier .Verified fe pend) st (w.map Fin.val)
+  | [], _, _, _ => trivial
+  | k :: w, st, st', h => by
+    rw [List.foldlM_cons] at h
+    obtain ⟨s1, hs1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨q, hq, hs1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hs1
+    obtain ⟨r, s2⟩ := q
+    cases r with
+    | Err e => simp at hs1
+    | Ok u =>
+      have hs := Result.ok_injective hs1
+      subst hs
+      refine ⟨s2, ?_, foldAllOk_of_foldlM w s2 st' h⟩
+      simp only [pendingStep, List.getElem?_eq_getElem k.isLt]
+      exact hq
+
+/-- **`h8` is the pool's contract** (`Refine2/Checker/Phased.lean`'s
+`ParallelAll`, the internal form the proofs below consume): the claimed
+`Fin` indices, read as `Nat`s, cover `0..pend.length`, and each worker's
+`foldlM` is a `FoldAllOk` of `pendingStep`. -/
+theorem parallelAll_of_pool {tier : arena.store.PersTier} {fe : arena.env.IFEnv}
+    {pins : arena.pins.Pins} {pend : alloc.vec.Vec arena.checker.PendingCheck}
+    (h : ∃ ws : List (List (Fin pend.length)),
+      (∀ k, ∃ w ∈ ws, k ∈ w) ∧
+      ∀ w ∈ ws, ∃ st', (do
+        let st ← arena.checker.worker_state pins
+        w.foldlM (fun st (k : Fin pend.length) => do
+          let (r, st) ← arena.checker.check_pending tier st .Verified fe pend.val[k]
+          match r with
+          | .Ok () => ok st
+          | .Err _ => fail .panic) st) = ok st') :
+    ParallelAll pend.length (arena.checker.worker_state pins)
+      (pendingStep tier .Verified fe pend) := by
+  obtain ⟨ws, hcov, hw⟩ := h
+  refine ⟨ws.map (List.map Fin.val), fun k hk => ?_, fun w hwm => ?_⟩
+  · obtain ⟨w, hwm, hkw⟩ := hcov ⟨k, hk⟩
+    exact ⟨w.map Fin.val, List.mem_map_of_mem hwm, List.mem_map_of_mem hkw⟩
+  · obtain ⟨w, hw', rfl⟩ := List.mem_map.mp hwm
+    obtain ⟨st', h⟩ := hw w hw'
+    obtain ⟨s₀, hs₀, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨s₀, hs₀, foldAllOk_of_foldlM w s₀ st' h⟩
+
 end Defs
 
 /-! ## 4. The two headline theorems
@@ -572,10 +677,27 @@ walks through it and finds each verified call as one premise.
 | `h7` | the same, the boundary: `driver.rs:582` `checker::freeze_tier` |
 | `h8` | the same, phase B: `driver.rs:596` `pool::parallel_all` with `init` `checker::worker_state` and `step` `checker::check_pending` (`thaw_tier` at `:613` restores the store) |
 
-`h8` is a predicate, not an equation: `parallel_all` is not extracted, and
-`Refine2/Checker/Phased.lean`'s `ParallelAll` states its contract, generic
-in the state and the step (the pool's trusted claim, OVERVIEW §8.2), here at
-the driver's two verified closures (`pendingStep` is the step's model).  The theorems hold at
+`h8` is not one equation: `parallel_all` is not extracted, so `h8` states
+its contract (the pool's trusted claim, `pool.rs`'s note, OVERVIEW §8.2) at
+the driver's two verified closures: some lists `ws` of record indices, one
+per worker, together covering every index of `pend`, and for each list `w`
+the worker's run — `worker_state st6.pins`, then `check_pending` folded over
+`w` in order (`List.foldlM` in Aeneas's `Result`) — accepting.  Three
+choices keep it readable:
+
+* the indices are `Fin pend.length`, so `pend.val[k]` needs no bounds case;
+  the Rust `&pend[k]` would panic past the end, and the pool never claims
+  such a `k`, so nothing is lost;
+* a step's Rust `Err` (a rejected record) is the fold's `fail`, so `= ok st'`
+  says every step answered `Ok(())`, as `parallel_all` returning `Ok(())`
+  does;
+* nothing more is asked of `ws` than coverage: not that a record is claimed
+  once, nor in increasing order (task #98-H8) — each record is checked at its
+  own prefix environment, whatever else its worker checked.
+
+`parallelAll_of_pool` reads it as `Refine2/Checker/Phased.lean`'s
+`ParallelAll`, the contract generic in the state and the step, which the
+proofs consume.  The theorems hold at
 both flags `inModel`/`census` (`CON_LECHE_INMODEL`,
 `CON_LECHE_INMODEL_CENSUS`), every install hook (the heartbeat or
 `driver::Silent`), every chunk source whose reads are `chunks`, and every
@@ -638,8 +760,15 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
       = ok (.Ok (n, fe, pend), st6))
     {tier : arena.store.PersTier} {frozen : arena.store.EStore}
     (h7 : arena.checker.freeze_tier st6.store = ok (.Ok tier, frozen))
-    (h8 : ParallelAll pend.length (arena.checker.worker_state st6.pins)
-      (pendingStep tier .Verified fe pend)) :
+    (h8 : ∃ ws : List (List (Fin pend.length)),
+      (∀ k, ∃ w ∈ ws, k ∈ w) ∧
+      ∀ w ∈ ws, ∃ st', (do
+        let st ← arena.checker.worker_state st6.pins
+        w.foldlM (fun st (k : Fin pend.length) => do
+          let (r, st) ← arena.checker.check_pending tier st .Verified fe pend.val[k]
+          match r with
+          | .Ok () => ok st
+          | .Err _ => fail .panic) st) = ok st') :
     ∃ env, RustDenotes fe st6 env ∧ Nonempty (ConLeche.Model V env) := by
   obtain ⟨est, hest, hst0⟩ := startState_init
   -- Theorem 1's two tier specs, discharged (tasks #97-P3-Core, #97-P3-Ind)
@@ -648,8 +777,8 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
   have hind : ConRon.Bridge.IndSpec .verified :=
     ConRon.Bridge.Inductives.indSpec_of_bridge rfl hk
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, hrelF, hfe⟩ :=
-    rust_stages hk hind hmr hpins emptyTier_eq hest hst0 h1 h2
-      hreads h3 (prepare_prelude_of_prepare_d h4) h5 (poolAccepts_intro h6 h7 h8)
+    rust_stages hmr hpins hest hst0 h1 h2
+      hreads h3 (prepare_prelude_of_prepare_d h4) h5 (poolAccepts_intro h6 h7 (parallelAll_of_pool h8))
   obtain ⟨env, hden, ⟨hmod⟩⟩ := stages_model V hk hind hA hB hC hD hE hF
   -- the relation's `StoreWF` clause is Theorem 1's (Theorem 2 is lockstep)
   have hwfF := stages_storeWF hk hind hA hB hC hD hE hF
@@ -662,7 +791,7 @@ the binary's calls (§4's table) cannot all succeed on it.
 
 con-leche's concludes `∃ e, (do …; checkDecls .verified pins ds) = .error e`
 about its own pipeline; the binary's is not one function (the pool is a
-predicate), so the letter here has the same premises as `model_exists` and
+contract, `h8`), so the letter here has the same premises as `model_exists` and
 concludes `False`.
 
 Composition only: `rust_stages` (Theorem 2) turns the Rust runs into twin
@@ -699,8 +828,15 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
       = ok (.Ok (n, fe, pend), st6))
     {tier : arena.store.PersTier} {frozen : arena.store.EStore}
     (h7 : arena.checker.freeze_tier st6.store = ok (.Ok tier, frozen))
-    (h8 : ParallelAll pend.length (arena.checker.worker_state st6.pins)
-      (pendingStep tier .Verified fe pend)) :
+    (h8 : ∃ ws : List (List (Fin pend.length)),
+      (∀ k, ∃ w ∈ ws, k ∈ w) ∧
+      ∀ w ∈ ws, ∃ st', (do
+        let st ← arena.checker.worker_state st6.pins
+        w.foldlM (fun st (k : Fin pend.length) => do
+          let (r, st) ← arena.checker.check_pending tier st .Verified fe pend.val[k]
+          match r with
+          | .Ok () => ok st
+          | .Err _ => fail .panic) st) = ok st') :
     False := by
   obtain ⟨est, hest, hst0⟩ := startState_init
   have hk : ConRon.Bridge.CoreSpec .verified ConRon.Arena.checkFuel :=
@@ -708,8 +844,8 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
   have hind : ConRon.Bridge.IndSpec .verified :=
     ConRon.Bridge.Inductives.indSpec_of_bridge rfl hk
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, -, -⟩ :=
-    rust_stages hk hind hmr hpins emptyTier_eq hest hst0 h1 h2
-      hreads h3 (prepare_prelude_of_prepare_d h4) h5 (poolAccepts_intro h6 h7 h8)
+    rust_stages hmr hpins hest hst0 h1 h2
+      hreads h3 (prepare_prelude_of_prepare_d h4) h5 (poolAccepts_intro h6 h7 (parallelAll_of_pool h8))
   exact stages_no_False V hk hind (pins := ConRon.Refine.absPins pins) hfalse
     hA hB hC hD hE hF
 
@@ -744,8 +880,15 @@ theorem model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
       = ok (.Ok (n, fe, pend), st6))
     {tier : arena.store.PersTier} {frozen : arena.store.EStore}
     (h7 : arena.checker.freeze_tier st6.store = ok (.Ok tier, frozen))
-    (h8 : ParallelAll pend.length (arena.checker.worker_state st6.pins)
-      (pendingStep tier .Verified fe pend)) :
+    (h8 : ∃ ws : List (List (Fin pend.length)),
+      (∀ k, ∃ w ∈ ws, k ∈ w) ∧
+      ∀ w ∈ ws, ∃ st', (do
+        let st ← arena.checker.worker_state st6.pins
+        w.foldlM (fun st (k : Fin pend.length) => do
+          let (r, st) ← arena.checker.check_pending tier st .Verified fe pend.val[k]
+          match r with
+          | .Ok () => ok st
+          | .Err _ => fail .panic) st) = ok st') :
     ∃ env, RustDenotes fe st6 env ∧ Nonempty (ConLeche.Model V env) :=
   have ⟨_, hdec⟩ := decode_of_decode_embedded hpins
   model_exists V hmr h1 h2 hreads h3 h4 hdec h5 h6 h7 h8
@@ -782,8 +925,15 @@ theorem no_False_declaration_embedded (V : Type w) [ConLeche.SetTheory V]
       = ok (.Ok (n, fe, pend), st6))
     {tier : arena.store.PersTier} {frozen : arena.store.EStore}
     (h7 : arena.checker.freeze_tier st6.store = ok (.Ok tier, frozen))
-    (h8 : ParallelAll pend.length (arena.checker.worker_state st6.pins)
-      (pendingStep tier .Verified fe pend)) :
+    (h8 : ∃ ws : List (List (Fin pend.length)),
+      (∀ k, ∃ w ∈ ws, k ∈ w) ∧
+      ∀ w ∈ ws, ∃ st', (do
+        let st ← arena.checker.worker_state st6.pins
+        w.foldlM (fun st (k : Fin pend.length) => do
+          let (r, st) ← arena.checker.check_pending tier st .Verified fe pend.val[k]
+          match r with
+          | .Ok () => ok st
+          | .Err _ => fail .panic) st) = ok st') :
     False :=
   have ⟨_, hdec⟩ := decode_of_decode_embedded hpins
   no_False_declaration V hmr hfalse h1 h2 hreads h3 h4 hdec h5 h6 h7 h8

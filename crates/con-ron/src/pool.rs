@@ -43,22 +43,29 @@
 //! ## THE TRUSTED CLAIM, and the whole of it
 //!
 //! **If `parallel_all(n, workers, init, step, after)` returns `Ok(())`, then
-//! every index in `0..n` was claimed by exactly one worker; each worker built
-//! its state with `init()` exactly once and folded `step` over the indices it
-//! claimed, in claim order (which is increasing); and every one of those
-//! `step` calls returned `Ok(())`** — at every worker count.  That is
-//! `ParallelAll` in `proof/ConRon/Refine2/Checker/Phased.lean` (task
-//! #98-POOL), and it is a statement about this module's control flow only —
-//! nothing about what `init` and `step` compute.  With the driver's closures
-//! it is the capstone's pool premise: `ParallelAll pend.len (worker_state
-//! pins) (fun st k => check_pending tier st mode fe pend[k])`, which the proof
-//! turns into one verified `check_pending_worker` accept per worker
-//! (`poolAcceptsParts_of_parallelAll`).  The argument:
+//! every index in `0..n` was claimed by some worker; each worker built its
+//! state with `init()` exactly once and folded `step` over the indices it
+//! claimed, in claim order; and every one of those `step` calls returned
+//! `Ok(())`** — at every worker count.  That is `ParallelAll` in
+//! `proof/ConRon/Refine2/Checker/Phased.lean` (task #98-POOL), and it is a
+//! statement about this module's control flow only — nothing about what
+//! `init` and `step` compute.  With the driver's closures it is the
+//! capstone's pool premise `h8` (task #98-H8 states it inline: index lists
+//! `ws` covering `0..pend.len`, and for each `w` in `ws` a `foldlM` of
+//! `check_pending` over `w` from `worker_state pins`, accepting), which the
+//! proof relates, worker by worker, to the twin (`PoolAccepts.toParts`,
+//! `pool_accepts_refines`).
+//!
+//! The claim is deliberately weaker than what the code does (task #98-H8):
+//! the counter below hands each index to exactly ONE worker and a worker's
+//! claims INCREASE, but the contract promises neither — the proof needs only
+//! coverage, since each record is checked against its own prefix environment
+//! and the twin's grouping theorem (`checkPendingList_grouping`) holds for any
+//! order, any split and any repetition.  The argument:
 //!
 //! * **A claim is a `fetch_add` on one counter.**  Each value `0, 1, 2, …` is
-//!   handed to exactly one caller, so the indices `0..n` are partitioned
-//!   among the workers, and one worker's claims increase.  A worker stops at
-//!   its first claim `≥ n`.
+//!   handed to exactly one caller, so every index in `0..n` is claimed (by
+//!   exactly one worker, in fact).  A worker stops at its first claim `≥ n`.
 //! * **A worker is one fold.**  `worker` calls `init()` once, then for each
 //!   claimed index `k` calls `step(&mut st, k)` on that one state — the fold,
 //!   in claim order.  `after(&st, k)` sees the state by `&` only.  A claimed
