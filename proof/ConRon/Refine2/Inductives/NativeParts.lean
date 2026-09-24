@@ -551,6 +551,27 @@ open Lockstep in
         pure (absBinderL out ++ q.1, q.2)) :=
   LSR.ofSimRE hrel hinv fun _ h => pi_binders_refines hrel hinv h
 
+open Lockstep in
+/-- `pi_binders` from an empty accumulator IS `piBinders` (the callers' form). -/
+@[lockstep] theorem pi_binders_new_ls
+    {pers st lst}
+    {fuel : Std.U64}
+    {h : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = (fun r => (absBinderL r.1, absEIdx r.2)) a)
+      (arena.inductives.native_parts.pi_binders pers st fuel h
+        (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta))) st lst
+      (piBinders (absU fuel) (absEIdx h)) := by
+  have hl := pi_binders_ls (fuel := fuel) (h := h)
+    (out := alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)) hrel hinv
+  have e : (do
+      let q ← piBinders (absU fuel) (absEIdx h)
+      pure (absBinderL (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)) ++ q.1,
+        q.2) : AM _) = piBinders (absU fuel) (absEIdx h) := by
+    simp [absBinderL, alloc.vec.Vec.new]
+  rwa [e] at hl
+
 /-- `struct_field_tele_of` ⊑ `structFieldTeleOf`. -/
 theorem struct_field_tele_of_refines {pers st lst} {cty : arena.handle.EIdx}
     {n_p n_f i : Std.U64} {o}
@@ -1880,7 +1901,10 @@ theorem native_counts_refines {pers st lst} {n_pd : Std.U64}
     Sim₀ (Option.map fun p => (absU p.1, absU p.2)) pers lst o
       (nativeCountsLen (absU n_pd) (absIConstantVal cv_t) (absU n_ctors) (absU m_i)
         (absU r_p)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.native_counts, nativeCountsLen, nativeCounts?]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_counts_ls
