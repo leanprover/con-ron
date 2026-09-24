@@ -62175,3 +62175,7 @@ tainted / dead weight 198** → this slice **19 / 270 / 195** (gone:
 `ifenvRel_envWF_push`, `check_basis_decl_install`, `mentions_const`,
 `check_proj_shape`).  This lane's items left: `consts_resolve_f_fast`,
 `all_level_params_defined` (item 3).
+
+After merging `arena` `6296213a` (Inductives Modeled slice 3; `arena` alone:
+29 items / 291 tainted / dead weight 169): **25 / 274 / 166**.
+`scripts/gates.sh`: **all 16 OK**.  Submitted to the merge queue.
