@@ -374,20 +374,18 @@ theorem Arena.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
 original's (`conron.no_False_declaration` /
 `conron.no_False_declaration_prelude`, `RefineOld/Main.lean:730` / `:782`).
 
-The extra hypothesis `hbytes` is the PRELUDE GATE, not a proof obligation:
-`Arena/Frontend/PreludeText.lean`'s committed constant is generated from
-con-leche's own `pins/leanprover-lean4-v4.33.0.prelude.ndjson` by
-`scripts/gen-prelude-lean.sh`, and `scripts/gen-prelude-lean.sh --check` is
-step 11 of `scripts/gates.sh`.  Naming it as a hypothesis is what keeps the
-axiom census at Lean's own three — the same move the original made for
-`PINS_TEXT`, and the reason its `_prelude` pair cost nothing.
+No hypothesis about the prelude's BYTES (task #98-HEADLINE; it was `hbytes`
+until then): con-leche's `preparePrelude` puts the prelude's records into the
+checked stream, so the letter holds whatever `preludeText` parses to.  That
+it is con-leche's own `pins/leanprover-lean4-v4.33.0.prelude.ndjson` is the
+gate `scripts/gen-prelude-lean.sh --check` (step 11 of `scripts/gates.sh`),
+a claim about what con-ron ships and not a premise of this theorem.
 
 `builtinPreludeE_run` in place of `hpre`, then
 `Arena.no_False_declaration`. -/
 theorem Arena.no_False_declaration_prelude (V : Type w) [ConLeche.SetTheory V]
     {md : Modeller} (hmw : ModellerWF md) (hmr : ModellerRefines md)
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
-    (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
     {chunks : List ByteArray}
     (hfalse : ConLeche.jsonWithTheoremFalse chunks)
     {pins : List NatOpPinSet} {ipins : List INatOpPinSet} {im ce : Bool}
@@ -401,8 +399,8 @@ theorem Arena.no_False_declaration_prelude (V : Type w) [ConLeche.SetTheory V]
     (hpinsrun : internAllPins pins s3 = .ok (ipins, s3'))
     (hrun : Arena.installThenCheck .verified ipins ds s3' = .ok (.ok fe', s4)) :
     False := by
-  obtain ⟨hstep1, hpersPre, hnPre, preC, -, hrelPre⟩ :=
-    builtinPreludeE_run hmw hmr hbytes hok0 hoff0 hpins0 (ReadCachesOK.ofEmpty hcache0) hpre
+  obtain ⟨hstep1, hpersPre, hnPre, preC, hrelPre⟩ :=
+    builtinPreludeE_run hmw hmr hok0 hoff0 hpins0 (ReadCachesOK.ofEmpty hcache0) hpre
   obtain ⟨hstep2, hpersR, rc, hclR, hrelR⟩ :=
     parseChunks_run hmw hmr hstep1.ok (by rw [hstep1.scratch, hoff0])
       (hpins0.mono hstep1.ext hstep1.pins) ((ReadCachesOK.ofEmpty hcache0).step hstep1) hparse
@@ -462,9 +460,10 @@ BYTE-LEVEL CAPSTONE, AT THE SEAM**: a file whose chunks are one of the shapes
 — the reserved pins, the built-in prelude, the streaming parse, the
 preparation and the two-phase fold — return an error.
 
-Two named hypotheses (`CoreSpec`, `IndSpec`) and one gate (`hbytes`, the
-prelude's committed bytes; `scripts/gen-prelude-lean.sh --check`, step 11 of
-`scripts/gates.sh`) — **and nothing else**.  Round 2 carried a third,
+Two named hypotheses (`CoreSpec`, `IndSpec`) — **and nothing else**: the
+prelude's committed bytes are no hypothesis (task #98-HEADLINE; see
+`Arena.no_False_declaration_prelude`), and the flags `im`/`ce` are
+parameters.  Round 2 carried a third,
 `InternAllPinsFrame`, for the one conjunct `internAllPins_run` did not state;
 task #97-P3-Checker-2 landed the strengthening (`s'.caches = s.caches ∧
 s'.memos = s.memos`), so the definition and the hypothesis are gone.
@@ -486,7 +485,6 @@ scratch tier and the empty caches are all `Arena/WFProofs.lean`'s
 well-formedness at all.** -/
 theorem Arena.no_False_declaration_pipeline (V : Type w) [ConLeche.SetTheory V]
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
-    (hbytes : preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
     (pins : List NatOpPinSet) (chunks : List ByteArray)
     (hfalse : ConLeche.jsonWithTheoremFalse chunks) (im : Bool := true)
     (ce : Bool := false) :
@@ -563,8 +561,8 @@ theorem Arena.no_False_declaration_pipeline (V : Type w) [ConLeche.SetTheory V]
   | ok fe' =>
   -- §3's four steps, with the pin walk in the middle
   have hrbA : ReadCachesOK sA := ReadCachesOK.ofEmpty (by rw [hcachesA]; exact hc0)
-  obtain ⟨hstep1, hpersPre, hnPre, preC, -, hrelPre⟩ :=
-    builtinPreludeE_run inProcessModeller_wf inProcessModeller_refines hbytes
+  obtain ⟨hstep1, hpersPre, hnPre, preC, hrelPre⟩ :=
+    builtinPreludeE_run inProcessModeller_wf inProcessModeller_refines
       hokA hoffA hpinsA hrbA hprel
   obtain ⟨hstep2, hpersR, rc, hclR, hrelR⟩ :=
     parseChunks_run inProcessModeller_wf inProcessModeller_refines hstep1.ok
