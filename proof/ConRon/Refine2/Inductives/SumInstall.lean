@@ -1220,6 +1220,39 @@ theorem cons_sum_ctors_refines {n_p : Std.U64}
       simp [absIConstantInfo, i_constant_val_dup_abs hiv1]
     rwa [this] at hrel1
 
+theorem sum_rules_aux (m : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rf lf} {rec_name : arena.handle.NIdx}
+      {n_p m_i r_p : Std.U64} {rec_ty : arena.handle.EIdx}
+      {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+      {rhss : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
+      {out : alloc.vec.Vec arena.env.IRecRule},
+      ctors.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf lf → absU vis = lf.visibleBelow →
+      Lockstep.LS pers (fun a b => b = absIRecRuleL a)
+        (arena.inductives.sum_install.sum_rules pers vis st rf rec_name n_p m_i
+          r_p rec_ty ctors rhss i out) lst
+        (do pure (absIRecRuleL out ++
+          (← sumRules lf (absNIdx rec_name) (absU n_p) (absU m_i) (absU r_p)
+            (absEIdx rec_ty) (absCtorsLFrom ctors i) (absEIdxLFrom rhss i)))) := by
+  induction m with
+  | zero =>
+    intro pers st lst vis rf lf rec_name n_p m_i r_p rec_ty ctors rhss i out hn hrel hinv hfe hvis
+    rw [arena.inductives.sum_install.sum_rules, if_pos (by scalar_tac), absCtorsLFrom,
+      vecFrom_nil _ _ _ (by omega)]
+    simp only [sumRules]
+    lockstep
+  | succ m ih =>
+    intro pers st lst vis rf lf rec_name n_p m_i r_p rec_ty ctors rhss i out hn hrel hinv hfe hvis
+    rw [arena.inductives.sum_install.sum_rules, if_neg (by scalar_tac), absCtorsLFrom,
+      vecFrom_cons _ _ _ (by omega)]
+    by_cases hr : i.val < rhss.val.length
+    · rw [if_neg (by scalar_tac), absEIdxLFrom, vecFrom_cons _ _ _ hr]
+      simp only [sumRules, bind_assoc, pure_bind]
+      lockstep
+    · rw [if_pos (by scalar_tac), absEIdxLFrom, vecFrom_nil _ _ _ (by omega)]
+      simp only [sumRules]
+      lockstep
+
 /-- `sum_rules` ⊑ `sumRules` from the cursor on, with the accumulated rules in
 front. -/
 theorem sum_rules_refines {pers st lst} {vis : Std.U64} {rf lf}
@@ -1237,7 +1270,7 @@ theorem sum_rules_refines {pers st lst} {vis : Std.U64} {rf lf}
       (do pure (absIRecRuleL out ++
         (← sumRules lf (absNIdx rec_name) (absU n_p) (absU m_i) (absU r_p)
           (absEIdx rec_ty) (absCtorsLFrom ctors i) (absEIdxLFrom rhss i)))) := by
-  sorry
+  exact Lockstep.LS.toSim₀ (sum_rules_aux _ rfl hrel hinv hfe hvis) hrun
 
 open Lockstep in
 @[lockstep] theorem sum_rules_ls
