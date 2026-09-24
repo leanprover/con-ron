@@ -107,4 +107,28 @@ check "std::collections" 'std::collections'
 # are still `Arc` and nothing needs their counts.
 check "P/Rc/Arc API beyond new/clone/deref/ptr_eq" '\b(P|Rc|Arc)::(get_mut|make_mut|downgrade|try_unwrap|into_raw|from_raw|as_ptr|strong_count|weak_count|increment_strong_count|decrement_strong_count)|RefCell|Cell<'
 check "panics as control flow" '\b(panic!|unwrap\(\)|expect\(|unreachable!|todo!|unimplemented!)'
+# The filler-only `Clone` for `ron::hashmap2::Slot` (task #97-PERF-BULKFILL).
+# `Vec::resize` is the one bulk fill Aeneas models, and it asks for `Clone`;
+# `Slot`'s impl answers `Vacant` for every slot, a `Live` one included, so it
+# is a filler and NOT a copy.  What keeps it from being used as one: `Slot`
+# values exist only inside `ron/hashmap2.rs` (`HashMap2::slots` is private and
+# no `pub fn` hands a slot out), so (1) no other core file may name `Slot` at
+# all, and (2) inside `hashmap2.rs` every call that can reach `Slot::clone` --
+# `.clone()`, `Clone::clone`, `.resize(`, `extend_from_slice`, `to_vec`,
+# `vec![` -- must be the single `slots.resize(len, Slot::Vacant);` in
+# `allocate_slots`.  A real slot copy is `dup_slot`.
+check_slot_clone() {
+  local hits
+  hits=$(gather | grep -E '\bSlot\b' | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow' \
+    | grep -E 'con-ron-core/src/' | grep -vE 'con-ron-core/src/ron/hashmap2\.rs:' \
+    | grep -E 'hashmap2::Slot|\bSlot::|\bSlot<')
+  hits+=$(gather | grep -E 'con-ron-core/src/ron/hashmap2\.rs:' | grep -v '^\S*:\S*:\s*//' \
+    | grep -E '\.clone\(\)|Clone::clone|\.resize\(|extend_from_slice|to_vec|vec!\[' \
+    | grep -vE ':[[:space:]]*slots\.resize\(len, Slot::Vacant\);$')
+  if [ -n "$hits" ]; then
+    echo "== Slot's filler-only Clone reached outside allocate_slots (use dup_slot; ron/hashmap2.rs, task #97-PERF-BULKFILL)"
+    echo "$hits"; fail=1
+  fi
+}
+check_slot_clone
 exit $fail
