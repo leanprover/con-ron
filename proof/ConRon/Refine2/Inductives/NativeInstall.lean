@@ -384,6 +384,66 @@ theorem mentions_fvar_ins_refines {e : arena.handle.EIdx}
   rw [← ho]
   exact ⟨rfl, ⟨hrel', hinv'⟩⟩
 
+open Lockstep in
+/-- `mentions_fvar_ins` in `LSP` form: the answer kept, the memo related. -/
+@[lockstep] theorem mentions_fvar_ins_ls {e : arena.handle.EIdx}
+    {r : Bool × ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {lm : Std.HashMap EIdx Bool} (hm : LMemoRel r.2 lm) :
+    LSP (arena.inductives.native_install.mentions_fvar_ins e r)
+      (fun o => ∃ m', LMemoRel o.2 m' ∧ mentionsFvarIns (absEIdx e) (r.1, lm) = (o.1, m')) := by
+  intro o h
+  obtain ⟨h1, h2⟩ := mentions_fvar_ins_refines hm h
+  exact ⟨_, h2, Prod.ext h1.symm rfl⟩
+
+/-- A weaker relation. -/
+theorem Lockstep.LS.mono_ind {α β : Type} {pers : arena.store.PersTier} {R R' : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β} (hR : ∀ a b, R a b → R' a b)
+    (h : Lockstep.LS pers R m lst x) : Lockstep.LS pers R' m lst x := by
+  intro o st' hm
+  have := h o st' hm
+  cases o with
+  | Ok a =>
+    obtain ⟨b, lst', hy, hr, h1, h2⟩ := this
+    exact ⟨b, lst', hy, hR _ _ hr, h1, h2⟩
+  | Err e => exact this
+
+/-- The walk's relation: the answer bit shared, the memos related. -/
+abbrev MFR (a : Bool × ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+    (b : Bool × Std.HashMap EIdx Bool) : Prop :=
+  ∃ m', LMemoRel a.2 m' ∧ b = (a.1, m')
+
+theorem MFR.toLOutRel {a b} (h : MFR a b) : LOutRel a b := by
+  obtain ⟨m', hm, rfl⟩ := h; exact ⟨rfl, hm⟩
+
+attribute [local lockstep_simp] mentionsFvarNodeSpec
+
+open Lockstep in
+/-- `mentions_fvar_go` ⊑ `mentionsFvarGo`, by induction on the fuel, the node
+dispatch `mentions_fvar_node` unfolded in place. -/
+theorem mentions_fvar_go_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (q : Std.U64) (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+      (lm : Std.HashMap EIdx Bool) (fuel : Std.U64) (h : arena.handle.EIdx),
+      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st → LMemoRel rm lm →
+      LS pers MFR
+        (arena.inductives.native_install.mentions_fvar_go pers st q rm fuel h) lst
+        (mentionsFvarGo (absU q) lm n (absEIdx h)) := by
+  induction n with
+  | zero =>
+    intro pers st lst q rm lm fuel h hn hrel hinv hm
+    rw [arena.inductives.native_install.mentions_fvar_go, if_pos (by scalar_tac), mentionsFvarGo]
+    lockstep
+  | succ m ih =>
+    intro pers st lst q rm lm fuel h hn hrel hinv hm
+    rw [arena.inductives.native_install.mentions_fvar_go, if_neg (by scalar_tac),
+      mentionsFvarGo_unfold]
+    unfold arena.inductives.native_install.mentions_fvar_node
+    lockstep
+    -- the port's `if b2` on the child's answer against the twin's `match` on
+    -- the pair (in a bind's callee, where the core's move does not look)
+    iterate 3 (all_goals (try (simp only [Bool.not_eq_true] at hc; subst hc; dsimp only; simp only [bind_assoc]; lockstep)))
+
 /-- `mentions_fvar_node` ⊑ `mentionsFvarGo`'s arm dispatch. -/
 theorem mentions_fvar_node_refines {pers st lst} {q : Std.U64}
     {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
@@ -394,7 +454,17 @@ theorem mentions_fvar_node_refines {pers st lst} {q : Std.U64}
     SimRel₀ LOutRel pers lst o
       (mentionsFvarNodeSpec (absU q) lm (absU fuel)
         (absENodeView v)) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  have ih : ∀ {st lst} (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+      (lm : Std.HashMap EIdx Bool) (h : arena.handle.EIdx),
+      AStateRel₀ pers st lst → AStateInv pers st → LMemoRel rm lm →
+      Lockstep.LS pers MFR
+        (arena.inductives.native_install.mentions_fvar_go pers st q rm fuel h) lst
+        (mentionsFvarGo (absU q) lm (absU fuel) (absEIdx h)) :=
+    fun rm lm h hrel hinv hm => mentions_fvar_go_aux _ q rm lm fuel h rfl hrel hinv hm
+  refine Lockstep.LS.mono_ind (R := MFR) (fun _ _ h => MFR.toLOutRel h) ?_
+  unfold arena.inductives.native_install.mentions_fvar_node
+  cases v <;> simp only [absENodeView, mentionsFvarNodeSpec] <;> lockstep
 
 open Lockstep in
 @[lockstep] theorem mentions_fvar_node_ls
@@ -420,8 +490,9 @@ theorem mentions_fvar_go_refines {pers st lst} {q : Std.U64}
     (hrun : arena.inductives.native_install.mentions_fvar_go pers st q rm fuel h
       = ok o) :
     SimRel₀ LOutRel pers lst o
-      (mentionsFvarGo (absU q) lm (absU fuel) (absEIdx h)) := by
-  sorry
+      (mentionsFvarGo (absU q) lm (absU fuel) (absEIdx h)) :=
+  Lockstep.LS.toSimRel₀ (Lockstep.LS.mono_ind (fun _ _ h => MFR.toLOutRel h)
+    (mentions_fvar_go_aux _ q rm lm fuel h rfl hrel hinv hm)) hrun
 
 open Lockstep in
 @[lockstep] theorem mentions_fvar_go_ls
@@ -434,9 +505,9 @@ open Lockstep in
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (hm : LMemoRel rm lm) :
-    LS pers LOutRel (arena.inductives.native_install.mentions_fvar_go pers st q rm fuel h) lst
+    LS pers MFR (arena.inductives.native_install.mentions_fvar_go pers st q rm fuel h) lst
       (mentionsFvarGo (absU q) lm (absU fuel) (absEIdx h)) :=
-  LS.ofSimRel₀ fun _ h => mentions_fvar_go_refines hrel hinv hm h
+  mentions_fvar_go_aux _ q rm lm fuel h rfl hrel hinv hm
 
 /-- `mentions_fvar` ⊑ `mentionsFvar` — one memoised walk from the empty
 memo. -/
