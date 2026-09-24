@@ -62120,3 +62120,31 @@ dead weight 218; the Capstone roots 23 items / 281 tainted / dead weight 198
 
 Gates on `a7531cb7` (arena `5e671407` merged): **all 16 OK** (`extract-check`
 85 s); `lake build ConRonRefine2 ConRonCapstone` green.
+
+#### Slices 4+5 resubmitted as one branch after `p5-core-5` (branch `t2-tactic-7`)
+
+The queue bounced `t2-tactic-5`/`-6` behind the Core lane's round 5
+(`b9b64d90`, which reconciled `Lockstep.lean` with slices 1–3).  One branch now
+carries both, `b9b64d90` merged:
+
+* `errArmChain`: Core head-normalises a bind's CALLEE before the `ok`-repack
+  test; slice 4's packed-memo arm sits after that and head-normalises the
+  packed program itself (`headNorm` descends into `packM`/`packRM`), and each
+  `ErrArm.packM_bind` step recurses into the Core path with a bind whose callee
+  is then normalised — the two compose; no change.
+* `rustStep`: the twin-`pure` guard was in both; Core's comment kept.
+* `simpTwinEqs`: ONE loop.  Core's scalar respelling (`scal`/`sctx`) and its
+  `lockstep_simp`-normal left sides (e11a8ade) are a superset of slice 4's
+  `baseCtx` addition, which is dropped; on top, no left side is offered twice
+  (the respelled side is simplified only when it differs from the original,
+  and a normal form equal to a side already offered is skipped).  Review of
+  e11a8ade: sound (each offered rule is `normal = lhs = rhs` by `Eq.trans`);
+  the duplicate offers and the second `simp` call when the respelling is the
+  identity were its only cost, now gone.
+
+All tests of both sides kept (`Tactic/Tests.lean` and Core's region tests).
+**Cost**: forced re-elaboration of `ConRonRefine2` downstream of `Lockstep`
+(92 modules), `b9b64d90` alone **12 842 G instructions** vs this branch
+**10 178 G (−20.7 %)**; cycles 10 193 G → 8 473 G.  Nearly all of it is one
+module: `Core/LS/Defeq` 521 s → 229 s (and `Core/LS/Infer` 28 s → 11 s), the
+bounded twin splits and the side tiers without callee specs (slice 5).
