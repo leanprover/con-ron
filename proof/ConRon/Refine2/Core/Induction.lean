@@ -70,7 +70,6 @@ set_option maxRecDepth 4000
 namespace ConRon.Refine2
 
 open ConRon.Arena
-open ConRon.Refine2.ExprOps (EResolves)
 
 /-! ## The fuel reading
 
@@ -559,7 +558,7 @@ theorem knotRel_succ_infer {f : Nat} (hb : BodyRel f)
     · subst hio
       rw [if_pos rfl] at hrun
       obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have h2 := hb.inferIO hrel hinv hctx (absU_pred hf hi) hrun
+      have h2 := hb.inferIO hrel hinv hctx (absU_pred hf hi) (Or.inr rfl) hrun
       rw [laneKnotAt_false, laneKnot_io] at h2
       rw [laneKnot_io, coreKnotIO_succ_infer]
       exact h2
@@ -679,7 +678,7 @@ theorem knotRel_succ_inferIO {f : Nat} (hb : BodyRel f)
     · subst hio
       rw [if_pos rfl] at hrun
       obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have h2 := hb.inferIO hrel hinv hctx (absU_pred hf hi) hrun
+      have h2 := hb.inferIO hrel hinv hctx (absU_pred hf hi) (Or.inr rfl) hrun
       rw [laneKnotAt_false, laneKnot_io] at h2
       rw [laneKnot_io, coreKnotIO_succ_inferIO]
       exact h2
@@ -715,7 +714,7 @@ theorem knotRel_succ_inferIO {f : Nat} (hb : BodyRel f)
         obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨r, st1⟩ := p
-        have hbody := hb.inferIO hrel hinv hctx (absU_pred hf hi) hbd
+        have hbody := hb.inferIO hrel hinv hctx (absU_pred hf hi) (Or.inl rfl) hbd
         rw [laneKnotAt_true, hlane] at hbody
         cases r with
         | Err er =>

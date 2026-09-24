@@ -45,7 +45,6 @@ set_option maxRecDepth 4000
 namespace ConRon.Refine2
 
 open ConRon.Arena
-open ConRon.Refine2.ExprOps (EResolves)
 
 /-! ## The `view` / tag agreement at the `sort` constructor -/
 
@@ -89,8 +88,8 @@ theorem EStore_tag_of_view_sort {st : EStore} {i : EIdx} {u : LIdx}
   EStore_view_tagOf h
 
 /-- `Arena.view`'s run, named: the store read, and the twin's `internal`
-decline where the port raises `fail_dangling_e`.  `Core/Arms/Gated.lean`
-spells this inline; it is a lemma here because three arms below want it. -/
+decline where the port raises `fail_dangling_e`; a lemma because three arms
+below want it. -/
 theorem view_run_eq (h : EIdx) (lst : AState) :
     (Arena.view h).run lst
       = (match lst.store.view h with

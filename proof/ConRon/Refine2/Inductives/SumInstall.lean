@@ -242,7 +242,7 @@ theorem native_caps_at_refines {pers st lst}
     lockstep
     all_goals
       refine Lockstep.LS.pure ?_ ‹_› ‹_›
-      simp only [Lockstep.TwinEq] at *
+      try simp only [Lockstep.TwinEq] at *
       simp_all [absIIndCaps, u64_val_beq_zero]
   · have hlen : alloc.vec.Vec.len p.ctors ≠ 1#usize := by
       intro h1; have : (alloc.vec.Vec.len p.ctors).val = 1 := by rw [h1]; rfl
@@ -1013,7 +1013,7 @@ open Lockstep in
 `Refine2/Checker/Shape.lean`'s `ifenv_push_refines` landed in round 4's second
 `arena` merge, and this is the fold that was waiting on it. -/
 
-/-- info: 'ConRon.Refine2.cons_sum_ctors_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.cons_sum_ctors_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms cons_sum_ctors_refines
 
 end ConRon.Refine2

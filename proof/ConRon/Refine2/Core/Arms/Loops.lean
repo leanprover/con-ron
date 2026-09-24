@@ -57,6 +57,11 @@ on either: taken as hypotheses, the two `whnf` loop inductions close, which is
 what this file is for.
 -/
 import ConRon.Refine2.Core.Arms.Delta
+import ConRon.Refine2.Core.LS.Lits
+import ConRon.Refine2.Core.LS.Defeq
+
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg ConRon.Refine2.Lockstep.PA1.CoreLSReg ConRon.Refine2.Lockstep.PB.CoreLSReg ConRon.Refine2.Lockstep.PC1.CoreLSReg ConRon.Refine2.Lockstep.PF.CoreLSReg
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -68,7 +73,6 @@ set_option maxRecDepth 8000
 namespace ConRon.Refine2
 
 open ConRon.Arena
-open ConRon.Refine2.ExprOps (EResolves)
 
 /-! ## The `whnf` loop's two leaves — one closed, one open
 
@@ -87,8 +91,8 @@ theorem reduce_nat_refines {f : Nat} (hk : KnotRel f)
     (hrun : arena.core.reduce_nat pers vis st mode lane fu fe depth e = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
       (reduceNat (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-        (absU depth) (absEIdx e)) := by
-  sorry
+        (absU depth) (absEIdx e)) :=
+  Lockstep.LS.toSim₀ (Lockstep.reduce_nat_ls hk hrel hinv hctx hf) hrun
 
 /-! ## The twin's two equations -/
 
@@ -386,6 +390,7 @@ are `whnf_loop_aux` and `whnf_step_of_cont` verbatim. -/
 /-- `arena::core::defeq_loop` against `Arena.defeqLoop`. -/
 theorem defeq_loop_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth n pi a b lst o}
+    (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.defeq_loop pers vis st mode lane fu fe depth n pi a b
@@ -393,13 +398,14 @@ theorem defeq_loop_refines {f : Nat} (hk : KnotRel f)
     Sim₀ id pers lst o
       (defeqLoop (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
-        (absU n) pi (absEIdx a) (absEIdx b)) := by
-  sorry
+        (absU n) pi (absEIdx a) (absEIdx b)) :=
+  Lockstep.LS.toSim₀ (Lockstep.defeq_loop_ls hk hx hrel hinv hctx hf) hrun
 
 /-- `arena::core::defeq_step` against `Arena.defeqStep` — **the port's `n` IS
 the twin's continuation `defeqLoop … (absU n)`**, finding 13 again. -/
 theorem defeq_step_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth n pi a b lst o}
+    (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.defeq_step pers vis st mode lane fu fe depth n pi a b
@@ -409,14 +415,15 @@ theorem defeq_step_refines {f : Nat} (hk : KnotRel f)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
         (defeqLoop (ConRon.Refine.absMode mode)
           (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
-          (absU n)) pi (absEIdx a) (absEIdx b)) := by
-  sorry
+          (absU n)) pi (absEIdx a) (absEIdx b)) :=
+  Lockstep.LS.toSim₀ (Lockstep.defeq_step_ls hk hx hrel hinv hctx hf) hrun
 
 /-- `arena::core::defeq_body` against `Arena.defeqBody`: the loop at its own
 step budget, `DEFEQ_LOOP_FUEL = defeqLoopFuel = 100000` on both sides, at
 `pi = true`. -/
 theorem defeq_body_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth a b lst o}
+    (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.defeq_body pers vis st mode lane fu fe depth a b
@@ -426,7 +433,7 @@ theorem defeq_body_refines {f : Nat} (hk : KnotRel f)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
         (absEIdx a) (absEIdx b)) := by
   rw [arena.core.defeq_body] at hrun
-  have h := defeq_loop_refines hk hrel hinv hctx hf hrun
+  have h := defeq_loop_refines hk hx hrel hinv hctx hf hrun
   rw [show absU arena.core.DEFEQ_LOOP_FUEL = Arena.defeqLoopFuel from by
     rw [arena.core.DEFEQ_LOOP_FUEL, Arena.defeqLoopFuel]; rfl] at h
   exact h

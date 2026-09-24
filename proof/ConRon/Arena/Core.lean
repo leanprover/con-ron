@@ -1362,6 +1362,8 @@ def proofIrrel (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
         if hh.tag == ETag.sort then
           match ← view hh with
           | .sort vT => do
+            -- the Rust's `prop_sorts_zero_right` reads `zeroLevel` again here
+            let z ← zeroLevel
             let okB ← liftFueled "level comparison" (← lvlEq? vT z)
             pure (okA && okB)
           | _ => pure false
@@ -1393,6 +1395,8 @@ def propIrrel (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
         if hh.tag == ETag.sort then
           match ← view hh with
           | .sort vT => do
+            -- the Rust's `prop_sorts_zero_right` reads `zeroLevel` again here
+            let z ← zeroLevel
             let okB ← liftFueled "level comparison" (← lvlEq? vT z)
             pure (okA && okB)
           | _ => pure false
@@ -1530,10 +1534,12 @@ def structEtaCertWith (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
                       -- kind's; a tabled family has none
                       let percerts ←
                         if !mode.certs then pure true
-                        else if ← towerSlotsAll fe T caps.etaFields then pure true
-                        else
-                          structEtaProjCerts r fe depth T us' targs b
-                            cvT.levelParams (List.range caps.etaFields)
+                        -- `do`, so the tower read happens only under certs
+                        else do
+                          if ← towerSlotsAll fe T caps.etaFields then pure true
+                          else
+                            structEtaProjCerts r fe depth T us' targs b
+                              cvT.levelParams (List.range caps.etaFields)
                       if percerts then do
                         if ← defEqList r fe depth (aargs.take caps.etaParams) targs then do
                           -- synthetic-spine certification (con-leche's task
