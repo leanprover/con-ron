@@ -62760,6 +62760,13 @@ congruence in ~3.5 s — 22 s of the 38 s the first version took.
 step's head (`native_rules_ok_from`'s step, `native_rules_ok`): `dsimp only`
 first.
 
-Proof `sorry`s in the lane's files (my files: `Shape`, `Spec`, `Prims`,
-`NativeParts`, `StructParts`, `SumParts`, `Top`): **21 → 14**
+Proof `sorry`s in this lane's files (`Shape`, `Spec`, `Prims`,
+`NativeParts`, `StructParts`, `SumParts`, `Top`): **17 → 10**
 (`StructParts` 11 → 9, `NativeParts` 6 → 1).
+
+**Frontier** (`model_exists` + `no_False_declaration`): at `911d0d59` merged
+with `arena` `bf376947`, **21 items in 6 modules, 236 tainted, dead weight
+111** (top `struct_parts_core_elim`, fan-in 25, once `struct_parts_core` was
+closed); at the submitted tip (`arena` `5723f896` merged) **17 items in 4
+modules, 198 tainted, dead weight 90** — no item of this lane is left on it
+(top `check_iota_thm_n_idx`, Modeled).  `scripts/gates.sh`: all 16 OK.
