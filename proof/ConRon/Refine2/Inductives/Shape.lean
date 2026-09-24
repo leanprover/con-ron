@@ -1226,4 +1226,16 @@ open Lockstep in
   rw [Lockstep.TwinEq, drop_eidx_from_abs h]
   simp [absEIdxL, List.map_drop, alloc.vec.Vec.new]
 
+/-- A twin tag equal to a Rust tag word's abstraction IS that word (both
+orientations; for a branch the context rules out). -/
+@[lockstep_simp] theorem forallE_eq_absU32_iff (a : Std.U32) :
+    (ETag.forallE = absU32 a) ↔ a = arena.handle.ETAG_FORALL_E :=
+  ⟨fun h => absU32_inj (h.symm.trans etag_forallE_abs.symm),
+   fun h => by subst h; exact etag_forallE_abs.symm⟩
+
+@[lockstep_simp] theorem absU32_eq_forallE_iff (a : Std.U32) :
+    (absU32 a = ETag.forallE) ↔ a = arena.handle.ETAG_FORALL_E :=
+  ⟨fun h => absU32_inj (h.trans etag_forallE_abs.symm),
+   fun h => by subst h; exact etag_forallE_abs⟩
+
 end ConRon.Refine2

@@ -602,7 +602,22 @@ theorem struct_shape_motive_refines {pers st lst} {t : arena.handle.NIdx}
     Sim₀ id pers lst o
       (structShapeMotiveSpec (absNIdx t) (absNIdxL lps) (absNIdx elim) large
         (absU n_p) (absBinderL rbs)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_shape_motive, structShapeMotiveSpec]
+  lockstep
+  all_goals (exfalso
+             casesm* (_ : Nat) = _ ∨ Std.Usize.max < _
+             all_goals first
+               | scalar_tac
+               | (simp only [absBinderL, List.getElem?_map] at *
+                  subst_vars
+                  simp_all [List.getElem?_eq_getElem]
+                  subst_vars
+                  first
+                    | (simp_all [lockstep_simp]; done)
+                    | (simp only [forallE_eq_absU32_iff, absU32_eq_forallE_iff] at *
+                       simp_all)))
 
 open Lockstep in
 @[lockstep] theorem struct_shape_motive_ls
