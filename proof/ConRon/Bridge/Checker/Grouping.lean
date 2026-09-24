@@ -26,7 +26,7 @@ tiers and the pins exactly as it found them and the caches empty
 (`checkPending_frame`).  The persistent half is the one real theorem: every
 function the check reaches interns only into the open scratch tier and never
 writes the pins.  That is `Bridge/Grouping/*.lean`: one `@[spec]` Hoare
-triple per twin function reachable from `checkValueGroup` (≈ 400 of them,
+triple per twin function reachable from `checkValueGroup` (540 of them,
 `Monad` → `ExprOps` → `Pins`/`Env`/`PropRead` → `Core` → the knot →
 `CheckerSplit`), each saying the invariant `Inv k p` — all four scratch flags
 up, persistent tiers `k`, pins `p` — is kept.  The triples are uniform, so
