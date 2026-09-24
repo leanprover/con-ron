@@ -1245,7 +1245,6 @@ private theorem canon_expr_eq_two_of {k : Nat} (h1 : CanonExprEqAt k) :
   lockstep
 
 open Lockstep in
-set_option maxHeartbeats 2000000 in
 private theorem canon_expr_eq_node_of {k : Nat} (h1 : CanonExprEqAt k) :
     CanonExprEqNodeAt k := by
   have h2 : CanonExprEqTwoAt k := canon_expr_eq_two_of h1

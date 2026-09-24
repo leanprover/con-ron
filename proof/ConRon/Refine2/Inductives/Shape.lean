@@ -857,10 +857,6 @@ goal. -/
 scoped macro_rules
   | `(tactic| lockstep_side_ext) =>
     `(tactic| ((try simp only [Lockstep.TwinEq] at *); first
-      -- a list equality the Core tier's `nidx_vec_beq_ls` states over
-      -- `absNIdxList` (`decide (… = …)`), the twin over the unfolded lists
-      | (simp only [absNIdxList, decide_eq_true_eq, beq_iff_eq] at *
-         first | assumption | (simp_all; done))
       | (simp_all [absStructParts, absInductiveShape, absNativeParts, absIRecRule]; done)
       -- a Rust-computed Bool against the twin's conjunction whose other
       -- conjuncts the port tested before (a length the context pins)

@@ -596,7 +596,6 @@ theorem erase_pw_eq_two_of {k : Nat} (h1 : ErasePwEqAt k) : ErasePwEqTwoAt k := 
   lockstep
 
 open Lockstep in
-set_option maxHeartbeats 2000000 in
 theorem erase_pw_eq_node_of {k : Nat} (h1 : ErasePwEqAt k) : ErasePwEqNodeAt k := by
   have h2 : ErasePwEqTwoAt k := erase_pw_eq_two_of h1
   intro pers st lst hrel hinv fuel va vb hn hva hvb

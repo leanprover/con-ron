@@ -908,7 +908,6 @@ theorem check_reduce_pin_refines {pers st lst} {rf2 lf2}
   have hfeI : IFEnvRelI rf2 lf2 := ⟨hfe, hfinv⟩
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.decl_check.check_reduce_pin, checkReducePin_split]
-  simp only [bind_assoc, am_ite_bind, am_fail_bind]
   lockstep
 
 open Lockstep in
@@ -1211,7 +1210,6 @@ theorem absEqPairs_val (v : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EId
 attribute [local lockstep_simp] absNIdxL_val absEqPairs_val
 
 open Lockstep in
-set_option maxHeartbeats 2000000 in
 /-- `arena::core::nat_op_deps` ⊑ `natOpDeps` — the operation's dependency list,
 pin reads only.  The Rust reads its fifteen pins through `nat_op_pins`. -/
 @[lockstep] theorem nat_op_deps_ls {pers st lst} {c : arena.handle.NIdx}
@@ -1229,7 +1227,6 @@ theorem nat_op_deps_refines {pers st lst} {c : arena.handle.NIdx} {o}
   Lockstep.LS.toSim₀ (nat_op_deps_ls hrel hinv) hrun
 
 open Lockstep in
-set_option maxHeartbeats 4000000 in
 /-- `arena::core::nat_op_equations` ⊑ `natOpEquations` — the operation's
 recurrence equations, built.  The twin reads all fifteen operation pins, as
 the Rust's `nat_op_pins` does (fixed in the twin, this lane). -/
@@ -1322,7 +1319,6 @@ constructors stored at no level parameters), written inline in the twin. -/
   lockstep
 
 open Lockstep in
-set_option maxHeartbeats 1000000 in
 theorem nat_op_guard_aux {pers st lst} {vis : Std.U64} {rf lf}
     {c : arena.handle.NIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -2365,7 +2361,7 @@ theorem cert_ctx_nums_refines {pers st lst}
         (absNIdx ble_n) (absEIdx bool_ty) (absEIdx b_t) (absEIdx b_f)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_ctx_nums]
-  simp only [certCtxNumsFullSpec, certCtxNumsSpec, bind_assoc, pure_bind]
+  simp only [certCtxNumsFullSpec, certCtxNumsSpec]
   lockstep
 
 open Lockstep in
@@ -2393,7 +2389,7 @@ theorem cert_ctx_bool_refines {pers st lst}
         (absEIdx one)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.cert_ctx_bool]
-  simp only [certCtxBoolFullSpec, certCtxBoolSpec, bind_assoc, pure_bind]
+  simp only [certCtxBoolFullSpec, certCtxBoolSpec]
   lockstep
 
 open Lockstep in
@@ -3485,7 +3481,6 @@ theorem check_div_mod_pin_refines {pers st lst} {rf2 lf2}
   have hfeI : IFEnvRelI rf2 lf2 := ⟨hfe, hfinv⟩
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.decl_check.check_div_mod_pin, checkDivModPin_split]
-  simp only [bind_assoc, am_ite_bind, am_fail_bind]
   lockstep
 
 open Lockstep in

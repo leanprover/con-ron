@@ -650,7 +650,6 @@ private theorem scanIndRecListLoop_eq (b : Slice Std.U8) (i : Std.Usize)
     rfl
   · rw [dif_neg (fun hc => hi (absPos_lt_usize.mp hc)), if_neg hi, absPos_toNat]
 
-set_option maxHeartbeats 2000000 in
 /-- con-leche's `scanIndRecLoop` (`Scan/Fast.lean:1424-1556`) is `ScanObj`'s
 `memberBody` at its own closing arm and key dispatch. -/
 private theorem scanIndRecLoop_body (B : ByteArray) (S : UInt32) (isUns kf : Bool)
@@ -1192,7 +1191,6 @@ private theorem scanIndTypeListLoop_eq (b : Slice Std.U8) (i : Std.Usize)
     rfl
   · rw [dif_neg (fun hc => hi (absPos_lt_usize.mp hc)), if_neg hi, absPos_toNat]
 
-set_option maxHeartbeats 2000000 in
 /-- con-leche's `scanIndTypeLoop` (`Scan/Fast.lean:1598-1731`) is `ScanObj`'s
 `memberBody` at its own closing arm and key dispatch. -/
 private theorem scanIndTypeLoop_body (B : ByteArray) (S : UInt32) (ctors : List Nat)
@@ -1701,7 +1699,6 @@ private theorem scanIndCtorListLoop_eq (b : Slice Std.U8) (i : Std.Usize)
     rfl
   · rw [dif_neg (fun hc => hi (absPos_lt_usize.mp hc)), if_neg hi, absPos_toNat]
 
-set_option maxHeartbeats 2000000 in
 /-- con-leche's `scanIndCtorLoop` (`Scan/Fast.lean:1773-1878`) is `ScanObj`'s
 `memberBody` at its own closing arm and key dispatch.  `cidx` and `induct` are
 the dialect's optional redundant fields, so their slots install a `some`. -/

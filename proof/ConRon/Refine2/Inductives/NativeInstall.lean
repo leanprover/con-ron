@@ -2544,7 +2544,6 @@ theorem absNativeParts_ctors' (p : arena.inductives.native_parts.NativeParts) :
 theorem absNativeParts_cvT_name (p : arena.inductives.native_parts.NativeParts) :
     (absNativeParts p).cvT.name = absNIdx p.shape.cv_t.name := rfl
 
-set_option maxHeartbeats 1000000 in
 /-- `check_native` ⊑ `checkNative` — check and install a **direct recursive
 block**: the distinct names, the pass over the former and the constructors —
 again where the record's syntactic reading overshot — and the install after

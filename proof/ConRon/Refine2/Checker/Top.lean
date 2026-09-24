@@ -554,7 +554,6 @@ theorem check_opaque_reduce_pin_refines {pers st lst} {rf2 lf2}
   have hfeI : IFEnvRelI rf2 lf2 := ⟨hfe, hfinv⟩
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.checker.check_opaque_reduce_pin]
-  simp only [pure_bind]
   lockstep
 
 open Lockstep in
@@ -652,7 +651,6 @@ theorem check_structural_nat_pin_certify_refines {pers st lst} {rf2 lf2}
   have hfeI : IFEnvRelI rf2 lf2 := ⟨hfe, hfinv⟩
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.checker.check_structural_nat_pin_certify, checkStructuralNatPinCertifySpec]
-  simp only [pure_bind, am_fail_bind]
   lockstep
 
 open Lockstep in
@@ -708,7 +706,6 @@ theorem check_structural_nat_pin_refines {pers st lst} {rf2 lf2}
   have hfeI : IFEnvRelI rf2 lf2 := ⟨hfe, hfinv⟩
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.checker.check_structural_nat_pin, checkStructuralNatPinSpec]
-  simp only [pure_bind, am_fail_bind]
   lockstep
 
 open Lockstep in
@@ -738,7 +735,6 @@ theorem check_defn_div_mod_pin_refines {pers st lst} {rf2 lf2}
   have hfeI : IFEnvRelI rf2 lf2 := ⟨hfe, hfinv⟩
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.checker.check_defn_div_mod_pin, checkDefnDivModPinSpec]
-  simp only [pure_bind]
   lockstep
 
 open Lockstep in
