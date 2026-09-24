@@ -531,33 +531,6 @@ open Lockstep in
   LSR.ofSimRE hrel hinv fun _ h => pi_result_sort_refines hrel hinv h
 
 
-open Lockstep in
-@[lockstep] theorem check_proj_shape_residual_ls
-    {pers st lst}
-    {cbody : arena.handle.EIdx}
-    {n_p : Std.U64}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = (fun _ : Unit => ()) a) (arena.checker_base.check_proj_shape_residual pers st cbody n_p) st lst
-      (do
-        unless (← getAppArgs coreWalkFuel (absEIdx cbody)).length == absU n_p do
-          fail (.notImplemented "projection constructor residual arity")
-        match ← view (← getAppFn coreWalkFuel (absEIdx cbody)) with
-        | .const _ _ => pure ()
-        | _ => fail (.notImplemented "projection constructor residual head")) :=
-  LSR.ofSimRE hrel hinv fun _ h => check_proj_shape_residual_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem check_proj_shape_ls
-    {pers st lst}
-    {pty ctor_ty : arena.handle.EIdx}
-    {n_p n_f : Std.U64}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = (fun _ : Unit => ()) a) (arena.checker_base.check_proj_shape pers st pty ctor_ty n_p n_f) st lst
-      (checkProjShape (absEIdx pty) (absEIdx ctor_ty) (absU n_p) (absU n_f)) :=
-  LSR.ofSimRE hrel hinv fun _ h => check_proj_shape_refines hrel hinv h
 
 
 open Lockstep in

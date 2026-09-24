@@ -951,7 +951,7 @@ theorem cons_sum_ctors_refines {n_p : Std.U64}
     obtain ⟨fe1, hfe1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hx : ctors.val[i.val]? = some (iv, nf) := vec_index_some hp
     obtain ⟨hb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
-    obtain ⟨hrel1, hinv1⟩ := ifenv_push_refines hfe hfinv hfe1
+    obtain ⟨hrel1, hinv1⟩ := ifenv_push_refines (ci := .CtorInfo _ _ _) hfe hfinv trivial hfe1
     have h3 : i3.val = i.val + 1 := by
       have := ConRon.Refine.Nat.uadd_val hi3; simpa using this
     have hdrop : absCtorsLFrom ctors i
@@ -1013,7 +1013,7 @@ open Lockstep in
 `Refine2/Checker/Shape.lean`'s `ifenv_push_refines` landed in round 4's second
 `arena` merge, and this is the fold that was waiting on it. -/
 
-/-- info: 'ConRon.Refine2.cons_sum_ctors_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.cons_sum_ctors_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms cons_sum_ctors_refines
 
 end ConRon.Refine2

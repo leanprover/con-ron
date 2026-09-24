@@ -1315,6 +1315,23 @@ theorem LSV.toAOut₀ {α β : Type} {A : α → β} {pers : arena.store.PersTie
     ExprOps.leaves_sub_set_refines hm.2 ConRon.Refine.HashMap2.KeysOk_true hm.1 h
   exact ⟨h1, h2⟩
 
+/-- A raw `HashMap2<EIdx, bool>::insert` against the twin memo's `insert`
+(`mentions_const_go`'s memo). -/
+@[lockstep] theorem hashmap2_insert_eidx_bool_spec
+    {memo : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {lm : Std.HashMap EIdx Bool} (hm : ExprOps.LMemoRel memo lm) (k : arena.handle.EIdx)
+    (r : Bool) :
+    LSP (ron.hashmap2.HashMap2.insert arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2 memo k r)
+      (fun p => ExprOps.LMemoRel p.2 (lm.insert (absEIdx k) r)) := by
+  intro ⟨old, m'⟩ h
+  have hinj : ∀ a b : arena.handle.EIdx, True → True → absEIdx a = absEIdx b → a = b :=
+    fun a b _ _ hab => absEIdx_inj hab
+  obtain ⟨hrel', -⟩ := ConRon.Refine.HashMap2.Rel_insert_wf eidx_eq2 hinj hm.2
+    ConRon.Refine.HashMap2.KeysOk_true hm.1 trivial h
+  exact ⟨hrel', (ConRon.Refine.HashMap2.insert_refines_wf eidx_eq2 hm.2
+    ConRon.Refine.HashMap2.KeysOk_true trivial h).1⟩
+
 @[lockstep] theorem fvl_seen_spec {seen : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
     {ls : Std.HashMap EIdx Unit} (hs : ExprOps.SeenRel seen ls) (k : arena.handle.EIdx) :
     LSP (arena.expr_ops.fvl_seen seen k) (fun b => b = (ls[absEIdx k]?).isSome) := by
