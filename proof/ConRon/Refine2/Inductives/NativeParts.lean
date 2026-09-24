@@ -2042,6 +2042,28 @@ open Lockstep in
 
 /-! ## The stream's rules against the generated ones -/
 
+/-- `bindersResetBeqSpec`'s step with the twin's two `[·]?` reads as the port's
+bounds tests and `getD` reads. -/
+theorem bindersResetBeqSpec_succ_port (bs₁ bs₂ : List (EIdx × ConLeche.BinderMeta))
+    (o₁ o₂ k i : Nat) :
+    bindersResetBeqSpec bs₁ bs₂ o₁ o₂ (k + 1) i =
+      (if o₁ + i ≥ bs₁.length then pure false else
+       if o₂ + i ≥ bs₂.length then pure false else do
+        let ra ← resetMetaFast coreWalkFuel (bs₁.getD (o₁ + i) default).1
+        let rb ← resetMetaFast coreWalkFuel (bs₂.getD (o₂ + i) default).1
+        if ra == rb then bindersResetBeqSpec bs₁ bs₂ o₁ o₂ k (i + 1)
+        else pure false) := by
+  rw [bindersResetBeqSpec]
+  by_cases h1 : o₁ + i < bs₁.length
+  · by_cases h2 : o₂ + i < bs₂.length
+    · rw [List.getElem?_eq_getElem h1, List.getElem?_eq_getElem h2,
+        if_neg (by omega), if_neg (by omega), List.getD_eq_getElem _ _ h1,
+        List.getD_eq_getElem _ _ h2]
+    · rw [List.getElem?_eq_getElem h1, List.getElem?_eq_none (by omega),
+        if_neg (show ¬ (o₁ + i ≥ bs₁.length) by omega),
+        if_pos (show o₂ + i ≥ bs₂.length by omega)]
+  · rw [List.getElem?_eq_none (by omega), if_pos (by omega)]
+
 /-- `binders_reset_beq_from` ⊑ `nativeRulePrefixOk`'s binder comparison from
 the `i`-th on. -/
 theorem binders_reset_beq_from_refines {pers st lst}
@@ -2053,7 +2075,20 @@ theorem binders_reset_beq_from_refines {pers st lst}
     Sim₀ id pers lst o
       (bindersResetBeqSpec (absBinderL bs1) (absBinderL bs2) (absU o1) (absU o2)
         (absU n - absU i) (absU i)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  refine ls_counted (ω := Unit) n
+    (fun _ m j => bindersResetBeqSpec (absBinderL bs1) (absBinderL bs2) (absU o1) (absU o2) m j)
+    (fun st j _ => arena.inductives.native_parts.binders_reset_beq_from pers st bs1 bs2 o1
+      o2 n j) ?_ ?_ i st lst () hrel hinv
+  · intro st lst j _ hn hrel hinv
+    rw [arena.inductives.native_parts.binders_reset_beq_from.eq_def, bindersResetBeqSpec]
+    rw [if_pos (by scalar_tac)]
+    lockstep
+  · intro st lst j _ m hj hm hrel hinv ih
+    rw [arena.inductives.native_parts.binders_reset_beq_from.eq_def, bindersResetBeqSpec_succ_port]
+    rw [if_neg (by scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem binders_reset_beq_from_ls
@@ -2077,7 +2112,10 @@ theorem binders_reset_beq_refines {pers st lst}
     Sim₀ id pers lst o
       (bindersResetBeqSpec (absBinderL bs1) (absBinderL bs2) (absU o1) (absU o2)
         (absU n) 0) := by
-  sorry
+  rw [arena.inductives.native_parts.binders_reset_beq] at hrun
+  have h := binders_reset_beq_from_refines hrel hinv hrun
+  have h0 : absU (0#u64) = 0 := rfl
+  simpa [h0] using h
 
 open Lockstep in
 @[lockstep] theorem binders_reset_beq_ls
@@ -2118,6 +2156,70 @@ open Lockstep in
         (absBinderL rbs) (absEIdx mty)) :=
   LS.ofSim₀ fun _ h => native_rule_fields_ok_refines hrel hinv h
 
+/-- A `(List.range' i k).allM` of the twin's pairwise reset-meta comparison IS
+`bindersResetBeqSpec` from `i` (the port's `binders_reset_beq_from`); stated
+for any step function that agrees with the twin's, so it rewrites the twin's
+own lambda. -/
+theorem allM_range'_bindersResetBeq (bs₁ bs₂ : List (EIdx × ConLeche.BinderMeta))
+    (o₁ o₂ : Nat) (F : Nat → AM Bool)
+    (hF : ∀ i, F i = (match bs₁[o₁ + i]?, bs₂[o₂ + i]? with
+      | some b, some t => do
+        pure ((← resetMetaFast coreWalkFuel b.1) == (← resetMetaFast coreWalkFuel t.1))
+      | _, _ => pure false)) :
+    ∀ k i, (List.range' i k).allM F = bindersResetBeqSpec bs₁ bs₂ o₁ o₂ k i := by
+  intro k
+  induction k with
+  | zero => intro i; rfl
+  | succ k ih =>
+    intro i
+    rw [List.range'_succ, List.allM, hF, bindersResetBeqSpec, ← ih (i + 1)]
+    cases bs₁[o₁ + i]? <;> cases bs₂[o₂ + i]? <;> try rfl
+    simp only [bind_assoc, pure_bind]
+    refine am_bind_congr _ ?_; intro ra
+    refine am_bind_congr _ ?_; intro rb
+    cases ra == rb <;> rfl
+
+/-- `nativeRulePrefixOk` in the port's order: the two `allM`s ARE
+`bindersResetBeqSpec`, the `tbs[nP + 1 + j]?` read the port's bounds test. -/
+theorem nativeRulePrefixOk_port (recTy : EIdx) (nP n j nF : Nat) (rhs : EIdx) :
+    nativeRulePrefixOk recTy nP n j nF rhs = (do
+      match ← stripLams (nP + 1 + n + nF) rhs with
+      | none => pure false
+      | some (rbs, _) =>
+        match ← stripPis (nP + 1 + n) recTy with
+        | none => pure false
+        | some (tbs, _) => do
+          if ← bindersResetBeqSpec rbs tbs 0 0 (nP + 1 + n) 0 then
+            if nP + 1 + j ≥ tbs.length then pure false
+            else nativeRuleFieldsOkSpec nP n j nF rbs (tbs.getD (nP + 1 + j) default).1
+          else pure false) := by
+  rw [nativeRulePrefixOk]
+  refine am_bind_congr _ ?_; intro sl
+  rcases sl with _ | ⟨rbs, _⟩
+  · rfl
+  refine am_bind_congr _ ?_; intro sp
+  rcases sp with _ | ⟨tbs, _⟩
+  · rfl
+  dsimp only
+  rw [List.range_eq_range', allM_range'_bindersResetBeq rbs tbs 0 0 _
+    (fun i => by simp only [Nat.zero_add]; cases rbs[i]? <;> cases tbs[i]? <;> rfl)]
+  refine am_bind_congr _ ?_; intro b
+  cases b
+  · rfl
+  simp only [Bool.not_true, Bool.false_eq_true, if_false, if_true]
+  by_cases h : nP + 1 + j < tbs.length
+  · rw [List.getElem?_eq_getElem h, if_neg (by omega), List.getD_eq_getElem _ _ h]
+    dsimp only
+    rw [nativeRuleFieldsOkSpec]
+    refine am_bind_congr _ ?_; intro lifted
+    refine am_bind_congr _ ?_; intro sf
+    rcases sf with _ | ⟨fbs, _⟩
+    · rfl
+    dsimp only
+    rw [List.range_eq_range', allM_range'_bindersResetBeq rbs fbs (nP + 1 + n) 0 _
+      (fun i => by simp only [Nat.zero_add]; cases rbs[nP + 1 + n + i]? <;> cases fbs[i]? <;> rfl)]
+  · rw [List.getElem?_eq_none (by omega), if_pos (by omega)]
+
 /-- `native_rule_prefix_ok` ⊑ `nativeRulePrefixOk` — **the rule's `λ` prefix
 against the stream's own recursor type** (con-leche's task #271). -/
 theorem native_rule_prefix_ok_refines {pers st lst} {rec_ty : arena.handle.EIdx}
@@ -2128,7 +2230,10 @@ theorem native_rule_prefix_ok_refines {pers st lst} {rec_ty : arena.handle.EIdx}
     Sim₀ id pers lst o
       (nativeRulePrefixOk (absEIdx rec_ty) (absU n_p) (absU n) (absU j) (absU n_f)
         (absEIdx rhs)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.native_rule_prefix_ok, nativeRulePrefixOk_port]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_rule_prefix_ok_ls
@@ -2176,6 +2281,74 @@ open Lockstep in
         (absNatL rec_idx) (absEIdx cty) (absEIdx rhs)) :=
   LS.ofSim₀ fun _ h => native_rule_body_ok_refines hrel hinv h
 
+/-- A port read `v[j as usize]` at a `u64` cursor in range: the element. -/
+theorem vec_index_cast_usize {α : Type} (v : alloc.vec.Vec α) (j : Std.U64)
+    (h : j.val < v.val.length) :
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v (Std.UScalar.cast .Usize j)
+      = ok v.val[j.val] := by
+  have hv : (Std.UScalar.cast .Usize j).val = j.val := by
+    have hx : j.val ≤ Std.Usize.max := by
+      have := v.property; scalar_tac
+    rw [Std.UScalar.cast_val_eq, Std.UScalarTy.Usize_numBits_eq]
+    refine Nat.mod_eq_of_lt ?_
+    have hmax : Std.Usize.max = 2 ^ System.Platform.numBits - 1 := by
+      simp only [Std.Usize.max, Std.Usize.numBits, Std.UScalarTy.Usize_numBits_eq]
+    have hpos : 0 < 2 ^ System.Platform.numBits := Nat.two_pow_pos _
+    omega
+  simp only [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize,
+    alloc.vec.Vec.getElem?_Nat_eq, hv, List.getElem?_eq_getElem h]
+
+/-- `lift` of a total cast is the cast. -/
+theorem lift_cast_usize (j : Std.U64) :
+    lift (Std.UScalar.cast .Usize j) = ok (Std.UScalar.cast .Usize j) := rfl
+
+/-- The port's `rec_idx_of(ks, 0, Vec::new())`: the empty accumulator and the
+vacuous cursor filter. -/
+theorem absNatL_new_append_filter_zero (l : List Nat) :
+    absNatL (alloc.vec.Vec.new Std.U64) ++ List.filter (fun j => decide (absSz 0#usize ≤ j)) l = l := by
+  simp [absNatL, alloc.vec.Vec.new, absSz]
+
+/-- `nativeRulesOkFromSpec`'s step with the twin's three `[j]?` reads as the
+port's three bounds tests (in the port's order) and `getD` reads. -/
+theorem nativeRulesOkFromSpec_succ_port (recC : NIdx) (rlvls : LsIdx) (pw : ConLeche.PropWhen)
+    (nP n : Nat) (cs : List (IConstantVal × Nat)) (kinds : List (List RecFieldKind))
+    (rhss : List EIdx) (recTy : EIdx) (m j : Nat) :
+    nativeRulesOkFromSpec recC rlvls pw nP n cs kinds rhss recTy (m + 1) j =
+      (if j ≥ rhss.length then pure false else
+       if j ≥ cs.length then pure false else
+       if j ≥ kinds.length then pure false else
+       if (kinds.getD j []).length ≠ (cs.getD j default).2 then pure false else do
+       if ← nativeRuleBodyOkSpec recC rlvls pw nP n (cs.getD j default).2 j
+           (recIdxOf (kinds.getD j [])) (cs.getD j default).1.type (rhss.getD j default) then
+         if ← nativeRulePrefixOk recTy nP n j (cs.getD j default).2 (rhss.getD j default) then
+           nativeRulesOkFromSpec recC rlvls pw nP n cs kinds rhss recTy m (j + 1)
+         else pure false
+       else pure false) := by
+  rw [nativeRulesOkFromSpec]
+  by_cases h1 : j < rhss.length
+  · rw [List.getElem?_eq_getElem h1, if_neg (show ¬ j ≥ rhss.length by omega),
+      List.getD_eq_getElem _ _ h1]
+    by_cases h2 : j < cs.length
+    · rw [List.getElem?_eq_getElem h2, if_neg (show ¬ j ≥ cs.length by omega),
+        List.getD_eq_getElem _ _ h2]
+      by_cases h3 : j < kinds.length
+      · rw [List.getElem?_eq_getElem h3, if_neg (show ¬ j ≥ kinds.length by omega),
+          List.getD_eq_getElem _ _ h3]
+        dsimp only
+        by_cases h4 : kinds[j].length = cs[j].2
+        · simp only [h4, beq_self_eq_true, Bool.not_true, Bool.false_eq_true, if_false,
+            ne_eq, not_true_eq_false]
+          refine am_bind_congr _ ?_; intro b
+          cases b <;> rfl
+        · simp [h4]
+      · rw [List.getElem?_eq_none (by omega), if_pos (show j ≥ kinds.length by omega)]
+    · rw [List.getElem?_eq_none (by omega), if_pos (show j ≥ cs.length by omega)]
+  · rw [List.getElem?_eq_none (by omega), if_pos (show j ≥ rhss.length by omega)]
+
+set_option maxHeartbeats 400000 in
+-- the zip's `rfl` congruence attempts at the two callees fail slowly (~4 s
+-- each, measured with `lockstep_stats`: `congr.0`); see DESIGN round 6
+attribute [local lockstep_simp] absNatL_new_append_filter_zero in
 /-- `native_rules_ok_from` ⊑ `nativeRulesOk`'s `(List.range n).allM` from rule
 `j` on. -/
 theorem native_rules_ok_from_refines {pers st lst} {rec_c : arena.handle.NIdx}
@@ -2192,7 +2365,50 @@ theorem native_rules_ok_from_refines {pers st lst} {rec_c : arena.handle.NIdx}
         (ConRon.Refine.absPropWhen pw) (absU n_p) (absU n) (absCtorsL cs)
         (absKindLL kinds) (absEIdxL rhss) (absEIdx rec_ty) (absU n - absU j)
         (absU j)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  refine ls_counted (ω := Unit) n
+    (fun _ m j => nativeRulesOkFromSpec (absNIdx rec_c) (absLsIdx rlvls)
+        (ConRon.Refine.absPropWhen pw) (absU n_p) (absU n) (absCtorsL cs)
+        (absKindLL kinds) (absEIdxL rhss) (absEIdx rec_ty) m j)
+    (fun st j _ => arena.inductives.native_parts.native_rules_ok_from pers st rec_c rlvls pw
+      n_p n cs kinds rhss rec_ty j) ?_ ?_ j st lst () hrel hinv
+  · intro st lst j _ hn hrel hinv
+    rw [arena.inductives.native_parts.native_rules_ok_from.eq_def, nativeRulesOkFromSpec]
+    rw [if_pos (by scalar_tac)]
+    lockstep
+  · intro st lst j _ m hj hm hrel hinv ih
+    rw [arena.inductives.native_parts.native_rules_ok_from.eq_def, nativeRulesOkFromSpec_succ_port]
+    rw [if_neg (by scalar_tac)]
+    dsimp only
+    -- the three bounds decided first, and the twin's in-range `getD` reads
+    -- stated as the port's reads, so the zip meets no index mismatch
+    by_cases h1 : (j : Nat) < rhss.val.length
+    swap
+    · rw [if_pos (show (j : Nat) ≥ (absEIdxL rhss).length by simp [absEIdxL]; omega)]
+      lockstep
+    rw [if_neg (show ¬ (j : Nat) ≥ (absEIdxL rhss).length by simp [absEIdxL]; omega)]
+    by_cases h2 : (j : Nat) < cs.val.length
+    swap
+    · rw [if_pos (show (j : Nat) ≥ (absCtorsL cs).length by simp [absCtorsL]; omega)]
+      lockstep
+    rw [if_neg (show ¬ (j : Nat) ≥ (absCtorsL cs).length by simp [absCtorsL]; omega)]
+    by_cases h3 : (j : Nat) < kinds.val.length
+    swap
+    · rw [if_pos (show (j : Nat) ≥ (absKindLL kinds).length by simp [absKindLL]; omega)]
+      lockstep
+    rw [if_neg (show ¬ (j : Nat) ≥ (absKindLL kinds).length by simp [absKindLL]; omega)]
+    have g1 : (absCtorsL cs).getD j.val default =
+        (absIConstantVal cs.val[j.val].1, absU cs.val[j.val].2) := by
+      simp [absCtorsL, List.getD_eq_getElem?_getD, h2]
+    have g2 : (absKindLL kinds).getD j.val [] = absKindL kinds.val[j.val] := by
+      simp [absKindLL, List.getD_eq_getElem?_getD, h3]
+    have g3 : (absEIdxL rhss).getD j.val default = absEIdx rhss.val[j.val] := by
+      simp [absEIdxL, List.getD_eq_getElem?_getD, h1]
+    rw [g1, g2, g3]
+    simp only [lift_cast_usize, bind_tc_ok, vec_index_cast_usize _ _ h1,
+      vec_index_cast_usize _ _ h2, vec_index_cast_usize _ _ h3]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem native_rules_ok_from_ls
@@ -2215,6 +2431,61 @@ open Lockstep in
         (absU j)) :=
   LS.ofSim₀ fun _ h => native_rules_ok_from_refines hrel hinv h
 
+/-- `nativeRulesOk`'s `(List.range' j m).allM` IS `nativeRulesOkFromSpec` from
+rule `j` (the port's `native_rules_ok_from`); stated for any step function that
+agrees with the twin's, so it rewrites the twin's own lambda. -/
+theorem nativeRulesOk_allM_from (recC : NIdx) (rlvls : LsIdx) (pw : ConLeche.PropWhen)
+    (nP n : Nat) (cs : List (IConstantVal × Nat)) (kinds : List (List RecFieldKind))
+    (rhss : List EIdx) (recTy : EIdx) (F : Nat → AM Bool)
+    (hF : ∀ j, F j = (match rhss[j]?, cs[j]?, kinds[j]? with
+      | some rhs, some (cA, nF), some ks => do
+        if !(ks.length == nF) then pure false else do
+        if !(← nativeRuleBodyOkSpec recC rlvls pw nP n nF j (recIdxOf ks) cA.type rhs)
+          then pure false else
+        nativeRulePrefixOk recTy nP n j nF rhs
+      | _, _, _ => pure false)) :
+    ∀ m j, (List.range' j m).allM F =
+      nativeRulesOkFromSpec recC rlvls pw nP n cs kinds rhss recTy m j := by
+  intro m
+  induction m with
+  | zero => intro j; rfl
+  | succ m ih =>
+    intro j
+    rw [List.range'_succ, List.allM, hF, nativeRulesOkFromSpec, ← ih (j + 1)]
+    rcases rhss[j]? with _ | rhs <;> rcases cs[j]? with _ | ⟨cA, nF⟩ <;>
+      rcases kinds[j]? with _ | ks <;> try rfl
+    dsimp only
+    cases (!(ks.length == nF)) <;> simp only [Bool.false_eq_true, if_false, if_true, pure_bind]
+    simp only [bind_assoc]
+    refine am_bind_congr _ ?_; intro b
+    cases b <;> simp only [Bool.not_true, Bool.not_false, Bool.false_eq_true, if_false,
+      if_true, pure_bind]
+    refine am_bind_congr _ ?_; intro b'
+    cases b' <;> rfl
+
+/-- `nativeRulesOk` IS the port's two length tests and the cursor transcription
+from `0`. -/
+theorem nativeRulesOk_port (recC : NIdx) (rlvls : LsIdx) (pw : ConLeche.PropWhen)
+    (nP n : Nat) (cs : List (IConstantVal × Nat)) (kinds : List (List RecFieldKind))
+    (rhss : List EIdx) (recTy : EIdx) :
+    nativeRulesOk recC rlvls pw nP n cs kinds rhss recTy =
+      (if rhss.length = n then
+        if kinds.length = n then
+          nativeRulesOkFromSpec recC rlvls pw nP n cs kinds rhss recTy n 0
+        else pure false
+       else pure false) := by
+  rw [nativeRulesOk, List.range_eq_range',
+    nativeRulesOk_allM_from recC rlvls pw nP n cs kinds rhss recTy _ ?_ n 0]
+  · by_cases h1 : rhss.length = n <;> by_cases h2 : kinds.length = n <;> simp [h1, h2]
+  · intro j
+    rcases rhss[j]? with _ | rhs <;> rcases cs[j]? with _ | ⟨cA, nF⟩ <;>
+      rcases kinds[j]? with _ | ks <;> try rfl
+    dsimp only
+    cases (!(ks.length == nF)) <;> simp only [Bool.false_eq_true, if_false, if_true]
+    rw [nativeRuleBodyOkSpec, bind_assoc]
+    refine am_bind_congr _ ?_; intro sl
+    rcases sl with _ | ⟨_, rbody⟩ <;> simp only [pure_bind, bind_assoc]
+
 /-- `native_rules_ok` ⊑ `nativeRulesOk` — **the stream's rules against the
 generated ones**, at install. -/
 theorem native_rules_ok_refines {pers st lst} {rec_c : arena.handle.NIdx}
@@ -2229,7 +2500,11 @@ theorem native_rules_ok_refines {pers st lst} {rec_c : arena.handle.NIdx}
       (nativeRulesOk (absNIdx rec_c) (absLsIdx rlvls) (ConRon.Refine.absPropWhen pw)
         (absU n_p) (absU n) (absCtorsL cs) (absKindLL kinds) (absEIdxL rhss)
         (absEIdx rec_ty)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.native_rules_ok, nativeRulesOk_port]
+  dsimp only
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_rules_ok_ls

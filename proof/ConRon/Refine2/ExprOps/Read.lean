@@ -89,23 +89,6 @@ def absLIdxOpt (o : Option arena.handle.LIdx) : Option LIdx := o.map absLIdx
 
 attribute [lockstep_simp] absEIdxList absLeaves absLIdxOpt absPwOpt absBinders absStrip
 
-/-! ## "The handle resolves" — **deprecated** (task #97-T2-LOCKSTEP)
-
-No statement of this file takes it any more: the D1 twins now test the tag
-first, as the port does, so a dangling handle behaves the same on both sides.
-The definition stays for the Core statements that still name it
-(`Core/Arms/Gated.lean`'s `bodyRel_stuckGatedCore`).
-
-Finding 1's hypothesis.  `EResolves` is task #97s's template rule 4 at the
-arena's `view`: an `isSome`, not a named view, so that a side goal is
-metavariable-free.  `StoreWF` is what carries it to the children — `EWFAt`'s
-`childOK` clause — and is `Arena/WF.lean`'s own predicate, so nothing new is
-assumed here that Theorem 1 does not already establish. -/
-
-/-- The handle decodes in the twin's store: the state the Rust's tag-first
-dispatch and the twin's view-first dispatch agree on. -/
-def EResolves (lst : AState) (h : EIdx) : Prop := (lst.store.view h).isSome = true
-
 section size_b
 attribute [local lockstep_simp] sizeBArmApp sizeBArmBind sizeBArmLet sizeBArmProj
 

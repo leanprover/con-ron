@@ -63028,3 +63028,138 @@ submitted tip `79853fe6`, `arena` `911d0d59` (`t2-ind-7`) merged.
 **Frontier** at this tip: **15 items in 4 modules, 249 tainted, dead weight
 97**; none in the lane's files (slice 1's tip: 19 / 263 / 151, the difference
 also `t2-ind-7`'s).
+
+### Task #97-T2-LOCKSTEP lane Inductives round 6 — the recogniser's block match, the rules check; the lockstep congruence's slow `rfl` (2026-09-24, Opus under Fable)
+
+Worktree `_tmp/wt-t2-ind8`, branch `t2-ind-8` off round 5's `911d0d59`.  Lane:
+`Refine2/Inductives/**` minus `Modeled`/`SpecModeled`/`PrimsModeled` and the
+`{Native,Sum,Struct}Install{,F}` files.  No Rust change, no twin change, no
+Theorem-2 invariant added.
+
+#### Slice 1
+
+**`check_native` dropped** (coordinator's correction: the Install lane owns it
+with an approved approach).  One observation from reading it before the
+correction, for that lane: the ruling's option (c) cannot be written against
+the twin as it is — the twin's index row carries `(counter, constant)` and no
+position, so "re-read the row through the popped list" needs a position,
+i.e. option (b)'s representation change.  The frame fact itself is available
+without touching any statement: Theorem 1's `checkNativePass_push`
+(`Bridge/Inductives/NativeInstall.lean`) is a premise-free fact about the TWIN
+pass (`q.env₁ = fe.push (.indInfo …)`), and with `IFEnvRel np.env1 q.env₁`
+it pins the popped Rust constants to the entry ones.
+
+**Closed (7):**
+
+| lemma | what it took |
+|---|---|
+| `struct_parts_core` (frontier top, fan-in 19) | the block match by hand: `rcases hb : block.val` into the five length shapes, the port's `len != 3` and `[0]`/`[1]`/`[2]` reads rewritten (`alloc.vec.Vec.getElem?_Nat_eq`), the constructor matches cased one member at a time, the wrong-length twin match closed by `split` (its list pattern cannot match), the body `struct_parts_core_at_ls` — ~40 lines, no `lockstep` |
+| `struct_parts_core_elim` (the next top, fan-in 25) | the level-parameter list cased by hand (the port's `len == 0` and `[0]` read), then `structPartsCoreElimSpec_cons` (the twin's `relps == lps && !contains` as the port's two nested tests) and `lockstep` |
+| `binders_reset_beq_from` | `ls_counted`; `bindersResetBeqSpec_succ_port` (the two `[o + i]?` reads as the port's bounds tests and `getD` reads); the pair read `let (e, _) := v[j]` went through unaided |
+| `binders_reset_beq` | the `_from` at `0` |
+| `native_rule_prefix_ok` | `nativeRulePrefixOk_port`: both `(List.range k).allM` pairwise comparisons ARE `bindersResetBeqSpec` (`allM_range'_bindersResetBeq`, generic-step form), the `tbs[nP + 1 + j]?` read the port's bounds test |
+| `native_rules_ok_from` | `ls_counted`; `nativeRulesOkFromSpec_succ_port`; the three bounds decided by hand, the twin's `getD`s stated as element reads, the port's `v[j as usize]` reads resolved BEFORE the zip (`vec_index_cast_usize`, `lift_cast_usize`); `absNatL_new_append_filter_zero` (local `lockstep_simp`) for `rec_idx_of(ks, 0, Vec::new())`.  **400 k heartbeats** — the one bump, see below |
+| `native_rules_ok` | `nativeRulesOk_port` (the length tests, then `nativeRulesOk_allM_from`) |
+
+**Tactic finding (for the tactic owner).**  `lockstep_congr`'s first
+alternative is a plain `rfl`, at default transparency.  At
+`native_rules_ok_from`'s two callees (`native_rule_body_ok`,
+`native_rule_prefix_ok`) it fails, and each failure costs ~4 s
+(`lockstep_stats`: `congr.0: fail 2 / 8642 ms`) before `congr 1 <;>
+lockstep_side` closes the goal in 0.3 s — the same unbounded-`rfl` pattern
+the tactic's slice 4 fixed in `twin_view_const_name`.  With a
+`with_reducible rfl` there the bump should go.  A second observation: without
+the hand resolution of the reads, the zip reached the callees with the port's
+`cs[i6]` (`i6` a cast of `j`, known only through the cast spec's disjunction)
+against the twin's `cs[j]`, and IndSide's cast alternative closed each such
+congruence in ~3.5 s — 22 s of the 38 s the first version took.
+
+**Quirk sites (worked around locally):** a Rust `have i := v.len; do …` at a
+step's head (`native_rules_ok_from`'s step, `native_rules_ok`): `dsimp only`
+first.
+
+Proof `sorry`s in this lane's files (`Shape`, `Spec`, `Prims`,
+`NativeParts`, `StructParts`, `SumParts`, `Top`): **17 → 10**
+(`StructParts` 11 → 9, `NativeParts` 6 → 1).
+
+**Frontier** (`model_exists` + `no_False_declaration`): at `911d0d59` merged
+with `arena` `bf376947`, **21 items in 6 modules, 236 tainted, dead weight
+111** (top `struct_parts_core_elim`, fan-in 25, once `struct_parts_core` was
+closed); at the submitted tip (`arena` `5723f896` merged) **17 items in 4
+modules, 198 tainted, dead weight 90** — no item of this lane is left on it
+(top `check_iota_thm_n_idx`, Modeled).  `scripts/gates.sh`: all 16 OK.
+
+### Task #97-T2-CLEANUP — the unowned dead-weight `sorry`s, and `EResolves` retired (2026-09-24, Opus under Fable)
+
+Worktree `_tmp/wt-cleanup`, branch `t2-cleanup` off `arena` `bf376947`.  No
+Rust change, no twin change, no new invariant.  The seven direct `sorry`s of
+the capstone frontier's dead-weight list that no lane owns, each proved or
+deleted:
+
+| item | what | outcome |
+|---|---|---|
+| `Bridge/Checker/Fold.lean` `Arena.checkDeclStep_bridge` | the sequential fold's bracketed step (waited on `IFEnvOK` at the new environment) | **deleted with its chain**: its only consumers were `Arena.checkDeclsPureGo_bridge` / `checkDeclsPure_bridge` and `Bridge/Checker/Capstone.lean`'s `Arena.model_exists` / `no_proof_of_False` / `no_proof_of_Empty` (the letters at the SEQUENTIAL fold, all sorry-tainted), none reached by `ConRon.Capstone`, which goes through `installThenCheckPhased`/`pooledAccepts_bridge`.  `Bridge/Checker/Capstone.lean` is deleted, its three `#print axioms` lines in `Checker/Axioms.lean` with it.  `Arena.checkDecl_bridge`, the run equations and `PinsDenote.pmono` stay (`Split.lean` uses them). |
+| `Bridge/Checker/Inv.lean` `projTableOK_of_install` | the named debtor of `IProjTableOK` | **deleted**: no consumer (named in prose only; `StructInstall.lean`'s `checkStructProjTable_spec` is where the fact lives). |
+| `Refine2/Frontend/Top.lean` `concat_bytes_refines` | | **proved** (cursor induction on `concat_bytes_loop`, `vec_index_eq`/`vec_index_full`/`extend_u8_val`; the old tier's proof re-done at `Refine2`'s abstractions; moved below the byte helpers it uses). |
+| `Refine2/Frontend/Top.lean` `parse_export_d_refines` | | **proved** (four lines: `as_bytes`, then `parse_bytes_refines` at `absBytes b = s.toUTF8`). |
+| `Refine2/Tactic/Prims.lean` `intern_e_lam_ls`, `intern_e_forall_e_ls` | the premise-free binder interns (false without the datum's `PropWhenWF`, D6) | **deleted**.  One silent user: `Tactic/Sample.lean`'s `intern_rebuilt_bind_refines'`, which `lockstep` had closed THROUGH the sorry (its census printed `sorryAx`); it now takes `hpw : PropWhenWF m.pw` as `ExprOps/Mut`'s `intern_rebuilt_bind_ls` does, and prints the three standard axioms. |
+| `Refine2/Checker/DeclCheck.lean` `div_mod_attempt_reason_refines` | the decline message | **deleted**: no consumer, and false as stated (the twin's message is `s!"{ps.toolchain}: {reprStr e}"`, the Rust's `message e`, for every `ps`).  The loop's lockstep lemma `check_div_mod_pin_loop_ls` already quantifies over the twin's `tried` list, so no statement needs the strings related. |
+
+**`EResolves` retired.**  The brief's "≈ 400 sites in `ExprOps/Mut.lean`" was
+stale: after the ExprOps lane's slices `Mut.lean` has no pre-lockstep lemma
+left (no `EResolves`, no `StoreWF`, no `AStateRel` without `₀`), and the
+definition in `ExprOps/Read.lean` had no code consumer anywhere (the other
+14 mentions are prose).  The definition and its deprecated section are
+deleted.
+
+**Size**: 12 files, +102 / −415 lines before this section (`Bridge/Checker/
+Capstone.lean` 124, `Fold.lean` −183 net, `Inv.lean` −32, `Prims.lean` −21,
+`Read.lean` −17, `DeclCheck.lean` −10; `Frontend/Top.lean` +63 for the two
+proofs).  **Frontier** (`model_exists` + `no_False_declaration`): 23 items in
+7 modules, 242 tainted — unchanged, as expected for dead weight — and dead
+weight **166 → 159**.
+
+Prose references to `Bridge/Checker/Capstone.lean` in other modules' notes
+(`Bridge/Frontend/*`, `Checker/Split.lean`, …) are historical and were left.
+
+#### The bounce (`arena` `911d0d59`) — `close_telescope` had rested on the false `intern_e_lam_ls`
+
+The queue bounced the branch: `Inductives/SumInstall.lean`'s
+`close_telescope_refines` (Inductives round 7) was closed by `lockstep`
+THROUGH the deleted premise-free `intern_e_{lam,forall_e}_ls`.  Ruling
+(coordinator): keep the deletions — a proof resting on a false `sorry` is what
+the deletion should expose — and supply the representation fact from the Rust
+input.  After merging `arena` (the `DESIGN.md` conflict resolved by keeping
+both appends):
+
+* `close_telescope_refines`/`_ls` take `hpw : ∀ p ∈ bs.val, PropWhenWF
+  p.2.pw` (the telescope's binder metas); the step case adds
+  `have hpwk := hpw _ (List.getElem_mem hb)` and `lockstep` picks
+  `intern_e_forall_e_wf_ls`.
+* Its caller `check_sum_tele_slow` gets `bs` from `whnf_telescope`, so
+  `whnf_telescope_refines`/`_ls` (both `sorry`, statement change approved by
+  the coordinator) now answer `SimRel₀ (fun r b => b = (absBinderL r.1, absLIdx
+  r.2) ∧ ∀ p ∈ r.1.val, PropWhenWF p.2.pw)` and take the matching premise
+  `hout` on the accumulator (discharged at `Vec.new` by `lockstep`'s side
+  tier).  The metas come from `view_bind` reads, whose `view_bind_ls` already
+  carries the datum's `PropWhenWF` from `AStateInv`.  No twin change.
+* **Owed by the Install lane**: `norm_ctor_val_refines` (still `sorry`) also
+  calls `close_telescope`; its eventual proof needs the same `PropWhenWF` fact
+  of the vector it closes, from `zip_fvar_doms`, `norm_field_doms` and
+  `binder_copy_from` (their statements do not carry it yet).
+
+#### The second bounce — the binder interns restored, `sorry`, marked FALSE
+
+After the `arena` merge, eight `Inductives/NativeParts.lean` proofs also
+closed through the premise-free interns (`mk_pis_of_refines`,
+`mk_lams_of_refines`, `struct_ih_pis(_at)_refines`, `intern_binder_refines`,
+`struct_rec_ty_close_refines`, `struct_rec_ty_at_refines`,
+`struct_rec_rhs_close_refines`: `pw` from a telescope vector or a `pw`
+argument).  Ruling (coordinator): `intern_e_lam_ls`/`intern_e_forall_e_ls`
+are restored in `Tactic/Prims.lean`, still `sorry`, AFTER the `_wf_ls` pairs,
+with a doc comment saying they are false as stated, naming those eight
+consumers, and saying they are deleted once the Inductives Parts lane has
+threaded `PropWhenWF` of the binder metas into them.  The `close_telescope`/
+`whnf_telescope` strengthening stays.  The dead-weight count therefore keeps
+these two `sorry`s (the table's row for them reads "restored" rather than
+"deleted").

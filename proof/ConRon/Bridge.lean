@@ -26,8 +26,8 @@ order.
   PERSISTENT extension, the `internPersistent` obligations and the
   promotion's exactness;
 * `Bridge/Checker.lean` — **the declaration-checker tier and THEOREM 1**:
-  `Arena.checkDecl_bridge`, `Arena.checkDeclsPure_bridge` and the capstone
-  `Arena.model_exists`;
+  `Arena.checkDecl_bridge` and the binary's fold `Arena.installThenCheck_bridge`
+  / `Arena.pooledAccepts_bridge` (the capstone is `ConRon/Capstone.lean`);
 * `Bridge/Inductives.lean` — the inductive tier (task #97-P3-Ind):
   `Arena/Inductives/**`'s ~110 twins and `checkIndDecl_bridge`, which
   discharges the `Bridge/Checker/Hyp.lean` hypothesis `IndSpec`.  It imports
