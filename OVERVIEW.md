@@ -73,7 +73,7 @@ con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
 con-ron --help
 ```
 
-([the usage text](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L87-L210))
+([the usage text](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L87-L212))
 
 * **`--verified`** is the default, and the only mode the theorems cover.
 * **`--trusted`** runs the same checker with con-leche's certification-only
@@ -208,7 +208,7 @@ is why `#print axioms` does not list any of them.
 | hypothesis | what it says | how it is discharged |
 |---|---|---|
 | `[ConLeche.SetTheory V]` and con-leche's soundness | a set theory to build the model in; con-leche's `checkDeclsPure_sound_of` and `no_proof_of_False_pure` at the pinned revision | con-leche's own proof, on the same three axioms |
-| `hpers`, `hest`, `hst0`, `h1`…`h5` | the binary ran exactly these extracted functions, in this order, on one state that starts at `AState::init(EStore::empty())` under one `PersTier::empty()` | the driver's calling order, which starts [here](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L370-L385): trusted |
+| `hpers`, `hest`, `hst0`, `h1`…`h5` | the binary ran exactly these extracted functions, in this order, on one state that starts at `AState::init(EStore::empty())` under one `PersTier::empty()` | the driver's calling order, which starts [here](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L372-L387): trusted |
 | `h6 : PoolAccepts …` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Checker/Phased.lean#L380-L397)) | the install phase (`annot_fold_hooked`) accepted, `freeze_tier` succeeded, and one verified `check_pending_worker` run per worker accepted the records that worker checked, the workers together covering every pending record | that the pool's accept has this shape is an argument about `pool.rs`'s control flow (§8.2).  It holds for every install hook, so `--progress` runs are covered |
 | `hreads : ReadsAs sinst src chunks` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Source.lean#L36-L40)) | the chunk source hands out `chunks`, each nonempty, then an empty buffer | that the file handle returns the file's bytes in order: trusted.  The read loop itself (`parse_source`) is verified |
 | `hmr : ModellerRefines inst m inProcessModeller` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Shape.lean#L662-L667)) | the unverified Rust modeller (`crates/con-ron/src/in_model/`) answers, from related states, what the twin's `inProcessModeller` answers | trusted by design (§6.2).  The twin's modeller calls con-leche's own `generate`, and Theorem 1 proves it exact (`inProcessModeller_refines`) |
@@ -400,7 +400,7 @@ O(1).  It is proved to implement a finite map in
 
 The binary's `check_main` calls six verified functions in order, on one
 `AState`
-([`check_main`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L356-L580)).
+([`check_main`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L358-L582)).
 They are the six stages `h1`…`h6` of the theorems.
 
 1. **`intern_reserved_pins`**
@@ -954,7 +954,6 @@ snake case.  Twin files mirror the Rust modules.
 | `Bridge/` | `ConRonBridge` | Theorem 1 |
 | `Refine2/` | `ConRonRefine2` | Theorem 2; `Tactic/` holds `lockstep` |
 | `Capstone.lean` | `ConRonCapstone` | the two headline theorems |
-| `RefineOld/` | none | an earlier proof, kept out of the build |
 
 `vendor/aeneas/` is Aeneas as a submodule, for its Lean library and
 documentation; `scripts/` holds the gates and tools of §10.

@@ -78,7 +78,7 @@ use std::vec::Vec;
 /// `u32`.  Those failures have no con-leche counterpart, so they are not
 /// `Invalid`/`Internal` — mixing them in would make the refinement claim
 /// "con-leche throws here too", which is false.  `Native` is the port's own
-/// decline: the refinement lemmas (`Refine/Core/Statements.lean`'s `Out`)
+/// decline: the refinement lemmas (`Refine2/Shape.lean`'s `Sim₀`)
 /// claim *nothing* about a run that ends in one, and `absErrKind` maps it to
 /// `none`, while the three mirrored constructors keep con-leche's meaning
 /// and are claimed exactly.  Every `Native` site is a documented
