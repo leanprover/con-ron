@@ -473,7 +473,9 @@ elab "a2_idx" : tactic => withMainContext do
     let f := (xs.getArg! 1).getArg! 2
     let k := occ.getArg! (occ.getAppNumArgs - 1)
     let hk ← mkFreshExprMVar (← mkEq k i)
-    let rest ← runOn hk.mvarId! (evalT `(tactic| (simp only [lockstep_simp] at *; omega)))
+    let rest ← runOn hk.mvarId! (evalT `(tactic| first
+      | ((try simp only [lockstep_simp]); omega)
+      | (simp only [lockstep_simp] at *; omega)))
     unless rest.isEmpty do throwError "a2_idx: index"
     let pf ← mkAppM ``getElem!_map_toArray #[f, d.toExpr, k, hk]
     let r ← g.rewrite tgt pf
@@ -484,9 +486,11 @@ elab "a2_idx" : tactic => withMainContext do
 
 attribute [local lockstep_simp] ConRon.Refine.absBinderMeta
 
-/-- `lockstep` with the stack-read rewrite `a2_idx` as a last resort. -/
+/-- `lockstep` with the stack-read rewrite `a2_idx` FIRST: the tactic now splits
+an undecided twin `if` (task #97-T2-TACTIC round 2), so the twin's `stk[k]!`
+must be in the Rust's spelling before its test is reached. -/
 macro "lockstep_a2_stk" : tactic =>
-  `(tactic| repeat' (first | lockstep_step | a2_idx))
+  `(tactic| repeat' (first | a2_idx | lockstep_step))
 
 theorem infer_lams_out_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}

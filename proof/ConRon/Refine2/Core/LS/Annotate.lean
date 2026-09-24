@@ -75,6 +75,9 @@ attribute [local lockstep_simp] absEIdxArr_eq vec_new_val vec_len_abs absStk_siz
 
 /-! ## The outward rebuild -/
 
+-- The ExprOps lane unfolds `absPwOpt`/`absBinderMeta` globally (`Tactic/Prims`);
+-- `annot_binder_meta`'s `TwinEq` is stated at the folded spelling
+attribute [-lockstep_simp] ExprOps.absPwOpt ConRon.Refine.absBinderMeta in
 theorem annotate_binders_out_aux (m : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
       (is_lam : Bool) (d : Std.U64) (pw : Option kernel.prop_when.PropWhen)

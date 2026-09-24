@@ -516,7 +516,7 @@ theorem view_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
   | Err e => exact h1
   | Ok v =>
     obtain ⟨b, lst', hx, hb, h2, h3⟩ := h1
-    refine ⟨b, lst', hx, ⟨?_, hb⟩, h2, h3⟩
+    refine ⟨b, lst', hx, ⟨?_, hb.2⟩, h2, h3⟩
     intro l hl
     subst hl
     rw [arena.monad.view] at hrun

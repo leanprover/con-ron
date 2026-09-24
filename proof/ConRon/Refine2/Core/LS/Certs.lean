@@ -340,6 +340,9 @@ def sectAt (mode : ConLeche.CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     | _ => pure false
   else pure false
 
+-- the region's own `take_eidx_n` pair (a list `take`, as `sectTail` reads it)
+-- before the shared `Arr`-form one of `Tactic/Prims`
+open ConRon.Refine2.Lockstep.PC1 in
 @[lockstep] theorem struct_eta_cert_tail_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth cvc us t us2 targs b aargs eta_params eta_fields lst}
     (hx : ExprOpsHyp pers)

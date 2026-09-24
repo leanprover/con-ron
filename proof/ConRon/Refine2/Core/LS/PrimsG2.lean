@@ -85,7 +85,7 @@ theorem view_bind_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
   intro o hrun
   obtain ⟨b, lst', hx, hR, h1, h2⟩ := view_bind_ls hrel hinv h hbind o hrun
   rw [arena.monad.view_bind] at hrun
-  exact ⟨b, lst', hx, ⟨estore_view_bind_optWF hinv.store hrun, hR⟩, h1, h2⟩
+  exact ⟨b, lst', hx, ⟨estore_view_bind_optWF hinv.store hrun, hR.2⟩, h1, h2⟩
 
 theorem view_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
@@ -97,7 +97,7 @@ theorem view_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
   | Err e => exact H
   | Ok ev =>
     obtain ⟨b, lst', hx, hR, h1, h2⟩ := H
-    refine ⟨b, lst', hx, ⟨?_, hR⟩, h1, h2⟩
+    refine ⟨b, lst', hx, ⟨?_, hR.2⟩, h1, h2⟩
     have hwf : ∀ {ty b : arena.handle.EIdx} {m : kernel.expr.BinderMeta},
         ev = .Lam ty b m ∨ ev = .ForallE ty b m → ConRon.Refine.PropWhenWF m.pw := by
       intro ty b m hv

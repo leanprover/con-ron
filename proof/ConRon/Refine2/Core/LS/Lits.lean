@@ -374,11 +374,34 @@ local macro "level_params_single" : tactic => `(tactic| (
       Nat.reduceEqDiff, Bool.false_eq_true, not_true_eq_false, not_false_eq_true] at hc <;>
     first
     | (obtain ⟨x, l1, hlx, hx, -⟩ := List.map_eq_cons_iff.mp hm
-       simp only [hlx, usize_zero_val_lits, List.getElem_cons_zero] at *
        subst hx
        try simp only [bind_pure]
-       lockstep)
+       lockstep
+       -- the port's slot-0 read, once the zip reaches it
+       all_goals
+         simp (config := {failIfUnchanged := false}) only
+           [List.getElem_of_eq hlx, usize_zero_val_lits, List.getElem_cons_zero]
+         try simp only [bind_pure]
+         lockstep)
     | lockstep))
+
+open Lean Meta Elab Tactic in
+/-- Is the twin's head the `match` on a constant's level-parameter list, with
+the port's length test `hc` in hand?  Then `level_params_single` runs before
+`lockstep`'s own move on a stuck twin `match` (which cases the list's handles
+field by field, task #97-T2-TACTIC round 2). -/
+elab "lp_ready" : tactic => withMainContext do
+  let ty ← instantiateMVars (← getMainTarget)
+  unless ty.isAppOfArity ``Lockstep.LS 7 do throwError "lp_ready: not LS"
+  let some mapp ← matchMatcherApp? (ty.getArg! 6) | throwError "lp_ready: no match"
+  let some d := mapp.discrs[0]? | throwError "lp_ready: no discriminant"
+  unless (d.find? (·.isAppOf ``arena.env.IConstantVal.level_params)).isSome do
+    throwError "lp_ready: not the level parameters"
+  unless (← getLCtx).any (fun h => h.userName == `hc) do throwError "lp_ready: no test"
+
+/-- `lockstep`, with the level-parameter glue taken at the twin's `match`. -/
+macro "lockstep_lp" : tactic =>
+  `(tactic| repeat' (first | (lp_ready; level_params_single) | lockstep_step))
 
 @[lockstep] theorem string_ty_ok_ls {pers st ci lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -416,23 +439,23 @@ attribute [lockstep_inline] arena.core.string_of_list_ty_body arena.core.list_ni
     LS pers (fun a b => b = a) (arena.core.list_ty_ok pers st ci) lst
       (listTyOk (ci.map absIConstantInfo)) := by
   rcases ci with _ | c <;> rw [arena.core.list_ty_ok.eq_def] <;>
-    simp only [Option.map_none, Option.map_some, listTyOk] <;> lockstep
-  -- glue: the twin's `match cv.levelParams with | [p]`, against the port's
-  -- length test, needs the Rust list's shape
-  all_goals level_params_single
+    simp only [Option.map_none, Option.map_some, listTyOk] <;> lockstep_lp
 
 @[lockstep] theorem list_nil_ty_ok_ls {pers st ci lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = a) (arena.core.list_nil_ty_ok pers st ci) lst
       (listNilTyOk (ci.map absIConstantInfo)) := by
   rcases ci with _ | c <;> rw [arena.core.list_nil_ty_ok.eq_def] <;>
-    simp only [Option.map_none, Option.map_some, listNilTyOk] <;> lockstep
-  -- glue: the twin's `match cv.levelParams with | [p]`, against the port's
-  -- length test, needs the Rust list's shape
-  all_goals level_params_single
+    simp only [Option.map_none, Option.map_some, listNilTyOk] <;> lockstep_lp
   -- glue: the port's `Some(0)` pattern on the `u64` de Bruijn index against the
-  -- twin's `.bvar 0` pattern (a `match` on a `Nat` the tactic cannot decide)
-  all_goals (split <;> first
+  -- twin's `.bvar 0` pattern (a `match` on a `Nat`: the tactic now cases it,
+  -- and the `n + 1` branch against the port's `0` closes by the index's value)
+  all_goals first
+    | (exfalso; simp_all; done)
+    | (exfalso; rename_i heq _ hd; rw [heq] at hd; simp [Std.UScalar.val] at hd)
+    | (exfalso; rename_i hne hd; apply hne; apply Std.UScalar.eq_of_val_eq
+       rw [hd]; simp [Std.UScalar.val])
+    | (split <;> first
     | (lockstep; done)
     | (exfalso; simp_all; done)
     | (exfalso; rename_i hne _ heq; apply hne; apply Std.UScalar.eq_of_val_eq
@@ -443,10 +466,7 @@ attribute [lockstep_inline] arena.core.string_of_list_ty_body arena.core.list_ni
     LS pers (fun a b => b = a) (arena.core.list_cons_ty_ok pers st ci) lst
       (listConsTyOk (ci.map absIConstantInfo)) := by
   rcases ci with _ | c <;> rw [arena.core.list_cons_ty_ok.eq_def] <;>
-    simp only [Option.map_none, Option.map_some, listConsTyOk] <;> lockstep
-  -- glue: the twin's `match cv.levelParams with | [p]`, against the port's
-  -- length test, needs the Rust list's shape
-  all_goals level_params_single
+    simp only [Option.map_none, Option.map_some, listConsTyOk] <;> lockstep_lp
 
 @[lockstep] theorem str_lit_supported_ls {pers vis st fe lfe lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe) :

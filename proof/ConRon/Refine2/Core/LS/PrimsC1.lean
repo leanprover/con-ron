@@ -277,7 +277,7 @@ theorem view_bind_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
       (arena.monad.view_bind pers st h) st lst (Arena.viewBind (absEIdx h)) := by
   intro o hrun
   obtain ⟨b, lst', hx, hR, h1, h2⟩ := view_bind_ls hrel hinv h hbind o hrun
-  refine ⟨b, lst', hx, ⟨fun t ht => ?_, hR⟩, h1, h2⟩
+  refine ⟨b, lst', hx, ⟨fun t ht => ?_, hR.2⟩, h1, h2⟩
   subst ht
   obtain ⟨ty, bo, m⟩ := t
   exact view_bind_meta_wf hinv hrun

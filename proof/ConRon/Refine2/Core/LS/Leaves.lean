@@ -241,6 +241,10 @@ the twin's `what` is free (messages are never compared). -/
 
 /-! ## The level verdicts, cached -/
 
+-- The ExprOps lane unfolds `absLevels`/`absNames` globally (`Tactic/Prims`);
+-- the level verdicts' `TwinEq`s are stated at the folded spelling
+attribute [-lockstep_simp] ConRon.Refine.absLevels ConRon.Refine.absNames
+
 @[lockstep] theorem lvl_eq_ls {pers st u v lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = a) (arena.core.lvl_eq pers st u v) lst

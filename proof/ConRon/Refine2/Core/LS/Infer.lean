@@ -30,10 +30,7 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PE
 
 /-! ## The application spine -/
 
-@[lockstep_simp] theorem absEIdxArr_getElem (v : alloc.vec.Vec arena.handle.EIdx) (i : Nat)
-    (h : i < (absEIdxArr v).size) :
-    (absEIdxArr v)[i] = absEIdx (v.val[i]'(by simpa [absEIdxArr] using h)) := by
-  simp [absEIdxArr]
+-- `absEIdxArr_getElem`: the shared one (`Tactic/Prims`)
 
 @[lockstep_simp] theorem absEIdxArr_size (v : alloc.vec.Vec arena.handle.EIdx) :
     (absEIdxArr v).size = v.val.length := by

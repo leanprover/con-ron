@@ -396,7 +396,7 @@ theorem view_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
   | Err e => exact hv
   | Ok v =>
     obtain ⟨b, lst', h1, h2, h3, h4⟩ := hv
-    refine ⟨b, lst', h1, ⟨?_, h2⟩, h3, h4⟩
+    refine ⟨b, lst', h1, ⟨?_, h2.2⟩, h3, h4⟩
     rw [arena.monad.view] at hrun
     obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     cases q with
