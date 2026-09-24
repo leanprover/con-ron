@@ -35,6 +35,15 @@
    116        let ds := preparePrelude pre r.decls
    117        checkDecls .verified pins ds) = .error e := by
 
+== con-leche/ConLeche/Verify/Cached/MainC.lean#L49-L55
+    49  /-- **Acceptance**: what the fold accepts carries the model. -/
+    50  theorem checkDecls_sound (hμ : μ.verifiedChecks = true)
+    51      {ds : Array Declaration} {env' : Env}
+    52      (h : checkDecls μ pins ds = .ok env') :
+    53      Nonempty (EnvModelM V μ env') := by
+    54    obtain ⟨fc, rfl⟩ := checkDecls_fullyChecked μ h
+    55    exact fullyChecked_sound V hμ fc
+
 == proof/ConRon/Capstone.lean#L471-L503
    471  theorem model_exists (V : Type w) [ConLeche.SetTheory V]
    472      (hbytes : ConRon.Arena.Frontend.preludeText =
@@ -70,14 +79,6 @@
    502        ConRon.Bridge.denoteFEnv lst.store lfe = some env ∧
    503        Nonempty (ConLeche.Model.EnvModelM V .verified env) := by
 
-== crates/con-ron-core/src/kernel/core_types.rs#L87-L92
-    87  pub enum CheckError {
-    88      NotImplemented(Vec<u32>),
-    89      Invalid(Vec<u32>),
-    90      Internal(Vec<u32>),
-    91      Native(Vec<u32>),
-    92  }
-
 == proof/ConRon/Capstone.lean#L530-L560
    530  theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
    531      (hbytes : ConRon.Arena.Frontend.preludeText =
@@ -110,6 +111,40 @@
    558      {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
    559      (h6 : PoolAccepts hinst pers st5 .Verified ipins ds hook fe st6) :
    560      False := by
+
+== crates/con-ron-core/src/arena/handle.rs#L4-L10
+     4  //! One 32-bit word per handle:
+     5  //!
+     6  //! ```text
+     7  //! bits 31…28   ctor tag   (4 bits, high)
+     8  //! bit  27      tier       (0 = persistent, 1 = scratch)
+     9  //! bits 26…0    index      into THAT CONSTRUCTOR'S array of THAT TIER
+    10  //! ```
+
+== crates/con-ron-core/src/arena/store.rs#L1298-L1320
+  1298  /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:363-382 ETables
+  1299  /// One tier of the expression store: ten arrays, ten derived columns, ten
+  1300  /// cons tables.
+  1301  pub struct ETables {
+  1302      pub bvars: Tbl<BVarNode, EIdx, u64>,
+  1303      pub fvars: Tbl<FVarNode, EIdx, u64>,
+  1304      pub sorts: Tbl<SortNode, EIdx, u64>,
+  1305      pub consts: Tbl<ConstNode, EIdx, u64>,
+  1306      pub apps: Tbl<AppNode, EIdx, u64>,
+  1307      pub lams: Tbl<BindNode, EIdx, u64>,
+  1308      pub foralls: Tbl<BindNode, EIdx, u64>,
+  1309      pub lets: Tbl<LetNode, EIdx, u64>,
+  1310      pub lits: Tbl<LitNode, EIdx, u64>,
+  1311      pub projs: Tbl<ProjNode, EIdx, u64>,
+  1312      /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+  1313      /// Lean twin: `proof/ConRon/Arena/Store.lean:376-382 ETables.bms` — the tier's
+  1314      /// **binder-datum store**: the hash-consed `PropWhen`s the `lam` and
+  1315      /// `forallE` records name by a `BMIdx`, with the derived column holding
+  1316      /// `PropWhen.hash` so that `derOfBind`'s two scalars are one indexed load.
+  1317      /// It rides in `ETables` rather than beside it because it lives and dies
+  1318      /// with the tier exactly as the ten node arrays do.
+  1319      pub bms: Tbl<BMNode, BMIdx, u64>,
+  1320  }
 
 == crates/con-ron/src/bin/con-ron.rs#L87-L212
     87  const USAGE: &str = "\
