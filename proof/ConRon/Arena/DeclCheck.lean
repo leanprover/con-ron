@@ -383,6 +383,21 @@ def divModCertGuard (fe : IFEnv) (c : NIdx) (annVal : EIdx)
     pure false
   else constsResolveFFast fe (← substConst0 c annVal coreWalkFuel eqE)
 
+/-- con-leche: ConLeche/Kernel/Checker.lean:282-290 divModEnvGuard
+One `Bool` constructor's clause: is `n` stored with the type `Bool` itself?  The
+lookup first, then the stored type, then `Bool` interned: the Rust's order
+(`bool_ctor_typed`).  The twin used to intern `.const Bool []` once, BEFORE
+both lookups, which writes the store where the Rust (on a miss) does not —
+task #97-T2-LOCKSTEP lane Checker round 2. -/
+def boolCtorTyped (fe2 : IFEnv) (n : NIdx) : AM Bool := do
+  match fe2.find? n with
+  | some ci => do
+    let cv ← ci.toConstantVal
+    let bn ← boolName
+    let boolTy ← constE bn
+    pure (cv.type == boolTy)
+  | none => pure false
+
 /-- con-leche: ConLeche/Kernel/Checker.lean:277-290 divModEnvGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:310-319 divModEnvGuardF
 Environment prerequisites of a certified `Nat.div`/`Nat.mod`: dependency
@@ -394,15 +409,8 @@ def divModEnvGuard (fe2 : IFEnv) (c : NIdx) : AM Bool := do
     if !(← natOpStoredOkAll fe2 deps) then pure false else do
       let en ← pinEq
       if fe2.find? en != some (← eqA) then pure false else do
-        let bn ← boolName
-        let boolTy ← constE bn
-        match fe2.find? (← boolTrueName) with
-        | some ci => do
-          if (← ci.toConstantVal).type != boolTy then pure false else do
-            match fe2.find? (← boolFalseName) with
-            | some ci' => pure ((← ci'.toConstantVal).type == boolTy)
-            | none => pure false
-        | none => pure false
+        if !(← boolCtorTyped fe2 (← boolTrueName)) then pure false
+        else boolCtorTyped fe2 (← boolFalseName)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:292-297 divModPinGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:332-336 divModPinGuardF

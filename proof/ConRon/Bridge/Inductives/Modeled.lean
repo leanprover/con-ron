@@ -2920,11 +2920,18 @@ theorem checkMemberVal_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
   obtain ⟨c2, cAP, F, hcA, hF⟩ := checkConstantVal_bridge hμ hk c1.ok henv
     (denoteCV_ext hcv p1.ext) k2
   have c12 := c1.trans c2
-  -- the model-shaped name guard
+  -- the model-shaped name guard: the memoised readback (the port's
+  -- `read_name_m`), a readback frame
   obtain ⟨an, s₃, k3, z3⟩ := bindOk z2
-  obtain ⟨rfl, han⟩ := Frontend.readName_run k3
+  obtain ⟨hst3, hm3, hp3, hc3, han, hN3⟩ :=
+    AM.of_run (P := fun t => t = s₂) rfl k3 (readNameM_spec s₂ cvA.name c12.ok.caches.readN)
+  have c3 : CoreStep μ _ fe' s₂ s₃ :=
+    ⟨Core.CheckOK.ofReadbackFrame c12.ok (Core.ReadbackFrame.ofReadN hst3 hm3 hp3 hc3 hN3),
+      by rw [hst3]; exact Ext.refl _, hp3⟩
+  replace c12 := c12.trans c3
+  replace hcA : Frontend.denoteCV s₃.store cvA = some cAP := by rw [hst3]; exact hcA
   have hnm := denoteCV_name hcA
-  obtain rfl : an = cAP.name := Option.some.inj (han.symm.trans hnm)
+  obtain rfl : an = cAP.name := Option.some.inj (han.symm.trans (hst3 ▸ hnm))
   split at z3
   · exact absurd z3 (hnever _ _ _)
   rename_i hms
@@ -2961,7 +2968,7 @@ theorem checkMemberVal_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
       exact Option.some.inj (e1.symm.trans e2)
     -- the renamed type against the model's
     obtain ⟨ren, s₅, k5, z6⟩ := bindOk z5
-    have x14 : Ext s₁.store s₄.store := c2.ext.trans p4.ext
+    have x14 : Ext s₁.store s₄.store := c2.ext.trans (hst3 ▸ p4.ext)
     obtain ⟨p5, -, hren⟩ := renameConstsFast_pstep c14.ok.state
       (htbl s₄.store x14 c14.ok.state.wf) (denote_ext (denoteCV_type hcA) p4.ext) k5
     have c15 := c14.trans (p5.toCore c14.ok)

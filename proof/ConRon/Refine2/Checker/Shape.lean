@@ -978,6 +978,14 @@ theorem openPisAtFvarsF_length {n : Nat} {e : EIdx} {i : Nat} {ls ls' : AState}
     rw [← h.1.1]
     exact openPisAtFvarsFGo_length ho
 
+/-- The ambient Rust state with its store replaced: what a `&mut EStore`
+function hands back, read as an `AState`. -/
+@[reducible] def withStore (rst : arena.monad.AState) (e : arena.store.EStore) :
+    arena.monad.AState := { rst with store := e }
+
+@[simp] theorem withStore_store (rst : arena.monad.AState) (e : arena.store.EStore) :
+    (withStore rst e).store = e := rfl
+
 /-! ## `arena::checker_split`'s seam datum -/
 
 /-- `arena::checker_split::ValueKind`. -/

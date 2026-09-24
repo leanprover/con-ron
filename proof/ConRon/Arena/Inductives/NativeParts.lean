@@ -341,7 +341,7 @@ def structRecTyR (T : NIdx) (lps : List NIdx) (elim : NIdx) (large : Bool)
     (nP nIdx : Nat) (tty : EIdx) (ctors : List (NIdx × Nat × EIdx × List Nat)) :
     AM (Option EIdx) := do
   let l ← structElimLevel elim large
-  let pw := Level.zeronessOf (← readLevel l)
+  let pw := Level.zeronessOf (← readLevelM l)
   let n := ctors.length
   match ← stripPis nP tty with
   | none => pure none
@@ -371,7 +371,7 @@ def structRecRhsR (T : NIdx) (lps : List NIdx) (elim : NIdx) (large : Bool)
     (nP nIdx : Nat) (tty : EIdx) (ctors : List (NIdx × Nat × EIdx × List Nat))
     (recC : NIdx) (rlvls : LsIdx) (j : Nat) : AM (Option EIdx) := do
   let l ← structElimLevel elim large
-  let pw := Level.zeronessOf (← readLevel l)
+  let pw := Level.zeronessOf (← readLevelM l)
   let n := ctors.length
   match ctors[j]? with
   | none => pure none

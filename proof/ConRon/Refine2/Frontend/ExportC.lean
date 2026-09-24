@@ -567,102 +567,9 @@ theorem AErrSim.of_kind {γ : Type} {e e' : kernel.core_types.CheckError}
     (hk : absAErrKind e' = absAErrKind e) : AErrSim e' x := by
   intro k hk'; exact h k (hk ▸ hk')
 
-/-- **`arena::env::i_constant_info_to_constant_val` refines
-`IConstantInfo.toConstantVal`** (`Arena/Env.lean:222-229`): six arms are a
-copy, the `.projInfo` arm interns `Sort 1` in both, in the same order. -/
-theorem i_constant_info_to_constant_val_refines {pers rst lst c o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : arena.env.i_constant_info_to_constant_val pers rst.store c = ok o) :
-    Sim₀ absIConstantVal pers lst (o.1, withStore rst o.2)
-      (absIConstantInfo c).toConstantVal := by
-  have plain : ∀ v iv, arena.env.i_constant_val_dup v = ok iv →
-      o = (.Ok iv, rst.store) →
-      (absIConstantInfo c).toConstantVal = pure (absIConstantVal v) →
-      Sim₀ absIConstantVal pers lst (o.1, withStore rst o.2)
-        (absIConstantInfo c).toConstantVal := by
-    intro v iv hiv ho hx
-    subst ho
-    refine AOut₀.ok (lst' := lst) ?_ hrel hinv
-    rw [hx, i_constant_val_dup_abs hiv]; rfl
-  cases c with
-  | AxiomInfo v =>
-    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    exact plain v iv hiv (Result.ok_injective h).symm rfl
-  | DefnInfo v _ _ =>
-    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    exact plain v iv hiv (Result.ok_injective h).symm rfl
-  | ThmInfo v _ =>
-    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    exact plain v iv hiv (Result.ok_injective h).symm rfl
-  | IndInfo v _ =>
-    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    exact plain v iv hiv (Result.ok_injective h).symm rfl
-  | CtorInfo v _ _ =>
-    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    exact plain v iv hiv (Result.ok_injective h).symm rfl
-  | RecInfo v _ _ _ =>
-    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    exact plain v iv hiv (Result.ok_injective h).symm rfl
-  | ProjInfo tbl =>
-    clear plain
-    simp only [arena.env.i_constant_info_to_constant_val] at h
-    show AOut₀ _ _ _ _ _
-    simp only [absIConstantInfo, IConstantInfo.toConstantVal]
-    -- 1. the level `0`
-    obtain ⟨⟨r1, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hS1 := intern_l_node_run₀ hrel hinv arena.store.LNodeView.Zero
-      (o := (r1, withStore rst ar1))
-      (by rw [arena.monad.intern_l_node, h1]; simp only [bind_tc_ok]; rfl)
-    rw [show Arena.internLNode LNodeView.zero
-        = Arena.internLNode (absLNodeView arena.store.LNodeView.Zero) from rfl]
-    cases r1 with
-    | Err e =>
-      have ho := Result.ok_injective h
-      subst ho
-      exact AOut₀.errBind hS1
-    | Ok z =>
-    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS1
-    rw [run_bind_ok hx1]
-    -- 2. the level `1`
-    obtain ⟨⟨r2, ar2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hS2 := intern_l_node_run₀ hrel1 hinv1 (arena.store.LNodeView.Succ z)
-      (o := (r2, withStore rst ar2))
-      (by rw [arena.monad.intern_l_node]; rw [h2]; simp only [bind_tc_ok]; rfl)
-    rw [show Arena.internLNode (.succ (absLIdx z))
-        = Arena.internLNode (absLNodeView (arena.store.LNodeView.Succ z)) from rfl]
-    cases r2 with
-    | Err e =>
-      have ho := Result.ok_injective h
-      subst ho
-      exact AOut₀.errBind hS2
-    | Ok one =>
-    obtain ⟨lst2, hx2, hrel2, hinv2⟩ := Sim₀.apply hS2
-    rw [run_bind_ok hx2]
-    -- 3. the expression `Sort 1`
-    obtain ⟨⟨r3, ar3⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hS3 := intern_e_sort_run₀ hrel2 hinv2 one
-      (o := (r3, withStore rst ar3))
-      (by rw [arena.monad.intern_e_sort]
-          rw [show arena.store.EStore.intern_sort (withStore rst ar2).store pers one
-              = arena.store.EStore.intern ar2 pers (arena.store.ENodeView.Sort one) from rfl,
-            h3]
-          simp only [bind_tc_ok]; rfl)
-    rw [show Arena.internE (.sort (absLIdx one)) = Arena.internSortE (absLIdx one) from rfl]
-    cases r3 with
-    | Err e =>
-      have ho := Result.ok_injective h
-      subst ho
-      exact AOut₀.errBind hS3
-    | Ok ty =>
-    obtain ⟨lst3, hx3, hrel3, hinv3⟩ := Sim₀.apply hS3
-    rw [run_bind_ok hx3]
-    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have ho := Result.ok_injective h
-    subst ho
-    refine AOut₀.ok (lst' := lst3) ?_ hrel3 hinv3
-    show Except.ok _ = _
-    simp only [absIConstantVal, absIProjTable, dupId_nidx _ _ hn, nidx_vec_dup_val hv]
+/- `i_constant_info_to_constant_val_refines` moved to `Refine2/Checker/Pins.lean`
+(task #97-T2-LOCKSTEP lane Checker round 2): the checker tier's lookups need
+it as a `@[lockstep]` spec, and that tier is below this one. -/
 
 /-! ## Booking a pushed record -/
 
@@ -2397,46 +2304,6 @@ theorem push_gen_list_refines {pers rst lst rsd lsd gen t0 o}
 
 /-! ## Two spine walks -/
 
-/-- `env::view_e` — the store's expression view. -/
-theorem env_view_e_run {pers rst lst} (hrel : AStateRel₀ pers rst lst)
-    {h : arena.handle.EIdx} {o}
-    (hrun : arena.env.view_e pers rst.store h = ok o) :
-    SimRE absENodeView lst o (view (absEIdx h)) := by
-  rw [arena.env.view_e] at hrun
-  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hqa := estore_view_abs hrel.store hq
-  have hrunL : (view (absEIdx h)).run lst
-      = (match lst.store.view (absEIdx h) with
-         | some v => Except.ok (v, lst)
-         | none => Except.error (Arena.CheckError.internal
-             "arena: dangling expression handle")) := by
-    show (match lst.store.view (absEIdx h) with
-          | some v => (pure v : AM _)
-          | none => Arena.fail (.internal "arena: dangling expression handle")).run lst = _
-    cases lst.store.view (absEIdx h) <;> rfl
-  cases q with
-  | none =>
-    obtain ⟨_, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨_, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨ce, hce, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    rw [kernel.core_types.internal] at hce
-    cases Result.ok_injective hce
-    cases Result.ok_injective hrun
-    show AErrSim _ _
-    rw [hrunL, hqa]
-    exact AErrSim.internal rfl
-  | some w =>
-    cases Result.ok_injective hrun
-    show _ = _
-    rw [hrunL, hqa]
-    rfl
-
-/-- A twin `view` step at a known answer. -/
-theorem view_bind_run {β : Type} {lst : AState} {h : EIdx} {v : ENodeView}
-    (hv : (view h).run lst = .ok (v, lst)) (f : ENodeView → AM β) :
-    (view h >>= f).run lst = (f v).run lst := by
-  rw [am_run_bind', hv]; rfl
-
 /-- **`ind_pi_tele_len` refines `indPiTeleLen`** (`ExportC.lean:358-364`). -/
 theorem ind_pi_tele_len_refines {pers rst lst fuel h' o}
     (hrel : AStateRel₀ pers rst lst) (_hinv : AStateInv pers rst)
@@ -3080,13 +2947,6 @@ statements are `trivial` and carry no axiom at all.) -/
 #guard_msgs in
 #print axioms rel_offset_refines
 
-/--
-info: 'ConRon.Refine2.Frontend.i_constant_info_to_constant_val_refines' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs in
-#print axioms i_constant_info_to_constant_val_refines
 
 /-- info: 'ConRon.Refine2.Frontend.note_entries_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

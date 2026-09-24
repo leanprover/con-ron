@@ -577,8 +577,8 @@ propositional one. -/
 def fieldSortBoundSpec (isProp large : Bool) (s u : LIdx) (fv : EIdx)
     (idxArgs : List EIdx) : AM Unit := do
   if !isProp then do
-    let lu ← readLevel u
-    let ls ← readLevel s
+    let lu ← readLevelM u
+    let ls ← readLevelM s
     unless ← liftFueled "level comparison" (ConLeche.Level.leq lu ls) do
       fail (.invalid "direct sum: field universe too large")
   else if large then do
@@ -1465,7 +1465,7 @@ the three stages. -/
 theorem checkNativeTail_unfold (mode : ConLeche.CheckMode) (fe : IFEnv)
     (q : NativePass) :
     checkNativeTail mode fe q = (do
-      let neverZero := (← readLevel q.p.resSort).isNeverZero
+      let neverZero := (← readLevelM q.p.resSort).isNeverZero
       if q.p.large && !neverZero && decide (2 ≤ q.p.ctors.length) then
         fail (.invalid "direct rec: large eliminator on a multi-constructor \
           inductive whose sort may be Prop")

@@ -117,7 +117,9 @@ theorem check_sum_tele_slow_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ (fun r => (absIConstantVal r.1, absLIdx r.2)) pers lst o
       (checkSumTele.checkSumTeleSlow (ConRon.Refine.absMode mode) lf
         (absIConstantVal cv) (absU n) (absIConstantVal cv_ta0)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.sum_install.check_sum_tele_slow, checkSumTele.checkSumTeleSlow]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_sum_tele_slow_ls
@@ -152,7 +154,9 @@ theorem check_sum_tele_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ (fun r => (absIConstantVal r.1, absLIdx r.2)) pers lst o
       (checkSumTele (ConRon.Refine.absMode mode) lf (absIConstantVal cv) (absU n)
         (absIConstantVal cv_ta0)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.sum_install.check_sum_tele, checkSumTele]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_sum_tele_ls
@@ -589,7 +593,21 @@ theorem idx_args_resolve_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
       = ok o) :
     Sim₀ id pers lst o
       (idxArgsResolveSpec lf0 (absEIdxLFrom idx_args i)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  revert st lst hrel hinv hrun
+  simp only [absEIdxLFrom]
+  intro st lst hrel hinv _
+  refine ls_cursor idx_args absEIdx (idxArgsResolveSpec lf0)
+    (fun st i => arena.inductives.sum_install.idx_args_resolve pers vis st rf0 idx_args i)
+    ?_ ?_ i st lst hrel hinv
+  · intro st lst i hn hrel hinv
+    rw [arena.inductives.sum_install.idx_args_resolve.eq_def, idxArgsResolveSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst i hb hrel hinv ih
+    rw [arena.inductives.sum_install.idx_args_resolve.eq_def, idxArgsResolveSpec]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem idx_args_resolve_ls

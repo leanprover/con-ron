@@ -283,7 +283,22 @@ theorem idx_free_of_refines {pers st lst} {t : arena.handle.NIdx}
     (hrun : arena.inductives.native_parts.idx_free_of pers st t idx i = ok o) :
     Sim₀ id pers lst o
       (idxFreeOfSpec (absNIdx t) (absEIdxLFrom idx i)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  revert st lst hrel hinv hrun
+  simp only [absEIdxLFrom]
+  intro st lst hrel hinv _
+  refine ls_cursor idx (absEIdx) (idxFreeOfSpec (absNIdx t))
+    (fun st i => arena.inductives.native_parts.idx_free_of pers st t idx i) ?_ ?_ i st lst hrel hinv
+  · intro st lst i hn hrel hinv
+    try simp only []
+    rw [arena.inductives.native_parts.idx_free_of.eq_def, idxFreeOfSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst i hb hrel hinv ih
+    try simp only []
+    rw [arena.inductives.native_parts.idx_free_of.eq_def, idxFreeOfSpec]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem idx_free_of_ls
@@ -743,7 +758,9 @@ theorem struct_idx_at_refines {pers st lst} {n_f ofs i l m : Std.U64}
     Sim₀ absEIdx pers lst o
       (structIdxAt (absU n_f) (absU ofs) (absU i) (absU l) (absU m)
         (absEIdx e)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.struct_idx_at, structIdxAt]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_idx_at_ls
@@ -1089,7 +1106,9 @@ theorem struct_minor_ty_close_refines {pers st lst} {n_f ofs n_p : Std.U64}
       (structMinorTyCloseSpec (absU n_f) (absU ofs) (absU n_p)
         (ConRon.Refine.absPropWhen pw) (absEIdx cty) (absNatL rec_idx)
         (absEIdx q2) (absEIdx concl0)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.struct_minor_ty_close, structMinorTyCloseSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_minor_ty_close_ls
@@ -1150,7 +1169,9 @@ theorem struct_minor_ty_r_refines {pers st lst} {c : arena.handle.NIdx}
     Sim₀ (Option.map absEIdx) pers lst o
       (structMinorTyR (absNIdx c) (absNIdxL lps) (absU n_p) (absU n_f) (absU ofs)
         (ConRon.Refine.absPropWhen pw) (absEIdx cty) (absNatL rec_idx)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.struct_minor_ty_r, structMinorTyR]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_minor_ty_r_ls
@@ -1483,7 +1504,9 @@ theorem struct_rec_rhs_at_refines {pers st lst} {t : arena.handle.NIdx}
         (absEIdx tty) (absCtors4L ctors) (absNIdx rec_c) (absLsIdx rlvls) (absU j)
         (ConRon.Refine.absPropWhen pw) (absU n) (absU n_f) (absEIdx cty)
         (absNatL rec_idx) (absLIdx l)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.struct_rec_rhs_at, structRecRhsAtSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_rec_rhs_at_ls
@@ -1678,7 +1701,9 @@ theorem native_rule_fields_ok_refines {pers st lst} {n_p n j n_f : Std.U64}
     Sim₀ id pers lst o
       (nativeRuleFieldsOkSpec (absU n_p) (absU n) (absU j) (absU n_f)
         (absBinderL rbs) (absEIdx mty)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.native_rule_fields_ok, nativeRuleFieldsOkSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_rule_fields_ok_ls
@@ -1730,7 +1755,9 @@ theorem native_rule_body_ok_refines {pers st lst} {rec_c : arena.handle.NIdx}
       (nativeRuleBodyOkSpec (absNIdx rec_c) (absLsIdx rlvls)
         (ConRon.Refine.absPropWhen pw) (absU n_p) (absU n) (absU n_f) (absU j)
         (absNatL rec_idx) (absEIdx cty) (absEIdx rhs)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.native_rule_body_ok, nativeRuleBodyOkSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_rule_body_ok_ls
@@ -2438,7 +2465,9 @@ theorem native_shape_sort_refines {pers st lst} {cv_t : arena.env.IConstantVal}
     Sim₀ (Option.map absInductiveShape) pers lst o
       (nativeShapeSortSpec (absIConstantVal cv_t) (absCtors3L cs)
         (absIConstantVal cv_r) (absIRecRuleL rules) (absU n_p) (absU n_idx)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.native_shape_sort, nativeShapeSortSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_shape_sort_ls
@@ -2495,7 +2524,36 @@ theorem native_shape_refines {pers st lst} {n_pd : Std.U64}
     (hrun : arena.inductives.native_parts.native_shape pers st n_pd block = ok o) :
     Sim₀ (Option.map absInductiveShape) pers lst o
       (nativeShape? (absU n_pd) (absICIL block)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.native_parts.native_shape, nativeShape_unfold]
+  -- the tail copy from `1`, at the twin's list tail
+  have hdup : ∀ ci rest, block.val = ci :: rest → ∀ (n : Std.Usize),
+      Lockstep.LSP (arena.env.i_constant_infos_dup_from block 1#usize
+        (alloc.vec.Vec.with_capacity arena.env.IConstantInfo n))
+        (fun o => Lockstep.TwinEq (rest.map absIConstantInfo) (absICIL o)) := by
+    intro ci rest hcr n o h
+    have := i_constant_infos_dup_from_abs h
+    rw [hcr] at this
+    simpa [Lockstep.TwinEq, absICIL, alloc.vec.Vec.with_capacity, alloc.vec.Vec.new] using
+      this.symm
+  rcases hb : block.val with _ | ⟨ci, rest⟩
+  · have hlen : alloc.vec.Vec.len block = 0#usize := by
+      have : (alloc.vec.Vec.len block).val = 0 := by simp [alloc.vec.Vec.len, hb]
+      scalar_tac
+    simp only [hlen, if_true, absICIL, hb, List.map_nil]
+    lockstep
+  · have hidx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.env.IConstantInfo) block 0#usize = ok ci := by
+      rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+      simp [hb]
+    have hlen : ¬ (alloc.vec.Vec.len block = 0#usize) := by
+      intro h0
+      have : (alloc.vec.Vec.len block).val = 0 := by rw [h0]; rfl
+      simp [alloc.vec.Vec.len, hb] at this
+    have hdup' := hdup ci rest hb
+    rw [if_neg hlen, hidx]
+    simp only [absICIL, hb, List.map_cons]
+    cases ci <;> simp only [absIConstantInfo] <;> lockstep
 
 open Lockstep in
 @[lockstep] theorem native_shape_ls

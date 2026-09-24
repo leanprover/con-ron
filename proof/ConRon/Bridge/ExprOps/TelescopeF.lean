@@ -795,6 +795,30 @@ theorem recRulePlain_notPi {st : EStore} (hwf : StoreWF st) {recTy : EIdx}
   exact denoteEView_not_forallE
     (by rw [← denoteE_view_eq hwf hview]; exact he2) hv
 
+/-- con-leche: none — a denoted handle list is as long as its denotation. -/
+theorem denoteEList_length_tf {st : EStore} :
+    ∀ (l : List EIdx) (es : List Expr),
+      Frontend.denoteEList st l = some es → es.length = l.length := by
+  intro l
+  induction l with
+  | nil =>
+    intro es h
+    simp only [Frontend.denoteEList, Option.some.injEq] at h
+    simp [← h]
+  | cons a as ih =>
+    intro es h
+    simp only [Frontend.denoteEList] at h
+    cases ha : denoteE st a with
+    | none => rw [ha] at h; simp at h
+    | some y =>
+      cases has : Frontend.denoteEList st as with
+      | none => rw [ha, has] at h; simp at h
+      | some ys =>
+        rw [ha, has] at h
+        simp only [Option.some.injEq] at h
+        rw [← h]
+        simp [ih ys has]
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1229-1244 recRulePlain — **the
 canonical arm**, where the two halves con-leche does not have come in:
 `bvarRangeSpec_zero` (the interned comparand list IS con-leche's `List.range`
@@ -811,7 +835,14 @@ theorem recRulePlain_canonical {st : EStore} (hwf : StoreWF st)
     (hx : Ext st sA.store) (hok1 : StateOK sA)
     (hle : (decide (cnP ≤ rP) && decide (rP ≤ mI)) = true) :
     RelV (fun x => Expr.recRulePlain x mI rP cnP) st recTy
-      (args.take cnP == want) := by
+      (args.take want.length == want) := by
+  -- the twin takes the prefix as long as the comparand, as the port does
+  -- (task #97-T2-LOCKSTEP); the comparand is `cnP` long
+  have hlen : want.length = cnP := by
+    have := denoteEList_length_tf _ _ hwant
+    rw [bvarRangeSpec_eq_range] at this
+    simpa using this.symm
+  rw [hlen]
   intro e he
   rw [hrecTy] at he
   obtain rfl := Option.some.inj he

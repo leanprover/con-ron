@@ -47,6 +47,7 @@ import ConRon.Refine2.Checker.Shape
 import ConRon.Refine2.Promote.Intern
 import ConRon.Refine2.Promote.Promote
 import ConRon.Refine2.Checker.KnotHyp
+import ConRon.Refine2.Checker.Leaves
 import ConRon.Refine2.Checker.Pins
 import ConRon.Refine2.Checker.Canon
 import ConRon.Refine2.Checker.Axioms
