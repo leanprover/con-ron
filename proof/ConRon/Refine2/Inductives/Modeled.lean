@@ -965,7 +965,18 @@ theorem check_iota_thm_idx_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absU depth) (absEIdx rhs_a) (absEIdxL fvs) (absEIdxL x_fvs)
         (absEIdxL largs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a)
         (absEIdx b0) (absEIdxL cdoms) (absEIdx cres) lcv) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_iota_thm_idx, checkIotaThmIdxSpec]
+  lockstep_mod
+  -- the index spine's `drop_eidx` at the saturating `cn_p as usize`: the
+  -- spine is `cn_p + k` long, so the cast is exact
+  all_goals
+    obtain hd | hd := ‹(_ : Nat) = _ ∨ Usize.max < _›
+    · simp only [hd] at *
+      lockstep_mod
+    · exfalso
+      simp only [bne_iff_ne, ne_eq, Decidable.not_not] at *
+      scalar_tac
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_idx_ls
@@ -1548,7 +1559,18 @@ theorem check_iota_thm_n_idx_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdxL largs) (absEIdxL targs) (absEIdx rhs_s) (absLIdx l_a)
         (absEIdx b0) (absLsIdx lvls_idx) (absEIdxL pins) (absEIdxL cdoms)
         (absEIdx cres) lcv) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_iota_thm_n_idx, checkIotaThmNIdxSpec]
+  lockstep_mod
+  -- the index spine's `drop_eidx` at the saturating `cn_p as usize`: the
+  -- spine is `cn_p + k` long, so the cast is exact
+  all_goals
+    obtain hd | hd := ‹(_ : Nat) = _ ∨ Usize.max < _›
+    · simp only [hd] at *
+      lockstep_mod
+    · exfalso
+      simp only [bne_iff_ne, ne_eq, Decidable.not_not] at *
+      scalar_tac
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_n_idx_ls
