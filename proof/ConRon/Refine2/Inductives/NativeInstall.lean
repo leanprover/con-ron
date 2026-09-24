@@ -586,7 +586,10 @@ theorem native_field_recursive_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     Sim₀ id pers lst o
       (nativeFieldRecursiveSpec lf0 (absU n_p) (absU n_idx) (absEIdxL fvs_p)
         (absEIdxL x_fvs) (absEIdx xrest) (absEIdx hd) (absU i)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_install.native_field_recursive, nativeFieldRecursiveSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_field_recursive_ls
@@ -618,7 +621,10 @@ theorem native_field_reflexive_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     Sim₀ id pers lst o
       (nativeFieldReflexiveSpec lf0 (absU n_p) (absU n_idx) (absEIdxL fvs_p)
         (absEIdxL x_fvs) (absEIdx xrest) (absEIdx hd) (absU i)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_install.native_field_reflexive, nativeFieldReflexiveSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_field_reflexive_ls
