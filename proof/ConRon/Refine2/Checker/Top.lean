@@ -2261,10 +2261,10 @@ and `check_pending_list_refines` composed, `check_decls_pure_refines` is
 Task #97-P5-Checker-2's section lists them.  Writing the rows out is what
 keeps *"the spine is closed and its leaves are not"* visible. -/
 
-/-- info: 'ConRon.Refine2.install_then_check_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.install_then_check_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms install_then_check_refines
 
-/-- info: 'ConRon.Refine2.check_decls_pure_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.check_decls_pure_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms check_decls_pure_refines
 
 /-! **Task #97-P5-Checker round 4, task #97-P5-Top.**  The two bracketed
@@ -2272,10 +2272,10 @@ leaves are compositions and read `sorryAx` through their
 BODIES (`check_decl_refines`, `annot_step_go_refines`'s arms) and nothing
 else. -/
 
-/-- info: 'ConRon.Refine2.check_decl_step_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.check_decl_step_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms check_decl_step_refines
 
-/-- info: 'ConRon.Refine2.annot_step_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.annot_step_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms annot_step_refines
 
 /-- info: 'ConRon.Refine2.at_decl_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/

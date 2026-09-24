@@ -567,10 +567,10 @@ end Headline
 `#print axioms` of the two roots: `sorryAx` is the tiers' open leaves, and
 the named hypotheses above are the rest of the ledger. -/
 
-/-- info: 'ConRon.Capstone.model_exists' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Capstone.model_exists' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms model_exists
 
-/-- info: 'ConRon.Capstone.no_False_declaration' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Capstone.no_False_declaration' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms no_False_declaration
 
 end ConRon.Capstone
