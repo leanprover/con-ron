@@ -23,7 +23,7 @@ runtime for the two checkers to agree wrongly.
 
 The binary reads a Lean export in `lean4export`'s NDJSON format and prints
 one verdict line
-([the usage text](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L87-L202)):
+([the usage text](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L87-L210)):
 
 ```
 con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
@@ -176,7 +176,7 @@ status is in `Capstone.lean`'s module note.
 | hypothesis | what it says | how it is discharged |
 |---|---|---|
 | `[ConLeche.SetTheory V]` and con-leche's soundness | a set theory to build the model in; con-leche's `checkDeclsPure_sound_of` / `no_proof_of_False_pure` at the pinned rev | con-leche's own proof, on the same three axioms |
-| `hpers`, `hest`, `hst0`, `h1`…`h5` | the binary ran exactly these extracted functions, in this order, on one state threaded from `AState::init(EStore::empty())` under one `PersTier::empty()` | the driver's calling order (it starts at [`con-ron.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L362-L377)): trusted, as on master |
+| `hpers`, `hest`, `hst0`, `h1`…`h5` | the binary ran exactly these extracted functions, in this order, on one state threaded from `AState::init(EStore::empty())` under one `PersTier::empty()` | the driver's calling order (it starts at [`con-ron.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L370-L385)): trusted, as on master |
 | `h6 : PoolAccepts …` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Checker/Phased.lean#L380-L397)) | phase A (`annot_fold_hooked`) accepted, `freeze_tier` accepted, and one accepting verified `check_pending_worker` per worker over the records it checked, together covering the pending list | that the pool's accept has this shape is `pool.rs`'s control flow (§8.2); `poolAccepts_of_check_decls_phased` shows the verified one-worker walk meets it.  It holds for every install hook, so `--progress` is covered |
 | `hreads : ReadsAs sinst src chunks` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Source.lean#L36-L40)) | the driver's chunk source hands out the chunks, each nonempty, then an empty buffer | the reads are the file's bytes in order: trusted (the file handle).  The reader loop itself is the verified `parse_source` |
 | `hmr : ModellerRefines inst m inProcessModeller` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Shape.lean#L662-L667)) | the unextracted Rust modeller (`crates/con-ron/src/in_model/`, the port of con-leche's `InModel.generate`) answers, from related states, what the twin's `inProcessModeller` answers | trusted, by design (§4.6).  The twin's side is a theorem: `inProcessModeller` *calls* con-leche's `generate`, and Theorem 1 proves it exact (`inProcessModeller_refines`) |
