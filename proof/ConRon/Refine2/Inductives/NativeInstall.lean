@@ -593,10 +593,9 @@ theorem native_fam_app_ok_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
   rw [arena.inductives.native_install.native_fam_app_ok, nativeFamAppOkSpec_port]
   lockstep
   all_goals
-    exfalso
     have e := absEIdxL_of_takeEidx ‹ExprOps.absEIdxArr _ = takeEidx (ExprOps.absEIdxArr _) _›
-    simp only [absEIdxL] at e
-    simp_all
+    simp only [e, absEIdxL] at *
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem native_fam_app_ok_ls
@@ -685,6 +684,33 @@ open Lockstep in
         (absEIdxL x_fvs) (absEIdx xrest) (absEIdx hd) (absU i)) :=
   LS.ofSim₀ fun _ h => native_field_reflexive_refines hrel hinv hfe hvis h
 
+/-- `nativeFieldsAtSpec`'s step with the twin's `xFvs[i]?` read as the port's
+bounds test. -/
+theorem nativeFieldsAtSpec_succ_port (fe₀ : IFEnv) (nP nIdx : Nat) (ks : List RecFieldKind)
+    (fvsP xFvs : List EIdx) (xrest hd : EIdx) (m i : Nat) :
+    nativeFieldsAtSpec fe₀ nP nIdx ks fvsP xFvs xrest hd (m + 1) i =
+      (if h : i < xFvs.length then do
+        let ok ← match ks.getD i .ordinary with
+          | .ordinary => do constsResolveFFast fe₀ (← fvarTypeD xFvs[i])
+          | .recursive => nativeFieldRecursiveSpec fe₀ nP nIdx fvsP xFvs xrest hd i
+          | .reflexive => nativeFieldReflexiveSpec fe₀ nP nIdx fvsP xFvs xrest hd i
+          | _ => pure false
+        if ok then nativeFieldsAtSpec fe₀ nP nIdx ks fvsP xFvs xrest hd m (i + 1)
+        else pure false
+       else pure false) := by
+  rw [nativeFieldsAtSpec]
+  split
+  · rename_i heq
+    have h : ¬ i < xFvs.length := by
+      intro h; rw [List.getElem?_eq_getElem h] at heq; cases heq
+    rw [dif_neg h]
+  · rename_i x heq
+    have h : i < xFvs.length := (List.getElem?_eq_some_iff.mp heq).1
+    rw [dif_pos h]
+    have := (List.getElem?_eq_some_iff.mp heq).2
+    rw [this]
+    rfl
+
 /-- `native_fields_at` ⊑ `nativeOpenedOk`'s `(List.range nF).allM` from field
 `i` on. -/
 theorem native_fields_at_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
@@ -713,8 +739,9 @@ theorem native_fields_at_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     rw [if_pos (by scalar_tac)]
     lockstep
   · intro st lst j _ m hj hm hrel hinv ih
-    rw [arena.inductives.native_install.native_fields_at.eq_def, nativeFieldsAtSpec]
+    rw [arena.inductives.native_install.native_fields_at.eq_def, nativeFieldsAtSpec_succ_port]
     rw [if_neg (by scalar_tac)]
+    dsimp only
     lockstep
 
 open Lockstep in
