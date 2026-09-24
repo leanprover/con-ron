@@ -53,7 +53,6 @@ use std::time::Instant;
 use con_ron_core::arena::checker;
 use con_ron_core::arena::env::i_declaration_names;
 use con_ron_core::arena::monad::AState;
-use con_ron_core::arena::store::EStore;
 use con_ron_core::frontend::export_c;
 use con_ron_core::frontend::export_c::ParseResultD;
 use con_ron_core::frontend::prelude;
@@ -110,11 +109,11 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
                     using only the axioms propext, Classical.choice and
                     Quot.sound.  What they still assume are hypotheses, not
                     axioms: that the driver runs the extracted stages in the
-                    order it does on the file's bytes, that the unextracted
-                    Rust in-process modeller answers as the Lean twin's does,
-                    that the pins are the embedded text, and that the
-                    committed prelude bytes are con-leche's (a gate, not a
-                    proof).  OVERVIEW.md section 3.1 lists them.
+                    order it does on the file's bytes, and that the
+                    unextracted Rust in-process modeller answers as the Lean
+                    twin's does.  They hold at every pin text, every prelude
+                    and both settings of the CON_LECHE_INMODEL* switches.
+                    OVERVIEW.md section 3.1 lists them.
   --trusted         the unverified mode: the SAME checker bodies at the mode
                     with the certification-only work switched off.  An accept
                     in this mode is outside the theorem.
@@ -162,7 +161,8 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
                     loop's `[]` arm, under which a Nat.div/Nat.mod stream
                     declines.  Neither flag is needed for a normal run: the
                     pins are con-leche's `natOpPinSets`, embedded in the
-                    verified core and decoded by it.
+                    verified core and decoded by it.  A run with either
+                    flag is outside the proved theorems.
   --help            print this text on STDOUT and exit 0, in any argument
                     position; no input is read.  Its last line names the
                     global allocator THIS binary was built with (below), so a
@@ -209,7 +209,7 @@ These are the in-process modeller's debug switches.  None of them can make a
 run accept what the default rejects or declines: INMODEL=0 makes a mutual or
 nested block decline (exit 2), CENSUS=1 stops after the parse, before any
 check (exit 2), and PROJREC_TRACE only adds output.  The proved theorems
-(--verified) cover the default setting only, with none of them set.";
+(--verified) cover every setting of INMODEL and CENSUS.";
 
 /// con-leche: Main.lean:946-960 Args
 /// What the command line asked for — `con-ron`'s `Args`, field for field, so
@@ -369,13 +369,15 @@ fn check_main(a: &Args, file: &str) -> u8 {
     };
     // ONE store for the whole run: the prelude, the stream and the pins are
     // hash-consed together into its persistent tier (DESIGN.md §8.3).
-    let mut st = AState::init(EStore::empty());
+    // ConRon.Capstone: `startState`
+    let mut st = AState::empty();
     // THE PERSISTENT TIER a phase-B worker reads (DESIGN.md §8.3, task
     // #97-P6-6b).  The parse and phase A own their own — `shared_on` is
     // false on every store until the boundary — so what they are handed here
     // is the EMPTY tier, and the single-lane computation is unchanged.  Phase
     // B freezes the store's tier into a `PersTier` and hands `&` it to every
     // worker; `check_decls_driver` is where that happens.
+    // ConRon.Capstone: `emptyTier`
     let pers: &PersTier = &PersTier::empty();
     // THE RESERVED-NAME PINS, interned once into that persistent tier before
     // anything else touches it (task #97-P6-4a, `arena::pins`): the scratch
@@ -384,6 +386,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // read raises `Internal` rather than answering — which is what makes the
     // initialisation-order hazard task #97c named impossible rather than
     // unlikely.
+    // ConRon.Capstone: h1
     match con_ron_core::arena::pins::intern_reserved_pins(pers, &mut st) {
         Ok(()) => (),
         Err(e) => {
@@ -401,6 +404,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // readback (`con_ron::in_model`).
     let modeller = InProcess::new();
     // THE BUILT-IN PRELUDE, parsed into that store before anything else.
+    // ConRon.Capstone: h2
     let prelude_ix = match prelude::builtin_prelude_e(pers, &modeller, &mut st) {
         Ok(p) => p,
         Err((e, line)) => {
@@ -417,12 +421,14 @@ fn check_main(a: &Args, file: &str) -> u8 {
             return 3;
         }
     };
+    // ConRon.Capstone: `inModel`, `census` (h3's flags)
     let in_model = !env_is("CON_LECHE_INMODEL", "0");
     let census = env_is("CON_LECHE_INMODEL_CENSUS", "1");
     // Streaming frontend: the file is read 4 MiB at a time and each buffer is
     // parsed and dropped, so neither a wholesale text buffer nor a scratch
     // file exists.  What comes out is the FILE's records as HANDLES into the
     // store above (plus the in-process modeller's).
+    // ConRon.Capstone: hreads, h3 (`parse_source` over the file's handle)
     let parsed: ParseResultD = match driver::parse_export_stream_d(
         pers,
         &modeller,
@@ -512,6 +518,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // then the stream's, with every pinned `Nat` operation's stream-certified
     // ground hoisted ahead of it.  It takes the whole state since task
     // #97-P4d: step 2 is the real ground hoist, which interns.
+    // ConRon.Capstone: h4
     let prepared = match prepare::prepare_d(pers, &mut st, prelude_ix, parsed.decls) {
         Ok(p) => p,
         Err(e) => return frontend_exit(&e, mode_tag),
@@ -530,6 +537,8 @@ fn check_main(a: &Args, file: &str) -> u8 {
             names.join(", ")
         );
     }
+    // ConRon.Capstone: hpins (`decode_embedded`; `--pins`/`--no-pins` are
+    // outside the theorems)
     let pins = match con_ron::driver::pins_for_run(&a.pins, a.no_pins) {
         Ok(p) => p,
         Err(e) => {
@@ -556,6 +565,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // `Nat`-operation variants — interned ONCE, here, while the scratch tier
     // is still off, so that nothing the fold compares against lives in a tier
     // that is about to vanish.  Its result is the fold's pin parameter.
+    // ConRon.Capstone: h5
     let ipins = match checker::intern_all_pins(pers, &mut st, &pins) {
         Ok(p) => p,
         Err(e) => return frontend_exit(&e, mode_tag),
@@ -571,6 +581,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // tier at the phase boundary and phase B is the pool at every worker count
     // (task #97-P6-6b), so a run with no heartbeat is the same computation as
     // a run with one and `install_then_check` is no longer a second path.
+    // ConRon.Capstone: h6, h7, h8 (the driver's three steps, either observer)
     let verdict = if a.progress > 0 {
         driver::check_decls_driver(pers, &mut st, &mode, &ipins, &prepared.decls, jobs, &mut hb)
     } else {

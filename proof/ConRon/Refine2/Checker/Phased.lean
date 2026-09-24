@@ -436,21 +436,24 @@ def PoolAccepts {H : Type} (inst : arena.checker.InstallHook H)
     ParallelAll pend.length (arena.checker.worker_state st'.pins)
       (pendingStep tier mode fe pend)
 
-/-- `PoolAccepts` from one premise per call of the driver — the shape a
-headline states it in (phase A, the freeze, phase B). -/
+/-- `PoolAccepts` from one premise per step of the driver — the shape the
+headlines state it in (`ConRon.Capstone`'s `h6`, `h7`, `h8`): phase A as the
+driver calls it, `annot_fold_hooked(…, fold_start(), ds, 0, obs)`; the
+freeze; and phase B, `ParallelAll`. -/
 theorem poolAccepts_intro {H : Type} {inst : arena.checker.InstallHook H}
     {h : H} {pers st mode pins ds fe st'}
-    {t : Std.U64 × arena.env.IFEnv × alloc.vec.Vec arena.checker.PendingCheck}
     {n : Std.U64} {pend : alloc.vec.Vec arena.checker.PendingCheck}
     {tier : arena.store.PersTier} {est : arena.store.EStore}
-    (hstart : arena.checker.fold_start = ok t)
-    (hA : arena.checker.annot_fold_hooked inst pers st mode pins t ds 0#usize h
+    (hA : (do
+        let t ← arena.checker.fold_start
+        arena.checker.annot_fold_hooked inst pers st mode pins t ds 0#usize h)
       = ok (.Ok (n, fe, pend), st'))
     (hF : arena.checker.freeze_tier st'.store = ok (.Ok tier, est))
     (hB : ParallelAll pend.length (arena.checker.worker_state st'.pins)
       (pendingStep tier mode fe pend)) :
-    PoolAccepts inst pers st mode pins ds h fe st' :=
-  ⟨t, n, pend, tier, est, hstart, hA, hF, hB⟩
+    PoolAccepts inst pers st mode pins ds h fe st' := by
+  obtain ⟨t, ht, hA⟩ := ConRon.Refine.bind_eq_ok_iff.mp hA
+  exact ⟨t, n, pend, tier, est, ht, hA, hF, hB⟩
 
 /-- **The pool's accept, per worker** (the shape of task #97-P5-POOL's
 `PoolAccepts`): phase A, the freeze, and `parts`, the record lists the

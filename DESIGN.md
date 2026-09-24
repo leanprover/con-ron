@@ -64090,6 +64090,66 @@ something was open, `sorry` or "waiting on" was rewritten as history.
   changed; the citing paragraph is still accurate.  `scripts/gates.sh`: all
   16 OK; frontier 0 items, dead weight 0.
 
+### Task #98-HEADLINE — readable headlines: concrete start values, no prelude-bytes hypothesis, flags as parameters (2026-09-24, Opus under Fable)
+
+Three changes along one chain (`Bridge/Frontend/Prepare.lean`'s
+`builtinPreludeE_run` → `Capstone.lean`'s `stages_*`/`rust_stages` → the two
+headlines), shaped by the maintainer's rulings during the task:
+
+* **`hbytes` dropped.**  `builtinPreludeE_run` now concludes
+  `∃ preC, PreludeIxRel s'.store pre preC` with `preC := ⟨rc.decls⟩` from
+  `parseBytes_run` on whatever `preludeText` is: con-leche's `preparePrelude`
+  puts the prelude's records into the checked stream, so no theorem needs the
+  prelude to be con-leche's (master before the arena merge was parametric for
+  the same reason).  No T1 theorem needed the equation with con-leche's
+  `builtinPreludeE`, so no `hbytes` variant was kept.  `hbytes` left
+  `Arena.no_False_declaration_prelude`/`_pipeline`, `stages_frame`,
+  `stages_model`, `stages_false_mem`, `stages_no_False`, `stages_storeWF`,
+  `rust_stages` and both headlines.  The gate
+  `scripts/gen-prelude-lean.sh --check` stays, as "con-ron ships con-leche's
+  prelude"; OVERVIEW §3.1/§8.2 no longer list it as an assumption.
+* **Flags parametric** (#97-COMPOSE mismatch 4).  `Arena.runPipeline` was
+  already parametric (`im`/`ce`, round 7 of #97-P3-Frontend), as were
+  `parseChunks_run`, `parse_chunks_refines` and `parse_source_eq`; only the
+  `Capstone.lean` chain hard-coded `true false`.  Now `{im ce}` /
+  `{inModel census}` throughout, so `CON_LECHE_INMODEL=0` and
+  `CON_LECHE_INMODEL_CENSUS=1` runs are inside the theorems.  `--help`,
+  OVERVIEW §2/§3.1 and `tests/inmodel_flags.rs` updated.
+* **Readable headlines.**  A first draft stated the pipeline once as a
+  `RustAccepts` do-block; the maintainer rejected a one-definition pipeline
+  (as for con-leche) and asked instead for one premise per call `check_main`
+  makes, from concrete start values.  So:
+  * `crates/con-ron-core`: new `AState::empty()` (= `AState::init(EStore::
+    empty())`, twin `AState.init`), called by `bin/con-ron.rs`'s `check_main`;
+    re-extracted (`Generated/Funs.lean`: the new def plus shifted `Source:`
+    lines).
+  * `Capstone.lean` §3: `startState` / `emptyTier`, the values the Aeneas
+    `AState.empty` / `PersTier.empty` return (`Classical.choose` of an `ok`
+    existence proved by unfolding; `startState_eq`, `emptyTier_eq`).  The
+    `hpers`/`hest`/`hst0` premises and their `pers`/`est`/`st0` variables
+    are gone.  `RustDenotes fe st env` abbreviates the conclusion's
+    `∃ lst lfe, AStateRel emptyTier st lst ∧ IFEnvRel fe lfe ∧ denoteFEnv … =
+    some env`.
+  * `h4` is about `prepare::prepare_d` (the call `check_main` makes), bridged
+    by `prepare_prelude_of_prepare_d`.
+  * The pin premise `hpins : decode pinText = ok (.Ok pins)` at a free text.
+    The maintainer asked for `decode_embedded` if cheap; it is (the route is
+    `decode_of_decode_embedded`), but naming `PINS_TEXT` adds
+    `kernel.pins_text.PINS_TEXT._native.decide.ax_1` to the census (Aeneas's
+    `toStr` on the constant's definition, AENEAS_FINDINGS §3.8).  So the
+    headlines keep the free text and the census at three, and
+    `model_exists_embedded` / `no_False_declaration_embedded` state the
+    binary's own call with the four-axiom census (guarded too).
+  * `model_exists` concludes `∃ env, RustDenotes fe st6 env ∧ Nonempty
+    (ConLeche.Model V env)` (con-leche's `Model`, via
+    `Model.Model.ofEnvModelM`).
+  * Each verified call in `check_main` carries a `// ConRon.Capstone: hᵢ`
+    comment, and §4's note maps each premise to its `bin/con-ron.rs:NNN`
+    line.  `--pins FILE`/`--no-pins` are stated as outside the theorems in
+    the docstring and in `--help`.
+* README's two headline links and OVERVIEW §3's quotations re-anchored;
+  `scripts/overview-links-expected.txt` regenerated.
+
 ### Task #98-POOL — the pool is one generic combinator, `parallel_all` (2026-09-24, Opus under Fable)
 
 **Goal** (maintainer-approved): shrink the trusted, unverified part of
@@ -64144,14 +64204,25 @@ phase B to one higher-order combinator that knows nothing about checking.
   `check_pending_list_of_foldAllOk`).  `pool_accepts_refines` and
   `poolAccepts_of_check_decls_phased` keep their statements (the latter now
   builds the one-worker partition `[List.range m]` via
-  `foldAllOk_of_check_pending_list`), so `Capstone.lean` builds untouched
-  and its `h6` already means the new shape.  `poolAccepts_intro` builds
-  `PoolAccepts` from one premise per driver call, for the headline:
-  `h6` becomes `(h6a : annot_fold_hooked hinst pers st5 .Verified ipins t ds
-  0#usize hook = ok (.Ok (n, fe, pend), st6))`, `(h6b : freeze_tier
-  st6.store = ok (.Ok tier, est'))`, `(h6c : ParallelAll pend.length
-  (worker_state st6.pins) (pendingStep tier .Verified fe pend))`, with
-  `fold_start = ok t` discharged or kept as a fourth premise.
+  `foldAllOk_of_check_pending_list`).  **Headlines** (task #98-HEADLINE
+  landed first): the pool premise is now one premise per step of
+  `check_decls_driver`, in the headline style (no variable for the constant
+  `fold_start`: `h6` states the driver's call `annot_fold_hooked(…,
+  fold_start(), ds, 0, obs)` as a bind):
+
+      (h6 : (do
+          let t ← arena.checker.fold_start
+          arena.checker.annot_fold_hooked hinst emptyTier st5 .Verified ipins t
+            prepared.decls 0#usize hook)
+        = ok (.Ok (n, fe, pend), st6))
+      (h7 : arena.checker.freeze_tier st6.store = ok (.Ok tier, frozen))
+      (h8 : ParallelAll pend.length (arena.checker.worker_state st6.pins)
+        (pendingStep tier .Verified fe pend))
+
+  `poolAccepts_intro h6 h7 h8` assembles `PoolAccepts` for `rust_stages`.
+  Capstone §4's table has one row per step with its `driver.rs` line; the
+  driver's three calls and `bin/con-ron.rs`'s call site carry
+  `ConRon.Capstone: h6`/`h7`/`h8` comments.
 * **Measured** (`perf stat -e instructions:u`, `Init`, `--verified`, three
   runs each; `--jobs=1 --progress=1000000` under `ulimit -v` 4 GB because the
   old binary cannot run the 2.6 GB lane at all, `--jobs=8` under 16 GB):
@@ -64161,6 +64232,6 @@ phase B to one higher-order combinator that knows nothing about checking.
   206 090 894 358 / 206 187 989 249 / 206 084 236 405 after (+0.0 %, inside
   the run-to-run spread).  Noise.  After: `--jobs=1` under 2.6 GB and
   `--jobs=8` under 8 GB accept (before: exit 3 both).
-* OVERVIEW §3 `h6` row, §6.4 and §8.2's pool and driver rows describe
+* OVERVIEW §3 (the headline and the `h6`–`h8` row), §5, §6.4, §7.3 and §8.2's pool and driver rows describe
   `parallel_all` and `ParallelAll`; `scripts/overview-links-expected.txt`
   regenerated (anchors moved in `driver.rs`, `pool.rs`, `Phased.lean`).

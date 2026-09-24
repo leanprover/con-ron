@@ -562,7 +562,7 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
     obs: &mut O,
 ) -> Result<IFEnv, (CheckError, u64)> {
     let total = ds.len();
-    // PHASE A: the verified fold, the heartbeat's install line as its hook.
+    // PHASE A (ConRon.Capstone: h6): the verified fold, the heartbeat as hook.
     let p = match checker::annot_fold_hooked(pers, st, mode, pins, checker::fold_start(), ds, 0, &*obs) {
         Err(e) => {
             obs.install_failed(e.1, total);
@@ -578,7 +578,7 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
     // THE PHASE BOUNDARY: the persistent tier leaves the state and becomes a
     // value every worker reads (the doc comment above).  `st` keeps its
     // (empty) store with the flags set, so the observer can still read a
-    // label back through the shared tier.
+    // label back through the shared tier.  (ConRon.Capstone: h7)
     let tier: PersTier = match checker::freeze_tier(&mut st.store) {
         Err(e) => {
             obs.check_failed(n_installed);
@@ -589,7 +589,7 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
     // PHASE B: `check_pending` at every record, on `workers` threads, each
     // folding it over the records it claims on ONE `worker_state` — the
     // verdict and the record a rejection names are the one-worker walk's at
-    // every `--jobs` (the least failing index; `pool.rs`'s note).
+    // every `--jobs` (the least failing index).  (ConRon.Capstone: h8)
     let heartbeat = obs.wants_check_lines();
     let lock = Mutex::new(obs);
     let done = AtomicUsize::new(0);
