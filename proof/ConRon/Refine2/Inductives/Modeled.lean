@@ -1111,6 +1111,27 @@ open Lockstep in
 
 /-! ## The nested-shape recogniser -/
 
+/-- `lower_bvars_list` in `LS` form, by induction on the cursor's distance to the end. -/
+theorem lower_bvars_list_aux (n : Nat) :
+    ∀ {pers st lst} {k : Std.U64} {xs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
+      {out : alloc.vec.Vec arena.handle.EIdx},
+      xs.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.modeled.lower_bvars_list pers st k xs i out) lst
+        (do pure (absEIdxL out ++ (← lowerBVarsListSpec (absU k) (absEIdxLFrom xs i)))) := by
+  induction n with
+  | zero =>
+    intro pers st lst k xs i out hn hrel hinv
+    rw [arena.inductives.modeled.lower_bvars_list, if_pos (by scalar_tac), absEIdxLFrom,
+      vecFrom_nil _ _ _ (by omega), lowerBVarsListSpec]
+    lockstep_mod
+  | succ m ih =>
+    intro pers st lst k xs i out hn hrel hinv
+    rw [arena.inductives.modeled.lower_bvars_list, if_neg (by scalar_tac), absEIdxLFrom,
+      vecFrom_cons _ _ _ (by omega), lowerBVarsListSpec]
+    simp only [bind_assoc, pure_bind]
+    lockstep_mod
+
 /-- `lower_bvars_list` ⊑ `nestedRuleShape`'s `(args.take cnP).mapM
 (lowerBVarsFast …)`, from the cursor on. -/
 theorem lower_bvars_list_refines {pers st lst} {k : Std.U64}
@@ -1120,8 +1141,8 @@ theorem lower_bvars_list_refines {pers st lst} {k : Std.U64}
     (hrun : arena.inductives.modeled.lower_bvars_list pers st k xs i out = ok o) :
     Sim₀ absEIdxL pers lst o
       (do pure (absEIdxL out ++
-        (← lowerBVarsListSpec (absU k) (absEIdxLFrom xs i)))) := by
-  sorry
+        (← lowerBVarsListSpec (absU k) (absEIdxLFrom xs i)))) :=
+  Lockstep.LS.toSim₀ (lower_bvars_list_aux _ rfl hrel hinv) hrun
 
 open Lockstep in
 @[lockstep] theorem lower_bvars_list_ls
@@ -1137,6 +1158,27 @@ open Lockstep in
         (← lowerBVarsListSpec (absU k) (absEIdxLFrom xs i)))) :=
   LS.ofSim₀ fun _ h => lower_bvars_list_refines hrel hinv h
 
+/-- `lift_bvars_list` in `LS` form, by induction on the cursor's distance to the end. -/
+theorem lift_bvars_list_aux (n : Nat) :
+    ∀ {pers st lst} {k : Std.U64} {xs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
+      {out : alloc.vec.Vec arena.handle.EIdx},
+      xs.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.modeled.lift_bvars_list pers st k xs i out) lst
+        (do pure (absEIdxL out ++ (← liftBVarsListSpec (absU k) (absEIdxLFrom xs i)))) := by
+  induction n with
+  | zero =>
+    intro pers st lst k xs i out hn hrel hinv
+    rw [arena.inductives.modeled.lift_bvars_list, if_pos (by scalar_tac), absEIdxLFrom,
+      vecFrom_nil _ _ _ (by omega), liftBVarsListSpec]
+    lockstep_mod
+  | succ m ih =>
+    intro pers st lst k xs i out hn hrel hinv
+    rw [arena.inductives.modeled.lift_bvars_list, if_neg (by scalar_tac), absEIdxLFrom,
+      vecFrom_cons _ _ _ (by omega), liftBVarsListSpec]
+    simp only [bind_assoc, pure_bind]
+    lockstep_mod
+
 /-- `lift_bvars_list` ⊑ `nestedRuleShape`'s `pins.mapM (liftLooseBVarsFast …)`,
 from the cursor on. -/
 theorem lift_bvars_list_refines {pers st lst} {k : Std.U64}
@@ -1146,8 +1188,8 @@ theorem lift_bvars_list_refines {pers st lst} {k : Std.U64}
     (hrun : arena.inductives.modeled.lift_bvars_list pers st k xs i out = ok o) :
     Sim₀ absEIdxL pers lst o
       (do pure (absEIdxL out ++
-        (← liftBVarsListSpec (absU k) (absEIdxLFrom xs i)))) := by
-  sorry
+        (← liftBVarsListSpec (absU k) (absEIdxLFrom xs i)))) :=
+  Lockstep.LS.toSim₀ (lift_bvars_list_aux _ rfl hrel hinv) hrun
 
 open Lockstep in
 @[lockstep] theorem lift_bvars_list_ls
@@ -1163,6 +1205,27 @@ open Lockstep in
         (← liftBVarsListSpec (absU k) (absEIdxLFrom xs i)))) :=
   LS.ofSim₀ fun _ h => lift_bvars_list_refines hrel hinv h
 
+/-- `nested_pins_ok` in `LS` form, by induction on the pins left. -/
+theorem nested_pins_ok_aux (n : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rfS lfS} {lps : alloc.vec.Vec arena.handle.NIdx}
+      {r_p : Std.U64} {pins : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize},
+      pins.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rfS lfS → absU vis = lfS.visibleBelow →
+      Lockstep.LS pers (fun a b => b = id a)
+        (arena.inductives.modeled.nested_pins_ok pers vis st rfS lps r_p pins i) lst
+        (nestedPinsOkSpec lfS (absNIdxL lps) (absU r_p) (absEIdxLFrom pins i)) := by
+  induction n with
+  | zero =>
+    intro pers st lst vis rfS lfS lps r_p pins i hn hrel hinv hfe hvis
+    rw [arena.inductives.modeled.nested_pins_ok, if_pos (by scalar_tac), absEIdxLFrom,
+      vecFrom_nil _ _ _ (by omega), nestedPinsOkSpec]
+    lockstep_mod
+  | succ m ih =>
+    intro pers st lst vis rfS lfS lps r_p pins i hn hrel hinv hfe hvis
+    rw [arena.inductives.modeled.nested_pins_ok, if_neg (by scalar_tac), absEIdxLFrom,
+      vecFrom_cons _ _ _ (by omega), nestedPinsOkSpec]
+    lockstep_mod
+
 /-- `nested_pins_ok` ⊑ `nestedRuleShape`'s `pins.allM`, from the cursor on. -/
 theorem nested_pins_ok_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     {lps : alloc.vec.Vec arena.handle.NIdx} {r_p : Std.U64}
@@ -1173,8 +1236,8 @@ theorem nested_pins_ok_refines {pers st lst} {vis : Std.U64} {rfS lfS}
     (hrun : arena.inductives.modeled.nested_pins_ok pers vis st rfS lps r_p pins i
       = ok o) :
     Sim₀ id pers lst o
-      (nestedPinsOkSpec lfS (absNIdxL lps) (absU r_p) (absEIdxLFrom pins i)) := by
-  sorry
+      (nestedPinsOkSpec lfS (absNIdxL lps) (absU r_p) (absEIdxLFrom pins i)) :=
+  Lockstep.LS.toSim₀ (nested_pins_ok_aux _ rfl hrel hinv hfe hvis) hrun
 
 open Lockstep in
 @[lockstep] theorem nested_pins_ok_ls
@@ -1312,6 +1375,27 @@ open Lockstep in
 
 /-! ## `checkIotaThmN` -/
 
+/-- `inst_spine_list_renamed` in `LS` form, by induction on the cursor's distance to the end. -/
+theorem inst_spine_list_renamed_aux (n : Nat) :
+    ∀ {pers st lst} {f : arena.inductives.modeled.RenameBy} {args : alloc.vec.Vec arena.handle.EIdx} {t : Std.U64} {xs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
+      {out : alloc.vec.Vec arena.handle.EIdx},
+      xs.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.modeled.inst_spine_list_renamed pers st f args t xs i out) lst
+        (do pure (absEIdxL out ++ (← instSpineListRenamedSpec (absRenameBy f) (absEIdxL args) (absU t) (absEIdxLFrom xs i)))) := by
+  induction n with
+  | zero =>
+    intro pers st lst f args t xs i out hn hrel hinv
+    rw [arena.inductives.modeled.inst_spine_list_renamed, if_pos (by scalar_tac), absEIdxLFrom,
+      vecFrom_nil _ _ _ (by omega), instSpineListRenamedSpec]
+    lockstep_mod
+  | succ m ih =>
+    intro pers st lst f args t xs i out hn hrel hinv
+    rw [arena.inductives.modeled.inst_spine_list_renamed, if_neg (by scalar_tac), absEIdxLFrom,
+      vecFrom_cons _ _ _ (by omega), instSpineListRenamedSpec]
+    simp only [bind_assoc, pure_bind]
+    lockstep_mod
+
 /-- `inst_spine_list_renamed` ⊑ `checkIotaThmN`'s `pins.mapM fun p =>
 instSpine … (← renameConsts f p)`, from the cursor on. -/
 theorem inst_spine_list_renamed_refines {pers st lst}
@@ -1325,8 +1409,8 @@ theorem inst_spine_list_renamed_refines {pers st lst}
     Sim₀ absEIdxL pers lst o
       (do pure (absEIdxL out ++
         (← instSpineListRenamedSpec (absRenameBy f) (absEIdxL args) (absU t)
-          (absEIdxLFrom pins i)))) := by
-  sorry
+          (absEIdxLFrom pins i)))) :=
+  Lockstep.LS.toSim₀ (inst_spine_list_renamed_aux _ rfl hrel hinv) hrun
 
 open Lockstep in
 @[lockstep] theorem inst_spine_list_renamed_ls
@@ -1345,6 +1429,27 @@ open Lockstep in
           (absEIdxLFrom pins i)))) :=
   LS.ofSim₀ fun _ h => inst_spine_list_renamed_refines hrel hinv h
 
+/-- `inst_spine_list` in `LS` form, by induction on the cursor's distance to the end. -/
+theorem inst_spine_list_aux (n : Nat) :
+    ∀ {pers st lst} {args : alloc.vec.Vec arena.handle.EIdx} {t : Std.U64} {xs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
+      {out : alloc.vec.Vec arena.handle.EIdx},
+      xs.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.modeled.inst_spine_list pers st args t xs i out) lst
+        (do pure (absEIdxL out ++ (← instSpineListSpec (absEIdxL args) (absU t) (absEIdxLFrom xs i)))) := by
+  induction n with
+  | zero =>
+    intro pers st lst args t xs i out hn hrel hinv
+    rw [arena.inductives.modeled.inst_spine_list, if_pos (by scalar_tac), absEIdxLFrom,
+      vecFrom_nil _ _ _ (by omega), instSpineListSpec]
+    lockstep_mod
+  | succ m ih =>
+    intro pers st lst args t xs i out hn hrel hinv
+    rw [arena.inductives.modeled.inst_spine_list, if_neg (by scalar_tac), absEIdxLFrom,
+      vecFrom_cons _ _ _ (by omega), instSpineListSpec]
+    simp only [bind_assoc, pure_bind]
+    lockstep_mod
+
 /-- `inst_spine_list` ⊑ the same without the renaming — the public frame's. -/
 theorem inst_spine_list_refines {pers st lst}
     {args : alloc.vec.Vec arena.handle.EIdx} {t : Std.U64}
@@ -1356,8 +1461,8 @@ theorem inst_spine_list_refines {pers st lst}
     Sim₀ absEIdxL pers lst o
       (do pure (absEIdxL out ++
         (← instSpineListSpec (absEIdxL args) (absU t)
-          (absEIdxLFrom pins i)))) := by
-  sorry
+          (absEIdxLFrom pins i)))) :=
+  Lockstep.LS.toSim₀ (inst_spine_list_aux _ rfl hrel hinv) hrun
 
 open Lockstep in
 @[lockstep] theorem inst_spine_list_ls
@@ -2869,6 +2974,28 @@ open Lockstep in
         (absU j)) :=
   LS.ofSim₀ fun _ h => proj_models_ok_refines hrel hinv hfe hvis h
 
+/-- `eta_proj_args` in `LS` form, by induction on the fields left. -/
+theorem eta_proj_args_aux (n : Nat) :
+    ∀ {pers st lst} {t : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
+      {ps_hi : alloc.vec.Vec arena.handle.EIdx} {b0 : arena.handle.EIdx}
+      {n_f j : Std.U64} {out : alloc.vec.Vec arena.handle.EIdx},
+      n_f.val - j.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.modeled.eta_proj_args pers st t lps ps_hi b0 n_f j out) lst
+        (do pure (absEIdxL out ++
+          (← etaProjArgsSpec (absNIdx t) (absNIdxL lps) (absEIdxL ps_hi)
+            (absEIdx b0) n (absU j)))) := by
+  induction n with
+  | zero =>
+    intro pers st lst t lps ps_hi b0 n_f j out hk hrel hinv
+    rw [arena.inductives.modeled.eta_proj_args, if_pos (by scalar_tac), etaProjArgsSpec]
+    lockstep_mod
+  | succ m ih =>
+    intro pers st lst t lps ps_hi b0 n_f j out hk hrel hinv
+    rw [arena.inductives.modeled.eta_proj_args, if_neg (by scalar_tac), etaProjArgsSpec]
+    simp only [bind_assoc, pure_bind]
+    lockstep_mod
+
 /-- `eta_proj_args` ⊑ `checkEtaThm`'s `(List.range nF).mapM`, from field `j`
 on, with the accumulated arguments in front. -/
 theorem eta_proj_args_refines {pers st lst} {t : arena.handle.NIdx}
@@ -2881,8 +3008,8 @@ theorem eta_proj_args_refines {pers st lst} {t : arena.handle.NIdx}
     Sim₀ absEIdxL pers lst o
       (do pure (absEIdxL out ++
         (← etaProjArgsSpec (absNIdx t) (absNIdxL lps) (absEIdxL ps_hi)
-          (absEIdx b0) (absU n_f - absU j) (absU j)))) := by
-  sorry
+          (absEIdx b0) (absU n_f - absU j) (absU j)))) :=
+  Lockstep.LS.toSim₀ (eta_proj_args_aux _ rfl hrel hinv) hrun
 
 open Lockstep in
 @[lockstep] theorem eta_proj_args_ls
