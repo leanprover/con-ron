@@ -1574,75 +1574,6 @@ open Lockstep in
         (ConRon.Refine.absPropWhen pw)) :=
   LS.ofSim₀ fun _ h => intern_binder_refines hrel hinv h
 
-/-- `struct_minors_pis_r` ⊑ the two twins as one recursion at `isLam`
-(finding 16), from the cursor on. -/
-theorem struct_minors_pis_r_refines {pers st lst}
-    {lps : alloc.vec.Vec arena.handle.NIdx} {n_p : Std.U64}
-    {pw : kernel.prop_when.PropWhen}
-    {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
-      (alloc.vec.Vec Std.U64))}
-    {k : Std.Usize} {ofs : Std.U64} {body : arena.handle.EIdx} {is_lam : Bool} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.inductives.native_parts.struct_minors_pis_r pers st lps n_p pw
-      ctors k ofs body is_lam = ok o) :
-    Sim₀ (Option.map absEIdx) pers lst o
-      (structMinorsRSpec (absNIdxL lps) (absU n_p) (ConRon.Refine.absPropWhen pw)
-        (absCtors4LFrom ctors k) (absU ofs) (absEIdx body) is_lam) := by
-  sorry
-
-open Lockstep in
-@[lockstep] theorem struct_minors_pis_r_ls
-    {pers st lst}
-    {lps : alloc.vec.Vec arena.handle.NIdx}
-    {n_p : Std.U64}
-    {pw : kernel.prop_when.PropWhen}
-    {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
-      (alloc.vec.Vec Std.U64))}
-    {k : Std.Usize}
-    {ofs : Std.U64}
-    {body : arena.handle.EIdx}
-    {is_lam : Bool}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = (Option.map absEIdx) a) (arena.inductives.native_parts.struct_minors_pis_r pers st lps n_p pw ctors k ofs body is_lam) lst
-      (structMinorsRSpec (absNIdxL lps) (absU n_p) (ConRon.Refine.absPropWhen pw)
-        (absCtors4LFrom ctors k) (absU ofs) (absEIdx body) is_lam) :=
-  LS.ofSim₀ fun _ h => struct_minors_pis_r_refines hrel hinv h
-
-/-- `struct_minors_lams_r` ⊑ `structMinorsLamsR` from the cursor on — the
-delegation of finding 16 at the `λ` flag. -/
-theorem struct_minors_lams_r_refines {pers st lst}
-    {lps : alloc.vec.Vec arena.handle.NIdx} {n_p : Std.U64}
-    {pw : kernel.prop_when.PropWhen}
-    {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
-      (alloc.vec.Vec Std.U64))}
-    {k : Std.Usize} {ofs : Std.U64} {body : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.inductives.native_parts.struct_minors_lams_r pers st lps n_p pw
-      ctors k ofs body = ok o) :
-    Sim₀ (Option.map absEIdx) pers lst o
-      (structMinorsLamsR (absNIdxL lps) (absU n_p) (ConRon.Refine.absPropWhen pw)
-        (absCtors4LFrom ctors k) (absU ofs) (absEIdx body)) := by
-  sorry
-
-open Lockstep in
-@[lockstep] theorem struct_minors_lams_r_ls
-    {pers st lst}
-    {lps : alloc.vec.Vec arena.handle.NIdx}
-    {n_p : Std.U64}
-    {pw : kernel.prop_when.PropWhen}
-    {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
-      (alloc.vec.Vec Std.U64))}
-    {k : Std.Usize}
-    {ofs : Std.U64}
-    {body : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = (Option.map absEIdx) a) (arena.inductives.native_parts.struct_minors_lams_r pers st lps n_p pw ctors k ofs body) lst
-      (structMinorsLamsR (absNIdxL lps) (absU n_p) (ConRon.Refine.absPropWhen pw)
-        (absCtors4LFrom ctors k) (absU ofs) (absEIdx body)) :=
-  LS.ofSim₀ fun _ h => struct_minors_lams_r_refines hrel hinv h
-
 /-- `u64_vec_dup` is the identity on the abstraction from the cursor on. -/
 theorem u64_vec_dup_refines {xs : alloc.vec.Vec Std.U64} {i : Std.Usize}
     {out : alloc.vec.Vec Std.U64} {o}
@@ -1701,6 +1632,96 @@ open Lockstep in
     {out : alloc.vec.Vec Std.U64} :
     LSP (arena.inductives.native_parts.u64_vec_dup xs i out) (fun o => TwinEq (absNatL out ++ absNatLFrom xs i) (absNatL o)) :=
   fun o h => (u64_vec_dup_refines h).symm
+
+
+/-- `struct_minors_pis_r` ⊑ the two twins as one recursion at `isLam`
+(finding 16), from the cursor on. -/
+theorem struct_minors_pis_r_refines {pers st lst}
+    {lps : alloc.vec.Vec arena.handle.NIdx} {n_p : Std.U64}
+    {pw : kernel.prop_when.PropWhen}
+    {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
+      (alloc.vec.Vec Std.U64))}
+    {k : Std.Usize} {ofs : Std.U64} {body : arena.handle.EIdx} {is_lam : Bool} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.inductives.native_parts.struct_minors_pis_r pers st lps n_p pw
+      ctors k ofs body is_lam = ok o) :
+    Sim₀ (Option.map absEIdx) pers lst o
+      (structMinorsRSpec (absNIdxL lps) (absU n_p) (ConRon.Refine.absPropWhen pw)
+        (absCtors4LFrom ctors k) (absU ofs) (absEIdx body) is_lam) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  revert st lst hrel hinv
+  simp only [absCtors4LFrom]
+  intro st lst hrel hinv
+  refine ls_cursor_acc ctors _
+    (fun ofs xs => structMinorsRSpec (absNIdxL lps) (absU n_p) (ConRon.Refine.absPropWhen pw)
+      xs (absU ofs) (absEIdx body) is_lam)
+    (fun st k ofs => arena.inductives.native_parts.struct_minors_pis_r pers st lps n_p pw
+      ctors k ofs body is_lam)
+    ?_ ?_ k st lst ofs hrel hinv
+  · intro st lst k ofs hn hrel hinv
+    try simp only []
+    rw [arena.inductives.native_parts.struct_minors_pis_r.eq_def, structMinorsRSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst k ofs hb hrel hinv ih
+    try simp only []
+    rw [arena.inductives.native_parts.struct_minors_pis_r.eq_def, structMinorsRSpec]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+
+open Lockstep in
+@[lockstep] theorem struct_minors_pis_r_ls
+    {pers st lst}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p : Std.U64}
+    {pw : kernel.prop_when.PropWhen}
+    {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
+      (alloc.vec.Vec Std.U64))}
+    {k : Std.Usize}
+    {ofs : Std.U64}
+    {body : arena.handle.EIdx}
+    {is_lam : Bool}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = (Option.map absEIdx) a) (arena.inductives.native_parts.struct_minors_pis_r pers st lps n_p pw ctors k ofs body is_lam) lst
+      (structMinorsRSpec (absNIdxL lps) (absU n_p) (ConRon.Refine.absPropWhen pw)
+        (absCtors4LFrom ctors k) (absU ofs) (absEIdx body) is_lam) :=
+  LS.ofSim₀ fun _ h => struct_minors_pis_r_refines hrel hinv h
+
+/-- `struct_minors_lams_r` ⊑ `structMinorsLamsR` from the cursor on — the
+delegation of finding 16 at the `λ` flag. -/
+theorem struct_minors_lams_r_refines {pers st lst}
+    {lps : alloc.vec.Vec arena.handle.NIdx} {n_p : Std.U64}
+    {pw : kernel.prop_when.PropWhen}
+    {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
+      (alloc.vec.Vec Std.U64))}
+    {k : Std.Usize} {ofs : Std.U64} {body : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.inductives.native_parts.struct_minors_lams_r pers st lps n_p pw
+      ctors k ofs body = ok o) :
+    Sim₀ (Option.map absEIdx) pers lst o
+      (structMinorsLamsR (absNIdxL lps) (absU n_p) (ConRon.Refine.absPropWhen pw)
+        (absCtors4LFrom ctors k) (absU ofs) (absEIdx body)) := by
+  sorry
+
+open Lockstep in
+@[lockstep] theorem struct_minors_lams_r_ls
+    {pers st lst}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p : Std.U64}
+    {pw : kernel.prop_when.PropWhen}
+    {ctors : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
+      (alloc.vec.Vec Std.U64))}
+    {k : Std.Usize}
+    {ofs : Std.U64}
+    {body : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = (Option.map absEIdx) a) (arena.inductives.native_parts.struct_minors_lams_r pers st lps n_p pw ctors k ofs body) lst
+      (structMinorsLamsR (absNIdxL lps) (absU n_p) (ConRon.Refine.absPropWhen pw)
+        (absCtors4LFrom ctors k) (absU ofs) (absEIdx body)) :=
+  LS.ofSim₀ fun _ h => struct_minors_lams_r_refines hrel hinv h
 
 /-! ## The generated recursor type and rules -/
 
