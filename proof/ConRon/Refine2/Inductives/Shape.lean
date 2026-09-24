@@ -834,6 +834,8 @@ macro_rules
       | (simp_all [absNIdxL, absCtors3L, absCtors3LFrom, absCtorsL, absCtorsLFrom,
           absIConstantVal, absICIL, absICILFrom, absEIdxL, absEIdxLFrom, NNodeViewWF]; done)
       | (simp_all [absStructParts, absInductiveShape, absNativeParts, absIRecRule]; done)
+      -- a memo walk's answer bit, read off its `WOutRel`/`LOutRel`
+      | (simp only [WOutRel, LOutRel] at *; simp_all; done)
       -- a `usize` cast of a `u64` the port bounded before (a length, a count):
       -- the overflow arm of the cast's spec is contradictory
       | ((try simp only [Lockstep.TwinEq] at *)

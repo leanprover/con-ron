@@ -1143,7 +1143,10 @@ theorem has_loose_bvar_b_fast_refines {pers st lst} {i : Std.U64}
     (hrun : arena.inductives.struct_parts.has_loose_bvar_b_fast pers st i e = ok o) :
     Sim₀ id pers lst o
       (hasLooseBVarBFast (absU i) (absEIdx e)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.has_loose_bvar_b_fast, hasLooseBVarBFast]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem has_loose_bvar_b_fast_ls
@@ -1191,7 +1194,10 @@ theorem struct_used_later_go_refines {pers st lst}
       = ok o) :
     SimRel₀ WOutRel pers lst o
       (structUsedLaterGo lm (absEIdx cty) (absU n_p) (absU j)) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_used_later_go, structUsedLaterGo]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_used_later_go_ls
