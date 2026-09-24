@@ -1849,6 +1849,18 @@ open Lockstep in
         lf) :=
   LS.ofSimRel₀ fun _ h => check_native_table_refines hrel hinv hfe h
 
+open Lockstep in
+/-- `check_native_table_ls` at a twin environment given up to equality. -/
+theorem check_native_table_ls_eq {pers st lst}
+    {p : arena.inductives.native_parts.NativeParts}
+    {ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {sortss : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)}
+    {rf lf lf'} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (h : lf = lf') :
+    LS pers IFEnvRelI (arena.inductives.native_install.check_native_table pers st p ctors_a sortss rf) lst
+      (checkNativeTable (absNativeParts p) (absCtorsL ctors_a) (absLIdxLL sortss) lf') :=
+  h ▸ check_native_table_ls hrel hinv hfe
+
 /-! ## The two-pass install -/
 
 theorem recCtorKindsAllSpec_cons_map (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
@@ -2188,6 +2200,18 @@ open Lockstep in
         is_rec) :=
   LS.ofSimRel₀ fun _ h => check_native_pass_refines hrel hinv hfe h
 
+open Lockstep in
+/-- `cons_sum_ctors` from the cursor `0`, in `LSP` form. -/
+theorem cons_sum_ctors_ls0 {n_p : Std.U64}
+    {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI rf lf) :
+    LSP (arena.inductives.sum_install.cons_sum_ctors n_p ctors 0#usize rf)
+      (fun o => IFEnvRelI o (consSumCtors (absU n_p) (absCtorsL ctors) lf)) := by
+  intro o h
+  have := cons_sum_ctors_refines hfe.1 hfe.2 h
+  simpa [absCtorsLFrom, absCtorsL, IFEnvRelI] using this
+
+attribute [local irreducible] Arena.checkNativeTable Arena.sumRules in
 /-- `check_native_tail_install` ⊑ `checkNativeTail`'s install stage. -/
 theorem check_native_tail_install_refines {pers st lst}
     {mode : kernel.env.CheckMode} {rq : arena.inductives.native_install.NativePass}
@@ -2198,7 +2222,21 @@ theorem check_native_tail_install_refines {pers st lst}
       = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkNativeTailInstallSpec (ConRon.Refine.absMode mode) lq) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  obtain ⟨e1, cv, pp, ca, ss⟩ := lq
+  have hq' := hq
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hq
+  simp only at h1 h3 h4 h5 h6
+  subst h3 h4 h5 h6
+  have hfe1 : IFEnvRelI rq.env1 e1 := ⟨h1, h2⟩
+  rw [arena.inductives.native_install.check_native_tail_install, checkNativeTailInstallSpec]
+  dsimp only
+  refine Lockstep.LSP.bind (cons_sum_ctors_ls0 hfe1) (fun fe2 hfe2 => ?_)
+  lockstep
+  -- the stored recursor: the twin's record is the port's, abstracted
+  all_goals
+    refine check_native_table_ls_eq hrel hinv (‹IFEnvRelI _ _ ∧ _›).1 ?_
+    simp_all [Lockstep.TwinEq, absIConstantInfo, absIRecRuleL, absNativeParts]
 
 open Lockstep in
 @[lockstep] theorem check_native_tail_install_ls
