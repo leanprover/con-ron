@@ -36,7 +36,7 @@ attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 
 namespace ConRon.Refine2
 
-open scoped ConRon.Refine2.IndSide ConRon.Refine2.IndInstPrims
+open scoped ConRon.Refine2.IndSide
 
 open ConRon.Arena
 
@@ -299,6 +299,7 @@ open Lockstep in
       (nativeCapsAt (absInductiveShape p) is_rec) :=
   LS.ofSimRel₀ fun _ h => native_caps_at_refines hrel hinv h
 
+open scoped ConRon.Refine2.IndInstPrims in
 /-- `check_sum_ind_at` ⊑ `checkSumInd`'s tail past `checkSumTele`. -/
 theorem check_sum_ind_at_refines {pers st lst} {rf lf}
     {p : arena.inductives.sum_parts.InductiveShape} {is_rec : Bool}
@@ -449,6 +450,31 @@ open Lockstep in
         (absEIdxL idx_args)) :=
   LS.ofSim₀ fun _ h => field_sort_bound_refines hrel hinv h
 
+/-- `checkStructFieldSortsI`'s step with the per-field bound named as the
+port's `field_sort_bound` (`fieldSortBoundSpec`). -/
+theorem checkStructFieldSortsI_succ_port (mode : ConLeche.CheckMode) (fe : IFEnv)
+    (isProp large : Bool) (s : LIdx) (nP : Nat) (fvs idxArgs : List EIdx) (j : Nat) :
+    checkStructFieldSortsI mode fe isProp large s nP fvs idxArgs (j + 1) = (do
+      let fv ← unwrapOr fvs[j]? (.internal "direct sum: field index")
+      let ty ← inferTypeCore mode fe checkFuel (nP + j) (← fvarTypeD fv)
+      let u ← ensureSortCore mode fe checkFuel (nP + j) ty
+      fieldSortBoundSpec isProp large s u fv idxArgs
+      let rest ← checkStructFieldSortsI mode fe isProp large s nP fvs idxArgs j
+      pure (rest ++ [u])) := by
+  rw [checkStructFieldSortsI]
+  simp only [fieldSortBoundSpec]
+  congr 1; funext fv; congr 1; funext d; congr 1; funext ty; congr 1; funext u
+  split
+  · simp only [bind_assoc]
+    congr 1; funext lu; congr 1; funext ls; congr 1; funext b
+    split <;> simp
+  · split
+    · simp only [bind_assoc]
+      congr 1; funext z; congr 1; funext b
+      split <;> simp
+    · simp
+
+set_option maxHeartbeats 1000000 in
 /-- `check_struct_field_sorts_i` ⊑ `checkStructFieldSortsI` — the fields'
 sorts over the opened constructor telescope, with the official per-field
 universe bound unless the family is propositional.  Walks the fields from the
@@ -466,7 +492,26 @@ theorem check_struct_field_sorts_i_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ absLIdxL pers lst o
       (checkStructFieldSortsI (ConRon.Refine.absMode mode) lf is_prop large
         (absLIdx s) (absU n_p) (absEIdxL fvs) (absEIdxL idx_args) (absU k)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  induction hk : k.val generalizing k st lst with
+  | zero =>
+    rw [arena.inductives.sum_install.check_struct_field_sorts_i.eq_def,
+      if_pos (by scalar_tac), show absU k = 0 from hk, checkStructFieldSortsI]
+    lockstep
+  | succ m ih =>
+    rw [arena.inductives.sum_install.check_struct_field_sorts_i.eq_def,
+      if_neg (by scalar_tac), show absU k = m + 1 from hk, checkStructFieldSortsI_succ_port]
+    have hk1 : 1 ≤ k.val := by omega
+    obtain rfl : m = k.val - 1 := by omega
+    clear hk
+    dsimp only
+    simp only [absEIdxL]
+    by_cases hf : k.val - 1 < fvs.val.length
+    · rw [List.getElem?_map, List.getElem?_eq_getElem hf, Option.map_some]
+      lockstep
+    · rw [List.getElem?_map, List.getElem?_eq_none (by omega), Option.map_none]
+      lockstep
 
 open Lockstep in
 @[lockstep] theorem check_struct_field_sorts_i_ls
@@ -678,18 +723,54 @@ open Lockstep in
   LS.ofSim₀ fun _ h => norm_field_doms_refines hrel hinv hfe hvis h
 
 /-- `zip_fvar_doms` ⊑ `zipFvarDoms` from the cursor on, with the accumulated
-pairs in front.  **The tier's one `SimRE`**: the Rust takes `&AState` and can
-decline, with no state in the return at all. -/
+pairs in front.  The Rust takes `&AState` and can decline, with no state in the
+return at all: an `LSR` read (it was a `SimRE`, which also pins the twin's
+state; the lockstep read relates the two states instead). -/
+theorem zip_fvar_doms_aux (m : Nat) :
+    ∀ {pers st lst} {xs : alloc.vec.Vec arena.handle.EIdx}
+      {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)} {i : Std.Usize}
+      {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)},
+      xs.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LSR pers (fun a b => b = absBinderL a)
+        (arena.inductives.sum_install.zip_fvar_doms pers st xs bs i out) st lst
+        (do pure (absBinderL out ++
+          (← zipFvarDoms (absEIdxLFrom xs i) (absBinderLFrom bs i)))) := by
+  induction m with
+  | zero =>
+    intro pers st lst xs bs i out hn hrel hinv
+    apply Lockstep.LSR.of_LS
+    rw [arena.inductives.sum_install.zip_fvar_doms, if_pos (by scalar_tac), absEIdxLFrom,
+      vecFrom_nil _ _ _ (by omega)]
+    simp only [zipFvarDoms]
+    lockstep
+  | succ m ih =>
+    intro pers st lst xs bs i out hn hrel hinv
+    apply Lockstep.LSR.of_LS
+    rw [arena.inductives.sum_install.zip_fvar_doms, if_neg (by scalar_tac), absEIdxLFrom,
+      vecFrom_cons _ _ _ (by omega)]
+    by_cases hb : i.val < bs.val.length
+    · rw [if_neg (by scalar_tac), absBinderLFrom, vecFrom_cons _ _ _ hb]
+      simp only [zipFvarDoms, bind_assoc, pure_bind]
+      lockstep
+      -- the port's `let (_, bm) := bs[i]` (a tuple pattern on a read value)
+      all_goals
+        generalize (bs.val)[i.val] = q at *
+        obtain ⟨q1, q2⟩ := q
+        lockstep
+    · rw [if_pos (by scalar_tac), absBinderLFrom, vecFrom_nil _ _ _ (by omega)]
+      simp only [zipFvarDoms]
+      lockstep
+
 theorem zip_fvar_doms_refines {pers st lst} {xs : alloc.vec.Vec arena.handle.EIdx}
     {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {i : Std.Usize}
-    {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.inductives.sum_install.zip_fvar_doms pers st xs bs i out = ok o) :
-    SimRE absBinderL lst o
+    {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    Lockstep.LSR pers (fun a b => b = absBinderL a)
+      (arena.inductives.sum_install.zip_fvar_doms pers st xs bs i out) st lst
       (do pure (absBinderL out ++
-        (← zipFvarDoms (absEIdxLFrom xs i) (absBinderLFrom bs i)))) := by
-  sorry
+        (← zipFvarDoms (absEIdxLFrom xs i) (absBinderLFrom bs i)))) :=
+  zip_fvar_doms_aux _ rfl hrel hinv
 
 open Lockstep in
 @[lockstep] theorem zip_fvar_doms_ls
@@ -703,8 +784,9 @@ open Lockstep in
     LSR pers (fun a b => b = absBinderL a) (arena.inductives.sum_install.zip_fvar_doms pers st xs bs i out) st lst
       (do pure (absBinderL out ++
         (← zipFvarDoms (absEIdxLFrom xs i) (absBinderLFrom bs i)))) :=
-  LSR.ofSimRE hrel hinv fun _ h => zip_fvar_doms_refines hrel hinv h
+  zip_fvar_doms_refines hrel hinv
 
+open scoped ConRon.Refine2.IndInstPrims in
 /-- `norm_ctor_val` ⊑ `normCtorVal` — the checked constructor with its field
 domains normalised, closed back into a telescope and, when anything changed,
 checked as the constructor's type in its place, from scratch. -/
@@ -919,6 +1001,7 @@ open Lockstep in
         (absEIdx xrest)) :=
   LS.ofSim₀ fun _ h => check_sum_ctor_resid_refines hrel hinv hfe0 hfe h
 
+open scoped ConRon.Refine2.IndInstPrims in
 /-- `check_sum_ctor_frames` ⊑ `checkSumCtor`'s frame stage. -/
 theorem check_sum_ctor_frames_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf0 lf0} {rf lf} {t : arena.handle.NIdx}
@@ -961,6 +1044,7 @@ open Lockstep in
         (absU n_f) (absIConstantVal cv_ta) (absIConstantVal cv_ca)) :=
   LS.ofSim₀ fun _ h => check_sum_ctor_frames_refines hrel hinv hfe0 hfe h
 
+open scoped ConRon.Refine2.IndInstPrims in
 /-- `check_sum_ctor` ⊑ `checkSumCtor` — stage 2, one constructor's type. -/
 theorem check_sum_ctor_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rf0 lf0} {rf lf} {t : arena.handle.NIdx}
