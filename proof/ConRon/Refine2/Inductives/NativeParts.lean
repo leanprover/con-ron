@@ -1457,7 +1457,10 @@ theorem intern_binder_refines {pers st lst} {is_lam : Bool}
     Sim₀ absEIdx pers lst o
       (internBinderSpec is_lam (absEIdx ty) (absEIdx body)
         (ConRon.Refine.absPropWhen pw)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.intern_binder, internBinderSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem intern_binder_ls
