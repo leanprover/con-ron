@@ -109,6 +109,13 @@ attribute [lockstep_simp] decide_eq_true_eq etag_forallE_abs etag_lam_abs absBin
     LSP (arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
   fun e he => dupId_eidx _ _ he
 
+/-- `EIdx(w)`: the handle with that word (the port's `EIdx(0)` default). -/
+@[lockstep] theorem eidx_of_word_spec (w : Std.U32) :
+    LSP (arena.handle.EIdx.of_word w) (fun e => e = { word := w }) := by
+  intro e he
+  simp only [arena.handle.EIdx.of_word, Result.ok.injEq] at he
+  exact he.symm
+
 @[lockstep] theorem fail_spec (T : Type) (e : kernel.core_types.CheckError) :
     LSP (arena.monad.fail T e) (fun r => r = .Err e) :=
   fun r hr => fail_run hr
