@@ -1480,6 +1480,27 @@ theorem ls_counted_sz_inv {γ δ ω : Type} {pers : arena.store.PersTier} {R : �
     exact hstep st lst i w m hw (by omega) hm hrel hinv
       (fun st' lst' j w' hj hw' hrel' hinv' => ih j st' lst' w' (by omega) hw' hrel' hinv')
 
+namespace Lockstep
+
+/-- A twin-only `map` on the answer: the Rust computation's relation to `x`
+carried to `x`'s image. -/
+theorem LS.twin_map {α β γ : Type} {pers : arena.store.PersTier} {R₁ : α → β → Prop}
+    {R : α → γ → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM β} {f : β → γ}
+    (h : LS pers R₁ m lst x) (hR : ∀ a b, R₁ a b → R a (f b)) :
+    LS pers R m lst (x >>= fun b => Pure.pure (f b)) := by
+  intro o st' hm
+  have h1 := h o st' hm
+  cases o with
+  | Err e => exact errSim_bind h1
+  | Ok a =>
+    obtain ⟨b, lst', hx, hR1, h2, h3⟩ := h1
+    exact ⟨f b, lst', by rw [StateT.run_bind, hx]; rfl, hR _ _ hR1, h2, h3⟩
+
+end Lockstep
+
+
 namespace IndSide
 
 /-- Round 6's side alternative: a telescope's `TeleWF` after a `push`, and a
