@@ -270,12 +270,15 @@ theorem checkIotaThm_unfold (mode : ConLeche.CheckMode) (fe' feSelf : IFEnv)
         fail (.notImplemented "iota statement major mismatch")
       checkIotaThmCtorSpec mode feSelf f tyA mI rP cvj cnP cnF rhsA fvs xFvs largs
         targs rhsS lA b0 cvName) := by
-  -- TRUE since task #97-T2-LOCKSTEP lane Inductives (round 4's defect was the
-  -- twin's three distinct head/arity/prefix messages against this ONE; the twin
-  -- now declines all three with the port's `M_IOTA_HEAD`).  The peel through the
-  -- tier's longest `do` block exhausts the default heartbeats at the prologue's
-  -- `unwrapOr`; left for the round that states the fragments' lockstep proofs.
-  sorry
+  unfold checkIotaThm iotaStmtOpenSpec iotaStmtOpenAtSpec iotaLhsPrefixOkSpec checkIotaMajorSpec
+    checkIotaThmCtorSpec checkIotaThmIdxSpec checkIotaThmPrefixSpec checkIotaThmFramesSpec
+    checkIotaThmLamsSpec checkIotaThmRhsSpec
+  -- the join points undone on both sides (`twin_reduce`'s four), `cnF` from
+  -- `depth - rP`, and the spec's merged head/arity/prefix test split back into
+  -- the twin's three `unless`es (one message)
+  simp only [bind_assoc, pure_bind, am_fail_bind, am_ite_bind,
+    Nat.add_sub_cancel_left, Bool.not_eq_true', ite_not,
+    Bool.false_eq_true, if_false, beq_iff_eq, Bool.eq_false_iff, ne_eq, decide_eq_true_eq]
 
 /-! ## `nestedRuleShape`, split six ways -/
 
@@ -541,7 +544,28 @@ theorem checkIotaThmN_unfold (mode : ConLeche.CheckMode) (fe' feSelf : IFEnv)
         checkIotaThmNAtSpec mode fe' feSelf f cvName lps tyA mI rP j r cvj cnP cnF
           rhsA lvls pins
         pure (.nested lvls pins)) := by
-  sorry
+  have hmap : ∀ (a : List EIdx) (t : Nat) (l : List EIdx),
+      l.mapM (fun p => do instSpine coreWalkFuel a t (← renameConstsFast coreWalkFuel (renameBy f) p))
+        = instSpineListRenamedSpec f a t l :=
+    fun a t => list_mapM_counted _ _ rfl
+      (fun _ _ => by simp only [instSpineListRenamedSpec, bind_assoc])
+  have hmap2 : ∀ (a : List EIdx) (t : Nat) (l : List EIdx),
+      l.mapM (fun p => instSpine coreWalkFuel a t p) = instSpineListSpec a t l :=
+    fun a t => list_mapM_counted _ _ rfl (fun _ _ => rfl)
+  unfold checkIotaThmN
+  refine am_bind_congr _ ?_; intro sh
+  rcases sh with _ | ⟨lvls, pins⟩
+  · rfl
+  simp only [hmap, hmap2]
+  unfold checkIotaThmNAtSpec iotaStmtOpenSpec iotaStmtOpenAtSpec iotaLhsPrefixOkSpec
+    checkIotaThmNMajorSpec checkIotaThmNCtorSpec checkIotaThmNIdxSpec checkIotaThmNPrefixSpec
+    checkIotaThmNFramesSpec checkIotaThmNFieldsSpec checkIotaThmLamsSpec checkIotaThmRhsSpec
+  simp only [bind_assoc, pure_bind, am_fail_bind, am_ite_bind,
+    Nat.add_sub_cancel_left, Bool.not_eq_true', ite_not,
+    Bool.false_eq_true, if_false, beq_iff_eq, Bool.eq_false_iff, ne_eq, decide_eq_true_eq]
+  -- the two sides differ only in the auxiliary matcher of the residual-head
+  -- test (`checkIotaThmN`'s own against `checkIotaThmNCtorSpec`'s)
+  rfl
 
 /-! ## `checkIotaRule`, split four ways -/
 

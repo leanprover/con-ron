@@ -134,36 +134,6 @@ def checkValueGroupValueSpec (mode : CheckMode) (fe : IFEnv) (g : ValueGroup)
     else pure g.jv
   checkValueGroupTailSpec mode fe g jv
 
-/-! ## `constsResolveFGo`'s miss arm -/
-
-/-- `constsResolveFGo`'s inner `match ← view h with`, at the view.  The four
-LEAF arms are unreachable from `consts_resolve_f_node` — its caller has
-already answered them — but they are transcribed rather than defaulted, and
-that is why the spec carries the HANDLE beside the view: the twin's leaf arm
-calls `constsResolve` at the handle, and the port's split does not have one.
-The lemma about `consts_resolve_f_node` therefore also carries
-"`h` views as `v`", which is task #97-P5-0's finding 3 met once more. -/
-def constsResolveFNodeSpec (fe : IFEnv) (memo : Std.HashMap EIdx Bool)
-    (fuel : Nat) (h : EIdx) : ENodeView → AM (Bool × Std.HashMap EIdx Bool)
-  | .fvar _ ty => constsResolveFGo fe memo fuel ty
-  | .app f a => do
-    let (b₁, memo) ← constsResolveFGo fe memo fuel f
-    let (b₂, memo) ← constsResolveFGo fe memo fuel a
-    pure (b₁ && b₂, memo)
-  | .lam ty body _ | .forallE ty body _ => do
-    let (b₁, memo) ← constsResolveFGo fe memo fuel ty
-    let (b₂, memo) ← constsResolveFGo fe memo fuel body
-    pure (b₁ && b₂, memo)
-  | .letE ty val body => do
-    let (b₁, memo) ← constsResolveFGo fe memo fuel ty
-    let (b₂, memo) ← constsResolveFGo fe memo fuel val
-    let (b₃, memo) ← constsResolveFGo fe memo fuel body
-    pure (b₁ && b₂ && b₃, memo)
-  | .proj s _ sub => do
-    let (b, memo) ← constsResolveFGo fe memo fuel sub
-    pure ((fe.find? s).isSome && b, memo)
-  | _ => do pure (← constsResolve fe coreWalkFuel h, memo)
-
 /-! ## `indParamsOk`'s per-member test -/
 
 /-- `indParamsOk`'s body at one member — **the stream's declared parameter
@@ -288,31 +258,6 @@ theorem checkValueGroup_unfold (mode : CheckMode) (fe : IFEnv) (g : ValueGroup) 
       checkValueGroupValueSpec mode fe g u) := by
   twin_reduce [checkValueGroup, checkValueGroupValueSpec,
     checkValueGroupTailSpec]
-
-/-- `constsResolveFGo` is its probe and its node transcription. -/
-theorem constsResolveFGo_unfold (fe : IFEnv) (memo : Std.HashMap EIdx Bool)
-    (fuel : Nat) (h : EIdx) :
-    constsResolveFGo fe memo (fuel + 1) h = (do
-      match ← view h with
-      | .bvar _ | .sort _ | .lit _ | .const _ _ =>
-        pure (← constsResolve fe coreWalkFuel h, memo)
-      | _ => do
-        match memo[h]? with
-        | some r => pure (r, memo)
-        | none => do
-          let p ← constsResolveFNodeSpec fe memo fuel h (← view h)
-          pure (p.1, p.2.insert h p.1)) := by
-  rw [constsResolveFGo]
-  refine ConRon.Refine2.am_bind_congr _ ?_
-  intro v
-  cases v <;> try rfl
-  all_goals
-    (cases hm : memo[h]? with
-     | some r => rfl
-     | none =>
-       refine ConRon.Refine2.am_bind_congr _ ?_
-       intro v2
-       cases v2 <;> twin_reduce [constsResolveFNodeSpec])
 
 /-- `indParamsOk` is its per-member test and the `&&` fold. -/
 theorem indParamsOk_unfold (nP : Nat) (ci : IConstantInfo)
@@ -1250,8 +1195,6 @@ only obligations of this file about the TWIN rather than the port, and rule
 /-- info: 'ConRon.Arena.checkValueGroup_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms checkValueGroup_unfold
 
-/-- info: 'ConRon.Arena.constsResolveFGo_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms constsResolveFGo_unfold
 
 /-- info: 'ConRon.Arena.checkProjRule_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms checkProjRule_unfold

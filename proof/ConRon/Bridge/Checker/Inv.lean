@@ -1126,37 +1126,9 @@ theorem IFEnvOK_of_denote {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
   · intro n t hf
     exact hproj t (IFEnv.find?_mem hcoh hf)
 
-/-! ## The one debtor of `IFEnvOK.proj`
-
-`IProjTableOK` is true of every table the checker stores, and the only place
-it can be discharged is the install that builds one.  Naming it here keeps
-`Bridge/Core/Walks/Proj.lean`'s `IFEnv.findProj?_spec` free of a hypothesis a
-walk cannot discharge (task #97-P3-Core-2's second finding, answered). -/
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:53-86
-checkStructProjTable — **the install's obligation**: the table
-`checkStructProjTable` pushes satisfies `IProjTableOK`.
-
-All three clauses are true by construction, and the twin already tests two of
-them: `unless bodies.size = nF` is the `bodies` clause verbatim, and
-`let tn ← projTableName T` is the `named` clause's second half.  The `guards`
-clause is the ONE the install itself does not test — `guards` is an argument —
-so its discharge site is the CALLER, the structure route that builds
-`structProjGuards T nF` and passes it beside `nF`.
-
-**OWNER: the Inductives tier** — `Bridge/Inductives/StructInstall.lean`'s
-`checkStructProjTable_spec` (task #97-P3-Ind's sorry list, item 8), whose
-`InstRel` conclusion is where the clause belongs.  Stated here so that
-`IFEnvOK`'s new field has exactly one named debtor rather than a free
-hypothesis at every consumer. -/
-theorem projTableOK_of_install {T C : NIdx} {lps : List NIdx} {nP nF : Nat}
-    {resSort : LIdx} {guards : List LIdx} {off : Nat} {cvCa : IConstantVal}
-    {fe fe' : IFEnv} {s s' : AState} (hok : StateOK s)
-    (hg : guards.length = nF)
-    (hrun : Arena.checkStructProjTable T C lps nP nF resSort guards off cvCa fe s
-      = .ok (fe', s')) :
-    ∀ n t, fe'.find? n = some (.projInfo t) →
-      fe.find? n = some (.projInfo t) ∨ IProjTableOK s'.store t := by
-  sorry
+/-! `IProjTableOK` is discharged at the install that builds a table
+(`Bridge/Inductives/StructInstall.lean`'s `checkStructProjTable_spec`).  The
+free-standing debtor `projTableOK_of_install` that used to sit here (a
+`sorry`, no consumer) was deleted by task #97-T2-CLEANUP. -/
 
 end ConRon.Bridge
