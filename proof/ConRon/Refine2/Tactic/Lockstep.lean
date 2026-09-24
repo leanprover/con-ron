@@ -2229,7 +2229,6 @@ def simpTwinEqs (g : MVarId) : MetaM MVarId := g.withContext do
   let bctx ← Simp.mkContext (simpTheorems := #[base]) (congrTheorems := ← getSimpCongrTheorems)
   let mut thms : SimpTheorems := {}
   let mut any := false
-  let mut i := 0
   for d in (← getLCtx) do
     if d.isImplementationDetail then continue
     let t ← instantiateMVars d.type
@@ -2254,9 +2253,11 @@ def simpTwinEqs (g : MVarId) : MetaM MVarId := g.withContext do
       let some (_, a1, _) := rt.eq? | pure ()
       -- (the respelled side only when it differs: one `simp` call per side)
       let sides := if a1 == a then [(a, pfEq)] else [(a, pfEq), (a1, rule)]
+      let mut offered : Array Expr := #[a, a1]
       for (lhs, prf) in sides do
         let (r, _) ← simp lhs bctx
-        if r.expr != lhs then
+        if !offered.contains r.expr then
+          offered := offered.push r.expr
           let pn ← match r.proof? with
             | some p => mkEqTrans (← mkEqSymm p) prf
             | none => mkExpectedTypeHint prf (← mkEq r.expr b)
