@@ -40,7 +40,43 @@ open scoped ConRon.Refine2.IndSide ConRon.Refine2.IndInstPrims
 
 open ConRon.Arena
 
+-- `lockstep_congr` tries `rfl` first; at a twin knot entry whose depth argument
+-- differs syntactically from the port's (`absU i4` against `↑n_p + j`), that
+-- `rfl` unfolds the knot and never returns.
+attribute [local irreducible] Arena.isDefEqCore Arena.inferTypeCore Arena.ensureSortCore
+
+/-- The positivity walk's fuel (`POS_WALK_FUEL = 1024`, the twin's literal). -/
+@[local lockstep_simp] theorem pos_walk_fuel_abs :
+    absU arena.inductives.sum_install.POS_WALK_FUEL = 1024 := by
+  rw [arena.inductives.sum_install.POS_WALK_FUEL]; rfl
+
 /-! ## The type former's stage -/
+
+theorem whnf_telescope_aux (m : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rf lf} {mode : kernel.env.CheckMode} {i n : Std.U64}
+      {e : arena.handle.EIdx} {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)},
+      n.val = m → AStateRel₀ pers st lst → AStateInv pers st → IFEnvRelI rf lf →
+      absU vis = lf.visibleBelow →
+      Lockstep.LS pers (fun a b => b = (absBinderL a.1, absLIdx a.2))
+        (arena.inductives.sum_install.whnf_telescope pers vis st mode rf i n e out) lst
+        (do
+          let q ← whnfTelescope (ConRon.Refine.absMode mode) lf (absU i) (absU n)
+            (absEIdx e)
+          pure (absBinderL out ++ q.1, q.2)) := by
+  induction m with
+  | zero =>
+    intro pers st lst vis rf lf mode i n e out hn hrel hinv hfe hvis
+    rw [arena.inductives.sum_install.whnf_telescope, show absU n = 0 from hn, whnfTelescope]
+    simp only [bind_assoc]
+    lockstep
+  | succ m ih =>
+    intro pers st lst vis rf lf mode i n e out hn hrel hinv hfe hvis
+    rw [arena.inductives.sum_install.whnf_telescope, show absU n = m + 1 from hn, whnfTelescope]
+    have hn1 : 1 ≤ n.val := by omega
+    obtain rfl : m = n.val - 1 := by omega
+    clear hn
+    simp only [bind_assoc, pure_bind]
+    lockstep
 
 /-- `whnf_telescope` ⊑ `whnfTelescope`, with the accumulated binders in front
 — **official's telescope loop** (`check_inductive_types`): peel `n` Π binders
@@ -59,7 +95,7 @@ theorem whnf_telescope_refines {pers st lst} {vis : Std.U64} {rf lf}
         let q ← whnfTelescope (ConRon.Refine.absMode mode) lf (absU i) (absU n)
           (absEIdx e)
         pure (absBinderL out ++ q.1, q.2)) := by
-  sorry
+  exact Lockstep.LS.toSim₀ (whnf_telescope_aux _ rfl hrel hinv hfe hvis) hrun
 
 open Lockstep in
 @[lockstep] theorem whnf_telescope_ls
@@ -454,6 +490,59 @@ open Lockstep in
 
 /-! ## Official's positivity walk, as a normalisation -/
 
+/-- `norm_pos_dom_at` at fuel `fuel`, given `norm_pos_dom` at the same fuel
+(the mutual recursion's one direction). -/
+theorem norm_pos_dom_at_of {pers} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {t : arena.handle.NIdx} {fuel : Std.U64}
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow)
+    (ih : ∀ {st lst} {d : Std.U64} {e : arena.handle.EIdx},
+      AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = absEIdx a)
+        (arena.inductives.sum_install.norm_pos_dom pers vis st mode rf t d fuel e) lst
+        (normPosDom (ConRon.Refine.absMode mode) lf (absNIdx t) (absU d) (absU fuel)
+          (absEIdx e)))
+    {st lst} {d : Std.U64} {w : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    Lockstep.LS pers (fun a b => b = absEIdx a)
+      (arena.inductives.sum_install.norm_pos_dom_at pers vis st mode rf t d fuel w) lst
+      (normPosDomAtSpec (ConRon.Refine.absMode mode) lf (absNIdx t) (absU d)
+        (absU fuel) (absEIdx w)) := by
+  rw [arena.inductives.sum_install.norm_pos_dom_at, normPosDomAtSpec]
+  lockstep
+
+/-- `norm_pos_dom` by induction on the fuel. -/
+theorem norm_pos_dom_aux (m : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rf lf} {mode : kernel.env.CheckMode}
+      {t : arena.handle.NIdx} {d fuel : Std.U64} {e : arena.handle.EIdx},
+      fuel.val = m → AStateRel₀ pers st lst → AStateInv pers st → IFEnvRelI rf lf →
+      absU vis = lf.visibleBelow →
+      Lockstep.LS pers (fun a b => b = absEIdx a)
+        (arena.inductives.sum_install.norm_pos_dom pers vis st mode rf t d fuel e) lst
+        (normPosDom (ConRon.Refine.absMode mode) lf (absNIdx t) (absU d) (absU fuel)
+          (absEIdx e)) := by
+  induction m with
+  | zero =>
+    intro pers st lst vis rf lf mode t d fuel e hn hrel hinv hfe hvis
+    rw [arena.inductives.sum_install.norm_pos_dom, if_pos (by scalar_tac),
+      show absU fuel = 0 from hn, normPosDom]
+    lockstep
+  | succ m ih =>
+    intro pers st lst vis rf lf mode t d fuel e hn hrel hinv hfe hvis
+    rw [arena.inductives.sum_install.norm_pos_dom, if_neg (by scalar_tac),
+      show absU fuel = m + 1 from hn, normPosDom_unfold]
+    have hat : ∀ {f' : Std.U64}, f'.val = m → ∀ {st lst} {d : Std.U64} {w : arena.handle.EIdx},
+        AStateRel₀ pers st lst → AStateInv pers st →
+        Lockstep.LS pers (fun a b => b = absEIdx a)
+          (arena.inductives.sum_install.norm_pos_dom_at pers vis st mode rf t d f' w) lst
+          (normPosDomAtSpec (ConRon.Refine.absMode mode) lf (absNIdx t) (absU d)
+            m (absEIdx w)) := by
+      intro f' hf' st lst d w hrel hinv
+      have := norm_pos_dom_at_of (mode := mode) (t := t) (fuel := f') hfe hvis
+        (fun hrel hinv => ih hf' hrel hinv hfe hvis) (d := d) (w := w) hrel hinv
+      rwa [show absU f' = m from hf'] at this
+    clear ih
+    lockstep
+
 /-- `norm_pos_dom_at` ⊑ `normPosDom`'s arm past the two occurrence tests and
 the whnf. -/
 theorem norm_pos_dom_at_refines {pers st lst} {vis : Std.U64} {rf lf}
@@ -467,7 +556,9 @@ theorem norm_pos_dom_at_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ absEIdx pers lst o
       (normPosDomAtSpec (ConRon.Refine.absMode mode) lf (absNIdx t) (absU d)
         (absU fuel) (absEIdx w)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  exact norm_pos_dom_at_of hfe hvis (fun hrel hinv => norm_pos_dom_aux _ rfl hrel hinv hfe hvis)
+    hrel hinv
 
 open Lockstep in
 @[lockstep] theorem norm_pos_dom_at_ls
@@ -499,7 +590,7 @@ theorem norm_pos_dom_refines {pers st lst} {vis : Std.U64} {rf lf}
     Sim₀ absEIdx pers lst o
       (normPosDom (ConRon.Refine.absMode mode) lf (absNIdx t) (absU d) (absU fuel)
         (absEIdx e)) := by
-  sorry
+  exact Lockstep.LS.toSim₀ (norm_pos_dom_aux _ rfl hrel hinv hfe hvis) hrun
 
 open Lockstep in
 @[lockstep] theorem norm_pos_dom_ls
@@ -519,6 +610,34 @@ open Lockstep in
         (absEIdx e)) :=
   LS.ofSim₀ fun _ h => norm_pos_dom_refines hrel hinv hfe hvis h
 
+theorem norm_field_doms_aux (m : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rf lf} {mode : kernel.env.CheckMode}
+      {t : arena.handle.NIdx} {i n : Std.U64} {h : arena.handle.EIdx}
+      {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)},
+      n.val = m → AStateRel₀ pers st lst → AStateInv pers st → IFEnvRelI rf lf →
+      absU vis = lf.visibleBelow →
+      Lockstep.LS pers (fun a b => b = (absBinderL a.1, absEIdx a.2))
+        (arena.inductives.sum_install.norm_field_doms pers vis st mode rf t i n h out) lst
+        (do
+          let q ← normFieldDoms (ConRon.Refine.absMode mode) lf (absNIdx t) (absU i)
+            (absU n) (absEIdx h)
+          pure (absBinderL out ++ q.1, q.2)) := by
+  induction m with
+  | zero =>
+    intro pers st lst vis rf lf mode t i n h out hn hrel hinv hfe hvis
+    rw [arena.inductives.sum_install.norm_field_doms, if_pos (by scalar_tac),
+      show absU n = 0 from hn, normFieldDoms]
+    lockstep
+  | succ m ih =>
+    intro pers st lst vis rf lf mode t i n h out hn hrel hinv hfe hvis
+    rw [arena.inductives.sum_install.norm_field_doms, if_neg (by scalar_tac),
+      show absU n = m + 1 from hn, normFieldDoms]
+    have hn1 : 1 ≤ n.val := by omega
+    obtain rfl : m = n.val - 1 := by omega
+    clear hn
+    simp only [bind_assoc, pure_bind]
+    lockstep
+
 /-- `norm_field_doms` ⊑ `normFieldDoms`, with the accumulated binders in
 front. -/
 theorem norm_field_doms_refines {pers st lst} {vis : Std.U64} {rf lf}
@@ -535,7 +654,7 @@ theorem norm_field_doms_refines {pers st lst} {vis : Std.U64} {rf lf}
         let q ← normFieldDoms (ConRon.Refine.absMode mode) lf (absNIdx t) (absU i)
           (absU n) (absEIdx h)
         pure (absBinderL out ++ q.1, q.2)) := by
-  sorry
+  exact Lockstep.LS.toSim₀ (norm_field_doms_aux _ rfl hrel hinv hfe hvis) hrun
 
 open Lockstep in
 @[lockstep] theorem norm_field_doms_ls
@@ -886,6 +1005,39 @@ open Lockstep in
         (absIConstantVal cv_c) (absU n_f) (absIConstantVal cv_ta)) :=
   LS.ofSim₀ fun _ h => check_sum_ctor_refines hrel hinv hfe0 hfe h
 
+theorem check_sum_ctors_aux (m : Nat) :
+    ∀ {pers st lst} {mode : kernel.env.CheckMode} {rf0 lf0 rf lf}
+      {t : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
+      {n_p n_idx : Std.U64} {res_sort : arena.handle.LIdx} {is_prop large : Bool}
+      {cv_ta : arena.env.IConstantVal}
+      {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {i : Std.Usize}
+      {out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+      {sout : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)},
+      ctors.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf0 lf0 → IFEnvRelI rf lf →
+      Lockstep.LS pers (fun a b => b = (absCtorsL a.1, absLIdxLL a.2))
+        (arena.inductives.sum_install.check_sum_ctors pers st mode rf0 rf t lps
+          n_p n_idx res_sort is_prop large cv_ta ctors i out sout) lst
+        (do
+          let q ← checkSumCtors (ConRon.Refine.absMode mode) lf0 lf (absNIdx t)
+            (absNIdxL lps) (absU n_p) (absU n_idx) (absLIdx res_sort) is_prop large
+            (absIConstantVal cv_ta) (absCtorsLFrom ctors i)
+          pure (absCtorsL out ++ q.1, absLIdxLL sout ++ q.2)) := by
+  induction m with
+  | zero =>
+    intro pers st lst mode rf0 lf0 rf lf t lps n_p n_idx res_sort is_prop large cv_ta ctors i
+      out sout hn hrel hinv hfe0 hfe
+    rw [arena.inductives.sum_install.check_sum_ctors, if_pos (by scalar_tac), absCtorsLFrom,
+      vecFrom_nil _ _ _ (by omega), checkSumCtors]
+    lockstep
+  | succ m ih =>
+    intro pers st lst mode rf0 lf0 rf lf t lps n_p n_idx res_sort is_prop large cv_ta ctors i
+      out sout hn hrel hinv hfe0 hfe
+    rw [arena.inductives.sum_install.check_sum_ctors, if_neg (by scalar_tac), absCtorsLFrom,
+      vecFrom_cons _ _ _ (by omega), checkSumCtors]
+    simp only [bind_assoc, pure_bind]
+    lockstep
+
 /-- `check_sum_ctors` ⊑ `checkSumCtors` from the cursor on, with the
 accumulated constructors and sort lists in front. -/
 theorem check_sum_ctors_refines {pers st lst} {mode : kernel.env.CheckMode}
@@ -907,7 +1059,7 @@ theorem check_sum_ctors_refines {pers st lst} {mode : kernel.env.CheckMode}
           (absNIdxL lps) (absU n_p) (absU n_idx) (absLIdx res_sort) is_prop large
           (absIConstantVal cv_ta) (absCtorsLFrom ctors i)
         pure (absCtorsL out ++ q.1, absLIdxLL sout ++ q.2)) := by
-  sorry
+  exact Lockstep.LS.toSim₀ (check_sum_ctors_aux _ rfl hrel hinv hfe0 hfe) hrun
 
 open Lockstep in
 @[lockstep] theorem check_sum_ctors_ls
