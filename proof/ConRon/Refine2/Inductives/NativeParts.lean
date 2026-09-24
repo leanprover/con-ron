@@ -385,6 +385,32 @@ open Lockstep in
         (absU ofs) (absEIdx h) (absU k)) :=
   LS.ofSim₀ fun _ h => rec_positivity_at_refines hrel hinv h
 
+open Lockstep in
+/-- `rec_positivity` by fuel induction (the walk is structural on the view:
+the port's `fuel - 1` against the twin's `fuel + 1` arm). -/
+theorem rec_positivity_aux {pers} {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_idx ofs : Std.U64} :
+    ∀ (n : Nat) (fuel : Std.U64) (h : arena.handle.EIdx) (k : Std.U64) st lst, fuel.val = n →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absRecFieldKind a)
+        (arena.inductives.native_parts.rec_positivity pers st t lps n_p n_idx ofs fuel h k) lst
+        (recPositivity (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx) (absU ofs)
+          (absU fuel) (absEIdx h) (absU k)) := by
+  intro n
+  induction n with
+  | zero =>
+    intro fuel h k st lst hf hrel hinv
+    have h0 : fuel = 0#u64 := by scalar_tac
+    subst h0
+    rw [arena.inductives.native_parts.rec_positivity.eq_def, if_pos rfl,
+      show absU (0#u64 : Std.U64) = 0 from rfl, recPositivity]
+    lockstep
+  | succ n ih =>
+    intro fuel h k st lst hf hrel hinv
+    rw [arena.inductives.native_parts.rec_positivity.eq_def, if_neg (by scalar_tac),
+      show absU fuel = n + 1 by simp [absU, hf], recPositivity]
+    lockstep
+
 /-- `rec_positivity` ⊑ `recPositivity` — official `check_positivity`'s
 telescope walk on a field domain that mentions the block, syntactically. -/
 theorem rec_positivity_refines {pers st lst} {t : arena.handle.NIdx}
@@ -395,8 +421,8 @@ theorem rec_positivity_refines {pers st lst} {t : arena.handle.NIdx}
       fuel h k = ok o) :
     Sim₀ absRecFieldKind pers lst o
       (recPositivity (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx) (absU ofs)
-        (absU fuel) (absEIdx h) (absU k)) := by
-  sorry
+        (absU fuel) (absEIdx h) (absU k)) :=
+  Lockstep.LS.toSim₀ (rec_positivity_aux _ fuel h k st lst rfl hrel hinv) hrun
 
 open Lockstep in
 @[lockstep] theorem rec_positivity_ls
