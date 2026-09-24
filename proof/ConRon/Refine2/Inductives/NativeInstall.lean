@@ -1871,7 +1871,25 @@ theorem check_native_tail_kinds_refines {pers st lst} {mode : kernel.env.CheckMo
       = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkNativeTailKindsSpec (ConRon.Refine.absMode mode) lf lq) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  obtain ⟨e1, cv, pp, ca, ss⟩ := lq
+  have hq' := hq
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hq
+  simp only at h1 h3 h4 h5 h6
+  subst h3 h4 h5 h6
+  have hfe1 : IFEnvRelI rq.env1 e1 := ⟨h1, h2⟩
+  rw [arena.inductives.native_install.check_native_tail_kinds, checkNativeTailKindsSpec]
+  dsimp only
+  lockstep_step
+  lockstep_step
+  -- the lowered view: the port's record with the counter lowered, the twin's
+  -- `restrictTo` at the same counter
+  refine Lockstep.LSP.bind (Lockstep.uscalar_sub _ _) (fun a hka => ?_)
+  have hlow : e1.visibleBelow - 1 = absU a := by
+    rw [h1.visibleBelow]; simp only [absU]; scalar_tac
+  have hr := Lockstep.IFEnvRelI.restrict hfe1 (k := a) (by have := h2.2.1; scalar_tac)
+  rw [hlow]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_native_tail_kinds_ls
@@ -1887,6 +1905,27 @@ open Lockstep in
       (checkNativeTailKindsSpec (ConRon.Refine.absMode mode) lf lq) :=
   LS.ofSimRel₀ fun _ h => check_native_tail_kinds_refines hrel hinv hq h
 
+namespace IndInstPrims
+open Lockstep
+
+/-- `unwrap_or` at an opened telescope (`open_pis_at_fvars_f`'s answer). -/
+@[lockstep] theorem unwrap_or_opened_int {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {o : Option (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)}
+    {m : alloc.vec.Vec Std.U32} {s : String} :
+    LSR pers (fun a b => b = (List.map absEIdx a.1.val, absEIdx a.2))
+      (arena.checker_base.unwrap_or o (kernel.core_types.CheckError.Internal m)) st lst
+      (unwrapOr (o.map fun p => (List.map absEIdx p.1.val, absEIdx p.2)) (.internal s)) :=
+  unwrap_or_lsr hrel hinv rfl
+
+/-- `kernel::level::is_never_zero` is the twin's `isNeverZero`. -/
+@[lockstep] theorem level_is_never_zero_ls (l : kernel.level.Level) :
+    LSP (kernel.level.is_never_zero l)
+      (fun b => TwinEq (ConLeche.Level.isNeverZero (ConRon.Refine.absLevel l)) b) :=
+  fun _ h => (ConRon.Refine.Level.is_never_zero_refines h).symm
+
+end IndInstPrims
+
 /-- `check_native_tail_sorts` ⊑ `checkNativeTail`'s index-sort stage. -/
 theorem check_native_tail_sorts_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rq : arena.inductives.native_install.NativePass} {lq : NativePass} {lf} {o}
@@ -1896,7 +1935,16 @@ theorem check_native_tail_sorts_refines {pers st lst} {mode : kernel.env.CheckMo
       = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkNativeTailSortsSpec (ConRon.Refine.absMode mode) lf lq) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  obtain ⟨e1, cv, pp, ca, ss⟩ := lq
+  have hq' := hq
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hq
+  simp only at h1 h3 h4 h5 h6
+  subst h3 h4 h5 h6
+  have hfe1 : IFEnvRelI rq.env1 e1 := ⟨h1, h2⟩
+  rw [arena.inductives.native_install.check_native_tail_sorts, checkNativeTailSortsSpec]
+  dsimp only
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_native_tail_sorts_ls
@@ -1922,7 +1970,21 @@ theorem check_native_tail_refines {pers st lst} {mode : kernel.env.CheckMode}
       = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkNativeTail (ConRon.Refine.absMode mode) lf lq) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  obtain ⟨e1, cv, pp, ca, ss⟩ := lq
+  have hq' := hq
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hq
+  simp only at h1 h3 h4 h5 h6
+  subst h3 h4 h5 h6
+  have hfe1 : IFEnvRelI rq.env1 e1 := ⟨h1, h2⟩
+  rw [arena.inductives.native_install.check_native_tail, checkNativeTail_unfold]
+  dsimp only
+  lockstep
+  -- the port's nested elimination test against the twin's conjunction
+  all_goals
+    first
+      | (rw [if_neg (by simp_all [Lockstep.TwinEq, absNativeParts, absInductiveShape, absCtorsL])]; lockstep)
+      | (rw [if_pos (by simp_all [Lockstep.TwinEq, absNativeParts, absInductiveShape, absCtorsL])]; lockstep)
 
 open Lockstep in
 @[lockstep] theorem check_native_tail_ls
