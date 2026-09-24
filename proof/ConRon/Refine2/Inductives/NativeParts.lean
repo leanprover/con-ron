@@ -899,40 +899,12 @@ open Lockstep in
         (absEIdx e)) :=
   LS.ofSim₀ fun _ h => struct_idx_at_refines hrel hinv h
 
+open Lockstep in
 /-- `struct_tele_at` ⊑ `structTeleAt` from the cursor on, with the accumulated
 binders in front — at the counted transcription (`structTeleAtFromSpec`): the
-port hands `struct_idx_at` the ABSOLUTE position. -/
-theorem struct_tele_at_refines {pers st lst} {n_f ofs i l : Std.U64}
-    {pw : kernel.prop_when.PropWhen}
-    {tele : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
-    {k : Std.Usize}
-    {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.inductives.native_parts.struct_tele_at pers st n_f ofs i l pw tele
-      k out = ok o) :
-    Sim₀ absBinderL pers lst o
-      (do pure (absBinderL out ++
-        (← structTeleAtFromSpec (absU n_f) (absU ofs) (absU i) (absU l)
-          (ConRon.Refine.absPropWhen pw) (absBinderL tele) (tele.val.length - k.val) k.val))) := by
-  refine Lockstep.LS.toSim₀ ?_ hrun
-  clear hrun
-  refine ls_counted_sz tele.val.length
-    (fun out m j => do pure (absBinderL out ++
-      (← structTeleAtFromSpec (absU n_f) (absU ofs) (absU i) (absU l)
-        (ConRon.Refine.absPropWhen pw) (absBinderL tele) m j)))
-    (fun st k out => arena.inductives.native_parts.struct_tele_at pers st n_f ofs i l pw tele k out)
-    ?_ ?_ k st lst out hrel hinv
-  · intro st lst k out hn hrel hinv
-    rw [arena.inductives.native_parts.struct_tele_at.eq_def, structTeleAtFromSpec]
-    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
-    lockstep
-  · intro st lst k out m hk hm hrel hinv ih
-    rw [arena.inductives.native_parts.struct_tele_at.eq_def, structTeleAtFromSpec]
-    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
-    rw [absBinderL_getD_fst_of_lt _ _ hk]
-    lockstep
-
-open Lockstep in
+port hands `struct_idx_at` the ABSOLUTE position.  Every datum it pushes is
+`pw`, so from a well-formed `pw` and accumulator its answer is `TeleWF` (what
+`mk_pis_of`/`mk_lams_of` re-intern). -/
 @[lockstep] theorem struct_tele_at_ls
     {pers st lst}
     {n_f ofs i l : Std.U64}
@@ -941,12 +913,44 @@ open Lockstep in
     {k : Std.Usize}
     {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absBinderL a) (arena.inductives.native_parts.struct_tele_at pers st n_f ofs i l pw tele k out) lst
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) (hout : TeleWF out) :
+    LS pers (fun a b => b = absBinderL a ∧ TeleWF a) (arena.inductives.native_parts.struct_tele_at pers st n_f ofs i l pw tele k out) lst
+      (do pure (absBinderL out ++
+        (← structTeleAtFromSpec (absU n_f) (absU ofs) (absU i) (absU l)
+          (ConRon.Refine.absPropWhen pw) (absBinderL tele) (tele.val.length - k.val) k.val))) := by
+  refine ls_counted_sz_inv tele.val.length TeleWF
+    (fun out m j => do pure (absBinderL out ++
+      (← structTeleAtFromSpec (absU n_f) (absU ofs) (absU i) (absU l)
+        (ConRon.Refine.absPropWhen pw) (absBinderL tele) m j)))
+    (fun st k out => arena.inductives.native_parts.struct_tele_at pers st n_f ofs i l pw tele k out)
+    ?_ ?_ k st lst out hout hrel hinv
+  · intro st lst k out hw hn hrel hinv
+    rw [arena.inductives.native_parts.struct_tele_at.eq_def, structTeleAtFromSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst k out m hw hk hm hrel hinv ih
+    rw [arena.inductives.native_parts.struct_tele_at.eq_def, structTeleAtFromSpec]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    rw [absBinderL_getD_fst_of_lt _ _ hk]
+    lockstep
+
+/-- `struct_tele_at` ⊑ `structTeleAt` from the cursor on (the `Sim₀` form). -/
+theorem struct_tele_at_refines {pers st lst} {n_f ofs i l : Std.U64}
+    {pw : kernel.prop_when.PropWhen}
+    {tele : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {k : Std.Usize}
+    {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) (hout : TeleWF out)
+    (hrun : arena.inductives.native_parts.struct_tele_at pers st n_f ofs i l pw tele
+      k out = ok o) :
+    Sim₀ absBinderL pers lst o
       (do pure (absBinderL out ++
         (← structTeleAtFromSpec (absU n_f) (absU ofs) (absU i) (absU l)
           (ConRon.Refine.absPropWhen pw) (absBinderL tele) (tele.val.length - k.val) k.val))) :=
-  LS.ofSim₀ fun _ h => struct_tele_at_refines hrel hinv h
+  Lockstep.LS.toSim₀ (Lockstep.LS.tail (struct_tele_at_ls hrel hinv hpw hout) rfl
+    fun _ _ h => h.1) hrun
 
 open Lockstep in
 /-- `struct_tele_at` from `0` and an empty accumulator IS `structTeleAt` (the
@@ -957,14 +961,15 @@ callers' form). -/
     {pw : kernel.prop_when.PropWhen}
     {tele : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absBinderL a)
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
+    LS pers (fun a b => b = absBinderL a ∧ TeleWF a)
       (arena.inductives.native_parts.struct_tele_at pers st n_f ofs i l pw tele 0#usize
         (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta))) lst
       (structTeleAt (absU n_f) (absU ofs) (absU i) (absU l) (ConRon.Refine.absPropWhen pw)
         (absBinderL tele)) := by
   have h := struct_tele_at_ls (n_f := n_f) (ofs := ofs) (i := i) (l := l) (pw := pw) (tele := tele)
-    (k := 0#usize) (out := alloc.vec.Vec.new _) hrel hinv
+    (k := 0#usize) (out := alloc.vec.Vec.new _) hrel hinv hpw TeleWF.new
   have e : (do pure (absBinderL (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)) ++
         (← structTeleAtFromSpec (absU n_f) (absU ofs) (absU i) (absU l)
           (ConRon.Refine.absPropWhen pw) (absBinderL tele) (tele.val.length - (0#usize : Std.Usize).val)
@@ -999,6 +1004,7 @@ theorem mk_pis_of_refines {pers st lst}
     {tele : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {k : Std.Usize} {body : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (htele : TeleWF tele)
     (hrun : arena.inductives.native_parts.mk_pis_of pers st tele k body = ok o) :
     Sim₀ absEIdx pers lst o
       (mkPisOf (absBinderLFrom tele k) (absEIdx body)) := by
@@ -1028,16 +1034,18 @@ open Lockstep in
     {k : Std.Usize}
     {body : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (htele : TeleWF tele) :
     LS pers (fun a b => b = absEIdx a) (arena.inductives.native_parts.mk_pis_of pers st tele k body) lst
       (mkPisOf (absBinderLFrom tele k) (absEIdx body)) :=
-  LS.ofSim₀ fun _ h => mk_pis_of_refines hrel hinv h
+  LS.ofSim₀ fun _ h => mk_pis_of_refines hrel hinv htele h
 
 /-- `mk_lams_of` ⊑ `Expr.mkLamsOf` from the cursor on. -/
 theorem mk_lams_of_refines {pers st lst}
     {tele : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {k : Std.Usize} {body : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (htele : TeleWF tele)
     (hrun : arena.inductives.native_parts.mk_lams_of pers st tele k body = ok o) :
     Sim₀ absEIdx pers lst o
       (mkLamsOf (absBinderLFrom tele k) (absEIdx body)) := by
@@ -1067,10 +1075,11 @@ open Lockstep in
     {k : Std.Usize}
     {body : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (htele : TeleWF tele) :
     LS pers (fun a b => b = absEIdx a) (arena.inductives.native_parts.mk_lams_of pers st tele k body) lst
       (mkLamsOf (absBinderLFrom tele k) (absEIdx body)) :=
-  LS.ofSim₀ fun _ h => mk_lams_of_refines hrel hinv h
+  LS.ofSim₀ fun _ h => mk_lams_of_refines hrel hinv htele h
 
 /-- `struct_idx_list` ⊑ `structIhApp`'s `idx.mapM` from the cursor on, with the
 accumulated expressions in front. -/
@@ -1145,6 +1154,7 @@ theorem struct_ih_app_refines {pers st lst} {rec_c : arena.handle.NIdx}
     {tele : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {idx : alloc.vec.Vec arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.struct_ih_app pers st rec_c rlvls pw n_p n
       n_f i tele idx = ok o) :
     Sim₀ absEIdx pers lst o
@@ -1167,12 +1177,13 @@ open Lockstep in
     {tele : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {idx : alloc.vec.Vec arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = absEIdx a) (arena.inductives.native_parts.struct_ih_app pers st rec_c rlvls pw n_p n n_f i tele idx) lst
       (structIhApp (absNIdx rec_c) (absLsIdx rlvls) (ConRon.Refine.absPropWhen pw)
         (absU n_p) (absU n) (absU n_f) (absU i) (absBinderL tele)
         (absEIdxL idx)) :=
-  LS.ofSim₀ fun _ h => struct_ih_app_refines hrel hinv h
+  LS.ofSim₀ fun _ h => struct_ih_app_refines hrel hinv hpw h
 
 /-- `struct_ih_list` ⊑ `structRuleBodyR`'s `recIdx.mapM` from the cursor on. -/
 theorem struct_ih_list_refines {pers st lst} {rec_c : arena.handle.NIdx}
@@ -1181,6 +1192,7 @@ theorem struct_ih_list_refines {pers st lst} {rec_c : arena.handle.NIdx}
     {cty : arena.handle.EIdx} {k : Std.Usize}
     {out : alloc.vec.Vec arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.struct_ih_list pers st rec_c rlvls pw n_p n
       n_f rec_idx cty k out = ok o) :
     Sim₀ absEIdxL pers lst o
@@ -1223,13 +1235,14 @@ open Lockstep in
     {k : Std.Usize}
     {out : alloc.vec.Vec arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = absEIdxL a) (arena.inductives.native_parts.struct_ih_list pers st rec_c rlvls pw n_p n n_f rec_idx cty k out) lst
       (do pure (absEIdxL out ++
         (← structIhListSpec (absNIdx rec_c) (absLsIdx rlvls)
           (ConRon.Refine.absPropWhen pw) (absU n_p) (absU n) (absU n_f)
           (absEIdx cty) (absNatLFrom rec_idx k)))) :=
-  LS.ofSim₀ fun _ h => struct_ih_list_refines hrel hinv h
+  LS.ofSim₀ fun _ h => struct_ih_list_refines hrel hinv hpw h
 
 /-- The callers' `recIdx.mapM (fun i => structIhApp …)` IS `structIhListSpec`. -/
 theorem mapM_structIhApp_eq (recC : NIdx) (rlvls : LsIdx)
@@ -1248,13 +1261,14 @@ open Lockstep in
 @[lockstep] theorem struct_ih_list_twin0 {pers st lst} {rec_c : arena.handle.NIdx}
     {rlvls : arena.handle.LsIdx} {pw : kernel.prop_when.PropWhen}
     {n_p n n_f : Std.U64} {rec_idx : alloc.vec.Vec Std.U64} {cty : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = absEIdxL a)
       (arena.inductives.native_parts.struct_ih_list pers st rec_c rlvls pw n_p n n_f rec_idx cty
         0#usize (alloc.vec.Vec.new arena.handle.EIdx)) lst
       (structIhListSpec (absNIdx rec_c) (absLsIdx rlvls) (ConRon.Refine.absPropWhen pw)
         (absU n_p) (absU n) (absU n_f) (absEIdx cty) (absNatL rec_idx)) := by
-  refine LS.twin_eq (struct_ih_list_ls hrel hinv) ?_
+  refine LS.twin_eq (struct_ih_list_ls hrel hinv hpw) ?_
   simp [absNatLFrom, absNatL, absEIdxL, alloc.vec.Vec.new]
 
 /-- `struct_rule_body_r` ⊑ `structRuleBodyR`. -/
@@ -1263,6 +1277,7 @@ theorem struct_rule_body_r_refines {pers st lst} {rec_c : arena.handle.NIdx}
     {n_p n n_f j : Std.U64} {rec_idx : alloc.vec.Vec Std.U64}
     {cty : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.struct_rule_body_r pers st rec_c rlvls pw
       n_p n n_f j rec_idx cty = ok o) :
     Sim₀ absEIdx pers lst o
@@ -1285,12 +1300,13 @@ open Lockstep in
     {rec_idx : alloc.vec.Vec Std.U64}
     {cty : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = absEIdx a) (arena.inductives.native_parts.struct_rule_body_r pers st rec_c rlvls pw n_p n n_f j rec_idx cty) lst
       (structRuleBodyR (absNIdx rec_c) (absLsIdx rlvls)
         (ConRon.Refine.absPropWhen pw) (absU n_p) (absU n) (absU n_f) (absU j)
         (absNatL rec_idx) (absEIdx cty)) :=
-  LS.ofSim₀ fun _ h => struct_rule_body_r_refines hrel hinv h
+  LS.ofSim₀ fun _ h => struct_rule_body_r_refines hrel hinv hpw h
 
 /-- `struct_ih_pis` ⊑ `structIhPis` from the cursor on. -/
 theorem struct_ih_pis_refines {pers st lst} {n_f ofs n_p : Std.U64}
@@ -1298,6 +1314,7 @@ theorem struct_ih_pis_refines {pers st lst} {n_f ofs n_p : Std.U64}
     {is : alloc.vec.Vec Std.U64} {k : Std.Usize} {l : Std.U64}
     {body : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.struct_ih_pis pers st n_f ofs n_p pw cty is
       k l body = ok o) :
     Sim₀ absEIdx pers lst o
@@ -1336,11 +1353,12 @@ open Lockstep in
     {l : Std.U64}
     {body : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = absEIdx a) (arena.inductives.native_parts.struct_ih_pis pers st n_f ofs n_p pw cty is k l body) lst
       (structIhPis (absU n_f) (absU ofs) (absU n_p) (ConRon.Refine.absPropWhen pw)
         (absEIdx cty) (absNatLFrom is k) (absU l) (absEIdx body)) :=
-  LS.ofSim₀ fun _ h => struct_ih_pis_refines hrel hinv h
+  LS.ofSim₀ fun _ h => struct_ih_pis_refines hrel hinv hpw h
 
 /-- `struct_ih_pis_at` ⊑ `structIhPis`' cons arm past its three reads. -/
 theorem struct_ih_pis_at_refines {pers st lst} {n_f ofs n_p : Std.U64}
@@ -1351,6 +1369,7 @@ theorem struct_ih_pis_at_refines {pers st lst} {n_f ofs n_p : Std.U64}
     {idx2 : alloc.vec.Vec arena.handle.EIdx} {motive : arena.handle.EIdx}
     {i m : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.struct_ih_pis_at pers st n_f ofs n_p pw cty
       is k l body tele idx2 motive i m = ok o) :
     Sim₀ absEIdx pers lst o
@@ -1378,13 +1397,14 @@ open Lockstep in
     {motive : arena.handle.EIdx}
     {i m : Std.U64}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = absEIdx a) (arena.inductives.native_parts.struct_ih_pis_at pers st n_f ofs n_p pw cty is k l body tele idx2 motive i m) lst
       (structIhPisAtSpec (absU n_f) (absU ofs) (absU n_p)
         (ConRon.Refine.absPropWhen pw) (absEIdx cty) (absNatLFrom is k |>.tail)
         (absU l) (absEIdx body) (absBinderL tele) (absEIdxL idx2) (absEIdx motive)
         (absU i) (absU m)) :=
-  LS.ofSim₀ fun _ h => struct_ih_pis_at_refines hrel hinv h
+  LS.ofSim₀ fun _ h => struct_ih_pis_at_refines hrel hinv hpw h
 
 /-- `lift_list` ⊑ `structMinorTyR`'s `(rargs.drop nP).mapM` from the cursor
 on. -/
@@ -1453,6 +1473,7 @@ theorem struct_minor_ty_close_refines {pers st lst} {n_f ofs n_p : Std.U64}
     {pw : kernel.prop_when.PropWhen} {cty : arena.handle.EIdx}
     {rec_idx : alloc.vec.Vec Std.U64} {q2 concl0 : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.struct_minor_ty_close pers st n_f ofs n_p
       pw cty rec_idx q2 concl0 = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
@@ -1472,12 +1493,13 @@ open Lockstep in
     {rec_idx : alloc.vec.Vec Std.U64}
     {q2 concl0 : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = (Option.map absEIdx) a) (arena.inductives.native_parts.struct_minor_ty_close pers st n_f ofs n_p pw cty rec_idx q2 concl0) lst
       (structMinorTyCloseSpec (absU n_f) (absU ofs) (absU n_p)
         (ConRon.Refine.absPropWhen pw) (absEIdx cty) (absNatL rec_idx)
         (absEIdx q2) (absEIdx concl0)) :=
-  LS.ofSim₀ fun _ h => struct_minor_ty_close_refines hrel hinv h
+  LS.ofSim₀ fun _ h => struct_minor_ty_close_refines hrel hinv hpw h
 
 /-- `struct_minor_ty_at` ⊑ `structMinorTyR`'s conclusion stage. -/
 theorem struct_minor_ty_at_refines {pers st lst} {c : arena.handle.NIdx}
@@ -1485,6 +1507,7 @@ theorem struct_minor_ty_at_refines {pers st lst} {c : arena.handle.NIdx}
     {pw : kernel.prop_when.PropWhen} {cty : arena.handle.EIdx}
     {rec_idx : alloc.vec.Vec Std.U64} {q2 r2 : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.struct_minor_ty_at pers st c lps n_p n_f
       ofs pw cty rec_idx q2 r2 = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
@@ -1508,12 +1531,13 @@ open Lockstep in
     {rec_idx : alloc.vec.Vec Std.U64}
     {q2 r2 : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = (Option.map absEIdx) a) (arena.inductives.native_parts.struct_minor_ty_at pers st c lps n_p n_f ofs pw cty rec_idx q2 r2) lst
       (structMinorTyAtSpec (absNIdx c) (absNIdxL lps) (absU n_p) (absU n_f)
         (absU ofs) (ConRon.Refine.absPropWhen pw) (absEIdx cty) (absNatL rec_idx)
         (absEIdx q2) (absEIdx r2)) :=
-  LS.ofSim₀ fun _ h => struct_minor_ty_at_refines hrel hinv h
+  LS.ofSim₀ fun _ h => struct_minor_ty_at_refines hrel hinv hpw h
 
 /-- `struct_minor_ty_r` ⊑ `structMinorTyR`. -/
 theorem struct_minor_ty_r_refines {pers st lst} {c : arena.handle.NIdx}
@@ -1521,6 +1545,7 @@ theorem struct_minor_ty_r_refines {pers st lst} {c : arena.handle.NIdx}
     {pw : kernel.prop_when.PropWhen} {cty : arena.handle.EIdx}
     {rec_idx : alloc.vec.Vec Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.struct_minor_ty_r pers st c lps n_p n_f ofs
       pw cty rec_idx = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
@@ -1540,17 +1565,19 @@ open Lockstep in
     {cty : arena.handle.EIdx}
     {rec_idx : alloc.vec.Vec Std.U64}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = (Option.map absEIdx) a) (arena.inductives.native_parts.struct_minor_ty_r pers st c lps n_p n_f ofs pw cty rec_idx) lst
       (structMinorTyR (absNIdx c) (absNIdxL lps) (absU n_p) (absU n_f) (absU ofs)
         (ConRon.Refine.absPropWhen pw) (absEIdx cty) (absNatL rec_idx)) :=
-  LS.ofSim₀ fun _ h => struct_minor_ty_r_refines hrel hinv h
+  LS.ofSim₀ fun _ h => struct_minor_ty_r_refines hrel hinv hpw h
 
 /-- `intern_binder` ⊑ the one node `structMinorsPisR` and `structMinorsLamsR`
 differ in (finding 16). -/
 theorem intern_binder_refines {pers st lst} {is_lam : Bool}
     {ty body : arena.handle.EIdx} {pw : kernel.prop_when.PropWhen} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.intern_binder pers st is_lam ty body pw
       = ok o) :
     Sim₀ absEIdx pers lst o
@@ -1568,11 +1595,12 @@ open Lockstep in
     {ty body : arena.handle.EIdx}
     {pw : kernel.prop_when.PropWhen}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = absEIdx a) (arena.inductives.native_parts.intern_binder pers st is_lam ty body pw) lst
       (internBinderSpec is_lam (absEIdx ty) (absEIdx body)
         (ConRon.Refine.absPropWhen pw)) :=
-  LS.ofSim₀ fun _ h => intern_binder_refines hrel hinv h
+  LS.ofSim₀ fun _ h => intern_binder_refines hrel hinv hpw h
 
 /-- `u64_vec_dup` is the identity on the abstraction from the cursor on. -/
 theorem u64_vec_dup_refines {xs : alloc.vec.Vec Std.U64} {i : Std.Usize}
@@ -1643,6 +1671,7 @@ theorem struct_minors_pis_r_refines {pers st lst}
       (alloc.vec.Vec Std.U64))}
     {k : Std.Usize} {ofs : Std.U64} {body : arena.handle.EIdx} {is_lam : Bool} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.struct_minors_pis_r pers st lps n_p pw
       ctors k ofs body is_lam = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
@@ -1683,11 +1712,12 @@ open Lockstep in
     {body : arena.handle.EIdx}
     {is_lam : Bool}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = (Option.map absEIdx) a) (arena.inductives.native_parts.struct_minors_pis_r pers st lps n_p pw ctors k ofs body is_lam) lst
       (structMinorsRSpec (absNIdxL lps) (absU n_p) (ConRon.Refine.absPropWhen pw)
         (absCtors4LFrom ctors k) (absU ofs) (absEIdx body) is_lam) :=
-  LS.ofSim₀ fun _ h => struct_minors_pis_r_refines hrel hinv h
+  LS.ofSim₀ fun _ h => struct_minors_pis_r_refines hrel hinv hpw h
 
 /-- `struct_minors_lams_r` ⊑ `structMinorsLamsR` from the cursor on — the
 delegation of finding 16 at the `λ` flag. -/
@@ -1698,6 +1728,7 @@ theorem struct_minors_lams_r_refines {pers st lst}
       (alloc.vec.Vec Std.U64))}
     {k : Std.Usize} {ofs : Std.U64} {body : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.struct_minors_lams_r pers st lps n_p pw
       ctors k ofs body = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
@@ -1720,11 +1751,12 @@ open Lockstep in
     {ofs : Std.U64}
     {body : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = (Option.map absEIdx) a) (arena.inductives.native_parts.struct_minors_lams_r pers st lps n_p pw ctors k ofs body) lst
       (structMinorsLamsR (absNIdxL lps) (absU n_p) (ConRon.Refine.absPropWhen pw)
         (absCtors4LFrom ctors k) (absU ofs) (absEIdx body)) :=
-  LS.ofSim₀ fun _ h => struct_minors_lams_r_refines hrel hinv h
+  LS.ofSim₀ fun _ h => struct_minors_lams_r_refines hrel hinv hpw h
 
 /-! ## The generated recursor type and rules -/
 
@@ -1737,6 +1769,7 @@ theorem struct_rec_ty_close_refines {pers st lst}
     {pw : kernel.prop_when.PropWhen} {n : Std.U64}
     {q2 motive_ty major_body : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.struct_rec_ty_close pers st lps n_p n_idx
       tty ctors pw n q2 motive_ty major_body = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
@@ -1761,12 +1794,13 @@ open Lockstep in
     {n : Std.U64}
     {q2 motive_ty major_body : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = (Option.map absEIdx) a) (arena.inductives.native_parts.struct_rec_ty_close pers st lps n_p n_idx tty ctors pw n q2 motive_ty major_body) lst
       (structRecTyCloseSpec (absNIdxL lps) (absU n_p) (absU n_idx) (absEIdx tty)
         (absCtors4L ctors) (ConRon.Refine.absPropWhen pw) (absU n) (absEIdx q2)
         (absEIdx motive_ty) (absEIdx major_body)) :=
-  LS.ofSim₀ fun _ h => struct_rec_ty_close_refines hrel hinv h
+  LS.ofSim₀ fun _ h => struct_rec_ty_close_refines hrel hinv hpw h
 
 /-- `struct_rec_ty_at` ⊑ `structRecTyR`'s major-premise stage. -/
 theorem struct_rec_ty_at_refines {pers st lst} {t : arena.handle.NIdx}
@@ -1777,6 +1811,7 @@ theorem struct_rec_ty_at_refines {pers st lst} {t : arena.handle.NIdx}
     {pw : kernel.prop_when.PropWhen} {n : Std.U64}
     {q2 motive_ty : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.struct_rec_ty_at pers st t lps n_p n_idx
       tty ctors pw n q2 motive_ty = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
@@ -1801,12 +1836,13 @@ open Lockstep in
     {n : Std.U64}
     {q2 motive_ty : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = (Option.map absEIdx) a) (arena.inductives.native_parts.struct_rec_ty_at pers st t lps n_p n_idx tty ctors pw n q2 motive_ty) lst
       (structRecTyAtSpec (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absEIdx tty) (absCtors4L ctors) (ConRon.Refine.absPropWhen pw) (absU n)
         (absEIdx q2) (absEIdx motive_ty)) :=
-  LS.ofSim₀ fun _ h => struct_rec_ty_at_refines hrel hinv h
+  LS.ofSim₀ fun _ h => struct_rec_ty_at_refines hrel hinv hpw h
 
 /-- `struct_rec_ty_r` ⊑ `structRecTyR` — **the generated recursor type at a
 recursive block**. -/
@@ -1853,6 +1889,7 @@ theorem struct_rec_rhs_close_refines {pers st lst}
     {pw : kernel.prop_when.PropWhen} {n n_f : Std.U64}
     {q2 body motive_ty : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.struct_rec_rhs_close pers st lps n_p tty
       ctors pw n n_f q2 body motive_ty = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
@@ -1876,12 +1913,13 @@ open Lockstep in
     {n n_f : Std.U64}
     {q2 body motive_ty : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = (Option.map absEIdx) a) (arena.inductives.native_parts.struct_rec_rhs_close pers st lps n_p tty ctors pw n n_f q2 body motive_ty) lst
       (structRecRhsCloseSpec (absNIdxL lps) (absU n_p) (absEIdx tty)
         (absCtors4L ctors) (ConRon.Refine.absPropWhen pw) (absU n) (absU n_f)
         (absEIdx q2) (absEIdx body) (absEIdx motive_ty)) :=
-  LS.ofSim₀ fun _ h => struct_rec_rhs_close_refines hrel hinv h
+  LS.ofSim₀ fun _ h => struct_rec_rhs_close_refines hrel hinv hpw h
 
 /-- `struct_rec_rhs_at` ⊑ `structRecRhsR`'s body past the `ctors[j]?`
 lookup. -/
@@ -1894,6 +1932,7 @@ theorem struct_rec_rhs_at_refines {pers st lst} {t : arena.handle.NIdx}
     {pw : kernel.prop_when.PropWhen} {n n_f : Std.U64} {cty : arena.handle.EIdx}
     {rec_idx : alloc.vec.Vec Std.U64} {l : arena.handle.LIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.struct_rec_rhs_at pers st t lps n_p n_idx
       tty ctors rec_c rlvls j pw n n_f cty rec_idx l = ok o) :
     Sim₀ (Option.map absEIdx) pers lst o
@@ -1923,13 +1962,14 @@ open Lockstep in
     {rec_idx : alloc.vec.Vec Std.U64}
     {l : arena.handle.LIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = (Option.map absEIdx) a) (arena.inductives.native_parts.struct_rec_rhs_at pers st t lps n_p n_idx tty ctors rec_c rlvls j pw n n_f cty rec_idx l) lst
       (structRecRhsAtSpec (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absEIdx tty) (absCtors4L ctors) (absNIdx rec_c) (absLsIdx rlvls) (absU j)
         (ConRon.Refine.absPropWhen pw) (absU n) (absU n_f) (absEIdx cty)
         (absNatL rec_idx) (absLIdx l)) :=
-  LS.ofSim₀ fun _ h => struct_rec_rhs_at_refines hrel hinv h
+  LS.ofSim₀ fun _ h => struct_rec_rhs_at_refines hrel hinv hpw h
 
 /-- `struct_rec_rhs_r` ⊑ `structRecRhsR` — **the generated rule** for
 constructor `j` at a recursive block. -/
@@ -2254,6 +2294,7 @@ theorem native_rule_body_ok_refines {pers st lst} {rec_c : arena.handle.NIdx}
     {n_p n n_f j : Std.U64} {rec_idx : alloc.vec.Vec Std.U64}
     {cty rhs : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.native_rule_body_ok pers st rec_c rlvls pw
       n_p n n_f j rec_idx cty rhs = ok o) :
     Sim₀ id pers lst o
@@ -2274,12 +2315,13 @@ open Lockstep in
     {rec_idx : alloc.vec.Vec Std.U64}
     {cty rhs : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = id a) (arena.inductives.native_parts.native_rule_body_ok pers st rec_c rlvls pw n_p n n_f j rec_idx cty rhs) lst
       (nativeRuleBodyOkSpec (absNIdx rec_c) (absLsIdx rlvls)
         (ConRon.Refine.absPropWhen pw) (absU n_p) (absU n) (absU n_f) (absU j)
         (absNatL rec_idx) (absEIdx cty) (absEIdx rhs)) :=
-  LS.ofSim₀ fun _ h => native_rule_body_ok_refines hrel hinv h
+  LS.ofSim₀ fun _ h => native_rule_body_ok_refines hrel hinv hpw h
 
 /-- A port read `v[j as usize]` at a `u64` cursor in range: the element. -/
 theorem vec_index_cast_usize {α : Type} (v : alloc.vec.Vec α) (j : Std.U64)
@@ -2358,6 +2400,7 @@ theorem native_rules_ok_from_refines {pers st lst} {rec_c : arena.handle.NIdx}
     {rhss : alloc.vec.Vec arena.handle.EIdx} {rec_ty : arena.handle.EIdx}
     {j : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.native_rules_ok_from pers st rec_c rlvls pw
       n_p n cs kinds rhss rec_ty j = ok o) :
     Sim₀ id pers lst o
@@ -2423,13 +2466,14 @@ open Lockstep in
     {rec_ty : arena.handle.EIdx}
     {j : Std.U64}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = id a) (arena.inductives.native_parts.native_rules_ok_from pers st rec_c rlvls pw n_p n cs kinds rhss rec_ty j) lst
       (nativeRulesOkFromSpec (absNIdx rec_c) (absLsIdx rlvls)
         (ConRon.Refine.absPropWhen pw) (absU n_p) (absU n) (absCtorsL cs)
         (absKindLL kinds) (absEIdxL rhss) (absEIdx rec_ty) (absU n - absU j)
         (absU j)) :=
-  LS.ofSim₀ fun _ h => native_rules_ok_from_refines hrel hinv h
+  LS.ofSim₀ fun _ h => native_rules_ok_from_refines hrel hinv hpw h
 
 /-- `nativeRulesOk`'s `(List.range' j m).allM` IS `nativeRulesOkFromSpec` from
 rule `j` (the port's `native_rules_ok_from`); stated for any step function that
@@ -2494,6 +2538,7 @@ theorem native_rules_ok_refines {pers st lst} {rec_c : arena.handle.NIdx}
     {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
     {rhss : alloc.vec.Vec arena.handle.EIdx} {rec_ty : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw)
     (hrun : arena.inductives.native_parts.native_rules_ok pers st rec_c rlvls pw n_p
       n cs kinds rhss rec_ty = ok o) :
     Sim₀ id pers lst o
@@ -2518,12 +2563,13 @@ open Lockstep in
     {rhss : alloc.vec.Vec arena.handle.EIdx}
     {rec_ty : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
+    (hinv : AStateInv pers st)
+    (hpw : ConRon.Refine.PropWhenWF pw) :
     LS pers (fun a b => b = id a) (arena.inductives.native_parts.native_rules_ok pers st rec_c rlvls pw n_p n cs kinds rhss rec_ty) lst
       (nativeRulesOk (absNIdx rec_c) (absLsIdx rlvls) (ConRon.Refine.absPropWhen pw)
         (absU n_p) (absU n) (absCtorsL cs) (absKindLL kinds) (absEIdxL rhss)
         (absEIdx rec_ty)) :=
-  LS.ofSim₀ fun _ h => native_rules_ok_refines hrel hinv h
+  LS.ofSim₀ fun _ h => native_rules_ok_refines hrel hinv hpw h
 
 /-! ## Recognition -/
 

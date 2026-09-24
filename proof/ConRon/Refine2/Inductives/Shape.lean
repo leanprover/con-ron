@@ -1418,4 +1418,78 @@ theorem absEIdxL_of_takeEidx {a b : alloc.vec.Vec arena.handle.EIdx} {n : Nat}
   rw [ind_takeEidx_toList] at this
   simpa [ExprOps.absEIdxArr, ExprOps.absEIdxL, absEIdxL] using this
 
+/-! ## Round 6: a binder telescope the port re-interns is well formed
+
+`intern_e_{lam,forall_e}_wf_ls` need `PropWhenWF` of the datum (the erased
+subtype invariant of con-leche's `PropWhen`).  The telescopes the tier's
+builders re-intern are made by `struct_tele_at` from one `pw`, so the fact is
+carried as `TeleWF` — a named predicate, not a `∀`, so the side tactic (which
+clears `∀` hypotheses) keeps it in the context. -/
+
+/-- Every binder datum of the telescope is well formed. -/
+def TeleWF (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) : Prop :=
+  ∀ p ∈ v.val, ConRon.Refine.PropWhenWF p.2.pw
+
+theorem TeleWF.new : TeleWF (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)) := by
+  intro p hp; simp [alloc.vec.Vec.new] at hp
+
+theorem TeleWF.push {v w : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {x : arena.handle.EIdx × kernel.expr.BinderMeta}
+    (hw : w.val = v.val ++ [x]) (hv : TeleWF v) (hx : ConRon.Refine.PropWhenWF x.2.pw) :
+    TeleWF w := by
+  intro p hp
+  rw [hw, List.mem_append, List.mem_singleton] at hp
+  rcases hp with hp | rfl
+  · exact hv p hp
+  · exact hx
+
+theorem TeleWF.get {v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    (hv : TeleWF v) (k : Nat) (hk : k < v.val.length) :
+    ConRon.Refine.PropWhenWF (v.val[k]).2.pw :=
+  hv _ (List.getElem_mem hk)
+
+open Lockstep in
+/-- `ls_counted_sz` with an invariant `P` of the accumulator, assumed at entry
+and owed at the recursive call. -/
+theorem ls_counted_sz_inv {γ δ ω : Type} {pers : arena.store.PersTier} {R : γ → δ → Prop}
+    (n : Nat) (P : ω → Prop) (G : ω → Nat → Nat → AM δ)
+    (F : arena.monad.AState → Std.Usize → ω →
+      Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState))
+    (hstop : ∀ st lst (i : Std.Usize) w, P w → n ≤ i.val →
+      AStateRel₀ pers st lst → AStateInv pers st → LS pers R (F st i w) lst (G w 0 i.val))
+    (hstep : ∀ st lst (i : Std.Usize) w (m : Nat), P w → i.val < n → n - i.val = m + 1 →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      (∀ st' lst' (j : Std.Usize) w', j.val = i.val + 1 → P w' →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers R (F st' j w') lst' (G w' m j.val)) →
+      LS pers R (F st i w) lst (G w (m + 1) i.val)) :
+    ∀ (i : Std.Usize) st lst w, P w → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers R (F st i w) lst (G w (n - i.val) i.val) := by
+  suffices H : ∀ (m : Nat) (i : Std.Usize) st lst w, n - i.val = m → P w →
+      AStateRel₀ pers st lst → AStateInv pers st → LS pers R (F st i w) lst (G w m i.val) by
+    intro i st lst w hw hrel hinv; exact H _ i st lst w rfl hw hrel hinv
+  intro m
+  induction m with
+  | zero =>
+    intro i st lst w hm hw hrel hinv
+    exact hstop st lst i w hw (by omega) hrel hinv
+  | succ m ih =>
+    intro i st lst w hm hw hrel hinv
+    exact hstep st lst i w m hw (by omega) hm hrel hinv
+      (fun st' lst' j w' hj hw' hrel' hinv' => ih j st' lst' w' (by omega) hw' hrel' hinv')
+
+namespace IndSide
+
+/-- Round 6's side alternative: a telescope's `TeleWF` after a `push`, and a
+read datum's `PropWhenWF` out of a `TeleWF` telescope. -/
+scoped macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| first
+      | (refine TeleWF.push (by assumption) (by assumption) ?_; simp_all; done)
+      | (subst_vars; first
+          | exact TeleWF.get (by assumption) _ (by scalar_tac)
+          | (simp_all; done)))
+
+end IndSide
+
 end ConRon.Refine2
