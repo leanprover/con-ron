@@ -44,6 +44,8 @@ open ConRon.Generated
 
 namespace ConRon.Refine2
 
+open scoped ConRon.Refine2.IndSide
+
 open ConRon.Arena
 
 /-! # `arena::inductives::struct_parts` -/

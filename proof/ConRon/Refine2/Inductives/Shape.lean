@@ -832,7 +832,17 @@ macro_rules
   | `(tactic| lockstep_side_ext) =>
     `(tactic| ((try simp only [Lockstep.TwinEq] at *); first
       | (simp_all [absNIdxL, absCtors3L, absCtors3LFrom, absCtorsL, absCtorsLFrom,
-          absIConstantVal, absICIL, absICILFrom, absEIdxL, absEIdxLFrom, NNodeViewWF]; done)
+          absIConstantVal, absICIL, absICILFrom, absEIdxL, absEIdxLFrom, NNodeViewWF]; done)))
+
+namespace IndSide
+
+/-- Round 5's side alternatives, SCOPED: active only in the files that
+`open scoped ConRon.Refine2.IndSide` (the lane's own), so the lanes that import
+this tier (`Frontend/ProjRec.lean`) do not pay for them on every failing side
+goal. -/
+scoped macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| ((try simp only [Lockstep.TwinEq] at *); first
       | (simp_all [absStructParts, absInductiveShape, absNativeParts, absIRecRule]; done)
       -- a Rust-computed Bool against the twin's conjunction whose other
       -- conjuncts the port tested before (a length the context pins)
@@ -842,13 +852,14 @@ macro_rules
       | (simp only [WOutRel, LOutRel] at *; simp_all; done)
       -- a `usize` cast of a `u64` the port bounded before (a length, a count):
       -- the overflow arm of the cast's spec is contradictory
-      | ((try simp only [Lockstep.TwinEq] at *)
-         casesm* (_ : Nat) = _ ∨ Std.Usize.max < _
+      | (casesm* (_ : Nat) = _ ∨ Std.Usize.max < _
          all_goals first
            | (exfalso; scalar_tac)
            | (simp_all [absNIdxL, absEIdxL, absEIdxLFrom, absCtorsL, absCtorsLFrom]; done)
            | (simp_all [absBinderL, List.getElem?_map, List.getElem?_eq_getElem]
               subst_vars; simp_all; done))))
+
+end IndSide
 
 /-- The Core front doors (`Refine2/Checker/KnotHyp.lean`) take `CoreCtx vis rf
 lf`; the tier carries `IFEnvRelI rf lf` and, at a split counter, `absU vis =
@@ -1228,12 +1239,12 @@ open Lockstep in
 
 /-- A twin tag equal to a Rust tag word's abstraction IS that word (both
 orientations; for a branch the context rules out). -/
-@[lockstep_simp] theorem forallE_eq_absU32_iff (a : Std.U32) :
+theorem forallE_eq_absU32_iff (a : Std.U32) :
     (ETag.forallE = absU32 a) ↔ a = arena.handle.ETAG_FORALL_E :=
   ⟨fun h => absU32_inj (h.symm.trans etag_forallE_abs.symm),
    fun h => by subst h; exact etag_forallE_abs.symm⟩
 
-@[lockstep_simp] theorem absU32_eq_forallE_iff (a : Std.U32) :
+theorem absU32_eq_forallE_iff (a : Std.U32) :
     (absU32 a = ETag.forallE) ↔ a = arena.handle.ETAG_FORALL_E :=
   ⟨fun h => absU32_inj (h.trans etag_forallE_abs.symm),
    fun h => by subst h; exact etag_forallE_abs⟩

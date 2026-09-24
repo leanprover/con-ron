@@ -55,6 +55,8 @@ attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 
 namespace ConRon.Refine2
 
+open scoped ConRon.Refine2.IndSide
+
 open ConRon.Arena
 open ConRon.Refine2.ExprOps (WMemoRel LMemoRel)
 
@@ -616,8 +618,7 @@ theorem struct_shape_motive_refines {pers st lst} {t : arena.handle.NIdx}
                   subst_vars
                   first
                     | (simp_all [lockstep_simp]; done)
-                    | (simp only [forallE_eq_absU32_iff, absU32_eq_forallE_iff] at *
-                       simp_all)))
+                    | (simp_all [lockstep_simp, forallE_eq_absU32_iff, absU32_eq_forallE_iff])))
 
 open Lockstep in
 @[lockstep] theorem struct_shape_motive_ls
