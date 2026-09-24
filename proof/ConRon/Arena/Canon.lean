@@ -203,8 +203,8 @@ parsed input). -/
 def IConstantInfo.canonEq : IConstantInfo → IConstantInfo → AM Bool
   | .axiomInfo cv, .axiomInfo cv' => cv.canonEq cv'
   | .defnInfo cv v h, .defnInfo cv' v' h' => do
-    if ← cv.canonEq cv' then
-      if h == h' then do
+    if h == h' then  -- hints first, as the port: `canonEq` interns (lane Checker Canon)
+      if ← cv.canonEq cv' then do
         let cs ← canonNames cv.levelParams.length
         canonExprEq cv.levelParams cv'.levelParams cs coreWalkFuel v v'
       else pure false

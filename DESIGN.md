@@ -62617,6 +62617,25 @@ not the other way): `PrimsModeled.lean`'s `eidx_vec_dup_spec` is
 `Shape.lean`'s `ind_eidx_vec_dup_twin`; its `nidx_vec_beq_spec` is Core's
 `nidx_vec_beq_ls`.
 
+**After `arena` `bf376947` (the tactic's round 2 slices 4/5, chk-base-4).**
+Three closures needed rework, and no proof got a bump: `struct_shape_motive`
+(`structShapeMotiveSpec_port`: the twin's `rbs[nP]?` becomes the port's bounds
+test; IndSide's cast alternative now reads tag words through
+`etag_*_abs` and the tag iffs, which move above the `macro_rules` because a
+macro resolves names where it is defined); `native_fam_app_ok` (the
+`take_eidx_n` fact is converted to lists before a second `lockstep`); and
+`native_fields_at` (`nativeFieldsAtSpec_succ_port`, plus `dsimp only`).
+**Tactic finding:** a Rust `have x := …; do …` at the head of a step now
+fails with "lockstep_spec: no head constant".  Repro: `native_fields_at`'s
+step case without the `dsimp only`.  This submission (`t2-ind-7`) supersedes
+the bounced `t2-ind-6`.  The install files (`{Native,Sum,Struct}Install{,F}`)
+pass to a new agent after it.
+
+**Frontier** (`model_exists` + `no_False_declaration`), at the tip with
+`bf376947` merged: **21 items in 6 modules, 230 tainted, dead weight 112**.
+This lane's items are `struct_parts_core` (the top, fan-in 19) and
+`check_native` (its ruling is pending).
+
 **Left, with the reason:** the memo walks (`has_loose_bvar_b_go/_node`,
 `mentions_fvar_go/_node`: the brief's LSM item); `struct_parts_core` (the block
 match: the twin's three-element list pattern against the port's three reads
@@ -62631,3 +62650,64 @@ left); `check_struct_proj_table` and `proj_bodies_scoped` (an `unwrap_or` of an
 the install tail (`check_native_tail*`, `check_native_rec*`,
 `check_native_pass_kinds`, `classify_fix_kinds`, `rec_ctor_kinds_all`) and
 `check_native` (ruling pending).
+
+### Task #97-T2-LOCKSTEP lane Checker Canon — `arena::canon` closed by `lockstep`; one twin divergence fixed (2026-09-24, Opus under Fable)
+
+Worktree `_tmp/wt-t2-canon`, branch `t2-canon` off `arena` `bf376947`.  The
+lane owns `Refine2/Checker/Canon.lean`.  **The file has no `sorry` left**
+(19 → 0: the three frontier items and all sixteen dead-weight statements).
+
+**The divergence (fixed in the twin).**  `IConstantInfo.canonEq`'s
+`.defnInfo` arm ran `cv.canonEq cv'` — which interns the numbered names
+(`canonNames`) — and only then compared the reducibility hints; the port's
+`i_constant_info_canon_eq` tests `reducibility_hint_beq` FIRST and calls
+`canon_eq_cv_and_value` only when they agree.  At two definitions with
+different hints the twin's store grew and the port's did not, so no
+`AStateRel₀` conclusion could hold.  The twin now tests `h == h'` first
+(`Arena/Canon.lean`, line count unchanged, so no `Lean twin:` citation
+moves).  Theorem 1: `Bridge/Checker/Canon.lean`'s `IConstantInfo.canonEq_run`,
+the `defnInfo/defnInfo` case re-nested (the hint split outermost; the
+mismatched-hint branch is now `Ext.refl`, no intern).  The Rust did not change.
+
+**The proofs** — the shared recipe throughout, no hand zips:
+* `canon_level_eq`/`_at` and `canon_expr_eq`/`_at`/`_two`: one fuel induction
+  each over the walk and its fragments, the shape of `Checker/Axioms.lean`'s
+  `erase_pw_eq` (`Canon{Level,Expr}Eq{,Node,Two}At` props, private); the case
+  bodies and every fragment are one `lockstep` (the node fragment after
+  `cases va <;> cases vb`).  `canonLevelEq_unfold`/`canonExprEq_unfold` are
+  `rw; congr 1`.
+* `canon_level_list_eq`, `canon_rules_eq`, `canon_eq_list`: the cursor `_aux`
+  induction (`by_cases` on the second list's end, `vecFrom_nil/cons`,
+  `simp only [twin]`, `lockstep`).  `canon_names_go`: induction on the count,
+  accumulator in the twin (`do pure (absNIdxL out ++ (← canonNamesGo …))`).
+* `canon_name_map_from`: a pure cursor induction with `canonNameMap_cons`
+  (the lookup moves down both lists at once, which is the port's one cursor).
+* The constants: `i_constant_val_canon_eq`, `canon_eq_cv_and_{rules,value}`,
+  `i_constant_info_canon_eq` are each `rw; simp only [abs…]; lockstep` (the
+  last after `cases ci <;> cases ci2`), in private `LS` forms `…_lsc`; the
+  public `_refines` keep their `Sim₀` statements (`LS.toSim₀`), which
+  `Inductives/Prims.lean` wraps.
+* File-local prims (`@[local lockstep]`, private — each has a global twin in
+  a module that imports this one): `canon_name_map`, `literal_beq`, lifted
+  `u64` `==`, `reducibility_hint_beq`, `i_proj_table_beq`,
+  `i_rec_rule_eq_but_rhs`, and `intern_n_node` at `.Anonymous`/`.Num` (the
+  generic `intern_n_node_ls`'s `NNodeViewWF` premise is not closed by the side
+  tactic; the two instances need none).
+
+**Statement changes.**  The eight read-only walks were `SimRE` (`sorry`,
+and stronger than a zip gives: the twin's state UNCHANGED); they are now
+`@[lockstep]` `LSR` lemmas `canon_{level_eq,level_eq_at,level_list_eq,
+levels_eq,expr_eq,expr_eq_at,expr_eq_two,rules_eq}_ls`, as the DeclCheck lane
+did for `erase_pw_eq`.  `canon_expr_eq_at_ls` takes `EViewMetaWF` of its two
+views (the literal arm; the views come from `view_ls`, which supplies it).
+`canon_expr_eq_two`'s statement compared `a` with `b` where the Rust compares
+`a` with `a2` — false as stated, corrected.  **Out-of-lane edit (forced):**
+`Inductives/Prims.lean`'s eight `IndPrims` wrappers of the old `SimRE`
+statements deleted (the Checker Base/Top lane's precedent, `38f9e920`); the
+Canon lemmas are `@[lockstep]` themselves.  The wrappers of the `Sim₀`
+entries stay.
+
+**Frontier** (`model_exists` + `no_False_declaration`): before (`arena`
+`bf376947`) **23 items in 7 modules, 242 tainted, dead weight 166**; after
+**20 items in 6 modules, 230 tainted, dead weight 150** — Canon off the
+frontier and out of the dead weight.  No new premise, no ruling needed.
