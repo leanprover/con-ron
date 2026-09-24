@@ -1,5 +1,5 @@
 name = "con-ron"
-defaultTargets = ["ConRon", "ConRonSpike", "ConRonArena", "ConRonTools"]
+defaultTargets = ["ConRon", "ConRonArena", "ConRonTools"]
 
 # con-leche, the Lean checker this port refines (DESIGN.md §1).  A plain lake
 # dependency (task #91), pinned by `rev`; `proof/lake-manifest.json`'s
@@ -29,13 +29,12 @@ weak.backward.do.legacy = true
 name = "ConRon"
 roots = ["ConRon"]
 
-# The task-#3/#5 spike is a *second* root, not part of `ConRon`, because it
-# carries its own copy of the `Rc` model: `ConRon/Spike/LevelName/
-# TypesExternal.lean` and `ConRon/Generated/TypesExternal.lean` both declare
-# the top-level `alloc.rc.Rc`, so they cannot sit in one import graph
-# ("environment already contains 'alloc.rc.Rc'").  Two library roots keeps
-# both elaborating under a plain `lake build` while keeping them apart
-# (DESIGN.md, task #12).
+# (The task-#3/#5 spike, `ConRonSpike` over `ConRon.Spike.LevelName`, was a
+# second root here — it carried its own `alloc.rc.Rc` model and could not share
+# `ConRon`'s import graph.  Task #97-PRUNE deleted it, with the retired
+# `ConRon/RefineOld/` tower that no library built: nothing on the verified
+# chain imported either, and both are in git history.)
+
 # Project tooling that is Lean metaprogramming rather than proof: the `sorry`
 # frontier of task #97-FRONTIER (`#sorry_frontier`, `scripts/frontier.sh`).
 # Depends on Lean core only, so every other library may import it.
@@ -43,10 +42,6 @@ roots = ["ConRon"]
 name = "ConRonTools"
 roots = ["ConRon.Tools"]
 globs = ["ConRon.Tools.+"]
-
-[[lean_lib]]
-name = "ConRonSpike"
-roots = ["ConRon.Spike.LevelName"]
 
 # The arena checker (B) of DESIGN.md §8 — a third library root, because it is
 # a *new* checker rather than a refinement layer over `ConRon.Generated`: it

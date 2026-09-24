@@ -5,32 +5,23 @@ that is still stated about it (`ConRon.Refine`), and the `DeclC` dump of §3.6.
 
 **Task #97-SWAP moved the checker.**  `crates/con-ron-core` is the ARENA now
 (DESIGN.md §8): the `Expr`-tree checker `ConRon.Refine` was grown over is
-deleted, so the 76 modules of that proof went to `ConRon.RefineOld`, out of
-this import graph — `ConRon/RefineOld/README.md` says why they are kept and
-what replaces them (§8.6's phases P3 and P5).  What is imported below is the
-47 modules whose SUBJECT survived the swap, in tier order: the runtime
-primitives (`Nat`, `HashMap`, `HashMap2`), the representation-free types
-(`Name`, `Level`, `PropWhen`, `Expr`, `ExprOps`, `Env`, `FEnv`, `Canon`), the
-`core_k` readers and shape guards, the pinned data (`Basis*`, `StdAxioms`,
-`TrustAxioms`) and the `con-ron-pins/1` decoder (`Pins*`).  Those are exactly
-the modules the arena still calls, so every lemma here is still a lemma about
-code that ships.
+deleted, and the modules of that proof, set aside as `ConRon.RefineOld` at
+the swap, were deleted at task #97-PRUNE (they are in git history).  What is
+imported below is the 46 modules whose SUBJECT survived the swap, in tier
+order: the runtime primitives (`Nat`, `HashMap`, `HashMap2`), the
+representation-free types (`Name`, `Level`, `PropWhen`, `Expr`, `ExprOps`,
+`Env`, `FEnv`, `Canon`), the `core_k` readers and shape guards, the pinned
+data (`Basis*`, `StdAxioms`, `TrustAxioms`) and the `con-ron-pins/1` decoder
+(`Pins*`).  Every one of them is in `ConRon.Capstone`'s import closure
+(checked mechanically at task #97-PRUNE), so every lemma here is on the
+verified chain.
 
 `ConRon/Refine/README.md` has the tier map.  The arena checker itself is a
 separate library root (`ConRonArena`, `ConRon.Arena.*`) and is not imported
 here.
-
-The task-#3/#5 spike (`ConRon.Spike.LevelName`) is *not* imported here: it
-carries its own copy of the §3.2 pointer model -- `alloc.rc.Rc`, from a
-spike crate compiled at `std::rc::Rc`, where the core's is `alloc.sync.Arc`
-since task #45 -- and its own `Types`/`Funs` for the same declaration names,
-which cannot live in one import graph.  It is a second library root
-(`ConRonSpike` in `lakefile.toml`) and a plain `lake build` still elaborates
-it.
 -/
 import ConRon.Generated
 import ConRon.Refine.SimpSets
-import ConRon.Refine.Scalars
 import ConRon.Refine.Abs
 import ConRon.Refine.Nat
 import ConRon.Refine.HashMap
