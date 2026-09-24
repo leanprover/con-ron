@@ -636,7 +636,21 @@ theorem native_fields_at_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
       (nativeFieldsAtSpec lf0 (absU n_p) (absU n_idx) (absKindL ks)
         (absEIdxL fvs_p) (absEIdxL x_fvs) (absEIdx xrest) (absEIdx hd)
         (absU n_f - absU i) (absU i)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  refine ls_counted (ω := Unit) n_f
+    (fun _ m j => nativeFieldsAtSpec lf0 (absU n_p) (absU n_idx) (absKindL ks)
+      (absEIdxL fvs_p) (absEIdxL x_fvs) (absEIdx xrest) (absEIdx hd) m j)
+    (fun st j _ => arena.inductives.native_install.native_fields_at pers vis st rf0 n_p
+      n_idx n_f ks fvs_p x_fvs xrest hd j) ?_ ?_ i st lst () hrel hinv
+  · intro st lst j _ hn hrel hinv
+    rw [arena.inductives.native_install.native_fields_at.eq_def, nativeFieldsAtSpec]
+    rw [if_pos (by scalar_tac)]
+    lockstep
+  · intro st lst j _ m hj hm hrel hinv ih
+    rw [arena.inductives.native_install.native_fields_at.eq_def, nativeFieldsAtSpec]
+    rw [if_neg (by scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem native_fields_at_ls
