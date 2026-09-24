@@ -1037,7 +1037,26 @@ theorem struct_idx_list_refines {pers st lst} {n_f ofs i l m : Std.U64}
       (do pure (absEIdxL out ++
         (← structIdxListSpec (absU n_f) (absU ofs) (absU i) (absU l) (absU m)
           (absEIdxLFrom idx k)))) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  revert st lst hrel hinv
+  simp only [absEIdxLFrom]
+  intro st lst hrel hinv
+  refine ls_cursor_acc idx absEIdx
+    (fun out l' => do pure (absEIdxL out ++
+      (← structIdxListSpec (absU n_f) (absU ofs) (absU i) (absU l) (absU m) l')))
+    (fun st k out => arena.inductives.native_parts.struct_idx_list pers st n_f ofs i l m idx k out)
+    ?_ ?_ k st lst out hrel hinv
+  · intro st lst k out hn hrel hinv
+    try simp only []
+    rw [arena.inductives.native_parts.struct_idx_list.eq_def, structIdxListSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst k out hb hrel hinv ih
+    try simp only []
+    rw [arena.inductives.native_parts.struct_idx_list.eq_def, structIdxListSpec]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_idx_list_ls
