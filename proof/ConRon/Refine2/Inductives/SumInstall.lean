@@ -627,7 +627,21 @@ theorem field_doms_resolve_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
       = ok o) :
     Sim₀ id pers lst o
       (fieldDomsResolveSpec lf0 (absEIdxLFrom x_fvs i)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  revert st lst hrel hinv hrun
+  simp only [absEIdxLFrom]
+  intro st lst hrel hinv _
+  refine ls_cursor x_fvs absEIdx (fieldDomsResolveSpec lf0)
+    (fun st i => arena.inductives.sum_install.field_doms_resolve pers vis st rf0 x_fvs i)
+    ?_ ?_ i st lst hrel hinv
+  · intro st lst i hn hrel hinv
+    rw [arena.inductives.sum_install.field_doms_resolve.eq_def, fieldDomsResolveSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst i hb hrel hinv ih
+    rw [arena.inductives.sum_install.field_doms_resolve.eq_def, fieldDomsResolveSpec]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem field_doms_resolve_ls
