@@ -39,10 +39,10 @@ theorem ctors_copy_from_refines' (n : Nat) :
     lockstep
     -- the loop invariant's list algebra: what `vec_cursor_copy` packages
     refine LSP.tail (ih _ _ _ (by scalar_tac)) fun o h => ?_
-    rename_i hlt _ hv _ hout
     rw [h]
-    simp only [absCtorsL, absCtorsLFrom, hout, hP, List.map_append, List.map_cons,
-      List.map_nil, List.append_assoc, List.drop_eq_getElem_cons hlt, hv]
+    have hlt : i.val < cs.val.length := by scalar_tac
+    simp_all only [absCtorsL, absCtorsLFrom, List.map_append, List.map_cons,
+      List.map_nil, List.append_assoc, List.drop_eq_getElem_cons hlt]
     rfl
 
 /-! ## The axiom census -/

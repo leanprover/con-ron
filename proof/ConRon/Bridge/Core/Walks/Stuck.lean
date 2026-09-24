@@ -965,12 +965,13 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                 refine triple_ite (fun hfT' => ?_) (fun hfF => ?_)
                 · have hfam' : fam = true := hfT'
                   subst hfam'
-                  -- stage 8: the per-slot certificates
+                  -- stage 8: the per-slot certificates (the tower read is
+                  -- under `mode.certs`, as in the port)
+                  refine triple_ite (fun hnc => absurd hnc (by simp [hc]))
+                    (fun _ => ?_)
                   refine triple_seq (towerSlotsAll_spec s11 T Tn icaps.etaFields
                     hok11 (denoteN_ext hTn hx011)) ?_
                   rintro tw2 s12 ⟨hok12, hx12, hp12, htw2⟩
-                  refine triple_ite (fun hnc => absurd hnc (by simp [hc]))
-                    (fun _ => ?_)
                   have hx012 := hx011.trans hx12
                   refine triple_ite_seq (Q := fun pc s => CheckOK mode env fe s ∧
                     Ext s12.store s.store ∧ s.pins = s12.pins ∧
@@ -1551,9 +1552,11 @@ theorem proofIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       case sort vT =>
         obtain ⟨lV, rfl, hlV⟩ := denote_sort_inv hwf11 hvv2 hvw2
         dsimp only
-        have hz11 : denoteL s11.store.ls z = some Level.zero :=
-          denoteL_ext hz (by rw [← hst7]; exact hx9.trans (hx10.trans hx11))
-        refine triple_seq (lvlEq?_spec s11 vT z hok11) ?_
+        -- the zero pin, read again (the port's `prop_sorts_zero_right`)
+        refine triple_seq (pinZeroLevel_spec s11 hok11.pins) ?_
+        rintro z2 s12 ⟨hs12, hz11⟩
+        subst s12
+        refine triple_seq (lvlEq?_spec s11 vT z2 hok11) ?_
         rintro rq2 s13 ⟨hok13, hst13, hp13, lu2, lv2, hlu2, hlv2, hrq2⟩
         rw [hlV] at hlu2
         rw [hz11] at hlv2

@@ -31,7 +31,6 @@ attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 namespace ConRon.Refine2
 
 open ConRon.Arena
-open ConRon.Refine2.ExprOps (EResolves)
 
 /-- `LANE_FULL` is not `LANE_GATED` — kept because the tier's statements read
 the lane's identity in several places, though since task #97-P5-Core-2 no

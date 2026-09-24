@@ -67,6 +67,7 @@ own, `Core/Probes.lean` grew its probe and its write (`const_val_probe_abs`,
 import ConRon.Refine2.Core.Arms.Sort
 import ConRon.Refine.ExprOpsSubst
 import ConRon.Refine2.Dup
+import ConRon.Refine2.ExprOps.Mut
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -78,7 +79,7 @@ set_option maxRecDepth 4000
 namespace ConRon.Refine2
 
 open ConRon.Arena
-open ConRon.Refine2.ExprOps (EResolves absEIdxList)
+open ConRon.Refine2.ExprOps (absEIdxList)
 
 /-! ## The `view` / tag agreement at the `const` constructor -/
 
@@ -497,6 +498,118 @@ structure ExprOpsHyp (pers : arena.store.PersTier) : Prop where
     arena.expr_ops.mk_app_n pers st f args = ok o →
     Sim₀ absEIdx pers lst o
       (Arena.mkAppN (absEIdx f) (absEIdxList args))
+  -- The fields below are round 5's (task #97-P5-Core round 5): every other
+  -- `arena::expr_ops` walk the six bodies call, at the lockstep shape of its
+  -- `Refine2/ExprOps/*.lean` lemma with the `EResolves`/`StoreWF` premises and
+  -- the `Ext` conclusion dropped.
+  /-- `mk_app_n_from_refines`. -/
+  mkAppNFrom : ∀ {st lst} {f : arena.handle.EIdx}
+    {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o},
+    AStateRel₀ pers st lst → AStateInv pers st →
+    arena.expr_ops.mk_app_n_from pers st f args i = ok o →
+    Sim₀ absEIdx pers lst o (mkAppNFrom (absEIdx f) (absEIdxArr args) (absSz i))
+  /-- `instantiate1_fast_refines`. -/
+  instantiate1Fast : ∀ {st lst} {fuel : Std.U64} {e v : arena.handle.EIdx}
+    {d : Std.U64} {o},
+    AStateRel₀ pers st lst → AStateInv pers st →
+    arena.expr_ops.instantiate1_fast pers st fuel e v d = ok o →
+    Sim₀ absEIdx pers lst o
+      (instantiate1Fast (absU fuel) (absEIdx e) (absEIdx v) (absU d))
+  /-- `instantiate_list_fast_refines`. -/
+  instantiateListFast : ∀ {st lst} {fuel : Std.U64} {e : arena.handle.EIdx}
+    {vs : alloc.vec.Vec arena.handle.EIdx} {d : Std.U64} {o},
+    AStateRel₀ pers st lst → AStateInv pers st →
+    arena.expr_ops.instantiate_list_fast pers st fuel e vs d = ok o →
+    Sim₀ absEIdx pers lst o
+      (instantiateListFast (absU fuel) (absEIdx e) (absEIdxArr vs) (absU d))
+  /-- `abstract1_fast_refines`. -/
+  abstract1Fast : ∀ {st lst} {fuel : Std.U64} {e : arena.handle.EIdx}
+    {d k : Std.U64} {o},
+    AStateRel₀ pers st lst → AStateInv pers st →
+    arena.expr_ops.abstract1_fast pers st fuel e d k = ok o →
+    Sim₀ absEIdx pers lst o
+      (abstract1Fast (absU fuel) (absEIdx e) (absU d) (absU k))
+  /-- `abstract_range_fast_refines` (its walk `abstract_range_go` is on task
+  #97-T2-AUDIT's D1 list: TRUE once the `ExprOps` lane makes it tag-first). -/
+  abstractRangeFast : ∀ {st lst} {fuel : Std.U64} {e : arena.handle.EIdx}
+    {d k c : Std.U64} {o},
+    AStateRel₀ pers st lst → AStateInv pers st →
+    arena.expr_ops.abstract_range_fast pers st fuel e d k c = ok o →
+    Sim₀ absEIdx pers lst o
+      (abstractRangeFast (absU fuel) (absEIdx e) (absU d) (absU k) (absU c))
+  /-- `inst_spine_refines`. -/
+  instSpine : ∀ {st lst} {fuel : Std.U64} {args : alloc.vec.Vec arena.handle.EIdx}
+    {t : Std.U64} {e : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st →
+    arena.expr_ops.inst_spine pers st fuel args t e = ok o →
+    Sim₀ absEIdx pers lst o
+      (instSpine (absU fuel) (absEIdxList args) (absU t) (absEIdx e))
+  /-- `intern_rebuilt_app_refines`. -/
+  internRebuiltApp : ∀ {st lst} {h : arena.handle.EIdx} {same : Bool}
+    {f a : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st →
+    arena.expr_ops.intern_rebuilt_app pers st h same f a = ok o →
+    Sim₀ absEIdx pers lst o
+      (internRebuiltApp (absEIdx h) same (absEIdx f) (absEIdx a))
+  /-- `bvar_b_refines`. -/
+  bvarB : ∀ {st lst} {fuel : Std.U64} {e : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st →
+    arena.expr_ops.bvar_b pers st fuel e = ok o →
+    Sim₀ absU pers lst o (bvarB (absU fuel) (absEIdx e))
+  /-- `has_fvar_fast_refines`. -/
+  hasFvarFast : ∀ {st lst} {fuel : Std.U64} {e : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st →
+    arena.expr_ops.has_fvar_fast pers st fuel e = ok o →
+    Sim₀ id pers lst o (hasFvarFast (absU fuel) (absEIdx e))
+  /-- `loose_bvars_bounded_fast_refines`. -/
+  looseBVarsBoundedFast : ∀ {st lst} {fuel k : Std.U64} {e : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st →
+    arena.expr_ops.loose_bvars_bounded_fast pers st fuel k e = ok o →
+    Sim₀ id pers lst o (looseBVarsBoundedFast (absU fuel) (absU k) (absEIdx e))
+  /-- `lam_pw_refines`. -/
+  lamPw : ∀ {st lst} {h : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st →
+    arena.expr_ops.lam_pw pers st h = ok o →
+    AOut₀ ExprOps.absPwOpt pers o st ((lamPw (absEIdx h)).run lst)
+  /-- `pi_result_refines`. -/
+  piResult : ∀ {st lst} {fuel : Std.U64} {h : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st →
+    arena.expr_ops.pi_result pers st fuel h = ok o →
+    AOut₀ absEIdx pers o st ((piResult (absU fuel) (absEIdx h)).run lst)
+  /-- `strip_pis_refines`. -/
+  stripPis : ∀ {st lst} {k : Std.U64} {h : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st →
+    arena.expr_ops.strip_pis pers st k h = ok o →
+    AOut₀ ExprOps.absStrip pers o st ((stripPis (absU k) (absEIdx h)).run lst)
+  /-- `wscoped_b_fast_refines`. -/
+  wscopedBFast : ∀ {st lst} {fuel d : Std.U64} {h : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st →
+    arena.expr_ops.wscoped_b_fast pers st fuel d h = ok o →
+    AOut₀ id pers o st ((wscopedBFast (absU fuel) (absU d) (absEIdx h)).run lst)
+  /-- `leaf_guard_refines`. -/
+  leafGuard : ∀ {st lst} {fuel : Std.U64} {fab base : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st →
+    arena.expr_ops.leaf_guard pers st fuel fab base = ok o →
+    AOut₀ id pers o st ((leafGuard (absU fuel) (absEIdx fab) (absEIdx base)).run lst)
+  -- `arena::prop_read`'s four entries (no `Refine2` lemma yet; every walk
+  -- under them is on task #97-T2-AUDIT's D1 list, so these are TRUE once that
+  -- lane makes `Arena/PropRead.lean` tag-first).
+  proofPW : ∀ {st lst vis fe lfe} {fuel : Std.U64} {a : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    arena.prop_read.proof_pw pers vis st fe fuel a = ok o →
+    Sim₀ ExprOps.absPwOpt pers lst o (proofPW lfe (absU fuel) (absEIdx a))
+  typeSortPW : ∀ {st lst vis fe lfe} {fuel : Std.U64} {t : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    arena.prop_read.type_sort_pw pers vis st fe fuel t = ok o →
+    Sim₀ ExprOps.absPwOpt pers lst o (typeSortPW lfe (absU fuel) (absEIdx t))
+  isProofFast : ∀ {st lst vis fe lfe} {fuel : Std.U64} {a : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    arena.prop_read.is_proof_fast pers vis st fe fuel a = ok o →
+    Sim₀ id pers lst o (isProofFast lfe (absU fuel) (absEIdx a))
+  notProofFast : ∀ {st lst vis fe lfe} {fuel : Std.U64} {a : arena.handle.EIdx} {o},
+    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
+    arena.prop_read.not_proof_fast pers vis st fe fuel a = ok o →
+    Sim₀ id pers lst o (notProofFast lfe (absU fuel) (absEIdx a))
 
 /-! ## `const_val_at` — the delta step's memo
 

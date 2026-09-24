@@ -572,526 +572,583 @@ theorem eqAt1_run {ty a b h : EIdx} {T A B : Expr} {s s' : AState} (hst : StateO
   refine ⟨A7.trans st8, ?_⟩
   rw [hd8]; simp only [denoteEView, denote_ext he7 st8.ext, denote_ext hb7 st8.ext, opt2]
 
+/-! ### `divModCertStmts` in the port's factoring (task #97-T2-LOCKSTEP lane
+Checker DeclCheck slice 2): one `_run` per twin helper. -/
+
+/-- The context's twenty-one handles denote con-leche's `let`s. -/
+structure CertCtxOK (st : EStore) (cx : CertCtxA) : Prop where
+  natTy : denoteE st cx.natTy = some (.const ConLeche.natName [])
+  x : denoteE st cx.x = some (.fvar 0 (.const ConLeche.natName []))
+  y : denoteE st cx.y = some (.fvar 1 (.const ConLeche.natName []))
+  one : denoteE st cx.one = some (.app (.const ConLeche.natSuccName []) (.const ConLeche.natZeroName []))
+  bleN : denoteN st.ns cx.bleN = some ConLeche.natBleName
+  boolTy : denoteE st cx.boolTy = some (.const ConLeche.boolName [])
+  bT : denoteE st cx.bT = some (.const ConLeche.boolTrueName [])
+  bF : denoteE st cx.bF = some (.const ConLeche.boolFalseName [])
+  z : denoteE st cx.z = some (.const ConLeche.natZeroName [])
+  two : denoteE st cx.two = some
+    (.app (.const ConLeche.natSuccName []) (.app (.const ConLeche.natSuccName []) (.const ConLeche.natZeroName [])))
+  modN : denoteN st.ns cx.modN = some ConLeche.natModName
+  divN : denoteN st.ns cx.divN = some ConLeche.natDivName
+  addN : denoteN st.ns cx.addN = some ConLeche.natAddName
+  mulN : denoteN st.ns cx.mulN = some ConLeche.natMulName
+  subN : denoteN st.ns cx.subN = some ConLeche.natSubName
+  gcdN : denoteN st.ns cx.gcdN = some ConLeche.natGcdName
+  slN : denoteN st.ns cx.slN = some ConLeche.natShiftLeftName
+  srN : denoteN st.ns cx.srN = some ConLeche.natShiftRightName
+  landN : denoteN st.ns cx.landN = some ConLeche.natLandName
+  lorN : denoteN st.ns cx.lorN = some ConLeche.natLorName
+  xorN : denoteN st.ns cx.xorN = some ConLeche.natXorName
+
+theorem CertCtxOK.mono {st st' : EStore} {cx : CertCtxA} (h : CertCtxOK st cx)
+    (hx : Ext st st') : CertCtxOK st' cx :=
+  ⟨denote_ext h.natTy hx, denote_ext h.x hx, denote_ext h.y hx, denote_ext h.one hx,
+   denoteN_ext h.bleN hx, denote_ext h.boolTy hx, denote_ext h.bT hx, denote_ext h.bF hx,
+   denote_ext h.z hx, denote_ext h.two hx, denoteN_ext h.modN hx, denoteN_ext h.divN hx,
+   denoteN_ext h.addN hx, denoteN_ext h.mulN hx, denoteN_ext h.subN hx,
+   denoteN_ext h.gcdN hx, denoteN_ext h.slN hx, denoteN_ext h.srN hx,
+   denoteN_ext h.landN hx, denoteN_ext h.lorN hx, denoteN_ext h.xorN hx⟩
+
+open Lean Elab Tactic Meta in
+/-- Move every denotation fact (and `StateOK`/`PinsOK`/`CertCtxOK`) along one
+`IStepS` step `hs`. -/
+elab "dmc_move " hs:term : tactic => withMainContext do
+  let names := (← getLCtx).foldl (init := #[]) fun acc d =>
+    if d.isImplementationDetail || d.userName.hasMacroScopes then acc else acc.push d.userName
+  for n in names do
+    let h := mkIdent n
+    try
+      evalTactic (← `(tactic| first
+        | replace $h:ident := denote_ext $h ($hs).ext
+        | replace $h:ident := denoteN_ext $h ($hs).ext
+        | replace $h:ident := CertCtxOK.mono $h ($hs).ext
+        | replace $h:ident := PinsOK.mono $h ($hs).ext ($hs).pins
+        | replace $h:ident := denoteEList_ext ($hs).ext _ _ $h))
+    catch _ => pure ()
+
+abbrev natTyE : Expr := .const ConLeche.natName []
+abbrev xE : Expr := .fvar 0 natTyE
+abbrev yE : Expr := .fvar 1 natTyE
+abbrev oneE : Expr := .app (.const ConLeche.natSuccName []) (.const ConLeche.natZeroName [])
+abbrev twoE : Expr := .app (.const ConLeche.natSuccName []) oneE
+abbrev op2E (c : ConLeche.Name) (a b : Expr) : Expr := .app (.app (.const c []) a) b
+abbrev eqBE (a b : Expr) : Expr :=
+  .app (.app (.app (.const ConLeche.eqName [.succ .zero]) (.const ConLeche.boolName [])) a) b
+abbrev eqNE (a b : Expr) : Expr :=
+  .app (.app (.app (.const ConLeche.eqName [.succ .zero]) natTyE) a) b
+
+theorem certGuard_run {cx : CertCtxA} {a b r g : EIdx} {A B R : Expr} {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hcx : CertCtxOK s.store cx)
+    (ha : denoteE s.store a = some A) (hb : denoteE s.store b = some B)
+    (hr : denoteE s.store r = some R) (h : certGuard cx a b r s = .ok (g, s')) :
+    Frontend.IStepS s s' ∧ denoteE s'.store g = some (eqBE (op2E ConLeche.natBleName A B) R) := by
+  simp only [certGuard] at h
+  obtain ⟨v, s1, g1, w1⟩ := AM.bind_ok h
+  obtain ⟨hs1, e1⟩ := natAp2_run hst hp hcx.bleN ha hb g1
+  dmc_move hs1
+  obtain ⟨hs2, e2⟩ := eqAt1_run hs1.ok hp hcx.boolTy e1 hr w1
+  exact ⟨hs1.trans hs2, e2⟩
+
+theorem certEq_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name} {r g : EIdx} {R : Expr}
+    {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hcx : CertCtxOK s.store cx)
+    (hn : denoteN s.store.ns c = some nm)
+    (hr : denoteE s.store r = some R) (h : certEq cx c r s = .ok (g, s')) :
+    Frontend.IStepS s s' ∧ denoteE s'.store g = some (eqNE (op2E nm xE yE) R) := by
+  simp only [certEq] at h
+  obtain ⟨v, s1, g1, w1⟩ := AM.bind_ok h
+  obtain ⟨hs1, e1⟩ := natAp2_run hst hp hn hcx.x hcx.y g1
+  dmc_move hs1
+  obtain ⟨hs2, e2⟩ := eqAt1_run hs1.ok hp hcx.natTy e1 hr w1
+  exact ⟨hs1.trans hs2, e2⟩
+
+theorem certHalves_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name} {g : EIdx}
+    {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hcx : CertCtxOK s.store cx)
+    (hn : denoteN s.store.ns c = some nm) (h : certHalves cx c s = .ok (g, s')) :
+    Frontend.IStepS s s' ∧ denoteE s'.store g = some
+      (op2E nm (op2E ConLeche.natDivName xE twoE) (op2E ConLeche.natDivName yE twoE)) := by
+  simp only [certHalves] at h
+  obtain ⟨v1, s1, g1, w1⟩ := AM.bind_ok h
+  obtain ⟨hs1, e1⟩ := natAp2_run hst hp hcx.divN hcx.x hcx.two g1
+  dmc_move hs1
+  obtain ⟨v2, s2, g2, w2⟩ := AM.bind_ok w1
+  obtain ⟨hs2, e2⟩ := natAp2_run hs1.ok hp hcx.divN hcx.y hcx.two g2
+  dmc_move hs2
+  obtain ⟨hs3, e3⟩ := natAp2_run hs2.ok hp hn e1 e2 w2
+  exact ⟨hs1.trans (hs2.trans hs3), e3⟩
+
+theorem certTwoEqs_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name}
+    {h1 h2 r1 r2 : EIdx} {H1 H2 R1 R2 : Expr} {out : List (List EIdx × EIdx)}
+    {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hcx : CertCtxOK s.store cx)
+    (hn : denoteN s.store.ns c = some nm)
+    (d1 : denoteE s.store h1 = some H1) (d2 : denoteE s.store h2 = some H2)
+    (dr1 : denoteE s.store r1 = some R1) (dr2 : denoteE s.store r2 = some R2)
+    (h : certTwoEqs cx c h1 h2 r1 r2 s = .ok (out, s')) :
+    Frontend.IStepS s s' ∧ StmtsDenote s'.store out
+      [([H1], eqNE (op2E nm xE yE) R1), ([H2], eqNE (op2E nm xE yE) R2)] := by
+  simp only [certTwoEqs] at h
+  obtain ⟨v1, s1, g1, w1⟩ := AM.bind_ok h
+  obtain ⟨hs1, e1⟩ := certEq_run hst hp hcx hn dr1 g1
+  dmc_move hs1
+  obtain ⟨v2, s2, g2, w2⟩ := AM.bind_ok w1
+  obtain ⟨hs2, e2⟩ := certEq_run hs1.ok hp hcx hn dr2 g2
+  dmc_move hs2
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok w2
+  exact ⟨hs1.trans hs2, denoteEList_one d1, e1, denoteEList_one d2, e2, trivial⟩
+
+theorem certGcd_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name}
+    {out : List (List EIdx × EIdx)} {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hcx : CertCtxOK s.store cx)
+    (hn : denoteN s.store.ns c = some nm) (h : certGcd cx c s = .ok (out, s')) :
+    Frontend.IStepS s s' ∧ StmtsDenote s'.store out
+      [([eqBE (op2E ConLeche.natBleName oneE xE) (.const ConLeche.boolTrueName [])],
+          eqNE (op2E nm xE yE) (op2E nm (op2E ConLeche.natModName yE xE) xE)),
+       ([eqBE (op2E ConLeche.natBleName oneE xE) (.const ConLeche.boolFalseName [])],
+          eqNE (op2E nm xE yE) yE)] := by
+  simp only [certGcd] at h
+  obtain ⟨v1, s1, g1, w1⟩ := AM.bind_ok h
+  obtain ⟨hs1, e1⟩ := certGuard_run hst hp hcx hcx.one hcx.x hcx.bT g1
+  dmc_move hs1
+  obtain ⟨v2, s2, g2, w2⟩ := AM.bind_ok w1
+  obtain ⟨hs2, e2⟩ := certGuard_run hs1.ok hp hcx hcx.one hcx.x hcx.bF g2
+  dmc_move hs2
+  obtain ⟨v3, s3, g3, w3⟩ := AM.bind_ok w2
+  obtain ⟨hs3, e3⟩ := natAp2_run hs2.ok hp hcx.modN hcx.y hcx.x g3
+  dmc_move hs3
+  obtain ⟨v4, s4, g4, w4⟩ := AM.bind_ok w3
+  obtain ⟨hs4, e4⟩ := natAp2_run hs3.ok hp hn e3 hcx.x g4
+  dmc_move hs4
+  obtain ⟨hs5, e5⟩ := certTwoEqs_run hs4.ok hp hcx hn e1 e2 e4 hcx.y w4
+  exact ⟨hs1.trans (hs2.trans (hs3.trans (hs4.trans hs5))), e5⟩
+
+abbrev bTE : Expr := .const ConLeche.boolTrueName []
+abbrev bFE : Expr := .const ConLeche.boolFalseName []
+abbrev bleE (a b : Expr) : Expr := op2E ConLeche.natBleName a b
+
+theorem certShiftLeft_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name}
+    {out : List (List EIdx × EIdx)} {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hcx : CertCtxOK s.store cx)
+    (hn : denoteN s.store.ns c = some nm) (h : certShiftLeft cx c s = .ok (out, s')) :
+    Frontend.IStepS s s' ∧ StmtsDenote s'.store out
+      [([eqBE (bleE oneE yE) bTE], eqNE (op2E nm xE yE)
+          (op2E nm (op2E ConLeche.natMulName twoE xE) (op2E ConLeche.natSubName yE oneE))),
+       ([eqBE (bleE oneE yE) bFE], eqNE (op2E nm xE yE) xE)] := by
+  simp only [certShiftLeft] at h
+  obtain ⟨v1, s1, g1, w1⟩ := AM.bind_ok h
+  obtain ⟨hs1, e1⟩ := certGuard_run hst hp hcx hcx.one hcx.y hcx.bT g1
+  dmc_move hs1
+  obtain ⟨v2, s2, g2, w2⟩ := AM.bind_ok w1
+  obtain ⟨hs2, e2⟩ := certGuard_run hs1.ok hp hcx hcx.one hcx.y hcx.bF g2
+  dmc_move hs2
+  obtain ⟨v3, s3, g3, w3⟩ := AM.bind_ok w2
+  obtain ⟨hs3, e3⟩ := natAp2_run hs2.ok hp hcx.mulN hcx.two hcx.x g3
+  dmc_move hs3
+  obtain ⟨v4, s4, g4, w4⟩ := AM.bind_ok w3
+  obtain ⟨hs4, e4⟩ := natAp2_run hs3.ok hp hcx.subN hcx.y hcx.one g4
+  dmc_move hs4
+  obtain ⟨v5, s5, g5, w5⟩ := AM.bind_ok w4
+  obtain ⟨hs5, e5⟩ := natAp2_run hs4.ok hp hn e3 e4 g5
+  dmc_move hs5
+  obtain ⟨hs6, e6⟩ := certTwoEqs_run hs5.ok hp hcx hn e1 e2 e5 hcx.x w5
+  exact ⟨hs1.trans (hs2.trans (hs3.trans (hs4.trans (hs5.trans hs6)))), e6⟩
+
+theorem certShiftRight_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name}
+    {out : List (List EIdx × EIdx)} {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hcx : CertCtxOK s.store cx)
+    (hn : denoteN s.store.ns c = some nm) (h : certShiftRight cx c s = .ok (out, s')) :
+    Frontend.IStepS s s' ∧ StmtsDenote s'.store out
+      [([eqBE (bleE oneE yE) bTE], eqNE (op2E nm xE yE)
+          (op2E ConLeche.natDivName (op2E nm xE (op2E ConLeche.natSubName yE oneE)) twoE)),
+       ([eqBE (bleE oneE yE) bFE], eqNE (op2E nm xE yE) xE)] := by
+  simp only [certShiftRight] at h
+  obtain ⟨v1, s1, g1, w1⟩ := AM.bind_ok h
+  obtain ⟨hs1, e1⟩ := certGuard_run hst hp hcx hcx.one hcx.y hcx.bT g1
+  dmc_move hs1
+  obtain ⟨v2, s2, g2, w2⟩ := AM.bind_ok w1
+  obtain ⟨hs2, e2⟩ := certGuard_run hs1.ok hp hcx hcx.one hcx.y hcx.bF g2
+  dmc_move hs2
+  obtain ⟨v3, s3, g3, w3⟩ := AM.bind_ok w2
+  obtain ⟨hs3, e3⟩ := natAp2_run hs2.ok hp hcx.subN hcx.y hcx.one g3
+  dmc_move hs3
+  obtain ⟨v4, s4, g4, w4⟩ := AM.bind_ok w3
+  obtain ⟨hs4, e4⟩ := natAp2_run hs3.ok hp hn hcx.x e3 g4
+  dmc_move hs4
+  obtain ⟨v5, s5, g5, w5⟩ := AM.bind_ok w4
+  obtain ⟨hs5, e5⟩ := natAp2_run hs4.ok hp hcx.divN e4 hcx.two g5
+  dmc_move hs5
+  obtain ⟨hs6, e6⟩ := certTwoEqs_run hs5.ok hp hcx hn e1 e2 e5 hcx.x w5
+  exact ⟨hs1.trans (hs2.trans (hs3.trans (hs4.trans (hs5.trans hs6)))), e6⟩
+
+abbrev halvesE (nm : ConLeche.Name) : Expr :=
+  op2E nm (op2E ConLeche.natDivName xE twoE) (op2E ConLeche.natDivName yE twoE)
+abbrev modE (a : Expr) : Expr := op2E ConLeche.natModName a twoE
+
+theorem certLand_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name}
+    {out : List (List EIdx × EIdx)} {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hcx : CertCtxOK s.store cx)
+    (hn : denoteN s.store.ns c = some nm) (h : certLand cx c s = .ok (out, s')) :
+    Frontend.IStepS s s' ∧ StmtsDenote s'.store out
+      [([eqBE (bleE oneE xE) bTE], eqNE (op2E nm xE yE)
+          (op2E ConLeche.natAddName (op2E ConLeche.natMulName twoE (halvesE nm))
+            (op2E ConLeche.natMulName (modE xE) (modE yE)))),
+       ([eqBE (bleE oneE xE) bFE], eqNE (op2E nm xE yE) (.const ConLeche.natZeroName []))] := by
+  simp only [certLand] at h
+  obtain ⟨v1, s1, g1, w1⟩ := AM.bind_ok h
+  obtain ⟨hs1, e1⟩ := certGuard_run hst hp hcx hcx.one hcx.x hcx.bT g1
+  dmc_move hs1
+  obtain ⟨v2, s2, g2, w2⟩ := AM.bind_ok w1
+  obtain ⟨hs2, e2⟩ := certGuard_run hs1.ok hp hcx hcx.one hcx.x hcx.bF g2
+  dmc_move hs2
+  obtain ⟨v3, s3, g3, w3⟩ := AM.bind_ok w2
+  obtain ⟨hs3, e3⟩ := certHalves_run hs2.ok hp hcx hn g3
+  dmc_move hs3
+  obtain ⟨v4, s4, g4, w4⟩ := AM.bind_ok w3
+  obtain ⟨hs4, e4⟩ := natAp2_run hs3.ok hp hcx.mulN hcx.two e3 g4
+  dmc_move hs4
+  obtain ⟨v5, s5, g5, w5⟩ := AM.bind_ok w4
+  obtain ⟨hs5, e5⟩ := natAp2_run hs4.ok hp hcx.modN hcx.x hcx.two g5
+  dmc_move hs5
+  obtain ⟨v6, s6, g6, w6⟩ := AM.bind_ok w5
+  obtain ⟨hs6, e6⟩ := natAp2_run hs5.ok hp hcx.modN hcx.y hcx.two g6
+  dmc_move hs6
+  obtain ⟨v7, s7, g7, w7⟩ := AM.bind_ok w6
+  obtain ⟨hs7, e7⟩ := natAp2_run hs6.ok hp hcx.mulN e5 e6 g7
+  dmc_move hs7
+  obtain ⟨v8, s8, g8, w8⟩ := AM.bind_ok w7
+  obtain ⟨hs8, e8⟩ := natAp2_run hs7.ok hp hcx.addN e4 e7 g8
+  dmc_move hs8
+  obtain ⟨hs9, e9⟩ := certTwoEqs_run hs8.ok hp hcx hn e1 e2 e8 hcx.z w8
+  exact ⟨hs1.trans (hs2.trans (hs3.trans (hs4.trans (hs5.trans (hs6.trans (hs7.trans
+    (hs8.trans hs9))))))), e9⟩
+
+theorem certLorRhs_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name} {g : EIdx}
+    {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hcx : CertCtxOK s.store cx)
+    (hn : denoteN s.store.ns c = some nm) (h : certLorRhs cx c s = .ok (g, s')) :
+    Frontend.IStepS s s' ∧ denoteE s'.store g = some
+      (op2E ConLeche.natAddName (op2E ConLeche.natMulName twoE (halvesE nm))
+        (op2E ConLeche.natSubName (op2E ConLeche.natAddName (modE xE) (modE yE))
+          (op2E ConLeche.natMulName (modE xE) (modE yE)))) := by
+  simp only [certLorRhs] at h
+  obtain ⟨v1, s1, g1, w1⟩ := AM.bind_ok h
+  obtain ⟨hs1, e1⟩ := certHalves_run hst hp hcx hn g1
+  dmc_move hs1
+  obtain ⟨v2, s2, g2, w2⟩ := AM.bind_ok w1
+  obtain ⟨hs2, e2⟩ := natAp2_run hs1.ok hp hcx.mulN hcx.two e1 g2
+  dmc_move hs2
+  obtain ⟨v3, s3, g3, w3⟩ := AM.bind_ok w2
+  obtain ⟨hs3, e3⟩ := natAp2_run hs2.ok hp hcx.modN hcx.x hcx.two g3
+  dmc_move hs3
+  obtain ⟨v4, s4, g4, w4⟩ := AM.bind_ok w3
+  obtain ⟨hs4, e4⟩ := natAp2_run hs3.ok hp hcx.modN hcx.y hcx.two g4
+  dmc_move hs4
+  obtain ⟨v5, s5, g5, w5⟩ := AM.bind_ok w4
+  obtain ⟨hs5, e5⟩ := natAp2_run hs4.ok hp hcx.addN e3 e4 g5
+  dmc_move hs5
+  obtain ⟨v6, s6, g6, w6⟩ := AM.bind_ok w5
+  obtain ⟨hs6, e6⟩ := natAp2_run hs5.ok hp hcx.mulN e3 e4 g6
+  dmc_move hs6
+  obtain ⟨v7, s7, g7, w7⟩ := AM.bind_ok w6
+  obtain ⟨hs7, e7⟩ := natAp2_run hs6.ok hp hcx.subN e5 e6 g7
+  dmc_move hs7
+  obtain ⟨hs8, e8⟩ := natAp2_run hs7.ok hp hcx.addN e2 e7 w7
+  exact ⟨hs1.trans (hs2.trans (hs3.trans (hs4.trans (hs5.trans (hs6.trans
+    (hs7.trans hs8)))))), e8⟩
+
+theorem certXorRhs_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name} {g : EIdx}
+    {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hcx : CertCtxOK s.store cx)
+    (hn : denoteN s.store.ns c = some nm) (h : certXorRhs cx c s = .ok (g, s')) :
+    Frontend.IStepS s s' ∧ denoteE s'.store g = some
+      (op2E ConLeche.natAddName (op2E ConLeche.natMulName twoE (halvesE nm))
+        (modE (op2E ConLeche.natAddName (modE xE) (modE yE)))) := by
+  simp only [certXorRhs] at h
+  obtain ⟨v1, s1, g1, w1⟩ := AM.bind_ok h
+  obtain ⟨hs1, e1⟩ := certHalves_run hst hp hcx hn g1
+  dmc_move hs1
+  obtain ⟨v2, s2, g2, w2⟩ := AM.bind_ok w1
+  obtain ⟨hs2, e2⟩ := natAp2_run hs1.ok hp hcx.mulN hcx.two e1 g2
+  dmc_move hs2
+  obtain ⟨v3, s3, g3, w3⟩ := AM.bind_ok w2
+  obtain ⟨hs3, e3⟩ := natAp2_run hs2.ok hp hcx.modN hcx.x hcx.two g3
+  dmc_move hs3
+  obtain ⟨v4, s4, g4, w4⟩ := AM.bind_ok w3
+  obtain ⟨hs4, e4⟩ := natAp2_run hs3.ok hp hcx.modN hcx.y hcx.two g4
+  dmc_move hs4
+  obtain ⟨v5, s5, g5, w5⟩ := AM.bind_ok w4
+  obtain ⟨hs5, e5⟩ := natAp2_run hs4.ok hp hcx.addN e3 e4 g5
+  dmc_move hs5
+  obtain ⟨v6, s6, g6, w6⟩ := AM.bind_ok w5
+  obtain ⟨hs6, e6⟩ := natAp2_run hs5.ok hp hcx.modN e5 hcx.two g6
+  dmc_move hs6
+  obtain ⟨hs7, e7⟩ := natAp2_run hs6.ok hp hcx.addN e2 e6 w6
+  exact ⟨hs1.trans (hs2.trans (hs3.trans (hs4.trans (hs5.trans (hs6.trans hs7))))), e7⟩
+
+theorem certLor_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name}
+    {out : List (List EIdx × EIdx)} {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hcx : CertCtxOK s.store cx)
+    (hn : denoteN s.store.ns c = some nm) (h : certLor cx c s = .ok (out, s')) :
+    Frontend.IStepS s s' ∧ StmtsDenote s'.store out
+      [([eqBE (bleE oneE xE) bTE], eqNE (op2E nm xE yE)
+          (op2E ConLeche.natAddName (op2E ConLeche.natMulName twoE (halvesE nm))
+            (op2E ConLeche.natSubName (op2E ConLeche.natAddName (modE xE) (modE yE))
+              (op2E ConLeche.natMulName (modE xE) (modE yE))))),
+       ([eqBE (bleE oneE xE) bFE], eqNE (op2E nm xE yE) yE)] := by
+  simp only [certLor] at h
+  obtain ⟨v1, s1, g1, w1⟩ := AM.bind_ok h
+  obtain ⟨hs1, e1⟩ := certGuard_run hst hp hcx hcx.one hcx.x hcx.bT g1
+  dmc_move hs1
+  obtain ⟨v2, s2, g2, w2⟩ := AM.bind_ok w1
+  obtain ⟨hs2, e2⟩ := certGuard_run hs1.ok hp hcx hcx.one hcx.x hcx.bF g2
+  dmc_move hs2
+  obtain ⟨v3, s3, g3, w3⟩ := AM.bind_ok w2
+  obtain ⟨hs3, e3⟩ := certLorRhs_run hs2.ok hp hcx hn g3
+  dmc_move hs3
+  obtain ⟨hs4, e4⟩ := certTwoEqs_run hs3.ok hp hcx hn e1 e2 e3 hcx.y w3
+  exact ⟨hs1.trans (hs2.trans (hs3.trans hs4)), e4⟩
+
+theorem certXor_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name}
+    {out : List (List EIdx × EIdx)} {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hcx : CertCtxOK s.store cx)
+    (hn : denoteN s.store.ns c = some nm) (h : certXor cx c s = .ok (out, s')) :
+    Frontend.IStepS s s' ∧ StmtsDenote s'.store out
+      [([eqBE (bleE oneE xE) bTE], eqNE (op2E nm xE yE)
+          (op2E ConLeche.natAddName (op2E ConLeche.natMulName twoE (halvesE nm))
+            (modE (op2E ConLeche.natAddName (modE xE) (modE yE))))),
+       ([eqBE (bleE oneE xE) bFE], eqNE (op2E nm xE yE) yE)] := by
+  simp only [certXor] at h
+  obtain ⟨v1, s1, g1, w1⟩ := AM.bind_ok h
+  obtain ⟨hs1, e1⟩ := certGuard_run hst hp hcx hcx.one hcx.x hcx.bT g1
+  dmc_move hs1
+  obtain ⟨v2, s2, g2, w2⟩ := AM.bind_ok w1
+  obtain ⟨hs2, e2⟩ := certGuard_run hs1.ok hp hcx hcx.one hcx.x hcx.bF g2
+  dmc_move hs2
+  obtain ⟨v3, s3, g3, w3⟩ := AM.bind_ok w2
+  obtain ⟨hs3, e3⟩ := certXorRhs_run hs2.ok hp hcx hn g3
+  dmc_move hs3
+  obtain ⟨hs4, e4⟩ := certTwoEqs_run hs3.ok hp hcx hn e1 e2 e3 hcx.y w3
+  exact ⟨hs1.trans (hs2.trans (hs3.trans hs4)), e4⟩
+
+abbrev recRhsE (nm : ConLeche.Name) : Expr :=
+  if nm = ConLeche.natDivName then
+    .app (.const ConLeche.natSuccName []) (op2E nm (op2E ConLeche.natSubName xE yE) yE)
+  else op2E nm (op2E ConLeche.natSubName xE yE) yE
+abbrev baseRhsE (nm : ConLeche.Name) : Expr :=
+  if nm = ConLeche.natDivName then .const ConLeche.natZeroName [] else xE
+
+theorem certRecRhs_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name} {g : EIdx}
+    {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hcx : CertCtxOK s.store cx)
+    (hn : denoteN s.store.ns c = some nm) (h : certRecRhs cx c s = .ok (g, s')) :
+    Frontend.IStepS s s' ∧ denoteE s'.store g = some (recRhsE nm) := by
+  simp only [certRecRhs] at h
+  obtain ⟨v1, s1, g1, w1⟩ := AM.bind_ok h
+  obtain ⟨hs1, e1⟩ := natAp2_run hst hp hcx.subN hcx.x hcx.y g1
+  dmc_move hs1
+  obtain ⟨v2, s2, g2, w2⟩ := AM.bind_ok w1
+  obtain ⟨hs2, e2⟩ := natAp2_run hs1.ok hp hn e1 hcx.y g2
+  dmc_move hs2
+  have hb := beq_handle_iff hs2.ok.wf hn hcx.divN
+  rcases AM.ite_ok w2 with ⟨y0, k⟩ | ⟨z0, k⟩
+  · obtain ⟨v3, s3, g3, w3⟩ := AM.bind_ok k
+    obtain ⟨rfl, d3⟩ := pinAt_run (x := ConLeche.natSuccName) hp rfl g3
+    obtain ⟨hs4, e4⟩ := natAp1_run hs2.ok hp d3 e2 w3
+    refine ⟨hs1.trans (hs2.trans hs4), ?_⟩
+    rw [e4, recRhsE, if_pos (hb.mp y0)]
+  · obtain ⟨rfl, rfl⟩ := AM.pure_ok k
+    refine ⟨hs1.trans hs2, ?_⟩
+    rw [e2, recRhsE, if_neg (fun h => z0 (hb.mpr h))]
+
+theorem certDivMod_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name}
+    {out : List (List EIdx × EIdx)} {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hcx : CertCtxOK s.store cx)
+    (hn : denoteN s.store.ns c = some nm) (h : certDivMod cx c s = .ok (out, s')) :
+    Frontend.IStepS s s' ∧ StmtsDenote s'.store out
+      [([eqBE (bleE yE xE) bTE, eqBE (bleE oneE yE) bTE], eqNE (op2E nm xE yE) (recRhsE nm)),
+       ([eqBE (bleE yE xE) bFE], eqNE (op2E nm xE yE) (baseRhsE nm)),
+       ([eqBE (bleE oneE yE) bFE], eqNE (op2E nm xE yE) (baseRhsE nm))] := by
+  simp only [certDivMod, certDivModGuards, certDivModEqs] at h
+  obtain ⟨v1, s1, g1, w1⟩ := AM.bind_ok h
+  obtain ⟨hs1, e1⟩ := certRecRhs_run hst hp hcx hn g1
+  dmc_move hs1
+  have hbase : denoteE s1.store (if (c == cx.divN) = true then cx.z else cx.x) =
+      some (baseRhsE nm) := by
+    have hb := beq_handle_iff hs1.ok.wf hn hcx.divN
+    by_cases hc : (c == cx.divN) = true
+    · rw [if_pos hc, baseRhsE, if_pos (hb.mp hc)]; exact hcx.z
+    · rw [if_neg hc, baseRhsE, if_neg (fun h => hc (hb.mpr h))]; exact hcx.x
+  obtain ⟨v2, s2, g2, w2⟩ := AM.bind_ok w1
+  obtain ⟨hs2, e2⟩ := certGuard_run hs1.ok hp hcx hcx.y hcx.x hcx.bT g2
+  dmc_move hs2
+  obtain ⟨v3, s3, g3, w3⟩ := AM.bind_ok w2
+  obtain ⟨hs3, e3⟩ := certGuard_run hs2.ok hp hcx hcx.one hcx.y hcx.bT g3
+  dmc_move hs3
+  obtain ⟨v4, s4, g4, w4⟩ := AM.bind_ok w3
+  obtain ⟨hs4, e4⟩ := certGuard_run hs3.ok hp hcx hcx.y hcx.x hcx.bF g4
+  dmc_move hs4
+  obtain ⟨v5, s5, g5, w5⟩ := AM.bind_ok w4
+  obtain ⟨hs5, e5⟩ := certGuard_run hs4.ok hp hcx hcx.one hcx.y hcx.bF g5
+  dmc_move hs5
+  obtain ⟨v6, s6, g6, w6⟩ := AM.bind_ok w5
+  obtain ⟨hs6, e6⟩ := certEq_run hs5.ok hp hcx hn e1 g6
+  dmc_move hs6
+  obtain ⟨v7, s7, g7, w7⟩ := AM.bind_ok w6
+  obtain ⟨hs7, e7⟩ := certEq_run hs6.ok hp hcx hn hbase g7
+  dmc_move hs7
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok w7
+  exact ⟨hs1.trans (hs2.trans (hs3.trans (hs4.trans (hs5.trans (hs6.trans hs7))))),
+    denoteEList_two e2 e3, e6, denoteEList_one e4, e7, denoteEList_one e5, e7, trivial⟩
+
+set_option maxHeartbeats 2000000 in
+theorem certCtx_run {cx : CertCtxA} {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (h : certCtx s = .ok (cx, s')) :
+    Frontend.IStepS s s' ∧ CertCtxOK s'.store cx := by
+  simp only [certCtx] at h
+  obtain ⟨v, s0, g, w⟩ := AM.bind_ok h
+  obtain ⟨rfl, dnt⟩ := pinAt_run (x := ConLeche.natName) hp rfl g
+  obtain ⟨vnt, s1, g1, w1⟩ := AM.bind_ok w
+  obtain ⟨hs1, enat⟩ := constE_run hst hp dnt g1
+  dmc_move hs1
+  obtain ⟨vx, s2, g2, w2⟩ := AM.bind_ok w1
+  obtain ⟨hs2, ex⟩ := natVar_run hs1.ok hp g2
+  dmc_move hs2
+  obtain ⟨vy, s3, g3, w3⟩ := AM.bind_ok w2
+  obtain ⟨hs3, ey⟩ := natVar_run hs2.ok hp g3
+  dmc_move hs3
+  obtain ⟨vo, s4, g4, w4⟩ := AM.bind_ok w3
+  obtain ⟨hs4, eone⟩ := natOne_run hs3.ok hp g4
+  dmc_move hs4
+  obtain ⟨vb, s5, g5, w5⟩ := AM.bind_ok w4
+  obtain ⟨rfl, dble⟩ := pinAt_run (x := ConLeche.natBleName) hp rfl g5
+  obtain ⟨vbn, s6, g6, w6⟩ := AM.bind_ok w5
+  obtain ⟨rfl, dbn⟩ := pinAt_run (x := ConLeche.boolName) hp rfl g6
+  obtain ⟨vbt, s7, g7, w7⟩ := AM.bind_ok w6
+  obtain ⟨hs7, ebool⟩ := constE_run hs4.ok hp dbn g7
+  dmc_move hs7
+  obtain ⟨vtn, s8, g8, w8⟩ := AM.bind_ok w7
+  obtain ⟨rfl, dtn⟩ := pinAt_run (x := ConLeche.boolTrueName) hp rfl g8
+  obtain ⟨vt, s9, g9, w9⟩ := AM.bind_ok w8
+  obtain ⟨hs9, ebt⟩ := constE_run hs7.ok hp dtn g9
+  dmc_move hs9
+  obtain ⟨vfn, s10, g10, w10⟩ := AM.bind_ok w9
+  obtain ⟨rfl, dfn⟩ := pinAt_run (x := ConLeche.boolFalseName) hp rfl g10
+  obtain ⟨vf, s11, g11, w11⟩ := AM.bind_ok w10
+  obtain ⟨hs11, ebf⟩ := constE_run hs9.ok hp dfn g11
+  dmc_move hs11
+  obtain ⟨vzn, s12, g12, w12⟩ := AM.bind_ok w11
+  obtain ⟨rfl, dzn⟩ := pinAt_run (x := ConLeche.natZeroName) hp rfl g12
+  obtain ⟨vz, s13, g13, w13⟩ := AM.bind_ok w12
+  obtain ⟨hs13, ez⟩ := constE_run hs11.ok hp dzn g13
+  dmc_move hs13
+  obtain ⟨vsn, s14, g14, w14⟩ := AM.bind_ok w13
+  obtain ⟨rfl, dsn⟩ := pinAt_run (x := ConLeche.natSuccName) hp rfl g14
+  obtain ⟨vtw, s15, g15, w15⟩ := AM.bind_ok w14
+  obtain ⟨hs15, etwo⟩ := natAp1_run hs13.ok hp dsn eone g15
+  dmc_move hs15
+  obtain ⟨n1, s16, g16, w16⟩ := AM.bind_ok w15
+  obtain ⟨rfl, d1⟩ := pinAt_run (x := ConLeche.natModName) hp rfl g16
+  obtain ⟨n2, s17, g17, w17⟩ := AM.bind_ok w16
+  obtain ⟨rfl, d2⟩ := pinAt_run (x := ConLeche.natDivName) hp rfl g17
+  obtain ⟨n3, s18, g18, w18⟩ := AM.bind_ok w17
+  obtain ⟨rfl, d3⟩ := pinAt_run (x := ConLeche.natAddName) hp rfl g18
+  obtain ⟨n4, s19, g19, w19⟩ := AM.bind_ok w18
+  obtain ⟨rfl, d4⟩ := pinAt_run (x := ConLeche.natMulName) hp rfl g19
+  obtain ⟨n5, s20, g20, w20⟩ := AM.bind_ok w19
+  obtain ⟨rfl, d5⟩ := pinAt_run (x := ConLeche.natSubName) hp rfl g20
+  obtain ⟨n6, s21, g21, w21⟩ := AM.bind_ok w20
+  obtain ⟨rfl, d6⟩ := pinAt_run (x := ConLeche.natGcdName) hp rfl g21
+  obtain ⟨n7, s22, g22, w22⟩ := AM.bind_ok w21
+  obtain ⟨rfl, d7⟩ := pinAt_run (x := ConLeche.natShiftLeftName) hp rfl g22
+  obtain ⟨n8, s23, g23, w23⟩ := AM.bind_ok w22
+  obtain ⟨rfl, d8⟩ := pinAt_run (x := ConLeche.natShiftRightName) hp rfl g23
+  obtain ⟨n9, s24, g24, w24⟩ := AM.bind_ok w23
+  obtain ⟨rfl, d9⟩ := pinAt_run (x := ConLeche.natLandName) hp rfl g24
+  obtain ⟨n10, s25, g25, w25⟩ := AM.bind_ok w24
+  obtain ⟨rfl, d10⟩ := pinAt_run (x := ConLeche.natLorName) hp rfl g25
+  obtain ⟨n11, s26, g26, w26⟩ := AM.bind_ok w25
+  obtain ⟨rfl, d11⟩ := pinAt_run (x := ConLeche.natXorName) hp rfl g26
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok w26
+  exact ⟨hs1.trans (hs2.trans (hs3.trans (hs4.trans (hs7.trans (hs9.trans (hs11.trans
+    (hs13.trans hs15))))))),
+    ⟨enat, ex, ey, eone, dble, ebool, ebt, ebf, ez, etwo, d1, d2, d3, d4, d5, d6, d7, d8,
+      d9, d10, d11⟩⟩
+
+theorem divModCertStmtsAt_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name}
+    {out : List (List EIdx × EIdx)} {s s' : AState}
+    (hst : StateOK s) (hp : PinsOK s) (hcx : CertCtxOK s.store cx)
+    (hn : denoteN s.store.ns c = some nm) (h : divModCertStmtsAt cx c s = .ok (out, s')) :
+    Frontend.IStepS s s' ∧ StmtsDenote s'.store out (ConLeche.divModCertStmts nm) := by
+  simp only [divModCertStmtsAt] at h
+  have b0 := beq_handle_iff hst.wf hn hcx.gcdN
+  have b1 := beq_handle_iff hst.wf hn hcx.slN
+  have b2 := beq_handle_iff hst.wf hn hcx.srN
+  have b3 := beq_handle_iff hst.wf hn hcx.landN
+  have b4 := beq_handle_iff hst.wf hn hcx.lorN
+  have b5 := beq_handle_iff hst.wf hn hcx.xorN
+  rcases AM.ite_ok h with ⟨y0, k0⟩ | ⟨z0, k0⟩
+  · obtain ⟨hs, e⟩ := certGcd_run hst hp hcx hn k0
+    refine ⟨hs, ?_⟩
+    simp only [ConLeche.divModCertStmts, if_pos (b0.mp y0)]
+    exact e
+  have n0 : ¬ nm = ConLeche.natGcdName := fun h => z0 (b0.mpr h)
+  rcases AM.ite_ok k0 with ⟨y1, k1⟩ | ⟨z1, k1⟩
+  · obtain ⟨hs, e⟩ := certShiftLeft_run hst hp hcx hn k1
+    refine ⟨hs, ?_⟩
+    simp only [ConLeche.divModCertStmts, if_neg n0, if_pos (b1.mp y1)]
+    exact e
+  have n1 : ¬ nm = ConLeche.natShiftLeftName := fun h => z1 (b1.mpr h)
+  rcases AM.ite_ok k1 with ⟨y2, k2⟩ | ⟨z2, k2⟩
+  · obtain ⟨hs, e⟩ := certShiftRight_run hst hp hcx hn k2
+    refine ⟨hs, ?_⟩
+    simp only [ConLeche.divModCertStmts, if_neg n0, if_neg n1, if_pos (b2.mp y2)]
+    exact e
+  have n2 : ¬ nm = ConLeche.natShiftRightName := fun h => z2 (b2.mpr h)
+  rcases AM.ite_ok k2 with ⟨y3, k3⟩ | ⟨z3, k3⟩
+  · obtain ⟨hs, e⟩ := certLand_run hst hp hcx hn k3
+    refine ⟨hs, ?_⟩
+    simp only [ConLeche.divModCertStmts, if_neg n0, if_neg n1, if_neg n2, if_pos (b3.mp y3)]
+    exact e
+  have n3 : ¬ nm = ConLeche.natLandName := fun h => z3 (b3.mpr h)
+  rcases AM.ite_ok k3 with ⟨y4, k4⟩ | ⟨z4, k4⟩
+  · obtain ⟨hs, e⟩ := certLor_run hst hp hcx hn k4
+    refine ⟨hs, ?_⟩
+    simp only [ConLeche.divModCertStmts, if_neg n0, if_neg n1, if_neg n2, if_neg n3,
+      if_pos (b4.mp y4)]
+    exact e
+  have n4 : ¬ nm = ConLeche.natLorName := fun h => z4 (b4.mpr h)
+  rcases AM.ite_ok k4 with ⟨y5, k5⟩ | ⟨z5, k5⟩
+  · obtain ⟨hs, e⟩ := certXor_run hst hp hcx hn k5
+    refine ⟨hs, ?_⟩
+    simp only [ConLeche.divModCertStmts, if_neg n0, if_neg n1, if_neg n2, if_neg n3,
+      if_neg n4, if_pos (b5.mp y5)]
+    exact e
+  have n5 : ¬ nm = ConLeche.natXorName := fun h => z5 (b5.mpr h)
+  obtain ⟨hs, e⟩ := certDivMod_run hst hp hcx hn k5
+  refine ⟨hs, ?_⟩
+  simp only [ConLeche.divModCertStmts, if_neg n0, if_neg n1, if_neg n2, if_neg n3,
+    if_neg n4, if_neg n5]
+  exact e
+
 /-- con-leche: ConLeche/Kernel/Checker.lean:155-222 divModCertStmts — **the
-pinned characterization statements, interned**: seven branches of `natAp1`,
-`natAp2` and `eqAt1` over a shared prologue of pins, constants and the two
-variables.  Generated text (`_tmp` generator, task #97-P3-Checker round 10):
-every denotation fact is carried to the final state by the `Ext` chain behind
-it. -/
+pinned characterization statements, interned**: the context, then the arm the
+operation's name selects.
+
+**PROVED** compositionally (task #97-T2-LOCKSTEP lane Checker DeclCheck slice
+2), one `_run` per twin helper, after the twin took the port's factoring.  It
+replaces round 10's generated 500-line proof of the old twin. -/
 theorem divModCertStmts_run {cn : NIdx} {nm : ConLeche.Name}
     {stmts : List (List EIdx × EIdx)} {s s' : AState} (hst : StateOK s) (hp : PinsOK s)
     (hn : denoteN s.store.ns cn = some nm)
     (hr : Arena.divModCertStmts cn s = .ok (stmts, s')) :
     Frontend.IStepS s s' ∧ StmtsDenote s'.store stmts (ConLeche.divModCertStmts nm) := by
   simp only [Arena.divModCertStmts] at hr
-  have A0 := Frontend.IStepS.refl hst
-  obtain ⟨v1, u1, g1, w1⟩ := AM.bind_ok hr
-  obtain ⟨rfl, d2⟩ := pinAt_run (x := ConLeche.natName) (hp.mono A0.ext A0.pins) rfl g1
-  obtain ⟨v3, u3, g3, w3⟩ := AM.bind_ok w1
-  obtain ⟨hs4, e5⟩ := constE_run A0.ok (hp.mono A0.ext A0.pins) d2 g3
-  have A1 := A0.trans hs4
-  obtain ⟨v6, u6, g6, w6⟩ := AM.bind_ok w3
-  obtain ⟨hs7, e8⟩ := natVar_run A1.ok (hp.mono A1.ext A1.pins)  g6
-  have A2 := A1.trans hs7
-  obtain ⟨v9, u9, g9, w9⟩ := AM.bind_ok w6
-  obtain ⟨hs10, e11⟩ := natVar_run A2.ok (hp.mono A2.ext A2.pins)  g9
-  have A3 := A2.trans hs10
-  obtain ⟨v12, u12, g12, w12⟩ := AM.bind_ok w9
-  obtain ⟨hs13, e14⟩ := natOne_run A3.ok (hp.mono A3.ext A3.pins)  g12
-  have A4 := A3.trans hs13
-  obtain ⟨v15, u15, g15, w15⟩ := AM.bind_ok w12
-  obtain ⟨rfl, d16⟩ := pinAt_run (x := ConLeche.natBleName) (hp.mono A4.ext A4.pins) rfl g15
-  obtain ⟨v17, u17, g17, w17⟩ := AM.bind_ok w15
-  obtain ⟨rfl, d18⟩ := pinAt_run (x := ConLeche.boolName) (hp.mono A4.ext A4.pins) rfl g17
-  obtain ⟨v19, u19, g19, w19⟩ := AM.bind_ok w17
-  obtain ⟨hs20, e21⟩ := constE_run A4.ok (hp.mono A4.ext A4.pins) d18 g19
-  have A5 := A4.trans hs20
-  obtain ⟨v22, u22, g22, w22⟩ := AM.bind_ok w19
-  obtain ⟨rfl, d23⟩ := pinAt_run (x := ConLeche.boolTrueName) (hp.mono A5.ext A5.pins) rfl g22
-  obtain ⟨v24, u24, g24, w24⟩ := AM.bind_ok w22
-  obtain ⟨hs25, e26⟩ := constE_run A5.ok (hp.mono A5.ext A5.pins) d23 g24
-  have A6 := A5.trans hs25
-  obtain ⟨v27, u27, g27, w27⟩ := AM.bind_ok w24
-  obtain ⟨rfl, d28⟩ := pinAt_run (x := ConLeche.boolFalseName) (hp.mono A6.ext A6.pins) rfl g27
-  obtain ⟨v29, u29, g29, w29⟩ := AM.bind_ok w27
-  obtain ⟨hs30, e31⟩ := constE_run A6.ok (hp.mono A6.ext A6.pins) d28 g29
-  have A7 := A6.trans hs30
-  obtain ⟨v32, u32, g32, w32⟩ := AM.bind_ok w29
-  obtain ⟨rfl, d33⟩ := pinAt_run (x := ConLeche.natZeroName) (hp.mono A7.ext A7.pins) rfl g32
-  obtain ⟨v34, u34, g34, w34⟩ := AM.bind_ok w32
-  obtain ⟨hs35, e36⟩ := constE_run A7.ok (hp.mono A7.ext A7.pins) d33 g34
-  have A8 := A7.trans hs35
-  obtain ⟨v37, u37, g37, w37⟩ := AM.bind_ok w34
-  obtain ⟨rfl, d38⟩ := pinAt_run (x := ConLeche.natSuccName) (hp.mono A8.ext A8.pins) rfl g37
-  obtain ⟨v39, u39, g39, w39⟩ := AM.bind_ok w37
-  obtain ⟨hs40, e41⟩ := natAp1_run A8.ok (hp.mono A8.ext A8.pins) d38 (denote_ext e14 ((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext)) g39
-  have A9 := A8.trans hs40
-  obtain ⟨v42, u42, g42, w42⟩ := AM.bind_ok w39
-  obtain ⟨rfl, d43⟩ := pinAt_run (x := ConLeche.natModName) (hp.mono A9.ext A9.pins) rfl g42
-  obtain ⟨v44, u44, g44, w44⟩ := AM.bind_ok w42
-  obtain ⟨rfl, d45⟩ := pinAt_run (x := ConLeche.natDivName) (hp.mono A9.ext A9.pins) rfl g44
-  obtain ⟨v46, u46, g46, w46⟩ := AM.bind_ok w44
-  obtain ⟨rfl, d47⟩ := pinAt_run (x := ConLeche.natAddName) (hp.mono A9.ext A9.pins) rfl g46
-  obtain ⟨v48, u48, g48, w48⟩ := AM.bind_ok w46
-  obtain ⟨rfl, d49⟩ := pinAt_run (x := ConLeche.natMulName) (hp.mono A9.ext A9.pins) rfl g48
-  obtain ⟨v50, u50, g50, w50⟩ := AM.bind_ok w48
-  obtain ⟨rfl, d51⟩ := pinAt_run (x := ConLeche.natSubName) (hp.mono A9.ext A9.pins) rfl g50
-  obtain ⟨v52, u52, g52, w52⟩ := AM.bind_ok w50
-  obtain ⟨rfl, d53⟩ := pinAt_run (x := ConLeche.natGcdName) (hp.mono A9.ext A9.pins) rfl g52
-  obtain ⟨v54, u54, g54, w54⟩ := AM.bind_ok w52
-  obtain ⟨rfl, d55⟩ := pinAt_run (x := ConLeche.natShiftLeftName) (hp.mono A9.ext A9.pins) rfl g54
-  obtain ⟨v56, u56, g56, w56⟩ := AM.bind_ok w54
-  obtain ⟨rfl, d57⟩ := pinAt_run (x := ConLeche.natShiftRightName) (hp.mono A9.ext A9.pins) rfl g56
-  obtain ⟨v58, u58, g58, w58⟩ := AM.bind_ok w56
-  obtain ⟨rfl, d59⟩ := pinAt_run (x := ConLeche.natLandName) (hp.mono A9.ext A9.pins) rfl g58
-  obtain ⟨v60, u60, g60, w60⟩ := AM.bind_ok w58
-  obtain ⟨rfl, d61⟩ := pinAt_run (x := ConLeche.natLorName) (hp.mono A9.ext A9.pins) rfl g60
-  obtain ⟨v62, u62, g62, w62⟩ := AM.bind_ok w60
-  obtain ⟨rfl, d63⟩ := pinAt_run (x := ConLeche.natXorName) (hp.mono A9.ext A9.pins) rfl g62
-  have b0 := beq_handle_iff A9.ok.wf (denoteN_ext hn (((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) d53
-  rcases AM.ite_ok w62 with ⟨y0, w0y⟩ | ⟨z0, w0n⟩
-  · -- natGcdName
-    obtain ⟨v65, u65, g65, w65⟩ := AM.bind_ok w0y
-    obtain ⟨hs66, e67⟩ := natAp2_run A9.ok (hp.mono A9.ext A9.pins) (denoteN_ext d16 (((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) (denote_ext e14 (((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) (denote_ext e8 (((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) g65
-    have A10 := A9.trans hs66
-    obtain ⟨v69, u69, g69, w69⟩ := AM.bind_ok w65
-    obtain ⟨hs70, e71⟩ := eqAt1_run A10.ok (hp.mono A10.ext A10.pins) (denote_ext e21 (((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext)) e67 (denote_ext e26 ((((hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext)) g69
-    have A11 := A10.trans hs70
-    obtain ⟨v73, u73, g73, w73⟩ := AM.bind_ok w69
-    obtain ⟨hs74, e75⟩ := natAp2_run A11.ok (hp.mono A11.ext A11.pins) (denoteN_ext d16 (((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext)) (denote_ext e14 (((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext)) (denote_ext e8 (((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext)) g73
-    have A12 := A11.trans hs74
-    obtain ⟨v77, u77, g77, w77⟩ := AM.bind_ok w73
-    obtain ⟨hs78, e79⟩ := eqAt1_run A12.ok (hp.mono A12.ext A12.pins) (denote_ext e21 (((((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext).trans hs74.ext)) e75 (denote_ext e31 (((((hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext).trans hs74.ext)) g77
-    have A13 := A12.trans hs78
-    obtain ⟨v81, u81, g81, w81⟩ := AM.bind_ok w77
-    obtain ⟨hs82, e83⟩ := natAp2_run A13.ok (hp.mono A13.ext A13.pins) (denoteN_ext hn (((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext).trans hs74.ext).trans hs78.ext)) (denote_ext e8 (((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext).trans hs74.ext).trans hs78.ext)) (denote_ext e11 ((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext).trans hs74.ext).trans hs78.ext)) g81
-    have A14 := A13.trans hs82
-    obtain ⟨v85, u85, g85, w85⟩ := AM.bind_ok w81
-    obtain ⟨hs86, e87⟩ := natAp2_run A14.ok (hp.mono A14.ext A14.pins) (denoteN_ext d43 (((((hs66.ext).trans hs70.ext).trans hs74.ext).trans hs78.ext).trans hs82.ext)) (denote_ext e11 (((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext).trans hs74.ext).trans hs78.ext).trans hs82.ext)) (denote_ext e8 ((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext).trans hs74.ext).trans hs78.ext).trans hs82.ext)) g85
-    have A15 := A14.trans hs86
-    obtain ⟨v89, u89, g89, w89⟩ := AM.bind_ok w85
-    obtain ⟨hs90, e91⟩ := natAp2_run A15.ok (hp.mono A15.ext A15.pins) (denoteN_ext hn (((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext).trans hs74.ext).trans hs78.ext).trans hs82.ext).trans hs86.ext)) e87 (denote_ext e8 (((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext).trans hs74.ext).trans hs78.ext).trans hs82.ext).trans hs86.ext)) g89
-    have A16 := A15.trans hs90
-    obtain ⟨v93, u93, g93, w93⟩ := AM.bind_ok w89
-    obtain ⟨hs94, e95⟩ := eqAt1_run A16.ok (hp.mono A16.ext A16.pins) (denote_ext e5 (((((((((((((((hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext).trans hs74.ext).trans hs78.ext).trans hs82.ext).trans hs86.ext).trans hs90.ext)) (denote_ext e83 ((hs86.ext).trans hs90.ext)) e91 g93
-    have A17 := A16.trans hs94
-    obtain ⟨v97, u97, g97, w97⟩ := AM.bind_ok w93
-    obtain ⟨hs98, e99⟩ := natAp2_run A17.ok (hp.mono A17.ext A17.pins) (denoteN_ext hn (((((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext).trans hs74.ext).trans hs78.ext).trans hs82.ext).trans hs86.ext).trans hs90.ext).trans hs94.ext)) (denote_ext e8 (((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext).trans hs74.ext).trans hs78.ext).trans hs82.ext).trans hs86.ext).trans hs90.ext).trans hs94.ext)) (denote_ext e11 ((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext).trans hs74.ext).trans hs78.ext).trans hs82.ext).trans hs86.ext).trans hs90.ext).trans hs94.ext)) g97
-    have A18 := A17.trans hs98
-    obtain ⟨v101, u101, g101, w101⟩ := AM.bind_ok w97
-    obtain ⟨hs102, e103⟩ := eqAt1_run A18.ok (hp.mono A18.ext A18.pins) (denote_ext e5 (((((((((((((((((hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext).trans hs74.ext).trans hs78.ext).trans hs82.ext).trans hs86.ext).trans hs90.ext).trans hs94.ext).trans hs98.ext)) e99 (denote_ext e11 (((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs66.ext).trans hs70.ext).trans hs74.ext).trans hs78.ext).trans hs82.ext).trans hs86.ext).trans hs90.ext).trans hs94.ext).trans hs98.ext)) g101
-    have A19 := A18.trans hs102
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok w101
-    refine ⟨A19, ?_⟩
-    simp only [ConLeche.divModCertStmts, StmtsDenote, if_pos (b0.mp y0)]
-    exact ⟨denoteEList_one (denote_ext e71 ((((((((hs74.ext).trans hs78.ext).trans hs82.ext).trans hs86.ext).trans hs90.ext).trans hs94.ext).trans hs98.ext).trans hs102.ext)),
-        (denote_ext e95 ((hs98.ext).trans hs102.ext)),
-        denoteEList_one (denote_ext e79 ((((((hs82.ext).trans hs86.ext).trans hs90.ext).trans hs94.ext).trans hs98.ext).trans hs102.ext)),
-        e103,
-        trivial⟩
-  have n0 : ¬ (nm = ConLeche.natGcdName) := fun h => z0 (b0.mpr h)
-  have b1 := beq_handle_iff A9.ok.wf (denoteN_ext hn (((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) d55
-  rcases AM.ite_ok w0n with ⟨y1, w1y⟩ | ⟨z1, w1n⟩
-  · -- natShiftLeftName
-    obtain ⟨v1105, u1105, g1105, w1105⟩ := AM.bind_ok w1y
-    obtain ⟨hs1106, e1107⟩ := natAp2_run A9.ok (hp.mono A9.ext A9.pins) (denoteN_ext d16 (((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) (denote_ext e14 (((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) (denote_ext e11 ((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) g1105
-    have A10 := A9.trans hs1106
-    obtain ⟨v1109, u1109, g1109, w1109⟩ := AM.bind_ok w1105
-    obtain ⟨hs1110, e1111⟩ := eqAt1_run A10.ok (hp.mono A10.ext A10.pins) (denote_ext e21 (((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext)) e1107 (denote_ext e26 ((((hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext)) g1109
-    have A11 := A10.trans hs1110
-    obtain ⟨v1113, u1113, g1113, w1113⟩ := AM.bind_ok w1109
-    obtain ⟨hs1114, e1115⟩ := natAp2_run A11.ok (hp.mono A11.ext A11.pins) (denoteN_ext d16 (((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext)) (denote_ext e14 (((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext)) (denote_ext e11 ((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext)) g1113
-    have A12 := A11.trans hs1114
-    obtain ⟨v1117, u1117, g1117, w1117⟩ := AM.bind_ok w1113
-    obtain ⟨hs1118, e1119⟩ := eqAt1_run A12.ok (hp.mono A12.ext A12.pins) (denote_ext e21 (((((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext).trans hs1114.ext)) e1115 (denote_ext e31 (((((hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext).trans hs1114.ext)) g1117
-    have A13 := A12.trans hs1118
-    obtain ⟨v1121, u1121, g1121, w1121⟩ := AM.bind_ok w1117
-    obtain ⟨hs1122, e1123⟩ := natAp2_run A13.ok (hp.mono A13.ext A13.pins) (denoteN_ext hn (((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext).trans hs1114.ext).trans hs1118.ext)) (denote_ext e8 (((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext).trans hs1114.ext).trans hs1118.ext)) (denote_ext e11 ((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext).trans hs1114.ext).trans hs1118.ext)) g1121
-    have A14 := A13.trans hs1122
-    obtain ⟨v1125, u1125, g1125, w1125⟩ := AM.bind_ok w1121
-    obtain ⟨hs1126, e1127⟩ := natAp2_run A14.ok (hp.mono A14.ext A14.pins) (denoteN_ext d49 (((((hs1106.ext).trans hs1110.ext).trans hs1114.ext).trans hs1118.ext).trans hs1122.ext)) (denote_ext e41 (((((hs1106.ext).trans hs1110.ext).trans hs1114.ext).trans hs1118.ext).trans hs1122.ext)) (denote_ext e8 ((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext).trans hs1114.ext).trans hs1118.ext).trans hs1122.ext)) g1125
-    have A15 := A14.trans hs1126
-    obtain ⟨v1129, u1129, g1129, w1129⟩ := AM.bind_ok w1125
-    obtain ⟨hs1130, e1131⟩ := natAp2_run A15.ok (hp.mono A15.ext A15.pins) (denoteN_ext d51 ((((((hs1106.ext).trans hs1110.ext).trans hs1114.ext).trans hs1118.ext).trans hs1122.ext).trans hs1126.ext)) (denote_ext e11 ((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext).trans hs1114.ext).trans hs1118.ext).trans hs1122.ext).trans hs1126.ext)) (denote_ext e14 (((((((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext).trans hs1114.ext).trans hs1118.ext).trans hs1122.ext).trans hs1126.ext)) g1129
-    have A16 := A15.trans hs1130
-    obtain ⟨v1133, u1133, g1133, w1133⟩ := AM.bind_ok w1129
-    obtain ⟨hs1134, e1135⟩ := natAp2_run A16.ok (hp.mono A16.ext A16.pins) (denoteN_ext hn ((((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext).trans hs1114.ext).trans hs1118.ext).trans hs1122.ext).trans hs1126.ext).trans hs1130.ext)) (denote_ext e1127 (hs1130.ext)) e1131 g1133
-    have A17 := A16.trans hs1134
-    obtain ⟨v1137, u1137, g1137, w1137⟩ := AM.bind_ok w1133
-    obtain ⟨hs1138, e1139⟩ := eqAt1_run A17.ok (hp.mono A17.ext A17.pins) (denote_ext e5 ((((((((((((((((hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext).trans hs1114.ext).trans hs1118.ext).trans hs1122.ext).trans hs1126.ext).trans hs1130.ext).trans hs1134.ext)) (denote_ext e1123 (((hs1126.ext).trans hs1130.ext).trans hs1134.ext)) e1135 g1137
-    have A18 := A17.trans hs1138
-    obtain ⟨v1141, u1141, g1141, w1141⟩ := AM.bind_ok w1137
-    obtain ⟨hs1142, e1143⟩ := natAp2_run A18.ok (hp.mono A18.ext A18.pins) (denoteN_ext hn ((((((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext).trans hs1114.ext).trans hs1118.ext).trans hs1122.ext).trans hs1126.ext).trans hs1130.ext).trans hs1134.ext).trans hs1138.ext)) (denote_ext e8 ((((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext).trans hs1114.ext).trans hs1118.ext).trans hs1122.ext).trans hs1126.ext).trans hs1130.ext).trans hs1134.ext).trans hs1138.ext)) (denote_ext e11 (((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext).trans hs1114.ext).trans hs1118.ext).trans hs1122.ext).trans hs1126.ext).trans hs1130.ext).trans hs1134.ext).trans hs1138.ext)) g1141
-    have A19 := A18.trans hs1142
-    obtain ⟨v1145, u1145, g1145, w1145⟩ := AM.bind_ok w1141
-    obtain ⟨hs1146, e1147⟩ := eqAt1_run A19.ok (hp.mono A19.ext A19.pins) (denote_ext e5 ((((((((((((((((((hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext).trans hs1114.ext).trans hs1118.ext).trans hs1122.ext).trans hs1126.ext).trans hs1130.ext).trans hs1134.ext).trans hs1138.ext).trans hs1142.ext)) e1143 (denote_ext e8 (((((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs1106.ext).trans hs1110.ext).trans hs1114.ext).trans hs1118.ext).trans hs1122.ext).trans hs1126.ext).trans hs1130.ext).trans hs1134.ext).trans hs1138.ext).trans hs1142.ext)) g1145
-    have A20 := A19.trans hs1146
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok w1145
-    refine ⟨A20, ?_⟩
-    simp only [ConLeche.divModCertStmts, StmtsDenote, if_neg n0, if_pos (b1.mp y1)]
-    exact ⟨denoteEList_one (denote_ext e1111 (((((((((hs1114.ext).trans hs1118.ext).trans hs1122.ext).trans hs1126.ext).trans hs1130.ext).trans hs1134.ext).trans hs1138.ext).trans hs1142.ext).trans hs1146.ext)),
-        (denote_ext e1139 ((hs1142.ext).trans hs1146.ext)),
-        denoteEList_one (denote_ext e1119 (((((((hs1122.ext).trans hs1126.ext).trans hs1130.ext).trans hs1134.ext).trans hs1138.ext).trans hs1142.ext).trans hs1146.ext)),
-        e1147,
-        trivial⟩
-  have n1 : ¬ (nm = ConLeche.natShiftLeftName) := fun h => z1 (b1.mpr h)
-  have b2 := beq_handle_iff A9.ok.wf (denoteN_ext hn (((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) d57
-  rcases AM.ite_ok w1n with ⟨y2, w2y⟩ | ⟨z2, w2n⟩
-  · -- natShiftRightName
-    obtain ⟨v2149, u2149, g2149, w2149⟩ := AM.bind_ok w2y
-    obtain ⟨hs2150, e2151⟩ := natAp2_run A9.ok (hp.mono A9.ext A9.pins) (denoteN_ext d16 (((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) (denote_ext e14 (((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) (denote_ext e11 ((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) g2149
-    have A10 := A9.trans hs2150
-    obtain ⟨v2153, u2153, g2153, w2153⟩ := AM.bind_ok w2149
-    obtain ⟨hs2154, e2155⟩ := eqAt1_run A10.ok (hp.mono A10.ext A10.pins) (denote_ext e21 (((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext)) e2151 (denote_ext e26 ((((hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext)) g2153
-    have A11 := A10.trans hs2154
-    obtain ⟨v2157, u2157, g2157, w2157⟩ := AM.bind_ok w2153
-    obtain ⟨hs2158, e2159⟩ := natAp2_run A11.ok (hp.mono A11.ext A11.pins) (denoteN_ext d16 (((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext)) (denote_ext e14 (((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext)) (denote_ext e11 ((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext)) g2157
-    have A12 := A11.trans hs2158
-    obtain ⟨v2161, u2161, g2161, w2161⟩ := AM.bind_ok w2157
-    obtain ⟨hs2162, e2163⟩ := eqAt1_run A12.ok (hp.mono A12.ext A12.pins) (denote_ext e21 (((((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext).trans hs2158.ext)) e2159 (denote_ext e31 (((((hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext).trans hs2158.ext)) g2161
-    have A13 := A12.trans hs2162
-    obtain ⟨v2165, u2165, g2165, w2165⟩ := AM.bind_ok w2161
-    obtain ⟨hs2166, e2167⟩ := natAp2_run A13.ok (hp.mono A13.ext A13.pins) (denoteN_ext hn (((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext).trans hs2158.ext).trans hs2162.ext)) (denote_ext e8 (((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext).trans hs2158.ext).trans hs2162.ext)) (denote_ext e11 ((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext).trans hs2158.ext).trans hs2162.ext)) g2165
-    have A14 := A13.trans hs2166
-    obtain ⟨v2169, u2169, g2169, w2169⟩ := AM.bind_ok w2165
-    obtain ⟨hs2170, e2171⟩ := natAp2_run A14.ok (hp.mono A14.ext A14.pins) (denoteN_ext d51 (((((hs2150.ext).trans hs2154.ext).trans hs2158.ext).trans hs2162.ext).trans hs2166.ext)) (denote_ext e11 (((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext).trans hs2158.ext).trans hs2162.ext).trans hs2166.ext)) (denote_ext e14 ((((((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext).trans hs2158.ext).trans hs2162.ext).trans hs2166.ext)) g2169
-    have A15 := A14.trans hs2170
-    obtain ⟨v2173, u2173, g2173, w2173⟩ := AM.bind_ok w2169
-    obtain ⟨hs2174, e2175⟩ := natAp2_run A15.ok (hp.mono A15.ext A15.pins) (denoteN_ext hn (((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext).trans hs2158.ext).trans hs2162.ext).trans hs2166.ext).trans hs2170.ext)) (denote_ext e8 (((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext).trans hs2158.ext).trans hs2162.ext).trans hs2166.ext).trans hs2170.ext)) e2171 g2173
-    have A16 := A15.trans hs2174
-    obtain ⟨v2177, u2177, g2177, w2177⟩ := AM.bind_ok w2173
-    obtain ⟨hs2178, e2179⟩ := natAp2_run A16.ok (hp.mono A16.ext A16.pins) (denoteN_ext d45 (((((((hs2150.ext).trans hs2154.ext).trans hs2158.ext).trans hs2162.ext).trans hs2166.ext).trans hs2170.ext).trans hs2174.ext)) e2175 (denote_ext e41 (((((((hs2150.ext).trans hs2154.ext).trans hs2158.ext).trans hs2162.ext).trans hs2166.ext).trans hs2170.ext).trans hs2174.ext)) g2177
-    have A17 := A16.trans hs2178
-    obtain ⟨v2181, u2181, g2181, w2181⟩ := AM.bind_ok w2177
-    obtain ⟨hs2182, e2183⟩ := eqAt1_run A17.ok (hp.mono A17.ext A17.pins) (denote_ext e5 ((((((((((((((((hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext).trans hs2158.ext).trans hs2162.ext).trans hs2166.ext).trans hs2170.ext).trans hs2174.ext).trans hs2178.ext)) (denote_ext e2167 (((hs2170.ext).trans hs2174.ext).trans hs2178.ext)) e2179 g2181
-    have A18 := A17.trans hs2182
-    obtain ⟨v2185, u2185, g2185, w2185⟩ := AM.bind_ok w2181
-    obtain ⟨hs2186, e2187⟩ := natAp2_run A18.ok (hp.mono A18.ext A18.pins) (denoteN_ext hn ((((((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext).trans hs2158.ext).trans hs2162.ext).trans hs2166.ext).trans hs2170.ext).trans hs2174.ext).trans hs2178.ext).trans hs2182.ext)) (denote_ext e8 ((((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext).trans hs2158.ext).trans hs2162.ext).trans hs2166.ext).trans hs2170.ext).trans hs2174.ext).trans hs2178.ext).trans hs2182.ext)) (denote_ext e11 (((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext).trans hs2158.ext).trans hs2162.ext).trans hs2166.ext).trans hs2170.ext).trans hs2174.ext).trans hs2178.ext).trans hs2182.ext)) g2185
-    have A19 := A18.trans hs2186
-    obtain ⟨v2189, u2189, g2189, w2189⟩ := AM.bind_ok w2185
-    obtain ⟨hs2190, e2191⟩ := eqAt1_run A19.ok (hp.mono A19.ext A19.pins) (denote_ext e5 ((((((((((((((((((hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext).trans hs2158.ext).trans hs2162.ext).trans hs2166.ext).trans hs2170.ext).trans hs2174.ext).trans hs2178.ext).trans hs2182.ext).trans hs2186.ext)) e2187 (denote_ext e8 (((((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs2150.ext).trans hs2154.ext).trans hs2158.ext).trans hs2162.ext).trans hs2166.ext).trans hs2170.ext).trans hs2174.ext).trans hs2178.ext).trans hs2182.ext).trans hs2186.ext)) g2189
-    have A20 := A19.trans hs2190
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok w2189
-    refine ⟨A20, ?_⟩
-    simp only [ConLeche.divModCertStmts, StmtsDenote, if_neg n0, if_neg n1, if_pos (b2.mp y2)]
-    exact ⟨denoteEList_one (denote_ext e2155 (((((((((hs2158.ext).trans hs2162.ext).trans hs2166.ext).trans hs2170.ext).trans hs2174.ext).trans hs2178.ext).trans hs2182.ext).trans hs2186.ext).trans hs2190.ext)),
-        (denote_ext e2183 ((hs2186.ext).trans hs2190.ext)),
-        denoteEList_one (denote_ext e2163 (((((((hs2166.ext).trans hs2170.ext).trans hs2174.ext).trans hs2178.ext).trans hs2182.ext).trans hs2186.ext).trans hs2190.ext)),
-        e2191,
-        trivial⟩
-  have n2 : ¬ (nm = ConLeche.natShiftRightName) := fun h => z2 (b2.mpr h)
-  have b3 := beq_handle_iff A9.ok.wf (denoteN_ext hn (((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) d59
-  rcases AM.ite_ok w2n with ⟨y3, w3y⟩ | ⟨z3, w3n⟩
-  · -- natLandName
-    obtain ⟨v3193, u3193, g3193, w3193⟩ := AM.bind_ok w3y
-    obtain ⟨hs3194, e3195⟩ := natAp2_run A9.ok (hp.mono A9.ext A9.pins) (denoteN_ext d16 (((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) (denote_ext e14 (((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) (denote_ext e8 (((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) g3193
-    have A10 := A9.trans hs3194
-    obtain ⟨v3197, u3197, g3197, w3197⟩ := AM.bind_ok w3193
-    obtain ⟨hs3198, e3199⟩ := eqAt1_run A10.ok (hp.mono A10.ext A10.pins) (denote_ext e21 (((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext)) e3195 (denote_ext e26 ((((hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext)) g3197
-    have A11 := A10.trans hs3198
-    obtain ⟨v3201, u3201, g3201, w3201⟩ := AM.bind_ok w3197
-    obtain ⟨hs3202, e3203⟩ := natAp2_run A11.ok (hp.mono A11.ext A11.pins) (denoteN_ext d16 (((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext)) (denote_ext e14 (((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext)) (denote_ext e8 (((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext)) g3201
-    have A12 := A11.trans hs3202
-    obtain ⟨v3205, u3205, g3205, w3205⟩ := AM.bind_ok w3201
-    obtain ⟨hs3206, e3207⟩ := eqAt1_run A12.ok (hp.mono A12.ext A12.pins) (denote_ext e21 (((((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext).trans hs3202.ext)) e3203 (denote_ext e31 (((((hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext).trans hs3202.ext)) g3205
-    have A13 := A12.trans hs3206
-    obtain ⟨v3209, u3209, g3209, w3209⟩ := AM.bind_ok w3205
-    obtain ⟨hs3210, e3211⟩ := natAp2_run A13.ok (hp.mono A13.ext A13.pins) (denoteN_ext d45 ((((hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext)) (denote_ext e8 (((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext)) (denote_ext e41 ((((hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext)) g3209
-    have A14 := A13.trans hs3210
-    obtain ⟨v3213, u3213, g3213, w3213⟩ := AM.bind_ok w3209
-    obtain ⟨hs3214, e3215⟩ := natAp2_run A14.ok (hp.mono A14.ext A14.pins) (denoteN_ext d45 (((((hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext)) (denote_ext e11 (((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext)) (denote_ext e41 (((((hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext)) g3213
-    have A15 := A14.trans hs3214
-    obtain ⟨v3217, u3217, g3217, w3217⟩ := AM.bind_ok w3213
-    obtain ⟨hs3218, e3219⟩ := natAp2_run A15.ok (hp.mono A15.ext A15.pins) (denoteN_ext hn (((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext)) (denote_ext e3211 (hs3214.ext)) e3215 g3217
-    have A16 := A15.trans hs3218
-    obtain ⟨v3221, u3221, g3221, w3221⟩ := AM.bind_ok w3217
-    obtain ⟨hs3222, e3223⟩ := natAp2_run A16.ok (hp.mono A16.ext A16.pins) (denoteN_ext hn ((((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext)) (denote_ext e8 ((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext)) (denote_ext e11 (((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext)) g3221
-    have A17 := A16.trans hs3222
-    obtain ⟨v3225, u3225, g3225, w3225⟩ := AM.bind_ok w3221
-    obtain ⟨hs3226, e3227⟩ := natAp2_run A17.ok (hp.mono A17.ext A17.pins) (denoteN_ext d49 ((((((((hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext)) (denote_ext e41 ((((((((hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext)) (denote_ext e3219 (hs3222.ext)) g3225
-    have A18 := A17.trans hs3226
-    obtain ⟨v3229, u3229, g3229, w3229⟩ := AM.bind_ok w3225
-    obtain ⟨hs3230, e3231⟩ := natAp2_run A18.ok (hp.mono A18.ext A18.pins) (denoteN_ext d43 (((((((((hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext).trans hs3226.ext)) (denote_ext e8 ((((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext).trans hs3226.ext)) (denote_ext e41 (((((((((hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext).trans hs3226.ext)) g3229
-    have A19 := A18.trans hs3230
-    obtain ⟨v3233, u3233, g3233, w3233⟩ := AM.bind_ok w3229
-    obtain ⟨hs3234, e3235⟩ := natAp2_run A19.ok (hp.mono A19.ext A19.pins) (denoteN_ext d43 ((((((((((hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext).trans hs3226.ext).trans hs3230.ext)) (denote_ext e11 ((((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext).trans hs3226.ext).trans hs3230.ext)) (denote_ext e41 ((((((((((hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext).trans hs3226.ext).trans hs3230.ext)) g3233
-    have A20 := A19.trans hs3234
-    obtain ⟨v3237, u3237, g3237, w3237⟩ := AM.bind_ok w3233
-    obtain ⟨hs3238, e3239⟩ := natAp2_run A20.ok (hp.mono A20.ext A20.pins) (denoteN_ext d49 (((((((((((hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext).trans hs3226.ext).trans hs3230.ext).trans hs3234.ext)) (denote_ext e3231 (hs3234.ext)) e3235 g3237
-    have A21 := A20.trans hs3238
-    obtain ⟨v3241, u3241, g3241, w3241⟩ := AM.bind_ok w3237
-    obtain ⟨hs3242, e3243⟩ := natAp2_run A21.ok (hp.mono A21.ext A21.pins) (denoteN_ext d47 ((((((((((((hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext).trans hs3226.ext).trans hs3230.ext).trans hs3234.ext).trans hs3238.ext)) (denote_ext e3227 (((hs3230.ext).trans hs3234.ext).trans hs3238.ext)) e3239 g3241
-    have A22 := A21.trans hs3242
-    obtain ⟨v3245, u3245, g3245, w3245⟩ := AM.bind_ok w3241
-    obtain ⟨hs3246, e3247⟩ := eqAt1_run A22.ok (hp.mono A22.ext A22.pins) (denote_ext e5 (((((((((((((((((((((hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext).trans hs3226.ext).trans hs3230.ext).trans hs3234.ext).trans hs3238.ext).trans hs3242.ext)) (denote_ext e3223 (((((hs3226.ext).trans hs3230.ext).trans hs3234.ext).trans hs3238.ext).trans hs3242.ext)) e3243 g3245
-    have A23 := A22.trans hs3246
-    obtain ⟨v3249, u3249, g3249, w3249⟩ := AM.bind_ok w3245
-    obtain ⟨hs3250, e3251⟩ := natAp2_run A23.ok (hp.mono A23.ext A23.pins) (denoteN_ext hn (((((((((((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext).trans hs3226.ext).trans hs3230.ext).trans hs3234.ext).trans hs3238.ext).trans hs3242.ext).trans hs3246.ext)) (denote_ext e8 (((((((((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext).trans hs3226.ext).trans hs3230.ext).trans hs3234.ext).trans hs3238.ext).trans hs3242.ext).trans hs3246.ext)) (denote_ext e11 ((((((((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext).trans hs3226.ext).trans hs3230.ext).trans hs3234.ext).trans hs3238.ext).trans hs3242.ext).trans hs3246.ext)) g3249
-    have A24 := A23.trans hs3250
-    obtain ⟨v3253, u3253, g3253, w3253⟩ := AM.bind_ok w3249
-    obtain ⟨hs3254, e3255⟩ := eqAt1_run A24.ok (hp.mono A24.ext A24.pins) (denote_ext e5 (((((((((((((((((((((((hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext).trans hs3226.ext).trans hs3230.ext).trans hs3234.ext).trans hs3238.ext).trans hs3242.ext).trans hs3246.ext).trans hs3250.ext)) e3251 (denote_ext e36 ((((((((((((((((hs40.ext).trans hs3194.ext).trans hs3198.ext).trans hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext).trans hs3226.ext).trans hs3230.ext).trans hs3234.ext).trans hs3238.ext).trans hs3242.ext).trans hs3246.ext).trans hs3250.ext)) g3253
-    have A25 := A24.trans hs3254
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok w3253
-    refine ⟨A25, ?_⟩
-    simp only [ConLeche.divModCertStmts, StmtsDenote, if_neg n0, if_neg n1, if_neg n2, if_pos (b3.mp y3)]
-    exact ⟨denoteEList_one (denote_ext e3199 ((((((((((((((hs3202.ext).trans hs3206.ext).trans hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext).trans hs3226.ext).trans hs3230.ext).trans hs3234.ext).trans hs3238.ext).trans hs3242.ext).trans hs3246.ext).trans hs3250.ext).trans hs3254.ext)),
-        (denote_ext e3247 ((hs3250.ext).trans hs3254.ext)),
-        denoteEList_one (denote_ext e3207 ((((((((((((hs3210.ext).trans hs3214.ext).trans hs3218.ext).trans hs3222.ext).trans hs3226.ext).trans hs3230.ext).trans hs3234.ext).trans hs3238.ext).trans hs3242.ext).trans hs3246.ext).trans hs3250.ext).trans hs3254.ext)),
-        e3255,
-        trivial⟩
-  have n3 : ¬ (nm = ConLeche.natLandName) := fun h => z3 (b3.mpr h)
-  have b4 := beq_handle_iff A9.ok.wf (denoteN_ext hn (((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) d61
-  rcases AM.ite_ok w3n with ⟨y4, w4y⟩ | ⟨z4, w4n⟩
-  · -- natLorName
-    obtain ⟨v4257, u4257, g4257, w4257⟩ := AM.bind_ok w4y
-    obtain ⟨hs4258, e4259⟩ := natAp2_run A9.ok (hp.mono A9.ext A9.pins) (denoteN_ext d16 (((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) (denote_ext e14 (((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) (denote_ext e8 (((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) g4257
-    have A10 := A9.trans hs4258
-    obtain ⟨v4261, u4261, g4261, w4261⟩ := AM.bind_ok w4257
-    obtain ⟨hs4262, e4263⟩ := eqAt1_run A10.ok (hp.mono A10.ext A10.pins) (denote_ext e21 (((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext)) e4259 (denote_ext e26 ((((hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext)) g4261
-    have A11 := A10.trans hs4262
-    obtain ⟨v4265, u4265, g4265, w4265⟩ := AM.bind_ok w4261
-    obtain ⟨hs4266, e4267⟩ := natAp2_run A11.ok (hp.mono A11.ext A11.pins) (denoteN_ext d16 (((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext)) (denote_ext e14 (((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext)) (denote_ext e8 (((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext)) g4265
-    have A12 := A11.trans hs4266
-    obtain ⟨v4269, u4269, g4269, w4269⟩ := AM.bind_ok w4265
-    obtain ⟨hs4270, e4271⟩ := eqAt1_run A12.ok (hp.mono A12.ext A12.pins) (denote_ext e21 (((((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext).trans hs4266.ext)) e4267 (denote_ext e31 (((((hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext).trans hs4266.ext)) g4269
-    have A13 := A12.trans hs4270
-    obtain ⟨v4273, u4273, g4273, w4273⟩ := AM.bind_ok w4269
-    obtain ⟨hs4274, e4275⟩ := natAp2_run A13.ok (hp.mono A13.ext A13.pins) (denoteN_ext d45 ((((hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext)) (denote_ext e8 (((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext)) (denote_ext e41 ((((hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext)) g4273
-    have A14 := A13.trans hs4274
-    obtain ⟨v4277, u4277, g4277, w4277⟩ := AM.bind_ok w4273
-    obtain ⟨hs4278, e4279⟩ := natAp2_run A14.ok (hp.mono A14.ext A14.pins) (denoteN_ext d45 (((((hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext)) (denote_ext e11 (((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext)) (denote_ext e41 (((((hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext)) g4277
-    have A15 := A14.trans hs4278
-    obtain ⟨v4281, u4281, g4281, w4281⟩ := AM.bind_ok w4277
-    obtain ⟨hs4282, e4283⟩ := natAp2_run A15.ok (hp.mono A15.ext A15.pins) (denoteN_ext hn (((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext)) (denote_ext e4275 (hs4278.ext)) e4279 g4281
-    have A16 := A15.trans hs4282
-    obtain ⟨v4285, u4285, g4285, w4285⟩ := AM.bind_ok w4281
-    obtain ⟨hs4286, e4287⟩ := natAp2_run A16.ok (hp.mono A16.ext A16.pins) (denoteN_ext d43 (((((((hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext)) (denote_ext e8 ((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext)) (denote_ext e41 (((((((hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext)) g4285
-    have A17 := A16.trans hs4286
-    obtain ⟨v4289, u4289, g4289, w4289⟩ := AM.bind_ok w4285
-    obtain ⟨hs4290, e4291⟩ := natAp2_run A17.ok (hp.mono A17.ext A17.pins) (denoteN_ext d43 ((((((((hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext)) (denote_ext e11 ((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext)) (denote_ext e41 ((((((((hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext)) g4289
-    have A18 := A17.trans hs4290
-    obtain ⟨v4293, u4293, g4293, w4293⟩ := AM.bind_ok w4289
-    obtain ⟨hs4294, e4295⟩ := natAp2_run A18.ok (hp.mono A18.ext A18.pins) (denoteN_ext hn ((((((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext).trans hs4290.ext)) (denote_ext e8 ((((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext).trans hs4290.ext)) (denote_ext e11 (((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext).trans hs4290.ext)) g4293
-    have A19 := A18.trans hs4294
-    obtain ⟨v4297, u4297, g4297, w4297⟩ := AM.bind_ok w4293
-    obtain ⟨hs4298, e4299⟩ := natAp2_run A19.ok (hp.mono A19.ext A19.pins) (denoteN_ext d49 ((((((((((hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext).trans hs4290.ext).trans hs4294.ext)) (denote_ext e41 ((((((((((hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext).trans hs4290.ext).trans hs4294.ext)) (denote_ext e4283 (((hs4286.ext).trans hs4290.ext).trans hs4294.ext)) g4297
-    have A20 := A19.trans hs4298
-    obtain ⟨v4301, u4301, g4301, w4301⟩ := AM.bind_ok w4297
-    obtain ⟨hs4302, e4303⟩ := natAp2_run A20.ok (hp.mono A20.ext A20.pins) (denoteN_ext d47 (((((((((((hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext).trans hs4290.ext).trans hs4294.ext).trans hs4298.ext)) (denote_ext e4287 (((hs4290.ext).trans hs4294.ext).trans hs4298.ext)) (denote_ext e4291 ((hs4294.ext).trans hs4298.ext)) g4301
-    have A21 := A20.trans hs4302
-    obtain ⟨v4305, u4305, g4305, w4305⟩ := AM.bind_ok w4301
-    obtain ⟨hs4306, e4307⟩ := natAp2_run A21.ok (hp.mono A21.ext A21.pins) (denoteN_ext d49 ((((((((((((hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext).trans hs4290.ext).trans hs4294.ext).trans hs4298.ext).trans hs4302.ext)) (denote_ext e4287 ((((hs4290.ext).trans hs4294.ext).trans hs4298.ext).trans hs4302.ext)) (denote_ext e4291 (((hs4294.ext).trans hs4298.ext).trans hs4302.ext)) g4305
-    have A22 := A21.trans hs4306
-    obtain ⟨v4309, u4309, g4309, w4309⟩ := AM.bind_ok w4305
-    obtain ⟨hs4310, e4311⟩ := natAp2_run A22.ok (hp.mono A22.ext A22.pins) (denoteN_ext d51 (((((((((((((hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext).trans hs4290.ext).trans hs4294.ext).trans hs4298.ext).trans hs4302.ext).trans hs4306.ext)) (denote_ext e4303 (hs4306.ext)) e4307 g4309
-    have A23 := A22.trans hs4310
-    obtain ⟨v4313, u4313, g4313, w4313⟩ := AM.bind_ok w4309
-    obtain ⟨hs4314, e4315⟩ := natAp2_run A23.ok (hp.mono A23.ext A23.pins) (denoteN_ext d47 ((((((((((((((hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext).trans hs4290.ext).trans hs4294.ext).trans hs4298.ext).trans hs4302.ext).trans hs4306.ext).trans hs4310.ext)) (denote_ext e4299 (((hs4302.ext).trans hs4306.ext).trans hs4310.ext)) e4311 g4313
-    have A24 := A23.trans hs4314
-    obtain ⟨v4317, u4317, g4317, w4317⟩ := AM.bind_ok w4313
-    obtain ⟨hs4318, e4319⟩ := eqAt1_run A24.ok (hp.mono A24.ext A24.pins) (denote_ext e5 (((((((((((((((((((((((hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext).trans hs4290.ext).trans hs4294.ext).trans hs4298.ext).trans hs4302.ext).trans hs4306.ext).trans hs4310.ext).trans hs4314.ext)) (denote_ext e4295 (((((hs4298.ext).trans hs4302.ext).trans hs4306.ext).trans hs4310.ext).trans hs4314.ext)) e4315 g4317
-    have A25 := A24.trans hs4318
-    obtain ⟨v4321, u4321, g4321, w4321⟩ := AM.bind_ok w4317
-    obtain ⟨hs4322, e4323⟩ := natAp2_run A25.ok (hp.mono A25.ext A25.pins) (denoteN_ext hn (((((((((((((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext).trans hs4290.ext).trans hs4294.ext).trans hs4298.ext).trans hs4302.ext).trans hs4306.ext).trans hs4310.ext).trans hs4314.ext).trans hs4318.ext)) (denote_ext e8 (((((((((((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext).trans hs4290.ext).trans hs4294.ext).trans hs4298.ext).trans hs4302.ext).trans hs4306.ext).trans hs4310.ext).trans hs4314.ext).trans hs4318.ext)) (denote_ext e11 ((((((((((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext).trans hs4290.ext).trans hs4294.ext).trans hs4298.ext).trans hs4302.ext).trans hs4306.ext).trans hs4310.ext).trans hs4314.ext).trans hs4318.ext)) g4321
-    have A26 := A25.trans hs4322
-    obtain ⟨v4325, u4325, g4325, w4325⟩ := AM.bind_ok w4321
-    obtain ⟨hs4326, e4327⟩ := eqAt1_run A26.ok (hp.mono A26.ext A26.pins) (denote_ext e5 (((((((((((((((((((((((((hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext).trans hs4290.ext).trans hs4294.ext).trans hs4298.ext).trans hs4302.ext).trans hs4306.ext).trans hs4310.ext).trans hs4314.ext).trans hs4318.ext).trans hs4322.ext)) e4323 (denote_ext e11 (((((((((((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs4258.ext).trans hs4262.ext).trans hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext).trans hs4290.ext).trans hs4294.ext).trans hs4298.ext).trans hs4302.ext).trans hs4306.ext).trans hs4310.ext).trans hs4314.ext).trans hs4318.ext).trans hs4322.ext)) g4325
-    have A27 := A26.trans hs4326
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok w4325
-    refine ⟨A27, ?_⟩
-    simp only [ConLeche.divModCertStmts, StmtsDenote, if_neg n0, if_neg n1, if_neg n2, if_neg n3, if_pos (b4.mp y4)]
-    exact ⟨denoteEList_one (denote_ext e4263 ((((((((((((((((hs4266.ext).trans hs4270.ext).trans hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext).trans hs4290.ext).trans hs4294.ext).trans hs4298.ext).trans hs4302.ext).trans hs4306.ext).trans hs4310.ext).trans hs4314.ext).trans hs4318.ext).trans hs4322.ext).trans hs4326.ext)),
-        (denote_ext e4319 ((hs4322.ext).trans hs4326.ext)),
-        denoteEList_one (denote_ext e4271 ((((((((((((((hs4274.ext).trans hs4278.ext).trans hs4282.ext).trans hs4286.ext).trans hs4290.ext).trans hs4294.ext).trans hs4298.ext).trans hs4302.ext).trans hs4306.ext).trans hs4310.ext).trans hs4314.ext).trans hs4318.ext).trans hs4322.ext).trans hs4326.ext)),
-        e4327,
-        trivial⟩
-  have n4 : ¬ (nm = ConLeche.natLorName) := fun h => z4 (b4.mpr h)
-  have b5 := beq_handle_iff A9.ok.wf (denoteN_ext hn (((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) d63
-  rcases AM.ite_ok w4n with ⟨y5, w5y⟩ | ⟨z5, w5n⟩
-  · -- natXorName
-    obtain ⟨v5329, u5329, g5329, w5329⟩ := AM.bind_ok w5y
-    obtain ⟨hs5330, e5331⟩ := natAp2_run A9.ok (hp.mono A9.ext A9.pins) (denoteN_ext d16 (((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) (denote_ext e14 (((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) (denote_ext e8 (((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) g5329
-    have A10 := A9.trans hs5330
-    obtain ⟨v5333, u5333, g5333, w5333⟩ := AM.bind_ok w5329
-    obtain ⟨hs5334, e5335⟩ := eqAt1_run A10.ok (hp.mono A10.ext A10.pins) (denote_ext e21 (((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext)) e5331 (denote_ext e26 ((((hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext)) g5333
-    have A11 := A10.trans hs5334
-    obtain ⟨v5337, u5337, g5337, w5337⟩ := AM.bind_ok w5333
-    obtain ⟨hs5338, e5339⟩ := natAp2_run A11.ok (hp.mono A11.ext A11.pins) (denoteN_ext d16 (((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext)) (denote_ext e14 (((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext)) (denote_ext e8 (((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext)) g5337
-    have A12 := A11.trans hs5338
-    obtain ⟨v5341, u5341, g5341, w5341⟩ := AM.bind_ok w5337
-    obtain ⟨hs5342, e5343⟩ := eqAt1_run A12.ok (hp.mono A12.ext A12.pins) (denote_ext e21 (((((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext).trans hs5338.ext)) e5339 (denote_ext e31 (((((hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext).trans hs5338.ext)) g5341
-    have A13 := A12.trans hs5342
-    obtain ⟨v5345, u5345, g5345, w5345⟩ := AM.bind_ok w5341
-    obtain ⟨hs5346, e5347⟩ := natAp2_run A13.ok (hp.mono A13.ext A13.pins) (denoteN_ext d45 ((((hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext)) (denote_ext e8 (((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext)) (denote_ext e41 ((((hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext)) g5345
-    have A14 := A13.trans hs5346
-    obtain ⟨v5349, u5349, g5349, w5349⟩ := AM.bind_ok w5345
-    obtain ⟨hs5350, e5351⟩ := natAp2_run A14.ok (hp.mono A14.ext A14.pins) (denoteN_ext d45 (((((hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext)) (denote_ext e11 (((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext)) (denote_ext e41 (((((hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext)) g5349
-    have A15 := A14.trans hs5350
-    obtain ⟨v5353, u5353, g5353, w5353⟩ := AM.bind_ok w5349
-    obtain ⟨hs5354, e5355⟩ := natAp2_run A15.ok (hp.mono A15.ext A15.pins) (denoteN_ext hn (((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext)) (denote_ext e5347 (hs5350.ext)) e5351 g5353
-    have A16 := A15.trans hs5354
-    obtain ⟨v5357, u5357, g5357, w5357⟩ := AM.bind_ok w5353
-    obtain ⟨hs5358, e5359⟩ := natAp2_run A16.ok (hp.mono A16.ext A16.pins) (denoteN_ext d43 (((((((hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext)) (denote_ext e8 ((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext)) (denote_ext e41 (((((((hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext)) g5357
-    have A17 := A16.trans hs5358
-    obtain ⟨v5361, u5361, g5361, w5361⟩ := AM.bind_ok w5357
-    obtain ⟨hs5362, e5363⟩ := natAp2_run A17.ok (hp.mono A17.ext A17.pins) (denoteN_ext d43 ((((((((hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext)) (denote_ext e11 ((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext)) (denote_ext e41 ((((((((hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext)) g5361
-    have A18 := A17.trans hs5362
-    obtain ⟨v5365, u5365, g5365, w5365⟩ := AM.bind_ok w5361
-    obtain ⟨hs5366, e5367⟩ := natAp2_run A18.ok (hp.mono A18.ext A18.pins) (denoteN_ext hn ((((((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext).trans hs5362.ext)) (denote_ext e8 ((((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext).trans hs5362.ext)) (denote_ext e11 (((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext).trans hs5362.ext)) g5365
-    have A19 := A18.trans hs5366
-    obtain ⟨v5369, u5369, g5369, w5369⟩ := AM.bind_ok w5365
-    obtain ⟨hs5370, e5371⟩ := natAp2_run A19.ok (hp.mono A19.ext A19.pins) (denoteN_ext d49 ((((((((((hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext).trans hs5362.ext).trans hs5366.ext)) (denote_ext e41 ((((((((((hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext).trans hs5362.ext).trans hs5366.ext)) (denote_ext e5355 (((hs5358.ext).trans hs5362.ext).trans hs5366.ext)) g5369
-    have A20 := A19.trans hs5370
-    obtain ⟨v5373, u5373, g5373, w5373⟩ := AM.bind_ok w5369
-    obtain ⟨hs5374, e5375⟩ := natAp2_run A20.ok (hp.mono A20.ext A20.pins) (denoteN_ext d47 (((((((((((hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext).trans hs5362.ext).trans hs5366.ext).trans hs5370.ext)) (denote_ext e5359 (((hs5362.ext).trans hs5366.ext).trans hs5370.ext)) (denote_ext e5363 ((hs5366.ext).trans hs5370.ext)) g5373
-    have A21 := A20.trans hs5374
-    obtain ⟨v5377, u5377, g5377, w5377⟩ := AM.bind_ok w5373
-    obtain ⟨hs5378, e5379⟩ := natAp2_run A21.ok (hp.mono A21.ext A21.pins) (denoteN_ext d43 ((((((((((((hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext).trans hs5362.ext).trans hs5366.ext).trans hs5370.ext).trans hs5374.ext)) e5375 (denote_ext e41 ((((((((((((hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext).trans hs5362.ext).trans hs5366.ext).trans hs5370.ext).trans hs5374.ext)) g5377
-    have A22 := A21.trans hs5378
-    obtain ⟨v5381, u5381, g5381, w5381⟩ := AM.bind_ok w5377
-    obtain ⟨hs5382, e5383⟩ := natAp2_run A22.ok (hp.mono A22.ext A22.pins) (denoteN_ext d47 (((((((((((((hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext).trans hs5362.ext).trans hs5366.ext).trans hs5370.ext).trans hs5374.ext).trans hs5378.ext)) (denote_ext e5371 ((hs5374.ext).trans hs5378.ext)) e5379 g5381
-    have A23 := A22.trans hs5382
-    obtain ⟨v5385, u5385, g5385, w5385⟩ := AM.bind_ok w5381
-    obtain ⟨hs5386, e5387⟩ := eqAt1_run A23.ok (hp.mono A23.ext A23.pins) (denote_ext e5 ((((((((((((((((((((((hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext).trans hs5362.ext).trans hs5366.ext).trans hs5370.ext).trans hs5374.ext).trans hs5378.ext).trans hs5382.ext)) (denote_ext e5367 ((((hs5370.ext).trans hs5374.ext).trans hs5378.ext).trans hs5382.ext)) e5383 g5385
-    have A24 := A23.trans hs5386
-    obtain ⟨v5389, u5389, g5389, w5389⟩ := AM.bind_ok w5385
-    obtain ⟨hs5390, e5391⟩ := natAp2_run A24.ok (hp.mono A24.ext A24.pins) (denoteN_ext hn ((((((((((((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext).trans hs5362.ext).trans hs5366.ext).trans hs5370.ext).trans hs5374.ext).trans hs5378.ext).trans hs5382.ext).trans hs5386.ext)) (denote_ext e8 ((((((((((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext).trans hs5362.ext).trans hs5366.ext).trans hs5370.ext).trans hs5374.ext).trans hs5378.ext).trans hs5382.ext).trans hs5386.ext)) (denote_ext e11 (((((((((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext).trans hs5362.ext).trans hs5366.ext).trans hs5370.ext).trans hs5374.ext).trans hs5378.ext).trans hs5382.ext).trans hs5386.ext)) g5389
-    have A25 := A24.trans hs5390
-    obtain ⟨v5393, u5393, g5393, w5393⟩ := AM.bind_ok w5389
-    obtain ⟨hs5394, e5395⟩ := eqAt1_run A25.ok (hp.mono A25.ext A25.pins) (denote_ext e5 ((((((((((((((((((((((((hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext).trans hs5362.ext).trans hs5366.ext).trans hs5370.ext).trans hs5374.ext).trans hs5378.ext).trans hs5382.ext).trans hs5386.ext).trans hs5390.ext)) e5391 (denote_ext e11 ((((((((((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs5330.ext).trans hs5334.ext).trans hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext).trans hs5362.ext).trans hs5366.ext).trans hs5370.ext).trans hs5374.ext).trans hs5378.ext).trans hs5382.ext).trans hs5386.ext).trans hs5390.ext)) g5393
-    have A26 := A25.trans hs5394
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok w5393
-    refine ⟨A26, ?_⟩
-    simp only [ConLeche.divModCertStmts, StmtsDenote, if_neg n0, if_neg n1, if_neg n2, if_neg n3, if_neg n4, if_pos (b5.mp y5)]
-    exact ⟨denoteEList_one (denote_ext e5335 (((((((((((((((hs5338.ext).trans hs5342.ext).trans hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext).trans hs5362.ext).trans hs5366.ext).trans hs5370.ext).trans hs5374.ext).trans hs5378.ext).trans hs5382.ext).trans hs5386.ext).trans hs5390.ext).trans hs5394.ext)),
-        (denote_ext e5387 ((hs5390.ext).trans hs5394.ext)),
-        denoteEList_one (denote_ext e5343 (((((((((((((hs5346.ext).trans hs5350.ext).trans hs5354.ext).trans hs5358.ext).trans hs5362.ext).trans hs5366.ext).trans hs5370.ext).trans hs5374.ext).trans hs5378.ext).trans hs5382.ext).trans hs5386.ext).trans hs5390.ext).trans hs5394.ext)),
-        e5395,
-        trivial⟩
-  have n5 : ¬ (nm = ConLeche.natXorName) := fun h => z5 (b5.mpr h)
-  have bd := beq_handle_iff A9.ok.wf (denoteN_ext hn (((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) d45
-  rcases AM.ite_ok w5n with ⟨hd, wdy⟩ | ⟨hd, wdn⟩
-  · -- Nat.div
-    obtain ⟨v6396, u6396, g6396, w6396⟩ := AM.bind_ok wdy
-    obtain ⟨rfl, d6397⟩ := pinAt_run (x := ConLeche.natSuccName) (hp.mono A9.ext A9.pins) rfl g6396
-    obtain ⟨v6399, u6399, g6399, w6399⟩ := AM.bind_ok w6396
-    obtain ⟨hs6400, e6401⟩ := natAp2_run A9.ok (hp.mono A9.ext A9.pins) d51 (denote_ext e8 (((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) (denote_ext e11 ((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) g6399
-    have A10 := A9.trans hs6400
-    obtain ⟨v6403, u6403, g6403, w6403⟩ := AM.bind_ok w6399
-    obtain ⟨hs6404, e6405⟩ := natAp2_run A10.ok (hp.mono A10.ext A10.pins) (denoteN_ext hn ((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext)) e6401 (denote_ext e11 (((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext)) g6403
-    have A11 := A10.trans hs6404
-    obtain ⟨v6406, u6406, g6406, w6406⟩ := AM.bind_ok w6403
-    obtain ⟨hs6407, e6408⟩ := natAp1_run A11.ok (hp.mono A11.ext A11.pins) (denoteN_ext d6397 ((hs6400.ext).trans hs6404.ext)) e6405 g6406
-    have A12 := A11.trans hs6407
-    rcases AM.ite_ok w6406 with ⟨hd2, wi⟩ | ⟨hd2, wi⟩
-    rotate_left
-    · exact absurd hd hd2
-    obtain ⟨v6409, u6409, g6409, w6409⟩ := AM.bind_ok wi
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok g6409
-    obtain ⟨v6411, u6411, g6411, w6411⟩ := AM.bind_ok w6409
-    obtain ⟨hs6412, e6413⟩ := natAp2_run A12.ok (hp.mono A12.ext A12.pins) (denoteN_ext d16 ((((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext)) (denote_ext e11 (((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext)) (denote_ext e8 ((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext)) g6411
-    have A13 := A12.trans hs6412
-    obtain ⟨v6415, u6415, g6415, w6415⟩ := AM.bind_ok w6411
-    obtain ⟨hs6416, e6417⟩ := eqAt1_run A13.ok (hp.mono A13.ext A13.pins) (denote_ext e21 ((((((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext)) e6413 (denote_ext e26 (((((((hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext)) g6415
-    have A14 := A13.trans hs6416
-    obtain ⟨v6419, u6419, g6419, w6419⟩ := AM.bind_ok w6415
-    obtain ⟨hs6420, e6421⟩ := natAp2_run A14.ok (hp.mono A14.ext A14.pins) (denoteN_ext d16 ((((((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext)) (denote_ext e14 ((((((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext)) (denote_ext e11 (((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext)) g6419
-    have A15 := A14.trans hs6420
-    obtain ⟨v6423, u6423, g6423, w6423⟩ := AM.bind_ok w6419
-    obtain ⟨hs6424, e6425⟩ := eqAt1_run A15.ok (hp.mono A15.ext A15.pins) (denote_ext e21 ((((((((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext)) e6421 (denote_ext e26 (((((((((hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext)) g6423
-    have A16 := A15.trans hs6424
-    obtain ⟨v6427, u6427, g6427, w6427⟩ := AM.bind_ok w6423
-    obtain ⟨hs6428, e6429⟩ := natAp2_run A16.ok (hp.mono A16.ext A16.pins) (denoteN_ext d16 ((((((((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext)) (denote_ext e11 (((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext)) (denote_ext e8 ((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext)) g6427
-    have A17 := A16.trans hs6428
-    obtain ⟨v6431, u6431, g6431, w6431⟩ := AM.bind_ok w6427
-    obtain ⟨hs6432, e6433⟩ := eqAt1_run A17.ok (hp.mono A17.ext A17.pins) (denote_ext e21 ((((((((((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext).trans hs6428.ext)) e6429 (denote_ext e31 ((((((((((hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext).trans hs6428.ext)) g6431
-    have A18 := A17.trans hs6432
-    obtain ⟨v6435, u6435, g6435, w6435⟩ := AM.bind_ok w6431
-    obtain ⟨hs6436, e6437⟩ := natAp2_run A18.ok (hp.mono A18.ext A18.pins) (denoteN_ext d16 ((((((((((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext).trans hs6428.ext).trans hs6432.ext)) (denote_ext e14 ((((((((((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext).trans hs6428.ext).trans hs6432.ext)) (denote_ext e11 (((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext).trans hs6428.ext).trans hs6432.ext)) g6435
-    have A19 := A18.trans hs6436
-    obtain ⟨v6439, u6439, g6439, w6439⟩ := AM.bind_ok w6435
-    obtain ⟨hs6440, e6441⟩ := eqAt1_run A19.ok (hp.mono A19.ext A19.pins) (denote_ext e21 ((((((((((((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext).trans hs6428.ext).trans hs6432.ext).trans hs6436.ext)) e6437 (denote_ext e31 ((((((((((((hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext).trans hs6428.ext).trans hs6432.ext).trans hs6436.ext)) g6439
-    have A20 := A19.trans hs6440
-    obtain ⟨v6443, u6443, g6443, w6443⟩ := AM.bind_ok w6439
-    obtain ⟨hs6444, e6445⟩ := natAp2_run A20.ok (hp.mono A20.ext A20.pins) (denoteN_ext hn ((((((((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext).trans hs6428.ext).trans hs6432.ext).trans hs6436.ext).trans hs6440.ext)) (denote_ext e8 ((((((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext).trans hs6428.ext).trans hs6432.ext).trans hs6436.ext).trans hs6440.ext)) (denote_ext e11 (((((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext).trans hs6428.ext).trans hs6432.ext).trans hs6436.ext).trans hs6440.ext)) g6443
-    have A21 := A20.trans hs6444
-    obtain ⟨v6447, u6447, g6447, w6447⟩ := AM.bind_ok w6443
-    obtain ⟨hs6448, e6449⟩ := eqAt1_run A21.ok (hp.mono A21.ext A21.pins) (denote_ext e5 ((((((((((((((((((((hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext).trans hs6428.ext).trans hs6432.ext).trans hs6436.ext).trans hs6440.ext).trans hs6444.ext)) e6445 (denote_ext e6408 (((((((((hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext).trans hs6428.ext).trans hs6432.ext).trans hs6436.ext).trans hs6440.ext).trans hs6444.ext)) g6447
-    have A22 := A21.trans hs6448
-    obtain ⟨v6451, u6451, g6451, w6451⟩ := AM.bind_ok w6447
-    obtain ⟨hs6452, e6453⟩ := natAp2_run A22.ok (hp.mono A22.ext A22.pins) (denoteN_ext hn ((((((((((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext).trans hs6428.ext).trans hs6432.ext).trans hs6436.ext).trans hs6440.ext).trans hs6444.ext).trans hs6448.ext)) (denote_ext e8 ((((((((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext).trans hs6428.ext).trans hs6432.ext).trans hs6436.ext).trans hs6440.ext).trans hs6444.ext).trans hs6448.ext)) (denote_ext e11 (((((((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext).trans hs6428.ext).trans hs6432.ext).trans hs6436.ext).trans hs6440.ext).trans hs6444.ext).trans hs6448.ext)) g6451
-    have A23 := A22.trans hs6452
-    obtain ⟨v6455, u6455, g6455, w6455⟩ := AM.bind_ok w6451
-    obtain ⟨hs6456, e6457⟩ := eqAt1_run A23.ok (hp.mono A23.ext A23.pins) (denote_ext e5 ((((((((((((((((((((((hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext).trans hs6428.ext).trans hs6432.ext).trans hs6436.ext).trans hs6440.ext).trans hs6444.ext).trans hs6448.ext).trans hs6452.ext)) e6453 (denote_ext e36 (((((((((((((((hs40.ext).trans hs6400.ext).trans hs6404.ext).trans hs6407.ext).trans hs6412.ext).trans hs6416.ext).trans hs6420.ext).trans hs6424.ext).trans hs6428.ext).trans hs6432.ext).trans hs6436.ext).trans hs6440.ext).trans hs6444.ext).trans hs6448.ext).trans hs6452.ext)) g6455
-    have A24 := A23.trans hs6456
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok w6455
-    refine ⟨A24, ?_⟩
-    simp only [ConLeche.divModCertStmts, StmtsDenote, if_neg n0, if_neg n1, if_neg n2, if_neg n3, if_neg n4, if_neg n5, if_pos (bd.mp hd)]
-    exact ⟨denoteEList_two (denote_ext e6417 ((((((((((hs6420.ext).trans hs6424.ext).trans hs6428.ext).trans hs6432.ext).trans hs6436.ext).trans hs6440.ext).trans hs6444.ext).trans hs6448.ext).trans hs6452.ext).trans hs6456.ext)) (denote_ext e6425 ((((((((hs6428.ext).trans hs6432.ext).trans hs6436.ext).trans hs6440.ext).trans hs6444.ext).trans hs6448.ext).trans hs6452.ext).trans hs6456.ext)),
-        (denote_ext e6449 ((hs6452.ext).trans hs6456.ext)),
-        denoteEList_one (denote_ext e6433 ((((((hs6436.ext).trans hs6440.ext).trans hs6444.ext).trans hs6448.ext).trans hs6452.ext).trans hs6456.ext)),
-        e6457,
-        denoteEList_one (denote_ext e6441 ((((hs6444.ext).trans hs6448.ext).trans hs6452.ext).trans hs6456.ext)),
-        e6457,
-        trivial⟩
-  · -- Nat.mod
-    obtain ⟨v7459, u7459, g7459, w7459⟩ := AM.bind_ok wdn
-    obtain ⟨hs7460, e7461⟩ := natAp2_run A9.ok (hp.mono A9.ext A9.pins) d51 (denote_ext e8 (((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) (denote_ext e11 ((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext)) g7459
-    have A10 := A9.trans hs7460
-    obtain ⟨v7462, u7462, g7462, w7462⟩ := AM.bind_ok w7459
-    obtain ⟨hs7463, e7464⟩ := natAp2_run A10.ok (hp.mono A10.ext A10.pins) (denoteN_ext hn ((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext)) e7461 (denote_ext e11 (((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext)) g7462
-    have A11 := A10.trans hs7463
-    rcases AM.ite_ok w7462 with ⟨hd2, wi⟩ | ⟨hd2, wi⟩
-    · exact absurd hd2 hd
-    obtain ⟨v7465, u7465, g7465, w7465⟩ := AM.bind_ok wi
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok g7465
-    obtain ⟨v7467, u7467, g7467, w7467⟩ := AM.bind_ok w7465
-    obtain ⟨hs7468, e7469⟩ := natAp2_run A11.ok (hp.mono A11.ext A11.pins) (denoteN_ext d16 (((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext)) (denote_ext e11 ((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext)) (denote_ext e8 (((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext)) g7467
-    have A12 := A11.trans hs7468
-    obtain ⟨v7471, u7471, g7471, w7471⟩ := AM.bind_ok w7467
-    obtain ⟨hs7472, e7473⟩ := eqAt1_run A12.ok (hp.mono A12.ext A12.pins) (denote_ext e21 (((((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext)) e7469 (denote_ext e26 ((((((hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext)) g7471
-    have A13 := A12.trans hs7472
-    obtain ⟨v7475, u7475, g7475, w7475⟩ := AM.bind_ok w7471
-    obtain ⟨hs7476, e7477⟩ := natAp2_run A13.ok (hp.mono A13.ext A13.pins) (denoteN_ext d16 (((((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext)) (denote_ext e14 (((((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext)) (denote_ext e11 ((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext)) g7475
-    have A14 := A13.trans hs7476
-    obtain ⟨v7479, u7479, g7479, w7479⟩ := AM.bind_ok w7475
-    obtain ⟨hs7480, e7481⟩ := eqAt1_run A14.ok (hp.mono A14.ext A14.pins) (denote_ext e21 (((((((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext)) e7477 (denote_ext e26 ((((((((hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext)) g7479
-    have A15 := A14.trans hs7480
-    obtain ⟨v7483, u7483, g7483, w7483⟩ := AM.bind_ok w7479
-    obtain ⟨hs7484, e7485⟩ := natAp2_run A15.ok (hp.mono A15.ext A15.pins) (denoteN_ext d16 (((((((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext)) (denote_ext e11 ((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext)) (denote_ext e8 (((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext)) g7483
-    have A16 := A15.trans hs7484
-    obtain ⟨v7487, u7487, g7487, w7487⟩ := AM.bind_ok w7483
-    obtain ⟨hs7488, e7489⟩ := eqAt1_run A16.ok (hp.mono A16.ext A16.pins) (denote_ext e21 (((((((((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext).trans hs7484.ext)) e7485 (denote_ext e31 (((((((((hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext).trans hs7484.ext)) g7487
-    have A17 := A16.trans hs7488
-    obtain ⟨v7491, u7491, g7491, w7491⟩ := AM.bind_ok w7487
-    obtain ⟨hs7492, e7493⟩ := natAp2_run A17.ok (hp.mono A17.ext A17.pins) (denoteN_ext d16 (((((((((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext).trans hs7484.ext).trans hs7488.ext)) (denote_ext e14 (((((((((((((hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext).trans hs7484.ext).trans hs7488.ext)) (denote_ext e11 ((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext).trans hs7484.ext).trans hs7488.ext)) g7491
-    have A18 := A17.trans hs7492
-    obtain ⟨v7495, u7495, g7495, w7495⟩ := AM.bind_ok w7491
-    obtain ⟨hs7496, e7497⟩ := eqAt1_run A18.ok (hp.mono A18.ext A18.pins) (denote_ext e21 (((((((((((((hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext).trans hs7484.ext).trans hs7488.ext).trans hs7492.ext)) e7493 (denote_ext e31 (((((((((((hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext).trans hs7484.ext).trans hs7488.ext).trans hs7492.ext)) g7495
-    have A19 := A18.trans hs7496
-    obtain ⟨v7499, u7499, g7499, w7499⟩ := AM.bind_ok w7495
-    obtain ⟨hs7500, e7501⟩ := natAp2_run A19.ok (hp.mono A19.ext A19.pins) (denoteN_ext hn (((((((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext).trans hs7484.ext).trans hs7488.ext).trans hs7492.ext).trans hs7496.ext)) (denote_ext e8 (((((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext).trans hs7484.ext).trans hs7488.ext).trans hs7492.ext).trans hs7496.ext)) (denote_ext e11 ((((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext).trans hs7484.ext).trans hs7488.ext).trans hs7492.ext).trans hs7496.ext)) g7499
-    have A20 := A19.trans hs7500
-    obtain ⟨v7503, u7503, g7503, w7503⟩ := AM.bind_ok w7499
-    obtain ⟨hs7504, e7505⟩ := eqAt1_run A20.ok (hp.mono A20.ext A20.pins) (denote_ext e5 (((((((((((((((((((hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext).trans hs7484.ext).trans hs7488.ext).trans hs7492.ext).trans hs7496.ext).trans hs7500.ext)) e7501 (denote_ext e7464 (((((((((hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext).trans hs7484.ext).trans hs7488.ext).trans hs7492.ext).trans hs7496.ext).trans hs7500.ext)) g7503
-    have A21 := A20.trans hs7504
-    obtain ⟨v7507, u7507, g7507, w7507⟩ := AM.bind_ok w7503
-    obtain ⟨hs7508, e7509⟩ := natAp2_run A21.ok (hp.mono A21.ext A21.pins) (denoteN_ext hn (((((((((((((((((((((hs4.ext).trans hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext).trans hs7484.ext).trans hs7488.ext).trans hs7492.ext).trans hs7496.ext).trans hs7500.ext).trans hs7504.ext)) (denote_ext e8 (((((((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext).trans hs7484.ext).trans hs7488.ext).trans hs7492.ext).trans hs7496.ext).trans hs7500.ext).trans hs7504.ext)) (denote_ext e11 ((((((((((((((((((hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext).trans hs7484.ext).trans hs7488.ext).trans hs7492.ext).trans hs7496.ext).trans hs7500.ext).trans hs7504.ext)) g7507
-    have A22 := A21.trans hs7508
-    obtain ⟨v7511, u7511, g7511, w7511⟩ := AM.bind_ok w7507
-    obtain ⟨hs7512, e7513⟩ := eqAt1_run A22.ok (hp.mono A22.ext A22.pins) (denote_ext e5 (((((((((((((((((((((hs7.ext).trans hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext).trans hs7484.ext).trans hs7488.ext).trans hs7492.ext).trans hs7496.ext).trans hs7500.ext).trans hs7504.ext).trans hs7508.ext)) e7509 (denote_ext e8 ((((((((((((((((((((hs10.ext).trans hs13.ext).trans hs20.ext).trans hs25.ext).trans hs30.ext).trans hs35.ext).trans hs40.ext).trans hs7460.ext).trans hs7463.ext).trans hs7468.ext).trans hs7472.ext).trans hs7476.ext).trans hs7480.ext).trans hs7484.ext).trans hs7488.ext).trans hs7492.ext).trans hs7496.ext).trans hs7500.ext).trans hs7504.ext).trans hs7508.ext)) g7511
-    have A23 := A22.trans hs7512
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok w7511
-    refine ⟨A23, ?_⟩
-    simp only [ConLeche.divModCertStmts, StmtsDenote, if_neg n0, if_neg n1, if_neg n2, if_neg n3, if_neg n4, if_neg n5, if_neg (fun h => hd (bd.mpr h))]
-    exact ⟨denoteEList_two (denote_ext e7473 ((((((((((hs7476.ext).trans hs7480.ext).trans hs7484.ext).trans hs7488.ext).trans hs7492.ext).trans hs7496.ext).trans hs7500.ext).trans hs7504.ext).trans hs7508.ext).trans hs7512.ext)) (denote_ext e7481 ((((((((hs7484.ext).trans hs7488.ext).trans hs7492.ext).trans hs7496.ext).trans hs7500.ext).trans hs7504.ext).trans hs7508.ext).trans hs7512.ext)),
-        (denote_ext e7505 ((hs7508.ext).trans hs7512.ext)),
-        denoteEList_one (denote_ext e7489 ((((((hs7492.ext).trans hs7496.ext).trans hs7500.ext).trans hs7504.ext).trans hs7508.ext).trans hs7512.ext)),
-        e7513,
-        denoteEList_one (denote_ext e7497 ((((hs7500.ext).trans hs7504.ext).trans hs7508.ext).trans hs7512.ext)),
-        e7513,
-        trivial⟩
-
+  obtain ⟨cx, s1, g1, w1⟩ := AM.bind_ok hr
+  obtain ⟨hs1, hcx⟩ := certCtx_run hst hp g1
+  dmc_move hs1
+  obtain ⟨hs2, e2⟩ := divModCertStmtsAt_run hs1.ok hp hcx hn w1
+  exact ⟨hs1.trans hs2, e2⟩
 
 /-! ## The certificate guards
 

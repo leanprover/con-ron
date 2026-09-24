@@ -16548,7 +16548,7 @@ def arena.inductives.native_parts.native_parts
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::inductives::native_install::ctor_name_seen]:
-    Source: 'crates/con-ron-core/src/arena/inductives/native_install.rs', lines 1622:0-1630:1
+    Source: 'crates/con-ron-core/src/arena/inductives/native_install.rs', lines 1626:0-1634:1
     Visibility: public -/
 def arena.inductives.native_install.ctor_name_seen
   (ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) (i : Std.Usize)
@@ -16571,7 +16571,7 @@ def arena.inductives.native_install.ctor_name_seen
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::native_install::ctor_names_nodup]:
-    Source: 'crates/con-ron-core/src/arena/inductives/native_install.rs', lines 1609:0-1617:1
+    Source: 'crates/con-ron-core/src/arena/inductives/native_install.rs', lines 1613:0-1621:1
     Visibility: public -/
 def arena.inductives.native_install.ctor_names_nodup
   (ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) (i : Std.Usize) :
@@ -41717,7 +41717,7 @@ def arena.core.flush_caches
   ok { st with caches := c }
 
 /-- [con_ron_core::arena::inductives::native_install::check_native_tail_install]:
-    Source: 'crates/con-ron-core/src/arena/inductives/native_install.rs', lines 1507:0-1550:1
+    Source: 'crates/con-ron-core/src/arena/inductives/native_install.rs', lines 1511:0-1554:1
     Visibility: public -/
 def arena.inductives.native_install.check_native_tail_install
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -42734,7 +42734,7 @@ def arena.inductives.native_install.M_TAIL_KINDS : Array Std.U32 25#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::native_install::check_native_tail_kinds]:
-    Source: 'crates/con-ron-core/src/arena/inductives/native_install.rs', lines 1439:0-1499:1
+    Source: 'crates/con-ron-core/src/arena/inductives/native_install.rs', lines 1439:0-1503:1
     Visibility: public -/
 def arena.inductives.native_install.check_native_tail_kinds
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -42748,8 +42748,8 @@ def arena.inductives.native_install.check_native_tail_kinds
   let lps ← arena.env.nidx_vec_dup q.p.shape.cv_t.level_params
   let i ← q.env1.visible_below - 1#u64
   let (fields, st1) ←
-    arena.inductives.native_install.native_fields_ok pers q.env1.visible_below
-      st { q.env1 with visible_below := i } t lps q.p.shape.n_p q.p.shape.n_idx
+    arena.inductives.native_install.native_fields_ok pers i st
+      { q.env1 with visible_below := i } t lps q.p.shape.n_p q.p.shape.n_idx
       q.ctors_a q.p.kinds
   match fields with
   | core.result.Result.Ok b =>
@@ -45450,7 +45450,7 @@ def arena.env.ifenv_row
   | some _ => ok o
 
 /-- [con_ron_core::arena::inductives::native_install::check_native]:
-    Source: 'crates/con-ron-core/src/arena/inductives/native_install.rs', lines 1559:0-1604:1
+    Source: 'crates/con-ron-core/src/arena/inductives/native_install.rs', lines 1563:0-1608:1
     Visibility: public -/
 def arena.inductives.native_install.check_native
   (pers : arena.store.PersTier) (st : arena.monad.AState)
