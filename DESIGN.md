@@ -61465,7 +61465,8 @@ statements.
 
 **Frontier** (`model_exists` + `no_False_declaration`), after this slice
 (before the `arena` merge): 33 items / 293 tainted / dead weight 286 (slice 1
-landed state: 37 / 248 / 343).  The lane's four files have **no frontier item
+landed state: 37 / 248 / 343); **after merging `arena`** (`20d02fa8`)
+29 / 285 / 206.  `scripts/gates.sh`: all 16 OK (`LAKE_JOBS=4`).  The lane's four files have **no frontier item
 and one dead-weight `sorry`**: `div_mod_attempt_reason_refines` (a message
 string, tactic limit 1).  Every remaining `sorryAx` below the lane's gates is
 `Checker/Canon.lean`'s `i_constant_info_beq_refines` (now fan-in 28; that file
