@@ -1847,11 +1847,11 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
     | defnInfo vB eB hB =>
       obtain ⟨yV, yE, rfl, hyV, hyE⟩ := denoteCI_defn_inv hci'
-      obtain ⟨b1, s1, g1, k1⟩ := AM.bind_ok hrun
-      obtain ⟨hok1, hx1, hca1, hp1, he1⟩ := IConstantVal.canonEq_run hok hxV hyV g1
-      rw [ConLeche.ConstantVal.canonEq_eq_canonEqFast] at he1
-      rcases AM.ite_ok k1 with ⟨hc1, k2⟩ | ⟨hc1, k2⟩
-      · rcases AM.ite_ok k2 with ⟨hch, k3⟩ | ⟨hch, k3⟩
+      rcases AM.ite_ok hrun with ⟨hch, k1⟩ | ⟨hch, k1⟩
+      · obtain ⟨b1, s1, g1, k2⟩ := AM.bind_ok k1
+        obtain ⟨hok1, hx1, hca1, hp1, he1⟩ := IConstantVal.canonEq_run hok hxV hyV g1
+        rw [ConLeche.ConstantVal.canonEq_eq_canonEqFast] at he1
+        rcases AM.ite_ok k2 with ⟨hc1, k3⟩ | ⟨hc1, k3⟩
         · obtain ⟨cs, s2, g2, k9⟩ := AM.bind_ok k3
           obtain ⟨hok2, hx2, hca2, hp2, hcsd⟩ := canonNames_run hok1 g2
           obtain ⟨-, hlpsA, -⟩ := denoteCV_inv hxV
@@ -1889,14 +1889,14 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
         · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
           refine ⟨hok1, hx1, hca1, hp1, ?_⟩
           rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
+          have hbad : ConLeche.ConstantVal.canonEqFast xV yV = false := by
+            rw [← he1]; simpa using hc1
+          simp only [ConLeche.ConstantInfo.canonEqFast, hbad, Bool.false_and]
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k1
+        exact ⟨hok, Ext.refl _, rfl, rfl, by
+          rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
           have hbad : (hA == hB) = false := by simpa using hch
-          simp only [ConLeche.ConstantInfo.canonEqFast, hbad, Bool.and_false]
-      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
-        refine ⟨hok1, hx1, hca1, hp1, ?_⟩
-        rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
-        have hbad : ConLeche.ConstantVal.canonEqFast xV yV = false := by
-          rw [← he1]; simpa using hc1
-        simp only [ConLeche.ConstantInfo.canonEqFast, hbad, Bool.false_and]
+          simp only [ConLeche.ConstantInfo.canonEqFast, hbad, Bool.and_false]⟩
     | thmInfo vB eB =>
       obtain ⟨yV, yE, rfl, hyV, hyE⟩ := denoteCI_thm_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
