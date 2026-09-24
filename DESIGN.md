@@ -61937,3 +61937,56 @@ The Capstone's top item is now `ifenvRel_envWF_promote` (fan-in 8), then
 Gates: `scripts/gates.sh` on `dfdd3dc5` (arena `70ea5a33` merged): **all 16
 OK** (`extract-check` 115 s).  `lake build ConRonRefine2 ConRonCapstone` green
 (2 833 jobs).
+
+#### 8. The bounce: merged with arena `4cd871a8` and `5e671407`
+
+The queue bounced `cd83a32d` (the tactic owner's rounds 2–4, the Checker
+DeclCheck and Inductives Modeled lanes and ExprOps slice 2 had landed).  One
+tactic, both lanes' tests kept:
+
+* **`Tactic/Lockstep.lean`, three conflicts.**  `specCore`'s twin-only DATA
+  arguments: the tactic owner's mechanism (defer to the `x' = x` check) kept,
+  this branch's `isProp` skip dropped.  `rustStep`'s `twin_bind_pure`
+  fallback: ONE guard, the owner's atomic version, extended by this branch's
+  twin-`pure` case (no partner action; `twin_pure_bind` unwraps it again).
+  `coreMove`'s `LSS.bind`: this branch's reading of the rebuilt state, passing
+  the owner's `after` (the `x' = x` check) to `specCore`.
+* **One new core commit, `e11a8ade`** (`simpTwinEqs`): a `TwinEq`'s left side
+  is also offered in its `lockstep_simp` normal form, and so is its scalar
+  respelling.  The ExprOps lane registered `absEIdxList`, `absLevels`,
+  `absNames`, `absPwOpt`, `absBinderMeta` and `↑0#usize = 0` globally; the
+  set rewrites the twin's subterms before a rule sees the enclosing term, so
+  every `TwinEq` stated at the folded spelling had stopped firing (Iota's
+  `major_to_ctor`/`iota_rec_at`, among others).  Two sites predating it keep a
+  local `[-lockstep_simp]` (Leaves' `lvls_eq`, Annotate's
+  `annotate_binders_out`).
+* **The Core regions' `lockstep_simp` rules are `scoped` now**
+  (`ConRon.Refine2.Lockstep[.PX].CoreLSReg`, `open scoped` in every Core
+  file, `local` inside the defining file).  Since the Checker DeclCheck lane
+  imports the knot, Checker and Frontend proofs saw every region rule
+  (`List.isEmpty_iff`, the `==`-as-`decide` set, …) and eight of them broke.
+  A region's rewrite is the region's business: this is the rule for new
+  regions too.
+* **The owner's new twin-`match` move** (a stuck twin `match` on a term is
+  cased on it, the first non-constructor field of a constructor application)
+  now runs where region glue used to take over: Lits' level-parameter glue
+  runs before it (`lockstep_lp`), Iota's and Shapes' twin-read rewrites come
+  before the shared step, and Lits' `.bvar 0` branches are closed by the
+  index's value.
+* Shared prims that now exist on arena: `view_ls`/`view_bind_ls` carry the WF
+  conjunct (the regions' WF variants read `.2`); `absEIdxArr_getElem`,
+  `const_e_ls` (Checker/Pins) — the region copies dropped or moved into their
+  region namespace; `Certs`/`Iota` take their own `take_eidx_n` pair (a list
+  `take`) over the shared `Arr`-form one.
+* `IFEnvRel`'s new fields at the new producer `Inductives/PrimsModeled`'s
+  `ifenv_dup_rel` — both PROVED (the copy keeps each constant's zero-ness
+  datum, `sortZOf`, and its name).
+* `Checker/Base.lean`: this branch's `@[lockstep]` block dropped (arena has
+  it); `IFEnvRelI.restrict` builds the two fields.
+
+Frontier after the bounce: `knotRel_checkFuel'` **1** item (`exprOpsHyp`),
+dead weight 218; the Capstone roots 23 items / 281 tainted / dead weight 198
+(the other lanes' landings).
+
+Gates on `a7531cb7` (arena `5e671407` merged): **all 16 OK** (`extract-check`
+85 s); `lake build ConRonRefine2 ConRonCapstone` green.
