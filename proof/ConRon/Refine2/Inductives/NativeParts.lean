@@ -1119,9 +1119,9 @@ open Lockstep in
 
 /-- The callers' `idx.mapM (structIdxAt …)` IS the transcription the port's
 cursor twins. -/
-@[lockstep_simp] theorem mapM_structIdxAt_eq (nF o i l m : Nat) (xs : List EIdx) :
+theorem mapM_structIdxAt_eq (nF o i l m : Nat) (xs : List EIdx) :
     xs.mapM (fun e => structIdxAt nF o i l m e) = structIdxListSpec nF o i l m xs :=
-  list_mapM_counted _ _ rfl (fun _ _ => rfl) xs
+  list_mapM_counted _ (structIdxListSpec nF o i l m) rfl (fun _ _ => rfl) xs
 
 open Lockstep in
 /-- `struct_idx_list` from `0` with an empty accumulator (the callers' form). -/
@@ -1151,6 +1151,7 @@ theorem struct_ih_app_refines {pers st lst} {rec_c : arena.handle.NIdx}
   refine Lockstep.LS.toSim₀ ?_ hrun
   clear hrun
   rw [arena.inductives.native_parts.struct_ih_app, structIhApp]
+  simp only [mapM_structIdxAt_eq]
   lockstep
 
 open Lockstep in
@@ -1226,6 +1227,32 @@ open Lockstep in
           (ConRon.Refine.absPropWhen pw) (absU n_p) (absU n) (absU n_f)
           (absEIdx cty) (absNatLFrom rec_idx k)))) :=
   LS.ofSim₀ fun _ h => struct_ih_list_refines hrel hinv h
+
+/-- The callers' `recIdx.mapM (fun i => structIhApp …)` IS `structIhListSpec`. -/
+theorem mapM_structIhApp_eq (recC : NIdx) (rlvls : LsIdx)
+    (pw : ConLeche.PropWhen) (nP n nF : Nat) (cty : EIdx) (is : List Nat) :
+    is.mapM (fun i => do
+      structIhApp recC rlvls pw nP n nF i (← structFieldTeleOf cty nP nF i)
+        (← structFieldIdxOf cty nP nF i)) =
+      structIhListSpec recC rlvls pw nP n nF cty is := by
+  refine list_mapM_counted _ (structIhListSpec recC rlvls pw nP n nF cty) rfl ?_ is
+  intro a l
+  rw [structIhListSpec]
+  simp only [bind_assoc]
+
+open Lockstep in
+/-- `struct_ih_list` from `0` with an empty accumulator (the callers' form). -/
+@[lockstep] theorem struct_ih_list_twin0 {pers st lst} {rec_c : arena.handle.NIdx}
+    {rlvls : arena.handle.LsIdx} {pw : kernel.prop_when.PropWhen}
+    {n_p n n_f : Std.U64} {rec_idx : alloc.vec.Vec Std.U64} {cty : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdxL a)
+      (arena.inductives.native_parts.struct_ih_list pers st rec_c rlvls pw n_p n n_f rec_idx cty
+        0#usize (alloc.vec.Vec.new arena.handle.EIdx)) lst
+      (structIhListSpec (absNIdx rec_c) (absLsIdx rlvls) (ConRon.Refine.absPropWhen pw)
+        (absU n_p) (absU n) (absU n_f) (absEIdx cty) (absNatL rec_idx)) := by
+  refine LS.twin_eq (struct_ih_list_ls hrel hinv) ?_
+  simp [absNatLFrom, absNatL, absEIdxL, alloc.vec.Vec.new]
 
 /-- `struct_rule_body_r` ⊑ `structRuleBodyR`. -/
 theorem struct_rule_body_r_refines {pers st lst} {rec_c : arena.handle.NIdx}
@@ -1373,6 +1400,23 @@ open Lockstep in
       (do pure (absEIdxL out ++
         (← liftListSpec (absU amount) (absU c) (absEIdxLFrom xs i)))) :=
   LS.ofSim₀ fun _ h => lift_list_refines hrel hinv h
+
+/-- The callers' `xs.mapM (liftLooseBVarsFast …)` IS `liftListSpec`. -/
+theorem mapM_liftLooseBVarsFast_eq (a c : Nat) (xs : List EIdx) :
+    xs.mapM (fun e => liftLooseBVarsFast coreWalkFuel a c e) = liftListSpec a c xs :=
+  list_mapM_counted _ (liftListSpec a c) rfl (fun _ _ => rfl) xs
+
+open Lockstep in
+/-- `lift_list` from `0` with an empty accumulator (the callers' form). -/
+@[lockstep] theorem lift_list_twin0 {pers st lst} {amount c : Std.U64}
+    {xs : alloc.vec.Vec arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdxL a)
+      (arena.inductives.native_parts.lift_list pers st amount c xs 0#usize
+        (alloc.vec.Vec.new arena.handle.EIdx)) lst
+      (liftListSpec (absU amount) (absU c) (absEIdxL xs)) := by
+  refine LS.twin_eq (lift_list_ls hrel hinv) ?_
+  simp [absEIdxLFrom, absEIdxL, alloc.vec.Vec.new]
 
 /-- `struct_minor_ty_close` ⊑ `structMinorTyR`'s closing stage. -/
 theorem struct_minor_ty_close_refines {pers st lst} {n_f ofs n_p : Std.U64}
