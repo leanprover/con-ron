@@ -63824,6 +63824,80 @@ Left alone as instructed: README.md's "up to 1.6× wall time" sentence is
 now stale against this table (maintainer's text), and
 `scripts/bench-baselines.sh`'s 2.6 GB `Init` cap (above) wants a ruling.
 The scratch `_tmp/remeasure/` is deleted.
+
+### Task #97-PERF-BULKFILL — `allocate_slots` is one `Vec::resize` (2026-09-24, Opus under Fable)
+
+Task #97-PERF-FRESH §3.2's deferred optimisation, landed.  Worktree
+`_tmp/wt-bulkfill` off `arena` `c6e5f220`.
+
+**The Rust** (`ron/hashmap2.rs`).  `HashMap2::allocate_slots` was a halving
+recursion with a leaf of eight pushes (task #97-P6-7), priced at ~15
+instructions a slot.  It is now
+
+```rust
+let len: usize = slots.len() + n;
+slots.resize(len, Slot::Vacant);
+slots
+```
+
+`Vec::resize` is modelled by Aeneas (`alloc.vec.Vec.resize`, `resize_spec`),
+so this adds no hole.  What it asks for is `Clone` on the element type, and
+three of the map's key/value types have no `Dup` — so the new
+`impl<K, V> core::clone::Clone for Slot<K, V>` is **the filler copy only**: it
+answers `Vacant` for every slot, a `Live` one included, needs no bound on `K`
+or `V`, and its doc comment says nothing but `allocate_slots` may call it
+(`dup_slot` stays the real copy).  An explicit impl, no `#[derive]`, like
+`IConstantInfo`'s (§3.4).  It sits after the `HashMap2` struct so that
+`Generated/Types.lean` does not move; `Generated/Funs.lean` does.  The
+`resize_with(…, || Slot::Vacant)` #97-PERF-FRESH measured is the same fill
+but needs a closure (§3.4).  Three comments that said "halving, as
+`allocate_slots` is" now point at `vacate_slots`.
+
+**The proof.**  No twin is involved: `HashMap2` is arena infrastructure
+specified against the abstract map, and `allocate_slots` reaches the rest of
+the development only through `Refine/HashMap2.lean`'s `allocate_slots_spec`
+(`slots'.val = slots.val ++ replicate n Vacant`).  Its statement is kept, less
+the strong-induction index `N`; the proof is now `resize_spec` (whose side
+condition `clone Vacant = ok Vacant` is `rfl`) plus `List.resize`'s
+definition, no induction.  The one caller (`new_with_capacity_pow2_spec`) drops
+the two index arguments.  Nothing in `Bridge/**` or `Refine2/**` mentions it,
+and nothing there needed repair.  No new `sorry`, no new invariant.
+
+**Measured on `Init`** (`--verified --jobs=1 _tmp/corpus/init.ndjson`, release
+profile, `timeout 900`, `ulimit -v 8388608`, `perf stat -e
+instructions:u,cycles:u`; one run each, per the maintainer — instruction
+counts are stable):
+
+| binary | `instructions:u` | accepts |
+|---|---:|---:|
+| `arena` `c6e5f220` | 211 975 992 548 | 57 977 |
+| bulk fill | 209 554 519 699 | 57 977 |
+
+**−2.42 G (−1.14 %)**, a little more than #97-PERF-FRESH's −1.06 % for
+`resize_with`.  Peak RSS (`time -v`): 541–642 MB across four runs of the two
+binaries, with no ordering between them — the fill does not change what is
+allocated, only how it is written, so no change was expected and none is
+visible above that noise.  `cycles:u` is not reported (shared machine).
+
+**Ruling round (coordinator): `resize_with` instead?**  Asked to replace the
+filler-only `Clone` with `slots.resize_with(len, || Slot::Vacant)` if that
+extracts.  It does not without a new hole: Aeneas's library models
+`Vec::resize` but not `Vec::resize_with` (nor any `FnMut`-taking `Vec`
+method), and `scripts/extract.sh --check` on that body fails with
+`FunsExternal.lean does not model the external
+"alloc::vec::{alloc::vec::Vec<@T>}::resize_with"`.  (It would also be the
+first closure in the core; the lint's closure pattern does not see `||`.)  So
+the `Clone` version stays, with a guard against it being used as a copy:
+`scripts/lint-rust-style.sh`'s new `check_slot_clone`.  `Slot` values exist only
+inside `ron/hashmap2.rs` (`HashMap2::slots` is private, no `pub fn` returns a
+slot; `Slot` is `pub` only for `examples/map_bench.rs`'s `size_of`), so the
+check fails (1) any other core file that names `Slot`, and (2) any
+`.clone()`, `Clone::clone`, `.resize(`, `extend_from_slice`, `to_vec` or
+`vec![` in `hashmap2.rs` other than `allocate_slots`' own
+`slots.resize(len, Slot::Vacant);`.  Tested both ways: a `s.clone()` and a
+`to_vec()` on slots inside `hashmap2.rs`, and a `use …::hashmap2::Slot` in
+`hashmap.rs`, each fail it.  The impl's doc comment names the check (same line
+count, so the model is unchanged: `extract --check` OK).
 ### Task #97-T2-UNWORKAROUND — the local tactic workarounds round 3 subsumes, removed (2026-09-24, Opus under Fable)
 
 Worktree `_tmp/wt-unwork`, branch `t2-unwork` off `arena` `c6e5f220`,
