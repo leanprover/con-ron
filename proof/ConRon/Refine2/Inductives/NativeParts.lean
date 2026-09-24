@@ -1743,7 +1743,11 @@ theorem struct_rec_ty_close_refines {pers st lst}
       (structRecTyCloseSpec (absNIdxL lps) (absU n_p) (absU n_idx) (absEIdx tty)
         (absCtors4L ctors) (ConRon.Refine.absPropWhen pw) (absU n) (absEIdx q2)
         (absEIdx motive_ty) (absEIdx major_body)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.struct_rec_ty_close, structRecTyCloseSpec]
+  simp only [structMinorsPisR_eq]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_rec_ty_close_ls
