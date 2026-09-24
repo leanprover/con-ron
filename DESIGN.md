@@ -63735,3 +63735,75 @@ three `con-ron.rs` anchors moved by two (`overview-links.sh --update`).
 After: all 16 gates green, both capstone roots at `[propext,
 Classical.choice, Quot.sound]` (`Capstone.lean`'s `#guard_msgs`), frontier
 0 items / 0 dead weight.
+
+### Task #97-T2-UNWORKAROUND — the local tactic workarounds round 3 subsumes, removed (2026-09-24, Opus under Fable)
+
+Worktree `_tmp/wt-unwork`, branch `t2-unwork` off `arena` `c6e5f220`,
+fast-forwarded to `39b3651d` (tactic round 3) while it sat in the queue,
+`arena` merged at the end.  Proof-only: no statement, twin or Rust changed.
+Each workaround below was removed and the module rebuilt; it is kept only
+where the proof then failed (or, once, where it was dearer), with the reason.
+
+#### The tactic owner's list
+
+| site | workaround | result |
+|---|---|---|
+| `NativeInstall` `native_fields_at_refines` step, `check_native_tail_install_refines`, `check_native_tail_kinds_refines` | `dsimp only` before `lockstep` | **removed** (item 1) |
+| `NativeInstall` `mentions_fvar_go_aux` | `dsimp only; simp only [bind_assoc]` in the probe loop | **removed** |
+| `NativeInstall` (file-wide) / `check_native_rec_ty_refines` / `check_native_tail_install_refines` | `attribute [local irreducible] Arena.isDefEqCore …` / `… structRecTyR` / `… checkNativeTable sumRules` | **all removed** (item 7) |
+| `NativeParts` `mapM_structIdxAt_eq`, `mapM_structIhApp_eq`, `mapM_liftLooseBVarsFast_eq` | `simp only [mapM_…]` before `lockstep` | **kept**: tagged `@[lockstep_congr_simp]` the congruence check fails — the twin's argument is `(absBinderL tele).length` where the port's is a length `a` with `hP : ↑a = ↑tele.len`, and `lockstep_congr`'s `simp only [lockstep_simp, lockstep_congr_simp]; done` does not use context facts |
+| `NativeParts` `mapM_structIhApp_eq`, `native_rules_ok_from_refines` | `simp only [bind_assoc]` ("1283, 2529") | **kept**: not before a `lockstep` — both are in hand equational proofs (`list_mapM_counted`, the `allM` unfolding), which need them |
+| `NativeParts` `native_rules_ok_from_refines` | `maxHeartbeats 400000` | **removed** (item 7) |
+| `NativeParts` `native_rules_ok_refines` | `dsimp only` before `lockstep` | **removed** |
+| `Shape` | `let_pair_dup2_eq`, `ind_dom_finish`'s two `hf` alternatives | **removed** (item 3; no caller keeps `hf`) |
+| `StructInstall` / `SumInstall` | `attribute [local irreducible] Arena.isDefEqCore …` | **removed** (item 7) |
+| `StructInstall` `check_struct_doms_at_refines` | `maxHeartbeats 1000000` | **kept**: times out at the default |
+| `SumInstall` `whnf_telescope_aux` | `simp only [bind_assoc]` / `[bind_assoc, pure_bind]` | **removed** ((b)) |
+| `PrimsModeled` | `pair_let_eq2`, `ind_eq2_facts` (and its two uses in `Modeled`) | **removed** (item 3) |
+| `PrimsModeled` | `Lockstep.IndModWF` and its `open` in `ind_block_caps_refines` | **removed** (item 5; `if_all_zero_new_twin` carries the WF) |
+| `PrimsModeled` | local `lockstep_mod`/`ind_twin_split`/`lockstep_ite` | none left (gone since `c22876de`) |
+| `StructParts` `structPartsCoreAtSpec_nested` | tests in the `decide`/`=` form | **kept**: the `==` form PROVES (item 2 works) but costs +38 G instructions, +23 % of the module (`lockstep_side_test`'s normalisation at each of the three tests) |
+| `Modeled` `eq_app3_ls` | the `[lv]` closers | **kept**: both leaf goals (the port's `len == 1` against the twin's `match … with [lv]`) remain after `lockstep`, and each of the four alternatives closes one branch |
+| `StructParts` `has_loose_bvar_b_go_aux` | the hand probe finish | **removed** ((8)) |
+| `Shape` `WOutRel` | `abbrev` | **now `@[lockstep_rel] def`** ((9)) |
+
+#### Step 0 — the rest of `Refine2/**` (not `Core/**`, not `Checker/Base.lean`: concurrent lanes)
+
+* **Removed**: `simp only [bind_assoc, pure_bind]` (or `[bind_assoc]`)
+  before `lockstep` in 16 more cursor steps (`Modeled` ×7, `SumInstall` ×4
+  — two reduced to the `zipFvarDoms`/`sumRules` unfold —, `NativeInstall`
+  `check_native_rules_aux`, `StructInstall` `fvar_type_ds_aux`,
+  `StructParts` `struct_used_later_list`, `PrimsModeled`, `Checker/DeclCheck`
+  `cert_ctx_nums`/`cert_ctx_bool` (the spec unfold kept)); `[bind_assoc,
+  am_ite_bind, am_fail_bind]` in `check_reduce_pin`/`check_div_mod_pin`;
+  `Checker/Top`'s four `simp only [pure_bind(, am_fail_bind)]`.
+  `maxHeartbeats`: `SumInstall` `check_struct_field_sorts_i`, `NativeInstall`
+  `check_native_rec_defeq`/`check_native`, `Checker/Axioms`
+  `erase_pw_eq_node_of`, `Checker/Canon` `canon_expr_eq_node_of`,
+  `Checker/DeclCheck` `nat_op_deps`/`nat_op_equations`/`nat_op_guard_aux`,
+  `Frontend/Scan/Ind`'s three loop lemmas.  `Shape`'s `IndSide` side
+  alternative for a `nidx_vec_beq_ls` list equality in `decide` form
+  (round 3's `lockstep_side_test` does it).
+* **Kept**: `Checker/Canon` `canon_names_go`'s `simp only [bind_assoc,
+  pure_bind]` (without it `lockstep` hits the heartbeat limit in `whnf`);
+  `Checker/Axioms` `quot_pin_hit`'s `lockstep.twinSplit true` (the bound
+  `dite` must be split); `maxHeartbeats` of `Checker/PinsWF` (the `E`
+  dispatch), `Frontend/Scan/Kit` `key_at`, `Frontend/Scan/Str`
+  `utf8_decode`, `Frontend/ProjRec` (all time out at the default; not
+  `lockstep` limits).  The other `lockstep_side_ext` extensions are
+  lane-specific facts (`checker_env_facts`, `IFEnv.restrictTo`, `TeleWF`,
+  `take_eidx_n`, `Option.isSome`), not core duplicates.
+* **Not attempted**: `Core/LS/*`'s heartbeat bumps, `Checker/Base.lean`
+  (owned by the concurrent `t2-bulkfill`/`t2-walkmemo` lanes).
+
+#### Cost
+
+`perf stat -e instructions:u,cycles:u` of `lake build ConRonRefine2`
+(`LAKE_JOBS=4`, `LEAN_NUM_THREADS=4`), the 13 touched files at `39b3651d`
+(before) or at this branch (after), a comment appended to each, runs
+alternating so that everything downstream re-elaborates each time (a
+trailing comment leaves the `.olean` unchanged, so a run after an identical
+state rebuilds only the touched modules — one such run, 3 682 G, is not
+comparable and is discarded): **before 4 602 G (three runs, ±0.01 %),
+after 4 579 G (−0.5 %)**; with the `==` tests of `structPartsCoreAtSpec_nested`
+restored the after was 4 618 G (two runs), hence that row's "kept".
