@@ -63467,26 +63467,8 @@ def arena.checker.check_pending_list
     | core.result.Result.Err e => ok (core.result.Result.Err (e, pc.pos), st1)
 partial_fixpoint
 
-/-- [con_ron_core::arena::checker::thaw_tier]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1424:0-1426:1
-    Visibility: public -/
-def arena.checker.thaw_tier
-  (ar : arena.store.EStore) (tier : arena.store.PersTier) :
-  Result arena.store.EStore
-  := do
-  arena.store.EStore.thaw ar tier
-
-/-- [con_ron_core::arena::checker::freeze_tier]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1412:0-1414:1
-    Visibility: public -/
-def arena.checker.freeze_tier
-  (ar : arena.store.EStore) :
-  Result (arena.store.PersTier × arena.store.EStore)
-  := do
-  arena.store.EStore.freeze ar
-
 /-- [con_ron_core::arena::checker::install_then_check]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1298:0-1326:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1302:0-1334:1
     Visibility: public -/
 def arena.checker.install_then_check
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -63503,21 +63485,25 @@ def arena.checker.install_then_check
       arena.checker.PendingCheck) ds 0#usize
   match r with
   | core.result.Result.Ok p =>
-    let (tier, e) ← arena.checker.freeze_tier st1.store
     let (_, i2, v) := p
-    let (r1, st2) ←
-      arena.checker.check_pending_list tier { st1 with store := e } mode i2 v
-        0#usize
-    let e1 ← arena.checker.thaw_tier st2.store tier
-    match r1 with
-    | core.result.Result.Ok _ =>
-      ok (core.result.Result.Ok i2, { st2 with store := e1 })
-    | core.result.Result.Err e2 =>
-      ok (core.result.Result.Err e2, { st2 with store := e1 })
+    let i3 := alloc.vec.Vec.len v
+    if i3 = 0#usize
+    then ok (core.result.Result.Ok i2, st1)
+    else
+      let (tier, e) ← arena.store.EStore.freeze st1.store
+      let (r1, st2) ←
+        arena.checker.check_pending_list tier { st1 with store := e } mode i2 v
+          0#usize
+      let e1 ← arena.store.EStore.thaw st2.store tier
+      match r1 with
+      | core.result.Result.Ok _ =>
+        ok (core.result.Result.Ok i2, { st2 with store := e1 })
+      | core.result.Result.Err e2 =>
+        ok (core.result.Result.Err e2, { st2 with store := e1 })
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::annot_fold_hooked]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1370:0-1389:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1378:0-1397:1
     Visibility: public -/
 def arena.checker.annot_fold_hooked
   {H : Type} (InstallHookInst : arena.checker.InstallHook H)
@@ -63551,7 +63537,7 @@ def arena.checker.annot_fold_hooked
 partial_fixpoint
 
 /-- [con_ron_core::arena::checker::fold_start]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1396:0-1398:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1404:0-1406:1
     Visibility: public -/
 def arena.checker.fold_start
   :
@@ -63562,8 +63548,68 @@ def arena.checker.fold_start
   let i1 ← arena.env.mk_ifenv i
   ok (0#u64, i1, alloc.vec.Vec.new arena.checker.PendingCheck)
 
+/-- [con_ron_core::arena::checker::freeze_tier]:
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1419:0-1431:1
+    Visibility: public -/
+def arena.checker.freeze_tier
+  (ar : arena.store.EStore) :
+  Result (arena.store.PersTier × arena.store.EStore)
+  := do
+  let n ← arena.store.NTables.empty
+  let (n1, n2) := core.mem.replace ar.lss.ls.ns.pers n
+  let l ← arena.store.LTables.empty
+  let (l1, l2) := core.mem.replace ar.lss.ls.pers l
+  let lt ← arena.store.LsTables.empty
+  let (ls, lt1) := core.mem.replace ar.lss.pers lt
+  let e ← arena.store.ETables.empty
+  let (e1, e2) := core.mem.replace ar.pers e
+  ok ({ frozen := true, n := n1, l := l1, ls, e := e1 },
+    {
+      ar
+        with
+        lss :=
+          {
+            ar.lss
+              with
+              ls :=
+                {
+                  ar.lss.ls
+                    with
+                    ns := { ar.lss.ls.ns with pers := n2 }, pers := l2
+                },
+              pers := lt1
+          },
+        pers := e2
+    })
+
+/-- [con_ron_core::arena::checker::thaw_tier]:
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1440:0-1445:1
+    Visibility: public -/
+def arena.checker.thaw_tier
+  (ar : arena.store.EStore) (tier : arena.store.PersTier) :
+  Result arena.store.EStore
+  := do
+  ok
+    {
+      ar
+        with
+        lss :=
+          {
+            ar.lss
+              with
+              ls :=
+                {
+                  ar.lss.ls
+                    with
+                    ns := { ar.lss.ls.ns with pers := tier.n }, pers := tier.l
+                },
+              pers := tier.ls
+          },
+        pers := tier.e
+    }
+
 /-- [con_ron_core::arena::checker::pins_dup]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1433:0-1441:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1452:0-1460:1
     Visibility: public -/
 def arena.checker.pins_dup (p : arena.pins.Pins) : Result arena.pins.Pins := do
   let v ← arena.env.nidx_vec_dup p.names
@@ -63716,7 +63762,7 @@ def arena.monad.AState.init
   ok { store := st, memos := m, caches := c, pins := p }
 
 /-- [con_ron_core::arena::checker::worker_state]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1452:0-1456:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1471:0-1475:1
     Visibility: public -/
 def arena.checker.worker_state
   (pins : arena.pins.Pins) : Result arena.monad.AState := do
@@ -63726,7 +63772,7 @@ def arena.checker.worker_state
   ok { st with pins := p }
 
 /-- [con_ron_core::arena::checker::check_pending_worker]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1467:0-1476:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1486:0-1495:1
     Visibility: public -/
 def arena.checker.check_pending_worker
   (pers : arena.store.PersTier) (mode : kernel.env.CheckMode)
@@ -63739,7 +63785,7 @@ def arena.checker.check_pending_worker
   ok r
 
 /-- [con_ron_core::arena::checker::check_decls_phased]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1487:0-1507:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1506:0-1526:1
     Visibility: public -/
 def arena.checker.check_decls_phased
   {H : Type} (InstallHookInst : arena.checker.InstallHook H)
@@ -63768,7 +63814,7 @@ def arena.checker.check_decls_phased
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::cp_append]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1539:0-1547:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1558:0-1566:1
     Visibility: public -/
 def arena.checker.cp_append
   (out : alloc.vec.Vec Std.U32) (s : alloc.vec.Vec Std.U32) (i : Std.Usize) :
@@ -63786,7 +63832,7 @@ def arena.checker.cp_append
 partial_fixpoint
 
 /-- [con_ron_core::arena::checker::at_decl_text]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1529:0-1533:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1548:0-1552:1
     Visibility: public -/
 def arena.checker.at_decl_text
   (w : alloc.vec.Vec Std.U32) (n : Std.U64) :
@@ -63802,7 +63848,7 @@ def arena.checker.at_decl_text
   arena.checker.cp_append out1 v2 0#usize
 
 /-- [con_ron_core::arena::checker::at_decl]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1515:0-1522:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1534:0-1541:1
     Visibility: public -/
 def arena.checker.at_decl
   (e : kernel.core_types.CheckError) (n : Std.U64) :
@@ -63982,7 +64028,7 @@ def arena.nat_op_pin_set.intern_pin_sets
 partial_fixpoint
 
 /-- [con_ron_core::arena::checker::intern_all_names]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1704:0-1724:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1723:0-1743:1
     Visibility: public -/
 def arena.checker.intern_all_names
   (st : arena.monad.AState) :
@@ -64015,7 +64061,7 @@ def arena.checker.intern_all_names
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::checker::intern_all_reduce_pins]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1678:0-1699:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1697:0-1718:1
     Visibility: public -/
 def arena.checker.intern_all_reduce_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -64048,7 +64094,7 @@ def arena.checker.intern_all_reduce_pins
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::intern_all_trust_pins]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1659:0-1673:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1678:0-1692:1
     Visibility: public -/
 def arena.checker.intern_all_trust_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -64074,7 +64120,7 @@ def arena.checker.intern_all_trust_pins
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::intern_all_axiom_pins_rest]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1640:0-1654:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1659:0-1673:1
     Visibility: public -/
 def arena.checker.intern_all_axiom_pins_rest
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -64100,7 +64146,7 @@ def arena.checker.intern_all_axiom_pins_rest
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::intern_all_axiom_pins]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1621:0-1635:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1640:0-1654:1
     Visibility: public -/
 def arena.checker.intern_all_axiom_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -64126,7 +64172,7 @@ def arena.checker.intern_all_axiom_pins
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::checker::all_basis_kinds]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1605:0-1614:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1624:0-1633:1
     Visibility: public -/
 def arena.checker.all_basis_kinds
   : Result (alloc.vec.Vec kernel.env.BasisKind) := do
@@ -64139,7 +64185,7 @@ def arena.checker.all_basis_kinds
   alloc.vec.Vec.push ks5 kernel.env.BasisKind.QuotK
 
 /-- [con_ron_core::arena::checker::intern_all_basis]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1587:0-1600:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1606:0-1619:1
     Visibility: public -/
 def arena.checker.intern_all_basis
   (pers : arena.store.PersTier) (st : arena.monad.AState) (i : Std.Usize) :
@@ -64167,7 +64213,7 @@ def arena.checker.intern_all_basis
 partial_fixpoint
 
 /-- [con_ron_core::arena::checker::intern_all_pins]:
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1565:0-1580:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1584:0-1599:1
     Visibility: public -/
 def arena.checker.intern_all_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState)

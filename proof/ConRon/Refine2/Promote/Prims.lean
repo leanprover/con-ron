@@ -215,6 +215,200 @@ theorem usize_cast_u64_val (i : Std.Usize) : (UScalar.cast .U64 i).val = i.val :
   have := i.hBounds
   scalar_tac
 
+/-! ## A frozen state and its tier, read as ONE state (task #98-FREEZE)
+
+Promotion runs inside a declaration bracket: it READS the frozen state `st`
+(its scratch tier, and its persistent tables through the tier) and WRITES the
+tier `t` the bracket owns, through `&mut PersTier`.  The judgement it is
+proved in (`LST`) needs a state to relate at every step: `glue t st` is `st`
+with the tables it is read at through `t` put back as its own, read through
+any stand-in that is not `frozen` — the same data, so the relation and the
+reads are unchanged (`glue_rel`, `view_glue`).  It is a proof device: the
+Rust never builds it. -/
+
+/-- `st`'s store with the tables it is read at through `t` as its own. -/
+def glueE (t : arena.store.PersTier) (s : arena.store.EStore) : arena.store.EStore :=
+  { s with
+    lss := { s.lss with
+      ls := { s.lss.ls with
+        ns := { s.lss.ls.ns with pers := rPersN t s.lss.ls.ns },
+        pers := rPersL t s.lss.ls },
+      pers := rPersLs t s.lss },
+    pers := rPersE t s }
+
+/-- A frozen state and its tier, as one state. -/
+def glue (t : arena.store.PersTier) (st : arena.monad.AState) : arena.monad.AState :=
+  { st with store := glueE t st.store }
+
+/-- The four scratch tiers are on: a frozen store's shape (`StoreInv.frz`). -/
+def ScratchOn (s : arena.store.EStore) : Prop :=
+  s.scratch_on = true ∧ s.lss.scratch_on = true ∧ s.lss.ls.scratch_on = true ∧
+    s.lss.ls.ns.scratch_on = true
+
+theorem ScratchOn.of_inv {t : arena.store.PersTier} {st : arena.monad.AState}
+    (hinv : AStateInv t st) (ht : t.frozen = true) : ScratchOn st.store :=
+  ⟨hinv.store.frz ht, hinv.store.lss.frz ht, hinv.store.lss.lvl.frz ht,
+    hinv.store.lss.lvl.ns.frz ht⟩
+
+/-- **The glued state is related, through a stand-in, exactly as the frozen
+state is through its tier.** -/
+theorem glue_rel {P t : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+    (hP : P.frozen = false) : AStateRel₀ P (glue t st) lst ↔ AStateRel₀ t st lst := by
+  have hN : rPersN P (glueE t st.store).lss.ls.ns = rPersN t st.store.lss.ls.ns := by
+    simp [rPersN, glueE, hP]
+  have hL : rPersL P (glueE t st.store).lss.ls = rPersL t st.store.lss.ls := by
+    simp [rPersL, glueE, hP]
+  have hLs : rPersLs P (glueE t st.store).lss = rPersLs t st.store.lss := by
+    simp [rPersLs, glueE, hP]
+  have hE : rPersE P (glueE t st.store) = rPersE t st.store := by
+    simp [rPersE, glueE, hP]
+  constructor
+  · intro h
+    obtain ⟨⟨⟨⟨⟨np, ns, non⟩, lp, ls, lon⟩, lsp, lss, lson⟩, ep, es, eon⟩, m, c, pn⟩ := h
+    exact ⟨⟨⟨⟨⟨hN ▸ np, ns, non⟩, hL ▸ lp, ls, lon⟩, hLs ▸ lsp, lss, lson⟩, hE ▸ ep, es, eon⟩,
+      m, c, pn⟩
+  · intro h
+    obtain ⟨⟨⟨⟨⟨np, ns, non⟩, lp, ls, lon⟩, lsp, lss, lson⟩, ep, es, eon⟩, m, c, pn⟩ := h
+    exact ⟨⟨⟨⟨⟨hN ▸ np, ns, non⟩, hL ▸ lp, ls, lon⟩, hLs ▸ lsp, lss, lson⟩, hE ▸ ep, es, eon⟩,
+      m, c, pn⟩
+
+/-- **The invariant, likewise** — back from the glued state given the frozen
+store's scratch tiers on (its `frz` is then the frozen store's). -/
+theorem glue_inv {P t : arena.store.PersTier} {st : arena.monad.AState}
+    (hP : P.frozen = false) (hsc : ScratchOn st.store) :
+    AStateInv P (glue t st) ↔ AStateInv t st := by
+  have hN : rPersN P (glueE t st.store).lss.ls.ns = rPersN t st.store.lss.ls.ns := by
+    simp [rPersN, glueE, hP]
+  have hL : rPersL P (glueE t st.store).lss.ls = rPersL t st.store.lss.ls := by
+    simp [rPersL, glueE, hP]
+  have hLs : rPersLs P (glueE t st.store).lss = rPersLs t st.store.lss := by
+    simp [rPersLs, glueE, hP]
+  have hE : rPersE P (glueE t st.store) = rPersE t st.store := by
+    simp [rPersE, glueE, hP]
+  obtain ⟨s0, s1, s2, s3⟩ := hsc
+  have hoff : ∀ {b : Bool}, P.frozen = true → b = true := fun h => by
+    rw [hP] at h; cases h
+  constructor
+  · intro h
+    obtain ⟨⟨⟨⟨⟨np, ns, -⟩, lp, ls, -⟩, lsp, lss, -⟩, ep, es, -⟩, m, c⟩ := h
+    exact ⟨⟨⟨⟨⟨hN ▸ np, ns, fun _ => s3⟩, hL ▸ lp, ls, fun _ => s2⟩, hLs ▸ lsp, lss,
+      fun _ => s1⟩, hE ▸ ep, es, fun _ => s0⟩, m, c⟩
+  · intro h
+    obtain ⟨⟨⟨⟨⟨np, ns, -⟩, lp, ls, -⟩, lsp, lss, -⟩, ep, es, -⟩, m, c⟩ := h
+    exact ⟨⟨⟨⟨⟨hN ▸ np, ns, hoff⟩, hL ▸ lp, ls, hoff⟩, hLs ▸ lsp, lss, hoff⟩, hE ▸ ep, es,
+      hoff⟩, m, c⟩
+
+/-! ### The reads of a frozen state are the glued state's -/
+
+theorem view_n_glue {P t : arena.store.PersTier} {st : arena.monad.AState}
+    {h : arena.handle.NIdx} (hP : P.frozen = false) :
+    arena.monad.view_n t st h = arena.monad.view_n P (glue t st) h := by
+  simp only [arena.monad.view_n, arena.store.EStore.ns, arena.store.NStore.view,
+    arena.store.NStore.pers_get, glue, glueE, rPersN, hP]
+  cases t.frozen <;> simp
+
+theorem view_l_glue {P t : arena.store.PersTier} {st : arena.monad.AState}
+    {h : arena.handle.LIdx} (hP : P.frozen = false) :
+    arena.monad.view_l t st h = arena.monad.view_l P (glue t st) h := by
+  simp only [arena.monad.view_l, arena.store.EStore.ls, arena.store.LStore.view,
+    arena.store.LStore.pers_get, glue, glueE, rPersL, hP]
+  cases t.frozen <;> simp
+
+theorem view_ls_glue {P t : arena.store.PersTier} {st : arena.monad.AState}
+    {h : arena.handle.LsIdx} (hP : P.frozen = false) :
+    arena.monad.view_ls t st h = arena.monad.view_ls P (glue t st) h := by
+  simp only [arena.monad.view_ls, arena.store.EStore.ls_s, arena.store.LsStore.view,
+    arena.store.LsStore.pers_get, glue, glueE, rPersLs, hP]
+  cases t.frozen <;> simp
+
+theorem view_glue {P t : arena.store.PersTier} {st : arena.monad.AState}
+    {h : arena.handle.EIdx} (hP : P.frozen = false) :
+    arena.monad.view t st h = arena.monad.view P (glue t st) h := by
+  simp only [arena.monad.view, arena.store.EStore.view, arena.store.EStore.view_bind,
+    arena.store.EStore.view_bind_i, arena.store.EStore.view_bm,
+    arena.store.EStore.pers_get, arena.store.EStore.pers_get_bind,
+    arena.store.EStore.pers_get_bm, glue, glueE, rPersE, hP]
+  cases t.frozen <;> simp
+
+/-! ### A promote-intern keeps the tier frozen -/
+
+theorem intern_persistent_n_frozen {t st v r t'}
+    (h : arena.monad.intern_persistent_n t st v = ok (r, t')) : t'.frozen = t.frozen := by
+  rw [arena.monad.intern_persistent_n, arena.store.PersTier.intern_n] at h
+  repeat' (first
+    | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
+        _ ∧ _); rfl)
+    | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; try dsimp only at h)
+    | split at h)
+
+theorem intern_persistent_l_frozen {t st v r t'}
+    (h : arena.monad.intern_persistent_l t st v = ok (r, t')) : t'.frozen = t.frozen := by
+  rw [arena.monad.intern_persistent_l, arena.store.PersTier.intern_l] at h
+  repeat' (first
+    | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
+        _ ∧ _); rfl)
+    | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; try dsimp only at h)
+    | split at h)
+
+theorem intern_persistent_ls_frozen {t st v r t'}
+    (h : arena.monad.intern_persistent_ls t st v = ok (r, t')) : t'.frozen = t.frozen := by
+  rw [arena.monad.intern_persistent_ls, arena.store.PersTier.intern_ls] at h
+  repeat' (first
+    | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
+        _ ∧ _); rfl)
+    | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; try dsimp only at h)
+    | split at h)
+
+theorem pertier_intern_bm_frozen {t m r t'}
+    (h : arena.store.PersTier.intern_bm t m = ok (r, t')) : t'.frozen = t.frozen := by
+  rw [arena.store.PersTier.intern_bm] at h
+  repeat' (first
+    | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
+        _ ∧ _); rfl)
+    | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; try dsimp only at h)
+    | split at h)
+
+theorem pertier_intern_bm_of_view_frozen {t v r t'}
+    (h : arena.store.PersTier.intern_bm_of_view t v = ok (r, t')) : t'.frozen = t.frozen := by
+  cases v <;> simp only [arena.store.PersTier.intern_bm_of_view] at h <;>
+    first
+    | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+       first
+       | exact pertier_intern_bm_frozen h
+       | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
+            _ ∧ _); rfl))
+
+theorem intern_persistent_e_frozen {t st v r t'}
+    (h : arena.monad.intern_persistent_e t st v = ok (r, t')) : t'.frozen = t.frozen := by
+  rw [arena.monad.intern_persistent_e, arena.store.PersTier.intern_e] at h
+  obtain ⟨⟨r1, t1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h1f : t1.frozen = t.frozen := pertier_intern_bm_of_view_frozen h1
+  rw [← h1f]
+  clear h1
+  cases r1 with
+  | Err e =>
+    simp only [Aeneas.Std.uncurry, Result.ok.injEq, Prod.mk.injEq] at h
+    obtain ⟨-, rfl⟩ := h; rfl
+  | Ok mi =>
+    simp only [Aeneas.Std.uncurry] at h
+    obtain ⟨o, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases o with
+    | some i =>
+      simp only [Aeneas.Std.uncurry, Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨-, rfl⟩ := h; rfl
+    | none =>
+      simp only [Aeneas.Std.uncurry] at h
+      obtain ⟨b, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      split at h
+      · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        simp only [Aeneas.Std.uncurry, Result.ok.injEq, Prod.mk.injEq] at h
+        obtain ⟨-, rfl⟩ := h; rfl
+      · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨⟨_, _⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        simp only [Aeneas.Std.uncurry, Result.ok.injEq, Prod.mk.injEq] at h
+        obtain ⟨-, rfl⟩ := h; rfl
+
 namespace Lockstep
 
 /-! ## Conversions -/
@@ -338,31 +532,108 @@ theorem view_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
 
 attribute [lockstep_simp] absNNodeView absLNodeView absLsNodeView absLIdxL absNIdxL absEIdxL
 
-/-! ## The four persistent interns -/
+/-! ## The reads and the four persistent interns of a promotion
 
-@[lockstep] theorem intern_persistent_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (v : arena.store.ENodeView) (hvwf : ENodeViewWF v) :
-    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_persistent_e pers st v) lst
+Stated at the glued state, the reader a stand-in `P` (not `frozen`): the
+views read what the frozen state reads through its tier (`view_*_glue`), and
+a promote-intern grows the tier and keeps it frozen, so the relation after it
+is the glued state's at the grown tier (`LST`, the tier in the answer). -/
+
+@[lockstep] theorem view_n_glue_ls {P t st lst} (hP : P.frozen = false)
+    (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
+    (h : arena.handle.NIdx) :
+    LSR P (fun a b => b = absNNodeView a ∧ NNodeViewWF a) (arena.monad.view_n t st h)
+      (glue t st) lst (Arena.viewN (absNIdx h)) := by
+  rw [view_n_glue hP]; exact view_n_ls hrel hinv h
+
+@[lockstep] theorem view_l_glue_ls {P t st lst} (hP : P.frozen = false)
+    (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
+    (h : arena.handle.LIdx) :
+    LSR P (fun a b => b = absLNodeView a) (arena.monad.view_l t st h)
+      (glue t st) lst (Arena.viewL (absLIdx h)) := by
+  rw [view_l_glue hP]; exact view_l_ls hrel hinv h
+
+@[lockstep] theorem view_ls_glue_ls {P t st lst} (hP : P.frozen = false)
+    (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
+    (h : arena.handle.LsIdx) :
+    LSR P (fun a b => b = absLsNodeView a) (arena.monad.view_ls t st h)
+      (glue t st) lst (Arena.viewLs (absLsIdx h)) := by
+  rw [view_ls_glue hP]; exact view_lsv_ls hrel hinv h
+
+@[lockstep] theorem view_glue_ls {P t st lst} (hP : P.frozen = false)
+    (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
+    (h : arena.handle.EIdx) :
+    LSR P (fun a b => b = absENodeView a ∧ ENodeViewWF a) (arena.monad.view t st h)
+      (glue t st) lst (Arena.view (absEIdx h)) := by
+  rw [view_glue hP]; exact view_wf_ls hrel hinv h
+
+/-- One promote-intern, from its `run₀` at the frozen state and its tier. -/
+private theorem pint_lst {α β : Type} {A : α → β} {P t : arena.store.PersTier}
+    {st : arena.monad.AState} {lst : AState} {x : AM β}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
+    (hP : P.frozen = false) (ht : t.frozen = true) (hsc : ScratchOn st.store)
+    (hfr : ∀ r t', m = ok (r, t') → t'.frozen = t.frozen)
+    (hrun : ∀ r t', m = ok (r, t') → AOut₀ A t' r st (x.run lst)) :
+    LST P (fun p b => b = A p.1 ∧ p.2.frozen = true) (fun t' => glue t' st) m lst x := by
+  intro o st' hm
+  obtain ⟨⟨r, t'⟩, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  have hf : t'.frozen = true := (hfr r t' h1).trans ht
+  have h := hrun r t' h1
+  have h2' := Result.ok_injective h2
+  cases r with
+  | Err e =>
+    simp only [packTOut, Prod.mk.injEq] at h2'
+    obtain ⟨rfl, rfl⟩ := h2'
+    exact h
+  | Ok a =>
+    simp only [packTOut, Prod.mk.injEq] at h2'
+    obtain ⟨rfl, rfl⟩ := h2'
+    obtain ⟨lst', hx, h3, h4⟩ := h
+    exact ⟨A a, lst', hx, ⟨rfl, hf⟩, (glue_rel hP).mpr h3, (glue_inv hP hsc).mpr h4⟩
+
+@[lockstep] theorem intern_persistent_e_lst {P t st lst} (hP : P.frozen = false)
+    (ht : t.frozen = true) (hsc : ScratchOn st.store)
+    (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
+    (v : arena.store.ENodeView) (hvwf : ENodeViewWF v) :
+    LST P (fun p b => b = absEIdx p.1 ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.monad.intern_persistent_e t st v) lst
       (Arena.internPersistentE (absENodeView v)) :=
-  LS.ofSim₀ fun _ h => intern_persistent_e_run₀ hrel hinv v hvwf h
+  pint_lst hP ht hsc (fun _ _ h => intern_persistent_e_frozen h)
+    (fun _ _ h => intern_persistent_e_run₀ ((glue_rel hP).mp hrel)
+      ((glue_inv hP hsc).mp hinv) ht v hvwf h)
 
-@[lockstep] theorem intern_persistent_n_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (v : arena.store.NNodeView) (hvwf : NNodeViewWF v) :
-    LS pers (fun a b => b = absNIdx a) (arena.monad.intern_persistent_n pers st v) lst
+@[lockstep] theorem intern_persistent_n_lst {P t st lst} (hP : P.frozen = false)
+    (ht : t.frozen = true) (hsc : ScratchOn st.store)
+    (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
+    (v : arena.store.NNodeView) (hvwf : NNodeViewWF v) :
+    LST P (fun p b => b = absNIdx p.1 ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.monad.intern_persistent_n t st v) lst
       (Arena.internPersistentN (absNNodeView v)) :=
-  LS.ofSim₀ fun _ h => intern_persistent_n_run₀ hrel hinv v hvwf h
+  pint_lst hP ht hsc (fun _ _ h => intern_persistent_n_frozen h)
+    (fun _ _ h => intern_persistent_n_run₀ ((glue_rel hP).mp hrel)
+      ((glue_inv hP hsc).mp hinv) ht v hvwf h)
 
-@[lockstep] theorem intern_persistent_l_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (v : arena.store.LNodeView) :
-    LS pers (fun a b => b = absLIdx a) (arena.monad.intern_persistent_l pers st v) lst
+@[lockstep] theorem intern_persistent_l_lst {P t st lst} (hP : P.frozen = false)
+    (ht : t.frozen = true) (hsc : ScratchOn st.store)
+    (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
+    (v : arena.store.LNodeView) :
+    LST P (fun p b => b = absLIdx p.1 ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.monad.intern_persistent_l t st v) lst
       (Arena.internPersistentL (absLNodeView v)) :=
-  LS.ofSim₀ fun _ h => intern_persistent_l_run₀ hrel hinv v h
+  pint_lst hP ht hsc (fun _ _ h => intern_persistent_l_frozen h)
+    (fun _ _ h => intern_persistent_l_run₀ ((glue_rel hP).mp hrel)
+      ((glue_inv hP hsc).mp hinv) ht v h)
 
-@[lockstep] theorem intern_persistent_ls_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (v : alloc.vec.Vec arena.handle.LIdx) :
-    LS pers (fun a b => b = absLsIdx a) (arena.monad.intern_persistent_ls pers st v) lst
+@[lockstep] theorem intern_persistent_ls_lst {P t st lst} (hP : P.frozen = false)
+    (ht : t.frozen = true) (hsc : ScratchOn st.store)
+    (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
+    (v : alloc.vec.Vec arena.handle.LIdx) :
+    LST P (fun p b => b = absLsIdx p.1 ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.monad.intern_persistent_ls t st v) lst
       (Arena.internPersistentLs (absLsNodeView v)) :=
-  LS.ofSim₀ fun _ h => intern_persistent_ls_run₀ hrel hinv v h
+  pint_lst hP ht hsc (fun _ _ h => intern_persistent_ls_frozen h)
+    (fun _ _ h => intern_persistent_ls_run₀ ((glue_rel hP).mp hrel)
+      ((glue_inv hP hsc).mp hinv) ht v h)
 
 /-! ## Tier bits and `dup2` at the small handle kinds -/
 

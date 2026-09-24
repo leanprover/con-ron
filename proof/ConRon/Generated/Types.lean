@@ -1249,7 +1249,7 @@ structure arena.checker.PendingCheck where
   vis : Std.U64
 
 /-- Trait declaration: [con_ron_core::arena::checker::InstallHook]
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1356:0-1360:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1364:0-1368:1
     Visibility: public -/
 structure arena.checker.InstallHook (Self : Type) where
   install_before : Self → arena.store.PersTier → arena.store.EStore →

@@ -360,8 +360,9 @@ def InitRel : Prop :=
     AStateRel₀ pers st (ConRon.Arena.AState.init ConRon.Arena.EStore.empty) ∧
       AStateInv pers st
 
-theorem initRel : InitRel := fun _ _ _ _ hest hst =>
-  ⟨(init_rel hest hst).1, (init_rel hest hst).2.1⟩
+theorem initRel : InitRel := fun _ _ _ hpers hest hst =>
+  ⟨(init_rel (persTier_empty_frozen hpers) hest hst).1,
+    (init_rel (persTier_empty_frozen hpers) hest hst).2.1⟩
 
 /-- **The Rust pipeline, walked into the twin.**  Six accepting Rust runs from
 the driver's start state give six accepting twin runs from the twin's, at the
@@ -417,7 +418,9 @@ theorem rust_stages
       ConRon.Arena.PooledAccepts .verified (absINatOpPinSetL ipins)
           (absIDeclL ds).toArray sE lfe sF ∧
       AStateRel₀ pers st6 sF ∧ IFEnvRel fe lfe := by
-  obtain ⟨hrel0, hinv0, -⟩ := init_rel (pers := pers) hest hst0
+  -- the reader is an owned store's (task #98-FREEZE)
+  have hfz : pers.frozen = false := persTier_empty_frozen hpers
+  obtain ⟨hrel0, hinv0, -⟩ := init_rel (pers := pers) hfz hest hst0
   -- 1. the reserved pins
   obtain ⟨sA, hA, hrelA, hinvA⟩ :=
     (intern_reserved_pins_refines hrel0 hinv0 h1).dest
@@ -442,7 +445,7 @@ theorem rust_stages
       (ConRon.Refine.PinsWF.decode_wf_refine2 hdec) h5).dest
   -- 6. the fold, as the binary runs it, pool and all
   obtain ⟨lfe, sF, hF, hfe, hrelF⟩ := pool_accepts_refines (mode := .Verified) (ds := ds)
-    (pins := ipins) hrelE hinvE h6
+    (pins := ipins) hrelE hinvE hfz h6
   exact ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD', hE, hF, hrelF, hfe⟩
 
 end Rust

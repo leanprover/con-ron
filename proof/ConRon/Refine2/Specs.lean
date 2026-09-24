@@ -849,7 +849,7 @@ theorem etables_get_proj_abs {rt lt} (hrel : ETablesRel rt lt)
 
 /-! ## Floor 3: the tier select
 
-`EStore.view_X` is the handle's tier bit, then `pers_get_X`'s `shared_on`
+`EStore.view_X` is the handle's tier bit, then `pers_get_X`'s `pers.frozen`
 select, then the tier's own projection.  The twin has the first and the third
 and NOT the second — task #97-LC §1's ruling — so the middle one is exactly
 where `Refine2/AbsStore.lean`'s `rPersE` stands, and each of these ten proofs
@@ -1792,7 +1792,7 @@ theorem etables_der_at_abs {rt lt} (hrel : ETablesRel rt lt)
   rfl
 
 /-- `arena::store::EStore.derived` against `EStore.derived` — the tier select
-over the ten-way dispatch, and `pers_der_at`'s `shared_on` is `rPersE` again
+over the ten-way dispatch, and `pers_der_at`'s `pers.frozen` select is `rPersE` again
 (task #97-LC §1). -/
 theorem estore_derived_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     {i : arena.handle.EIdx} {d : Std.U64}
@@ -4111,12 +4111,12 @@ module note shows needs NO capacity hypothesis. -/
 Written out once, end to end, so that the remaining twenty-four are the same
 proof at another array.  Its shape is:
 
-1. the persistent cons probe under the `shared_on` select (`rPersE` again,
+1. the persistent cons probe under the `pers.frozen` select (`rPersE` again,
    and `tbl_find_abs` at that tier's table);
 2. the twin's `intern` at a non-binder view is `internAt` at the datum handle
    `0`, so the two `match`es on the probe line up clause for clause;
 3. a persistent HIT returns the handle and leaves both stores alone — the
-   port's `{ self with pers := e, shared_on := b }` is `self` by structure
+   port's `{ self with pers := e }` is `self` by structure
    eta;
 4. a MISS in the scratch tier is `tbl_find_slot_abs`, whose first component
    re-establishes the relation for the table `find_slot` handed back;
@@ -8295,7 +8295,7 @@ Task #97-P5-3 round 2's **one named unfinished piece**.  The port's
 `EStore::intern_lam` is `intern_bm` and then `intern_lam_i`; the twin's
 `EStore.internLam` is `internBM` and then `internLamI`.  What the composition
 needs beyond the two `_abs` lemmas is that **the port's `intern_bm` leaves
-`shared_on` and `scratch_on` alone**, so that finding 8's `hfrozen` survives
+`scratch_on` alone**, so that finding 8's `hfrozen` survives
 into the second step — which is now the third conjunct of
 `estore_intern_bm_abs`'s success arm.  (Task #97-P5-Unfreeze retired
 `hfrozen`; the conjunct stays.) -/
@@ -8883,7 +8883,7 @@ well-formed store whose datum array is below cap.
 **What is still missing for the two `_run` lemmas** is `estore_intern_lam_abs`
 — `estore_intern_bm_abs` composed with `estore_intern_lam_i_abs` — and the
 one fact that composition needs and no lemma states: the port's `intern_bm`
-leaves `shared_on` and `scratch_on` alone, so that finding 8's `hfrozen`
+leaves `scratch_on` alone, so that finding 8's `hfrozen`
 survives into the second step.  That is ~30 lines in the same file and is
 this round's one named unfinished piece. -/
 
@@ -9506,7 +9506,7 @@ theorem NCapAt.of_pers_size {st : NStore} {v : NNodeView} (hoff : st.scratchOn =
     (h : st.pers.sizeOf v < Idx.idxCap) : NCapAt st v := by
   intro _; rw [if_neg (by rw [hoff]; simp)]; exact h
 
-/-- The name store's persistent probe, under the `shared_on` select. -/
+/-- The name store's persistent probe, under the `pers.frozen` select. -/
 theorem nstore_pers_find_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
     (hinv : NStoreInv pers rs) {v : arena.store.NNodeView} (hvwf : NNodeViewWF v)
     {o} (h : arena.store.NStore.pers_find rs pers v = ok o) :
@@ -10362,7 +10362,7 @@ theorem LCapAt.of_pers_size {st : LStore} {v : LNodeView} (hoff : st.scratchOn =
     (h : st.pers.sizeOf v < Idx.idxCap) : LCapAt st v := by
   intro _; rw [if_neg (by rw [hoff]; simp)]; exact h
 
-/-- The level store's persistent probe, under the `shared_on` select. -/
+/-- The level store's persistent probe, under the `pers.frozen` select. -/
 theorem lstore_pers_find_abs {pers rs ls} (hrel : LStoreRel pers rs ls)
     (hinv : LStoreInv pers rs) {v : arena.store.LNodeView}
     {o} (h : arena.store.LStore.pers_find rs pers v = ok o) :
@@ -10842,7 +10842,7 @@ theorem LsCapAt.of_pers_size {st : LsStore} {v : LsNodeView} (hoff : st.scratchO
     (h : st.pers.sizeOf v < Idx.idxCap) : LsCapAt st v := by
   intro _; rw [if_neg (by rw [hoff]; simp)]; exact h
 
-/-- The level-list store's persistent probe, under the `shared_on` select. -/
+/-- The level-list store's persistent probe, under the `pers.frozen` select. -/
 theorem lsstore_pers_find_abs {pers rs ls} (hrel : LsStoreRel pers rs ls)
     (hinv : LsStoreInv pers rs) {v : alloc.vec.Vec arena.handle.LIdx}
     {o} (h : arena.store.LsStore.pers_find rs pers v = ok o) :
@@ -11348,8 +11348,8 @@ the statements round 2 left `sorry`:
   argument); the hypothesis is `AStateRelW` for the same reason, so that a
   walk can chain one promote-intern after another;
 * `shared_on = false`, which was finding 17's cheap half — retired in task
-  #97-P5-Unfreeze, since the frozen persistent tier answers `Native`, which
-  claims nothing;
+  #97-P5-Unfreeze, and the flag itself removed by task #98-FREEZE (a
+  promote-intern writes the tier it is handed, `PersTier::intern_*`);
 * `ViewOK` and `…ViewPers` — the view's handles decode, and they are already
   PERSISTENT.  The second is `Arena/Store.lean`'s *"added precondition"*:
   `childOK` carries `i.isPersistent → c.isPersistent` and a promotion has it by
@@ -11369,11 +11369,12 @@ under them, plus the binder DATUM's own promote-intern.  Task #97-P5-Fresh §7
 priced exactly this; `Arena/WFProofs.lean`'s new section is the twin half.
 
 **The datum array's capacity is no longer a hypothesis here** (task
-#97-T2-LOCKSTEP, audit D3).  `intern_bm_persistent` tests `Tbl::full` only
+#97-T2-LOCKSTEP, audit D3).  `PersTier::intern_bm` (`intern_bm_persistent` before
+task #98-FREEZE) tests `Tbl::full` only
 where IT appends; the twin's `internPersistentE` used to test `bms` on every
 binder-node miss, so the corner was carried as `hbmcap`.  The twin now runs
 the datum step first with its own miss-path test, as the port does, and both
-capacity facts are CONCLUSIONS of `estore_intern_persistent_abs`.  The old
+capacity facts are CONCLUSIONS of `pertier_intern_e_abs`.  The old
 `hbmcap` arguments stay in the signatures, unused, until slice 3. -/
 
 /-- An expression node view is well formed when its literal is: the other nine
@@ -12631,7 +12632,7 @@ theorem internLevels_run_denote (us : List ConLeche.Level) {lst lst' : AState}
 /-! ### The tier flags, unmoved
 
 The Rust `EStore`, `LsStore`, `LStore` and `NStore` each carry their own
-`shared_on`/`scratch_on` (round 2 §5), and an intern touches none of them: every
+`scratch_on` (round 2 §5), and an intern touches none of them: every
 store a `*::intern*` returns is `self` or `{ self with pers := … }` or
 `{ self with scr := … }`.  (This once carried `intern_{n,l,ls}_node_run`'s
 frozen-tier side condition across a walk; that condition is retired, task

@@ -64089,3 +64089,97 @@ something was open, `sorry` or "waiting on" was rewritten as history.
   `Arena.checkDecl_bridge` (`Fold.lean#L111-L126`), whose docstring line 115
   changed; the citing paragraph is still accurate.  `scripts/gates.sh`: all
   16 OK; frontier 0 items, dead weight 0.
+
+### Task #98-FREEZE — frozen is scratch-on: one store flag, the frozen bit on the reader (2026-09-24, Opus under Fable)
+
+**The maintainer's design**: make "frozen" and "scratch on" the same thing, so
+that the guards that policed their combinations vanish.
+
+**What changed in the Rust** (`crates/con-ron-core`):
+
+* **`shared_on` is gone** from `NStore`/`LStore`/`LsStore`/`EStore`.  The frozen
+  bit moved to the READER: `PersTier` gained `pub frozen: bool`
+  (`PersTier::empty()` is not frozen; a tier handed out by a freeze is).  Every
+  persistent select is `if pers.frozen { pers.X } else { self.pers }`.  The
+  store keeps ONE flag, `scratch_on`; the combination "frozen reader ⇒ scratch
+  on" is a Rust-side invariant (below), so the two cannot disagree in a
+  related state.
+* **Opening a declaration bracket freezes the store**: `EStore::freeze` moves
+  the four persistent tables into a `frozen` `PersTier`, empties and opens the
+  scratch tiers (`core::enter_scratch`); closing it is promote then thaw —
+  `promote::*` take `(tier: &mut PersTier, st: &AState, …)` and write the tier
+  through `PersTier::intern_{n,l,ls,bm,bm_of_view,e}` (the old
+  `EStore::intern_*_persistent` family is gone), then `EStore::thaw` puts the
+  tier back and drops the scratch tiers (`core::drop_scratch`).  Error paths
+  thaw too.
+* **Phase B**: the boundary still freezes; a worker's per-record bracket only
+  empties the scratch tier of its already-frozen store
+  (`enter_record`/`leave_record` = `clear_scratch`), and `worker_state` starts
+  from `EStore::empty_frozen()`.  The driver's `freeze_tier`/`thaw_tier` are a
+  pure MOVE of the four tables into a `frozen` tier and back (no flag, no
+  reset, no decline), so `thaw_tier(freeze_tier(ar))` is `ar` exactly.
+  `install_then_check` (the reference fold, whose phase B runs on the main
+  store) uses `EStore::freeze`/`thaw` at the boundary and skips phase B
+  altogether when nothing is pending — as the twin's `checkPendingList []`
+  does, which is what lets the thaw be related without knowing the twin's
+  scratch tier empty at the boundary.
+* **The div/mod pin attempt no longer freezes**: it snapshots, attempts at the
+  caller's reader, and restores on `Recovered`.
+* **The parse** still writes directly into the owned tables (reader
+  `PersTier::empty()`, not frozen).
+
+**Guards that vanished (Native sites removed)**: `M_FROZEN` and its 20 arms —
+15 in the ordinary interns (among them the ten `EStore` constructors
+`intern_bvar` … `intern_proj`) and 5 in the persistent ones (`NStore`
+`intern_str`/`intern_other`, `LStore`/`LsStore` `intern`, `EStore`
+`intern_bm`) — and `M_REFREEZE` with `thaw_read_tier`.
+`freeze_tier` no longer returns a `Result`.
+
+**Theorem 2** (`proof/ConRon/Refine2`):
+
+* `rPers{N,L,Ls,E}` select on `pers.frozen`.  **New invariant (a
+  representation fact)**: `StoreInv.frz : pers.frozen = true → rs.scratch_on
+  = true` at all four levels — a store read through a frozen tier has its
+  scratch tier open.  It is what lets the persistent interns drop the
+  frozen-tier guard: at a frozen reader an ordinary intern is a scratch
+  append.
+* **New relation clause** — `AIdle tier st lst := AStateRel₀ tier st {lst with
+  store := lst.store.enableScratch}` (`Core/Bracket.lean`): between two
+  phase-B records the Rust store is frozen with an empty scratch tier while
+  the twin's is scratch-OFF; the Rust state is related, at the tier, to the
+  twin's with its scratch tier opened.  `enter_record_sim` /
+  `leave_record_rel` are a record's bracket against `enterScratch` /
+  `dropScratch`; `SimIdle`/`SimFoldIdle` (`Checker/Top.lean`) are phase B's
+  outcome shapes, and `SimFoldIdle` also records that the twin's final store
+  is the walk's start (nothing checked) or in the image of `dropScratch`,
+  which the thaw after `install_then_check`'s phase B needs.
+* **The promotion walks are TIER walks**: `LST P R G m lst x := LS P R (packT
+  G m) lst x` (`Tactic/Lockstep.lean`, **shared core, extended**: `packT`,
+  `LST`, `LS.packT_*`, `LS.bindT`/`LS.tailT`, `RKind.tier` in `classify` and
+  its dispatch).  A walk is read through `glue t st` — the frozen state with
+  the tables it is read at through `t` put back as its own — at a stand-in
+  reader that is not frozen (`Promote/Prims.lean`: `glue_rel`/`glue_inv` are
+  iffs), and the answer carries the tier out (`p.2.frozen = true`).  `glue` is
+  a proof device only.
+* The brackets (`check_decl_step_refines`, `annot_step_refines`,
+  `annot_step_promote_refines`) are composed by hand at `SimRel₀`: the reader
+  changes twice (freeze, thaw), which one `lockstep` judgement cannot carry.
+  `promote_new_drop`/`promote_vg_frozen`/`LST.glue_out` are the glue.
+* **Premise changes**: the phase-A folds and the two fold theorems
+  (`check_decls_pure_refines`, `install_then_check_refines`,
+  `check_decls_phased_refines`, `pool_accepts_refines`) and `init_rel` take
+  `hpers : pers.frozen = false` (the reader is an owned store's);
+  `Capstone.lean` reads it off `PersTier.empty = ok pers`
+  (`persTier_empty_frozen`) — proof glue only, the two headline statements are
+  unchanged.  `annot_step_promote_refines` is stated at the tier it is handed
+  (`htf`) with its conclusion at the caller's reader.  `PoolAccepts` states
+  `freeze_tier st'.store = ok (tier, est)` (no `Result`).
+* Twin and Bridge: unchanged.
+* `Checker/Canon.lean`'s `canon_names_go_aux` needs `maxHeartbeats 800000`
+  after the rebuild (its `simp only [bind_assoc, pure_bind]` crossed 200 000;
+  the function and its twin are unchanged, the cause was not isolated).
+
+**Numbers** (Init, `--verified --jobs=1`, `perf stat -e instructions:u`):
+before (master 21965ffc) 204,617,883,007; after 204,700,640,360 (+0.04 %).
+Peak RSS 642,112 KB → 568,520 KB (two runs each, 564–569 MB after).
+`scripts/diff-e2e.sh`: 383/383 agree.

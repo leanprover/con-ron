@@ -425,139 +425,152 @@ case body is one `lockstep` call. -/
 namespace Lockstep
 
 private theorem promote_n_aux (n : Nat) :
-    ∀ {pers st lst rm lm} (fuel : Std.U64) (h : arena.handle.NIdx),
-      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st → PMemoRel rm lm →
-      LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absNIdx r.2)
-        (arena.promote.promote_n pers st rm fuel h) lst (promoteN lm n (absNIdx h)) := by
+    ∀ {P t st lst rm lm} (fuel : Std.U64) (h : arena.handle.NIdx),
+      fuel.val = n → P.frozen = false → t.frozen = true → ScratchOn st.store →
+        AStateRel₀ P (glue t st) lst → AStateInv P (glue t st) → PMemoRel rm lm →
+      LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absNIdx p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+        (arena.promote.promote_n t st rm fuel h) lst (promoteN lm n (absNIdx h)) := by
   induction n with
   | zero =>
-    intro pers st lst rm lm fuel h hn hrel hinv hm
+    intro P t st lst rm lm fuel h hn hP ht hsc hrel hinv hm
     rw [arena.promote.promote_n, promoteN]
     lockstep
   | succ k ih =>
-    have hnode : ∀ {pers st lst rm lm} (fu : Std.U64) (v : arena.store.NNodeView),
-        fu.val = k → NNodeViewWF v → AStateRel₀ pers st lst → AStateInv pers st →
+    have hnode : ∀ {P t st lst rm lm} (fu : Std.U64) (v : arena.store.NNodeView),
+        fu.val = k → NNodeViewWF v → P.frozen = false → t.frozen = true → ScratchOn st.store →
+        AStateRel₀ P (glue t st) lst → AStateInv P (glue t st) →
         PMemoRel rm lm →
-        LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absNIdx r.2)
-          (arena.promote.promote_n_node pers st rm fu v) lst
+        LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absNIdx p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+          (arena.promote.promote_n_node t st rm fu v) lst
           (promoteNNodeSpec lm k (absNNodeView v)) := by
-      intro pers st lst rm lm fu v hfu hvwf hrel hinv hm
+      intro P t st lst rm lm fu v hfu hvwf hP ht hsc hrel hinv hm
       cases v <;> rw [arena.promote.promote_n_node] <;>
         simp only [absNNodeView, promoteNNodeSpec] <;> lockstep
-    intro pers st lst rm lm fuel h hn hrel hinv hm
+    intro P t st lst rm lm fuel h hn hP ht hsc hrel hinv hm
     rw [arena.promote.promote_n, promoteN_unfold]
     lockstep
 
 /-- **`promote_n` ⊑ `promoteN`**, in the judgement shape. -/
-@[lockstep] theorem promote_n_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_n_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (h : arena.handle.NIdx) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absNIdx r.2)
-      (arena.promote.promote_n pers st rm fuel h) lst (promoteN lm (absU fuel) (absNIdx h)) :=
-  promote_n_aux _ fuel h rfl hrel hinv hm
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absNIdx p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_n t st rm fuel h) lst (promoteN lm (absU fuel) (absNIdx h)) :=
+  promote_n_aux _ fuel h rfl hP ht hsc hrel hinv hm
 
 /-- `promote_n_node` ⊑ `promoteNNodeSpec`, from the walk at the same fuel. -/
-theorem promote_n_node_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+theorem promote_n_node_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (v : arena.store.NNodeView) (hvwf : NNodeViewWF v) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absNIdx r.2)
-      (arena.promote.promote_n_node pers st rm fuel v) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absNIdx p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_n_node t st rm fuel v) lst
       (promoteNNodeSpec lm (absU fuel) (absNNodeView v)) := by
   cases v <;> rw [arena.promote.promote_n_node] <;>
     simp only [absNNodeView, promoteNNodeSpec] <;> lockstep
 
 private theorem promote_l_aux (n : Nat) :
-    ∀ {pers st lst rm lm} (fuel : Std.U64) (h : arena.handle.LIdx),
-      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st → PMemoRel rm lm →
-      LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absLIdx r.2)
-        (arena.promote.promote_l pers st rm fuel h) lst (promoteL lm n (absLIdx h)) := by
+    ∀ {P t st lst rm lm} (fuel : Std.U64) (h : arena.handle.LIdx),
+      fuel.val = n → P.frozen = false → t.frozen = true → ScratchOn st.store →
+        AStateRel₀ P (glue t st) lst → AStateInv P (glue t st) → PMemoRel rm lm →
+      LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absLIdx p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+        (arena.promote.promote_l t st rm fuel h) lst (promoteL lm n (absLIdx h)) := by
   induction n with
   | zero =>
-    intro pers st lst rm lm fuel h hn hrel hinv hm
+    intro P t st lst rm lm fuel h hn hP ht hsc hrel hinv hm
     rw [arena.promote.promote_l, promoteL]
     lockstep
   | succ k ih =>
-    have htwo : ∀ {pers st lst rm lm} (fu : Std.U64) (u v : arena.handle.LIdx),
-        fu.val = k → AStateRel₀ pers st lst → AStateInv pers st → PMemoRel rm lm →
-        LS pers (fun r w => PMemoRel r.1 w.1 ∧ w.2 = (absLIdx r.2.1, absLIdx r.2.2))
-          (arena.promote.promote_l_two pers st rm fu u v) lst
+    have htwo : ∀ {P t st lst rm lm} (fu : Std.U64) (u v : arena.handle.LIdx),
+        fu.val = k → P.frozen = false → t.frozen = true → ScratchOn st.store →
+        AStateRel₀ P (glue t st) lst → AStateInv P (glue t st) → PMemoRel rm lm →
+        LST P (fun p w => (PMemoRel p.1.1 w.1 ∧ w.2 = (absLIdx p.1.2.1, absLIdx p.1.2.2)) ∧ p.2.frozen = true) (fun t' => glue t' st)
+          (arena.promote.promote_l_two t st rm fu u v) lst
           (promoteLTwo lm k (absLIdx u) (absLIdx v)) := by
-      intro pers st lst rm lm fu u v hfu hrel hinv hm
+      intro P t st lst rm lm fu u v hfu hP ht hsc hrel hinv hm
       rw [arena.promote.promote_l_two, promoteLTwo]
       lockstep
-    have hnode : ∀ {pers st lst rm lm} (fu : Std.U64) (v : arena.store.LNodeView),
-        fu.val = k → AStateRel₀ pers st lst → AStateInv pers st → PMemoRel rm lm →
-        LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absLIdx r.2)
-          (arena.promote.promote_l_node pers st rm fu v) lst
+    have hnode : ∀ {P t st lst rm lm} (fu : Std.U64) (v : arena.store.LNodeView),
+        fu.val = k → P.frozen = false → t.frozen = true → ScratchOn st.store →
+        AStateRel₀ P (glue t st) lst → AStateInv P (glue t st) → PMemoRel rm lm →
+        LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absLIdx p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+          (arena.promote.promote_l_node t st rm fu v) lst
           (promoteLNodeSpec lm k (absLNodeView v)) := by
-      intro pers st lst rm lm fu v hfu hrel hinv hm
+      intro P t st lst rm lm fu v hfu hP ht hsc hrel hinv hm
       cases v <;> rw [arena.promote.promote_l_node] <;>
         simp only [absLNodeView, promoteLNodeSpec] <;> lockstep
-    intro pers st lst rm lm fuel h hn hrel hinv hm
+    intro P t st lst rm lm fuel h hn hP ht hsc hrel hinv hm
     rw [arena.promote.promote_l, promoteL_unfold]
     lockstep
 
 /-- **`promote_l` ⊑ `promoteL`**, in the judgement shape. -/
-@[lockstep] theorem promote_l_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_l_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (h : arena.handle.LIdx) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absLIdx r.2)
-      (arena.promote.promote_l pers st rm fuel h) lst (promoteL lm (absU fuel) (absLIdx h)) :=
-  promote_l_aux _ fuel h rfl hrel hinv hm
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absLIdx p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_l t st rm fuel h) lst (promoteL lm (absU fuel) (absLIdx h)) :=
+  promote_l_aux _ fuel h rfl hP ht hsc hrel hinv hm
 
 /-- `promote_l_two` ⊑ `promoteLTwo`. -/
-@[lockstep] theorem promote_l_two_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_l_two_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (u v : arena.handle.LIdx) :
-    LS pers (fun r w => PMemoRel r.1 w.1 ∧ w.2 = (absLIdx r.2.1, absLIdx r.2.2))
-      (arena.promote.promote_l_two pers st rm fuel u v) lst
+    LST P (fun p w => (PMemoRel p.1.1 w.1 ∧ w.2 = (absLIdx p.1.2.1, absLIdx p.1.2.2)) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_l_two t st rm fuel u v) lst
       (promoteLTwo lm (absU fuel) (absLIdx u) (absLIdx v)) := by
   rw [arena.promote.promote_l_two, promoteLTwo]
   lockstep
 
 /-- `promote_l_node` ⊑ `promoteLNodeSpec`. -/
-theorem promote_l_node_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+theorem promote_l_node_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (v : arena.store.LNodeView) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absLIdx r.2)
-      (arena.promote.promote_l_node pers st rm fuel v) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absLIdx p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_l_node t st rm fuel v) lst
       (promoteLNodeSpec lm (absU fuel) (absLNodeView v)) := by
   cases v <;> rw [arena.promote.promote_l_node] <;>
     simp only [absLNodeView, promoteLNodeSpec] <;> lockstep
 
 private theorem promote_l_list_from_aux (n : Nat) :
-    ∀ {pers st lst rm lm} (fuel : Std.U64) (us : alloc.vec.Vec arena.handle.LIdx)
+    ∀ {P t st lst rm lm} (fuel : Std.U64) (us : alloc.vec.Vec arena.handle.LIdx)
       (i : Std.Usize) (out : alloc.vec.Vec arena.handle.LIdx),
-      us.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      us.val.length - i.val = n → P.frozen = false → t.frozen = true → ScratchOn st.store →
+        AStateRel₀ P (glue t st) lst → AStateInv P (glue t st) →
       PMemoRel rm lm →
-      LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absLIdxL r.2)
-        (arena.promote.promote_l_list_from pers st rm fuel us i out) lst
+      LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absLIdxL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+        (arena.promote.promote_l_list_from t st rm fuel us i out) lst
         (pmapFrom (fun m u => promoteL m (absU fuel) u) lm (absLIdxL out)
           ((us.val.drop i.val).map absLIdx)) := by
   induction n with
   | zero =>
-    intro pers st lst rm lm fuel us i out hn hrel hinv hm
+    intro P t st lst rm lm fuel us i out hn hP ht hsc hrel hinv hm
     rw [arena.promote.promote_l_list_from, vecFrom_nil us absLIdx i (by omega), pmapFrom]
     have hl := alloc.vec.Vec.len_val us
-    refine LS.ite (fun _ => LS.pure ⟨hm, rfl⟩ hrel hinv) (fun hc => absurd hc (by scalar_tac))
+    refine LS.packT_ite (LS.ite (fun _ => LS.packT_ok_ok (LS.pure ⟨⟨hm, rfl⟩, ht⟩ hrel hinv))
+      (fun hc => absurd hc (by scalar_tac)))
   | succ k ih =>
-    intro pers st lst rm lm fuel us i out hn hrel hinv hm
+    intro P t st lst rm lm fuel us i out hn hP ht hsc hrel hinv hm
     rw [arena.promote.promote_l_list_from, vecFrom_cons us absLIdx i (by omega), pmapFrom]
     have hl := alloc.vec.Vec.len_val us
-    refine LS.ite (fun hc => absurd hc (by scalar_tac)) (fun hc => ?_)
+    refine LS.packT_ite (LS.ite (fun hc => absurd hc (by scalar_tac)) (fun hc => ?_))
     lockstep
 
 /-- `promote_l_list_from` ⊑ `pmapFrom promoteL` — the cursor, in the judgement
 shape. -/
-@[lockstep] theorem promote_l_list_from_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_l_list_from_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (us : alloc.vec.Vec arena.handle.LIdx) (i : Std.Usize)
     (out : alloc.vec.Vec arena.handle.LIdx) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absLIdxL r.2)
-      (arena.promote.promote_l_list_from pers st rm fuel us i out) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absLIdxL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_l_list_from t st rm fuel us i out) lst
       (pmapFrom (fun m u => promoteL m (absU fuel) u) lm (absLIdxL out)
         ((us.val.drop i.val).map absLIdx)) :=
-  promote_l_list_from_aux _ fuel us i out rfl hrel hinv hm
+  promote_l_list_from_aux _ fuel us i out rfl hP ht hsc hrel hinv hm
 
 theorem promoteLList_pmapFrom (m : PMemo) (fuel : Nat) (l : List LIdx) (acc : List LIdx) :
     pmapFrom (fun m u => promoteL m fuel u) m acc l =
@@ -565,118 +578,129 @@ theorem promoteLList_pmapFrom (m : PMemo) (fuel : Nat) (l : List LIdx) (acc : Li
   pmapFrom_cons_eq _ (fun m l => promoteLList m fuel l) (fun _ => rfl) (fun _ _ _ => rfl) l m acc
 
 /-- `promote_l_list` ⊑ `promoteLList`. -/
-@[lockstep] theorem promote_l_list_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_l_list_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (us : alloc.vec.Vec arena.handle.LIdx) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absLIdxL r.2)
-      (arena.promote.promote_l_list pers st rm fuel us) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absLIdxL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_l_list t st rm fuel us) lst
       (promoteLList lm (absU fuel) (absLIdxL us)) := by
-  have h := promote_l_list_from_ls hrel hinv hm fuel us 0#usize (alloc.vec.Vec.new _)
+  have h := promote_l_list_from_ls hP ht hsc hrel hinv hm fuel us 0#usize (alloc.vec.Vec.new _)
   rw [promoteLList_pmapFrom] at h
   simpa [arena.promote.promote_l_list, absLIdxL, alloc.vec.Vec.new] using h
 
 /-- **`promote_ls` ⊑ `promoteLs`** — no fuel clause on either side. -/
-@[lockstep] theorem promote_ls_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_ls_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (h : arena.handle.LsIdx) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absLsIdx r.2)
-      (arena.promote.promote_ls pers st rm fuel h) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absLsIdx p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_ls t st rm fuel h) lst
       (promoteLs lm (absU fuel) (absLsIdx h)) := by
   rw [arena.promote.promote_ls, promoteLs]
   lockstep
 
 private theorem promote_e_aux (n : Nat) :
-    ∀ {pers st lst rm lm} (fuel : Std.U64) (h : arena.handle.EIdx),
-      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st → PMemoRel rm lm →
-      LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absEIdx r.2)
-        (arena.promote.promote_e pers st rm fuel h) lst (promoteE lm n (absEIdx h)) := by
+    ∀ {P t st lst rm lm} (fuel : Std.U64) (h : arena.handle.EIdx),
+      fuel.val = n → P.frozen = false → t.frozen = true → ScratchOn st.store →
+        AStateRel₀ P (glue t st) lst → AStateInv P (glue t st) → PMemoRel rm lm →
+      LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absEIdx p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+        (arena.promote.promote_e t st rm fuel h) lst (promoteE lm n (absEIdx h)) := by
   induction n with
   | zero =>
-    intro pers st lst rm lm fuel h hn hrel hinv hm
+    intro P t st lst rm lm fuel h hn hP ht hsc hrel hinv hm
     rw [arena.promote.promote_e, promoteE]
     lockstep
   | succ k ih =>
-    have htwo : ∀ {pers st lst rm lm} (fu : Std.U64) (x y : arena.handle.EIdx),
-        fu.val = k → AStateRel₀ pers st lst → AStateInv pers st → PMemoRel rm lm →
-        LS pers (fun r w => PMemoRel r.1 w.1 ∧ w.2 = (absEIdx r.2.1, absEIdx r.2.2))
-          (arena.promote.promote_e_two pers st rm fu x y) lst
+    have htwo : ∀ {P t st lst rm lm} (fu : Std.U64) (x y : arena.handle.EIdx),
+        fu.val = k → P.frozen = false → t.frozen = true → ScratchOn st.store →
+        AStateRel₀ P (glue t st) lst → AStateInv P (glue t st) → PMemoRel rm lm →
+        LST P (fun p w => (PMemoRel p.1.1 w.1 ∧ w.2 = (absEIdx p.1.2.1, absEIdx p.1.2.2)) ∧ p.2.frozen = true) (fun t' => glue t' st)
+          (arena.promote.promote_e_two t st rm fu x y) lst
           (promoteETwo lm k (absEIdx x) (absEIdx y)) := by
-      intro pers st lst rm lm fu x y hfu hrel hinv hm
+      intro P t st lst rm lm fu x y hfu hP ht hsc hrel hinv hm
       rw [arena.promote.promote_e_two, promoteETwo]
       lockstep
-    have hnode : ∀ {pers st lst rm lm} (fu : Std.U64) (v : arena.store.ENodeView),
-        fu.val = k → ENodeViewWF v → AStateRel₀ pers st lst → AStateInv pers st →
+    have hnode : ∀ {P t st lst rm lm} (fu : Std.U64) (v : arena.store.ENodeView),
+        fu.val = k → ENodeViewWF v → P.frozen = false → t.frozen = true → ScratchOn st.store →
+        AStateRel₀ P (glue t st) lst → AStateInv P (glue t st) →
         PMemoRel rm lm →
-        LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absEIdx r.2)
-          (arena.promote.promote_e_node pers st rm fu v) lst
+        LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absEIdx p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+          (arena.promote.promote_e_node t st rm fu v) lst
           (promoteENodeSpec lm k (absENodeView v)) := by
-      intro pers st lst rm lm fu v hfu hvwf hrel hinv hm
+      intro P t st lst rm lm fu v hfu hvwf hP ht hsc hrel hinv hm
       cases v <;> rw [arena.promote.promote_e_node] <;>
         simp only [absENodeView, promoteENodeSpec] <;> lockstep
-    intro pers st lst rm lm fuel h hn hrel hinv hm
+    intro P t st lst rm lm fuel h hn hP ht hsc hrel hinv hm
     have hV := @view_wf_ls
     rw [arena.promote.promote_e, promoteE_unfold]
     lockstep
 
 /-- **`promote_e` ⊑ `promoteE`**, in the judgement shape. -/
-@[lockstep] theorem promote_e_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_e_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (h : arena.handle.EIdx) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absEIdx r.2)
-      (arena.promote.promote_e pers st rm fuel h) lst (promoteE lm (absU fuel) (absEIdx h)) :=
-  promote_e_aux _ fuel h rfl hrel hinv hm
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absEIdx p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_e t st rm fuel h) lst (promoteE lm (absU fuel) (absEIdx h)) :=
+  promote_e_aux _ fuel h rfl hP ht hsc hrel hinv hm
 
 /-- `promote_e_two` ⊑ `promoteETwo`. -/
-@[lockstep] theorem promote_e_two_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_e_two_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (x y : arena.handle.EIdx) :
-    LS pers (fun r w => PMemoRel r.1 w.1 ∧ w.2 = (absEIdx r.2.1, absEIdx r.2.2))
-      (arena.promote.promote_e_two pers st rm fuel x y) lst
+    LST P (fun p w => (PMemoRel p.1.1 w.1 ∧ w.2 = (absEIdx p.1.2.1, absEIdx p.1.2.2)) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_e_two t st rm fuel x y) lst
       (promoteETwo lm (absU fuel) (absEIdx x) (absEIdx y)) := by
   rw [arena.promote.promote_e_two, promoteETwo]
   lockstep
 
 /-- `promote_e_node` ⊑ `promoteENodeSpec`. -/
-theorem promote_e_node_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+theorem promote_e_node_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (v : arena.store.ENodeView) (hvwf : ENodeViewWF v) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absEIdx r.2)
-      (arena.promote.promote_e_node pers st rm fuel v) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absEIdx p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_e_node t st rm fuel v) lst
       (promoteENodeSpec lm (absU fuel) (absENodeView v)) := by
   cases v <;> rw [arena.promote.promote_e_node] <;>
     simp only [absENodeView, promoteENodeSpec] <;> lockstep
 
 private theorem promote_n_list_from_aux (n : Nat) :
-    ∀ {pers st lst rm lm} (fuel : Std.U64) (us : alloc.vec.Vec arena.handle.NIdx)
+    ∀ {P t st lst rm lm} (fuel : Std.U64) (us : alloc.vec.Vec arena.handle.NIdx)
       (i : Std.Usize) (out : alloc.vec.Vec arena.handle.NIdx),
-      us.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      us.val.length - i.val = n → P.frozen = false → t.frozen = true → ScratchOn st.store →
+        AStateRel₀ P (glue t st) lst → AStateInv P (glue t st) →
       PMemoRel rm lm →
-      LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absNIdxL r.2)
-        (arena.promote.promote_n_list_from pers st rm fuel us i out) lst
+      LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absNIdxL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+        (arena.promote.promote_n_list_from t st rm fuel us i out) lst
         (pmapFrom (fun m u => promoteN m (absU fuel) u) lm (absNIdxL out)
           ((us.val.drop i.val).map absNIdx)) := by
   induction n with
   | zero =>
-    intro pers st lst rm lm fuel us i out hn hrel hinv hm
+    intro P t st lst rm lm fuel us i out hn hP ht hsc hrel hinv hm
     rw [arena.promote.promote_n_list_from, vecFrom_nil us absNIdx i (by omega), pmapFrom]
     have hl := alloc.vec.Vec.len_val us
-    refine LS.ite (fun _ => LS.pure ⟨hm, rfl⟩ hrel hinv) (fun hc => absurd hc (by scalar_tac))
+    refine LS.packT_ite (LS.ite (fun _ => LS.packT_ok_ok (LS.pure ⟨⟨hm, rfl⟩, ht⟩ hrel hinv))
+      (fun hc => absurd hc (by scalar_tac)))
   | succ k ih =>
-    intro pers st lst rm lm fuel us i out hn hrel hinv hm
+    intro P t st lst rm lm fuel us i out hn hP ht hsc hrel hinv hm
     rw [arena.promote.promote_n_list_from, vecFrom_cons us absNIdx i (by omega), pmapFrom]
     have hl := alloc.vec.Vec.len_val us
-    refine LS.ite (fun hc => absurd hc (by scalar_tac)) (fun hc => ?_)
+    refine LS.packT_ite (LS.ite (fun hc => absurd hc (by scalar_tac)) (fun hc => ?_))
     lockstep
 
 /-- `promote_n_list_from` ⊑ `pmapFrom promoteN` — the cursor, in the judgement shape. -/
-@[lockstep] theorem promote_n_list_from_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_n_list_from_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (us : alloc.vec.Vec arena.handle.NIdx) (i : Std.Usize) (out : alloc.vec.Vec arena.handle.NIdx) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absNIdxL r.2)
-      (arena.promote.promote_n_list_from pers st rm fuel us i out) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absNIdxL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_n_list_from t st rm fuel us i out) lst
       (pmapFrom (fun m u => promoteN m (absU fuel) u) lm (absNIdxL out)
         ((us.val.drop i.val).map absNIdx)) :=
-  promote_n_list_from_aux _ fuel us i out rfl hrel hinv hm
+  promote_n_list_from_aux _ fuel us i out rfl hP ht hsc hrel hinv hm
 
 theorem promoteNList_pmapFrom (m : PMemo) (fuel : Nat) l acc :
     pmapFrom (fun m u => promoteN m fuel u) m acc l =
@@ -684,47 +708,51 @@ theorem promoteNList_pmapFrom (m : PMemo) (fuel : Nat) l acc :
   pmapFrom_cons_eq _ (fun m l => promoteNList m fuel l) (fun _ => rfl) (fun _ _ _ => rfl) l m acc
 
 /-- `promote_n_list` ⊑ `promoteNList`. -/
-@[lockstep] theorem promote_n_list_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_n_list_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (us : alloc.vec.Vec arena.handle.NIdx) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absNIdxL r.2)
-      (arena.promote.promote_n_list pers st rm fuel us) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absNIdxL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_n_list t st rm fuel us) lst
       (promoteNList lm (absU fuel) (absNIdxL us)) := by
-  have h := promote_n_list_from_ls hrel hinv hm fuel us 0#usize (alloc.vec.Vec.new _)
+  have h := promote_n_list_from_ls hP ht hsc hrel hinv hm fuel us 0#usize (alloc.vec.Vec.new _)
   rw [promoteNList_pmapFrom] at h
   simpa [arena.promote.promote_n_list, absNIdxL, alloc.vec.Vec.new] using h
 
 private theorem promote_e_list_from_aux (n : Nat) :
-    ∀ {pers st lst rm lm} (fuel : Std.U64) (us : alloc.vec.Vec arena.handle.EIdx)
+    ∀ {P t st lst rm lm} (fuel : Std.U64) (us : alloc.vec.Vec arena.handle.EIdx)
       (i : Std.Usize) (out : alloc.vec.Vec arena.handle.EIdx),
-      us.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      us.val.length - i.val = n → P.frozen = false → t.frozen = true → ScratchOn st.store →
+        AStateRel₀ P (glue t st) lst → AStateInv P (glue t st) →
       PMemoRel rm lm →
-      LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absEIdxL r.2)
-        (arena.promote.promote_e_list_from pers st rm fuel us i out) lst
+      LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absEIdxL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+        (arena.promote.promote_e_list_from t st rm fuel us i out) lst
         (pmapFrom (fun m u => promoteE m (absU fuel) u) lm (absEIdxL out)
           ((us.val.drop i.val).map absEIdx)) := by
   induction n with
   | zero =>
-    intro pers st lst rm lm fuel us i out hn hrel hinv hm
+    intro P t st lst rm lm fuel us i out hn hP ht hsc hrel hinv hm
     rw [arena.promote.promote_e_list_from, vecFrom_nil us absEIdx i (by omega), pmapFrom]
     have hl := alloc.vec.Vec.len_val us
-    refine LS.ite (fun _ => LS.pure ⟨hm, rfl⟩ hrel hinv) (fun hc => absurd hc (by scalar_tac))
+    refine LS.packT_ite (LS.ite (fun _ => LS.packT_ok_ok (LS.pure ⟨⟨hm, rfl⟩, ht⟩ hrel hinv))
+      (fun hc => absurd hc (by scalar_tac)))
   | succ k ih =>
-    intro pers st lst rm lm fuel us i out hn hrel hinv hm
+    intro P t st lst rm lm fuel us i out hn hP ht hsc hrel hinv hm
     rw [arena.promote.promote_e_list_from, vecFrom_cons us absEIdx i (by omega), pmapFrom]
     have hl := alloc.vec.Vec.len_val us
-    refine LS.ite (fun hc => absurd hc (by scalar_tac)) (fun hc => ?_)
+    refine LS.packT_ite (LS.ite (fun hc => absurd hc (by scalar_tac)) (fun hc => ?_))
     lockstep
 
 /-- `promote_e_list_from` ⊑ `pmapFrom promoteE` — the cursor, in the judgement shape. -/
-@[lockstep] theorem promote_e_list_from_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_e_list_from_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (us : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) (out : alloc.vec.Vec arena.handle.EIdx) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absEIdxL r.2)
-      (arena.promote.promote_e_list_from pers st rm fuel us i out) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absEIdxL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_e_list_from t st rm fuel us i out) lst
       (pmapFrom (fun m u => promoteE m (absU fuel) u) lm (absEIdxL out)
         ((us.val.drop i.val).map absEIdx)) :=
-  promote_e_list_from_aux _ fuel us i out rfl hrel hinv hm
+  promote_e_list_from_aux _ fuel us i out rfl hP ht hsc hrel hinv hm
 
 theorem promoteEList_pmapFrom (m : PMemo) (fuel : Nat) l acc :
     pmapFrom (fun m u => promoteE m fuel u) m acc l =
@@ -732,13 +760,14 @@ theorem promoteEList_pmapFrom (m : PMemo) (fuel : Nat) l acc :
   pmapFrom_cons_eq _ (fun m l => promoteEList m fuel l) (fun _ => rfl) (fun _ _ _ => rfl) l m acc
 
 /-- `promote_e_list` ⊑ `promoteEList`. -/
-@[lockstep] theorem promote_e_list_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_e_list_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (us : alloc.vec.Vec arena.handle.EIdx) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absEIdxL r.2)
-      (arena.promote.promote_e_list pers st rm fuel us) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absEIdxL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_e_list t st rm fuel us) lst
       (promoteEList lm (absU fuel) (absEIdxL us)) := by
-  have h := promote_e_list_from_ls hrel hinv hm fuel us 0#usize (alloc.vec.Vec.new _)
+  have h := promote_e_list_from_ls hP ht hsc hrel hinv hm fuel us 0#usize (alloc.vec.Vec.new _)
   rw [promoteEList_pmapFrom] at h
   simpa [arena.promote.promote_e_list, absEIdxL, alloc.vec.Vec.new] using h
 
@@ -750,41 +779,45 @@ attribute [local lockstep_simp] absIConstantVal absIRecRuleFire absIRecRule absI
   absIProjTable absIConstantInfo absIDeclaration absIRecRuleL absICIL
 
 /-- `promote_cv` ⊑ `promoteCV`. -/
-@[lockstep] theorem promote_cv_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_cv_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (cv : arena.env.IConstantVal) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absIConstantVal r.2)
-      (arena.promote.promote_cv pers st rm fuel cv) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absIConstantVal p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_cv t st rm fuel cv) lst
       (promoteCV lm (absU fuel) (absIConstantVal cv)) := by
   rw [arena.promote.promote_cv, promoteCV]
   lockstep
 
 /-- `promote_fire` ⊑ `promoteFire`. -/
-@[lockstep] theorem promote_fire_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_fire_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (f : arena.env.IRecRuleFire) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absIRecRuleFire r.2)
-      (arena.promote.promote_fire pers st rm fuel f) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absIRecRuleFire p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_fire t st rm fuel f) lst
       (promoteFire lm (absU fuel) (absIRecRuleFire f)) := by
   cases f <;> rw [arena.promote.promote_fire] <;> simp only [absIRecRuleFire, promoteFire] <;>
     lockstep
 
 /-- `promote_rule` ⊑ `promoteRule`. -/
-@[lockstep] theorem promote_rule_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_rule_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (rl : arena.env.IRecRule) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absIRecRule r.2)
-      (arena.promote.promote_rule pers st rm fuel rl) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absIRecRule p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_rule t st rm fuel rl) lst
       (promoteRule lm (absU fuel) (absIRecRule rl)) := by
   rw [arena.promote.promote_rule, promoteRule]
   lockstep
 
 /-- `promote_caps` ⊑ `promoteCaps`. -/
-@[lockstep] theorem promote_caps_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_caps_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (c : arena.env.IIndCaps) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absIIndCaps r.2)
-      (arena.promote.promote_caps pers st rm fuel c) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absIIndCaps p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_caps t st rm fuel c) lst
       (promoteCaps lm (absU fuel) (absIIndCaps c)) := by
   rw [arena.promote.promote_caps, promoteCaps]
   lockstep
@@ -792,36 +825,39 @@ attribute [local lockstep_simp] absIConstantVal absIRecRuleFire absIRecRule absI
 end decl
 
 private theorem promote_rules_from_aux (n : Nat) :
-    ∀ {pers st lst rm lm} (fuel : Std.U64) (us : alloc.vec.Vec arena.env.IRecRule)
+    ∀ {P t st lst rm lm} (fuel : Std.U64) (us : alloc.vec.Vec arena.env.IRecRule)
       (i : Std.Usize) (out : alloc.vec.Vec arena.env.IRecRule),
-      us.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      us.val.length - i.val = n → P.frozen = false → t.frozen = true → ScratchOn st.store →
+        AStateRel₀ P (glue t st) lst → AStateInv P (glue t st) →
       PMemoRel rm lm →
-      LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absIRecRuleL r.2)
-        (arena.promote.promote_rules_from pers st rm fuel us i out) lst
+      LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absIRecRuleL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+        (arena.promote.promote_rules_from t st rm fuel us i out) lst
         (pmapFrom (fun m u => promoteRule m (absU fuel) u) lm (absIRecRuleL out)
           ((us.val.drop i.val).map absIRecRule)) := by
   induction n with
   | zero =>
-    intro pers st lst rm lm fuel us i out hn hrel hinv hm
+    intro P t st lst rm lm fuel us i out hn hP ht hsc hrel hinv hm
     rw [arena.promote.promote_rules_from, vecFrom_nil us absIRecRule i (by omega), pmapFrom]
     have hl := alloc.vec.Vec.len_val us
-    refine LS.ite (fun _ => LS.pure ⟨hm, rfl⟩ hrel hinv) (fun hc => absurd hc (by scalar_tac))
+    refine LS.packT_ite (LS.ite (fun _ => LS.packT_ok_ok (LS.pure ⟨⟨hm, rfl⟩, ht⟩ hrel hinv))
+      (fun hc => absurd hc (by scalar_tac)))
   | succ k ih =>
-    intro pers st lst rm lm fuel us i out hn hrel hinv hm
+    intro P t st lst rm lm fuel us i out hn hP ht hsc hrel hinv hm
     rw [arena.promote.promote_rules_from, vecFrom_cons us absIRecRule i (by omega), pmapFrom]
     have hl := alloc.vec.Vec.len_val us
-    refine LS.ite (fun hc => absurd hc (by scalar_tac)) (fun hc => ?_)
+    refine LS.packT_ite (LS.ite (fun hc => absurd hc (by scalar_tac)) (fun hc => ?_))
     lockstep
 
 /-- `promote_rules_from` ⊑ `pmapFrom promoteRule` — the cursor, in the judgement shape. -/
-@[lockstep] theorem promote_rules_from_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_rules_from_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (us : alloc.vec.Vec arena.env.IRecRule) (i : Std.Usize) (out : alloc.vec.Vec arena.env.IRecRule) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absIRecRuleL r.2)
-      (arena.promote.promote_rules_from pers st rm fuel us i out) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absIRecRuleL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_rules_from t st rm fuel us i out) lst
       (pmapFrom (fun m u => promoteRule m (absU fuel) u) lm (absIRecRuleL out)
         ((us.val.drop i.val).map absIRecRule)) :=
-  promote_rules_from_aux _ fuel us i out rfl hrel hinv hm
+  promote_rules_from_aux _ fuel us i out rfl hP ht hsc hrel hinv hm
 
 theorem promoteRules_pmapFrom (m : PMemo) (fuel : Nat) l acc :
     pmapFrom (fun m u => promoteRule m fuel u) m acc l =
@@ -829,13 +865,14 @@ theorem promoteRules_pmapFrom (m : PMemo) (fuel : Nat) l acc :
   pmapFrom_cons_eq _ (fun m l => promoteRules m fuel l) (fun _ => rfl) (fun _ _ _ => rfl) l m acc
 
 /-- `promote_rules` ⊑ `promoteRules`. -/
-@[lockstep] theorem promote_rules_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_rules_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (us : alloc.vec.Vec arena.env.IRecRule) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absIRecRuleL r.2)
-      (arena.promote.promote_rules pers st rm fuel us) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absIRecRuleL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_rules t st rm fuel us) lst
       (promoteRules lm (absU fuel) (absIRecRuleL us)) := by
-  have h := promote_rules_from_ls hrel hinv hm fuel us 0#usize (alloc.vec.Vec.new _)
+  have h := promote_rules_from_ls hP ht hsc hrel hinv hm fuel us 0#usize (alloc.vec.Vec.new _)
   rw [promoteRules_pmapFrom] at h
   simpa [arena.promote.promote_rules, absIRecRuleL, alloc.vec.Vec.new] using h
 
@@ -862,33 +899,38 @@ attribute [local lockstep_simp] absIConstantVal absIRecRuleFire absIRecRule absI
   absIProjTable absIConstantInfo absIDeclaration absIRecRuleL absICIL List.toList_toArray
 
 /-- `promote_proj_table_rest` ⊑ `promoteProjTableRest`. -/
-@[lockstep] theorem promote_proj_table_rest_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
-    (t : arena.env.IProjTable) (sn tn : arena.handle.NIdx)
+@[lockstep] theorem promote_proj_table_rest_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
+    (pt : arena.env.IProjTable) (sn tn : arena.handle.NIdx)
     (lps : alloc.vec.Vec arena.handle.NIdx) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absIProjTable r.2)
-      (arena.promote.promote_proj_table_rest pers st rm fuel t sn tn lps) lst
-      (promoteProjTableRest lm (absU fuel) (absIProjTable t) (absNIdx sn) (absNIdx tn)
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absIProjTable p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_proj_table_rest t st rm fuel pt sn tn lps) lst
+      (promoteProjTableRest lm (absU fuel) (absIProjTable pt) (absNIdx sn) (absNIdx tn)
         (absNIdxL lps)) := by
   rw [arena.promote.promote_proj_table_rest, promoteProjTableRest]
   lockstep
 
 /-- `promote_proj_table` ⊑ `promoteProjTable`. -/
-@[lockstep] theorem promote_proj_table_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
-    (t : arena.env.IProjTable) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absIProjTable r.2)
-      (arena.promote.promote_proj_table pers st rm fuel t) lst
-      (promoteProjTable lm (absU fuel) (absIProjTable t)) := by
+@[lockstep] theorem promote_proj_table_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
+    (pt : arena.env.IProjTable) :
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absIProjTable p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_proj_table t st rm fuel pt) lst
+      (promoteProjTable lm (absU fuel) (absIProjTable pt)) := by
   rw [arena.promote.promote_proj_table, promoteProjTable_rest]
   lockstep
+  all_goals (try simp only [Aeneas.Std.uncurry]); all_goals (try dsimp only)
+  all_goals lockstep
 
 /-- `promote_ci` ⊑ `promoteCI` — the seven constructors. -/
-@[lockstep] theorem promote_ci_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_ci_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (ci : arena.env.IConstantInfo) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absIConstantInfo r.2)
-      (arena.promote.promote_ci pers st rm fuel ci) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absIConstantInfo p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_ci t st rm fuel ci) lst
       (promoteCI lm (absU fuel) (absIConstantInfo ci)) := by
   cases ci <;> rw [arena.promote.promote_ci] <;> simp only [absIConstantInfo, promoteCI] <;>
     lockstep
@@ -896,36 +938,39 @@ attribute [local lockstep_simp] absIConstantVal absIRecRuleFire absIRecRule absI
 end decl2
 
 private theorem promote_ci_list_from_aux (n : Nat) :
-    ∀ {pers st lst rm lm} (fuel : Std.U64) (us : alloc.vec.Vec arena.env.IConstantInfo)
+    ∀ {P t st lst rm lm} (fuel : Std.U64) (us : alloc.vec.Vec arena.env.IConstantInfo)
       (i : Std.Usize) (out : alloc.vec.Vec arena.env.IConstantInfo),
-      us.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      us.val.length - i.val = n → P.frozen = false → t.frozen = true → ScratchOn st.store →
+        AStateRel₀ P (glue t st) lst → AStateInv P (glue t st) →
       PMemoRel rm lm →
-      LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absICIL r.2)
-        (arena.promote.promote_ci_list_from pers st rm fuel us i out) lst
+      LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absICIL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+        (arena.promote.promote_ci_list_from t st rm fuel us i out) lst
         (pmapFrom (fun m u => promoteCI m (absU fuel) u) lm (absICIL out)
           ((us.val.drop i.val).map absIConstantInfo)) := by
   induction n with
   | zero =>
-    intro pers st lst rm lm fuel us i out hn hrel hinv hm
+    intro P t st lst rm lm fuel us i out hn hP ht hsc hrel hinv hm
     rw [arena.promote.promote_ci_list_from, vecFrom_nil us absIConstantInfo i (by omega), pmapFrom]
     have hl := alloc.vec.Vec.len_val us
-    refine LS.ite (fun _ => LS.pure ⟨hm, rfl⟩ hrel hinv) (fun hc => absurd hc (by scalar_tac))
+    refine LS.packT_ite (LS.ite (fun _ => LS.packT_ok_ok (LS.pure ⟨⟨hm, rfl⟩, ht⟩ hrel hinv))
+      (fun hc => absurd hc (by scalar_tac)))
   | succ k ih =>
-    intro pers st lst rm lm fuel us i out hn hrel hinv hm
+    intro P t st lst rm lm fuel us i out hn hP ht hsc hrel hinv hm
     rw [arena.promote.promote_ci_list_from, vecFrom_cons us absIConstantInfo i (by omega), pmapFrom]
     have hl := alloc.vec.Vec.len_val us
-    refine LS.ite (fun hc => absurd hc (by scalar_tac)) (fun hc => ?_)
+    refine LS.packT_ite (LS.ite (fun hc => absurd hc (by scalar_tac)) (fun hc => ?_))
     lockstep
 
 /-- `promote_ci_list_from` ⊑ `pmapFrom promoteCI` — the cursor, in the judgement shape. -/
-@[lockstep] theorem promote_ci_list_from_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_ci_list_from_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (us : alloc.vec.Vec arena.env.IConstantInfo) (i : Std.Usize) (out : alloc.vec.Vec arena.env.IConstantInfo) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absICIL r.2)
-      (arena.promote.promote_ci_list_from pers st rm fuel us i out) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absICIL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_ci_list_from t st rm fuel us i out) lst
       (pmapFrom (fun m u => promoteCI m (absU fuel) u) lm (absICIL out)
         ((us.val.drop i.val).map absIConstantInfo)) :=
-  promote_ci_list_from_aux _ fuel us i out rfl hrel hinv hm
+  promote_ci_list_from_aux _ fuel us i out rfl hP ht hsc hrel hinv hm
 
 theorem promoteCIList_pmapFrom (m : PMemo) (fuel : Nat) l acc :
     pmapFrom (fun m u => promoteCI m fuel u) m acc l =
@@ -933,13 +978,14 @@ theorem promoteCIList_pmapFrom (m : PMemo) (fuel : Nat) l acc :
   pmapFrom_cons_eq _ (fun m l => promoteCIList m fuel l) (fun _ => rfl) (fun _ _ _ => rfl) l m acc
 
 /-- `promote_ci_list` ⊑ `promoteCIList`. -/
-@[lockstep] theorem promote_ci_list_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_ci_list_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (us : alloc.vec.Vec arena.env.IConstantInfo) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absICIL r.2)
-      (arena.promote.promote_ci_list pers st rm fuel us) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absICIL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_ci_list t st rm fuel us) lst
       (promoteCIList lm (absU fuel) (absICIL us)) := by
-  have h := promote_ci_list_from_ls hrel hinv hm fuel us 0#usize (alloc.vec.Vec.new _)
+  have h := promote_ci_list_from_ls hP ht hsc hrel hinv hm fuel us 0#usize (alloc.vec.Vec.new _)
   rw [promoteCIList_pmapFrom] at h
   simpa [arena.promote.promote_ci_list, absICIL, alloc.vec.Vec.new] using h
 
@@ -948,11 +994,12 @@ section decl3
 attribute [local lockstep_simp] absIConstantVal absIDeclaration absICIL
 
 /-- `promote_decl` ⊑ `promoteDecl` — the seven constructors. -/
-@[lockstep] theorem promote_decl_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hm : PMemoRel rm lm) (fuel : Std.U64)
+@[lockstep] theorem promote_decl_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
+    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
+    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
     (d : arena.env.IDeclaration) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absIDeclaration r.2)
-      (arena.promote.promote_decl pers st rm fuel d) lst
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absIDeclaration p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
+      (arena.promote.promote_decl t st rm fuel d) lst
       (promoteDecl lm (absU fuel) (absIDeclaration d)) := by
   cases d <;> rw [arena.promote.promote_decl] <;> simp only [absIDeclaration, promoteDecl] <;>
     lockstep
@@ -960,394 +1007,6 @@ attribute [local lockstep_simp] absIConstantVal absIDeclaration absICIL
 end decl3
 
 end Lockstep
-
-/-! ## The public statements
-
-The `SimPM` forms the tier's consumers take, each one line from its judgement
-above (`LS.toSimPM`).  Every one is lockstep: `AStateRel₀`, `AStateInv`, the
-memo relation, and nothing about the twin's store — task #97-P5-Fresh's
-promote window (`AStateRelW`, `StoreWF'`, the `ViewOK`/`NViewPers` premises of
-the old `intern_persistent_n_run`) was Theorem-1 content, and under
-`AStateRel₀` the window is not special (task #97-T2-AUDIT §2). -/
-
-open Lockstep in
-/-- **`promote_n` ⊑ `promoteN`** — the name walk. -/
-theorem promote_n_refines {pers st lst rm lm} {fuel : Std.U64}
-    {h : arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_n pers st rm fuel h = ok o) :
-    SimPMF absNIdx pers lst o (promoteN lm (absU fuel) (absNIdx h)) :=
-  LS.toSimPM (promote_n_ls hrel hinv hm fuel h) hrun
-
-open Lockstep in
-/-- `promote_n_node` ⊑ `promoteNNodeSpec` — at a view the Rust store produced
-(`NNodeViewWF`: its string is a valid code-point sequence). -/
-theorem promote_n_node_refines {pers st lst rm lm} {fuel : Std.U64}
-    {v : arena.store.NNodeView} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm) (hvwf : NNodeViewWF v)
-    (hrun : arena.promote.promote_n_node pers st rm fuel v = ok o) :
-    SimPMF absNIdx pers lst o
-      (promoteNNodeSpec lm (absU fuel) (absNNodeView v)) :=
-  LS.toSimPM (promote_n_node_ls hrel hinv hm fuel v hvwf) hrun
-
-open Lockstep in
-/-- `promote_l` ⊑ `promoteL`. -/
-theorem promote_l_refines {pers st lst rm lm} {fuel : Std.U64}
-    {h : arena.handle.LIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_l pers st rm fuel h = ok o) :
-    SimPMF absLIdx pers lst o (promoteL lm (absU fuel) (absLIdx h)) :=
-  LS.toSimPM (promote_l_ls hrel hinv hm fuel h) hrun
-
-open Lockstep in
-/-- `promote_l_node` ⊑ `promoteLNodeSpec`. -/
-theorem promote_l_node_refines {pers st lst rm lm} {fuel : Std.U64}
-    {v : arena.store.LNodeView} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_l_node pers st rm fuel v = ok o) :
-    SimPMF absLIdx pers lst o
-      (promoteLNodeSpec lm (absU fuel) (absLNodeView v)) :=
-  LS.toSimPM (promote_l_node_ls hrel hinv hm fuel v) hrun
-
-open Lockstep in
-/-- `promote_l_two` is the two-child level arms' pair of promotions, in the
-twin's order (`promoteLTwo`). -/
-theorem promote_l_two_refines {pers st lst rm lm} {fuel : Std.U64}
-    {u v : arena.handle.LIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_l_two pers st rm fuel u v = ok o) :
-    SimPM (fun r p => p = (absLIdx r.1, absLIdx r.2)) pers lst o
-      (promoteLTwo lm (absU fuel) (absLIdx u) (absLIdx v)) :=
-  LS.toSimPM (promote_l_two_ls hrel hinv hm fuel u v) hrun
-
-open Lockstep in
-/-- `promote_l_list_from` ⊑ `promoteLList` at the cursor. -/
-theorem promote_l_list_from_refines {pers st lst rm lm} {fuel : Std.U64}
-    {us : alloc.vec.Vec arena.handle.LIdx} {i : Std.Usize}
-    {out : alloc.vec.Vec arena.handle.LIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_l_list_from pers st rm fuel us i out = ok o) :
-    SimPMF absLIdxL pers lst o
-      (do
-        let (m, vs) ← promoteLList lm (absU fuel) (absLIdxLFrom us i)
-        pure (m, absLIdxL out ++ vs)) := by
-  have h := promote_l_list_from_ls hrel hinv hm fuel us i out
-  rw [promoteLList_pmapFrom] at h
-  exact LS.toSimPM h hrun
-
-open Lockstep in
-/-- `promote_l_list` ⊑ `promoteLList`. -/
-theorem promote_l_list_refines {pers st lst rm lm} {fuel : Std.U64}
-    {us : alloc.vec.Vec arena.handle.LIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_l_list pers st rm fuel us = ok o) :
-    SimPMF absLIdxL pers lst o (promoteLList lm (absU fuel) (absLIdxL us)) :=
-  LS.toSimPM (promote_l_list_ls hrel hinv hm fuel us) hrun
-
-open Lockstep in
-/-- `promote_ls` ⊑ `promoteLs`. -/
-theorem promote_ls_refines {pers st lst rm lm} {fuel : Std.U64}
-    {h : arena.handle.LsIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_ls pers st rm fuel h = ok o) :
-    SimPMF absLsIdx pers lst o (promoteLs lm (absU fuel) (absLsIdx h)) :=
-  LS.toSimPM (promote_ls_ls hrel hinv hm fuel h) hrun
-
-open Lockstep in
-/-- `promote_e` ⊑ `promoteE`. -/
-theorem promote_e_refines {pers st lst rm lm} {fuel : Std.U64}
-    {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_e pers st rm fuel h = ok o) :
-    SimPMF absEIdx pers lst o (promoteE lm (absU fuel) (absEIdx h)) :=
-  LS.toSimPM (promote_e_ls hrel hinv hm fuel h) hrun
-
-open Lockstep in
-/-- `promote_e_node` ⊑ `promoteENodeSpec` — at a view the Rust store produced
-(`ENodeViewWF`: the literal and the binder datum well formed). -/
-theorem promote_e_node_refines {pers st lst rm lm} {fuel : Std.U64}
-    {v : arena.store.ENodeView} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm) (hvwf : ENodeViewWF v)
-    (hrun : arena.promote.promote_e_node pers st rm fuel v = ok o) :
-    SimPMF absEIdx pers lst o
-      (promoteENodeSpec lm (absU fuel) (absENodeView v)) :=
-  LS.toSimPM (promote_e_node_ls hrel hinv hm fuel v hvwf) hrun
-
-open Lockstep in
-/-- `promote_e_two` — the two-child expression arms' pair, in the twin's
-order (`promoteETwo`). -/
-theorem promote_e_two_refines {pers st lst rm lm} {fuel : Std.U64}
-    {x y : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_e_two pers st rm fuel x y = ok o) :
-    SimPM (fun r p => p = (absEIdx r.1, absEIdx r.2)) pers lst o
-      (promoteETwo lm (absU fuel) (absEIdx x) (absEIdx y)) :=
-  LS.toSimPM (promote_e_two_ls hrel hinv hm fuel x y) hrun
-
-/-! ## The lists -/
-
-open Lockstep in
-/-- `promote_n_list_from` ⊑ `promoteNList` at the cursor. -/
-theorem promote_n_list_from_refines {pers st lst rm lm} {fuel : Std.U64}
-    {ns : alloc.vec.Vec arena.handle.NIdx} {i : Std.Usize}
-    {out : alloc.vec.Vec arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_n_list_from pers st rm fuel ns i out = ok o) :
-    SimPMF absNIdxL pers lst o
-      (do
-        let (m, vs) ← promoteNList lm (absU fuel) (absNIdxLFrom ns i)
-        pure (m, absNIdxL out ++ vs)) := by
-  have h := promote_n_list_from_ls hrel hinv hm fuel ns i out
-  rw [promoteNList_pmapFrom] at h
-  exact LS.toSimPM h hrun
-
-open Lockstep in
-/-- `promote_n_list` ⊑ `promoteNList`. -/
-theorem promote_n_list_refines {pers st lst rm lm} {fuel : Std.U64}
-    {ns : alloc.vec.Vec arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_n_list pers st rm fuel ns = ok o) :
-    SimPMF absNIdxL pers lst o (promoteNList lm (absU fuel) (absNIdxL ns)) :=
-  LS.toSimPM (promote_n_list_ls hrel hinv hm fuel ns) hrun
-
-open Lockstep in
-/-- `promote_e_list_from` ⊑ `promoteEList` at the cursor. -/
-theorem promote_e_list_from_refines {pers st lst rm lm} {fuel : Std.U64}
-    {es : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
-    {out : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_e_list_from pers st rm fuel es i out = ok o) :
-    SimPMF absEIdxL pers lst o
-      (do
-        let (m, vs) ← promoteEList lm (absU fuel) (absEIdxLFrom es i)
-        pure (m, absEIdxL out ++ vs)) := by
-  have h := promote_e_list_from_ls hrel hinv hm fuel es i out
-  rw [promoteEList_pmapFrom] at h
-  exact LS.toSimPM h hrun
-
-open Lockstep in
-/-- `promote_e_list` ⊑ `promoteEList` — a block at ONE memo, so the sharing
-survives the copy. -/
-theorem promote_e_list_refines {pers st lst rm lm} {fuel : Std.U64}
-    {es : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_e_list pers st rm fuel es = ok o) :
-    SimPMF absEIdxL pers lst o (promoteEList lm (absU fuel) (absEIdxL es)) :=
-  LS.toSimPM (promote_e_list_ls hrel hinv hm fuel es) hrun
-
-/-! ## The declaration layer
-
-`Arena/Env.lean`'s record, field for field: every handle is promoted and every
-`Nat`, `Bool`, `ReducibilityHint`, `PropWhen` and `BinderMeta` crosses
-unchanged (DESIGN §8.7's ruling that (B) imports con-leche's
-representation-free types). -/
-
-open Lockstep in
-/-- `promote_cv` ⊑ `promoteCV`. -/
-theorem promote_cv_refines {pers st lst rm lm} {fuel : Std.U64}
-    {cv : arena.env.IConstantVal} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_cv pers st rm fuel cv = ok o) :
-    SimPMF absIConstantVal pers lst o
-      (promoteCV lm (absU fuel) (absIConstantVal cv)) :=
-  LS.toSimPM (promote_cv_ls hrel hinv hm fuel cv) hrun
-
-open Lockstep in
-/-- `promote_fire` ⊑ `promoteFire`. -/
-theorem promote_fire_refines {pers st lst rm lm} {fuel : Std.U64}
-    {f : arena.env.IRecRuleFire} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_fire pers st rm fuel f = ok o) :
-    SimPMF absIRecRuleFire pers lst o
-      (promoteFire lm (absU fuel) (absIRecRuleFire f)) :=
-  LS.toSimPM (promote_fire_ls hrel hinv hm fuel f) hrun
-
-open Lockstep in
-/-- `promote_rule` ⊑ `promoteRule`. -/
-theorem promote_rule_refines {pers st lst rm lm} {fuel : Std.U64}
-    {rl : arena.env.IRecRule} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_rule pers st rm fuel rl = ok o) :
-    SimPMF absIRecRule pers lst o (promoteRule lm (absU fuel) (absIRecRule rl)) :=
-  LS.toSimPM (promote_rule_ls hrel hinv hm fuel rl) hrun
-
-open Lockstep in
-/-- `promote_rules_from` ⊑ `promoteRules` at the cursor. -/
-theorem promote_rules_from_refines {pers st lst rm lm} {fuel : Std.U64}
-    {rs : alloc.vec.Vec arena.env.IRecRule} {i : Std.Usize}
-    {out : alloc.vec.Vec arena.env.IRecRule} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_rules_from pers st rm fuel rs i out = ok o) :
-    SimPMF absIRecRuleL pers lst o
-      (do
-        let (m, vs) ← promoteRules lm (absU fuel) (absIRecRuleLFrom rs i)
-        pure (m, absIRecRuleL out ++ vs)) := by
-  have h := promote_rules_from_ls hrel hinv hm fuel rs i out
-  rw [promoteRules_pmapFrom] at h
-  exact LS.toSimPM h hrun
-
-open Lockstep in
-/-- `promote_rules` ⊑ `promoteRules`. -/
-theorem promote_rules_refines {pers st lst rm lm} {fuel : Std.U64}
-    {rs : alloc.vec.Vec arena.env.IRecRule} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_rules pers st rm fuel rs = ok o) :
-    SimPMF absIRecRuleL pers lst o (promoteRules lm (absU fuel) (absIRecRuleL rs)) :=
-  LS.toSimPM (promote_rules_ls hrel hinv hm fuel rs) hrun
-
-open Lockstep in
-/-- `promote_caps` ⊑ `promoteCaps` — one name; `sortZ` is a `PropWhen` over
-con-leche `Name`s and carries no handle. -/
-theorem promote_caps_refines {pers st lst rm lm} {fuel : Std.U64}
-    {c : arena.env.IIndCaps} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_caps pers st rm fuel c = ok o) :
-    SimPMF absIIndCaps pers lst o (promoteCaps lm (absU fuel) (absIIndCaps c)) :=
-  LS.toSimPM (promote_caps_ls hrel hinv hm fuel c) hrun
-
-open Lockstep in
-/-- `promote_proj_table` ⊑ `promoteProjTable`, `tableName` included (it is a
-stored handle, not a recomputed name — `Arena/Env.lean`'s one added field). -/
-theorem promote_proj_table_refines {pers st lst rm lm} {fuel : Std.U64}
-    {t : arena.env.IProjTable} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_proj_table pers st rm fuel t = ok o) :
-    SimPMF absIProjTable pers lst o
-      (promoteProjTable lm (absU fuel) (absIProjTable t)) :=
-  LS.toSimPM (promote_proj_table_ls hrel hinv hm fuel t) hrun
-
-open Lockstep in
-/-- `promote_proj_table_rest` is the Rust-only tail of `promote_proj_table`
-past its three leading promotions (extraction rule 5), stated against the
-twin's tail (`promoteProjTableRest`) with those handles in hand. -/
-theorem promote_proj_table_rest_refines {pers st lst rm lm} {fuel : Std.U64}
-    {t : arena.env.IProjTable} {sn tn : arena.handle.NIdx}
-    {lps : alloc.vec.Vec arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_proj_table_rest pers st rm fuel t sn tn lps = ok o) :
-    SimPMF absIProjTable pers lst o
-      (promoteProjTableRest lm (absU fuel) (absIProjTable t) (absNIdx sn) (absNIdx tn)
-        (absNIdxL lps)) :=
-  LS.toSimPM (promote_proj_table_rest_ls hrel hinv hm fuel t sn tn lps) hrun
-
-open Lockstep in
-/-- `promote_ci` ⊑ `promoteCI` — the seven `IConstantInfo` constructors, which
-is what "the handles the environment keeps" means. -/
-theorem promote_ci_refines {pers st lst rm lm} {fuel : Std.U64}
-    {ci : arena.env.IConstantInfo} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_ci pers st rm fuel ci = ok o) :
-    SimPMF absIConstantInfo pers lst o
-      (promoteCI lm (absU fuel) (absIConstantInfo ci)) :=
-  LS.toSimPM (promote_ci_ls hrel hinv hm fuel ci) hrun
-
-open Lockstep in
-/-- `promote_ci_list_from` ⊑ `promoteCIList` at the cursor. -/
-theorem promote_ci_list_from_refines {pers st lst rm lm} {fuel : Std.U64}
-    {cs : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize}
-    {out : alloc.vec.Vec arena.env.IConstantInfo} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_ci_list_from pers st rm fuel cs i out = ok o) :
-    SimPMF absICIL pers lst o
-      (do
-        let (m, vs) ← promoteCIList lm (absU fuel) (absICILFrom cs i)
-        pure (m, absICIL out ++ vs)) := by
-  have h := promote_ci_list_from_ls hrel hinv hm fuel cs i out
-  rw [promoteCIList_pmapFrom] at h
-  exact LS.toSimPM h hrun
-
-open Lockstep in
-/-- `promote_ci_list` ⊑ `promoteCIList` — a block at ONE memo. -/
-theorem promote_ci_list_refines {pers st lst rm lm} {fuel : Std.U64}
-    {cs : alloc.vec.Vec arena.env.IConstantInfo} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_ci_list pers st rm fuel cs = ok o) :
-    SimPMF absICIL pers lst o (promoteCIList lm (absU fuel) (absICIL cs)) :=
-  LS.toSimPM (promote_ci_list_ls hrel hinv hm fuel cs) hrun
-
-open Lockstep in
-/-- `promote_decl` ⊑ `promoteDecl` — not on the fold's path (the records
-arrive from the parse and are persistent) and twinned because the layer is
-twinned whole. -/
-theorem promote_decl_refines {pers st lst rm lm} {fuel : Std.U64}
-    {d : arena.env.IDeclaration} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_decl pers st rm fuel d = ok o) :
-    SimPMF absIDeclaration pers lst o
-      (promoteDecl lm (absU fuel) (absIDeclaration d)) :=
-  LS.toSimPM (promote_decl_ls hrel hinv hm fuel d) hrun
-
-/-- `promote_vg` ⊑ `promoteVG` — the datum that crosses the install/check
-seam, promoted beside the environment and at the SAME memo (an `opaque`'s
-value is not in the environment; only the pending record holds it). -/
-theorem promote_vg_refines {pers st lst rm lm} {fuel : Std.U64}
-    {g : arena.checker_split.ValueGroup} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm)
-    (hrun : arena.promote.promote_vg pers st rm fuel g = ok o) :
-    SimPMF absValueGroup pers lst o
-      (promoteVG lm (absU fuel) (absValueGroup g)) := by
-  rw [arena.promote.promote_vg] at hrun
-  obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨r1, st1⟩ := q1
-  have h1 := promote_cv_refines hrel hinv hm hq1
-  simp only [SimPM, POut] at h1
-  unfold SimPMF SimPM
-  rw [promoteVG, am_run_bind']
-  cases r1 with
-  | Err e =>
-    have hrun' : (ok (core.result.Result.Err e, st1) : Result _) = ok o := hrun
-    obtain rfl := (Result.ok_injective hrun').symm
-    exact AErrSim.bind h1 _
-  | Ok p1 =>
-    obtain ⟨m2, cv2⟩ := p1
-    obtain ⟨m', v1, lst1, hx1, hv1, hm1, hrel1, hinv1⟩ := h1
-    obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨r2, st2⟩ := q2
-    have h2 := promote_e_refines hrel1 hinv1 hm1 hq2
-    simp only [SimPM, POut] at h2
-    erw [hx1, except_ok_bind]
-    dsimp only
-    rw [am_run_bind']
-    cases r2 with
-    | Err e =>
-      have hrun' : (ok (core.result.Result.Err e, st2) : Result _) = ok o := hrun
-      obtain rfl := (Result.ok_injective hrun').symm
-      exact AErrSim.bind h2 _
-    | Ok p2 =>
-      obtain ⟨m3, jv2⟩ := p2
-      obtain ⟨m'', v2, lst2, hx2, hv2, hm2, hrel2, hinv2⟩ := h2
-      obtain rfl := (Result.ok_injective hrun).symm
-      erw [hx2, except_ok_bind]
-      refine ⟨m'', _, lst2, rfl, ?_, hm2, hrel2, hinv2⟩
-      simp only [absValueGroup, hv1, hv2]
 
 /-! ## The fold's entry
 
@@ -1588,9 +1247,9 @@ program alone; `index_promoted` writes back the promotion of a constant it
 read out of the related environment, so `IFEnvRel.envWF` of the source gives
 the premise (task #97-T2-LANE-Promote round 2, replacing the seam
 `ifenvRel_envWF_promote`). -/
-theorem promote_ci_wf {pers st m fuel} {ci : arena.env.IConstantInfo} {m2 ci' st'}
+theorem promote_ci_wf {t st m fuel} {ci : arena.env.IConstantInfo} {m2 ci' t'}
     (hwf : IConstantInfoWF ci)
-    (h : arena.promote.promote_ci pers st m fuel ci = ok (.Ok (m2, ci'), st')) :
+    (h : arena.promote.promote_ci t st m fuel ci = ok (.Ok (m2, ci'), t')) :
     IConstantInfoWF ci' := by
   cases ci with
   | IndInfo v c =>
@@ -1621,21 +1280,29 @@ theorem promote_ci_wf {pers st m fuel} {ci : arena.env.IConstantInfo} {m2 ci' st
       | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h))
     all_goals (cases Result.ok_injective h; trivial)
 
-/-- A Rust-output fact joined to a lockstep post (the fact is read off the
-Rust run alone). -/
-private theorem LS.and_rust {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
-    {P : α → Prop}
-    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+/-- A Rust-output fact joined to a tier walk's lockstep post (the fact is read
+off the Rust run alone). -/
+private theorem LST.and_rust {α β : Type} {P0 : arena.store.PersTier}
+    {R : α × arena.store.PersTier → β → Prop} {Q : α → Prop}
+    {G : arena.store.PersTier → arena.monad.AState}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
     {lst : AState} {x : AM β}
-    (h : Lockstep.LS pers R m lst x) (hP : ∀ a st', m = ok (.Ok a, st') → P a) :
-    Lockstep.LS pers (fun a b => R a b ∧ P a) m lst x := by
+    (h : Lockstep.LST P0 R G m lst x) (hQ : ∀ a t', m = ok (.Ok a, t') → Q a) :
+    Lockstep.LST P0 (fun p b => R p b ∧ Q p.1) G m lst x := by
   intro o st' hm
-  have h1 := h o st' hm
-  cases o with
-  | Err e => exact h1
+  obtain ⟨⟨r, t'⟩, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
+  have hh := Lockstep.LST.apply h h1
+  have h2' := Result.ok_injective h2
+  cases r with
+  | Err e =>
+    simp only [Lockstep.packTOut, Prod.mk.injEq] at h2'
+    obtain ⟨rfl, rfl⟩ := h2'
+    exact hh
   | Ok a =>
-    obtain ⟨b, lst', h2, h3, h4, h5⟩ := h1
-    exact ⟨b, lst', h2, ⟨h3, hP a st' hm⟩, h4, h5⟩
+    simp only [Lockstep.packTOut, Prod.mk.injEq] at h2'
+    obtain ⟨rfl, rfl⟩ := h2'
+    obtain ⟨b, lst', h3, h4, h5, h6⟩ := hh
+    exact ⟨b, lst', h3, ⟨h4, hQ a t' h1⟩, h5, h6⟩
 
 private theorem index_promoted_step {rf lf : _} {start j i : Std.Usize}
     {c i1 i2 : Std.U64} {ci : arena.env.IConstantInfo} {nn : arena.handle.NIdx}
@@ -1746,33 +1413,39 @@ private theorem index_promoted_step {rf lf : _} {start j i : Std.Usize}
 
 open Lockstep in
 private theorem index_promoted_aux (d : Nat) :
-    ∀ {pers st lst rm lm rf lf} (fuel : Std.U64) (start j : Std.Usize) (c : Std.U64),
+    ∀ {P t st lst rm lm rf lf} (fuel : Std.U64) (start j : Std.Usize) (c : Std.U64),
       j.val - start.val = d → start.val ≤ j.val → j.val ≤ rf.env.consts.val.length →
-      AStateRel₀ pers st lst → AStateInv pers st → PMemoRel rm lm →
+      P.frozen = false → t.frozen = true → ScratchOn st.store →
+      AStateRel₀ P (glue t st) lst → AStateInv P (glue t st) → PMemoRel rm lm →
       IFEnvRel rf lf → IFEnvInv rf →
       (∀ k p, ConRon.Refine.HashMap2.toFun rf.idx k = some p →
         p.2.val < start.val ∨ j.val ≤ p.2.val) →
-      LS pers (fun r v => PMemoRel r.1 v.1 ∧ IFEnvRelI r.2 v.2)
-        (arena.promote.index_promoted pers st rm fuel rf start j c) lst
+      LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvRelI p.1.2 v.2) ∧ p.2.frozen = true)
+        (fun t' => glue t' st)
+        (arena.promote.index_promoted t st rm fuel rf start j c) lst
         (indexPromotedTwin lm (absU fuel) lf.env.consts lf.idx lf.visibleBelow
           rf.env.consts.val.length start.val j.val (absU c)) := by
   induction d with
   | zero =>
-    intro pers st lst rm lm rf lf fuel start j c hd hle hj hrel hinv hm hfe hfinv hfree
+    intro P t st lst rm lm rf lf fuel start j c hd hle hj hP ht hsc hrel hinv hm hfe hfinv
+      hfree
     have hje : j.val = start.val := by omega
+    show LS _ _ (packT _ _) _ _
     rw [arena.promote.index_promoted, if_pos (by scalar_tac), hje, indexPromotedTwin_zero]
-    exact LS.pure ⟨hm, hfe, hfinv⟩ hrel hinv
+    exact LS.packT_ok_ok (LS.pure ⟨⟨hm, hfe, hfinv⟩, ht⟩ hrel hinv)
   | succ d ih =>
-    intro pers st lst rm lm rf lf fuel start j c hd hle hj hrel hinv hm hfe hfinv hfree
+    intro P t st lst rm lm rf lf fuel start j c hd hle hj hP ht hsc hrel hinv hm hfe hfinv
+      hfree
     have hsj : start.val < j.val := by omega
     have hlen : lf.env.consts.length = rf.env.consts.val.length := by
       rw [hfe.env]; simp [absIEnv]
+    show LS _ _ (packT _ _) _ _
     rw [arena.promote.index_promoted, if_neg (by scalar_tac),
       indexPromotedTwin_succ _ _ _ _ _ _ _ _ _ hlen hsj hj]
-    refine LS.bind_eq fun i hi => ?_
+    refine LS.packT_bind (LS.bind_eq fun i hi => ?_)
     obtain ⟨-, hi1⟩ := ConRon.Refine.Nat.usub_val hi
     have hiv : i.val = j.val - 1 := by rw [hi1]; rfl
-    refine LS.bind_eq fun ii hii => ?_
+    refine LS.packT_bind (LS.bind_eq fun ii hii => ?_)
     obtain ⟨hb, hii⟩ := ExprOps.vecIndexAt hii
     have htw : absIConstantInfo ii =
         lf.env.consts[rf.env.consts.val.length - j.val]'(by omega) := by
@@ -1784,44 +1457,45 @@ private theorem index_promoted_aux (d : Nat) :
     -- the promoted constant is canonical: `ii` is stored in the related source
     have hiiwf : IConstantInfoWF ii :=
       hfe.envWF ii (by rw [← hii]; exact List.getElem_mem _)
-    refine LS.bind (LS.and_rust (promote_ci_ls hrel hinv hm fuel ii)
-        (P := fun r => IConstantInfoWF r.2)
-        (fun a st' h => promote_ci_wf hiiwf h)) (by rw [htw]) ?_ ?_
-    · intro e st1
-      exact errArm_ok
-    · rintro ⟨m2, ci⟩ ⟨m2', ci'⟩ st1 lst1 ⟨⟨hM, hci⟩, hciwf⟩ hrel1 hinv1
-      simp only at hM hci hciwf
+    refine LS.packT_bind (LS.bindT (LST.and_rust (promote_ci_ls hP ht hsc hrel hinv hm fuel ii)
+        (Q := fun r => IConstantInfoWF r.2)
+        (fun a t' h => promote_ci_wf hiiwf h)) (by rw [htw]) ?_ ?_)
+    · intro e t1
+      exact ErrArm.packT_ok_err
+    · rintro ⟨m2, ci⟩ t1 ⟨m2', ci'⟩ lst1 ⟨⟨⟨hM, hci⟩, hf1⟩, hciwf⟩ hrel1 hinv1
+      simp only at hM hci hciwf hf1
       subst hci
-      try simp only
-      refine LS.bind_eq fun nn hnn => ?_
+      try dsimp only
+      refine LS.packT_bind (LS.bind_eq fun nn hnn => ?_)
       have hnn' := i_constant_info_name_abs hnn
-      refine LS.bind_eq fun i1 hi1' => ?_
+      refine LS.packT_bind (LS.bind_eq fun i1 hi1' => ?_)
       obtain ⟨hc1, hi1v⟩ := ConRon.Refine.Nat.usub_val hi1'
-      refine LS.bind_eq fun i2 hi2 => ?_
+      refine LS.packT_bind (LS.bind_eq fun i2 hi2 => ?_)
       have hi2v : i2.val = i.val := by
         simp only [lift, Result.ok.injEq] at hi2
         rw [← hi2, usize_cast_u64_val]
-      refine LS.bind_eq fun q hq => ?_
+      refine LS.packT_bind (LS.bind_eq fun q hq => ?_)
       obtain ⟨old, hmm⟩ := q
       obtain ⟨hinvm, -, hupd, -⟩ :=
         ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
           hfinv.idxInv ConRon.Refine.HashMap2.KeysOk_true trivial hq
-      try simp only
-      refine LS.bind_eq fun q2 hq2 => ?_
+      try dsimp only
+      refine LS.packT_bind (LS.bind_eq fun q2 hq2 => ?_)
       obtain ⟨x, back⟩ := q2
       haveI : Inhabited arena.env.IConstantInfo := ⟨ci⟩
       obtain ⟨-, -, hback⟩ := ConRon.Refine.HashMap.vec_index_mut_eq hq2
       subst hback
-      try simp only
+      try dsimp only
       obtain ⟨hrel', hinv', hlen', hfree'⟩ := index_promoted_step (i := i) (ci := ci) (nn := nn)
         (c := c) (i1 := i1) (i2 := i2) hfe hfinv hfree hsj hj hiv hi1v (by
           rw [u64_one_val] at hc1; exact hc1) hi2v hnn' hciwf hinvm hupd
       have hrec := ih fuel start i i1 (by omega) (by omega) (by rw [hlen']; omega)
-          hrel1 hinv1 hM hrel' hinv' hfree'
+          hP hf1 hsc hrel1 hinv1 hM hrel' hinv' hfree'
       rw [hlen'] at hrec
-      refine LS.tail hrec ?_ (fun _ _ h => h)
+      refine LS.tailT hrec ?_ (fun _ _ h => h)
       simp only [hiv, show absU i1 = absU c - 1 from hi1v]
 
+open Lockstep in
 /-- `index_promoted` ⊑ `promoteCIList` followed by `indexPromoted`, on the
 slice `start..j` (finding B: the port fuses the two passes, which promotion
 reading no index makes invisible).  The promoted records are written back
@@ -1832,51 +1506,56 @@ middle segment moves.
 statement needs (`IFEnvKeys`' note): a row pointing at a slot of the slice
 would move with the overwrite, and the twin's row (keyed by name) would not.
 `promote_new` establishes it from `IFEnvKeys` and `erase_installed`. -/
-theorem index_promoted_refines {pers st lst rm lm rf lf} {fuel : Std.U64}
-    {start j : Std.Usize} {c : Std.U64} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+theorem index_promoted_ls {P t st lst rm lm rf lf} {fuel : Std.U64}
+    {start j : Std.Usize} {c : Std.U64}
+    (hP : P.frozen = false) (ht : t.frozen = true) (hsc : ScratchOn st.store)
+    (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
     (hm : PMemoRel rm lm) (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hle : start.val ≤ j.val) (hj : j.val ≤ rf.env.consts.val.length)
     (hfree : ∀ k p, ConRon.Refine.HashMap2.toFun rf.idx k = some p →
-      p.2.val < start.val ∨ j.val ≤ p.2.val)
-    (hrun : arena.promote.index_promoted pers st rm fuel rf start j c = ok o) :
-    SimPM IFEnvRelI pers lst o
+      p.2.val < start.val ∨ j.val ≤ p.2.val) :
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvRelI p.1.2 v.2) ∧ p.2.frozen = true)
+      (fun t' => glue t' st)
+      (arena.promote.index_promoted t st rm fuel rf start j c) lst
       (indexPromotedTwin lm (absU fuel) (absIEnv rf.env).consts lf.idx lf.visibleBelow
         rf.env.consts.val.length start.val j.val (absU c)) := by
-  have h := index_promoted_aux _ fuel start j c rfl hle hj hrel hinv hm hfe hfinv hfree
+  have h := index_promoted_aux _ fuel start j c rfl hle hj hP ht hsc hrel hinv hm hfe hfinv
+    hfree
   rw [hfe.env] at h
-  exact Lockstep.LS.toSimPM h hrun
+  exact h
 
+open Lockstep in
 /-- **`promote_new` ⊑ `promoteNew`** — the phase-A bracket's promotion half:
 the `k` constants the step just installed, copied into the persistent tier and
-re-indexed, everything below them untouched.  `hk` is finding C.
+re-indexed, everything below them untouched.  `hk` is finding C.  A TIER walk
+(task #98-FREEZE): the frozen state is read, the bracket's tier is written,
+and the relation after it is the glued state's at the grown tier, which is
+still `frozen`.
 
 **The result relation is `IFEnvRelI`, not `IFEnvRel`** (task #97-P5-Checker
 round 4): both bracketed steps of `Refine2/Checker/Top.lean` hand
 `promote_new`'s environment to the NEXT step of their fold, which takes
-`IFEnvInv` beside `IFEnvRel` (task #97-P5-Checker-2 §3's `IFEnvRelI`).  It is
-true — `index_promoted` stores `j - 1` for a cursor `j ≤ n`, `erase_installed`
-only removes rows, the environment's length and counter do not move, and the
-decline arm returns `fe` itself — and without it neither leaf closes. -/
-theorem promote_new_refines_keyed {pers st lst rm lm rf lf} {fuel k : Std.U64} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+`IFEnvInv` beside `IFEnvRel` (task #97-P5-Checker-2 §3's `IFEnvRelI`). -/
+theorem promote_new_ls_keyed {P t st lst rm lm rf lf} {fuel k : Std.U64}
+    (hP : P.frozen = false) (ht : t.frozen = true) (hsc : ScratchOn st.store)
+    (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
     (hm : PMemoRel rm lm) (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
     (hkeys : IFEnvKeys rf)
-    (hk : absU k ≤ rf.env.consts.val.length)
-    (hrun : arena.promote.promote_new pers st rm fuel k rf = ok o) :
-    SimPM IFEnvRelI pers lst o
+    (hk : absU k ≤ rf.env.consts.val.length) :
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvRelI p.1.2 v.2) ∧ p.2.frozen = true)
+      (fun t' => glue t' st)
+      (arena.promote.promote_new t st rm fuel k rf) lst
       (promoteNew lm (absU fuel) (absU k) lf) := by
-  rw [arena.promote.promote_new] at hrun
+  show LS _ _ (packT _ _) _ _
+  rw [arena.promote.promote_new]
   by_cases hk0 : k = 0#u64
-  · rw [if_pos hk0] at hrun
-    obtain rfl := (Result.ok_injective hrun).symm
+  · rw [if_pos hk0]
     have h0 : absU k = 0 := by rw [hk0]; rfl
-    unfold SimPM
     rw [promoteNew, h0]
-    exact ⟨lm, lf, lst, rfl, ⟨hfe, hfinv⟩, hm, hrel, hinv⟩
-  · rw [if_neg hk0] at hrun
+    exact LS.packT_ok_ok (LS.pure ⟨⟨hm, hfe, hfinv⟩, ht⟩ hrel hinv)
+  · rw [if_neg hk0]
     have hn := alloc.vec.Vec.len_val rf.env.consts
-    obtain ⟨kk, hkk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    refine LS.packT_bind (LS.bind_eq fun kk hkk => ?_)
     have hkkv : kk.val = k.val := by
       simp only [lift, Result.ok.injEq] at hkk
       rw [← hkk]
@@ -1886,12 +1565,12 @@ theorem promote_new_refines_keyed {pers st lst rm lm rf lf} {fuel k : Std.U64} {
     have hkle : ¬ kk > alloc.vec.Vec.len rf.env.consts := by
       have : absU k = k.val := rfl
       scalar_tac
-    rw [if_neg hkle] at hrun
-    obtain ⟨start, hstart, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    refine LS.packT_ite (LS.ite (fun h => absurd h hkle) (fun _ => ?_))
+    refine LS.packT_bind (LS.bind_eq fun start hstart => ?_)
     have hsv : start.val = rf.env.consts.val.length - k.val := by
       have := ConRon.Refine.HashMap.uscalar_sub_eq hstart
       scalar_tac
-    obtain ⟨fe2, hfe2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    refine LS.packT_bind (LS.bind_eq fun fe2 hfe2 => ?_)
     obtain ⟨hR2, hI2⟩ := erase_installed_refines hfe hfinv hfe2
     have henv : absIEnv fe2.env = absIEnv rf.env := by
       rw [← hR2.env, ← hfe.env]
@@ -1917,8 +1596,8 @@ theorem promote_new_refines_keyed {pers st lst rm lm rf lf} {fuel k : Std.U64} {
         cases (Option.some_inj.mp hci)
         exact List.mem_iff_getElem.mpr ⟨p.2.val - start.val, by simp; omega,
           by simp [List.getElem_drop]; congr 1; omega⟩
-    have hI := index_promoted_refines hrel hinv hm hR2 hI2
-      (by scalar_tac) (by rw [hlen]; scalar_tac) hfree hrun
+    have hI := index_promoted_ls (fuel := fuel) (c := rf.visible_below) hP ht hsc hrel hinv hm hR2 hI2
+      (by scalar_tac) (by rw [hlen]; scalar_tac) hfree
     have hkabs : absU k = k.val := rfl
     have hk0' : (absU k == 0) = false := by
       have : k.val ≠ 0 := by
@@ -1943,21 +1622,36 @@ theorem promote_new_refines_keyed {pers st lst rm lm rf lf} {fuel k : Std.U64} {
         List.nil_append, hsv, Bool.false_eq_true, ↓reduceIte]
       have hkn : k.val ≤ rf.env.consts.val.length := hk
       rw [Nat.sub_sub_self hkn, hkabs]
-    rw [← htw]
-    exact hI
+    exact LS.tailT hI htw (fun _ _ h => h)
 
+open Lockstep in
 /-- **`promote_new` ⊑ `promoteNew`, as the checker tier consumes it** — the
-key clause is `IFEnvRel.keys` since task #97-P5-Core round 5 (the
-coordinator's ruling: a key predicate on the Rust `IFEnv` belongs in its
-representation relation), so this is `promote_new_refines_keyed` at it. -/
-theorem promote_new_refines {pers st lst rm lm rf lf} {fuel k : Std.U64} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+key clause is `IFEnvRel.keys` since task #97-P5-Core round 5. -/
+theorem promote_new_ls {P t st lst rm lm rf lf} {fuel k : Std.U64}
+    (hP : P.frozen = false) (ht : t.frozen = true) (hsc : ScratchOn st.store)
+    (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
     (hm : PMemoRel rm lm) (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hk : absU k ≤ rf.env.consts.val.length)
-    (hrun : arena.promote.promote_new pers st rm fuel k rf = ok o) :
-    SimPM IFEnvRelI pers lst o
+    (hk : absU k ≤ rf.env.consts.val.length) :
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ IFEnvRelI p.1.2 v.2) ∧ p.2.frozen = true)
+      (fun t' => glue t' st)
+      (arena.promote.promote_new t st rm fuel k rf) lst
       (promoteNew lm (absU fuel) (absU k) lf) :=
-  promote_new_refines_keyed hrel hinv hm hfe hfinv hfe.keys hk hrun
+  promote_new_ls_keyed hP ht hsc hrel hinv hm hfe hfinv hfe.keys hk
+
+open Lockstep in
+/-- `promote_vg` ⊑ `promoteVG` — the datum that crosses the install/check
+seam, promoted beside the environment and at the SAME memo (an `opaque`'s
+value is not in the environment; only the pending record holds it). -/
+theorem promote_vg_ls {P t st lst rm lm} {fuel : Std.U64}
+    (hP : P.frozen = false) (ht : t.frozen = true) (hsc : ScratchOn st.store)
+    (hrel : AStateRel₀ P (glue t st) lst) (hinv : AStateInv P (glue t st))
+    (hm : PMemoRel rm lm) (g : arena.checker_split.ValueGroup) :
+    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absValueGroup p.1.2) ∧ p.2.frozen = true)
+      (fun t' => glue t' st)
+      (arena.promote.promote_vg t st rm fuel g) lst
+      (promoteVG lm (absU fuel) (absValueGroup g)) := by
+  rw [arena.promote.promote_vg, promoteVG]
+  lockstep
 
 /-! ## The axiom census
 
@@ -1986,31 +1680,31 @@ handle type. -/
 /-- info: 'ConRon.Refine2.promoteN_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms promoteN_unfold
 
-/-- info: 'ConRon.Refine2.promote_n_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promote_n_refines
+/-- info: 'ConRon.Refine2.Lockstep.promote_n_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms Lockstep.promote_n_ls
 
-/-- info: 'ConRon.Refine2.promote_e_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promote_e_refines
+/-- info: 'ConRon.Refine2.Lockstep.promote_e_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms Lockstep.promote_e_ls
 
-/-- info: 'ConRon.Refine2.promote_ci_list_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promote_ci_list_refines
+/-- info: 'ConRon.Refine2.Lockstep.promote_ci_list_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms Lockstep.promote_ci_list_ls
 
-/-- info: 'ConRon.Refine2.promote_decl_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promote_decl_refines
+/-- info: 'ConRon.Refine2.Lockstep.promote_decl_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms Lockstep.promote_decl_ls
 
-/-- info: 'ConRon.Refine2.promote_vg_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promote_vg_refines
+/-- info: 'ConRon.Refine2.promote_vg_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promote_vg_ls
 
 /-- info: 'ConRon.Refine2.erase_installed_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms erase_installed_refines
 
-/-- info: 'ConRon.Refine2.index_promoted_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms index_promoted_refines
+/-- info: 'ConRon.Refine2.index_promoted_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms index_promoted_ls
 
-/-- info: 'ConRon.Refine2.promote_new_refines_keyed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promote_new_refines_keyed
+/-- info: 'ConRon.Refine2.promote_new_ls_keyed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promote_new_ls_keyed
 
-/-- info: 'ConRon.Refine2.promote_new_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promote_new_refines
+/-- info: 'ConRon.Refine2.promote_new_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms promote_new_ls
 
 end ConRon.Refine2

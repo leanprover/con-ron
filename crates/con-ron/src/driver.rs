@@ -1052,9 +1052,9 @@ mod tests {
             Err(_) => panic!("`add` interns"),
         };
         assert_eq!(name_of(empty, &st.store, &n), "add");
-        // frozen: the store's own tier is empty and the shared one answers
+        // frozen: the store's own tables are out and the tier answers
         let tier = checker::freeze_tier(&mut st.store);
-        assert!(tier.frozen && st.store.scratch_on);
+        assert!(tier.frozen);
         assert_eq!(name_of(&tier, &st.store, &n), "add");
         // and a worker, whose store is its own, reads it too
         let w = checker::worker_state(&st.pins);

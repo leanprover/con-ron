@@ -67,7 +67,7 @@ use crate::arena::trust_axioms::{
 };
 use crate::arena::pins::{pin_quot_sound, pin_sorry_ax, Pins};
 use crate::arena::env::nidx_vec_dup;
-use crate::arena::store::EStore;
+use crate::arena::store::{EStore, ETables, LTables, LsTables, NTables};
 use crate::kernel::core_k;
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env as cenv;
@@ -1292,9 +1292,13 @@ pub fn check_pending_list(
 /// `con_ron_core::cached::installed::check_decls`' shape.
 ///
 /// **Phase B runs on the frozen store** (task #98-FREEZE): the boundary
-/// freezes the store (`freeze_tier`) and thaws it after, as
-/// `check_decls_phased` does, because phase B's per-record bracket is the
-/// frozen store's (`check_pending`).
+/// freezes the store (`EStore::freeze`: the tier out, the scratch tiers on)
+/// and thaws it after, because phase B's per-record bracket is the frozen
+/// store's (`check_pending`).  With nothing pending there is no phase B and
+/// no freeze: the store is phase A's, as the twin's is (`checkPendingList []`
+/// leaves the state alone), which is what lets the refinement relate the
+/// thawed store to the twin's without knowing the twin's scratch tier empty
+/// at the boundary.
 pub fn install_then_check(
     pers: &PersTier,
     st: &mut AState,
@@ -1313,13 +1317,17 @@ pub fn install_then_check(
     ) {
         Err(e) => Err(e),
         Ok(p) => {
-            let tier: PersTier = freeze_tier(&mut st.store);
-            let r: Result<(), (CheckError, u64)> =
-                check_pending_list(&tier, st, mode, &p.1, &p.2, 0);
-            thaw_tier(&mut st.store, tier);
-            match r {
-                Err(e) => Err(e),
-                Ok(()) => Ok(p.1),
+            if p.2.len() == 0 {
+                Ok(p.1)
+            } else {
+                let tier: PersTier = st.store.freeze();
+                let r: Result<(), (CheckError, u64)> =
+                    check_pending_list(&tier, st, mode, &p.1, &p.2, 0);
+                st.store.thaw(tier);
+                match r {
+                    Err(e) => Err(e),
+                    Ok(()) => Ok(p.1),
+                }
             }
         }
     }
@@ -1401,28 +1409,39 @@ pub fn fold_start() -> (u64, IFEnv, Vec<PendingCheck>) {
 /// Lean twin: none — the twin has no tier to move; its phase-B worker reads the
 /// persistent tier where it is (`AState.worker`, `Arena/Phased.lean`).
 /// **The persistent tier out of the store and into a value** (task
-/// #97-P6-6b's driver function, moved here by task #97-P5-Driver): the store is
-/// frozen (`EStore::freeze`) — its four persistent tables move into one
-/// `PersTier` handed back `frozen`, and its scratch tiers open empty — so every
-/// later persistent read of this store goes to the tier the caller now holds
-/// and every append is a scratch append.  Task #98-FREEZE: there is no longer a
-/// frozen-store decline here (`M_REFREEZE` is gone): the one store the driver
-/// freezes is phase A's, which is owned, and the freeze is matched by the
-/// `thaw_tier` in the same function.
+/// #97-P6-6b's driver function, moved here by task #97-P5-Driver): the four
+/// persistent tables move into one `PersTier` handed back `frozen`, for the
+/// phase-B workers to read.  Task #98-FREEZE: this is a pure MOVE — the
+/// store's scratch tiers and flags are untouched (a worker's store is its own,
+/// `worker_state`), there is no flag to test and so no decline (`M_REFREEZE`
+/// is gone), and `thaw_tier` puts the tables back where they were.  The
+/// driver's store is not read between the two.
 pub fn freeze_tier(ar: &mut EStore) -> PersTier {
-    ar.freeze()
+    let n: NTables = core::mem::replace(&mut ar.lss.ls.ns.pers, NTables::empty());
+    let l: LTables = core::mem::replace(&mut ar.lss.ls.pers, LTables::empty());
+    let ls: LsTables = core::mem::replace(&mut ar.lss.pers, LsTables::empty());
+    let e: ETables = core::mem::replace(&mut ar.pers, ETables::empty());
+    PersTier {
+        frozen: true,
+        n,
+        l,
+        ls,
+        e,
+    }
 }
 
 /// con-leche: none — the phase boundary, which con-leche has no tier to make
 /// Lean twin: none — the inverse of `freeze_tier`, which has none either.
-/// **`freeze_tier` inverted**: the tier back into the store
-/// and the scratch tiers dropped, so that everything after phase B — the
-/// verdict line's label, the failing record's name, the receipts — reads the
-/// handles it was given.  `thaw_tier(ar, freeze_tier(ar))` leaves an owned
-/// store exactly as it found it, but for its scratch tiers
-/// (`Refine2/Checker/Phased.lean`'s `freeze_thaw`).
+/// **`freeze_tier` inverted**: the tables back into the store, so that
+/// everything after phase B — the verdict line's label, the failing record's
+/// name, the receipts — reads the handles it was given.
+/// `thaw_tier(ar, freeze_tier(ar))` leaves the store exactly as it found it
+/// (`Refine2/Checker/Phased.lean`'s `freeze_tier_ok`).
 pub fn thaw_tier(ar: &mut EStore, tier: PersTier) {
-    ar.thaw(tier)
+    ar.lss.ls.ns.pers = tier.n;
+    ar.lss.ls.pers = tier.l;
+    ar.lss.pers = tier.ls;
+    ar.pers = tier.e;
 }
 
 /// con-leche: none — the pin table is handles, so a copy is a copy of words

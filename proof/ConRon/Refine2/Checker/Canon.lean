@@ -938,6 +938,7 @@ because it is structural on the count.  It INTERNS, so it is a `Sim`.  The
 port pushes onto an accumulator where the twin conses after its recursive
 call, so the statement carries the accumulator in the twin. -/
 
+set_option maxHeartbeats 800000 in
 open Lockstep in
 private theorem canon_names_go_aux (k : Nat) :
     ∀ {pers st lst} {i n : Std.U64} {out : alloc.vec.Vec arena.handle.NIdx},

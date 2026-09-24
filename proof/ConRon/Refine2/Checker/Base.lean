@@ -22,14 +22,14 @@ The maintainer's rulings moved the Rust: D4 restored the scratch tiers too,
 which is the whole state only given a frame over the attempt (the old
 `ScratchFrame`: pins, persistent tiers and flags untouched — a statement over
 the attempt's 1 187-function closure); D4b made `attempt_snapshot` a FULL
-copy of the state and `attempt_restore` a move of it back; D4c moves the
-persistent tier aside (`freeze_tier`) before that copy and thaws it back
-after the attempt, which runs against the frozen tier.  So the snapshot is
-the identity in the model (`attempt_snapshot_eq`, from the `dup` lemmas
-below), `attempt_restore` is `ok snap`, the freeze/thaw pair reads the same
-(`TierView`, `freeze_tier_view`, `thaw_read_tier_view`), and all of it is
-lockstep with no hypothesis about the attempt.  The seam itself is
-`Refine2/Checker/DeclCheck.lean`'s `check_div_mod_pin_attempt_refines₀`.
+copy of the state and `attempt_restore` a move of it back; D4c moved the
+persistent tier aside around that copy; task #98-FREEZE made opening the
+declaration bracket the freeze, so the attempt, which runs inside it, copies
+a frozen store and moves nothing itself.  So the snapshot is the identity in
+the model (`attempt_snapshot_eq`, from the `dup` lemmas below),
+`attempt_restore` is `ok snap`, and all of it is lockstep with no hypothesis
+about the attempt.  The seam itself is `Refine2/Checker/DeclCheck.lean`'s
+`check_div_mod_pin_attempt_refines₀`.
 
 ## Finding 10 — `vis` out of the index is a hypothesis at seventy-one sites
 
@@ -464,191 +464,6 @@ theorem attempt_restore_refines₀ {pers st lst} {snap lsnap} {o}
 error arm "resume at the pre-attempt state". -/
 @[simp] theorem attemptRestore_self (s : AState) :
     attemptRestore s (attemptSnapshot s) = s := rfl
-
-/-! ### The frozen tier (task #97-T2-LOCKSTEP D4c)
-
-The seam moves the persistent tier aside for the attempt (`freeze_tier`) and
-back after it (`thaw_tier` on `Recovered`, `thaw_read_tier` otherwise).  The
-relation reads a store's persistent arm through `rPers*`, which is the store's
-own table with its flag down and the tier's with it up, so the whole story is
-one congruence: two stores whose four persistent READS, scratch tiers and
-scratch flags agree are related to the same twin store (`TierView`). -/
-
-/-- The four `shared_on` flags of a store, down: the shape of every store the
-parse and phase A work in, and what `freeze_tier`'s guard checks. -/
-def Thawed (ar : arena.store.EStore) : Prop :=
-  ar.shared_on = false ∧ ar.lss.shared_on = false ∧ ar.lss.ls.shared_on = false ∧
-    ar.lss.ls.ns.shared_on = false
-
-/-- The persistent tier `freeze_tier` moves out of a store: its four own
-persistent tables. -/
-def tierOf (ar : arena.store.EStore) : arena.store.PersTier :=
-  { n := ar.lss.ls.ns.pers, l := ar.lss.ls.pers, ls := ar.lss.pers, e := ar.pers }
-
-/-- **`freeze_tier`'s decline is the port's own**: it claims nothing. -/
-theorem freeze_tier_err {ar ar' : arena.store.EStore} {e : kernel.core_types.CheckError}
-    (h : arena.checker.freeze_tier ar = ok (.Err e, ar')) :
-    absAErrKind e = none := by
-  rw [arena.checker.freeze_tier] at h
-  split at h
-  · obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have h' := Result.ok_injective h
-    simp only [Prod.mk.injEq, core.result.Result.Err.injEq] at h'
-    rw [← h'.1]; rfl
-  split at h
-  · obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have h' := Result.ok_injective h
-    simp only [Prod.mk.injEq, core.result.Result.Err.injEq] at h'
-    rw [← h'.1]; rfl
-  split at h
-  · obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have h' := Result.ok_injective h
-    simp only [Prod.mk.injEq, core.result.Result.Err.injEq] at h'
-    rw [← h'.1]; rfl
-  split at h
-  · obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have h' := Result.ok_injective h
-    simp only [Prod.mk.injEq, core.result.Result.Err.injEq] at h'
-    rw [← h'.1]; rfl
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have h' := Result.ok_injective h
-  simp at h'
-
-/-- **`freeze_tier` accepts only a thawed store, and hands back its own
-tier**; and `thaw_tier` of what it left, with that tier, is the store it was
-handed — the boundary is invisible outside phase B. -/
-theorem freeze_tier_ok {ar ar' : arena.store.EStore} {tier : arena.store.PersTier}
-    (h : arena.checker.freeze_tier ar = ok (.Ok tier, ar')) :
-    Thawed ar ∧ tier = tierOf ar ∧ arena.checker.thaw_tier ar' tier = ok ar := by
-  rw [arena.checker.freeze_tier] at h
-  split at h
-  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have h' := Result.ok_injective h
-    simp at h'
-  rename_i h0
-  split at h
-  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have h' := Result.ok_injective h
-    simp at h'
-  rename_i h1
-  split at h
-  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have h' := Result.ok_injective h
-    simp at h'
-  rename_i h2
-  split at h
-  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have h' := Result.ok_injective h
-    simp at h'
-  rename_i h3
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have h' := Result.ok_injective h
-  simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at h'
-  obtain ⟨rfl, rfl⟩ := h'
-  simp only [Bool.not_eq_true] at h0 h1 h2 h3
-  refine ⟨⟨h0, h1, h2, h3⟩, rfl, ?_⟩
-  rw [arena.checker.thaw_tier]
-  obtain ⟨⟨⟨⟨np, ns, nsc, nsh⟩, lp, ls, lsc, lsh⟩, lsp, lss, lssc, lssh⟩, ep, es, esc, esh⟩ :=
-    ar
-  simp only at h0 h1 h2 h3
-  subst h0 h1 h2 h3
-  rfl
-
-/-- Two (tier, store) pairs that READ the same: the four persistent arms, the
-four scratch tiers and the four scratch flags agree. -/
-structure TierView (p₁ : arena.store.PersTier) (r₁ : arena.store.EStore)
-    (p₂ : arena.store.PersTier) (r₂ : arena.store.EStore) : Prop where
-  n : rPersN p₂ r₂.lss.ls.ns = rPersN p₁ r₁.lss.ls.ns
-  l : rPersL p₂ r₂.lss.ls = rPersL p₁ r₁.lss.ls
-  ls : rPersLs p₂ r₂.lss = rPersLs p₁ r₁.lss
-  e : rPersE p₂ r₂ = rPersE p₁ r₁
-  nScr : r₂.lss.ls.ns.scr = r₁.lss.ls.ns.scr
-  lScr : r₂.lss.ls.scr = r₁.lss.ls.scr
-  lsScr : r₂.lss.scr = r₁.lss.scr
-  eScr : r₂.scr = r₁.scr
-  nOn : r₂.lss.ls.ns.scratch_on = r₁.lss.ls.ns.scratch_on
-  lOn : r₂.lss.ls.scratch_on = r₁.lss.ls.scratch_on
-  lsOn : r₂.lss.scratch_on = r₁.lss.scratch_on
-  eOn : r₂.scratch_on = r₁.scratch_on
-
-/-- **The congruence**: a state's relation and invariant carry over to the
-same state at a store that reads the same. -/
-theorem TierView.transfer {p₁ p₂ : arena.store.PersTier} {r₂ : arena.store.EStore}
-    {st : arena.monad.AState} {lst : AState} (hv : TierView p₁ st.store p₂ r₂)
-    (hrel : AStateRel₀ p₁ st lst) (hinv : AStateInv p₁ st) :
-    AStateRel₀ p₂ { st with store := r₂ } lst ∧ AStateInv p₂ { st with store := r₂ } := by
-  obtain ⟨⟨⟨⟨⟨np, ns, non⟩, lp, ls, lon⟩, lsp, lss, lson⟩, ep, es, eon⟩, m, c, pn⟩ := hrel
-  obtain ⟨⟨⟨⟨⟨npi, nsi⟩, lpi, lsi⟩, lspi, lssi⟩, epi, esi⟩, mi, ci⟩ := hinv
-  refine ⟨⟨⟨⟨⟨⟨?_, ?_, ?_⟩, ?_, ?_, ?_⟩, ?_, ?_, ?_⟩, ?_, ?_, ?_⟩, m, c, pn⟩,
-    ⟨⟨⟨⟨⟨?_, ?_⟩, ?_, ?_⟩, ?_, ?_⟩, ?_, ?_⟩, mi, ci⟩⟩ <;>
-    simp only [hv.n, hv.l, hv.ls, hv.e, hv.nScr, hv.lScr, hv.lsScr, hv.eScr, hv.nOn,
-      hv.lOn, hv.lsOn, hv.eOn] <;> assumption
-
-/-- **`freeze_tier` reads the same**: the frozen store at the tier it handed
-back reads what the thawed store read at any tier. -/
-theorem freeze_tier_view {pers : arena.store.PersTier} {ar ar' : arena.store.EStore}
-    {tier : arena.store.PersTier}
-    (h : arena.checker.freeze_tier ar = ok (.Ok tier, ar')) :
-    TierView pers ar tier ar' := by
-  rw [arena.checker.freeze_tier] at h
-  split at h
-  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    simp at h
-  rename_i h0
-  split at h
-  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    simp at h
-  rename_i h1
-  split at h
-  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    simp at h
-  rename_i h2
-  split at h
-  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    simp at h
-  rename_i h3
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have h' := Result.ok_injective h
-  simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at h'
-  obtain ⟨rfl, rfl⟩ := h'
-  simp only [Bool.not_eq_true] at h0 h1 h2 h3
-  constructor <;> simp [rPersN, rPersL, rPersLs, rPersE, core.mem.replace, h0, h1, h2, h3]
-
-/-- **`thaw_read_tier` reads the same**: each store gets back the table its
-reads went to, so at ANY tier the thawed store reads what the frozen store
-read at `tier` — whatever the four flags were. -/
-theorem thaw_read_tier_view {pers : arena.store.PersTier} {ar ar' : arena.store.EStore}
-    {tier : arena.store.PersTier}
-    (h : arena.checker.thaw_read_tier ar tier = ok ar') :
-    TierView tier ar pers ar' := by
-  rw [arena.checker.thaw_read_tier] at h
-  obtain ⟨⟨⟨⟨np, ns, non, nsh⟩, lp, ls, lon, lsh⟩, lsp, lss, lson, lssh⟩, ep, es, eon, esh⟩ :=
-    ar
-  cases nsh <;> cases lsh <;> cases lssh <;> cases esh <;>
-    simp only [bind_tc_ok, if_true, if_false, Bool.false_eq_true, ok.injEq] at h <;>
-    subst h <;> constructor <;> simp [rPersN, rPersL, rPersLs, rPersE]
-
 
 /-- `or_else_attempt` ⊑ `orElseStepOf` — the four-way step as a PURE function
 of the attempt's outcome, which is the shape the port has and which the twin
@@ -3778,39 +3593,10 @@ namespace Lockstep
     LSP arena.promote.PMemo.empty (fun o => PMemoRel o PMemo.empty) :=
   fun _ h => pmemo_empty_refines h
 
-@[lockstep] theorem promote_new_ls {pers st lst rm lm rf lf} {fuel k : Std.U64}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm) (hfe : IFEnvRelI rf lf)
-    (hk : k.val ≤ rf.visible_below.val) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ IFEnvRelI r.2 v.2)
-      (arena.promote.promote_new pers st rm fuel k rf) lst
-      (promoteNew lm (absU fuel) (absU k) lf) :=
-  LS.ofSimPM fun _ h => promote_new_refines hrel hinv hm hfe.rel hfe.inv
-    (le_trans hk hfe.inv.visBound) h
-
-@[lockstep] theorem promote_vg_ls {pers st lst rm lm} {fuel : Std.U64}
-    {g : arena.checker_split.ValueGroup}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hm : PMemoRel rm lm) :
-    LS pers (fun r v => PMemoRel r.1 v.1 ∧ v.2 = absValueGroup r.2)
-      (arena.promote.promote_vg pers st rm fuel g) lst
-      (promoteVG lm (absU fuel) (absValueGroup g)) :=
-  LS.ofSimPM fun _ h => promote_vg_refines hrel hinv hm h
-
 @[lockstep] theorem flush_caches_ls {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LSW pers (arena.core.flush_caches st) lst flushCaches :=
   LSW.ofSimS₀ fun _ h => flush_caches_sim₀ hrel hinv h
-
-@[lockstep] theorem enter_scratch_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSW pers (arena.core.enter_scratch st) lst enterScratch :=
-  LSW.ofSimS₀ fun _ h => enter_scratch_sim₀ hrel hinv h
-
-@[lockstep] theorem drop_scratch_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSW pers (arena.core.drop_scratch st) lst dropScratch :=
-  LSW.ofSimS₀ fun _ h => drop_scratch_sim₀ hrel hinv h
 
 @[lockstep] theorem pin_quot_sound_ls {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -3868,21 +3654,6 @@ end Lockstep
 
 /-- info: 'ConRon.Refine2.attempt_snapshot_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms attempt_snapshot_eq
-
-/-- info: 'ConRon.Refine2.TierView.transfer' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms TierView.transfer
-
-/-- info: 'ConRon.Refine2.freeze_tier_view' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms freeze_tier_view
-
-/-- info: 'ConRon.Refine2.thaw_read_tier_view' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms thaw_read_tier_view
-
-/-- info: 'ConRon.Refine2.freeze_tier_ok' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms freeze_tier_ok
-
-/-- info: 'ConRon.Refine2.freeze_tier_err' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms freeze_tier_err
 
 /-- info: 'ConRon.Refine2.attempt_snapshot_refines₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms attempt_snapshot_refines₀
