@@ -885,6 +885,15 @@ theorem binder_at_eq2 {sb : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.Bind
   subst hd
   exact eidx_eq2_abs hf
 
+theorem absBinderL_get?_lt {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {n : Nat} (h : n < bs.val.length) :
+    (absBinderL bs)[n]? = some (absEIdx bs.val[n].1, ConRon.Refine.absBinderMeta bs.val[n].2) := by
+  simp [absBinderL, List.getElem?_eq_getElem h]
+
+theorem absBinderL_get?_ge {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {n : Nat} (h : bs.val.length ≤ n) : (absBinderL bs)[n]? = none := by
+  simp [absBinderL, List.getElem?_eq_none h]
+
 /-- The twin's `domsMatchAux` test at offset `j`, on the lists. -/
 def domsAt (l1 l2 : List (EIdx × ConLeche.BinderMeta)) (o1 o2 j : Nat) : Bool :=
   match l1[o1 + j]?, l2[o2 + j]? with
@@ -1081,6 +1090,63 @@ elab "ind_binder_facts" : tactic => withMainContext do
     g := g'
   replaceMainGoal [g]
 
+open Lean Elab Tactic in
+/-- Fails unless the goal is an equation mentioning a list index. -/
+elab "ind_getElem_guard" : tactic => do
+  let t ← instantiateMVars (← getMainTarget)
+  unless t.isAppOfArity ``Eq 3 && t.containsConst (· == ``GetElem.getElem) do
+    throwError "ind_getElem_guard: no indexed read"
+
+/-- The port's `v[i as usize]` against the twin's `v[j]` (a lookup the twin
+made at its own spelling of the index): the two indices agree by the port's
+arithmetic facts (`scalar_tac`; a saturating cast is exact under the bounds
+test). -/
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (ind_getElem_guard; congr <;> scalar_tac))
+
+theorem IndModeledPrims.getElem_idx_eq {α : Type} {l : List α} {i j : Nat}
+    {hi : i < l.length} {hj : j < l.length} (h : i = j) : l[i]'hi = l[j]'hj := by
+  subst h; rfl
+
+open Lean Meta Elab Tactic in
+/-- Two reads of the same list at indices `scalar_tac` proves equal (the
+port's `v[i as usize]` and the twin's `v[j]` at its own spelling of the
+index): rewrite the second into the first, so the two sides mention one term.
+Fails when there is nothing to unify. -/
+elab "ind_idx_unify" : tactic => withMainContext do
+  let t ← instantiateMVars (← getMainTarget)
+  let ref ← IO.mkRef (#[] : Array Expr)
+  t.forEach fun e => do
+    if e.isAppOfArity ``GetElem.getElem 8 && (e.getArg! 0).isAppOfArity ``List 1 &&
+        !e.hasLooseBVars then
+      ref.modify (·.push e)
+  let reads ← ref.get
+  for r1 in reads do
+    for r2 in reads do
+      if r1 == r2 then continue
+      let (l1, i1, h1) := (r1.getArg! 5, r1.getArg! 6, r1.getArg! 7)
+      let (l2, i2, h2) := (r2.getArg! 5, r2.getArg! 6, r2.getArg! 7)
+      unless l1 == l2 do continue
+      if i1 == i2 then continue
+      let m ← mkFreshExprMVar (← mkEq i2 i1)
+      let ok ← try
+          let gs ← Tactic.run m.mvarId! (evalTactic (← `(tactic| scalar_tac)))
+          pure gs.isEmpty
+        catch _ => pure false
+      unless ok do continue
+      let pf ← mkAppOptM ``IndModeledPrims.getElem_idx_eq
+        #[none, some l1, some i2, some i1, some h2, some h1, some (← instantiateMVars m)]
+      let g ← getMainGoal
+      let ok2 ← try
+          let r ← g.rewrite (← g.getType) pf
+          let g' ← g.replaceTargetEq r.eNew r.eqProof
+          replaceMainGoal (g' :: r.mvarIds)
+          pure true
+        catch _ => pure false
+      if ok2 then return
+  throwError "ind_idx_unify: nothing to unify"
+
 /-! ## The axiom census -/
 
 /-- info: 'ConRon.Refine2.IndModeledPrims.proj_model_name_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
@@ -1126,6 +1192,21 @@ macro_rules | `(tactic| lockstep_mod) => `(tactic| repeat' (first
 
 /-- The same driver (kept for the proofs that name it). -/
 macro "lockstep_ite" : tactic => `(tactic| lockstep_mod)
+
+/-- `lockstep_mod` with `ind_idx_unify` in front: for the cursor walks whose
+twin reads a list at its own spelling of the port's index. -/
+syntax "lockstep_idx" : tactic
+macro_rules | `(tactic| lockstep_idx) => `(tactic| repeat' (first
+  | ind_idx_unify
+  | (ind_twin_split <;> (try (simp_all; done)))
+  | lockstep_step
+  | (rw [bind_pure]
+     first
+       | refine Lockstep.LS.twin_ite_pos ‹_› ?_
+       | refine Lockstep.LS.twin_ite_neg ‹_› ?_
+       | refine Lockstep.LS.twin_ite_pos (by lockstep_side_ite) ?_
+       | refine Lockstep.LS.twin_ite_neg (by lockstep_side_ite) ?_)))
+
 
 /-! ### The recursor rule's two install bits (`core::rec_rule_bits`) and the
 projection function's rule (`core::proj_fn_rule`) — Core tier functions the

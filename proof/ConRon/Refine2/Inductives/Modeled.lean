@@ -73,6 +73,34 @@ attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims
 
 /-! ## The two helpers of the modeled route -/
 
+/-- `doms_match_renamed` in `LS` form, by induction on the count. -/
+theorem doms_match_renamed_aux {F : Type} {inst : arena.expr_ops.NIdxToNIdx F} {f : F}
+    {g : NIdx → NIdx} (hf : RenameRel inst f g) (n : Nat) :
+    ∀ {pers st lst} {bs1 bs2 : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+      {o1 o2 k : Std.U64},
+      k.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = id a)
+        (arena.inductives.modeled.doms_match_renamed inst pers st f bs1 bs2 o1 o2 k) lst
+        (domsMatchRenamed g (absBinderL bs1) (absBinderL bs2) (absU o1) (absU o2) n) := by
+  induction n with
+  | zero =>
+    intro pers st lst bs1 bs2 o1 o2 k hk hrel hinv
+    rw [arena.inductives.modeled.doms_match_renamed, if_pos (by scalar_tac), domsMatchRenamed]
+    lockstep_mod
+  | succ m ih =>
+    intro pers st lst bs1 bs2 o1 o2 k hk hrel hinv
+    rw [arena.inductives.modeled.doms_match_renamed, if_neg (by scalar_tac), domsMatchRenamed]
+    -- the twin's two lookups at the port's bounds tests
+    by_cases h1 : o1.val + m < bs1.val.length
+    · by_cases h2 : o2.val + m < bs2.val.length
+      · rw [IndModeledPrims.absBinderL_get?_lt (n := absU o1 + m) h1,
+          IndModeledPrims.absBinderL_get?_lt (n := absU o2 + m) h2]
+        lockstep_idx
+      · rw [IndModeledPrims.absBinderL_get?_ge (n := absU o2 + m) (by simp only [absU]; omega)]
+        lockstep_mod
+    · rw [IndModeledPrims.absBinderL_get?_ge (n := absU o1 + m) (by simp only [absU]; omega)]
+      lockstep_mod
+
 /-- `doms_match_renamed` ⊑ `domsMatchRenamed` — `domsMatchAux` with the right
 side renamed.  The dictionary and the twin's function are related by
 `RenameRel` (task #97-P5-0's finding 6), which is the only difference. -/
@@ -86,8 +114,8 @@ theorem doms_match_renamed_refines {F : Type}
       k = ok o) :
     Sim₀ id pers lst o
       (domsMatchRenamed g (absBinderL bs1) (absBinderL bs2) (absU o1) (absU o2)
-        (absU k)) := by
-  sorry
+        (absU k)) :=
+  Lockstep.LS.toSim₀ (doms_match_renamed_aux hf _ rfl hrel hinv) hrun
 
 open Lockstep in
 @[lockstep] theorem doms_match_renamed_ls
@@ -278,6 +306,20 @@ twin.) -/
         arena.inductives.modeled.RenameBy.Insts.Con_ron_coreArenaExpr_opsNIdxToNIdx pers st fuel r e)
       lst (renameConstsFast (absU fuel) (renameBy (absRenameBy r)) (absEIdx e)) :=
   rename_consts_fast_ls rename_by_rel hrel hinv fuel e
+
+open Lockstep in
+/-- `doms_match_renamed` at `RenameBy`, its `RenameRel` discharged by
+`rename_by_rel` (as `rename_consts_fast_by_ls`). -/
+@[lockstep] theorem doms_match_renamed_by_ls {r : arena.inductives.modeled.RenameBy}
+    {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    {bs1 bs2 : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)} {o1 o2 k : Std.U64} :
+    LS pers (fun a b => b = id a)
+      (arena.inductives.modeled.doms_match_renamed
+        arena.inductives.modeled.RenameBy.Insts.Con_ron_coreArenaExpr_opsNIdxToNIdx pers st r
+        bs1 bs2 o1 o2 k) lst
+      (domsMatchRenamed (renameBy (absRenameBy r)) (absBinderL bs1) (absBinderL bs2) (absU o1)
+        (absU o2) (absU k)) :=
+  doms_match_renamed_ls hrel hinv rename_by_rel
 
 /-- `block_rename_table_from` in `LS` form, by induction on the names left. -/
 theorem block_rename_table_from_aux (n : Nat) :
@@ -2790,7 +2832,9 @@ theorem check_proj_iota_doms_refines {pers st lst} {vis : Std.U64} {rfS lfS}
       (checkProjIotaDomsSpec (ConRon.Refine.absMode mode) lfS (absNIdx t)
         (absNIdx ctor_name) (absNIdxL lps) (absIConstantVal cvj) (absU n_p)
         (absU n_f) (absU i) (absNIdx pmn) (absEIdx tty)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.check_proj_iota_doms, checkProjIotaDomsSpec]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem check_proj_iota_doms_ls
