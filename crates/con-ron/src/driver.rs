@@ -67,6 +67,9 @@
 //! order.
 
 use std::io::Read;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+use std::sync::Mutex;
 use std::time::Instant;
 
 use con_ron_core::arena::checker;
@@ -89,6 +92,9 @@ use con_ron_core::kernel::pins_decode;
 use con_ron_core::kernel::env::CheckMode;
 
 use con_ron_core::arena::store::PersTier;
+
+use crate::pool::parallel_all;
+use crate::pool::ParallelError;
 
 // ---------------------------------------------------------------------------
 // The flags, the messages and the reads (task #97-SWAP)
@@ -428,8 +434,8 @@ pub trait PhaseObserver {
     fn phase_b_workers(&mut self, _workers: usize) {}
 
     /// con-leche: Main.lean:240-260 checkOne
-    /// Does this observer print a line per check?  The pool asks ONCE, before
-    /// it spawns: off, no worker touches the completed-count atomic or the
+    /// Does this observer print a line per check?  The driver asks ONCE, before
+    /// the pool spawns: off, no worker touches the completed-count atomic or the
     /// observer lock at all, which is the difference between a plain pooled
     /// run and the `--progress` lane.
     fn wants_check_lines(&self) -> bool {
@@ -467,34 +473,82 @@ impl InstallHook for Silent {
     fn install_before(&self, _pers: &PersTier, _ar: &EStore, _pos: u64, _total: usize, _d: &IDeclaration) {}
 }
 
+/// con-leche: Main.lean:143-158 checkHeartbeat
+/// The heartbeat's line after phase B's `k`-th record, on the worker that
+/// checked it: `parallel_all`'s `after` hook.  `heartbeat` is the port's
+/// spelling of the cited `stride > 0` guard inside `checkOne`: off, no worker
+/// touches the `done` counter or the observer lock at all.  It holds the
+/// worker's state by `&` only.
+#[allow(clippy::too_many_arguments)]
+fn check_line<O: PhaseObserver>(
+    heartbeat: bool,
+    done: &AtomicUsize,
+    obs: &Mutex<&mut O>,
+    tier: &PersTier,
+    w: &AState,
+    m: usize,
+    pc: &PendingCheck,
+) {
+    if heartbeat {
+        let n = done.fetch_add(1, Ordering::Relaxed) + 1;
+        // A poisoned lock means another worker panicked while printing; the
+        // panic is the report and this line is dropped.
+        if let Ok(mut g) = obs.lock() {
+            g.check_after(tier, &w.store, n, m, pc);
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/Installed.lean:392-416 collectChecks
+/// Phase B's answer as a verdict: `parallel_all`'s first failing INDEX named
+/// by its record's fold position, and the pool's own failures (a missing
+/// result, a panicked worker) as internal errors — exit 3, never a verdict on
+/// the input.
+pub fn phase_b_verdict(
+    pend: &[PendingCheck],
+    r: Result<(), ParallelError<CheckError>>,
+) -> Result<(), (CheckError, u64)> {
+    let internal = |msg: String| con_ron_core::kernel::core_types::internal(msg.chars().map(|c| c as u32).collect());
+    match r {
+        Ok(()) => Ok(()),
+        Err(ParallelError::Step(k, e)) => Err((e, pend[k].pos)),
+        Err(ParallelError::Missing(k)) => Err((
+            internal(format!("check phase: record {} was never checked", k)),
+            pend[k].pos,
+        )),
+        Err(ParallelError::Panicked) => Err((internal("check phase: a worker panicked".to_string()), 0)),
+    }
+}
+
 /// con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls
 /// con-leche: Main.lean:318-421 checkDeclsIO
 /// **The driver**: `checker::check_decls_phased` with the boundary visible —
-/// a straight line of calls into the verified crate, with the observer's
-/// lines between them and the pool in the place of phase B's sequential walk
-/// (task #97-P5-Driver):
+/// a straight line of calls, with the observer's lines between them and the
+/// pool in the place of phase B's sequential walk (tasks #97-P5-Driver,
+/// #98-POOL).  Each step is one premise of the capstone:
 ///
-/// | step | here | in `check_decls_phased` |
+/// | step | here | the capstone's premise |
 /// |---|---|---|
-/// | phase A | `checker::annot_fold_hooked(…, fold_start(), ds, 0, obs)` | the same call |
-/// | boundary | `checker::freeze_tier(&mut st.store)` | the same call |
-/// | phase B | `pool::check_pool(&tier, mode, &fe, &pend, &st.pins, workers, …)` | `checker::check_pending_worker(&tier, mode, &fe, &st.pins, &pend)` |
-/// | after | `checker::thaw_tier(&mut st.store, tier)` | the same call |
+/// | phase A | `checker::annot_fold_hooked(…, fold_start(), ds, 0, obs)` | the same call accepts |
+/// | boundary | `checker::freeze_tier(&mut st.store)` | the same call's value |
+/// | phase B | `pool::parallel_all(m, workers, ‖ worker_state(pins), ‖w, k‖ check_pending(&tier, w, mode, &fe, &pend[k]), …)` | `ParallelAll pend.len (worker_state pins) (fun st k => check_pending tier st mode fe pend[k])` |
+/// | after | `checker::thaw_tier(&mut st.store, tier)` | restores the store (`freeze_tier_ok`) |
 ///
-/// Everything else here is the observer, which only ever holds `&` the state
-/// (the hook of phase A by the trait's own signature, the other lines through
-/// `&st.store`), so it cannot change an outcome.  So the capstone, whose
-/// stage 6 is `PoolAccepts` (phase A, the freeze, and one accepting
-/// `checker::check_pending_worker` per worker over the records it checked,
-/// together covering the pending list; task #97-P5-POOL), is about this
-/// function modulo the pool's one claim: that its accept has that shape
-/// (`pool.rs`'s note states it and what it rests on).
+/// `init` and `step` are calls into the verified crate; `parallel_all` is the
+/// one trusted piece, and its contract (`pool.rs`'s note) is exactly
+/// `ParallelAll`: on `Ok`, every record was checked by exactly one worker,
+/// each worker folding `check_pending` over the records it claimed on ONE
+/// `worker_state`.  Everything else here is the observer, which only ever
+/// holds `&` the state (the hook of phase A by the trait's own signature, the
+/// other lines through `&st.store` and the worker's `&AState`), so it cannot
+/// change an outcome.
 ///
 /// **The boundary is where the tier is FROZEN** (task #97-P6-6b).  Phase A
 /// owns its persistent tier and appends to it; at the boundary
 /// `checker::freeze_tier` moves the four stores' persistent tables out into
-/// one `PersTier` and freezes the store, which makes every later persistent
-/// read go to it and every append a scratch append (task #98-FREEZE).  The
+/// one `PersTier`, handed back `frozen`: every read through it goes to those
+/// tables, and a worker's own store is frozen (`checker::worker_state`), so
+/// every append there is a scratch append (task #98-FREEZE).  The
 /// installed index goes to the workers by reference, since `check_pending`
 /// takes the visibility bound as a scalar — so `n` workers share one
 /// environment and one term DAG and own nothing but a scratch tier, their
@@ -509,7 +563,7 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
     obs: &mut O,
 ) -> Result<IFEnv, (CheckError, u64)> {
     let total = ds.len();
-    // PHASE A: the verified fold, the heartbeat's install line as its hook.
+    // PHASE A (ConRon.Capstone: h6): the verified fold, the heartbeat as hook.
     let p = match checker::annot_fold_hooked(pers, st, mode, pins, checker::fold_start(), ds, 0, &*obs) {
         Err(e) => {
             obs.install_failed(e.1, total);
@@ -524,17 +578,23 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
     obs.phase_b_workers(workers);
     // THE PHASE BOUNDARY: the persistent tier leaves the state and becomes a
     // value every worker reads (the doc comment above).  `st` keeps its
-    // (empty) store, frozen, so the observer can still read a label back
-    // through the shared tier.
+    // (empty) store, its tables moved out, so the observer can still read a
+    // label back through the tier.  (ConRon.Capstone: h7)
     let tier: PersTier = checker::freeze_tier(&mut st.store);
-    // PHASE B, `checker::check_pending_worker`'s walk on `workers` threads:
-    // every record checked by `checker::check_pending` at its own prefix
-    // view, inside its own scratch tier, on its worker's state
-    // (`checker::worker_state`), the results merged by record index and
-    // walked in record order — so the verdict and the record a rejection
-    // names are the one-worker walk's at every `--jobs`.
-    let lock = std::sync::Mutex::new(obs);
-    let r = crate::pool::check_pool(&tier, mode, &fe, &pend, &st.pins, workers, &lock);
+    // PHASE B: `check_pending` at every record, on `workers` threads, each
+    // folding it over the records it claims on ONE `worker_state` — the
+    // verdict and the record a rejection names are the one-worker walk's at
+    // every `--jobs` (the least failing index).  (ConRon.Capstone: h8)
+    let heartbeat = obs.wants_check_lines();
+    let lock = Mutex::new(obs);
+    let done = AtomicUsize::new(0);
+    let r = parallel_all(
+        m,
+        workers,
+        || checker::worker_state(&st.pins),
+        |w: &mut AState, k| checker::check_pending(&tier, w, mode, &fe, &pend[k]),
+        |w: &AState, k| check_line(heartbeat, &done, &lock, &tier, w, m, &pend[k]),
+    );
     let obs: &mut O = match lock.into_inner() {
         Ok(o) => o,
         Err(e) => e.into_inner(),
@@ -546,7 +606,7 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
     // version of this printed `at theorem ?` where the tip printed `at
     // theorem addOk`).  `thaw_tier` is `freeze_tier` inverted.
     checker::thaw_tier(&mut st.store, tier);
-    match r {
+    match phase_b_verdict(&pend, r) {
         Err((e, pos)) => {
             obs.check_failed(pos);
             Err((e, pos))

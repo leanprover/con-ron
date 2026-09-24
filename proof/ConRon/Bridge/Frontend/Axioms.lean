@@ -612,6 +612,7 @@ Round 2 assembled `Arena.no_False_declaration_pipeline` on a named hypothesis
 #97-P3-Checker-2 landed the strengthening (`s'.caches = s.caches ∧ s'.memos =
 s.memos`), so round 3 deleted the definition and the hypothesis: the letter's
 hypotheses are again `CoreSpec`, `IndSpec` and the prelude gate, and nothing
-else. -/
+else.  Task #98-HEADLINE dropped the prelude gate too (`builtinPreludeE_run`
+is parametric in the bytes): the letter takes `CoreSpec` and `IndSpec`. -/
 
 end ConRon.Bridge.Frontend

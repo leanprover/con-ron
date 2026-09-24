@@ -1478,11 +1478,11 @@ pub fn worker_state(pins: &Pins) -> AState {
 /// Lean twin: `proof/ConRon/Arena/Phased.lean:46-54 checkPendingWorker` —
 /// **phase B on ONE worker, in record order**: a worker's state
 /// (`worker_state`) and `check_pending_list` from it, over the frozen tier.
-/// This is `pool::check_pool` at one worker call for call — the worker claims
-/// the records in order and checks each with `check_pending` on its one
-/// state — and it is the walk the pool's merged table is argued equal to by
-/// record index at every worker count (`pool.rs`'s note, which also states
-/// the one thing a second worker adds).
+/// This is the driver's `pool::parallel_all` at one worker call for call —
+/// the worker claims the records in order and folds `check_pending` over
+/// them on its one state — and at `n` workers each worker's fold is this
+/// walk over the records it claimed (`pool.rs`'s note, `ParallelAll` in
+/// `Refine2/Checker/Phased.lean`).
 pub fn check_pending_worker(
     pers: &PersTier,
     mode: &CheckMode,
@@ -1500,7 +1500,7 @@ pub fn check_pending_worker(
 /// (`annot_fold_hooked`), the boundary (`freeze_tier`), phase B on one worker
 /// over the frozen tier (`check_pending_worker`), the boundary undone
 /// (`thaw_tier`).  `driver::check_decls_driver` is this function with the
-/// observer's read-only lines between the calls and `pool::check_pool` in
+/// observer's read-only lines between the calls and `pool::parallel_all` in
 /// place of `check_pending_worker`; the capstone (`ConRon.Capstone`) is
 /// stated about this one.
 pub fn check_decls_phased<H: InstallHook>(

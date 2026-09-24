@@ -1,240 +1,198 @@
 //! `pool` — con-leche's `Main.lean:193-316` over the ARENA: **phase B on a
-//! pool of worker threads** (DESIGN.md §8.3, §8.6's P6 item 6, task
-//! #97-P6-6b).
+//! pool of worker threads** (DESIGN.md §8.3, §8.6's P6 item 6, tasks
+//! #97-P6-6b and #98-POOL).
 //!
-//! The four functions are the cited ones one to one: `check_one`
-//! (`Main.lean:240-260`), `check_worker` (`:262-278`), `merge_results`
-//! (`:280-287`) and `check_pool` (`:289-316`), plus the walk that turns the
-//! merged table into a verdict (`collect_checks`,
-//! `ConLeche/Cached/Installed.lean:392-416 collectChecks`).  Task #97-SWAP put
-//! it here, replacing the `Expr`-tree pool of task #48 that it was written
-//! beside.
+//! Since task #98-POOL the whole module is ONE generic combinator,
+//! [`parallel_all`], plus the index-merge and the walk it rests on.  It knows
+//! nothing about checking: it is handed a count `n`, a worker count, a state
+//! constructor `init` and a per-index `step`, and it answers whether `step`
+//! succeeded at every index.  What phase B plugs into it is the driver's
+//! business (`driver::check_decls_driver`):
+//!
+//! ```text
+//! parallel_all(pend.len(), workers,
+//!              || checker::worker_state(&st.pins),
+//!              |w, k| checker::check_pending(&tier, w, mode, &fe, &pend[k]),
+//!              <the heartbeat line>)
+//! ```
+//!
+//! — both closures calls into the VERIFIED crate.  The functions are the cited
+//! ones: `worker` is `checkWorker` with `checkOne` inlined
+//! (`Main.lean:240-278`), `parallel_all` is `checkPool` (`:289-316`),
+//! `merge_results` is `mergeResults` (`:280-287`) and `first_failure` is the
+//! walk that turns the merged table into a verdict (`collectChecks`,
+//! `ConLeche/Cached/Installed.lean:392-416`).
 //!
 //! **Threads live here and never in `con-ron-core`** (DESIGN.md §8.5): the
 //! verified crate is a pure state-threading computation and knows nothing of
-//! this module.  What it had to grow for the pool is one shared parameter —
-//! `pers: &PersTier` — and one scalar, and both are task #97-P6-6b's.
+//! this module.
 //!
-//! ## What a worker is
+//! ## What a worker is, in phase B
 //!
 //! §8.3 has said since P1 what phase B is: "the persistent tier is immutable
 //! in phase B, each worker owns a scratch tier — **no atomics anywhere**",
 //! and task #97-P6-6 verified it in the code (`check_pending` is the bracket;
 //! the persistent interns' only caller is phase A's `arena::promote`, which
-//! writes a `&mut PersTier` a worker never holds).  So a worker is
-//!
-//!   * its own `AState`, `checker::worker_state(pins)` — an EMPTY store,
-//!     FROZEN (every append a scratch append), its own `Memos`, its own `Caches`, and
-//!     a COPY of the driver's `Pins` (sixty-eight handles into the persistent
-//!     tier, so a copy is two `Vec<NIdx>` and three words);
-//!   * `&PersTier`, the persistent tier the driver froze at the phase
-//!     boundary (`checker::freeze_tier`) and every worker reads;
-//!   * `&IFEnv`, the installed index — **by reference, and this is what task
-//!     #97-P6-6b's second half bought**.  `check_pending` used to take the
-//!     index BY VALUE so that it could restrict it to the record's prefix
-//!     bound; a worker would have needed `ifenv_dup`, which DESIGN.md (task
-//!     #97-P6-6b) prices at ≈1.4 GB a worker on Mathlib.  The bound is a scalar
-//!     parameter now (`pc.vis`), so the environment is shared and **a worker
-//!     costs no environment copy at all**.
-//!
-//! Every sequential piece of that — the freeze, the worker's state, the
-//! per-record check — is the VERIFIED crate's since task #97-P5-Driver, and
-//! so is what one worker runs: `checker::check_pending_worker(pers, mode, fe,
-//! pins, w)`, which is ONE worker's state and `check_pending_list` from it
-//! over the records `w` that worker checked.
+//! writes a `&mut PersTier` a worker never holds).  So the driver's `init`
+//! builds `checker::worker_state(pins)` — an EMPTY store, FROZEN
+//! (`EStore::empty_frozen`: every append a scratch append), its own `Memos`
+//! and `Caches`, and a COPY of
+//! the driver's `Pins` — and its `step` borrows the frozen `&PersTier` and
+//! the installed `&IFEnv` (by reference: `check_pending` takes the record's
+//! prefix bound as a scalar, `pc.vis`, so a worker costs no environment copy
+//! at all — task #97-P6-6b).
 //!
 //! ## THE TRUSTED CLAIM, and the whole of it
 //!
-//! **If `check_pool(pers, mode, fe, pend, pins, n, _)` accepts, then the
-//! records of `pend` are covered by lists `w_1 … w_n`, one per worker (the
-//! records that worker checked, in the order it checked them), and
-//! `checker::check_pending_worker(pers, mode, fe, pins, w_j)` accepts every
-//! one of them** — at every worker count `n`.  That is the capstone's stage
-//! 6 (`Refine2/Checker/Phased.lean`'s `PoolAccepts`, task #97-P5-POOL), and it
-//! is a statement about this module's control flow only: which worker
-//! checked which record, and what a worker checked before, is not asked,
-//! because the capstone relates every worker's walk to the twin on its own
-//! and assembles con-leche's pure fold from the per-record accepts, each at
-//! its record's own prefix environment.  The argument:
+//! **If `parallel_all(n, workers, init, step, after)` returns `Ok(())`, then
+//! every index in `0..n` was claimed by exactly one worker; each worker built
+//! its state with `init()` exactly once and folded `step` over the indices it
+//! claimed, in claim order (which is increasing); and every one of those
+//! `step` calls returned `Ok(())`** — at every worker count.  That is
+//! `ParallelAll` in `proof/ConRon/Refine2/Checker/Phased.lean` (task
+//! #98-POOL), and it is a statement about this module's control flow only —
+//! nothing about what `init` and `step` compute.  With the driver's closures
+//! it is the capstone's pool premise: `ParallelAll pend.len (worker_state
+//! pins) (fun st k => check_pending tier st mode fe pend[k])`, which the proof
+//! turns into one verified `check_pending_worker` accept per worker
+//! (`poolAcceptsParts_of_parallelAll`).  The argument:
 //!
-//! * **A worker is the verified walk.**  `check_worker` builds ONE
-//!   `checker::worker_state(pins)` and calls `checker::check_pending` on the
-//!   records it claims, in claim order, threading that state: exactly
-//!   `check_pending_list` over its records — `check_pending_worker` on them.
-//!   The observer line between two records holds `&st.store` only.  A record
-//!   at or above `limit` is skipped without a call, and on an accepting run
-//!   the limit never moves, so no claimed record is skipped.
-//! * **Merge by record index — master's argument.**  A worker's result is
-//!   the record's index with its outcome; the workers' arrays are merged *by
-//!   record index* into one table and `collect_checks` walks it in record
-//!   order, answering `Ok` only if every slot holds `Ok`.  So an accept means
-//!   every record was checked and accepted by the worker that claimed it,
-//!   whatever the timing.
+//! * **A claim is a `fetch_add` on one counter.**  Each value `0, 1, 2, …` is
+//!   handed to exactly one caller, so the indices `0..n` are partitioned
+//!   among the workers, and one worker's claims increase.  A worker stops at
+//!   its first claim `≥ n`.
+//! * **A worker is one fold.**  `worker` calls `init()` once, then for each
+//!   claimed index `k` calls `step(&mut st, k)` on that one state — the fold,
+//!   in claim order.  `after(&st, k)` sees the state by `&` only.  A claimed
+//!   index at or above `limit` is skipped without a call, and on an accepting
+//!   run the limit never moves (only a failing step lowers it), so no claimed
+//!   index is skipped.
+//! * **Merge by index — master's argument.**  A worker hands back each index
+//!   it stepped with the step's result; the workers' arrays are merged *by
+//!   index* into one table and `first_failure` walks it in index order,
+//!   answering `Ok` only if every slot holds `Ok`.  So an accept means every
+//!   index was stepped, successfully, by the worker that claimed it, whatever
+//!   the timing.  An empty slot is `ParallelError::Missing`, never `Ok`.
 //!
 //! The failure side is not part of the claim the capstone uses, but the pool
-//! keeps master's behaviour there: the walk stops at the first failing record
-//! in fold order, and the table is complete below it.  con-leche's argument:
-//! a worker that fails record `f` lowers the shared `limit` to `f`, and a
-//! worker skips a claimed record at or above the limit.  Every value the limit
-//! ever holds is `m` or a *failing* index, hence at least the first failing
-//! index `f`; so a record below `f` is never skipped, and — the counter being
-//! monotone — it was claimed before `f` was and is finished by the worker that
-//! claimed it.  `pool_reports_the_first_failure_at_every_jobs` is the test, at
-//! 1, 2, 3, 4 and 8 workers on a list whose records 2 and 4 both fail;
-//! `pool_is_check_pending_worker_at_every_jobs` checks that the pool's result
-//! is the one-worker walk's.
+//! keeps master's behaviour there: the walk stops at the first failing index,
+//! and the table is complete below it.  con-leche's argument: a worker whose
+//! step fails at `f` lowers the shared `limit` to `f`, and a worker skips a
+//! claimed index at or above the limit.  Every value the limit ever holds is
+//! `n` or a *failing* index, hence at least the first failing index `f`; so an
+//! index below `f` is never skipped, and — the counter being monotone — it was
+//! claimed before `f` was and is finished by the worker that claimed it.
+//! `pool_reports_the_first_failure_at_every_jobs` is the test, at 1, 2, 3, 4
+//! and 8 workers on a list whose records 2 and 4 both fail;
+//! `pool_is_check_pending_worker_at_every_jobs` checks that phase B's verdict
+//! is the one-worker walk's; `parallel_all_partitions_the_indices` checks the
+//! claim itself on a state that records its claims.
 //!
 //! Every access is `Relaxed`: a stale read of `limit` can only be *larger*
 //! than the current value, i.e. can only make a worker do work it could have
 //! skipped, and the results themselves travel through the `join` at the end
 //! of the scope, which is the release/acquire pair.
 //!
-//! **A worker keeps one `AState` across its records** (task #97-P6-6b), where
+//! **A worker keeps one state across its indices** (task #97-P6-6b), where
 //! master's pool checked each record from a fresh state: the bracket
 //! (`enter_scratch`, `drop_scratch`) resets everything but capacity, and a
 //! fresh state per record measured **+16.4 % instructions on `Init`** (task
-//! #97-P5-Driver).  Until task #97-P5-POOL the claim was that the pool returns
-//! what one worker walking every record returns, which needed a second,
-//! untrusted-by-proof argument — that a record's outcome does not depend on
-//! what its worker checked before.  The claim above does not need it.
+//! #97-P5-Driver).  The claim above does not ask what a worker stepped
+//! before: the capstone relates every worker's fold to the twin on its own.
 //!
 //! ## Threads, stacks and the address-space arithmetic
 //!
 //! The workers are `std::thread::scope`d threads with `STACK_BYTES` (1 GiB)
-//! reserved each — which is what lets them hold `&PersTier`, `&IFEnv` and
-//! `&[PendingCheck]` with no `Arc` and no `'static` bound — so a run needs
-//! `3x` the checker's resident set **plus 1 GiB of address space per worker**
-//! under `ulimit -v`.  A worker that fails as a *thread* (a panic, or a spawn
-//! the address space refused) is an internal error, exit 3, never a verdict
-//! on the input.
+//! reserved each — which is what lets the closures borrow `&PersTier`,
+//! `&IFEnv` and `&[PendingCheck]` with no `Arc` and no `'static` bound — so a
+//! run needs `3x` the checker's resident set **plus 1 GiB of address space per
+//! worker** under `ulimit -v`.
+//!
+//! **A worker the OS refuses is not a failure** (task #98-POOL).  If spawning
+//! a worker fails — out of threads, or out of address space for another
+//! 1 GiB stack — the pool runs with the workers that did spawn, and if none
+//! did, the calling thread is the one worker.  The claim above holds at every
+//! worker count, so the verdict does not depend on how many spawned; only the
+//! wall time does.  (Found: `--jobs=8` under an 8 GB `ulimit -v` exited 3,
+//! and so did the `--jobs=1` baseline lane under its 2.6 GB cap.)  A worker
+//! that PANICS is `ParallelError::Panicked`, an internal error, exit 3, never
+//! a verdict on the input.
 
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
-use std::sync::Mutex;
 
-use con_ron_core::arena::checker;
-use con_ron_core::arena::checker::PendingCheck;
-use con_ron_core::arena::env::IFEnv;
-use con_ron_core::arena::monad::AState;
-use con_ron_core::arena::pins::Pins;
-use con_ron_core::arena::store::PersTier;
-
-use con_ron_core::kernel::core_types;
-use con_ron_core::kernel::core_types::CheckError;
-use con_ron_core::kernel::env::CheckMode;
-
-use crate::driver::PhaseObserver;
 use crate::driver::STACK_BYTES;
 
-/// con-leche: none — `RecordResult` with the `GroupChecked` proof erased
-/// One record's outcome as a worker hands it back: `Ok(())` for a checked
-/// record, or the error tagged with the record's **fold position** (not its
-/// record index — the position is what a verdict line names).
-pub type RecordResult = Result<(), (CheckError, u64)>;
-
-/// con-leche: none — a driver-side `CheckError::Internal` from a Rust `&str`
-/// The core carries messages as `Vec<u32>` code points (DESIGN.md §3.4), and
-/// the pool's two internal errors are formatted here, above it.
-fn internal(msg: &str) -> CheckError {
-    core_types::internal(msg.chars().map(|c| c as u32).collect())
-}
-
-/// con-leche: Main.lean:240-260 checkOne
-/// **One claimed record of one worker.**  Below the shared `limit` it is
-/// checked inside its own scratch tier and its result appended; a failure
-/// lowers the limit to its index; on the heartbeat lane the completed-count
-/// is bumped and the observer prints under the lock.  A record at or above
-/// the limit is skipped — it is above a known failure and the walk will never
-/// ask for it.
-#[allow(clippy::too_many_arguments)]
-fn check_one<O: PhaseObserver + Send>(
-    pers: &PersTier,
-    mode: &CheckMode,
-    fe: &IFEnv,
-    pend: &[PendingCheck],
-    limit: &AtomicUsize,
-    done: &AtomicUsize,
-    heartbeat: bool,
-    obs: &Mutex<&mut O>,
-    k: usize,
-    st: &mut AState,
-    acc: &mut Vec<(usize, RecordResult)>,
-) {
-    if k >= limit.load(Ordering::Relaxed) {
-        return;
-    }
-    let r: RecordResult = match checker::check_pending(pers, st, mode, fe, &pend[k]) {
-        Ok(()) => Ok(()),
-        Err(e) => {
-            limit.fetch_min(k, Ordering::Relaxed);
-            Err((e, pend[k].pos))
-        }
-    };
-    acc.push((k, r));
-    if heartbeat {
-        let n = done.fetch_add(1, Ordering::Relaxed) + 1;
-        // A poisoned lock means another worker panicked while printing; the
-        // panic is the report and this line is dropped.
-        if let Ok(mut g) = obs.lock() {
-            g.check_after(pers, &st.store, n, pend.len(), &pend[k]);
-        }
-    }
+/// con-leche: none — `checkPool`'s failure cases, with the checker erased
+/// Why [`parallel_all`] did not return `Ok(())`.
+pub enum ParallelError<E> {
+    /// `step(_, k)` returned `Err(e)`, and `k` is the LEAST index whose step
+    /// failed — the walk's first failure in index order.
+    Step(usize, E),
+    /// Index `k` has no result: the pool did not do its job.  An internal
+    /// error, never a verdict on the input.
+    Missing(usize),
+    /// A worker thread panicked.  An internal error, never a verdict.
+    Panicked,
 }
 
 /// con-leche: Main.lean:262-278 checkWorker
-/// **One worker**: claim ONE record off the shared counter, check it, repeat
-/// until the counter is past the records.  One record per claim is
-/// con-leche's choice and its reason is the port's: the work is millions of
-/// mostly tiny checks with a skewed tail, and the heavy ones sit *close
-/// together* in the stream, so claiming singly spreads a cluster of heavy
-/// declarations over the whole pool instead of serialising it inside one
-/// claimed range.
+/// con-leche: Main.lean:240-260 checkOne
+/// **One worker**: build ONE state with `init()`, then claim ONE index off the
+/// shared counter, step it on that state, repeat until the counter is past
+/// `n`.  An index at or above the shared `limit` is skipped — it is above a
+/// known failure and the walk will never ask for it — and a failing step
+/// lowers the limit to its index.  One index per claim is con-leche's choice
+/// and its reason is the port's: the work is millions of mostly tiny checks
+/// with a skewed tail, and the heavy ones sit *close together* in the stream,
+/// so claiming singly spreads a cluster of heavy records over the whole pool
+/// instead of serialising it inside one claimed range.
 ///
 /// Deviation: the cited `fuel` (`pend.size + 1` claims, Lean's termination
 /// device) is a `loop` that returns when its claim is past the end, which is
 /// the same bound — every claim advances the counter by exactly one.
-#[allow(clippy::too_many_arguments)]
-fn check_worker<O: PhaseObserver + Send>(
-    pers: &PersTier,
-    mode: &CheckMode,
-    fe: &IFEnv,
-    pend: &[PendingCheck],
-    pins: &Pins,
+fn worker<S, E>(
+    n: usize,
     next: &AtomicUsize,
     limit: &AtomicUsize,
-    done: &AtomicUsize,
-    heartbeat: bool,
-    obs: &Mutex<&mut O>,
-) -> Vec<(usize, RecordResult)> {
-    let m = pend.len();
-    let mut acc: Vec<(usize, RecordResult)> = Vec::new();
-    let mut st: AState = checker::worker_state(pins);
+    init: &(impl Fn() -> S + Sync),
+    step: &(impl Fn(&mut S, usize) -> Result<(), E> + Sync),
+    after: &(impl Fn(&S, usize) + Sync),
+) -> Vec<(usize, Result<(), E>)> {
+    let mut acc: Vec<(usize, Result<(), E>)> = Vec::new();
+    let mut st: S = init();
     loop {
         let k = next.fetch_add(1, Ordering::Relaxed);
-        if k >= m {
+        if k >= n {
             return acc;
         }
-        check_one(
-            pers, mode, fe, pend, limit, done, heartbeat, obs, k, &mut st, &mut acc,
-        );
+        if k >= limit.load(Ordering::Relaxed) {
+            continue;
+        }
+        let r = step(&mut st, k);
+        if r.is_err() {
+            limit.fetch_min(k, Ordering::Relaxed);
+        }
+        acc.push((k, r));
+        after(&st, k);
     }
 }
 
 /// con-leche: Main.lean:280-287 mergeResults
-/// The workers' arrays merged **by record index** into one table.  The table
-/// is the pool's whole interface to the verdict: which worker produced a
-/// result, and when, is recorded nowhere.
-pub fn merge_results(
-    m: usize,
-    results: Vec<Vec<(usize, RecordResult)>>,
-) -> Vec<Option<RecordResult>> {
-    let mut tab: Vec<Option<RecordResult>> = Vec::with_capacity(m);
-    for _ in 0..m {
+/// The workers' arrays merged **by index** into one table.  The table is the
+/// pool's whole interface to the verdict: which worker produced a result, and
+/// when, is recorded nowhere.
+pub fn merge_results<E>(
+    n: usize,
+    results: Vec<Vec<(usize, Result<(), E>)>>,
+) -> Vec<Option<Result<(), E>>> {
+    let mut tab: Vec<Option<Result<(), E>>> = Vec::with_capacity(n);
+    for _ in 0..n {
         tab.push(None);
     }
     for rs in results {
         for (k, r) in rs {
-            if k < m {
+            if k < n {
                 tab[k] = Some(r);
             }
         }
@@ -243,94 +201,97 @@ pub fn merge_results(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:392-416 collectChecks
-/// **The results, assembled in record order.**  Slot `j` holds record `j`'s
-/// result; the walk stops at the first failure, so its verdict is
-/// `check_pending_list`'s whatever order the results were produced in.  An
-/// empty slot is an internal error (a pool that did not do its job), never a
-/// verdict on the input.
-pub fn collect_checks(pend: &[PendingCheck], tab: Vec<Option<RecordResult>>) -> RecordResult {
-    for (j, slot) in tab.into_iter().enumerate() {
+/// **The results, walked in index order.**  Slot `k` holds index `k`'s
+/// result; the walk stops at the first failure, so its answer is the
+/// sequential fold's whatever order the results were produced in.  An empty
+/// slot is `ParallelError::Missing` (a pool that did not do its job), never
+/// an accept.
+pub fn first_failure<E>(tab: Vec<Option<Result<(), E>>>) -> Result<(), ParallelError<E>> {
+    for (k, slot) in tab.into_iter().enumerate() {
         match slot {
             Some(Ok(())) => {}
-            Some(Err(e)) => return Err(e),
-            None => {
-                return Err((
-                    internal(&format!("check phase: record {} was never checked", j)),
-                    pend[j].pos,
-                ))
-            }
+            Some(Err(e)) => return Err(ParallelError::Step(k, e)),
+            None => return Err(ParallelError::Missing(k)),
         }
     }
     Ok(())
 }
 
 /// con-leche: Main.lean:289-316 checkPool
-/// **Phase B on a pool of `workers` worker threads** — each worker the
-/// verified `checker::check_pending_worker` over the records it claims (the
-/// module note's trusted claim).  Spawns them inside a
-/// `std::thread::scope` — which is what lets them hold `&PersTier`, `&IFEnv`
-/// and `&[PendingCheck]` with no `Arc<Mutex<…>>` and no `'static` bound —
-/// waits for all of them, merges their results by record index and walks the
-/// table in record order.
+/// **`step` at every index of `0..n`, on a pool of `workers` threads** — the
+/// module note's trusted claim is this function's contract:
 ///
+/// > If it returns `Ok(())`, every index in `0..n` was claimed by exactly one
+/// > worker, each worker built its state with `init()` once and folded `step`
+/// > over its claimed indices in claim order (increasing), and every step
+/// > returned `Ok(())`.
+///
+/// On a failure it returns the LEAST failing index with its error
+/// (`ParallelError::Step`), whatever the timing.  `after(&st, k)` runs on the
+/// worker's thread after each step it made, with the worker's state by `&`
+/// (the driver's heartbeat); it cannot change an outcome.
+///
+/// The workers are `std::thread::scope`d, with `STACK_BYTES` of stack each.
 /// `workers` is the count the caller has already clamped
-/// (`driver::workers_for`: `max(1, min(jobs, m))`), and `heartbeat` is the
-/// port's spelling of the cited `stride > 0` guard inside `checkOne`: off, no
-/// worker touches the `done` counter or the observer at all.
-pub fn check_pool<O: PhaseObserver + Send>(
-    pers: &PersTier,
-    mode: &CheckMode,
-    fe: &IFEnv,
-    pend: &[PendingCheck],
-    pins: &Pins,
+/// (`driver::workers_for`: `max(1, min(jobs, n))`); if the OS refuses to
+/// spawn one, the pool runs on those it has, and on the calling thread if it
+/// has none — the contract holds at every worker count, so the answer does
+/// not depend on it.
+pub fn parallel_all<S, E: Send>(
+    n: usize,
     workers: usize,
-    obs: &Mutex<&mut O>,
-) -> RecordResult {
-    let m = pend.len();
-    let heartbeat = match obs.lock() {
-        Ok(g) => g.wants_check_lines(),
-        Err(_) => false,
-    };
+    init: impl Fn() -> S + Sync,
+    step: impl Fn(&mut S, usize) -> Result<(), E> + Sync,
+    after: impl Fn(&S, usize) + Sync,
+) -> Result<(), ParallelError<E>> {
     let next = AtomicUsize::new(0);
-    let limit = AtomicUsize::new(m);
-    let done = AtomicUsize::new(0);
-    let mut results: Vec<Vec<(usize, RecordResult)>> = Vec::with_capacity(workers);
-    let mut failure: Option<String> = None;
+    let limit = AtomicUsize::new(n);
+    let run = || worker(n, &next, &limit, &init, &step, &after);
+    let mut results: Vec<Vec<(usize, Result<(), E>)>> = Vec::with_capacity(workers);
+    let mut panicked = false;
     std::thread::scope(|scope| {
         let mut handles = Vec::with_capacity(workers);
         for w in 0..workers {
             let spawned = std::thread::Builder::new()
                 .stack_size(STACK_BYTES)
                 .name(format!("check-{}", w))
-                .spawn_scoped(scope, || {
-                    check_worker(
-                        pers, mode, fe, pend, pins, &next, &limit, &done, heartbeat, obs,
-                    )
-                });
+                .spawn_scoped(scope, &run);
             match spawned {
-                // Out of threads, or out of address space for another 1 GiB
-                // stack: the pool cannot be built as asked.  The workers
-                // already spawned are joined below all the same.
                 Ok(h) => handles.push(h),
-                Err(e) => failure = Some(format!("cannot spawn a check worker: {}", e)),
+                // Out of threads, or out of address space for another stack:
+                // run on the workers already spawned (the module note).
+                Err(_) => break,
             }
+        }
+        if handles.is_empty() {
+            results.push(run());
         }
         for h in handles {
             match h.join() {
                 Ok(rs) => results.push(rs),
-                Err(_) => failure = Some("a worker panicked".to_string()),
+                Err(_) => panicked = true,
             }
         }
     });
-    match failure {
-        Some(msg) => Err((internal(&format!("check phase: {}", msg)), 0)),
-        None => collect_checks(pend, merge_results(m, results)),
+    if panicked {
+        return Err(ParallelError::Panicked);
     }
+    first_failure(merge_results(n, results))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+    use con_ron_core::arena::checker;
+    use con_ron_core::arena::checker::PendingCheck;
+    use con_ron_core::arena::env::IFEnv;
+    use con_ron_core::arena::monad::AState;
+    use con_ron_core::arena::pins::Pins;
+    use con_ron_core::arena::store::PersTier;
+    use con_ron_core::kernel::core_types::CheckError;
+    use con_ron_core::kernel::env::CheckMode;
+    use crate::driver::PhaseObserver;
     use con_ron_core::arena::checker_split::ValueGroup;
     use con_ron_core::arena::checker_split::ValueKind;
     use con_ron_core::arena::env as ienv;
@@ -341,6 +302,115 @@ mod tests {
     use con_ron_core::arena::store::ENodeView;
     use con_ron_core::arena::store::LNodeView;
     use con_ron_core::arena::store::NNodeView;
+
+    type RecordResult = Result<(), (CheckError, u64)>;
+
+    /// **Phase B as the driver runs it** (`driver::check_decls_driver`'s
+    /// `parallel_all` call, with the heartbeat hook the observer asks for):
+    /// the tests below are about this call.
+    fn check_pool<O: PhaseObserver + Send>(
+        pers: &PersTier,
+        mode: &CheckMode,
+        fe: &IFEnv,
+        pend: &[PendingCheck],
+        pins: &Pins,
+        workers: usize,
+        obs: &Mutex<&mut O>,
+    ) -> RecordResult {
+        let heartbeat = match obs.lock() {
+            Ok(g) => g.wants_check_lines(),
+            Err(_) => false,
+        };
+        let done = AtomicUsize::new(0);
+        let r = parallel_all(
+            pend.len(),
+            workers,
+            || checker::worker_state(pins),
+            |w: &mut AState, k| checker::check_pending(pers, w, mode, fe, &pend[k]),
+            |w: &AState, k| {
+                if heartbeat {
+                    let n = done.fetch_add(1, Ordering::Relaxed) + 1;
+                    if let Ok(mut g) = obs.lock() {
+                        g.check_after(pers, &w.store, n, pend.len(), &pend[k]);
+                    }
+                }
+            },
+        );
+        crate::driver::phase_b_verdict(pend, r)
+    }
+
+    /// **The contract, generically**: a state that records the indices it
+    /// was stepped at.  At every worker count, on accept, the workers' claim
+    /// lists partition `0..n`, each is increasing (claim order), each worker
+    /// called `init` exactly once, and `after` saw every step.
+    #[test]
+    fn parallel_all_partitions_the_indices() {
+        for n in [0usize, 1, 2, 7, 100, 1000] {
+            for workers in [1usize, 2, 3, 4, 8, 16] {
+                let inits = AtomicUsize::new(0);
+                let afters = AtomicUsize::new(0);
+                let finished: Mutex<Vec<Vec<usize>>> = Mutex::new(Vec::new());
+                // The state hands its claim list to `finished` when dropped,
+                // i.e. when its worker is done.
+                struct Rec<'a>(Vec<usize>, &'a Mutex<Vec<Vec<usize>>>);
+                impl Drop for Rec<'_> {
+                    fn drop(&mut self) {
+                        if let Ok(mut g) = self.1.lock() {
+                            g.push(std::mem::take(&mut self.0));
+                        }
+                    }
+                }
+                let r: Result<(), ParallelError<()>> = parallel_all(
+                    n,
+                    workers,
+                    || {
+                        inits.fetch_add(1, Ordering::Relaxed);
+                        Rec(Vec::new(), &finished)
+                    },
+                    |s: &mut Rec, k| {
+                        s.0.push(k);
+                        Ok(())
+                    },
+                    |s: &Rec, k| {
+                        assert_eq!(s.0.last(), Some(&k));
+                        afters.fetch_add(1, Ordering::Relaxed);
+                    },
+                );
+                assert!(r.is_ok(), "n={} workers={}", n, workers);
+                let parts = finished.into_inner().unwrap_or_default();
+                assert_eq!(parts.len(), inits.load(Ordering::Relaxed));
+                assert!(parts.len() >= 1 && parts.len() <= workers);
+                let mut all: Vec<usize> = Vec::new();
+                for w in &parts {
+                    assert!(w.windows(2).all(|p| p[0] < p[1]), "claim order");
+                    all.extend(w.iter().copied());
+                }
+                all.sort();
+                assert_eq!(all, (0..n).collect::<Vec<usize>>(), "a partition of 0..n");
+                assert_eq!(afters.load(Ordering::Relaxed), n);
+            }
+        }
+    }
+
+    /// A failure is the LEAST failing index, at every worker count.
+    #[test]
+    fn parallel_all_reports_the_least_failing_index() {
+        for workers in [1usize, 2, 3, 4, 8] {
+            let r = parallel_all(
+                50,
+                workers,
+                || (),
+                |_: &mut (), k| if k % 7 == 3 { Err(k) } else { Ok(()) },
+                |_: &(), _| {},
+            );
+            match r {
+                Err(ParallelError::Step(k, e)) => {
+                    assert_eq!((k, e), (3, 3), "at {} workers", workers)
+                }
+                _ => panic!("expected the step failure at 3 ({} workers)", workers),
+            }
+        }
+    }
 
     /// An observer that prints nothing and wants no check lines — the plain
     /// pooled lane.
@@ -487,9 +557,9 @@ mod tests {
     fn merge_is_by_index_and_a_gap_is_internal() {
         let (_, _, pend) = fixture(&[true, true, true]);
         let tab = merge_results(3, vec![vec![(2, Ok(())), (0, Ok(()))], vec![(1, Ok(()))]]);
-        assert!(collect_checks(&pend, tab).is_ok());
+        assert!(crate::driver::phase_b_verdict(&pend, first_failure(tab)).is_ok());
         let gap = merge_results(3, vec![vec![(0, Ok(())), (2, Ok(()))]]);
-        match collect_checks(&pend, gap) {
+        match crate::driver::phase_b_verdict(&pend, first_failure(gap)) {
             Ok(()) => panic!("a gap in the table is never an accept"),
             Err((e, pos)) => {
                 assert_eq!(crate::driver::exit_code(&e), 3);
