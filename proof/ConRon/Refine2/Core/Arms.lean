@@ -63,6 +63,7 @@ import ConRon.Refine2.Core.Arms.Loops
 import ConRon.Refine2.Core.Arms.Batched
 import ConRon.Refine2.Core.LS.Infer
 import ConRon.Refine2.Core.LS.Annotate
+import ConRon.Refine2.Core.LS.PropRead
 
 -- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
 open scoped ConRon.Refine2.Lockstep.CoreLSReg ConRon.Refine2.Lockstep.PA1.CoreLSReg ConRon.Refine2.Lockstep.PB.CoreLSReg ConRon.Refine2.Lockstep.PC1.CoreLSReg ConRon.Refine2.Lockstep.PC2.CoreLSReg ConRon.Refine2.Lockstep.PD.CoreLSReg ConRon.Refine2.Lockstep.PE.CoreLSReg ConRon.Refine2.Lockstep.PF.CoreLSReg ConRon.Refine2.Lockstep.PG.CoreLSReg ConRon.Refine2.Lockstep.PG2.CoreLSReg
@@ -83,11 +84,12 @@ one `sorry`: it is the seven `BodyRel` fields assembled from one child per
 body, every child a LOCKSTEP statement over `AStateRel₀` (no `StoreWF`, no
 `EResolves`, `Sim₀`).  Two of the seven are already the loops of
 `Core/Arms/Loops.lean` (`whnf_body_refines`, closed modulo `reduce_nat` and
-the `ExprOpsHyp` seam; `defeq_body_refines`, whose loop is open); the other
-five are the ten-way dispatches below. -/
+the `ExprOpsHyp` bundle; `defeq_body_refines`); the other five are the ten-way
+dispatches below.  All seven are closed since task #97-P5-Core round 5, and
+`exprOpsHyp` since round 6. -/
 
 /-- `arena::core::whnf_core_body` against `Arena.whnfCoreBody` — the
-head-normalization body.  **Open.** -/
+head-normalization body.  Lockstep (task #97-P5-Core round 5). -/
 theorem whnf_core_body_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth e lst o}
     (hx : ExprOpsHyp pers)
@@ -101,7 +103,7 @@ theorem whnf_core_body_refines {f : Nat} (hk : KnotRel f)
   Lockstep.LS.toSim₀ (Lockstep.whnf_core_body_ls hk hx hrel hinv hctx hf) hrun
 
 /-- `arena::core_gated::whnf_core_body_gated` against `Arena.whnfCoreBodyGated`
-— the gated lane's `whnfCore` body.  **Open.** -/
+— the gated lane's `whnfCore` body.  Lockstep (task #97-P5-Core round 5). -/
 theorem whnf_core_body_gated_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth e lst o}
     (hx : ExprOpsHyp pers)
@@ -115,7 +117,7 @@ theorem whnf_core_body_gated_refines {f : Nat} (hk : KnotRel f)
         (absU depth) (absEIdx e)) :=
   Lockstep.LS.toSim₀ (Lockstep.whnf_core_body_gated_ls hk hx hrel hinv hctx hf) hrun
 
-/-- `arena::core::infer_body` against `Arena.inferBody`.  **Open.** -/
+/-- `arena::core::infer_body` against `Arena.inferBody`.  Lockstep (task #97-P5-Core round 5). -/
 theorem infer_body_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth e lst o}
     (hx : ExprOpsHyp pers)
@@ -128,7 +130,7 @@ theorem infer_body_refines {f : Nat} (hk : KnotRel f)
         (absU depth) (absEIdx e)) :=
   Lockstep.LS.toSim₀ (Lockstep.infer_body_ls hk hx hrel hinv hctx hf) hrun
 
-/-- `arena::core::infer_body_io` against `Arena.inferBodyIO`.  **Open.** -/
+/-- `arena::core::infer_body_io` against `Arena.inferBodyIO`.  Lockstep (task #97-P5-Core round 5). -/
 theorem infer_body_io_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane io fu fe lfe depth e lst o}
     (hx : ExprOpsHyp pers)
@@ -142,7 +144,7 @@ theorem infer_body_io_refines {f : Nat} (hk : KnotRel f)
         (absU depth) (absEIdx e)) :=
   Lockstep.LS.toSim₀ (Lockstep.infer_body_io_ls hk hx hrel hinv hctx hf hio) hrun
 
-/-- `arena::core::annotate_body` against `Arena.annotateBody`.  **Open.** -/
+/-- `arena::core::annotate_body` against `Arena.annotateBody`.  Lockstep (task #97-P5-Core round 5). -/
 theorem annotate_body_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth e lst o}
     (hx : ExprOpsHyp pers)
@@ -154,18 +156,45 @@ theorem annotate_body_refines {f : Nat} (hk : KnotRel f)
         (absU depth) (absEIdx e)) :=
   Lockstep.LS.toSim₀ (Lockstep.annotate_body_ls hk hx hrel hinv hctx hf) hrun
 
-/-- **The `ExprOps` tier's lockstep obligations, named once** — the two walks
-the delta leaf borrows (`Core/Arms/Delta.lean`'s `ExprOpsHyp`), which the
-`ExprOps` tier's migration to `AStateRel₀` owes.  **Open**, and deliberately
-a single named seam rather than a hypothesis of `bodyRel_of_knot`: nothing
-below the knot can supply it until that migration. -/
-theorem exprOpsHyp (pers : arena.store.PersTier) : ExprOpsHyp pers := by
-  sorry
+/-- **The `ExprOps` tier's lockstep obligations, discharged** (task #97-P5-Core
+round 6) — every field of `Core/Arms/Delta.lean`'s `ExprOpsHyp` is the
+`ExprOps` lane's own `_ls` lemma (`ExprOps/Mut.lean`, `ExprOps/Read.lean`),
+read through `LS.toSim₀` / `LSR.toAOut₀`; the four `prop_read` fields are
+`Core/LS/PropRead.lean`'s, proved on the tag-first twin. -/
+theorem exprOpsHyp (pers : arena.store.PersTier) : ExprOpsHyp pers where
+  instLPFast hrel hinv hrun := Lockstep.LS.toSim₀ (ConRon.Refine2.inst_lp_fast_ls hrel hinv _ _ _ _) hrun
+  mkAppN hrel hinv hrun := Lockstep.LS.toSim₀ (ConRon.Refine2.mk_app_n_ls hrel hinv _ _) hrun
+  mkAppNFrom hrel hinv hrun := Lockstep.LS.toSim₀ (ConRon.Refine2.mk_app_n_from_ls hrel hinv _ _ _) hrun
+  instantiate1Fast hrel hinv hrun :=
+    Lockstep.LS.toSim₀ (ConRon.Refine2.instantiate1_fast_ls hrel hinv _ _ _ _) hrun
+  instantiateListFast hrel hinv hrun :=
+    Lockstep.LS.toSim₀ (ConRon.Refine2.instantiate_list_fast_ls hrel hinv _ _ _ _) hrun
+  abstract1Fast hrel hinv hrun := Lockstep.LS.toSim₀ (ConRon.Refine2.abstract1_fast_ls hrel hinv _ _ _ _) hrun
+  abstractRangeFast hrel hinv hrun :=
+    Lockstep.LS.toSim₀ (ConRon.Refine2.abstract_range_fast_ls hrel hinv _ _ _ _ _) hrun
+  instSpine hrel hinv hrun := Lockstep.LS.toSim₀ (ConRon.Refine2.inst_spine_ls hrel hinv _ _ _ _) hrun
+  internRebuiltApp hrel hinv hrun :=
+    Lockstep.LS.toSim₀ (ConRon.Refine2.intern_rebuilt_app_ls hrel hinv _ _ _ _) hrun
+  bvarB hrel hinv hrun := Lockstep.LS.toSim₀ (ConRon.Refine2.bvar_b_ls hrel hinv _ _) hrun
+  hasFvarFast hrel hinv hrun := Lockstep.LS.toSim₀ (ConRon.Refine2.has_fvar_fast_ls hrel hinv _ _) hrun
+  looseBVarsBoundedFast hrel hinv hrun :=
+    Lockstep.LS.toSim₀ (ConRon.Refine2.loose_bvars_bounded_fast_ls hrel hinv _ _ _) hrun
+  lamPw hrel hinv hrun := Lockstep.LSR.toAOut₀ (ExprOps.lam_pw_ls hrel hinv _) hrun
+  piResult hrel hinv hrun := Lockstep.LSR.toAOut₀ (ExprOps.pi_result_ls hrel hinv _ _) hrun
+  stripPis hrel hinv hrun := Lockstep.LSR.toAOut₀ (ExprOps.strip_pis_ls hrel hinv _ _) hrun
+  wscopedBFast hrel hinv hrun :=
+    Lockstep.LSR.toAOut₀ (A := id) (ExprOps.wscoped_b_fast_ls hrel hinv _ _ _) hrun
+  leafGuard hrel hinv hrun :=
+    Lockstep.LSR.toAOut₀ (A := id) (ExprOps.leaf_guard_ls hrel hinv _ _ _) hrun
+  proofPW hrel hinv hctx hrun := Lockstep.PPR.proof_pw_sim hrel hinv hctx hrun
+  typeSortPW hrel hinv hctx hrun := Lockstep.PPR.type_sort_pw_sim hrel hinv hctx hrun
+  isProofFast hrel hinv hctx hrun :=
+    Lockstep.LS.toSim₀ (A := id) (Lockstep.PPR.is_proof_fast_ls hrel hinv hctx _ _) hrun
+  notProofFast hrel hinv hctx hrun :=
+    Lockstep.LS.toSim₀ (A := id) (Lockstep.PPR.not_proof_fast_ls hrel hinv hctx _ _) hrun
 
-/-- **`KnotRel f → BodyRel f`**, assembled from its seven children.  Since
-task #97-P5-Core round 4 this is a skeleton, not a `sorry`: the open work is
-the five dispatches above, `reduce_nat_refines` and `defeq_loop_refines`
-(`Core/Arms/Loops.lean`), and the `exprOpsHyp` seam. -/
+/-- **`KnotRel f → BodyRel f`**, assembled from its seven children (task
+#97-P5-Core rounds 4–6; `sorry`-free since round 6). -/
 theorem bodyRel_of_knot : ∀ f, KnotRel f → BodyRel f := fun _ hk =>
   { whnfCore := fun h1 h2 h3 h4 h5 =>
       whnf_core_body_refines hk (exprOpsHyp _) h1 h2 h3 h4 h5
@@ -180,8 +209,7 @@ theorem bodyRel_of_knot : ∀ f, KnotRel f → BodyRel f := fun _ hk =>
     annotate := fun h1 h2 h3 h4 h5 =>
       annotate_body_refines hk (exprOpsHyp _) h1 h2 h3 h4 h5 }
 
-/-- **The knot, unconditionally** — the theorem the Checker tier wants, and the
-only `sorry` between it and `Core/Induction.lean`'s closed induction. -/
+/-- **The knot, unconditionally** — the theorem the Checker tier wants. -/
 theorem knotRel (f : Nat) : KnotRel f := knot_rel bodyRel_of_knot f
 
 /-- `KnotRel` at the checker's own fuel. -/

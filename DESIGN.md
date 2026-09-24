@@ -62103,3 +62103,60 @@ dead weight 218; the Capstone roots 23 items / 281 tainted / dead weight 198
 
 Gates on `a7531cb7` (arena `5e671407` merged): **all 16 OK** (`extract-check`
 85 s); `lake build ConRonRefine2 ConRonCapstone` green.
+
+### Task #97-P5-Core round 6 — `exprOpsHyp` discharged: the knot is `sorry`-free (2026-09-24, Opus under Fable)
+
+Branch `p5-core-6` off `b9b64d90` (round 5 as landed).  The brief: discharge
+`exprOpsHyp`, the one item left on `knotRel_checkFuel'`'s frontier, from the
+`ExprOps` lane's lockstep lemmas (the lane is fully lockstep on arena), and
+list any field that is really another lane's statement rather than proving it
+twice.
+
+**Outcome.**  `exprOpsHyp : ExprOpsHyp pers` (`Core/Arms.lean`) is a
+structure literal with no `sorry`; `knotRel`, `knotRel_check` and
+`knotRel_checkFuel'` have an EMPTY frontier (`[propext, Classical.choice,
+Quot.sound]`, now pinned by a `#guard_msgs` in `Checker/KnotHyp.lean`).
+
+* **17 of the 21 fields are the `ExprOps` lane's own lemmas**, read through
+  `LS.toSim₀` / `LSR.toAOut₀`, each one line: `inst_lp_fast_ls`,
+  `mk_app_n_ls`, `mk_app_n_from_ls`, `instantiate1_fast_ls`,
+  `instantiate_list_fast_ls`, `abstract1_fast_ls`, `abstract_range_fast_ls`,
+  `inst_spine_ls`, `intern_rebuilt_app_ls`, `bvar_b_ls`, `has_fvar_fast_ls`,
+  `loose_bvars_bounded_fast_ls` (`ExprOps/Mut.lean`), `lam_pw_ls`,
+  `pi_result_ls`, `strip_pis_ls`, `wscoped_b_fast_ls`, `leaf_guard_ls`
+  (`ExprOps/Read.lean`).  Nothing proved twice.
+* **The four `prop_read` fields** (`proofPW`, `typeSortPW`, `isProofFast`,
+  `notProofFast`) had no lemma in any lane (`arena::prop_read` is read only
+  by the Core bodies).  New file `Core/LS/PropRead.lean`: the nine walks
+  (`peel_never_pis`, `num_args`, `residual_pw`, `head_type_pw`,
+  `type_sort_pw`, `head_proof_pw`, `proof_pw`, `is_proof_fast`,
+  `not_proof_fast`) in lockstep, **every one a single `lockstep` call** (the
+  two fueled/structural walks an `_aux` induction whose two cases are single
+  calls), plus three prims (`read_level_ls` with the level's WF,
+  `has_params_ls`, `is_prop_ls`, from `Refine/PropWhen`/`Refine/PropRead`'s
+  refinements).  The `pw`-answering walks carry the answer's
+  well-formedness (`PG2.optPwWF`) — `has_params`/`is_prop`/`subst_pw` are
+  exact only on well-formed data — and `ExprOpsHyp`'s `Sim₀` fields drop it
+  (`LS.weaken`).
+
+**Divergence found and fixed (twin; Theorem 1 repaired).**
+`Arena/PropRead.lean` read the node (`view`) where `prop_read.rs` tests the
+handle's TAG first and then projects — task #97-T2-AUDIT's D1, never done for
+this file: `peelNeverPis` (`forallE`/`viewBind`), `numArgs` (`app`/`viewApp`),
+`residualPW` (`sort`/`viewSort`), `proofPW` (`lam`/`viewBind`).  Separating
+input: a dangling handle whose tag is not the tested one — the port answers
+`none`/`0`/falls through to `get_app_fn`, the twin failed.  The twin now tests
+the tag first, exactly as the port; `Bridge/Core/Walks/PropRead.lean`'s four
+specs get the tag-first arms (`view_of_viewBind_tag_*`, `view_of_viewApp_tag`,
+`view_of_viewSort_tag`, and a local `view_not_of_tagB` for the `else` arms);
+`twin-lines` relocated 10 citations in `prop_read.rs`.
+
+No precondition added, no conclusion changed, no core tactic edit.
+
+Frontier: `knotRel_checkFuel'` 1 → **0** items; the Capstone roots 23 → 22
+items, 281 → 258 tainted (the next tops are other lanes':
+`i_constant_info_beq_refines`, the two routed `IFEnvRel.envWF` seams).
+
+Gates on `7c6139c5` (arena `b9b64d90`, up to date): **all 16 OK**
+(`extract-check` 101 s); `lake build ConRonRefine2 ConRonCapstone
+ConRonBridge` green (2 850 jobs).
