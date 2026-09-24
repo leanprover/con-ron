@@ -1272,7 +1272,9 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   all_goals clear_tag_hyps
   -- the callees' `CheckOK` and pin preconditions
   case vc1.hok | vc3.hok | vc6.hok | vc8.hok | vc11.hok | vc13.hok | vc15.hok
-    | vc21.hok | vc22.hok | vc24.hok | vc26.hok | vc31.hok => assumption
+    | vc21.hok | vc22.hok | vc24.hok | vc26.hok | vc32.hok => assumption
+  -- the second zero pin's (the port's `prop_sorts_zero_right` re-reads it)
+  case vc28.hp => exact CheckOK.pins (by assumption)
   case vc17.hp =>
     rename_i s7 r6 s6 r5 hg1 s5 r4 s4 r3 hg0 s3 r2 s2 r1 s1 r0 u0 s0 hck_s6
       hck_s5 hck_s4 hck_s3 hck_s2 hck_s1 hst_s6_s7 hst_s5_s6 hst_s4_s5
@@ -1375,14 +1377,14 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         hip_b y (by rw [hst_s1_s2, hst_s2_s3, hst_s3_s4]; exact hdb)] at hg0
       exact hg0
   -- the slow path to its end: both sides are sorts
-  case vc32 =>
+  case vc33 =>
     rename_i s12 r10 s11 r9 hg1 s10 r8 s9 r7 hg0 s8 r6 s7 r5 s6 r4 u1 r3 s5 s4
-      a1 r2 s3 r1 s2 r0 u0 s1 s0 a0 hck_s11 hck_s10 hck_s9 hck_s8 hck_s7
+      a1 r2 s3 r1 s2 r0 u0 rz s1 s0 a0 hck_s11 hck_s10 hck_s9 hck_s8 hck_s7
       hck_s6 hck_s4 hck_s3 hck_s2 hck_s0 hst_s11_s12 hst_s10_s11 hst_s9_s10
       hst_s8_s9 hx_s8_s7 hx_s7_s6 hst_s4_s5 hx_s4_s3 hx_s3_s2 hst_s0_s1
       hp_s11_s12 hnp_a hp_s10_s11 hnp_b hp_s9_s10 hip_a hp_s8_s9 hip_b hp_s7_s8
       hio_a hp_s6_s7 hio_r6 hp_s4_s5 hp_s3_s4 hio_b hp_s2_s3 hio_r2 hp_s0_s1
-      hz_r3 hck_s5 hvs_r4 hx_s6_s5 hp_s5_s6 hwh_r5 heq_u1 hck_s1 hvs_r0
+      hz_r3 hck_s5 hvs_r4 hx_s6_s5 hp_s5_s6 hwh_r5 heq_u1 hz2 hck_s1 hvs_r0
       hx_s2_s1 hp_s1_s2 hwh_r1 heq_u0
     have hx128 : Ext s12.store s8.store :=
       (((ext_of_store_eq hst_s11_s12).trans (ext_of_store_eq hst_s10_s11)).trans
@@ -1412,10 +1414,7 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     obtain ⟨w2, hw2, _, F6, hF6⟩ := hwh_r1 ttb httb
     obtain ⟨vT, rfl, hvT⟩ := denote_sort_inv hck_s1.state.wf hvs_r0 hw2
     obtain ⟨lu', lv', hlu', hlv', hB⟩ := heq_u0
-    have hz1 : denoteL s1.store.ls r3 = some Level.zero :=
-      denoteL_ext hz_r3 (((ext_of_store_eq hst_s4_s5).trans hx_s4_s3).trans
-        (hx_s3_s2.trans hx_s2_s1))
-    rw [hvT] at hlu'; rw [hz1] at hlv'
+    rw [hvT] at hlu'; rw [hz2] at hlv'
     cases hlu'; cases hlv'
     -- the two guards declined
     rw [hnp_a x hda, hnp_b y (by rw [hst_s11_s12]; exact hdb)] at hg1
@@ -1430,7 +1429,7 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       (ConLeche.inferTypeIO_mono (by omega) hF5)
       (ConLeche.whnf_mono (by omega) hF6) hB.symm⟩
   -- the second side's type's type is not a sort
-  case vc34 =>
+  case vc35 =>
     rename_i s11 r10 s10 r9 hg1 s9 r8 s8 r7 hg0 s7 r6 s6 r5 s5 r4 u0 r3 s4 s3
       a0 r2 s2 r1 s1 r0 x1 hnv0 s0 hck_s10 hck_s9 hck_s8 hck_s7 hck_s6 hck_s5
       hck_s3 hck_s2 hck_s1 hst_s10_s11 hst_s9_s10 hst_s8_s9 hst_s7_s8 hx_s7_s6
@@ -1475,7 +1474,7 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   -- the first side's type's type is not a sort
   -- round 4: the tag-first twin's `else` arm (the whnf answer does not carry
   -- the `sort` TAG; its view comes back from its denotation)
-  case vc35 =>
+  case vc36 =>
     rename_i s11 r10 s10 r9 hg1 s9 r8 s8 r7 hg0 s7 r6 s6 r5 s5 r4 u0 r3 s4 s3
       a0 r2 s2 r1 s1 r0 htag s0 hck_s10 hck_s9 hck_s8 hck_s7 hck_s6 hck_s5
       hck_s3 hck_s2 hck_s1 hck_s0 hst_s10_s11 hst_s9_s10 hst_s8_s9 hst_s7_s8
@@ -1519,7 +1518,7 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       (ConLeche.inferTypeIO_mono (by omega) hF5)
       (ConLeche.whnf_mono (by omega) hF6) hns⟩
   -- the first side's type's type is not a sort
-  case vc50 =>
+  case vc52 =>
     rename_i s7 r6 s6 r5 hg1 s5 r4 s4 r3 hg0 s3 r2 s2 r1 s1 r0 x1 hnv0 s0
       hck_s6 hck_s5 hck_s4 hck_s3 hck_s2 hck_s1 hst_s6_s7 hst_s5_s6 hst_s4_s5
       hst_s3_s4 hx_s3_s2 hx_s2_s1 hp_s6_s7 hnp_a hp_s5_s6 hnp_b hp_s4_s5 hip_a
@@ -1545,7 +1544,7 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       (ConLeche.whnf_mono (by omega) hF3) hns⟩
   -- round 4: the tag-first twin's `else` arm (the whnf answer does not carry
   -- the `sort` TAG; its view comes back from its denotation)
-  case vc51 =>
+  case vc53 =>
     rename_i s7 r6 s6 r5 hg1 s5 r4 s4 r3 hg0 s3 r2 s2 r1 s1 r0 htag s0
       hck_s6 hck_s5 hck_s4 hck_s3 hck_s2 hck_s1 hck_s0 hst_s6_s7 hst_s5_s6
       hst_s4_s5 hst_s3_s4 hx_s3_s2 hx_s2_s1 hx_s1_s0 hp_s6_s7 hnp_a hp_s5_s6

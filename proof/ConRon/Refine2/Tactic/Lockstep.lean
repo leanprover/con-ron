@@ -1201,7 +1201,18 @@ def specCore (g : MVarId) (after : TacticM Unit := pure ()) : TacticM Unit := g.
       | some m' => rustKey? m'.headBeta == some k
       | none => false
     if ok then cands := cands.push d.toExpr
-  for n in (← lockstepLemmas k) do
+  -- lemmas from an `open`ed namespace first: a file that opens its own set
+  -- of pairs (`open …Lockstep.PB`) gets those before any other module's.
+  -- Only a region namespace BELOW `Lockstep` counts: `open Lockstep in`, which
+  -- every tier writes, must not reorder the shared pairs
+  let opens ← getOpenDecls
+  let isOpen (n : Name) : Bool := opens.any fun
+    | .simple ns _ => ns == n.getPrefix && ns != `ConRon.Refine2.Lockstep &&
+        (`ConRon.Refine2.Lockstep).isPrefixOf ns
+    | _ => false
+  let ls ← lockstepLemmas k
+  let ls := ls.filter isOpen ++ ls.filter (!isOpen ·)
+  for n in ls do
     let c ← mkConstWithFreshMVarLevels n
     let same ← forallTelescope (← inferType c) fun _ concl =>
       pure (concl.getAppFn.constName? == ty.getAppFn.constName?)
@@ -1412,9 +1423,14 @@ each link fed by `bind_tc_ok`. -/
 partial def errArmChain (g : MVarId) (depth : Nat := 0) : TacticM Unit := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   let m ← headNorm (ty.getArg! 1)
+  -- the callee of a bind is head-normalised too (a fragment's `let (r, s) :=
+  -- (Err e, s)` and its `match` reduce definitionally)
+  let m ← if m.isAppOfArity ``Bind.bind 6 then
+      pure (mkAppN m.getAppFn (m.getAppArgs.set! 4 (← headNorm (m.getArg! 4))))
+    else pure m
   let g ← g.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
   if depth < 16 && m.isAppOfArity ``Bind.bind 6 then
-    let f ← headNorm (m.getArg! 4)
+    let f := m.getArg! 4
     if f.isAppOfArity ``Result.ok 2 then
       let gs ← applyRule g ``ErrArm.of_ok_bind
       return ← errArmChain (← pick gs `h) (depth + 1)
@@ -1548,8 +1564,10 @@ partial def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.with
         -- decided (or split) by `stepCore` once the Rust cannot move — taking
         -- it whole as the partner would bury it under the `>>= pure` (task
         -- #97-T2-TACTIC round 2, the Checker Base/Top lane's `chk_lockstep`).
+        -- Nor at a twin `pure`: it has no partner action, and `LS.twin_pure_bind`
+        -- unwraps `pure v >>= pure` again (task #97-P5-Core round 5).
         if !(x.isAppOfArity ``Bind.bind 6) && !(x.isAppOfArity ``ite 5) &&
-            !(x.isAppOfArity ``dite 5) then
+            !(x.isAppOfArity ``dite 5) && !(x.isAppOfArity ``Pure.pure 4) then
           try
             let gs ← applyRule g ``LS.twin_bind_pure
             let g' ← pick gs `h
@@ -1778,18 +1796,54 @@ partial def twinEqsOf (pf t : Expr) : MetaM (List (Expr × Expr)) := do
 def simpTwinEqs (g : MVarId) : MetaM MVarId := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   unless ty.isAppOfArity ``LS 7 do return g
+  -- the Rust's scalar facts `↑x = e` (a machine word's value), used to put
+  -- each `TwinEq`'s left side in the twin's own spelling (`↑i` → `↑np + ↑k`)
+  let mut scal : SimpTheorems := {}
+  let mut anyScal := false
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    let t ← instantiateMVars d.type
+    if let some (_, l, _) := t.eq? then
+      if l.isAppOfArity ``Aeneas.Std.UScalar.val 2 && l.appArg!.isFVar then
+        scal ← scal.add (.fvar d.fvarId) #[] d.toExpr
+        anyScal := true
+  let sctx ← Simp.mkContext (simpTheorems := #[scal]) (congrTheorems := ← getSimpCongrTheorems)
+  let some ext ← getSimpExtension? `lockstep_simp | return g
+  let base ← ext.getTheorems
+  let bctx ← Simp.mkContext (simpTheorems := #[base]) (congrTheorems := ← getSimpCongrTheorems)
   let mut thms : SimpTheorems := {}
   let mut any := false
   for d in (← getLCtx) do
     if d.isImplementationDetail then continue
     let t ← instantiateMVars d.type
     for (pf, te) in ← twinEqsOf d.toExpr t do
-      let eqTy ← mkEq (te.getArg! 1) (te.getArg! 2)
-      thms ← thms.add (.fvar d.fvarId) #[] (← mkExpectedTypeHint pf eqTy)
+      let a := te.getArg! 1
+      let b := te.getArg! 2
+      let pfEq ← mkExpectedTypeHint pf (← mkEq a b)
+      let mut rule := pfEq
+      if anyScal then
+        let (r, _) ← simp a sctx
+        if r.expr != a then
+          if let some p := r.proof? then
+            rule ← mkEqTrans (← mkEqSymm p) pfEq
+      thms ← thms.add (.fvar d.fvarId) #[] rule
+      if rule != pfEq then
+        thms ← thms.add (.fvar d.fvarId) #[] pfEq
+      -- the `lockstep_simp` set normalises the twin's subterms before a rule
+      -- sees the enclosing term (`absEIdxList xs` → `xs.val.map absEIdx`,
+      -- `↑0#usize` → `0`), so each left side is offered in that normal form
+      -- too (of the scalar-respelled side as well)
+      let rt ← inferType rule
+      let some (_, a1, _) := rt.eq? | pure ()
+      for (lhs, prf) in [(a, pfEq), (a1, rule)] do
+        let (r, _) ← simp lhs bctx
+        if r.expr != lhs then
+          let pn ← match r.proof? with
+            | some p => mkEqTrans (← mkEqSymm p) prf
+            | none => mkExpectedTypeHint prf (← mkEq r.expr b)
+          thms ← thms.add (.fvar d.fvarId) #[] pn
       any := true
   unless any do return g
-  let some ext ← getSimpExtension? `lockstep_simp | return g
-  let base ← ext.getTheorems
   let x := ty.getArg! 6
   let ctx ← Simp.mkContext (simpTheorems := #[base, thms]) (congrTheorems := ← getSimpCongrTheorems)
   let (r, _) ← simp x ctx
@@ -1905,8 +1959,34 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
         let P ← whnfR T.appArg!
         if P.isAppOfArity ``Prod 2 && (P.getArg! 1).isConstOf ``arena.store.EStore then
           let gs ← applyRule g ``LSS.bind
+          -- the state the port rebuilds is not in the step's own type: read it
+          -- off the store argument (`X.store`) or off the continuation's
+          -- `{ store := s, … }` at that store
+          let hf ← pick gs `hf
+          let hfTy ← instantiateMVars (← hf.getType)
+          let stM := hfTy.getArg! 5
+          if stM.isMVar then
+            let storeArg? ← f.getAppArgs.findM? fun a => do
+              return (← whnfR (← inferType a)).isConstOf ``arena.store.EStore
+            if let some sa := storeArg? then
+              let sa ← instantiateMVars sa
+              if sa.isAppOfArity ``arena.monad.AState.store 1 then
+                discard <| isDefEq stM sa.appArg!
+              else if let .proj _ 0 x := sa then
+                discard <| isDefEq stM x
+              else
+                let k := m.getArg! 5
+                let found := k.find? fun t =>
+                  t.isAppOfArity ``arena.monad.AState.mk 4 && t.getArg! 0 == sa
+                if let some t := found then discard <| isDefEq stM t
+                else
+                  -- a lookup on the store a previous step returned: the state
+                  -- the continuation rebuilds, at this step's store
+                  let any := k.find? fun t => t.isAppOfArity ``arena.monad.AState.mk 4
+                  if let some t := any then
+                    discard <| isDefEq stM (mkAppN t.getAppFn ((t.getAppArgs).set! 0 sa))
           let hx ← pick gs `hx
-          specCore (← pick gs `hf) (runClosed hx (evalT `(tactic| lockstep_congr)))
+          specCore hf (runClosed hx (evalT `(tactic| lockstep_congr)))
           errArm (← pick gs `he) [`e, `s']
           return some (← normAll (← cont (← pick gs `hk) [`a, `b, `s', `lst1, `hR, `hrel, `hinv] (some `hR)))
   -- a tag-guarded projection on the Rust side against the twin's `view`
