@@ -57,14 +57,16 @@ inductive RecFieldKind where
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:78-87 recFamOk
 Is `e` the family at the parameter variables (sitting `o` binders up) followed
 by `nIdx` index expressions none of which mentions the block?  Official's
-`is_valid_ind_app` exactly. -/
+`is_valid_ind_app` exactly.  The parameter prefix is compared over `ps.length`
+(the port's `eidx_take_beq` reads the length of its second list; `structPsAt`
+answers `nP` of them, so con-leche's `take nP` is the same test). -/
 def recFamOk (T : NIdx) (lps : List NIdx) (nP nIdx o : Nat) (e : EIdx) : AM Bool := do
   let us ← paramLevels lps
   let hd ← internE (.const T us)
   let fn ← getAppFn coreWalkFuel e
   let args ← getAppArgs coreWalkFuel e
   let ps ← structPsAt o nP
-  if !(fn == hd && args.length == nP + nIdx && args.take nP == ps) then pure false
+  if !(fn == hd && args.length == nP + nIdx && args.take ps.length == ps) then pure false
   else (args.drop nP).allM fun a => do pure !(← mentionsConst T a)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:89-111 recPositivity

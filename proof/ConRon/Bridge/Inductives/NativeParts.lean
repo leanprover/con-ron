@@ -72,9 +72,12 @@ theorem recFamOk_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
   have q5 : PStep s₀ s5 := q2.trans p5
   have e1 := beq_ehandle_eq p5.ok.wf (denote_ext hfn p5.ext) (denote_ext hhd p5.ext)
   have e2 : args.length = eP.getAppArgs.length := (denoteEList_len hargs).symm
+  have hlen : ps.length = nP := by
+    have := denoteEList_len hps
+    simpa [ConLeche.structPsAt] using this.symm
   have e3 := beq_ehandleList_eq p5.ok.wf
     (denoteEList_take (denoteEList_ext p5.ext _ _ hargs) nP) hps
-  rw [e1, e2, e3] at z5
+  rw [hlen, e1, e2, e3] at z5
   split at z5
   case isTrue hc =>
     obtain ⟨rfl, rfl⟩ := pureOk z5

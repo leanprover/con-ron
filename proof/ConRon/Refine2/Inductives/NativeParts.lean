@@ -248,34 +248,6 @@ open Lockstep in
 
 /-! ## The field kinds -/
 
-/-- `rec_fam_ok` ⊑ `recFamOk` — is `e` the family at the parameter variables
-followed by `nIdx` index expressions none of which mentions the block?
-Official's `is_valid_ind_app` exactly. -/
-theorem rec_fam_ok_refines {pers st lst} {t : arena.handle.NIdx}
-    {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_idx ofs : Std.U64}
-    {e : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.inductives.native_parts.rec_fam_ok pers st t lps n_p n_idx ofs e
-      = ok o) :
-    Sim₀ id pers lst o
-      (recFamOk (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx) (absU ofs)
-        (absEIdx e)) := by
-  sorry
-
-open Lockstep in
-@[lockstep] theorem rec_fam_ok_ls
-    {pers st lst}
-    {t : arena.handle.NIdx}
-    {lps : alloc.vec.Vec arena.handle.NIdx}
-    {n_p n_idx ofs : Std.U64}
-    {e : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a) (arena.inductives.native_parts.rec_fam_ok pers st t lps n_p n_idx ofs e) lst
-      (recFamOk (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx) (absU ofs)
-        (absEIdx e)) :=
-  LS.ofSim₀ fun _ h => rec_fam_ok_refines hrel hinv h
-
 /-- `idx_free_of` ⊑ `recFamOk`'s closing `allM`, from the cursor on. -/
 theorem idx_free_of_refines {pers st lst} {t : arena.handle.NIdx}
     {idx : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
@@ -311,6 +283,72 @@ open Lockstep in
     LS pers (fun a b => b = id a) (arena.inductives.native_parts.idx_free_of pers st t idx i) lst
       (idxFreeOfSpec (absNIdx t) (absEIdxLFrom idx i)) :=
   LS.ofSim₀ fun _ h => idx_free_of_refines hrel hinv h
+
+/-- `recFamOk`'s closing `allM` IS `idxFreeOfSpec`. -/
+theorem allM_not_mentionsConst_eq (T : NIdx) (l : List EIdx) :
+    l.allM (fun a => do pure !(← mentionsConst T a)) = idxFreeOfSpec T l := by
+  induction l with
+  | nil => rfl
+  | cons a rest ih =>
+    rw [List.allM, idxFreeOfSpec, ← ih]
+    simp only [bind_assoc, pure_bind]
+    refine am_bind_congr _ ?_; intro c
+    cases c <;> rfl
+
+/-- `recFamOk` in the port's shape: the three tests nested in the port's
+order, the `allM` as `idxFreeOfSpec`. -/
+theorem recFamOk_port (T : NIdx) (lps : List NIdx) (nP nIdx o : Nat) (e : EIdx) :
+    recFamOk T lps nP nIdx o e = (do
+      let us ← paramLevels lps
+      let hd ← internE (.const T us)
+      let fn ← getAppFn coreWalkFuel e
+      let args ← getAppArgs coreWalkFuel e
+      let ps ← structPsAt o nP
+      if fn == hd then
+        if args.length == nP + nIdx then
+          if args.take ps.length == ps then idxFreeOfSpec T (args.drop nP)
+          else pure false
+        else pure false
+      else pure false) := by
+  rw [recFamOk]
+  refine am_bind_congr _ ?_; intro us
+  refine am_bind_congr _ ?_; intro hd
+  refine am_bind_congr _ ?_; intro fn
+  refine am_bind_congr _ ?_; intro args
+  refine am_bind_congr _ ?_; intro ps
+  rw [allM_not_mentionsConst_eq]
+  cases fn == hd <;> cases args.length == nP + nIdx <;> cases args.take ps.length == ps <;> rfl
+
+/-- `rec_fam_ok` ⊑ `recFamOk` — is `e` the family at the parameter variables
+followed by `nIdx` index expressions none of which mentions the block?
+Official's `is_valid_ind_app` exactly. -/
+theorem rec_fam_ok_refines {pers st lst} {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_idx ofs : Std.U64}
+    {e : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.inductives.native_parts.rec_fam_ok pers st t lps n_p n_idx ofs e
+      = ok o) :
+    Sim₀ id pers lst o
+      (recFamOk (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx) (absU ofs)
+        (absEIdx e)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.rec_fam_ok, recFamOk_port]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem rec_fam_ok_ls
+    {pers st lst}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_idx ofs : Std.U64}
+    {e : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.inductives.native_parts.rec_fam_ok pers st t lps n_p n_idx ofs e) lst
+      (recFamOk (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx) (absU ofs)
+        (absEIdx e)) :=
+  LS.ofSim₀ fun _ h => rec_fam_ok_refines hrel hinv h
 
 /-- `rec_positivity_at` ⊑ `recPositivityAt` — the leaf of the walk, past the
 `mentionsConst` test (which `rec_positivity` makes before the call; the

@@ -833,7 +833,14 @@ macro_rules
     `(tactic| ((try simp only [Lockstep.TwinEq] at *); first
       | (simp_all [absNIdxL, absCtors3L, absCtors3LFrom, absCtorsL, absCtorsLFrom,
           absIConstantVal, absICIL, absICILFrom, absEIdxL, absEIdxLFrom, NNodeViewWF]; done)
-      | (simp_all [absStructParts, absInductiveShape, absNativeParts, absIRecRule]; done)))
+      | (simp_all [absStructParts, absInductiveShape, absNativeParts, absIRecRule]; done)
+      -- a `usize` cast of a `u64` the port bounded before (a length, a count):
+      -- the overflow arm of the cast's spec is contradictory
+      | ((try simp only [Lockstep.TwinEq] at *)
+         casesm* (_ : Nat) = _ ∨ Std.Usize.max < _
+         all_goals first
+           | (exfalso; scalar_tac)
+           | (simp_all [absNIdxL, absEIdxL, absEIdxLFrom, absCtorsL, absCtorsLFrom]; done))))
 
 /-- The Core front doors (`Refine2/Checker/KnotHyp.lean`) take `CoreCtx vis rf
 lf`; the tier carries `IFEnvRelI rf lf` and, at a split counter, `absU vis =
@@ -1200,5 +1207,15 @@ open Lockstep in
   rw [arena.core.drop_eidx_n] at h
   rw [Lockstep.TwinEq, drop_eidx_n_from_abs _ n 0#usize o rfl h]
   simp [absEIdxL, List.map_drop, absU]
+
+open Lockstep in
+/-- `arena::core::drop_eidx` is the twin's `List.drop`. -/
+@[lockstep] theorem drop_eidx_twin (xs : alloc.vec.Vec arena.handle.EIdx) (k : Std.Usize) :
+    LSP (arena.core.drop_eidx xs k)
+      (fun o => TwinEq ((absEIdxL xs).drop k.val) (absEIdxL o)) := by
+  intro o h
+  rw [arena.core.drop_eidx] at h
+  rw [Lockstep.TwinEq, drop_eidx_from_abs h]
+  simp [absEIdxL, List.map_drop, alloc.vec.Vec.new]
 
 end ConRon.Refine2
