@@ -2341,20 +2341,110 @@ theorem eq_head_level_refines {pers st lst} {h : arena.handle.EIdx} {o}
 
 /-! ## The three list checks -/
 
-/-- `check_typed_list` ⊑ `checkTypedList` at the cursor. -/
-theorem check_typed_list_refines {pers st lst} {vis : Std.U64} {rf lf}
-    {mode : kernel.env.CheckMode} {depth : Std.U64}
-    {xs ts : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hrun : arena.checker_base.check_typed_list pers vis st mode rf depth xs ts i
-      = ok o) :
-    Sim₀ (fun _ : Unit => ()) pers lst o
-      (checkTypedList (ConRon.Refine.absMode mode) lf (absU depth)
-        (absEIdxLFrom xs i) (absEIdxLFrom ts i)) := by
-  sorry
+open Lockstep in
+theorem check_typed_list_aux {pers} {vis : Std.U64} {rf lf} (mode : kernel.env.CheckMode) (depth : Std.U64)
+    (xs ys : alloc.vec.Vec arena.handle.EIdx) (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow)
+    (k : Nat) :
+    ∀ {st lst} (i : Std.Usize), xs.val.length - i.val = k →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = (fun _ : Unit => ()) a)
+        (arena.checker_base.check_typed_list pers vis st mode rf depth xs ys i) lst
+        (checkTypedList (ConRon.Refine.absMode mode) lf (absU depth)
+          ((xs.val.drop i.val).map absEIdx) ((ys.val.drop i.val).map absEIdx)) := by
+  have hctx := IFEnvInv.coreCtx hfe.rel hfe.inv hvis
+  have hlx := alloc.vec.Vec.len_val xs
+  have hly := alloc.vec.Vec.len_val ys
+  induction k with
+  | zero =>
+    intro st lst i hk hrel hinv
+    rw [arena.checker_base.check_typed_list, vecFrom_nil xs _ i (by omega)]
+    by_cases hy : ys.val.length ≤ i.val
+    · rw [vecFrom_nil ys _ i hy, checkTypedList]
+      lockstep
+    · rw [vecFrom_cons ys _ i (by omega)]
+      simp only [checkTypedList]
+      lockstep
+  | succ m ih =>
+    intro st lst i hk hrel hinv
+    rw [arena.checker_base.check_typed_list, vecFrom_cons xs _ i (by omega)]
+    by_cases hy : ys.val.length ≤ i.val
+    · rw [vecFrom_nil ys _ i hy]
+      simp only [checkTypedList]
+      lockstep
+      all_goals
+        rw [show (↑i : Nat) + 1 = (↑a : Nat) by scalar_tac]
+        exact ih a (by scalar_tac) ‹_› ‹_›
+    · rw [vecFrom_cons ys _ i (by omega), checkTypedList]
+      lockstep
+      all_goals
+        rw [show (↑i : Nat) + 1 = (↑a : Nat) by scalar_tac]
+        exact ih a (by scalar_tac) ‹_› ‹_›
 
 open Lockstep in
+theorem check_annot_list_aux {pers} {vis : Std.U64} {rf lf} (mode : kernel.env.CheckMode) (depth : Std.U64)
+    (xs : alloc.vec.Vec arena.handle.EIdx) (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow)
+    (k : Nat) :
+    ∀ {st lst} (i : Std.Usize), xs.val.length - i.val = k →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = (fun _ : Unit => ()) a)
+        (arena.checker_base.check_annot_list pers vis st mode rf depth xs i) lst
+        (checkAnnotList (ConRon.Refine.absMode mode) lf (absU depth)
+          ((xs.val.drop i.val).map absEIdx)) := by
+  have hctx := IFEnvInv.coreCtx hfe.rel hfe.inv hvis
+  have hlx := alloc.vec.Vec.len_val xs
+  induction k with
+  | zero =>
+    intro st lst i hk hrel hinv
+    rw [arena.checker_base.check_annot_list, vecFrom_nil xs _ i (by omega), checkAnnotList]
+    lockstep
+  | succ m ih =>
+    intro st lst i hk hrel hinv
+    rw [arena.checker_base.check_annot_list, vecFrom_cons xs _ i (by omega), checkAnnotList]
+    lockstep
+    all_goals
+      rw [show (↑i : Nat) + 1 = (↑a : Nat) by scalar_tac]
+      exact ih a (by scalar_tac) ‹_› ‹_›
+
+open Lockstep in
+theorem check_def_eq_list_aux {pers} {vis : Std.U64} {rf lf} (mode : kernel.env.CheckMode) (depth : Std.U64)
+    (xs ys : alloc.vec.Vec arena.handle.EIdx) (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow)
+    (k : Nat) :
+    ∀ {st lst} (i : Std.Usize), xs.val.length - i.val = k →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = (fun _ : Unit => ()) a)
+        (arena.checker_base.check_def_eq_list pers vis st mode rf depth xs ys i) lst
+        (checkDefEqList (ConRon.Refine.absMode mode) lf (absU depth)
+          ((xs.val.drop i.val).map absEIdx) ((ys.val.drop i.val).map absEIdx)) := by
+  have hctx := IFEnvInv.coreCtx hfe.rel hfe.inv hvis
+  have hlx := alloc.vec.Vec.len_val xs
+  have hly := alloc.vec.Vec.len_val ys
+  induction k with
+  | zero =>
+    intro st lst i hk hrel hinv
+    rw [arena.checker_base.check_def_eq_list, vecFrom_nil xs _ i (by omega)]
+    by_cases hy : ys.val.length ≤ i.val
+    · rw [vecFrom_nil ys _ i hy, checkDefEqList]
+      lockstep
+    · rw [vecFrom_cons ys _ i (by omega)]
+      simp only [checkDefEqList]
+      lockstep
+  | succ m ih =>
+    intro st lst i hk hrel hinv
+    rw [arena.checker_base.check_def_eq_list, vecFrom_cons xs _ i (by omega)]
+    by_cases hy : ys.val.length ≤ i.val
+    · rw [vecFrom_nil ys _ i hy]
+      simp only [checkDefEqList]
+      lockstep
+      all_goals
+        rw [show (↑i : Nat) + 1 = (↑a : Nat) by scalar_tac]
+        exact ih a (by scalar_tac) ‹_› ‹_›
+    · rw [vecFrom_cons ys _ i (by omega), checkDefEqList]
+      lockstep
+      all_goals
+        rw [show (↑i : Nat) + 1 = (↑a : Nat) by scalar_tac]
+        exact ih a (by scalar_tac) ‹_› ‹_›
+open Lockstep in
+/-- `check_typed_list` ⊑ `checkTypedList` at the cursor. -/
 @[lockstep] theorem check_typed_list_ls {pers st lst}
     {vis : Std.U64}
     {rf lf}
@@ -2370,22 +2460,23 @@ open Lockstep in
       (arena.checker_base.check_typed_list pers vis st mode rf depth xs ts i) lst
       (checkTypedList (ConRon.Refine.absMode mode) lf (absU depth)
         (absEIdxLFrom xs i) (absEIdxLFrom ts i)) :=
-  LS.ofSim₀ fun _ h => check_typed_list_refines hrel hinv hfe.rel hfe.inv hvis h
+  check_typed_list_aux mode depth xs ts hfe hvis _ i rfl hrel hinv
 
-/-- `check_annot_list` ⊑ `checkAnnotList` at the cursor. -/
-theorem check_annot_list_refines {pers st lst} {vis : Std.U64} {rf lf}
+theorem check_typed_list_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {depth : Std.U64}
-    {xs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
+    {xs ts : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hrun : arena.checker_base.check_annot_list pers vis st mode rf depth xs i
+    (hrun : arena.checker_base.check_typed_list pers vis st mode rf depth xs ts i
       = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
-      (checkAnnotList (ConRon.Refine.absMode mode) lf (absU depth)
-        (absEIdxLFrom xs i)) := by
-  sorry
+      (checkTypedList (ConRon.Refine.absMode mode) lf (absU depth)
+        (absEIdxLFrom xs i) (absEIdxLFrom ts i)) :=
+  Lockstep.LS.toSim₀ (check_typed_list_ls hrel hinv ⟨hfe, hfinv⟩ hvis) hrun
+
 
 open Lockstep in
+/-- `check_annot_list` ⊑ `checkAnnotList` at the cursor. -/
 @[lockstep] theorem check_annot_list_ls {pers st lst}
     {vis : Std.U64}
     {rf lf}
@@ -2401,22 +2492,23 @@ open Lockstep in
       (arena.checker_base.check_annot_list pers vis st mode rf depth xs i) lst
       (checkAnnotList (ConRon.Refine.absMode mode) lf (absU depth)
         (absEIdxLFrom xs i)) :=
-  LS.ofSim₀ fun _ h => check_annot_list_refines hrel hinv hfe.rel hfe.inv hvis h
+  check_annot_list_aux mode depth xs hfe hvis _ i rfl hrel hinv
 
-/-- `check_def_eq_list` ⊑ `checkDefEqList` at the cursor. -/
-theorem check_def_eq_list_refines {pers st lst} {vis : Std.U64} {rf lf}
+theorem check_annot_list_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {depth : Std.U64}
-    {xs ys : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
+    {xs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hrun : arena.checker_base.check_def_eq_list pers vis st mode rf depth xs ys i
+    (hrun : arena.checker_base.check_annot_list pers vis st mode rf depth xs i
       = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
-      (checkDefEqList (ConRon.Refine.absMode mode) lf (absU depth)
-        (absEIdxLFrom xs i) (absEIdxLFrom ys i)) := by
-  sorry
+      (checkAnnotList (ConRon.Refine.absMode mode) lf (absU depth)
+        (absEIdxLFrom xs i)) :=
+  Lockstep.LS.toSim₀ (check_annot_list_ls hrel hinv ⟨hfe, hfinv⟩ hvis) hrun
+
 
 open Lockstep in
+/-- `check_def_eq_list` ⊑ `checkDefEqList` at the cursor. -/
 @[lockstep] theorem check_def_eq_list_ls {pers st lst}
     {vis : Std.U64}
     {rf lf}
@@ -2432,7 +2524,20 @@ open Lockstep in
       (arena.checker_base.check_def_eq_list pers vis st mode rf depth xs ys i) lst
       (checkDefEqList (ConRon.Refine.absMode mode) lf (absU depth)
         (absEIdxLFrom xs i) (absEIdxLFrom ys i)) :=
-  LS.ofSim₀ fun _ h => check_def_eq_list_refines hrel hinv hfe.rel hfe.inv hvis h
+  check_def_eq_list_aux mode depth xs ys hfe hvis _ i rfl hrel hinv
+
+theorem check_def_eq_list_refines {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {depth : Std.U64}
+    {xs ys : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
+    (hrun : arena.checker_base.check_def_eq_list pers vis st mode rf depth xs ys i
+      = ok o) :
+    Sim₀ (fun _ : Unit => ()) pers lst o
+      (checkDefEqList (ConRon.Refine.absMode mode) lf (absU depth)
+        (absEIdxLFrom xs i) (absEIdxLFrom ys i)) :=
+  Lockstep.LS.toSim₀ (check_def_eq_list_ls hrel hinv ⟨hfe, hfinv⟩ hvis) hrun
+
 
 /-! ## `unwrapOr`, the environment lookup and the pi result sort -/
 
