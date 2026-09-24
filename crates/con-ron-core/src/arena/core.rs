@@ -11736,7 +11736,7 @@ pub fn enter_scratch(st: &mut AState) -> PersTier {
 /// con-leche: none — **a phase-B record's bracket, closed** (DESIGN.md §8.3)
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3895-3903 dropScratch` —
 /// `drop_scratch` on a store that STAYS frozen (task #98-FREEZE): the caches
-/// flushed and the scratch tiers emptied, the flags untouched.  A phase-B
+/// flushed and the scratch tiers emptied, the flag untouched.  A phase-B
 /// worker's store is frozen for its whole life, so between two records it is
 /// frozen with an empty scratch tier where the twin's is scratch-off; nothing
 /// is interned there.
@@ -11748,7 +11748,7 @@ pub fn leave_record(st: &mut AState) {
 /// con-leche: none — **a phase-B record's bracket, opened** (DESIGN.md §8.3)
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3905-3912 enterScratch` —
 /// `enter_scratch` on an already frozen store (task #98-FREEZE): the memos
-/// cleared and the scratch tiers emptied, the flags untouched.
+/// cleared and the scratch tiers emptied, the flag untouched.
 pub fn enter_record(st: &mut AState) {
     st.memos.reset();
     st.store.clear_scratch();

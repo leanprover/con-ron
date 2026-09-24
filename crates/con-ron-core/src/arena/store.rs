@@ -567,11 +567,6 @@ pub struct NStore {
     pub pers: NTables,
     pub scr: NTables,
     pub scratch_on: bool,
-    /// The persistent tier is SET ASIDE — this store's own `pers` is empty
-    /// and every persistent read goes to the `PersTier` parameter.  Up exactly
-    /// when `scratch_on` is (task #98-FREEZE): only `freeze`/`thaw` and
-    /// `empty_frozen` write the two flags, and always together.
-    pub shared_on: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -761,11 +756,6 @@ pub struct LStore {
     pub pers: LTables,
     pub scr: LTables,
     pub scratch_on: bool,
-    /// The persistent tier is SET ASIDE — this store's own `pers` is empty
-    /// and every persistent read goes to the `PersTier` parameter.  Up exactly
-    /// when `scratch_on` is (task #98-FREEZE): only `freeze`/`thaw` and
-    /// `empty_frozen` write the two flags, and always together.
-    pub shared_on: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -822,11 +812,6 @@ pub struct LsStore {
     pub pers: LsTables,
     pub scr: LsTables,
     pub scratch_on: bool,
-    /// The persistent tier is SET ASIDE — this store's own `pers` is empty
-    /// and every persistent read goes to the `PersTier` parameter.  Up exactly
-    /// when `scratch_on` is (task #98-FREEZE): only `freeze`/`thaw` and
-    /// `empty_frozen` write the two flags, and always together.
-    pub shared_on: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -1313,11 +1298,6 @@ pub struct EStore {
     pub pers: ETables,
     pub scr: ETables,
     pub scratch_on: bool,
-    /// The persistent tier is SET ASIDE — this store's own `pers` is empty
-    /// and every persistent read goes to the `PersTier` parameter.  Up exactly
-    /// when `scratch_on` is (task #98-FREEZE): only `freeze`/`thaw` and
-    /// `empty_frozen` write the two flags, and always together.
-    pub shared_on: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -1331,24 +1311,28 @@ pub struct EStore {
 /// expressible.
 ///
 /// Each store keeps its own `pers` field, which is the tier the PARSE and
-/// phase A's setup append to, and a `shared_on` flag beside `scratch_on`.
-/// **A store is in one of two states, and "frozen" and "scratch on" are the
-/// same thing** (task #98-FREEZE):
+/// phase A's setup append to, and ONE flag, `scratch_on`.  **A store is in
+/// one of two states, and "frozen" and "scratch on" are the same thing** (task
+/// #98-FREEZE):
 ///
 /// * **owned, scratch off** (the parse, the setup, between phase A's
-///   declaration brackets): both flags down; every persistent read and every
+///   declaration brackets): read through the EMPTY stand-in tier
+///   (`PersTier::empty`, `frozen` false), so every persistent read and every
 ///   append goes to the owned field;
 /// * **frozen, scratch on** (inside a declaration bracket, and a phase-B
-///   worker throughout): both flags up; the owned field is empty, every
-///   persistent read goes to this record, and every append is a SCRATCH
-///   append — so no append can reach a frozen persistent tier, by
+///   worker for its whole life): the owned field is empty — `freeze` moved it
+///   into a `PersTier` whose `frozen` bit is set — and the store is read
+///   through that tier, so every persistent read goes to it; every append is
+///   a SCRATCH append, so no append can reach a frozen persistent tier, by
 ///   construction and not by a guard.
 ///
-/// `freeze` moves the four tables out into this record and raises both
-/// flags; `thaw` puts them back and lowers both; `empty_frozen` is a worker's
-/// store.  Nothing else writes a flag.  Promotion — the one writer of the
-/// persistent tier inside a bracket — writes THIS record, through `&mut
-/// PersTier` (`PersTier::intern_*`), so it needs no flag either.
+/// Which tables a persistent read goes to is therefore the READER's to say
+/// (`frozen`), not the store's: the choice is made by a value that is fixed
+/// for the whole of a bracket or a worker, whatever runs inside it.  `freeze`
+/// hands out a frozen tier and turns the scratch tier on; `thaw` takes it back
+/// and turns it off; `empty_frozen` is a worker's store.  Promotion — the one
+/// writer of the persistent tier inside a bracket — writes the frozen tier
+/// itself, through `&mut PersTier` (`PersTier::intern_*`).
 ///
 /// **Why a shared PARAMETER and not a field of the state.**  Task #97-P6-6
 /// measured a region inside the threaded `&mut` state eight ways: a bare
@@ -1360,6 +1344,10 @@ pub struct EStore {
 /// &CheckMode` already have, and the twin's monad becomes `ReaderT PersTier
 /// (StateT AState (Except CheckError))`.
 pub struct PersTier {
+    /// This is a frozen store's tier: a store read through it reads its
+    /// persistent tables HERE.  `false` only for the empty stand-in an owned
+    /// store is handed (`PersTier::empty`), which is never read.
+    pub frozen: bool,
     pub n: NTables,
     pub l: LTables,
     pub ls: LsTables,
@@ -1369,11 +1357,12 @@ pub struct PersTier {
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:384-392 EStore
 impl PersTier {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:384-392 EStore
-    /// The empty tier: what the parse and phase A's setup are handed, since
-    /// an owned store reads its own tables (`shared_on` false) and never this
-    /// one.
+    /// The empty stand-in tier: what the parse and phase A's setup are
+    /// handed.  It is not `frozen`, so a store read through it reads its own
+    /// tables and never this one.
     pub fn empty() -> PersTier {
         PersTier {
+            frozen: false,
             n: NTables::empty(),
             l: LTables::empty(),
             ls: LsTables::empty(),
@@ -1529,20 +1518,18 @@ impl NStore {
             pers: NTables::empty(),
             scr: NTables::empty(),
             scratch_on: false,
-            shared_on: false,
         }
     }
 
     /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
     /// A copy of the whole store: both tiers (`NTables::dup`) and
-    /// both flags — the full-state snapshot of
+    /// the flag — the full-state snapshot of
     /// `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4b).
     pub fn dup(&self) -> NStore {
         NStore {
             pers: self.pers.dup(),
             scr: self.scr.dup(),
             scratch_on: self.scratch_on,
-            shared_on: self.shared_on,
         }
     }
 
@@ -1555,7 +1542,7 @@ impl NStore {
     /// comes back, so no borrow ever leaves the choice and no region enters
     /// the record every function of the crate threads as `&mut`.
     fn pers_get(&self, pers: &PersTier, i: &NIdx) -> Option<NNodeView> {
-        if self.shared_on {
+        if pers.frozen {
             pers.n.get(i)
         } else {
             self.pers.get(i)
@@ -1571,7 +1558,7 @@ impl NStore {
     /// comes back, so no borrow ever leaves the choice and no region enters
     /// the record every function of the crate threads as `&mut`.
     fn pers_der_at(&self, pers: &PersTier, i: &NIdx) -> u64 {
-        if self.shared_on {
+        if pers.frozen {
             pers.n.der_at(i)
         } else {
             self.pers.der_at(i)
@@ -1587,7 +1574,7 @@ impl NStore {
     /// comes back, so no borrow ever leaves the choice and no region enters
     /// the record every function of the crate threads as `&mut`.
     fn pers_find(&self, pers: &PersTier, v: &NNodeView) -> Option<NIdx> {
-        if self.shared_on {
+        if pers.frozen {
             pers.n.find(v)
         } else {
             self.pers.find(v)
@@ -1599,7 +1586,7 @@ impl NStore {
     /// The persistent arm of the capacity test, a value-returning persistent
     /// reader beside `pers_size_of` (task #97-P6-6b's design (A)).
     fn pers_full_of(&self, pers: &PersTier, v: &NNodeView) -> bool {
-        if self.shared_on {
+        if pers.frozen {
             pers.n.full_of(v)
         } else {
             self.pers.full_of(v)
@@ -1615,7 +1602,7 @@ impl NStore {
     /// comes back, so no borrow ever leaves the choice and no region enters
     /// the record every function of the crate threads as `&mut`.
     fn pers_strs_find(&self, pers: &PersTier, node: &StrNode) -> Option<NIdx> {
-        if self.shared_on {
+        if pers.frozen {
             pers.n.strs.find(node)
         } else {
             self.pers.strs.find(node)
@@ -1624,7 +1611,7 @@ impl NStore {
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-467 NStore.persCount
     pub fn pers_count(&self, pers: &PersTier) -> usize {
-        if self.shared_on {
+        if pers.frozen {
             pers.n.count()
         } else {
             self.pers.count()
@@ -1809,32 +1796,30 @@ impl NStore {
     /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
     /// proof/ConRon/Arena/Store.lean:523-526 NStore.enableScratch
     /// **Freeze this store's own tier** (DESIGN.md §8.3's per-declaration
-    /// bracket, opened): the persistent tables move out and are returned, both
-    /// flags go up, and the scratch tier opens empty.  The one writer of the
-    /// flags beside `thaw` (`PersTier`'s note).
+    /// bracket, opened): the persistent tables move out and are returned, and
+    /// the scratch tier opens empty.  The one writer of the flag beside `thaw`
+    /// (`PersTier`'s note).
     pub fn freeze(&mut self) -> NTables {
         let t: NTables = core::mem::replace(&mut self.pers, NTables::empty());
         self.scr.reset();
         self.scratch_on = true;
-        self.shared_on = true;
         t
     }
 
     /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
     /// proof/ConRon/Arena/Store.lean:528-531 NStore.dropScratch
     /// **Thaw this store's own tier** (the bracket, closed): the tables come
-    /// back, both flags go down, and the scratch tier is dropped.  Persistent
+    /// back and the scratch tier is dropped.  Persistent
     /// handles keep their bits (DESIGN.md §8.3, con-leche's lesson 6).
     pub fn thaw(&mut self, t: NTables) {
         self.pers = t;
         self.scr.reset();
         self.scratch_on = false;
-        self.shared_on = false;
     }
 
     /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
     /// proof/ConRon/Arena/Store.lean:523-526 NStore.enableScratch
-    /// **Empty the scratch tier of a frozen store**, the flags untouched: a
+    /// **Empty the scratch tier of a frozen store**, the flag untouched: a
     /// phase-B worker's per-record bracket, where the store stays frozen.
     pub fn clear_scratch(&mut self) {
         self.scr.reset();
@@ -2028,13 +2013,12 @@ impl LStore {
             pers: LTables::empty(),
             scr: LTables::empty(),
             scratch_on: false,
-            shared_on: false,
         }
     }
 
     /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
     /// A copy of the whole store: the inner store, both tiers (`LTables::dup`) and
-    /// both flags — the full-state snapshot of
+    /// the flag — the full-state snapshot of
     /// `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4b).
     pub fn dup(&self) -> LStore {
         LStore {
@@ -2042,7 +2026,6 @@ impl LStore {
             pers: self.pers.dup(),
             scr: self.scr.dup(),
             scratch_on: self.scratch_on,
-            shared_on: self.shared_on,
         }
     }
 
@@ -2056,7 +2039,7 @@ impl LStore {
     /// comes back, so no borrow ever leaves the choice and no region enters
     /// the record every function of the crate threads as `&mut`.
     fn pers_get(&self, pers: &PersTier, i: &LIdx) -> Option<LNodeView> {
-        if self.shared_on {
+        if pers.frozen {
             pers.l.get(i)
         } else {
             self.pers.get(i)
@@ -2072,7 +2055,7 @@ impl LStore {
     /// comes back, so no borrow ever leaves the choice and no region enters
     /// the record every function of the crate threads as `&mut`.
     fn pers_der_at(&self, pers: &PersTier, i: &LIdx) -> LDer {
-        if self.shared_on {
+        if pers.frozen {
             pers.l.der_at(i)
         } else {
             self.pers.der_at(i)
@@ -2088,7 +2071,7 @@ impl LStore {
     /// comes back, so no borrow ever leaves the choice and no region enters
     /// the record every function of the crate threads as `&mut`.
     fn pers_find(&self, pers: &PersTier, v: &LNodeView) -> Option<LIdx> {
-        if self.shared_on {
+        if pers.frozen {
             pers.l.find(v)
         } else {
             self.pers.find(v)
@@ -2100,7 +2083,7 @@ impl LStore {
     /// The persistent arm of the capacity test, a value-returning persistent
     /// reader beside `pers_size_of` (task #97-P6-6b's design (A)).
     fn pers_full_of(&self, pers: &PersTier, v: &LNodeView) -> bool {
-        if self.shared_on {
+        if pers.frozen {
             pers.l.full_of(v)
         } else {
             self.pers.full_of(v)
@@ -2109,7 +2092,7 @@ impl LStore {
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-467 LStore.persCount
     pub fn pers_count(&self, pers: &PersTier) -> usize {
-        if self.shared_on {
+        if pers.frozen {
             pers.l.count()
         } else {
             self.pers.count()
@@ -2230,32 +2213,30 @@ impl LStore {
     /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
     /// proof/ConRon/Arena/Store.lean:523-526 LStore.enableScratch
     /// **Freeze this store's own tier** (DESIGN.md §8.3's per-declaration
-    /// bracket, opened): the persistent tables move out and are returned, both
-    /// flags go up, and the scratch tier opens empty.  The one writer of the
-    /// flags beside `thaw` (`PersTier`'s note).
+    /// bracket, opened): the persistent tables move out and are returned, and
+    /// the scratch tier opens empty.  The one writer of the flag beside `thaw`
+    /// (`PersTier`'s note).
     pub fn freeze(&mut self) -> LTables {
         let t: LTables = core::mem::replace(&mut self.pers, LTables::empty());
         self.scr.reset();
         self.scratch_on = true;
-        self.shared_on = true;
         t
     }
 
     /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
     /// proof/ConRon/Arena/Store.lean:528-531 LStore.dropScratch
     /// **Thaw this store's own tier** (the bracket, closed): the tables come
-    /// back, both flags go down, and the scratch tier is dropped.  Persistent
+    /// back and the scratch tier is dropped.  Persistent
     /// handles keep their bits (DESIGN.md §8.3, con-leche's lesson 6).
     pub fn thaw(&mut self, t: LTables) {
         self.pers = t;
         self.scr.reset();
         self.scratch_on = false;
-        self.shared_on = false;
     }
 
     /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
     /// proof/ConRon/Arena/Store.lean:523-526 LStore.enableScratch
-    /// **Empty the scratch tier of a frozen store**, the flags untouched: a
+    /// **Empty the scratch tier of a frozen store**, the flag untouched: a
     /// phase-B worker's per-record bracket, where the store stays frozen.
     pub fn clear_scratch(&mut self) {
         self.scr.reset();
@@ -2386,13 +2367,12 @@ impl LsStore {
             pers: LsTables::empty(),
             scr: LsTables::empty(),
             scratch_on: false,
-            shared_on: false,
         }
     }
 
     /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
     /// A copy of the whole store: the inner store, both tiers (`LsTables::dup`) and
-    /// both flags — the full-state snapshot of
+    /// the flag — the full-state snapshot of
     /// `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4b).
     pub fn dup(&self) -> LsStore {
         LsStore {
@@ -2400,7 +2380,6 @@ impl LsStore {
             pers: self.pers.dup(),
             scr: self.scr.dup(),
             scratch_on: self.scratch_on,
-            shared_on: self.shared_on,
         }
     }
 
@@ -2414,7 +2393,7 @@ impl LsStore {
     /// comes back, so no borrow ever leaves the choice and no region enters
     /// the record every function of the crate threads as `&mut`.
     fn pers_get(&self, pers: &PersTier, i: &LsIdx) -> Option<LsNodeView> {
-        if self.shared_on {
+        if pers.frozen {
             pers.ls.get(i)
         } else {
             self.pers.get(i)
@@ -2430,7 +2409,7 @@ impl LsStore {
     /// comes back, so no borrow ever leaves the choice and no region enters
     /// the record every function of the crate threads as `&mut`.
     fn pers_der_at(&self, pers: &PersTier, i: &LsIdx) -> LDer {
-        if self.shared_on {
+        if pers.frozen {
             pers.ls.der_at(i)
         } else {
             self.pers.der_at(i)
@@ -2446,7 +2425,7 @@ impl LsStore {
     /// comes back, so no borrow ever leaves the choice and no region enters
     /// the record every function of the crate threads as `&mut`.
     fn pers_find(&self, pers: &PersTier, v: &LsNodeView) -> Option<LsIdx> {
-        if self.shared_on {
+        if pers.frozen {
             pers.ls.find(v)
         } else {
             self.pers.find(v)
@@ -2458,7 +2437,7 @@ impl LsStore {
     /// The persistent arm of the capacity test, a value-returning persistent
     /// reader beside `pers_size_of` (task #97-P6-6b's design (A)).
     fn pers_full_of(&self, pers: &PersTier, v: &LsNodeView) -> bool {
-        if self.shared_on {
+        if pers.frozen {
             pers.ls.full_of(v)
         } else {
             self.pers.full_of(v)
@@ -2467,7 +2446,7 @@ impl LsStore {
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-467 LsStore.persCount
     pub fn pers_count(&self, pers: &PersTier) -> usize {
-        if self.shared_on {
+        if pers.frozen {
             pers.ls.count()
         } else {
             self.pers.count()
@@ -2504,7 +2483,7 @@ impl LsStore {
     /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin:
     /// `proof/ConRon/Arena/Store.lean:785-786 LsStore.persGetLen`
     fn pers_get_len(&self, pers: &PersTier, i: &LsIdx) -> Option<usize> {
-        if self.shared_on {
+        if pers.frozen {
             pers.ls.get_len(i)
         } else {
             self.pers.get_len(i)
@@ -2607,32 +2586,30 @@ impl LsStore {
     /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
     /// proof/ConRon/Arena/Store.lean:523-526 LsStore.enableScratch
     /// **Freeze this store's own tier** (DESIGN.md §8.3's per-declaration
-    /// bracket, opened): the persistent tables move out and are returned, both
-    /// flags go up, and the scratch tier opens empty.  The one writer of the
-    /// flags beside `thaw` (`PersTier`'s note).
+    /// bracket, opened): the persistent tables move out and are returned, and
+    /// the scratch tier opens empty.  The one writer of the flag beside `thaw`
+    /// (`PersTier`'s note).
     pub fn freeze(&mut self) -> LsTables {
         let t: LsTables = core::mem::replace(&mut self.pers, LsTables::empty());
         self.scr.reset();
         self.scratch_on = true;
-        self.shared_on = true;
         t
     }
 
     /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
     /// proof/ConRon/Arena/Store.lean:528-531 LsStore.dropScratch
     /// **Thaw this store's own tier** (the bracket, closed): the tables come
-    /// back, both flags go down, and the scratch tier is dropped.  Persistent
+    /// back and the scratch tier is dropped.  Persistent
     /// handles keep their bits (DESIGN.md §8.3, con-leche's lesson 6).
     pub fn thaw(&mut self, t: LsTables) {
         self.pers = t;
         self.scr.reset();
         self.scratch_on = false;
-        self.shared_on = false;
     }
 
     /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
     /// proof/ConRon/Arena/Store.lean:523-526 LsStore.enableScratch
-    /// **Empty the scratch tier of a frozen store**, the flags untouched: a
+    /// **Empty the scratch tier of a frozen store**, the flag untouched: a
     /// phase-B worker's per-record bracket, where the store stays frozen.
     pub fn clear_scratch(&mut self) {
         self.scr.reset();
@@ -3292,7 +3269,6 @@ impl EStore {
             pers: ETables::empty(),
             scr: ETables::empty(),
             scratch_on: false,
-            shared_on: false,
         }
     }
 
@@ -3300,9 +3276,9 @@ impl EStore {
     /// Lean twin: none — the twin's worker store is the phase-A store with its
     /// scratch tier closed (`AState.worker`, `Arena/Phased.lean`).
     /// **A phase-B worker's store** (task #98-FREEZE): the empty store,
-    /// frozen — every persistent read goes to the `PersTier` the boundary
-    /// froze, and every append is a scratch append.  The empty tier `freeze`
-    /// hands back is dropped.
+    /// frozen — read through the `PersTier` the boundary froze, and every
+    /// append a scratch append.  The empty tier its own `freeze` hands back is
+    /// dropped.
     pub fn empty_frozen() -> EStore {
         let mut ar: EStore = EStore::empty();
         let _t: PersTier = ar.freeze();
@@ -3311,7 +3287,7 @@ impl EStore {
 
     /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
     /// A copy of the whole store: the inner store, both tiers (`ETables::dup`) and
-    /// both flags — the full-state snapshot of
+    /// the flag — the full-state snapshot of
     /// `arena::checker_base::attempt_snapshot` (task #97-T2-LOCKSTEP D4b).
     pub fn dup(&self) -> EStore {
         EStore {
@@ -3319,7 +3295,6 @@ impl EStore {
             pers: self.pers.dup(),
             scr: self.scr.dup(),
             scratch_on: self.scratch_on,
-            shared_on: self.shared_on,
         }
     }
 
@@ -3334,7 +3309,7 @@ impl EStore {
     /// the record every function of the crate threads as `&mut`.
     #[inline(always)]
     fn pers_get(&self, pers: &PersTier, i: &EIdx) -> Option<ENodeView> {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.get(i)
         } else {
             self.pers.get(i)
@@ -3351,7 +3326,7 @@ impl EStore {
     /// the record every function of the crate threads as `&mut`.
     #[inline(always)]
     fn pers_der_at(&self, pers: &PersTier, i: &EIdx) -> u64 {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.der_at(i)
         } else {
             self.pers.der_at(i)
@@ -3367,7 +3342,7 @@ impl EStore {
     /// comes back, so no borrow ever leaves the choice and no region enters
     /// the record every function of the crate threads as `&mut`.
     fn pers_find(&self, pers: &PersTier, v: &ENodeView, mi: &BMIdx) -> Option<EIdx> {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.find(v, mi)
         } else {
             self.pers.find(v, mi)
@@ -3379,7 +3354,7 @@ impl EStore {
     /// The persistent arm of the capacity test, a value-returning persistent
     /// reader beside `pers_size_of` (task #97-P6-6b's design (A)).
     fn pers_full_of(&self, pers: &PersTier, v: &ENodeView) -> bool {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.full_of(v)
         } else {
             self.pers.full_of(v)
@@ -3388,7 +3363,7 @@ impl EStore {
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-467 EStore.persCount
     pub fn pers_count(&self, pers: &PersTier) -> usize {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.count()
         } else {
             self.pers.count()
@@ -3465,7 +3440,7 @@ impl EStore {
     /// persistent arm of `EStore.viewApp`.
     #[inline(always)]
     fn pers_get_app(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx)> {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.get_app(i)
         } else {
             self.pers.get_app(i)
@@ -3494,7 +3469,7 @@ impl EStore {
     /// persistent arm of `EStore.viewSort`.
     #[inline(always)]
     fn pers_get_sort(&self, pers: &PersTier, i: &EIdx) -> Option<LIdx> {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.get_sort(i)
         } else {
             self.pers.get_sort(i)
@@ -3520,7 +3495,7 @@ impl EStore {
     /// persistent arm of `EStore.viewConst`.
     #[inline(always)]
     fn pers_get_const(&self, pers: &PersTier, i: &EIdx) -> Option<(NIdx, LsIdx)> {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.get_const(i)
         } else {
             self.pers.get_const(i)
@@ -3546,7 +3521,7 @@ impl EStore {
     /// persistent arm of `EStore.viewConstName`.
     #[inline(always)]
     fn pers_get_const_name(&self, pers: &PersTier, i: &EIdx) -> Option<NIdx> {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.get_const_name(i)
         } else {
             self.pers.get_const_name(i)
@@ -3572,7 +3547,7 @@ impl EStore {
     /// arms of the four projections below.
     #[inline(always)]
     fn pers_get_bvar(&self, pers: &PersTier, i: &EIdx) -> Option<u64> {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.get_bvar(i)
         } else {
             self.pers.get_bvar(i)
@@ -3583,7 +3558,7 @@ impl EStore {
     /// `proof/ConRon/Arena/Store.lean:1258-1260 EStore.persGetBind`
     #[inline(always)]
     fn pers_get_bind(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx, BMIdx)> {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.get_bind(i)
         } else {
             self.pers.get_bind(i)
@@ -3595,7 +3570,7 @@ impl EStore {
     /// persistent arm of `EStore.viewBM`.
     #[inline(always)]
     fn pers_get_bm(&self, pers: &PersTier, i: &BMIdx) -> Option<BinderMeta> {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.get_bm(i)
         } else {
             self.pers.get_bm(i)
@@ -3607,7 +3582,7 @@ impl EStore {
     /// persistent arm of `EStore.bmDer`.
     #[inline(always)]
     fn pers_get_bm_der(&self, pers: &PersTier, i: &BMIdx) -> (u64, bool) {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.get_bm_der(i)
         } else {
             self.pers.get_bm_der(i)
@@ -3618,7 +3593,7 @@ impl EStore {
     /// `proof/ConRon/Arena/Store.lean:1240-1242 EStore.persGetLet`
     #[inline(always)]
     fn pers_get_let(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx, EIdx)> {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.get_let(i)
         } else {
             self.pers.get_let(i)
@@ -3629,7 +3604,7 @@ impl EStore {
     /// `proof/ConRon/Arena/Store.lean:1249-1251 EStore.persGetProj`
     #[inline(always)]
     fn pers_get_proj(&self, pers: &PersTier, i: &EIdx) -> Option<(NIdx, u64, EIdx)> {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.get_proj(i)
         } else {
             self.pers.get_proj(i)
@@ -3640,7 +3615,7 @@ impl EStore {
     /// `proof/ConRon/Arena/Store.lean:1213-1215 EStore.persGetFVarIdx`
     #[inline(always)]
     fn pers_get_fvar_idx(&self, pers: &PersTier, i: &EIdx) -> Option<u64> {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.get_fvar_idx(i)
         } else {
             self.pers.get_fvar_idx(i)
@@ -3666,7 +3641,7 @@ impl EStore {
     /// persistent arm of `EStore.viewFVarTy`.
     #[inline(always)]
     fn pers_get_fvar_ty(&self, pers: &PersTier, i: &EIdx) -> Option<EIdx> {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.get_fvar_ty(i)
         } else {
             self.pers.get_fvar_ty(i)
@@ -3692,7 +3667,7 @@ impl EStore {
     /// persistent arm of `EStore.viewLit`.
     #[inline(always)]
     fn pers_get_lit(&self, pers: &PersTier, i: &EIdx) -> Option<Literal> {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.get_lit(i)
         } else {
             self.pers.get_lit(i)
@@ -3812,10 +3787,23 @@ impl EStore {
     /// Lean twin: `proof/ConRon/Arena/Store.lean:949-952 EStore.findBM` — the
     /// persistent arm of `EStore.findBM`.
     fn pers_find_bm(&self, pers: &PersTier, m: &BinderMeta) -> Option<BMIdx> {
-        if self.shared_on {
+        if pers.frozen {
             pers.e.find_bm(m)
         } else {
             self.pers.find_bm(m)
+        }
+    }
+
+    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:949-952 EStore.findBM` — the
+    /// persistent arm of `EStore.findBM` at the datum's RECORD, which
+    /// `intern_bm` builds once (a value-returning reader, like `pers_find_bm`:
+    /// Aeneas declines the two-way borrow when the choice is inlined).
+    fn pers_find_bm_node(&self, pers: &PersTier, r: &BMNode) -> Option<BMIdx> {
+        if pers.frozen {
+            pers.e.bms.find(r)
+        } else {
+            self.pers.bms.find(r)
         }
     }
 
@@ -3828,11 +3816,7 @@ impl EStore {
     /// persistent probe with.
     pub fn intern_bm(&mut self, pers: &PersTier, m: BinderMeta) -> Result<BMIdx, CheckError> {
         let r: BMNode = BMNode { pw: m.pw };
-        let hit: Option<BMIdx> = if self.shared_on {
-            pers.e.bms.find(&r)
-        } else {
-            self.pers.bms.find(&r)
-        };
+        let hit: Option<BMIdx> = self.pers_find_bm_node(pers, &r);
         match hit {
             Some(hp) => Ok(hp),
             None => {
@@ -4211,7 +4195,7 @@ impl EStore {
         let sk: bool = false;
         let hit: Option<EIdx> = if sk {
             None
-        } else if self.shared_on {
+        } else if pers.frozen {
             pers.e.bvars.find(&r)
         } else {
             self.pers.bvars.find(&r)
@@ -4277,7 +4261,7 @@ impl EStore {
         };
         let hit: Option<EIdx> = if sk {
             None
-        } else if self.shared_on {
+        } else if pers.frozen {
             pers.e.fvars.find(&r)
         } else {
             self.pers.fvars.find(&r)
@@ -4343,7 +4327,7 @@ impl EStore {
         };
         let hit: Option<EIdx> = if sk {
             None
-        } else if self.shared_on {
+        } else if pers.frozen {
             pers.e.sorts.find(&r)
         } else {
             self.pers.sorts.find(&r)
@@ -4401,7 +4385,7 @@ impl EStore {
         };
         let hit: Option<EIdx> = if sk {
             None
-        } else if self.shared_on {
+        } else if pers.frozen {
             pers.e.consts.find(&r)
         } else {
             self.pers.consts.find(&r)
@@ -4459,7 +4443,7 @@ impl EStore {
         };
         let hit: Option<EIdx> = if sk {
             None
-        } else if self.shared_on {
+        } else if pers.frozen {
             pers.e.apps.find(&r)
         } else {
             self.pers.apps.find(&r)
@@ -4539,7 +4523,7 @@ impl EStore {
         };
         let hit: Option<EIdx> = if sk {
             None
-        } else if self.shared_on {
+        } else if pers.frozen {
             pers.e.lams.find(&r)
         } else {
             self.pers.lams.find(&r)
@@ -4619,7 +4603,7 @@ impl EStore {
         };
         let hit: Option<EIdx> = if sk {
             None
-        } else if self.shared_on {
+        } else if pers.frozen {
             pers.e.foralls.find(&r)
         } else {
             self.pers.foralls.find(&r)
@@ -4681,7 +4665,7 @@ impl EStore {
         };
         let hit: Option<EIdx> = if sk {
             None
-        } else if self.shared_on {
+        } else if pers.frozen {
             pers.e.lets.find(&r)
         } else {
             self.pers.lets.find(&r)
@@ -4731,7 +4715,7 @@ impl EStore {
         let sk: bool = false;
         let hit: Option<EIdx> = if sk {
             None
-        } else if self.shared_on {
+        } else if pers.frozen {
             pers.e.lits.find(&r)
         } else {
             self.pers.lits.find(&r)
@@ -4789,7 +4773,7 @@ impl EStore {
         };
         let hit: Option<EIdx> = if sk {
             None
-        } else if self.shared_on {
+        } else if pers.frozen {
             pers.e.projs.find(&r)
         } else {
             self.pers.projs.find(&r)
@@ -4829,8 +4813,8 @@ impl EStore {
     /// proof/ConRon/Arena/Store.lean:523-526 EStore.enableScratch
     /// **Freeze the store** (DESIGN.md §8.3's per-declaration bracket, opened,
     /// and phase B's boundary): the four stores' persistent tables move out
-    /// into one `PersTier`, which is returned; the four stores' two flags go
-    /// up; their scratch tiers open empty.  "each tier has its own array set
+    /// into one `PersTier`, which is returned `frozen`; the four scratch tiers
+    /// open empty.  "each tier has its own array set
     /// and cons tables, both indexed from 0".  Freezing a frozen store would
     /// hand back its empty own tables: no caller does, since every freeze is
     /// matched by a `thaw` in the same function.
@@ -4841,14 +4825,13 @@ impl EStore {
         let e: ETables = core::mem::replace(&mut self.pers, ETables::empty());
         self.scr.reset();
         self.scratch_on = true;
-        self.shared_on = true;
-        PersTier { n, l, ls, e }
+        PersTier { frozen: true, n, l, ls, e }
     }
 
     /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
     /// proof/ConRon/Arena/Store.lean:528-531 EStore.dropScratch
     /// **Thaw the store** (the bracket, closed): the tier's four tables back
-    /// into the four stores, the flags down, the scratch tiers dropped.
+    /// into the four stores, the scratch tiers dropped.
     /// Persistent handles keep their bits, so everything that denoted before
     /// still denotes (DESIGN.md §8.3, con-leche's lesson 6).
     pub fn thaw(&mut self, tier: PersTier) {
@@ -4858,13 +4841,13 @@ impl EStore {
         self.pers = tier.e;
         self.scr.reset();
         self.scratch_on = false;
-        self.shared_on = false;
     }
 
     /// con-leche: none — arena infrastructure (task #98-FREEZE); Lean twin:
     /// proof/ConRon/Arena/Store.lean:523-526 EStore.enableScratch
-    /// **Empty the four scratch tiers of a frozen store**, the flags
-    /// untouched: a phase-B worker's per-record bracket.
+    /// **Empty the four scratch tiers of a frozen store**, the flag
+    /// untouched: a phase-B worker's per-record bracket, whose reader stays
+    /// the frozen tier.
     pub fn clear_scratch(&mut self) {
         self.lss.ls.ns.clear_scratch();
         self.lss.ls.clear_scratch();

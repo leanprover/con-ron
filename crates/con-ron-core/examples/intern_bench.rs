@@ -57,7 +57,8 @@ fn main() {
 
     let rss0 = vm_hwm_kb();
     let mut st = EStore::empty();
-    // `shared_on` is false here, so every persistent read goes to the store's
+    // the store is owned here and read through the empty stand-in tier (not
+    // `frozen`), so every persistent read goes to the store's
     // own tier and this one is never consulted (task #97-P6-6b).
     let pers: &PersTier = &PersTier::empty();
 

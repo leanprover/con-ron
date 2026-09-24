@@ -9,7 +9,7 @@ one (task #97-LC §1) and the tier arrives instead as the persistent arm of the
 abstract store:
 
     absStore (pers, st) = { st.store with
-      pers := if st.store.shared_on then pers.e else st.store.pers }
+      pers := if pers.frozen then pers.e else st.store.pers }
 
 which is task #97-LC's own equation, one tier deep in each of the four stores.
 
@@ -404,25 +404,28 @@ structure ETablesRel (rt : arena.store.ETables) (lt : ETables) : Prop where
 
 /-! ## The persistent arm: which of the two tiers holds it
 
-Task #97-LC §1's equation.  `shared_on` selects, and `shared_on → self.pers =
-∅` is the conjunct task #97-P6-6b's ledger names — but the refinement does
-not need that conjunct at all: it reads the tier `pers_get_*` reads, whichever
-that is, and the twin's ONE persistent field is related to it.  This is the
+Task #97-LC §1's equation.  The READER's `frozen` bit selects (task
+#98-FREEZE: a frozen store is read through its frozen tier, an owned one
+through the empty stand-in, which is not `frozen`), and the refinement reads
+the tier `pers_get_*` reads, whichever that is; the twin's ONE persistent
+field is related to it.  The choice is the reader's, which is fixed for a
+whole bracket or worker, so no Theorem-2 statement ever needs to know a store
+flag after a computation.  This is the
 whole of "the twin keeps `AM := StateT AState (Except CheckError)` and the
 ledger carries the relation instead". -/
 
 /-- The expression tier every persistent read of the Rust store goes to. -/
 @[inline] def rPersE (pers : arena.store.PersTier) (s : arena.store.EStore) :
-    arena.store.ETables := if s.shared_on then pers.e else s.pers
+    arena.store.ETables := if pers.frozen then pers.e else s.pers
 /-- The level-list tier every persistent read goes to. -/
 @[inline] def rPersLs (pers : arena.store.PersTier) (s : arena.store.LsStore) :
-    arena.store.LsTables := if s.shared_on then pers.ls else s.pers
+    arena.store.LsTables := if pers.frozen then pers.ls else s.pers
 /-- The level tier every persistent read goes to. -/
 @[inline] def rPersL (pers : arena.store.PersTier) (s : arena.store.LStore) :
-    arena.store.LTables := if s.shared_on then pers.l else s.pers
+    arena.store.LTables := if pers.frozen then pers.l else s.pers
 /-- The name tier every persistent read goes to. -/
 @[inline] def rPersN (pers : arena.store.PersTier) (s : arena.store.NStore) :
-    arena.store.NTables := if s.shared_on then pers.n else s.pers
+    arena.store.NTables := if pers.frozen then pers.n else s.pers
 
 /-! ## The four stores -/
 

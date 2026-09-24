@@ -1403,7 +1403,7 @@ pub fn fold_start() -> (u64, IFEnv, Vec<PendingCheck>) {
 /// **The persistent tier out of the store and into a value** (task
 /// #97-P6-6b's driver function, moved here by task #97-P5-Driver): the store is
 /// frozen (`EStore::freeze`) — its four persistent tables move into one
-/// `PersTier`, its flags go up and its scratch tiers open empty — so every
+/// `PersTier` handed back `frozen`, and its scratch tiers open empty — so every
 /// later persistent read of this store goes to the tier the caller now holds
 /// and every append is a scratch append.  Task #98-FREEZE: there is no longer a
 /// frozen-store decline here (`M_REFREEZE` is gone): the one store the driver
@@ -1415,7 +1415,7 @@ pub fn freeze_tier(ar: &mut EStore) -> PersTier {
 
 /// con-leche: none — the phase boundary, which con-leche has no tier to make
 /// Lean twin: none — the inverse of `freeze_tier`, which has none either.
-/// **`freeze_tier` inverted**: the tier back into the store, the flags down
+/// **`freeze_tier` inverted**: the tier back into the store
 /// and the scratch tiers dropped, so that everything after phase B — the
 /// verdict line's label, the failing record's name, the receipts — reads the
 /// handles it was given.  `thaw_tier(ar, freeze_tier(ar))` leaves an owned

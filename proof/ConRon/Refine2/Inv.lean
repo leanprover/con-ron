@@ -443,35 +443,38 @@ The tier the persistent reads actually go to is `Refine2/AbsStore.lean`'s
 the store's own `pers` field: what a read consults is what must be well
 formed.
 
-**`frz` — a frozen store is scratch-on** (task #98-FREEZE).  The Rust writes
-the two flags together (`freeze`/`thaw`/`empty_frozen`), so a store it builds
-has `shared_on = scratch_on`; an ordinary intern with the scratch tier off
-appends to the store's OWN persistent tables, which is what the relation's
-persistent arm reads exactly when `shared_on` is down.  Only the implication
-is carried: the promotion's view of a frozen store as an owned one with its
-scratch tier on (`Refine2/Promote/Glue.lean`'s `glue`) is the one state with
-the flags apart, and it is a proof device the Rust never builds.  A
-representation fact about the Rust store alone. -/
+**`frz` — a store read through a frozen tier is scratch-on** (task
+#98-FREEZE).  A frozen store — the only kind the Rust reads through a frozen
+tier (`freeze` hands the tier out and turns the scratch tier on; a worker's
+store is built frozen) — has its scratch tier on, so an ordinary intern
+appends to the scratch tier; with the scratch tier off, the reader is the
+empty stand-in and the intern appends to the store's OWN tables, which is what
+the relation's persistent arm then reads.  Only the implication is carried:
+the promotion's view of a frozen store as an owned one read through a
+stand-in (`Refine2/Promote/Glue.lean`) has its scratch tier on.  Because the
+reader is fixed for a whole bracket or worker and every step keeps the
+scratch flag, the lockstep proofs carry it for free.  A representation fact
+about the Rust state and its reader. -/
 
 structure NStoreInv (pers : arena.store.PersTier) (rs : arena.store.NStore) :
     Prop where
   perst : NTablesInv (rPersN pers rs)
   scrt : NTablesInv rs.scr
-  frz : rs.shared_on = true → rs.scratch_on = true
+  frz : pers.frozen = true → rs.scratch_on = true
 
 structure LStoreInv (pers : arena.store.PersTier) (rs : arena.store.LStore) :
     Prop where
   ns : NStoreInv pers rs.ns
   perst : LTablesInv (rPersL pers rs)
   scrt : LTablesInv rs.scr
-  frz : rs.shared_on = true → rs.scratch_on = true
+  frz : pers.frozen = true → rs.scratch_on = true
 
 structure LsStoreInv (pers : arena.store.PersTier) (rs : arena.store.LsStore) :
     Prop where
   lvl : LStoreInv pers rs.ls
   perst : LsTablesInv (rPersLs pers rs)
   scrt : LsTablesInv rs.scr
-  frz : rs.shared_on = true → rs.scratch_on = true
+  frz : pers.frozen = true → rs.scratch_on = true
 
 /-- The Rust-side invariant of the whole arena. -/
 structure StoreInv (pers : arena.store.PersTier) (rs : arena.store.EStore) :
@@ -479,7 +482,7 @@ structure StoreInv (pers : arena.store.PersTier) (rs : arena.store.EStore) :
   lss : LsStoreInv pers rs.lss
   perst : ETablesInv (rPersE pers rs)
   scrt : ETablesInv rs.scr
-  frz : rs.shared_on = true → rs.scratch_on = true
+  frz : pers.frozen = true → rs.scratch_on = true
 
 /-! ### The relation and the invariant at another tier with the same tables
 
@@ -487,41 +490,50 @@ A promotion grows ONE table of the tier (task #98-FREEZE); the stores that
 read the other three are related, and well formed, exactly as before. -/
 
 theorem NStoreRel.tier_congr {p p' : arena.store.PersTier} {rs ls}
-    (h : NStoreRel p rs ls) (hn : p'.n = p.n) : NStoreRel p' rs ls :=
-  ⟨by unfold rPersN; rw [hn]; exact h.perst, h.scrt, h.scratchOn⟩
+    (h : NStoreRel p rs ls) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n) :
+    NStoreRel p' rs ls :=
+  ⟨by unfold rPersN; rw [hf, hn]; exact h.perst, h.scrt, h.scratchOn⟩
 
 theorem LStoreRel.tier_congr {p p' : arena.store.PersTier} {rs ls}
-    (h : LStoreRel p rs ls) (hn : p'.n = p.n) (hl : p'.l = p.l) : LStoreRel p' rs ls :=
-  ⟨h.ns.tier_congr hn, by unfold rPersL; rw [hl]; exact h.perst, h.scrt, h.scratchOn⟩
+    (h : LStoreRel p rs ls) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n)
+    (hl : p'.l = p.l) : LStoreRel p' rs ls :=
+  ⟨h.ns.tier_congr hf hn, by unfold rPersL; rw [hf, hl]; exact h.perst, h.scrt,
+    h.scratchOn⟩
 
 theorem LsStoreRel.tier_congr {p p' : arena.store.PersTier} {rs ls}
-    (h : LsStoreRel p rs ls) (hn : p'.n = p.n) (hl : p'.l = p.l) (hls : p'.ls = p.ls) :
-    LsStoreRel p' rs ls :=
-  ⟨h.lvl.tier_congr hn hl, by unfold rPersLs; rw [hls]; exact h.perst, h.scrt, h.scratchOn⟩
+    (h : LsStoreRel p rs ls) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n)
+    (hl : p'.l = p.l) (hls : p'.ls = p.ls) : LsStoreRel p' rs ls :=
+  ⟨h.lvl.tier_congr hf hn hl, by unfold rPersLs; rw [hf, hls]; exact h.perst, h.scrt,
+    h.scratchOn⟩
 
 theorem StoreRel.tier_congr {p p' : arena.store.PersTier} {rs ls}
-    (h : StoreRel p rs ls) (hn : p'.n = p.n) (hl : p'.l = p.l) (hls : p'.ls = p.ls)
-    (he : p'.e = p.e) : StoreRel p' rs ls :=
-  ⟨h.lss.tier_congr hn hl hls, by unfold rPersE; rw [he]; exact h.perst, h.scrt,
+    (h : StoreRel p rs ls) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n)
+    (hl : p'.l = p.l) (hls : p'.ls = p.ls) (he : p'.e = p.e) : StoreRel p' rs ls :=
+  ⟨h.lss.tier_congr hf hn hl hls, by unfold rPersE; rw [hf, he]; exact h.perst, h.scrt,
     h.scratchOn⟩
 
 theorem NStoreInv.tier_congr {p p' : arena.store.PersTier} {rs}
-    (h : NStoreInv p rs) (hn : p'.n = p.n) : NStoreInv p' rs :=
-  ⟨by unfold rPersN; rw [hn]; exact h.perst, h.scrt, h.frz⟩
+    (h : NStoreInv p rs) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n) :
+    NStoreInv p' rs :=
+  ⟨by unfold rPersN; rw [hf, hn]; exact h.perst, h.scrt, by rw [hf]; exact h.frz⟩
 
 theorem LStoreInv.tier_congr {p p' : arena.store.PersTier} {rs}
-    (h : LStoreInv p rs) (hn : p'.n = p.n) (hl : p'.l = p.l) : LStoreInv p' rs :=
-  ⟨h.ns.tier_congr hn, by unfold rPersL; rw [hl]; exact h.perst, h.scrt, h.frz⟩
+    (h : LStoreInv p rs) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n)
+    (hl : p'.l = p.l) : LStoreInv p' rs :=
+  ⟨h.ns.tier_congr hf hn, by unfold rPersL; rw [hf, hl]; exact h.perst, h.scrt,
+    by rw [hf]; exact h.frz⟩
 
 theorem LsStoreInv.tier_congr {p p' : arena.store.PersTier} {rs}
-    (h : LsStoreInv p rs) (hn : p'.n = p.n) (hl : p'.l = p.l) (hls : p'.ls = p.ls) :
-    LsStoreInv p' rs :=
-  ⟨h.lvl.tier_congr hn hl, by unfold rPersLs; rw [hls]; exact h.perst, h.scrt, h.frz⟩
+    (h : LsStoreInv p rs) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n)
+    (hl : p'.l = p.l) (hls : p'.ls = p.ls) : LsStoreInv p' rs :=
+  ⟨h.lvl.tier_congr hf hn hl, by unfold rPersLs; rw [hf, hls]; exact h.perst, h.scrt,
+    by rw [hf]; exact h.frz⟩
 
 theorem StoreInv.tier_congr {p p' : arena.store.PersTier} {rs}
-    (h : StoreInv p rs) (hn : p'.n = p.n) (hl : p'.l = p.l) (hls : p'.ls = p.ls)
-    (he : p'.e = p.e) : StoreInv p' rs :=
-  ⟨h.lss.tier_congr hn hl hls, by unfold rPersE; rw [he]; exact h.perst, h.scrt, h.frz⟩
+    (h : StoreInv p rs) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n)
+    (hl : p'.l = p.l) (hls : p'.ls = p.ls) (he : p'.e = p.e) : StoreInv p' rs :=
+  ⟨h.lss.tier_congr hf hn hl hls, by unfold rPersE; rw [hf, he]; exact h.perst, h.scrt,
+    by rw [hf]; exact h.frz⟩
 
 set_option hygiene false in
 /-- **The `frz` field of a rebuilt store invariant** (task #98-FREEZE): a

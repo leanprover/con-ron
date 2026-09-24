@@ -409,123 +409,224 @@ theorem etables_reset {rt rt' : arena.store.ETables}
 
 
 
-/-! ## The four stores, opened and closed
+/-! ## The two store states, and the moves between them (task #98-FREEZE)
 
-`enable_scratch` and `drop_scratch` differ in ONE bit — the flag they leave
-behind — and in nothing else: both reset the scratch tier and touch neither
-the persistent tier nor `shared_on`, so `rPersN`/`rPersL`/`rPersLs`/`rPersE`
-are unchanged and the relation's persistent clause is carried across
-untouched.  Eight lemmas, four lines of content each. -/
+A Rust store is OWNED (both flags down at all four levels: the parse, the
+setup, between phase A's brackets) or FROZEN (both up: inside a declaration
+bracket, and a phase-B worker for its whole life).  `freeze` moves the four
+persistent tables out into a `PersTier` and opens the scratch tiers empty;
+`thaw` puts a tier back and drops them; `clear_scratch` empties the scratch
+tiers of a frozen store and touches nothing else.  The twin has one store and
+no tier: its `enableScratch`/`dropScratch` are the scratch halves alone, so
+the relation moves its READER parameter at a freeze and a thaw — from any
+tier to the one handed out, and back. -/
 
-theorem nstore_enable {pers} {rs rs' : arena.store.NStore} {ls : NStore}
-    (hrel : NStoreRel pers rs ls) (hinv : NStoreInv pers rs)
-    (h : arena.store.NStore.enable_scratch rs = ok rs') :
-    NStoreRel pers rs' ls.enableScratch ∧ NStoreInv pers rs' := by
-  rw [arena.store.NStore.enable_scratch] at h
-  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hst : rs' = { rs with scr := t, scratch_on := true } :=
-    (Result.ok_injective h).symm
-  subst hst
-  obtain ⟨hr, hi⟩ := ntables_reset hinv.scrt ht
-  exact ⟨⟨hrel.perst, hr, rfl⟩, ⟨hinv.perst, hi⟩⟩
+/-- The four `shared_on` flags of a store, down: an OWNED store — the parse,
+the setup, and phase A between its brackets. -/
+def Thawed (ar : arena.store.EStore) : Prop :=
+  ar.shared_on = false ∧ ar.lss.shared_on = false ∧ ar.lss.ls.shared_on = false ∧
+    ar.lss.ls.ns.shared_on = false
 
-theorem lstore_enable {pers} {rs rs' : arena.store.LStore} {ls : LStore}
-    (hrel : LStoreRel pers rs ls) (hinv : LStoreInv pers rs)
-    (h : arena.store.LStore.enable_scratch rs = ok rs') :
-    LStoreRel pers rs' ls.enableScratch ∧ LStoreInv pers rs' := by
-  rw [arena.store.LStore.enable_scratch] at h
-  obtain ⟨u, hu, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hst : rs' = { rs with ns := u, scr := t, scratch_on := true } :=
-    (Result.ok_injective h).symm
-  subst hst
-  obtain ⟨hr, hi⟩ := ltables_reset hinv.scrt ht
-  obtain ⟨hr2, hi2⟩ := nstore_enable hrel.ns hinv.ns hu
-  exact ⟨⟨hr2, hrel.perst, hr, rfl⟩, ⟨hi2, hinv.perst, hi⟩⟩
+/-- The four `shared_on` flags of a store, up: a FROZEN store — inside a
+declaration bracket, and a phase-B worker (`StoreInv.frz` then says its
+scratch tiers are on). -/
+def Frozen (ar : arena.store.EStore) : Prop :=
+  ar.shared_on = true ∧ ar.lss.shared_on = true ∧ ar.lss.ls.shared_on = true ∧
+    ar.lss.ls.ns.shared_on = true
 
-theorem lsstore_enable {pers} {rs rs' : arena.store.LsStore} {ls : LsStore}
-    (hrel : LsStoreRel pers rs ls) (hinv : LsStoreInv pers rs)
-    (h : arena.store.LsStore.enable_scratch rs = ok rs') :
-    LsStoreRel pers rs' ls.enableScratch ∧ LsStoreInv pers rs' := by
-  rw [arena.store.LsStore.enable_scratch] at h
-  obtain ⟨u, hu, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hst : rs' = { rs with ls := u, scr := t, scratch_on := true } :=
-    (Result.ok_injective h).symm
-  subst hst
-  obtain ⟨hr, hi⟩ := lstables_reset hinv.scrt ht
-  obtain ⟨hr2, hi2⟩ := lstore_enable hrel.lvl hinv.lvl hu
-  exact ⟨⟨hr2, hrel.perst, hr, rfl⟩, ⟨hi2, hinv.perst, hi⟩⟩
+/-- The persistent tier `freeze` moves out of a store: its four own
+persistent tables. -/
+def tierOf (ar : arena.store.EStore) : arena.store.PersTier :=
+  { n := ar.lss.ls.ns.pers, l := ar.lss.ls.pers, ls := ar.lss.pers, e := ar.pers }
 
-theorem estore_enable {pers} {rs rs' : arena.store.EStore} {ls : EStore}
-    (hrel : StoreRel pers rs ls) (hinv : StoreInv pers rs)
-    (h : arena.store.EStore.enable_scratch rs = ok rs') :
-    StoreRel pers rs' ls.enableScratch ∧ StoreInv pers rs' := by
-  rw [arena.store.EStore.enable_scratch] at h
-  obtain ⟨u, hu, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hst : rs' = { rs with lss := u, scr := t, scratch_on := true } :=
-    (Result.ok_injective h).symm
-  subst hst
-  obtain ⟨hr, hi⟩ := etables_reset hinv.scrt ht
-  obtain ⟨hr2, hi2⟩ := lsstore_enable hrel.lss hinv.lss hu
-  exact ⟨⟨hr2, hrel.perst, hr, rfl⟩, ⟨hi2, hinv.perst, hi⟩⟩
+private theorem nstore_freeze_eq {rs : arena.store.NStore} {t rs'}
+    (h : arena.store.NStore.freeze rs = ok (t, rs')) :
+    ∃ e s, arena.store.NTables.reset rs.scr = ok s ∧ t = rs.pers ∧
+      rs' = { pers := e, scr := s, scratch_on := true, shared_on := true } := by
+  rw [arena.store.NStore.freeze] at h
+  obtain ⟨e, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  simp only [core.mem.replace] at h
+  obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h' := Result.ok_injective h
+  simp only [Prod.mk.injEq] at h'
+  exact ⟨e, s, hs, h'.1.symm, h'.2.symm⟩
 
-theorem nstore_drop {pers} {rs rs' : arena.store.NStore} {ls : NStore}
-    (hrel : NStoreRel pers rs ls) (hinv : NStoreInv pers rs)
-    (h : arena.store.NStore.drop_scratch rs = ok rs') :
-    NStoreRel pers rs' ls.dropScratch ∧ NStoreInv pers rs' := by
-  rw [arena.store.NStore.drop_scratch] at h
-  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hst : rs' = { rs with scr := t, scratch_on := false } :=
-    (Result.ok_injective h).symm
-  subst hst
-  obtain ⟨hr, hi⟩ := ntables_reset hinv.scrt ht
-  exact ⟨⟨hrel.perst, hr, rfl⟩, ⟨hinv.perst, hi⟩⟩
+private theorem lstore_freeze_eq {rs : arena.store.LStore} {t rs'}
+    (h : arena.store.LStore.freeze rs = ok (t, rs')) :
+    ∃ e s, arena.store.LTables.reset rs.scr = ok s ∧ t = rs.pers ∧
+      rs' = { rs with pers := e, scr := s, scratch_on := true, shared_on := true } := by
+  rw [arena.store.LStore.freeze] at h
+  obtain ⟨e, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  simp only [core.mem.replace] at h
+  obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h' := Result.ok_injective h
+  simp only [Prod.mk.injEq] at h'
+  exact ⟨e, s, hs, h'.1.symm, h'.2.symm⟩
 
-theorem lstore_drop {pers} {rs rs' : arena.store.LStore} {ls : LStore}
-    (hrel : LStoreRel pers rs ls) (hinv : LStoreInv pers rs)
-    (h : arena.store.LStore.drop_scratch rs = ok rs') :
-    LStoreRel pers rs' ls.dropScratch ∧ LStoreInv pers rs' := by
-  rw [arena.store.LStore.drop_scratch] at h
-  obtain ⟨u, hu, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hst : rs' = { rs with ns := u, scr := t, scratch_on := false } :=
-    (Result.ok_injective h).symm
-  subst hst
-  obtain ⟨hr, hi⟩ := ltables_reset hinv.scrt ht
-  obtain ⟨hr2, hi2⟩ := nstore_drop hrel.ns hinv.ns hu
-  exact ⟨⟨hr2, hrel.perst, hr, rfl⟩, ⟨hi2, hinv.perst, hi⟩⟩
+private theorem lsstore_freeze_eq {rs : arena.store.LsStore} {t rs'}
+    (h : arena.store.LsStore.freeze rs = ok (t, rs')) :
+    ∃ e s, arena.store.LsTables.reset rs.scr = ok s ∧ t = rs.pers ∧
+      rs' = { rs with pers := e, scr := s, scratch_on := true, shared_on := true } := by
+  rw [arena.store.LsStore.freeze] at h
+  obtain ⟨e, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  simp only [core.mem.replace] at h
+  obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h' := Result.ok_injective h
+  simp only [Prod.mk.injEq] at h'
+  exact ⟨e, s, hs, h'.1.symm, h'.2.symm⟩
 
-theorem lsstore_drop {pers} {rs rs' : arena.store.LsStore} {ls : LsStore}
-    (hrel : LsStoreRel pers rs ls) (hinv : LsStoreInv pers rs)
-    (h : arena.store.LsStore.drop_scratch rs = ok rs') :
-    LsStoreRel pers rs' ls.dropScratch ∧ LsStoreInv pers rs' := by
-  rw [arena.store.LsStore.drop_scratch] at h
-  obtain ⟨u, hu, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hst : rs' = { rs with ls := u, scr := t, scratch_on := false } :=
-    (Result.ok_injective h).symm
-  subst hst
-  obtain ⟨hr, hi⟩ := lstables_reset hinv.scrt ht
-  obtain ⟨hr2, hi2⟩ := lstore_drop hrel.lvl hinv.lvl hu
-  exact ⟨⟨hr2, hrel.perst, hr, rfl⟩, ⟨hi2, hinv.perst, hi⟩⟩
+/-- **`EStore::freeze` of an owned store**: it hands back the store's own four
+tables, and the frozen store at that tier is related to the twin store with
+its scratch tier opened — the persistent arm is read through the tier now
+instead of the store, and it is the same four tables. -/
+theorem estore_freeze {pers} {rs : arena.store.EStore} {ls : EStore} {tier rs'}
+    (hrel : StoreRel pers rs ls) (hinv : StoreInv pers rs) (hth : Thawed rs)
+    (h : arena.store.EStore.freeze rs = ok (tier, rs')) :
+    tier = tierOf rs ∧ StoreRel tier rs' ls.enableScratch ∧ StoreInv tier rs' ∧
+      Frozen rs' := by
+  obtain ⟨h0, h1, h2, h3⟩ := hth
+  rw [arena.store.EStore.freeze] at h
+  obtain ⟨⟨n, n1⟩, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨⟨l, l1⟩, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨⟨lt, ls1⟩, hls, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨e0, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  simp only [core.mem.replace] at h
+  obtain ⟨es, hes, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h' := Result.ok_injective h
+  simp only [Prod.mk.injEq] at h'
+  obtain ⟨rfl, rfl⟩ := h'
+  obtain ⟨ne, ns, hns, rfl, rfl⟩ := nstore_freeze_eq hn
+  obtain ⟨le, lsc, hlsc, rfl, rfl⟩ := lstore_freeze_eq hl
+  obtain ⟨lse, lssc, hlssc, rfl, rfl⟩ := lsstore_freeze_eq hls
+  have pN : rPersN pers rs.lss.ls.ns = rs.lss.ls.ns.pers := by unfold rPersN; rw [h3]; rfl
+  have pL : rPersL pers rs.lss.ls = rs.lss.ls.pers := by unfold rPersL; rw [h2]; rfl
+  have pLs : rPersLs pers rs.lss = rs.lss.pers := by unfold rPersLs; rw [h1]; rfl
+  have pE : rPersE pers rs = rs.pers := by unfold rPersE; rw [h0]; rfl
+  obtain ⟨rN, iN⟩ := ntables_reset hinv.lss.lvl.ns.scrt hns
+  obtain ⟨rL, iL⟩ := ltables_reset hinv.lss.lvl.scrt hlsc
+  obtain ⟨rLs, iLs⟩ := lstables_reset hinv.lss.scrt hlssc
+  obtain ⟨rE, iE⟩ := etables_reset hinv.scrt hes
+  refine ⟨rfl, ⟨⟨⟨⟨?_, rN, rfl⟩, ?_, rL, rfl⟩, ?_, rLs, rfl⟩, ?_, rE, rfl⟩,
+    ⟨⟨⟨⟨?_, iN, fun _ => rfl⟩, ?_, iL, fun _ => rfl⟩, ?_, iLs, fun _ => rfl⟩, ?_, iE,
+      fun _ => rfl⟩, rfl, rfl, rfl, rfl⟩
+  · show NTablesRel rs.lss.ls.ns.pers ls.lss.ls.ns.pers
+    rw [← pN]; exact hrel.lss.lvl.ns.perst
+  · show LTablesRel rs.lss.ls.pers ls.lss.ls.pers
+    rw [← pL]; exact hrel.lss.lvl.perst
+  · show LsTablesRel rs.lss.pers ls.lss.pers
+    rw [← pLs]; exact hrel.lss.perst
+  · show ETablesRel rs.pers ls.pers
+    rw [← pE]; exact hrel.perst
+  · show NTablesInv rs.lss.ls.ns.pers
+    rw [← pN]; exact hinv.lss.lvl.ns.perst
+  · show LTablesInv rs.lss.ls.pers
+    rw [← pL]; exact hinv.lss.lvl.perst
+  · show LsTablesInv rs.lss.pers
+    rw [← pLs]; exact hinv.lss.perst
+  · show ETablesInv rs.pers
+    rw [← pE]; exact hinv.perst
 
-theorem estore_drop {pers} {rs rs' : arena.store.EStore} {ls : EStore}
-    (hrel : StoreRel pers rs ls) (hinv : StoreInv pers rs)
-    (h : arena.store.EStore.drop_scratch rs = ok rs') :
-    StoreRel pers rs' ls.dropScratch ∧ StoreInv pers rs' := by
-  rw [arena.store.EStore.drop_scratch] at h
-  obtain ⟨u, hu, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hst : rs' = { rs with lss := u, scr := t, scratch_on := false } :=
-    (Result.ok_injective h).symm
-  subst hst
-  obtain ⟨hr, hi⟩ := etables_reset hinv.scrt ht
-  obtain ⟨hr2, hi2⟩ := lsstore_drop hrel.lss hinv.lss hu
-  exact ⟨⟨hr2, hrel.perst, hr, rfl⟩, ⟨hi2, hinv.perst, hi⟩⟩
+/-- **`EStore::thaw` of a frozen store**: the tier goes back, and the owned
+store is related, at ANY reader parameter, to the twin store with its scratch
+tier dropped. -/
+theorem estore_thaw {tier} {rs : arena.store.EStore} {ls : EStore} {rs'}
+    (hrel : StoreRel tier rs ls) (hinv : StoreInv tier rs) (hfz : Frozen rs)
+    (h : arena.store.EStore.thaw rs tier = ok rs') (pers : arena.store.PersTier) :
+    StoreRel pers rs' ls.dropScratch ∧ StoreInv pers rs' ∧ Thawed rs' := by
+  obtain ⟨h0, h1, h2, h3⟩ := hfz
+  rw [arena.store.EStore.thaw] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨lt, hls, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨es, hes, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := (Result.ok_injective h).symm
+  rw [arena.store.NStore.thaw] at hn
+  obtain ⟨ns, hns, hn⟩ := ConRon.Refine.bind_eq_ok_iff.mp hn
+  obtain rfl := (Result.ok_injective hn).symm
+  rw [arena.store.LStore.thaw] at hl
+  obtain ⟨lsc, hlsc, hl⟩ := ConRon.Refine.bind_eq_ok_iff.mp hl
+  obtain rfl := (Result.ok_injective hl).symm
+  rw [arena.store.LsStore.thaw] at hls
+  obtain ⟨lssc, hlssc, hls⟩ := ConRon.Refine.bind_eq_ok_iff.mp hls
+  obtain rfl := (Result.ok_injective hls).symm
+  have pN : rPersN tier rs.lss.ls.ns = tier.n := by unfold rPersN; rw [h3]; rfl
+  have pL : rPersL tier rs.lss.ls = tier.l := by unfold rPersL; rw [h2]; rfl
+  have pLs : rPersLs tier rs.lss = tier.ls := by unfold rPersLs; rw [h1]; rfl
+  have pE : rPersE tier rs = tier.e := by unfold rPersE; rw [h0]; rfl
+  obtain ⟨rN, iN⟩ := ntables_reset hinv.lss.lvl.ns.scrt hns
+  obtain ⟨rL, iL⟩ := ltables_reset hinv.lss.lvl.scrt hlsc
+  obtain ⟨rLs, iLs⟩ := lstables_reset hinv.lss.scrt hlssc
+  obtain ⟨rE, iE⟩ := etables_reset hinv.scrt hes
+  refine ⟨⟨⟨⟨⟨?_, rN, rfl⟩, ?_, rL, rfl⟩, ?_, rLs, rfl⟩, ?_, rE, rfl⟩,
+    ⟨⟨⟨⟨?_, iN, fun h => by simp at h⟩, ?_, iL, fun h => by simp at h⟩, ?_, iLs,
+      fun h => by simp at h⟩, ?_, iE, fun h => by simp at h⟩, rfl, rfl, rfl, rfl⟩
+  · show NTablesRel tier.n ls.lss.ls.ns.pers
+    rw [← pN]; exact hrel.lss.lvl.ns.perst
+  · show LTablesRel tier.l ls.lss.ls.pers
+    rw [← pL]; exact hrel.lss.lvl.perst
+  · show LsTablesRel tier.ls ls.lss.pers
+    rw [← pLs]; exact hrel.lss.perst
+  · show ETablesRel tier.e ls.pers
+    rw [← pE]; exact hrel.perst
+  · show NTablesInv tier.n
+    rw [← pN]; exact hinv.lss.lvl.ns.perst
+  · show LTablesInv tier.l
+    rw [← pL]; exact hinv.lss.lvl.perst
+  · show LsTablesInv tier.ls
+    rw [← pLs]; exact hinv.lss.perst
+  · show ETablesInv tier.e
+    rw [← pE]; exact hinv.perst
 
-
+/-- **`EStore::clear_scratch`**: the four scratch tiers emptied, the flags and
+the persistent arm untouched — so, at the same tier, the store is related to
+ANY twin store with the same persistent tables whose scratch tier is open and
+empty.  Both the record bracket's halves are this lemma: opening against the
+twin's `enableScratch`, closing against its `dropScratch` read with its scratch
+tier re-opened (`AIdle` below). -/
+theorem estore_clear {tier} {rs : arena.store.EStore} {ls ls' : EStore} {rs'}
+    (hrel : StoreRel tier rs ls) (hinv : StoreInv tier rs)
+    (hpN : ls'.lss.ls.ns.pers = ls.lss.ls.ns.pers) (hpL : ls'.lss.ls.pers = ls.lss.ls.pers)
+    (hpLs : ls'.lss.pers = ls.lss.pers) (hpE : ls'.pers = ls.pers)
+    (hsN : ls'.lss.ls.ns.scr = NTables.empty) (hsL : ls'.lss.ls.scr = LTables.empty)
+    (hsLs : ls'.lss.scr = LsTables.empty) (hsE : ls'.scr = ETables.empty)
+    (hoN : ls'.lss.ls.ns.scratchOn = rs.lss.ls.ns.scratch_on)
+    (hoL : ls'.lss.ls.scratchOn = rs.lss.ls.scratch_on)
+    (hoLs : ls'.lss.scratchOn = rs.lss.scratch_on) (hoE : ls'.scratchOn = rs.scratch_on)
+    (h : arena.store.EStore.clear_scratch rs = ok rs') :
+    StoreRel tier rs' ls' ∧ StoreInv tier rs' ∧ rs'.lss.ls.ns.shared_on = rs.lss.ls.ns.shared_on ∧
+      rs'.lss.ls.shared_on = rs.lss.ls.shared_on ∧ rs'.lss.shared_on = rs.lss.shared_on ∧
+      rs'.shared_on = rs.shared_on := by
+  rw [arena.store.EStore.clear_scratch] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨lt, hls, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨es, hes, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain rfl := (Result.ok_injective h).symm
+  rw [arena.store.NStore.clear_scratch] at hn
+  obtain ⟨ns, hns, hn⟩ := ConRon.Refine.bind_eq_ok_iff.mp hn
+  obtain rfl := (Result.ok_injective hn).symm
+  rw [arena.store.LStore.clear_scratch] at hl
+  obtain ⟨lsc, hlsc, hl⟩ := ConRon.Refine.bind_eq_ok_iff.mp hl
+  obtain rfl := (Result.ok_injective hl).symm
+  rw [arena.store.LsStore.clear_scratch] at hls
+  obtain ⟨lssc, hlssc, hls⟩ := ConRon.Refine.bind_eq_ok_iff.mp hls
+  obtain rfl := (Result.ok_injective hls).symm
+  obtain ⟨rN, iN⟩ := ntables_reset hinv.lss.lvl.ns.scrt hns
+  obtain ⟨rL, iL⟩ := ltables_reset hinv.lss.lvl.scrt hlsc
+  obtain ⟨rLs, iLs⟩ := lstables_reset hinv.lss.scrt hlssc
+  obtain ⟨rE, iE⟩ := etables_reset hinv.scrt hes
+  refine ⟨⟨⟨⟨⟨?_, ?_, hoN⟩, ?_, ?_, hoL⟩, ?_, ?_, hoLs⟩, ?_, ?_, hoE⟩,
+    ⟨⟨⟨⟨hinv.lss.lvl.ns.perst, iN, hinv.lss.lvl.ns.frz⟩, hinv.lss.lvl.perst, iL,
+      hinv.lss.lvl.frz⟩, hinv.lss.perst, iLs, hinv.lss.frz⟩, hinv.perst, iE, hinv.frz⟩,
+    rfl, rfl, rfl, rfl⟩
+  · rw [hpN]; exact hrel.lss.lvl.ns.perst
+  · rw [hsN]; exact rN
+  · rw [hpL]; exact hrel.lss.lvl.perst
+  · rw [hsL]; exact rL
+  · rw [hpLs]; exact hrel.lss.perst
+  · rw [hsLs]; exact rLs
+  · rw [hpE]; exact hrel.perst
+  · rw [hsE]; exact rE
 
 /-! ## The per-call memos and the per-declaration caches, reset
 

@@ -1054,14 +1054,14 @@ mod tests {
         assert_eq!(name_of(empty, &st.store, &n), "add");
         // frozen: the store's own tier is empty and the shared one answers
         let tier = checker::freeze_tier(&mut st.store);
-        assert!(st.store.shared_on && st.store.scratch_on);
+        assert!(tier.frozen && st.store.scratch_on);
         assert_eq!(name_of(&tier, &st.store, &n), "add");
         // and a worker, whose store is its own, reads it too
         let w = checker::worker_state(&st.pins);
         assert_eq!(name_of(&tier, &w.store, &n), "add");
         // thawed: the store is what phase A left
         checker::thaw_tier(&mut st.store, tier);
-        assert!(!st.store.shared_on && !st.store.scratch_on);
+        assert!(!st.store.scratch_on);
         assert_eq!(name_of(empty, &st.store, &n), "add");
     }
 }

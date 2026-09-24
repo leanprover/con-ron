@@ -4192,28 +4192,29 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreRel pers rs' (ls.intern (.bvar (absU i))).1 ∧
         StoreInv pers rs' ∧ ECapAt ls (.bvar (absU i))) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+      (rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) := by
   rw [arena.store.EStore.intern_bvar] at h
   obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨e, bb, hit⟩ := q
-  -- the persistent probe, under the `shared_on` select
-  have hE : e = rs.pers ∧ bb = rs.shared_on ∧
+  obtain ⟨e, hit⟩ := q
+  -- the persistent probe, under the reader's `frozen` select
+  have hE : e = rs ∧
       ls.pers.bvars.find? ⟨absU i⟩ = hit.map absEIdx := by
     split at hq <;> rename_i hs <;>
       obtain ⟨hit1, hf, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq <;>
       simp only [Result.ok.injEq, Prod.mk.injEq] at hq <;>
-      obtain ⟨h1, h2, h3⟩ := hq
-    · refine ⟨h1.symm, by rw [← h2, hs], ?_⟩
+      obtain ⟨h1, h3⟩ := hq
+    · refine ⟨h1.symm, ?_⟩
       have := tbl_find_abs hrel.perst.bvars hinv.perst.bvars bvar_eq2 dupId_eidx
         (P := BVarNodeWF) trivial (by unfold rPersE; rw [if_pos hs]; exact hf)
       rw [← h3]; exact this
-    · refine ⟨h1.symm, by rw [← h2]; exact (Bool.not_eq_true _ ▸ hs).symm, ?_⟩
+    · refine ⟨h1.symm, ?_⟩
       have := tbl_find_abs hrel.perst.bvars hinv.perst.bvars bvar_eq2 dupId_eidx
         (P := BVarNodeWF) trivial (by unfold rPersE; rw [if_neg hs]; exact hf)
       rw [← h3]; exact this
-  obtain ⟨hE1, hE2, hE3⟩ := hE
-  subst hE1; subst hE2
+  obtain ⟨hE1, hE3⟩ := hE
+  subst e
+  try simp only [Aeneas.Std.uncurry] at h
   -- the twin's `intern` at a non-binder view is `internAt` at handle 0
   have htw : ls.intern (.bvar (absU i)) = ls.internAt (.bvar (absU i)) (Idx.ofWord 0) := rfl
   rw [htw, EStore.internAt]
@@ -4224,6 +4225,7 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
   cases hitc : hit with
   | some hp =>
     rw [hitc] at h
+    try dsimp only at h
     have he := Result.ok_injective h
     simp only [Prod.mk.injEq] at he
     obtain ⟨hr, hs'⟩ := he
@@ -4238,9 +4240,10 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
               = some (absEIdx hp) := by rw [hfind, hE3, hitc]; rfl
           rw [find?_eq_of_pers rfl hpp]; simp)⟩
     · intro ee hbad; simp at hbad
-    · exact ⟨rfl, rfl, rfl⟩
+    · exact ⟨rfl, rfl⟩
   | none =>
     rw [hitc] at h
+    try dsimp only at h
     simp only [Option.map_none]
     rw [hrel.scratchOn]
     split at h <;> rename_i hsc
@@ -4275,7 +4278,7 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
                   = some (absEIdx hs) := by rw [hfind2, hfindT, hoc]; rfl
               rw [find?_eq_of_scr rfl hpn (hrel.scratchOn.trans hsc) hss]; simp)⟩
         · intro ee hbad; simp at hbad
-        · exact ⟨rfl, rfl, rfl⟩
+        · exact ⟨rfl, rfl⟩
       | none =>
         rw [hoc] at h
         obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -4287,7 +4290,7 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
           simp only [Prod.mk.injEq] at he
           obtain ⟨hr, hs2⟩ := he
           subst hr; subst hs2
-          exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, ⟨rfl, rfl, rfl⟩⟩
+          exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, ⟨rfl, rfl⟩⟩
         · -- the append
           obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -4309,7 +4312,7 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
               hnew t1 ht1
           simp only [absBVarNode] at hrel1
           rw [hhandle] at hrel1
-          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, rfl, rfl⟩⟩
+          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, rfl⟩⟩
           intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -4322,8 +4325,8 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       rw [if_neg hsc]
       -- frozen implies scratch-on (`StoreInv.frz`, task #98-FREEZE): the
       -- scratch-off arm is an owned store's
-      have hsh : rs.shared_on = false := by
-        cases hs0 : rs.shared_on
+      have hsh : pers.frozen = false := by
+        cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
       try rw [hsh] at h
@@ -4336,7 +4339,7 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         simp only [Prod.mk.injEq] at he
         obtain ⟨hr, hs2⟩ := he
         subst hr; subst hs2
-        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, ⟨hsh.symm, rfl, rfl⟩⟩
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, ⟨rfl, rfl⟩⟩
       · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -4364,15 +4367,15 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
             (der_of_bvar_obs (ls := ls) hd) ht1
         simp only [absBVarNode] at hrel1
         rw [hhandle] at hrel1
-        refine ⟨?_, by intro ee hbad; simp at hbad, ⟨hsh.symm, rfl, rfl⟩⟩
+        refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, rfl⟩⟩
         intro hh hok
         simp only [core.result.Result.Ok.injEq] at hok
         subst hok
         have hrelPerst : ETablesRel rs.pers ls.pers := by
           rw [← hpersE]; exact hrel.perst
         have hinvPerst : ETablesInv rs.pers := by rw [← hpersE]; exact hinv.perst
-        exact ⟨hhandle, ⟨hrel.lss, { hrelPerst with bvars := hrel1 }, hrel.scrt, rfl⟩,
-          ⟨hinv.lss, { hinvPerst with bvars := hinv1 }, hinv.scrt, (by frz_tac)⟩,
+        exact ⟨hhandle, ⟨hrel.lss, (by unfold rPersE; rw [if_neg (by simp [hsh])]; exact { hrelPerst with bvars := hrel1 }), hrel.scrt, rfl⟩,
+          ⟨hinv.lss, (by unfold rPersE; rw [if_neg (by simp [hsh])]; exact { hinvPerst with bvars := hinv1 }), hinv.scrt, (by frz_tac)⟩,
           ECapAt.of_pers_size (hrel.scratchOn.trans (by simpa using hsc))
             (tbl_not_full_size hrelP hb1 hfull)⟩
 
@@ -4729,7 +4732,7 @@ theorem intern_e_bvar_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     rw [Arena.internBVarE, internE_run_of_cap rfl hcap, hhd]
   | Err ee => exact AOut₀.err (AErrSim.of_none (herr ee hr))
 
-/-- **The port's `intern_e_bvar` leaves the two tier flags alone.**  Finding 14
+/-- **The port's `intern_e_bvar` leaves the tier flag alone.**  Finding 14
 takes `hcap` and `hchild` off an interning walk's hypothesis list; `hfrozen`
 (finding 8) was the third — retired in task #97-P5-Unfreeze — and this is
 `estore_intern_bvar_abs`'s third conjunct, lifted to the monad.  The other
@@ -4738,7 +4741,6 @@ only here, at `bvar_range`'s leaf (task #97-P5-3 round 3 §4). -/
 theorem intern_e_bvar_flags₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     {i : Std.U64} {o} (hrun : arena.monad.intern_e_bvar pers st i = ok o) :
-    o.2.store.shared_on = st.store.shared_on ∧
       o.2.store.scratch_on = st.store.scratch_on := by
   rw [arena.monad.intern_e_bvar] at hrun
   obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -4746,8 +4748,7 @@ theorem intern_e_bvar_flags₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
   have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
     Result.ok_injective hrun
   subst ho
-  exact ⟨(estore_intern_bvar_abs (ls := lst.store) hrel.store hinv.store hp).2.2.1,
-    (estore_intern_bvar_abs (ls := lst.store) hrel.store hinv.store hp).2.2.2.1⟩
+  exact (estore_intern_bvar_abs (ls := lst.store) hrel.store hinv.store hp).2.2.1
 
 /-! ## The level-list tier's derived column, and the three inner `der` readers
 
@@ -5186,7 +5187,7 @@ theorem estore_intern_fvar_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreRel pers rs' (ls.intern (.fvar (absU idx) (absEIdx ty))).1 ∧
         StoreInv pers rs' ∧ ECapAt ls (.fvar (absU idx) (absEIdx ty))) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+      (rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) := by
   rw [arena.store.EStore.intern_fvar] at h
   -- the `sk` prologue: `b` is the scratch flag, `sk` says a child is scratch
@@ -5216,31 +5217,35 @@ theorem estore_intern_fvar_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
   -- the twin skips exactly where the port does (task #97-T2-LOCKSTEP D2)
   have hskeq : sk = (if ls.scratchOn then EStore.eRecHasScratchChild (ENodeView.fvar (absU idx) (absEIdx ty)) (Idx.ofWord 0) else false) := by
     rw [hrel.scratchOn]; exact hskp
-  -- the persistent cons probe, under the `sk` skip and the `shared_on` select
+  -- the persistent cons probe, under the `sk` skip and the reader's `frozen` select
   obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hbody
   clear hbody
-  obtain ⟨e, b1, pers1, hit⟩ := q
-  have hE : e = rs.pers ∧ b1 = rs.shared_on ∧ pers1 = pers ∧
+  obtain ⟨e, pers1, hit⟩ := q
+  have hE : e = rs.pers ∧ pers1 = pers ∧
       ls.persFindMaybe (ENodeView.fvar (absU idx) (absEIdx ty)) (Idx.ofWord 0) = hit.map absEIdx := by
     split at hq <;> rename_i hsk
     · simp only [Result.ok.injEq, Prod.mk.injEq] at hq
-      obtain ⟨h1, h2, h3, h4⟩ := hq
-      exact ⟨h1.symm, h2.symm, h3.symm, by rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_pos hsk]; rfl⟩
-    · split at hq <;> rename_i hs <;>
-        obtain ⟨hit1, hf, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq <;>
-        simp only [Result.ok.injEq, Prod.mk.injEq] at hq <;>
-        obtain ⟨h1, h2, h3, h4⟩ := hq
-      · refine ⟨h1.symm, by rw [← h2, hs], h3.symm, ?_⟩
+      obtain ⟨h1, h3, h4⟩ := hq
+      exact ⟨h1.symm, h3.symm, by rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_pos hsk]; rfl⟩
+    · obtain ⟨q2, hq2, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+      obtain ⟨e1, b1, e2, o⟩ := q2
+      simp only [Aeneas.Std.uncurry, Result.ok.injEq, Prod.mk.injEq] at hq
+      obtain ⟨h1, h3, h4⟩ := hq
+      split at hq2 <;> rename_i hs <;>
+        obtain ⟨hit1, hf, hq2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq2 <;>
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hq2 <;>
+        obtain ⟨g1, g2, g3, g4⟩ := hq2
+      · refine ⟨by rw [← h1, ← g1], by rw [← h3, ← g2, ← g3]; cases pers; simp_all, ?_⟩
         have := tbl_find_abs hrel.perst.fvars hinv.perst.fvars fvar_eq2 dupId_eidx
           (P := FVarNodeWF) trivial (by unfold rPersE; rw [if_pos hs]; exact hf)
-        rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
-      · refine ⟨h1.symm, by rw [← h2]; exact (Bool.not_eq_true _ ▸ hs).symm, h3.symm, ?_⟩
+        rw [← h4, ← g4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
+      · refine ⟨by rw [← h1, ← g1], by rw [← h3, ← g2, ← g3]; cases pers; simp_all, ?_⟩
         have := tbl_find_abs hrel.perst.fvars hinv.perst.fvars fvar_eq2 dupId_eidx
           (P := FVarNodeWF) trivial (by unfold rPersE; rw [if_neg hs]; exact hf)
-        rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
-  obtain ⟨hE1, hE2, hE3, hE4⟩ := hE
+        rw [← h4, ← g4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
+  obtain ⟨hE1, hE3, hE4⟩ := hE
   rw [hE3] at h
-  subst hE1; subst hE2
+  subst hE1
   have htw : ls.intern (.fvar (absU idx) (absEIdx ty))
       = ls.internAt (.fvar (absU idx) (absEIdx ty)) (Idx.ofWord 0) := rfl
   rw [htw, EStore.internAt]
@@ -5252,7 +5257,7 @@ theorem estore_intern_fvar_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
     simp only [Prod.mk.injEq] at he
     obtain ⟨hr, hs'⟩ := he
     subst hr; subst hs'
-    refine ⟨?_, ?_, ⟨rfl, rfl, rfl⟩⟩
+    refine ⟨?_, ?_, ⟨rfl, rfl⟩⟩
     · intro hh hok
       simp only [core.result.Result.Ok.injEq] at hok
       subst hok
@@ -5285,7 +5290,7 @@ theorem estore_intern_fvar_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         simp only [Prod.mk.injEq] at he
         obtain ⟨hr, hs'⟩ := he
         subst hr; subst hs'
-        refine ⟨?_, ?_, ⟨rfl, hsc.symm, rfl⟩⟩
+        refine ⟨?_, ?_, ⟨hsc.symm, rfl⟩⟩
         · intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -5310,7 +5315,7 @@ theorem estore_intern_fvar_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           obtain ⟨hr, hsr⟩ := he
           subst hr; subst hsr
           exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
-            ⟨rfl, hsc.symm, rfl⟩⟩
+            ⟨hsc.symm, rfl⟩⟩
         · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -5335,7 +5340,7 @@ theorem estore_intern_fvar_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
               (der_of_fvar_obs (ls := ls) hrelS hd) hnew t1 ht1
           simp only [absFVarNode] at hrel1
           rw [hhandle] at hrel1
-          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, hsc.symm, rfl⟩⟩
+          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨hsc.symm, rfl⟩⟩
           intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -5348,8 +5353,8 @@ theorem estore_intern_fvar_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
       rw [if_neg hsc]
       -- frozen implies scratch-on (`StoreInv.frz`, task #98-FREEZE): the
       -- scratch-off arm is an owned store's
-      have hsh : rs.shared_on = false := by
-        cases hs0 : rs.shared_on
+      have hsh : pers.frozen = false := by
+        cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
       try rw [hsh] at h
@@ -5363,7 +5368,7 @@ theorem estore_intern_fvar_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         obtain ⟨hr, hsr⟩ := he
         subst hr; subst hsr
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
-          ⟨hsh.symm, (show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
+          ⟨(show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
       · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -5385,11 +5390,11 @@ theorem estore_intern_fvar_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           rw [← hpersE]; exact hrel.perst
         have hinvPerst : ETablesInv rs.pers := by rw [← hpersE]; exact hinv.perst
         have hrelS : StoreRel pers
-            { rs with scratch_on := false, shared_on := false } ls := by
+            { rs with scratch_on := false } ls := by
           refine ⟨hrel.lss, ?_, hrel.scrt, ?_⟩
-          · show ETablesRel (rPersE pers { rs with scratch_on := false, shared_on := false })
+          · show ETablesRel (rPersE pers { rs with scratch_on := false })
               ls.pers
-            unfold rPersE; rw [if_neg (by simp)]; exact hrelPerst
+            unfold rPersE; rw [if_neg (by simp [hsh])]; exact hrelPerst
           · rw [hrel.scratchOn]; simpa using hsc
         have hhandle : absEIdx hnew
             = Idx.mk ETag.fvar Idx.tierP (UInt32.ofNat ls.pers.fvars.size) := by
@@ -5402,7 +5407,7 @@ theorem estore_intern_fvar_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         simp only [absFVarNode] at hrel1
         rw [hhandle] at hrel1
         refine ⟨?_, by intro ee hbad; simp at hbad,
-          ⟨hsh.symm, (show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
+          ⟨(show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
         intro hh hok
         simp only [core.result.Result.Ok.injEq] at hok
         subst hok
@@ -5411,11 +5416,11 @@ theorem estore_intern_fvar_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           ECapAt.of_pers_size (hrel.scratchOn.trans (by simpa using hsc))
             (tbl_not_full_size hrelP hb2 hfull)⟩
         · show ETablesRel (rPersE pers _) _
-          unfold rPersE; rw [if_neg (by simp)]
+          unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hrelPerst with fvars := hrel1 }
         · simpa using hsc
         · show ETablesInv (rPersE pers _)
-          unfold rPersE; rw [if_neg (by simp)]
+          unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with fvars := hinv1 }
 
 /-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `estore_intern_fvar_abs₀` (its `hchild` has been
@@ -5433,7 +5438,7 @@ theorem estore_intern_fvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreRel pers rs' (ls.intern (.fvar (absU idx) (absEIdx ty))).1 ∧
         StoreInv pers rs' ∧ ECapAt ls (.fvar (absU idx) (absEIdx ty))) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+      (rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) :=
   estore_intern_fvar_abs₀ hrel hinv h
 
@@ -5624,7 +5629,7 @@ theorem estore_intern_sort_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreRel pers rs' (ls.intern (.sort (absLIdx u))).1 ∧
         StoreInv pers rs' ∧ ECapAt ls (.sort (absLIdx u))) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+      (rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) := by
   rw [arena.store.EStore.intern_sort] at h
   -- the `sk` prologue: `b` is the scratch flag, `sk` says a child is scratch
@@ -5654,31 +5659,35 @@ theorem estore_intern_sort_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
   -- the twin skips exactly where the port does (task #97-T2-LOCKSTEP D2)
   have hskeq : sk = (if ls.scratchOn then EStore.eRecHasScratchChild (ENodeView.sort (absLIdx u)) (Idx.ofWord 0) else false) := by
     rw [hrel.scratchOn]; exact hskp
-  -- the persistent cons probe, under the `sk` skip and the `shared_on` select
+  -- the persistent cons probe, under the `sk` skip and the reader's `frozen` select
   obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hbody
   clear hbody
-  obtain ⟨e, b1, pers1, hit⟩ := q
-  have hE : e = rs.pers ∧ b1 = rs.shared_on ∧ pers1 = pers ∧
+  obtain ⟨e, pers1, hit⟩ := q
+  have hE : e = rs.pers ∧ pers1 = pers ∧
       ls.persFindMaybe (ENodeView.sort (absLIdx u)) (Idx.ofWord 0) = hit.map absEIdx := by
     split at hq <;> rename_i hsk
     · simp only [Result.ok.injEq, Prod.mk.injEq] at hq
-      obtain ⟨h1, h2, h3, h4⟩ := hq
-      exact ⟨h1.symm, h2.symm, h3.symm, by rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_pos hsk]; rfl⟩
-    · split at hq <;> rename_i hs <;>
-        obtain ⟨hit1, hf, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq <;>
-        simp only [Result.ok.injEq, Prod.mk.injEq] at hq <;>
-        obtain ⟨h1, h2, h3, h4⟩ := hq
-      · refine ⟨h1.symm, by rw [← h2, hs], h3.symm, ?_⟩
+      obtain ⟨h1, h3, h4⟩ := hq
+      exact ⟨h1.symm, h3.symm, by rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_pos hsk]; rfl⟩
+    · obtain ⟨q2, hq2, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+      obtain ⟨e1, b1, e2, o⟩ := q2
+      simp only [Aeneas.Std.uncurry, Result.ok.injEq, Prod.mk.injEq] at hq
+      obtain ⟨h1, h3, h4⟩ := hq
+      split at hq2 <;> rename_i hs <;>
+        obtain ⟨hit1, hf, hq2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq2 <;>
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hq2 <;>
+        obtain ⟨g1, g2, g3, g4⟩ := hq2
+      · refine ⟨by rw [← h1, ← g1], by rw [← h3, ← g2, ← g3]; cases pers; simp_all, ?_⟩
         have := tbl_find_abs hrel.perst.sorts hinv.perst.sorts sort_eq2 dupId_eidx
           (P := SortNodeWF) trivial (by unfold rPersE; rw [if_pos hs]; exact hf)
-        rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
-      · refine ⟨h1.symm, by rw [← h2]; exact (Bool.not_eq_true _ ▸ hs).symm, h3.symm, ?_⟩
+        rw [← h4, ← g4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
+      · refine ⟨by rw [← h1, ← g1], by rw [← h3, ← g2, ← g3]; cases pers; simp_all, ?_⟩
         have := tbl_find_abs hrel.perst.sorts hinv.perst.sorts sort_eq2 dupId_eidx
           (P := SortNodeWF) trivial (by unfold rPersE; rw [if_neg hs]; exact hf)
-        rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
-  obtain ⟨hE1, hE2, hE3, hE4⟩ := hE
+        rw [← h4, ← g4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
+  obtain ⟨hE1, hE3, hE4⟩ := hE
   rw [hE3] at h
-  subst hE1; subst hE2
+  subst hE1
   have htw : ls.intern (.sort (absLIdx u))
       = ls.internAt (.sort (absLIdx u)) (Idx.ofWord 0) := rfl
   rw [htw, EStore.internAt]
@@ -5690,7 +5699,7 @@ theorem estore_intern_sort_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
     simp only [Prod.mk.injEq] at he
     obtain ⟨hr, hs'⟩ := he
     subst hr; subst hs'
-    refine ⟨?_, ?_, ⟨rfl, rfl, rfl⟩⟩
+    refine ⟨?_, ?_, ⟨rfl, rfl⟩⟩
     · intro hh hok
       simp only [core.result.Result.Ok.injEq] at hok
       subst hok
@@ -5723,7 +5732,7 @@ theorem estore_intern_sort_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         simp only [Prod.mk.injEq] at he
         obtain ⟨hr, hs'⟩ := he
         subst hr; subst hs'
-        refine ⟨?_, ?_, ⟨rfl, hsc.symm, rfl⟩⟩
+        refine ⟨?_, ?_, ⟨hsc.symm, rfl⟩⟩
         · intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -5748,7 +5757,7 @@ theorem estore_intern_sort_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           obtain ⟨hr, hsr⟩ := he
           subst hr; subst hsr
           exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
-            ⟨rfl, hsc.symm, rfl⟩⟩
+            ⟨hsc.symm, rfl⟩⟩
         · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -5773,7 +5782,7 @@ theorem estore_intern_sort_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
               (der_of_sort_obs (ls := ls) hrelS hd) hnew t1 ht1
           simp only [absSortNode] at hrel1
           rw [hhandle] at hrel1
-          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, hsc.symm, rfl⟩⟩
+          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨hsc.symm, rfl⟩⟩
           intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -5786,8 +5795,8 @@ theorem estore_intern_sort_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
       rw [if_neg hsc]
       -- frozen implies scratch-on (`StoreInv.frz`, task #98-FREEZE): the
       -- scratch-off arm is an owned store's
-      have hsh : rs.shared_on = false := by
-        cases hs0 : rs.shared_on
+      have hsh : pers.frozen = false := by
+        cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
       try rw [hsh] at h
@@ -5801,7 +5810,7 @@ theorem estore_intern_sort_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         obtain ⟨hr, hsr⟩ := he
         subst hr; subst hsr
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
-          ⟨hsh.symm, (show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
+          ⟨(show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
       · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -5823,11 +5832,11 @@ theorem estore_intern_sort_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           rw [← hpersE]; exact hrel.perst
         have hinvPerst : ETablesInv rs.pers := by rw [← hpersE]; exact hinv.perst
         have hrelS : StoreRel pers
-            { rs with scratch_on := false, shared_on := false } ls := by
+            { rs with scratch_on := false } ls := by
           refine ⟨hrel.lss, ?_, hrel.scrt, ?_⟩
-          · show ETablesRel (rPersE pers { rs with scratch_on := false, shared_on := false })
+          · show ETablesRel (rPersE pers { rs with scratch_on := false })
               ls.pers
-            unfold rPersE; rw [if_neg (by simp)]; exact hrelPerst
+            unfold rPersE; rw [if_neg (by simp [hsh])]; exact hrelPerst
           · rw [hrel.scratchOn]; simpa using hsc
         have hhandle : absEIdx hnew
             = Idx.mk ETag.sort Idx.tierP (UInt32.ofNat ls.pers.sorts.size) := by
@@ -5840,7 +5849,7 @@ theorem estore_intern_sort_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         simp only [absSortNode] at hrel1
         rw [hhandle] at hrel1
         refine ⟨?_, by intro ee hbad; simp at hbad,
-          ⟨hsh.symm, (show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
+          ⟨(show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
         intro hh hok
         simp only [core.result.Result.Ok.injEq] at hok
         subst hok
@@ -5849,11 +5858,11 @@ theorem estore_intern_sort_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           ECapAt.of_pers_size (hrel.scratchOn.trans (by simpa using hsc))
             (tbl_not_full_size hrelP hb2 hfull)⟩
         · show ETablesRel (rPersE pers _) _
-          unfold rPersE; rw [if_neg (by simp)]
+          unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hrelPerst with sorts := hrel1 }
         · simpa using hsc
         · show ETablesInv (rPersE pers _)
-          unfold rPersE; rw [if_neg (by simp)]
+          unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with sorts := hinv1 }
 
 /-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `estore_intern_sort_abs₀` (its `hchild` has been
@@ -5871,7 +5880,7 @@ theorem estore_intern_sort_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreRel pers rs' (ls.intern (.sort (absLIdx u))).1 ∧
         StoreInv pers rs' ∧ ECapAt ls (.sort (absLIdx u))) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+      (rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) :=
   estore_intern_sort_abs₀ hrel hinv h
 
@@ -5892,7 +5901,7 @@ theorem estore_intern_const_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreRel pers rs' (ls.intern (.const (absNIdx n) (absLsIdx us))).1 ∧
         StoreInv pers rs' ∧ ECapAt ls (.const (absNIdx n) (absLsIdx us))) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+      (rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) := by
   rw [arena.store.EStore.intern_const] at h
   -- the `sk` prologue: `b` is the scratch flag, `sk` says a child is scratch
@@ -5927,31 +5936,35 @@ theorem estore_intern_const_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
   -- the twin skips exactly where the port does (task #97-T2-LOCKSTEP D2)
   have hskeq : sk = (if ls.scratchOn then EStore.eRecHasScratchChild (ENodeView.const (absNIdx n) (absLsIdx us)) (Idx.ofWord 0) else false) := by
     rw [hrel.scratchOn]; exact hskp
-  -- the persistent cons probe, under the `sk` skip and the `shared_on` select
+  -- the persistent cons probe, under the `sk` skip and the reader's `frozen` select
   obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hbody
   clear hbody
-  obtain ⟨e, b1, pers1, hit⟩ := q
-  have hE : e = rs.pers ∧ b1 = rs.shared_on ∧ pers1 = pers ∧
+  obtain ⟨e, pers1, hit⟩ := q
+  have hE : e = rs.pers ∧ pers1 = pers ∧
       ls.persFindMaybe (ENodeView.const (absNIdx n) (absLsIdx us)) (Idx.ofWord 0) = hit.map absEIdx := by
     split at hq <;> rename_i hsk
     · simp only [Result.ok.injEq, Prod.mk.injEq] at hq
-      obtain ⟨h1, h2, h3, h4⟩ := hq
-      exact ⟨h1.symm, h2.symm, h3.symm, by rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_pos hsk]; rfl⟩
-    · split at hq <;> rename_i hs <;>
-        obtain ⟨hit1, hf, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq <;>
-        simp only [Result.ok.injEq, Prod.mk.injEq] at hq <;>
-        obtain ⟨h1, h2, h3, h4⟩ := hq
-      · refine ⟨h1.symm, by rw [← h2, hs], h3.symm, ?_⟩
+      obtain ⟨h1, h3, h4⟩ := hq
+      exact ⟨h1.symm, h3.symm, by rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_pos hsk]; rfl⟩
+    · obtain ⟨q2, hq2, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+      obtain ⟨e1, b1, e2, o⟩ := q2
+      simp only [Aeneas.Std.uncurry, Result.ok.injEq, Prod.mk.injEq] at hq
+      obtain ⟨h1, h3, h4⟩ := hq
+      split at hq2 <;> rename_i hs <;>
+        obtain ⟨hit1, hf, hq2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq2 <;>
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hq2 <;>
+        obtain ⟨g1, g2, g3, g4⟩ := hq2
+      · refine ⟨by rw [← h1, ← g1], by rw [← h3, ← g2, ← g3]; cases pers; simp_all, ?_⟩
         have := tbl_find_abs hrel.perst.consts hinv.perst.consts const_eq2 dupId_eidx
           (P := ConstNodeWF) trivial (by unfold rPersE; rw [if_pos hs]; exact hf)
-        rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
-      · refine ⟨h1.symm, by rw [← h2]; exact (Bool.not_eq_true _ ▸ hs).symm, h3.symm, ?_⟩
+        rw [← h4, ← g4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
+      · refine ⟨by rw [← h1, ← g1], by rw [← h3, ← g2, ← g3]; cases pers; simp_all, ?_⟩
         have := tbl_find_abs hrel.perst.consts hinv.perst.consts const_eq2 dupId_eidx
           (P := ConstNodeWF) trivial (by unfold rPersE; rw [if_neg hs]; exact hf)
-        rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
-  obtain ⟨hE1, hE2, hE3, hE4⟩ := hE
+        rw [← h4, ← g4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
+  obtain ⟨hE1, hE3, hE4⟩ := hE
   rw [hE3] at h
-  subst hE1; subst hE2
+  subst hE1
   have htw : ls.intern (.const (absNIdx n) (absLsIdx us))
       = ls.internAt (.const (absNIdx n) (absLsIdx us)) (Idx.ofWord 0) := rfl
   rw [htw, EStore.internAt]
@@ -5963,7 +5976,7 @@ theorem estore_intern_const_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
     simp only [Prod.mk.injEq] at he
     obtain ⟨hr, hs'⟩ := he
     subst hr; subst hs'
-    refine ⟨?_, ?_, ⟨rfl, rfl, rfl⟩⟩
+    refine ⟨?_, ?_, ⟨rfl, rfl⟩⟩
     · intro hh hok
       simp only [core.result.Result.Ok.injEq] at hok
       subst hok
@@ -5996,7 +6009,7 @@ theorem estore_intern_const_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         simp only [Prod.mk.injEq] at he
         obtain ⟨hr, hs'⟩ := he
         subst hr; subst hs'
-        refine ⟨?_, ?_, ⟨rfl, hsc.symm, rfl⟩⟩
+        refine ⟨?_, ?_, ⟨hsc.symm, rfl⟩⟩
         · intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -6021,7 +6034,7 @@ theorem estore_intern_const_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           obtain ⟨hr, hsr⟩ := he
           subst hr; subst hsr
           exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
-            ⟨rfl, hsc.symm, rfl⟩⟩
+            ⟨hsc.symm, rfl⟩⟩
         · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -6046,7 +6059,7 @@ theorem estore_intern_const_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
               (der_of_const_obs (ls := ls) hrelS hd) hnew t1 ht1
           simp only [absConstNode] at hrel1
           rw [hhandle] at hrel1
-          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, hsc.symm, rfl⟩⟩
+          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨hsc.symm, rfl⟩⟩
           intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -6059,8 +6072,8 @@ theorem estore_intern_const_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
       rw [if_neg hsc]
       -- frozen implies scratch-on (`StoreInv.frz`, task #98-FREEZE): the
       -- scratch-off arm is an owned store's
-      have hsh : rs.shared_on = false := by
-        cases hs0 : rs.shared_on
+      have hsh : pers.frozen = false := by
+        cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
       try rw [hsh] at h
@@ -6074,7 +6087,7 @@ theorem estore_intern_const_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         obtain ⟨hr, hsr⟩ := he
         subst hr; subst hsr
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
-          ⟨hsh.symm, (show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
+          ⟨(show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
       · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -6096,11 +6109,11 @@ theorem estore_intern_const_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           rw [← hpersE]; exact hrel.perst
         have hinvPerst : ETablesInv rs.pers := by rw [← hpersE]; exact hinv.perst
         have hrelS : StoreRel pers
-            { rs with scratch_on := false, shared_on := false } ls := by
+            { rs with scratch_on := false } ls := by
           refine ⟨hrel.lss, ?_, hrel.scrt, ?_⟩
-          · show ETablesRel (rPersE pers { rs with scratch_on := false, shared_on := false })
+          · show ETablesRel (rPersE pers { rs with scratch_on := false })
               ls.pers
-            unfold rPersE; rw [if_neg (by simp)]; exact hrelPerst
+            unfold rPersE; rw [if_neg (by simp [hsh])]; exact hrelPerst
           · rw [hrel.scratchOn]; simpa using hsc
         have hhandle : absEIdx hnew
             = Idx.mk ETag.const Idx.tierP (UInt32.ofNat ls.pers.consts.size) := by
@@ -6113,7 +6126,7 @@ theorem estore_intern_const_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         simp only [absConstNode] at hrel1
         rw [hhandle] at hrel1
         refine ⟨?_, by intro ee hbad; simp at hbad,
-          ⟨hsh.symm, (show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
+          ⟨(show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
         intro hh hok
         simp only [core.result.Result.Ok.injEq] at hok
         subst hok
@@ -6122,11 +6135,11 @@ theorem estore_intern_const_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           ECapAt.of_pers_size (hrel.scratchOn.trans (by simpa using hsc))
             (tbl_not_full_size hrelP hb2 hfull)⟩
         · show ETablesRel (rPersE pers _) _
-          unfold rPersE; rw [if_neg (by simp)]
+          unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hrelPerst with consts := hrel1 }
         · simpa using hsc
         · show ETablesInv (rPersE pers _)
-          unfold rPersE; rw [if_neg (by simp)]
+          unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with consts := hinv1 }
 
 /-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `estore_intern_const_abs₀` (its `hchild` has been
@@ -6144,7 +6157,7 @@ theorem estore_intern_const_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreRel pers rs' (ls.intern (.const (absNIdx n) (absLsIdx us))).1 ∧
         StoreInv pers rs' ∧ ECapAt ls (.const (absNIdx n) (absLsIdx us))) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+      (rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) :=
   estore_intern_const_abs₀ hrel hinv h
 
@@ -6165,7 +6178,7 @@ theorem estore_intern_app_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreRel pers rs' (ls.intern (.app (absEIdx f) (absEIdx a))).1 ∧
         StoreInv pers rs' ∧ ECapAt ls (.app (absEIdx f) (absEIdx a))) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+      (rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) := by
   rw [arena.store.EStore.intern_app] at h
   -- the `sk` prologue: `b` is the scratch flag, `sk` says a child is scratch
@@ -6200,31 +6213,35 @@ theorem estore_intern_app_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
   -- the twin skips exactly where the port does (task #97-T2-LOCKSTEP D2)
   have hskeq : sk = (if ls.scratchOn then EStore.eRecHasScratchChild (ENodeView.app (absEIdx f) (absEIdx a)) (Idx.ofWord 0) else false) := by
     rw [hrel.scratchOn]; exact hskp
-  -- the persistent cons probe, under the `sk` skip and the `shared_on` select
+  -- the persistent cons probe, under the `sk` skip and the reader's `frozen` select
   obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hbody
   clear hbody
-  obtain ⟨e, b1, pers1, hit⟩ := q
-  have hE : e = rs.pers ∧ b1 = rs.shared_on ∧ pers1 = pers ∧
+  obtain ⟨e, pers1, hit⟩ := q
+  have hE : e = rs.pers ∧ pers1 = pers ∧
       ls.persFindMaybe (ENodeView.app (absEIdx f) (absEIdx a)) (Idx.ofWord 0) = hit.map absEIdx := by
     split at hq <;> rename_i hsk
     · simp only [Result.ok.injEq, Prod.mk.injEq] at hq
-      obtain ⟨h1, h2, h3, h4⟩ := hq
-      exact ⟨h1.symm, h2.symm, h3.symm, by rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_pos hsk]; rfl⟩
-    · split at hq <;> rename_i hs <;>
-        obtain ⟨hit1, hf, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq <;>
-        simp only [Result.ok.injEq, Prod.mk.injEq] at hq <;>
-        obtain ⟨h1, h2, h3, h4⟩ := hq
-      · refine ⟨h1.symm, by rw [← h2, hs], h3.symm, ?_⟩
+      obtain ⟨h1, h3, h4⟩ := hq
+      exact ⟨h1.symm, h3.symm, by rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_pos hsk]; rfl⟩
+    · obtain ⟨q2, hq2, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+      obtain ⟨e1, b1, e2, o⟩ := q2
+      simp only [Aeneas.Std.uncurry, Result.ok.injEq, Prod.mk.injEq] at hq
+      obtain ⟨h1, h3, h4⟩ := hq
+      split at hq2 <;> rename_i hs <;>
+        obtain ⟨hit1, hf, hq2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq2 <;>
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hq2 <;>
+        obtain ⟨g1, g2, g3, g4⟩ := hq2
+      · refine ⟨by rw [← h1, ← g1], by rw [← h3, ← g2, ← g3]; cases pers; simp_all, ?_⟩
         have := tbl_find_abs hrel.perst.apps hinv.perst.apps app_eq2 dupId_eidx
           (P := AppNodeWF) trivial (by unfold rPersE; rw [if_pos hs]; exact hf)
-        rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
-      · refine ⟨h1.symm, by rw [← h2]; exact (Bool.not_eq_true _ ▸ hs).symm, h3.symm, ?_⟩
+        rw [← h4, ← g4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
+      · refine ⟨by rw [← h1, ← g1], by rw [← h3, ← g2, ← g3]; cases pers; simp_all, ?_⟩
         have := tbl_find_abs hrel.perst.apps hinv.perst.apps app_eq2 dupId_eidx
           (P := AppNodeWF) trivial (by unfold rPersE; rw [if_neg hs]; exact hf)
-        rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
-  obtain ⟨hE1, hE2, hE3, hE4⟩ := hE
+        rw [← h4, ← g4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
+  obtain ⟨hE1, hE3, hE4⟩ := hE
   rw [hE3] at h
-  subst hE1; subst hE2
+  subst hE1
   have htw : ls.intern (.app (absEIdx f) (absEIdx a))
       = ls.internAt (.app (absEIdx f) (absEIdx a)) (Idx.ofWord 0) := rfl
   rw [htw, EStore.internAt]
@@ -6236,7 +6253,7 @@ theorem estore_intern_app_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
     simp only [Prod.mk.injEq] at he
     obtain ⟨hr, hs'⟩ := he
     subst hr; subst hs'
-    refine ⟨?_, ?_, ⟨rfl, rfl, rfl⟩⟩
+    refine ⟨?_, ?_, ⟨rfl, rfl⟩⟩
     · intro hh hok
       simp only [core.result.Result.Ok.injEq] at hok
       subst hok
@@ -6269,7 +6286,7 @@ theorem estore_intern_app_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         simp only [Prod.mk.injEq] at he
         obtain ⟨hr, hs'⟩ := he
         subst hr; subst hs'
-        refine ⟨?_, ?_, ⟨rfl, hsc.symm, rfl⟩⟩
+        refine ⟨?_, ?_, ⟨hsc.symm, rfl⟩⟩
         · intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -6294,7 +6311,7 @@ theorem estore_intern_app_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           obtain ⟨hr, hsr⟩ := he
           subst hr; subst hsr
           exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
-            ⟨rfl, hsc.symm, rfl⟩⟩
+            ⟨hsc.symm, rfl⟩⟩
         · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -6319,7 +6336,7 @@ theorem estore_intern_app_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
               (der_of_app_obs (ls := ls) hrelS hd) hnew t1 ht1
           simp only [absAppNode] at hrel1
           rw [hhandle] at hrel1
-          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, hsc.symm, rfl⟩⟩
+          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨hsc.symm, rfl⟩⟩
           intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -6332,8 +6349,8 @@ theorem estore_intern_app_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
       rw [if_neg hsc]
       -- frozen implies scratch-on (`StoreInv.frz`, task #98-FREEZE): the
       -- scratch-off arm is an owned store's
-      have hsh : rs.shared_on = false := by
-        cases hs0 : rs.shared_on
+      have hsh : pers.frozen = false := by
+        cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
       try rw [hsh] at h
@@ -6347,7 +6364,7 @@ theorem estore_intern_app_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         obtain ⟨hr, hsr⟩ := he
         subst hr; subst hsr
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
-          ⟨hsh.symm, (show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
+          ⟨(show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
       · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -6369,11 +6386,11 @@ theorem estore_intern_app_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           rw [← hpersE]; exact hrel.perst
         have hinvPerst : ETablesInv rs.pers := by rw [← hpersE]; exact hinv.perst
         have hrelS : StoreRel pers
-            { rs with scratch_on := false, shared_on := false } ls := by
+            { rs with scratch_on := false } ls := by
           refine ⟨hrel.lss, ?_, hrel.scrt, ?_⟩
-          · show ETablesRel (rPersE pers { rs with scratch_on := false, shared_on := false })
+          · show ETablesRel (rPersE pers { rs with scratch_on := false })
               ls.pers
-            unfold rPersE; rw [if_neg (by simp)]; exact hrelPerst
+            unfold rPersE; rw [if_neg (by simp [hsh])]; exact hrelPerst
           · rw [hrel.scratchOn]; simpa using hsc
         have hhandle : absEIdx hnew
             = Idx.mk ETag.app Idx.tierP (UInt32.ofNat ls.pers.apps.size) := by
@@ -6386,7 +6403,7 @@ theorem estore_intern_app_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         simp only [absAppNode] at hrel1
         rw [hhandle] at hrel1
         refine ⟨?_, by intro ee hbad; simp at hbad,
-          ⟨hsh.symm, (show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
+          ⟨(show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
         intro hh hok
         simp only [core.result.Result.Ok.injEq] at hok
         subst hok
@@ -6395,11 +6412,11 @@ theorem estore_intern_app_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           ECapAt.of_pers_size (hrel.scratchOn.trans (by simpa using hsc))
             (tbl_not_full_size hrelP hb2 hfull)⟩
         · show ETablesRel (rPersE pers _) _
-          unfold rPersE; rw [if_neg (by simp)]
+          unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hrelPerst with apps := hrel1 }
         · simpa using hsc
         · show ETablesInv (rPersE pers _)
-          unfold rPersE; rw [if_neg (by simp)]
+          unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with apps := hinv1 }
 
 /-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `estore_intern_app_abs₀` (its `hchild` has been
@@ -6417,7 +6434,7 @@ theorem estore_intern_app_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreRel pers rs' (ls.intern (.app (absEIdx f) (absEIdx a))).1 ∧
         StoreInv pers rs' ∧ ECapAt ls (.app (absEIdx f) (absEIdx a))) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+      (rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) :=
   estore_intern_app_abs₀ hrel hinv h
 
@@ -6438,7 +6455,7 @@ theorem estore_intern_proj_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreRel pers rs' (ls.intern (.proj (absNIdx n) (absU i) (absEIdx ep))).1 ∧
         StoreInv pers rs' ∧ ECapAt ls (.proj (absNIdx n) (absU i) (absEIdx ep))) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+      (rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) := by
   rw [arena.store.EStore.intern_proj] at h
   -- the `sk` prologue: `b` is the scratch flag, `sk` says a child is scratch
@@ -6473,31 +6490,35 @@ theorem estore_intern_proj_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
   -- the twin skips exactly where the port does (task #97-T2-LOCKSTEP D2)
   have hskeq : sk = (if ls.scratchOn then EStore.eRecHasScratchChild (ENodeView.proj (absNIdx n) (absU i) (absEIdx ep)) (Idx.ofWord 0) else false) := by
     rw [hrel.scratchOn]; exact hskp
-  -- the persistent cons probe, under the `sk` skip and the `shared_on` select
+  -- the persistent cons probe, under the `sk` skip and the reader's `frozen` select
   obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hbody
   clear hbody
-  obtain ⟨e, b1, pers1, hit⟩ := q
-  have hE : e = rs.pers ∧ b1 = rs.shared_on ∧ pers1 = pers ∧
+  obtain ⟨e, pers1, hit⟩ := q
+  have hE : e = rs.pers ∧ pers1 = pers ∧
       ls.persFindMaybe (ENodeView.proj (absNIdx n) (absU i) (absEIdx ep)) (Idx.ofWord 0) = hit.map absEIdx := by
     split at hq <;> rename_i hsk
     · simp only [Result.ok.injEq, Prod.mk.injEq] at hq
-      obtain ⟨h1, h2, h3, h4⟩ := hq
-      exact ⟨h1.symm, h2.symm, h3.symm, by rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_pos hsk]; rfl⟩
-    · split at hq <;> rename_i hs <;>
-        obtain ⟨hit1, hf, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq <;>
-        simp only [Result.ok.injEq, Prod.mk.injEq] at hq <;>
-        obtain ⟨h1, h2, h3, h4⟩ := hq
-      · refine ⟨h1.symm, by rw [← h2, hs], h3.symm, ?_⟩
+      obtain ⟨h1, h3, h4⟩ := hq
+      exact ⟨h1.symm, h3.symm, by rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_pos hsk]; rfl⟩
+    · obtain ⟨q2, hq2, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+      obtain ⟨e1, b1, e2, o⟩ := q2
+      simp only [Aeneas.Std.uncurry, Result.ok.injEq, Prod.mk.injEq] at hq
+      obtain ⟨h1, h3, h4⟩ := hq
+      split at hq2 <;> rename_i hs <;>
+        obtain ⟨hit1, hf, hq2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq2 <;>
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hq2 <;>
+        obtain ⟨g1, g2, g3, g4⟩ := hq2
+      · refine ⟨by rw [← h1, ← g1], by rw [← h3, ← g2, ← g3]; cases pers; simp_all, ?_⟩
         have := tbl_find_abs hrel.perst.projs hinv.perst.projs proj_eq2 dupId_eidx
           (P := ProjNodeWF) trivial (by unfold rPersE; rw [if_pos hs]; exact hf)
-        rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
-      · refine ⟨h1.symm, by rw [← h2]; exact (Bool.not_eq_true _ ▸ hs).symm, h3.symm, ?_⟩
+        rw [← h4, ← g4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
+      · refine ⟨by rw [← h1, ← g1], by rw [← h3, ← g2, ← g3]; cases pers; simp_all, ?_⟩
         have := tbl_find_abs hrel.perst.projs hinv.perst.projs proj_eq2 dupId_eidx
           (P := ProjNodeWF) trivial (by unfold rPersE; rw [if_neg hs]; exact hf)
-        rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
-  obtain ⟨hE1, hE2, hE3, hE4⟩ := hE
+        rw [← h4, ← g4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
+  obtain ⟨hE1, hE3, hE4⟩ := hE
   rw [hE3] at h
-  subst hE1; subst hE2
+  subst hE1
   have htw : ls.intern (.proj (absNIdx n) (absU i) (absEIdx ep))
       = ls.internAt (.proj (absNIdx n) (absU i) (absEIdx ep)) (Idx.ofWord 0) := rfl
   rw [htw, EStore.internAt]
@@ -6509,7 +6530,7 @@ theorem estore_intern_proj_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
     simp only [Prod.mk.injEq] at he
     obtain ⟨hr, hs'⟩ := he
     subst hr; subst hs'
-    refine ⟨?_, ?_, ⟨rfl, rfl, rfl⟩⟩
+    refine ⟨?_, ?_, ⟨rfl, rfl⟩⟩
     · intro hh hok
       simp only [core.result.Result.Ok.injEq] at hok
       subst hok
@@ -6542,7 +6563,7 @@ theorem estore_intern_proj_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         simp only [Prod.mk.injEq] at he
         obtain ⟨hr, hs'⟩ := he
         subst hr; subst hs'
-        refine ⟨?_, ?_, ⟨rfl, hsc.symm, rfl⟩⟩
+        refine ⟨?_, ?_, ⟨hsc.symm, rfl⟩⟩
         · intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -6567,7 +6588,7 @@ theorem estore_intern_proj_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           obtain ⟨hr, hsr⟩ := he
           subst hr; subst hsr
           exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
-            ⟨rfl, hsc.symm, rfl⟩⟩
+            ⟨hsc.symm, rfl⟩⟩
         · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -6592,7 +6613,7 @@ theorem estore_intern_proj_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
               (der_of_proj_obs (ls := ls) hrelS hd) hnew t1 ht1
           simp only [absProjNode] at hrel1
           rw [hhandle] at hrel1
-          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, hsc.symm, rfl⟩⟩
+          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨hsc.symm, rfl⟩⟩
           intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -6605,8 +6626,8 @@ theorem estore_intern_proj_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
       rw [if_neg hsc]
       -- frozen implies scratch-on (`StoreInv.frz`, task #98-FREEZE): the
       -- scratch-off arm is an owned store's
-      have hsh : rs.shared_on = false := by
-        cases hs0 : rs.shared_on
+      have hsh : pers.frozen = false := by
+        cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
       try rw [hsh] at h
@@ -6620,7 +6641,7 @@ theorem estore_intern_proj_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         obtain ⟨hr, hsr⟩ := he
         subst hr; subst hsr
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
-          ⟨hsh.symm, (show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
+          ⟨(show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
       · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -6642,11 +6663,11 @@ theorem estore_intern_proj_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           rw [← hpersE]; exact hrel.perst
         have hinvPerst : ETablesInv rs.pers := by rw [← hpersE]; exact hinv.perst
         have hrelS : StoreRel pers
-            { rs with scratch_on := false, shared_on := false } ls := by
+            { rs with scratch_on := false } ls := by
           refine ⟨hrel.lss, ?_, hrel.scrt, ?_⟩
-          · show ETablesRel (rPersE pers { rs with scratch_on := false, shared_on := false })
+          · show ETablesRel (rPersE pers { rs with scratch_on := false })
               ls.pers
-            unfold rPersE; rw [if_neg (by simp)]; exact hrelPerst
+            unfold rPersE; rw [if_neg (by simp [hsh])]; exact hrelPerst
           · rw [hrel.scratchOn]; simpa using hsc
         have hhandle : absEIdx hnew
             = Idx.mk ETag.proj Idx.tierP (UInt32.ofNat ls.pers.projs.size) := by
@@ -6659,7 +6680,7 @@ theorem estore_intern_proj_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         simp only [absProjNode] at hrel1
         rw [hhandle] at hrel1
         refine ⟨?_, by intro ee hbad; simp at hbad,
-          ⟨hsh.symm, (show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
+          ⟨(show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
         intro hh hok
         simp only [core.result.Result.Ok.injEq] at hok
         subst hok
@@ -6668,11 +6689,11 @@ theorem estore_intern_proj_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           ECapAt.of_pers_size (hrel.scratchOn.trans (by simpa using hsc))
             (tbl_not_full_size hrelP hb2 hfull)⟩
         · show ETablesRel (rPersE pers _) _
-          unfold rPersE; rw [if_neg (by simp)]
+          unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hrelPerst with projs := hrel1 }
         · simpa using hsc
         · show ETablesInv (rPersE pers _)
-          unfold rPersE; rw [if_neg (by simp)]
+          unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with projs := hinv1 }
 
 /-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `estore_intern_proj_abs₀` (its `hchild` has been
@@ -6690,7 +6711,7 @@ theorem estore_intern_proj_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreRel pers rs' (ls.intern (.proj (absNIdx n) (absU i) (absEIdx ep))).1 ∧
         StoreInv pers rs' ∧ ECapAt ls (.proj (absNIdx n) (absU i) (absEIdx ep))) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+      (rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) :=
   estore_intern_proj_abs₀ hrel hinv h
 
@@ -6711,7 +6732,7 @@ theorem estore_intern_let_e_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreRel pers rs' (ls.intern (.letE (absEIdx ty) (absEIdx val) (absEIdx bo))).1 ∧
         StoreInv pers rs' ∧ ECapAt ls (.letE (absEIdx ty) (absEIdx val) (absEIdx bo))) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+      (rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) := by
   rw [arena.store.EStore.intern_let_e] at h
   -- the `sk` prologue: `b` is the scratch flag, `sk` says a child is scratch
@@ -6751,31 +6772,35 @@ theorem estore_intern_let_e_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
   -- the twin skips exactly where the port does (task #97-T2-LOCKSTEP D2)
   have hskeq : sk = (if ls.scratchOn then EStore.eRecHasScratchChild (ENodeView.letE (absEIdx ty) (absEIdx val) (absEIdx bo)) (Idx.ofWord 0) else false) := by
     rw [hrel.scratchOn]; exact hskp
-  -- the persistent cons probe, under the `sk` skip and the `shared_on` select
+  -- the persistent cons probe, under the `sk` skip and the reader's `frozen` select
   obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hbody
   clear hbody
-  obtain ⟨e, b1, pers1, hit⟩ := q
-  have hE : e = rs.pers ∧ b1 = rs.shared_on ∧ pers1 = pers ∧
+  obtain ⟨e, pers1, hit⟩ := q
+  have hE : e = rs.pers ∧ pers1 = pers ∧
       ls.persFindMaybe (ENodeView.letE (absEIdx ty) (absEIdx val) (absEIdx bo)) (Idx.ofWord 0) = hit.map absEIdx := by
     split at hq <;> rename_i hsk
     · simp only [Result.ok.injEq, Prod.mk.injEq] at hq
-      obtain ⟨h1, h2, h3, h4⟩ := hq
-      exact ⟨h1.symm, h2.symm, h3.symm, by rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_pos hsk]; rfl⟩
-    · split at hq <;> rename_i hs <;>
-        obtain ⟨hit1, hf, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq <;>
-        simp only [Result.ok.injEq, Prod.mk.injEq] at hq <;>
-        obtain ⟨h1, h2, h3, h4⟩ := hq
-      · refine ⟨h1.symm, by rw [← h2, hs], h3.symm, ?_⟩
+      obtain ⟨h1, h3, h4⟩ := hq
+      exact ⟨h1.symm, h3.symm, by rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_pos hsk]; rfl⟩
+    · obtain ⟨q2, hq2, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+      obtain ⟨e1, b1, e2, o⟩ := q2
+      simp only [Aeneas.Std.uncurry, Result.ok.injEq, Prod.mk.injEq] at hq
+      obtain ⟨h1, h3, h4⟩ := hq
+      split at hq2 <;> rename_i hs <;>
+        obtain ⟨hit1, hf, hq2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq2 <;>
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hq2 <;>
+        obtain ⟨g1, g2, g3, g4⟩ := hq2
+      · refine ⟨by rw [← h1, ← g1], by rw [← h3, ← g2, ← g3]; cases pers; simp_all, ?_⟩
         have := tbl_find_abs hrel.perst.lets hinv.perst.lets let_eq2 dupId_eidx
           (P := LetNodeWF) trivial (by unfold rPersE; rw [if_pos hs]; exact hf)
-        rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
-      · refine ⟨h1.symm, by rw [← h2]; exact (Bool.not_eq_true _ ▸ hs).symm, h3.symm, ?_⟩
+        rw [← h4, ← g4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
+      · refine ⟨by rw [← h1, ← g1], by rw [← h3, ← g2, ← g3]; cases pers; simp_all, ?_⟩
         have := tbl_find_abs hrel.perst.lets hinv.perst.lets let_eq2 dupId_eidx
           (P := LetNodeWF) trivial (by unfold rPersE; rw [if_neg hs]; exact hf)
-        rw [← h4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
-  obtain ⟨hE1, hE2, hE3, hE4⟩ := hE
+        rw [← h4, ← g4, EStore.persFindMaybe_eq_sk hskeq, if_neg hsk]; exact this
+  obtain ⟨hE1, hE3, hE4⟩ := hE
   rw [hE3] at h
-  subst hE1; subst hE2
+  subst hE1
   have htw : ls.intern (.letE (absEIdx ty) (absEIdx val) (absEIdx bo))
       = ls.internAt (.letE (absEIdx ty) (absEIdx val) (absEIdx bo)) (Idx.ofWord 0) := rfl
   rw [htw, EStore.internAt]
@@ -6787,7 +6812,7 @@ theorem estore_intern_let_e_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
     simp only [Prod.mk.injEq] at he
     obtain ⟨hr, hs'⟩ := he
     subst hr; subst hs'
-    refine ⟨?_, ?_, ⟨rfl, rfl, rfl⟩⟩
+    refine ⟨?_, ?_, ⟨rfl, rfl⟩⟩
     · intro hh hok
       simp only [core.result.Result.Ok.injEq] at hok
       subst hok
@@ -6820,7 +6845,7 @@ theorem estore_intern_let_e_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         simp only [Prod.mk.injEq] at he
         obtain ⟨hr, hs'⟩ := he
         subst hr; subst hs'
-        refine ⟨?_, ?_, ⟨rfl, hsc.symm, rfl⟩⟩
+        refine ⟨?_, ?_, ⟨hsc.symm, rfl⟩⟩
         · intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -6845,7 +6870,7 @@ theorem estore_intern_let_e_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           obtain ⟨hr, hsr⟩ := he
           subst hr; subst hsr
           exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
-            ⟨rfl, hsc.symm, rfl⟩⟩
+            ⟨hsc.symm, rfl⟩⟩
         · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -6870,7 +6895,7 @@ theorem estore_intern_let_e_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
               (der_of_let_obs (ls := ls) hrelS hd) hnew t1 ht1
           simp only [absLetNode] at hrel1
           rw [hhandle] at hrel1
-          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, hsc.symm, rfl⟩⟩
+          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨hsc.symm, rfl⟩⟩
           intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -6883,8 +6908,8 @@ theorem estore_intern_let_e_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
       rw [if_neg hsc]
       -- frozen implies scratch-on (`StoreInv.frz`, task #98-FREEZE): the
       -- scratch-off arm is an owned store's
-      have hsh : rs.shared_on = false := by
-        cases hs0 : rs.shared_on
+      have hsh : pers.frozen = false := by
+        cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
       try rw [hsh] at h
@@ -6898,7 +6923,7 @@ theorem estore_intern_let_e_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         obtain ⟨hr, hsr⟩ := he
         subst hr; subst hsr
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
-          ⟨hsh.symm, (show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
+          ⟨(show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
       · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -6920,11 +6945,11 @@ theorem estore_intern_let_e_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           rw [← hpersE]; exact hrel.perst
         have hinvPerst : ETablesInv rs.pers := by rw [← hpersE]; exact hinv.perst
         have hrelS : StoreRel pers
-            { rs with scratch_on := false, shared_on := false } ls := by
+            { rs with scratch_on := false } ls := by
           refine ⟨hrel.lss, ?_, hrel.scrt, ?_⟩
-          · show ETablesRel (rPersE pers { rs with scratch_on := false, shared_on := false })
+          · show ETablesRel (rPersE pers { rs with scratch_on := false })
               ls.pers
-            unfold rPersE; rw [if_neg (by simp)]; exact hrelPerst
+            unfold rPersE; rw [if_neg (by simp [hsh])]; exact hrelPerst
           · rw [hrel.scratchOn]; simpa using hsc
         have hhandle : absEIdx hnew
             = Idx.mk ETag.letE Idx.tierP (UInt32.ofNat ls.pers.lets.size) := by
@@ -6937,7 +6962,7 @@ theorem estore_intern_let_e_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         simp only [absLetNode] at hrel1
         rw [hhandle] at hrel1
         refine ⟨?_, by intro ee hbad; simp at hbad,
-          ⟨hsh.symm, (show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
+          ⟨(show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
         intro hh hok
         simp only [core.result.Result.Ok.injEq] at hok
         subst hok
@@ -6946,11 +6971,11 @@ theorem estore_intern_let_e_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           ECapAt.of_pers_size (hrel.scratchOn.trans (by simpa using hsc))
             (tbl_not_full_size hrelP hb2 hfull)⟩
         · show ETablesRel (rPersE pers _) _
-          unfold rPersE; rw [if_neg (by simp)]
+          unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hrelPerst with lets := hrel1 }
         · simpa using hsc
         · show ETablesInv (rPersE pers _)
-          unfold rPersE; rw [if_neg (by simp)]
+          unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with lets := hinv1 }
 
 /-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `estore_intern_let_e_abs₀` (its `hchild` has been
@@ -6968,7 +6993,7 @@ theorem estore_intern_let_e_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreRel pers rs' (ls.intern (.letE (absEIdx ty) (absEIdx val) (absEIdx bo))).1 ∧
         StoreInv pers rs' ∧ ECapAt ls (.letE (absEIdx ty) (absEIdx val) (absEIdx bo))) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+      (rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) :=
   estore_intern_let_e_abs₀ hrel hinv h
 
@@ -6992,24 +7017,25 @@ theorem estore_intern_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       (∀ e, r = .Err e → absAErrKind e = none) := by
   rw [arena.store.EStore.intern_lit] at h
   obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨e, bb, hit⟩ := q
-  -- the persistent probe, under the `shared_on` select
-  have hE : e = rs.pers ∧ bb = rs.shared_on ∧
+  obtain ⟨e, hit⟩ := q
+  -- the persistent probe, under the reader's `frozen` select
+  have hE : e = rs ∧
       ls.pers.lits.find? ⟨ConRon.Refine.absLiteral l⟩ = hit.map absEIdx := by
     split at hq <;> rename_i hs <;>
       obtain ⟨hit1, hf, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq <;>
       simp only [Result.ok.injEq, Prod.mk.injEq] at hq <;>
-      obtain ⟨h1, h2, h3⟩ := hq
-    · refine ⟨h1.symm, by rw [← h2, hs], ?_⟩
+      obtain ⟨h1, h3⟩ := hq
+    · refine ⟨h1.symm, ?_⟩
       have := tbl_find_abs hrel.perst.lits hinv.perst.lits lit_eq2 dupId_eidx
         (P := LitNodeWF) hwf (by unfold rPersE; rw [if_pos hs]; exact hf)
       rw [← h3]; exact this
-    · refine ⟨h1.symm, by rw [← h2]; exact (Bool.not_eq_true _ ▸ hs).symm, ?_⟩
+    · refine ⟨h1.symm, ?_⟩
       have := tbl_find_abs hrel.perst.lits hinv.perst.lits lit_eq2 dupId_eidx
         (P := LitNodeWF) hwf (by unfold rPersE; rw [if_neg hs]; exact hf)
       rw [← h3]; exact this
-  obtain ⟨hE1, hE2, hE3⟩ := hE
-  subst hE1; subst hE2
+  obtain ⟨hE1, hE3⟩ := hE
+  subst e
+  try simp only [Aeneas.Std.uncurry] at h
   -- the twin's `intern` at a non-binder view is `internAt` at handle 0
   have htw : ls.intern (.lit (ConRon.Refine.absLiteral l)) = ls.internAt (.lit (ConRon.Refine.absLiteral l)) (Idx.ofWord 0) := rfl
   rw [htw, EStore.internAt]
@@ -7020,6 +7046,7 @@ theorem estore_intern_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
   cases hitc : hit with
   | some hp =>
     rw [hitc] at h
+    try dsimp only at h
     have he := Result.ok_injective h
     simp only [Prod.mk.injEq] at he
     obtain ⟨hr, hs'⟩ := he
@@ -7036,6 +7063,7 @@ theorem estore_intern_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     · intro ee hbad; simp at hbad
   | none =>
     rw [hitc] at h
+    try dsimp only at h
     simp only [Option.map_none]
     rw [hrel.scratchOn]
     split at h <;> rename_i hsc
@@ -7116,8 +7144,8 @@ theorem estore_intern_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
       rw [if_neg hsc]
       -- frozen implies scratch-on (`StoreInv.frz`, task #98-FREEZE): the
       -- scratch-off arm is an owned store's
-      have hsh : rs.shared_on = false := by
-        cases hs0 : rs.shared_on
+      have hsh : pers.frozen = false := by
+        cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
       try rw [hsh] at h
@@ -7165,8 +7193,8 @@ theorem estore_intern_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         have hrelPerst : ETablesRel rs.pers ls.pers := by
           rw [← hpersE]; exact hrel.perst
         have hinvPerst : ETablesInv rs.pers := by rw [← hpersE]; exact hinv.perst
-        exact ⟨hhandle, ⟨hrel.lss, { hrelPerst with lits := hrel1 }, hrel.scrt, rfl⟩,
-          ⟨hinv.lss, { hinvPerst with lits := hinv1 }, hinv.scrt, (by frz_tac)⟩,
+        exact ⟨hhandle, ⟨hrel.lss, (by unfold rPersE; rw [if_neg (by simp [hsh])]; exact { hrelPerst with lits := hrel1 }), hrel.scrt, rfl⟩,
+          ⟨hinv.lss, (by unfold rPersE; rw [if_neg (by simp [hsh])]; exact { hinvPerst with lits := hinv1 }), hinv.scrt, (by frz_tac)⟩,
           ECapAt.of_pers_size (hrel.scratchOn.trans (by simpa using hsc))
             (tbl_not_full_size hrelP hb1 hfull)⟩
 
@@ -7186,29 +7214,19 @@ theorem estore_intern_bm_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         absBMIdx hh = (ls.internBM (ConRon.Refine.absBinderMeta m)).2 ∧
         StoreRel pers rs' (ls.internBM (ConRon.Refine.absBinderMeta m)).1 ∧
         StoreInv pers rs' ∧
-        rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+        rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss ∧ ECapBMOf ls (ConRon.Refine.absBinderMeta m)) ∧
       (∀ e, r = .Err e → absAErrKind e = none) := by
   rw [arena.store.EStore.intern_bm] at h
-  obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨e, bb, hit⟩ := q
-  -- the persistent probe, under the `shared_on` select
-  have hE : e = rs.pers ∧ bb = rs.shared_on ∧
-      ls.pers.bms.find? ⟨ConRon.Refine.absPropWhen m.pw⟩ = hit.map absBMIdx := by
-    split at hq <;> rename_i hs <;>
-      obtain ⟨hit1, hf, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq <;>
-      simp only [Result.ok.injEq, Prod.mk.injEq] at hq <;>
-      obtain ⟨h1, h2, h3⟩ := hq
-    · refine ⟨h1.symm, by rw [← h2, hs], ?_⟩
-      have := tbl_find_abs hrel.perst.bms hinv.perst.bms bm_eq2 dupId_bmidx
-        (P := BMNodeWF) (show BMNodeWF ⟨m.pw⟩ from hwf) (by unfold rPersE; rw [if_pos hs]; exact hf)
-      rw [← h3]; exact this
-    · refine ⟨h1.symm, by rw [← h2]; exact (Bool.not_eq_true _ ▸ hs).symm, ?_⟩
-      have := tbl_find_abs hrel.perst.bms hinv.perst.bms bm_eq2 dupId_bmidx
-        (P := BMNodeWF) (show BMNodeWF ⟨m.pw⟩ from hwf) (by unfold rPersE; rw [if_neg hs]; exact hf)
-      rw [← h3]; exact this
-  obtain ⟨hE1, hE2, hE3⟩ := hE
-  subst hE1; subst hE2
+  obtain ⟨hit, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  -- the persistent probe, under the reader's `frozen` select
+  have hE3 : ls.pers.bms.find? ⟨ConRon.Refine.absPropWhen m.pw⟩ = hit.map absBMIdx := by
+    rw [arena.store.EStore.pers_find_bm_node] at hq
+    split at hq <;> rename_i hs
+    · exact tbl_find_abs hrel.perst.bms hinv.perst.bms bm_eq2 dupId_bmidx
+        (P := BMNodeWF) (show BMNodeWF ⟨m.pw⟩ from hwf) (by unfold rPersE; rw [if_pos hs]; exact hq)
+    · exact tbl_find_abs hrel.perst.bms hinv.perst.bms bm_eq2 dupId_bmidx
+        (P := BMNodeWF) (show BMNodeWF ⟨m.pw⟩ from hwf) (by unfold rPersE; rw [if_neg hs]; exact hq)
   -- the twin's `intern` at a non-binder view is `internAt` at handle 0
   rw [EStore.internBM]
   have hfind : ls.persFindBM (ConRon.Refine.absBinderMeta m)
@@ -7217,6 +7235,7 @@ theorem estore_intern_bm_abs {pers rs ls} (hrel : StoreRel pers rs ls)
   cases hitc : hit with
   | some hp =>
     rw [hitc] at h
+    try dsimp only at h
     have he := Result.ok_injective h
     simp only [Prod.mk.injEq] at he
     obtain ⟨hr, hs'⟩ := he
@@ -7225,7 +7244,7 @@ theorem estore_intern_bm_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     · intro hh hok
       simp only [core.result.Result.Ok.injEq] at hok
       subst hok
-      exact ⟨rfl, hrel, hinv, rfl, rfl, rfl,
+      exact ⟨rfl, hrel, hinv, rfl, rfl,
         ECapBMOf.of_find_ne (by
           have hpf : ls.persFindBM (ConRon.Refine.absBinderMeta m)
               = some (absBMIdx hp) := by rw [hfind, hE3, hitc]; rfl
@@ -7233,6 +7252,7 @@ theorem estore_intern_bm_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     · intro ee hbad; simp at hbad
   | none =>
     rw [hitc] at h
+    try dsimp only at h
     simp only [Option.map_none]
     rw [hrel.scratchOn]
     split at h <;> rename_i hsc
@@ -7260,7 +7280,7 @@ theorem estore_intern_bm_abs {pers rs ls} (hrel : StoreRel pers rs ls)
           subst hok
           exact ⟨rfl, { hrel with scrt := { hrel.scrt with bms := hrelT } },
             { hinv with scrt := { hinv.scrt with bms := hinvT } },
-            rfl, rfl, rfl,
+            rfl, rfl,
             ECapBMOf.of_find_ne (by
               have hpn : ls.persFindBM (ConRon.Refine.absBinderMeta m) = none := by
                 rw [hfind, hE3, hitc]; rfl
@@ -7307,15 +7327,15 @@ theorem estore_intern_bm_abs {pers rs ls} (hrel : StoreRel pers rs ls)
           exact ⟨hhandle, ⟨hrel.lss, hrel.perst,
               { hrel.scrt with bms := hrel1 }, rfl⟩,
             ⟨hinv.lss, hinv.perst, { hinv.scrt with bms := hinv1 }, (by frz_tac)⟩,
-            rfl, rfl, rfl,
+            rfl, rfl,
             ECapBMOf.of_scr_size (hrel.scratchOn.trans hsc)
               (tbl_not_full_size hrelT hbfull hfull)⟩
     · -- the persistent tier
       rw [if_neg hsc]
       -- frozen implies scratch-on (`StoreInv.frz`, task #98-FREEZE): the
       -- scratch-off arm is an owned store's
-      have hsh : rs.shared_on = false := by
-        cases hs0 : rs.shared_on
+      have hsh : pers.frozen = false := by
+        cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
       try rw [hsh] at h
@@ -7363,9 +7383,15 @@ theorem estore_intern_bm_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         have hrelPerst : ETablesRel rs.pers ls.pers := by
           rw [← hpersE]; exact hrel.perst
         have hinvPerst : ETablesInv rs.pers := by rw [← hpersE]; exact hinv.perst
-        exact ⟨hhandle, ⟨hrel.lss, { hrelPerst with bms := hrel1 }, hrel.scrt, rfl⟩,
-          ⟨hinv.lss, { hinvPerst with bms := hinv1 }, hinv.scrt, (by frz_tac)⟩,
-          hsh.symm, rfl, rfl,
+        have hP1 : ETablesRel (rPersE pers { rs with pers := { rs.pers with bms := t1 } })
+            (ls.pers.pushBM (ConRon.Refine.absBinderMeta m)
+              (hash (ConRon.Refine.absBinderMeta m).pw) Idx.tierP).1 := by
+          unfold rPersE; rw [if_neg (by simp [hsh])]; exact { hrelPerst with bms := hrel1 }
+        have hI1 : ETablesInv (rPersE pers { rs with pers := { rs.pers with bms := t1 } }) := by
+          unfold rPersE; rw [if_neg (by simp [hsh])]; exact { hinvPerst with bms := hinv1 }
+        exact ⟨hhandle, ⟨hrel.lss, hP1, hrel.scrt, rfl⟩,
+          ⟨hinv.lss, hI1, hinv.scrt, (by frz_tac)⟩,
+          rfl, rfl,
           ECapBMOf.of_pers_size (hrel.scratchOn.trans (by simpa using hsc))
             (tbl_not_full_size hrelP hbfull hfull)⟩
 
@@ -7528,7 +7554,7 @@ theorem estore_intern_lam_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreInv pers rs' ∧
         EBindCapAt ls ETag.lam (absEIdx ty) (absEIdx bo) (absBMIdx mi)) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+      (rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) := by
   rw [arena.store.EStore.intern_lam_i] at h
   -- the `sk` prologue: `b` is the scratch flag, `sk` says a child is scratch
@@ -7568,31 +7594,35 @@ theorem estore_intern_lam_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
   -- the twin skips exactly where the port does (task #97-T2-LOCKSTEP D2)
   have hskeq : sk = (if ls.scratchOn then EStore.bindHasScratchChild (absEIdx ty) (absEIdx bo) (absBMIdx mi) else false) := by
     rw [hrel.scratchOn]; exact hskp
-  -- the persistent cons probe, under the `sk` skip and the `shared_on` select
+  -- the persistent cons probe, under the `sk` skip and the reader's `frozen` select
   obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hbody
   clear hbody
-  obtain ⟨e, b1, pers1, hit⟩ := q
-  have hE : e = rs.pers ∧ b1 = rs.shared_on ∧ pers1 = pers ∧
+  obtain ⟨e, pers1, hit⟩ := q
+  have hE : e = rs.pers ∧ pers1 = pers ∧
       ls.persFindBindMaybe ETag.lam ⟨absEIdx ty, absEIdx bo, absBMIdx mi⟩ = hit.map absEIdx := by
     split at hq <;> rename_i hsk
     · simp only [Result.ok.injEq, Prod.mk.injEq] at hq
-      obtain ⟨h1, h2, h3, h4⟩ := hq
-      exact ⟨h1.symm, h2.symm, h3.symm, by rw [← h4, EStore.persFindBindMaybe_eq_sk hskeq, if_pos hsk]; rfl⟩
-    · split at hq <;> rename_i hs <;>
-        obtain ⟨hit1, hf, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq <;>
-        simp only [Result.ok.injEq, Prod.mk.injEq] at hq <;>
-        obtain ⟨h1, h2, h3, h4⟩ := hq
-      · refine ⟨h1.symm, by rw [← h2, hs], h3.symm, ?_⟩
+      obtain ⟨h1, h3, h4⟩ := hq
+      exact ⟨h1.symm, h3.symm, by rw [← h4, EStore.persFindBindMaybe_eq_sk hskeq, if_pos hsk]; rfl⟩
+    · obtain ⟨q2, hq2, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+      obtain ⟨e1, b1, e2, o⟩ := q2
+      simp only [Aeneas.Std.uncurry, Result.ok.injEq, Prod.mk.injEq] at hq
+      obtain ⟨h1, h3, h4⟩ := hq
+      split at hq2 <;> rename_i hs <;>
+        obtain ⟨hit1, hf, hq2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq2 <;>
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hq2 <;>
+        obtain ⟨g1, g2, g3, g4⟩ := hq2
+      · refine ⟨by rw [← h1, ← g1], by rw [← h3, ← g2, ← g3]; cases pers; simp_all, ?_⟩
         have := tbl_find_abs hrel.perst.lams hinv.perst.lams bind_eq2 dupId_eidx
           (P := BindNodeWF) trivial (by unfold rPersE; rw [if_pos hs]; exact hf)
-        rw [← h4, EStore.persFindBindMaybe_eq_sk hskeq, if_neg hsk]; exact this
-      · refine ⟨h1.symm, by rw [← h2]; exact (Bool.not_eq_true _ ▸ hs).symm, h3.symm, ?_⟩
+        rw [← h4, ← g4, EStore.persFindBindMaybe_eq_sk hskeq, if_neg hsk]; exact this
+      · refine ⟨by rw [← h1, ← g1], by rw [← h3, ← g2, ← g3]; cases pers; simp_all, ?_⟩
         have := tbl_find_abs hrel.perst.lams hinv.perst.lams bind_eq2 dupId_eidx
           (P := BindNodeWF) trivial (by unfold rPersE; rw [if_neg hs]; exact hf)
-        rw [← h4, EStore.persFindBindMaybe_eq_sk hskeq, if_neg hsk]; exact this
-  obtain ⟨hE1, hE2, hE3, hE4⟩ := hE
+        rw [← h4, ← g4, EStore.persFindBindMaybe_eq_sk hskeq, if_neg hsk]; exact this
+  obtain ⟨hE1, hE3, hE4⟩ := hE
   rw [hE3] at h
-  subst hE1; subst hE2
+  subst hE1
   simp only [EStore.internLamI, EStore.internBindI]
   rw [hE4]
   cases hitc : hit with
@@ -7602,7 +7632,7 @@ theorem estore_intern_lam_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
     simp only [Prod.mk.injEq] at he
     obtain ⟨hr, hs'⟩ := he
     subst hr; subst hs'
-    refine ⟨?_, ?_, ⟨rfl, rfl, rfl⟩⟩
+    refine ⟨?_, ?_, ⟨rfl, rfl⟩⟩
     · intro hh hok
       simp only [core.result.Result.Ok.injEq] at hok
       subst hok
@@ -7634,7 +7664,7 @@ theorem estore_intern_lam_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         simp only [Prod.mk.injEq] at he
         obtain ⟨hr, hs'⟩ := he
         subst hr; subst hs'
-        refine ⟨?_, ?_, ⟨rfl, hsc.symm, rfl⟩⟩
+        refine ⟨?_, ?_, ⟨hsc.symm, rfl⟩⟩
         · intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -7660,7 +7690,7 @@ theorem estore_intern_lam_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           obtain ⟨hr, hsr⟩ := he
           subst hr; subst hsr
           exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
-            ⟨rfl, hsc.symm, rfl⟩⟩
+            ⟨hsc.symm, rfl⟩⟩
         · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -7688,7 +7718,7 @@ theorem estore_intern_lam_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
             hpushT hoc d _ hder hnew t1 ht1
           simp only [absBindNode] at hrel1
           rw [hhandle] at hrel1
-          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, hsc.symm, rfl⟩⟩
+          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨hsc.symm, rfl⟩⟩
           intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -7702,8 +7732,8 @@ theorem estore_intern_lam_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
       rw [if_neg hsc]
       -- frozen implies scratch-on (`StoreInv.frz`, task #98-FREEZE): the
       -- scratch-off arm is an owned store's
-      have hsh : rs.shared_on = false := by
-        cases hs0 : rs.shared_on
+      have hsh : pers.frozen = false := by
+        cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
       try rw [hsh] at h
@@ -7717,7 +7747,7 @@ theorem estore_intern_lam_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         obtain ⟨hr, hsr⟩ := he
         subst hr; subst hsr
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
-          ⟨hsh.symm, (show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
+          ⟨(show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
       · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -7739,17 +7769,17 @@ theorem estore_intern_lam_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           rw [← hpersE]; exact hrel.perst
         have hinvPerst : ETablesInv rs.pers := by rw [← hpersE]; exact hinv.perst
         have hrelS : StoreRel pers
-            { rs with scratch_on := false, shared_on := false } ls := by
+            { rs with scratch_on := false } ls := by
           refine ⟨hrel.lss, ?_, hrel.scrt, ?_⟩
-          · show ETablesRel (rPersE pers { rs with scratch_on := false, shared_on := false })
+          · show ETablesRel (rPersE pers { rs with scratch_on := false })
               ls.pers
-            unfold rPersE; rw [if_neg (by simp)]; exact hrelPerst
+            unfold rPersE; rw [if_neg (by simp [hsh])]; exact hrelPerst
           · rw [hrel.scratchOn]; simpa using hsc
         have hinvS : StoreInv pers
-            { rs with scratch_on := false, shared_on := false } := by
+            { rs with scratch_on := false } := by
           refine ⟨hinv.lss, ?_, hinv.scrt, (by frz_tac)⟩
-          show ETablesInv (rPersE pers { rs with scratch_on := false, shared_on := false })
-          unfold rPersE; rw [if_neg (by simp)]; exact hinvPerst
+          show ETablesInv (rPersE pers { rs with scratch_on := false })
+          unfold rPersE; rw [if_neg (by simp [hsh])]; exact hinvPerst
         have hhandle : absEIdx hnew
             = Idx.mk ETag.lam Idx.tierP (UInt32.ofNat ls.pers.lams.size) := by
           rw [eidx_pack_abs hpk, etag_lam_abs, tier_p_abs, cast_u32_size hn3,
@@ -7761,7 +7791,7 @@ theorem estore_intern_lam_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         simp only [absBindNode] at hrel1
         rw [hhandle] at hrel1
         refine ⟨?_, by intro ee hbad; simp at hbad,
-          ⟨hsh.symm, (show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
+          ⟨(show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
         intro hh hok
         simp only [core.result.Result.Ok.injEq] at hok
         subst hok
@@ -7771,11 +7801,11 @@ theorem estore_intern_lam_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
             simp only [ETables.bindSizeOf, ETag.lam]
             exact tbl_not_full_size hrelP hb2 hfull)⟩
         · show ETablesRel (rPersE pers _) _
-          unfold rPersE; rw [if_neg (by simp)]
+          unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hrelPerst with lams := hrel1 }
         · simpa using hsc
         · show ETablesInv (rPersE pers _)
-          unfold rPersE; rw [if_neg (by simp)]
+          unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with lams := hinv1 }
 
 /-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `estore_intern_lam_i_abs₀` (its `hchild` has been
@@ -7795,7 +7825,7 @@ theorem estore_intern_lam_i_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreInv pers rs' ∧
         EBindCapAt ls ETag.lam (absEIdx ty) (absEIdx bo) (absBMIdx mi)) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+      (rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) :=
   estore_intern_lam_i_abs₀ hrel hinv h
 
@@ -7825,7 +7855,7 @@ theorem estore_intern_forall_e_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls
         StoreInv pers rs' ∧
         EBindCapAt ls ETag.forallE (absEIdx ty) (absEIdx bo) (absBMIdx mi)) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+      (rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) := by
   rw [arena.store.EStore.intern_forall_e_i] at h
   -- the `sk` prologue: `b` is the scratch flag, `sk` says a child is scratch
@@ -7865,31 +7895,35 @@ theorem estore_intern_forall_e_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls
   -- the twin skips exactly where the port does (task #97-T2-LOCKSTEP D2)
   have hskeq : sk = (if ls.scratchOn then EStore.bindHasScratchChild (absEIdx ty) (absEIdx bo) (absBMIdx mi) else false) := by
     rw [hrel.scratchOn]; exact hskp
-  -- the persistent cons probe, under the `sk` skip and the `shared_on` select
+  -- the persistent cons probe, under the `sk` skip and the reader's `frozen` select
   obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hbody
   clear hbody
-  obtain ⟨e, b1, pers1, hit⟩ := q
-  have hE : e = rs.pers ∧ b1 = rs.shared_on ∧ pers1 = pers ∧
+  obtain ⟨e, pers1, hit⟩ := q
+  have hE : e = rs.pers ∧ pers1 = pers ∧
       ls.persFindBindMaybe ETag.forallE ⟨absEIdx ty, absEIdx bo, absBMIdx mi⟩ = hit.map absEIdx := by
     split at hq <;> rename_i hsk
     · simp only [Result.ok.injEq, Prod.mk.injEq] at hq
-      obtain ⟨h1, h2, h3, h4⟩ := hq
-      exact ⟨h1.symm, h2.symm, h3.symm, by rw [← h4, EStore.persFindBindMaybe_eq_sk hskeq, if_pos hsk]; rfl⟩
-    · split at hq <;> rename_i hs <;>
-        obtain ⟨hit1, hf, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq <;>
-        simp only [Result.ok.injEq, Prod.mk.injEq] at hq <;>
-        obtain ⟨h1, h2, h3, h4⟩ := hq
-      · refine ⟨h1.symm, by rw [← h2, hs], h3.symm, ?_⟩
+      obtain ⟨h1, h3, h4⟩ := hq
+      exact ⟨h1.symm, h3.symm, by rw [← h4, EStore.persFindBindMaybe_eq_sk hskeq, if_pos hsk]; rfl⟩
+    · obtain ⟨q2, hq2, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
+      obtain ⟨e1, b1, e2, o⟩ := q2
+      simp only [Aeneas.Std.uncurry, Result.ok.injEq, Prod.mk.injEq] at hq
+      obtain ⟨h1, h3, h4⟩ := hq
+      split at hq2 <;> rename_i hs <;>
+        obtain ⟨hit1, hf, hq2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq2 <;>
+        simp only [Result.ok.injEq, Prod.mk.injEq] at hq2 <;>
+        obtain ⟨g1, g2, g3, g4⟩ := hq2
+      · refine ⟨by rw [← h1, ← g1], by rw [← h3, ← g2, ← g3]; cases pers; simp_all, ?_⟩
         have := tbl_find_abs hrel.perst.foralls hinv.perst.foralls bind_eq2 dupId_eidx
           (P := BindNodeWF) trivial (by unfold rPersE; rw [if_pos hs]; exact hf)
-        rw [← h4, EStore.persFindBindMaybe_eq_sk hskeq, if_neg hsk]; exact this
-      · refine ⟨h1.symm, by rw [← h2]; exact (Bool.not_eq_true _ ▸ hs).symm, h3.symm, ?_⟩
+        rw [← h4, ← g4, EStore.persFindBindMaybe_eq_sk hskeq, if_neg hsk]; exact this
+      · refine ⟨by rw [← h1, ← g1], by rw [← h3, ← g2, ← g3]; cases pers; simp_all, ?_⟩
         have := tbl_find_abs hrel.perst.foralls hinv.perst.foralls bind_eq2 dupId_eidx
           (P := BindNodeWF) trivial (by unfold rPersE; rw [if_neg hs]; exact hf)
-        rw [← h4, EStore.persFindBindMaybe_eq_sk hskeq, if_neg hsk]; exact this
-  obtain ⟨hE1, hE2, hE3, hE4⟩ := hE
+        rw [← h4, ← g4, EStore.persFindBindMaybe_eq_sk hskeq, if_neg hsk]; exact this
+  obtain ⟨hE1, hE3, hE4⟩ := hE
   rw [hE3] at h
-  subst hE1; subst hE2
+  subst hE1
   simp only [EStore.internForallEI, EStore.internBindI]
   rw [hE4]
   cases hitc : hit with
@@ -7899,7 +7933,7 @@ theorem estore_intern_forall_e_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls
     simp only [Prod.mk.injEq] at he
     obtain ⟨hr, hs'⟩ := he
     subst hr; subst hs'
-    refine ⟨?_, ?_, ⟨rfl, rfl, rfl⟩⟩
+    refine ⟨?_, ?_, ⟨rfl, rfl⟩⟩
     · intro hh hok
       simp only [core.result.Result.Ok.injEq] at hok
       subst hok
@@ -7931,7 +7965,7 @@ theorem estore_intern_forall_e_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls
         simp only [Prod.mk.injEq] at he
         obtain ⟨hr, hs'⟩ := he
         subst hr; subst hs'
-        refine ⟨?_, ?_, ⟨rfl, hsc.symm, rfl⟩⟩
+        refine ⟨?_, ?_, ⟨hsc.symm, rfl⟩⟩
         · intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -7957,7 +7991,7 @@ theorem estore_intern_forall_e_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls
           obtain ⟨hr, hsr⟩ := he
           subst hr; subst hsr
           exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
-            ⟨rfl, hsc.symm, rfl⟩⟩
+            ⟨hsc.symm, rfl⟩⟩
         · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -7985,7 +8019,7 @@ theorem estore_intern_forall_e_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls
             hpushT hoc d _ hder hnew t1 ht1
           simp only [absBindNode] at hrel1
           rw [hhandle] at hrel1
-          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, hsc.symm, rfl⟩⟩
+          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨hsc.symm, rfl⟩⟩
           intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -7999,8 +8033,8 @@ theorem estore_intern_forall_e_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls
       rw [if_neg hsc]
       -- frozen implies scratch-on (`StoreInv.frz`, task #98-FREEZE): the
       -- scratch-off arm is an owned store's
-      have hsh : rs.shared_on = false := by
-        cases hs0 : rs.shared_on
+      have hsh : pers.frozen = false := by
+        cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
       try rw [hsh] at h
@@ -8014,7 +8048,7 @@ theorem estore_intern_forall_e_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls
         obtain ⟨hr, hsr⟩ := he
         subst hr; subst hsr
         exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl,
-          ⟨hsh.symm, (show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
+          ⟨(show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
       · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n3, hn3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -8036,17 +8070,17 @@ theorem estore_intern_forall_e_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls
           rw [← hpersE]; exact hrel.perst
         have hinvPerst : ETablesInv rs.pers := by rw [← hpersE]; exact hinv.perst
         have hrelS : StoreRel pers
-            { rs with scratch_on := false, shared_on := false } ls := by
+            { rs with scratch_on := false } ls := by
           refine ⟨hrel.lss, ?_, hrel.scrt, ?_⟩
-          · show ETablesRel (rPersE pers { rs with scratch_on := false, shared_on := false })
+          · show ETablesRel (rPersE pers { rs with scratch_on := false })
               ls.pers
-            unfold rPersE; rw [if_neg (by simp)]; exact hrelPerst
+            unfold rPersE; rw [if_neg (by simp [hsh])]; exact hrelPerst
           · rw [hrel.scratchOn]; simpa using hsc
         have hinvS : StoreInv pers
-            { rs with scratch_on := false, shared_on := false } := by
+            { rs with scratch_on := false } := by
           refine ⟨hinv.lss, ?_, hinv.scrt, (by frz_tac)⟩
-          show ETablesInv (rPersE pers { rs with scratch_on := false, shared_on := false })
-          unfold rPersE; rw [if_neg (by simp)]; exact hinvPerst
+          show ETablesInv (rPersE pers { rs with scratch_on := false })
+          unfold rPersE; rw [if_neg (by simp [hsh])]; exact hinvPerst
         have hhandle : absEIdx hnew
             = Idx.mk ETag.forallE Idx.tierP (UInt32.ofNat ls.pers.foralls.size) := by
           rw [eidx_pack_abs hpk, etag_forallE_abs, tier_p_abs, cast_u32_size hn3,
@@ -8058,7 +8092,7 @@ theorem estore_intern_forall_e_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls
         simp only [absBindNode] at hrel1
         rw [hhandle] at hrel1
         refine ⟨?_, by intro ee hbad; simp at hbad,
-          ⟨hsh.symm, (show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
+          ⟨(show rs.scratch_on = false by simpa using hsc).symm, rfl⟩⟩
         intro hh hok
         simp only [core.result.Result.Ok.injEq] at hok
         subst hok
@@ -8068,11 +8102,11 @@ theorem estore_intern_forall_e_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls
             simp only [ETables.bindSizeOf, ETag.forallE]
             exact tbl_not_full_size hrelP hb2 hfull)⟩
         · show ETablesRel (rPersE pers _) _
-          unfold rPersE; rw [if_neg (by simp)]
+          unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hrelPerst with foralls := hrel1 }
         · simpa using hsc
         · show ETablesInv (rPersE pers _)
-          unfold rPersE; rw [if_neg (by simp)]
+          unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with foralls := hinv1 }
 
 /-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `estore_intern_forall_e_i_abs₀` (its `hchild` has been
@@ -8092,7 +8126,7 @@ theorem estore_intern_forall_e_i_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreInv pers rs' ∧
         EBindCapAt ls ETag.forallE (absEIdx ty) (absEIdx bo) (absBMIdx mi)) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+      (rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) :=
   estore_intern_forall_e_i_abs₀ hrel hinv h
 
@@ -8284,7 +8318,7 @@ theorem estore_intern_lam_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreInv pers rs' ∧
         ECapBMOf ls (ConRon.Refine.absBinderMeta m) ∧
         ECapAt ls (.lam (absEIdx ty) (absEIdx bo) (ConRon.Refine.absBinderMeta m)) ∧
-        rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+        rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) ∧
       (∀ e, r = .Err e → absAErrKind e = none) := by
   rw [arena.store.EStore.intern_lam] at h
@@ -8305,7 +8339,7 @@ theorem estore_intern_lam_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     exact herr1 ee hrb
   | Ok mi =>
     rw [hrb] at h
-    obtain ⟨hmi, hrel1, hinv1, hsh, hsc, hlss1, hcb⟩ := hok1 mi hrb
+    obtain ⟨hmi, hrel1, hinv1, hsc, hlss1, hcb⟩ := hok1 mi hrb
     -- `hchild`, from `StoreWF` at the shifted store
     have hwf1 : StoreWF (ls.internBM (ConRon.Refine.absBinderMeta m)).1 := by
       obtain ⟨rk, hw⟩ := hwf; exact (EStore.internBM_spec hw hcb).1
@@ -8332,7 +8366,7 @@ theorem estore_intern_lam_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     refine ⟨fun hh hokk => ?_, herr2⟩
     obtain ⟨a1, a2, a3, a4⟩ := hok2 hh hokk
     exact ⟨a1, a2, a3, hcb, ECapAt_lam_of hwf hcb (by rw [← hmi]; exact a4),
-      by rw [hfl2.1, hsh], by rw [hfl2.2.1, hsc], by rw [hfl2.2.2, hlss1]⟩
+      by rw [hfl2.1, hsc], by rw [hfl2.2, hlss1]⟩
 
 /-- `EStore::intern_forall_e` against the twin's `internForallE`. -/
 theorem estore_intern_forall_e_abs {pers rs ls} (hrel : StoreRel pers rs ls)
@@ -8352,7 +8386,7 @@ theorem estore_intern_forall_e_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreInv pers rs' ∧
         ECapBMOf ls (ConRon.Refine.absBinderMeta m) ∧
         ECapAt ls (.forallE (absEIdx ty) (absEIdx bo) (ConRon.Refine.absBinderMeta m)) ∧
-        rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on ∧
+        rs'.scratch_on = rs.scratch_on ∧
         rs'.lss = rs.lss) ∧
       (∀ e, r = .Err e → absAErrKind e = none) := by
   rw [arena.store.EStore.intern_forall_e] at h
@@ -8373,7 +8407,7 @@ theorem estore_intern_forall_e_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     exact herr1 ee hrb
   | Ok mi =>
     rw [hrb] at h
-    obtain ⟨hmi, hrel1, hinv1, hsh, hsc, hlss1, hcb⟩ := hok1 mi hrb
+    obtain ⟨hmi, hrel1, hinv1, hsc, hlss1, hcb⟩ := hok1 mi hrb
     -- `hchild`, from `StoreWF` at the shifted store
     have hwf1 : StoreWF (ls.internBM (ConRon.Refine.absBinderMeta m)).1 := by
       obtain ⟨rk, hw⟩ := hwf; exact (EStore.internBM_spec hw hcb).1
@@ -8400,7 +8434,7 @@ theorem estore_intern_forall_e_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     refine ⟨fun hh hokk => ?_, herr2⟩
     obtain ⟨a1, a2, a3, a4⟩ := hok2 hh hokk
     exact ⟨a1, a2, a3, hcb, ECapAt_forallE_of hwf hcb (by rw [← hmi]; exact a4),
-      by rw [hfl2.1, hsh], by rw [hfl2.2.1, hsc], by rw [hfl2.2.2, hlss1]⟩
+      by rw [hfl2.1, hsc], by rw [hfl2.2, hlss1]⟩
 
 
 /-! ## The node records: `Dup` is the identity, and `abs` is injective
@@ -9170,7 +9204,7 @@ theorem intern_e_lam_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     exact AOut₀.err (AErrSim.of_none (herr1 ee hrb))
   | Ok mi =>
     rw [hrb] at hp
-    obtain ⟨hmi, hrel1, hinv1, -, -, -, hcb⟩ := hok1 mi hrb
+    obtain ⟨hmi, hrel1, hinv1, -, -, hcb⟩ := hok1 mi hrb
     obtain ⟨hok2, herr2, -⟩ :=
       estore_intern_lam_i_abs₀
         (ls := (lst.store.internBM (ConRon.Refine.absBinderMeta m)).1) hrel1 hinv1 hp
@@ -9220,7 +9254,7 @@ theorem intern_e_forall_e_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     exact AOut₀.err (AErrSim.of_none (herr1 ee hrb))
   | Ok mi =>
     rw [hrb] at hp
-    obtain ⟨hmi, hrel1, hinv1, -, -, -, hcb⟩ := hok1 mi hrb
+    obtain ⟨hmi, hrel1, hinv1, -, -, hcb⟩ := hok1 mi hrb
     obtain ⟨hok2, herr2, -⟩ :=
       estore_intern_forall_e_i_abs₀
         (ls := (lst.store.internBM (ConRon.Refine.absBinderMeta m)).1) hrel1 hinv1 hp
@@ -9499,7 +9533,7 @@ theorem nstore_intern_other_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
         NStoreRel pers rs' (ls.intern (absNNodeView v)).1 ∧
         NStoreInv pers rs' ∧ NCapAt ls (absNNodeView v)) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on) := by
+      (rs'.scratch_on = rs.scratch_on) := by
   rw [arena.store.NStore.intern_other] at h
   obtain ⟨hit, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hE3 := nstore_pers_find_abs hrel hinv hvwf hq
@@ -9523,7 +9557,7 @@ theorem nstore_intern_other_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
         simp only [NStore.find?, hpp]
       rw [hf]; simp
     · intro ee hbad; simp at hbad
-    · exact ⟨rfl, rfl⟩
+    · exact rfl
   | none =>
     simp only [hitc] at h
     have hpn : ls.pers.find? (absNNodeView v) = none := by rw [hE3, hitc]; rfl
@@ -9554,7 +9588,7 @@ theorem nstore_intern_other_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
             rw [if_pos (hrel.scratchOn.trans hsc), hss]
           rw [hf]; simp
         · intro ee hbad; simp at hbad
-        · exact ⟨rfl, rfl⟩
+        · exact rfl
       | none =>
         simp only [hoc] at h
         have hsn : ls.scr.find? (absNNodeView v) = none := by rw [hE4, hoc]; rfl
@@ -9568,7 +9602,7 @@ theorem nstore_intern_other_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
           simp only [Prod.mk.injEq] at he
           obtain ⟨hr, hs2⟩ := he
           subst hr; subst hs2
-          exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, ⟨rfl, rfl⟩⟩
+          exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, rfl⟩
         · -- the append
           obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨pr, hpu, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -9581,7 +9615,7 @@ theorem nstore_intern_other_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
             ntables_push_abs hrel.scrt hinv.scrt hvwf
               (ls.derOfView (absNNodeView v)) hpu
           rw [tier_s_abs] at hhandle hrel1
-          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, rfl⟩⟩
+          refine ⟨?_, by intro ee hbad; simp at hbad, rfl⟩
           intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -9592,11 +9626,11 @@ theorem nstore_intern_other_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
       rw [if_neg hsc]
       -- frozen implies scratch-on (`NStoreInv.frz`, task #98-FREEZE): the
       -- scratch-off arm is an owned store's
-      have hsh : rs.shared_on = false := by
-        cases hs0 : rs.shared_on
+      have hsh : pers.frozen = false := by
+        cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
-      have hsh2 : ¬ (rs.shared_on = true) := by rw [hsh]; simp
+      have hsh2 : ¬ (pers.frozen = true) := by rw [hsh]; simp
       have hpersN : rPersN pers rs = rs.pers := by unfold rPersN; rw [hsh]; rfl
       obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hrelP : NTablesRel rs.pers ls.pers := by rw [← hpersN]; exact hrel.perst
@@ -9611,7 +9645,7 @@ theorem nstore_intern_other_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
         simp only [Prod.mk.injEq] at he
         obtain ⟨hr, hs2⟩ := he
         subst hr; subst hs2
-        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, ⟨rfl, rfl⟩⟩
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, rfl⟩
       · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨pr, hpu, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨hnew, t1⟩ := pr
@@ -9622,7 +9656,7 @@ theorem nstore_intern_other_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
         obtain ⟨hhandle, hrel1, hinv1⟩ :=
           ntables_push_abs hrelP hinvP hvwf (ls.derOfView (absNNodeView v)) hpu
         rw [tier_p_abs] at hhandle hrel1
-        refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, rfl⟩⟩
+        refine ⟨?_, by intro ee hbad; simp at hbad, rfl⟩
         intro hh hok
         simp only [core.result.Result.Ok.injEq] at hok
         subst hok
@@ -9672,7 +9706,7 @@ theorem nstore_intern_str_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
         NStoreRel pers rs' (ls.intern (NNodeView.str (absNIdx p) (ConRon.Refine.absString s))).1 ∧
         NStoreInv pers rs' ∧ NCapAt ls (NNodeView.str (absNIdx p) (ConRon.Refine.absString s))) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on) := by
+      (rs'.scratch_on = rs.scratch_on) := by
   rw [arena.store.NStore.intern_str] at h
   obtain ⟨hit, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hE3 := nstore_pers_strs_find_abs hrel hinv hvwf hq
@@ -9696,7 +9730,7 @@ theorem nstore_intern_str_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
         simp only [NStore.find?, hpp]
       rw [hf]; simp
     · intro ee hbad; simp at hbad
-    · exact ⟨rfl, rfl⟩
+    · exact rfl
   | none =>
     simp only [hitc] at h
     have hpn : ls.pers.find? (NNodeView.str (absNIdx p) (ConRon.Refine.absString s)) = none := by rw [hE3, hitc]; rfl
@@ -9729,7 +9763,7 @@ theorem nstore_intern_str_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
             rw [if_pos (hrel.scratchOn.trans hsc), hss]
           rw [hf]; simp
         · intro ee hbad; simp at hbad
-        · exact ⟨rfl, rfl⟩
+        · exact rfl
       | none =>
         simp only [hoc] at h
         have hsn : ls.scr.find? (NNodeView.str (absNIdx p) (ConRon.Refine.absString s)) = none := by rw [hE4, hoc]; rfl
@@ -9743,7 +9777,7 @@ theorem nstore_intern_str_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
           simp only [Prod.mk.injEq] at he
           obtain ⟨hr, hs2⟩ := he
           subst hr; subst hs2
-          exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, ⟨rfl, rfl⟩⟩
+          exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, rfl⟩
         · -- the append
           obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -9766,7 +9800,7 @@ theorem nstore_intern_str_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
                 (NNodeView.str (absNIdx p) (ConRon.Refine.absString s))) rfl ht1
           simp only [absStrNode] at hrelT
           rw [hhandle] at hrelT
-          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, rfl⟩⟩
+          refine ⟨?_, by intro ee hbad; simp at hbad, rfl⟩
           intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -9778,11 +9812,11 @@ theorem nstore_intern_str_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
       rw [if_neg hsc]
       -- frozen implies scratch-on (`NStoreInv.frz`, task #98-FREEZE): the
       -- scratch-off arm is an owned store's
-      have hsh : rs.shared_on = false := by
-        cases hs0 : rs.shared_on
+      have hsh : pers.frozen = false := by
+        cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
-      have hsh2 : ¬ (rs.shared_on = true) := by rw [hsh]; simp
+      have hsh2 : ¬ (pers.frozen = true) := by rw [hsh]; simp
       have hpersN : rPersN pers rs = rs.pers := by unfold rPersN; rw [hsh]; rfl
       obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hrelP : NTablesRel rs.pers ls.pers := by rw [← hpersN]; exact hrel.perst
@@ -9795,7 +9829,7 @@ theorem nstore_intern_str_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
         simp only [Prod.mk.injEq] at he
         obtain ⟨hr, hs2⟩ := he
         subst hr; subst hs2
-        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, ⟨rfl, rfl⟩⟩
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, rfl⟩
       · obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨hnew, hpk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -9817,7 +9851,7 @@ theorem nstore_intern_str_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
               (NNodeView.str (absNIdx p) (ConRon.Refine.absString s))) rfl ht1
         simp only [absStrNode] at hrelT
         rw [hhandle] at hrelT
-        refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, rfl⟩⟩
+        refine ⟨?_, by intro ee hbad; simp at hbad, rfl⟩
         intro hh hok
         simp only [core.result.Result.Ok.injEq] at hok
         subst hok
@@ -9840,7 +9874,7 @@ theorem nstore_intern_abs {pers rs ls} (hrel : NStoreRel pers rs ls)
         NStoreRel pers rs' (ls.intern (absNNodeView v)).1 ∧
         NStoreInv pers rs' ∧ NCapAt ls (absNNodeView v)) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on) := by
+      (rs'.scratch_on = rs.scratch_on) := by
   cases v with
   | Anonymous =>
     simp only [arena.store.NStore.intern] at h
@@ -9875,7 +9909,7 @@ theorem NCapPAt.of_find_ne {st : NStore} {v : NNodeView}
     (h : st.pers.find? v ≠ none) : NCapPAt st v := fun hn => absurd hn h
 
 theorem pertier_intern_n_abs {tier rs ls} (hrel : NStoreRel tier rs ls)
-    (hinv : NStoreInv tier rs) (hsh : rs.shared_on = true)
+    (hinv : NStoreInv tier rs) (hsh : tier.frozen = true)
     {v : arena.store.NNodeView} (hvwf : NNodeViewWF v) {r} {tier'}
     (h : arena.store.PersTier.intern_n tier rs v = ok (r, tier')) :
     (∀ hh, r = .Ok hh →
@@ -9954,7 +9988,7 @@ theorem estore_intern_name_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreRel pers rs' (ls.internName (absNNodeView v)).1 ∧
         StoreInv pers rs' ∧ NCapAt ls.ns (absNNodeView v)) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on) := by
+      (rs'.scratch_on = rs.scratch_on) := by
   rw [arena.store.EStore.intern_name] at h
   obtain ⟨p1, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨r1, lss1⟩ := p1
@@ -9978,7 +10012,7 @@ theorem estore_intern_name_abs {pers rs ls} (hrel : StoreRel pers rs ls)
   subst e0a; subst e0b
   obtain ⟨hok, herr, -⟩ :=
     nstore_intern_abs (ls := ls.ns) hrel.lss.lvl.ns hinv.lss.lvl.ns hvwf h3
-  refine ⟨?_, herr, rfl, rfl⟩
+  refine ⟨?_, herr, rfl⟩
   intro hh hoc
   obtain ⟨hhd, hrel1, hinv1, hcap⟩ := hok hh hoc
   exact ⟨hhd,
@@ -10416,7 +10450,7 @@ theorem lstore_intern_abs {pers rs ls} (hrel : LStoreRel pers rs ls)
         LStoreRel pers rs' (ls.intern (absLNodeView v)).1 ∧
         LStoreInv pers rs' ∧ LCapAt ls (absLNodeView v)) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on) := by
+      (rs'.scratch_on = rs.scratch_on) := by
   rw [arena.store.LStore.intern] at h
   obtain ⟨hit, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hE3 := lstore_pers_find_abs hrel hinv hq
@@ -10440,7 +10474,7 @@ theorem lstore_intern_abs {pers rs ls} (hrel : LStoreRel pers rs ls)
         simp only [LStore.find?, hpp]
       rw [hf]; simp
     · intro ee hbad; simp at hbad
-    · exact ⟨rfl, rfl⟩
+    · exact rfl
   | none =>
     simp only [hitc] at h
     have hpn : ls.pers.find? (absLNodeView v) = none := by rw [hE3, hitc]; rfl
@@ -10471,7 +10505,7 @@ theorem lstore_intern_abs {pers rs ls} (hrel : LStoreRel pers rs ls)
             rw [if_pos (hrel.scratchOn.trans hsc), hss]
           rw [hf]; simp
         · intro ee hbad; simp at hbad
-        · exact ⟨rfl, rfl⟩
+        · exact rfl
       | none =>
         simp only [hoc] at h
         have hsn : ls.scr.find? (absLNodeView v) = none := by rw [hE4, hoc]; rfl
@@ -10485,7 +10519,7 @@ theorem lstore_intern_abs {pers rs ls} (hrel : LStoreRel pers rs ls)
           simp only [Prod.mk.injEq] at he
           obtain ⟨hr, hs2⟩ := he
           subst hr; subst hs2
-          exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, ⟨rfl, rfl⟩⟩
+          exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, rfl⟩
         · -- the append
           obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨pr, hpu, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -10499,7 +10533,7 @@ theorem lstore_intern_abs {pers rs ls} (hrel : LStoreRel pers rs ls)
               (dl := ls.derOfView (absLNodeView v))
               (lstore_der_of_view_abs hrel hd) hpu
           rw [tier_s_abs] at hhandle hrel1
-          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, rfl⟩⟩
+          refine ⟨?_, by intro ee hbad; simp at hbad, rfl⟩
           intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -10511,11 +10545,11 @@ theorem lstore_intern_abs {pers rs ls} (hrel : LStoreRel pers rs ls)
       rw [if_neg hsc]
       -- frozen implies scratch-on (`NStoreInv.frz`, task #98-FREEZE): the
       -- scratch-off arm is an owned store's
-      have hsh : rs.shared_on = false := by
-        cases hs0 : rs.shared_on
+      have hsh : pers.frozen = false := by
+        cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
-      have hsh2 : ¬ (rs.shared_on = true) := by rw [hsh]; simp
+      have hsh2 : ¬ (pers.frozen = true) := by rw [hsh]; simp
       have hpersL : rPersL pers rs = rs.pers := by unfold rPersL; rw [hsh]; rfl
       obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hrelP : LTablesRel rs.pers ls.pers := by rw [← hpersL]; exact hrel.perst
@@ -10530,7 +10564,7 @@ theorem lstore_intern_abs {pers rs ls} (hrel : LStoreRel pers rs ls)
         simp only [Prod.mk.injEq] at he
         obtain ⟨hr, hs2⟩ := he
         subst hr; subst hs2
-        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, ⟨rfl, rfl⟩⟩
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, rfl⟩
       · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨pr, hpu, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨hnew, t1⟩ := pr
@@ -10542,7 +10576,7 @@ theorem lstore_intern_abs {pers rs ls} (hrel : LStoreRel pers rs ls)
           ltables_push_abs hrelP hinvP (dl := ls.derOfView (absLNodeView v))
             (lstore_der_of_view_abs hrel hd) hpu
         rw [tier_p_abs] at hhandle hrel1
-        refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, rfl⟩⟩
+        refine ⟨?_, by intro ee hbad; simp at hbad, rfl⟩
         intro hh hok
         simp only [core.result.Result.Ok.injEq] at hok
         subst hok
@@ -10563,7 +10597,7 @@ theorem estore_intern_level_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreRel pers rs' (ls.internLevel (absLNodeView v)).1 ∧
         StoreInv pers rs' ∧ LCapAt ls.ls (absLNodeView v)) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on) := by
+      (rs'.scratch_on = rs.scratch_on) := by
   rw [arena.store.EStore.intern_level] at h
   obtain ⟨p1, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨r1, lss1⟩ := p1
@@ -10580,7 +10614,7 @@ theorem estore_intern_level_abs {pers rs ls} (hrel : StoreRel pers rs ls)
   subst e0a; subst e0b
   obtain ⟨hok, herr, -⟩ :=
     lstore_intern_abs (ls := ls.ls) hrel.lss.lvl hinv.lss.lvl h2
-  refine ⟨?_, herr, rfl, rfl⟩
+  refine ⟨?_, herr, rfl⟩
   intro hh hoc
   obtain ⟨hhd, hrel1, hinv1, hcap⟩ := hok hh hoc
   exact ⟨hhd,
@@ -10832,7 +10866,7 @@ theorem lsstore_intern_abs {pers rs ls} (hrel : LsStoreRel pers rs ls)
         LsStoreRel pers rs' (ls.intern (absLsNodeView v)).1 ∧
         LsStoreInv pers rs' ∧ LsCapAt ls (absLsNodeView v)) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on) := by
+      (rs'.scratch_on = rs.scratch_on) := by
   rw [arena.store.LsStore.intern] at h
   obtain ⟨hit, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hE3 := lsstore_pers_find_abs hrel hinv hq
@@ -10856,7 +10890,7 @@ theorem lsstore_intern_abs {pers rs ls} (hrel : LsStoreRel pers rs ls)
         simp only [LsStore.find?, hpp]
       rw [hf]; simp
     · intro ee hbad; simp at hbad
-    · exact ⟨rfl, rfl⟩
+    · exact rfl
   | none =>
     simp only [hitc] at h
     have hpn : ls.pers.find? (absLsNodeView v) = none := by rw [hE3, hitc]; rfl
@@ -10887,7 +10921,7 @@ theorem lsstore_intern_abs {pers rs ls} (hrel : LsStoreRel pers rs ls)
             rw [if_pos (hrel.scratchOn.trans hsc), hss]
           rw [hf]; simp
         · intro ee hbad; simp at hbad
-        · exact ⟨rfl, rfl⟩
+        · exact rfl
       | none =>
         simp only [hoc] at h
         have hsn : ls.scr.find? (absLsNodeView v) = none := by rw [hE4, hoc]; rfl
@@ -10901,7 +10935,7 @@ theorem lsstore_intern_abs {pers rs ls} (hrel : LsStoreRel pers rs ls)
           simp only [Prod.mk.injEq] at he
           obtain ⟨hr, hs2⟩ := he
           subst hr; subst hs2
-          exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, ⟨rfl, rfl⟩⟩
+          exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, rfl⟩
         · -- the append
           obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨pr, hpu, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -10915,7 +10949,7 @@ theorem lsstore_intern_abs {pers rs ls} (hrel : LsStoreRel pers rs ls)
               (dl := ls.derOfView (absLsNodeView v))
               (lsstore_der_of_view_abs hrel hd) hpu
           rw [tier_s_abs] at hhandle hrel1
-          refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, rfl⟩⟩
+          refine ⟨?_, by intro ee hbad; simp at hbad, rfl⟩
           intro hh hok
           simp only [core.result.Result.Ok.injEq] at hok
           subst hok
@@ -10927,11 +10961,11 @@ theorem lsstore_intern_abs {pers rs ls} (hrel : LsStoreRel pers rs ls)
       rw [if_neg hsc]
       -- frozen implies scratch-on (`NStoreInv.frz`, task #98-FREEZE): the
       -- scratch-off arm is an owned store's
-      have hsh : rs.shared_on = false := by
-        cases hs0 : rs.shared_on
+      have hsh : pers.frozen = false := by
+        cases hs0 : pers.frozen
         · rfl
         · exact absurd (hinv.frz hs0) hsc
-      have hsh2 : ¬ (rs.shared_on = true) := by rw [hsh]; simp
+      have hsh2 : ¬ (pers.frozen = true) := by rw [hsh]; simp
       have hpersLs : rPersLs pers rs = rs.pers := by unfold rPersLs; rw [hsh]; rfl
       obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hrelP : LsTablesRel rs.pers ls.pers := by rw [← hpersLs]; exact hrel.perst
@@ -10946,7 +10980,7 @@ theorem lsstore_intern_abs {pers rs ls} (hrel : LsStoreRel pers rs ls)
         simp only [Prod.mk.injEq] at he
         obtain ⟨hr, hs2⟩ := he
         subst hr; subst hs2
-        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, ⟨rfl, rfl⟩⟩
+        exact ⟨by intro hh hok; simp at hok, by intro ee hee; cases hee; rfl, rfl⟩
       · obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨pr, hpu, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨hnew, t1⟩ := pr
@@ -10958,7 +10992,7 @@ theorem lsstore_intern_abs {pers rs ls} (hrel : LsStoreRel pers rs ls)
           lstables_push_abs hrelP hinvP (dl := ls.derOfView (absLsNodeView v))
             (lsstore_der_of_view_abs hrel hd) hpu
         rw [tier_p_abs] at hhandle hrel1
-        refine ⟨?_, by intro ee hbad; simp at hbad, ⟨rfl, rfl⟩⟩
+        refine ⟨?_, by intro ee hbad; simp at hbad, rfl⟩
         intro hh hok
         simp only [core.result.Result.Ok.injEq] at hok
         subst hok
@@ -10979,7 +11013,7 @@ theorem estore_intern_levels_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         StoreRel pers rs' (ls.internLevels (absLsNodeView v)).1 ∧
         StoreInv pers rs' ∧ LsCapAt ls.lss (absLsNodeView v)) ∧
       (∀ e, r = .Err e → absAErrKind e = none) ∧
-      (rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on) := by
+      (rs'.scratch_on = rs.scratch_on) := by
   rw [arena.store.EStore.intern_levels] at h
   obtain ⟨p1, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨r1, lss1⟩ := p1
@@ -10989,7 +11023,7 @@ theorem estore_intern_levels_abs {pers rs ls} (hrel : StoreRel pers rs ls)
   subst e0a; subst e0b
   obtain ⟨hok, herr, -⟩ :=
     lsstore_intern_abs (ls := ls.lss) hrel.lss hinv.lss h1
-  refine ⟨?_, herr, rfl, rfl⟩
+  refine ⟨?_, herr, rfl⟩
   intro hh hoc
   obtain ⟨hhd, hrel1, hinv1, hcap⟩ := hok hh hoc
   exact ⟨hhd, ⟨hrel1, hrel.perst, hrel.scrt, hrel.scratchOn⟩,
@@ -11090,7 +11124,7 @@ relation at the grown tier is field for field the old one: a store reads the
 tier's OTHER tables, which did not move. -/
 
 theorem pertier_intern_l_abs {tier rs ls} (hrel : LStoreRel tier rs ls)
-    (hinv : LStoreInv tier rs) (hsh : rs.shared_on = true)
+    (hinv : LStoreInv tier rs) (hsh : tier.frozen = true)
     {v : arena.store.LNodeView} {r} {tier'}
     (h : arena.store.PersTier.intern_l tier rs v = ok (r, tier')) :
     (∀ hh, r = .Ok hh →
@@ -11158,7 +11192,7 @@ theorem pertier_intern_l_abs {tier rs ls} (hrel : LStoreRel tier rs ls)
       · unfold rPersL; rw [hsh]; exact hinv1
 
 theorem pertier_intern_ls_abs {tier rs ls} (hrel : LsStoreRel tier rs ls)
-    (hinv : LsStoreInv tier rs) (hsh : rs.shared_on = true)
+    (hinv : LsStoreInv tier rs) (hsh : tier.frozen = true)
     {v : alloc.vec.Vec arena.handle.LIdx} {r} {tier'}
     (h : arena.store.PersTier.intern_ls tier rs v = ok (r, tier')) :
     (∀ hh, r = .Ok hh →
@@ -11773,7 +11807,7 @@ the children's derived words.  Unlike the three tiers below it, it has a
 BINDER DATUM to intern first, into the same table set. -/
 
 theorem pertier_intern_bm_abs {tier rs ls} (hrel : StoreRel tier rs ls)
-    (hinv : StoreInv tier rs) (hsh : rs.shared_on = true)
+    (hinv : StoreInv tier rs) (hsh : tier.frozen = true)
     {m : kernel.expr.BinderMeta} (hwf : ConRon.Refine.PropWhenWF m.pw) {r} {tier'}
     (h : arena.store.PersTier.intern_bm tier m = ok (r, tier')) :
     (∀ hh, r = .Ok hh →
@@ -11845,8 +11879,8 @@ theorem pertier_intern_bm_abs {tier rs ls} (hrel : StoreRel tier rs ls)
       intro hh hok
       simp only [core.result.Result.Ok.injEq] at hok
       subst hok
-      refine ⟨hhandle, ⟨hrel.lss.tier_congr rfl rfl rfl, ?_, hrel.scrt, hrel.scratchOn⟩,
-        ⟨hinv.lss.tier_congr rfl rfl rfl, ?_, hinv.scrt, hinv.frz⟩,
+      refine ⟨hhandle, ⟨hrel.lss.tier_congr rfl rfl rfl rfl, ?_, hrel.scrt, hrel.scratchOn⟩,
+        ⟨hinv.lss.tier_congr rfl rfl rfl rfl, ?_, hinv.scrt, hinv.frz⟩,
         fun _ => tbl_not_full_size hrelPerst.bms hb1 hfull⟩
       · unfold rPersE; rw [hsh]; exact { hrelPerst with bms := hrel1 }
       · unfold rPersE; rw [hsh]; exact { hinvPerst with bms := hinv1 }
@@ -11855,7 +11889,7 @@ theorem pertier_intern_bm_abs {tier rs ls} (hrel : StoreRel tier rs ls)
 `EStore.internBMOfViewPersistent`: eight arms hand back the zero handle and
 leave the tier alone; the two binder arms are the datum's own promote-intern. -/
 theorem pertier_intern_bm_of_view_abs {tier rs ls}
-    (hrel : StoreRel tier rs ls) (hinv : StoreInv tier rs) (hsh : rs.shared_on = true)
+    (hrel : StoreRel tier rs ls) (hinv : StoreInv tier rs) (hsh : tier.frozen = true)
     {v : arena.store.ENodeView} (hvwf : ENodeViewWF v) {r} {tier'}
     (h : arena.store.PersTier.intern_bm_of_view tier v = ok (r, tier')) :
     (∀ hh, r = .Ok hh →
@@ -11898,7 +11932,7 @@ whole control flow, view-generic: the datum's promote-intern, the tier's cons
 probe, the capacity check, the append.  Both capacity facts are CONCLUDED
 from the port's own `full` answers (audit D3). -/
 theorem pertier_intern_e_abs {tier rs ls} (hrel : StoreRel tier rs ls)
-    (hinv : StoreInv tier rs) (hsh : rs.shared_on = true)
+    (hinv : StoreInv tier rs) (hsh : tier.frozen = true)
     {v : arena.store.ENodeView} (hvwf : ENodeViewWF v)
     {r} {tier'}
     (h : arena.store.PersTier.intern_e tier rs v = ok (r, tier')) :
@@ -12003,9 +12037,9 @@ theorem pertier_intern_e_abs {tier rs ls} (hrel : StoreRel tier rs ls)
         simp only [core.result.Result.Ok.injEq] at hok
         subst hok
         refine ⟨hhandle, ?_, ?_, hcapBM, hcapN.mpr fun _ => hcapn⟩
-        · exact ⟨hrel1.lss.tier_congr rfl rfl rfl, by unfold rPersE; rw [hsh]; exact hrelT,
+        · exact ⟨hrel1.lss.tier_congr rfl rfl rfl rfl, by unfold rPersE; rw [hsh]; exact hrelT,
             hrel1.scrt, hrel1.scratchOn⟩
-        · exact ⟨hinv1.lss.tier_congr rfl rfl rfl, by unfold rPersE; rw [hsh]; exact hinvT,
+        · exact ⟨hinv1.lss.tier_congr rfl rfl rfl rfl, by unfold rPersE; rw [hsh]; exact hinvT,
             hinv1.scrt, hinv1.frz⟩
 
 
@@ -12024,7 +12058,7 @@ FROZEN state `st` and the tier its bracket owns (task #98-FREEZE): the state
 is read, the tier grows, and the relation after it is `st`'s at the grown
 tier. -/
 theorem intern_persistent_e_run₀ {tier st lst} (hrel : AStateRel₀ tier st lst)
-    (hinv : AStateInv tier st) (hsh : st.store.shared_on = true)
+    (hinv : AStateInv tier st) (hsh : tier.frozen = true)
     (v : arena.store.ENodeView) (hvwf : ENodeViewWF v)
     {r tier'} (hrun : arena.monad.intern_persistent_e tier st v = ok (r, tier')) :
     AOut₀ absEIdx tier' r st ((Arena.internPersistentE (absENodeView v)).run lst) := by
@@ -12045,7 +12079,7 @@ theorem intern_persistent_e_run₀ {tier st lst} (hrel : AStateRel₀ tier st ls
 /-- `arena::monad::intern_persistent_n` against `Arena.internPersistentN`, on a
 frozen state and its bracket's tier. -/
 theorem intern_persistent_n_run₀ {tier st lst} (hrel : AStateRel₀ tier st lst)
-    (hinv : AStateInv tier st) (hsh : st.store.lss.ls.ns.shared_on = true)
+    (hinv : AStateInv tier st) (hsh : tier.frozen = true)
     (v : arena.store.NNodeView) (hvwf : NNodeViewWF v)
     {r tier'} (hrun : arena.monad.intern_persistent_n tier st v = ok (r, tier')) :
     AOut₀ absNIdx tier' r st ((Arena.internPersistentN (absNNodeView v)).run lst) := by
@@ -12077,7 +12111,7 @@ theorem intern_persistent_n_run₀ {tier st lst} (hrel : AStateRel₀ tier st ls
 /-- `arena::monad::intern_persistent_l` against `Arena.internPersistentL`, on a
 frozen state and its bracket's tier. -/
 theorem intern_persistent_l_run₀ {tier st lst} (hrel : AStateRel₀ tier st lst)
-    (hinv : AStateInv tier st) (hsh : st.store.lss.ls.shared_on = true)
+    (hinv : AStateInv tier st) (hsh : tier.frozen = true)
     (v : arena.store.LNodeView)
     {r tier'} (hrun : arena.monad.intern_persistent_l tier st v = ok (r, tier')) :
     AOut₀ absLIdx tier' r st ((Arena.internPersistentL (absLNodeView v)).run lst) := by
@@ -12105,7 +12139,7 @@ theorem intern_persistent_l_run₀ {tier st lst} (hrel : AStateRel₀ tier st ls
 /-- `arena::monad::intern_persistent_ls` against `Arena.internPersistentLs`, on a
 frozen state and its bracket's tier. -/
 theorem intern_persistent_ls_run₀ {tier st lst} (hrel : AStateRel₀ tier st lst)
-    (hinv : AStateInv tier st) (hsh : st.store.lss.shared_on = true)
+    (hinv : AStateInv tier st) (hsh : tier.frozen = true)
     (v : alloc.vec.Vec arena.handle.LIdx)
     {r tier'} (hrun : arena.monad.intern_persistent_ls tier st v = ok (r, tier')) :
     AOut₀ absLsIdx tier' r st ((Arena.internPersistentLs (absLsNodeView v)).run lst) := by
@@ -12605,31 +12639,25 @@ frozen-tier side condition across a walk; that condition is retired, task
 
 /-- The four stores' tier flags, unmoved. -/
 structure FlagsEq (rs rs' : arena.store.EStore) : Prop where
-  eSh : rs'.shared_on = rs.shared_on
   eScr : rs'.scratch_on = rs.scratch_on
-  lssSh : rs'.lss.shared_on = rs.lss.shared_on
   lssScr : rs'.lss.scratch_on = rs.lss.scratch_on
-  lsSh : rs'.lss.ls.shared_on = rs.lss.ls.shared_on
   lsScr : rs'.lss.ls.scratch_on = rs.lss.ls.scratch_on
-  nsSh : rs'.lss.ls.ns.shared_on = rs.lss.ls.ns.shared_on
   nsScr : rs'.lss.ls.ns.scratch_on = rs.lss.ls.ns.scratch_on
 
 theorem FlagsEq.refl (rs : arena.store.EStore) : FlagsEq rs rs :=
-  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  ⟨rfl, rfl, rfl, rfl⟩
 
 theorem FlagsEq.trans {a b c : arena.store.EStore} (h1 : FlagsEq a b)
     (h2 : FlagsEq b c) : FlagsEq a c :=
-  ⟨h2.eSh.trans h1.eSh, h2.eScr.trans h1.eScr,
-   h2.lssSh.trans h1.lssSh, h2.lssScr.trans h1.lssScr,
-   h2.lsSh.trans h1.lsSh, h2.lsScr.trans h1.lsScr,
-   h2.nsSh.trans h1.nsSh, h2.nsScr.trans h1.nsScr⟩
+  ⟨h2.eScr.trans h1.eScr, h2.lssScr.trans h1.lssScr,
+   h2.lsScr.trans h1.lsScr, h2.nsScr.trans h1.nsScr⟩
 
 theorem nstore_intern_other_flags {pers rs v r rs'}
     (h : arena.store.NStore.intern_other rs pers v = ok (r, rs')) :
-    rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on := by
+    rs'.scratch_on = rs.scratch_on := by
   rw [arena.store.NStore.intern_other] at h
   repeat' (first
-    | exact ⟨rfl, rfl⟩
+    | exact rfl
     | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
     | split at h
     | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
@@ -12637,10 +12665,10 @@ theorem nstore_intern_other_flags {pers rs v r rs'}
 
 theorem nstore_intern_str_flags {pers rs k d r rs'}
     (h : arena.store.NStore.intern_str rs pers k d = ok (r, rs')) :
-    rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on := by
+    rs'.scratch_on = rs.scratch_on := by
   rw [arena.store.NStore.intern_str] at h
   repeat' (first
-    | exact ⟨rfl, rfl⟩
+    | exact rfl
     | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
     | split at h
     | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
@@ -12648,7 +12676,7 @@ theorem nstore_intern_str_flags {pers rs k d r rs'}
 
 theorem nstore_intern_flags {pers rs v r rs'}
     (h : arena.store.NStore.intern rs pers v = ok (r, rs')) :
-    rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on := by
+    rs'.scratch_on = rs.scratch_on := by
   cases v with
   | Anonymous =>
     simp only [arena.store.NStore.intern] at h; exact nstore_intern_other_flags h
@@ -12664,10 +12692,10 @@ theorem nstore_intern_flags {pers rs v r rs'}
 
 theorem lstore_intern_flags {pers rs v r rs'}
     (h : arena.store.LStore.intern rs pers v = ok (r, rs')) :
-    rs'.ns = rs.ns ∧ rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on := by
+    rs'.ns = rs.ns ∧ rs'.scratch_on = rs.scratch_on := by
   rw [arena.store.LStore.intern] at h
   repeat' (first
-    | exact ⟨rfl, rfl, rfl⟩
+    | exact ⟨rfl, rfl⟩
     | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
     | split at h
     | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
@@ -12675,10 +12703,10 @@ theorem lstore_intern_flags {pers rs v r rs'}
 
 theorem lsstore_intern_flags {pers rs v r rs'}
     (h : arena.store.LsStore.intern rs pers v = ok (r, rs')) :
-    rs'.ls = rs.ls ∧ rs'.shared_on = rs.shared_on ∧ rs'.scratch_on = rs.scratch_on := by
+    rs'.ls = rs.ls ∧ rs'.scratch_on = rs.scratch_on := by
   rw [arena.store.LsStore.intern] at h
   repeat' (first
-    | exact ⟨rfl, rfl, rfl⟩
+    | exact ⟨rfl, rfl⟩
     | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
     | split at h
     | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
@@ -12704,8 +12732,8 @@ theorem intern_n_node_flags {pers st v o}
   obtain ⟨p3, h4, h3⟩ := ConRon.Refine.bind_eq_ok_iff.mp h3
   obtain ⟨r3, n3⟩ := p3
   obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h3 : _ ∧ _)
-  obtain ⟨hsh, hscr⟩ := nstore_intern_flags h4
-  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, hsh, hscr⟩
+  have hscr := nstore_intern_flags h4
+  exact ⟨rfl, rfl, rfl, hscr⟩
 
 theorem intern_l_node_flags {pers st v o}
     (h : arena.monad.intern_l_node pers st v = ok o) : FlagsEq st.store o.2.store := by
@@ -12722,8 +12750,8 @@ theorem intern_l_node_flags {pers st v o}
   obtain ⟨p2, h3, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
   obtain ⟨r2, l2⟩ := p2
   obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h2 : _ ∧ _)
-  obtain ⟨hns, hsh, hscr⟩ := lstore_intern_flags h3
-  exact ⟨rfl, rfl, rfl, rfl, hsh, hscr, by rw [hns], by rw [hns]⟩
+  obtain ⟨hns, hscr⟩ := lstore_intern_flags h3
+  exact ⟨rfl, rfl, hscr, by rw [hns]⟩
 
 theorem intern_ls_node_flags {pers st v o}
     (h : arena.monad.intern_ls_node pers st v = ok o) : FlagsEq st.store o.2.store := by
@@ -12736,8 +12764,8 @@ theorem intern_ls_node_flags {pers st v o}
   obtain ⟨p1, h2, h1⟩ := ConRon.Refine.bind_eq_ok_iff.mp h1
   obtain ⟨r1, lss1⟩ := p1
   obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h1 : _ ∧ _)
-  obtain ⟨hls, hsh, hscr⟩ := lsstore_intern_flags h2
-  exact ⟨rfl, rfl, hsh, hscr, by rw [hls], by rw [hls], by rw [hls], by rw [hls]⟩
+  obtain ⟨hls, hscr⟩ := lsstore_intern_flags h2
+  exact ⟨rfl, hscr, by rw [hls], by rw [hls]⟩
 
 
 
