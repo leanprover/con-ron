@@ -61224,6 +61224,99 @@ branch (`t2-ind-mod`, not on `arena` at the time) and this are both landed:
 `lockstep_ite` drivers (their `rw [bind_pure]; twin_ite_pos/neg` tail is slice
 1b's case), whose uses in `Inductives/Modeled.lean` become `lockstep`.
 
+#### Slice 4 — memoised walks are a first-class shape (`LSM`/`LSRM`), and two more Modeled-lane findings (core)
+
+**Coordinator's item (b).**  Walks that return their memo OUTSIDE the
+`Result` — `(Result α, AState, M)` for a state walk (`consts_resolve_f_*`,
+`arena::intern`'s `intern_expr_go`), `(Result α, M)` for a reader
+(`all_level_params_defined_*`) — had no judgement in the shared tactic; the
+Promote lane wrote its own (`LSM`, hand bind rules) and proved its walks by
+hand.  `Tactic/Lockstep.lean` now has:
+
+* `packM m` / `packRM st m`: the walk with its memo moved into the answer
+  (`Ok a, st, mm` ↦ `Ok (a, mm), st`; an `Err` drops the memo, as the twin
+  throws).  `LSM pers R m lst x := LS pers R (packM m) lst x`, `LSRM pers R m
+  st lst x := LS pers R (packRM st m) lst x`, with `R` on `(answer, memo)`.
+  So the whole existing zip applies unchanged.
+* The tactic unfolds an `LSM`/`LSRM` goal to its `LS`, pushes the packing
+  through the Rust program (`packMove`: `LS.packM_bind`/`_ite`/`_ok_ok`/
+  `_ok_err`, cases on a tuple or `match` variable; the `packRM` twins), and
+  steps a memoised walk as a CALLEE (`classify`'s new kinds `.memo`/`.rmemo`,
+  `LS.bindM`/`LS.bindRM`, continuation `hk : ∀ a mm b …, R₁ (a, mm) b → …`) or
+  in TAIL position (`LS.tailM`/`tailRM`); its spec is an `LSM`/`LSRM` lemma
+  (`@[lockstep]` files it under the walk's head, `Attr.lean` knows both
+  judgements) or a local hypothesis (the fuel induction's IH).  Error arms go
+  through `ErrArm.packM_ok_err`/`packM_bind` (and the `packRM` pair).
+  `LSM.apply`/`LSM.intro`/`LSRM.apply` are the bridges to hand statements.
+* Two general improvements the walks needed: a relation CONSTANT that unfolds
+  reducibly to a conjunction (`abbrev BMemoR p b := b.1 = p.1 ∧ LMemoRel p.2
+  b.2`) is split like a syntactic one (`splitRels`) and unfolded at a leaf; and
+  a `TwinEq` fact is also used with its left side in `lockstep_simp` normal
+  form (the twin side is kept in that form, and simp rewrites subterms first,
+  so `absNames params` had already become `List.map absName params`).  Cost of
+  the second, measured: full `ConRonRefine2` rebuild 6 835 G instructions with
+  it, 6 843 G without (noise).
+* `Promote/Intern.lean` (lane closed, no active branch): its judgement is
+  renamed `LSMI` (it clashed by name), with `LSMI.toLSM`/`LSMI.ofLSM` to the
+  shared `LSM` at `fun p sb => EMemoRel p.2 sb.1 ∧ R p.1 sb.2`.  Its hand
+  proofs are unchanged; converting them to `lockstep` is the lane's.
+
+Tests (`Tactic/Tests.lean` §6), each ONE `lockstep` after unfolding the Rust
+function, the recursive walk a hypothesis as an IH would be:
+`consts_resolve_f_two` (two state walks, memo threaded, answers `&&`ed),
+`consts_resolve_f_fast` (fresh memo, walk as a callee, memo dropped — an `LS`
+goal), `all_level_params_defined_binder` (a READER walk twice, the binder's
+`params_defined` between).
+
+**Files that benefit** (their walks can become `lockstep` fuel inductions):
+`Checker/Base.lean` — `consts_resolve_f_{go,node,two,fast}`,
+`all_level_params_defined_{go,node,binder}` (today `sorry`, stated in
+`Checker/Shape.lean`'s `SimBM`/`SimBR`; restate as `LSM`/`LSRM` or bridge with
+`LSM.apply`); `Promote/Intern.lean` — `intern_expr_aux`'s hand `LSMI.bindM`/
+`bindS`/`tailS`/`bindP` chains and `intern_probe_ls`.
+
+**Two more Modeled-lane findings (core, separate commit):**
+`LS.twin_view_const_name`'s premise `hg` (the continuation ignores the levels)
+was checked by `rfl`, which unfolds whatever the continuation calls on the
+levels without bound (`nested_rule_shape_at` hung; the lane's workaround is a
+local `irreducible` attribute): it is now `with_reducible rfl`, then `dsimp
+only; done`.  `etag_const_abs` (and `etag_fvar_abs`, `etag_lit_abs`, the other
+two missing tag constants) are `lockstep_simp` in `Tactic/Prims.lean`.  And the
+`twin_bind_pure` fallback is also skipped at a twin `pure`, the same guard the
+Core lane's `p5-core-5` carries (89019910), so the two branches meet on one
+condition line.
+
+`lake build ConRonRefine2` green (all of it re-elaborated); `scripts/gates.sh`
+after merging `arena` `4cd871a8`: all 16 OK.
+
+#### Slices 4+5 resubmitted as one branch after `p5-core-5` (branch `t2-tactic-7`)
+
+The queue bounced `t2-tactic-5`/`-6` behind the Core lane's round 5
+(`b9b64d90`, which reconciled `Lockstep.lean` with slices 1–3).  One branch now
+carries both, `b9b64d90` merged:
+
+* `errArmChain`: Core head-normalises a bind's CALLEE before the `ok`-repack
+  test; slice 4's packed-memo arm sits after that and head-normalises the
+  packed program itself (`headNorm` descends into `packM`/`packRM`), and each
+  `ErrArm.packM_bind` step recurses into the Core path with a bind whose callee
+  is then normalised — the two compose; no change.
+* `rustStep`: the twin-`pure` guard was in both; Core's comment kept.
+* `simpTwinEqs`: ONE loop.  Core's scalar respelling (`scal`/`sctx`) and its
+  `lockstep_simp`-normal left sides (e11a8ade) are a superset of slice 4's
+  `baseCtx` addition, which is dropped; on top, no left side is offered twice
+  (the respelled side is simplified only when it differs from the original,
+  and a normal form equal to a side already offered is skipped).  Review of
+  e11a8ade: sound (each offered rule is `normal = lhs = rhs` by `Eq.trans`);
+  the duplicate offers and the second `simp` call when the respelling is the
+  identity were its only cost, now gone.
+
+All tests of both sides kept (`Tactic/Tests.lean` and Core's region tests).
+**Cost**: forced re-elaboration of `ConRonRefine2` downstream of `Lockstep`
+(92 modules), `b9b64d90` alone **12 842 G instructions** vs this branch
+**10 178 G (−20.7 %)**; cycles 10 193 G → 8 473 G.  Nearly all of it is one
+module: `Core/LS/Defeq` 521 s → 229 s (and `Core/LS/Infer` 28 s → 11 s), the
+bounded twin splits and the side tiers without callee specs (slice 5).
+
 ### Task #97-T2-LOCKSTEP lane Inductives Modeled — the modeled route by `lockstep`; one twin divergence fixed (2026-09-23, Opus under Fable)
 
 Worktree `_tmp/wt-t2-ind-mod`, branch `t2-ind-mod` off `arena` `70ea5a33`
@@ -61627,6 +61720,71 @@ string, tactic limit 1).  Every remaining `sorryAx` below the lane's gates is
 passes to the Inductives Modeled lane).  Note for the maintainer: the port's
 `cert_*` doc comments still cite `Lean twin: … divModCertStmts`; they could
 now name their own twin helpers (a Rust doc change, not made).
+
+#### Slice 5 — the Frontend lane's findings; bounded twin splits; a panic (core)
+
+Reported by the Frontend lane (four proofs broken on `arena`:
+`occurs_const_go`, `proj_rec_value`, `proj_rec_candidates_from`,
+`proj_rec_owners`; local workarounds `lockstep_nosplit`,
+`ls_clear_ih_candidates`, `maxHeartbeats 1000000` in `Frontend/ProjRec.lean`):
+
+1. **Twin-side splits are bounded.**  Slice 1's last-resort split of an
+   undecided twin `if`/`dite`, and the older (ExprOps) `cases` of a twin
+   `match` on a term, walked every branch, dead ones included, until the
+   heartbeat limit.  Both are now KEPT only if `lockstep_contra` closes one of
+   the branches at once (the context rules it out) or one goal is left;
+   otherwise the state is restored and the zip stops there, handing the goal
+   back — the behaviour before the fallbacks.  `set_option lockstep.twinSplit
+   true` (a registered option) opts back in to the unrestricted split; one
+   proof on `arena` needs it: `Checker/Axioms.lean`'s `quot_pin_hit_refines`
+   (its bound `dite`'s dead branch needs `len_val`, which its hand tail
+   supplies) — a one-line `set_option … in` there.
+2. **Side simp without callee specs.**  `lockstep_side` first tries
+   `assumption`/`rfl`/`Eq.symm; assumption` with the whole context, then runs
+   every simp-based tier (and `lockstep_side_{cheap,dear,ite}`,
+   `lockstep_contra`) with the callee-SPEC hypotheses cleared
+   (`clearForallHyps`, also the tactic `lockstep_clear_foralls`): a `∀`/`→`
+   whose conclusion is a lockstep judgement or a `Sim…` statement (an
+   induction hypothesis, a knot slot), which `simp [*]`/`simp_all` used as a
+   conditional rewrite rule without terminating.  `∀` FACTS stay (clearing
+   every `∀` was tried first: it broke `proj_rec_candidates_from`, whose dead
+   branch `lockstep_contra` closes with `∀ j, some v = some j → j < n`).
+3. **A twin `match` with a constructor discriminant is `split`**
+   (`Lean.Meta.Split.splitMatch` on the twin's match, not the goal's first
+   one): the Modeled lane's `check_eta_thm` shape — `match some (match v with
+   …), none, … with | some (.thmInfo …), some (.defnInfo …), … => … | _, _, _ =>
+   pure false` — keeps only the catch-all.  Otherwise the case target is
+   searched across ALL discriminants, a stuck term first and a variable field
+   second.
+
+Also: `classify` (slice 4) evaluated `rest.getArg! 0` unconditionally — a
+`(← …)` inside `&&` is hoisted out of the test — which printed `PANIC at
+Lean.Expr.getRevArg!` infos (82 in `Tactic/Sample`'s build) though it computed
+the right kind.  Fixed; the builds print none now.
+
+Tests (`Tactic/Tests.lean` §4, §7): the `check_eta_thm` shape; a twin `if b
+then … else <program>` nothing decides — `lockstep` stops and the goal is
+exactly the input (`exact hstuck`), under `maxHeartbeats 20000`; the side
+tiers' context loses an IH-shaped hypothesis and keeps a `∀` fact.  §4's
+`some (!c)` test now carries the fact that rules its dead branch out; slice
+1's split test sets `lockstep.twinSplit`.
+
+**Workarounds removed:** `Frontend/ProjRec.lean` (lane landed) —
+`lockstep_step_nosplit`/`lockstep_nosplit` deleted (uses are `lockstep_step`/
+`lockstep`), `ls_clear_ih_candidates` deleted; its `maxHeartbeats 1000000`
+stays (without it `proj_rec_candidates_from_aux` runs out at 200 000: the
+proof's size, not a loop).  **Removable, left to the lane**
+(`Inductives/{PrimsModeled,Modeled}.lean`, lane `t2-ind-mod2` active):
+`ind_twin_split`, `lockstep_mod`, `lockstep_ite` — checked here, with
+`lockstep_mod := lockstep` `Inductives/Modeled.lean` builds.
+
+**Cost of the round, apples to apples** (the tree of slice 1's baseline,
+`arena` `b5f0d431`, with this slice's final `Tactic/{Lockstep,Attr}.lean`,
+the three `etag` lines, and `Promote/Intern.lean`'s rename; the same forced
+re-elaboration of the 68 modules downstream of `Lockstep`): **5 292 G →
+5 219 G instructions (−1.4 %)**, cycles 5 635 G → 5 458 G; summed per-module
+build time 466 s → 399 s (one run each; an intermediate state measured 484 s,
+so read it as noise).  That tree builds green with the round's tactic.
 
 ### Task #97-T2-LOCKSTEP lane Frontend round 3 — the modeller seam; the lane's frontier (2026-09-23, Opus under Fable)
 

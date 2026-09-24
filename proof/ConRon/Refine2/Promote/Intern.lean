@@ -34,8 +34,9 @@ obligation lands where it is already discharged.
 
 All closed, over `AStateRel₀`/`AStateInv` and the Rust-side key predicates
 (`EMemoRel` now carries `KeysOk ExprWF`, which the memo probe needs).  The
-walks return their memo OUTSIDE the `Result`, so they are stated in `LSM`,
-`Lockstep.LS` with that memo (below); a fresh-memo entry is `LSM.fresh`.  One
+walks return their memo OUTSIDE the `Result`, so they are stated in `LSMI`,
+`Lockstep.LS` with that memo (below; `LSMI.toLSM`/`ofLSM` move to the shared
+tactic's `LSM`, which `lockstep` zips); a fresh-memo entry is `LSMI.fresh`.  One
 divergence found and fixed in the twin (P1: the projection arm's order,
 `internExprGo`).
 -/
@@ -112,11 +113,11 @@ theorem memo_insert_refines {rm lm} {e : kernel.expr.Expr} {h : arena.handle.EId
 
 `arena::intern`'s walks return their memo OUTSIDE the `Result` (a `&mut`
 borrow comes back whatever happened), so they are not `Lockstep.LS`'s shape.
-`LSM` is `LS` with that memo: an `Ok a` in memo `mm` is matched by a twin
+`LSMI` is `LS` with that memo: an `Ok a` in memo `mm` is matched by a twin
 answer `(s, b)` with `EMemoRel mm s` and `R a b`, an `Err` by the twin's throw
 at the same kind; its bind rules are `LS`'s, one per callee shape (a walk, a
-state-threading callee, a Rust-only step).  `EOut`/`SimEM` is `LSM` at a
-Rust equation (`LSM.toSimEM`). -/
+state-threading callee, a Rust-only step).  `EOut`/`SimEM` is `LSMI` at a
+Rust equation (`LSMI.toSimEM`). -/
 
 namespace Lockstep
 
@@ -131,17 +132,17 @@ def MOut {α β : Type} (pers : arena.store.PersTier) (R : α → β → Prop)
   | .Err e => AErrSim e y
 
 /-- **The judgement of an `arena::intern` walk.** -/
-def LSM {α β : Type} (pers : arena.store.PersTier) (R : α → β → Prop)
+def LSMI {α β : Type} (pers : arena.store.PersTier) (R : α → β → Prop)
     (m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState ×
       ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx))
     (lst : AState) (x : AM (Frontend.EMemo × β)) : Prop :=
   ∀ o st' mm, m = ok (o, st', mm) → MOut pers R o st' mm (x.run lst)
 
-theorem LSM.toSimEM {α β : Type} {A : α → β} {pers : arena.store.PersTier}
+theorem LSMI.toSimEM {α β : Type} {A : α → β} {pers : arena.store.PersTier}
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState ×
       ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)}
     {lst : AState} {x : AM (Frontend.EMemo × β)} {o}
-    (h : LSM pers (fun a b => b = A a) m lst x) (hm : m = ok o) : SimEM A pers lst o x := by
+    (h : LSMI pers (fun a b => b = A a) m lst x) (hm : m = ok o) : SimEM A pers lst o x := by
   obtain ⟨o, st', mm⟩ := o
   have := h o st' mm hm
   show EOut A pers lst o st' mm (x.run lst)
@@ -151,7 +152,7 @@ theorem LSM.toSimEM {α β : Type} {A : α → β} {pers : arena.store.PersTier}
     obtain ⟨s, b, lst', hx, hm, rfl, h1, h2⟩ := this
     exact ⟨s, lst', hx, hm, h1, h2⟩
 
-theorem LSM.bindM {α γ β δ : Type} {pers : arena.store.PersTier}
+theorem LSMI.bindM {α γ β δ : Type} {pers : arena.store.PersTier}
     {R₁ : α → β → Prop} {R : γ → δ → Prop}
     {f : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState ×
       ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)}
@@ -160,11 +161,11 @@ theorem LSM.bindM {α γ β δ : Type} {pers : arena.store.PersTier}
       Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState ×
         ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)}
     {lst : AState} {x : AM (Frontend.EMemo × β)} {g : Frontend.EMemo × β → AM (Frontend.EMemo × δ)}
-    (hf : LSM pers R₁ f lst x)
+    (hf : LSMI pers R₁ f lst x)
     (he : ∀ e st1 m1 o st' mm, k (.Err e, st1, m1) = ok (o, st', mm) → o = .Err e)
     (hk : ∀ a b s st1 m1 lst1, EMemoRel m1 s → R₁ a b → AStateRel₀ pers st1 lst1 →
-      AStateInv pers st1 → LSM pers R (k (.Ok a, st1, m1)) lst1 (g (s, b))) :
-    LSM pers R (f >>= k) lst (x >>= g) := by
+      AStateInv pers st1 → LSMI pers R (k (.Ok a, st1, m1)) lst1 (g (s, b))) :
+    LSMI pers R (f >>= k) lst (x >>= g) := by
   intro o st' mm hm
   obtain ⟨⟨r, st1, m1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   have h1 := hf r st1 m1 hf1
@@ -178,7 +179,7 @@ theorem LSM.bindM {α γ β δ : Type} {pers : arena.store.PersTier}
     rw [run_bind_ok hx1]
     exact hk a b s st1 m1 lst1 hms hR hrel hinv o st' mm hk1
 
-theorem LSM.bindS {α γ β δ : Type} {pers : arena.store.PersTier}
+theorem LSMI.bindS {α γ β δ : Type} {pers : arena.store.PersTier}
     {R₁ : α → β → Prop} {R : γ → δ → Prop}
     {f : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
     {k : core.result.Result α kernel.core_types.CheckError × arena.monad.AState →
@@ -188,8 +189,8 @@ theorem LSM.bindS {α γ β δ : Type} {pers : arena.store.PersTier}
     (hf : LS pers R₁ f lst x)
     (he : ∀ e st1 o st' mm, k (.Err e, st1) = ok (o, st', mm) → o = .Err e)
     (hk : ∀ a b st1 lst1, R₁ a b → AStateRel₀ pers st1 lst1 → AStateInv pers st1 →
-      LSM pers R (k (.Ok a, st1)) lst1 (g b)) :
-    LSM pers R (f >>= k) lst (x >>= g) := by
+      LSMI pers R (k (.Ok a, st1)) lst1 (g b)) :
+    LSMI pers R (f >>= k) lst (x >>= g) := by
   intro o st' mm hm
   obtain ⟨⟨r, st1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   have h1 := hf r st1 hf1
@@ -204,7 +205,7 @@ theorem LSM.bindS {α γ β δ : Type} {pers : arena.store.PersTier}
     exact hk a b st1 lst1 hR hrel hinv o st' mm hk1
 
 /-- A state-threading callee in tail position, the memo handed back beside it. -/
-theorem LSM.tailS {α β : Type} {pers : arena.store.PersTier} {R₁ R : α → β → Prop}
+theorem LSMI.tailS {α β : Type} {pers : arena.store.PersTier} {R₁ R : α → β → Prop}
     {f : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
     {k : core.result.Result α kernel.core_types.CheckError × arena.monad.AState →
       Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState ×
@@ -213,7 +214,7 @@ theorem LSM.tailS {α β : Type} {pers : arena.store.PersTier} {R₁ R : α → 
     {lst : AState} {x : AM β}
     (hf : LS pers R₁ f lst x) (hk : ∀ r st, k (r, st) = ok (r, st, mm))
     (hms : EMemoRel mm s) (hR : ∀ a b, R₁ a b → R a b) :
-    LSM pers R (f >>= k) lst (x >>= fun b => pure (s, b)) := by
+    LSMI pers R (f >>= k) lst (x >>= fun b => pure (s, b)) := by
   intro o st' mm' hm
   obtain ⟨⟨r, st1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   rw [hk] at hk1
@@ -227,43 +228,72 @@ theorem LSM.tailS {α β : Type} {pers : arena.store.PersTier} {R₁ R : α → 
     rw [run_bind_ok hx1]
     exact ⟨s, b, lst1, rfl, hms, hR _ _ hRb, hrel, hinv⟩
 
-theorem LSM.bindP {α γ δ : Type} {pers : arena.store.PersTier} {R : γ → δ → Prop}
+theorem LSMI.bindP {α γ δ : Type} {pers : arena.store.PersTier} {R : γ → δ → Prop}
     {f : Result α}
     {k : α → Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState ×
       ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)}
     {lst : AState} {x : AM (Frontend.EMemo × δ)}
-    (hk : ∀ a, f = ok a → LSM pers R (k a) lst x) : LSM pers R (f >>= k) lst x := by
+    (hk : ∀ a, f = ok a → LSMI pers R (k a) lst x) : LSMI pers R (f >>= k) lst x := by
   intro o st' mm hm
   obtain ⟨a, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   exact hk a hf1 o st' mm hk1
 
-theorem LSM.pure {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+theorem LSMI.pure {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
     {a : α} {b : β} {st : arena.monad.AState} {lst : AState}
     {mm : ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx} {s : Frontend.EMemo}
     (hms : EMemoRel mm s) (hR : R a b) (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :
-    LSM pers R (ok (.Ok a, st, mm)) lst (Pure.pure (s, b)) := by
+    LSMI pers R (ok (.Ok a, st, mm)) lst (Pure.pure (s, b)) := by
   intro o st' mm' hm
   cases Result.ok_injective hm
   exact ⟨s, b, lst, rfl, hms, hR, hrel, hinv⟩
 
-theorem LSM.twin_eq {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+theorem LSMI.twin_eq {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState ×
       ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)}
-    {lst : AState} {x y : AM (Frontend.EMemo × β)} (h : LSM pers R m lst x) (hxy : x = y) :
-    LSM pers R m lst y := hxy ▸ h
+    {lst : AState} {x y : AM (Frontend.EMemo × β)} (h : LSMI pers R m lst x) (hxy : x = y) :
+    LSMI pers R m lst y := hxy ▸ h
+
+/-- `LSMI` is the shared tactic's `LSM` (task #97-T2-TACTIC round 2) at the
+answer relation "the twin's memo is related, and its answer by `R`". -/
+theorem LSMI.toLSM {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState ×
+      ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)}
+    {lst : AState} {x : AM (Frontend.EMemo × β)} (h : LSMI pers R m lst x) :
+    LSM pers (fun p sb => EMemoRel p.2 sb.1 ∧ R p.1 sb.2) m lst x := by
+  refine LSM.intro fun o st' mm hm => ?_
+  have := h o st' mm hm
+  cases o with
+  | Err e => exact this
+  | Ok a =>
+    obtain ⟨s, b, lst', hx, hms, hR, h1, h2⟩ := this
+    exact ⟨(s, b), lst', hx, ⟨hms, hR⟩, h1, h2⟩
+
+theorem LSMI.ofLSM {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState ×
+      ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)}
+    {lst : AState} {x : AM (Frontend.EMemo × β)}
+    (h : LSM pers (fun p sb => EMemoRel p.2 sb.1 ∧ R p.1 sb.2) m lst x) :
+    LSMI pers R m lst x := by
+  intro o st' mm hm
+  have := h.apply hm
+  cases o with
+  | Err e => exact this
+  | Ok a =>
+    obtain ⟨⟨s, b⟩, lst', hx, ⟨hms, hR⟩, h1, h2⟩ := this
+    exact ⟨s, b, lst', hx, hms, hR, h1, h2⟩
 
 end Lockstep
 
 namespace Lockstep
 
 /-- A fresh-memo entry: `memo_empty`, the walk, the memo dropped. -/
-theorem LSM.fresh {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+theorem LSMI.fresh {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
     {walk : ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx →
       Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState ×
         ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)}
     {lst : AState} {x : AM (Frontend.EMemo × β)}
-    (h : ∀ rm, EMemoRel rm (∅ : Frontend.EMemo) → LSM pers R (walk rm) lst x) :
+    (h : ∀ rm, EMemoRel rm (∅ : Frontend.EMemo) → LSMI pers R (walk rm) lst x) :
     LS pers R (do
         let m ← arena.intern.memo_empty
         let (r, st1, _) ← walk m
@@ -412,8 +442,8 @@ private theorem intern_probe_ls {pers st lst rm lm} {e : kernel.expr.Expr}
       arena.monad.AState × ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)}
     {tnode : AM (Frontend.EMemo × EIdx)}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hm : EMemoRel rm lm)
-    (hwf : ExprWF e) (hnode : LSM pers (fun a b => b = absEIdx a) node lst tnode) :
-    LSM pers (fun a b => b = absEIdx a)
+    (hwf : ExprWF e) (hnode : LSMI pers (fun a b => b = absEIdx a) node lst tnode) :
+    LSMI pers (fun a b => b = absEIdx a)
       (do
         let o ← arena.intern.memo_get rm e
         match o with
@@ -431,45 +461,45 @@ private theorem intern_probe_ls {pers st lst rm lm} {e : kernel.expr.Expr}
           | core.result.Result.Err _ => ok (r, st1, m1)
         | some h => ok (core.result.Result.Ok h, st, rm))
       lst (internProbe lm (ConRon.Refine.absExpr e) tnode) := by
-  refine LSM.bindP fun o ho => ?_
+  refine LSMI.bindP fun o ho => ?_
   have hget := memo_get_refines hm hwf ho
   cases o with
   | none =>
     have hn : lm[ConRon.Refine.absExpr e]? = none := by simpa using hget.symm
     simp only [internProbe, hn]
-    refine LSM.bindM hnode (by lsm_err) ?_
+    refine LSMI.bindM hnode (by lsm_err) ?_
     intro h h' s st1 m1 lst1 hms hh hrel1 hinv1
     subst hh
-    refine LSM.bindP fun e1 he1 => ?_
+    refine LSMI.bindP fun e1 he1 => ?_
     rw [ConRon.Refine.Expr.dup_eq he1]
-    refine LSM.bindP fun e2 he2 => ?_
+    refine LSMI.bindP fun e2 he2 => ?_
     rw [dupId_eidx _ _ he2]
-    refine LSM.bindP fun p hp => ?_
+    refine LSMI.bindP fun p hp => ?_
     obtain ⟨old, m2⟩ := p
-    exact LSM.pure (memo_insert_refines hms hwf hp) rfl hrel1 hinv1
+    exact LSMI.pure (memo_insert_refines hms hwf hp) rfl hrel1 hinv1
   | some h =>
     have hs : lm[ConRon.Refine.absExpr e]? = some (absEIdx h) := by simpa using hget.symm
     simp only [internProbe, hs]
-    exact LSM.pure hm rfl hrel hinv
+    exact LSMI.pure hm rfl hrel hinv
 
 open Lockstep in
 private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
     (∀ {pers st lst rm lm}, AStateRel₀ pers st lst → AStateInv pers st → EMemoRel rm lm →
-      LSM pers (fun a b => b = absEIdx a) (arena.intern.intern_expr_go pers st rm e) lst
+      LSMI pers (fun a b => b = absEIdx a) (arena.intern.intern_expr_go pers st rm e) lst
         (Frontend.internExprGo lm (ConRon.Refine.absExpr e))) ∧
     (∀ {pers st lst rm lm}, AStateRel₀ pers st lst → AStateInv pers st → EMemoRel rm lm →
-      LSM pers (fun a b => b = absEIdx a) (arena.intern.intern_expr_node pers st rm e) lst
+      LSMI pers (fun a b => b = absEIdx a) (arena.intern.intern_expr_node pers st rm e) lst
         (internExprNodeSpec lm (ConRon.Refine.absExpr e))) := by
   induction e, he using ConRon.Refine.ExprWF.ind_node with
   | bvar d i h =>
     have hgo : ∀ {pers st lst rm lm}, AStateRel₀ pers st lst → AStateInv pers st →
         EMemoRel rm lm →
-        LSM pers (fun a b => b = absEIdx a)
+        LSMI pers (fun a b => b = absEIdx a)
           (arena.intern.intern_expr_go pers st rm (.mk (.mk d (.Bvar i)))) lst
           (Frontend.internExprGo lm (ConRon.Refine.absExpr (.mk (.mk d (.Bvar i))))) := by
       intro pers st lst rm lm hrel hinv hm
       rw [arena.intern.intern_expr_go]; rust_view; twin_abs
-      refine LSM.tailS ?_ (fun _ _ => rfl) hm (fun _ _ h => h)
+      refine LSMI.tailS ?_ (fun _ _ => rfl) hm (fun _ _ h => h)
       exact intern_e_ls' hrel hinv _ (by intro _ h; cases h)
         (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨hgo, fun hrel hinv hm => ?_⟩
@@ -479,16 +509,16 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
     have hu := ConRon.Refine.ExprWF.sort_kids h
     have hgo : ∀ {pers st lst rm lm}, AStateRel₀ pers st lst → AStateInv pers st →
         EMemoRel rm lm →
-        LSM pers (fun a b => b = absEIdx a)
+        LSMI pers (fun a b => b = absEIdx a)
           (arena.intern.intern_expr_go pers st rm (.mk (.mk d (.«Sort» u)))) lst
           (Frontend.internExprGo lm (ConRon.Refine.absExpr (.mk (.mk d (.«Sort» u))))) := by
       intro pers st lst rm lm hrel hinv hm
       rw [arena.intern.intern_expr_go]; rust_view; twin_abs
       simp only [Frontend.internExprGo]
-      refine LSM.bindS (intern_level_ls' hrel hinv u hu) (by lsm_err) ?_
+      refine LSMI.bindS (intern_level_ls' hrel hinv u hu) (by lsm_err) ?_
       intro a b st1 lst1 hR hrel1 hinv1
       subst hR
-      refine LSM.tailS ?_ (fun _ _ => rfl) hm (fun _ _ h => h)
+      refine LSMI.tailS ?_ (fun _ _ => rfl) hm (fun _ _ h => h)
       exact intern_e_ls' hrel1 hinv1 _ (by intro _ h; cases h)
         (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨hgo, fun hrel hinv hm => ?_⟩
@@ -498,20 +528,20 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
     obtain ⟨hn, hus⟩ := ConRon.Refine.ExprWF.const_kids h
     have hgo : ∀ {pers st lst rm lm}, AStateRel₀ pers st lst → AStateInv pers st →
         EMemoRel rm lm →
-        LSM pers (fun a b => b = absEIdx a)
+        LSMI pers (fun a b => b = absEIdx a)
           (arena.intern.intern_expr_go pers st rm (.mk (.mk d (.Const n us)))) lst
           (Frontend.internExprGo lm (ConRon.Refine.absExpr (.mk (.mk d (.Const n us))))) := by
       intro pers st lst rm lm hrel hinv hm
       rw [arena.intern.intern_expr_go]; rust_view; twin_abs
       simp only [Frontend.internExprGo]
-      refine LSM.bindS (intern_name_ls' hrel hinv n hn) (by lsm_err) ?_
+      refine LSMI.bindS (intern_name_ls' hrel hinv n hn) (by lsm_err) ?_
       intro a b st1 lst1 hR hrel1 hinv1
       subst hR
       try simp only [ConRon.Refine.arc_deref_eq, Aeneas.Std.bind_tc_ok]
-      refine LSM.bindS (intern_levels_ls' hrel1 hinv1 us hus) (by lsm_err) ?_
+      refine LSMI.bindS (intern_levels_ls' hrel1 hinv1 us hus) (by lsm_err) ?_
       intro a' b' st2 lst2 hR' hrel2 hinv2
       subst hR'
-      refine LSM.tailS ?_ (fun _ _ => rfl) hm (fun _ _ h => h)
+      refine LSMI.tailS ?_ (fun _ _ => rfl) hm (fun _ _ h => h)
       exact intern_e_ls' hrel2 hinv2 _ (by intro _ h; cases h)
         (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨hgo, fun hrel hinv hm => ?_⟩
@@ -521,15 +551,15 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
     have hl := ConRon.Refine.ExprWF.lit_kids h
     have hgo : ∀ {pers st lst rm lm}, AStateRel₀ pers st lst → AStateInv pers st →
         EMemoRel rm lm →
-        LSM pers (fun a b => b = absEIdx a)
+        LSMI pers (fun a b => b = absEIdx a)
           (arena.intern.intern_expr_go pers st rm (.mk (.mk d (.Lit l)))) lst
           (Frontend.internExprGo lm (ConRon.Refine.absExpr (.mk (.mk d (.Lit l))))) := by
       intro pers st lst rm lm hrel hinv hm
       rw [arena.intern.intern_expr_go]; rust_view; twin_abs
       simp only [Frontend.internExprGo]
-      refine LSM.bindP fun l1 hl1 => ?_
+      refine LSMI.bindP fun l1 hl1 => ?_
       rw [ConRon.Refine.Expr.literal_dup_eq hl1]
-      refine LSM.tailS ?_ (fun _ _ => rfl) hm (fun _ _ h => h)
+      refine LSMI.tailS ?_ (fun _ _ => rfl) hm (fun _ _ h => h)
       exact intern_e_ls' hrel hinv (.Lit l) (fun _ h => by injection h with h; subst h; exact hl)
         (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨hgo, fun hrel hinv hm => ?_⟩
@@ -539,16 +569,16 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
     have hty := ConRon.Refine.ExprWF.fvar_kids h
     have hnode : ∀ {pers st lst rm lm}, AStateRel₀ pers st lst → AStateInv pers st →
         EMemoRel rm lm →
-        LSM pers (fun a b => b = absEIdx a)
+        LSMI pers (fun a b => b = absEIdx a)
           (arena.intern.intern_expr_node pers st rm (.mk (.mk d (.Fvar idx ty)))) lst
           (internExprNodeSpec lm (ConRon.Refine.absExpr (.mk (.mk d (.Fvar idx ty))))) := by
       intro pers st lst rm lm hrel hinv hm
       rw [arena.intern.intern_expr_node]; rust_view; twin_abs
       simp only [internExprNodeSpec]
-      refine LSM.bindM ((ih hty).1 hrel hinv hm) (by lsm_err) ?_
+      refine LSMI.bindM ((ih hty).1 hrel hinv hm) (by lsm_err) ?_
       intro a b s st1 m1 lst1 hms hR hrel1 hinv1
       subst hR
-      refine LSM.tailS ?_ (fun _ _ => rfl) hms (fun _ _ h => h)
+      refine LSMI.tailS ?_ (fun _ _ => rfl) hms (fun _ _ h => h)
       exact intern_e_ls' hrel1 hinv1 _ (by intro _ h; cases h)
         (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
@@ -559,19 +589,19 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
     obtain ⟨hf, ha⟩ := ConRon.Refine.ExprWF.app_kids h
     have hnode : ∀ {pers st lst rm lm}, AStateRel₀ pers st lst → AStateInv pers st →
         EMemoRel rm lm →
-        LSM pers (fun a b => b = absEIdx a)
+        LSMI pers (fun a b => b = absEIdx a)
           (arena.intern.intern_expr_node pers st rm (.mk (.mk d (.App f a)))) lst
           (internExprNodeSpec lm (ConRon.Refine.absExpr (.mk (.mk d (.App f a))))) := by
       intro pers st lst rm lm hrel hinv hm
       rw [arena.intern.intern_expr_node]; rust_view; twin_abs
       simp only [internExprNodeSpec]
-      refine LSM.bindM ((ihf hf).1 hrel hinv hm) (by lsm_err) ?_
+      refine LSMI.bindM ((ihf hf).1 hrel hinv hm) (by lsm_err) ?_
       intro a1 b1 s1 st1 m1 lst1 hms1 hR1 hrel1 hinv1
       subst hR1
-      refine LSM.bindM ((iha ha).1 hrel1 hinv1 hms1) (by lsm_err) ?_
+      refine LSMI.bindM ((iha ha).1 hrel1 hinv1 hms1) (by lsm_err) ?_
       intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
       subst hR2
-      refine LSM.tailS ?_ (fun _ _ => rfl) hms2 (fun _ _ h => h)
+      refine LSMI.tailS ?_ (fun _ _ => rfl) hms2 (fun _ _ h => h)
       exact intern_e_ls' hrel2 hinv2 _ (by intro _ h; cases h)
         (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
@@ -582,21 +612,21 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
     obtain ⟨hty, hb, hbi⟩ := ConRon.Refine.ExprWF.lam_kids h
     have hnode : ∀ {pers st lst rm lm}, AStateRel₀ pers st lst → AStateInv pers st →
         EMemoRel rm lm →
-        LSM pers (fun a b => b = absEIdx a)
+        LSMI pers (fun a b => b = absEIdx a)
           (arena.intern.intern_expr_node pers st rm (.mk (.mk d (.Lam ty b bi)))) lst
           (internExprNodeSpec lm (ConRon.Refine.absExpr (.mk (.mk d (.Lam ty b bi))))) := by
       intro pers st lst rm lm hrel hinv hm
       rw [arena.intern.intern_expr_node]; rust_view; twin_abs
       simp only [internExprNodeSpec]
-      refine LSM.bindM ((ihty hty).1 hrel hinv hm) (by lsm_err) ?_
+      refine LSMI.bindM ((ihty hty).1 hrel hinv hm) (by lsm_err) ?_
       intro a1 b1 s1 st1 m1 lst1 hms1 hR1 hrel1 hinv1
       subst hR1
-      refine LSM.bindM ((ihb hb).1 hrel1 hinv1 hms1) (by lsm_err) ?_
+      refine LSMI.bindM ((ihb hb).1 hrel1 hinv1 hms1) (by lsm_err) ?_
       intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
       subst hR2
-      refine LSM.bindP fun bm hbm => ?_
+      refine LSMI.bindP fun bm hbm => ?_
       rw [ConRon.Refine.Expr.binder_meta_dup_eq hbm]
-      refine LSM.tailS ?_ (fun _ _ => rfl) hms2 (fun _ _ h => h)
+      refine LSMI.tailS ?_ (fun _ _ => rfl) hms2 (fun _ _ h => h)
       exact intern_e_ls' hrel2 hinv2 (.Lam _ _ bi) (by intro _ h; cases h)
         (by intro _ _ _ h; rcases h with h | h <;> cases h; exact hbi)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
@@ -607,21 +637,21 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
     obtain ⟨hty, hb, hbi⟩ := ConRon.Refine.ExprWF.forall_e_kids h
     have hnode : ∀ {pers st lst rm lm}, AStateRel₀ pers st lst → AStateInv pers st →
         EMemoRel rm lm →
-        LSM pers (fun a b => b = absEIdx a)
+        LSMI pers (fun a b => b = absEIdx a)
           (arena.intern.intern_expr_node pers st rm (.mk (.mk d (.ForallE ty b bi)))) lst
           (internExprNodeSpec lm (ConRon.Refine.absExpr (.mk (.mk d (.ForallE ty b bi))))) := by
       intro pers st lst rm lm hrel hinv hm
       rw [arena.intern.intern_expr_node]; rust_view; twin_abs
       simp only [internExprNodeSpec]
-      refine LSM.bindM ((ihty hty).1 hrel hinv hm) (by lsm_err) ?_
+      refine LSMI.bindM ((ihty hty).1 hrel hinv hm) (by lsm_err) ?_
       intro a1 b1 s1 st1 m1 lst1 hms1 hR1 hrel1 hinv1
       subst hR1
-      refine LSM.bindM ((ihb hb).1 hrel1 hinv1 hms1) (by lsm_err) ?_
+      refine LSMI.bindM ((ihb hb).1 hrel1 hinv1 hms1) (by lsm_err) ?_
       intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
       subst hR2
-      refine LSM.bindP fun bm hbm => ?_
+      refine LSMI.bindP fun bm hbm => ?_
       rw [ConRon.Refine.Expr.binder_meta_dup_eq hbm]
-      refine LSM.tailS ?_ (fun _ _ => rfl) hms2 (fun _ _ h => h)
+      refine LSMI.tailS ?_ (fun _ _ => rfl) hms2 (fun _ _ h => h)
       exact intern_e_ls' hrel2 hinv2 (.ForallE _ _ bi) (by intro _ h; cases h)
         (by intro _ _ _ h; rcases h with h | h <;> cases h; exact hbi)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
@@ -632,22 +662,22 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
     obtain ⟨hty, hv, hb⟩ := ConRon.Refine.ExprWF.let_e_kids h
     have hnode : ∀ {pers st lst rm lm}, AStateRel₀ pers st lst → AStateInv pers st →
         EMemoRel rm lm →
-        LSM pers (fun a b => b = absEIdx a)
+        LSMI pers (fun a b => b = absEIdx a)
           (arena.intern.intern_expr_node pers st rm (.mk (.mk d (.LetE ty v b)))) lst
           (internExprNodeSpec lm (ConRon.Refine.absExpr (.mk (.mk d (.LetE ty v b))))) := by
       intro pers st lst rm lm hrel hinv hm
       rw [arena.intern.intern_expr_node]; rust_view; twin_abs
       simp only [internExprNodeSpec]
-      refine LSM.bindM ((ihty hty).1 hrel hinv hm) (by lsm_err) ?_
+      refine LSMI.bindM ((ihty hty).1 hrel hinv hm) (by lsm_err) ?_
       intro a1 b1 s1 st1 m1 lst1 hms1 hR1 hrel1 hinv1
       subst hR1
-      refine LSM.bindM ((ihv hv).1 hrel1 hinv1 hms1) (by lsm_err) ?_
+      refine LSMI.bindM ((ihv hv).1 hrel1 hinv1 hms1) (by lsm_err) ?_
       intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
       subst hR2
-      refine LSM.bindM ((ihb hb).1 hrel2 hinv2 hms2) (by lsm_err) ?_
+      refine LSMI.bindM ((ihb hb).1 hrel2 hinv2 hms2) (by lsm_err) ?_
       intro a3 b3 s3 st3 m3 lst3 hms3 hR3 hrel3 hinv3
       subst hR3
-      refine LSM.tailS ?_ (fun _ _ => rfl) hms3 (fun _ _ h => h)
+      refine LSMI.tailS ?_ (fun _ _ => rfl) hms3 (fun _ _ h => h)
       exact intern_e_ls' hrel3 hinv3 _ (by intro _ h; cases h)
         (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
@@ -658,19 +688,19 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
     obtain ⟨hsn, hx⟩ := ConRon.Refine.ExprWF.proj_kids h
     have hnode : ∀ {pers st lst rm lm}, AStateRel₀ pers st lst → AStateInv pers st →
         EMemoRel rm lm →
-        LSM pers (fun a b => b = absEIdx a)
+        LSMI pers (fun a b => b = absEIdx a)
           (arena.intern.intern_expr_node pers st rm (.mk (.mk d (.Proj sn i x)))) lst
           (internExprNodeSpec lm (ConRon.Refine.absExpr (.mk (.mk d (.Proj sn i x))))) := by
       intro pers st lst rm lm hrel hinv hm
       rw [arena.intern.intern_expr_node]; rust_view; twin_abs
       simp only [internExprNodeSpec]
-      refine LSM.bindS (intern_name_ls' hrel hinv sn hsn) (by lsm_err) ?_
+      refine LSMI.bindS (intern_name_ls' hrel hinv sn hsn) (by lsm_err) ?_
       intro a1 b1 st1 lst1 hR1 hrel1 hinv1
       subst hR1
-      refine LSM.bindM ((ihx hx).1 hrel1 hinv1 hm) (by lsm_err) ?_
+      refine LSMI.bindM ((ihx hx).1 hrel1 hinv1 hm) (by lsm_err) ?_
       intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
       subst hR2
-      refine LSM.tailS ?_ (fun _ _ => rfl) hms2 (fun _ _ h => h)
+      refine LSMI.tailS ?_ (fun _ _ => rfl) hms2 (fun _ _ h => h)
       exact intern_e_ls' hrel2 hinv2 _ (by intro _ h; cases h)
         (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
@@ -683,7 +713,7 @@ open Lockstep in
 theorem intern_expr_go_ls {pers st lst rm lm} {e : kernel.expr.Expr}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ExprWF e) :
-    LSM pers (fun a b => b = absEIdx a) (arena.intern.intern_expr_go pers st rm e) lst
+    LSMI pers (fun a b => b = absEIdx a) (arena.intern.intern_expr_go pers st rm e) lst
       (Frontend.internExprGo lm (ConRon.Refine.absExpr e)) :=
   (intern_expr_aux e hwf).1 hrel hinv hm
 
@@ -693,7 +723,7 @@ theorem intern_expr_go_refines {pers st lst rm lm} {e : kernel.expr.Expr} {o}
     (hm : EMemoRel rm lm) (hwf : ExprWF e)
     (hrun : arena.intern.intern_expr_go pers st rm e = ok o) :
     SimEM absEIdx pers lst o (Frontend.internExprGo lm (ConRon.Refine.absExpr e)) :=
-  Lockstep.LSM.toSimEM (intern_expr_go_ls hrel hinv hm hwf) hrun
+  Lockstep.LSMI.toSimEM (intern_expr_go_ls hrel hinv hm hwf) hrun
 
 /-- `intern_expr_node` is task #97-P6-2's Rust-only split of `intern_expr_go`'s
 six compound arms past the probe (extraction rule 5: the `view`'s loans are
@@ -704,7 +734,7 @@ theorem intern_expr_node_refines {pers st lst rm lm} {e : kernel.expr.Expr} {o}
     (hm : EMemoRel rm lm) (hwf : ExprWF e)
     (hrun : arena.intern.intern_expr_node pers st rm e = ok o) :
     SimEM absEIdx pers lst o (internExprNodeSpec lm (ConRon.Refine.absExpr e)) :=
-  Lockstep.LSM.toSimEM ((intern_expr_aux e hwf).2 hrel hinv hm) hrun
+  Lockstep.LSMI.toSimEM ((intern_expr_aux e hwf).2 hrel hinv hm) hrun
 
 /-- `intern_expr` ⊑ `Arena.internExpr` — the fresh-memo entry. -/
 theorem intern_expr_refines {pers st lst} {e : kernel.expr.Expr} {o}
@@ -713,7 +743,7 @@ theorem intern_expr_refines {pers st lst} {e : kernel.expr.Expr} {o}
     Sim₀ absEIdx pers lst o (internExpr (ConRon.Refine.absExpr e)) := by
   rw [arena.intern.intern_expr] at hrun
   exact Lockstep.LS.toSim₀
-    (Lockstep.LSM.fresh fun rm hm => intern_expr_go_ls hrel hinv hm hwf) hrun
+    (Lockstep.LSMI.fresh fun rm hm => intern_expr_go_ls hrel hinv hm hwf) hrun
 
 theorem internExprList_pmapFrom (m : Frontend.EMemo) (l : List ConLeche.Expr)
     (acc : List EIdx) :
@@ -727,7 +757,7 @@ private theorem intern_expr_list_go_aux (n : Nat) :
       (out : alloc.vec.Vec arena.handle.EIdx),
       es.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
       EMemoRel rm lm → ExprsWF es →
-      LSM pers (fun a b => b = a.val.map absEIdx)
+      LSMI pers (fun a b => b = a.val.map absEIdx)
         (arena.intern.intern_expr_list_go pers st rm es i out) lst
         (pmapFrom Frontend.internExprGo lm (out.val.map absEIdx)
           ((es.val.drop i.val).map ConRon.Refine.absExpr)) := by
@@ -737,22 +767,22 @@ private theorem intern_expr_list_go_aux (n : Nat) :
     rw [arena.intern.intern_expr_list_go, vecFrom_nil v _ i (by omega), pmapFrom]
     have hl := alloc.vec.Vec.len_val v
     rw [if_pos (by scalar_tac)]
-    exact LSM.pure hm rfl hrel hinv
+    exact LSMI.pure hm rfl hrel hinv
   | succ k ih =>
     intro pers st lst rm lm v i out hn hrel hinv hm hP
     have hlt : i.val < v.val.length := by omega
     rw [arena.intern.intern_expr_list_go, vecFrom_cons v _ i hlt, pmapFrom]
     have hl := alloc.vec.Vec.len_val v
     rw [if_neg (by scalar_tac)]
-    refine LSM.bindP fun x hx => ?_
+    refine LSMI.bindP fun x hx => ?_
     obtain ⟨hb, hxv⟩ := ExprOps.vecIndexAt hx
     subst hxv
-    refine LSM.bindM (intern_expr_go_ls hrel hinv hm (hP _ (List.getElem_mem hlt)))
+    refine LSMI.bindM (intern_expr_go_ls hrel hinv hm (hP _ (List.getElem_mem hlt)))
       (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    refine LSM.bindP fun out1 hout1 => ?_
-    refine LSM.bindP fun i2 hi2 => ?_
+    refine LSMI.bindP fun out1 hout1 => ?_
+    refine LSMI.bindP fun i2 hi2 => ?_
     have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
     have h := ih v i2 out1 (by omega) hrel1 hinv1 hms hP
     rw [ConRon.Refine.vec_push_val hout1, hi2v] at h
@@ -765,7 +795,7 @@ theorem intern_expr_list_go_ls {pers st lst rm lm}
     {out : alloc.vec.Vec arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ExprsWF es) :
-    LSM pers (fun a b => b = a.val.map absEIdx)
+    LSMI pers (fun a b => b = a.val.map absEIdx)
       (arena.intern.intern_expr_list_go pers st rm es i out) lst
       (pmapFrom Frontend.internExprGo lm (out.val.map absEIdx)
         ((es.val.drop i.val).map ConRon.Refine.absExpr)) :=
@@ -785,7 +815,7 @@ theorem intern_expr_list_go_refines {pers st lst rm lm}
           pure (m, absEIdxL out ++ hs)) := by
   have h := intern_expr_list_go_ls (i := i) (out := out) hrel hinv hm hwf
   rw [internExprList_pmapFrom] at h
-  exact Lockstep.LSM.toSimEM h hrun
+  exact Lockstep.LSMI.toSimEM h hrun
 
 /-- `intern_expr_list` ⊑ `Arena.internExprList`. -/
 theorem intern_expr_list_refines {pers st lst}
@@ -795,7 +825,7 @@ theorem intern_expr_list_refines {pers st lst}
     Sim₀ absEIdxL pers lst o
       (internExprList (ConRon.Refine.absExprs es)) := by
   rw [arena.intern.intern_expr_list] at hrun
-  have h := Lockstep.LSM.fresh (x := do
+  have h := Lockstep.LSMI.fresh (x := do
       let (m, ys) ← Frontend.internExprList (∅ : Frontend.EMemo) (ConRon.Refine.absExprs es)
       pure (m, ([] : List EIdx) ++ ys))
     (fun rm hm => by
@@ -1038,12 +1068,12 @@ open Lockstep in
 private theorem intern_expr_list0_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hm : EMemoRel rm lm) (es : alloc.vec.Vec kernel.expr.Expr)
     (hwf : ExprsWF es) :
-    LSM pers (fun a b => b = a.val.map absEIdx)
+    LSMI pers (fun a b => b = a.val.map absEIdx)
       (arena.intern.intern_expr_list_go pers st rm es 0#usize (alloc.vec.Vec.new _)) lst
       (Frontend.internExprList lm (ConRon.Refine.absExprs es)) := by
   have h := intern_expr_list_go_ls (i := 0#usize) (out := alloc.vec.Vec.new _) hrel hinv hm hwf
   rw [internExprList_pmapFrom] at h
-  refine LSM.twin_eq h ?_
+  refine LSMI.twin_eq h ?_
   simp [ConRon.Refine.absExprs, alloc.vec.Vec.new]
 
 /-! ### `ConstantVal`, the rule and its firing mode -/
@@ -1059,21 +1089,21 @@ open Lockstep in
 theorem intern_cv_go_ls {pers st lst rm lm} {cv : kernel.env.ConstantVal}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ConstantValWF cv) :
-    LSM pers (fun a b => b = absIConstantVal a) (arena.intern.intern_cv_go pers st rm cv) lst
+    LSMI pers (fun a b => b = absIConstantVal a) (arena.intern.intern_cv_go pers st rm cv) lst
       (Frontend.internCV lm (ConRon.Refine.absConstantVal cv)) := by
   obtain ⟨hn, hlps, hty⟩ := hwf
   rw [arena.intern.intern_cv_go]
   simp only [Frontend.internCV, ConRon.Refine.absConstantVal]
-  refine LSM.bindS (intern_name_ls' hrel hinv _ hn) (by lsm_err) ?_
+  refine LSMI.bindS (intern_name_ls' hrel hinv _ hn) (by lsm_err) ?_
   intro a b st1 lst1 hR hrel1 hinv1
   subst hR
-  refine LSM.bindS (intern_name_list_ls hrel1 hinv1 _ hlps) (by lsm_err) ?_
+  refine LSMI.bindS (intern_name_list_ls hrel1 hinv1 _ hlps) (by lsm_err) ?_
   intro a2 b2 st2 lst2 hR2 hrel2 hinv2
   subst hR2
-  refine LSM.bindM (intern_expr_go_ls hrel2 hinv2 hm hty) (by lsm_err) ?_
+  refine LSMI.bindM (intern_expr_go_ls hrel2 hinv2 hm hty) (by lsm_err) ?_
   intro a3 b3 s3 st3 m3 lst3 hms3 hR3 hrel3 hinv3
   subst hR3
-  exact LSM.pure hms3 rfl hrel3 hinv3
+  exact LSMI.pure hms3 rfl hrel3 hinv3
 
 /-- `intern_cv_go` ⊑ `Frontend.internCV`. -/
 theorem intern_cv_go_refines {pers st lst rm lm} {cv : kernel.env.ConstantVal} {o}
@@ -1082,7 +1112,7 @@ theorem intern_cv_go_refines {pers st lst rm lm} {cv : kernel.env.ConstantVal} {
     (hrun : arena.intern.intern_cv_go pers st rm cv = ok o) :
     SimEM absIConstantVal pers lst o
       (Frontend.internCV lm (ConRon.Refine.absConstantVal cv)) :=
-  Lockstep.LSM.toSimEM (intern_cv_go_ls hrel hinv hm hwf) hrun
+  Lockstep.LSMI.toSimEM (intern_cv_go_ls hrel hinv hm hwf) hrun
 
 /-- `intern_cv` ⊑ `Arena.internCV`. -/
 theorem intern_cv_refines {pers st lst} {cv : kernel.env.ConstantVal} {o}
@@ -1093,32 +1123,32 @@ theorem intern_cv_refines {pers st lst} {cv : kernel.env.ConstantVal} {o}
       (internCV (ConRon.Refine.absConstantVal cv)) := by
   rw [arena.intern.intern_cv] at hrun
   exact Lockstep.LS.toSim₀
-    (Lockstep.LSM.fresh fun rm hm => intern_cv_go_ls hrel hinv hm hwf) hrun
+    (Lockstep.LSMI.fresh fun rm hm => intern_cv_go_ls hrel hinv hm hwf) hrun
 
 open Lockstep in
 /-- `intern_fire` ⊑ `Frontend.internFire`, in the judgement shape. -/
 theorem intern_fire_ls {pers st lst rm lm} {f : kernel.env.RecRuleFire}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : RecRuleFireWF f) :
-    LSM pers (fun a b => b = absIRecRuleFire a) (arena.intern.intern_fire pers st rm f) lst
+    LSMI pers (fun a b => b = absIRecRuleFire a) (arena.intern.intern_fire pers st rm f) lst
       (Frontend.internFire lm (ConRon.Refine.absFire f)) := by
   cases f with
   | Inert =>
     rw [arena.intern.intern_fire]; simp only [Frontend.internFire, ConRon.Refine.absFire]
-    exact LSM.pure hm rfl hrel hinv
+    exact LSMI.pure hm rfl hrel hinv
   | Plain =>
     rw [arena.intern.intern_fire]; simp only [Frontend.internFire, ConRon.Refine.absFire]
-    exact LSM.pure hm rfl hrel hinv
+    exact LSMI.pure hm rfl hrel hinv
   | Nested lvls pins =>
     obtain ⟨hl, hp⟩ := hwf
     rw [arena.intern.intern_fire]; simp only [Frontend.internFire, ConRon.Refine.absFire]
-    refine LSM.bindS (intern_level_list0_ls hrel hinv lvls hl) (by lsm_err) ?_
+    refine LSMI.bindS (intern_level_list0_ls hrel hinv lvls hl) (by lsm_err) ?_
     intro a b st1 lst1 hR hrel1 hinv1
     subst hR
-    refine LSM.bindM (intern_expr_list0_ls hrel1 hinv1 hm pins hp) (by lsm_err) ?_
+    refine LSMI.bindM (intern_expr_list0_ls hrel1 hinv1 hm pins hp) (by lsm_err) ?_
     intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
     subst hR2
-    exact LSM.pure hms2 rfl hrel2 hinv2
+    exact LSMI.pure hms2 rfl hrel2 hinv2
 
 /-- `intern_fire` ⊑ `Frontend.internFire`. -/
 theorem intern_fire_refines {pers st lst rm lm} {f : kernel.env.RecRuleFire} {o}
@@ -1127,28 +1157,28 @@ theorem intern_fire_refines {pers st lst rm lm} {f : kernel.env.RecRuleFire} {o}
     (hrun : arena.intern.intern_fire pers st rm f = ok o) :
     SimEM absIRecRuleFire pers lst o
       (Frontend.internFire lm (ConRon.Refine.absFire f)) :=
-  Lockstep.LSM.toSimEM (intern_fire_ls hrel hinv hm hwf) hrun
+  Lockstep.LSMI.toSimEM (intern_fire_ls hrel hinv hm hwf) hrun
 
 open Lockstep in
 /-- `intern_rule` ⊑ `Frontend.internRule`, in the judgement shape. -/
 theorem intern_rule_ls {pers st lst rm lm} {rl : kernel.env.RecRule}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : RecRuleWF rl) :
-    LSM pers (fun a b => b = absIRecRule a) (arena.intern.intern_rule pers st rm rl) lst
+    LSMI pers (fun a b => b = absIRecRule a) (arena.intern.intern_rule pers st rm rl) lst
       (Frontend.internRule lm (ConRon.Refine.absRecRule rl)) := by
   obtain ⟨hc, hf, hr⟩ := hwf
   rw [arena.intern.intern_rule]
   simp only [Frontend.internRule, ConRon.Refine.absRecRule]
-  refine LSM.bindS (intern_name_ls' hrel hinv _ hc) (by lsm_err) ?_
+  refine LSMI.bindS (intern_name_ls' hrel hinv _ hc) (by lsm_err) ?_
   intro a b st1 lst1 hR hrel1 hinv1
   subst hR
-  refine LSM.bindM (intern_fire_ls hrel1 hinv1 hm hf) (by lsm_err) ?_
+  refine LSMI.bindM (intern_fire_ls hrel1 hinv1 hm hf) (by lsm_err) ?_
   intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
   subst hR2
-  refine LSM.bindM (intern_expr_go_ls hrel2 hinv2 hms2 hr) (by lsm_err) ?_
+  refine LSMI.bindM (intern_expr_go_ls hrel2 hinv2 hms2 hr) (by lsm_err) ?_
   intro a3 b3 s3 st3 m3 lst3 hms3 hR3 hrel3 hinv3
   subst hR3
-  exact LSM.pure hms3 rfl hrel3 hinv3
+  exact LSMI.pure hms3 rfl hrel3 hinv3
 
 /-- `intern_rule` ⊑ `Frontend.internRule`. -/
 theorem intern_rule_refines {pers st lst rm lm} {rl : kernel.env.RecRule} {o}
@@ -1157,7 +1187,7 @@ theorem intern_rule_refines {pers st lst rm lm} {rl : kernel.env.RecRule} {o}
     (hrun : arena.intern.intern_rule pers st rm rl = ok o) :
     SimEM absIRecRule pers lst o
       (Frontend.internRule lm (ConRon.Refine.absRecRule rl)) :=
-  Lockstep.LSM.toSimEM (intern_rule_ls hrel hinv hm hwf) hrun
+  Lockstep.LSMI.toSimEM (intern_rule_ls hrel hinv hm hwf) hrun
 
 open Lockstep in
 private theorem intern_rules_aux (n : Nat) :
@@ -1165,7 +1195,7 @@ private theorem intern_rules_aux (n : Nat) :
       (out : alloc.vec.Vec arena.env.IRecRule),
       es.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
       EMemoRel rm lm → (∀ x ∈ es.val, RecRuleWF x) →
-      LSM pers (fun a b => b = a.val.map absIRecRule)
+      LSMI pers (fun a b => b = a.val.map absIRecRule)
         (arena.intern.intern_rules pers st rm es i out) lst
         (pmapFrom Frontend.internRule lm (out.val.map absIRecRule) ((es.val.drop i.val).map ConRon.Refine.absRecRule)) := by
   induction n with
@@ -1174,22 +1204,22 @@ private theorem intern_rules_aux (n : Nat) :
     rw [arena.intern.intern_rules, vecFrom_nil v _ i (by omega), pmapFrom]
     have hl := alloc.vec.Vec.len_val v
     rw [if_pos (by scalar_tac)]
-    exact LSM.pure hm rfl hrel hinv
+    exact LSMI.pure hm rfl hrel hinv
   | succ k ih =>
     intro pers st lst rm lm v i out hn hrel hinv hm hP
     have hlt : i.val < v.val.length := by omega
     rw [arena.intern.intern_rules, vecFrom_cons v _ i hlt, pmapFrom]
     have hl := alloc.vec.Vec.len_val v
     rw [if_neg (by scalar_tac)]
-    refine LSM.bindP fun x hx => ?_
+    refine LSMI.bindP fun x hx => ?_
     obtain ⟨hb, hxv⟩ := ExprOps.vecIndexAt hx
     subst hxv
-    refine LSM.bindM (intern_rule_ls hrel hinv hm (hP _ (List.getElem_mem hlt)))
+    refine LSMI.bindM (intern_rule_ls hrel hinv hm (hP _ (List.getElem_mem hlt)))
       (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    refine LSM.bindP fun out1 hout1 => ?_
-    refine LSM.bindP fun i2 hi2 => ?_
+    refine LSMI.bindP fun out1 hout1 => ?_
+    refine LSMI.bindP fun i2 hi2 => ?_
     have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
     have h := ih v i2 out1 (by omega) hrel1 hinv1 hms hP
     rw [ConRon.Refine.vec_push_val hout1, hi2v] at h
@@ -1205,12 +1235,12 @@ open Lockstep in
 private theorem intern_rules0_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hm : EMemoRel rm lm) (rs : alloc.vec.Vec kernel.env.RecRule)
     (hwf : RecRulesWF rs) :
-    LSM pers (fun a b => b = a.val.map absIRecRule)
+    LSMI pers (fun a b => b = a.val.map absIRecRule)
       (arena.intern.intern_rules pers st rm rs 0#usize (alloc.vec.Vec.new _)) lst
       (Frontend.internRules lm (rs.val.map ConRon.Refine.absRecRule)) := by
   have h := intern_rules_aux _ rs 0#usize (alloc.vec.Vec.new _) rfl hrel hinv hm hwf
   rw [internRules_pmapFrom] at h
-  refine LSM.twin_eq h ?_
+  refine LSMI.twin_eq h ?_
   simp [alloc.vec.Vec.new]
 
 /-- `intern_rules` ⊑ `Frontend.internRules` at the cursor. -/
@@ -1225,7 +1255,7 @@ theorem intern_rules_refines {pers st lst rm lm}
           pure (m, absIRecRuleL out ++ hs)) := by
   have h := intern_rules_aux _ rs i out rfl hrel hinv hm hwf
   rw [internRules_pmapFrom] at h
-  exact Lockstep.LSM.toSimEM h hrun
+  exact Lockstep.LSMI.toSimEM h hrun
 
 open Lockstep in
 private theorem intern_caps_ls {pers st lst} {c : kernel.env.IndCaps}
@@ -1318,7 +1348,7 @@ theorem proj_table_name_lss {pers st lst} (hrel : AStateRel₀ pers st lst)
         ⟨hrelS2, hrel.memos, hrel.caches, hrel.pins⟩, ⟨hinvS2, hinv.memos, hinv.caches⟩⟩
 
 open Lockstep in
-theorem LSM.bindSS {α γ β δ : Type} {pers : arena.store.PersTier}
+theorem LSMI.bindSS {α γ β δ : Type} {pers : arena.store.PersTier}
     {R₁ : α → β → Prop} {R : γ → δ → Prop}
     {f : Result (core.result.Result α kernel.core_types.CheckError × arena.store.EStore)}
     {st : arena.monad.AState}
@@ -1329,8 +1359,8 @@ theorem LSM.bindSS {α γ β δ : Type} {pers : arena.store.PersTier}
     (hf : LSS pers R₁ f st lst x)
     (he : ∀ e s' o st' mm, k (.Err e, s') = ok (o, st', mm) → o = .Err e)
     (hk : ∀ a b s' lst1, R₁ a b → AStateRel₀ pers { st with store := s' } lst1 →
-      AStateInv pers { st with store := s' } → LSM pers R (k (.Ok a, s')) lst1 (g b)) :
-    LSM pers R (f >>= k) lst (x >>= g) := by
+      AStateInv pers { st with store := s' } → LSMI pers R (k (.Ok a, s')) lst1 (g b)) :
+    LSMI pers R (f >>= k) lst (x >>= g) := by
   intro o st' mm hm
   obtain ⟨⟨r, s1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   have h1 := hf r s1 hf1
@@ -1366,28 +1396,28 @@ private theorem intern_proj_table_rest_ls {pers st lst rm lm} {t : kernel.env.Pr
     {sn tn : arena.handle.NIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ProjTableWF t) :
-    LSM pers (fun a b => b = absIProjTable a)
+    LSMI pers (fun a b => b = absIProjTable a)
       (arena.intern.intern_proj_table_rest pers st rm t sn tn) lst
       (internProjTableRest lm (ConRon.Refine.absProjTable t) (absNIdx sn) (absNIdx tn)) := by
   obtain ⟨-, hlps, hc, hss, hbs, hgs⟩ := hwf
   rw [arena.intern.intern_proj_table_rest]
   simp only [internProjTableRest, ConRon.Refine.absProjTable]
-  refine LSM.bindS (intern_name_list_ls hrel hinv _ hlps) (by lsm_err) ?_
+  refine LSMI.bindS (intern_name_list_ls hrel hinv _ hlps) (by lsm_err) ?_
   intro a1 b1 st1 lst1 hR1 hrel1 hinv1
   subst hR1
-  refine LSM.bindS (intern_name_ls' hrel1 hinv1 _ hc) (by lsm_err) ?_
+  refine LSMI.bindS (intern_name_ls' hrel1 hinv1 _ hc) (by lsm_err) ?_
   intro a2 b2 st2 lst2 hR2 hrel2 hinv2
   subst hR2
-  refine LSM.bindS (intern_level_ls' hrel2 hinv2 _ hss) (by lsm_err) ?_
+  refine LSMI.bindS (intern_level_ls' hrel2 hinv2 _ hss) (by lsm_err) ?_
   intro a3 b3 st3 lst3 hR3 hrel3 hinv3
   subst hR3
-  refine LSM.bindM (intern_expr_list0_ls hrel3 hinv3 hm _ hbs) (by lsm_err) ?_
+  refine LSMI.bindM (intern_expr_list0_ls hrel3 hinv3 hm _ hbs) (by lsm_err) ?_
   intro a4 b4 s4 st4 m4 lst4 hms4 hR4 hrel4 hinv4
   subst hR4
-  refine LSM.bindS (intern_level_list0_ls hrel4 hinv4 _ hgs) (by lsm_err) ?_
+  refine LSMI.bindS (intern_level_list0_ls hrel4 hinv4 _ hgs) (by lsm_err) ?_
   intro a5 b5 st5 lst5 hR5 hrel5 hinv5
   subst hR5
-  exact LSM.pure hms4 rfl hrel5 hinv5
+  exact LSMI.pure hms4 rfl hrel5 hinv5
 
 /-- `intern_proj_table_rest` is the Rust-only tail of `intern_proj_table` past
 its two name interns (extraction rule 5), stated against the twin's tail with
@@ -1399,20 +1429,20 @@ theorem intern_proj_table_rest_refines {pers st lst rm lm}
     (hrun : arena.intern.intern_proj_table_rest pers st rm t sn tn = ok o) :
     SimEM absIProjTable pers lst o
       (internProjTableRest lm (ConRon.Refine.absProjTable t) (absNIdx sn) (absNIdx tn)) :=
-  Lockstep.LSM.toSimEM (intern_proj_table_rest_ls hrel hinv hm hwf) hrun
+  Lockstep.LSMI.toSimEM (intern_proj_table_rest_ls hrel hinv hm hwf) hrun
 
 open Lockstep in
 private theorem intern_proj_table_ls {pers st lst rm lm} {t : kernel.env.ProjTable}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ProjTableWF t) :
-    LSM pers (fun a b => b = absIProjTable a)
+    LSMI pers (fun a b => b = absIProjTable a)
       (arena.intern.intern_proj_table pers st rm t) lst
       (Frontend.internProjTable lm (ConRon.Refine.absProjTable t)) := by
   rw [arena.intern.intern_proj_table, internProjTable_rest]
-  refine LSM.bindS (intern_name_ls' hrel hinv _ hwf.1) (by lsm_err) ?_
+  refine LSMI.bindS (intern_name_ls' hrel hinv _ hwf.1) (by lsm_err) ?_
   intro a1 b1 st1 lst1 hR1 hrel1 hinv1
   subst hR1
-  refine LSM.bindSS (proj_table_name_lss hrel1 hinv1 a1) (by lsm_err) ?_
+  refine LSMI.bindSS (proj_table_name_lss hrel1 hinv1 a1) (by lsm_err) ?_
   intro a2 b2 s2 lst2 hR2 hrel2 hinv2
   subst hR2
   exact intern_proj_table_rest_ls hrel2 hinv2 hm hwf
@@ -1425,7 +1455,7 @@ theorem intern_proj_table_refines {pers st lst rm lm}
     (hrun : arena.intern.intern_proj_table pers st rm t = ok o) :
     SimEM absIProjTable pers lst o
       (Frontend.internProjTable lm (ConRon.Refine.absProjTable t)) :=
-  Lockstep.LSM.toSimEM (intern_proj_table_ls hrel hinv hm hwf) hrun
+  Lockstep.LSMI.toSimEM (intern_proj_table_ls hrel hinv hm hwf) hrun
 
 /-! ### The stored constant and the declaration -/
 
@@ -1434,69 +1464,69 @@ open Lockstep in
 theorem intern_ci_go_ls {pers st lst rm lm} {c : kernel.env.ConstantInfo}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : ConstantInfoWF c) :
-    LSM pers (fun a b => b = absIConstantInfo a) (arena.intern.intern_ci_go pers st rm c) lst
+    LSMI pers (fun a b => b = absIConstantInfo a) (arena.intern.intern_ci_go pers st rm c) lst
       (Frontend.internCI lm (ConRon.Refine.absConstantInfo c)) := by
   cases c with
   | AxiomInfo v =>
     rw [arena.intern.intern_ci_go]; simp only [Frontend.internCI, ConRon.Refine.absConstantInfo]
-    refine LSM.bindM (intern_cv_go_ls hrel hinv hm hwf) (by lsm_err) ?_
+    refine LSMI.bindM (intern_cv_go_ls hrel hinv hm hwf) (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    exact LSM.pure hms rfl hrel1 hinv1
+    exact LSMI.pure hms rfl hrel1 hinv1
   | DefnInfo v e h =>
     obtain ⟨hv, he⟩ := hwf
     rw [arena.intern.intern_ci_go]; simp only [Frontend.internCI, ConRon.Refine.absConstantInfo]
-    refine LSM.bindM (intern_cv_go_ls hrel hinv hm hv) (by lsm_err) ?_
+    refine LSMI.bindM (intern_cv_go_ls hrel hinv hm hv) (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    refine LSM.bindM (intern_expr_go_ls hrel1 hinv1 hms he) (by lsm_err) ?_
+    refine LSMI.bindM (intern_expr_go_ls hrel1 hinv1 hms he) (by lsm_err) ?_
     intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
     subst hR2
-    refine LSM.bindP fun rh hrh => ?_
+    refine LSMI.bindP fun rh hrh => ?_
     rw [Lockstep.rhint_dup_spec h rh hrh]
-    exact LSM.pure hms2 rfl hrel2 hinv2
+    exact LSMI.pure hms2 rfl hrel2 hinv2
   | ThmInfo v e =>
     obtain ⟨hv, he⟩ := hwf
     rw [arena.intern.intern_ci_go]; simp only [Frontend.internCI, ConRon.Refine.absConstantInfo]
-    refine LSM.bindM (intern_cv_go_ls hrel hinv hm hv) (by lsm_err) ?_
+    refine LSMI.bindM (intern_cv_go_ls hrel hinv hm hv) (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    refine LSM.bindM (intern_expr_go_ls hrel1 hinv1 hms he) (by lsm_err) ?_
+    refine LSMI.bindM (intern_expr_go_ls hrel1 hinv1 hms he) (by lsm_err) ?_
     intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
     subst hR2
-    exact LSM.pure hms2 rfl hrel2 hinv2
+    exact LSMI.pure hms2 rfl hrel2 hinv2
   | IndInfo v c2 =>
     obtain ⟨hv, hc⟩ := hwf
     rw [arena.intern.intern_ci_go]; simp only [Frontend.internCI, ConRon.Refine.absConstantInfo]
-    refine LSM.bindM (intern_cv_go_ls hrel hinv hm hv) (by lsm_err) ?_
+    refine LSMI.bindM (intern_cv_go_ls hrel hinv hm hv) (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    refine LSM.bindS (intern_caps_ls hrel1 hinv1 hc) (by lsm_err) ?_
+    refine LSMI.bindS (intern_caps_ls hrel1 hinv1 hc) (by lsm_err) ?_
     intro a2 b2 st2 lst2 hR2 hrel2 hinv2
     subst hR2
-    exact LSM.pure hms rfl hrel2 hinv2
+    exact LSMI.pure hms rfl hrel2 hinv2
   | CtorInfo v np nf =>
     rw [arena.intern.intern_ci_go]; simp only [Frontend.internCI, ConRon.Refine.absConstantInfo]
-    refine LSM.bindM (intern_cv_go_ls hrel hinv hm hwf) (by lsm_err) ?_
+    refine LSMI.bindM (intern_cv_go_ls hrel hinv hm hwf) (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    exact LSM.pure hms rfl hrel1 hinv1
+    exact LSMI.pure hms rfl hrel1 hinv1
   | RecInfo v mi rp rs =>
     obtain ⟨hv, hrs⟩ := hwf
     rw [arena.intern.intern_ci_go]; simp only [Frontend.internCI, ConRon.Refine.absConstantInfo]
-    refine LSM.bindM (intern_cv_go_ls hrel hinv hm hv) (by lsm_err) ?_
+    refine LSMI.bindM (intern_cv_go_ls hrel hinv hm hv) (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    refine LSM.bindM (intern_rules0_ls hrel1 hinv1 hms rs hrs) (by lsm_err) ?_
+    refine LSMI.bindM (intern_rules0_ls hrel1 hinv1 hms rs hrs) (by lsm_err) ?_
     intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
     subst hR2
-    exact LSM.pure hms2 rfl hrel2 hinv2
+    exact LSMI.pure hms2 rfl hrel2 hinv2
   | ProjInfo t =>
     rw [arena.intern.intern_ci_go]; simp only [Frontend.internCI, ConRon.Refine.absConstantInfo]
-    refine LSM.bindM (intern_proj_table_ls hrel hinv hm hwf) (by lsm_err) ?_
+    refine LSMI.bindM (intern_proj_table_ls hrel hinv hm hwf) (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    exact LSM.pure hms rfl hrel1 hinv1
+    exact LSMI.pure hms rfl hrel1 hinv1
 
 /-- `intern_ci_go` ⊑ `Frontend.internCI` — the seven `ConstantInfo`
 constructors. -/
@@ -1506,7 +1536,7 @@ theorem intern_ci_go_refines {pers st lst rm lm} {c : kernel.env.ConstantInfo} {
     (hrun : arena.intern.intern_ci_go pers st rm c = ok o) :
     SimEM absIConstantInfo pers lst o
       (Frontend.internCI lm (ConRon.Refine.absConstantInfo c)) :=
-  Lockstep.LSM.toSimEM (intern_ci_go_ls hrel hinv hm hwf) hrun
+  Lockstep.LSMI.toSimEM (intern_ci_go_ls hrel hinv hm hwf) hrun
 
 /-- `intern_ci` ⊑ `Arena.internCI`. -/
 theorem intern_ci_refines {pers st lst} {c : kernel.env.ConstantInfo} {o}
@@ -1517,7 +1547,7 @@ theorem intern_ci_refines {pers st lst} {c : kernel.env.ConstantInfo} {o}
       (internCI (ConRon.Refine.absConstantInfo c)) := by
   rw [arena.intern.intern_ci] at hrun
   exact Lockstep.LS.toSim₀
-    (Lockstep.LSM.fresh fun rm hm => intern_ci_go_ls hrel hinv hm hwf) hrun
+    (Lockstep.LSMI.fresh fun rm hm => intern_ci_go_ls hrel hinv hm hwf) hrun
 
 open Lockstep in
 private theorem intern_ci_list_go_aux (n : Nat) :
@@ -1525,7 +1555,7 @@ private theorem intern_ci_list_go_aux (n : Nat) :
       (out : alloc.vec.Vec arena.env.IConstantInfo),
       es.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
       EMemoRel rm lm → (∀ x ∈ es.val, ConstantInfoWF x) →
-      LSM pers (fun a b => b = a.val.map absIConstantInfo)
+      LSMI pers (fun a b => b = a.val.map absIConstantInfo)
         (arena.intern.intern_ci_list_go pers st rm es i out) lst
         (pmapFrom Frontend.internCI lm (out.val.map absIConstantInfo) ((es.val.drop i.val).map ConRon.Refine.absConstantInfo)) := by
   induction n with
@@ -1534,22 +1564,22 @@ private theorem intern_ci_list_go_aux (n : Nat) :
     rw [arena.intern.intern_ci_list_go, vecFrom_nil v _ i (by omega), pmapFrom]
     have hl := alloc.vec.Vec.len_val v
     rw [if_pos (by scalar_tac)]
-    exact LSM.pure hm rfl hrel hinv
+    exact LSMI.pure hm rfl hrel hinv
   | succ k ih =>
     intro pers st lst rm lm v i out hn hrel hinv hm hP
     have hlt : i.val < v.val.length := by omega
     rw [arena.intern.intern_ci_list_go, vecFrom_cons v _ i hlt, pmapFrom]
     have hl := alloc.vec.Vec.len_val v
     rw [if_neg (by scalar_tac)]
-    refine LSM.bindP fun x hx => ?_
+    refine LSMI.bindP fun x hx => ?_
     obtain ⟨hb, hxv⟩ := ExprOps.vecIndexAt hx
     subst hxv
-    refine LSM.bindM (intern_ci_go_ls hrel hinv hm (hP _ (List.getElem_mem hlt)))
+    refine LSMI.bindM (intern_ci_go_ls hrel hinv hm (hP _ (List.getElem_mem hlt)))
       (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    refine LSM.bindP fun out1 hout1 => ?_
-    refine LSM.bindP fun i2 hi2 => ?_
+    refine LSMI.bindP fun out1 hout1 => ?_
+    refine LSMI.bindP fun i2 hi2 => ?_
     have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
     have h := ih v i2 out1 (by omega) hrel1 hinv1 hms hP
     rw [ConRon.Refine.vec_push_val hout1, hi2v] at h
@@ -1573,18 +1603,18 @@ theorem intern_ci_list_go_refines {pers st lst rm lm}
           pure (m, absICIL out ++ hs)) := by
   have h := intern_ci_list_go_aux _ cs i out rfl hrel hinv hm hwf
   rw [internCIList_pmapFrom] at h
-  exact Lockstep.LSM.toSimEM h hrun
+  exact Lockstep.LSMI.toSimEM h hrun
 
 open Lockstep in
 private theorem intern_ci_list0_ls {pers st lst rm lm} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hm : EMemoRel rm lm) (cs : alloc.vec.Vec kernel.env.ConstantInfo)
     (hwf : ConstantInfosWF cs) :
-    LSM pers (fun a b => b = a.val.map absIConstantInfo)
+    LSMI pers (fun a b => b = a.val.map absIConstantInfo)
       (arena.intern.intern_ci_list_go pers st rm cs 0#usize (alloc.vec.Vec.new _)) lst
       (Frontend.internCIList lm (ConRon.Refine.absConstantInfos cs)) := by
   have h := intern_ci_list_go_aux _ cs 0#usize (alloc.vec.Vec.new _) rfl hrel hinv hm hwf
   rw [internCIList_pmapFrom] at h
-  refine LSM.twin_eq h ?_
+  refine LSMI.twin_eq h ?_
   simp [ConRon.Refine.absConstantInfos, alloc.vec.Vec.new]
 
 /-- `intern_ci_list` ⊑ `Arena.internCIList` — the block at ONE memo, so that
@@ -1598,73 +1628,73 @@ theorem intern_ci_list_refines {pers st lst}
       (internCIList (ConRon.Refine.absConstantInfos cs)) := by
   rw [arena.intern.intern_ci_list] at hrun
   exact Lockstep.LS.toSim₀
-    (Lockstep.LSM.fresh fun rm hm => intern_ci_list0_ls hrel hinv hm cs hwf) hrun
+    (Lockstep.LSMI.fresh fun rm hm => intern_ci_list0_ls hrel hinv hm cs hwf) hrun
 
 open Lockstep in
 /-- `intern_decl` ⊑ `Frontend.internDecl`, in the judgement shape. -/
 theorem intern_decl_ls {pers st lst rm lm} {d : kernel.env.Declaration}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : EMemoRel rm lm) (hwf : DeclarationWF d) :
-    LSM pers (fun a b => b = absIDeclaration a) (arena.intern.intern_decl pers st rm d) lst
+    LSMI pers (fun a b => b = absIDeclaration a) (arena.intern.intern_decl pers st rm d) lst
       (Frontend.internDecl lm (ConRon.Refine.absDeclaration d)) := by
   cases d with
   | AxiomDecl v =>
     rw [arena.intern.intern_decl]; simp only [Frontend.internDecl, ConRon.Refine.absDeclaration]
-    refine LSM.bindM (intern_cv_go_ls hrel hinv hm hwf) (by lsm_err) ?_
+    refine LSMI.bindM (intern_cv_go_ls hrel hinv hm hwf) (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    exact LSM.pure hms rfl hrel1 hinv1
+    exact LSMI.pure hms rfl hrel1 hinv1
   | DefnDecl v e h =>
     obtain ⟨hv, he⟩ := hwf
     rw [arena.intern.intern_decl]; simp only [Frontend.internDecl, ConRon.Refine.absDeclaration]
-    refine LSM.bindM (intern_cv_go_ls hrel hinv hm hv) (by lsm_err) ?_
+    refine LSMI.bindM (intern_cv_go_ls hrel hinv hm hv) (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    refine LSM.bindM (intern_expr_go_ls hrel1 hinv1 hms he) (by lsm_err) ?_
+    refine LSMI.bindM (intern_expr_go_ls hrel1 hinv1 hms he) (by lsm_err) ?_
     intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
     subst hR2
-    refine LSM.bindP fun rh hrh => ?_
+    refine LSMI.bindP fun rh hrh => ?_
     rw [Lockstep.rhint_dup_spec h rh hrh]
-    exact LSM.pure hms2 rfl hrel2 hinv2
+    exact LSMI.pure hms2 rfl hrel2 hinv2
   | ThmDecl v e =>
     obtain ⟨hv, he⟩ := hwf
     rw [arena.intern.intern_decl]; simp only [Frontend.internDecl, ConRon.Refine.absDeclaration]
-    refine LSM.bindM (intern_cv_go_ls hrel hinv hm hv) (by lsm_err) ?_
+    refine LSMI.bindM (intern_cv_go_ls hrel hinv hm hv) (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    refine LSM.bindM (intern_expr_go_ls hrel1 hinv1 hms he) (by lsm_err) ?_
+    refine LSMI.bindM (intern_expr_go_ls hrel1 hinv1 hms he) (by lsm_err) ?_
     intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
     subst hR2
-    exact LSM.pure hms2 rfl hrel2 hinv2
+    exact LSMI.pure hms2 rfl hrel2 hinv2
   | OpaqueDecl v e =>
     obtain ⟨hv, he⟩ := hwf
     rw [arena.intern.intern_decl]; simp only [Frontend.internDecl, ConRon.Refine.absDeclaration]
-    refine LSM.bindM (intern_cv_go_ls hrel hinv hm hv) (by lsm_err) ?_
+    refine LSMI.bindM (intern_cv_go_ls hrel hinv hm hv) (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    refine LSM.bindM (intern_expr_go_ls hrel1 hinv1 hms he) (by lsm_err) ?_
+    refine LSMI.bindM (intern_expr_go_ls hrel1 hinv1 hms he) (by lsm_err) ?_
     intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
     subst hR2
-    exact LSM.pure hms2 rfl hrel2 hinv2
+    exact LSMI.pure hms2 rfl hrel2 hinv2
   | BasisDecl k =>
     rw [arena.intern.intern_decl]; simp only [Frontend.internDecl, ConRon.Refine.absDeclaration]
-    refine LSM.bindP fun bk hbk => ?_
+    refine LSMI.bindP fun bk hbk => ?_
     rw [Lockstep.basis_kind_dup_spec k bk hbk]
-    exact LSM.pure hm rfl hrel hinv
+    exact LSMI.pure hm rfl hrel hinv
   | IndDecl block np =>
     rw [arena.intern.intern_decl]; simp only [Frontend.internDecl, ConRon.Refine.absDeclaration]
-    refine LSM.bindM (intern_ci_list0_ls hrel hinv hm block hwf) (by lsm_err) ?_
+    refine LSMI.bindM (intern_ci_list0_ls hrel hinv hm block hwf) (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    exact LSM.pure hms rfl hrel1 hinv1
+    exact LSMI.pure hms rfl hrel1 hinv1
   | QuotDecl k v =>
     rw [arena.intern.intern_decl]; simp only [Frontend.internDecl, ConRon.Refine.absDeclaration]
-    refine LSM.bindM (intern_cv_go_ls hrel hinv hm hwf) (by lsm_err) ?_
+    refine LSMI.bindM (intern_cv_go_ls hrel hinv hm hwf) (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    refine LSM.bindP fun qk hqk => ?_
+    refine LSMI.bindP fun qk hqk => ?_
     rw [Lockstep.quot_kind_dup_spec k qk hqk]
-    exact LSM.pure hms rfl hrel1 hinv1
+    exact LSMI.pure hms rfl hrel1 hinv1
 
 /-- `intern_decl` ⊑ `Frontend.internDecl` — the seven `Declaration`
 constructors. -/
@@ -1674,7 +1704,7 @@ theorem intern_decl_refines {pers st lst rm lm} {d : kernel.env.Declaration} {o}
     (hrun : arena.intern.intern_decl pers st rm d = ok o) :
     SimEM absIDeclaration pers lst o
       (Frontend.internDecl lm (ConRon.Refine.absDeclaration d)) :=
-  Lockstep.LSM.toSimEM (intern_decl_ls hrel hinv hm hwf) hrun
+  Lockstep.LSMI.toSimEM (intern_decl_ls hrel hinv hm hwf) hrun
 
 open Lockstep in
 private theorem intern_decls_go_aux (n : Nat) :
@@ -1682,7 +1712,7 @@ private theorem intern_decls_go_aux (n : Nat) :
       (out : alloc.vec.Vec arena.env.IDeclaration),
       es.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
       EMemoRel rm lm → (∀ x ∈ es.val, DeclarationWF x) →
-      LSM pers (fun a b => b = a.val.map absIDeclaration)
+      LSMI pers (fun a b => b = a.val.map absIDeclaration)
         (arena.intern.intern_decls_go pers st rm es i out) lst
         (pmapFrom Frontend.internDecl lm (out.val.map absIDeclaration) ((es.val.drop i.val).map ConRon.Refine.absDeclaration)) := by
   induction n with
@@ -1691,22 +1721,22 @@ private theorem intern_decls_go_aux (n : Nat) :
     rw [arena.intern.intern_decls_go, vecFrom_nil v _ i (by omega), pmapFrom]
     have hl := alloc.vec.Vec.len_val v
     rw [if_pos (by scalar_tac)]
-    exact LSM.pure hm rfl hrel hinv
+    exact LSMI.pure hm rfl hrel hinv
   | succ k ih =>
     intro pers st lst rm lm v i out hn hrel hinv hm hP
     have hlt : i.val < v.val.length := by omega
     rw [arena.intern.intern_decls_go, vecFrom_cons v _ i hlt, pmapFrom]
     have hl := alloc.vec.Vec.len_val v
     rw [if_neg (by scalar_tac)]
-    refine LSM.bindP fun x hx => ?_
+    refine LSMI.bindP fun x hx => ?_
     obtain ⟨hb, hxv⟩ := ExprOps.vecIndexAt hx
     subst hxv
-    refine LSM.bindM (intern_decl_ls hrel hinv hm (hP _ (List.getElem_mem hlt)))
+    refine LSMI.bindM (intern_decl_ls hrel hinv hm (hP _ (List.getElem_mem hlt)))
       (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    refine LSM.bindP fun out1 hout1 => ?_
-    refine LSM.bindP fun i2 hi2 => ?_
+    refine LSMI.bindP fun out1 hout1 => ?_
+    refine LSMI.bindP fun i2 hi2 => ?_
     have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
     have h := ih v i2 out1 (by omega) hrel1 hinv1 hms hP
     rw [ConRon.Refine.vec_push_val hout1, hi2v] at h
@@ -1730,7 +1760,7 @@ theorem intern_decls_go_refines {pers st lst rm lm}
           pure (m, absIDeclL out ++ hs)) := by
   have h := intern_decls_go_aux _ ds i out rfl hrel hinv hm hwf
   rw [internDecls_pmapFrom] at h
-  exact Lockstep.LSM.toSimEM h hrun
+  exact Lockstep.LSMI.toSimEM h hrun
 
 /-- `intern_decls` ⊑ `Frontend.internDecls` at a fresh memo. -/
 theorem intern_decls_refines {pers st lst}
@@ -1741,10 +1771,10 @@ theorem intern_decls_refines {pers st lst}
     Sim₀ absIDeclL pers lst o
       (do pure (← Frontend.internDecls ∅ (ds.val.map ConRon.Refine.absDeclaration)).2) := by
   rw [arena.intern.intern_decls] at hrun
-  refine Lockstep.LS.toSim₀ (Lockstep.LSM.fresh fun rm hm => ?_) hrun
+  refine Lockstep.LS.toSim₀ (Lockstep.LSMI.fresh fun rm hm => ?_) hrun
   have h := intern_decls_go_aux _ ds 0#usize (alloc.vec.Vec.new _) rfl hrel hinv hm hwf
   rw [internDecls_pmapFrom] at h
-  refine Lockstep.LSM.twin_eq h ?_
+  refine Lockstep.LSMI.twin_eq h ?_
   simp [alloc.vec.Vec.new]
 
 end decl
