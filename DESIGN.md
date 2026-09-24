@@ -62225,3 +62225,89 @@ given); every lane that states list tests with `==` pays for it.
 * A caller declared ABOVE its callee's `@[lockstep]` companion in the same file
   is stuck with no message pointing at the order (`rec_fam_ok` sat above
   `idx_free_of_ls`; moved).
+
+#### Slice 2 (worktree `_tmp/wt-t2-ind7`, branch `t2-ind-7` off slice 1)
+
+**Recipes added (`Inductives/Shape.lean`).**
+* `ls_counted` (a `u64` cursor counted up to `n`, with an accumulator) and
+  `ls_counted_sz` (a `usize` cursor bounded by a length): the counted twin
+  (`…Spec m i`) against the port's cursor, the induction hypothesis at `i + 1`
+  for any accumulator.  `rec_ctor_kinds_from`, `native_fields_at`,
+  `native_fields_ok_from`, `struct_tele_at` use them.
+* `ls_cursor_acc` (slice 1) again for `struct_idx_list`, `struct_ih_list`,
+  `struct_ih_pis` (the port's `struct_ih_pis_at` unfolded in the step, so the
+  mutual recursion is one induction; `struct_ih_pis_at` then closes by
+  `lockstep` below it), `struct_minors_pis_r`, `close_telescope`; `ls_cursor`
+  for `field_doms_resolve`, `later_mentions`.
+* `ind_dom_finish` / the hand finish for the port's
+  `dom := if k < len then v[k].0 else EIdx(0)` against the twin's
+  `(cbs.getD k default).1` (`let_pair_dup2_eq`, `(abs)BinderL_getD_fst_of_lt/_ge`):
+  the tactic keeps the pair read `let (e, _) := v[j]; dup2 e` as an equation.
+* New Rust-only specs: `snoc_eidx`, `canon::eidx_vec_beq` (at `0`),
+  `eidx_vec_dup`, `prop_when::dup`, `native_install::field_at` (an `LSR`
+  against `unwrapOr xs[i]?`), `take_eidx_n` read at lists
+  (`absEIdxL_of_takeEidx`).
+
+**The accumulator-versus-`mapM` gaps: the recipe.**  A callee at cursor `0`
+with an empty accumulator gets a `…_twin0` companion stated at the caller's
+list form (`struct_idx_list_twin0`, `struct_ih_list_twin0`, `lift_list_twin0`,
+`struct_tele_at_twin0`, `pi_binders_new_ls`), and the caller's
+`xs.mapM (fun e => f …)` is rewritten to the transcription by ONE equation
+(`mapM_structIdxAt_eq`, `mapM_structIhApp_eq`, `mapM_liftLooseBVarsFast_eq`,
+all `list_mapM_counted`), applied with `simp only` in the caller's proof and
+**not** registered `lockstep_simp`: registered globally, the equation rewrote
+`struct_minor_ty_r`'s inlined twin away from its callee's statement and broke
+it.  Two `allM` gaps take a generic-step form instead
+(`nativeFieldsOk_allM_from`: stated for any step function that agrees with the
+twin's in range, so it rewrites the twin's own lambda — a restated lambda is a
+new matcher and never matches).
+
+**Statements restated (no premise added).**  `struct_tele_at` at the counted
+transcription `structTeleAtFromSpec` (the port hands `struct_idx_at` the
+ABSOLUTE position; the old statement applied `structTeleAt` to the dropped
+list, which renumbers — false off `0`), with `struct_tele_at_twin0` for the
+callers; `structTeleAt_counted` is the owed equation.
+
+**Twin normal forms (equations, no twin change):** `structMinorsLamsR_eq` /
+`structMinorsPisR_eq` (the two twins ARE `structMinorsRSpec` at `isLam`),
+`nativeFieldUnusedLaterSpec_port` (the port skips the later-fields scan off the
+end), `nativeFamAppOkSpec_port` (the conjunction as the port's short-circuit
+chain), `nativeFieldsOk_port`.
+
+**Divergence fixed in the twin (Theorem 1 repaired):** `recCtorKinds`'
+negative verdict was `ks.map fun _ => .negative`; the port writes
+`all_negative(n_f)` — the count, not the list.  Equal only through
+`ks.length = c.2`, a fact about the walk's output the statement cannot see.
+The twin now reads `List.replicate c.2 .negative`; `recCtorKinds_spec`
+(`Bridge/Inductives/NativeParts.lean`) closes the new arm by `List.ext_getElem`.
+
+**Closed this slice (30):** `rec_ctor_kinds_from`, `rec_ctor_kinds`,
+`struct_idx_list`, `struct_ih_list`, `struct_tele_at`, `struct_ih_app`,
+`struct_rule_body_r`, `struct_minor_ty_at`, `struct_rec_prefix_at`,
+`intern_binder`, `struct_ih_pis`, `struct_ih_pis_at`, `struct_minors_pis_r`,
+`struct_minors_lams_r`, `struct_rec_ty_at`, `struct_rec_ty_r`,
+`struct_rec_ty_close`, `struct_rec_rhs_close`, `struct_rec_rhs_r`,
+`close_telescope`, `field_doms_resolve`, `later_mentions`, `native_fields_at`,
+`native_fields_ok_from`, `native_fields_ok`, `native_field_recursive`,
+`native_field_reflexive`, `native_field_unused_later`, `native_fam_app_ok`,
+`native_opened_ok`.  Proof `sorry`s in the lane's files: **84 → 54**.
+
+**Duplicates for the Modeled lane** (its files see this tier's `Shape.lean`,
+not the other way): `PrimsModeled.lean`'s `eidx_vec_dup_spec` is
+`Shape.lean`'s `ind_eidx_vec_dup_twin`; its `nidx_vec_beq_spec` is Core's
+`nidx_vec_beq_ls`.
+
+**Left, with the reason:** the memo walks (`has_loose_bvar_b_go/_node`,
+`mentions_fvar_go/_node`: the brief's LSM item); `struct_parts_core` (the block
+match: the twin's three-element list pattern against the port's three reads
+and nested constructor matches; `lockstep`'s term-match fallback cases into
+the constructors' fields and runs out — a hand case split is needed, tried and
+left); `check_struct_proj_table` and `proj_bodies_scoped` (an `unwrap_or` of an
+`Option (Vec EIdx)` and an `allM` gap); `native_rules_ok(_from)`,
+`binders_reset_beq(_from)`, `native_rule_prefix_ok` (the brief's item 4);
+`replace_pis_pw`, `pis_to_lams_pw`, `rec_positivity`, `struct_proj_resid_p`,
+`norm_pos_dom(_at)`, `check_struct_field_sorts_i`, `check_struct_doms_at`,
+`proj_fn_family_free` (structural recursions on the view, not on a cursor);
+the install tail (`check_native_tail*`, `check_native_rec*`,
+`check_native_pass_kinds`, `classify_fix_kinds`, `rec_ctor_kinds_all`) and
+`check_native` (ruling pending).
