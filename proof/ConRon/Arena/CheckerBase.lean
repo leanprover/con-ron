@@ -86,9 +86,9 @@ def pureOpsA (mode : CheckMode) : CheckerOpsA := fueledOpsA mode checkFuel
 
 /-! ## The variant fallback
 
-DESIGN §8.3 and OVERVIEW §4.5 describe con-ron's `or_else_step`
-(`crates/con-ron-core/src/cached/checker_c.rs:123-132`), and this is its
-twin. -/
+DESIGN §8.3 and OVERVIEW §6.5 (the `Native` kind) describe con-ron's
+`or_else_attempt` (`crates/con-ron-core/src/arena/checker_base.rs`), and this
+section is its twin. -/
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — what
 `orElse` decides once the attempt has run.  con-leche's clause is three-way;

@@ -63736,6 +63736,169 @@ After: all 16 gates green, both capstone roots at `[propext,
 Classical.choice, Quot.sound]` (`Capstone.lean`'s `#guard_msgs`), frontier
 0 items / 0 dead weight.
 
+### Task #97-REMEASURE — OVERVIEW §9 re-measured as one snapshot; five stale comments (2026-09-24, Opus under Fable)
+
+**What was measured.**  Every cell of OVERVIEW §9, at one tree and on one
+day: con-ron at `arena` `c6e5f220` (release, md5 `f4562cebf4e5…`),
+con-leche at its current pin **`78ded4b6`** (was `c431b1ca` in the old row;
+built with `lake build con-leche` in a private clone under
+`_tmp/remeasure/`, which the shared Lake cache restored), nanoda
+`4c544ed` (`_tmp/t97/nanoda-build`, `num_threads: 0`).  Corpora
+`_tmp/corpus/{init,mathlib}.ndjson`.  Flags: con-leche `--verified
+--jobs=1`; con-ron `--verified --jobs={1,8} --progress=1000000`; nanoda
+with `scripts/bench-baselines.sh`'s config.  Each run is `time -v` around
+`perf stat -e instructions:u,cycles:u` around `timeout`, under `ulimit -v`.
+`Init`: three interleaved rounds (con-leche, con-ron ×1, con-ron ×8,
+nanoda); Mathlib: one run each, one at a time, last.  The machine was shared
+(load 10–21 on 96 cores, Lean builds from other worktrees), so wall time is
+indicative even for `Init`.
+
+**The `ulimit -v` caps, and a finding.**  `scripts/bench-baselines.sh`'s
+`Init` cap of 2 726 400 KB no longer works: con-leche aborts with
+"failed to create thread" (Lean reserves address space per thread) and
+con-ron exits 3 with "cannot spawn a check worker" (the pool reserves
+`STACK_BYTES` = 1 GiB per worker, even at `--jobs=1`).  Address space is
+not memory, so the runs used the caps DESIGN's recent tasks use:
+8 388 608 KB for `Init` at one worker, 27 000 000 KB for con-ron `Init` at
+eight workers (8 GiB of stack reservation alone), 28 311 552 KB for
+Mathlib.  The 3×-con-leche rule is checked on peak RSS instead, below.
+
+**Raw numbers** (`instructions:u`; wall from `perf stat`; peak RSS from
+`time -v`; every run accepted: `Init` 57 977, Mathlib 691 128, nanoda
+59 433 / 707 508 by its own count):
+
+| export | checker | instructions:u | wall | peak RSS (KB) |
+|---|---|---:|---:|---:|
+| `Init` | con-leche ×1 | 453 987 378 778 / 453 953 571 583 / 453 942 193 606 | 43.36 / 41.91 / 43.27 s | 480 740 / 481 812 / 492 568 |
+| `Init` | con-ron ×1 | 211 981 142 729 / 211 980 425 589 / 211 981 145 088 | 21.95 / 21.22 / 21.92 s | 568 524 / 569 512 / 649 480 |
+| `Init` | con-ron ×8 | 213 994 197 373 / 214 264 847 246 / 214 168 440 046 | 5.65 / 5.37 / 5.65 s | 872 192 / 860 172 / 854 032 |
+| `Init` | nanoda | 231 248 157 087 / 231 248 156 010 / 231 248 157 185 | 24.18 / 23.15 / 24.04 s | 364 340 / 365 116 / 364 344 |
+| Mathlib | con-leche ×1 | 8 099 094 775 377 | 853.8 s | 8 703 428 |
+| Mathlib | con-ron ×1 | 3 880 262 437 632 | 498.7 s | 6 888 472 |
+| Mathlib | con-ron ×8 | 3 901 771 103 996 | 147.8 s | 7 444 016 |
+| Mathlib | nanoda | 6 057 226 107 146 | 1 068.2 s | 7 084 484 |
+
+(Mathlib wall is one run on a loaded machine and is not claimed anywhere.)
+
+**Against the old table.**  con-ron ×1: `Init` 211.98 G unchanged (D4c's
+211.98 G), Mathlib 3 877 → 3 880 G (+0.08 %), peak 6.76 → 6.89 GB.
+con-ron ×8: `Init` is new (the old row had none), Mathlib ≈ 4 000 → 3 902 G
+(−2.5 %), peak 7.1–7.2 → 7.44 GB.  **con-leche moved most**: `Init` 585.9 →
+453.95 G (−22.5 %), Mathlib 12 792 → 8 099 G (−36.7 %), peak 8.75 → 8.70 GB
+— upstream's own work between `c431b1ca` and `78ded4b6` (con-leche's
+`PERF.md` records the same 453.96 G for `init-full`).  So the headline ratio
+moved: con-ron now does **46.7 %** of con-leche's instructions on `Init` and
+**47.9 %** on Mathlib, where the old table said "about a third".  nanoda,
+same binary: 231.0 → 231.25 G (+0.1 %), 6 054 → 6 057 G (+0.05 %).
+
+**Memory budget.**  Every con-ron peak is within 3× con-leche's on the same
+export: `Init` 0.87 GB worst against 3 × 0.48 = 1.44 GB; Mathlib 7.44 GB
+against 3 × 8.70 = 26.1 GB.
+
+**Stale comments** (comments only; the extracted model does not move —
+every edited `con-ron-core` file keeps its line count except `lib.rs`, which
+holds no functions and has no line in `Generated/`):
+
+* `ron/hashmap2.rs`: "PROOF OWED" / "unproved" / "What it owes" now point at
+  `proof/ConRon/Refine/HashMap2.lean` (task #97-HM2).
+* `lib.rs`: the `tagged`, `node` row is gone from the `ron` table (the
+  modules do not exist); OVERVIEW §11's `lib.rs#L34-L55` link became
+  `#L33-L54`.
+* `arena/checker.rs` module note: it said phase A and `check_decls_pure` run
+  outside the scratch bracket.  Verified false: `annot_step` is
+  `flush_caches; enter_scratch; annot_step_go; promote; drop_scratch`, the
+  fallback `annot_step_other` included, and `check_decls_pure`'s
+  `check_decl_step` is bracketed the same way.  The note now says so.
+* `Refine2/Core/Induction.lean`: `knot_rel`'s doc said the premise is
+  "where the tier's `sorry`s live"; it now names `Core/Arms.lean`'s
+  `bodyRel_of_knot`, which discharges it.
+* `Arena/CheckerBase.lean:89`: "OVERVIEW §4.5 … `or_else_step`
+  (`cached/checker_c.rs`)" → OVERVIEW §6.5 (the `Native` kind) and
+  `arena/checker_base.rs`'s `or_else_attempt`.  Its Rust twin's doc in
+  `checker_base.rs` cited the same retired `cached::checker_c::or_else_step`
+  and now cites `attempt_restore` / `orElseAttempt` (line count kept).
+  Line count kept in the Lean file too, so the Rust twin-line citations into
+  it stay valid; one `lake build` from `proof/`, green.
+
+Left alone as instructed: README.md's "up to 1.6× wall time" sentence is
+now stale against this table (maintainer's text), and
+`scripts/bench-baselines.sh`'s 2.6 GB `Init` cap (above) wants a ruling.
+The scratch `_tmp/remeasure/` is deleted.
+
+### Task #97-PERF-BULKFILL — `allocate_slots` is one `Vec::resize` (2026-09-24, Opus under Fable)
+
+Task #97-PERF-FRESH §3.2's deferred optimisation, landed.  Worktree
+`_tmp/wt-bulkfill` off `arena` `c6e5f220`.
+
+**The Rust** (`ron/hashmap2.rs`).  `HashMap2::allocate_slots` was a halving
+recursion with a leaf of eight pushes (task #97-P6-7), priced at ~15
+instructions a slot.  It is now
+
+```rust
+let len: usize = slots.len() + n;
+slots.resize(len, Slot::Vacant);
+slots
+```
+
+`Vec::resize` is modelled by Aeneas (`alloc.vec.Vec.resize`, `resize_spec`),
+so this adds no hole.  What it asks for is `Clone` on the element type, and
+three of the map's key/value types have no `Dup` — so the new
+`impl<K, V> core::clone::Clone for Slot<K, V>` is **the filler copy only**: it
+answers `Vacant` for every slot, a `Live` one included, needs no bound on `K`
+or `V`, and its doc comment says nothing but `allocate_slots` may call it
+(`dup_slot` stays the real copy).  An explicit impl, no `#[derive]`, like
+`IConstantInfo`'s (§3.4).  It sits after the `HashMap2` struct so that
+`Generated/Types.lean` does not move; `Generated/Funs.lean` does.  The
+`resize_with(…, || Slot::Vacant)` #97-PERF-FRESH measured is the same fill
+but needs a closure (§3.4).  Three comments that said "halving, as
+`allocate_slots` is" now point at `vacate_slots`.
+
+**The proof.**  No twin is involved: `HashMap2` is arena infrastructure
+specified against the abstract map, and `allocate_slots` reaches the rest of
+the development only through `Refine/HashMap2.lean`'s `allocate_slots_spec`
+(`slots'.val = slots.val ++ replicate n Vacant`).  Its statement is kept, less
+the strong-induction index `N`; the proof is now `resize_spec` (whose side
+condition `clone Vacant = ok Vacant` is `rfl`) plus `List.resize`'s
+definition, no induction.  The one caller (`new_with_capacity_pow2_spec`) drops
+the two index arguments.  Nothing in `Bridge/**` or `Refine2/**` mentions it,
+and nothing there needed repair.  No new `sorry`, no new invariant.
+
+**Measured on `Init`** (`--verified --jobs=1 _tmp/corpus/init.ndjson`, release
+profile, `timeout 900`, `ulimit -v 8388608`, `perf stat -e
+instructions:u,cycles:u`; one run each, per the maintainer — instruction
+counts are stable):
+
+| binary | `instructions:u` | accepts |
+|---|---:|---:|
+| `arena` `c6e5f220` | 211 975 992 548 | 57 977 |
+| bulk fill | 209 554 519 699 | 57 977 |
+
+**−2.42 G (−1.14 %)**, a little more than #97-PERF-FRESH's −1.06 % for
+`resize_with`.  Peak RSS (`time -v`): 541–642 MB across four runs of the two
+binaries, with no ordering between them — the fill does not change what is
+allocated, only how it is written, so no change was expected and none is
+visible above that noise.  `cycles:u` is not reported (shared machine).
+
+**Ruling round (coordinator): `resize_with` instead?**  Asked to replace the
+filler-only `Clone` with `slots.resize_with(len, || Slot::Vacant)` if that
+extracts.  It does not without a new hole: Aeneas's library models
+`Vec::resize` but not `Vec::resize_with` (nor any `FnMut`-taking `Vec`
+method), and `scripts/extract.sh --check` on that body fails with
+`FunsExternal.lean does not model the external
+"alloc::vec::{alloc::vec::Vec<@T>}::resize_with"`.  (It would also be the
+first closure in the core; the lint's closure pattern does not see `||`.)  So
+the `Clone` version stays, with a guard against it being used as a copy:
+`scripts/lint-rust-style.sh`'s new `check_slot_clone`.  `Slot` values exist only
+inside `ron/hashmap2.rs` (`HashMap2::slots` is private, no `pub fn` returns a
+slot; `Slot` is `pub` only for `examples/map_bench.rs`'s `size_of`), so the
+check fails (1) any other core file that names `Slot`, and (2) any
+`.clone()`, `Clone::clone`, `.resize(`, `extend_from_slice`, `to_vec` or
+`vec![` in `hashmap2.rs` other than `allocate_slots`' own
+`slots.resize(len, Slot::Vacant);`.  Tested both ways: a `s.clone()` and a
+`to_vec()` on slots inside `hashmap2.rs`, and a `use …::hashmap2::Slot` in
+`hashmap.rs`, each fail it.  The impl's doc comment names the check (same line
+count, so the model is unchanged: `extract --check` OK).
+
 ### Task #97-PERF-WALKMEMO — the two guard walks' memos parked in the state (2026-09-24, Opus under Fable)
 
 Task #97-PERF-FRESH §3 item 1, landed.  `checker_base::all_level_params_defined`

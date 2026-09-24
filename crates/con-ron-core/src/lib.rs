@@ -29,7 +29,6 @@
 //! | `hashmap` | `Std.HashMap` |
 //! | `hashmap2` | `Std.HashMap`, the open-addressed second map (task #97-P6-4b) |
 //! | `ptr` | none — the shared-pointer type of DESIGN.md §3.2 |
-//! | `tagged`, `node` | none — the tagged counted handle `Expr` is built from (task #94) |
 //!
 //! ## `kernel` — the types and the pinned data
 //!
