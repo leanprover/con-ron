@@ -931,9 +931,10 @@ theorem capacity_refines {c : Std.Usize} (h : ron.hashmap2.HashMap2.capacity m =
 /-! ## Construction: `allocate_slots`, `new`, `ensure_slots`, `with_capacity`
 
 Near-verbatim from `HashMap.lean`, as task #97-P6-4b's table predicted: the
-same halving recursion over the same `Vec`, with `Slot::Vacant` for
-`AList::Nil`.  The one change is the leaf, which task #97-P6-7 turned into a
-block of eight pushes. -/
+same `Vec`, with `Slot::Vacant` for `AList::Nil`.  `allocate_slots` itself is
+no longer `ron::hashmap`'s halving recursion: task #97-P6-7 made its leaf a
+block of eight pushes, and task #97-PERF-BULKFILL replaced it with one
+`Vec::resize`. -/
 
 omit [DecidableEq K] in
 @[local simp] theorem getElem!_replicate_vacant (n j : Nat) :
@@ -951,59 +952,25 @@ omit [DecidableEq K] in
   | succ n ih => rw [List.replicate_succ]; simp [ih]
 
 omit [DecidableEq K] in
-/-- `allocate_slots slots n` appends `n` `Vacant` slots.  Task #97-P6-7's
-eight-push leaf is one more arm than `ron::hashmap`'s and nothing else. -/
-theorem allocate_slots_spec (N : Nat) :
-    ∀ (slots slots' : alloc.vec.Vec (ron.hashmap2.Slot K V)) (n : Std.Usize), n.val = N →
-      ron.hashmap2.HashMap2.allocate_slots slots n = ok slots' →
-      slots'.val = slots.val ++ List.replicate n.val ron.hashmap2.Slot.Vacant := by
-  induction N using Nat.strong_induction_on with
-  | _ N ih =>
-    intro slots slots' n hN h
-    rw [ron.hashmap2.HashMap2.allocate_slots.eq_def] at h
-    split at h
-    · -- the block leaf: eight pushes, then two halves of what is left
-      rename_i h8
-      have hn8 : 8 ≤ n.val := by scalar_tac
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨s1, hs1, h⟩ := h
-      obtain ⟨s2, hs2, h⟩ := h
-      obtain ⟨s3, hs3, h⟩ := h
-      obtain ⟨s4, hs4, h⟩ := h
-      obtain ⟨s5, hs5, h⟩ := h
-      obtain ⟨s6, hs6, h⟩ := h
-      obtain ⟨s7, hs7, h⟩ := h
-      obtain ⟨s8, hs8, h⟩ := h
-      obtain ⟨i, hi, h⟩ := h
-      obtain ⟨half, hhalf, h⟩ := h
-      obtain ⟨s9, hs9, h⟩ := h
-      obtain ⟨i1, hi1, h⟩ := h
-      have e8 : s8.val = slots.val ++ List.replicate 8 ron.hashmap2.Slot.Vacant := by
-        rw [vec_push_eq hs8, vec_push_eq hs7, vec_push_eq hs6, vec_push_eq hs5,
-          vec_push_eq hs4, vec_push_eq hs3, vec_push_eq hs2, vec_push_eq hs1]
-        simp [List.replicate_succ]
-      have hiv : i.val = n.val - 8 := by
-        rw [uscalar_sub_eq hi]; simp
-      have hhv : half.val = i.val / 2 := by rw [uscalar_div_eq hhalf]; simp
-      have hi1v : i1.val = i.val - half.val := uscalar_sub_eq hi1
-      have e9 := ih half.val (by omega) s8 s9 half rfl hs9
-      have e10 := ih i1.val (by omega) s9 slots' i1 rfl h
-      rw [e10, e9, e8, List.append_assoc, List.append_assoc, ← List.replicate_add,
-        ← List.replicate_add]
-      congr 2
-      omega
-    · split at h
-      · rename_i h0
-        rw [← Result.ok_injective h, show n.val = 0 by scalar_tac]; simp
-      · rename_i h8 h0
-        have hn1 : 1 ≤ n.val := by scalar_tac
-        simp only [bind_eq_ok_iff] at h
-        obtain ⟨s1, hs1, i, hi, h⟩ := h
-        have hiv : i.val = n.val - 1 := by rw [uscalar_sub_eq hi]; simp
-        have e1 := ih i.val (by omega) s1 slots' i rfl h
-        rw [e1, vec_push_eq hs1, List.append_assoc, show n.val = i.val + 1 by omega,
-          List.replicate_succ]
-        simp
+/-- `allocate_slots slots n` appends `n` `Vacant` slots.  Since task
+#97-PERF-BULKFILL it is one `Vec::resize` to `slots.len() + n`, with the
+`Clone` for `Slot` (which answers `Vacant`) as `resize`'s filler copy, so the
+spec is `resize_spec` and `List.resize`'s definition; no induction. -/
+theorem allocate_slots_spec
+    {slots slots' : alloc.vec.Vec (ron.hashmap2.Slot K V)} {n : Std.Usize}
+    (h : ron.hashmap2.HashMap2.allocate_slots slots n = ok slots') :
+    slots'.val = slots.val ++ List.replicate n.val ron.hashmap2.Slot.Vacant := by
+  rw [ron.hashmap2.HashMap2.allocate_slots] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨len, hlen, h⟩ := h
+  have hl : len.val = slots.length + n.val := by
+    rw [uscalar_add_eq hlen]; simp
+  have := WP.spec_imp_exists (alloc.vec.Vec.resize_spec
+    (ron.hashmap2.Slot.Insts.CoreCloneClone K V) slots len ron.hashmap2.Slot.Vacant rfl)
+  obtain ⟨nv, hnv, hval⟩ := this
+  rw [h] at hnv
+  rw [Result.ok_injective hnv, hval, List.resize, hl]
+  simp
 
 omit [DecidableEq K] in
 theorem max_load_for_spec {c r : Std.Usize} (h : ron.hashmap2.max_load_for c = ok r) :
@@ -1028,7 +995,7 @@ theorem new_with_capacity_pow2_spec {c : Std.Usize} {m' : ron.hashmap2.HashMap2 
   rw [ron.hashmap2.HashMap2.new_with_capacity_pow2] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨slots, hs, i, hi, hm⟩ := h
-  have hsv := allocate_slots_spec c.val _ _ c rfl hs
+  have hsv := allocate_slots_spec hs
   rw [← Result.ok_injective hm]
   refine ⟨?_, rfl, max_load_for_spec hi, rfl, rfl⟩
   simpa [alloc.vec.Vec.with_capacity] using hsv
@@ -1206,8 +1173,8 @@ theorem with_capacity_refines {c : Std.Usize} {m' : ron.hashmap2.HashMap2 K V}
 **This is the section task #97-P6-4b said would shrink, and it does.**
 `clear` is two field writes: the epoch goes up by one and, by `Inv.stamps`,
 *no slot carries the new stamp* — so the table is empty without a single slot
-being touched.  The `EPOCH_MAX` wrap arm reuses the vacate walk, which is
-`allocate_slots_spec`'s induction again.
+being touched.  The `EPOCH_MAX` wrap arm reuses the vacate walk, a halving induction of the
+kind `allocate_slots_spec` had before task #97-PERF-BULKFILL.
 
 `clear_fit` (task #97-P6-7's decaying high-water mark) adds nothing to the
 specification at all: its three arms are `clear` twice and a fresh table, and

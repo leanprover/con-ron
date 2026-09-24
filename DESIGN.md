@@ -63516,3 +63516,57 @@ kept); comment references to OVERVIEW sections were updated in
 `proof/ConRon/Arena/CheckerBase.lean`'s "OVERVIEW §4.5 describe con-ron's
 `or_else_step`" is stale and left alone (a comment edit there re-elaborates
 most of the proof); fold it into the next change to that file.
+
+### Task #97-PERF-BULKFILL — `allocate_slots` is one `Vec::resize` (2026-09-24, Opus under Fable)
+
+Task #97-PERF-FRESH §3.2's deferred optimisation, landed.  Worktree
+`_tmp/wt-bulkfill` off `arena` `c6e5f220`.
+
+**The Rust** (`ron/hashmap2.rs`).  `HashMap2::allocate_slots` was a halving
+recursion with a leaf of eight pushes (task #97-P6-7), priced at ~15
+instructions a slot.  It is now
+
+```rust
+let len: usize = slots.len() + n;
+slots.resize(len, Slot::Vacant);
+slots
+```
+
+`Vec::resize` is modelled by Aeneas (`alloc.vec.Vec.resize`, `resize_spec`),
+so this adds no hole.  What it asks for is `Clone` on the element type, and
+three of the map's key/value types have no `Dup` — so the new
+`impl<K, V> core::clone::Clone for Slot<K, V>` is **the filler copy only**: it
+answers `Vacant` for every slot, a `Live` one included, needs no bound on `K`
+or `V`, and its doc comment says nothing but `allocate_slots` may call it
+(`dup_slot` stays the real copy).  An explicit impl, no `#[derive]`, like
+`IConstantInfo`'s (§3.4).  It sits after the `HashMap2` struct so that
+`Generated/Types.lean` does not move; `Generated/Funs.lean` does.  The
+`resize_with(…, || Slot::Vacant)` #97-PERF-FRESH measured is the same fill
+but needs a closure (§3.4).  Three comments that said "halving, as
+`allocate_slots` is" now point at `vacate_slots`.
+
+**The proof.**  No twin is involved: `HashMap2` is arena infrastructure
+specified against the abstract map, and `allocate_slots` reaches the rest of
+the development only through `Refine/HashMap2.lean`'s `allocate_slots_spec`
+(`slots'.val = slots.val ++ replicate n Vacant`).  Its statement is kept, less
+the strong-induction index `N`; the proof is now `resize_spec` (whose side
+condition `clone Vacant = ok Vacant` is `rfl`) plus `List.resize`'s
+definition, no induction.  The one caller (`new_with_capacity_pow2_spec`) drops
+the two index arguments.  Nothing in `Bridge/**` or `Refine2/**` mentions it,
+and nothing there needed repair.  No new `sorry`, no new invariant.
+
+**Measured on `Init`** (`--verified --jobs=1 _tmp/corpus/init.ndjson`, release
+profile, `timeout 900`, `ulimit -v 8388608`, `perf stat -e
+instructions:u,cycles:u`; one run each, per the maintainer — instruction
+counts are stable):
+
+| binary | `instructions:u` | accepts |
+|---|---:|---:|
+| `arena` `c6e5f220` | 211 975 992 548 | 57 977 |
+| bulk fill | 209 554 519 699 | 57 977 |
+
+**−2.42 G (−1.14 %)**, a little more than #97-PERF-FRESH's −1.06 % for
+`resize_with`.  Peak RSS (`time -v`): 541–642 MB across four runs of the two
+binaries, with no ordering between them — the fill does not change what is
+allocated, only how it is written, so no change was expected and none is
+visible above that noise.  `cycles:u` is not reported (shared machine).

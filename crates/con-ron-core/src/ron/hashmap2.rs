@@ -279,42 +279,36 @@ where
     }
 }
 
+/// con-leche: none — arena infrastructure (task #97-PERF-BULKFILL)
+/// `core::clone::Clone` for `Slot`, which `Vec::resize`'s signature demands of
+/// `allocate_slots`' filler, and **that filler is its one use**: it answers
+/// `Vacant` for every slot, a `Live` one included, because a `Live` slot's key
+/// and value have no generic copy (`dup_slot` is the real copy, and needs
+/// `Dup`).  So it is not a copy of a `Live` slot, and nothing but
+/// `allocate_slots` may call it.  No `#[derive]` (DESIGN.md §3.4).
+impl<K, V> core::clone::Clone for Slot<K, V> {
+    /// con-leche: none — arena infrastructure (task #97-PERF-BULKFILL)
+    fn clone(&self) -> Slot<K, V> {
+        Slot::Vacant
+    }
+}
+
 impl<K, V> HashMap2<K, V> {
-    /// con-leche: none — arena infrastructure (task #97-P6-4b, rewritten by #97-P6-7)
-    /// Push `n` `Vacant` slots onto `slots`.
+    /// con-leche: none — arena infrastructure (task #97-P6-4b, rewritten by #97-P6-7 and #97-PERF-BULKFILL)
+    /// Append `n` `Vacant` slots to `slots`.
     ///
-    /// **It was a halving push recursion** ("split in half rather than peeled
-    /// one at a time, so the recursion is `log2 n` deep"), which is two
-    /// function calls and one bounds-checked `push` per slot.  Task #97-P6-7
-    /// made the slot vector track the table's size rather than its high-water
-    /// mark, which turns this from a once-per-table cost into a hot one:
-    /// the first attempt read `allocate_slots` at **8.4 % + 4.3 % + 1.9 % of
-    /// the Mathlib prefix's cycles** across the three hottest instantiations.
-    /// The fix that needs no new hole and no new bound is to make the leaf a
-    /// BLOCK: eight pushes per call instead of one, so the recursion costs a
-    /// quarter of a call per slot where it used to cost two.  (`Vec::resize`
-    /// would be one call and a store loop, and it is what Aeneas models — but
-    /// it asks its filler for `Clone`, and three of this map's key and value
-    /// types have no `Dup` to write one from.)
+    /// **It is one `Vec::resize`** (task #97-PERF-BULKFILL).  It was a halving
+    /// push recursion, then (task #97-P6-7) a halving recursion with a leaf of
+    /// eight pushes; task #97-PERF-FRESH priced that at ~15 instructions a
+    /// slot, 4.76 G of `Init`'s 212 G, where a bulk fill is a store loop.
+    /// `Vec::resize` is modelled by Aeneas (`alloc.vec.Vec.resize`, with
+    /// `resize_spec`); what it asks for is a `Clone` for the filler, and the
+    /// `Clone` for `Slot` is exactly that filler copy — it needs no `Dup` of `K` or
+    /// `V`, which three of this map's key and value types do not have.
     fn allocate_slots(mut slots: Vec<Slot<K, V>>, n: usize) -> Vec<Slot<K, V>> {
-        if n >= 8 {
-            slots.push(Slot::Vacant);
-            slots.push(Slot::Vacant);
-            slots.push(Slot::Vacant);
-            slots.push(Slot::Vacant);
-            slots.push(Slot::Vacant);
-            slots.push(Slot::Vacant);
-            slots.push(Slot::Vacant);
-            slots.push(Slot::Vacant);
-            let half: usize = (n - 8) / 2;
-            let slots = HashMap2::allocate_slots(slots, half);
-            HashMap2::allocate_slots(slots, n - 8 - half)
-        } else if n == 0 {
-            slots
-        } else {
-            slots.push(Slot::Vacant);
-            HashMap2::allocate_slots(slots, n - 1)
-        }
+        let len: usize = slots.len() + n;
+        slots.resize(len, Slot::Vacant);
+        slots
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-4b)
@@ -494,8 +488,8 @@ impl<K, V> HashMap2<K, V> {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-4b)
-    /// The epoch wrap's slot walk over `[lo, hi)`, halving (see
-    /// `allocate_slots`).
+    /// The epoch wrap's slot walk over `[lo, hi)`, halving so the recursion is
+    /// `log2 n` deep (as `allocate_slots` was before task #97-PERF-BULKFILL).
     fn vacate_slots(slots: &mut Vec<Slot<K, V>>, lo: usize, hi: usize) {
         if hi > lo {
             let n = hi - lo;
@@ -658,8 +652,8 @@ where
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-4b)
-    /// Move the live entries of `[lo, hi)` into `ntable`, halving (see
-    /// `allocate_slots`).
+    /// Move the live entries of `[lo, hi)` into `ntable`, halving so the
+    /// recursion is `log2 n` deep (see `vacate_slots`).
     fn move_slots(
         ntable: &mut HashMap2<K, V>,
         slots: &mut Vec<Slot<K, V>>,
@@ -853,7 +847,7 @@ where
 
     /// con-leche: none — arena infrastructure (task #97-P6-4b)
     /// `dup`'s slot walk over `[lo, hi)`, pushing the copies onto `out` in
-    /// index order; halved, as `allocate_slots` is.
+    /// index order; halved, as `vacate_slots` is.
     fn dup_slots(
         src: &Vec<Slot<K, V>>,
         out: Vec<Slot<K, V>>,
