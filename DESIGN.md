@@ -61440,6 +61440,21 @@ it re-elaborates (`LAKE_JOBS=4`, `LEAN_NUM_THREADS=4`):
 Frontier (`model_exists` + `no_False_declaration`): 1 item in 1 module,
 21 tainted, dead weight 46 (unchanged: `check_native_refines`).
 
+
+#### The bounce (queue, onto `arena` `c6e5f220`)
+
+Every lane proof built under the strict tactic; only `Tests.lean` §10 failed:
+it borrowed `if_all_zero_new_twin`, which the Inductives round 6 slice 2
+strengthened to carry the WF itself, so the "weak" lemma was no longer weak.
+§10 now has its own Rust step (`rustEcho`) and two pairs that really differ
+(`rust_echo_weak`, registered first, says `True`; `rust_echo_strong` is
+`@[lockstep high]`); checked that without `high` the first and third tests
+fail.  OVERVIEW §7.4's anchors (`LSM`/`LSRM`, `lockstep`, `@[lockstep]`)
+moved with the code, and its text now says that alternatives run without
+error recovery, how lemmas for one callee are ordered (priority, then
+registration; `[-lockstep]`), and names `@[lockstep_congr_simp]`.
+`arena` `c6e5f220` merged (clean), gates re-run.
+
 ### Task #97-T2-LOCKSTEP lane Inductives Modeled — the modeled route by `lockstep`; one twin divergence fixed (2026-09-23, Opus under Fable)
 
 Worktree `_tmp/wt-t2-ind-mod`, branch `t2-ind-mod` off `arena` `70ea5a33`

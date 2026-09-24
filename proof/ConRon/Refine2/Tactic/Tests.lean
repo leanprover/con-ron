@@ -456,51 +456,43 @@ example {pers st lst} {h : arena.handle.EIdx} {l : List EIdx}
 
 /-! ## 10. Two lemmas for one Rust head: priority and erasure
 
-The Inductives Modeled lane's `if_all_zero` of the empty list: the Inductives
-tier's `if_all_zero_new_twin` answers the value only, the Modeled lane's copy
-also its well-formedness.  The first registered was always tried first (and,
-an `LSP` spec's predicate being a metavariable, always closed the spec goal),
-so the lane opened a namespace of its own to put its copy in front.  Now the
-copy says so itself: `@[lockstep high]`. -/
+The Inductives Modeled lane met it at `if_all_zero` of the empty list: one
+tier's pair answered the value only, another's also its well-formedness.  The
+first registered was always tried first (an `LSP` spec's predicate is a
+metavariable, so any lemma closes the spec goal), and the lane opened a
+namespace of its own to put its copy in front.  Now the stronger lemma says so
+itself: `@[lockstep high]`.  Here a Rust step of this file's own with two pairs
+that really differ: the weak one (registered FIRST) says nothing. -/
 
-/-- The stronger pair (the Modeled lane's `if_all_zero_new_wf_twin`). -/
-@[lockstep high] theorem if_all_zero_new_wf_test :
-    LSP (kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name))
-      (fun pw => TwinEq (ConLeche.PropWhen.ifAllZero []) (ConRon.Refine.absPropWhen pw) ∧
-        ConRon.Refine.PropWhenWF pw) :=
-  fun pw h => ⟨if_all_zero_new_twin pw h,
-    ConRon.Refine.PropWhen.if_all_zero_wf (by intro n hn; simp [alloc.vec.Vec.new] at hn) h⟩
+/-- A Rust-only step (the stand-in for `if_all_zero`). -/
+def rustEcho (n : Nat) : Result Nat := ok n
 
-/-- The leaf needs the well-formedness: only the `high` lemma gives it. -/
-example {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => ConRon.Refine.PropWhenWF a ∧ b = ConRon.Refine.absPropWhen a)
-      (do
-        let pw ← kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
-        ok (.Ok pw, st)) lst
-      (pure (ConLeche.PropWhen.ifAllZero [])) := by
+/-- The weak pair, registered first at the default priority. -/
+@[lockstep] theorem rust_echo_weak (n : Nat) : LSP (rustEcho n) (fun _ => True) :=
+  fun _ _ => trivial
+
+/-- The strong pair, registered second: `high` puts it in front. -/
+@[lockstep high] theorem rust_echo_strong (n : Nat) : LSP (rustEcho n) (fun a => a = n) :=
+  fun _ h => (Result.ok_injective h).symm
+
+/-- The leaf needs the answer: only the `high` lemma gives it. -/
+example {pers st lst} (n : Nat) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (do let a ← rustEcho n; ok (.Ok a, st)) lst (pure n) := by
   lockstep
 
--- `attribute [-lockstep]` erases it again: the value-only lemma is taken, and
--- the leaf's well-formedness is left over.
+-- `attribute [-lockstep]` erases it: the weak lemma is taken, and the leaf is
+-- left over.
 #guard_msgs (drop warning) in
-attribute [-lockstep] if_all_zero_new_wf_test in
-example {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => ConRon.Refine.PropWhenWF a ∧ b = ConRon.Refine.absPropWhen a)
-      (do
-        let pw ← kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
-        ok (.Ok pw, st)) lst
-      (pure (ConLeche.PropWhen.ifAllZero [])) := by
+attribute [-lockstep] rust_echo_strong in
+example {pers st lst} (n : Nat) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (do let a ← rustEcho n; ok (.Ok a, st)) lst (pure n) := by
   lockstep
   fail_if_success done
   sorry
 
-/-- And after the erasure's scope, the `high` lemma is back. -/
-example {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => ConRon.Refine.PropWhenWF a ∧ b = ConRon.Refine.absPropWhen a)
-      (do
-        let pw ← kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
-        ok (.Ok pw, st)) lst
-      (pure (ConLeche.PropWhen.ifAllZero [])) := by
+/-- After the erasure's scope, the `high` lemma is back. -/
+example {pers st lst} (n : Nat) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (do let a ← rustEcho n; ok (.Ok a, st)) lst (pure n) := by
   lockstep
 
 /-! ## 11. A twin split stops at the list shape

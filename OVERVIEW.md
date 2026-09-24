@@ -677,29 +677,35 @@ The form depends on the shape of the Rust function:
 | [`LSR`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L168-L172) | reads the state, may fail |
 | `LSV`, `LSW` | reads and cannot fail; writes and cannot fail |
 | `LSP` | a Rust-only step with no twin counterpart (a copy, a `u64` decrement) |
-| [`LSM`, `LSRM`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L652-L664) | a memoised walk that returns its memo beside the result |
+| [`LSM`, `LSRM`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L660-L672) | a memoised walk that returns its memo beside the result |
 
 `LS.toSim₀` converts back to the statement form.
 
 **The `lockstep` tactic**
-([`lockstep`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L2537-L2538))
+([`lockstep`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L2802-L2803))
 steps the two programs together, one bind at a time.  At each Rust bind it
 looks up a lemma for the callee, applies it, and continues with the related
 results as hypotheses.  It splits a Rust `if` or `match`, and uses the facts
 this gives to decide the twin's.  Side goals go to `simp`, `omega` and
-`scalar_tac`; it never calls `grind`.  When it stops, the goal sits at the
+`scalar_tac`; it never calls `grind`.  Every alternative it tries runs without
+error recovery, so a term that fails to elaborate makes the alternative fail
+instead of closing the goal with `sorry`.  When it stops, the goal sits at the
 first bind where the two programs differ, or where a lemma is missing.
 
 **The lemma discipline.**  A lemma is found by its Rust callee: tagging it
-[`@[lockstep]`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Attr.lean#L58-L64)
+[`@[lockstep]`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Attr.lean#L86-L94)
 files it under the head constant of the Rust computation in its conclusion,
 which must be one of the judgements above.  A local hypothesis in the same
-form, such as an induction hypothesis, is found the same way.  Lemmas for
+form, such as an induction hypothesis, is found the same way, and is tried
+before any lemma.  When several lemmas cover one callee, the first that
+applies wins: higher priority first (`@[lockstep high]`), then registration
+order; `attribute [-lockstep] foo` removes one.  Lemmas for
 handle primitives (copies, handle equality) live in one place,
 [`Tactic/Prims.lean`](https://github.com/leanprover/con-ron/tree/master/proof/ConRon/Refine2/Tactic/Prims.lean).
 Proofs extend the tactic only through these attributes (and
-`@[lockstep_simp]`, `@[lockstep_inline]`, and the side-goal tactic's
-`macro_rules`), not by editing its core.
+`@[lockstep_simp]`, `@[lockstep_inline]`, `@[lockstep_congr_simp]` for twin
+equations used only to match a lemma's twin against the goal's, and the
+side-goal tactic's `macro_rules`), not by editing its core.
 
 **Representation premises.**  Charon erases the proofs inside con-leche's
 subtypes.  con-leche's `PropWhen`, for instance, carries a proof that its

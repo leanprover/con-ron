@@ -2291,33 +2291,35 @@
    171      (st : arena.monad.AState) (lst : AState) (x : AM β) : Prop :=
    172    ∀ o, m = ok o → LOut pers R o st (x.run lst)
 
-== proof/ConRon/Refine2/Tactic/Lockstep.lean#L652-L664
-   652  /-- **The lockstep judgement of a memoised state walk**: `LS` of the walk with
-   653  its memo moved into the answer; `R` relates `(answer, memo)` to the twin's
-   654  answer (typically the twin's `(answer, memo)` pair). -/
-   655  def LSM {α β M : Type} (pers : arena.store.PersTier) (R : α × M → β → Prop)
-   656      (m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M))
-   657      (lst : AState) (x : AM β) : Prop :=
-   658    LS pers R (packM m) lst x
-   659  
-   660  /-- **The lockstep judgement of a memoised reader walk** at the state `st`. -/
-   661  def LSRM {α β M : Type} (pers : arena.store.PersTier) (R : α × M → β → Prop)
-   662      (m : Result (core.result.Result α kernel.core_types.CheckError × M))
-   663      (st : arena.monad.AState) (lst : AState) (x : AM β) : Prop :=
-   664    LS pers R (packRM st m) lst x
+== proof/ConRon/Refine2/Tactic/Lockstep.lean#L660-L672
+   660  /-- **The lockstep judgement of a memoised state walk**: `LS` of the walk with
+   661  its memo moved into the answer; `R` relates `(answer, memo)` to the twin's
+   662  answer (typically the twin's `(answer, memo)` pair). -/
+   663  def LSM {α β M : Type} (pers : arena.store.PersTier) (R : α × M → β → Prop)
+   664      (m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M))
+   665      (lst : AState) (x : AM β) : Prop :=
+   666    LS pers R (packM m) lst x
+   667  
+   668  /-- **The lockstep judgement of a memoised reader walk** at the state `st`. -/
+   669  def LSRM {α β M : Type} (pers : arena.store.PersTier) (R : α × M → β → Prop)
+   670      (m : Result (core.result.Result α kernel.core_types.CheckError × M))
+   671      (st : arena.monad.AState) (lst : AState) (x : AM β) : Prop :=
+   672    LS pers R (packRM st m) lst x
 
-== proof/ConRon/Refine2/Tactic/Lockstep.lean#L2537-L2538
-  2537  /-- **The lockstep tactic**: step until every goal is closed or stuck. -/
-  2538  macro "lockstep" : tactic => `(tactic| repeat' lockstep_step)
+== proof/ConRon/Refine2/Tactic/Lockstep.lean#L2802-L2803
+  2802  /-- **The lockstep tactic**: step until every goal is closed or stuck. -/
+  2803  macro "lockstep" : tactic => `(tactic| repeat' lockstep_step)
 
-== proof/ConRon/Refine2/Tactic/Attr.lean#L58-L64
-    58  initialize registerBuiltinAttribute {
-    59    name := `lockstep
-    60    descr := "a lockstep correspondence lemma, keyed on its Rust callee"
-    61    add := fun decl _stx kind => do
-    62      let info ← getConstInfo decl
-    63      let k ← (lemmaKey info.type).run' {} {}
-    64      lockstepExt.add (k, decl) kind
+== proof/ConRon/Refine2/Tactic/Attr.lean#L86-L94
+    86  initialize registerBuiltinAttribute {
+    87    name := `lockstep
+    88    descr := "a lockstep correspondence lemma, keyed on its Rust callee; \
+    89      `@[lockstep high]` / `@[lockstep <n>]` sets its priority"
+    90    add := fun decl stx kind => do
+    91      let info ← getConstInfo decl
+    92      let k ← (lemmaKey info.type).run' {} {}
+    93      let prio ← getAttrParamOptPrio stx[1]
+    94      lockstepExt.add (.add k decl prio) kind
 
 == proof/ConRon/Refine/Abs.lean#L589-L612
    589  /-- `ConLeche/Kernel/PropWhen.lean:360-384` -- the canonical-form invariant of
