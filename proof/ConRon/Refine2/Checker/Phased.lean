@@ -4,7 +4,7 @@
 **Task #97-P5-Driver.**  The binary's driver (`crates/con-ron/src/driver.rs`,
 unverified) is a straight line of calls into the verified crate:
 
-    annot_fold_hooked → freeze_tier → pool::check_pool → thaw_tier
+    annot_fold_hooked → freeze_tier → pool::parallel_all → thaw_tier
 
 and `arena::checker::check_decls_phased` is the same line with the one call
 that is not the verified crate's — the pool — replaced by the walk it is
@@ -351,33 +351,112 @@ theorem check_decls_phased_refines {H : Type} {inst : arena.checker.InstallHook 
         rw [am_run_bind, hW]
         rfl
 
-/-! ## The pool (task #97-P5-POOL)
+/-! ## The pool (tasks #97-P5-POOL, #98-POOL)
 
 The binary does not run `check_decls_phased`'s one-worker walk: its phase B
-is `pool::check_pool`, which shares the pending records among workers, each
-checking the records it claimed on ONE state it built with `worker_state`.
-`PoolAccepts` is that stage, accepted, stated with verified calls only: phase
-A, the freeze, and one `check_pending_worker` accept per worker over the
-records that worker checked, together covering the pending list.  The pool's
-trusted claim (`pool.rs`'s note, OVERVIEW §8.2) is exactly that its accept
-has this shape — control flow of `pool.rs`, nothing about the checker.
+is `pool::parallel_all` (`crates/con-ron/src/pool.rs`), a generic combinator
+that runs a per-index `step` on a pool of workers, each folding it over the
+indices it claimed on ONE state it built with `init`.  Its contract is
+`ParallelAll`, stated here generically — nothing in it is about checking —
+and it is the whole of the pool's trust: the claim of `pool.rs`'s note, an
+argument about that function's control flow.  The driver instantiates it
+with two calls into the verified crate, `init := worker_state pins` and
+`step := fun st k => check_pending tier st mode fe pend[k]` (`pendingStep`).
 
-`pool_accepts_refines` walks it into the twin's `PooledAccepts` with no
-argument about a worker's history: each worker's run IS
-`check_pending_worker` on its own list, which `check_pending_list_refines`
-relates from `worker_state` exactly as it does for the one-worker walk.
-`poolAccepts_of_check_decls_phased` shows the sequential walk is one such
-pool (a single worker), so the hypothesis is met by the verified crate. -/
+`PoolAccepts` is the driver's fold, accepted: phase A, the freeze, and
+`ParallelAll` over the pending records.  `PoolAccepts.toParts` turns the
+partition into the shape the proof consumes (`PoolAcceptsParts`: one
+accepting `check_pending_worker` per worker over the records it checked,
+together covering the pending list), and `pool_accepts_refines` walks that
+into the twin's `PooledAccepts` with no argument about a worker's history:
+each worker's run IS `check_pending_worker` on its own list, which
+`check_pending_list_refines` relates from `worker_state` exactly as it does
+for the one-worker walk.  `poolAccepts_of_check_decls_phased` shows the
+sequential walk is one such pool (a single worker claiming `0, 1, …, m-1`),
+so the hypothesis is met by the verified crate. -/
+
+/-- **A fold with every step `Ok`**: `step` from `s` over `ks` in order,
+threading the state, every call answering `.Ok ()`. -/
+def FoldAllOk {S E I : Type} (step : S → I → Result (core.result.Result Unit E × S)) :
+    S → List I → Prop
+  | _, [] => True
+  | s, k :: ks => ∃ s', step s k = ok (.Ok (), s') ∧ FoldAllOk step s' ks
+
+/-- **The contract of `crates/con-ron/src/pool.rs`'s `parallel_all`** (task
+#98-POOL) — the pool's one trusted claim, stated with nothing about what the
+pool runs.  `parallel_all(n, workers, init, step, after)` returning `Ok(())`
+means: the indices `0..n` were claimed by the workers, each by exactly one
+(`parts.flatten` is a permutation of `List.range n`); each worker's claims
+came off a monotone counter, so they increase (claim order); and each worker
+built its state with `init()` ONCE and folded `step` over its claims, in claim
+order, every step answering `Ok(())`.  `init` and `step` are the Aeneas models
+of the two closures (`init` in `Result`, as every extracted function is);
+`after`, the heartbeat hook, holds the state by `&` and is not in the
+contract.  It holds at every worker count, including the count the pool fell
+back to when the OS refused a thread. -/
+def ParallelAll {S E : Type} (n : Nat) (init : Result S)
+    (step : S → Nat → Result (core.result.Result Unit E × S)) : Prop :=
+  ∃ parts : List (List Nat),
+    parts.flatten.Perm (List.range n) ∧
+    ∀ w ∈ parts, w.Pairwise (· < ·) ∧ ∃ s₀, init = ok s₀ ∧ FoldAllOk step s₀ w
+
+/-- **The driver's `step` closure**, `|w, k| checker::check_pending(&tier, w,
+mode, &fe, &pend[k])` (`crates/con-ron/src/driver.rs`
+`check_decls_driver`), as the Aeneas model reads it: `check_pending` on the
+`k`-th pending record, and a panic past the end (`&pend[k]`'s bounds check). -/
+def pendingStep (tier : arena.store.PersTier) (mode : kernel.env.CheckMode)
+    (fe : arena.env.IFEnv) (pend : alloc.vec.Vec arena.checker.PendingCheck)
+    (st : arena.monad.AState) (k : Nat) :
+    Result ((core.result.Result Unit kernel.core_types.CheckError) × arena.monad.AState) :=
+  match pend.val[k]? with
+  | some pc => arena.checker.check_pending tier st mode fe pc
+  | none => fail .panic
 
 /-- con-leche: Main.lean:289-316 checkPool — **the driver's fold with the
-pool, accepted**: `fold_start`, phase A (`annot_fold_hooked`) accepting with
+pool, accepted** (`crates/con-ron/src/driver.rs` `check_decls_driver`, one
+conjunct per call): `fold_start`, phase A (`annot_fold_hooked`) accepting with
 environment `fe`, pending records `pend` and state `st'`; the tier frozen out
-of `st'.store`; and `parts`, the record lists the workers checked — each
-drawn from `pend`, together covering it — each accepted by
-`check_pending_worker` over the frozen tier.  The driver's `thaw_tier` then
-restores `st'.store` exactly (`freeze_tier_ok`), so `st'` is the state the
-fold hands back. -/
+of `st'.store`; and phase B, `parallel_all` over the pending records with the
+driver's two closures, accepted — `ParallelAll`, the pool's contract.  The
+driver's `thaw_tier` then restores `st'.store` exactly (`freeze_tier_ok`), so
+`st'` is the state the fold hands back. -/
 def PoolAccepts {H : Type} (inst : arena.checker.InstallHook H)
+    (pers : arena.store.PersTier) (st : arena.monad.AState)
+    (mode : kernel.env.CheckMode)
+    (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
+    (ds : alloc.vec.Vec arena.env.IDeclaration) (h : H)
+    (fe : arena.env.IFEnv) (st' : arena.monad.AState) : Prop :=
+  ∃ (t : Std.U64 × arena.env.IFEnv × alloc.vec.Vec arena.checker.PendingCheck)
+    (n : Std.U64) (pend : alloc.vec.Vec arena.checker.PendingCheck)
+    (tier : arena.store.PersTier) (est : arena.store.EStore),
+    arena.checker.fold_start = ok t ∧
+    arena.checker.annot_fold_hooked inst pers st mode pins t ds 0#usize h
+      = ok (.Ok (n, fe, pend), st') ∧
+    arena.checker.freeze_tier st'.store = ok (.Ok tier, est) ∧
+    ParallelAll pend.length (arena.checker.worker_state st'.pins)
+      (pendingStep tier mode fe pend)
+
+/-- `PoolAccepts` from one premise per call of the driver — the shape a
+headline states it in (phase A, the freeze, phase B). -/
+theorem poolAccepts_intro {H : Type} {inst : arena.checker.InstallHook H}
+    {h : H} {pers st mode pins ds fe st'}
+    {t : Std.U64 × arena.env.IFEnv × alloc.vec.Vec arena.checker.PendingCheck}
+    {n : Std.U64} {pend : alloc.vec.Vec arena.checker.PendingCheck}
+    {tier : arena.store.PersTier} {est : arena.store.EStore}
+    (hstart : arena.checker.fold_start = ok t)
+    (hA : arena.checker.annot_fold_hooked inst pers st mode pins t ds 0#usize h
+      = ok (.Ok (n, fe, pend), st'))
+    (hF : arena.checker.freeze_tier st'.store = ok (.Ok tier, est))
+    (hB : ParallelAll pend.length (arena.checker.worker_state st'.pins)
+      (pendingStep tier mode fe pend)) :
+    PoolAccepts inst pers st mode pins ds h fe st' :=
+  ⟨t, n, pend, tier, est, hstart, hA, hF, hB⟩
+
+/-- **The pool's accept, per worker** (the shape of task #97-P5-POOL's
+`PoolAccepts`): phase A, the freeze, and `parts`, the record lists the
+workers checked — each drawn from `pend`, together covering it — each
+accepted by `check_pending_worker` over the frozen tier. -/
+def PoolAcceptsParts {H : Type} (inst : arena.checker.InstallHook H)
     (pers : arena.store.PersTier) (st : arena.monad.AState)
     (mode : kernel.env.CheckMode)
     (pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet)
@@ -395,6 +474,165 @@ def PoolAccepts {H : Type} (inst : arena.checker.InstallHook H)
     (∀ w ∈ parts, ∀ pc ∈ w.val, pc ∈ pend.val) ∧
     (∀ w ∈ parts,
       arena.checker.check_pending_worker tier mode fe st'.pins w = ok (.Ok ()))
+
+/-- A fold of `check_pending` over the records `v.val.drop i` is
+`check_pending_list` from cursor `i`, accepting. -/
+private theorem check_pending_list_of_foldAllOk {tier mode fe}
+    {v : alloc.vec.Vec arena.checker.PendingCheck} :
+    ∀ (pcs : List arena.checker.PendingCheck) (i : Std.Usize) (s : arena.monad.AState),
+      v.val.drop i.val = pcs →
+      FoldAllOk (fun st pc => arena.checker.check_pending tier st mode fe pc) s pcs →
+      ∃ s', arena.checker.check_pending_list tier s mode fe v i = ok (.Ok (), s') := by
+  intro pcs
+  induction pcs with
+  | nil =>
+    intro i s hd _
+    have hle : v.val.length ≤ i.val := List.drop_eq_nil_iff.mp hd
+    refine ⟨s, ?_⟩
+    rw [arena.checker.check_pending_list.eq_def]
+    have hge : i ≥ alloc.vec.Vec.len v := by
+      have := alloc.vec.Vec.len_val v; scalar_tac
+    simp only [hge, ↓reduceIte]
+  | cons pc pcs ih =>
+    intro i s hd hf
+    obtain ⟨s1, hs1, hf⟩ := hf
+    have hlt : i.val < v.val.length := by
+      by_contra hc
+      rw [List.drop_eq_nil_of_le (by omega)] at hd; simp at hd
+    have hpc : v.val[i.val] = pc := by
+      rw [List.drop_eq_getElem_cons hlt] at hd
+      exact (List.cons.inj hd).1
+    have hrest : v.val.drop (i.val + 1) = pcs := by
+      rw [List.drop_eq_getElem_cons hlt] at hd
+      exact (List.cons.inj hd).2
+    obtain ⟨i2, hi2, hi2v⟩ := ConRon.Refine.usize_add_ok (i := i)
+      (by have := alloc.vec.Vec.len_ineq v; omega)
+    obtain ⟨s', hs'⟩ := ih i2 s1 (by rw [hi2v]; exact hrest) hf
+    refine ⟨s', ?_⟩
+    rw [arena.checker.check_pending_list.eq_def]
+    have hge : ¬ (i ≥ alloc.vec.Vec.len v) := by
+      have := alloc.vec.Vec.len_val v; scalar_tac
+    have hidx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.checker.PendingCheck) v i = ok pc := by
+      rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+      rw [show v[i.val]? = v.val[i.val]? from rfl, List.getElem?_eq_getElem hlt, hpc]
+    simp only [hge, ↓reduceIte, hidx, bind_tc_ok, hs1, hi2]
+    exact hs'
+
+/-- The converse: an accepting `check_pending_list` from cursor `i` is a fold
+of `pendingStep` over the indices `i, i+1, …` to the end. -/
+private theorem foldAllOk_of_check_pending_list {tier mode fe}
+    {v : alloc.vec.Vec arena.checker.PendingCheck} (n : Nat) :
+    ∀ (i : Std.Usize) (s s' : arena.monad.AState), v.val.length - i.val = n →
+      arena.checker.check_pending_list tier s mode fe v i = ok (.Ok (), s') →
+      FoldAllOk (pendingStep tier mode fe v) s (List.range' i.val n) := by
+  induction n with
+  | zero => intro _ _ _ _ _; trivial
+  | succ n ih =>
+    intro i s s' hn hrun
+    rw [arena.checker.check_pending_list.eq_def] at hrun
+    dsimp only at hrun
+    split at hrun
+    · rename_i hge
+      have := alloc.vec.Vec.len_val v; scalar_tac
+    · rename_i hge
+      have hlt : i.val < v.val.length := by
+        have := alloc.vec.Vec.len_val v; scalar_tac
+      obtain ⟨pc, hidx, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hpc : v.val[i.val]? = some pc := ConRon.Refine.ExprOps.vec_index_getElem? hidx
+      obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨qr, s1⟩ := q
+      cases qr with
+      | Err e =>
+        have h' := Result.ok_injective hrun
+        simp at h'
+      | Ok u =>
+        obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+        refine ⟨s1, ?_, ?_⟩
+        · simp only [pendingStep, hpc]; exact hq
+        · have := ih i2 s1 s' (by omega) hrun
+          rw [hi2v] at this; exact this
+
+/-- A `pendingStep` fold names its records: every index is in range, and the
+records at those indices are a `check_pending` fold. -/
+private theorem foldAllOk_pendingStep {tier mode fe}
+    {pend : alloc.vec.Vec arena.checker.PendingCheck} :
+    ∀ (ks : List Nat) (s : arena.monad.AState),
+      FoldAllOk (pendingStep tier mode fe pend) s ks →
+      ∃ pcs : List arena.checker.PendingCheck,
+        ks.map (fun k => pend.val[k]?) = pcs.map some ∧
+        FoldAllOk (fun st pc => arena.checker.check_pending tier st mode fe pc) s pcs := by
+  intro ks
+  induction ks with
+  | nil => intro _ _; exact ⟨[], rfl, trivial⟩
+  | cons k ks ih =>
+    intro s hf
+    obtain ⟨s1, hs1, hf⟩ := hf
+    unfold pendingStep at hs1
+    split at hs1
+    · rename_i pc hpc
+      obtain ⟨pcs, hm, hf'⟩ := ih s1 hf
+      exact ⟨pc :: pcs, by simp [hpc, hm], s1, hs1, hf'⟩
+    · simp at hs1
+
+/-- **The pool's contract, per worker** (task #98-POOL): a `PoolAccepts` —
+`ParallelAll` over the pending records — is a `PoolAcceptsParts`, each
+worker's claims read as the list of records it checked. -/
+theorem PoolAccepts.toParts {H : Type} {inst : arena.checker.InstallHook H}
+    {h : H} {pers st mode pins ds fe st'}
+    (hp : PoolAccepts inst pers st mode pins ds h fe st') :
+    PoolAcceptsParts inst pers st mode pins ds h fe st' := by
+  obtain ⟨t, n, pend, tier, est, ht, hA, hF, parts, hperm, hw⟩ := hp
+  -- each worker's claims, as records
+  have hrec : ∀ w ∈ parts, ∃ pcs : List arena.checker.PendingCheck,
+      w.map (fun k => pend.val[k]?) = pcs.map some ∧
+      ∃ s₀, arena.checker.worker_state st'.pins = ok s₀ ∧
+        FoldAllOk (fun st pc => arena.checker.check_pending tier st mode fe pc) s₀ pcs := by
+    intro w hwm
+    obtain ⟨-, s₀, hs₀, hf⟩ := hw w hwm
+    obtain ⟨pcs, hm, hf'⟩ := foldAllOk_pendingStep w s₀ hf
+    exact ⟨pcs, hm, s₀, hs₀, hf'⟩
+  choose! recs hrecm hrecf using hrec
+  have hlen : ∀ w ∈ parts, (recs w).length ≤ Std.Usize.max := by
+    intro w hwm
+    have h1 : (recs w).length = w.length := by
+      have := congrArg List.length (hrecm w hwm); simpa using this.symm
+    have h2 : w.length ≤ parts.flatten.length :=
+      (List.sublist_flatten_of_mem hwm).length_le
+    have h3 : parts.flatten.length = pend.val.length := by
+      rw [hperm.length_eq, List.length_range]
+    have := alloc.vec.Vec.len_ineq pend
+    omega
+  let vecs : List (alloc.vec.Vec arena.checker.PendingCheck) :=
+    parts.attach.map (fun w => alloc.vec.Vec.from (recs w.1) (hlen w.1 w.2))
+  refine ⟨t, n, pend, tier, est, vecs, ht, hA, hF, ?_, ?_, ?_⟩
+  · intro pc hpc
+    obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hpc
+    have hjr : j ∈ parts.flatten := hperm.mem_iff.mpr (List.mem_range.mpr hj)
+    obtain ⟨w, hwm, hjw⟩ := List.mem_flatten.mp hjr
+    refine ⟨alloc.vec.Vec.from (recs w) (hlen w hwm),
+      List.mem_map.mpr ⟨⟨w, hwm⟩, List.mem_attach _ _, rfl⟩, ?_⟩
+    rw [alloc.vec.Vec.from_val]
+    have hs : some pend.val[j] ∈ (recs w).map some := by
+      rw [← hrecm w hwm]
+      exact List.mem_map.mpr ⟨j, hjw, List.getElem?_eq_getElem hj⟩
+    simpa using hs
+  · intro v hv pc hpc
+    obtain ⟨⟨w, hwm⟩, -, rfl⟩ := List.mem_map.mp hv
+    rw [alloc.vec.Vec.from_val] at hpc
+    have hs : some pc ∈ w.map (fun k => pend.val[k]?) := by
+      rw [hrecm w hwm]; exact List.mem_map_of_mem hpc
+    obtain ⟨k, -, hk⟩ := List.mem_map.mp hs
+    exact List.mem_of_getElem? hk
+  · intro v hv
+    obtain ⟨⟨w, hwm⟩, -, rfl⟩ := List.mem_map.mp hv
+    obtain ⟨s₀, hs₀, hf⟩ := hrecf w hwm
+    obtain ⟨s', hs'⟩ := check_pending_list_of_foldAllOk (v := alloc.vec.Vec.from (recs w) (hlen w hwm))
+      (recs w) 0#usize s₀ (by simp) hf
+    rw [arena.checker.check_pending_worker]
+    simp only [hs₀, bind_tc_ok, hs']
+    rfl
 
 /-- **The one-worker walk is a pool**: an accepting `check_decls_phased` —
 the verified sequential projection — is a `PoolAccepts` with one worker
@@ -440,12 +678,20 @@ theorem poolAccepts_of_check_decls_phased {H : Type}
         have h' := Result.ok_injective hrun
         simp only [Prod.mk.injEq, core.result.Result.Ok.injEq] at h'
         obtain ⟨rfl, rfl⟩ := h'
-        refine ⟨t, n, v, tier, est, [v], ht, hq, hfr,
-          fun pc hpc => ⟨v, List.mem_singleton_self _, hpc⟩,
-          fun w hw pc hpc => by rw [List.mem_singleton.mp hw] at hpc; exact hpc,
+        refine ⟨t, n, v, tier, est, ht, hq, hfr, [List.range v.length], by simp,
           fun w hw => ?_⟩
         rw [List.mem_singleton.mp hw]
-        exact hr2
+        refine ⟨List.pairwise_lt_range, ?_⟩
+        rw [arena.checker.check_pending_worker] at hr2
+        obtain ⟨s₀, hs₀, hr2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr2
+        obtain ⟨wr, hwr, hr2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr2
+        obtain ⟨wres, wst⟩ := wr
+        have hr' : wres = .Ok () := Result.ok_injective hr2
+        subst hr'
+        refine ⟨s₀, hs₀, ?_⟩
+        have := foldAllOk_of_check_pending_list (v := v) v.length 0#usize s₀ wst
+          (by simp) hwr
+        simpa [List.range_eq_range'] using this
 
 /-- **`pool_accepts_refines` — Theorem 2 at the fold the binary runs, pool
 and all** (task #97-P5-POOL).
@@ -470,7 +716,7 @@ theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
     ∃ lfe lst', PooledAccepts (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
         (absIDeclL ds).toArray lst lfe lst' ∧
       IFEnvRel fe lfe ∧ AStateRel₀ pers st' lst' := by
-  obtain ⟨t, n, pend, tier, est, parts, ht, hq, hfr, hcov, hsub, hw⟩ := hpool
+  obtain ⟨t, n, pend, tier, est, parts, ht, hq, hfr, hcov, hsub, hw⟩ := hpool.toParts
   rw [arena.checker.fold_start] at ht
   obtain ⟨e, he, ht⟩ := ConRon.Refine.bind_eq_ok_iff.mp ht
   obtain ⟨f, hf, ht⟩ := ConRon.Refine.bind_eq_ok_iff.mp ht

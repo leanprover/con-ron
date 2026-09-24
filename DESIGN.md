@@ -64089,3 +64089,78 @@ something was open, `sorry` or "waiting on" was rewritten as history.
   `Arena.checkDecl_bridge` (`Fold.lean#L111-L126`), whose docstring line 115
   changed; the citing paragraph is still accurate.  `scripts/gates.sh`: all
   16 OK; frontier 0 items, dead weight 0.
+
+### Task #98-POOL — the pool is one generic combinator, `parallel_all` (2026-09-24, Opus under Fable)
+
+**Goal** (maintainer-approved): shrink the trusted, unverified part of
+phase B to one higher-order combinator that knows nothing about checking.
+
+* **Rust.** `crates/con-ron/src/pool.rs` is now `parallel_all<S, E: Send>(n,
+  workers, init: impl Fn() -> S + Sync, step: impl Fn(&mut S, usize) ->
+  Result<(), E> + Sync, after: impl Fn(&S, usize) + Sync) -> Result<(),
+  ParallelError<E>>` plus the index merge (`merge_results`) and the walk
+  (`first_failure`), all generic.  `ParallelError` is `Step(k, e)` (the LEAST
+  failing index — con-leche's `limit` argument, unchanged), `Missing(k)` and
+  `Panicked`.  `check_pool`/`check_worker`/`check_one`/`collect_checks` are
+  gone; the driver calls `parallel_all(m, workers, || worker_state(&st.pins),
+  |w, k| check_pending(&tier, w, mode, &fe, &pend[k]), |w, k| check_line(…))`
+  directly, so `check_decls_driver` reads as `annot_fold_hooked`,
+  `freeze_tier`, `parallel_all`, `thaw_tier` plus observer lines, and the
+  doc-comment table maps each call to its capstone premise.
+  `driver::phase_b_verdict` names the failing index by its record's fold
+  position.  The module note's THE TRUSTED CLAIM is now the combinator's
+  contract: on `Ok`, every index in `0..n` was claimed by exactly one worker,
+  each worker built its state with `init()` once and folded `step` over its
+  claims in claim order (increasing), every step `Ok`.
+* **Spawn failure is no longer exit 3.**  If the OS refuses a worker (threads,
+  or address space for the 1 GiB stack), the pool runs on the workers that
+  spawned, and on the calling thread if none did; the contract holds at every
+  worker count.  Found: `--jobs=8` under an 8 GB `ulimit -v` exited 3 — and
+  so did `scripts/bench-baselines.sh`'s own `--jobs=1` lane under its 2.6 GB
+  `init` cap ("cannot spawn a check worker: Resource temporarily
+  unavailable"): the main thread's 1 GiB stack plus one worker's no longer
+  fit.  Both now accept.
+* **Tests.** The pool's four checker tests stay (through a test-side mirror of
+  the driver's call); new: `parallel_all_partitions_the_indices` (a state that
+  records its claims: at n ∈ {0,1,2,7,100,1000} × workers ∈ {1,2,3,4,8,16},
+  the claim lists partition `0..n`, each increases, `init` ran once per
+  worker, `after` saw every step) and
+  `parallel_all_reports_the_least_failing_index`.  No loom (not a dependency).
+* **Lean** (`Refine2/Checker/Phased.lean`).  `FoldAllOk step s ks` (every step
+  of the fold `Ok`), and the contract:
+
+      def ParallelAll {S E : Type} (n : Nat) (init : Result S)
+          (step : S → Nat → Result (core.result.Result Unit E × S)) : Prop :=
+        ∃ parts : List (List Nat),
+          parts.flatten.Perm (List.range n) ∧
+          ∀ w ∈ parts, w.Pairwise (· < ·) ∧ ∃ s₀, init = ok s₀ ∧ FoldAllOk step s₀ w
+
+  `pendingStep tier mode fe pend st k` is the step closure's model
+  (`check_pending` on `pend.val[k]?`, a panic past the end).  **`PoolAccepts`
+  is restated** as `fold_start ∧ annot_fold_hooked ∧ freeze_tier ∧
+  ParallelAll pend.length (worker_state st'.pins) (pendingStep tier mode fe
+  pend)`; the old per-worker shape is `PoolAcceptsParts`, and
+  `PoolAccepts.toParts` derives it (each worker's claims mapped to records;
+  `check_pending_list_of_foldAllOk`).  `pool_accepts_refines` and
+  `poolAccepts_of_check_decls_phased` keep their statements (the latter now
+  builds the one-worker partition `[List.range m]` via
+  `foldAllOk_of_check_pending_list`), so `Capstone.lean` builds untouched
+  and its `h6` already means the new shape.  `poolAccepts_intro` builds
+  `PoolAccepts` from one premise per driver call, for the headline:
+  `h6` becomes `(h6a : annot_fold_hooked hinst pers st5 .Verified ipins t ds
+  0#usize hook = ok (.Ok (n, fe, pend), st6))`, `(h6b : freeze_tier
+  st6.store = ok (.Ok tier, est'))`, `(h6c : ParallelAll pend.length
+  (worker_state st6.pins) (pendingStep tier .Verified fe pend))`, with
+  `fold_start = ok t` discharged or kept as a fourth premise.
+* **Measured** (`perf stat -e instructions:u`, `Init`, `--verified`, three
+  runs each; `--jobs=1 --progress=1000000` under `ulimit -v` 4 GB because the
+  old binary cannot run the 2.6 GB lane at all, `--jobs=8` under 16 GB):
+  `--jobs=1` 204 620 602 400 / 204 621 449 960 / 204 621 359 899 before,
+  204 620 375 098 / 204 619 917 062 / 204 620 529 185 after (−0.0005 %);
+  `--jobs=8` 206 080 838 809 / 206 036 942 749 / 206 293 790 204 before,
+  206 090 894 358 / 206 187 989 249 / 206 084 236 405 after (+0.0 %, inside
+  the run-to-run spread).  Noise.  After: `--jobs=1` under 2.6 GB and
+  `--jobs=8` under 8 GB accept (before: exit 3 both).
+* OVERVIEW §3 `h6` row, §6.4 and §8.2's pool and driver rows describe
+  `parallel_all` and `ParallelAll`; `scripts/overview-links-expected.txt`
+  regenerated (anchors moved in `driver.rs`, `pool.rs`, `Phased.lean`).
