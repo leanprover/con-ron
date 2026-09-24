@@ -1714,22 +1714,6 @@ theorem install_then_check_refines {pers st lst}
 
 /-! ## The error tag and the startup walk -/
 
-/-- `cp_append` is `String.append` on code points. -/
-theorem cp_append_refines {out s : alloc.vec.Vec Std.U32} {i : Std.Usize} {o}
-    (hwf : ConRon.Refine.StrWF out) (hwf2 : ConRon.Refine.StrWF s)
-    (hrun : arena.checker.cp_append out s i = ok o) :
-    ConRon.Refine.absString o = ConRon.Refine.absString out ++
-      String.ofList ((s.val.drop i.val).map fun c => Char.ofNat c.val) := by
-  sorry
-
-/-- `at_decl_text` renders the position into the message. -/
-theorem at_decl_text_refines {w : alloc.vec.Vec Std.U32} {n : Std.U64} {o}
-    (hwf : ConRon.Refine.StrWF w)
-    (hrun : arena.checker.at_decl_text w n = ok o) :
-    ConRon.Refine.absString o =
-      s!"{ConRon.Refine.absString w} (declaration {absU n})" := by
-  sorry
-
 /-- `at_decl` ⊑ `atDecl` — the fold's failure with its POSITION in the text.
 The KIND is what the refinement claims; the message is never compared
 (DESIGN §3.1). -/

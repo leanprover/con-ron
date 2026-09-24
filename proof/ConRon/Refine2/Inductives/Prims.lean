@@ -517,7 +517,7 @@ open Lockstep in
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = (Option.map absLIdx) a) (arena.checker_base.pi_result_sort pers st e) st lst
                                      (piResultSort (absEIdx e)) :=
-  LSR.ofSimRE hrel hinv fun _ h => pi_result_sort_refines hrel hinv h
+  ConRon.Refine2.pi_result_sort_ls hrel hinv
 
 
 
