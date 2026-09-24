@@ -64712,3 +64712,11 @@ nothing against con-leche, as a decline does).
   `StreamErrSim.overflow` is the carve-out's introduction.
 * The capstone statements, their shape and the census are unchanged; the
   capstone never reads an error arm.
+* **Numbers.**  `perf stat -e instructions:u`, `Init`, `--verified
+  --jobs=1 --progress=1000000`, `ulimit -v` 2.6 GB, three runs each, the
+  `Tbl::full` change alone (base master `93d3592a`): before 204 828 099 163 /
+  204 828 422 874 / 204 828 403 645, after 204 754 674 659 / 204 753 912 288 /
+  204 753 900 407 (−0.036 %, the dropped saturation test per append; the
+  spread within each set is < 0.001 %).  `scripts/diff-e2e.sh` 383/383 agree on
+  the merged tree (with #98-SHIFT).  `scripts/gates.sh`: all 16 OK, frontier
+  0, census `[propext, Classical.choice, Quot.sound]`.
