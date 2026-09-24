@@ -94,6 +94,9 @@ attribute [lockstep_simp] absENodeView Option.map_some Option.map_none absU
     simp [h, this]
 
 attribute [lockstep_simp] etag_sort_abs etag_app_abs etag_bvar_abs etag_letE_abs etag_proj_abs
+-- the other three tag constants (the Inductives Modeled lane met `etag_const_abs`
+-- missing; task #97-T2-TACTIC round 2)
+attribute [lockstep_simp] etag_const_abs etag_fvar_abs etag_lit_abs
 
 @[lockstep_simp] theorem isBind_forallE : ETag.isBind ETag.forallE = true := rfl
 @[lockstep_simp] theorem isBind_lam : ETag.isBind ETag.lam = true := rfl

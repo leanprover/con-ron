@@ -139,8 +139,10 @@ example {pers st lst} {e : arena.handle.EIdx} {b : Bool} (hb : ¬ b = true)
         else unresolvedConstsError "type" (absEIdx e)) := by
   lockstep
 
+set_option lockstep.twinSplit true in
 /-- The twin tests `c` where the Rust does not test at all (both branches are
-the same operation): the twin `if` is split and each branch zips. -/
+the same operation): with `lockstep.twinSplit` the twin `if` is split and each
+branch zips (by default the zip stops there, §7). -/
 example {pers st lst} {e : arena.handle.EIdx} {b : Bool}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
@@ -170,15 +172,29 @@ The fallback that cases a twin `match` on a TERM once cased on `some (!c)`
 itself: `cases` rebuilt `some x`, the `match` still did not reduce, and the
 move repeated for ever (`check_eta_thm` hit the heartbeat limit; the lane's
 `ind_twin_split` in `lockstep_mod` split such matches first).  It now cases on
-the first field that is not a constructor application (`!c`). -/
+the first field that is not a constructor application (`!c`); the context
+(`hc`) rules the other branch out, so the split is kept (§7). -/
 set_option maxHeartbeats 20000 in
-example {pers st lst} {c : Bool}
+example {pers st lst} {c : Bool} (hc : (!c) = true)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = a) (ok (.Ok (!c), st)) lst
       (match some (!c) with
         | some true => pure true
         | some false => pure false
         | none => pure false) := by
+  lockstep
+
+set_option maxHeartbeats 20000 in
+/-- The Modeled lane's `check_eta_thm` shape: a twin `match` whose other
+discriminant (`none`) rules out every alternative but the catch-all, while
+the first is stuck.  The match is `split` (the impossible alternatives
+dropped), not cased on a field. -/
+example {pers st lst} {c : Bool}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (ok (.Ok false, st)) lst
+      (match some (!c), (none : Option Bool) with
+        | some true, some _ => pure true
+        | _, _ => pure false) := by
   lockstep
 
 /-! ## 5. A failing read reports its own failure
@@ -209,6 +225,116 @@ example {pers st lst} {h h' : arena.handle.EIdx}
       (Arena.view (absEIdx h') >>= fun v => pure v) := by
   lockstep_step_fails_with "no candidate for `ConRon.Generated.arena.monad.view` closes"
   sorry
+
+/-! ## 6. Memoised walks: `LSM` / `LSRM`
+
+Walks that return their memo beside the `Result` (the Checker tier's
+`consts_resolve_f_*` and `all_level_params_defined_*`, the Promote tier's
+intern walks) are zipped by `lockstep` through `LSM` (state) and `LSRM`
+(reader); the recursive walk is a hypothesis here, as an induction
+hypothesis is in a fuel induction. -/
+
+/-- The answer-and-memo relation of the Checker tier's `Bool`-memo walks. -/
+abbrev BMemoR (p : Bool × ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+    (b : Bool × Std.HashMap EIdx Bool) : Prop :=
+  b.1 = p.1 ∧ ExprOps.LMemoRel p.2 b.2
+
+/-- `consts_resolve_f_two`: two memoised state walks in a row, the memo
+threaded, the two answers combined. -/
+example {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    {rm lm} {fuel : Std.U64} {a b : arena.handle.EIdx}
+    (hgo : ∀ {st lst rm lm} (h : arena.handle.EIdx), AStateRel₀ pers st lst →
+      AStateInv pers st → ExprOps.LMemoRel rm lm →
+      LSM pers BMemoR (arena.checker_base.consts_resolve_f_go pers vis st rf rm fuel h) lst
+        (constsResolveFGo lf lm (absU fuel) (absEIdx h)))
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hm : ExprOps.LMemoRel rm lm) :
+    LSM pers BMemoR (arena.checker_base.consts_resolve_f_two pers vis st rf rm fuel a b) lst
+      (do
+        let (b₁, memo) ← constsResolveFGo lf lm (absU fuel) (absEIdx a)
+        let (b₂, memo) ← constsResolveFGo lf memo (absU fuel) (absEIdx b)
+        pure (b₁ && b₂, memo)) := by
+  rw [arena.checker_base.consts_resolve_f_two]
+  lockstep
+
+/-- `consts_resolve_f_fast`: a fresh memo, the walk as a callee, the memo
+dropped. -/
+example {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    {e : arena.handle.EIdx}
+    (hgo : ∀ {st lst rm lm} (fuel : Std.U64) (h : arena.handle.EIdx),
+      AStateRel₀ pers st lst → AStateInv pers st → ExprOps.LMemoRel rm lm →
+      LSM pers BMemoR (arena.checker_base.consts_resolve_f_go pers vis st rf rm fuel h) lst
+        (constsResolveFGo lf lm (absU fuel) (absEIdx h)))
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.checker_base.consts_resolve_f_fast pers vis st rf e)
+      lst (constsResolveFFast lf (absEIdx e)) := by
+  rw [arena.checker_base.consts_resolve_f_fast, constsResolveFFast]
+  lockstep
+
+/-- `all_level_params_defined_binder`: a memoised READER walk (`LSRM`), twice,
+with the binder's own test between. -/
+example {pers st lst} {params : alloc.vec.Vec kernel.name.Name} {rm lm}
+    {fuel : Std.U64} {t b : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
+    (hgo : ∀ {rm lm lst} (h : arena.handle.EIdx), AStateRel₀ pers st lst →
+      AStateInv pers st → ExprOps.LMemoRel rm lm →
+      LSRM pers BMemoR (arena.checker_base.all_level_params_defined_go pers st params rm fuel h)
+        st lst
+        (allLevelParamsDefinedGo (ConRon.Refine.absNames params) lm (absU fuel) (absEIdx h)))
+    (hpd : LSP (kernel.prop_when.params_defined params m.pw)
+      (fun b3 => TwinEq ((ConRon.Refine.absBinderMeta m).pw.paramsDefined
+        (ConRon.Refine.absNames params)) b3))
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hm : ExprOps.LMemoRel rm lm) :
+    LSRM pers BMemoR
+      (arena.checker_base.all_level_params_defined_binder pers st params rm fuel t b m) st lst
+      (do
+        let (b₁, memo) ← allLevelParamsDefinedGo (ConRon.Refine.absNames params)
+          lm (absU fuel) (absEIdx t)
+        if !b₁ then pure (false, memo) else do
+          let (b₂, memo) ← allLevelParamsDefinedGo (ConRon.Refine.absNames params)
+            memo (absU fuel) (absEIdx b)
+          pure (b₂ && (ConRon.Refine.absBinderMeta m).pw.paramsDefined
+            (ConRon.Refine.absNames params), memo)) := by
+  rw [arena.checker_base.all_level_params_defined_binder]
+  lockstep
+
+/-! ## 7. The Frontend lane's two findings
+
+A twin test nothing decides is NOT split by default: the zip stops and hands
+the goal back (here the `else` branch is a program the Rust never runs, and
+walking it would be wasted work — in the lane's census proofs, until the
+heartbeat limit).  And a side goal's `simp [*]`/`simp_all` does not see a
+callee spec hypothesis (an induction hypothesis), which it would use as a
+conditional rewrite rule; `∀` facts it keeps. -/
+
+set_option linter.unusedTactic false in
+set_option maxHeartbeats 20000 in
+example {pers st lst} {b : Bool} {n : Nat}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hstuck : LS pers (fun a b => b = a) (ok (.Ok n, st)) lst
+      (if b then pure n else do
+        let k ← pure (n + 1)
+        let j ← pure (k * 2)
+        pure (j - n))) :
+    LS pers (fun a b => b = a) (ok (.Ok n, st)) lst
+      (if b then pure n else do
+        let k ← pure (n + 1)
+        let j ← pure (k * 2)
+        pure (j - n)) := by
+  lockstep
+  exact hstuck
+
+-- The side tiers' context: a callee spec (an induction hypothesis) is gone, a
+-- `∀` fact stays.
+example {pers : arena.store.PersTier} {n : Nat}
+    (hih : ∀ {st : arena.monad.AState} {lst : AState} (m : Nat), m < n →
+      AStateRel₀ pers st lst →
+      LS pers (fun a b => b = a) (ok (.Ok m, st)) lst (pure m))
+    (hfact : ∀ j, j < n → j < n + 1) : n < n + 2 := by
+  lockstep_clear_foralls
+  fail_if_success have := @hih
+  have := hfact
+  omega
 
 /-! ## The axiom census -/
 
