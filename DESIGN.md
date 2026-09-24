@@ -53324,7 +53324,7 @@ equation from 0.259 G to 0.743 G; at N = 100, from 0.479 G (K=1) to 0.861 G
 Still present on **v4.34.0**, with a ~20 % smaller constant: all-N costs
 1.314 / 7.492 / 35.99 G at N = 20/50/100, ≈ N^2.05.
 
-**This is filable.**  Repro in `_tmp/a97scc/repro/` — `gen.py` (the generator),
+**This is filable.**  Repro published as https://gist.github.com/nomeata/77cdbde9bca1ac7f17e9471b5d1941ba (2026-09-24); local copy in `_tmp/a97scc/repro/` — `gen.py` (the generator),
 `measure.sh` (the sweep), `example_n50_one_equation.lean` (a checked-in
 instance that elaborates clean), `README.md` (the table above and the expected
 behaviour: derive the packed unfolding once per block and project each member's
