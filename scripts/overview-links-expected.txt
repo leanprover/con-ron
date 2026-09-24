@@ -1094,16 +1094,16 @@
    454  pub const LANE_IO: u32 = 2;
 
 == crates/con-ron-core/src/ron/hashmap2.rs#L1-L40
-     1  //! con-leche: none — arena infrastructure; a second `Std.HashMap` replacement, unproved
+     1  //! con-leche: none — arena infrastructure; a second `Std.HashMap` replacement, proved
      2  //!
-     3  //! `ron::HashMap2<K, V>` — **PROOF OWED** (task #97-P6-4b, DESIGN.md
-     4  //! §8.6's P6 twin ledger).  The same abstract object as `ron::hashmap`'s
-     5  //! `HashMap` — a partial map from `K` to `V`, with `Hashable`/`Eq2`/`Dup` as
-     6  //! its dictionaries and the same eleven operations — over an **open-addressed,
-     7  //! epoch-stamped, flat slot vector** instead of the Aeneas tutorial's chained
-     8  //! buckets.  `ron::hashmap` is untouched and keeps its proofs
-     9  //! (`proof/ConRon/Refine/HashMap*.lean`); this module has **none**, and the
-    10  //! list of what it owes is in DESIGN.md's `Task #97-P6-4b` section.
+     3  //! `ron::HashMap2<K, V>` — proved in `proof/ConRon/Refine/HashMap2.lean`
+     4  //! (task #97-HM2; designed in task #97-P6-4b).  The same abstract object as
+     5  //! `ron::hashmap`'s `HashMap` — a partial map from `K` to `V`, with
+     6  //! `Hashable`/`Eq2`/`Dup` as its dictionaries and the same eleven operations
+     7  //! — over an **open-addressed, epoch-stamped, flat slot vector** instead of
+     8  //! the Aeneas tutorial's chained buckets.  `ron::hashmap` is untouched and
+     9  //! keeps its proofs (`proof/ConRon/Refine/HashMap.lean`); this module's are
+    10  //! in `proof/ConRon/Refine/HashMap2.lean` (task #97-HM2).
     11  //!
     12  //! **Why it exists.**  Task #97-P6-1 left `clear_slots + allocate_slots +
     13  //! move_elements*` at 21.8 % of `Init`, "all halving recursions over chained
@@ -1682,17 +1682,17 @@
     17  //!   (`fullyChecked_checkDecls`); the arena's two call the same `checkDecl`
     18  //!   pieces, which is what keeps them the same computation.
     19  //!
-    20  //! ## The per-declaration bracket lives in phase B
+    20  //! ## Every step is bracketed
     21  //!
     22  //! DESIGN.md §8.3: "Persistent = parse + installed environment; scratch = one
-    23  //! declaration's check."  Phase A's business is exactly the terms the
-    24  //! environment KEEPS, so it runs outside the bracket; phase B's business is
-    25  //! exactly what a declaration merely COMPUTES, so `check_pending` is
-    26  //! `enter_scratch` … `drop_scratch` around `check_value_group` and every node
-    27  //! it appends goes with the tier.  Two things are deliberately NOT bracketed:
-    28  //! phase A's fallback (`annot_step_other`, the whole `check_decl` for the kinds
-    29  //! whose check is not separable from their install — they install what they
-    30  //! check), and `check_decls_pure`, which is the theorem's shape.
+    23  //! declaration's check."  Both phases and both folds run each record inside
+    24  //! `enter_scratch` … `drop_scratch`.  Phase B's `check_pending` brackets
+    25  //! `check_value_group`, and every node it appends goes with the tier.  Phase
+    26  //! A's `annot_step` brackets the install too (the fallback `annot_step_other`
+    27  //! included), because annotation infers and inference interns: `promote`
+    28  //! copies exactly what leaves the step — the installed constants and the
+    29  //! pending record — to the persistent tier before the drop (see `annot_step`).
+    30  //! `check_decls_pure`'s step, `check_decl_step`, is bracketed the same way.
     31  //!
     32  //! ## The pins are interned at startup
     33  //!
@@ -2973,27 +2973,27 @@
     30  //! | `prepare` | `Arena/Frontend/Prepare.lean` | `Frontend/Prepare.lean` |
     31  //! | `prelude` | `Arena/Frontend/Prelude.lean` | `Frontend/Prelude.lean` |
 
-== crates/con-ron-core/src/lib.rs#L34-L55
-    34  //! ## `kernel` — the types and the pinned data
-    35  //!
-    36  //! | Rust | Lean |
-    37  //! |---|---|
-    38  //! | `name` | `ConLeche/Kernel/Name.lean` |
-    39  //! | `level` | `ConLeche/Kernel/Expr.lean` (Level part), `Kernel/Level.lean` |
-    40  //! | `prop_when` | `ConLeche/Kernel/PropWhen.lean` |
-    41  //! | `prop_read` | `ConLeche/Kernel/PropRead.lean` |
-    42  //! | `expr` | `ConLeche/Kernel/Expr.lean` (everything but the `Level` part) — the VALUE representation the pinned data is written in |
-    43  //! | `expr_ops` | `ConLeche/Kernel/ExprOps.lean` (what the pinned data and `level` still need of it) |
-    44  //! | `core_types` | `ConLeche/Kernel/Core.lean:45-59` (`CheckError`, `CheckM`) |
-    45  //! | `core_k` | `ConLeche/Kernel/Core.lean` (the pinned `Nat`/`Bool` operator names and the decimal renderer) |
-    46  //! | `env` | `ConLeche/Kernel/Env.lean` (the `ConstantInfo`/`Declaration` the pinned data is expressed in, and the `CheckMode` gates) |
-    47  //! | `fenv` | `ConLeche/Kernel/FEnv.lean` (what the pin comparisons need) |
-    48  //! | `canon` | `ConLeche/Kernel/Canon.lean` (the raw-pin canonicaliser) |
-    49  //! | `basis_names` | `ConLeche/Kernel/Basis/Names.lean` |
-    50  //! | `basis_builder` | `ConLeche/Kernel/Basis/Builder.lean` (the raw-pin DSL) |
-    51  //! | `basis_raw` | `ConLeche/Kernel/Basis.lean`'s `BasisKind.decls` |
-    52  //! | `basis_tables` | `ConLeche/Kernel/BasisA.lean`'s `BasisKind.declsA` — **generated** from con-leche's own value (task #22) |
-    53  //! | `basis_pins` | `ConLeche/Kernel/BasisA.lean`'s two exactly-compared pins (`eqA`, `natA`), read off `basis_tables` (task #27) |
-    54  //! | `std_axioms` | `ConLeche/Kernel/StdAxioms.lean` |
-    55  //! | `trust_pins` | `ConLeche/Kernel/TrustPins.lean` |
+== crates/con-ron-core/src/lib.rs#L33-L54
+    33  //! ## `kernel` — the types and the pinned data
+    34  //!
+    35  //! | Rust | Lean |
+    36  //! |---|---|
+    37  //! | `name` | `ConLeche/Kernel/Name.lean` |
+    38  //! | `level` | `ConLeche/Kernel/Expr.lean` (Level part), `Kernel/Level.lean` |
+    39  //! | `prop_when` | `ConLeche/Kernel/PropWhen.lean` |
+    40  //! | `prop_read` | `ConLeche/Kernel/PropRead.lean` |
+    41  //! | `expr` | `ConLeche/Kernel/Expr.lean` (everything but the `Level` part) — the VALUE representation the pinned data is written in |
+    42  //! | `expr_ops` | `ConLeche/Kernel/ExprOps.lean` (what the pinned data and `level` still need of it) |
+    43  //! | `core_types` | `ConLeche/Kernel/Core.lean:45-59` (`CheckError`, `CheckM`) |
+    44  //! | `core_k` | `ConLeche/Kernel/Core.lean` (the pinned `Nat`/`Bool` operator names and the decimal renderer) |
+    45  //! | `env` | `ConLeche/Kernel/Env.lean` (the `ConstantInfo`/`Declaration` the pinned data is expressed in, and the `CheckMode` gates) |
+    46  //! | `fenv` | `ConLeche/Kernel/FEnv.lean` (what the pin comparisons need) |
+    47  //! | `canon` | `ConLeche/Kernel/Canon.lean` (the raw-pin canonicaliser) |
+    48  //! | `basis_names` | `ConLeche/Kernel/Basis/Names.lean` |
+    49  //! | `basis_builder` | `ConLeche/Kernel/Basis/Builder.lean` (the raw-pin DSL) |
+    50  //! | `basis_raw` | `ConLeche/Kernel/Basis.lean`'s `BasisKind.decls` |
+    51  //! | `basis_tables` | `ConLeche/Kernel/BasisA.lean`'s `BasisKind.declsA` — **generated** from con-leche's own value (task #22) |
+    52  //! | `basis_pins` | `ConLeche/Kernel/BasisA.lean`'s two exactly-compared pins (`eqA`, `natA`), read off `basis_tables` (task #27) |
+    53  //! | `std_axioms` | `ConLeche/Kernel/StdAxioms.lean` |
+    54  //! | `trust_pins` | `ConLeche/Kernel/TrustPins.lean` |
 

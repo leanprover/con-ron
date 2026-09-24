@@ -1,13 +1,13 @@
-//! con-leche: none — arena infrastructure; a second `Std.HashMap` replacement, unproved
+//! con-leche: none — arena infrastructure; a second `Std.HashMap` replacement, proved
 //!
-//! `ron::HashMap2<K, V>` — **PROOF OWED** (task #97-P6-4b, DESIGN.md
-//! §8.6's P6 twin ledger).  The same abstract object as `ron::hashmap`'s
-//! `HashMap` — a partial map from `K` to `V`, with `Hashable`/`Eq2`/`Dup` as
-//! its dictionaries and the same eleven operations — over an **open-addressed,
-//! epoch-stamped, flat slot vector** instead of the Aeneas tutorial's chained
-//! buckets.  `ron::hashmap` is untouched and keeps its proofs
-//! (`proof/ConRon/Refine/HashMap*.lean`); this module has **none**, and the
-//! list of what it owes is in DESIGN.md's `Task #97-P6-4b` section.
+//! `ron::HashMap2<K, V>` — proved in `proof/ConRon/Refine/HashMap2.lean`
+//! (task #97-HM2; designed in task #97-P6-4b).  The same abstract object as
+//! `ron::hashmap`'s `HashMap` — a partial map from `K` to `V`, with
+//! `Hashable`/`Eq2`/`Dup` as its dictionaries and the same eleven operations
+//! — over an **open-addressed, epoch-stamped, flat slot vector** instead of
+//! the Aeneas tutorial's chained buckets.  `ron::hashmap` is untouched and
+//! keeps its proofs (`proof/ConRon/Refine/HashMap.lean`); this module's are
+//! in `proof/ConRon/Refine/HashMap2.lean` (task #97-HM2).
 //!
 //! **Why it exists.**  Task #97-P6-1 left `clear_slots + allocate_slots +
 //! move_elements*` at 21.8 % of `Init`, "all halving recursions over chained
@@ -64,13 +64,13 @@
 //! panic as control flow.  The API is `ron::hashmap::HashMap`'s, name for
 //! name, so a table swaps by changing one type.
 //!
-//! **What it owes.**  `Refine/HashMap.lean`'s development transfers in shape
-//! but not in text: `alv`/`al_v` are replaced by `sl_v` (the live slots, in
-//! index order), `Inv` gains the run clause and the epoch clause, and the
-//! eleven operation specs are re-proved against the *same* `toFun m k =
-//! lookupK (sl_v m) k`.  Everything downstream of `toFun`/`Rel`/`RelOn` — the
-//! whole of `State.lean`, `FEnv.lean`, `ExprOps.lean` and the frontend files —
-//! is stated at the abstract map and does not move.
+//! **How it is proved.**  `Refine/HashMap.lean`'s development transfers in
+//! shape but not in text (`Refine/HashMap2.lean`): `alv`/`al_v` become `sl_v`
+//! (the live slots, in index order), `Inv` gains the run and epoch clauses,
+//! and the eleven operation specs are re-proved against the *same* `toFun m k
+//! = lookupK (sl_v m) k`.  Everything downstream of `toFun`/`Rel`/`RelOn` —
+//! the whole of `State.lean`, `FEnv.lean`, `ExprOps.lean` and the frontend
+//! files — is stated at the abstract map and does not move.
 
 use std::vec::Vec;
 
