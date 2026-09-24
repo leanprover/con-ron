@@ -138,7 +138,7 @@ def recCtorKinds (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
     let cargs ← getAppArgs coreWalkFuel cbody
     let resOk ← (cargs.drop nP).allM fun a => do pure !(← mentionsConst T a)
     if resOk then pure (some ks)
-    else pure (some (ks.map fun _ => .negative))
+    else pure (some (List.replicate c.2 .negative))
   | none => pure none
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:147-154 Expr.piBinders

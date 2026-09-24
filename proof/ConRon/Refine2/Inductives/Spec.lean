@@ -756,7 +756,7 @@ theorem recCtorKinds_unfold (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
         let cargs ← getAppArgs coreWalkFuel cbody
         let resOk ← idxFreeOfSpec T (cargs.drop nP)
         if resOk then pure (some ks)
-        else pure (some (ks.map fun _ => .negative))
+        else pure (some (List.replicate c.2 .negative))
       | none => pure none) := by
   rw [recCtorKinds]
   refine am_bind_congr _ ?_; intro sp

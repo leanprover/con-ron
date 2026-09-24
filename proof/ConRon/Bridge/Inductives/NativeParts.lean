@@ -440,10 +440,13 @@ theorem recCtorKinds_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
     refine ⟨p2.trans p4, ?_⟩
     rw [if_neg hc]
     refine ⟨_, rfl, ?_⟩
-    show (ks.map _).map kindOf = _
-    rw [← hksm]
-    simp only [List.map_map]
-    rfl
+    show (List.replicate c.2 Arena.RecFieldKind.negative).map kindOf = _
+    simp only [List.map_replicate, List.map_map, hc2]
+    apply List.ext_getElem
+    · simp
+    · intro n h1 h2
+      simp only [List.getElem_replicate, List.getElem_map, Function.comp]
+      rfl
 
 /-! ## The telescope readers -/
 

@@ -579,7 +579,10 @@ theorem rec_ctor_kinds_refines {pers st lst} {t : arena.handle.NIdx}
     Sim₀ (Option.map absKindL) pers lst o
       (recCtorKinds (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absIConstantVal c.1, absU c.2)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.rec_ctor_kinds, recCtorKinds_unfold]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem rec_ctor_kinds_ls
