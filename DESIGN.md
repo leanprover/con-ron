@@ -61436,7 +61436,9 @@ it re-elaborates (`LAKE_JOBS=4`, `LEAN_NUM_THREADS=4`):
 
 #### Gates
 
-GATES
+`scripts/gates.sh` on the branch (`arena` `a1faca8c` merged): **all 16 OK**.
+Frontier (`model_exists` + `no_False_declaration`): 1 item in 1 module,
+21 tainted, dead weight 46 (unchanged: `check_native_refines`).
 
 ### Task #97-T2-LOCKSTEP lane Inductives Modeled — the modeled route by `lockstep`; one twin divergence fixed (2026-09-23, Opus under Fable)
 
