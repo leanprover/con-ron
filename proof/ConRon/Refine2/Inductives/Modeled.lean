@@ -775,8 +775,7 @@ theorem iota_lhs_prefix_ok_refines {pers st lst}
     refine Lockstep.LS.pure ?_ ‹_› ‹_›
     have h1 := IndModeledPrims.take_list_of_arr ‹absEIdxArr _ = takeEidx (absEIdxArr largs) _›
     have h2 := IndModeledPrims.take_list_of_arr ‹absEIdxArr _ = takeEidx (absEIdxArr fvs) _›
-    rw [h1, h2]
-    rfl
+    simp only [absEIdxL, h1, h2, id]
 
 open Lockstep in
 @[lockstep] theorem iota_lhs_prefix_ok_ls
@@ -1353,7 +1352,7 @@ theorem nested_rule_shape_args_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         refine Lockstep.LS.pure ?_ ‹_› ‹_›
         first
         | rfl
-        | (exfalso; simp_all [List.map_drop, ConRon.Refine.absNames])
+        | (exfalso; simp_all [List.map_drop, ConRon.Refine.absNames, Lockstep.TwinEq])
     · exfalso; scalar_tac
 
 open Lockstep in

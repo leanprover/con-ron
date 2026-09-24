@@ -652,11 +652,6 @@ theorem unwrapOr_some {α : Type} (a : α) (e : Arena.CheckError) :
 theorem unwrapOr_none {α : Type} (e : Arena.CheckError) :
     unwrapOr (none : Option α) e = Arena.fail e := rfl
 
-/-- `arena::env::eidx_vec_dup` copies the list (`Dup.lean`'s `eidx_vec_dup_val`). -/
-@[lockstep] theorem eidx_vec_dup_spec (es : alloc.vec.Vec arena.handle.EIdx) :
-    LSP (arena.env.eidx_vec_dup es) (fun r => r.val = es.val) :=
-  fun _ h => eidx_vec_dup_val h
-
 /-- `arena::core::append_eidx` is list append. -/
 theorem append_eidx_val {xs ys r : alloc.vec.Vec arena.handle.EIdx}
     (h : arena.core.append_eidx xs ys = ok r) : r.val = xs.val ++ ys.val := by
