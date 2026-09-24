@@ -399,17 +399,6 @@ open Lockstep in
   LS.ofSim₀ fun _ h => open_pis_at_fvars_f_refines hrel hinv h
 
 
-open Lockstep in
-@[lockstep] theorem fvar_type_ds_ls
-    {pers st lst}
-    {hs : alloc.vec.Vec arena.handle.EIdx}
-    {i : Std.Usize}
-    {out : alloc.vec.Vec arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absEIdxL a) (arena.checker_base.fvar_type_ds pers st hs i out) st lst
-      (do pure (absEIdxL out ++ (← fvarTypeDs (absEIdxLFrom hs i)))) :=
-  LSR.ofSimRE hrel hinv fun _ h => fvar_type_ds_refines hrel hinv h
 
 
 open Lockstep in
