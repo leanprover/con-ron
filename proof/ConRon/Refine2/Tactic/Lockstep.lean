@@ -1279,10 +1279,26 @@ register_option lockstep.twinSplit : Bool := {
   descr := "lockstep: split a twin test nothing decides even when no branch is ruled out"
 }
 
-/-- The context of a simp-based side tier: every `∀`/`→` hypothesis (an
-induction hypothesis, a knot slot) cleared, because `simp [*]`/`simp_all` would
-use it as a conditional rewrite rule and that search need not terminate (task
-#97-T2-TACTIC round 2, the Frontend lane's `proj_rec_candidates_from`).  The
+/-- Is `t` a callee SPEC: a `∀`/`→` statement whose conclusion is a lockstep
+judgement or a `Sim…` statement (an induction hypothesis, a knot slot)? -/
+def isSpecHyp (t : Expr) : MetaM Bool := do
+  let t := t.consumeMData
+  unless t.isForall do return false
+  forallTelescope t fun _ c => do
+    let c := c.consumeMData
+    if (judgementRustArg? c).isSome then return true
+    match c.getAppFn.constName? with
+    | some n => return (match n with
+        | .str _ s => s.startsWith "Sim"
+        | _ => false)
+    | none => return false
+
+/-- The context of a simp-based side tier: every callee SPEC hypothesis (an
+induction hypothesis, a knot slot: a `∀`/`→` whose conclusion is a judgement,
+`isSpecHyp`) cleared, because `simp [*]`/`simp_all` would use it as a
+conditional rewrite rule and that search need not terminate (task
+#97-T2-TACTIC round 2, the Frontend lane's `proj_rec_candidates_from`).  A `∀`
+FACT (`∀ j, some v = some j → j < n`) stays: the side tiers need those.  The
 goal itself is unchanged; a hypothesis something depends on stays. -/
 def clearForallHyps : TacticM Unit := do
   let g ← getMainGoal
@@ -1291,8 +1307,7 @@ def clearForallHyps : TacticM Unit := do
     for d in (← getLCtx) do
       if d.isImplementationDetail then continue
       let t ← instantiateMVars d.type
-      unless t.consumeMData.isForall do continue
-      unless ← isProp t do continue
+      unless ← isSpecHyp t do continue
       g ← g.tryClear d.fvarId
     return g
   replaceMainGoal [g]
@@ -2067,9 +2082,27 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
     let anySplit := lockstep.twinSplit.get (← getOptions)
     let keep (out : List MVarId) : TacticM (Option (List MVarId)) := do
       let kept ← contra out
-      if anySplit || kept.length < out.length then return some kept
+      if anySplit || kept.length ≤ 1 || kept.length < out.length then return some kept
       return none
     if let some mapp ← matchMatcherApp? x then
+      -- a discriminant built from constructors (the Modeled lane's
+      -- `some (match v with …), none, …`): `split` the match itself, which
+      -- drops the alternatives the constructors rule out
+      let isCtorApp (d : Expr) : MetaM Bool := do
+        let some n := d.getAppFn.constName? | return false
+        match (← getEnv).find? n with
+        | some (.ctorInfo _) => return true
+        | _ => return false
+      if ← mapp.discrs.anyM (fun d => (isCtorApp d : MetaM Bool)) then
+        let s1 ← saveState
+        try
+          let gs ← Lean.Meta.Split.splitMatch g x
+          let mut out := []
+          for sg in gs do
+            out := out ++ (← tidy sg none)
+          if let some kept ← keep out then return kept
+          s1.restore
+        catch _ => s1.restore
       -- the term to case on: a constructor application (`some
       -- (absIConstantInfo v)`) is not one — `cases` would rebuild it and this
       -- move would never end (the Inductives Modeled lane's `check_eta_thm`)

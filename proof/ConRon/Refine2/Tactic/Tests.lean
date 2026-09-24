@@ -184,6 +184,19 @@ example {pers st lst} {c : Bool} (hc : (!c) = true)
         | none => pure false) := by
   lockstep
 
+set_option maxHeartbeats 20000 in
+/-- The Modeled lane's `check_eta_thm` shape: a twin `match` whose other
+discriminant (`none`) rules out every alternative but the catch-all, while
+the first is stuck.  The match is `split` (the impossible alternatives
+dropped), not cased on a field. -/
+example {pers st lst} {c : Bool}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (ok (.Ok false, st)) lst
+      (match some (!c), (none : Option Bool) with
+        | some true, some _ => pure true
+        | _, _ => pure false) := by
+  lockstep
+
 /-! ## 5. A failing read reports its own failure
 
 When an `LSR` read step fails (here: the twin reads another handle), the error
@@ -290,10 +303,11 @@ example {pers st lst} {params : alloc.vec.Vec kernel.name.Name} {rm lm}
 A twin test nothing decides is NOT split by default: the zip stops and hands
 the goal back (here the `else` branch is a program the Rust never runs, and
 walking it would be wasted work — in the lane's census proofs, until the
-heartbeat limit).  And a side goal's `simp [*]` does not use a `∀`/`→`
-hypothesis as a rewrite rule (`hloop` below would rewrite `g n` to `g (n+1)`
-for ever). -/
+heartbeat limit).  And a side goal's `simp [*]`/`simp_all` does not see a
+callee spec hypothesis (an induction hypothesis), which it would use as a
+conditional rewrite rule; `∀` facts it keeps. -/
 
+set_option linter.unusedTactic false in
 set_option maxHeartbeats 20000 in
 example {pers st lst} {b : Bool} {n : Nat}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -310,12 +324,17 @@ example {pers st lst} {b : Bool} {n : Nat}
   lockstep
   exact hstuck
 
-set_option maxHeartbeats 20000 in
-example {pers st lst} {g : Nat → Nat} {x y : Nat}
-    (hloop : ∀ n, g n = g (n + 1)) (hxy : x = y)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => g b = g a) (ok (.Ok x, st)) lst (pure y) := by
-  lockstep
+-- The side tiers' context: a callee spec (an induction hypothesis) is gone, a
+-- `∀` fact stays.
+example {pers : arena.store.PersTier} {n : Nat}
+    (hih : ∀ {st : arena.monad.AState} {lst : AState} (m : Nat), m < n →
+      AStateRel₀ pers st lst →
+      LS pers (fun a b => b = a) (ok (.Ok m, st)) lst (pure m))
+    (hfact : ∀ j, j < n → j < n + 1) : n < n + 2 := by
+  lockstep_clear_foralls
+  fail_if_success have := @hih
+  have := hfact
+  omega
 
 /-! ## The axiom census -/
 
