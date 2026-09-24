@@ -724,7 +724,35 @@ theorem native_fields_ok_from_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     Sim₀ id pers lst o
       (nativeFieldsOkFromSpec lf0 (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
         (absCtorsLFrom ctors_a j) (absKindLLFrom kinds j)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  simp only [absCtorsLFrom, absKindLLFrom]
+  refine ls_counted_sz (ω := Unit) ctors_a.val.length
+    (fun _ _ j => nativeFieldsOkFromSpec lf0 (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
+      ((ctors_a.val.drop j).map fun p => (absIConstantVal p.1, absU p.2))
+      ((kinds.val.drop j).map absKindL))
+    (fun st j _ => arena.inductives.native_install.native_fields_ok_from pers vis st rf0 t
+      lps n_p n_idx ctors_a kinds j) ?_ ?_ j st lst () hrel hinv
+  · intro st lst j _ hn hrel hinv
+    rw [arena.inductives.native_install.native_fields_ok_from.eq_def,
+      List.drop_eq_nil_of_le hn, List.map_nil, nativeFieldsOkFromSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst j _ m hj hm hrel hinv ih
+    rw [arena.inductives.native_install.native_fields_ok_from.eq_def,
+      List.drop_eq_getElem_cons hj, List.map_cons]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    by_cases hk : j.val < kinds.val.length
+    · rw [List.drop_eq_getElem_cons hk, List.map_cons, nativeFieldsOkFromSpec]
+      lockstep
+    · have hidx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)) kinds j =
+          fail .arrayOutOfBounds := by
+        rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+        simp [List.getElem?_eq_none (by omega : kinds.val.length ≤ j.val)]
+      rw [hidx]
+      intro o st' h
+      simp at h
 
 open Lockstep in
 @[lockstep] theorem native_fields_ok_from_ls
