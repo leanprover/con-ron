@@ -1117,6 +1117,24 @@ open Lockstep in
           (absEIdxLFrom idx k)))) :=
   LS.ofSim₀ fun _ h => struct_idx_list_refines hrel hinv h
 
+/-- The callers' `idx.mapM (structIdxAt …)` IS the transcription the port's
+cursor twins. -/
+@[lockstep_simp] theorem mapM_structIdxAt_eq (nF o i l m : Nat) (xs : List EIdx) :
+    xs.mapM (fun e => structIdxAt nF o i l m e) = structIdxListSpec nF o i l m xs :=
+  list_mapM_counted _ _ rfl (fun _ _ => rfl) xs
+
+open Lockstep in
+/-- `struct_idx_list` from `0` with an empty accumulator (the callers' form). -/
+@[lockstep] theorem struct_idx_list_twin0 {pers st lst} {n_f ofs i l m : Std.U64}
+    {idx : alloc.vec.Vec arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdxL a)
+      (arena.inductives.native_parts.struct_idx_list pers st n_f ofs i l m idx 0#usize
+        (alloc.vec.Vec.new arena.handle.EIdx)) lst
+      (structIdxListSpec (absU n_f) (absU ofs) (absU i) (absU l) (absU m) (absEIdxL idx)) := by
+  refine LS.twin_eq (struct_idx_list_ls hrel hinv) ?_
+  simp [absEIdxLFrom, absEIdxL, alloc.vec.Vec.new]
+
 /-- `struct_ih_app` ⊑ `structIhApp`. -/
 theorem struct_ih_app_refines {pers st lst} {rec_c : arena.handle.NIdx}
     {rlvls : arena.handle.LsIdx} {pw : kernel.prop_when.PropWhen}
@@ -1130,7 +1148,10 @@ theorem struct_ih_app_refines {pers st lst} {rec_c : arena.handle.NIdx}
       (structIhApp (absNIdx rec_c) (absLsIdx rlvls) (ConRon.Refine.absPropWhen pw)
         (absU n_p) (absU n) (absU n_f) (absU i) (absBinderL tele)
         (absEIdxL idx)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.struct_ih_app, structIhApp]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_ih_app_ls

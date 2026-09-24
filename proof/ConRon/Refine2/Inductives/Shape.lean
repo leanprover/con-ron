@@ -1363,4 +1363,16 @@ theorem LS.twin_eq {α β : Type} {pers : arena.store.PersTier} {R : α → β �
     {lst : AState} {x y : AM β} (h : LS pers R m lst x) (e : x = y) : LS pers R m lst y :=
   e ▸ h
 
+open Lockstep in
+/-- `arena::core::snoc_eidx` is the twin's `xs ++ [y]`. -/
+@[lockstep] theorem snoc_eidx_twin (xs : alloc.vec.Vec arena.handle.EIdx) (y : arena.handle.EIdx) :
+    LSP (arena.core.snoc_eidx xs y)
+      (fun o => TwinEq (absEIdxL xs ++ [absEIdx y]) (absEIdxL o)) := by
+  intro o h
+  rw [arena.core.snoc_eidx] at h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have := ConRon.Refine.vec_push_val h
+  rw [dupId_eidx _ _ he] at this
+  simp [Lockstep.TwinEq, absEIdxL, this]
+
 end ConRon.Refine2
