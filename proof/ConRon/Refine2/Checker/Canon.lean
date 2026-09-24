@@ -549,22 +549,13 @@ theorem i_rec_rules_beq_refines {a b : alloc.vec.Vec arena.env.IRecRule}
     o = decide (absIRecRuleLFrom a i = absIRecRuleLFrom b i) :=
   i_rec_rules_beq_aux _ rfl hrun
 
-/-- A capability record whose `sort_z` is in `PropWhen`'s canonical form
-(`Refine/PropWhen.lean`'s `WFShape`).  The port compares two `PropWhen`s by
-their REPRESENTATION (`prop_when::beq`, i.e. `equiv_r`), the twin by value;
-the two agree exactly on canonical data (`PropWhen.beq_iff`) and not beyond
-it (`Many [p]` and `One p` abstract to the same value). -/
-def IIndCapsWF (c : arena.env.IIndCaps) : Prop := ConRon.Refine.PropWhen.WFShape c.sort_z
-
-/-- `IIndCapsWF` of a stored constant's capabilities (`True` off `IndInfo`). -/
-def IConstantInfoCapsWF : arena.env.IConstantInfo → Prop
-  | .IndInfo _ c => IIndCapsWF c
-  | _ => True
-
-/-- `i_ind_caps_beq` ⊑ `==` on `IIndCaps`, at canonical `sort_z`s (the
-statement is false without them, see `IIndCapsWF`). -/
+/-- `i_ind_caps_beq` ⊑ `==` on `IIndCaps`, at canonical `sort_z`s
+(`PropWhenWF`, the erased subtype invariant `IConstantInfoWF` carries).  The
+port compares two `PropWhen`s by REPRESENTATION (`prop_when::beq`, i.e.
+`equiv_r`), the twin by value; they agree exactly on canonical data
+(`PropWhen.beq_iff`): `Many [p]` and `One p` abstract to the same value. -/
 theorem i_ind_caps_beq_refines {a b : arena.env.IIndCaps} {o : Bool}
-    (ha : IIndCapsWF a) (hb : IIndCapsWF b)
+    (ha : ConRon.Refine.PropWhenWF a.sort_z) (hb : ConRon.Refine.PropWhenWF b.sort_z)
     (hrun : arena.canon.i_ind_caps_beq a b = ok o) :
     o = decide (absIIndCaps a = absIIndCaps b) := by
   rw [arena.canon.i_ind_caps_beq] at hrun
@@ -584,7 +575,8 @@ theorem i_ind_caps_beq_refines {a b : arena.env.IIndCaps} {o : Bool}
   intro o6 h
   refine beq_chain' Iff.rfl h ?_
   intro o7 h
-  have hiff := ConRon.Refine.PropWhen.beq_iff ha hb h
+  have hiff := ConRon.Refine.PropWhen.beq_iff (ConRon.Refine.PropWhen.wf_shape ha)
+    (ConRon.Refine.PropWhen.wf_shape hb) h
   cases o7
   · exact (decide_eq_false (fun hc => by simpa using hiff.mpr hc)).symm
   · exact (decide_eq_true (hiff.mp rfl)).symm
@@ -660,25 +652,41 @@ theorem intern_ci_go_caps_wf {pers st m} {c : kernel.env.ConstantInfo}
        exact hc _ _ rfl)
 
 
-/-- The pinned `Eq` basis the port interns (`std_axioms::eq_a`) has canonical
-capabilities: con-leche's `eqA`, built by the smart constructors
-(`BasisPins.eq_a_refines`'s `ConstantInfoWF`). -/
-theorem eq_a_caps_wf {pers st} {ci : arena.env.IConstantInfo} {s'}
-    (h : arena.std_axioms.eq_a pers st = ok (.Ok ci, s')) :
-    ∀ v caps, ci = .IndInfo v caps → ConRon.Refine.PropWhenWF caps.sort_z := by
-  rw [arena.std_axioms.eq_a] at h
+/-- A pinned constant the port interns (`m >>= intern_ci`, `m` one of
+`kernel::basis_pins`' builders) is canonical Rust data (`IConstantInfoWF`):
+con-leche's constant, built by the smart constructors (`ConstantInfoWF`). -/
+theorem intern_pinned_wf {pers st} {m : Result kernel.env.ConstantInfo}
+    {ci : arena.env.IConstantInfo} {s'}
+    (hm : ∀ c, m = ok c → ConRon.Refine.ConstantInfoWF c)
+    (h : (m >>= fun c => arena.intern.intern_ci pers st c) = ok (.Ok ci, s')) :
+    IConstantInfoWF ci := by
   obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hwf := (ConRon.Refine.BasisPins.eq_a_refines hc).2
+  have hwf := hm c hc
   rw [arena.intern.intern_ci] at h
-  obtain ⟨m, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨mm, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨⟨r, s1, m1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have h' : (core.result.Result.Ok ci, s') = (r, s1) := (Result.ok_injective h).symm
   simp only [Prod.mk.injEq] at h'
   obtain ⟨rfl, rfl⟩ := h'
-  refine intern_ci_go_caps_wf ?_ h1
-  intro v c2 hc2
-  subst hc2
-  exact hwf.2.2
+  cases ci with
+  | IndInfo v caps =>
+    refine intern_ci_go_caps_wf ?_ h1 v caps rfl
+    intro v c2 hc2
+    subst hc2
+    exact hwf.2.2
+  | _ => trivial
+
+/-- The pinned `Eq` basis is canonical Rust data. -/
+theorem eq_a_wf {pers st} {ci : arena.env.IConstantInfo} {s'}
+    (h : arena.std_axioms.eq_a pers st = ok (.Ok ci, s')) : IConstantInfoWF ci := by
+  rw [arena.std_axioms.eq_a] at h
+  exact intern_pinned_wf (fun _ hc => (ConRon.Refine.BasisPins.eq_a_refines hc).2) h
+
+/-- The pinned `Nat` is canonical Rust data. -/
+theorem nat_a_wf {pers st} {ci : arena.env.IConstantInfo} {s'}
+    (h : arena.std_axioms.nat_a pers st = ok (.Ok ci, s')) : IConstantInfoWF ci := by
+  rw [arena.std_axioms.nat_a] at h
+  exact intern_pinned_wf (fun _ hc => (ConRon.Refine.BasisPins.nat_a_refines hc).2) h
 
 /-- `PartialEq` on `u64`, lifted, is `decide` of the abstracted equation. -/
 private theorem u64_eq_lift {x y : Std.U64} {b : Bool}
@@ -686,11 +694,10 @@ private theorem u64_eq_lift {x y : Std.U64} {b : Bool}
   simp only [lift, core.cmp.impls.PartialEqU64.eq, Result.ok.injEq] at h
   exact h.symm
 
-/-- `i_constant_info_beq` ⊑ `==` on `IConstantInfo`, at canonical
-capabilities (`IConstantInfoCapsWF`; the `IndInfo` arm compares `sort_z` by
-representation). -/
+/-- `i_constant_info_beq` ⊑ `==` on `IConstantInfo`, at canonical Rust data
+(`IConstantInfoWF`; the `IndInfo` arm compares `sort_z` by representation). -/
 theorem i_constant_info_beq_refines {a b : arena.env.IConstantInfo} {o : Bool}
-    (ha : IConstantInfoCapsWF a) (hb : IConstantInfoCapsWF b)
+    (ha : IConstantInfoWF a) (hb : IConstantInfoWF b)
     (hrun : arena.canon.i_constant_info_beq a b = ok o) :
     o = decide (absIConstantInfo a = absIConstantInfo b) := by
   cases a <;> cases b <;> simp only [arena.canon.i_constant_info_beq, Result.ok.injEq] at hrun <;>

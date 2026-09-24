@@ -66,10 +66,10 @@ open ConRon.Arena
 -- the twin reads the fields of an abstracted recursor rule
 -- (`Inductives/PrimsModeled.lean`)
 open IndModeledPrims in
-attribute [local lockstep_simp] absIRecRule_ctor absIRecRule_nfields absIRecRule_ctorParams
-  absIRecRule_fire absIRecRule_rhs absIRecRule_k absIRecRule_eta absIRecRule_paramsBlind
-  unwrapOr_some unwrapOr_none absIIndCaps_eta absIIndCaps_etaCtor absIIndCaps_ruleK
-  absIIndCaps_unitlike decide_u64_eq_zero etag_const_abs
+attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims.absIRecRule_nfields IndModeledPrims.absIRecRule_ctorParams
+  IndModeledPrims.absIRecRule_fire IndModeledPrims.absIRecRule_rhs IndModeledPrims.absIRecRule_k IndModeledPrims.absIRecRule_eta IndModeledPrims.absIRecRule_paramsBlind
+  IndModeledPrims.unwrapOr_some IndModeledPrims.unwrapOr_none IndModeledPrims.absIIndCaps_eta IndModeledPrims.absIIndCaps_etaCtor IndModeledPrims.absIIndCaps_ruleK
+  IndModeledPrims.absIIndCaps_unitlike IndModeledPrims.decide_u64_eq_zero etag_const_abs
 
 /-! ## The two helpers of the modeled route -/
 
@@ -106,6 +106,8 @@ open Lockstep in
         (absU k)) :=
   LS.ofSim₀ fun _ h => doms_match_renamed_refines hrel hinv hf h
 
+-- the two compared constants' `IConstantInfoWF` (`IFEnvRel.envWF`, `eq_a_wf`)
+open Lockstep.CapsWFM in
 /-- `eq_basis_stored` ⊑ `eqBasisStored` — *the pinned `Eq` basis is the stored
 `Eq`*, the guard three clauses of this module share. -/
 theorem eq_basis_stored_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
@@ -115,14 +117,8 @@ theorem eq_basis_stored_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
     (hrun : arena.inductives.modeled.eq_basis_stored pers vis st rf = ok o) :
     Sim₀ id pers lst o (eqBasisStored lf) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
-  -- RULING NEEDED (task #97-T2-LOCKSTEP lane Inductives Modeled slice 2): the
-  -- port compares the found constant with `eq_a` by `i_constant_info_beq`,
-  -- whose `IndInfo` arm compares `sort_z` by REPRESENTATION; the twin's `==`
-  -- compares values.  They agree only at canonical capabilities
-  -- (`IConstantInfoCapsWF`, `Checker/Canon.lean`), which nothing states of the
-  -- Rust environment's stored constants.  The lockstep proof (`rw […]; lockstep`)
-  -- goes through given that fact for the two compared constants.
-  sorry
+  rw [arena.inductives.modeled.eq_basis_stored, eqBasisStored]
+  lockstep_mod
 
 open Lockstep in
 @[lockstep] theorem eq_basis_stored_ls

@@ -290,13 +290,62 @@ theorem ifenv_dup_rel {rf a : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf 
   · intro n p hp; rw [hlen]; exact hinv3 n p hp
 
 /-- `arena::canon::i_constant_info_beq` is the twin's `==` on the abstraction,
-at canonical capabilities (`Checker/Canon.lean`'s `i_constant_info_beq_refines`:
-the port compares `sort_z` by representation). -/
+at canonical Rust data (`IConstantInfoWF`; `Checker/Canon.lean`'s
+`i_constant_info_beq_refines`: the port compares `sort_z` by representation). -/
 @[lockstep] theorem i_constant_info_beq_spec {a b : arena.env.IConstantInfo}
-    (ha : IConstantInfoCapsWF a) (hb : IConstantInfoCapsWF b) :
+    (ha : IConstantInfoWF a) (hb : IConstantInfoWF b) :
     LSP (arena.canon.i_constant_info_beq a b)
       (fun o => o = (absIConstantInfo a == absIConstantInfo b)) :=
   fun _ h => (i_constant_info_beq_refines ha hb h).trans (beq_eq_decide _ _).symm
+
+/-! ### The compared constants are canonical (`eq_basis_stored`)
+
+`find_ci` and `std_axioms::eq_a` with the answer's `IConstantInfoWF` in the
+relation (`IFEnvRel.envWF`; `Checker/Canon.lean`'s `eq_a_wf`), in their own
+namespace so `eq_basis_stored`'s proof, which opens it, gets them first.
+(`Checker/DeclCheck.lean`'s `Lockstep.CapsWF` has the same for the checker's
+two pin callers; this tier does not import it.) -/
+
+end IndModeledPrims
+
+namespace Lockstep.CapsWFM
+open IndModeledPrims
+
+@[lockstep] theorem find_ci_wf {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (n : arena.handle.NIdx) (hctx : CoreCtx vis rf lf) :
+    LSP (arena.env.find_ci vis rf n)
+      (fun o => TwinEq (lf.find? (absNIdx n)) (o.map absIConstantInfo) ∧
+        ∀ ci, o = some ci → IConstantInfoWF ci) := by
+  intro o h
+  refine ⟨find_ci_twin n hctx o h, ?_⟩
+  intro ci hci
+  subst hci
+  rw [arena.env.find_ci] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r with
+  | none => cases Result.ok_injective h
+  | some c =>
+    obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain rfl := (Option.some.inj (Result.ok_injective h)).symm
+    exact iConstantInfoWF_of_sortZOf (i_constant_info_dup_sortZOf hii)
+      (hctx.fenv.envWF c (Lockstep.ifenv_find_mem hr))
+
+@[lockstep] theorem eq_a_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => IConstantInfoWF a ∧ b = absIConstantInfo a)
+      (arena.std_axioms.eq_a pers st) lst eqA := by
+  intro o st' h
+  have hs := eq_a_ls hrel hinv o st' h
+  cases o with
+  | Err e => exact hs
+  | Ok a =>
+    obtain ⟨b, lst', hx, hR, h1, h2⟩ := hs
+    exact ⟨b, lst', hx, ⟨eq_a_wf h, hR⟩, h1, h2⟩
+
+end Lockstep.CapsWFM
+
+namespace IndModeledPrims
+open Lockstep
 
 /-- `arena::core::nidx_vec_beq` is `==` on the abstracted name lists
 (`Inductives/Shape.lean`'s `nidx_vec_beq_abs`). -/
@@ -933,9 +982,10 @@ is busy). -/
 
 section RuleBits
 open Lockstep IndModeledPrims
-attribute [local lockstep_simp] absIRecRule_ctor absIRecRule_nfields absIRecRule_ctorParams
-  absIRecRule_fire absIRecRule_rhs absIRecRule_k absIRecRule_eta absIRecRule_paramsBlind
-  absIIndCaps_eta absIIndCaps_etaCtor absIIndCaps_ruleK decide_u64_eq_zero etag_const_abs
+attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims.absIRecRule_nfields
+  IndModeledPrims.absIRecRule_ctorParams IndModeledPrims.absIRecRule_fire
+  IndModeledPrims.absIRecRule_rhs IndModeledPrims.absIRecRule_k IndModeledPrims.absIRecRule_eta
+  IndModeledPrims.absIRecRule_paramsBlind IndModeledPrims.absIIndCaps_eta IndModeledPrims.absIIndCaps_etaCtor IndModeledPrims.absIIndCaps_ruleK IndModeledPrims.decide_u64_eq_zero etag_const_abs
 
 @[lockstep] theorem rec_rule_k_of_ls {pers st lst} {vis : Std.U64} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -952,6 +1002,11 @@ attribute [local lockstep_simp] absIRecRule_ctor absIRecRule_nfields absIRecRule
       (recRuleEtaOf lf (absNIdx rn) (absNIdx ctor)) := by
   rw [arena.core.rec_rule_eta_of, recRuleEtaOf]
   lockstep_mod
+  -- the level-parameter comparison, in `nidx_vec_beq`'s `decide` form
+  all_goals
+    refine LS.pure ?_ ‹_› ‹_›
+    simp_all [absNIdxList]
+    exact beq_eq_decide _ _
 
 @[lockstep] theorem rec_rule_bits_ls {pers st lst} {vis : Std.U64} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)

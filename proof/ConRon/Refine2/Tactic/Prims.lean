@@ -568,18 +568,6 @@ lane Inductives Modeled. -/
     (fun _ hr => by rw [arena.monad.view_const] at hr; exact estore_view_const_abs hrel.store hr)
     hrel hinv
 
-/-- `arena::monad::view_const_name` against `Arena.viewConstName` (the name of
-a `const`-tagged handle; `LS.twin_view_const_name` brings the twin's `view` to
-it).  Task #97-T2-LOCKSTEP lane Inductives Modeled. -/
-@[lockstep] theorem view_const_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
-    LSV pers (fun a b => b = Option.map absNIdx a) (arena.monad.view_const_name pers st h) st lst
-      (Arena.viewConstName (absEIdx h)) :=
-  LSV.of_store_read (F := fun s => s.viewConstName (absEIdx h)) (fun _ => rfl)
-    (fun _ hr => by
-      rw [arena.monad.view_const_name] at hr; exact estore_view_const_name_abs hrel.store hr)
-    hrel hinv
-
 @[lockstep] theorem view_bvar_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
     LSV pers (fun a b => b = Option.map absU a) (arena.monad.view_bvar pers st h) st lst
