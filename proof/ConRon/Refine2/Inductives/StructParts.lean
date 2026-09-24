@@ -630,7 +630,10 @@ theorem struct_shape_minor_refines {pers st lst} {c : arena.handle.NIdx}
     Sim₀ id pers lst o
       (structShapeMinorSpec (absNIdx c) (absNIdxL lps) (absU n_p) (absU n_f)
         (absBinderL rbs)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_shape_minor, structShapeMinorSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_shape_minor_ls
