@@ -1405,93 +1405,9 @@ open Lockstep in
 
 /-! ## `mentionsConst` -/
 
-/-- `mc_probe` ⊑ `memo[h]?`. -/
-theorem mc_probe_refines {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
-    {lm : Std.HashMap EIdx Bool} {k : arena.handle.EIdx} {o}
-    (hm : LMemoRel rm lm)
-    (hrun : arena.inductives.struct_parts.mc_probe rm k = ok o) :
-    o = lm[absEIdx k]? := by
-  rw [arena.inductives.struct_parts.mc_probe] at hrun
-  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨hmr, hminv⟩ := hm
-  have hto := ConRon.Refine.HashMap2.get_refines_wf eidx_eq2 hminv
-    ConRon.Refine.HashMap2.KeysOk_true trivial hr
-  have hrelk := hmr k trivial
-  rw [← hrelk, ← hto]
-  cases hrc : r with
-  | none =>
-    rw [hrc] at hrun
-    have h2 : (none : Option Bool) = o := Result.ok_injective hrun
-    subst h2
-    rfl
-  | some v =>
-    rw [hrc] at hrun
-    have h2 : some v = o := Result.ok_injective hrun
-    subst h2
-    rfl
-
-open Lockstep in
-@[lockstep] theorem mc_probe_twin
-    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
-    {lm : Std.HashMap EIdx Bool}
-    {k : arena.handle.EIdx}
-    (hm : LMemoRel rm lm) :
-    LSP (arena.inductives.struct_parts.mc_probe rm k) (fun o => TwinEq (lm[absEIdx k]?) (o)) :=
-  fun o h => (mc_probe_refines hm h).symm
-
-/-- `mentions_const_node` ⊑ `mentionsConstGo`'s arm dispatch. -/
-theorem mentions_const_node_refines {pers st lst} {t : arena.handle.NIdx}
-    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
-    {lm : Std.HashMap EIdx Bool} {fuel : Std.U64} {v : arena.store.ENodeView} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hm : LMemoRel rm lm)
-    (hrun : arena.inductives.struct_parts.mentions_const_node pers st t rm fuel v
-      = ok o) :
-    SimRel₀ LOutRel pers lst o
-      (mentionsConstNodeSpec (absNIdx t) lm (absU fuel)
-        (absENodeView v)) := by
-  sorry
-
-open Lockstep in
-@[lockstep] theorem mentions_const_node_ls
-    {pers st lst}
-    {t : arena.handle.NIdx}
-    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
-    {lm : Std.HashMap EIdx Bool}
-    {fuel : Std.U64}
-    {v : arena.store.ENodeView}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hm : LMemoRel rm lm) :
-    LS pers LOutRel (arena.inductives.struct_parts.mentions_const_node pers st t rm fuel v) lst
-      (mentionsConstNodeSpec (absNIdx t) lm (absU fuel)
-        (absENodeView v)) :=
-  LS.ofSimRel₀ fun _ h => mentions_const_node_refines hrel hinv hm h
-
-/-- `mentions_const_go` ⊑ `mentionsConstGo`. -/
-theorem mentions_const_go_refines {pers st lst} {t : arena.handle.NIdx}
-    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
-    {lm : Std.HashMap EIdx Bool} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hm : LMemoRel rm lm)
-    (hrun : arena.inductives.struct_parts.mentions_const_go pers st t rm fuel h
-      = ok o) :
-    SimRel₀ LOutRel pers lst o
-      (mentionsConstGo (absNIdx t) lm (absU fuel) (absEIdx h)) := by
-  sorry
-
-open Lockstep in
-@[lockstep] theorem mentions_const_go_ls
-    {pers st lst}
-    {t : arena.handle.NIdx}
-    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
-    {lm : Std.HashMap EIdx Bool}
-    {fuel : Std.U64}
-    {h : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hm : LMemoRel rm lm) :
-    LS pers LOutRel (arena.inductives.struct_parts.mentions_const_go pers st t rm fuel h) lst
-      (mentionsConstGo (absNIdx t) lm (absU fuel) (absEIdx h)) :=
-  LS.ofSimRel₀ fun _ h => mentions_const_go_refines hrel hinv hm h
+-- `mc_probe`, `mentions_const_go`/`_node` and `mentions_const` live in
+-- `Refine2/Checker/Leaves.lean` (task #97-T2-LOCKSTEP lane Checker Base/Top):
+-- the checker's base consumes the walk, so it sits below this tier.
 
 /-! ## The axiom census
 

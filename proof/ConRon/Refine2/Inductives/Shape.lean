@@ -846,8 +846,16 @@ open Lockstep in
 /-- `i_ind_caps_default` is the twin's `{}` (the zero word is `default`, the
 empty `if_all_zero` is `.ifAllZero []`). -/
 @[lockstep] theorem i_ind_caps_default_twin :
-    LSP arena.env.i_ind_caps_default (fun o => TwinEq ({} : IIndCaps) (absIIndCaps o)) := by
+    LSP arena.env.i_ind_caps_default (fun o => TwinEq ({} : IIndCaps) (absIIndCaps o) ∧
+      ConRon.Refine.PropWhenWF o.sort_z) := by
   intro o h
+  refine ⟨?_, ?_⟩
+  swap
+  · rw [arena.env.i_ind_caps_default] at h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+    exact ConRon.Refine.PropWhen.if_all_zero_wf (fun n hn => by simp [alloc.vec.Vec.new] at hn) hpw
   simp only [arena.env.i_ind_caps_default, arena.handle.NIdx.of_word,
     kernel.prop_when.if_all_zero, kernel.prop_when.of_repr, alloc.vec.Vec.new,
     alloc.vec.Vec.len] at h

@@ -212,7 +212,31 @@ theorem check_basis_decl_install_refines {pers st lst} {rf lf}
     (hrun : arena.checker.check_basis_decl_install pers st rf kind = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (do installBasisDecls lf (← BasisKind.declsA (ConRon.Refine.absBasisKind kind))) := by
-  sorry
+  rw [arena.checker.check_basis_decl_install] at hrun
+  obtain ⟨⟨r, st1⟩, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hS := basis_kind_decls_a_refines hrel hinv h1
+  cases r with
+  | Err e =>
+    obtain rfl := (Result.ok_injective hrun).symm
+    show AErrSim e _
+    rw [StateT.run_bind]; exact AErrSim.bind hS _
+  | Ok decls =>
+    obtain ⟨r1, hr1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain rfl := (Result.ok_injective hrun).symm
+    obtain ⟨lst1, hx, hrel1, hinv1⟩ := hS.apply
+    -- the basis's constants are canonical Rust data (`basis_kind_decls_a_wf`)
+    have hI := install_basis_decls_refines (lst := lst1) hfe hfinv
+      (basis_kind_decls_a_wf h1) hr1
+    have e0 : absICILFrom decls 0#usize = absICIL decls := by
+      simp [absICILFrom, absICIL]
+    rw [e0] at hI
+    show AOutRel₀ IFEnvRelI pers r1 st1 _
+    rw [StateT.run_bind, hx]
+    cases r1 with
+    | Ok fe2 =>
+      obtain ⟨v, hv, hR⟩ := hI
+      exact AOutRel₀.ok hv hR hrel1 hinv1
+    | Err e => exact hI
 
 open Lockstep in
 @[lockstep] theorem check_basis_decl_install_ls {pers st lst} {rf lf}

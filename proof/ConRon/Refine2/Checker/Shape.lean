@@ -724,14 +724,18 @@ The three clauses, in order:
   twin's `(visibleBelow, ci)`; at every other name `IFEnvInv.idxRange` says the
   stored position was already in range, so the append does not change what it
   reads;
-* `visibleBelow` — both counters advance by one.
+* `visibleBelow` — both counters advance by one;
+* `envWF` — the pushed constant is canonical Rust data (`hwf`, the erased
+  subtype invariant of its `PropWhen`): a premise each push site discharges
+  from how the checker built the constant (task #97-T2-LOCKSTEP lane Checker
+  Base/Top round 2; it replaced the seam `ifenvRel_envWF_push`).
 
 and the invariant: the index's `Inv` is `HashMap2::insert`'s, the counter
 bound is the old one plus one on both sides, and the new row's position is
 `|consts|`, which is in range of `|consts| + 1`. -/
 theorem ifenv_push_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
     {ci : arena.env.IConstantInfo}
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hwf : IConstantInfoWF ci)
     (h : arena.env.ifenv_push rf ci = ok rf') :
     IFEnvRel rf' (lf.push (absIConstantInfo ci)) ∧ IFEnvInv rf' := by
   rw [arena.env.ifenv_push] at h
@@ -791,12 +795,12 @@ theorem ifenv_push_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
     rw [hfe.visibleBelow]
     simp [absU, hc1v]
   · -- the stored constants stay canonical (`IFEnvRel.envWF`; the pushed one
-    -- is the routed seam `ifenvRel_envWF_push`)
+    -- by the caller's `hwf`: the checker built it)
     intro c hc
     rw [hvv] at hc
     rcases List.mem_append.mp hc with h1 | h1
     · exact hfe.envWF c h1
-    · rw [List.mem_singleton.mp h1]; exact ifenvRel_envWF_push ci
+    · rw [List.mem_singleton.mp h1]; exact hwf
   · -- every row keyed by its slot's name (`IFEnvRel.keys`): the new row by the
     -- pushed constant's, the old rows unmoved
     intro m p hp
@@ -1067,7 +1071,7 @@ attribute [simp] absPendingCheck absPendingCheckL absPendingCheckLFrom
 /-- info: 'ConRon.Refine2.SimRel.mono' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms SimRel.mono
 
-/-- info: 'ConRon.Refine2.ifenv_push_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine2.ifenv_push_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ifenv_push_refines
 
 /-- info: 'ConRon.Refine2.openPisAtFvarsF_length' depends on axioms: [propext, Classical.choice, Quot.sound] -/
