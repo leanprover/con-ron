@@ -315,8 +315,9 @@ early.
 ### 4.4 Sharing the persistent tier between workers
 
 The check phase runs on several threads (§6.4).  They share one persistent
-tier, read-only, and each owns a scratch tier.  Apart from the pool's work
-counter, the workers share nothing mutable.
+tier, read-only, and each owns a scratch tier.  Apart from the pool's own
+bookkeeping (two atomic counters and the progress observer's lock), the
+workers share nothing mutable.
 
 In Rust, the sharing is a separate parameter.  At the phase boundary,
 [`freeze_tier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L1394-L1415)
@@ -375,9 +376,9 @@ These are con-leche's memo tables:
 **When they are emptied.**  The per-declaration caches are flushed whole
 whenever a bracket closes (§4.3), and again at the start of each install
 step, as con-leche's `flushC` is.  A cache entry can name a scratch handle,
-so it must go with the tier.  The memos are
-cleared when a bracket opens and at every walk's entry.  No table evicts
-single entries; a table that reaches
+so it must go with the tier.  The memos are cleared when a bracket opens and
+at every walk's entry.  No table evicts single entries; a table that
+reaches
 [`CACHE_CAP`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L387-L392)
 (2²² entries) is emptied whole.
 
@@ -551,9 +552,9 @@ translator.
 The twin
 ([`proof/ConRon/Arena/`](https://github.com/leanprover/con-ron/tree/master/proof/ConRon/Arena))
 is an executable Lean checker with the same stores, handles, caches and
-functions as the Rust, down to the order of operations.  Every arena and
-parser item of the Rust names its twin in a `Lean twin:` doc line, and a gate checks those lines
-(§10).  Its monad is `ReaderT PersTier (StateT AState (Except CheckError))`;
+functions as the Rust, down to the order of operations.  Each Rust item
+with a twin names it in a `Lean twin:` doc line, and a gate checks those
+lines (§10).  Its monad is `ReaderT PersTier (StateT AState (Except CheckError))`;
 it uses no `IO` and no `partial`, and fuel is an explicit `Nat`.
 
 Two definitions connect it to con-leche:
@@ -596,8 +597,9 @@ cover one primitive each:
 ```
 
 The precondition only fixes the start state, and `⇓?` means partial
-correctness: nothing is claimed when the twin fails.  Most other twin
-functions are specified by a plain implication over a successful run.
+correctness: nothing is claimed when the twin fails.  Many higher-level
+statements are instead plain implications over a successful run, like the
+graded ones below.
 
 **Spec grades.**  A twin function's statement has one of two grades
 ([`Bridge/Inductives/Rel.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/Rel.lean#L184-L225)):
