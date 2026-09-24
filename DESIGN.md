@@ -64149,6 +64149,7 @@ headlines), shaped by the maintainer's rulings during the task:
     the docstring and in `--help`.
 * README's two headline links and OVERVIEW §3's quotations re-anchored;
   `scripts/overview-links-expected.txt` regenerated.
+
 ### Task #98-GROUP — phase B's outcome does not depend on how records are grouped among workers (2026-09-24, Opus under Fable)
 
 **Part 1, proved at the twin** (sorry-free; `lake build ConRonBridge` builds
