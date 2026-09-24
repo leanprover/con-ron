@@ -61535,12 +61535,12 @@ proof's size, not a loop).  **Removable, left to the lane**
 `lockstep_mod := lockstep` `Inductives/Modeled.lean` builds.
 
 **Cost of the round, apples to apples** (the tree of slice 1's baseline,
-`arena` `b5f0d431`, with this slice's `Tactic/{Lockstep,Attr}.lean` before
-item 3's refinement, the three `etag` lines, and `Promote/Intern.lean`'s
-rename; the same forced re-elaboration of the 68 modules downstream of
-`Lockstep`): **5 292 G → 5 218 G instructions (−1.4 %)**, cycles 5 635 G →
-5 445 G; summed per-module build time 466 s → 484 s (one run each).  That tree
-builds green with the round's tactic.
+`arena` `b5f0d431`, with this slice's final `Tactic/{Lockstep,Attr}.lean`,
+the three `etag` lines, and `Promote/Intern.lean`'s rename; the same forced
+re-elaboration of the 68 modules downstream of `Lockstep`): **5 292 G →
+5 219 G instructions (−1.4 %)**, cycles 5 635 G → 5 458 G; summed per-module
+build time 466 s → 399 s (one run each; an intermediate state measured 484 s,
+so read it as noise).  That tree builds green with the round's tactic.
 
 ### Task #97-T2-LOCKSTEP lane Frontend round 3 — the modeller seam; the lane's frontier (2026-09-23, Opus under Fable)
 
