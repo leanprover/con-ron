@@ -595,7 +595,22 @@ theorem struct_field_tele_of_refines {pers st lst} {cty : arena.handle.EIdx}
       = ok o) :
     Sim₀ absBinderL pers lst o
       (structFieldTeleOf (absEIdx cty) (absU n_p) (absU n_f) (absU i)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_parts.struct_field_tele_of, structFieldTeleOf]
+  lockstep
+  · have ha := let_pair_dup2_eq _ _ hf
+    subst ha
+    rw [binderL_getD_fst_of_lt]
+    · have hj : a.val = n_p.val + i.val := by rcases hP with h | h <;> scalar_tac
+      simp only [← hj, List.get_eq_getElem]
+      lockstep
+    · scalar_tac
+  · simp only [arena.handle.EIdx.of_word, Result.ok.injEq] at hf
+    subst hf
+    rw [binderL_getD_fst_of_ge]
+    · lockstep
+    · scalar_tac
 
 open Lockstep in
 @[lockstep] theorem struct_field_tele_of_ls

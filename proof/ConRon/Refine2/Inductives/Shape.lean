@@ -1108,4 +1108,31 @@ open Lockstep in
   simp only [Lockstep.TwinEq, absEIdxL, this]
   simp
 
+/-- The port's `let (e, _) := x; dup2 e` answered `a`: `a` is `x.1` (stated
+with this file's own matcher; the port's is the same up to unfolding, so
+`exact`/`have := … hf` accept it). -/
+theorem let_pair_dup2_eq {β : Type} (x : arena.handle.EIdx × β) (a : arena.handle.EIdx)
+    (h : (let (e, _) := x
+          arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 e) = ok a) : a = x.1 := by
+  obtain ⟨e, b⟩ := x
+  simp only [arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2, Result.ok.injEq] at h
+  exact h.symm
+
+/-- The twin's `(cbs.getD k default).1` over an abstracted binder list, in
+range: the handle at `k`. -/
+theorem binderL_getD_fst_of_lt (v : List (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (k : Nat) (hk : k < v.length) :
+    ((v.map fun p => (absEIdx p.1, ({ pw := ConRon.Refine.absPropWhen p.2.pw } : ConLeche.BinderMeta))).getD k default).1 =
+      absEIdx v[k].1 := by
+  rw [List.getD_eq_getElem _ _ (by simpa using hk)]
+  simp
+
+/-- The same off the end: the twin's default handle, the port's `EIdx(0)`. -/
+theorem binderL_getD_fst_of_ge (v : List (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (k : Nat) (hk : v.length ≤ k) :
+    ((v.map fun p => (absEIdx p.1, ({ pw := ConRon.Refine.absPropWhen p.2.pw } : ConLeche.BinderMeta))).getD k default).1 =
+      absEIdx { word := 0#u32 } := by
+  rw [List.getD_eq_default _ _ (by simpa using hk)]
+  rfl
+
 end ConRon.Refine2
