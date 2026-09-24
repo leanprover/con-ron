@@ -1731,16 +1731,6 @@ open Lockstep in
     absEqPairsFrom v 0#usize = absEqPairs v := by
   simp [absEqPairsFrom, absEqPairs]
 
-/-- `div_mod_attempt_reason` ⊑ `divModAttemptReason` — the decline message of
-one variant attempt, as code points.  The `ps` the twin takes is only read for
-its toolchain string, which the port has already extracted. -/
-theorem div_mod_attempt_reason_refines {e : kernel.core_types.CheckError} {o}
-    (hrun : arena.decl_check.div_mod_attempt_reason e = ok o) :
-    ∀ ps : INatOpPinSet, ∀ le : Arena.CheckError,
-      absAErrKind e = lAErrKind le →
-      ConRon.Refine.absString o = divModAttemptReason ps (some le) := by
-  sorry
-
 /-! ### The certificate statements — the `CertCtx` family (finding 11) -/
 
 /-- `nat_one` ⊑ `natOne` — the numeral `1` as `Nat.succ Nat.zero`. -/

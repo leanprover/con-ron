@@ -12,12 +12,12 @@ below is that proof with `AStateRel₀`.
 the foundation's intern slice (task #97-T2-LOCKSTEP slice 3) they are the
 `Refine2/Specs.lean` `intern_*_run₀` lemmas in `LS` form (task #97-P5-Core
 round 5, which also added `fvar`, `sort`, `const`, `lit`, the level node, the
-level list and `intern_level`).  **`intern_e_lam_ls` / `intern_e_forall_e_ls`
-stay `sorry`**, and only because of their statement (task #97-T2-LOCKSTEP D6):
+level list and `intern_level`).  The binder interns exist only as
+`intern_e_{lam,forall_e}_wf_ls` (task #97-T2-LOCKSTEP D6):
 `intern_e_{lam,forall_e}_run₀` need `PropWhenWF m.pw` of the Rust INPUT datum
-(the `bms` cons key is a `PropWhen`, so `TblRel` is `RelOn PropWhenWF`), which
-these two statements do not ask for; `intern_e_{lam,forall_e}_wf_ls` are the
-same pairs with that premise, proved, and registered first.
+(the `bms` cons key is a `PropWhen`, so `TblRel` is `RelOn PropWhenWF`).  The
+premise-free `sorry` statements `intern_e_{lam,forall_e}_ls` were deleted
+(task #97-T2-CLEANUP): no proof used them.
 -/
 import ConRon.Refine2.Tactic.Lockstep
 import ConRon.Refine2.Specs
@@ -1632,8 +1632,7 @@ view's own well-formedness (the literal's payload, the binder's datum). -/
       (Arena.internAppE (absEIdx f) (absEIdx a)) :=
   LS.ofSim₀ fun _ h => intern_e_app_run₀ hrel hinv f a h
 
-/-- `intern_e_lam` with its datum's `PropWhenWF` in context: the `₀` lemma.
-Registered BEFORE the `sorry` statement below, so `lockstep` tries it first. -/
+/-- `intern_e_lam` with its datum's `PropWhenWF` in context: the `₀` lemma. -/
 @[lockstep] theorem intern_e_lam_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
     (hpw : ConRon.Refine.PropWhenWF m.pw) :
@@ -1648,18 +1647,6 @@ Registered BEFORE the `sorry` statement below, so `lockstep` tries it first. -/
     LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_forall_e pers st t b m) lst
       (Arena.internForallEE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
   LS.ofSim₀ fun _ h => intern_e_forall_e_run₀ hrel hinv t b m hpw h
-
-@[lockstep] theorem intern_e_lam_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) :
-    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_lam pers st t b m) lst
-      (Arena.internLamE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
-  sorry
-
-@[lockstep] theorem intern_e_forall_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) :
-    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_forall_e pers st t b m) lst
-      (Arena.internForallEE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
-  sorry
 
 @[lockstep] theorem intern_e_let_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (t v b : arena.handle.EIdx) :
