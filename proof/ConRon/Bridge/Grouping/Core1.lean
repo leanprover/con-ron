@@ -6,7 +6,9 @@ set_option mvcgen.warning false
 
 open ConRon.Arena Std.Do
 
-@[spec] theorem liftFueled_keeps (k : EStore) (p : Pins) {α : Type} (w : String) (o : Option α) :
+#erase_foreign_specs
+
+@[scoped spec] theorem liftFueled_keeps (k : EStore) (p : Pins) {α : Type} (w : String) (o : Option α) :
     ⦃fun s => ⌜Inv k p s⌝⦄ liftFueled w o ⦃⇓? _r s => ⌜Inv k p s⌝⦄ := by
   keeps_step liftFueled
 

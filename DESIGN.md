@@ -64182,10 +64182,21 @@ it through the library's `globs`, so no new library and no new gate step).
   `defeqStep_eq_tail` by `rfl` — the whole body in one `mvcgen` times out on
   the 11×11-constructor two-view match) and `defeqPeel`'s one level
   (`peelStepG`, `delta`/`rfl`, because its structural-recursion equation
-  lemmas time out).  ≈ 1 400 lines; the stack elaborates in about three
-  minutes.  The `@[spec]` attributes are global: a module that imports both
-  this stack and `Bridge/Specs.lean` and runs `mvcgen` would see two specs per
-  function (nothing does today).
+  lemmas time out).  ≈ 1 450 lines; the stack elaborates in about two
+  minutes.
+  **Import hygiene** (found by the gate's frontier run, which imports every
+  module into one closure): `mvcgen`'s splits realize match auxiliaries
+  (`X.match_n.congr_eq_m._sparseCasesOn_k`) that `Bridge/Core/Walks/*` and
+  `Bridge/ExprOps/Spine.lean` realize too, and two modules realizing the same
+  one cannot share a closure (`lakefile.toml`'s `ConRonBridge` note).  So
+  `Gen.lean` imports those owners (`Walks/StrLit`, `Walks/PropRead`, which
+  reach the rest) to reuse theirs, and every file of the tier opens with
+  `#erase_foreign_specs`, which erases — in that module only — every
+  `@[spec]` declared outside `ConRon.Bridge.Grouping`, so `mvcgen` sees the
+  frame triples alone.  The triples themselves are `@[scoped spec]` and the
+  store lemmas `@[scoped simp]` (triple names are flat, `keepsName`, because a
+  dotted name would scope them to its own namespace): an importer that does
+  not open `ConRon.Bridge.Grouping` sees none of them.
 * `proof/ConRon/Bridge/Checker/Grouping.lean` — the statements
   (namespace `ConRon.Bridge.Grouping`):
   * `PhaseBEquiv s t` := same `store.enableScratch`, same `caches`, same

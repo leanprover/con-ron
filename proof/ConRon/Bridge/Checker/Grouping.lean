@@ -58,6 +58,8 @@ namespace ConRon.Bridge.Grouping
 
 open ConRon.Arena Std.Do
 
+#erase_foreign_specs
+
 /-! ## The frame of `checkValueGroup` -/
 
 /-- A Hoare triple of `AM` read as a run. -/

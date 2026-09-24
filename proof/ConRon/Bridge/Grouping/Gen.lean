@@ -1,5 +1,13 @@
 import ConRon.Bridge.Grouping.Store
 import ConRon.Bridge.Peel
+-- Not for their theorems: these modules REALIZE match auxiliaries
+-- (`X.match_n.congr_eq_m._sparseCasesOn_k`) that `mvcgen`'s splits below
+-- would realize again, and two modules realizing the same auxiliary cannot
+-- share an import closure (the clash `lakefile.toml`'s `ConRonBridge` note
+-- describes).  Importing the owners makes this tier reuse theirs; their
+-- `@[spec]`s are erased per module by `#erase_foreign_specs`.
+import ConRon.Bridge.Core.Walks.StrLit
+import ConRon.Bridge.Core.Walks.PropRead
 
 /-!
 # `ConRon.Bridge.Grouping.Gen` — the frame invariant and its generators
@@ -28,7 +36,7 @@ open ConRon.Arena Std.Do
 def Inv (k : EStore) (p : Pins) (s : AState) : Prop :=
   AllOn s.store ∧ s.store.enableScratch = k ∧ s.pins = p
 
-@[simp] theorem Inv_mk {k : EStore} {p : Pins} {st m c q} :
+@[scoped simp] theorem Inv_mk {k : EStore} {p : Pins} {st m c q} :
     Inv k p ⟨st, m, c, q⟩ ↔ AllOn st ∧ st.enableScratch = k ∧ q = p := Iff.rfl
 
 /-- Every slot of a core record keeps the invariant. -/
@@ -48,6 +56,26 @@ structure FnsKeep (r : CoreFnsA) : Prop where
 
 theorem FnsKeep.ioView {r : CoreFnsA} (h : FnsKeep r) : FnsKeep r.ioView :=
   ⟨h.whnfCore, h.whnf, h.inferIO, h.defeq, h.annotate, h.inferIO⟩
+
+open Lean Elab Command in
+/-- `#erase_foreign_specs` — erase, in the current module only, every
+`@[spec]` declared outside this tier (the bridge's, imported above for its
+match auxiliaries), so that `mvcgen` sees this tier's frame triples alone. -/
+elab "#erase_foreign_specs" : command => do
+  let env ← getEnv
+  let st := Lean.Elab.Tactic.Do.SpecAttr.specAttr.getState env
+  let st' := st.specs.foldValues (init := st) fun acc thm =>
+    match thm.proof with
+    | .global n =>
+      match env.getModuleIdxFor? n with
+      | some idx =>
+        let m := env.header.moduleNames[idx.toNat]!
+        if (`ConRon).isPrefixOf m && !(`ConRon.Bridge.Grouping).isPrefixOf m then
+          acc.erase thm.proof
+        else acc
+      | none => acc
+    | _ => acc
+  modifyEnv fun env => Lean.Elab.Tactic.Do.SpecAttr.specAttr.modifyState env fun _ => st'
 
 /-- Close a frame verification condition. -/
 macro "grp_close" : tactic => `(tactic| (
@@ -101,6 +129,13 @@ elab "keeps_step " fs:ident* : tactic => do
   evalTactic (← `(tactic| mvcgen [$lemmas,*]))
   evalTactic (← `(tactic| all_goals grp_close))
 
+/-- The frame triple's name: the function's name below `ConRon.Arena`, dots
+flattened (a dotted declaration name would open a namespace of its own, and
+`scoped spec` would then scope the triple to it), and `_keeps`. -/
+def keepsName (n : Lean.Name) : Lean.Name :=
+  Lean.Name.mkSimple
+    (((n.replacePrefix `ConRon.Arena .anonymous).toString (escape := false)).replace "." "_" ++ "_keeps")
+
 open Lean Elab Command Meta in
 /-- The explicit arguments of a function (`x0 …`), the index of the one named
 `fuel` (or of the first `Nat`), and the indices of the `CoreFnsA` ones. -/
@@ -144,11 +179,11 @@ elab "#keeps " ids:ident+ : command => do
     let n ← liftCoreM <| realizeGlobalConstNoOverload id
     let (xs, _, rs) ← keepsArgs n
     let bs ← keepsBinders xs rs
-    let thm := mkIdent ((n.replacePrefix `ConRon.Arena .anonymous).appendAfter "_keeps")
+    let thm := mkIdent (keepsName n)
     let fn := mkIdent n
     let app ← `($fn $xs*)
     let cmd ← `(command|
-      @[spec] theorem $thm $bs* :
+      @[scoped spec] theorem $thm $bs* :
           ⦃fun s => ⌜Inv k p s⌝⦄ $app ⦃⇓? _r s => ⌜Inv k p s⌝⦄ := by
         keeps_step $fn:ident)
     elabCommand cmd
@@ -163,14 +198,14 @@ elab "#keeps_fuel " go:ident " [" arms:ident,* "]" : command => do
   let bs ← keepsBinders xs rs
   let others : Array Ident := ((Array.range xs.size).filter (· != fi)).map (fun i => xs[i]!)
   let xf := xs[fi]!
-  let thm := mkIdent ((n.replacePrefix `ConRon.Arena .anonymous).appendAfter "_keeps")
+  let thm := mkIdent (keepsName n)
   let fn := mkIdent n
   let z := mkIdent (n.appendAfter "_zero")
   let sc := mkIdent (n.appendAfter "_succ")
   let app ← `($fn $xs*)
   let armIds : Array Ident := arms.getElems
   let cmd ← `(command|
-    @[spec] theorem $thm $bs* :
+    @[scoped spec] theorem $thm $bs* :
         ⦃fun s => ⌜Inv k p s⌝⦄ $app ⦃⇓? _r s => ⌜Inv k p s⌝⦄ := by
       induction $xf:ident generalizing $others* with
       | zero => rw [$z:ident]; keeps_step
@@ -194,16 +229,16 @@ elab "#keeps_ind " go:ident idx?:(num)? : command => do
       | none => throwError "no Nat argument"
   let others : Array Ident := ((Array.range xs.size).filter (· != fi)).map (fun i => xs[i]!)
   let xf := xs[fi]!
-  let thm := mkIdent ((n.replacePrefix `ConRon.Arena .anonymous).appendAfter "_keeps")
+  let thm := mkIdent (keepsName n)
   let fn := mkIdent n
   let app ← `($fn $xs*)
   let cmd ← if others.isEmpty then `(command|
-    @[spec] theorem $thm $bs* :
+    @[scoped spec] theorem $thm $bs* :
         ⦃fun s => ⌜Inv k p s⌝⦄ $app ⦃⇓? _r s => ⌜Inv k p s⌝⦄ := by
       induction $xf:ident
       all_goals keeps_step $fn:ident)
     else `(command|
-    @[spec] theorem $thm $bs* :
+    @[scoped spec] theorem $thm $bs* :
         ⦃fun s => ⌜Inv k p s⌝⦄ $app ⦃⇓? _r s => ⌜Inv k p s⌝⦄ := by
       induction $xf:ident generalizing $others*
       all_goals keeps_step $fn:ident)

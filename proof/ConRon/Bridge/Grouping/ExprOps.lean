@@ -6,6 +6,8 @@ set_option mvcgen.warning false
 
 open ConRon.Arena Std.Do
 
+#erase_foreign_specs
+
 #keeps internRebuilt internRebuiltBVar internRebuiltFVar internRebuiltSort internRebuiltConst
   internRebuiltApp internRebuiltLam internRebuiltForallE internRebuiltLetE internRebuiltLit
   internRebuiltProj internRebuiltBind internRebuiltBindI instListCutoff instantiate1ArmBVar
@@ -64,7 +66,7 @@ open ConRon.Arena Std.Do
 #keeps_ind getAppArgs
 #keeps_ind mkAppN 1
 
-@[spec] theorem mkAppNFrom_keeps (k : EStore) (p : Pins) (f : EIdx) (args : Array EIdx) (i : Nat) :
+@[scoped spec] theorem mkAppNFrom_keeps (k : EStore) (p : Pins) (f : EIdx) (args : Array EIdx) (i : Nat) :
     ⦃fun s => ⌜Inv k p s⌝⦄ mkAppNFrom f args i ⦃⇓? _r s => ⌜Inv k p s⌝⦄ := by
   fun_induction mkAppNFrom f args i
   all_goals keeps_step mkAppNFrom

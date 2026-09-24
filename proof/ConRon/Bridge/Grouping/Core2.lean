@@ -6,7 +6,9 @@ set_option mvcgen.warning false
 
 open ConRon.Arena Std.Do
 
-@[spec] theorem iotaCertsAux_keeps (k : EStore) (p : Pins) {r : CoreFnsA} {fe depth lic h acc args i}
+#erase_foreign_specs
+
+@[scoped spec] theorem iotaCertsAux_keeps (k : EStore) (p : Pins) {r : CoreFnsA} {fe depth lic h acc args i}
     (hr : FnsKeep r) :
     ⦃fun s => ⌜Inv k p s⌝⦄ iotaCertsAux r fe depth lic h acc args i ⦃⇓? _r s => ⌜Inv k p s⌝⦄ := by
   fun_induction iotaCertsAux r fe depth lic h acc args i
@@ -14,7 +16,7 @@ open ConRon.Arena Std.Do
 
 #keeps iotaCerts
 #keeps_ind piResidual 1
-@[spec] theorem defEqList_keeps (k : EStore) (p : Pins) {r : CoreFnsA} {fe depth}
+@[scoped spec] theorem defEqList_keeps (k : EStore) (p : Pins) {r : CoreFnsA} {fe depth}
     (as bs : List EIdx) (hr : FnsKeep r) :
     ⦃fun s => ⌜Inv k p s⌝⦄ defEqList r fe depth as bs ⦃⇓? _r s => ⌜Inv k p s⌝⦄ := by
   induction as generalizing bs <;> cases bs <;> keeps_step defEqList
@@ -34,7 +36,7 @@ set_option maxHeartbeats 2000000 in
 #keeps_ind andRescueSlotsGo 5
 #keeps andRescueSlots fabScopeOk
 
-@[spec] theorem majorToCtor_keeps (k : EStore) (p : Pins) {mode r fe depth rn major}
+@[scoped spec] theorem majorToCtor_keeps (k : EStore) (p : Pins) {mode r fe depth rn major}
     (rules : List IRecRule) (hr : FnsKeep r) :
     ⦃fun s => ⌜Inv k p s⌝⦄ majorToCtor mode r fe depth rn rules major ⦃⇓? _r s => ⌜Inv k p s⌝⦄ := by
   rcases rules with _ | ⟨rl, _ | ⟨rl2, rest⟩⟩ <;> keeps_step majorToCtor

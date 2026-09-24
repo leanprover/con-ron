@@ -6,6 +6,8 @@ set_option mvcgen.warning false
 
 open ConRon.Arena Std.Do
 
+#erase_foreign_specs
+
 #keeps_ind allLevelParamsDefinedGo 2
 #keeps allLevelParamsDefined
 #keeps_ind constsResolveFGo 2

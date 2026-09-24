@@ -6,6 +6,8 @@ set_option mvcgen.warning false
 
 open ConRon.Arena Std.Do
 
+#erase_foreign_specs
+
 #keeps boolTrueShortcut defeqSpine defeqNoFvars defeqPeelDone defeqPeelLeaf
 /-- con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep — one level of
 `defeqPeel` over a continuation, verbatim (`Bridge/Core/Arms/DefeqPeel.lean`'s
@@ -53,7 +55,7 @@ theorem defeqPeel_zero_eqG (mode : ConLeche.CheckMode) (r : CoreFnsA) (d : Nat)
   delta defeqPeel peelStepG
   exact rfl
 
-@[spec] theorem peelStepG_keeps (k : EStore) (p : Pins) {mode r d peel}
+@[scoped spec] theorem peelStepG_keeps (k : EStore) (p : Pins) {mode r d peel}
     {cont : EIdx → EIdx → Nat → Array EIdx → Bool → Bool → AM Bool}
     {a b kk fvs mism mismLam} (hr : FnsKeep r)
     (hc : ∀ a b kk fvs mism mismLam,
@@ -62,7 +64,7 @@ theorem defeqPeel_zero_eqG (mode : ConLeche.CheckMode) (r : CoreFnsA) (d : Nat)
     ⦃⇓? _r s => ⌜Inv k p s⌝⦄ := by
   keeps_step peelStepG
 
-@[spec] theorem defeqPeel_keeps (k : EStore) (p : Pins) {mode r d} (peel : Nat)
+@[scoped spec] theorem defeqPeel_keeps (k : EStore) (p : Pins) {mode r d} (peel : Nat)
     {a b kk fvs mism mismLam} (hr : FnsKeep r) :
     ⦃fun s => ⌜Inv k p s⌝⦄ defeqPeel mode r d peel a b kk fvs mism mismLam
     ⦃⇓? _r s => ⌜Inv k p s⌝⦄ := by

@@ -117,39 +117,39 @@ open ConRon.Arena
 
 /-! Simp forms of the frame lemmas. -/
 
-@[simp] theorem allOn_internName {st : EStore} {v} (h : AllOn st) :
+@[scoped simp] theorem allOn_internName {st : EStore} {v} (h : AllOn st) :
     AllOn (st.internName v).1 := (internName_frame st v h).1
-@[simp] theorem en_internName {st : EStore} {v} (h : AllOn st) :
+@[scoped simp] theorem en_internName {st : EStore} {v} (h : AllOn st) :
     (st.internName v).1.enableScratch = st.enableScratch := (internName_frame st v h).2
-@[simp] theorem allOn_internLevel {st : EStore} {v} (h : AllOn st) :
+@[scoped simp] theorem allOn_internLevel {st : EStore} {v} (h : AllOn st) :
     AllOn (st.internLevel v).1 := (internLevel_frame st v h).1
-@[simp] theorem en_internLevel {st : EStore} {v} (h : AllOn st) :
+@[scoped simp] theorem en_internLevel {st : EStore} {v} (h : AllOn st) :
     (st.internLevel v).1.enableScratch = st.enableScratch := (internLevel_frame st v h).2
-@[simp] theorem allOn_internLevels {st : EStore} {v} (h : AllOn st) :
+@[scoped simp] theorem allOn_internLevels {st : EStore} {v} (h : AllOn st) :
     AllOn (st.internLevels v).1 := (internLevels_frame st v h).1
-@[simp] theorem en_internLevels {st : EStore} {v} (h : AllOn st) :
+@[scoped simp] theorem en_internLevels {st : EStore} {v} (h : AllOn st) :
     (st.internLevels v).1.enableScratch = st.enableScratch := (internLevels_frame st v h).2
-@[simp] theorem allOn_internBM {st : EStore} {m} (h : AllOn st) :
+@[scoped simp] theorem allOn_internBM {st : EStore} {m} (h : AllOn st) :
     AllOn (st.internBM m).1 := (internBM_frame st m h).1
-@[simp] theorem en_internBM {st : EStore} {m} (h : AllOn st) :
+@[scoped simp] theorem en_internBM {st : EStore} {m} (h : AllOn st) :
     (st.internBM m).1.enableScratch = st.enableScratch := (internBM_frame st m h).2
-@[simp] theorem allOn_intern {st : EStore} {v} (h : AllOn st) :
+@[scoped simp] theorem allOn_intern {st : EStore} {v} (h : AllOn st) :
     AllOn (st.intern v).1 := (intern_frame st v h).1
-@[simp] theorem en_intern {st : EStore} {v} (h : AllOn st) :
+@[scoped simp] theorem en_intern {st : EStore} {v} (h : AllOn st) :
     (st.intern v).1.enableScratch = st.enableScratch := (intern_frame st v h).2
-@[simp] theorem allOn_internBindI {st : EStore} {tag ty b mi} (h : AllOn st) :
+@[scoped simp] theorem allOn_internBindI {st : EStore} {tag ty b mi} (h : AllOn st) :
     AllOn (st.internBindI tag ty b mi).1 := (internBindI_frame st tag ty b mi h).1
-@[simp] theorem en_internBindI {st : EStore} {tag ty b mi} (h : AllOn st) :
+@[scoped simp] theorem en_internBindI {st : EStore} {tag ty b mi} (h : AllOn st) :
     (st.internBindI tag ty b mi).1.enableScratch = st.enableScratch :=
   (internBindI_frame st tag ty b mi h).2
-@[simp] theorem allOn_internLamI {st : EStore} {ty b mi} (h : AllOn st) :
+@[scoped simp] theorem allOn_internLamI {st : EStore} {ty b mi} (h : AllOn st) :
     AllOn (st.internLamI ty b mi).1 := (internBindI_frame st _ ty b mi h).1
-@[simp] theorem en_internLamI {st : EStore} {ty b mi} (h : AllOn st) :
+@[scoped simp] theorem en_internLamI {st : EStore} {ty b mi} (h : AllOn st) :
     (st.internLamI ty b mi).1.enableScratch = st.enableScratch :=
   (internBindI_frame st _ ty b mi h).2
-@[simp] theorem allOn_internForallEI {st : EStore} {ty b mi} (h : AllOn st) :
+@[scoped simp] theorem allOn_internForallEI {st : EStore} {ty b mi} (h : AllOn st) :
     AllOn (st.internForallEI ty b mi).1 := (internBindI_frame st _ ty b mi h).1
-@[simp] theorem en_internForallEI {st : EStore} {ty b mi} (h : AllOn st) :
+@[scoped simp] theorem en_internForallEI {st : EStore} {ty b mi} (h : AllOn st) :
     (st.internForallEI ty b mi).1.enableScratch = st.enableScratch :=
   (internBindI_frame st _ ty b mi h).2
 

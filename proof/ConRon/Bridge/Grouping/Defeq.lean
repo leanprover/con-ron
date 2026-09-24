@@ -15,6 +15,8 @@ set_option autoImplicit false
 
 open ConRon.Arena Std.Do
 
+#erase_foreign_specs
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1579-1701 defeqStep — the congruence
 half of the twin's `defeqStep`, verbatim (`Bridge/Core/Arms/Defeq.lean`'s
 `dqCongrA`). -/
@@ -199,21 +201,21 @@ theorem defeqStep_eq_tail (mode : ConLeche.CheckMode) (r : CoreFnsA) (fe : IFEnv
       | some b₂ => k true a' b₂
       | none => dqTailG mode r fe depth k a' b') := rfl
 
-@[spec] theorem dqTailG_keeps (k : EStore) (p : Pins) {mode r fe depth}
+@[scoped spec] theorem dqTailG_keeps (k : EStore) (p : Pins) {mode r fe depth}
     {kk : Bool → EIdx → EIdx → AM Bool} {a b} (hr : FnsKeep r)
     (hk : ∀ pi a b, ⦃fun s => ⌜Inv k p s⌝⦄ kk pi a b ⦃⇓? _r s => ⌜Inv k p s⌝⦄) :
     ⦃fun s => ⌜Inv k p s⌝⦄ dqTailG mode r fe depth kk a b ⦃⇓? _r s => ⌜Inv k p s⌝⦄ := by
   keeps_step dqTailG
 
 set_option maxHeartbeats 4000000 in
-@[spec] theorem defeqStep_keeps (k : EStore) (p : Pins) {mode r fe depth}
+@[scoped spec] theorem defeqStep_keeps (k : EStore) (p : Pins) {mode r fe depth}
     {kk : Bool → EIdx → EIdx → AM Bool} {pi a b} (hr : FnsKeep r)
     (hk : ∀ pi a b, ⦃fun s => ⌜Inv k p s⌝⦄ kk pi a b ⦃⇓? _r s => ⌜Inv k p s⌝⦄) :
     ⦃fun s => ⌜Inv k p s⌝⦄ defeqStep mode r fe depth kk pi a b ⦃⇓? _r s => ⌜Inv k p s⌝⦄ := by
   rw [defeqStep_eq_tail]
   keeps_step
 
-@[spec] theorem defeqLoop_keeps (k : EStore) (p : Pins) {mode r fe depth}
+@[scoped spec] theorem defeqLoop_keeps (k : EStore) (p : Pins) {mode r fe depth}
     (n : Nat) (pi : Bool) (a b : EIdx) (hr : FnsKeep r) :
     ⦃fun s => ⌜Inv k p s⌝⦄ defeqLoop mode r fe depth n pi a b ⦃⇓? _r s => ⌜Inv k p s⌝⦄ := by
   induction n generalizing pi a b with

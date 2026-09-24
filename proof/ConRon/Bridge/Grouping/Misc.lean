@@ -6,6 +6,8 @@ set_option mvcgen.warning false
 
 open ConRon.Arena Std.Do
 
+#erase_foreign_specs
+
 #keeps pinAt
 #keeps pinReserved pinEmptyLevels pinZeroLevel pinSortOne pinEq pinPUnit pinPUnitRec pinNat pinNatZero pinNatSucc pinQuotSound pinString pinStringOfList pinList pinListNil pinListCons pinChar pinAnd pinCharOfNat pinSorryAx pinNatPred pinNatAdd pinNatSub pinNatMul pinNatPow pinNatBeq pinNatBle pinNatDiv pinNatMod pinNatGcd pinNatLand pinNatLor pinNatXor pinNatShiftLeft pinNatShiftRight pinBool pinBoolTrue pinBoolFalse pinPropext pinChoice pinIff pinIffIntro pinIffRec pinNonempty pinNonemptyIntro pinNonemptyRec pinTrue pinTrueIntro pinTrustCompiler pinReduceNat pinReduceBool pinOfReduceNat pinOfReduceBool 
 
