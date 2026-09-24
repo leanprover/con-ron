@@ -1,4 +1,5 @@
 import ConRon.Bridge.Grouping.Checker
+import ConRon.Arena.Pooled
 
 /-!
 # `ConRon.Bridge.Checker.Grouping` — phase B does not care how records are grouped
@@ -273,5 +274,28 @@ theorem checkPendingWorker_grouping {mode : ConLeche.CheckMode} {fe : IFEnv}
       ∃ s', checkPendingWorker mode fe pend s = .ok (.ok (), s') := by
   rw [checkPendingWorker_accepts_iff, ← checkPendingList_accepts_iff pend s.worker
     (AState.worker_caches s), checkPendingList_grouping (AState.worker_caches s) hcover]
+
+/-- **The pooled twin accept IS the sequential twin run**: whatever grouping
+the pool used, `PooledAccepts` (the twin of the Rust's `PoolAccepts`) gives
+the one-worker driver fold `installThenCheckPhased` accepting, with the same
+environment and the same final state. -/
+theorem installThenCheckPhased_of_pooled {mode : ConLeche.CheckMode}
+    {pins : List INatOpPinSet} {ds : Array IDeclaration} {s s' : AState} {fe : IFEnv}
+    (h : PooledAccepts mode pins ds s fe s') :
+    installThenCheckPhased mode pins ds s = .ok (.ok fe, s') := by
+  obtain ⟨n, pend, parts, hA, hcov, hsub, hacc⟩ := h
+  have hcover : ∀ pc, pc ∈ pend.toList ↔ ∃ w ∈ parts, pc ∈ w := fun pc =>
+    ⟨hcov pc, fun ⟨w, hw, hpc⟩ => hsub w hw pc hpc⟩
+  obtain ⟨s₃, hW⟩ := (checkPendingWorker_grouping (mode := mode) (fe := fe) (s := s')
+    hcover).1 hacc
+  have hs₃ : s₃ = s' := by
+    simp only [checkPendingWorker] at hW
+    split at hW
+    · simp only [Except.ok.injEq, Prod.mk.injEq] at hW
+      exact hW.2.symm
+    · exact nomatch hW
+  subst hs₃
+  simp only [installThenCheckPhased, bind, StateT.bind, hA, Except.bind, hW, pure,
+    StateT.pure, Except.pure]
 
 end ConRon.Bridge.Grouping
