@@ -61990,3 +61990,75 @@ dead weight 218; the Capstone roots 23 items / 281 tainted / dead weight 198
 
 Gates on `a7531cb7` (arena `5e671407` merged): **all 16 OK** (`extract-check`
 85 s); `lake build ConRonRefine2 ConRonCapstone` green.
+
+### Task #97-T2-LOCKSTEP lane Checker Base/Top round 2 — the push seam replaced by its premise; the basis install, `mentions_const`, `check_proj_shape` closed (2026-09-24, Opus under Fable)
+
+Worktree `_tmp/wt-t2-chk-base4`, branch `t2-chk-base-4` off `arena`
+`b9b64d90`.  Lane: `Refine2/Checker/{Base,Top,Leaves}.lean`.  No Rust change,
+no twin change, no new Theorem-2 invariant.
+
+#### Slice 1
+
+**`ifenvRel_envWF_push` deleted** (`AbsState.lean`; it claimed
+`IConstantInfoWF` for an arbitrary constant, which is false).  Its one consumer
+`ifenv_push_refines` (`Checker/Shape.lean`) takes the pushed constant's
+`hwf : IConstantInfoWF ci` instead, and so does the `@[lockstep]`
+`ifenv_push_spec` (`Base`).  Every push site discharges it from how the Rust
+built the constant — a representation fact about Rust data, carried from its
+source:
+* **not an inductive**: `True` by constructor.  `Base` registers
+  `IConstantInfoWF_{axiomInfo,defnInfo,thmInfo,ctorInfo,recInfo,projInfo}` (`= True`)
+  and `IConstantInfoWF_indInfo` (`= PropWhenWF caps.sort_z`) as `lockstep_simp`,
+  so the side tier closes the premise at every `lockstep` site; the hand site
+  `cons_sum_ctors_refines` (`Inductives/SumInstall.lean`) passes `trivial` (its
+  census drops `sorryAx`).
+* **the basis's constants** (`install_basis_decl(s)_refines`, `DeclCheck`,
+  now taking `∀ c ∈ decls, IConstantInfoWF c`): Rust-only lemmas in `Base` —
+  `intern_caps_sort_z` (`intern_caps` copies `sort_z` by `prop_when::dup`),
+  `intern_ci_go_wf`, `intern_ci_list_go_wf`/`intern_ci_list_wf` (a
+  `ConstantInfoWF` kernel constant interns to an `IConstantInfoWF` one),
+  `basis_kind_decls_a_wf` (from `BasisPins.basis_decls_a_wf`), and
+  `i_constant_info_dup_wf` for the loop's copy.
+* **a modeled block's member** (`check_ind_member(s)_{refines,ls}`,
+  `Inductives/Modeled.lean`, now taking `hcaps : PropWhenWF caps.sort_z`): the
+  caps come from `ind_block_caps` — its statement now answers
+  `SimRel₀ (fun a b => b = absIIndCaps a ∧ PropWhenWF a.sort_z)` (still
+  `sorry`, as before; its proof will read the WF off `pi_result_z`, whose
+  datum is `zeroness_of`'s — `Core/LS/PrimsE`'s `zeroness_of_ls` has it) — or
+  from `i_ind_caps_default`, whose spec (`Inductives/Shape.lean`) now also
+  concludes `PropWhenWF o.sort_z` (proved: `if_all_zero []`).  The member's copy
+  `i_ind_caps_dup` is read through `PC2`'s `o = c` spec (`open Lockstep.PC2 in`
+  on `check_ind_member_refines`; PC1's field-wise spec was picked otherwise).
+* `check_sum_ind_at` (`SumInstall`, `sorry`) pushes `native_caps_at`'s caps:
+  when it is proved, `native_caps_at_ls` needs the same `PropWhenWF` conjunct.
+
+**`check_basis_decl_install`** (`Top`): closed by hand (a pure
+`install_basis_decls` after one state step): `basis_kind_decls_a_refines`,
+then `install_basis_decls_refines` at `basis_kind_decls_a_wf`.
+
+**`mentions_const`** (`Leaves`): proved by fuel induction, each case one
+`lockstep` with `mentions_const_node` unfolded in place (the `leaves_sub_go`
+recipe), plus a three-line `.proj` tail (the port tests `s.eq2(t)` first, the
+twin reads `s == T || b`).  `mc_probe_{refines,twin}` moved down from
+`Inductives/StructParts.lean`; its `mentions_const_{go,node}_{refines,ls}`
+(`sorry`, used by nothing else) were deleted — the proved `mentions_const_go_ls`
+(memo relation `∃ m', LMemoRel a.2 m' ∧ b = (a.1, m')`) replaces them.
+`unresolved_consts_error` is thereby closed.  New handle-level prim in
+`Tactic/Prims.lean`: `hashmap2_insert_eidx_bool_spec` (a raw
+`HashMap2<EIdx,bool>::insert` against the twin memo's `insert`).
+
+**`check_proj_shape`** (`Base`): the old `SimRE` statements (and the residual's,
+whose twin predated D1's tag test) replaced by the `LSR` lockstep read
+`check_proj_shape_ls`, proved by `LSR.of_LS; rw; lockstep` with
+`check_proj_shape_residual` `local lockstep_inline`; `Inductives/Prims.lean`'s
+two `LSR.ofSimRE` wrappers deleted.
+
+**Item 3 (the two memoised guard walks)** waits on the tactic's `LSM`/`LSRM`
+(`t2-tactic-7`, queued).
+
+Frontier (`scripts/frontier.sh ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`): `arena` `b9b64d90` **23 items / 281
+tainted / dead weight 198** → this slice **19 / 270 / 195** (gone:
+`ifenvRel_envWF_push`, `check_basis_decl_install`, `mentions_const`,
+`check_proj_shape`).  This lane's items left: `consts_resolve_f_fast`,
+`all_level_params_defined` (item 3).
