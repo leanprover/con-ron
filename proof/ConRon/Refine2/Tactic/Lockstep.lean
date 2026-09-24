@@ -1408,8 +1408,104 @@ elab "lockstep_side" : tactic => do
       let isIdx := ty.isAppOfArity ``Eq 3 &&
         ((ty.find? fun t => t.isAppOf ``GetElem.getElem || t.isAppOf `ConRon.Arena.lastEidx).isSome)
       unless isIdx do throw e
-      firstTimed "sideX" [← `(tactic| (congr <;> scalar_tac)),
-        ← `(tactic| (simp only [lockstep_simp, *]; congr <;> scalar_tac))]
+      -- a bounded `congr` too: the two indices are machine words of
+      -- different types (`↑a` a `Usize` cast of the `U64` `k`), where a full
+      -- `congr` goes on to `a ≍ k` (task #97-T2-TACTIC round 3, the
+      -- Inductives lane's pair reads after a cast)
+      let bounded := [← `(tactic| (congr 1 <;> first | rfl | scalar_tac)),
+        ← `(tactic| (congr 2 <;> first | rfl | scalar_tac)),
+        ← `(tactic| (congr 3 <;> first | rfl | scalar_tac)),
+        ← `(tactic| (congr 4 <;> first | rfl | scalar_tac))]
+      firstTimed "sideX" ([← `(tactic| (congr <;> scalar_tac)),
+        ← `(tactic| (simp only [lockstep_simp, *]; congr <;> scalar_tac))] ++ bounded)
+
+/-- The Boolean spellings of one test, normalised to a proposition: `==` and
+`!=` (`beq_iff_eq`), `decide p = true`, `b = false` for `¬ b = true`. -/
+def testNormLemmas : List Name :=
+  [``beq_iff_eq, ``bne_iff_ne, ``decide_eq_true_eq, ``decide_eq_false_iff_not,
+   ``beq_eq_false_iff_ne, ``Bool.not_eq_true, ``Bool.not_eq_false, ``Bool.and_eq_true,
+   ``Bool.or_eq_true, ``Bool.not_eq_true', ``Bool.not_eq_false', ``ne_eq]
+
+/-- Is `t` a Rust test's fact: a Boolean equation, or its negation? -/
+def isTestFact (t : Expr) : Bool :=
+  let t := t.consumeMData
+  let t := if t.isAppOfArity ``Not 1 then t.appArg!.consumeMData else t
+  t.isAppOfArity ``Eq 3 && (t.getArg! 0).isConstOf ``Bool
+
+/-- Normalise the goal and the Rust tests' facts (see `lockstep_side_test`);
+`none` when that closed the goal, else the new goal and the tests' facts. -/
+def normTests (g : MVarId) : MetaM (Option (Array FVarId × MVarId)) := g.withContext do
+  let some ext ← getSimpExtension? `lockstep_simp | throwError "no lockstep_simp"
+  let mut thms ← ext.getTheorems
+  for n in testNormLemmas do
+    thms ← thms.addConst n
+  let ctx ← Simp.mkContext (simpTheorems := #[thms]) (congrTheorems := ← getSimpCongrTheorems)
+  let mut hs : Array FVarId := #[]
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    let t ← instantiateMVars d.type
+    if d.userName.eraseMacroScopes == `hc || isTestFact t then
+      if ← isProp t then hs := hs.push d.fvarId
+  let (r, _) ← simpGoal g ctx (fvarIdsToSimp := hs)
+  return r
+
+/-- **A twin test against the Rust's, up to spelling** (task #97-T2-TACTIC
+round 3, the Inductives lane's `struct_parts_core_at`): the twin states a test
+with `==` where the Rust's spec answers `decide (… = …)` (Core's
+`nidx_vec_beq_ls`), and `lockstep_simp` has unfolded an abstraction in the
+twin (`absNIdxList`) but not in the Rust test's hypothesis.  The goal and the
+Rust tests' facts (`hc`, and every Boolean fact) are put in one normal form —
+`lockstep_simp` and `testNormLemmas` — and the goal is then closed by those
+facts ALONE, as rewrite rules: the rest of the context is not consulted, so
+the cost is the tests' (a `simp [*]` here once ran out of heartbeats in
+`whnf` on Core's `nat_op_deps`). -/
+elab "lockstep_side_test" : tactic => do
+  let g ← getMainGoal
+  match ← normTests g with
+  | none => replaceMainGoal []
+  | some (hs, g') =>
+    let closed ← g'.withContext do
+      -- a test's fact as it stands (reducibly): before any rewriting, which
+      -- could rewrite the goal away from it
+      let t ← instantiateMVars (← g'.getType)
+      for h in hs do
+        if ← withReducible (isDefEq (← h.getType) t) then
+          g'.assign (mkFVar h)
+          return true
+      let mut thms : SimpTheorems := {}
+      for n in testNormLemmas ++ [``eq_self_iff_true, ``not_true_eq_false,
+          ``not_false_eq_true] do
+        thms ← thms.addConst n
+      for h in hs do
+        thms ← thms.add (.fvar h) #[] (mkFVar h)
+      let ctx ← Simp.mkContext (simpTheorems := #[thms])
+        (congrTheorems := ← getSimpCongrTheorems)
+      let (r, _) ← simpTarget g' ctx
+      pure r.isNone
+    unless closed do throwError "lockstep_side_test: the tests do not decide the goal"
+    replaceMainGoal []
+
+/-- The dear tier's arithmetic on the normalised test (`==` on `Nat` is not
+`scalar_tac`'s). -/
+elab "lockstep_side_test_arith" : tactic => do
+  let g ← getMainGoal
+  let t ← instantiateMVars (← g.getType)
+  let spelled := (t.find? fun e => e.isAppOf ``BEq.beq || e.isAppOf ``bne ||
+    e.isAppOf ``Decidable.decide).isSome
+  unless spelled do throwError "lockstep_side_test_arith: no Boolean spelling"
+  match ← normTests g with
+  | none => replaceMainGoal []
+  | some (_, g') =>
+    -- only an arithmetic test (`=`/`<`/`≤` on `Nat`, or its negation):
+    -- `scalar_tac` on anything else can run out of heartbeats
+    let t ← instantiateMVars (← g'.getType)
+    let t := if t.isAppOfArity ``Not 1 then t.appArg! else t
+    let t ← whnfR t
+    let arith := (t.isAppOfArity ``Eq 3 && (t.getArg! 0).isConstOf ``Nat) ||
+      t.isAppOfArity ``LT.lt 4 || t.isAppOfArity ``LE.le 4
+    unless arith do throwError "lockstep_side_test_arith: not an arithmetic test"
+    replaceMainGoal [g']
+    evalTactic (← `(tactic| scalar_tac))
 
 elab "lockstep_side_cheap" : tactic => do
   clearForallHyps
@@ -1422,8 +1518,8 @@ elab "lockstep_side_dear" : tactic => do
 /-- A twin test the cheap tier could not decide: arithmetic, then the context. -/
 elab "lockstep_side_ite" : tactic => do
   clearForallHyps
-  firstTimed "sideI" [← `(tactic| scalar_tac), ← `(tactic| (simp_all only [lockstep_simp]; done)),
-    ← `(tactic| lockstep_side_ext)]
+  firstTimed "sideI" [← `(tactic| scalar_tac), ← `(tactic| lockstep_side_test_arith),
+    ← `(tactic| (simp_all only [lockstep_simp]; done)), ← `(tactic| lockstep_side_ext)]
 
 elab "lockstep_stats" : tactic => do
   let m ← statsRef.get
@@ -1444,10 +1540,17 @@ elab_rules : tactic
     clearForallHyps
     firstTimed "contra" [← `(tactic| (exfalso; scalar_tac)), ← `(tactic| (exfalso; simp_all))]
 
-/-- The twin-action correspondence `x' = x` a bind rule leaves. -/
+/-- The twin-action correspondence `x' = x` a bind rule leaves.  `rfl` at
+REDUCIBLE transparency first: a default `rfl` between two twin actions that are
+not syntactically equal unfolds the twin's definitions as far as they go —
+~4 s per failing attempt at the Inductives lane's `native_rules_ok_from`
+callees, where `congr 1` then closed the goal in 0.3 s (task #97-T2-TACTIC
+round 3; the same fix as `twin_view_const_name`'s `hg`). -/
 elab "lockstep_congr" : tactic => do
-  firstTimed "congr" [← `(tactic| rfl), ← `(tactic| (congr 1 <;> lockstep_side)),
-    ← `(tactic| (simp only [lockstep_simp] at *; done))]
+  firstTimed "congr" [← `(tactic| with_reducible rfl), ← `(tactic| (congr 1 <;> lockstep_side)),
+    ← `(tactic| (simp only [lockstep_simp] at *; done)),
+    -- the guarded twin equations (`Attr.lean`): here and nowhere else
+    ← `(tactic| (simp only [lockstep_simp, lockstep_congr_simp]; done))]
 
 /-- The twin's error leaf. -/
 syntax "lockstep_errsim" : tactic
@@ -1530,8 +1633,11 @@ def specCore (g : MVarId) (after : TacticM Unit := pure ()) : TacticM Unit := g.
     | .simple ns _ => ns == n.getPrefix && ns != `ConRon.Refine2.Lockstep &&
         (`ConRon.Refine2.Lockstep).isPrefixOf ns
     | _ => false
-  let ls ← lockstepLemmas k
-  let ls := ls.filter isOpen ++ ls.filter (!isOpen ·)
+  -- priority first (`@[lockstep high]`, `Attr.lean`), then an opened region
+  -- namespace, then registration order: a stable sort
+  let ls ← lockstepLemmasPrio k
+  let ls := ls.filter (isOpen ·.1) ++ ls.filter (!isOpen ·.1)
+  let ls := (ls.toList.mergeSort fun a b => a.2 ≥ b.2).map (·.1)
   for n in ls do
     let c ← mkConstWithFreshMVarLevels n
     let same ← forallTelescope (← inferType c) fun _ concl =>
@@ -1571,9 +1677,23 @@ def specCore (g : MVarId) (after : TacticM Unit := pure ()) : TacticM Unit := g.
       -- the caller's check on this candidate's twin action (`x' = x`): a
       -- candidate whose twin action is not the goal's gives way to the next
       after
-      for sg in deferred ++ dataGoals do
+      for sg in deferred do
         if ← sg.isAssigned then continue
         runClosed sg (evalT `(tactic| lockstep_side))
+      -- a DATA argument still open after the check is one the twin action
+      -- does not depend on (the check closed by unfolding it away, e.g. a
+      -- message `unwrapOr` at a constructor ignores): any value will do, and
+      -- it is `default`.  Never the side tiers: a contradictory context lets
+      -- `scalar_tac`/`omega` close a goal of type `String` by an auxiliary
+      -- "theorem" the kernel rejects (task #97-T2-TACTIC round 3, the
+      -- Inductives Install lane)
+      for sg in dataGoals do
+        if ← sg.isAssigned then continue
+        let ty ← instantiateMVars (← sg.getType)
+        let v ← try mkDefault ty catch _ =>
+          throwError "lockstep: the twin-only argument {mkMVar sg} of type {ty} is \
+            not determined by the twin action, and {ty} has no default"
+        sg.assign v
       return
     catch e =>
       errs := errs.push m!"{c}: {e.toMessageData}"
@@ -1590,23 +1710,76 @@ elab "lockstep_spec" : tactic => do
 `let`, `uncurry` at a pair, and a `match` whose discriminants reduce to
 constructors.  This is what `dsimp` would do at the head, without traversing
 the (large) rest of the program. -/
-partial def headNorm (e : Expr) : MetaM Expr := do
+partial def headNorm (e : Expr) (eta : Bool := false) : MetaM Expr := do
   let e := e.headBeta
   if let .letE _ _ v b _ := e then
-    return ← headNorm (b.instantiate1 v)
+    return ← headNorm (b.instantiate1 v) eta
   if e.isAppOfArity ``Aeneas.Std.uncurry 5 then
     let p ← whnfR e.appArg!
     if p.isAppOfArity ``Prod.mk 4 then
-      return ← headNorm (mkApp2 (e.getArg! 3) (p.getArg! 2) (p.getArg! 3))
-  if (← matchMatcherApp? e).isSome then
+      return ← headNorm (mkApp2 (e.getArg! 3) (p.getArg! 2) (p.getArg! 3)) eta
+    -- a pair read `let (e, _) := v[j]` (Aeneas's `uncurry` at a term): by
+    -- structure eta, see the `match` case below
+    let q := e.appArg!
+    if eta && !q.isFVar && !(← overPairVar q) then
+      return ← headNorm (mkApp2 (e.getArg! 3) (← mkProjection q `fst)
+        (← mkProjection q `snd)) eta
+  if let some mapp ← matchMatcherApp? e then
     match ← withTransparency .default (Meta.reduceMatcher? e) with
-    | ReduceMatcherResult.reduced e' => return ← headNorm e'
-    | _ => return e
+    | ReduceMatcherResult.reduced e' => return ← headNorm e' eta
+    | _ =>
+      -- **a pair read** (task #97-T2-TACTIC round 3): the port's `let (e, _)
+      -- := v[j]` is a `match` on a TERM of a structure type, which only
+      -- structure eta reduces.  On the Rust side (`eta`) the discriminant
+      -- is replaced by its eta expansion `(v[j].1, v[j].2)` (definitional,
+      -- the kernel's iota reduction does the same) and the `match` reduced,
+      -- so the pair read is `dup2 v[j].1` and steps as usual.  Not for a
+      -- variable (cased by the step, which names the fields) nor for a term
+      -- over a pair variable (cased on that variable, `coreMove`).
+      unless eta do return e
+      let mut changed := false
+      let mut discrs := mapp.discrs
+      for i in [:discrs.size] do
+        let d ← instantiateMVars discrs[i]!
+        if d.isFVar then continue
+        if (← isCtorApp' d) then continue
+        if ← overPairVar d then continue
+        let dty ← whnfR (← inferType d)
+        let some n := dty.getAppFn.constName? | continue
+        unless isStructure (← getEnv) n do continue
+        let some d' ← etaStruct? d dty n | continue
+        discrs := discrs.set! i d'
+        changed := true
+      unless changed do return e
+      let e' := { mapp with discrs := discrs }.toExpr
+      match ← withTransparency .default (Meta.reduceMatcher? e') with
+      | ReduceMatcherResult.reduced e'' => return ← headNorm e'' eta
+      | _ => return e
   -- a packed memo walk: its Rust program is the argument
   if e.isAppOfArity ``packM 3 || e.isAppOfArity ``packRM 4 then
     let n := e.getAppNumArgs
-    return mkAppN e.getAppFn (e.getAppArgs.set! (n - 1) (← headNorm e.appArg!))
+    return mkAppN e.getAppFn (e.getAppArgs.set! (n - 1) (← headNorm e.appArg! eta))
   return e
+where
+  /-- A term over a pair VARIABLE: the step cases on the variable. -/
+  overPairVar (d : Expr) : MetaM Bool := do
+    let d ← instantiateMVars d
+    (Lean.collectFVars {} d).fvarIds.anyM fun fv => do
+      return (← whnfR (← fv.getType)).isAppOf ``Prod
+  isCtorApp' (d : Expr) : MetaM Bool := do
+    let some n := d.getAppFn.constName? | return false
+    return (← getEnv).isConstructor n
+  /-- `d : T` for a structure-like `T`: the constructor applied to `d`'s
+  projections. -/
+  etaStruct? (d dty : Expr) (n : Name) : MetaM (Option Expr) := do
+    let some (.inductInfo iv) := (← getEnv).find? n | return none
+    let [c] := iv.ctors | return none
+    let some (.ctorInfo cv) := (← getEnv).find? c | return none
+    let params := dty.getAppArgs.extract 0 iv.numParams
+    let mut r := mkAppN (mkConst c dty.getAppFn.constLevels!) params
+    for i in [:cv.numFields] do
+      r := mkApp r (← mkProjection d ((getStructureFields (← getEnv) n)[i]!))
+    return some r
 
 /-- The twin side's `simp only [lockstep_simp]`, on the twin argument alone. -/
 def simpTwin (g : MVarId) : MetaM MVarId := g.withContext do
@@ -1631,13 +1804,13 @@ def simpTwin (g : MVarId) : MetaM MVarId := g.withContext do
 def normGoal (g : MVarId) : MetaM MVarId := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   if ty.isAppOfArity ``LS 7 then
-    let m ← headNorm (ty.getArg! 4)
+    let m ← headNorm (ty.getArg! 4) (eta := true)
     let x ← headNorm (ty.getArg! 6)
     let ty' := mkAppN ty.getAppFn ((ty.getAppArgs.set! 4 m).set! 6 x)
     let g ← g.replaceTargetDefEq ty'
     simpTwin g
   else if ty.isAppOfArity ``LSP 3 then
-    let m ← headNorm (ty.getArg! 1)
+    let m ← headNorm (ty.getArg! 1) (eta := true)
     g.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
   else return g
 
@@ -1771,11 +1944,11 @@ fragment's result re-matched by its caller, a swapped pair `ok (st, Err e)`),
 each link fed by `bind_tc_ok`. -/
 partial def errArmChain (g : MVarId) (depth : Nat := 0) : TacticM Unit := g.withContext do
   let ty ← instantiateMVars (← g.getType)
-  let m ← headNorm (ty.getArg! 1)
+  let m ← headNorm (ty.getArg! 1) (eta := true)
   -- the callee of a bind is head-normalised too (a fragment's `let (r, s) :=
   -- (Err e, s)` and its `match` reduce definitionally)
   let m ← if m.isAppOfArity ``Bind.bind 6 then
-      pure (mkAppN m.getAppFn (m.getAppArgs.set! 4 (← headNorm (m.getArg! 4))))
+      pure (mkAppN m.getAppFn (m.getAppArgs.set! 4 (← headNorm (m.getArg! 4) (eta := true))))
     else pure m
   let g ← g.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
   -- a packed memo walk's error arm
@@ -1868,7 +2041,19 @@ fields, left to right, that is not one (recursively). -/
 partial def caseTarget? (t : Expr) (fvars := false) : MetaM (Option Expr) := do
   let t ← instantiateMVars t
   if t.isLit then return none
-  if t.isFVar then return if fvars then some t else none
+  if t.isFVar then
+    unless fvars do return none
+    -- a variable of a structure type (`LIdx`, `U32`, `BitVec`, `Fin`, a pair):
+    -- `cases` only rebuilds its one constructor, and a pattern selects no
+    -- alternative by it (the matcher reduces through structure eta), so the
+    -- split would descend through the words' representation for nothing
+    -- (task #97-T2-TACTIC round 3, the Inductives Modeled lane's `[lv]`
+    -- pattern: the list's head `LIdx` cased down to `Fin`)
+    let ty ← whnfR (← inferType t)
+    if let some n := ty.getAppFn.constName? then
+      if let some (.inductInfo iv) := (← getEnv).find? n then
+        if iv.ctors.length == 1 && !iv.isRec && iv.numIndices == 0 then return none
+    return some t
   if let .const n _ := t.getAppFn then
     if let some (.ctorInfo ci) := (← getEnv).find? n then
       for f in t.getAppArgs.extract ci.numParams t.getAppNumArgs do
@@ -2058,6 +2243,11 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
       try return ← rustStep g m x
       catch _ => s.restore
     if let some r ← tryIte cheap then return r
+    -- the Rust test's fact up to its spelling (`==`/`decide`, an abstraction
+    -- `lockstep_simp` unfolds): after BOTH polarities failed cheaply, so a
+    -- test the cheap tier decides pays nothing for it (task #97-T2-TACTIC
+    -- round 3)
+    if let some r ← tryIte (← `(tactic| lockstep_side_test)) then return r
     if let some r ← tryIte dear then return r
   if x.isAppOfArity ``Bind.bind 6 then
     let a := (x.getArg! 4).headBeta
@@ -2290,7 +2480,7 @@ def applyWith (g : MVarId) (rule : Name) (side : List Name) (next : Name)
 /-- One Rust-side move of a packed memo walk `packM t` / `packRM st t`. -/
 def packMove (g : MVarId) (m : Expr) : TacticM (List MVarId) := g.withContext do
   let isM := m.isAppOfArity ``packM 3
-  let t ← headNorm m.appArg!
+  let t ← headNorm m.appArg! (eta := true)
   if t.isAppOfArity ``Bind.bind 6 then
     let gs ← applyRule g (if isM then ``LS.packM_bind else ``LS.packRM_bind)
     return ← normAll [← pick gs `h]
@@ -2342,7 +2532,7 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
     if ← isInline n then
       return some (← normAll [← unfoldRust g n])
   if m.isAppOfArity ``Bind.bind 6 then
-    let f ← headNorm (m.getArg! 4)
+    let f ← headNorm (m.getArg! 4) (eta := true)
     let k := m.getArg! 5
     if f != m.getArg! 4 then
       let m' := mkAppN m.getAppFn (m.getAppArgs.set! 4 f)
@@ -2487,7 +2677,8 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
     if x.isAppOfArity ``dite 5 then
       let cheap ← `(tactic| lockstep_side_cheap)
       let dear ← `(tactic| lockstep_side_ite)
-      let sides := if m.isAppOfArity ``Bind.bind 6 then [cheap] else [cheap, dear]
+      let test ← `(tactic| lockstep_side_test)
+      let sides := if m.isAppOfArity ``Bind.bind 6 then [cheap, test] else [cheap, test, dear]
       for side in sides do
         for rule in [``LS.twin_dite_pos, ``LS.twin_dite_neg] do
           let s ← saveState
@@ -2512,7 +2703,23 @@ elab "lockstep_step" : tactic => do
       match ← unfoldDefinition? ty with
       | some ty' => g.replaceTargetDefEq ty'
       | none => pure g
-    else pure g
+    else
+      -- the heads of the goal as it was STATED (every later goal is
+      -- normalised after its step): a Rust `have x := …; do …` at the head
+      -- (task #97-T2-TACTIC round 3, the Inductives lane's
+      -- `native_fields_at`), zeta-reduced here instead of taken for a tail
+      -- call with "no head constant"
+      if let some i := (if ty.isAppOfArity ``LS 7 then some 4
+          else if ty.isAppOfArity ``LSP 3 then some 1 else none) then
+        let m := ty.getArg! i
+        let m' ← headNorm m (eta := true)
+        let ty' := mkAppN ty.getAppFn (ty.getAppArgs.set! i m')
+        let ty' ← if i == 4 then do
+            let x := ty.getArg! 6
+            pure (mkAppN ty'.getAppFn (ty'.getAppArgs.set! 6 (← headNorm x)))
+          else pure ty'
+        if ty' != ty then g.replaceTargetDefEq ty' else pure g
+      else pure g
   let others := (← getGoals).tail
   let s ← saveState
   try
@@ -2534,8 +2741,26 @@ elab "lockstep_step" : tactic => do
       s.restore
       throw e
 
+/-- Normalise the main goal as every step's result is: the heads of both
+programs (`headNorm`) and the twin by `lockstep_simp` and the context's
+`TwinEq` facts.  The goal as the user STATED it was not, so its first step met
+a Rust `have` at the head (task #97-T2-TACTIC round 3, the Inductives lane's
+`native_fields_at`) or a twin `(do …) >>= k` still nested (`bind_assoc` is
+`lockstep_simp`; the Inductives Install lane's `whnf_telescope`, where each
+proof began `simp only [bind_assoc]`). -/
+elab "lockstep_norm" : tactic => do
+  let g ← getMainGoal
+  let others := (← getGoals).tail
+  let g ← g.withContext do
+    let ty ← instantiateMVars (← g.getType)
+    if ty.consumeMData != ty then g.replaceTargetDefEq ty.consumeMData else pure g
+  let ty ← instantiateMVars (← g.getType)
+  unless ty.isAppOfArity ``LS 7 || ty.isAppOfArity ``LSP 3 do return
+  let rest ← normAll [g]
+  setGoals (rest ++ others)
+
 /-- **The lockstep tactic**: step until every goal is closed or stuck. -/
-macro "lockstep" : tactic => `(tactic| repeat' lockstep_step)
+macro "lockstep" : tactic => `(tactic| ((try lockstep_norm); repeat' lockstep_step))
 
 /-- Task #97-P5-Core round 5's name for `lockstep` (the moves it added now live
 in `lockstep` itself); kept so the round's region files read unchanged. -/

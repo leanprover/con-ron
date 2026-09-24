@@ -37,11 +37,20 @@ def judgementRustArg? (e : Expr) : Option Expr :=
 def rustKey? (m : Expr) : Option Name :=
   m.getAppFn.constName?
 
+/-- An entry of the `@[lockstep]` index: a lemma filed under a key with a
+priority, or a lemma erased from its key (`attribute [-lockstep] foo`). -/
+inductive LSEntry where
+  | add (k n : Name) (prio : Nat)
+  | erase (k n : Name)
+  deriving Inhabited
+
 initialize lockstepExt :
-    SimpleScopedEnvExtension (Name × Name) (NameMap (Array Name)) ←
+    SimpleScopedEnvExtension LSEntry (NameMap (Array (Name × Nat))) ←
   registerSimpleScopedEnvExtension {
     initial := {}
-    addEntry := fun m (k, n) => m.insert k ((m.getD k #[]).push n)
+    addEntry := fun m e => match e with
+      | .add k n p => m.insert k (((m.getD k #[]).filter (·.1 != n)).push (n, p))
+      | .erase k n => m.insert k ((m.getD k #[]).filter (·.1 != n))
   }
 
 /-- The key of a lemma, from its statement. -/
@@ -55,18 +64,48 @@ def lemmaKey (ty : Expr) : MetaM Name := do
       | throwError "@[lockstep]: the Rust computation has no head constant:{indentExpr m}"
     return k
 
+/-- **Which lemma for a Rust head is tried first** (task #97-T2-TACTIC round 3,
+the Inductives Modeled lane's `IndModWF`).  Candidates are tried in order and
+the first that closes wins, so with two lemmas for one Rust function the order
+decides.  The order is:
+
+1. local hypotheses (an induction hypothesis, a knot slot);
+2. `@[lockstep]` lemmas by PRIORITY, highest first: `@[lockstep high]`,
+   `@[lockstep 2000]`, `attribute [local lockstep high] foo` (the priority
+   syntax of `@[simp]`; the default is `default` = 1000, `low` = 100);
+3. at equal priority, a lemma of a region namespace the file `open`s
+   (`open …Lockstep.PB`) before the others;
+4. then the order of registration (import order; a re-registration, e.g. a
+   `local` one at another priority, moves the lemma to the end of its key).
+
+`attribute [-lockstep] foo` removes `foo` from its key (for the rest of the
+section or file, like any attribute erasure).  So a lemma that proves MORE
+than an imported one of the same Rust head (its answer with a
+well-formedness conjunct) is registered `@[lockstep high]` where it is
+declared, or `attribute [local lockstep high]` in the one file that needs it. -/
 initialize registerBuiltinAttribute {
   name := `lockstep
-  descr := "a lockstep correspondence lemma, keyed on its Rust callee"
-  add := fun decl _stx kind => do
+  descr := "a lockstep correspondence lemma, keyed on its Rust callee; \
+    `@[lockstep high]` / `@[lockstep <n>]` sets its priority"
+  add := fun decl stx kind => do
     let info ← getConstInfo decl
     let k ← (lemmaKey info.type).run' {} {}
-    lockstepExt.add (k, decl) kind
+    let prio ← getAttrParamOptPrio stx[1]
+    lockstepExt.add (.add k decl prio) kind
+  erase := fun decl => do
+    let info ← getConstInfo decl
+    let k ← (lemmaKey info.type).run' {} {}
+    lockstepExt.add (.erase k decl) .local
 }
 
-/-- The lemmas filed under a key. -/
-def lockstepLemmas (k : Name) : CoreM (Array Name) := do
+/-- The lemmas filed under a key with their priorities, in registration
+order. -/
+def lockstepLemmasPrio (k : Name) : CoreM (Array (Name × Nat)) := do
   return (lockstepExt.getState (← getEnv)).getD k #[]
+
+/-- The lemmas filed under a key, in registration order. -/
+def lockstepLemmas (k : Name) : CoreM (Array Name) := do
+  return (← lockstepLemmasPrio k).map (·.1)
 
 end ConRon.Refine2.Lockstep
 
@@ -82,3 +121,14 @@ register_simp_attr lockstep_inline
 is a whole-node `view` and the port's is a typed projection: each is tried and
 kept only if the port's next step then goes through (task #97-P5-Core round 5). -/
 register_simp_attr lockstep_twin
+
+/-- Twin equations used ONLY to check that a callee spec's twin action is the
+goal's (`lockstep_congr`, the `x' = x` premise of every bind rule), never to
+rewrite the twin program itself (task #97-T2-TACTIC round 3).  The
+accumulator-versus-`List.mapM` equations (`xs.mapM (fun e => f …) = FSpec xs`,
+the Inductives lane's `mapM_structIdxAt_eq`) belong here: a caller's
+`xs.mapM` meets a callee spec stated at `FSpec` (a `…_twin0` companion), while
+a caller whose callee is stated at the `mapM` form keeps it — registered
+`lockstep_simp`, the equation rewrote such a twin away from its callee's
+statement (`struct_minor_ty_r`). -/
+register_simp_attr lockstep_congr_simp

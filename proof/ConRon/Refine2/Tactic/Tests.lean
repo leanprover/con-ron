@@ -25,6 +25,7 @@ a hand tail reappearing in some lane.
 -/
 import ConRon.Refine2.Checker.KnotHyp
 import ConRon.Refine2.Inductives.Prims
+import ConRon.Arena.Inductives.Modeled
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -335,6 +336,272 @@ example {pers : arena.store.PersTier} {n : Nat}
   fail_if_success have := @hih
   have := hfact
   omega
+
+/-! ## 8. Round 3: a Rust `have`, a test up to `==`/`decide`, a pair read
+
+Three limits the Inductives lane (round 5) met and worked around per proof. -/
+
+/-- A Rust `have x := …; do …` at the head of a step (the port's `let i1 :=
+Vec.len x_fvs` in `native_fields_at`'s step case, which the lane closed with a
+`dsimp only` first): zeta-reduced, not taken for a tail call with "no head
+constant". -/
+example {pers st lst} (x_fvs : alloc.vec.Vec arena.handle.EIdx) (i : Std.U64)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a)
+      (have i1 := alloc.vec.Vec.len x_fvs
+       do
+        let i2 ← lift (Std.UScalar.cast .U64 i1)
+        if i >= i2 then ok (.Ok false, st) else ok (.Ok true, st)) lst
+      (if i.val < x_fvs.val.length then pure true else pure false) := by
+  lockstep
+
+/-- A twin `if` stated with `==` against the Rust's list test, whose spec
+(`nidx_vec_beq_ls`, Core) answers `decide (absNIdxList a = absNIdxList b)`;
+`lockstep_simp` also unfolds `absNIdxList` in the twin but not in the Rust
+test's hypothesis.  Both are normalised before the twin test is decided (the
+lane restated `structPartsCoreAtSpec`'s tests in the Core form instead). -/
+example {pers st lst} (a b : alloc.vec.Vec arena.handle.NIdx)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a)
+      (do
+        let r ← arena.core.nidx_vec_beq a b
+        if r then ok (.Ok true, st) else ok (.Ok false, st)) lst
+      (if absNIdxList a == absNIdxList b then pure true else pure false) := by
+  lockstep
+
+/-- The same at the tier that decides it: `lockstep_side_test`, which runs
+before the dear tier (before, only `lockstep_side_ite`'s `simp_all` did, which
+in the lane's `struct_parts_core_at` context ran out of heartbeats and the
+twin `if` was split). -/
+example (a b : alloc.vec.Vec arena.handle.NIdx)
+    (hc : decide (absNIdxList a = absNIdxList b) = true) :
+    (List.map absNIdx a.val == List.map absNIdx b.val) = true := by
+  lockstep_side_test
+
+/-- A count test: the Rust compares machine words, the twin `==` on `Nat`
+(`scalar_tac` after the normalisation, in the dear tier). -/
+example (m_i n_p i : Std.U64) (hP : i.val = n_p.val + 2) (hc : ¬ m_i = i) :
+    ¬ (m_i.val == n_p.val + 2) = true := by
+  lockstep_side_ite
+
+/-- The Rust's pair read `let (e, _) ← v[j]; dup2 e` under an `if` the
+tactic distributes (`rec_ctor_kinds_from`'s `dom`): stepped through, not kept
+as an equation `(let (e, _) := v[j]; dup2 e) = ok a` (the lane's
+`let_pair_dup2_eq` finish). -/
+example {pers st lst} (cbs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (k n : Std.U64) (hk : k.val < cbs.val.length) (hmax : k.val ≤ Std.Usize.max)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdx a)
+      (do
+        let dom ←
+          if k < n then do
+            let i4 ← lift (Std.UScalar.cast .Usize k)
+            let (e, _) ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+              (arena.handle.EIdx × kernel.expr.BinderMeta)) cbs i4
+            arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 e
+          else arena.handle.EIdx.of_word 0#u32
+        ok (.Ok dom, st)) lst
+      (if k.val < n.val then pure (absEIdx (cbs.val[k.val]'hk).1)
+        else pure (absEIdx { word := 0#u32 })) := by
+  lockstep
+
+/-! ## 9. An accumulator-versus-`mapM` equation, registered guarded
+
+The Inductives lane's recipe: a callee stated at a transcription (`FSpec l`,
+its `…_twin0` companion), a caller's twin `l.mapM F`.  The equation
+`l.mapM F = FSpec l` could not be `lockstep_simp` (it rewrote another caller's
+twin away from ITS callee's `mapM` statement), so each caller applied it by
+`simp only` before `lockstep`.  Registered `@[lockstep_congr_simp]`, it is
+used only to match a spec's twin action against the goal's. -/
+
+/-- A transcription of `l.mapM Arena.view` (the stand-in for `structIdxListSpec`). -/
+def viewsSpec : List EIdx → AM (List ENodeView)
+  | [] => pure []
+  | h :: hs => do
+    let v ← Arena.view h
+    let vs ← viewsSpec hs
+    pure (v :: vs)
+
+@[lockstep_congr_simp] theorem mapM_view_eq (l : List EIdx) :
+    l.mapM Arena.view = viewsSpec l := by
+  induction l with
+  | nil => rfl
+  | cons h hs ih => rw [List.mapM_cons, ih, viewsSpec]
+
+/-- The callee (a hypothesis here) is stated at the transcription, the goal's
+twin is the `mapM`: matched through `mapM_view_eq`. -/
+example {pers st lst} {h : arena.handle.EIdx} {l : List EIdx}
+    {R : arena.store.ENodeView → List ENodeView → Prop}
+    (hf : LSR pers R (arena.monad.view pers st h) st lst (viewsSpec l))
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers R
+      (arena.monad.view pers st h >>= fun r => match r with
+        | .Ok v => ok (.Ok v, st)
+        | .Err e => ok (.Err e, st)) lst
+      (l.mapM Arena.view >>= fun vs => pure vs) := by
+  lockstep
+
+/-- A callee stated at the `mapM` form is still matched as it stands: the twin
+program is not rewritten. -/
+example {pers st lst} {h : arena.handle.EIdx} {l : List EIdx}
+    {R : arena.store.ENodeView → List ENodeView → Prop}
+    (hf : LSR pers R (arena.monad.view pers st h) st lst (l.mapM Arena.view))
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers R
+      (arena.monad.view pers st h >>= fun r => match r with
+        | .Ok v => ok (.Ok v, st)
+        | .Err e => ok (.Err e, st)) lst
+      (l.mapM Arena.view >>= fun vs => pure vs) := by
+  lockstep
+
+/-! ## 10. Two lemmas for one Rust head: priority and erasure
+
+The Inductives Modeled lane's `if_all_zero` of the empty list: the Inductives
+tier's `if_all_zero_new_twin` answers the value only, the Modeled lane's copy
+also its well-formedness.  The first registered was always tried first (and,
+an `LSP` spec's predicate being a metavariable, always closed the spec goal),
+so the lane opened a namespace of its own to put its copy in front.  Now the
+copy says so itself: `@[lockstep high]`. -/
+
+/-- The stronger pair (the Modeled lane's `if_all_zero_new_wf_twin`). -/
+@[lockstep high] theorem if_all_zero_new_wf_test :
+    LSP (kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name))
+      (fun pw => TwinEq (ConLeche.PropWhen.ifAllZero []) (ConRon.Refine.absPropWhen pw) ∧
+        ConRon.Refine.PropWhenWF pw) :=
+  fun pw h => ⟨if_all_zero_new_twin pw h,
+    ConRon.Refine.PropWhen.if_all_zero_wf (by intro n hn; simp [alloc.vec.Vec.new] at hn) h⟩
+
+/-- The leaf needs the well-formedness: only the `high` lemma gives it. -/
+example {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => ConRon.Refine.PropWhenWF a ∧ b = ConRon.Refine.absPropWhen a)
+      (do
+        let pw ← kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
+        ok (.Ok pw, st)) lst
+      (pure (ConLeche.PropWhen.ifAllZero [])) := by
+  lockstep
+
+-- `attribute [-lockstep]` erases it again: the value-only lemma is taken, and
+-- the leaf's well-formedness is left over.
+#guard_msgs (drop warning) in
+attribute [-lockstep] if_all_zero_new_wf_test in
+example {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => ConRon.Refine.PropWhenWF a ∧ b = ConRon.Refine.absPropWhen a)
+      (do
+        let pw ← kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
+        ok (.Ok pw, st)) lst
+      (pure (ConLeche.PropWhen.ifAllZero [])) := by
+  lockstep
+  fail_if_success done
+  sorry
+
+/-- And after the erasure's scope, the `high` lemma is back. -/
+example {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => ConRon.Refine.PropWhenWF a ∧ b = ConRon.Refine.absPropWhen a)
+      (do
+        let pw ← kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name)
+        ok (.Ok pw, st)) lst
+      (pure (ConLeche.PropWhen.ifAllZero [])) := by
+  lockstep
+
+/-! ## 11. A twin split stops at the list shape
+
+The Inductives Modeled lane's `eq_app3`: the twin's `match ← viewLs us with
+| [lv] => … | _ => …` against the port's length test.  The twin-`match`
+fallback cased the list, then the head `LIdx` (a structure), then its `U32`,
+`BitVec`, `Fin`: a variable of a structure type is no case target now. -/
+
+open Lean Elab Tactic in
+/-- No goal has a variable of a machine word's representation types. -/
+elab "guard_no_word_split" : tactic => do
+  for g in ← getGoals do
+    g.withContext do
+      for d in ← getLCtx do
+        let t ← instantiateMVars d.type
+        if t.isConstOf ``UInt32 || t.isAppOf ``BitVec || t.isAppOf ``Fin then
+          throwError "a twin split cased a word down to {t}"
+
+#guard_msgs (drop warning) in
+example {pers st lst} {h : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = (Option.map fun q => (absNIdx q.1, absLIdx q.2.1, absEIdx q.2.2.1,
+        absEIdx q.2.2.2.1, absEIdx q.2.2.2.2)) a)
+      (arena.inductives.modeled.eq_app3 pers st h) st lst (eqApp3? (absEIdx h)) := by
+  apply LSR.of_LS
+  rw [arena.inductives.modeled.eq_app3, eqApp3?]
+  lockstep
+  guard_no_word_split
+  all_goals sorry
+
+/-! ## 12. `lockstep_congr` does not unfold first
+
+Its first alternative was a DEFAULT `rfl`, which between two twin actions that
+are not syntactically equal unfolds as far as the definitions go (~4 s per
+failing attempt at the Inductives lane's `native_rules_ok_from` callees, which
+needed `maxHeartbeats 400000`; `congr 1` closed them in 0.3 s).  Here a default
+`rfl` would evaluate a 200-element list; the budget does not allow it. -/
+
+/-- A twin action whose argument is expensive to evaluate. -/
+def slowTwin (l : List Nat) : AM Nat := pure l.length
+
+/-- A long list (the stand-in for an abstracted vector). -/
+def slowList (n : Nat) : List Nat := (List.range n).map (fun i => i * i % 7)
+
+set_option maxHeartbeats 4000 in
+example (a b : Nat) (h : slowList 200 ++ [a] = slowList 200 ++ [b]) :
+    slowTwin (slowList 200 ++ [a]) = slowTwin (slowList 200 ++ [b]) := by
+  lockstep_congr
+
+-- The Inductives Install lane's case of the same limit: a twin knot entry
+-- whose depth the twin spells differently from the port (`absU i4` against
+-- `↑off + (↑k - 1)`); the default `rfl` unfolded the knot (`pureFnsA`) and did
+-- not come back, and the lane made `isDefEqCore`/`inferTypeCore`/`ensureSortCore`
+-- locally irreducible.  (This small instance also passes a default `rfl`; the
+-- example above is the one that tells the two apart.)
+set_option maxHeartbeats 20000 in
+example (mode : ConLeche.CheckMode) (fe : IFEnv) (i4 off k : Std.U64) (e : EIdx)
+    (hi : absU i4 = absU off + (absU k - 1)) :
+    inferTypeCore mode fe checkFuel (absU i4) e =
+      inferTypeCore mode fe checkFuel (absU off + (absU k - 1)) e := by
+  lockstep_congr
+
+/-! ## 13. The goal as stated is normalised: a nested twin `do` block
+
+The Inductives Install lane's `whnf_telescope`: the twin as stated is
+`(do let e' ← whnf …; …) >>= fun q => pure …` once its equation is unfolded.
+Every step's RESULT is normalised (`bind_assoc` is `lockstep_simp`), the stated
+goal was not, so the first bind rule met the nested block; the lane began each
+case with `simp only [bind_assoc]`.  `lockstep` now normalises the goal first
+(`lockstep_norm`). -/
+example {pers st lst} {e : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun r v => absAErrKind r = lAErrKind v)
+      (arena.checker_base.unresolved_consts_error pers st e >>= fun p => ok p) lst
+      ((do let r ← unresolvedConstsError "value" (absEIdx e); pure r) >>= fun q => pure q) := by
+  lockstep
+
+/-! ## 14. A twin-only argument the congruence does not fix
+
+A spec whose twin takes a message the twin action then ignores (the Install
+lane's `unwrapOr` at a constructor, registered `lockstep_simp`): the
+congruence closes without assigning the message.  It went to the side tiers,
+and in a dead branch (a contradictory context) `omega` closed the goal of type
+`String` by an auxiliary "theorem" the kernel rejected ("type of theorem … is
+not a proposition").  Now it is `default`. -/
+
+/-- A twin action that ignores its message (reducibly, so the congruence
+closes by unfolding it). -/
+@[reducible] def msgTwin {α : Type} (_s : String) (x : AM α) : AM α := x
+
+set_option linter.unusedVariables false in
+example {pers st lst} {e : arena.handle.EIdx} (hfalse : False)
+    (hf : ∀ (s : String), LS pers (fun r v => absAErrKind r = lAErrKind v)
+      (arena.checker_base.unresolved_consts_error pers st e) lst
+      (msgTwin s (unresolvedConstsError "value" (absEIdx e))))
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun r v => absAErrKind r = lAErrKind v)
+      (arena.checker_base.unresolved_consts_error pers st e) lst
+      (unresolvedConstsError "value" (absEIdx e)) := by
+  lockstep
 
 /-! ## The axiom census -/
 
