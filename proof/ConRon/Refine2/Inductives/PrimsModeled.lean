@@ -347,12 +347,6 @@ end Lockstep.CapsWFM
 namespace IndModeledPrims
 open Lockstep
 
-/-- `arena::core::nidx_vec_beq` is `==` on the abstracted name lists
-(`Inductives/Shape.lean`'s `nidx_vec_beq_abs`). -/
-@[lockstep] theorem nidx_vec_beq_spec (a b : alloc.vec.Vec arena.handle.NIdx) :
-    LSP (arena.core.nidx_vec_beq a b) (fun o => o = (absNIdxL a == absNIdxL b)) :=
-  fun _ h => nidx_vec_beq_abs h
-
 /-- `arena::env::i_rec_rules_dup` is the identity on the abstraction. -/
 @[lockstep] theorem i_rec_rules_dup_spec (rs : alloc.vec.Vec arena.env.IRecRule) :
     LSP (arena.env.i_rec_rules_dup rs)
@@ -658,11 +652,6 @@ theorem unwrapOr_some {α : Type} (a : α) (e : Arena.CheckError) :
 theorem unwrapOr_none {α : Type} (e : Arena.CheckError) :
     unwrapOr (none : Option α) e = Arena.fail e := rfl
 
-/-- `arena::env::eidx_vec_dup` copies the list (`Dup.lean`'s `eidx_vec_dup_val`). -/
-@[lockstep] theorem eidx_vec_dup_spec (es : alloc.vec.Vec arena.handle.EIdx) :
-    LSP (arena.env.eidx_vec_dup es) (fun r => r.val = es.val) :=
-  fun _ h => eidx_vec_dup_val h
-
 /-- `arena::core::append_eidx` is list append. -/
 theorem append_eidx_val {xs ys r : alloc.vec.Vec arena.handle.EIdx}
     (h : arena.core.append_eidx xs ys = ok r) : r.val = xs.val ++ ys.val := by
@@ -869,6 +858,122 @@ theorem decide_u64_eq_zero (x : Std.U64) : decide (x = 0#u64) = (x.val == 0) := 
   · have : x.val ≠ 0 := fun hc => h (by scalar_tac)
     simp [h, this]
 
+theorem absBinderL_get?_lt {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {n : Nat} (h : n < bs.val.length) :
+    (absBinderL bs)[n]? = some (absEIdx bs.val[n].1, ConRon.Refine.absBinderMeta bs.val[n].2) := by
+  simp [absBinderL, List.getElem?_eq_getElem h]
+
+theorem absBinderL_get?_ge {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {n : Nat} (h : bs.val.length ≤ n) : (absBinderL bs)[n]? = none := by
+  simp [absBinderL, List.getElem?_eq_none h]
+
+/-- The twin's `domsMatchAux` test at offset `j`, on the lists. -/
+def domsAt (l1 l2 : List (EIdx × ConLeche.BinderMeta)) (o1 o2 j : Nat) : Bool :=
+  match l1[o1 + j]?, l2[o2 + j]? with
+  | some b₁, some b₂ => b₁.1 == b₂.1
+  | _, _ => false
+
+theorem doms_match_aux_from_eq
+    {bs1 bs2 : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)} {o1 o2 n : Std.U64} :
+    ∀ k (i : Std.U64) (o : Bool), n.val - i.val = k →
+      arena.checker_base.doms_match_aux_from bs1 bs2 o1 o2 n i = ok o →
+      o = (List.range k).all
+        (fun j => domsAt (absBinderL bs1) (absBinderL bs2) o1.val o2.val (i.val + j)) := by
+  intro k
+  induction k with
+  | zero =>
+    intro i o hk h
+    rw [arena.checker_base.doms_match_aux_from.eq_def] at h; simp only [] at h
+    rw [if_pos (by scalar_tac)] at h
+    rw [← Result.ok_injective h]; rfl
+  | succ k ih =>
+    intro i o hk h
+    rw [arena.checker_base.doms_match_aux_from.eq_def] at h; simp only [] at h
+    rw [if_neg (by scalar_tac)] at h
+    obtain ⟨j1, hj1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨j2, hj2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hj1v := ConRon.Refine.Nat.uadd_val hj1
+    have hj2v := ConRon.Refine.Nat.uadd_val hj2
+    obtain ⟨c1, hc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hc1v := Lockstep.lift_cast_u64_of_usize _ _ hc1
+    rw [List.range_succ_eq_map, List.all_cons]
+    have hl1 : (absBinderL bs1).length = bs1.val.length := by simp [absBinderL]
+    have hl2 : (absBinderL bs2).length = bs2.val.length := by simp [absBinderL]
+    split at h
+    · rename_i hge
+      rw [← Result.ok_injective h]
+      have : (absBinderL bs1)[o1.val + i.val]? = none :=
+        List.getElem?_eq_none (by simp at hc1v; scalar_tac)
+      simp only [domsAt, Nat.add_zero, this]; simp
+    · rename_i hlt1
+      obtain ⟨c2, hc2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hc2v := Lockstep.lift_cast_u64_of_usize _ _ hc2
+      split at h
+      · rename_i hge
+        rw [← Result.ok_injective h]
+        have : (absBinderL bs2)[o2.val + i.val]? = none :=
+          List.getElem?_eq_none (by simp at hc2v; scalar_tac)
+        simp only [domsAt, Nat.add_zero, this]; simp
+      · rename_i hlt2
+        obtain ⟨i5, hi5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi5v := Lockstep.lift_cast_usize_of_u64 _ _ hi5
+        obtain ⟨⟨e, m⟩, hp1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨i6, hi6, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi6v := Lockstep.lift_cast_usize_of_u64 _ _ hi6
+        obtain ⟨⟨e1, m1⟩, hp2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hbv := eidx_eq2_abs hb
+        have hq1 := vec_index_some hp1
+        have hq2 := vec_index_some hp2
+        have hmax1 : bs1.val.length ≤ Std.Usize.max := by scalar_tac
+        have hmax2 : bs2.val.length ≤ Std.Usize.max := by scalar_tac
+        have hi5e : i5.val = o1.val + i.val := by
+          simp at hc1v; rcases hi5v with hv | hv <;> scalar_tac
+        have hi6e : i6.val = o2.val + i.val := by
+          simp at hc2v; rcases hi6v with hv | hv <;> scalar_tac
+        have hd1 : (absBinderL bs1)[o1.val + i.val]? =
+            some (absEIdx e, ConRon.Refine.absBinderMeta m) := by
+          rw [← hi5e]; simp [absBinderL, hq1]
+        have hd2 : (absBinderL bs2)[o2.val + i.val]? =
+            some (absEIdx e1, ConRon.Refine.absBinderMeta m1) := by
+          rw [← hi6e]; simp [absBinderL, hq2]
+        have hat : domsAt (absBinderL bs1) (absBinderL bs2) o1.val o2.val (i.val + 0) = b := by
+          rw [domsAt, Nat.add_zero, hd1, hd2, hbv]
+        rw [hat]
+        cases b with
+        | false =>
+          simp only [Bool.false_eq_true, if_false] at h
+          rw [← Result.ok_injective h]; rfl
+        | true =>
+          simp only [if_true] at h
+          obtain ⟨i7, hi7, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+          have hi7v := ConRon.Refine.Nat.uadd_val hi7
+          rw [ih i7 o (by scalar_tac) h, List.all_map]
+          simp only [Bool.true_and]
+          congr 1
+          funext j
+          simp only [Function.comp, hi7v]
+          congr 1
+          scalar_tac
+
+/-- `checker_base::doms_match_aux` against the twin's `domsMatchAux` on the
+abstracted binder lists (a pure test). -/
+@[lockstep] theorem doms_match_aux_ls
+    (bs1 bs2 : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (o1 o2 n : Std.U64) :
+    LSP (arena.checker_base.doms_match_aux bs1 bs2 o1 o2 n)
+      (fun o => o = domsMatchAux (absBinderL bs1).toArray (absBinderL bs2).toArray
+        o1.val o2.val n.val) := by
+  intro o h
+  rw [arena.checker_base.doms_match_aux] at h
+  rw [doms_match_aux_from_eq _ 0#u64 o rfl h, domsMatchAux]
+  congr 1
+  funext j
+  unfold domsAt
+  simp only [List.getElem?_toArray, show (0#u64 : Std.U64).val = 0 from rfl, Nat.zero_add]
+  generalize (absBinderL bs1)[o1.val + j]? = a
+  generalize (absBinderL bs2)[o2.val + j]? = b
+  cases a <;> cases b <;> rfl
+
 /-- `ifenv_dup` in `LSP` form: the copy stands for the same twin environment. -/
 @[lockstep] theorem ifenv_dup_spec {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
     LSP (arena.env.ifenv_dup rf) (fun a => IFEnvRelI a lf) :=
@@ -929,6 +1034,74 @@ macro_rules
 
 
 
+/-- The port's `sbinders[a].0 == x`, the pair destructured in a `let` the zip
+leaves as an equation: the comparison of the abstracted handles. -/
+theorem IndModeledPrims.pair_let_eq2
+    {sb : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {a : Nat} {hw : a < sb.val.length} {x : arena.handle.EIdx} {b : Bool}
+    (hf : (let (e, _) := sb.val[a]'hw
+      arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 e x) = ok b) :
+    b = (absEIdx (sb.val[a]'hw).1 == absEIdx x) :=
+  eidx_eq2_abs hf
+
+open Lean Meta Elab Tactic in
+/-- `pair_let_eq2` at every such equation of the context. -/
+elab "ind_eq2_facts" : tactic => withMainContext do
+  let decls := (← getLCtx).decls.toList.filterMap id |>.filter (!·.isImplementationDetail)
+  let mut g ← getMainGoal
+  for d in decls do
+    let t ← instantiateMVars d.type
+    unless t.isAppOfArity ``Eq 3 &&
+        t.containsConst (· == ``arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2) do continue
+    try
+      let pf ← mkAppM ``IndModeledPrims.pair_let_eq2 #[d.toExpr]
+      let (_, g') ← (← g.assert `heq2 (← inferType pf) pf).intro1P
+      g := g'
+    catch _ => pure ()
+  replaceMainGoal [g]
+
+theorem IndModeledPrims.getElem_idx_eq {α : Type} {l : List α} {i j : Nat}
+    {hi : i < l.length} {hj : j < l.length} (h : i = j) : l[i]'hi = l[j]'hj := by
+  subst h; rfl
+
+open Lean Meta Elab Tactic in
+/-- Two reads of the same list at indices `scalar_tac` proves equal (the
+port's `v[i as usize]` and the twin's `v[j]` at its own spelling of the
+index): rewrite the second into the first, so the two sides mention one term.
+Fails when there is nothing to unify. -/
+elab "ind_idx_unify" : tactic => withMainContext do
+  let t ← instantiateMVars (← getMainTarget)
+  let ref ← IO.mkRef (#[] : Array Expr)
+  t.forEach fun e => do
+    if e.isAppOfArity ``GetElem.getElem 8 && (e.getArg! 0).isAppOfArity ``List 1 &&
+        !e.hasLooseBVars then
+      ref.modify (·.push e)
+  let reads ← ref.get
+  for r1 in reads do
+    for r2 in reads do
+      if r1 == r2 then continue
+      let (l1, i1, h1) := (r1.getArg! 5, r1.getArg! 6, r1.getArg! 7)
+      let (l2, i2, h2) := (r2.getArg! 5, r2.getArg! 6, r2.getArg! 7)
+      unless l1 == l2 do continue
+      if i1 == i2 then continue
+      let m ← mkFreshExprMVar (← mkEq i2 i1)
+      let ok ← try
+          let gs ← Tactic.run m.mvarId! (evalTactic (← `(tactic| scalar_tac)))
+          pure gs.isEmpty
+        catch _ => pure false
+      unless ok do continue
+      let pf ← mkAppOptM ``IndModeledPrims.getElem_idx_eq
+        #[none, some l1, some i2, some i1, some h2, some h1, some (← instantiateMVars m)]
+      let g ← getMainGoal
+      let ok2 ← try
+          let r ← g.rewrite (← g.getType) pf
+          let g' ← g.replaceTargetEq r.eNew r.eqProof
+          replaceMainGoal (g' :: r.mvarIds)
+          pure true
+        catch _ => pure false
+      if ok2 then return
+  throwError "ind_idx_unify: nothing to unify"
+
 /-! ## The axiom census -/
 
 /-- info: 'ConRon.Refine2.IndModeledPrims.proj_model_name_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
@@ -937,43 +1110,14 @@ macro_rules
 /-- info: 'ConRon.Refine2.IndModeledPrims.proj_fn_name_lss' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms IndModeledPrims.proj_fn_name_lss
 
-open Lean Elab Tactic Meta in
-/-- A Rust LEAF (`ok …`) against a twin `match` one of whose discriminants is a
-constructor application (`some (absIConstantInfo v)`, the twin's up-front
-lookups the port makes lazily): split the twin's `match`.  The core's own
-fallback for a twin `match` on a term cases on the first discriminant, which
-for `some v` gives `some v'` back and never terminates, so this runs first. -/
-elab "ind_twin_split" : tactic => do
-  let g ← getMainGoal
-  let ty ← instantiateMVars (← g.getType)
-  unless ty.isAppOfArity ``Lockstep.LS 7 do throwError "ind_twin_split: not LS"
-  let m := (ty.getArg! 4).headBeta
-  unless m.isAppOfArity ``Result.ok 2 do throwError "ind_twin_split: not a Rust leaf"
-  let x := (ty.getArg! 6).headBeta
-  let some mapp ← matchMatcherApp? x | throwError "ind_twin_split: no twin match"
-  unless mapp.discrs.any (fun d => !d.isFVar && d.getAppFn.isConst) do
-    throwError "ind_twin_split: no constructor discriminant"
-  evalTactic (← `(tactic| split))
 
-/-- The modeled route's driver: `lockstep`'s step, with two moves in front of
-and behind it.  In front, `ind_twin_split` (a Rust leaf against a twin `match`
-the port's own match lumped into a wildcard arm).  Behind, a twin `if` the
-core left under a `>>= pure` (its `LS.twin_bind_pure` fallback fires when the
-Rust's next bind finds no partner while the twin is an undecided `if`) is
-decided by the context. -/
-syntax "lockstep_mod" : tactic
-macro_rules | `(tactic| lockstep_mod) => `(tactic| repeat' (first
-  | (ind_twin_split <;> (try (simp_all; done)))
-  | lockstep_step
-  | (rw [bind_pure]
-     first
-       | refine Lockstep.LS.twin_ite_pos ‹_› ?_
-       | refine Lockstep.LS.twin_ite_neg ‹_› ?_
-       | refine Lockstep.LS.twin_ite_pos (by lockstep_side_ite) ?_
-       | refine Lockstep.LS.twin_ite_neg (by lockstep_side_ite) ?_)))
+/-- `lockstep` with `ind_idx_unify` in front: for the cursor walks whose twin
+reads a list at its own spelling of the port's index. -/
+syntax "lockstep_idx" : tactic
+macro_rules | `(tactic| lockstep_idx) => `(tactic| repeat' (first
+  | ind_idx_unify
+  | lockstep_step))
 
-/-- The same driver (kept for the proofs that name it). -/
-macro "lockstep_ite" : tactic => `(tactic| lockstep_mod)
 
 /-! ### The recursor rule's two install bits (`core::rec_rule_bits`) and the
 projection function's rule (`core::proj_fn_rule`) — Core tier functions the
@@ -993,7 +1137,7 @@ attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims
     LS pers (fun a b => b = a) (arena.core.rec_rule_k_of pers vis st rf ctor) lst
       (recRuleKOf lf (absNIdx ctor)) := by
   rw [arena.core.rec_rule_k_of, recRuleKOf]
-  lockstep_mod
+  lockstep
 
 @[lockstep] theorem rec_rule_eta_of_ls {pers st lst} {vis : Std.U64} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1001,7 +1145,7 @@ attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims
     LS pers (fun a b => b = a) (arena.core.rec_rule_eta_of pers vis st rf rn ctor) lst
       (recRuleEtaOf lf (absNIdx rn) (absNIdx ctor)) := by
   rw [arena.core.rec_rule_eta_of, recRuleEtaOf]
-  lockstep_mod
+  lockstep
   -- the level-parameter comparison, in `nidx_vec_beq`'s `decide` form
   all_goals
     refine LS.pure ?_ ‹_› ‹_›
@@ -1015,7 +1159,7 @@ attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims
     LS pers (fun a b => b = absIRecRule a) (arena.core.rec_rule_bits pers vis st rf rn rl) lst
       (recRuleBits lf (absNIdx rn) (absIRecRule rl)) := by
   rw [arena.core.rec_rule_bits, recRuleBits]
-  lockstep_mod
+  lockstep
 
 @[lockstep] theorem proj_fn_rule_ls {pers st lst} {vis : Std.U64} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1026,7 +1170,7 @@ attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims
       (projFnRule lf (absNIdx t) (absNIdx ctor_name) (absEIdx pty) (absU n_p) (absU n_f)
         (absU i) (absEIdx rhs_a)) := by
   rw [arena.core.proj_fn_rule, projFnRule]
-  lockstep_mod
+  lockstep
   -- the rule record the port builds is the twin's literal (its `fire` by the
   -- port's own test of `plain`)
   all_goals
@@ -1034,5 +1178,97 @@ attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims
     simp_all [absIRecRule, absIRecRuleFire]
 
 end RuleBits
+
+/-! ### `prop_when::if_all_zero` of the empty list, with its well-formedness
+
+`ind_block_caps` records `pi_result_z`'s answer as the inductive's `sort_z`,
+which `IFEnvRel.envWF` wants canonical (`PropWhenWF`).  Its proof zips
+`pi_result_z` in place (`lockstep_inline`): the `sort` arm's answer is
+`zeroness_of_ls`'s (with its WF), the other arm's is this pair's.  Filed in its
+own namespace so the one proof that opens it gets it before
+`Inductives/Prims.lean`'s value-only `if_all_zero_new_twin`. -/
+
+namespace Lockstep.IndModWF
+
+@[lockstep] theorem if_all_zero_new_wf_twin :
+    LSP (kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name))
+      (fun pw => TwinEq (ConLeche.PropWhen.ifAllZero []) (ConRon.Refine.absPropWhen pw) ∧
+        ConRon.Refine.PropWhenWF pw) :=
+  fun pw h => ⟨ConRon.Refine2.if_all_zero_new_twin pw h,
+    ConRon.Refine.PropWhen.if_all_zero_wf (by intro n hn; simp [alloc.vec.Vec.new] at hn) h⟩
+
+end Lockstep.IndModWF
+
+
+/-! ### Two pure comparisons the modeled route makes: `all_params_defined_list`
+(a Checker-tier walk over con-leche values) and `canon::eidx_vec_beq` -/
+
+namespace Lockstep
+
+/-- `checker_base::all_params_defined_list` (a pure walk over con-leche
+values) against the twin's `List.all`, at well-formed inputs. -/
+@[lockstep] theorem all_params_defined_list_ls {params : alloc.vec.Vec kernel.name.Name}
+    {ls : alloc.vec.Vec kernel.level.Level} (hp : ConRon.Refine.NamesWF params)
+    (hl : ConRon.Refine.LevelsWF ls) (i : Std.Usize) :
+    LSP (arena.checker_base.all_params_defined_list params ls i)
+      (fun b => b = ((ls.val.drop i.val).map ConRon.Refine.absLevel).all
+        (ConLeche.Level.allParamsDefined (ConRon.Refine.absNames params))) := by
+  suffices ∀ k : Nat, ∀ (i : Std.Usize) (b : Bool), ls.val.length - i.val ≤ k →
+      arena.checker_base.all_params_defined_list params ls i = ok b →
+      b = ((ls.val.drop i.val).map ConRon.Refine.absLevel).all
+        (ConLeche.Level.allParamsDefined (ConRon.Refine.absNames params)) from
+    fun b h => this _ i b le_rfl h
+  intro k
+  induction k with
+  | zero =>
+    intro i b hk h
+    rw [arena.checker_base.all_params_defined_list.eq_def] at h; simp only [] at h
+    rw [if_pos (by scalar_tac), Result.ok.injEq] at h
+    rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]
+    rfl
+  | succ k ih =>
+    intro i b hk h
+    rw [arena.checker_base.all_params_defined_list.eq_def] at h; simp only [] at h
+    by_cases hi : i.val ≥ ls.val.length
+    · rw [if_pos (by scalar_tac), Result.ok.injEq] at h
+      rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]
+      rfl
+    · rw [if_neg (by scalar_tac)] at h
+      have hlt : i.val < ls.val.length := by scalar_tac
+      obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hyv : y = ls.val[i.val] := by
+        have h1 : ls.val[i.val]? = some y := vec_index_some hy
+        rw [List.getElem?_eq_getElem hlt] at h1
+        exact (Option.some.inj h1).symm
+      subst hyv
+      obtain ⟨b0, hb0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hb0' := ConRon.Refine.ExprOps.all_params_defined_refines hp _ (hl _ (List.getElem_mem hlt)) b0 hb0
+      rw [List.drop_eq_getElem_cons hlt, List.map_cons, List.all_cons, ← hb0']
+      cases b0 with
+      | false =>
+        simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+        simp only [Bool.false_and]
+        exact h.symm
+      | true =>
+        simp only [if_true] at h
+        obtain ⟨w, hw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hwv : w.val = i.val + 1 := by
+          have := ConRon.Refine.Nat.uadd_val hw; simpa using this
+        have hrec := ih w b (by scalar_tac) h
+        rw [hwv] at hrec
+        simp only [Bool.true_and]
+        exact hrec
+
+/-- `canon::eidx_vec_beq` from the start: the twin's `==` on the two handle
+lists. -/
+@[lockstep] theorem eidx_vec_beq_ls (a b : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.canon.eidx_vec_beq a b 0#usize)
+      (fun o => o = (a.val.map absEIdx == b.val.map absEIdx)) := by
+  intro o h
+  rw [eidx_vec_beq_refines h]
+  simp [absEIdxLFrom]
+  exact (beq_eq_decide _ _).symm
+
+end Lockstep
 
 end ConRon.Refine2
