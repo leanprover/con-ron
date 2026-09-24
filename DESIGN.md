@@ -63516,3 +63516,75 @@ kept); comment references to OVERVIEW sections were updated in
 `proof/ConRon/Arena/CheckerBase.lean`'s "OVERVIEW §4.5 describe con-ron's
 `or_else_step`" is stale and left alone (a comment edit there re-elaborates
 most of the proof); fold it into the next change to that file.
+
+### Task #97-PRUNE — unused proof code deleted; the `CON_LECHE_*` help sentence corrected (2026-09-24, Opus under Fable)
+
+**What went.**  The import closure was computed mechanically (every
+`import ConRon.*` line, from the roots of every library and executable in
+`proof/lakefile.toml`: `ConRon.Arena`, `ConRon.Bridge{,.+}`,
+`ConRon.Refine2{,.+}`, `ConRon.Capstone`, `ConRon.Tools.+`,
+`ConRon.Generated`, and the exes `Gen.Main`, `Dump.Pins`, `Arena.Exe`,
+`Arena.Bench`; the `ConRon` root itself is an index and was treated as the
+thing to trim, not as a seed).  Outside the closure:
+
+* `proof/ConRon/RefineOld/` — all of it (69 Lean files, 121 133 lines, plus
+  its `README.md`, `AUTOMATION.md`, `CORE_PLAN.md`).  No library built it.
+* `proof/ConRon/Spike/` — the task-#3/#5 `LevelName` spike (7 files, 3 489
+  lines) and its library `ConRonSpike`, dropped from `defaultTargets`.
+* `proof/ConRon/Refine/Scalars.lean` (79 lines) — imported only by the
+  `ConRon` index.  The other 46 `Refine/` modules are all in
+  `ConRon.Capstone`'s own closure, so `Refine/` keeps them.
+* The `Generated/*_Template.lean` files are outside the closure too but are
+  `extract.sh` output, not proof code, and stay.
+
+Lean lines under `proof/ConRon` (excluding `Generated/`; `wc -l`):
+
+| directory | before | after |
+|---|---:|---:|
+| `Arena/` | 40 519 | 40 519 |
+| `Bridge/` | 108 555 | 108 555 |
+| `Dump/` | 662 | 662 |
+| `Gen/` | 615 | 615 |
+| `Refine/` | 54 866 | 54 787 |
+| `Refine2/` | 125 507 | 125 507 |
+| `RefineOld/` | 121 133 | — |
+| `Spike/` | 3 489 | — |
+| `Tools/` | 468 | 468 |
+| top-level files (`ConRon.lean`, `ConRon/*.lean`) | 913 | 904 |
+| **total** | **456 727** | **332 017** (−124 710) |
+
+**References fixed**: `proof/lakefile.toml` (the `ConRonSpike` library and
+its default-target entry; a note in its place), `proof/ConRon.lean` (the
+`Scalars` import, the module note), `proof/ConRon/Refine/README.md`,
+`scripts/frontier.sh` (its `/RefineOld/`/`/Spike/` exclusion is gone with
+the trees), OVERVIEW §11 (the `RefineOld/` row), and
+`crates/con-ron-core/src/kernel/core_types.rs`'s citation of the long-gone
+`Refine/Core/Statements.lean`'s `Out`, now `Refine2/Shape.lean`'s `Sim₀`
+(same line count; the model is unchanged).  **Left alone on purpose**: the
+historical mentions of `RefineOld/…` and `Spike/…` in the notes of
+`Bridge/**`, `Refine2/**`, `Capstone.lean` and `Refine/{Abs,Level,Name}.lean`
+(and `Refine2/{Inv,Specs}.lean`'s two mentions of `Refine/Scalars.lean`) —
+they cite where a proof was ported from, the tree is in git history before
+this commit, and editing them would re-elaborate most of Theorem 1 and 2.
+`scripts/provenance.py`'s `proof/ConRon/Arena/Spike/` exemption is a
+different path, asserted by `provenance-selftest.py`, and stays.
+
+**Scripts**: none removed.  Every script in `scripts/` is either run by
+`gates.sh` (as a gate or as the post-gate reports `progress.py`,
+`arena-census.py`, `frontier.sh`, `loc.py`), called by one that is, or
+documented in CLAUDE.md or OVERVIEW (`bench-baselines.sh`, `corpus.sh`,
+`diff-e2e.sh`, `land.sh`, `submit.sh`, `drop-worktree.sh`,
+`setup-aeneas-lean.sh`).  `progress.py` is the old tower's report and still
+reads `Refine/`; it is kept as a report.
+
+**The `--help` sentence.**  The text after the `CON_LECHE_*` list said no
+environment variable can shape a verdict, which `CON_LECHE_INMODEL=0` (a
+mutual/nested block declines) and `CON_LECHE_INMODEL_CENSUS=1` (stop after
+the parse, exit 2) contradict.  It now says what each does to the verdict —
+decline or stop, never an accept the default would not give — and that the
+theorems cover the default setting only.  Two lines longer, so OVERVIEW's
+three `con-ron.rs` anchors moved by two (`overview-links.sh --update`).
+
+After: all 16 gates green, both capstone roots at `[propext,
+Classical.choice, Quot.sound]` (`Capstone.lean`'s `#guard_msgs`), frontier
+0 items / 0 dead weight.
