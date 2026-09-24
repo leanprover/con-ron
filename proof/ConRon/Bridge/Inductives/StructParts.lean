@@ -579,7 +579,10 @@ theorem structCtorResidOk_spec (T : NIdx) (TP : ConLeche.Name)
   obtain ⟨rfl, rfl⟩ := pureOk h10
   refine ⟨hs1.trans (hs2.trans hs5), ?_⟩
   show _ = ConLeche.structCtorResidOk TP lpsP nP o nIdx cbodyP
-  rw [ConLeche.structCtorResidOk,
+  have hlen : ps.length = nP := by
+    have := denoteEList_len hps
+    simpa [ConLeche.structPsAt] using this.symm
+  rw [hlen, ConLeche.structCtorResidOk,
     beq_ehandle_eq hs5.ok.wf (denote_ext hfn hs5.ext) (denote_ext hhd hs5.ext),
     beq_ehandleList_eq hs5.ok.wf
       (denoteEList_take (denoteEList_ext hs5.ext _ _ hargs) nP) hps,

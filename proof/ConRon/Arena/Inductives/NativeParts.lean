@@ -64,7 +64,7 @@ def recFamOk (T : NIdx) (lps : List NIdx) (nP nIdx o : Nat) (e : EIdx) : AM Bool
   let fn ← getAppFn coreWalkFuel e
   let args ← getAppArgs coreWalkFuel e
   let ps ← structPsAt o nP
-  if !(fn == hd && args.length == nP + nIdx && args.take nP == ps) then pure false
+  if !(fn == hd && args.length == nP + nIdx && args.take ps.length == ps) then pure false
   else (args.drop nP).allM fun a => do pure !(← mentionsConst T a)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:89-111 recPositivity
@@ -81,7 +81,7 @@ def recPositivityAt (T : NIdx) (lps : List NIdx) (nP nIdx o : Nat) (h : EIdx) (k
   let args ← getAppArgs coreWalkFuel h
   if fn == hd then do
     let ps ← structPsAt (o + k) nP
-    if args.length == nP + nIdx && args.take nP == ps then
+    if args.length == nP + nIdx && args.take ps.length == ps then
       if ← recFamOk T lps nP nIdx (o + k) h then
         pure (if k == 0 then .recursive else .reflexive)
       else pure .negative
@@ -138,7 +138,7 @@ def recCtorKinds (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
     let cargs ← getAppArgs coreWalkFuel cbody
     let resOk ← (cargs.drop nP).allM fun a => do pure !(← mentionsConst T a)
     if resOk then pure (some ks)
-    else pure (some (ks.map fun _ => .negative))
+    else pure (some (List.replicate c.2 .negative))
   | none => pure none
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:147-154 Expr.piBinders

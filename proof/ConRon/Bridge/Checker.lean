@@ -24,10 +24,9 @@ In dependency order:
   where their content is, and those three import `Decl.lean`;
 * `Bridge/Checker/Mono.lean` — one fuel for the whole fold, from con-leche's
   `FueledM`;
-* `Bridge/Checker/Fold.lean` — **`Arena.checkDecl_bridge`**,
-  `Arena.checkDeclStep_bridge` and **`Arena.checkDeclsPure_bridge`**;
-* `Bridge/Checker/Capstone.lean` — **`Arena.model_exists`** and the two
-  letters, through `Model/Fold.lean`'s `checkDeclsPure_sound_of`;
+* `Bridge/Checker/Fold.lean` — **`Arena.checkDecl_bridge`** (the sequential
+  fold and its capstone letters were deleted by task #97-T2-CLEANUP; the
+  binary's fold is `Split.lean`'s and `Phased.lean`'s);
 * `Bridge/Checker/Base.lean`, `Canon.lean`, `Basis.lean`, `Pins.lean`,
   `DeclVal.lean` — the specs of `Arena/{CheckerBase,Canon,Basis,StdAxioms,
   TrustAxioms,Pins,NatOpPinSet,Intern,DeclCheck}.lean`;
@@ -46,7 +45,6 @@ import ConRon.Bridge.Checker.Decl
 import ConRon.Bridge.Checker.Arms
 import ConRon.Bridge.Checker.Mono
 import ConRon.Bridge.Checker.Fold
-import ConRon.Bridge.Checker.Capstone
 import ConRon.Bridge.Checker.Base
 import ConRon.Bridge.Checker.Canon
 import ConRon.Bridge.Checker.Basis

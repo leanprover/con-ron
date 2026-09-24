@@ -272,7 +272,7 @@ open Lockstep in
     (hfe : IFEnvRelI rf lf) :
     LS pers (fun a b => b = id a) (arena.checker_base.consts_resolve_f_fast pers vis st rf e) lst
       (constsResolveFFast (lf.restrictTo (absU vis)) (absEIdx e)) :=
-  LS.ofSim₀ fun _ h => consts_resolve_f_fast_refines hrel hinv hfe.rel hfe.inv h
+  ConRon.Refine2.consts_resolve_f_fast_ls hrel hinv hfe
 
 
 open Lockstep in
@@ -284,7 +284,7 @@ open Lockstep in
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = id a) (arena.checker_base.all_level_params_defined pers st lps e) st lst
                    (allLevelParamsDefined (absNIdxL lps) (absEIdx e)) :=
-  LSR.ofSimRE hrel hinv fun _ h => all_level_params_defined_refines hrel hinv h
+  ConRon.Refine2.all_level_params_defined_ls hrel hinv
 
 
 open Lockstep in
@@ -399,17 +399,6 @@ open Lockstep in
   LS.ofSim₀ fun _ h => open_pis_at_fvars_f_refines hrel hinv h
 
 
-open Lockstep in
-@[lockstep] theorem fvar_type_ds_ls
-    {pers st lst}
-    {hs : alloc.vec.Vec arena.handle.EIdx}
-    {i : Std.Usize}
-    {out : alloc.vec.Vec arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absEIdxL a) (arena.checker_base.fvar_type_ds pers st hs i out) st lst
-      (do pure (absEIdxL out ++ (← fvarTypeDs (absEIdxLFrom hs i)))) :=
-  LSR.ofSimRE hrel hinv fun _ h => fvar_type_ds_refines hrel hinv h
 
 
 open Lockstep in
@@ -528,7 +517,7 @@ open Lockstep in
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = (Option.map absLIdx) a) (arena.checker_base.pi_result_sort pers st e) st lst
                                      (piResultSort (absEIdx e)) :=
-  LSR.ofSimRE hrel hinv fun _ h => pi_result_sort_refines hrel hinv h
+  ConRon.Refine2.pi_result_sort_ls hrel hinv
 
 
 
@@ -1714,124 +1703,6 @@ open Lockstep in
     LS pers (fun a b => b = absNIdxL a) (arena.canon.canon_names pers st n) lst
                              (canonNames (absU n)) :=
   LS.ofSim₀ fun _ h => canon_names_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem canon_level_eq_ls
-    {pers st lst}
-    {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx}
-    {fuel : Std.U64}
-    {u v : arena.handle.LIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a) (arena.canon.canon_level_eq pers st ps ps2 cs fuel u v) st lst
-      (canonLevelEq (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
-        (absLIdx u) (absLIdx v)) :=
-  LSR.ofSimRE hrel hinv fun _ h => canon_level_eq_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem canon_level_eq_at_ls
-    {pers st lst}
-    {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx}
-    {fuel : Std.U64}
-    {a b : arena.store.LNodeView}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a) (arena.canon.canon_level_eq_at pers st ps ps2 cs fuel a b) st lst
-      (canonLevelEqAtSpec (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
-        (absLNodeView a) (absLNodeView b)) :=
-  LSR.ofSimRE hrel hinv fun _ h => canon_level_eq_at_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem canon_level_list_eq_ls
-    {pers st lst}
-    {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx}
-    {fuel : Std.U64}
-    {us vs : alloc.vec.Vec arena.handle.LIdx}
-    {i : Std.Usize}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a) (arena.canon.canon_level_list_eq pers st ps ps2 cs fuel us vs i) st lst
-      (canonLevelListEq (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
-        (absLIdxLFrom us i) (absLIdxLFrom vs i)) :=
-  LSR.ofSimRE hrel hinv fun _ h => canon_level_list_eq_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem canon_levels_eq_ls
-    {pers st lst}
-    {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx}
-    {fuel : Std.U64}
-    {us vs : arena.handle.LsIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a) (arena.canon.canon_levels_eq pers st ps ps2 cs fuel us vs) st lst
-      (canonLevelsEq (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
-        (absLsIdx us) (absLsIdx vs)) :=
-  LSR.ofSimRE hrel hinv fun _ h => canon_levels_eq_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem canon_expr_eq_ls
-    {pers st lst}
-    {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx}
-    {fuel : Std.U64}
-    {a b : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a) (arena.canon.canon_expr_eq pers st ps ps2 cs fuel a b) st lst
-      (canonExprEq (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
-        (absEIdx a) (absEIdx b)) :=
-  LSR.ofSimRE hrel hinv fun _ h => canon_expr_eq_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem canon_expr_eq_at_ls
-    {pers st lst}
-    {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx}
-    {fuel : Std.U64}
-    {va vb : arena.store.ENodeView}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a) (arena.canon.canon_expr_eq_at pers st ps ps2 cs fuel va vb) st lst
-      (canonExprEqAtSpec (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
-        (absENodeView va) (absENodeView vb)) :=
-  LSR.ofSimRE hrel hinv fun _ h => canon_expr_eq_at_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem canon_expr_eq_two_ls
-    {pers st lst}
-    {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx}
-    {fuel : Std.U64}
-    {a a2 b b2 : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a) (arena.canon.canon_expr_eq_two pers st ps ps2 cs fuel a a2 b b2) st lst
-      (do
-        if ← canonExprEq (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
-            (absEIdx a) (absEIdx b) then
-          canonExprEq (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
-            (absEIdx a2) (absEIdx b2)
-        else pure false) :=
-  LSR.ofSimRE hrel hinv fun _ h => canon_expr_eq_two_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem canon_rules_eq_ls
-    {pers st lst}
-    {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx}
-    {fuel : Std.U64}
-    {rs rs2 : alloc.vec.Vec arena.env.IRecRule}
-    {i : Std.Usize}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a) (arena.canon.canon_rules_eq pers st ps ps2 cs fuel rs rs2 i) st lst
-      (canonRulesEq (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
-        (absIRecRuleLFrom rs i) (absIRecRuleLFrom rs2 i)) :=
-  LSR.ofSimRE hrel hinv fun _ h => canon_rules_eq_refines hrel hinv h
 
 
 open Lockstep in

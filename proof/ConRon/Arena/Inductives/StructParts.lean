@@ -180,7 +180,7 @@ def structCtorResidOk (T : NIdx) (lps : List NIdx) (nP o nIdx : Nat)
   let fn ← getAppFn coreWalkFuel cbody
   let args ← getAppArgs coreWalkFuel cbody
   let ps ← structPsAt o nP
-  pure (fn == hd && args.length == nP + nIdx && args.take nP == ps)
+  pure (fn == hd && args.length == nP + nIdx && args.take ps.length == ps)
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:204-211 structMotiveTyI
 The motive's type `∀ ı⃗ (t : T p⃗ ı⃗), Sort ℓ` at the parameters' frame. -/
