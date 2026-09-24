@@ -3330,7 +3330,13 @@ theorem ind_block_caps_refines {pers st lst} {vis : Std.U64}
     Sim₀ absIIndCaps pers lst o
       (indBlockCaps (ConRon.Refine.absMode mode) lf (absIConstantVal cv_t)
         (absIConstantVal cv_c) (absU n_p) (absU n_f)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.modeled.ind_block_caps, indBlockCaps]
+  lockstep_mod
+  -- the record: the port's `lps_eq && thm` split by its own test
+  all_goals
+    refine Lockstep.LS.pure ?_ ‹_› ‹_›
+    simp_all [absIIndCaps, absNIdxList]
 
 open Lockstep in
 @[lockstep] theorem ind_block_caps_ls
