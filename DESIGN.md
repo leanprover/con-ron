@@ -62617,6 +62617,25 @@ not the other way): `PrimsModeled.lean`'s `eidx_vec_dup_spec` is
 `Shape.lean`'s `ind_eidx_vec_dup_twin`; its `nidx_vec_beq_spec` is Core's
 `nidx_vec_beq_ls`.
 
+**After `arena` `bf376947` (the tactic's round 2 slices 4/5, chk-base-4).**
+Three closures needed rework, and no proof got a bump: `struct_shape_motive`
+(`structShapeMotiveSpec_port`: the twin's `rbs[nP]?` becomes the port's bounds
+test; IndSide's cast alternative now reads tag words through
+`etag_*_abs` and the tag iffs, which move above the `macro_rules` because a
+macro resolves names where it is defined); `native_fam_app_ok` (the
+`take_eidx_n` fact is converted to lists before a second `lockstep`); and
+`native_fields_at` (`nativeFieldsAtSpec_succ_port`, plus `dsimp only`).
+**Tactic finding:** a Rust `have x := …; do …` at the head of a step now
+fails with "lockstep_spec: no head constant".  Repro: `native_fields_at`'s
+step case without the `dsimp only`.  This submission (`t2-ind-7`) supersedes
+the bounced `t2-ind-6`.  The install files (`{Native,Sum,Struct}Install{,F}`)
+pass to a new agent after it.
+
+**Frontier** (`model_exists` + `no_False_declaration`), at the tip with
+`bf376947` merged: **21 items in 6 modules, 230 tainted, dead weight 112**.
+This lane's items are `struct_parts_core` (the top, fan-in 19) and
+`check_native` (its ruling is pending).
+
 **Left, with the reason:** the memo walks (`has_loose_bvar_b_go/_node`,
 `mentions_fvar_go/_node`: the brief's LSM item); `struct_parts_core` (the block
 match: the twin's three-element list pattern against the port's three reads
