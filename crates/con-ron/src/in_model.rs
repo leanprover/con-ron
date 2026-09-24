@@ -33,13 +33,25 @@
 //!
 //! ## The three things that make it cheap
 //!
-//! 1. **The readback is memoised on the handle** and the memo lives as long as
-//!    the modeller, so the export's sharing survives it: a term interned once
-//!    is read back once, whatever number of blocks mention it.  The Lean twin
-//!    memoises for the same reason ("an unmemoised readback unfolds the DAG,
-//!    which on `tower_struct` does not finish"); here the memo is a plain
-//!    `std::collections::HashMap<u32, Expr>` keyed by the handle word, and
-//!    `Expr` is a counted pointer (DESIGN.md §3.2), so a hit is one bump.
+//! 1. **The readback is memoised on the handle** for the length of one
+//!    `generate` call, so the export's sharing survives it: a term interned
+//!    once is read back once per call, whatever number of the block's records
+//!    (and of the context's answers) mention it.  The Lean twin memoises for
+//!    the same reason ("an unmemoised readback unfolds the DAG, which on
+//!    `tower_struct` does not finish"), and at the same extent: its
+//!    `denoteBlockRec` starts at an empty memo per call.  Here the memo is a
+//!    plain `std::collections::HashMap<u32, Expr>` keyed by the handle word,
+//!    and `Expr` is a counted pointer (DESIGN.md §3.2), so a hit is one bump.
+//!
+//!    **Per call, not per run** (task #97-T2-LOCKSTEP lane Frontend round 3,
+//!    the coordinator's ruling): a memo that outlives the call is sound only
+//!    while every entry is the readback in the CURRENT store — true along a
+//!    run, false at the arbitrary related state the capstone's
+//!    `ModellerRefines` hypothesis quantifies over.  Per call, `InProcess` is
+//!    a function of `(pers, store, ctx, block)`, which is what that
+//!    hypothesis says of it.  The memo across calls saved nothing measurable
+//!    (DESIGN.md, the round's section: `init`/`core`/`mathlib` parses within
+//!    ±0.002 % of `instructions:u`).
 //! 2. **The context is three CLOSURES, not three tables.**  con-leche's
 //!    `InModel.Ctx` is `Name → …` and `crate::in_model::mutual::Ctx` is
 //!    three `dyn Fn`s, so a name the generator never asks about is never read
@@ -51,15 +63,27 @@
 //! 3. **Only a block `wants` routes here is read back at all** — mutual, or
 //!    nested.  The stream is never read back.
 //!
-//! ## `blocks` and the leak
+//! ## `blocks`: per call, one slot per block of the context
 //!
 //! `Ctx::blocks` is `&dyn Fn(&Name) -> Option<&BlockRec>`: it hands the
 //! generator a *reference* to a parsed block, because the core's own parse has
 //! one to hand.  Here the tree block does not exist until it is asked for, so
-//! the readback allocates it and `Box::leak`s it into a `&'static BlockRec`,
-//! remembering it by handle word.  Safe Rust, and bounded by the number of
-//! DISTINCT blocks the nested rung asks about across a run — a handful (the
-//! containers a nested block recurses through), each read back once.
+//! the readback builds it into a slot that lives as long as the call: a
+//! `Vec<OnceCell<Box<BlockRec>>>` with one cell per block of the context,
+//! allocated at the call's first ask (never resized, so a cell is never moved
+//! and `OnceCell::get_or_init` hands out a reference of the call's lifetime),
+//! and a per-call map from the handle word to the tree already built.
+//!
+//! **Why per call and not per run** (task #97-T2-LOCKSTEP lane Frontend
+//! round 3): until then the tree blocks were `Box::leak`ed into a cache that
+//! lived as long as the modeller, keyed by the member type's name handle and
+//! never invalidated.  `export_c::note_ind_blocks` OVERWRITES the context's
+//! entry at a name when a second inductive record declares a type of the same
+//! name, so the cache served the first block where the twin's `ctxOf`
+//! (`Arena/Frontend/InModel.lean`), which reads `ctx.blocks h` afresh at every
+//! call, reads the second — a divergence at the seam the capstone's
+//! `ModellerRefines` hypothesis states.  Within one call the context and the
+//! store are fixed, so a per-call slot cannot disagree with the twin.
 //!
 //! ## The generator itself lives under this file
 //!
@@ -88,7 +112,7 @@ pub mod kit;
 pub mod mutual;
 pub mod nested;
 
-use std::cell::RefCell;
+use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
 
 use con_ron_core::arena::env::{IConstantVal, IDeclaration, IRecRule, IRecRuleFire};
@@ -108,30 +132,19 @@ use con_ron_core::kernel::{expr, level, name};
 use crate::in_model::mutual::{BlockRec, Ctx, IndCtorRec, IndRecRec, IndTypeRec};
 use con_ron_core::arena::store::PersTier;
 
-/// con-leche: none — the seam's instantiation (task #97 P4f); Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:187-206 inProcessModeller
+/// con-leche: none — the seam's instantiation (task #97 P4f); Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:187-213 inProcessModeller
 /// **The modeller the binary passes**: `crate::in_model`'s generator behind
-/// the arena's handle seam.  The two caches are the module note's — the
-/// readback memo, and the leaked tree blocks `Ctx::blocks` must return a
-/// reference to.
-pub struct InProcess {
-    /// The readback memo, keyed by the expression handle's word.  Handles are
-    /// stable for the life of the parse (the persistent tier is append-only
-    /// and the scratch tier is off), so an entry never goes stale.
-    memo: RefCell<HashMap<u32, Expr>>,
-    /// The blocks already read back, by the handle word of the member type
-    /// name they are keyed on in the parse state.
-    blocks: RefCell<HashMap<u32, &'static BlockRec>>,
-}
+/// the arena's handle seam.  It carries NO state: the readback memo and the
+/// tree blocks `Ctx::blocks` must return a reference to live for one
+/// `generate` call (the module note).
+pub struct InProcess {}
 
-/// con-leche: none — the seam's instantiation (task #97 P4f); Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:187-206 inProcessModeller
+/// con-leche: none — the seam's instantiation (task #97 P4f); Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:187-213 inProcessModeller
 impl InProcess {
     /// con-leche: none — the seam's instantiation (task #97 P4f)
-    /// A modeller with empty caches.
+    /// The modeller (stateless).
     pub fn new() -> InProcess {
-        InProcess {
-            memo: RefCell::new(HashMap::new()),
-            blocks: RefCell::new(HashMap::new()),
-        }
+        InProcess {}
     }
 }
 
@@ -360,9 +373,9 @@ fn read_rec(
 }
 
 /// con-leche: none — the readback of a parsed inductive block; Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:144-149 denoteBlockRec
-/// The block the generator takes.  One memo for the whole block *and* for the
-/// whole run, so the sharing between its types, constructors and recursors —
-/// and between one block and the next — survives the readback.
+/// The block the generator takes.  One memo for the whole block (and the
+/// whole `generate` call), so the sharing between its types, constructors and
+/// recursors survives the readback.
 fn read_block(
     pers: &PersTier,
     m: &mut HashMap<u32, Expr>,
@@ -435,7 +448,15 @@ impl Modeller for InProcess {
     ) -> Result<Vec<IDeclaration>, Vec<u32>> {
         let gen: Result<Vec<Declaration>, String> = {
             let store: &EStore = ar;
-            let bp = match read_block(pers, &mut self.memo.borrow_mut(), store, b) {
+            // The readback memo of this call (module note, item 1).
+            let memo: RefCell<HashMap<u32, Expr>> = RefCell::new(HashMap::new());
+            // The tree blocks of this call (module note, `blocks`): one cell
+            // per block of the context, allocated at the first ask (only the
+            // nested rung asks); `seen` maps a handle word to its tree, and
+            // its size is the next free cell.
+            let slots: OnceCell<Vec<OnceCell<Box<BlockRec>>>> = OnceCell::new();
+            let seen: RefCell<HashMap<u32, &BlockRec>> = RefCell::new(HashMap::new());
+            let bp = match read_block(pers, &mut memo.borrow_mut(), store, b) {
                 Some(x) => x,
                 None => return Err(cps("arena: dangling handle in a modelled block")),
             };
@@ -445,7 +466,7 @@ impl Modeller for InProcess {
                 let h = name_handle(pers, store, n)?;
                 let (lps, ty) = con_ron_core::frontend::types::ctx_tbl(ctx, &h)?;
                 let ls = read_names(pers, store, lps)?;
-                let t = read_expr(pers, &mut self.memo.borrow_mut(), store, ty)?;
+                let t = read_expr(pers, &mut memo.borrow_mut(), store, ty)?;
                 Some((ls, t))
             };
             let hs = |n: &Name| -> u64 {
@@ -456,17 +477,19 @@ impl Modeller for InProcess {
             };
             let bl = |n: &Name| -> Option<&BlockRec> {
                 let h = name_handle(pers, store, n)?;
-                if let Some(r) = self.blocks.borrow().get(&h.word) {
+                if let Some(r) = seen.borrow().get(&h.word) {
                     return Some(*r);
                 }
                 let ib = con_ron_core::frontend::types::ctx_block(ctx, &h)?;
-                let tree = read_block(pers, &mut self.memo.borrow_mut(), store, ib)?;
-                // `Ctx::blocks` hands back a REFERENCE (the core's own parse
-                // has one to hand); this one is built on demand, so it is
-                // leaked and remembered.  Bounded by the distinct blocks the
-                // nested rung asks about — see the module note.
-                let r: &'static BlockRec = Box::leak(Box::new(tree));
-                self.blocks.borrow_mut().insert(h.word, r);
+                let cells = slots.get_or_init(|| (0..ctx.blocks.len()).map(|_| OnceCell::new()).collect());
+                // A handle is entered once, and only at a block of the
+                // context, so there are at most `ctx.blocks.len()` entries
+                // and `get` cannot miss.
+                let i: usize = seen.borrow().len();
+                let cell: &OnceCell<Box<BlockRec>> = cells.get(i)?;
+                let tree = read_block(pers, &mut memo.borrow_mut(), store, ib)?;
+                let r: &BlockRec = cell.get_or_init(|| Box::new(tree));
+                seen.borrow_mut().insert(h.word, r);
                 Some(r)
             };
             let c = Ctx {
@@ -488,9 +511,16 @@ impl Modeller for InProcess {
         let mut ast = AState::init(std::mem::replace(ar, EStore::empty()));
         let r = con_ron_core::arena::intern::intern_decls(pers, &mut ast, &ds);
         *ar = ast.store;
+        // An intern failure (a table at capacity) is NOT a decline: the
+        // twin's `internDecls` throws, and `AM`'s throw (`StateT AState
+        // (Except CheckError)`) has no state to resume at, so no twin run
+        // leaves the partly-interned store this call would keep.  The seam's
+        // error is a message and cannot say `Native`, so the port stops here
+        // — no verdict, which is what the twin's throw means (task
+        // #97-T2-LOCKSTEP lane Frontend round 3, the coordinator's ruling c2).
         match r {
             Ok(hs) => Ok(hs),
-            Err(e) => Err(crate::driver::message(&e).chars().map(|ch| ch as u32).collect()),
+            Err(e) => panic!("in-process modeller: interning the generated records failed: {}", crate::driver::message(&e)),
         }
     }
 }

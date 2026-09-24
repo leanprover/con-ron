@@ -368,7 +368,7 @@ pub fn cons_eidx(a: &EIdx, xs: &Vec<EIdx>) -> Vec<EIdx> {
 }
 
 /// con-leche: none — `xs ++ [y]` on a `Vec<EIdx>`, at a BORROWED `xs`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1397-1414 structEtaProjCerts` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1403-1420 structEtaProjCerts` — the
 /// cited `targs ++ [b]` (task #97-P6-13; moved here from `arena::core` by
 /// task #97-P6-15, which needs it beside `cons_eidx`).
 ///
