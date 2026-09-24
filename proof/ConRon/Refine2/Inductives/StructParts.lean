@@ -886,12 +886,12 @@ theorem structPartsCoreAtSpec_nested (cvT cvC : IConstantVal) (nP nF : Nat)
       let reserved ← reservedBasisNames
       let rhsOk ← structPartsRhsOkSpec nP nF rule.rhs
       if cvR.name == recName then
-       if cvC.levelParams == cvT.levelParams then
+       if decide (cvC.levelParams = cvT.levelParams) then
         if reserved.contains cvT.name then pure none else
          if reserved.contains cvC.name then pure none else
           if reserved.contains cvR.name then pure none else
-           if mI == nP + 2 then
-            if rP == nP + 2 then
+           if mI = nP + 2 then
+            if rP = nP + 2 then
              if rule.ctor == cvC.name then
               if rule.nfields == nF then
                if rhsOk then structPartsCoreSortSpec cvT cvC nP nF cvR rule
@@ -906,7 +906,7 @@ theorem structPartsCoreAtSpec_nested (cvT cvC : IConstantVal) (nP nF : Nat)
   refine am_bind_congr _ ?_; intro recName
   refine am_bind_congr _ ?_; intro reserved
   refine am_bind_congr _ ?_; intro rhsOk
-  simp only [Bool.and_eq_true, ite_and]
+  simp only [Bool.and_eq_true, ite_and, beq_iff_eq]
   cases reserved.contains cvT.name <;> cases reserved.contains cvC.name <;>
     cases reserved.contains cvR.name <;> simp
 

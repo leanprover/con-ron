@@ -843,6 +843,10 @@ goal. -/
 scoped macro_rules
   | `(tactic| lockstep_side_ext) =>
     `(tactic| ((try simp only [Lockstep.TwinEq] at *); first
+      -- a list equality the Core tier's `nidx_vec_beq_ls` states over
+      -- `absNIdxList` (`decide (… = …)`), the twin over the unfolded lists
+      | (simp only [absNIdxList, decide_eq_true_eq, beq_iff_eq] at *
+         first | assumption | (simp_all; done))
       | (simp_all [absStructParts, absInductiveShape, absNativeParts, absIRecRule]; done)
       -- a Rust-computed Bool against the twin's conjunction whose other
       -- conjuncts the port tested before (a length the context pins)
@@ -1081,14 +1085,6 @@ the cursor (`absXLFrom v i`) and the port calls it at `0#usize`. -/
 
 /-- info: 'ConRon.Refine2.sim_vec_cursor_copy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms sim_vec_cursor_copy
-
-open Lockstep in
-/-- `arena::core::nidx_vec_beq` is `==` on the abstracted name lists, for the
-Native/Struct/Sum files (`PrimsModeled.lean`'s `nidx_vec_beq_spec` is the same
-fact, visible to the modeled route only). -/
-@[lockstep] theorem core_nidx_vec_beq_twin (a b : alloc.vec.Vec arena.handle.NIdx) :
-    LSP (arena.core.nidx_vec_beq a b) (fun o => o = (absNIdxL a == absNIdxL b)) :=
-  fun _ h => nidx_vec_beq_abs h
 
 open Lockstep in
 /-- `kernel::expr::binder_meta_dup` is the identity (a Rust-only copy). -/

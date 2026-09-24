@@ -224,7 +224,7 @@ theorem native_caps_at_refines {pers st lst}
     lockstep
     all_goals
       refine Lockstep.LS.pure ?_ ‹_› ‹_›
-      simp only [Lockstep.TwinEq] at *
+      try simp only [Lockstep.TwinEq] at *
       simp_all [absIIndCaps, u64_val_beq_zero]
   · have hlen : alloc.vec.Vec.len p.ctors ≠ 1#usize := by
       intro h1; have : (alloc.vec.Vec.len p.ctors).val = 1 := by rw [h1]; rfl

@@ -62083,6 +62083,24 @@ ConRon.Capstone.no_False_declaration`): at the start (`10aa2a97`) **37 items in
 This lane's items left the frontier (`native_shape_elim`, `native_counts`);
 `struct_parts_core` is reached now; `check_native` waits on the ruling above.
 
+**The bounce (queue, after `arena` `b9b64d90`, the Core branch).**
+(1) `Core/LS/Prims.lean` had its own `view_const_name_ls`; the copy is deleted,
+`Tactic/Prims.lean`'s stays.  (2) `struct_parts_core_at` timed out again
+(12 s against 7 s).  Cause, found with `lockstep_stats`: the Core branch's
+`nidx_vec_beq_ls` (`Core/LS/PrimsC1.lean`, global) states the port's list test
+as `decide (absNIdxList a = absNIdxList b)`, and the numeric tests now reach
+the side tiers as `(↑r_p == ↑n_p + 2) = true`; the twin `if`s were stated with
+`==`, so no cheap tier decided them and the zip split them and walked both
+arms.  Fixed in the twin normal form (`structPartsCoreAtSpec_nested`: the
+level-parameter test as `decide (… = …)`, the two count tests as `=`), 6 s,
+no bump; this lane's own `core_nidx_vec_beq_twin` is deleted (three copies of
+one fact: Core's, `PrimsModeled.lean`'s, this one).  For the tactic owner: a
+twin `if c` whose `c` is the same fact as a Rust-test hypothesis up to
+`==`/`decide (=)` and a `lockstep_simp` unfolding of the hypothesis is not
+decided by `lockstep_side_ite` (it rewrites the goal with the hypotheses as
+given); every lane that states list tests with `==` pays for it.
+(3) `native_caps_at`'s leaf no longer has a `TwinEq` to unfold (`try`).
+
 **Tactic notes (worked around locally; for the tactic owner).**
 * A Rust `let (e, _) ← v[i]; dup2 e` inside an `if` the tactic distributes
   leaves `(let (e, _) := v[i]; dup2 e) = ok a` as a kept equation (a `match`
