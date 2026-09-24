@@ -1,5 +1,5 @@
 name = "con-ron"
-defaultTargets = ["ConRon", "ConRonSpike"]
+defaultTargets = ["ConRon", "ConRonArena", "ConRonTools"]
 
 # con-leche, the Lean checker this port refines (DESIGN.md §1).  A plain lake
 # dependency (task #91), pinned by `rev`; `proof/lake-manifest.json`'s
@@ -29,16 +29,61 @@ weak.backward.do.legacy = true
 name = "ConRon"
 roots = ["ConRon"]
 
-# The task-#3/#5 spike is a *second* root, not part of `ConRon`, because it
-# carries its own copy of the `Rc` model: `ConRon/Spike/LevelName/
-# TypesExternal.lean` and `ConRon/Generated/TypesExternal.lean` both declare
-# the top-level `alloc.rc.Rc`, so they cannot sit in one import graph
-# ("environment already contains 'alloc.rc.Rc'").  Two library roots keeps
-# both elaborating under a plain `lake build` while keeping them apart
-# (DESIGN.md, task #12).
+# (The task-#3/#5 spike, `ConRonSpike` over `ConRon.Spike.LevelName`, was a
+# second root here — it carried its own `alloc.rc.Rc` model and could not share
+# `ConRon`'s import graph.  Task #97-PRUNE deleted it, with the retired
+# `ConRon/RefineOld/` tower that no library built: nothing on the verified
+# chain imported either, and both are in git history.)
+
+# Project tooling that is Lean metaprogramming rather than proof: the `sorry`
+# frontier of task #97-FRONTIER (`#sorry_frontier`, `scripts/frontier.sh`).
+# Depends on Lean core only, so every other library may import it.
 [[lean_lib]]
-name = "ConRonSpike"
-roots = ["ConRon.Spike.LevelName"]
+name = "ConRonTools"
+roots = ["ConRon.Tools"]
+globs = ["ConRon.Tools.+"]
+
+# The arena checker (B) of DESIGN.md §8 — a third library root, because it is
+# a *new* checker rather than a refinement layer over `ConRon.Generated`: it
+# imports con-leche's kernel types (for the denotation) and nothing from
+# `ConRon.Refine`.  Task #97 P2a.
+[[lean_lib]]
+name = "ConRonArena"
+roots = ["ConRon.Arena"]
+
+# THEOREM 1 (DESIGN.md §8.2), the bridge from the arena twin (B) to
+# con-leche's PURE checker (A) — phase P3.  Its own root, because it is the
+# only library that imports BOTH `ConRon.Arena` and con-leche's pure tier
+# and nothing else: no `ConRon.Refine`, no Aeneas, no Mathlib.  Task #97
+# P3-0.
+[[lean_lib]]
+name = "ConRonBridge"
+roots = ["ConRon.Bridge"]
+# Every module under `ConRon/Bridge/` is built, not only what the root
+# imports: the tier's theorems are independent of one another, so building
+# them as siblings is the right shape, and `ConRon.Bridge`'s fifteen imports
+# reach only a part of the eighty-three modules.
+# `ConRon/Bridge/ExprOps.lean` is the index that says what the `ExprOps` ones
+# are.
+#
+# This used to be FORCED as well, and the note here said so: two modules of
+# the `ExprOps` tier could not sit in ONE import closure, because `grind`
+# derived the same `match`-auxiliary for an `Arena/ExprOps.lean` definition
+# in each and Lean refused the second ("environment already contains
+# 'ConRon.Arena.forallPw.match_1.congr_eq_1._sparseCasesOn_2'").  Task
+# #97-P3-ExprOps round 4 removed the wall: `ConRon/Bridge/Specs.lean` now
+# OWNS all fourteen contested auxiliaries — twelve matchers of eleven
+# `Arena` functions — and every other module re-uses them, so
+# `Arms/{InferIO,Annotate,Infer}` no longer meet it either.  The `globs` line
+# stays for the sibling shape, not because an import would fail.
+globs = ["ConRon.Bridge.+"]
+
+# (The P2s spike of task #97s was a fourth root here, `ConRonArenaSpike` over
+# `ConRon.Arena.Spike`, which priced the proof idioms of §8's two theorems on
+# three functions before P2b-P2d started at scale.  Task #97-SWAP-2 deleted
+# it, with `crates/arena-spike` and `scripts/extract-spike.sh`: the idiom it
+# chose is DESIGN.md's task-#97s section, and P3's `ConRon/Bridge/` is where
+# it is written at scale.)
 
 # The build-time table generator (DESIGN.md §5 P1.5, task #22): prints Rust
 # source that rebuilds con-leche's elaboration-time tables
@@ -56,3 +101,53 @@ root = "ConRon.Gen.Main"
 [[lean_exe]]
 name = "con-ron-dump-pins"
 root = "ConRon.Dump.Pins"
+
+# (B), THE LEAN ARENA CHECKER's driver (DESIGN.md §8.4, task #97 P2f).
+# con-leche's command line and con-leche's exit codes over
+# `ConRon.Arena.runPipeline`, so that `scripts/diff-e2e.sh --bin=…` can run
+# the same 348 fixtures against this binary and against `con-ron`.  Not a
+# default target: `lake build` elaborates the proof library, and the arena
+# checker's gate is the differential, not the build.
+[[lean_exe]]
+name = "con-ron-lean"
+root = "ConRon.Arena.Exe"
+
+# The `ExprOps` micro-benchmark (DESIGN.md §8.6 P2b, task #97b).  The
+# performance phase comes before the proofs, so the memo and cutoff choices of
+# `ConRon/Arena/ExprOps.lean` have to be measurable from the day they are
+# made: this builds a 50 000-node application spine, a 10 000-binder
+# telescope and a 25-node DAG tower denoting 2^24 tree nodes, and times
+# `instantiate1`, `abstract1` and `instantiateLevelParams` over each.  Not a
+# default target: it is a measurement, not a deliverable.
+[[lean_exe]]
+name = "con-ron-arena-bench"
+root = "ConRon.Arena.Bench"
+
+# **THEOREM 2, the Aeneas refinement of the arena checker** (DESIGN.md §8.2,
+# task #97 P5).  A library root of its own rather than a subdirectory of
+# `ConRon`, for the reason `ConRonArena` is one: it is a *new* tower over
+# `ConRon.Generated` + `ConRon.Arena` + the surviving leaf tiers of
+# `ConRon.Refine`, and keeping it out of the `ConRon` root means a P5 agent's
+# half-built tier never blocks `lake build`'s default targets.  Task #97-P5-0.
+[[lean_lib]]
+name = "ConRonRefine2"
+roots = ["ConRon.Refine2"]
+# Every module under `ConRon/Refine2/` is built, not only what the root
+# imports — the same reason `ConRonBridge` has this, plus a sharper one.
+# `Refine2/Inductives/StructParts.lean` (772 lines, 50 declarations) was
+# imported by nothing for an entire round, so its proofs were never
+# elaborated by any gate; task #97-P5-Ind round 4 found it by hand.  A
+# `roots`-only library silently drops orphaned modules, and "the tier is
+# green" then means "the tier the root happens to reach is green".
+globs = ["ConRon.Refine2.+"]
+
+# **THE COMPOSITION** (DESIGN.md §8.2's last line, task #97-COMPOSE):
+# "Capstones for the binary = Theorem 2 ∘ Theorem 1 ∘ con-leche".  The one
+# module that imports BOTH `ConRon.Bridge` (Theorem 1) and `ConRon.Refine2`
+# (Theorem 2), so its own library root; `scripts/gates.sh`'s `lake-capstone`
+# step builds it.  `ConRon.Capstone.model_exists` and
+# `ConRon.Capstone.no_False_declaration` are the campaign's root theorems:
+# the sorry frontier is measured from them.
+[[lean_lib]]
+name = "ConRonCapstone"
+roots = ["ConRon.Capstone"]

@@ -4,7 +4,7 @@
 #
 #   usage: scripts/diff-e2e.sh [--trusted] [--verbose] [--timeout=SECS]
 #                              [--only=REGEX] [--no-pins|--pins-file]
-#                              [--progress] [--jobs=N]
+#                              [--progress] [--jobs=N] [--bin=PATH]
 #
 # **This is the port's differential test** (task #80, which retired the
 # checker-only seam of task #28 in its favour).  It runs the whole binary on
@@ -54,8 +54,46 @@
 # failing record at every worker count — is tested on all 348 fixtures rather
 # than argued.  Both passes must read the same numbers.
 #
+# THE BINARY UNDER TEST (`--bin=PATH`, task #97 P2 tooling).  By default the
+# sweep builds and runs `target/release/con-ron`, and that is the only shape
+# the gates and CI use.  `--bin=PATH` points it at ANY binary that speaks
+# con-leche's command line — `FILE.ndjson`, `--verified`/`--trusted`,
+# `--jobs=<n>`, `--progress[=<stride>]`, and the 0/1/2/3 exit codes — and
+# runs the same 348 cases against the same expectations.  Nothing else
+# changes: the pin arguments, the arena snapshot, the `--trusted` override
+# table, the log and the counters are the sweep's, not the binary's.
+#
+# It exists because the arena rewrite (DESIGN.md §8) grows a SECOND checker,
+# `con-ron-lean` — (B), the Lean arena checker of §8.4 — whose P2f gate is
+# "348/348 against con-leche's expectations", i.e. exactly this sweep:
+#
+#     lake -C proof build con-ron-lean
+#     scripts/diff-e2e.sh --bin=proof/.lake/build/bin/con-ron-lean
+#
+# A relative PATH is resolved against the directory the script was INVOKED
+# from (the script `cd`s to the repository root before anything else), so
+# both a repo-relative and a shell-relative spelling work.  With `--bin` the
+# sweep does NOT `cargo build`: the caller owns the binary's freshness, and a
+# `--bin` that is not executable is a usage error (exit 3).  Pin arguments
+# other than the default are a con-ron flag (`--no-pins`, `--pins FILE`), so
+# `--no-pins`/`--pins-file` with a foreign `--bin` will simply make that
+# binary reject its command line — which the sweep reports as a difference,
+# honestly, rather than hiding.
+#
+# SCRATCH AND LOG ARE KEYED BY THE CHECKOUT (task #97t).  `_tmp` is one
+# directory shared through a symlink by every agent worktree, so a fixed
+# `_tmp/diff-e2e/` and `_tmp/diff-e2e.log` made two concurrent sweeps clobber
+# each other: task #97g's sweep read 330/18 instead of 348/0 because another
+# worktree's `rm -rf` took its gunzipped streams away mid-run.  Everything
+# this script writes therefore lives in `_tmp/diff-e2e-<key>/`, with `<key>`
+# the same `sha256sum | cut -c1-12` of the checkout root that `extract.sh`
+# and `gates.sh` use for theirs.  `LOG=PATH` still names the log explicitly;
+# without it, the finished log is copied to `_tmp/diff-e2e.log` at the end of
+# the sweep, which is the name CI collects.
+#
 # A run is green when `differ`, `other` and `timed out` are all zero.
 set -u
+invoked_from="$PWD"
 cd "$(dirname "$0")/.."
 root="$PWD"
 
@@ -70,10 +108,12 @@ use_pins=1
 from_file=0
 progress=""
 jobs=1
+bin=""
 
 for a in "$@"; do
   case "$a" in
     --trusted) MODE=--trusted ;;
+    --bin=*) bin=${a#--bin=} ;;
     --verbose) verbose=1 ;;
     --no-pins) use_pins=0 ;;
     --pins-file) from_file=1 ;;
@@ -81,19 +121,47 @@ for a in "$@"; do
     --jobs=*) jobs=${a#--jobs=} ;;
     --timeout=*) TO=${a#--timeout=} ;;
     --only=*) only=${a#--only=} ;;
-    *) echo "usage: $0 [--trusted] [--verbose] [--no-pins|--pins-file] [--progress] [--jobs=N] [--timeout=SECS] [--only=REGEX]" >&2; exit 2 ;;
+    *) echo "usage: $0 [--trusted] [--verbose] [--no-pins|--pins-file] [--progress] [--jobs=N] [--bin=PATH] [--timeout=SECS] [--only=REGEX]" >&2; exit 2 ;;
   esac
 done
 
-cargo build --release -p con-ron >"$root/_tmp/diff-e2e-build.log" 2>&1 || {
-  echo "diff-e2e: cargo build failed, see _tmp/diff-e2e-build.log" >&2; exit 3; }
-BIN="$root/target/release/con-ron"
-[ -x "$BIN" ] || { echo "diff-e2e: $BIN is not executable" >&2; exit 3; }
+# Scratch is keyed by the checkout: `_tmp` is usually a symlink shared by
+# every agent worktree, and two concurrent sweeps sharing one scratch
+# directory clobber each other (task #97t).  Same idiom as `extract.sh` and
+# `gates.sh`.
+ckey=$(printf '%s' "$root" | sha256sum | cut -c1-12)
+WORK="$root/_tmp/diff-e2e-$ckey"
+rm -rf "$WORK"; mkdir -p "$WORK"
 
+if [ -n "$bin" ]; then
+  # The caller's binary: not built here, and resolved against the directory
+  # the script was invoked from when the path is relative.
+  case "$bin" in
+    /*) BIN="$bin" ;;
+    *) BIN="$invoked_from/$bin" ;;
+  esac
+  [ -x "$BIN" ] || { echo "diff-e2e: --bin=$bin ($BIN) is not executable" >&2; exit 3; }
+else
+  cargo build --release -p con-ron >"$WORK/build.log" 2>&1 || {
+    echo "diff-e2e: cargo build failed, see $WORK/build.log" >&2; exit 3; }
+  BIN="$root/target/release/con-ron"
+  [ -x "$BIN" ] || { echo "diff-e2e: $BIN is not executable" >&2; exit 3; }
+fi
+# What a DIFFER line calls the binary under test.  It was the literal
+# `con-ron`; with `--bin` that would name the wrong checker.
+binname=$(basename "$BIN")
+
+# The arena snapshot is a CACHE, not per-run scratch, so it stays at its
+# shared path (`ARENA_DIR` overrides it) -- but it is published atomically:
+# a sweep in another worktree must never see a half-extracted corpus.
 if [ ! -d "$ARENA_DIR/good" ]; then
   echo "extracting the vendored arena snapshot to $ARENA_DIR" >&2
-  mkdir -p "$ARENA_DIR"
-  tar -xzf "$CL/tests/arena/lean-arena-tests.tar.gz" -C "$ARENA_DIR" || exit 3
+  stage="$WORK/arena-stage"
+  mkdir -p "$stage" "$(dirname "$ARENA_DIR")"
+  tar -xzf "$CL/tests/arena/lean-arena-tests.tar.gz" -C "$stage" || exit 3
+  mv -T "$stage" "$ARENA_DIR" 2>/dev/null || rm -rf "$stage"
+  [ -d "$ARENA_DIR/good" ] || {
+    echo "diff-e2e: no arena snapshot at $ARENA_DIR" >&2; exit 3; }
 fi
 
 # The pin list.  Since task #43 the default needs NO argument: the pins are an
@@ -112,10 +180,10 @@ elif [ "$from_file" -eq 1 ]; then
   pinargs="--pins $PINDUMP"
 fi
 
-WORK="$root/_tmp/diff-e2e"
-rm -rf "$WORK"; mkdir -p "$WORK"
-log="${LOG:-$root/_tmp/diff-e2e.log}"
+log="${LOG:-$WORK/run.log}"
 : >"$log"
+printf '# binary: %s\n# mode: %s, pins: %s, --jobs=%s\n' \
+  "$BIN" "$MODE" "${pinargs:-embedded}" "$jobs" >>"$log"
 
 total=0; agree=0; differ=0; inmodel=0; timedout=0; other=0
 
@@ -148,7 +216,7 @@ one() { # one <suite> <label> <stream> <expected-exit>
     echo "INMODEL $suite/$label: con-leche expects $want; the block needs the modeller"
   else
     differ=$((differ + 1))
-    echo "DIFFER  $suite/$label: con-leche expects $want, con-ron got $rc"
+    echo "DIFFER  $suite/$label: con-leche expects $want, $binname got $rc"
     printf '%s' "$out" | head -2 | sed 's/^/          /'
   fi
 }
@@ -179,8 +247,20 @@ while read -r exp rel; do
 done <"$CL/tests/annot-expected.txt"
 
 t1=$(date +%s)
+
+# `_tmp/diff-e2e.log` is the fixed name CI collects.  Nothing WRITES there
+# during the sweep -- concurrent sweeps must not share a file -- so the
+# finished log is published there at the end, through a rename (atomic, same
+# filesystem) so that even two sweeps finishing together leave one whole log
+# and not a mixture.  The last sweep to finish owns the name; every sweep's
+# own `run.log` stays whole either way.
+if [ -z "${LOG:-}" ] && cp -f "$log" "$WORK/.alias.log" 2>/dev/null; then
+  mv -f "$WORK/.alias.log" "$root/_tmp/diff-e2e.log" 2>/dev/null || true
+fi
+
 echo
 echo "diff-e2e ($MODE, pins ${pinargs:-embedded}, --jobs=$jobs): $total fixtures"
+echo "  binary              $BIN"
 echo "  agree               $agree"
 echo "  DIFFER              $differ"
 echo "  needs the modeller  $inmodel   (task #39 ported it; expected 0)"

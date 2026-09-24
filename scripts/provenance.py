@@ -9,6 +9,21 @@ or, for an item with no Lean counterpart,
 
     /// con-leche: none — replaces the runtime's `Nat`; spec in NatSpec.lean
 
+Since task #97 the same gate reads **Lean** sources: the arena checker (B)
+of DESIGN.md §8 lives in `proof/ConRon/Arena/**` and is a port of con-leche
+exactly as the Rust is, so every top-level `def`/`structure`/`inductive`/
+`abbrev` there carries the citation as a doc line
+
+    /-- con-leche: ConLeche/Kernel/Core.lean:120-200 whnfCore -/
+    /-- con-leche: none — the store's own handle arithmetic -/
+
+(`theorem`s may be uncited: they are the arena's own verification, not a
+port of anything).  Everything else is the same — the same `check`,
+`update` and `coverage`, the same `CHANGED` markers, the same
+`(pin, path, range)` fact.  `coverage` keeps the two apart: the Rust
+ledger's numbers are unchanged, and the arena's coverage of the same
+con-leche declarations is a second group under it.
+
 con-leche is a plain `lake` dependency of `proof/` (task #91), pinned by
 `rev` in `proof/lakefile.toml`; `proof/lake-manifest.json`'s `con-leche`
 entry is the single source of truth for the pin, and its checked-out work
@@ -36,15 +51,60 @@ import subprocess
 import sys
 
 # The Rust trees that must be annotated, relative to the repository root.
-# `crates/con-ron/src` is the UNVERIFIED crate: the in-process modeller, the
-# driver and the pool (the parser left it for the verified core at task #84).
-# It is inside this gate and outside `lint-rust-style.sh` and `extract.sh` on
-# purpose: DESIGN.md §3.7 — "for the unverified frontend it is the only sync
-# signal there is".  Its items are cited but not style-linted.
-DEFAULT_ROOTS = [
+# TWO roots since task #97-SWAP (§8.6's swap), which is one per crate that
+# carries ported code:
+# `crates/con-ron-core/src` is THE verified crate — the arena checker, the
+# store-native parser and the pinned data — inside this gate and inside
+# `lint-rust-style.sh`.  (`crates/arena-core/src` was the rewrite's second
+# verified tree from task #97-P4a until the swap folded it in here.)
+# `crates/con-ron/src` is the UNVERIFIED crate: the driver, the CLI, the pool,
+# the in-process modeller and the `Expr`-value helpers it builds trees with
+# (`tree/`, task #97-SWAP).  It is inside this gate and outside
+# `lint-rust-style.sh` and `extract.sh` on purpose: DESIGN.md §3.7 — "for the
+# unverified frontend it is the only sync signal there is".  Its items are
+# cited but not style-linted.  (`crates/con-ron-arena/src` was its arena-side
+# twin from task #97-P4f until the swap put it here under this name.)
+RUST_ROOTS = [
     "crates/con-ron-core/src",
     "crates/con-ron/src",
 ]
+
+# The Lean trees that must be annotated: the arena checker (B) of DESIGN.md
+# §8, a port of con-leche's `Kernel/*` and `Frontend/*` written in this
+# repository.  It is source that is *ported*, so it is inside this gate; it
+# is not Rust, so it is outside `lint-rust-style.sh` and `extract.sh`.  The
+# directory does not exist before P2a lands, and an absent root is simply
+# empty (as for the Rust roots).
+ARENA_ROOTS = [
+    "proof/ConRon/Arena",
+]
+
+# …minus the arena's own test and scratch code, which is exempt exactly as
+# `#[cfg(test)]` and `mod tests` are on the Rust side: NOT SCANNED AT ALL —
+# neither its declarations nor its citations reach `check`, and `coverage`
+# (which reads the same scan) does not count them either.
+#
+#   * `StoreTest.lean` — the store's `#guard` fixtures.  Executable test
+#     vectors for `Store.lean`, written against the twin, not ported from
+#     any con-leche declaration: there is nothing for them to cite, and a
+#     citation demanded of them would have to be invented.
+#   * `Spike/**` — the throwaway experiments of DESIGN.md §8 (`Mini`,
+#     `ExpA`/`ExpB`, the extracted `Spike/Generated`).  They exist to
+#     answer one design question each and are deleted once it is answered;
+#     holding scratch to the port's provenance discipline buys nothing and
+#     would make every spike a documentation chore.
+#
+# Everything else under `ARENA_ROOTS` is the port, and carries citations.
+# Prefix match on the repository-relative path, `/`-separated.
+# (`Arena/Spike/` was deleted at task #97-SWAP-2, the question it answered
+# being settled; the entry stays because `provenance-selftest.py` asserts the
+# exemption set, and because the next spike goes back under that path.)
+ARENA_EXEMPT = (
+    "proof/ConRon/Arena/StoreTest.lean",
+    "proof/ConRon/Arena/Spike/",
+)
+
+DEFAULT_ROOTS = RUST_ROOTS + ARENA_ROOTS
 
 # con-leche is a plain lake dependency of proof/ (task #91): its checked-out
 # package directory is resolved from proof/lake-manifest.json, not a fixed
@@ -105,32 +165,86 @@ MODULE_ANNOT_RE = re.compile(r"^\s*//!\s*con-leche:\s*(?P<body>.*?)\s*$")
 CITE_RE = re.compile(
     r"^(?P<path>[^\s:]+):(?P<a>\d+)(?:-(?P<b>\d+))?\s+(?P<decl>\S+)$"
 )
+# The same citation as a LEAN doc line, where the declaration name is
+# usually not the end of the sentence: the arena writes the twin's delta
+# from the cited code right there, after an em dash —
+#
+#     /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the fuel-indexed
+#     readback of a name. -/
+#
+# so `<decl>` may be followed by ` — <prose>` (or its ASCII spelling,
+# ` -- <prose>`).  The prose is NOT part of the citation: nothing checks
+# it, and `update` puts it back verbatim when it rewrites the range (see
+# `Cite.prose`).  The RUST rule is unchanged — a `///` line still ends at
+# the declaration name, because a Rust doc comment has the next line for
+# prose and the one-line-per-citation shape is what task #8 fixed.
+LEAN_CITE_RE = re.compile(
+    r"^(?P<path>[^\s:]+):(?P<a>\d+)(?:-(?P<b>\d+))?\s+(?P<decl>\S+)"
+    r"(?P<prose>\s+(?:—|--)(?:\s.*)?)?$"
+)
 NONE_RE = re.compile(r"^none\b")
-MARKER_RE = re.compile(r"^\s*//[/!]\s*con-leche:\s*CHANGED\b")
+# The `CHANGED` marker, in either language's comment syntax: `///`/`//!` in
+# Rust, `--` or a doc comment's `/--` in Lean.
+MARKER_RE = re.compile(r"^\s*(?://[/!]|/--|--)\s*con-leche:\s*CHANGED\b")
 
 
-def marker(old, item, pfx="///"):
+# The lemma a changed citation invalidates: the Rust port's exact-result
+# lemma (DESIGN.md §3.5), or — for the arena checker (B) of §8 — the bridge
+# lemma of Theorem 1 (§8.2, `Arena.checkDecl_bridge`).
+LEMMA_SUFFIX = {"rust": "_refines", "arena": "_bridge"}
+
+
+def marker(old, item, pfx="///", source="rust"):
     return ("%s con-leche: CHANGED since %s — re-port, re-test, re-prove "
-            "%s_refines, then delete this line" % (pfx, old[:8], item))
+            "%s%s, then delete this line"
+            % (pfx, old[:8], item, LEMMA_SUFFIX[source]))
 
 
 class Cite:
-    """One `con-leche:` doc line: where it sits, and what it claims."""
+    """One `con-leche:` doc line: where it sits, and what it claims.
 
-    def __init__(self, rust_file, lineno, path, a, b, decl, pfx="///"):
-        self.rust_file = rust_file  # absolute path of the .rs file
+    `source` is `"rust"` or `"arena"` (a Lean file of `ARENA_ROOTS`).  A
+    Lean citation may open a multi-line doc comment or sit inside one, so
+    an arena citation remembers the exact text around its body (`head`,
+    `tail`) and `render` puts the rewritten body back between them; a Rust
+    one is rebuilt from its `pfx` as before.  `prose` is the ` — …` tail a
+    Lean citation may carry after the declaration name (`LEAN_CITE_RE`):
+    unchecked text that `render` must hand back untouched, since `update`
+    rewrites only the RANGE and the porter's sentence is not its business.
+
+    `rebase(a, b)` is how `update` makes the relocated citation: the same
+    line with a new range, every other field — `source`, `head`, `prose`,
+    `tail` — carried over, so a rewritten Lean citation keeps its doc
+    comment and its sentence."""
+
+    def __init__(self, rust_file, lineno, path, a, b, decl, pfx="///",
+                 source="rust", head=None, tail="", prose=""):
+        self.rust_file = rust_file  # absolute path of the .rs / .lean file
         self.lineno = lineno  # 1-based line of the annotation
         self.path = path  # con-leche-relative Lean path
         self.a = a
         self.b = b
         self.decl = decl
-        self.pfx = pfx  # `///` (an item's) or `//!` (a whole module's)
+        self.pfx = pfx  # `///` (an item's) or `//!` (a whole module's); `--` in Lean
+        self.source = source
+        self.head = head if head is not None else pfx + " "
+        self.tail = tail
+        self.prose = prose
 
     @property
     def range(self):
         return str(self.a) if self.a == self.b else "%d-%d" % (self.a, self.b)
 
+    def rebase(self, a, b):
+        """This citation with the range `(a, b)`, everything else kept."""
+        return Cite(self.rust_file, self.lineno, self.path, a, b, self.decl,
+                    self.pfx, self.source, self.head, self.tail, self.prose)
+
     def render(self, indent):
+        if self.source == "arena":
+            return "%s%scon-leche: %s:%s %s%s%s" % (
+                indent, self.head, self.path, self.range, self.decl,
+                self.prose, self.tail)
         return "%s%s con-leche: %s:%s %s" % (
             indent, self.pfx, self.path, self.range, self.decl)
 
@@ -197,6 +311,8 @@ class RustItem:
         self.text = text
         self.cites = cites  # list[Cite | None]; None = an explicit `none`
         self.has_doc = has_doc
+        self.source = "rust"
+        self.needs_cite = True  # every Charon-visible Rust item, no exceptions
 
     def name(self):
         m = re.search(r"\b(?:fn|struct|enum|trait|const|type)\s+([A-Za-z_][A-Za-z0-9_]*)",
@@ -320,18 +436,151 @@ def doc_block(lines, idx):
     return doc, start
 
 
-def rust_files(roots):
+def source_files(roots, ext):
     out = []
     for root in roots:
         full = root if os.path.isabs(root) else os.path.join(REPO, root)
         if not os.path.isdir(full):
             continue
         for dirpath, dirnames, filenames in os.walk(full):
-            dirnames[:] = [d for d in dirnames if d not in ("target", ".git")]
+            dirnames[:] = [d for d in dirnames
+                           if d not in ("target", ".git", ".lake")]
             for fn in sorted(filenames):
-                if fn.endswith(".rs"):
+                if fn.endswith(ext):
                     out.append(os.path.join(dirpath, fn))
     return sorted(out)
+
+
+def rust_files(roots):
+    return source_files(roots, ".rs")
+
+
+def arena_exempt(path):
+    """Is this arena Lean file test or scratch code (`ARENA_EXEMPT`)?
+
+    `path` may be absolute or repository-relative; a file outside the
+    repository (the self-test's scratch copy of its fixture) is never
+    exempt."""
+    p = rel(path).replace(os.sep, "/")
+    return any(p == e or p.startswith(e) for e in ARENA_EXEMPT)
+
+
+def arena_files(roots):
+    return [f for f in source_files(roots, ".lean") if not arena_exempt(f)]
+
+
+# ------------------------------------------------------------ the arena scan
+#
+# The arena checker (B) of DESIGN.md §8 is Lean source in THIS repository that
+# ports con-leche's `Kernel/*` and `Frontend/*`, so it carries the same
+# provenance the Rust does.  The annotation is a doc line on the declaration:
+#
+#     /-- con-leche: ConLeche/Kernel/Name.lean:82-89 Name.beq -/
+#     /-- con-leche: none — the store's own handle arithmetic -/
+#
+# and it may open a multi-line doc comment whose prose follows:
+#
+#     /-- con-leche: ConLeche/Kernel/Core.lean:120-200 whnfCore
+#     The twin reads `view` where the pure body matches on the `Expr`. -/
+#
+# A bare `con-leche: …` line inside a doc comment counts too, so an item that
+# merges several con-leche declarations lists them one per line.
+
+LEAN_ANNOT_RE = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<head>(?:/--|/-!|--)?[ \t]*)con-leche:[ \t]*"
+    r"(?P<body>.*?)(?P<tail>[ \t]*-/)?[ \t]*$")
+
+# Which top-level Lean declarations must carry a citation.  `theorem`, `lemma`
+# and `example` need none: they are the arena's OWN verification (the store
+# lemmas of P2a, the bridge of P3), not a port of a con-leche declaration.
+# An anonymous `instance` has no name to cite and is exempt for the same
+# reason `first_decl_line` calls it `_`.
+LEAN_PROOF_KW = ("theorem", "lemma", "example")
+
+
+class LeanItem:
+    """One top-level declaration of an arena source file."""
+
+    def __init__(self, file, lineno, kind, name, cites):
+        self.file = file
+        self.lineno = lineno
+        self.kind = kind
+        self._name = name
+        self.cites = cites  # list[Cite | None]; None = an explicit `none`
+        self.source = "arena"
+        self.needs_cite = kind not in LEAN_PROOF_KW and name != "_"
+
+    def name(self):
+        return self._name
+
+
+def lean_block_start(lines, idx):
+    """The 0-based left edge of the declaration block at `idx`: its
+    attributes and doc comment, plus any `--` line comments sitting between
+    them and the declaration.
+
+    `extend_block` stops at a `--` line, which is right for con-leche's own
+    tree but wrong here: `update` inserts its `CHANGED` marker as exactly
+    such a line, right below the citation, and the citation it marks must
+    stay attached to the item it marks (else a marked item reads as
+    UNCITED as well, which is noise on an already-red run)."""
+    j = idx - 1
+    while j >= 0 and lines[j].startswith("--"):
+        j -= 1
+    return extend_block(lines, j + 1)[0] - 1
+
+
+def scan_lean_file(path):
+    """Return (items, cites, markers) for one arena `.lean` file.
+
+    Items are the column-0 declarations; a citation belongs to the item whose
+    attribute-and-doc-comment block (`extend_block`'s left edge) it sits in."""
+    with open(path, encoding="utf-8") as f:
+        lines = f.read().split("\n")
+
+    skip = comment_lines(lines)
+    cites, markers, parsed = [], [], {}
+
+    for idx, raw in enumerate(lines):
+        m = LEAN_ANNOT_RE.match(raw)
+        if not m:
+            continue
+        body = m.group("body")
+        if MARKER_RE.match(raw):
+            markers.append((path, idx + 1, body))
+            continue
+        if NONE_RE.match(body):
+            parsed[idx] = None
+            continue
+        c = LEAN_CITE_RE.match(body)
+        if not c:
+            bad = ("malformed", path, idx + 1, body)
+            parsed[idx] = bad
+            cites.append(bad)
+            continue
+        cite = Cite(path, idx + 1, c.group("path"), int(c.group("a")),
+                    int(c.group("b") or c.group("a")), c.group("decl"),
+                    pfx="--", source="arena",
+                    head=m.group("head"), tail=m.group("tail") or "",
+                    prose=c.group("prose") or "")
+        parsed[idx] = cite
+        cites.append(cite)
+
+    items = []
+    for idx, raw in enumerate(lines):
+        got = decl_name_at(lines, idx, skip)
+        if got is None:
+            if ANON_INSTANCE_RE.match(raw) and idx not in skip:
+                got = ("instance", "_")
+            else:
+                continue
+        kw, nm = got
+        blk = lean_block_start(lines, idx)
+        mine = [parsed[j] for j in sorted(parsed) if blk <= j < idx]
+        items.append(LeanItem(path, idx + 1, kw, nm,
+                              ["malformed" if isinstance(c, tuple) else c
+                               for c in mine]))
+    return items, cites, markers
 
 
 # ------------------------------------------------------------------ Lean side
@@ -537,9 +786,14 @@ def top_level_decls(lines):
 
 
 def collect(roots):
+    """Every annotated item and citation under `roots`, Rust and arena Lean
+    alike.  A file is scanned by its extension, so one root list may mix the
+    two (the default one does)."""
     items, cites, malformed, markers = [], [], [], []
-    for f in rust_files(roots):
-        it, ci, mk = scan_rust_file(f)
+    scans = ([(f, scan_rust_file) for f in rust_files(roots)]
+             + [(f, scan_lean_file) for f in arena_files(roots)])
+    for f, scan in sorted(scans):
+        it, ci, mk = scan(f)
         items.extend(it)
         markers.extend(mk)
         for c in ci:
@@ -599,12 +853,14 @@ def cmd_check(args):
     # The citation form is checked exactly like an item's (it is in `cites`);
     # what the module form adds is the exemption.
     module_annot = set()
-    for f in {it.file for it in items}:
+    for f in {it.file for it in items if it.source == "rust"}:
         for line in open(f, encoding="utf-8"):
             if MODULE_ANNOT_RE.match(line):
                 module_annot.add(f)
                 break
     for it in items:
+        if not it.needs_cite:
+            continue  # an arena `theorem`: the port's own verification
         if not it.cites and it.file not in module_annot:
             print("UNCITED %s:%d — `%s %s` has no `con-leche:` line"
                   % (rel(it.file), it.lineno, it.kind, it.name()))
@@ -613,8 +869,11 @@ def cmd_check(args):
     if findings:
         print("%d finding(s)." % findings)
         return 1
-    print("provenance: %d item(s), %d citation(s), all current at pin %s."
-          % (len(items), len(cites), (current_submodule_commit() or "?")[:8]))
+    nr = sum(1 for it in items if it.source == "rust")
+    print("provenance: %d item(s) (%d Rust, %d arena Lean), %d citation(s), "
+          "all current at pin %s."
+          % (len(items), nr, len(items) - nr, len(cites),
+             (current_submodule_commit() or "?")[:8]))
     return 0
 
 
@@ -720,14 +979,14 @@ def cmd_update(args):
         if c.path not in oldcache:
             oldcache[c.path] = lean_text(c.path, old=old)
         lines, olines = cache[c.path], oldcache[c.path]
-        item = rust_item_of(c)
+        item = item_of(c)
 
         if lines is None:
             print("GONE %s — %s no longer exists at the new pin → re-port %s"
                   % (c.where(), c.path, item))
             if not has_marker(c):
                 edits.setdefault(c.rust_file, []).append(
-                    (c.lineno, None, [marker(old, item, c.pfx)]))
+                    (c.lineno, None, [marker(old, item, c.pfx, c.source)]))
             findings += 1
             continue
 
@@ -748,12 +1007,15 @@ def cmd_update(args):
                   % (c.where(), c.decl, c.path, item))
             if not has_marker(c):
                 edits.setdefault(c.rust_file, []).append(
-                    (c.lineno, None, [marker(old, item, c.pfx)]))
+                    (c.lineno, None, [marker(old, item, c.pfx, c.source)]))
             findings += 1
             continue
         na, nb = loc
         new_text = [l.rstrip() for l in lines[na - 1:nb]]
-        newcite = Cite(c.rust_file, c.lineno, c.path, na, nb, c.decl, c.pfx)
+        # `rebase`, not a fresh `Cite`: the rewrite changes the RANGE and
+        # nothing else, so a Lean citation keeps its `/--` head, its `-/`
+        # closer and the porter's ` — …` sentence after the name.
+        newcite = c.rebase(na, nb)
 
         if old_text != new_text and olines is not None:
             # The cited range may already have been rewritten (a second
@@ -776,7 +1038,8 @@ def cmd_update(args):
             continue
 
         print("CHANGED %s %s → re-port %s (%s), re-run differential tests, "
-              "re-prove %s_refines" % (c.path, c.decl, item, c.where(), item))
+              "re-prove %s%s" % (c.path, c.decl, item, c.where(), item,
+                                 LEMMA_SUFFIX[c.source]))
         for dl in difflib.unified_diff(
                 old_text or [], new_text,
                 fromfile="%s:%s@%s" % (c.path, c.range, old[:8]),
@@ -784,7 +1047,7 @@ def cmd_update(args):
             print("  " + dl)
         edits.setdefault(c.rust_file, []).append(
             (c.lineno, newcite.render,
-             [] if has_marker(c) else [marker(old, item, c.pfx)]))
+             [] if has_marker(c) else [marker(old, item, c.pfx, c.source)]))
         findings += 1
 
     rewrite(edits)
@@ -825,12 +1088,20 @@ def has_marker(cite, _cache={}):
     return cite.lineno < len(lines) and bool(MARKER_RE.match(lines[cite.lineno]))
 
 
-def rust_item_of(cite):
-    """The Rust item a citation sits on (for the alert and marker lines)."""
+def item_of(cite):
+    """The item a citation sits on (for the alert and marker lines).  A Rust
+    one is `<module>::<name>`, an arena Lean one `<Module>.<name>`."""
     try:
         with open(cite.rust_file, encoding="utf-8") as f:
             lines = f.read().split("\n")
     except OSError:
+        return rel(cite.rust_file)
+    if cite.source == "arena":
+        skip = comment_lines(lines)
+        for i in range(cite.lineno, len(lines)):
+            got = decl_name_at(lines, i, skip)
+            if got:
+                return "%s.%s" % (os.path.basename(cite.rust_file)[:-5], got[1])
         return rel(cite.rust_file)
     for i in range(cite.lineno, min(cite.lineno + 20, len(lines))):
         m = ITEM_RE.match(lines[i])
@@ -838,6 +1109,10 @@ def rust_item_of(cite):
             it = RustItem(cite.rust_file, i + 1, m.group("kind"), lines[i], [], True)
             return "%s::%s" % (os.path.basename(cite.rust_file)[:-3], it.name())
     return rel(cite.rust_file)
+
+
+# The name before task #97, when every citation sat on a Rust item.
+rust_item_of = item_of
 
 
 def load_skips():
@@ -867,8 +1142,60 @@ def load_skips():
     return skips, bad
 
 
+def arena_group(cites, skips):
+    """The arena checker's own ledger (task #97): how much of the same
+    con-leche declarations (B), the Lean arena checker of DESIGN.md §8, has
+    citations for.
+
+    It is a SECOND GROUP, printed under the Rust ledger and counted apart —
+    `scripts/progress.py` reads it the same way, as its "Arena checker
+    (Lean)" group.  Merging the two would be a lie in both directions: an
+    arena twin is not a ported Rust item, and a Rust item is not a twin.
+
+    The denominator is the Rust ledger's, so the two columns are comparable:
+    the definitional declarations of `COVERAGE_GLOBS` less the deliberate
+    skips.  A skipped declaration the arena cites anyway is counted in
+    `beyond` and is NOT a finding — `scripts/provenance-skip.txt` says what
+    the RUST port does not carry, which is a different question from what
+    the arena needs."""
+    by_file = {}
+    for c in cites:
+        by_file.setdefault(c.path, []).append(c)
+    rows, total = [], 0
+    covered = beyond = 0
+    for path in lean_files_for_coverage():
+        lines = lean_text(path)
+        if lines is None:
+            continue
+        decls = [(ln, kw, nm) for (ln, kw, nm) in top_level_decls(lines)
+                 if kw in DEFINITIONAL]
+        if not decls:
+            continue
+        mine = by_file.get(path, [])
+        ncov = nport = 0
+        for ln, _kw, nm in decls:
+            hit = any(c.a <= ln <= c.b or names_compatible(nm, c.decl)
+                      for c in mine)
+            is_skip = (path, nm) in skips or (path, "*") in skips
+            if is_skip:
+                if hit:
+                    beyond += 1
+                continue
+            nport += 1
+            total += 1
+            if hit:
+                ncov += 1
+                covered += 1
+        rows.append((path, ncov, nport))
+    return rows, covered, total, beyond
+
+
 def cmd_coverage(args):
     _, cites, _, _ = collect(args.roots)
+    arena_cites = [c for c in cites if c.source == "arena"]
+    # The Rust ledger below is the Rust port's, exactly as before task #97:
+    # an arena citation credits no Rust item.
+    cites = [c for c in cites if c.source == "rust"]
     by_file = {}
     for c in cites:
         by_file.setdefault(c.path, []).append(c)
@@ -966,6 +1293,23 @@ def cmd_coverage(args):
     print("TOTAL %d/%d covered (%.1f%%), %d uncovered, %d deliberately "
           "skipped (%s)"
           % (covered, total, pct, total - covered, skipped, SKIP_FILE))
+
+    # The arena checker (B), DESIGN.md §8 — its own group, over the same
+    # denominator, printed only once it exists.
+    if arena_cites:
+        rows, acov, atot, beyond = arena_group(arena_cites, skips)
+        print()
+        print("Arena checker (Lean) — (B) of DESIGN.md §8, %s"
+              % " ".join(ARENA_ROOTS))
+        for path, ncov, nport in rows:
+            if ncov:
+                print("%-46s %3d/%-3d twinned" % (path, ncov, nport))
+        apct = (100.0 * acov / atot) if atot else 0.0
+        print("ARENA TOTAL %d/%d twinned (%.1f%%), %d to go%s"
+              % (acov, atot, apct, atot - acov,
+                 (", %d beyond the Rust port's denominator" % beyond)
+                 if beyond else ""))
+
     if findings:
         print("%d skip-list finding(s)." % findings)
         return 1

@@ -1,0 +1,209 @@
+/-
+# `ConRon.Refine2.Frontend.Spec` — the twin side of the port's own splits
+
+**Task #97-P5-Frontend**, and `Refine2/Checker/Spec.lean`'s pattern at this
+tier (task #97-P5-Checker's finding 11: *"one collected transcription file per
+tier, with `_unfold` equations, and no edit to the twin"*).
+
+DESIGN §3.4 splits a Rust function wherever a `let`-bound handle outlives a
+`match` arm, wherever an arm would end in a branch, and wherever a `view`'s
+loan would still be alive at an intern (extraction rules 5-7).  The frontend
+is split that way wherever a twin `do` block has more structure than one Rust
+body can carry — `proj_rec::proj_rec_value` alone is six functions for one
+48-line block — and the split halves have no twin to be stated against.
+
+This file is the twin side of those halves, written as twin-side `def`s in
+`AM`, transcribed from `Arena/Frontend/{ProjRec,ExportC}.lean` clause for
+clause, with an `_unfold` equation per family saying that the named twin IS
+its transcription composed.  **Nothing under `Arena/` is edited to make the
+refinement convenient**, which is the standing rule for a twin (DESIGN §8.4);
+a reader checks these against the twin, not against a proof.
+
+The `_unfold`s are `rfl`-shaped in the sense task #97-P5-Checker's §6 means:
+each is a `do`-block equation in `StateT AState (Except CheckError)`, which
+needs that section's rule-10 reduction discipline.  They are open here for the
+same reason they were open there.
+
+## `sorry` count in this file: 0
+
+Round 3 (task #97-T2-LOCKSTEP lane Frontend): the `projRecValue` / owner-census
+transcriptions and their six `_unfold`s are deleted — they predated the twin's
+tag-first reads and were no longer the twin; `proj_rec_value` and
+`proj_rec_owners` are proved against the twin directly, the port's splits
+unfolded in place (`lockstep_inline`).
+-/
+import ConRon.Refine2.Frontend.NatOpGround
+
+open Aeneas Aeneas.Std Result
+
+namespace ConRon.Refine2.Frontend
+
+open ConRon.Arena
+open ConRon.Arena.Frontend
+open ConLeche.Frontend (IdTable NameRec LevelRec ExprRec PwRec CVRec HintsRec RuleRec
+  IndTypeRec IndCtorRec IndRecRec DeclRec LineRec)
+
+/-! ## `proj_rec::mk_proj_motive` / `mk_proj_minor`
+
+`ProjRec.lean:277-307`, past the peel: the port does `stripPisAll` and the
+shape test in the outer function and the arm in the `_at` one. -/
+
+/-- The cited `match bs with | [(d, m)] => … | bs => …` of `mkProjMotive`. -/
+def mkProjMotiveAt (pb : ProjBuild) (fuel : Nat) (bs : List (EIdx × ConLeche.BinderMeta)) :
+    AM (Option EIdx) := do
+  match bs with
+  | [(d, m)] =>
+    if ← headIs fuel pb.T d then do
+      let rl ← liftLooseBVarsFast fuel 1 1 pb.R
+      pure (some (← internE (.lam d rl m)))
+    else
+      pure (some (← internE (.lam d pb.punitC m)))
+  | bs => pure (some (← mkLams bs pb.punitC))
+
+/-- The cited `if ← headIs fuel pb.ctor major then … else …` of
+`mkProjMinor`, at the spine's last argument. -/
+def mkProjMinorAt (pb : ProjBuild) (fuel : Nat)
+    (bs : List (EIdx × ConLeche.BinderMeta)) (major : EIdx) : AM (Option EIdx) := do
+  if ← headIs fuel pb.ctor major then
+    if pb.i < bs.length then do
+      let b ← internE (.bvar (bs.length - 1 - pb.i))
+      pure (some (← mkLams bs b))
+    else pure none
+  else pure (some (← mkLams bs pb.punitUnitC))
+
+/-! ## `export_c`'s own splits
+
+`note_decl`'s two halves, and the value halves of the two entry writers that
+the twin spells inline.  `RefineOld/Frontend/StateDR.lean` needed exactly the
+same two escape-hatch definitions for the `Expr`-tree port
+(`parseExprRecD` / `parseLevelRecD`, and its `parseExprEntryD_eq` /
+`parseLevelEntryD_eq` equivalences). -/
+
+/-- The cited `cvs` of `noteDecl`: the constants one pushed record declares. -/
+def noteDeclEntries : IDeclaration → AM (List (NIdx × List NIdx × EIdx × Option Nat))
+  | .axiomDecl cv => pure [(cv.name, cv.levelParams, cv.type, none)]
+  | .defnDecl cv _ h => pure [(cv.name, cv.levelParams, cv.type, some (hintHeight h))]
+  | .thmDecl cv _ => pure [(cv.name, cv.levelParams, cv.type, none)]
+  | .opaqueDecl cv _ => pure [(cv.name, cv.levelParams, cv.type, none)]
+  | .basisDecl _ => fail (.internal "noteDecl: a basisDecl is not a parser record")
+  | .quotDecl _ cv => pure [(cv.name, cv.levelParams, cv.type, none)]
+  | .indDecl block _ => block.mapM fun ci => do
+      let v ← ci.toConstantVal
+      pure (v.name, v.levelParams, v.type, none)
+
+/-- The cited `cvs.foldl` of `noteDecl`. -/
+def noteEntries (st : StateD) (es : List (NIdx × List NIdx × EIdx × Option Nat)) :
+    StateD :=
+  let ct := st.constTypes
+  let hs := st.heights
+  let st := { st with constTypes := {}, heights := {} }
+  let (ct, hs) := es.foldl (fun (ct, hs) (n, lps, ty, h) =>
+    (ct.insert n (lps, ty), match h with | some h => hs.insert n h | none => hs)) (ct, hs)
+  { st with constTypes := ct, heights := hs }
+
+theorem noteDecl_unfold (st : StateD) (d : IDeclaration) :
+    noteDecl st d = (do pure (noteEntries st (← noteDeclEntries d))) := by
+  cases d <;> rfl
+
+/-- The value half of `parseLevelEntryD`, which the twin writes inline. -/
+def parseLevelRecD (st : StateD) : ConLeche.Frontend.LevelRec → AM LNodeView
+  | .succ u => do pure (.succ (← st.level u))
+  | .max a b => do pure (.max (← st.level a) (← st.level b))
+  | .imax a b => do pure (.imax (← st.level a) (← st.level b))
+  | .param n => do pure (.param (← st.name n))
+
+theorem parseLevelEntryD_unfold (st : StateD) (i : Nat) (r : ConLeche.Frontend.LevelRec) :
+    parseLevelEntryD st i r = (do
+      st.freshLevel i
+      let l ← internLNode (← parseLevelRecD st r)
+      pure { st with levels := st.levels.insert i l }) := by
+  cases r <;> simp only [parseLevelEntryD, parseLevelRecD, bind_assoc, pure_bind]
+
+/-- The value half of `parseExprEntryD`, which the twin writes inline. -/
+def parseExprRecD (st : StateD) : ConLeche.Frontend.ExprRec → AM EIdx
+  | .bvar k => internE (.bvar k)
+  | .sort u => do internE (.sort (← st.level u))
+  | .const n us => do
+    let nm ← st.name n
+    let ls ← us.mapM st.level
+    let lsh ← internLsNode ls
+    internE (.const nm lsh)
+  | .app f a => do internE (.app (← st.expr f) (← st.expr a))
+  | .lam ty bd pw => do
+    internE (.lam (← st.expr ty) (← st.expr bd) ⟨← parsePwD st pw⟩)
+  | .forallE ty bd pw => do
+    internE (.forallE (← st.expr ty) (← st.expr bd) ⟨← parsePwD st pw⟩)
+  | .letE ty vl bd => do
+    internE (.letE (← st.expr ty) (← st.expr vl) (← st.expr bd))
+  | .proj tn ix s => do internE (.proj (← st.name tn) ix (← st.expr s))
+  | .natVal n => internE (.lit (.natVal n))
+  | .strVal s => internE (.lit (.strVal s))
+
+theorem parseExprEntryD_unfold (st : StateD) (i : Nat) (r : ConLeche.Frontend.ExprRec) :
+    parseExprEntryD st i r = (do
+      st.freshExpr i
+      let e ← parseExprRecD st r
+      pure { st with exprs := st.exprs.insert i e }) := by
+  cases r <;> simp only [parseExprEntryD, parseExprRecD, bind_assoc, pure_bind]
+
+/-- The twin's `types ++ ctors ++ recs` of `installIndD`, which the port
+factors out as `ind_block_of`. -/
+def indBlockOf (st : StateD) (tys : List IndTypeRec) (cts : List IndCtorRec)
+    (rcs : List IndRecRec) : AM (List IConstantInfo) := do
+  let types ← tys.mapM fun t => do
+    pure (IConstantInfo.indInfo (← parseCVD st t.cv) {})
+  let ctors ← cts.mapM fun c => do
+    pure (IConstantInfo.ctorInfo (← parseCVD st c.cv) c.numParams c.numFields)
+  let recs ← rcs.mapM fun r => do
+    let rules ← r.rules.mapM (parseRuleD st)
+    pure (IConstantInfo.recInfo (← parseCVD st r.cv)
+      (r.numParams + r.numMotives + r.numMinors + r.numIndices)
+      (r.numParams + r.numMotives + r.numMinors) rules)
+  pure (types ++ ctors ++ recs)
+
+/-- The twin's `b.types.foldl` into `indBlocks`. -/
+def noteIndBlocks (st : StateD) (b : BlockRec) : StateD :=
+  let m := st.indBlocks
+  let st := { st with indBlocks := {} }
+  { st with indBlocks := b.types.foldl (fun m t => m.insert t.cv.name b) m }
+
+/-- The modeller arm of `installIndD`, which the twin writes inline and the
+port splits for the loop-exit reason (task #87 §13 records the same decision
+for the `Expr`-tree port: *"no standalone `install_gen_refines`"*, because
+con-leche writes the body inline with the post-`noteIndBlocks` state
+substituted field by field). -/
+def installGen (md : Modeller) (st : StateD) (block : List IConstantInfo) (nPd : Nat)
+    (T0 : NIdx) (b : BlockRec) : AM (StateD ⊕ RecordVerdict) := do
+  let ctx : Ctx :=
+    ⟨fun n => st.constTypes[n]?, fun n => st.heights.getD n 0, fun n => st.indBlocks[n]?⟩
+  match ← md.generate ctx b with
+  | .error why =>
+    if st.inModelCensus then
+      return .inl (← pushDecl
+        { st with inModelDeclined := st.inModelDeclined.push (T0, why) }
+        (.indDecl block nPd))
+    else
+      return .inr (.declined s!"in-process model of {← readName T0}: {why}")
+  | .ok gen => do
+    let st1 ← pushGenList st gen T0
+    let st1 := { st1 with
+      inModelled := st1.inModelled.push T0,
+      inModelGen := st1.inModelGen.push (st1.indCount - 1, gen.toArray) }
+    return .inl (← pushDecl st1 (.indDecl block nPd))
+
+theorem installIndD_unfold (md : Modeller) (st : StateD) (tys : List IndTypeRec)
+    (cts : List IndCtorRec) (rcs : List IndRecRec) (nPd : Nat) :
+    installIndD md st tys cts rcs nPd = (do
+      let block ← indBlockOf st tys cts rcs
+      let st ← registerProjOwners st tys cts rcs block
+      let T0 ← match block.head? with
+        | some ci => pure ci.name
+        | none => internNNode .anonymous
+      let b ← blockRecOf st tys cts rcs
+      let st := noteIndBlocks st b
+      if st.inModel && wants b then installGen md st block nPd T0 b
+      else return .inl (← pushDecl st (.indDecl block nPd))) := by
+  simp only [installIndD, indBlockOf, bind_assoc, pure_bind]
+  rfl
+
+end ConRon.Refine2.Frontend

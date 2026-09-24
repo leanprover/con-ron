@@ -22,6 +22,17 @@ section for every task you land.
 * Rust style rules for Aeneas are in `DESIGN.md` §3.4 and enforced by
   `scripts/lint-rust-style.sh` and `scripts/provenance.py check`
   (DESIGN.md §3.7).
+* **Gate latency: build the MODULE in the inner loop, the gates at the end.**
+  `scripts/gates.sh` is the *landing* gate, not the edit loop.  An agent
+  filling in a `sorry` has changed one module: `lake build
+  ConRon.Refine2.Specs` (or whichever) is what tells it whether the proof
+  went through, and it costs seconds where the full gates cost minutes —
+  `extract-check` alone is 100–300 s, and a merge that moves
+  `Generated/Funs.lean` costs ~1 000 s of `Core/Eqns.lean` re-derivation.
+  Run the module build after every edit, the whole-target build
+  (`lake build`, `lake build ConRonBridge`, `lake build ConRonRefine2`) when
+  a file is finished, and `scripts/gates.sh` once before reporting.  Never
+  run the gates to check a single proof.
 * **`scripts/gates.sh` is the one command every task must run before
   committing**: `cargo build`, `cargo test`, the style lint, the provenance
   check, the OVERVIEW link gate, the pin check, `scripts/extract.sh --check`
@@ -32,6 +43,12 @@ section for every task you land.
 * The Lean model of the crate is *committed*, under `proof/ConRon/Generated/`;
   regenerate it with `scripts/extract.sh` whenever `crates/con-ron-core`
   changes, and commit the result in the same commit.
+* `lake build` and `ulimit -v` do not mix: Lean reserves address space per
+  thread, and under `ulimit -v 60000000` the build aborts with "failed to
+  create thread" on the Mathlib-side modules even at `LEAN_NUM_THREADS=1`.
+  Run Lean builds with no `ulimit -v` (or 200 GB), `LEAN_NUM_THREADS=1`
+  when a module aborts, `LAKE_JOBS=4`; the `ulimit` rule below is for
+  CHECKER runs, not for `lake`.
 * Large artifacts (exports, scratch builds) go to `_tmp/` (gitignored).
   Run every checker under `timeout` and **always** under `ulimit -v`: a
   runaway checker must die rather than take the machine down.  The budget for
@@ -45,6 +62,50 @@ section for every task you land.
   several runs of a benchmark small enough to repeat (`Init`, the fixtures) —
   never from one run of a large one.  Report the spread when you report wall
   time.
+* **A new worktree should NOT copy the build now that the shared Lake cache
+  is seeded** (found 2026-09-23 by task #97-P3-Ind round 7): copying the
+  main tree's `proof/.lake/build` made Lake rebuild `Generated/Types` and
+  then miss the cache all the way down to `Refine2/Core/Eqns.lean`, while a
+  worktree with *no* build directory restored everything from the cache.
+  Start with no `proof/.lake/build`.  The copy advice below is the fallback
+  for an unseeded cache only.
+* **(Fallback) A new worktree can copy the build instead of rebuilding it.**  A fresh
+  worktree with no `proof/.lake/build` pays ~17 minutes and 6 GB
+  re-deriving `Refine2/Core/Eqns.lean`'s 109 `partial_fixpoint` equations.
+  `cp -a --reflink=auto <a tree that has it>/proof/.lake/build
+  proof/.lake/build` is instantaneous on this filesystem.  Do it before the
+  first `lake build` in any new worktree.  It needs a *source tree that
+  still has the build*, which is why the shared Lake cache below is the
+  better answer when it has been seeded.
+* **The shared Lake artifact cache** (task #97-CACHE).  Lake 5 keeps a
+  content-addressed local cache keyed by each module's *input hash* — source
+  bytes, import artifact hashes, toolchain, options, module name — with **no
+  absolute path in the key**, so one cache serves every worktree, every
+  branch, and survives a worktree being deleted.  `flake.nix` points
+  `LAKE_CACHE_DIR` at `$CON_RON_ROOT/_tmp/lake-cache`, which is the shared
+  `_tmp/`, so all worktrees already read the same cache; Lake's own default
+  (`$ELAN_HOME/toolchains/<tc>/lake/cache`) is a separate bind mount in the
+  sandbox and would *copy* instead of hard-link, so do not use it.
+  * **Reading is automatic and free**: a fresh worktree restores every
+    module the cache has, hard-linked into `proof/.lake/build` (0 bytes of
+    disk), in seconds.  An empty cache changes nothing.
+  * **Writing is opt-in.**  Seeding it is one build, run from a tree that
+    already has the artifacts: `LAKE_ARTIFACT_CACHE=true
+    LAKE_RESTORE_ARTIFACTS=true lake build <target>` — this re-elaborates
+    nothing when the tree is up to date, it just hard-links what is already
+    there into the cache.  **Do this after building
+    `Refine2/Core/Eqns.lean`**; that one module is the whole prize.
+  * `lake cache get`/`put` are for *remote* services (Reservoir/S3) and are
+    irrelevant here.  `lake cache clean` (or `rm -rf _tmp/lake-cache`) is
+    the only GC there is: the cache pins every artifact ever written to it,
+    so it grows across bumps and wants an occasional sweep.
+  * **Caveat for the shared `_tmp/aeneas-lean`**: a writable-cache build
+    also caches the *dependency* packages in the target's import closure,
+    which chmods their build files to `r--r--r--` and rewrites their
+    `.hash` files.  That is Lake's normal behaviour and is harmless, but it
+    is a write to shared state — so seed from a tree whose packages are its
+    own, or accept it deliberately; never turn `LAKE_ARTIFACT_CACHE` on
+    project-wide without saying so.
 * **Shared state between agent worktrees.** `_tmp/` is one directory shared
   through a symlink by every worktree: never rebuild, clean or re-copy
   `_tmp/aeneas-lean` (the patched Aeneas library and Mathlib) from a worktree
@@ -62,6 +123,67 @@ section for every task you land.
   supports a private destination) rather than sharing it for the campaign's
   duration, and only merge the result back through the normal commit, not
   by touching the shared directory.
+* **`lake env lean <file>` does not inherit `proof/lakefile.toml`'s
+  `weak.backward.do.legacy = true`**, so it runs a *different* `do`
+  elaborator: join points land elsewhere, and a proof that passes under
+  `lake build` can fail under it and vice versa.  It presents as a green
+  theorem in an untouched file suddenly failing, and cost one agent an hour
+  of bisection.  Iterate with `lake build <module>`, or with
+  `lake env lean -Dbackward.isDefEq.respectTransparency=false
+  -Dbackward.do.legacy=true <file>`.
+* **Never run `lake -d proof …` from the worktree root.**  The root has no
+  `lean-toolchain` matching `proof/`'s, so elan picks a different Lean (4.34
+  on 2026-09-23) and the build rewrites shared con-leche `.olean`s under
+  `_tmp/aeneas-lean` with an incompatible header, breaking every other
+  agent's build until restored from `_tmp/lake-cache`.  Always `cd proof`
+  (or `env -C proof lake build …`).
+* **An agent's `cd` does not persist between tool calls.**  `cd <main tree>
+  && python3 …` in one call edits the MAIN TREE, and the next call's
+  `git commit` then runs back in the worktree — so the edit lands on the
+  integration branch and the commit message ends up on something else.
+  That is how `a0a0c6a9` arrived on `arena` from a running agent (task
+  #97-P3-Core round 3, diagnosed by the agent itself).  Never reach out of
+  the worktree: do every edit with a path relative to the worktree, and if
+  a file genuinely belongs to another checkout, say so in the report
+  instead of editing it.
+* **Lane agents SUBMIT; the merge queue lands** (task #97-MQ, maintainer's
+  instruction 2026-09-23; replaces "agents land their own branches").  One
+  long-running *queue agent* owns every merge into the integration branch
+  (`arena` during the campaign), so merges are sequenced and no lane re-merges
+  and re-gates because another lane landed first.
+  * **Lane agent**, when the round is done: merge `arena` into your branch
+    once, run `scripts/gates.sh` there, then `scripts/submit.sh <your
+    worktree path> "<one-line note>"` and report to the coordinator (landed
+    = "submitted at <commit>").  Do not run `land.sh`, do not re-merge if
+    `arena` moves, and do not commit to that branch again — the queue merges
+    the submitted commit and deletes the branch.  If the queue bounces it,
+    fix, commit, re-submit.
+  * **Queue agent**: takes `_tmp/merge-queue` in order, merges each commit
+    into its own worktree `_tmp/wt-mq` (a branch following `arena`), runs
+    `scripts/gates.sh --only <steps>` for the steps the merge's delta can
+    touch (see DESIGN `### Task #97-MQ` for the path→step table), fast-
+    forwards the main tree (`git -C <main> merge --ff-only mq`), and drops the
+    lane's worktree with `scripts/drop-worktree.sh`.  It resolves MECHANICAL
+    conflicts only (DESIGN.md appends, import lists, generated axioms/census
+    output, overview-links anchors); anything that needs a proof changed is
+    bounced to the lane with the error.  It may batch several queued
+    branches under one gate run and back one out if the batch goes red.
+  * `scripts/land.sh` stays for the queue agent's own use and for when no
+    queue is running.
+  * A follow-up slice's DESIGN text goes directly under the lane's own
+    `### Task …` heading (as `#### Slice N`), never appended at the end of
+    DESIGN.md — end-of-file appends from concurrent lanes land under the
+    wrong heading (found by the merge queue twice).
+* **`Refine2/Tactic/Lockstep.lean` is shared core.**  Lanes extend the
+  `lockstep` tactic through its extension points — `@[lockstep]`/
+  `@[lockstep_inline]` lemmas and the side-goal tier's `macro_rules` — and do
+  not edit existing alternatives.  If a change to the core is unavoidable,
+  make it a separate small commit and name it in the report, so the queue can
+  land it ahead of dependent work.  Handle-level `@[lockstep]` prims
+  (`*_eq2_spec`, `*_dup2*`, and similar) live only in
+  `Refine2/Tactic/Prims.lean`.  Before adding one, grep for it there; if it
+  is missing, add it there as a separate small commit (found by the merge
+  queue: `dup2_*` and `eidx_eq2_spec` each broke a merge).
 * **Landing a branch (merge discipline).**  The *agent* merges master into
   its branch and runs the gates there; the landing is then a fast-forward
   merge of that branch into master.  If master moved in between so the
@@ -77,4 +199,13 @@ section for every task you land.
   worktrees automatically (an agent may be working in one).  Task scratch
   under `_tmp/` is deleted once its numbers are in DESIGN.md; the corpus and
   `_tmp/aeneas-lean` stay.
+
+  **A landing is three steps, not two: merge, drop the worktree, STOP THE
+  AGENT.**  A finished agent is still a live subagent holding its context;
+  nothing sweeps them, and in every view except an explicit listing a finished
+  agent looks exactly like a working one, so the step is invisible when it is
+  skipped and they pile up.  `scripts/drop-worktree.sh` prints the agent id to
+  stop as its last line — do it then, not in a later sweep.  The same goes for
+  the scratch: the script deletes `_tmp/{gates,extract,extract-check}-<key>`,
+  and skipping it once cost 13 GB of orphans on a shared machine.
 * Commit often; the maintainer pushes and opens PRs.

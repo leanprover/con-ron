@@ -1,29 +1,70 @@
 # con-ron: an overview
 
-> **This document was written by an AI agent** (Claude, working with
-> the maintainer), in contrast to `README.md`, which is human-written.
-> It describes the port and its proof as they stand: how to run the
-> checker, how it is built, what is proved, what is trusted, and the
-> conventions a contributor needs.  `DESIGN.md` is the agents' design
-> record and task log, and holds the history and the measurements behind
-> every decision mentioned here; `AENEAS_FINDINGS.md` is what the port
-> learned about the translator.
+> **This document was written by an AI agent** (Claude, working with the
+> maintainer); `README.md` is the human-written entry point.  It describes
+> the checker and its proof as they are.  For the history behind any
+> decision, the measurements, and the task log, see
+> [`DESIGN.md`](./DESIGN.md).
 
-con-ron is [con-leche](https://github.com/leanprover/con-leche), the Lean
-checker whose consistency theorem is proved in Lean, ported to Rust function
-for function and proved through [Aeneas](https://github.com/AeneasVerif/aeneas)
-to *refine* the con-leche it was ported from: whenever the Rust checker
-accepts an export, con-leche accepts it too, so con-leche's theorems about
-accepted environments hold for the Rust binary as well.  The point is to
-take Lean's compiler, runtime and bignum library out of the trusted base of
-a consistency check: a bug there would need a twin in `rustc` and Rust's
-runtime for the two checkers to agree wrongly.
+con-ron is a Lean kernel checker written in Rust.  It is a close port of
+[con-leche](https://github.com/leanprover/con-leche), the external Lean
+checker whose consistency is proved in Lean, and it is proved, through
+[Aeneas](https://github.com/AeneasVerif/aeneas), to accept only what
+con-leche accepts.  A file that con-ron accepts therefore has con-leche's
+guarantee: its environment has a model, and it proves no theorem of type
+`False`.
 
-## 1. Using the checker
+The point is diversity.  con-leche's proof covers con-leche's Lean source,
+not the Lean compiler, runtime and bignum library that execute it.  con-ron
+executes the same algorithm on `rustc`, Rust's standard library and its own
+bignum code.  A bug in either runtime would need a matching bug in the
+other for both checkers to accept the same wrong proof.
 
-The binary reads a Lean export in `lean4export`'s NDJSON format and prints
-one verdict line
-([the usage text](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L130-L254)):
+The document is for readers who know Lean and Rust and roughly what a kernel
+checker does.  Three names recur throughout:
+
+* **(A) con-leche**, specifically its *pure* checker `checkDeclsPure`, over
+  ordinary expression trees.  Its soundness theorems are the ones con-ron
+  inherits.
+* **(B) the twin**: a second checker, written in Lean in this repository
+  ([`proof/ConRon/Arena/`](https://github.com/leanprover/con-ron/tree/master/proof/ConRon/Arena)),
+  that follows con-leche's algorithm but works on con-ron's data
+  representation.  It mirrors the Rust function for function.
+* **(C) the Rust checker**
+  ([`crates/con-ron-core/`](https://github.com/leanprover/con-ron/tree/master/crates/con-ron-core)),
+  and the Lean model Aeneas extracts from it.
+
+The proof has two halves: (B) refines (A) (**Theorem 1**), and (C) refines
+(B) (**Theorem 2**).
+
+## 1. What con-ron is
+
+con-ron reads a Lean environment exported by `lean4export` in its NDJSON
+format and checks every declaration in it.  It prints one verdict line and
+exits with one of four codes (§2.2).
+
+It is a *port*: every Rust item cites the con-leche declaration it ports,
+or says why it has none (§10), and it checks what con-leche checks, the way
+con-leche checks it.  What differs is the data representation and the
+caching (§4, §5).  con-leche walks
+expression trees; con-ron stores every expression once, in per-constructor
+arrays, and refers to it by a 32-bit handle.
+
+Before the file's own declarations, every run installs a small built-in
+prelude: the basis blocks con-leche pins (`Eq`, `Nat`, `PUnit`, `Empty`,
+`False`, `Quot`) and the toolchain's `Bool` and `And`.  The prelude text is
+con-leche's own, embedded at build time
+([`prelude_text.rs`](https://github.com/leanprover/con-ron/tree/master/crates/con-ron-core/src/frontend/prelude_text.rs)).
+
+Mutual and nested inductive blocks are handled as con-leche handles them: an
+*in-process modeller* translates each block into ordinary declarations, which
+the checker then checks like any other (§6.2).  The modeller is not verified,
+and soundness does not need it to be: a wrong translation is rejected, not
+accepted.
+
+## 2. Running it
+
+### 2.1 Command line
 
 ```
 con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
@@ -32,472 +73,771 @@ con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
 con-ron --help
 ```
 
-* `--verified` is the default and the mode the theorem is about.
-  `--trusted` runs the same checker with the certification-only work
-  switched off; it is faster and outside the theorem.
-* `--jobs=<n>` is the check phase's worker count, by default one per
-  hardware thread capped at 16.  Each worker reserves a gigabyte of address
-  space for its stack, which matters under `ulimit -v`.  The verdict, and
-  the declaration a rejection names, are the same at every `n`.
-* `--progress[=<stride>]` is a heartbeat on stderr.
-* `--pins FILE` and `--no-pins` replace the embedded `Nat.div`/`Nat.mod`
-  pin list, for testing only.  `--no-mark-persistent` is accepted for
-  command-line compatibility with con-leche and does nothing.
+([the usage text](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L87-L212))
 
-The global allocator is a build-time choice, not a flag: `cargo build
---release` uses mimalloc, `--no-default-features` the system `malloc`, and
-`--no-default-features --features jemalloc` jemalloc.  `--help` names the
-one a binary was built with, so a measurement can be reproduced.
+* **`--verified`** is the default, and the only mode the theorems cover.
+* **`--trusted`** runs the same checker with con-leche's certification-only
+  checks switched off.  It is faster, and an accept in this mode is outside
+  the theorems.
+* **`--jobs=<n>`** sets the number of worker threads for the check phase
+  (§6.4).  The default is one per hardware thread, at most 16.  Each worker
+  reserves 1 GiB of stack address space, which counts against `ulimit -v`.
+  The verdict, and the declaration a rejection names, are the same at every
+  `n`.
+* **`--progress[=<stride>]`** prints a heartbeat on stderr: one line per
+  `stride` declarations installed or checked.
+* **`--pins FILE`** and **`--no-pins`** replace the embedded `Nat.div`/`Nat.mod`
+  pin list (§6.1).  They exist for testing and are outside the theorems.
+* **`--no-mark-persistent`** is accepted for command-line compatibility with
+  con-leche and does nothing.
 
-The exit code follows the Lean kernel arena convention, the same as
-con-leche's
-([the exit-code table](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L41-L46)):
+Three environment variables belong to the in-process modeller, as in
+con-leche.  `CON_LECHE_INMODEL=0` turns the modeller off, so the checker
+declines every mutual or nested block.  `CON_LECHE_INMODEL_CENSUS=1` reports
+each such block's outcome after parsing and stops with exit 2.
+`CON_LECHE_PROJREC_TRACE` names each rewritten projection function.  A run
+with either of the first two set is outside the theorems; an integration
+test
+([`inmodel_flags.rs`](https://github.com/leanprover/con-ron/tree/master/crates/con-ron/tests/inmodel_flags.rs))
+checks that they do what the help text says.
 
-| exit | verdict | meaning |
+### 2.2 Exit codes
+
+The codes are con-leche's
+([the table](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L18-L23)):
+
+| exit | verdict line | meaning |
 |---|---|---|
-| 0 | `accepted N declarations` | every declaration checked; `N` counts the file's own declaration records, as con-leche counts them |
+| 0 | `accepted N declarations` | every declaration checked; `N` counts the file's own declaration records |
 | 1 | `rejected` | a declaration is invalid |
-| 2 | `declined` | the checker detected a feature it does not support, and says which |
+| 2 | `declined` | the input uses something the checker does not support, and says what |
 | 3 | error | bad usage, malformed input, or an internal failure |
 
-## 2. Building
+Running out of memory is none of these: the process aborts, as Rust does on
+a failed allocation.
 
-Three toolchains meet here, and `flake.nix` pins two of them
-([`flake.nix`](https://github.com/leanprover/con-ron/blob/master/flake.nix#L5-L29)):
-Aeneas at a fixed commit, which pins the Charon it needs, which pins the
-Rust nightly it needs.  Lean comes from `elan`, at the version in
-`proof/lean-toolchain` (con-leche's).
+### 2.3 Building
+
+`flake.nix` pins Aeneas, which pins the Charon it needs, which pins the Rust
+nightly it needs
+([`flake.nix`](https://github.com/leanprover/con-ron/blob/master/flake.nix#L5-L29)).
+Lean comes from `elan`, at con-leche's version (`proof/lean-toolchain`).
 
 ```
 nix develop                        # cargo, charon, aeneas on PATH (or: direnv allow)
 cargo build --release              # target/release/con-ron
 scripts/setup-aeneas-lean.sh       # the patched Aeneas Lean library + Mathlib, once
-cd proof && lake build             # clones con-leche the first time, then builds the model and the proofs
+cd proof && lake build             # fetches con-leche, builds the model and the default targets
 ```
 
-`setup-aeneas-lean.sh` copies Aeneas' Lean backend out of the
-`vendor/aeneas` submodule, applies `patches/aeneas-433.patch` (§10) and
-fetches Mathlib from the olean cache.  con-leche is a plain `lake`
-dependency of `proof/`, pinned by `rev` in `proof/lakefile.toml` (§5).  On a
-many-core machine con-leche's first build can exhaust memory; `LAKE_JOBS=N`
-caps the parallelism of `scripts/gates.sh`.
+The theorems live in three library targets that `lake build` does not build
+by default: `ConRonBridge`, `ConRonRefine2` and `ConRonCapstone` (§11).
 
-The one command to run before committing is `scripts/gates.sh` (§12), and
-CI (`.github/workflows/ci.yml`) runs the same gates plus the differential
-tests of §6.4.
+The global allocator is a build-time choice: mimalloc by default,
+`--no-default-features` for the system `malloc`, and `--no-default-features
+--features jemalloc` for jemalloc.  `con-ron --help` names the one a binary
+was built with.
 
 ## 3. What is proved
 
-The headline theorem is con-leche's own main corollary, transported to the
-Rust pipeline
-([`conron.no_False_declaration`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L730-L746)):
+The two headline theorems are in
+[`proof/ConRon/Capstone.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L14-L119).
+They are stated about the Aeneas model of the six Rust functions the binary
+calls, in the order it calls them.  Both depend on con-leche's three axioms
+(`propext`, `Classical.choice`, `Quot.sound`) and on nothing else: no
+`sorry`, no `native_decide`.  A `#guard_msgs` check keeps it that way
+([the census](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L580-L584)).
+
+**Soundness**
+([`ConRon.Capstone.no_False_declaration`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L530-L560)),
+with the implicit arguments left out:
 
 ```lean
-theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
-    (hgen : Frontend.ModellerWF inst g)
-    (hmr : Frontend.ModellerRefines inst g Frontend.CtxRel)
-    (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-    (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
-    (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
-    (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
-    (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
-    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+theorem ConRon.Capstone.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+    (hbytes : Arena.Frontend.preludeText = ConLeche.Frontend.builtinPreludeText.toUTF8)
+    (hmr : Refine2.Frontend.ModellerRefines inst m Arena.Frontend.inProcessModeller)
+    (hdec : kernel.pins_decode.decode text = ok (.Ok pins))
+    (hfalse : ConLeche.jsonWithTheoremFalse (absChunks chunks))
+    (hpers : arena.store.PersTier.empty = ok pers)
+    (hest : arena.store.EStore.empty = ok est)
+    (hst0 : arena.monad.AState.init est = ok st0)
+    (h1 : arena.pins.intern_reserved_pins pers st0 = ok (.Ok (), st1))
+    (h2 : frontend.prelude.builtin_prelude_e inst pers m st1 = ok (.Ok pre, st2))
+    (hreads : ReadsAs sinst src chunks.val)
+    (h3 : frontend.export_c.parse_source inst sinst pers m st2 src true false
+      = ok (.Ok r, st3, src'))
+    (h4 : frontend.prepare.prepare_prelude pers st3 pre r.decls = ok (.Ok ds, st4))
+    (h5 : arena.checker.intern_all_pins pers st4 pins = ok (.Ok ipins, st5))
+    (h6 : PoolAccepts hinst pers st5 .Verified ipins ds hook fe st6) :
     False
 ```
 
-A file whose bytes declare a theorem of type `False` is never accepted by
-the Rust checker.  The run hypotheses (`hp`, `hpre`, `hparse`, `hprep`,
-`h`) are the steps the binary performs, as Lean functions extracted from
-the Rust: decode the embedded pin list, parse the built-in prelude, parse
-the file's byte chunks, reorder the prelude, fold.  `hgen` and `hmr` are
-the two promises made about the one unverified component the pipeline
-calls, the in-process modeller for mutual and nested inductive blocks (§4.6,
-§8.2): the declarations it generates are well-formed and abstract to what
-con-leche's modeller generates.  The prelude is a parameter; the
-`_prelude` twin states the theorem at the constant the binary ships.
+In words: if the file's bytes (`chunks`) declare a theorem whose type is
+`False`, then the six stages `h1`…`h6` cannot all succeed.  Each `hᵢ` says
+that one extracted Rust function, run on the state the previous one left,
+returned `Ok`.
 
-Behind it stands the model statement
-([`conron.model_exists_parsed`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L550-L564)):
-the environment the Rust fold accepts, abstracted to con-leche's, has a
-model in every set theory.  Both are pinned by `#guard_msgs` at con-leche's
-own three axioms, `propext`, `Classical.choice`, `Quot.sound`
-([the censuses](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L328-L332)).
-No `native_decide`, no `sorry`.
+**The model statement**
+([`ConRon.Capstone.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L471-L503))
+takes the same hypotheses without `hfalse` and concludes
 
-What connects the Rust run to con-leche's theorem is one refinement
-statement over the whole outcome of the fold
-([`check_decls_refines`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Installed.lean#L3293-L3304)):
-if the Rust fold returns `Ok e`, con-leche's fold returns the abstraction
-of `e`; if it returns one of con-leche's three error kinds, con-leche throws
-an error of the same kind; if it returns the port's own `Native` error
-(§4.5), nothing is claimed.  This is *partial* correctness by design: the
-Rust may fail where con-leche does not, never the reverse.
+```lean
+    ∃ (lst : Arena.AState) (lfe : Arena.IFEnv) (env : ConLeche.Env),
+      AStateRel pers st6 lst ∧ IFEnvRel fe lfe ∧
+      Bridge.denoteFEnv lst.store lfe = some env ∧
+      Nonempty (ConLeche.Model.EnvModelM V .verified env)
+```
 
-Two further forms exist.  The fold-level pair
-([`conron.model_exists_decoded`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L303-L310))
-starts at a declaration list rather than at bytes and therefore assumes
-the list is well-formed (`hds`), a hypothesis the parsed form discharges.
-The embedded pair
-([`conron.model_exists_embedded`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L391-L398))
-is stated at the pin text the binary ships and carries one axiom more,
-`pins_text.PINS_TEXT._native.decide.ax_1`, an artifact of how Aeneas
-extracts a string constant (§8.2).
+The environment the Rust accepted (`fe`) is related to a twin environment
+(`lfe`), which denotes a con-leche environment `env`, and `env` has a model
+in every set theory `V`.  The statement goes through the twin because the
+Rust store is related to the twin's by a relation, not mapped by a function
+(§7.4).
 
-## 4. The design of the checker
+Both theorems are **partial correctness**.  The Rust has one error kind
+con-leche does not, `Native` (§6.5), raised at resource limits such as a
+full handle table.  The theorems say nothing about a run that ends in
+`Native`.  So con-ron may decline where con-leche accepts, but it never
+accepts where con-leche rejects.
 
-### 4.1 The shape of the port
+### 3.1 What the theorems assume
 
-con-leche has a pure checker (`ConLeche/Kernel`) and a memoising one
-(`ConLeche/Cached`) proved equivalent to it; the binary runs the second, and
-con-ron ports the second: one Rust module per Lean file, functions in the
-same order, each with a doc comment citing its source range (§5).  con-ron
-does nothing con-leche does not; what differs is either a data-structure
-substitution proved to behave the same (§4.2–4.4) or an idiom the
-translator requires.
+Every assumption is a hypothesis of the two statements, not an axiom, which
+is why `#print axioms` does not list any of them.
 
-Aeneas translates a subset of Rust, and the verified crate stays inside it
-by rule: no closures, no `?`, no `derive` (explicit `foo_dup`/`foo_beq`
-instead), no `std::collections`, no `&str` constants, no `unsafe` (one
-exemption, §4.2), higher-order arguments as one-method traits, `&mut` only
-where the translation's state passing is wanted, and recursion rather than
-loops (one exemption, §4.6).  `scripts/lint-rust-style.sh` enforces the
-mechanical part; DESIGN.md §3.4 has the rules and their reasons.
-`overflow-checks` is on in release builds
-([`Cargo.toml`](https://github.com/leanprover/con-ron/blob/master/Cargo.toml#L21)),
-so an overflow the model calls `fail` is a panic in the binary, not a wrap.
+| hypothesis | what it says | how it is discharged |
+|---|---|---|
+| `[ConLeche.SetTheory V]` and con-leche's soundness | a set theory to build the model in; con-leche's `checkDeclsPure_sound_of` and `no_proof_of_False_pure` at the pinned revision | con-leche's own proof, on the same three axioms |
+| `hpers`, `hest`, `hst0`, `h1`…`h5` | the binary ran exactly these extracted functions, in this order, on one state that starts at `AState::init(EStore::empty())` under one `PersTier::empty()` | the driver's calling order, which starts [here](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L372-L387): trusted |
+| `h6 : PoolAccepts …` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Checker/Phased.lean#L380-L397)) | the install phase (`annot_fold_hooked`) accepted, `freeze_tier` succeeded, and one verified `check_pending_worker` run per worker accepted the records that worker checked, the workers together covering every pending record | that the pool's accept has this shape is an argument about `pool.rs`'s control flow (§8.2).  It holds for every install hook, so `--progress` runs are covered |
+| `hreads : ReadsAs sinst src chunks` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Source.lean#L36-L40)) | the chunk source hands out `chunks`, each nonempty, then an empty buffer | that the file handle returns the file's bytes in order: trusted.  The read loop itself (`parse_source`) is verified |
+| `hmr : ModellerRefines inst m inProcessModeller` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Shape.lean#L662-L667)) | the unverified Rust modeller (`crates/con-ron/src/in_model/`) answers, from related states, what the twin's `inProcessModeller` answers | trusted by design (§6.2).  The twin's modeller calls con-leche's own `generate`, and Theorem 1 proves it exact (`inProcessModeller_refines`) |
+| `hdec : decode text = ok (.Ok pins)` | the pin list is what the verified decoder read from some text | the binary passes the embedded `PINS_TEXT` (`driver::pins_for_run`); `--pins FILE` and `--no-pins` bypass the decoder and are outside the theorems |
+| `hbytes` | the twin's committed prelude bytes are con-leche's `builtinPreludeText` | the gate `scripts/gen-prelude-lean.sh --check` (§10), not a Lean proof |
+| the arguments `true false` of `h3` and `.Verified` of `h6` | the in-process modeller on, its census off, verified mode | these are the defaults.  A run with `CON_LECHE_INMODEL=0`, `CON_LECHE_INMODEL_CENSUS=1` or `--trusted` is outside the theorems |
 
-### 4.2 Terms
+§8 lists everything else that must hold for the theorems to describe the
+binary: the translator, the compiler, and the hand-written models of what
+Aeneas cannot translate.
 
-A term is a reference-counted, immutable node: the constructor's fields
-beside a packed 64-bit word caching what con-leche computes in its
-`@[computed_field]`s (the structural hash, the loose bound-variable bound,
-the has-free-variable and has-level-parameter bits).  The count is atomic
-so that the installed environment can be shared by the check phase's
-workers.
+## 4. The expression representation
 
-An `Expr` is one machine word: the address of its heap block with the
-constructor in the low four bits, which a 16-byte-aligned block leaves free
-([`ron::tagged`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/tagged.rs#L1-L20)).
-Each of the ten constructors has a block of its own size, the count and the
-packed word followed by that constructor's fields:
+The checker's state is one value,
+[`AState`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/monad.rs#L315-L336):
+the **arena** (the store of all terms), the per-call memo tables and the
+per-declaration caches (§5), and the reserved-name pins (§6.1).  Checker
+functions take it as `&mut AState`, together with the shared persistent tier
+`&PersTier` (§4.4).
 
-| block | bytes | share of live nodes on `Init`+`Std`+`Lean` |
-|---|---:|---:|
-| `app` | 32 | 75 % |
-| `bvar`, `sort`, `const`, `fvar`, `lit` | 32 | 21 % |
-| `lam`, `forallE`, `letE`, `proj` | 48 | 4 % |
+### 4.1 Handles
 
-This is what brings the checker's memory to con-leche's level (§7.2);
-allocators price a block by size class, so the 32-byte `app` block is what
-the layout is designed around.  A binder's extra 16 bytes are its
-`BinderMeta`, the codomain prop-ness annotation (`PropWhen`) held by value.
+A term is named by a **handle**: one 32-bit word
+([layout](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/handle.rs#L4-L15)).
 
-Putting a constructor in a pointer is outside safe Rust, and it is the
-**only** `unsafe` in the checker: twelve lines in `ron::tagged`, a
-crate-private module that names no term type.  Its surface inside the crate
-is the `Expr` operations of `ron::node`, a ten-line table with no `unsafe`
-in it
-([`ron::node`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L1-L14)).
-The invariant the module rests on is that a handle is only ever made by the
-allocator, which writes the block and attaches its kind's tag in the same
-expression; the projection is tag-checked and type-checked, nothing outside
-the module can release a block or reach its address, and `Send`/`Sync` are
-derived from the payload types.  §8.2 says what this adds to the trusted
-base.  The module is an interim solution: the plan is an arena
-representation that Aeneas can see, which retires it.
+```text
+bits 31…28   constructor tag
+bit  27      tier            (0 = persistent, 1 = scratch)
+bits 26…0    index           into that constructor's array in that tier
+```
 
-`Name`, `Level` and `PropWhen` keep a plain `std::sync::Arc`
-([`ron::ptr`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/ptr.rs#L1-L8)).
-Nodes of every kind are built only by smart constructors such as
-[`app`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/expr.rs#L479-L495),
-which is what the well-formedness predicate of §6.2 is built from.
+There are five handle types, one per store
+([`EIdx` … `BMIdx`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/handle.rs#L140-L180)):
+expressions, names, levels, level lists (a constant's universe arguments),
+and binder data (a binder's `PropWhen` annotation).  The expression tags
+follow con-leche's constructor order, from `bvar` = 0 to `proj` = 9
+([the tags](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/handle.rs#L528-L576)).
 
-### 4.3 Naturals and hash maps
+Because the tier bit sits above the index, a persistent handle keeps its
+bits when the scratch tier comes and goes.  An index has 27 bits, so each
+constructor holds at most 2²⁷ nodes per tier; past that, `intern` raises
+`Native`.  A handle is its own hash
+([`hash64`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/handle.rs#L400-L408)),
+and two handles denote the same term only if they are equal (§4.2), so
+comparing two terms is comparing two words.
 
-Two things Lean's runtime provides are the very things the project wants
-out of the trusted base, so the port carries its own: `ron::Nat`, an
-arbitrary-precision natural as a normalised vector of 64-bit limbs
-([`nat.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/nat.rs#L1-L8)),
-replacing the GMP-backed `Nat`; and `ron::HashMap`, a chained hash map
-after the Aeneas tutorial's verified one
-([`hashmap.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/hashmap.rs#L1-L10)),
-replacing `Std.HashMap`.  Both are verified against their mathematical
-specifications.  The memo state is fourteen such maps
-([`CState`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/cached/state_c.rs#L326-L360)),
-one per con-leche memo table, with the same keys and the same policy.
+### 4.2 Stores and hash-consing
 
-The per-call memos of the term walks — substitution, abstraction, level
-instantiation, the scope and definedness guards, and `beq`'s pair memo —
-follow con-leche's one discipline for all of them: **memoise only what is
-shared**.  Past each walk's cutoff, a node is probed and recorded only if it
-is compound (a leaf is decided on the spot, so an entry for it could never
-save a descent) and only if
-[`ron::node::is_exclusive`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L437-L439)
-reports its reference count above one.  A node with one reference is
-reachable from one place, so the walk that is inside its only parent meets it
-once: the key, the hash, the bucket and the stored handle are pure loss.  The
-official kernel caches on the same test.  The count read is the one thing in
-the core that looks at a reference count; §8.1's row says what the model
-makes of it, and DESIGN.md §3.4 says why it is not the counted-pointer API
-the lint bans.
+Each store keeps, per tier, **one array per constructor**, each element a
+fixed-size record of handles and scalars; an `app` node is two `u32`s
+([`ETables`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1298-L1319)).
+The stores nest: an expression refers to names, levels and level lists, a
+level to names.  Reading a node back (`view`) decodes the tag and reads one
+array element; there is no node enum in memory.
 
-### 4.4 The knot, fuel, and the pins
+Beside each array is a **derived column**: per node, the word con-leche
+caches on the same term, computed with con-leche's formula.  For an
+expression this is `Expr.data`: the structural hash, the loose
+bound-variable bound, the free-variable range and the has-level-parameter
+bit.  So "does this term have loose bound variables?" is one array read.
 
-con-leche's core is a knot of six mutually recursive operations
-(`whnfCore`, `whnf`, `infer`, `defeq`, `annotate`, `inferIO`) tied through
-a record and a fuel.  Aeneas rejects recursion that mixes functions and
-trait methods, so the knot is six plain mutually recursive functions with
-the fuel as an argument
-([the wrappers](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/cached/core_c.rs#L5086-L5117)),
-each probing its memo table, running its body one fuel step down, and
-inserting.
+Every node is added through **`intern`**, which **hash-conses**: it looks
+the node's fields up in the tier's **cons table** (a hash map from fields to
+handle) and returns the existing handle if there is one
+([`EStore::intern`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L4160-L4195)).
+It probes the persistent table first, then the scratch table, and appends
+only if both miss
+([the `app` case](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L4453-L4501)).
 
-con-leche checks `Nat.div` and `Nat.mod` against a list of pinned
-elaborations.  The port embeds that list as text in the verified core
-([`PINS_TEXT`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_text.rs#L40-L44),
-generated from con-leche by `scripts/gen-pins.sh`) and decodes it with a
-verified decoder
-([`decode`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_decode.rs#L1328-L1345))
-whose output is well-formed by construction.  con-leche's fold takes the
-pin list as a parameter, so nothing is assumed about its value.
+Hash-consing is needed for soundness, not only for speed.  The checker
+treats equal handles as equal terms and unequal name handles as unequal
+names.  If two handles could denote the same term, the checker could take a
+branch con-leche would not.  The twin proves the denotation injective on a
+well-formed store
+([`denoteE_inj`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/WFProofs.lean#L1121-L1122)).
 
-### 4.5 Errors
+Levels and names are interned the same way, but level *algorithms*
+(`simplify`, `leq`, `isEquiv`) run on ordinary `Level` trees read back from
+the store, with the readback cached (§5).  Name equality is handle equality.
 
-The Rust error type has con-leche's three kinds and a fourth
-([`CheckError`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/core_types.rs#L87-L92)):
-`Native` is a failure con-leche cannot have, such as a shift amount beyond
-64 bits or a pin text that does not decode, and the refinement claims
-nothing about it.  The other three mirror con-leche's `throw` sites one for
-one, and the refinement says con-leche throws the same kind.  Where
-con-leche backtracks (`orElse`, in the pin loop) the port backtracks from a
-snapshot of the memo state on a mirrored error and keeps a `Native` one as
-the verdict
-([`or_else_step`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/cached/checker_c.rs#L123-L132)).
+### 4.3 The two tiers
 
-### 4.6 The frontend
+The arena has two **tiers**, each with its own arrays and cons tables:
 
-The whole path from the file's bytes to the fold is in the verified crate,
-under `crates/con-ron-core/src/frontend/`
-([the module map](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/mod.rs#L13-L27)):
-the byte recogniser (a port of con-leche's `Scan/Fast.lean`, the
-`@[csimp]`-selected scanner its binary actually runs, not the naive
-specification), the record assembly, the projection rewrite, the ground
-hoist, the prelude reorder, and the embedded prelude text.
+* the **persistent tier** holds the parsed file, the prelude, the pins, and
+  every term the installed environment keeps;
+* the **scratch tier** holds what one declaration's check computes and then
+  forgets.
 
-This directory is the one exemption from the recursion rule: the scanner
-recurses once per byte, which Lean compiles to a loop and Rust would not,
-so `while`, `loop` and `for` are allowed here and nowhere else.  The
-extraction runs with `-loops-to-rec`, so each loop becomes a `foo_loop`
-function mirroring the Lean recursion, and the proofs are about that.  The
-Rust cost is a shape rule (AENEAS_FINDINGS.md §2.6): a loop is the last
-thing in its function, or it becomes its own function.
+Each declaration is processed inside a **bracket**: `enter_scratch` opens an
+empty scratch tier, and `drop_scratch` discards it and flushes the caches
+([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L11708-L11728)).
+Dropping the tier leaves persistent handles valid, because a persistent node
+never points into the scratch tier.
 
-The **in-process modeller** for mutual and nested inductive blocks stays
-unverified, behind a one-method trait
-([`Modeller`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/in_model_rec.rs#L258-L269))
-that the parser takes as a type parameter.  Charon renders a trait method
-on a type parameter as an opaque function, so the extracted parse is
-quantified over an arbitrary modeller, and the theorem carries two
-hypotheses about it (§3) rather than a port of six thousand lines whose own
-note says soundness needs nothing from them.  Upstream may remove the
-modeller, and the hypotheses go with it.
+When a declaration is installed, its annotated type and value must outlive
+the bracket.  Before the drop, they are **promoted**: copied from scratch to
+persistent with a memo, so the copy costs the size of the result, and a
+persistent handle promotes to itself
+([`arena::promote`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/promote.rs#L1-L40)).
+Most of an annotated term is the parsed term, so the copy usually stops
+early.
 
-### 4.7 The crates
+### 4.4 Sharing the persistent tier between workers
 
-`con-ron-core` is the verified crate: the checker, the frontend, and
-`ron::{nat, hashmap, ptr, tagged, node}`.  `con-ron` is unverified: the
-modeller, the driver (the file reader, the flags, the exit codes, the
-heartbeat), and the check phase's worker pool
-([`pool.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/pool.rs#L1-L9)).
-`con-ron-dump` holds the `con-ron-pins/1` reader and writer and the global
-allocator
-([`MiMallocTight`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-dump/src/lib.rs#L155-L203)),
-which enters mimalloc by `mi_malloc` for word-aligned requests so that
-small blocks land in the size class their size says.
+The check phase runs on several threads (§6.4).  They share one persistent
+tier, read-only, and each owns a scratch tier.  Apart from the pool's own
+bookkeeping (two atomic counters and the progress observer's lock), the
+workers share nothing mutable.
 
-## 5. Keeping the port in sync with con-leche
+In Rust, the sharing is a separate parameter.  At the phase boundary,
+[`freeze_tier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L1394-L1415)
+moves the four stores' persistent tables out into one
+[`PersTier`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L1340-L1369)
+value and sets each store's `shared_on` flag.  From then on, every persistent
+read goes to the `&PersTier` that each function takes, and a persistent
+append fails with the **frozen-tier guard**
+([`M_FROZEN`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/store.rs#L142-L159)),
+a `Native` error that no run is expected to reach.  After the check phase,
+`thaw_tier` moves the tables back.  In the twin, the same sharing is a
+`ReaderT PersTier` layer on the checker monad.
 
-Every Charon-visible item of the core carries a citation of the con-leche
-source it ports, as a doc line `/// con-leche: <path>:<a>-<b> <declaration>`
-([an example](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/level.rs#L125-L127)),
-or `/// con-leche: none — <reason>` for an item with no Lean counterpart.
-The pinned con-leche commit fixes what those citations mean.
-`scripts/provenance.py` has three modes:
+### 4.5 What is still an `Expr` tree
 
-* `check` (a gate): every item cites, every citation resolves to the named
-  declaration at the cited range, and no `CHANGED` marker is left;
-* `update`: after a bump, relocate every citation whose text merely moved,
-  and mark every one whose text changed with a `CHANGED` line that the
-  porter deletes once the item is re-ported and re-proved;
-* `coverage`: which con-leche declarations are cited and which are
-  deliberately skipped, each with a reason in `scripts/provenance-skip.txt`.
+Two things still use con-leche's tree representation (`kernel::expr`, an
+`Arc` per node):
 
-A bump is: edit the `rev` in `proof/lakefile.toml`, run `lake update
-con-leche` in `proof/`, run `provenance.py update`, then work through the
-findings.  DESIGN.md §7 is the full procedure.  Two things it insists on:
-classify the findings before editing anything, since most of a large bump's
-findings are renames and no Rust work, and expect the proofs to report the
-rest, because a refinement lemma that no longer elaborates is a con-leche
-change that reached the port.
+* **the pinned data**: con-leche's own constants that the checker compares
+  stream records against (the basis blocks, the axiom pins, the `Nat`
+  operation pins).  They are interned into the persistent tier once, at
+  startup (§6.1), and no tree is built afterwards while checking;
+* **the in-process modeller**, which reads a block back into trees, runs,
+  and interns its output (§6.2).
 
-`scripts/progress.py` counts, per con-leche file, the lines to translate,
-translated (cited), and verified (cited by an item with a `_refines`
-lemma); `scripts/loc.py` puts upstream, Rust, generated and proof lines
-side by side.  Both print a summary at the end of the gates.
+## 5. Caching
 
-## 6. The verification
+Caches exist at two lifetimes, both keyed on handles.  Keying on a handle
+alone is sound because an `fvar` node carries its own type, so a handle
+determines its typing context.
 
-### 6.1 From Rust to Lean
+**Per-call memos**
+([`Memos`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/monad.rs#L182-L248)).
+Each term walk of con-leche's `ExprOps` (instantiate, abstract, lift, lower,
+instantiate level parameters, the bound computations) has its own table,
+keyed by `(handle, cursor)`.  A walk's top-level entry clears its table, so
+the value being substituted need not be in the key.  The walks also stop
+early using the derived column
+([the cutoffs](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/expr_ops.rs#L35-L51)):
+instantiation returns a subterm unchanged once its loose-bound-variable
+bound is low enough, level substitution once it has no level parameters.
+Two more tables sit in the same record for their allocation only: the
+declaration guards `allLevelParamsDefined` and `constsResolve` thread their
+memo as an argument, as con-leche does, and the port parks it in the state
+between calls, moving it out and emptying it at each entry
+([`take_walk_memo`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L525-L572)),
+or dropping it outright past 2¹⁶ slots.
 
-Charon compiles the verified crate to its intermediate representation and
-Aeneas translates that to Lean: one definition per function in the
-`Result` monad (`ok`, `fail`, `div`), `&mut` arguments as state passing,
-recursion as `partial_fixpoint`.  The output is committed under
-`proof/ConRon/Generated/` and regenerated by `scripts/extract.sh`; a gate
-fails if the committed model is not what the crate extracts to today.
+**Per-declaration caches**
+([`Caches`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L304-L351)).
+These are con-leche's memo tables:
 
-What the translator cannot see, it declares as an axiom and asks for a
-model, which is written by hand in
-[`TypesExternal.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/TypesExternal.lean#L42)
+* `whnfCore`, `whnf`, `infer`, `inferIO` and `annotate`, each `EIdx ↦ EIdx`.
+  The inference grades have separate tables, so an answer computed at one
+  grade never serves another;
+* `defeq` on the ordered pair, storing both `true` and `false` verdicts;
+* level and level-list equivalence verdicts;
+* a stored constant's type or value, and a recursor rule's right-hand side,
+  at a universe instantiation;
+* the readbacks of names, levels and level lists (§4.2).
+
+**When they are emptied.**  The per-declaration caches are flushed whole
+whenever a bracket closes (§4.3), and again at the start of each install
+step, as con-leche's `flushC` is.  A cache entry can name a scratch handle,
+so it must go with the tier.  The memos are cleared when a bracket opens and
+at every walk's entry.  No table evicts single entries; a table that
+reaches
+[`CACHE_CAP`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L387-L392)
+(2²² entries) is emptied whole.
+
+The type checker runs in three **lanes**
+([`LANE_*`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L440-L454)),
+one per con-leche knot: the full lane uses the caches above, the gated lane
+uses none, and the IO lane runs `infer` and `inferIO` unmemoised and uses the
+full lane for everything else.
+
+**The hash map.**  The arena's tables use
+[`ron::HashMap2`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/hashmap2.rs#L1-L40),
+an open-addressed map whose slots carry an epoch stamp, so clearing it is
+O(1).  It is proved to implement a finite map in
+[`Refine/HashMap2.lean`](https://github.com/leanprover/con-ron/tree/master/proof/ConRon/Refine/HashMap2.lean).
+
+## 6. The checking pipeline
+
+### 6.1 The stages
+
+The binary's `check_main` calls six verified functions in order, on one
+`AState`
+([`check_main`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L358-L582)).
+They are the six stages `h1`…`h6` of the theorems.
+
+1. **`intern_reserved_pins`**
+   ([`arena::pins`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/pins.rs#L1-L60)):
+   about seventy names the checker compares by handle (`Nat`, `Nat.succ`,
+   the `Nat` operations, `Bool`, the axiom names) are interned into the
+   persistent tier once.  Afterwards each is one table read.
+2. **`builtin_prelude_e`**: the built-in prelude (§1) is parsed into the
+   store.
+3. **`parse_source`**: the file is parsed, streaming (§6.2).
+4. **`prepare_prelude`**
+   ([`frontend::prepare`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/prepare.rs#L1-L50)):
+   the prelude's declarations go first, using the file's own copy of each
+   where it has one.  Then each pinned `Nat` operation's supporting
+   definitions are moved ahead of it, if the file declares them later.  No
+   record is dropped or changed; moving a record earlier can only turn an
+   accept into a reject.
+5. **`intern_all_pins`**
+   ([`intern_all_pins`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L1590-L1617)):
+   every **pin** is interned into the persistent tier.  A pin is data,
+   fixed by con-leche, that the checker compares stream records against:
+   the six basis blocks, the standard and trusted axiom statements, and the
+   `Nat.div`/`Nat.mod` pin list.  That list is embedded as text
+   ([`PINS_TEXT`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_text.rs#L40-L44),
+   generated from con-leche by `scripts/gen-pins.sh`) and read by a verified
+   decoder
+   ([`decode`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_decode.rs#L1325-L1345)).
+6. **The fold**: install every declaration, then check them (§6.3, §6.4).
+
+### 6.2 Parsing and the in-process modeller
+
+The parser is in the verified crate
+([`frontend/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/mod.rs#L19-L31)).
+The driver reads the file forward in 4 MiB chunks through the
+[`HandleSource`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L885-L930)
+chunk source and never holds the whole file.  Each line goes through a byte
+recogniser ported from con-leche's `Scan/Fast.lean`, the scanner
+con-leche's binary actually runs.  Records are interned straight into the
+persistent tier, and a table from export index to handle keeps the export's
+own sharing.  No expression tree is built.
+
+The parser is the one place where the Rust uses loops rather than recursion,
+because a per-byte recursion would overflow the stack.  Aeneas turns each
+loop back into a recursive function, which mirrors con-leche's.
+
+The **in-process modeller** turns a mutual or nested inductive block into
+ordinary declarations.  The verified parser calls it through a one-method
+trait
+([`Modeller`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/types.rs#L243-L271)),
+so the extracted parser is quantified over every possible modeller.  The
+binary's modeller
+([`in_model.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/in_model.rs#L1-L30))
+is a Rust port of con-leche's `InModel.generate`: it reads the block back
+into trees, runs the generator, and interns the result.  It keeps no state
+between calls.  The fold checks its generated records like any other, so a
+wrong one is rejected or declined; what the modeller decides is only which
+blocks can be accepted at all.
+
+### 6.3 The fold: install, then check
+
+The fold is con-leche's two-phase `checkDecls`
+([`arena::checker`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L1-L40)).
+
+**Phase A, install**
+([`annot_step`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L927-L961)).
+For each declaration in order: flush the caches, open a scratch tier,
+annotate the header and value and add the constant to the environment,
+promote what the environment keeps, drop the tier.  A definition, theorem or
+opaque whose value still needs checking becomes a **pending check**: its
+value, its position, and the prefix of the environment it may see.
+
+**Phase B, check**
+([`check_pending`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L1236-L1247)).
+Each pending check runs in its own bracket against the prefix environment it
+recorded.  Nothing it computes survives it.
+
+con-leche proves that its two-phase fold accepts what its one-pass pure
+fold accepts.  Theorem 1 proves the same of the twin's fold (§7.3).
+
+### 6.4 The worker pool
+
+Between the phases, the driver freezes the persistent tier (§4.4) and runs
+phase B on a pool of threads
+([`check_decls_driver`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L470-L565),
+[`pool.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/pool.rs#L17-L41)).
+A worker has its own `AState`
+([`worker_state`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L1474-L1491)):
+an empty store that reads the shared tier, its own memos and caches, and a
+copy of the pin handles.  It borrows the frozen tier and the installed
+environment.  Workers claim pending checks from a shared counter and run
+`check_pending` on each.  Results are merged by record index and read in
+record order, so the verdict and the first failure reported do not depend on
+timing.
+
+The pool itself is unverified, but everything a worker runs is verified:
+one worker's walk over its records is the extracted
+[`check_pending_worker`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L1493-L1511).
+
+### 6.5 Errors
+
+The Rust error type
+([`CheckError`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/core_types.rs#L87-L92))
+has con-leche's three kinds (`NotImplemented`, `Invalid`, `Internal`) and a
+fourth, **`Native`**, for failures con-leche cannot have: a full handle
+array, a shift wider than 64 bits, the frozen-tier guard.  Theorem 2 says
+that where the Rust raises one of the first three, the twin raises the same
+kind.  It says nothing about `Native`.  The driver reports `Native` as a
+decline, exit 2
+([`exit_code`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L150-L164)).
+
+## 7. How the proof is built
+
+The two theorems compose three layers, each refining the next one down:
+
+```
+(C) the Aeneas model of the Rust ──Theorem 2 (Refine2/**)──▶ (B) the twin (Arena/**)
+(B) the twin                     ──Theorem 1 (Bridge/**)───▶ (A) con-leche's pure checker
+```
+
+The twin is what makes the split work.  Theorem 1 relates two different
+representations (handles and trees), but between two Lean programs.
+Theorem 2 relates a Lean program to extracted Rust, but at the same
+representation, so its relation says only "the same data in two encodings".
+
+### 7.1 From Rust to Lean
+
+Charon compiles the verified crate, and Aeneas translates it to Lean
+([`scripts/extract.sh`](https://github.com/leanprover/con-ron/tree/master/scripts/extract.sh)):
+one definition per function, in a `Result` monad with `ok`, `fail` (a panic)
+and `div` (non-termination); `&mut` arguments become state passed in and
+returned; recursion becomes `partial_fixpoint`.  The output is committed in
+[`proof/ConRon/Generated/`](https://github.com/leanprover/con-ron/tree/master/proof/ConRon/Generated),
+and a gate fails if it is not what the crate extracts to today.
+
+Aeneas handles a subset of Rust, and the verified crate stays inside it: no
+closures, no `?`, no `derive`, no `std::collections`, no `unsafe`,
+higher-order arguments as one-method traits, and recursion instead of loops
+outside the parser.
+[`scripts/lint-rust-style.sh`](https://github.com/leanprover/con-ron/tree/master/scripts/lint-rust-style.sh)
+enforces the mechanical rules; DESIGN.md §3.4 lists all of them.  Release
+builds keep `overflow-checks` on
+([`Cargo.toml`](https://github.com/leanprover/con-ron/blob/master/Cargo.toml#L22-L23)),
+so an overflow the model calls `fail` is a panic in the binary, not a
+silent wrap.  `AENEAS_FINDINGS.md` records what the port learned about the
+translator.
+
+### 7.2 The twin
+
+The twin
+([`proof/ConRon/Arena/`](https://github.com/leanprover/con-ron/tree/master/proof/ConRon/Arena))
+is an executable Lean checker with the same stores, handles, caches and
+functions as the Rust, down to the order of operations.  Each Rust item
+with a twin names it in a `Lean twin:` doc line, and a gate checks those
+lines (§10).  Its monad is `ReaderT PersTier (StateT AState (Except CheckError))`;
+it uses no `IO` and no `partial`, and fuel is an explicit `Nat`.
+
+Two definitions connect it to con-leche:
+
+* **Denotation.**
+  [`denoteE`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/Denote.lean#L181-L206)
+  reads a handle back into con-leche's `Expr`, and returns `none` on a
+  dangling handle.
+* **Well-formedness.**
+  [`StoreWF`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/WF.lean#L1-L40)
+  says the store is acyclic (by a rank that exists only in the proof), each
+  cons table is exactly the inverse of its array, the derived column is
+  exact, no scratch entry duplicates a persistent one, and persistent nodes
+  have persistent children.  From it follow the injectivity of `denoteE`
+  and extension,
+  [`Ext st st'`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Arena/Denote.lean#L272-L276):
+  every handle that denoted a term still denotes the same term later.
+
+### 7.3 Theorem 1: the twin refines con-leche
+
+[`proof/ConRon/Bridge/`](https://github.com/leanprover/con-ron/tree/master/proof/ConRon/Bridge)
+proves that every twin function computes, on denotations, what the
+corresponding con-leche function computes.  The per-declaration statement
+is
+[`Arena.checkDecl_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Fold.lean#L111-L126),
 and
-[`FunsExternal.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L26-L45).
-These *holes* are the sharpest part of the trust surface, and §8.1 lists
-all of them.  Two ideas cover them: a counted pointer is modelled as its
-contents, which is faithful because the port never mutates through one (the
-lint forbids `get_mut`, `make_mut`, `Weak` and interior mutability); and a
-pointer-equality test is modelled as `false`, an under-approximation the
-proof is sound against because every pointer shortcut in the Rust has a
-lemma showing its result is what the full computation gives.
+[`Arena.pooledAccepts_bridge`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Checker/Phased.lean#L175-L186)
+lifts it to the whole two-phase fold: the pure fold accepts the denoted
+stream at some fuel.  Theorem 1 owns every invariant of the twin's state,
+`StoreWF` included.
 
-### 6.2 Abstraction and well-formedness
+The store primitives and the type checker are specified by Hoare triples
+of Lean's `Std.Do`, in one fixed form, proved with `mvcgen`; the `@[spec]`
+lemmas of
+[`Bridge/Specs.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Specs.lean#L1-L60)
+cover one primitive each:
 
-The proof relates Rust values to con-leche values through abstraction
-functions (`absName`, `absLevel`, `absExpr`, `absEnv`, …) and, for the
-memo state and the environment index, through relations:
-[`StateRel`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/State.lean#L640-L671)
-says every lookup in every one of the fourteen maps agrees under the
-abstractions, and
-[`FEnvRel`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/FEnv.lean#L96-L104)
-the same for the index.
+```lean
+⦃fun s => ⌜s = s₀⌝⦄ f args ⦃⇓? r s' => ⌜Post s₀ r s'⌝⦄
+```
 
-Well-formedness is an inductive predicate whose constructors *are* the
-port's smart constructors
-([`ExprWF`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Abs.lean#L515-L529)):
-a node is well-formed if some smart constructor returned it on well-formed
-children.  No proof ever names the hash formula; that the packed word's
-bits are con-leche's computed fields, and that `absExpr` is injective on
-well-formed terms, follow from that definition once.  The parser's proofs
-in `proof/ConRon/Refine/Frontend/` thread the same invariant through the
-parse state, which is why the parsed capstone needs no well-formedness
-hypothesis.
+The precondition only fixes the start state, and `⇓?` means partial
+correctness: nothing is claimed when the twin fails.  Many higher-level
+statements are instead plain implications over a successful run, like the
+graded ones below.
 
-### 6.3 The statements
+**Spec grades.**  A twin function's statement has one of two grades
+([`Bridge/Inductives/Rel.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/Rel.lean#L184-L225)):
 
-A leaf operation refines its con-leche counterpart as a plain equation
-with the abstractions.  A stateful one is stated over the whole outcome
-([`Sim`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Core/Arms/Shape.lean#L102-L119)):
-for related states, if the Rust returns `Ok r` then con-leche's action
-returns `abs r` in a related state and `r` is well-formed; if it returns a
-mirrored error, con-leche throws the same kind
-([`ErrSim`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Abs.lean#L938-L946));
-a `Native` error claims nothing.
+* **pure grade** (`PSpec`), for functions that do not call the type
+  checker: invariant `StateOK` (the store is well-formed), frame `PStep`
+  (the store only extended, caches and pins untouched), and the statement
+  may not mention the caches;
+* **core grade** (`CSpec`), for functions that call the type checker:
+  invariant `CheckOK` (also: every cache entry is a true con-leche answer at
+  some fuel), frame `CoreStep`, and the type checker's own specification as
+  a hypothesis.
 
-The knot is one proposition indexed by the fuel
-([`KnotSpec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Core/Statements.lean#L191-L194)):
-the six wrappers at fuel `n` refine con-leche's knot at `n`, and the six
-bodies at `n` refine con-leche's bodies applied to that knot.  The induction
-on the fuel
-([`knot_induction`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Core/Knot.lean#L895-L910))
-has a memo argument per wrapper and one lemma per body arm, in the files of
-`Refine/Core/Arms/`.  Above the knot sit the declaration checker, the two
-inductive install routes
-([`IndRoutesSpec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/IndSpec.lean#L80-L100)),
-the fold, the frontend, and the capstones of §3.
+A pure-grade statement converts to the core grade (`PSpec.toCSpec`), not
+the other way.
 
-### 6.4 Differential testing
+An example at the pure grade
+([`StructParts.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/StructParts.lean#L168-L213)).
+The twin's `structPsAt` interns a list of `bvar` nodes; the theorem says the
+list denotes con-leche's:
 
-Beside the proof, the port is checked against con-leche on data.
-`scripts/diff-e2e.sh` runs the whole binary on every one of con-leche's own
-fixtures (its `tests/arena`, `tests/e2e` and `tests/annot` suites, 383
-streams) and compares the exit code against con-leche's committed
-expectation, in both modes, with and without the embedded pin list, and at
-several worker counts.  This is what tests the parts the proof does not
-cover: the driver, the pool and the modeller.  The scanner was additionally
-run beside its predecessor over 119 million real export lines and 31
-million mutated ones with no disagreement, since most of a scanner's
-behaviour is in the lines it rejects.
+```lean
+theorem structPsAt_spec (o nP : Nat) :
+    PSpec PT (Arena.structPsAt o nP) (REL (ConLeche.structPsAt o nP)) := by
+  intro s₀ s' r hok _ hrun
+  obtain ⟨hstep, hd⟩ := structPsAt_go_run o nP nP 0 hok hrun
+  refine ⟨hstep, ?_⟩
+  simpa only [ConLeche.structPsAt, Nat.zero_add] using hd
+```
 
-## 7. Results
+The work is in `structPsAt_go_run`, just above it: an induction on the
+number of nodes left, composing `internBVarE`'s spec with `PStep.trans`.
 
-### 7.1 The ledger
+The type checker itself (con-leche's knot of `whnfCore`, `whnf`, `infer`,
+`inferIO`, `defeq`, `annotate`) is one statement indexed by fuel,
+[`KnotSpec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Knot.lean#L153-L170),
+proved by induction on the fuel in
+[`knot_spec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Induction.lean#L73-L80).
 
-| | |
+### 7.4 Theorem 2: the Rust refines the twin
+
+[`proof/ConRon/Refine2/`](https://github.com/leanprover/con-ron/tree/master/proof/ConRon/Refine2)
+proves that each extracted Rust function, run from a state related to the
+twin's, is matched by the twin function.  The proof is **lockstep**: both
+sides perform the same operations in the same order, and the relation
+carries representation facts only.  Every invariant belongs to Theorem 1.
+A lemma that will not go through points at a divergence between the twin
+and the Rust, which is fixed by making the two programs agree, not by
+adding an invariant.
+
+**The relation.**
+[`AStateRel₀`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/AbsState.lean#L346-L360)
+relates the Rust `AState` to the twin's field by field (store, memos,
+caches, pins): the same data, abstracted by functions such as `absEIdx` and,
+for hash maps, by the map they represent.
+[`AStateInv`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/AbsState.lean#L379-L384)
+holds the Rust-only invariants, such as each hash map's own well-formedness.
+
+**The statement.**  A state-threading Rust function is specified by
+[`Sim₀`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Shape.lean#L402-L406):
+if the Rust returns `Ok r` in state `st'`, the twin returns `A r` in a state
+related to `st'`; if the Rust returns a mirrored error, the twin throws the
+same kind; `Native` claims nothing.
+[`SimRel₀`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Checker/Shape.lean#L221-L225)
+is the same with a relation `R r v` in place of the function `A`.
+
+**The judgements.**  Inside proofs, statements take a form in which both
+programs are visible in the goal
+([`Tactic/Lockstep.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L1-L30)).
+The form depends on the shape of the Rust function:
+
+| judgement | Rust shape |
 |---|---|
-| con-leche core (`Kernel`, `Cached`) lines to port | 14 136, all ported, 91 % verified (the rest deliberately skipped, listed with reasons) |
-| con-leche frontend lines to port | 4 441, all ported into the verified crate, 59 % verified by lemma citation (the capstone covers the whole path) |
-| con-leche modeller and driver lines to port | 2 902, all ported, unverified by design |
-| Rust, verified crate | 50 971 lines (28 300 of them two generated text constants), 1 894 functions, every item cited |
-| Rust, unverified crates | 11 235 lines |
-| generated Lean model | 73 269 lines |
-| proofs | 189 574 lines, 5 494 theorems; 1 612 `_refines` lemmas |
+| [`LS`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L162-L166) | returns a result and a new state |
+| [`LSR`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L168-L172) | reads the state, may fail |
+| `LSV`, `LSW` | reads and cannot fail; writes and cannot fail |
+| `LSP` | a Rust-only step with no twin counterpart (a copy, a `u64` decrement) |
+| [`LSM`, `LSRM`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L660-L672) | a memoised walk that returns its memo beside the result |
 
-The Rust is 2.75× the Lean it ports, the model 1.44× the Rust, the proofs
-3.7× the Rust.
+`LS.toSim₀` converts back to the statement form.
 
-### 7.2 Performance
+**The `lockstep` tactic**
+([`lockstep`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L2802-L2803))
+steps the two programs together, one bind at a time.  At each Rust bind it
+looks up a lemma for the callee, applies it, and continues with the related
+results as hypotheses.  It splits a Rust `if` or `match`, and uses the facts
+this gives to decide the twin's.  Side goals go to `simp`, `omega` and
+`scalar_tac`; it never calls `grind`.  Every alternative it tries runs without
+error recovery, so a term that fails to elaborate makes the alternative fail
+instead of closing the goal with `sorry`.  When it stops, the goal sits at the
+first bind where the two programs differ, or where a lemma is missing.
 
-Measured with `perf stat -e instructions:u,cycles:u` as the measure of
-record, wall time and peak resident set as secondary numbers, on
-`lean4export` exports of Lean's `Init`, of `Init`+`Std`+`Lean`, and of
-Mathlib; both binaries at the pinned con-leche commit, in verified mode,
-release builds with mimalloc.  DESIGN.md has the measurement notes.
+**The lemma discipline.**  A lemma is found by its Rust callee: tagging it
+[`@[lockstep]`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Attr.lean#L86-L94)
+files it under the head constant of the Rust computation in its conclusion,
+which must be one of the judgements above.  A local hypothesis in the same
+form, such as an induction hypothesis, is found the same way, and is tried
+before any lemma.  When several lemmas cover one callee, the first that
+applies wins: higher priority first (`@[lockstep high]`), then registration
+order; `attribute [-lockstep] foo` removes one.  Lemmas for
+handle primitives (copies, handle equality) live in one place,
+[`Tactic/Prims.lean`](https://github.com/leanprover/con-ron/tree/master/proof/ConRon/Refine2/Tactic/Prims.lean).
+Proofs extend the tactic only through these attributes (and
+`@[lockstep_simp]`, `@[lockstep_inline]`, `@[lockstep_congr_simp]` for twin
+equations used only to match a lemma's twin against the goal's, and the
+side-goal tactic's `macro_rules`), not by editing its core.
 
-| export | jobs | con-leche instructions | con-ron instructions | con-leche wall | con-ron wall | con-leche peak RSS | con-ron peak RSS |
-|---|---|---|---|---|---|---|---|
-| `Init` (57 977 declarations) | 1 | 585.9 G | 542.1 G | 56 s | 61 s | 0.48 GB | 0.48 GB |
-| `Init` | 8 | 587.2 G | 544.3 G | 12 s | 20 s | 0.67 GB | 1.18 GB |
-| `Init`+`Std`+`Lean` (163 396) | 1 | 1 176.3 G | 1 155.3 G | 122 s | 147 s | 1.22 GB | 1.34 GB |
-| `Init`+`Std`+`Lean` | 8 | 1 179.4 G | 1 166.6 G | 37 s | 73 s | 1.46 GB | 2.80 GB |
-| Mathlib (691 128) | 1 | 12 792.4 G | 11 484.4 G | 1 220 s | 1 979 s | 8.75 GB | 7.80 GB |
-| Mathlib | 8 | 12 843 G | 11 343 G | 337 s | 929 s | 9.1 GB | 17.8 GB |
+**Representation premises.**  Charon erases the proofs inside con-leche's
+subtypes.  con-leche's `PropWhen`, for instance, carries a proof that its
+name list is sorted; the Rust `PropWhen` does not, so it admits values the
+twin's type cannot represent.  Where a lemma needs the erased fact, it takes
+it as a premise:
+[`PropWhenWF`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Abs.lean#L589-L612)
+holds of exactly the values the port's smart constructors can build.  The
+store relation carries the same fact for every stored binder datum.  An
+example of a lemma with such a premise
+([`Refine2/ExprOps/Mut.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/ExprOps/Mut.lean#L179-L185)):
 
-Single-threaded, con-ron executes 2–10 % fewer instructions than
-con-leche, takes 1.1–1.6× the wall time, and uses the same memory or less.
-At eight workers the wall-time gap widens to 1.7–2.8×: con-leche's check
-phase scales better, its reference counts being plain where con-ron's are
-atomic.  The eight-worker memory cells predate the per-kind node layout of
-§4.2 and have not been re-measured.
+```lean
+@[lockstep] theorem intern_rebuilt_lam_ls (h : arena.handle.EIdx) (same : Bool)
+    (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
+    (hpw : ConRon.Refine.PropWhenWF m.pw) :
+    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.intern_rebuilt_lam pers st h same ty b m)
+      lst (internRebuiltLam (absEIdx h) same (absEIdx ty) (absEIdx b)
+        (ConRon.Refine.absBinderMeta m)) := by
+  rw [arena.expr_ops.intern_rebuilt_lam, internRebuiltLam]; lockstep
+```
 
-### 7.3 What the proof found
+The whole proof is: unfold both definitions, run `lockstep`.
 
-The proof was the port's most productive test.  Deviations it caught in
-code that had passed every fixture include a division-by-zero guard weaker
-than con-leche's, which would have *accepted* what con-leche rejects; a
-non-short-circuiting boolean `and`; a memo table that evicted its own
-entries on a hash collision; a `u64 → usize` cast family in the modelled
-inductives; two record-assembly errors in the parser; and, in the
-translator, an Aeneas model of `Vec::insert` that overwrote where Rust
-inserts (AENEAS_FINDINGS.md §3.9).
+### 7.5 Induction recipes
 
-## 8. Trust assumptions
+A walk over a DAG has no structural order, so both sides take fuel, and
+their lemmas go by induction.  Two recipes cover most of Theorem 2.
 
-What has to be right for the theorem to mean what it says about the
-binary.  §8.1 is the part a script keeps honest; §8.2 is everything else.
+**Fuel induction.**  State an `_aux` lemma over `n` with `fuel.val = n`,
+induct on `n`, unfold both sides at `0` and at `m + 1`, and run `lockstep`;
+it finds the induction hypothesis in the context.  Then register the general
+form with `@[lockstep]`
+([`instantiate1_go`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/ExprOps/Mut.lean#L471-L500)):
+
+```lean
+theorem instantiate1_go_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (v : arena.handle.EIdx) (fuel : Std.U64) (h : arena.handle.EIdx) (d : Std.U64),
+      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate1_go pers st v fuel h d) lst
+        (instantiate1Go (absEIdx v) n (absEIdx h) (absU d)) := by
+  induction n with
+  | zero =>
+    intro pers st lst v fuel h d hn hrel hinv
+    rw [arena.expr_ops.instantiate1_go, instantiate1Go_zero]
+    lockstep
+  | succ m ih =>
+    intro pers st lst v fuel h d hn hrel hinv
+    rw [arena.expr_ops.instantiate1_go, instantiate1Go_succ]
+    lockstep
+```
+
+**Cursor induction.**  Where the twin recurses on a `List` and the Rust
+walks a `Vec` with an index `i`, induct on `args.length - i`, and relate the
+twin's list to the suffix from `i`
+([`inst_pis_from`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/ExprOps/Mut.lean#L992-L1012)):
+
+```lean
+theorem inst_pis_from_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (fuel : Std.U64) (e : arena.handle.EIdx) (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize),
+      args.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absOptE a) (arena.expr_ops.inst_pis_from pers st fuel e args i) lst
+        (instPis (absU fuel) (absEIdx e) (absEIdxListFrom args i)) := by
+  induction n with
+  | zero =>
+    intro pers st lst fuel e args i hn hrel hinv
+    rw [arena.expr_ops.inst_pis_from, listFrom_nil args i (by omega), instPis]
+    lockstep
+  | succ k ih =>
+    intro pers st lst fuel e args i hn hrel hinv
+    rw [arena.expr_ops.inst_pis_from, listFrom_cons args i (by omega), instPis]
+    lockstep
+```
+
+Theorem 1 uses the same cursor recipe (`structPsAt_go_run`, §7.3).
+
+**The type checker.**  The six mutually recursive functions of con-leche's
+type checker are tied by fuel on both sides.  Theorem 2 states them as one
+relation per fuel, `KnotRel f`, and proves it for every `f` in
+[`knot_rel`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Core/Induction.lean#L1169-L1171):
+fuel `0` directly, fuel `f + 1` from the six function bodies at fuel `f`.
+
+### 7.6 The composition
+
+[`Capstone.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L14-L119)
+contains no new mathematics, only glue:
+
+1. **Theorem 2, stage by stage**: each of `h1`…`h6` becomes a twin run from
+   the twin's own start state, related at every step.  The sixth stage goes
+   through
+   [`pool_accepts_refines`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Checker/Phased.lean#L463-L470).
+2. **Theorem 1**: the twin runs feed `Arena.pooledAccepts_bridge`, so
+   con-leche's pure fold accepts the denoted stream.  Theorem 1 also
+   supplies the one twin-side fact the headline relation needs: `StoreWF`
+   of the final twin store.
+3. **con-leche**: `checkDeclsPure_sound_of` turns the pure accept into a
+   model, and `no_proof_of_False_pure` rules out the `False` theorem.
+
+### 7.7 The leaf tier
+
+The Rust types that do not depend on the arena are proved directly against
+their mathematical meaning, in
+[`proof/ConRon/Refine/`](https://github.com/leanprover/con-ron/tree/master/proof/ConRon/Refine):
+the bignum `ron::Nat`, the two hash maps, names, levels, `PropWhen`, the
+`Expr` values of the pinned data, and the pin decoder.  Theorem 2 uses these
+lemmas wherever the arena calls such code.
+
+## 8. Trust
+
+What must hold for the theorems to describe the binary.  A script keeps
+§8.1 in step with the code; §8.2 is the rest.
 
 ### 8.1 What the proof does not see: the holes
 
-The theorem is about the verified crate *as Aeneas translates it*.  Where
-the translator meets an item it cannot translate, it declares it as an
-axiom and asks for a model (§6.1).  Every such model is a claim about the
-Rust that no proof checks, so here they all are: **twenty-three**, two types
-and twenty-one functions.  Six are the standard library's (`Arc` and
-`str::as_bytes`); seventeen are the tagged `Expr` handle of §4.2, each
-modelled by `rfl` against the `Expr` inductive the generated model already
-has, except the two that read the runtime — the pointer test and the
-reference-count test — whose models are `false` and whose rows say what the
-binary may do instead.  `scripts/extract.sh --check` fails if the crate grows a hole nobody
-modelled; `scripts/holes.sh --check` fails if this table and the holes
-drift apart.
+The theorems are about the verified crate *as Aeneas translates it*.  Where
+Aeneas meets an item it cannot translate, it declares an axiom and asks for
+a hand-written model
+([`TypesExternal.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/TypesExternal.lean#L41-L42),
+[`FunsExternal.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L25-L72)).
+Each model is a claim about the Rust that no proof checks.  These **holes**
+are listed below: one type and five functions, all from the standard
+library.  `scripts/extract.sh --check` fails if the crate grows a hole with
+no model, and `scripts/holes.sh --check` fails if this table and the holes
+differ.
 
 <!-- holes: begin — scripts/holes.sh --check keeps this table and the templates in step; the first cell holds the Lean names of the holes, in backticks -->
 
@@ -507,121 +847,127 @@ drift apart.
 | [`alloc.sync.Arc.new`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L25-L26), `alloc.sync.Arc.Insts.CoreCloneClone.clone`, `alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref` | `Arc::new`, `Arc::clone`, `Deref::deref` | `ok x`: the identity | Allocation, a count bump and a dereference return the same contents; the model has no notion of the count |
 | [`alloc.sync.Arc.ptr_eq`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L36-L38) | `Arc::ptr_eq` | `ok false`: the model always takes the slow path | An under-approximation: every place the Rust takes the fast path (the memo tables' pointer-verified buckets, `beq`'s pointer fast path) has a lemma that the fast path's result is the slow path's |
 | [`core.str.Str.as_bytes`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L71-L72) | `str::as_bytes`, at its one call site on `PINS_TEXT` | `ok s`: the identity | Aeneas already models a `&str` as its bytes |
-| [`ron.tagged.Raw`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/TypesExternal.lean#L74-L78) | [`ron::tagged::Raw<T>`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/tagged.rs#L284-L287), the tagged counted handle (§4.2), with a `PhantomData<T>` naming the modelled contents | `T`, as for `Arc` | The `Arc` argument, for a handle the project wrote: the block is immutable but for its atomic count, the handle can only be made by the allocator, and the model cannot see which of the ten blocks the bytes are in, which the rows below tie to the constructor |
-| [`ron.node.view`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L114-L119) | [`ron::node::view`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L228-L263), the projection every reader goes through | `ok` of the `ExprNode`'s constructor, arm by arm | `view` matches on the handle's tag and reads the block of that kind; the tag is the kind of the block by the allocator rows below |
-| [`ron.node.data`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L122-L127) | [`ron::node::data`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L394-L396), the packed word | `ok data`, the `ExprNode`'s first field | Every block starts with the same header under `#[repr(C)]`, and the word is written once by the allocator |
-| [`ron.node.dup`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L130-L133), `kernel.expr.Expr.Insts.CoreOpsDropDrop.drop` | [`ron::node::dup`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L401-L403), a count bump; `Drop for Expr`, the decrement and free at zero | `ok e`: the identity | `Arc::clone`'s and `Arc::drop`'s rows, for `Arc`'s own protocol (`Relaxed` increment with an overflow abort, `Release` decrement, `Acquire` fence) |
-| [`ron.node.ptr_eq`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L136-L142) | [`ron::node::ptr_eq`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L409-L411) | `ok false` | `Arc::ptr_eq`'s row; comparing tagged words is comparing addresses, since the tag is a function of the block |
-| [`ron.node.is_exclusive`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L153-L157) | [`ron::node::is_exclusive`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L437-L439), a `Relaxed` load of the block's own count against one — con-leche's `withExclusive` (`ConLeche/Kernel/Exclusive.lean`), and the official kernel's `is_likely_unshared`/`is_shared` in front of their caches | `ok false`: "not known to be exclusive", so the model always memoises | The binary may answer `true` instead and then rebuild the node with the memo untouched.  That spends no key, no probe, no entry and no stored `dup` on a node with ONE reference — which the walk inside its only parent meets once, so an entry for it could never be read — and it stores and reads nothing, where `ptr_eq`'s fast path at least asserts an equality.  The answer reaches one `if` per memo gate (`expr::beq_memoise`, `expr_ops_c::memo_skip`, the six `memo*_probe`/`memo*_record` helpers) and no value; the `_refines` lemmas are about the always-memoising walk, which is what the model is.  The node is passed borrowed, so the count read is the count of the references inside the term |
-| [`ron.node.alloc_bvar`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L160-L164), `ron.node.alloc_fvar`, `ron.node.alloc_sort`, `ron.node.alloc_const`, `ron.node.alloc_app`, `ron.node.alloc_lam`, `ron.node.alloc_forall_e`, `ron.node.alloc_let_e`, `ron.node.alloc_lit`, `ron.node.alloc_proj` | the ten [`ron::node::alloc_*`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L272-L274), one per constructor | `ok (Expr.mk (ExprNode.mk d (.Bvar i)))` and likewise for each constructor | Each is one line over the allocator, which writes the block and attaches *that kind's* tag in the same expression and is the only thing that ever makes a handle; the ten tags are checked distinct by a `const` assertion |
 
 <!-- holes: end -->
+
+`Arc` is used only by tree values: the pinned data and the modeller's terms
+(§4.5), the names and levels the checker reads back, and the `PropWhen`
+inside a binder datum.  The arena's nodes are handles.
 
 ### 8.2 The rest of the trust surface
 
 | trusted | what stands in for it |
 |---|---|
-| **con-leche's own assumptions**: a set theory `V` with `ConLeche.SetTheory V`, Lean's kernel checking the proof, and the axioms `propext`, `Classical.choice`, `Quot.sound` | con-leche's OVERVIEW says what those are |
-| **Aeneas and Charon**: the Lean model is what the translator says the Rust means | Nothing; a translator bug is a hole.  The port stays inside the documented subset (§4.1) and records what it found in `AENEAS_FINDINGS.md`, all of it worked around in the Rust |
-| **`rustc`, the Rust standard library, and the allocator** | Nothing.  This is the trade the project makes: Lean's compiler, runtime and GMP for these.  The allocator cannot change a verdict, only memory and time; the tagged handle relies on 16-byte alignment, which mimalloc documents and which `alloc` checks, aborting on violation |
-| **Twelve lines of `unsafe`** in [`ron::tagged`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/tagged.rs#L284-L287) (§4.2) | The module's own note argues one invariant, checkable by reading ten adjacent one-line functions: a handle is only ever made by the allocator.  Nothing outside the module can release a block, reach an address, or cast a handle to another scheme's kind, and `Send`/`Sync` are derived from the payload types, so the `Expr` operations are trusted the way `Arc`'s were.  For `Expr` nodes only; `Name`, `Level`, `PropWhen` and `ConstantInfo` are still `Arc` |
-| **`overflow-checks = true`** in the [release profile](https://github.com/leanprover/con-ron/blob/master/Cargo.toml#L17-L21) | The model is the checked-arithmetic one.  A build without it would wrap where the model fails, and the model would no longer describe it |
-| **The modeller**, [`crates/con-ron/src/in_model/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/in_model/mod.rs#L12-L16), unverified by design | The two hypotheses of §3, `ModellerWF` and `ModellerRefines`.  Every record it generates is checked by the fold as a stream declaration, so a wrong one is rejected or declined, never accepted; what it decides is which blocks the checker can accept, not whether an accepted one is sound |
-| **The driver**, [`driver.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L21-L27) | That it calls the verified steps on the bytes it read and on the embedded pin text, and maps the outcome to the exit codes of §1 |
-| **The worker pool**, [`pool.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/pool.rs#L15-L21) | An argument, not a proof: the workers' results are merged by record index and walked in record order, so the verdict is the sequential walk's at every `--jobs`, and a test that a failure is reported first at every worker count |
-| **One extra axiom on the embedded pair only**, `pins_text.PINS_TEXT._native.decide.ax_1` | Aeneas discharges the size bound of every extracted string constant with `decide +native` in the constant's own definition (AENEAS_FINDINGS.md §3.8).  It lives in a definition, not a computation, and is not the port's to remove; the parsed capstone does not carry it |
+| **con-leche's own assumptions**: a set theory `V`, con-leche's soundness proof at the pinned revision, Lean's kernel checking the proofs, and the axioms `propext`, `Classical.choice`, `Quot.sound` | con-leche's own documentation |
+| **Aeneas and Charon**: the Lean model is what the Rust means | Nothing; a translator bug is a hole.  The crate stays inside the documented subset (§7.1), and `AENEAS_FINDINGS.md` records what the port found, all of it worked around in the Rust |
+| **`rustc`, the Rust standard library and the allocator** | Nothing.  This is the trade the project makes: these instead of Lean's compiler, runtime and GMP.  The mimalloc wrapper in `con-ron-dump` is the only `unsafe` code in the workspace; an allocator can change memory use and time, not a verdict |
+| **`overflow-checks = true`** in the [release profile](https://github.com/leanprover/con-ron/blob/master/Cargo.toml#L22-L23) | The model is the checked-arithmetic one.  A build without it would wrap where the model fails |
+| **The modeller**, [`crates/con-ron/src/in_model/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/in_model.rs#L1-L30), unverified by design | One hypothesis, `hmr` (§3.1): the Rust modeller answers what the twin's `inProcessModeller` answers, and that one is proved equal to con-leche's `generate`.  The Rust modeller keeps no state between calls.  Every record it generates is checked by the fold, so a wrong one is rejected or declined, never accepted |
+| **The driver**, [`driver.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L1-L60) and the binary's `main` | That it calls the verified stages in the order of `h1`…`h6`, on one state, with the embedded pin text, the default environment and `--verified`, and maps the outcome to the exit codes of §2.2.  The read loop is the verified `parse_source`; that the file handle returns the file's bytes in order is `hreads`.  The fold is a [straight line of verified calls](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L470-L565) (phase A, freeze, phase B, thaw), and the progress observer between them holds only shared references |
+| **The worker pool**, [`pool.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/pool.rs#L46-L100) | An argument about `pool.rs`'s control flow, not a proof: when the pool accepts, every record was checked, and each worker's records, in the order it checked them, are accepted by the verified `check_pending_worker`.  That is `h6`'s `PoolAccepts`.  Results are merged by record index, and an accept means every slot is `Ok`.  Nothing is claimed about which worker ran which record: the capstone relates each worker's walk to the twin separately.  Two tests check that the pool agrees with the one-worker walk and reports the first failure, at every worker count |
+| **The prelude text**, `hbytes` | The twin's committed prelude bytes ([`PreludeText.lean`](https://github.com/leanprover/con-ron/tree/master/proof/ConRon/Arena/Frontend/PreludeText.lean)) equal con-leche's `builtinPreludeText`.  The gate `scripts/gen-prelude-lean.sh --check` compares them byte for byte, outside Lean.  The Rust's prelude text is related to the twin's inside Theorem 2 |
+| **`Native` errors: partial correctness** | Theorem 2 says nothing where the Rust raises `Native`, so soundness is unaffected and completeness is not proved.  The sites are resource limits (the 2²⁷-entry arrays, shift widths) and guards the phase structure should make unreachable (the frozen-tier guard, `M_REFREEZE`) |
 
-Nothing else: no `native_decide`, no `sorry`, no axiom beyond the three in
-the headline theorems.
+Nothing else: no `native_decide`, no `sorry`, and no axiom beyond the three
+in §3.
 
-## 9. Proof techniques
+## 9. Performance
 
-Most of the proof lines are hand proofs in one shape: invert the Rust run
-(a `do` block in the `Result` monad unfolds into a chain of binds, each
-either `ok` with an equation or an early exit), apply the lemma of each
-callee through the state relation, and close with the constructor of the
-well-formedness predicate.  The Aeneas library's `progress`-style tactics
-were tried and set aside: with the relations and abstraction functions in
-context, forward refinement with equations is the shorter style here
-(AENEAS_FINDINGS.md §3.3).
+Measured with `perf stat -e instructions:u,cycles:u`.  Instruction counts
+are the measure of record, because they do not depend on machine load; wall
+time and peak memory are secondary.  All runs are `--verified` release
+builds with mimalloc, on `lean4export` exports of Lean's `Init` (57 977
+declarations) and of Mathlib (691 128).  The table is one snapshot, taken on
+2026-09-24: con-ron at `c6e5f220`, con-leche at its pin `78ded4b6`, nanoda
+at `4c544ed`.  The two con-ron `Init` instruction counts were re-taken
+later that day at `46450386`, after the bulk slot fill and the kept walk
+memos (−3.5 %); the other con-ron cells are still from `c6e5f220`.  `Init` wall time is the range of three runs on a shared,
+loaded machine; Mathlib was run once per checker, so it has no wall-time
+column.
 
-A second style exists for new lemmas
-(`proof/ConRon/Refine/AUTOMATION.md`): `rust_norm h` reduces the Rust
-equation in pre-order with two registered simp sets and peels the binds,
-then `all_goals rust_grind`, which is `grind` with a fixed configuration
-([`rust_grind`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Abs.lean#L170))
-and the callee lemmas registered as `grind →` rules keyed on the Rust
-equation.  With a node-shaped induction principle, a memoised term walk is
-one line.  It costs 1.2–1.8× the hand proof's elaboration time on leaves
-and 3–4× on memo walks and knot arms.  The rule: existing hand proofs are
-not rewritten; new lemmas use the idiom where it applies (leaves, walks,
-arms), and not for the mathematical `Nat` and `HashMap` tiers, the
-byte-level pin decoder, or list folds.
+| | `Init` instructions | `Init` wall, peak RSS | Mathlib instructions | Mathlib peak RSS |
+|---|---:|---|---:|---:|
+| **con-ron**, one worker | 204.62 G | 21.2–21.9 s, 0.57–0.65 GB | 3 880 G | 6.89 GB |
+| **con-ron**, eight workers | 206.20 G | 5.4–5.7 s, 0.85–0.87 GB | 3 902 G | 7.44 GB |
+| con-leche, one worker | 453.95 G | 41.9–43.4 s, 0.48–0.49 GB | 8 099 G | 8.70 GB |
+| nanoda, one worker | 231.25 G | 23.2–24.2 s, 0.36 GB | 6 057 G | 7.08 GB |
 
-Every lemma is stated over the whole outcome (§6.3) because con-leche
-backtracks on an error: an "error means nothing" lemma cannot follow
-`orElse` through a retry.  `progress.py`'s statement-shape classifier is
-what a con-leche bump uses to see which lemmas are stale.
+Single-threaded, con-ron executes a little under half of con-leche's
+instructions on both exports, about 88 % of nanoda's on `Init` and
+two thirds of nanoda's on Mathlib.  Eight workers add about 1 % to the
+instruction count.  Every con-ron peak is within 3× con-leche's on the same
+export.  `scripts/bench-baselines.sh` measures con-ron and nanoda, and
+`scripts/corpus.sh` builds the exports; the raw numbers are in DESIGN.md's
+task #97-REMEASURE section.
 
-## 10. Patches against upstream
+## 10. Keeping the port honest
 
-* **Aeneas' Lean library on Lean v4.33**
-  ([`patches/aeneas-433.patch`](https://github.com/leanprover/con-ron/blob/master/patches/aeneas-433.patch)).
-  The pinned Aeneas builds its Lean library against Lean v4.31 and
-  con-leche is on v4.33; the patch, 375 lines to ten files, makes the
-  library build on v4.33 and its Mathlib.  Two options the proofs need are
-  set in `proof/lakefile.toml`
-  ([the options](https://github.com/leanprover/con-ron/blob/master/proof/lakefile.toml#L24-L26)).
-  AENEAS_FINDINGS.md §3.1 has the details; the ask upstream is a v4.33
-  release.
-* **Nothing else.**  Charon is unpatched, con-leche is used at an upstream
-  master commit, and every translator finding was worked around in the
-  Rust.
+**Provenance.**  Every item of the verified crate carries a doc line naming
+the con-leche source it ports, `/// con-leche: <path>:<a>-<b> <declaration>`,
+or `/// con-leche: none — <reason>`
+([an example](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/handle.rs#L528-L531)).
+`scripts/provenance.py check` verifies that each citation still names that
+declaration at those lines of the pinned con-leche.  Arena items also carry
+a `Lean twin:` line, which `scripts/twin-lines.py check` verifies against
+`proof/ConRon/**`.
 
-## 11. Naming and module map
+**The con-leche pin.**  con-leche is a `lake` dependency of `proof/`, pinned
+by `rev` in `proof/lakefile.toml`.  To move the pin: edit the `rev`, run
+`lake update con-leche` in `proof/`, then `scripts/provenance.py update`.
+That moves citations whose text only moved, and marks those whose text
+changed with a `CHANGED` line, which `check` rejects until the item is
+re-ported.  DESIGN.md §7 has the procedure.
 
-Rust modules mirror con-leche's files (`ConLeche/Kernel/Level.lean` →
-`crates/con-ron-core/src/kernel/level.rs`, `ConLeche/Cached/CoreC.lean` →
-`cached/core_c.rs`), nested under `kernel/`, `cached/`, `frontend/`, `ron/`
-because Aeneas prints unqualified names.  A function keeps con-leche's name
-in snake case; con-leche's `fooC` twins are `foo_c`; a function con-ron
-adds is marked `con-leche: none` with its reason.  Proof files mirror the
-Rust modules; a lemma about `foo` is `foo_refines`; the abstraction
-functions are `abs*`, the relations `*Rel`, the well-formedness predicates
-`*WF`.
+**Differential testing.**  `scripts/diff-e2e.sh` runs the binary on
+con-leche's own test fixtures (383 streams) and compares each exit code with
+con-leche's recorded one, in both modes and at several worker counts.  This
+covers what the proof does not: the driver, the pool and the modeller.  CI
+runs it (`.github/workflows/ci.yml`).
+
+**The gates.**  `scripts/gates.sh` runs before every commit
+([the steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L6-L26)).
+It stops at the first failure of: `cargo build` (warnings denied) and
+`cargo test`; the style lint; the provenance and twin-line checks; this
+document's link check (`scripts/overview-links.sh`) and holes table
+(`scripts/holes.sh --check`); the checks that the embedded pin text, the
+Rust prelude text and the twin's prelude bytes are con-leche's
+(`gen-pins.sh`, `gen-prelude.sh`, `gen-prelude-lean.sh`, each `--check`);
+`scripts/extract.sh --check`; and `lake build` of the default targets,
+`ConRonRefine2`, `ConRonBridge` and `ConRonCapstone`.
+
+**Upstream patches.**  One: the pinned Aeneas builds its Lean library
+against an older Lean, and
+[`patches/aeneas-433.patch`](https://github.com/leanprover/con-ron/tree/master/patches/aeneas-433.patch)
+(375 lines, ten files) makes it build on con-leche's Lean v4.33 and its
+Mathlib.  `scripts/setup-aeneas-lean.sh` applies it.  Charon and con-leche
+are used unpatched.
+
+## 11. Module map
+
+Rust modules mirror con-leche's files, and function names are con-leche's in
+snake case.  Twin files mirror the Rust modules.
+
+**Rust** (`crates/`)
 
 | where | what |
 |---|---|
-| `crates/con-ron-core/src/kernel/` | the pure checker: `name`, `level`, `prop_when`, `expr`, `expr_ops`, `env`, `fenv`, `core_k`, `checker*`, `decl_check`, `type_checker`, the basis tables, `canon` (the pin match), the axiom tables, `inductives/*`, `pins_text`, `pins_decode` |
-| `crates/con-ron-core/src/cached/` | the memoising checker: `state_c`, `expr_ops_c`, `core_c` (the knot), `checker_c`, `parsed_c`, `installed` (`check_decls`) |
-| `crates/con-ron-core/src/frontend/` | the export parser (§4.6): `scan_types`, `scan_fast`, `export`, `export_c`, `proj_rec`, `nat_op_ground`, `prepare`, `prelude`, and `in_model_rec` (the `Modeller` seam) |
-| `crates/con-ron-core/src/ron/` | `nat`, `hashmap`, `ptr`, `tagged`, `node`: what replaces the runtime |
-| `crates/con-ron/src/` | the modeller (`in_model`), the driver, the pool, the binary |
-| `crates/con-ron-dump/` | the `con-ron-pins/1` reader and writer, the allocator |
-| `proof/ConRon/Generated/` | the committed Aeneas model and the hand-written models of the holes |
-| `proof/ConRon/Refine/` | the proofs: `Abs`, `State`, `FEnv` (abstractions and relations), `Excl` (the exclusivity read's model); one file per Rust module; `Core/` (the knot); `Ind*` (the inductive routes); `Pins*` (the decoder); `Frontend/` (the parser); `Installed`; `Main` (the capstones) |
-| `proof/ConRon/Refine/README.md` | the proof tier's own map: naming, the hypothesis table, how to write a lemma |
-| `vendor/aeneas/` | Aeneas, as a submodule, for its Lean library and documentation |
-| `scripts/` | the gates and the tooling of §5 |
+| [`con-ron-core/src/arena/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/mod.rs#L1-L22) | the checker: `handle`, `store` (§4), `monad` (`AState`, the memos), `core_state` (the caches), `expr_ops`, `core` (the type checker), `decl_check`, `inductives/`, `checker` (the fold), `promote`, `pins` |
+| [`con-ron-core/src/frontend/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/mod.rs#L19-L31) | the parser: scanner, record assembly, projection rewrite, ground hoist, prelude, the `Modeller` trait |
+| [`con-ron-core/src/kernel/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/lib.rs#L33-L54) | representation-free types (`Name`, `Level`, `PropWhen`, `CheckError`, `CheckMode`), the pinned data as `Expr` values, `pins_text` and `pins_decode` |
+| `con-ron-core/src/ron/` | replacements for the Lean runtime: `nat` (bignum), `hashmap`, `hashmap2`, `ptr` (`Arc`) |
+| `con-ron/src/` | unverified: the binary, `driver`, `pool`, the modeller (`in_model/`, `tree/`) |
+| `con-ron-dump/` | unverified: the `con-ron-pins/1` reader and writer, the global allocator |
 
-## 12. Gates
+**Lean** (`proof/ConRon/`)
 
-`scripts/gates.sh` runs, in order, and stops at the first failure
-([the ten steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L54-L63)):
+| where | library | what |
+|---|---|---|
+| `Generated/` | `ConRon` (default) | the committed Aeneas model and the hand-written hole models |
+| `Refine/` | `ConRon` (default) | the leaf tier (§7.7) |
+| `Arena/` | `ConRonArena` (default) | the twin (B), with `Denote.lean`, `WF.lean`, `WFProofs.lean` |
+| `Bridge/` | `ConRonBridge` | Theorem 1 |
+| `Refine2/` | `ConRonRefine2` | Theorem 2; `Tactic/` holds `lockstep` |
+| `Capstone.lean` | `ConRonCapstone` | the two headline theorems |
 
-1. `cargo build` with warnings denied;
-2. `cargo test`;
-3. `scripts/lint-rust-style.sh`: the Aeneas subset (§4.1);
-4. `scripts/provenance.py check`: every item cites, every citation resolves, no `CHANGED` marker left;
-5. `scripts/overview-links.sh`: every line-anchored link in this document and in `DESIGN.md` still points at the text it cited (the cited lines are a committed artefact, `scripts/overview-links-expected.txt`, in con-leche's idiom);
-6. `scripts/holes.sh --check`: §8.1's table is exactly the set of holes the Aeneas templates declare;
-7. `scripts/gen-pins.sh --check`: the embedded pin text is what con-leche's list generates;
-8. `scripts/gen-prelude.sh --check`: the embedded prelude text is con-leche's own;
-9. `scripts/extract.sh --check`: the committed model is what Charon and Aeneas produce, and every hole it declares is modelled by hand;
-10. `lake build` of the model and the proofs.
-
-It ends with the summary lines of `progress.py` and `loc.py`.  The
-differential tests of §6.4 are not in the gates, since they need the
-exports; CI runs them.  One landing rule is neither: anything that touches
-memory is run on the Mathlib export under `ulimit -v 27000000` before it
-lands, since CI and the kernel arena skip Mathlib.
+`vendor/aeneas/` is Aeneas as a submodule, for its Lean library and
+documentation; `scripts/` holds the gates and tools of §10.

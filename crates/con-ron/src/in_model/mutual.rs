@@ -42,15 +42,15 @@ use con_ron_core::kernel::env::{ConstantInfo, ConstantVal, RecRule};
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::{Expr, ExprView};
 use con_ron_core::kernel::expr_ops;
-use con_ron_core::kernel::inductives::native_parts;
-use con_ron_core::kernel::inductives::struct_parts;
+use crate::tree::native_parts;
+use crate::tree::struct_parts;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 
 use crate::render::name_str;
-use con_ron_core::frontend::proj_rec;
+use crate::tree::proj_rec;
 use crate::in_model::kit;
 use crate::in_model::kit::{
     app2, bm, const_p, dup_all, get_d, iota_name, mentions_any, mk_lams, mk_pis, model_name,
@@ -64,7 +64,7 @@ use crate::in_model::kit::{
 // citations travel with the definitions, in
 // `crates/con-ron-core/src/frontend/in_model_rec.rs`; the field names and
 // order are unchanged, so nothing below this line had to move.
-pub use con_ron_core::frontend::in_model_rec::{BlockRec, IndCtorRec, IndRecRec, IndTypeRec};
+pub use crate::tree::in_model_rec::{BlockRec, IndCtorRec, IndRecRec, IndTypeRec};
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:117-124 Ctx
 /// What the generator reads besides the block: the declared types of the
@@ -204,7 +204,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
         if t.num_nested != 0 {
             return Err(format!("nested member {} (B3)", name_str(&t.cv.name)));
         }
-        if !con_ron_core::frontend::export::names_beq(&t.cv.level_params, &lps) || t.n_p != n_p {
+        if !crate::tree::export::names_beq(&t.cv.level_params, &lps) || t.n_p != n_p {
             return Err(format!(
                 "member {}: level parameters or parameter count differ",
                 name_str(&t.cv.name)
@@ -273,7 +273,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
                         name_str(&t.cv.name)
                     )
                 })?;
-            if c.n_p != n_p || !con_ron_core::frontend::export::names_beq(&c.cv.level_params, &lps) {
+            if c.n_p != n_p || !crate::tree::export::names_beq(&c.cv.level_params, &lps) {
                 return Err(format!(
                     "constructor {}: parameter count or level parameters differ",
                     name_str(cn)
@@ -311,7 +311,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
         let r0 = rec_of(0)?;
         match r0.cv.level_params.split_first() {
             Some((e, rest)) => {
-                if con_ron_core::frontend::export::names_beq(&kit::dup_names(rest), &lps)
+                if crate::tree::export::names_beq(&kit::dup_names(rest), &lps)
                     && !lps.iter().any(|x| name::beq(x, e))
                 {
                     Some(name::dup(e))
@@ -344,7 +344,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
                 name_str(&r.cv.name)
             ));
         }
-        if !con_ron_core::frontend::export::names_beq(&r.cv.level_params, &rlps) {
+        if !crate::tree::export::names_beq(&r.cv.level_params, &rlps) {
             return Err(format!(
                 "recursor {}: eliminator shape differs",
                 name_str(&r.cv.name)

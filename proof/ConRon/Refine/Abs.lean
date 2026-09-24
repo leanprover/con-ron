@@ -74,104 +74,85 @@ the proofs exactly as before the alias existed (`deref` is not wrapped, so
 @[simp] theorem ptr_ptr_eq_eq {T : Type} (x y : T) :
     ron.ptr.ptr_eq (T := T) x y = ok false := rfl
 
-/-! ### The `ron::node` holes (task #94)
+/-! ### The `Expr` reader, and the bijection that survived the holes
 
-Since task #94 an `Expr` is a *tagged handle* rather than a `P<ExprNode>`, so
-the two `Arc` operations a reader used to go through — `Arc::deref` then the
-`.kind` projection — are one call to `ron::node::view`, and the ten smart
-constructors end in `ron::node::alloc_*` rather than `ron::ptr::new`.
-`Generated/Types.lean` is unchanged (`TaggedNode T := T`, exactly as
-`Arc T := T`), so what follows is the same kind of plumbing as the `arc_*`
-block above: every one of these is `rfl` or one `cases`.
+`kernel::expr::view` is the projection every reader of the core goes through.
+Tasks #94-#97-SWAP made it an **axiom**: the constructor lived in a tagged
+handle's low four bits, `ron::node` was opaque to Charon, and this block held
+sixteen `rfl` hole lemmas — `ron.node.{view,data,dup,ptr_eq}` and the ten
+`alloc_*`.  **Task #97-SWAP-2 retired all sixteen** by putting `Expr` back on
+`ron::ptr::P` = `std::sync::Arc`: a smart constructor ends in `ron.ptr.new`
+and a reader begins with `Arc::deref`, so `ptr_new_eq` and `arc_deref_eq`
+above do for an `Expr` what they always did for a `Name`, and `expr.data`,
+`expr.dup` and `expr.ptr_eq` are ordinary translated bodies over them.
 
-Charon generates `ron::node::ExprView` — the borrowed enum a reader matches on
-— as an ordinary inductive with the same ten arms as `ExprKind`, its fields
-being the shared borrows Aeneas erases to values.  `ExprView.ofKind`
-(`Generated/FunsExternal.lean`) is the bijection, and the ten `of_kind_*_iff`
-below invert it, so a proof that used to read `ExprKind.App f a` out of a
-`split` still does. -/
+What survives is `view` itself, as a *definition*: Charon still generates
+`kernel::expr::ExprView` — the borrowed enum a reader matches on — as an
+ordinary inductive with the same ten arms as `ExprKind`, its fields being the
+shared borrows Aeneas erases to values, and `view`'s body is one `Arc::deref`
+and a `match`.  `ExprView.ofKind` (`Generated/FunsExternal.lean`) is the
+bijection, `expr_view_eq` is `view`'s equation over it — the same statement it
+had when `view` was a hole, which is why the 719 proof sites that read a
+reader's `match` in terms of `ofKind k` did not move — and the ten
+`of_kind_*_iff` below invert it, so a proof that reads `ExprKind.App f a` out
+of a `split` still does. -/
 
 /-- The projection, in the *total* form the normaliser needs: it fires on a
-variable `e`, as `arc_deref_eq` did, where the ten constructor equations below
-need `e` in constructor form. -/
-@[simp] theorem node_view_eq (e : expr.Expr) :
-    ron.node.view e = ok (ron.node.ExprView.ofKind e._0.kind) := by
-  cases e with | mk n => cases n with | mk d k => rfl
-
-/-- The crate's own one-line wrapper (`kernel::expr::view`), which is what all
-263 generated reader sites call; one call to the external above, hence the same
-equation — the `ptr_new_eq`/`ptr_clone_eq` situation exactly. -/
+variable `e`, as `arc_deref_eq` does, where the constructor equations need `e`
+in constructor form.  Since task #97-SWAP-2 this is a fact about a translated
+body rather than a hole's model; the statement is unchanged. -/
 @[simp] theorem expr_view_eq (e : expr.Expr) :
-    expr.view e = ok (ron.node.ExprView.ofKind e._0.kind) := by
-  simp [expr.view]
+    expr.view e = ok (kernel.expr.ExprView.ofKind e._0.kind) := by
+  cases e with | mk n => cases n with | mk d k =>
+    cases k <;> simp [expr.view, kernel.expr.ExprView.ofKind]
 
-@[simp] theorem node_data_eq (e : expr.Expr) : ron.node.data e = ok e._0.data := by
-  cases e with | mk n => cases n with | mk d k => rfl
+/-- `expr::data` is the `@[computed_field]` read through the handle: one
+`Arc::deref` and the first field.  (It was `ron.node.data`, a hole, between
+tasks #94 and #97-SWAP-2.) -/
+@[simp] theorem node_data_eq (e : expr.Expr) : expr.data e = ok e._0.data := by
+  cases e with | mk n => cases n with | mk d k => simp [expr.data]
 
-@[simp] theorem node_dup_eq (e : expr.Expr) : ron.node.dup e = ok e := rfl
-
-@[simp] theorem node_ptr_eq_eq (a b : expr.Expr) : ron.node.ptr_eq a b = ok false := rfl
-
-/-- The ten constructors.  `alloc_app d f a` *is* `Expr.mk (ExprNode.mk d
-(ExprKind.App f a))`, which is what `ron.ptr.new (ExprNode.mk …)` used to be,
-so a smart constructor's `_refines` lemma sees the node it always saw. -/
-@[simp] theorem node_alloc_bvar_eq (d i : Std.U64) :
-    ron.node.alloc_bvar d i = ok (.mk (.mk d (.Bvar i))) := rfl
-@[simp] theorem node_alloc_fvar_eq (d idx : Std.U64) (ty : expr.Expr) :
-    ron.node.alloc_fvar d idx ty = ok (.mk (.mk d (.Fvar idx ty))) := rfl
-@[simp] theorem node_alloc_sort_eq (d : Std.U64) (u : level.Level) :
-    ron.node.alloc_sort d u = ok (.mk (.mk d (.«Sort» u))) := rfl
-@[simp] theorem node_alloc_const_eq (d : Std.U64) (n : name.Name)
-    (us : alloc.sync.Arc (alloc.vec.Vec level.Level)) :
-    ron.node.alloc_const d n us = ok (.mk (.mk d (.Const n us))) := rfl
-@[simp] theorem node_alloc_app_eq (d : Std.U64) (f a : expr.Expr) :
-    ron.node.alloc_app d f a = ok (.mk (.mk d (.App f a))) := rfl
-@[simp] theorem node_alloc_lam_eq (d : Std.U64) (ty b : expr.Expr) (m : expr.BinderMeta) :
-    ron.node.alloc_lam d ty b m = ok (.mk (.mk d (.Lam ty b m))) := rfl
-@[simp] theorem node_alloc_forall_e_eq (d : Std.U64) (ty b : expr.Expr) (m : expr.BinderMeta) :
-    ron.node.alloc_forall_e d ty b m = ok (.mk (.mk d (.ForallE ty b m))) := rfl
-@[simp] theorem node_alloc_let_e_eq (d : Std.U64) (ty v b : expr.Expr) :
-    ron.node.alloc_let_e d ty v b = ok (.mk (.mk d (.LetE ty v b))) := rfl
-@[simp] theorem node_alloc_lit_eq (d : Std.U64) (l : expr.Literal) :
-    ron.node.alloc_lit d l = ok (.mk (.mk d (.Lit l))) := rfl
-@[simp] theorem node_alloc_proj_eq (d : Std.U64) (n : name.Name) (i : Std.U64) (e : expr.Expr) :
-    ron.node.alloc_proj d n i e = ok (.mk (.mk d (.Proj n i e))) := rfl
+/-- `expr::ptr_eq` is `Arc::ptr_eq`, i.e. `false` (DESIGN.md §3.2): the model
+always takes the slow path and each fast path is discharged by a reflexivity
+lemma about the walk that uses it. -/
+@[simp] theorem node_ptr_eq_eq (a b : expr.Expr) : expr.ptr_eq a b = ok false := by
+  simp [expr.ptr_eq]
 
 /-- Inverting the view: what a `split` on a reader's `match` now produces is an
 equation about `ofKind k`, and these ten put it back in terms of `k`, which is
 what `absExprKind` and every existing proof speak. -/
 @[simp] theorem of_kind_bvar_iff (k : expr.ExprKind) (i : Std.U64) :
-    ron.node.ExprView.ofKind k = .Bvar i ↔ k = .Bvar i := by
-  cases k <;> simp [ron.node.ExprView.ofKind]
+    kernel.expr.ExprView.ofKind k = .Bvar i ↔ k = .Bvar i := by
+  cases k <;> simp [kernel.expr.ExprView.ofKind]
 @[simp] theorem of_kind_fvar_iff (k : expr.ExprKind) (idx : Std.U64) (ty : expr.Expr) :
-    ron.node.ExprView.ofKind k = .Fvar idx ty ↔ k = .Fvar idx ty := by
-  cases k <;> simp [ron.node.ExprView.ofKind]
+    kernel.expr.ExprView.ofKind k = .Fvar idx ty ↔ k = .Fvar idx ty := by
+  cases k <;> simp [kernel.expr.ExprView.ofKind]
 @[simp] theorem of_kind_sort_iff (k : expr.ExprKind) (u : level.Level) :
-    ron.node.ExprView.ofKind k = .«Sort» u ↔ k = .«Sort» u := by
-  cases k <;> simp [ron.node.ExprView.ofKind]
+    kernel.expr.ExprView.ofKind k = .«Sort» u ↔ k = .«Sort» u := by
+  cases k <;> simp [kernel.expr.ExprView.ofKind]
 @[simp] theorem of_kind_const_iff (k : expr.ExprKind) (n : name.Name)
     (us : alloc.sync.Arc (alloc.vec.Vec level.Level)) :
-    ron.node.ExprView.ofKind k = .Const n us ↔ k = .Const n us := by
-  cases k <;> simp [ron.node.ExprView.ofKind]
+    kernel.expr.ExprView.ofKind k = .Const n us ↔ k = .Const n us := by
+  cases k <;> simp [kernel.expr.ExprView.ofKind]
 @[simp] theorem of_kind_app_iff (k : expr.ExprKind) (f a : expr.Expr) :
-    ron.node.ExprView.ofKind k = .App f a ↔ k = .App f a := by
-  cases k <;> simp [ron.node.ExprView.ofKind]
+    kernel.expr.ExprView.ofKind k = .App f a ↔ k = .App f a := by
+  cases k <;> simp [kernel.expr.ExprView.ofKind]
 @[simp] theorem of_kind_lam_iff (k : expr.ExprKind) (ty b : expr.Expr) (m : expr.BinderMeta) :
-    ron.node.ExprView.ofKind k = .Lam ty b m ↔ k = .Lam ty b m := by
-  cases k <;> simp [ron.node.ExprView.ofKind]
+    kernel.expr.ExprView.ofKind k = .Lam ty b m ↔ k = .Lam ty b m := by
+  cases k <;> simp [kernel.expr.ExprView.ofKind]
 @[simp] theorem of_kind_forall_e_iff (k : expr.ExprKind) (ty b : expr.Expr) (m : expr.BinderMeta) :
-    ron.node.ExprView.ofKind k = .ForallE ty b m ↔ k = .ForallE ty b m := by
-  cases k <;> simp [ron.node.ExprView.ofKind]
+    kernel.expr.ExprView.ofKind k = .ForallE ty b m ↔ k = .ForallE ty b m := by
+  cases k <;> simp [kernel.expr.ExprView.ofKind]
 @[simp] theorem of_kind_let_e_iff (k : expr.ExprKind) (ty v b : expr.Expr) :
-    ron.node.ExprView.ofKind k = .LetE ty v b ↔ k = .LetE ty v b := by
-  cases k <;> simp [ron.node.ExprView.ofKind]
+    kernel.expr.ExprView.ofKind k = .LetE ty v b ↔ k = .LetE ty v b := by
+  cases k <;> simp [kernel.expr.ExprView.ofKind]
 @[simp] theorem of_kind_lit_iff (k : expr.ExprKind) (l : expr.Literal) :
-    ron.node.ExprView.ofKind k = .Lit l ↔ k = .Lit l := by
-  cases k <;> simp [ron.node.ExprView.ofKind]
+    kernel.expr.ExprView.ofKind k = .Lit l ↔ k = .Lit l := by
+  cases k <;> simp [kernel.expr.ExprView.ofKind]
 @[simp] theorem of_kind_proj_iff (k : expr.ExprKind) (n : name.Name) (i : Std.U64)
     (e : expr.Expr) :
-    ron.node.ExprView.ofKind k = .Proj n i e ↔ k = .Proj n i e := by
-  cases k <;> simp [ron.node.ExprView.ofKind]
+    kernel.expr.ExprView.ofKind k = .Proj n i e ↔ k = .Proj n i e := by
+  cases k <;> simp [kernel.expr.ExprView.ofKind]
 
 /-- Put a `split`-produced `ofKind k = ExprView.X …` back as `k = ExprKind.X …`
 (task #94).  Every reader's `match` is on `view`'s `ExprView` since the kind
@@ -225,14 +206,10 @@ attribute [rust_reduce, rust_invert] arc_deref_eq bind_tc_ok lift_eq ptr_new_eq 
   level.LevelNode.hash._simpLemma_ level.LevelNode.kind._simpLemma_ level.Level._0._simpLemma_
   expr.ExprNode.data._simpLemma_ expr.ExprNode.kind._simpLemma_ expr.Expr._0._simpLemma_
 
--- task #94: the `ron::node` holes join the same two sets.  `expr_view_eq` and
--- `node_data_eq` are where `arc_deref_eq` used to do the work for an `Expr`;
--- the ten `node_alloc_*_eq` are where `ptr_new_eq` did.
-attribute [rust_reduce, rust_invert] expr_view_eq node_view_eq node_data_eq node_dup_eq
-  node_ptr_eq_eq
-  node_alloc_bvar_eq node_alloc_fvar_eq node_alloc_sort_eq node_alloc_const_eq
-  node_alloc_app_eq node_alloc_lam_eq node_alloc_forall_e_eq node_alloc_let_e_eq
-  node_alloc_lit_eq node_alloc_proj_eq
+-- the three `Expr` lemmas above join the same two sets.  (Task #94 put
+-- sixteen `ron::node` hole lemmas here; task #97-SWAP-2 left the three that
+-- are about translated bodies, `ptr_new_eq`/`arc_deref_eq` doing the rest.)
+attribute [rust_reduce, rust_invert] expr_view_eq node_data_eq node_ptr_eq_eq
 
 -- and the bijection's own ten equations, so that a reader's `match` reduces as
 -- soon as the constructor is known.  A `def` is in no simp set by default;
@@ -240,7 +217,7 @@ attribute [rust_reduce, rust_invert] expr_view_eq node_view_eq node_data_eq node
 -- argument and are therefore as safe here as `arc_deref_eq` is.  Measured
 -- (task #94): with it the tier has 25 residual sites to fix by hand, without
 -- it 108.
-attribute [rust_reduce, rust_invert] ron.node.ExprView.ofKind
+attribute [rust_reduce, rust_invert] kernel.expr.ExprView.ofKind
 
 attribute [rust_invert] of_kind_bvar_iff of_kind_fvar_iff of_kind_sort_iff of_kind_const_iff
   of_kind_app_iff of_kind_lam_iff of_kind_forall_e_iff of_kind_let_e_iff of_kind_lit_iff
@@ -258,12 +235,12 @@ theorem bind_arc_deref {T β : Type} (A : Type) (x : T) (f : T → Result β) :
     (do let y ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref A x; f y) = f x := by
   rw [arc_deref_eq, bind_tc_ok]
 
-/-- `bind_arc_deref`'s twin for the `Expr` reader head since task #94: `let ev
-← expr.view e; …` is `… (ofKind e._0.kind) …`, in one pre-order step.  Every
-one of the 263 generated reader sites begins with exactly this. -/
+/-- `bind_arc_deref`'s twin for the `Expr` reader head: `let ev ← expr.view e;
+…` is `… (ofKind e._0.kind) …`, in one pre-order step.  Every one of the 263
+generated reader sites begins with exactly this. -/
 theorem bind_expr_view {β : Type} (e : expr.Expr)
-    (f : ron.node.ExprView → Result β) :
-    (do let v ← expr.view e; f v) = f (ron.node.ExprView.ofKind e._0.kind) := by
+    (f : kernel.expr.ExprView → Result β) :
+    (do let v ← expr.view e; f v) = f (kernel.expr.ExprView.ofKind e._0.kind) := by
   rw [expr_view_eq, bind_tc_ok]
 
 open Lean Elab Tactic Meta in

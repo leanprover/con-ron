@@ -1,0 +1,1525 @@
+/-
+# `ConRon.Refine2.Inductives.SumInstall` — Theorem 2 for `arena::inductives::sum_install`
+
+**Task #97-P5-Ind** (DESIGN.md §8.2).
+`crates/con-ron-core/src/arena/inductives/sum_install.rs` against
+`proof/ConRon/Arena/Inductives/SumInstall.lean`: official's telescope loop,
+the type former's stage, the per-field universe bound, official's positivity
+walk as a normalisation, the constructors' stage and the stored rules.
+
+**Twenty-four `pub fn`s against fourteen twin `def`s.**  Ten of the
+twenty-four are DESIGN §3.4's rules — the `check_sum_ctor` split three ways,
+the two `allM`s under it, `check_sum_ind`'s tail, `field_sort_bound`,
+`norm_pos_dom_at`, `eidx_contains` — and `Refine2/Inductives/Spec.lean`
+carries every transcription.
+
+**This is the module where `KnotRel` arrives in force.**  `whnf_telescope`
+calls `whnf`, `check_struct_field_sorts_i` calls `infer_type_core` and
+`ensure_sort_core`, `norm_pos_dom` calls `whnf`, and `check_sum_tele_slow` and
+`norm_ctor_val` call `check_constant_val`, which is `arena::checker_base`'s
+over the knot.  **Eleven statements carry `KnotRel checkFuel`** and **eleven
+carry finding 10's `hvis`**.
+
+**Two shapes are worth naming.**  `zip_fvar_doms` is the tier's only `SimRE`
+— it takes `&AState` and can decline, with no state in the return at all,
+which is exactly what task #97-P5-Checker's §1 added that shape for; and
+`cons_sum_ctors` is PURE on both sides (the index push touches no term), so
+its statement is the `IFEnvRel` of two pushes and carries no monad.
+-/
+import ConRon.Refine2.Inductives.StructInstallF
+import ConRon.Refine2.Inductives.SumParts
+
+open Aeneas Aeneas.Std Result
+open ConRon.Generated
+
+attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
+
+namespace ConRon.Refine2
+
+open scoped ConRon.Refine2.IndSide
+
+open ConRon.Arena
+
+/-- The positivity walk's fuel (`POS_WALK_FUEL = 1024`, the twin's literal). -/
+@[local lockstep_simp] theorem pos_walk_fuel_abs :
+    absU arena.inductives.sum_install.POS_WALK_FUEL = 1024 := by
+  rw [arena.inductives.sum_install.POS_WALK_FUEL]; rfl
+
+/-! ## The binders' canonical metas (`PropWhenWF`, the erased subtype invariant)
+
+The telescope walks push `(dom, meta)` pairs whose `meta` comes from a view
+(`EViewMetaWF`, from `AStateInv`); `close_telescope` interns them back, which
+needs the fact (the cleanup lane's statement change).  One side-tier move:
+a pushed vector's binders are canonical when the old ones and the pushed
+meta are. -/
+
+theorem bwf_push {out o : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {d : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
+    (hv : o.val = out.val ++ [(d, m)]) (hout : ∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw)
+    (hm : ConRon.Refine.PropWhenWF m.pw) : ∀ p ∈ o.val, ConRon.Refine.PropWhenWF p.2.pw := by
+  intro p hp
+  rw [hv] at hp
+  rcases List.mem_append.mp hp with hp | hp
+  · exact hout p hp
+  · rw [List.mem_singleton.mp hp]; exact hm
+
+theorem wf_of_view_some {ty b : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
+    (h : ∀ t : arena.handle.EIdx × arena.handle.EIdx × kernel.expr.BinderMeta,
+      some (ty, b, m) = some t → ConRon.Refine.PropWhenWF t.2.2.pw) :
+    ConRon.Refine.PropWhenWF m.pw := h _ rfl
+
+
+
+
+/-! ### `strip_pis` and `binder_copy_from` keep the metas canonical (Rust-only)
+
+`Frontend/ProjRec.lean` carries the same two list facts downstream of this
+file (`binder_copy_from_val`, `cons_binder_val`); they are restated here. -/
+
+namespace IndInstPrims
+open Lockstep
+
+theorem binder_copy_from_val' (xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
+    ∀ (n : Nat) (i : Std.Usize) (out r : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)),
+      xs.val.length - i.val = n →
+      arena.expr_ops.binder_copy_from xs i out = ok r → r.val = out.val ++ xs.val.drop i.val := by
+  intro n
+  induction n with
+  | zero =>
+    intro i out r hn h
+    rw [arena.expr_ops.binder_copy_from.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+    subst h
+    rw [List.drop_eq_nil_of_le (by omega)]
+    simp
+  | succ k ih =>
+    intro i out r hn h
+    rw [arena.expr_ops.binder_copy_from.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
+    have hxi : i.val < xs.val.length := by omega
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨e, bm⟩ := p
+    obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨bm1, hbm1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hb, hpv⟩ := ExprOps.vecIndexAt hp
+    have hee : e1 = e := dupId_eidx e e1 he1
+    have hbb : bm1 = bm := ConRon.Refine.Expr.binder_meta_dup_eq hbm1
+    have hov : out1.val = out.val ++ [(e1, bm1)] := ConRon.Refine.vec_push_val hout1
+    have hi2v : i2.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi2).trans (by simp)
+    rw [ih i2 out1 r (by omega) h, hi2v, hov, hee, hbb, List.drop_eq_getElem_cons hxi, hpv]
+    simp
+
+theorem cons_binder_val' {ty : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
+    {xs r : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    (h : arena.expr_ops.cons_binder ty m xs = ok r) : r.val = (ty, m) :: xs.val := by
+  rw [arena.expr_ops.cons_binder] at h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨bm, hbm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨out, hout, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hee : e = ty := dupId_eidx ty e he
+  have hbb : bm = m := ConRon.Refine.Expr.binder_meta_dup_eq hbm
+  have hov : out.val = [(e, bm)] := ConRon.Refine.push_new_val hout
+  rw [binder_copy_from_val' xs _ 0#usize out r rfl h, hov, hee, hbb]
+  simp
+
+/-- `strip_pis`' binders carry canonical metas (each read by `view_bind`, whose
+metas `AStateInv` makes canonical). -/
+theorem strip_pis_wf {pers st} (hinv : AStateInv pers st) :
+    ∀ (n : Nat) (k : Std.U64) (h : arena.handle.EIdx) q, k.val = n →
+      arena.expr_ops.strip_pis pers st k h = ok (.Ok (some q)) →
+      ∀ p ∈ q.1.val, ConRon.Refine.PropWhenWF p.2.pw := by
+  intro n
+  induction n with
+  | zero =>
+    intro k h q hn hr
+    rw [arena.expr_ops.strip_pis, if_pos (by scalar_tac)] at hr
+    obtain ⟨e, -, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+    cases Result.ok_injective hr
+    intro x hx
+    simp [alloc.vec.Vec.new] at hx
+  | succ k' ih =>
+    intro k h q hn hr
+    rw [arena.expr_ops.strip_pis, if_neg (by scalar_tac)] at hr
+    obtain ⟨tg, -, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+    split at hr
+    · obtain ⟨o, ho, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+      cases o with
+      | none =>
+        simp only at hr
+        rw [arena.monad.fail_dangling_e] at hr
+        obtain ⟨sl, -, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+        obtain ⟨v, -, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+        cases fail_run hr
+      | some t =>
+        obtain ⟨ty, b, m⟩ := t
+        simp only at hr
+        have hm := view_bind_meta_wf hinv ho
+        obtain ⟨i1, hi1, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+        obtain ⟨r, hrr, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+        cases r with
+        | Err _ => cases Result.ok_injective hr
+        | Ok o1 =>
+          cases o1 with
+          | none => cases Result.ok_injective hr
+          | some p =>
+            obtain ⟨v, e⟩ := p
+            simp only at hr
+            obtain ⟨v1, hv1, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+            cases Result.ok_injective hr
+            have hi1v : i1.val = k' := by
+              have := (ConRon.Refine.Nat.usub_val hi1).2; rw [this, hn]; rfl
+            have ihv := ih i1 b (v, e) hi1v hrr
+            intro x hx
+            rw [cons_binder_val' hv1] at hx
+            rcases List.mem_cons.mp hx with rfl | hx
+            · exact hm
+            · exact ihv x hx
+    · cases Result.ok_injective hr
+
+/-- `strip_pis` with its binders' canonical metas (for the lockstep zip). -/
+theorem strip_pis_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : Std.U64) (h : arena.handle.EIdx) :
+    LSR pers (fun a b => b = ExprOps.absStrip a ∧
+        ∀ q, a = some q → ∀ p ∈ q.1.val, ConRon.Refine.PropWhenWF p.2.pw)
+      (arena.expr_ops.strip_pis pers st k h) st lst
+      (stripPis (absU k) (absEIdx h)) := by
+  intro o hm
+  have := ExprOps.strip_pis_ls hrel hinv k h o hm
+  cases o with
+  | Err e => exact this
+  | Ok a =>
+    obtain ⟨b, lst', hx, hb, hr, hi⟩ := this
+    exact ⟨b, lst', hx, ⟨hb, fun q hq => strip_pis_wf hinv _ k h q rfl (hq ▸ hm)⟩, hr, hi⟩
+
+/-- `binder_copy_from` with the list fact the canonical metas need. -/
+theorem binder_copy_from_wf_spec
+    (xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (i : Std.Usize)
+    (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
+    LSP (arena.expr_ops.binder_copy_from xs i out)
+      (fun r => ExprOps.absBinderL r = ExprOps.absBinderL out ++ (ExprOps.absBinderL xs).drop i.val ∧
+        r.val = out.val ++ xs.val.drop i.val) :=
+  fun r h => ⟨ExprOps.binder_copy_from_refines h, binder_copy_from_val' xs _ i out r rfl h⟩
+
+end IndInstPrims
+
+theorem bwf_of_some {v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {e : arena.handle.EIdx}
+    (h : ∀ q : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta) × arena.handle.EIdx,
+      some (v, e) = some q → ∀ p ∈ q.1.val, ConRon.Refine.PropWhenWF p.2.pw) :
+    ∀ p ∈ v.val, ConRon.Refine.PropWhenWF p.2.pw := h _ rfl
+
+theorem bwf_new : ∀ p ∈ (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)).val,
+    ConRon.Refine.PropWhenWF p.2.pw := by
+  intro p hp; simp [alloc.vec.Vec.new] at hp
+
+theorem bwf_append' {X : Prop} {r a b : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {i : Nat} (hv : X ∧ r.val = a.val ++ b.val.drop i)
+    (ha : ∀ p ∈ a.val, ConRon.Refine.PropWhenWF p.2.pw)
+    (hb : ∀ p ∈ b.val, ConRon.Refine.PropWhenWF p.2.pw) :
+    ∀ p ∈ r.val, ConRon.Refine.PropWhenWF p.2.pw := by
+  intro p hp
+  rw [hv.2] at hp
+  rcases List.mem_append.mp hp with hp | hp
+  · exact ha p hp
+  · exact hb p (List.mem_of_mem_drop hp)
+
+theorem bwf_append {r a b : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {i : Nat} (hv : r.val = a.val ++ b.val.drop i)
+    (ha : ∀ p ∈ a.val, ConRon.Refine.PropWhenWF p.2.pw)
+    (hb : ∀ p ∈ b.val, ConRon.Refine.PropWhenWF p.2.pw) :
+    ∀ p ∈ r.val, ConRon.Refine.PropWhenWF p.2.pw := by
+  intro p hp
+  rw [hv] at hp
+  rcases List.mem_append.mp hp with hp | hp
+  · exact ha p hp
+  · exact hb p (List.mem_of_mem_drop hp)
+
+
+local macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| first
+      | exact bwf_new
+      | (apply bwf_of_some; assumption)
+      | (apply bwf_append <;> assumption)
+      | (apply bwf_append' <;> assumption)
+      | (apply bwf_push; all_goals first | assumption | (simp only [Lockstep.EViewMetaWF] at *; assumption) | (apply wf_of_view_some; assumption) | (subst_vars; simpa using ‹ConRon.Refine.PropWhenWF _›)))
+
+/-! ## The type former's stage -/
+
+theorem whnf_telescope_aux (m : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rf lf} {mode : kernel.env.CheckMode} {i n : Std.U64}
+      {e : arena.handle.EIdx} {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)},
+      n.val = m → AStateRel₀ pers st lst → AStateInv pers st → IFEnvRelI rf lf →
+      absU vis = lf.visibleBelow → (∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw) →
+      Lockstep.LS pers (fun r b => b = (absBinderL r.1, absLIdx r.2) ∧
+          ∀ p ∈ r.1.val, ConRon.Refine.PropWhenWF p.2.pw)
+        (arena.inductives.sum_install.whnf_telescope pers vis st mode rf i n e out) lst
+        (do
+          let q ← whnfTelescope (ConRon.Refine.absMode mode) lf (absU i) (absU n)
+            (absEIdx e)
+          pure (absBinderL out ++ q.1, q.2)) := by
+  induction m with
+  | zero =>
+    intro pers st lst vis rf lf mode i n e out hn hrel hinv hfe hvis hout
+    rw [arena.inductives.sum_install.whnf_telescope, show absU n = 0 from hn, whnfTelescope]
+    lockstep
+  | succ m ih =>
+    intro pers st lst vis rf lf mode i n e out hn hrel hinv hfe hvis hout
+    rw [arena.inductives.sum_install.whnf_telescope, show absU n = m + 1 from hn, whnfTelescope]
+    have hn1 : 1 ≤ n.val := by omega
+    obtain rfl : m = n.val - 1 := by omega
+    clear hn
+    lockstep
+
+/-- `whnf_telescope` ⊑ `whnfTelescope`, with the accumulated binders in front
+— **official's telescope loop** (`check_inductive_types`): peel `n` Π binders
+off `e`, reducing the residual to weak head normal form before each binder and
+at the end, where it must be a sort. -/
+theorem whnf_telescope_refines {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {i n : Std.U64} {e : arena.handle.EIdx}
+    {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow)
+    (hout : ∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw)
+    (hrun : arena.inductives.sum_install.whnf_telescope pers vis st mode rf i n e out
+      = ok o) :
+    SimRel₀ (fun r b => b = (absBinderL r.1, absLIdx r.2) ∧
+        ∀ p ∈ r.1.val, ConRon.Refine.PropWhenWF p.2.pw) pers lst o
+      (do
+        let q ← whnfTelescope (ConRon.Refine.absMode mode) lf (absU i) (absU n)
+          (absEIdx e)
+        pure (absBinderL out ++ q.1, q.2)) := by
+  exact Lockstep.LS.toSimRel₀ (whnf_telescope_aux _ rfl hrel hinv hfe hvis hout) hrun
+
+open Lockstep in
+@[lockstep] theorem whnf_telescope_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {i n : Std.U64}
+    {e : arena.handle.EIdx}
+    {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow)
+    (hout : ∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw) :
+    LS pers (fun r b => b = (absBinderL r.1, absLIdx r.2) ∧
+        ∀ p ∈ r.1.val, ConRon.Refine.PropWhenWF p.2.pw) (arena.inductives.sum_install.whnf_telescope pers vis st mode rf i n e out) lst
+      (do
+        let q ← whnfTelescope (ConRon.Refine.absMode mode) lf (absU i) (absU n)
+          (absEIdx e)
+        pure (absBinderL out ++ q.1, q.2)) :=
+  LS.ofSimRel₀ fun _ h => whnf_telescope_refines hrel hinv hfe hvis hout h
+
+/-- `close_telescope` ⊑ `closeTelescope` from the cursor on: close a telescope
+opened at the free variables `i ..< i + bs.length` back into a syntactic
+Π-telescope over `body`. -/
+theorem close_telescope_refines {pers st lst}
+    {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {k : Std.Usize} {i : Std.U64} {body : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpw : ∀ p ∈ bs.val, ConRon.Refine.PropWhenWF p.2.pw)
+    (hrun : arena.inductives.sum_install.close_telescope pers st bs k i body = ok o) :
+    Sim₀ absEIdx pers lst o
+      (closeTelescope (absBinderLFrom bs k) (absU i) (absEIdx body)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  revert st lst hrel hinv
+  simp only [absBinderLFrom]
+  intro st lst hrel hinv
+  refine ls_cursor_acc bs (fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2))
+    (fun i xs => closeTelescope xs (absU i) (absEIdx body))
+    (fun st k i => arena.inductives.sum_install.close_telescope pers st bs k i body)
+    ?_ ?_ k st lst i hrel hinv
+  · intro st lst k i hn hrel hinv
+    try simp only []
+    rw [arena.inductives.sum_install.close_telescope.eq_def, closeTelescope]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst k i hb hrel hinv ih
+    try simp only []
+    rw [arena.inductives.sum_install.close_telescope.eq_def, closeTelescope]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    have hpwk := hpw _ (List.getElem_mem hb)
+    lockstep
+
+open Lockstep in
+@[lockstep] theorem close_telescope_ls
+    {pers st lst}
+    {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {k : Std.Usize}
+    {i : Std.U64}
+    {body : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hpw : ∀ p ∈ bs.val, ConRon.Refine.PropWhenWF p.2.pw) :
+    LS pers (fun a b => b = absEIdx a) (arena.inductives.sum_install.close_telescope pers st bs k i body) lst
+      (closeTelescope (absBinderLFrom bs k) (absU i) (absEIdx body)) :=
+  LS.ofSim₀ fun _ h => close_telescope_refines hrel hinv hpw h
+
+/-- `check_sum_tele_slow` ⊑ `checkSumTele`'s `where` clause — the `_` arm of
+its match, named on both sides because over handles the syntactic test is two
+`view`s and duplicating the arm would duplicate the whnf loop. -/
+theorem check_sum_tele_slow_refines {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal} {n : Std.U64}
+    {cv_ta0 : arena.env.IConstantVal} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow)
+    (hrun : arena.inductives.sum_install.check_sum_tele_slow pers vis st mode rf cv n
+      cv_ta0 = ok o) :
+    Sim₀ (fun r => (absIConstantVal r.1, absLIdx r.2)) pers lst o
+      (checkSumTele.checkSumTeleSlow (ConRon.Refine.absMode mode) lf
+        (absIConstantVal cv) (absU n) (absIConstantVal cv_ta0)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.sum_install.check_sum_tele_slow, checkSumTele.checkSumTeleSlow]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_sum_tele_slow_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {cv : arena.env.IConstantVal}
+    {n : Std.U64}
+    {cv_ta0 : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = (fun r => (absIConstantVal r.1, absLIdx r.2)) a) (arena.inductives.sum_install.check_sum_tele_slow pers vis st mode rf cv n cv_ta0) lst
+      (checkSumTele.checkSumTeleSlow (ConRon.Refine.absMode mode) lf
+        (absIConstantVal cv) (absU n) (absIConstantVal cv_ta0)) :=
+  LS.ofSim₀ fun _ h => check_sum_tele_slow_refines hrel hinv hfe hvis h
+
+/-- `check_sum_tele` ⊑ `checkSumTele` — the type former's TELESCOPE
+(con-leche's task #195): the checked declared type when it is already a
+syntactic telescope of `n` Π binders ending in a sort, else the declared
+type's whnf'd telescope, closed and checked in its place. -/
+theorem check_sum_tele_refines {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {cv : arena.env.IConstantVal} {n : Std.U64}
+    {cv_ta0 : arena.env.IConstantVal} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow)
+    (hrun : arena.inductives.sum_install.check_sum_tele pers vis st mode rf cv n
+      cv_ta0 = ok o) :
+    Sim₀ (fun r => (absIConstantVal r.1, absLIdx r.2)) pers lst o
+      (checkSumTele (ConRon.Refine.absMode mode) lf (absIConstantVal cv) (absU n)
+        (absIConstantVal cv_ta0)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.sum_install.check_sum_tele, checkSumTele]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_sum_tele_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {cv : arena.env.IConstantVal}
+    {n : Std.U64}
+    {cv_ta0 : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = (fun r => (absIConstantVal r.1, absLIdx r.2)) a) (arena.inductives.sum_install.check_sum_tele pers vis st mode rf cv n cv_ta0) lst
+      (checkSumTele (ConRon.Refine.absMode mode) lf (absIConstantVal cv) (absU n)
+        (absIConstantVal cv_ta0)) :=
+  LS.ofSim₀ fun _ h => check_sum_tele_refines hrel hinv hfe hvis h
+
+/-- A Rust word's zero test is the twin's on its value. -/
+theorem u64_val_beq_zero (x : Std.U64) : ((x : Nat) == 0) = (x == 0#u64) := by
+  by_cases h : x = 0#u64
+  · subst h; rfl
+  · have : (x : Nat) ≠ 0 := by intro h'; apply h; scalar_tac
+    simp [h, this]
+
+/-- `native_caps_at` ⊑ `nativeCapsAt` — the capabilities a block on the
+fixpoint route earns (con-leche's task #210 Part A).  Twinned in
+`SumInstall.lean` rather than in `NativeInstall.lean` because `checkSumInd`
+calls it where con-leche passes it in as a closure. -/
+theorem native_caps_at_refines {pers st lst}
+    {p : arena.inductives.sum_parts.InductiveShape} {is_rec : Bool} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.inductives.sum_install.native_caps_at pers st p is_rec = ok o) :
+    SimRel₀ (fun a b => b = absIIndCaps a ∧ ConRon.Refine.PropWhenWF a.sort_z) pers lst o
+      (nativeCapsAt (absInductiveShape p) is_rec) := by
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  clear hrun
+  have hbe : (if p.n_idx != 0#u64 then ok (p.is_prop, false)
+      else if p.is_prop then ok (true, false)
+      else do
+        let b1 ← if is_rec then ok false else ok true
+        ok (false, b1) : Result (Bool × Bool)) =
+      ok (p.is_prop, (p.n_idx == 0#u64 && !p.is_prop && !is_rec)) := by
+    by_cases h0 : p.n_idx = 0#u64 <;> cases hp : p.is_prop <;> cases is_rec <;> simp_all
+  rw [arena.inductives.sum_install.native_caps_at, nativeCapsAt, hbe]
+  simp only [absInductiveShape, absCtorsL]
+  rcases hc : p.ctors.val with _ | ⟨c, _ | ⟨c2, rest⟩⟩
+  · have hlen : alloc.vec.Vec.len p.ctors ≠ 1#usize := by
+      intro h1; have : (alloc.vec.Vec.len p.ctors).val = 1 := by rw [h1]; rfl
+      simp [alloc.vec.Vec.len, hc] at this
+    simp only [bne_iff_ne, ne_eq, hlen, not_false_eq_true, if_true, List.map_nil]
+    lockstep
+  · have hlen : alloc.vec.Vec.len p.ctors = 1#usize := by
+      have : (alloc.vec.Vec.len p.ctors).val = 1 := by simp [alloc.vec.Vec.len, hc]
+      scalar_tac
+    have hidx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (arena.env.IConstantVal × Std.U64)) p.ctors 0#usize = ok c := by
+      rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+      simp [hc]
+    simp only [hlen, bne_self_eq_false, Bool.false_eq_true, if_false, hidx, List.map_cons,
+      List.map_nil]
+    lockstep
+    all_goals
+      refine Lockstep.LS.pure ?_ ‹_› ‹_›
+      try simp only [Lockstep.TwinEq] at *
+      simp_all [absIIndCaps, u64_val_beq_zero]
+  · have hlen : alloc.vec.Vec.len p.ctors ≠ 1#usize := by
+      intro h1; have : (alloc.vec.Vec.len p.ctors).val = 1 := by rw [h1]; rfl
+      simp [alloc.vec.Vec.len, hc] at this
+    simp only [bne_iff_ne, ne_eq, hlen, not_false_eq_true, if_true, List.map_cons]
+    lockstep
+
+open Lockstep in
+@[lockstep] theorem native_caps_at_ls
+    {pers st lst}
+    {p : arena.inductives.sum_parts.InductiveShape}
+    {is_rec : Bool}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absIIndCaps a ∧ ConRon.Refine.PropWhenWF a.sort_z)
+      (arena.inductives.sum_install.native_caps_at pers st p is_rec) lst
+      (nativeCapsAt (absInductiveShape p) is_rec) :=
+  LS.ofSimRel₀ fun _ h => native_caps_at_refines hrel hinv h
+
+open scoped ConRon.Refine2.IndInstPrims in
+/-- `check_sum_ind_at` ⊑ `checkSumInd`'s tail past `checkSumTele`. -/
+theorem check_sum_ind_at_refines {pers st lst} {rf lf}
+    {p : arena.inductives.sum_parts.InductiveShape} {is_rec : Bool}
+    {cv_ta : arena.env.IConstantVal} {s : arena.handle.LIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hrun : arena.inductives.sum_install.check_sum_ind_at pers st rf p is_rec cv_ta s
+      = ok o) :
+    SimRel₀ (fun r v => IFEnvRelI r.1 v.1 ∧ v.2.1 = absIConstantVal r.2.1 ∧
+        v.2.2 = absInductiveShape r.2.2)
+      pers lst o
+      (checkSumIndAtSpec lf (absInductiveShape p) is_rec (absIConstantVal cv_ta)
+        (absLIdx s)) := by
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.sum_install.check_sum_ind_at, checkSumIndAtSpec]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_sum_ind_at_ls
+    {pers st lst}
+    {rf lf}
+    {p : arena.inductives.sum_parts.InductiveShape}
+    {is_rec : Bool}
+    {cv_ta : arena.env.IConstantVal}
+    {s : arena.handle.LIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun r v => IFEnvRelI r.1 v.1 ∧ v.2.1 = absIConstantVal r.2.1 ∧ v.2.2 = absInductiveShape r.2.2) (arena.inductives.sum_install.check_sum_ind_at pers st rf p is_rec cv_ta s) lst
+      (checkSumIndAtSpec lf (absInductiveShape p) is_rec (absIConstantVal cv_ta)
+        (absLIdx s)) :=
+  LS.ofSimRel₀ fun _ h => check_sum_ind_at_refines hrel hinv hfe h
+
+/-- `check_sum_ind` ⊑ `checkSumInd` — stage 1: the type former, stored with
+the block's capability record at its telescope. -/
+theorem check_sum_ind_refines {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
+    {p : arena.inductives.sum_parts.InductiveShape} {is_rec : Bool} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hrun : arena.inductives.sum_install.check_sum_ind pers st mode rf p is_rec
+      = ok o) :
+    SimRel₀ (fun r v => IFEnvRelI r.1 v.1 ∧ v.2.1 = absIConstantVal r.2.1 ∧
+        v.2.2 = absInductiveShape r.2.2)
+      pers lst o
+      (checkSumInd (ConRon.Refine.absMode mode) lf (absInductiveShape p) is_rec) := by
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  rw [arena.inductives.sum_install.check_sum_ind, checkSumInd]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_sum_ind_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf lf}
+    {p : arena.inductives.sum_parts.InductiveShape}
+    {is_rec : Bool}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun r v => IFEnvRelI r.1 v.1 ∧ v.2.1 = absIConstantVal r.2.1 ∧ v.2.2 = absInductiveShape r.2.2) (arena.inductives.sum_install.check_sum_ind pers st mode rf p is_rec) lst
+      (checkSumInd (ConRon.Refine.absMode mode) lf (absInductiveShape p) is_rec) :=
+  LS.ofSimRel₀ fun _ h => check_sum_ind_refines hrel hinv hfe h
+
+/-! ## The constructors' stage -/
+
+/-- `eidx_contains` ⊑ `idxArgs.contains fv` from the cursor on — handles, so
+`==` is word equality and the test transfers by `absEIdx`'s injectivity. -/
+theorem eidx_contains_refines {xs : alloc.vec.Vec arena.handle.EIdx}
+    {x : arena.handle.EIdx} {i : Std.Usize} {o}
+    (hrun : arena.inductives.sum_install.eidx_contains xs x i = ok o) :
+    o = (absEIdxLFrom xs i).contains (absEIdx x) := by
+  simp only [absEIdxLFrom, List.contains_eq_any_beq, List.any_map, Function.comp_def]
+  refine vec_cursor_any xs _
+    (arena.inductives.sum_install.eidx_contains xs x) ?_ ?_ i o hrun
+  · intro i o hn h
+    rw [arena.inductives.sum_install.eidx_contains.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+    rw [← h]
+  · intro i y o hy h
+    have hlt : i.val < xs.val.length := (List.getElem?_eq_some_iff.mp hy).1
+    rw [arena.inductives.sum_install.eidx_contains.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
+    obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hey : e = y := by
+      have h1 := vec_index_some he; rw [hy] at h1; exact (Option.some_inj.mp h1).symm
+    subst hey
+    have hbv : b = (absEIdx x == absEIdx e) := by
+      rw [eidx_eq2_abs hb]
+      by_cases hcc : absEIdx e = absEIdx x
+      · simp [hcc]
+      · have hcc' : ¬ absEIdx x = absEIdx e := fun z => hcc z.symm
+        simp [hcc, hcc']
+    cases hbb : b
+    · rw [hbb] at h hbv
+      rw [if_neg (by simp)] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      exact Or.inr ⟨hbv.symm, i2, absSz_add_one hi2, h⟩
+    · rw [hbb] at h hbv
+      rw [if_pos (by simp), Result.ok.injEq] at h
+      exact Or.inl ⟨hbv.symm, h.symm⟩
+
+open Lockstep in
+/-- `eidx_contains_twin` at the cursor `0` (and an empty accumulator): the
+form a caller's twin has, so the `TwinEq` rewrites it. -/
+@[lockstep] theorem eidx_contains_twin0
+    {xs : alloc.vec.Vec arena.handle.EIdx}
+    {x : arena.handle.EIdx} :
+    LSP (arena.inductives.sum_install.eidx_contains xs x 0#usize) (fun o => TwinEq ((absEIdxL xs).contains (absEIdx x)) (o)) := by
+  intro o h
+  have h' := (eidx_contains_refines h).symm
+  simpa [Lockstep.TwinEq, absEIdxLFrom, absEIdxL, alloc.vec.Vec.new] using h'
+
+open Lockstep in
+@[lockstep] theorem eidx_contains_twin
+    {xs : alloc.vec.Vec arena.handle.EIdx}
+    {x : arena.handle.EIdx}
+    {i : Std.Usize} :
+    LSP (arena.inductives.sum_install.eidx_contains xs x i) (fun o => TwinEq ((absEIdxLFrom xs i).contains (absEIdx x)) (o)) :=
+  fun o h => (eidx_contains_refines h).symm
+
+/-- `field_sort_bound` ⊑ `checkStructFieldSortsI`'s per-field universe
+bound. -/
+theorem field_sort_bound_refines {pers st lst} {is_prop large : Bool}
+    {s u : arena.handle.LIdx} {fv : arena.handle.EIdx}
+    {idx_args : alloc.vec.Vec arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.inductives.sum_install.field_sort_bound pers st is_prop large s u
+      fv idx_args = ok o) :
+    Sim₀ (fun _ => ()) pers lst o
+      (fieldSortBoundSpec is_prop large (absLIdx s) (absLIdx u) (absEIdx fv)
+        (absEIdxL idx_args)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.sum_install.field_sort_bound, fieldSortBoundSpec]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem field_sort_bound_ls
+    {pers st lst}
+    {is_prop large : Bool}
+    {s u : arena.handle.LIdx}
+    {fv : arena.handle.EIdx}
+    {idx_args : alloc.vec.Vec arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = (fun _ => ()) a) (arena.inductives.sum_install.field_sort_bound pers st is_prop large s u fv idx_args) lst
+      (fieldSortBoundSpec is_prop large (absLIdx s) (absLIdx u) (absEIdx fv)
+        (absEIdxL idx_args)) :=
+  LS.ofSim₀ fun _ h => field_sort_bound_refines hrel hinv h
+
+/-- `checkStructFieldSortsI`'s step with the per-field bound named as the
+port's `field_sort_bound` (`fieldSortBoundSpec`). -/
+theorem checkStructFieldSortsI_succ_port (mode : ConLeche.CheckMode) (fe : IFEnv)
+    (isProp large : Bool) (s : LIdx) (nP : Nat) (fvs idxArgs : List EIdx) (j : Nat) :
+    checkStructFieldSortsI mode fe isProp large s nP fvs idxArgs (j + 1) = (do
+      let fv ← unwrapOr fvs[j]? (.internal "direct sum: field index")
+      let ty ← inferTypeCore mode fe checkFuel (nP + j) (← fvarTypeD fv)
+      let u ← ensureSortCore mode fe checkFuel (nP + j) ty
+      fieldSortBoundSpec isProp large s u fv idxArgs
+      let rest ← checkStructFieldSortsI mode fe isProp large s nP fvs idxArgs j
+      pure (rest ++ [u])) := by
+  rw [checkStructFieldSortsI]
+  simp only [fieldSortBoundSpec]
+  congr 1; funext fv; congr 1; funext d; congr 1; funext ty; congr 1; funext u
+  split
+  · simp only [bind_assoc]
+    congr 1; funext lu; congr 1; funext ls; congr 1; funext b
+    split <;> simp
+  · split
+    · simp only [bind_assoc]
+      congr 1; funext z; congr 1; funext b
+      split <;> simp
+    · simp
+
+/-- `check_struct_field_sorts_i` ⊑ `checkStructFieldSortsI` — the fields'
+sorts over the opened constructor telescope, with the official per-field
+universe bound unless the family is propositional.  Walks the fields from the
+last to the first and returns the sorts in field order, which is why the
+counter is the twin's `j + 1` recursion. -/
+theorem check_struct_field_sorts_i_refines {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {is_prop large : Bool} {s : arena.handle.LIdx}
+    {n_p : Std.U64} {fvs idx_args : alloc.vec.Vec arena.handle.EIdx}
+    {k : Std.U64} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow)
+    (hrun : arena.inductives.sum_install.check_struct_field_sorts_i pers vis st mode
+      rf is_prop large s n_p fvs idx_args k = ok o) :
+    Sim₀ absLIdxL pers lst o
+      (checkStructFieldSortsI (ConRon.Refine.absMode mode) lf is_prop large
+        (absLIdx s) (absU n_p) (absEIdxL fvs) (absEIdxL idx_args) (absU k)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  induction hk : k.val generalizing k st lst with
+  | zero =>
+    rw [arena.inductives.sum_install.check_struct_field_sorts_i.eq_def,
+      if_pos (by scalar_tac), show absU k = 0 from hk, checkStructFieldSortsI]
+    lockstep
+  | succ m ih =>
+    rw [arena.inductives.sum_install.check_struct_field_sorts_i.eq_def,
+      if_neg (by scalar_tac), show absU k = m + 1 from hk, checkStructFieldSortsI_succ_port]
+    have hk1 : 1 ≤ k.val := by omega
+    obtain rfl : m = k.val - 1 := by omega
+    clear hk
+    dsimp only
+    simp only [absEIdxL]
+    by_cases hf : k.val - 1 < fvs.val.length
+    · rw [List.getElem?_map, List.getElem?_eq_getElem hf, Option.map_some]
+      lockstep
+    · rw [List.getElem?_map, List.getElem?_eq_none (by omega), Option.map_none]
+      lockstep
+
+open Lockstep in
+@[lockstep] theorem check_struct_field_sorts_i_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {is_prop large : Bool}
+    {s : arena.handle.LIdx}
+    {n_p : Std.U64}
+    {fvs idx_args : alloc.vec.Vec arena.handle.EIdx}
+    {k : Std.U64}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absLIdxL a) (arena.inductives.sum_install.check_struct_field_sorts_i pers vis st mode rf is_prop large s n_p fvs idx_args k) lst
+      (checkStructFieldSortsI (ConRon.Refine.absMode mode) lf is_prop large
+        (absLIdx s) (absU n_p) (absEIdxL fvs) (absEIdxL idx_args) (absU k)) :=
+  LS.ofSim₀ fun _ h => check_struct_field_sorts_i_refines hrel hinv hfe hvis h
+
+/-! ## Official's positivity walk, as a normalisation -/
+
+/-- `norm_pos_dom_at` at fuel `fuel`, given `norm_pos_dom` at the same fuel
+(the mutual recursion's one direction). -/
+theorem norm_pos_dom_at_of {pers} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {t : arena.handle.NIdx} {fuel : Std.U64}
+    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow)
+    (ih : ∀ {st lst} {d : Std.U64} {e : arena.handle.EIdx},
+      AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = absEIdx a)
+        (arena.inductives.sum_install.norm_pos_dom pers vis st mode rf t d fuel e) lst
+        (normPosDom (ConRon.Refine.absMode mode) lf (absNIdx t) (absU d) (absU fuel)
+          (absEIdx e)))
+    {st lst} {d : Std.U64} {w : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    Lockstep.LS pers (fun a b => b = absEIdx a)
+      (arena.inductives.sum_install.norm_pos_dom_at pers vis st mode rf t d fuel w) lst
+      (normPosDomAtSpec (ConRon.Refine.absMode mode) lf (absNIdx t) (absU d)
+        (absU fuel) (absEIdx w)) := by
+  rw [arena.inductives.sum_install.norm_pos_dom_at, normPosDomAtSpec]
+  lockstep
+
+/-- `norm_pos_dom` by induction on the fuel. -/
+theorem norm_pos_dom_aux (m : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rf lf} {mode : kernel.env.CheckMode}
+      {t : arena.handle.NIdx} {d fuel : Std.U64} {e : arena.handle.EIdx},
+      fuel.val = m → AStateRel₀ pers st lst → AStateInv pers st → IFEnvRelI rf lf →
+      absU vis = lf.visibleBelow →
+      Lockstep.LS pers (fun a b => b = absEIdx a)
+        (arena.inductives.sum_install.norm_pos_dom pers vis st mode rf t d fuel e) lst
+        (normPosDom (ConRon.Refine.absMode mode) lf (absNIdx t) (absU d) (absU fuel)
+          (absEIdx e)) := by
+  induction m with
+  | zero =>
+    intro pers st lst vis rf lf mode t d fuel e hn hrel hinv hfe hvis
+    rw [arena.inductives.sum_install.norm_pos_dom, if_pos (by scalar_tac),
+      show absU fuel = 0 from hn, normPosDom]
+    lockstep
+  | succ m ih =>
+    intro pers st lst vis rf lf mode t d fuel e hn hrel hinv hfe hvis
+    rw [arena.inductives.sum_install.norm_pos_dom, if_neg (by scalar_tac),
+      show absU fuel = m + 1 from hn, normPosDom_unfold]
+    have hat : ∀ {f' : Std.U64}, f'.val = m → ∀ {st lst} {d : Std.U64} {w : arena.handle.EIdx},
+        AStateRel₀ pers st lst → AStateInv pers st →
+        Lockstep.LS pers (fun a b => b = absEIdx a)
+          (arena.inductives.sum_install.norm_pos_dom_at pers vis st mode rf t d f' w) lst
+          (normPosDomAtSpec (ConRon.Refine.absMode mode) lf (absNIdx t) (absU d)
+            m (absEIdx w)) := by
+      intro f' hf' st lst d w hrel hinv
+      have := norm_pos_dom_at_of (mode := mode) (t := t) (fuel := f') hfe hvis
+        (fun hrel hinv => ih hf' hrel hinv hfe hvis) (d := d) (w := w) hrel hinv
+      rwa [show absU f' = m from hf'] at this
+    clear ih
+    lockstep
+
+/-- `norm_pos_dom_at` ⊑ `normPosDom`'s arm past the two occurrence tests and
+the whnf. -/
+theorem norm_pos_dom_at_refines {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {t : arena.handle.NIdx} {d fuel : Std.U64}
+    {w : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow)
+    (hrun : arena.inductives.sum_install.norm_pos_dom_at pers vis st mode rf t d fuel
+      w = ok o) :
+    Sim₀ absEIdx pers lst o
+      (normPosDomAtSpec (ConRon.Refine.absMode mode) lf (absNIdx t) (absU d)
+        (absU fuel) (absEIdx w)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  exact norm_pos_dom_at_of hfe hvis (fun hrel hinv => norm_pos_dom_aux _ rfl hrel hinv hfe hvis)
+    hrel hinv
+
+open Lockstep in
+@[lockstep] theorem norm_pos_dom_at_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {t : arena.handle.NIdx}
+    {d fuel : Std.U64}
+    {w : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absEIdx a) (arena.inductives.sum_install.norm_pos_dom_at pers vis st mode rf t d fuel w) lst
+      (normPosDomAtSpec (ConRon.Refine.absMode mode) lf (absNIdx t) (absU d)
+        (absU fuel) (absEIdx w)) :=
+  LS.ofSim₀ fun _ h => norm_pos_dom_at_refines hrel hinv hfe hvis h
+
+/-- `norm_pos_dom` ⊑ `normPosDom`. -/
+theorem norm_pos_dom_refines {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {t : arena.handle.NIdx} {d fuel : Std.U64}
+    {e : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow)
+    (hrun : arena.inductives.sum_install.norm_pos_dom pers vis st mode rf t d fuel e
+      = ok o) :
+    Sim₀ absEIdx pers lst o
+      (normPosDom (ConRon.Refine.absMode mode) lf (absNIdx t) (absU d) (absU fuel)
+        (absEIdx e)) := by
+  exact Lockstep.LS.toSim₀ (norm_pos_dom_aux _ rfl hrel hinv hfe hvis) hrun
+
+open Lockstep in
+@[lockstep] theorem norm_pos_dom_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {t : arena.handle.NIdx}
+    {d fuel : Std.U64}
+    {e : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absEIdx a) (arena.inductives.sum_install.norm_pos_dom pers vis st mode rf t d fuel e) lst
+      (normPosDom (ConRon.Refine.absMode mode) lf (absNIdx t) (absU d) (absU fuel)
+        (absEIdx e)) :=
+  LS.ofSim₀ fun _ h => norm_pos_dom_refines hrel hinv hfe hvis h
+
+theorem norm_field_doms_aux (m : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rf lf} {mode : kernel.env.CheckMode}
+      {t : arena.handle.NIdx} {i n : Std.U64} {h : arena.handle.EIdx}
+      {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)},
+      n.val = m → AStateRel₀ pers st lst → AStateInv pers st → IFEnvRelI rf lf →
+      absU vis = lf.visibleBelow → (∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw) →
+      Lockstep.LS pers (fun a b => b = (absBinderL a.1, absEIdx a.2) ∧
+          ∀ p ∈ a.1.val, ConRon.Refine.PropWhenWF p.2.pw)
+        (arena.inductives.sum_install.norm_field_doms pers vis st mode rf t i n h out) lst
+        (do
+          let q ← normFieldDoms (ConRon.Refine.absMode mode) lf (absNIdx t) (absU i)
+            (absU n) (absEIdx h)
+          pure (absBinderL out ++ q.1, q.2)) := by
+  induction m with
+  | zero =>
+    intro pers st lst vis rf lf mode t i n h out hn hrel hinv hfe hvis hout
+    rw [arena.inductives.sum_install.norm_field_doms, if_pos (by scalar_tac),
+      show absU n = 0 from hn, normFieldDoms]
+    lockstep
+  | succ m ih =>
+    intro pers st lst vis rf lf mode t i n h out hn hrel hinv hfe hvis hout
+    rw [arena.inductives.sum_install.norm_field_doms, if_neg (by scalar_tac),
+      show absU n = m + 1 from hn, normFieldDoms]
+    have hn1 : 1 ≤ n.val := by omega
+    obtain rfl : m = n.val - 1 := by omega
+    clear hn
+    lockstep
+
+/-- `norm_field_doms` ⊑ `normFieldDoms`, with the accumulated binders in
+front. -/
+theorem norm_field_doms_refines {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {t : arena.handle.NIdx} {i n : Std.U64}
+    {h : arena.handle.EIdx}
+    {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow)
+    (hout : ∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw)
+    (hrun : arena.inductives.sum_install.norm_field_doms pers vis st mode rf t i n h
+      out = ok o) :
+    SimRel₀ (fun r b => b = (absBinderL r.1, absEIdx r.2) ∧
+        ∀ p ∈ r.1.val, ConRon.Refine.PropWhenWF p.2.pw) pers lst o
+      (do
+        let q ← normFieldDoms (ConRon.Refine.absMode mode) lf (absNIdx t) (absU i)
+          (absU n) (absEIdx h)
+        pure (absBinderL out ++ q.1, q.2)) := by
+  exact Lockstep.LS.toSimRel₀ (norm_field_doms_aux _ rfl hrel hinv hfe hvis hout) hrun
+
+open Lockstep in
+@[lockstep] theorem norm_field_doms_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {t : arena.handle.NIdx}
+    {i n : Std.U64}
+    {h : arena.handle.EIdx}
+    {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow)
+    (hout : ∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw) :
+    LS pers (fun r b => b = (absBinderL r.1, absEIdx r.2) ∧
+        ∀ p ∈ r.1.val, ConRon.Refine.PropWhenWF p.2.pw) (arena.inductives.sum_install.norm_field_doms pers vis st mode rf t i n h out) lst
+      (do
+        let q ← normFieldDoms (ConRon.Refine.absMode mode) lf (absNIdx t) (absU i)
+          (absU n) (absEIdx h)
+        pure (absBinderL out ++ q.1, q.2)) :=
+  LS.ofSimRel₀ fun _ h => norm_field_doms_refines hrel hinv hfe hvis hout h
+
+/-- `zip_fvar_doms` ⊑ `zipFvarDoms` from the cursor on, with the accumulated
+pairs in front.  The Rust takes `&AState` and can decline, with no state in the
+return at all: an `LSR` read (it was a `SimRE`, which also pins the twin's
+state; the lockstep read relates the two states instead). -/
+theorem zip_fvar_doms_aux (m : Nat) :
+    ∀ {pers st lst} {xs : alloc.vec.Vec arena.handle.EIdx}
+      {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)} {i : Std.Usize}
+      {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)},
+      xs.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
+      (∀ p ∈ bs.val, ConRon.Refine.PropWhenWF p.2.pw) →
+      (∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw) →
+      Lockstep.LSR pers (fun a b => b = absBinderL a ∧ ∀ p ∈ a.val, ConRon.Refine.PropWhenWF p.2.pw)
+        (arena.inductives.sum_install.zip_fvar_doms pers st xs bs i out) st lst
+        (do pure (absBinderL out ++
+          (← zipFvarDoms (absEIdxLFrom xs i) (absBinderLFrom bs i)))) := by
+  induction m with
+  | zero =>
+    intro pers st lst xs bs i out hn hrel hinv hbs hout
+    apply Lockstep.LSR.of_LS
+    rw [arena.inductives.sum_install.zip_fvar_doms, if_pos (by scalar_tac), absEIdxLFrom,
+      vecFrom_nil _ _ _ (by omega)]
+    simp only [zipFvarDoms]
+    lockstep
+  | succ m ih =>
+    intro pers st lst xs bs i out hn hrel hinv hbs hout
+    apply Lockstep.LSR.of_LS
+    rw [arena.inductives.sum_install.zip_fvar_doms, if_neg (by scalar_tac), absEIdxLFrom,
+      vecFrom_cons _ _ _ (by omega)]
+    by_cases hb : i.val < bs.val.length
+    · rw [if_neg (by scalar_tac), absBinderLFrom, vecFrom_cons _ _ _ hb]
+      simp only [zipFvarDoms]
+      lockstep
+      -- the port's `let (_, bm) := bs[i]` (a tuple pattern on a read value)
+      all_goals
+        have hq := hbs _ (List.getElem_mem hb)
+        generalize (bs.val)[i.val] = q at *
+        obtain ⟨q1, q2⟩ := q
+        lockstep
+    · rw [if_pos (by scalar_tac), absBinderLFrom, vecFrom_nil _ _ _ (by omega)]
+      simp only [zipFvarDoms]
+      lockstep
+
+theorem zip_fvar_doms_refines {pers st lst} {xs : alloc.vec.Vec arena.handle.EIdx}
+    {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hbs : ∀ p ∈ bs.val, ConRon.Refine.PropWhenWF p.2.pw)
+    (hout : ∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw) :
+    Lockstep.LSR pers (fun a b => b = absBinderL a ∧ ∀ p ∈ a.val, ConRon.Refine.PropWhenWF p.2.pw)
+      (arena.inductives.sum_install.zip_fvar_doms pers st xs bs i out) st lst
+      (do pure (absBinderL out ++
+        (← zipFvarDoms (absEIdxLFrom xs i) (absBinderLFrom bs i)))) :=
+  zip_fvar_doms_aux _ rfl hrel hinv hbs hout
+
+open Lockstep in
+@[lockstep] theorem zip_fvar_doms_ls
+    {pers st lst}
+    {xs : alloc.vec.Vec arena.handle.EIdx}
+    {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hbs : ∀ p ∈ bs.val, ConRon.Refine.PropWhenWF p.2.pw)
+    (hout : ∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw) :
+    LSR pers (fun a b => b = absBinderL a ∧ ∀ p ∈ a.val, ConRon.Refine.PropWhenWF p.2.pw) (arena.inductives.sum_install.zip_fvar_doms pers st xs bs i out) st lst
+      (do pure (absBinderL out ++
+        (← zipFvarDoms (absEIdxLFrom xs i) (absBinderLFrom bs i)))) :=
+  zip_fvar_doms_refines hrel hinv hbs hout
+
+open scoped ConRon.Refine2.IndInstPrims in
+/-- `norm_ctor_val` ⊑ `normCtorVal` — the checked constructor with its field
+domains normalised, closed back into a telescope and, when anything changed,
+checked as the constructor's type in its place, from scratch. -/
+theorem norm_ctor_val_refines {pers st lst} {vis : Std.U64} {rf lf}
+    {mode : kernel.env.CheckMode} {t : arena.handle.NIdx} {n_p n_f : Std.U64}
+    {cv_c cv_ca : arena.env.IConstantVal} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow)
+    (hrun : arena.inductives.sum_install.norm_ctor_val pers vis st mode rf t n_p n_f
+      cv_c cv_ca = ok o) :
+    Sim₀ absIConstantVal pers lst o
+      (normCtorVal (ConRon.Refine.absMode mode) lf (absNIdx t) (absU n_p) (absU n_f)
+        (absIConstantVal cv_c) (absIConstantVal cv_ca)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  -- the canonical-meta forms of two callees, as local candidates (tried before
+  -- the registered lemmas)
+  have hsp : ∀ {st lst} (k : Std.U64) (h : arena.handle.EIdx), AStateRel₀ pers st lst →
+      AStateInv pers st → Lockstep.LSR pers (fun a b => b = ExprOps.absStrip a ∧
+        ∀ q, a = some q → ∀ p ∈ q.1.val, ConRon.Refine.PropWhenWF p.2.pw)
+        (arena.expr_ops.strip_pis pers st k h) st lst (stripPis (absU k) (absEIdx h)) :=
+    fun k h hrel hinv => IndInstPrims.strip_pis_wf_ls hrel hinv k h
+  have hbc := IndInstPrims.binder_copy_from_wf_spec
+  rw [arena.inductives.sum_install.norm_ctor_val, normCtorVal]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem norm_ctor_val_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {mode : kernel.env.CheckMode}
+    {t : arena.handle.NIdx}
+    {n_p n_f : Std.U64}
+    {cv_c cv_ca : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absIConstantVal a) (arena.inductives.sum_install.norm_ctor_val pers vis st mode rf t n_p n_f cv_c cv_ca) lst
+      (normCtorVal (ConRon.Refine.absMode mode) lf (absNIdx t) (absU n_p) (absU n_f)
+        (absIConstantVal cv_c) (absIConstantVal cv_ca)) :=
+  LS.ofSim₀ fun _ h => norm_ctor_val_refines hrel hinv hfe hvis h
+
+/-! ## `checkSumCtor`, split four ways -/
+
+/-- `field_doms_resolve` ⊑ `checkSumCtor`'s field-domain resolution, from the
+cursor on. -/
+theorem field_doms_resolve_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
+    {x_fvs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf0 lf0)
+    (hvis : absU vis = lf0.visibleBelow)
+    (hrun : arena.inductives.sum_install.field_doms_resolve pers vis st rf0 x_fvs i
+      = ok o) :
+    Sim₀ id pers lst o
+      (fieldDomsResolveSpec lf0 (absEIdxLFrom x_fvs i)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  revert st lst hrel hinv hrun
+  simp only [absEIdxLFrom]
+  intro st lst hrel hinv _
+  refine ls_cursor x_fvs absEIdx (fieldDomsResolveSpec lf0)
+    (fun st i => arena.inductives.sum_install.field_doms_resolve pers vis st rf0 x_fvs i)
+    ?_ ?_ i st lst hrel hinv
+  · intro st lst i hn hrel hinv
+    rw [arena.inductives.sum_install.field_doms_resolve.eq_def, fieldDomsResolveSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst i hb hrel hinv ih
+    rw [arena.inductives.sum_install.field_doms_resolve.eq_def, fieldDomsResolveSpec]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+
+open Lockstep in
+@[lockstep] theorem field_doms_resolve_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf0 lf0}
+    {x_fvs : alloc.vec.Vec arena.handle.EIdx}
+    {i : Std.Usize}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf0 lf0)
+    (hvis : absU vis = lf0.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.sum_install.field_doms_resolve pers vis st rf0 x_fvs i) lst
+      (fieldDomsResolveSpec lf0 (absEIdxLFrom x_fvs i)) :=
+  LS.ofSim₀ fun _ h => field_doms_resolve_refines hrel hinv hfe hvis h
+
+/-- `idx_args_resolve` ⊑ `checkSumCtor`'s index-expression resolution, from the
+cursor on. -/
+theorem idx_args_resolve_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
+    {idx_args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf0 lf0)
+    (hvis : absU vis = lf0.visibleBelow)
+    (hrun : arena.inductives.sum_install.idx_args_resolve pers vis st rf0 idx_args i
+      = ok o) :
+    Sim₀ id pers lst o
+      (idxArgsResolveSpec lf0 (absEIdxLFrom idx_args i)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  revert st lst hrel hinv hrun
+  simp only [absEIdxLFrom]
+  intro st lst hrel hinv _
+  refine ls_cursor idx_args absEIdx (idxArgsResolveSpec lf0)
+    (fun st i => arena.inductives.sum_install.idx_args_resolve pers vis st rf0 idx_args i)
+    ?_ ?_ i st lst hrel hinv
+  · intro st lst i hn hrel hinv
+    rw [arena.inductives.sum_install.idx_args_resolve.eq_def, idxArgsResolveSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst i hb hrel hinv ih
+    rw [arena.inductives.sum_install.idx_args_resolve.eq_def, idxArgsResolveSpec]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+
+open Lockstep in
+@[lockstep] theorem idx_args_resolve_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf0 lf0}
+    {idx_args : alloc.vec.Vec arena.handle.EIdx}
+    {i : Std.Usize}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf0 lf0)
+    (hvis : absU vis = lf0.visibleBelow) :
+    LS pers (fun a b => b = id a) (arena.inductives.sum_install.idx_args_resolve pers vis st rf0 idx_args i) lst
+      (idxArgsResolveSpec lf0 (absEIdxLFrom idx_args i)) :=
+  LS.ofSim₀ fun _ h => idx_args_resolve_refines hrel hinv hfe hvis h
+
+/-- `check_sum_ctor_sorts` ⊑ `checkSumCtor`'s tail. -/
+theorem check_sum_ctor_sorts_refines {pers st lst} {mode : kernel.env.CheckMode}
+    {rf0 lf0} {rf lf} {n_p : Std.U64} {res_sort : arena.handle.LIdx}
+    {is_prop large : Bool} {n_f : Std.U64} {cv_ca : arena.env.IConstantVal}
+    {x_fvs idx_args : alloc.vec.Vec arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe0 : IFEnvRelI rf0 lf0)
+    (hfe : IFEnvRelI rf lf)
+    (hrun : arena.inductives.sum_install.check_sum_ctor_sorts pers st mode rf0 rf n_p
+      res_sort is_prop large n_f cv_ca x_fvs idx_args = ok o) :
+    Sim₀ (fun r => (absIConstantVal r.1, absLIdxL r.2)) pers lst o
+      (checkSumCtorSortsSpec (ConRon.Refine.absMode mode) lf0 lf (absU n_p)
+        (absLIdx res_sort) is_prop large (absU n_f) (absIConstantVal cv_ca)
+        (absEIdxL x_fvs) (absEIdxL idx_args)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.sum_install.check_sum_ctor_sorts, checkSumCtorSortsSpec]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_sum_ctor_sorts_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf0 lf0}
+    {rf lf}
+    {n_p : Std.U64}
+    {res_sort : arena.handle.LIdx}
+    {is_prop large : Bool}
+    {n_f : Std.U64}
+    {cv_ca : arena.env.IConstantVal}
+    {x_fvs idx_args : alloc.vec.Vec arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe0 : IFEnvRelI rf0 lf0)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun a b => b = (fun r => (absIConstantVal r.1, absLIdxL r.2)) a) (arena.inductives.sum_install.check_sum_ctor_sorts pers st mode rf0 rf n_p res_sort is_prop large n_f cv_ca x_fvs idx_args) lst
+      (checkSumCtorSortsSpec (ConRon.Refine.absMode mode) lf0 lf (absU n_p)
+        (absLIdx res_sort) is_prop large (absU n_f) (absIConstantVal cv_ca)
+        (absEIdxL x_fvs) (absEIdxL idx_args)) :=
+  LS.ofSim₀ fun _ h => check_sum_ctor_sorts_refines hrel hinv hfe0 hfe h
+
+/-- `check_sum_ctor_resid` ⊑ `checkSumCtor`'s residual stage. -/
+theorem check_sum_ctor_resid_refines {pers st lst} {mode : kernel.env.CheckMode}
+    {rf0 lf0} {rf lf} {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_idx : Std.U64}
+    {res_sort : arena.handle.LIdx} {is_prop large : Bool} {n_f : Std.U64}
+    {cv_ca : arena.env.IConstantVal}
+    {p_fvs x_fvs : alloc.vec.Vec arena.handle.EIdx}
+    {xrest : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe0 : IFEnvRelI rf0 lf0)
+    (hfe : IFEnvRelI rf lf)
+    (hrun : arena.inductives.sum_install.check_sum_ctor_resid pers st mode rf0 rf t
+      lps n_p n_idx res_sort is_prop large n_f cv_ca p_fvs x_fvs xrest = ok o) :
+    Sim₀ (fun r => (absIConstantVal r.1, absLIdxL r.2)) pers lst o
+      (checkSumCtorResidSpec (ConRon.Refine.absMode mode) lf0 lf (absNIdx t)
+        (absNIdxL lps) (absU n_p) (absU n_idx) (absLIdx res_sort) is_prop large
+        (absU n_f) (absIConstantVal cv_ca) (absEIdxL p_fvs) (absEIdxL x_fvs)
+        (absEIdx xrest)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.sum_install.check_sum_ctor_resid, checkSumCtorResidSpec]
+  lockstep
+  all_goals
+    have e := absEIdxL_of_takeEidx ‹ExprOps.absEIdxArr _ = takeEidx (ExprOps.absEIdxArr _) _›
+    simp only [e, absEIdxL] at *
+    lockstep
+
+open Lockstep in
+@[lockstep] theorem check_sum_ctor_resid_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf0 lf0}
+    {rf lf}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_idx : Std.U64}
+    {res_sort : arena.handle.LIdx}
+    {is_prop large : Bool}
+    {n_f : Std.U64}
+    {cv_ca : arena.env.IConstantVal}
+    {p_fvs x_fvs : alloc.vec.Vec arena.handle.EIdx}
+    {xrest : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe0 : IFEnvRelI rf0 lf0)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun a b => b = (fun r => (absIConstantVal r.1, absLIdxL r.2)) a) (arena.inductives.sum_install.check_sum_ctor_resid pers st mode rf0 rf t lps n_p n_idx res_sort is_prop large n_f cv_ca p_fvs x_fvs xrest) lst
+      (checkSumCtorResidSpec (ConRon.Refine.absMode mode) lf0 lf (absNIdx t)
+        (absNIdxL lps) (absU n_p) (absU n_idx) (absLIdx res_sort) is_prop large
+        (absU n_f) (absIConstantVal cv_ca) (absEIdxL p_fvs) (absEIdxL x_fvs)
+        (absEIdx xrest)) :=
+  LS.ofSim₀ fun _ h => check_sum_ctor_resid_refines hrel hinv hfe0 hfe h
+
+open scoped ConRon.Refine2.IndInstPrims in
+/-- `check_sum_ctor_frames` ⊑ `checkSumCtor`'s frame stage. -/
+theorem check_sum_ctor_frames_refines {pers st lst} {mode : kernel.env.CheckMode}
+    {rf0 lf0} {rf lf} {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_idx : Std.U64}
+    {res_sort : arena.handle.LIdx} {is_prop large : Bool} {n_f : Std.U64}
+    {cv_ta cv_ca : arena.env.IConstantVal} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe0 : IFEnvRelI rf0 lf0)
+    (hfe : IFEnvRelI rf lf)
+    (hrun : arena.inductives.sum_install.check_sum_ctor_frames pers st mode rf0 rf t
+      lps n_p n_idx res_sort is_prop large n_f cv_ta cv_ca = ok o) :
+    Sim₀ (fun r => (absIConstantVal r.1, absLIdxL r.2)) pers lst o
+      (checkSumCtorFramesSpec (ConRon.Refine.absMode mode) lf0 lf (absNIdx t)
+        (absNIdxL lps) (absU n_p) (absU n_idx) (absLIdx res_sort) is_prop large
+        (absU n_f) (absIConstantVal cv_ta) (absIConstantVal cv_ca)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.sum_install.check_sum_ctor_frames, checkSumCtorFramesSpec]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_sum_ctor_frames_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf0 lf0}
+    {rf lf}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_idx : Std.U64}
+    {res_sort : arena.handle.LIdx}
+    {is_prop large : Bool}
+    {n_f : Std.U64}
+    {cv_ta cv_ca : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe0 : IFEnvRelI rf0 lf0)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun a b => b = (fun r => (absIConstantVal r.1, absLIdxL r.2)) a) (arena.inductives.sum_install.check_sum_ctor_frames pers st mode rf0 rf t lps n_p n_idx res_sort is_prop large n_f cv_ta cv_ca) lst
+      (checkSumCtorFramesSpec (ConRon.Refine.absMode mode) lf0 lf (absNIdx t)
+        (absNIdxL lps) (absU n_p) (absU n_idx) (absLIdx res_sort) is_prop large
+        (absU n_f) (absIConstantVal cv_ta) (absIConstantVal cv_ca)) :=
+  LS.ofSim₀ fun _ h => check_sum_ctor_frames_refines hrel hinv hfe0 hfe h
+
+open scoped ConRon.Refine2.IndInstPrims in
+/-- `check_sum_ctor` ⊑ `checkSumCtor` — stage 2, one constructor's type. -/
+theorem check_sum_ctor_refines {pers st lst} {mode : kernel.env.CheckMode}
+    {rf0 lf0} {rf lf} {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_idx : Std.U64}
+    {res_sort : arena.handle.LIdx} {is_prop large : Bool}
+    {cv_c : arena.env.IConstantVal} {n_f : Std.U64}
+    {cv_ta : arena.env.IConstantVal} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe0 : IFEnvRelI rf0 lf0)
+    (hfe : IFEnvRelI rf lf)
+    (hrun : arena.inductives.sum_install.check_sum_ctor pers st mode rf0 rf t lps n_p
+      n_idx res_sort is_prop large cv_c n_f cv_ta = ok o) :
+    Sim₀ (fun r => (absIConstantVal r.1, absLIdxL r.2)) pers lst o
+      (checkSumCtor (ConRon.Refine.absMode mode) lf0 lf (absNIdx t) (absNIdxL lps)
+        (absU n_p) (absU n_idx) (absLIdx res_sort) is_prop large
+        (absIConstantVal cv_c) (absU n_f) (absIConstantVal cv_ta)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.inductives.sum_install.check_sum_ctor, checkSumCtor_unfold]
+  lockstep
+
+open Lockstep in
+@[lockstep] theorem check_sum_ctor_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf0 lf0}
+    {rf lf}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_idx : Std.U64}
+    {res_sort : arena.handle.LIdx}
+    {is_prop large : Bool}
+    {cv_c : arena.env.IConstantVal}
+    {n_f : Std.U64}
+    {cv_ta : arena.env.IConstantVal}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe0 : IFEnvRelI rf0 lf0)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun a b => b = (fun r => (absIConstantVal r.1, absLIdxL r.2)) a) (arena.inductives.sum_install.check_sum_ctor pers st mode rf0 rf t lps n_p n_idx res_sort is_prop large cv_c n_f cv_ta) lst
+      (checkSumCtor (ConRon.Refine.absMode mode) lf0 lf (absNIdx t) (absNIdxL lps)
+        (absU n_p) (absU n_idx) (absLIdx res_sort) is_prop large
+        (absIConstantVal cv_c) (absU n_f) (absIConstantVal cv_ta)) :=
+  LS.ofSim₀ fun _ h => check_sum_ctor_refines hrel hinv hfe0 hfe h
+
+theorem check_sum_ctors_aux (m : Nat) :
+    ∀ {pers st lst} {mode : kernel.env.CheckMode} {rf0 lf0 rf lf}
+      {t : arena.handle.NIdx} {lps : alloc.vec.Vec arena.handle.NIdx}
+      {n_p n_idx : Std.U64} {res_sort : arena.handle.LIdx} {is_prop large : Bool}
+      {cv_ta : arena.env.IConstantVal}
+      {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {i : Std.Usize}
+      {out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+      {sout : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)},
+      ctors.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf0 lf0 → IFEnvRelI rf lf →
+      Lockstep.LS pers (fun a b => b = (absCtorsL a.1, absLIdxLL a.2))
+        (arena.inductives.sum_install.check_sum_ctors pers st mode rf0 rf t lps
+          n_p n_idx res_sort is_prop large cv_ta ctors i out sout) lst
+        (do
+          let q ← checkSumCtors (ConRon.Refine.absMode mode) lf0 lf (absNIdx t)
+            (absNIdxL lps) (absU n_p) (absU n_idx) (absLIdx res_sort) is_prop large
+            (absIConstantVal cv_ta) (absCtorsLFrom ctors i)
+          pure (absCtorsL out ++ q.1, absLIdxLL sout ++ q.2)) := by
+  induction m with
+  | zero =>
+    intro pers st lst mode rf0 lf0 rf lf t lps n_p n_idx res_sort is_prop large cv_ta ctors i
+      out sout hn hrel hinv hfe0 hfe
+    rw [arena.inductives.sum_install.check_sum_ctors, if_pos (by scalar_tac), absCtorsLFrom,
+      vecFrom_nil _ _ _ (by omega), checkSumCtors]
+    lockstep
+  | succ m ih =>
+    intro pers st lst mode rf0 lf0 rf lf t lps n_p n_idx res_sort is_prop large cv_ta ctors i
+      out sout hn hrel hinv hfe0 hfe
+    rw [arena.inductives.sum_install.check_sum_ctors, if_neg (by scalar_tac), absCtorsLFrom,
+      vecFrom_cons _ _ _ (by omega), checkSumCtors]
+    lockstep
+
+/-- `check_sum_ctors` ⊑ `checkSumCtors` from the cursor on, with the
+accumulated constructors and sort lists in front. -/
+theorem check_sum_ctors_refines {pers st lst} {mode : kernel.env.CheckMode}
+    {rf0 lf0} {rf lf} {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx} {n_p n_idx : Std.U64}
+    {res_sort : arena.handle.LIdx} {is_prop large : Bool}
+    {cv_ta : arena.env.IConstantVal}
+    {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {i : Std.Usize}
+    {out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {sout : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe0 : IFEnvRelI rf0 lf0)
+    (hfe : IFEnvRelI rf lf)
+    (hrun : arena.inductives.sum_install.check_sum_ctors pers st mode rf0 rf t lps
+      n_p n_idx res_sort is_prop large cv_ta ctors i out sout = ok o) :
+    Sim₀ (fun r => (absCtorsL r.1, absLIdxLL r.2)) pers lst o
+      (do
+        let q ← checkSumCtors (ConRon.Refine.absMode mode) lf0 lf (absNIdx t)
+          (absNIdxL lps) (absU n_p) (absU n_idx) (absLIdx res_sort) is_prop large
+          (absIConstantVal cv_ta) (absCtorsLFrom ctors i)
+        pure (absCtorsL out ++ q.1, absLIdxLL sout ++ q.2)) := by
+  exact Lockstep.LS.toSim₀ (check_sum_ctors_aux _ rfl hrel hinv hfe0 hfe) hrun
+
+open Lockstep in
+@[lockstep] theorem check_sum_ctors_ls
+    {pers st lst}
+    {mode : kernel.env.CheckMode}
+    {rf0 lf0}
+    {rf lf}
+    {t : arena.handle.NIdx}
+    {lps : alloc.vec.Vec arena.handle.NIdx}
+    {n_p n_idx : Std.U64}
+    {res_sort : arena.handle.LIdx}
+    {is_prop large : Bool}
+    {cv_ta : arena.env.IConstantVal}
+    {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {sout : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe0 : IFEnvRelI rf0 lf0)
+    (hfe : IFEnvRelI rf lf) :
+    LS pers (fun a b => b = (fun r => (absCtorsL r.1, absLIdxLL r.2)) a) (arena.inductives.sum_install.check_sum_ctors pers st mode rf0 rf t lps n_p n_idx res_sort is_prop large cv_ta ctors i out sout) lst
+      (do
+        let q ← checkSumCtors (ConRon.Refine.absMode mode) lf0 lf (absNIdx t)
+          (absNIdxL lps) (absU n_p) (absU n_idx) (absLIdx res_sort) is_prop large
+          (absIConstantVal cv_ta) (absCtorsLFrom ctors i)
+        pure (absCtorsL out ++ q.1, absLIdxLL sout ++ q.2)) :=
+  LS.ofSim₀ fun _ h => check_sum_ctors_refines hrel hinv hfe0 hfe h
+
+/-- `cons_sum_ctors` ⊑ `consSumCtors` from the cursor on — the constructors'
+conses, in order (the first constructor deepest).  **Pure on both sides**: the
+index push touches no term, so there is no monad and no state, and the
+statement is an `IFEnvRel` of two folds. -/
+theorem cons_sum_ctors_refines {n_p : Std.U64}
+    {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {i : Std.Usize}
+    {rf lf} {o}
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hrun : arena.inductives.sum_install.cons_sum_ctors n_p ctors i rf = ok o) :
+    IFEnvRel o (consSumCtors (absU n_p) (absCtorsLFrom ctors i) lf) ∧
+      IFEnvInv o := by
+  refine cursor_induction (fun i : Std.Usize => i.val) ctors.val.length
+    (fun i rf => ∀ lf o, IFEnvRel rf lf → IFEnvInv rf →
+      arena.inductives.sum_install.cons_sum_ctors n_p ctors i rf = ok o →
+      IFEnvRel o (consSumCtors (absU n_p) (absCtorsLFrom ctors i) lf) ∧ IFEnvInv o)
+    ?_ ?_ i rf lf o hfe hfinv hrun
+  · intro i rf hn lf o hfe hfinv h
+    rw [arena.inductives.sum_install.cons_sum_ctors.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len ctors by scalar_tac)] at h
+    obtain rfl := Result.ok_injective h
+    rw [absCtorsLFrom, List.drop_eq_nil_of_le hn]
+    exact ⟨hfe, hfinv⟩
+  · intro i rf hi ih lf o hfe hfinv h
+    rw [arena.inductives.sum_install.cons_sum_ctors.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ctors by scalar_tac)] at h
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨iv, nf⟩ := p
+    obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨fe1, hfe1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hx : ctors.val[i.val]? = some (iv, nf) := vec_index_some hp
+    obtain ⟨hb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
+    obtain ⟨hrel1, hinv1⟩ := ifenv_push_refines (ci := .CtorInfo _ _ _) hfe hfinv trivial hfe1
+    have h3 : i3.val = i.val + 1 := by
+      have := ConRon.Refine.Nat.uadd_val hi3; simpa using this
+    have hdrop : absCtorsLFrom ctors i
+        = (absIConstantVal iv, absU nf) :: absCtorsLFrom ctors i3 := by
+      rw [absCtorsLFrom, absCtorsLFrom, h3,
+        List.drop_eq_getElem_cons hb, hxv]
+      simp
+    rw [hdrop, consSumCtors]
+    refine ih i3 fe1 h3 _ o ?_ hinv1 h
+    have : absIConstantInfo (arena.env.IConstantInfo.CtorInfo iv1 n_p nf)
+        = IConstantInfo.ctorInfo (absIConstantVal iv) (absU n_p) (absU nf) := by
+      simp [absIConstantInfo, i_constant_val_dup_abs hiv1]
+    rwa [this] at hrel1
+
+theorem sum_rules_aux (m : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rf lf} {rec_name : arena.handle.NIdx}
+      {n_p m_i r_p : Std.U64} {rec_ty : arena.handle.EIdx}
+      {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+      {rhss : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
+      {out : alloc.vec.Vec arena.env.IRecRule},
+      ctors.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf lf → absU vis = lf.visibleBelow →
+      Lockstep.LS pers (fun a b => b = absIRecRuleL a)
+        (arena.inductives.sum_install.sum_rules pers vis st rf rec_name n_p m_i
+          r_p rec_ty ctors rhss i out) lst
+        (do pure (absIRecRuleL out ++
+          (← sumRules lf (absNIdx rec_name) (absU n_p) (absU m_i) (absU r_p)
+            (absEIdx rec_ty) (absCtorsLFrom ctors i) (absEIdxLFrom rhss i)))) := by
+  induction m with
+  | zero =>
+    intro pers st lst vis rf lf rec_name n_p m_i r_p rec_ty ctors rhss i out hn hrel hinv hfe hvis
+    rw [arena.inductives.sum_install.sum_rules, if_pos (by scalar_tac), absCtorsLFrom,
+      vecFrom_nil _ _ _ (by omega)]
+    simp only [sumRules]
+    lockstep
+  | succ m ih =>
+    intro pers st lst vis rf lf rec_name n_p m_i r_p rec_ty ctors rhss i out hn hrel hinv hfe hvis
+    rw [arena.inductives.sum_install.sum_rules, if_neg (by scalar_tac), absCtorsLFrom,
+      vecFrom_cons _ _ _ (by omega)]
+    by_cases hr : i.val < rhss.val.length
+    · rw [if_neg (by scalar_tac), absEIdxLFrom, vecFrom_cons _ _ _ hr]
+      simp only [sumRules]
+      lockstep
+    · rw [if_pos (by scalar_tac), absEIdxLFrom, vecFrom_nil _ _ _ (by omega)]
+      simp only [sumRules]
+      lockstep
+
+/-- `sum_rules` ⊑ `sumRules` from the cursor on, with the accumulated rules in
+front. -/
+theorem sum_rules_refines {pers st lst} {vis : Std.U64} {rf lf}
+    {rec_name : arena.handle.NIdx} {n_p m_i r_p : Std.U64}
+    {rec_ty : arena.handle.EIdx}
+    {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {rhss : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
+    {out : alloc.vec.Vec arena.env.IRecRule} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow)
+    (hrun : arena.inductives.sum_install.sum_rules pers vis st rf rec_name n_p m_i
+      r_p rec_ty ctors rhss i out = ok o) :
+    Sim₀ absIRecRuleL pers lst o
+      (do pure (absIRecRuleL out ++
+        (← sumRules lf (absNIdx rec_name) (absU n_p) (absU m_i) (absU r_p)
+          (absEIdx rec_ty) (absCtorsLFrom ctors i) (absEIdxLFrom rhss i)))) := by
+  exact Lockstep.LS.toSim₀ (sum_rules_aux _ rfl hrel hinv hfe hvis) hrun
+
+open Lockstep in
+@[lockstep] theorem sum_rules_ls
+    {pers st lst}
+    {vis : Std.U64}
+    {rf lf}
+    {rec_name : arena.handle.NIdx}
+    {n_p m_i r_p : Std.U64}
+    {rec_ty : arena.handle.EIdx}
+    {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {rhss : alloc.vec.Vec arena.handle.EIdx}
+    {i : Std.Usize}
+    {out : alloc.vec.Vec arena.env.IRecRule}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun a b => b = absIRecRuleL a) (arena.inductives.sum_install.sum_rules pers vis st rf rec_name n_p m_i r_p rec_ty ctors rhss i out) lst
+      (do pure (absIRecRuleL out ++
+        (← sumRules lf (absNIdx rec_name) (absU n_p) (absU m_i) (absU r_p)
+          (absEIdx rec_ty) (absCtorsLFrom ctors i) (absEIdxLFrom rhss i)))) :=
+  LS.ofSim₀ fun _ h => sum_rules_refines hrel hinv hfe hvis h
+
+/-! ## The axiom census
+
+`cons_sum_ctors_refines` is round 3 §R3.5's `ifenv_push` obligation cashed:
+`Refine2/Checker/Shape.lean`'s `ifenv_push_refines` landed in round 4's second
+`arena` merge, and this is the fold that was waiting on it. -/
+
+/-- info: 'ConRon.Refine2.cons_sum_ctors_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms cons_sum_ctors_refines
+
+end ConRon.Refine2

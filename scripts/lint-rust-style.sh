@@ -24,20 +24,22 @@ check "derive(Debug) (mixed recursion groups in Charon)" 'derive\([^)]*Debug'
 # keeps `a || b` and `x | y` out (`||` and `|_|`-less bars are not closures).
 check "closures" '\|\s*(_|mut |&|[a-z])[a-z_0-9,&: ]*\|\s*(\{|[a-z])'
 check "? operator" '\)\?[;.) ]|\)\?$'
-# Loops.  The rule is recursion (DESIGN.md §3.4); the ONE exemption is
-# `crates/con-ron-core/src/frontend/`, the ported parser (task #84): the Lean
-# it cites is a per-byte tail recursion that *Lean* compiles to a loop, and a
-# per-byte recursion in Rust overflows the stack on a long export line.
-# `-loops-to-rec` gives each loop a `foo_loop` function that mirrors the Lean
-# recursion one for one.  (The `:[0-9]+:` is the `file:line:` prefix `gather`
-# adds: a `^\s*` anchor here matched nothing at all until task #84 noticed.)
+# Loops.  The rule is recursion (DESIGN.md §3.4); the exemption is the ported
+# PARSER directory, `crates/con-ron-core/src/frontend/` (task #84, and task
+# #97-P4e's rewrite of it over store handles, which task #97-SWAP moved back
+# under this path): the Lean it cites is a per-byte tail recursion that *Lean*
+# compiles to a loop, and a per-byte recursion in Rust overflows the stack on
+# a long export line.  `-loops-to-rec` gives each loop a `foo_loop` function
+# that mirrors the Lean recursion one for one.  (The `:[0-9]+:` is the
+# `file:line:` prefix `gather` adds: a `^\s*` anchor here matched nothing at
+# all until task #84 noticed.)
 check_loops() {
   local hits
   hits=$(gather | grep -E ':[0-9]+:[[:space:]]*(while|for|loop)\b' \
     | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow' \
-    | grep -v 'con-ron-core/src/frontend/')   # unanchored: gates.sh passes an absolute dir
+    | grep -vE 'con-ron-core/src/frontend/')   # unanchored: gates.sh passes an absolute dir
   if [ -n "$hits" ]; then
-    echo "== loops (use recursion; only crates/con-ron-core/src/frontend/ may loop, DESIGN.md §3.4)"
+    echo "== loops (use recursion; only the two frontend/ directories may loop, DESIGN.md §3.4)"
     echo "$hits"; fail=1
   fi
 }
@@ -63,21 +65,26 @@ check_str_consts() {
   fi
 }
 check_str_consts
-# `unsafe`.  The rule is none at all (the 2026-09-12 ruling: `std` does it if
-# it can).  The ONE exemption is `crates/con-ron-core/src/ron/tagged.rs`, the
-# generic tagged counted handle (task #94): the kind lives in the handle's low
-# four bits, so the pointee type is chosen at run time and no `std` smart
-# pointer can express it.  That file names no term type; its instantiation for
-# `Expr` (`ron/node.rs`) is a ten-line table and passes this lint like every
-# other file.  The surface is `tagged.rs`'s own module note -- four expressions,
-# two impls and one macro -- and `scripts/diff-e2e.sh` is what stands behind it.
+# `unsafe`.  **The rule is none at all, and since task #97-SWAP-2 there is no
+# exemption** (the 2026-09-12 ruling: `std` does it if it can).
+#
+# Tasks #94-#97-SWAP had one: `crates/con-ron-core/src/ron/tagged.rs`, the
+# generic tagged counted handle, whose pointee type is chosen at run time from
+# four tag bits so that no `std` smart pointer can express it.  Task #97-SWAP
+# then measured what it was still FOR -- the arena checker holds no `Expr`, so
+# the only `Expr` values a run builds are the PINNED DATA
+# (`kernel::{basis_raw,basis_tables,std_axioms,trust_axioms,trust_pins,
+# pins_decode}`), walked once at startup by `arena::intern` -- and task
+# #97-SWAP-2 put those few thousand nodes back on `ron::ptr::P` =
+# `std::sync::Arc` and deleted `ron/{tagged,node}.rs`.  So this check asserts
+# ZERO, and any `unsafe` in the verified crate is now a lint failure with no
+# path exemption to add.
 check_unsafe() {
   local hits
   hits=$(gather | grep -E '\bunsafe\b' \
-    | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow' \
-    | grep -v 'con-ron-core/src/ron/tagged.rs')   # unanchored: gates.sh passes an absolute dir
+    | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow')
   if [ -n "$hits" ]; then
-    echo "== unsafe (only crates/con-ron-core/src/ron/tagged.rs may, task #94)"
+    echo "== unsafe (NONE is allowed in the verified crate, task #97-SWAP-2)"
     echo "$hits"; fail=1
   fi
 }
@@ -100,4 +107,28 @@ check "std::collections" 'std::collections'
 # are still `Arc` and nothing needs their counts.
 check "P/Rc/Arc API beyond new/clone/deref/ptr_eq" '\b(P|Rc|Arc)::(get_mut|make_mut|downgrade|try_unwrap|into_raw|from_raw|as_ptr|strong_count|weak_count|increment_strong_count|decrement_strong_count)|RefCell|Cell<'
 check "panics as control flow" '\b(panic!|unwrap\(\)|expect\(|unreachable!|todo!|unimplemented!)'
+# The filler-only `Clone` for `ron::hashmap2::Slot` (task #97-PERF-BULKFILL).
+# `Vec::resize` is the one bulk fill Aeneas models, and it asks for `Clone`;
+# `Slot`'s impl answers `Vacant` for every slot, a `Live` one included, so it
+# is a filler and NOT a copy.  What keeps it from being used as one: `Slot`
+# values exist only inside `ron/hashmap2.rs` (`HashMap2::slots` is private and
+# no `pub fn` hands a slot out), so (1) no other core file may name `Slot` at
+# all, and (2) inside `hashmap2.rs` every call that can reach `Slot::clone` --
+# `.clone()`, `Clone::clone`, `.resize(`, `extend_from_slice`, `to_vec`,
+# `vec![` -- must be the single `slots.resize(len, Slot::Vacant);` in
+# `allocate_slots`.  A real slot copy is `dup_slot`.
+check_slot_clone() {
+  local hits
+  hits=$(gather | grep -E '\bSlot\b' | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow' \
+    | grep -E 'con-ron-core/src/' | grep -vE 'con-ron-core/src/ron/hashmap2\.rs:' \
+    | grep -E 'hashmap2::Slot|\bSlot::|\bSlot<')
+  hits+=$(gather | grep -E 'con-ron-core/src/ron/hashmap2\.rs:' | grep -v '^\S*:\S*:\s*//' \
+    | grep -E '\.clone\(\)|Clone::clone|\.resize\(|extend_from_slice|to_vec|vec!\[' \
+    | grep -vE ':[[:space:]]*slots\.resize\(len, Slot::Vacant\);$')
+  if [ -n "$hits" ]; then
+    echo "== Slot's filler-only Clone reached outside allocate_slots (use dup_slot; ron/hashmap2.rs, task #97-PERF-BULKFILL)"
+    echo "$hits"; fail=1
+  fi
+}
+check_slot_clone
 exit $fail

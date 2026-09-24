@@ -120,32 +120,13 @@
 ///
 /// The fallback is kept for `align > 16`.  Task #92 drew the line at 8,
 /// because nothing con-ron allocated then was more aligned than a machine
-/// word; **task #94's blocks are `align(16)`** — that alignment is what frees
-/// the four tag bits the kind lives in — so drawing it at 8 would have sent
-/// every `Expr` allocation down exactly the slow, class-losing path this type
-/// exists to avoid, and a 48-byte block would have been charged 64 again.
-///
-/// **Sixteen is mimalloc's documented guarantee, not an inference from its
-/// bin structure**, which matters because `ron::tagged` now depends on it for
-/// soundness and not only for size (the external review of 2026-09-15).
-/// `mimalloc/types.h` defines
-///
-/// ```text
-/// // Minimal alignment necessary. On most platforms 16 bytes are needed
-/// // due to SSE registers for example. This must be at least `sizeof(void*)`
-/// #define MI_MAX_ALIGN_SIZE  16   // sizeof(max_align_t)
-/// …
-/// // blocks up to this size are always allocated aligned
-/// #define MI_MAX_ALIGN_GUARANTEE  (8*MI_MAX_ALIGN_SIZE)
-/// ```
-///
-/// — so every allocation of at most **128** bytes comes back aligned to at
-/// least `MI_MAX_ALIGN_SIZE` = 16, against the 32- and 48-byte blocks
-/// `ron::node` asks for.  `mi_malloc_gives_16_aligned_blocks` below checks
-/// 100 000 blocks at each of the sizes con-ron allocates, which is evidence
-/// and not the argument; and `ron::tagged::Raw::alloc` tests the address it
-/// actually got and aborts if the low bits are not zero, so a violated
-/// contract is a dead process and never a corrupted tag.
+/// word; tasks #94-#97-SWAP allocated `align(16)` blocks, whose low four bits
+/// carried an `Expr`'s constructor, and drawing it at 8 would have sent every
+/// `Expr` allocation down exactly the slow, class-losing path this type
+/// exists to avoid.  **Task #97-SWAP-2 retired the tagged handle**, so
+/// nothing depends on the alignment for soundness any more and the line at 16
+/// is a size-class choice again; `mi_malloc_gives_16_aligned_blocks` below
+/// still checks it, at the sizes con-ron allocates.
 ///
 /// This is the same `unsafe impl GlobalAlloc` the `mimalloc` crate itself
 /// writes, minus the one conservative branch; it is in the *unverified*
@@ -223,11 +204,12 @@ use con_ron_core::kernel::env::ConstantVal;
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::BinderMeta;
 use con_ron_core::kernel::expr::Expr;
+use con_ron_core::kernel::expr::ExprKind;
+use con_ron_core::kernel::expr::ExprNode;
 #[allow(unused_imports)]
 use con_ron_core::kernel::expr::ExprView;
 #[allow(unused_imports)]
 use con_ron_core::kernel::expr::Literal;
-use con_ron_core::ron::node;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::level::LevelKind;
@@ -383,16 +365,15 @@ pub struct NodeSize {
 /// **What the core's terms weigh, per node** (DESIGN.md tasks #36, #38, #90
 /// and #94).  At Mathlib scale these are multiplied by 103 M.
 ///
-/// **Task #94 split the row.**  Until then there was one `ExprNode`, as wide
-/// as the widest `ExprKind` arm (48 bytes) and behind a `P` whose two counts
-/// made a 64-byte block, whatever the kind — so an `app`, 65 % of the live
-/// nodes of a real term, paid 64 bytes for 32 bytes of content.  Since
-/// task #94 the kind is in the *handle* (`ron::tagged`, instantiated for
-/// `Expr` by `ron::node`), there is one atomic count and no weak count, and
-/// each kind has a cell of its own size;
-/// the `heap` column is now equal to the `size` column, because a node **is**
-/// its block.  The rows below are the real structs, and the test pins them,
-/// so a further repacking shows up here with its saving attached.
+/// **Task #97-SWAP-2 put the row back.**  Tasks #94-#97-SWAP split it: the
+/// kind lived in the handle and each constructor had a cell of its own size,
+/// which bought 32 bytes for an `app` against 64.  That representation cost
+/// the verified crate its only `unsafe`, and task #97-SWAP measured that the
+/// checking path builds no `Expr` at all — the arena's own records do — so it
+/// was retired.  A node is one `ExprNode` as wide as the widest `ExprKind`
+/// arm again, behind a `P` whose two counts make the heap block.  The rows
+/// below are the real structs, and the test pins them, so a further
+/// repacking shows up here with its saving attached.
 pub fn node_sizes() -> Vec<NodeSize> {
     fn row<T>(what: &'static str, rc: bool) -> NodeSize {
         NodeSize {
@@ -401,8 +382,15 @@ pub fn node_sizes() -> Vec<NodeSize> {
             heap: if rc { std::mem::size_of::<PBlock<T>>() } else { 0 },
         }
     }
-    let mut rows: Vec<NodeSize> = vec![
-        row::<Expr>("Expr (the tagged handle)", false),
+    vec![
+        row::<ExprNode>("ExprNode (data + kind)", true),
+        row::<ExprKind>("  ExprKind", false),
+        row::<(Expr, Expr)>("    app payload", false),
+        row::<(Name, P<Vec<Level>>)>("    const payload", false),
+        row::<Literal>("    lit payload", false),
+        row::<(Expr, Expr, BinderMeta)>("    lam/forallE payload", false),
+        row::<(Expr, Expr, Expr)>("    letE payload", false),
+        row::<(Name, u64, Expr)>("    proj payload", false),
         row::<NameNode>("NameNode (hash + kind)", true),
         row::<NameKind>("  NameKind", false),
         row::<LevelNode>("LevelNode (hash + kind)", true),
@@ -414,24 +402,14 @@ pub fn node_sizes() -> Vec<NodeSize> {
         row::<Declaration>("Declaration", false),
         row::<ConstantInfo>("ConstantInfo (inline)", false),
         row::<ConstantVal>("ConstantVal (inline)", false),
-    ];
-    // The per-constructor blocks come from the core's own table: the block
-    // types are `pub(crate)` since the external review of 2026-09-15, so
-    // nothing outside `con-ron-core` names them (`ron::tagged`'s module note).
-    for (what, size) in node::block_sizes() {
-        rows.insert(1, NodeSize { what, size, heap: size });
-    }
-    rows
+    ]
 }
 
-/// The heap block of the *average* `Expr` node, weighted by task #88's live
-/// census of `core` (65 % `app`, 16 % `bvar`, 17 % the two binders, the rest
-/// under 2 %).  Until task #94 every node was 64 bytes and this was a
-/// constant; now the reader's dominant cost depends on the mix, so a caller
-/// that wants to multiply by an `E` record count gets the census average.
-/// Task #94's report has the exact per-kind arithmetic.
+/// The `P` heap block of an `ExprNode` — the reader's dominant cost, one per
+/// `E` record.  Separate from [`node_sizes`] so a caller can multiply it by
+/// the record count without searching the table.
 pub fn expr_node_bytes() -> usize {
-    node::expr_block_bytes()
+    std::mem::size_of::<PBlock<ExprNode>>()
 }
 
 /// The peak resident set of this process in KB, `VmHWM` from
@@ -1318,8 +1296,8 @@ mod tests {
     /// **The audit behind `MiMallocTight`'s `align <= 16`** (task #94).
     ///
     /// `MiMallocTight::alloc` sends a 16-aligned request to plain
-    /// `mi_malloc`, which is what keeps task #94's 32- and 48-byte nodes in
-    /// their own size classes instead of the aligned entry's next one up.
+    /// `mi_malloc`, which is what keeps a small block in its own size class
+    /// instead of the aligned entry's next one up.
     /// That is sound by mimalloc's construction — `MI_MAX_ALIGN_SIZE` is 16
     /// on x86-64, so `MI_ALIGN2W` rounds every request of eight words or
     /// fewer to an even word count and every bin in that range strides by a
@@ -1360,25 +1338,19 @@ mod tests {
         for r in node_sizes() {
             eprintln!("{:<32} size {:>3}  rc block {:>3}", r.what, r.size, r.heap);
         }
-        // **The per-constructor block sizes are pinned in the core**, by
-        // `ron::node`'s own `the_block_sizes_are_what_the_accounting_assumes`:
-        // the block types went `pub(crate)` at the external review of
-        // 2026-09-15, so this crate sees the table of numbers and not the
-        // types it is made of (`ron::tagged`'s module note, finding 1).  What
-        // is left here is what this crate can still see, plus the shape of the
-        // report itself.
-        assert_eq!(node_sizes().len(), 11 + 12);
         for r in node_sizes() {
             assert_eq!(r.size % 8, 0, "{} is not word-sized", r.what);
         }
-        // the census average, against the flat 64 bytes of task #90
-        assert_eq!(expr_node_bytes(), 34);
+        // Task #97-SWAP-2: one node as wide as the widest arm, behind a `P`.
+        assert_eq!(std::mem::size_of::<ExprKind>(), 40);
+        assert_eq!(std::mem::size_of::<ExprNode>(), 48);
+        assert_eq!(expr_node_bytes(), 64);
         assert_eq!(std::mem::size_of::<PropWhen>(), 16);
         assert_eq!(std::mem::size_of::<BinderMeta>(), 16);
         assert_eq!(std::mem::size_of::<Literal>(), 16);
         assert_eq!(std::mem::size_of::<NameNode>(), 40);
         assert_eq!(std::mem::size_of::<LevelNode>(), 32);
-        // the id tables cost one machine word per record, the `Rc` handle
+        // the id tables cost one machine word per record, the `P` handle
         assert_eq!(std::mem::size_of::<Expr>(), 8);
         assert_eq!(std::mem::size_of::<Name>(), 8);
         assert_eq!(std::mem::size_of::<Level>(), 8);

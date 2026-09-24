@@ -34,7 +34,7 @@ use con_ron_core::kernel::env::{ConstantInfo, ConstantVal, RecRule, Reducibility
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::{Expr, ExprView};
 use con_ron_core::kernel::expr_ops;
-use con_ron_core::kernel::inductives::struct_parts;
+use crate::tree::struct_parts;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::name;
@@ -2376,7 +2376,7 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
         if t.is_reflexive {
             return Err(format!("reflexive member {}", name_str(&t.cv.name)));
         }
-        if !con_ron_core::frontend::export::names_beq(&t.cv.level_params, &lps) || t.n_p != n_p {
+        if !crate::tree::export::names_beq(&t.cv.level_params, &lps) || t.n_p != n_p {
             return Err(format!(
                 "member {}: level parameters or parameter count differ",
                 name_str(&t.cv.name)
@@ -2438,7 +2438,7 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
     let mems = read_mems(&lps, n_p, &b.types, &pi_binders(&motive_bs))?;
     let large_opt: Option<Name> = match r0.cv.level_params.split_first() {
         Some((e, rest)) => {
-            if con_ron_core::frontend::export::names_beq(&dup_names(rest), &lps)
+            if crate::tree::export::names_beq(&dup_names(rest), &lps)
                 && !lps.iter().any(|x| name::beq(x, e))
             {
                 Some(name::dup(e))
@@ -2494,7 +2494,7 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
                 name_str(&rr.cv.name)
             ));
         }
-        if !con_ron_core::frontend::export::names_beq(&rr.cv.level_params, &rlps) {
+        if !crate::tree::export::names_beq(&rr.cv.level_params, &rlps) {
             return Err(format!(
                 "recursor {}: eliminator shape differs",
                 name_str(&rr.cv.name)
