@@ -74,13 +74,61 @@ open Lockstep in
 
 open Lockstep in
 /-- `arena::canon::i_constant_info_beq` is the twin's `==` (at `some`, the
-shape `reduceElemOk` compares at). -/
-@[lockstep] theorem i_constant_info_beq_spec (a b : arena.env.IConstantInfo) :
+shape `reduceElemOk` compares at), at canonical Rust data (`IConstantInfoWF`:
+the `IndInfo` arm compares `sort_z` by representation; task #97-T2-LOCKSTEP
+lane Inductives Modeled slice 2). -/
+@[lockstep] theorem i_constant_info_beq_spec {a b : arena.env.IConstantInfo}
+    (ha : IConstantInfoWF a) (hb : IConstantInfoWF b) :
     LSP (arena.canon.i_constant_info_beq a b)
       (fun o => o = (some (absIConstantInfo a) == some (absIConstantInfo b))) := by
   intro o h
-  rw [i_constant_info_beq_refines h]
+  rw [i_constant_info_beq_refines ha hb h]
   cases h' : decide (absIConstantInfo a = absIConstantInfo b) <;> simp_all
+
+/-! ### The pinned constants and the stored ones are canonical
+
+The callers of `i_constant_info_beq` compare a stored constant with a pinned
+one; the premises of `i_constant_info_beq_spec` come from `IFEnvRel.envWF`
+and from the pins' construction (`Checker/Canon.lean`'s `eq_a_wf`/`nat_a_wf`).
+These variants carry the fact in their relation; they sit in their own
+namespace so a proof that `open`s it gets them before the plain pairs. -/
+
+namespace Lockstep.CapsWF
+
+@[lockstep] theorem eq_a_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => IConstantInfoWF a ∧ b = absIConstantInfo a)
+      (arena.std_axioms.eq_a pers st) lst eqA := by
+  intro o st' h
+  have hs := eq_a_ls hrel hinv o st' h
+  cases o with
+  | Err e => exact hs
+  | Ok a =>
+    obtain ⟨b, lst', hx, hR, h1, h2⟩ := hs
+    exact ⟨b, lst', hx, ⟨eq_a_wf h, hR⟩, h1, h2⟩
+
+@[lockstep] theorem nat_a_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => IConstantInfoWF a ∧ b = absIConstantInfo a)
+      (arena.std_axioms.nat_a pers st) lst natA := by
+  intro o st' h
+  have hs := nat_a_ls hrel hinv o st' h
+  cases o with
+  | Err e => exact hs
+  | Ok a =>
+    obtain ⟨b, lst', hx, hR, h1, h2⟩ := hs
+    exact ⟨b, lst', hx, ⟨nat_a_wf h, hR⟩, h1, h2⟩
+
+/-- `ifenv_find` with the found constant's `IConstantInfoWF` (`envWF`). -/
+@[lockstep] theorem ifenv_find_wf {vis : Std.U64} {rf lf} (hfe : IFEnvRelI rf lf)
+    (hvis : absU vis = lf.visibleBelow) (n : arena.handle.NIdx) :
+    LSP (arena.env.ifenv_find vis rf n)
+      (fun o => TwinEq (lf.find? (absNIdx n)) (o.map absIConstantInfo) ∧
+        ∀ ci, o = some ci → IConstantInfoWF ci) :=
+  fun o h => ⟨(ifenv_find_abs (IFEnvInv.coreCtx hfe.rel hfe.inv hvis) h).symm,
+    fun ci hci => by subst hci; exact hfe.rel.envWF ci (Lockstep.ifenv_find_mem h)⟩
+
+end Lockstep.CapsWF
 
 /-! ## The standard axioms' gate
 
@@ -88,6 +136,7 @@ shape `reduceElemOk` compares at). -/
 its pinned shape and with its supporting family pinned in the environment.
 The Rust splits the two arms and their "is the family pinned" prefixes. -/
 
+open Lockstep.CapsWF in
 /-- `eq_basis_pinned` — is the `Eq` basis block installed as pinned? -/
 theorem eq_basis_pinned_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -549,6 +598,7 @@ open Lockstep in
       (reduceElemOkBoolSpec lf) :=
   LS.ofSim₀ fun _ h => reduce_elem_ok_bool_refines hrel hinv hfe.rel hfe.inv hvis h
 
+open Lockstep.CapsWF in
 /-- `reduce_elem_ok` ⊑ `reduceElemOk`. -/
 theorem reduce_elem_ok_refines {pers st lst} {vis : Std.U64} {rf lf}
     {c : arena.handle.NIdx} {o}

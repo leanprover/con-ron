@@ -68,6 +68,7 @@ ones; `i_ind_caps_beq`'s last link needs `kernel::prop_when::beq` against
 `absPropWhen`, which this file does not yet have.
 -/
 import ConRon.Refine2.Checker.Pins
+import ConRon.Refine.BasisPins
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -548,23 +549,208 @@ theorem i_rec_rules_beq_refines {a b : alloc.vec.Vec arena.env.IRecRule}
     o = decide (absIRecRuleLFrom a i = absIRecRuleLFrom b i) :=
   i_rec_rules_beq_aux _ rfl hrun
 
-/-- `i_ind_caps_beq` ⊑ `==` on `IIndCaps`. -/
+/-- `i_ind_caps_beq` ⊑ `==` on `IIndCaps`, at canonical `sort_z`s
+(`PropWhenWF`, the erased subtype invariant `IConstantInfoWF` carries).  The
+port compares two `PropWhen`s by REPRESENTATION (`prop_when::beq`, i.e.
+`equiv_r`), the twin by value; they agree exactly on canonical data
+(`PropWhen.beq_iff`): `Many [p]` and `One p` abstract to the same value. -/
 theorem i_ind_caps_beq_refines {a b : arena.env.IIndCaps} {o : Bool}
+    (ha : ConRon.Refine.PropWhenWF a.sort_z) (hb : ConRon.Refine.PropWhenWF b.sort_z)
     (hrun : arena.canon.i_ind_caps_beq a b = ok o) :
     o = decide (absIIndCaps a = absIIndCaps b) := by
-  sorry
+  rw [arena.canon.i_ind_caps_beq] at hrun
+  simp only [absIIndCaps, IIndCaps.mk.injEq]
+  refine beq_chain' Iff.rfl hrun ?_
+  intro o1 h
+  obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  refine beq_chain (nidx_eq2_abs_decide hb1) h ?_
+  intro o2 h
+  refine beq_chain' absU_iff h ?_
+  intro o3 h
+  refine beq_chain' absU_iff h ?_
+  intro o4 h
+  refine beq_chain' Iff.rfl h ?_
+  intro o5 h
+  refine beq_chain' absU_iff h ?_
+  intro o6 h
+  refine beq_chain' Iff.rfl h ?_
+  intro o7 h
+  have hiff := ConRon.Refine.PropWhen.beq_iff (ConRon.Refine.PropWhen.wf_shape ha)
+    (ConRon.Refine.PropWhen.wf_shape hb) h
+  cases o7
+  · exact (decide_eq_false (fun hc => by simpa using hiff.mpr hc)).symm
+  · exact (decide_eq_true (hiff.mp rfl)).symm
 
 /-- `i_proj_table_beq` ⊑ `==` on `IProjTable`. -/
 theorem i_proj_table_beq_refines {t t2 : arena.env.IProjTable} {o : Bool}
     (hrun : arena.canon.i_proj_table_beq t t2 = ok o) :
     o = decide (absIProjTable t = absIProjTable t2) := by
-  sorry
+  rw [arena.canon.i_proj_table_beq] at hrun
+  simp only [absIProjTable, IProjTable.mk.injEq]
+  obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  refine beq_chain (nidx_eq2_abs_decide hb1) hrun ?_
+  intro o1 h
+  obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  refine beq_chain (nidx_eq2_abs_decide hb2) h ?_
+  intro o2 h
+  obtain ⟨b3, hb3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h3 := nidx_vec_beq_refines hb3
+  simp only [absNIdxLFrom] at h3
+  refine beq_chain (by simpa using h3) h ?_
+  intro o3 h
+  refine beq_chain' absU_iff h ?_
+  intro o4 h
+  obtain ⟨b5, hb5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  refine beq_chain (nidx_eq2_abs_decide hb5) h ?_
+  intro o5 h
+  refine beq_chain' absU_iff h ?_
+  intro o6 h
+  obtain ⟨b7, hb7, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  refine beq_chain (lidx_eq2_abs hb7) h ?_
+  intro o7 h
+  obtain ⟨b8, hb8, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h8 := eidx_vec_beq_refines hb8
+  simp only [absEIdxLFrom] at h8
+  refine beq_chain (by simpa using h8) h ?_
+  intro o8 h
+  obtain ⟨b9, hb9, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h9 := lidx_vec_beq_refines hb9
+  simp only [absLIdxLFrom] at h9
+  refine beq_chain (by simpa using h9) h ?_
+  intro o9 h
+  rw [beq_last h]
+  exact decide_eq_decide.mpr absU_iff
 
-/-- `i_constant_info_beq` ⊑ `==` on `IConstantInfo`. -/
+/-- An interned constant's capabilities keep their `sort_z` (`intern_caps`
+copies it with `prop_when::dup`): canonical input, canonical output. -/
+theorem intern_ci_go_caps_wf {pers st m} {c : kernel.env.ConstantInfo}
+    {ci : arena.env.IConstantInfo} {s' m'}
+    (hc : ∀ v c2, c = .IndInfo v c2 → ConRon.Refine.PropWhenWF c2.sort_z)
+    (h : arena.intern.intern_ci_go pers st m c = ok (.Ok ci, s', m')) :
+    ∀ v caps, ci = .IndInfo v caps → ConRon.Refine.PropWhenWF caps.sort_z := by
+  intro v caps hci
+  subst hci
+  cases c <;> simp only [arena.intern.intern_ci_go] at h <;>
+    obtain ⟨⟨r, s1, m1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h <;>
+    cases r <;> simp [ConRon.Refine.bind_eq_ok_iff] at h
+  all_goals (obtain ⟨a, a1, h⟩ := h)
+  all_goals first
+    | (obtain ⟨b, h2, h⟩ := h
+       cases a <;> simp [ConRon.Refine.bind_eq_ok_iff] at h)
+    | (obtain ⟨h2, h⟩ := h
+       cases a <;> simp at h
+       obtain ⟨-, hc2, -, -⟩ := h
+       subst hc2
+       simp only [arena.intern.intern_caps, ConRon.Refine.bind_eq_ok_iff] at h2
+       obtain ⟨⟨r, s2⟩, h3, h2⟩ := h2
+       cases r <;> simp [ConRon.Refine.bind_eq_ok_iff] at h2
+       obtain ⟨pw, hpw, h2⟩ := h2
+       have hd := ConRon.Refine.PropWhen.dup_eq hpw
+       subst hd
+       obtain ⟨hcaps, -⟩ := h2
+       rw [← hcaps]
+       exact hc _ _ rfl)
+
+
+/-- A pinned constant the port interns (`m >>= intern_ci`, `m` one of
+`kernel::basis_pins`' builders) is canonical Rust data (`IConstantInfoWF`):
+con-leche's constant, built by the smart constructors (`ConstantInfoWF`). -/
+theorem intern_pinned_wf {pers st} {m : Result kernel.env.ConstantInfo}
+    {ci : arena.env.IConstantInfo} {s'}
+    (hm : ∀ c, m = ok c → ConRon.Refine.ConstantInfoWF c)
+    (h : (m >>= fun c => arena.intern.intern_ci pers st c) = ok (.Ok ci, s')) :
+    IConstantInfoWF ci := by
+  obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hwf := hm c hc
+  rw [arena.intern.intern_ci] at h
+  obtain ⟨mm, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨⟨r, s1, m1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h' : (core.result.Result.Ok ci, s') = (r, s1) := (Result.ok_injective h).symm
+  simp only [Prod.mk.injEq] at h'
+  obtain ⟨rfl, rfl⟩ := h'
+  cases ci with
+  | IndInfo v caps =>
+    refine intern_ci_go_caps_wf ?_ h1 v caps rfl
+    intro v c2 hc2
+    subst hc2
+    exact hwf.2.2
+  | _ => trivial
+
+/-- The pinned `Eq` basis is canonical Rust data. -/
+theorem eq_a_wf {pers st} {ci : arena.env.IConstantInfo} {s'}
+    (h : arena.std_axioms.eq_a pers st = ok (.Ok ci, s')) : IConstantInfoWF ci := by
+  rw [arena.std_axioms.eq_a] at h
+  exact intern_pinned_wf (fun _ hc => (ConRon.Refine.BasisPins.eq_a_refines hc).2) h
+
+/-- The pinned `Nat` is canonical Rust data. -/
+theorem nat_a_wf {pers st} {ci : arena.env.IConstantInfo} {s'}
+    (h : arena.std_axioms.nat_a pers st = ok (.Ok ci, s')) : IConstantInfoWF ci := by
+  rw [arena.std_axioms.nat_a] at h
+  exact intern_pinned_wf (fun _ hc => (ConRon.Refine.BasisPins.nat_a_refines hc).2) h
+
+/-- `PartialEq` on `u64`, lifted, is `decide` of the abstracted equation. -/
+private theorem u64_eq_lift {x y : Std.U64} {b : Bool}
+    (h : lift (core.cmp.impls.PartialEqU64.eq x y) = ok b) : b = decide (x = y) := by
+  simp only [lift, core.cmp.impls.PartialEqU64.eq, Result.ok.injEq] at h
+  exact h.symm
+
+/-- `i_constant_info_beq` ⊑ `==` on `IConstantInfo`, at canonical Rust data
+(`IConstantInfoWF`; the `IndInfo` arm compares `sort_z` by representation). -/
 theorem i_constant_info_beq_refines {a b : arena.env.IConstantInfo} {o : Bool}
+    (ha : IConstantInfoWF a) (hb : IConstantInfoWF b)
     (hrun : arena.canon.i_constant_info_beq a b = ok o) :
     o = decide (absIConstantInfo a = absIConstantInfo b) := by
-  sorry
+  cases a <;> cases b <;> simp only [arena.canon.i_constant_info_beq, Result.ok.injEq] at hrun <;>
+    (try (subst hrun; simp [absIConstantInfo]; done))
+  case AxiomInfo.AxiomInfo x y =>
+    rw [i_constant_val_beq_refines hrun]
+    simp [absIConstantInfo]
+  case DefnInfo.DefnInfo x v hh y w hh2 =>
+    simp only [absIConstantInfo, IConstantInfo.defnInfo.injEq]
+    obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    refine beq_chain (i_constant_val_beq_refines hb1) h ?_
+    intro o1 h
+    obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine beq_chain (eidx_eq2_abs_decide hb2) h ?_
+    intro o2 h
+    exact ConRon.Refine.Env.reducibility_hint_beq_refines h
+  case ThmInfo.ThmInfo x v y w =>
+    simp only [absIConstantInfo, IConstantInfo.thmInfo.injEq]
+    obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    refine beq_chain (i_constant_val_beq_refines hb1) h ?_
+    intro o1 h
+    exact eidx_eq2_abs_decide h
+  case IndInfo.IndInfo x c y d =>
+    simp only [absIConstantInfo, IConstantInfo.indInfo.injEq]
+    obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    refine beq_chain (i_constant_val_beq_refines hb1) h ?_
+    intro o1 h
+    exact i_ind_caps_beq_refines ha hb h
+  case CtorInfo.CtorInfo x p f y q g =>
+    simp only [absIConstantInfo, IConstantInfo.ctorInfo.injEq]
+    obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    refine beq_chain (i_constant_val_beq_refines hb1) h ?_
+    intro o1 h
+    obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine beq_chain ((u64_eq_lift hb2).trans (decide_eq_decide.mpr absU_iff)) h ?_
+    intro o2 h
+    exact (u64_eq_lift h).trans (decide_eq_decide.mpr absU_iff)
+  case RecInfo.RecInfo x m p rs y n q ss =>
+    simp only [absIConstantInfo, IConstantInfo.recInfo.injEq]
+    obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    refine beq_chain (i_constant_val_beq_refines hb1) h ?_
+    intro o1 h
+    obtain ⟨b2, hb2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine beq_chain ((u64_eq_lift hb2).trans (decide_eq_decide.mpr absU_iff)) h ?_
+    intro o2 h
+    obtain ⟨b3, hb3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine beq_chain ((u64_eq_lift hb3).trans (decide_eq_decide.mpr absU_iff)) h ?_
+    intro o3 h
+    have h4 := i_rec_rules_beq_refines h
+    simpa [absIRecRuleLFrom] using h4
+  case ProjInfo.ProjInfo t u =>
+    rw [i_proj_table_beq_refines hrun]
+    simp [absIConstantInfo]
 
 /-- `i_rec_rule_eq_but_rhs` is the twin's `{ r with rhs := default } == { r'
 with rhs := default }` — the record comparison at a common right-hand side,
