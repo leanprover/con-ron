@@ -517,6 +517,17 @@ against the twin's `unwrapOr xFvs[i]? (.internal …)`. -/
   rw [arena.inductives.native_install.field_at, unwrapOr_getElem?_eq]
   lockstep
 
+/-- `nativeFieldUnusedLaterSpec` in the port's shape: the later-fields scan
+only when there is a later field (off the end it is `false`, effect-free). -/
+theorem nativeFieldUnusedLaterSpec_port (nP : Nat) (xFvs : List EIdx) (xrest : EIdx) (i : Nat) :
+    nativeFieldUnusedLaterSpec nP xFvs xrest i =
+      (if i + 1 < xFvs.length then nativeFieldUnusedLaterSpec nP xFvs xrest i
+       else do pure !(← mentionsFvar (nP + i) xrest)) := by
+  split
+  · rfl
+  · rw [nativeFieldUnusedLaterSpec, List.drop_eq_nil_of_le (by omega)]
+    rfl
+
 /-- `native_field_unused_later` ⊑ `nativeOpenedOk`'s "unused later" clause. -/
 theorem native_field_unused_later_refines {pers st lst} {n_p : Std.U64}
     {x_fvs : alloc.vec.Vec arena.handle.EIdx} {xrest : arena.handle.EIdx}
@@ -527,7 +538,11 @@ theorem native_field_unused_later_refines {pers st lst} {n_p : Std.U64}
     Sim₀ id pers lst o
       (nativeFieldUnusedLaterSpec (absU n_p) (absEIdxL x_fvs) (absEIdx xrest)
         (absU i)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_install.native_field_unused_later, nativeFieldUnusedLaterSpec_port,
+    nativeFieldUnusedLaterSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem native_field_unused_later_ls
