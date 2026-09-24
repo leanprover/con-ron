@@ -482,7 +482,37 @@ theorem rec_ctor_kinds_from_refines {pers st lst} {t : arena.handle.NIdx}
       (do pure (absKindL out ++
         (← recCtorKindsFromSpec (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
           (absEIdx cty) (absBinderL cbs) (absU n_f - absU i) (absU i)))) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  revert st lst hrel hinv
+  intro st lst hrel hinv
+  refine ls_counted n_f
+    (fun out m j => do pure (absKindL out ++
+      (← recCtorKindsFromSpec (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx)
+        (absEIdx cty) (absBinderL cbs) m j)))
+    (fun st j out => arena.inductives.native_parts.rec_ctor_kinds_from pers st t lps n_p
+      n_idx cty n_f cbs j out) ?_ ?_ i st lst out hrel hinv
+  · intro st lst j out hn hrel hinv
+    rw [arena.inductives.native_parts.rec_ctor_kinds_from.eq_def, recCtorKindsFromSpec]
+    rw [if_pos (by scalar_tac)]
+    lockstep
+  · intro st lst j out m hj hm hrel hinv ih
+    rw [arena.inductives.native_parts.rec_ctor_kinds_from.eq_def, recCtorKindsFromSpec]
+    rw [if_neg (by scalar_tac)]
+    lockstep
+    · have ha := let_pair_dup2_eq _ _ hf
+      subst ha
+      rcases hP with hka | hka
+      · have e := (hka.trans ‹(_ : Nat) = n_p.val + j.val›).symm
+        rw [show absU n_p + absU j = n_p.val + j.val from rfl, e,
+          absBinderL_getD_fst_of_lt _ _ ‹_›]
+        simp only [List.get_eq_getElem]
+        lockstep
+      · exfalso; scalar_tac
+    · simp only [arena.handle.EIdx.of_word, Result.ok.injEq] at hf
+      subst hf
+      rw [absBinderL_getD_fst_of_ge _ _ (by scalar_tac)]
+      lockstep
 
 open Lockstep in
 @[lockstep] theorem rec_ctor_kinds_from_ls
@@ -642,18 +672,7 @@ theorem struct_field_tele_of_refines {pers st lst} {cty : arena.handle.EIdx}
   clear hrun
   rw [arena.inductives.native_parts.struct_field_tele_of, structFieldTeleOf]
   lockstep
-  · have ha := let_pair_dup2_eq _ _ hf
-    subst ha
-    rw [binderL_getD_fst_of_lt]
-    · have hj : a.val = n_p.val + i.val := by rcases hP with h | h <;> scalar_tac
-      simp only [← hj, List.get_eq_getElem]
-      lockstep
-    · scalar_tac
-  · simp only [arena.handle.EIdx.of_word, Result.ok.injEq] at hf
-    subst hf
-    rw [binderL_getD_fst_of_ge]
-    · lockstep
-    · scalar_tac
+  all_goals ind_dom_finish
 
 open Lockstep in
 @[lockstep] theorem struct_field_tele_of_ls
@@ -678,18 +697,7 @@ theorem struct_field_idx_of_refines {pers st lst} {cty : arena.handle.EIdx}
   clear hrun
   rw [arena.inductives.native_parts.struct_field_idx_of, structFieldIdxOf]
   lockstep
-  · have ha := let_pair_dup2_eq _ _ hf
-    subst ha
-    rw [binderL_getD_fst_of_lt]
-    · have hj : a.val = n_p.val + i.val := by rcases hP with h | h <;> scalar_tac
-      simp only [← hj, List.get_eq_getElem]
-      lockstep
-    · scalar_tac
-  · simp only [arena.handle.EIdx.of_word, Result.ok.injEq] at hf
-    subst hf
-    rw [binderL_getD_fst_of_ge]
-    · lockstep
-    · scalar_tac
+  all_goals ind_dom_finish
 
 open Lockstep in
 @[lockstep] theorem struct_field_idx_of_ls

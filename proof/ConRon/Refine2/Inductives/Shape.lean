@@ -1249,4 +1249,74 @@ theorem absU32_eq_forallE_iff (a : Std.U32) :
   ⟨fun h => absU32_inj (h.trans etag_forallE_abs.symm),
    fun h => by subst h; exact etag_forallE_abs⟩
 
+/-! ## Round 5 slice 2: the counted recipe with an accumulator, the domain read -/
+
+open Lockstep in
+/-- The COUNTED cursor recursion with an accumulator: the port walks a `u64`
+cursor `i` up to `n` pushing onto `w`, the twin recurses on the count
+`n - i` from `i`.  A caller proves the stop and the step case, each by
+unfolding one equation on each side and `lockstep`, the induction hypothesis
+(at `i + 1`, any accumulator) in the context. -/
+theorem ls_counted {γ δ ω : Type} {pers : arena.store.PersTier} {R : γ → δ → Prop}
+    (n : Std.U64) (G : ω → Nat → Nat → AM δ)
+    (F : arena.monad.AState → Std.U64 → ω →
+      Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState))
+    (hstop : ∀ st lst (i : Std.U64) w, n.val ≤ i.val →
+      AStateRel₀ pers st lst → AStateInv pers st → LS pers R (F st i w) lst (G w 0 i.val))
+    (hstep : ∀ st lst (i : Std.U64) w (m : Nat), i.val < n.val → n.val - i.val = m + 1 →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      (∀ st' lst' (j : Std.U64) w', j.val = i.val + 1 →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers R (F st' j w') lst' (G w' m j.val)) →
+      LS pers R (F st i w) lst (G w (m + 1) i.val)) :
+    ∀ (i : Std.U64) st lst w, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers R (F st i w) lst (G w (n.val - i.val) i.val) := by
+  suffices H : ∀ (m : Nat) (i : Std.U64) st lst w, n.val - i.val = m →
+      AStateRel₀ pers st lst → AStateInv pers st → LS pers R (F st i w) lst (G w m i.val) by
+    intro i st lst w hrel hinv; exact H _ i st lst w rfl hrel hinv
+  intro m
+  induction m with
+  | zero =>
+    intro i st lst w hm hrel hinv
+    exact hstop st lst i w (by omega) hrel hinv
+  | succ m ih =>
+    intro i st lst w hm hrel hinv
+    exact hstep st lst i w m (by omega) hm hrel hinv
+      (fun st' lst' j w' hj hrel' hinv' => ih j st' lst' w' (by omega) hrel' hinv')
+
+/-- `binderL_getD_fst_of_lt` at the folded `absBinderL`. -/
+theorem absBinderL_getD_fst_of_lt (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (k : Nat) (hk : k < v.val.length) :
+    ((absBinderL v).getD k default).1 = absEIdx v.val[k].1 := by
+  rw [List.getD_eq_getElem _ _ (by simpa [absBinderL] using hk)]
+  simp [absBinderL]
+
+/-- `binderL_getD_fst_of_ge` at the folded `absBinderL`. -/
+theorem absBinderL_getD_fst_of_ge (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (k : Nat) (hk : v.val.length ≤ k) :
+    ((absBinderL v).getD k default).1 = absEIdx { word := 0#u32 } := by
+  rw [List.getD_eq_default _ _ (by simpa [absBinderL] using hk)]
+  rfl
+
+set_option hygiene false in
+/-- The port's `dom := if k < len then v[k].0 else EIdx(0)` against the
+twin's `(cbs.getD k default).1`, after `lockstep` stopped at the pair read
+(`hf : (let (e, _) := v[j]; dup2 e) = ok a`, or `hf : EIdx.of_word 0 = ok a`):
+both arms, then `lockstep` on. -/
+macro "ind_dom_finish" : tactic => `(tactic| first
+  | (have ha := let_pair_dup2_eq _ _ hf
+     subst ha
+     first | rw [binderL_getD_fst_of_lt] | rw [absBinderL_getD_fst_of_lt]
+     · casesm* (_ : Nat) = _ ∨ Std.Usize.max < _
+       all_goals first
+         | (exfalso; scalar_tac)
+         | (simp_all only [List.get_eq_getElem]; lockstep; done)
+     · casesm* (_ : Nat) = _ ∨ Std.Usize.max < _
+       all_goals scalar_tac)
+  | (simp only [arena.handle.EIdx.of_word, Result.ok.injEq] at hf
+     subst hf
+     first | rw [binderL_getD_fst_of_ge] | rw [absBinderL_getD_fst_of_ge]
+     · lockstep; done
+     · scalar_tac))
+
 end ConRon.Refine2
