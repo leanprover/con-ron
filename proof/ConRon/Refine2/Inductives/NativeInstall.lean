@@ -558,6 +558,24 @@ open Lockstep in
         (absU i)) :=
   LS.ofSim₀ fun _ h => native_field_unused_later_refines hrel hinv h
 
+/-- `nativeFamAppOkSpec` with its conjunction as the port's short-circuit
+chain (`fna.eq2(hd) && eidx_vec_beq(pre, fvs_p) && len == nP + nIdx`). -/
+theorem nativeFamAppOkSpec_port (fe₀ : IFEnv) (nP nIdx : Nat) (fvsP : List EIdx) (body hd : EIdx) :
+    nativeFamAppOkSpec fe₀ nP nIdx fvsP body hd = (do
+      let fn ← getAppFn coreWalkFuel body
+      let args ← getAppArgs coreWalkFuel body
+      if fn == hd then
+        if args.take nP == fvsP then
+          if args.length = nP + nIdx then idxArgsResolveSpec fe₀ (args.drop nP)
+          else pure false
+        else pure false
+      else pure false) := by
+  rw [nativeFamAppOkSpec]
+  refine am_bind_congr _ ?_; intro fn
+  refine am_bind_congr _ ?_; intro args
+  by_cases h1 : (fn == hd) = true <;> by_cases h2 : (args.take nP == fvsP) = true <;>
+    by_cases h3 : args.length = nP + nIdx <;> simp_all
+
 /-- `native_fam_app_ok` ⊑ `nativeOpenedOk`'s family-application test. -/
 theorem native_fam_app_ok_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     {n_p n_idx : Std.U64} {fvs_p : alloc.vec.Vec arena.handle.EIdx}
@@ -570,7 +588,15 @@ theorem native_fam_app_ok_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
     Sim₀ id pers lst o
       (nativeFamAppOkSpec lf0 (absU n_p) (absU n_idx) (absEIdxL fvs_p)
         (absEIdx body) (absEIdx hd)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_install.native_fam_app_ok, nativeFamAppOkSpec_port]
+  lockstep
+  all_goals
+    exfalso
+    have e := absEIdxL_of_takeEidx ‹ExprOps.absEIdxArr _ = takeEidx (ExprOps.absEIdxArr _) _›
+    simp only [absEIdxL] at e
+    simp_all
 
 open Lockstep in
 @[lockstep] theorem native_fam_app_ok_ls

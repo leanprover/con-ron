@@ -1390,4 +1390,20 @@ open Lockstep in
   rw [e, e]
   cases h' : decide (absEIdxL a = absEIdxL b) <;> simp_all
 
+/-- `takeEidx` is `List.take` on the array's list (the tier's copy of the
+Core regions' `takeEidx_toList'`, which is region-local). -/
+theorem ind_takeEidx_toList (xs : Array EIdx) (k : Nat) :
+    (takeEidx xs k).toList = xs.toList.take k := by
+  rw [takeEidx, ExprOps.eidxCopyUpto_toList xs k k 0 #[] (by omega)]
+  simp
+
+/-- The port's `take_eidx_n` fact (stated by `Tactic/Prims.lean` at arrays)
+read at the tier's lists. -/
+theorem absEIdxL_of_takeEidx {a b : alloc.vec.Vec arena.handle.EIdx} {n : Nat}
+    (h : ExprOps.absEIdxArr a = takeEidx (ExprOps.absEIdxArr b) n) :
+    absEIdxL a = (absEIdxL b).take n := by
+  have := congrArg Array.toList h
+  rw [ind_takeEidx_toList] at this
+  simpa [ExprOps.absEIdxArr, ExprOps.absEIdxL, absEIdxL] using this
+
 end ConRon.Refine2
