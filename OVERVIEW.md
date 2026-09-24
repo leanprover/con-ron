@@ -879,19 +879,21 @@ time and peak memory are secondary.  All runs are `--verified` release
 builds with mimalloc, on `lean4export` exports of Lean's `Init` (57 977
 declarations) and of Mathlib (691 128).  The table is one snapshot, taken on
 2026-09-24: con-ron at `c6e5f220`, con-leche at its pin `78ded4b6`, nanoda
-at `4c544ed`.  `Init` wall time is the range of three runs on a shared,
+at `4c544ed`.  The two con-ron `Init` instruction counts were re-taken
+later that day at `46450386`, after the bulk slot fill and the kept walk
+memos (−3.5 %); the other con-ron cells are still from `c6e5f220`.  `Init` wall time is the range of three runs on a shared,
 loaded machine; Mathlib was run once per checker, so it has no wall-time
 column.
 
 | | `Init` instructions | `Init` wall, peak RSS | Mathlib instructions | Mathlib peak RSS |
 |---|---:|---|---:|---:|
-| **con-ron**, one worker | 211.98 G | 21.2–21.9 s, 0.57–0.65 GB | 3 880 G | 6.89 GB |
-| **con-ron**, eight workers | 214.0–214.3 G | 5.4–5.7 s, 0.85–0.87 GB | 3 902 G | 7.44 GB |
+| **con-ron**, one worker | 204.62 G | 21.2–21.9 s, 0.57–0.65 GB | 3 880 G | 6.89 GB |
+| **con-ron**, eight workers | 206.20 G | 5.4–5.7 s, 0.85–0.87 GB | 3 902 G | 7.44 GB |
 | con-leche, one worker | 453.95 G | 41.9–43.4 s, 0.48–0.49 GB | 8 099 G | 8.70 GB |
 | nanoda, one worker | 231.25 G | 23.2–24.2 s, 0.36 GB | 6 057 G | 7.08 GB |
 
 Single-threaded, con-ron executes a little under half of con-leche's
-instructions on both exports, about nine tenths of nanoda's on `Init` and
+instructions on both exports, about 88 % of nanoda's on `Init` and
 two thirds of nanoda's on Mathlib.  Eight workers add about 1 % to the
 instruction count.  Every con-ron peak is within 3× con-leche's on the same
 export.  `scripts/bench-baselines.sh` measures con-ron and nanoda, and
