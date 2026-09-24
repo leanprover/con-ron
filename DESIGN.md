@@ -62423,6 +62423,67 @@ tainted / dead weight 198** → this slice **19 / 270 / 195** (gone:
 After merging `arena` `6296213a` (Inductives Modeled slice 3; `arena` alone:
 29 items / 291 tainted / dead weight 169): **25 / 274 / 166**.
 `scripts/gates.sh`: **all 16 OK**.  Submitted to the merge queue.
+#### Slice 2 (worktree `_tmp/wt-t2-chk-base5`, branch `t2-chk-base-5` off `arena` `bf376947`)
+
+**The two memoised guard walks** (item 3), on the shared tactic's `LSM`/`LSRM`
+(task #97-T2-TACTIC round 2 slice 4): each a fuel induction whose two cases are
+one `lockstep`, the port's `_node`/`_two`/`_binder` helpers unfolded in place,
+at `Lockstep.BoolMemoR` (answers equal, memos `LMemoRel`).
+`consts_resolve_f_go_ls` (`LSM`, at any `CoreCtx vis rf lf`; the front door
+passes `IFEnvInv.coreCtxAt`), `consts_resolve_f_fast_ls`,
+`all_level_params_defined_go_ls` (`LSRM`), `all_level_params_defined_ls`:
+axiom-clean.  The old `SimBM`/`SimBR` arm statements (`consts_resolve_f_{go,
+node,two}_refines`, `all_level_params_defined_{go,node,binder}_refines`, all
+`sorry`) are gone; `consts_resolve_f_node_refines`' `hnl` premise with them.
+
+**Divergence fixed in the twin — `constsResolveFGo` viewed the node twice**
+(once for the leaf test, again for the miss arm's dispatch); the port views it
+once and hands the view to `consts_resolve_f_node`.  The twin now binds
+`let v ← view h` and dispatches on `v` (`Arena/CheckerBase.lean`).  Theorem 1:
+`Bridge/Checker/Names.lean`'s `constsResolveFGo_run` loses its six
+second-view steps, nothing else.  `Checker/Spec.lean`'s `constsResolveFNodeSpec`
+and `constsResolveFGo_unfold` (the two-view transcription, no consumer left)
+deleted with their census line; `twin-lines update` relocated 35 citations.
+
+New prims: `memo_b_get_twin`, `level_all_params_defined_twin`,
+`prop_when_params_defined_twin`, `all_params_defined_list_twin` (with
+`all_params_defined_list_aux`, proved) in `Base`; in `Tactic/Prims.lean` the
+plain (uncached) readers with their answers' WF: `read_levels_ls`,
+`read_names_ls` (and `read_levels_wf`, `read_name_wf`, `read_names_from_wf`).
+
+**The rest of Base's frontier, all closed:**
+* `open_pis_at_fvars`, `open_pis_at_fvars_f_go`: induction on `n`, one
+  `lockstep` per case.
+* `is_eq_head` (glue: the port's `len == 1` against the twin's `length == 1`),
+  `eq_head_level_at` (the twin's `[l]` match against the port's length test
+  and `[0]` read: four glue cases after `lockstep`), `eq_head_level`.
+* `fvar_type_ds` (the port pushes onto `out` before recursing: relation
+  `absEIdxL a = absEIdxL out ++ b`, the recursive tail by hand;
+  `fvar_type_ds_ls` at the fresh vector), `doms_match_aux(_from)` (pure,
+  proved; `doms_match_aux_twin` the `TwinEq` pair).
+* `proj_rule_wf` and `check_proj_rule` with its five tails, each one
+  `lockstep` (`absBinderArr`, `ExprOps.absEIdxList` `local lockstep_simp` there;
+  the wf tail rewrites the twin's four inline guards to one bound conjunct,
+  the port's `proj_rule_wf`, by `bind_assoc`/`pure_bind` only).
+* `check_typed_list`, `check_annot_list`, `check_def_eq_list`: cursor
+  inductions, `lockstep` per case plus the IH applied at the port's `i + 1`.
+* Dead weight: `nidx_is_model_suffix` (the `nidx_is_proj_fn_shape` recipe),
+  `pi_result_sort` (lockstep read) proved; `vec_dup_range_refines`,
+  `value_kind_word_refines`, `unwrap_or_refines`, `Top`'s `cp_append_refines`
+  and `at_decl_text_refines` (no consumer; messages are not compared, DESIGN
+  §3.1) deleted.  `Inductives/Prims.lean`'s wrappers of the replaced
+  statements now point at the new lemmas; its `fvar_type_ds_ls` (a `sorry`'d
+  cursor form) deleted.
+
+`Checker/{Base,Top,Leaves}.lean` have no direct `sorry` left.
+
+Frontier: `arena` `bf376947` **23 items / 242 tainted / dead weight 166** →
+this slice **16 / 129 / 139**; no item in this lane's files.
+After merging `arena` `911d0d59`: **14 / 117 / 85**.  `scripts/gates.sh`: **all
+16 OK**.  Submitted to the merge queue.  (The Modeled lane's queued
+`t2-ind-mod-4` proves `doms_match_aux`/`all_params_defined_list` pairs of its
+own in `Inductives/PrimsModeled.lean`; this slice's, in `Base`, sit below it,
+so those can become aliases of these.)
 
 ### Task #97-T2-LOCKSTEP lane Inductives round 5 — the six timeouts split, the cursor/accumulator recipes, three `eidx_take_beq` divergences (2026-09-24, Opus under Fable)
 

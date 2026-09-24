@@ -1007,6 +1007,110 @@ theorem LS.ofSim₀WF {α β : Type} {A : α → β} {P : α → Prop} {pers : a
   LS.ofSim₀WF (fun _ hr => read_levels_m_run₀ hrel hinv hr)
     (fun _ hr a ha => (read_levels_m_wf hinv hr).1 a ha)
 
+/-! ### Plain (uncached) readers with their answers' well-formedness
+(task #97-T2-LOCKSTEP lane Checker Base/Top round 2: `all_level_params_defined`) -/
+
+theorem read_levels_wf {pers st} (hinv : AStateInv pers st) {h : arena.handle.LsIdx} {l}
+    (hrun : arena.monad.read_levels pers st h = ok (.Ok l)) : ConRon.Refine.LevelsWF l := by
+  rw [arena.monad.read_levels] at hrun
+  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.store.EStore.ls_s] at hn
+  have hn2 : n = st.store.lss := (Result.ok_injective hn).symm
+  subst hn2
+  obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hdw := denote_ls_wf hinv.store.lss hv
+  cases v with
+  | none =>
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨w, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [arena.monad.fail] at hrun
+    simp at hrun
+  | some x =>
+    simp only [Result.ok.injEq, core.result.Result.Ok.injEq] at hrun
+    subst hrun
+    exact hdw x rfl
+
+@[lockstep] theorem read_levels_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.LsIdx) :
+    LSR pers (fun a b => ConRon.Refine.LevelsWF a ∧ b = ConRon.Refine.absLevels a)
+      (arena.monad.read_levels pers st h) st lst (Arena.readLevels (absLsIdx h)) := by
+  intro o hm
+  have H := read_levels_run₀ hrel hinv hm
+  cases o with
+  | Err e => exact H
+  | Ok a =>
+    obtain ⟨lst', hx, h1, h2⟩ := H
+    exact ⟨_, lst', hx, ⟨read_levels_wf hinv hm, rfl⟩, h1, h2⟩
+
+theorem read_name_wf {pers st} (hinv : AStateInv pers st) {h : arena.handle.NIdx} {n}
+    (hrun : arena.monad.read_name pers st h = ok (.Ok n)) : ConRon.Refine.NameWF n := by
+  rw [arena.monad.read_name] at hrun
+  obtain ⟨ns, hns, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  rw [arena.store.EStore.ns] at hns
+  have hns2 : ns = st.store.lss.ls.ns := (Result.ok_injective hns).symm
+  subst hns2
+  obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hdw := denote_n_wf hinv.store.lss.lvl.ns hv
+  cases v with
+  | none =>
+    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨w, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [arena.monad.fail] at hrun
+    simp at hrun
+  | some x =>
+    simp only [Result.ok.injEq, core.result.Result.Ok.injEq] at hrun
+    subst hrun
+    exact hdw x rfl
+
+theorem read_names_from_wf {pers st} (hinv : AStateInv pers st)
+    {ks : alloc.vec.Vec arena.handle.NIdx} :
+    ∀ k (i : Std.Usize) (out : alloc.vec.Vec kernel.name.Name),
+      ks.length - i.val ≤ k → (∀ n ∈ out.val, ConRon.Refine.NameWF n) → ∀ {v},
+      arena.monad.read_names_from pers st ks i out = ok (.Ok v) →
+      ∀ n ∈ v.val, ConRon.Refine.NameWF n := by
+  intro k
+  induction k with
+  | zero =>
+    intro i out hk hout v hrun
+    rw [arena.monad.read_names_from.eq_def] at hrun; simp only [] at hrun
+    rw [if_pos (by scalar_tac)] at hrun
+    simp only [Result.ok.injEq, core.result.Result.Ok.injEq] at hrun
+    subst hrun; exact hout
+  | succ k ih =>
+    intro i out hk hout v hrun
+    rw [arena.monad.read_names_from.eq_def] at hrun; simp only [] at hrun
+    split at hrun
+    · simp only [Result.ok.injEq, core.result.Result.Ok.injEq] at hrun
+      subst hrun; exact hout
+    · obtain ⟨n, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      rcases r with x | e
+      · obtain ⟨out1, hout1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi2v : i2.val = i.val + 1 := by
+          have := ConRon.Refine.Nat.uadd_val hi2; simpa using this
+        refine ih i2 out1 (by scalar_tac) ?_ hrun
+        rw [ConRon.Refine.vec_push_val hout1]
+        intro m hm
+        rcases List.mem_append.mp hm with hm | hm
+        · exact hout m hm
+        · rw [List.mem_singleton.mp hm]; exact read_name_wf hinv hr
+      · simp at hrun
+
+@[lockstep] theorem read_names_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ks : alloc.vec.Vec arena.handle.NIdx) :
+    LSR pers (fun a b => ConRon.Refine.NamesWF a ∧ b = ConRon.Refine.absNames a)
+      (arena.monad.read_names pers st ks) st lst (Arena.readNames (ks.val.map absNIdx)) := by
+  intro o hm
+  have H := read_names_run₀ hrel hinv hm
+  cases o with
+  | Err e => exact H
+  | Ok a =>
+    obtain ⟨lst', hx, h1, h2⟩ := H
+    refine ⟨_, lst', hx, ⟨?_, rfl⟩, h1, h2⟩
+    rw [arena.monad.read_names] at hm
+    exact read_names_from_wf hinv _ _ _ le_rfl (by simp [alloc.vec.Vec.new]) hm
+
 theorem read_names_m_wf₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {ks : alloc.vec.Vec arena.handle.NIdx} {o}
     (hrun : arena.monad.read_names_m pers st ks = ok o) :

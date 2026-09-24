@@ -818,10 +818,7 @@ theorem constsResolveFGo_run {env : Env} {fe : IFEnv} :
         exact ⟨rfl, hr', hm⟩
       | none =>
         rw [hhit] at k1
-        obtain ⟨v2, s2, g2, k2⟩ := AM.bind_ok (α := ENodeView) k1
-        obtain ⟨rfl, hv2⟩ := viewE_run g2
-        rw [hv] at hv2
-        obtain rfl := (Option.some.inj hv2).symm
+        have k2 := k1
         obtain ⟨t2, s3, gX, rfl, rfl⟩ := lpdClose k2
         obtain ⟨rfl, hb, hm2⟩ := ih hok hp hie hm hxt gX
         exact ⟨rfl, hb, hm2.insert hd hb⟩
@@ -839,10 +836,7 @@ theorem constsResolveFGo_run {env : Env} {fe : IFEnv} :
         exact ⟨rfl, hr', hm⟩
       | none =>
         rw [hhit] at k1
-        obtain ⟨v2, s2, g2, k2⟩ := AM.bind_ok (α := ENodeView) k1
-        obtain ⟨rfl, hv2⟩ := viewE_run g2
-        rw [hv] at hv2
-        obtain rfl := (Option.some.inj hv2).symm
+        have k2 := k1
         obtain ⟨q1, s3, g3, k3⟩ :=
           AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k2
         obtain ⟨b1, tb1⟩ := q1
@@ -869,10 +863,7 @@ theorem constsResolveFGo_run {env : Env} {fe : IFEnv} :
         exact ⟨rfl, hr', hm⟩
       | none =>
         rw [hhit] at k1
-        obtain ⟨v2, s2, g2, k2⟩ := AM.bind_ok (α := ENodeView) k1
-        obtain ⟨rfl, hv2⟩ := viewE_run g2
-        rw [hv] at hv2
-        obtain rfl := (Option.some.inj hv2).symm
+        have k2 := k1
         obtain ⟨q1, s3, g3, k3⟩ :=
           AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k2
         obtain ⟨b1, tb1⟩ := q1
@@ -902,10 +893,7 @@ theorem constsResolveFGo_run {env : Env} {fe : IFEnv} :
         exact ⟨rfl, hr', hm⟩
       | none =>
         rw [hhit] at k1
-        obtain ⟨v2, s2, g2, k2⟩ := AM.bind_ok (α := ENodeView) k1
-        obtain ⟨rfl, hv2⟩ := viewE_run g2
-        rw [hv] at hv2
-        obtain rfl := (Option.some.inj hv2).symm
+        have k2 := k1
         obtain ⟨q1, s3, g3, k3⟩ :=
           AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k2
         obtain ⟨b1, tb1⟩ := q1
@@ -935,10 +923,7 @@ theorem constsResolveFGo_run {env : Env} {fe : IFEnv} :
         exact ⟨rfl, hr', hm⟩
       | none =>
         rw [hhit] at k1
-        obtain ⟨v2, s2, g2, k2⟩ := AM.bind_ok (α := ENodeView) k1
-        obtain ⟨rfl, hv2⟩ := viewE_run g2
-        rw [hv] at hv2
-        obtain rfl := (Option.some.inj hv2).symm
+        have k2 := k1
         obtain ⟨q1, s3, g3, k3⟩ :=
           AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k2
         obtain ⟨b1, tb1⟩ := q1
@@ -968,10 +953,7 @@ theorem constsResolveFGo_run {env : Env} {fe : IFEnv} :
         exact ⟨rfl, hr', hm⟩
       | none =>
         rw [hhit] at k1
-        obtain ⟨v2, s2, g2, k2⟩ := AM.bind_ok (α := ENodeView) k1
-        obtain ⟨rfl, hv2⟩ := viewE_run g2
-        rw [hv] at hv2
-        obtain rfl := (Option.some.inj hv2).symm
+        have k2 := k1
         obtain ⟨q1, s3, g3, k3⟩ :=
           AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k2
         obtain ⟨b1, tb1⟩ := q1
