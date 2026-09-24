@@ -50,14 +50,216 @@ attribute [local irreducible] Arena.isDefEqCore Arena.inferTypeCore Arena.ensure
     absU arena.inductives.sum_install.POS_WALK_FUEL = 1024 := by
   rw [arena.inductives.sum_install.POS_WALK_FUEL]; rfl
 
+/-! ## The binders' canonical metas (`PropWhenWF`, the erased subtype invariant)
+
+The telescope walks push `(dom, meta)` pairs whose `meta` comes from a view
+(`EViewMetaWF`, from `AStateInv`); `close_telescope` interns them back, which
+needs the fact (the cleanup lane's statement change).  One side-tier move:
+a pushed vector's binders are canonical when the old ones and the pushed
+meta are. -/
+
+theorem bwf_push {out o : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {d : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
+    (hv : o.val = out.val ++ [(d, m)]) (hout : ∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw)
+    (hm : ConRon.Refine.PropWhenWF m.pw) : ∀ p ∈ o.val, ConRon.Refine.PropWhenWF p.2.pw := by
+  intro p hp
+  rw [hv] at hp
+  rcases List.mem_append.mp hp with hp | hp
+  · exact hout p hp
+  · rw [List.mem_singleton.mp hp]; exact hm
+
+theorem wf_of_view_some {ty b : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
+    (h : ∀ t : arena.handle.EIdx × arena.handle.EIdx × kernel.expr.BinderMeta,
+      some (ty, b, m) = some t → ConRon.Refine.PropWhenWF t.2.2.pw) :
+    ConRon.Refine.PropWhenWF m.pw := h _ rfl
+
+
+
+
+/-! ### `strip_pis` and `binder_copy_from` keep the metas canonical (Rust-only)
+
+`Frontend/ProjRec.lean` carries the same two list facts downstream of this
+file (`binder_copy_from_val`, `cons_binder_val`); they are restated here. -/
+
+namespace IndInstPrims
+open Lockstep
+
+theorem binder_copy_from_val' (xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
+    ∀ (n : Nat) (i : Std.Usize) (out r : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)),
+      xs.val.length - i.val = n →
+      arena.expr_ops.binder_copy_from xs i out = ok r → r.val = out.val ++ xs.val.drop i.val := by
+  intro n
+  induction n with
+  | zero =>
+    intro i out r hn h
+    rw [arena.expr_ops.binder_copy_from.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+    subst h
+    rw [List.drop_eq_nil_of_le (by omega)]
+    simp
+  | succ k ih =>
+    intro i out r hn h
+    rw [arena.expr_ops.binder_copy_from.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
+    have hxi : i.val < xs.val.length := by omega
+    obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨e, bm⟩ := p
+    obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨bm1, hbm1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hb, hpv⟩ := ExprOps.vecIndexAt hp
+    have hee : e1 = e := dupId_eidx e e1 he1
+    have hbb : bm1 = bm := ConRon.Refine.Expr.binder_meta_dup_eq hbm1
+    have hov : out1.val = out.val ++ [(e1, bm1)] := ConRon.Refine.vec_push_val hout1
+    have hi2v : i2.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi2).trans (by simp)
+    rw [ih i2 out1 r (by omega) h, hi2v, hov, hee, hbb, List.drop_eq_getElem_cons hxi, hpv]
+    simp
+
+theorem cons_binder_val' {ty : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
+    {xs r : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    (h : arena.expr_ops.cons_binder ty m xs = ok r) : r.val = (ty, m) :: xs.val := by
+  rw [arena.expr_ops.cons_binder] at h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨bm, hbm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨out, hout, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hee : e = ty := dupId_eidx ty e he
+  have hbb : bm = m := ConRon.Refine.Expr.binder_meta_dup_eq hbm
+  have hov : out.val = [(e, bm)] := ConRon.Refine.push_new_val hout
+  rw [binder_copy_from_val' xs _ 0#usize out r rfl h, hov, hee, hbb]
+  simp
+
+/-- `strip_pis`' binders carry canonical metas (each read by `view_bind`, whose
+metas `AStateInv` makes canonical). -/
+theorem strip_pis_wf {pers st} (hinv : AStateInv pers st) :
+    ∀ (n : Nat) (k : Std.U64) (h : arena.handle.EIdx) q, k.val = n →
+      arena.expr_ops.strip_pis pers st k h = ok (.Ok (some q)) →
+      ∀ p ∈ q.1.val, ConRon.Refine.PropWhenWF p.2.pw := by
+  intro n
+  induction n with
+  | zero =>
+    intro k h q hn hr
+    rw [arena.expr_ops.strip_pis, if_pos (by scalar_tac)] at hr
+    obtain ⟨e, -, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+    cases Result.ok_injective hr
+    intro x hx
+    simp [alloc.vec.Vec.new] at hx
+  | succ k' ih =>
+    intro k h q hn hr
+    rw [arena.expr_ops.strip_pis, if_neg (by scalar_tac)] at hr
+    obtain ⟨tg, -, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+    split at hr
+    · obtain ⟨o, ho, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+      cases o with
+      | none =>
+        simp only at hr
+        rw [arena.monad.fail_dangling_e] at hr
+        obtain ⟨sl, -, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+        obtain ⟨v, -, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+        cases fail_run hr
+      | some t =>
+        obtain ⟨ty, b, m⟩ := t
+        simp only at hr
+        have hm := view_bind_meta_wf hinv ho
+        obtain ⟨i1, hi1, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+        obtain ⟨r, hrr, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+        cases r with
+        | Err _ => cases Result.ok_injective hr
+        | Ok o1 =>
+          cases o1 with
+          | none => cases Result.ok_injective hr
+          | some p =>
+            obtain ⟨v, e⟩ := p
+            simp only at hr
+            obtain ⟨v1, hv1, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
+            cases Result.ok_injective hr
+            have hi1v : i1.val = k' := by
+              have := (ConRon.Refine.Nat.usub_val hi1).2; rw [this, hn]; rfl
+            have ihv := ih i1 b (v, e) hi1v hrr
+            intro x hx
+            rw [cons_binder_val' hv1] at hx
+            rcases List.mem_cons.mp hx with rfl | hx
+            · exact hm
+            · exact ihv x hx
+    · cases Result.ok_injective hr
+
+/-- `strip_pis` with its binders' canonical metas (for the lockstep zip). -/
+theorem strip_pis_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : Std.U64) (h : arena.handle.EIdx) :
+    LSR pers (fun a b => b = ExprOps.absStrip a ∧
+        ∀ q, a = some q → ∀ p ∈ q.1.val, ConRon.Refine.PropWhenWF p.2.pw)
+      (arena.expr_ops.strip_pis pers st k h) st lst
+      (stripPis (absU k) (absEIdx h)) := by
+  intro o hm
+  have := ExprOps.strip_pis_ls hrel hinv k h o hm
+  cases o with
+  | Err e => exact this
+  | Ok a =>
+    obtain ⟨b, lst', hx, hb, hr, hi⟩ := this
+    exact ⟨b, lst', hx, ⟨hb, fun q hq => strip_pis_wf hinv _ k h q rfl (hq ▸ hm)⟩, hr, hi⟩
+
+/-- `binder_copy_from` with the list fact the canonical metas need. -/
+theorem binder_copy_from_wf_spec
+    (xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (i : Std.Usize)
+    (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
+    LSP (arena.expr_ops.binder_copy_from xs i out)
+      (fun r => ExprOps.absBinderL r = ExprOps.absBinderL out ++ (ExprOps.absBinderL xs).drop i.val ∧
+        r.val = out.val ++ xs.val.drop i.val) :=
+  fun r h => ⟨ExprOps.binder_copy_from_refines h, binder_copy_from_val' xs _ i out r rfl h⟩
+
+end IndInstPrims
+
+theorem bwf_of_some {v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {e : arena.handle.EIdx}
+    (h : ∀ q : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta) × arena.handle.EIdx,
+      some (v, e) = some q → ∀ p ∈ q.1.val, ConRon.Refine.PropWhenWF p.2.pw) :
+    ∀ p ∈ v.val, ConRon.Refine.PropWhenWF p.2.pw := h _ rfl
+
+theorem bwf_new : ∀ p ∈ (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)).val,
+    ConRon.Refine.PropWhenWF p.2.pw := by
+  intro p hp; simp [alloc.vec.Vec.new] at hp
+
+theorem bwf_append' {X : Prop} {r a b : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {i : Nat} (hv : X ∧ r.val = a.val ++ b.val.drop i)
+    (ha : ∀ p ∈ a.val, ConRon.Refine.PropWhenWF p.2.pw)
+    (hb : ∀ p ∈ b.val, ConRon.Refine.PropWhenWF p.2.pw) :
+    ∀ p ∈ r.val, ConRon.Refine.PropWhenWF p.2.pw := by
+  intro p hp
+  rw [hv.2] at hp
+  rcases List.mem_append.mp hp with hp | hp
+  · exact ha p hp
+  · exact hb p (List.mem_of_mem_drop hp)
+
+theorem bwf_append {r a b : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {i : Nat} (hv : r.val = a.val ++ b.val.drop i)
+    (ha : ∀ p ∈ a.val, ConRon.Refine.PropWhenWF p.2.pw)
+    (hb : ∀ p ∈ b.val, ConRon.Refine.PropWhenWF p.2.pw) :
+    ∀ p ∈ r.val, ConRon.Refine.PropWhenWF p.2.pw := by
+  intro p hp
+  rw [hv] at hp
+  rcases List.mem_append.mp hp with hp | hp
+  · exact ha p hp
+  · exact hb p (List.mem_of_mem_drop hp)
+
+
+local macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| first
+      | exact bwf_new
+      | (apply bwf_of_some; assumption)
+      | (apply bwf_append <;> assumption)
+      | (apply bwf_append' <;> assumption)
+      | (apply bwf_push; all_goals first | assumption | (simp only [Lockstep.EViewMetaWF] at *; assumption) | (apply wf_of_view_some; assumption) | (subst_vars; simpa using ‹ConRon.Refine.PropWhenWF _›)))
+
 /-! ## The type former's stage -/
 
 theorem whnf_telescope_aux (m : Nat) :
     ∀ {pers st lst} {vis : Std.U64} {rf lf} {mode : kernel.env.CheckMode} {i n : Std.U64}
       {e : arena.handle.EIdx} {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)},
       n.val = m → AStateRel₀ pers st lst → AStateInv pers st → IFEnvRelI rf lf →
-      absU vis = lf.visibleBelow →
-      Lockstep.LS pers (fun a b => b = (absBinderL a.1, absLIdx a.2))
+      absU vis = lf.visibleBelow → (∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw) →
+      Lockstep.LS pers (fun r b => b = (absBinderL r.1, absLIdx r.2) ∧
+          ∀ p ∈ r.1.val, ConRon.Refine.PropWhenWF p.2.pw)
         (arena.inductives.sum_install.whnf_telescope pers vis st mode rf i n e out) lst
         (do
           let q ← whnfTelescope (ConRon.Refine.absMode mode) lf (absU i) (absU n)
@@ -65,12 +267,12 @@ theorem whnf_telescope_aux (m : Nat) :
           pure (absBinderL out ++ q.1, q.2)) := by
   induction m with
   | zero =>
-    intro pers st lst vis rf lf mode i n e out hn hrel hinv hfe hvis
+    intro pers st lst vis rf lf mode i n e out hn hrel hinv hfe hvis hout
     rw [arena.inductives.sum_install.whnf_telescope, show absU n = 0 from hn, whnfTelescope]
     simp only [bind_assoc]
     lockstep
   | succ m ih =>
-    intro pers st lst vis rf lf mode i n e out hn hrel hinv hfe hvis
+    intro pers st lst vis rf lf mode i n e out hn hrel hinv hfe hvis hout
     rw [arena.inductives.sum_install.whnf_telescope, show absU n = m + 1 from hn, whnfTelescope]
     have hn1 : 1 ≤ n.val := by omega
     obtain rfl : m = n.val - 1 := by omega
@@ -97,7 +299,7 @@ theorem whnf_telescope_refines {pers st lst} {vis : Std.U64} {rf lf}
         let q ← whnfTelescope (ConRon.Refine.absMode mode) lf (absU i) (absU n)
           (absEIdx e)
         pure (absBinderL out ++ q.1, q.2)) := by
-  exact Lockstep.LS.toSim₀ (whnf_telescope_aux _ rfl hrel hinv hfe hvis) hrun
+  exact Lockstep.LS.toSimRel₀ (whnf_telescope_aux _ rfl hrel hinv hfe hvis hout) hrun
 
 open Lockstep in
 @[lockstep] theorem whnf_telescope_ls
@@ -667,8 +869,9 @@ theorem norm_field_doms_aux (m : Nat) :
       {t : arena.handle.NIdx} {i n : Std.U64} {h : arena.handle.EIdx}
       {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)},
       n.val = m → AStateRel₀ pers st lst → AStateInv pers st → IFEnvRelI rf lf →
-      absU vis = lf.visibleBelow →
-      Lockstep.LS pers (fun a b => b = (absBinderL a.1, absEIdx a.2))
+      absU vis = lf.visibleBelow → (∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw) →
+      Lockstep.LS pers (fun a b => b = (absBinderL a.1, absEIdx a.2) ∧
+          ∀ p ∈ a.1.val, ConRon.Refine.PropWhenWF p.2.pw)
         (arena.inductives.sum_install.norm_field_doms pers vis st mode rf t i n h out) lst
         (do
           let q ← normFieldDoms (ConRon.Refine.absMode mode) lf (absNIdx t) (absU i)
@@ -676,12 +879,12 @@ theorem norm_field_doms_aux (m : Nat) :
           pure (absBinderL out ++ q.1, q.2)) := by
   induction m with
   | zero =>
-    intro pers st lst vis rf lf mode t i n h out hn hrel hinv hfe hvis
+    intro pers st lst vis rf lf mode t i n h out hn hrel hinv hfe hvis hout
     rw [arena.inductives.sum_install.norm_field_doms, if_pos (by scalar_tac),
       show absU n = 0 from hn, normFieldDoms]
     lockstep
   | succ m ih =>
-    intro pers st lst vis rf lf mode t i n h out hn hrel hinv hfe hvis
+    intro pers st lst vis rf lf mode t i n h out hn hrel hinv hfe hvis hout
     rw [arena.inductives.sum_install.norm_field_doms, if_neg (by scalar_tac),
       show absU n = m + 1 from hn, normFieldDoms]
     have hn1 : 1 ≤ n.val := by omega
@@ -699,14 +902,16 @@ theorem norm_field_doms_refines {pers st lst} {vis : Std.U64} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rf lf)
     (hvis : absU vis = lf.visibleBelow)
+    (hout : ∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw)
     (hrun : arena.inductives.sum_install.norm_field_doms pers vis st mode rf t i n h
       out = ok o) :
-    Sim₀ (fun r => (absBinderL r.1, absEIdx r.2)) pers lst o
+    SimRel₀ (fun r b => b = (absBinderL r.1, absEIdx r.2) ∧
+        ∀ p ∈ r.1.val, ConRon.Refine.PropWhenWF p.2.pw) pers lst o
       (do
         let q ← normFieldDoms (ConRon.Refine.absMode mode) lf (absNIdx t) (absU i)
           (absU n) (absEIdx h)
         pure (absBinderL out ++ q.1, q.2)) := by
-  exact Lockstep.LS.toSim₀ (norm_field_doms_aux _ rfl hrel hinv hfe hvis) hrun
+  exact Lockstep.LS.toSimRel₀ (norm_field_doms_aux _ rfl hrel hinv hfe hvis hout) hrun
 
 open Lockstep in
 @[lockstep] theorem norm_field_doms_ls
@@ -721,13 +926,15 @@ open Lockstep in
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = (fun r => (absBinderL r.1, absEIdx r.2)) a) (arena.inductives.sum_install.norm_field_doms pers vis st mode rf t i n h out) lst
+    (hvis : absU vis = lf.visibleBelow)
+    (hout : ∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw) :
+    LS pers (fun r b => b = (absBinderL r.1, absEIdx r.2) ∧
+        ∀ p ∈ r.1.val, ConRon.Refine.PropWhenWF p.2.pw) (arena.inductives.sum_install.norm_field_doms pers vis st mode rf t i n h out) lst
       (do
         let q ← normFieldDoms (ConRon.Refine.absMode mode) lf (absNIdx t) (absU i)
           (absU n) (absEIdx h)
         pure (absBinderL out ++ q.1, q.2)) :=
-  LS.ofSim₀ fun _ h => norm_field_doms_refines hrel hinv hfe hvis h
+  LS.ofSimRel₀ fun _ h => norm_field_doms_refines hrel hinv hfe hvis hout h
 
 /-- `zip_fvar_doms` ⊑ `zipFvarDoms` from the cursor on, with the accumulated
 pairs in front.  The Rust takes `&AState` and can decline, with no state in the
@@ -738,20 +945,22 @@ theorem zip_fvar_doms_aux (m : Nat) :
       {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)} {i : Std.Usize}
       {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)},
       xs.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
-      Lockstep.LSR pers (fun a b => b = absBinderL a)
+      (∀ p ∈ bs.val, ConRon.Refine.PropWhenWF p.2.pw) →
+      (∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw) →
+      Lockstep.LSR pers (fun a b => b = absBinderL a ∧ ∀ p ∈ a.val, ConRon.Refine.PropWhenWF p.2.pw)
         (arena.inductives.sum_install.zip_fvar_doms pers st xs bs i out) st lst
         (do pure (absBinderL out ++
           (← zipFvarDoms (absEIdxLFrom xs i) (absBinderLFrom bs i)))) := by
   induction m with
   | zero =>
-    intro pers st lst xs bs i out hn hrel hinv
+    intro pers st lst xs bs i out hn hrel hinv hbs hout
     apply Lockstep.LSR.of_LS
     rw [arena.inductives.sum_install.zip_fvar_doms, if_pos (by scalar_tac), absEIdxLFrom,
       vecFrom_nil _ _ _ (by omega)]
     simp only [zipFvarDoms]
     lockstep
   | succ m ih =>
-    intro pers st lst xs bs i out hn hrel hinv
+    intro pers st lst xs bs i out hn hrel hinv hbs hout
     apply Lockstep.LSR.of_LS
     rw [arena.inductives.sum_install.zip_fvar_doms, if_neg (by scalar_tac), absEIdxLFrom,
       vecFrom_cons _ _ _ (by omega)]
@@ -761,6 +970,7 @@ theorem zip_fvar_doms_aux (m : Nat) :
       lockstep
       -- the port's `let (_, bm) := bs[i]` (a tuple pattern on a read value)
       all_goals
+        have hq := hbs _ (List.getElem_mem hb)
         generalize (bs.val)[i.val] = q at *
         obtain ⟨q1, q2⟩ := q
         lockstep
@@ -772,12 +982,14 @@ theorem zip_fvar_doms_refines {pers st lst} {xs : alloc.vec.Vec arena.handle.EId
     {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {i : Std.Usize}
     {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    Lockstep.LSR pers (fun a b => b = absBinderL a)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hbs : ∀ p ∈ bs.val, ConRon.Refine.PropWhenWF p.2.pw)
+    (hout : ∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw) :
+    Lockstep.LSR pers (fun a b => b = absBinderL a ∧ ∀ p ∈ a.val, ConRon.Refine.PropWhenWF p.2.pw)
       (arena.inductives.sum_install.zip_fvar_doms pers st xs bs i out) st lst
       (do pure (absBinderL out ++
         (← zipFvarDoms (absEIdxLFrom xs i) (absBinderLFrom bs i)))) :=
-  zip_fvar_doms_aux _ rfl hrel hinv
+  zip_fvar_doms_aux _ rfl hrel hinv hbs hout
 
 open Lockstep in
 @[lockstep] theorem zip_fvar_doms_ls
@@ -787,11 +999,13 @@ open Lockstep in
     {i : Std.Usize}
     {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absBinderL a) (arena.inductives.sum_install.zip_fvar_doms pers st xs bs i out) st lst
+    (hinv : AStateInv pers st)
+    (hbs : ∀ p ∈ bs.val, ConRon.Refine.PropWhenWF p.2.pw)
+    (hout : ∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw) :
+    LSR pers (fun a b => b = absBinderL a ∧ ∀ p ∈ a.val, ConRon.Refine.PropWhenWF p.2.pw) (arena.inductives.sum_install.zip_fvar_doms pers st xs bs i out) st lst
       (do pure (absBinderL out ++
         (← zipFvarDoms (absEIdxLFrom xs i) (absBinderLFrom bs i)))) :=
-  zip_fvar_doms_refines hrel hinv
+  zip_fvar_doms_refines hrel hinv hbs hout
 
 open scoped ConRon.Refine2.IndInstPrims in
 /-- `norm_ctor_val` ⊑ `normCtorVal` — the checked constructor with its field
@@ -809,6 +1023,14 @@ theorem norm_ctor_val_refines {pers st lst} {vis : Std.U64} {rf lf}
       (normCtorVal (ConRon.Refine.absMode mode) lf (absNIdx t) (absU n_p) (absU n_f)
         (absIConstantVal cv_c) (absIConstantVal cv_ca)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
+  -- the canonical-meta forms of two callees, as local candidates (tried before
+  -- the registered lemmas)
+  have hsp : ∀ {st lst} (k : Std.U64) (h : arena.handle.EIdx), AStateRel₀ pers st lst →
+      AStateInv pers st → Lockstep.LSR pers (fun a b => b = ExprOps.absStrip a ∧
+        ∀ q, a = some q → ∀ p ∈ q.1.val, ConRon.Refine.PropWhenWF p.2.pw)
+        (arena.expr_ops.strip_pis pers st k h) st lst (stripPis (absU k) (absEIdx h)) :=
+    fun k h hrel hinv => IndInstPrims.strip_pis_wf_ls hrel hinv k h
+  have hbc := IndInstPrims.binder_copy_from_wf_spec
   rw [arena.inductives.sum_install.norm_ctor_val, normCtorVal]
   lockstep
 
