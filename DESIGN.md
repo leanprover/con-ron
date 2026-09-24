@@ -62913,6 +62913,29 @@ NativeInstallF 1 → 0).
 * Local `irreducible` needed again for `lockstep_congr`'s `rfl`:
   `Arena.structRecTyR` (at `check_native_rec_ty`), `Arena.checkNativeTable`,
   `Arena.sumRules` (at the tail install), the three knot entries file-wide.
+* **The bounce (slice 1, `70ccb611`) and the telescope statements.**  The
+  cleanup lane's `whnf_telescope`/`close_telescope` statements carry the
+  binders' `PropWhenWF` (`close_telescope` re-interns each meta, which the
+  intern relation needs canonical).  Adapted, both slices resubmitted as one
+  branch: `whnf_telescope`, `norm_field_doms`, `zip_fvar_doms` conclude the
+  output binders' `PropWhenWF` from the accumulator's (premise) and the
+  view's (`EViewMetaWF` / `view_bind_ls`'s conjunct); `norm_ctor_val`
+  supplies `close_telescope`'s from them and from `strip_pis` —
+  `strip_pis_wf` (Rust-only: each binder read by `view_bind`, canonical by
+  `AStateInv`) and `binder_copy_from_val'`/`cons_binder_val'` (the list
+  facts `Frontend/ProjRec.lean` states downstream of this file, restated).
+  The two strengthened callee forms are LOCAL hypotheses of that proof (the
+  tactic tries local candidates first), not global `@[lockstep]` lemmas; one
+  `local macro_rules` side extension in SumInstall closes the binder facts
+  (`bwf_push`/`bwf_append'`/`bwf_of_some`/`bwf_new`).  A side extension
+  must not use `‹…›` or `by assumption` in a term: their failure is recovered
+  to `sorry` with an error logged, so the alternative "succeeds".
+
+**Frontier** at the resubmitted tip (`arena` `a1faca8c` merged): **9 items
+in 3 modules, 124 tainted, dead weight 3** — none in the lane's files; the
+false `intern_e_{lam,forall_e}_ls` (Tactic/Prims) and the StructParts/
+NativeParts walks are what is left.
+
 
 ### Task #97-T2-LOCKSTEP lane Inductives Modeled round 2 — Modeled.lean sorry-free; the tactic workarounds dropped (2026-09-24, Opus under Fable)
 
