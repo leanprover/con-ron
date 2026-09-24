@@ -61781,6 +61781,20 @@ its own output environment (a Rust-side frame fact beside `IFEnvInv`);
 the popped list as the port does.  I recommend (a).  `check_native` stays
 `sorry` until then.
 
+**Scoping.**  The four new side alternatives live in `scoped macro_rules`
+under `ConRon.Refine2.IndSide`, opened by the lane's own files only: unscoped,
+they made `Frontend/ProjRec.lean` (which imports `NativeParts`/`StructParts`)
+time out at its `proj_rec_owners` zip, since every failing side goal there
+paid for them.  The tag iffs (`forallE_eq_absU32_iff` …) are plain theorems
+for the same reason.
+
+**Frontier** (`scripts/frontier.sh --summary ConRon.Capstone.model_exists
+ConRon.Capstone.no_False_declaration`): at the start (`10aa2a97`) **37 items in
+16 modules, 293 tainted, dead weight 304**; at the submitted tip (`arena`
+`5e671407` merged) **27 items in 11 modules, 273 tainted, dead weight 180**.
+This lane's items left the frontier (`native_shape_elim`, `native_counts`);
+`struct_parts_core` is reached now; `check_native` waits on the ruling above.
+
 **Tactic notes (worked around locally; for the tactic owner).**
 * A Rust `let (e, _) ← v[i]; dup2 e` inside an `if` the tactic distributes
   leaves `(let (e, _) := v[i]; dup2 e) = ok a` as a kept equation (a `match`
