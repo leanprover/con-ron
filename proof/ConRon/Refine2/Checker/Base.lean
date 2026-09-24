@@ -1306,9 +1306,24 @@ theorem consts_resolve_aux (n : Nat) :
 
 /-! ## The two memoised guard walks
 
-Both thread a `HashMap2<EIdx, bool>` exactly as `expr_ops`' three memoised
-walks do; `Refine2/Checker/Shape.lean`'s `SimBM` / `SimBR` are the two shapes
-(the second walk reads the store and interns nothing, so it is a reader). -/
+Both thread a `HashMap2<EIdx, bool>` BESIDE the `Result` (`(Result bool,
+AState, memo)` / `(Result bool, memo)`): the shared tactic's `LSM` (state walk)
+and `LSRM` (reader) judgements, at `BoolMemoR` — the answer equal, the memos
+related.  Each is a fuel induction whose two cases are one `lockstep` each,
+the port's node/two/binder helpers unfolded in place (task #97-T2-LOCKSTEP
+lane Checker Base/Top round 2). -/
+
+namespace Lockstep
+
+/-- The answer-and-memo relation of the tier's `Bool`-memo walks. -/
+abbrev BoolMemoR (p : Bool × ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+    (b : Bool × Std.HashMap EIdx Bool) : Prop :=
+  b.1 = p.1 ∧ ExprOps.LMemoRel p.2 b.2
+
+end Lockstep
+
+section MemoWalks
+open Lockstep
 
 /-- `memo_b_get` is the walk's `memo[h]?` — extraction rule 5's own function. -/
 theorem memo_b_get_refines {rm lm} {k : arena.handle.EIdx} {o}
@@ -1334,69 +1349,43 @@ theorem memo_b_get_refines {rm lm} {k : arena.handle.EIdx} {o}
     subst h2
     rfl
 
-/-- `consts_resolve_f_go` ⊑ `constsResolveFGo`.  Finding 10's `hvis`. -/
-theorem consts_resolve_f_go_refines {pers st lst} {vis : Std.U64} {rf lf}
-    {rm lm} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hm : ExprOps.LMemoRel rm lm)
-    (hrun : arena.checker_base.consts_resolve_f_go pers vis st rf rm fuel h = ok o) :
-    SimBM id pers lst o
-      (constsResolveFGo (lf.restrictTo (absU vis)) lm (absU fuel) (absEIdx h)) := by
-  sorry
+@[lockstep] theorem memo_b_get_twin {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool}
+    {lm : Std.HashMap EIdx Bool} {k : arena.handle.EIdx} (hm : ExprOps.LMemoRel rm lm) :
+    LSP (arena.checker_base.memo_b_get rm k) (fun o => TwinEq (lm[absEIdx k]?) o) :=
+  fun _ h => (memo_b_get_refines hm h).symm
 
-/-- `consts_resolve_f_node` is `consts_resolve_f_go`'s miss arm past the
-`view` (extraction rule 5), stated against the twin's arm at that view.
+/-- `consts_resolve_f_go` ⊑ `constsResolveFGo`, by induction on the fuel, at
+any twin environment the port's `(vis, rf)` is a `CoreCtx` of (finding 10's
+`vis`: the caller passes `lf.restrictTo (absU vis)`). -/
+theorem consts_resolve_f_go_aux (n : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+      (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool) (lm : Std.HashMap EIdx Bool)
+      (fuel : Std.U64) (h : arena.handle.EIdx),
+      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis rf lf →
+      ExprOps.LMemoRel rm lm →
+      LSM pers BoolMemoR (arena.checker_base.consts_resolve_f_go pers vis st rf rm fuel h) lst
+        (constsResolveFGo lf lm n (absEIdx h)) := by
+  induction n with
+  | zero =>
+    intro pers st lst vis rf lf rm lm fuel h hn hrel hinv hctx hm
+    rw [arena.checker_base.consts_resolve_f_go, constsResolveFGo]
+    lockstep
+  | succ m ih =>
+    intro pers st lst vis rf lf rm lm fuel h hn hrel hinv hctx hm
+    rw [arena.checker_base.consts_resolve_f_go, constsResolveFGo]
+    unfold arena.checker_base.consts_resolve_f_node arena.checker_base.consts_resolve_f_two
+    lockstep
 
-`hnl`: the view is not one of the four leaves.  The Rust answers `false` at a
-leaf view and the twin's transcription calls `constsResolve` (`true` at a
-`bvar`), so the statement is false there; its one caller,
-`consts_resolve_f_go`, reaches it only at the non-leaf views (a Rust-input
-fact; coordinator's ruling). -/
-theorem consts_resolve_f_node_refines {pers st lst} {vis : Std.U64} {rf lf}
-    {rm lm} {fuel : Std.U64} {v : arena.store.ENodeView} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hm : ExprOps.LMemoRel rm lm)
-    (hview : lst.store.view (absEIdx h) = some (absENodeView v))
-    (hnl : match v with
-      | .BVar _ | .Sort _ | .Const _ _ | .Lit _ => False
-      | _ => True)
-    (hrun : arena.checker_base.consts_resolve_f_node pers vis st rf rm fuel v = ok o) :
-    SimBM id pers lst o
-      (constsResolveFNodeSpec (lf.restrictTo (absU vis)) lm (absU fuel) (absEIdx h)
-        (absENodeView v)) := by
-  sorry
-
-/-- `consts_resolve_f_two` is the two-child arms' pair, in the twin's order
-and WITHOUT a short-circuit (the twin's `.app` arm walks both and `&&`s). -/
-theorem consts_resolve_f_two_refines {pers st lst} {vis : Std.U64} {rf lf}
-    {rm lm} {fuel : Std.U64} {a b : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hm : ExprOps.LMemoRel rm lm)
-    (hrun : arena.checker_base.consts_resolve_f_two pers vis st rf rm fuel a b = ok o) :
-    SimBM id pers lst o
-      (do
-        let (b₁, memo) ←
-          constsResolveFGo (lf.restrictTo (absU vis)) lm (absU fuel) (absEIdx a)
-        let (b₂, memo) ←
-          constsResolveFGo (lf.restrictTo (absU vis)) memo (absU fuel) (absEIdx b)
-        pure (b₁ && b₂, memo)) := by
-  sorry
+@[lockstep] theorem consts_resolve_f_go_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool} {lm : Std.HashMap EIdx Bool}
+    (hm : ExprOps.LMemoRel rm lm) (fuel : Std.U64) (h : arena.handle.EIdx) :
+    LSM pers BoolMemoR (arena.checker_base.consts_resolve_f_go pers vis st rf rm fuel h) lst
+      (constsResolveFGo lf lm (absU fuel) (absEIdx h)) :=
+  consts_resolve_f_go_aux _ rm lm fuel h rfl hrel hinv hctx hm
 
 /-- `consts_resolve_f_fast` ⊑ `constsResolveFFast` — one memoised DAG walk,
 which is what every front door below calls. -/
-theorem consts_resolve_f_fast_refines {pers st lst} {vis : Std.U64} {rf lf}
-    {e : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.checker_base.consts_resolve_f_fast pers vis st rf e = ok o) :
-    Sim₀ id pers lst o
-      (constsResolveFFast (lf.restrictTo (absU vis)) (absEIdx e)) := by
-  sorry
-
-open Lockstep in
 @[lockstep] theorem consts_resolve_f_fast_ls {pers st lst}
     {vis : Std.U64}
     {rf lf}
@@ -1406,77 +1395,120 @@ open Lockstep in
     (hfe : IFEnvRelI rf lf) :
     LS pers (fun a b => b = id a)
       (arena.checker_base.consts_resolve_f_fast pers vis st rf e) lst
+      (constsResolveFFast (lf.restrictTo (absU vis)) (absEIdx e)) := by
+  have hctx := IFEnvInv.coreCtxAt vis hfe.rel hfe.inv
+  rw [arena.checker_base.consts_resolve_f_fast, constsResolveFFast]
+  lockstep
+
+theorem consts_resolve_f_fast_refines {pers st lst} {vis : Std.U64} {rf lf}
+    {e : arena.handle.EIdx} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hrun : arena.checker_base.consts_resolve_f_fast pers vis st rf e = ok o) :
+    Sim₀ id pers lst o
       (constsResolveFFast (lf.restrictTo (absU vis)) (absEIdx e)) :=
-  LS.ofSim₀ fun _ h => consts_resolve_f_fast_refines hrel hinv hfe.rel hfe.inv h
+  Lockstep.LS.toSim₀ (consts_resolve_f_fast_ls hrel hinv ⟨hfe, hfinv⟩) hrun
 
-/-- `all_params_defined_list` is `ls.all (Level.allParamsDefined params)` from
-the cursor on — a PURE test on con-leche values, so it carries their WF. -/
-theorem all_params_defined_list_refines
-    {params : alloc.vec.Vec kernel.name.Name}
-    {ls : alloc.vec.Vec kernel.level.Level} {i : Std.Usize} {o : Bool}
-    (hp : NamesWF params) (hl : ConRon.Refine.LevelsWF ls)
-    (hrun : arena.checker_base.all_params_defined_list params ls i = ok o) :
-    o = (absLevelLFrom ls i).all
-      (ConLeche.Level.allParamsDefined (ConRon.Refine.absNames params)) := by
-  sorry
+@[lockstep] theorem level_all_params_defined_twin {params : alloc.vec.Vec kernel.name.Name}
+    {l : kernel.level.Level} (hp : NamesWF params) (hl : ConRon.Refine.LevelWF l) :
+    LSP (kernel.level.all_params_defined params l)
+      (fun b => TwinEq (ConLeche.Level.allParamsDefined (ConRon.Refine.absNames params)
+        (ConRon.Refine.absLevel l)) b) :=
+  fun b h => (ConRon.Refine.ExprOps.all_params_defined_refines hp l hl b h).symm
 
-/-- `all_level_params_defined_go` ⊑ `allLevelParamsDefinedGo` — a READER
-(`SimBR`): the level-parameter test interns nothing. -/
-theorem all_level_params_defined_go_refines {pers st lst}
-    {params : alloc.vec.Vec kernel.name.Name} {rm lm} {fuel : Std.U64}
-    {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hp : NamesWF params) (hm : ExprOps.LMemoRel rm lm)
-    (hrun : arena.checker_base.all_level_params_defined_go pers st params rm fuel h
-      = ok o) :
-    SimBR id lst o
-      (allLevelParamsDefinedGo (ConRon.Refine.absNames params) lm (absU fuel)
-        (absEIdx h)) := by
-  sorry
+@[lockstep] theorem prop_when_params_defined_twin {params : alloc.vec.Vec kernel.name.Name}
+    {pw : kernel.prop_when.PropWhen} (hp : NamesWF params) (hpw : ConRon.Refine.PropWhenWF pw) :
+    LSP (kernel.prop_when.params_defined params pw)
+      (fun b => TwinEq (ConLeche.PropWhen.paramsDefined (ConRon.Refine.absNames params)
+        (ConRon.Refine.absPropWhen pw)) b) :=
+  fun b h => (ConRon.Refine.PropWhen.params_defined_refines hp hpw h).symm
 
-/-- `all_level_params_defined_node` is the walk's miss arm past the probe. -/
-theorem all_level_params_defined_node_refines {pers st lst}
-    {params : alloc.vec.Vec kernel.name.Name} {rm lm} {fuel : Std.U64}
-    {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hp : NamesWF params) (hm : ExprOps.LMemoRel rm lm)
-    (hmiss : lm[absEIdx h]? = none)
-    (hrun : arena.checker_base.all_level_params_defined_node pers st params rm fuel h
-      = ok o) :
-    SimBR id lst o
-      (allLevelParamsDefinedGo (ConRon.Refine.absNames params) lm (absU fuel)
-        (absEIdx h)) := by
-  sorry
+theorem all_params_defined_list_aux {params : alloc.vec.Vec kernel.name.Name}
+    {ls : alloc.vec.Vec kernel.level.Level} (hp : NamesWF params) (hl : ConRon.Refine.LevelsWF ls) :
+    ∀ (k : Nat) (i : Std.Usize) (o : Bool), ls.val.length - i.val = k →
+      arena.checker_base.all_params_defined_list params ls i = ok o →
+      o = (absLevelLFrom ls i).all
+        (ConLeche.Level.allParamsDefined (ConRon.Refine.absNames params)) := by
+  intro k
+  induction k with
+  | zero =>
+    intro i o hk h
+    rw [arena.checker_base.all_params_defined_list] at h
+    have := alloc.vec.Vec.len_val ls
+    rw [if_pos (by scalar_tac)] at h
+    rw [← Result.ok_injective h, absLevelLFrom, List.drop_eq_nil_of_le (by omega)]
+    rfl
+  | succ k ih =>
+    intro i o hk h
+    rw [arena.checker_base.all_params_defined_list] at h
+    have := alloc.vec.Vec.len_val ls
+    rw [if_neg (by scalar_tac)] at h
+    have hlt : i.val < ls.val.length := by omega
+    obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨hb, hxv⟩ := ExprOps.vecIndexAt hx
+    obtain ⟨b, hbv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hxw : ConRon.Refine.LevelWF x := hxv ▸ hl _ (List.getElem_mem hb)
+    have e1 := ConRon.Refine.ExprOps.all_params_defined_refines hp x hxw b hbv
+    have hdrop : absLevelLFrom ls i = ConRon.Refine.absLevel x :: (ls.val.drop (i.val + 1)).map ConRon.Refine.absLevel := by
+      rw [absLevelLFrom, List.drop_eq_getElem_cons hb, hxv]; rfl
+    rw [hdrop, List.all_cons, ← e1]
+    cases b with
+    | false => simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h; rw [← h]; rfl
+    | true =>
+      simp only [if_true] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+      rw [ih i2 o (by omega) h, absLevelLFrom, hi2v]; rfl
 
-/-- `all_level_params_defined_binder` is the walk's `.lam` / `.forallE` arm —
-the one that also tests the binder metadatum's `PropWhen`. -/
-theorem all_level_params_defined_binder_refines {pers st lst}
-    {params : alloc.vec.Vec kernel.name.Name} {rm lm} {fuel : Std.U64}
-    {t b : arena.handle.EIdx} {m : kernel.expr.BinderMeta} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hp : NamesWF params) (hm : ExprOps.LMemoRel rm lm)
-    (hmwf : ConRon.Refine.BinderMetaWF m)
-    (hrun : arena.checker_base.all_level_params_defined_binder pers st params rm
-      fuel t b m = ok o) :
-    SimBR id lst o
-      (do
-        let (b₁, memo) ← allLevelParamsDefinedGo (ConRon.Refine.absNames params)
-          lm (absU fuel) (absEIdx t)
-        if !b₁ then pure (false, memo) else do
-          let (b₂, memo) ← allLevelParamsDefinedGo (ConRon.Refine.absNames params)
-            memo (absU fuel) (absEIdx b)
-          pure (b₂ && (ConRon.Refine.absBinderMeta m).pw.paramsDefined
-            (ConRon.Refine.absNames params), memo)) := by
-  sorry
+@[lockstep] theorem all_params_defined_list_twin {params : alloc.vec.Vec kernel.name.Name}
+    {ls : alloc.vec.Vec kernel.level.Level} (hp : NamesWF params) (hl : ConRon.Refine.LevelsWF ls) :
+    LSP (arena.checker_base.all_params_defined_list params ls 0#usize)
+      (fun o => TwinEq ((ConRon.Refine.absLevels ls).all
+        (ConLeche.Level.allParamsDefined (ConRon.Refine.absNames params))) o) := by
+  intro o h
+  rw [all_params_defined_list_aux hp hl _ 0#usize o rfl h]
+  simp [TwinEq, absLevelLFrom, ConRon.Refine.absLevels]
+
+theorem all_level_params_defined_go_aux (n : Nat) :
+    ∀ {pers st lst} (params : alloc.vec.Vec kernel.name.Name)
+      (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool) (lm : Std.HashMap EIdx Bool)
+      (fuel : Std.U64) (h : arena.handle.EIdx),
+      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st → NamesWF params →
+      ExprOps.LMemoRel rm lm →
+      LSRM pers BoolMemoR (arena.checker_base.all_level_params_defined_go pers st params rm fuel h) st lst
+        (allLevelParamsDefinedGo (ConRon.Refine.absNames params) lm n (absEIdx h)) := by
+  induction n with
+  | zero =>
+    intro pers st lst params rm lm fuel h hn hrel hinv hp hm
+    rw [arena.checker_base.all_level_params_defined_go, allLevelParamsDefinedGo]
+    lockstep
+  | succ m ih =>
+    intro pers st lst params rm lm fuel h hn hrel hinv hp hm
+    rw [arena.checker_base.all_level_params_defined_go, allLevelParamsDefinedGo]
+    unfold arena.checker_base.all_level_params_defined_node arena.checker_base.all_level_params_defined_binder
+    lockstep
+
+@[lockstep] theorem all_level_params_defined_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {params : alloc.vec.Vec kernel.name.Name} (hp : NamesWF params)
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool} {lm : Std.HashMap EIdx Bool}
+    (hm : ExprOps.LMemoRel rm lm) (fuel : Std.U64) (h : arena.handle.EIdx) :
+    LSRM pers BoolMemoR (arena.checker_base.all_level_params_defined_go pers st params rm fuel h) st lst
+      (allLevelParamsDefinedGo (ConRon.Refine.absNames params) lm (absU fuel) (absEIdx h)) :=
+  all_level_params_defined_go_aux _ params rm lm fuel h rfl hrel hinv hp hm
 
 /-- `all_level_params_defined` ⊑ `allLevelParamsDefined` — one memoised DAG
 walk, at the parameter list read back once. -/
-theorem all_level_params_defined_refines {pers st lst}
-    {lps : alloc.vec.Vec arena.handle.NIdx} {e : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.checker_base.all_level_params_defined pers st lps e = ok o) :
-    SimRE id lst o (allLevelParamsDefined (absNIdxL lps) (absEIdx e)) := by
-  sorry
+@[lockstep] theorem all_level_params_defined_ls {pers st lst}
+    {lps : alloc.vec.Vec arena.handle.NIdx} {e : arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = id a)
+      (arena.checker_base.all_level_params_defined pers st lps e) st lst
+      (allLevelParamsDefined (absNIdxL lps) (absEIdx e)) := by
+  apply LSR.of_LS
+  rw [arena.checker_base.all_level_params_defined, allLevelParamsDefined]
+  lockstep
+
+end MemoWalks
 
 /-! ## The front door's verdict at an unresolved constant -/
 
@@ -1593,14 +1625,6 @@ theorem reduceOpNames_reads : AMReads reduceOpNames := by
   unfold reduceOpNames
   repeat (first | exact AMReads.pure' _ | refine AMReads.bind' (pinAt_reads _) fun _ => ?_)
 
-open Lockstep in
-@[lockstep] theorem all_level_params_defined_ls {pers st lst}
-    {lps : alloc.vec.Vec arena.handle.NIdx} {e : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a)
-      (arena.checker_base.all_level_params_defined pers st lps e) st lst
-      (allLevelParamsDefined (absNIdxL lps) (absEIdx e)) :=
-  LSR.ofSimRE hrel hinv fun _ h => all_level_params_defined_refines hrel hinv h
 
 open Lockstep in
 /-- `lift_fueled` ⊑ `liftFueled what`, for every message `what`: a fuel-out
