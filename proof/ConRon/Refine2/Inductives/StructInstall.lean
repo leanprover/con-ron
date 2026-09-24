@@ -79,6 +79,59 @@ theorem unwrap_or_lsr {T β : Type} {A : T → β} {pers st lst} {o : Option T}
   rw [Option.map_map]
   exact unwrap_or_lsr hrel hinv rfl
 
+/-- `kernel::level::leq` against `Level.leq` (the pure comparison; the
+`liftFueled` around it is the checker tier's `lift_fueled_ls`). -/
+@[lockstep] theorem level_leq_ls (l r : kernel.level.Level) (hl : ConRon.Refine.LevelWF l)
+    (hr : ConRon.Refine.LevelWF r) :
+    LSP (kernel.level.leq l r)
+      (fun o => TwinEq (ConLeche.Level.leq (ConRon.Refine.absLevel l)
+        (ConRon.Refine.absLevel r)) o) :=
+  fun _ h => ConRon.Refine.Level.leq_refines hl hr h
+
+/-- `checker_base::fvar_type_ds` ⊑ `List.mapM fvarTypeD` from the cursor on,
+with the accumulator in front (the checker tier's `fvar_type_ds_refines` is
+`sorry`; `PrimsModeled.lean` carries the same induction downstream of this
+file). -/
+theorem fvar_type_ds_aux (n : Nat) :
+    ∀ {pers st lst} {hs : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
+      {out : alloc.vec.Vec arena.handle.EIdx},
+      hs.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = absEIdxL a) (arena.checker_base.fvar_type_ds pers st hs i out)
+        st lst (do pure (absEIdxL out ++ (← List.mapM fvarTypeD (absEIdxLFrom hs i)))) := by
+  induction n with
+  | zero =>
+    intro pers st lst hs i out hn hrel hinv
+    apply LSR.of_LS
+    rw [arena.checker_base.fvar_type_ds, if_pos (by scalar_tac), absEIdxLFrom,
+      vecFrom_nil _ _ _ (by omega), List.mapM_nil]
+    lockstep
+  | succ m ih =>
+    intro pers st lst hs i out hn hrel hinv
+    apply LSR.of_LS
+    rw [arena.checker_base.fvar_type_ds, if_neg (by scalar_tac), absEIdxLFrom,
+      vecFrom_cons _ _ _ (by omega), List.mapM_cons]
+    simp only [bind_assoc, pure_bind]
+    lockstep
+
+/-- `fvar_type_ds` from the cursor `0` and an empty accumulator: the twin's
+`xs.mapM fvarTypeD`. -/
+@[lockstep] theorem fvar_type_ds_mapM_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hs : alloc.vec.Vec arena.handle.EIdx) :
+    LSR pers (fun a b => b = absEIdxL a)
+      (arena.checker_base.fvar_type_ds pers st hs 0#usize (alloc.vec.Vec.new _)) st lst
+      (List.mapM fvarTypeD (hs.val.map absEIdx)) := by
+  have h := fvar_type_ds_aux (hs := hs) (i := 0#usize) (out := alloc.vec.Vec.new _) _ rfl hrel hinv
+  simpa [absEIdxL, absEIdxLFrom, alloc.vec.Vec.new] using h
+
+/-- The twin's `unwrapOr` at a constructor (the port matches the `Option`
+itself).  Scoped: `open scoped ConRon.Refine2.IndInstPrims`. -/
+@[scoped lockstep_simp] theorem unwrapOr_some' {α : Type} (a : α) (e : Arena.CheckError) :
+    unwrapOr (some a) e = pure a := rfl
+
+@[scoped lockstep_simp] theorem unwrapOr_none' {α : Type} (e : Arena.CheckError) :
+    unwrapOr (none : Option α) e = Arena.fail e := rfl
+
 end IndInstPrims
 
 /-! ## The binder-domain walk -/
