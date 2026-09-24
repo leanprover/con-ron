@@ -557,6 +557,17 @@ theorem LSV.of_store_read {α β : Type} {pers st lst} {m : Result α} {x : AM �
     (fun _ hr => by rw [arena.monad.view_app] at hr; exact estore_view_app_abs hrel.store hr)
     hrel hinv
 
+/-- `arena::monad::view_const` against `Arena.viewConst` (`LS.twin_view_const`
+brings the twin's `view` of a `const`-tagged handle to it).  Task #97-T2-LOCKSTEP
+lane Inductives Modeled. -/
+@[lockstep] theorem view_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
+    LSV pers (fun a b => b = Option.map absConstT a) (arena.monad.view_const pers st h) st lst
+      (Arena.viewConst (absEIdx h)) :=
+  LSV.of_store_read (F := fun s => s.viewConst (absEIdx h)) (fun _ => rfl)
+    (fun _ hr => by rw [arena.monad.view_const] at hr; exact estore_view_const_abs hrel.store hr)
+    hrel hinv
+
 @[lockstep] theorem view_bvar_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
     LSV pers (fun a b => b = Option.map absU a) (arena.monad.view_bvar pers st h) st lst
