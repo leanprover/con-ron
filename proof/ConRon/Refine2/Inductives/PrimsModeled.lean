@@ -1194,7 +1194,7 @@ namespace Lockstep.IndModWF
     LSP (kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name))
       (fun pw => TwinEq (ConLeche.PropWhen.ifAllZero []) (ConRon.Refine.absPropWhen pw) ∧
         ConRon.Refine.PropWhenWF pw) :=
-  fun pw h => ⟨ConRon.Refine2.if_all_zero_new_twin pw h,
+  fun pw h => ⟨(ConRon.Refine2.if_all_zero_new_twin pw h).1,
     ConRon.Refine.PropWhen.if_all_zero_wf (by intro n hn; simp [alloc.vec.Vec.new] at hn) h⟩
 
 end Lockstep.IndModWF
