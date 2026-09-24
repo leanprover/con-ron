@@ -49,7 +49,7 @@ done
 [ ${#roots[@]} -gt 0 ] || { echo "usage: $0 [--summary] [--scope P,...] <root>..." >&2; exit 2; }
 
 # The module that declares NAME: the longest suffix of NAME declared by a
-# `theorem`/`def`/… line of `proof/ConRon/**` (retired trees excluded) in a
+# `theorem`/`def`/… line of `proof/ConRon/**` in a
 # file that opens the rest of NAME as a namespace.
 locate() {
   local name=$1 n i
@@ -62,8 +62,7 @@ locate() {
     suf=$(IFS=.; echo "${parts[*]:i}")
     local re="^[[:space:]]*(@\[[^]]*\][[:space:]]*)?((private|protected|noncomputable|partial|nonrec)[[:space:]]+)*(theorem|lemma|def|abbrev|instance|opaque|axiom)[[:space:]]+${suf//./\\.}([[:space:]]|$)"
     local files
-    files=$(grep -rlE --include='*.lean' "$re" "$proof/ConRon" \
-              | grep -v -e '/RefineOld/' -e '/Spike/' || true)
+    files=$(grep -rlE --include='*.lean' "$re" "$proof/ConRon" || true)
     [ -n "$files" ] || continue
     local hits=()
     local f

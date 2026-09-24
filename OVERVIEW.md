@@ -73,7 +73,7 @@ con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
 con-ron --help
 ```
 
-([the usage text](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L87-L210))
+([the usage text](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L87-L212))
 
 * **`--verified`** is the default, and the only mode the theorems cover.
 * **`--trusted`** runs the same checker with con-leche's certification-only
@@ -208,7 +208,7 @@ is why `#print axioms` does not list any of them.
 | hypothesis | what it says | how it is discharged |
 |---|---|---|
 | `[ConLeche.SetTheory V]` and con-leche's soundness | a set theory to build the model in; con-leche's `checkDeclsPure_sound_of` and `no_proof_of_False_pure` at the pinned revision | con-leche's own proof, on the same three axioms |
-| `hpers`, `hest`, `hst0`, `h1`…`h5` | the binary ran exactly these extracted functions, in this order, on one state that starts at `AState::init(EStore::empty())` under one `PersTier::empty()` | the driver's calling order, which starts [here](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L370-L385): trusted |
+| `hpers`, `hest`, `hst0`, `h1`…`h5` | the binary ran exactly these extracted functions, in this order, on one state that starts at `AState::init(EStore::empty())` under one `PersTier::empty()` | the driver's calling order, which starts [here](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L372-L387): trusted |
 | `h6 : PoolAccepts …` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Checker/Phased.lean#L380-L397)) | the install phase (`annot_fold_hooked`) accepted, `freeze_tier` succeeded, and one verified `check_pending_worker` run per worker accepted the records that worker checked, the workers together covering every pending record | that the pool's accept has this shape is an argument about `pool.rs`'s control flow (§8.2).  It holds for every install hook, so `--progress` runs are covered |
 | `hreads : ReadsAs sinst src chunks` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Source.lean#L36-L40)) | the chunk source hands out `chunks`, each nonempty, then an empty buffer | that the file handle returns the file's bytes in order: trusted.  The read loop itself (`parse_source`) is verified |
 | `hmr : ModellerRefines inst m inProcessModeller` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Shape.lean#L662-L667)) | the unverified Rust modeller (`crates/con-ron/src/in_model/`) answers, from related states, what the twin's `inProcessModeller` answers | trusted by design (§6.2).  The twin's modeller calls con-leche's own `generate`, and Theorem 1 proves it exact (`inProcessModeller_refines`) |
@@ -400,7 +400,7 @@ O(1).  It is proved to implement a finite map in
 
 The binary's `check_main` calls six verified functions in order, on one
 `AState`
-([`check_main`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L356-L580)).
+([`check_main`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L358-L582)).
 They are the six stages `h1`…`h6` of the theorems.
 
 1. **`intern_reserved_pins`**
@@ -677,29 +677,35 @@ The form depends on the shape of the Rust function:
 | [`LSR`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L168-L172) | reads the state, may fail |
 | `LSV`, `LSW` | reads and cannot fail; writes and cannot fail |
 | `LSP` | a Rust-only step with no twin counterpart (a copy, a `u64` decrement) |
-| [`LSM`, `LSRM`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L652-L664) | a memoised walk that returns its memo beside the result |
+| [`LSM`, `LSRM`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L660-L672) | a memoised walk that returns its memo beside the result |
 
 `LS.toSim₀` converts back to the statement form.
 
 **The `lockstep` tactic**
-([`lockstep`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L2537-L2538))
+([`lockstep`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L2802-L2803))
 steps the two programs together, one bind at a time.  At each Rust bind it
 looks up a lemma for the callee, applies it, and continues with the related
 results as hypotheses.  It splits a Rust `if` or `match`, and uses the facts
 this gives to decide the twin's.  Side goals go to `simp`, `omega` and
-`scalar_tac`; it never calls `grind`.  When it stops, the goal sits at the
+`scalar_tac`; it never calls `grind`.  Every alternative it tries runs without
+error recovery, so a term that fails to elaborate makes the alternative fail
+instead of closing the goal with `sorry`.  When it stops, the goal sits at the
 first bind where the two programs differ, or where a lemma is missing.
 
 **The lemma discipline.**  A lemma is found by its Rust callee: tagging it
-[`@[lockstep]`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Attr.lean#L58-L64)
+[`@[lockstep]`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Attr.lean#L86-L94)
 files it under the head constant of the Rust computation in its conclusion,
 which must be one of the judgements above.  A local hypothesis in the same
-form, such as an induction hypothesis, is found the same way.  Lemmas for
+form, such as an induction hypothesis, is found the same way, and is tried
+before any lemma.  When several lemmas cover one callee, the first that
+applies wins: higher priority first (`@[lockstep high]`), then registration
+order; `attribute [-lockstep] foo` removes one.  Lemmas for
 handle primitives (copies, handle equality) live in one place,
 [`Tactic/Prims.lean`](https://github.com/leanprover/con-ron/tree/master/proof/ConRon/Refine2/Tactic/Prims.lean).
 Proofs extend the tactic only through these attributes (and
-`@[lockstep_simp]`, `@[lockstep_inline]`, and the side-goal tactic's
-`macro_rules`), not by editing its core.
+`@[lockstep_simp]`, `@[lockstep_inline]`, `@[lockstep_congr_simp]` for twin
+equations used only to match a lemma's twin against the goal's, and the
+side-goal tactic's `macro_rules`), not by editing its core.
 
 **Representation premises.**  Charon erases the proofs inside con-leche's
 subtypes.  con-leche's `PropWhen`, for instance, carries a proof that its
@@ -948,7 +954,6 @@ snake case.  Twin files mirror the Rust modules.
 | `Bridge/` | `ConRonBridge` | Theorem 1 |
 | `Refine2/` | `ConRonRefine2` | Theorem 2; `Tactic/` holds `lockstep` |
 | `Capstone.lean` | `ConRonCapstone` | the two headline theorems |
-| `RefineOld/` | none | an earlier proof, kept out of the build |
 
 `vendor/aeneas/` is Aeneas as a submodule, for its Lean library and
 documentation; `scripts/` holds the gates and tools of §10.

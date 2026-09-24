@@ -1327,6 +1327,12 @@ macro "ind_dom_finish" : tactic => `(tactic| first
      subst hf
      first | rw [binderL_getD_fst_of_ge] | rw [absBinderL_getD_fst_of_ge]
      · lockstep; done
+     · scalar_tac)
+  -- `lockstep` zips both reads now (task #97-T2-TACTIC round 3: the pair read
+  -- by structure eta, `EIdx(0)` by `eidx_of_word_spec`); left is the twin's
+  -- `getD` off the end
+  | (first | rw [binderL_getD_fst_of_ge] | rw [absBinderL_getD_fst_of_ge]
+     · lockstep; done
      · scalar_tac))
 
 open Lockstep in

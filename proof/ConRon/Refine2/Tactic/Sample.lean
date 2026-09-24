@@ -114,28 +114,10 @@ def I1Spec : Prop :=
     LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate1_fast pers st fuel e v d) lst
       (instantiate1Fast (absU fuel) (absEIdx e) (absEIdx v) (absU d))
 
-theorem inst_pis_from_aux' (hI1 : I1Spec) (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (fuel : Std.U64) (e : arena.handle.EIdx) (args : alloc.vec.Vec arena.handle.EIdx)
-      (i : Std.Usize),
-      args.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = absOptE a) (arena.expr_ops.inst_pis_from pers st fuel e args i) lst
-        (instPis (absU fuel) (absEIdx e) (absEIdxListFrom args i)) := by
-  unfold I1Spec at hI1
-  induction n with
-  | zero =>
-    intro pers st lst fuel e args i hn hrel hinv
-    rw [arena.expr_ops.inst_pis_from, listFrom_nil args i (by omega), instPis]
-    lockstep
-  | succ k ih =>
-    intro pers st lst fuel e args i hn hrel hinv
-    rw [arena.expr_ops.inst_pis_from, listFrom_cons args i (by omega), instPis]
-    lockstep
-    -- STUCK: D1 (see DESIGN #97-T2-TACTIC); the zip stops at the Rust's `view_bind`
-    all_goals sorry
-
 /-- **`instPis` with the D1 fix applied** — the twin spelled tag-first, as the
-Rust is (`if h.tag == ETag.forallE then match ← viewBind h with …`).  This is
+Rust is (`if h.tag == ETag.forallE then match ← viewBind h with …`); against
+the twin as it was, the zip stopped at the Rust's `view_bind` (DESIGN
+#97-T2-TACTIC §4, row 5; that stuck demonstration is deleted).  This is
 the twin edit task #97-T2-AUDIT §4 prescribes for the 94 D1 functions. -/
 def instPisTF (fuel : Nat) : EIdx → List EIdx → AM (Option EIdx)
   | e, [] => pure (some e)
@@ -173,7 +155,6 @@ theorem inst_pis_from_tf_aux' (hI1 : I1Spec) (n : Nat) :
 #print axioms intern_rebuilt_bind_refines'
 #print axioms lift_loose_bvars_go_refines'
 #print axioms instantiate1_go_aux'
-#print axioms inst_pis_from_aux'
 #print axioms inst_pis_from_tf_aux'
 
 end ConRon.Refine2.Lockstep.Sample

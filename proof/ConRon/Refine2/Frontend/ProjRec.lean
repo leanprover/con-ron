@@ -2270,7 +2270,9 @@ elab "ls_view_sort" : tactic => withMainContext do
 
 /- **`ls_ctor_record`**: the twin's `findCtorRec` answer, cased on by the zip
 (`(some j).bind (fun j => (absProjCtorRecL ctors)[j]?) = some v`), is the
-port's `ctors[j]`: substituted, and that record split into its fields. -/
+port's `ctors[j]`: substituted.  The port reads that record's fields as
+projections (the zip's structure eta on `let (c, nf, e) := ctors[j]`, task
+#97-T2-TACTIC round 3), so the record is not split. -/
 open Lean Elab Tactic Meta in
 elab "ls_ctor_record" : tactic => withMainContext do
   for d in ← getLCtx do
@@ -2297,11 +2299,42 @@ elab "ls_ctor_record" : tactic => withMainContext do
       simp only [Option.bind_some, absProjCtorRecL, List.getElem?_map,
         List.getElem?_eq_getElem hjb, Option.map_some, Option.some.injEq] at hd
       subst hd
-      generalize ($cs).val[($js).val]'hjb = rc
-      rcases rc with ⟨c1, nf1, e1⟩
       dsimp only [absProjCtorRec])))
     return
   throwError "ls_ctor_record: none"
+
+/- **`ls_rec_record`**: `ls_ctor_record` for the twin's `findRecRec` answer
+(`(some j).bind (fun j => (absProjRecRecL recs)[j]?) = some v`), the port's
+`recs[j]`. -/
+open Lean Elab Tactic Meta in
+elab "ls_rec_record" : tactic => withMainContext do
+  for d in ← getLCtx do
+    if d.isImplementationDetail then continue
+    let t ← instantiateMVars d.type
+    unless t.isAppOfArity ``Eq 3 do continue
+    let l := t.getArg! 1
+    let r := t.getArg! 2
+    unless l.isAppOfArity ``Option.bind 4 && r.isAppOfArity ``Option.some 2 do continue
+    let s := l.getArg! 2
+    unless s.isAppOfArity ``Option.some 2 do continue
+    let some cl := (l.getArg! 3).find? fun e => e.isAppOfArity ``absProjRecRecL 1 | continue
+    let cs ← Term.exprToSyntax (cl.getArg! 0)
+    let j := s.getArg! 1
+    let v := r.getArg! 1
+    unless j.isFVar && v.isFVar do continue
+    let hs ← Term.exprToSyntax (mkFVar d.fvarId)
+    let js ← Term.exprToSyntax j
+    evalTactic (← `(tactic| (
+      have hd := $hs
+      have hjb : ($js).val < ($cs).val.length := by
+        have := congrArg Option.isSome hd
+        simpa [absProjRecRecL] using this
+      simp only [Option.bind_some, absProjRecRecL, List.getElem?_map,
+        List.getElem?_eq_getElem hjb, Option.map_some, Option.some.injEq] at hd
+      subst hd
+      dsimp only [absProjRecRec])))
+    return
+  throwError "ls_rec_record: none"
 
 -- the zip's many small steps over the census's four branches exceed the default budget
 set_option maxHeartbeats 1000000 in
@@ -2345,19 +2378,12 @@ theorem proj_rec_candidates_from_aux (fuel : Nat) (N : Nat) :
           (core.slice.index.SliceIndexUsizeSlice arena.handle.NIdx) cs 0#usize)
           (fun x => x = c0) := fun x hx => by rw [hidx0] at hx; exact (Result.ok_injective hx).symm
       -- The zip, with this proof's own moves: a failed `!=` test substituted,
-      -- the sort view.  It
-      -- stops at the port's reads of the records `find_rec_rec` / `find_ctor_rec`
-      -- located (`recs[j1]`, `ctors[jc]`), which the twin cased on: each is
-      -- substituted and split into its fields, and the zip goes on.
+      -- the sort view.  It stops where the twin cased on the records
+      -- `find_rec_rec` / `find_ctor_rec` located (`recs[j1]`, `ctors[jc]`):
+      -- each is substituted by the port's read, and the zip goes on.
       repeat' (first | ls_subst_bne | ls_view_sort | lockstep_step)
       all_goals
-        rename_i j1 _ _ w _ hd
-        simp only [Option.bind_some, absProjRecRecL, List.getElem?_map,
-          List.getElem?_eq_getElem w, Option.map_some, Option.some.injEq] at hd
-        subst hd
-        generalize recs.val[j1.val]'w = rr
-        rcases rr with ⟨n3, v4, e, i1, i2⟩
-        dsimp only [absProjRecRec]
+        ls_rec_record
         repeat' (first | ls_subst_bne | lockstep_step)
       all_goals
         ls_ctor_record
