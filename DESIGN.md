@@ -62737,3 +62737,31 @@ ConRon.Capstone.no_False_declaration`): at the branch start (`6296213a`, with
 the `ind_block_caps` proof in) **30 items in 11 modules, 301 tainted, dead
 weight 167** (Modeled: 8 items); at the submitted tip **19 / 6 / 263 / 151**
 — Modeled: **0**; this lane's items left are SpecModeled's two `_unfold`s.
+
+#### Slice 2 — SpecModeled's two `_unfold`s; the lane's files sorry-free
+
+Branch `t2-ind-mod-4` (worktree `_tmp/wt-t2-ind-mod4`) off slice 1's
+submitted tip `79853fe6`, `arena` `911d0d59` (`t2-ind-7`) merged.
+
+* **`checkIotaThm_unfold`** and **`checkIotaThmN_unfold`** proved.  Slice 1's
+  diagnosis was a `simp` duplicating join points; the fix is to let it: unfold
+  the twin and every spec fragment, then one `simp only` with
+  `Checker/Shape.lean`'s `twin_reduce` lemmas (`bind_assoc`, `pure_bind`,
+  `am_fail_bind`, `am_ite_bind`), `Nat.add_sub_cancel_left` (`depth - rP` is
+  `cnF`) and the Boolean normalisers that split `iotaLhsPrefixOkSpec`'s merged
+  test back into the twin's three `unless`es (`Bool.not_eq_true'`, `ite_not`,
+  `Bool.eq_false_iff`, `beq_iff_eq`, `decide_eq_true_eq`).  It completes in
+  seconds; the earlier heartbeat death was the peel through `rw`, not the
+  duplication.  The N case also rewrites the twin's two `pins.mapM`s to the
+  spec's cursor lists (`list_mapM_counted`) first and closes with `rfl`: the
+  two sides then differ only in the auxiliary matcher of the residual-head
+  test (the twin's own against `checkIotaThmNCtorSpec`'s), which `rfl`
+  unfolds.  **SpecModeled's `sorry`s 2 → 0**; with Modeled at 0 and
+  PrimsModeled at 0, the lane's three files are sorry-free.
+* `eidx_vec_dup_spec` dropped (`Inductives/Shape.lean`'s
+  `ind_eidx_vec_dup_twin`, landed with `t2-ind-7`); two closers read the forms
+  `t2-ind-7`'s pairs now produce (`TwinEq` of a `drop_eidx`; `absEIdxL`).
+
+**Frontier** at this tip: **15 items in 4 modules, 249 tainted, dead weight
+97**; none in the lane's files (slice 1's tip: 19 / 263 / 151, the difference
+also `t2-ind-7`'s).
