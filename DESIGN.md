@@ -64614,3 +64614,101 @@ b` for any `b`.  That was the one `Native` site in the Nat operations (row 2 of
   `2^27`-entry arrays), `freeze_tier`'s `M_REFREEZE`, and the frontend's —
   none of them a `Nat` operation.
 * Docs: OVERVIEW §6.5 and §8.2's `Native` row no longer list shift widths.
+
+### Task #98-NATIVE — a Rust `Native` is the twin's `native` at the same point (2026-09-24, Opus under Fable)
+
+**Goal** (maintainer's decision): every explicit Rust `CheckError::Native` is
+modelled in the twin, and Theorem 2 relates a Rust `Native` to a twin `.native`
+at the same point.  Until now a Rust `Native` claimed nothing
+(`absAErrKind (.Native _) = none`, and `AErrSim.native` discharged any twin
+outcome).
+
+**The survey, all of `crates/con-ron-core`** (every `CheckError::Native(` and
+`core_types::native(` construction; `grep` on the merged tree):
+
+| sites | where | guard | class | resolution |
+|---|---|---|---|---|
+| 30 | `arena/store.rs`: `NStore::intern_str`/`intern_other`, `LStore::intern`, `LsStore::intern`, `EStore::intern_bm`, `intern_{bvar,fvar,sort,const,app,let_e,lit,proj}`, `intern_lam_i`, `intern_forall_e_i` — scratch arm and owned-store (persistent) arm each | `Tbl::full` (`M_N_CAP`/`M_L_CAP`/`M_LS_CAP`/`M_E_CAP`) | capacity, 2²⁷ per array per tier | **mirrored**: the twin's `internNNode`/`internLNode`/`internLsNode`/`internBME`/`internNodeE`/`internLamIE`/`internForallEIE` raise `.native` at the same probe miss; specs re-proved strict |
+| 5 | `arena/store.rs`: `PersTier::intern_n`/`intern_l`/`intern_ls`/`intern_bm`/`intern_e` (promotion) | `Tbl::full` | capacity | **mirrored**: `internPersistentN`/`L`/`Ls`, `internBMPersistentE`, `internPersistentE` |
+| 2 | `arena/core.rs` `nat_op_result` shiftLeft/shiftRight (`M_SHIFT`) | amount ≥ 2⁶⁴ | artificial bound on our own data | **removed** by task #98-SHIFT (merged into this branch before it landed) |
+| 2 | `kernel/core_k.rs` `nat_op_result` shifts | same | kernel tier; not called from the binary | removed by task #98-SHIFT |
+| 1 (2 raise points in `scan_fast::read_nat_at`) | `frontend/export_c.rs` `scan_err_to_check` at `ErrTag::IndexOverflow` | a decimal numeral ≥ 2⁶⁴ | representation limit (`u64` fields where con-leche reads `Nat`) | **not mirrored** — the stream relation's carve-out `ScanOverflowErr` (below) |
+| 1 fn, 28 calls | `kernel/pins_decode.rs` `bad_text` | malformed embedded pin text | the decoder of a committed constant; no twin run exists (the twin receives pins as data) | **outside Theorem 2**: the capstone assumes `decode_embedded = ok (.Ok pins)` (`hpins`); the old tier's `decode_refines` keeps its claim-nothing error arm |
+| — | `export_c::at_line`, `checker.rs` `at_decl_text` (suffix a line/declaration number), `checker_base::or_else_attempt` (`Native` → `Failed`), `decl_check::check_div_mod_pin_attempt` (`Failed` → `Err`) | — | propagation, not a construction | kind preserved; the attempt seam restated (below) |
+| 0 | the arena's `as usize` casts | — | task #97-P5-Usize left only classes (a)/(w) | none raises `Native`; nothing to do |
+
+Already gone before this task: `M_FROZEN`'s 20 arms and `M_REFREEZE` (task
+#98-FREEZE).  **Theorem 1 is untouched**: every mirrored site was already a
+twin `.native`, and no twin guard was added (the twin's `.native` claims
+nothing against con-leche, as a decline does).
+
+**What changed.**
+
+* `Refine2/Shape.lean`: `AErrKind.native`; `lAErrKind`/`absAErrKind` send the
+  twin's `.native` / the port's `.Native` to it (both total now, `Option` kept
+  for the shape); `AErrSim.of_none` is deleted; `AErrSim.native`,
+  `AOut.native`, `AOut₀.native` now take the twin's `x = .error (.native s)`;
+  `AErrSim.of_kind` added.
+* **Shared core, separate commit**: `Tactic/Lockstep.lean`'s
+  `lockstep_errsim` loses its first alternative (`exact AErrSim.native _`);
+  `AErrSim.mk rfl; rfl` closes a `Native` like every other kind.  No
+  lockstep-proved lemma needed anything else.
+* **Rust: `Tbl::full` is size-only** (`rows.len() >= IDX_CAP`), the twin's
+  `n < Idx.idxCap` exactly.  The dropped disjunct, `cons.is_saturated_full()`,
+  cannot fire below `IDX_CAP` (one cons key per row, so ≤ 2²⁷ keys, far below
+  `usize::MAX / 2` slots on 32 and 64 bits); keeping it would have needed an
+  unsaturation invariant linking `HashMap2`'s `num_entries`/`slots` to the
+  row count.  `HashMap2::insert`'s precondition is now that unreachability;
+  in the model `try_resize` still fails there (an Aeneas panic, which Theorem
+  2's `= ok` hypothesis excludes), never overwrites.  `Specs.lean`:
+  `tbl_full_iff` (the port's answer IS `¬ size < idxCap`), with
+  `tbl_not_full_size` and the new `tbl_full_size` as its halves, and the
+  `…tables_full_abs_true` / `etables_full_size_true` converses.
+* **The 35 intern specs** (`estore_intern_*_abs(₀)`, `nstore_*`, `lstore_*`,
+  `lsstore_*`, `pertier_intern_*_abs`): the error conjunct
+  `absAErrKind e = none` became `absAErrKind e = some .native ∧ ¬ Cap`, where
+  `Cap` is the Ok arm's own capacity side condition (`ECapAt`, `EBindCapAt`,
+  `ECapBMOf`, `NCapAt`/`LCapAt`/`LsCapAt`, their `…PAt` persistent forms;
+  `pertier_intern_e_abs`: the datum's failed test, or the datum's passed and
+  the node's failed).  Every cap is `probe missed → size < cap`, so the
+  negation is `not_cap_of (probe missed) (tbl_full_size …)`.  The twin side:
+  `…_run_of_not_cap` for `internNodeE`/`internE`, `internLamIE`,
+  `internForallEIE`, `internBME` (+ `internLamE_run_of_not_bm`/
+  `internForallEE_run_of_not_bm`), `internNNode`/`LNode`/`LsNode`,
+  `internPersistentN`/`L`/`Ls`/`E` — each `∃ s, … = .error (.native s)`.  The
+  22 `_run₀` wrappers' error arms are `aErrSim_native_of`.  The two
+  deprecated composites `estore_intern_lam_abs`/`forall_e_abs` (unused but
+  for their census line) conclude the kind only.  `proj_fn_name_lss`
+  (`Inductives/PrimsModeled.lean`) and `proj_table_name_lss`
+  (`Promote/Intern.lean`) get the same error arm.
+* **A split the escape had hidden: the div/mod attempt seam**
+  (`Checker/DeclCheck.lean`).  The port's `check_div_mod_pin_attempt` THROWS a
+  `Native` (`Failed(e) => Err(e)`); the twin's `orElseAttempt` never throws —
+  it returns the step `.failed e`, which `checkDivModPinTrySpec`'s `match`
+  throws.  `check_div_mod_pin_attempt_refines₀` was stated as `SimRel₀`,
+  whose error arm (`AErrSim`) the twin can never meet, and it was only
+  provable because a `Native` claimed nothing (and the `try` lemma's error arm
+  was closed by `absurd … orElseAttempt_run_ne_error` under that vacuous
+  claim).  It is now stated as `AttemptSim`: the Ok arm is `SimRel₀`'s, the
+  Err arm says the twin returns `.failed le` at the same kind;
+  `check_div_mod_pin_try_refines₀` meets the two throws one step later.  No
+  program changed.
+* **The frontend's one unmirrored `Native`** (`Refine2/Frontend/Shape.lean`).
+  The twin runs con-leche's scanner verbatim (`ConLeche.Frontend.scanLineFwd`,
+  task #97e), which reads a `Nat` where the port's reads a `u64`.  Mirroring
+  would mean forking that scanner into the twin (and a Theorem-1 lemma that
+  the fork is con-leche's off-overflow) and moving ~17 700 lines of scanner
+  proofs (`Refine2/Frontend/Scan/*`) onto the fork; a guard placed after the
+  twin's scan cannot sit at the port's point, because the port stops at the
+  first oversized numeral while con-leche's reader can fail later in the same
+  line; and saturating in the Rust would make every scanned field's
+  abstraction a clamp instead of an equality.  So `StreamErrSim` (the parse's
+  error-pair relation, 4 construction sites in `Frontend/Top.lean`) gains a
+  third disjunct, `k = .native ∧ ScanOverflowErr p.1`, where `ScanOverflowErr
+  ce := ∃ e, e.what = .IndexOverflow ∧ scan_err_to_check e = ok ce` — the
+  exception names the error VALUE, so every other `Native` of the parse (the
+  interns' capacity) is still the twin's.  `ALineErrSim` (per line) is strict;
+  `SimStreamRel.native`/`StreamErrSim.native` are gone,
+  `StreamErrSim.overflow` is the carve-out's introduction.
+* The capstone statements, their shape and the census are unchanged; the
+  capstone never reads an error arm.

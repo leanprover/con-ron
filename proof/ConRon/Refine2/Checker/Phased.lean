@@ -276,8 +276,8 @@ runs** (task #97-P5-Driver).
 *The Aeneas model of `arena::checker::check_decls_phased` accepting implies
 the twin's `installThenCheckPhased` accepting with the related environment,
 from the related state, ending in a related state; a Rust failure is the
-twin's at the same kind and the same fold position, except the port's own
-`Native`, which claims nothing.*
+twin's at the same kind and the same fold position — the port's own
+`Native` included, as the twin's `native` (task #98-NATIVE).*
 
 `install_then_check_refines`' statement with the driver's fold in place of
 `install_then_check` on both sides, and its hypotheses — `AStateRel₀` and

@@ -4,6 +4,9 @@
 DESIGN.md §8.2's second theorem: *the Aeneas model of the Rust `check_decls`
 accepting implies (B) accepting with the abstracted state/result, over the
 whole outcome; the port's `Native` error claims nothing.*  Task #97 P5.
+(Since task #98-NATIVE a port `Native` is the twin's `native` at the same
+point, like every other kind; the one exception is the scanner's u64 overflow,
+`Frontend/Shape.lean`'s `ScanOverflowErr`.)
 
 `ConRon.Refine` is the `Expr`-tree checker's refinement tier, of which 47
 modules survived the arena swap (task #97-SWAP §5) because their SUBJECT

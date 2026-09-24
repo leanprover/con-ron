@@ -185,8 +185,8 @@ pub fn rel_offset(off: usize, i: usize) -> usize {
 /// con-leche renders *every* scan error as `.internal`; the port has one tag
 /// con-leche has not got (`ErrTag::IndexOverflow`, `scan_types`' deviation 1),
 /// and under the full-outcome ruling that one is `Native` — the port's own
-/// decline, about which a refinement lemma claims nothing.  Found by a proof
-/// at task #87 and kept here unchanged.
+/// decline, and the one `Native` the twin does not mirror (task #98-NATIVE,
+/// `Refine2/Frontend/Shape.lean`'s `ScanOverflowErr`).  Found at task #87.
 pub fn scan_err_to_check(e: &ScanErr) -> CheckError {
     match e.what {
         ErrTag::IndexOverflow => core_types::native(scan_err_render(e)),

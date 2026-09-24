@@ -621,12 +621,7 @@ theorem StreamErrSim.of_map {β γ : Type} {p : kernel.core_types.CheckError × 
     StreamErrSim p x := by
   intro k hk
   rcases h k hk with ⟨le, lst', hx, hle⟩ | ⟨le, hx, hle⟩ | hov
-  rotate_left
-  · right; left
-    revert hx
-    rcases x with e | ⟨r, s⟩
-    · intro hx; cases hx; exact ⟨le, rfl, hle⟩
-    · rcases r with e | b <;> (intro hx; cases hx)
+  rotate_left 2
   · exact Or.inr (Or.inr hov)
   · left
     revert hx
@@ -643,7 +638,7 @@ theorem StreamErrSim.of_map {β γ : Type} {p : kernel.core_types.CheckError × 
         subst h1; subst h2
         exact ⟨le, s, rfl, hle⟩
       · intro hx; cases hx
-  · right
+  · right; left
     revert hx
     rcases x with e | ⟨r, s⟩
     · intro hx; cases hx; exact ⟨le, rfl, hle⟩
@@ -833,7 +828,7 @@ theorem apply_final_line_refines {G : Type} {inst : frontend.types.Modeller G}
     cases ht : absErrTag e.what with
     | none =>
       rw [hnone ht] at hk; cases hk
-      exact Or.inr (Or.inr ⟨rfl, e, absErrTag_eq_none ht, hce⟩)
+      exact Or.inr (Or.inr ⟨rfl, ⟨i1, e.what⟩, absErrTag_eq_none ht, hce⟩)
     | some tg =>
       rw [hsome tg ht] at hk
       cases hk
@@ -984,7 +979,7 @@ theorem feed_chunk_loop_refines {G : Type} {inst : frontend.types.Modeller G}
         cases ht : absErrTag e.what with
         | none =>
           rw [hnone ht] at hk'; cases hk'
-          exact Or.inr (Or.inr ⟨rfl, e, absErrTag_eq_none ht, hce⟩)
+          exact Or.inr (Or.inr ⟨rfl, ⟨i2, e.what⟩, absErrTag_eq_none ht, hce⟩)
         | some tg =>
           rw [hsome tg ht] at hk'
           cases hk'

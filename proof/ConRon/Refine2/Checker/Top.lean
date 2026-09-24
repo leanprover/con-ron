@@ -9,8 +9,9 @@ runs, and the startup walk `intern_all_pins`.
 
 **`install_then_check_refines` and `check_decls_pure_refines` are §8.2's own
 sentence**: *the Aeneas model of the Rust `check_decls` accepting implies (B)
-accepting with the abstracted state/result, over the whole outcome; the port's
-`Native` error claims nothing.*  The driver's fold above them is unverified
+accepting with the abstracted state/result, over the whole outcome* — a port
+`Native` included, as the twin's `native` (task #98-NATIVE; it used to claim
+nothing).  The driver's fold above them is unverified
 and calls this per record.
 
 ## Finding 13 — the fold's error channel is a PAIR, and that is a fifth shape
@@ -1078,9 +1079,8 @@ theorem check_decls_pure_go_refines {pers st lst} {rf lf}
 /-- **`check_decls_pure_refines` — DESIGN §8.2's sentence at the PURE fold.**
 The Aeneas model of the Rust `check_decls_pure` accepting implies (B)'s
 `checkDeclsPure` accepting with the abstracted state and the related
-environment, over the whole outcome; the port's `Native` error claims nothing
-(`AErrSim`'s own doing) and its three mirrored kinds are claimed to be the
-twin's.
+environment, over the whole outcome; all four of the port's error kinds are
+claimed to be the twin's (`AErrSim`; a `Native` since task #98-NATIVE).
 
 This is the fold the theorem is stated at (`Arena/Checker.lean`'s module
 note): one step per record, install and check together. -/
@@ -1826,7 +1826,8 @@ fold.**
 
 *The Aeneas model of the Rust `install_then_check` accepting implies (B)'s
 `installThenCheck` accepting with the abstracted state and the related
-environment, over the whole outcome; the port's `Native` error claims nothing.*
+environment, over the whole outcome* (a port `Native` is the twin's `native`,
+task #98-NATIVE).
 
 The error arm carries the fold POSITION (finding 13) and claims the twin
 throws at the same kind AND at the same position.  Nothing is claimed about

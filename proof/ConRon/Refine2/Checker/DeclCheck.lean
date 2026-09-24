@@ -3087,7 +3087,7 @@ theorem check_div_mod_pin_attempt_refines₀ {pers st lst} {vis : Std.U64} {rf l
       obtain rfl := (Result.ok_injective hrun).symm
       obtain ⟨le, hle, hk⟩ := herr _ rfl
       simp only [StateT.run] at hle
-      refine ⟨le, _, ?_, by rw [hk]; rfl⟩
+      refine ⟨le, attemptRestore lst (attemptSnapshot lst), ?_, by rw [hk]; rfl⟩
       show orElseAttempt _ lst = _
       unfold orElseAttempt
       rw [hle]
