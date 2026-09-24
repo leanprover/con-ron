@@ -459,7 +459,10 @@ theorem mentions_fvar_refines {pers st lst} {q : Std.U64}
     (hrun : arena.inductives.native_install.mentions_fvar pers st q e = ok o) :
     Sim₀ id pers lst o
       (mentionsFvar (absU q) (absEIdx e)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.native_install.mentions_fvar, mentionsFvar]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem mentions_fvar_ls
