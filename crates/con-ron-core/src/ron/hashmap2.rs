@@ -560,8 +560,9 @@ where
     /// con-leche: none — arena infrastructure (task #97-P6-17)
     /// **The table can take no further key**: it is at its load limit *and*
     /// its slot vector cannot double.  `insert` must not be called on such a
-    /// table; the arena's cons tables test this (`Tbl::full`) and decline with
-    /// `Native`, exactly as they decline at `IDX_CAP`.
+    /// table.  The arena's cons tables used to test this in `Tbl::full`; since
+    /// task #98-NATIVE they test only `IDX_CAP`, which keeps them at most
+    /// `2^27` keys and so far below this limit on every target.
     ///
     /// **Why it exists** (task #97-HM2 §4, DESIGN.md §3.5's "a strengthening
     /// that turns out false is a port bug; fix the Rust").  `try_resize` used

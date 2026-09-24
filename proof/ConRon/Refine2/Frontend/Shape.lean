@@ -129,8 +129,9 @@ theorem ALineErrSim.err {γ : Type} {ce : kernel.core_types.CheckError}
     {x : Except Arena.CheckError γ} (h : AErrSim ce x) :
     ALineErrSim (.Err ce) x := h
 
-theorem ALineErrSim.native {γ : Type} {x : Except Arena.CheckError γ} (m) :
-    ALineErrSim (.Err (.Native m)) x := AErrSim.native m
+theorem ALineErrSim.native {γ : Type} {x : Except Arena.CheckError γ} {m s}
+    (hx : x = .error (.native s)) :
+    ALineErrSim (.Err (.Native m)) x := AErrSim.native hx
 
 /-- Error propagation through a bind, the move every arm makes. -/
 theorem ALineErrSim.bind {γ δ : Type} {e : frontend.export_c.LineErr}
@@ -545,20 +546,40 @@ the scanner's own errors come back as the twin's `.ok (.error (le, n))`.  The
 arm therefore claims *the twin fails too, at the same kind — as a value at the
 same position, or as a throw*.  The success arm, which is the one the
 composition reads, is unchanged. -/
+/-- **The one port `Native` the twin does not mirror** (task #98-NATIVE): the
+scanner's `ErrTag::IndexOverflow` — a numeral too large for the port's `u64`
+where con-leche's reader, which the twin runs verbatim
+(`ConLeche.Frontend.scanLineFwd`), reads a `Nat`.  Mirroring it would mean
+forking con-leche's scanner into the twin (and moving the scanner proofs onto
+the fork), and a guard placed after the twin's scan cannot sit at the port's
+point: the port stops at the first oversized numeral, con-leche's reader may
+fail later in the same line.  So the stream's error arm names the error VALUE
+exactly: the port's `CheckError` is `scan_err_to_check` of an overflow. -/
+def ScanOverflowErr (ce : kernel.core_types.CheckError) : Prop :=
+  ∃ e : frontend.scan_types.ScanErr, e.what = .IndexOverflow ∧
+    frontend.export_c.scan_err_to_check e = ok ce
+
 /-- **What a port error PAIR claims about the twin's run**: the twin fails
 too, at the same kind — either as an error VALUE at the same position, or as
-an `AM` throw (the module note's finding F1).  A `Native` claims nothing. -/
+an `AM` throw (the module note's finding F1) — for all four kinds (task
+#98-NATIVE), except that a `Native` may instead be the scanner's own overflow
+(`ScanOverflowErr`, the one unmirrored site). -/
 def StreamErrSim {γ : Type} (p : kernel.core_types.CheckError × Std.U64)
     (x : Except Arena.CheckError (Except (Arena.CheckError × Nat) γ × AState)) :
     Prop :=
   ∀ k, absAErrKind p.1 = some k →
     (∃ le lst', x = .ok (.error (le, absU p.2), lst') ∧ lAErrKind le = some k) ∨
-    (∃ le, x = .error le ∧ lAErrKind le = some k)
+    (∃ le, x = .error le ∧ lAErrKind le = some k) ∨
+    (k = .native ∧ ScanOverflowErr p.1)
 
-theorem StreamErrSim.native {γ : Type} {n : Std.U64} (m)
-    {x : Except Arena.CheckError (Except (Arena.CheckError × Nat) γ × AState)} :
-    StreamErrSim (.Native m, n) x := by
-  intro k hk; simp at hk
+/-- The scanner's overflow, the carve-out. -/
+theorem StreamErrSim.overflow {γ : Type} {ce : kernel.core_types.CheckError} {n : Std.U64}
+    {x : Except Arena.CheckError (Except (Arena.CheckError × Nat) γ × AState)}
+    (h : ScanOverflowErr ce) (hk : absAErrKind ce = some .native) :
+    StreamErrSim (ce, n) x := by
+  intro k hk'
+  rw [hk] at hk'; cases hk'
+  exact Or.inr (Or.inr ⟨rfl, h⟩)
 
 /-- A throw, carried: the port's `(e, n)` for an `AErrSim e` twin failure. -/
 theorem StreamErrSim.of_throw {γ δ : Type} {e : kernel.core_types.CheckError}
@@ -567,7 +588,7 @@ theorem StreamErrSim.of_throw {γ δ : Type} {e : kernel.core_types.CheckError}
     (h : AErrSim e x) : StreamErrSim (e, n) (x >>= f) := by
   intro k hk
   obtain ⟨le, hx, hle⟩ := h k hk
-  exact Or.inr ⟨le, by rw [hx]; rfl, hle⟩
+  exact Or.inr (Or.inl ⟨le, by rw [hx]; rfl, hle⟩)
 
 def SimStreamRel {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)
     (lst : AState)
@@ -592,14 +613,6 @@ theorem SimStreamRel.ok {α β : Type} {R : α → β → Prop} {pers : arena.st
     (hx : x.run lst = .ok (.ok v, lst')) (hr : R r v) (hrel : AStateRel₀ pers rst' lst')
     (hinv : AStateInv pers rst') :
     SimStreamRel R pers lst (.Ok r, rst') x := ⟨v, lst', hx, hr, hrel, hinv⟩
-
-/-- A port `Native` in the pair claims nothing, exactly as it does in a throw. -/
-theorem SimStreamRel.native {α β : Type} {R : α → β → Prop}
-    {pers : arena.store.PersTier}
-    {lst : AState} {rst' : arena.monad.AState} {n : Std.U64} (m)
-    {x : AM (Except (Arena.CheckError × Nat) β)} :
-    SimStreamRel R pers lst (.Err (.Native m, n), rst') x :=
-  StreamErrSim.native m
 
 /-! ## The `StateD`-carrying variant of the stream shape
 

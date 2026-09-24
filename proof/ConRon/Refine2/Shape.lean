@@ -4,7 +4,9 @@
 **Deliverable 1 of task #97 P5, part 4.**  DESIGN.md §8.2: *"the Aeneas model
 of the Rust `check_decls` accepting implies (B) accepting with the abstracted
 state/result, over the whole outcome as today (`Sim`/`Out`/`ErrSim`; the
-port's `Native` error claims nothing)"*.  This file is that sentence, for a
+port's `Native` error claims nothing)"*; since task #98-NATIVE a `Native` claims
+the twin's `.native` at the same point, like every other kind.  This file is
+that sentence, for a
 Rust function of the arena's one shape
 
     f (pers : PersTier) (st : AState) args :
@@ -18,8 +20,7 @@ measured and round 3 said the task-#70 idiom does not mind.
 | Rust outcome | what the lemma claims about the twin |
 |---|---|
 | `.Ok r` | the twin's run ends `.ok` at the abstracted value, in a state related to the Rust's, with the Rust state's invariant re-established, `Ext` from the pre-state, and `WF r` |
-| `.Err e` at one of the three MIRRORED constructors | the twin throws too, **at the same kind** — messages are never compared (DESIGN §3.1) |
-| `.Err (.Native _)` | **nothing** (§8.2: "the port's `Native` error claims nothing") |
+| `.Err e` at any of the four constructors | the twin throws too, **at the same kind** — messages are never compared (DESIGN §3.1); a port `Native` is a twin `.native` at the same point (task #98-NATIVE) |
 | an Aeneas `fail`/`div` | nothing: every lemma's hypothesis is `f … = ok …` |
 
 ## The lockstep ruling (task #97-T2-LOCKSTEP): `AOut₀`/`Sim₀`/`SimS₀`
@@ -61,12 +62,13 @@ CONCLUSIONS is why `AOut.ofRun` exists beside it.
 
 The twin's `CheckError` has the same four constructors as the port's, the
 fourth being DESIGN §8.3's `native` ("the Rust raises `Native` at the limit,
-the Lean `throw`s the same kind").  The comparison is nonetheless between the
-THREE mirrored kinds and a port `Native` claims nothing, because §8.2 rules
-it so: the port raises `Native` at guards the twin has no counterpart for
-(an Aeneas-modelled `usize` overflow, a capacity the twin's `Nat` does not
-have), and a lemma about such a site must be dischargeable without naming the
-twin's side at all.
+the Lean `throw`s the same kind").  **All four are compared** (task
+#98-NATIVE).  Until then a port `Native` claimed nothing (`absAErrKind` sent
+it to `none`, and `AErrSim.native` discharged any twin outcome); every
+`Native` the arena raises is now a capacity guard the twin raises `.native` at
+too (`Arena/Monad.lean`'s interns, whose test is the port's `Tbl::full`), so
+the escape is gone and a Rust `Native` is a twin `.native` at the same point.
+DESIGN.md `### Task #98-NATIVE` has the site table.
 -/
 import ConRon.Refine2.AbsState
 
@@ -82,30 +84,29 @@ open ConRon.Arena
 /-! ## The error, as its kind -/
 
 /-- The twin's `CheckError` (`Arena/Monad.lean`) without its messages: the
-three kinds a refinement lemma can claim.  `native` is not among them — see
-the module note. -/
+four kinds a refinement lemma claims (`native` since task #98-NATIVE). -/
 inductive AErrKind where
   | notImplemented
   | invalid
   | internal
+  | native
   deriving DecidableEq, Repr
 
-/-- The twin's error, as the kind it stands for; its own `native` stands for
-nothing, so a twin `native` satisfies no claim and a lemma never has to
-produce one. -/
+/-- The twin's error, as the kind it stands for.  (An `Option` for history's
+sake: until task #98-NATIVE the twin's `native` stood for nothing.) -/
 def lAErrKind : Arena.CheckError → Option AErrKind
   | .notImplemented _ => some .notImplemented
   | .invalid _ => some .invalid
   | .internal _ => some .internal
-  | .native _ => none
+  | .native _ => some .native
 
-/-- **The port's error, as the twin kind it stands for.**  `Native` abstracts
-to *nothing*, which is how "claims nothing about this run" is spelled. -/
+/-- **The port's error, as the twin kind it stands for.**  Total: a port
+`Native` stands for the twin's `native` (task #98-NATIVE). -/
 def absAErrKind : kernel.core_types.CheckError → Option AErrKind
   | .NotImplemented _ => some .notImplemented
   | .Invalid _ => some .invalid
   | .Internal _ => some .internal
-  | .Native _ => none
+  | .Native _ => some .native
 
 @[simp] theorem absAErrKind_notImplemented (m) :
     absAErrKind (.NotImplemented m) = some .notImplemented := rfl
@@ -113,7 +114,8 @@ def absAErrKind : kernel.core_types.CheckError → Option AErrKind
     absAErrKind (.Invalid m) = some .invalid := rfl
 @[simp] theorem absAErrKind_internal (m) :
     absAErrKind (.Internal m) = some .internal := rfl
-@[simp] theorem absAErrKind_native (m) : absAErrKind (.Native m) = none := rfl
+@[simp] theorem absAErrKind_native (m) :
+    absAErrKind (.Native m) = some .native := rfl
 
 @[simp] theorem lAErrKind_notImplemented (m) :
     lAErrKind (.notImplemented m) = some .notImplemented := rfl
@@ -121,23 +123,18 @@ def absAErrKind : kernel.core_types.CheckError → Option AErrKind
     lAErrKind (.invalid m) = some .invalid := rfl
 @[simp] theorem lAErrKind_internal (m) :
     lAErrKind (.internal m) = some .internal := rfl
-@[simp] theorem lAErrKind_native (m) : lAErrKind (.native m) = none := rfl
+@[simp] theorem lAErrKind_native (m) : lAErrKind (.native m) = some .native := rfl
+
+/-- Every port error stands for a twin kind. -/
+theorem absAErrKind_isSome (e : kernel.core_types.CheckError) :
+    ∃ k, absAErrKind e = some k := by cases e <;> exact ⟨_, rfl⟩
 
 /-- **What a Rust error claims about the twin's outcome**: that the twin
-throws too, at the same kind.  A `Native` error claims nothing, because
-`absAErrKind` sends it to `none` and the hypothesis is then unsatisfiable. -/
+throws too, at the same kind — for all four kinds (task #98-NATIVE; the
+quantified shape is from when a `Native` abstracted to `none`). -/
 def AErrSim {γ : Type} (e : kernel.core_types.CheckError)
     (x : Except Arena.CheckError γ) : Prop :=
   ∀ k, absAErrKind e = some k → ∃ le, x = .error le ∧ lAErrKind le = some k
-
-/-- The port's own failure claims nothing. -/
-theorem AErrSim.native {γ : Type} {x : Except Arena.CheckError γ} (m) :
-    AErrSim (.Native m) x := by intro k hk; simp at hk
-
-/-- A failure the twin has no counterpart for claims nothing. -/
-theorem AErrSim.of_none {γ : Type} {e : kernel.core_types.CheckError}
-    {x : Except Arena.CheckError γ} (h : absAErrKind e = none) :
-    AErrSim e x := by intro k hk; rw [h] at hk; simp at hk
 
 /-- The mirrored case. -/
 theorem AErrSim.mk {γ : Type} {e : kernel.core_types.CheckError}
@@ -156,6 +153,16 @@ theorem AErrSim.invalid {γ : Type} {x : Except Arena.CheckError γ} {m s}
 
 theorem AErrSim.internal {γ : Type} {x : Except Arena.CheckError γ} {m s}
     (hx : x = .error (.internal s)) : AErrSim (.Internal m) x := AErrSim.mk hx rfl
+
+/-- A port `Native` against the twin's `.native` (task #98-NATIVE). -/
+theorem AErrSim.native {γ : Type} {x : Except Arena.CheckError γ} {m s}
+    (hx : x = .error (.native s)) : AErrSim (.Native m) x := AErrSim.mk hx rfl
+
+/-- An error of the kind `absAErrKind e` names, as a twin throw. -/
+theorem AErrSim.of_kind {γ : Type} {e : kernel.core_types.CheckError}
+    {x : Except Arena.CheckError γ} {le : Arena.CheckError} {k : AErrKind}
+    (hx : x = .error le) (he : absAErrKind e = some k) (hle : lAErrKind le = some k) :
+    AErrSim e x := AErrSim.mk hx (by rw [he, hle])
 
 /-- **Error propagation through a bind**, the move every arm makes. -/
 theorem AErrSim.bind {γ δ : Type} {e : kernel.core_types.CheckError}
@@ -211,8 +218,9 @@ theorem AOut.err {α β : Type} {A : α → β} {WF : α → Prop}
 
 theorem AOut.native {α β : Type} {A : α → β} {WF : α → Prop}
     {pers : arena.store.PersTier} {lst : AState} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError (β × AState)} (m) :
-    AOut A WF pers lst (.Err (.Native m)) st' x := AErrSim.native m
+    {x : Except Arena.CheckError (β × AState)} {m s}
+    (hx : x = .error (.native s)) :
+    AOut A WF pers lst (.Err (.Native m)) st' x := AErrSim.native hx
 
 /-- What the success half gives at a call site. -/
 theorem AOut.dest {α β : Type} {A : α → β} {WF : α → Prop} {r : α}
@@ -475,8 +483,9 @@ well-formedness predicate states it through `SimRel₀`'s relation
 (`Refine2/Checker/Shape.lean`), as `SimRel` already does. -/
 
 theorem AOut₀.native {α β : Type} {A : α → β} {pers : arena.store.PersTier}
-    {st' : arena.monad.AState} {x : Except Arena.CheckError (β × AState)} (m) :
-    AOut₀ A pers (.Err (.Native m)) st' x := AErrSim.native m
+    {st' : arena.monad.AState} {x : Except Arena.CheckError (β × AState)} {m s}
+    (hx : x = .error (.native s)) :
+    AOut₀ A pers (.Err (.Native m)) st' x := AErrSim.native hx
 
 theorem AOut₀.dest {α β : Type} {A : α → β} {r : α}
     {pers : arena.store.PersTier} {st' : arena.monad.AState}

@@ -238,18 +238,24 @@ where
         }
     }
 
-    /// con-leche: none — arena infrastructure (task #97-P6-17)
-    /// **This constructor's array of this tier has no room for another node.**
-    /// Two limits, and the first is the one that can be approached: the handle
-    /// word gives the index 27 bits (`IDX_CAP`, §8.3), and the cons table's
-    /// own slot vector cannot double past `usize::MAX / 2`
-    /// (`HashMap2::is_saturated_full`, task #97-HM2 §4).
+    /// con-leche: none — arena infrastructure (task #97-P6-17, #98-NATIVE)
+    /// **This constructor's array of this tier has no room for another node**:
+    /// the handle word gives the index 27 bits (`IDX_CAP`, §8.3).  This is
+    /// exactly the twin's capacity test (`n < Idx.idxCap` in
+    /// `Arena/Monad.lean`'s interns), so a `Native` here is the twin's
+    /// `.native` at the same point (task #98-NATIVE).
+    ///
+    /// It used to be `… || self.cons.is_saturated_full()` as well.  That
+    /// disjunct cannot fire below `IDX_CAP`: the cons table holds one key per
+    /// row, so at most `2^27` keys, and a table at its load limit with that
+    /// many keys has far fewer than `usize::MAX / 2` slots on any target the
+    /// port builds for (32 or 64 bits).  It is dropped so that the port's
+    /// test is purely size-based, as the twin's is; `HashMap2::insert`'s
+    /// precondition (`!is_saturated_full()`) is then the unreachability just
+    /// stated, and the model's `try_resize` still fails (an Aeneas panic, which
+    /// Theorem 2 excludes) rather than overwriting a live entry.
     pub fn full(&self) -> bool {
-        if self.rows.len() >= IDX_CAP as usize {
-            true
-        } else {
-            self.cons.is_saturated_full()
-        }
+        self.rows.len() >= IDX_CAP as usize
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:90-91 Tbl.find?

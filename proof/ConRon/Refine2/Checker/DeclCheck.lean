@@ -2992,6 +2992,23 @@ def OrElseRel : arena.checker_base.OrElseStep → OrElseStep → Prop
   | .Recovered e, .recovered le => absAErrKind e = lAErrKind le
   | _, _ => False
 
+/-- **The attempt seam's outcome shape** (task #98-NATIVE).  The port and the
+twin split the `.failed` arm differently: the port's
+`check_div_mod_pin_attempt` THROWS the `Native` (`Failed(e) => Err(e)`), the
+twin's `orElseAttempt` returns the step `.failed e` and its caller's `match`
+throws it (`checkDivModPinTrySpec`'s `.failed e => fail e`).  Until task
+#98-NATIVE the port's `Native` claimed nothing and `SimRel₀`'s error arm hid the
+split; now the error arm says what the twin does at the same point — it
+returns `.failed` at the same kind — and `check_div_mod_pin_try_refines₀`
+meets the two throws one step later, where both programs fail. -/
+def AttemptSim (pers : arena.store.PersTier) (lst : AState)
+    (o : core.result.Result arena.checker_base.OrElseStep kernel.core_types.CheckError ×
+      arena.monad.AState)
+    (x : AM OrElseStep) : Prop :=
+  match o.1 with
+  | .Ok r => AOutRel₀ OrElseRel pers (.Ok r) o.2 (x.run lst)
+  | .Err e => ∃ le lst', x.run lst = .ok (.failed le, lst') ∧ absAErrKind e = lAErrKind le
+
 /-- The attempt's own lockstep lemma, in the shape the seam consumes it: at
 ANY tier and state related to the twin's pre-attempt state — the seam runs it
 at the frozen tier (task #97-T2-LOCKSTEP D4c).  `check_div_mod_pin_at_refines`
@@ -3031,11 +3048,11 @@ theorem check_div_mod_pin_attempt_refines₀ {pers st lst} {vis : Std.U64} {rf l
     (hat : DivModPinAtSim vis rf lf mode c value2 ps lst)
     (hrun : arena.decl_check.check_div_mod_pin_attempt pers vis st mode rf c value2
       ps = ok o) :
-    SimRel₀ OrElseRel pers lst o
+    AttemptSim pers lst o
       (orElseAttempt (checkDivModPinAt (ConRon.Refine.absMode mode) lf (absNIdx c)
         (absEIdx value2) (absINatOpPinSet ps))) := by
   unfold arena.decl_check.check_div_mod_pin_attempt at hrun
-  unfold SimRel₀ AOutRel₀
+  unfold AttemptSim AOutRel₀
   obtain ⟨snap, hs, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain rfl := attempt_snapshot_eq hs
   obtain ⟨⟨r, st₁⟩, ha, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -3068,7 +3085,15 @@ theorem check_div_mod_pin_attempt_refines₀ {pers st lst} {vis : Std.U64} {rf l
       subst hoes
       try dsimp only at hrun
       obtain rfl := (Result.ok_injective hrun).symm
-      exact AErrSim.native m
+      obtain ⟨le, hle, hk⟩ := herr _ rfl
+      simp only [StateT.run] at hle
+      refine ⟨le, _, ?_, by rw [hk]; rfl⟩
+      show orElseAttempt _ lst = _
+      unfold orElseAttempt
+      rw [hle]
+      cases le with
+      | native _ => rfl
+      | _ => simp at hk
     | NotImplemented m | Invalid m | Internal m =>
       simp [arena.checker_base.or_else_attempt] at hoes
       subst hoes
@@ -3144,17 +3169,20 @@ theorem check_div_mod_pin_try_refines {pers st lst} {vis : Std.U64} {rf lf}
   subst hps'
   obtain ⟨⟨r, st₁⟩, hatt, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have hseam := check_div_mod_pin_attempt_refines₀ hrel hinv hat hatt
-  unfold SimRel₀ AOutRel₀ at hseam
+  unfold AttemptSim AOutRel₀ at hseam
   have htail : ∀ i' : Std.Usize, i'.val = i.val + 1 →
       absINatOpPinSetLFrom variants i' = (absINatOpPinSetLFrom variants i).tail := by
     intro i' hi'
     simp only [absINatOpPinSetLFrom, ← List.map_tail, List.tail_drop, hi']
   cases r with
   | Err e =>
+    -- the port's attempt threw its `Native`; the twin's returned `.failed` at
+    -- the same kind, which its `match` throws
     obtain rfl := (Result.ok_injective hrun).symm
-    intro k hk
-    obtain ⟨le, hx, -⟩ := hseam k hk
-    exact absurd hx orElseAttempt_run_ne_error
+    obtain ⟨le, lst₁, hx, hk⟩ := hseam
+    unfold Sim₀ checkDivModPinTrySpec
+    rw [run_bind_ok hx]
+    exact AErrSim.mk rfl hk
   | Ok step =>
     obtain ⟨v, lst₁, hx, hR, hrel₁, hinv₁⟩ := hseam
     unfold Sim₀ checkDivModPinTrySpec

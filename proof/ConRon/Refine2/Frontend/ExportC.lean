@@ -218,11 +218,12 @@ theorem rel_offset_refines {off i v}
 
 /-- **`scan_err_to_check`** — the scanner's tag as a `CheckError`.  Task #87
 §4's port bug is the reason this function exists: `ErrTag::IndexOverflow` is
-spelled `Native` and every other tag `Internal`, so the port never claims the
-twin throws on a stream the twin accepts. -/
+spelled `Native` and every other tag `Internal`.  (Since task #98-NATIVE a
+`Native` claims the twin's `.native`; this one is the stream relation's
+`ScanOverflowErr` carve-out, `Refine2/Frontend/Shape.lean`.) -/
 theorem scan_err_to_check_refines {e ce}
     (h : frontend.export_c.scan_err_to_check e = ok ce) :
-    (absErrTag e.what = none → absAErrKind ce = none) ∧
+    (absErrTag e.what = none → absAErrKind ce = some .native) ∧
       (∀ t, absErrTag e.what = some t → absAErrKind ce = some .internal) := by
   rw [frontend.export_c.scan_err_to_check] at h
   rcases e with ⟨off, what⟩

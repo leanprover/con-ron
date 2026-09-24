@@ -129,7 +129,11 @@ level (`proj_table_name_lss`'s shape, with the field index for `0`). -/
     have ho := Result.ok_injective hrun
     simp only [Prod.mk.injEq] at ho
     obtain ⟨rfl, rfl⟩ := ho
-    exact AErrSim.of_none (herr1 e rfl)
+    obtain ⟨hk, hnc⟩ := herr1 e rfl
+    simp only [absNNodeView, habs] at hnc
+    obtain ⟨s, hs⟩ := internNNode_run_of_not_cap (lst := lst) hnc
+    rw [hrun1]
+    exact aErrSim_native_of hk ⟨s, by rw [StateT.run_bind, hs]; rfl⟩
   | Ok s1 =>
     obtain ⟨hs1, hrelS, hinvS, hcap1⟩ := hok1 s1 rfl
     simp only [absNNodeView, habs] at hs1 hrelS hcap1
@@ -138,7 +142,10 @@ level (`proj_table_name_lss`'s shape, with the field index for `0`). -/
         hrelS hinvS (v := arena.store.NNodeView.Num s1 i) trivial hrun
     rw [hrun1, run_bind_ok (internNNode_run_of_cap hcap1)]
     cases o with
-    | Err e => exact AErrSim.of_none (herr2 e rfl)
+    | Err e =>
+      obtain ⟨hk, hnc⟩ := herr2 e rfl
+      simp only [absNNodeView, hs1] at hnc
+      exact aErrSim_native_of hk (internNNode_run_of_not_cap hnc)
     | Ok a =>
       obtain ⟨hs2, hrelS2, hinvS2, hcap2⟩ := hok2 a rfl
       simp only [absNNodeView, hs1] at hs2 hrelS2 hcap2

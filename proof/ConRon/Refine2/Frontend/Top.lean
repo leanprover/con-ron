@@ -573,6 +573,11 @@ theorem wrap_map {β γ : Type} (x : AM (Except (Arena.CheckError × Nat) β))
   | error e => exact h1 e
   | ok b => exact h2 b
 
+/-- The one tag with no con-leche counterpart (task #98-NATIVE's carve-out). -/
+theorem absErrTag_eq_none {t : frontend.scan_types.ErrTag} (h : absErrTag t = none) :
+    t = .IndexOverflow := by
+  cases t <;> first | rfl | cases h
+
 /-- An error pair's claim survives a continuation that passes an error value
 through unchanged. -/
 theorem StreamErrSim.bind {γ δ : Type} {p : kernel.core_types.CheckError × Std.U64}
@@ -583,9 +588,10 @@ theorem StreamErrSim.bind {γ δ : Type} {p : kernel.core_types.CheckError × St
     (hg : ∀ e s, g (.error e, s) = .ok (.error e, s)) :
     StreamErrSim p (x >>= g) := by
   intro k hk
-  rcases h k hk with ⟨le, lst', hx, hle⟩ | ⟨le, hx, hle⟩
+  rcases h k hk with ⟨le, lst', hx, hle⟩ | ⟨le, hx, hle⟩ | hov
   · exact Or.inl ⟨le, lst', by rw [hx]; exact hg _ _, hle⟩
-  · exact Or.inr ⟨le, by rw [hx]; rfl, hle⟩
+  · exact Or.inr (Or.inl ⟨le, by rw [hx]; rfl, hle⟩)
+  · exact Or.inr (Or.inr hov)
 
 /-- `SimStreamD`'s success arm at a wrapper, as the unwrapped run. -/
 theorem stream_map_ok {β γ : Type} {x : Except Arena.CheckError
@@ -614,7 +620,14 @@ theorem StreamErrSim.of_map {β γ : Type} {p : kernel.core_types.CheckError × 
     (h : StreamErrSim p (x >>= fun q => .ok (q.1.map f, q.2))) :
     StreamErrSim p x := by
   intro k hk
-  rcases h k hk with ⟨le, lst', hx, hle⟩ | ⟨le, hx, hle⟩
+  rcases h k hk with ⟨le, lst', hx, hle⟩ | ⟨le, hx, hle⟩ | hov
+  rotate_left
+  · right; left
+    revert hx
+    rcases x with e | ⟨r, s⟩
+    · intro hx; cases hx; exact ⟨le, rfl, hle⟩
+    · rcases r with e | b <;> (intro hx; cases hx)
+  · exact Or.inr (Or.inr hov)
   · left
     revert hx
     rcases x with e | ⟨r, s⟩
@@ -803,7 +816,7 @@ theorem apply_final_line_refines {G : Type} {inst : frontend.types.Modeller G}
         intro k hk
         rw [herr ce rfl] at hk
         obtain ⟨le, hx, hle⟩ := hA k hk
-        exact Or.inr ⟨le, by rw [hx]; rfl, hle⟩
+        exact Or.inr (Or.inl ⟨le, by rw [hx]; rfl, hle⟩)
       | Verdict v =>
         obtain ⟨lv, lst', hx, hkv⟩ := hA
         intro k hk
@@ -818,7 +831,9 @@ theorem apply_final_line_refines {G : Type} {inst : frontend.types.Modeller G}
     show StreamErrSim (ce, line_no) _
     intro k hk
     cases ht : absErrTag e.what with
-    | none => rw [hnone ht] at hk; cases hk
+    | none =>
+      rw [hnone ht] at hk; cases hk
+      exact Or.inr (Or.inr ⟨rfl, e, absErrTag_eq_none ht, hce⟩)
     | some tg =>
       rw [hsome tg ht] at hk
       cases hk
@@ -946,7 +961,7 @@ theorem feed_chunk_loop_refines {G : Type} {inst : frontend.types.Modeller G}
             intro k' hk'
             rw [herr ce rfl] at hk'
             obtain ⟨le, hx, hle⟩ := hA k' hk'
-            exact Or.inr ⟨le, by rw [hx]; rfl, hle⟩
+            exact Or.inr (Or.inl ⟨le, by rw [hx]; rfl, hle⟩)
           | Verdict v =>
             obtain ⟨lv, lst', hx, hkv⟩ := hA
             intro k' hk'
@@ -967,7 +982,9 @@ theorem feed_chunk_loop_refines {G : Type} {inst : frontend.types.Modeller G}
         show StreamErrSim (ce, i3) _
         intro k' hk'
         cases ht : absErrTag e.what with
-        | none => rw [hnone ht] at hk'; cases hk'
+        | none =>
+          rw [hnone ht] at hk'; cases hk'
+          exact Or.inr (Or.inr ⟨rfl, e, absErrTag_eq_none ht, hce⟩)
         | some tg =>
           rw [hsome tg ht] at hk'
           cases hk'
