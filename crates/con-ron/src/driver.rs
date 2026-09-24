@@ -530,7 +530,7 @@ pub fn phase_b_verdict(
 /// | step | here | the capstone's premise |
 /// |---|---|---|
 /// | phase A | `checker::annot_fold_hooked(…, fold_start(), ds, 0, obs)` | the same call accepts |
-/// | boundary | `checker::freeze_tier(&mut st.store)` | the same call succeeds |
+/// | boundary | `checker::freeze_tier(&mut st.store)` | the same call's value |
 /// | phase B | `pool::parallel_all(m, workers, ‖ worker_state(pins), ‖w, k‖ check_pending(&tier, w, mode, &fe, &pend[k]), …)` | `h8`: index lists `ws` covering `0..pend.len`, each `w` a `foldlM` of `check_pending tier st mode fe pend[k]` over `k ∈ w` from `worker_state pins`, accepting (internally `ParallelAll`) |
 /// | after | `checker::thaw_tier(&mut st.store, tier)` | restores the store (`freeze_tier_ok`) |
 ///
@@ -546,8 +546,9 @@ pub fn phase_b_verdict(
 /// **The boundary is where the tier is FROZEN** (task #97-P6-6b).  Phase A
 /// owns its persistent tier and appends to it; at the boundary
 /// `checker::freeze_tier` moves the four stores' persistent tables out into
-/// one `PersTier` and sets the `shared_on` flags that make every later
-/// persistent read go to it and every persistent append a decline.  The
+/// one `PersTier`, handed back `frozen`: every read through it goes to those
+/// tables, and a worker's own store is frozen (`checker::worker_state`), so
+/// every append there is a scratch append (task #98-FREEZE).  The
 /// installed index goes to the workers by reference, since `check_pending`
 /// takes the visibility bound as a scalar — so `n` workers share one
 /// environment and one term DAG and own nothing but a scratch tier, their
@@ -570,22 +571,16 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
         }
         Ok(p) => p,
     };
-    let (n_installed, fe, pend): (u64, IFEnv, Vec<PendingCheck>) = p;
+    let (_n_installed, fe, pend): (u64, IFEnv, Vec<PendingCheck>) = p;
     let m = pend.len();
     obs.install_done(pers, &st.store, total, m);
     let workers = workers_for(jobs, m);
     obs.phase_b_workers(workers);
     // THE PHASE BOUNDARY: the persistent tier leaves the state and becomes a
     // value every worker reads (the doc comment above).  `st` keeps its
-    // (empty) store with the flags set, so the observer can still read a
-    // label back through the shared tier.  (ConRon.Capstone: h7)
-    let tier: PersTier = match checker::freeze_tier(&mut st.store) {
-        Err(e) => {
-            obs.check_failed(n_installed);
-            return Err((e, n_installed));
-        }
-        Ok(t) => t,
-    };
+    // (empty) store, its tables moved out, so the observer can still read a
+    // label back through the tier.  (ConRon.Capstone: h7)
+    let tier: PersTier = checker::freeze_tier(&mut st.store);
     // PHASE B: `check_pending` at every record, on `workers` threads, each
     // folding it over the records it claims on ONE `worker_state` — the
     // verdict and the record a rejection names are the one-worker walk's at
@@ -1117,21 +1112,16 @@ mod tests {
             Err(_) => panic!("`add` interns"),
         };
         assert_eq!(name_of(empty, &st.store, &n), "add");
-        // frozen: the store's own tier is empty and the shared one answers
-        let tier = match checker::freeze_tier(&mut st.store) {
-            Ok(t) => t,
-            Err(_) => panic!("phase A's store has its flags down"),
-        };
-        assert!(st.store.shared_on);
-        // a second freeze of the frozen store is the port's own decline
-        assert!(checker::freeze_tier(&mut st.store).is_err());
+        // frozen: the store's own tables are out and the tier answers
+        let tier = checker::freeze_tier(&mut st.store);
+        assert!(tier.frozen);
         assert_eq!(name_of(&tier, &st.store, &n), "add");
         // and a worker, whose store is its own, reads it too
         let w = checker::worker_state(&st.pins);
         assert_eq!(name_of(&tier, &w.store, &n), "add");
         // thawed: the store is what phase A left
         checker::thaw_tier(&mut st.store, tier);
-        assert!(!st.store.shared_on);
+        assert!(!st.store.scratch_on);
         assert_eq!(name_of(empty, &st.store, &n), "add");
     }
 }

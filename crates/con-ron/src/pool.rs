@@ -32,9 +32,11 @@
 //! §8.3 has said since P1 what phase B is: "the persistent tier is immutable
 //! in phase B, each worker owns a scratch tier — **no atomics anywhere**",
 //! and task #97-P6-6 verified it in the code (`check_pending` is the bracket;
-//! `intern_persistent`'s only caller is phase A's `arena::promote`).  So the
-//! driver's `init` builds `checker::worker_state(pins)` — an EMPTY store whose
-//! four `shared_on` flags are set, its own `Memos` and `Caches`, and a COPY of
+//! the persistent interns' only caller is phase A's `arena::promote`, which
+//! writes a `&mut PersTier` a worker never holds).  So the driver's `init`
+//! builds `checker::worker_state(pins)` — an EMPTY store, FROZEN
+//! (`EStore::empty_frozen`: every append a scratch append), its own `Memos`
+//! and `Caches`, and a COPY of
 //! the driver's `Pins` — and its `step` borrows the frozen `&PersTier` and
 //! the installed `&IFEnv` (by reference: `check_pending` takes the record's
 //! prefix bound as a scalar, `pc.vis`, so a worker costs no environment copy
@@ -468,10 +470,7 @@ mod tests {
             });
         }
         let pins = checker::pins_dup(&st.pins);
-        let tier = match checker::freeze_tier(&mut st.store) {
-            Ok(t) => t,
-            Err(_) => panic!("the fixture's store has its flags down"),
-        };
+        let tier = checker::freeze_tier(&mut st.store);
         (tier, pins, pend)
     }
 

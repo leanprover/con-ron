@@ -15,9 +15,10 @@ unfilled pin table (three word-0 handles and two empty vectors against the
 twin's `Pins.empty`), and `StoreWF EStore.empty` (`Arena/WFProofs.lean`'s
 `EStore.empty_wf`), and it also concludes `scratch_on = false`.
 
-The `PersTier` argument is irrelevant here: with every `shared_on` down, the
-relation reads the store's OWN persistent tier (`rPersE` and its three
-siblings), never `pers`.
+The `PersTier` argument is irrelevant here as long as it is not `frozen`
+(task #98-FREEZE): the relation then reads the store's OWN persistent tier
+(`rPersE` and its three siblings), never `pers`; `PersTier::empty()` is not
+frozen (`persTier_empty_frozen`).
 -/
 import ConRon.Refine2.Promote.Intern
 
@@ -128,10 +129,21 @@ theorem etables_empty {rt : arena.store.ETables}
       tbl_empty_inv ht4, tbl_empty_inv ht5, tbl_empty_inv ht5, tbl_empty_inv ht6,
       tbl_empty_inv ht7, tbl_empty_inv ht8, tbl_empty_inv ht9⟩⟩
 
+/-- **`PersTier::empty()` is an owned store's reader**: not `frozen`. -/
+theorem persTier_empty_frozen {pers : arena.store.PersTier}
+    (h : arena.store.PersTier.empty = ok pers) : pers.frozen = false := by
+  rw [arena.store.PersTier.empty] at h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [← Result.ok_injective h]
+
 /-- The empty store, with every flag down.  `pers` is never read: the
-relation's persistent arm is the store's own tier when `shared_on` is
-`false`. -/
-theorem estore_empty (pers : arena.store.PersTier) {rs : arena.store.EStore}
+relation's persistent arm is the store's own tier when `pers` is not
+`frozen`. -/
+theorem estore_empty (pers : arena.store.PersTier) (hpers : pers.frozen = false)
+    {rs : arena.store.EStore}
     (h : arena.store.EStore.empty = ok rs) :
     StoreRel pers rs EStore.empty ∧ StoreInv pers rs ∧ rs.scratch_on = false := by
   rw [arena.store.EStore.empty] at h
@@ -157,8 +169,20 @@ theorem estore_empty (pers : arena.store.PersTier) {rs : arena.store.EStore}
   obtain ⟨hLR, hLI⟩ := ltables_empty hlt2
   obtain ⟨hLsR, hLsI⟩ := lstables_empty hlt
   obtain ⟨hER, hEI⟩ := etables_empty he
-  refine ⟨⟨⟨⟨⟨hNR, hNR, rfl⟩, hLR, hLR, rfl⟩, hLsR, hLsR, rfl⟩, hER, hER, rfl⟩,
-    ⟨⟨⟨⟨hNI, hNI⟩, hLI, hLI⟩, hLsI, hLsI⟩, hEI, hEI⟩, rfl⟩
+  have pN : ∀ {s : arena.store.NStore}, rPersN pers s = s.pers := by
+    intro s; unfold rPersN; rw [hpers]; rfl
+  have pL : ∀ {s : arena.store.LStore}, rPersL pers s = s.pers := by
+    intro s; unfold rPersL; rw [hpers]; rfl
+  have pLs : ∀ {s : arena.store.LsStore}, rPersLs pers s = s.pers := by
+    intro s; unfold rPersLs; rw [hpers]; rfl
+  have pE : ∀ {s : arena.store.EStore}, rPersE pers s = s.pers := by
+    intro s; unfold rPersE; rw [hpers]; rfl
+  have hoff : ∀ {b : Bool}, pers.frozen = true → b = true := fun h => by
+    rw [hpers] at h; cases h
+  refine ⟨⟨⟨⟨⟨(by rw [pN]; exact hNR), hNR, rfl⟩, (by rw [pL]; exact hLR), hLR, rfl⟩, (by rw [pLs]; exact hLsR), hLsR, rfl⟩, (by rw [pE]; exact hER),
+      hER, rfl⟩,
+    ⟨⟨⟨⟨(by rw [pN]; exact hNI), hNI, hoff⟩, (by rw [pL]; exact hLI), hLI, hoff⟩, (by rw [pLs]; exact hLsI), hLsI, hoff⟩, (by rw [pE]; exact hEI), hEI,
+      hoff⟩, rfl⟩
 
 theorem memos_empty {rm : arena.monad.Memos} (h : arena.monad.Memos.empty = ok rm) :
     MemosRel rm Memos.empty ∧ MemosInv rm := by
@@ -239,12 +263,12 @@ start state — `AState::init(EStore::empty())` read through
 `AState.init EStore.empty`, satisfies the Rust-side invariant, and has its
 scratch tier closed. -/
 theorem init_rel {pers : arena.store.PersTier} {est : arena.store.EStore}
-    {st : arena.monad.AState}
+    {st : arena.monad.AState} (hpers : pers.frozen = false)
     (hest : arena.store.EStore.empty = ok est)
     (hst : arena.monad.AState.init est = ok st) :
     AStateRel₀ pers st (AState.init EStore.empty) ∧ AStateInv pers st ∧
       st.store.scratch_on = false := by
-  obtain ⟨hSR, hSI, hoff⟩ := estore_empty pers hest
+  obtain ⟨hSR, hSI, hoff⟩ := estore_empty pers hpers hest
   rw [arena.monad.AState.init] at hst
   obtain ⟨m, hm, hst⟩ := ConRon.Refine.bind_eq_ok_iff.mp hst
   obtain ⟨c, hc, hst⟩ := ConRon.Refine.bind_eq_ok_iff.mp hst

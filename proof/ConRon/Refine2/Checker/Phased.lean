@@ -14,23 +14,23 @@ for that function, against `Arena/Phased.lean`'s `installThenCheckPhased`:
 
 * **phase A** — `annot_fold_hooked` IS `annot_fold` (`annot_fold_hooked_eq`:
   the hook is `Unit`-valued and reads only), so `annot_fold_refines` applies;
-* **the boundary** — `freeze_tier` either declines (`Native`, so the Rust
-  run claims nothing: `freeze_tier_err`) or found the four flags down and
-  handed back the store's own four persistent tables (`freeze_tier_ok`), and
-  `thaw_tier` then restores the store exactly (`freeze_tier_ok`'s last
-  conjunct);
-* **the worker** — `worker_state` over that tier is related to the twin's
-  `AState.worker` of the phase-A state, at the TIER as the reader parameter
-  (`worker_state_rel`): its store's persistent reads go to the tier because
-  its flags are up, and the tier is exactly what the phase-A store's reads
-  went to because its flags were down.  So `check_pending_list_refines`
-  applies at `pers := tier`;
+* **the boundary** — `freeze_tier` moves the store's four persistent tables
+  out into a `frozen` tier, and `thaw_tier` puts them back, so the store comes
+  back exactly (`freeze_tier_ok`; task #98-FREEZE made it a pure move, with no
+  flag and no decline);
+* **the worker** — `worker_state` is an empty store, frozen, and over that
+  tier it is `AIdle` against the twin's `AState.worker` of the phase-A state,
+  at the TIER as the reader parameter (`worker_state_rel`): its persistent
+  reads go to the tier, which is exactly what the phase-A store's reads went
+  to because phase A's reader is an owned store's (`hpers`).  So
+  `check_pending_list_refines` applies at `pers := tier`;
 * **the result** — the Rust's state after the fold is the phase-A state (the
   store thawed back), which is what the twin's `checkPendingWorker` hands
   back too, so `AStateRel₀` carries over unchanged.
 
-Nothing here is a hypothesis: the flags, which the relation never mentions,
-are read off the Rust's own guard in `freeze_tier`.
+The one hypothesis beyond the relation is `hpers : pers.frozen = false`, the
+phase-A reader's shape (task #98-FREEZE; the capstone reads it off
+`PersTier::empty`).
 -/
 import ConRon.Refine2.Checker.Top
 import ConRon.Refine2.Checker.Init
@@ -102,9 +102,7 @@ theorem annot_fold_hooked_eq {H : Type} {inst : arena.checker.InstallHook H} {h 
 
 /-! ## The boundary -/
 
-/-! `Thawed`, `tierOf`, `freeze_tier_err` and `freeze_tier_ok` moved down to
-`Refine2/Checker/Base.lean` (task #97-T2-LOCKSTEP D4c: the attempt seam
-freezes the tier too). -/
+/-! `tierOf` is `Refine2/Core/Bracket.lean`'s (task #98-FREEZE). -/
 
 /-! ## The worker -/
 
@@ -123,19 +121,38 @@ theorem pins_dup_val {p q : arena.pins.Pins} (h : arena.checker.pins_dup p = ok 
   have e2 : v1 = p.reserved := alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv1)
   rw [e1, e2, dupId_lsidx _ _ hli, dupId_lidx _ _ hl, dupId_eidx _ _ he]
 
+/-- **`freeze_tier` moves the four persistent tables out, and `thaw_tier`
+puts them back**: the tier is the store's own tables, `frozen`, and the store
+comes back exactly (task #98-FREEZE: a pure move, no flag and no decline). -/
+theorem freeze_tier_ok {ar ar' : arena.store.EStore} {tier : arena.store.PersTier}
+    (h : arena.checker.freeze_tier ar = ok (tier, ar')) :
+    tier = tierOf ar ∧ arena.checker.thaw_tier ar' tier = ok ar := by
+  rw [arena.checker.freeze_tier] at h
+  obtain ⟨n, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  simp only [core.mem.replace] at h
+  obtain ⟨l, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨lt, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨e, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h' := Result.ok_injective h
+  simp only [Prod.mk.injEq] at h'
+  obtain ⟨rfl, rfl⟩ := h'
+  exact ⟨rfl, rfl⟩
+
 /-- **A phase-B worker over the frozen tier is the twin's worker of the
-phase-A state.**  `worker_state` builds an empty store with its four flags
-up, fresh memos and caches and a copy of the pins; read through `tierOf` of a
-thawed phase-A store, its persistent arm is exactly the tables the phase-A
-store's reads went to, so it relates to `AState.worker` of the twin state the
-phase-A store relates to — at the TIER as the reader parameter, the one
-`check_pending_list_refines` is then instantiated at. -/
+phase-A state, idle** (task #98-FREEZE).  `worker_state` builds an empty store
+and freezes it (`EStore::empty_frozen`): its scratch tiers are on and empty,
+fresh memos and caches and a copy of the pins.  Read through `tierOf` of the
+phase-A store — the tier `freeze_tier` moved out of it — its persistent arm
+is exactly the tables the phase-A store's reads went to (`hpers`: the phase-A
+reader is an owned store's), so it is `AIdle` against `AState.worker` of the
+twin state the phase-A store relates to: related to the twin worker with its
+scratch tier opened, at the TIER as the reader parameter. -/
 theorem worker_state_rel {pers : arena.store.PersTier} {st : arena.monad.AState}
     {lst : AState} {w : arena.monad.AState}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hth : Thawed st.store)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpers : pers.frozen = false)
     (hw : arena.checker.worker_state st.pins = ok w) :
-    AStateRel₀ (tierOf st.store) w lst.worker ∧ AStateInv (tierOf st.store) w := by
-  obtain ⟨h0, h1, h2, h3⟩ := hth
+    AIdle (tierOf st.store) w lst.worker ∧ AStateInv (tierOf st.store) w := by
   rw [arena.checker.worker_state] at hw
   obtain ⟨est, hest, hw⟩ := ConRon.Refine.bind_eq_ok_iff.mp hw
   obtain ⟨st0, hst0, hw⟩ := ConRon.Refine.bind_eq_ok_iff.mp hw
@@ -144,11 +161,16 @@ theorem worker_state_rel {pers : arena.store.PersTier} {st : arena.monad.AState}
   subst hw'
   have hpv := pins_dup_val hp
   subst hpv
-  -- the fresh store, one tier at a time
-  rw [arena.store.EStore.empty] at hest
-  obtain ⟨lss, hlss, hest⟩ := ConRon.Refine.bind_eq_ok_iff.mp hest
-  obtain ⟨e, he, hest⟩ := ConRon.Refine.bind_eq_ok_iff.mp hest
-  have h' := (Result.ok_injective hest).symm
+  -- the empty store, frozen
+  rw [arena.store.EStore.empty_frozen] at hest
+  obtain ⟨e0, he0, hest⟩ := ConRon.Refine.bind_eq_ok_iff.mp hest
+  obtain ⟨⟨t0, e1⟩, hfz, hest⟩ := ConRon.Refine.bind_eq_ok_iff.mp hest
+  have he1 : e1 = est := Result.ok_injective hest
+  subst he1
+  rw [arena.store.EStore.empty] at he0
+  obtain ⟨lss, hlss, he0⟩ := ConRon.Refine.bind_eq_ok_iff.mp he0
+  obtain ⟨e, he, he0⟩ := ConRon.Refine.bind_eq_ok_iff.mp he0
+  have h' := (Result.ok_injective he0).symm
   subst h'
   rw [arena.store.LsStore.empty] at hlss
   obtain ⟨l, hl, hlss⟩ := ConRon.Refine.bind_eq_ok_iff.mp hlss
@@ -164,10 +186,27 @@ theorem worker_state_rel {pers : arena.store.PersTier} {st : arena.monad.AState}
   obtain ⟨nt, hnt, hn⟩ := ConRon.Refine.bind_eq_ok_iff.mp hn
   have h' := (Result.ok_injective hn).symm
   subst h'
-  obtain ⟨hNR, hNI⟩ := ntables_empty hnt
-  obtain ⟨hLR, hLI⟩ := ltables_empty hlt2
-  obtain ⟨hLsR, hLsI⟩ := lstables_empty hlt
-  obtain ⟨hER, hEI⟩ := etables_empty he
+  obtain ⟨-, hNI⟩ := ntables_empty hnt
+  obtain ⟨-, hLI⟩ := ltables_empty hlt2
+  obtain ⟨-, hLsI⟩ := lstables_empty hlt
+  obtain ⟨-, hEI⟩ := etables_empty he
+  rw [arena.store.EStore.freeze] at hfz
+  obtain ⟨⟨n0, n1⟩, hn0, hfz⟩ := ConRon.Refine.bind_eq_ok_iff.mp hfz
+  obtain ⟨⟨l0, l1⟩, hl0, hfz⟩ := ConRon.Refine.bind_eq_ok_iff.mp hfz
+  obtain ⟨⟨ls0, ls1⟩, hls0, hfz⟩ := ConRon.Refine.bind_eq_ok_iff.mp hfz
+  obtain ⟨ee, -, hfz⟩ := ConRon.Refine.bind_eq_ok_iff.mp hfz
+  simp only [core.mem.replace] at hfz
+  obtain ⟨es, hes, hfz⟩ := ConRon.Refine.bind_eq_ok_iff.mp hfz
+  have h' := Result.ok_injective hfz
+  simp only [Prod.mk.injEq] at h'
+  obtain ⟨-, rfl⟩ := h'
+  obtain ⟨ne, ns, hns, -, rfl⟩ := nstore_freeze_eq hn0
+  obtain ⟨le, lsc, hlsc, -, rfl⟩ := lstore_freeze_eq hl0
+  obtain ⟨lse, lssc, hlssc, -, rfl⟩ := lsstore_freeze_eq hls0
+  obtain ⟨rN, iN⟩ := ntables_reset hNI hns
+  obtain ⟨rL, iL⟩ := ltables_reset hLI hlsc
+  obtain ⟨rLs, iLs⟩ := lstables_reset hLsI hlssc
+  obtain ⟨rE, iE⟩ := etables_reset hEI hes
   -- the fresh memos and caches
   rw [arena.monad.AState.init] at hst0
   obtain ⟨m, hm, hst0⟩ := ConRon.Refine.bind_eq_ok_iff.mp hst0
@@ -180,20 +219,24 @@ theorem worker_state_rel {pers : arena.store.PersTier} {st : arena.monad.AState}
   -- the phase-A store's persistent arm, which the tier now is
   have hS := hrel.store
   have hSI := hinv.store
-  refine ⟨⟨⟨⟨⟨⟨?_, hNR, rfl⟩, ?_, hLR, rfl⟩, ?_, hLsR, rfl⟩, ?_, hER, rfl⟩, hMR, hCR,
+  refine ⟨⟨⟨⟨⟨⟨?_, rN, rfl⟩, ?_, rL, rfl⟩, ?_, rLs, rfl⟩, ?_, rE, rfl⟩, hMR, hCR,
       hrel.pins⟩,
-    ⟨⟨⟨⟨⟨?_, hNI⟩, ?_, hLI⟩, ?_, hLsI⟩, ?_, hEI⟩, hMI, hCI⟩⟩
-  · simpa [rPersN, tierOf, h3, AState.worker, EStore.dropScratch, LsStore.dropScratch,
-      LStore.dropScratch, NStore.dropScratch] using hS.lss.lvl.ns.perst
-  · simpa [rPersL, tierOf, h2, AState.worker, EStore.dropScratch, LsStore.dropScratch,
+    ⟨⟨⟨⟨⟨?_, iN, fun _ => rfl⟩, ?_, iL, fun _ => rfl⟩, ?_, iLs, fun _ => rfl⟩, ?_, iE,
+      fun _ => rfl⟩, hMI, hCI⟩⟩
+  · simpa [rPersN, tierOf, hpers, AState.worker, EStore.enableScratch, EStore.dropScratch,
+      LsStore.enableScratch, LsStore.dropScratch, LStore.enableScratch, LStore.dropScratch,
+      NStore.enableScratch, NStore.dropScratch] using hS.lss.lvl.ns.perst
+  · simpa [rPersL, tierOf, hpers, AState.worker, EStore.enableScratch, EStore.dropScratch,
+      LsStore.enableScratch, LsStore.dropScratch, LStore.enableScratch,
       LStore.dropScratch] using hS.lss.lvl.perst
-  · simpa [rPersLs, tierOf, h1, AState.worker, EStore.dropScratch, LsStore.dropScratch]
-      using hS.lss.perst
-  · simpa [rPersE, tierOf, h0, AState.worker, EStore.dropScratch] using hS.perst
-  · simpa [rPersN, tierOf, h3] using hSI.lss.lvl.ns.perst
-  · simpa [rPersL, tierOf, h2] using hSI.lss.lvl.perst
-  · simpa [rPersLs, tierOf, h1] using hSI.lss.perst
-  · simpa [rPersE, tierOf, h0] using hSI.perst
+  · simpa [rPersLs, tierOf, hpers, AState.worker, EStore.enableScratch, EStore.dropScratch,
+      LsStore.enableScratch, LsStore.dropScratch] using hS.lss.perst
+  · simpa [rPersE, tierOf, hpers, AState.worker, EStore.enableScratch,
+      EStore.dropScratch] using hS.perst
+  · simpa [rPersN, tierOf, hpers] using hSI.lss.lvl.ns.perst
+  · simpa [rPersL, tierOf, hpers] using hSI.lss.lvl.perst
+  · simpa [rPersLs, tierOf, hpers] using hSI.lss.perst
+  · simpa [rPersE, tierOf, hpers] using hSI.perst
 
 /-! ## The fold -/
 
@@ -248,6 +291,7 @@ theorem check_decls_phased_refines {H : Type} {inst : arena.checker.InstallHook 
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
     {ds : alloc.vec.Vec arena.env.IDeclaration} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpers : pers.frozen = false)
     (hrun : arena.checker.check_decls_phased inst pers st mode pins ds h = ok o) :
     SimFold (fun r v => IFEnvRel r v) pers lst o
       (installThenCheckPhased (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
@@ -265,7 +309,7 @@ theorem check_decls_phased_refines {H : Type} {inst : arena.checker.InstallHook 
   have hz1 : absIDeclLFrom ds 0#usize = absIDeclL ds := by simp
   have hA := annot_fold_refines
     (p := (0#u64, f, alloc.vec.Vec.new arena.checker.PendingCheck))
-    (lf := mkIFEnv IEnv.empty) (i := 0#usize) hrel hinv hfe hfinv hq'
+    (lf := mkIFEnv IEnv.empty) (i := 0#usize) hrel hinv hpers hfe hfinv hq'
   have hz2 : (absPendingCheckL (alloc.vec.Vec.new arena.checker.PendingCheck)).toArray
       = (#[] : Array PendingCheck) := rfl
   have hz3 : absU (0#u64) = 0 := rfl
@@ -289,23 +333,12 @@ theorem check_decls_phased_refines {H : Type} {inst : arena.checker.InstallHook 
     obtain ⟨hv1, hv2, hv3⟩ := hR
     subst hv3
     try dsimp only at hrun
-    obtain ⟨fr, hfr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨r1, est1⟩ := fr
+    obtain ⟨⟨tier, est1⟩, hfr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨htier, hthaw⟩ := freeze_tier_ok hfr
+    subst htier
+    have htf : (tierOf qst.store).frozen = true := rfl
     try dsimp only at hrun
-    cases hr1 : r1 with
-    | Err e1 =>
-      rw [hr1] at hfr hrun
-      have ho := Result.ok_injective hrun
-      subst ho
-      intro k hk
-      simp only [freeze_tier_err hfr] at hk
-      exact absurd hk (by simp)
-    | Ok tier =>
-      rw [hr1] at hfr hrun
-      obtain ⟨hth, htier, hthaw⟩ := freeze_tier_ok hfr
-      subst htier
-      try dsimp only at hrun
-      obtain ⟨r2, hr2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    · obtain ⟨r2, hr2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       rw [hthaw] at he1
       have he1' := (Result.ok_injective he1).symm
@@ -317,11 +350,11 @@ theorem check_decls_phased_refines {H : Type} {inst : arena.checker.InstallHook 
       obtain ⟨wres, wst⟩ := wr
       have hr2' : wres = r2 := Result.ok_injective hr2
       subst hr2'
-      obtain ⟨hrelW, hinvW⟩ := worker_state_rel hrel1 hinv1 hth hw
+      obtain ⟨hrelW, hinvW⟩ := worker_state_rel hrel1 hinv1 hpers hw
       have hz4 : absPendingCheckLFrom pd1 0#usize = absPendingCheckL pd1 := by simp
       have hB := check_pending_list_refines (lf := fe1) (pend := pd1) (i := 0#usize)
-        hrelW hinvW hv2.rel hv2.inv hwr
-      simp only [SimFold, hz4] at hB
+        hrelW hinvW htf hv2.rel hv2.inv hwr
+      simp only [SimFoldIdle, hz4] at hB
       rw [hx]
       simp only [toList_toArray'']
       cases hwres : wres with
@@ -437,7 +470,7 @@ def PoolAccepts {H : Type} (inst : arena.checker.InstallHook H)
     arena.checker.fold_start = ok t ∧
     arena.checker.annot_fold_hooked inst pers st mode pins t ds 0#usize h
       = ok (.Ok (n, fe, pend), st') ∧
-    arena.checker.freeze_tier st'.store = ok (.Ok tier, est) ∧
+    arena.checker.freeze_tier st'.store = ok (tier, est) ∧
     ParallelAll pend.length (arena.checker.worker_state st'.pins)
       (pendingStep tier mode fe pend)
 
@@ -453,7 +486,7 @@ theorem poolAccepts_intro {H : Type} {inst : arena.checker.InstallHook H}
         let t ← arena.checker.fold_start
         arena.checker.annot_fold_hooked inst pers st mode pins t ds 0#usize h)
       = ok (.Ok (n, fe, pend), st'))
-    (hF : arena.checker.freeze_tier st'.store = ok (.Ok tier, est))
+    (hF : arena.checker.freeze_tier st'.store = ok (tier, est))
     (hB : ParallelAll pend.length (arena.checker.worker_state st'.pins)
       (pendingStep tier mode fe pend)) :
     PoolAccepts inst pers st mode pins ds h fe st' := by
@@ -479,7 +512,7 @@ def PoolAcceptsParts {H : Type} (inst : arena.checker.InstallHook H)
     arena.checker.fold_start = ok t ∧
     arena.checker.annot_fold_hooked inst pers st mode pins t ds 0#usize h
       = ok (.Ok (n, fe, pend), st') ∧
-    arena.checker.freeze_tier st'.store = ok (.Ok tier, est) ∧
+    arena.checker.freeze_tier st'.store = ok (tier, est) ∧
     (∀ pc ∈ pend.val, ∃ w ∈ parts, pc ∈ w) ∧
     (∀ w ∈ parts, ∀ pc ∈ w, pc ∈ pend.val) ∧
     (∀ w ∈ parts, ∃ s₀, arena.checker.worker_state st'.pins = ok s₀ ∧
@@ -599,19 +632,12 @@ theorem poolAccepts_of_check_decls_phased {H : Type}
     simp at h'
   | Ok p =>
     try dsimp only at hrun
-    obtain ⟨fr, hfr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨r1, est⟩ := fr
-    try dsimp only at hrun
-    cases r1 with
-    | Err e =>
-      have h' := Result.ok_injective hrun
-      simp at h'
-    | Ok tier =>
-      obtain ⟨n, i, v⟩ := p
+    obtain ⟨⟨tier, est⟩, hfr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    · obtain ⟨n, i, v⟩ := p
       try dsimp only at hrun
       obtain ⟨r2, hr2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      obtain ⟨-, -, hthaw⟩ := freeze_tier_ok hfr
+      obtain ⟨-, hthaw⟩ := freeze_tier_ok hfr
       rw [hthaw] at he1
       have he1' := (Result.ok_injective he1).symm
       subst he1'
@@ -646,16 +672,16 @@ claims, which may repeat a record: task #98-H8). -/
 theorem foldAllOk_check_pending_refines {pers rf lf} {mode : kernel.env.CheckMode}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) :
     ∀ (pcs : List arena.checker.PendingCheck) {st lst},
-      AStateRel₀ pers st lst → AStateInv pers st →
+      AIdle pers st lst → AStateInv pers st → pers.frozen = true →
       FoldAllOk (fun st pc => arena.checker.check_pending pers st mode rf pc) st pcs →
       ∃ s'', checkPendingList (ConRon.Refine.absMode mode) lf (pcs.map absPendingCheck) lst
         = .ok (.ok (), s'')
-  | [], _, lst, _, _, _ => ⟨lst, rfl⟩
-  | pc :: pcs, _, lst, hrel, hinv, ⟨_, hs1, hf⟩ => by
-    have hP := check_pending_refines (lf := lf) (pc := pc) hrel hinv hfe hfinv hs1
-    simp only [Sim₀, AOut₀, StateT.run] at hP
-    obtain ⟨lst1, hx, hrel1, hinv1⟩ := hP
-    obtain ⟨s'', h⟩ := foldAllOk_check_pending_refines hfe hfinv pcs hrel1 hinv1 hf
+  | [], _, lst, _, _, _, _ => ⟨lst, rfl⟩
+  | pc :: pcs, _, lst, hidle, hinv, htf, ⟨_, hs1, hf⟩ => by
+    have hP := check_pending_refines (lf := lf) (pc := pc) hidle hinv htf hfe hfinv hs1
+    simp only [SimIdle, StateT.run] at hP
+    obtain ⟨lst1, hx, hidle1, hinv1, -⟩ := hP
+    obtain ⟨s'', h⟩ := foldAllOk_check_pending_refines hfe hfinv pcs hidle1 hinv1 htf hf
     refine ⟨s'', ?_⟩
     simp only [List.map_cons, checkPendingList, hx]
     exact h
@@ -679,6 +705,7 @@ theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
     {pins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
     {ds : alloc.vec.Vec arena.env.IDeclaration} {fe st'}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hpers : pers.frozen = false)
     (hpool : PoolAccepts inst pers st mode pins ds h fe st') :
     ∃ lfe lst', PooledAccepts (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
         (absIDeclL ds).toArray lst lfe lst' ∧
@@ -694,7 +721,7 @@ theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
   have hz1 : absIDeclLFrom ds 0#usize = absIDeclL ds := by simp
   have hA := annot_fold_refines
     (p := (0#u64, f, alloc.vec.Vec.new arena.checker.PendingCheck))
-    (lf := mkIFEnv IEnv.empty) (i := 0#usize) hrel hinv hfe hfinv hq'
+    (lf := mkIFEnv IEnv.empty) (i := 0#usize) hrel hinv hpers hfe hfinv hq'
   have hz2 : (absPendingCheckL (alloc.vec.Vec.new arena.checker.PendingCheck)).toArray
       = (#[] : Array PendingCheck) := rfl
   have hz3 : absU (0#u64) = 0 := rfl
@@ -703,7 +730,7 @@ theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
   obtain ⟨n1, fe1, pend1⟩ := v
   obtain ⟨-, hv2, hv3⟩ := hR
   subst hv3
-  obtain ⟨hth, htier, -⟩ := freeze_tier_ok hfr
+  obtain ⟨htier, -⟩ := freeze_tier_ok hfr
   subst htier
   have hx' : annotFold (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
       (0, mkIFEnv IEnv.empty, #[]) (absIDeclL ds) lst
@@ -713,8 +740,8 @@ theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
       (w.map absPendingCheck) lst'.worker = .ok (.ok (), s'') := by
     intro w hwm
     obtain ⟨ws, hws, hf⟩ := hw w hwm
-    obtain ⟨hrelW, hinvW⟩ := worker_state_rel hrel1 hinv1 hth hws
-    exact foldAllOk_check_pending_refines hv2.rel hv2.inv w hrelW hinvW hf
+    obtain ⟨hrelW, hinvW⟩ := worker_state_rel hrel1 hinv1 hpers hws
+    exact foldAllOk_check_pending_refines hv2.rel hv2.inv w hrelW hinvW rfl hf
   refine ⟨fe1, lst', ⟨n1, (absPendingCheckL pend).toArray,
     parts.map (List.map absPendingCheck), ?_, ?_, ?_, ?_⟩, hv2.rel, hrel1⟩
   · simpa only [toList_toArray''] using hx'

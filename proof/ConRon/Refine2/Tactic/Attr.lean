@@ -31,6 +31,7 @@ def judgementRustArg? (e : Expr) : Option Expr :=
   | some `ConRon.Refine2.Lockstep.LSS => args[4]?
   | some `ConRon.Refine2.Lockstep.LSM => args[5]?
   | some `ConRon.Refine2.Lockstep.LSRM => args[5]?
+  | some `ConRon.Refine2.Lockstep.LST => args[5]?
   | _ => none
 
 /-- The key a Rust computation is filed under: its head constant. -/

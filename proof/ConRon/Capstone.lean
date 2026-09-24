@@ -380,8 +380,9 @@ def InitRel : Prop :=
     AStateRel₀ pers st (ConRon.Arena.AState.init ConRon.Arena.EStore.empty) ∧
       AStateInv pers st
 
-theorem initRel : InitRel := fun _ _ _ _ hest hst =>
-  ⟨(init_rel hest hst).1, (init_rel hest hst).2.1⟩
+theorem initRel : InitRel := fun _ _ _ hpers hest hst =>
+  ⟨(init_rel (persTier_empty_frozen hpers) hest hst).1,
+    (init_rel (persTier_empty_frozen hpers) hest hst).2.1⟩
 
 /-- **The Rust pipeline, walked into the twin.**  Six accepting Rust runs from
 the driver's start state give six accepting twin runs from the twin's, at the
@@ -400,6 +401,7 @@ theorem rust_stages
     (hdec : kernel.pins_decode.decode text = ok (.Ok pins))
     {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {inModel census : Bool}
     {pers : arena.store.PersTier} {est : arena.store.EStore}
+    (hfz : pers.frozen = false)
     {st0 st1 st2 st3 st4 st5 st6 : arena.monad.AState}
     {pre : frontend.prepare.PreludeIx} {r : frontend.export_c.ParseResultD}
     {ds : alloc.vec.Vec arena.env.IDeclaration}
@@ -432,7 +434,8 @@ theorem rust_stages
       ConRon.Arena.PooledAccepts .verified (absINatOpPinSetL ipins)
           (absIDeclL ds).toArray sE lfe sF ∧
       AStateRel₀ pers st6 sF ∧ IFEnvRel fe lfe := by
-  obtain ⟨hrel0, hinv0, -⟩ := init_rel (pers := pers) hest hst0
+  -- the reader is an owned store's (task #98-FREEZE): `hfz`
+  obtain ⟨hrel0, hinv0, -⟩ := init_rel (pers := pers) hfz hest hst0
   -- 1. the reserved pins
   obtain ⟨sA, hA, hrelA, hinvA⟩ :=
     (intern_reserved_pins_refines hrel0 hinv0 h1).dest
@@ -457,7 +460,7 @@ theorem rust_stages
       (ConRon.Refine.PinsWF.decode_wf_refine2 hdec) h5).dest
   -- 6. the fold, as the binary runs it, pool and all
   obtain ⟨lfe, sF, hF, hfe, hrelF⟩ := pool_accepts_refines (mode := .Verified) (ds := ds)
-    (pins := ipins) hrelE hinvE h6
+    (pins := ipins) hrelE hinvE hfz h6
   exact ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD', hE, hF, hrelF, hfe⟩
 
 end Rust
@@ -466,7 +469,7 @@ end Rust
 
 `check_main` starts from `AState::empty()` (`bin/con-ron.rs:373`, which is
 `AState::init(EStore::empty())`) and `&PersTier::empty()`
-(`bin/con-ron.rs:381`).  The Aeneas model of each is a `Result` that is
+(`bin/con-ron.rs:383`).  The Aeneas model of each is a `Result` that is
 `ok`; `startState` and `emptyTier` are those values, written out (task
 #98-H8): every table and map empty, every flag down, no pins.  `startState_eq`
 and `emptyTier_eq` check them against the Aeneas model by unfolding it.  So
@@ -506,10 +509,11 @@ def emptyETables : arena.store.ETables :=
     projs := emptyTbl _ _ _, bms := emptyTbl _ _ _ }
 
 /-- **The binary's persistent tier**, `&PersTier::empty()`
-(`bin/con-ron.rs:381`): the tier every stage up to phase B is handed — its
-four table sets, every table empty (`emptyTier_eq`). -/
+(`bin/con-ron.rs:383`): the tier every stage up to phase B is handed — not
+frozen, its four table sets, every table empty (`emptyTier_eq`). -/
 def emptyTier : arena.store.PersTier :=
-  { n := emptyNTables, l := emptyLTables, ls := emptyLsTables, e := emptyETables }
+  { frozen := false, n := emptyNTables, l := emptyLTables, ls := emptyLsTables,
+    e := emptyETables }
 
 theorem emptyTier_eq : arena.store.PersTier.empty = ok emptyTier := by
   simp only [arena.store.PersTier.empty, arena.store.Tbl.empty, arena.store.ETables.empty,
@@ -519,20 +523,20 @@ theorem emptyTier_eq : arena.store.PersTier.empty = ok emptyTier := by
 
 /-- **The binary's start state**, `AState::empty()` (`bin/con-ron.rs:373`),
 which is `AState::init(EStore::empty())`: a store whose four layers (names,
-levels, level lists, expressions) have both tiers empty and both flags down,
+levels, level lists, expressions) have both tiers empty and the scratch flag down,
 empty memo tables and caches, and no pins (`startState_eq`). -/
 def startState : arena.monad.AState :=
   { store :=
       { lss :=
           { ls :=
               { ns := { pers := emptyNTables, scr := emptyNTables,
-                        scratch_on := false, shared_on := false },
+                        scratch_on := false },
                 pers := emptyLTables, scr := emptyLTables,
-                scratch_on := false, shared_on := false },
+                scratch_on := false },
             pers := emptyLsTables, scr := emptyLsTables,
-            scratch_on := false, shared_on := false },
+            scratch_on := false },
         pers := emptyETables, scr := emptyETables,
-        scratch_on := false, shared_on := false },
+        scratch_on := false },
     memos :=
       { inst1_c := emptyMap _ _, inst_l_c := emptyMap _ _, lift_c := emptyMap _ _,
         reset_c := emptyMap _ _, rename_c := emptyMap _ _, abs1_c := emptyMap _ _,
@@ -582,7 +586,7 @@ def RustDenotes (fe : arena.env.IFEnv) (st : arena.monad.AState)
     AStateRel emptyTier st lst ∧ IFEnvRel fe lfe ∧
     ConRon.Bridge.denoteFEnv lst.store lfe = some env
 
-/-- `prepare::prepare_d`, the call the binary makes (`bin/con-ron.rs:522`),
+/-- `prepare::prepare_d`, the call the binary makes (`bin/con-ron.rs:524`),
 is `prepare_prelude`'s body: `prepare_prelude` is its `.decls`. -/
 theorem prepare_prelude_of_prepare_d {pers : arena.store.PersTier}
     {st st' : arena.monad.AState} {pre : frontend.prepare.PreludeIx}
@@ -594,7 +598,7 @@ theorem prepare_prelude_of_prepare_d {pers : arena.store.PersTier}
   rfl
 
 /-- `pins_decode::decode_embedded()`, the call the binary's
-`driver::pins_for_run` makes (`driver.rs:296`), is `decode` of some text. -/
+`driver::pins_for_run` makes (`driver.rs:302`), is `decode` of some text. -/
 theorem decode_of_decode_embedded
     {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
     (h : kernel.pins_decode.decode_embedded = ok (.Ok pins)) :
@@ -666,16 +670,16 @@ walks through it and finds each verified call as one premise.
 
 | premise | `check_main`'s call |
 |---|---|
-| `startState`, `emptyTier` | `bin/con-ron.rs:373` `AState::empty()`, `:381` `&PersTier::empty()` |
-| `h1` | `bin/con-ron.rs:390` `arena::pins::intern_reserved_pins` |
-| `h2` | `bin/con-ron.rs:408` `prelude::builtin_prelude_e` |
-| `hreads`, `h3` | `bin/con-ron.rs:432` `driver::parse_export_stream_d`, which is `driver.rs:948`'s `export_c::parse_source` over the file's handle; the flags are read at `bin/con-ron.rs:425-426` |
-| `h4` | `bin/con-ron.rs:522` `prepare::prepare_d` |
-| `hpins` | `bin/con-ron.rs:542` `driver::pins_for_run`, whose default is `driver.rs:296` `pins_decode::decode_embedded()`, which is `decode` of the embedded `PINS_TEXT` (the `_embedded` corollaries below name it) |
-| `h5` | `bin/con-ron.rs:569` `checker::intern_all_pins` |
-| `h6` | `bin/con-ron.rs:586`/`:589` `driver::check_decls_driver` at `CheckMode::Verified` (`:366`), phase A: `driver.rs:566` `checker::annot_fold_hooked(…, checker::fold_start(), ds, 0, obs)` |
-| `h7` | the same, the boundary: `driver.rs:582` `checker::freeze_tier` |
-| `h8` | the same, phase B: `driver.rs:596` `pool::parallel_all` with `init` `checker::worker_state` and `step` `checker::check_pending` (`thaw_tier` at `:613` restores the store) |
+| `startState`, `emptyTier` | `bin/con-ron.rs:373` `AState::empty()`, `:383` `&PersTier::empty()` |
+| `h1` | `bin/con-ron.rs:392` `arena::pins::intern_reserved_pins` |
+| `h2` | `bin/con-ron.rs:410` `prelude::builtin_prelude_e` |
+| `hreads`, `h3` | `bin/con-ron.rs:434` `driver::parse_export_stream_d`, which is `driver.rs:1002`'s `export_c::parse_source` over the file's handle; the flags are read at `bin/con-ron.rs:427-428` |
+| `h4` | `bin/con-ron.rs:524` `prepare::prepare_d` |
+| `hpins` | `bin/con-ron.rs:544` `driver::pins_for_run`, whose default is `driver.rs:302` `pins_decode::decode_embedded()`, which is `decode` of the embedded `PINS_TEXT` (the `_embedded` corollaries below name it) |
+| `h5` | `bin/con-ron.rs:571` `checker::intern_all_pins` |
+| `h6` | `bin/con-ron.rs:588`/`:591` `driver::check_decls_driver` at `CheckMode::Verified` (`:366`), phase A: `driver.rs:567` `checker::annot_fold_hooked(…, checker::fold_start(), ds, 0, obs)` |
+| `h7` | the same, the boundary: `driver.rs:583` `checker::freeze_tier` |
+| `h8` | the same, phase B: `driver.rs:591` `pool::parallel_all` with `init` `checker::worker_state` and `step` `checker::check_pending` (`thaw_tier` at `:608` restores the store) |
 
 `h8` is not one equation: `parallel_all` is not extracted, so `h8` states
 its contract (the pool's trusted claim, `pool.rs`'s note, OVERVIEW §8.2) at
@@ -759,7 +763,7 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
           prepared.decls 0#usize hook)
       = ok (.Ok (n, fe, pend), st6))
     {tier : arena.store.PersTier} {frozen : arena.store.EStore}
-    (h7 : arena.checker.freeze_tier st6.store = ok (.Ok tier, frozen))
+    (h7 : arena.checker.freeze_tier st6.store = ok (tier, frozen))
     (h8 : ∃ ws : List (List (Fin pend.length)),
       (∀ k, ∃ w ∈ ws, k ∈ w) ∧
       ∀ w ∈ ws, ∃ st', (do
@@ -777,7 +781,7 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
   have hind : ConRon.Bridge.IndSpec .verified :=
     ConRon.Bridge.Inductives.indSpec_of_bridge rfl hk
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, hrelF, hfe⟩ :=
-    rust_stages hmr hpins hest hst0 h1 h2
+    rust_stages hmr hpins rfl hest hst0 h1 h2
       hreads h3 (prepare_prelude_of_prepare_d h4) h5 (poolAccepts_intro h6 h7 (parallelAll_of_pool h8))
   obtain ⟨env, hden, ⟨hmod⟩⟩ := stages_model V hk hind hA hB hC hD hE hF
   -- the relation's `StoreWF` clause is Theorem 1's (Theorem 2 is lockstep)
@@ -827,7 +831,7 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
           prepared.decls 0#usize hook)
       = ok (.Ok (n, fe, pend), st6))
     {tier : arena.store.PersTier} {frozen : arena.store.EStore}
-    (h7 : arena.checker.freeze_tier st6.store = ok (.Ok tier, frozen))
+    (h7 : arena.checker.freeze_tier st6.store = ok (tier, frozen))
     (h8 : ∃ ws : List (List (Fin pend.length)),
       (∀ k, ∃ w ∈ ws, k ∈ w) ∧
       ∀ w ∈ ws, ∃ st', (do
@@ -844,13 +848,13 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
   have hind : ConRon.Bridge.IndSpec .verified :=
     ConRon.Bridge.Inductives.indSpec_of_bridge rfl hk
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, -, -⟩ :=
-    rust_stages hmr hpins hest hst0 h1 h2
+    rust_stages hmr hpins rfl hest hst0 h1 h2
       hreads h3 (prepare_prelude_of_prepare_d h4) h5 (poolAccepts_intro h6 h7 (parallelAll_of_pool h8))
   exact stages_no_False V hk hind (pins := ConRon.Refine.absPins pins) hfalse
     hA hB hC hD hE hF
 
 /-- `model_exists` with the pin premise the binary's own call,
-`pins_decode::decode_embedded()` (`driver.rs:296`).  Its census adds
+`pins_decode::decode_embedded()` (`driver.rs:302`).  Its census adds
 `kernel.pins_text.PINS_TEXT._native.decide.ax_1` (§4's note). -/
 theorem model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
     {G : Type} {inst : frontend.types.Modeller G} {m : G}
@@ -879,7 +883,7 @@ theorem model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
           prepared.decls 0#usize hook)
       = ok (.Ok (n, fe, pend), st6))
     {tier : arena.store.PersTier} {frozen : arena.store.EStore}
-    (h7 : arena.checker.freeze_tier st6.store = ok (.Ok tier, frozen))
+    (h7 : arena.checker.freeze_tier st6.store = ok (tier, frozen))
     (h8 : ∃ ws : List (List (Fin pend.length)),
       (∀ k, ∃ w ∈ ws, k ∈ w) ∧
       ∀ w ∈ ws, ∃ st', (do
@@ -894,7 +898,7 @@ theorem model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
   model_exists V hmr h1 h2 hreads h3 h4 hdec h5 h6 h7 h8
 
 /-- `no_False_declaration` with the pin premise the binary's own call,
-`pins_decode::decode_embedded()` (`driver.rs:296`).  Its census adds
+`pins_decode::decode_embedded()` (`driver.rs:302`).  Its census adds
 `kernel.pins_text.PINS_TEXT._native.decide.ax_1` (§4's note). -/
 theorem no_False_declaration_embedded (V : Type w) [ConLeche.SetTheory V]
     {G : Type} {inst : frontend.types.Modeller G} {m : G}
@@ -924,7 +928,7 @@ theorem no_False_declaration_embedded (V : Type w) [ConLeche.SetTheory V]
           prepared.decls 0#usize hook)
       = ok (.Ok (n, fe, pend), st6))
     {tier : arena.store.PersTier} {frozen : arena.store.EStore}
-    (h7 : arena.checker.freeze_tier st6.store = ok (.Ok tier, frozen))
+    (h7 : arena.checker.freeze_tier st6.store = ok (tier, frozen))
     (h8 : ∃ ws : List (List (Fin pend.length)),
       (∀ k, ∃ w ∈ ws, k ∈ w) ∧
       ∀ w ∈ ws, ∃ st', (do

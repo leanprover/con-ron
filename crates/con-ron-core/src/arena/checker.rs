@@ -45,7 +45,7 @@ use crate::arena::checker_split::{
     check_value_group, install_constant_val, install_value, ValueGroup, ValueKind,
 };
 use crate::arena::core::{
-    drop_scratch, enter_scratch, flush_caches, nat_div_mod_names, nat_op_deps,
+    drop_scratch, enter_record, enter_scratch, flush_caches, leave_record, nat_div_mod_names, nat_op_deps,
     nat_op_equations, nat_op_guard, nat_op_names, CORE_WALK_FUEL,
 };
 use crate::arena::decl_check::{
@@ -79,19 +79,6 @@ use crate::arena::store::PersTier;
 // ---------------------------------------------------------------------------
 // The messages of this module's declines
 // ---------------------------------------------------------------------------
-
-/// con-leche: none — the phase boundary, which con-leche has no tier to make
-/// `"arena: phase boundary on a frozen store"`, as code points: `freeze_tier`'s
-/// decline when the store it is handed is already frozen.  Raised as the port's
-/// own `Native` (the store's `M_FROZEN` is its precedent): con-leche and the
-/// twin have no frozen tier, so the refinement claims nothing when it fires,
-/// and no run of the binary reaches it — the one store the driver freezes is
-/// phase A's, whose four flags are down.
-pub const M_REFREEZE: [u32; 39] = [
-    97, 114, 101, 110, 97, 58, 32, 112, 104, 97, 115, 101, 32, 98, 111, 117, 110, 100, 97,
-    114, 121, 32, 111, 110, 32, 97, 32, 102, 114, 111, 122, 101, 110, 32, 115, 116, 111, 114,
-    101
-];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"quotient basis requires the pinned Eq basis"`, as code points.
@@ -773,7 +760,7 @@ pub fn check_quot_decl(
 /// lives, and a Theorem-1 statement about a fold with no tiers would say
 /// nothing about the fold the binary runs.
 pub fn check_decl_step(
-    pers: &PersTier,
+    _pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -782,15 +769,21 @@ pub fn check_decl_step(
 ) -> Result<IFEnv, CheckError> {
     let vis: u64 = fe.visible_below;
     flush_caches(st);
-    enter_scratch(st);
-    match check_decl(pers, st, mode, pins, fe, d) {
-        Err(e) => Err(e),
+    let mut tier: PersTier = enter_scratch(st);
+    match check_decl(&tier, st, mode, pins, fe, d) {
+        Err(e) => {
+            drop_scratch(st, tier);
+            Err(e)
+        }
         Ok(fe2) => {
             let k: u64 = fe2.visible_below - vis;
-            match promote_new(pers, st, PMemo::empty(), CORE_WALK_FUEL, k, fe2) {
-                Err(e) => Err(e),
+            match promote_new(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, k, fe2) {
+                Err(e) => {
+                    drop_scratch(st, tier);
+                    Err(e)
+                }
                 Ok((_, fe3)) => {
-                    drop_scratch(st);
+                    drop_scratch(st, tier);
                     Ok(fe3)
                 }
             }
@@ -925,7 +918,7 @@ pub fn annot_step_go(
 /// what the head flush covers is the FIRST record of the fold, whose caches
 /// are whatever `intern_all_pins` left.
 pub fn annot_step(
-    pers: &PersTier,
+    _pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -936,20 +929,26 @@ pub fn annot_step(
 ) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
     let vis: u64 = fe.visible_below;
     flush_caches(st);
-    enter_scratch(st);
-    match annot_step_go(pers, st, mode, pins, fe, pd) {
-        Err(e) => Err(e),
+    let mut tier: PersTier = enter_scratch(st);
+    match annot_step_go(&tier, st, mode, pins, fe, pd) {
+        Err(e) => {
+            drop_scratch(st, tier);
+            Err(e)
+        }
         Ok((fe2, vg_opt)) => {
             let k: u64 = fe2.visible_below - vis;
             match vg_opt {
-                None => match promote_new(pers, st, PMemo::empty(), CORE_WALK_FUEL, k, fe2) {
-                    Err(e) => Err(e),
+                None => match promote_new(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, k, fe2) {
+                    Err(e) => {
+                        drop_scratch(st, tier);
+                        Err(e)
+                    }
                     Ok((_, fe3)) => {
-                        drop_scratch(st);
+                        drop_scratch(st, tier);
                         Ok((fe3, pend))
                     }
                 },
-                Some(vg) => annot_step_promote(pers, st, i, vis, k, fe2, pend, vg),
+                Some(vg) => annot_step_promote(tier, st, i, vis, k, fe2, pend, vg),
             }
         }
     }
@@ -961,7 +960,7 @@ pub fn annot_step(
 /// SAME memo, then the tier dropped and the record pushed.
 #[allow(clippy::too_many_arguments)]
 pub fn annot_step_promote(
-    pers: &PersTier,
+    tier: PersTier,
     st: &mut AState,
     i: u64,
     vis: u64,
@@ -970,12 +969,19 @@ pub fn annot_step_promote(
     pend: Vec<PendingCheck>,
     vg: ValueGroup,
 ) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
-    match promote_vg(pers, st, PMemo::empty(), CORE_WALK_FUEL, vg) {
-        Err(e) => Err(e),
-        Ok((m, vg2)) => match promote_new(pers, st, m, CORE_WALK_FUEL, k, fe) {
-            Err(e) => Err(e),
+    let mut tier: PersTier = tier;
+    match promote_vg(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, vg) {
+        Err(e) => {
+            drop_scratch(st, tier);
+            Err(e)
+        }
+        Ok((m, vg2)) => match promote_new(&mut tier, st, m, CORE_WALK_FUEL, k, fe) {
+            Err(e) => {
+                drop_scratch(st, tier);
+                Err(e)
+            }
             Ok((_, fe2)) => {
-                drop_scratch(st);
+                drop_scratch(st, tier);
                 let mut pend2 = pend;
                 pend2.push(PendingCheck {
                     vg: vg2,
@@ -1218,13 +1224,18 @@ pub fn annot_fold(
 /// **phase B's check of one record**, against the prefix view
 /// `fe.restrictTo pc.vis`.
 ///
-/// **This is (C)'s per-declaration bracket** (DESIGN.md §8.3): the scratch tier
-/// is turned on, `check_value_group` runs the inference and the conversion, and
-/// the tier — with every node they appended and every cache row naming one — is
-/// dropped.  Deviation: the twin's `throw` skips its `dropScratch` and the
-/// caller restores the pre-record state instead; the port drops the tier on
-/// BOTH paths, which lands in the same place (scratch off, persistent
-/// untouched) without a snapshot.
+/// **This is (C)'s per-declaration bracket** (DESIGN.md §8.3), on a store that
+/// is ALREADY frozen (task #98-FREEZE): a phase-B store is frozen for its whole
+/// life — a worker's from `worker_state`, `install_then_check`'s from its
+/// boundary — so the bracket only empties the scratch tier and the memos
+/// (`enter_record`), `check_value_group` runs the inference and the
+/// conversion against `pers`, and the scratch tier — with every node they
+/// appended and every cache row naming one — is emptied again
+/// (`leave_record`).  Between two records the store is frozen with an empty
+/// scratch tier where the twin's is scratch-off: nothing is interned there.
+/// Deviation: the twin's `throw` skips its `dropScratch` and the caller
+/// restores the pre-record state instead; the port empties the tier on BOTH
+/// paths, which lands in the same place without a snapshot.
 ///
 /// **The index comes in by REFERENCE and the twin's `restrictTo` is the scalar
 /// `pc.vis`** (task #97-P6-6b).  It used to come in by value, be restricted to
@@ -1240,9 +1251,9 @@ pub fn check_pending(
     fe: &IFEnv,
     pc: &PendingCheck,
 ) -> Result<(), CheckError> {
-    enter_scratch(st);
+    enter_record(st);
     let r: Result<(), CheckError> = check_value_group(pers, pc.vis, st, mode, fe, &pc.vg);
-    drop_scratch(st);
+    leave_record(st);
     r
 }
 
@@ -1279,6 +1290,15 @@ pub fn check_pending_list(
 /// `checkPendingList` tag every error into the inner `Except`.  The port has
 /// the one `Result` with the tagged error, which is
 /// `con_ron_core::cached::installed::check_decls`' shape.
+///
+/// **Phase B runs on the frozen store** (task #98-FREEZE): the boundary
+/// freezes the store (`EStore::freeze`: the tier out, the scratch tiers on)
+/// and thaws it after, because phase B's per-record bracket is the frozen
+/// store's (`check_pending`).  With nothing pending there is no phase B and
+/// no freeze: the store is phase A's, as the twin's is (`checkPendingList []`
+/// leaves the state alone), which is what lets the refinement relate the
+/// thawed store to the twin's without knowing the twin's scratch tier empty
+/// at the boundary.
 pub fn install_then_check(
     pers: &PersTier,
     st: &mut AState,
@@ -1296,10 +1316,20 @@ pub fn install_then_check(
         0,
     ) {
         Err(e) => Err(e),
-        Ok(p) => match check_pending_list(pers, st, mode, &p.1, &p.2, 0) {
-            Err(e) => Err(e),
-            Ok(()) => Ok(p.1),
-        },
+        Ok(p) => {
+            if p.2.len() == 0 {
+                Ok(p.1)
+            } else {
+                let tier: PersTier = st.store.freeze();
+                let r: Result<(), (CheckError, u64)> =
+                    check_pending_list(&tier, st, mode, &p.1, &p.2, 0);
+                st.store.thaw(tier);
+                match r {
+                    Err(e) => Err(e),
+                    Ok(()) => Ok(p.1),
+                }
+            }
+        }
     }
 }
 
@@ -1380,80 +1410,38 @@ pub fn fold_start() -> (u64, IFEnv, Vec<PendingCheck>) {
 /// persistent tier where it is (`AState.worker`, `Arena/Phased.lean`).
 /// **The persistent tier out of the store and into a value** (task
 /// #97-P6-6b's driver function, moved here by task #97-P5-Driver): the four
-/// stores' persistent tables are moved into one `PersTier` and the four
-/// `shared_on` flags go up, so every later persistent read of this store goes
-/// to the tier the caller now holds and a persistent append is declined
-/// (`arena::store`'s frozen-tier guard).
-///
-/// **A store that is already frozen is declined** (`M_REFREEZE`, `Native`):
-/// its own persistent tables are empty and its reads go to a tier this
-/// function cannot see, so moving the tables out would hand back an empty
-/// tier.  The driver freezes phase A's store once, with every flag down, and
-/// the guard is what lets the refinement state the boundary with no
-/// hypothesis about the flags.
-pub fn freeze_tier(ar: &mut EStore) -> Result<PersTier, CheckError> {
-    if ar.shared_on || ar.lss.shared_on || ar.lss.ls.shared_on || ar.lss.ls.ns.shared_on {
-        Err(CheckError::Native(code_points(&M_REFREEZE)))
-    } else {
-        let n: NTables = core::mem::replace(&mut ar.lss.ls.ns.pers, NTables::empty());
-        let l: LTables = core::mem::replace(&mut ar.lss.ls.pers, LTables::empty());
-        let ls: LsTables = core::mem::replace(&mut ar.lss.pers, LsTables::empty());
-        let e: ETables = core::mem::replace(&mut ar.pers, ETables::empty());
-        ar.shared_on = true;
-        ar.lss.shared_on = true;
-        ar.lss.ls.shared_on = true;
-        ar.lss.ls.ns.shared_on = true;
-        Ok(PersTier { n, l, ls, e })
+/// persistent tables move into one `PersTier` handed back `frozen`, for the
+/// phase-B workers to read.  Task #98-FREEZE: this is a pure MOVE — the
+/// store's scratch tiers and flags are untouched (a worker's store is its own,
+/// `worker_state`), there is no flag to test and so no decline (`M_REFREEZE`
+/// is gone), and `thaw_tier` puts the tables back where they were.  The
+/// driver's store is not read between the two.
+pub fn freeze_tier(ar: &mut EStore) -> PersTier {
+    let n: NTables = core::mem::replace(&mut ar.lss.ls.ns.pers, NTables::empty());
+    let l: LTables = core::mem::replace(&mut ar.lss.ls.pers, LTables::empty());
+    let ls: LsTables = core::mem::replace(&mut ar.lss.pers, LsTables::empty());
+    let e: ETables = core::mem::replace(&mut ar.pers, ETables::empty());
+    PersTier {
+        frozen: true,
+        n,
+        l,
+        ls,
+        e,
     }
 }
 
 /// con-leche: none — the phase boundary, which con-leche has no tier to make
 /// Lean twin: none — the inverse of `freeze_tier`, which has none either.
-/// **`freeze_tier` inverted**: the tier back into the store and the flags
-/// down, so that everything after phase B — the verdict line's label, the
-/// failing record's name, the receipts — reads the handles it was given.
-/// `thaw_tier(ar, freeze_tier(ar))` leaves a store with its flags down exactly
-/// as it found it (`Refine2/Checker/Phased.lean`'s `freeze_thaw`).
+/// **`freeze_tier` inverted**: the tables back into the store, so that
+/// everything after phase B — the verdict line's label, the failing record's
+/// name, the receipts — reads the handles it was given.
+/// `thaw_tier(ar, freeze_tier(ar))` leaves the store exactly as it found it
+/// (`Refine2/Checker/Phased.lean`'s `freeze_tier_ok`).
 pub fn thaw_tier(ar: &mut EStore, tier: PersTier) {
     ar.lss.ls.ns.pers = tier.n;
     ar.lss.ls.pers = tier.l;
     ar.lss.pers = tier.ls;
     ar.pers = tier.e;
-    ar.shared_on = false;
-    ar.lss.shared_on = false;
-    ar.lss.ls.shared_on = false;
-    ar.lss.ls.ns.shared_on = false;
-}
-
-/// con-leche: none — the phase boundary, which con-leche has no tier to make
-/// Lean twin: none — the twin has no tier to move.
-/// **`thaw_tier` for a store whose flags may have moved**: each store gets
-/// back the tier its reads went to — `tier`'s table if its `shared_on` flag is
-/// up, its own table otherwise — and the four flags go down.  When every flag
-/// is up, which is the only case the checker reaches, this is `thaw_tier`.
-/// The frozen-tier `Nat.div`/`Nat.mod` attempt
-/// (`arena::decl_check::check_div_mod_pin_attempt`, task #97-T2-LOCKSTEP D4c)
-/// thaws its kept post-attempt state with it, so that the refinement carries
-/// the attempt's own relation across the thaw with no fact about the flags
-/// (`Refine2/Checker/Base.lean`'s `thaw_read_tier_rel`).
-pub fn thaw_read_tier(ar: &mut EStore, tier: PersTier) {
-    let PersTier { n, l, ls, e } = tier;
-    if ar.lss.ls.ns.shared_on {
-        ar.lss.ls.ns.pers = n;
-    }
-    if ar.lss.ls.shared_on {
-        ar.lss.ls.pers = l;
-    }
-    if ar.lss.shared_on {
-        ar.lss.pers = ls;
-    }
-    if ar.shared_on {
-        ar.pers = e;
-    }
-    ar.shared_on = false;
-    ar.lss.shared_on = false;
-    ar.lss.ls.shared_on = false;
-    ar.lss.ls.ns.shared_on = false;
 }
 
 /// con-leche: none — the pin table is handles, so a copy is a copy of words
@@ -1475,17 +1463,13 @@ pub fn pins_dup(p: &Pins) -> Pins {
 /// Lean twin: `proof/ConRon/Arena/Phased.lean:37-44 AState.worker` — the twin's
 /// phase-B worker reads the persistent tier where it is.
 /// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,
-/// moved here by task #97-P5-Driver): an empty store whose four `shared_on`
-/// flags are up, so that every persistent read goes to the `PersTier` the
-/// boundary froze and a persistent append is declined; fresh memos and caches;
-/// and a copy of the pins.  The scratch tier is off until `check_pending`
-/// opens it.
+/// moved here by task #97-P5-Driver): the empty store, FROZEN
+/// (`EStore::empty_frozen`, task #98-FREEZE), so that every persistent read
+/// goes to the `PersTier` the boundary froze and every append is a scratch
+/// append; fresh memos and caches; and a copy of the pins.  The store stays
+/// frozen for the worker's life: `check_pending` only empties its scratch tier.
 pub fn worker_state(pins: &Pins) -> AState {
-    let mut st = AState::init(EStore::empty());
-    st.store.shared_on = true;
-    st.store.lss.shared_on = true;
-    st.store.lss.ls.shared_on = true;
-    st.store.lss.ls.ns.shared_on = true;
+    let mut st = AState::init(EStore::empty_frozen());
     st.pins = pins_dup(pins);
     st
 }
@@ -1529,17 +1513,15 @@ pub fn check_decls_phased<H: InstallHook>(
 ) -> Result<IFEnv, (CheckError, u64)> {
     match annot_fold_hooked(pers, st, mode, pins, fold_start(), ds, 0, h) {
         Err(e) => Err(e),
-        Ok(p) => match freeze_tier(&mut st.store) {
-            Err(e) => Err((e, p.0)),
-            Ok(tier) => {
-                let r = check_pending_worker(&tier, mode, &p.1, &st.pins, &p.2);
-                thaw_tier(&mut st.store, tier);
-                match r {
-                    Err(e) => Err(e),
-                    Ok(()) => Ok(p.1),
-                }
+        Ok(p) => {
+            let tier: PersTier = freeze_tier(&mut st.store);
+            let r = check_pending_worker(&tier, mode, &p.1, &st.pins, &p.2);
+            thaw_tier(&mut st.store, tier);
+            match r {
+                Err(e) => Err(e),
+                Ok(()) => Ok(p.1),
             }
-        },
+        }
     }
 }
 
@@ -2072,22 +2054,22 @@ mod tests {
         assert!(n0 > 0);
         // a scratch tier, and the same names again: nothing new is appended
         // and every handle is persistent
-        enter_scratch(&mut st);
-        let eqn = ok(pin(pers, &mut st, &basis_names::eq_name()));
+        let tier = enter_scratch(&mut st);
+        let eqn = ok(pin(&tier, &mut st, &basis_names::eq_name()));
         assert!(eqn.is_persistent());
-        let blk = ok(basis_kind_decls_a(pers, &mut st, &BasisKind::EqK));
+        let blk = ok(basis_kind_decls_a(&tier, &mut st, &BasisKind::EqK));
         let mut i: usize = 0;
         while i < blk.len() {
             let cvv = ok(crate::arena::env::i_constant_info_to_constant_val(
-                pers,
+                &tier,
                 &mut st.store,
                 &blk[i],
             ));
             assert!(cvv.ty.is_persistent());
             i += 1;
         }
-        assert_eq!(st.store.pers_count(pers), n0);
-        drop_scratch(&mut st);
+        assert_eq!(st.store.pers_count(&tier), n0);
+        drop_scratch(&mut st, tier);
     }
 
     /// `at_decl` renders the fold position into the message, and only into the

@@ -372,11 +372,13 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // ConRon.Capstone: `startState`
     let mut st = AState::empty();
     // THE PERSISTENT TIER a phase-B worker reads (DESIGN.md §8.3, task
-    // #97-P6-6b).  The parse and phase A own their own — `shared_on` is
-    // false on every store until the boundary — so what they are handed here
-    // is the EMPTY tier, and the single-lane computation is unchanged.  Phase
-    // B freezes the store's tier into a `PersTier` and hands `&` it to every
-    // worker; `check_decls_driver` is where that happens.
+    // #97-P6-6b).  The parse and phase A's setup own their own — the store
+    // is owned (not frozen) outside a declaration bracket — so what they are
+    // handed here is the EMPTY tier, and the single-lane computation is
+    // unchanged.  Each phase-A bracket freezes the store and reads through
+    // the tier it took out; phase B freezes the store's tier into a
+    // `PersTier` and hands `&` it to every worker; `check_decls_driver` is
+    // where that happens.
     // ConRon.Capstone: `emptyTier`
     let pers: &PersTier = &PersTier::empty();
     // THE RESERVED-NAME PINS, interned once into that persistent tier before
