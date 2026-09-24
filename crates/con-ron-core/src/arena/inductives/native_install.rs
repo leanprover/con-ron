@@ -1369,7 +1369,7 @@ pub fn check_native_pass_kinds(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:576-611 checkNativeTail
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:335-367 checkNativeTail`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:335-370 checkNativeTail`
 /// — **the install after the pass** (con-leche's task #268): the elimination
 /// restriction, the index binders' sorts, the kinds re-checked, the stream's
 /// rules against the generated ones, the constructors consed, the recursor
@@ -1394,7 +1394,7 @@ pub fn check_native_tail(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:576-611 checkNativeTail
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:335-367 checkNativeTail`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:335-370 checkNativeTail`
 /// — the index binders' universes, exposed for the model's index-tuple
 /// universe, and the kinds re-checked on the stored (normalised) constructors.
 pub fn check_native_tail_sorts(
@@ -1433,7 +1433,7 @@ pub fn check_native_tail_sorts(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:576-611 checkNativeTail
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:335-367 checkNativeTail`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:335-370 checkNativeTail`
 /// — the kinds re-checked, the stream's rules against the generated ones, and
 /// the install.
 pub fn check_native_tail_kinds(
@@ -1456,9 +1456,13 @@ pub fn check_native_tail_kinds(
     let mut q: NativePass = q;
     let vis: u64 = q.env1.visible_below;
     q.env1.visible_below = vis - 1;
+    // The lowered bound is the one every lookup below reads: the lookups take
+    // the counter as an argument, never from the record, so the argument is
+    // what hides the former (task #97-T2-LOCKSTEP lane Inductives round 4:
+    // passing the unlowered `vis` here left it visible).
     let fields = native_fields_ok(
         pers,
-        vis,
+        q.env1.visible_below,
         st,
         &q.env1,
         &t,
@@ -1500,7 +1504,7 @@ pub fn check_native_tail_kinds(
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:576-611 checkNativeTail
 /// con-leche: ConLeche/Cached/CheckerC.lean:194-217 checkNativeTailS
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:335-367 checkNativeTail`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:335-370 checkNativeTail`
 /// — the constructors consed, the recursor with its rules, and the projection
 /// table, with the executed tier's flush before the recursor (task #97g
 /// item 4).
@@ -1551,7 +1555,7 @@ pub fn check_native_tail_install(
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:613-640 checkNative
 /// con-leche: ConLeche/Cached/CheckerC.lean:220-231 checkNativeS
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:369-390 checkNative`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:372-399 checkNative`
 /// — check and install a **direct recursive block**: the distinct names, the
 /// pass over the former and the constructors — again where the record's
 /// syntactic reading overshot — and the install after it.  The executed
@@ -1604,7 +1608,7 @@ pub fn check_native(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:613-640 checkNative
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:369-390 checkNative`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:372-399 checkNative`
 /// — `(p₀.ctors.map (·.1.name)).Nodup`, as a cursor recursion over handles.
 pub fn ctor_names_nodup(ctors: &Vec<(IConstantVal, u64)>, i: usize) -> bool {
     if i >= ctors.len() {
@@ -1617,7 +1621,7 @@ pub fn ctor_names_nodup(ctors: &Vec<(IConstantVal, u64)>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:613-640 checkNative
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:369-390 checkNative`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:372-399 checkNative`
 /// — the inner scan of `ctor_names_nodup`.
 pub fn ctor_name_seen(ctors: &Vec<(IConstantVal, u64)>, i: usize, n: &NIdx) -> bool {
     if i >= ctors.len() {

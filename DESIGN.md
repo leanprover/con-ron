@@ -60652,6 +60652,47 @@ not a congruence).  The second pass at `ifenv_pop_temp(q.env1)` needs no Rust
 change (a twin `IFEnv.popTemp` and `IFEnv.row?`, and `find?` agreement with
 `fe`), and waits for the same round to keep ruling 2 in one piece.
 
+
+#### Ruling 2, done (final slice, branch `t2-ind-5`)
+
+The coordinator ruled (a).  **con-leche agrees with the Rust comment**:
+`checkNativeTail` runs `nativeFieldsOk env …` at the PRE-BLOCK `env`, and
+`checkNative`'s retry runs `checkNativePass ops env …` at it too — the former
+hidden in both.
+
+* **Rust** (`native_install.rs`, `check_native_tail_kinds`): `native_fields_ok`
+  is handed `q.env1.visible_below` (the lowered counter) instead of the
+  unlowered `vis`, so the lowering hides the former as the comment says.
+  Re-extracted.  `cargo test` green; the end-to-end differential 383/383
+  agree before and after; `Init` (`--verified --jobs=1`, `timeout 900`,
+  `ulimit -v 8388608`, interleaved) accepts 57 977 on every run, instructions
+  before 211 977 970 994 / 211 978 015 276 / 211 977 880 557, after
+  211 978 867 020 / 211 977 674 766 (noise).
+* **Twin**: `checkNativeTail`'s field re-check reads
+  `q.env₁.restrictTo (q.env₁.visibleBelow - 1)`; `checkNative` reads the
+  former's raw row `fe.idx[p₀.cvT.name]?` before the pass and runs the retry at
+  `q.env₁.popTemp p₀.cvT.name prev` (new `IFEnv.popTemp`, `Arena/Env.lean`, the
+  twin of `ifenv_pop_temp`).  `Refine2`'s transcription follows; the three
+  tail statements lost their `hpre` premise on the twin's environment.
+* **Theorem 1** (`Bridge/Inductives/NativeInstall.lean`): the checker lane's
+  `find?`-congruence.  `checkNativePass_push` (the pass pushes the former),
+  `checkNativePass_former` (con-leche's pass: the former fresh and the block's
+  own name, via `checkNativePass_inv`/`checkSumInd_shape`/
+  `checkConstantVal_inv`), `IFEnv.find?_push_lowered` (the lowered view
+  answers the entry `find?`), `IFEnv.popTemp_push` + `IFEnvSame` (the popped
+  index IS the entry index row by row, so `CheckOK`, `IFEnvCoh`, `denoteFEnv`
+  and `InstRel` transfer).  `checkNativeTail_spec` takes the `find?` agreement
+  as a hypothesis (`hfind`); `checkNative_spec` supplies it for both passes
+  and runs the retry's spec at the popped index.  `nativeFieldsOk_spec`/
+  `nativeOpenedOk_spec` lost an unused `denoteFEnv` precondition (the lowered
+  view denotes the pass's environment, not `env`; the proofs never read it).
+  No `sorry` added.
+* **`pi_result_is_prop_refines`, `pi_result_z_refines` closed** by one
+  `lockstep` call each (ExprOps' `pi_result` lemma), with two new specs
+  (`zeroness_of_twin`, `if_all_zero_new_twin`); two duplicate prims this lane
+  had added to `Inductives/Prims.lean` (`read_level_m_ls`, `sub_nat_spec`) are
+  gone — `Tactic/Prims.lean` has them.
+
 ### Task #97-T2-LOCKSTEP lane ExprOps — `arena::expr_ops` lockstep, its D1 twins, the `lockstep` tactic's walk moves (2026-09-23, Opus under Fable)
 
 The lane brief: move every `Refine2/ExprOps/**` statement to the lockstep

@@ -1137,14 +1137,14 @@ open Lockstep in
 
 /-- `check_native_tail_kinds` ⊑ `checkNativeTail`'s kind stage.  **Finding
 19's visibility bound**: the port lowers `env1.visible_below` by one to hide
-the type former's row, so the record it hands `nativeFieldsOk` relates to the
-twin's PRE-BLOCK environment `lf`, which is what `hpre` says. -/
+the type former's row (and, since task #97-T2-LOCKSTEP lane Inductives round 4,
+hands `native_fields_ok` that LOWERED counter); the twin reads
+`q.env₁.restrictTo (q.env₁.visibleBelow - 1)`, the same view.  No premise on
+the twin's environment: `hpre` is gone. -/
 theorem check_native_tail_kinds_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rq : arena.inductives.native_install.NativePass} {lq : NativePass} {lf} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hq : NativePassRel rq lq)
-    (hpre : ∀ n, lf.find? n =
-      (if n = lq.p.cvT.name then none else lq.env₁.find? n))
     (hrun : arena.inductives.native_install.check_native_tail_kinds pers st mode rq
       = ok o) :
     SimRel₀ IFEnvRelI pers lst o
@@ -1160,20 +1160,16 @@ open Lockstep in
     {lf}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (hq : NativePassRel rq lq)
-    (hpre : ∀ n, lf.find? n =
-      (if n = lq.p.cvT.name then none else lq.env₁.find? n)) :
+    (hq : NativePassRel rq lq) :
     LS pers IFEnvRelI (arena.inductives.native_install.check_native_tail_kinds pers st mode rq) lst
       (checkNativeTailKindsSpec (ConRon.Refine.absMode mode) lf lq) :=
-  LS.ofSimRel₀ fun _ h => check_native_tail_kinds_refines hrel hinv hq hpre h
+  LS.ofSimRel₀ fun _ h => check_native_tail_kinds_refines hrel hinv hq h
 
 /-- `check_native_tail_sorts` ⊑ `checkNativeTail`'s index-sort stage. -/
 theorem check_native_tail_sorts_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rq : arena.inductives.native_install.NativePass} {lq : NativePass} {lf} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hq : NativePassRel rq lq)
-    (hpre : ∀ n, lf.find? n =
-      (if n = lq.p.cvT.name then none else lq.env₁.find? n))
     (hrun : arena.inductives.native_install.check_native_tail_sorts pers st mode rq
       = ok o) :
     SimRel₀ IFEnvRelI pers lst o
@@ -1189,12 +1185,10 @@ open Lockstep in
     {lf}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (hq : NativePassRel rq lq)
-    (hpre : ∀ n, lf.find? n =
-      (if n = lq.p.cvT.name then none else lq.env₁.find? n)) :
+    (hq : NativePassRel rq lq) :
     LS pers IFEnvRelI (arena.inductives.native_install.check_native_tail_sorts pers st mode rq) lst
       (checkNativeTailSortsSpec (ConRon.Refine.absMode mode) lf lq) :=
-  LS.ofSimRel₀ fun _ h => check_native_tail_sorts_refines hrel hinv hq hpre h
+  LS.ofSimRel₀ fun _ h => check_native_tail_sorts_refines hrel hinv hq h
 
 /-- `check_native_tail` ⊑ `checkNativeTail` — **the install after the pass**
 (con-leche's task #268). -/
@@ -1202,8 +1196,6 @@ theorem check_native_tail_refines {pers st lst} {mode : kernel.env.CheckMode}
     {rq : arena.inductives.native_install.NativePass} {lq : NativePass} {lf} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hq : NativePassRel rq lq)
-    (hpre : ∀ n, lf.find? n =
-      (if n = lq.p.cvT.name then none else lq.env₁.find? n))
     (hrun : arena.inductives.native_install.check_native_tail pers st mode rq
       = ok o) :
     SimRel₀ IFEnvRelI pers lst o
@@ -1219,12 +1211,10 @@ open Lockstep in
     {lf}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (hq : NativePassRel rq lq)
-    (hpre : ∀ n, lf.find? n =
-      (if n = lq.p.cvT.name then none else lq.env₁.find? n)) :
+    (hq : NativePassRel rq lq) :
     LS pers IFEnvRelI (arena.inductives.native_install.check_native_tail pers st mode rq) lst
       (checkNativeTail (ConRon.Refine.absMode mode) lf lq) :=
-  LS.ofSimRel₀ fun _ h => check_native_tail_refines hrel hinv hq hpre h
+  LS.ofSimRel₀ fun _ h => check_native_tail_refines hrel hinv hq h
 
 /-- `ctor_name_seen` ⊑ `(ctors.map (·.1.name)).contains n` from the cursor
 on. -/

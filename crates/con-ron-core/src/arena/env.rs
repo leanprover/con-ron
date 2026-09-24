@@ -971,7 +971,7 @@ pub fn ifenv_push_temp(fe: &mut IFEnv, ci: IConstantInfo) -> Option<(u64, u64)> 
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push
-/// Lean twin: `proof/ConRon/Arena/Env.lean:332-337 IFEnv.push` — the inverse
+/// Lean twin: `proof/ConRon/Arena/Env.lean:343-348 IFEnv.popTemp` — the inverse
 /// of `ifenv_push_temp`: the constant popped, the displaced index row put
 /// back, the visibility bound restored.  See that function's note.
 pub fn ifenv_pop_temp(fe: &mut IFEnv, n: &NIdx, prev: Option<(u64, u64)>) {
@@ -1011,7 +1011,7 @@ pub fn ifenv_row(fe: &IFEnv, n: &NIdx) -> Option<(u64, u64)> {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:339-344 IFEnv.findProj?` — indexed
+/// Lean twin: `proof/ConRon/Arena/Env.lean:350-355 IFEnv.findProj?` — indexed
 /// projection-table lookup.
 pub fn ifenv_find_proj(
     pers: &PersTier,
@@ -1272,7 +1272,7 @@ pub fn dangling_level() -> CheckError {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:572-586 Expr.piSortTeleLen?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:348-358 piSortTeleLen?` — the
+/// Lean twin: `proof/ConRon/Arena/Env.lean:359-369 piSortTeleLen?` — the
 /// length of a syntactic Π-telescope ending in a SORT.  A spine walk, so the
 /// fuel is the store's node count; con-leche's structural recursion is the
 /// same walk with the node read through `view`.

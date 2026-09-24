@@ -26,6 +26,7 @@ import ConLeche.Verify.Inductives.FixWF
 import ConLeche.Verify.Inductives.FixInv
 import ConLeche.Verify.Inductives.SumWF
 import ConLeche.Verify.Inductives.SumInv
+import ConLeche.Verify.Extend.Inversions
 
 namespace ConRon.Bridge.Inductives
 
@@ -548,12 +549,12 @@ theorem nativeOpenedOk_spec (fe₀ : IFEnv) (env₀ : Env) (T : NIdx)
     ∀ (s₀ s' : AState) (r : Bool), ReadOK env₀ fe₀ s₀ →
       (denoteN s₀.store.ns T = some TP ∧
         Frontend.denoteNList s₀.store.ns lps = some lpsP ∧
-        denoteE s₀.store cty = some ctyP ∧ denoteFEnv s₀.store fe₀ = some env₀) →
+        denoteE s₀.store cty = some ctyP) →
       Arena.nativeOpenedOk fe₀ T lps nP nIdx cty nF ks s₀ = .ok (r, s') →
       PStep s₀ s' ∧ r = ConLeche.nativeOpenedOk env₀ TP lpsP nP nIdx ctyP nF
         (ks.map kindOf) := by
   intro s₀ s' r hok hpre hrun
-  obtain ⟨hT, hlps, hcty, -⟩ := hpre
+  obtain ⟨hT, hlps, hcty⟩ := hpre
   simp only [Arena.nativeOpenedOk] at hrun
   obtain ⟨o1, s1, k1, z1⟩ := bindOk hrun
   obtain ⟨p1, ho1⟩ := openPisAtFvarsF_run hok.state hcty k1
@@ -747,12 +748,12 @@ theorem nativeFieldsOk_spec (fe₀ : IFEnv) (env₀ : Env) (T : NIdx)
     ∀ (s₀ s' : AState) (r : Bool), ReadOK env₀ fe₀ s₀ →
       (denoteN s₀.store.ns T = some TP ∧
         Frontend.denoteNList s₀.store.ns lps = some lpsP ∧
-        denoteCtors s₀.store ctorsA = some ctorsAP ∧ denoteFEnv s₀.store fe₀ = some env₀) →
+        denoteCtors s₀.store ctorsA = some ctorsAP) →
       Arena.nativeFieldsOk fe₀ T lps nP nIdx ctorsA kinds s₀ = .ok (r, s') →
       PStep s₀ s' ∧ r = ConLeche.nativeFieldsOk env₀ TP lpsP nP nIdx ctorsAP
         (kinds.map (·.map kindOf)) := by
   intro s₀ s' r hok hpre hrun
-  obtain ⟨hT, hlps, hcs, hfe⟩ := hpre
+  obtain ⟨hT, hlps, hcs⟩ := hpre
   have hlen : ctorsA.length = ctorsAP.length := denoteCtors_length _ _ hcs
   simp only [Arena.nativeFieldsOk] at hrun
   simp only [ConLeche.nativeFieldsOk, List.length_map]
@@ -775,12 +776,12 @@ theorem nativeFieldsOk_spec (fe₀ : IFEnv) (env₀ : Env) (T : NIdx)
       | _, _ => false)
     (fun _ st => denoteN st.ns T = some TP ∧
       Frontend.denoteNList st.ns lps = some lpsP ∧
-      denoteCtors st ctorsA = some ctorsAP ∧ denoteFEnv st fe₀ = some env₀)
+      denoteCtors st ctorsA = some ctorsAP)
     (fun hx h => ⟨denoteN_ext h.1 hx, denoteNListE_ext hx _ _ h.2.1,
-      denoteCtors_ext hx _ _ h.2.2.1, denoteFEnv_ext hx h.2.2.2⟩)
+      denoteCtors_ext hx _ _ h.2.2⟩)
     (by
       intro j t₀ t' b ck hP hbody
-      obtain ⟨hT', hlps', hcs', hfe'⟩ := hP
+      obtain ⟨hT', hlps', hcs'⟩ := hP
       obtain ⟨hA, hB⟩ := denoteCtors_getElem? hcs' j
       simp only [List.getElem?_map]
       cases hc : ctorsA[j]? with
@@ -813,8 +814,8 @@ theorem nativeFieldsOk_spec (fe₀ : IFEnv) (env₀ : Env) (T : NIdx)
       simp only [Bool.not_true, Bool.false_eq_true, if_false] at hbody
       rw [Bool.true_and]
       exact nativeOpenedOk_spec fe₀ env₀ T TP lps lpsP nP nIdx cv.type cP.type a ks
-        t₀ t' b ck ⟨hT', hlps', denoteCV_type hcv, hfe'⟩ hbody)
-    (List.range ctorsAP.length) s₀ s' r hok (fun _ _ => ⟨hT, hlps, hcs, hfe⟩) hrun
+        t₀ t' b ck ⟨hT', hlps', denoteCV_type hcv⟩ hbody)
+    (List.range ctorsAP.length) s₀ s' r hok (fun _ _ => ⟨hT, hlps, hcs⟩) hrun
 
 /-! ## The generated recursor and its rules -/
 
@@ -1785,7 +1786,8 @@ theorem checkNativeTail_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (r : Arena.NativePass) (qP : ConLeche.NativePass Env)
     (henv₁ : EnvWF qP.env₁) (hTf : qP.cvTa.type.hasFvar = false)
     (henv₂ : EnvWF (ConLeche.consSumCtors qP.p.nP qP.ctorsA qP.env₁))
-    (hkcs : ∀ c ∈ ConLeche.nativeCtors4 qP.ctorsA qP.p.kinds, ∀ i ∈ c.2.2.2, i < c.2.1) :
+    (hkcs : ∀ c ∈ ConLeche.nativeCtors4 qP.ctorsA qP.p.kinds, ∀ i ∈ c.2.2.2, i < c.2.1)
+    (hfind : ∀ n, (r.env₁.restrictTo (r.env₁.visibleBelow - 1)).find? n = fe.find? n) :
     ISpec
       (fun s => CheckOK μ qP.env₁ r.env₁ s ∧ ReadOK env fe s ∧
         PassRel qP s.store r ∧ denoteFEnv s.store fe = some env ∧
@@ -1851,11 +1853,13 @@ theorem checkNativeTail_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   have x14 : Ext s₁.store s₄.store := p2.ext.trans c4.ext
   -- the kinds, re-checked on the stored constructors (at the ENTRY index)
   obtain ⟨b5, s₅, k5, z5⟩ := bindOk z4
-  obtain ⟨p5, hb5⟩ := nativeFieldsOk_spec fe env r.p.cvT.name qP.p.cvT.name
+  -- at the pass's index with the former hidden, which answers `fe`'s `find?`
+  have hread₄ := hread.mono c4.ok.state x14 (by rw [c4.pins, p2.pins])
+  obtain ⟨p5, hb5⟩ := nativeFieldsOk_spec _ env r.p.cvT.name qP.p.cvT.name
     r.p.cvT.levelParams qP.p.cvT.levelParams r.p.nP r.p.nIdx r.ctorsA qP.ctorsA r.p.kinds
-    s₄ s₅ b5 (hread.mono c4.ok.state x14 (by rw [c4.pins, p2.pins]))
+    s₄ s₅ b5 ⟨hread₄.state, hread₄.pins, hread₄.ienv.congr_find hfind⟩
     ⟨denoteN_ext (denoteCV_name hsh.cvT) x14, denoteNListE_ext x14 _ _ (denoteCV_lps hsh.cvT),
-      denoteCtors_ext x14 _ _ hpass.ctorsA, denoteFEnv_ext x14 hfe⟩ k5
+      denoteCtors_ext x14 _ _ hpass.ctorsA⟩ k5
   obtain ⟨hb5', z6⟩ := AM.dunless_ok AM.Never.fail_any z5
   replace z6 := AM.pure_bind_ok z6
   rw [hb5, hsh.nP, hsh.nIdx, hpass.p.kinds] at hb5'
@@ -2090,6 +2094,108 @@ theorem denoteCtors_nodup {st : EStore} (hwf : StoreWF st) :
     simp only [List.map_cons, List.nodup_cons,
       denoteCtors_mem hwf (denoteCV_name hcv) hrest, ih hrest]
 
+
+/-! ## The two environments the tail and the retry run at (task #97-T2-LOCKSTEP
+lane Inductives round 4, ruling 2)
+
+The port keeps ONE environment index through a native install: the pass pushes
+the type former, the tail's field re-check runs at that index with the
+visibility bound lowered past the former, and the retry pass runs at it with
+the former popped (`ifenv_pop_temp`).  The twin does the same; both views
+answer the entry index's `find?` (and the popped one IS it, row by row), which
+is all `CheckOK`/`ReadOK` read (`Bridge/Checker/Hyp.lean`'s `congr_find`). -/
+
+/-- con-leche: none — the pass pushes the former. -/
+theorem checkNativePass_push {μ : CheckMode} {fe : IFEnv} {p₀ : Arena.NativeParts}
+    {isRec : Bool} {s s' : AState} {r : Arena.NativePass × Bool}
+    (h : Arena.checkNativePass μ fe p₀ isRec s = .ok (r, s')) :
+    ∃ caps, r.1.env₁ = fe.push (.indInfo r.1.cvTa caps) := by
+  simp only [Arena.checkNativePass] at h
+  obtain ⟨t1, s1, k1, z1⟩ := bindOk h
+  obtain ⟨caps, hpush⟩ := checkSumInd_push k1
+  obtain ⟨fe₁, cvTa, p₁⟩ := t1
+  simp only at hpush z1
+  obtain ⟨_, _, _, z2⟩ := bindOk z1
+  obtain ⟨⟨ctorsA, sortss⟩, _, _, z3⟩ := bindOk z2
+  simp only at z3
+  obtain ⟨_, _, _, z4⟩ := bindOk z3
+  obtain ⟨_, _, _, z5⟩ := bindOk z4
+  obtain ⟨_, _, _, z6⟩ := bindOk z5
+  obtain ⟨rfl, -⟩ := pureOk z6
+  exact ⟨caps, hpush⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean checkNativePass —
+the pure pass's former is fresh at the entry environment, and it is the block's
+own name. -/
+theorem checkNativePass_former {μ : CheckMode} {F : Nat} {env : Env}
+    {q₀ : ConLeche.NativeParts} {isRec : Bool} {qP : ConLeche.NativePass Env}
+    {b : Bool} (h : ConLeche.checkNativePass (ConLeche.fueledOps μ F) env q₀ isRec
+      = .ok (qP, b)) :
+    env.find? qP.cvTa.name = none ∧ qP.cvTa.name = q₀.cvT.name := by
+  obtain ⟨p₁, kinds, hInd, -⟩ := ConLeche.checkNativePass_inv h
+  obtain ⟨cvT, _, hname, -, hccv, -⟩ := ConLeche.checkSumInd_shape hInd
+  obtain ⟨hfT, -, -, -, -, -, ty, -, -, -, -, -, -, -, heqT⟩ := ConLeche.checkConstantVal_inv hccv
+  rw [heqT]
+  exact ⟨hfT, hname⟩
+
+/-- con-leche: none — the view the tail's field re-check runs at: the pushed
+index with its bound lowered past the push answers the old `find?`. -/
+theorem IFEnv.find?_push_lowered (fe : IFEnv) (ci : IConstantInfo)
+    (hfresh : fe.find? ci.name = none) (n : NIdx) :
+    ((fe.push ci).restrictTo ((fe.push ci).visibleBelow - 1)).find? n = fe.find? n := by
+  have : (fe.push ci).visibleBelow - 1 = fe.visibleBelow := by simp [IFEnv.push]
+  rw [this]; exact IFEnv.find?_push_restrict fe ci hfresh n
+
+/-- con-leche: none — **the popped index is the entry index, row by row**. -/
+theorem IFEnv.popTemp_push (fe : IFEnv) (ci : IConstantInfo) :
+    ((fe.push ci).popTemp ci.name fe.idx[ci.name]?).env = fe.env ∧
+    ((fe.push ci).popTemp ci.name fe.idx[ci.name]?).visibleBelow = fe.visibleBelow ∧
+    ∀ k : NIdx, ((fe.push ci).popTemp ci.name fe.idx[ci.name]?).idx[k]? = fe.idx[k]? := by
+  refine ⟨by simp [IFEnv.popTemp, IFEnv.push], by simp [IFEnv.popTemp, IFEnv.push], ?_⟩
+  intro k
+  cases h : fe.idx[ci.name]? with
+  | none =>
+    simp only [IFEnv.popTemp, IFEnv.push, h, Std.HashMap.getElem?_erase,
+      Std.HashMap.getElem?_insert]
+    by_cases hk : (ci.name == k) = true
+    · have e : ci.name = k := by simpa using hk
+      subst e; simp [h]
+    · simp [hk]
+  | some row =>
+    simp only [IFEnv.popTemp, IFEnv.push, h, Std.HashMap.getElem?_insert]
+    by_cases hk : (ci.name == k) = true
+    · have e : ci.name = k := by simpa using hk
+      subst e; simp [h]
+    · simp [hk]
+
+/-- con-leche: none — two indices equal row by row carry the same invariants. -/
+structure IFEnvSame (fe' fe : IFEnv) : Prop where
+  env : fe'.env = fe.env
+  vis : fe'.visibleBelow = fe.visibleBelow
+  idx : ∀ k : NIdx, fe'.idx[k]? = fe.idx[k]?
+
+theorem IFEnvSame.find {fe' fe : IFEnv} (h : IFEnvSame fe' fe) (n : NIdx) :
+    fe'.find? n = fe.find? n := by
+  simp only [IFEnv.find?, h.idx, h.vis]
+
+theorem IFEnvSame.coh {fe' fe : IFEnv} (h : IFEnvSame fe' fe) (hc : IFEnvCoh fe) :
+    IFEnvCoh fe' := by
+  refine ⟨by rw [h.vis, h.env]; exact hc.1, fun n => ?_⟩
+  rw [h.idx, h.env]; exact hc.2 n
+
+theorem IFEnvSame.denote {fe' fe : IFEnv} (h : IFEnvSame fe' fe) (st : EStore) :
+    denoteFEnv st fe' = denoteFEnv st fe := by
+  simp only [denoteFEnv, h.env]
+
+theorem IFEnvSame.inst {fe' fe : IFEnv} (h : IFEnvSame fe' fe) {P : Env → Prop}
+    {st : EStore} {x : IFEnv} (hi : InstRel fe' P st x) : InstRel fe P st x where
+  coh := hi.coh
+  pushed := by obtain ⟨nw, e⟩ := hi.pushed; exact ⟨nw, by rw [e, h.env]⟩
+  visible := by rw [← h.vis]; exact hi.visible
+  denote := hi.denote
+  proj := ⟨fun n t hf => by rw [← h.find n]; exact hi.proj.1 n t hf,
+    fun t hm => by rw [← h.env]; exact hi.proj.2 t hm⟩
+
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:613-640 checkNative
 **THE FIXPOINT ROUTE**, one of the two `checkIndDecl` dispatches to.  The
 distinct names, the pass at the syntactic `is_rec`, and — where that reading
@@ -2129,19 +2235,26 @@ theorem checkNative_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   obtain ⟨i3, F₁, qP, settled, hF₁, hpass, hset, hinst₁, hck₃⟩ :=
     checkNativePass_spec fe hμ hk henv p₀ q₀ rr s₂ s₃ qs
       ⟨c2.ok, hp₁.ext c2.ext, denoteFEnv_ext c2.ext hfe₁, hcoh⟩ k3
+  obtain ⟨caps₁, hpush₁⟩ := checkNativePass_push k3
   obtain ⟨henv₁, hTf, henv₂⟩ := checkNativePass_envWF henv hF₁
   obtain ⟨q, st⟩ := qs
-  simp only at hpass hset hinst₁ hck₃ z3
+  simp only at hpass hset hinst₁ hck₃ z3 hpush₁
   subst hset
   have i03 : InstStep s₀ s₃ := hi₁.trans (c2.toInst.trans i3)
   have hread₃ : ReadOK env fe s₃ := hck.toR.ofInst i03
   have hfe₃ : denoteFEnv s₃.store fe = some env := denoteFEnv_ext i03.ext hfe
+  -- the former: pushed by the pass, fresh at `fe`, the block's own name
+  obtain ⟨hfreshP₁, hnameP₁⟩ := checkNativePass_former hF₁
+  have hfresh₁ : fe.find? q.cvTa.name = none :=
+    hread₃.ienv.find?_none (denoteCV_name hpass.cvTa) hfreshP₁
+  have hfind₁ : ∀ n, (q.env₁.restrictTo (q.env₁.visibleBelow - 1)).find? n = fe.find? n := by
+    intro n; rw [hpush₁]; exact IFEnv.find?_push_lowered fe (.indInfo q.cvTa caps₁) hfresh₁ n
   cases hs : st with
   | true =>
     rw [hs] at z3
     simp only [if_true] at z3
     obtain ⟨i4, hinst⟩ := checkNativeTail_spec fe hμ hk q qP henv₁ hTf henv₂
-      (checkNativePass_hcs hF₁) s₃ s' r
+      (checkNativePass_hcs hF₁) hfind₁ s₃ s' r
       ⟨hck₃, hread₃, hpass, hfe₃, hinst₁⟩ z3
     refine ⟨i03.trans i4, hinst.imp ?_⟩
     rintro e ⟨F₂, hF₂⟩
@@ -2162,19 +2275,38 @@ theorem checkNative_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     -- the second pass, at the classified verdict
     obtain ⟨qs', s₅, k5, z5⟩ := bindOk z4
     rw [nativeIsRec_spec, hpass.p.kinds] at k5
+    -- at the pass's index with the former popped: the entry index, row by row
+    have hn : q.cvTa.name = p₀.cvT.name := by
+      obtain ⟨rk, hrk⟩ := hck₃.state.wf
+      refine denoteN_inj hrk.nsWF (denoteCV_name hpass.cvTa) ?_
+      rw [hnameP₁]; exact denoteN_ext (denoteCV_name hp.shape.cvT) i03.ext
+    have hsame : IFEnvSame (q.env₁.popTemp p₀.cvT.name fe.idx[p₀.cvT.name]?) fe := by
+      rw [hpush₁, ← hn]
+      obtain ⟨e1, e2, e3⟩ := IFEnv.popTemp_push fe (.indInfo q.cvTa caps₁)
+      exact ⟨e1, e2, e3⟩
+    obtain ⟨caps₂, hpush₂⟩ := checkNativePass_push k5
     obtain ⟨i5, F₂, qP', settled', hF₂, hpass', hset', hinst₁', hck₅⟩ :=
-      checkNativePass_spec fe hμ hk henv p₀ q₀ _ s₄ s₅ qs'
-        ⟨hck₄, hp.ext x04, denoteFEnv_ext x04 hfe, hcoh⟩ k5
+      checkNativePass_spec _ hμ hk henv p₀ q₀ _ s₄ s₅ qs'
+        ⟨hck₄.congr_find hsame.find, hp.ext x04,
+          by rw [hsame.denote]; exact denoteFEnv_ext x04 hfe, hsame.coh hcoh⟩ k5
     obtain ⟨henv₁', hTf', henv₂'⟩ := checkNativePass_envWF henv hF₂
     obtain ⟨q', st'⟩ := qs'
-    simp only at hpass' hset' hinst₁' hck₅ z5
+    simp only at hpass' hset' hinst₁' hck₅ z5 hpush₂
     subst hset'
     obtain ⟨hs', z6⟩ := AM.dunless_ok AM.Never.fail_any z5
     replace z6 := AM.pure_bind_ok z6
     have i05 : InstStep s₀ s₅ := (i03.trans hi₄).trans i5
+    obtain ⟨hfreshP₂, -⟩ := checkNativePass_former hF₂
+    have hfresh₂ : (q.env₁.popTemp p₀.cvT.name fe.idx[p₀.cvT.name]?).find? q'.cvTa.name
+        = none := by
+      rw [hsame.find]
+      exact (hck.toR.ofInst i05).ienv.find?_none (denoteCV_name hpass'.cvTa) hfreshP₂
+    have hfind₂ : ∀ n, (q'.env₁.restrictTo (q'.env₁.visibleBelow - 1)).find? n
+        = fe.find? n := by
+      intro n; rw [hpush₂, IFEnv.find?_push_lowered _ (.indInfo q'.cvTa caps₂) hfresh₂ n, hsame.find]
     obtain ⟨i6, hinst⟩ := checkNativeTail_spec fe hμ hk q' qP' henv₁' hTf' henv₂'
-      (checkNativePass_hcs hF₂) s₅ s' r
-      ⟨hck₅, hck.toR.ofInst i05, hpass', denoteFEnv_ext i05.ext hfe, hinst₁'⟩ z6
+      (checkNativePass_hcs hF₂) hfind₂ s₅ s' r
+      ⟨hck₅, hck.toR.ofInst i05, hpass', denoteFEnv_ext i05.ext hfe, hsame.inst hinst₁'⟩ z6
     refine ⟨i05.trans i6, hinst.imp ?_⟩
     rintro e ⟨F₃, hF₃⟩
     refine ⟨max F₁ (max F₂ F₃), ?_⟩
