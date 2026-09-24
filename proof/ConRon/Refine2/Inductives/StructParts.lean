@@ -840,7 +840,34 @@ open Lockstep in
         (absLIdx s) is_prop) :=
   LS.ofSim₀ fun _ h => struct_parts_core_small_refines hrel hinv h
 
-/-- `struct_parts_core_elim` ⊑ the recogniser's eliminator split. -/
+/-- `structPartsCoreElimSpec` at a nonempty level-parameter list, its `&&` as
+the port's two nested tests (`nidx_vec_beq`, then `nidx_vec_contains`). -/
+theorem structPartsCoreElimSpec_cons (cvT cvC : IConstantVal) (nP nF : Nat)
+    (cvR : IConstantVal) (rule : IRecRule) (s : LIdx) (isProp : Bool)
+    (elim : NIdx) (h : cvR.levelParams.head? = some elim) :
+    structPartsCoreElimSpec cvT cvC nP nF cvR rule s isProp =
+      (if decide (cvR.levelParams.tail = cvT.levelParams) then
+        if cvT.levelParams.contains elim then
+          structPartsCoreSmallSpec cvT cvC nP nF cvR rule s isProp
+        else do
+          if ← structShape cvT.name cvC.name cvT.levelParams elim true nP nF
+              cvT.type cvC.type cvR.type then
+            pure (some ⟨cvT, cvC, nP, nF, cvR, elim, s, rule.rhs, true, isProp⟩)
+          else structPartsCoreSmallSpec cvT cvC nP nF cvR rule s isProp
+      else structPartsCoreSmallSpec cvT cvC nP nF cvR rule s isProp) := by
+  rw [structPartsCoreElimSpec]
+  split
+  · next e rest hc =>
+    rw [hc] at h
+    simp only [List.head?_cons, Option.some.injEq] at h
+    subst h
+    simp only [hc, List.tail_cons, Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true']
+    by_cases h1 : rest = cvT.levelParams <;> simp [h1]
+  · next hc => rw [hc] at h; simp at h
+
+/-- `struct_parts_core_elim` ⊑ the recogniser's eliminator split.; the level-parameter
+list cased by hand (the port's `if len == 0` and `[0]` read), then
+`structPartsCoreElimSpec_cons`. -/
 theorem struct_parts_core_elim_refines {pers st lst}
     {cv_t cv_c : arena.env.IConstantVal} {n_p n_f : Std.U64}
     {cv_r : arena.env.IConstantVal} {rule : arena.env.IRecRule}
@@ -852,7 +879,26 @@ theorem struct_parts_core_elim_refines {pers st lst}
       (structPartsCoreElimSpec (absIConstantVal cv_t) (absIConstantVal cv_c)
         (absU n_p) (absU n_f) (absIConstantVal cv_r) (absIRecRule rule)
         (absLIdx s) is_prop) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_parts_core_elim]
+  rcases hl : cv_r.level_params.val with _ | ⟨e, rest⟩
+  · have h0 : alloc.vec.Vec.len cv_r.level_params = 0#usize := by
+      apply UScalar.eq_of_val_eq; simp [hl]
+    have hs : structPartsCoreElimSpec (absIConstantVal cv_t) (absIConstantVal cv_c)
+        (absU n_p) (absU n_f) (absIConstantVal cv_r) (absIRecRule rule) (absLIdx s) is_prop
+        = structPartsCoreSmallSpec (absIConstantVal cv_t) (absIConstantVal cv_c)
+        (absU n_p) (absU n_f) (absIConstantVal cv_r) (absIRecRule rule) (absLIdx s) is_prop := by
+      rw [structPartsCoreElimSpec]; simp [absIConstantVal, hl]
+    simp only [h0, if_true, bind_tc_ok, hs]
+    exact struct_parts_core_small_ls hrel hinv
+  · have h0 : ¬ alloc.vec.Vec.len cv_r.level_params = 0#usize := by
+      intro h; have := congrArg UScalar.val h; simp [hl] at this
+    have e0 : cv_r.level_params[(0#usize).val]? = some e := by
+      simp [alloc.vec.Vec.getElem?_Nat_eq, hl]
+    rw [structPartsCoreElimSpec_cons _ _ _ _ _ _ _ _ (absNIdx e) (by simp [absIConstantVal, hl])]
+    simp only [h0, if_false, alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize, e0, bind_tc_ok]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_parts_core_elim_ls
@@ -967,14 +1013,54 @@ open Lockstep in
         (absIRecRule rule)) :=
   LS.ofSim₀ fun _ h => struct_parts_core_at_refines hrel hinv h
 
-/-- `struct_parts_core` ⊑ `structPartsCore?`. -/
+set_option linter.unusedSimpArgs false in
+/-- `struct_parts_core` ⊑ `structPartsCore?`.  The block match by hand (the
+port's three reads and nested constructor matches against the twin's
+three-element list pattern, through `structPartsCore_unfold`); the body past
+it is `struct_parts_core_at`. -/
 theorem struct_parts_core_refines {pers st lst}
     {block : alloc.vec.Vec arena.env.IConstantInfo} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.inductives.struct_parts.struct_parts_core pers st block = ok o) :
     Sim₀ (Option.map absStructParts) pers lst o
       (structPartsCore? (absICIL block)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_parts_core, structPartsCore_unfold]
+  simp only [absICIL]
+  rcases hb : block.val with _ | ⟨a, _ | ⟨b, _ | ⟨c, _ | ⟨d, l⟩⟩⟩⟩
+  case cons.cons.cons.nil =>
+    have h3 : (alloc.vec.Vec.len block != 3#usize) = false := by
+      simp only [bne_eq_false_iff_eq]; apply UScalar.eq_of_val_eq; simp [hb]
+    have e0 : block[(0#usize).val]? = some a := by simp [alloc.vec.Vec.getElem?_Nat_eq, hb]
+    have e1 : block[(1#usize).val]? = some b := by simp [alloc.vec.Vec.getElem?_Nat_eq, hb]
+    have e2 : block[(2#usize).val]? = some c := by simp [alloc.vec.Vec.getElem?_Nat_eq, hb]
+    simp only [h3, Bool.false_eq_true, if_false, alloc.vec.Vec.index_slice_index,
+      alloc.vec.Vec.index_usize, e0, e1, e2, bind_tc_ok, List.map_cons, List.map_nil]
+    cases a <;> simp only [absIConstantInfo] <;> try exact Lockstep.LS.pure rfl hrel hinv
+    case IndInfo cv_t caps =>
+    cases b <;> (try simp only [absIConstantInfo]) <;> try exact Lockstep.LS.pure rfl hrel hinv
+    case CtorInfo cv_c n_p n_f =>
+    cases c <;> (try simp only [absIConstantInfo]) <;> try exact Lockstep.LS.pure rfl hrel hinv
+    case RecInfo cv_r m_i r_p rules =>
+    rcases hr : rules.val with _ | ⟨r, _ | ⟨r', l⟩⟩
+    case cons.nil =>
+      have h1 : (alloc.vec.Vec.len rules != 1#usize) = false := by
+        simp only [bne_eq_false_iff_eq]; apply UScalar.eq_of_val_eq; simp [hr]
+      have r0 : rules[(0#usize).val]? = some r := by simp [alloc.vec.Vec.getElem?_Nat_eq, hr]
+      simp only [h1, Bool.false_eq_true, if_false, r0, bind_tc_ok, List.map_cons, List.map_nil]
+      exact struct_parts_core_at_ls hrel hinv
+    all_goals
+      have h1 : (alloc.vec.Vec.len rules != 1#usize) = true := by
+        simp only [bne_iff_ne, ne_eq]; intro h; have := congrArg UScalar.val h; simp [hr] at this
+      simp only [h1, if_true, List.map_cons, List.map_nil]
+      exact Lockstep.LS.pure rfl hrel hinv
+  all_goals
+    have h3 : (alloc.vec.Vec.len block != 3#usize) = true := by
+      simp only [bne_iff_ne, ne_eq]; intro h; have := congrArg UScalar.val h; simp [hb] at this
+    simp only [h3, if_true, List.map_cons, List.map_nil]
+    try (split; · rename_i heq; simp at heq)
+    exact Lockstep.LS.pure rfl hrel hinv
 
 open Lockstep in
 @[lockstep] theorem struct_parts_core_ls
