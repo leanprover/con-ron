@@ -897,7 +897,8 @@ open Lockstep in
   LS.ofSim₀ fun _ h => struct_idx_at_refines hrel hinv h
 
 /-- `struct_tele_at` ⊑ `structTeleAt` from the cursor on, with the accumulated
-binders in front. -/
+binders in front — at the counted transcription (`structTeleAtFromSpec`): the
+port hands `struct_idx_at` the ABSOLUTE position. -/
 theorem struct_tele_at_refines {pers st lst} {n_f ofs i l : Std.U64}
     {pw : kernel.prop_when.PropWhen}
     {tele : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
@@ -908,9 +909,25 @@ theorem struct_tele_at_refines {pers st lst} {n_f ofs i l : Std.U64}
       k out = ok o) :
     Sim₀ absBinderL pers lst o
       (do pure (absBinderL out ++
-        (← structTeleAt (absU n_f) (absU ofs) (absU i) (absU l)
-          (ConRon.Refine.absPropWhen pw) (absBinderLFrom tele k)))) := by
-  sorry
+        (← structTeleAtFromSpec (absU n_f) (absU ofs) (absU i) (absU l)
+          (ConRon.Refine.absPropWhen pw) (absBinderL tele) (tele.val.length - k.val) k.val))) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  refine ls_counted_sz tele.val.length
+    (fun out m j => do pure (absBinderL out ++
+      (← structTeleAtFromSpec (absU n_f) (absU ofs) (absU i) (absU l)
+        (ConRon.Refine.absPropWhen pw) (absBinderL tele) m j)))
+    (fun st k out => arena.inductives.native_parts.struct_tele_at pers st n_f ofs i l pw tele k out)
+    ?_ ?_ k st lst out hrel hinv
+  · intro st lst k out hn hrel hinv
+    rw [arena.inductives.native_parts.struct_tele_at.eq_def, structTeleAtFromSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst k out m hk hm hrel hinv ih
+    rw [arena.inductives.native_parts.struct_tele_at.eq_def, structTeleAtFromSpec]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    rw [absBinderL_getD_fst_of_lt _ _ hk]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_tele_at_ls
@@ -924,9 +941,36 @@ open Lockstep in
     (hinv : AStateInv pers st) :
     LS pers (fun a b => b = absBinderL a) (arena.inductives.native_parts.struct_tele_at pers st n_f ofs i l pw tele k out) lst
       (do pure (absBinderL out ++
-        (← structTeleAt (absU n_f) (absU ofs) (absU i) (absU l)
-          (ConRon.Refine.absPropWhen pw) (absBinderLFrom tele k)))) :=
+        (← structTeleAtFromSpec (absU n_f) (absU ofs) (absU i) (absU l)
+          (ConRon.Refine.absPropWhen pw) (absBinderL tele) (tele.val.length - k.val) k.val))) :=
   LS.ofSim₀ fun _ h => struct_tele_at_refines hrel hinv h
+
+open Lockstep in
+/-- `struct_tele_at` from `0` and an empty accumulator IS `structTeleAt` (the
+callers' form). -/
+@[lockstep] theorem struct_tele_at_twin0
+    {pers st lst}
+    {n_f ofs i l : Std.U64}
+    {pw : kernel.prop_when.PropWhen}
+    {tele : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absBinderL a)
+      (arena.inductives.native_parts.struct_tele_at pers st n_f ofs i l pw tele 0#usize
+        (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta))) lst
+      (structTeleAt (absU n_f) (absU ofs) (absU i) (absU l) (ConRon.Refine.absPropWhen pw)
+        (absBinderL tele)) := by
+  have h := struct_tele_at_ls (n_f := n_f) (ofs := ofs) (i := i) (l := l) (pw := pw) (tele := tele)
+    (k := 0#usize) (out := alloc.vec.Vec.new _) hrel hinv
+  have e : (do pure (absBinderL (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)) ++
+        (← structTeleAtFromSpec (absU n_f) (absU ofs) (absU i) (absU l)
+          (ConRon.Refine.absPropWhen pw) (absBinderL tele) (tele.val.length - (0#usize : Std.Usize).val)
+          (0#usize : Std.Usize).val)) : AM _) =
+      structTeleAt (absU n_f) (absU ofs) (absU i) (absU l) (ConRon.Refine.absPropWhen pw)
+        (absBinderL tele) := by
+    rw [structTeleAt_counted]
+    simp [absBinderL, alloc.vec.Vec.new]
+  rwa [e] at h
 
 /-- `struct_tele_vars` ⊑ `structTeleVars`. -/
 theorem struct_tele_vars_refines {pers st lst} {m : Std.U64} {o}
@@ -1119,7 +1163,28 @@ theorem struct_ih_list_refines {pers st lst} {rec_c : arena.handle.NIdx}
         (← structIhListSpec (absNIdx rec_c) (absLsIdx rlvls)
           (ConRon.Refine.absPropWhen pw) (absU n_p) (absU n) (absU n_f)
           (absEIdx cty) (absNatLFrom rec_idx k)))) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  revert st lst hrel hinv
+  simp only [absNatLFrom]
+  intro st lst hrel hinv
+  refine ls_cursor_acc rec_idx _
+    (fun out l' => do pure (absEIdxL out ++
+      (← structIhListSpec (absNIdx rec_c) (absLsIdx rlvls)
+          (ConRon.Refine.absPropWhen pw) (absU n_p) (absU n) (absU n_f) (absEIdx cty) l')))
+    (fun st k out => arena.inductives.native_parts.struct_ih_list pers st rec_c rlvls pw n_p n
+      n_f rec_idx cty k out)
+    ?_ ?_ k st lst out hrel hinv
+  · intro st lst k out hn hrel hinv
+    try simp only []
+    rw [arena.inductives.native_parts.struct_ih_list.eq_def, structIhListSpec]
+    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
+  · intro st lst k out hb hrel hinv ih
+    try simp only []
+    rw [arena.inductives.native_parts.struct_ih_list.eq_def, structIhListSpec]
+    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_ih_list_ls

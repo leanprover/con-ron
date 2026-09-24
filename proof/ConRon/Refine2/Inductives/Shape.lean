@@ -1319,4 +1319,48 @@ macro "ind_dom_finish" : tactic => `(tactic| first
      · lockstep; done
      · scalar_tac))
 
+open Lockstep in
+/-- `ls_counted` at a `usize` cursor bounded by a length `n`. -/
+theorem ls_counted_sz {γ δ ω : Type} {pers : arena.store.PersTier} {R : γ → δ → Prop}
+    (n : Nat) (G : ω → Nat → Nat → AM δ)
+    (F : arena.monad.AState → Std.Usize → ω →
+      Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState))
+    (hstop : ∀ st lst (i : Std.Usize) w, n ≤ i.val →
+      AStateRel₀ pers st lst → AStateInv pers st → LS pers R (F st i w) lst (G w 0 i.val))
+    (hstep : ∀ st lst (i : Std.Usize) w (m : Nat), i.val < n → n - i.val = m + 1 →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      (∀ st' lst' (j : Std.Usize) w', j.val = i.val + 1 →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers R (F st' j w') lst' (G w' m j.val)) →
+      LS pers R (F st i w) lst (G w (m + 1) i.val)) :
+    ∀ (i : Std.Usize) st lst w, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers R (F st i w) lst (G w (n - i.val) i.val) := by
+  suffices H : ∀ (m : Nat) (i : Std.Usize) st lst w, n - i.val = m →
+      AStateRel₀ pers st lst → AStateInv pers st → LS pers R (F st i w) lst (G w m i.val) by
+    intro i st lst w hrel hinv; exact H _ i st lst w rfl hrel hinv
+  intro m
+  induction m with
+  | zero =>
+    intro i st lst w hm hrel hinv
+    exact hstop st lst i w (by omega) hrel hinv
+  | succ m ih =>
+    intro i st lst w hm hrel hinv
+    exact hstep st lst i w m (by omega) hm hrel hinv
+      (fun st' lst' j w' hj hrel' hinv' => ih j st' lst' w' (by omega) hrel' hinv')
+
+open Lockstep in
+/-- `kernel::prop_when::dup` is the identity (a Rust-only copy). -/
+@[lockstep] theorem prop_when_dup_spec (pw : kernel.prop_when.PropWhen) :
+    LSP (kernel.prop_when.dup pw) (fun a => a = pw) :=
+  fun _ h => ConRon.Refine.PropWhen.dup_eq h
+
+open Lockstep in
+/-- The twin of an `LS` judgement may be replaced by an equal one (the
+accumulator step: the induction hypothesis's `A (out.push b) ++ rest` against
+the step's `A out ++ f b :: rest`). -/
+theorem LS.twin_eq {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x y : AM β} (h : LS pers R m lst x) (e : x = y) : LS pers R m lst y :=
+  e ▸ h
+
 end ConRon.Refine2

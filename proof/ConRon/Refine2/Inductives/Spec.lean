@@ -790,6 +790,28 @@ def structIdxListSpec (nF o i l m : Nat) : List EIdx → AM (List EIdx)
     let rest ← structIdxListSpec nF o i l m es
     pure (a :: rest)
 
+/-- `structTeleAt`'s `(List.range tele.length).mapM`, counted, from position `k`
+on — the index the port passes is the ABSOLUTE position (`struct_tele_at`'s
+cursor), so the cursor form is a count and a start, not a dropped list. -/
+def structTeleAtFromSpec (nF o i l : Nat) (pw : ConLeche.PropWhen)
+    (tele : List (EIdx × ConLeche.BinderMeta)) : Nat → Nat → AM (List (EIdx × ConLeche.BinderMeta))
+  | 0, _ => pure []
+  | m + 1, k => do
+    let a ← structIdxAt nF o i l k (tele.getD k default).1
+    let rest ← structTeleAtFromSpec nF o i l pw tele m (k + 1)
+    pure ((a, ⟨pw⟩) :: rest)
+
+/-- The owed equation: `structTeleAt` IS the counted walk from `0`. -/
+theorem structTeleAt_counted (nF o i l : Nat) (pw : ConLeche.PropWhen)
+    (tele : List (EIdx × ConLeche.BinderMeta)) :
+    structTeleAt nF o i l pw tele = structTeleAtFromSpec nF o i l pw tele tele.length 0 := by
+  rw [structTeleAt, List.range_eq_range']
+  refine range_mapM_counted _ (fun m k => structTeleAtFromSpec nF o i l pw tele m k)
+    (fun _ => rfl) ?_ _ 0
+  intro m k
+  rw [structTeleAtFromSpec]
+  simp only [bind_assoc, pure_bind]
+
 /-- `structRuleBodyR`'s `recIdx.mapM`, from the `k`-th position on. -/
 def structIhListSpec (recC : NIdx) (rlvls : LsIdx) (pw : ConLeche.PropWhen)
     (nP n nF : Nat) (cty : EIdx) : List Nat → AM (List EIdx)
