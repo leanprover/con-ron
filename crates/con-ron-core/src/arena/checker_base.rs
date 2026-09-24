@@ -37,14 +37,13 @@
 //!    the walk is spelled here, at its one caller.  Task #97d's own "IndBase
 //!    duplication" note is the Lean-side record of the same seam.
 //! 6. **`or_else_attempt`'s state restore is the WHOLE state** (tasks
-//!    #97-T2-LOCKSTEP D4b, D4c).  The twin writes the attempt as a state
-//!    function, which makes the whole pre-attempt state free; `&mut AState`
-//!    has no such thing.  The caller moves the persistent tier aside
-//!    (`arena::checker::freeze_tier`, O(1)), copies the rest of the state
+//!    #97-T2-LOCKSTEP D4b, D4c, #98-FREEZE).  The twin writes the attempt as a
+//!    state function, which makes the whole pre-attempt state free; `&mut
+//!    AState` has no such thing.  The caller copies the state
 //!    (`attempt_snapshot`: scratch tiers, memos, caches, pins, flags — the
-//!    persistent tables are empty by then), runs the attempt against the
-//!    frozen tier, and on `Recovered` moves the copy back and thaws the tier
-//!    into it.  History: task #97-P4d's `astate_dup` copied the whole store
+//!    persistent tables are not in it, because the attempt runs inside a
+//!    declaration bracket, whose store is frozen), runs the attempt against
+//!    the bracket's tier, and on `Recovered` moves the copy back.  History: task #97-P4d's `astate_dup` copied the whole store
 //!    with a recursion one frame per node and overflowed the stack on
 //!    `Init`+`Std`+`Lean`'s `Nat.mod` (12.3 M nodes); task #97-P6-2 then
 //!    restored only the caches, D4 added the scratch tiers (a kept scratch
@@ -52,7 +51,9 @@
 //!    only given a frame over the attempt's 1 187-function closure; D4b copied
 //!    everything (+6.4 % instructions on `Init`); D4c moves the persistent
 //!    tier instead of copying it, which is exact by construction because the
-//!    attempt reads it through the frozen `PersTier` and cannot write it.
+//!    attempt reads it through the frozen `PersTier` and cannot write it;
+//!    #98-FREEZE made opening the bracket the freeze, so the attempt no longer
+//!    moves anything itself.
 
 use crate::arena::core::{
     annotate_core, append_eidx, consts_resolve, ensure_sort_core, infer_type_core, is_def_eq_core,

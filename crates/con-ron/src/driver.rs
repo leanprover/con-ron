@@ -493,8 +493,8 @@ impl InstallHook for Silent {
 /// **The boundary is where the tier is FROZEN** (task #97-P6-6b).  Phase A
 /// owns its persistent tier and appends to it; at the boundary
 /// `checker::freeze_tier` moves the four stores' persistent tables out into
-/// one `PersTier` and sets the `shared_on` flags that make every later
-/// persistent read go to it and every persistent append a decline.  The
+/// one `PersTier` and freezes the store, which makes every later persistent
+/// read go to it and every append a scratch append (task #98-FREEZE).  The
 /// installed index goes to the workers by reference, since `check_pending`
 /// takes the visibility bound as a scalar — so `n` workers share one
 /// environment and one term DAG and own nothing but a scratch tier, their
@@ -517,22 +517,16 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
         }
         Ok(p) => p,
     };
-    let (n_installed, fe, pend): (u64, IFEnv, Vec<PendingCheck>) = p;
+    let (_n_installed, fe, pend): (u64, IFEnv, Vec<PendingCheck>) = p;
     let m = pend.len();
     obs.install_done(pers, &st.store, total, m);
     let workers = workers_for(jobs, m);
     obs.phase_b_workers(workers);
     // THE PHASE BOUNDARY: the persistent tier leaves the state and becomes a
     // value every worker reads (the doc comment above).  `st` keeps its
-    // (empty) store with the flags set, so the observer can still read a
-    // label back through the shared tier.
-    let tier: PersTier = match checker::freeze_tier(&mut st.store) {
-        Err(e) => {
-            obs.check_failed(n_installed);
-            return Err((e, n_installed));
-        }
-        Ok(t) => t,
-    };
+    // (empty) store, frozen, so the observer can still read a label back
+    // through the shared tier.
+    let tier: PersTier = checker::freeze_tier(&mut st.store);
     // PHASE B, `checker::check_pending_worker`'s walk on `workers` threads:
     // every record checked by `checker::check_pending` at its own prefix
     // view, inside its own scratch tier, on its worker's state
@@ -1059,20 +1053,15 @@ mod tests {
         };
         assert_eq!(name_of(empty, &st.store, &n), "add");
         // frozen: the store's own tier is empty and the shared one answers
-        let tier = match checker::freeze_tier(&mut st.store) {
-            Ok(t) => t,
-            Err(_) => panic!("phase A's store has its flags down"),
-        };
-        assert!(st.store.shared_on);
-        // a second freeze of the frozen store is the port's own decline
-        assert!(checker::freeze_tier(&mut st.store).is_err());
+        let tier = checker::freeze_tier(&mut st.store);
+        assert!(st.store.shared_on && st.store.scratch_on);
         assert_eq!(name_of(&tier, &st.store, &n), "add");
         // and a worker, whose store is its own, reads it too
         let w = checker::worker_state(&st.pins);
         assert_eq!(name_of(&tier, &w.store, &n), "add");
         // thawed: the store is what phase A left
         checker::thaw_tier(&mut st.store, tier);
-        assert!(!st.store.shared_on);
+        assert!(!st.store.shared_on && !st.store.scratch_on);
         assert_eq!(name_of(empty, &st.store, &n), "add");
     }
 }

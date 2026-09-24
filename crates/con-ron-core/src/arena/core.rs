@@ -11712,19 +11712,46 @@ pub fn flush_caches(st: &mut AState) {
 /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3895-3903 dropScratch` — drop the
 /// scratch tier of the store and the cache entries that name it, in one
-/// operation, so the two halves cannot drift apart.
-pub fn drop_scratch(st: &mut AState) {
+/// operation, so the two halves cannot drift apart; and **thaw** the store:
+/// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
+/// store is owned and scratch-off again.
+pub fn drop_scratch(st: &mut AState, tier: PersTier) {
     flush_caches(st);
-    st.store.drop_scratch();
+    st.store.thaw(tier);
 }
 
 /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3905-3912 enterScratch` — turn the
 /// scratch tier on, and clear the per-call memo tables of `Memos`, which
-/// belong to no tier and whose keys the new tier may reuse.
-pub fn enter_scratch(st: &mut AState) {
+/// belong to no tier and whose keys the new tier may reuse.  **Opening a
+/// bracket is freezing the store** (task #98-FREEZE): its persistent tables
+/// are handed back as the `PersTier` every read inside the bracket goes
+/// through and promotion writes, and every append inside it is a scratch
+/// append.
+pub fn enter_scratch(st: &mut AState) -> PersTier {
     st.memos.reset();
-    st.store.enable_scratch();
+    st.store.freeze()
+}
+
+/// con-leche: none — **a phase-B record's bracket, closed** (DESIGN.md §8.3)
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3895-3903 dropScratch` —
+/// `drop_scratch` on a store that STAYS frozen (task #98-FREEZE): the caches
+/// flushed and the scratch tiers emptied, the flags untouched.  A phase-B
+/// worker's store is frozen for its whole life, so between two records it is
+/// frozen with an empty scratch tier where the twin's is scratch-off; nothing
+/// is interned there.
+pub fn leave_record(st: &mut AState) {
+    flush_caches(st);
+    st.store.clear_scratch();
+}
+
+/// con-leche: none — **a phase-B record's bracket, opened** (DESIGN.md §8.3)
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3905-3912 enterScratch` —
+/// `enter_scratch` on an already frozen store (task #98-FREEZE): the memos
+/// cleared and the scratch tiers emptied, the flags untouched.
+pub fn enter_record(st: &mut AState) {
+    st.memos.reset();
+    st.store.clear_scratch();
 }
 
 // ---------------------------------------------------------------------------

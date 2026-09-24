@@ -923,9 +923,9 @@ mod tests {
         assert!(ok(pin_zero_level(&st)).is_persistent());
         assert!(ok(pin_sort_one(&st)).is_persistent());
         let nat = ok(pin_nat(&st));
-        enter_scratch(&mut st);
+        let tier = enter_scratch(&mut st);
         assert!(ok(pin_nat(&st)).eq2(&nat));
-        drop_scratch(&mut st);
+        drop_scratch(&mut st, tier);
         assert!(ok(pin_nat(&st)).eq2(&nat));
     }
 

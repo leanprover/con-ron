@@ -384,7 +384,7 @@ structure arena.handle.EIdx where
   word : Std.U32
 
 /-- [con_ron_core::arena::store::ProjNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 945:0-949:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 930:0-934:1
     Visibility: public -/
 structure arena.store.ProjNode where
   n : arena.handle.NIdx
@@ -392,13 +392,13 @@ structure arena.store.ProjNode where
   e : arena.handle.EIdx
 
 /-- [con_ron_core::arena::store::LitNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 938:0-940:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 923:0-925:1
     Visibility: public -/
 structure arena.store.LitNode where
   l : kernel.expr.Literal
 
 /-- [con_ron_core::arena::store::LetNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 929:0-933:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 914:0-918:1
     Visibility: public -/
 structure arena.store.LetNode where
   ty : arena.handle.EIdx
@@ -406,7 +406,7 @@ structure arena.store.LetNode where
   body : arena.handle.EIdx
 
 /-- [con_ron_core::arena::store::BMNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 922:0-924:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 907:0-909:1
     Visibility: public -/
 structure arena.store.BMNode where
   pw : kernel.prop_when.PropWhen
@@ -418,7 +418,7 @@ structure arena.handle.BMIdx where
   word : Std.U32
 
 /-- [con_ron_core::arena::store::BindNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 896:0-900:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 881:0-885:1
     Visibility: public -/
 structure arena.store.BindNode where
   ty : arena.handle.EIdx
@@ -426,7 +426,7 @@ structure arena.store.BindNode where
   m : arena.handle.BMIdx
 
 /-- [con_ron_core::arena::store::AppNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 887:0-890:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 872:0-875:1
     Visibility: public -/
 structure arena.store.AppNode where
   f : arena.handle.EIdx
@@ -439,7 +439,7 @@ structure arena.handle.LsIdx where
   word : Std.U32
 
 /-- [con_ron_core::arena::store::ConstNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 878:0-881:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 863:0-866:1
     Visibility: public -/
 structure arena.store.ConstNode where
   n : arena.handle.NIdx
@@ -452,20 +452,20 @@ structure arena.handle.LIdx where
   word : Std.U32
 
 /-- [con_ron_core::arena::store::SortNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 870:0-872:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 855:0-857:1
     Visibility: public -/
 structure arena.store.SortNode where
   u : arena.handle.LIdx
 
 /-- [con_ron_core::arena::store::FVarNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 862:0-865:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 847:0-850:1
     Visibility: public -/
 structure arena.store.FVarNode where
   idx : Std.U64
   ty : arena.handle.EIdx
 
 /-- [con_ron_core::arena::store::BVarNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 855:0-857:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 840:0-842:1
     Visibility: public -/
 structure arena.store.BVarNode where
   i : Std.U64
@@ -489,14 +489,14 @@ structure ron.hashmap2.HashMap2 (K : Type) (V : Type) where
   slots : alloc.vec.Vec (ron.hashmap2.Slot K V)
 
 /-- [con_ron_core::arena::store::Tbl]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 211:0-214:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 192:0-195:1
     Visibility: public -/
 structure arena.store.Tbl (A : Type) (I : Type) (D : Type) where
   rows : alloc.vec.Vec (A × D)
   cons : ron.hashmap2.HashMap2 A I
 
 /-- [con_ron_core::arena::store::ETables]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1301:0-1320:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1286:0-1305:1
     Visibility: public -/
 structure arena.store.ETables where
   bvars : arena.store.Tbl arena.store.BVarNode arena.handle.EIdx Std.U64
@@ -512,52 +512,52 @@ structure arena.store.ETables where
   bms : arena.store.Tbl arena.store.BMNode arena.handle.BMIdx Std.U64
 
 /-- [con_ron_core::arena::store::ListNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 796:0-798:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 780:0-782:1
     Visibility: public -/
 structure arena.store.ListNode where
   us : alloc.vec.Vec arena.handle.LIdx
 
 /-- [con_ron_core::arena::store::LDer]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 742:0-745:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 725:0-728:1
     Visibility: public -/
 structure arena.store.LDer where
   hash : Std.U64
   has_param : Bool
 
 /-- [con_ron_core::arena::store::LsTables]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 830:0-832:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 814:0-816:1
     Visibility: public -/
 structure arena.store.LsTables where
   lists : arena.store.Tbl arena.store.ListNode arena.handle.LsIdx
     arena.store.LDer
 
 /-- [con_ron_core::arena::store::ParamNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 622:0-624:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 605:0-607:1
     Visibility: public -/
 structure arena.store.ParamNode where
   n : arena.handle.NIdx
 
 /-- [con_ron_core::arena::store::BinLNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 614:0-617:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 597:0-600:1
     Visibility: public -/
 structure arena.store.BinLNode where
   u : arena.handle.LIdx
   v : arena.handle.LIdx
 
 /-- [con_ron_core::arena::store::SuccNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 606:0-608:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 589:0-591:1
     Visibility: public -/
 structure arena.store.SuccNode where
   u : arena.handle.LIdx
 
 /-- [con_ron_core::arena::store::ZeroNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 601:0-601:22
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 584:0-584:22
     Visibility: public -/
 @[reducible]
 def arena.store.ZeroNode := Unit
 
 /-- [con_ron_core::arena::store::LTables]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 766:0-772:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 749:0-755:1
     Visibility: public -/
 structure arena.store.LTables where
   zeros : arena.store.Tbl arena.store.ZeroNode arena.handle.LIdx
@@ -572,27 +572,27 @@ structure arena.store.LTables where
     arena.store.LDer
 
 /-- [con_ron_core::arena::store::NumNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 475:0-478:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 457:0-460:1
     Visibility: public -/
 structure arena.store.NumNode where
   pre : arena.handle.NIdx
   n : Std.U64
 
 /-- [con_ron_core::arena::store::StrNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 466:0-469:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 448:0-451:1
     Visibility: public -/
 structure arena.store.StrNode where
   pre : arena.handle.NIdx
   s : alloc.vec.Vec Std.U32
 
 /-- [con_ron_core::arena::store::AnonNode]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 460:0-460:22
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 442:0-442:22
     Visibility: public -/
 @[reducible]
 def arena.store.AnonNode := Unit
 
 /-- [con_ron_core::arena::store::NTables]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 576:0-580:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 558:0-562:1
     Visibility: public -/
 structure arena.store.NTables where
   anons : arena.store.Tbl arena.store.AnonNode arena.handle.NIdx Std.U64
@@ -600,7 +600,7 @@ structure arena.store.NTables where
   nums : arena.store.Tbl arena.store.NumNode arena.handle.NIdx Std.U64
 
 /-- [con_ron_core::arena::store::PersTier]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1364:0-1369:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1362:0-1367:1
     Visibility: public -/
 structure arena.store.PersTier where
   n : arena.store.NTables
@@ -609,7 +609,7 @@ structure arena.store.PersTier where
   e : arena.store.ETables
 
 /-- [con_ron_core::arena::store::NStore]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 584:0-592:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 566:0-575:1
     Visibility: public -/
 structure arena.store.NStore where
   pers : arena.store.NTables
@@ -618,7 +618,7 @@ structure arena.store.NStore where
   shared_on : Bool
 
 /-- [con_ron_core::arena::store::LStore]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 776:0-785:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 759:0-769:1
     Visibility: public -/
 structure arena.store.LStore where
   ns : arena.store.NStore
@@ -628,7 +628,7 @@ structure arena.store.LStore where
   shared_on : Bool
 
 /-- [con_ron_core::arena::store::LsStore]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 836:0-845:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 820:0-830:1
     Visibility: public -/
 structure arena.store.LsStore where
   ls : arena.store.LStore
@@ -638,7 +638,7 @@ structure arena.store.LsStore where
   shared_on : Bool
 
 /-- [con_ron_core::arena::store::EStore]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1326:0-1335:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1311:0-1321:1
     Visibility: public -/
 structure arena.store.EStore where
   lss : arena.store.LsStore
@@ -750,7 +750,7 @@ structure arena.monad.AState where
   pins : arena.pins.Pins
 
 /-- [con_ron_core::arena::store::NNodeView]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 568:0-572:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 550:0-554:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.store.NNodeView where
@@ -777,13 +777,13 @@ structure ron.hashmap.Hashable (Self : Type) where
   hash64 : Self → Result Std.U64
 
 /-- Trait declaration: [con_ron_core::arena::store::DerDefault]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 178:0-182:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 159:0-163:1
     Visibility: public -/
 structure arena.store.DerDefault (Self : Type) where
   der_default : Result Self
 
 /-- [con_ron_core::arena::store::LNodeView]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 729:0-735:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 712:0-718:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.store.LNodeView where
@@ -855,7 +855,7 @@ inductive ron.nat.Cmp where
 | Gt : ron.nat.Cmp
 
 /-- [con_ron_core::arena::store::ENodeView]
-    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1285:0-1296:1
+    Source: 'crates/con-ron-core/src/arena/store.rs', lines 1270:0-1281:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.store.ENodeView where
@@ -1182,7 +1182,7 @@ structure arena.core.NatEqCtx where
   b_f : arena.handle.EIdx
 
 /-- [con_ron_core::arena::decl_check::CertCtx]
-    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 1086:0-1108:1
+    Source: 'crates/con-ron-core/src/arena/decl_check.rs', lines 1085:0-1107:1
     Visibility: public -/
 structure arena.decl_check.CertCtx where
   nat_ty : arena.handle.EIdx
@@ -1208,7 +1208,7 @@ structure arena.decl_check.CertCtx where
   xor_n : arena.handle.NIdx
 
 /-- [con_ron_core::arena::checker_base::OrElseStep]
-    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 416:0-421:1
+    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 417:0-422:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.checker_base.OrElseStep where
@@ -1244,7 +1244,7 @@ structure arena.checker_split.ValueGroup where
   jv : arena.handle.EIdx
 
 /-- [con_ron_core::arena::checker::PendingCheck]
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 847:0-851:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 840:0-844:1
     Visibility: public -/
 structure arena.checker.PendingCheck where
   vg : arena.checker_split.ValueGroup
@@ -1252,7 +1252,7 @@ structure arena.checker.PendingCheck where
   vis : Std.U64
 
 /-- Trait declaration: [con_ron_core::arena::checker::InstallHook]
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1334:0-1338:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1356:0-1360:1
     Visibility: public -/
 structure arena.checker.InstallHook (Self : Type) where
   install_before : Self → arena.store.PersTier → arena.store.EStore →
