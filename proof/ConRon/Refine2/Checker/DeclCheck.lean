@@ -3468,7 +3468,7 @@ open Lockstep in
 and a duplicate test, so the Rust takes no state at all (finding 12's
 neighbour). -/
 theorem install_basis_decl_refines {lst} {rf lf} {ci : arena.env.IConstantInfo} {o}
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hwf : IConstantInfoWF ci)
     (hrun : arena.decl_check.install_basis_decl rf ci = ok o) :
     SimRelR (fun r v => IFEnvRelI r v) lst o
       (installBasisDecl lf (absIConstantInfo ci)) := by
@@ -3483,7 +3483,7 @@ theorem install_basis_decl_refines {lst} {rf lf} {ci : arena.env.IConstantInfo} 
       if_false] at hrun
     obtain ⟨rf', hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain rfl := (Result.ok_injective hrun).symm
-    obtain ⟨h1, h2⟩ := ifenv_push_refines hfe hfinv hp
+    obtain ⟨h1, h2⟩ := ifenv_push_refines hfe hfinv hwf hp
     refine ⟨_, ?_, h1, h2⟩
     simp only [Option.map_none] at hf
     simp [installBasisDecl, ← hf]
@@ -3503,12 +3503,13 @@ theorem install_basis_decl_refines {lst} {rf lf} {ci : arena.env.IConstantInfo} 
 theorem install_basis_decls_aux (k : Nat) :
     ∀ {lst} {rf lf} (decls : alloc.vec.Vec arena.env.IConstantInfo) (i : Std.Usize) {o},
       decls.val.length - i.val = k → IFEnvRel rf lf → IFEnvInv rf →
+      (∀ c ∈ decls.val, IConstantInfoWF c) →
       arena.decl_check.install_basis_decls rf decls i = ok o →
       SimRelR (fun r v => IFEnvRelI r v) lst o
         (installBasisDecls lf (absICILFrom decls i)) := by
   induction k with
   | zero =>
-    intro lst rf lf decls i o hn hfe hfinv hrun
+    intro lst rf lf decls i o hn hfe hfinv hwf hrun
     rw [arena.decl_check.install_basis_decls] at hrun
     have hl := alloc.vec.Vec.len_val decls
     rw [if_pos (by scalar_tac)] at hrun
@@ -3518,7 +3519,7 @@ theorem install_basis_decls_aux (k : Nat) :
     rw [this]
     exact ⟨lf, rfl, hfe, hfinv⟩
   | succ m ih =>
-    intro lst rf lf decls i o hn hfe hfinv hrun
+    intro lst rf lf decls i o hn hfe hfinv hwf hrun
     rw [arena.decl_check.install_basis_decls] at hrun
     have hl := alloc.vec.Vec.len_val decls
     rw [if_neg (by scalar_tac)] at hrun
@@ -3534,7 +3535,8 @@ theorem install_basis_decls_aux (k : Nat) :
         absIConstantInfo ii :: (decls.val.drop (i.val + 1)).map absIConstantInfo := by
       simp only [absICILFrom]; rw [List.drop_eq_getElem_cons hi, hx]; rfl
     have hdup := i_constant_info_dup_abs hii1
-    have h1 := install_basis_decl_refines (lst := lst) hfe hfinv hr
+    have h1 := install_basis_decl_refines (lst := lst) hfe hfinv
+      (i_constant_info_dup_wf hii1 (hwf ii (hx ▸ List.getElem_mem hi))) hr
     rw [hdup] at h1
     rw [hcons, installBasisDecls]
     cases r with
@@ -3542,7 +3544,7 @@ theorem install_basis_decls_aux (k : Nat) :
       obtain ⟨v, hv, hrel2, hinv2⟩ := h1
       obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hi2v := ConRon.Refine.Nat.uadd_val hi2
-      have ih' := ih (lst := lst) decls i2 (by simp at hi2v; omega) hrel2 hinv2 hrun
+      have ih' := ih (lst := lst) decls i2 (by simp at hi2v; omega) hrel2 hinv2 hwf hrun
       have e2 : absICILFrom decls i2 = (decls.val.drop (i.val + 1)).map absIConstantInfo := by
         simp only [absICILFrom]; congr 2
       rw [e2] at ih'
@@ -3559,10 +3561,11 @@ theorem install_basis_decls_aux (k : Nat) :
 theorem install_basis_decls_refines {lst} {rf lf}
     {decls : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize} {o}
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hwf : ∀ c ∈ decls.val, IConstantInfoWF c)
     (hrun : arena.decl_check.install_basis_decls rf decls i = ok o) :
     SimRelR (fun r v => IFEnvRelI r v) lst o
       (installBasisDecls lf (absICILFrom decls i)) :=
-  install_basis_decls_aux _ decls i rfl hfe hfinv hrun
+  install_basis_decls_aux _ decls i rfl hfe hfinv hwf hrun
 
 
 /-! ## The axiom census -/

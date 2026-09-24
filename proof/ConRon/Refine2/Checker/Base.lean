@@ -1645,6 +1645,128 @@ attribute [lockstep_simp] core.option.Option.is_some Option.isSome_map ite_true 
 @[lockstep_simp] theorem IFEnv.restrictTo_visibleBelow (fe : IFEnv) :
     fe.restrictTo fe.visibleBelow = fe := rfl
 
+/-! ## The erased-subtype invariant at its sources
+
+`IFEnvRel.envWF` needs every pushed constant to be canonical Rust data
+(`IConstantInfoWF`: an inductive's zero-ness `PropWhen` satisfies the
+invariant Charon erased).  These are its sources, facts about the Rust
+alone: an interned kernel constant (`intern_ci_list`, the basis's
+`basis_kind_decls_a`) and a copy (`i_constant_info_dup`). -/
+
+/-- `intern_caps` copies the zero-ness datum. -/
+theorem intern_caps_sort_z {pers st c r st'}
+    (h : arena.intern.intern_caps pers st c = ok (.Ok r, st')) : r.sort_z = c.sort_z := by
+  rw [arena.intern.intern_caps] at h
+  obtain ⟨⟨r0, st1⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r0 with
+  | Err e => simp at h
+  | Ok ct =>
+    obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+    rw [← h.1, ConRon.Refine.PropWhen.dup_eq hpw]
+
+theorem intern_ci_go_wf {pers st m c ci st' m'} (hwf : ConRon.Refine.ConstantInfoWF c)
+    (h : arena.intern.intern_ci_go pers st m c = ok (.Ok ci, st', m')) : IConstantInfoWF ci := by
+  cases c with
+  | IndInfo v c2 =>
+    rw [arena.intern.intern_ci_go] at h
+    obtain ⟨⟨r, st1, m1⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases r with
+    | Err e => simp at h
+    | Ok cv =>
+      obtain ⟨⟨r2, st2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      cases r2 with
+      | Err e => simp at h
+      | Ok caps =>
+        obtain ⟨⟨rfl⟩, -⟩ := Prod.mk.inj (Result.ok_injective h)
+        show ConRon.Refine.PropWhenWF caps.sort_z
+        rw [intern_caps_sort_z h2]; exact hwf.2.2
+  | _ =>
+    rcases ci with _ | _ | _ | ⟨cv, caps⟩ | _ | _ | _ <;> try trivial
+    rw [arena.intern.intern_ci_go] at h
+    repeat (first
+      | (obtain ⟨⟨r, _, _⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; rcases r with r | r)
+      | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h))
+    all_goals simp at h
+
+theorem intern_ci_list_go_wf (n : Nat) : ∀ {pers st m} (es : alloc.vec.Vec kernel.env.ConstantInfo)
+    (i : Std.Usize) (out : alloc.vec.Vec arena.env.IConstantInfo) {r st' m'},
+    es.val.length - i.val = n → (∀ x ∈ es.val, ConRon.Refine.ConstantInfoWF x) →
+    (∀ c ∈ out.val, IConstantInfoWF c) →
+    arena.intern.intern_ci_list_go pers st m es i out = ok (.Ok r, st', m') →
+    ∀ c ∈ r.val, IConstantInfoWF c := by
+  induction n with
+  | zero =>
+    intro pers st m es i out r st' m' hn hP hout h
+    rw [arena.intern.intern_ci_list_go] at h
+    have hl := alloc.vec.Vec.len_val es
+    rw [if_pos (by scalar_tac)] at h
+    obtain ⟨⟨rfl⟩, -⟩ := Prod.mk.inj (Result.ok_injective h)
+    exact hout
+  | succ k ih =>
+    intro pers st m es i out r st' m' hn hP hout h
+    rw [arena.intern.intern_ci_list_go] at h
+    have hl := alloc.vec.Vec.len_val es
+    rw [if_neg (by scalar_tac)] at h
+    obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨⟨r1, st1, m1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rcases r1 with ci | e
+    · obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+      obtain ⟨hb, hxv⟩ := ExprOps.vecIndexAt hx
+      refine ih es i2 out1 (by omega) hP ?_ h
+      rw [ConRon.Refine.vec_push_val hout1]
+      intro c hc
+      rcases List.mem_append.mp hc with hc | hc
+      · exact hout c hc
+      · rw [List.mem_singleton.mp hc]
+        exact intern_ci_go_wf (hP x (hxv ▸ List.getElem_mem hb)) h1
+    · simp at h
+
+/-- **`intern_ci_list` keeps the erased-subtype invariant**: a well-formed
+kernel constant interns to an `IConstantInfoWF` one (an inductive's zero-ness
+datum is copied by `prop_when::dup`).  A fact about the Rust alone. -/
+theorem intern_ci_list_wf {pers st} {cs : alloc.vec.Vec kernel.env.ConstantInfo} {r st'}
+    (hwf : ConRon.Refine.ConstantInfosWF cs)
+    (h : arena.intern.intern_ci_list pers st cs = ok (.Ok r, st')) :
+    ∀ c ∈ r.val, IConstantInfoWF c := by
+  rw [arena.intern.intern_ci_list] at h
+  obtain ⟨m, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨⟨r1, st1, m1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨rfl, -⟩ := Prod.mk.inj (Result.ok_injective h)
+  exact intern_ci_list_go_wf _ cs 0#usize _ rfl hwf (by simp [alloc.vec.Vec.new]) h1
+
+/-- The basis's annotated constants are `IConstantInfoWF`. -/
+theorem basis_kind_decls_a_wf {pers st} {k : kernel.env.BasisKind} {r st'}
+    (h : arena.basis.basis_kind_decls_a pers st k = ok (.Ok r, st')) :
+    ∀ c ∈ r.val, IConstantInfoWF c := by
+  rw [arena.basis.basis_kind_decls_a] at h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  exact intern_ci_list_wf (ConRon.Refine.BasisPins.basis_decls_a_wf hv) h
+
+/-- `i_constant_info_dup` keeps `IConstantInfoWF` (`prop_when::dup` is the
+identity). -/
+theorem i_constant_info_dup_wf {c o : arena.env.IConstantInfo}
+    (h : arena.env.i_constant_info_dup c = ok o) (hc : IConstantInfoWF c) :
+    IConstantInfoWF o := by
+  rw [arena.env.i_constant_info_dup.eq_def] at h
+  cases c with
+  | IndInfo cv caps =>
+    obtain ⟨iv, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨ic, hic, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+    rw [arena.env.i_ind_caps_dup] at hic
+    obtain ⟨n, _, hic⟩ := ConRon.Refine.bind_eq_ok_iff.mp hic
+    obtain ⟨pw, hpw, hic⟩ := ConRon.Refine.bind_eq_ok_iff.mp hic
+    rw [← Result.ok_injective hic]
+    show ConRon.Refine.PropWhenWF pw
+    rw [ConRon.Refine.PropWhen.dup_eq hpw]; exact hc
+  | _ =>
+    rcases o with _ | _ | _ | ⟨cv, caps⟩ | _ | _ | _ <;> try trivial
+    repeat (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
+    all_goals simp at h
+
 namespace Lockstep
 
 @[lockstep] theorem nidx_contains_from_spec (ns : alloc.vec.Vec arena.handle.NIdx)
@@ -1697,12 +1819,34 @@ theorem ifenv_push_vis {rf rf' : arena.env.IFEnv} {ci : arena.env.IConstantInfo}
   obtain rfl := (Result.ok_injective h).symm
   exact ConRon.Refine.Nat.uadd_val hc1
 
+/-- `IConstantInfoWF` by constructor, for the side tier: `True` at every
+constant but an inductive, whose clause is its caps' `PropWhenWF`. -/
+@[lockstep_simp] theorem IConstantInfoWF_indInfo (cv : arena.env.IConstantVal)
+    (caps : arena.env.IIndCaps) :
+    IConstantInfoWF (.IndInfo cv caps) = ConRon.Refine.PropWhenWF caps.sort_z := rfl
+@[lockstep_simp] theorem IConstantInfoWF_axiomInfo (cv) :
+    IConstantInfoWF (.AxiomInfo cv) = True := rfl
+@[lockstep_simp] theorem IConstantInfoWF_defnInfo (cv v h) :
+    IConstantInfoWF (.DefnInfo cv v h) = True := rfl
+@[lockstep_simp] theorem IConstantInfoWF_thmInfo (cv v) :
+    IConstantInfoWF (.ThmInfo cv v) = True := rfl
+@[lockstep_simp] theorem IConstantInfoWF_ctorInfo (cv n f) :
+    IConstantInfoWF (.CtorInfo cv n f) = True := rfl
+@[lockstep_simp] theorem IConstantInfoWF_recInfo (cv m r rs) :
+    IConstantInfoWF (.RecInfo cv m r rs) = True := rfl
+@[lockstep_simp] theorem IConstantInfoWF_projInfo (t) :
+    IConstantInfoWF (.ProjInfo t) = True := rfl
+
+/-- `ifenv_push` at a constant the checker built: `hwf` is the pushed
+constant's erased-subtype invariant (`True` but at an inductive), discharged
+by the side tier from the constructor (`IConstantInfoWF_*`) and, at an
+inductive, from its caps' source. -/
 @[lockstep] theorem ifenv_push_spec {rf lf} (hfe : IFEnvRelI rf lf)
-    (ci : arena.env.IConstantInfo) :
+    (ci : arena.env.IConstantInfo) (hwf : IConstantInfoWF ci) :
     LSP (arena.env.ifenv_push rf ci)
       (fun r => IFEnvRelI r (lf.push (absIConstantInfo ci)) ∧
         rf.visible_below.val ≤ r.visible_below.val) :=
-  fun _ h => ⟨ifenv_push_refines hfe.rel hfe.inv h, by rw [ifenv_push_vis h]; omega⟩
+  fun _ h => ⟨ifenv_push_refines hfe.rel hfe.inv hwf h, by rw [ifenv_push_vis h]; omega⟩
 
 @[lockstep_simp] theorem absNIdxLFrom_zero (ns : alloc.vec.Vec arena.handle.NIdx) :
     absNIdxLFrom ns 0#usize = absNIdxL ns := by simp [absNIdxLFrom, absNIdxL]

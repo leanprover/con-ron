@@ -2076,14 +2076,16 @@ open Lockstep in
         (absIConstantVal cv)) :=
   LS.ofSim₀ fun _ h => check_member_val_refines hrel hinv hfe hvis h
 
+open Lockstep.PC2 in
 /-- `check_ind_member` ⊑ `checkIndMember` — check and install one non-recursor
 member against its `_model` counterpart, with the executed tier's flush at the
-environment transition. -/
+environment transition.  The pushed inductive's caps are a copy of `caps`
+(`PC2`'s `i_ind_caps_dup_ls`, `o = c`), so its zero-ness datum is `hcaps`'s. -/
 theorem check_ind_member_refines {pers st lst} {mode : kernel.env.CheckMode}
     {block_names : alloc.vec.Vec arena.handle.NIdx} {caps : arena.env.IIndCaps}
     {rf2 lf2} {ci : arena.env.IConstantInfo} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf2 lf2)
+    (hfe : IFEnvRelI rf2 lf2) (hcaps : ConRon.Refine.PropWhenWF caps.sort_z)
     (hrun : arena.inductives.modeled.check_ind_member pers st mode block_names caps
       rf2 ci = ok o) :
     SimRel₀ IFEnvRelI pers lst o
@@ -2103,11 +2105,11 @@ open Lockstep in
     {ci : arena.env.IConstantInfo}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf2 lf2) :
+    (hfe : IFEnvRelI rf2 lf2) (hcaps : ConRon.Refine.PropWhenWF caps.sort_z) :
     LS pers IFEnvRelI (arena.inductives.modeled.check_ind_member pers st mode block_names caps rf2 ci) lst
       (checkIndMember (ConRon.Refine.absMode mode) (absNIdxL block_names)
         (absIIndCaps caps) lf2 (absIConstantInfo ci)) :=
-  LS.ofSimRel₀ fun _ h => check_ind_member_refines hrel hinv hfe h
+  LS.ofSimRel₀ fun _ h => check_ind_member_refines hrel hinv hfe hcaps h
 
 /-- `check_ind_members` in `LS` form, by induction on the members left. -/
 theorem check_ind_members_aux (n : Nat) :
@@ -2115,7 +2117,7 @@ theorem check_ind_members_aux (n : Nat) :
       {block_names : alloc.vec.Vec arena.handle.NIdx} {caps : arena.env.IIndCaps}
       {rf lf} {nonrecs : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize},
       nonrecs.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      IFEnvRelI rf lf →
+      IFEnvRelI rf lf → ConRon.Refine.PropWhenWF caps.sort_z →
       Lockstep.LS pers IFEnvRelI
         (arena.inductives.modeled.check_ind_members pers st mode block_names caps rf
           nonrecs i) lst
@@ -2123,12 +2125,12 @@ theorem check_ind_members_aux (n : Nat) :
           (absIIndCaps caps) lf (absICILFrom nonrecs i)) := by
   induction n with
   | zero =>
-    intro pers st lst mode block_names caps rf lf nonrecs i hn hrel hinv hfe
+    intro pers st lst mode block_names caps rf lf nonrecs i hn hrel hinv hfe hcaps
     rw [arena.inductives.modeled.check_ind_members, if_pos (by scalar_tac), absICILFrom,
       vecFrom_nil _ _ _ (by omega), checkIndMembers]
     lockstep
   | succ m ih =>
-    intro pers st lst mode block_names caps rf lf nonrecs i hn hrel hinv hfe
+    intro pers st lst mode block_names caps rf lf nonrecs i hn hrel hinv hfe hcaps
     rw [arena.inductives.modeled.check_ind_members, if_neg (by scalar_tac), absICILFrom,
       vecFrom_cons _ _ _ (by omega), checkIndMembers]
     lockstep
@@ -2138,13 +2140,13 @@ theorem check_ind_members_refines {pers st lst} {mode : kernel.env.CheckMode}
     {block_names : alloc.vec.Vec arena.handle.NIdx} {caps : arena.env.IIndCaps}
     {rf lf} {nonrecs : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
+    (hfe : IFEnvRelI rf lf) (hcaps : ConRon.Refine.PropWhenWF caps.sort_z)
     (hrun : arena.inductives.modeled.check_ind_members pers st mode block_names caps
       rf nonrecs i = ok o) :
     SimRel₀ IFEnvRelI pers lst o
       (checkIndMembers (ConRon.Refine.absMode mode) (absNIdxL block_names)
         (absIIndCaps caps) lf (absICILFrom nonrecs i)) :=
-  Lockstep.LS.toSimRel₀ (check_ind_members_aux _ rfl hrel hinv hfe) hrun
+  Lockstep.LS.toSimRel₀ (check_ind_members_aux _ rfl hrel hinv hfe hcaps) hrun
 
 open Lockstep in
 @[lockstep] theorem check_ind_members_ls
@@ -2157,11 +2159,11 @@ open Lockstep in
     {i : Std.Usize}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) :
+    (hfe : IFEnvRelI rf lf) (hcaps : ConRon.Refine.PropWhenWF caps.sort_z) :
     LS pers IFEnvRelI (arena.inductives.modeled.check_ind_members pers st mode block_names caps rf nonrecs i) lst
       (checkIndMembers (ConRon.Refine.absMode mode) (absNIdxL block_names)
         (absIIndCaps caps) lf (absICILFrom nonrecs i)) :=
-  LS.ofSimRel₀ fun _ h => check_ind_members_refines hrel hinv hfe h
+  LS.ofSimRel₀ fun _ h => check_ind_members_refines hrel hinv hfe hcaps h
 
 /-- `provision_recs` in `LS` form from the cursor on, by induction on the
 recursors left.  The twin carries the port's accumulator in front of its own
@@ -3281,7 +3283,11 @@ open Lockstep in
 single-constructor modeled block.  **`checkEtaThm` runs whatever the
 level-parameter test says**: Lean lifts the `(← …)` out of the `&&`, so a
 short-circuiting port would leave the store several names behind the twin's,
-and the port does not short-circuit either. -/
+and the port does not short-circuit either.  The answer's zero-ness datum is
+canonical Rust data (`PropWhenWF`, the erased subtype invariant; it is
+`pi_result_z`'s answer): `check_ind_members` pushes it with the inductive, so
+`IFEnvRel.envWF` needs it (task #97-T2-LOCKSTEP lane Checker Base/Top round 2,
+which replaced the seam `ifenvRel_envWF_push` by that premise). -/
 theorem ind_block_caps_refines {pers st lst} {vis : Std.U64}
     {mode : kernel.env.CheckMode} {rf lf}
     {cv_t cv_c : arena.env.IConstantVal} {n_p n_f : Std.U64} {o}
@@ -3290,7 +3296,7 @@ theorem ind_block_caps_refines {pers st lst} {vis : Std.U64}
     (hvis : absU vis = lf.visibleBelow)
     (hrun : arena.inductives.modeled.ind_block_caps pers vis st mode rf cv_t cv_c n_p
       n_f = ok o) :
-    Sim₀ absIIndCaps pers lst o
+    SimRel₀ (fun a b => b = absIIndCaps a ∧ ConRon.Refine.PropWhenWF a.sort_z) pers lst o
       (indBlockCaps (ConRon.Refine.absMode mode) lf (absIConstantVal cv_t)
         (absIConstantVal cv_c) (absU n_p) (absU n_f)) := by
   sorry
@@ -3307,10 +3313,10 @@ open Lockstep in
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rf lf)
     (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = absIIndCaps a) (arena.inductives.modeled.ind_block_caps pers vis st mode rf cv_t cv_c n_p n_f) lst
+    LS pers (fun a b => b = absIIndCaps a ∧ ConRon.Refine.PropWhenWF a.sort_z) (arena.inductives.modeled.ind_block_caps pers vis st mode rf cv_t cv_c n_p n_f) lst
       (indBlockCaps (ConRon.Refine.absMode mode) lf (absIConstantVal cv_t)
         (absIConstantVal cv_c) (absU n_p) (absU n_f)) :=
-  LS.ofSim₀ fun _ h => ind_block_caps_refines hrel hinv hfe hvis h
+  LS.ofSimRel₀ fun _ h => ind_block_caps_refines hrel hinv hfe hvis h
 
 /-- `ctor_residual_ok` ⊑ `ctorResidualOk` — con-leche's task #136: an
 eta-capable family's constructor returns the family applied to its
