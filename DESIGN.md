@@ -61482,60 +61482,65 @@ message string (tactic limit 1).
 Reported by the Frontend lane (four proofs broken on `arena`:
 `occurs_const_go`, `proj_rec_value`, `proj_rec_candidates_from`,
 `proj_rec_owners`; local workarounds `lockstep_nosplit`,
-`ls_clear_ih_candidates`, `maxHeartbeats 1000000` in its
-`Frontend/ProjRec.lean`, on its branch):
+`ls_clear_ih_candidates`, `maxHeartbeats 1000000` in `Frontend/ProjRec.lean`):
 
 1. **Twin-side splits are bounded.**  Slice 1's last-resort split of an
    undecided twin `if`/`dite`, and the older (ExprOps) `cases` of a twin
-   `match` on a term, walked every branch, including dead ones, until the
+   `match` on a term, walked every branch, dead ones included, until the
    heartbeat limit.  Both are now KEPT only if `lockstep_contra` closes one of
-   the branches at once (the context rules it out); otherwise the state is
-   restored and the zip stops there, handing the goal back — the behaviour
-   before the fallbacks.  `set_option lockstep.twinSplit true` (a registered
-   option) opts back in to the unrestricted split; one proof on `arena` needs
-   it: `Checker/Axioms.lean`'s `quot_pin_hit_refines` (its bound `dite`'s dead
-   branch needs `len_val`, which its hand tail supplies) — a one-line
-   `set_option … in` there.
-2. **Side simp without `∀`/`→` hypotheses.**  `lockstep_side` first tries
-   `assumption`/`rfl`/`Eq.symm; assumption` with the whole context (a `∀`
-   premise closed by the matching hypothesis), then runs every simp-based tier
-   (and `lockstep_side_{cheap,dear,ite}`, `lockstep_contra`) in a context with
-   the `∀`/`→` Prop hypotheses cleared (`clearForallHyps`, also the tactic
-   `lockstep_clear_foralls`): `simp [*]`/`simp_all` used an induction
-   hypothesis as a conditional rewrite rule and did not terminate.
+   the branches at once (the context rules it out) or one goal is left;
+   otherwise the state is restored and the zip stops there, handing the goal
+   back — the behaviour before the fallbacks.  `set_option lockstep.twinSplit
+   true` (a registered option) opts back in to the unrestricted split; one
+   proof on `arena` needs it: `Checker/Axioms.lean`'s `quot_pin_hit_refines`
+   (its bound `dite`'s dead branch needs `len_val`, which its hand tail
+   supplies) — a one-line `set_option … in` there.
+2. **Side simp without callee specs.**  `lockstep_side` first tries
+   `assumption`/`rfl`/`Eq.symm; assumption` with the whole context, then runs
+   every simp-based tier (and `lockstep_side_{cheap,dear,ite}`,
+   `lockstep_contra`) with the callee-SPEC hypotheses cleared
+   (`clearForallHyps`, also the tactic `lockstep_clear_foralls`): a `∀`/`→`
+   whose conclusion is a lockstep judgement or a `Sim…` statement (an
+   induction hypothesis, a knot slot), which `simp [*]`/`simp_all` used as a
+   conditional rewrite rule without terminating.  `∀` FACTS stay (clearing
+   every `∀` was tried first: it broke `proj_rec_candidates_from`, whose dead
+   branch `lockstep_contra` closes with `∀ j, some v = some j → j < n`).
+3. **A twin `match` with a constructor discriminant is `split`**
+   (`Lean.Meta.Split.splitMatch` on the twin's match, not the goal's first
+   one): the Modeled lane's `check_eta_thm` shape — `match some (match v with
+   …), none, … with | some (.thmInfo …), some (.defnInfo …), … => … | _, _, _ =>
+   pure false` — keeps only the catch-all.  Otherwise the case target is
+   searched across ALL discriminants, a stuck term first and a variable field
+   second.
 
-Also: the twin `match` fallback's case target (slice 3) is now searched across
-ALL discriminants, a stuck term first and a variable field second (the
-Modeled lane's `check_eta_thm` shape: the first discriminant a constructor
-built from variables, the second `some (match v with …)`); and `classify`
-(slice 4) evaluated `rest.getArg! 0` unconditionally — a `(← …)` inside `&&`
-is hoisted out of the test — which printed `PANIC at Lean.Expr.getRevArg!`
-infos (82 in `Tactic/Sample`'s build) though it computed the right kind.
+Also: `classify` (slice 4) evaluated `rest.getArg! 0` unconditionally — a
+`(← …)` inside `&&` is hoisted out of the test — which printed `PANIC at
+Lean.Expr.getRevArg!` infos (82 in `Tactic/Sample`'s build) though it computed
+the right kind.  Fixed; the builds print none now.
 
-Tests (`Tactic/Tests.lean` §7): a twin `if b then … else <program>` nothing
-decides — `lockstep` stops and the goal is exactly the input
-(`exact hstuck`), under `maxHeartbeats 20000`; a leaf whose side goal needs
-`simp [*]` with `hloop : ∀ n, g n = g (n + 1)` in context, under
-`maxHeartbeats 20000`.  §4's test now carries the fact that rules its dead
-branch out; slice 1's split test sets `lockstep.twinSplit`.
+Tests (`Tactic/Tests.lean` §4, §7): the `check_eta_thm` shape; a twin `if b
+then … else <program>` nothing decides — `lockstep` stops and the goal is
+exactly the input (`exact hstuck`), under `maxHeartbeats 20000`; the side
+tiers' context loses an IH-shaped hypothesis and keeps a `∀` fact.  §4's
+`some (!c)` test now carries the fact that rules its dead branch out; slice
+1's split test sets `lockstep.twinSplit`.
+
+**Workarounds removed:** `Frontend/ProjRec.lean` (lane landed) —
+`lockstep_step_nosplit`/`lockstep_nosplit` deleted (uses are `lockstep_step`/
+`lockstep`), `ls_clear_ih_candidates` deleted; its `maxHeartbeats 1000000`
+stays (without it `proj_rec_candidates_from_aux` runs out at 200 000: the
+proof's size, not a loop).  **Removable, left to the lane**
+(`Inductives/{PrimsModeled,Modeled}.lean`, lane `t2-ind-mod2` active):
+`ind_twin_split`, `lockstep_mod`, `lockstep_ite` — checked here, with
+`lockstep_mod := lockstep` `Inductives/Modeled.lean` builds.
 
 **Cost of the round, apples to apples** (the tree of slice 1's baseline,
-`arena` `b5f0d431`, with this slice's `Tactic/{Lockstep,Attr}.lean`, the
-three `etag` lines, and `Promote/Intern.lean`'s rename; the same forced
-re-elaboration of the 68 modules downstream of `Lockstep`): **5 292 G →
-5 218 G instructions (−1.4 %)**, cycles 5 635 G → 5 445 G; summed per-module
-build time 466 s → 484 s (one run each).  That tree builds green with the
-round's tactic as it stands.
-
-**The lanes' workarounds this slice makes removable** (not on `arena`, or in
-files mid-edit, so left to the lanes): `Frontend/ProjRec.lean` (branch
-`t2-front-3`) — `lockstep_nosplit`/`lockstep_step_nosplit` → `lockstep`,
-`ls_clear_ih_candidates` deleted, the `maxHeartbeats 1000000` dropped;
-`Inductives/PrimsModeled.lean` (on `arena`, lane `t2-ind-mod2` active) —
-`ind_twin_split`, `lockstep_mod`, `lockstep_ite` → `lockstep` (slices 1b/3)
-and the local `irreducible` for `twin_view_const_name` (slice 4).  Checked
-here: with `lockstep_mod := lockstep`, `Inductives/Modeled.lean` stops only at
-`check_eta_thm` before this slice's all-discriminant case target.
+`arena` `b5f0d431`, with this slice's `Tactic/{Lockstep,Attr}.lean` before
+item 3's refinement, the three `etag` lines, and `Promote/Intern.lean`'s
+rename; the same forced re-elaboration of the 68 modules downstream of
+`Lockstep`): **5 292 G → 5 218 G instructions (−1.4 %)**, cycles 5 635 G →
+5 445 G; summed per-module build time 466 s → 484 s (one run each).  That tree
+builds green with the round's tactic.
 
 ### Task #97-T2-LOCKSTEP lane Frontend round 3 — the modeller seam; the lane's frontier (2026-09-23, Opus under Fable)
 
