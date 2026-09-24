@@ -367,7 +367,10 @@ theorem struct_ctor_spine_refines {pers st lst} {c : arena.handle.NIdx}
       = ok o) :
     Sim₀ absEIdx pers lst o
       (structCtorSpine (absNIdx c) (absNIdxL lps) (absU n_p) (absU n_f)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_ctor_spine, structCtorSpine]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_ctor_spine_ls

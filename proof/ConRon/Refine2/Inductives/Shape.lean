@@ -1070,4 +1070,42 @@ open Lockstep in
     LSP (kernel.expr.binder_meta_dup m) (fun a => a = m) :=
   fun _ h => ConRon.Refine.Expr.binder_meta_dup_eq h
 
+/-- `arena::core::append_eidx_from` appends `ys` from the cursor on. -/
+theorem append_eidx_from_abs {xs ys : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
+    {o : alloc.vec.Vec arena.handle.EIdx}
+    (hrun : arena.core.append_eidx_from xs ys i = ok o) :
+    absEIdxL o = absEIdxL xs ++ (ys.val.drop i.val).map absEIdx := by
+  simp only [absEIdxL]
+  refine vec_cursor_copy ys absEIdx absEIdx
+    (fun i out => arena.core.append_eidx_from out ys i) ?_ ?_ i xs o hrun
+  · intro i out o hn h
+    rw [arena.core.append_eidx_from.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len ys by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [arena.core.append_eidx_from.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ys by
+      have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, e1, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [dupId_eidx _ _ he1], h⟩
+
+open Lockstep in
+/-- `arena::core::append_eidx` is the twin's `++`. -/
+@[lockstep] theorem append_eidx_twin (xs ys : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.core.append_eidx xs ys)
+      (fun o => TwinEq (absEIdxL xs ++ absEIdxL ys) (absEIdxL o)) := by
+  intro o h
+  rw [arena.core.append_eidx] at h
+  have := append_eidx_from_abs h
+  simp only [absEIdxL] at this
+  simp only [Lockstep.TwinEq, absEIdxL, this]
+  simp
+
 end ConRon.Refine2
