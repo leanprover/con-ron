@@ -55,6 +55,8 @@ attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 
 namespace ConRon.Refine2
 
+open scoped ConRon.Refine2.IndSide
+
 open ConRon.Arena
 open ConRon.Refine2.ExprOps (WMemoRel LMemoRel)
 
@@ -367,7 +369,10 @@ theorem struct_ctor_spine_refines {pers st lst} {c : arena.handle.NIdx}
       = ok o) :
     Sim₀ absEIdx pers lst o
       (structCtorSpine (absNIdx c) (absNIdxL lps) (absU n_p) (absU n_f)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_ctor_spine, structCtorSpine]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_ctor_spine_ls
@@ -432,7 +437,10 @@ theorem struct_ctor_spine_at_refines {pers st lst} {c : arena.handle.NIdx}
     Sim₀ absEIdx pers lst o
       (structCtorSpineAt (absNIdx c) (absNIdxL lps) (absU ofs) (absU n_p)
         (absU n_f)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_ctor_spine_at, structCtorSpineAt]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_ctor_spine_at_ls
@@ -504,7 +512,10 @@ theorem struct_fam_i_refines {pers st lst} {t : arena.handle.NIdx}
     Sim₀ absEIdx pers lst o
       (structFamI (absNIdx t) (absNIdxL lps) (absU n_p) (absU n_idx) (absU e)
         (absU ofs)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_fam_i, structFamI]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_fam_i_ls
@@ -529,7 +540,10 @@ theorem struct_ctor_resid_ok_refines {pers st lst} {t : arena.handle.NIdx}
     Sim₀ id pers lst o
       (structCtorResidOk (absNIdx t) (absNIdxL lps) (absU n_p) (absU ofs)
         (absU n_idx) (absEIdx cbody)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_ctor_resid_ok, structCtorResidOk]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_ctor_resid_ok_ls
@@ -579,6 +593,40 @@ open Lockstep in
 `Refine2/Inductives/Spec.lean`'s four `…Spec` definitions are the subjects;
 `structShape_unfold` is the equation that ties them back. -/
 
+/-- `structShapeMotiveSpec` with the twin's `rbs[nP]?` read as the port's bounds
+test. -/
+theorem structShapeMotiveSpec_port (T : NIdx) (lps : List NIdx) (elim : NIdx) (large : Bool)
+    (nP : Nat) (rbs : List (EIdx × ConLeche.BinderMeta)) :
+    structShapeMotiveSpec T lps elim large nP rbs =
+      (if h : nP < rbs.length then do
+        let mdom := rbs[nP].1
+        if mdom.tag == ETag.forallE then
+          match ← view mdom with
+          | .forallE mmaj mcod _ => do
+            if mcod.tag == ETag.sort then
+              match ← view mcod with
+              | .sort s' => do
+                let want ← structElimLevel elim large
+                let fam0 ← structFam T lps nP 0
+                pure (s' == want && mmaj == fam0)
+              | _ => pure false
+            else pure false
+          | _ => pure false
+        else pure false
+       else pure false) := by
+  rw [structShapeMotiveSpec]
+  split
+  · rename_i mdom _ heq
+    have h : nP < rbs.length := (List.getElem?_eq_some_iff.mp heq).1
+    rw [dif_pos h]
+    have := (List.getElem?_eq_some_iff.mp heq).2
+    rw [this]
+    rfl
+  · rename_i hn
+    have h : ¬ nP < rbs.length := by
+      intro h; exact hn _ _ (List.getElem?_eq_getElem h)
+    rw [dif_neg h]
+
 /-- `struct_shape_motive` ⊑ `structShape`'s `motiveOk` `let`. -/
 theorem struct_shape_motive_refines {pers st lst} {t : arena.handle.NIdx}
     {lps : alloc.vec.Vec arena.handle.NIdx} {elim : arena.handle.NIdx}
@@ -590,7 +638,10 @@ theorem struct_shape_motive_refines {pers st lst} {t : arena.handle.NIdx}
     Sim₀ id pers lst o
       (structShapeMotiveSpec (absNIdx t) (absNIdxL lps) (absNIdx elim) large
         (absU n_p) (absBinderL rbs)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_shape_motive, structShapeMotiveSpec_port]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_shape_motive_ls
@@ -618,7 +669,10 @@ theorem struct_shape_minor_refines {pers st lst} {c : arena.handle.NIdx}
     Sim₀ id pers lst o
       (structShapeMinorSpec (absNIdx c) (absNIdxL lps) (absU n_p) (absU n_f)
         (absBinderL rbs)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_shape_minor, structShapeMinorSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_shape_minor_ls
@@ -644,7 +698,10 @@ theorem struct_shape_major_refines {pers st lst} {t : arena.handle.NIdx}
     Sim₀ id pers lst o
       (structShapeMajorSpec (absNIdx t) (absNIdxL lps) (absU n_p)
         (absBinderL rbs)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_shape_major, structShapeMajorSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_shape_major_ls
@@ -761,7 +818,10 @@ theorem struct_parts_core_small_refines {pers st lst}
       (structPartsCoreSmallSpec (absIConstantVal cv_t) (absIConstantVal cv_c)
         (absU n_p) (absU n_f) (absIConstantVal cv_r) (absIRecRule rule)
         (absLIdx s) is_prop) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_parts_core_small, structPartsCoreSmallSpec]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_parts_core_small_ls
@@ -839,6 +899,41 @@ open Lockstep in
         (absU n_p) (absU n_f) (absIConstantVal cv_r) (absIRecRule rule)) :=
   LS.ofSim₀ fun _ h => struct_parts_core_sort_refines hrel hinv h
 
+/-- `structPartsCoreAtSpec`'s one conjunction, spelled as the port's nested
+tests in the port's order (a twin normal form for `lockstep`: deciding the
+ten-way `&&` at each Rust test is what exhausted the heartbeats). -/
+theorem structPartsCoreAtSpec_nested (cvT cvC : IConstantVal) (nP nF : Nat)
+    (cvR : IConstantVal) (mI rP : Nat) (rule : IRecRule) :
+    structPartsCoreAtSpec cvT cvC nP nF cvR mI rP rule = (do
+      let recName ← internNNode (.str cvT.name "rec")
+      let reserved ← reservedBasisNames
+      let rhsOk ← structPartsRhsOkSpec nP nF rule.rhs
+      if cvR.name == recName then
+       if decide (cvC.levelParams = cvT.levelParams) then
+        if reserved.contains cvT.name then pure none else
+         if reserved.contains cvC.name then pure none else
+          if reserved.contains cvR.name then pure none else
+           if mI = nP + 2 then
+            if rP = nP + 2 then
+             if rule.ctor == cvC.name then
+              if rule.nfields == nF then
+               if rhsOk then structPartsCoreSortSpec cvT cvC nP nF cvR rule
+               else pure none
+              else pure none
+             else pure none
+            else pure none
+           else pure none
+       else pure none
+      else pure none) := by
+  rw [structPartsCoreAtSpec]
+  refine am_bind_congr _ ?_; intro recName
+  refine am_bind_congr _ ?_; intro reserved
+  refine am_bind_congr _ ?_; intro rhsOk
+  simp only [Bool.and_eq_true, ite_and, beq_iff_eq]
+  cases reserved.contains cvT.name <;> cases reserved.contains cvC.name <;>
+    cases reserved.contains cvR.name <;> simp
+
+attribute [local lockstep_simp] absIRecRule_ctor_eq absIRecRule_nfields_eq absIRecRule_rhs_eq in
 /-- `struct_parts_core_at` ⊑ the recogniser's body past the block match. -/
 theorem struct_parts_core_at_refines {pers st lst}
     {cv_t cv_c : arena.env.IConstantVal} {n_p n_f : Std.U64}
@@ -851,7 +946,10 @@ theorem struct_parts_core_at_refines {pers st lst}
       (structPartsCoreAtSpec (absIConstantVal cv_t) (absIConstantVal cv_c)
         (absU n_p) (absU n_f) (absIConstantVal cv_r) (absU m_i) (absU r_p)
         (absIRecRule rule)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_parts_core_at, structPartsCoreAtSpec_nested]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_parts_core_at_ls
@@ -1093,7 +1191,10 @@ theorem has_loose_bvar_b_fast_refines {pers st lst} {i : Std.U64}
     (hrun : arena.inductives.struct_parts.has_loose_bvar_b_fast pers st i e = ok o) :
     Sim₀ id pers lst o
       (hasLooseBVarBFast (absU i) (absEIdx e)) := by
-  sorry
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.has_loose_bvar_b_fast, hasLooseBVarBFast]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem has_loose_bvar_b_fast_ls
@@ -1141,7 +1242,10 @@ theorem struct_used_later_go_refines {pers st lst}
       = ok o) :
     SimRel₀ WOutRel pers lst o
       (structUsedLaterGo lm (absEIdx cty) (absU n_p) (absU j)) := by
-  sorry
+  refine Lockstep.LS.toSimRel₀ ?_ hrun
+  clear hrun
+  rw [arena.inductives.struct_parts.struct_used_later_go, structUsedLaterGo]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem struct_used_later_go_ls
