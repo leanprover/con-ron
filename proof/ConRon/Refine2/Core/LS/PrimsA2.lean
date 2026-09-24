@@ -12,6 +12,9 @@ stated here and wait on the foundation's intern slice.
 -/
 import ConRon.Refine2.Core.LS.Prims
 
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg
+
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 

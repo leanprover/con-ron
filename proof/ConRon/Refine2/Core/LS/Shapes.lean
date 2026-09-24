@@ -17,6 +17,9 @@ helper whose twin is a pure function is stated in `LSP` form.
 import ConRon.Refine2.Core.LS.PrimsA2
 import ConRon.Refine2.Core.LS.Leaves
 
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg ConRon.Refine2.Lockstep.PA1.CoreLSReg
+
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 

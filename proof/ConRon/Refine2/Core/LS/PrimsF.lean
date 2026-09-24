@@ -9,6 +9,9 @@ literal and binder-datum comparisons need to be exact.
 -/
 import ConRon.Refine2.Core.LS.Prims
 
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg
+
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 
@@ -18,7 +21,7 @@ namespace ConRon.Refine2.Lockstep.PF
 
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
 
-attribute [lockstep_simp] absConstT
+attribute [local lockstep_simp] absConstT
 
 /-! ## Handle equality: the port's `eq2` is the twin's `==`/`=`
 
@@ -73,17 +76,17 @@ private theorem word_decide {k : IdxKind} {α : Type} (w : α → Std.U32)
 The peel tests tags with `!=` on both sides (`ta != b.tag`, `ta !=
 ETAG_LAM`); these put the two in the same `decide` form. -/
 
-@[lockstep_simp] theorem absU32_bne (x y : Std.U32) :
+@[local lockstep_simp] theorem absU32_bne (x y : Std.U32) :
     (absU32 x != absU32 y) = !(decide (x = y)) := by
   by_cases h : x = y
   · subst h; simp
   · have : absU32 x ≠ absU32 y := fun hc => h (absU32_inj hc)
     simp [h, this]
 
-@[lockstep_simp] theorem u32_bne (x y : Std.U32) : (x != y) = !(decide (x = y)) := by
+@[local lockstep_simp] theorem u32_bne (x y : Std.U32) : (x != y) = !(decide (x = y)) := by
   by_cases h : x = y <;> simp [h]
 
-attribute [lockstep_simp] ETag.isBind Bool.or_eq_true Bool.not_eq_true' Bool.not_true
+attribute [local lockstep_simp] ETag.isBind Bool.or_eq_true Bool.not_eq_true' Bool.not_true
   false_or or_false true_or or_true false_and and_false Bool.not_eq_false Bool.not_eq_true
   Bool.true_or Bool.false_or Bool.or_true Bool.or_false Bool.true_and Bool.and_true Bool.false_and
   Bool.and_false Bool.and_eq_true decide_not ite_true ite_false and_self
@@ -94,21 +97,21 @@ theorem absU32_eq_absU32 (t c : Std.U32) : (absU32 t = absU32 c) = (t = c) := by
   · intro h; exact absU32_inj h
   · intro h; rw [h]
 
-@[lockstep_simp] theorem absU32_eq_lam (t : Std.U32) :
+@[local lockstep_simp] theorem absU32_eq_lam (t : Std.U32) :
     (absU32 t = ETag.lam) = (t = arena.handle.ETAG_LAM) := by
   rw [← etag_lam_abs, absU32_eq_absU32]
 
-@[lockstep_simp] theorem absU32_eq_forallE (t : Std.U32) :
+@[local lockstep_simp] theorem absU32_eq_forallE (t : Std.U32) :
     (absU32 t = ETag.forallE) = (t = arena.handle.ETAG_FORALL_E) := by
   rw [← etag_forallE_abs, absU32_eq_absU32]
 
-@[lockstep_simp] theorem etag_forallE_ne_lam : (ETag.forallE = ETag.lam) = False := by
+@[local lockstep_simp] theorem etag_forallE_ne_lam : (ETag.forallE = ETag.lam) = False := by
   simp [ETag.forallE, ETag.lam]
 
-@[lockstep_simp] theorem etag_lam_ne_forallE : (ETag.lam = ETag.forallE) = False := by
+@[local lockstep_simp] theorem etag_lam_ne_forallE : (ETag.lam = ETag.forallE) = False := by
   simp [ETag.forallE, ETag.lam]
 
-@[lockstep_simp] theorem etag_FORALL_ne_LAM :
+@[local lockstep_simp] theorem etag_FORALL_ne_LAM :
     (arena.handle.ETAG_FORALL_E = arena.handle.ETAG_LAM) = False := by
   apply propext; constructor
   · intro h
@@ -117,7 +120,7 @@ theorem absU32_eq_absU32 (t c : Std.U32) : (absU32 t = absU32 c) = (t = c) := by
     exact absurd this (by simp [ETag.forallE, ETag.lam])
   · intro h; exact h.elim
 
-@[lockstep_simp] theorem etag_LAM_ne_FORALL :
+@[local lockstep_simp] theorem etag_LAM_ne_FORALL :
     (arena.handle.ETAG_LAM = arena.handle.ETAG_FORALL_E) = False := by
   apply propext; constructor
   · intro h
@@ -126,7 +129,7 @@ theorem absU32_eq_absU32 (t c : Std.U32) : (absU32 t = absU32 c) = (t = c) := by
     exact absurd this (by simp [ETag.forallE, ETag.lam])
   · intro h; exact h.elim
 
-@[lockstep_simp] theorem absU32_eq_const (t : Std.U32) :
+@[local lockstep_simp] theorem absU32_eq_const (t : Std.U32) :
     (absU32 t = ETag.const) = (t = arena.handle.ETAG_CONST) := by
   rw [← etag_const_abs, absU32_eq_absU32]
 
@@ -155,7 +158,7 @@ theorem absU32_eq_absU32 (t c : Std.U32) : (absU32 t = absU32 c) = (t = c) := by
   · have : x.val ≠ y.val := fun e => h (UScalar.eq_imp x y e)
     simp [h, this]
 
-@[lockstep_simp] theorem internLitE_eq (l : ConLeche.Literal) :
+@[local lockstep_simp] theorem internLitE_eq (l : ConLeche.Literal) :
     Arena.internLitE l = Arena.internE (.lit l) := rfl
 
 /-! ## The accumulated free variables -/
@@ -170,24 +173,24 @@ theorem vec_push_eidx_ls (v : alloc.vec.Vec arena.handle.EIdx) (x : arena.handle
   have := ConRon.Refine.vec_push_val h
   simp [absEIdxArr, this]
 
-@[lockstep_simp] theorem absBinderMeta_pw (m : kernel.expr.BinderMeta) :
+@[local lockstep_simp] theorem absBinderMeta_pw (m : kernel.expr.BinderMeta) :
     (ConRon.Refine.absBinderMeta m).pw = ConRon.Refine.absPropWhen m.pw := rfl
 
-@[lockstep_simp] theorem absEIdxArr_new :
+@[local lockstep_simp] theorem absEIdxArr_new :
     absEIdxArr (alloc.vec.Vec.new arena.handle.EIdx) = #[] := rfl
 
-@[lockstep_simp] theorem arr_empty_push (x : EIdx) : (#[] : Array EIdx).push x = #[x] := rfl
+@[local lockstep_simp] theorem arr_empty_push (x : EIdx) : (#[] : Array EIdx).push x = #[x] := rfl
 
-@[lockstep_simp] theorem peel_fuel_val : (arena.core.PEEL_FUEL).val = peelFuel := by
+@[local lockstep_simp] theorem peel_fuel_val : (arena.core.PEEL_FUEL).val = peelFuel := by
   rw [arena.core.PEEL_FUEL]; rfl
 
 /-! ## Spine lengths -/
 
-@[lockstep_simp] theorem absEIdxList_length' (v : alloc.vec.Vec arena.handle.EIdx) :
+@[local lockstep_simp] theorem absEIdxList_length' (v : alloc.vec.Vec arena.handle.EIdx) :
     (ExprOps.absEIdxList v).length = v.val.length := by
   simp [ExprOps.absEIdxList]
 
-@[lockstep_simp] theorem vec_len_eq_iff {α : Type} (v w : alloc.vec.Vec α) :
+@[local lockstep_simp] theorem vec_len_eq_iff {α : Type} (v w : alloc.vec.Vec α) :
     (v.len = w.len) = (v.val.length = w.val.length) := by
   apply propext
   constructor
@@ -240,7 +243,7 @@ theorem nat_beq_decide' (a b : Nat) : (a == b) = decide (a = b) := by
 -- (`Inductives/SumInstall`'s `checkSumIndAtSpec`); `Core/LS/Defeq` re-declares it
 attribute [local lockstep_simp] nat_beq_decide'
 
-attribute [lockstep_simp] ConRon.Refine.absLiteral ConRon.Refine.LiteralWF
+attribute [local lockstep_simp] ConRon.Refine.absLiteral ConRon.Refine.LiteralWF
 
 @[lockstep] theorem literal_nat_ls (k : ron.nat.Nat) :
     LSP (kernel.expr.literal_nat k) (fun l => l = .NatVal k) := by
@@ -380,7 +383,7 @@ theorem estore_view_wf {pers rs} (hinv : StoreInv pers rs) {i : arena.handle.EId
       · exact etables_get_wf hinv.scrt h
       · intro v hv; rw [← Result.ok_injective h] at hv; simp at hv
 
-attribute [lockstep_simp] ENodeViewWF
+attribute [local lockstep_simp] ENodeViewWF
 
 /-- `arena::monad::view` against `Arena.view`, carrying the port's own
 representation fact about what it read: the viewed node is well formed
@@ -410,3 +413,14 @@ theorem view_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
       exact estore_view_wf hinv.store hq v rfl
 
 end ConRon.Refine2.Lockstep.PF
+
+/-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
+round 5): active under `open scoped ConRon.Refine2.Lockstep.PF.CoreLSReg` only, so that they
+stay out of the other tiers' `lockstep` runs (the Checker lane imports the
+knot since task #97-T2-LOCKSTEP lane Checker DeclCheck). -/
+namespace ConRon.Refine2.Lockstep.PF.CoreLSReg
+open Aeneas Aeneas.Std Result
+open ConRon.Generated
+open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
+attribute [scoped lockstep_simp] absConstT absU32_bne u32_bne ETag.isBind Bool.or_eq_true Bool.not_eq_true' Bool.not_true false_or or_false true_or or_true false_and and_false Bool.not_eq_false Bool.not_eq_true Bool.true_or Bool.false_or Bool.or_true Bool.or_false Bool.true_and Bool.and_true Bool.false_and Bool.and_false Bool.and_eq_true decide_not ite_true ite_false and_self absU32_eq_lam absU32_eq_forallE etag_forallE_ne_lam etag_lam_ne_forallE etag_FORALL_ne_LAM etag_LAM_ne_FORALL absU32_eq_const internLitE_eq absBinderMeta_pw absEIdxArr_new arr_empty_push peel_fuel_val absEIdxList_length' vec_len_eq_iff ConRon.Refine.absLiteral ConRon.Refine.LiteralWF ENodeViewWF
+end ConRon.Refine2.Lockstep.PF.CoreLSReg

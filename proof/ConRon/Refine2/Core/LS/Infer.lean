@@ -12,6 +12,9 @@ import ConRon.Refine2.Core.LS.Leaves
 import ConRon.Refine2.Core.LS.Shapes
 import ConRon.Refine2.Core.LS.Lits
 
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg ConRon.Refine2.Lockstep.PA1.CoreLSReg ConRon.Refine2.Lockstep.PB.CoreLSReg ConRon.Refine2.Lockstep.PE.CoreLSReg
+
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 
@@ -32,7 +35,7 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PE
 
 -- `absEIdxArr_getElem`: the shared one (`Tactic/Prims`)
 
-@[lockstep_simp] theorem absEIdxArr_size (v : alloc.vec.Vec arena.handle.EIdx) :
+@[local lockstep_simp] theorem absEIdxArr_size (v : alloc.vec.Vec arena.handle.EIdx) :
     (absEIdxArr v).size = v.val.length := by
   simp [absEIdxArr]
 
@@ -388,3 +391,14 @@ set_option maxHeartbeats 4000000 in
       lockstep_e
 
 end ConRon.Refine2.Lockstep
+
+/-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
+round 5): active under `open scoped ConRon.Refine2.Lockstep.CoreLSReg` only, so that they
+stay out of the other tiers' `lockstep` runs (the Checker lane imports the
+knot since task #97-T2-LOCKSTEP lane Checker DeclCheck). -/
+namespace ConRon.Refine2.Lockstep.CoreLSReg
+open Aeneas Aeneas.Std Result
+open ConRon.Generated
+open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PE
+attribute [scoped lockstep_simp] absEIdxArr_size
+end ConRon.Refine2.Lockstep.CoreLSReg

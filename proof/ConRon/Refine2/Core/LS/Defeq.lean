@@ -27,6 +27,9 @@ import ConRon.Refine2.Core.LS.Shapes
 import ConRon.Refine2.Core.LS.Lits
 import ConRon.Refine2.Core.LS.Certs
 
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg ConRon.Refine2.Lockstep.PA1.CoreLSReg ConRon.Refine2.Lockstep.PB.CoreLSReg ConRon.Refine2.Lockstep.PC1.CoreLSReg ConRon.Refine2.Lockstep.PF.CoreLSReg
+
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 
@@ -389,7 +392,7 @@ theorem defeqLoop_succ (mode : ConLeche.CheckMode) (r : CoreFnsA) (fe : IFEnv) (
     defeqLoop mode r fe d (m + 1) pi a b = defeqStep mode r fe d (defeqLoop mode r fe d m) pi a b :=
   rfl
 
-@[lockstep_simp] theorem defeq_loop_fuel_val :
+@[local lockstep_simp] theorem defeq_loop_fuel_val :
     absU arena.core.DEFEQ_LOOP_FUEL = Arena.defeqLoopFuel := by
   rw [arena.core.DEFEQ_LOOP_FUEL, Arena.defeqLoopFuel]; rfl
 
@@ -472,3 +475,15 @@ field, in `LS` form: the loop at its own step budget, at `pi = true`. -/
   lockstep_f
 
 end ConRon.Refine2.Lockstep
+
+/-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
+round 5): active under `open scoped ConRon.Refine2.Lockstep.CoreLSReg` only, so that they
+stay out of the other tiers' `lockstep` runs (the Checker lane imports the
+knot since task #97-T2-LOCKSTEP lane Checker DeclCheck). -/
+namespace ConRon.Refine2.Lockstep.CoreLSReg
+open Aeneas Aeneas.Std Result
+open ConRon.Generated
+open ConRon.Arena ConRon.Refine2
+open ConRon.Refine2.Lockstep.PF
+attribute [scoped lockstep_simp] defeq_loop_fuel_val
+end ConRon.Refine2.Lockstep.CoreLSReg

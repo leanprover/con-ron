@@ -16,6 +16,9 @@ file states over the lockstep relation `AStateRel₀`:
 -/
 import ConRon.Refine2.Core.LS.Prims
 
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg
+
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 
@@ -1340,7 +1343,7 @@ theorem pin_of_reduce_bool_run₀ {pers st lst} {o}
 
 /-! ## Store readers the leaves need -/
 
-attribute [lockstep_simp] absConstT
+attribute [local lockstep_simp] absConstT
 
 @[lockstep] theorem view_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
@@ -2408,3 +2411,16 @@ theorem find_rule_from (rules : alloc.vec.Vec arena.env.IRecRule) (c : arena.han
 /-! ## Interns — pending the foundation's intern slice -/
 
 end ConRon.Refine2.Lockstep.PA1
+
+/-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
+round 5): active under `open scoped ConRon.Refine2.Lockstep.PA1.CoreLSReg` only, so that they
+stay out of the other tiers' `lockstep` runs (the Checker lane imports the
+knot since task #97-T2-LOCKSTEP lane Checker DeclCheck). -/
+namespace ConRon.Refine2.Lockstep.PA1.CoreLSReg
+open Aeneas Aeneas.Std Result
+open ConRon.Generated
+open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
+open ConRon.Refine.HashMap (Eq2Fwd DupId)
+open ConRon.Refine.HashMap2 (Inv KeysOk RelOn toFun sl_v)
+attribute [scoped lockstep_simp] absConstT
+end ConRon.Refine2.Lockstep.PA1.CoreLSReg

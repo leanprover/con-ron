@@ -10,6 +10,9 @@ binder data, the two pins, and the pending intern prims.
 -/
 import ConRon.Refine2.Core.LS.Prims
 
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg
+
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 
@@ -33,12 +36,12 @@ def absPiStk (v : alloc.vec.Vec (arena.handle.LIdx × kernel.prop_when.PropWhen)
     Array (LIdx × ConLeche.PropWhen) :=
   (v.val.map fun p => (absLIdx p.1, ConRon.Refine.absPropWhen p.2)).toArray
 
-@[lockstep_simp] theorem absLamStk_size
+@[local lockstep_simp] theorem absLamStk_size
     (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
     (absLamStk v).size = v.val.length := by
   simp [absLamStk]
 
-@[lockstep_simp] theorem absPiStk_size
+@[local lockstep_simp] theorem absPiStk_size
     (v : alloc.vec.Vec (arena.handle.LIdx × kernel.prop_when.PropWhen)) :
     (absPiStk v).size = v.val.length := by
   simp [absPiStk]
@@ -58,24 +61,24 @@ theorem absEIdxArr_push (v w : alloc.vec.Vec arena.handle.EIdx) (x)
     absEIdxArr w = (absEIdxArr v).push (absEIdx x) := by
   simp [absEIdxArr, h]
 
-@[lockstep_simp] theorem vec_len_abs {α : Type} (v : alloc.vec.Vec α) :
+@[local lockstep_simp] theorem vec_len_abs {α : Type} (v : alloc.vec.Vec α) :
     absSz (alloc.vec.Vec.len v) = v.val.length := by
   simp [absSz]
 
-@[lockstep_simp] theorem absEIdxArr_new :
+@[local lockstep_simp] theorem absEIdxArr_new :
     absEIdxArr (alloc.vec.Vec.new arena.handle.EIdx) = #[] := rfl
 
-@[lockstep_simp] theorem absLamStk_new :
+@[local lockstep_simp] theorem absLamStk_new :
     absLamStk (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)) = #[] := rfl
 
-@[lockstep_simp] theorem absPiStk_new :
+@[local lockstep_simp] theorem absPiStk_new :
     absPiStk (alloc.vec.Vec.new (arena.handle.LIdx × kernel.prop_when.PropWhen)) = #[] := rfl
 
-attribute [lockstep_simp] ConRon.Refine.absBinderMeta absConstT
+attribute [local lockstep_simp] ConRon.Refine.absBinderMeta absConstT
 attribute [simp] absLamStk absPiStk
 
 
-@[lockstep_simp] theorem peel_fuel_abs : absU arena.core.PEEL_FUEL = peelFuel := by
+@[local lockstep_simp] theorem peel_fuel_abs : absU arena.core.PEEL_FUEL = peelFuel := by
   rw [arena.core.PEEL_FUEL, Arena.peelFuel]
   rfl
 
@@ -84,15 +87,15 @@ attribute [simp] absLamStk absPiStk
 `laneKnotAt … io f` is `laneKnot … f` with (under `io`) its `infer` slot
 rebound to `inferIO`; every other slot is the lane knot's own, by iota. -/
 
-@[lockstep_simp] theorem laneKnotAt_whnf (m fe l io f) :
+@[local lockstep_simp] theorem laneKnotAt_whnf (m fe l io f) :
     (laneKnotAt m fe l io f).whnf = (laneKnot m fe l f).whnf := by cases io <;> rfl
-@[lockstep_simp] theorem laneKnotAt_whnfCore (m fe l io f) :
+@[local lockstep_simp] theorem laneKnotAt_whnfCore (m fe l io f) :
     (laneKnotAt m fe l io f).whnfCore = (laneKnot m fe l f).whnfCore := by cases io <;> rfl
-@[lockstep_simp] theorem laneKnotAt_defeq (m fe l io f) :
+@[local lockstep_simp] theorem laneKnotAt_defeq (m fe l io f) :
     (laneKnotAt m fe l io f).defeq = (laneKnot m fe l f).defeq := by cases io <;> rfl
-@[lockstep_simp] theorem laneKnotAt_inferIO (m fe l io f) :
+@[local lockstep_simp] theorem laneKnotAt_inferIO (m fe l io f) :
     (laneKnotAt m fe l io f).inferIO = (laneKnot m fe l f).inferIO := by cases io <;> rfl
-@[lockstep_simp] theorem laneKnotAt_annotate (m fe l io f) :
+@[local lockstep_simp] theorem laneKnotAt_annotate (m fe l io f) :
     (laneKnotAt m fe l io f).annotate = (laneKnot m fe l f).annotate := by cases io <;> rfl
 
 /-- Under the io view the `infer` slot IS the lane knot's `inferIO`. -/
@@ -100,25 +103,25 @@ theorem laneKnotAt_true_infer (m fe l f) :
     (laneKnotAt m fe l true f).infer = (laneKnot m fe l f).inferIO := rfl
 
 /-- `ensureSort` reads its record's `whnf` slot alone. -/
-@[lockstep_simp] theorem ensureSort_laneKnotAt (m fe l io f lfe d e) :
+@[local lockstep_simp] theorem ensureSort_laneKnotAt (m fe l io f lfe d e) :
     ensureSort (laneKnotAt m fe l io f) lfe d e = ensureSort (laneKnot m fe l f) lfe d e := by
   cases io <;> rfl
 
 /-- `!=` is `!(==)`, so the tag tests `t.tag != ETag.lam` reduce with the
 `absU32_beq_*` equations. -/
-@[lockstep_simp] theorem bne_eq_not_beq' {α : Type} [BEq α] (a b : α) : (a != b) = !(a == b) := rfl
+@[local lockstep_simp] theorem bne_eq_not_beq' {α : Type} [BEq α] (a b : α) : (a != b) = !(a == b) := rfl
 
-attribute [lockstep_simp] Bool.not_eq_true' decide_eq_false_iff_not not_not
+attribute [local lockstep_simp] Bool.not_eq_true' decide_eq_false_iff_not not_not
 
 /-- The port's `if t != ETAG_LAM` as a proposition, both polarities. -/
-@[lockstep_simp] theorem u32_bne_true (a b : Std.U32) : ((a != b) = true) = ¬ a = b := by
+@[local lockstep_simp] theorem u32_bne_true (a b : Std.U32) : ((a != b) = true) = ¬ a = b := by
   by_cases h : a = b <;> simp [h]
-@[lockstep_simp] theorem u32_not_bne_true (a b : Std.U32) : (¬ (a != b) = true) = (a = b) := by
+@[local lockstep_simp] theorem u32_not_bne_true (a b : Std.U32) : (¬ (a != b) = true) = (a = b) := by
   by_cases h : a = b <;> simp [h]
 
 /-- The port's `u32` `==` is `decide`, the shape the `absU32_beq_*` equations
 leave on the twin side. -/
-@[lockstep_simp] theorem u32_beq_decide (a b : Std.U32) : (a == b) = decide (a = b) := by
+@[local lockstep_simp] theorem u32_beq_decide (a b : Std.U32) : (a == b) = decide (a = b) := by
   by_cases h : a = b <;> simp [h]
 
 /-! ## Rust-only value steps -/
@@ -175,7 +178,7 @@ def optPwWF : Option kernel.prop_when.PropWhen → Prop
   | some p => ConRon.Refine.PropWhenWF p
   | none => True
 
-attribute [lockstep_simp] optBindWF viewWF optPwWF ExprOps.absPwOpt
+attribute [local lockstep_simp] optBindWF viewWF optPwWF ExprOps.absPwOpt
 
 /-- A `view_bind` answer's datum is well formed (`bms`' `TblInv`). -/
 theorem estore_view_bind_optWF {pers rs} (hinv : StoreInv pers rs) {i : arena.handle.EIdx} {o}
@@ -668,41 +671,41 @@ the sort), in the same order on both sides. -/
   obtain ⟨v, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   exact ⟨v, fail_run h⟩
 
-@[lockstep_simp] theorem failDanglingLs_eq {α : Type} :
+@[local lockstep_simp] theorem failDanglingLs_eq {α : Type} :
     (failDanglingLs : AM α) = Arena.fail (.internal "arena: dangling level-list handle") := rfl
 
-@[lockstep_simp] theorem usize_bne_true (a b : Std.Usize) : ((a != b) = true) = ¬ a.val = b.val := by
+@[local lockstep_simp] theorem usize_bne_true (a b : Std.Usize) : ((a != b) = true) = ¬ a.val = b.val := by
   by_cases h : a = b
   · simp [h]
   · have : a.val ≠ b.val := fun hv => h (Std.UScalar.eq_of_val_eq hv)
     simp [h, this]
-@[lockstep_simp] theorem usize_not_bne_true (a b : Std.Usize) :
+@[local lockstep_simp] theorem usize_not_bne_true (a b : Std.Usize) :
     (¬ (a != b) = true) = (a.val = b.val) := by
   rw [usize_bne_true]; simp
 
-attribute [lockstep_simp] List.length_map ExprOps.absEIdxList
+attribute [local lockstep_simp] List.length_map ExprOps.absEIdxList
 
 -- local: the Checker lane reads `absIConstantVal` folded (its `absValueGroup`)
 attribute [local lockstep_simp] absIConstantVal
 
-@[lockstep_simp] theorem vec_len_val' {α : Type} (v : alloc.vec.Vec α) :
+@[local lockstep_simp] theorem vec_len_val' {α : Type} (v : alloc.vec.Vec α) :
     (alloc.vec.Vec.len v).val = v.val.length := by
   simp [alloc.vec.Vec.len_val]
 
-@[lockstep_simp] theorem opt_beq_some_true (o : Option Bool) :
+@[local lockstep_simp] theorem opt_beq_some_true (o : Option Bool) :
     ((o == some true) = true) = (o = some true) := by
   cases o with
   | none => simp
   | some b => cases b <;> simp
-@[lockstep_simp] theorem opt_beq_some_false (o : Option Bool) :
+@[local lockstep_simp] theorem opt_beq_some_false (o : Option Bool) :
     ((o == some true) = false) = ¬ (o = some true) := by
   cases o with
   | none => simp
   | some b => cases b <;> simp
 
-attribute [lockstep_simp] Option.some.injEq reduceCtorEq
+attribute [local lockstep_simp] Option.some.injEq reduceCtorEq
 
-@[lockstep_simp] theorem nat_beq_false (a b : Nat) : ((a == b) = false) = ¬ a = b := by
+@[local lockstep_simp] theorem nat_beq_false (a b : Nat) : ((a == b) = false) = ¬ a = b := by
   by_cases h : a = b <;> simp [h]
 
 /-- `viewLs` read only for its length is the length projection (the twin's
@@ -712,12 +715,12 @@ def danglingLsOr {δ : Type} (k : Nat → AM δ) : Option Nat → AM δ
   | none => failDanglingLs
   | some n => k n
 
-@[lockstep_simp] theorem danglingLsOr_none {δ : Type} (k : Nat → AM δ) :
+@[local lockstep_simp] theorem danglingLsOr_none {δ : Type} (k : Nat → AM δ) :
     danglingLsOr k none = failDanglingLs := rfl
-@[lockstep_simp] theorem danglingLsOr_some {δ : Type} (k : Nat → AM δ) (n : Nat) :
+@[local lockstep_simp] theorem danglingLsOr_some {δ : Type} (k : Nat → AM δ) (n : Nat) :
     danglingLsOr k (some n) = k n := rfl
 
-@[lockstep_simp] theorem viewLs_length_bind {δ : Type} (h : LsIdx) (L : Nat) (A B : AM δ) :
+@[local lockstep_simp] theorem viewLs_length_bind {δ : Type} (h : LsIdx) (L : Nat) (A B : AM δ) :
     (viewLs h >>= fun usl => if ¬ List.length usl = L then A else B) =
       (viewLsLen h >>= danglingLsOr fun n => if ¬ n = L then A else B) := by
   funext lst
@@ -764,3 +767,14 @@ macro "lockstep_e" : tactic =>
       | (apply LS.err; exact errSim_throw (by assumption))))
 
 end ConRon.Refine2.Lockstep.PE
+
+/-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
+round 5): active under `open scoped ConRon.Refine2.Lockstep.PE.CoreLSReg` only, so that they
+stay out of the other tiers' `lockstep` runs (the Checker lane imports the
+knot since task #97-T2-LOCKSTEP lane Checker DeclCheck). -/
+namespace ConRon.Refine2.Lockstep.PE.CoreLSReg
+open Aeneas Aeneas.Std Result
+open ConRon.Generated
+open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
+attribute [scoped lockstep_simp] absLamStk_size absPiStk_size vec_len_abs absEIdxArr_new absLamStk_new absPiStk_new ConRon.Refine.absBinderMeta absConstT peel_fuel_abs laneKnotAt_whnf laneKnotAt_whnfCore laneKnotAt_defeq laneKnotAt_inferIO laneKnotAt_annotate ensureSort_laneKnotAt bne_eq_not_beq' Bool.not_eq_true' decide_eq_false_iff_not not_not u32_bne_true u32_not_bne_true u32_beq_decide optBindWF viewWF optPwWF ExprOps.absPwOpt failDanglingLs_eq usize_bne_true usize_not_bne_true List.length_map ExprOps.absEIdxList vec_len_val' opt_beq_some_true opt_beq_some_false Option.some.injEq reduceCtorEq nat_beq_false danglingLsOr_none danglingLsOr_some viewLs_length_bind
+end ConRon.Refine2.Lockstep.PE.CoreLSReg

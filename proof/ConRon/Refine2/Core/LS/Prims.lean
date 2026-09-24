@@ -42,12 +42,12 @@ theorem LSR.ofAOut₀ {α β : Type} {A : α → β} {pers : arena.store.PersTie
 
 /-! ## Scalars and constants -/
 
-@[lockstep_simp] theorem core_walk_fuel_val :
+@[local lockstep_simp] theorem core_walk_fuel_val :
     (arena.core.CORE_WALK_FUEL).val = coreWalkFuel := core_walk_fuel_abs
 
-attribute [lockstep_simp] etag_const_abs etag_lit_abs etag_fvar_abs
+attribute [local lockstep_simp] etag_const_abs etag_lit_abs etag_fvar_abs
 
-@[lockstep_simp] theorem absU32_beq_const (t : Std.U32) :
+@[local lockstep_simp] theorem absU32_beq_const (t : Std.U32) :
     (absU32 t == ETag.const) = decide (t = arena.handle.ETAG_CONST) := by
   rw [← etag_const_abs]
   by_cases h : t = arena.handle.ETAG_CONST
@@ -55,7 +55,7 @@ attribute [lockstep_simp] etag_const_abs etag_lit_abs etag_fvar_abs
   · have : absU32 t ≠ absU32 arena.handle.ETAG_CONST := fun hc => h (absU32_inj hc)
     simp [h, this]
 
-@[lockstep_simp] theorem absU32_beq_lit (t : Std.U32) :
+@[local lockstep_simp] theorem absU32_beq_lit (t : Std.U32) :
     (absU32 t == ETag.lit) = decide (t = arena.handle.ETAG_LIT) := by
   rw [← etag_lit_abs]
   by_cases h : t = arena.handle.ETAG_LIT
@@ -63,7 +63,7 @@ attribute [lockstep_simp] etag_const_abs etag_lit_abs etag_fvar_abs
   · have : absU32 t ≠ absU32 arena.handle.ETAG_LIT := fun hc => h (absU32_inj hc)
     simp [h, this]
 
-@[lockstep_simp] theorem absU32_beq_fvar (t : Std.U32) :
+@[local lockstep_simp] theorem absU32_beq_fvar (t : Std.U32) :
     (absU32 t == ETag.fvar) = decide (t = arena.handle.ETAG_FVAR) := by
   rw [← etag_fvar_abs]
   by_cases h : t = arena.handle.ETAG_FVAR
@@ -88,7 +88,7 @@ theorem idx_beq_decide {k : IdxKind} (a b : Idx k) :
 `absEIdxList` are the same map; `lockstep_simp` rewrites the first to the
 second, and knows the length of both. -/
 
-@[lockstep_simp] theorem absEIdxList_length_mut (v : alloc.vec.Vec arena.handle.EIdx) :
+@[local lockstep_simp] theorem absEIdxList_length_mut (v : alloc.vec.Vec arena.handle.EIdx) :
     (absEIdxList v).length = v.val.length := by
   simp [absEIdxList]
 
@@ -98,7 +98,7 @@ A read that carries the Rust datum's well-formedness states it as
 `∀ l, o = some l → WF l`; after the case split on `o` that is
 `∀ l, some x = some l → WF l`, which these reduce to `WF x`. -/
 
-attribute [lockstep_simp] Option.some.injEq forall_eq' ConRon.Refine.LiteralWF IConstantInfoWF
+attribute [local lockstep_simp] Option.some.injEq forall_eq' ConRon.Refine.LiteralWF IConstantInfoWF
 
 /-! ## The environment -/
 
@@ -108,11 +108,11 @@ def absIProjEntry (e : arena.env.IProjEntry) : IProjEntry :=
     absNIdx e.ctor, absU e.num_fields, absEIdx e.body, absLIdx e.field_sort,
     absLIdx e.struct_sort, absU e.off⟩
 
-attribute [lockstep_simp] absIProjEntry
+attribute [local lockstep_simp] absIProjEntry
 
 
 
-attribute [lockstep_simp] absIConstantInfo
+attribute [local lockstep_simp] absIConstantInfo
 
 /-- A constant `ifenv_find` answers is one of the environment's. -/
 theorem ifenv_find_mem {vis : Std.U64} {fe : arena.env.IFEnv} {n : arena.handle.NIdx}
@@ -635,3 +635,14 @@ unifying `?st.store` with a store (region G's form). -/
         exact ⟨_, lst1, rfl, rfl, hrel1, hinv1⟩
 
 end ConRon.Refine2.Lockstep
+
+/-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
+round 5): active under `open scoped ConRon.Refine2.Lockstep.CoreLSReg` only, so that they
+stay out of the other tiers' `lockstep` runs (the Checker lane imports the
+knot since task #97-T2-LOCKSTEP lane Checker DeclCheck). -/
+namespace ConRon.Refine2.Lockstep.CoreLSReg
+open Aeneas Aeneas.Std Result
+open ConRon.Generated
+open ConRon.Arena ConRon.Refine2
+attribute [scoped lockstep_simp] core_walk_fuel_val etag_const_abs etag_lit_abs etag_fvar_abs absU32_beq_const absU32_beq_lit absU32_beq_fvar absEIdxList_length_mut Option.some.injEq forall_eq' ConRon.Refine.LiteralWF IConstantInfoWF absIProjEntry absIConstantInfo
+end ConRon.Refine2.Lockstep.CoreLSReg

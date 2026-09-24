@@ -9,6 +9,9 @@ state-free vector helpers, and the store reads.
 -/
 import ConRon.Refine2.Core.LS.Prims
 
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg
+
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 
@@ -20,10 +23,10 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
 
 /-! ## Bridges between the two `Vec<EIdx>` readings -/
 
-@[lockstep_simp] theorem exprOps_absEIdxList_eq (v : alloc.vec.Vec arena.handle.EIdx) :
+@[local lockstep_simp] theorem exprOps_absEIdxList_eq (v : alloc.vec.Vec arena.handle.EIdx) :
     ExprOps.absEIdxList v = absEIdxList v := rfl
 
-@[lockstep_simp] theorem absEIdxListFrom_zero (v : alloc.vec.Vec arena.handle.EIdx) :
+@[local lockstep_simp] theorem absEIdxListFrom_zero (v : alloc.vec.Vec arena.handle.EIdx) :
     absEIdxListFrom v 0#usize = absEIdxList v := by
   simp [absEIdxListFrom, absEIdxList]
 
@@ -253,7 +256,7 @@ theorem eidx_copy_all_map {xs : alloc.vec.Vec arena.handle.EIdx} {n : Std.Usize}
   intro b h
   cases m <;> (simp only [kernel.env.verified_checks, Result.ok.injEq] at h; rw [← h]; rfl)
 
-attribute [lockstep_simp] ConRon.Refine.absBinderMeta ExprOps.absStrip Option.isSome_some
+attribute [local lockstep_simp] ConRon.Refine.absBinderMeta ExprOps.absStrip Option.isSome_some
   Option.isSome_none
 
 /-! ## `PropWhen` comparison and the binder datum's well-formedness -/
@@ -401,21 +404,21 @@ theorem nidx_vec_contains_from_aux (ns : alloc.vec.Vec arena.handle.NIdx)
 Stated as projection lemmas rather than by unfolding the abstraction, so that
 a dup's `absIIndCaps c = absIIndCaps o` rewrites the twin's record first. -/
 
-@[lockstep_simp] theorem absIIndCaps_eta (c) : (absIIndCaps c).eta = c.eta := rfl
-@[lockstep_simp] theorem absIIndCaps_etaCtor (c) : (absIIndCaps c).etaCtor = absNIdx c.eta_ctor := rfl
-@[lockstep_simp] theorem absIIndCaps_etaParams (c) : (absIIndCaps c).etaParams = absU c.eta_params := rfl
-@[lockstep_simp] theorem absIIndCaps_etaFields (c) : (absIIndCaps c).etaFields = absU c.eta_fields := rfl
-@[lockstep_simp] theorem absIIndCaps_unitlike (c) : (absIIndCaps c).unitlike = c.unitlike := rfl
-@[lockstep_simp] theorem absIIndCaps_unitParams (c) :
+@[local lockstep_simp] theorem absIIndCaps_eta (c) : (absIIndCaps c).eta = c.eta := rfl
+@[local lockstep_simp] theorem absIIndCaps_etaCtor (c) : (absIIndCaps c).etaCtor = absNIdx c.eta_ctor := rfl
+@[local lockstep_simp] theorem absIIndCaps_etaParams (c) : (absIIndCaps c).etaParams = absU c.eta_params := rfl
+@[local lockstep_simp] theorem absIIndCaps_etaFields (c) : (absIIndCaps c).etaFields = absU c.eta_fields := rfl
+@[local lockstep_simp] theorem absIIndCaps_unitlike (c) : (absIIndCaps c).unitlike = c.unitlike := rfl
+@[local lockstep_simp] theorem absIIndCaps_unitParams (c) :
     (absIIndCaps c).unitParams = absU c.unit_params := rfl
-@[lockstep_simp] theorem absIConstantVal_name (c) : (absIConstantVal c).name = absNIdx c.name := rfl
-@[lockstep_simp] theorem absIConstantVal_levelParams (c) :
+@[local lockstep_simp] theorem absIConstantVal_name (c) : (absIConstantVal c).name = absNIdx c.name := rfl
+@[local lockstep_simp] theorem absIConstantVal_levelParams (c) :
     (absIConstantVal c).levelParams = absNIdxList c.level_params := rfl
-@[lockstep_simp] theorem absIConstantVal_type (c) : (absIConstantVal c).type = absEIdx c.ty := rfl
+@[local lockstep_simp] theorem absIConstantVal_type (c) : (absIConstantVal c).type = absEIdx c.ty := rfl
 
-@[lockstep_simp] theorem absEIdxList_length (v : alloc.vec.Vec arena.handle.EIdx) :
+@[local lockstep_simp] theorem absEIdxList_length (v : alloc.vec.Vec arena.handle.EIdx) :
     (absEIdxList v).length = v.val.length := by simp [absEIdxList]
-@[lockstep_simp] theorem absNIdxList_length (v : alloc.vec.Vec arena.handle.NIdx) :
+@[local lockstep_simp] theorem absNIdxList_length (v : alloc.vec.Vec arena.handle.NIdx) :
     (absNIdxList v).length = v.val.length := by simp [absNIdxList]
 
 @[lockstep] theorem dup2_nidx_ls (n : arena.handle.NIdx) :
@@ -494,7 +497,7 @@ theorem nidx_vec_beq_from_aux (a b : alloc.vec.Vec arena.handle.NIdx) (k : Nat) 
     (fun _ hr => by rw [arena.monad.view_const] at hr; exact estore_view_const_abs hrel.store hr)
     hrel hinv
 
-attribute [lockstep_simp] absConstT
+attribute [local lockstep_simp] absConstT
 
 /-- **`view_ls` against the twin's `match ← viewLsLen h with | none =>
 failDanglingLs | some n => …`.**  The port reads the whole level list and
@@ -546,9 +549,20 @@ theorem LS.view_ls_len_bind {γ δ : Type} {pers st lst} {h : arena.handle.LsIdx
 /-! ## Twin-side shapes -/
 
 /-- The twin's `if ← x then pure true else pure false` is `x`: the port tail-calls. -/
-@[lockstep_simp] theorem bind_if_pure_true_false (x : AM Bool) :
+@[local lockstep_simp] theorem bind_if_pure_true_false (x : AM Bool) :
     (x >>= fun b => if b = true then pure true else pure false) = x := by
   conv => rhs; rw [← bind_pure x]
   congr 1; funext b; cases b <;> rfl
 
 end ConRon.Refine2.Lockstep.PC1
+
+/-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
+round 5): active under `open scoped ConRon.Refine2.Lockstep.PC1.CoreLSReg` only, so that they
+stay out of the other tiers' `lockstep` runs (the Checker lane imports the
+knot since task #97-T2-LOCKSTEP lane Checker DeclCheck). -/
+namespace ConRon.Refine2.Lockstep.PC1.CoreLSReg
+open Aeneas Aeneas.Std Result
+open ConRon.Generated
+open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
+attribute [scoped lockstep_simp] exprOps_absEIdxList_eq absEIdxListFrom_zero ConRon.Refine.absBinderMeta ExprOps.absStrip Option.isSome_some Option.isSome_none absIIndCaps_eta absIIndCaps_etaCtor absIIndCaps_etaParams absIIndCaps_etaFields absIIndCaps_unitlike absIIndCaps_unitParams absIConstantVal_name absIConstantVal_levelParams absIConstantVal_type absEIdxList_length absNIdxList_length absConstT bind_if_pure_true_false
+end ConRon.Refine2.Lockstep.PC1.CoreLSReg

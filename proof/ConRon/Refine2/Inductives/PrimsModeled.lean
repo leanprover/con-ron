@@ -169,6 +169,64 @@ lookup to the abstraction of the Rust answer, the twin tests
   · intro h; have : v.val.length = 0 := by scalar_tac
     exact List.eq_nil_of_length_eq_zero this
 
+/-- The one Rust datum `IConstantInfoWF` reads: a stored inductive's zero-ness
+`PropWhen` (task #97-P5-Core round 5, `IFEnvRel.envWF`). -/
+def sortZOf : arena.env.IConstantInfo → Option kernel.prop_when.PropWhen
+  | .IndInfo _ caps => some caps.sort_z
+  | _ => none
+
+theorem iConstantInfoWF_of_sortZOf {c o : arena.env.IConstantInfo}
+    (h : sortZOf o = sortZOf c) (hc : IConstantInfoWF c) : IConstantInfoWF o := by
+  cases o <;> cases c <;> simp_all [sortZOf, IConstantInfoWF]
+
+/-- `i_constant_info_dup` copies the zero-ness datum (`prop_when::dup` is the
+identity). -/
+theorem i_constant_info_dup_sortZOf {c o : arena.env.IConstantInfo}
+    (h : arena.env.i_constant_info_dup c = ok o) : sortZOf o = sortZOf c := by
+  rw [arena.env.i_constant_info_dup.eq_def] at h
+  cases c with
+  | IndInfo cv caps =>
+    obtain ⟨iv, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨ic, hic, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+    rw [arena.env.i_ind_caps_dup] at hic
+    obtain ⟨n, _, hic⟩ := ConRon.Refine.bind_eq_ok_iff.mp hic
+    obtain ⟨pw, hpw, hic⟩ := ConRon.Refine.bind_eq_ok_iff.mp hic
+    rw [← Result.ok_injective hic]
+    simp [sortZOf, ConRon.Refine.PropWhen.dup_eq hpw]
+  | _ =>
+    repeat (first
+      | (obtain ⟨_, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
+      | (rw [← Result.ok_injective h]; rfl))
+
+theorem i_constant_infos_dup_sortZOf {cs o : alloc.vec.Vec arena.env.IConstantInfo}
+    (h : arena.env.i_constant_infos_dup cs = ok o) :
+    o.val.map sortZOf = cs.val.map sortZOf := by
+  rw [arena.env.i_constant_infos_dup] at h
+  have h2 : ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.env.IConstantInfo),
+      arena.env.i_constant_infos_dup_from cs i out = ok o →
+      o.val.map sortZOf = out.val.map sortZOf ++ (cs.val.drop i.val).map sortZOf := by
+    refine vec_cursor_copy cs sortZOf sortZOf (arena.env.i_constant_infos_dup_from cs) ?_ ?_
+    · intro i out o hn h
+      rw [arena.env.i_constant_infos_dup_from.eq_def] at h
+      rw [if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
+      rw [h]
+    · intro i x out o hx h
+      have hlt : i.val < cs.val.length := (List.getElem?_eq_some_iff.mp hx).1
+      rw [arena.env.i_constant_infos_dup_from.eq_def] at h
+      rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac)] at h
+      obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hvx : v = x := by
+        have h1 := vec_index_some hv; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+      subst hvx
+      exact ⟨i2, v1, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+        i_constant_info_dup_sortZOf hv1, h⟩
+  simpa [alloc.vec.Vec.with_capacity,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using h2 _ _ _ h
+
 /-- `arena::env::ifenv_dup` is the identity under `IFEnvRelI`: the constants
 are copied record by record (`i_constant_infos_dup_abs`), the index table is
 the table (`HashMap2.dup_spec`), the counter is the counter. -/
@@ -198,8 +256,9 @@ theorem ifenv_dup_rel {rf a : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf 
   subst hm'
   have hlen : v.val.length = rf.env.consts.val.length := by
     simpa using congrArg List.length hvv
-  obtain ⟨⟨henv, hidx, hvis⟩, ⟨hinv1, hinv2, hinv3⟩⟩ := hfe
-  refine ⟨⟨?_, ?_, hvis⟩, ⟨hinv1, ?_, ?_⟩⟩
+  have hsz := i_constant_infos_dup_sortZOf hv
+  obtain ⟨⟨henv, hidx, hvis, hwf, hkeys⟩, ⟨hinv1, hinv2, hinv3⟩⟩ := hfe
+  refine ⟨⟨?_, ?_, hvis, ?_, ?_⟩, ⟨hinv1, ?_, ?_⟩⟩
   · rw [henv]; simp only [absIEnv, hvv]
   · intro n
     rw [← hidx n]
@@ -210,6 +269,23 @@ theorem ifenv_dup_rel {rf a : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf 
       rw [← List.getElem?_map, hvv, List.getElem?_map]
     have := congrArg (Option.map fun c => (absU p.1, c)) hk
     simpa [Option.map_map, Function.comp_def] using this
+  · -- `envWF`: the copy keeps each stored inductive's zero-ness datum
+    intro ci hci
+    obtain ⟨k, hk, rfl⟩ := List.getElem_of_mem hci
+    have hk' : k < rf.env.consts.val.length := hlen ▸ hk
+    have hs : sortZOf v.val[k] = sortZOf rf.env.consts.val[k] := by
+      have := congrArg (·[k]?) hsz
+      simpa [List.getElem?_map, hk, hk'] using this
+    exact iConstantInfoWF_of_sortZOf hs (hwf _ (List.getElem_mem hk'))
+  · -- `keys`: the copy's slots carry the same names
+    intro n p hp
+    obtain ⟨ci, hci, hname⟩ := hkeys n p hp
+    have hk : v.val[p.2.val]?.map absIConstantInfo
+        = rf.env.consts.val[p.2.val]?.map absIConstantInfo := by
+      rw [← List.getElem?_map, hvv, List.getElem?_map]
+    rw [hci] at hk
+    obtain ⟨ci', hci', hab⟩ := Option.map_eq_some_iff.mp hk
+    exact ⟨ci', hci', by rw [hab]; exact hname⟩
   · simp only [hlen]; exact hinv2
   · intro n p hp; rw [hlen]; exact hinv3 n p hp
 

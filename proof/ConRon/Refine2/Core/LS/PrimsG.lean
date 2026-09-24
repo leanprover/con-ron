@@ -10,6 +10,9 @@ reserved name).
 -/
 import ConRon.Refine2.Core.LS.Prims
 
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg
+
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 
@@ -50,10 +53,10 @@ theorem vec_len_val' {α : Type} (v : alloc.vec.Vec α) :
     (alloc.vec.Vec.len v).val = v.val.length := by
   simp
 
-@[lockstep_simp] theorem absBinderMeta_pw (m : kernel.expr.BinderMeta) :
+@[local lockstep_simp] theorem absBinderMeta_pw (m : kernel.expr.BinderMeta) :
     (ConRon.Refine.absBinderMeta m).pw = ConRon.Refine.absPropWhen m.pw := rfl
 
-@[lockstep_simp] theorem absBinderMeta_mk (pw : kernel.prop_when.PropWhen) :
+@[local lockstep_simp] theorem absBinderMeta_mk (pw : kernel.prop_when.PropWhen) :
     ConRon.Refine.absBinderMeta { pw } = ⟨ConRon.Refine.absPropWhen pw⟩ := rfl
 
 /-- The binder stack's index, as a twin fact about the twin's `stk[j]!`. -/
@@ -67,7 +70,7 @@ theorem stk_index_twin (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.Bind
   show _ = _
   simp [absStk, hb, ← hx]
 
-@[lockstep_simp] theorem peel_fuel_val : (arena.core.PEEL_FUEL).val = peelFuel := by
+@[local lockstep_simp] theorem peel_fuel_val : (arena.core.PEEL_FUEL).val = peelFuel := by
   rw [arena.core.PEEL_FUEL, Arena.peelFuel]; rfl
 
 /-! ## Rust-only steps -/
@@ -213,3 +216,14 @@ the Rust store, `read_level_m_wf`). -/
         { hinv with caches := { hinv.caches with readLC := h2, readLVals := hvals } }⟩
 
 end ConRon.Refine2.Lockstep.PG
+
+/-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
+round 5): active under `open scoped ConRon.Refine2.Lockstep.PG.CoreLSReg` only, so that they
+stay out of the other tiers' `lockstep` runs (the Checker lane imports the
+knot since task #97-T2-LOCKSTEP lane Checker DeclCheck). -/
+namespace ConRon.Refine2.Lockstep.PG.CoreLSReg
+open Aeneas Aeneas.Std Result
+open ConRon.Generated
+open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
+attribute [scoped lockstep_simp] absBinderMeta_pw absBinderMeta_mk peel_fuel_val
+end ConRon.Refine2.Lockstep.PG.CoreLSReg

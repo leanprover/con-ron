@@ -22,6 +22,9 @@ constructor forms and `reduceNat`) needs and that no shared prims file has:
 -/
 import ConRon.Refine2.Core.LS.Prims
 
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg
+
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 
@@ -551,7 +554,7 @@ theorem view_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
   rw [arena.monad.view_const] at hrun
   exact ⟨_, lst, rfl, estore_view_const_abs hrel.store hrun, hrel, hinv⟩
 
-attribute [lockstep_simp] absConstT
+attribute [local lockstep_simp] absConstT
 
 /-! ## A store-level step: `i_constant_info_to_constant_val` -/
 
@@ -651,12 +654,12 @@ intern). -/
     refine ⟨_, lst3, rfl, ?_, hrel3, hinv3⟩
     simp only [absIConstantVal, absIProjTable, dupId_nidx _ _ hn, nidx_vec_dup_val hv]
 
-attribute [lockstep_simp] absLNodeView absLsNodeView ConRon.Refine.absLiteral
+attribute [local lockstep_simp] absLNodeView absLsNodeView ConRon.Refine.absLiteral
 
 -- local: the Checker lane reads `absIConstantVal` folded (its `absValueGroup`)
 attribute [local lockstep_simp] absIConstantVal
 
-@[lockstep_simp] theorem vec_len_eq_zero {α : Type} (v : alloc.vec.Vec α) :
+@[local lockstep_simp] theorem vec_len_eq_zero {α : Type} (v : alloc.vec.Vec α) :
     (alloc.vec.Vec.len v = 0#usize) = (v.val = []) := by
   apply propext; constructor
   · intro h
@@ -668,7 +671,7 @@ attribute [local lockstep_simp] absIConstantVal
     rw [alloc.vec.Vec.len_val]
     simp [h]
 
-@[lockstep_simp] theorem vec_len_bne_zero {α : Type} (v : alloc.vec.Vec α) :
+@[local lockstep_simp] theorem vec_len_bne_zero {α : Type} (v : alloc.vec.Vec α) :
     (alloc.vec.Vec.len v != 0#usize) = !(v.val.isEmpty) := by
   have e := vec_len_eq_zero v
   by_cases h : v.val = []
@@ -681,14 +684,14 @@ attribute [local lockstep_simp] absIConstantVal
       | cons _ _ => rfl
     rw [h2, bne_iff_ne.mpr h1]; rfl
 
-@[lockstep_simp] theorem vec_len_beq_zero {α : Type} (v : alloc.vec.Vec α) :
+@[local lockstep_simp] theorem vec_len_beq_zero {α : Type} (v : alloc.vec.Vec α) :
     (alloc.vec.Vec.len v == 0#usize) = v.val.isEmpty := by
   have h := vec_len_bne_zero v
   rw [bne] at h
   have := congrArg (fun b => !b) h
   simpa using this
 
-@[lockstep_simp] theorem vec_len_bne_one {α : Type} (v : alloc.vec.Vec α) :
+@[local lockstep_simp] theorem vec_len_bne_one {α : Type} (v : alloc.vec.Vec α) :
     (alloc.vec.Vec.len v != 1#usize) = !(decide (v.val.length = 1)) := by
   have hv : (alloc.vec.Vec.len v).val = v.val.length := alloc.vec.Vec.len_val v
   by_cases h : v.val.length = 1
@@ -697,6 +700,17 @@ attribute [local lockstep_simp] absIConstantVal
   · have : alloc.vec.Vec.len v ≠ 1#usize := fun hc => h (by rw [← hv, hc]; rfl)
     simp [this, h]
 
-attribute [lockstep_simp] List.isEmpty_map List.isEmpty_iff
+attribute [local lockstep_simp] List.isEmpty_map List.isEmpty_iff
 
 end ConRon.Refine2.Lockstep.PB
+
+/-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
+round 5): active under `open scoped ConRon.Refine2.Lockstep.PB.CoreLSReg` only, so that they
+stay out of the other tiers' `lockstep` runs (the Checker lane imports the
+knot since task #97-T2-LOCKSTEP lane Checker DeclCheck). -/
+namespace ConRon.Refine2.Lockstep.PB.CoreLSReg
+open Aeneas Aeneas.Std Result
+open ConRon.Generated
+open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
+attribute [scoped lockstep_simp] absConstT absLNodeView absLsNodeView ConRon.Refine.absLiteral vec_len_eq_zero vec_len_bne_zero vec_len_beq_zero vec_len_bne_one List.isEmpty_map List.isEmpty_iff
+end ConRon.Refine2.Lockstep.PB.CoreLSReg

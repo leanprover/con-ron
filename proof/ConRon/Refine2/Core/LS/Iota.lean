@@ -20,6 +20,9 @@ import ConRon.Refine2.Core.LS.Shapes
 import ConRon.Refine2.Core.LS.Lits
 import ConRon.Refine2.Core.LS.Certs
 
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg ConRon.Refine2.Lockstep.PA1.CoreLSReg ConRon.Refine2.Lockstep.PB.CoreLSReg ConRon.Refine2.Lockstep.PC1.CoreLSReg ConRon.Refine2.Lockstep.PC2.CoreLSReg
+
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 
@@ -32,6 +35,10 @@ attribute [local lockstep_simp] ConRon.Refine2.absIConstantVal
 namespace ConRon.Refine2.Lockstep
 
 open ConRon.Arena ConRon.Refine2
+-- the region's own pairs first (the candidate order's region priority): its
+-- `take_eidx_n` is the list `take` the twin reads, where the shared one of
+-- `Tactic/Prims` states an `Arr` prefix
+open ConRon.Refine2.Lockstep.PC2
 
 /-! ## Local moves
 
@@ -214,10 +221,13 @@ elab "c2_heq" : tactic => do
     let g ← g.replaceTargetDefEq ((← instantiateMVars (← g.getType)).consumeMData)
     setGoals (← normAll [g])
 
-/-- The shared `lockstep` step with this region's moves around it. -/
+/-- The shared `lockstep` step with this region's moves around it.  The
+twin-read rewrites (`c2_getelem`, `c2_cast`) come BEFORE the shared step: it
+now cases a stuck twin `match` on its discriminant (task #97-T2-TACTIC round
+2), which would abstract the read these rewrites resolve. -/
 macro "lockstep_c2" : tactic =>
   `(tactic| repeat' (first
-    | c2_heq | lockstep_step | c2_bind_state | c2_lslen | c2_getelem | c2_cast))
+    | c2_heq | c2_getelem | c2_cast | lockstep_step | c2_bind_state | c2_lslen))
 
 /-! ## Local normalisation: record projections and lengths
 

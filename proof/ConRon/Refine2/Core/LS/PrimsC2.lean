@@ -21,6 +21,9 @@ merge.
 import ConRon.Refine2.Core.LS.Prims
 import ConRon.Refine.CoreKShapes
 
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg
+
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 
@@ -32,17 +35,17 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
 
 /-! ## Abstraction bridges -/
 
-@[lockstep_simp] theorem exprOps_absEIdxList_eq (v : alloc.vec.Vec arena.handle.EIdx) :
+@[local lockstep_simp] theorem exprOps_absEIdxList_eq (v : alloc.vec.Vec arena.handle.EIdx) :
     ExprOps.absEIdxList v = absEIdxList v := rfl
 
-@[lockstep_simp] theorem absEIdxL_eq (v : alloc.vec.Vec arena.handle.EIdx) :
+@[local lockstep_simp] theorem absEIdxL_eq (v : alloc.vec.Vec arena.handle.EIdx) :
     ExprOps.absEIdxL v = absEIdxList v := rfl
 
-@[lockstep_simp] theorem absEIdxListFrom_zero (v : alloc.vec.Vec arena.handle.EIdx) :
+@[local lockstep_simp] theorem absEIdxListFrom_zero (v : alloc.vec.Vec arena.handle.EIdx) :
     absEIdxListFrom v 0#usize = absEIdxList v := by
   simp [absEIdxListFrom, absEIdxList]
 
-attribute [lockstep_simp] absConstT
+attribute [local lockstep_simp] absConstT
 
 /-! ## Rust-only steps: the mode bits, handle comparisons, record copies -/
 
@@ -401,7 +404,7 @@ theorem takeEidx_toList' (xs : Array EIdx) (k : Nat) :
   rw [takeEidx, ExprOps.eidxCopyUpto_toList xs k k 0 #[] (by omega)]
   simp
 
-@[lockstep_simp] theorem takeEidx_toList_eq (xs : alloc.vec.Vec arena.handle.EIdx) (k : Nat) :
+@[local lockstep_simp] theorem takeEidx_toList_eq (xs : alloc.vec.Vec arena.handle.EIdx) (k : Nat) :
     (takeEidx (absEIdxArr xs) k).toList = (absEIdxList xs).take k := by
   rw [takeEidx_toList']; simp [absEIdxArr, absEIdxList]
 
@@ -669,3 +672,14 @@ theorem view_lit_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     simp [IRecRule.compareParams, absIRecRule, absIRecRuleFire, hf]
 
 end ConRon.Refine2.Lockstep.PC2
+
+/-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
+round 5): active under `open scoped ConRon.Refine2.Lockstep.PC2.CoreLSReg` only, so that they
+stay out of the other tiers' `lockstep` runs (the Checker lane imports the
+knot since task #97-T2-LOCKSTEP lane Checker DeclCheck). -/
+namespace ConRon.Refine2.Lockstep.PC2.CoreLSReg
+open Aeneas Aeneas.Std Result
+open ConRon.Generated
+open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
+attribute [scoped lockstep_simp] exprOps_absEIdxList_eq absEIdxL_eq absEIdxListFrom_zero absConstT takeEidx_toList_eq
+end ConRon.Refine2.Lockstep.PC2.CoreLSReg

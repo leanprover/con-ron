@@ -27,6 +27,9 @@ import ConRon.Refine2.Core.LS.Prims
 import ConRon.Refine2.Core.LS.PrimsA1
 import ConRon.Refine2.Core.LS.PrimsB
 
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg ConRon.Refine2.Lockstep.PA1.CoreLSReg ConRon.Refine2.Lockstep.PB.CoreLSReg
+
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 
@@ -58,7 +61,7 @@ def optPwWF : Option kernel.prop_when.PropWhen → Prop
   | some p => ConRon.Refine.PropWhenWF p
   | none => True
 
-attribute [lockstep_simp] optBindWF viewWF optPwWF
+attribute [local lockstep_simp] optBindWF viewWF optPwWF
 
 /-! ## Store reads carrying the datum's well-formedness (after `PrimsE`) -/
 
@@ -480,7 +483,7 @@ theorem stk_push_wf {stk stk1 : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.
   · exact hs p hp
   · rw [List.mem_singleton.mp hp]; exact hx
 
-@[lockstep_simp] theorem stk_new_wf :
+@[local lockstep_simp] theorem stk_new_wf :
     (∀ p ∈ (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)).val,
       ConRon.Refine.PropWhenWF p.2.pw) = True := by
   simp [alloc.vec.Vec.new]
@@ -497,10 +500,21 @@ theorem stk_index_wf (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.Binder
   rw [← hx]; exact List.getElem_mem hb
 
 /-- The recursive call's datum premise at a written / an unwritten datum. -/
-@[lockstep_simp] theorem forall_some_eq_imp {α : Type} (a : α) (P : α → Prop) :
+@[local lockstep_simp] theorem forall_some_eq_imp {α : Type} (a : α) (P : α → Prop) :
     (∀ p, some a = some p → P p) = P a := by simp
 
-@[lockstep_simp] theorem forall_none_eq_imp {α : Type} (P : α → Prop) :
+@[local lockstep_simp] theorem forall_none_eq_imp {α : Type} (P : α → Prop) :
     (∀ p, (none : Option α) = some p → P p) = True := by simp
 
 end ConRon.Refine2.Lockstep.PG2
+
+/-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
+round 5): active under `open scoped ConRon.Refine2.Lockstep.PG2.CoreLSReg` only, so that they
+stay out of the other tiers' `lockstep` runs (the Checker lane imports the
+knot since task #97-T2-LOCKSTEP lane Checker DeclCheck). -/
+namespace ConRon.Refine2.Lockstep.PG2.CoreLSReg
+open Aeneas Aeneas.Std Result
+open ConRon.Generated
+open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
+attribute [scoped lockstep_simp] optBindWF viewWF optPwWF stk_new_wf forall_some_eq_imp forall_none_eq_imp
+end ConRon.Refine2.Lockstep.PG2.CoreLSReg

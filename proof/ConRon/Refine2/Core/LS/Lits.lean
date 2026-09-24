@@ -12,6 +12,9 @@ discharges `Core/Arms/Loops.lean`'s `reduce_nat_refines`.
 import ConRon.Refine2.Core.LS.PrimsB
 import ConRon.Refine2.Core.LS.Leaves
 
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg ConRon.Refine2.Lockstep.PA1.CoreLSReg ConRon.Refine2.Lockstep.PB.CoreLSReg
+
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 
@@ -61,9 +64,9 @@ name_pin arena.core.nat_shift_right_name natShiftRightName PB.pin_nat_shift_righ
     rw [dupId_nidx _ _ hn1] at h
     exact ConRon.Refine.vec_push_val h
 
-@[lockstep_simp] theorem vec_new_val_B {α : Type} : (alloc.vec.Vec.new α).val = [] := rfl
+@[local lockstep_simp] theorem vec_new_val_B {α : Type} : (alloc.vec.Vec.new α).val = [] := rfl
 
-attribute [lockstep_simp] absNIdxList
+attribute [local lockstep_simp] absNIdxList
 
 attribute [local lockstep_simp] List.map_append List.map_cons List.map_nil
   List.nil_append List.cons_append List.isEmpty_nil List.isEmpty_cons Bool.true_and
@@ -584,3 +587,14 @@ end
 #guard_msgs in #print axioms lit_to_ctor_if_nat_ls
 
 end ConRon.Refine2.Lockstep
+
+/-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
+round 5): active under `open scoped ConRon.Refine2.Lockstep.CoreLSReg` only, so that they
+stay out of the other tiers' `lockstep` runs (the Checker lane imports the
+knot since task #97-T2-LOCKSTEP lane Checker DeclCheck). -/
+namespace ConRon.Refine2.Lockstep.CoreLSReg
+open Aeneas Aeneas.Std Result
+open ConRon.Generated
+open ConRon.Arena ConRon.Refine2
+attribute [scoped lockstep_simp] vec_new_val_B absNIdxList
+end ConRon.Refine2.Lockstep.CoreLSReg

@@ -14,6 +14,9 @@ Statement convention: the brief's (`LS pers (fun a b => b = <abs> a) (rust) lst
 -/
 import ConRon.Refine2.Core.LS.PrimsA1
 
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg ConRon.Refine2.Lockstep.PA1.CoreLSReg
+
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 
@@ -95,7 +98,9 @@ attribute [local lockstep_simp] some_beq_some_true Bool.not_eq_true
     LSR pers (fun a b => b = absEIdx a) (arena.core.sort_one st) st lst sortOne := by
   rw [arena.core.sort_one, sortOne]; exact pin_sort_one_ls hrel hinv
 
-@[lockstep] theorem const_e_ls {pers st n lst}
+-- in the region's namespace: the Checker lane states the same pair as
+-- `Lockstep.const_e_ls` (`Checker/Pins.lean`)
+@[lockstep] theorem PA1.const_e_ls {pers st n lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = absEIdx a) (arena.core.const_e pers st n) lst
       (constE (absNIdx n)) := by

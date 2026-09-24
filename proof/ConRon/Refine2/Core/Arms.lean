@@ -64,6 +64,9 @@ import ConRon.Refine2.Core.Arms.Batched
 import ConRon.Refine2.Core.LS.Infer
 import ConRon.Refine2.Core.LS.Annotate
 
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg ConRon.Refine2.Lockstep.PA1.CoreLSReg ConRon.Refine2.Lockstep.PB.CoreLSReg ConRon.Refine2.Lockstep.PC1.CoreLSReg ConRon.Refine2.Lockstep.PC2.CoreLSReg ConRon.Refine2.Lockstep.PD.CoreLSReg ConRon.Refine2.Lockstep.PE.CoreLSReg ConRon.Refine2.Lockstep.PF.CoreLSReg ConRon.Refine2.Lockstep.PG.CoreLSReg ConRon.Refine2.Lockstep.PG2.CoreLSReg
+
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 

@@ -8,6 +8,9 @@ the projection-table lookup (and the abstraction of its entry).
 -/
 import ConRon.Refine2.Core.LS.Prims
 
+-- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
+open scoped ConRon.Refine2.Lockstep.CoreLSReg
+
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 
@@ -101,22 +104,22 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
   rw [UScalarTy.Usize_numBits_eq, UScalarTy.U64_numBits_eq]
   rcases System.Platform.numBits_eq with h | h <;> omega
 
-@[lockstep_simp] theorem absEIdxList_length (v : alloc.vec.Vec arena.handle.EIdx) :
+@[local lockstep_simp] theorem absEIdxList_length (v : alloc.vec.Vec arena.handle.EIdx) :
     (ExprOps.absEIdxList v).length = v.val.length := by
   simp [ExprOps.absEIdxList]
 
-@[lockstep_simp] theorem absEIdxArr_size (v : alloc.vec.Vec arena.handle.EIdx) :
+@[local lockstep_simp] theorem absEIdxArr_size (v : alloc.vec.Vec arena.handle.EIdx) :
     (absEIdxArr v).size = v.val.length := by
   simp [absEIdxArr, ExprOps.absEIdxL]
 
-@[lockstep_simp] theorem absSz_vec_len {α : Type} (v : alloc.vec.Vec α) :
+@[local lockstep_simp] theorem absSz_vec_len {α : Type} (v : alloc.vec.Vec α) :
     absSz (alloc.vec.Vec.len v) = v.val.length := by
   simp [absSz]
 
-@[lockstep_simp] theorem length_map_absNIdx (v : List arena.handle.NIdx) :
+@[local lockstep_simp] theorem length_map_absNIdx (v : List arena.handle.NIdx) :
     (v.map absNIdx).length = v.length := List.length_map _
 
-attribute [lockstep_simp] absConstT
+attribute [local lockstep_simp] absConstT
 
 /-- `absU` is the value (for a LOCAL `lockstep_simp` where a Rust-only index
 step's fact is stated through `absU` and the cursor arithmetic through `.val`). -/
@@ -141,3 +144,14 @@ theorem absU_eq_val (x : Std.U64) : absU x = x.val := rfl
 /-! ## The projection table -/
 
 end ConRon.Refine2.Lockstep.PD
+
+/-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
+round 5): active under `open scoped ConRon.Refine2.Lockstep.PD.CoreLSReg` only, so that they
+stay out of the other tiers' `lockstep` runs (the Checker lane imports the
+knot since task #97-T2-LOCKSTEP lane Checker DeclCheck). -/
+namespace ConRon.Refine2.Lockstep.PD.CoreLSReg
+open Aeneas Aeneas.Std Result
+open ConRon.Generated
+open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
+attribute [scoped lockstep_simp] absEIdxList_length absEIdxArr_size absSz_vec_len length_map_absNIdx absConstT
+end ConRon.Refine2.Lockstep.PD.CoreLSReg
