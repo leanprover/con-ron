@@ -1347,6 +1347,43 @@ theorem shl_bits_from_val (v : alloc.vec.Vec Std.U64) (bits : Std.U64) (hb2 : bi
       exact shl_step_arith _ _ _ _ _ _ _ _ _ _ hIH hw2
     · exact base i carry out w hin h
 
+/-- The tail both left shifts share: `a`'s limbs shifted left by `bits` and
+appended to `out`, whose value is `0` (a run of zero limbs). -/
+theorem shl_onto_refines {a c : ron.nat.Nat} {bits : Std.U64} {out : alloc.vec.Vec Std.U64}
+    (hb : bits.val < 64) (hout : limbsToNat out.val = 0)
+    (h : ron.nat.shl_onto a bits out = ok c) :
+    toNat c = toNat a * 2 ^ (64 * out.val.length + bits.val) ∧ NatWF c := by
+  rw [ron.nat.shl_onto] at h
+  have h0 : (0#usize : Std.Usize).val = 0 := by scalar_tac
+  split at h <;> rename_i hbz2
+  · simp only [bind_eq_ok_iff] at h
+    obtain ⟨v, hv, h⟩ := h
+    have hcf := copy_from_refines (v := a.limbs) (i := 0#usize)
+      (e := alloc.vec.Vec.len a.limbs) (out := out) (w := v) (by scalar_tac) hv
+    have hle : (alloc.vec.Vec.len a.limbs).val = a.limbs.val.length := by scalar_tac
+    rw [h0, hle] at hcf
+    simp only [Nat.sub_zero, List.drop_zero, List.take_length] at hcf
+    have hvv : limbsToNat v.val = 2 ^ (64 * out.val.length) * toNat a := by
+      rw [hcf, limbsToNat_append, hout]
+      simp [toNat]
+    obtain ⟨hnv, hwf⟩ := norm_refines h
+    refine ⟨?_, hwf⟩
+    have hbz3 : bits.val = 0 := by rw [hbz2]; scalar_tac
+    rw [hnv, hvv, hbz3, Nat.add_zero]
+    ring
+  · obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+    have hsl := shl_bits_from_val a.limbs bits hb a.limbs.val.length 0#usize 0#u64
+      out v (by omega) (by simp) hv
+    rw [h0] at hsl
+    simp only [List.drop_zero, hout, Nat.zero_add] at hsl
+    have h0' : (0#u64 : Std.U64).val = 0 := by scalar_tac
+    rw [h0', Nat.add_zero] at hsl
+    obtain ⟨hnv, hwf⟩ := norm_refines h
+    refine ⟨?_, hwf⟩
+    rw [hnv, hsl, Nat.pow_add]
+    simp only [toNat]
+    ring
+
 theorem shift_left_refines {a c : ron.nat.Nat} {k : Std.U64}
     (h : ron.nat.shift_left a k = ok c) :
     toNat c = Nat.shiftLeft (toNat a) k.val ∧ NatWF c := by
@@ -1366,47 +1403,66 @@ theorem shift_left_refines {a c : ron.nat.Nat} {k : Std.U64}
     rw [nat_shiftLeft_eq]
     simp [toNat, hz]
   · simp only [bind_eq_ok_iff] at h
-    obtain ⟨words, hwords, bits, hbits, out, hout, h⟩ := h
+    obtain ⟨words, hwords, out, hout, bits, hbits, h⟩ := h
     have hwv : words.val = k.val / 64 := by have := udiv_val hwords; simpa using this
     have hbvv : bits.val = k.val % 64 := by have := urem_val hbits; simpa using this
     obtain ⟨hov, hol⟩ :=
       push_zeros_val words.val (alloc.vec.Vec.new Std.U64) out words le_rfl hout
     simp only [alloc.vec.Vec.new, alloc.vec.Vec.from_val, limbsToNat_nil,
       List.length_nil, Nat.zero_add] at hov hol
-    have h0 : (0#usize : Std.Usize).val = 0 := by scalar_tac
-    split at h <;> rename_i hbz2
-    · simp only [bind_eq_ok_iff] at h
-      obtain ⟨v, hv, h⟩ := h
-      have hcf := copy_from_refines (v := a.limbs) (i := 0#usize)
-        (e := alloc.vec.Vec.len a.limbs) (out := out) (w := v) (by scalar_tac) hv
-      have hle : (alloc.vec.Vec.len a.limbs).val = a.limbs.val.length := by scalar_tac
-      rw [h0, hle] at hcf
-      simp only [Nat.sub_zero, List.drop_zero, List.take_length] at hcf
-      have hvv : limbsToNat v.val = 2 ^ (64 * words.val) * toNat a := by
-        rw [hcf, limbsToNat_append, hov, hol]
-        simp [toNat]
-      obtain ⟨hnv, hwf⟩ := norm_refines h
-      refine ⟨?_, hwf⟩
-      rw [hnv, hvv, nat_shiftLeft_eq]
-      have hbz3 : bits.val = 0 := by rw [hbz2]; scalar_tac
-      have hk : k.val = 64 * words.val := by rw [hwv]; omega
-      rw [hk]
-      ring
-    · simp only [bind_eq_ok_iff] at h
-      obtain ⟨v, hv, h⟩ := h
-      have hsl := shl_bits_from_val a.limbs bits (by omega) a.limbs.val.length 0#usize 0#u64
-        out v (by omega) (by simp) hv
-      rw [h0] at hsl
-      simp only [List.drop_zero, hov, hol, Nat.zero_add] at hsl
-      have h0' : (0#u64 : Std.U64).val = 0 := by scalar_tac
-      rw [h0', Nat.add_zero] at hsl
-      obtain ⟨hnv, hwf⟩ := norm_refines h
-      refine ⟨?_, hwf⟩
-      rw [hnv, hsl, nat_shiftLeft_eq]
-      have hk : k.val = 64 * words.val + bits.val := by rw [hwv, hbvv]; omega
-      rw [hk, Nat.pow_add]
-      simp only [toNat]
-      ring
+    obtain ⟨hcv, hwf⟩ := shl_onto_refines (by omega) hov h
+    refine ⟨?_, hwf⟩
+    rw [hcv, nat_shiftLeft_eq, hol, hwv, hbvv]
+    congr 2
+    omega
+
+/-- `push_zeros_nat` appends `count` zero limbs, for a bignum `count` (task
+#98-SHIFT).  Partial correctness: an amount beyond `u64` pushes `u64::MAX`
+zeros and recurses, and the lemma speaks only of a run that returned. -/
+theorem push_zeros_nat_val :
+    ∀ (d : Nat) (out w : alloc.vec.Vec Std.U64) (count : ron.nat.Nat), NatWF count →
+      toNat count ≤ d → ron.nat.push_zeros_nat out count = ok w →
+      limbsToNat w.val = limbsToNat out.val ∧ w.val.length = out.val.length + toNat count := by
+  intro d
+  induction d using Nat.strong_induction_on with
+  | _ d ih =>
+  intro out w count hwf hd h
+  rw [ron.nat.push_zeros_nat] at h
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  rcases to_u64_refines hwf ho with ⟨x, hx, hxv⟩ | ⟨hn, hge⟩
+  · subst hx
+    obtain ⟨hv, hl⟩ := push_zeros_val x.val out w x le_rfl h
+    exact ⟨hv, by rw [hl, hxv]⟩
+  · subst hn
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨o1, ho1, m, hm, rest, hrest, h⟩ := h
+    obtain ⟨hv1, hl1⟩ := push_zeros_val _ out o1 _ le_rfl ho1
+    obtain ⟨hmv, hmwf⟩ := from_u64_refines hm
+    obtain ⟨hrv, hrwf⟩ := sub_refines hwf hmwf hrest
+    have hmv' : toNat m = 2 ^ 64 - 1 := by rw [hmv]; scalar_tac
+    have hl1' : o1.val.length = out.val.length + (2 ^ 64 - 1) := by rw [hl1]; scalar_tac
+    obtain ⟨hv2, hl2⟩ := ih (toNat rest) (by rw [hrv, hmv']; omega) o1 w rest hrwf le_rfl h
+    refine ⟨hv2.trans hv1, ?_⟩
+    rw [hl2, hl1', hrv, hmv']
+    omega
+
+/-- The low limb is the value modulo `2^64`. -/
+theorem low_limb_val {a : ron.nat.Nat} {x : Std.U64} (h : ron.nat.low_limb a = ok x) :
+    x.val = toNat a % 2 ^ 64 := by
+  rw [ron.nat.low_limb] at h
+  split at h <;> rename_i h0
+  · simp only [Result.ok.injEq] at h
+    subst h
+    have : a.limbs.val = [] := List.eq_nil_of_length_eq_zero (by scalar_tac)
+    simp [toNat, this]
+  · simp only [alloc.vec.Vec.index_slice_index, index_usize_eq_ok_iff] at h
+    have hne : 0 < a.limbs.val.length := by scalar_tac
+    obtain ⟨y, r, hyr⟩ := List.exists_cons_of_length_pos hne
+    have hx : x = y := by
+      rw [hyr] at h; simpa using h.symm
+    subst hx
+    simp only [toNat, hyr, limbsToNat_cons]
+    rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (by scalar_tac)]
 
 /-! ### Right shift -/
 
@@ -1550,38 +1606,15 @@ theorem shr_bits_from_val (v : alloc.vec.Vec Std.U64) (bits : Std.U64) (hb2 : bi
         _ = _ := by rw [hkey]
     · exact base i out w hin h
 
-theorem shift_right_refines {a c : ron.nat.Nat} {k : Std.U64}
-    (h : ron.nat.shift_right a k = ok c) :
-    toNat c = Nat.shiftRight (toNat a) k.val ∧ NatWF c := by
-  rw [ron.nat.shift_right] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨words, hwords, bits, hbits, s, hs, h⟩ := h
-  have hwv : words.val = k.val / 64 := by have := udiv_val hwords; simpa using this
-  have hbvv : bits.val = k.val % 64 := by have := urem_val hbits; simpa using this
-  have h0 : (0#usize : Std.Usize).val = 0 := by scalar_tac
-  have hsv := skip_index_val a.limbs words.val 0#usize words s le_rfl (by omega) hs
-  rw [h0, Nat.zero_add] at hsv
+/-- The tail both right shifts share: `a`'s limbs from `s` on, shifted right
+by `bits`. -/
+theorem shr_from_refines {a c : ron.nat.Nat} {s : Std.Usize} {bits : Std.U64}
+    (hb : bits.val < 64) (hs : s.val ≤ a.limbs.val.length)
+    (h : ron.nat.shr_from a s bits = ok c) :
+    toNat c = toNat a / 2 ^ (64 * s.val) / 2 ^ bits.val ∧ NatWF c := by
+  rw [ron.nat.shr_from] at h
   have hdrop : limbsToNat (a.limbs.val.drop s.val) = toNat a / 2 ^ (64 * s.val) :=
     limbsToNat_drop _ _
-  -- `s` is `words` unless the value is shifted out entirely
-  have hkey : toNat a / 2 ^ (64 * s.val) / 2 ^ bits.val = toNat a / 2 ^ k.val := by
-    rcases Nat.lt_or_ge a.limbs.val.length words.val with hgt | hle
-    · have hsl : s.val = a.limbs.val.length := by omega
-      have h1 : toNat a / 2 ^ (64 * s.val) = 0 := by
-        refine Nat.div_eq_of_lt ?_
-        rw [hsl]
-        exact limbsToNat_lt _
-      have h2 : toNat a / 2 ^ k.val = 0 := by
-        refine Nat.div_eq_of_lt (lt_of_lt_of_le (limbsToNat_lt _) ?_)
-        refine Nat.pow_le_pow_right (by omega) ?_
-        have : 64 * words.val ≤ k.val := by rw [hwv]; omega
-        omega
-      rw [h1, h2]
-      simp
-    · have hsw : s.val = words.val := by omega
-      rw [hsw, Nat.div_div_eq_div_mul, ← Nat.pow_add]
-      congr 2
-      omega
   split at h <;> rename_i hbz2
   · simp only [bind_eq_ok_iff] at h
     obtain ⟨v, hv, h⟩ := h
@@ -1590,22 +1623,140 @@ theorem shift_right_refines {a c : ron.nat.Nat} {k : Std.U64}
       (by scalar_tac) hv
     have hle : (alloc.vec.Vec.len a.limbs).val = a.limbs.val.length := by scalar_tac
     rw [hle] at hcf
-    have hsle : s.val ≤ a.limbs.val.length := by omega
     rw [List.take_of_length_le (by simp)] at hcf
     simp only [alloc.vec.Vec.new, alloc.vec.Vec.from_val, List.nil_append] at hcf
     obtain ⟨hnv, hwf⟩ := norm_refines h
     refine ⟨?_, hwf⟩
     have hbz3 : bits.val = 0 := by rw [hbz2]; scalar_tac
-    rw [hnv, hcf, hdrop, nat_shiftRight_eq, ← hkey, hbz3, pow_zero, Nat.div_one]
+    rw [hnv, hcf, hdrop, hbz3, pow_zero, Nat.div_one]
   · simp only [bind_eq_ok_iff] at h
     obtain ⟨v, hv, h⟩ := h
-    have hsr := shr_bits_from_val a.limbs bits (by omega) a.limbs.val.length s
+    have hsr := shr_bits_from_val a.limbs bits hb a.limbs.val.length s
       (alloc.vec.Vec.new Std.U64) v (by omega) hv
     simp only [alloc.vec.Vec.new, alloc.vec.Vec.from_val, limbsToNat_nil, List.length_nil,
       Nat.mul_zero, pow_zero, Nat.one_mul, Nat.zero_add] at hsr
     obtain ⟨hnv, hwf⟩ := norm_refines h
     refine ⟨?_, hwf⟩
-    rw [hnv, hsr, hdrop, nat_shiftRight_eq, hkey]
+    rw [hnv, hsr, hdrop]
+
+/-- Skipping `min words len` limbs and then `bits` bits is shifting by
+`64 * words + bits`: past the length, both sides are `0`. -/
+theorem skip_shr_key (a : ron.nat.Nat) (words bits s : Nat)
+    (hs : s = min words a.limbs.val.length) :
+    toNat a / 2 ^ (64 * s) / 2 ^ bits = toNat a / 2 ^ (64 * words + bits) := by
+  rcases Nat.lt_or_ge a.limbs.val.length words with hgt | hle
+  · have hsl : s = a.limbs.val.length := by omega
+    have h1 : toNat a / 2 ^ (64 * s) = 0 := by
+      refine Nat.div_eq_of_lt ?_
+      rw [hsl]
+      exact limbsToNat_lt _
+    have h2 : toNat a / 2 ^ (64 * words + bits) = 0 := by
+      refine Nat.div_eq_of_lt (lt_of_lt_of_le (limbsToNat_lt _) ?_)
+      refine Nat.pow_le_pow_right (by omega) ?_
+      omega
+    rw [h1, h2]
+    simp
+  · have hsw : s = words := by omega
+    rw [hsw, Nat.div_div_eq_div_mul, ← Nat.pow_add]
+
+theorem shift_right_refines {a c : ron.nat.Nat} {k : Std.U64}
+    (h : ron.nat.shift_right a k = ok c) :
+    toNat c = Nat.shiftRight (toNat a) k.val ∧ NatWF c := by
+  rw [ron.nat.shift_right] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨words, hwords, s, hs, bits, hbits, h⟩ := h
+  have hwv : words.val = k.val / 64 := by have := udiv_val hwords; simpa using this
+  have hbvv : bits.val = k.val % 64 := by have := urem_val hbits; simpa using this
+  have h0 : (0#usize : Std.Usize).val = 0 := by scalar_tac
+  have hsv := skip_index_val a.limbs words.val 0#usize words s le_rfl (by omega) hs
+  rw [h0, Nat.zero_add] at hsv
+  obtain ⟨hcv, hwf⟩ := shr_from_refines (by omega) (by omega) h
+  refine ⟨?_, hwf⟩
+  rw [hcv, skip_shr_key a words.val bits.val s.val hsv, nat_shiftRight_eq]
+  congr 2
+  omega
+
+/-- **`Nat.shiftRight a k` for a bignum amount** (task #98-SHIFT): total and
+exact.  A whole-word part beyond `u64` exceeds every limb count, so the
+answer there is `0`. -/
+theorem shift_right_nat_refines {a k c : ron.nat.Nat} (hk : NatWF k)
+    (h : ron.nat.shift_right_nat a k = ok c) :
+    toNat c = Nat.shiftRight (toNat a) (toNat k) ∧ NatWF c := by
+  rw [ron.nat.shift_right_nat] at h
+  obtain ⟨words, hwords, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hwv, hwwf⟩ := shift_right_refines hwords
+  have h6 : (6#u64 : Std.U64).val = 6 := by scalar_tac
+  rw [h6, nat_shiftRight_eq] at hwv
+  obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+  rcases to_u64_refines hwwf ho with ⟨w, hw, hwv'⟩ | ⟨hn, hge⟩
+  · subst hw
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨s, hs, lo, hlo, bits, hbits, h⟩ := h
+    have h0 : (0#usize : Std.Usize).val = 0 := by scalar_tac
+    have hsv := skip_index_val a.limbs w.val 0#usize w s le_rfl (by omega) hs
+    rw [h0, Nat.zero_add] at hsv
+    have hlov := low_limb_val hlo
+    have hbvv : bits.val = toNat k % 64 := by
+      have h1 : bits.val = lo.val % 64 := by have := urem_val hbits; simpa using this
+      rw [h1, hlov, Nat.mod_mod_of_dvd _ (by norm_num)]
+    obtain ⟨hcv, hwf⟩ := shr_from_refines (by omega) (by omega) h
+    refine ⟨?_, hwf⟩
+    rw [hcv, skip_shr_key a w.val bits.val s.val hsv, nat_shiftRight_eq]
+    congr 2
+    omega
+  · subst hn
+    obtain ⟨hc0, hwf⟩ := zero_refines h
+    refine ⟨?_, hwf⟩
+    rw [hc0, nat_shiftRight_eq]
+    have hlen : a.limbs.val.length < 2 ^ 64 := by
+      have h1 : a.limbs.val.length ≤ Std.Usize.max := a.limbs.property
+      have h2 : Std.Usize.max < 2 ^ 64 := by
+        simp only [Std.Usize.max, Std.Usize.numBits]
+        rcases System.Platform.numBits_eq with h | h <;> simp [h]
+      omega
+    symm
+    refine Nat.div_eq_of_lt (lt_of_lt_of_le (limbsToNat_lt _) ?_)
+    refine Nat.pow_le_pow_right (by omega) ?_
+    omega
+
+/-- **`Nat.shiftLeft a k` for a bignum amount** (task #98-SHIFT): unbounded;
+a run that returns computed the exact shift. -/
+theorem shift_left_nat_refines {a k c : ron.nat.Nat} (hk : NatWF k)
+    (h : ron.nat.shift_left_nat a k = ok c) :
+    toNat c = Nat.shiftLeft (toNat a) (toNat k) ∧ NatWF c := by
+  rw [ron.nat.shift_left_nat] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨b, hb, h⟩ := h
+  rw [ron.nat.is_zero] at hb
+  simp only [Result.ok.injEq] at hb
+  split at h <;> rename_i hbz
+  · rw [hbz] at hb
+    have hz : a.limbs.val = [] := by
+      refine List.eq_nil_of_length_eq_zero ?_
+      have h0 : alloc.vec.Vec.len a.limbs = 0#usize := by simpa using hb
+      scalar_tac
+    obtain ⟨hc0, hwf⟩ := zero_refines h
+    refine ⟨hc0.trans ?_, hwf⟩
+    rw [nat_shiftLeft_eq]
+    simp [toNat, hz]
+  · simp only [bind_eq_ok_iff] at h
+    obtain ⟨words, hwords, out, hout, lo, hlo, bits, hbits, h⟩ := h
+    obtain ⟨hwv, hwwf⟩ := shift_right_refines hwords
+    have h6 : (6#u64 : Std.U64).val = 6 := by scalar_tac
+    rw [h6, nat_shiftRight_eq] at hwv
+    obtain ⟨hov, hol⟩ :=
+      push_zeros_nat_val _ (alloc.vec.Vec.new Std.U64) out words hwwf le_rfl hout
+    simp only [alloc.vec.Vec.new, alloc.vec.Vec.from_val, limbsToNat_nil,
+      List.length_nil, Nat.zero_add] at hov hol
+    have hlov := low_limb_val hlo
+    have hbvv : bits.val = toNat k % 64 := by
+      have h1 : bits.val = lo.val % 64 := by have := urem_val hbits; simpa using this
+      rw [h1, hlov, Nat.mod_mod_of_dvd _ (by norm_num)]
+    obtain ⟨hcv, hwf⟩ := shl_onto_refines (by omega) hov h
+    refine ⟨?_, hwf⟩
+    rw [hcv, nat_shiftLeft_eq, hol, hwv, hbvv]
+    congr 2
+    omega
 
 /-! ## Multiplication and power -/
 

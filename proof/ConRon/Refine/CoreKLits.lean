@@ -38,15 +38,12 @@ name arguments carry `NameWF` and the `PinnedName` hypotheses carry the
 `∧ NameWF n` conjunct.
 
 **No arithmetic is re-proved.**  Every operation `nat_op_result` dispatches on
-is `Refine/Nat.lean`'s, used as a black box.  Task #61 removed the one place
-the port used to answer `none` where con-leche computes (a
-`shiftLeft`/`shiftRight` amount beyond `u64`): the port *fails* there instead,
-so `OpSpec` is an exact refinement in both directions --- see
-`nat_op_result_refines`'s doc comment.  Task #67 classified that failure: it is
-one of the port's own `Native` declines, since `ConLeche.natOpResult` is total
-and there is no `throw` anywhere in the cited range to mirror.  What the failure
-half claims is therefore only `absErrKind ce = none` --- `nat_op_result_native`,
-which is what a caller feeds to `ErrSim.of_none`.
+is `Refine/Nat.lean`'s, used as a black box, and `OpSpec` is an exact
+refinement in both directions.  The shifts take the bignum amount unbounded
+(task #98-SHIFT; tasks #61/#67 had made an amount beyond `u64` a `Native`
+failure), so the port has no failure left here: `nat_op_result_native` still
+states that any `Err` is the port's own (`absErrKind ce = none`, what a caller
+feeds to `ErrSim.of_none`), and now holds because there is none.
 
 Two local helpers, `const_wf_inv` and `lit_wf_inv`, invert `ExprWF` at a `Const`
 and at a `Lit` node (the head name's `NameWF`, the payload's `LiteralWF`); they
@@ -739,20 +736,16 @@ theorem op_step {α : Type} {f : Result name.Name} {ln : ConLeche.Name} {c : nam
 
 /-- **The conclusion of `nat_op_result_refines`**, named because every arm
 proves it.  Two clauses rather than one `Option.map` equation only because the
-`some` arm also carries `ExprWF`; both directions are **exact** (task #61: the
-port's one escape, a `shiftLeft`/`shiftRight` amount beyond `u64`, is a failure
-and not a `none`, and task #67 places that failure in the `Native` class, which
-`nat_op_result_native` claims and `ErrSim.of_none` consumes). -/
+`some` arm also carries `ExprWF`; both directions are **exact**. -/
 def OpSpec (c : name.Name) (a b : ron.nat.Nat) (o : Option expr.Expr) : Prop :=
   (∀ e, o = some e →
       ConLeche.natOpResult (absName c) (Nat.toNat a) (Nat.toNat b) = some (absExpr e) ∧
         ExprWF e) ∧
     (o = none → ConLeche.natOpResult (absName c) (Nat.toNat a) (Nat.toNat b) = none)
 
-/-- The value `nat_op_result` now answers in (task #61): an `Option` under a
-`CheckError`, so that a shift amount beyond `u64` can *fail* rather than
-decline.  The `.Err` half of that outcome is `nat_op_result_native`'s: a port
-`Native`, never a mirrored kind (task #67). -/
+/-- The value `nat_op_result` answers in: an `Option` under a `CheckError`
+(task #61; since task #98-SHIFT no arm fails, and the `.Err` half is
+`nat_op_result_native`'s, vacuously). -/
 abbrev OpRes := core.result.Result (Option expr.Expr) core_types.CheckError
 
 /-- A literal-producing arm: `expr::lit (expr::literal_nat ·)` of a bignum whose
@@ -822,34 +815,12 @@ private theorem rung {α : Type} {f : Result name.Name} {c : name.Name}
   · exact Or.inl h
   · exact Or.inr h
 
-/-- **A `Native` leaf**: the port builds a message and hands it to
-`core_types::native`, so the error abstracts to nothing. -/
-private theorem native_leaf {α : Type} {ce : core_types.CheckError}
-    {ms : Result (Slice Std.U32)}
-    (h : (do let s ← ms; let v ← core_types.code_points s
-             let e ← core_types.native v
-             ok (core.result.Result.Err e : core.result.Result α core_types.CheckError))
-      = ok (.Err ce)) : absErrKind ce = none := by
-  obtain ⟨s, -, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨v, -, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
-  rw [core_types.native] at he
-  rw [← Result.ok_injective he] at h
-  have hce : core_types.CheckError.Native v = ce := by simpa using Result.ok_injective h
-  rw [← hce]
-  rfl
-
-/-- **`core_k::nat_op_result`'s failure half is the port's own** (`core_k.rs:1651`
-and `:1656`, the two `shiftLeft`/`shiftRight` amounts beyond `u64`).
-`ConLeche.natOpResult` (`Core.lean:628-654`) is *total* -- it has no `throw` at
-all -- so there is nothing to mirror, and what the lemma claims is exactly that:
-the error is the port's own `Native`, i.e. `absErrKind ce = none`, which a caller
-turns into `ErrSim` against whatever con-leche side it is looking at by
-`ErrSim.of_none`.  These are two of task #67's census's thirty-one native sites
-and the only two in `core_k.rs`.
-
-No hypothesis is needed: the proof walks the cascade and observes that every
-`Err` leaf in it is `core_types::native`'s. -/
+/-- **`core_k::nat_op_result` does not fail** (task #98-SHIFT: the shifts'
+`Native` arms beyond `u64`, tasks #61/#67, are gone), so the statement below
+--- any `Err` is the port's own, `absErrKind ce = none`, which a caller turns
+into `ErrSim` by `ErrSim.of_none` --- holds because no arm produces one.
+`ConLeche.natOpResult` (`Core.lean:628-654`) is total as well.  The proof walks
+the cascade and observes that no leaf is an `Err`. -/
 theorem nat_op_result_native {c : name.Name} {a b : ron.nat.Nat}
     {ce : core_types.CheckError}
     (h : core_k.nat_op_result c a b = ok (.Err ce)) : absErrKind ce = none := by
@@ -885,18 +856,11 @@ theorem nat_op_result_native {c : name.Name} {a b : ron.nat.Nat}
   · exact absurd h (by simp [bind_eq_ok_iff])
   rcases rung h with h | h
   · exact absurd h (by simp [bind_eq_ok_iff])
-  -- shiftLeft (`core_k.rs:1651`) and shiftRight (`:1656`): the port's own
-  -- failures, and the only two in the cascade
+  -- shiftLeft, shiftRight: a literal each since task #98-SHIFT
   rcases rung h with h | h
-  · obtain ⟨oo, -, h⟩ := bind_eq_ok_iff.mp h
-    cases oo with
-    | none => exact native_leaf h
-    | some k => exact absurd h (by simp [bind_eq_ok_iff])
+  · exact absurd h (by simp [bind_eq_ok_iff])
   rcases rung h with h | h
-  · obtain ⟨oo, -, h⟩ := bind_eq_ok_iff.mp h
-    cases oo with
-    | none => exact native_leaf h
-    | some k => exact absurd h (by simp [bind_eq_ok_iff])
+  · exact absurd h (by simp [bind_eq_ok_iff])
   -- beq, ble, and the fall-through
   rcases rung h with h | h
   · exact absurd h (by simp [bind_eq_ok_iff])
@@ -913,18 +877,14 @@ exactly; the port then narrows the exponent to `u64` for `nat::pow`, and the
 narrowing cannot fail under the bound, so that arm too is an *exact*
 refinement.
 
-`shiftLeft`/`shiftRight` take a `u64` shift amount.  Task #61: on an amount
-beyond `u64` the port **fails** rather than answering `none`, where a `none`
-would have been a different verdict.  Task #67 made that failure the port's own
-`Native` (`Err (native "shift amount beyond u64")`), which claims nothing about
-con-leche --- `nat_op_result_native` is the failure half.  The accept lemma is
-therefore exact in both directions.
+`shiftLeft`/`shiftRight` take the bignum amount unbounded (task #98-SHIFT);
+a run that returns computed the exact shift.
 
 Every arithmetic operation is `Refine/Nat.lean`'s, used as a black box.
 
 Stated over the full outcome (task #67): the `Ok` arm is the accept direction,
-and the `Err` arm delegates to `nat_op_result_native` just above -- the port's
-own `Native`, which claims nothing about con-leche.  `nat_op_result_native`
+and the `Err` arm delegates to `nat_op_result_native` just above, which is
+vacuous since task #98-SHIFT.  `nat_op_result_native`
 stays a theorem of its own rather than a corollary of this one because it needs
 none of the four hypotheses below. -/
 theorem nat_op_result_refines {c : name.Name} {a b : ron.nat.Nat} {r : OpRes}
@@ -1017,37 +977,15 @@ theorem nat_op_result_refines {c : name.Name} {a b : ron.nat.Nat} {r : OpRes}
     · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
       exact lit_arm_done (by rw [hc11]; exact natOpResult_xor _ _)
         (Nat.xor_refines hp).2 (Nat.xor_refines hp).1 h
-    -- shiftLeft: task #61 -- an amount beyond `u64` FAILS, so the `none` arm of
-    -- `nat::to_u64` cannot produce an `ok` and there is nothing to prove there
+    -- shiftLeft, shiftRight: the bignum amount, unbounded (task #98-SHIFT)
     rcases op_step hpin.shl hc h with ⟨hc12, h⟩ | ⟨hc12, h⟩
-    · obtain ⟨oo, hoo, h⟩ := bind_eq_ok_iff.mp h
-      cases oo with
-      | none => exfalso; simp [bind_eq_ok_iff] at h
-      | some k =>
-        rcases Nat.to_u64_refines hb hoo with ⟨x, hx, hxv⟩ | ⟨hn, -⟩
-        · simp only [Option.some.injEq] at hx
-          subst hx
-          simp only [] at h
-          obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
-          obtain ⟨hpv, hpwf⟩ := Nat.shift_left_refines hp
-          exact lit_arm_done (by rw [hc12]; exact natOpResult_shl _ _) hpwf
-            (by rw [hpv, hxv]) h
-        · simp at hn
-    -- shiftRight: likewise
+    · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hpv, hpwf⟩ := Nat.shift_left_nat_refines hb hp
+      exact lit_arm_done (by rw [hc12]; exact natOpResult_shl _ _) hpwf hpv h
     rcases op_step hpin.shr hc h with ⟨hc13, h⟩ | ⟨hc13, h⟩
-    · obtain ⟨oo, hoo, h⟩ := bind_eq_ok_iff.mp h
-      cases oo with
-      | none => exfalso; simp [bind_eq_ok_iff] at h
-      | some k =>
-        rcases Nat.to_u64_refines hb hoo with ⟨x, hx, hxv⟩ | ⟨hn, -⟩
-        · simp only [Option.some.injEq] at hx
-          subst hx
-          simp only [] at h
-          obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
-          obtain ⟨hpv, hpwf⟩ := Nat.shift_right_refines hp
-          exact lit_arm_done (by rw [hc13]; exact natOpResult_shr _ _) hpwf
-            (by rw [hpv, hxv]) h
-        · simp at hn
+    · obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨hpv, hpwf⟩ := Nat.shift_right_nat_refines hb hp
+      exact lit_arm_done (by rw [hc13]; exact natOpResult_shr _ _) hpwf hpv h
     -- beq
     rcases op_step hpin.beq hc h with ⟨hc14, h⟩ | ⟨hc14, h⟩
     · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h

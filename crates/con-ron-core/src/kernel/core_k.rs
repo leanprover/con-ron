@@ -1628,18 +1628,11 @@ pub fn nat_op_equations(d: u64, c: &Name) -> Vec<(Expr, Expr)> {
 /// then narrows the exponent to `u64` for `nat::pow`, which takes a machine
 /// exponent (the bound makes that safe).
 ///
-/// `shiftLeft`/`shiftRight` take a `u64` shift amount, so an amount beyond
-/// `u64` cannot be computed at all.  Task #61: the port **fails** there
-/// rather than answering `None`.  `None` is a different *verdict* — the
-/// fast path declines and the caller goes on — and the exact-result
-/// statement (§3.5) is then false on that branch; a failure is claimed
-/// nothing about, so the refinement holds and the accept direction (§1) is
-/// unharmed.  (Lean would compute the shift and exhaust memory.)
+/// `shiftLeft`/`shiftRight` take the bignum amount unbounded (task
+/// #98-SHIFT; tasks #61/#67 had a `Native` failure beyond `u64`): a left
+/// shift too large for memory fails like any other allocation, as Lean's
+/// would.
 pub fn nat_op_result(c: &Name, a: &Nat, b: &Nat) -> CheckM<Option<Expr>> {
-    const M_SHIFT: [u32; 23] = [
-        115, 104, 105, 102, 116, 32, 97, 109, 111, 117, 110, 116, 32, 98, 101, 121, 111, 110,
-        100, 32, 117, 54, 52,
-    ];
     if name::beq(c, &nat_pred_name()) {
         Ok(Some(expr::lit(expr::literal_nat(nat::pred(a)))))
     } else if name::beq(c, &nat_add_name()) {
@@ -1670,15 +1663,9 @@ pub fn nat_op_result(c: &Name, a: &Nat, b: &Nat) -> CheckM<Option<Expr>> {
     } else if name::beq(c, &nat_xor_name()) {
         Ok(Some(expr::lit(expr::literal_nat(nat::xor(a, b)))))
     } else if name::beq(c, &nat_shift_left_name()) {
-        match nat::to_u64(b) {
-            Some(k) => Ok(Some(expr::lit(expr::literal_nat(nat::shift_left(a, k))))),
-            None => Err(core_types::native(core_types::code_points(&M_SHIFT))),
-        }
+        Ok(Some(expr::lit(expr::literal_nat(nat::shift_left_nat(a, b)))))
     } else if name::beq(c, &nat_shift_right_name()) {
-        match nat::to_u64(b) {
-            Some(k) => Ok(Some(expr::lit(expr::literal_nat(nat::shift_right(a, k))))),
-            None => Err(core_types::native(core_types::code_points(&M_SHIFT))),
-        }
+        Ok(Some(expr::lit(expr::literal_nat(nat::shift_right_nat(a, b)))))
     } else if name::beq(c, &nat_beq_name()) {
         let n = if nat::beq(a, b) {
             bool_true_name()

@@ -64552,3 +64552,65 @@ Peak RSS 642,112 KB → 568,520 KB (two runs each, 564–569 MB after).
   trusted claim, OVERVIEW §3's quoted statement and `h6`–`h8` row, §8.2's pool
   row; `scripts/overview-links-expected.txt` regenerated.  Census guards
   unchanged.
+
+### Task #98-SHIFT — the `Nat` shifts take a bignum amount, unbounded; `M_SHIFT` gone (2026-09-24, Opus under Fable)
+
+Maintainer's decision: `ron::nat` has no artificial bounds.  A `Nat` result
+too large for memory fails like any other allocation; there is no check and
+no decline.  Until now `nat_op_result` (arena `core.rs` and
+`kernel::core_k`) narrowed the shift amount with `nat::to_u64` and raised
+`Native("shift amount beyond u64")` (`M_SHIFT`, tasks #61/#67) on `None`,
+while the twin (`Arena/Core.lean:1012-1014`) computes `Nat.shiftLeft/Right a
+b` for any `b`.  That was the one `Native` site in the Nat operations (row 2 of
+#98-FREEZE's census, class (iii)).
+
+* **`ron::nat`**: two new public functions, `shift_right_nat(a, k: &Nat)`
+  and `shift_left_nat(a, k: &Nat)`.  The `u64` shifts stay (`mul` uses
+  `shift_left`; the `_nat` ones call `shift_right(k, 6)` for `k / 64`) and
+  now share their tails with the `_nat` ones: `shl_onto(a, bits, out)` and
+  `shr_from(a, s, bits)`.  `low_limb(k)` is `k mod 2^64`, so `bits =
+  low_limb(k) % 64`.
+  * `shift_right_nat` is **total and exact**: `words = k >> 6`; if
+    `to_u64(words)` is `None` the answer is `0` (a whole-word count of
+    `≥ 2^64` exceeds every limb count; `Vec` length `≤ usize::MAX < 2^64`),
+    else `skip_index` + `shr_from` as before.  This is the same answer as
+    "compare `k` with `64·len(a)`", without making `64·len` a `Nat` or
+    adding a cast.
+  * `shift_left_nat` pushes `k / 64` zero limbs with the new
+    `push_zeros_nat(out, count: &Nat)`: `to_u64(count)` → `push_zeros` as
+    before; otherwise push `u64::MAX` zeros and recurse on `count -
+    u64::MAX`.  **No check, no panic**: a count too big fails exactly the
+    way a too-large allocation does, in Rust by exhausting memory, in the
+    model at `Vec::push`'s `usize::MAX` element limit — Theorem 2's premises
+    require the Rust to return, so that is the out-of-memory class (OVERVIEW
+    §2.2).  The style lint forbids `unwrap`/`expect`/`panic!`, which is why
+    it is not spelled as a panicking conversion.
+* **`nat_op_result`** (arena and `core_k`): the shift arms call the `_nat`
+  functions; `M_SHIFT` (both copies) and the two `Native` arms are deleted.
+  `pow`'s `b > 2^24 ⇒ none` stays (con-leche's semantics, mirrored).
+* **Proofs**: `Refine/Nat.lean` — `shl_onto_refines`, `shr_from_refines`,
+  `skip_shr_key` factored out of the old shift proofs; `shift_left_refines`
+  / `shift_right_refines` re-proved over them; new `push_zeros_nat_val`
+  (strong induction on the count; partial correctness, like every lemma
+  here), `low_limb_val`, `shift_left_nat_refines`, `shift_right_nat_refines`
+  (both need `NatWF k`, for `to_u64`'s exactness).  `Refine2/Core/LS/PrimsB`
+  — the `@[lockstep]` specs `nat_shift_{left,right}_nat_spec` replace the
+  `u64` ones; `nat_op_result_ls` re-closes by `lockstep` unchanged.
+  `Refine/CoreKLits` — the two shift arms are plain `lit_arm_done`s;
+  `nat_op_result_native` keeps its statement and now holds because no arm
+  errs (`native_leaf` deleted).  Theorem 1 and the twin unchanged.
+* **Tests**: `ron::nat::tests::bignum_shift_amounts` — shiftRight of a small
+  number by `2^64` and `2^70` is `0`, shiftLeft of `0` by `2^64`/`2^70` is
+  `0`, the `64·len` boundary (127/128/129 on two limbs), agreement with the
+  `u64` shifts on small amounts.  `scripts/diff-e2e.sh`: 383 agree, 0 differ.
+* **Perf** (`Init`, `--verified --jobs=1`, one run each):
+  `instructions:u` 204 828 949 361 → 204 829 802 811 (+0.0004 %, noise).
+* **Survey of other u64-bounded `Nat` conversions reachable from the
+  checker**: `nat::to_u64` is used by `nat_op_result`'s `pow` arm only
+  (after the `b ≤ 2^24` test, so its `None` is dead and answers `none`, not
+  `Native`) — nothing else in `crates/con-ron-core/src` calls it now.  No
+  `Native(` site remains in `ron::nat` or in `nat_op_result`; the remaining
+  `Native` sites are the store capacity guards (`store.rs`, `M_*_CAP`, the
+  `2^27`-entry arrays), `freeze_tier`'s `M_REFREEZE`, and the frontend's —
+  none of them a `Nat` operation.
+* Docs: OVERVIEW §6.5 and §8.2's `Native` row no longer list shift widths.

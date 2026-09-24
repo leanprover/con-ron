@@ -308,14 +308,16 @@ open ConRon.Refine.Nat in
   fun _ h => (xor_refines h).symm
 
 open ConRon.Refine.Nat in
-@[lockstep] theorem nat_shift_left_spec (a : ron.nat.Nat) (k : Std.U64) :
-    LSP (ron.nat.shift_left a k) (fun c => NatWF c ∧ toNat c = Nat.shiftLeft (toNat a) k.val) :=
-  fun _ h => (shift_left_refines h).symm
+@[lockstep] theorem nat_shift_left_nat_spec (a k : ron.nat.Nat) (hk : NatWF k) :
+    LSP (ron.nat.shift_left_nat a k)
+      (fun c => NatWF c ∧ toNat c = Nat.shiftLeft (toNat a) (toNat k)) :=
+  fun _ h => (shift_left_nat_refines hk h).symm
 
 open ConRon.Refine.Nat in
-@[lockstep] theorem nat_shift_right_spec (a : ron.nat.Nat) (k : Std.U64) :
-    LSP (ron.nat.shift_right a k) (fun c => NatWF c ∧ toNat c = Nat.shiftRight (toNat a) k.val) :=
-  fun _ h => (shift_right_refines h).symm
+@[lockstep] theorem nat_shift_right_nat_spec (a k : ron.nat.Nat) (hk : NatWF k) :
+    LSP (ron.nat.shift_right_nat a k)
+      (fun c => NatWF c ∧ toNat c = Nat.shiftRight (toNat a) (toNat k)) :=
+  fun _ h => (shift_right_nat_refines hk h).symm
 
 @[lockstep] theorem literal_nat_spec (n : ron.nat.Nat) :
     LSP (kernel.expr.literal_nat n) (fun l => l = .NatVal n) := by
