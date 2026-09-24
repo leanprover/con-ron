@@ -185,7 +185,10 @@ theorem inProcessModeller_wf : ModellerWF inProcessModeller := by
     obtain ⟨ht, hs₁⟩ := AM.get_ok hget
     rw [ht, hs₁] at hrest
     cases hb : denoteBlockRec s.store b with
-    | none => rw [hb] at hrest; exact absurd (AM.fail_ok hrest) (by simp)
+    | none =>
+      rw [hb] at hrest
+      obtain ⟨-, rfl⟩ := AM.pure_ok hrest
+      exact ⟨hok, Ext.refl _, rfl, rfl, rfl, rfl⟩
     | some bP =>
     rw [hb] at hrest
     simp only [] at hrest
@@ -205,7 +208,7 @@ theorem inProcessModeller_wf : ModellerWF inProcessModeller := by
   obtain ⟨ht, hs₁⟩ := AM.get_ok hget
   rw [ht, hs₁] at hrest
   cases hb : denoteBlockRec s.store b with
-  | none => rw [hb] at hrest; exact absurd (AM.fail_ok hrest) (by simp)
+  | none => rw [hb] at hrest; exact absurd (AM.pure_ok hrest).1 (by simp)
   | some bP =>
   rw [hb] at hrest
   simp only [] at hrest

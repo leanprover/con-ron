@@ -192,12 +192,19 @@ version is that it cannot disagree with con-leche, and that the seam is
 unverified by design either way.
 
 A decline is con-leche's own decline, with con-leche's own reason string, so
-`installIndD`'s `.declined` verdict names the residual class con-leche names. -/
+`installIndD`'s `.declined` verdict names the residual class con-leche names.
+
+**A block that does not read back is a DECLINE, not a throw** (task
+#97-T2-LOCKSTEP lane Frontend round 3, the coordinator's ruling c1): the port
+(`crates/con-ron/src/in_model.rs`) answers `Err("arena: dangling handle in a
+modelled block")` there, which the parse books as a decline, and this twin
+threw `internal`.  Theorem 1 never reaches the arm (`BlockRecRel` makes the
+block read back); Theorem 2's `ModellerRefines` does. -/
 def inProcessModeller : Modeller :=
   ⟨fun ctx b => do
     let s ← get
     match denoteBlockRec s.store b with
-    | none => fail (.internal "arena: dangling handle in a modelled block")
+    | none => pure (.error "arena: dangling handle in a modelled block")
     | some bP =>
       match ConLeche.Frontend.InModel.generate (ctxOf s.store ctx) bP with
       | .error why => pure (.error why)
