@@ -1165,7 +1165,7 @@ theorem knotRel_succ {f : Nat} (hb : BodyRel f) : KnotRel (f + 1) where
 
 /-- **The fuel induction**: `KnotRel` at every fuel, given the arms.  The
 premise is `Core/Arms/*`'s obligation — *"given the knot at `f`, the six
-bodies at `f`"* — and it is where the tier's `sorry`s live. -/
+bodies at `f`"* — discharged by `Core/Arms.lean`'s `bodyRel_of_knot`. -/
 theorem knot_rel (hbody : ∀ f, KnotRel f → BodyRel f) : ∀ f, KnotRel f
   | 0 => knotRel_zero
   | f + 1 => knotRel_succ (hbody f (knot_rel hbody f))

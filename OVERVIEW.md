@@ -865,20 +865,26 @@ Measured with `perf stat -e instructions:u,cycles:u`.  Instruction counts
 are the measure of record, because they do not depend on machine load; wall
 time and peak memory are secondary.  All runs are `--verified` release
 builds with mimalloc, on `lean4export` exports of Lean's `Init` (57 977
-declarations) and of Mathlib (691 128).  Each cell is the most recent
-measurement in DESIGN.md, from the task section named in brackets.
+declarations) and of Mathlib (691 128).  The table is one snapshot, taken on
+2026-09-24: con-ron at `c6e5f220`, con-leche at its pin `78ded4b6`, nanoda
+at `4c544ed`.  `Init` wall time is the range of three runs on a shared,
+loaded machine; Mathlib was run once per checker, so it has no wall-time
+column.
 
-| | `Init` instructions | `Init` wall, peak RSS | Mathlib instructions | Mathlib wall, peak RSS |
-|---|---:|---|---:|---|
-| **con-ron**, one worker | 211.98 G [#97-T2-LOCKSTEP D4c] | 22.3–22.5 s, 0.57–0.64 GB [D4c] | 3 877 G [#97-SWAP] | ≈ 490 s, 6.76 GB [#97-SWAP] |
-| **con-ron**, eight workers | — | — | ≈ 4 000 G [#97-P6-16] | 125–142 s, 7.1–7.2 GB [#97-P6-16] |
-| con-leche, one worker, at `c431b1ca` | 585.9 G [#83] | 56 s, 0.48 GB [#83] | 12 792 G [#83] | 1 220 s, 8.75 GB [#83] |
-| nanoda | 231.0 G [#97-P6-16] | 24.7–25.3 s, 0.36 GB [#97-P6-16] | 6 054 G [#97-P6-16] | 1 054 s, 6.95 GB [#97-P6-16] |
+| | `Init` instructions | `Init` wall, peak RSS | Mathlib instructions | Mathlib peak RSS |
+|---|---:|---|---:|---:|
+| **con-ron**, one worker | 211.98 G | 21.2–21.9 s, 0.57–0.65 GB | 3 880 G | 6.89 GB |
+| **con-ron**, eight workers | 214.0–214.3 G | 5.4–5.7 s, 0.85–0.87 GB | 3 902 G | 7.44 GB |
+| con-leche, one worker | 453.95 G | 41.9–43.4 s, 0.48–0.49 GB | 8 099 G | 8.70 GB |
+| nanoda, one worker | 231.25 G | 23.2–24.2 s, 0.36 GB | 6 057 G | 7.08 GB |
 
-Single-threaded, con-ron executes about a third of con-leche's instructions
-on both exports, and about two thirds of nanoda's on Mathlib.
-`scripts/bench-baselines.sh` measures the two baselines, and
-`scripts/corpus.sh` builds the exports.
+Single-threaded, con-ron executes a little under half of con-leche's
+instructions on both exports, about nine tenths of nanoda's on `Init` and
+two thirds of nanoda's on Mathlib.  Eight workers add about 1 % to the
+instruction count.  Every con-ron peak is within 3× con-leche's on the same
+export.  `scripts/bench-baselines.sh` measures con-ron and nanoda, and
+`scripts/corpus.sh` builds the exports; the raw numbers are in DESIGN.md's
+task #97-REMEASURE section.
 
 ## 10. Keeping the port honest
 
@@ -933,7 +939,7 @@ snake case.  Twin files mirror the Rust modules.
 |---|---|
 | [`con-ron-core/src/arena/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/mod.rs#L1-L22) | the checker: `handle`, `store` (§4), `monad` (`AState`, the memos), `core_state` (the caches), `expr_ops`, `core` (the type checker), `decl_check`, `inductives/`, `checker` (the fold), `promote`, `pins` |
 | [`con-ron-core/src/frontend/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/mod.rs#L19-L31) | the parser: scanner, record assembly, projection rewrite, ground hoist, prelude, the `Modeller` trait |
-| [`con-ron-core/src/kernel/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/lib.rs#L34-L55) | representation-free types (`Name`, `Level`, `PropWhen`, `CheckError`, `CheckMode`), the pinned data as `Expr` values, `pins_text` and `pins_decode` |
+| [`con-ron-core/src/kernel/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/lib.rs#L33-L54) | representation-free types (`Name`, `Level`, `PropWhen`, `CheckError`, `CheckMode`), the pinned data as `Expr` values, `pins_text` and `pins_decode` |
 | `con-ron-core/src/ron/` | replacements for the Lean runtime: `nat` (bignum), `hashmap`, `hashmap2`, `ptr` (`Arc`) |
 | `con-ron/src/` | unverified: the binary, `driver`, `pool`, the modeller (`in_model/`, `tree/`) |
 | `con-ron-dump/` | unverified: the `con-ron-pins/1` reader and writer, the global allocator |
