@@ -86,7 +86,7 @@ theorem doms_match_renamed_aux {F : Type} {inst : arena.expr_ops.NIdxToNIdx F} {
   | zero =>
     intro pers st lst bs1 bs2 o1 o2 k hk hrel hinv
     rw [arena.inductives.modeled.doms_match_renamed, if_pos (by scalar_tac), domsMatchRenamed]
-    lockstep_mod
+    lockstep
   | succ m ih =>
     intro pers st lst bs1 bs2 o1 o2 k hk hrel hinv
     rw [arena.inductives.modeled.doms_match_renamed, if_neg (by scalar_tac), domsMatchRenamed]
@@ -97,9 +97,9 @@ theorem doms_match_renamed_aux {F : Type} {inst : arena.expr_ops.NIdxToNIdx F} {
           IndModeledPrims.absBinderL_get?_lt (n := absU o2 + m) h2]
         lockstep_idx
       · rw [IndModeledPrims.absBinderL_get?_ge (n := absU o2 + m) (by simp only [absU]; omega)]
-        lockstep_mod
+        lockstep
     · rw [IndModeledPrims.absBinderL_get?_ge (n := absU o1 + m) (by simp only [absU]; omega)]
-      lockstep_mod
+      lockstep
 
 /-- `doms_match_renamed` ⊑ `domsMatchRenamed` — `domsMatchAux` with the right
 side renamed.  The dictionary and the twin's function are related by
@@ -146,7 +146,7 @@ theorem eq_basis_stored_refines {pers st lst} {vis : Std.U64} {rf lf} {o}
     Sim₀ id pers lst o (eqBasisStored lf) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.eq_basis_stored, eqBasisStored]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem eq_basis_stored_ls
@@ -191,7 +191,7 @@ theorem intern_ls_refines {pers st lst} {us : alloc.vec.Vec arena.handle.LIdx} {
     Sim₀ absLsIdx pers lst o (internLsNode (absLIdxL us)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.intern_ls]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem intern_ls_ls
@@ -480,7 +480,7 @@ theorem proj_back_refines {pers st lst} {t ctor : arena.handle.NIdx}
       (projBack (absNIdx t) (absNIdx ctor) (absU n_f)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.proj_back, projBack_unfold]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem proj_back_ls
@@ -503,7 +503,7 @@ theorem proj_fwd_refines {pers st lst} {t ctor : arena.handle.NIdx}
       (projFwd (absNIdx t) (absNIdx ctor) (absU n_f)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.proj_fwd, projFwd_unfold]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem proj_fwd_ls
@@ -530,20 +530,25 @@ body, read in one function: a READER (`LSR`), the module's only one. -/
             (eqApp3? (absEIdx h)) := by
   apply LSR.of_LS
   rw [arena.inductives.modeled.eq_app3, eqApp3?]
-  lockstep_mod
+  lockstep
   -- the port's `ls.len() == 1` against the twin's `[lv]` pattern
   all_goals
-    first
-    | (exfalso
-       have := congrArg List.length ‹List.map absLIdx ↑_ = [_]›
-       simp only [List.length_map, List.length_cons, List.length_nil] at this
-       scalar_tac)
-    | (obtain ⟨x, hx⟩ := List.length_eq_one_iff.mp
-         (by scalar_tac : a.val.length = 1)
-       first
-       | (refine LS.pure ?_ ‹_› ‹_›
-          simp_all [absConstT])
-       | (exfalso; simp_all))
+    have hlen : a.len.val = a.val.length := by scalar_tac
+    split
+    · rename_i lv heq
+      first
+      | (exfalso; have h := congrArg List.length heq; simp at h; scalar_tac)
+      | (have hm : List.map absLIdx a.val = [lv] := by
+           rw [‹List.map absLIdx ↑a = _ :: _›]; simp_all
+         obtain ⟨x, hx, hxl⟩ := List.map_eq_singleton_iff.mp hm
+         refine LS.pure ?_ ‹_› ‹_›
+         simp [hx, hxl, absConstT])
+    · first
+      | (refine LS.pure ?_ ‹_› ‹_›; rfl)
+      | (exfalso
+         have h := congrArg List.length ‹List.map absLIdx ↑a = _ :: _›
+         simp only [List.length_map, List.length_cons] at h
+         simp_all)
 
 /-- `eq_app3` ⊑ `eqApp3?` in the public `AOut₀` form of a read. -/
 theorem eq_app3_refines {pers st lst} {h : arena.handle.EIdx} {o}
@@ -703,7 +708,7 @@ theorem iota_stmt_open_at_refines {pers st lst} {depth : Std.U64}
       pers lst o (iotaStmtOpenAtSpec (absU depth) (absEIdx tty)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.iota_stmt_open_at, iotaStmtOpenAtSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem iota_stmt_open_at_ls
@@ -731,7 +736,7 @@ theorem iota_stmt_open_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
        ) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.iota_stmt_open, iotaStmtOpenSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem iota_stmt_open_ls
@@ -764,7 +769,7 @@ theorem iota_lhs_prefix_ok_refines {pers st lst}
         (absU m_i) (absU r_p) (absEIdxL fvs) (absEIdx lfn) (absEIdxL largs)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.iota_lhs_prefix_ok, iotaLhsPrefixOkSpec]
-  lockstep_mod
+  lockstep
   -- the two prefixes are `take_eidx_n`'s (`take_list_of_arr`)
   all_goals
     refine Lockstep.LS.pure ?_ ‹_› ‹_›
@@ -805,7 +810,7 @@ theorem check_iota_major_refines {pers st lst}
         (absEIdx b0)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_major, checkIotaMajorSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_iota_major_ls
@@ -841,7 +846,7 @@ theorem check_iota_thm_rhs_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) lcv) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_thm_rhs, checkIotaThmRhsSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_rhs_ls
@@ -885,7 +890,7 @@ theorem check_iota_thm_lams_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx rhs_s) (absLIdx l_a) (absEIdx b0) (absEIdxL all) lcv) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_thm_lams, checkIotaThmLamsSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_lams_ls
@@ -931,7 +936,7 @@ theorem check_iota_thm_frames_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absLIdx l_a) (absEIdx b0) lcv) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_thm_frames, checkIotaThmFramesSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_frames_ls
@@ -980,7 +985,7 @@ theorem check_iota_thm_prefix_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absLIdx l_a) (absEIdx b0) lcv) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_thm_prefix, checkIotaThmPrefixSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_prefix_ls
@@ -1033,13 +1038,13 @@ theorem check_iota_thm_idx_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx b0) (absEIdxL cdoms) (absEIdx cres) lcv) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_thm_idx, checkIotaThmIdxSpec]
-  lockstep_mod
+  lockstep
   -- the index spine's `drop_eidx` at the saturating `cn_p as usize`: the
   -- spine is `cn_p + k` long, so the cast is exact
   all_goals
     obtain hd | hd := ‹(_ : Nat) = _ ∨ Usize.max < _›
     · simp only [hd] at *
-      lockstep_mod
+      lockstep
     · exfalso
       simp only [bne_iff_ne, ne_eq, Decidable.not_not] at *
       scalar_tac
@@ -1096,7 +1101,7 @@ theorem check_iota_thm_ctor_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx b0) lcv) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_thm_ctor, checkIotaThmCtorSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_ctor_ls
@@ -1147,7 +1152,7 @@ theorem check_iota_thm_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absEIdx rhs_a)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_thm, checkIotaThm_unfold]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_ls
@@ -1190,13 +1195,13 @@ theorem lower_bvars_list_aux (n : Nat) :
     intro pers st lst k xs i out hn hrel hinv
     rw [arena.inductives.modeled.lower_bvars_list, if_pos (by scalar_tac), absEIdxLFrom,
       vecFrom_nil _ _ _ (by omega), lowerBVarsListSpec]
-    lockstep_mod
+    lockstep
   | succ m ih =>
     intro pers st lst k xs i out hn hrel hinv
     rw [arena.inductives.modeled.lower_bvars_list, if_neg (by scalar_tac), absEIdxLFrom,
       vecFrom_cons _ _ _ (by omega), lowerBVarsListSpec]
     simp only [bind_assoc, pure_bind]
-    lockstep_mod
+    lockstep
 
 /-- `lower_bvars_list` ⊑ `nestedRuleShape`'s `(args.take cnP).mapM
 (lowerBVarsFast …)`, from the cursor on. -/
@@ -1237,13 +1242,13 @@ theorem lift_bvars_list_aux (n : Nat) :
     intro pers st lst k xs i out hn hrel hinv
     rw [arena.inductives.modeled.lift_bvars_list, if_pos (by scalar_tac), absEIdxLFrom,
       vecFrom_nil _ _ _ (by omega), liftBVarsListSpec]
-    lockstep_mod
+    lockstep
   | succ m ih =>
     intro pers st lst k xs i out hn hrel hinv
     rw [arena.inductives.modeled.lift_bvars_list, if_neg (by scalar_tac), absEIdxLFrom,
       vecFrom_cons _ _ _ (by omega), liftBVarsListSpec]
     simp only [bind_assoc, pure_bind]
-    lockstep_mod
+    lockstep
 
 /-- `lift_bvars_list` ⊑ `nestedRuleShape`'s `pins.mapM (liftLooseBVarsFast …)`,
 from the cursor on. -/
@@ -1285,12 +1290,12 @@ theorem nested_pins_ok_aux (n : Nat) :
     intro pers st lst vis rfS lfS lps r_p pins i hn hrel hinv hfe hvis
     rw [arena.inductives.modeled.nested_pins_ok, if_pos (by scalar_tac), absEIdxLFrom,
       vecFrom_nil _ _ _ (by omega), nestedPinsOkSpec]
-    lockstep_mod
+    lockstep
   | succ m ih =>
     intro pers st lst vis rfS lfS lps r_p pins i hn hrel hinv hfe hvis
     rw [arena.inductives.modeled.nested_pins_ok, if_neg (by scalar_tac), absEIdxLFrom,
       vecFrom_cons _ _ _ (by omega), nestedPinsOkSpec]
-    lockstep_mod
+    lockstep
 
 /-- `nested_pins_ok` ⊑ `nestedRuleShape`'s `pins.allM`, from the cursor on. -/
 theorem nested_pins_ok_refines {pers st lst} {vis : Std.U64} {rfS lfS}
@@ -1336,17 +1341,20 @@ theorem nested_rule_shape_args_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx dom) (absLsIdx lvls_idx)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.nested_rule_shape_args, nestedRuleShapeArgsSpec]
-  lockstep_mod
-  -- the two branches the port's conjunction and the twin's disagree on are
-  -- contradicted: the prefix is `take_eidx_n`'s (`take_list_of_arr`), the
-  -- suffix `drop_eidx` at the saturated cast (which cannot saturate: the
-  -- spine is `cn_p + k` long)
+  lockstep
+  -- the twin's conjunction decided by the port's: the prefix is
+  -- `take_eidx_n`'s (`take_list_of_arr`), the suffix `drop_eidx` at the
+  -- saturated cast (which cannot saturate: the spine is `cn_p + k` long)
   all_goals
-    exfalso
     have ht := IndModeledPrims.take_list_of_arr ‹absEIdxArr _ = takeEidx _ _›
     obtain hd | hd := ‹(_ : Nat) = _ ∨ Usize.max < _›
-    · simp_all [List.map_drop, ConRon.Refine.absNames]
-    · scalar_tac
+    · split
+      all_goals
+        refine Lockstep.LS.pure ?_ ‹_› ‹_›
+        first
+        | rfl
+        | (exfalso; simp_all [List.map_drop, ConRon.Refine.absNames])
+    · exfalso; scalar_tac
 
 open Lockstep in
 @[lockstep] theorem nested_rule_shape_args_ls
@@ -1366,9 +1374,6 @@ open Lockstep in
         (absEIdx dom) (absLsIdx lvls_idx)) :=
   LS.ofSim₀ fun _ h => nested_rule_shape_args_refines hrel hinv hfe hvis h
 
--- the core's `twin_view_const_name` rule checks its `hg` by `rfl`, which unfolds
--- the twin's continuation when it does use the levels (it hangs otherwise)
-attribute [local irreducible] nestedRuleShapeArgsSpec in
 /-- `nested_rule_shape_at` ⊑ `nestedRuleShape`'s body past the `iota_j`
 guard. -/
 theorem nested_rule_shape_at_refines {pers st lst} {vis : Std.U64} {rfS lfS}
@@ -1384,7 +1389,7 @@ theorem nested_rule_shape_at_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absU r_p) (absU cn_p)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.nested_rule_shape_at, nestedRuleShapeAtSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem nested_rule_shape_at_ls
@@ -1454,13 +1459,13 @@ theorem inst_spine_list_renamed_aux (n : Nat) :
     intro pers st lst f args t xs i out hn hrel hinv
     rw [arena.inductives.modeled.inst_spine_list_renamed, if_pos (by scalar_tac), absEIdxLFrom,
       vecFrom_nil _ _ _ (by omega), instSpineListRenamedSpec]
-    lockstep_mod
+    lockstep
   | succ m ih =>
     intro pers st lst f args t xs i out hn hrel hinv
     rw [arena.inductives.modeled.inst_spine_list_renamed, if_neg (by scalar_tac), absEIdxLFrom,
       vecFrom_cons _ _ _ (by omega), instSpineListRenamedSpec]
     simp only [bind_assoc, pure_bind]
-    lockstep_mod
+    lockstep
 
 /-- `inst_spine_list_renamed` ⊑ `checkIotaThmN`'s `pins.mapM fun p =>
 instSpine … (← renameConsts f p)`, from the cursor on. -/
@@ -1508,13 +1513,13 @@ theorem inst_spine_list_aux (n : Nat) :
     intro pers st lst args t xs i out hn hrel hinv
     rw [arena.inductives.modeled.inst_spine_list, if_pos (by scalar_tac), absEIdxLFrom,
       vecFrom_nil _ _ _ (by omega), instSpineListSpec]
-    lockstep_mod
+    lockstep
   | succ m ih =>
     intro pers st lst args t xs i out hn hrel hinv
     rw [arena.inductives.modeled.inst_spine_list, if_neg (by scalar_tac), absEIdxLFrom,
       vecFrom_cons _ _ _ (by omega), instSpineListSpec]
     simp only [bind_assoc, pure_bind]
-    lockstep_mod
+    lockstep
 
 /-- `inst_spine_list` ⊑ the same without the renaming — the public frame's. -/
 theorem inst_spine_list_refines {pers st lst}
@@ -1566,7 +1571,7 @@ theorem check_iota_thm_n_fields_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdxL fvs_p) (absEIdx crest_p) lcv) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_thm_n_fields, checkIotaThmNFieldsSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_n_fields_ls
@@ -1618,7 +1623,7 @@ theorem check_iota_thm_n_frames_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdxL pins) lcv) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_thm_n_frames, checkIotaThmNFramesSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_n_frames_ls
@@ -1674,7 +1679,7 @@ theorem check_iota_thm_n_prefix_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdxL pins) lcv) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_thm_n_prefix, checkIotaThmNPrefixSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_n_prefix_ls
@@ -1732,13 +1737,13 @@ theorem check_iota_thm_n_idx_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx cres) lcv) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_thm_n_idx, checkIotaThmNIdxSpec]
-  lockstep_mod
+  lockstep
   -- the index spine's `drop_eidx` at the saturating `cn_p as usize`: the
   -- spine is `cn_p + k` long, so the cast is exact
   all_goals
     obtain hd | hd := ‹(_ : Nat) = _ ∨ Usize.max < _›
     · simp only [hd] at *
-      lockstep_mod
+      lockstep
     · exfalso
       simp only [bne_iff_ne, ne_eq, Decidable.not_not] at *
       scalar_tac
@@ -1800,7 +1805,7 @@ theorem check_iota_thm_n_ctor_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         lcv) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_thm_n_ctor, checkIotaThmNCtorSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_n_ctor_ls
@@ -1859,7 +1864,7 @@ theorem check_iota_thm_n_major_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absIRecRule r) lcv) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_thm_n_major, checkIotaThmNMajorSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_n_major_ls
@@ -1914,7 +1919,7 @@ theorem check_iota_thm_n_at_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absEIdx rhs_a) (absLIdxL lvls) (absEIdxL pins)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_thm_n_at, checkIotaThmNAtSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_iota_thm_n_at_ls
@@ -2009,7 +2014,7 @@ theorem check_iota_rule_bits_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
         (absEIdx rhs_a) (absIRecRuleFire fire)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_rule_bits, checkIotaRuleBitsSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_iota_rule_bits_ls
@@ -2049,7 +2054,7 @@ theorem check_iota_rule_fire_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absEIdx rhs_a)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_rule_fire, checkIotaRuleFireSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_iota_rule_fire_ls
@@ -2095,7 +2100,7 @@ theorem check_iota_rule_wf_refines {pers st lst} {mode : kernel.env.CheckMode}
        ) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_iota_rule_wf, checkIotaRuleWfSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_iota_rule_wf_ls
@@ -2256,7 +2261,7 @@ theorem check_member_model_refines {pers st lst} {vis : Std.U64}
         lan) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_member_model, checkMemberModelSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_member_model_ls
@@ -2291,7 +2296,7 @@ theorem check_member_val_refines {pers st lst} {vis : Std.U64}
         (absIConstantVal cv)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_member_val, checkMemberVal_unfold]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_member_val_ls
@@ -2569,7 +2574,7 @@ theorem check_ind_recs_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absICIL recs)) := by
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.inductives.modeled.check_ind_recs, checkIndRecs]
-  lockstep_ite
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_ind_recs_ls
@@ -2603,7 +2608,7 @@ theorem check_proj_lookups_model_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
         (absIConstantVal cvj)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_proj_lookups_model, checkProjLookupsModelSpec]
-  lockstep_ite
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_proj_lookups_model_ls
@@ -2671,7 +2676,7 @@ theorem check_proj_ty_wf_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
       (checkProjTyWfSpec lf2 (absNIdxL lps) (absU n_p) (absEIdx pty)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_proj_ty_wf, checkProjTyWfSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_proj_ty_wf_ls
@@ -2704,7 +2709,7 @@ theorem check_proj_ty_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
         (absEIdx mty) (absU n_p) (absU n_f)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_proj_ty, checkProjTy_unfold]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_proj_ty_ls
@@ -2739,7 +2744,7 @@ theorem check_proj_iota_field_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         lpmn) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_proj_iota_field, checkProjIotaFieldSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_proj_iota_field_ls
@@ -2777,7 +2782,7 @@ theorem check_proj_iota_lhs_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absEIdx sbody) (absEIdxL p_args) (absEIdx mk_spine)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_proj_iota_lhs, checkProjIotaLhsSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_proj_iota_lhs_ls
@@ -2818,7 +2823,7 @@ theorem check_proj_iota_body_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absNIdx pmn) (absEIdx tty) (absEIdx sbody)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_proj_iota_body, checkProjIotaBodySpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_proj_iota_body_ls
@@ -2858,7 +2863,7 @@ theorem check_proj_iota_doms_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         (absU n_f) (absU i) (absNIdx pmn) (absEIdx tty)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_proj_iota_doms, checkProjIotaDomsSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_proj_iota_doms_ls
@@ -2899,7 +2904,7 @@ theorem check_proj_iota_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absU n_f) (absU i)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_proj_iota, checkProjIota_unfold]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_proj_iota_ls
@@ -2936,7 +2941,7 @@ theorem check_proj_fn_rule_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absU n_f) (absU i) (absEIdx pty)) := by
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.inductives.modeled.check_proj_fn_rule, checkProjFnRuleSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_proj_fn_rule_ls
@@ -3004,11 +3009,11 @@ theorem proj_models_ok_aux (n : Nat) :
   | zero =>
     intro pers st lst vis rf2 lf2 t lps n_f j hk hrel hinv hfe hvis
     rw [arena.inductives.modeled.proj_models_ok, if_pos (by scalar_tac), projModelsOkSpec]
-    lockstep_mod
+    lockstep
   | succ m ih =>
     intro pers st lst vis rf2 lf2 t lps n_f j hk hrel hinv hfe hvis
     rw [arena.inductives.modeled.proj_models_ok, if_neg (by scalar_tac), projModelsOkSpec]
-    lockstep_mod
+    lockstep
 
 /-- `proj_models_ok` ⊑ `checkEtaThm`'s projection-model pin, from field `j`
 on. -/
@@ -3057,12 +3062,12 @@ theorem eta_proj_args_aux (n : Nat) :
   | zero =>
     intro pers st lst t lps ps_hi b0 n_f j out hk hrel hinv
     rw [arena.inductives.modeled.eta_proj_args, if_pos (by scalar_tac), etaProjArgsSpec]
-    lockstep_mod
+    lockstep
   | succ m ih =>
     intro pers st lst t lps ps_hi b0 n_f j out hk hrel hinv
     rw [arena.inductives.modeled.eta_proj_args, if_neg (by scalar_tac), etaProjArgsSpec]
     simp only [bind_assoc, pure_bind]
-    lockstep_mod
+    lockstep
 
 /-- `eta_proj_args` ⊑ `checkEtaThm`'s `(List.range nF).mapM`, from field `j`
 on, with the accumulated arguments in front. -/
@@ -3111,7 +3116,7 @@ theorem check_eta_thm_eq_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absEIdxL ps_hi) (absEIdx fam_hi)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_eta_thm_eq, checkEtaThmEqSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_eta_thm_eq_ls
@@ -3147,12 +3152,21 @@ theorem check_eta_thm_body_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absEIdx sbody) (absEIdx tbody_m)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_eta_thm_body, checkEtaThmBodySpec]
-  lockstep_mod
-  -- the port's in-bounds read of `sbinders[n_p]` against the twin's `[n_p]?`
-  all_goals
-    exfalso
-    ind_binder_facts
-    simp_all
+  -- the twin's `sbinders[n_p]?` at the port's bounds test; the port reads
+  -- `sbinders[n_p as usize]` (`lockstep_idx` identifies the two indices)
+  by_cases h1 : n_p.val < sbinders.val.length
+  · rw [IndModeledPrims.absBinderL_get?_lt (n := absU n_p) h1]
+    lockstep_idx
+    all_goals
+      ind_eq2_facts
+      split
+      all_goals
+        first
+        | (refine Lockstep.LS.pure ?_ ‹_› ‹_›; rfl)
+        | (exfalso; simp_all; done)
+        | lockstep
+  · rw [IndModeledPrims.absBinderL_get?_ge (n := absU n_p) (by simp only [absU]; omega)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem check_eta_thm_body_ls
@@ -3187,12 +3201,7 @@ theorem check_eta_thm_shape_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absEIdx tty) (absEIdx mtty)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_eta_thm_shape, checkEtaThmShapeSpec]
-  lockstep_mod
-  -- the port's `doms_match_aux` against the twin's `domsMatchAux`
-  all_goals
-    have := IndModeledPrims.doms_match_aux_ls _ _ _ _ _ _
-      ‹arena.checker_base.doms_match_aux _ _ _ _ _ = ok _›
-    simp_all [absBinderL]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_eta_thm_shape_ls
@@ -3228,7 +3237,7 @@ theorem check_eta_thm_at_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
         (absIConstantVal cvm_c)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_eta_thm_at, checkEtaThmAtSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_eta_thm_at_ls
@@ -3267,7 +3276,7 @@ theorem check_eta_thm_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
         (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_eta_thm, checkEtaThm_unfold]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_eta_thm_ls
@@ -3297,7 +3306,7 @@ theorem fam_at_refines {pers st lst} {t_hd : arena.handle.EIdx}
       (famAtSpec (absEIdx t_hd) (absU ofs) (absU n_p)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.fam_at, famAtSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem fam_at_ls
@@ -3321,7 +3330,7 @@ theorem check_unit_thm_eq_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absEIdx tbody_m) (absEIdx fam2)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_unit_thm_eq, checkUnitThmEqSpec]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_unit_thm_eq_ls
@@ -3350,13 +3359,30 @@ theorem check_unit_thm_shape_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absEIdx tbody_m)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_unit_thm_shape, checkUnitThmShapeSpec]
-  lockstep_mod
-  -- the port's in-bounds reads of `sbinders[n_p]`, `[n_p + 1]` against the
-  -- twin's `[·]?`
-  all_goals
-    exfalso
-    ind_binder_facts
-    simp_all
+  -- the twin's `sbinders[n_p]?`, `[n_p + 1]?` at the port's bounds tests
+  by_cases h1 : n_p.val < sbinders.val.length
+  · rw [IndModeledPrims.absBinderL_get?_lt (n := absU n_p) h1]
+    by_cases h2 : n_p.val + 1 < sbinders.val.length
+    · rw [IndModeledPrims.absBinderL_get?_lt (n := absU n_p + 1) h2]
+      lockstep_idx
+      all_goals
+        ind_eq2_facts
+        split
+        all_goals
+          first
+          | (refine Lockstep.LS.pure ?_ ‹_› ‹_›; rfl)
+          | (exfalso; simp_all; done)
+          | lockstep
+    · rw [IndModeledPrims.absBinderL_get?_ge (n := absU n_p + 1) (by simp only [absU]; omega)]
+      iterate 12 (try (first | ind_idx_unify | lockstep_step))
+      -- the twin's second read is `none`: its test is `false` outright
+      all_goals
+        simp only [Bool.and_false, Bool.not_false]
+        rw [if_pos trivial]
+        lockstep
+  · rw [IndModeledPrims.absBinderL_get?_ge (n := absU n_p) (by simp only [absU]; omega),
+      IndModeledPrims.absBinderL_get?_ge (n := absU n_p + 1) (by simp only [absU]; omega)]
+    lockstep
 
 open Lockstep in
 @[lockstep] theorem check_unit_thm_shape_ls
@@ -3392,12 +3418,7 @@ theorem check_unit_thm_at_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
         (absNIdxL mlps)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_unit_thm_at, checkUnitThmAtSpec]
-  lockstep_mod
-  -- the port's `doms_match_aux` against the twin's `domsMatchAux`
-  all_goals
-    have := IndModeledPrims.doms_match_aux_ls _ _ _ _ _ _
-      ‹arena.checker_base.doms_match_aux _ _ _ _ _ = ok _›
-    simp_all [absBinderL]
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_unit_thm_at_ls
@@ -3437,7 +3458,7 @@ theorem check_unit_thm_refines {pers st lst} {vis : Std.U64} {rf2 lf2}
         (absU n_p)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.check_unit_thm, checkUnitThm_unfold]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem check_unit_thm_ls
@@ -3470,7 +3491,7 @@ theorem ctor_targets_fam_refines {pers st lst} {ctor_ty : arena.handle.EIdx}
         (absU n_f)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.ctor_targets_fam, ctorTargetsFam]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem ctor_targets_fam_ls
@@ -3501,7 +3522,7 @@ theorem install_proj_fn_step_refines {pers st lst} {mode : kernel.env.CheckMode}
         (absU i)) := by
   refine Lockstep.LS.toSimRel₀ ?_ hrun
   rw [arena.inductives.modeled.install_proj_fn_step, installProjFnStep]
-  lockstep_ite
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem install_proj_fn_step_ls
@@ -3592,7 +3613,7 @@ theorem ind_block_caps_refines {pers st lst} {vis : Std.U64}
         (absIConstantVal cv_c) (absU n_p) (absU n_f)) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.ind_block_caps, indBlockCaps]
-  lockstep_mod
+  lockstep
   -- the record: the port's `lps_eq && thm` split by its own test
   all_goals
     refine Lockstep.LS.pure ?_ ‹_› ‹_›
@@ -3631,7 +3652,7 @@ theorem ctor_residual_ok_refines {pers st lst} {vis : Std.U64}
         (absNIdx ctor_name) (absNIdxL lps) (absU n_p) (absU n_f) eta) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.inductives.modeled.ctor_residual_ok, ctorResidualOk]
-  lockstep_mod
+  lockstep
 
 open Lockstep in
 @[lockstep] theorem ctor_residual_ok_ls

@@ -869,22 +869,6 @@ theorem decide_u64_eq_zero (x : Std.U64) : decide (x = 0#u64) = (x.val == 0) := 
   · have : x.val ≠ 0 := fun hc => h (by scalar_tac)
     simp [h, this]
 
-/-- The port's `sbinders[n as usize].0 == x` (the pair destructured in a
-`let`, which the zip leaves as an equation) against the twin's
-`sbinders[n]? = some (xdom, _)`: the two compare the same handle.  The index
-equation comes last so `ind_binder_facts` can discharge it by `scalar_tac`. -/
-theorem binder_at_eq2 {sb : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
-    {a : Std.Usize} {n : Nat} {x : arena.handle.EIdx} {b : Bool}
-    {val : EIdx × ConLeche.BinderMeta} {hw : a.val < sb.val.length}
-    (hf : (let (e, _) := sb.val[a.val]
-      arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 e x) = ok b)
-    (hd : (absBinderL sb)[n]? = some val) (hn : a.val = n) : b = (val.1 == absEIdx x) := by
-  subst hn
-  simp only [absBinderL, List.getElem?_map, List.getElem?_eq_getElem hw, Option.map_some,
-    Option.some.injEq] at hd
-  subst hd
-  exact eidx_eq2_abs hf
-
 theorem absBinderL_get?_lt {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {n : Nat} (h : n < bs.val.length) :
     (absBinderL bs)[n]? = some (absEIdx bs.val[n].1, ConRon.Refine.absBinderMeta bs.val[n].2) := by
@@ -1061,49 +1045,31 @@ macro_rules
 
 
 
+/-- The port's `sbinders[a].0 == x`, the pair destructured in a `let` the zip
+leaves as an equation: the comparison of the abstracted handles. -/
+theorem IndModeledPrims.pair_let_eq2
+    {sb : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {a : Nat} {hw : a < sb.val.length} {x : arena.handle.EIdx} {b : Bool}
+    (hf : (let (e, _) := sb.val[a]'hw
+      arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 e x) = ok b) :
+    b = (absEIdx (sb.val[a]'hw).1 == absEIdx x) :=
+  eidx_eq2_abs hf
+
 open Lean Meta Elab Tactic in
-/-- For every port read `sbinders[a].0 == x` left as an equation and every
-twin read `(absBinderL sbinders)[n]? = some v` in the context whose indices
-`scalar_tac` identifies, add `b = (v.1 == absEIdx x)` (`binder_at_eq2`). -/
-elab "ind_binder_facts" : tactic => withMainContext do
+/-- `pair_let_eq2` at every such equation of the context. -/
+elab "ind_eq2_facts" : tactic => withMainContext do
   let decls := (← getLCtx).decls.toList.filterMap id |>.filter (!·.isImplementationDetail)
-  let mut facts : Array Expr := #[]
-  for d1 in decls do
-    let t1 ← instantiateMVars d1.type
-    unless t1.isAppOfArity ``Eq 3 &&
-        t1.containsConst (· == ``arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2) do continue
-    for d2 in decls do
-      let t2 ← instantiateMVars d2.type
-      unless t2.isAppOfArity ``Eq 3 && t2.containsConst (· == ``absBinderL) do continue
-      try
-        let f ← mkAppM ``IndModeledPrims.binder_at_eq2 #[d1.toExpr, d2.toExpr]
-        let fty ← whnfR (← inferType f)
-        let .forallE _ hnTy _ _ := fty | continue
-        let m ← mkFreshExprMVar hnTy
-        let gs ← Tactic.run m.mvarId! (evalTactic (← `(tactic| scalar_tac)))
-        unless gs.isEmpty do continue
-        facts := facts.push (mkApp f (← instantiateMVars m))
-      catch _ => pure ()
   let mut g ← getMainGoal
-  for pf in facts do
-    let (_, g') ← (← g.assert `hbin (← inferType pf) pf).intro1P
-    g := g'
+  for d in decls do
+    let t ← instantiateMVars d.type
+    unless t.isAppOfArity ``Eq 3 &&
+        t.containsConst (· == ``arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2) do continue
+    try
+      let pf ← mkAppM ``IndModeledPrims.pair_let_eq2 #[d.toExpr]
+      let (_, g') ← (← g.assert `heq2 (← inferType pf) pf).intro1P
+      g := g'
+    catch _ => pure ()
   replaceMainGoal [g]
-
-open Lean Elab Tactic in
-/-- Fails unless the goal is an equation mentioning a list index. -/
-elab "ind_getElem_guard" : tactic => do
-  let t ← instantiateMVars (← getMainTarget)
-  unless t.isAppOfArity ``Eq 3 && t.containsConst (· == ``GetElem.getElem) do
-    throwError "ind_getElem_guard: no indexed read"
-
-/-- The port's `v[i as usize]` against the twin's `v[j]` (a lookup the twin
-made at its own spelling of the index): the two indices agree by the port's
-arithmetic facts (`scalar_tac`; a saturating cast is exact under the bounds
-test). -/
-macro_rules
-  | `(tactic| lockstep_side_ext) =>
-    `(tactic| (ind_getElem_guard; congr <;> scalar_tac))
 
 theorem IndModeledPrims.getElem_idx_eq {α : Type} {l : List α} {i j : Nat}
     {hi : i < l.length} {hj : j < l.length} (h : i = j) : l[i]'hi = l[j]'hj := by
@@ -1155,57 +1121,13 @@ elab "ind_idx_unify" : tactic => withMainContext do
 /-- info: 'ConRon.Refine2.IndModeledPrims.proj_fn_name_lss' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms IndModeledPrims.proj_fn_name_lss
 
-open Lean Elab Tactic Meta in
-/-- A Rust LEAF (`ok …`) against a twin `match` one of whose discriminants is a
-constructor application (`some (absIConstantInfo v)`, the twin's up-front
-lookups the port makes lazily): split the twin's `match`.  The core's own
-fallback for a twin `match` on a term cases on the first discriminant, which
-for `some v` gives `some v'` back and never terminates, so this runs first. -/
-elab "ind_twin_split" : tactic => do
-  let g ← getMainGoal
-  let ty ← instantiateMVars (← g.getType)
-  unless ty.isAppOfArity ``Lockstep.LS 7 do throwError "ind_twin_split: not LS"
-  let m := (ty.getArg! 4).headBeta
-  unless m.isAppOfArity ``Result.ok 2 do throwError "ind_twin_split: not a Rust leaf"
-  let x := (ty.getArg! 6).headBeta
-  let some mapp ← matchMatcherApp? x | throwError "ind_twin_split: no twin match"
-  unless mapp.discrs.any (fun d => !d.isFVar && d.getAppFn.isConst) do
-    throwError "ind_twin_split: no constructor discriminant"
-  evalTactic (← `(tactic| split))
 
-/-- The modeled route's driver: `lockstep`'s step, with two moves in front of
-and behind it.  In front, `ind_twin_split` (a Rust leaf against a twin `match`
-the port's own match lumped into a wildcard arm).  Behind, a twin `if` the
-core left under a `>>= pure` (its `LS.twin_bind_pure` fallback fires when the
-Rust's next bind finds no partner while the twin is an undecided `if`) is
-decided by the context. -/
-syntax "lockstep_mod" : tactic
-macro_rules | `(tactic| lockstep_mod) => `(tactic| repeat' (first
-  | (ind_twin_split <;> (try (simp_all; done)))
-  | lockstep_step
-  | (rw [bind_pure]
-     first
-       | refine Lockstep.LS.twin_ite_pos ‹_› ?_
-       | refine Lockstep.LS.twin_ite_neg ‹_› ?_
-       | refine Lockstep.LS.twin_ite_pos (by lockstep_side_ite) ?_
-       | refine Lockstep.LS.twin_ite_neg (by lockstep_side_ite) ?_)))
-
-/-- The same driver (kept for the proofs that name it). -/
-macro "lockstep_ite" : tactic => `(tactic| lockstep_mod)
-
-/-- `lockstep_mod` with `ind_idx_unify` in front: for the cursor walks whose
-twin reads a list at its own spelling of the port's index. -/
+/-- `lockstep` with `ind_idx_unify` in front: for the cursor walks whose twin
+reads a list at its own spelling of the port's index. -/
 syntax "lockstep_idx" : tactic
 macro_rules | `(tactic| lockstep_idx) => `(tactic| repeat' (first
   | ind_idx_unify
-  | (ind_twin_split <;> (try (simp_all; done)))
-  | lockstep_step
-  | (rw [bind_pure]
-     first
-       | refine Lockstep.LS.twin_ite_pos ‹_› ?_
-       | refine Lockstep.LS.twin_ite_neg ‹_› ?_
-       | refine Lockstep.LS.twin_ite_pos (by lockstep_side_ite) ?_
-       | refine Lockstep.LS.twin_ite_neg (by lockstep_side_ite) ?_)))
+  | lockstep_step))
 
 
 /-! ### The recursor rule's two install bits (`core::rec_rule_bits`) and the
@@ -1226,7 +1148,7 @@ attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims
     LS pers (fun a b => b = a) (arena.core.rec_rule_k_of pers vis st rf ctor) lst
       (recRuleKOf lf (absNIdx ctor)) := by
   rw [arena.core.rec_rule_k_of, recRuleKOf]
-  lockstep_mod
+  lockstep
 
 @[lockstep] theorem rec_rule_eta_of_ls {pers st lst} {vis : Std.U64} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1234,7 +1156,7 @@ attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims
     LS pers (fun a b => b = a) (arena.core.rec_rule_eta_of pers vis st rf rn ctor) lst
       (recRuleEtaOf lf (absNIdx rn) (absNIdx ctor)) := by
   rw [arena.core.rec_rule_eta_of, recRuleEtaOf]
-  lockstep_mod
+  lockstep
   -- the level-parameter comparison, in `nidx_vec_beq`'s `decide` form
   all_goals
     refine LS.pure ?_ ‹_› ‹_›
@@ -1248,7 +1170,7 @@ attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims
     LS pers (fun a b => b = absIRecRule a) (arena.core.rec_rule_bits pers vis st rf rn rl) lst
       (recRuleBits lf (absNIdx rn) (absIRecRule rl)) := by
   rw [arena.core.rec_rule_bits, recRuleBits]
-  lockstep_mod
+  lockstep
 
 @[lockstep] theorem proj_fn_rule_ls {pers st lst} {vis : Std.U64} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -1259,7 +1181,7 @@ attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims
       (projFnRule lf (absNIdx t) (absNIdx ctor_name) (absEIdx pty) (absU n_p) (absU n_f)
         (absU i) (absEIdx rhs_a)) := by
   rw [arena.core.proj_fn_rule, projFnRule]
-  lockstep_mod
+  lockstep
   -- the rule record the port builds is the twin's literal (its `fire` by the
   -- port's own test of `plain`)
   all_goals
@@ -1268,144 +1190,10 @@ attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims
 
 end RuleBits
 
-/-! ### STAGING: handle-level reads, to move to `Tactic/Prims.lean` -/
+/-! ### Two pure comparisons the modeled route makes: `all_params_defined_list`
+(a Checker-tier walk over con-leche values) and `canon::eidx_vec_beq` -/
 
 namespace Lockstep
-
-theorem read_name_wf {pers st} (hinv : AStateInv pers st) {h : arena.handle.NIdx} {o}
-    (hrun : arena.monad.read_name pers st h = ok o) :
-    ∀ n, o = .Ok n → ConRon.Refine.NameWF n := by
-  rw [arena.monad.read_name] at hrun
-  obtain ⟨ns, hns, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  rw [arena.store.EStore.ns] at hns
-  have hns2 : ns = st.store.lss.ls.ns := (Result.ok_injective hns).symm
-  subst hns2
-  obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hdw := denote_n_wf hinv.store.lss.lvl.ns hv
-  intro n hn
-  cases hvc : v with
-  | none =>
-    rw [hvc] at hrun
-    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨w, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have ho := fail_run hrun
-    subst ho; cases hn
-  | some x =>
-    rw [hvc] at hrun hdw
-    have ho := Result.ok_injective hrun
-    subst ho
-    injection hn with hn
-    subst hn
-    exact hdw _ rfl
-
-theorem read_names_from_wf {pers st} (hinv : AStateInv pers st)
-    {ks : alloc.vec.Vec arena.handle.NIdx} :
-    ∀ k (i : Std.Usize) (out : alloc.vec.Vec kernel.name.Name),
-      ks.length - i.val ≤ k → ConRon.Refine.NamesWF out → ∀ {o},
-      arena.monad.read_names_from pers st ks i out = ok o →
-      ∀ v, o = .Ok v → ConRon.Refine.NamesWF v := by
-  intro k
-  induction k with
-  | zero =>
-    intro i out hk hout o hrun v hv
-    rw [arena.monad.read_names_from.eq_def] at hrun; simp only [] at hrun
-    rw [if_pos (by scalar_tac)] at hrun
-    have ho := Result.ok_injective hrun
-    subst ho; injection hv with hv; subst hv; exact hout
-  | succ k ih =>
-    intro i out hk hout o hrun v hv
-    rw [arena.monad.read_names_from.eq_def] at hrun; simp only [] at hrun
-    split at hrun
-    · have ho := Result.ok_injective hrun
-      subst ho; injection hv with hv; subst hv; exact hout
-    · obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have hw := read_name_wf hinv hr
-      cases r with
-      | Err e =>
-        have ho := Result.ok_injective hrun
-        subst ho; cases hv
-      | Ok x =>
-        obtain ⟨out1, hout1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        have hi2v : i2.val = i.val + 1 := by
-          have := ConRon.Refine.Nat.uadd_val hi2; simpa using this
-        have hout1v : out1.val = out.val ++ [x] := ConRon.Refine.vec_push_val hout1
-        refine ih i2 out1 (by scalar_tac) ?_ hrun v hv
-        intro nn hnn
-        rw [hout1v] at hnn
-        rcases List.mem_append.mp hnn with hnn | hnn
-        · exact hout nn hnn
-        · rw [List.mem_singleton.mp hnn]; exact hw x rfl
-
-theorem read_levels_wf {pers st} (hinv : AStateInv pers st) {h : arena.handle.LsIdx} {o}
-    (hrun : arena.monad.read_levels pers st h = ok o) :
-    ∀ l, o = .Ok l → ConRon.Refine.LevelsWF l := by
-  rw [arena.monad.read_levels] at hrun
-  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  rw [arena.store.EStore.ls_s] at hn
-  have hn2 : n = st.store.lss := (Result.ok_injective hn).symm
-  subst hn2
-  obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hdw := denote_ls_wf hinv.store.lss hv
-  intro l hl
-  cases hvc : v with
-  | none =>
-    rw [hvc] at hrun
-    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨w, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have ho := fail_run hrun
-    subst ho; cases hl
-  | some x =>
-    rw [hvc] at hrun hdw
-    have ho := Result.ok_injective hrun
-    subst ho
-    injection hl with hl
-    subst hl
-    exact hdw _ rfl
-
-/-- A Rust READ's `LSR` from its `_run₀` (`AOut₀`) statement and a
-well-formedness fact about its answer. -/
-theorem LSR.ofAOut₀WF {α β : Type} {A : α → β} {P : α → Prop} {pers : arena.store.PersTier}
-    {m : Result (core.result.Result α kernel.core_types.CheckError)}
-    {st : arena.monad.AState} {lst : AState} {x : AM β}
-    (h : ∀ o, m = ok o → AOut₀ A pers o st (x.run lst))
-    (hP : ∀ o, m = ok o → ∀ a, o = .Ok a → P a) :
-    LSR pers (fun a b => P a ∧ b = A a) m st lst x := by
-  intro o hm
-  have := h o hm
-  cases o with
-  | Err e => exact this
-  | Ok a =>
-    obtain ⟨lst', hx, h1, h2⟩ := this
-    exact ⟨_, lst', hx, ⟨hP _ hm a rfl, rfl⟩, h1, h2⟩
-
-/-- `arena::monad::read_name` against `Arena.readName` (`read_name_run₀`); the
-answer is well formed. -/
-@[lockstep] theorem read_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (h : arena.handle.NIdx) :
-    LSR pers (fun a b => ConRon.Refine.NameWF a ∧ b = ConRon.Refine.absName a)
-      (arena.monad.read_name pers st h) st lst (Arena.readName (absNIdx h)) :=
-  LSR.ofAOut₀WF (fun _ hm => read_name_run₀ hrel hinv hm) (fun _ hm => read_name_wf hinv hm)
-
-/-- `arena::monad::read_names` against `Arena.readNames` (`read_names_run₀`);
-the answer is well formed. -/
-@[lockstep] theorem read_names_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (ks : alloc.vec.Vec arena.handle.NIdx) :
-    LSR pers (fun a b => ConRon.Refine.NamesWF a ∧ b = ConRon.Refine.absNames a)
-      (arena.monad.read_names pers st ks) st lst (Arena.readNames (ks.val.map absNIdx)) :=
-  LSR.ofAOut₀WF (fun _ hm => read_names_run₀ hrel hinv hm) (fun _ hm => by
-    rw [arena.monad.read_names] at hm
-    exact read_names_from_wf hinv ks.length 0#usize (alloc.vec.Vec.new kernel.name.Name)
-      (by scalar_tac) (by intro n hn; exact absurd hn (by simp [alloc.vec.Vec.new])) hm)
-
-/-- `arena::monad::read_levels` against `Arena.readLevels` (`read_levels_run₀`);
-the answer is well formed. -/
-@[lockstep] theorem read_levels_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (h : arena.handle.LsIdx) :
-    LSR pers (fun a b => ConRon.Refine.LevelsWF a ∧ b = ConRon.Refine.absLevels a)
-      (arena.monad.read_levels pers st h) st lst (Arena.readLevels (absLsIdx h)) :=
-  LSR.ofAOut₀WF (fun _ hm => read_levels_run₀ hrel hinv hm) (fun _ hm => read_levels_wf hinv hm)
 
 /-- `checker_base::all_params_defined_list` (a pure walk over con-leche
 values) against the twin's `List.all`, at well-formed inputs. -/
