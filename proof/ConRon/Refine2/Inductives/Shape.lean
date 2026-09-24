@@ -1383,4 +1383,15 @@ not import). -/
     LSP (arena.env.eidx_vec_dup es) (fun r => TwinEq (absEIdxL es) (absEIdxL r)) :=
   fun _ h => by simp only [Lockstep.TwinEq, absEIdxL, eidx_vec_dup_val h]
 
+open Lockstep in
+/-- `arena::canon::eidx_vec_beq` from `0` is `==` on the abstracted lists. -/
+@[lockstep] theorem canon_eidx_vec_beq_twin (a b : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.canon.eidx_vec_beq a b 0#usize) (fun o => o = (absEIdxL a == absEIdxL b)) := by
+  intro o h
+  rw [eidx_vec_beq_refines h]
+  have e : ∀ v : alloc.vec.Vec arena.handle.EIdx, absEIdxLFrom v 0#usize = absEIdxL v := by
+    intro v; simp [absEIdxLFrom, absEIdxL]
+  rw [e, e]
+  cases h' : decide (absEIdxL a = absEIdxL b) <;> simp_all
+
 end ConRon.Refine2
