@@ -61428,6 +61428,44 @@ at a saturating `u64 → usize` cast), `nested_rule_shape_args`
 
 `scripts/gates.sh` on the tip (with `arena` merged): **all 16 OK**.
 
+#### Slice 3 — the canonical-data premise from `IFEnvRel.envWF`; the bounce
+
+Slice 2 (`7343c6a6`) was bounced: the Checker DeclCheck lane's
+`i_constant_info_beq_spec` used `i_constant_info_beq_refines` without the new
+premises.  The coordinator's ruling on the `eq_basis_stored` question: neither
+an invariant nor a Rust change — Core's round 5 (task #97-P5-Core round 5) adds
+`IFEnvRel.envWF` (every stored constant is `IConstantInfoWF`: an `IndInfo`'s
+`sort_z` is `PropWhenWF`, the erased canonical-form invariant).  Merged `arena`
+`b9b64d90` (Core round 5 landed) into the same branch:
+
+* **One predicate.**  `IIndCapsWF`/`IConstantInfoCapsWF` are gone;
+  `i_ind_caps_beq_refines` takes `PropWhenWF` of the two `sort_z`s
+  (`PropWhen.wf_shape` gives `beq_iff` its `WFShape`), `i_constant_info_beq_refines`
+  takes Core's `IConstantInfoWF`.
+* **The pins are canonical by construction** (`Checker/Canon.lean`):
+  `intern_ci_go_caps_wf` (interning copies `sort_z`), `intern_pinned_wf`
+  (`m >>= intern_ci` for a builder whose output is `ConstantInfoWF`),
+  `eq_a_wf`, `nat_a_wf` (`BasisPins.eq_a_refines`/`nat_a_refines`).
+* **The callers.**  `Checker/DeclCheck.lean`'s `i_constant_info_beq_spec`
+  (the DeclCheck lane's; edited at the coordinator's authorisation) takes the
+  two premises; `eq_basis_pinned` and `reduce_elem_ok` get them from
+  `Lockstep.CapsWF`'s `eq_a_wf_ls`/`nat_a_wf_ls`/`ifenv_find_wf` (the relation
+  carries the fact; the namespace is opened at the two proofs so these come
+  before the plain pairs).  The modeled route's `eq_basis_stored` likewise
+  from `Lockstep.CapsWFM`'s `find_ci_wf`/`eq_a_wf_ls` (`PrimsModeled.lean`)
+  — **closed**; Modeled's `sorry`s 20 → 19.
+* Merge repairs: `view_const_name_ls` dropped from `Tactic/Prims.lean` (Core's
+  `Core/LS/Prims.lean` has it); the lane's local `lockstep_simp` names
+  qualified (`IndModeledPrims.…`: Core now has same-named projections);
+  `rec_rule_eta_of_ls` closes its level comparison against
+  `nidx_vec_beq`'s `decide` form by one `LS.pure`.
+
+**Workarounds kept** (t2-tactic-5/6 were bounced, not on `arena` at this
+merge): `ind_twin_split`, `lockstep_mod`, `lockstep_ite` (PrimsModeled) and
+`attribute [local irreducible] nestedRuleShapeArgsSpec` (Modeled).  Once the
+tactic fixes land, `lockstep_mod := lockstep` and the attribute go.
+
+
 ### Task #97-T2-LOCKSTEP lane Checker DeclCheck — the pin-gate leaves, the `erase_pw_eq` walk, the basis pins; two twin fixes (2026-09-23, Opus under Fable)
 
 Worktree `_tmp/wt-t2-chk-decl` off `4265c378` (`arena` `b047603a` merged
