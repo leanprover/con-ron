@@ -936,9 +936,16 @@ open Lockstep in
 `canon_names_go` counts UP so the list comes out in index order; no fuel,
 because it is structural on the count.  It INTERNS, so it is a `Sim`.  The
 port pushes onto an accumulator where the twin conses after its recursive
-call, so the statement carries the accumulator in the twin. -/
+call, so the statement carries the accumulator in the twin.
 
-set_option maxHeartbeats 800000 in
+`intern_n_node` is irreducible for the proof (task #98-TIDY): `lockstep` tries
+`canon_intern_n_anon_ls` on the `.Num` call too, and the failing unification
+`intern_n_node ?pers ?st .Anonymous =?= intern_n_node pers st1 (.Num a i)`
+otherwise unfolds both sides and evaluates the persistent probe and
+`pers_full_of` at the concrete view — 8.7 s, over the default heartbeats since
+task #98-FREEZE dropped the `shared_on` test that used to stop it early. -/
+
+attribute [local irreducible] arena.monad.intern_n_node in
 open Lockstep in
 private theorem canon_names_go_aux (k : Nat) :
     ∀ {pers st lst} {i n : Std.U64} {out : alloc.vec.Vec arena.handle.NIdx},

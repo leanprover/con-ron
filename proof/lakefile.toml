@@ -1,5 +1,11 @@
 name = "con-ron"
-defaultTargets = ["ConRon", "ConRonArena", "ConRonTools"]
+# Every library of the verified chain is a default target (task #98-TIDY), so a
+# plain `lake build` checks both theorems and the composition.  Only the
+# `lean_exe`s below stay out: the table generator and the pin dump are run by
+# their scripts, the arena driver and bench are gated by the differential and
+# by measurement, not by the build.
+defaultTargets = ["ConRon", "ConRonTools", "ConRonArena", "ConRonBridge",
+  "ConRonRefine2", "ConRonCapstone"]
 
 # con-leche, the Lean checker this port refines (DESIGN.md §1).  A plain lake
 # dependency (task #91), pinned by `rev`; `proof/lake-manifest.json`'s
@@ -127,8 +133,9 @@ root = "ConRon.Arena.Bench"
 # task #97 P5).  A library root of its own rather than a subdirectory of
 # `ConRon`, for the reason `ConRonArena` is one: it is a *new* tower over
 # `ConRon.Generated` + `ConRon.Arena` + the surviving leaf tiers of
-# `ConRon.Refine`, and keeping it out of the `ConRon` root means a P5 agent's
-# half-built tier never blocks `lake build`'s default targets.  Task #97-P5-0.
+# `ConRon.Refine`.  Task #97-P5-0.  (It was kept out of `defaultTargets` then,
+# so that a half-built P5 tier would not block `lake build`; task #98-TIDY made
+# it a default target once the tier was complete.)
 [[lean_lib]]
 name = "ConRonRefine2"
 roots = ["ConRon.Refine2"]
@@ -144,8 +151,8 @@ globs = ["ConRon.Refine2.+"]
 # **THE COMPOSITION** (DESIGN.md §8.2's last line, task #97-COMPOSE):
 # "Capstones for the binary = Theorem 2 ∘ Theorem 1 ∘ con-leche".  The one
 # module that imports BOTH `ConRon.Bridge` (Theorem 1) and `ConRon.Refine2`
-# (Theorem 2), so its own library root; `scripts/gates.sh`'s `lake-capstone`
-# step builds it.  `ConRon.Capstone.model_exists` and
+# (Theorem 2), so its own library root; a default target, so `scripts/gates.sh`'s
+# `lake-build` step builds it.  `ConRon.Capstone.model_exists` and
 # `ConRon.Capstone.no_False_declaration` are the campaign's root theorems:
 # the sorry frontier is measured from them.
 [[lean_lib]]

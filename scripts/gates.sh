@@ -18,10 +18,11 @@
 #  10. scripts/gen-prelude.sh --check       embedded prelude text == con-leche's
 #  11. scripts/gen-prelude-lean.sh --check  (B)'s embedded prelude bytes, ditto
 #  12. scripts/extract.sh --check           committed generated Lean == crate
-#  13. cd proof && lake build               the default targets elaborate
-#  14. cd proof && lake build ConRonRefine2  Theorem 2's tier (not a default target)
-#  15. cd proof && lake build ConRonBridge   Theorem 1's tier (ditto)
-#  16. cd proof && lake build ConRonCapstone the composition, the two root theorems
+#  13. cd proof && lake build               the default targets elaborate: every
+#                                           library of the chain, Theorem 1
+#                                           (`ConRonBridge`), Theorem 2
+#                                           (`ConRonRefine2`), the composition
+#                                           (`ConRonCapstone`) included
 #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
 #      has no jobs flag: on a many-core machine the first build of the
 #      vendored con-leche can exhaust memory, task #74)
@@ -34,6 +35,9 @@ set -uo pipefail
 # re-gates only what a merge's delta can touch); the rest print SKIP.
 only=""
 if [ "${1-}" = "--only" ]; then only=",${2-},"; shift 2; fi
+# The old per-library steps `lake-refine2`, `lake-bridge`, `lake-capstone`
+# (task #98-TIDY folded them into `lake-build`) still select it.
+case $only in *,lake-refine2,*|*,lake-bridge,*|*,lake-capstone,*) only="$only,lake-build,";; esac
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Per-checkout log dir: `_tmp` is shared between agent worktrees (a symlink),
@@ -89,24 +93,11 @@ run gen-prelude-lean "$root/scripts/gen-prelude-lean.sh" --check
 # through a lock in the shared `_tmp/` (every worktree sees the same one).
 run extract-check flock "$root/_tmp/.extract-check.lock" "$root/scripts/extract.sh" --check
 run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
-# `ConRonRefine2` is deliberately NOT a default target (a half-built P5 tier
-# must not block `lake build`), which means the line above never elaborates a
-# single module of `ConRon/Refine2/**`.  Until task #97-P5-Mut found this, a
-# green gate run said nothing whatsoever about a Theorem-2 lane.  It is its
-# own step so the OK/FAIL line names it.
-run lake-refine2  env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonRefine2
-# **And `ConRonBridge` is not a default target either** — same hole, one tier
-# over, found by task #97-P3-Ind round 5 when a green gate run was followed by
-# a broken `lake build ConRonBridge`.  Every P3 brief has had to ask for the
-# target by hand for exactly this reason; now the gate does it, so a green run
-# means Theorem 1's spec layer elaborates too.
-run lake-bridge   env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonBridge
-# **The composition** (task #97-COMPOSE): `ConRon/Capstone.lean`, the one
-# module importing both theorems, states `ConRon.Capstone.model_exists` and
-# `ConRon.Capstone.no_False_declaration` for the Rust pipeline.  Its own
-# library, not a default target, for the reason the two above are not; its
-# `#guard_msgs` census is what fails if a seam moves.
-run lake-capstone env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build ConRonCapstone
+# Until task #98-TIDY this was followed by three more steps, `lake build
+# ConRonRefine2`, `ConRonBridge` and `ConRonCapstone`, because those libraries
+# were not default targets and a green `lake-build` said nothing about either
+# theorem (found by tasks #97-P5-Mut and #97-P3-Ind round 5).  They are default
+# targets now, so the one step above builds them all.
 
 if [ -n "$only" ]; then
   echo "gates: $((n - skipped)) OK, $skipped SKIPPED (--only)"

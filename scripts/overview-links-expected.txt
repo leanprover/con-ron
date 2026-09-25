@@ -3062,7 +3062,7 @@
    530  /// constructor, line 344.
    531  pub const ETAG_BVAR: u32 = 0;
 
-== scripts/gates.sh#L6-L26
+== scripts/gates.sh#L6-L28
      6  # Runs, in order, and stops at the first failure:
      7  #   1. cargo build                          the crate compiles, warning-free
      8  #   2. cargo test                           the unit tests pass
@@ -3078,12 +3078,14 @@
     18  #  10. scripts/gen-prelude.sh --check       embedded prelude text == con-leche's
     19  #  11. scripts/gen-prelude-lean.sh --check  (B)'s embedded prelude bytes, ditto
     20  #  12. scripts/extract.sh --check           committed generated Lean == crate
-    21  #  13. cd proof && lake build               the default targets elaborate
-    22  #  14. cd proof && lake build ConRonRefine2  Theorem 2's tier (not a default target)
-    23  #  15. cd proof && lake build ConRonBridge   Theorem 1's tier (ditto)
-    24  #  16. cd proof && lake build ConRonCapstone the composition, the two root theorems
-    25  #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
-    26  #      has no jobs flag: on a many-core machine the first build of the
+    21  #  13. cd proof && lake build               the default targets elaborate: every
+    22  #                                           library of the chain, Theorem 1
+    23  #                                           (`ConRonBridge`), Theorem 2
+    24  #                                           (`ConRonRefine2`), the composition
+    25  #                                           (`ConRonCapstone`) included
+    26  #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
+    27  #      has no jobs flag: on a many-core machine the first build of the
+    28  #      vendored con-leche can exhaust memory, task #74)
 
 == crates/con-ron-core/src/arena/mod.rs#L1-L22
      1  //! The arena: handles and the four interned stores (DESIGN.md §8.3/§8.5).

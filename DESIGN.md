@@ -59577,10 +59577,9 @@ merges are sequenced by construction and the merge logic lives in one context.
   `_tmp/merge-queue.done` (one line per entry: status, branch, commit,
   landed-at).
 * After each landing (or batch) the queue seeds the Lake cache from `wt-mq`:
-  `cd proof && LAKE_ARTIFACT_CACHE=true LAKE_RESTORE_ARTIFACTS=true lake build
-  ConRonCapstone ConRonRefine2 ConRonBridge` and a plain `lake build` for the
-  default targets (the three named targets leave 15 default-target modules
-  uncached).  Nothing re-elaborates; seconds.  Fresh lane worktrees off
+  `cd proof && LAKE_ARTIFACT_CACHE=true LAKE_RESTORE_ARTIFACTS=true lake build`
+  (since task #98-TIDY the default targets are every library; before it the
+  three theorem libraries had to be named as well).  Nothing re-elaborates; seconds.  Fresh lane worktrees off
   `arena` then restore every module instead of rebuilding ~230.
 
 **Re-gate table** (the steps a merge's delta can touch; "cheap" = the eleven
@@ -59589,13 +59588,15 @@ steps before `extract-check`, ~20 s together, always run):
 | the merge changes (relative to `mq` before it) | steps |
 |---|---|
 | anything | cheap |
-| `crates/**`, `proof/ConRon/Generated/**`, `scripts/extract*`, `aeneas`/`charon` config | + `extract-check` + all four `lake-*` |
-| `proof/lakefile.toml`, `proof/lake-manifest.json`, `lean-toolchain` | + all four `lake-*` |
-| `proof/ConRon/Arena/**` | + all four `lake-*` |
-| `proof/ConRon/Bridge/**` | + `lake-bridge`, `lake-capstone` (+ `lake-build` if a default target imports it) |
-| `proof/ConRon/Refine2/**` | + `lake-refine2`, `lake-capstone` |
-| `proof/ConRon/Capstone.lean` | + `lake-capstone` |
+| `crates/**`, `proof/ConRon/Generated/**`, `scripts/extract*`, `aeneas`/`charon` config | + `extract-check` + `lake-build` |
+| `proof/**` (any Lean source, `lakefile.toml`, `lake-manifest.json`, `lean-toolchain`) | + `lake-build` |
 | `*.md`, `scripts/*` not above | cheap only |
+
+(Task #98-TIDY: `lake-build` now builds every library, so the former
+`lake-refine2`/`lake-bridge`/`lake-capstone` rows collapse into it; `--only`
+still accepts those three names as aliases for `lake-build`.  Lake's up-to-date
+check makes the full build as cheap as the per-library one on an unrelated
+delta.)
 
 When unsure, run the full gates.  A landing whose merge from the lane's view
 was clean but whose union with the other queued branches breaks a proof is
@@ -64720,3 +64721,42 @@ nothing against con-leche, as a decline does).
   spread within each set is < 0.001 %).  `scripts/diff-e2e.sh` 383/383 agree on
   the merged tree (with #98-SHIFT).  `scripts/gates.sh`: all 16 OK, frontier
   0, census `[propext, Classical.choice, Quot.sound]`.
+
+### Task #98-TIDY — every library a default target; stale frozen-tier comments; Canon's heartbeats (2026-09-25, Opus under Fable)
+
+* **`defaultTargets` is every library of the chain**: `ConRon`, `ConRonTools`,
+  `ConRonArena`, `ConRonBridge`, `ConRonRefine2`, `ConRonCapstone`
+  (`proof/lakefile.toml`).  A plain `lake build` now checks both theorems and
+  the composition (2 869 jobs, ending in `ConRon.Capstone`).  Left out: the four
+  `lean_exe`s only (`con-ron-gen-tables`, `con-ron-dump-pins` — run by their
+  scripts; `con-ron-lean` — gated by the differential; `con-ron-arena-bench` —
+  a measurement).  There is no optional or experimental library left.
+* **`scripts/gates.sh` runs 13 steps**: `lake-build` covers what
+  `lake-refine2`/`lake-bridge`/`lake-capstone` did; the three steps are gone.
+  `--only lake-refine2|lake-bridge|lake-capstone` still works (each selects
+  `lake-build`).  The #97-MQ re-gate table and cache-seeding line, CLAUDE.md,
+  OVERVIEW §2.3/§10, `ConRon/Bridge.lean`'s build note and the lakefile's
+  comments are updated; `gates.sh`'s step list moved to `#L6-L28`.
+* **Stale twin comments**: `Arena/Monad.lean`'s `internBME` and
+  `internBMPersistentE` docs still described a `shared_on`/`M_FROZEN` arm in
+  the Rust; rewritten (same line count) to say the arm is gone since
+  #98-FREEZE.  The other hits of `shared_on`, `M_FROZEN`, `M_REFREEZE`,
+  `thaw_read_tier`, `M_SHIFT`, `AErrSim.of_none` outside DESIGN.md
+  (`arena/checker.rs:1416`, `arena/decl_check.rs:2494`,
+  `Refine2/Specs.lean:4188-4191,11757`) all say "is gone"/"removed by" — history,
+  kept.
+* **`Checker/Canon.lean`'s heartbeat bump — the cause**: `lockstep` tries the
+  local `@[lockstep]` lemma `canon_intern_n_anon_ls` against the SECOND call,
+  `intern_n_node pers st1 (.Num a i)`; the unification fails, but only after
+  lazy delta unfolds `intern_n_node` → `EStore.intern_name` → … →
+  `NStore.intern_other` on both sides and whnf-evaluates the persistent probe and
+  `pers_full_of` at the concrete view (`[reduction]` counts: `AState.store`
+  381 365, `Slice.val` 40 458, `Nat.decEq` 18 303) — one failed `isDefEq` of
+  8.7 s.  Before #98-FREEZE (`c639f3e7`), `intern_other`'s persistent arm tested
+  `self.shared_on` FIRST, a field of the variable state on which whnf gets stuck
+  at once; FREEZE removed that test, so the arm goes straight to
+  `pers_full_of`, which reduces much further.  Neither `canon_names_go` nor its
+  twin changed, which is why the cause was not visible from the diff.  **Fix**:
+  `attribute [local irreducible] arena.monad.intern_n_node in` on
+  `canon_names_go_aux` (the proof uses only the two `_ls` lemmas, never the
+  body); the `maxHeartbeats 800000` is gone and the proof takes 0.7 s (was 9.1 s).

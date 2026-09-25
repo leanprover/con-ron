@@ -176,8 +176,8 @@ binder DATUM, the Rust's `EStore::intern_bm` clause for clause (task
 tier is open, and the capacity test only where the datum is APPENDED — on the
 datum miss, at the tier the append goes to (`EStore.capOKBM`).  The probe is
 `EStore.findBM`, the same one `internBM` makes; on a hit the store does not
-move.  (The Rust's `shared_on` / `M_FROZEN` arm is a `Native`, which claims
-nothing, and has no twin — task #97-P5-Unfreeze.) -/
+move.  (The Rust has no frozen-tier arm since task #98-FREEZE: its probe reads
+the `PersTier` it is lent, and a frozen store appends to scratch.) -/
 def internBME (m : ConLeche.BinderMeta) : AM BMIdx := do
   let s ← get
   match s.store.findBM m with
@@ -695,8 +695,8 @@ one at the same place, against the persistent array; the error is the same
 /-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — arena
 infrastructure; the binder datum's promote-intern, with the Rust's
 `intern_bm_persistent` capacity test where it makes it: on the persistent
-datum MISS only.  (The Rust's `shared_on` / `M_FROZEN` arm before it is a
-`Native`, which claims nothing, and has no twin — task #97-P5-Unfreeze.) -/
+datum MISS only.  (The Rust's frozen-tier `Native` arm before it is gone since
+task #98-FREEZE: a promote-intern writes the `PersTier` it is handed.) -/
 def internBMPersistentE (m : ConLeche.BinderMeta) : AM BMIdx := do
   let s ← get
   match s.store.persFindBM m with

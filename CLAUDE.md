@@ -30,13 +30,15 @@ section for every task you land.
   `extract-check` alone is 100–300 s, and a merge that moves
   `Generated/Funs.lean` costs ~1 000 s of `Core/Eqns.lean` re-derivation.
   Run the module build after every edit, the whole-target build
-  (`lake build`, `lake build ConRonBridge`, `lake build ConRonRefine2`) when
+  (`lake build ConRonBridge` or `lake build ConRonRefine2` for one tier;
+  plain `lake build` builds every library of the chain, task #98-TIDY) when
   a file is finished, and `scripts/gates.sh` once before reporting.  Never
   run the gates to check a single proof.
 * **`scripts/gates.sh` is the one command every task must run before
   committing**: `cargo build`, `cargo test`, the style lint, the provenance
   check, the OVERVIEW link gate, the pin check, `scripts/extract.sh --check`
-  and `cd proof && lake build`, in that order, one OK/FAIL line each,
+  and `cd proof && lake build` (all default targets: both theorems and the
+  capstone), in that order, one OK/FAIL line each,
   stopping at the first failure.  On a many-core machine con-leche's first
   build can exhaust memory; cap the parallelism with `LAKE_JOBS=N
   scripts/gates.sh`.

@@ -128,11 +128,12 @@ Lean comes from `elan`, at con-leche's version (`proof/lean-toolchain`).
 nix develop                        # cargo, charon, aeneas on PATH (or: direnv allow)
 cargo build --release              # target/release/con-ron
 scripts/setup-aeneas-lean.sh       # the patched Aeneas Lean library + Mathlib, once
-cd proof && lake build             # fetches con-leche, builds the model and the default targets
+cd proof && lake build             # fetches con-leche, builds the model, both theorems and the capstone
 ```
 
-The theorems live in three library targets that `lake build` does not build
-by default: `ConRonBridge`, `ConRonRefine2` and `ConRonCapstone` (§11).
+The theorems live in three library targets, `ConRonBridge`, `ConRonRefine2`
+and `ConRonCapstone` (§11); all three are default targets, so the plain
+`lake build` above checks them.
 
 The global allocator is a build-time choice: mimalloc by default,
 `--no-default-features` for the system `malloc`, and `--no-default-features
@@ -964,15 +965,15 @@ covers what the proof does not: the driver, the pool and the modeller.  CI
 runs it (`.github/workflows/ci.yml`).
 
 **The gates.**  `scripts/gates.sh` runs before every commit
-([the steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L6-L26)).
+([the steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L6-L28)).
 It stops at the first failure of: `cargo build` (warnings denied) and
 `cargo test`; the style lint; the provenance and twin-line checks; this
 document's link check (`scripts/overview-links.sh`) and holes table
 (`scripts/holes.sh --check`); the checks that the embedded pin text, the
 Rust prelude text and the twin's prelude bytes are con-leche's
 (`gen-pins.sh`, `gen-prelude.sh`, `gen-prelude-lean.sh`, each `--check`);
-`scripts/extract.sh --check`; and `lake build` of the default targets,
-`ConRonRefine2`, `ConRonBridge` and `ConRonCapstone`.
+`scripts/extract.sh --check`; and `lake build` of the default targets, which
+include `ConRonBridge`, `ConRonRefine2` and `ConRonCapstone`.
 
 **Upstream patches.**  One: the pinned Aeneas builds its Lean library
 against an older Lean, and

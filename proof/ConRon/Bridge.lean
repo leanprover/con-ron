@@ -68,10 +68,10 @@ comes in with `Bridge/Frontend/Capstone.lean`'s `ConLeche.MainTheorem` import
 and is applied in `ConRon/Capstone.lean`.  Those modules are already built in
 the shared package, so the cost is loading `olean`s, not elaborating.
 
-`ConRonBridge` is **not** in `lakefile.toml`'s `defaultTargets`, and no default
-target imports it (`ConRon` reaches only `Generated`/`Refine`/`Dump`; the capstone is
-its own library, `ConRonCapstone`).  The tier is `sorry`-free; `scripts/gates.sh`
-builds it as its own step (`lake build ConRonBridge`, then `ConRonCapstone`).
+`ConRonBridge` is its own library (`ConRon` reaches only `Generated`/`Refine`/`Dump`;
+the capstone is its own library, `ConRonCapstone`), and both are in `lakefile.toml`'s
+`defaultTargets` (task #98-TIDY), so a plain `lake build` — `scripts/gates.sh`'s
+`lake-build` step — elaborates the whole tier.  The tier is `sorry`-free.
 -/
 import ConRon.Bridge.Peel
 import ConRon.Bridge.Rel
