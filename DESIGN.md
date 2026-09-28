@@ -64881,5 +64881,5 @@ worth it at 0 % cycles.  The sketch, for the record:
 loop proofs whose induction exists only for termination; convert the old
 ones opportunistically.
 
-Gates: all 13 OK (below).  Scratch (`_tmp/pfix-perf`, the throwaway worktree
+Gates: all 13 OK.  Scratch (`_tmp/pfix-perf`, the throwaway worktree
 and its `target/`) deleted.
