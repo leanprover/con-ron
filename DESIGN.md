@@ -4101,8 +4101,9 @@ admissibility, no `partial_fixpoint` reasoning anywhere.
 * Hand-rolled structural induction principles `Level.ind'` / `Name.ind'`
   (12 lines each) over the port's three-type `Kind`/`Node`/wrapper mutual
   inductive, so that `induction u using Level.ind'` skips the `Rc` and the
-  node layer.  Aeneas's `partial_fixpoint` definitions give no induction
-  principle of their own, so **every structural refinement is an induction on
+  node layer.  Aeneas's `partial_fixpoint` definitions have only
+  `fixpoint_induct` (admissible motive; no `partial_correctness` over `Result`
+  — corrected by task #99-PFIX), so **every structural refinement is an induction on
   the argument, not on the function** — either on this recursor or on the
   `LevelWF` derivation when the proof needs the WF hypotheses in step.
 * `#setup_aeneas_simps` was *not* needed (no `getElem!` in this code).
@@ -7561,8 +7562,8 @@ divides into three kinds:
 * **Hash and index helpers** get `⦃ _ => True ⦄`: totality and no more.  The
   six index recursions (`name.str_hash_from`, `level.levels_hash_from`,
   `level.levels_have_param_from`, `prop_when.names_hash_from`, and
-  `level.level_has_param`) are `partial_fixpoint`s with no induction
-  principle, so each is a `Nat` induction on `length - i` (or `Level.ind'`)
+  `level.level_has_param`) are `partial_fixpoint`s without a
+  `partial_correctness` principle (only `fixpoint_induct`; task #99-PFIX), so each is a `Nat` induction on `length - i` (or `Level.ind'`)
   using the function's own `.eq_def` — ~15 lines each, and `step*` closes both
   branches once the IH is in context.
 * **`prop_when.if_all_zero`** is the only interesting one.  It decides the
@@ -7962,7 +7963,7 @@ Beyond the memo-policy points above, and all a priori:
 2. **The cited dependent `if _h : i - d < k`** (`instantiateListGo`,
    `instantiateRevGo`) is an ordinary `if`: its only purpose is to put
    `i - d < k` in scope for the `termination_by (k, sizeOf e)` obligation,
-   and Aeneas's `partial_fixpoint` carries no measure, so neither the
+   and Aeneas's `partial_fixpoint` needs no measure, so neither the
    dependent `if` nor the `decreasing_by` block has a counterpart.  Same for
    `piResidualAcc`'s `(as.length, acc.length)`.
 3. **`instantiate1LiftB`'s clause order.**  The cited `match fuel, e with`
@@ -12186,7 +12187,8 @@ survives twice, under two names: the `getElem?` form and the `i < length` form
   the shape the `Cached/*` memos of `CORE_PLAN.md` step 5 should reuse.
 * **`ExprWF` as the induction.**  Every structural refinement inducts on the
   `ExprWF` derivation, never on the function (Aeneas's `partial_fixpoint`
-  definitions give no recursor): the derivation supplies both the node's shape
+  definitions have only `fixpoint_induct`, which wants an admissible motive;
+  task #99-PFIX): the derivation supplies both the node's shape
   (through the `Expr.*_inv` smart-constructor lemmas) and the children's
   well-formedness in one step.
 * **`node_kind`/`arc_deref_eq`/`binder_meta_eq` as one `simp only` list.**  The

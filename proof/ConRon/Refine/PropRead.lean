@@ -24,8 +24,9 @@ against the cited Lean **instantiated at `lfe.find?`**.
 
 Three things shaped the proofs:
 
-* `peel_never_pis` is a `u64`-counted recursion under `partial_fixpoint`, which
-  gives no induction principle, so it is the task-#5 shape: a `(N : Nat)`
+* `peel_never_pis` is a `u64`-counted recursion under `partial_fixpoint`, whose
+  only induction principle is `fixpoint_induct` (admissible motive, no
+  `partial_correctness` over `Result`), so it is the task-#5 shape: a `(N : Nat)`
   lemma with `k.val = N`, inducted on `k` (`Nat.strong_induction_on`), and the
   wrapper is the corollary.  Every other reader here is structurally flat --
   one `match` on the head node -- so its proof is a `cases` on the `ExprWF`
@@ -211,8 +212,8 @@ theorem stored_cv_at_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Na
 
 /-- `prop_read::peel_never_pis` refines `Expr.peelNeverPis`
 (`PropRead.lean:44-56`), in the task-#5 shape for a `u64`-counted recursion:
-`partial_fixpoint` gives no induction principle, so the lemma is parametrised
-by `N = k.val` and inducted on `N`. -/
+rather than `fixpoint_induct` (which wants an admissible motive), the lemma is
+parametrised by `N = k.val`, inducted on `N`, and unfolds `eq_def`. -/
 theorem peel_never_pis_refines_aux (N : Nat) :
     ∀ (k : Std.U64) (e : expr.Expr) (r : Option expr.Expr),
       k.val = N → ExprWF e → prop_read.peel_never_pis k e = ok r →

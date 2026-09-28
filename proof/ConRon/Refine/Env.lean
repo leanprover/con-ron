@@ -766,10 +766,11 @@ theorem declaration_name_refines {d : env.Declaration} {n : name.Name}
 
 /-! ## The declared-parameter-count check
 
-`pi_sort_tele_len` is the one *real* induction of this file: Aeneas's
-`partial_fixpoint` definitions carry no recursor, so the recursion has to be
-carried by the argument, and the argument's induction principle here is the
-`ExprWF` derivation (task #5's shape).  The ten kinds' inversion lemmas are
+`pi_sort_tele_len` is the one *real* induction of this file.  Aeneas's
+`partial_fixpoint` definitions come with `fixpoint_induct` (which wants an
+admissible motive) but no `partial_correctness` form over `Result`, so the
+recursion is carried by the argument: `eq_def`, and the induction principle of
+the `ExprWF` derivation (task #5's shape; DESIGN.md task #99-PFIX).  The ten kinds' inversion lemmas are
 `ConRon/Refine/Expr.lean`'s `bvar_inv`, `forall_e_inv`, … -/
 
 /-- `ConLeche/Kernel/Env.lean:550-553` -- `env::pi_sort_tele_len` refines

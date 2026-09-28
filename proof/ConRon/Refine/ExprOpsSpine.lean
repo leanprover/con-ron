@@ -21,8 +21,9 @@ Three things shaped the proofs:
   con-leche's answer (`absExprs out ++ …`), and the wrapper at `out = []` is
   the corollary.  Same for the index recursions, whose lemma is at
   `(absExprs args).drop i.val`.
-* **`partial_fixpoint` gives no induction principle**, so each walk is an
-  induction either on the `ExprWF` derivation (`get_app_fn`, `pi_result`,
+* **Not `fixpoint_induct`**: a `partial_fixpoint` has one, but it wants an
+  admissible motive and Lean derives no `partial_correctness` over `Result`, so
+  each walk unfolds `eq_def` and is an induction either on the `ExprWF` derivation (`get_app_fn`, `pi_result`,
   `get_app_args_go`, `pi_arity`, `result_sort`) or on a `Nat` measure --
   `args.length - i` for the index recursions, `k` for the telescope ones.
 * **`recRulePlain`'s list comparison** is a `==` on `List Expr`, i.e.

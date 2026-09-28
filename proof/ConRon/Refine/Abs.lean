@@ -653,9 +653,10 @@ def ExprsWF (es : alloc.vec.Vec expr.Expr) : Prop := ∀ e ∈ es.val, ExprWF e
 
 /-! ## Structural induction principles
 
-Aeneas's `partial_fixpoint` definitions give no induction principle of their
-own, so **every structural refinement is an induction on the argument, not on
-the function** — either on one of these two recursors or on the `LevelWF`
+Aeneas's `partial_fixpoint` definitions have `fixpoint_induct`, but it wants
+an admissible motive and Lean derives no `partial_correctness` over `Result`,
+so **every structural refinement is an induction on the argument, not on the
+function** — either on one of these two recursors or on the `LevelWF`
 derivation when the proof needs the WF hypotheses in step.  They skip the `Arc`
 and the node layer of the port's three-type mutual inductive. -/
 

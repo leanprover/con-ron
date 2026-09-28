@@ -10,8 +10,8 @@ memo, hence the same `absKey`/`KeyWF`/`key_exact` plumbing and the same
 `size_b`, `size_f`, `wscoped_b`, `bvar_bound` and `fvar_range` are plain
 structural walks, unmemoized on both sides; each is proved by induction on the
 `ExprWF` derivation, which is what supplies both the node's shape (`Expr.*_inv`)
-and the children's well-formedness, since an Aeneas `partial_fixpoint` carries
-no induction principle of its own.
+and the children's well-formedness in one step (the `partial_fixpoint`'s own
+`fixpoint_induct` wants an admissible motive and supplies neither).
 
 Every statement is against the *logical* con-leche definition and is
 exact-result-on-success; `ExprWF` is a hypothesis even of the five readers,
@@ -39,7 +39,7 @@ namespace ConRon.Refine.ExprOps
 
 /-- `expr_ops::size_b` refines `Expr.sizeB` (`ExprOps.lean:743-748`): the node
 count with `fvar` a leaf.  Nothing in the port recurses on it (Aeneas's
-`partial_fixpoint` carries no measure), but it is executable and the gate keeps
+`partial_fixpoint` needs no termination measure), but it is executable and the gate keeps
 it in step with its source. -/
 theorem size_b_refines {e : expr.Expr} (he : ExprWF e) :
     ∀ {r : Std.U64}, expr_ops.size_b e = ok r → r.val = (absExpr e).sizeB := by

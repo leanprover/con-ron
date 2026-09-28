@@ -806,8 +806,9 @@ theorem scan_pw_refines {b : Slice Std.U8} {i : Std.Usize}
 
 /-! ## The slot loops' measure
 
-`partial_fixpoint` gives the port's loops no induction principle, so every slot
-loop is a strong induction on `b.len() - i`.  The two facts that make it drop
+The port's `partial_fixpoint` loops are not proved by their `fixpoint_induct`
+(admissible motive; no `partial_correctness` over `Result`): every slot loop
+unfolds `eq_def` and is a strong induction on `b.len() - i`.  The two facts that make it drop
 are phase 1's (`Refine/Frontend/ScanWF.lean`, where they are `private`): a
 `next_member` that reported a key reported it at or after the cursor, and one
 that returned `Ok` was inside the chunk. -/

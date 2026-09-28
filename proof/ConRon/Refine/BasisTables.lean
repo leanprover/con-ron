@@ -173,8 +173,9 @@ module that declares them. -/
 
 /-! ### The index recursions: totality by induction on the measure
 
-Aeneas's `partial_fixpoint` definitions give no induction principle, so each
-of these is a `Nat` induction on `length - i` using the function's own
+Aeneas's `partial_fixpoint` definitions have `fixpoint_induct` (for an
+admissible motive) but no `partial_correctness` over `Result`; each of these
+is instead a `Nat` induction on `length - i` using the function's own
 unfolding equation (DESIGN.md §3.5's rule: induct on the argument, not on the
 function).  The `_spec` wrapper is what carries the `@[step]` attribute, so
 that `step` never applies a spec to the call it is in the middle of proving. -/

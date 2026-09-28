@@ -385,7 +385,9 @@ strategy transferred completely.  A documented `spec`→forward-equation bridge 
 `step`-like tactic that consumes an `= ok` hypothesis — would be worth a lot to anyone doing
 refinement rather than verification-from-spec.
 
-Related: `partial_fixpoint` definitions carry **no induction principle**, so every
+Related: `partial_fixpoint` definitions do get `<f>.fixpoint_induct`, but it needs an
+admissible motive, and Lean derives **no `<f>.partial_correctness`** for Aeneas's
+`Result` (see DESIGN.md task #99-PFIX), so every
 structural refinement is an induction on the *argument* (we hand-rolled `Level.ind'` /
 `Name.ind'`, 12 lines each) or on a `Nat` measure using the function's own `.eq_def`.  Our
 17 index-carrying loop helpers are all one skeleton: induction on a fuel `d` with

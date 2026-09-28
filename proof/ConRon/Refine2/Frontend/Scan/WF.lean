@@ -36,9 +36,11 @@ every `Key` arm either errors or recurses.
 
 ## The measure
 
-`partial_fixpoint` gives these loops no induction principle, so every one of
-them is a strong induction on a `Nat` measure.  For `utf8_decode` it is `n - k`.
-For the member loops it is `b.len() - i`, and it drops because of two facts
+`utf8_decode`'s loop needs no measure: it is proved by its own
+`fixpoint_induct` (`partial_induct`, `Refine/Fixpoint.lean`, task #99-PFIX),
+partial correctness being all its statement asks.  The member loops still
+unfold `eq_def` under a strong induction on the measure `b.len() - i`, and it
+drops because of two facts
 proved once here: `next_member_ge` (the key it reports sits at or after the
 cursor it was given) and the module's own `prog` guard, which every slot closes
 with -- directly, or inside `slot_nat`.  `next_member_lt` supplies the `i <
@@ -50,6 +52,7 @@ b.len()` that makes the drop strict.
 `ConRon.Refine2.Frontend`, the `#guard_msgs` strings re-spelled, nothing else).
 -/
 import ConRon.Refine2.Frontend.Scan.WFBase
+import ConRon.Refine.Fixpoint
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
@@ -115,44 +118,34 @@ differently:
 -/
 
 /-- The loop of `scan_fast::utf8_decode`, as the invariant "the accumulator is
-a sequence of scalar values".  `partial_fixpoint` gives no induction principle,
-so the induction is on the `while k < n` measure `n - k`. -/
-private theorem utf8_decode_loop_wf {b : Slice Std.U8} (f : Nat) :
-    ∀ (n k : Std.Usize) (out res : alloc.vec.Vec Std.U32),
-      n.val - k.val ≤ f → StrWF out →
+a sequence of scalar values".  By the loop's own `fixpoint_induct`
+(`partial_induct`, task #99-PFIX): partial correctness needs no measure, so
+there is no `n - k` bound, no base case and no "the cursor moved" obligation
+at the four recursive calls. -/
+private theorem utf8_decode_loop_wf {b : Slice Std.U8} (n : Std.Usize) :
+    ∀ (k : Std.Usize) (out res : alloc.vec.Vec Std.U32), StrWF out →
       frontend.scan_fast.utf8_decode_loop b n out k = ok (some res) → StrWF res := by
-  induction f with
-  | zero =>
-    intro n k out res hf hout h
-    rw [frontend.scan_fast.utf8_decode_loop.eq_def] at h
-    rw [if_neg (show ¬ (k < n) by scalar_tac)] at h
-    simp only [Result.ok.injEq, Option.some.injEq] at h
-    rw [← h]; exact hout
-  | succ f ih =>
-    intro n k out res hf hout h
-    rw [frontend.scan_fast.utf8_decode_loop.eq_def] at h
+    partial_induct frontend.scan_fast.utf8_decode_loop
+    intro g ih k out res hout h
+    beta_reduce at h
     by_cases hlt : k < n
     · rw [if_pos hlt] at h
-      have hkn : k.val < n.val := by scalar_tac
-      -- the one recursive step: a validated word is pushed and the cursor has
-      -- moved forward, so the measure has dropped.
+      -- the one recursive step: a validated word is pushed.
       have hstep : ∀ (v : Std.U32) (out1 : alloc.vec.Vec Std.U32) (k1 : Std.Usize),
-          Nat.isValidChar v.val → alloc.vec.Vec.push out v = ok out1 → k.val < k1.val →
-          frontend.scan_fast.utf8_decode_loop b n out1 k1 = ok (some res) → StrWF res :=
-        fun v out1 k1 hv hpush hk1 hrec =>
-          ih n k1 out1 res (by omega) (push_str hout hv hpush) hrec
+          Nat.isValidChar v.val → alloc.vec.Vec.push out v = ok out1 →
+          g out1 k1 = ok (some res) → StrWF res :=
+        fun v out1 k1 hv hpush hrec => ih k1 out1 res (push_str hout hv hpush) hrec
       obtain ⟨c0, -, h⟩ := bind_eq_ok_iff.mp h
       by_cases h1 : c0 < 128#u8
       · -- ASCII
         rw [if_pos h1] at h
         obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨k1, -, h⟩ := bind_eq_ok_iff.mp h
         have hvv : v.val = c0.val := by
           rw [← lift_val hv]; exact Std.U8.cast_U32_val_eq c0
         have hc0 : c0.val < 128 := by scalar_tac
-        exact hstep v out1 k1 (by unfold Nat.isValidChar; omega) hout1
-          (uadd_gt hk1 (by scalar_tac)) h
+        exact hstep v out1 k1 (by unfold Nat.isValidChar; omega) hout1 h
       · rw [if_neg h1] at h
         by_cases h2 : c0 < 194#u8
         · rw [if_pos h2] at h; simp at h
@@ -178,7 +171,7 @@ private theorem utf8_decode_loop_wf {b : Slice Std.U8} (f : Nat) :
                   obtain ⟨i5, hi5, h⟩ := bind_eq_ok_iff.mp h
                   obtain ⟨i6, hi6, h⟩ := bind_eq_ok_iff.mp h
                   obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
-                  obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+                  obtain ⟨k1, -, h⟩ := bind_eq_ok_iff.mp h
                   have e2 : i2.val ≤ 31 := by
                     have := and_le hi2; scalar_tac
                   have e3 : i3.val < 2 ^ 11 :=
@@ -188,8 +181,7 @@ private theorem utf8_decode_loop_wf {b : Slice Std.U8} (f : Nat) :
                   have e5 : i5.val < 2 ^ 11 := by
                     have := and_le hi5; scalar_tac
                   exact hstep i6 out1 k1
-                    (by have := or_lt hi6 e3 e5; unfold Nat.isValidChar; omega) hout1
-                    (uadd_gt hk1 (by scalar_tac)) h
+                    (by have := or_lt hi6 e3 e5; unfold Nat.isValidChar; omega) hout1 h
           · rw [if_neg h3] at h
             by_cases h4 : c0 < 240#u8
             · -- three bytes: below `0x10000`, and not a surrogate
@@ -250,17 +242,15 @@ private theorem utf8_decode_loop_wf {b : Slice Std.U8} (f : Nat) :
                             · rw [if_neg hv3] at h
                               have hvge : 57344 ≤ v.val := by scalar_tac
                               obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
-                              obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+                              obtain ⟨k1, -, h⟩ := bind_eq_ok_iff.mp h
                               exact hstep v out1 k1
-                                (by unfold Nat.isValidChar; omega) hout1
-                                (uadd_gt hk1 (by scalar_tac)) h
+                                (by unfold Nat.isValidChar; omega) hout1 h
                           · rw [if_neg hv2] at h
                             have hvlt : v.val < 55296 := by scalar_tac
                             obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
-                            obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+                            obtain ⟨k1, -, h⟩ := bind_eq_ok_iff.mp h
                             exact hstep v out1 k1
-                              (by unfold Nat.isValidChar; omega) hout1
-                              (uadd_gt hk1 (by scalar_tac)) h
+                              (by unfold Nat.isValidChar; omega) hout1 h
             · rw [if_neg h4] at h
               by_cases h5 : c0 < 245#u8
               · -- four bytes: the two guards *are* `Nat.isValidChar`'s upper
@@ -316,10 +306,9 @@ private theorem utf8_decode_loop_wf {b : Slice Std.U8} (f : Nat) :
                                   have hlo : 65536 ≤ v.val := by scalar_tac
                                   have hhi : v.val ≤ 1114111 := by scalar_tac
                                   obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
-                                  obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+                                  obtain ⟨k1, -, h⟩ := bind_eq_ok_iff.mp h
                                   exact hstep v out1 k1
-                                    (by unfold Nat.isValidChar; omega) hout1
-                                    (uadd_gt hk1 (by scalar_tac)) h
+                                    (by unfold Nat.isValidChar; omega) hout1 h
               · rw [if_neg h5] at h; simp at h
     · rw [if_neg hlt] at h
       simp only [Result.ok.injEq, Option.some.injEq] at h
@@ -437,7 +426,7 @@ theorem utf8_decode_wf {b : Slice Std.U8} {j e : Std.Usize} {out : alloc.vec.Vec
     (h : frontend.scan_fast.utf8_decode b j e = ok (some out)) : StrWF out := by
   rw [frontend.scan_fast.utf8_decode] at h
   obtain ⟨n, -, h⟩ := bind_eq_ok_iff.mp h
-  exact utf8_decode_loop_wf (n.val - j.val) n j _ out (le_refl _) str_new h
+  exact utf8_decode_loop_wf n j _ out str_new h
 
 /-! ## `scan_string`: the only producer of a string payload -/
 

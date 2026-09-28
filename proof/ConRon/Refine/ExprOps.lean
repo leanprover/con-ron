@@ -616,8 +616,9 @@ The recipe every memoized walk of this file follows:
 * the statement is **against the logical definition** (`Expr.instantiate1`),
   generalised over the memo and the cursor, and proved by induction on the
   `ExprWF` derivation — which is what supplies both the node's shape
-  (`Expr.app_inv` and friends) and the children's well-formedness, since an
-  Aeneas `partial_fixpoint` gives no induction principle of its own (task #20);
+  (`Expr.app_inv` and friends) and the children's well-formedness in one step,
+  where the `partial_fixpoint`'s own `fixpoint_induct` would want an admissible
+  motive and supply neither (task #20; DESIGN.md task #99-PFIX);
 * the five leaf constructors skip the memo, as in the cited code;
 * the five rebuilding ones probe it (`MemoInv.hit`), and on a miss recurse and
   write the answer back (`MemoInv.set`).
