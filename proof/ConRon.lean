@@ -12,9 +12,10 @@ order: the runtime primitives (`Nat`, `HashMap`, `HashMap2`), the
 representation-free types (`Name`, `Level`, `PropWhen`, `Expr`, `ExprOps`,
 `Env`, `FEnv`, `Canon`), the `core_k` readers and shape guards, the pinned
 data (`Basis*`, `StdAxioms`, `TrustAxioms`) and the `con-ron-pins/1` decoder
-(`Pins*`).  Every one of them is in `ConRon.Capstone`'s import closure
-(checked mechanically at task #97-PRUNE), so every lemma here is on the
-verified chain.
+(`Pins*`); and `Fixpoint`, the `partial_fixpoint` admissibility lemma and
+`partial_induct` tactic of task #99-PFIX.  Every one of them is in
+`ConRon.Capstone`'s import closure (checked mechanically at task #97-PRUNE),
+so every lemma here is on the verified chain.
 
 `ConRon/Refine/README.md` has the tier map.  The arena checker itself is a
 separate library root (`ConRonArena`, `ConRon.Arena.*`) and is not imported
@@ -22,6 +23,7 @@ here.
 -/
 import ConRon.Generated
 import ConRon.Refine.SimpSets
+import ConRon.Refine.Fixpoint
 import ConRon.Refine.Abs
 import ConRon.Refine.Nat
 import ConRon.Refine.HashMap

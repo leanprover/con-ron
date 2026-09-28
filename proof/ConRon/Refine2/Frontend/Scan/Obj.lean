@@ -75,6 +75,7 @@ the `Refine/IndSpec.lean` style, not a `sorry`.
 **Moved back from `RefineOld/Frontend/ScanObj.lean` by task #97-P5-Front** (namespace
 `ConRon.Refine2.Frontend`, the `#guard_msgs` strings re-spelled, nothing else).
 -/
+import ConRon.Refine.Fixpoint
 import ConRon.Refine2.Frontend.Scan.Kit
 
 open Aeneas Aeneas.Std Result
@@ -806,10 +807,11 @@ theorem scan_pw_refines {b : Slice Std.U8} {i : Std.Usize}
 
 /-! ## The slot loops' measure
 
-The port's `partial_fixpoint` loops are not proved by their `fixpoint_induct`
-(admissible motive; no `partial_correctness` over `Result`): every slot loop
-unfolds `eq_def` and is a strong induction on `b.len() - i`.  The two facts that make it drop
-are phase 1's (`Refine/Frontend/ScanWF.lean`, where they are `private`): a
+The port's slot loops unfold `eq_def` under a strong induction on
+`b.len() - i` — except `scan_num_name_loop`, which is proved by its own
+`fixpoint_induct` (`partial_induct`, task #99-PFIX) and needs no measure; the
+others are the same conversion, not yet made.  The two facts that make the
+measure drop are phase 1's (`Refine/Frontend/ScanWF.lean`, where they are `private`): a
 `next_member` that reported a key reported it at or after the cursor, and one
 that returned `Ok` was inside the chunk. -/
 
@@ -955,19 +957,19 @@ theorem numNameLoop_body (b : ByteArray) (seen : UInt32) (n pre : Nat)
   rfl
 
 /-- The loop of `scan_fast::scan_num_name_loop` (con-leche:
-`Scan/Fast.lean:851-898 scanNumNameLoop`). -/
-private theorem scan_num_name_loop_aux {b : Slice Std.U8} (kf : KitFacts b) (f : Nat) :
+`Scan/Fast.lean:851-898 scanNumNameLoop`), by the loop's `fixpoint_induct`: no
+measure, so no `next_member_ge`/`next_member_lt`/`slot_nat_prog` step. -/
+private theorem scan_num_name_loop_aux {b : Slice Std.U8} (kf : KitFacts b) :
     ∀ (w : Bool) (i : Std.Usize) (seen : Std.U32) (n pre : Std.U64)
       (o : core.result.Result (frontend.scan_types.NameRec × Std.Usize)
              frontend.scan_types.ScanErr),
-      b.length - i.val ≤ f →
       frontend.scan_fast.scan_num_name_loop_loop w b i seen n pre = ok o →
       ScanSim absNameRec o
         (scanNumNameLoop (absBytes b) (absPos i) w (absU32 seen) (absU64 n) (absU64 pre)) := by
-  induction f using Nat.strong_induction_on with
-  | _ f ih =>
-    intro w i seen n pre o hf h
-    rw [frontend.scan_fast.scan_num_name_loop_loop.eq_def] at h
+  partial_induct frontend.scan_fast.scan_num_name_loop_loop
+  intro g ih
+  · intro w i seen n pre o h
+    beta_reduce at h
     obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
     have hstep := nextMember_step (b := b)
       (L := fun p w => scanNumNameLoop (absBytes b) p w (absU32 seen) (absU64 n) (absU64 pre))
@@ -982,7 +984,6 @@ private theorem scan_num_name_loop_aux {b : Slice Std.U8} (kf : KitFacts b) (f :
       exact hstep
     | Ok p =>
       obtain ⟨mem, ni, nw⟩ := p
-      have hilt := next_member_lt hr
       cases mem with
       | Close =>
         simp only [uncurry_apply_pair] at h
@@ -1050,7 +1051,6 @@ private theorem scan_num_name_loop_aux {b : Slice Std.U8} (kf : KitFacts b) (f :
                 (absKey k) (absPos ks) (absPos v) :=
           MemberStep.key hstep
         rw [key]
-        have hks := next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hr
         cases k
         case KI =>
           simp only [absKey, numNameKey]
@@ -1076,9 +1076,8 @@ private theorem scan_num_name_loop_aux {b : Slice Std.U8} (kf : KitFacts b) (f :
               have hs1 : absU32 seen1 = absU32 seen ||| 1 := by
                 rw [← lift_val hseen1, absU32_or]
                 rfl
-              have hlt := slot_nat_prog hr1
               rw [← hs1]
-              exact ih (b.length - e.val) (by omega) false e seen1 x pre o (le_refl _) h
+              exact ih false e seen1 x pre o h
             | Err er =>
               rw [← Result.ok_injective h]
               exact NatSlotStep.err hslot
@@ -1106,9 +1105,8 @@ private theorem scan_num_name_loop_aux {b : Slice Std.U8} (kf : KitFacts b) (f :
               have hs1 : absU32 seen1 = absU32 seen ||| 2 := by
                 rw [← lift_val hseen1, absU32_or]
                 rfl
-              have hlt := slot_nat_prog hr1
               rw [← hs1]
-              exact ih (b.length - e.val) (by omega) false e seen1 n x o (le_refl _) h
+              exact ih false e seen1 n x o h
             | Err er =>
               rw [← Result.ok_injective h]
               exact NatSlotStep.err hslot
@@ -1123,7 +1121,7 @@ theorem scan_num_name_loop_refines {b : Slice Std.U8} (kf : KitFacts b) {i : Std
            frontend.scan_types.ScanErr}
     (h : frontend.scan_fast.scan_num_name_loop b i = ok o) :
     ScanSim absNameRec o (scanNumNameLoop (absBytes b) (absPos i) true 0 0 0) :=
-  scan_num_name_loop_aux kf (b.length - i.val) true i 0#u32 0#u64 0#u64 o (le_refl _) h
+  scan_num_name_loop_aux kf true i 0#u32 0#u64 0#u64 o h
 
 /-- **`scan_num_name` refines `scanNumName`** (`Scan/Fast.lean:900-904`). -/
 theorem scan_num_name_refines {b : Slice Std.U8} (kf : KitFacts b) {i : Std.Usize}
