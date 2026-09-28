@@ -64883,3 +64883,100 @@ ones opportunistically.
 
 Gates: all 13 OK.  Scratch (`_tmp/pfix-perf`, the throwaway worktree
 and its `target/`) deleted.
+
+### Task #99-SURVEY — sokonanoda, nanoclo and NbE: surveyed, spiked, measured; nothing taken (2026-09-28, Opus under Fable)
+
+Maintainer, 2026-09-27: "we have made con-ron fast, but it could be faster, as
+a glance at the kernel arena shows.  in particular sokonanoda, but also
+nanoclo, are game for harvesting some ideas … then run spikes to measure."
+Research and throwaway spikes only; **nothing landed from this task** (task
+#99-PFIX, run alongside, landed separately).  Spike branches kept for
+reference: `spike/count`, `spike/instmemo`, `spike/constcache`, `99-warm`,
+`spike/nbe` (+ `spike/nbe-lsub`), `spike/prof`.  All numbers are
+single-threaded `instructions:u` on the EPYC box unless marked.
+
+#### 1. The field (Init / core, `--jobs=1` or `num_threads: 1`)
+
+| checker | Init instr | Init wall | Init RSS | core instr |
+|---|---:|---:|---:|---:|
+| sokonanoda `28c03d0` (NbE, glued values, sessions) | 48.3 G | 6.2 s | 570 MB | 115.1 G |
+| nanoclo `2b67fbc` (delayed substitution + sokonanoda's conversion) | 110.5 G | 13.1 s | 868 MB | 234.4 G |
+| **con-ron master `8ad1bbf2`** | **204.6 G** | 20.6 s | 573 MB | **397.9 G** |
+| nanoda `4c544ed` | 231.3 G | 23.1 s | 365 MB | 444.8 G |
+
+sokonanoda accepts everything con-leche accepts on Init, core and the 383
+fixtures (its extra accepts are con-leche's documented departures).
+
+#### 2. Spikes, in order
+
+| spike | idea (source) | result | verdict |
+|---|---|---|---|
+| counting build | size the closure ideas | substitution builds 70 % of new scratch nodes; ~⅓ of them never read or read only by a later substitution → delayed substitution on terms caps at ≈ 11–12 % of cycles; closure-valued inference caps at 1–5 %; β (`beta_peel`) builds 36–42 % of all nodes | only a value domain has a large ceiling |
+| declaration-lifetime `instantiate_list` memo keyed `(h, d, vs[0..bvarB−d))` (sokonanoda's pruned-env cache) | 20–23 % key repeats | **+2.0 % / +9.2 %** instructions (top level / in the walk): a hit saves ≈ 2 node visits, hash-consing already dedupes | dropped |
+| cross-declaration constant-instantiation tables (nanoclo `persist_dag`, sokonanoda sessions) → task #99-WARM | 88 % of misses seen in an earlier epoch | −7.6 % Init / −6.3 % core instructions, ≈ −4…−6 % cycles; Rust + twin + Theorem 1 done (+2.5 K lines), Theorem 2 priced at +3–3.5 K | **rejected by the maintainer**: performance would depend on worker scheduling, and ~5 % does not pay for that.  Branch `99-warm` shelved |
+| NbE design study | where sokonanoda's 4× comes from | cross-declaration memory ≈ 1.5× (its sessions + digest whnf store); per-declaration ("honest") sokonanoda = 74.3 G Init.  Theorem 1 today demands con-leche's *exact* results; an NbE would have to be proved against con-leche's semantic motives (`DefEq` has no `trans`), with β/ι/proj certified (`Red.beta`'s `betaGate`), whnf kept term-level (~85 shape-exact lemma uses) — option C: a pure NbE in con-leche first, con-ron lockstep after | proceed to spikes |
+| NbE Spike 1: sokonanoda + typed envs + every certificate con-leche needs | | **86.5 G** Init / 185.2 G core, all accepted; certificates +10 %; 99.9 % of β skip at a `.never` λ (checking every β: 152.9 G) | GO |
+| NbE Spike 2: value-domain `defeq`/`infer` in con-ron's Rust (5.9 K lines, Aeneas subset, certificates, no fallback in M3) | | correct (all accepts equal, 383/383) but **228.2 G Init (+11 %), 490 G core (+23 %), 1 052 G Mathlib prefix (+30 %)** | **NO-GO** |
+| profile of the remaining gap | | below | no lever ≥ 5 % beyond PGO worth its price now |
+
+#### 3. Why NbE does not pay here
+
+Under con-leche's conversion policy the term core, the value core and
+sokonanoda (per-declaration, certified, con-leche's spine policy: 101 G) do
+the **same steps** — ≈ 7.2 M δ, ≈ 1.6 M ι on Init; call-by-value only adds β
+(41 M vs 24 M).  The policy, not the representation, fixes the work.
+sokonanoda's remaining 2× is **per-step cost** (bump allocation, pointer
+values, `FxHash`, loops), which the Aeneas subset forbids; in con-ron a value
+step costs what a term step costs (env/spine hash-consing ≈ 13 %, pruning
+≈ 10 %, the term walks NbE still needs ≈ 12 %; env hash-consing is
+load-bearing: +41 G without it; lazy thunks: 409 G, pointer equality lost).
+And con-ron's floor outside conversion — parse + phase A 27.4 G against
+sokonanoda's 2.5 G parse, plus the kept term-level `annotate` — puts even a
+sokonanoda-cost value core near 130–140 G.  The rest of sokonanoda's lead is
+cross-declaration memory (rejected) and shortcuts con-leche does not license,
+each small once con-leche's own `isProofFast` is counted: the budgeted
+speculative spine probe ≈ 6 %, infer-closures ≈ 0.5 %; dropping β
+certificates would need a typed model of application.
+
+#### 4. The profile (Init, `_tmp/t99/profile-gap.md`)
+
+Parse 15.75 G + phase A 10.5 G + phase B 178.4 G; sokonanoda's checker ≈ 91 G
+for the same steps at the same IPC, so the gap is instructions, not stalls.
+Phase B's extra ≈ 87 G: term substitution and spines +41 G (`instantiate_list`
+58 G alone, ≈ 170 instructions and 3–4 table operations per node; its
+per-call memo: 135 M probes for 9.1 M hits), hash-consing +9 G (hit ≈ 75,
+insert ≈ 290 instructions), level readback +8.6 G, `Vec` copies of name /
+level / rule lists +8.5 G, per-call memos +8 G, logic +7 G, allocator +3 G.
+Not the cause: overflow checks 1.8 %, `panic=abort` 1.2 %, `Result` width 0,
+`target-cpu=native` 0, knot dispatch ≈ 4 %; the system allocator is +6.7 %
+(mimalloc stays).  `instLP`: 43 calls per declaration, 41 % cut at entry,
+per-declaration cache hits 71 / 88 / 92 % (type / value / rule rhs), a miss
+≈ 11.5 K instructions, 8.2 % of the run.  (The official C++ kernel caches
+level instantiation not at all: `instantiate_value_lparams` is a
+`has_param_univ` cutoff plus the per-call `replace` cache.)
+
+Levers found, **none taken** (maintainer, 2026-09-28: record only):
+
+| lever | Init instr / cycles | proof impact |
+|---|---|---|
+| PGO (task #97's N5, re-measured) | −17.6 % / −8.4 % (core −17.7 % / −7.5 %) | none; two-stage build |
+| `instantiate_list` memo off for a walk's first 64 visits + tail-recursive spine collection | −5.1 % / −7.3 % (core −4.5 % / −5.2 %), measured | small twin change, lockstep |
+| borrow constant info / level / rule lists instead of copying | ≈ 4–5 %, estimated | small |
+| level substitution on interned handles, no readback | ≈ 3–4 %, estimated (6.7 G ceiling measured) | moderate (§8.3's readback) |
+| SwissTable-like `HashMap2` layout | std's table: instructions equal, cycles −8.9 % / −5.7 %, RSS −13–18 %; in-subset tag-byte version −3 % cycles at +7 % instructions | `Refine/HashMap2` only |
+| `subst_const_all` memo; `all_level_params_defined` has-LP cutoff (phase A) | ≈ 0.5 % each | small |
+
+Not recoverable in the subset: β by substitution with hash-consed
+intermediates, the two-tier store's per-node read cost, std's SwissTable, and
+a scanner faster than con-leche's proved one (29 instructions per byte).  With
+every lever above, the estimate is ≈ 140–150 G / 65–70 G on Init — still
+≈ 1.6× sokonanoda.
+
+**The takeaway**: sokonanoda's 4× is not an algorithm con-ron can adopt under
+its proof: ≈ 1.5× is cross-declaration memory, ≈ 2× is per-step cost outside
+the Aeneas subset, and the reduction work itself is fixed by con-leche's
+policy, which con-ron already follows step for step.
+
+Long-form reports (kept, small): `_tmp/t99/{sokonanoda,nanoclo}-survey.md`,
+`spike-count.md`, `spike-instmemo.md`, `spike-constcache.md`,
+`nbe-design.md`, `spike-nbe1.md`, `spike-nbe2.md`, `profile-gap.md`.
