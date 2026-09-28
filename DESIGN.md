@@ -64762,3 +64762,124 @@ nothing against con-leche, as a decline does).
   `attribute [local irreducible] arena.monad.intern_n_node in` on
   `canon_names_go_aux` (the proof uses only the two `_ls` lemmas, never the
   body); the `maxHeartbeats 800000` is gone and the proof takes 0.7 s (was 9.1 s).
+
+### Task #99-PFIX — `fixpoint_induct` for `Result`; the proof-only walk fuel priced (2026-09-28, Opus under Fable)
+
+**Job 1 — the comments.**  Every comment that said Aeneas's `partial_fixpoint`
+definitions "give no induction principle"/"carry no recursor" was wrong.  Lean
+derives `<f>.fixpoint_induct` for each of them (motive over the function,
+admissibility premise, one step); what it does NOT derive for `Result` is
+`<f>.partial_correctness`, which `Lean/Elab/PreDefinition/PartialFixpoint/
+Induction.lean` generates only when the fixpoint is taken in `Option`'s flat
+order (`isOptionFixpoint`).  Corrected in `Refine/{Env,PropRead,ExprOps,
+ExprOpsFields,ExprOpsSpine,BasisTables,Abs}.lean`,
+`Refine2/Frontend/Scan/{Obj,WF}.lean`, `AENEAS_FINDINGS.md` §3.3 and four
+earlier DESIGN entries (three of them now point here).
+`kernel/expr_ops.rs:823`'s "`partial_fixpoint` carries no measure" is true and
+stays.
+
+**Job 2 — the admissibility lemma** (`proof/ConRon/Refine/Fixpoint.lean`).
+Aeneas's `Result` is an interaction tree (`ok` = `ret`, `fail` = a `vis` with
+no continuation, `div` = `⊥`), so its order is not flat; but below `ok a` lie
+only `div` and `ok a` (`ITree.le_unfold`), which is all `Option`'s proof uses:
+
+    theorem admissible_eq_ok (P : Prop) (y : α) :
+        admissible (fun (x : Result α) => x = ok y → P)
+
+(24 lines; `Option.admissible_eq_some`'s analogue).  Aeneas has
+`WP.dspec_admissible` and a `dspec_induction` tactic, but `dspec` rules `fail`
+out — total correctness modulo divergence — which is the wrong shape here: every
+statement of this project is "if the Rust returns `ok o` then …" and is silent
+on `fail`.  On top: `admissible_ok_imp` (uncurry with Aeneas's
+`curry_admissible`, peel `∀`/`→` with `admissible_pi`, close the leaf with
+`admissible_apply`) and **`partial_induct f`**, the missing
+`partial_correctness` as a tactic: it applies `f.fixpoint_induct` with the
+goal (every application of `f` abstracted, `dspec_induction`'s motive
+construction) and discharges admissibility.  Every `LS`/`LSR`/`LSV`/`LSW`
+judgement is `∀ o, m = ok o → …`, so it is an admissible motive as it stands.
+
+| lemma | before (measure) | after (`partial_induct`) | what went |
+|---|---|---|---|
+| `Scan/WF.lean` `utf8_decode_loop_wf` | 208 lines | 192 | the `n - k` bound, the base case, five `uadd_gt` cursor-advance obligations |
+| `Scan/Obj.lean` `scan_num_name_loop_aux` (a refinement) | 161 | 156 | the `b.len() - i` bound, `next_member_lt`/`next_member_ge`/`slot_nat_prog` steps |
+| `ExprOps/Read.lean` `get_app_fn_aux` (T2 fuel walk) | 20 | 21 (`FixpointTest.lean`, not swapped in) | nothing: see below |
+| `Refine/Env.lean` `pi_sort_tele_len_refines` | — | not attempted | the `ExprWF` derivation supplies the node inversion and the abstraction, which `fixpoint_induct` does not |
+
+So `partial_induct` is clearly better where the only reason for the induction
+was termination (the scanner's cursor loops: ~265 `strong_induction_on`/measure
+sites remain in `Refine*/`, the same conversion); it is neutral where the
+induction also carries structure (`ExprWF`), and neutral on the T2 fuel walks
+while the fuel is still an argument: the twin still needs the `cases` on it, and
+`lockstep` files callee specs under a head CONSTANT (`Attr.lean`'s `rustKey?`),
+so an induction hypothesis about the local `g` is applied by hand (one
+`LSR.tail_ls` line).  Accepting an fvar head in `rustKey?` is a one-line
+core change, not made (shared core).
+
+**Job 3 (a) — the price of the walk fuel.**  A throwaway build with the fuel
+check and decrement removed from the 59 DAG walks of `arena/` and `frontend/`
+(`if fuel == 0` → `if false`, `fuel - 1` → `fuel`; con-leche's fuels —
+`knot_*`, i.e. `CHECK_FUEL`/`whnf_*`/`defeq` loops — and `norm_pos_dom`'s
+positivity fuel, `kernel/`, `ron/` untouched), `con-ron --verified --jobs=1`
+on `_tmp/corpus/init.ndjson`, three runs each, interleaved, load ≈ 12:
+
+| | instructions:u | cycles:u (3 runs) | wall s |
+|---|---|---|---|
+| master | 204.625 G (spread 0.0002 %) | 90.3 / 105.4 / 91.6 G | 20.6 / 27.0 / 21.0 |
+| no walk fuel | 200.758 G (−1.89 %) | 91.5 / 92.5 / 100.9 G | 21.2 / 21.3 / 24.2 |
+
+Verdict identical (`accepted 57977 declarations`, byte-identical stdout).
+**−1.9 % instructions and no measurable cycle difference**: the check is a
+perfectly predicted branch and an arithmetic op in a memory-bound walk.  (The
+fuel argument is still passed in the throwaway, so the removal is an upper
+bound minus one register move per call.)
+
+**Job 3 (b) — could the Rust drop the walk fuel?**  Yes in principle; not
+worth it at 0 % cycles.  The sketch, for the record:
+
+* *Statement.*  The twin keeps its fuel (Theorem 1 stays total).  A fuel-free
+  Rust walk `w_nf` relates to the twin "eventually":
+  `w_nf args = ok o → ∃ N, ∀ n ≥ N, ∀ lst, AStateRel₀ … → AStateInv … →
+  LOut … o st ((twin n args).run lst)` — with `N` BEFORE `lst`, because the
+  twin's intermediate states may depend on `n`.  This is a partial-correctness
+  motive, so `partial_induct` proves it; `FixpointTest.lean` does it for
+  `get_app_fn` (38 lines Rust-to-Rust `get_app_fn_nf ⇒ get_app_fn` at every
+  fuel ≥ `F`, plus 10 lines composing with the EXISTING fuelled T2 lemma).
+* *Lockstep?*  Yes: Rust and twin still execute the same operations; the only
+  unmatched step is the twin's fuel test, absorbed by the `∃ N` — no
+  invariant is added to Theorem 2.  But the judgement changes: a
+  caller of two walks needs `max N₁ N₂`, so `lockstep` needs an "eventually"
+  family (`LSE`, with `bind`/`ite`/`tail` rules and a lift from the ordinary
+  judgements for fuel-independent callees) — new shared-core code, and every
+  T2 lemma ABOVE a walk (the core knot, the checker) inherits the `∃ N`.
+* *Theorem 1 and the composition.*  The twin reads the walk fuel from the
+  constant `coreWalkFuel = 4 000 000 000` (264 uses in `Arena/`), and T1's walk
+  specs are already fuel-generic (`instLPFast_spec coreWalkFuel …`), but the
+  top-level twin fixes the constant, so "∃ N ≥ …" cannot be discharged at
+  `4·10⁹` without a depth bound — a store-rank invariant that belongs in T1
+  (`StoreWF`: children interned first ⇒ walk depth ≤ node count < fuel).
+  Either T1 proves "the twin never exhausts `coreWalkFuel` on a well-formed
+  store" (~60 walks × a rank lemma), or the twin takes the walk fuel as a
+  parameter and T1 is stated `∀ wf` (mechanical, ~270 call sites in each of
+  Rust-deleted/twin-parametrised).
+* *Rough size.*  Rust: 59 fuelled functions lose a parameter, ~270 `CORE_WALK_FUEL` call
+  sites; the twin: parametrise or keep; T2: the fuelled `_aux (n : Nat)` lemmas (109 in `Refine2/`)
+  restated (each ≈ its current size via `partial_induct` + the eventually
+  judgement), the `LSE` family in `Lockstep.lean`, and the capstone's
+  composition; T1: one of the two options above.  Weeks, for 1.9 % of
+  instructions and 0 % of cycles.
+* *Alternative: the twin as a `partial_fixpoint` too.*  Then both sides are
+  fuel-free and T2 is plain lockstep by `partial_induct` on the Rust with the
+  twin unfolded by its equation.  It needs a CCPO on `AM`: today `AM` is a
+  state monad over `Except`, which has no bottom; over `Option` (`StateT AState
+  (ExceptT CheckError Option)`) Lean supplies CCPO/`MonoBind` and even derives
+  `partial_correctness` for the twin automatically, and Theorem 1 ("twin ok ⇒
+  con-leche ok") is partial correctness, so `fixpoint_induct`/`mvcgen` specs
+  proved from it serve.  Cost: every `x.run lst = .ok …` in T1/T2/the capstone
+  becomes `= some (.ok …)`; not attempted.
+
+**Recommendation**: keep the walk fuel.  Use `partial_induct` for new
+loop proofs whose induction exists only for termination; convert the old
+ones opportunistically.
+
+Gates: all 13 OK (below).  Scratch (`_tmp/pfix-perf`, the throwaway worktree
+and its `target/`) deleted.
