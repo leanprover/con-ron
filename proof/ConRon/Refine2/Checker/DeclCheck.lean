@@ -174,7 +174,6 @@ theorem matches_pin_of_ci_refines {pers st lst} {cv : arena.env.IConstantVal}
         (absIConstantVal cv).matchesPin pcv) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.matches_pin_of_ci]
-  skip
   lockstep
 
 open Lockstep in
@@ -1782,7 +1781,6 @@ theorem eq_at1_app_refines {pers st lst} {hus : arena.handle.LsIdx}
         internE (.app e2 (absEIdx b))) := by
   refine Lockstep.LS.toSim₀ ?_ hrun
   rw [arena.decl_check.eq_at1_app]
-  skip
   lockstep
 
 open Lockstep in

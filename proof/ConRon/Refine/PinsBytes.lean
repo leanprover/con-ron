@@ -1306,7 +1306,6 @@ private theorem name_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} 
     · simp only [Result.ok.injEq] at h
       subst h
       rename_i hk0
-      of_kind_inv hk0
       rw [show k.val = 0 from by scalar_tac]
       exact ⟨by simp [PinsDec.nameListFrom], le_refl _, hi⟩
     · rename_i hk0
@@ -1425,7 +1424,6 @@ private theorem level_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables}
     · simp only [Result.ok.injEq] at h
       subst h
       rename_i hk0
-      of_kind_inv hk0
       rw [show k.val = 0 from by scalar_tac]
       exact ⟨by simp [PinsDec.levelListFrom], le_refl _, hi⟩
     · rename_i hk0
@@ -1544,7 +1542,6 @@ private theorem expr_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} 
     · simp only [Result.ok.injEq] at h
       subst h
       rename_i hk0
-      of_kind_inv hk0
       rw [show k.val = 0 from by scalar_tac]
       exact ⟨by simp [PinsDec.exprListFrom], le_refl _, hi⟩
     · rename_i hk0

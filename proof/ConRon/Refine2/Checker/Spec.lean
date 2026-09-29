@@ -283,9 +283,9 @@ theorem checkProjRule_unfold (mode : CheckMode) (fe : IFEnv) (pty : EIdx)
   refine ConRon.Refine2.am_bind_congr _ ?_
   intro r
   cases r <;>
-    twin_reduce [checkProjRuleScopedSpec, checkProjRuleWfSpec,
-      checkProjRuleShapeSpec, checkProjRuleCertsSpec, checkProjRuleFrameSpec] <;>
-    try rfl
+    (twin_reduce [checkProjRuleScopedSpec, checkProjRuleWfSpec,
+      checkProjRuleShapeSpec, checkProjRuleCertsSpec, checkProjRuleFrameSpec];
+      try rfl)
 
 
 /-! ## `arena::decl_check`'s splits (finding 11)
