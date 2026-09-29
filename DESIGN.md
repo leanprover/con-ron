@@ -65044,3 +65044,10 @@ error); OVERVIEW's fixture count 383 → 388.
 `_tmp/aeneas-lean/.lake/packages/con-leche` was not touched and still sits
 at `78ded4b6`; after this lands it must be moved to `1e567fcf` (see the
 landing report) before other worktrees build against the new manifest.
+
+**Gates.**  `scripts/gates.sh` (`LAKE_JOBS=4`) **all 13 OK** —
+`provenance` at 6 881 items / 4 258 citations, all current at `1e567fcf`;
+`gen-pins --check` green (the pin values did not move); `extract-check`
+152 s with no diff.  The pin (`proof/lakefile.toml`,
+`proof/lake-manifest.json`) is the last commit of the branch, staged by
+name (§7 step 9).
