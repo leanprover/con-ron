@@ -920,7 +920,7 @@ theorem nidx_is_model_suffix_refines {pers st lst} {n : arena.handle.NIdx} {o}
         obtain rfl := (Result.ok_injective hrun).symm
         show Except.ok _ = Except.ok _
         simp only [hbv, id]
-        first | rfl | (congr 2; exact beq_eq_decide _ _) | (congr 2; exact (beq_eq_decide _ _).symm)
+        rfl
   · rw [if_neg hstr] at hrun
     rw [if_neg (by
       rw [← ntag_str_abs]
@@ -2143,21 +2143,6 @@ theorem fvar_type_ds_aux {pers st} (hs : alloc.vec.Vec arena.handle.EIdx) (k : N
       simp only [absEIdxLFrom]; rw [List.drop_eq_getElem_cons hlt]; rfl
     rw [this, fvarTypeDs]
     lockstep
-    all_goals
-      rename_i x lst1 hrel1 hinv1 out1 hout1 i2 hi2
-      intro o st' hm
-      obtain ⟨o1, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h2)
-      have H := ih (lst := lst1) i2 out1 (by scalar_tac) hrel1 hinv1 o1 h1
-      have e2 : absEIdxLFrom hs i2 = (hs.val.drop (i.val + 1)).map absEIdx := by
-        simp only [absEIdxLFrom]; congr 2; scalar_tac
-      rw [e2] at H
-      cases o1 with
-      | Err e => exact errSim_bind H
-      | Ok v =>
-        obtain ⟨b, lst', hx, hR, h1', h2'⟩ := H
-        refine ⟨_, lst', by rw [run_bind_ok hx]; rfl, ?_, h1', h2'⟩
-        rw [hR]; simp [absEIdxL, hout1]
 
 open Lockstep in
 @[lockstep] theorem fvar_type_ds_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -2314,9 +2299,6 @@ theorem check_typed_list_aux {pers} {vis : Std.U64} {rf lf} (mode : kernel.env.C
     · rw [vecFrom_nil ys _ i hy]
       simp only [checkTypedList]
       lockstep
-      all_goals
-        rw [show (↑i : Nat) + 1 = (↑a : Nat) by scalar_tac]
-        exact ih a (by scalar_tac) ‹_› ‹_›
     · rw [vecFrom_cons ys _ i (by omega), checkTypedList]
       lockstep
       all_goals
@@ -2378,9 +2360,6 @@ theorem check_def_eq_list_aux {pers} {vis : Std.U64} {rf lf} (mode : kernel.env.
     · rw [vecFrom_nil ys _ i hy]
       simp only [checkDefEqList]
       lockstep
-      all_goals
-        rw [show (↑i : Nat) + 1 = (↑a : Nat) by scalar_tac]
-        exact ih a (by scalar_tac) ‹_› ‹_›
     · rw [vecFrom_cons ys _ i (by omega), checkDefEqList]
       lockstep
       all_goals

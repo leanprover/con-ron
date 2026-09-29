@@ -315,7 +315,7 @@ reversed (`absEnv`) and scans it from the back. -/
 theorem list_take_reverse_cons {α : Type} {l : List α} {i : Nat}
     (h : i < l.length) :
     (l.take (i + 1)).reverse = l[i] :: (l.take i).reverse := by
-  rw [List.take_succ, List.getElem?_eq_getElem h]
+  rw [List.take_add_one, List.getElem?_eq_getElem h]
   simp
 
 /-- Pushing onto the empty vector — the port's spelling of a one-element list

@@ -704,7 +704,7 @@ theorem i_constant_info_beq_refines {a b : arena.env.IConstantInfo} {o : Bool}
     (hrun : arena.canon.i_constant_info_beq a b = ok o) :
     o = decide (absIConstantInfo a = absIConstantInfo b) := by
   cases a <;> cases b <;> simp only [arena.canon.i_constant_info_beq, Result.ok.injEq] at hrun <;>
-    (try (subst hrun; simp [absIConstantInfo]; done))
+    (try (subst hrun; simp [absIConstantInfo]))
   case AxiomInfo.AxiomInfo x y =>
     rw [i_constant_val_beq_refines hrun]
     simp [absIConstantInfo]
