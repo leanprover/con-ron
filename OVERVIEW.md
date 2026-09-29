@@ -959,7 +959,7 @@ changed with a `CHANGED` line, which `check` rejects until the item is
 re-ported.  DESIGN.md §7 has the procedure.
 
 **Differential testing.**  `scripts/diff-e2e.sh` runs the binary on
-con-leche's own test fixtures (383 streams) and compares each exit code with
+con-leche's own test fixtures (388 streams) and compares each exit code with
 con-leche's recorded one, in both modes and at several worker counts.  This
 covers what the proof does not: the driver, the pool and the modeller.  CI
 runs it (`.github/workflows/ci.yml`).

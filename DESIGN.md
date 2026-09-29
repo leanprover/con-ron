@@ -64980,3 +64980,67 @@ policy, which con-ron already follows step for step.
 Long-form reports (kept, small): `_tmp/t99/{sokonanoda,nanoclo}-survey.md`,
 `spike-count.md`, `spike-instmemo.md`, `spike-constcache.md`,
 `nbe-design.md`, `spike-nbe1.md`, `spike-nbe2.md`, `profile-gap.md`.
+
+### Task #100 — con-leche bumped to 1e567fcf: the nested modeller lifts index arguments past the extra binders (2026-09-29, Opus under Fable)
+
+con-leche goes from `78ded4b6` to **`1e567fcf`**, three commits:
+
+| upstream | what it did | executed checker? |
+|---|---|---|
+| `0a499fbf` (#321) | its DESIGN record renumbered | no |
+| `ae0c0c4e` (#322) | a measured no (per-argument substitution loops), DESIGN only | no |
+| **`1e567fcf`** | **"MODELLER FIX"**: `genNested` moved constructor result indices and nested fields' index arguments into frames with `O` extra binders between the parameters and the fields without lifting past them, so an index mentioning a parameter pointed `O` binders too close and the fold rejected the generated record (cslib's `EvalExpr`; the docketed false reject `nested_p07`) | **yes** (the modeller) |
+
+**Findings.**  `provenance.py update`: **52 `CHANGED`, 0 `GONE`** — every one
+a citation of `Nested.lean:400-1325 genNested` (51 items of
+`in_model/nested.rs`, one `mutual::h_of`, which cites both generators); the
+cited range grew by nine lines.  `progress.py`'s `stale (CHANGED marker)`
+was 52 before, 0 after; only `field_idx` and the call sites below needed a
+code change, the other 50 markers were deleted as citation-only.
+
+**Rust** (`crates/con-ron/src/in_model/nested.rs`, the unverified crate;
+nothing in `con-ron-core`, so no extraction and no `Generated/` change):
+`Gen::field_idx_at(c, i, o', O)` (lift by `O` at cutoff `i`, then by `o'` at
+0) and `Gen::ctor_idx_at(c, O, nIh)` (lift by `O` at cutoff `nF`, then by
+`nIh` at 0) are upstream's `fieldIdxAt`/`ctorIdxAt`; `field_idx` is now
+`field_idx_at … 0`, as upstream's `fieldIdx`.  The 15 field-index sites move
+to `field_idx_at` — `unpack_minors` (1), `pack_minors` (2), `up_minors` (4),
+`pu_minors` (3) and the projection minors in `gen_nested` (2) at `O = o`,
+`rec_minors` (3) at `O = o_p` — and upstream's four `ctorIdxAt` sites are
+three here, because `pu_minors` binds one `idx_c` for both its `mkRefl` and
+its `congrChain` arm (`o`), plus `rec_minors`'s `idx_c` (`o_p`) and
+`up_minors`'s `alpha` (`o`).  The six remaining `field_idx` calls are
+upstream's unchanged `fieldIdx` sites (the constructor models and the iota
+theorems, which already lift past `M + n` explicitly).
+
+**Fixtures.**  con-ron has no copy: `diff-e2e.sh` reads con-leche's
+`tests/` through `provenance.py dir`, so the five new
+`e2e/nested_idx_{param,param_nat,param_type,forall2,closed}` and
+`nested_p07`'s 1 → 0 arrive with the pin.  **388/388 agree** at `--jobs=1`
+and at `--jobs=4` (was 383).  The master binary on the six rows:
+`nested_idx_closed` agrees, the other five DIFFER (exit 1, "application
+type mismatch [at theorem E._model._impl.unpackPack_0 …]"); this branch's:
+6/6 agree.  Corpus verdicts, `--verified --jobs=8` under `ulimit -v
+27000000`: `Init` accepts 57 977, `Init`+`Std`+`Lean` 163 396, Mathlib
+691 128 (peak RSS 7.34 GB) — unchanged.  The Lean arena binary (`lake build
+con-ron-lean`, whose modeller is con-leche's own) on every `nested_*` fixture:
+44/44 agree.
+
+**The Lean twin, Theorem 1, Theorem 2: nothing to change.**
+`Arena/Frontend/InModel.lean`'s `inProcessModeller` delegates to
+con-leche's own `ConLeche.Frontend.InModel.generate` (it is not a twin),
+and `Bridge/Frontend/Modeller.lean`'s `ModellerRefines` is stated against
+that same function, so the fix arrives with the pin and `lake build` (all
+default targets, 2 871 jobs) is green with no proof edit.  T2 relates the
+extracted core, which the fix does not touch.
+
+**Docs.**  README's two con-leche anchors repointed to the new pin (numbers
+only: `MainTheorem.lean` and `Verify/Cached/MainC.lean` are unchanged — the
+link gate treats a con-leche link at a non-current pin in README as an
+error); OVERVIEW's fixture count 383 → 388.
+
+**Shared state.**  The campaign ran on a private reflink copy
+`_tmp/t100-aeneas-lean` (deleted at the end).  The shared
+`_tmp/aeneas-lean/.lake/packages/con-leche` was not touched and still sits
+at `78ded4b6`; after this lands it must be moved to `1e567fcf` (see the
+landing report) before other worktrees build against the new manifest.
