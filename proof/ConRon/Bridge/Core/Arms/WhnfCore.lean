@@ -58,7 +58,6 @@ namespace ConRon.Bridge.Core
 set_option autoImplicit false
 set_option mvcgen.warning false
 set_option maxHeartbeats 1000000
-set_option linter.unusedSimpArgs false
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
@@ -128,7 +127,7 @@ theorem whnfCore_app_iota {F d : Nat} {f a f' e'' res : Expr}
   cases f'
   case lam ty b m => exact absurd rfl (hne ty b m)
   all_goals
-    simp only [hi, bind, Except.bind, ConLeche.whnfCore_def]
+    simp only [hi]
     exact hr
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1001-1004 whnfCoreBody — the ι arm
@@ -144,7 +143,7 @@ theorem whnfCore_app_iota_none {F d : Nat} {f a f' : Expr}
     Except.bind]
   cases f'
   case lam ty b m => exact absurd rfl (hne ty b m)
-  all_goals simp only [hi, bind, Except.bind, pure, Except.pure]
+  all_goals simp only [hi, pure, Except.pure]
 
 /-! ## 2. The `.proj` clause's five exits
 
@@ -187,7 +186,7 @@ theorem whnfCore_proj_fire {F d i : Nat} {sn : Name} {pe e0 e' res : Expr}
   simp only [ConLeche.whnfCoreBody, ConLeche.whnf_def, ConLeche.whnfCore_def,
     hw, hl, ht, hh, bind, Except.bind]
   rw [if_pos hg, hcert]
-  simp only [bind, Except.bind, if_true]
+  simp only [if_true]
   exact hr
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1032-1035 whnfCoreBody — the table
@@ -210,7 +209,7 @@ theorem whnfCore_proj_cert_false {F d i : Nat} {sn : Name} {pe e0 e' : Expr}
   simp only [ConLeche.whnfCoreBody, ConLeche.whnf_def, hw, hl, ht, hh, bind,
     Except.bind]
   rw [if_pos hg, hcert]
-  simp only [bind, Except.bind, Bool.false_eq_true, if_false, pure,
+  simp only [Bool.false_eq_true, if_false, pure,
     Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1034 whnfCoreBody — the table fires

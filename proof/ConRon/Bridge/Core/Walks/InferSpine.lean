@@ -26,7 +26,6 @@ namespace ConRon.Bridge.Core
 set_option autoImplicit false
 set_option mvcgen.warning false
 set_option maxHeartbeats 1000000
-set_option linter.unusedSimpArgs false
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
@@ -97,7 +96,7 @@ theorem inferSpine_pi_step {F d : Nat} {dom body x ta : Expr}
       = .ok true := hd
   rw [ConLeche.inferSpine_pi]
   unfold ConLeche.inferSpinePi
-  simp [e1, e2, bind, Except.bind, pure, Except.pure]
+  simp [e1, e2, bind, Except.bind]
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:1300 inferSpine_ne_pi — the
 normalise-and-retry step, certificate passed. -/
@@ -116,7 +115,7 @@ theorem inferSpine_whnf_step {F d : Nat} {ty dom body x ta : Expr}
   have e2 : (pureFns mode env F).defeq d ta dom = .ok true := hd
   rw [ConLeche.inferSpine_ne_pi _ _ hne]
   unfold ConLeche.inferSpineWhnf
-  simp [e0, e1, e2, bind, Except.bind, pure, Except.pure]
+  simp [e0, e1, e2, bind, Except.bind]
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:1698 inferSpineIO_pi — the
 syntactic-`∀` step at a licensed (`never`) binder: no certificate. -/
@@ -144,7 +143,7 @@ theorem inferSpineIO_pi_cert {F d : Nat} {dom body x ta : Expr}
       = .ok true := hd
   rw [ConLeche.inferSpineIO_pi]
   unfold ConLeche.inferSpineIOPi
-  simp [hn, e1, e2, bind, Except.bind, pure, Except.pure]
+  simp [hn, e1, e2, bind, Except.bind]
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:1705 inferSpineIO_ne_pi — the
 normalise-and-retry step at a licensed binder. -/
@@ -180,7 +179,7 @@ theorem inferSpineIO_whnf_cert {F d : Nat} {ty dom body x ta : Expr}
   have e2 : (pureFns mode env F).defeq d ta dom = .ok true := hd
   rw [ConLeche.inferSpineIO_ne_pi _ _ hne]
   unfold ConLeche.inferSpineIOWhnf
-  simp [e0, e1, e2, hn, bind, Except.bind, pure, Except.pure]
+  simp [e0, e1, e2, hn, bind, Except.bind]
 
 /-- con-leche: none — the one-slot accumulator `#[a]`. -/
 theorem InstLVec.single {st : EStore} {a : EIdx} {x : Expr}
@@ -405,7 +404,7 @@ theorem inferSpineIO_go {fuel : Nat} (hμ : mode.verifiedChecks = true)
         cases hn : mt.pw.isNever
         · -- the certificate runs
           have hsk : mode.ioSkip mt.pw = false := by rw [ioSkip_eq hμ, hn]
-          simp only [hsk, Bool.false_eq_true, if_false, bind_assoc]
+          simp only [hsk, Bool.false_eq_true, if_false]
           refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀
             dom acc 0 ws hok.state hacc (by rw [hdd]; rfl)) ?_
           rintro dom2 s2 ⟨hst2, hx2, _, hc2, hp2, _, hrel2⟩
@@ -474,7 +473,7 @@ theorem inferSpineIO_go {fuel : Nat} (hμ : mode.verifiedChecks = true)
           have hx03 : Ext s₀.store s3.store := hx2.trans hx3
           cases hn : mt.pw.isNever
           · have hsk : mode.ioSkip mt.pw = false := by rw [ioSkip_eq hμ, hn]
-            simp only [hsk, Bool.false_eq_true, if_false, bind_assoc]
+            simp only [hsk, Bool.false_eq_true, if_false]
             refine triple_seq (hsim.inferIO s3 d args[i] x hok3
               (denote_ext hx hx03) hwx) ?_
             rintro ta s4 ⟨hok4, hx4, hp4, vta, hvta, hwvta, F2, hF2⟩

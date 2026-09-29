@@ -998,7 +998,6 @@ theorem match_push_sets {st : RState} {tb : Tables} (hm : Match st tb)
       { tb with sets := tb.sets ++ [v] } :=
   ⟨hm.names, hm.levels, hm.pws, hm.exprs, by simp [hm.sets]⟩
 
-set_option linter.unusedSimpArgs false
 
 /-! `reader_simp` is the `StateT RState (Except String)` plumbing, the kind
 dispatch's string comparisons and the boolean reductions every record proof
@@ -1936,7 +1935,7 @@ theorem modify_line (st : RState) (l : String) :
         { s with lineNo := s.lineNo + 1, toks := (l.splitOn " ").toArray,
                  pos := 0 } : R Unit) st = .ok ((), lineState st l) := by
   simp only [lineState, modify, modifyGet, MonadStateOf.modifyGet,
-    StateT.modifyGet, pure, StateT.pure, Except.pure]
+    StateT.modifyGet, pure, Except.pure]
 
 theorem lineState_match {st : RState} {tb : Tables} (hm : Match st tb)
     (l : String) : Match (lineState st l) tb :=

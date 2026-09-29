@@ -413,7 +413,6 @@ theorem EStore.view_of_proj {st : EStore} {i : EIdx} {v : ENodeView}
     · simp only [Bool.not_eq_true] at hon
       rw [hon] at h; simp at h
 
-set_option linter.unusedSimpArgs false in
 theorem ETables.get_of_getBVar {t : ETables} {i : EIdx} {k : Nat}
     (htg : i.tag = ETag.bvar) (h : t.getBVar i = some k) :
     t.get i = some (.bvar k) := by
@@ -421,7 +420,6 @@ theorem ETables.get_of_getBVar {t : ETables} {i : EIdx} {k : Nat}
   obtain ⟨r, hr, rfl⟩ := h
   simp [ETables.get, htg, hr, ETag.bvar]
 
-set_option linter.unusedSimpArgs false in
 theorem ETables.get_of_getFVar {t : ETables} {i : EIdx} {k : Nat} {ty : EIdx}
     (htg : i.tag = ETag.fvar) (hk : t.getFVarIdx i = some k)
     (hty : t.getFVarTy i = some ty) : t.get i = some (.fvar k ty) := by
@@ -431,7 +429,6 @@ theorem ETables.get_of_getFVar {t : ETables} {i : EIdx} {k : Nat} {ty : EIdx}
   subst hty
   simp [ETables.get, htg, hr, ETag.fvar, ETag.bvar]
 
-set_option linter.unusedSimpArgs false in
 theorem ETables.get_of_getSort {t : ETables} {i : EIdx} {u : LIdx}
     (htg : i.tag = ETag.sort) (h : t.getSort i = some u) :
     t.get i = some (.sort u) := by
@@ -439,7 +436,6 @@ theorem ETables.get_of_getSort {t : ETables} {i : EIdx} {u : LIdx}
   obtain ⟨r, hr, rfl⟩ := h
   simp [ETables.get, htg, hr, ETag.sort, ETag.bvar, ETag.fvar]
 
-set_option linter.unusedSimpArgs false in
 theorem ETables.get_of_getConst {t : ETables} {i : EIdx} {n : NIdx} {us : LsIdx}
     (htg : i.tag = ETag.const) (h : t.getConst i = some (n, us)) :
     t.get i = some (.const n us) := by
@@ -447,7 +443,6 @@ theorem ETables.get_of_getConst {t : ETables} {i : EIdx} {n : NIdx} {us : LsIdx}
   obtain ⟨r, hr, rfl, rfl⟩ := h
   simp [ETables.get, htg, hr, ETag.const, ETag.bvar, ETag.fvar, ETag.sort]
 
-set_option linter.unusedSimpArgs false in
 theorem ETables.get_of_getConstName {t : ETables} {i : EIdx} {n : NIdx}
     (htg : i.tag = ETag.const) (h : t.getConstName i = some n) :
     ∃ us, t.get i = some (.const n us) := by
@@ -456,7 +451,6 @@ theorem ETables.get_of_getConstName {t : ETables} {i : EIdx} {n : NIdx}
   exact ⟨r.us, by simp [ETables.get, htg, hr, ETag.const, ETag.bvar, ETag.fvar,
     ETag.sort]⟩
 
-set_option linter.unusedSimpArgs false in
 theorem ETables.get_of_getApp {t : ETables} {i : EIdx} {f a : EIdx}
     (htg : i.tag = ETag.app) (h : t.getApp i = some (f, a)) :
     t.get i = some (.app f a) := by
@@ -465,7 +459,6 @@ theorem ETables.get_of_getApp {t : ETables} {i : EIdx} {f a : EIdx}
   simp [ETables.get, htg, hr, ETag.app, ETag.bvar, ETag.fvar, ETag.sort,
     ETag.const]
 
-set_option linter.unusedSimpArgs false in
 theorem ETables.get_of_getLet {t : ETables} {i : EIdx} {ty val b : EIdx}
     (htg : i.tag = ETag.letE) (h : t.getLet i = some (ty, val, b)) :
     t.get i = some (.letE ty val b) := by
@@ -474,7 +467,6 @@ theorem ETables.get_of_getLet {t : ETables} {i : EIdx} {ty val b : EIdx}
   simp [ETables.get, htg, hr, ETag.letE, ETag.bvar, ETag.fvar, ETag.sort,
     ETag.const, ETag.app, ETag.isBind, ETag.lam, ETag.forallE]
 
-set_option linter.unusedSimpArgs false in
 theorem ETables.get_of_getLit {t : ETables} {i : EIdx} {l : ConLeche.Literal}
     (htg : i.tag = ETag.lit) (h : t.getLit i = some l) :
     t.get i = some (.lit l) := by
@@ -483,7 +475,6 @@ theorem ETables.get_of_getLit {t : ETables} {i : EIdx} {l : ConLeche.Literal}
   simp [ETables.get, htg, hr, ETag.lit, ETag.bvar, ETag.fvar, ETag.sort,
     ETag.const, ETag.app, ETag.isBind, ETag.lam, ETag.forallE, ETag.letE]
 
-set_option linter.unusedSimpArgs false in
 theorem ETables.get_of_getProj {t : ETables} {i : EIdx} {n : NIdx} {k : Nat}
     {e : EIdx} (htg : i.tag = ETag.proj) (h : t.getProj i = some (n, k, e)) :
     t.get i = some (.proj n k e) := by
@@ -673,7 +664,6 @@ excludes".  It needs no `StoreWF` at all — `ETables.get` dispatches on
 and it is what lets a walk's catch-all `else` arm know which four
 constructors it is looking at. -/
 
-set_option linter.unusedSimpArgs false in
 /-- con-leche: none — a tier that decodes a handle decodes it to the
 constructor its tag names. -/
 theorem ETables.tagOf_of_get {t : ETables} {i : EIdx} {v : ENodeView}

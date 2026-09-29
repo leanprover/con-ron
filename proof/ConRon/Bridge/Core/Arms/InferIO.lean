@@ -45,7 +45,6 @@ namespace ConRon.Bridge.Core
 set_option autoImplicit false
 set_option mvcgen.warning false
 set_option maxHeartbeats 1000000
-set_option linter.unusedSimpArgs false
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
@@ -429,7 +428,7 @@ theorem inferBodyIO_forallE {fe : IFEnv} {fuel : Nat}
       rw [hst01]
       constructor
       · intro c hc
-        simp only [LNodeView.lchildren, List.mem_cons, List.mem_singleton,
+        simp only [LNodeView.lchildren, List.mem_cons,
           List.not_mem_nil, or_false] at hc
         rcases hc with rfl | rfl
         · exact lview_isSome_of_denote hU1'
@@ -719,7 +718,7 @@ theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
         have hvl := viewLen_of_denoteLs hus
         have hcta := constTyAt_spec' (mode := mode) (env := env) (fe := fe)
           s₀ cv us hok ⟨nm, ls, c, hname, hus, hfind, hcv⟩
-        simp only [hcv_eq, Bool.false_eq_true, if_false]
+        simp only [hcv_eq]
         mvcgen [hcta]
         all_goals (bridge_peel; subst_vars)
         all_goals clear_tag_hyps

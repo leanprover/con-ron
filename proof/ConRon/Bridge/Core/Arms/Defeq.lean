@@ -68,7 +68,6 @@ namespace ConRon.Bridge.Core
 set_option autoImplicit false
 set_option mvcgen.warning false
 set_option maxHeartbeats 1000000
-set_option linter.unusedSimpArgs false
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
@@ -155,7 +154,7 @@ theorem defeqLoop_propIrrel {F d n : Nat} {pi : Bool} {a b a' b' : Expr}
   simp only [bind, Except.bind, Bool.false_eq_true, if_false,
     ConLeche.whnfCore_def, ha, hb, heq]
   rw [hpi]
-  simp only [bind, Except.bind, if_true, pure, Except.pure]
+  simp only [if_true, pure, Except.pure]
 
 /-! ## 3. Literal acceleration
 
@@ -191,9 +190,9 @@ theorem defeqLoop_reduceNat_left {F d n : Nat} {pi : Bool}
   simp only [bind, Except.bind, Bool.false_eq_true, if_false,
     ConLeche.whnfCore_def, ha, hb, heq]
   rw [hpi]
-  simp only [bind, Except.bind, Bool.false_eq_true, if_false]
+  simp only [Bool.false_eq_true, if_false]
   rw [hn]
-  simp only [bind, Except.bind]
+  simp only
   exact hk
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1522-1525 defeqStep — `reduceNat`
@@ -226,11 +225,11 @@ theorem defeqLoop_reduceNat_right {F d n : Nat} {pi : Bool}
   simp only [bind, Except.bind, Bool.false_eq_true, if_false,
     ConLeche.whnfCore_def, ha, hb, heq]
   rw [hpi]
-  simp only [bind, Except.bind, Bool.false_eq_true, if_false]
+  simp only [Bool.false_eq_true, if_false]
   rw [hn1]
-  simp only [bind, Except.bind]
+  simp only
   rw [hn2]
-  simp only [bind, Except.bind]
+  simp only
   exact hk
 
 /-! ## 4. The binder-congruence arms — what the peel replaces
@@ -279,8 +278,7 @@ theorem defeqLoop_forallE {F d n : Nat} {pi : Bool} {a b : Expr}
   simp only [hab, Bool.false_eq_true, if_false]
   rw [hsc]
   simp [ConLeche.whnfCore_def, ConLeche.defeq_def, ha, hb, heq,
-    ConLeche.Expr.quickPair, ConLeche.reduceNat, ConLeche.unfoldableHead,
-    ConLeche.unfoldDefinition, ConLeche.Expr.getAppFn, hd1, hd2, hm, bind,
+    ConLeche.Expr.quickPair, ConLeche.reduceNat, ConLeche.unfoldableHead, ConLeche.Expr.getAppFn, hd1, hd2, hm, bind,
     Except.bind, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1655-1662 defeqStep — the `λ`/`λ`
@@ -305,8 +303,7 @@ theorem defeqLoop_lam {F d n : Nat} {pi : Bool} {a b : Expr}
   simp only [hab, Bool.false_eq_true, if_false]
   rw [hsc]
   simp [ConLeche.whnfCore_def, ConLeche.defeq_def, ha, hb, heq,
-    ConLeche.Expr.quickPair, ConLeche.reduceNat, ConLeche.unfoldableHead,
-    ConLeche.unfoldDefinition, ConLeche.Expr.getAppFn, hd1, hd2, hm, bind,
+    ConLeche.Expr.quickPair, ConLeche.reduceNat, ConLeche.unfoldableHead, ConLeche.Expr.getAppFn, hd1, hd2, hm, bind,
     Except.bind, pure, Except.pure]
 
 /-! ## 5. The peel's identification — the campaign's one port-side debt -/
@@ -584,7 +581,6 @@ namespace ConRon.Bridge.Core
 set_option autoImplicit false
 set_option mvcgen.warning false
 set_option maxHeartbeats 1000000
-set_option linter.unusedSimpArgs false
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
@@ -630,9 +626,9 @@ theorem defeqLoop_tail {F d n : Nat} {pi : Bool} {x y x' y' : Expr}
   simp only [bind, Except.bind, Bool.false_eq_true, if_false,
     ConLeche.whnfCore_def, h.ha, h.hb, h.heq]
   rw [h.hpi]
-  simp only [bind, Except.bind, Bool.false_eq_true, if_false]
+  simp only [Bool.false_eq_true, if_false]
   rw [h.hn1]
-  simp only [bind, Except.bind]
+  simp only
   rw [h.hn2]
   rfl
 
@@ -1135,7 +1131,6 @@ namespace ConRon.Bridge.Core
 set_option autoImplicit false
 set_option mvcgen.warning false
 set_option maxHeartbeats 1000000
-set_option linter.unusedSimpArgs false
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 

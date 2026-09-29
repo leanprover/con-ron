@@ -1067,7 +1067,6 @@ open Lockstep in
         (absIRecRule rule)) :=
   LS.ofSim₀ fun _ h => struct_parts_core_at_refines hrel hinv h
 
-set_option linter.unusedSimpArgs false in
 /-- `struct_parts_core` ⊑ `structPartsCore?`.  The block match by hand (the
 port's three reads and nested constructor matches against the twin's
 three-element list pattern, through `structPartsCore_unfold`); the body past
@@ -1093,9 +1092,9 @@ theorem struct_parts_core_refines {pers st lst}
       alloc.vec.Vec.index_usize, e0, e1, e2, bind_tc_ok, List.map_cons, List.map_nil]
     cases a <;> simp only [absIConstantInfo] <;> try exact Lockstep.LS.pure rfl hrel hinv
     case IndInfo cv_t caps =>
-    cases b <;> (try simp only [absIConstantInfo]) <;> try exact Lockstep.LS.pure rfl hrel hinv
+    cases b <;> (try simp only) <;> try exact Lockstep.LS.pure rfl hrel hinv
     case CtorInfo cv_c n_p n_f =>
-    cases c <;> (try simp only [absIConstantInfo]) <;> try exact Lockstep.LS.pure rfl hrel hinv
+    cases c <;> (try simp only) <;> try exact Lockstep.LS.pure rfl hrel hinv
     case RecInfo cv_r m_i r_p rules =>
     rcases hr : rules.val with _ | ⟨r, _ | ⟨r', l⟩⟩
     case cons.nil =>
