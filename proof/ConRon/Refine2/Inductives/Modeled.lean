@@ -3151,13 +3151,6 @@ theorem check_eta_thm_body_refines {pers st lst} {mode : kernel.env.CheckMode}
   by_cases h1 : n_p.val < sbinders.val.length
   · rw [IndModeledPrims.absBinderL_get?_lt (n := absU n_p) h1]
     lockstep_idx
-    all_goals
-      split
-      all_goals
-        first
-        | (refine Lockstep.LS.pure ?_ ‹_› ‹_›; rfl)
-        | (exfalso; simp_all; done)
-        | lockstep
   · rw [IndModeledPrims.absBinderL_get?_ge (n := absU n_p) (by simp only [absU]; omega)]
     lockstep
 
@@ -3358,13 +3351,6 @@ theorem check_unit_thm_shape_refines {pers st lst} {mode : kernel.env.CheckMode}
     by_cases h2 : n_p.val + 1 < sbinders.val.length
     · rw [IndModeledPrims.absBinderL_get?_lt (n := absU n_p + 1) h2]
       lockstep_idx
-      all_goals
-        split
-        all_goals
-          first
-          | (refine Lockstep.LS.pure ?_ ‹_› ‹_›; rfl)
-          | (exfalso; simp_all; done)
-          | lockstep
     · rw [IndModeledPrims.absBinderL_get?_ge (n := absU n_p + 1) (by simp only [absU]; omega)]
       iterate 12 (try (first | ind_idx_unify | lockstep_step))
       -- the twin's second read is `none`: its test is `false` outright

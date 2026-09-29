@@ -440,9 +440,6 @@ theorem mentions_fvar_go_aux (n : Nat) :
       mentionsFvarGo_unfold]
     unfold arena.inductives.native_install.mentions_fvar_node
     lockstep
-    -- the port's `if b2` on the child's answer against the twin's `match` on
-    -- the pair (in a bind's callee, where the core's move does not look)
-    iterate 3 (all_goals (try (simp only [Bool.not_eq_true] at hc; subst hc; lockstep)))
 
 /-- `mentions_fvar_node` ⊑ `mentionsFvarGo`'s arm dispatch. -/
 theorem mentions_fvar_node_refines {pers st lst} {q : Std.U64}
@@ -2363,11 +2360,6 @@ theorem check_native_tail_refines {pers st lst} {mode : kernel.env.CheckMode}
   rw [arena.inductives.native_install.check_native_tail, checkNativeTail_unfold]
   dsimp only
   lockstep
-  -- the port's nested elimination test against the twin's conjunction
-  all_goals
-    first
-      | (rw [if_neg (by simp_all [Lockstep.TwinEq, absNativeParts, absInductiveShape, absCtorsL])]; lockstep)
-      | (rw [if_pos (by simp_all [Lockstep.TwinEq, absNativeParts, absInductiveShape, absCtorsL])]; lockstep)
 
 open Lockstep in
 @[lockstep] theorem check_native_tail_ls

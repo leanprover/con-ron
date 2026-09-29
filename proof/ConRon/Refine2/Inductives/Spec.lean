@@ -187,7 +187,7 @@ theorem structShape_unfold (T C : NIdx) (lps : List NIdx) (elim : NIdx)
   simp only []
   refine if_congr Iff.rfl ?_ rfl
   refine am_bind_congr _ ?_; intro v
-  cases v <;> simp only [] <;> (try rfl)
+  cases v <;> simp only []
   rw [structShapeAtSpec, structShapeMotiveSpec, structShapeMinorSpec,
     structShapeMajorSpec, structElimLevel]
   twin_reduce
@@ -197,10 +197,10 @@ theorem structShape_unfold (T C : NIdx) (lps : List NIdx) (elim : NIdx)
   refine am_bind_congr _ ?_; intro want
   refine if_congr Iff.rfl rfl ?_
   rcases rbs[nP]? with _ | ⟨mdom, mm⟩ <;> twin_reduce <;> try (simp; done)
-  refine if_congr Iff.rfl ?_ (by first | rfl | twin_reduce)
+  refine if_congr Iff.rfl ?_ rfl
   refine am_bind_congr _ ?_; intro v1
   cases v1 <;> twin_reduce <;> try (simp; done)
-  refine if_congr Iff.rfl ?_ (by first | rfl | twin_reduce)
+  refine if_congr Iff.rfl ?_ rfl
   refine am_bind_congr _ ?_; intro v2
   cases v2 <;> twin_reduce <;> try (simp; done)
   refine if_congr Iff.rfl ?_ ?_ <;>
@@ -316,10 +316,10 @@ theorem structPartsCore_unfold (block : List IConstantInfo) :
   rw [structPartsCoreSortSpec]
   twin_reduce
   refine am_bind_congr _ ?_; intro sp
-  rcases sp with _ | ⟨_, tbody⟩ <;> twin_reduce <;> try (simp; done)
-  refine if_congr Iff.rfl ?_ (by first | rfl | twin_reduce)
+  (rcases sp with _ | ⟨_, tbody⟩ <;> twin_reduce); try (simp; done)
+  refine if_congr Iff.rfl ?_ rfl
   refine am_bind_congr _ ?_; intro vw
-  cases vw <;> (try twin_reduce) <;> (try rfl)
+  (cases vw <;> (try twin_reduce)); (try rfl)
 
 /-! ## The two memoised walks' arm dispatches -/
 
@@ -424,12 +424,7 @@ theorem mentionsConstGo_unfold (T : NIdx) (memo : Std.HashMap EIdx Bool) (fuel :
   rw [mentionsConstGo]
   refine am_bind_congr _ ?_
   intro v
-  cases v <;> twin_reduce [mentionsConstNodeSpec] <;>
-    (first
-      | rfl
-      | (cases hm : memo[h]? with
-         | some r => rfl
-         | none => pair_peel))
+  cases v <;> twin_reduce [mentionsConstNodeSpec] <;> rfl
 
 /-! ## `structProjGuards`' two inner `let rec`s -/
 
@@ -539,10 +534,7 @@ theorem checkStructProjTable_unfold (T C : NIdx) (lps : List NIdx) (nP nF : Nat)
       let pn ← projFnName T j
       pure (fe.find? pn).isNone)
     (projFnFamilyFreeSpec fe T) (fun i => rfl)
-    (by intro m i; twin_reduce [projFnFamilyFreeSpec]
-        try (refine am_bind_congr _ ?_
-             intro pn
-             cases (fe.find? pn).isNone <;> rfl))
+    (by intro m i; twin_reduce [projFnFamilyFreeSpec])
   twin_reduce [checkStructProjTable, hall, checkStructProjTableNamesSpec,
     List.range_eq_range', hfam]
 
@@ -1394,7 +1386,7 @@ theorem nativeOpenedOk_unfold (fe₀ : IFEnv) (T : NIdx) (lps : List NIdx)
   · twin_reduce
     simp
   · twin_reduce
-    cases hk : ks.getD i .ordinary <;> simp only <;> (try twin_reduce) <;> (try simp; done)
+    cases hk : ks.getD i .ordinary <;> simp only <;> (try twin_reduce)
     case recursive =>
       rw [nativeFieldRecursiveSpec, hx]
       simp only [unwrapOr, pure_bind, ← hfam]

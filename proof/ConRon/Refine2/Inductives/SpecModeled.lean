@@ -906,8 +906,8 @@ theorem checkEtaThm_unfold (mode : ConLeche.CheckMode) (fe' : IFEnv)
   refine am_bind_congr _ ?_; intro etn
   refine am_bind_congr _ ?_; intro cm
   rcases fe'.find? etn with _ | ci1 <;> rcases fe'.find? tm with _ | ci2 <;>
-    rcases fe'.find? cm with _ | ci3 <;> simp only [] <;> (try rfl)
-  cases ci1 <;> cases ci2 <;> cases ci3 <;> simp only [] <;> (try rfl)
+    rcases fe'.find? cm with _ | ci3 <;> simp only []
+  cases ci1 <;> cases ci2 <;> cases ci3 <;> simp only []
   rw [checkEtaThmAtSpec]
   refine am_bind_congr _ ?_; intro eb
   refine if_congr Iff.rfl rfl ?_
@@ -1028,8 +1028,8 @@ theorem checkUnitThm_unfold (mode : ConLeche.CheckMode) (fe' : IFEnv) (T : NIdx)
   refine am_bind_congr _ ?_; intro tm
   refine am_bind_congr _ ?_; intro utn
   rcases fe'.find? utn with _ | ci1 <;> rcases fe'.find? tm with _ | ci2 <;>
-    simp only [] <;> (try rfl)
-  cases ci1 <;> cases ci2 <;> simp only [] <;> (try rfl)
+    simp only []
+  cases ci1 <;> cases ci2 <;> simp only []
   rw [checkUnitThmAtSpec]
   refine am_bind_congr _ ?_; intro eb
   refine if_congr Iff.rfl rfl ?_
