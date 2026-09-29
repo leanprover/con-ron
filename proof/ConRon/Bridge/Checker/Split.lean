@@ -99,7 +99,7 @@ was waiting on `allLevelParamsDefined_run` and `constsResolveFFast_run`,
 closed in the same round. -/
 theorem installConstantVal_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {cv cvA : IConstantVal} {c : ConstantVal} {s s' : AState}
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
+    (_hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
     (hrun : installConstantVal μ fe cv s = .ok (cvA, s')) :
     CoreStep μ env fe s s' ∧ ∃ cA F, Frontend.denoteCV s'.store cvA = some cA ∧
@@ -1140,7 +1140,7 @@ theorem bracketClose_foldOK {μ : CheckMode} {env env' : Env} {fe fe1 fe' : IFEn
         { state := ⟨hwf4⟩
           caches := CacheOK.of_empty rfl
           pins := hok.check.pins.pmono hok.persPins hx04 hpins3
-          ienv := IFEnvOK_of_denote (μ := μ) ⟨hwf4⟩ hcoh3
+          ienv := IFEnvOK_of_denote ⟨hwf4⟩ hcoh3
             (fun t ht => (hproj3 t ht).pmono (hp3.env _ ht) hx34) hd4 }
       envWF := hb.envWF
       persPins := hok.persPins.mono hpins3

@@ -440,7 +440,7 @@ clause** (con-leche's task #217): `KnotSpec.annotate`, `ensureSort`,
 `annot_letE`.
 **CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem annotateBody_letE {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
@@ -605,7 +605,7 @@ clause**: `KnotSpec.annotate`, `KnotSpec.inferIO'`, `KnotSpec.whnf'`,
 callee is applied at a subject whose denotation the previous stage NAMED,
 and every callee rule it needs was already closed. -/
 theorem annotateBody_proj {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)

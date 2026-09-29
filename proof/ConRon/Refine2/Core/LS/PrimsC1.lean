@@ -423,7 +423,7 @@ a dup's `absIIndCaps c = absIIndCaps o` rewrites the twin's record first. -/
 
 @[lockstep] theorem dup2_nidx_ls (n : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n) (fun r => r = n) :=
-  fun r h => dupId_nidx _ _ h
+  fun _r h => dupId_nidx _ _ h
 
 @[lockstep] theorem nidx_vec_dup_ls (ns : alloc.vec.Vec arena.handle.NIdx) :
     LSP (arena.env.nidx_vec_dup ns) (fun r => r = ns) :=

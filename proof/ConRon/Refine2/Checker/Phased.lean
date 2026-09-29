@@ -254,7 +254,7 @@ private theorem mk_ifenv_empty_refines' {e f}
       (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hhm
   obtain ⟨q, hq, hf⟩ := ConRon.Refine.bind_eq_ok_iff.mp hf
   rw [arena.env.mk_ifenv_go] at hq
-  simp only [alloc.vec.Vec.new, alloc.vec.Vec.len, ge_iff_le, le_refl, if_pos] at hq
+  simp only [alloc.vec.Vec.new, alloc.vec.Vec.len, ge_iff_le] at hq
   have hq' : q = (0#u64, hm) := (Result.ok_injective hq).symm
   subst hq'
   have hf' := (Result.ok_injective hf).symm
@@ -316,7 +316,7 @@ theorem check_decls_phased_refines {H : Type} {inst : arena.checker.InstallHook 
   simp only [SimFold, hz1, hz2, hz3] at hA
   obtain ⟨qr, qst⟩ := q
   simp only [SimFold] at hA ⊢
-  simp only [installThenCheckPhased, am_run_bind, toList_toArray'']
+  simp only [installThenCheckPhased, am_run_bind]
   cases hqr : qr with
   | Err pr =>
     rw [hqr] at hA hrun
@@ -356,7 +356,7 @@ theorem check_decls_phased_refines {H : Type} {inst : arena.checker.InstallHook 
         hrelW hinvW htf hv2.rel hv2.inv hwr
       simp only [SimFoldIdle, hz4] at hB
       rw [hx]
-      simp only [toList_toArray'']
+      simp only
       cases hwres : wres with
       | Err pr =>
         rw [hwres] at hB hrun
@@ -746,7 +746,7 @@ theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
     parts.map (List.map absPendingCheck), ?_, ?_, ?_, ?_⟩, hv2.rel, hrel1⟩
   · simpa only [toList_toArray''] using hx'
   · intro pc hpc
-    simp only [toList_toArray'', absPendingCheckL, List.mem_map] at hpc
+    simp only [absPendingCheckL, List.mem_map] at hpc
     obtain ⟨x, hx, rfl⟩ := hpc
     obtain ⟨w, hwm, hxw⟩ := hcov x hx
     exact ⟨w.map absPendingCheck, List.mem_map_of_mem hwm,
@@ -754,7 +754,7 @@ theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
   · intro lw hlw pc hpc
     simp only [List.mem_map] at hlw
     obtain ⟨w, hwm, rfl⟩ := hlw
-    simp only [toList_toArray'', absPendingCheckL, List.mem_map] at hpc ⊢
+    simp only [absPendingCheckL, List.mem_map] at hpc ⊢
     obtain ⟨x, hx, rfl⟩ := hpc
     exact ⟨x, hsub w hwm x hx, rfl⟩
   · intro lw hlw

@@ -184,7 +184,7 @@ theorem Inst1At.bind_step {ve : Expr} {d : Nat}
     exact RelE.lam hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
       ((hb.of_ext hx1).ext hx3) hr
   · rw [eBindView] at hview hr
-    simp only [ETag.lam, ETag.forallE, reduceCtorEq] at hview hr
+    simp only [ETag.lam, ETag.forallE] at hview hr
     exact RelE.forallE hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
       ((hb.of_ext hx1).ext hx3) hr
 

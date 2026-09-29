@@ -1839,7 +1839,7 @@ theorem cert_hyp2_refines {h1 h2 : arena.handle.EIdx} {o}
   obtain ⟨hs1, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   simp only [absEIdxL, ConRon.Refine.vec_push_val hrun,
     ConRon.Refine.vec_push_val h1, ConRon.Refine.ExprOps.with_capacity_val,
-    List.nil_append, List.map_append, List.map_cons, List.map_nil,
+    List.nil_append, List.map_cons, List.map_nil,
     List.singleton_append]
 
 /-- `cert_push` is one cons onto the statement list (§3.4 has no `vec!`), and

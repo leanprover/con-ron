@@ -190,7 +190,7 @@ the port's input (every binder datum the port reads out of the store is, by
 `AStateInv`'s `bms` clause; `PropWhen.beq` is exact only there). -/
 @[lockstep] theorem eta_cert_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth ty1 body1 m1 b lst}
-    (hx : ExprOpsHyp pers)
+    (_hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hm1 : ConRon.Refine.PropWhenWF m1.pw) :

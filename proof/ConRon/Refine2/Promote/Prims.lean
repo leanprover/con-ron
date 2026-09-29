@@ -166,7 +166,7 @@ theorem pmapFrom_acc {σ γ δ : Type} (f : σ → γ → AM (σ × δ)) :
     obtain ⟨m', y⟩ := p
     simp only
     rw [ih m' (acc ++ [y]), ih m' [y]]
-    simp [bind_assoc, List.append_assoc]
+    simp [List.append_assoc]
 
 /-- The twin's cons-recursion is `pmapFrom` at the empty accumulator. -/
 theorem pmapFrom_cons_eq {σ γ δ : Type} (f : σ → γ → AM (σ × δ))
@@ -187,7 +187,7 @@ theorem pmapFrom_cons_eq {σ γ δ : Type} (f : σ → γ → AM (σ × δ))
     obtain ⟨m', y⟩ := p
     simp only
     rw [ih m' (acc ++ [y])]
-    simp [bind_assoc, List.append_assoc]
+    simp [List.append_assoc]
 
 theorem vecFrom_nil {α β : Type} (v : alloc.vec.Vec α) (f : α → β) (i : Std.Usize)
     (hi : v.val.length ≤ i.val) : (v.val.drop i.val).map f = [] := by
@@ -394,15 +394,15 @@ theorem intern_persistent_e_frozen {t st v r t'}
     obtain ⟨o, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     cases o with
     | some i =>
-      simp only [Aeneas.Std.uncurry, Result.ok.injEq, Prod.mk.injEq] at h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨-, rfl⟩ := h; rfl
     | none =>
-      simp only [Aeneas.Std.uncurry] at h
+      simp only at h
       obtain ⟨b, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       split at h
       · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        simp only [Aeneas.Std.uncurry, Result.ok.injEq, Prod.mk.injEq] at h
+        simp only [Result.ok.injEq, Prod.mk.injEq] at h
         obtain ⟨-, rfl⟩ := h; rfl
       · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨⟨_, _⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

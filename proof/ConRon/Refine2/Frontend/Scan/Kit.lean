@@ -743,58 +743,58 @@ private theorem uB11 (x : USize) : x + 1 + 11 = x + 12 := by
 
 private theorem litFrom_1 (B : ByteArray) (q : USize) (c0 : UInt8) :
     litFrom B q [c0] = (byteAt B q == c0) := by
-  simp only [litFrom, lit1, lit2, lit3, lit4, lit5, lit6, lit7, lit8, lit9, lit10,
-    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uA4, uA5, uA6, uA7, uA8, uA9, uA10, uA11, uB2, uB3, uB4, uB5, uB6, uB7, uB8, uB9, uB10, uB11]
+  simp only [litFrom,
+    Bool.and_true]
 private theorem litFrom_2 (B : ByteArray) (q : USize) (c0 c1 : UInt8) :
     litFrom B q [c0, c1] =
       ((byteAt B q == c0) && lit1 B (q + 1) c1) := by
-  simp only [litFrom, lit1, lit2, lit3, lit4, lit5, lit6, lit7, lit8, lit9, lit10,
-    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uA4, uA5, uA6, uA7, uA8, uA9, uA10, uA11, uB2, uB3, uB4, uB5, uB6, uB7, uB8, uB9, uB10, uB11]
+  simp only [litFrom, lit1,
+    Bool.and_true]
 private theorem litFrom_3 (B : ByteArray) (q : USize) (c0 c1 c2 : UInt8) :
     litFrom B q [c0, c1, c2] =
       ((byteAt B q == c0) && lit2 B (q + 1) c1 c2) := by
-  simp only [litFrom, lit1, lit2, lit3, lit4, lit5, lit6, lit7, lit8, lit9, lit10,
-    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uA4, uA5, uA6, uA7, uA8, uA9, uA10, uA11, uB2, uB3, uB4, uB5, uB6, uB7, uB8, uB9, uB10, uB11]
+  simp only [litFrom, lit2,
+    Bool.and_true, uA1]
 private theorem litFrom_4 (B : ByteArray) (q : USize) (c0 c1 c2 c3 : UInt8) :
     litFrom B q [c0, c1, c2, c3] =
       ((byteAt B q == c0) && lit3 B (q + 1) c1 c2 c3) := by
-  simp only [litFrom, lit1, lit2, lit3, lit4, lit5, lit6, lit7, lit8, lit9, lit10,
-    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uA4, uA5, uA6, uA7, uA8, uA9, uA10, uA11, uB2, uB3, uB4, uB5, uB6, uB7, uB8, uB9, uB10, uB11]
+  simp only [litFrom, lit3,
+    Bool.and_true, Bool.and_assoc, uA1, uA2, uB2]
 private theorem litFrom_5 (B : ByteArray) (q : USize) (c0 c1 c2 c3 c4 : UInt8) :
     litFrom B q [c0, c1, c2, c3, c4] =
       ((byteAt B q == c0) && lit4 B (q + 1) c1 c2 c3 c4) := by
-  simp only [litFrom, lit1, lit2, lit3, lit4, lit5, lit6, lit7, lit8, lit9, lit10,
-    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uA4, uA5, uA6, uA7, uA8, uA9, uA10, uA11, uB2, uB3, uB4, uB5, uB6, uB7, uB8, uB9, uB10, uB11]
+  simp only [litFrom, lit4,
+    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uB2, uB3]
 private theorem litFrom_6 (B : ByteArray) (q : USize) (c0 c1 c2 c3 c4 c5 : UInt8) :
     litFrom B q [c0, c1, c2, c3, c4, c5] =
       ((byteAt B q == c0) && lit5 B (q + 1) c1 c2 c3 c4 c5) := by
-  simp only [litFrom, lit1, lit2, lit3, lit4, lit5, lit6, lit7, lit8, lit9, lit10,
-    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uA4, uA5, uA6, uA7, uA8, uA9, uA10, uA11, uB2, uB3, uB4, uB5, uB6, uB7, uB8, uB9, uB10, uB11]
+  simp only [litFrom, lit5,
+    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uA4, uB2, uB3, uB4]
 private theorem litFrom_7 (B : ByteArray) (q : USize) (c0 c1 c2 c3 c4 c5 c6 : UInt8) :
     litFrom B q [c0, c1, c2, c3, c4, c5, c6] =
       ((byteAt B q == c0) && lit6 B (q + 1) c1 c2 c3 c4 c5 c6) := by
-  simp only [litFrom, lit1, lit2, lit3, lit4, lit5, lit6, lit7, lit8, lit9, lit10,
-    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uA4, uA5, uA6, uA7, uA8, uA9, uA10, uA11, uB2, uB3, uB4, uB5, uB6, uB7, uB8, uB9, uB10, uB11]
+  simp only [litFrom, lit6,
+    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uA4, uA5, uB2, uB3, uB4, uB5]
 private theorem litFrom_8 (B : ByteArray) (q : USize) (c0 c1 c2 c3 c4 c5 c6 c7 : UInt8) :
     litFrom B q [c0, c1, c2, c3, c4, c5, c6, c7] =
       ((byteAt B q == c0) && lit7 B (q + 1) c1 c2 c3 c4 c5 c6 c7) := by
-  simp only [litFrom, lit1, lit2, lit3, lit4, lit5, lit6, lit7, lit8, lit9, lit10,
-    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uA4, uA5, uA6, uA7, uA8, uA9, uA10, uA11, uB2, uB3, uB4, uB5, uB6, uB7, uB8, uB9, uB10, uB11]
+  simp only [litFrom, lit7,
+    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uA4, uA5, uA6, uB2, uB3, uB4, uB5, uB6]
 private theorem litFrom_9 (B : ByteArray) (q : USize) (c0 c1 c2 c3 c4 c5 c6 c7 c8 : UInt8) :
     litFrom B q [c0, c1, c2, c3, c4, c5, c6, c7, c8] =
       ((byteAt B q == c0) && lit8 B (q + 1) c1 c2 c3 c4 c5 c6 c7 c8) := by
-  simp only [litFrom, lit1, lit2, lit3, lit4, lit5, lit6, lit7, lit8, lit9, lit10,
-    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uA4, uA5, uA6, uA7, uA8, uA9, uA10, uA11, uB2, uB3, uB4, uB5, uB6, uB7, uB8, uB9, uB10, uB11]
+  simp only [litFrom, lit8,
+    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uA4, uA5, uA6, uA7, uB2, uB3, uB4, uB5, uB6, uB7]
 private theorem litFrom_10 (B : ByteArray) (q : USize) (c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 : UInt8) :
     litFrom B q [c0, c1, c2, c3, c4, c5, c6, c7, c8, c9] =
       ((byteAt B q == c0) && lit9 B (q + 1) c1 c2 c3 c4 c5 c6 c7 c8 c9) := by
-  simp only [litFrom, lit1, lit2, lit3, lit4, lit5, lit6, lit7, lit8, lit9, lit10,
-    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uA4, uA5, uA6, uA7, uA8, uA9, uA10, uA11, uB2, uB3, uB4, uB5, uB6, uB7, uB8, uB9, uB10, uB11]
+  simp only [litFrom, lit9,
+    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uA4, uA5, uA6, uA7, uA8, uB2, uB3, uB4, uB5, uB6, uB7, uB8]
 private theorem litFrom_11 (B : ByteArray) (q : USize) (c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 : UInt8) :
     litFrom B q [c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10] =
       ((byteAt B q == c0) && lit10 B (q + 1) c1 c2 c3 c4 c5 c6 c7 c8 c9 c10) := by
-  simp only [litFrom, lit1, lit2, lit3, lit4, lit5, lit6, lit7, lit8, lit9, lit10,
-    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uA4, uA5, uA6, uA7, uA8, uA9, uA10, uA11, uB2, uB3, uB4, uB5, uB6, uB7, uB8, uB9, uB10, uB11]
+  simp only [litFrom, lit10,
+    Bool.and_true, Bool.and_assoc, uA1, uA2, uA3, uA4, uA5, uA6, uA7, uA8, uA9, uB2, uB3, uB4, uB5, uB6, uB7, uB8, uB9]
 
 /-! ## `key_end`
 

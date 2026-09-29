@@ -80,7 +80,7 @@ open Lockstep in
     {i : Std.Usize}
     {out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} :
     LSP (arena.inductives.sum_parts.ctors_copy_from cs i out) (fun o => TwinEq (absCtorsL out ++ absCtorsLFrom cs i) (absCtorsL o)) :=
-  fun o h => (ctors_copy_from_refines h).symm
+  fun _o h => (ctors_copy_from_refines h).symm
 
 /-- `ctors_copy` is the identity on the abstraction. -/
 theorem ctors_copy_refines
@@ -96,7 +96,7 @@ open Lockstep in
 @[lockstep] theorem ctors_copy_twin
     {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} :
     LSP (arena.inductives.sum_parts.ctors_copy cs) (fun o => TwinEq (absCtorsL cs) (absCtorsL o)) :=
-  fun o h => (ctors_copy_refines h).symm
+  fun _o h => (ctors_copy_refines h).symm
 
 /-- `inductive_shape_dup` is the identity on the abstraction — the twin's
 `InductiveShape` is a value and has no copy. -/
@@ -120,7 +120,7 @@ open Lockstep in
 @[lockstep] theorem inductive_shape_dup_twin
     {p : arena.inductives.sum_parts.InductiveShape} :
     LSP (arena.inductives.sum_parts.inductive_shape_dup p) (fun o => TwinEq (absInductiveShape p) (absInductiveShape o)) :=
-  fun o h => (inductive_shape_dup_refines h).symm
+  fun _o h => (inductive_shape_dup_refines h).symm
 
 /-! ## The member split
 
@@ -207,7 +207,7 @@ open Lockstep in
     {i : Std.Usize}
     {out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)} :
     LSP (arena.inductives.sum_parts.sum_split_from block i out) (fun o => TwinEq ((sumSplit (absICILFrom block i)).map fun q => (absCtors3L out ++ q.1, q.2)) ((o.map fun q => (absCtors3L q.1, absIConstantVal q.2.1, absU q.2.2.1, absU q.2.2.2.1, q.2.2.2.2.val.map absIRecRule)))) :=
-  fun o h => (sum_split_from_refines h).symm
+  fun _o h => (sum_split_from_refines h).symm
 
 /-- `sum_split` ⊑ `sumSplit`. -/
 theorem sum_split_refines {block : alloc.vec.Vec arena.env.IConstantInfo} {o}
@@ -224,7 +224,7 @@ open Lockstep in
 @[lockstep] theorem sum_split_twin
     {block : alloc.vec.Vec arena.env.IConstantInfo} :
     LSP (arena.inductives.sum_parts.sum_split block) (fun o => TwinEq (sumSplit (absICIL block)) ((o.map fun q => (absCtors3L q.1, absIConstantVal q.2.1, absU q.2.2.1, absU q.2.2.2.1, q.2.2.2.2.val.map absIRecRule)))) :=
-  fun o h => (sum_split_refines h).symm
+  fun _o h => (sum_split_refines h).symm
 
 /-! ## The completion, and the two readers -/
 
@@ -276,7 +276,7 @@ open Lockstep in
 @[lockstep] theorem rule_prefix_twin
     {p : arena.inductives.sum_parts.InductiveShape} :
     LSP (arena.inductives.sum_parts.rule_prefix p) (fun o => TwinEq ((absInductiveShape p).rulePrefix) (absU o)) :=
-  fun o h => (rule_prefix_refines h).symm
+  fun _o h => (rule_prefix_refines h).symm
 
 /-- `major_idx` ⊑ `InductiveShape.majorIdx`. -/
 theorem major_idx_refines {p : arena.inductives.sum_parts.InductiveShape} {o}
@@ -293,7 +293,7 @@ open Lockstep in
 @[lockstep] theorem major_idx_twin
     {p : arena.inductives.sum_parts.InductiveShape} :
     LSP (arena.inductives.sum_parts.major_idx p) (fun o => TwinEq ((absInductiveShape p).majorIdx) (absU o)) :=
-  fun o h => (major_idx_refines h).symm
+  fun _o h => (major_idx_refines h).symm
 
 /-! ## The axiom census
 

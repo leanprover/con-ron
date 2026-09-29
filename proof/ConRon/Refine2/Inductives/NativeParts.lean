@@ -79,7 +79,7 @@ open Lockstep in
 @[lockstep] theorem rec_field_kind_dup_twin
     {k : arena.inductives.native_parts.RecFieldKind} :
     LSP (arena.inductives.native_parts.rec_field_kind_dup k) (fun o => TwinEq (absRecFieldKind k) (absRecFieldKind o)) :=
-  fun o h => (rec_field_kind_dup_refines h).symm
+  fun _o h => (rec_field_kind_dup_refines h).symm
 
 /-- `rec_field_kind_beq` ⊑ `RecFieldKind`'s `DecidableEq` — §3.4 forbids
 `#[derive]`, so the port spells the five-by-five table out. -/
@@ -94,7 +94,7 @@ open Lockstep in
 @[lockstep] theorem rec_field_kind_beq_twin
     {a b : arena.inductives.native_parts.RecFieldKind} :
     LSP (arena.inductives.native_parts.rec_field_kind_beq a b) (fun o => TwinEq ((absRecFieldKind a == absRecFieldKind b)) (o)) :=
-  fun o h => (rec_field_kind_beq_refines h).symm
+  fun _o h => (rec_field_kind_beq_refines h).symm
 
 /-- `kinds_copy` is the identity on the abstraction from the cursor on. -/
 theorem kinds_copy_refines
@@ -159,7 +159,7 @@ open Lockstep in
     {i : Std.Usize}
     {out : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind} :
     LSP (arena.inductives.native_parts.kinds_copy ks i out) (fun o => TwinEq (absKindL out ++ absKindLFrom ks i) (absKindL o)) :=
-  fun o h => (kinds_copy_refines h).symm
+  fun _o h => (kinds_copy_refines h).symm
 
 /-- `kindss_copy` is the identity on the abstraction from the cursor on. -/
 theorem kindss_copy_refines
@@ -207,7 +207,7 @@ open Lockstep in
     {i : Std.Usize}
     {out : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)} :
     LSP (arena.inductives.native_parts.kindss_copy kss i out) (fun o => TwinEq (absKindLL out ++ absKindLLFrom kss i) (absKindLL o)) :=
-  fun o h => (kindss_copy_refines h).symm
+  fun _o h => (kindss_copy_refines h).symm
 
 /-- `kind_get_d` ⊑ `ks.getD i .ordinary`. -/
 theorem kind_get_d_refines
@@ -246,7 +246,7 @@ open Lockstep in
     {ks : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind}
     {i : Std.U64} :
     LSP (arena.inductives.native_parts.kind_get_d ks i) (fun o => TwinEq ((absKindL ks).getD (absU i) .ordinary) (absRecFieldKind o)) :=
-  fun o h => (kind_get_d_refines h).symm
+  fun _o h => (kind_get_d_refines h).symm
 
 /-! ## The field kinds -/
 
@@ -583,7 +583,7 @@ open Lockstep in
     {n i : Std.U64}
     {out : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind} :
     LSP (arena.inductives.native_parts.all_negative n i out) (fun o => TwinEq (absKindL out ++ List.replicate (absU n - absU i) .negative) (absKindL o)) :=
-  fun o h => (all_negative_refines h).symm
+  fun _o h => (all_negative_refines h).symm
 
 /-- `rec_ctor_kinds` ⊑ `recCtorKinds` — the kinds of one constructor's fields,
 off its (raw or annotated) type. -/
@@ -805,7 +805,7 @@ open Lockstep in
     {i : Std.Usize}
     {out : alloc.vec.Vec Std.U64} :
     LSP (arena.inductives.native_parts.rec_idx_of ks i out) (fun o => TwinEq (absNatL out ++ ((recIdxOf (absKindL ks)).filter fun j => decide (absSz i ≤ j))) (absNatL o)) :=
-  fun o h => (rec_idx_of_refines h).symm
+  fun _o h => (rec_idx_of_refines h).symm
 
 /-! ## The record -/
 
@@ -827,7 +827,7 @@ open Lockstep in
 @[lockstep] theorem native_parts_dup_twin
     {p : arena.inductives.native_parts.NativeParts} :
     LSP (arena.inductives.native_parts.native_parts_dup p) (fun o => TwinEq (absNativeParts p) (absNativeParts o)) :=
-  fun o h => (native_parts_dup_refines h).symm
+  fun _o h => (native_parts_dup_refines h).symm
 
 /-- `complete` ⊑ `NativeParts.complete` — the sum parts the former's run
 returned with the recogniser's field kinds. -/
@@ -849,7 +849,7 @@ open Lockstep in
     {p0 : arena.inductives.native_parts.NativeParts}
     {p1 : arena.inductives.sum_parts.InductiveShape} :
     LSP (arena.inductives.native_parts.complete p0 p1) (fun o => TwinEq ((absNativeParts p0).complete (absInductiveShape p1)) (absNativeParts o)) :=
-  fun o h => (complete_refines h).symm
+  fun _o h => (complete_refines h).symm
 
 /-- `with_kinds` ⊑ `NativeParts.withKinds`. -/
 theorem with_kinds_refines {p : arena.inductives.native_parts.NativeParts}
@@ -865,7 +865,7 @@ open Lockstep in
     {p : arena.inductives.native_parts.NativeParts}
     {ks : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)} :
     LSP (arena.inductives.native_parts.with_kinds p ks) (fun o => TwinEq ((absNativeParts p).withKinds (absKindLL ks)) (absNativeParts o)) :=
-  fun o h => (with_kinds_refines h).symm
+  fun _o h => (with_kinds_refines h).symm
 
 /-! ## The generated recursor with inductive hypotheses -/
 
@@ -1676,7 +1676,7 @@ open Lockstep in
     {i : Std.Usize}
     {out : alloc.vec.Vec Std.U64} :
     LSP (arena.inductives.native_parts.u64_vec_dup xs i out) (fun o => TwinEq (absNatL out ++ absNatLFrom xs i) (absNatL o)) :=
-  fun o h => (u64_vec_dup_refines h).symm
+  fun _o h => (u64_vec_dup_refines h).symm
 
 
 /-- `struct_minors_pis_r` ⊑ the two twins as one recursion at `isLam`
@@ -2095,7 +2095,7 @@ open Lockstep in
     {out : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx ×
       (alloc.vec.Vec Std.U64))} :
     LSP (arena.inductives.native_parts.native_ctors4 ctors_a kinds i out) (fun o => TwinEq (absCtors4L out ++ nativeCtors4 (absCtorsLFrom ctors_a i) (absKindLLFrom kinds i)) (absCtors4L o)) :=
-  fun o h => (native_ctors4_refines h).symm
+  fun _o h => (native_ctors4_refines h).symm
 
 /-! ## The stream's rules against the generated ones -/
 
@@ -2763,7 +2763,7 @@ open Lockstep in
     {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)}
     {n j : Std.U64} :
     LSP (arena.inductives.native_parts.rules_pin_ok rules cs n j) (fun o => TwinEq (rulesPinOkSpec (rules.val.map absIRecRule) (absCtors3L cs) (absU n - absU j) (absU j)) (o)) :=
-  fun o h => (rules_pin_ok_refines h).symm
+  fun _o h => (rules_pin_ok_refines h).symm
 
 -- `i_constant_infos_dup_from_abs` moved down to `Refine2/Dup.lean` (task
 -- #97-P5-Front round 2).
@@ -2873,7 +2873,7 @@ open Lockstep in
     {p : arena.inductives.sum_parts.InductiveShape}
     {block : alloc.vec.Vec arena.env.IConstantInfo} :
     LSP (arena.inductives.native_parts.native_rec_pin_ok p block) (fun o => TwinEq (nativeRecPinOk (absInductiveShape p) (absICIL block)) (o)) :=
-  fun o h => (native_rec_pin_ok_refines h).symm
+  fun _o h => (native_rec_pin_ok_refines h).symm
 
 /-- `native_rec_lps_ok` ⊑ `nativeRecLpsOk` — the recursor record's
 level-parameter pin. -/
@@ -2896,7 +2896,7 @@ open Lockstep in
 @[lockstep] theorem native_rec_lps_ok_twin
     {p : arena.inductives.sum_parts.InductiveShape} :
     LSP (arena.inductives.native_parts.native_rec_lps_ok p) (fun o => TwinEq (nativeRecLpsOk (absInductiveShape p)) (o)) :=
-  fun o h => (native_rec_lps_ok_refines h).symm
+  fun _o h => (native_rec_lps_ok_refines h).symm
 
 /-- `nidx_cons_from` copies `ns` from the cursor on onto `out`. -/
 theorem nidx_cons_from_refines {ns : alloc.vec.Vec arena.handle.NIdx}
@@ -2921,7 +2921,7 @@ open Lockstep in
     {i : Std.Usize}
     {out : alloc.vec.Vec arena.handle.NIdx} :
     LSP (arena.inductives.native_parts.nidx_cons_from ns i out) (fun o => TwinEq (absNIdxL out ++ absNIdxLFrom ns i) (absNIdxL o)) :=
-  fun o h => (nidx_cons_from_refines h).symm
+  fun _o h => (nidx_cons_from_refines h).symm
 
 /-- `nidx_cons` ⊑ `n :: ns` — the twin's `elim :: lps`, over a `Vec`. -/
 theorem nidx_cons_refines {n : arena.handle.NIdx}
@@ -2936,7 +2936,7 @@ open Lockstep in
     {n : arena.handle.NIdx}
     {ns : alloc.vec.Vec arena.handle.NIdx} :
     LSP (arena.inductives.native_parts.nidx_cons n ns) (fun o => TwinEq (absNIdx n :: absNIdxL ns) (absNIdxL o)) :=
-  fun o h => (nidx_cons_refines h).symm
+  fun _o h => (nidx_cons_refines h).symm
 
 /-- `ctors_pin_ok` ⊑ `nativeShape?`'s `cs.all` pin from the cursor on. -/
 theorem ctors_pin_ok_refines {reserved : alloc.vec.Vec arena.handle.NIdx}
@@ -2997,13 +2997,12 @@ theorem ctors_pin_ok_refines {reserved : alloc.vec.Vec arena.handle.NIdx}
           refine Or.inl ⟨?_, i3, absSz_add_one hi3, h⟩
           simp only [absNIdxL] at hbv hb1v
           simp only [absIConstantVal, absNIdxL, ← hbv, ← hb1v, beq_self_eq_true,
-            Bool.and_true, Bool.true_and]
+            Bool.and_true]
         · rw [hbb1] at h hb1v
           rw [if_pos (by simp), Result.ok.injEq] at h
           refine Or.inr ⟨?_, h.symm⟩
           simp only [absNIdxL] at hbv hb1v
-          simp only [absIConstantVal, absNIdxL, ← hbv, ← hb1v, beq_self_eq_true,
-            Bool.and_false, Bool.false_and, Bool.and_true, Bool.true_and]
+          simp only [absIConstantVal, absNIdxL, ← hbv, ← hb1v, beq_self_eq_true, Bool.and_true, Bool.true_and]
           rfl
     · rw [if_neg hnp, Result.ok.injEq] at h
       refine Or.inr ⟨?_, h.symm⟩
@@ -3034,7 +3033,7 @@ open Lockstep in
     {lps : alloc.vec.Vec arena.handle.NIdx}
     {i : Std.Usize} :
     LSP (arena.inductives.native_parts.ctors_pin_ok reserved cs n_p lps i) (fun o => TwinEq (ctorsPinOkSpec (absNIdxL reserved) (absCtors3LFrom cs i) (absU n_p) (absNIdxL lps)) (o)) :=
-  fun o h => (ctors_pin_ok_refines h).symm
+  fun _o h => (ctors_pin_ok_refines h).symm
 
 /-- `ctors_of` ⊑ `cs.map fun c => (c.1, c.2.2)` from the cursor on. -/
 theorem ctors_of_refines
@@ -3081,7 +3080,7 @@ open Lockstep in
     {i : Std.Usize}
     {out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} :
     LSP (arena.inductives.native_parts.ctors_of cs i out) (fun o => TwinEq (absCtorsL out ++ (absCtors3LFrom cs i).map fun c => (c.1, c.2.2)) (absCtorsL o)) :=
-  fun o h => (ctors_of_refines h).symm
+  fun _o h => (ctors_of_refines h).symm
 
 /-- `rhss_of` ⊑ `rules.map (·.rhs)` from the cursor on. -/
 theorem rhss_of_refines {rules : alloc.vec.Vec arena.env.IRecRule} {i : Std.Usize}
@@ -3125,7 +3124,7 @@ open Lockstep in
     {i : Std.Usize}
     {out : alloc.vec.Vec arena.handle.EIdx} :
     LSP (arena.inductives.native_parts.rhss_of rules i out) (fun o => TwinEq (absEIdxL out ++ (absIRecRuleLFrom rules i).map (·.rhs)) (absEIdxL o)) :=
-  fun o h => (rhss_of_refines h).symm
+  fun _o h => (rhss_of_refines h).symm
 
 /-- `native_shape_small` ⊑ `nativeShape?`'s small-eliminator arm. -/
 theorem native_shape_small_refines {pers st lst}

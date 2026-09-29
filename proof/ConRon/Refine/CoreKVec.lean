@@ -720,37 +720,37 @@ theorem pi_residual_from_refines (N : Nat) :
       cases he with
       | @bvar i2 e h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
       | @fvar idx ty e hty h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
       | @sort u e hu h1 =>
         obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
       | @mk_const n us e hn hus h1 =>
         obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
       | @app f a e hf ha h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
       | @lam ty bo m e hty hbo hm h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
       | @forall_e ty bo m e hty hbo hm h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind, bind_eq_ok_iff] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind, bind_eq_ok_iff] at h
         obtain ⟨x, hidx, b, hinst, i2, hi2, hrec⟩ := h
         obtain ⟨hlt', hxwf, hdrop⟩ := ExprOps.vec_index_expr hargs hidx
         obtain ⟨hiabs, hiwf⟩ := ExprOps.instantiate1_refines hbo hxwf hinst
@@ -763,17 +763,17 @@ theorem pi_residual_from_refines (N : Nat) :
         simp [ConLeche.piResidual]
       | @let_e ty w bo e hty hw hbo h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
       | @lit l e hl h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
       | @proj s i2 x e hs hx h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, kernel.expr.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hd]
         exact ⟨by simp [ConLeche.piResidual], by simp⟩
 

@@ -113,7 +113,7 @@ open Lockstep in
     {ks : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind}
     {i : Std.Usize} :
     LSP (arena.inductives.native_install.kinds_any_rec ks i) (fun o => TwinEq ((absKindLFrom ks i).any fun k => k == .recursive || k == .reflexive) (o)) :=
-  fun o h => (kinds_any_rec_refines h).symm
+  fun _o h => (kinds_any_rec_refines h).symm
 
 /-- `native_is_rec_from` ⊑ `nativeIsRec`'s outer `any` from the cursor on. -/
 theorem native_is_rec_from_refines
@@ -166,7 +166,7 @@ open Lockstep in
     {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)}
     {i : Std.Usize} :
     LSP (arena.inductives.native_install.native_is_rec_from kinds i) (fun o => TwinEq ((absKindLLFrom kinds i).any fun ks => ks.any fun k => k == .recursive || k == .reflexive) (o)) :=
-  fun o h => (native_is_rec_from_refines h).symm
+  fun _o h => (native_is_rec_from_refines h).symm
 
 /-- `native_is_rec` ⊑ `nativeIsRec` — official's `is_rec` off the classified
 kinds. -/
@@ -182,7 +182,7 @@ open Lockstep in
 @[lockstep] theorem native_is_rec_twin
     {kinds : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)} :
     LSP (arena.inductives.native_install.native_is_rec kinds) (fun o => TwinEq (nativeIsRec (absKindLL kinds)) (o)) :=
-  fun o h => (native_is_rec_refines h).symm
+  fun _o h => (native_is_rec_refines h).symm
 
 /-- `native_caps` ⊑ `nativeCaps`. -/
 theorem native_caps_refines {pers st lst}
@@ -355,7 +355,7 @@ open Lockstep in
     {k : arena.handle.EIdx}
     (hm : LMemoRel rm lm) :
     LSP (arena.inductives.native_install.mf_probe rm k) (fun o => TwinEq (lm[absEIdx k]?) (o)) :=
-  fun o h => (mf_probe_refines hm h).symm
+  fun _o h => (mf_probe_refines hm h).symm
 
 /-- `mentions_fvar_ins` ⊑ `mentionsFvarIns` — one answer recorded. -/
 theorem mentions_fvar_ins_refines {e : arena.handle.EIdx}
@@ -667,7 +667,7 @@ theorem native_fam_app_ok_refines {pers st lst} {vis : Std.U64} {rf0 lf0}
   lockstep
   all_goals
     have e := absEIdxL_of_takeEidx ‹ExprOps.absEIdxArr _ = takeEidx (ExprOps.absEIdxArr _) _›
-    simp only [e, absEIdxL] at *
+    simp only [absEIdxL] at *
     lockstep
 
 open Lockstep in
@@ -1341,7 +1341,7 @@ theorem ifenv_pop_temp_facts {rf1 rf2 : arena.env.IFEnv} {n : arena.handle.NIdx}
       obtain rfl := (Result.ok_injective hv).symm
       have : rf1.env.consts.val.length = 0 := by
         have := congrArg (·.val) h0; simpa [alloc.vec.Vec.len] using this
-      simp [this, List.eq_nil_of_length_eq_zero this]
+      simp [List.eq_nil_of_length_eq_zero this]
     · obtain ⟨i, hi, hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
       obtain ⟨ii, -, hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
       have hiv := ConRon.Refine.Nat.usub_val hi
@@ -1547,7 +1547,7 @@ theorem ifenv_push_pop_rel {rf rf1 rf2 : arena.env.IFEnv} {lf : IFEnv}
     simp only [IFEnv.popTemp, IFEnv.push]
     by_cases hk : absNIdx n = k
     · subst hk
-      cases hq : lf.idx[absNIdx n]? <;> simp [hq]
+      cases hq : lf.idx[absNIdx n]? <;> simp
     · have hk' : ¬ ((absIConstantInfo ci).name == k) = true := by
         rw [hX]; simpa using hk
       cases lf.idx[absNIdx n]? <;>
@@ -1661,7 +1661,7 @@ is the walk's "memo", outside the `Result`. -/
     have e2 : absU i3 = (absCtors4L ctors).length := by
       simp only [lift, Result.ok.injEq] at hi3
       subst hi3
-      simp [absU, usize_cast_u64_val, absCtors4L, alloc.vec.Vec.len]
+      simp [absU, absCtors4L, alloc.vec.Vec.len]
     rw [e1, e2] at hCNR
     have hpop' : arena.env.ifenv_pop_temp fe1 p.shape.cv_r.name (toFun rf.idx p.shape.cv_r.name)
         = ok fe3 := by rw [← hprev']; exact hpop
@@ -2001,7 +2001,7 @@ open Lockstep in
     {k : arena.inductives.native_parts.RecFieldKind}
     {i : Std.Usize} :
     LSP (arena.inductives.native_install.kinds_any ks k i) (fun o => TwinEq ((absKindLFrom ks i).any (· == absRecFieldKind k)) (o)) :=
-  fun o h => (kinds_any_refines h).symm
+  fun _o h => (kinds_any_refines h).symm
 
 /-- `kindss_any` ⊑ `kinds.any fun ks => ks.any (· == k)` from the cursor on. -/
 theorem kindss_any_refines
@@ -2056,7 +2056,7 @@ open Lockstep in
     {k : arena.inductives.native_parts.RecFieldKind}
     {i : Std.Usize} :
     LSP (arena.inductives.native_install.kindss_any kinds k i) (fun o => TwinEq ((absKindLLFrom kinds i).any fun ks => ks.any (· == absRecFieldKind k)) (o)) :=
-  fun o h => (kindss_any_refines h).symm
+  fun _o h => (kindss_any_refines h).symm
 
 namespace IndInstPrims
 open Lockstep
@@ -2091,7 +2091,7 @@ theorem classify_fix_kinds_refines {pers st lst} {t : arena.handle.NIdx}
   all_goals
     split_ifs <;> first
       | (lockstep; done)
-      | (exfalso; simp_all [Lockstep.TwinEq, absKindLLFrom, absKindLL])
+      | (exfalso; simp_all [Lockstep.TwinEq, absKindLL])
 
 open Lockstep in
 @[lockstep] theorem classify_fix_kinds_ls
@@ -2440,7 +2440,7 @@ open Lockstep in
     {i : Std.Usize}
     {n : arena.handle.NIdx} :
     LSP (arena.inductives.native_install.ctor_name_seen ctors i n) (fun o => TwinEq (((absCtorsLFrom ctors i).map (·.1.name)).contains (absNIdx n)) (o)) :=
-  fun o h => (ctor_name_seen_refines h).symm
+  fun _o h => (ctor_name_seen_refines h).symm
 
 /-- `ctor_names_nodup` ⊑ `(p₀.ctors.map (·.1.name)).Nodup` from the cursor
 on. -/
@@ -2483,7 +2483,7 @@ theorem ctor_names_nodup_refines
         have h3 := hbv.symm
         simp only [List.map_drop] at h3 ⊢
         simpa using h3
-      simp [List.nodup_cons, hmem, Function.comp_def]
+      simp [List.nodup_cons, hmem]
     · rw [hbb] at h hbv
       rw [if_pos (by simp), Result.ok.injEq] at h
       have hmem : absNIdx iv.name ∈
@@ -2492,7 +2492,7 @@ theorem ctor_names_nodup_refines
         simp only [List.map_drop] at h3 ⊢
         simpa using h3
       rw [← h]
-      simp [List.nodup_cons, hmem, Function.comp_def]
+      simp [List.nodup_cons, hmem]
 
 open Lockstep in
 /-- `ctor_names_nodup_twin` at the cursor `0` (and an empty accumulator): the
@@ -2509,7 +2509,7 @@ open Lockstep in
     {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
     {i : Std.Usize} :
     LSP (arena.inductives.native_install.ctor_names_nodup ctors i) (fun o => TwinEq (decide (((absCtorsLFrom ctors i).map (·.1.name)).Nodup)) (o)) :=
-  fun o h => (ctor_names_nodup_refines h).symm
+  fun _o h => (ctor_names_nodup_refines h).symm
 
 /-- `env::ifenv_row` reads the raw index row (visible or not). -/
 theorem ifenv_row_toFun {rf : arena.env.IFEnv} {n : arena.handle.NIdx}

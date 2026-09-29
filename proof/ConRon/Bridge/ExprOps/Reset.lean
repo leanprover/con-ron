@@ -105,7 +105,7 @@ theorem renameConsts_leaf {fn : ConLeche.Name → ConLeche.Name} {e : Expr}
 
 theorem ResetAt.fvar_step {st s1 s2 : EStore} {h ty rt r : EIdx} {idx : Nat}
     (hwf : StoreWF st) (hview : st.view h = some (.fvar idx ty))
-    (hx1 : Ext st s1) (ht : ResetAt st ty s1 rt) (hx2 : Ext s1 s2)
+    (_hx1 : Ext st s1) (ht : ResetAt st ty s1 rt) (hx2 : Ext s1 s2)
     (hr : denoteE s2 r = denoteEView s2 (.fvar idx rt)) : ResetAt st h s2 r :=
   RelE.fvar hwf hview (fun _ => rfl) (ht.ext hx2) hr
 
@@ -189,7 +189,7 @@ theorem ResetAt.leaf {st : EStore} {h : EIdx} {v : ENodeView} (hwf : StoreWF st)
 theorem RenameAt.fvar_step {fn : ConLeche.Name → ConLeche.Name}
     {st s1 s2 : EStore} {h ty rt r : EIdx} {idx : Nat} (hwf : StoreWF st)
     (hview : st.view h = some (.fvar idx ty))
-    (hx1 : Ext st s1) (ht : RenameAt fn st ty s1 rt) (hx2 : Ext s1 s2)
+    (_hx1 : Ext st s1) (ht : RenameAt fn st ty s1 rt) (hx2 : Ext s1 s2)
     (hr : denoteE s2 r = denoteEView s2 (.fvar idx rt)) :
     RenameAt fn st h s2 r :=
   RelE.fvar hwf hview (fun _ => rfl) (ht.ext hx2) hr

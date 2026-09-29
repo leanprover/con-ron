@@ -686,10 +686,10 @@ theorem clProjRecValue_eq (o : ConLeche.Frontend.ProjRecOwner) (ℓ : Level)
       by_cases hi : i < o.nF
       · simp only [hi, and_self, if_true]
         cases ht : ty.stripPis (o.nP + 1) with
-        | none => simp [hv, ht, guard, hi]
+        | none => simp [guard]
         | some q =>
           obtain ⟨xs, R⟩ := q
-          simp [hv, ht, guard, hi]
+          simp [guard]
           generalize ConLeche.Frontend.instPisOpen _ _ = A
           cases A with
           | none => rfl
@@ -713,8 +713,8 @@ theorem clProjRecValue_eq (o : ConLeche.Frontend.ProjRecOwner) (ℓ : Level)
                   · simp [hh]
                   · simp [hh, failure]
                 | _ => rfl
-      · simp [hv, guard, hi]
-    · simp [hv, guard, hb]
+      · simp [guard, hi]
+    · simp [guard, hb]
 
 /-! ## The rewrite -/
 

@@ -354,7 +354,7 @@ def EMemoRel (rm : ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)
 /-- The outcome of a promotion: the twin's answer is `(PMemo × β)`, the memo
 related and the value related. -/
 def POut {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)
-    (lst : AState)
+    (_lst : AState)
     (o : core.result.Result (arena.promote.PMemo × α) kernel.core_types.CheckError)
     (st' : arena.monad.AState)
     (x : Except Arena.CheckError ((PMemo × β) × AState)) : Prop :=
@@ -405,7 +405,7 @@ theorem POut.dest {α β : Type} {R : α → β → Prop} {r : arena.promote.PMe
 `HashMap2` back whatever happened, and a thrown `CheckError` in
 `StateT AState (Except …)` carries nothing — so the error arm claims nothing
 about the memo, exactly as it claims nothing about the state. -/
-def EOut {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : AState)
+def EOut {α β : Type} (A : α → β) (pers : arena.store.PersTier) (_lst : AState)
     (o : core.result.Result α kernel.core_types.CheckError)
     (st' : arena.monad.AState)
     (rm : ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)

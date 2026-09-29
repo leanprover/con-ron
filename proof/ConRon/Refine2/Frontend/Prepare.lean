@@ -285,7 +285,7 @@ theorem prelude_key_refines {pers rst lst d o}
       · simp [hns'] at hlt
       · have h0' : (0#usize : Std.Usize).val = 0 := rfl
         simp only [hns', h0', List.getElem_cons_zero] at hx
-        simp [hns', hx]
+        simp [hx]
     simp only [preludeKey, hhead]
     exact ⟨lst, by rw [e1]; rfl, hrel, hinv⟩
 

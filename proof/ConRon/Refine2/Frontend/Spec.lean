@@ -144,7 +144,7 @@ theorem parseExprEntryD_unfold (st : StateD) (i : Nat) (r : ConLeche.Frontend.Ex
       st.freshExpr i
       let e ← parseExprRecD st r
       pure { st with exprs := st.exprs.insert i e }) := by
-  cases r <;> simp only [parseExprEntryD, parseExprRecD, bind_assoc, pure_bind]
+  cases r <;> simp only [parseExprEntryD, parseExprRecD, bind_assoc]
 
 /-- The twin's `types ++ ctors ++ recs` of `installIndD`, which the port
 factors out as `ind_block_of`. -/

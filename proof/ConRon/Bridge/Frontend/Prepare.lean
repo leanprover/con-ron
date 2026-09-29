@@ -1933,7 +1933,7 @@ must not look up a name the index holds under another handle
 theorem hoistTargets_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
     {ds : Array IDeclaration} {dsP : Array Declaration}
-    (hwf : StoreWF s.store) (hnds : DeclsProjNamed s.store ds)
+    (_hwf : StoreWF s.store) (hnds : DeclsProjNamed s.store ds)
     (hds : denoteDeclArray s.store ds = some dsP)
     {target : Std.HashMap Nat Nat} (hrun : hoistTargets ds s = .ok (target, s')) :
     ParseStep s s' ∧ target = ConLeche.Frontend.hoistTargets dsP := by

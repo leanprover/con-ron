@@ -1633,18 +1633,18 @@ theorem hoist_lt_refines {rm lm a b v} (hr : TargetRel rm lm)
       next hl2 =>
         cases Result.ok_injective h
         have : a2.val < b2.val := by scalar_tac
-        simp [hl', he', this]
+        simp [he', this]
       next hl2 =>
         have hl2' : ¬ a2.val < b2.val := by scalar_tac
         split at h
         next he2 =>
           cases Result.ok_injective h
           have he2' : a2.val = b2.val := by rw [he2]
-          simp [hl', he', hl2', he2']
+          simp [he', he2']
         next he2 =>
           cases Result.ok_injective h
           have he2' : ¬ a2.val = b2.val := fun e => he2 (UScalar.eq_of_val_eq e)
-          simp [hl', he', hl2', he2']
+          simp [he', hl2', he2']
     next he =>
       cases Result.ok_injective h
       have he' : ¬ a1.val = b1.val := fun e => he (UScalar.eq_of_val_eq e)
@@ -2115,13 +2115,13 @@ theorem hoist_reorder_refines {ds order v}
         show absU i1 = i1.val from rfl, hA, List.map_append]
       simp [i_declaration_dup_abs hi4]
   have := key 0#usize _ v h
-  simp only [alloc.vec.Vec.with_capacity, List.map_nil, List.nil_append,
+  simp only [alloc.vec.Vec.with_capacity,
     show ((0#usize : Std.Usize)).val = 0 by rfl, List.drop_zero] at this
   rw [reorder, hfold, Array.empty_append, absIDeclArr, this]
   simp [alloc.vec.Vec.new]
 
 /-- **`hoist_moved_names` refines `movedNames`** (`NatOpGround.lean:385-392`). -/
-theorem hoist_moved_names_refines {ds moved rm lm v} (hr : TargetRel rm lm)
+theorem hoist_moved_names_refines {ds moved rm lm v} (_hr : TargetRel rm lm)
     (hm : moved.val.map absU = (List.range (absIDeclArr ds).size).filter
       (fun k => lm.contains k))
     (h : frontend.nat_op_ground.hoist_moved_names ds moved = ok v) :
@@ -2235,7 +2235,7 @@ theorem hoist_moved_names_refines {ds moved rm lm v} (hr : TargetRel rm lm)
         List.drop_eq_getElem_cons ha, hiv, List.map_cons, List.flatMap_cons, hnm]
       simp
   have := hout 0#usize _ v h
-  simp only [alloc.vec.Vec.new, List.map_nil, List.nil_append, List.drop_zero,
+  simp only [alloc.vec.Vec.new, List.drop_zero,
     show ((0#usize : Std.Usize)).val = 0 by rfl] at this
   rw [htw _ 0 #[] rfl, absNIdxArr, this, hm]
   simp [List.range_eq_range']

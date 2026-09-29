@@ -8833,7 +8833,7 @@ namespace ConRon.Arena
 theorem NStore.empty_wf : NStoreWF NStore.empty := by
   refine ⟨fun _ => 0, ?_⟩
   constructor <;> intros <;>
-    simp_all [NStore.find?, NTables.find?_empty, NTables.Sized_empty,
+    simp_all [NTables.find?_empty, NTables.Sized_empty,
       NTables.sizeOf_empty, Idx.idxCap]
 
 @[simp] theorem LStore.pers_empty : (LStore.empty).pers = LTables.empty := rfl
@@ -8849,7 +8849,7 @@ theorem NStore.empty_wf : NStoreWF NStore.empty := by
 theorem LStore.empty_wf : LStoreWF LStore.empty := by
   refine ⟨fun _ => 0, ?_⟩
   constructor <;> intros <;>
-    simp_all [LStore.find?, LTables.find?_empty, LTables.Sized_empty,
+    simp_all [LTables.find?_empty, LTables.Sized_empty,
       LTables.sizeOf_empty, Idx.idxCap, NStore.empty_wf]
 
 @[simp] theorem LsStore.pers_empty : (LsStore.empty).pers = LsTables.empty := rfl
@@ -8864,7 +8864,7 @@ theorem LStore.empty_wf : LStoreWF LStore.empty := by
 
 theorem LsStore.empty_wf : LsStoreWF LsStore.empty := by
   constructor <;> intros <;>
-    simp_all [LsStore.find?, LsTables.find?_empty, LsTables.Sized_empty,
+    simp_all [LsTables.find?_empty, LsTables.Sized_empty,
       LsTables.sizeOf_empty, Idx.idxCap, LStore.empty_wf]
 
 @[simp] theorem EStore.pers_empty : (EStore.empty).pers = ETables.empty := rfl

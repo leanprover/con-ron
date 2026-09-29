@@ -560,7 +560,7 @@ scratch clause is `Bridge/Frontend/Scratch.lean`'s `projRecOwners_scratch`.
 `occursConstFast_run`'s two con-leche-tier lemmas (`clOccursConstB_eq`,
 `clOccursConstGo_eq`) were proved in task #97-T1-OCC, so it is closed. -/
 theorem projRecOwners_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
+    (_hoff : s.store.scratchOn = false) (hpins : PinsOK s)
     (hrl : ReadLCacheOK s.caches.readLC s.store) {fuel : Nat} {block : List IConstantInfo}
     {blockP : List ConstantInfo} (hb : denoteCIList s.store block = some blockP)
     {types : List (NIdx × List NIdx × EIdx × Nat × Nat × List NIdx × Bool)}

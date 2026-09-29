@@ -1679,7 +1679,7 @@ theorem shift_right_refines {a c : ron.nat.Nat} {k : Std.U64}
 /-- **`Nat.shiftRight a k` for a bignum amount** (task #98-SHIFT): total and
 exact.  A whole-word part beyond `u64` exceeds every limb count, so the
 answer there is `0`. -/
-theorem shift_right_nat_refines {a k c : ron.nat.Nat} (hk : NatWF k)
+theorem shift_right_nat_refines {a k c : ron.nat.Nat} (_hk : NatWF k)
     (h : ron.nat.shift_right_nat a k = ok c) :
     toNat c = Nat.shiftRight (toNat a) (toNat k) ∧ NatWF c := by
   rw [ron.nat.shift_right_nat] at h
@@ -1721,7 +1721,7 @@ theorem shift_right_nat_refines {a k c : ron.nat.Nat} (hk : NatWF k)
 
 /-- **`Nat.shiftLeft a k` for a bignum amount** (task #98-SHIFT): unbounded;
 a run that returns computed the exact shift. -/
-theorem shift_left_nat_refines {a k c : ron.nat.Nat} (hk : NatWF k)
+theorem shift_left_nat_refines {a k c : ron.nat.Nat} (_hk : NatWF k)
     (h : ron.nat.shift_left_nat a k = ok c) :
     toNat c = Nat.shiftLeft (toNat a) (toNat k) ∧ NatWF c := by
   rw [ron.nat.shift_left_nat] at h

@@ -324,7 +324,7 @@ conditional rewrite rule; `∀` facts it keeps. -/
 set_option linter.unusedTactic false in
 set_option maxHeartbeats 20000 in
 example {pers st lst} {b : Bool} {n : Nat}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (_hrel : AStateRel₀ pers st lst) (_hinv : AStateInv pers st)
     (hstuck : LS pers (fun a b => b = a) (ok (.Ok n, st)) lst
       (if b then pure n else do
         let k ← pure (n + 1)
@@ -341,7 +341,7 @@ example {pers st lst} {b : Bool} {n : Nat}
 -- The side tiers' context: a callee spec (an induction hypothesis) is gone, a
 -- `∀` fact stays.
 example {pers : arena.store.PersTier} {n : Nat}
-    (hih : ∀ {st : arena.monad.AState} {lst : AState} (m : Nat), m < n →
+    (_hih : ∀ {st : arena.monad.AState} {lst : AState} (m : Nat), m < n →
       AStateRel₀ pers st lst →
       LS pers (fun a b => b = a) (ok (.Ok m, st)) lst (pure m))
     (hfact : ∀ j, j < n → j < n + 1) : n < n + 2 := by
@@ -446,7 +446,7 @@ twin is the `mapM`: matched through `mapM_view_eq`. -/
 example {pers st lst} {h : arena.handle.EIdx} {l : List EIdx}
     {R : arena.store.ENodeView → List ENodeView → Prop}
     (hf : LSR pers R (arena.monad.view pers st h) st lst (viewsSpec l))
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    (_hrel : AStateRel₀ pers st lst) (_hinv : AStateInv pers st) :
     LS pers R
       (arena.monad.view pers st h >>= fun r => match r with
         | .Ok v => ok (.Ok v, st)
@@ -459,7 +459,7 @@ program is not rewritten. -/
 example {pers st lst} {h : arena.handle.EIdx} {l : List EIdx}
     {R : arena.store.ENodeView → List ENodeView → Prop}
     (hf : LSR pers R (arena.monad.view pers st h) st lst (l.mapM Arena.view))
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    (_hrel : AStateRel₀ pers st lst) (_hinv : AStateInv pers st) :
     LS pers R
       (arena.monad.view pers st h >>= fun r => match r with
         | .Ok v => ok (.Ok v, st)

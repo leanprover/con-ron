@@ -171,7 +171,7 @@ def checkIotaMajorSpec (f : List (NIdx × NIdx)) (r : IRecRule) (cvj : IConstant
 applied to the whole opened frame, and both sides inhabit the type slot. -/
 def checkIotaThmRhsSpec (mode : ConLeche.CheckMode) (feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (depth : Nat) (rhsA : EIdx) (fvs targs : List EIdx)
-    (rhsS : EIdx) (lA : LIdx) (b0 : EIdx) (cvName : NIdx) :
+    (rhsS : EIdx) (lA : LIdx) (b0 : EIdx) (_cvName : NIdx) :
     AM Unit := do
   let rhsR ← renameConstsFast coreWalkFuel (renameBy f) rhsA
   let rhsApplied ← mkAppN rhsR fvs
@@ -560,8 +560,7 @@ theorem checkIotaThmN_unfold (mode : ConLeche.CheckMode) (fe' feSelf : IFEnv)
   unfold checkIotaThmNAtSpec iotaStmtOpenSpec iotaStmtOpenAtSpec iotaLhsPrefixOkSpec
     checkIotaThmNMajorSpec checkIotaThmNCtorSpec checkIotaThmNIdxSpec checkIotaThmNPrefixSpec
     checkIotaThmNFramesSpec checkIotaThmNFieldsSpec checkIotaThmLamsSpec checkIotaThmRhsSpec
-  simp only [bind_assoc, pure_bind, am_fail_bind, am_ite_bind,
-    Nat.add_sub_cancel_left, Bool.not_eq_true', ite_not,
+  simp only [bind_assoc, pure_bind, am_fail_bind, am_ite_bind, Bool.not_eq_true', ite_not,
     Bool.false_eq_true, if_false, beq_iff_eq, Bool.eq_false_iff, ne_eq, decide_eq_true_eq]
   -- the two sides differ only in the auxiliary matcher of the residual-head
   -- test (`checkIotaThmN`'s own against `checkIotaThmNCtorSpec`'s)
@@ -626,7 +625,7 @@ theorem checkIotaRule_unfold (mode : ConLeche.CheckMode) (fe' feSelf : IFEnv)
 /-- The model counterpart: it exists, at the member's level parameters, and
 its type is the member's under the block renaming. -/
 def checkMemberModelSpec (f : List (NIdx × NIdx)) (fe' : IFEnv)
-    (cvA : IConstantVal) (blockNames : List NIdx) (an : ConLeche.Name) :
+    (cvA : IConstantVal) (_blockNames : List NIdx) (an : ConLeche.Name) :
     AM IConstantVal := do
   let mn ← internNNode (.str cvA.name "_model")
   let some (.defnInfo cvm _mval _) := fe'.find? mn
@@ -713,7 +712,7 @@ theorem checkProjTy_unfold (fe' : IFEnv) (T ctorName : NIdx) (lps : List NIdx)
 /-- The right side is field `i`, and both equation sides inhabit the
 statement's type slot. -/
 def checkProjIotaFieldSpec (mode : ConLeche.CheckMode) (feSelf : IFEnv)
-    (nP nF i : Nat) (tty sbody rhsC : EIdx) (pmn : NIdx) : AM Unit := do
+    (nP nF i : Nat) (tty sbody rhsC : EIdx) (_pmn : NIdx) : AM Unit := do
   let depth := nP + nF
   let fld ← internE (.bvar (nF - 1 - i))
   unless rhsC == fld do

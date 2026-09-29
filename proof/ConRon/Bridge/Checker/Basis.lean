@@ -469,22 +469,22 @@ theorem basisPinHitGo_run {block : List IConstantInfo} {b : List ConstantInfo} :
         have hQ : ConLeche.canonEqList b (ConLeche.BasisKind.decls k) = true := by
           rw [← he]; simpa using hc
         have hP := hsame (noTable_of_canon hQ)
-        simp [List.find?_cons, hP, Option.filter, hQ]
+        simp [hP, Option.filter, hQ]
       · obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
         refine ⟨hok2, hx1.trans hx2, by rw [hc2, hc1], by rw [hp2, hp1], ?_⟩
         have hQ : ConLeche.canonEqList b (ConLeche.BasisKind.decls k) = false := by
           rw [← he]; simpa using hc
         by_cases hPk : ((ConLeche.BasisKind.decls k).map (·.name)
             == b.map (·.name)) = true
-        · simp [List.find?_cons, hPk, Option.filter, hQ]
+        · simp [hPk, Option.filter, hQ]
         · -- no later kind can match either: one that did would make THIS
           -- kind's name test pass
           cases hf : (k :: ks).find? (fun k' =>
               (ConLeche.BasisKind.decls k').map (·.name) == b.map (·.name)) with
-          | none => simp [hf]
+          | none => simp
           | some k' =>
             cases hQ' : ConLeche.canonEqList b (ConLeche.BasisKind.decls k') with
-            | false => simp [hf, Option.filter, hQ']
+            | false => simp [Option.filter, hQ']
             | true =>
               exact absurd (hsame (noTable_of_canon hQ')) hPk
     · -- the handle lists differ, and so do the names: on to the next kind
@@ -503,7 +503,7 @@ theorem basisPinHitGo_run {block : List IConstantInfo} {b : List ConstantInfo} :
       obtain ⟨hok2, hx2, hc2, hp2, he⟩ := ih hok1 hb1 k2
       refine ⟨hok2, hx1.trans hx2, by rw [hc2, hc1], by rw [hp2, hp1], ?_⟩
       rw [he]
-      simp [List.find?_cons, hP]
+      simp [hP]
 
 /-- con-leche: ConLeche/Kernel/Basis.lean:68-75 basisPinHit — **the
 recogniser**: a stream block under a pinned name that matches the pin.  The
@@ -681,7 +681,7 @@ the inductive route where a step installs more than one constant.
 some eqA`) read through `IFEnvOK.hit` at the freshly interned `ConLeche.eqA`
 — `internCI_fresh` plus `pinAt_run`, and `denoteN`/`denoteCI` being functions
 is what identifies the two sides. -/
-theorem checkBasisDecl_bridge {μ : CheckMode} {F : Nat} {env : Env}
+theorem checkBasisDecl_bridge {μ : CheckMode} {env : Env}
     {fe fe' : IFEnv} {kind : BasisKind} {s s' : AState}
     (hok : FoldOK μ env fe s)
     (hrun : checkBasisDecl fe kind s = .ok (fe', s')) :
@@ -731,8 +731,7 @@ theorem checkBasisDecl_bridge {μ : CheckMode} {F : Nat} {env : Env}
     obtain ⟨h1, h2, h3, h4, h5, env', h6, h7⟩ :=
       tail sB hstepB.ok hstepB.ext hstepB.pins r3
     refine ⟨h1, h2, h3, h4, h5, env', h6, ?_⟩
-    simp only [ConLeche.checkBasisDecl, hfindEq, if_true, bind, Except.bind,
-      pure, Except.pure]
+    simp only [ConLeche.checkBasisDecl, hfindEq, if_true, bind, Except.bind]
     exact h7
   · -- every other block installs directly
     have hqn : kind ≠ BasisKind.quotK := by simpa using hq
@@ -740,8 +739,7 @@ theorem checkBasisDecl_bridge {μ : CheckMode} {F : Nat} {env : Env}
     obtain ⟨h1, h2, h3, h4, h5, env', h6, h7⟩ :=
       tail s hok.check.state (Ext.refl _) rfl hr1
     refine ⟨h1, h2, h3, h4, h5, env', h6, ?_⟩
-    simp only [ConLeche.checkBasisDecl, if_neg hqn, bind, Except.bind,
-      pure, Except.pure]
+    simp only [ConLeche.checkBasisDecl, if_neg hqn, bind, Except.bind]
     exact h7
 
 /-! ## The pin shape comparison

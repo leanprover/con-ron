@@ -679,7 +679,7 @@ theorem checkDecl_bridge_thm {μ : CheckMode}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
     {c : ConstantVal} {x : Expr}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
+    (hok : FoldOK μ env fe s) (_hpins : PinsDenote s.store pins pinsP)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
     (hrun : Arena.checkDecl μ pins fe (.thmDecl cv value) s = .ok (fe', s')) :
@@ -715,7 +715,7 @@ theorem checkDecl_bridge_opaque {μ : CheckMode}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {value : EIdx}
     {c : ConstantVal} {x : Expr}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
+    (hok : FoldOK μ env fe s) (_hpins : PinsDenote s.store pins pinsP)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
     (hrun : Arena.checkDecl μ pins fe (.opaqueDecl cv value) s = .ok (fe', s')) :
@@ -808,7 +808,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {cv : IConstantVal} {c : ConstantVal}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
+    (hok : FoldOK μ env fe s) (_hpins : PinsDenote s.store pins pinsP)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hrun : Arena.checkDecl μ pins fe (.axiomDecl cv) s = .ok (fe', s')) :
     DeclOut μ pinsP env (.axiomDecl c) s fe fe' s' := by
@@ -1031,13 +1031,13 @@ sides. -/
 theorem checkDecl_bridge_basis {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {kind : BasisKind}
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
+    (_hμ : μ.verifiedChecks = true) (_hk : CoreSpec μ Arena.checkFuel)
+    (hok : FoldOK μ env fe s) (_hpins : PinsDenote s.store pins pinsP)
     (hrun : Arena.checkDecl μ pins fe (.basisDecl kind) s = .ok (fe', s')) :
     DeclOut μ pinsP env (.basisDecl kind) s fe fe' s' := by
   simp only [Arena.checkDecl] at hrun
   obtain ⟨hst, hx, hp, hcoh, hpush, env', hden, hpure⟩ :=
-    checkBasisDecl_bridge (μ := μ) (F := 0) hok hrun
+    checkBasisDecl_bridge (μ := μ) hok hrun
   exact DeclCore.out hok (fun _ _ h => nomatch h)
     { state := hst, ext := hx, pins := hp, coh := hcoh, pushed := hpush
       run := ⟨env', 0, hden, checkDecl_basis_pure hpure⟩ }
@@ -1055,8 +1055,8 @@ theorem checkDecl_bridge_ind {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {block : List IConstantInfo}
     {b : List ConstantInfo} {nP : Nat}
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
-    (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
+    (hμ : μ.verifiedChecks = true) (_hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
+    (hok : FoldOK μ env fe s) (_hpins : PinsDenote s.store pins pinsP)
     (hb : Frontend.denoteCIList s.store block = some b)
     (hrun : Arena.checkDecl μ pins fe (.indDecl block nP) s = .ok (fe', s')) :
     DeclOut μ pinsP env (.indDecl b nP) s fe fe' s' := by
@@ -1070,7 +1070,7 @@ theorem checkDecl_bridge_ind {μ : CheckMode}
   cases r with
   | some kind =>
     obtain ⟨hst, hx, hp, hcoh, hpush, env', hden, hpure⟩ :=
-      checkBasisDecl_bridge (μ := μ) (F := 0) hok1 r1
+      checkBasisDecl_bridge (μ := μ) hok1 r1
     have hd : ∀ b' nP', Declaration.indDecl b nP = .indDecl b' nP' →
         (ConLeche.basisPinHit b').isSome = true := by
       intro b' nP' h
@@ -1111,8 +1111,8 @@ theorem checkDecl_bridge_quot {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe' : IFEnv} {s s' : AState} {k : QuotKind} {cv : IConstantVal}
     {c : ConstantVal}
-    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
-    (hok : FoldOK μ env fe s) (hpins : PinsDenote s.store pins pinsP)
+    (_hμ : μ.verifiedChecks = true) (_hk : CoreSpec μ Arena.checkFuel)
+    (hok : FoldOK μ env fe s) (_hpins : PinsDenote s.store pins pinsP)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hrun : Arena.checkDecl μ pins fe (.quotDecl k cv) s = .ok (fe', s')) :
     DeclOut μ pinsP env (.quotDecl k c) s fe fe' s' := by
@@ -1126,7 +1126,7 @@ theorem checkDecl_bridge_quot {μ : CheckMode}
     cases k with
     | type =>
       obtain ⟨hst, hx, hp, hcoh, hpush, env', hden, hpure⟩ :=
-        checkBasisDecl_bridge (μ := μ) (F := 0) hok1 hgood
+        checkBasisDecl_bridge (μ := μ) hok1 hgood
       exact DeclCore.out hok (fun _ _ h => nomatch h)
         { state := hst
           ext := hx1.trans hx

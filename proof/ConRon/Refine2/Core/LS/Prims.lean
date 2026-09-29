@@ -506,12 +506,12 @@ theorem i_proj_table_entry_abs {tbl : arena.env.IProjTable} {i : Std.U64}
   obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hi2v : i2.val = tbl.bodies.val.length := by
     simp only [lift, Result.ok.injEq] at hi2; subst hi2
-    simp [alloc.vec.Vec.len_val]
+    simp
   obtain ⟨body, hbody, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨i4, hi4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hi4v : i4.val = tbl.guards.val.length := by
     simp only [lift, Result.ok.injEq] at hi4; subst hi4
-    simp [alloc.vec.Vec.len_val]
+    simp
   obtain ⟨fs, hfs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

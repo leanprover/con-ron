@@ -2356,7 +2356,7 @@ theorem note_gen_refines {rsd lsd lst d t0 rsd'} (hd : StateDRel rsd lsd)
   have hv' := i_declaration_names_abs hv
   obtain ⟨hd', hi'⟩ := note_gen_names_refines hd hi h
   refine ⟨_, rfl, ?_, hi'⟩
-  simp only [noteGen]
+  simp only
   rw [← hv']
   exact hd'
 
@@ -2416,7 +2416,7 @@ theorem push_gen_list_refines {pers rst lst rsd lsd gen t0 o}
         rw [am_run_bind']
         show SimD pers lst1 o _ 
         refine SimD.of_run_eq hrec ?_
-        simp only [noteGen]
+        simp only
         rw [← hnm]
         rfl
   have := key _ 0#usize rst lst rsd lsd o rfl hrel hinv hd hi h

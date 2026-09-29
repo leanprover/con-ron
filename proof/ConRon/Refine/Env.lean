@@ -784,49 +784,49 @@ theorem pi_sort_tele_len_refines {e : expr.Expr} (hwf : ExprWF e) :
     intro o h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv hb
     rw [env.pi_sort_tele_len.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+    simp only [expr_view_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
       expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
   | fvar hty hf _ihty =>
     intro o h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv hf
     rw [env.pi_sort_tele_len.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+    simp only [expr_view_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
       expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
   | sort hu hs =>
     intro o h
     obtain ⟨d, -, -, rfl, -, -, -⟩ := Expr.sort_inv hs
     rw [env.pi_sort_tele_len.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+    simp only [expr_view_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
       expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
   | mk_const hn hus hc =>
     intro o h
     obtain ⟨d, -, -, rfl, -, -, -⟩ := Expr.mk_const_inv hc
     rw [env.pi_sort_tele_len.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+    simp only [expr_view_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
       expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
   | app hf ha ha' _ihf _iha =>
     intro o h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv ha'
     rw [env.pi_sort_tele_len.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+    simp only [expr_view_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
       expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
   | lam hty hb hm hl _ihty _ihb =>
     intro o h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv hl
     rw [env.pi_sort_tele_len.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+    simp only [expr_view_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
       expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
   | forall_e hty hbo hm hfa _ihty ihbo =>
     intro o h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv hfa
     rw [env.pi_sort_tele_len.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+    simp only [expr_view_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
       expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨o', ho', h⟩ := h
     have ih := ihbo ho'
@@ -845,21 +845,21 @@ theorem pi_sort_tele_len_refines {e : expr.Expr} (hwf : ExprWF e) :
     intro o h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv hle
     rw [env.pi_sort_tele_len.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+    simp only [expr_view_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
       expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
   | lit hl hli =>
     intro o h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv hli
     rw [env.pi_sort_tele_len.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+    simp only [expr_view_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
       expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
   | proj hs hx hp _ihx =>
     intro o h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv hp
     rw [env.pi_sort_tele_len.eq_def] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+    simp only [expr_view_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
       expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.piSortTeleLen?]
 
@@ -1849,8 +1849,7 @@ theorem find_from_refines {cs : alloc.vec.Vec env.ConstantInfo} {n : name.Name}
       have hl : w.val < cs.val.length := by scalar_tac
       obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec cs w hl)
       subst hyv
-      simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hw,
-        expr_view_eq, arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
+      simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hw, arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
       obtain ⟨n1, hn1, b, hb, h⟩ := h
       have hwfc := hcs _ (List.getElem_mem hl)
       have hb' := Name.beq_refines (constant_info_name_wf hwfc hn1) hn hb
@@ -1859,8 +1858,7 @@ theorem find_from_refines {cs : alloc.vec.Vec env.ConstantInfo} {n : name.Name}
         List.map_cons, List.find?_cons]
       cases hc : b
       · rw [hc] at hb' h
-        simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff,
-          Result.ok.injEq, exists_eq_left'] at h
+        simp only [Bool.false_eq_true, if_false] at h
         have hne := of_decide_eq_false hb'.symm
         rw [show ((absConstantInfo cs.val[w.val]).name == absName n) = false from
           by simpa using hne]
@@ -1912,13 +1910,11 @@ theorem find_wf {e : env.Env} {n : name.Name} {o : Option env.ConstantInfo}
         obtain ⟨y, hy, hyv⟩ :=
           WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec e.consts w hl)
         subst hyv
-        simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hw,
-          expr_view_eq, arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
+        simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hw, arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
         obtain ⟨n1, hn1, b, hb, h⟩ := h
         cases hcb : b
         · rw [hcb] at h
-          simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff,
-            Result.ok.injEq, exists_eq_left'] at h
+          simp only [Bool.false_eq_true, if_false] at h
           exact ih w o (by scalar_tac) (by scalar_tac) h c hc
         · rw [hcb] at h
           simp only [if_true, bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h

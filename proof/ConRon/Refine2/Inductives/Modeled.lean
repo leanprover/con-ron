@@ -252,7 +252,7 @@ open Lockstep in
     {i : Std.Usize}
     {n : arena.handle.NIdx} :
     LSP (arena.inductives.modeled.rename_by_from tbl i n) (fun o => TwinEq (renameBy (absRenameTblFrom tbl i) (absNIdx n)) (absNIdx o)) :=
-  fun o h => (rename_by_from_refines h).symm
+  fun _o h => (rename_by_from_refines h).symm
 
 /-- `rename_by` ⊑ `renameBy`. -/
 theorem rename_by_refines
@@ -270,7 +270,7 @@ open Lockstep in
     {tbl : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx)}
     {n : arena.handle.NIdx} :
     LSP (arena.inductives.modeled.rename_by tbl n) (fun o => TwinEq (renameBy (absRenameTbl tbl) (absNIdx n)) (absNIdx o)) :=
-  fun o h => (rename_by_refines h).symm
+  fun _o h => (rename_by_refines h).symm
 
 open Lockstep in
 /-- The `NIdxToNIdx` trait method of `RenameBy` IS `rename_by` of its table. -/
@@ -695,7 +695,7 @@ open Lockstep in
     {xs : alloc.vec.Vec arena.handle.EIdx}
     {dflt : arena.handle.EIdx} :
     LSP (arena.inductives.modeled.last_d_eidx xs dflt) (fun o => TwinEq ((absEIdxL xs).getLastD (absEIdx dflt)) (absEIdx o)) :=
-  fun o h => (last_d_eidx_refines h).symm
+  fun _o h => (last_d_eidx_refines h).symm
 
 /-- `iota_stmt_open_at` ⊑ the prologue's tail: the telescope, the equation
 head and its arity (finding 20's hoisted `eqHeadLevel` among them). -/
@@ -1349,7 +1349,7 @@ theorem nested_rule_shape_args_refines {pers st lst} {vis : Std.U64} {rfS lfS}
         refine Lockstep.LS.pure ?_ ‹_› ‹_›
         first
         | rfl
-        | (exfalso; simp_all [List.map_drop, ConRon.Refine.absNames, Lockstep.TwinEq])
+        | (exfalso; simp_all [ConRon.Refine.absNames, Lockstep.TwinEq])
     · exfalso; scalar_tac
 
 open Lockstep in
@@ -3722,7 +3722,7 @@ open Lockstep in
     {i : Std.Usize}
     {out : alloc.vec.Vec arena.env.IConstantInfo} :
     LSP (arena.inductives.modeled.filter_recs block want i out) (fun o => TwinEq (absICIL out ++ filterRecsSpec (absICILFrom block i) want) (absICIL o)) :=
-  fun o h => (filter_recs_refines h).symm
+  fun _o h => (filter_recs_refines h).symm
 
 /-- `block_names_of` ⊑ `block.map (·.name)` from the cursor on. -/
 theorem block_names_of_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
@@ -3757,7 +3757,7 @@ open Lockstep in
     {i : Std.Usize}
     {out : alloc.vec.Vec arena.handle.NIdx} :
     LSP (arena.inductives.modeled.block_names_of block i out) (fun o => TwinEq (absNIdxL out ++ blockNamesOfSpec (absICILFrom block i)) (absNIdxL o)) :=
-  fun o h => (block_names_of_refines h).symm
+  fun _o h => (block_names_of_refines h).symm
 
 /-- `filter_kind` ⊑ the twin's two constructor filters, at a tag. -/
 theorem filter_kind_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
@@ -3829,7 +3829,7 @@ open Lockstep in
     {i : Std.Usize}
     {out : alloc.vec.Vec arena.env.IConstantInfo} :
     LSP (arena.inductives.modeled.filter_kind block kind i out) (fun o => TwinEq (absICIL out ++ filterKindSpec (absICILFrom block i) (absU kind)) (absICIL o)) :=
-  fun o h => (filter_kind_refines h).symm
+  fun _o h => (filter_kind_refines h).symm
 
 /-- `single_ind_ctor` ⊑ the twin's two-list match
 `[.indInfo cvT _], [.ctorInfo cvC nP nF]`. -/
@@ -3889,7 +3889,7 @@ theorem single_ind_ctor_refines {block : alloc.vec.Vec arena.env.IConstantInfo}
       at hrun
     rw [← Result.ok_injective hrun]
     rcases hm : inds.val with _ | ⟨x, xs⟩
-    · simp only [List.map_cons, List.map_nil]; rfl
+    · simp only [List.map_nil]; rfl
     · rcases xs with _ | ⟨x2, xs2⟩
       · exact absurd (by simp [hm]) hl1
       · simp
@@ -3898,7 +3898,7 @@ open Lockstep in
 @[lockstep] theorem single_ind_ctor_twin
     {block : alloc.vec.Vec arena.env.IConstantInfo} :
     LSP (arena.inductives.modeled.single_ind_ctor block) (fun o => TwinEq (singleIndCtorSpec (absICIL block)) ((o.map fun q => (absIConstantVal q.1, absIConstantVal q.2.1, absU q.2.2.1, absU q.2.2.2)))) :=
-  fun o h => (single_ind_ctor_refines h).symm
+  fun _o h => (single_ind_ctor_refines h).symm
 
 /-- `proj_fn_family_free` in `LS` form, by induction on the fields left. -/
 theorem proj_fn_family_free_modeled_aux (n : Nat) :

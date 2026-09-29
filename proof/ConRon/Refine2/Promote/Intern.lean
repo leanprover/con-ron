@@ -394,7 +394,7 @@ theorem internExprGo_compound (m : Frontend.EMemo) (e : ConLeche.Expr)
     Frontend.internExprGo m e = internProbe m e (internExprNodeSpec m e) := by
   cases e <;> simp only at hc <;>
     simp only [Frontend.internExprGo, internProbe, internExprNodeSpec] <;>
-    (split <;> rename_i heq <;> simp [heq, bind_assoc])
+    (split <;> rename_i heq <;> simp [heq])
 
 private theorem intern_e_ls' {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (v : arena.store.ENodeView)
@@ -834,7 +834,7 @@ theorem intern_expr_list_refines {pers st lst}
       rw [internExprList_pmapFrom] at h
       simpa [ConRon.Refine.absExprs, alloc.vec.Vec.new] using h)
   refine Lockstep.LS.toSim₀ (Lockstep.LS.tail h ?_ (fun _ _ h => h)) hrun
-  simp [internExprList, bind_assoc]
+  simp [internExprList]
 
 /-! ## The two handle-list walks that carry no memo
 

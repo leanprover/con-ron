@@ -256,7 +256,7 @@ knot's `infer` at the head, the carry `inferSpine_go`
 (`Walks/InferSpine.lean`), then con-leche's own identification
 `inferSpine_sound` and `Expr.mkAppN_getApp`. -/
 theorem inferBody_app_batched {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env)
+    (_henv : ConLeche.EnvWF env)
     (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
@@ -495,7 +495,7 @@ clause**: `KnotSpec.infer`, `KnotSpec.whnf'`, `getAppFn`/`getAppArgs`,
 callee is applied at a subject whose denotation the previous stage NAMED,
 and every callee rule it needs was already closed. -/
 theorem inferBody_proj {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)

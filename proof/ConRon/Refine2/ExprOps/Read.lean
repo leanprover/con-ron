@@ -557,7 +557,7 @@ elab "dbg_ih" : tactic => do
   for d in (← getLCtx) do
     if d.userName.toString == "ih" then
       let t ← instantiateMVars d.type
-      forallTelescope t fun xs c => do
+      forallTelescope t fun _xs c => do
         logInfo m!"ih concl head {c.getAppFn} nargs {c.getAppNumArgs}; rust {(ConRon.Refine2.Lockstep.judgementRustArg? c)}"
 
 section wscoped

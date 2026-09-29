@@ -275,7 +275,7 @@ io slot at the head, the carry `inferSpineIO_go` (`Walks/InferSpine.lean`;
 the licence test is the datum alone by `hμ`), then con-leche's
 `inferSpineIO_sound` (at `hg`) and `Expr.mkAppN_getApp`. -/
 theorem inferBodyIO_app {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (_henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
     (hg : mode.betaGate = true)     (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
@@ -326,7 +326,7 @@ clause**, chained: `KnotSpec.infer`, `KnotSpec.whnf'`, `instantiate1Fast`,
 io grade.
 **CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem inferBodyIO_forallE {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (_henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
     (hg : mode.betaGate = true)     (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
@@ -563,7 +563,7 @@ either the chain exit or the leaf's io knot slot, `ensureSort_ioView_spec`
 and `readLevelM_spec`; both exits end in `inferLamResult_spec`, whose
 `abstract1Fast` needs the Core tier's `fvarBSpec` (`Walks/FvarB.lean`). -/
 theorem inferBodyIO_lam {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (_henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
     (hg : mode.betaGate = true)     (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
@@ -809,7 +809,7 @@ clause**, `inferBody`'s verbatim at the io grade.
 callee is applied at a subject whose denotation the previous stage NAMED,
 and every callee rule it needs was already closed. -/
 theorem inferBodyIO_proj {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (hg : mode.betaGate = true)     (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)

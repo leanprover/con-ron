@@ -65,7 +65,7 @@ open Lockstep in
     {k : arena.handle.EIdx}
     (hm : ExprOps.LMemoRel rm lm) :
     LSP (arena.inductives.struct_parts.mc_probe rm k) (fun o => TwinEq (lm[absEIdx k]?) (o)) :=
-  fun o h => (mc_probe_refines hm h).symm
+  fun _o h => (mc_probe_refines hm h).symm
 
 open Lockstep in
 /-- `mentions_const_go` ⊑ `mentionsConstGo`, by induction on the fuel. -/

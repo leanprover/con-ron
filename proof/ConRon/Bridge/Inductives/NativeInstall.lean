@@ -940,7 +940,7 @@ theorem checkNativeRules_run (feR : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:447-463 checkNativeRules
 The same at the core grade, read off `checkNativeRules_run`. -/
 theorem checkNativeRules_spec {μ : CheckMode} {env : Env} (feR : IFEnv)
-    (envR : Env) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (rlps : List NIdx)
+    (envR : Env) (_hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (rlps : List NIdx)
     (rlpsP : List ConLeche.Name) (T : NIdx) (TP : ConLeche.Name)
     (lps : List NIdx) (lpsP : List ConLeche.Name) (elim : NIdx)
     (elimP : ConLeche.Name) (large : Bool) (nP nIdx : Nat) (tty : EIdx)
@@ -1297,17 +1297,17 @@ theorem checkNativeTable_run (fe : IFEnv) (env : Env) (hcoh : IFEnvCoh fe)
     obtain ⟨cv, nf⟩ := cA
     simp only [denoteCtors] at hcs
     cases hcv : Frontend.denoteCV s₀.store cv with
-    | none => rw [hcv] at hcs; simp [denoteCtors] at hcs
+    | none => rw [hcv] at hcs; simp at hcs
     | some cP =>
     rw [hcv] at hcs
-    simp only [denoteCtors, Option.some.injEq] at hcs
+    simp only [Option.some.injEq] at hcs
     subst hcs
     simp only [denoteLLists] at hss
     cases hsd : denoteLList s₀.store.ls sorts with
-    | none => rw [hsd] at hss; simp [denoteLLists] at hss
+    | none => rw [hsd] at hss; simp at hss
     | some sortsP =>
     rw [hsd] at hss
-    simp only [denoteLLists, Option.some.injEq] at hss
+    simp only [Option.some.injEq] at hss
     subst hss
     simp only [Arena.checkNativeTable] at hrun
     have hnIdx : p.nIdx = q.nIdx := hp.shape.nIdx
@@ -1961,7 +1961,7 @@ theorem checkNativeTail_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   refine ⟨max F₀ F₃, ?_⟩
   have g₀ := checkStructFieldSortsI_up (Nat.le_max_left F₀ F₃) hF₀
   have g₃ := checkNativeRec_up (Nat.le_max_right F₀ F₃) hF₃
-  simp only [ConLeche.checkNativeTail, bind, Except.bind, pure, Except.pure]
+  simp only [ConLeche.checkNativeTail, bind, Except.bind]
   rw [if_neg hg]
   simp only [htq, ConLeche.unwrapOr, pure, Except.pure]
   rw [g₀]
@@ -2155,14 +2155,14 @@ theorem IFEnv.popTemp_push (fe : IFEnv) (ci : IConstantInfo) :
   intro k
   cases h : fe.idx[ci.name]? with
   | none =>
-    simp only [IFEnv.popTemp, IFEnv.push, h, Std.HashMap.getElem?_erase,
+    simp only [IFEnv.popTemp, IFEnv.push, Std.HashMap.getElem?_erase,
       Std.HashMap.getElem?_insert]
     by_cases hk : (ci.name == k) = true
     · have e : ci.name = k := by simpa using hk
       subst e; simp [h]
     · simp [hk]
   | some row =>
-    simp only [IFEnv.popTemp, IFEnv.push, h, Std.HashMap.getElem?_insert]
+    simp only [IFEnv.popTemp, IFEnv.push, Std.HashMap.getElem?_insert]
     by_cases hk : (ci.name == k) = true
     · have e : ci.name = k := by simpa using hk
       subst e; simp [h]

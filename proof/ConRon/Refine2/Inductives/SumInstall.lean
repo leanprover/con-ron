@@ -481,7 +481,7 @@ theorem native_caps_at_refines {pers st lst}
     lockstep
     all_goals
       refine Lockstep.LS.pure ?_ ‹_› ‹_›
-      try simp only [Lockstep.TwinEq] at *
+      try simp only at *
       simp_all [absIIndCaps, u64_val_beq_zero]
   · have hlen : alloc.vec.Vec.len p.ctors ≠ 1#usize := by
       intro h1; have : (alloc.vec.Vec.len p.ctors).val = 1 := by rw [h1]; rfl
@@ -621,7 +621,7 @@ open Lockstep in
     {x : arena.handle.EIdx}
     {i : Std.Usize} :
     LSP (arena.inductives.sum_install.eidx_contains xs x i) (fun o => TwinEq ((absEIdxLFrom xs i).contains (absEIdx x)) (o)) :=
-  fun o h => (eidx_contains_refines h).symm
+  fun _o h => (eidx_contains_refines h).symm
 
 /-- `field_sort_bound` ⊑ `checkStructFieldSortsI`'s per-field universe
 bound. -/
@@ -740,7 +740,7 @@ open Lockstep in
 (the mutual recursion's one direction). -/
 theorem norm_pos_dom_at_of {pers} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {t : arena.handle.NIdx} {fuel : Std.U64}
-    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow)
+    (_hfe : IFEnvRelI rf lf) (_hvis : absU vis = lf.visibleBelow)
     (ih : ∀ {st lst} {d : Std.U64} {e : arena.handle.EIdx},
       AStateRel₀ pers st lst → AStateInv pers st →
       Lockstep.LS pers (fun a b => b = absEIdx a)
@@ -1192,7 +1192,7 @@ theorem check_sum_ctor_resid_refines {pers st lst} {mode : kernel.env.CheckMode}
   lockstep
   all_goals
     have e := absEIdxL_of_takeEidx ‹ExprOps.absEIdxArr _ = takeEidx (ExprOps.absEIdxArr _) _›
-    simp only [e, absEIdxL] at *
+    simp only [absEIdxL] at *
     lockstep
 
 open Lockstep in

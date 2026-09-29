@@ -513,7 +513,7 @@ theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         rename_i hne _
         refine ⟨hok, Ext.refl _, rfl, ?_⟩
         rw [isEmpty_of_denoteNList hlps] at hne
-        simp only [Bool.not_eq_true', Bool.not_eq_eq_eq_not, Bool.not_true] at hne
+        simp only [Bool.not_eq_eq_eq_not, Bool.not_true] at hne
         simp only [ConLeche.natSuccOk, hne, Bool.false_and]
       case vc2.hp => exact hp
       case vc3.hok => exact hok

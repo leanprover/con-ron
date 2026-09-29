@@ -1857,7 +1857,7 @@ theorem nativeCounts_eq (nPd : Nat) (cvTP : ConstantVal)
          else if rP - (csP.length + 1) == nPd then some (nPd, mI - rP) else none) := by
   simp only [ConLeche.nativeCounts?]
   cases h : cvTP.type.piBinders with
-  | mk bs body => cases body <;> simp [h]
+  | mk bs body => cases body <;> simp
 
 /-- con-leche: none — `nativeCounts?`'s NON-sort tail, both sides: the
 recursor's claimed prefix against the constructor count.  Stated separately so

@@ -848,7 +848,7 @@ theorem absPos_beq_zero (j : Std.Usize) : (absPos j == 0) = decide (j.val = 0) :
     simp [this, hj]
   · have : absPos j ≠ 0 := by
       intro h0; apply hj; have := congrArg USize.toNat h0; simpa using this
-    simp [this, hj]
+    simp [hj]
 
 theorem absPos_lt_iff (i j : Std.Usize) : absPos i < absPos j ↔ i.val < j.val := by
   rw [USize.lt_iff_toNat_lt, absPos_toNat, absPos_toNat]

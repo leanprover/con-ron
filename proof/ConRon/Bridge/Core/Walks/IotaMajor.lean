@@ -1427,7 +1427,7 @@ theorem majorToCtor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         simp only [Frontend.denoteRules] at hr
         split at hr
         · rename_i y ys hy hys
-          simp only [Frontend.denoteRules, Option.some.injEq] at hys
+          simp only [Option.some.injEq] at hys
           subst hys
           cases hr
           exact ⟨y, hy, rfl⟩
@@ -1552,7 +1552,7 @@ theorem recRuleK_denote {st : EStore} {rules : List IRecRule}
     split at h
     · rename_i x xs hx hxs
       obtain rfl : xs = [] := by
-        simp only [Frontend.denoteRules, Option.some.injEq] at hxs; exact hxs.symm
+        simp only [Option.some.injEq] at hxs; exact hxs.symm
       cases h
       simp only [Frontend.denoteRule] at hx
       split at hx

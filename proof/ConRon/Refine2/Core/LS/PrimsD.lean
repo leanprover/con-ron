@@ -84,7 +84,7 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
 
 @[lockstep] theorem dup2_nidx (h : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun e he => dupId_nidx _ _ he
+  fun _e he => dupId_nidx _ _ he
 
 @[lockstep] theorem fail_dangling_ls_spec (T : Type) :
     LSP (arena.monad.fail_dangling_ls T) (fun r => ∃ v, r = .Err (.Internal v)) := by
@@ -110,7 +110,7 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
 
 @[local lockstep_simp] theorem absEIdxArr_size (v : alloc.vec.Vec arena.handle.EIdx) :
     (absEIdxArr v).size = v.val.length := by
-  simp [absEIdxArr, ExprOps.absEIdxL]
+  simp [absEIdxArr]
 
 @[local lockstep_simp] theorem absSz_vec_len {α : Type} (v : alloc.vec.Vec α) :
     absSz (alloc.vec.Vec.len v) = v.val.length := by

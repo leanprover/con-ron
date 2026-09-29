@@ -539,7 +539,7 @@ theorem parseBytes_run {md : Modeller} (hmw : ModellerWF md)
           refine ⟨(hstep0.trans hstep1).trans hstep2,
             PersParseResult.ofState hp2, _, ?_, ParseResultRel.ofState hrel2⟩
           rw [ConLeche.Frontend.parseBytes, if_neg hsz]
-          simp only [pure_bind, hcl1, Bind.bind, Except.bind, htl, if_true, hcl2,
+          simp only [hcl1, Bind.bind, Except.bind, htl, if_true, hcl2,
             pure, Except.pure]
       · rw [if_neg htl] at hrest2
         obtain ⟨hv, hs⟩ := AM.pure_ok hrest2
@@ -548,7 +548,7 @@ theorem parseBytes_run {md : Modeller} (hmw : ModellerWF md)
         refine ⟨hstep0.trans hstep1, PersParseResult.ofState hp1, _, ?_,
           ParseResultRel.ofState hrel1⟩
         rw [ConLeche.Frontend.parseBytes, if_neg hsz]
-        simp only [pure_bind, hcl1, Bind.bind, Except.bind, htl, if_false,
+        simp only [hcl1, Bind.bind, Except.bind, htl, if_false,
           pure, Except.pure]
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:895-901 parseChunks.go — the

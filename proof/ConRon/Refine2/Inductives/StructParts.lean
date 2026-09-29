@@ -109,7 +109,7 @@ open Lockstep in
     {i : Std.Usize}
     {out : alloc.vec.Vec arena.handle.NIdx} :
     LSP (arena.inductives.struct_parts.nidx_vec_tail_from ns i out) (fun o => TwinEq (absNIdxL out ++ absNIdxLFrom ns i) (absNIdxL o)) :=
-  fun o h => (nidx_vec_tail_from_refines h).symm
+  fun _o h => (nidx_vec_tail_from_refines h).symm
 
 /-- `nidx_vec_tail` is `List.tail` on the abstraction — the twin's
 `elim :: relps` pattern. -/
@@ -125,7 +125,7 @@ open Lockstep in
 @[lockstep] theorem nidx_vec_tail_twin
     {ns : alloc.vec.Vec arena.handle.NIdx} :
     LSP (arena.inductives.struct_parts.nidx_vec_tail ns) (fun o => TwinEq ((absNIdxL ns).tail) (absNIdxL o)) :=
-  fun o h => (nidx_vec_tail_refines h).symm
+  fun _o h => (nidx_vec_tail_refines h).symm
 
 /-! ## The level lists -/
 
@@ -1257,7 +1257,7 @@ open Lockstep in
     {k : arena.monad.EIdxNat}
     (hm : WMemoRel rm lm) :
     LSP (arena.inductives.struct_parts.hlb_probe rm k) (fun o => TwinEq (lm[absEIdxNat k]?) (o)) :=
-  fun o h => (hlb_probe_refines hm h).symm
+  fun _o h => (hlb_probe_refines hm h).symm
 
 /-- `has_loose_bvar_b_ins` ⊑ `hasLooseBVarBIns` — one answer recorded. -/
 theorem has_loose_bvar_b_ins_refines {e : arena.handle.EIdx} {i : Std.U64}
@@ -1569,7 +1569,7 @@ open Lockstep in
     {used : alloc.vec.Vec Bool}
     {j : Std.U64} :
     LSP (arena.inductives.struct_parts.used_get_d used j) (fun o => TwinEq ((absBoolL used).getD (absU j) false) (o)) :=
-  fun o h => (used_get_d_refines h).symm
+  fun _o h => (used_get_d_refines h).symm
 
 /-- `sort_get_d` ⊑ `sorts.getD j z`. -/
 theorem sort_get_d_refines {sorts : alloc.vec.Vec arena.handle.LIdx} {j : Std.U64}
@@ -1608,7 +1608,7 @@ open Lockstep in
     {j : Std.U64}
     {z : arena.handle.LIdx} :
     LSP (arena.inductives.struct_parts.sort_get_d sorts j z) (fun o => TwinEq ((absLIdxL sorts).getD (absU j) (absLIdx z)) (absLIdx o)) :=
-  fun o h => (sort_get_d_refines h).symm
+  fun _o h => (sort_get_d_refines h).symm
 
 /-- `struct_proj_guards_col` ⊑ `structProjGuards`' `col`. -/
 theorem struct_proj_guards_col_refines {pers st lst} {used : alloc.vec.Vec Bool}

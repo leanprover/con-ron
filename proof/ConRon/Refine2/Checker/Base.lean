@@ -1333,7 +1333,7 @@ theorem consts_resolve_f_fast_refines {pers st lst} {vis : Std.U64} {rf lf}
     LSP (kernel.prop_when.params_defined params pw)
       (fun b => TwinEq (ConLeche.PropWhen.paramsDefined (ConRon.Refine.absNames params)
         (ConRon.Refine.absPropWhen pw)) b) :=
-  fun b h => (ConRon.Refine.PropWhen.params_defined_refines hp hpw h).symm
+  fun _b h => (ConRon.Refine.PropWhen.params_defined_refines hp hpw h).symm
 
 theorem all_params_defined_list_aux {params : alloc.vec.Vec kernel.name.Name}
     {ls : alloc.vec.Vec kernel.level.Level} (hp : NamesWF params) (hl : ConRon.Refine.LevelsWF ls) :

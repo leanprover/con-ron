@@ -38,7 +38,7 @@ abstracted length. -/
 theorem decide_usize_eq_len {α : Type} (u : Std.Usize) (v : alloc.vec.Vec α) :
     decide (u = alloc.vec.Vec.len v) = (absSz u == v.val.length) := by
   by_cases h : u = alloc.vec.Vec.len v
-  · subst h; simp [absSz, alloc.vec.Vec.len_val]
+  · subst h; simp [absSz]
   · have : absSz u ≠ v.val.length := by
       intro hc; apply h; apply Aeneas.Std.UScalar.eq_imp
       rw [alloc.vec.Vec.len_val]; exact hc
@@ -234,7 +234,7 @@ the twin's `what` is free (messages are never compared). -/
       first
       | rfl
       | (obtain ⟨-, rfl, rfl, x, hx, rfl⟩ := heq
-         simp_all [absIRecRule, uscalar_eq_iff_val, alloc.vec.Vec.len_val, absU,
+         simp_all [absIRecRule, uscalar_eq_iff_val, absU,
            nat_beq_eq_decide]
          done)
       | (exfalso
@@ -267,14 +267,14 @@ attribute [-lockstep_simp] ConRon.Refine.absLevels ConRon.Refine.absNames
 /-! ## The instantiated-constant caches -/
 
 @[lockstep] theorem const_ty_at_ls {pers st cv us lst}
-    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    (_hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = absEIdx a) (arena.core.const_ty_at pers st cv us) lst
       (constTyAt (absIConstantVal cv) (absLsIdx us)) := by
   rw [arena.core.const_ty_at, constTyAt]
   lockstep_a1
 
 @[lockstep] theorem rule_rhs_at_ls {pers st rec_name ctor lps rhs us lst}
-    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    (_hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = absEIdx a) (arena.core.rule_rhs_at pers st rec_name ctor lps rhs us) lst
       (ruleRhsAt (absNIdx rec_name) (absNIdx ctor) (lps.val.map absNIdx) (absEIdx rhs)
         (absLsIdx us)) := by
@@ -302,7 +302,7 @@ refinement needs it). -/
   lockstep_a1
 
 @[lockstep] theorem proj_entry_type_at_ls {pers st entry us targs pe lst}
-    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    (_hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = absEIdx a) (arena.core.proj_entry_type_at pers st entry us targs pe) lst
       ((absIProjEntry entry).typeAt (absLsIdx us) (absEIdxList targs) (absEIdx pe)) := by
   rw [arena.core.proj_entry_type_at, IProjEntry.typeAt]
@@ -417,7 +417,7 @@ theorem subst_param_levels_aux {pers} (ks : alloc.vec.Vec kernel.name.Name)
   simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at h
   exact LS.tail h rfl (fun a b hab => by simp [hab, alloc.vec.Vec.new])
 
-theorem inst_spine_pins_aux {pers} (hx : ExprOpsHyp pers) (lps : alloc.vec.Vec arena.handle.NIdx)
+theorem inst_spine_pins_aux {pers} (_hx : ExprOpsHyp pers) (lps : alloc.vec.Vec arena.handle.NIdx)
     (us : arena.handle.LsIdx) (args : alloc.vec.Vec arena.handle.EIdx) (r_p : Std.U64)
     (pins : alloc.vec.Vec arena.handle.EIdx) :
     ∀ n (i : Std.Usize) (out : alloc.vec.Vec arena.handle.EIdx) {st lst},

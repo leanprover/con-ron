@@ -223,7 +223,7 @@ theorem infer_lams_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
 
 @[lockstep] theorem infer_pis_leaf_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe d t k fvs stk lst}
-    (hx : ExprOpsHyp pers)
+    (_hx : ExprOpsHyp pers)
     (hstk : ∀ p ∈ (stk : alloc.vec.Vec (arena.handle.LIdx × kernel.prop_when.PropWhen)).val,
       ConRon.Refine.PropWhenWF p.2)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)

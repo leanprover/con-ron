@@ -461,7 +461,7 @@ theorem structUnitCert_cmp {F d : Nat} {x y ta wta tb wtb : Expr} {T : Name}
   simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert, e1, e2,
     hh, hf, bind, Except.bind]
   rw [if_pos hg]
-  simp only [e3, e4, bind, Except.bind]
+  simp only [e3, e4]
   exact h5
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:738-749 etaCtorShape — **THEOREM

@@ -965,7 +965,7 @@ theorem view_of_bind_tag {st : EStore} {i : EIdx} (hb : ETag.isBind i.tag = true
 the port reads the tag before the store and answers `h` itself off the `lam`
 tag; the twin does too since task #97-T2-LOCKSTEP lane Frontend. -/
 theorem lam_body_refines {pers rst lst fuel h' o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
+    (hrel : AStateRel₀ pers rst lst) (_hinv : AStateInv pers rst)
     (h : frontend.proj_rec.lam_body pers rst fuel h' = ok o) :
     SimRE absEIdx lst o (lamBody (absU fuel) (absEIdx h')) := by
   suffices H : ∀ (n : Nat) (fuel : Std.U64) (h' : arena.handle.EIdx) {o}, fuel.val = n →
@@ -1461,7 +1461,7 @@ open ConRon.Refine2.Lockstep in
     refine LSR.bind (head_is_ls hrel hinv fuel pb.t e) (by simp [absProjBuild])
       (fun _ => by lockstep_errarm) (fun a b lst1 hR hrel1 hinv1 => ?_)
     subst hR
-    cases b <;> simp only [Bool.false_eq_true, if_true, if_false, reduceIte] <;> lockstep
+    cases b <;> simp only [Bool.false_eq_true, if_true, if_false] <;> lockstep
   · rw [mkProjMotiveAt.eq_2 _ _ _ (fun d m hd => hl (by
         have := congrArg List.length hd; simpa [absBinderPairs] using this)),
       if_pos (by scalar_tac)]
@@ -1521,7 +1521,7 @@ open ConRon.Refine2.Lockstep in
     (fun _ => by lockstep_errarm) (fun a b lst1 hR hrel1 hinv1 => ?_)
   subst hR
   have hlen : (absBinderPairs bs).length = bs.val.length := by simp [absBinderPairs]
-  cases b <;> simp only [Bool.false_eq_true, if_true, if_false, reduceIte]
+  cases b <;> simp only [Bool.false_eq_true, if_true, if_false]
   · lockstep
   · by_cases hi : (absProjBuild pb).i < (absBinderPairs bs).length
     · rw [if_pos hi]
@@ -2366,7 +2366,7 @@ theorem proj_rec_candidates_from_aux (fuel : Nat) (N : Nat) :
     rw [vec_index_ok_eq types i hi]
     simp only [bind_tc_ok]
     rcases hx : types.val[i.val] with ⟨tn, lps, tty, nP, nI, cs, isRec⟩
-    simp only [hx, absProjTypeRec, projRecCandidates]
+    simp only [absProjTypeRec, projRecCandidates]
     by_cases hl : cs.val.length = 1
     · obtain ⟨c0, hc0⟩ := List.length_eq_one_iff.mp hl
       have hcs : List.map absNIdx cs.val = [absNIdx c0] := by simp [hc0]

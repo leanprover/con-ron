@@ -183,13 +183,13 @@ theorem canon_level_aux {ps : alloc.vec.Vec name.Name} (hps : NamesWF ps) :
   | zero h w =>
     intro r hr
     rw [canon.canon_level.eq_def] at hr
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
+    simp only [arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
       level.LevelNode.kind._simpLemma_] at hr
     exact ⟨by rw [Level.zero_refines hr]; simp [ConLeche.canonLevel], LevelWF.zero hr⟩
   | succ h a w ih =>
     intro r hr
     rw [canon.canon_level.eq_def] at hr
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
+    simp only [arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
       level.LevelNode.kind._simpLemma_, bind_eq_ok_iff] at hr
     obtain ⟨x, hx, hr⟩ := hr
     obtain ⟨hxa, hxw⟩ := ih (Level.LevelWF.succ_inv w) x hx
@@ -198,7 +198,7 @@ theorem canon_level_aux {ps : alloc.vec.Vec name.Name} (hps : NamesWF ps) :
   | max h a b w iha ihb =>
     intro r hr
     rw [canon.canon_level.eq_def] at hr
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
+    simp only [arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
       level.LevelNode.kind._simpLemma_, bind_eq_ok_iff] at hr
     obtain ⟨x, hx, y, hy, hr⟩ := hr
     obtain ⟨hxa, hxw⟩ := iha (Level.LevelWF.max_inv w).1 x hx
@@ -208,7 +208,7 @@ theorem canon_level_aux {ps : alloc.vec.Vec name.Name} (hps : NamesWF ps) :
   | imax h a b w iha ihb =>
     intro r hr
     rw [canon.canon_level.eq_def] at hr
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
+    simp only [arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
       level.LevelNode.kind._simpLemma_, bind_eq_ok_iff] at hr
     obtain ⟨x, hx, y, hy, hr⟩ := hr
     obtain ⟨hxa, hxw⟩ := iha (Level.LevelWF.imax_inv w).1 x hx
@@ -218,7 +218,7 @@ theorem canon_level_aux {ps : alloc.vec.Vec name.Name} (hps : NamesWF ps) :
   | param h n w =>
     intro r hr
     rw [canon.canon_level.eq_def] at hr
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
+    simp only [arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
       level.LevelNode.kind._simpLemma_, bind_eq_ok_iff] at hr
     obtain ⟨x, hx, hr⟩ := hr
     have hn := Level.LevelWF.param_inv w

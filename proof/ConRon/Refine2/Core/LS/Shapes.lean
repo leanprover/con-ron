@@ -177,21 +177,21 @@ end
 /-! ## Guards and small state-threading helpers -/
 
 @[lockstep] theorem defeq_no_fvars_ls {pers st a b lst}
-    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    (_hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = a) (arena.core.defeq_no_fvars pers st a b) lst
       (defeqNoFvars (absEIdx a) (absEIdx b)) := by
   rw [arena.core.defeq_no_fvars, defeqNoFvars]
   lockstep
 
 @[lockstep] theorem fab_scope_ok_ls {pers st depth fab major lst}
-    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    (_hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = a) (arena.core.fab_scope_ok pers st depth fab major) lst
       (fabScopeOk (absU depth) (absEIdx fab) (absEIdx major)) := by
   rw [arena.core.fab_scope_ok, fabScopeOk]
   lockstep
 
 @[lockstep] theorem infer_lam_result_ls {pers st ty bt depth mb lst}
-    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (_hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hmb : ConRon.Refine.PropWhenWF mb.pw) :
     LS pers (fun a b => b = absEIdx a) (arena.core.infer_lam_result pers st ty bt depth mb) lst
       (inferLamResult (absEIdx ty) (absEIdx bt) (absU depth) (ConRon.Refine.absBinderMeta mb)) := by

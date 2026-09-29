@@ -515,7 +515,7 @@ theorem absLamStk_last_pw (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.B
 
 @[lockstep] theorem lidx_dup2_ls (h : arena.handle.LIdx) :
     LSP (arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun e he => dupId_lidx _ _ he
+  fun _e he => dupId_lidx _ _ he
 
 /-! ## The environment -/
 
@@ -690,7 +690,7 @@ attribute [local lockstep_simp] absIConstantVal
 
 @[local lockstep_simp] theorem vec_len_val' {α : Type} (v : alloc.vec.Vec α) :
     (alloc.vec.Vec.len v).val = v.val.length := by
-  simp [alloc.vec.Vec.len_val]
+  simp
 
 @[local lockstep_simp] theorem opt_beq_some_true (o : Option Bool) :
     ((o == some true) = true) = (o = some true) := by

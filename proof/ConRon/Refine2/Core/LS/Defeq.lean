@@ -204,7 +204,7 @@ macro "lockstep_f" : tactic =>
 
 @[lockstep] theorem defeq_peel_leaf_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe d a b k fvs mism mismLam lst}
-    (hx : ExprOpsHyp pers)
+    (_hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)

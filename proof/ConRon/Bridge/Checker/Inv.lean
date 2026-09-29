@@ -1108,7 +1108,7 @@ of it: one induction, both directions, `denoteCI_name_of` at each entry and
 consumed rather than propagated, and it is con-leche's `mkFEnv_find?` at a
 denoted list, exactly as round 2 predicted.  Task #97-P3-Checker's sorry
 list, item 6, closed. -/
-theorem IFEnvOK_of_denote {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+theorem IFEnvOK_of_denote {env : Env} {fe : IFEnv} {s : AState}
     (hwf : StateOK s) (hcoh : IFEnvCoh fe)
     (hproj : ∀ t, IConstantInfo.projInfo t ∈ fe.env.consts →
       IProjTableOK s.store t)

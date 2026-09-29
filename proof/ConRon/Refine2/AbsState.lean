@@ -83,10 +83,7 @@ theorem eidxNat_eq2 :
   intro a b c _ _ h
   obtain ⟨⟨w⟩, d⟩ := a; obtain ⟨⟨w'⟩, d'⟩ := b
   simp only [arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.LIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapEq2.eq2, bind_tc_ok] at h
+    arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2, bind_tc_ok] at h
   grind
 
 theorem eidxPair_eq2 :
@@ -96,10 +93,7 @@ theorem eidxPair_eq2 :
   intro a b c _ _ h
   obtain ⟨⟨w1⟩, ⟨w2⟩⟩ := a; obtain ⟨⟨w3⟩, ⟨w4⟩⟩ := b
   simp only [arena.core_state.EIdxPair.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.LIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapEq2.eq2, bind_tc_ok] at h
+    arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2, bind_tc_ok] at h
   grind
 
 theorem lidxPair_eq2 :
@@ -109,10 +103,7 @@ theorem lidxPair_eq2 :
   intro a b c _ _ h
   obtain ⟨⟨w1⟩, ⟨w2⟩⟩ := a; obtain ⟨⟨w3⟩, ⟨w4⟩⟩ := b
   simp only [arena.core_state.LIdxPair.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.LIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapEq2.eq2, bind_tc_ok] at h
+    arena.handle.LIdx.Insts.Con_ron_coreRonHashmapEq2.eq2, bind_tc_ok] at h
   grind
 
 theorem lsidxPair_eq2 :
@@ -122,9 +113,6 @@ theorem lsidxPair_eq2 :
   intro a b c _ _ h
   obtain ⟨⟨w1⟩, ⟨w2⟩⟩ := a; obtain ⟨⟨w3⟩, ⟨w4⟩⟩ := b
   simp only [arena.core_state.LsIdxPair.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.LIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
     arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapEq2.eq2, bind_tc_ok] at h
   grind
 
@@ -135,9 +123,7 @@ theorem nlsKey_eq2 :
   intro a b c _ _ h
   obtain ⟨⟨w1⟩, ⟨w2⟩⟩ := a; obtain ⟨⟨w3⟩, ⟨w4⟩⟩ := b
   simp only [arena.core_state.NLsKey.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
     arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.LIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
     arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapEq2.eq2, bind_tc_ok] at h
   grind
 
@@ -148,9 +134,7 @@ theorem nnlsKey_eq2 :
   intro a b c _ _ h
   obtain ⟨⟨w1⟩, ⟨w2⟩, ⟨w3⟩⟩ := a; obtain ⟨⟨w4⟩, ⟨w5⟩, ⟨w6⟩⟩ := b
   simp only [arena.core_state.NNLsKey.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
     arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
-    arena.handle.LIdx.Insts.Con_ron_coreRonHashmapEq2.eq2,
     arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapEq2.eq2, bind_tc_ok] at h
   grind
 

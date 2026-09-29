@@ -154,7 +154,7 @@ private theorem mk_ifenv_empty_refines {e f}
       (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hhm
   obtain ⟨q, hq, hf⟩ := ConRon.Refine.bind_eq_ok_iff.mp hf
   rw [arena.env.mk_ifenv_go] at hq
-  simp only [alloc.vec.Vec.new, alloc.vec.Vec.len, ge_iff_le, le_refl, if_pos] at hq
+  simp only [alloc.vec.Vec.new, alloc.vec.Vec.len, ge_iff_le] at hq
   have hq' : q = (0#u64, hm) := (Result.ok_injective hq).symm
   subst hq'
   have hf' := (Result.ok_injective hf).symm
@@ -1442,7 +1442,7 @@ theorem annot_step_promote_refines {pers tier st lst} {rf lf}
         (drop_scratch_rel hrel4 hinv4 htf2 h5 hpers).apply
       refine ⟨(w.2, (absPendingCheckL pend).toArray.push ⟨vvg, absU i, absU vis⟩), lst5,
         ?_, ⟨hw, ?_⟩, hrel5, hinv5⟩
-      · simp only [hx4, except_ok_bind, am_run_bind, hx5]
+      · simp only [hx4, except_ok_bind, hx5]
         rfl
       · simp only at hvvg ⊢
         rw [hvvg]
@@ -1861,7 +1861,7 @@ theorem install_then_check_refines {pers st lst}
   simp only [SimFold, absIDeclLFrom_zero, absPendingCheckL_new_toArray, absU_zero] at hA
   obtain ⟨qr, qst⟩ := q
   simp only [SimFold] at hA ⊢
-  simp only [installThenCheck, am_run_bind, toList_toArray']
+  simp only [installThenCheck, am_run_bind]
   cases hqr : qr with
   | Err pr =>
     rw [hqr] at hA hrun
@@ -1880,7 +1880,7 @@ theorem install_then_check_refines {pers st lst}
     try simp only [Aeneas.Std.uncurry] at hrun
     try dsimp only at hrun
     rw [hx]
-    simp only [toList_toArray']
+    simp only
     split at hrun
     · -- nothing pending: no phase B on either side
       rename_i hlen0
@@ -1915,7 +1915,7 @@ theorem install_then_check_refines {pers st lst}
         intro k hk
         obtain ⟨le, lst2, hy, hlk⟩ := hB k hk
         refine ⟨le, lst2, ?_, hlk⟩
-        simp only [except_ok_bind, toList_toArray', am_run_bind, hy]
+        simp only [except_ok_bind, am_run_bind, hy]
         try rfl
       | Ok _ =>
         rw [hq2r] at hB hrun
@@ -1936,7 +1936,7 @@ theorem install_then_check_refines {pers st lst}
         rw [hY] at hsr2
         refine ⟨fe1, lst2, ?_, hv2.rel, ⟨hsr2, hidle2.memos, hidle2.caches, hidle2.pins⟩,
           ⟨hsi2, hinv2.memos, hinv2.caches⟩⟩
-        simp only [except_ok_bind, toList_toArray', am_run_bind, hy]
+        simp only [except_ok_bind, am_run_bind, hy]
         try rfl
 
 /-! ## The error tag and the startup walk -/

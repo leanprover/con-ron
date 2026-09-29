@@ -305,7 +305,7 @@ theorem recStepD_eq (st : StateD) (fuel : Nat) (tyNames : List NIdx) (tyTypes : 
   refine bind_congr fun rn => ?_
   rcases kExpected? with _ | kE <;>
     simp only [bind_assoc, pure_bind, ite_bind'] <;> split_ifs <;>
-    (try simp only [bind_assoc, pure_bind]) <;>
+    (try simp only) <;>
     (try refine bind_congr fun v => ?_) <;> (try split) <;> (try simp only [bind_assoc, pure_bind])
   all_goals exact bind_congr fun x => by rcases x with ⟨_ | _, _⟩ <;> rfl
 

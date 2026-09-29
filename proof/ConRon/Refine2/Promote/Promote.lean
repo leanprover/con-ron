@@ -1222,7 +1222,7 @@ theorem indexPromotedTwin_succ (m : PMemo) (fuel : Nat) (cs : List IConstantInfo
   congr 1
   funext p
   obtain ⟨m', c'⟩ := p
-  simp only [bind_assoc, pure_bind]
+  simp only [pure_bind]
   have h1 : n - (j - 1) = n - j + 1 := by omega
   rw [h1, List.drop_set_of_lt (by omega), take_set_succ cs (n - j) c' hlt,
     List.drop_set_of_lt (show n - j < n - start by omega),
@@ -1237,7 +1237,7 @@ theorem reverse_set' {α : Type} (l : List α) (i : Nat) (x : α) (h : i < l.len
   apply List.ext_getElem (by simp)
   intro q h1 h2
   simp only [List.length_reverse, List.length_set] at h1 h2
-  simp only [List.getElem_reverse, List.getElem_set, List.length_set, List.length_reverse]
+  simp only [List.getElem_reverse, List.getElem_set, List.length_set]
   split_ifs <;> first | rfl | omega
 
 /-- **`promote_ci` keeps a constant canonical** (`IConstantInfoWF`): the one

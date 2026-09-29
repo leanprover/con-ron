@@ -4498,7 +4498,7 @@ theorem internAt_of_findAt {st : EStore} {v : ENodeView} {mi : BMIdx} {h : EIdx}
   cases hp : st.persFindMaybe v mi with
   | some j =>
     simp only [hp, Option.some.injEq] at hfa
-    simp only [hp, hfa]
+    simp only [hfa]
   | none =>
     simp only [hp] at hfa ⊢
     by_cases hon : st.scratchOn = true
@@ -4506,9 +4506,9 @@ theorem internAt_of_findAt {st : EStore} {v : ENodeView} {mi : BMIdx} {h : EIdx}
       cases hs : st.scr.find? v mi with
       | some j =>
         simp only [hs, Option.some.injEq] at hfa
-        simp only [hs, hfa]
+        simp only [hfa]
       | none => simp only [hs] at hfa; simp at hfa
-    · simp only [hon, if_false] at hfa; simp at hfa
+    · simp only [hon] at hfa; simp at hfa
 
 theorem intern_of_find {st : EStore} {v : ENodeView} {h : EIdx}
     (hf : st.find? v = some h) : st.intern v = (st, h) := by
@@ -5321,8 +5321,7 @@ theorem estore_intern_fvar_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
       obtain ⟨e1, e2⟩ := hq0
       refine ⟨by rw [← e1, hs], ?_⟩
       rw [if_pos hs, ← e2]
-      simp only [EStore.eRecHasScratchChild, EStore.eViewHasScratchChild,
-        EStore.bindHasScratchChild, hp1]
+      simp only [EStore.eRecHasScratchChild, EStore.eViewHasScratchChild, hp1]
       split at hb2 <;> rename_i hbb <;> simp only [Result.ok.injEq] at hb2 <;>
         simp [hbb, ← hb2]
     · simp only [Result.ok.injEq, Prod.mk.injEq] at hq0
@@ -5550,7 +5549,7 @@ theorem estore_intern_fvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
     {idx : Std.U64} {ty : arena.handle.EIdx}
     -- unused since D2; removed in slice 3
-    (hchild : (absEIdx ty).isPersistent = false →
+    (_hchild : (absEIdx ty).isPersistent = false →
       ls.pers.fvars.find? ⟨absU idx, absEIdx ty⟩ = none)
     {r} {rs'}
     (h : arena.store.EStore.intern_fvar rs pers idx ty = ok (r, rs')) :
@@ -5767,8 +5766,7 @@ theorem estore_intern_sort_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
       obtain ⟨e1, e2⟩ := hq0
       refine ⟨by rw [← e1, hs], ?_⟩
       rw [if_pos hs, ← e2]
-      simp only [EStore.eRecHasScratchChild, EStore.eViewHasScratchChild,
-        EStore.bindHasScratchChild, hp1]
+      simp only [EStore.eRecHasScratchChild, EStore.eViewHasScratchChild, hp1]
       split at hb2 <;> rename_i hbb <;> simp only [Result.ok.injEq] at hb2 <;>
         simp [hbb, ← hb2]
     · simp only [Result.ok.injEq, Prod.mk.injEq] at hq0
@@ -5996,7 +5994,7 @@ theorem estore_intern_sort_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
     {u : arena.handle.LIdx}
     -- unused since D2; removed in slice 3
-    (hchild : (absLIdx u).isPersistent = false →
+    (_hchild : (absLIdx u).isPersistent = false →
       ls.pers.sorts.find? ⟨absLIdx u⟩ = none)
     {r} {rs'}
     (h : arena.store.EStore.intern_sort rs pers u = ok (r, rs')) :
@@ -6043,8 +6041,7 @@ theorem estore_intern_const_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
       obtain ⟨e1, e2⟩ := hq0
       refine ⟨by rw [← e1, hs], ?_⟩
       rw [if_pos hs, ← e2]
-      simp only [EStore.eRecHasScratchChild, EStore.eViewHasScratchChild,
-        EStore.bindHasScratchChild, hp1]
+      simp only [EStore.eRecHasScratchChild, EStore.eViewHasScratchChild, hp1]
       split at hb2 <;> rename_i hbb
       · obtain ⟨b3, hb3, hb2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hb2
         have hp3 := lsidx_is_persistent_abs hb3
@@ -6277,7 +6274,7 @@ theorem estore_intern_const_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
     {n : arena.handle.NIdx} {us : arena.handle.LsIdx}
     -- unused since D2; removed in slice 3
-    (hchild : ((absNIdx n).isPersistent = false ∨ (absLsIdx us).isPersistent = false) →
+    (_hchild : ((absNIdx n).isPersistent = false ∨ (absLsIdx us).isPersistent = false) →
       ls.pers.consts.find? ⟨absNIdx n, absLsIdx us⟩ = none)
     {r} {rs'}
     (h : arena.store.EStore.intern_const rs pers n us = ok (r, rs')) :
@@ -6324,8 +6321,7 @@ theorem estore_intern_app_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
       obtain ⟨e1, e2⟩ := hq0
       refine ⟨by rw [← e1, hs], ?_⟩
       rw [if_pos hs, ← e2]
-      simp only [EStore.eRecHasScratchChild, EStore.eViewHasScratchChild,
-        EStore.bindHasScratchChild, hp1]
+      simp only [EStore.eRecHasScratchChild, EStore.eViewHasScratchChild, hp1]
       split at hb2 <;> rename_i hbb
       · obtain ⟨b3, hb3, hb2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hb2
         have hp3 := eidx_is_persistent_abs hb3
@@ -6558,7 +6554,7 @@ theorem estore_intern_app_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
     {f a : arena.handle.EIdx}
     -- unused since D2; removed in slice 3
-    (hchild : ((absEIdx f).isPersistent = false ∨ (absEIdx a).isPersistent = false) →
+    (_hchild : ((absEIdx f).isPersistent = false ∨ (absEIdx a).isPersistent = false) →
       ls.pers.apps.find? ⟨absEIdx f, absEIdx a⟩ = none)
     {r} {rs'}
     (h : arena.store.EStore.intern_app rs pers f a = ok (r, rs')) :
@@ -6605,8 +6601,7 @@ theorem estore_intern_proj_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
       obtain ⟨e1, e2⟩ := hq0
       refine ⟨by rw [← e1, hs], ?_⟩
       rw [if_pos hs, ← e2]
-      simp only [EStore.eRecHasScratchChild, EStore.eViewHasScratchChild,
-        EStore.bindHasScratchChild, hp1]
+      simp only [EStore.eRecHasScratchChild, EStore.eViewHasScratchChild, hp1]
       split at hb2 <;> rename_i hbb
       · obtain ⟨b3, hb3, hb2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hb2
         have hp3 := eidx_is_persistent_abs hb3
@@ -6839,7 +6834,7 @@ theorem estore_intern_proj_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
     {n : arena.handle.NIdx} {i : Std.U64} {ep : arena.handle.EIdx}
     -- unused since D2; removed in slice 3
-    (hchild : ((absNIdx n).isPersistent = false ∨ (absEIdx ep).isPersistent = false) →
+    (_hchild : ((absNIdx n).isPersistent = false ∨ (absEIdx ep).isPersistent = false) →
       ls.pers.projs.find? ⟨absNIdx n, absU i, absEIdx ep⟩ = none)
     {r} {rs'}
     (h : arena.store.EStore.intern_proj rs pers n i ep = ok (r, rs')) :
@@ -6886,8 +6881,7 @@ theorem estore_intern_let_e_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
       obtain ⟨e1, e2⟩ := hq0
       refine ⟨by rw [← e1, hs], ?_⟩
       rw [if_pos hs, ← e2]
-      simp only [EStore.eRecHasScratchChild, EStore.eViewHasScratchChild,
-        EStore.bindHasScratchChild, hp1]
+      simp only [EStore.eRecHasScratchChild, EStore.eViewHasScratchChild, hp1]
       split at hb2 <;> rename_i hbb
       · obtain ⟨b3, hb3, hb2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hb2
         have hp3 := eidx_is_persistent_abs hb3
@@ -7125,7 +7119,7 @@ theorem estore_intern_let_e_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
     {ty val bo : arena.handle.EIdx}
     -- unused since D2; removed in slice 3
-    (hchild : ((absEIdx ty).isPersistent = false ∨ (absEIdx val).isPersistent = false ∨ (absEIdx bo).isPersistent = false) →
+    (_hchild : ((absEIdx ty).isPersistent = false ∨ (absEIdx val).isPersistent = false ∨ (absEIdx bo).isPersistent = false) →
       ls.pers.lets.find? ⟨absEIdx ty, absEIdx val, absEIdx bo⟩ = none)
     {r} {rs'}
     (h : arena.store.EStore.intern_let_e rs pers ty val bo = ok (r, rs')) :
@@ -7720,7 +7714,7 @@ theorem estore_intern_lam_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
       obtain ⟨e1, e2⟩ := hq0
       refine ⟨by rw [← e1, hs], ?_⟩
       rw [if_pos hs, ← e2]
-      simp only [EStore.eRecHasScratchChild, EStore.eViewHasScratchChild,
+      simp only [
         EStore.bindHasScratchChild, hp1]
       split at hb2 <;> rename_i hbb
       · obtain ⟨b3, hb3, hb2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hb2
@@ -7973,7 +7967,7 @@ theorem estore_intern_lam_i_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
     {ty bo : arena.handle.EIdx} {mi : arena.handle.BMIdx}
     -- unused since D2; removed in slice 3
-    (hchild : ((absEIdx ty).isPersistent = false ∨
+    (_hchild : ((absEIdx ty).isPersistent = false ∨
         (absEIdx bo).isPersistent = false ∨ (absBMIdx mi).isPersistent = false) →
       ls.pers.lams.find? ⟨absEIdx ty, absEIdx bo, absBMIdx mi⟩ = none)
     {r} {rs'}
@@ -8031,7 +8025,7 @@ theorem estore_intern_forall_e_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls
       obtain ⟨e1, e2⟩ := hq0
       refine ⟨by rw [← e1, hs], ?_⟩
       rw [if_pos hs, ← e2]
-      simp only [EStore.eRecHasScratchChild, EStore.eViewHasScratchChild,
+      simp only [
         EStore.bindHasScratchChild, hp1]
       split at hb2 <;> rename_i hbb
       · obtain ⟨b3, hb3, hb2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hb2
@@ -8284,7 +8278,7 @@ theorem estore_intern_forall_e_i_abs {pers rs ls} (hrel : StoreRel pers rs ls)
     (hinv : StoreInv pers rs)
     {ty bo : arena.handle.EIdx} {mi : arena.handle.BMIdx}
     -- unused since D2; removed in slice 3
-    (hchild : ((absEIdx ty).isPersistent = false ∨
+    (_hchild : ((absEIdx ty).isPersistent = false ∨
         (absEIdx bo).isPersistent = false ∨ (absBMIdx mi).isPersistent = false) →
       ls.pers.foralls.find? ⟨absEIdx ty, absEIdx bo, absBMIdx mi⟩ = none)
     {r} {rs'}
@@ -8850,7 +8844,7 @@ theorem internBindI_of_findBindI {st : EStore} {tag : UInt32} {ty b : EIdx}
   cases hp : st.persFindBindMaybe tag ⟨ty, b, mi⟩ with
   | some j =>
     simp only [hp, Option.some.injEq] at hf
-    simp only [hp, hf]
+    simp only [hf]
   | none =>
     simp only [hp] at hf ⊢
     by_cases hon : st.scratchOn = true
@@ -8858,9 +8852,9 @@ theorem internBindI_of_findBindI {st : EStore} {tag : UInt32} {ty b : EIdx}
       cases hs : st.scr.findBind tag ⟨ty, b, mi⟩ with
       | some j =>
         simp only [hs, Option.some.injEq] at hf
-        simp only [hs, hf]
+        simp only [hf]
       | none => simp only [hs] at hf; simp at hf
-    · simp only [hon, if_false] at hf; simp at hf
+    · simp only [hon] at hf; simp at hf
 
 /-- **Finding 16's clause at the two BINDER arrays, on the MISS path only.**
 

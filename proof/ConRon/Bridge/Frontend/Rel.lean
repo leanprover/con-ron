@@ -160,7 +160,7 @@ theorem PersL_of_view {st : EStore} (hwf : StoreWF st)
     exact absurd hv (by simp)
 
 /-- con-leche: none — the same at an EXPRESSION handle. -/
-theorem PersE_of_view {st : EStore} (hwf : StoreWF st)
+theorem PersE_of_view {st : EStore} (_hwf : StoreWF st)
     (hoff : st.scratchOn = false) {h : EIdx} {v : ENodeView}
     (hv : st.view h = some v) : PersE h := by
   by_cases hp : h.isPersistent = true

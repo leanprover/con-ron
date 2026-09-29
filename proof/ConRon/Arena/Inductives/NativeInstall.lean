@@ -337,7 +337,7 @@ def checkNativePass (mode : CheckMode) (fe : IFEnv) (p₀ : NativeParts) (isRec 
 index binders' sorts, the kinds re-checked, the stream's rules against the
 generated ones, the constructors consed, the recursor with its rules, and — at
 a structure-like block — the projection table. -/
-def checkNativeTail (mode : CheckMode) (fe : IFEnv) (q : NativePass) : AM IFEnv := do
+def checkNativeTail (mode : CheckMode) (_fe : IFEnv) (q : NativePass) : AM IFEnv := do
   let p := q.p
   -- a large eliminator on a block whose sort may be `Prop`: two or more
   -- constructors is `.invalid` (official's `elim_only_at_universe_zero`)

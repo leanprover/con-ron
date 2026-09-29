@@ -157,7 +157,7 @@ value's guards and annotation.
 `constsResolveFFast_run`. -/
 theorem installValue_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
     {cv : IConstantVal} {c : ConstantVal} {value jv : EIdx} {x : Expr}
-    {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
+    {s s' : AState} (_hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (henv : EnvWF env) (hck : CheckOK μ env fe s)
     (hcv : Frontend.denoteCV s.store cv = some c)
     (hv : denoteE s.store value = some x)
@@ -1904,7 +1904,7 @@ theorem certifyNatEqs_bridge_aux {μ : CheckMode} {env : Env} {fe : IFEnv}
 
 theorem certifyNatEqs_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {eqs : List (EIdx × EIdx)} {xs : List (Expr × Expr)}
-    {r : Bool} {s s' : AState} (hμ : μ.verifiedChecks = true)
+    {r : Bool} {s s' : AState} (_hμ : μ.verifiedChecks = true)
     (hk : CoreSpec μ Arena.checkFuel) (hck : CheckOK μ env fe s)
     (henv : EnvWF env)
     (hden : EqPairsDenote s.store eqs xs)
@@ -2166,7 +2166,7 @@ Proved: `reduceStoredOk` / `reduceElemOk` / `reducePinGuard` through
 pinned term.  Was task #97-P3-Checker's sorry list, item 24. -/
 theorem checkReducePin_bridge {μ : CheckMode} {env env2 : Env}
     {fe fe2 : IFEnv} {cn : NIdx} {nm : ConLeche.Name} {value : EIdx}
-    {x : Expr} {s s' : AState} (hμ : μ.verifiedChecks = true)
+    {x : Expr} {s s' : AState} (_hμ : μ.verifiedChecks = true)
     (hk : CoreSpec μ Arena.checkFuel) (hck : CheckOK μ env fe s)
     (henv : EnvWF env)
     (hok2 : StepOK env2 fe2 s)

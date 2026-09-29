@@ -520,7 +520,7 @@ theorem nidx_vec_contains_from_any (ns : alloc.vec.Vec arena.handle.NIdx)
   intro o h
   rw [arena.env.nidx_vec_contains] at h
   rw [nidx_vec_contains_from_any ns n _ 0#usize o rfl h]
-  simp [absNIdxList, List.contains_eq_any_beq, List.any_map, Function.comp_def, List.any_eq]
+  simp [absNIdxList, List.any_eq]
 
 /-- The twin's `natOpStored` reads the environment and nothing else. -/
 def natOpStoredB (fe : IFEnv) (c : NIdx) : Bool :=

@@ -582,7 +582,7 @@ private theorem name_cmp_eq_abs : ∀ (n : Nat) (a b : name.Name), sizeOf a ≤ 
     obtain ⟨⟨ha, ka⟩⟩ := a
     obtain ⟨⟨hb, kb⟩⟩ := b
     rw [prop_when.name_cmp.eq_def] at hc
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+    simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
       name.NameNode.kind._simpLemma_] at hc
     cases ka with
     | Anonymous =>

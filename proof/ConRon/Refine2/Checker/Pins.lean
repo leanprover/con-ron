@@ -460,7 +460,7 @@ open Lockstep in
 /-- `pins_ready` ⊑ `pinsReady` — a length test, because an unfilled table is
 EMPTY and not a sentinel handle. -/
 theorem pins_ready_refines {pers st lst} {o : Bool}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (_hinv : AStateInv pers st)
     (hrun : arena.pins.pins_ready st = ok o) :
     o = pinsReady lst := by
   rw [arena.pins.pins_ready] at hrun
@@ -486,7 +486,7 @@ theorem pins_ready_refines {pers st lst} {o : Bool}
 /-- `pin_at` ⊑ `pinAt` — **the one lemma the forty-nine below are instances
 of**: the bounds branch and then `PinsRel.names`. -/
 theorem pin_at_refines {pers st lst} {i : Std.Usize} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (_hinv : AStateInv pers st)
     (hrun : arena.pins.pin_at st i = ok o) :
     SimRE absNIdx lst o (pinAt (absSz i)) := by
   rw [arena.pins.pin_at] at hrun

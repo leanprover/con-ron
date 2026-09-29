@@ -191,15 +191,15 @@ pin_slot arena.pins.pin_nat_shift_right pinNatShiftRight arena.pins.PIN_NAT_SHIF
 
 @[lockstep] theorem dup2_nidx (h : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun e he => dupId_nidx _ _ he
+  fun _e he => dupId_nidx _ _ he
 
 @[lockstep] theorem dup2_lidx (h : arena.handle.LIdx) :
     LSP (arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun e he => dupId_lidx _ _ he
+  fun _e he => dupId_lidx _ _ he
 
 @[lockstep] theorem dup2_lsidx (h : arena.handle.LsIdx) :
     LSP (arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun e he => dupId_lsidx _ _ he
+  fun _e he => dupId_lsidx _ _ he
 
 /-! ## `ron::nat`, as Rust-only facts about `Nat.toNat` -/
 

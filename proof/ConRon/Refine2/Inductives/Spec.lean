@@ -1394,7 +1394,7 @@ theorem nativeOpenedOk_unfold (fe₀ : IFEnv) (T : NIdx) (lps : List NIdx)
   · twin_reduce
     simp
   · twin_reduce
-    cases hk : ks.getD i .ordinary <;> simp only [hk] <;> (try twin_reduce) <;> (try simp; done)
+    cases hk : ks.getD i .ordinary <;> simp only <;> (try twin_reduce) <;> (try simp; done)
     case recursive =>
       rw [nativeFieldRecursiveSpec, hx]
       simp only [unwrapOr, pure_bind, ← hfam]
@@ -1499,7 +1499,7 @@ def checkNativeTailInstallSpec (mode : ConLeche.CheckMode) (q : NativePass) :
     (fe₂.push (.recInfo cvRa p.majorIdx p.rulePrefix rules))
 
 /-- `checkNativeTail`'s kind stage. -/
-def checkNativeTailKindsSpec (mode : ConLeche.CheckMode) (fe : IFEnv)
+def checkNativeTailKindsSpec (mode : ConLeche.CheckMode) (_fe : IFEnv)
     (q : NativePass) : AM IFEnv := do
   let p := q.p
   unless ← nativeFieldsOk (q.env₁.restrictTo (q.env₁.visibleBelow - 1)) p.cvT.name

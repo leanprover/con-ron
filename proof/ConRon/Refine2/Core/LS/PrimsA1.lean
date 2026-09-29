@@ -53,7 +53,7 @@ theorem pinRE_lsr {α β : Type} {A : α → β} {pers st lst}
   | Ok a => exact ⟨_, lst, this, rfl, hrel, hinv⟩
 
 theorem pins_ready_run₀ {pers st lst} {o : Bool}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (_hinv : AStateInv pers st)
     (hrun : arena.pins.pins_ready st = ok o) :
     o = pinsReady lst := by
   rw [arena.pins.pins_ready] at hrun
@@ -79,7 +79,7 @@ theorem pins_ready_run₀ {pers st lst} {o : Bool}
 /-- `pin_at` ⊑ `pinAt` — **the one lemma the forty-nine below are instances
 of**: the bounds branch and then `PinsRel.names`. -/
 theorem pin_at_run₀ {pers st lst} {i : Std.Usize} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrel : AStateRel₀ pers st lst) (_hinv : AStateInv pers st)
     (hrun : arena.pins.pin_at st i = ok o) :
     PinRE absNIdx lst o (pinAt (absSz i)) := by
   rw [arena.pins.pin_at] at hrun
@@ -1292,15 +1292,15 @@ theorem pin_of_reduce_bool_run₀ {pers st lst} {o}
 
 @[lockstep] theorem dup2_nidx (h : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun e he => dupId_nidx _ _ he
+  fun _e he => dupId_nidx _ _ he
 
 @[lockstep] theorem dup2_lidx (h : arena.handle.LIdx) :
     LSP (arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun e he => dupId_lidx _ _ he
+  fun _e he => dupId_lidx _ _ he
 
 @[lockstep] theorem dup2_lsidx (h : arena.handle.LsIdx) :
     LSP (arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun e he => dupId_lsidx _ _ he
+  fun _e he => dupId_lsidx _ _ he
 
 @[lockstep] theorem eq2_nidx (a b : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
@@ -1904,7 +1904,7 @@ theorem is_equiv_list_from_refines (ls rs : alloc.vec.Vec kernel.level.Level)
     · simp only [hr2, if_true] at h
       cases Result.ok_injective h
       rw [List.drop_eq_nil_of_le (by scalar_tac)]; rfl
-    · simp only [hr2, if_false, hge, if_true] at h
+    · simp only [hr2, if_false] at h
       cases Result.ok_injective h
       have hlt : i.val < rs.val.length := by scalar_tac
       rw [List.drop_eq_getElem_cons hlt]; rfl
@@ -1918,7 +1918,7 @@ theorem is_equiv_list_from_refines (ls rs : alloc.vec.Vec kernel.level.Level)
       · simp only [hr2, if_true] at h
         cases Result.ok_injective h
         rw [List.drop_eq_nil_of_le (by scalar_tac)]; rfl
-      · simp only [hr2, if_false, hge, if_true] at h
+      · simp only [hr2, if_false] at h
         cases Result.ok_injective h
         have hlt : i.val < rs.val.length := by scalar_tac
         rw [List.drop_eq_getElem_cons hlt]; rfl
@@ -2342,7 +2342,7 @@ attribute [local lockstep_simp] absIRecRule absIRecRuleFire
       simpa [alloc.vec.Vec.len_val] using this
     obtain ⟨y, hy⟩ := List.length_eq_one_iff.mp hl'
     simp only [hy, List.map_cons, List.map_nil, recRuleK]
-    simp [hy, absIRecRule]
+    simp [absIRecRule]
   · rename_i hl
     cases Result.ok_injective h
     have hl' : rules.val.length ≠ 1 := by
