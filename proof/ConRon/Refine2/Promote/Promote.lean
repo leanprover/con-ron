@@ -921,7 +921,7 @@ attribute [local lockstep_simp] absIConstantVal absIRecRuleFire absIRecRule absI
       (promoteProjTable lm (absU fuel) (absIProjTable pt)) := by
   rw [arena.promote.promote_proj_table, promoteProjTable_rest]
   lockstep
-  all_goals (try simp only [Aeneas.Std.uncurry]); all_goals (try dsimp only)
+  all_goals (try simp only [Aeneas.Std.uncurry])
   all_goals lockstep
 
 /-- `promote_ci` ⊑ `promoteCI` — the seven constructors. -/
@@ -1482,7 +1482,7 @@ private theorem index_promoted_aux (d : Nat) :
       try dsimp only
       refine LS.packT_bind (LS.bind_eq fun q2 hq2 => ?_)
       obtain ⟨x, back⟩ := q2
-      haveI : Inhabited arena.env.IConstantInfo := ⟨ci⟩
+      have : Inhabited arena.env.IConstantInfo := ⟨ci⟩
       obtain ⟨-, -, hback⟩ := ConRon.Refine.HashMap.vec_index_mut_eq hq2
       subst hback
       try dsimp only

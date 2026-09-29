@@ -2056,8 +2056,7 @@ theorem hoist_reorder_refines {ds order v}
   have hfold : ∀ (A : Array IDeclaration) (L : List Nat) (acc : Array IDeclaration),
       L.foldl (fun acc k => acc ++ (A[k]?).toArray) acc
         = acc ++ (L.flatMap fun k => (A[k]?).toList).toArray := by
-    intro A
-    intro L
+    intro A L
     induction L with
     | nil => intro acc; simp
     | cons k L ih =>
