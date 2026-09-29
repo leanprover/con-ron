@@ -874,21 +874,6 @@ open ConRon.Refine2.Lockstep in
       (projIotaLevel (absU fuel) (absEIdx ty)) := by
   rw [frontend.proj_rec.proj_iota_level, projIotaLevel]
   lockstep
-  all_goals first
-    | (rw [if_pos (by rw [‹Idx.tag _ = absU32 arena.handle.ETAG_CONST›, etag_const_abs]; rfl)]
-       apply LS.twin_view_const (by rw [‹Idx.tag _ = absU32 arena.handle.ETAG_CONST›, etag_const_abs])
-       refine LSV.bind (view_const_ls ‹_› ‹_› _) rfl (fun p b lst2 hR hrel2 hinv2 => ?_)
-       subst hR
-       cases p with
-       | none => lockstep
-       | some p =>
-         obtain ⟨n, us⟩ := p
-         exact proj_iota_level_at_ls hrel2 hinv2 n us)
-    | (rename_i hP hc
-       rw [if_neg (by
-         rw [hP, ← etag_const_abs]
-         simpa using fun h => hc (absU32_inj h))]
-       lockstep)
 
 /-- **`proj_iota_level` refines `projIotaLevel`** (`ProjRec.lean:100-112`):
 the field sort the artifact records. -/
@@ -1764,8 +1749,6 @@ splits are unfolded in place (`lockstep_inline`), the twin is its one block. -/
   iterate 13 lockstep_step
   on_goal 2 =>
     split
-    all_goals try (exfalso; exact bvar_zero_contra₁ (by assumption) (by assumption))
-    all_goals try (exfalso; exact bvar_zero_contra₂ (by assumption) (by assumption))
     on_goal 1 =>
       iterate 3 lockstep_step
       on_goal 2 =>
@@ -1792,7 +1775,6 @@ splits are unfolded in place (`lockstep_inline`), the twin is its one block. -/
     all_goals
       split
       all_goals first
-        | (exfalso; exact bvar_zero_contra₁ (by assumption) (by assumption))
         | (exfalso; exact bvar_zero_contra₂ (by assumption) (by assumption))
         | lockstep
   all_goals lockstep

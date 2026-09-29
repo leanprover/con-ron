@@ -216,7 +216,6 @@ theorem nat_op_deps_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
     rw [if_neg h14] at h ⊢
-    repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
     exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
 

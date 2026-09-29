@@ -454,9 +454,6 @@ attribute [lockstep_inline] arena.core.string_of_list_ty_body arena.core.list_ni
   -- and the `n + 1` branch against the port's `0` closes by the index's value)
   all_goals first
     | (exfalso; simp_all; done)
-    | (exfalso; rename_i heq _ hd; rw [heq] at hd; simp [Std.UScalar.val] at hd)
-    | (exfalso; rename_i hne hd; apply hne; apply Std.UScalar.eq_of_val_eq
-       rw [hd]; simp [Std.UScalar.val])
     | (split <;> first
     | (lockstep; done)
     | (exfalso; simp_all; done)

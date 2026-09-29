@@ -235,8 +235,7 @@ the twin's `what` is free (messages are never compared). -/
       | rfl
       | (obtain ⟨-, rfl, rfl, x, hx, rfl⟩ := heq
          simp_all [absIRecRule, uscalar_eq_iff_val, absU,
-           nat_beq_eq_decide]
-         done)
+           nat_beq_eq_decide])
       | (exfalso
          have hl := congrArg (fun u : Std.Usize => u.val) ‹alloc.vec.Vec.len _ = 1#usize›
          simp only [alloc.vec.Vec.len_val] at hl

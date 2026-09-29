@@ -583,7 +583,7 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
         (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
     rw [arena.intern.intern_expr_go]; rust_view
-    rw [internExprGo_compound _ _ (by twin_abs <;> trivial)]
+    rw [internExprGo_compound _ _ (by twin_abs)]
     exact intern_probe_ls hrel hinv hm h (hnode hrel hinv hm)
   | app d f a h ihf iha =>
     obtain ⟨hf, ha⟩ := ConRon.Refine.ExprWF.app_kids h
@@ -606,7 +606,7 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
         (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
     rw [arena.intern.intern_expr_go]; rust_view
-    rw [internExprGo_compound _ _ (by twin_abs <;> trivial)]
+    rw [internExprGo_compound _ _ (by twin_abs)]
     exact intern_probe_ls hrel hinv hm h (hnode hrel hinv hm)
   | lam d ty b bi h ihty ihb =>
     obtain ⟨hty, hb, hbi⟩ := ConRon.Refine.ExprWF.lam_kids h
@@ -631,7 +631,7 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
         (by intro _ _ _ h; rcases h with h | h <;> cases h; exact hbi)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
     rw [arena.intern.intern_expr_go]; rust_view
-    rw [internExprGo_compound _ _ (by twin_abs <;> trivial)]
+    rw [internExprGo_compound _ _ (by twin_abs)]
     exact intern_probe_ls hrel hinv hm h (hnode hrel hinv hm)
   | forall_e d ty b bi h ihty ihb =>
     obtain ⟨hty, hb, hbi⟩ := ConRon.Refine.ExprWF.forall_e_kids h
@@ -656,7 +656,7 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
         (by intro _ _ _ h; rcases h with h | h <;> cases h; exact hbi)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
     rw [arena.intern.intern_expr_go]; rust_view
-    rw [internExprGo_compound _ _ (by twin_abs <;> trivial)]
+    rw [internExprGo_compound _ _ (by twin_abs)]
     exact intern_probe_ls hrel hinv hm h (hnode hrel hinv hm)
   | let_e d ty v b h ihty ihv ihb =>
     obtain ⟨hty, hv, hb⟩ := ConRon.Refine.ExprWF.let_e_kids h
@@ -682,7 +682,7 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
         (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
     rw [arena.intern.intern_expr_go]; rust_view
-    rw [internExprGo_compound _ _ (by twin_abs <;> trivial)]
+    rw [internExprGo_compound _ _ (by twin_abs)]
     exact intern_probe_ls hrel hinv hm h (hnode hrel hinv hm)
   | proj d sn i x h ihx =>
     obtain ⟨hsn, hx⟩ := ConRon.Refine.ExprWF.proj_kids h
@@ -705,7 +705,7 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
         (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
     rw [arena.intern.intern_expr_go]; rust_view
-    rw [internExprGo_compound _ _ (by twin_abs <;> trivial)]
+    rw [internExprGo_compound _ _ (by twin_abs)]
     exact intern_probe_ls hrel hinv hm h (hnode hrel hinv hm)
 
 open Lockstep in

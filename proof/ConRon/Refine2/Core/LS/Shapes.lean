@@ -517,12 +517,6 @@ theorem infer_lams_out_aux (n : Nat) :
     intro pers st lst mode d stk nn cur prev_pw hx hstk hpw hn hrel hinv
     rw [arena.core.infer_lams_out, inferLamsOut]
     lockstep_a2_stk
-    -- glue: the recursive call, whose datum premise is a stack entry's
-    all_goals
-      refine LS.tail (ih _ _ _ _ _ _ hx hstk (hstk _ (List.getElem_mem ‹_›))
-        (by simp only [lockstep_simp] at *; omega) hrel hinv) ?_ (fun _ _ h => h)
-      simp only [ConRon.Refine.absBinderMeta]
-      congr 1
 
 theorem infer_pis_out_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
