@@ -1129,8 +1129,7 @@ theorem tagView_const (st : EStore) (i : EIdx) (hi : i.tag = ETag.const) :
       t.get i = (t.getConst i).map (fun p => ENodeView.const p.1 p.2) := by
     intro t
     simp only [ETables.get, ETables.getConst, hi, Option.map_map]
-    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
-      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    simp (config := {decide := true}) only [if_false, if_true]
     rfl
   rw [EStore.view, EStore.viewConst,
     if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.const])]
@@ -1146,8 +1145,7 @@ theorem tagView_sort (st : EStore) (i : EIdx) (hi : i.tag = ETag.sort) :
   have key : ∀ t : ETables, t.get i = (t.getSort i).map ENodeView.sort := by
     intro t
     simp only [ETables.get, ETables.getSort, hi, Option.map_map]
-    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
-      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    simp (config := {decide := true}) only [if_false, if_true]
     rfl
   rw [EStore.view, EStore.viewSort,
     if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.sort])]
@@ -1247,8 +1245,7 @@ theorem tagView_app (st : EStore) (i : EIdx) (hi : i.tag = ETag.app) :
   have key : ∀ t : ETables, t.get i = (t.getApp i).map (fun p => ENodeView.app p.1 p.2) := by
     intro t
     simp only [ETables.get, ETables.getApp, hi, Option.map_map]
-    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
-      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    simp (config := {decide := true}) only [if_false, if_true]
     rfl
   rw [EStore.view, EStore.viewApp,
     if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.app])]
@@ -1264,8 +1261,7 @@ theorem tagView_lit (st : EStore) (i : EIdx) (hi : i.tag = ETag.lit) :
   have key : ∀ t : ETables, t.get i = (t.getLit i).map ENodeView.lit := by
     intro t
     simp only [ETables.get, ETables.getLit, hi, Option.map_map]
-    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
-      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    simp (config := {decide := true}) only [if_false, if_true]
     rfl
   rw [EStore.view, EStore.viewLit,
     if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.lit])]
@@ -1281,8 +1277,7 @@ theorem tagView_letE (st : EStore) (i : EIdx) (hi : i.tag = ETag.letE) :
   have key : ∀ t : ETables, t.get i = (t.getLet i).map (fun p => ENodeView.letE p.1 p.2.1 p.2.2) := by
     intro t
     simp only [ETables.get, ETables.getLet, hi, Option.map_map]
-    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
-      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    simp (config := {decide := true}) only [if_false, if_true]
     rfl
   rw [EStore.view, EStore.viewLet,
     if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.letE])]
@@ -1298,8 +1293,7 @@ theorem tagView_proj (st : EStore) (i : EIdx) (hi : i.tag = ETag.proj) :
   have key : ∀ t : ETables, t.get i = (t.getProj i).map (fun p => ENodeView.proj p.1 p.2.1 p.2.2) := by
     intro t
     simp only [ETables.get, ETables.getProj, hi, Option.map_map]
-    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
-      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    simp (config := {decide := true}) only [if_false, if_true]
     rfl
   rw [EStore.view, EStore.viewProj,
     if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.proj])]
@@ -1315,8 +1309,7 @@ theorem tagView_bvar (st : EStore) (i : EIdx) (hi : i.tag = ETag.bvar) :
   have key : ∀ t : ETables, t.get i = (t.getBVar i).map ENodeView.bvar := by
     intro t
     simp only [ETables.get, ETables.getBVar, hi, Option.map_map]
-    simp (config := {decide := true}) only [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
-      ETag.isBind, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, if_false, if_true]
+    simp (config := {decide := true}) only [if_false, if_true]
     rfl
   rw [EStore.view, EStore.viewBVar,
     if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.bvar])]
