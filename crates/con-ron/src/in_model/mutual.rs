@@ -1101,7 +1101,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:187-484 genMutual
-/// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
+/// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1325 genNested
 /// The `hOf` of both generators: the height of a constant, the definitions
 /// emitted by this block first (they are not in `ctx` yet), else the parse
 /// state's table.
