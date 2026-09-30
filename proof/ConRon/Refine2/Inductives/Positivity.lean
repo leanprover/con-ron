@@ -358,4 +358,67 @@ theorem nest_occ_go_aux (n : Nat) :
       List.drop_eq_getElem_cons hlt, List.map_cons, List.anyM]
     lockstep
 
+/-- `nest_occ_any_binder` ⊑ `List.anyM (nestOcc … ·.1)` over a telescope from
+the cursor on. -/
+@[lockstep] theorem nest_occ_any_binder_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx) (lo hi : Std.U64)
+    (bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (i : Std.Usize) :
+    LSR pers (fun a b => b = a)
+      (arena.inductives.positivity.nest_occ_any_binder pers st names lo hi bs i) st lst
+      ((absBinderLFrom bs i).anyM fun b => nestOcc (absNIdxL names) (absU lo) (absU hi) b.1) := by
+  suffices H : ∀ (i : Std.Usize) (u : Unit) lst, AStateRel₀ pers st lst →
+      LSR pers (fun a b => b = a)
+      (arena.inductives.positivity.nest_occ_any_binder pers st names lo hi bs i) st lst
+      ((absBinderLFrom bs i).anyM fun b => nestOcc (absNIdxL names) (absU lo) (absU hi) b.1) from
+    H i () lst hrel
+  refine cursor_induction (fun i : Std.Usize => i.val) bs.val.length _ ?_ ?_
+  · intro i _ hn lst hrel
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.nest_occ_any_binder.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len bs by scalar_tac), absBinderLFrom,
+      List.drop_eq_nil_of_le hn, List.map_nil, List.anyM]
+    lockstep
+  · intro i _ hlt ih lst hrel
+    have ih' : ∀ j : Std.Usize, j.val = i.val + 1 → ∀ lst, AStateRel₀ pers st lst →
+        LSR pers (fun a b => b = a)
+        (arena.inductives.positivity.nest_occ_any_binder pers st names lo hi bs j) st lst
+        ((absBinderLFrom bs j).anyM fun b => nestOcc (absNIdxL names) (absU lo) (absU hi) b.1) :=
+      fun j hj => ih j () hj
+    clear ih
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.nest_occ_any_binder.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len bs by scalar_tac), absBinderLFrom,
+      List.drop_eq_getElem_cons hlt, List.map_cons, List.anyM]
+    lockstep
+
+/-! ## `inst_pis_with` -/
+
+/-- `inst_pis_with` ⊑ `instPisWith`, the arguments from the cursor on. -/
+@[lockstep] theorem inst_pis_with_ls {pers}
+    {args : alloc.vec.Vec arena.handle.EIdx} :
+    ∀ (i : Std.Usize) (e : arena.handle.EIdx) st lst, AStateRel₀ pers st lst →
+      AStateInv pers st →
+      LS pers (fun a b => b = a.map absEIdx)
+        (arena.inductives.positivity.inst_pis_with pers st args i e) lst
+        (instPisWith (absEIdxLFrom args i) (absEIdx e)) := by
+  intro i e st lst hrel hinv
+  refine ls_cursor_acc args absEIdx
+    (fun (w : arena.handle.EIdx) l => instPisWith l (absEIdx w))
+    (fun st k w => arena.inductives.positivity.inst_pis_with pers st args k w)
+    ?_ ?_ i st lst e hrel hinv
+  · intro st lst k w hn hrel hinv
+    rw [arena.inductives.positivity.inst_pis_with.eq_def,
+      if_pos (show k ≥ alloc.vec.Vec.len args by scalar_tac), instPisWith]
+    lockstep
+  · intro st lst k w hk hrel hinv ih
+    have ih' : ∀ st' lst' (j : Std.Usize) (w' : arena.handle.EIdx), j.val = k.val + 1 →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers (fun a b => b = a.map absEIdx)
+          (arena.inductives.positivity.inst_pis_with pers st' args j w') lst'
+          (instPisWith (absEIdxLFrom args j) (absEIdx w')) := ih
+    clear ih
+    rw [arena.inductives.positivity.inst_pis_with.eq_def,
+      if_neg (show ¬ k ≥ alloc.vec.Vec.len args by scalar_tac), instPisWith]
+    lockstep
+
 end ConRon.Refine2
