@@ -35,6 +35,7 @@ import ConRon.Bridge.Inductives.Rel
 import ConRon.Bridge.Inductives.PosWalks
 import ConRon.Bridge.Inductives.StructParts
 import ConRon.Bridge.Inductives.FieldTele
+import ConRon.Bridge.Inductives.SumInstall
 import ConLeche.Verify.Inductives.RecCheckScope
 import ConLeche.Verify.Cached.TargetRecC
 
@@ -1838,5 +1839,292 @@ theorem nestedRuleSyn_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
     rw [if_neg hle]
     obtain ⟨rfl, rfl⟩ := pureOk hrun
     exact ⟨PStep.refl hok.state, rfl⟩
+
+/-! ## The stored family
+
+The rules are read at the CONSTRUCTORS' index (`fe.restrictTo vis₂` in
+`consBlockRecsTF`), while the knot's caches serve whatever index the recursor
+stage ended on.  So these statements carry two environments: `CheckOK μ envC
+feC` for the caches (the frame is `CoreStep` there), and `IFEnvOK env fe` for
+the lookups the rules make — which is `recRuleBits_runX`'s shape
+(`Bridge/Inductives/SumInstall.lean`). -/
+
+namespace RC
+
+/-- con-leche: none — `Records.lean`'s `dCtors` is `Run.lean`'s
+`denoteCtors`. -/
+theorem dCtors_denoteCtors {st : EStore} :
+    ∀ (cs : List (IConstantVal × Nat)), dCtors st cs = denoteCtors st cs := by
+  intro cs
+  induction cs with
+  | nil => rfl
+  | cons c cs ih =>
+    obtain ⟨cv, n⟩ := c
+    simp only [dCtors, List.mapM_cons, Option.bind_eq_bind, Option.pure_def, dCtor,
+      denoteCtors] at ih ⊢
+    rw [ih]
+    cases Frontend.denoteCV st cv <;> cases denoteCtors st cs <;> rfl
+
+/-- con-leche: none — every rule's firing mode replaced, denoted. -/
+theorem denoteRules_map_fire {st : EStore} {f : IRecRuleFire} {fP : RecRuleFire}
+    (hf : Frontend.denoteFire st f = some fP) :
+    ∀ {rs : List IRecRule} {rsP : List RecRule}, Frontend.denoteRules st rs = some rsP →
+      Frontend.denoteRules st (rs.map fun rl => { rl with fire := f }) =
+        some (rsP.map fun rl => { rl with fire := fP }) := by
+  intro rs
+  induction rs with
+  | nil =>
+    intro rsP h
+    simp only [Frontend.denoteRules, Option.some.injEq] at h
+    subst h; rfl
+  | cons r rs ih =>
+    intro rsP h
+    simp only [Frontend.denoteRules] at h
+    cases h1 : Frontend.denoteRule st r with
+    | none => rw [h1] at h; simp at h
+    | some x =>
+    cases h2 : Frontend.denoteRules st rs with
+    | none => rw [h1, h2] at h; simp at h
+    | some xs =>
+    rw [h1, h2] at h
+    obtain rfl := (Option.some.inj h).symm
+    simp only [Frontend.denoteRule] at h1
+    cases hc : denoteN st.ns r.ctor with
+    | none => rw [hc] at h1; simp at h1
+    | some c =>
+    cases hfr : Frontend.denoteFire st r.fire with
+    | none => rw [hc, hfr] at h1; simp at h1
+    | some fr =>
+    cases he : denoteE st r.rhs with
+    | none => rw [hc, hfr, he] at h1; simp at h1
+    | some e =>
+    rw [hc, hfr, he] at h1
+    obtain rfl := (Option.some.inj h1).symm
+    simp only [List.map_cons, Frontend.denoteRules, Frontend.denoteRule, hc, hf, he,
+      ih h2]
+
+/-- con-leche: none — `BlockShape.majorIdxAt`/`rulePrefixAt` agree on a
+denoted shape. -/
+theorem recAt_eq {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    (h : dShape st p = some pP) (m : Nat) :
+    p.majorIdxAt m = pP.majorIdxAt m ∧ p.rulePrefixAt m = pP.rulePrefixAt m := by
+  have hrs := (dShape_inv h).2.1
+  have hj := mapM_option_getElem? (st := st) hrs m
+  simp only [Arena.BlockShape.majorIdxAt, Arena.BlockShape.rulePrefixAt,
+    ConLeche.BlockShape.majorIdxAt, ConLeche.BlockShape.rulePrefixAt,
+    List.getD_eq_getElem?_getD]
+  cases hr : p.recs[m]? with
+  | none =>
+    rw [hr] at hj
+    have : pP.recs[m]? = none := hj
+    rw [this]; exact ⟨rfl, rfl⟩
+  | some rc =>
+    rw [hr] at hj
+    obtain ⟨rcP, hrcP, hd⟩ := hj
+    obtain ⟨-, h1, h2, -, -⟩ := dRec_inv hd
+    rw [hrcP]
+    exact ⟨h2, h1⟩
+
+/-- con-leche: none — the recursors' targets and the member count agree on
+a denoted shape: the container bit's second half. -/
+theorem recs_any_tgt {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    (h : dShape st p = some pP) :
+    p.recs.any (fun rc => !(rc.tgt < p.k)) = pP.recs.any (fun rc => !(rc.tgt < pP.k)) := by
+  obtain ⟨hms, hrs, -⟩ := dShape_inv h
+  have hk : p.k = pP.k := by
+    simp only [Arena.BlockShape.k, ConLeche.BlockShape.k, mapM_option_length hms]
+  rw [hk]
+  generalize pP.k = K
+  clear hk hms h
+  generalize p.recs = rs at hrs
+  generalize pP.recs = rsP at hrs
+  induction rs generalizing rsP with
+  | nil => simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrs; subst hrs; rfl
+  | cons r rs ih =>
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at hrs
+    cases h1 : dRec st r with
+    | none => rw [h1] at hrs; simp at hrs
+    | some rP =>
+    rw [h1] at hrs
+    cases h2 : rs.mapM (dRec st) with
+    | none => rw [h2] at hrs; simp at hrs
+    | some rest =>
+    rw [h2] at hrs
+    simp only [Option.bind_some, Option.some.injEq] at hrs
+    subst hrs
+    simp only [List.any_cons, (dRec_inv h1).2.2.2.1, ih rest h2]
+
+end RC
+
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:168-184 sumRules —
+`sumRules_spec` (`Bridge/Inductives/SumInstall.lean`) with the LOOKUP index
+apart from the knot's: the rules read `fe` (`IFEnvOK env fe`), the caches serve
+`feC` (`CheckOK μ envC feC`), as `recRuleBits_runX` states it.  **Belongs in
+`SumInstall.lean` beside `sumRules_spec`** (which is this at `feC := fe`). -/
+theorem sumRules_specX {μ : CheckMode} {envC env : Env} {feC : IFEnv} (fe : IFEnv)
+    (recName : NIdx) (recNameP : ConLeche.Name) (nP mI rP : Nat)
+    (recTy : EIdx) (recTyP : Expr) :
+    ∀ (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat))
+      (rhss : List EIdx) (rhssP : List Expr) (s₀ s' : AState) (r : List IRecRule),
+      CheckOK μ envC feC s₀ → IFEnvOK env fe s₀ →
+      denoteN s₀.store.ns recName = some recNameP → denoteE s₀.store recTy = some recTyP →
+      denoteCtors s₀.store cs = some csP → Frontend.denoteEList s₀.store rhss = some rhssP →
+      Arena.sumRules fe recName nP mI rP recTy cs rhss s₀ = .ok (r, s') →
+      CoreStep μ envC feC s₀ s' ∧ Frontend.denoteRules s'.store r
+        = some (ConLeche.sumRules env.find? recNameP nP mI rP recTyP csP rhssP) := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro csP rhss rhssP s₀ s' r hok _ _ _ hcs _ hrun
+    simp only [denoteCtors, Option.some.injEq] at hcs
+    subst hcs
+    simp only [Arena.sumRules] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    refine ⟨CoreStep.refl hok, ?_⟩
+    cases rhssP <;> rfl
+  | cons c cs ih =>
+    intro csP rhss rhssP s₀ s' r hok hie hrn hrt hcs hrh hrun
+    obtain ⟨cv, n⟩ := c
+    simp only [denoteCtors] at hcs
+    cases hcv : Frontend.denoteCV s₀.store cv with
+    | none => rw [hcv] at hcs; simp at hcs
+    | some cP =>
+    cases hrest : denoteCtors s₀.store cs with
+    | none => rw [hcv, hrest] at hcs; simp at hcs
+    | some restP =>
+    rw [hcv, hrest] at hcs
+    obtain rfl := (Option.some.inj hcs).symm
+    cases rhss with
+    | nil =>
+      simp only [Frontend.denoteEList, Option.some.injEq] at hrh
+      subst hrh
+      simp only [Arena.sumRules] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      exact ⟨CoreStep.refl hok, rfl⟩
+    | cons rhs rhss =>
+    simp only [Frontend.denoteEList] at hrh
+    cases hrhs : denoteE s₀.store rhs with
+    | none => rw [hrhs] at hrh; simp at hrh
+    | some rhsP =>
+    cases hrhss : Frontend.denoteEList s₀.store rhss with
+    | none => rw [hrhs, hrhss] at hrh; simp at hrh
+    | some rhssP' =>
+    rw [hrhs, hrhss] at hrh
+    obtain rfl := (Option.some.inj hrh).symm
+    simp only [Arena.sumRules] at hrun
+    obtain ⟨b, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl k1
+      (ExprOps.recRulePlain_spec Arena.coreWalkFuel s₀ recTy mI rP nP hok.state
+        (by rw [hrt]; rfl))
+    have p1 : PStep s₀ s1 := PStep.of_caches h1 h2 h3 h5 h6
+    have hb : b = Expr.recRulePlain recTyP mI rP nP := h7 recTyP hrt
+    have c1 := p1.toCore hok
+    obtain ⟨rl, s2, k2, z2⟩ := bindOk z1
+    have hrl : Frontend.denoteRule s1.store
+        { ctor := cv.name, nfields := n, ctorParams := nP,
+          fire := (if b then .plain else .inert), rhs := rhs, paramsBlind := true } =
+        some { ctor := cP.name, nfields := n, ctorParams := nP,
+               fire := (if Expr.recRulePlain recTyP mI rP nP then .plain else .inert),
+               rhs := rhsP, paramsBlind := true } := by
+      subst hb
+      simp only [Frontend.denoteRule, denoteN_ext (denoteCV_name hcv) p1.ext,
+        denote_ext hrhs p1.ext]
+      cases Expr.recRulePlain recTyP mI rP nP <;> rfl
+    obtain ⟨hfr, hrlr⟩ := recRuleBits_runX c1.ok (hie.mono p1.ext)
+      (denoteN_ext hrn p1.ext) hrl k2
+    have c2 : CoreStep μ envC feC s₀ s2 :=
+      c1.trans ⟨Core.CheckOK.ofReadbackFrame c1.ok hfr, hfr.ext, hfr.pins⟩
+    obtain ⟨rs, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨c3, hrs⟩ := ih restP rhss rhssP' s2 s3 rs c2.ok (hie.mono c2.ext)
+      (denoteN_ext hrn c2.ext) (denote_ext hrt c2.ext) (denoteCtors_ext c2.ext _ _ hrest)
+      (denoteEList_ext c2.ext _ _ hrhss) k3
+    obtain ⟨rfl, rfl⟩ := pureOk z3
+    refine ⟨c2.trans c3, ?_⟩
+    simp only [Frontend.denoteRules, denoteRule_ext hrlr c3.ext, hrs]
+    rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:574-585 auxRuleFireR
+**The firing mode of a rule at an OUTSIDE major**: `.nested` at the
+syntactic reading, `.inert` when it fails, at `resolves :=
+(·.constsResolve env)` for the index `fe` denotes. -/
+theorem auxRuleFireR_spec {env : Env} (fe : IFEnv) (cv : IConstantVal) (cvP : ConstantVal)
+    (mI rP nPc : Nat) :
+    RdSpec env fe (fun st => Frontend.denoteCV st cv = some cvP)
+      (Arena.auxRuleFireR fe cv mI rP nPc)
+      (fun st r => Frontend.denoteFire st r =
+        some (ConLeche.auxRuleFireR (·.constsResolve env) cvP mI rP nPc)) := by
+  intro s₀ s' r hok hcv hrun
+  simp only [Arena.auxRuleFireR] at hrun
+  obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, ho⟩ := nestedRuleSyn_spec fe cv.levelParams cvP.levelParams cv.type cvP.type
+    mI rP nPc s₀ s1 o hok ⟨denoteCV_lps hcv, denoteCV_type hcv⟩ k1
+  simp only [ConLeche.auxRuleFireR]
+  cases o with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk z1
+    have : Expr.nestedRuleSyn (·.constsResolve env) cvP.levelParams cvP.type mI rP nPc
+      = none := ho
+    rw [this]
+    exact ⟨p1, rfl⟩
+  | some q =>
+    obtain ⟨lvls, pins⟩ := q
+    obtain ⟨⟨lvlsP, pinsP⟩, hq, hl, hp⟩ := ho
+    obtain ⟨rfl, rfl⟩ := pureOk z1
+    rw [hq]
+    refine ⟨p1, ?_⟩
+    simp only [Frontend.denoteFire, hl, hp]
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:587-597 tgtStoredRules
+**One checked recursor's stored rules, at its major**: `sumRules` at the
+major's parameter count and constructors, every rule firing as
+`auxRuleFireR` reads it at an OUTSIDE major.  The pure side at `find? :=
+env.find?` and `resolves := (·.constsResolve env)` for the lookup index's
+environment `env`; the caches at `feC`. -/
+theorem tgtStoredRules_spec {μ : CheckMode} {envC env : Env} {feC : IFEnv} (fe : IFEnv)
+    (cv : IConstantVal) (cvP : ConstantVal) (mI rP : Nat) (M : Arena.TargetMajor)
+    (MP : ConLeche.TargetMajor) (rhss : List EIdx) (rhssP : List Expr)
+    (s₀ s' : AState) (r : List IRecRule) (hok : CheckOK μ envC feC s₀)
+    (hie : IFEnvOK env fe s₀) (hcv : Frontend.denoteCV s₀.store cv = some cvP)
+    (hM : dMajor s₀.store M = some MP) (hrh : Frontend.denoteEList s₀.store rhss = some rhssP)
+    (hrun : Arena.tgtStoredRules fe cv mI rP M rhss s₀ = .ok (r, s')) :
+    CoreStep μ envC feC s₀ s' ∧ Frontend.denoteRules s'.store r =
+      some (ConLeche.tgtStoredRules env.find? (·.constsResolve env) cvP mI rP MP rhssP) := by
+  obtain ⟨-, -, -, hnpc, -, hctors, hmem, -, -⟩ := dMajor_inv hM
+  simp only [Arena.tgtStoredRules] at hrun
+  obtain ⟨rules, s1, k1, z1⟩ := bindOk hrun
+  rw [RC.dCtors_denoteCtors] at hctors
+  obtain ⟨c1, hrules⟩ := sumRules_specX fe cv.name cvP.name M.nPc mI rP cv.type cvP.type
+    M.ctors MP.ctors rhss rhssP s₀ s1 rules hok hie (denoteCV_name hcv) (denoteCV_type hcv)
+    hctors hrh k1
+  simp only [ConLeche.tgtStoredRules, ← hnpc, ← hmem]
+  cases hm : M.member with
+  | some t =>
+    rw [hm] at z1
+    obtain ⟨rfl, rfl⟩ := pureOk z1
+    exact ⟨c1, hrules⟩
+  | none =>
+    rw [hm] at z1
+    dsimp only at z1
+    obtain ⟨f, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, hf⟩ := auxRuleFireR_spec fe cv cvP mI rP M.nPc s1 s2 f
+      ⟨c1.ok.state, c1.ok.pins, hie.mono c1.ext⟩ (denoteCV_ext hcv c1.ext) k2
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    exact ⟨c1.trans (p2.toCore c1.ok),
+      RC.denoteRules_map_fire hf (denoteRules_ext p2.ext _ _ hrules)⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:599-605 blockNestedBit
+**The block's container bit**: some field kind not flat, or some recursor's
+major not a member — the twin's `if` is con-leche's `||`, the kinds read
+through `kindOf`. -/
+theorem blockNestedBit_eq {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    (h : dShape st p = some pP) (kinds : List (List (List Arena.NestFieldKind))) :
+    Arena.blockNestedBit p kinds =
+      ConLeche.blockNestedBit pP (kinds.map (·.map (·.map kindOf))) := by
+  have hflat : Arena.nestKindsFlat kinds =
+      ConLeche.nestKindsFlat (kinds.map (·.map (·.map kindOf))) := by
+    simp only [Arena.nestKindsFlat, ConLeche.nestKindsFlat, List.all_map, Function.comp_def,
+      kindOf_flat]
+  simp only [Arena.blockNestedBit, ConLeche.blockNestedBit, hflat, RC.recs_any_tgt h]
+  cases ConLeche.nestKindsFlat (kinds.map (·.map (·.map kindOf))) <;> simp
 
 end ConRon.Bridge.Inductives
