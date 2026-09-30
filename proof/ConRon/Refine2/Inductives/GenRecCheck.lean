@@ -1537,4 +1537,198 @@ theorem class_recs_rules_ok_acc {pers} {mode : kernel.env.CheckMode}
   simp only [gr_usz0, List.drop_zero] at h
   exact LS.tail h rfl (fun a b h1 => by simpa [absRuleOutL, alloc.vec.Vec.new] using h1.symm)
 
+/-! ## The temporary recursors: `class_fe_r_push` / `class_fe_r_pop`
+
+The port pushes the rule-less recursors onto the index IN PLACE
+(`ifenv_push_temp`, recording each displaced raw row `(counter, position)`) and
+pops them in reverse (`ifenv_pop_temp`, `resize` and the row put back); the
+twin pushes (`IFEnv.push`) recording the displaced `(counter, constant)` row and
+pops by `foldr popTemp`.  The two records are not related row by row: each side
+is shown to come back to an index that ANSWERS like the one it started from
+(`RFEq` for the port — the same list, bound and row function, the `HashMap2`
+itself is not structurally restored — and `TFEq` for the twin), and
+`IFEnvRelI.transfer` carries the relation across. -/
+
+/-- Two port indexes that answer alike. -/
+def RFEq (a b : arena.env.IFEnv) : Prop :=
+  a.env.consts.val = b.env.consts.val ∧
+    ConRon.Refine.HashMap2.toFun a.idx = ConRon.Refine.HashMap2.toFun b.idx ∧
+    a.visible_below = b.visible_below
+
+theorem RFEq.refl (a : arena.env.IFEnv) : RFEq a a := ⟨rfl, rfl, rfl⟩
+
+theorem RFEq.trans {a b c : arena.env.IFEnv} (h₁ : RFEq a b) (h₂ : RFEq b c) : RFEq a c :=
+  ⟨h₁.1.trans h₂.1, h₁.2.1.trans h₂.2.1, h₁.2.2.trans h₂.2.2⟩
+
+/-- The port index's table invariant alone. -/
+abbrev IdxInv (a : arena.env.IFEnv) : Prop :=
+  ConRon.Refine.HashMap2.Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable a.idx
+
+/-- Two twin indexes that answer alike (`Bridge/Inductives/GenRec.lean`'s
+`GR.FEq`, restated below the bridge). -/
+def TFEq (a b : IFEnv) : Prop :=
+  a.env = b.env ∧ a.visibleBelow = b.visibleBelow ∧ ∀ n : NIdx, a.idx[n]? = b.idx[n]?
+
+theorem TFEq.refl (a : IFEnv) : TFEq a a := ⟨rfl, rfl, fun _ => rfl⟩
+
+theorem TFEq.trans {a b c : IFEnv} (h₁ : TFEq a b) (h₂ : TFEq b c) : TFEq a c :=
+  ⟨h₁.1.trans h₂.1, h₁.2.1.trans h₂.2.1, fun n => (h₁.2.2 n).trans (h₂.2.2 n)⟩
+
+theorem TFEq.popTemp {a b : IFEnv} (h : TFEq a b) (n : NIdx)
+    (prev : Option (Nat × IConstantInfo)) : TFEq (a.popTemp n prev) (b.popTemp n prev) := by
+  refine ⟨by simp only [IFEnv.popTemp, h.1], by simp only [IFEnv.popTemp, h.2.1], fun k => ?_⟩
+  simp only [IFEnv.popTemp]
+  cases prev with
+  | none =>
+    simp only [Std.HashMap.getElem?_erase]
+    split <;> simp [h.2.2 k]
+  | some r =>
+    simp only [Std.HashMap.getElem?_insert]
+    split <;> simp [h.2.2 k]
+
+theorem TFEq.popTemp_push (fe : IFEnv) (ci : IConstantInfo) :
+    TFEq ((fe.push ci).popTemp ci.name fe.idx[ci.name]?) fe := by
+  refine ⟨rfl, by simp only [IFEnv.popTemp, IFEnv.push]; omega, fun k => ?_⟩
+  simp only [IFEnv.popTemp, IFEnv.push]
+  cases hprev : fe.idx[ci.name]? with
+  | none =>
+    simp only [Std.HashMap.getElem?_erase, Std.HashMap.getElem?_insert]
+    by_cases hk : (ci.name == k) = true
+    · have : ci.name = k := eq_of_beq hk
+      subst this
+      simp [hprev]
+    · simp [hk]
+  | some r =>
+    simp only [Std.HashMap.getElem?_insert]
+    by_cases hk : (ci.name == k) = true
+    · have : ci.name = k := eq_of_beq hk
+      subst this
+      simp [hprev]
+    · simp [hk]
+
+/-- **The relation survives answering-alike indexes on both sides.** -/
+theorem IFEnvRelI.transfer {rf rf' : arena.env.IFEnv} {lf lf' : IFEnv} (h : IFEnvRelI rf lf)
+    (hr : RFEq rf' rf) (hi : IdxInv rf') (hl : TFEq lf' lf) : IFEnvRelI rf' lf' := by
+  obtain ⟨⟨henv, hidx, hvb, hwf, hkeys⟩, ⟨-, hbound, hrange⟩⟩ := h
+  obtain ⟨hc, ht, hv⟩ := hr
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_⟩, hi, ?_, ?_⟩
+  · rw [hl.1, henv]; simp only [absIEnv, hc]
+  · intro n; rw [ht, hc, hl.2.2]; exact hidx n
+  · rw [hl.2.1, hvb, hv]
+  · intro ci hci; rw [hc] at hci; exact hwf ci hci
+  · intro k p hp; rw [ht] at hp; rw [hc]; exact hkeys k p hp
+  · rw [hv, hc]; exact hbound
+  · intro n p hp; rw [ht] at hp; rw [hc]; exact hrange n p hp
+
+/-- `ifenv_push_temp` is `ifenv_push` with the displaced row handed back. -/
+theorem gr_ifenv_push_temp_spec {rf rf' : arena.env.IFEnv} {ci : arena.env.IConstantInfo}
+    {prev : Option (Std.U64 × Std.U64)} (hfinv : IFEnvInv rf)
+    (h : arena.env.ifenv_push_temp rf ci = ok (prev, rf')) :
+    arena.env.ifenv_push rf ci = ok rf' ∧
+    ∃ n, arena.env.i_constant_info_name ci = ok n ∧
+      prev = ConRon.Refine.HashMap2.toFun rf.idx n ∧
+      rf'.env.consts.val = rf.env.consts.val ++ [ci] ∧
+      (∃ s : Std.U64, s.val = rf.env.consts.val.length ∧
+        ConRon.Refine.HashMap2.toFun rf'.idx =
+          Function.update (ConRon.Refine.HashMap2.toFun rf.idx) n (some (rf.visible_below, s))) ∧
+      rf'.visible_below.val = rf.visible_below.val + 1 ∧ IdxInv rf' := by
+  rw [arena.env.ifenv_push_temp] at h
+  obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨c1, hc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨hinv', hold, hupd, -⟩ :=
+    ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
+      hfinv.idxInv ConRon.Refine.HashMap2.KeysOk_true trivial hq
+  have h' := Prod.mk.inj (Result.ok_injective h)
+  obtain ⟨rfl, rfl⟩ := h'
+  refine ⟨?_, n, hn, hold, ConRon.Refine.vec_push_val hv, ⟨s, ?_, hupd⟩, ?_, hinv'⟩
+  · rw [arena.env.ifenv_push, hs]
+    simp only [bind_tc_ok, hn, hq, hv, hc1]
+    rfl
+  · simp only [lift, Result.ok.injEq] at hs; subst hs
+    simp
+  · simpa using ConRon.Refine.Nat.uadd_val hc1
+
+/-- `ifenv_pop_temp`: the last constant dropped, the row under `n` put back as
+`prev`, the counter one down. -/
+theorem gr_ifenv_pop_temp_spec {fe out : arena.env.IFEnv} {n : arena.handle.NIdx}
+    {prev : Option (Std.U64 × Std.U64)} (hi : IdxInv fe)
+    (h : arena.env.ifenv_pop_temp fe n prev = ok out) :
+    out.env.consts.val = fe.env.consts.val.take (fe.env.consts.val.length - 1) ∧
+      ConRon.Refine.HashMap2.toFun out.idx =
+        Function.update (ConRon.Refine.HashMap2.toFun fe.idx) n prev ∧
+      out.visible_below.val = fe.visible_below.val - 1 ∧ 1 ≤ fe.visible_below.val ∧
+      IdxInv out := by
+  unfold arena.env.ifenv_pop_temp at h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hvv : v.val = fe.env.consts.val.take (fe.env.consts.val.length - 1) := by
+    split at hv
+    · rename_i h0
+      rw [Result.ok.injEq] at hv; subst hv
+      have : fe.env.consts.val.length = 0 := by
+        have := congrArg (fun x : Std.Usize => x.val) h0; simpa using this
+      rw [List.eq_nil_of_length_eq_zero this]; rfl
+    · rename_i h0
+      obtain ⟨i, hi', hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
+      obtain ⟨ii, -, hv⟩ := ConRon.Refine.bind_eq_ok_iff.mp hv
+      have hiv := ConRon.Refine.Nat.usub_val hi'
+      rw [alloc.vec.Vec.resize, if_pos (by simp [alloc.vec.Vec.length] at *; omega),
+        Result.ok.injEq] at hv
+      subst hv
+      simp only [List.resize, alloc.vec.Vec.len] at *
+      simp [hiv.2]
+  obtain ⟨hm, hhm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨c1, hc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [Result.ok.injEq] at h
+  subst h
+  have hc1v := ConRon.Refine.Nat.usub_val hc1
+  have hhmv : ConRon.Refine.HashMap2.Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable hm ∧
+      ConRon.Refine.HashMap2.toFun hm =
+        Function.update (ConRon.Refine.HashMap2.toFun fe.idx) n prev := by
+    cases prev with
+    | none =>
+      obtain ⟨q, hq, hhm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hhm
+      obtain ⟨q1, q2⟩ := q
+      obtain rfl := Result.ok_injective (show ok q2 = ok hm from hhm)
+      obtain ⟨hinv', -, hupd, -⟩ :=
+        ConRon.Refine.HashMap2.remove_refines_wf (P := fun _ => True) nidx_eq2
+          hi ConRon.Refine.HashMap2.KeysOk_true trivial hq
+      exact ⟨hinv', hupd⟩
+    | some row =>
+      obtain ⟨n1, hn1, hhm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hhm
+      obtain ⟨q, hq, hhm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hhm
+      obtain ⟨q1, q2⟩ := q
+      obtain rfl := Result.ok_injective (show ok q2 = ok hm from hhm)
+      rw [dupId_nidx _ _ hn1] at hq
+      obtain ⟨hinv', -, hupd, -⟩ :=
+        ConRon.Refine.HashMap2.insert_refines_wf (P := fun _ => True) nidx_eq2
+          hi ConRon.Refine.HashMap2.KeysOk_true trivial hq
+      exact ⟨hinv', hupd⟩
+  exact ⟨hvv, hhmv.2, by simpa using hc1v.2, by simpa using hc1v.1, hhmv.1⟩
+
+/-- **A pop undoes its push** on the port side, from any index answering like
+the pushed one. -/
+theorem gr_pop_push {rf rf1 rfX out : arena.env.IFEnv} {ci : arena.env.IConstantInfo}
+    {n : arena.handle.NIdx} {prev : Option (Std.U64 × Std.U64)} (hfinv : IFEnvInv rf)
+    (hpush : arena.env.ifenv_push_temp rf ci = ok (prev, rf1))
+    (hn : arena.env.i_constant_info_name ci = ok n)
+    (hX : RFEq rfX rf1) (hXi : IdxInv rfX)
+    (hpop : arena.env.ifenv_pop_temp rfX n prev = ok out) :
+    RFEq out rf ∧ IdxInv out := by
+  obtain ⟨-, n', hn', hprev, hc, ⟨s, -, ht⟩, hvb, -⟩ := gr_ifenv_push_temp_spec hfinv hpush
+  rw [hn] at hn'; cases Result.ok_injective hn'
+  obtain ⟨hoc, hot, hov, hov1, hoi⟩ := gr_ifenv_pop_temp_spec hXi hpop
+  obtain ⟨hXc, hXt, hXv⟩ := hX
+  refine ⟨⟨?_, ?_, ?_⟩, hoi⟩
+  · rw [hoc, hXc, hc]; simp
+  · rw [hot, hXt, ht, hprev]
+    funext k
+    by_cases hk : k = n
+    · subst hk; simp
+    · simp [Function.update_of_ne hk]
+  · apply UScalar.eq_imp
+    rw [hov, hXv, hvb]; omega
+
 end ConRon.Refine2
