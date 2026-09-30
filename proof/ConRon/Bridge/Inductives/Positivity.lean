@@ -2607,4 +2607,330 @@ theorem nestPos_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
 
 end PosFn
 
+/-! ## The member holes, the root crest, uniform occurrences -/
+
+section Root
+
+variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1498-1507 nestHoles
+(the cited `mapM`, one index) — member `mm`'s hole. -/
+def holeAtP (ctxP : ConLeche.NestCtx) (mm : Nat) : Option Expr :=
+  match ctxP.find? (ctxP.names.getD mm .anonymous) with
+  | some (.indInfo cv _) => (ConLeche.instPisWith ctxP.params cv.type).map (.fvar (ctxP.nP + mm) ·)
+  | _ => none
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1498-1507 nestHoles
+— the twin's accumulator loop from member `mm` on: the accumulator, then
+con-leche's `mapM` over the remaining indices. -/
+theorem nestHolesGo_spec (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) :
+    ∀ (ns : List NIdx) (nsP : List ConLeche.Name) (mm : Nat) (out : List EIdx)
+      (outP : List Expr),
+      ctxP.names.drop mm = nsP →
+      PSpec (fun st => IFEnvOKS env fe st ∧ dCtx st env.find? ctx = some ctxP ∧
+          Frontend.denoteNList st.ns ns = some nsP ∧ Frontend.denoteEList st out = some outP)
+        (Arena.nestHoles.go fe ctx mm ns out)
+        (ROp REL (((List.range' mm nsP.length).mapM (holeAtP ctxP)).map (outP ++ ·))) := by
+  intro ns
+  induction ns with
+  | nil =>
+    intro nsP mm out outP hdrop s₀ s' r hok hp hrun
+    obtain ⟨-, -, hns, hout⟩ := hp
+    simp only [Frontend.denoteNList, Option.some.injEq] at hns
+    subst hns
+    simp only [Arena.nestHoles.go] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, _, by simp, hout⟩
+  | cons n ns ih =>
+    intro nsP mm out outP hdrop s₀ s' r hok hp hrun
+    obtain ⟨hie, hctx, hns, hout⟩ := hp
+    obtain ⟨-, hcnP, hfind, hpar, -, -⟩ := dCtx_fields hctx
+    simp only [Frontend.denoteNList] at hns
+    cases hn : denoteN s₀.store.ns n with
+    | none => rw [hn] at hns; simp at hns
+    | some x =>
+    cases hns' : Frontend.denoteNList s₀.store.ns ns with
+    | none => rw [hn, hns'] at hns; simp at hns
+    | some xs =>
+    rw [hn, hns'] at hns
+    obtain rfl := (Option.some.inj hns).symm
+    have hget : ctxP.names.getD mm .anonymous = x := by
+      have : (ctxP.names.drop mm)[0]? = some x := by rw [hdrop]; rfl
+      rw [List.getElem?_drop, Nat.add_zero] at this
+      rw [List.getD_eq_getElem?_getD, this]; rfl
+    have hdrop' : ctxP.names.drop (mm + 1) = xs := by
+      rw [← List.drop_drop, hdrop]; rfl
+    have hhole : holeAtP ctxP mm = _ := rfl
+    simp only [List.length_cons, List.range'_succ, List.mapM_cons, Option.bind_eq_bind,
+      Option.pure_def]
+    have hie' := hie s₀ rfl
+    simp only [Arena.nestHoles.go] at hrun
+    cases hf : fe.find? n with
+    | none =>
+      rw [hf] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      refine ⟨PStep.refl hok, ?_⟩
+      show _ = none
+      simp only [holeAtP, hget, hfind, hie'.miss hok hn hf]
+      rfl
+    | some ci =>
+    rw [hf] at hrun
+    obtain ⟨c, hc, he⟩ := find_some_rel hie' hn hf
+    cases ci with
+    | indInfo cv caps =>
+      obtain ⟨cvP, capsP, hcv, -, rfl⟩ := denoteCI_indInfo_inv hc
+      obtain ⟨-, -, hty⟩ := denoteCV_inv hcv
+      dsimp only at hrun
+      obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+      obtain ⟨p1, ho⟩ := instPisWith_spec ctx.params ctxP.params cv.type cvP.type s₀ s₁ o hok
+        ⟨hpar, hty⟩ h1
+      have hG : holeAtP ctxP mm =
+          (ConLeche.instPisWith ctxP.params cvP.type).map (.fvar (ctxP.nP + mm) ·) := by
+        simp only [holeAtP, hget, hfind, he]
+      cases o with
+      | none =>
+        obtain ⟨rfl, rfl⟩ := pureOk h2
+        refine ⟨p1, ?_⟩
+        show _ = none
+        simp only [ROp] at ho
+        rw [hG, ho]; rfl
+      | some t =>
+        obtain ⟨tP, htP, ht⟩ := ho
+        dsimp only at h2
+        obtain ⟨v, s₂, h3, h4⟩ := bindOk h2
+        obtain ⟨p2, hv⟩ := internFVarE_run p1.ok ht h3
+        rw [hcnP] at hv
+        obtain ⟨p3, hr⟩ := ih xs (mm + 1) (out ++ [v]) (outP ++ [.fvar (ctxP.nP + mm) tP]) hdrop'
+          s₂ s' r p2.ok ⟨hie.mono (p1.ext.trans p2.ext), dCtx_ext _ (p1.ext.trans p2.ext) _ _ hctx,
+            denoteNListE_ext (p1.ext.trans p2.ext) _ _ hns',
+            denoteEList_append (denoteEList_ext (p1.ext.trans p2.ext) _ _ hout)
+              (by simp [Frontend.denoteEList, hv])⟩ h4
+        refine ⟨p1.trans (p2.trans p3), ?_⟩
+        rw [hG, htP]
+        simp only [Option.map_some, Option.bind_some]
+        cases hm : (List.range' (mm + 1) xs.length).mapM (holeAtP ctxP) with
+        | none => rw [hm] at hr; exact hr
+        | some l =>
+          rw [hm] at hr
+          cases r with
+          | none => simp [ROp] at hr
+          | some a =>
+            obtain ⟨b, hb, hbr⟩ := hr
+            simp only [Option.map_some, Option.some.injEq] at hb
+            subst hb
+            exact ⟨_, rfl, by simpa using hbr⟩
+    | _ =>
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      refine ⟨PStep.refl hok, ?_⟩
+      show _ = none
+      have := denoteCI_not_ind hc (by intro v caps h; exact nomatch h)
+      have hG : holeAtP ctxP mm = none := by
+        simp only [holeAtP, hget, hfind, he]
+        cases c with
+        | indInfo v k => exact absurd rfl (this v k)
+        | _ => rfl
+      rw [hG]; rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1498-1507 nestHoles
+The member holes, exactly con-leche's (`none` included). -/
+theorem nestHoles_spec (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) :
+    PSpec (fun st => IFEnvOKS env fe st ∧ dCtx st env.find? ctx = some ctxP)
+      (Arena.nestHoles fe ctx) (ROp REL (ConLeche.nestHoles ctxP)) := by
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hie, hctx⟩ := hp
+  obtain ⟨hcn, -, -, -, -, -⟩ := dCtx_fields hctx
+  simp only [Arena.nestHoles] at hrun
+  obtain ⟨p, hr⟩ := nestHolesGo_spec ctx ctxP ctx.names ctxP.names 0 [] [] rfl s₀ s' r hok
+    ⟨hie, hctx, hcn, rfl⟩ hrun
+  refine ⟨p, ?_⟩
+  have e1 : ConLeche.nestHoles ctxP = (List.range' 0 ctxP.names.length).mapM (holeAtP ctxP) := by
+    rw [ConLeche.nestHoles, ← List.range_eq_range']
+    rfl
+  rw [e1]
+  cases hm : (List.range' 0 ctxP.names.length).mapM (holeAtP ctxP) with
+  | none => rw [hm] at hr; exact hr
+  | some l => rw [hm] at hr; simpa using hr
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1509-1515 nestRootCanon
+The root frame's canonical crest of a member constructor, exactly
+con-leche's. -/
+theorem nestRootCanon_spec (fnd : ConLeche.Name → Option ConstantInfo)
+    (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) (cv : IConstantVal) (cvP : ConstantVal) :
+    CSpec μ env fe (fun st => dCtx st fnd ctx = some ctxP ∧ Frontend.denoteCV st cv = some cvP)
+      (Arena.nestRootCanon ctx cv) (ROp RE (ConLeche.nestRootCanon ctxP cvP)) := by
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hctx, hcv⟩ := hp
+  obtain ⟨hcn, -, -, -, hlv, -⟩ := dCtx_fields hctx
+  obtain ⟨-, hlps, hty⟩ := denoteCV_inv hcv
+  simp only [Arena.nestRootCanon] at hrun
+  obtain ⟨t, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨c1, ht⟩ := instLPFast_cstep hok hlps hlv hty h1
+  obtain ⟨p2, hr⟩ := nestCanonCrest_spec ctx.names ctxP.names ctx.lvls _ ctx.nP t _ s₁ s' r
+    c1.ok.state c1.ok.pins ⟨denoteNListE_ext c1.ext _ _ hcn, denoteLs_ext hlv c1.ext, ht⟩ h2
+  obtain ⟨-, hnP, -, -, -, -⟩ := dCtx_fields hctx
+  rw [hnP] at hr
+  exact ⟨c1.trans (p2.toCore c1.ok), hr⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1550-1559 nestUniformOk
+Official's `check_uniform_ind_occs` at one constructor: exactly con-leche's
+verdict. -/
+theorem nestUniformOk_spec (fnd : ConLeche.Name → Option ConstantInfo)
+    (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) (cv : IConstantVal) (cvP : ConstantVal) :
+    CSpec μ env fe (fun st => dCtx st fnd ctx = some ctxP ∧ Frontend.denoteCV st cv = some cvP)
+      (Arena.nestUniformOk ctx cv) (RV (ConLeche.nestUniformOk ctxP cvP)) := by
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hctx, hcv⟩ := hp
+  obtain ⟨hcn, hnP, -, -, -, -⟩ := dCtx_fields hctx
+  obtain ⟨-, -, hty⟩ := denoteCV_inv hcv
+  simp only [Arena.nestUniformOk] at hrun
+  obtain ⟨b, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨p1, hb⟩ := piDomsOcc_spec ctx.names ctxP.names ctx.nP (ctx.hiAt 0) ctx.nP cv.type
+    cvP.type s₀ s₁ b hok.state ⟨hcn, hty⟩ h1
+  simp only [RV, hnP, hiAt_eq hctx] at hb
+  subst hb
+  simp only [RV, ConLeche.nestUniformOk]
+  cases hB : Expr.piDomsOcc ctxP.names ctxP.nP (ctxP.hiAt 0) ctxP.nP cvP.type with
+  | true =>
+    rw [hB] at h2
+    simp only [↓reduceIte] at h2
+    obtain ⟨rfl, rfl⟩ := pureOk h2
+    exact ⟨p1.toCore hok, by simp⟩
+  | false =>
+  rw [hB] at h2
+  simp only [Bool.false_eq_true, ↓reduceIte] at h2
+  have c1 := p1.toCore hok
+  obtain ⟨o, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨c2, ho⟩ := nestRootCanon_spec fnd ctx ctxP cv cvP s₁ s₂ o c1.ok
+    ⟨dCtx_ext _ p1.ext _ _ hctx, denoteCV_ext hcv p1.ext⟩ h3
+  simp only [Bool.not_false, Bool.true_and]
+  cases o with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk h4
+    simp only [ROp] at ho
+    rw [ho]
+    exact ⟨c1.trans c2, rfl⟩
+  | some crest =>
+    obtain ⟨crestP, hcr, hc⟩ := ho
+    rw [hcr]
+    dsimp only at h4
+    obtain ⟨occ, s₃, h5, h6⟩ := bindOk h4
+    obtain ⟨p3, hocc⟩ := nestOcc_spec ctx.names ctxP.names 0 0 crest crestP s₂ s₃ occ
+      c2.ok.state ⟨denoteNListE_ext (p1.ext.trans c2.ext) _ _ hcn, hc⟩ h5
+    obtain ⟨rfl, rfl⟩ := pureOk h6
+    simp only [RV] at hocc
+    exact ⟨c1.trans (c2.trans (p3.toCore c2.ok)), by rw [hocc]⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1561-1569 nestUniform
+— one member's constructors all pass. -/
+theorem nestUniformAll_spec (fnd : ConLeche.Name → Option ConstantInfo)
+    (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) :
+    ∀ (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat)),
+      CSpec μ env fe (fun st => dCtx st fnd ctx = some ctxP ∧ dCtors st cs = some csP)
+        (cs.allM fun c => Arena.nestUniformOk ctx c.1)
+        (RV (csP.all fun c => ConLeche.nestUniformOk ctxP c.1)) := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro csP s₀ s' r hok hp hrun
+    obtain ⟨-, hcs⟩ := hp
+    simp only [dCtors, List.mapM_nil, Option.pure_def, Option.some.injEq] at hcs
+    subst hcs
+    simp only [List.allM] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, rfl⟩
+  | cons c cs ih =>
+    intro csP s₀ s' r hok hp hrun
+    obtain ⟨hctx, hcs⟩ := hp
+    simp only [dCtors, List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at hcs
+    cases hc1 : dCtor s₀.store c with
+    | none => rw [hc1] at hcs; simp at hcs
+    | some cP =>
+    cases hcs1 : cs.mapM (dCtor s₀.store) with
+    | none => rw [hc1, hcs1] at hcs; simp at hcs
+    | some csP' =>
+    rw [hc1, hcs1] at hcs
+    simp only [Option.bind_some, Option.some.injEq] at hcs
+    subst hcs
+    simp only [dCtor, Option.map_eq_some_iff] at hc1
+    obtain ⟨cvP, hcvP, rfl⟩ := hc1
+    simp only [List.allM] at hrun
+    obtain ⟨b, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨c1, hb⟩ := nestUniformOk_spec fnd ctx ctxP c.1 cvP s₀ s₁ b hok ⟨hctx, hcvP⟩ h1
+    simp only [RV] at hb
+    subst hb
+    cases hB : ConLeche.nestUniformOk ctxP cvP with
+    | false =>
+      rw [hB] at h2
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      exact ⟨c1, by simp [hB]⟩
+    | true =>
+      rw [hB] at h2
+      obtain ⟨c2, hr⟩ := ih csP' s₁ s' r c1.ok
+        ⟨dCtx_ext _ c1.ext _ _ hctx, dCtors_ext c1.ext _ _ hcs1⟩ h2
+      exact ⟨c1.trans c2, by simp only [RV] at hr; simp [hB, hr]⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1561-1569 nestUniform
+Official's uniform-occurrence check at every member's constructors: an
+accepting twin run is an accepting con-leche run. -/
+theorem nestUniform_spec (fnd : ConLeche.Name → Option ConstantInfo)
+    (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) :
+    ∀ (css : List (List (IConstantVal × Nat))) (cssP : List (List (ConstantVal × Nat))),
+      CSpecF μ env fe (fun st => dCtx st fnd ctx = some ctxP ∧ css.mapM (dCtors st) = some cssP)
+        (Arena.nestUniform ctx css) (fun _ _ _ => True)
+        (ConLeche.nestUniform (m := FueledM) ctxP cssP) := by
+  have hall : ∀ (css : List (List (IConstantVal × Nat))) (cssP : List (List (ConstantVal × Nat))),
+      CSpec μ env fe (fun st => dCtx st fnd ctx = some ctxP ∧ css.mapM (dCtors st) = some cssP)
+        (Arena.nestUniform ctx css)
+        (fun _ _ => ∀ cs ∈ cssP, ∀ c ∈ cs, ConLeche.nestUniformOk ctxP c.1 = true) := by
+    intro css
+    induction css with
+    | nil =>
+      intro cssP s₀ s' r hok hp hrun
+      obtain ⟨-, hcs⟩ := hp
+      simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hcs
+      subst hcs
+      simp only [Arena.nestUniform] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      exact ⟨CoreStep.refl hok, fun _ h => nomatch h⟩
+    | cons cs css ih =>
+      intro cssP s₀ s' r hok hp hrun
+      obtain ⟨hctx, hcs⟩ := hp
+      simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at hcs
+      cases hc1 : dCtors s₀.store cs with
+      | none => rw [hc1] at hcs; simp at hcs
+      | some csP =>
+      cases hcs1 : css.mapM (dCtors s₀.store) with
+      | none => rw [hc1, hcs1] at hcs; simp at hcs
+      | some cssP' =>
+      rw [hc1, hcs1] at hcs
+      simp only [Option.bind_some, Option.some.injEq] at hcs
+      subst hcs
+      simp only [Arena.nestUniform] at hrun
+      obtain ⟨b, s₁, h1, h2⟩ := bindOk hrun
+      obtain ⟨c1, hb⟩ := nestUniformAll_spec fnd ctx ctxP cs csP s₀ s₁ b hok ⟨hctx, hc1⟩ h1
+      simp only [RV] at hb
+      subst hb
+      by_cases hB : (csP.all fun c => ConLeche.nestUniformOk ctxP c.1) = true
+      · rw [if_pos hB] at h2
+        obtain ⟨c2, hr⟩ := ih cssP' s₁ s' r c1.ok
+          ⟨dCtx_ext _ c1.ext _ _ hctx, dCtors_ext.list c1.ext _ _ hcs1⟩ h2
+        refine ⟨c1.trans c2, fun cs' hcs' c hc => ?_⟩
+        rcases List.mem_cons.mp hcs' with rfl | hcs'
+        · exact List.all_eq_true.mp hB c hc
+        · exact hr cs' hcs' c hc
+      · rw [if_neg hB] at h2; exact absurd h2 (fun hc => failOk hc)
+  intro css cssP s₀ s' r hok hp hrun
+  obtain ⟨c, hr⟩ := hall css cssP s₀ s' r hok hp hrun
+  refine ⟨c, (), trivial, ?_⟩
+  have hn : cssP.findSome? (·.find? (!ConLeche.nestUniformOk ctxP ·.1)) = none := by
+    rw [List.findSome?_eq_none_iff]
+    intro cs hcs
+    rw [List.find?_eq_none]
+    intro c hc
+    simp [hr cs hcs c hc]
+  simp only [ConLeche.nestUniform, hn]
+  exact FOk.pure ()
+
+end Root
+
 end ConRon.Bridge.Inductives
