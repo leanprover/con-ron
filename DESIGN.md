@@ -65216,3 +65216,130 @@ what a gate needs.  A warning can hide only in a module some tree
 compiled and seeded into the cache without gating it; a from-scratch
 build with `LAKE_CACHE_DIR` pointed at an empty directory (#101's census)
 finds those.
+
+### Task #103 — con-leche bumped to 3ca9e2fe: a stuck projection keeps its structure argument (2026-09-30, Opus under Fable)
+
+con-leche goes from `1e567fcf` to **`3ca9e2fe`**, one commit:
+
+| upstream | what it did | executed checker? |
+|---|---|---|
+| **`3ca9e2fe`** (#323, KEEPPROJ) | `whnfCore`'s `.proj` arm, when the rule does not fire, returns `.proj sn i pe` — the INPUT, scrutinee as it was — instead of `.proj sn i e'` over the scrutinee's WHNF (official `whnf_core`: `reduce_proj` fails, `r = e`).  The WHNF loses the scrutinee's head constant, so defeq could not compare `a.i =?= b.i` arguments first: exponential.  Spec, gated copy, `CoreC`, the verify mirrors; `whnf_proj_inv`'s stuck arm is now the input; new fixture `e2e/proj_stuck_struct` with a 10 s timeout | **yes** |
+
+**Findings.**  `provenance.py update`: **16 `CHANGED`, 0 `GONE`**, all
+citations of `Kernel/Core.lean whnfCoreBody` or `Kernel/CoreGated.lean
+whnfCoreBodyGated` (11 Rust items, 5 twin items; the cited ranges grew by
+six lines).  `progress.py`'s `stale (CHANGED marker)` read 0 before and
+after, because none of the 16 items has a Refine-tier `_refines` lemma.  Five
+were real: `whnf_core_proj{,_at,_fire}` and the twin's two bodies.  The
+other eleven were citation-only (`whnf_core_stuck_tag`, `whnf_core_stuck_app`,
+`whnf_core_app_gated`, `core_k::proj_fire_shape_ok`, the two Rust bodies,
+which only call the arm, and their twins).  Coverage is unchanged at 818/954
+(the same as master's at `1e567fcf`).
+
+**Rust** (`crates/con-ron-core/src/arena/core.rs`; `core_gated.rs` calls the
+same function).  `whnf_core_proj` takes the input handle `e` as well as its
+view `(sn, i, pe)`, and all four stuck exits answer `Ok(e.dup2())`.  The
+spec's `.proj sn i pe` is the input node, and over handles that is the
+handle itself, as for the six value clauses.  So the port interns nothing
+where it used to intern `.proj sn i ep`, and matches `CoreC`'s `pure e`.
+`whnf_core_proj_at` and `whnf_core_proj_fire` take `e` in the slot `sn`
+held, and `_fire` drops `ep`, which only the rebuild read.  `scripts/extract.sh`:
+`Generated/Funs.lean` 155+/170−, mostly source-line comments.
+
+**The twin** (`Arena/Core.lean whnfCoreBody`, `Arena/CoreGated.lean
+whnfCoreBodyGated`): the five `internE (.proj sn i e')` exits each become
+`pure e`.
+
+**Theorem 1** (`Bridge/Core/Arms/WhnfCore.lean`).  The four stuck step
+lemmas (`whnfCore_proj_{none,cert_false,guard,head}`) now conclude
+`.ok (.proj sn i pe)`, which is upstream's new `whnf_proj_inv` stuck arm.
+`whnfCoreBody_proj`'s shared stuck exit `hstuck` is now a triple about
+`pure i`, closed by `denote_ext hden` (the input's own denotation), and it
+takes neither the reduced scrutinee's denotation nor the name's.  Its four
+call sites lost those two arguments.  Nothing else in the Bridge tier moved.
+
+**Theorem 2: nothing to change.**  `Refine2/Core/LS/WhnfCore.lean` inlines
+`whnf_core_proj{,_at,_fire}` (`@[lockstep_inline]`), and `lockstep` pairs
+`Ok(e.dup2())` with `pure e` as it already does in the value arms.  The same
+tree's `whnf_core_body_ls` and `whnf_core_body_gated_ls` went through
+unedited.
+
+**Fixtures and measurements.**  `diff-e2e.sh` **389/389 agree** at
+`--jobs=1` and `--jobs=4` (was 388; the new row is `proj_stuck_struct`).
+On that fixture the branch binary accepts in **0.026 s** (149 M
+`instructions:u`).  The master binary does not finish in 10 s: under
+`ulimit -v 8388608` it hits the cap and dumps core, which is upstream's
+exponential.  `scripts/diff-e2e.sh` now has con-leche's `E2E_TIMEOUT`
+table (`proj_stuck_struct` at 10 s, below `--timeout`), so a regression
+reads `TIMEOUT` in 10 s instead of eating the memory.  Checked both ways
+with the two binaries.  `Init`, `--verified --jobs=1`, `perf stat -e
+instructions:u,cycles:u` under `timeout 900` and `ulimit -v 8388608`, one run
+each (§7.x), both accepting 57 977:
+
+| binary | instructions:u | cycles:u |
+|---|---:|---:|
+| master `013d02dd` | 204 623 358 500 | 94 664 421 056 |
+| this branch | **204 103 117 151** (−0.25 %) | 90 940 925 875 |
+
+Upstream measured −0.02 % on `init-full`.  The port gains more because it
+no longer re-interns the stuck node (a hash-cons probe per stuck
+projection).  The Mathlib landing run was not made: the change allocates
+less and touches no table.
+
+**Docs.**  README's two con-leche anchors now point at the new pin (numbers
+only).  OVERVIEW's bracket anchor moved +9 lines (the new doc paragraph
+in `core.rs`), and the fixture count went 388 → 389.
+
+**Shared state.**  The campaign ran on a private reflink copy
+`_tmp/t103-aeneas-lean`, deleted at the end.  The shared con-leche checkout
+was not touched and is still at `1e567fcf`.
+
+#### Why the main tree missed the shared cache after #100, and the cheap fix
+
+After #100 landed, the main tree's rebuild took 28 min although #100 had
+seeded the cache.  **The cause: Aeneas writes the absolute source path into
+the `.olean` of every extracted module**, and Lake keys each module by its
+imports' olean *content*.  Aeneas's `rust_type`/`rust_fun` attributes record
+a `Span` whose `fileName` comes from `getLocalFileName`
+(`Aeneas/Extract/Extract.lean:194`).  That function strips the
+machine-local prefix only up to a directory called `Aeneas`, and returns
+any other path whole.  So `Generated/{Types,TypesExternal,Funs,FunsExternal}.olean`
+contain `/home/joachim/con-ron/proof/ConRon/Generated/….lean` in the main
+tree and `/…/_tmp/wt-X/proof/…` in a worktree.  They are the only 4 of
+con-ron's modules that do (no con-leche olean embeds a path).  The input hash
+itself is path-free, as #97-CACHE found.  But two compilations of the same
+`Generated` module at two paths give two different oleans under one input
+hash, and **every module downstream of `Generated`, which is all of
+`Refine2` and the Bridge's refinement half, gets a different key in each
+tree.**
+
+What #100 left behind, read off the traces:
+* `Generated/TypesExternal` has input hash `2659b50d…` both in the main
+  tree and in the cache.  The olean is `9cccdf00…` in the main tree
+  (compiled 2026-09-22 at the main path) and `6acd3525…` in the cache
+  (compiled in `_tmp/wt-pfix`).  The main tree's own copy was up to date by
+  its trace, so Lake kept it, and `Generated/Types`' key became `cffd4844…`
+  in the main tree against `096ec39c…` in the cache.
+* The main tree's `Refine2/Core/Eqns.olean` is **byte-identical** to one in
+  the cache (content `99870ef7…`).  It sits under a different input hash
+  (`5fcd7331…` in the main tree, `ccae17c6…` in the cache), so the main tree
+  re-derived it for 15+ minutes and got the same bytes.
+
+**Reproduced** with this branch's seed (a reflink copy of the main tree's
+`proof/.lake/build`, and a copy of the shared packages moved to `3ca9e2fe`
+as the maintainer would move them).  Every con-leche module was restored from
+the cache (link count 3).  `Generated.Funs` was re-elaborated (203 s) and then
+`Refine.*` one by one: a miss, as after #100.  The same tree with
+**`proof/.lake/build` deleted** restored all 2 871 jobs from the cache in
+**1.2 s**, `Refine2/Core/Eqns.olean` included (link count 3).
+
+**The cheap fix is procedural.**  A tree that has *compiled* its own
+`Generated` oleans never matches a seed from another path.  So after a
+landing, the main tree builds from an empty build directory:
+`rm -rf proof/.lake/build && (cd proof && lake build)`.  Restoring is seconds,
+and nothing is lost that the cache does not hold, as long as the landing
+worktree seeded it.  The structural fix would make `getLocalFileName` fall back to a path
+relative to the package (or the bare file name) in `aeneas-433.patch`.  That
+patch is one line, but it rebuilds the shared Aeneas library and
+invalidates every cache entry once, so it is the maintainer's call and was
+not made here.
