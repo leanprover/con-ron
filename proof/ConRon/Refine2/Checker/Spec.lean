@@ -5,7 +5,7 @@
 rule 5 — *a `HashMap::get` match that produces a value is its own function; a
 `view`'s loans must be dead at the memo's join* — makes the Rust of the
 declaration checker **finer-grained than the twin**: `check_constant_val` is
-four Rust functions, `check_proj_rule` is six, `check_value_group` is three.
+four Rust functions, `check_value_group` is three.
 None of those splits has a twin of its own, and DESIGN §3.1's one-to-one rule
 is about the TWIN's granularity, not the port's.
 

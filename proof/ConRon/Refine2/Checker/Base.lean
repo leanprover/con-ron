@@ -5,7 +5,7 @@
 `crates/con-ron-core/src/arena/{checker_base,checker_split}.rs` against
 `proof/ConRon/Arena/{CheckerBase,CheckerSplit}.lean`: the declaration
 checker's common ground — the per-declaration constant check, the two
-memoised guard walks, the projection-rule stages, the attempt bracket — and
+memoised guard walks, the declared parameter count, the attempt bracket — and
 the install/check seam of a value declaration.
 
 ## The attempt seam is lockstep (tasks #97-T2-LOCKSTEP D4, D4b)
