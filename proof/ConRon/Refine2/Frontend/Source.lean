@@ -4,11 +4,10 @@
 **Task #97-P5-Driver** (task #97-COMPOSE's mismatch 11(b), priced by task
 #97-P5-Front §4).  The binary parses with `export_c::parse_source`, the
 reader loop, over `driver::HandleSource` — the file handle as the core's
-`ChunkSource` trait, `Modeller`'s arrangement: the trait declared in the
-verified crate, the one implementation in the driver.  The capstone is stated
-about `export_c::parse_chunks` over a list of chunks.  This module equates
-the two, at the level of the Aeneas model, under ONE hypothesis about the
-source:
+`ChunkSource` trait: the trait declared in the verified crate, the one
+implementation in the driver.  The capstone is stated about
+`export_c::parse_chunks` over a list of chunks.  This module equates the two,
+at the level of the Aeneas model, under ONE hypothesis about the source:
 
     ReadsAs inst src cs   —   the source's successive reads are the chunks
                               `cs`, each nonempty, and then an empty one
@@ -31,8 +30,7 @@ namespace ConRon.Refine2.Frontend
 
 /-- con-leche: none — the input seam's hypothesis.  **The source hands out
 the chunks `cs`, each nonempty, and then an empty buffer**: the reads of the
-file, in order.  A statement about the unverified `ChunkSource` instance, as
-`ModellerRefines` is one about the unverified `Modeller` instance. -/
+file, in order.  A statement about the unverified `ChunkSource` instance. -/
 def ReadsAs {S : Type} (inst : frontend.export_c.ChunkSource S) :
     S → List (alloc.vec.Vec Std.U8) → Prop
   | src, [] => ∃ e src', inst.next_chunk src = ok (e, src') ∧ e.val = []
@@ -50,15 +48,15 @@ private theorem vec_index_ok' {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize}
 /-- **The two loops agree**: from the same parser state, the reader loop over
 a source that reads as the chunks left in the list (from cursor `i`) returns
 what the list loop returns, with the same arena state. -/
-theorem parse_source_loop_eq {G S : Type} {mi : frontend.types.Modeller G}
-    {inst : frontend.export_c.ChunkSource S} {pers : arena.store.PersTier} {m : G}
+theorem parse_source_loop_eq {S : Type}
+    {inst : frontend.export_c.ChunkSource S} {pers : arena.store.PersTier}
     {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} :
     ∀ (cs : List (alloc.vec.Vec Std.U8)) {ar src st carry line_no total}
       {i : Std.Usize} {o},
       chunks.val.drop i.val = cs → ReadsAs inst src cs →
-      frontend.export_c.parse_source_loop mi inst pers m ar src st carry line_no
+      frontend.export_c.parse_source_loop inst pers ar src st carry line_no
         total = ok o →
-      frontend.export_c.parse_chunks_loop mi pers m ar chunks st carry line_no total
+      frontend.export_c.parse_chunks_loop pers ar chunks st carry line_no total
         (alloc.vec.Vec.len chunks) i = ok (o.1, o.2.1) := by
   intro cs
   induction cs with
@@ -153,13 +151,13 @@ theorem parse_source_loop_eq {G S : Type} {mi : frontend.types.Modeller G}
 loop the binary runs, over a source that reads as the chunks of `chunks`
 (each nonempty) and then an empty buffer, returns what `parse_chunks` returns
 on `chunks`, with the same arena state. -/
-theorem parse_source_eq {G S : Type} {mi : frontend.types.Modeller G}
-    {inst : frontend.export_c.ChunkSource S} {pers : arena.store.PersTier} {m : G}
+theorem parse_source_eq {S : Type}
+    {inst : frontend.export_c.ChunkSource S} {pers : arena.store.PersTier}
     {ar : arena.monad.AState} {src : S}
-    {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {in_model census : Bool} {o}
+    {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {o}
     (hreads : ReadsAs inst src chunks.val)
-    (hrun : frontend.export_c.parse_source mi inst pers m ar src in_model census = ok o) :
-    frontend.export_c.parse_chunks mi pers m ar chunks in_model census
+    (hrun : frontend.export_c.parse_source inst pers ar src = ok o) :
+    frontend.export_c.parse_chunks pers ar chunks
       = ok (o.1, o.2.1) := by
   rw [frontend.export_c.parse_source] at hrun
   rw [frontend.export_c.parse_chunks]

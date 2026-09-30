@@ -13,9 +13,9 @@ body can carry — `proj_rec::proj_rec_value` alone is six functions for one
 48-line block — and the split halves have no twin to be stated against.
 
 This file is the twin side of those halves, written as twin-side `def`s in
-`AM`, transcribed from `Arena/Frontend/{ProjRec,ExportC}.lean` clause for
-clause, with an `_unfold` equation per family saying that the named twin IS
-its transcription composed.  **Nothing under `Arena/` is edited to make the
+`AM`, transcribed from `Arena/Frontend/ExportC.lean` clause for clause, with
+an `_unfold` equation per family saying that the named twin IS its
+transcription composed.  **Nothing under `Arena/` is edited to make the
 refinement convenient**, which is the standing rule for a twin (DESIGN §8.4);
 a reader checks these against the twin, not against a proof.
 
@@ -31,6 +31,16 @@ transcriptions and their six `_unfold`s are deleted — they predated the twin's
 tag-first reads and were no longer the twin; `proj_rec_value` and
 `proj_rec_owners` are proved against the twin directly, the port's splits
 unfolded in place (`lockstep_inline`).
+
+**Task #105** (con-leche's `uniform-inds` merge) deletes the projection
+rewrite (`ProjRec.lean`, upstream and here) and the in-process modeller
+(`noteIndBlocks`/`installGen`, `Modeller`): `mkProjMotiveAt`/`mkProjMinorAt`
+(the rewrite's split halves), `noteDeclEntries`/`noteEntries`/
+`noteDecl_unfold` (the pushed-record bookkeeping `pushDecl` no longer does
+first) and `noteIndBlocks`/`installGen` are gone with them, and
+`installIndD_unfold` restates the now much shorter `installIndD`: build the
+block (`indBlockOf`, unchanged), push it — no owner table, no block record, no
+modeller gate.
 -/
 import ConRon.Refine2.Frontend.NatOpGround
 
@@ -43,67 +53,18 @@ open ConRon.Arena.Frontend
 open ConLeche.Frontend (IdTable NameRec LevelRec ExprRec PwRec CVRec HintsRec RuleRec
   IndTypeRec IndCtorRec IndRecRec DeclRec LineRec)
 
-/-! ## `proj_rec::mk_proj_motive` / `mk_proj_minor`
-
-`ProjRec.lean:277-307`, past the peel: the port does `stripPisAll` and the
-shape test in the outer function and the arm in the `_at` one. -/
-
-/-- The cited `match bs with | [(d, m)] => … | bs => …` of `mkProjMotive`. -/
-def mkProjMotiveAt (pb : ProjBuild) (fuel : Nat) (bs : List (EIdx × ConLeche.BinderMeta)) :
-    AM (Option EIdx) := do
-  match bs with
-  | [(d, m)] =>
-    if ← headIs fuel pb.T d then do
-      let rl ← liftLooseBVarsFast fuel 1 1 pb.R
-      pure (some (← internE (.lam d rl m)))
-    else
-      pure (some (← internE (.lam d pb.punitC m)))
-  | bs => pure (some (← mkLams bs pb.punitC))
-
-/-- The cited `if ← headIs fuel pb.ctor major then … else …` of
-`mkProjMinor`, at the spine's last argument. -/
-def mkProjMinorAt (pb : ProjBuild) (fuel : Nat)
-    (bs : List (EIdx × ConLeche.BinderMeta)) (major : EIdx) : AM (Option EIdx) := do
-  if ← headIs fuel pb.ctor major then
-    if pb.i < bs.length then do
-      let b ← internE (.bvar (bs.length - 1 - pb.i))
-      pure (some (← mkLams bs b))
-    else pure none
-  else pure (some (← mkLams bs pb.punitUnitC))
-
 /-! ## `export_c`'s own splits
 
-`note_decl`'s two halves, and the value halves of the two entry writers that
-the twin spells inline.  `RefineOld/Frontend/StateDR.lean` needed exactly the
-same two escape-hatch definitions for the `Expr`-tree port
-(`parseExprRecD` / `parseLevelRecD`, and its `parseExprEntryD_eq` /
-`parseLevelEntryD_eq` equivalences). -/
+The value halves of the two entry writers that the twin spells inline.
+`RefineOld/Frontend/StateDR.lean` needed exactly the same two escape-hatch
+definitions for the `Expr`-tree port (`parseExprRecD` / `parseLevelRecD`, and
+its `parseExprEntryD_eq` / `parseLevelEntryD_eq` equivalences).
 
-/-- The cited `cvs` of `noteDecl`: the constants one pushed record declares. -/
-def noteDeclEntries : IDeclaration → AM (List (NIdx × List NIdx × EIdx × Option Nat))
-  | .axiomDecl cv => pure [(cv.name, cv.levelParams, cv.type, none)]
-  | .defnDecl cv _ h => pure [(cv.name, cv.levelParams, cv.type, some (hintHeight h))]
-  | .thmDecl cv _ => pure [(cv.name, cv.levelParams, cv.type, none)]
-  | .opaqueDecl cv _ => pure [(cv.name, cv.levelParams, cv.type, none)]
-  | .basisDecl _ => fail (.internal "noteDecl: a basisDecl is not a parser record")
-  | .quotDecl _ cv => pure [(cv.name, cv.levelParams, cv.type, none)]
-  | .indDecl block _ => block.mapM fun ci => do
-      let v ← ci.toConstantVal
-      pure (v.name, v.levelParams, v.type, none)
-
-/-- The cited `cvs.foldl` of `noteDecl`. -/
-def noteEntries (st : StateD) (es : List (NIdx × List NIdx × EIdx × Option Nat)) :
-    StateD :=
-  let ct := st.constTypes
-  let hs := st.heights
-  let st := { st with constTypes := {}, heights := {} }
-  let (ct, hs) := es.foldl (fun (ct, hs) (n, lps, ty, h) =>
-    (ct.insert n (lps, ty), match h with | some h => hs.insert n h | none => hs)) (ct, hs)
-  { st with constTypes := ct, heights := hs }
-
-theorem noteDecl_unfold (st : StateD) (d : IDeclaration) :
-    noteDecl st d = (do pure (noteEntries st (← noteDeclEntries d))) := by
-  cases d <;> rfl
+**Task #105** deletes `ProjRec.lean` upstream (`mkProjMotiveAt`/
+`mkProjMinorAt`, the projection rewrite's split halves, go with it) and the
+in-process modeller (`noteDecl`'s constants-and-heights bookkeeping —
+`noteDeclEntries`/`noteEntries`/`noteDecl_unfold` — is gone: `pushDecl` no
+longer runs it first). -/
 
 /-- The value half of `parseLevelEntryD`, which the twin writes inline. -/
 def parseLevelRecD (st : StateD) : ConLeche.Frontend.LevelRec → AM LNodeView
@@ -161,49 +122,16 @@ def indBlockOf (st : StateD) (tys : List IndTypeRec) (cts : List IndCtorRec)
       (r.numParams + r.numMotives + r.numMinors) rules)
   pure (types ++ ctors ++ recs)
 
-/-- The twin's `b.types.foldl` into `indBlocks`. -/
-def noteIndBlocks (st : StateD) (b : BlockRec) : StateD :=
-  let m := st.indBlocks
-  let st := { st with indBlocks := {} }
-  { st with indBlocks := b.types.foldl (fun m t => m.insert t.cv.name b) m }
-
-/-- The modeller arm of `installIndD`, which the twin writes inline and the
-port splits for the loop-exit reason (task #87 §13 records the same decision
-for the `Expr`-tree port: *"no standalone `install_gen_refines`"*, because
-con-leche writes the body inline with the post-`noteIndBlocks` state
-substituted field by field). -/
-def installGen (md : Modeller) (st : StateD) (block : List IConstantInfo) (nPd : Nat)
-    (T0 : NIdx) (b : BlockRec) : AM (StateD ⊕ RecordVerdict) := do
-  let ctx : Ctx :=
-    ⟨fun n => st.constTypes[n]?, fun n => st.heights.getD n 0, fun n => st.indBlocks[n]?⟩
-  match ← md.generate ctx b with
-  | .error why =>
-    if st.inModelCensus then
-      return .inl (← pushDecl
-        { st with inModelDeclined := st.inModelDeclined.push (T0, why) }
-        (.indDecl block nPd))
-    else
-      return .inr (.declined s!"in-process model of {← readName T0}: {why}")
-  | .ok gen => do
-    let st1 ← pushGenList st gen T0
-    let st1 := { st1 with
-      inModelled := st1.inModelled.push T0,
-      inModelGen := st1.inModelGen.push (st1.indCount - 1, gen.toArray) }
-    return .inl (← pushDecl st1 (.indDecl block nPd))
-
-theorem installIndD_unfold (md : Modeller) (st : StateD) (tys : List IndTypeRec)
+/-- **`installIndD_unfold`.**  Task #105 deletes the projection-owner table
+(`registerProjOwners`), the block record (`blockRecOf`/`noteIndBlocks`) and
+the modeller gate (`installGen`, `Modeller`) that used to follow
+`indBlockOf` here: every block installs through the kernel's uniform
+installer now, so the parser has nothing left to do but push it. -/
+theorem installIndD_unfold (st : StateD) (tys : List IndTypeRec)
     (cts : List IndCtorRec) (rcs : List IndRecRec) (nPd : Nat) :
-    installIndD md st tys cts rcs nPd = (do
+    installIndD st tys cts rcs nPd = (do
       let block ← indBlockOf st tys cts rcs
-      let st ← registerProjOwners st tys cts rcs block
-      let T0 ← match block.head? with
-        | some ci => pure ci.name
-        | none => internNNode .anonymous
-      let b ← blockRecOf st tys cts rcs
-      let st := noteIndBlocks st b
-      if st.inModel && wants b then installGen md st block nPd T0 b
-      else return .inl (← pushDecl st (.indDecl block nPd))) := by
+      pushDecl st (.indDecl block nPd)) := by
   simp only [installIndD, indBlockOf, bind_assoc, pure_bind]
-  rfl
 
 end ConRon.Refine2.Frontend

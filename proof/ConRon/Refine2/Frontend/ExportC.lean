@@ -2,10 +2,11 @@
 # `ConRon.Refine2.Frontend.ExportC` — the readers and the record builders
 
 **Task #97-P5-Frontend**, the first of `frontend/export_c.rs`'s three files:
-the error channel's four constructors, the parse state, the index-table
-readers, the value builders, the projection hooks and the modeller's booking
-— seventy-nine statements over seventy-six of the module's one hundred and
-eighteen `pub fn`s (fifteen of them finding 17's no-claims).
+the error channel's four constructors, the parse state and the index-table
+readers and writers.  **Task #105** (con-leche's `uniform-inds` merge) deletes
+the projection rewrite's hooks and the in-process modeller's booking — every
+inductive block installs through the kernel's uniform installer now, so
+`push_decl` is a plain append and needs no `noteDecl` bookkeeping first.
 `Refine2/Frontend/ExportCInd.lean` has the inductive record's validation and
 install, `Refine2/Frontend/ExportCLine.lean` the line layer and the chunk
 drivers.
@@ -14,8 +15,8 @@ drivers.
 
 **The `StateD` readers are `SimLR`, the writers `SimD`.**  `st_name`,
 `st_level`, `st_expr`, `get_decl_d`, `parse_cv_d`, `parse_rule_d` take the
-state by shared reference and return a value or a `LineErr`; `note_decl`,
-`push_decl`, `parse_*_entry_d` take it by `&mut` and return `()`.  The port's
+state by shared reference and return a value or a `LineErr`; `push_decl`,
+`parse_*_entry_d` take it by `&mut` and return `()`.  The port's
 `&mut StateD` is Aeneas's return value, so the second family's outcome is
 `(Result () LineErr) × AState × StateD`, which is `SimD`.
 
@@ -345,24 +346,22 @@ theorem id_table_empty_rel {T α : Type} {A : T → α}
   obtain ⟨hinv, -, hnone⟩ := ConRon.Refine.HashMap.new_refines (HashableInst := hU64) hm
   exact ⟨rfl, ConRon.Refine.HashMap.RelOn_empty hnone, hinv⟩
 
-/-- **`state_d_init` refines `StateD.init`** (`ExportC.lean:709-713`): index 0
-of the name table is the format's implicit `Name.anonymous` and index 0 of the
-level table its `Level.zero`, and over handles that means the handles those
-two nodes intern at — in the PERSISTENT tier, which is the tier the whole
-parse appends to.
-
-Both arms (task #97-P5-Front restated it from a success-only statement, which
-left `parse_bytes`/`parse_chunks` nothing to say about their `(e, 0)` arm).
-The two interns are `Specs.lean`'s `estore_intern_name_abs` /
-`estore_intern_level_abs` (no frozen hypothesis since task #97-P5-Unfreeze);
-what is left is the nineteen-field `StateDRel` at the fresh record —
-`IdTableRel` at a singleton and at `id_table_empty`, `RelOn` at six
-`HashMap2::new`s (`Refine/HashMap2.lean`'s `new_refines`), and `StateDInv`. -/
-theorem state_d_init_refines {pers rst lst in_model census o}
+/-- **`state_d_init` refines `StateD.init`** (`Arena/Frontend/ExportC.lean`):
+index 0 of the name table is the format's implicit `Name.anonymous` and index
+0 of the level table its `Level.zero`, and over handles that means the
+handles those two nodes intern at — in the PERSISTENT tier, which is the tier
+the whole parse appends to.  Task #105 drops the `in_model`/`census`
+parameters (the modeller they configured is gone) and shrinks the record
+built at the end from nineteen fields to four: the two interns
+(`Specs.lean`'s `estore_intern_name_abs` / `estore_intern_level_abs`, no
+frozen hypothesis since task #97-P5-Unfreeze) plus `IdTableRel` at a
+singleton twice and at `id_table_empty` once — no `HashMap2::new` left to
+read, and `StateDInv` is the empty structure. -/
+theorem state_d_init_refines {pers rst lst o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.export_c.state_d_init pers rst.store in_model census = ok o) :
+    (h : frontend.export_c.state_d_init pers rst.store = ok o) :
     SimRel₀ (fun rsd lsd => StateDRel rsd lsd ∧ StateDInv rsd) pers lst
-      (o.1, withStore rst o.2) (StateD.init in_model census) := by
+      (o.1, withStore rst o.2) StateD.init := by
   rw [frontend.export_c.state_d_init] at h
   obtain ⟨⟨r, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hS1 := ConRon.Refine2.intern_n_node_run₀ hrel hinv .Anonymous trivial
@@ -395,32 +394,27 @@ theorem state_d_init_refines {pers rst lst in_model census o}
       obtain ⟨it, hit, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨it1, hit1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨it2, hit2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨hm, hhm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨hm1, hhm1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨hm2, hhm2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨hm3, hhm3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨hm4, hhm4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨hm5, hhm5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have ho := Result.ok_injective h; subst ho
-      obtain ⟨i0, -, n0'⟩ := ConRon.Refine.HashMap2.new_refines
-        (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hhm
-      obtain ⟨i1, -, n1'⟩ := ConRon.Refine.HashMap2.new_refines
-        (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hhm1
-      obtain ⟨i2, -, n2'⟩ := ConRon.Refine.HashMap2.new_refines
-        (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hhm2
-      obtain ⟨i3, -, n3'⟩ := ConRon.Refine.HashMap2.new_refines
-        (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hhm3
-      obtain ⟨i4, -, n4'⟩ := ConRon.Refine.HashMap2.new_refines
-        (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hhm4
-      obtain ⟨i5, -, n5'⟩ := ConRon.Refine.HashMap2.new_refines
-        (HashableInst := arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable) hhm5
-      refine ⟨_, lst2, rfl, ⟨⟨id_table_singleton_rel hit, id_table_singleton_rel hit1,
-        id_table_empty_rel hit2, rfl,
-        ConRon.Refine.HashMap2.RelOn_empty n0', ConRon.Refine.HashMap2.RelOn_empty n1', rfl,
-        ConRon.Refine.HashMap2.RelOn_empty n2', ConRon.Refine.HashMap2.RelOn_empty n3', rfl,
-        rfl, rfl, ConRon.Refine.HashMap2.RelOn_empty n4', rfl, rfl,
-        ConRon.Refine.HashMap2.RelOn_empty n5', rfl, by simp⟩,
-        ⟨i0, i1, i2, i3, i4, i5⟩⟩, hrel2, hinv2⟩
+      exact ⟨_, lst2, rfl, ⟨id_table_singleton_rel hit, id_table_singleton_rel hit1,
+        id_table_empty_rel hit2, rfl⟩, hrel2, hinv2⟩
+
+/-! ## Booking a pushed record -/
+
+/-- **`push_decl` refines `pushDecl`** (`Arena/Frontend/ExportC.lean`).  Task
+#105 deletes the constants-and-heights bookkeeping the in-process modeller
+read (con-leche's `noteDecl`, the twin's `Spec.lean` note): the port's
+`push_decl` no longer touches `pers`/`ar` at all, and is a plain
+`Vec::push` on `decls`. -/
+theorem push_decl_refines {rsd lsd d rsd'} (hd : StateDRel rsd lsd)
+    (h : frontend.export_c.push_decl rsd d = ok rsd') :
+    StateDRel rsd' { lsd with decls := lsd.decls.push (absIDeclaration d) } := by
+  rw [frontend.export_c.push_decl] at h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  exact { hd with
+    decls := by
+      rw [hd.decls, ConRon.Refine.vec_push_val hv]
+      simp [absIDeclArr] }
 
 /-! ## The index tables -/
 
@@ -1862,14 +1856,14 @@ theorem parse_rules_d_refines {rsd lsd lst rus o} (hd : StateDRel rsd lsd)
 /-! ## The parse result -/
 
 /-- **`parse_result_of_state` refines `ParseResultD.ofState`**
-(`ExportC.lean:717-719`). -/
+(`Arena/Frontend/ExportC.lean`).  Task #105 shrinks `ParseResultD` to its one
+surviving field. -/
 theorem parse_result_of_state_refines {rsd lsd p} (hd : StateDRel rsd lsd)
     (h : frontend.export_c.parse_result_of_state rsd = ok p) :
     ParseResultDRel p (ParseResultD.ofState lsd) := by
   rw [frontend.export_c.parse_result_of_state] at h
   cases Result.ok_injective h
-  exact ⟨hd.decls, hd.projRewrites, hd.inModelled, hd.genRecords, hd.genOwner,
-    hd.inModelGen, hd.inModelDeclined⟩
+  exact ⟨hd.decls⟩
 
 /-- **`at_line` refines `atLine`** (`ExportC.lean:855-859`): the line number
 folded into the message.  The KIND — hence the exit code — is untouched, and
@@ -1960,11 +1954,6 @@ statements are `trivial` and carry no axiom at all.) -/
 /-- info: 'ConRon.Refine2.Frontend.rel_offset_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms rel_offset_refines
-
-
-/-- info: 'ConRon.Refine2.Frontend.note_entries_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms note_entries_refines
 
 /-- info: 'ConRon.Refine2.Frontend.push_decl_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
