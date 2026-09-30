@@ -2321,4 +2321,212 @@ theorem nestPhs_spec (n : Nat) :
   intro s₀ s' r hok hpins hp hrun
   exact nestPhs_go (List.range n) s₀ s' r hok hpins hp hrun
 
+/-! ## The list and record helpers, related -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:718-721 NestCtx.hiAt
+The first hole-free index is the denoted context's. -/
+theorem hiAt_eq {st : EStore} {fnd : ConLeche.Name → Option ConstantInfo}
+    {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (h : dCtx st fnd ctx = some ctxP)
+    (nf : Nat) : ctx.hiAt nf = ctxP.hiAt nf := by
+  obtain ⟨namesP, _, _, _, rfl, hN, _⟩ := dCtx_inv h
+  simp only [Arena.NestCtx.hiAt, ConLeche.NestCtx.hiAt, denoteNList_length hN]
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:723-727 NestCtx.rootHoles
+The root frame's entries denote the denoted context's: the interned `lvls`
+IS `lps.map .param` (`dCtx`'s own clause). -/
+theorem rootHoles_denote {st : EStore} {fnd : ConLeche.Name → Option ConstantInfo}
+    {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (h : dCtx st fnd ctx = some ctxP) :
+    ctx.rootHoles.mapM (dHole st) = some ctxP.rootHoles := by
+  obtain ⟨namesP, lpsP, paramsP, _, rfl, hN, _, hPa, _, hLv⟩ := dCtx_inv h
+  simp only [Arena.NestCtx.rootHoles, ConLeche.NestCtx.rootHoles]
+  clear h
+  revert namesP
+  induction ctx.names with
+  | nil =>
+    intro namesP hN
+    simp only [Frontend.denoteNList, Option.some.injEq] at hN
+    subst hN; rfl
+  | cons a as ih =>
+    intro namesP hN
+    simp only [Frontend.denoteNList] at hN
+    cases ha : denoteN st.ns a with
+    | none => rw [ha] at hN; simp at hN
+    | some x =>
+      cases has : Frontend.denoteNList st.ns as with
+      | none => rw [ha, has] at hN; simp at hN
+      | some xs =>
+        rw [ha, has] at hN
+        obtain rfl := Option.some.inj hN
+        simp only [List.map_cons, List.mapM_cons, ih xs has, dHole, dKey, ha, hLv, hPa,
+          Option.bind_eq_bind, Option.pure_def, Option.bind_some, Option.map_some]
+
+/-- con-leche: none — `Option`'s `mapM` at an index, as the `Option` lift. -/
+theorem mapM_option_getElem? {α β : Type} {f : α → Option β} {st : EStore} :
+    ∀ {xs : List α} {ys : List β}, xs.mapM f = some ys → ∀ (j : Nat),
+      ROp (fun y (_ : EStore) x => f x = some y) ys[j]? st xs[j]? := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro ys h j
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+    subst h
+    show ([] : List β)[j]? = none
+    simp
+  | cons x xs ih =>
+    intro ys h j
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h
+    cases hx : f x with
+    | none => rw [hx] at h; simp at h
+    | some y =>
+      rw [hx] at h
+      cases hxs : xs.mapM f with
+      | none => rw [hxs] at h; simp at h
+      | some zs =>
+        rw [hxs] at h
+        simp only [Option.bind_some, Option.some.injEq] at h
+        subst h
+        cases j with
+        | zero => exact ⟨y, rfl, hx⟩
+        | succ j =>
+          simp only [List.getElem?_cons_succ]
+          exact ih hxs j
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:729-734 nestHoleAt
+The hole `i`'s entry: the twin reads `rootHoles ++ prog` (outermost first),
+con-leche `rootHoles ++ prog.reverse` (innermost first), and `dProg` is the
+reversal between them. -/
+theorem nestHoleAt_rel {st : EStore} {fnd : ConLeche.Name → Option ConstantInfo}
+    {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} {prog : List Arena.NestHole}
+    {progP : List ConLeche.NestHole} (hc : dCtx st fnd ctx = some ctxP)
+    (hp : dProg st prog = some progP) (i : Nat) :
+    ROp (fun hP (st : EStore) h => dHole st h = some hP)
+      (ConLeche.nestHoleAt ctxP progP i) st (Arena.nestHoleAt ctx prog i) := by
+  have hnP : ctx.nP = ctxP.nP := by
+    obtain ⟨_, _, _, _, rfl, _⟩ := dCtx_inv hc; rfl
+  simp only [dProg, Option.map_eq_some_iff] at hp
+  obtain ⟨ys, hys, rfl⟩ := hp
+  have hall : (ctx.rootHoles ++ prog).mapM (dHole st) =
+      some (ctxP.rootHoles ++ ys.reverse.reverse) := by
+    rw [List.mapM_append, rootHoles_denote hc, hys, List.reverse_reverse]
+    simp
+  simp only [Arena.nestHoleAt, ConLeche.nestHoleAt, hnP]
+  split
+  · have key := mapM_option_getElem? (st := st) hall (i - ctxP.nP)
+    cases hx : (ctx.rootHoles ++ prog)[i - ctxP.nP]? with
+    | none =>
+      rw [hx] at key
+      have k2 : (ctxP.rootHoles ++ ys.reverse.reverse)[i - ctxP.nP]? = none := key
+      exact k2
+    | some a =>
+      rw [hx] at key
+      obtain ⟨b, hb, hd⟩ := key
+      exact ⟨b, hb, hd⟩
+  · rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:521-528 NestKey
+(`DecidableEq`) — **a key comparison is a structural comparison**: the twin's
+derived `BEq` is handle equality componentwise, and each component's handle
+is its identity on a well-formed store. -/
+theorem beq_key_eq {st : EStore} (hwf : StoreWF st) {k₁ k₂ : Arena.NestKey}
+    {a b : ConLeche.NestKey} (h₁ : dKey st k₁ = some a) (h₂ : dKey st k₂ = some b) :
+    (k₁ == k₂) = (a == b) := by
+  obtain ⟨c1, l1, d1⟩ := dKey_inv h₁
+  obtain ⟨c2, l2, d2⟩ := dKey_inv h₂
+  have e1 := beq_handle_eq hwf c1 c2
+  have e2 := beq_lshandle_eq hwf l1 l2
+  have e3 := beq_ehandleList_eq hwf d1 d2
+  obtain ⟨kc1, kl1, kd1⟩ := k₁
+  obtain ⟨kc2, kl2, kd2⟩ := k₂
+  obtain ⟨ac, al, ad⟩ := a
+  obtain ⟨bc, bl, bd⟩ := b
+  simp only at e1 e2 e3
+  have hl : ((⟨kc1, kl1, kd1⟩ : Arena.NestKey) == ⟨kc2, kl2, kd2⟩) =
+      (kc1 == kc2 && (kl1 == kl2 && kd1 == kd2)) := rfl
+  rw [hl, e1, e2, e3]
+  apply Bool.eq_iff_iff.mpr
+  simp [ConLeche.NestKey.mk.injEq]
+
+/-- con-leche: none — a key-list membership test is the denoted list's. -/
+theorem contains_key_eq {st : EStore} (hwf : StoreWF st) {k : Arena.NestKey}
+    {kP : ConLeche.NestKey} (hk : dKey st k = some kP) :
+    ∀ {ks : List Arena.NestKey} {ksP : List ConLeche.NestKey},
+      ks.mapM (dKey st) = some ksP → ks.contains k = ksP.contains kP := by
+  intro ks
+  induction ks with
+  | nil =>
+    intro ksP h
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+    subst h; rfl
+  | cons a as ih =>
+    intro ksP h
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h
+    cases ha : dKey st a with
+    | none => rw [ha] at h; simp at h
+    | some x =>
+      rw [ha] at h
+      cases has : as.mapM (dKey st) with
+      | none => rw [has] at h; simp at h
+      | some xs =>
+        rw [has] at h
+        simp only [Option.bind_some, Option.some.injEq] at h
+        subst h
+        simp only [List.contains_cons, beq_key_eq hwf hk ha, ih has]
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1318-1325 nestAcceptGroup
+A frame's group accepted with its instantiation, key array for key array:
+the group enters by its NAMES only (its second components, the holes' types,
+are not read), the membership test is `contains_key_eq`. -/
+theorem nestAcceptGroup_denote {st : EStore} (hwf : StoreWF st) {us : LsIdx}
+    {usP : List Level} {ds : List EIdx} {dsP : List Expr}
+    (hus : denoteLs st.lss us = some usP) (hds : Frontend.denoteEList st ds = some dsP) :
+    ∀ (grp : List (NIdx × EIdx)) (grpP : List (ConLeche.Name × Expr))
+      (keys : Array Arena.NestKey) (keysP : Array ConLeche.NestKey),
+      Frontend.denoteNList st.ns (grp.map Prod.fst) = some (grpP.map Prod.fst) →
+      keys.toList.mapM (dKey st) = some keysP.toList →
+      (Arena.nestAcceptGroup us ds grp keys).toList.mapM (dKey st) =
+        some (ConLeche.nestAcceptGroup usP dsP grpP keysP).toList := by
+  intro grp
+  induction grp with
+  | nil =>
+    intro grpP keys keysP hg hk
+    cases grpP with
+    | nil => exact hk
+    | cons _ _ => simp [Frontend.denoteNList] at hg
+  | cons g gs ih =>
+    intro grpP keys keysP hg hk
+    obtain ⟨c, x⟩ := g
+    cases grpP with
+    | nil =>
+      simp only [List.map_cons, List.map_nil, Frontend.denoteNList] at hg
+      split at hg <;> simp at hg
+    | cons gP gsP =>
+      obtain ⟨cP, xP⟩ := gP
+      simp only [List.map_cons, Frontend.denoteNList] at hg
+      cases hc : denoteN st.ns c with
+      | none => rw [hc] at hg; simp at hg
+      | some c' =>
+        cases hr : Frontend.denoteNList st.ns (gs.map Prod.fst) with
+        | none => rw [hc, hr] at hg; simp at hg
+        | some r' =>
+          rw [hc, hr] at hg
+          obtain ⟨rfl, hr'⟩ := List.cons.inj (Option.some.inj hg)
+          rw [hr'] at hr
+          have hkey : dKey st ⟨c, us, ds⟩ = some ⟨c', usP, dsP⟩ := by
+            simp only [dKey, hc, hus, hds, Option.bind_eq_bind, Option.bind_some,
+              Option.pure_def]
+          have hcont : keys.contains ⟨c, us, ds⟩ = keysP.contains ⟨c', usP, dsP⟩ := by
+            rw [← Array.contains_toList, ← Array.contains_toList]
+            exact contains_key_eq hwf hkey hk
+          simp only [Arena.nestAcceptGroup, ConLeche.nestAcceptGroup]
+          by_cases hin : keys.contains ⟨c, us, ds⟩ = true
+          · have hinP : keysP.contains ⟨c', usP, dsP⟩ = true := by rw [← hcont]; exact hin
+            rw [if_pos hin, if_pos hinP]
+            exact ih gsP keys keysP hr hk
+          · have hinP : ¬ keysP.contains ⟨c', usP, dsP⟩ = true := by rw [← hcont]; exact hin
+            rw [if_neg hin, if_neg hinP]
+            refine ih gsP _ _ hr ?_
+            rw [Array.toList_push, Array.toList_push, List.mapM_append, hk]
+            simp only [List.mapM_cons, List.mapM_nil, hkey, Option.bind_eq_bind,
+              Option.pure_def, Option.bind_some]
+
 end ConRon.Bridge.Inductives
