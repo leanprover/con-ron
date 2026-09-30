@@ -103,15 +103,6 @@ pub struct ClassRead {
     pub rec_cls: Vec<u64>,
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:55-61 ClassRead
-/// The record copy.
-pub fn class_read_dup(r: &ClassRead) -> ClassRead {
-    ClassRead {
-        slots: slots_dup(&r.slots, 0, Vec::new()),
-        rec_cls: crate::arena::inductives::positivity::u64_vec_dup(&r.rec_cls, 0, Vec::new()),
-    }
-}
-
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:65-67 ClassRead.classes
 /// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean ClassRead.classes` — the
 /// classes (the motives' keys), in prefix order.

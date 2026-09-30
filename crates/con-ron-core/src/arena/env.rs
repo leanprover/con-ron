@@ -661,42 +661,6 @@ pub fn i_constant_info_is_tower_entry(c: &IConstantInfo) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo.type
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::i_constant_info_type_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Env.lean:246-249 IConstantInfo.type` — the
-/// constant's declared type.
-pub fn i_constant_info_type(
-    pers: &PersTier,
-    ar: &mut EStore,
-    c: &IConstantInfo,
-) -> Result<EIdx, CheckError>  {
-    match i_constant_info_to_constant_val(pers, ar, c) {
-        Err(e) => Err(e),
-        Ok(v) => Ok(v.ty),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:643 name
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::i_declaration_name_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Env.lean:251-257 IDeclaration.name` — the
-/// name of a non-basis declaration.  con-leche's `.anonymous` fall-through is
-/// the interned anonymous name here, which is why the store is in hand.
-pub fn i_declaration_name(
-    pers: &PersTier,
-    ar: &mut EStore,
-    d: &IDeclaration,
-) -> Result<NIdx, CheckError>  {
-    match d {
-        IDeclaration::AxiomDecl(v) => Ok(v.name.dup2()),
-        IDeclaration::DefnDecl(v, _, _) => Ok(v.name.dup2()),
-        IDeclaration::ThmDecl(v, _) => Ok(v.name.dup2()),
-        IDeclaration::OpaqueDecl(v, _) => Ok(v.name.dup2()),
-        IDeclaration::QuotDecl(_, v) => Ok(v.name.dup2()),
-        IDeclaration::BasisDecl(_) => ar.intern_name(pers, NNodeView::Anonymous),
-        IDeclaration::IndDecl(_, _) => ar.intern_name(pers, NNodeView::Anonymous),
-    }
-}
-
 /// con-leche: ConLeche/Kernel/Env.lean:656-667 Declaration.names
 /// Lean twin: `proof/ConRon/Arena/Env.lean:259-266 IDeclaration.names` — the
 /// names a declaration record declares; `prepare::prelude_key`'s lookup and

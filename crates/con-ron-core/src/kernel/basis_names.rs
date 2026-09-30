@@ -42,14 +42,6 @@ pub fn eq_refl_name() -> Name {
     name::mk_str(eq_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:23-24 punitName
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_names::punit_name_refines, then delete this line
-/// The name of the basis unit type.
-pub fn punit_name() -> Name {
-    const S: [u32; 5] = [80, 85, 110, 105, 116];
-    name::mk_str(name::anonymous(), core_types::code_points(&S))
-}
-
 /// con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames
 /// `n.str "rec"`, the recursor-name suffix four of the reserved names share
 /// (`eqName.str "rec"`, `natName.str "rec"`, …).  A named helper because
@@ -79,14 +71,6 @@ pub fn nat_zero_name() -> Name {
 pub fn nat_succ_name() -> Name {
     const S: [u32; 4] = [115, 117, 99, 99];
     name::mk_str(nat_name(), core_types::code_points(&S))
-}
-
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:40-41 punitUnitName
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_names::punit_unit_name_refines, then delete this line
-/// The name of the basis unit constructor.
-pub fn punit_unit_name() -> Name {
-    const S: [u32; 4] = [117, 110, 105, 116];
-    name::mk_str(punit_name(), core_types::code_points(&S))
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Names.lean:32 emptyName

@@ -85,7 +85,7 @@ use crate::arena::expr_ops::{
     abstract1_fast, abstract_range_fast, bvar_b, cons_eidx, get_app_args, get_app_fn,
     has_fvar_fast, instantiate1_fast, instantiate_list_fast, inst_lp_fast, inst_spine,
     lam_pw, leaf_guard, loose_bvars_bounded_fast, mk_app_n, mk_app_n_from, pi_result,
-    rec_rule_plain, snoc_eidx_of, strip_pis,
+    snoc_eidx_of, strip_pis,
     take_eidx, take_eidx_n, wscoped_b_fast,
 };
 use crate::arena::handle::{
@@ -94,13 +94,12 @@ use crate::arena::handle::{
     ETAG_LIT, ETAG_PROJ, ETAG_SORT,
 };
 use crate::arena::monad::{
-    AState, fail, fail_dangling_e, fail_dangling_ls, intern_e_app, intern_e_bvar, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_lam, intern_e_let_e, intern_e_lit, intern_e_proj, intern_e_sort, intern_l_node, intern_level, intern_ls_node, intern_n_node, intern_name, read_level_m, read_levels_m, read_name_m, read_names_m, view, view_app, view_bind, view_bind_i, view_bvar, view_const, view_const_name, view_lit, view_ls, view_ls_len, view_sort,
+    AState, fail, fail_dangling_e, fail_dangling_ls, intern_e_app, intern_e_bvar, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_lam, intern_e_let_e, intern_e_lit, intern_e_proj, intern_e_sort, intern_l_node, intern_level, intern_ls_node, intern_name, read_level_m, read_levels_m, read_name_m, read_names_m, view, view_app, view_bind, view_bind_i, view_bvar, view_const, view_const_name, view_lit, view_ls, view_ls_len, view_sort,
 };
 use crate::arena::prop_read::{is_proof_fast, not_proof_fast, proof_pw, type_sort_pw};
-use crate::arena::store::{ENodeView, LNodeView, NNodeView};
+use crate::arena::store::{ENodeView, LNodeView};
 use crate::arena::pins::{pin_and, pin_reserved, pin_bool, pin_bool_false, pin_bool_true, pin_char, pin_char_of_nat, pin_empty_levels, pin_list, pin_list_cons, pin_list_nil, pin_nat, pin_nat_add, pin_nat_beq, pin_nat_ble, pin_nat_div, pin_nat_gcd, pin_nat_land, pin_nat_lor, pin_nat_mod, pin_nat_mul, pin_nat_pow, pin_nat_pred, pin_nat_shift_left, pin_nat_shift_right, pin_nat_sub, pin_nat_succ, pin_nat_xor, pin_nat_zero, pin_sorry_ax, pin_sort_one, pin_string, pin_string_of_list, pin_zero_level};
-use crate::kernel::core_k;
-use crate::kernel::core_types::{code_points, code_points_from, CheckError};
+use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env::{CheckMode, ReducibilityHint};
 use crate::kernel::expr;
 use crate::kernel::expr::{BinderMeta, Literal};
@@ -377,18 +376,20 @@ pub const M_RANGE: [u32; 29] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"projection on a non-structure-like type"`, as code points.
-pub const M_NONSTRUCTLIKE: [u32; 39] = [
-    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 111, 110, 32, 97, 32, 110, 111,
-    110, 45, 115, 116, 114, 117, 99, 116, 117, 114, 101, 45, 108, 105, 107, 101, 32, 116,
-    121, 112, 101
+/// `projection on an indexed structure-like type`, as code points.
+pub const M_INDEXED_PROJ: [u32; 44] = [
+    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 111, 110, 32, 97, 110, 32, 105, 110, 100,
+    101, 120, 101, 100, 32, 115, 116, 114, 117, 99, 116, 117, 114, 101, 45, 108, 105, 107, 101, 32,
+    116, 121, 112, 101,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"projection on a non-structure type"`, as code points.
-pub const M_NONSTRUCT: [u32; 34] = [
-    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 111, 110, 32, 97, 32, 110, 111,
-    110, 45, 115, 116, 114, 117, 99, 116, 117, 114, 101, 32, 116, 121, 112, 101
+/// `invalid projection: not a structure-like type, or no such field`, as code points.
+pub const M_INVALID_PROJ: [u32; 63] = [
+    105, 110, 118, 97, 108, 105, 100, 32, 112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 58, 32,
+    110, 111, 116, 32, 97, 32, 115, 116, 114, 117, 99, 116, 117, 114, 101, 45, 108, 105, 107, 101,
+    32, 116, 121, 112, 101, 44, 32, 111, 114, 32, 110, 111, 32, 115, 117, 99, 104, 32, 102, 105,
+    101, 108, 100,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
@@ -789,6 +790,67 @@ pub fn unknown_const_error(st: &mut AState, n: &NIdx) -> Result<CheckError, Chec
     }
 }
 
+/// con-leche: ConLeche/Kernel/Core.lean:101-126 projIndexedStructLike
+/// Lean twin: `proof/ConRon/Arena/Core.lean projIndexedStructLike` — **could
+/// official's `infer_proj` type `.proj sn i _` at a subject of type `T a⃗`
+/// where we store no projection table for `T`?**  Only at a
+/// single-constructor inductive `T` named by the node, applied to MORE
+/// arguments than its parameters, at a field index below the constructor's
+/// field count: an INDEXED structure-like type.  The cited `&&` chain, left
+/// to right.
+#[allow(clippy::too_many_arguments)]
+pub fn proj_indexed_struct_like(
+    vis: u64,
+    fe: &IFEnv,
+    t: &NIdx,
+    sn: &NIdx,
+    i: u64,
+    n_args: u64,
+) -> bool {
+    if !t.eq2(sn) {
+        false
+    } else {
+        match env::ifenv_find(vis, fe, t) {
+            Some(IConstantInfo::IndInfo(_, caps)) => {
+                if caps.ctors.len() == 1 && caps.nparams < n_args {
+                    match env::ifenv_find(vis, fe, &caps.ctors[0]) {
+                        Some(IConstantInfo::CtorInfo(_, _, n_f)) => i < *n_f,
+                        _ => false,
+                    }
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:128-141 projMissError
+/// Lean twin: `proof/ConRon/Arena/Core.lean projMissError` — **the verdict at a
+/// `.proj sn i _` whose subject type is headed by `T` (applied to `n_args`
+/// arguments) with no table entry at field `i`**: an out-of-range index at a
+/// table; a positively detected indexed structure-like type DECLINES
+/// (`lean4#14977`); everything else is official's reject.  `has_table` is the
+/// cited `(find? (projTableName T)).isSome`, read by the caller.
+pub fn proj_miss_error(
+    vis: u64,
+    fe: &IFEnv,
+    has_table: bool,
+    t: &NIdx,
+    sn: &NIdx,
+    i: u64,
+    n_args: u64,
+) -> CheckError {
+    if has_table {
+        CheckError::Invalid(code_points(&M_RANGE))
+    } else if proj_indexed_struct_like(vis, fe, t, sn, i, n_args) {
+        CheckError::NotImplemented(code_points(&M_INDEXED_PROJ))
+    } else {
+        CheckError::Invalid(code_points(&M_INVALID_PROJ))
+    }
+}
+
 // ---------------------------------------------------------------------------
 // The bodies' small helpers (`Core.lean:274-412`)
 // ---------------------------------------------------------------------------
@@ -805,30 +867,6 @@ pub fn lift_fueled(o: Option<bool>) -> Result<bool, CheckError> {
     match o {
         Some(a) => Ok(a),
         None => fail(CheckError::NotImplemented(code_points(&M_FUEL_LEVEL_CMP))),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:41-44 projModelName
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core::proj_model_name_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:285-289 projModelName` — the
-/// model-side name of field `i`'s projection for `T`.  `toString i` is
-/// `con_ron_core::kernel::core_k::nat_to_dec`, the port's own decimal
-/// recursion.
-pub fn proj_model_name(
-    pers: &PersTier,
-    st: &mut AState,
-    t: &NIdx,
-    i: u64,
-) -> Result<NIdx, CheckError>  {
-    const MODEL: [u32; 6] = [95, 109, 111, 100, 101, 108];
-    const PROJ_: [u32; 5] = [112, 114, 111, 106, 95];
-    match intern_n_node(pers, st, NNodeView::Str(t.dup2(), code_points(&MODEL))) {
-        Err(e) => Err(e),
-        Ok(m) => {
-            let digits: Vec<u32> = core_k::nat_to_dec(i);
-            let s: Vec<u32> = code_points_from(&digits, 0, code_points(&PROJ_));
-            intern_n_node(pers, st, NNodeView::Str(m, s))
-        }
     }
 }
 
@@ -851,86 +889,6 @@ pub fn is_ctor_app(
                     Some(IConstantInfo::CtorInfo(_, _, _)) => Ok(true),
                     Some(_) => Ok(false),
                     None => Ok(false),
-                },
-            }
-        } else {
-            Ok(false)
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:55-62 piResultIsProp
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core::pi_result_is_prop_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:304-314 piResultIsProp` — does the
-/// syntactic pi telescope end in a (normalized) `Prop`?
-pub fn pi_result_is_prop(pers: &PersTier, st: &mut AState, e: &EIdx) -> Result<bool, CheckError> {
-    match pi_result(pers, st, CORE_WALK_FUEL, e) {
-        Err(er) => Err(er),
-        Ok(h) => if h.tag() == ETAG_SORT {
-            match view_sort(pers, st, &h) {
-                None => fail_dangling_e(),
-                Some(u) => match zero_level(st) {
-                    Err(er) => Err(er),
-                    Ok(z) => match lvl_eq(pers, st, &u, &z) {
-                        Err(er) => Err(er),
-                        Ok(Some(true)) => Ok(true),
-                        Ok(_) => Ok(false),
-                    },
-                },
-            }
-        } else {
-            Ok(false)
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:64-72 piResultZ
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core::pi_result_z_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:316-326 piResultZ` — **the
-/// result-sort zero-ness datum of an inductive's type** (`IndCaps.sortZ`).
-pub fn pi_result_z(pers: &PersTier, st: &mut AState, e: &EIdx) -> Result<PropWhen, CheckError> {
-    match pi_result(pers, st, CORE_WALK_FUEL, e) {
-        Err(er) => Err(er),
-        Ok(h) => if h.tag() == ETAG_SORT {
-            match view_sort(pers, st, &h) {
-                None => fail_dangling_e(),
-                Some(u) => match read_level_m(pers, st, &u) {
-                    Err(er) => Err(er),
-                    Ok(l) => Ok(level::zeroness_of(&l)),
-                },
-            }
-        } else {
-            Ok(prop_when::if_all_zero(Vec::new()))
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:74-82 piResultNeverZero
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core::pi_result_never_zero_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:328-341 piResultNeverZero` — is the
-/// result sort of a stored inductive's type, instantiated at the given levels,
-/// provably nonzero (official `is_never_zero`)?
-pub fn pi_result_never_zero(
-    pers: &PersTier,
-    st: &mut AState,
-    lps: &Vec<NIdx>,
-    us: &LsIdx,
-    e: &EIdx,
-) -> Result<bool, CheckError> {
-    match pi_result(pers, st, CORE_WALK_FUEL, e) {
-        Err(er) => Err(er),
-        Ok(h) => if h.tag() == ETAG_SORT {
-            match view_sort(pers, st, &h) {
-                None => fail_dangling_e(),
-                Some(u) => match read_names_m(pers, st, lps) {
-                    Err(er) => Err(er),
-                    Ok(ks) => match read_levels_m(pers, st, us) {
-                        Err(er) => Err(er),
-                        Ok(vs) => match read_level_m(pers, st, &u) {
-                            Err(er) => Err(er),
-                            Ok(l) => Ok(level::is_never_zero(&level::subst(&ks, &vs, &l))),
-                        },
-                    },
                 },
             }
         } else {
@@ -4540,7 +4498,6 @@ pub fn eta_projs(
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core::reserved_basis_names_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1485-1489 reservedBasisNames` — the
 /// names reserved for the pinned basis blocks, interned.  `contains` is then
 /// handle equality, as everywhere else in this module.  The nineteen
@@ -6126,50 +6083,6 @@ pub fn rec_rule_bits(
                 eta,
                 params_blind: rl.params_blind,
             }),
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:909-921 projFnRule
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core::proj_fn_rule_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1965-1975 projFnRule` — **the
-/// stored rule of an installed projection function**: the degenerate
-/// recursor's single rule, with the two rescue bits stamped by `recRuleBits`.
-pub fn proj_fn_rule(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    fe: &IFEnv,
-    t: &NIdx,
-    ctor_name: &NIdx,
-    pty: &EIdx,
-    n_p: u64,
-    n_f: u64,
-    i: u64,
-    rhs_a: &EIdx,
-) -> Result<IRecRule, CheckError> {
-    match rec_rule_plain(pers, st, CORE_WALK_FUEL, pty, n_p, n_p, n_p) {
-        Err(e) => Err(e),
-        Ok(plain) => match env::proj_fn_name(pers, &mut st.store, t, i) {
-            Err(e) => Err(e),
-            Ok(nm) => {
-                let fire = if plain {
-                    IRecRuleFire::Plain
-                } else {
-                    IRecRuleFire::Inert
-                };
-                let rl = IRecRule {
-                    ctor: ctor_name.dup2(),
-                    nfields: n_f,
-                    ctor_params: n_p,
-                    fire,
-                    rhs: rhs_a.dup2(),
-                    k: false,
-                    eta: false,
-                    params_blind: false,
-                };
-                rec_rule_bits(pers, vis, st, fe, &nm, rl)
-            }
         },
     }
 }
@@ -10243,40 +10156,6 @@ pub fn defeq_body(
     defeq_loop(pers, vis, st, mode, lane, fuel, fe, depth, DEFEQ_LOOP_FUEL, true, a, b)
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1727-1736 isPropType
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core::is_prop_type_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3417-3425 isPropType` — check that a
-/// (raw) type is a `Prop` by annotating it and inferring its sort.
-pub fn is_prop_type(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    ty: &EIdx,
-) -> Result<bool, CheckError> {
-    match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, ty) {
-        Err(e) => Err(e),
-        // io grade: `ty'` is the pass's own output, already annotated
-        Ok(typ) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &typ) {
-            Err(e) => Err(e),
-            Ok(t) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth, &t) {
-                Err(e) => Err(e),
-                Ok(s) => match zero_level(st) {
-                    Err(e) => Err(e),
-                    Ok(z) => match lvl_eq(pers, st, &s, &z) {
-                        Err(e) => Err(e),
-                        Ok(o) => lift_fueled(o),
-                    },
-                },
-            },
-        },
-    }
-}
-
 // ---------------------------------------------------------------------------
 // The untrusted annotation writes (`Core.lean:2595-2719`)
 // ---------------------------------------------------------------------------
@@ -10691,7 +10570,6 @@ pub fn annotate_lams(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1804-1923 annotateBody
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core::annotate_binder_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3572-3658 annotateBody` — the two
 /// binder clauses, which differ only in the node they rebuild and in which
 /// datum computation they run when the input annotation is a placeholder.
@@ -10777,7 +10655,6 @@ pub fn annotate_binder(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1804-1923 annotateBody
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core::annotate_let_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3572-3658 annotateBody` — the
 /// `.letE` clause: con-leche's task #217 runs the official `infer_let` triple
 /// HERE, before the ζ reduct is taken, which is why no other pass ever meets a
@@ -10831,7 +10708,6 @@ pub fn annotate_let(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1804-1923 annotateBody
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core::annotate_proj_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3572-3658 annotateBody` — the
 /// `.proj` clause: con-leche's task #271 (issue #7) checks the node's OWN
 /// structure name, official's `infer_proj` premise, here.
@@ -10864,9 +10740,8 @@ pub fn annotate_proj(
                             },
                         }
                     } else {
-                        {
-                            fail(CheckError::NotImplemented(code_points(&M_NONSTRUCT)))
-                        }
+                        // official `infer_proj`: the whnf'd type's head is no constant
+                        fail(CheckError::Invalid(code_points(&M_INVALID_PROJ)))
                     },
                 },
             },
@@ -10875,7 +10750,6 @@ pub fn annotate_proj(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1804-1923 annotateBody
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core::annotate_proj_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3572-3658 annotateBody` — the
 /// `.proj` clause's body, once the subject type's head is known.
 pub fn annotate_proj_at(
@@ -10907,18 +10781,21 @@ pub fn annotate_proj_at(
                 }
             }
         }
-        Ok(None) => match env::ifenv_find_proj(pers, vis, &mut st.store, fe, tn, 0) {
+        // no table entry: official's `infer_proj` verdict (`projMissError`)
+        Ok(None) => match env::proj_table_name(pers, &mut st.store, tn) {
             Err(e) => Err(e),
-            Ok(Some(_)) => fail(CheckError::Invalid(code_points(&M_RANGE))),
-            Ok(None) => {
-                fail(CheckError::NotImplemented(code_points(&M_NONSTRUCTLIKE)))
+            Ok(tbl) => {
+                let has_table: bool = env::ifenv_find(vis, fe, &tbl).is_some();
+                match get_app_args(pers, st, CORE_WALK_FUEL, te) {
+                    Err(e) => Err(e),
+                    Ok(targs) => fail(proj_miss_error(vis, fe, has_table, tn, sn, i, targs.len() as u64)),
+                }
             }
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1804-1923 annotateBody
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core::annotate_body_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3572-3658 annotateBody` — the
 /// annotation body: compute the codomain-sort annotations of every binder,
 /// bottom-up, by real inference on the opened (already annotated) body.

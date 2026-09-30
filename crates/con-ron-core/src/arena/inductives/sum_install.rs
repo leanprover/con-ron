@@ -66,21 +66,6 @@ pub const M_TELE_SHAPE: [u32; 70] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `direct sum: type former telescope       `, as code points — `con_ron_core::kernel::inductives::sum_install`'s own, so the differential test can compare error text.
-pub const M_IND_TELE: [u32; 40] = [
-    100, 105, 114, 101, 99, 116, 32, 115, 117, 109, 58, 32, 116, 121, 112, 101, 32, 102, 111, 114,
-    109, 101, 114, 32, 116, 101, 108, 101, 115, 99, 111, 112, 101, 32, 32, 32, 32, 32, 32, 32,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `direct sum: type former result sort        `, as code points — `con_ron_core::kernel::inductives::sum_install`'s own, so the differential test can compare error text.
-pub const M_IND_SORT: [u32; 43] = [
-    100, 105, 114, 101, 99, 116, 32, 115, 117, 109, 58, 32, 116, 121, 112, 101, 32, 102, 111, 114,
-    109, 101, 114, 32, 114, 101, 115, 117, 108, 116, 32, 115, 111, 114, 116, 32, 32, 32, 32, 32,
-    32, 32, 32,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `direct sum: field index     `, as code points — `con_ron_core::kernel::inductives::sum_install`'s own, so the differential test can compare error text.
 pub const M_FLD_IDX: [u32; 28] = [
     100, 105, 114, 101, 99, 116, 32, 115, 117, 109, 58, 32, 102, 105, 101, 108, 100, 32, 105, 110,
@@ -101,21 +86,6 @@ pub const M_FLD_ELIM: [u32; 72] = [
     105, 109, 105, 110, 97, 116, 111, 114, 32, 119, 105, 116, 104, 32, 97, 32, 110, 111, 110, 45,
     112, 114, 111, 112, 111, 115, 105, 116, 105, 111, 110, 97, 108, 32, 102, 105, 101, 108, 100,
     32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `direct sum: positivity walk fuel  `, as code points — `con_ron_core::kernel::inductives::sum_install`'s own, so the differential test can compare error text.
-pub const M_POS_FUEL: [u32; 34] = [
-    100, 105, 114, 101, 99, 116, 32, 115, 117, 109, 58, 32, 112, 111, 115, 105, 116, 105, 118, 105,
-    116, 121, 32, 119, 97, 108, 107, 32, 102, 117, 101, 108, 32, 32,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `direct sum: non positive occurrence of the inductive   `, as code points — `con_ron_core::kernel::inductives::sum_install`'s own, so the differential test can compare error text.
-pub const M_POS_NEG: [u32; 55] = [
-    100, 105, 114, 101, 99, 116, 32, 115, 117, 109, 58, 32, 110, 111, 110, 32, 112, 111, 115, 105,
-    116, 105, 118, 101, 32, 111, 99, 99, 117, 114, 114, 101, 110, 99, 101, 32, 111, 102, 32, 116,
-    104, 101, 32, 105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 32, 32,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)

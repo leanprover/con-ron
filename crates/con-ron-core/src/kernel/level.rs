@@ -455,7 +455,6 @@ pub fn default_fuel() -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:143-145 leq
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove level::leq_refines, then delete this line
 /// `Level.leq`.
 pub fn leq(l: &Level, r: &Level) -> Option<bool> {
     leq_core(default_fuel(), &simplify(l), &simplify(r), 0)
@@ -498,13 +497,6 @@ pub fn is_equiv_list_from(ls: &Vec<Level>, rs: &Vec<Level>, i: usize) -> Option<
             Some(true) => is_equiv_list_from(ls, rs, i + 1),
         }
     }
-}
-
-/// con-leche: ConLeche/Kernel/Level.lean:171-173 isZero
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove level::is_zero_refines, then delete this line
-/// `Level.isZero`.
-pub fn is_zero(l: &Level) -> bool {
-    is_zero_kind(&simplify(l))
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:176-184 isNonZero
@@ -589,29 +581,6 @@ pub fn name_nodup_from(ns: &Vec<Name>, i: usize) -> bool {
     } else {
         name_nodup_from(ns, i + 1)
     }
-}
-
-/// con-leche: ConLeche/Kernel/Level.lean:218-221 Name.isModelSuffix
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove level::name_is_model_suffix_refines, then delete this line
-/// `Name.isModelSuffix`, i.e. `.str _ "_model"`.  Deviation: string
-/// literals become explicit code-point tests (no loop, no allocation).
-pub fn name_is_model_suffix(n: &Name) -> bool {
-    match &n.0.kind {
-        name::NameKind::Str(_, s) => is_model_str(s),
-        _ => false,
-    }
-}
-
-/// con-leche: none — the `"_model"` string literal of `Name.isModelSuffix`, spelled out over code points
-/// `s == "_model"`.
-pub fn is_model_str(s: &Vec<u32>) -> bool {
-    s.len() == 6
-        && s[0] == 95
-        && s[1] == 109
-        && s[2] == 111
-        && s[3] == 100
-        && s[4] == 101
-        && s[5] == 108
 }
 
 /// con-leche: none — the `"proj"` string literal of `Name.isProjFnShape`
@@ -702,8 +671,6 @@ mod tests {
         let tbl = name::mk_num(nm("projTable"), 0);
         assert!(level::name_is_proj_fn_shape(&tbl));
         assert!(!level::name_is_proj_fn_shape(&nm("proj")));
-        assert!(level::name_is_model_suffix(&nm("_model")));
-        assert!(!level::name_is_model_suffix(&nm("_models")));
     }
 
     #[test]
@@ -767,7 +734,6 @@ mod tests {
     fn imax_normalisations() {
         let a = level::simplify(&level::imax(p("u"), level::zero()));
         assert!(level::is_zero_kind(&a));
-        assert!(level::is_zero(&level::imax(p("u"), level::zero())));
 
         let b = level::simplify(&level::imax(level::zero(), p("v")));
         assert!(level::beq(&b, &p("v")));

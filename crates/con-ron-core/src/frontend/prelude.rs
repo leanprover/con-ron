@@ -130,10 +130,10 @@ mod tests {
         // hash-consed, so what the prelude ADDS is the twin's count minus
         // what the two share: the pins' one expression node (`Sort 1`) and
         // both its level nodes (`0`, `1`) are the prelude's too, and some of
-        // their 64 name nodes are.
+        // their 61 name nodes are.
         assert_eq!(e0, 1, "the pins' expression nodes");
         assert_eq!(l0, 2, "the pins' level nodes");
-        assert_eq!(n0, 64, "the pins' name nodes");
+        assert_eq!(n0, 61, "the pins' name nodes");
         assert_eq!(ar.store.node_count(pers) - e0, 186, "expression nodes added");
         assert_eq!(ar.store.ls().node_count(pers) - l0, 3, "level nodes added");
         assert_eq!(ar.store.ns().node_count(pers) - n0, 30, "name nodes added");
@@ -141,7 +141,7 @@ mod tests {
         // re-declares is:
         assert_eq!(ar.store.node_count(pers), 187, "expression nodes");
         assert_eq!(ar.store.ls().node_count(pers), 5, "level nodes");
-        assert_eq!(ar.store.ns().node_count(pers), 94, "name nodes");
+        assert_eq!(ar.store.ns().node_count(pers), 91, "name nodes");
     }
 
     /// The prelude text is `con-ron-core`'s generated constant, byte for byte

@@ -30,21 +30,21 @@
 //! * the syntactic readers and guards — `unfoldable_head`, `head_hint`,
 //!   `same_const_heads`, `raw_nat_lit`, `is_ctor_app`,
 //!   `eta_ctor_shape`, `is_bool_true`, `quick_pair`, `succ_of`,
-//!   `str_expansion_fires`, `pw_written`, `lift_fueled`.  **Seven of these
+//!   `str_expansion_fires`, `pw_written`, `lift_fueled`.  **Six of these
 //!   carry a second citation to `Cached/StateC.lean`'s `*C` index guards**
-//!   (`isUnitLikeTyC`, `isCtorAppC`, `headHintC`, `unfoldableHeadC`,
+//!   (`isCtorAppC`, `headHintC`, `unfoldableHeadC`,
 //!   `sameConstHeadsC`, `rawNatLitC?`, `etaCtorShapeC`): those are the same
 //!   function, since the port reads the environment through `FEnv` anyway
 //!   (deviation 3 below).  So are `litToCtorIfNatI` and `annotBinderMetaI`,
 //!   whose twins are the spec's under a `pure`;
 //! * the pinned name tables and the `Nat`-operation pin sets;
-//! * the install-time rule bits (`rec_rule_bits`, `proj_fn_rule`,
+//! * the install-time rule bits (`rec_rule_bits`,
 //!   `rec_rule_k`) and the shape conjunctions the cached certificates read
 //!   (`struct_eta_shape_ok`, `unit_shape_ok`, `proj_fire_shape_ok`,
 //!   `fab_scope_ok`, `proj_entry_fire_ok`, `and_rescue_slots`);
 //! * the pure pieces of the inference clauses (`infer_fvar`,
 //!   `infer_lit_nat`, `infer_lit_str`, `infer_proj_at`,
-//!   `proj_type_at_checked`, `proj_entry_type_at`, `annotate_proj_entry`);
+//!   `proj_type_at_checked`, `proj_entry_type_at`);
 //! * the four loop budgets (`whnf_core_loop_fuel`, `whnf_loop_fuel`,
 //!   `defeq_loop_fuel`, `check_fuel`);
 //! * the `Vec` helpers and the owning environment probes.
@@ -53,8 +53,8 @@
 //! eleven were, so the provenance ledger stays in step with its source:
 //! `beta_gate_fires` (the pure β gate; the cached sites read
 //! `mode.betaSkip`), `eta_projs`/`eta_projs_from` (superseded by
-//! `core_c::proj_apps_i`, but `eta_fab_args`/`eta_fab_args_e` are written
-//! against them and are dead in the Lean too), and `consts_resolve` (whose
+//! `core_c::proj_apps_i`, but `eta_fab_args_e` is written
+//! against them, and all three are dead in the Lean too), and `consts_resolve` (whose
 //! memoized `ExprC` twin is `state_c::consts_resolve_fc`).
 //!
 //! ## The knot is closed by name, not by a record (DESIGN.md §3.1)
@@ -251,7 +251,6 @@ pub fn leaf_contains_from(ys: &Vec<(u64, Expr)>, i: u64, ty: &Expr, j: usize) ->
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:577-749 majorToCtor
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::fvar_leaves_subset_refines, then delete this line
 /// The scope guard's third conjunct,
 /// `fab.fvarLeaves.all (fun l => major.fvarLeaves.contains l)` — a closure
 /// over a `List.all`, so it becomes the index recursion below.  All three of
@@ -261,7 +260,6 @@ pub fn fvar_leaves_subset(xs: &Vec<(u64, Expr)>, ys: &Vec<(u64, Expr)>) -> bool 
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:577-749 majorToCtor
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::fvar_leaves_subset_from_refines, then delete this line
 /// The index recursion behind `fvar_leaves_subset`.
 pub fn fvar_leaves_subset_from(
     xs: &Vec<(u64, Expr)>,
@@ -277,8 +275,7 @@ pub fn fvar_leaves_subset_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:41-44 projModelName
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::nat_to_dec_refines, then delete this line
+/// con-leche: none — Lean's `toString` on a `Nat` (the runtime's `Nat.repr`)
 /// `toString i` for a `Nat` index: the decimal code points, most significant
 /// digit first, `0` for zero.  Lean's `Nat.toString` is the runtime's; on the
 /// `u64` of DESIGN.md §3.3 this is the recursion that produces it.
@@ -286,8 +283,7 @@ pub fn nat_to_dec(i: u64) -> Vec<u32> {
     nat_to_dec_go(i, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:41-44 projModelName
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::nat_to_dec_go_refines, then delete this line
+/// con-leche: none — Lean's `toString` on a `Nat` (the runtime's `Nat.repr`)
 /// The digit recursion behind `nat_to_dec`: the quotient's digits are pushed
 /// before the last one, so the result is most-significant first.
 pub fn nat_to_dec_go(i: u64, out: Vec<u32>) -> Vec<u32> {
@@ -325,7 +321,6 @@ pub fn defn_probe(fe: &FEnv, n: &Name) -> Option<(ConstantVal, Expr, Reducibilit
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:577-749 majorToCtor
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::ctor_probe_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:412-484 structEtaCertWith
 /// The `some (.ctorInfo cv cnP cnF)` destructuring, as an owning probe (see
 /// `defn_probe`).
@@ -340,7 +335,6 @@ pub fn ctor_probe(fe: &FEnv, n: &Name) -> Option<(ConstantVal, u64, u64)> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:577-749 majorToCtor
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::ind_probe_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:412-484 structEtaCertWith
 /// The `some (.indInfo cvT caps)` destructuring, as an owning probe (see
 /// `defn_probe`).
@@ -389,8 +383,8 @@ pub fn lp_empty(fe: &FEnv, n: &Name) -> bool {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:188-199 liftFueled
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::lift_fueled_refines, then delete this line
-/// Lift a fuel-style partial result; `none` is an internal error.
+/// Lift a fuel-style partial result; `none` is the level comparison's fuel
+/// running out — our resource limit, so a DECLINE, never a verdict.
 ///
 /// Deviations: monomorphic at `Option Bool`, because every call site in
 /// `Core.lean` lifts a `Level.isEquiv`/`Level.isEquivList` (§3.4 keeps
@@ -398,28 +392,16 @@ pub fn lp_empty(fe: &FEnv, n: &Name) -> bool {
 /// parameter is baked in for the same reason — every site passes
 /// `"level comparison"`.
 pub fn lift_fueled(o: Option<bool>) -> CheckM<bool> {
-    const M: [u32; 32] = [
-        102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 108, 101,
-        118, 101, 108, 32, 99, 111, 109, 112, 97, 114, 105, 115, 111, 110,
+    // "resource limit: fuel exhausted: level comparison"
+    const M: [u32; 48] = [
+        114, 101, 115, 111, 117, 114, 99, 101, 32, 108, 105, 109, 105, 116, 58, 32, 102, 117, 101, 108,
+        32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 108, 101, 118, 101, 108, 32, 99, 111,
+        109, 112, 97, 114, 105, 115, 111, 110,
     ];
     match o {
         Some(a) => Ok(a),
-        None => Err(core_types::internal(core_types::code_points(&M))),
+        None => Err(core_types::not_implemented(core_types::code_points(&M))),
     }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:41-44 projModelName
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::proj_model_name_refines, then delete this line
-/// The model-side name of field `i`'s projection for `T`:
-/// `(T.str "_model").str ("proj_" ++ toString i)`.
-pub fn proj_model_name(t: &Name, i: u64) -> Name {
-    const MODEL: [u32; 6] = [95, 109, 111, 100, 101, 108];
-    const PROJ_: [u32; 5] = [112, 114, 111, 106, 95];
-    let head = name::mk_str(name::dup(t), core_types::code_points(&MODEL));
-    let mut s: Vec<u32> = core_types::code_points(&PROJ_);
-    let digits: Vec<u32> = nat_to_dec(i);
-    s = core_types::code_points_from(&digits, 0, s);
-    name::mk_str(head, s)
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:41-48 isCtorApp
@@ -432,48 +414,6 @@ pub fn is_ctor_app(fe: &FEnv, e: &Expr) -> bool {
             Some(ci) => is_ctor_info(ci),
             None => false,
         },
-        _ => false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:55-62 piResultIsProp
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::pi_result_is_prop_refines, then delete this line
-/// Does the syntactic pi telescope end in a (normalized) `Prop`?
-pub fn pi_result_is_prop(e: &Expr) -> bool {
-    let r = expr_ops::pi_result(e);
-    match expr::view(&r) {
-        ExprView::Sort(u) => match level::is_equiv(u, &level::zero()) {
-            Some(true) => true,
-            Some(false) => false,
-            None => false,
-        },
-        _ => false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:64-72 piResultZ
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::pi_result_z_refines, then delete this line
-/// The result-sort zero-ness datum of an inductive's type (`IndCaps.sortZ`,
-/// computed at the block's install).  A telescope that does not end in a
-/// sort gets `ifAllZero []` — "zero at every valuation".
-pub fn pi_result_z(e: &Expr) -> PropWhen {
-    let r = expr_ops::pi_result(e);
-    match expr::view(&r) {
-        ExprView::Sort(u) => level::zeroness_of(u),
-        _ => prop_when::if_all_zero(Vec::new()),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:74-82 piResultNeverZero
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::pi_result_never_zero_refines, then delete this line
-/// The *specification* of `caps_never_zero`: the walk down the family's type
-/// that the stored datum replaces.  Nothing executable calls it; ported so
-/// the provenance gate stays in step with its source (task #11's
-/// `beqRecursive` rule).
-pub fn pi_result_never_zero(lps: &Vec<Name>, us: &Vec<Level>, e: &Expr) -> bool {
-    let r = expr_ops::pi_result(e);
-    match expr::view(&r) {
-        ExprView::Sort(u) => level::is_never_zero(&level::subst(lps, us, u)),
         _ => false,
     }
 }
@@ -2051,26 +1991,8 @@ pub fn unit_shape_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:751-759 etaFabArgs
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::eta_fab_args_refines, then delete this line
-/// The eta-rescue fabrication's argument spine: the reduced type's arguments
-/// followed by the installed projection functions applied to the stuck
-/// major.  Nothing executable calls it — `etaFabArgsE` is what `majorToCtor`
-/// uses — but it is ported so the provenance gate stays in step with its
-/// source (task #11's `beqRecursive` rule).
-pub fn eta_fab_args(
-    t: &Name,
-    ust: &Vec<Level>,
-    targs: &Vec<Expr>,
-    major: &Expr,
-    n_f: u64,
-) -> Vec<Expr> {
-    let projs = eta_projs_from(false, t, ust, targs, major, n_f, 0, Vec::new());
-    append_exprs(env::exprs_copy(targs), &projs)
-}
-
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:719-724 etaFabArgsE
-/// `eta_fab_args` at the entry kind: the projections are `eta_projs`' —
+/// The eta-rescue fabrication's argument spine: the projections are `eta_projs`' —
 /// `.proj` nodes at an all-tower slot family, the modeled spelling otherwise.
 pub fn eta_fab_args_e(
     fe: &FEnv,
@@ -2168,9 +2090,8 @@ pub fn and_rescue_slot_ok(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:577-749 majorToCtor
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::fab_scope_ok_refines, then delete this line
 /// The scope guard all three rescue branches run on their fabrication
-/// (cf. `annotateProjElim`): the fabricated major is well-scoped at the
+/// : the fabricated major is well-scoped at the
 /// ambient depth, closed under loose `bvar`s, and introduces no free
 /// variable the major does not already have.  Keeping it syntactic keeps the
 /// rescue's verification local.
@@ -2254,39 +2175,6 @@ pub fn rec_rule_bits(fe: &FEnv, rec_name: &Name, rl: RecRule) -> RecRule {
     rl.k = k;
     rl.eta = eta;
     rl
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:909-921 projFnRule
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::proj_fn_rule_refines, then delete this line
-/// The stored rule of a projection function, with its bits stamped by
-/// `rec_rule_bits`.  The cited record literal leaves `k`/`eta` at their
-/// `false` defaults, which `rec_rule_bits` then overwrites.
-pub fn proj_fn_rule(
-    fe: &FEnv,
-    t: &Name,
-    ctor_name: &Name,
-    pty: &Expr,
-    n_p: u64,
-    n_f: u64,
-    i: u64,
-    rhs_a: Expr,
-) -> RecRule {
-    let fire = if expr_ops::rec_rule_plain(pty, n_p, n_p, n_p) {
-        RecRuleFire::Plain
-    } else {
-        RecRuleFire::Inert
-    };
-    let rl = RecRule {
-        ctor: name::dup(ctor_name),
-        nfields: n_f,
-        ctor_params: n_p,
-        fire,
-        rhs: rhs_a,
-        k: false,
-        eta: false,
-        params_blind: false,
-    };
-    rec_rule_bits(fe, &env::proj_fn_name(t, i), rl)
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:865-872 recRuleK
@@ -2651,59 +2539,6 @@ pub fn annot_binder_meta(pw: Option<PropWhen>, mb: &BinderMeta) -> BinderMeta {
             }
         }
         None => expr::binder_meta_dup(mb),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1804-1923 annotateBody
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::annotate_proj_entry_refines, then delete this line
-/// The table lookup of `annotate_proj` and its three verdicts: the checked
-/// node, the out-of-range index on a projectable structure (invalid), and the
-/// shape without any projection support (decline).
-pub fn annotate_proj_entry(
-    fe: &FEnv,
-    sn: &Name,
-    t: &Name,
-    i: u64,
-    e2: &Expr,
-    targs: &Vec<Expr>,
-) -> CheckM<Expr> {
-    const M_OTHER: [u32; 52] = [
-        105, 110, 118, 97, 108, 105, 100, 32, 112, 114, 111, 106, 101, 99, 116, 105, 111, 110,
-        58, 32, 116, 104, 101, 32, 110, 111, 100, 101, 32, 110, 97, 109, 101, 115, 32, 97,
-        110, 111, 116, 104, 101, 114, 32, 115, 116, 114, 117, 99, 116, 117, 114, 101,
-    ];
-    const M_PARAMS: [u32; 29] = [
-        112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 112, 97, 114, 97, 109, 101, 116,
-        101, 114, 32, 109, 105, 115, 109, 97, 116, 99, 104,
-    ];
-    const M_RANGE: [u32; 29] = [
-        112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 105, 110, 100, 101, 120, 32, 111,
-        117, 116, 32, 111, 102, 32, 114, 97, 110, 103, 101,
-    ];
-    const M_NONSTRUCTLIKE: [u32; 39] = [
-        112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 111, 110, 32, 97, 32, 110, 111,
-        110, 45, 115, 116, 114, 117, 99, 116, 117, 114, 101, 45, 108, 105, 107, 101, 32, 116,
-        121, 112, 101,
-    ];
-    match fenv::find_proj(fe, t, i) {
-        Some(entry) => {
-            if !name::beq(t, sn) {
-                Err(core_types::invalid(core_types::code_points(&M_OTHER)))
-            } else if (targs.len() as u64) != entry.num_params {
-                Err(core_types::invalid(core_types::code_points(&M_PARAMS)))
-            } else {
-                Ok(expr::proj(name::dup(t), i, expr::dup(e2)))
-            }
-        }
-        None => {
-            if fenv::find_proj(fe, t, 0).is_some() {
-                Err(core_types::invalid(core_types::code_points(&M_RANGE)))
-            } else {
-                Err(core_types::not_implemented(core_types::code_points(
-                    &M_NONSTRUCTLIKE,
-                )))
-            }
-        }
     }
 }
 

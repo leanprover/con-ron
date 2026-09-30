@@ -676,7 +676,7 @@ pub fn quot_basis() -> Vec<ConstantInfo> {
     vec5(quot_raw(), quot_mk_raw(), quot_lift_raw(), quot_ind_raw(), quot_sound_raw())
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:34-40 BasisKind.decls
+/// con-leche: ConLeche/Kernel/Basis.lean:33-39 BasisKind.decls
 /// The constants of one basis block, in dependency order.
 pub fn basis_kind_decls(k: &BasisKind) -> Vec<ConstantInfo> {
     match k {
@@ -688,7 +688,7 @@ pub fn basis_kind_decls(k: &BasisKind) -> Vec<ConstantInfo> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:52-63 basisPinHit
 /// The four blocks the pin match tries, as a list: con-leche writes the
 /// literal `[BasisKind.eqK, .natK, .emptyK, .falseK]` inline in
 /// `basisPinHit`'s `List.find?`.  `quot` is not among them — its records
@@ -697,7 +697,7 @@ pub fn block_pin_kinds() -> Vec<BasisKind> {
     vec4(BasisKind::EqK, BasisKind::NatK, BasisKind::EmptyK, BasisKind::FalseK)
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:52-63 basisPinHit
 /// **The basis-pin match**, with con-leche task #215's NAME pre-filter.
 /// `ConstantInfo.canon` rebuilds the whole block as an unshared tree — on a
 /// heavily DAG-shared block that was the frontend's single largest cost — so
@@ -715,7 +715,7 @@ pub fn basis_pin_hit(block: &Vec<ConstantInfo>) -> Option<BasisKind> {
     basis_pin_hit_from(&ks, block, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:52-63 basisPinHit
 /// The index recursion behind `basis_pin_hit`: `ks[i..]`'s `find?` by name,
 /// then the single `filter` by `canonEqList` on whatever it found.  A name
 /// mismatch moves to the next kind; a name MATCH ends the search, and the
@@ -740,7 +740,7 @@ pub fn basis_pin_hit_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:52-63 basisPinHit
 /// The pre-filter's test, `k.decls.map (·.name) == block.map (·.name)`.
 pub fn basis_pin_names_eq(decls: &Vec<ConstantInfo>, block: &Vec<ConstantInfo>) -> bool {
     prop_when::names_beq(
@@ -749,7 +749,7 @@ pub fn basis_pin_names_eq(decls: &Vec<ConstantInfo>, block: &Vec<ConstantInfo>) 
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:66-70 quotPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:65-70 quotPinHit
 /// `BasisKind.quotK.decls.getD slot (.axiomInfo default)`: the pinned
 /// quotient package's constant at one slot, with the total-function fallback
 /// the cited `getD` spells.  A separate function because `check_decl`'s
@@ -768,7 +768,7 @@ pub fn quot_basis_at(slot: u64) -> ConstantInfo {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:66-70 quotPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:65-70 quotPinHit
 /// **The quotient-pin match**: the record is the pinned package's constant at
 /// the slot it declares itself at.  The two are compared at `toConstantVal`,
 /// which con-leche's `ConstantInfo.canon_toConstantVal` identifies with

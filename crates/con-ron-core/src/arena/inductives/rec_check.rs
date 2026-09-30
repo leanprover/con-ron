@@ -438,18 +438,6 @@ pub fn target_major_dup(m: &TargetMajor) -> TargetMajor {
     }
 }
 
-/// con-leche: none — a `List TargetMajor` copy; Lean shares the list
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean TargetMajor`.
-pub fn target_majors_dup(ms: &Vec<TargetMajor>, i: usize, out: Vec<TargetMajor>) -> Vec<TargetMajor> {
-    if i >= ms.len() {
-        out
-    } else {
-        let mut o: Vec<TargetMajor> = out;
-        o.push(target_major_dup(&ms[i]));
-        target_majors_dup(ms, i + 1, o)
-    }
-}
-
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:255-275 TargetMajor
 /// Lean twin: the cited `deriving Inhabited` default, `Ms.getD c default`'s
 /// fallback: the anonymous inductive at no level and no parameter.  Only an

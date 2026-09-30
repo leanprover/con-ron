@@ -1,6 +1,6 @@
 //! The annotated basis blocks, generated (DESIGN.md §5 P1.5, task #22).
 //!
-//! con-leche: ConLeche/Kernel/BasisA.lean:50-57 BasisKind.declsA
+//! con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
 //!
 //! **Generated file — do not edit.**  Written by
 //! `proof/ConRon/Gen/Main.lean` (`cd proof && lake exe con-ron-gen-tables`)

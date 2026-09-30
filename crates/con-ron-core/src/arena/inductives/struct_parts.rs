@@ -73,32 +73,6 @@ pub const M_FUEL_MENTIONS: [u32; 29] = [
 ];
 
 // ---------------------------------------------------------------------------
-// One list helper the twin gets from `List` (DESIGN.md §3.4's standing rule)
-// ---------------------------------------------------------------------------
-
-/// con-leche: none — `ns.tail` over a `Vec<NIdx>`; Lean's `elim :: relps` pattern binds it
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:279-331 structPartsCore?`
-/// — the recogniser's `match cvR.levelParams with | elim :: relps` splits the
-/// list; a `Vec` has no tail-sharing, so the tail is copied.  The list is a
-/// declaration's level parameters, never a term.
-pub fn nidx_vec_tail(ns: &Vec<NIdx>) -> Vec<NIdx> {
-    nidx_vec_tail_from(ns, 1, Vec::new())
-}
-
-/// con-leche: none — `ns.tail` over a `Vec<NIdx>`
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:279-331 structPartsCore?`
-/// — the cursor recursion behind `nidx_vec_tail`.
-pub fn nidx_vec_tail_from(ns: &Vec<NIdx>, i: usize, out: Vec<NIdx>) -> Vec<NIdx> {
-    if i >= ns.len() {
-        out
-    } else {
-        let mut o: Vec<NIdx> = out;
-        o.push(ns[i].dup2());
-        nidx_vec_tail_from(ns, i + 1, o)
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Level lists over handles (`StructParts.lean:51-62` of the twin)
 // ---------------------------------------------------------------------------
 
@@ -181,14 +155,6 @@ pub fn struct_ps_at_from(
             }
         }
     }
-}
-
-/// con-leche: none — `(List.range n).map fun j => Expr.bvar (n - 1 - j)`, interned
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:79-82 bvarsDesc` —
-/// the FIELD variables' spine.  `structPsAt 0 n` is the same list; it is named
-/// apart because con-leche writes the two inline at different frames.
-pub fn bvars_desc(pers: &PersTier, st: &mut AState, n: u64) -> Result<Vec<EIdx>, CheckError> {
-    struct_ps_at(pers, st, 0, n)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:55-58 structElimLevel

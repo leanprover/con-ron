@@ -1,35 +1,34 @@
 //! `arena::inductives` — the inductive block's dispatch.
 //!
-//! The Rust twin of `proof/ConRon/Arena/Inductives.lean`: the `.indDecl` arm of
-//! con-leche's `checkDecl` (`ConLeche/Kernel/Checker.lean:566-609`), from the
-//! declared parameter count down to the two routes.  This is the single entry
-//! point `arena::checker`'s declaration checker calls, and everything in
-//! `arena::inductives::*` is what it calls.
+//! The uniform inductive route of con-leche 445b9cf4 (task #105): every
+//! inductive block — structure, sum, mutual, nested, indexed — is installed by
+//! one installer, `block_tail::check_block`, which `arena::check_decl`'s
+//! `.indDecl` arm (`check_ind_decl`, con-leche `Kernel/CheckDecl.lean`) reaches
+//! after the basis-pin test, the parameter count and `block_parts`' recogniser.
+//! One Rust module per con-leche file under `ConLeche/Kernel/Inductives/`:
+//!
+//! | Rust | con-leche |
+//! |---|---|
+//! | `field_tele` | `Inductives/FieldTele.lean` |
+//! | `positivity` | `Inductives/Positivity.lean` |
+//! | `block_rec` | `Inductives/BlockRec.lean` |
+//! | `rec_check` | `Inductives/RecCheck.lean` |
+//! | `class_read` | `Inductives/ClassRead.lean` |
+//! | `gen_rec` | `Inductives/GenRec.lean` |
+//! | `block_install` | `Inductives/BlockInstall.lean`, `BlockInstallF.lean` |
+//! | `block_parts` | `Inductives/BlockParts.lean` |
+//! | `block_tail` | `Inductives/BlockTail.lean` |
+//! | `struct_parts` | `Inductives/StructParts.lean` |
+//! | `struct_install` | `Inductives/StructInstall.lean` |
+//! | `struct_install_f` | `Inductives/StructInstallF.lean` |
+//! | `sum_install` | `Inductives/SumInstall.lean` |
+//! | `sum_install_f` | `Inductives/SumInstallF.lean` |
 //!
 //! What is NOT here is the **pinned basis block** (`basisPinHit`): a stream's
-//! `Nat` block arrives as an ordinary `indDecl` and is recognised before this,
-//! in the declaration checker, because its install is `checkBasisDecl`'s and
-//! not an inductive route's.  con-leche's `checkDecl` makes that test first and
-//! only then reaches the two clauses below; the arena's does the same.
-//!
-//! | Rust | Lean twin |
-//! |---|---|
-//! | `struct_parts` | `Arena/Inductives/StructParts.lean` |
-//! | `struct_install` | `Arena/Inductives/StructInstall.lean` |
-//! | `struct_install_f` | `Arena/Inductives/StructInstallF.lean` |
-//! | `sum_install` | `Arena/Inductives/SumInstall.lean` |
-//! | `sum_install_f` | `Arena/Inductives/SumInstallF.lean` |
-//!
-//! The declaration checker's own helpers — `unwrapOr`, `checkConstantVal`,
-//! `allLevelParamsDefined`, `constsResolveFFast`, `openPisAtFvarsF`,
-//! `domsMatchAux`, the three list checks, `isEqHead`, `IFEnv.findCV?`,
-//! `checkProjShape`, `checkProjRule`, `isRecInfo`, `recsFormSuffix`,
-//! `indParamsOk` — are `arena::checker_base`'s, the whole-constant
-//! comparisons `arena::canon`'s, the interning converters `arena::intern`'s
-//! and the pinned `Eq` basis `arena::std_axioms`'s.  While the two halves of
-//! P4d ran concurrently this module carried a borrowed copy of them
-//! (`arena::inductives::ind_base`, as the Lean carried
-//! `Arena/Inductives/Base.lean`); the merge deleted both.
+//! `Nat` block arrives as an ordinary `indDecl` and is recognised first, in
+//! `check_ind_decl`, because its install is `checkBasisDecl`'s.  The modelled
+//! route (`native_parts`, `native_install`, `modeled`, the `_model` families)
+//! and the gated tiers are gone with upstream's.
 
 pub mod field_tele;
 pub mod positivity;

@@ -1182,7 +1182,6 @@ pub fn mk_bvar(i: u64) -> Expr {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Expr.lean:436-441 _
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove expr::impl Hashable for Expr_refines, then delete this line
 /// The cited `instance : Hashable Expr := ⟨Expr.hash⟩`, as the key
 /// dictionary of `crate::ron::hashmap` — what `memoE`/`memoB` and every other
 /// `Expr`-keyed table will probe with.  Deviation: `Hashable` is our own

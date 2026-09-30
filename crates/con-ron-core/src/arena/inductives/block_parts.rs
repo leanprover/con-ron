@@ -78,22 +78,6 @@ pub fn ctors_dup(
     }
 }
 
-/// con-leche: none — a `List (List (ConstantVal × Nat))` copy; Lean shares the list
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockParts.lean MemberShape`.
-pub fn ctorss_dup(
-    css: &Vec<Vec<(IConstantVal, u64)>>,
-    i: usize,
-    out: Vec<Vec<(IConstantVal, u64)>>,
-) -> Vec<Vec<(IConstantVal, u64)>> {
-    if i >= css.len() {
-        out
-    } else {
-        let mut o: Vec<Vec<(IConstantVal, u64)>> = out;
-        o.push(ctors_dup(&css[i], 0, Vec::new()));
-        ctorss_dup(css, i + 1, o)
-    }
-}
-
 /// con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:71-96 RecShape
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockParts.lean RecShape` — **one
 /// recursor of a block, as the stream carries it**: its constant, the

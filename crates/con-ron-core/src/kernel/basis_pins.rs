@@ -2,7 +2,7 @@
 //! #22's generated table.
 //!
 //! `BasisA.lean` holds the annotated pinned basis blocks — `eqA`, `natA`,
-//! `punitA`, …, `quotSoundA` and `BasisKind.declsA` — and it does not *write*
+//! `emptyA`, …, `quotSoundA` and `BasisKind.declsA` — and it does not *write*
 //! them: they are computed from the raw pins (`ConLeche/Kernel/Basis/*`) by
 //! the checker's own annotation pass while the module elaborates
 //! (`#annotate_basis`, `ConLeche/Kernel/BasisGen.lean`).  The *values* are
@@ -13,15 +13,14 @@
 //!
 //! ## What is left for this module
 //!
-//! Two of the nineteen annotated pins are consumed by an **exact
+//! Two of the sixteen annotated pins are consumed by an **exact
 //! `ConstantInfo` comparison** rather than through
 //! `ConstantVal.matchesPin`: `env.find? eqName = some eqA`
-//! (`Kernel/StdAxioms.lean:346`, `Kernel/TrustAxioms.lean:193`,
-//! `Kernel/Checker.lean:284,528`, `Kernel/DeclCheck.lean:243,299,313,744`,
-//! `Kernel/Inductives/Modeled.lean:448,493,603,653`,
-//! `Cached/CheckerC.lean:143`, `Cached/ParsedC.lean:228`) and
-//! `env.find? natName = some natA` (`Kernel/TrustAxioms.lean:180`,
-//! `Kernel/DeclCheck.lean:290`).  `matchesPin` erases every binder's
+//! (`Kernel/StdAxioms.lean:324`, `Kernel/TrustAxioms.lean:196`,
+//! `Kernel/Checker.lean:282,433`, `Kernel/DeclCheck.lean:236,292,306`,
+//! `Cached/ParsedC.lean:152`) and
+//! `env.find? natName = some natA` (`Kernel/TrustAxioms.lean:183`,
+//! `Kernel/DeclCheck.lean:283`).  `matchesPin` erases every binder's
 //! prop-ness datum (`Expr.erasePw`), which is the *only* thing annotation
 //! changes in a raw pin, so every other pin is compared against its raw form
 //! in `std_axioms`/`trust_axioms` with no table at all (those modules'
@@ -51,10 +50,8 @@ use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
 use std::vec::Vec;
 
-/// con-leche: ConLeche/Kernel/BasisA.lean:29-48 _
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_pins::eq_a_refines, then delete this line
+/// con-leche: ConLeche/Kernel/BasisA.lean:29-44 _
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:22-28 eqRaw
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_pins::eq_a_refines, then delete this line
 /// The pinned annotated `Eq` type former, `eqA` — the head of the `.eqK`
 /// block (`BasisKind.declsA .eqK = [eqA, eqReflA, eqRecA]`).
 ///
@@ -76,8 +73,7 @@ pub fn eq_a() -> ConstantInfo {
     env::constant_info_dup(&block[0])
 }
 
-/// con-leche: ConLeche/Kernel/BasisA.lean:29-48 _
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_pins::nat_a_refines, then delete this line
+/// con-leche: ConLeche/Kernel/BasisA.lean:29-44 _
 /// The pinned annotated `Nat` type former, `natA` — the head of the `.natK`
 /// block (`BasisKind.declsA .natK = [natA, natZeroA, natSuccA, natRecA]`).
 pub fn nat_a() -> ConstantInfo {
@@ -85,8 +81,7 @@ pub fn nat_a() -> ConstantInfo {
     env::constant_info_dup(&block[0])
 }
 
-/// con-leche: ConLeche/Kernel/BasisA.lean:29-48 _
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_pins::is_pinned_eq_basis_refines, then delete this line
+/// con-leche: ConLeche/Kernel/BasisA.lean:29-44 _
 /// Is the stored constant *the* pinned annotated `Eq` type former?  This is
 /// the `some ci = some eqA` half of `env.find? eqName = some eqA`, i.e. the
 /// derived `DecidableEq (ConstantInfo)` against the table's pin.
@@ -94,8 +89,7 @@ pub fn is_pinned_eq_basis(ci: &ConstantInfo) -> bool {
     env::constant_info_beq(ci, &eq_a())
 }
 
-/// con-leche: ConLeche/Kernel/BasisA.lean:29-48 _
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_pins::is_pinned_nat_basis_refines, then delete this line
+/// con-leche: ConLeche/Kernel/BasisA.lean:29-44 _
 /// Is the stored constant *the* pinned annotated `Nat` type former
 /// (`env.find? natName = some natA`, `reduceElemOk`)?
 pub fn is_pinned_nat_basis(ci: &ConstantInfo) -> bool {
@@ -104,12 +98,8 @@ pub fn is_pinned_nat_basis(ci: &ConstantInfo) -> bool {
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
-/// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_pins::eq_basis_pinned_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:475-495 checkProjLookups
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_pins::eq_basis_pinned_refines, then delete this line
 /// **"The pinned `Eq` basis is installed, unmodified"** — the whole guard
-/// `decide (env.find? eqName = some eqA)`, through the index.  Twelve sites
+/// `decide (env.find? eqName = some eqA)`, through the index.  Nine sites
 /// spell it (the module note lists them); two of those are in a pure `Bool`,
 /// so a monadic "run the annotation pass now" is not available and the
 /// comparison has to be against a value the core can write down.

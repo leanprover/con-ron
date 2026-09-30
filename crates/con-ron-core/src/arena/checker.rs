@@ -768,7 +768,6 @@ pub fn pins_dup(p: &Pins) -> Pins {
 }
 
 /// con-leche: Main.lean:263-279 checkWorker
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::worker_state_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Phased.lean:37-44 AState.worker` — the twin's
 /// phase-B worker reads the persistent tier where it is.
 /// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,
@@ -880,13 +879,12 @@ pub fn cp_append(out: Vec<u32>, s: &Vec<u32>, i: usize) -> Vec<u32> {
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
 /// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::intern_all_pins_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:472-508 internAllPins` — **the
 /// one-time tree walk of DESIGN.md §8.6 P2d**: every datum the checker compares
 /// a stream record against, interned into the tier that is live at the call —
 /// which, at the driver's call, is the persistent one.
 ///
-/// The six basis blocks in both forms (the RAW ones `basis_pin_hit` and
+/// The five basis blocks in both forms (the RAW ones `basis_pin_hit` and
 /// `quot_pin_hit` compare against, the ANNOTATED ones `check_basis_decl`
 /// installs), the standard and compiler-trust axiom pins, the reserved names
 /// the guards compare by handle, and the `Nat`-operation pin variants, whose
@@ -909,8 +907,7 @@ pub fn intern_all_pins(
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::intern_all_basis_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:472-508 internAllPins` — the six
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:472-508 internAllPins` — the five
 /// basis blocks in both forms, as a cursor over
 /// `con_ron_core::kernel::basis_raw::block_pin_kinds` plus `quotK` (the twin
 /// spells the twelve calls out).
@@ -1076,6 +1073,8 @@ mod tests {
     use crate::arena::intern::{intern_ci_list, intern_cv};
     use crate::arena::std_axioms::i_constant_val_matches_pin;
     use crate::arena::store::EStore;
+    use crate::arena::basis::basis_pin_hit;
+    use crate::arena::check_decl::M_NONSTD_AXIOM;
     use crate::kernel::basis_names;
     use crate::kernel::basis_raw;
     use crate::kernel::canon as ccanon;
@@ -1327,12 +1326,11 @@ mod tests {
         }
     }
 
-    /// The six-constructor enum's equality, which `kernel::env` does not carry.
+    /// The five-constructor enum's equality, which `kernel::env` does not carry.
     fn basis_kind_beq(a: &BasisKind, b: &BasisKind) -> bool {
         match (a, b) {
             (BasisKind::EqK, BasisKind::EqK) => true,
             (BasisKind::NatK, BasisKind::NatK) => true,
-            (BasisKind::PunitK, BasisKind::PunitK) => true,
             (BasisKind::EmptyK, BasisKind::EmptyK) => true,
             (BasisKind::FalseK, BasisKind::FalseK) => true,
             (BasisKind::QuotK, BasisKind::QuotK) => true,
@@ -1344,7 +1342,6 @@ mod tests {
     fn basis_pin_hit_agrees() {
         assert!(chk_basis_pin_hit(&basis_raw::basis_kind_decls(&BasisKind::NatK)));
         assert!(chk_basis_pin_hit(&basis_raw::basis_kind_decls(&BasisKind::EqK)));
-        assert!(chk_basis_pin_hit(&basis_raw::basis_kind_decls(&BasisKind::PunitK)));
         assert!(chk_basis_pin_hit(&basis_raw::basis_kind_decls(&BasisKind::QuotK)));
         assert!(chk_basis_pin_hit(&Vec::new()));
     }

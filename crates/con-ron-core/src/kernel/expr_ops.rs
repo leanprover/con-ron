@@ -1102,16 +1102,6 @@ pub fn lam_pw(e: &Expr) -> Option<PropWhen> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:896-902 forallPw
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove expr_ops::forall_pw_refines, then delete this line
-/// The ∀ twin of `lamPw`.
-pub fn forall_pw(e: &Expr) -> Option<PropWhen> {
-    match expr::view(&e) {
-        ExprView::ForallE(_, _, m) => Some(prop_when::dup(&m.pw)),
-        _ => None,
-    }
-}
-
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1984-1985 hasFvarFast
 /// con-leche: ConLeche/Kernel/ExprOps.lean:971-980 hasFvar
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1987-1991 hasFvar_eq_hasFvarFast
@@ -1350,31 +1340,6 @@ pub fn pi_result(e: &Expr) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1142-1146 instPis
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove expr_ops::inst_pis_refines, then delete this line
-/// Instantiate a `∀`-telescope with arguments, in order.  The `i = 0`
-/// wrapper of the index recursion below.
-pub fn inst_pis(e: &Expr, args: &Vec<Expr>) -> Option<Expr> {
-    inst_pis_from(e, args, 0)
-}
-
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1142-1146 instPis
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove expr_ops::inst_pis_from_refines, then delete this line
-/// The index recursion behind `inst_pis`.
-pub fn inst_pis_from(e: &Expr, args: &Vec<Expr>, i: usize) -> Option<Expr> {
-    if i >= args.len() {
-        Some(expr::dup(e))
-    } else {
-        match expr::view(&e) {
-            ExprView::ForallE(_, body, _) => {
-                let b: Expr = instantiate1(body, &args[i], 0);
-                inst_pis_from(&b, args, i + 1)
-            }
-            _ => None,
-        }
-    }
-}
-
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1359-1367 instPisAt
 /// Instantiate the leading `∀`-binders at the given arguments, returning
 /// each binder's progressively instantiated domain with the residual.
@@ -1574,69 +1539,6 @@ pub fn rec_rule_args_eq(args: &Vec<Expr>, m_i: u64, cn_p: u64, k: u64) -> bool {
         } else {
             false
         }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1246-1261 pisToLams
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove expr_ops::pis_to_lams_refines, then delete this line
-/// Convert the first `k` `∀`-binders into `λ`-binders over a body, at the
-/// parse placeholder `.never` (the cited comment: a ∀'s `pw` claims the
-/// codomain's prop-ness, which is not the λ's claim, so every consumer must
-/// re-run the annotate pass over the result).
-pub fn pis_to_lams(k: u64, e: &Expr, body: &Expr) -> Option<Expr> {
-    if k == 0 {
-        Some(expr::dup(body))
-    } else {
-        match expr::view(&e) {
-            ExprView::ForallE(ty, rest, _) => match pis_to_lams(k - 1, rest, body) {
-                Some(b) => Some(expr::lam(
-                    expr::dup(ty),
-                    b,
-                    expr::binder_meta(prop_when::never()),
-                )),
-                None => None,
-            },
-            _ => None,
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1263-1269 replacePiBody
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove expr_ops::replace_pi_body_refines, then delete this line
-/// Replace the body under the first `k` `∀`-binders, domains and binder data
-/// kept.
-pub fn replace_pi_body(k: u64, e: &Expr, b: &Expr) -> Option<Expr> {
-    if k == 0 {
-        Some(expr::dup(b))
-    } else {
-        match expr::view(&e) {
-            ExprView::ForallE(ty, rest, m) => match replace_pi_body(k - 1, rest, b) {
-                Some(r) => Some(expr::forall_e(expr::dup(ty), r, expr::binder_meta_dup(m))),
-                None => None,
-            },
-            _ => None,
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1271-1274 piArity
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove expr_ops::pi_arity_refines, then delete this line
-/// The length of the leading `∀`-telescope.
-pub fn pi_arity(e: &Expr) -> u64 {
-    match expr::view(&e) {
-        ExprView::ForallE(_, b, _) => pi_arity(b) + 1,
-        _ => 0,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1276-1280 resultSort
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove expr_ops::result_sort_refines, then delete this line
-/// The result sort at the end of a `∀`-telescope.
-pub fn result_sort(e: &Expr) -> Option<Level> {
-    match expr::view(&e) {
-        ExprView::ForallE(_, b, _) => result_sort(b),
-        ExprView::Sort(u) => Some(level::dup(u)),
-        _ => None,
     }
 }
 
@@ -2540,7 +2442,6 @@ mod tests {
             app2(expr::bvar(0), cst("k")),
         );
         let ty: Expr = pi(cst("A"), pi(cst("B"), pi(cst("C"), expr::dup(&body))));
-        assert_eq!(expr_ops::pi_arity(&ty), 3);
         let stripped = expr_ops::strip_pis(3, &ty);
         match stripped {
             Some(r) => {
@@ -2573,16 +2474,12 @@ mod tests {
         assert!(expr_ops::dom_at_n(&empty, 0).is_none());
         assert!(expr_ops::dom_at_n(&empty, 7).is_none());
         assert!(expr::beq(&expr_ops::pi_result(&ty), &body));
-        // `instPis` and `instPisAt` agree, and `instPisAtF` agrees with both.
+        // `instPisAt` and `instPisAtF` agree.
         let mut args: Vec<Expr> = Vec::new();
         args.push(cst("x"));
         args.push(cst("y"));
         args.push(cst("z"));
         let want: Expr = app2(app2(cst("x"), cst("y")), app2(cst("z"), cst("k")));
-        match expr_ops::inst_pis(&ty, &args) {
-            Some(r) => assert!(expr::beq(&r, &want)),
-            None => panic!("inst_pis failed"),
-        }
         let seq = expr_ops::inst_pis_at(&args, &ty);
         let fast = expr_ops::inst_pis_at_f(&args, &ty);
         match (seq, fast) {
@@ -2597,25 +2494,6 @@ mod tests {
             }
             _ => panic!("inst_pis_at disagreement"),
         }
-        // `pisToLams` and `replacePiBody` over the same telescope.
-        match expr_ops::pis_to_lams(3, &ty, &cst("B0")) {
-            Some(l) => {
-                assert!(expr_ops::is_lam(&l));
-                match expr_ops::strip_lams(3, &l) {
-                    Some(r) => assert!(expr::beq(&r.1, &cst("B0"))),
-                    None => panic!("strip_lams failed"),
-                }
-            }
-            None => panic!("pis_to_lams failed"),
-        }
-        match expr_ops::replace_pi_body(3, &ty, &cst("B1")) {
-            Some(p) => assert!(expr::beq(&expr_ops::pi_result(&p), &cst("B1"))),
-            None => panic!("replace_pi_body failed"),
-        }
-        // `resultSort` walks to the end of the telescope.
-        let ty2: Expr = pi(cst("A"), expr::sort(level::succ(level::zero())));
-        assert!(expr_ops::result_sort(&ty2).is_some());
-        assert!(expr_ops::result_sort(&ty).is_none());
     }
 
     #[test]
@@ -2817,8 +2695,6 @@ mod tests {
         assert!(!expr_ops::is_lam(&p));
         assert!(expr_ops::lam_pw(&l).is_some());
         assert!(expr_ops::lam_pw(&p).is_none());
-        assert!(expr_ops::forall_pw(&p).is_some());
-        assert!(expr_ops::forall_pw(&l).is_none());
         // `exprPtrBEq` is `beq` with the pointer path in front.
         assert!(expr_ops::expr_ptr_beq(&e, &expr::dup(&e)));
         assert!(expr_ops::expr_ptr_beq(&e, &app2(expr::fvar(2, cst("T")), expr::bvar(0))));

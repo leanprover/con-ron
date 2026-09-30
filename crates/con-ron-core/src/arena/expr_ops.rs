@@ -5361,14 +5361,6 @@ mod tests {
         }
     }
 
-    fn eq_ol(pers: &PersTier, st: &AState, got: &Option<LIdx>, want: &Option<Level>) -> bool {
-        match (got, want) {
-            (Some(g), Some(w)) => core_level::beq(&den_l(pers, st, g), w),
-            (None, None) => true,
-            _ => false,
-        }
-    }
-
     // --- the fixture --------------------------------------------------------
 
     /// The handles the checks below name — the twin's `Fx`, built by the same
@@ -6001,14 +5993,6 @@ mod tests {
         assert_eq!(ok(is_lam(pers, &st, &fx.pi_t)), core_ops::is_lam(&pi_t));
         assert!(eq_opw(&ok(lam_pw(pers, &st, &fx.big)), &core_ops::lam_pw(&big)));
         assert!(eq_opw(&ok(lam_pw(pers, &st, &fx.pi_t)), &core_ops::lam_pw(&pi_t)));
-        assert!(eq_opw(
-            &ok(forall_pw(pers, &st, &fx.pi_t)),
-            &core_ops::forall_pw(&pi_t)
-        ));
-        assert!(eq_opw(
-            &ok(forall_pw(pers, &st, &fx.big)),
-            &core_ops::forall_pw(&big)
-        ));
         assert_eq!(ok(has_fvar(pers, &st, F, &fx.big)), core_ops::has_fvar(&big));
         assert_eq!(ok(has_fvar(pers, &st, F, &fx.pi_t)), core_ops::has_fvar(&pi_t));
         assert_eq!(ok(has_fvar(pers, &st, F, &fx.fv0)), core_ops::has_fvar(&fv0));
@@ -6094,8 +6078,6 @@ mod tests {
         let lam_t2 = den(pers, &st, &fx.lam_t2);
         let pi_t = den(pers, &st, &fx.pi_t);
         let cf = den(pers, &st, &fx.cf);
-        let pi_s = den(pers, &st, &fx.pi_s);
-        let s1 = den(pers, &st, &fx.s1);
 
         assert!(eq_binders(
             pers,
@@ -6138,26 +6120,6 @@ mod tests {
         assert!(eq_e(pers, &st, &ok(pi_result(pers, &st, F, &fx.pi_t)), &w));
         let w = core_ops::pi_result(&cf);
         assert!(eq_e(pers, &st, &ok(pi_result(pers, &st, F, &fx.cf)), &w));
-        assert_eq!(ok(pi_arity(pers, &st, F, &fx.pi_t)), core_ops::pi_arity(&pi_t));
-        assert_eq!(ok(pi_arity(pers, &st, F, &fx.cf)), core_ops::pi_arity(&cf));
-        assert!(eq_ol(
-            pers,
-            &st,
-            &ok(result_sort(pers, &st, F, &fx.pi_s)),
-            &core_ops::result_sort(&pi_s)
-        ));
-        assert!(eq_ol(
-            pers,
-            &st,
-            &ok(result_sort(pers, &st, F, &fx.pi_t)),
-            &core_ops::result_sort(&pi_t)
-        ));
-        assert!(eq_ol(
-            pers,
-            &st,
-            &ok(result_sort(pers, &st, F, &fx.s1)),
-            &core_ops::result_sort(&s1)
-        ));
     }
 
     // --- telescopes, part 2: the instantiating entries (17) ------------------
@@ -6176,15 +6138,6 @@ mod tests {
         let one_cf = vec![expr::dup(&cf)];
         let hs1 = vec![fx.cf.dup2()];
 
-        let w = core_ops::inst_pis(&pi_t, &two);
-        let r = ok(inst_pis(pers, &mut st, F, &fx.pi_t, &hs2));
-        assert!(eq_ope(pers, &st, &r, &w));
-        let w = core_ops::inst_pis(&pi_t, &Vec::new());
-        let r = ok(inst_pis(pers, &mut st, F, &fx.pi_t, &Vec::new()));
-        assert!(eq_ope(pers, &st, &r, &w));
-        let w = core_ops::inst_pis(&cf, &vec![expr::dup(&s1)]);
-        let r = ok(inst_pis(pers, &mut st, F, &fx.cf, &vec![fx.s1.dup2()]));
-        assert!(eq_ope(pers, &st, &r, &w));
 
         let w = core_ops::inst_pis_at(&two, &pi_t);
         let r = ok(inst_pis_at(pers, &mut st, F, &hs2, &fx.pi_t));
@@ -6290,24 +6243,6 @@ mod tests {
             core_ops::rec_rule_plain(&big, 2, 2, 1)
         );
 
-        let w = core_ops::pis_to_lams(2, &pi_t, &cf);
-        let r = ok(pis_to_lams(pers, &mut st, 2, &fx.pi_t, &fx.cf));
-        assert!(eq_ope(pers, &st, &r, &w));
-        let w = core_ops::pis_to_lams(0, &pi_t, &cf);
-        let r = ok(pis_to_lams(pers, &mut st, 0, &fx.pi_t, &fx.cf));
-        assert!(eq_ope(pers, &st, &r, &w));
-        let w = core_ops::pis_to_lams(3, &pi_t, &cf);
-        let r = ok(pis_to_lams(pers, &mut st, 3, &fx.pi_t, &fx.cf));
-        assert!(eq_ope(pers, &st, &r, &w));
-        let w = core_ops::replace_pi_body(2, &pi_t, &cf);
-        let r = ok(replace_pi_body(pers, &mut st, 2, &fx.pi_t, &fx.cf));
-        assert!(eq_ope(pers, &st, &r, &w));
-        let w = core_ops::replace_pi_body(1, &pi_t, &cf);
-        let r = ok(replace_pi_body(pers, &mut st, 1, &fx.pi_t, &fx.cf));
-        assert!(eq_ope(pers, &st, &r, &w));
-        let w = core_ops::replace_pi_body(3, &pi_t, &cf);
-        let r = ok(replace_pi_body(pers, &mut st, 3, &fx.pi_t, &fx.cf));
-        assert!(eq_ope(pers, &st, &r, &w));
     }
 
     // --- the packed range fields (19) ---------------------------------------

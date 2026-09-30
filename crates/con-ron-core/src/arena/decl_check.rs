@@ -2853,8 +2853,6 @@ pub fn subst_const0_pairs(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Checker.lean:30-48 checkDefnVal
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:838-853 checkDefnValF
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove decl_check::check_defn_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:723-734 checkDefnVal` — check
 /// a `def` declaration's value against its checked constant, returning the
 /// pushed index.  The reducibility hint is stored untouched: it steers only the
