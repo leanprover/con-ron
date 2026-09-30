@@ -2,8 +2,8 @@
 # `ConRon.Refine2.Core` — Theorem 2 for `arena::core`
 
 **Task #97-P5-Core.**  The checker core's refinement: `arena::core`'s six knot
-entries against `Arena/Core.lean`'s `coreKnot`, `Arena/CoreGated.lean`'s
-`coreKnotGated` and `Arena/CoreIO.lean`'s `coreKnotIO`.
+entries against `Arena/Core.lean`'s `coreKnot` and `Arena/CoreIO.lean`'s
+`coreKnotIO` (the gated knot went with con-leche's modeled route, task #105).
 
 | file | what | closed |
 |---|---|---|

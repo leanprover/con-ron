@@ -10,7 +10,7 @@ tier's two top statements.
 
     theorem parse_chunks_refines … :
       SimStreamRel ParseResultDRel pers lst o
-        (parseChunks (absModeller …) (absChunks chunks) in_model census)
+        (parseChunks (absChunks chunks))
 
 *The Rust parse of a chunk list accepting implies the twin's parse accepts,
 with the abstracted declarations and a state related to the Rust's.*  With
@@ -28,18 +28,18 @@ keeps the same relationship to its own `readFold` (task #97e part 2 §5), and
 equating the two is con-leche's `parseChunks_eq_parseExportD`, which belongs
 to neither side's refinement.
 
-## Four hypotheses and no more
+## Three hypotheses and no more
 
 `AStateRel₀` / `AStateInv` are the tier's own (lockstep: no `StoreWF`, no
 `Ext`, task #97-T2-LOCKSTEP); `ScanSpec` is the byte
 recogniser's, and since task #97-P5-Front it is a THEOREM,
 `Scan/Spec.lean`'s `scanSpec` (the scanner tier moved back from
 `RefineOld/Frontend/`); it stays a parameter so the capstone's call sites are
-unchanged, and a caller passes `scanSpec`; `ModellerRefines` is the seam's, and DESIGN §8.2 puts the modeller
-outside the verified surface by design.  **`ModellerWF` is NOT among them**,
-and that is the arena's dividend: the original campaign's `hgen` said *"every
-declaration `Modeller::generate` returns is well formed"*, and over handles
-`absIDeclaration` is total, so nothing needs it.
+unchanged, and a caller passes `scanSpec`.  **Task #105** (con-leche's
+`uniform-inds` merge) deletes the fourth: `ModellerRefines` and the seam it
+was about (`Modeller`, `ModelCtx`) are gone upstream — every inductive block
+installs through the kernel's uniform installer now, unconditionally, so the
+frontend has nothing left to generate or rewrite.
 
 `DeclRecStrWF` does not appear either — it is inside `ScanSpec.scanLineStr`,
 which is where the scanner owes it.
@@ -67,7 +67,7 @@ from its children:
     apply_line          = parse_{name,level,expr}_entry_d | apply_decl_d | header/blank
     apply_decl_d        = process_line_core_d
     process_line_core_d = plc_{ax,defn,thm,opaq,quot,ind}
-    plc_*               = parse_cv_d ; get_decl_d ; push_decl ; proj_rewrite_d ;
+    plc_*               = parse_cv_d ; get_decl_d ; push_decl ;
                           quot_kind_of ; validate_ind_d ; install_ind_d
 
 so the frontier below `apply_line_refines` is its real subtree.
@@ -104,8 +104,8 @@ theorem plc_declined {n : Std.Usize} {M : Std.Array Std.U32 n} {pers lst rst rsd
         let s ← lift (Std.Array.to_slice M)
         let v1 ← kernel.core_types.code_points s
         let r1 ← frontend.export_c.declined Unit v1
-        ok (r1, rst, rsd)) = ok o) :
-    SimDV pers lst o (pure (Sum.inr (RecordVerdict.declined msg))) := by
+        ok (r1, rsd)) = ok o) :
+    SimDV pers lst (o.1, rst, o.2) (pure (Sum.inr (RecordVerdict.declined msg))) := by
   simp only [lift, bind_tc_ok] at h
   obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -113,124 +113,29 @@ theorem plc_declined {n : Std.Usize} {M : Std.Array Std.U32 n} {pers lst rst rsd
   obtain ⟨m', rfl⟩ := declined_refines hr1
   exact SimDV.verdict rfl rfl
 
-/-- A `push_decl` at the tail of an arm. -/
+/-- **A `push_decl` at the tail of an arm.**  Task #105 deletes the
+projection rewrite that used to run first (`plc_proj_tail`,
+`StateDRel.push_projRewrite`, `StateDInv.set_projRewrites`): `push_decl` no
+longer takes `pers`/`ar` at all and cannot itself produce a `LineErr` (it is a
+plain `Vec::push`), so every arm's success tail is this one lemma, consuming
+the record's own `let st1 ← push_decl st d; ok (Ok (), st1)`. -/
 theorem plc_push {pers rst lst rsd lsd d o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (h : (do
-        let (r1, e, st1) ← frontend.export_c.push_decl pers rst.store rsd d
-        ok (r1, { rst with store := e }, st1)) = ok o) :
-    SimDV pers lst o (do pure (Sum.inl (← pushDecl lsd (absIDeclaration d)))) := by
-  obtain ⟨⟨r1, e, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        let st1 ← frontend.export_c.push_decl rsd d
+        ok (core.result.Result.Ok (), st1)) = ok o) :
+    SimDV pers lst (o.1, rst, o.2) (do pure (Sum.inl (← pushDecl lsd (absIDeclaration d)))) := by
+  obtain ⟨st1, hst1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases Result.ok_injective h
-  exact SimD.toSimDV_inl (push_decl_refines hrel hinv hd hi h1)
+  exact SimD.toSimDV_inl (SimD.mk (pers := pers) rfl (push_decl_refines hd hst1) hi hrel hinv)
 
-/-- `StateDRel` at a pushed projection rewrite. -/
-theorem StateDRel.push_projRewrite {rsd lsd} (hd : StateDRel rsd lsd)
-    {n : arena.handle.NIdx} {v2 : alloc.vec.Vec arena.handle.NIdx}
-    (hv : v2.val = rsd.proj_rewrites.val ++ [n]) :
-    StateDRel { rsd with proj_rewrites := v2 }
-      { lsd with projRewrites := lsd.projRewrites.push (absNIdx n) } :=
-  { hd with
-    projRewrites := by
-      show lsd.projRewrites.push (absNIdx n) = absNIdxArr v2
-      rw [hd.projRewrites]; simp [absNIdxArr, hv] }
-
-theorem StateDInv.set_projRewrites {rsd} (hi : StateDInv rsd)
-    {v2 : alloc.vec.Vec arena.handle.NIdx} :
-    StateDInv { rsd with proj_rewrites := v2 } :=
-  ⟨hi.projOwners, hi.projLevels, hi.constTypes, hi.heights, hi.genOwner, hi.indBlocks⟩
-
-/-- **The projection rewrite and the push**, the shared tail of the `defn`
-and `thm` arms: the port's `match proj_rewrite_d … with` against the twin's
-`match ← projRewriteD … with`, at either declaration constructor. -/
-theorem plc_proj_tail {pers rst lst rsd lsd o} {v : arena.env.IConstantVal}
-    {v1 : arena.handle.EIdx} {mkR : arena.handle.EIdx → arena.env.IDeclaration}
-    {mkL : EIdx → IDeclaration}
-    (hmk : ∀ e, absIDeclaration (mkR e) = mkL (absEIdx e))
+theorem plc_ax {pers rst lst rsd lsd cvr u o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
-    (h : (do
-        let (r2, ar1) ← frontend.export_c.proj_rewrite_d pers rst rsd v v1
-        match r2 with
-        | core.result.Result.Ok o =>
-          match o with
-          | none =>
-            let (r3, e, st1) ←
-              frontend.export_c.push_decl pers ar1.store rsd (mkR v1)
-            ok (r3, { ar1 with store := e }, st1)
-          | some vl2 =>
-            let n ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 v.name
-            let (r3, e, st1) ←
-              frontend.export_c.push_decl pers ar1.store rsd (mkR vl2)
-            match r3 with
-            | core.result.Result.Ok _ =>
-              let v2 ← alloc.vec.Vec.push st1.proj_rewrites n
-              ok (core.result.Result.Ok (), { ar1 with store := e },
-                { st1 with proj_rewrites := v2 })
-            | core.result.Result.Err _ => ok (r3, { ar1 with store := e }, st1)
-        | core.result.Result.Err e =>
-          let r3 ← frontend.export_c.fail Unit e
-          ok (r3, ar1, rsd)) = ok o) :
-    SimDV pers lst o (do
-      match ← projRewriteD lsd (absIConstantVal v) (absEIdx v1) with
-      | some vl' =>
-        let st ← pushDecl lsd (mkL vl')
-        pure (Sum.inl { st with projRewrites := st.projRewrites.push (absIConstantVal v).name })
-      | none => pure (Sum.inl (← pushDecl lsd (mkL (absEIdx v1))))) := by
-  obtain ⟨⟨r2, ar1⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hP := proj_rewrite_d_refines hrel hinv hd hi h2
-  simp only [Sim₀] at hP
-  cases r2 with
-  | Err e =>
-    obtain ⟨r3, hr3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    cases Result.ok_injective h
-    obtain ⟨e', rfl, hk⟩ := fail_refines hr3
-    have hE : AErrSim e _ := AOut₀.destErr hP
-    show AErrSim e' _
-    intro k hk'
-    rw [hk] at hk'
-    obtain ⟨le, hle, hlk⟩ := hE k hk'
-    exact ⟨le, by simp only [am_run_bind', hle]; rfl, hlk⟩
-  | Ok ov =>
-    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := hP
-    refine SimDV.bind_ok hx1 ?_
-    cases ov with
-    | none =>
-      simp only [Option.map_none]
-      rw [← hmk]
-      exact plc_push hrel1 hinv1 hd hi h
-    | some vl2 =>
-      simp only [Option.map_some]
-      obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨⟨r3, e, st1⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hS := push_decl_refines hrel1 hinv1 hd hi h3
-      rw [hmk] at hS
-      simp only [SimD] at hS
-      have hnv : n = v.name := dupId_nidx _ _ hn
-      subst hnv
-      cases r3 with
-      | Ok u =>
-        obtain ⟨v2, hv2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        cases Result.ok_injective h
-        obtain ⟨lsd', lst', hx, hd', hi', hrel', hinv'⟩ := hS
-        refine SimDV.mk
-          (lsd' := { lsd' with projRewrites := (lsd'.projRewrites.push (absIConstantVal v).name) })
-          ?_
-          (StateDRel.push_projRewrite hd' (ConRon.Refine.vec_push_val hv2))
-          hi'.set_projRewrites hrel' hinv'
-        simp only [am_run_bind', hx, except_ok_bind]; rfl
-      | Err e3 =>
-        cases Result.ok_injective h
-        exact SimDV.of_bind hS rfl
-
-theorem plc_ax {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd cvr u o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
-    (h : frontend.export_c.process_line_core_d inst pers m rst rsd
+    (h : frontend.export_c.process_line_core_d pers rst.store rsd
       (.Ax cvr u) = ok o) :
-    SimDV pers lst o (processLineCoreD lmd lsd (absDeclRec (.Ax cvr u))) := by
+    SimDV pers lst (o.1, rst, o.2) (processLineCoreD lsd (absDeclRec (.Ax cvr u))) := by
   rw [frontend.export_c.process_line_core_d] at h
   obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hP := parse_cv_d_refines (lst := lst) hd hr
@@ -247,13 +152,12 @@ theorem plc_ax {G : Type} {inst : frontend.types.Modeller G}
       simp only [Bool.false_eq_true, if_false, pure_bind]
       exact plc_push hrel hinv hd hi h
 
-theorem plc_opaq {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd cvr value u o}
+theorem plc_opaq {pers rst lst rsd lsd cvr value u o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
-    (h : frontend.export_c.process_line_core_d inst pers m rst rsd
+    (h : frontend.export_c.process_line_core_d pers rst.store rsd
       (.Opaq cvr value u) = ok o) :
-    SimDV pers lst o (processLineCoreD lmd lsd (absDeclRec (.Opaq cvr value u))) := by
+    SimDV pers lst (o.1, rst, o.2) (processLineCoreD lsd (absDeclRec (.Opaq cvr value u))) := by
   rw [frontend.export_c.process_line_core_d] at h
   obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hP := parse_cv_d_refines (lst := lst) hd hr
@@ -278,13 +182,12 @@ theorem plc_opaq {G : Type} {inst : frontend.types.Modeller G}
         refine SimDV.bind_ok hG ?_
         exact plc_push hrel hinv hd hi h
 
-theorem plc_thm {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd cvr value o}
+theorem plc_thm {pers rst lst rsd lsd cvr value o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
-    (h : frontend.export_c.process_line_core_d inst pers m rst rsd
+    (h : frontend.export_c.process_line_core_d pers rst.store rsd
       (.Thm cvr value) = ok o) :
-    SimDV pers lst o (processLineCoreD lmd lsd (absDeclRec (.Thm cvr value))) := by
+    SimDV pers lst (o.1, rst, o.2) (processLineCoreD lsd (absDeclRec (.Thm cvr value))) := by
   rw [frontend.export_c.process_line_core_d] at h
   obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hP := parse_cv_d_refines (lst := lst) hd hr
@@ -303,16 +206,19 @@ theorem plc_thm {G : Type} {inst : frontend.types.Modeller G}
       exact SimDV.of_bind hG rfl
     | Ok v1 =>
       refine SimDV.bind_ok hG ?_
-      exact plc_proj_tail (mkR := fun e => .ThmDecl v e) (fun _ => rfl) hrel hinv hd hi h
+      exact plc_push hrel hinv hd hi h
 
-theorem plc_defn {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd cvr value hints safety o}
+/-- **`plc_defn`.**  Task #105 deletes the projection rewrite
+(`plc_proj_tail`'s other call site): the port now builds the reducibility
+hint and pushes, unconditionally — one `push_decl` call for all three
+`HintsRec` arms, not one `plc_proj_tail` call each. -/
+theorem plc_defn {pers rst lst rsd lsd cvr value hints safety o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd) (hs : ConRon.Refine.StrWF safety)
-    (h : frontend.export_c.process_line_core_d inst pers m rst rsd
+    (h : frontend.export_c.process_line_core_d pers rst.store rsd
       (.Defn cvr value hints safety) = ok o) :
-    SimDV pers lst o
-      (processLineCoreD lmd lsd (absDeclRec (.Defn cvr value hints safety))) := by
+    SimDV pers lst (o.1, rst, o.2)
+      (processLineCoreD lsd (absDeclRec (.Defn cvr value hints safety))) := by
   rw [frontend.export_c.process_line_core_d.eq_def] at h
   dsimp only at h
   obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -340,25 +246,8 @@ theorem plc_defn {G : Type} {inst : frontend.types.Modeller G}
         exact SimDV.of_bind hG rfl
       | Ok v1 =>
         refine SimDV.bind_ok hG ?_
-        cases hints with
-        | Abbrev =>
-          obtain ⟨hh, hhh, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-          cases Result.ok_injective hhh
-          exact plc_proj_tail (mkR := fun e => .DefnDecl v e .Abbrev)
-            (mkL := fun e => .defnDecl (absIConstantVal v) e .abbrev) (fun _ => rfl)
-            hrel hinv hd hi h
-        | Opaque =>
-          obtain ⟨hh, hhh, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-          cases Result.ok_injective hhh
-          exact plc_proj_tail (mkR := fun e => .DefnDecl v e .Opaque)
-            (mkL := fun e => .defnDecl (absIConstantVal v) e .opaque) (fun _ => rfl)
-            hrel hinv hd hi h
-        | Regular n =>
-          obtain ⟨hh, hhh, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-          cases Result.ok_injective hhh
-          exact plc_proj_tail (mkR := fun e => .DefnDecl v e (.Regular n))
-            (mkL := fun e => .defnDecl (absIConstantVal v) e (.regular n.val)) (fun _ => rfl)
-            hrel hinv hd hi h
+        obtain ⟨hh, hhh, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        cases hints <;> (cases Result.ok_injective hhh; exact plc_push hrel hinv hd hi h)
     · rename_i hsv
       have hbf : b = false := by
         cases b
@@ -372,13 +261,12 @@ theorem plc_defn {G : Type} {inst : frontend.types.Modeller G}
       obtain ⟨m', rfl⟩ := declined_refines hr1
       exact SimDV.verdict rfl rfl
 
-theorem plc_quot {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd cvr kind o}
+theorem plc_quot {pers rst lst rsd lsd cvr kind o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd) (hs : ConRon.Refine.StrWF kind)
-    (h : frontend.export_c.process_line_core_d inst pers m rst rsd
+    (h : frontend.export_c.process_line_core_d pers rst.store rsd
       (.Quot cvr kind) = ok o) :
-    SimDV pers lst o (processLineCoreD lmd lsd (absDeclRec (.Quot cvr kind))) := by
+    SimDV pers lst (o.1, rst, o.2) (processLineCoreD lsd (absDeclRec (.Quot cvr kind))) := by
   rw [frontend.export_c.process_line_core_d] at h
   obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hP := parse_cv_d_refines (lst := lst) hd hr
@@ -425,41 +313,27 @@ theorem plc_quot {G : Type} {inst : frontend.types.Modeller G}
         simp only [pure_bind]; rw [← hQ]; exact hpush
       next => split at hQ <;> simp_all
 
-/-- `StateDRel` at the `indCount` bump. -/
-theorem StateDRel.set_indCount {rsd lsd} (hd : StateDRel rsd lsd) {i : Std.U64}
-    (hi : i.val = rsd.ind_count.val + 1) :
-    StateDRel { rsd with ind_count := i } { lsd with indCount := lsd.indCount + 1 } :=
-  { hd with
-    indCount := by
-      show lsd.indCount + 1 = absU i
-      rw [hd.indCount]; simp only [absU, hi] }
-
-theorem StateDInv.set_indCount {rsd} (hi : StateDInv rsd) {i : Std.U64} :
-    StateDInv { rsd with ind_count := i } :=
-  ⟨hi.projOwners, hi.projLevels, hi.constTypes, hi.heights, hi.genOwner, hi.indBlocks⟩
-
-theorem plc_ind {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd tys cts rcs o}
-    (hmr : ModellerRefines inst m lmd)
+/-- **`plc_ind`.**  Task #105 deletes the `ind_count` bump
+(`StateDRel.set_indCount`/`StateDInv.set_indCount`: the field is gone) and the
+modeller gate: `validate_ind_d` is unchanged, and its success tail is now
+`install_ind_d_refines` directly — `SimD`, not `SimDV` (the twin's
+`installIndD` returns no verdict any more), converted at the very end. -/
+theorem plc_ind {pers rst lst rsd lsd tys cts rcs o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
-    (h : frontend.export_c.process_line_core_d inst pers m rst rsd
+    (h : frontend.export_c.process_line_core_d pers rst.store rsd
       (.Ind tys cts rcs) = ok o) :
-    SimDV pers lst o (processLineCoreD lmd lsd (absDeclRec (.Ind tys cts rcs))) := by
+    SimDV pers lst (o.1, rst, o.2) (processLineCoreD lsd (absDeclRec (.Ind tys cts rcs))) := by
   rw [frontend.export_c.process_line_core_d] at h
-  obtain ⟨i, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hiv : i.val = rsd.ind_count.val + 1 := ConRon.Refine.Nat.uadd_val hi1
-  have hd' := hd.set_indCount hiv
-  have hi' := hi.set_indCount (i := i)
   obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hV := validate_ind_d_refines hrel hinv hd' hi' hr
+  have hV := validate_ind_d_refines hrel hinv hd hi hr
   simp only [absDeclRec, processLineCoreD]
   cases r with
   | Ok p =>
     obtain ⟨cts2, n_pd⟩ := p
     have hx := hV
     refine SimDV.bind_ok hx ?_
-    exact install_ind_d_refines hmr hrel hinv hd' hi' h
+    exact SimD.toSimDV_inl (install_ind_d_refines hrel hinv hd hi h)
   | Err e =>
     cases Result.ok_injective h
     cases e with
@@ -474,49 +348,48 @@ theorem plc_ind {G : Type} {inst : frontend.types.Modeller G}
       exact SimDV.verdict rfl hk
 
 /-- **`process_line_core_d` refines `processLineCoreD`**
-(`ExportC.lean:600-658`) — the record's own semantics: the declaration kinds,
-producing `IDeclaration` records.  The `safety` and `kind` spellings are
-compared against con-leche `String` LITERALS, which is why this is the one
-line-layer statement that carries `DeclRecStrWF`. -/
-theorem process_line_core_d_refines {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd d o}
-    (hmr : ModellerRefines inst m lmd)
+(`Arena/Frontend/ExportC.lean`) — the record's own semantics: the declaration
+kinds, producing `IDeclaration` records.  The `safety` and `kind` spellings
+are compared against con-leche `String` LITERALS, which is why this is the
+one line-layer statement that carries `DeclRecStrWF`.  Task #105 drops the
+`Modeller` generic — `process_line_core_d` reads the store immutably now (no
+run touches a memo) — so the ambient `pers`/`rst`/`lst` a caller has in hand
+pass straight through, reconstructed as a triple for `SimDV`. -/
+theorem process_line_core_d_refines {pers rst lst rsd lsd d o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd) (hs : DeclRecStrWF d)
-    (h : frontend.export_c.process_line_core_d inst pers m rst rsd d = ok o) :
-    SimDV pers lst o (processLineCoreD lmd lsd (absDeclRec d)) := by
+    (h : frontend.export_c.process_line_core_d pers rst.store rsd d = ok o) :
+    SimDV pers lst (o.1, rst, o.2) (processLineCoreD lsd (absDeclRec d)) := by
   cases d with
   | Ax cvr u => exact plc_ax hrel hinv hd hi h
   | Defn cvr value hints safety => exact plc_defn hrel hinv hd hi hs h
   | Thm cvr value => exact plc_thm hrel hinv hd hi h
   | Opaq cvr value u => exact plc_opaq hrel hinv hd hi h
   | Quot cvr kind => exact plc_quot hrel hinv hd hi hs h
-  | Ind tys cts rcs => exact plc_ind hmr hrel hinv hd hi h
+  | Ind tys cts rcs => exact plc_ind hrel hinv hd hi h
 
-/-- **`apply_decl_d` refines `applyDeclD`** (`ExportC.lean:662-664`): the
-twin's and the port's are both `process_line_core_d` itself. -/
-theorem apply_decl_d_refines {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd d o}
-    (hmr : ModellerRefines inst m lmd)
+/-- **`apply_decl_d` refines `applyDeclD`** (`Arena/Frontend/ExportC.lean`):
+the twin's and the port's are both `process_line_core_d` itself. -/
+theorem apply_decl_d_refines {pers rst lst rsd lsd d o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd) (hs : DeclRecStrWF d)
-    (h : frontend.export_c.apply_decl_d inst pers m rst rsd d = ok o) :
-    SimDV pers lst o (applyDeclD lmd lsd (absDeclRec d)) := by
+    (h : frontend.export_c.apply_decl_d pers rst.store rsd d = ok o) :
+    SimDV pers lst (o.1, rst, o.2) (applyDeclD lsd (absDeclRec d)) := by
   rw [frontend.export_c.apply_decl_d] at h
-  exact process_line_core_d_refines hmr hrel hinv hd hi hs h
+  exact process_line_core_d_refines hrel hinv hd hi hs h
 
-/-- **`apply_line` refines `applyLine`** (`ExportC.lean:670-678`) — THE
+/-- **`apply_line` refines `applyLine`** (`Arena/Frontend/ExportC.lean`) — THE
 SEMANTIC LAYER: one scanned line applied to the parse state.  Proved from its
 children (task #97-P5-Front round 2): the three table-entry writers and
-`apply_decl_d`; a header or a blank line changes nothing on either side. -/
-theorem apply_line_refines {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd r o}
-    (hmr : ModellerRefines inst m lmd)
+`apply_decl_d`; a header or a blank line changes nothing on either side.
+Task #105 drops the `Modeller` generic: there is no rewrite and no modeller
+seam left to run. -/
+theorem apply_line_refines {pers rst lst rsd lsd r o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
     (hs : LineRecStrWF r) (hnat : LineNatValSpec r)
-    (h : frontend.export_c.apply_line inst pers m rst rsd r = ok o) :
-    SimDV pers lst o (applyLine lmd lsd (absLineRec r)) := by
+    (h : frontend.export_c.apply_line pers rst rsd r = ok o) :
+    SimDV pers lst o (applyLine lsd (absLineRec r)) := by
   cases r with
   | Name i n =>
     rw [frontend.export_c.apply_line] at h
@@ -535,7 +408,9 @@ theorem apply_line_refines {G : Type} {inst : frontend.types.Modeller G}
     exact SimD.toSimDV_inl (parse_expr_entry_d_refines hrel hinv hd hi hs hnat h1)
   | Decl d =>
     rw [frontend.export_c.apply_line] at h
-    exact apply_decl_d_refines hmr hrel hinv hd hi hs h
+    obtain ⟨⟨r1, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    exact apply_decl_d_refines hrel hinv hd hi hs h1
   | Header =>
     rw [frontend.export_c.apply_line] at h
     cases Result.ok_injective h
@@ -762,16 +637,15 @@ theorem chunk_size_refines {v} (h : frontend.export_c.CHUNK_SIZE = ok v) :
 /-- **`apply_final_line` refines `applyFinalLine`** (`ExportC.lean:726-739`) —
 the LAST line of a stream, the one no newline ends.  A syntactic failure is
 reported at its offset in the line. -/
-theorem apply_final_line_refines {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd b i line_no o}
-    (hsc : ScanSpec) (hmr : ModellerRefines inst m lmd)
+theorem apply_final_line_refines {pers rst lst rsd lsd b i line_no o}
+    (hsc : ScanSpec)
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
-    (h : frontend.export_c.apply_final_line inst pers m rst rsd b i line_no
+    (h : frontend.export_c.apply_final_line pers rst rsd b i line_no
       = ok o) :
     SimStreamD (fun _ => ()) pers lst o
       (do
-        match ← applyFinalLine lmd lsd (absBytes b) (absPos i) (absU line_no) with
+        match ← applyFinalLine lsd (absBytes b) (absPos i) (absU line_no) with
         | .error e => pure (.error e)
         | .ok st => pure (.ok (st, ()))) := by
   rw [frontend.export_c.apply_final_line] at h
@@ -785,9 +659,9 @@ theorem apply_final_line_refines {G : Type} {inst : frontend.types.Modeller G}
         .ok (absLineRec r1) (absPos j) := hS
     obtain ⟨hwf, hnat⟩ := hsc.scanLineStr hsr
     obtain ⟨⟨r2, ar1, st1⟩, hap, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hA := apply_line_refines hmr hrel hinv hd hi hwf hnat hap
-    have hrun : (applyFinalLine lmd lsd (absBytes b) (absPos i) (absU line_no)).run lst =
-        (applyLine lmd lsd (absLineRec r1)).run lst >>= fun q =>
+    have hA := apply_line_refines hrel hinv hd hi hwf hnat hap
+    have hrun : (applyFinalLine lsd (absBytes b) (absPos i) (absU line_no)).run lst =
+        (applyLine lsd (absLineRec r1)).run lst >>= fun q =>
           (match q.1 with
            | .inr v => (pure (.error (v.toError, absU line_no)) :
                 AM (Except (Arena.CheckError × Nat) Arena.Frontend.StateD))
@@ -858,24 +732,23 @@ the twin's result already has the `StateD × β` shape `SimStreamD` reads.  By
 induction on the bytes left; the step is `apply_line_refines` behind the
 scanner's `ScanSpec`, and the three exits are the scanner's error (reported only
 when a newline follows), the incomplete tail, and the no-progress guard. -/
-theorem feed_chunk_loop_refines {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers} {b : Slice Std.U8}
-    (hsc : ScanSpec) (hmr : ModellerRefines inst m lmd) :
+theorem feed_chunk_loop_refines {pers} {b : Slice Std.U8}
+    (hsc : ScanSpec) :
     ∀ (i : Std.Usize) (rst : arena.monad.AState) (lst : AState)
       (rsd : frontend.export_c.StateD) (lsd : Arena.Frontend.StateD)
       (line_no : Std.U64) (o),
       AStateRel₀ pers rst lst → AStateInv pers rst → StateDRel rsd lsd → StateDInv rsd →
-      frontend.export_c.feed_chunk_loop inst pers m rst rsd b i line_no = ok o →
+      frontend.export_c.feed_chunk_loop pers rst rsd b i line_no = ok o →
       SimStreamD (fun p => (absU p.1, absPos p.2)) pers lst o
-        (feedChunk lmd lsd (absBytes b) (absPos i) (absU line_no)) := by
+        (feedChunk lsd (absBytes b) (absPos i) (absU line_no)) := by
   suffices H : ∀ (k : Nat) (i : Std.Usize) (rst : arena.monad.AState) (lst : AState)
       (rsd : frontend.export_c.StateD) (lsd : Arena.Frontend.StateD)
       (line_no : Std.U64) (o),
       b.val.length - i.val = k →
       AStateRel₀ pers rst lst → AStateInv pers rst → StateDRel rsd lsd → StateDInv rsd →
-      frontend.export_c.feed_chunk_loop inst pers m rst rsd b i line_no = ok o →
+      frontend.export_c.feed_chunk_loop pers rst rsd b i line_no = ok o →
       SimStreamD (fun p => (absU p.1, absPos p.2)) pers lst o
-        (feedChunk lmd lsd (absBytes b) (absPos i) (absU line_no)) from
+        (feedChunk lsd (absBytes b) (absPos i) (absU line_no)) from
     fun i rst lst rsd lsd line_no o => H _ i rst lst rsd lsd line_no o rfl
   intro k
   induction k using Nat.strong_induction_on with
@@ -907,7 +780,7 @@ theorem feed_chunk_loop_refines {G : Type} {inst : frontend.types.Modeller G}
         simp only [hj0', decide_false, Bool.false_eq_true, if_false]
         obtain ⟨hwf, hnat⟩ := hsc.scanLineStr hsr
         obtain ⟨⟨r2, ar1, st1⟩, hap, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have hA := apply_line_refines hmr hrel hinv hd hi hwf hnat hap
+        have hA := apply_line_refines hrel hinv hd hi hwf hnat hap
         simp only [SimDV] at hA
         rw [am_run_bind']
         cases r2 with
@@ -1037,33 +910,31 @@ theorem SimStreamD.of_wrap_id {α β : Type} {A : α → β} {pers : arena.store
 COMPLETE line of the chunk from `i`, applied in order.  A line a chunk cut in
 half is told from a malformed one by whether the rest of the chunk holds a
 newline at all, which is why a scan failure is not immediately an error. -/
-theorem feed_chunk_refines {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd b i line_no o}
-    (hsc : ScanSpec) (hmr : ModellerRefines inst m lmd)
+theorem feed_chunk_refines {pers rst lst rsd lsd b i line_no o}
+    (hsc : ScanSpec)
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
-    (h : frontend.export_c.feed_chunk inst pers m rst rsd b i line_no = ok o) :
+    (h : frontend.export_c.feed_chunk pers rst rsd b i line_no = ok o) :
     SimStreamD (fun p => (absU p.1, absPos p.2)) pers lst o
       (do
-        match ← feedChunk lmd lsd (absBytes b) (absPos i) (absU line_no) with
+        match ← feedChunk lsd (absBytes b) (absPos i) (absU line_no) with
         | .error e => pure (.error e)
         | .ok (st, n, j) => pure (.ok (st, (n, j)))) := by
-  have hL := feed_chunk_loop_refines hsc hmr i rst lst rsd lsd line_no o hrel hinv hd hi h
+  have hL := feed_chunk_loop_refines hsc i rst lst rsd lsd line_no o hrel hinv hd hi h
   refine SimStreamD.of_wrap_id hL ?_ ?_
   · intro e; rfl
   · intro q; rfl
 
 /-- **`parse_bytes_final`** — the cited tail of `parseBytes`: the last line. -/
-theorem parse_bytes_final_refines {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd b tail line_no o}
-    (hsc : ScanSpec) (hmr : ModellerRefines inst m lmd)
+theorem parse_bytes_final_refines {pers rst lst rsd lsd b tail line_no o}
+    (hsc : ScanSpec)
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
-    (h : frontend.export_c.parse_bytes_final inst pers m rst rsd b tail line_no
+    (h : frontend.export_c.parse_bytes_final pers rst rsd b tail line_no
       = ok o) :
     SimStreamRel ParseResultDRel pers lst o
       (if absPos tail < (absBytes b).usize then do
-        match ← applyFinalLine lmd lsd (absBytes b) (absPos tail) (absU line_no + 1) with
+        match ← applyFinalLine lsd (absBytes b) (absPos tail) (absU line_no + 1) with
         | .error e => pure (.error e)
         | .ok st => pure (.ok (ParseResultD.ofState st))
       else pure (.ok (ParseResultD.ofState lsd))) := by
@@ -1075,7 +946,7 @@ theorem parse_bytes_final_refines {G : Type} {inst : frontend.types.Modeller G}
     rw [if_pos hlt']
     obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨⟨r, ar1, st1⟩, hap, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hA := apply_final_line_refines hsc hmr hrel hinv hd hi hap
+    have hA := apply_final_line_refines hsc hrel hinv hd hi hap
     have hl : absU i1 = absU line_no + 1 := absU_add_one hi1
     rw [hl] at hA
     simp only [SimStreamD] at hA
@@ -1110,13 +981,12 @@ theorem parse_bytes_final_refines {G : Type} {inst : frontend.types.Modeller G}
 /-- **`parse_bytes` refines `parseBytes`** (`ExportC.lean:779-790`) —
 wholesale direct parse of a byte buffer, the specification the streaming parse
 is proved equal to. -/
-theorem parse_bytes_refines {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst b in_model census o}
-    (hsc : ScanSpec) (hmr : ModellerRefines inst m lmd)
+theorem parse_bytes_refines {pers rst lst b o}
+    (hsc : ScanSpec)
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.export_c.parse_bytes inst pers m rst b in_model census = ok o) :
+    (h : frontend.export_c.parse_bytes pers rst b = ok o) :
     SimStreamRel ParseResultDRel pers lst o
-      (parseBytes lmd (absBytes b) in_model census) := by
+      (parseBytes (absBytes b)) := by
   rw [frontend.export_c.parse_bytes] at h
   obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1145,7 +1015,7 @@ theorem parse_bytes_refines {G : Type} {inst : frontend.types.Modeller G}
     rw [hx1]
     simp only [except_ok_bind]
     obtain ⟨⟨r1, ar1, v1⟩, hf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hF := feed_chunk_refines hsc hmr hrel1 hinv1 hd1 hi1' hf
+    have hF := feed_chunk_refines hsc hrel1 hinv1 hd1 hi1' hf
     simp only [SimStreamD] at hF
     have h00 : absPos 0#usize = 0 := rfl
     have h00' : absU 0#u64 = 0 := rfl
@@ -1158,7 +1028,7 @@ theorem parse_bytes_refines {G : Type} {inst : frontend.types.Modeller G}
         (fun _ => rfl) (fun _ => rfl)
       simp only [Prod.mk.injEq] at hfb
       obtain ⟨rfl, rfl, rfl⟩ := hfb
-      have hP := parse_bytes_final_refines hsc hmr hrel' hinv' hd' hi' h
+      have hP := parse_bytes_final_refines hsc hrel' hinv' hd' hi' h
       simp only [SimStreamRel] at hP ⊢
       rw [hb]
       simp only [except_ok_bind]
@@ -1176,23 +1046,22 @@ theorem parse_bytes_refines {G : Type} {inst : frontend.types.Modeller G}
 Aeneas reads a `&str` as its bytes and `core::str::as_bytes` is con-ron-core's
 own hole (OVERVIEW §8.1), modelled as the identity — which is exactly what
 `String.toUTF8` is on the twin's side. -/
-theorem parse_export_d_refines {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst contents in_model census o}
-    (hsc : ScanSpec) (hmr : ModellerRefines inst m lmd)
+theorem parse_export_d_refines {pers rst lst contents o}
+    (hsc : ScanSpec)
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.export_c.parse_export_d inst pers m rst contents in_model census
+    (h : frontend.export_c.parse_export_d pers rst contents
       = ok o) :
     ∀ b s, core.str.Str.as_bytes contents = ok b →
       (absBytes b) = String.toUTF8 s →
       SimStreamRel ParseResultDRel pers lst o
-        (parseExportD lmd s in_model census) := by
+        (parseExportD s) := by
   intro b s hb hs
   rw [frontend.export_c.parse_export_d] at h
   obtain ⟨b', hb', h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [hb] at hb'
   cases Result.ok_injective hb'
   rw [parseExportD, ← hs]
-  exact parse_bytes_refines hsc hmr hrel hinv h
+  exact parse_bytes_refines hsc hrel hinv h
 
 /-! ### Byte vectors (task #97-P5-Front) -/
 
@@ -1286,17 +1155,16 @@ theorem concat_bytes_refines {chunks v}
 /-- **`chunk_step` refines `chunkStep`** (`ExportC.lean:803-811`) — one chunk
 of the stream, applied: the carried incomplete tail in front of the new bytes,
 every complete line fed, the new incomplete tail cut off for the next chunk. -/
-theorem chunk_step_refines {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller}
+theorem chunk_step_refines
     {pers rst lst rsd lsd carry line_no total buf0 o}
-    (hsc : ScanSpec) (hmr : ModellerRefines inst m lmd)
+    (hsc : ScanSpec)
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
-    (h : frontend.export_c.chunk_step inst pers m rst rsd carry line_no total buf0
+    (h : frontend.export_c.chunk_step pers rst rsd carry line_no total buf0
       = ok o) :
     SimStreamD (fun p => (absChunk p.1, absU p.2.1, absU p.2.2)) pers lst o
       (do
-        match ← chunkStep lmd lsd (absChunk carry) (absU line_no) (absU total)
+        match ← chunkStep lsd (absChunk carry) (absU line_no) (absU total)
             (absBytes buf0) with
         | .error e => pure (.error e)
         | .ok (st, c, n, t) => pure (.ok (st, (c, n, t)))) := by
@@ -1349,7 +1217,7 @@ theorem chunk_step_refines {G : Type} {inst : frontend.types.Modeller G}
         apply ByteArray.ext
         simp [absChunk, absBytes, hv, ByteArray.data_append]
     rw [← hbufv]
-    have hF := feed_chunk_loop_refines hsc hmr 0#usize rst lst rsd lsd line_no _ hrel hinv hd hi hf
+    have hF := feed_chunk_loop_refines hsc 0#usize rst lst rsd lsd line_no _ hrel hinv hd hi hf
     rw [vec_index_full hs] at hF
     have h00 : absPos 0#usize = 0 := rfl
     rw [h00] at hF
@@ -1386,14 +1254,13 @@ theorem chunk_step_refines {G : Type} {inst : frontend.types.Modeller G}
 
 /-- **`chunk_finish` refines `chunkFinish`** (`ExportC.lean:815-820`) — the end
 of the stream: the carried tail, if any, is its last line. -/
-theorem chunk_finish_refines {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd carry line_no o}
-    (hsc : ScanSpec) (hmr : ModellerRefines inst m lmd)
+theorem chunk_finish_refines {pers rst lst rsd lsd carry line_no o}
+    (hsc : ScanSpec)
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
-    (h : frontend.export_c.chunk_finish inst pers m rst rsd carry line_no = ok o) :
+    (h : frontend.export_c.chunk_finish pers rst rsd carry line_no = ok o) :
     SimStreamRel ParseResultDRel pers lst o
-      (chunkFinish lmd lsd (absBytes carry) (absU line_no)) := by
+      (chunkFinish lsd (absBytes carry) (absU line_no)) := by
   rw [frontend.export_c.chunk_finish] at h
   simp only [SimStreamRel]
   split at h
@@ -1415,12 +1282,12 @@ theorem chunk_finish_refines {G : Type} {inst : frontend.types.Modeller G}
       simp [this]
     obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨⟨r, ar1, st1⟩, hap, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hA := apply_final_line_refines hsc hmr hrel hinv hd hi hap
+    have hA := apply_final_line_refines hsc hrel hinv hd hi hap
     have hl : absU i1 = absU line_no + 1 := absU_add_one hi1
     have h0 : absPos 0#usize = 0 := rfl
     rw [hl, h0] at hA
-    have hrun : (chunkFinish lmd lsd (absBytes carry) (absU line_no)).run lst =
-        (applyFinalLine lmd lsd (absBytes carry) 0 (absU line_no + 1)).run lst >>=
+    have hrun : (chunkFinish lsd (absBytes carry) (absU line_no)).run lst =
+        (applyFinalLine lsd (absBytes carry) 0 (absU line_no + 1)).run lst >>=
           fun p => (match p.1 with
             | .error e => (pure (.error e) : AM (Except (Arena.CheckError × Nat) ParseResultD))
             | .ok st => pure (.ok (.ofState st))).run p.2 := by
@@ -1445,7 +1312,7 @@ theorem chunk_finish_refines {G : Type} {inst : frontend.types.Modeller G}
       simp only at hA
       have ho := Result.ok_injective h; subst ho
       have hA' : StreamErrSim e
-          ((applyFinalLine lmd lsd (absBytes carry) 0 (absU line_no + 1)).run lst) :=
+          ((applyFinalLine lsd (absBytes carry) 0 (absU line_no + 1)).run lst) :=
         stream_unwrap_err hA (fun st => (st, ())) (fun _ => rfl) (fun _ => rfl)
       exact StreamErrSim.bind hA' _ (fun _ _ => rfl)
 
@@ -1455,27 +1322,26 @@ theorem chunk_finish_refines {G : Type} {inst : frontend.types.Modeller G}
 from chunk `i`, the twin's fold over the chunks not yet read.  The loop the
 Rust's `while i < n` becomes under `-loops-to-rec`; its step is
 `chunk_step_refines` and its exit `chunk_finish_refines`. -/
-theorem parse_chunks_loop_refines {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers chunks}
-    (hsc : ScanSpec) (hmr : ModellerRefines inst m lmd) :
+theorem parse_chunks_loop_refines {pers chunks}
+    (hsc : ScanSpec) :
     ∀ (i : Std.Usize) (rst : arena.monad.AState) (lst : AState)
       (rsd : frontend.export_c.StateD) (lsd : Arena.Frontend.StateD)
       (carry : alloc.vec.Vec Std.U8) (line_no total : Std.U64) (o),
       AStateRel₀ pers rst lst → AStateInv pers rst → StateDRel rsd lsd → StateDInv rsd →
-      frontend.export_c.parse_chunks_loop inst pers m rst chunks rsd carry line_no total
+      frontend.export_c.parse_chunks_loop pers rst chunks rsd carry line_no total
         (alloc.vec.Vec.len chunks) i = ok o →
       SimStreamRel ParseResultDRel pers lst o
-        (parseChunksGo lmd lsd (absChunk carry) (absU line_no) (absU total)
+        (parseChunksGo lsd (absChunk carry) (absU line_no) (absU total)
           ((absChunks chunks).drop i.val)) := by
   suffices H : ∀ (k : Nat) (i : Std.Usize) (rst : arena.monad.AState) (lst : AState)
       (rsd : frontend.export_c.StateD) (lsd : Arena.Frontend.StateD)
       (carry : alloc.vec.Vec Std.U8) (line_no total : Std.U64) (o),
       chunks.val.length - i.val = k →
       AStateRel₀ pers rst lst → AStateInv pers rst → StateDRel rsd lsd → StateDInv rsd →
-      frontend.export_c.parse_chunks_loop inst pers m rst chunks rsd carry line_no total
+      frontend.export_c.parse_chunks_loop pers rst chunks rsd carry line_no total
         (alloc.vec.Vec.len chunks) i = ok o →
       SimStreamRel ParseResultDRel pers lst o
-        (parseChunksGo lmd lsd (absChunk carry) (absU line_no) (absU total)
+        (parseChunksGo lsd (absChunk carry) (absU line_no) (absU total)
           ((absChunks chunks).drop i.val)) from
     fun i rst lst rsd lsd carry line_no total o => H _ i rst lst rsd lsd carry line_no total o rfl
   intro k
@@ -1485,7 +1351,7 @@ theorem parse_chunks_loop_refines {G : Type} {inst : frontend.types.Modeller G}
     rw [frontend.export_c.parse_chunks_loop] at h
     rw [if_neg (by scalar_tac)] at h
     obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hF := chunk_finish_refines hsc hmr hrel hinv hd hi h
+    have hF := chunk_finish_refines hsc hrel hinv hd hi h
     rw [vec_index_full hs] at hF
     have hnil : (absChunks chunks).drop i.val = [] := by
       simp only [absChunks, List.drop_eq_nil_iff, List.length_map]; omega
@@ -1498,7 +1364,7 @@ theorem parse_chunks_loop_refines {G : Type} {inst : frontend.types.Modeller G}
     obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨⟨r, ar1, st1⟩, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hC := chunk_step_refines hsc hmr hrel hinv hd hi hc
+    have hC := chunk_step_refines hsc hrel hinv hd hi hc
     rw [vec_index_full hs] at hC
     have hvi := vec_index_some hv
     have hcons : (absChunks chunks).drop i.val =
@@ -1544,16 +1410,15 @@ STREAMING PARSE**: `chunk_step` folded over a list of chunks with
 buffers its handle hands out, minus the reads.
 
 *The Rust parse of the chunks accepting implies the twin's parse accepts, with
-the abstracted state and declarations.*  Four hypotheses: the two state ones,
-the scanner's, and the modeller's. -/
-theorem parse_chunks_refines {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst chunks in_model census o}
-    (hsc : ScanSpec) (hmr : ModellerRefines inst m lmd)
+the abstracted state and declarations.*  Three hypotheses: the two state ones
+and the scanner's — task #105 deletes the fourth, the modeller's. -/
+theorem parse_chunks_refines {pers rst lst chunks o}
+    (hsc : ScanSpec)
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.export_c.parse_chunks inst pers m rst chunks in_model census
+    (h : frontend.export_c.parse_chunks pers rst chunks
       = ok o) :
     SimStreamRel ParseResultDRel pers lst o
-      (parseChunks lmd (absChunks chunks) in_model census) := by
+      (parseChunks (absChunks chunks)) := by
   rw [frontend.export_c.parse_chunks] at h
   obtain ⟨⟨r, e⟩, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hS := state_d_init_refines hrel hinv hs
@@ -1567,7 +1432,7 @@ theorem parse_chunks_refines {G : Type} {inst : frontend.types.Modeller G}
     obtain ⟨lsd, lst1, hx1, ⟨hd1, hi1⟩, hrel1, hinv1⟩ := hS
     rw [hx1]
     simp only [except_ok_bind]
-    have hL := parse_chunks_loop_refines hsc hmr 0#usize (withStore rst e) lst1 v lsd
+    have hL := parse_chunks_loop_refines hsc 0#usize (withStore rst e) lst1 v lsd
       (alloc.vec.Vec.new Std.U8) 0#u64 0#u64 o hrel1 hinv1 hd1 hi1 h
     have hc : absChunk (alloc.vec.Vec.new Std.U8) = .empty := rfl
     have h0 : absU (0#u64) = 0 := rfl
@@ -1594,16 +1459,15 @@ Task #97e part 1 measured what that is worth: on an empty input the store
 holds 196 expression, 5 level and 55 name nodes, and on `Init` the totals are
 the stream's own entry counts alone — every prelude node coincides with a node
 the stream declares anyway. -/
-theorem builtin_prelude_e_refines {G : Type} {inst : frontend.types.Modeller G}
-    {m : G} {lmd : Arena.Frontend.Modeller} {pers rst lst o}
-    (hsc : ScanSpec) (hmr : ModellerRefines inst m lmd)
+theorem builtin_prelude_e_refines {pers rst lst o}
+    (hsc : ScanSpec)
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.prelude.builtin_prelude_e inst pers m rst = ok o) :
-    SimStream absPreludeIx pers lst o (builtinPreludeE lmd) := by
+    (h : frontend.prelude.builtin_prelude_e pers rst = ok o) :
+    SimStream absPreludeIx pers lst o (builtinPreludeE) := by
   rw [frontend.prelude.builtin_prelude_e] at h
   obtain ⟨text, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨⟨r, ar1⟩, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hP := parse_bytes_refines hsc hmr hrel hinv hp
+  have hP := parse_bytes_refines hsc hrel hinv hp
   have htext : absBytes (alloc.vec.Vec.deref text) = preludeText := by
     rw [← builtin_prelude_text_refines ht]; simp [absBytes, absChunk, alloc.vec.Vec.deref]
   rw [htext] at hP
