@@ -2345,7 +2345,7 @@ longer touches `pers`/`ar` at all, and the twin's `installIndD` is `AM StateD`
 caller has in hand pass straight through unchanged. -/
 theorem install_ind_d_refines {pers rst lst rsd lsd tys cts rcs n_pd o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
+    (hd : StateDRel rsd lsd) (_hi : StateDInv rsd)
     (h : frontend.export_c.install_ind_d rsd tys cts rcs n_pd = ok o) :
     SimD pers lst (o.1, rst, o.2)
       (installIndD lsd (absIndTypeRecs tys) (absIndCtorRecs cts)
@@ -2364,9 +2364,9 @@ theorem install_ind_d_refines {pers rst lst rsd lsd tys cts rcs n_pd o}
     obtain ⟨st1, hst1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     cases Result.ok_injective h
     have hPD := push_decl_refines hd hst1
-    refine SimD.mk (pers := pers) ?_ hPD hi hrel hinv
+    refine SimD.mk (pers := pers) ?_ hPD ⟨⟩ hrel hinv
     rw [am_run_bind', show (indBlockOf lsd (absIndTypeRecs tys) (absIndCtorRecs cts)
         (absIndRecRecs rcs)).run lst = _ from hB, except_ok_bind]
-    simp only [absICIL, absIDeclaration] <;> rfl
+    simp only [absICIL, absIDeclaration]; rfl
 
 end ConRon.Refine2.Frontend

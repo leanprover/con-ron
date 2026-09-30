@@ -59,7 +59,7 @@ CORE_GLOBS = ["ConLeche/Kernel", "ConLeche/Cached"]
 # writes those).  It gets its own row rather than joining `CORE_GLOBS`,
 # because merging it would silently drop the checker's own verified
 # percentage by diluting it with a tier nobody has proved.  `Scan/Naive.lean`
-# belongs here and not with the modeller: it is the recogniser's
+# belongs here: it is the recogniser's
 # *specification*, and `scan_fast` cites its declarations where a `Fast`
 # function is the `@[csimp]` twin of a `Naive` one.
 PARSER_GLOBS = [
@@ -68,19 +68,14 @@ PARSER_GLOBS = [
     "ConLeche/Frontend/Scan/Naive.lean",
     "ConLeche/Frontend/Export.lean",
     "ConLeche/Frontend/ExportC.lean",
-    "ConLeche/Frontend/ProjRec.lean",
     "ConLeche/Frontend/NatOpGround.lean",
     "ConLeche/Frontend/Prepare.lean",
     "ConLeche/Frontend/Prelude.lean",
 ]
-# What is left unverified: the in-process modeller (task #84's ruling — its
-# correctness decides coverage, not soundness), the annotated-NDJSON writer
-# and its debug splice, and the driver.
+# What is left unverified: the driver.  (The in-process modeller, the
+# annotated-NDJSON writer and its debug splice were cherries until upstream
+# deleted them, task #105.)
 CHERRY_GLOBS = [
-    "ConLeche/Frontend/InModel",
-    "ConLeche/Frontend/InModel.lean",
-    "ConLeche/Frontend/ExportWrite.lean",
-    "ConLeche/Frontend/InModelDump.lean",
     "Main.lean",
 ]
 CHERRY_EXCLUDE = re.compile(r"ConLeche/Frontend/Scan/Equiv")
@@ -467,7 +462,7 @@ def main(argv):
 
     core = report("Verified core (ConLeche/Kernel, ConLeche/Cached)", CORE_GLOBS)
     parser = report("Parser in the core (ConLeche/Frontend, task #84)", PARSER_GLOBS)
-    cherry = report("Cherries (InModel, ExportWrite, Main.lean)", CHERRY_GLOBS, CHERRY_EXCLUDE)
+    cherry = report("Cherries (Main.lean)", CHERRY_GLOBS, CHERRY_EXCLUDE)
 
     rust = count_lines(walk(CORE_RUST_ROOT, ".rs"))
     rust_unverified = count_lines(walk("crates", ".rs")) - rust

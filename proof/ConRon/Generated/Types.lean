@@ -1043,7 +1043,7 @@ structure kernel.level.SubstZ where
   vs : alloc.vec.Vec kernel.level.Level
 
 /-- [con_ron_core::arena::core::NatOpPins]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2477:0-2493:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2468:0-2484:1
     Visibility: public -/
 structure arena.core.NatOpPins where
   pr : arena.handle.NIdx
@@ -1321,7 +1321,7 @@ structure arena.inductives.positivity.NestState where
   ctor_nfs : alloc.vec.Vec arena.inductives.positivity.NestCtorNf
 
 /-- [con_ron_core::arena::core::NatEqCtx]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2698:0-2707:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2689:0-2698:1
     Visibility: public -/
 structure arena.core.NatEqCtx where
   x : arena.handle.EIdx

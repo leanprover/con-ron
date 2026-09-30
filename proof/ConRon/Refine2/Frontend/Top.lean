@@ -121,14 +121,14 @@ plain `Vec::push`), so every arm's success tail is this one lemma, consuming
 the record's own `let st1 ← push_decl st d; ok (Ok (), st1)`. -/
 theorem plc_push {pers rst lst rsd lsd d o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
+    (hd : StateDRel rsd lsd) (_hi : StateDInv rsd)
     (h : (do
         let st1 ← frontend.export_c.push_decl rsd d
         ok (core.result.Result.Ok (), st1)) = ok o) :
     SimDV pers lst (o.1, rst, o.2) (do pure (Sum.inl (← pushDecl lsd (absIDeclaration d)))) := by
   obtain ⟨st1, hst1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases Result.ok_injective h
-  exact SimD.toSimDV_inl (SimD.mk (pers := pers) rfl (push_decl_refines hd hst1) hi hrel hinv)
+  exact SimD.toSimDV_inl (SimD.mk (pers := pers) rfl (push_decl_refines hd hst1) ⟨⟩ hrel hinv)
 
 theorem plc_ax {pers rst lst rsd lsd cvr u o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)

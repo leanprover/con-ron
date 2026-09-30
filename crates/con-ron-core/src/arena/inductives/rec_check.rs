@@ -231,7 +231,7 @@ pub const M_NO_SPLIT: [u32; 36] = [
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:89-109 targetAbs
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:130-170 targetAbsGo
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetAbsGo` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:56-110 targetAbsGo` — **the
 /// member abstraction of one term**: every member at the block's levels
 /// `lvls` becomes its hole; `fvar` annotations are not entered.  Memoised on
 /// the node.
@@ -283,7 +283,7 @@ pub fn target_abs_go(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:130-170 targetAbsGo
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetAbsGo` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:56-110 targetAbsGo` — the
 /// walk's compound arms, each rebuilt.
 #[allow(clippy::too_many_arguments)]
 pub fn target_abs_node(
@@ -355,7 +355,7 @@ pub fn target_abs_node(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:240-242 targetAbsFast
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetAbs` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:112-117 targetAbs` — the
 /// executed member abstraction (one memoised DAG walk).
 pub fn target_abs(
     pers: &PersTier,
@@ -372,7 +372,7 @@ pub fn target_abs(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:248-251 targetHoles
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetHoles` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:119-127 targetHoles` — the
 /// holes of a rule frame of width `base`: member `t` is `.fvar (base + t)` at
 /// its former's type.
 pub fn target_holes(
@@ -402,7 +402,7 @@ pub fn target_holes(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:255-275 TargetMajor
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean TargetMajor` — **a
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:131-149 TargetMajor` — **a
 /// recursor's major, resolved**: `ind.{lvls} ds ı⃗`, its parameter and index
 /// counts at the instantiation, its constructors, the member it is (`none`:
 /// an outside inductive), the table's entries for its constructors and the
@@ -473,7 +473,7 @@ pub fn target_major_at(pers: &PersTier, st: &mut AState, ms: &Vec<TargetMajor>, 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:277-281 Expr.eraseFVarTys
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean eraseFVarTys` — a term
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:169-173 eraseFVarTys` — a term
 /// with every free variable's ANNOTATION erased (the variable kept at `Sort
 /// 0`).
 pub fn erase_fvar_tys(pers: &PersTier, st: &mut AState, e: &EIdx) -> Result<EIdx, CheckError> {
@@ -482,7 +482,7 @@ pub fn erase_fvar_tys(pers: &PersTier, st: &mut AState, e: &EIdx) -> Result<EIdx
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:305-308 targetCanonParams
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetCanonParams` — a
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:175-179 targetCanonParams` — a
 /// term over the walk's canonical parameter variables, moved to the class's
 /// openers `pfvs` (variables `0 … |pfvs|-1`, the rest kept).
 pub fn target_canon_params(pers: &PersTier, st: &mut AState, pfvs: &Vec<EIdx>, e: &EIdx) -> Result<EIdx, CheckError> {
@@ -528,7 +528,7 @@ pub fn pair_closed(pers: &PersTier, st: &mut AState, a: &EIdx, b: &EIdx, n: u64)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:310-329 targetParamsDefEq
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetParamsDefEq` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:181-208 targetParamsDefEq` —
 /// **per-component parameter defeq** at depth `d`, each side moved to the
 /// openers and member-abstracted (`absM` is `targetAbs names lvls holes`, its
 /// one instantiation): syntactically equal, or inferred and defeq.
@@ -584,7 +584,7 @@ pub fn target_params_def_eq(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:310-329 targetParamsDefEq
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetParamsDefEq` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:181-208 targetParamsDefEq` —
 /// the two sides not syntactically equal: both inferred at `d`, then compared
 /// by the kernel's defeq.
 #[allow(clippy::too_many_arguments)]
@@ -619,7 +619,7 @@ pub fn target_params_def_eq_infer(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:331-340 targetClassMatch
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetClassMatch` — **a
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:210-224 targetClassMatch` — **a
 /// class matches a recorded instantiation `(lvls, eds)`**: levels up to
 /// `Level.isEquivList` (an exhausted comparison is no match), parameters
 /// pairwise defeq with the members abstracted, over the class's recursor
@@ -682,7 +682,7 @@ pub fn ctors_name(cs: &Vec<(IConstantVal, u64)>, c: &NIdx, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:342-354 targetMajorNfs
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetMajorNfs` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:226-241 targetMajorNfs` — **the
 /// walk's recorded constructor normal forms of a class**: the entries of
 /// the class's constructors whose instantiation the class matches.  The
 /// cited recursion computes the tail FIRST, so the entries are examined
@@ -740,7 +740,7 @@ pub fn nfs_reverse(xs: &Vec<NestCtorNf>, i: usize, out: Vec<NestCtorNf>) -> Vec<
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:342-354 targetMajorNfs
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetMajorNfs` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:226-241 targetMajorNfs` — the
 /// entry: the table from its end, the result in table order.
 #[allow(clippy::too_many_arguments)]
 pub fn target_major_nfs(
@@ -764,7 +764,7 @@ pub fn target_major_nfs(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:356-360 targetCtorsOf
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetCtorsOf` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:243-248 targetCtorsOf` — the
 /// constructors of a stored inductive `I` and its parameter count
 /// (`nestContainer`'s reading, which reads nothing of its context but the
 /// lookup).
@@ -779,7 +779,7 @@ pub fn target_ctors_of(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:362-376 targetOutsideInst
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetOutsideInst` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:250-267 targetOutsideInst` —
 /// the instantiated type former of an OUTSIDE major `I.{us} ds`: its index
 /// count and its result sort.
 pub fn target_outside_inst(
@@ -816,7 +816,7 @@ pub fn target_outside_inst(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:380-439 targetMajorOf
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetMajorOf` — **a
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:271-334 targetMajorOf` — **a
 /// recursor's major, resolved** from its opened type `mty`: a MEMBER of the
 /// block at the block's levels and parameters, or — a nested block's
 /// container — any other stored inductive at one of the block's auxiliary
@@ -858,7 +858,7 @@ pub fn target_major_of(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:380-439 targetMajorOf
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetMajorOf` — a
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:271-334 targetMajorOf` — a
 /// MEMBER `t`: at the block's levels and parameters.
 #[allow(clippy::too_many_arguments)]
 pub fn target_major_member(
@@ -906,7 +906,7 @@ pub fn target_major_member(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:380-439 targetMajorOf
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetMajorOf` — an
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:271-334 targetMajorOf` — an
 /// OUTSIDE inductive: not `Quot`, stored, its parameters closed over the
 /// recursor's, an auxiliary type of the block (some parameter names a
 /// member), in the block's universe (Q1).
@@ -950,7 +950,7 @@ pub fn target_major_outside(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:380-439 targetMajorOf
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetMajorOf` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:271-334 targetMajorOf` — the
 /// auxiliary-type test (`nestOcc` at an empty hole range, no whnf, no
 /// annotation entered) and Q1.
 #[allow(clippy::too_many_arguments)]
@@ -996,7 +996,7 @@ pub fn target_major_outside_aux(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:441-458 targetPinTys
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetPinTys` — **an
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:336-343 targetPinTys` — **an
 /// outside major's parameters, typed at the rule prefix** (depth `d`), in
 /// order.
 #[allow(clippy::too_many_arguments)]
@@ -1022,7 +1022,7 @@ pub fn target_pin_tys(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:460-476 targetMajorPins
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetMajorPins` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:345-358 targetMajorPins` — the
 /// check at a resolved major: an outside major's parameters typed at the rule
 /// prefix, and the instantiation `I.{us} D⃗` itself typed there.  Nothing at
 /// a member.
@@ -1141,7 +1141,7 @@ pub fn ctor3_names(cs: &Vec<(IConstantVal, u64, u64)>, i: usize, out: Vec<NIdx>)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:480-518 targetRecPins
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetRecPins` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:362-397 targetRecPins` — **the
 /// recursor records' pins**: the level parameters, the reserved names, the
 /// member recursors' names as the set `{T_m.rec}`, the auxiliary ones as
 /// `T_0.rec_1 … T_0.rec_n`, all names distinct, and the constructor grouping
@@ -1172,7 +1172,7 @@ pub fn target_rec_pins(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:480-518 targetRecPins
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetRecPins` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:362-397 targetRecPins` — the
 /// auxiliary names, distinctness and the grouping.
 pub fn target_rec_pins_aux(
     pers: &PersTier,
@@ -1192,7 +1192,7 @@ pub fn target_rec_pins_aux(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:480-518 targetRecPins
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetRecPins` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:362-397 targetRecPins` — the
 /// auxiliary names at member 0's name `n0` (`.anonymous` at no member).
 pub fn target_rec_pins_names(
     pers: &PersTier,
@@ -1241,7 +1241,7 @@ pub fn target_rec_pins_names(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:522-528 targetCtorAt
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetCtorAt` — a
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:401-407 targetCtorAt` — a
 /// constructor's type at the major's LEVELS: a member's as stored, an outside
 /// inductive's instantiated at the major's.
 pub fn target_ctor_at(pers: &PersTier, st: &mut AState, m: &TargetMajor, c: &IConstantVal) -> Result<EIdx, CheckError> {
@@ -1315,7 +1315,7 @@ pub fn binders_beq(a: &Vec<(EIdx, BinderMeta)>, b: &Vec<(EIdx, BinderMeta)>, i: 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:530-556 targetK53
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetK53` — **K.53′ at
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:409-448 targetK53` — **K.53′ at
 /// one recorded field** `f`: its telescope is the call's `tele` and its leaf
 /// the callee's major `maj_dom`, up to the free variables' annotations, and
 /// the leaf's CLASS matches the callee's class `mc` per component.
@@ -1353,7 +1353,7 @@ pub fn target_k53(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:530-556 targetK53
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetK53` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:409-448 targetK53` — the
 /// leaf's head constant and arity against the major's, its indices up to
 /// annotations, its class naming a member, then the per-component match.
 #[allow(clippy::too_many_arguments)]
@@ -1393,7 +1393,7 @@ pub fn target_k53_leaf(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:530-556 targetK53
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetK53` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:409-448 targetK53` — the
 /// cited `&&` chain, left to right: the heads, the arities, the erased
 /// indices, the class naming a member; then `targetClassMatch`.
 #[allow(clippy::too_many_arguments)]
@@ -1443,7 +1443,7 @@ pub fn target_k53_args(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:530-556 targetK53
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetK53` — the leaf's
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:409-448 targetK53` — the leaf's
 /// class `I'.{us'} lp` names a member (official's `is_nested`), and matches
 /// the callee's class per component.
 #[allow(clippy::too_many_arguments)]
@@ -1477,7 +1477,7 @@ pub fn target_k53_class(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:558-563 targetPiDomsWith
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean targetPiDomsWith` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:450-464 targetPiDomsWith` — the
 /// domains of the first `|xs|` `∀` binders, each instantiated at the earlier
 /// `xs`.
 pub fn target_pi_doms_with(
@@ -1515,7 +1515,7 @@ pub fn target_pi_doms_with(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:574-585 auxRuleFireR
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean auxRuleFireR` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:468-475 auxRuleFireR` — **the
 /// firing mode of a rule at an OUTSIDE major**: `.nested` at the syntactic
 /// reading of the recursor type's major domain, `.inert` when it fails.
 /// `resolves` is the constructors' environment at `vis`.
@@ -1553,7 +1553,7 @@ pub fn refire(rules: Vec<IRecRule>, f: &IRecRuleFire, i: usize, out: Vec<IRecRul
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:587-597 tgtStoredRules
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean tgtStoredRules` — **one
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:477-488 tgtStoredRules` — **one
 /// checked recursor's stored rules, at its major**: `sumRules` at the major's
 /// parameter count and constructors, every rule `.nested` at an OUTSIDE
 /// major (the reading computed once, the module note).
@@ -1594,7 +1594,7 @@ pub fn some_aux_rec(rs: &Vec<RecShape>, k: u64, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:599-605 blockNestedBit
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean blockNestedBit` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:490-494 blockNestedBit` — **the
 /// block's container bit**: some field kind is not flat or some recursor's
 /// major is not a member.
 pub fn block_nested_bit(p: &BlockShape, kinds: &Vec<Vec<Vec<NestFieldKind>>>) -> bool {
@@ -1607,7 +1607,7 @@ pub fn block_nested_bit(p: &BlockShape, kinds: &Vec<Vec<Vec<NestFieldKind>>>) ->
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:607-617 consBlockRecsTF
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-106 consBlockRecsT
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean consBlockRecsTF` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:496-509 consBlockRecsTF` — **the
 /// checked family consed through the index, at its majors**: each recursor
 /// with its rules at ITS major, the rules' lookups (`find?`, `resolves`) at the
 /// constructors' environment, i.e. at its visibility bound `vis2` while the

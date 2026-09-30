@@ -15685,7 +15685,7 @@ def arena.expr_ops.instantiate1_fast
   | core.result.Result.Err _ => ok (r, st2)
 
 /-- [con_ron_core::arena::core::annot_probe]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11034:0-11039:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10986:0-10991:1
     Visibility: public -/
 def arena.core.annot_probe
   (st : arena.monad.AState) (e : arena.handle.EIdx) :
@@ -15717,7 +15717,7 @@ def ron.hashmap2.HashMap2.len
 def arena.core_state.CACHE_CAP : Std.Usize := 4194304#usize
 
 /-- [con_ron_core::arena::core::annot_set]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10968:0-10975:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10920:0-10927:1
     Visibility: public -/
 def arena.core.annot_set
   (st : arena.monad.AState) (e : arena.handle.EIdx) (r : arena.handle.EIdx) :
@@ -15941,7 +15941,7 @@ def arena.env.ifenv_find_proj
   | core.result.Result.Err e => ok (core.result.Result.Err e, ar1)
 
 /-- [con_ron_core::arena::core::proj_indexed_struct_like]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 802:0-827:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 793:0-818:1
     Visibility: public -/
 def arena.core.proj_indexed_struct_like
   (vis : Std.U64) (fe : arena.env.IFEnv) (t : arena.handle.NIdx)
@@ -16030,7 +16030,7 @@ def arena.core.M_RANGE : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::arena::core::proj_miss_error]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 836:0-852:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 827:0-843:1
     Visibility: public -/
 def arena.core.proj_miss_error
   (vis : Std.U64) (fe : arena.env.IFEnv) (has_table : Bool)
@@ -16083,7 +16083,7 @@ def arena.core.M_OTHER_STRUCT : Array Std.U32 52#usize :=
     ]
 
 /-- [con_ron_core::arena::core::annotate_proj_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10678:0-10719:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10630:0-10671:1
     Visibility: public -/
 def arena.core.annotate_proj_at
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -16165,14 +16165,14 @@ def kernel.prop_when.is_never
   | kernel.prop_when.PropWhenRepr.Many _ => ok false
 
 /-- [con_ron_core::arena::core::pw_written]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10089:0-10091:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10041:0-10043:1
     Visibility: public -/
 def arena.core.pw_written (pw : kernel.prop_when.PropWhen) : Result Bool := do
   let b ← kernel.prop_when.is_never pw
   ok (¬ b)
 
 /-- [con_ron_core::arena::core::annot_binder_meta]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10098:0-10109:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10050:0-10061:1
     Visibility: public -/
 def arena.core.annot_binder_meta
   (pw : Option kernel.prop_when.PropWhen) (mb : kernel.expr.BinderMeta) :
@@ -16187,7 +16187,7 @@ def arena.core.annot_binder_meta
     else kernel.expr.binder_meta p
 
 /-- [con_ron_core::arena::core::annotate_binders_out]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10244:0-10283:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10196:0-10235:1
     Visibility: public -/
 def arena.core.annotate_binders_out
   (pers : arena.store.PersTier) (st : arena.monad.AState) (is_lam : Bool)
@@ -16243,7 +16243,7 @@ def arena.core.annotate_binders_out
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::PEEL_FUEL]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10224:0-10224:36
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10176:0-10176:36
     Visibility: public -/
 @[global_simps, irreducible] def arena.core.PEEL_FUEL : Std.U64 := 16777216#u64
 
@@ -18899,7 +18899,7 @@ def arena.core_state.EIdxPair.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::core::defeq_probe]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11044:0-11049:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10996:0-11001:1
     Visibility: public -/
 def arena.core.defeq_probe
   (st : arena.monad.AState) (k : arena.core_state.EIdxPair) :
@@ -18915,7 +18915,7 @@ def arena.core.defeq_probe
   | some _ => ok o
 
 /-- [con_ron_core::arena::core::infer_io_probe]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11024:0-11029:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10976:0-10981:1
     Visibility: public -/
 def arena.core.infer_io_probe
   (st : arena.monad.AState) (e : arena.handle.EIdx) :
@@ -18932,7 +18932,7 @@ def arena.core.infer_io_probe
     ok (some e1)
 
 /-- [con_ron_core::arena::core::infer_probe]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11014:0-11019:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10966:0-10971:1
     Visibility: public -/
 def arena.core.infer_probe
   (st : arena.monad.AState) (e : arena.handle.EIdx) :
@@ -18949,7 +18949,7 @@ def arena.core.infer_probe
     ok (some e1)
 
 /-- [con_ron_core::arena::core::whnf_probe]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11005:0-11010:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10957:0-10962:1
     Visibility: public -/
 def arena.core.whnf_probe
   (st : arena.monad.AState) (e : arena.handle.EIdx) :
@@ -18966,7 +18966,7 @@ def arena.core.whnf_probe
     ok (some e1)
 
 /-- [con_ron_core::arena::core::whnf_core_probe]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10996:0-11001:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10948:0-10953:1
     Visibility: public -/
 def arena.core.whnf_core_probe
   (st : arena.monad.AState) (e : arena.handle.EIdx) :
@@ -18983,7 +18983,7 @@ def arena.core.whnf_core_probe
     ok (some e1)
 
 /-- [con_ron_core::arena::core::defeq_set]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10981:0-10989:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10933:0-10941:1
     Visibility: public -/
 def arena.core.defeq_set
   (st : arena.monad.AState) (a : arena.handle.EIdx) (b : arena.handle.EIdx)
@@ -19003,7 +19003,7 @@ def arena.core.defeq_set
   ok { st with caches := { st.caches with defeq_c := hm1 } }
 
 /-- [con_ron_core::arena::core::infer_io_set]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10956:0-10963:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10908:0-10915:1
     Visibility: public -/
 def arena.core.infer_io_set
   (st : arena.monad.AState) (e : arena.handle.EIdx) (r : arena.handle.EIdx) :
@@ -19023,7 +19023,7 @@ def arena.core.infer_io_set
   ok { st with caches := { st.caches with infer_io_c := hm1 } }
 
 /-- [con_ron_core::arena::core::infer_set]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10943:0-10950:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10895:0-10902:1
     Visibility: public -/
 def arena.core.infer_set
   (st : arena.monad.AState) (e : arena.handle.EIdx) (r : arena.handle.EIdx) :
@@ -19043,7 +19043,7 @@ def arena.core.infer_set
   ok { st with caches := { st.caches with infer_c := hm1 } }
 
 /-- [con_ron_core::arena::core::whnf_set]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10931:0-10938:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10883:0-10890:1
     Visibility: public -/
 def arena.core.whnf_set
   (st : arena.monad.AState) (e : arena.handle.EIdx) (r : arena.handle.EIdx) :
@@ -19063,7 +19063,7 @@ def arena.core.whnf_set
   ok { st with caches := { st.caches with whnf_c := hm1 } }
 
 /-- [con_ron_core::arena::core::whnf_core_set]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10919:0-10926:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10871:0-10878:1
     Visibility: public -/
 def arena.core.whnf_core_set
   (st : arena.monad.AState) (e : arena.handle.EIdx) (r : arena.handle.EIdx) :
@@ -19083,7 +19083,7 @@ def arena.core.whnf_core_set
   ok { st with caches := { st.caches with whnf_core_c := hm1 } }
 
 /-- [con_ron_core::arena::core::whnf_stuck_tag]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10899:0-10914:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10851:0-10866:1
     Visibility: public -/
 def arena.core.whnf_stuck_tag (e : arena.handle.EIdx) : Result Bool := do
   let t ← arena.handle.EIdx.tag e
@@ -19103,7 +19103,7 @@ def arena.core.whnf_stuck_tag (e : arena.handle.EIdx) : Result Bool := do
              else ok false
 
 /-- [con_ron_core::arena::core::whnf_core_stuck_tag]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10867:0-10880:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10819:0-10832:1
     Visibility: public -/
 def arena.core.whnf_core_stuck_tag (e : arena.handle.EIdx) : Result Bool := do
   let t ← arena.handle.EIdx.tag e
@@ -19120,7 +19120,7 @@ def arena.core.whnf_core_stuck_tag (e : arena.handle.EIdx) : Result Bool := do
            else ok true
 
 /-- [con_ron_core::arena::core::DEFEQ_LOOP_FUEL]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10062:0-10062:40
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10014:0-10014:40
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.core.DEFEQ_LOOP_FUEL : Std.U64 := 100000#u64
@@ -19152,7 +19152,7 @@ def arena.core.M_DEFEQ_PI : Array Std.U32 39#usize :=
     ]
 
 /-- [con_ron_core::arena::core::defeq_peel_done]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9395:0-9405:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9347:0-9357:1
     Visibility: public -/
 def arena.core.defeq_peel_done
   (mism : Bool) (mism_lam : Bool) :
@@ -19172,7 +19172,7 @@ def arena.core.defeq_peel_done
   else ok (core.result.Result.Ok true)
 
 /-- [con_ron_core::arena::core::defeq_no_fvars]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9098:0-9112:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9050:0-9064:1
     Visibility: public -/
 def arena.core.defeq_no_fvars
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -19208,7 +19208,7 @@ def arena.core.M_COD : Array Std.U32 37#usize :=
     ]
 
 /-- [con_ron_core::arena::core::infer_pis_out]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8478:0-8500:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8430:0-8452:1
     Visibility: public -/
 def arena.core.infer_pis_out
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -19276,7 +19276,7 @@ def arena.core.M_CHAIN : Array Std.U32 40#usize :=
     ]
 
 /-- [con_ron_core::arena::core::infer_lams_out]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8224:0-8256:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8176:0-8208:1
     Visibility: public -/
 def arena.core.infer_lams_out
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -20502,7 +20502,7 @@ def arena.expr_ops.inst_lp_fast
     ok (core.result.Result.Ok e1, st)
 
 /-- [con_ron_core::arena::core::proj_entry_type_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6781:0-6800:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6733:0-6752:1
     Visibility: public -/
 def arena.core.proj_entry_type_at
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -20538,7 +20538,7 @@ def arena.core.M_PROP : Array Std.U32 63#usize :=
     ]
 
 /-- [con_ron_core::arena::core::infer_proj_prop]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7845:0-7872:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7797:0-7824:1
     Visibility: public -/
 def arena.core.infer_proj_prop
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -20634,7 +20634,7 @@ def arena.core_state.LIdxPair.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::core::lvl_eq_set]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 563:0-570:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 554:0-561:1
     Visibility: public -/
 def arena.core.lvl_eq_set
   (st : arena.monad.AState) (k : arena.core_state.LIdxPair) (r : Bool) :
@@ -20652,7 +20652,7 @@ def arena.core.lvl_eq_set
   ok { st with caches := { st.caches with lvl_eq_c := hm1 } }
 
 /-- [con_ron_core::arena::core::lvl_eq_probe]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 520:0-525:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 511:0-516:1
     Visibility: public -/
 def arena.core.lvl_eq_probe
   (st : arena.monad.AState) (k : arena.core_state.LIdxPair) :
@@ -20668,7 +20668,7 @@ def arena.core.lvl_eq_probe
   | some _ => ok o
 
 /-- [con_ron_core::arena::core::lvl_eq]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 533:0-556:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 524:0-547:1
     Visibility: public -/
 def arena.core.lvl_eq
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -20728,7 +20728,7 @@ def arena.pins.pin_zero_level
       v)
 
 /-- [con_ron_core::arena::core::zero_level]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 487:0-489:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 478:0-480:1
     Visibility: public -/
 def arena.core.zero_level
   (st : arena.monad.AState) :
@@ -20750,7 +20750,7 @@ def arena.core.M_NOENTRY : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::arena::core::infer_proj_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7804:0-7839:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7756:0-7791:1
     Visibility: public -/
 def arena.core.infer_proj_at
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -20938,7 +20938,7 @@ def arena.pins.pin_empty_levels
       v)
 
 /-- [con_ron_core::arena::core::empty_levels]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 480:0-482:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 471:0-473:1
     Visibility: public -/
 def arena.core.empty_levels
   (st : arena.monad.AState) :
@@ -20947,7 +20947,7 @@ def arena.core.empty_levels
   arena.pins.pin_empty_levels st
 
 /-- [con_ron_core::arena::core::const_e]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 502:0-507:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 493:0-498:1
     Visibility: public -/
 def arena.core.const_e
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -20963,7 +20963,7 @@ def arena.core.const_e
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::core::char_of_nat_ty_ok]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1909:0-1952:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1900:0-1943:1
     Visibility: public -/
 def arena.core.char_of_nat_ty_ok
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -21024,7 +21024,7 @@ def arena.core.char_of_nat_ty_ok
       ok (core.result.Result.Err e1, { st with store := e })
 
 /-- [con_ron_core::arena::core::list_cons_ty_body]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1776:0-1832:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1767:0-1823:1
     Visibility: public -/
 def arena.core.list_cons_ty_body
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -21098,7 +21098,7 @@ def arena.core.list_cons_ty_body
   | core.result.Result.Err e2 => ok (core.result.Result.Err e2, st1)
 
 /-- [con_ron_core::arena::core::list_cons_ty_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1837:0-1880:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1828:0-1871:1
     Visibility: public -/
 def arena.core.list_cons_ty_at
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -21152,7 +21152,7 @@ def arena.core.list_cons_ty_at
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::list_cons_ty_ok]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1885:0-1904:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1876:0-1895:1
     Visibility: public -/
 def arena.core.list_cons_ty_ok
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -21179,7 +21179,7 @@ def arena.core.list_cons_ty_ok
       ok (core.result.Result.Err e1, { st with store := e })
 
 /-- [con_ron_core::arena::core::list_nil_ty_body]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1673:0-1723:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1664:0-1714:1
     Visibility: public -/
 def arena.core.list_nil_ty_body
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -21247,7 +21247,7 @@ def arena.core.list_nil_ty_body
   else ok (core.result.Result.Ok false, st)
 
 /-- [con_ron_core::arena::core::list_nil_ty_ok]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1728:0-1771:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1719:0-1762:1
     Visibility: public -/
 def arena.core.list_nil_ty_ok
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -21302,7 +21302,7 @@ def arena.core.list_nil_ty_ok
       ok (core.result.Result.Err e1, { st with store := e })
 
 /-- [con_ron_core::arena::core::list_ty_ok]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1626:0-1667:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1617:0-1658:1
     Visibility: public -/
 def arena.core.list_ty_ok
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -21383,7 +21383,7 @@ def arena.pins.pin_sort_one
       v)
 
 /-- [con_ron_core::arena::core::sort_one]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 496:0-498:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 487:0-489:1
     Visibility: public -/
 def arena.core.sort_one
   (st : arena.monad.AState) :
@@ -21392,7 +21392,7 @@ def arena.core.sort_one
   arena.pins.pin_sort_one st
 
 /-- [con_ron_core::arena::core::char_ty_ok]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1599:0-1620:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1590:0-1611:1
     Visibility: public -/
 def arena.core.char_ty_ok
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -21422,7 +21422,7 @@ def arena.core.char_ty_ok
       ok (core.result.Result.Err e1, { st with store := e })
 
 /-- [con_ron_core::arena::core::str_lit_supported_rest]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2039:0-2083:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2030:0-2074:1
     Visibility: public -/
 def arena.core.str_lit_supported_rest
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -21488,7 +21488,7 @@ def arena.core.str_lit_supported_rest
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::core::string_of_list_ty_body]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1957:0-2009:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1948:0-2000:1
     Visibility: public -/
 def arena.core.string_of_list_ty_body
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -21558,7 +21558,7 @@ def arena.core.string_of_list_ty_body
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::core::string_of_list_ty_ok]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2015:0-2033:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2006:0-2024:1
     Visibility: public -/
 def arena.core.string_of_list_ty_ok
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -21580,7 +21580,7 @@ def arena.core.string_of_list_ty_ok
       ok (core.result.Result.Err e1, { st with store := e })
 
 /-- [con_ron_core::arena::core::string_ty_ok]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1573:0-1594:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1564:0-1585:1
     Visibility: public -/
 def arena.core.string_ty_ok
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -21610,7 +21610,7 @@ def arena.core.string_ty_ok
       ok (core.result.Result.Err e1, { st with store := e })
 
 /-- [con_ron_core::arena::core::nat_succ_ok]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1178:0-1214:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1169:0-1205:1
     Visibility: public -/
 def arena.core.nat_succ_ok
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -21670,7 +21670,7 @@ def arena.core.nat_succ_ok
       ok (core.result.Result.Ok false, st)
 
 /-- [con_ron_core::arena::core::nat_zero_ok]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1147:0-1173:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1138:0-1164:1
     Visibility: public -/
 def arena.core.nat_zero_ok
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -21713,7 +21713,7 @@ def arena.core.nat_zero_ok
       ok (core.result.Result.Ok false, st)
 
 /-- [con_ron_core::arena::core::nat_ind_ok]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1120:0-1142:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1111:0-1133:1
     Visibility: public -/
 def arena.core.nat_ind_ok
   (st : arena.monad.AState) (ci : Option arena.env.IConstantInfo) :
@@ -21750,7 +21750,7 @@ def arena.core.nat_ind_ok
       ok (core.result.Result.Ok false, st)
 
 /-- [con_ron_core::arena::core::nat_lit_supported]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1221:0-1245:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1212:0-1236:1
     Visibility: public -/
 def arena.core.nat_lit_supported
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -21790,7 +21790,7 @@ def arena.core.nat_lit_supported
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::core::str_lit_supported]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2090:0-2115:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2081:0-2106:1
     Visibility: public -/
 def arena.core.str_lit_supported
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -21846,7 +21846,7 @@ def arena.core.M_STR : Array Std.U32 54#usize :=
     ]
 
 /-- [con_ron_core::arena::core::infer_lit_str]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7683:0-7697:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7635:0-7649:1
     Visibility: public -/
 def arena.core.infer_lit_str
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -21887,7 +21887,7 @@ def arena.core.M_NAT : Array Std.U32 46#usize :=
     ]
 
 /-- [con_ron_core::arena::core::infer_lit_nat]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7662:0-7676:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7614:0-7628:1
     Visibility: public -/
 def arena.core.infer_lit_nat
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -21950,7 +21950,7 @@ def arena.core.M_SORRY : Array Std.U32 24#usize :=
     ]
 
 /-- [con_ron_core::arena::core::unknown_const_error]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 780:0-791:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 771:0-782:1
     Visibility: public -/
 def arena.core.unknown_const_error
   (st : arena.monad.AState) (n : arena.handle.NIdx) :
@@ -22025,7 +22025,7 @@ def arena.core_state.NLsKey.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::core::const_ty_set]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 665:0-672:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 656:0-663:1
     Visibility: public -/
 def arena.core.const_ty_set
   (st : arena.monad.AState) (k : arena.core_state.NLsKey)
@@ -22045,7 +22045,7 @@ def arena.core.const_ty_set
   ok { st with caches := { st.caches with const_ty_c := hm1 } }
 
 /-- [con_ron_core::arena::core::const_ty_probe]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 632:0-637:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 623:0-628:1
     Visibility: public -/
 def arena.core.const_ty_probe
   (st : arena.monad.AState) (k : arena.core_state.NLsKey) :
@@ -22063,7 +22063,7 @@ def arena.core.const_ty_probe
     ok (some e)
 
 /-- [con_ron_core::arena::core::const_ty_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 644:0-661:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 635:0-652:1
     Visibility: public -/
 def arena.core.const_ty_at
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -22112,7 +22112,7 @@ def arena.core.M_TOWER : Array Std.U32 41#usize :=
     ]
 
 /-- [con_ron_core::arena::core::infer_const]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7622:0-7655:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7574:0-7607:1
     Visibility: public -/
 def arena.core.infer_const
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -22175,7 +22175,7 @@ def arena.core.M_FVAR : Array Std.U32 26#usize :=
     ]
 
 /-- [con_ron_core::arena::core::infer_fvar]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7606:0-7612:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7558:0-7564:1
     Visibility: public -/
 def arena.core.infer_fvar
   (idx : Std.U64) (ty : arena.handle.EIdx) (depth : Std.U64) :
@@ -22191,7 +22191,7 @@ def arena.core.infer_fvar
     arena.monad.fail arena.handle.EIdx (kernel.core_types.CheckError.Invalid v)
 
 /-- [con_ron_core::arena::core::infer_sort]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7593:0-7598:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7545:0-7550:1
     Visibility: public -/
 def arena.core.infer_sort
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -22207,7 +22207,7 @@ def arena.core.infer_sort
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::infer_lam_result]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7574:0-7586:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7526:0-7538:1
     Visibility: public -/
 def arena.core.infer_lam_result
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -22227,13 +22227,13 @@ def arena.core.infer_lam_result
   | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::arena::core::WHNF_LOOP_FUEL]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7456:0-7456:39
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7408:0-7408:39
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.core.WHNF_LOOP_FUEL : Std.U64 := 100000#u64
 
 /-- [con_ron_core::arena::core::intern_app]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7341:0-7348:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7293:0-7300:1
     Visibility: public -/
 def arena.core.intern_app
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -22246,7 +22246,7 @@ def arena.core.intern_app
   arena.monad.intern_e_app pers st e e1
 
 /-- [con_ron_core::arena::core::intern_app_rebuilt]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7366:0-7379:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7318:0-7331:1
     Visibility: public -/
 def arena.core.intern_app_rebuilt
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -22262,7 +22262,7 @@ def arena.core.intern_app_rebuilt
   else arena.core.intern_app pers st f a
 
 /-- [con_ron_core::arena::core::head_and_args]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7071:0-7087:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7023:0-7039:1
     Visibility: public -/
 def arena.core.head_and_args
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -22299,7 +22299,7 @@ def arena.core.M_FUEL_WHNF_SPINE : Array Std.U32 27#usize :=
     ]
 
 /-- [con_ron_core::arena::core::get_app_spine_go]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7029:0-7060:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6981:0-7012:1
     Visibility: public -/
 def arena.core.get_app_spine_go
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -22345,7 +22345,7 @@ def arena.core.get_app_spine_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::get_app_spine]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7010:0-7017:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6962:0-6969:1
     Visibility: public -/
 def arena.core.get_app_spine
   (pers : arena.store.PersTier) (st : arena.monad.AState) (fuel : Std.U64)
@@ -22357,7 +22357,7 @@ def arena.core.get_app_spine
   arena.core.get_app_spine_go pers st fuel h 0#usize
 
 /-- [con_ron_core::arena::core::append_eidx_from]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3553:0-3561:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3544:0-3552:1
     Visibility: public -/
 def arena.core.append_eidx_from
   (xs : alloc.vec.Vec arena.handle.EIdx) (ys : alloc.vec.Vec arena.handle.EIdx)
@@ -22378,7 +22378,7 @@ def arena.core.append_eidx_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::append_eidx]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3546:0-3548:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3537:0-3539:1
     Visibility: public -/
 def arena.core.append_eidx
   (xs : alloc.vec.Vec arena.handle.EIdx) (ys : alloc.vec.Vec arena.handle.EIdx)
@@ -22388,7 +22388,7 @@ def arena.core.append_eidx
   arena.core.append_eidx_from xs ys 0#usize
 
 /-- [con_ron_core::arena::core::drop_eidx_from]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3506:0-3514:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3497:0-3505:1
     Visibility: public -/
 def arena.core.drop_eidx_from
   (xs : alloc.vec.Vec arena.handle.EIdx) (k : Std.Usize)
@@ -22409,7 +22409,7 @@ def arena.core.drop_eidx_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::drop_eidx_n_from]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3533:0-3541:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3524:0-3532:1
     Visibility: public -/
 def arena.core.drop_eidx_n_from
   (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) (i : Std.Usize) :
@@ -22428,7 +22428,7 @@ def arena.core.drop_eidx_n_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::drop_eidx_n]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3524:0-3526:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3515:0-3517:1
     Visibility: public -/
 def arena.core.drop_eidx_n
   (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
@@ -22502,7 +22502,7 @@ def arena.core_state.NNLsKey.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::core::rule_rhs_set]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 759:0-766:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 750:0-757:1
     Visibility: public -/
 def arena.core.rule_rhs_set
   (st : arena.monad.AState) (k : arena.core_state.NNLsKey)
@@ -22522,7 +22522,7 @@ def arena.core.rule_rhs_set
   ok { st with caches := { st.caches with rule_rhs_c := hm1 } }
 
 /-- [con_ron_core::arena::core::rule_rhs_probe]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 723:0-728:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 714:0-719:1
     Visibility: public -/
 def arena.core.rule_rhs_probe
   (st : arena.monad.AState) (k : arena.core_state.NNLsKey) :
@@ -22540,7 +22540,7 @@ def arena.core.rule_rhs_probe
     ok (some e)
 
 /-- [con_ron_core::arena::core::rule_rhs_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 735:0-755:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 726:0-746:1
     Visibility: public -/
 def arena.core.rule_rhs_at
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -22564,7 +22564,7 @@ def arena.core.rule_rhs_at
   | some r => ok (core.result.Result.Ok r, st)
 
 /-- [con_ron_core::arena::core::iota_rec_reduct]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6570:0-6592:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6522:0-6544:1
     Visibility: public -/
 def arena.core.iota_rec_reduct
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -22589,7 +22589,7 @@ def arena.core.iota_rec_reduct
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::find_rule]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6341:0-6349:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6293:0-6301:1
     Visibility: public -/
 def arena.core.find_rule
   (rules : alloc.vec.Vec arena.env.IRecRule) (c : arena.handle.NIdx)
@@ -22611,7 +22611,7 @@ def arena.core.find_rule
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::subst_param_levels]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6183:0-6210:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6135:0-6162:1
     Visibility: public -/
 def arena.core.subst_param_levels
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -22644,7 +22644,7 @@ def arena.core.subst_param_levels
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::rec_fire_comparands_plain]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6312:0-6334:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6264:0-6286:1
     Visibility: public -/
 def arena.core.rec_fire_comparands_plain
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -22717,7 +22717,7 @@ def arena.expr_ops.inst_spine
   arena.expr_ops.inst_spine_from pers st fuel args 0#usize t e
 
 /-- [con_ron_core::arena::core::inst_spine_pins]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6217:0-6247:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6169:0-6199:1
     Visibility: public -/
 def arena.core.inst_spine_pins
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -22754,7 +22754,7 @@ def arena.core.inst_spine_pins
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::subst_levels_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6150:0-6177:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6102:0-6129:1
     Visibility: public -/
 def arena.core.subst_levels_at
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -22786,7 +22786,7 @@ def arena.core.subst_levels_at
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::rec_fire_comparands]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6253:0-6305:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6205:0-6257:1
     Visibility: public -/
 def arena.core.rec_fire_comparands
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -22831,7 +22831,7 @@ def arena.core.rec_fire_comparands
     | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::rec_rule_k]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6093:0-6099:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6045:0-6051:1
     Visibility: public -/
 def arena.core.rec_rule_k
   (rules : alloc.vec.Vec arena.env.IRecRule) : Result Bool := do
@@ -23386,7 +23386,7 @@ def arena.expr_ops.wscoped_b_fast
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::arena::core::fab_scope_ok]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5331:0-5347:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5283:0-5299:1
     Visibility: public -/
 def arena.core.fab_scope_ok
   (pers : arena.store.PersTier) (st : arena.monad.AState) (depth : Std.U64)
@@ -23417,7 +23417,7 @@ def arena.core.fab_scope_ok
   | core.result.Result.Err _ => ok (r, st)
 
 /-- [con_ron_core::arena::core::proj_entry_fire_ok]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5178:0-5208:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5169:0-5199:1
     Visibility: public -/
 def arena.core.proj_entry_fire_ok
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -23464,7 +23464,7 @@ def arena.core.proj_entry_fire_ok
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::core::and_rescue_slots_go]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5215:0-5249:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5206:0-5240:1
     Visibility: public -/
 def arena.core.and_rescue_slots_go
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -23511,7 +23511,7 @@ def arena.core.and_rescue_slots_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::and_rescue_slots]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5257:0-5270:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5248:0-5261:1
     Visibility: public -/
 def arena.core.and_rescue_slots
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -23542,7 +23542,7 @@ def arena.expr_ops.cons_eidx
   arena.expr_ops.eidx_copy_upto xs i2 0#usize out1
 
 /-- [con_ron_core::arena::core::proj_apps_go]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4445:0-4475:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4436:0-4466:1
     Visibility: public -/
 def arena.core.proj_apps_go
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -23582,7 +23582,7 @@ def arena.core.proj_apps_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::proj_nodes_go]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4421:0-4440:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4412:0-4431:1
     Visibility: public -/
 def arena.core.proj_nodes_go
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -23610,7 +23610,7 @@ def arena.core.proj_nodes_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::tower_slots_all_go]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4340:0-4358:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4331:0-4349:1
     Visibility: public -/
 def arena.core.tower_slots_all_go
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -23635,7 +23635,7 @@ def arena.core.tower_slots_all_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::tower_slots_all]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4364:0-4373:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4355:0-4364:1
     Visibility: public -/
 def arena.core.tower_slots_all
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -23646,7 +23646,7 @@ def arena.core.tower_slots_all
   arena.core.tower_slots_all_go pers vis st fe t n_f 0#u64
 
 /-- [con_ron_core::arena::core::eta_projs]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4482:0-4498:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4473:0-4489:1
     Visibility: public -/
 def arena.core.eta_projs
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -23665,7 +23665,7 @@ def arena.core.eta_projs
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::append_eidx_of]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3587:0-3591:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3578:0-3582:1
     Visibility: public -/
 def arena.core.append_eidx_of
   (xs : alloc.vec.Vec arena.handle.EIdx) (ys : alloc.vec.Vec arena.handle.EIdx)
@@ -23681,7 +23681,7 @@ def arena.core.append_eidx_of
   arena.core.append_eidx_from out2 ys 0#usize
 
 /-- [con_ron_core::arena::core::eta_fab_args_e]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5156:0-5171:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5147:0-5162:1
     Visibility: public -/
 def arena.core.eta_fab_args_e
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -23699,7 +23699,7 @@ def arena.core.eta_fab_args_e
   | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::arena::core::eta_ctor_shape]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4856:0-4884:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4847:0-4875:1
     Visibility: public -/
 def arena.core.eta_ctor_shape
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -23768,7 +23768,7 @@ def arena.pins.pin_reserved
       (kernel.core_types.CheckError.Internal v)
 
 /-- [con_ron_core::arena::core::reserved_basis_names]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4515:0-4517:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4506:0-4508:1
     Visibility: public -/
 def arena.core.reserved_basis_names
   (st : arena.monad.AState) :
@@ -23778,7 +23778,7 @@ def arena.core.reserved_basis_names
   arena.pins.pin_reserved st
 
 /-- [con_ron_core::arena::core::rec_slots_all_go]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4378:0-4401:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4369:0-4392:1
     Visibility: public -/
 def arena.core.rec_slots_all_go
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -23818,7 +23818,7 @@ def arena.core.rec_slots_all_go
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::rec_slots_all]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4407:0-4416:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4398:0-4407:1
     Visibility: public -/
 def arena.core.rec_slots_all
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -23829,7 +23829,7 @@ def arena.core.rec_slots_all
   arena.core.rec_slots_all_go pers vis st fe t n_f 0#u64
 
 /-- [con_ron_core::arena::core::nidx_vec_beq_from]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4326:0-4334:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4317:0-4325:1
     Visibility: public -/
 def arena.core.nidx_vec_beq_from
   (a : alloc.vec.Vec arena.handle.NIdx) (b : alloc.vec.Vec arena.handle.NIdx)
@@ -23854,7 +23854,7 @@ def arena.core.nidx_vec_beq_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::nidx_vec_beq]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4315:0-4321:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4306:0-4312:1
     Visibility: public -/
 def arena.core.nidx_vec_beq
   (a : alloc.vec.Vec arena.handle.NIdx) (b : alloc.vec.Vec arena.handle.NIdx) :
@@ -23867,7 +23867,7 @@ def arena.core.nidx_vec_beq
   else ok false
 
 /-- [con_ron_core::arena::core::pi_residual]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3944:0-3969:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3935:0-3960:1
     Visibility: public -/
 def arena.core.pi_residual
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -23908,7 +23908,7 @@ def arena.core.pi_residual
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::get_d_eidx]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3596:0-3602:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3587:0-3593:1
     Visibility: public -/
 def arena.core.get_d_eidx
   (xs : alloc.vec.Vec arena.handle.EIdx) (i : Std.U64)
@@ -23927,7 +23927,7 @@ def arena.core.get_d_eidx
   else arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 dflt
 
 /-- [con_ron_core::arena::core::snoc2_eidx_of]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3576:0-3582:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3567:0-3573:1
     Visibility: public -/
 def arena.core.snoc2_eidx_of
   (xs : alloc.vec.Vec arena.handle.EIdx) (y : arena.handle.EIdx)
@@ -23945,7 +23945,7 @@ def arena.core.snoc2_eidx_of
   alloc.vec.Vec.push out2 e1
 
 /-- [con_ron_core::arena::core::snoc_eidx]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3566:0-3570:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3557:0-3561:1
     Visibility: public -/
 def arena.core.snoc_eidx
   (xs : alloc.vec.Vec arena.handle.EIdx) (y : arena.handle.EIdx) :
@@ -23970,7 +23970,7 @@ def arena.pins.pin_nat_shift_right
   arena.pins.pin_at st arena.pins.PIN_NAT_SHIFT_RIGHT
 
 /-- [con_ron_core::arena::core::nat_shift_right_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2214:0-2216:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2205:0-2207:1
     Visibility: public -/
 def arena.core.nat_shift_right_name
   (st : arena.monad.AState) :
@@ -23996,7 +23996,7 @@ def arena.pins.pin_nat_shift_left
   arena.pins.pin_at st arena.pins.PIN_NAT_SHIFT_LEFT
 
 /-- [con_ron_core::arena::core::nat_shift_left_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2208:0-2210:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2199:0-2201:1
     Visibility: public -/
 def arena.core.nat_shift_left_name
   (st : arena.monad.AState) :
@@ -24021,7 +24021,7 @@ def arena.pins.pin_nat_xor
   arena.pins.pin_at st arena.pins.PIN_NAT_XOR
 
 /-- [con_ron_core::arena::core::nat_xor_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2202:0-2204:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2193:0-2195:1
     Visibility: public -/
 def arena.core.nat_xor_name
   (st : arena.monad.AState) :
@@ -24046,7 +24046,7 @@ def arena.pins.pin_nat_lor
   arena.pins.pin_at st arena.pins.PIN_NAT_LOR
 
 /-- [con_ron_core::arena::core::nat_lor_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2196:0-2198:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2187:0-2189:1
     Visibility: public -/
 def arena.core.nat_lor_name
   (st : arena.monad.AState) :
@@ -24072,7 +24072,7 @@ def arena.pins.pin_nat_land
   arena.pins.pin_at st arena.pins.PIN_NAT_LAND
 
 /-- [con_ron_core::arena::core::nat_land_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2190:0-2192:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2181:0-2183:1
     Visibility: public -/
 def arena.core.nat_land_name
   (st : arena.monad.AState) :
@@ -24097,7 +24097,7 @@ def arena.pins.pin_nat_gcd
   arena.pins.pin_at st arena.pins.PIN_NAT_GCD
 
 /-- [con_ron_core::arena::core::nat_gcd_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2184:0-2186:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2175:0-2177:1
     Visibility: public -/
 def arena.core.nat_gcd_name
   (st : arena.monad.AState) :
@@ -24122,7 +24122,7 @@ def arena.pins.pin_nat_mod
   arena.pins.pin_at st arena.pins.PIN_NAT_MOD
 
 /-- [con_ron_core::arena::core::nat_mod_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2178:0-2180:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2169:0-2171:1
     Visibility: public -/
 def arena.core.nat_mod_name
   (st : arena.monad.AState) :
@@ -24147,7 +24147,7 @@ def arena.pins.pin_nat_div
   arena.pins.pin_at st arena.pins.PIN_NAT_DIV
 
 /-- [con_ron_core::arena::core::nat_div_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2172:0-2174:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2163:0-2165:1
     Visibility: public -/
 def arena.core.nat_div_name
   (st : arena.monad.AState) :
@@ -24158,7 +24158,7 @@ def arena.core.nat_div_name
   ok (r, st)
 
 /-- [con_ron_core::arena::core::nat_op_pins_rest]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2526:0-2577:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2517:0-2568:1
     Visibility: public -/
 def arena.core.nat_op_pins_rest
   (st : arena.monad.AState) (pr : arena.handle.NIdx) (ad : arena.handle.NIdx)
@@ -24234,7 +24234,7 @@ def arena.pins.pin_nat_ble
   arena.pins.pin_at st arena.pins.PIN_NAT_BLE
 
 /-- [con_ron_core::arena::core::nat_ble_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2166:0-2168:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2157:0-2159:1
     Visibility: public -/
 def arena.core.nat_ble_name
   (st : arena.monad.AState) :
@@ -24259,7 +24259,7 @@ def arena.pins.pin_nat_beq
   arena.pins.pin_at st arena.pins.PIN_NAT_BEQ
 
 /-- [con_ron_core::arena::core::nat_beq_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2160:0-2162:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2151:0-2153:1
     Visibility: public -/
 def arena.core.nat_beq_name
   (st : arena.monad.AState) :
@@ -24284,7 +24284,7 @@ def arena.pins.pin_nat_pow
   arena.pins.pin_at st arena.pins.PIN_NAT_POW
 
 /-- [con_ron_core::arena::core::nat_pow_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2154:0-2156:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2145:0-2147:1
     Visibility: public -/
 def arena.core.nat_pow_name
   (st : arena.monad.AState) :
@@ -24309,7 +24309,7 @@ def arena.pins.pin_nat_mul
   arena.pins.pin_at st arena.pins.PIN_NAT_MUL
 
 /-- [con_ron_core::arena::core::nat_mul_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2148:0-2150:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2139:0-2141:1
     Visibility: public -/
 def arena.core.nat_mul_name
   (st : arena.monad.AState) :
@@ -24334,7 +24334,7 @@ def arena.pins.pin_nat_sub
   arena.pins.pin_at st arena.pins.PIN_NAT_SUB
 
 /-- [con_ron_core::arena::core::nat_sub_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2142:0-2144:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2133:0-2135:1
     Visibility: public -/
 def arena.core.nat_sub_name
   (st : arena.monad.AState) :
@@ -24359,7 +24359,7 @@ def arena.pins.pin_nat_add
   arena.pins.pin_at st arena.pins.PIN_NAT_ADD
 
 /-- [con_ron_core::arena::core::nat_add_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2136:0-2138:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2127:0-2129:1
     Visibility: public -/
 def arena.core.nat_add_name
   (st : arena.monad.AState) :
@@ -24385,7 +24385,7 @@ def arena.pins.pin_nat_pred
   arena.pins.pin_at st arena.pins.PIN_NAT_PRED
 
 /-- [con_ron_core::arena::core::nat_pred_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2130:0-2132:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2121:0-2123:1
     Visibility: public -/
 def arena.core.nat_pred_name
   (st : arena.monad.AState) :
@@ -24396,7 +24396,7 @@ def arena.core.nat_pred_name
   ok (r, st)
 
 /-- [con_ron_core::arena::core::nat_op_pins]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2498:0-2521:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2489:0-2512:1
     Visibility: public -/
 def arena.core.nat_op_pins
   (st : arena.monad.AState) :
@@ -24434,7 +24434,7 @@ def arena.core.nat_op_pins
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::nat_bin_op_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3468:0-3486:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3459:0-3477:1
     Visibility: public -/
 def arena.core.nat_bin_op_name
   (st : arena.monad.AState) (c : arena.handle.NIdx) :
@@ -24519,7 +24519,7 @@ def arena.core.nat_bin_op_name
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::nat_op_stored]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3455:0-3461:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3446:0-3452:1
     Visibility: public -/
 def arena.core.nat_op_stored
   (vis : Std.U64) (fe : arena.env.IFEnv) (c : arena.handle.NIdx) :
@@ -24539,7 +24539,7 @@ def arena.core.nat_op_stored
     | arena.env.IConstantInfo.ProjInfo _ => ok false
 
 /-- [con_ron_core::arena::core::lit_nat]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3040:0-3045:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3031:0-3036:1
     Visibility: public -/
 def arena.core.lit_nat
   (pers : arena.store.PersTier) (st : arena.monad.AState) (n : ron.nat.Nat) :
@@ -25124,7 +25124,7 @@ def arena.pins.pin_bool_false
   arena.pins.pin_at st arena.pins.PIN_BOOL_FALSE
 
 /-- [con_ron_core::arena::core::bool_false_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2232:0-2234:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2223:0-2225:1
     Visibility: public -/
 def arena.core.bool_false_name
   (st : arena.monad.AState) :
@@ -25150,7 +25150,7 @@ def arena.pins.pin_bool_true
   arena.pins.pin_at st arena.pins.PIN_BOOL_TRUE
 
 /-- [con_ron_core::arena::core::bool_true_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2226:0-2228:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2217:0-2219:1
     Visibility: public -/
 def arena.core.bool_true_name
   (st : arena.monad.AState) :
@@ -25161,7 +25161,7 @@ def arena.core.bool_true_name
   ok (r, st)
 
 /-- [con_ron_core::arena::core::bool_const]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3050:0-3063:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3041:0-3054:1
     Visibility: public -/
 def arena.core.bool_const
   (pers : arena.store.PersTier) (st : arena.monad.AState) (b : Bool) :
@@ -25185,7 +25185,7 @@ def arena.core.bool_const
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::nat_op_result]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2983:0-3035:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2974:0-3026:1
     Visibility: public -/
 def arena.core.nat_op_result
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -25311,7 +25311,7 @@ def arena.core.nat_op_result
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::push_nidx]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2286:0-2290:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2277:0-2281:1
     Visibility: public -/
 def arena.core.push_nidx
   (out : alloc.vec.Vec arena.handle.NIdx) (n : arena.handle.NIdx) :
@@ -25321,7 +25321,7 @@ def arena.core.push_nidx
   alloc.vec.Vec.push out n1
 
 /-- [con_ron_core::arena::core::nat_div_mod_names]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2336:0-2372:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2327:0-2363:1
     Visibility: public -/
 def arena.core.nat_div_mod_names
   (st : arena.monad.AState) :
@@ -25374,7 +25374,7 @@ def arena.core.nat_div_mod_names
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::nat_op_wf_names]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2467:0-2469:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2458:0-2460:1
     Visibility: public -/
 def arena.core.nat_op_wf_names
   (st : arena.monad.AState) :
@@ -25384,7 +25384,7 @@ def arena.core.nat_op_wf_names
   arena.core.nat_div_mod_names st
 
 /-- [con_ron_core::arena::core::quick_pair]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2275:0-2280:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2266:0-2271:1
     Visibility: public -/
 def arena.core.quick_pair
   (a : arena.handle.EIdx) (b : arena.handle.EIdx) : Result Bool := do
@@ -25461,7 +25461,7 @@ def arena.core.quick_pair
         else ok false
 
 /-- [con_ron_core::arena::core::is_bool_true]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2240:0-2261:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2231:0-2252:1
     Visibility: public -/
 def arena.core.is_bool_true
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -25496,7 +25496,7 @@ def arena.core.is_bool_true
   else ok (core.result.Result.Ok false, st)
 
 /-- [con_ron_core::arena::core::str_lit_cons_spine]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1448:0-1477:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1439:0-1468:1
     Visibility: public -/
 def arena.core.str_lit_cons_spine
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -25540,7 +25540,7 @@ def arena.core.str_lit_cons_spine
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::str_lit_to_constructor_rest]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1484:0-1523:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1475:0-1514:1
     Visibility: public -/
 def arena.core.str_lit_to_constructor_rest
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -25589,7 +25589,7 @@ def arena.core.str_lit_to_constructor_rest
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::core::str_lit_to_constructor]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1529:0-1568:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1520:0-1559:1
     Visibility: public -/
 def arena.core.str_lit_to_constructor
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -25633,7 +25633,7 @@ def arena.core.str_lit_to_constructor
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::core::raw_nat_lit]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1417:0-1436:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1408:0-1427:1
     Visibility: public -/
 def arena.core.raw_nat_lit
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -25683,7 +25683,7 @@ def arena.core.raw_nat_lit
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::core::nat_lit_to_constructor]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1091:0-1115:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1082:0-1106:1
     Visibility: public -/
 def arena.core.nat_lit_to_constructor
   (pers : arena.store.PersTier) (st : arena.monad.AState) (n : ron.nat.Nat) :
@@ -25714,7 +25714,7 @@ def arena.core.nat_lit_to_constructor
     | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::core::lit_to_ctor_if_nat]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1388:0-1411:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1379:0-1402:1
     Visibility: public -/
 def arena.core.lit_to_ctor_if_nat
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -25752,7 +25752,7 @@ def arena.core.lit_to_ctor_if_nat
     ok (core.result.Result.Ok e, st)
 
 /-- [con_ron_core::arena::core::same_const_heads]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1037:0-1080:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1028:0-1071:1
     Visibility: public -/
 def arena.core.same_const_heads
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -25816,7 +25816,7 @@ def arena.core.same_const_heads
   else ok (core.result.Result.Ok false, st)
 
 /-- [con_ron_core::arena::core::head_hint]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1007:0-1031:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 998:0-1022:1
     Visibility: public -/
 def arena.core.head_hint
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -25861,7 +25861,7 @@ def arena.core.head_hint
   | core.result.Result.Err er => ok (core.result.Result.Err er, st)
 
 /-- [con_ron_core::arena::core::unfoldable_head]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 974:0-1002:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 965:0-993:1
     Visibility: public -/
 def arena.core.unfoldable_head
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -25909,7 +25909,7 @@ def arena.core.unfoldable_head
   | core.result.Result.Err er => ok (core.result.Result.Err er, st)
 
 /-- [con_ron_core::arena::core::const_val_set]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 711:0-718:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 702:0-709:1
     Visibility: public -/
 def arena.core.const_val_set
   (st : arena.monad.AState) (k : arena.core_state.NLsKey)
@@ -25929,7 +25929,7 @@ def arena.core.const_val_set
   ok { st with caches := { st.caches with const_val_c := hm1 } }
 
 /-- [con_ron_core::arena::core::const_val_probe]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 677:0-682:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 668:0-673:1
     Visibility: public -/
 def arena.core.const_val_probe
   (st : arena.monad.AState) (k : arena.core_state.NLsKey) :
@@ -25947,7 +25947,7 @@ def arena.core.const_val_probe
     ok (some e)
 
 /-- [con_ron_core::arena::core::const_val_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 688:0-707:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 679:0-698:1
     Visibility: public -/
 def arena.core.const_val_at
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -25971,7 +25971,7 @@ def arena.core.const_val_at
   | some r => ok (core.result.Result.Ok r, st)
 
 /-- [con_ron_core::arena::core::unfold_definition]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 924:0-968:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 915:0-959:1
     Visibility: public -/
 def arena.core.unfold_definition
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -26046,7 +26046,7 @@ def arena.core.unfold_definition
   | core.result.Result.Err er => ok (core.result.Result.Err er, st)
 
 /-- [con_ron_core::arena::core::caps_never_zero]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 903:0-917:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 894:0-908:1
     Visibility: public -/
 def arena.core.caps_never_zero
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -26068,7 +26068,7 @@ def arena.core.caps_never_zero
   | core.result.Result.Err er => ok (core.result.Result.Err er, st1)
 
 /-- [con_ron_core::arena::core::is_ctor_app]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 876:0-898:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 867:0-889:1
     Visibility: public -/
 def arena.core.is_ctor_app
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -26124,7 +26124,7 @@ def arena.core.M_FUEL_LEVEL_CMP : Array Std.U32 48#usize :=
     ]
 
 /-- [con_ron_core::arena::core::lift_fueled]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 866:0-871:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 857:0-862:1
     Visibility: public -/
 def arena.core.lift_fueled
   (o : Option Bool) :
@@ -26263,7 +26263,7 @@ def arena.core_state.LsIdxPair.Insts.Con_ron_coreRonHashmapHashable :
 }
 
 /-- [con_ron_core::arena::core::lvls_eq_set]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 616:0-623:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 607:0-614:1
     Visibility: public -/
 def arena.core.lvls_eq_set
   (st : arena.monad.AState) (k : arena.core_state.LsIdxPair) (r : Bool) :
@@ -26281,7 +26281,7 @@ def arena.core.lvls_eq_set
   ok { st with caches := { st.caches with lvls_eq_c := hm1 } }
 
 /-- [con_ron_core::arena::core::lvls_eq_probe]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 579:0-584:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 570:0-575:1
     Visibility: public -/
 def arena.core.lvls_eq_probe
   (st : arena.monad.AState) (k : arena.core_state.LsIdxPair) :
@@ -26297,7 +26297,7 @@ def arena.core.lvls_eq_probe
   | some _ => ok o
 
 /-- [con_ron_core::arena::core::lvls_eq]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 589:0-612:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 580:0-603:1
     Visibility: public -/
 def arena.core.lvls_eq
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -26546,7 +26546,7 @@ def arena.core.M_NATIVE_NAT : Array Std.U32 34#usize :=
 mutual
 
 /-- [con_ron_core::arena::core::reduce_nat]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3614:0-3649:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3605:0-3640:1
     Visibility: public -/
 def arena.core.reduce_nat
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -26602,7 +26602,7 @@ def arena.core.reduce_nat
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::reduce_nat_succ]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3654:0-3703:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3645:0-3694:1
     Visibility: public -/
 def arena.core.reduce_nat_succ
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -26655,7 +26655,7 @@ def arena.core.reduce_nat_succ
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::reduce_nat_bin]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3709:0-3761:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3700:0-3752:1
     Visibility: public -/
 def arena.core.reduce_nat_bin
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -26716,7 +26716,7 @@ def arena.core.reduce_nat_bin
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::reduce_nat_wf]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3767:0-3813:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3758:0-3804:1
     Visibility: public -/
 def arena.core.reduce_nat_wf
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -26776,7 +26776,7 @@ def arena.core.reduce_nat_wf
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::iota_certs]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3829:0-3845:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3820:0-3836:1
     Visibility: public -/
 def arena.core.iota_certs
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -26791,7 +26791,7 @@ def arena.core.iota_certs
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::iota_certs_aux]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3866:0-3939:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3857:0-3930:1
     Visibility: public -/
 def arena.core.iota_certs_aux
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -26903,7 +26903,7 @@ def arena.core.iota_certs_aux
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::def_eq_list]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3975:0-4005:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3966:0-3996:1
     Visibility: public -/
 def arena.core.def_eq_list
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -26947,7 +26947,7 @@ def arena.core.def_eq_list
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::iota_index_ok]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4010:0-4041:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4001:0-4032:1
     Visibility: public -/
 def arena.core.iota_index_ok
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -26981,7 +26981,7 @@ def arena.core.iota_index_ok
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::proof_irrel]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4050:0-4066:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4041:0-4057:1
     Visibility: public -/
 def arena.core.proof_irrel
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27000,7 +27000,7 @@ def arena.core.proof_irrel
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::prop_sorts_zero]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4077:0-4121:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4068:0-4112:1
     Visibility: public -/
 def arena.core.prop_sorts_zero
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27053,7 +27053,7 @@ def arena.core.prop_sorts_zero
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::prop_sorts_zero_right]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4126:0-4161:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4117:0-4152:1
     Visibility: public -/
 def arena.core.prop_sorts_zero_right
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27100,7 +27100,7 @@ def arena.core.prop_sorts_zero_right
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::prop_irrel]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4168:0-4221:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4159:0-4212:1
     Visibility: public -/
 def arena.core.prop_irrel
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27166,7 +27166,7 @@ def arena.core.prop_irrel
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::struct_eta_proj_certs]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4229:0-4310:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4220:0-4301:1
     Visibility: public -/
 def arena.core.struct_eta_proj_certs
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27253,7 +27253,7 @@ def arena.core.struct_eta_proj_certs
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::struct_eta_cert_tail]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4525:0-4581:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4516:0-4572:1
     Visibility: public -/
 def arena.core.struct_eta_cert_tail
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27313,7 +27313,7 @@ def arena.core.struct_eta_cert_tail
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::struct_eta_cert_fam]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4590:0-4613:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4581:0-4604:1
     Visibility: public -/
 def arena.core.struct_eta_cert_fam
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27336,7 +27336,7 @@ def arena.core.struct_eta_cert_fam
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::struct_eta_cert_certs]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4620:0-4697:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4611:0-4688:1
     Visibility: public -/
 def arena.core.struct_eta_cert_certs
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27400,7 +27400,7 @@ def arena.core.struct_eta_cert_certs
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::struct_eta_cert_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4704:0-4797:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4695:0-4788:1
     Visibility: public -/
 def arena.core.struct_eta_cert_at
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27518,7 +27518,7 @@ def arena.core.struct_eta_cert_at
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::struct_eta_cert_with]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4803:0-4849:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4794:0-4840:1
     Visibility: public -/
 def arena.core.struct_eta_cert_with
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27577,7 +27577,7 @@ def arena.core.struct_eta_cert_with
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::struct_eta_cert]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4890:0-4915:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4881:0-4906:1
     Visibility: public -/
 def arena.core.struct_eta_cert
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27609,7 +27609,7 @@ def arena.core.struct_eta_cert
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::struct_unit_cert_tail]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4921:0-4966:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4912:0-4957:1
     Visibility: public -/
 def arena.core.struct_unit_cert_tail
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27651,7 +27651,7 @@ def arena.core.struct_unit_cert_tail
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::struct_unit_cert]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4972:0-5033:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 4963:0-5024:1
     Visibility: public -/
 def arena.core.struct_unit_cert
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27745,7 +27745,7 @@ def arena.core.struct_unit_cert
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::eta_cert]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5038:0-5075:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5029:0-5066:1
     Visibility: public -/
 def arena.core.eta_cert
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27789,7 +27789,7 @@ def arena.core.eta_cert
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::eta_cert_body]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5081:0-5120:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5072:0-5111:1
     Visibility: public -/
 def arena.core.eta_cert_body
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27843,7 +27843,7 @@ def arena.core.eta_cert_body
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::stuck_irrel]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5126:0-5151:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5117:0-5142:1
     Visibility: public -/
 def arena.core.stuck_irrel
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27882,7 +27882,7 @@ def arena.core.stuck_irrel
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::major_to_ctor_certs]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5354:0-5403:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5306:0-5355:1
     Visibility: public -/
 def arena.core.major_to_ctor_certs
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27960,7 +27960,7 @@ def arena.core.major_to_ctor_certs
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::iota_certs_fam]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5411:0-5432:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5363:0-5384:1
     Visibility: public -/
 def arena.core.iota_certs_fam
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -27983,7 +27983,7 @@ def arena.core.iota_certs_fam
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::major_to_ctor_k]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5439:0-5505:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5391:0-5457:1
     Visibility: public -/
 def arena.core.major_to_ctor_k
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -28083,7 +28083,7 @@ def arena.core.major_to_ctor_k
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::major_to_ctor_eta_certs]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5512:0-5552:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5464:0-5504:1
     Visibility: public -/
 def arena.core.major_to_ctor_eta_certs
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -28134,7 +28134,7 @@ def arena.core.major_to_ctor_eta_certs
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::major_to_ctor_eta]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5559:0-5617:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5511:0-5569:1
     Visibility: public -/
 def arena.core.major_to_ctor_eta
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -28229,7 +28229,7 @@ def arena.core.major_to_ctor_eta
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::major_to_ctor_eta_build]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5622:0-5666:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5574:0-5618:1
     Visibility: public -/
 def arena.core.major_to_ctor_eta_build
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -28262,7 +28262,7 @@ def arena.core.major_to_ctor_eta_build
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::major_to_ctor_and]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5672:0-5730:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5624:0-5682:1
     Visibility: public -/
 def arena.core.major_to_ctor_and
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -28357,7 +28357,7 @@ def arena.core.major_to_ctor_and
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::major_to_ctor_and_build]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5735:0-5774:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5687:0-5726:1
     Visibility: public -/
 def arena.core.major_to_ctor_and_build
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -28395,7 +28395,7 @@ def arena.core.major_to_ctor_and_build
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::major_to_ctor_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5780:0-5819:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5732:0-5771:1
     Visibility: public -/
 def arena.core.major_to_ctor_at
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -28433,7 +28433,7 @@ def arena.core.major_to_ctor_at
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::major_to_ctor]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5827:0-5893:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5779:0-5845:1
     Visibility: public -/
 def arena.core.major_to_ctor
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -28569,7 +28569,7 @@ def arena.core.major_to_ctor
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::lit_major_to_ctor]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5899:0-5929:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5851:0-5881:1
     Visibility: public -/
 def arena.core.lit_major_to_ctor
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -28611,7 +28611,7 @@ def arena.core.lit_major_to_ctor
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::proj_lit_to_ctor]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5934:0-5964:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5886:0-5916:1
     Visibility: public -/
 def arena.core.proj_lit_to_ctor
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -28656,7 +28656,7 @@ def arena.core.proj_lit_to_ctor
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::prepare_major]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6106:0-6144:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6058:0-6096:1
     Visibility: public -/
 def arena.core.prepare_major
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -28699,7 +28699,7 @@ def arena.core.prepare_major
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::iota_rec_fire]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6356:0-6408:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6308:0-6360:1
     Visibility: public -/
 def arena.core.iota_rec_fire
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -28752,7 +28752,7 @@ def arena.core.iota_rec_fire
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::iota_rec_params]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6420:0-6452:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6372:0-6404:1
     Visibility: public -/
 def arena.core.iota_rec_params
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -28807,7 +28807,7 @@ def arena.core.iota_rec_params
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::iota_rec_certs]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6460:0-6491:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6412:0-6443:1
     Visibility: public -/
 def arena.core.iota_rec_certs
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -28833,7 +28833,7 @@ def arena.core.iota_rec_certs
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::iota_rec_fam]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6497:0-6564:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6449:0-6516:1
     Visibility: public -/
 def arena.core.iota_rec_fam
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -28885,7 +28885,7 @@ def arena.core.iota_rec_fam
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::iota_rec_major]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6599:0-6663:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6551:0-6615:1
     Visibility: public -/
 def arena.core.iota_rec_major
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -28968,7 +28968,7 @@ def arena.core.iota_rec_major
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::iota_rec_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6677:0-6755:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6629:0-6707:1
     Visibility: public -/
 def arena.core.iota_rec_at
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29048,7 +29048,7 @@ def arena.core.iota_rec_at
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::proj_cert]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6807:0-6832:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6759:0-6784:1
     Visibility: public -/
 def arena.core.proj_cert
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29086,7 +29086,7 @@ def arena.core.proj_cert
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::proj_cert_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6838:0-6858:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6790:0-6810:1
     Visibility: public -/
 def arena.core.proj_cert_at
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29103,7 +29103,7 @@ def arena.core.proj_cert_at
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::whnf_core_proj]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6874:0-6901:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6826:0-6853:1
     Visibility: public -/
 def arena.core.whnf_core_proj
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29137,7 +29137,7 @@ def arena.core.whnf_core_proj
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::whnf_core_proj_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6907:0-6958:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6859:0-6910:1
     Visibility: public -/
 def arena.core.whnf_core_proj_at
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29223,7 +29223,7 @@ def arena.core.whnf_core_proj_at
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::whnf_core_proj_fire]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6963:0-6996:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6915:0-6948:1
     Visibility: public -/
 def arena.core.whnf_core_proj_fire
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29256,7 +29256,7 @@ def arena.core.whnf_core_proj_fire
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::whnf_app]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7113:0-7229:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7065:0-7181:1
     Visibility: public -/
 def arena.core.whnf_app
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29371,7 +29371,7 @@ def arena.core.whnf_app
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::beta_peel]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7244:0-7335:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7196:0-7287:1
     Visibility: public -/
 def arena.core.beta_peel
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29475,7 +29475,7 @@ def arena.core.beta_peel
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::whnf_core_body]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7389:0-7449:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7341:0-7401:1
     Visibility: public -/
 def arena.core.whnf_core_body
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29546,7 +29546,7 @@ def arena.core.whnf_core_body
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::whnf_step]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7465:0-7489:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7417:0-7441:1
     Visibility: public -/
 def arena.core.whnf_step
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29581,7 +29581,7 @@ def arena.core.whnf_step
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::whnf_loop]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7495:0-7512:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7447:0-7464:1
     Visibility: public -/
 def arena.core.whnf_loop
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29605,7 +29605,7 @@ def arena.core.whnf_loop
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::whnf_body]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7517:0-7529:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7469:0-7481:1
     Visibility: public -/
 def arena.core.whnf_body
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29619,7 +29619,7 @@ def arena.core.whnf_body
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::ensure_sort]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7534:0-7556:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7486:0-7508:1
     Visibility: public -/
 def arena.core.ensure_sort
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29651,7 +29651,7 @@ def arena.core.ensure_sort
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_forall]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7705:0-7751:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7657:0-7703:1
     Visibility: public -/
 def arena.core.infer_forall
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29702,7 +29702,7 @@ def arena.core.infer_forall
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_proj]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7759:0-7799:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7711:0-7751:1
     Visibility: public -/
 def arena.core.infer_proj
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29762,7 +29762,7 @@ def arena.core.infer_proj
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_lam]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7879:0-7922:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7831:0-7874:1
     Visibility: public -/
 def arena.core.infer_lam
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29807,7 +29807,7 @@ def arena.core.infer_lam
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_lam_open]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7934:0-7974:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7886:0-7926:1
     Visibility: public -/
 def arena.core.infer_lam_open
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29843,7 +29843,7 @@ def arena.core.infer_lam_open
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_lam_cod]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7982:0-8032:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 7934:0-7984:1
     Visibility: public -/
 def arena.core.infer_lam_cod
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -29900,7 +29900,7 @@ def arena.core.infer_lam_cod
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_spine]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8056:0-8141:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8008:0-8093:1
     Visibility: public -/
 def arena.core.infer_spine
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -30020,7 +30020,7 @@ def arena.core.infer_spine
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_app]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8147:0-8168:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8099:0-8120:1
     Visibility: public -/
 def arena.core.infer_app
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -30044,7 +30044,7 @@ def arena.core.infer_app
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_lams_leaf_check]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8270:0-8310:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8222:0-8262:1
     Visibility: public -/
 def arena.core.infer_lams_leaf_check
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -30096,7 +30096,7 @@ def arena.core.infer_lams_leaf_check
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_lams_leaf]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8325:0-8378:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8277:0-8330:1
     Visibility: public -/
 def arena.core.infer_lams_leaf
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -30158,7 +30158,7 @@ def arena.core.infer_lams_leaf
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_lams]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8393:0-8460:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8345:0-8412:1
     Visibility: public -/
 def arena.core.infer_lams
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -30231,7 +30231,7 @@ def arena.core.infer_lams
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_pis_leaf]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8508:0-8542:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8460:0-8494:1
     Visibility: public -/
 def arena.core.infer_pis_leaf
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -30271,7 +30271,7 @@ def arena.core.infer_pis_leaf
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_pis]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8556:0-8622:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8508:0-8574:1
     Visibility: public -/
 def arena.core.infer_pis
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -30345,7 +30345,7 @@ def arena.core.infer_pis
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_body]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8627:0-8662:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8579:0-8614:1
     Visibility: public -/
 def arena.core.infer_body
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -30394,7 +30394,7 @@ def arena.core.infer_body
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_body_io]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8675:0-8714:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8627:0-8666:1
     Visibility: public -/
 def arena.core.infer_body_io
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -30445,7 +30445,7 @@ def arena.core.infer_body_io
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_forall_io]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8719:0-8751:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8671:0-8703:1
     Visibility: public -/
 def arena.core.infer_forall_io
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -30486,7 +30486,7 @@ def arena.core.infer_forall_io
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_forall_io_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8756:0-8817:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8708:0-8769:1
     Visibility: public -/
 def arena.core.infer_forall_io_at
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -30562,7 +30562,7 @@ def arena.core.infer_forall_io_at
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_app_io_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8822:0-8848:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8774:0-8800:1
     Visibility: public -/
 def arena.core.infer_app_io_at
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -30586,7 +30586,7 @@ def arena.core.infer_app_io_at
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_spine_io]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8862:0-8960:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8814:0-8912:1
     Visibility: public -/
 def arena.core.infer_spine_io
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -30723,7 +30723,7 @@ def arena.core.infer_spine_io
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::infer_proj_io]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8965:0-9006:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8917:0-8958:1
     Visibility: public -/
 def arena.core.infer_proj_io
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -30784,7 +30784,7 @@ def arena.core.infer_proj_io
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::bool_true_shortcut]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9016:0-9031:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8968:0-8983:1
     Visibility: public -/
 def arena.core.bool_true_shortcut
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -30800,7 +30800,7 @@ def arena.core.bool_true_shortcut
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_spine]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9038:0-9091:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 8990:0-9043:1
     Visibility: public -/
 def arena.core.defeq_spine
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -30876,7 +30876,7 @@ def arena.core.defeq_spine
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_binders]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9129:0-9164:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9081:0-9116:1
     Visibility: public -/
 def arena.core.defeq_binders
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -30917,7 +30917,7 @@ def arena.core.defeq_binders
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_peel]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9239:0-9349:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9191:0-9301:1
     Visibility: public -/
 def arena.core.defeq_peel
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -31129,7 +31129,7 @@ def arena.core.defeq_peel
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_peel_leaf]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9359:0-9386:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9311:0-9338:1
     Visibility: public -/
 def arena.core.defeq_peel_leaf
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -31165,7 +31165,7 @@ def arena.core.defeq_peel_leaf
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_lit_app]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9416:0-9525:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9368:0-9477:1
     Visibility: public -/
 def arena.core.defeq_lit_app
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -31290,7 +31290,7 @@ def arena.core.defeq_lit_app
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_lit_const]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9531:0-9559:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9483:0-9511:1
     Visibility: public -/
 def arena.core.defeq_lit_const
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -31321,7 +31321,7 @@ def arena.core.defeq_lit_const
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_struct]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9566:0-9680:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9518:0-9632:1
     Visibility: public -/
 def arena.core.defeq_struct
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -31784,7 +31784,7 @@ def arena.core.defeq_struct
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_apps]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9686:0-9742:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9638:0-9694:1
     Visibility: public -/
 def arena.core.defeq_apps
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -31841,7 +31841,7 @@ def arena.core.defeq_apps
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_unfold_both]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9748:0-9773:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9700:0-9725:1
     Visibility: public -/
 def arena.core.defeq_unfold_both
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -31870,7 +31870,7 @@ def arena.core.defeq_unfold_both
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_delta_both]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9778:0-9848:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9730:0-9800:1
     Visibility: public -/
 def arena.core.defeq_delta_both
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -31943,7 +31943,7 @@ def arena.core.defeq_delta_both
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_delta]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9854:0-9896:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9806:0-9848:1
     Visibility: public -/
 def arena.core.defeq_delta
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -31993,7 +31993,7 @@ def arena.core.defeq_delta
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_after_whnf]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9903:0-9960:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9855:0-9912:1
     Visibility: public -/
 def arena.core.defeq_after_whnf
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32062,7 +32062,7 @@ def arena.core.defeq_after_whnf
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_step]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9974:0-10032:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9926:0-9984:1
     Visibility: public -/
 def arena.core.defeq_step
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32127,7 +32127,7 @@ def arena.core.defeq_step
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_loop]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10037:0-10056:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9989:0-10008:1
     Visibility: public -/
 def arena.core.defeq_loop
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32149,7 +32149,7 @@ def arena.core.defeq_loop
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::defeq_body]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10067:0-10080:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10019:0-10032:1
     Visibility: public -/
 def arena.core.defeq_body
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32164,7 +32164,7 @@ def arena.core.defeq_body
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::knot_whnf_core]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11057:0-11084:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11009:0-11036:1
     Visibility: public -/
 def arena.core.knot_whnf_core
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32204,7 +32204,7 @@ def arena.core.knot_whnf_core
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::knot_whnf]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11090:0-11117:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11042:0-11069:1
     Visibility: public -/
 def arena.core.knot_whnf
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32244,7 +32244,7 @@ def arena.core.knot_whnf
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::knot_infer]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11126:0-11153:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11078:0-11105:1
     Visibility: public -/
 def arena.core.knot_infer
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32283,7 +32283,7 @@ def arena.core.knot_infer
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::knot_infer_io]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11166:0-11206:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11118:0-11158:1
     Visibility: public -/
 def arena.core.knot_infer_io
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32339,7 +32339,7 @@ def arena.core.knot_infer_io
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::knot_infer_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11216:0-11233:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11168:0-11185:1
     Visibility: public -/
 def arena.core.knot_infer_at
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32354,7 +32354,7 @@ def arena.core.knot_infer_at
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::knot_defeq]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11240:0-11267:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11192:0-11219:1
     Visibility: public -/
 def arena.core.knot_defeq
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32390,7 +32390,7 @@ partial_fixpoint
 end
 
 /-- [con_ron_core::arena::core::annot_pw_lam]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10147:0-10175:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10099:0-10127:1
     Visibility: public -/
 def arena.core.annot_pw_lam
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32430,7 +32430,7 @@ def arena.core.annot_pw_lam
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::annot_pw_pi]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10116:0-10142:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10068:0-10094:1
     Visibility: public -/
 def arena.core.annot_pw_pi
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32489,7 +32489,7 @@ def arena.core.M_LET_VALUE : Array Std.U32 23#usize :=
 mutual
 
 /-- [con_ron_core::arena::core::annotate_pis_leaf]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10296:0-10328:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10248:0-10280:1
     Visibility: public -/
 def arena.core.annotate_pis_leaf
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32528,7 +32528,7 @@ def arena.core.annotate_pis_leaf
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::annotate_pis]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10343:0-10394:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10295:0-10346:1
     Visibility: public -/
 def arena.core.annotate_pis
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32581,7 +32581,7 @@ def arena.core.annotate_pis
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::annotate_lams_leaf]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10402:0-10434:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10354:0-10386:1
     Visibility: public -/
 def arena.core.annotate_lams_leaf
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32620,7 +32620,7 @@ def arena.core.annotate_lams_leaf
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::annotate_lams]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10442:0-10493:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10394:0-10445:1
     Visibility: public -/
 def arena.core.annotate_lams
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32674,7 +32674,7 @@ def arena.core.annotate_lams
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::annotate_binder]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10508:0-10578:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10460:0-10530:1
     Visibility: public -/
 def arena.core.annotate_binder
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32746,7 +32746,7 @@ def arena.core.annotate_binder
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::annotate_let]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10585:0-10631:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10537:0-10583:1
     Visibility: public -/
 def arena.core.annotate_let
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32806,7 +32806,7 @@ def arena.core.annotate_let
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::annotate_proj]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10637:0-10673:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10589:0-10625:1
     Visibility: public -/
 def arena.core.annotate_proj
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32856,7 +32856,7 @@ def arena.core.annotate_proj
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::annotate_body]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10725:0-10833:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 10677:0-10785:1
     Visibility: public -/
 def arena.core.annotate_body
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -32996,7 +32996,7 @@ def arena.core.annotate_body
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::knot_annotate]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11274:0-11299:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11226:0-11251:1
     Visibility: public -/
 def arena.core.knot_annotate
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -33032,7 +33032,7 @@ partial_fixpoint
 end
 
 /-- [con_ron_core::arena::core::annotate_core]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11404:0-11415:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11356:0-11367:1
     Visibility: public -/
 def arena.core.annotate_core
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -33045,12 +33045,12 @@ def arena.core.annotate_core
     e
 
 /-- [con_ron_core::arena::core::CHECK_FUEL]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11305:0-11305:35
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11257:0-11257:35
     Visibility: public -/
 @[global_simps, irreducible] def arena.core.CHECK_FUEL : Std.U64 := 100000#u64
 
 /-- [con_ron_core::arena::core::ensure_sort_core]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11420:0-11431:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11372:0-11383:1
     Visibility: public -/
 def arena.core.ensure_sort_core
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -33062,7 +33062,7 @@ def arena.core.ensure_sort_core
   arena.core.ensure_sort pers vis st mode arena.core.LANE_FULL fuel fe depth e
 
 /-- [con_ron_core::arena::core::infer_type_core]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11354:0-11365:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11306:0-11317:1
     Visibility: public -/
 def arena.core.infer_type_core
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -33442,7 +33442,7 @@ def arena.core_state.take_walk_memo
        ok (m1, slot1)
 
 /-- [con_ron_core::arena::core::stored]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1251:0-1256:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1242:0-1247:1
     Visibility: public -/
 def arena.core.stored
   (vis : Std.U64) (fe : arena.env.IFEnv) (n : arena.handle.NIdx) :
@@ -33454,7 +33454,7 @@ def arena.core.stored
   | some _ => ok true
 
 /-- [con_ron_core::arena::core::str_support_stored]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1279:0-1308:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1270:0-1299:1
     Visibility: public -/
 def arena.core.str_support_stored
   (vis : Std.U64) (st : arena.monad.AState) (fe : arena.env.IFEnv) :
@@ -33517,7 +33517,7 @@ def arena.core.str_support_stored
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::core::nat_trio_stored]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1263:0-1274:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1254:0-1265:1
     Visibility: public -/
 def arena.core.nat_trio_stored
   (vis : Std.U64) (st : arena.monad.AState) (fe : arena.env.IFEnv) :
@@ -33560,7 +33560,7 @@ def arena.core.M_FUEL_CONSTS_RESOLVE : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::arena::core::consts_resolve]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1316:0-1383:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 1307:0-1374:1
     Visibility: public -/
 def arena.core.consts_resolve
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -35560,7 +35560,7 @@ def arena.expr_ops.rec_rule_plain
   else ok (core.result.Result.Ok false, st)
 
 /-- [con_ron_core::arena::core::rec_rule_eta_of]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6012:0-6058:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5964:0-6010:1
     Visibility: public -/
 def arena.core.rec_rule_eta_of
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -35651,7 +35651,7 @@ def arena.core.rec_rule_eta_of
       ok (core.result.Result.Ok false, st)
 
 /-- [con_ron_core::arena::core::rec_rule_k_of]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5970:0-6005:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5922:0-5957:1
     Visibility: public -/
 def arena.core.rec_rule_k_of
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -35719,7 +35719,7 @@ def arena.core.rec_rule_k_of
       ok (core.result.Result.Ok false, st)
 
 /-- [con_ron_core::arena::core::rec_rule_bits]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6064:0-6088:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6016:0-6040:1
     Visibility: public -/
 def arena.core.rec_rule_bits
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -38869,7 +38869,7 @@ def arena.inductives.rec_check.M_REC_LPS : Array Std.U32 70#usize :=
     ]
 
 /-- [con_ron_core::arena::core::lit_guard_names]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2378:0-2422:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2369:0-2413:1
     Visibility: public -/
 def arena.core.lit_guard_names
   (st : arena.monad.AState) :
@@ -38931,7 +38931,7 @@ def arena.core.lit_guard_names
   | core.result.Result.Err e => ok (core.result.Result.Err e)
 
 /-- [con_ron_core::arena::core::nat_op_names]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2295:0-2327:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2286:0-2318:1
     Visibility: public -/
 def arena.core.nat_op_names
   (st : arena.monad.AState) :
@@ -38977,7 +38977,7 @@ def arena.core.nat_op_names
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::reserved_rec_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2429:0-2461:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2420:0-2452:1
     Visibility: public -/
 def arena.core.reserved_rec_name
   (st : arena.monad.AState) (n : arena.handle.NIdx) :
@@ -39983,7 +39983,7 @@ def arena.core_state.Caches.reset
     }
 
 /-- [con_ron_core::arena::core::flush_caches]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11460:0-11462:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11412:0-11414:1
     Visibility: public -/
 def arena.core.flush_caches
   (st : arena.monad.AState) : Result arena.monad.AState := do
@@ -41492,7 +41492,7 @@ def arena.inductives.gen_rec.M_REC_MEMBER : Array Std.U32 67#usize :=
     ]
 
 /-- [con_ron_core::arena::core::is_def_eq_core]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11387:0-11399:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11339:0-11351:1
     Visibility: public -/
 def arena.core.is_def_eq_core
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -48426,7 +48426,7 @@ def arena.inductives.positivity.M_DUP_ULP : Array Std.U32 157#usize :=
     ]
 
 /-- [con_ron_core::arena::core::whnf]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11338:0-11349:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11290:0-11301:1
     Visibility: public -/
 def arena.core.whnf
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -52044,7 +52044,7 @@ def arena.inductives.sum_install.M_CTOR_RESID : Array Std.U32 45#usize :=
     ]
 
 /-- [con_ron_core::arena::core::drop_eidx]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3499:0-3501:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3490:0-3492:1
     Visibility: public -/
 def arena.core.drop_eidx
   (xs : alloc.vec.Vec arena.handle.EIdx) (k : Std.Usize) :
@@ -57222,7 +57222,7 @@ def kernel.trust_axioms.of_reduce_pin_a
     kernel.trust_axioms.of_reduce_raw n2
 
 /-- [con_ron_core::arena::trust_axioms::of_reduce_bool_a]:
-    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 225:0-227:1
+    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 195:0-197:1
     Visibility: public -/
 def arena.trust_axioms.of_reduce_bool_a
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -57234,7 +57234,7 @@ def arena.trust_axioms.of_reduce_bool_a
   arena.intern.intern_cv pers st cv
 
 /-- [con_ron_core::arena::trust_axioms::of_reduce_nat_a]:
-    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 219:0-221:1
+    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 189:0-191:1
     Visibility: public -/
 def arena.trust_axioms.of_reduce_nat_a
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -57246,7 +57246,7 @@ def arena.trust_axioms.of_reduce_nat_a
   arena.intern.intern_cv pers st cv
 
 /-- [con_ron_core::arena::trust_axioms::of_reduce_pin_a]:
-    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 252:0-267:1
+    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 222:0-237:1
     Visibility: public -/
 def arena.trust_axioms.of_reduce_pin_a
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -57325,7 +57325,7 @@ def arena.pins.pin_bool
   arena.pins.pin_at st arena.pins.PIN_BOOL
 
 /-- [con_ron_core::arena::core::bool_name]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2220:0-2222:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2211:0-2213:1
     Visibility: public -/
 def arena.core.bool_name
   (st : arena.monad.AState) :
@@ -57435,7 +57435,7 @@ def kernel.trust_axioms.reduce_op_cv_a
     kernel.trust_axioms.reduce_op_raw n1
 
 /-- [con_ron_core::arena::trust_axioms::reduce_bool_cv_a]:
-    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 213:0-215:1
+    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 183:0-185:1
     Visibility: public -/
 def arena.trust_axioms.reduce_bool_cv_a
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -57447,7 +57447,7 @@ def arena.trust_axioms.reduce_bool_cv_a
   arena.intern.intern_cv pers st cv
 
 /-- [con_ron_core::arena::trust_axioms::reduce_nat_cv_a]:
-    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 207:0-209:1
+    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 177:0-179:1
     Visibility: public -/
 def arena.trust_axioms.reduce_nat_cv_a
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -57459,7 +57459,7 @@ def arena.trust_axioms.reduce_nat_cv_a
   arena.intern.intern_cv pers st cv
 
 /-- [con_ron_core::arena::trust_axioms::reduce_op_cv_a]:
-    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 232:0-247:1
+    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 202:0-217:1
     Visibility: public -/
 def arena.trust_axioms.reduce_op_cv_a
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -58051,7 +58051,7 @@ def arena.intern.intern_expr
   ok (r, st1)
 
 /-- [con_ron_core::arena::trust_axioms::reduce_nat_decl_pin]:
-    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 283:0-285:1
+    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 253:0-255:1
     Visibility: public -/
 def arena.trust_axioms.reduce_nat_decl_pin
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -58079,7 +58079,7 @@ def kernel.trust_pins.reduce_bool_decl_pin : Result kernel.expr.Expr := do
   kernel.basis_builder.lm e e1
 
 /-- [con_ron_core::arena::trust_axioms::reduce_bool_decl_pin]:
-    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 276:0-278:1
+    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 246:0-248:1
     Visibility: public -/
 def arena.trust_axioms.reduce_bool_decl_pin
   (pers : arena.store.PersTier) (st : arena.monad.AState) :
@@ -58090,7 +58090,7 @@ def arena.trust_axioms.reduce_bool_decl_pin
   arena.intern.intern_expr pers st e
 
 /-- [con_ron_core::arena::trust_axioms::reduce_decl_pin]:
-    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 290:0-301:1
+    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 260:0-271:1
     Visibility: public -/
 def arena.trust_axioms.reduce_decl_pin
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -58140,7 +58140,7 @@ def arena.trust_axioms.reduce_elem_ty
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::trust_axioms::reduce_cert_var]:
-    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 306:0-311:1
+    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 276:0-281:1
     Visibility: public -/
 def arena.trust_axioms.reduce_cert_var
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -58652,7 +58652,7 @@ def arena.decl_check.check_defn_val
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::bool_ty_ok]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3336:0-3359:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3327:0-3350:1
     Visibility: public -/
 def arena.core.bool_ty_ok
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -58683,7 +58683,7 @@ def arena.core.bool_ty_ok
       ok (core.result.Result.Err e1, { st with store := e })
 
 /-- [con_ron_core::arena::core::nat_op_cod]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3292:0-3331:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3283:0-3322:1
     Visibility: public -/
 def arena.core.nat_op_cod
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -58746,7 +58746,7 @@ def arena.core.nat_op_cod
   | core.result.Result.Err er => ok (core.result.Result.Err er, st1)
 
 /-- [con_ron_core::arena::core::nat_op_ty_pinned]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3366:0-3423:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3357:0-3414:1
     Visibility: public -/
 def arena.core.nat_op_ty_pinned
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -58820,7 +58820,7 @@ def arena.core.nat_op_ty_pinned
   | core.result.Result.Err er => ok (core.result.Result.Err er, st)
 
 /-- [con_ron_core::arena::core::nat_op_stored_ok]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3428:0-3447:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3419:0-3438:1
     Visibility: public -/
 def arena.core.nat_op_stored_ok
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -58882,7 +58882,7 @@ def arena.decl_check.nat_op_stored_ok_all
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::lp_empty]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3121:0-3135:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3112:0-3126:1
     Visibility: public -/
 def arena.core.lp_empty
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -58903,7 +58903,7 @@ def arena.core.lp_empty
       ok (core.result.Result.Err e1, { st with store := e })
 
 /-- [con_ron_core::arena::core::bool_ctors_lp_empty]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3098:0-3115:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3089:0-3106:1
     Visibility: public -/
 def arena.core.bool_ctors_lp_empty
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -58928,7 +58928,7 @@ def arena.core.bool_ctors_lp_empty
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::nat_op_deps_stored]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3070:0-3093:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3061:0-3084:1
     Visibility: public -/
 def arena.core.nat_op_deps_stored
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -58971,7 +58971,7 @@ def arena.core.nat_op_deps_stored
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::nat_op_deps]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2583:0-2657:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2574:0-2648:1
     Visibility: public -/
 def arena.core.nat_op_deps
   (st : arena.monad.AState) (c : arena.handle.NIdx) :
@@ -59154,7 +59154,7 @@ def arena.core.nat_op_deps
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::nat_op_guard]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3143:0-3178:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3134:0-3169:1
     Visibility: public -/
 def arena.core.nat_op_guard
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -59223,7 +59223,7 @@ def arena.core.M_FUEL_SUBST_CONST0 : Array Std.U32 27#usize :=
     ]
 
 /-- [con_ron_core::arena::core::subst_const0]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3184:0-3217:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3175:0-3208:1
     Visibility: public -/
 def arena.core.subst_const0
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -59361,7 +59361,7 @@ def arena.decl_check.defn_value
     | arena.env.IConstantInfo.ProjInfo _ => ok none
 
 /-- [con_ron_core::arena::core::push_eq]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2688:0-2692:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2679:0-2683:1
     Visibility: public -/
 def arena.core.push_eq
   (out : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx))
@@ -59373,7 +59373,7 @@ def arena.core.push_eq
   alloc.vec.Vec.push out (e, e1)
 
 /-- [con_ron_core::arena::core::nat_ap1]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2663:0-2668:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2654:0-2659:1
     Visibility: public -/
 def arena.core.nat_ap1
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -59389,7 +59389,7 @@ def arena.core.nat_ap1
   | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::arena::core::nat_ap2]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2672:0-2683:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2663:0-2674:1
     Visibility: public -/
 def arena.core.nat_ap2
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -59405,7 +59405,7 @@ def arena.core.nat_ap2
   | core.result.Result.Err _ => ok (r, st1)
 
 /-- [con_ron_core::arena::core::nat_op_equations_ble]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2951:0-2975:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2942:0-2966:1
     Visibility: public -/
 def arena.core.nat_op_equations_ble
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -59436,7 +59436,7 @@ def arena.core.nat_op_equations_ble
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::nat_op_equations_beq]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2918:0-2946:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2909:0-2937:1
     Visibility: public -/
 def arena.core.nat_op_equations_beq
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -59472,7 +59472,7 @@ def arena.core.nat_op_equations_beq
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::nat_op_equations_pow]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2886:0-2913:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2877:0-2904:1
     Visibility: public -/
 def arena.core.nat_op_equations_pow
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -59506,7 +59506,7 @@ def arena.core.nat_op_equations_pow
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::nat_op_equations_at]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2802:0-2881:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2793:0-2872:1
     Visibility: public -/
 def arena.core.nat_op_equations_at
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -59633,7 +59633,7 @@ def arena.core.nat_op_equations_at
                   × arena.handle.EIdx)), st)
 
 /-- [con_ron_core::arena::core::nat_eq_ctx_rest]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2740:0-2776:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2731:0-2767:1
     Visibility: public -/
 def arena.core.nat_eq_ctx_rest
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -59670,7 +59670,7 @@ def arena.core.nat_eq_ctx_rest
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::core::nat_eq_ctx]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2712:0-2735:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2703:0-2726:1
     Visibility: public -/
 def arena.core.nat_eq_ctx
   (pers : arena.store.PersTier) (st : arena.monad.AState) (d : Std.U64) :
@@ -59711,7 +59711,7 @@ def arena.core.nat_eq_ctx
   | core.result.Result.Err e => ok (core.result.Result.Err e, st)
 
 /-- [con_ron_core::arena::core::nat_op_equations]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2784:0-2797:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2775:0-2788:1
     Visibility: public -/
 def arena.core.nat_op_equations
   (pers : arena.store.PersTier) (st : arena.monad.AState) (d : Std.U64)
@@ -59966,7 +59966,7 @@ def arena.core.M_FUEL_SUBST_CONST_ALL : Array Std.U32 29#usize :=
     ]
 
 /-- [con_ron_core::arena::core::subst_const_all]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3223:0-3286:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 3214:0-3277:1
     Visibility: public -/
 def arena.core.subst_const_all
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -65101,7 +65101,7 @@ def arena.monad.Memos.reset
     }
 
 /-- [con_ron_core::arena::core::enter_scratch]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11483:0-11486:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11435:0-11438:1
     Visibility: public -/
 def arena.core.enter_scratch
   (st : arena.monad.AState) :
@@ -65155,7 +65155,7 @@ def arena.store.EStore.thaw
   ok { lss := ls, pers := tier.e, scr := e, scratch_on := false }
 
 /-- [con_ron_core::arena::core::drop_scratch]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11470:0-11473:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11422:0-11425:1
     Visibility: public -/
 def arena.core.drop_scratch
   (st : arena.monad.AState) (tier : arena.store.PersTier) :
@@ -65703,7 +65703,7 @@ def arena.store.EStore.clear_scratch
   ok { self with lss := ls, scr := e }
 
 /-- [con_ron_core::arena::core::enter_record]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11504:0-11507:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11456:0-11459:1
     Visibility: public -/
 def arena.core.enter_record
   (st : arena.monad.AState) : Result arena.monad.AState := do
@@ -65712,7 +65712,7 @@ def arena.core.enter_record
   ok { st with store := e, memos := m }
 
 /-- [con_ron_core::arena::core::leave_record]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11495:0-11498:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11447:0-11450:1
     Visibility: public -/
 def arena.core.leave_record
   (st : arena.monad.AState) : Result arena.monad.AState := do
@@ -66654,77 +66654,8 @@ def arena.checker.intern_all_pins
     | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
-/-- [con_ron_core::arena::core::pin]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 467:0-469:1
-    Visibility: public -/
-def arena.core.pin
-  (pers : arena.store.PersTier) (st : arena.monad.AState)
-  (n : kernel.name.Name) :
-  Result ((core.result.Result arena.handle.NIdx kernel.core_types.CheckError)
-    × arena.monad.AState)
-  := do
-  arena.monad.intern_name pers st n
-
-/-- [con_ron_core::arena::core::leaf_contains]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5305:0-5313:1
-    Visibility: public -/
-def arena.core.leaf_contains
-  (ys : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) (i : Std.U64)
-  (ty : arena.handle.EIdx) (j : Std.Usize) :
-  Result Bool
-  := do
-  let i1 := alloc.vec.Vec.len ys
-  if j >= i1
-  then ok false
-  else
-    let (i2, e) ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Std.U64 ×
-        arena.handle.EIdx)) ys j
-    if i2 = i
-    then
-      let b ← arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 e ty
-      if b
-      then ok true
-      else let i3 ← j + 1#usize
-           arena.core.leaf_contains ys i ty i3
-    else let i3 ← j + 1#usize
-         arena.core.leaf_contains ys i ty i3
-partial_fixpoint
-
-/-- [con_ron_core::arena::core::fvar_leaves_subset_from]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5287:0-5299:1
-    Visibility: public -/
-def arena.core.fvar_leaves_subset_from
-  (xs : alloc.vec.Vec (Std.U64 × arena.handle.EIdx))
-  (ys : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) (i : Std.Usize) :
-  Result Bool
-  := do
-  let i1 := alloc.vec.Vec.len xs
-  if i >= i1
-  then ok true
-  else
-    let (i2, e) ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (Std.U64 ×
-        arena.handle.EIdx)) xs i
-    let b ← arena.core.leaf_contains ys i2 e 0#usize
-    if b
-    then let i3 ← i + 1#usize
-         arena.core.fvar_leaves_subset_from xs ys i3
-    else ok false
-partial_fixpoint
-
-/-- [con_ron_core::arena::core::fvar_leaves_subset]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 5280:0-5282:1
-    Visibility: public -/
-def arena.core.fvar_leaves_subset
-  (xs : alloc.vec.Vec (Std.U64 × arena.handle.EIdx))
-  (ys : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) :
-  Result Bool
-  := do
-  arena.core.fvar_leaves_subset_from xs ys 0#usize
-
 /-- [con_ron_core::arena::core::rev_eidx_from]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6765:0-6773:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 6717:0-6725:1
     Visibility: public -/
 def arena.core.rev_eidx_from
   (xs : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize)
@@ -66744,7 +66675,7 @@ def arena.core.rev_eidx_from
 partial_fixpoint
 
 /-- [con_ron_core::arena::core::whnf_core]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11322:0-11333:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11274:0-11285:1
     Visibility: public -/
 def arena.core.whnf_core
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -66757,7 +66688,7 @@ def arena.core.whnf_core
     e
 
 /-- [con_ron_core::arena::core::infer_type_io]:
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11371:0-11382:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11323:0-11334:1
     Visibility: public -/
 def arena.core.infer_type_io
   (pers : arena.store.PersTier) (vis : Std.U64) (st : arena.monad.AState)
@@ -66770,7 +66701,7 @@ def arena.core.infer_type_io
     e
 
 /-- [con_ron_core::arena::core::PURE_FNS_A]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11440:0-11440:38
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 11392:0-11392:38
     Visibility: public -/
 @[global_simps, irreducible]
 def arena.core.PURE_FNS_A : Std.U32 := arena.core.LANE_FULL
@@ -70281,38 +70212,6 @@ def arena.store.EStore.cap_ok
        ok (¬ b)
   else let b ← arena.store.EStore.pers_full_of self pers v
        ok (¬ b)
-
-/-- [con_ron_core::arena::trust_axioms::reduce_op_raw]:
-    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 178:0-187:1
-    Visibility: public -/
-def arena.trust_axioms.reduce_op_raw
-  (pers : arena.store.PersTier) (st : arena.monad.AState)
-  (c : arena.handle.NIdx) :
-  Result ((core.result.Result arena.env.IConstantVal
-    kernel.core_types.CheckError) × arena.monad.AState)
-  := do
-  let (r, st1) ← arena.monad.read_name_m pers st c
-  match r with
-  | core.result.Result.Ok n =>
-    let cv ← kernel.trust_axioms.reduce_op_raw n
-    arena.intern.intern_cv pers st1 cv
-  | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
-
-/-- [con_ron_core::arena::trust_axioms::of_reduce_raw]:
-    Source: 'crates/con-ron-core/src/arena/trust_axioms.rs', lines 192:0-201:1
-    Visibility: public -/
-def arena.trust_axioms.of_reduce_raw
-  (pers : arena.store.PersTier) (st : arena.monad.AState)
-  (n : arena.handle.NIdx) :
-  Result ((core.result.Result arena.env.IConstantVal
-    kernel.core_types.CheckError) × arena.monad.AState)
-  := do
-  let (r, st1) ← arena.monad.read_name_m pers st n
-  match r with
-  | core.result.Result.Ok k =>
-    let cv ← kernel.trust_axioms.of_reduce_raw k
-    arena.intern.intern_cv pers st1 cv
-  | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::frontend::export_c::fail]:
     Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 105:0-107:1
