@@ -1223,4 +1223,77 @@ attribute [local lockstep_simp] gr_absRecShape_tgt gr_absRecShape_rP gr_absRecSh
   rw [arena.inductives.gen_rec.class_rec_ty_ok, classRecTyOk]
   lockstep
 
+def absICVList (v : alloc.vec.Vec arena.env.IConstantVal) : List IConstantVal :=
+  v.val.map absIConstantVal
+
+attribute [local lockstep_simp] absICVList
+
+theorem class_rec_tys_ok_acc {pers} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf)
+    (g : arena.inductives.gen_rec.ClassGen) (hg : ClassGenWF g) (k : Std.U64)
+    (rcs : alloc.vec.Vec arena.inductives.block_parts.RecShape)
+    (cvs : alloc.vec.Vec arena.env.IConstantVal) (cs : alloc.vec.Vec Std.U64) :
+    ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.env.IConstantVal) st lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => absICVList a = absICVList out ++ b)
+        (arena.inductives.gen_rec.class_rec_tys_ok pers st mode rf g k rcs cvs cs i out) lst
+        (classRecTysOk (ConRon.Refine.absMode mode) lf (absClassGen g) (absU k)
+          ((rcs.val.drop i.val).map absRecShape) ((cvs.val.drop i.val).map absIConstantVal)
+          ((cs.val.drop i.val).map absU)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) rcs.val.length
+    (fun i out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => absICVList a = absICVList out ++ b)
+        (arena.inductives.gen_rec.class_rec_tys_ok pers st mode rf g k rcs cvs cs i out) lst
+        (classRecTysOk (ConRon.Refine.absMode mode) lf (absClassGen g) (absU k)
+          ((rcs.val.drop i.val).map absRecShape) ((cvs.val.drop i.val).map absIConstantVal)
+          ((cs.val.drop i.val).map absU))) ?_ ?_ i
+  · intro i out hn st lst hrel hinv
+    rw [List.drop_eq_nil_of_le hn, List.map_nil,
+      arena.inductives.gen_rec.class_rec_tys_ok.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len rcs by scalar_tac)]
+    simp only [classRecTysOk]
+    exact LS.pure (by simp) hrel hinv
+  · intro i out hi ih st lst hrel hinv
+    rw [List.drop_eq_getElem_cons hi, List.map_cons,
+      arena.inductives.gen_rec.class_rec_tys_ok.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len rcs by scalar_tac)]
+    by_cases hv : i.val < cvs.val.length
+    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len cvs by scalar_tac),
+        List.drop_eq_getElem_cons hv, List.map_cons]
+      by_cases hc : i.val < cs.val.length
+      · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac),
+          List.drop_eq_getElem_cons hc, List.map_cons, classRecTysOk]
+        lockstep
+        rename_i x out1 hout1
+        have hjv : a.val = i.val + 1 := by simpa using hP
+        have h1 := ih a out1 hjv _ _ ‹_› ‹_›
+        simp only [hjv] at h1
+        refine ls_tail_cons h1 ?_
+        simp [absICVList, hout1]
+      · rw [if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac),
+          List.drop_eq_nil_of_le (show cs.val.length ≤ i.val by omega), List.map_nil]
+        simp only [classRecTysOk]
+        lockstep
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len cvs by scalar_tac),
+        List.drop_eq_nil_of_le (show cvs.val.length ≤ i.val by omega), List.map_nil]
+      simp only [classRecTysOk]
+      lockstep
+
+@[lockstep] theorem class_rec_tys_ok_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf)
+    (g : arena.inductives.gen_rec.ClassGen) (hg : ClassGenWF g) (k : Std.U64)
+    (rcs : alloc.vec.Vec arena.inductives.block_parts.RecShape)
+    (cvs : alloc.vec.Vec arena.env.IConstantVal) (cs : alloc.vec.Vec Std.U64) :
+    LS pers (fun a b => b = absICVList a)
+      (arena.inductives.gen_rec.class_rec_tys_ok pers st mode rf g k rcs cvs cs 0#usize
+        (alloc.vec.Vec.new _)) lst
+      (classRecTysOk (ConRon.Refine.absMode mode) lf (absClassGen g) (absU k)
+        (rcs.val.map absRecShape) (cvs.val.map absIConstantVal) (cs.val.map absU)) := by
+  have h := class_rec_tys_ok_acc (pers := pers) (mode := mode) hfe g hg k rcs cvs cs 0#usize
+    (alloc.vec.Vec.new _) st lst hrel hinv
+  simp only [gr_usz0, List.drop_zero] at h
+  exact LS.tail h rfl (fun a b h1 => by simpa [absICVList, alloc.vec.Vec.new] using h1.symm)
+
 end ConRon.Refine2
