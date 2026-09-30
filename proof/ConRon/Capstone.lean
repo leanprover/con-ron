@@ -94,22 +94,16 @@ Since task #98-HEADLINE the headlines start from the binary's own start
 values (`startState` = `AState::empty()`, `emptyTier` = `PersTier::empty()`)
 instead of quantifying over a start state with `hpers`/`hest`/`hst0`
 equations, name the call the binary makes at each step (`prepare_d`, not
-`prepare_prelude`), and take the flags as parameters.  Beside
-`[ConLeche.SetTheory V]`, the file's shape `hfalse` and the one premise per
-call (`h1`…`h5`, `hpins`, `h6`…`h8`), what they assume is exactly:
+`prepare_prelude`).  Beside `[ConLeche.SetTheory V]`, the file's shape
+`hfalse` and the one premise per call (`h1`…`h5`, `hpins`, `h6`…`h8`), what
+they assume is exactly:
 
-* `hmr : ModellerRefines inst m inProcessModeller` — the Rust modeller
-  against the twin's (the modeller seam, by design): the unextracted
-  `crates/con-ron/src/in_model/`, a port of con-leche's `InModel.generate`,
-  answers what the twin's `inProcessModeller` (which CALLS con-leche's
-  `generate`) answers;
 * `hreads : ReadsAs sinst src chunks.val` — the reads are the chunks
   (task #97-P5-Driver): the binary parses with the verified reader loop
   `parse_source` over the driver's file handle, and
   `Refine2/Frontend/Source.lean`'s `parse_source_eq` makes that
   `parse_chunks` over the chunks the handle hands out; that the handle hands
-  out the file's bytes, in order, is the input seam, as `hmr` is the
-  modeller's.
+  out the file's bytes, in order, is the input seam — the one seam left.
 
 Former hypotheses, now theorems or gone (DESIGN.md's task #97-COMPOSE and
 #98-HEADLINE sections tag each with its owning lane):
@@ -137,10 +131,15 @@ Former hypotheses, now theorems or gone (DESIGN.md's task #97-COMPOSE and
   is what the verified decoder read, at any text (as con-leche's theorems
   hold at every pin list); `model_exists_embedded` /
   `no_False_declaration_embedded` fix the text to the embedded `PINS_TEXT`;
+* ~~`hmr : ModellerRefines inst m inProcessModeller`~~ — the modeller seam
+  (the unextracted Rust `in_model/` against the twin's `inProcessModeller`):
+  gone since task #105, with the in-process modeller itself.  The parser
+  installs every inductive by the one uniform route, so `builtin_prelude_e`
+  and `parse_source` take no modeller, and there is nothing left to refine;
 * ~~`in_model = true`, `census = false`~~ — the two environment flags
   (`CON_LECHE_INMODEL`, `CON_LECHE_INMODEL_CENSUS`; task #97-COMPOSE's
-  mismatch 4): parameters since task #98-HEADLINE, so a run with either flag
-  set is inside the theorems.
+  mismatch 4): parameters since task #98-HEADLINE, gone since task #105 with
+  the modeller they switched.
 -/
 
 open Aeneas Aeneas.Std Result
@@ -173,12 +172,12 @@ driver's start state, the scratch tier is closed, the fold's start invariant
 holds, and the pins
 and the prepared stream denote.  `Arena.no_False_declaration_pipeline`'s own
 steps, stopped before the fold. -/
-theorem stages_frame {chunks : List ByteArray} {pins : List NatOpPinSet} {im ce : Bool}
+theorem stages_frame {chunks : List ByteArray} {pins : List NatOpPinSet}
     {sA sB sC sD sE : AState} {pre : PreludeIx} {r : ParseResultD}
     {ds : Array IDeclaration} {ipins : List INatOpPinSet}
     (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
-    (hB : builtinPreludeE inProcessModeller sA = .ok (.ok pre, sB))
-    (hC : parseChunks inProcessModeller chunks im ce sB = .ok (.ok r, sC))
+    (hB : builtinPreludeE sA = .ok (.ok pre, sB))
+    (hC : parseChunks chunks sB = .ok (.ok r, sC))
     (hD : preparePrelude pre r.decls sC = .ok (ds, sD))
     (hE : internAllPins pins sD = .ok (ipins, sE)) :
     sE.store.scratchOn = false ∧
@@ -191,14 +190,11 @@ theorem stages_frame {chunks : List ByteArray} {pins : List NatOpPinSet} {im ce 
   have hc0 : (AState.init EStore.empty).caches = Caches.empty := rfl
   obtain ⟨hokA, -, hpinsA, hppA, hoffA, -, hcachesA⟩ :=
     internReservedPins_run hok0 hoff0 hA
-  have hrbA : ReadCachesOK sA := ReadCachesOK.ofEmpty (by rw [hcachesA]; exact hc0)
   obtain ⟨hstep1, hpersPre, hnPre, preC, hrelPre⟩ :=
-    builtinPreludeE_run inProcessModeller_wf inProcessModeller_refines
-      hokA hoffA hpinsA hrbA hB
+    builtinPreludeE_run hokA hoffA hpinsA hB
   obtain ⟨hstep2, hpersR, rc, -, hrelR⟩ :=
-    parseChunks_run inProcessModeller_wf inProcessModeller_refines hstep1.ok
-      (by rw [hstep1.scratch, hoffA]) (hpinsA.mono hstep1.ext hstep1.pins)
-      (hrbA.step hstep1) hC
+    parseChunks_run hstep1.ok
+      (by rw [hstep1.scratch, hoffA]) (hpinsA.mono hstep1.ext hstep1.pins) hC
   obtain ⟨hstep3, hpersDs, -, hclPrep⟩ :=
     preparePrelude_run (preC := preC) hstep2.ok
       (by rw [hstep2.scratch, hstep1.scratch, hoffA])
@@ -228,12 +224,12 @@ does (`Arena.PooledAccepts`, task #97-P5-POOL).  `stages_frame`, then
 phase-A state, which the Rust's thawed store is related to. -/
 theorem stages_model (V : Type w) [ConLeche.SetTheory V]
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
-    {chunks : List ByteArray} {pins : List NatOpPinSet} {im ce : Bool}
+    {chunks : List ByteArray} {pins : List NatOpPinSet}
     {sA sB sC sD sE sF : AState} {pre : PreludeIx} {r : ParseResultD}
     {ds : Array IDeclaration} {ipins : List INatOpPinSet} {fe' : IFEnv}
     (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
-    (hB : builtinPreludeE inProcessModeller sA = .ok (.ok pre, sB))
-    (hC : parseChunks inProcessModeller chunks im ce sB = .ok (.ok r, sC))
+    (hB : builtinPreludeE sA = .ok (.ok pre, sB))
+    (hC : parseChunks chunks sB = .ok (.ok r, sC))
     (hD : preparePrelude pre r.decls sC = .ok (ds, sD))
     (hE : internAllPins pins sD = .ok (ipins, sE))
     (hF : Arena.PooledAccepts .verified ipins ds sE fe' sF) :
@@ -253,30 +249,26 @@ type `False` puts one in the denoted stream.  `stages_frame`'s steps with the
 pure parse kept (`parseChunks_run`'s fourth conjunct), then con-leche's
 `parseChunks_jsonWithTheoremFalse` and `mem_preparePrelude` — the steps
 `Arena.no_False_declaration_pipeline` takes, stopped before the fold. -/
-theorem stages_false_mem {chunks : List ByteArray} {pins : List NatOpPinSet} {im ce : Bool}
+theorem stages_false_mem {chunks : List ByteArray} {pins : List NatOpPinSet}
     (hfalse : ConLeche.jsonWithTheoremFalse chunks)
     {sA sB sC sD sE : AState} {pre : PreludeIx} {r : ParseResultD}
     {ds : Array IDeclaration} {ipins : List INatOpPinSet}
     (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
-    (hB : builtinPreludeE inProcessModeller sA = .ok (.ok pre, sB))
-    (hC : parseChunks inProcessModeller chunks im ce sB = .ok (.ok r, sC))
+    (hB : builtinPreludeE sA = .ok (.ok pre, sB))
+    (hC : parseChunks chunks sB = .ok (.ok r, sC))
     (hD : preparePrelude pre r.decls sC = .ok (ds, sD))
     (hE : internAllPins pins sD = .ok (ipins, sE)) :
     ∃ dsP cv vl, denoteDecls sE.store ds.toList = some dsP ∧
       cv.type = .const ConLeche.falseName [] ∧ Declaration.thmDecl cv vl ∈ dsP := by
   have hok0 : StateOK (AState.init EStore.empty) := ⟨EStore.empty_wf⟩
   have hoff0 : (AState.init EStore.empty).store.scratchOn = false := rfl
-  have hc0 : (AState.init EStore.empty).caches = Caches.empty := rfl
-  obtain ⟨hokA, -, hpinsA, hppA, hoffA, -, hcachesA⟩ :=
+  obtain ⟨hokA, -, hpinsA, hppA, hoffA, -, -⟩ :=
     internReservedPins_run hok0 hoff0 hA
-  have hrbA : ReadCachesOK sA := ReadCachesOK.ofEmpty (by rw [hcachesA]; exact hc0)
   obtain ⟨hstep1, hpersPre, hnPre, preC, hrelPre⟩ :=
-    builtinPreludeE_run inProcessModeller_wf inProcessModeller_refines
-      hokA hoffA hpinsA hrbA hB
+    builtinPreludeE_run hokA hoffA hpinsA hB
   obtain ⟨hstep2, hpersR, rc, hclR, hrelR⟩ :=
-    parseChunks_run inProcessModeller_wf inProcessModeller_refines hstep1.ok
-      (by rw [hstep1.scratch, hoffA]) (hpinsA.mono hstep1.ext hstep1.pins)
-      (hrbA.step hstep1) hC
+    parseChunks_run hstep1.ok
+      (by rw [hstep1.scratch, hoffA]) (hpinsA.mono hstep1.ext hstep1.pins) hC
   obtain ⟨hstep3, -, -, hclPrep⟩ :=
     preparePrelude_run (preC := preC) hstep2.ok
       (by rw [hstep2.scratch, hstep1.scratch, hoffA])
@@ -304,13 +296,13 @@ rather than through `Arena.runPipeline` — the pooled phase B is not one twin
 walk, so there is no `runPipeline` run to refute (task #97-P5-POOL). -/
 theorem stages_no_False (V : Type w) [ConLeche.SetTheory V]
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
-    {chunks : List ByteArray} {pins : List NatOpPinSet} {im ce : Bool}
+    {chunks : List ByteArray} {pins : List NatOpPinSet}
     (hfalse : ConLeche.jsonWithTheoremFalse chunks)
     {sA sB sC sD sE sF : AState} {pre : PreludeIx} {r : ParseResultD}
     {ds : Array IDeclaration} {ipins : List INatOpPinSet} {fe' : IFEnv}
     (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
-    (hB : builtinPreludeE inProcessModeller sA = .ok (.ok pre, sB))
-    (hC : parseChunks inProcessModeller chunks im ce sB = .ok (.ok r, sC))
+    (hB : builtinPreludeE sA = .ok (.ok pre, sB))
+    (hC : parseChunks chunks sB = .ok (.ok r, sC))
     (hD : preparePrelude pre r.decls sC = .ok (ds, sD))
     (hE : internAllPins pins sD = .ok (ipins, sE))
     (hF : Arena.PooledAccepts .verified ipins ds sE fe' sF) :
@@ -334,12 +326,12 @@ ends at `FoldOK`, whose `CheckOK` carries `StateOK`, and the pooled fold hands
 the phase-A state back. -/
 theorem stages_storeWF
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
-    {chunks : List ByteArray} {pins : List NatOpPinSet} {im ce : Bool}
+    {chunks : List ByteArray} {pins : List NatOpPinSet}
     {sA sB sC sD sE sF : AState} {pre : PreludeIx} {r : ParseResultD}
     {ds : Array IDeclaration} {ipins : List INatOpPinSet} {fe' : IFEnv}
     (hA : internReservedPins (AState.init EStore.empty) = .ok ((), sA))
-    (hB : builtinPreludeE inProcessModeller sA = .ok (.ok pre, sB))
-    (hC : parseChunks inProcessModeller chunks im ce sB = .ok (.ok r, sC))
+    (hB : builtinPreludeE sA = .ok (.ok pre, sB))
+    (hC : parseChunks chunks sB = .ok (.ok r, sC))
     (hD : preparePrelude pre r.decls sC = .ok (ds, sD))
     (hE : internAllPins pins sD = .ok (ipins, sE))
     (hF : Arena.PooledAccepts .verified ipins ds sE fe' sF) :
@@ -370,13 +362,10 @@ Theorem 2's six top lemmas, one per stage, all lockstep (`AStateRel₀`, no
 precondition on the twin: task #97-T2-LOCKSTEP lane Checker deleted `BrOK`
 and ruling 2's `DeclResolves`). -/
 theorem rust_stages
-    {G : Type} {inst : frontend.types.Modeller G} {m : G}
-    (hmr : ConRon.Refine2.Frontend.ModellerRefines inst m
-      ConRon.Arena.Frontend.inProcessModeller)
     {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
     {text : Slice Std.U8}
     (hdec : kernel.pins_decode.decode text = ok (.Ok pins))
-    {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {inModel census : Bool}
+    {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
     {pers : arena.store.PersTier} {est : arena.store.EStore}
     (hfz : pers.frozen = false)
     {st0 st1 st2 st3 st4 st5 st6 : arena.monad.AState}
@@ -387,11 +376,10 @@ theorem rust_stages
     (hest : arena.store.EStore.empty = ok est)
     (hst0 : arena.monad.AState.init est = ok st0)
     (h1 : arena.pins.intern_reserved_pins pers st0 = ok (.Ok (), st1))
-    (h2 : frontend.prelude.builtin_prelude_e inst pers m st1 = ok (.Ok pre, st2))
+    (h2 : frontend.prelude.builtin_prelude_e pers st1 = ok (.Ok pre, st2))
     {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
     (hreads : ReadsAs sinst src chunks.val)
-    (h3 : frontend.export_c.parse_source inst sinst pers m st2 src inModel census
-      = ok (.Ok r, st3, src'))
+    (h3 : frontend.export_c.parse_source sinst pers st2 src = ok (.Ok r, st3, src'))
     (h4 : frontend.prepare.prepare_prelude pers st3 pre r.decls = ok (.Ok ds, st4))
     (h5 : arena.checker.intern_all_pins pers st4 pins = ok (.Ok ipins, st5))
     {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
@@ -400,10 +388,8 @@ theorem rust_stages
       (rv : ConRon.Arena.Frontend.ParseResultD) (lfe : ConRon.Arena.IFEnv),
       ConRon.Arena.internReservedPins
           (ConRon.Arena.AState.init ConRon.Arena.EStore.empty) = .ok ((), sA) ∧
-      ConRon.Arena.Frontend.builtinPreludeE ConRon.Arena.Frontend.inProcessModeller sA
-          = .ok (.ok (absPreludeIx pre), sB) ∧
-      ConRon.Arena.Frontend.parseChunks ConRon.Arena.Frontend.inProcessModeller
-          (absChunks chunks) inModel census sB = .ok (.ok rv, sC) ∧
+      ConRon.Arena.Frontend.builtinPreludeE sA = .ok (.ok (absPreludeIx pre), sB) ∧
+      ConRon.Arena.Frontend.parseChunks (absChunks chunks) sB = .ok (.ok rv, sC) ∧
       ConRon.Arena.Frontend.preparePrelude (absPreludeIx pre) rv.decls sC
           = .ok ((absIDeclL ds).toArray, sD) ∧
       ConRon.Arena.internAllPins (ConRon.Refine.absPins pins) sD
@@ -418,12 +404,12 @@ theorem rust_stages
     (intern_reserved_pins_refines hrel0 hinv0 h1).dest
   -- 2. the prelude
   obtain ⟨preL, sB, hB, hpreL, hrelB, hinvB⟩ :=
-    builtin_prelude_e_refines scanSpec hmr hrelA hinvA h2
+    builtin_prelude_e_refines scanSpec hrelA hinvA h2
   subst hpreL
   -- 3. the stream: the reader loop IS `parse_chunks` over the chunks read
   have h3' := parse_source_eq hreads h3
   obtain ⟨rv, sC, hC, hrv, hrelC, hinvC⟩ :=
-    parse_chunks_refines scanSpec hmr hrelB hinvB h3'
+    parse_chunks_refines scanSpec hrelB hinvB h3'
   -- 4. the preparation
   obtain ⟨sD, hD, hrelD, hinvD⟩ :=
     (prepare_prelude_refines hrelC hinvC h4).apply
@@ -444,9 +430,9 @@ end Rust
 
 /-! ## 3. The binary's start values, and what its environment denotes
 
-`check_main` starts from `AState::empty()` (`bin/con-ron.rs:373`, which is
+`check_main` starts from `AState::empty()` (`bin/con-ron.rs:360`, which is
 `AState::init(EStore::empty())`) and `&PersTier::empty()`
-(`bin/con-ron.rs:383`).  The Aeneas model of each is a `Result` that is
+(`bin/con-ron.rs:370`).  The Aeneas model of each is a `Result` that is
 `ok`; `startState` and `emptyTier` are those values, written out (task
 #98-H8): every table and map empty, every flag down, no pins.  `startState_eq`
 and `emptyTier_eq` check them against the Aeneas model by unfolding it.  So
@@ -486,13 +472,13 @@ def emptyETables : arena.store.ETables :=
     projs := emptyTbl _ _ _, bms := emptyTbl _ _ _ }
 
 /-- **The binary's persistent tier**, `&PersTier::empty()`
-(`bin/con-ron.rs:383`): the tier every stage up to phase B is handed — not
+(`bin/con-ron.rs:370`): the tier every stage up to phase B is handed — not
 frozen, its four table sets, every table empty (`emptyTier_eq`). -/
 def emptyTier : arena.store.PersTier :=
   { frozen := false, n := emptyNTables, l := emptyLTables, ls := emptyLsTables,
     e := emptyETables }
 
-/-- **The binary's start state**, `AState::empty()` (`bin/con-ron.rs:373`),
+/-- **The binary's start state**, `AState::empty()` (`bin/con-ron.rs:360`),
 which is `AState::init(EStore::empty())`: a store whose four layers (names,
 levels, level lists, expressions) have both tiers empty and the scratch flag down,
 empty memo tables and caches, and no pins (`startState_eq`). -/
@@ -557,7 +543,7 @@ def RustDenotes (fe : arena.env.IFEnv) (st : arena.monad.AState)
     AStateRel emptyTier st lst ∧ IFEnvRel fe lfe ∧
     ConRon.Bridge.denoteFEnv lst.store lfe = some env
 
-/-- `prepare::prepare_d`, the call the binary makes (`bin/con-ron.rs:524`),
+/-- `prepare::prepare_d`, the call the binary makes (`bin/con-ron.rs:454`),
 is `prepare_prelude`'s body: `prepare_prelude` is its `.decls`. -/
 theorem prepare_prelude_of_prepare_d {pers : arena.store.PersTier}
     {st st' : arena.monad.AState} {pre : frontend.prepare.PreludeIx}
@@ -569,7 +555,7 @@ theorem prepare_prelude_of_prepare_d {pers : arena.store.PersTier}
   rfl
 
 /-- `pins_decode::decode_embedded()`, the call the binary's
-`driver::pins_for_run` makes (`driver.rs:302`), is `decode` of some text. -/
+`driver::pins_for_run` makes (`driver.rs:299`), is `decode` of some text. -/
 theorem decode_of_decode_embedded
     {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
     (h : kernel.pins_decode.decode_embedded = ok (.Ok pins)) :
@@ -641,16 +627,16 @@ walks through it and finds each verified call as one premise.
 
 | premise | `check_main`'s call |
 |---|---|
-| `startState`, `emptyTier` | `bin/con-ron.rs:373` `AState::empty()`, `:383` `&PersTier::empty()` |
-| `h1` | `bin/con-ron.rs:392` `arena::pins::intern_reserved_pins` |
-| `h2` | `bin/con-ron.rs:410` `prelude::builtin_prelude_e` |
-| `hreads`, `h3` | `bin/con-ron.rs:434` `driver::parse_export_stream_d`, which is `driver.rs:1002`'s `export_c::parse_source` over the file's handle; the flags are read at `bin/con-ron.rs:427-428` |
-| `h4` | `bin/con-ron.rs:524` `prepare::prepare_d` |
-| `hpins` | `bin/con-ron.rs:544` `driver::pins_for_run`, whose default is `driver.rs:302` `pins_decode::decode_embedded()`, which is `decode` of the embedded `PINS_TEXT` (the `_embedded` corollaries below name it) |
-| `h5` | `bin/con-ron.rs:571` `checker::intern_all_pins` |
-| `h6` | `bin/con-ron.rs:588`/`:591` `driver::check_decls_driver` at `CheckMode::Verified` (`:366`), phase A: `driver.rs:567` `checker::annot_fold_hooked(…, checker::fold_start(), ds, 0, obs)` |
-| `h7` | the same, the boundary: `driver.rs:583` `checker::freeze_tier` |
-| `h8` | the same, phase B: `driver.rs:591` `pool::parallel_all` with `init` `checker::worker_state` and `step` `checker::check_pending` (`thaw_tier` at `:608` restores the store) |
+| `startState`, `emptyTier` | `bin/con-ron.rs:360` `AState::empty()`, `:370` `&PersTier::empty()` |
+| `h1` | `bin/con-ron.rs:379` `arena::pins::intern_reserved_pins` |
+| `h2` | `bin/con-ron.rs:392` `prelude::builtin_prelude_e` |
+| `hreads`, `h3` | `bin/con-ron.rs:415` `driver::parse_export_stream_d`, which is `driver.rs:991`'s `export_c::parse_source` over the file's handle |
+| `h4` | `bin/con-ron.rs:454` `prepare::prepare_d` |
+| `hpins` | `bin/con-ron.rs:474` `driver::pins_for_run`, whose default is `driver.rs:299` `pins_decode::decode_embedded()`, which is `decode` of the embedded `PINS_TEXT` (the `_embedded` corollaries below name it) |
+| `h5` | `bin/con-ron.rs:500` `checker::intern_all_pins` |
+| `h6` | `bin/con-ron.rs:517`/`:520` `driver::check_decls_driver` at `CheckMode::Verified` (`:353`), phase A: `driver.rs:572` `checker::annot_fold_hooked(…, checker::fold_start(), ds, 0, obs)` |
+| `h7` | the same, the boundary: `driver.rs:588` `checker::freeze_tier` |
+| `h8` | the same, phase B: `driver.rs:595` `pool::parallel_all` with `init` `checker::worker_state` and `step` `checker::check_pending` (`thaw_tier` at `:612` restores the store) |
 
 `h8` is not one equation: `parallel_all` is not extracted, so `h8` states
 its contract (the pool's trusted claim, `pool.rs`'s note, OVERVIEW §8.2) at
@@ -672,11 +658,9 @@ choices keep it readable:
 
 `parallelAll_of_pool` reads it as `Refine2/Checker/Phased.lean`'s
 `ParallelAll`, the contract generic in the state and the step, which the
-proofs consume.  The theorems hold at
-both flags `inModel`/`census` (`CON_LECHE_INMODEL`,
-`CON_LECHE_INMODEL_CENSUS`), every install hook (the heartbeat or
-`driver::Silent`), every chunk source whose reads are `chunks`, and every
-modeller that refines the twin's, and at every pin text `hpins` decodes, as
+proofs consume.  The theorems hold at every install hook (the heartbeat or
+`driver::Silent`), every chunk source whose reads are `chunks`, and every pin
+text `hpins` decodes, as
 con-leche's hold at every pin list.  **`--pins FILE`** (read by the
 unverified `con_ron_dump::parse_pins`) and **`--no-pins`** do not call the
 decoder, so runs with them are outside the theorems.
@@ -700,26 +684,21 @@ environment the Rust checker accepts has a model, in every set theory.
 con-leche's reads `(accepted : checkDecls .verified pins ds = .ok env) :
 Nonempty (Model V env)`; here the accepting run is the binary's calls, one
 premise each (§4's table), and the environment is the one the Rust's `fe`
-denotes (`RustDenotes`).  Two premises are seams by design: `hmr` (the
-unextracted Rust modeller `crates/con-ron/src/in_model/` answers what the
-twin's `inProcessModeller`, which CALLS con-leche's `generate`, answers) and
-`hreads` (the chunk source hands out `chunks`).
+denotes (`RustDenotes`).  One premise is a seam by design: `hreads` (the
+chunk source hands out `chunks`).
 
 Composition only: `rust_stages` (Theorem 2), `stages_model` (Theorem 1 +
 con-leche), `stages_storeWF`. -/
 theorem model_exists (V : Type w) [ConLeche.SetTheory V]
-    {G : Type} {inst : frontend.types.Modeller G} {m : G}
-    (hmr : ModellerRefines inst m ConRon.Arena.Frontend.inProcessModeller)
     {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
     (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
     {pre : frontend.prepare.PreludeIx}
-    (h2 : frontend.prelude.builtin_prelude_e inst emptyTier m st1 = ok (.Ok pre, st2))
+    (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
     {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
     {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
     (hreads : ReadsAs sinst src chunks.val)
-    {inModel census : Bool} {r : frontend.export_c.ParseResultD}
-    (h3 : frontend.export_c.parse_source inst sinst emptyTier m st2 src inModel census
-      = ok (.Ok r, st3, src'))
+    {r : frontend.export_c.ParseResultD}
+    (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
     {prepared : frontend.prepare.Prepared}
     (h4 : frontend.prepare.prepare_d emptyTier st3 pre r.decls = ok (.Ok prepared, st4))
     {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
@@ -752,7 +731,7 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
   have hind : ConRon.Bridge.IndSpec .verified :=
     ConRon.Bridge.Inductives.indSpec_of_bridge rfl hk
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, hrelF, hfe⟩ :=
-    rust_stages hmr hpins rfl hest hst0 h1 h2
+    rust_stages hpins rfl hest hst0 h1 h2
       hreads h3 (prepare_prelude_of_prepare_d h4) h5 (poolAccepts_intro h6 h7 (parallelAll_of_pool h8))
   obtain ⟨env, hden, ⟨hmod⟩⟩ := stages_model V hk hind hA hB hC hD hE hF
   -- the relation's `StoreWF` clause is Theorem 1's (Theorem 2 is lockstep)
@@ -775,19 +754,16 @@ the pure fold's accept of a stream holding the file's `False` theorem, which
 con-leche's `no_proof_of_False_pure` refutes
 (`no_False_theorem_accepted_pure`). -/
 theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
-    {G : Type} {inst : frontend.types.Modeller G} {m : G}
-    (hmr : ModellerRefines inst m ConRon.Arena.Frontend.inProcessModeller)
     {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
     (hfalse : ConLeche.jsonWithTheoremFalse (absChunks chunks))
     {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
     (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
     {pre : frontend.prepare.PreludeIx}
-    (h2 : frontend.prelude.builtin_prelude_e inst emptyTier m st1 = ok (.Ok pre, st2))
+    (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
     {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
     (hreads : ReadsAs sinst src chunks.val)
-    {inModel census : Bool} {r : frontend.export_c.ParseResultD}
-    (h3 : frontend.export_c.parse_source inst sinst emptyTier m st2 src inModel census
-      = ok (.Ok r, st3, src'))
+    {r : frontend.export_c.ParseResultD}
+    (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
     {prepared : frontend.prepare.Prepared}
     (h4 : frontend.prepare.prepare_d emptyTier st3 pre r.decls = ok (.Ok prepared, st4))
     {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
@@ -819,27 +795,24 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
   have hind : ConRon.Bridge.IndSpec .verified :=
     ConRon.Bridge.Inductives.indSpec_of_bridge rfl hk
   obtain ⟨sA, sB, sC, sD, sE, sF, rv, lfe, hA, hB, hC, hD, hE, hF, -, -⟩ :=
-    rust_stages hmr hpins rfl hest hst0 h1 h2
+    rust_stages hpins rfl hest hst0 h1 h2
       hreads h3 (prepare_prelude_of_prepare_d h4) h5 (poolAccepts_intro h6 h7 (parallelAll_of_pool h8))
   exact stages_no_False V hk hind (pins := ConRon.Refine.absPins pins) hfalse
     hA hB hC hD hE hF
 
 /-- `model_exists` with the pin premise the binary's own call,
-`pins_decode::decode_embedded()` (`driver.rs:302`).  Its census adds
+`pins_decode::decode_embedded()` (`driver.rs:299`).  Its census adds
 `kernel.pins_text.PINS_TEXT._native.decide.ax_1` (§4's note). -/
 theorem model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
-    {G : Type} {inst : frontend.types.Modeller G} {m : G}
-    (hmr : ModellerRefines inst m ConRon.Arena.Frontend.inProcessModeller)
     {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
     (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
     {pre : frontend.prepare.PreludeIx}
-    (h2 : frontend.prelude.builtin_prelude_e inst emptyTier m st1 = ok (.Ok pre, st2))
+    (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
     {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
     {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
     (hreads : ReadsAs sinst src chunks.val)
-    {inModel census : Bool} {r : frontend.export_c.ParseResultD}
-    (h3 : frontend.export_c.parse_source inst sinst emptyTier m st2 src inModel census
-      = ok (.Ok r, st3, src'))
+    {r : frontend.export_c.ParseResultD}
+    (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
     {prepared : frontend.prepare.Prepared}
     (h4 : frontend.prepare.prepare_d emptyTier st3 pre r.decls = ok (.Ok prepared, st4))
     {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
@@ -866,25 +839,22 @@ theorem model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
           | .Err _ => fail .panic) st) = ok st') :
     ∃ env, RustDenotes fe st6 env ∧ Nonempty (ConLeche.Model V env) :=
   have ⟨_, hdec⟩ := decode_of_decode_embedded hpins
-  model_exists V hmr h1 h2 hreads h3 h4 hdec h5 h6 h7 h8
+  model_exists V h1 h2 hreads h3 h4 hdec h5 h6 h7 h8
 
 /-- `no_False_declaration` with the pin premise the binary's own call,
-`pins_decode::decode_embedded()` (`driver.rs:302`).  Its census adds
+`pins_decode::decode_embedded()` (`driver.rs:299`).  Its census adds
 `kernel.pins_text.PINS_TEXT._native.decide.ax_1` (§4's note). -/
 theorem no_False_declaration_embedded (V : Type w) [ConLeche.SetTheory V]
-    {G : Type} {inst : frontend.types.Modeller G} {m : G}
-    (hmr : ModellerRefines inst m ConRon.Arena.Frontend.inProcessModeller)
     {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
     (hfalse : ConLeche.jsonWithTheoremFalse (absChunks chunks))
     {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
     (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
     {pre : frontend.prepare.PreludeIx}
-    (h2 : frontend.prelude.builtin_prelude_e inst emptyTier m st1 = ok (.Ok pre, st2))
+    (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
     {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
     (hreads : ReadsAs sinst src chunks.val)
-    {inModel census : Bool} {r : frontend.export_c.ParseResultD}
-    (h3 : frontend.export_c.parse_source inst sinst emptyTier m st2 src inModel census
-      = ok (.Ok r, st3, src'))
+    {r : frontend.export_c.ParseResultD}
+    (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
     {prepared : frontend.prepare.Prepared}
     (h4 : frontend.prepare.prepare_d emptyTier st3 pre r.decls = ok (.Ok prepared, st4))
     {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
@@ -911,7 +881,7 @@ theorem no_False_declaration_embedded (V : Type w) [ConLeche.SetTheory V]
           | .Err _ => fail .panic) st) = ok st') :
     False :=
   have ⟨_, hdec⟩ := decode_of_decode_embedded hpins
-  no_False_declaration V hmr hfalse h1 h2 hreads h3 h4 hdec h5 h6 h7 h8
+  no_False_declaration V hfalse h1 h2 hreads h3 h4 hdec h5 h6 h7 h8
 
 end Headline
 

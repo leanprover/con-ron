@@ -157,13 +157,11 @@ with the implicit arguments left out:
 
 ```lean
 theorem ConRon.Capstone.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
-    (hmr : ModellerRefines inst m ConRon.Arena.Frontend.inProcessModeller)
     (hfalse : ConLeche.jsonWithTheoremFalse (absChunks chunks))
     (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
-    (h2 : frontend.prelude.builtin_prelude_e inst emptyTier m st1 = ok (.Ok pre, st2))
+    (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
     (hreads : ReadsAs sinst src chunks.val)
-    (h3 : frontend.export_c.parse_source inst sinst emptyTier m st2 src inModel census
-      = ok (.Ok r, st3, src'))
+    (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
     (h4 : frontend.prepare.prepare_d emptyTier st3 pre r.decls = ok (.Ok prepared, st4))
     (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
     (h5 : arena.checker.intern_all_pins emptyTier st4 pins = ok (.Ok ipins, st5))
@@ -228,9 +226,8 @@ is why `#print axioms` does not list any of them.
 | `h1`…`h5`, `hpins` | the binary ran exactly these extracted functions, in this order, on one state that starts at `AState::empty()` under one `PersTier::empty()` | the driver's calling order, which starts [here](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L373-L392); each call carries a `// ConRon.Capstone: hᵢ` comment: trusted |
 | `h6`, `h7`, `h8` (phase A, the freeze, phase B) | the install phase (`annot_fold_hooked`) accepted, `freeze_tier` moved the persistent tables into the tier, and phase B's `parallel_all` accepted: there are index lists `ws`, one per worker, that together cover every pending record, and for each list the worker's run (one `worker_state`, then the verified `check_pending` folded over the list, a rejection being the fold's `fail`) accepted.  Nothing is assumed about a record being claimed only once or in order | `h6` and `h7` are calls like `h1`…`h5`, inside `driver::check_decls_driver`.  `h8` is the contract of the one generic combinator `pool::parallel_all`, an argument about its control flow (§8.2).  They hold for every install hook, so `--progress` runs are covered |
 | `hreads : ReadsAs sinst src chunks` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Source.lean#L36-L40)) | the chunk source hands out `chunks`, each nonempty, then an empty buffer | that the file handle returns the file's bytes in order: trusted.  The read loop itself (`parse_source`) is verified |
-| `hmr : ModellerRefines inst m inProcessModeller` ([def](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Frontend/Shape.lean#L675-L680)) | the unverified Rust modeller (`crates/con-ron/src/in_model/`) answers, from related states, what the twin's `inProcessModeller` answers | trusted by design (§6.2).  The twin's modeller calls con-leche's own `generate`, and Theorem 1 proves it exact (`inProcessModeller_refines`) |
 | `hpins : decode pinText = ok (.Ok pins)` | the pin list is what the verified decoder read from some text | the theorems hold at every text, as con-leche's hold at every pin list; the binary decodes the embedded `PINS_TEXT` (`decode_embedded`).  `model_exists_embedded`/`no_False_declaration_embedded` state that call itself, at the cost of one extra axiom Aeneas spends on the constant's definition.  `--pins FILE` and `--no-pins` bypass the decoder and are outside the theorems |
-| `inModel`, `census` of `h3` and `.Verified` of `h6`, `h8` | the in-process modeller's two switches; verified mode | the switches are parameters, so runs with `CON_LECHE_INMODEL=0` or `CON_LECHE_INMODEL_CENSUS=1` are covered.  A `--trusted` run is outside the theorems |
+| `.Verified` of `h6`, `h8` | verified mode | a `--trusted` run is outside the theorems |
 
 The prelude's bytes are not a premise: con-leche's `preparePrelude` puts the
 prelude's declarations into the checked stream, so soundness holds whatever
