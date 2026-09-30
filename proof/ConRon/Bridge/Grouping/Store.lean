@@ -137,11 +137,6 @@ open ConRon.Arena
     AllOn (st.intern v).1 := (intern_frame st v h).1
 @[scoped simp] theorem en_intern {st : EStore} {v} (h : AllOn st) :
     (st.intern v).1.enableScratch = st.enableScratch := (intern_frame st v h).2
-@[scoped simp] theorem allOn_internBindI {st : EStore} {tag ty b mi} (h : AllOn st) :
-    AllOn (st.internBindI tag ty b mi).1 := (internBindI_frame st tag ty b mi h).1
-@[scoped simp] theorem en_internBindI {st : EStore} {tag ty b mi} (h : AllOn st) :
-    (st.internBindI tag ty b mi).1.enableScratch = st.enableScratch :=
-  (internBindI_frame st tag ty b mi h).2
 @[scoped simp] theorem allOn_internLamI {st : EStore} {ty b mi} (h : AllOn st) :
     AllOn (st.internLamI ty b mi).1 := (internBindI_frame st _ ty b mi h).1
 @[scoped simp] theorem en_internLamI {st : EStore} {ty b mi} (h : AllOn st) :

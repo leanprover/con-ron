@@ -55,15 +55,6 @@ def MentionsMemoOK (T : ConLeche.Name) (tbl : Std.HashMap EIdx Bool)
 theorem LooseMemoOK.empty {st : EStore} : LooseMemoOK ∅ st := by
   intro k r h; simp at h
 
-/-- con-leche: none — the invariant is about DENOTATIONS, so it survives an
-arena extension: the tier's memos travel through interning walks. -/
-theorem LooseMemoOK.mono {tbl : Std.HashMap (EIdx × Nat) Bool}
-    {st st' : EStore} (hm : LooseMemoOK tbl st) (hx : Ext st st') :
-    LooseMemoOK tbl st' := by
-  intro k r hk
-  obtain ⟨e, he, hr⟩ := hm k r hk
-  exact ⟨e, denote_ext he hx, hr⟩
-
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:435-440
 LooseBVarMemoInv.insert — recording a TRUE answer keeps the memo sound.  This
 is `Arena.hasLooseBVarBIns` read as an invariant step. -/
@@ -84,14 +75,6 @@ theorem LooseMemoOK.insert {tbl : Std.HashMap (EIdx × Nat) Bool} {st : EStore}
 theorem MentionsMemoOK.empty {T : ConLeche.Name} {st : EStore} :
     MentionsMemoOK T ∅ st := by
   intro k r h; simp at h
-
-/-- con-leche: none — and it survives an arena extension. -/
-theorem MentionsMemoOK.mono {T : ConLeche.Name} {tbl : Std.HashMap EIdx Bool}
-    {st st' : EStore} (hm : MentionsMemoOK T tbl st) (hx : Ext st st') :
-    MentionsMemoOK T tbl st' := by
-  intro k r hk
-  obtain ⟨e, he, hr⟩ := hm k r hk
-  exact ⟨e, denote_ext he hx, hr⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:806-812
 MentionsMemoInv.insert — the same invariant step for the name walk. -/
@@ -618,8 +601,6 @@ theorem structMotiveTyI_spec (T : NIdx) (TP : ConLeche.Name) (lps : List NIdx)
       ⟨denote_ext hit (hstep1.ext.trans (hstep2.ext.trans hstep3.ext)), hbody⟩
       h6
   exact ⟨hstep1.trans (hstep2.trans (hstep3.trans hstep4)), hr⟩
-
-/-! ## The recogniser -/
 
 /-! ### The recogniser, and the six shapes that answer `false`
 
@@ -1441,36 +1422,6 @@ theorem structPartsCore?_run (block : List IConstantInfo)
      show _ = none
      cases tbodyP <;> first | rfl | exact absurd rfl (hns _))
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:283-329 structPartsCore?
-Recognise a direct simple-structure block.  `none` means "not this class", and
-the relation is TWO-SIDED (`ROp`): a twin that failed to recognise a block
-con-leche recognises would take the other route.
-
-**CORE grade, not pure** (task #97-P3-Ind round 2's finding; the argument is
-in `Bridge/Inductives/Rel.lean`'s frame section).  The recogniser reads the
-former's result sort and asks `lvlEq? s z` for `isProp`.  `structShape` itself
-is untouched and stays pure: the `lvlEq?` call is in `structPartsCore?`'s own
-body.
-
-**It stays here after task #97-P3-Frame.**  That task made `PStep`'s cache
-clause true of a `lvlEq?` call, so the FRAME no longer forces the grade — but
-`RSParts` carries `SPartsRel.isProp`, which is the verdict, and the verdict a
-cache hit answers is `Level.isEquiv`'s only under `LvlEqCacheOK`.  `StateOK`
-does not carry it, so the ANSWER forces the grade instead.
-
-**CLOSED** (task #97-P3-Ind round 6): `structPartsCore?_run` at the
-`CheckOK` it was handed — `CheckOK.pins` is the pin licence and the relation's
-`CheckOK` hypothesis is this statement's own. -/
-theorem structPartsCore?_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (block : List IConstantInfo) (blockP : List ConstantInfo) :
-    CSpec μ env fe (fun st => Frontend.denoteCIList st block = some blockP)
-      (Arena.structPartsCore? block)
-      (ROp RSParts (ConLeche.structPartsCore? blockP)) := by
-  intro s₀ s' r hok hb hrun
-  obtain ⟨hstep, hrel⟩ :=
-    structPartsCore?_run block blockP s₀ s' r hok.state hok.pins hb hrun
-  exact ⟨hstep.toCore hok, hrel.mono (fun _ _ h => h μ env fe hok)⟩
-
 /-! ## The recogniser's `isSome` half, for the parse
 
 `Bridge/Frontend/ProjRec.lean`'s `projRecOwners_run` calls this recogniser and
@@ -1567,48 +1518,6 @@ theorem instPisAtLift_pstep {fuel : Nat} {args : List EIdx} {argsP : List Expr}
     obtain ⟨e, he, hx⟩ := h7
     exact ⟨e, hx.symm, he⟩
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:347-354 structProjResidP
-The constructor type's residual after `i` projections have been substituted.
-
-**CLOSED** (task #97-P3-Ind round 6). -/
-theorem structProjResidP_spec (T : NIdx) (TP : ConLeche.Name) (nP : Nat)
-    (cty : EIdx) (ctyP : Expr) (i : Nat) :
-    PSpec (fun st => denoteN st.ns T = some TP ∧ denoteE st cty = some ctyP)
-      (Arena.structProjResidP T nP cty i)
-      (ROp RE (ConLeche.structProjResidP TP nP ctyP i)) := by
-  induction i with
-  | zero =>
-    intro s₀ s' r hok hpre hrun
-    obtain ⟨_, hc⟩ := hpre
-    simp only [Arena.structProjResidP] at hrun
-    obtain ⟨ps, s1, k1, hz1⟩ := bindOk hrun
-    obtain ⟨p1, hps⟩ := structProjPs_spec nP s₀ s1 ps hok trivial k1
-    obtain ⟨p2, hr⟩ := instPisAtLift_pstep p1.ok hps (denote_ext hc p1.ext) hz1
-    exact ⟨p1.trans p2, hr⟩
-  | succ i ih =>
-    intro s₀ s' r hok hpre hrun
-    obtain ⟨hT, hc⟩ := hpre
-    simp only [Arena.structProjResidP] at hrun
-    obtain ⟨o, s1, k1, hz1⟩ := bindOk hrun
-    obtain ⟨p1, ho⟩ := ih s₀ s1 o hok ⟨hT, hc⟩ k1
-    cases o with
-    | none =>
-      obtain ⟨rfl, rfl⟩ := pureOk hz1
-      refine ⟨p1, ?_⟩
-      show ConLeche.structProjResidP TP nP ctyP (i + 1) = none
-      simp only [ConLeche.structProjResidP, show ConLeche.structProjResidP TP nP ctyP i = none
-        from ho, Option.bind_none]
-    | some h =>
-      obtain ⟨e, he, hd⟩ := ho
-      obtain ⟨a, s2, k2, hz2⟩ := bindOk hz1
-      obtain ⟨p2, ha⟩ := structProjArgP_spec T TP i s1 s2 a p1.ok
-        (denoteN_ext hT p1.ext) k2
-      obtain ⟨p3, hr⟩ := instPisAtLift_pstep (argsP := [ConLeche.structProjArgP TP i])
-        p2.ok (by simp only [Frontend.denoteEList, ha]) (denote_ext hd p2.ext) hz2
-      refine ⟨p1.trans (p2.trans p3), ?_⟩
-      simp only [ConLeche.structProjResidP, he, Option.bind_some]
-      exact hr
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1577 bvarB_eq — **the cutoff's
 run form**, at this tier's frame: `Bridge/ExprOps/Ranges.lean`'s `bvarB_run`
 answers `Expr.bvarB` and moves nothing but the `bvarBound` memo, which
@@ -1622,13 +1531,6 @@ theorem bvarB_pstep {fuel : Nat} {s₀ s' : AState} {e : EIdx} {eP : Expr}
   refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.wf⟩ ?_ ?_ h2 h3, h1, h5 eP hd⟩
   · rw [h1]; exact Ext.refl _
   · rw [h1]; exact BMExt.refl _
-
-/-! ## `hasLooseBVarB`, memoised
-
-`hasLooseBVarBIns` has NO statement of its own: it is the memo-insert helper
-(con-leche's `Expr.hasLooseBVarBIns`), a pure function on `Bool ×
-Std.HashMap` with no handle in it, and its content is entirely inside
-`hasLooseBVarBGo_spec`'s invariant step.  Census class (S). -/
 
 /-! ### The pure side's own equations
 
@@ -1895,16 +1797,6 @@ theorem hasLooseBVarBFast_spec (i : Nat) (e : EIdx) (eP : Expr) :
       ⟨hd, LooseMemoOK.empty⟩ h1
   obtain ⟨rfl, rfl⟩ := pureOk h2
   exact ⟨hstep, hr⟩
-
-/-! ### `stripPis`, in run form — MOVED to `Bridge/Inductives/Rel.lean`
-
-`stripPis_pstep`, `stripPis_none` and `stripPis_some` are in `Rel.lean` beside
-`denoteBP_someB` since task #97-P3-Ind round 5: `structShape_spec` sits ABOVE
-this point in the file (con-leche's source order puts it at
-`StructParts.lean:246`) and needs them, and `Rel.lean` is already where this
-tier keeps the `ExprOps` readers it borrows (`getAppFn_run`, `getAppArgs_run`,
-`fvarTypeD_run`, `piSortTeleLen?_spec`).  `ConRon.Bridge.Inductives` is the
-same namespace, so every use below reads unchanged. -/
 
 /-! ## The projection guards -/
 

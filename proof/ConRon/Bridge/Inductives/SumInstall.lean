@@ -1190,17 +1190,6 @@ theorem denoteOpen_some_inv {st : EStore} {fvs : List EIdx} {e : EIdx}
   obtain ⟨xs, h1, x, h2, rfl⟩ := h
   exact ⟨xs, x, rfl, h1, h2⟩
 
-/-- con-leche: none — `denoteOpen` survives an arena extension. -/
-theorem denoteOpen_ext {st st' : EStore} (hx : Ext st st')
-    {r : Option (List EIdx × EIdx)} {o : Option (List Expr × Expr)}
-    (h : denoteOpen st r = some o) : denoteOpen st' r = some o := by
-  cases r with
-  | none => exact h
-  | some p =>
-    obtain ⟨fvs, e⟩ := p
-    obtain ⟨xs, x, rfl, h1, h2⟩ := denoteOpen_some_inv h
-    exact denoteOpen_some (denoteEList_ext hx _ _ h1) (denote_ext h2 hx)
-
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:130-140 openPisAtFvars — **the
 binder-at-a-time opener, as a run**: pure grade, and the answer denotes
 con-leche's. -/
@@ -1375,73 +1364,6 @@ theorem openPisAtFvarsF_run {n i : Nat} {h : EIdx} {hP : Expr} {s₀ s' : AState
     rw [hn]
     obtain ⟨p2, h2⟩ := openPisAtFvars_run n p1.ok (denote_ext hh p1.ext) z1
     exact ⟨p1.trans p2, h2⟩
-
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:190-205 normCtorVal
-`zipFvarDoms` is task #97d-2's replacement for con-leche's `zipWith` inside
-`normCtorVal`: it reads each free variable's own type off the store, which is
-what makes the normalised domains the ones the walk opened.
-
-**PROVED** (task #97-P3-Ind round 4): the list induction over `fvarTypeD_run`
-(`Bridge/Inductives/Rel.lean`, off `Bridge/ExprOps/Spine.lean`'s closed
-`fvarTypeD_spec`).  `fvarTypeD` is read-only, so the whole zip is one
-`PStep.refl`. -/
-theorem zipFvarDoms_spec (xs : List EIdx) (xsP : List Expr)
-    (bs : List (EIdx × BinderMeta)) (bsP : List (Expr × BinderMeta)) :
-    PSpec (fun st => Frontend.denoteEList st xs = some xsP ∧
-        denoteBinders st bs = some bsP)
-      (Arena.zipFvarDoms xs bs)
-      (fun st r => ∃ ts, denoteBinders st r = some ts ∧
-        ts.length = min xsP.length bsP.length) := by
-  induction xs generalizing xsP bs bsP with
-  | nil =>
-    intro s₀ s' r hok hpre hrun
-    obtain ⟨hx, hb⟩ := hpre
-    simp only [Frontend.denoteEList, Option.some.injEq] at hx
-    subst hx
-    simp only [Arena.zipFvarDoms] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
-    exact ⟨PStep.refl hok, [], rfl, by simp⟩
-  | cons x xs ih =>
-    intro s₀ s' r hok hpre hrun
-    obtain ⟨hx, hb⟩ := hpre
-    cases bs with
-    | nil =>
-      simp only [denoteBinders, Option.some.injEq] at hb
-      subst hb
-      simp only [Arena.zipFvarDoms] at hrun
-      obtain ⟨rfl, rfl⟩ := pureOk hrun
-      exact ⟨PStep.refl hok, [], rfl, by simp⟩
-    | cons b bs =>
-      obtain ⟨bt, bm⟩ := b
-      simp only [Frontend.denoteEList] at hx
-      cases hx1 : denoteE s₀.store x with
-      | none => rw [hx1] at hx; simp at hx
-      | some xP =>
-        cases hxs : Frontend.denoteEList s₀.store xs with
-        | none => rw [hx1, hxs] at hx; simp at hx
-        | some xsP' =>
-          rw [hx1, hxs] at hx
-          obtain rfl := Option.some.inj hx
-          simp only [denoteBinders] at hb
-          cases hb1 : denoteE s₀.store bt with
-          | none => rw [hb1] at hb; simp at hb
-          | some btP =>
-            cases hbs : denoteBinders s₀.store bs with
-            | none => rw [hb1, hbs] at hb; simp at hb
-            | some bsP' =>
-              rw [hb1, hbs] at hb
-              obtain rfl := Option.some.inj hb
-              simp only [Arena.zipFvarDoms] at hrun
-              obtain ⟨t, s₁, h1, h2⟩ := bindOk hrun
-              obtain ⟨rfl, ht⟩ := fvarTypeD_run hok hx1 h1
-              obtain ⟨rest, s₂, h3, h4⟩ := bindOk h2
-              obtain ⟨hstep, ts, hts, hlen⟩ :=
-                ih xsP' bs bsP' _ s₂ rest hok ⟨hxs, hbs⟩ h3
-              obtain ⟨rfl, rfl⟩ := pureOk h4
-              refine ⟨hstep, (xP.fvarTypeD, bm) :: ts, ?_, ?_⟩
-              · simp only [denoteBinders, denote_ext ht hstep.ext, hts]
-              · simp only [List.length_cons, hlen]
-                omega
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:190-205 normCtorVal
 (its `zipWith`) — `zipFvarDoms_spec` with the answer named, not only
@@ -2016,23 +1938,6 @@ theorem ctorHead_facts₂ {s s1 s2 : AState} {ty pr fn : EIdx} {tyP : Expr}
   subst hs2
   exact ⟨rfl, rfl, hfn⟩
 
-/-- con-leche: none — a constructor type's result head, read three steps
-deep (`piResult`, `getAppFn`, `view`), all read-only. -/
-theorem ctorHead_facts {s s1 s2 s3 : AState} {ty pr fn : EIdx} {tyP : Expr}
-    {v : ENodeView} (hok : StateOK s) (hd : denoteE s.store ty = some tyP)
-    (k1 : Arena.piResult Arena.coreWalkFuel ty s = .ok (pr, s1))
-    (k2 : Arena.getAppFn Arena.coreWalkFuel pr s1 = .ok (fn, s2))
-    (k3 : Arena.view fn s2 = .ok (v, s3)) :
-    s = s1 ∧ s = s2 ∧ s = s3 ∧ s.store.view fn = some v ∧
-      denoteE s.store fn = some tyP.piResult.getAppFn := by
-  obtain ⟨hs1, hpr⟩ := AM.of_run (P := fun t => t = s) rfl k1
-    (ExprOps.piResult_spec Arena.coreWalkFuel s ty hok (by rw [hd]; rfl))
-  subst hs1
-  obtain ⟨hs2, hfn⟩ := getAppFn_run hok (hpr _ hd) k2
-  subst hs2
-  obtain ⟨hs3, hv⟩ := view_run k3
-  exact ⟨rfl, rfl, hs3.symm, hv, hfn⟩
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:821-830 recRuleKOf — the K bit at
 install, in run form: read-only, and con-leche's verdict at `env.find?`. -/
 theorem recRuleKOf_runX {env : Env} {fe : IFEnv} {s s' : AState}
@@ -2255,22 +2160,6 @@ theorem recRuleBits_runX {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s
   obtain rfl := (Option.some.inj hrl).symm
   simp only [ConLeche.recRuleBits, hk, he]
 
-
-/-- con-leche: none — the three at one index (the form their first callers use). -/
-theorem recRuleKOf_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    {ctor : NIdx} {ctorP : ConLeche.Name} {r : Bool}
-    (hok : CheckOK μ env fe s) (hc : denoteN s.store.ns ctor = some ctorP)
-    (hrun : Arena.recRuleKOf fe ctor s = .ok (r, s')) :
-    s' = s ∧ r = ConLeche.recRuleKOf env.find? ctorP :=
-  recRuleKOf_runX hok.state hok.ienv hc hrun
-
-theorem recRuleEtaOf_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    {recName ctor : NIdx} {recNameP ctorP : ConLeche.Name} {r : Bool}
-    (hok : CheckOK μ env fe s) (hrn : denoteN s.store.ns recName = some recNameP)
-    (hc : denoteN s.store.ns ctor = some ctorP)
-    (hrun : Arena.recRuleEtaOf fe recName ctor s = .ok (r, s')) :
-    Core.ReadbackFrame s s' ∧ r = ConLeche.recRuleEtaOf env.find? recNameP ctorP :=
-  recRuleEtaOf_runX hok hok.ienv hrn hc hrun
 
 theorem recRuleBits_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
     {recName : NIdx} {recNameP : ConLeche.Name} {rl rl' : IRecRule} {rlP : RecRule}

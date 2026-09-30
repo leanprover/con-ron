@@ -27,11 +27,6 @@ theorem whnfApp_betaPeel_keeps (k : EStore) (p : Pins) {mode : ConLeche.CheckMod
         whnfApp mode r fe depth v hd vargs same args nodes i ⦃⇓? _r s => ⌜Inv k p s⌝⦄ :=
   (whnfApp_betaPeel_keeps k p args nodes hr).1 _ _ _ _ _
 
-@[scoped spec] theorem betaPeel_keeps (k : EStore) (p : Pins) {mode r fe depth t acc args nodes i}
-    (hr : FnsKeep r) : ⦃fun s => ⌜Inv k p s⌝⦄
-        betaPeel mode r fe depth t acc args nodes i ⦃⇓? _r s => ⌜Inv k p s⌝⦄ :=
-  (whnfApp_betaPeel_keeps k p args nodes hr).2 _ _ _
-
 #keeps IProjEntry.typeAt projCert projCertAt whnfCoreBody
 
 @[scoped spec] theorem whnfStep_keeps (k : EStore) (p : Pins) {r : CoreFnsA} {fe depth}

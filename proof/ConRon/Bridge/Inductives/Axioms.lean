@@ -46,7 +46,6 @@ namespace ConRon.Bridge.Inductives
 #print axioms PStep.trans
 #print axioms PStep.of_caches
 #print axioms PStep.toCore
-#print axioms PSpec.toCSpec
 
 -- the `AM` bind's inversion
 #print axioms bindOk
@@ -100,7 +99,6 @@ namespace ConRon.Bridge.Inductives
 #print axioms ProjOut.refl
 #print axioms ProjOut.mono
 #print axioms ProjOut.trans
-#print axioms ProjOut.absolute
 #print axioms ProjOut.push
 #print axioms mkIFEnvGo_counter_lt
 #print axioms structProjGuards_length
@@ -158,7 +156,6 @@ namespace ConRon.Bridge.Inductives
 #print axioms resetPair_pstep
 #print axioms fvarBSpec
 #print axioms structPartsCore?_run
-#print axioms structPartsCore?_spec
 #print axioms structPartsCore?_isSome
 #print axioms nativeShape?_run
 #print axioms nativeShape?_spec
@@ -166,7 +163,6 @@ namespace ConRon.Bridge.Inductives
 #print axioms nativeParts?_spec
 #print axioms nativeParts?_isSome
 #print axioms instPisAtLift_pstep
-#print axioms structProjResidP_spec
 #print axioms structProjBodiesGo_spec
 #print axioms structProjBodies_spec
 #print axioms structTeleAt_spec
@@ -187,8 +183,6 @@ namespace ConRon.Bridge.Inductives
 #print axioms checkStructDomsAt_spec
 #print axioms closeTelescope_spec
 #print axioms consSumCtors_spec
-#print axioms recRuleKOf_run
-#print axioms recRuleEtaOf_run
 #print axioms recRuleBits_run
 #print axioms sumRules_spec
 #print axioms nativeRawRec_spec
@@ -212,7 +206,6 @@ namespace ConRon.Bridge.Inductives
 #print axioms normPosDom_spec
 #print axioms normFieldDoms_mono
 #print axioms normFieldDoms_spec
-#print axioms denoteOpen_ext
 #print axioms openPisAtFvars_run
 #print axioms InstLVec_push
 #print axioms openPisAtFvarsFGo_run
