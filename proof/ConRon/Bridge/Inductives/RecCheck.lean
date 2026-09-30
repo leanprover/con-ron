@@ -421,8 +421,6 @@ theorem targetHoles_cons (ty : Expr) (tys : List Expr) (base : Nat) :
   congr 1
   omega
 
-theorem targetHoles_nil (base : Nat) : ConLeche.targetHoles [] base = [] := rfl
-
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:248-251 targetHoles
 **The holes of a rule frame**: member `t` is `.fvar (base + t)` at its
 former's type, interned in member order. -/

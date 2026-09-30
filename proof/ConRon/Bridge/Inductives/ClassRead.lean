@@ -383,18 +383,6 @@ def fvarHeadP (e : Expr) : Option Nat :=
   | .fvar p _ => some p
   | _ => none
 
-theorem fvarHeadP_some {e : Expr} {p : Nat} (h : fvarHeadP e = some p) :
-    ∃ t, e.getAppFn = .fvar p t := by
-  unfold fvarHeadP at h
-  split at h
-  · cases h; exact ⟨_, ‹_›⟩
-  · cases h
-
-theorem fvarHeadP_none {e : Expr} (h : fvarHeadP e = none) :
-    ∀ p t, e.getAppFn ≠ .fvar p t := by
-  intro p t he
-  simp [fvarHeadP, he] at h
-
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:86 classReadMinor
 (`.fvar p _ := concl.getAppFn`) — `fvarHead`, as a run: read-only, and its
 answer is `fvarHeadP` of the denotation. -/
@@ -423,14 +411,6 @@ theorem fvarHead_run {e : EIdx} {eP : Expr} {s₀ s' : AState} {r : Option Nat}
       rw [hg] at hhd
       exact absurd (PW.tag_fvar_of_denote hok.wf hhd) (by simpa using htg)
     · rfl
-
-/-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:86 classReadMinor —
-`fvarHead` at the pure grade. -/
-theorem fvarHead_spec (e : EIdx) (eP : Expr) :
-    PSpec (fun st => denoteE st e = some eP) (Arena.fvarHead e) (RV (fvarHeadP eP)) := by
-  intro s₀ s' r hok hd hrun
-  obtain ⟨rfl, rfl⟩ := fvarHead_run hok hd hrun
-  exact ⟨PStep.refl hok, rfl⟩
 
 /-! ## `classReadMinor` -/
 

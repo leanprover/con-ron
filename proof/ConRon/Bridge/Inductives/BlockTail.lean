@@ -259,11 +259,6 @@ theorem InstRel.same {fe fe' : IFEnv} {env : Env} {st : EStore} (hcoh : IFEnvCoh
   · intro n t h; left; rw [← hf]; exact h
   · intro t h; left; rw [← he]; exact h
 
-/-- con-leche: none — `CheckOK` reads the index only through `find?`. -/
-theorem CheckOK.of_find? {μ : CheckMode} {env : Env} {fe fe' : IFEnv} {s : AState}
-    (h : CheckOK μ env fe s) (e : fe'.find? = fe.find?) : CheckOK μ env fe' s :=
-  ⟨h.state, h.caches, h.pins, RC.IFEnvOK.of_find? h.ienv e⟩
-
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:266-274 blockNestCtx —
 **the walk's canonical parameters are scoped at the parameter count**
 (`blockNestCtxS_sim₂`'s `hpar`, read off the pure run): they are the first

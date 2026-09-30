@@ -139,9 +139,6 @@ abbrev RL (u : Level) : EStore → LIdx → Prop := fun st r => denoteL st.ls r 
 /-- a level-LIST handle denotes a given `List Level`. -/
 abbrev RLs (us : List Level) : EStore → LsIdx → Prop :=
   fun st r => denoteLs st.lss r = some us
-/-- a name handle denotes a given `Name`. -/
-abbrev RN (n : ConLeche.Name) : EStore → NIdx → Prop :=
-  fun st r => denoteN st.ns r = some n
 /-- a LIST of expression handles denotes a given `List Expr`. -/
 abbrev REL (vs : List Expr) : EStore → List EIdx → Prop :=
   fun st r => Frontend.denoteEList st r = some vs
@@ -221,107 +218,6 @@ def denoteCtors3 (st : EStore) :
     | some c, some rest => some ((c, a, b) :: rest)
     | _, _ => none
 
-/-- con-leche: none — `nativeCtors4`'s four-tuple list denotes. -/
-def denoteCtors4 (st : EStore) :
-    List (NIdx × Nat × EIdx × List Nat) →
-      Option (List (ConLeche.Name × Nat × Expr × List Nat))
-  | [] => some []
-  | (n, k, ty, idx) :: cs =>
-    match denoteN st.ns n, denoteE st ty, denoteCtors4 st cs with
-    | some nm, some t, some rest => some ((nm, k, t, idx) :: rest)
-    | _, _, _ => none
-
-/-- con-leche: none — `nativeCtors4`'s four-tuple list survives an append. -/
-theorem denoteCtors4_ext {st st' : EStore} (hx : Ext st st') :
-    ∀ (cs : List (NIdx × Nat × EIdx × List Nat))
-      (csP : List (ConLeche.Name × Nat × Expr × List Nat)),
-      denoteCtors4 st cs = some csP → denoteCtors4 st' cs = some csP := by
-  intro cs
-  induction cs with
-  | nil => intro csP h; exact h
-  | cons c cs ih =>
-    intro csP h
-    obtain ⟨n, k, ty, idx⟩ := c
-    simp only [denoteCtors4] at h ⊢
-    cases h1 : denoteN st.ns n with
-    | none => rw [h1] at h; simp at h
-    | some nm =>
-      cases h2 : denoteE st ty with
-      | none => rw [h1, h2] at h; simp at h
-      | some t =>
-        cases h3 : denoteCtors4 st cs with
-        | none => rw [h1, h2, h3] at h; simp at h
-        | some rest =>
-          rw [h1, h2, h3] at h
-          rw [denoteN_ext h1 hx, denote_ext h2 hx, ih rest h3]
-          exact h
-
-/-- con-leche: none — the four-tuple list's length survives the denotation. -/
-theorem denoteCtors4_length {st : EStore} :
-    ∀ {cs : List (NIdx × Nat × EIdx × List Nat)}
-      {csP : List (ConLeche.Name × Nat × Expr × List Nat)},
-      denoteCtors4 st cs = some csP → cs.length = csP.length := by
-  intro cs
-  induction cs with
-  | nil => intro csP h; simp only [denoteCtors4, Option.some.injEq] at h; subst h; rfl
-  | cons c cs ih =>
-    intro csP h
-    obtain ⟨n, k, ty, idx⟩ := c
-    simp only [denoteCtors4] at h
-    cases h1 : denoteN st.ns n with
-    | none => rw [h1] at h; simp at h
-    | some nm =>
-      cases h2 : denoteE st ty with
-      | none => rw [h1, h2] at h; simp at h
-      | some t =>
-        cases h3 : denoteCtors4 st cs with
-        | none => rw [h1, h2, h3] at h; simp at h
-        | some rest =>
-          rw [h1, h2, h3] at h
-          obtain rfl := (Option.some.inj h).symm
-          simp only [List.length_cons, ih h3]
-
-/-- con-leche: none — and it reads at an index with the `Option` carried. -/
-theorem denoteCtors4_getElem? {st : EStore} :
-    ∀ {cs : List (NIdx × Nat × EIdx × List Nat)}
-      {csP : List (ConLeche.Name × Nat × Expr × List Nat)},
-      denoteCtors4 st cs = some csP → ∀ (j : Nat),
-      (cs[j]? = none ↔ csP[j]? = none) ∧
-      ∀ n k ty idx, cs[j]? = some (n, k, ty, idx) →
-        ∃ nm t, csP[j]? = some (nm, k, t, idx) ∧ denoteN st.ns n = some nm ∧
-          denoteE st ty = some t := by
-  intro cs
-  induction cs with
-  | nil =>
-    intro csP h j
-    simp only [denoteCtors4, Option.some.injEq] at h; subst h
-    simp
-  | cons c cs ih =>
-    intro csP h j
-    obtain ⟨n, k, ty, idx⟩ := c
-    simp only [denoteCtors4] at h
-    cases h1 : denoteN st.ns n with
-    | none => rw [h1] at h; simp at h
-    | some nm =>
-      cases h2 : denoteE st ty with
-      | none => rw [h1, h2] at h; simp at h
-      | some t =>
-        cases h3 : denoteCtors4 st cs with
-        | none => rw [h1, h2, h3] at h; simp at h
-        | some rest =>
-          rw [h1, h2, h3] at h
-          obtain rfl := (Option.some.inj h).symm
-          cases j with
-          | zero =>
-            refine ⟨by simp, ?_⟩
-            intro n' k' ty' idx' he
-            simp only [List.getElem?_cons_zero, Option.some.injEq, Prod.mk.injEq] at he
-            obtain ⟨rfl, rfl, rfl, rfl⟩ := he
-            exact ⟨nm, t, rfl, h1, h2⟩
-          | succ j =>
-            simp only [List.getElem?_cons_succ]
-            exact ih h3 j
-
 theorem denoteCtors_ext {st st' : EStore} (hx : Ext st st') :
     ∀ (cs : List (IConstantVal × Nat)) (xs : List (ConstantVal × Nat)),
       denoteCtors st cs = some xs → denoteCtors st' cs = some xs := by
@@ -351,28 +247,6 @@ def denoteLLists (st : EStore) : List (List LIdx) → Option (List (List Level))
     | some x, some xs => some (x :: xs)
     | _, _ => none
 
-/-- con-leche: none — a denoting constructor list has con-leche's length. -/
-theorem denoteCtors_length {st : EStore} :
-    ∀ (cs : List (IConstantVal × Nat)) (xs : List (ConstantVal × Nat)),
-      denoteCtors st cs = some xs → cs.length = xs.length := by
-  intro cs
-  induction cs with
-  | nil => intro xs h; simp only [denoteCtors] at h; cases h; rfl
-  | cons a as ih =>
-    intro xs h
-    obtain ⟨cv, n⟩ := a
-    simp only [denoteCtors] at h
-    cases hc : Frontend.denoteCV st cv with
-    | none => rw [hc] at h; simp at h
-    | some c =>
-      cases has : denoteCtors st as with
-      | none => rw [hc, has] at h; simp at h
-      | some ys =>
-        rw [hc, has] at h
-        simp only [Option.some.injEq] at h
-        subst h
-        simp [ih ys has]
-
 /-- con-leche: none — a three-tuple constructor list's denotation keeps its
 length; `nativeCounts?` compares `cs.length` against the recursor's claimed
 prefix. -/
@@ -396,169 +270,6 @@ theorem denoteCtors3_length {st : EStore} :
         rw [hcv, has] at h
         obtain rfl := Option.some.inj h
         simp only [List.length_cons, ih has]
-
-/-- con-leche: none — a denoting rule list has con-leche's length. -/
-theorem denoteRules_length {st : EStore} :
-    ∀ {rs : List IRecRule} {rsP : List RecRule},
-      Frontend.denoteRules st rs = some rsP → rs.length = rsP.length := by
-  intro rs
-  induction rs with
-  | nil =>
-    intro rsP h
-    simp only [Frontend.denoteRules, Option.some.injEq] at h; simp [← h]
-  | cons a as ih =>
-    intro rsP h
-    simp only [Frontend.denoteRules] at h
-    cases hr : Frontend.denoteRule st a with
-    | none => rw [hr] at h; simp at h
-    | some x =>
-      cases has : Frontend.denoteRules st as with
-      | none => rw [hr, has] at h; simp at h
-      | some xs =>
-        rw [hr, has] at h
-        obtain rfl := Option.some.inj h
-        simp only [List.length_cons, ih has]
-
-/-- con-leche: none — a denoting rule list reads AT AN INDEX with the
-`Option` carried, both ways: `nativeRecPinOk` pairs the recursor's rules with
-the block's constructors position by position and answers `false` as soon as
-either runs out. -/
-theorem denoteRules_getElem? {st : EStore} :
-    ∀ {rs : List IRecRule} {rsP : List RecRule},
-      Frontend.denoteRules st rs = some rsP → ∀ (j : Nat),
-        (∀ rl, rs[j]? = some rl →
-          ∃ x, rsP[j]? = some x ∧ Frontend.denoteRule st rl = some x) ∧
-        (rs[j]? = none → rsP[j]? = none) := by
-  intro rs
-  induction rs with
-  | nil =>
-    intro rsP h j
-    simp only [Frontend.denoteRules, Option.some.injEq] at h
-    subst h
-    exact ⟨by intro rl hrl; simp at hrl, by intro _; simp⟩
-  | cons a as ih =>
-    intro rsP h j
-    simp only [Frontend.denoteRules] at h
-    cases hr : Frontend.denoteRule st a with
-    | none => rw [hr] at h; simp at h
-    | some y =>
-      cases has : Frontend.denoteRules st as with
-      | none => rw [hr, has] at h; simp at h
-      | some ys =>
-        rw [hr, has] at h
-        obtain rfl := Option.some.inj h
-        cases j with
-        | zero =>
-          refine ⟨?_, ?_⟩
-          · intro rl hrl
-            simp only [List.getElem?_cons_zero, Option.some.injEq] at hrl
-            subst hrl
-            exact ⟨y, by simp, hr⟩
-          · intro hb; simp at hb
-        | succ j =>
-          obtain ⟨hA, hB⟩ := ih has j
-          refine ⟨?_, ?_⟩
-          · intro rl hrl
-            simp only [List.getElem?_cons_succ] at hrl
-            obtain ⟨x, hx, hd⟩ := hA rl hrl
-            exact ⟨x, by simpa using hx, hd⟩
-          · intro hb
-            simp only [List.getElem?_cons_succ] at hb ⊢
-            exact hB hb
-
-/-- con-leche: none — the same for a three-tuple constructor list. -/
-theorem denoteCtors3_getElem? {st : EStore} :
-    ∀ {cs : List (IConstantVal × Nat × Nat)}
-      {csP : List (ConstantVal × Nat × Nat)},
-      denoteCtors3 st cs = some csP → ∀ (j : Nat),
-        (∀ cv a b, cs[j]? = some (cv, a, b) →
-          ∃ c, csP[j]? = some (c, a, b) ∧ Frontend.denoteCV st cv = some c) ∧
-        (cs[j]? = none → csP[j]? = none) := by
-  intro cs
-  induction cs with
-  | nil =>
-    intro csP h j
-    simp only [denoteCtors3, Option.some.injEq] at h
-    subst h
-    exact ⟨by intro cv a b hb; simp at hb, by intro _; simp⟩
-  | cons e es ih =>
-    intro csP h j
-    obtain ⟨cv, x, y⟩ := e
-    simp only [denoteCtors3] at h
-    cases hcv : Frontend.denoteCV st cv with
-    | none => rw [hcv] at h; simp at h
-    | some c =>
-      cases has : denoteCtors3 st es with
-      | none => rw [hcv, has] at h; simp at h
-      | some rest =>
-        rw [hcv, has] at h
-        obtain rfl := Option.some.inj h
-        cases j with
-        | zero =>
-          refine ⟨?_, ?_⟩
-          · intro cv' a b hb
-            simp only [List.getElem?_cons_zero, Option.some.injEq,
-              Prod.mk.injEq] at hb
-            obtain ⟨rfl, rfl, rfl⟩ := hb
-            exact ⟨c, by simp, hcv⟩
-          · intro hb; simp at hb
-        | succ j =>
-          obtain ⟨hA, hB⟩ := ih has j
-          refine ⟨?_, ?_⟩
-          · intro cv' a b hb
-            simp only [List.getElem?_cons_succ] at hb
-            obtain ⟨c', hc', hd⟩ := hA cv' a b hb
-            exact ⟨c', by simpa using hc', hd⟩
-          · intro hb
-            simp only [List.getElem?_cons_succ] at hb ⊢
-            exact hB hb
-
-/-- con-leche: none — the shape record's constructor list at an index, with
-the `Option` carried. -/
-theorem denoteCtors_getElem? {st : EStore} :
-    ∀ {cs : List (IConstantVal × Nat)} {csP : List (ConstantVal × Nat)},
-      denoteCtors st cs = some csP → ∀ (j : Nat),
-        (∀ cv a, cs[j]? = some (cv, a) →
-          ∃ c, csP[j]? = some (c, a) ∧ Frontend.denoteCV st cv = some c) ∧
-        (cs[j]? = none → csP[j]? = none) := by
-  intro cs
-  induction cs with
-  | nil =>
-    intro csP h j
-    simp only [denoteCtors, Option.some.injEq] at h
-    subst h
-    exact ⟨by intro cv a hb; simp at hb, by intro _; simp⟩
-  | cons e es ih =>
-    intro csP h j
-    obtain ⟨cv, x⟩ := e
-    simp only [denoteCtors] at h
-    cases hcv : Frontend.denoteCV st cv with
-    | none => rw [hcv] at h; simp at h
-    | some c =>
-      cases has : denoteCtors st es with
-      | none => rw [hcv, has] at h; simp at h
-      | some rest =>
-        rw [hcv, has] at h
-        obtain rfl := Option.some.inj h
-        cases j with
-        | zero =>
-          refine ⟨?_, ?_⟩
-          · intro cv' a hb
-            simp only [List.getElem?_cons_zero, Option.some.injEq,
-              Prod.mk.injEq] at hb
-            obtain ⟨rfl, rfl⟩ := hb
-            exact ⟨c, by simp, hcv⟩
-          · intro hb; simp at hb
-        | succ j =>
-          obtain ⟨hA, hB⟩ := ih has j
-          refine ⟨?_, ?_⟩
-          · intro cv' a hb
-            simp only [List.getElem?_cons_succ] at hb
-            obtain ⟨c', hc', hd⟩ := hA cv' a hb
-            exact ⟨c', by simpa using hc', hd⟩
-          · intro hb
-            simp only [List.getElem?_cons_succ] at hb ⊢
-            exact hB hb
 
 /-- con-leche: none — a denoting rule's CONSTRUCTOR handle denotes the pure
 rule's constructor name, and its field count travels verbatim. -/
@@ -590,13 +301,6 @@ theorem denoteCI_not_ind {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
     simp_all [Frontend.denoteCI, Option.map_eq_some_iff] <;> grind
 
 /-! ## The capability record -/
-
-/-- con-leche: ConLeche/Kernel/Env.lean:352-372 IndCaps — the capability
-record denotes: one name handle and seven representation-free fields.
-`Frontend.denoteCaps` is the frontend tier's own readback of the same record,
-and this is it as a RELATION so that a spec can name the pure value. -/
-abbrev RCaps (c : IndCaps) : EStore → IIndCaps → Prop :=
-  fun st r => Frontend.denoteCaps st r = some c
 
 /-! ## The `AM` bind's inversion
 
@@ -631,17 +335,6 @@ theorem pureOk {α : Type} {a r : α} {s s' : AState}
   injection h' with h''
   injection h'' with h1 h2
   exact ⟨h1.symm, h2.symm⟩
-
-/-- con-leche: none — **the `do`-elaborator's `if`, lifted out of the bind**.
-`Arena/Inductives/StructParts.lean`'s `structShape` writes `let want ← if
-large then internLNode (.param elim) else internLNode .zero`, and the
-elaborator answers by DUPLICATING everything after it into both arms — the
-minor premise and the major domain included.  This equation puts the `if` back
-where the source wrote it, so the continuation is inverted once. -/
-theorem am_if_bind {α β : Type} {c : Prop} [Decidable c] (x y : AM α)
-    (k : α → AM β) :
-    (if c then (x >>= k) else (y >>= k)) = ((if c then x else y) >>= k) := by
-  split <;> rfl
 
 /-! ## The primitives, in RUN form
 
@@ -927,23 +620,6 @@ theorem beq_handle_eq {st : EStore} (hwf : StoreWF st) {n p : NIdx}
     rw [hb] at hne
     exact absurd hne (by simp)
 
-/-- con-leche: none — `beq_handle_eq` with the pure side FLIPPED, which is
-the shape `Arena/Inductives/Modeled.lean`'s `renameBy` needs: its lookup
-compares `tbl.1 == n` where con-leche's rename compares `n` against the name
-the entry stands for. -/
-theorem beq_handle_eq' {st : EStore} (hwf : StoreWF st) {n p : NIdx}
-    {nm x : ConLeche.Name} (hn : denoteN st.ns n = some nm)
-    (hp : denoteN st.ns p = some x) : (n == p) = (x == nm) := by
-  rw [beq_handle_eq hwf hn hp]
-  cases h : (nm == x) with
-  | true => obtain rfl := eq_of_beq h; simp
-  | false =>
-    symm
-    rw [beq_eq_false_iff_ne]
-    intro hc
-    subst hc
-    simp at h
-
 /-- con-leche: none — **an EXPRESSION-handle comparison is a structural
 comparison**, at both signs.  The `false` half is `denoteE_inj`
 (`Arena/WFProofs.lean`) — DESIGN §8.3's soundness obligation, which the two
@@ -963,30 +639,6 @@ theorem beq_ehandle_eq {st : EStore} (hwf : StoreWF st) {a b : EIdx}
     intro heq
     subst heq
     have hne : (a == b) = true := beq_iff_eq.mpr (denoteE_inj hwf ha hb)
-    rw [h1] at hne
-    exact absurd hne (by simp)
-
-/-- con-leche: none — **a LEVEL-handle comparison is a structural comparison**,
-at both signs: `beq_ehandle_eq` one store down.  The `false` half is
-`denoteL_inj` (`Arena/WFProofs.lean`).  `structShape`'s motive branch is the
-first consumer — it compares the motive codomain's level handle against the
-`Sort elim` / `Prop` it interned, where con-leche compares `Level`s. -/
-theorem beq_lhandle_eq {st : EStore} (hwf : StoreWF st) {a b : LIdx}
-    {x y : Level} (ha : denoteL st.ls a = some x)
-    (hb : denoteL st.ls b = some y) : (a == b) = (x == y) := by
-  obtain ⟨rk, hrk⟩ := hwf
-  cases h1 : a == b with
-  | true =>
-    obtain rfl := eq_of_beq h1
-    rw [ha] at hb
-    obtain rfl := Option.some.inj hb
-    simp
-  | false =>
-    symm
-    rw [beq_eq_false_iff_ne]
-    intro heq
-    subst heq
-    have hne : (a == b) = true := beq_iff_eq.mpr (denoteL_inj hrk.lsWF ha hb)
     rw [h1] at hne
     exact absurd hne (by simp)
 

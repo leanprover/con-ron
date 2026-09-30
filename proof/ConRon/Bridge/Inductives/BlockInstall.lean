@@ -963,17 +963,6 @@ theorem checkBlockCtors_types {μ : CheckMode} {env₀ env : Env} {q : ConLeche.
   rw [checkBlockCtors_datF] at hF
   exact ConLeche.Cached.checkBlockCtors_types hF
 
-/-- con-leche: ConLeche/Verify/Cached/BlockRunC.lean:525-546 checkBlockCtors_fresh
-The constructors' stage stores constructors fresh in its environment. -/
-theorem checkBlockCtors_fresh {μ : CheckMode} {env₀ env : Env} {q : ConLeche.BlockShape}
-    {l : List (ConLeche.MemberShape × ConstantVal)}
-    {v : List (List (ConstantVal × Nat)) × List (List (List Level))}
-    (h : FOk (ConLeche.checkBlockCtors (fueledOpsM μ) env₀ env q l) v) :
-    ∀ ctorsA ∈ v.1, ∀ c ∈ ctorsA, env.find? c.1.name = none := by
-  obtain ⟨F, hF⟩ := h
-  rw [checkBlockCtors_datF] at hF
-  exact ConLeche.Cached.checkBlockCtors_fresh hF
-
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:228-250 checkAbsCtorSorts
 **The fields' universes at the holes**, against
 `checkAbsCtorSorts (fueledOpsM μ) env ctxP`, pairwise to the shorter list.

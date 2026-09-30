@@ -1525,107 +1525,6 @@ theorem recRuleBits_runX {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s
   simp only [ConLeche.recRuleBits, hk, he]
 
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean recRuleBits — `recRuleBits_runX`
-at the index `CheckOK` holds for. -/
-theorem recRuleBits_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    {recName : NIdx} {recNameP : ConLeche.Name} {rl rl' : IRecRule} {rlP : RecRule}
-    (hok : CheckOK μ env fe s) (hrn : denoteN s.store.ns recName = some recNameP)
-    (hrl : Frontend.denoteRule s.store rl = some rlP)
-    (hrun : Arena.recRuleBits fe recName rl s = .ok (rl', s')) :
-    Core.ReadbackFrame s s' ∧
-      Frontend.denoteRule s'.store rl' = some (ConLeche.recRuleBits env.find? recNameP rlP) :=
-  recRuleBits_runX hok hok.ienv hrn hrl hrun
-
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:168-184 sumRules
-The recursor's rules, one per constructor, with their firing bits.  **Task
-#97d-2's deviation 3 again**: con-leche takes `find? : Name → Option
-ConstantInfo` and the twin takes the index `fe`, so the statement compares
-them at `find? := env.find?` — which is what `IFEnvOK` says the index is.
-
-**CLOSED** (task #97-P3-Ind round 6). -/
-theorem sumRules_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (recName : NIdx) (recNameP : ConLeche.Name) (nP mI rP : Nat)
-    (recTy : EIdx) (recTyP : Expr) (cs : List (IConstantVal × Nat))
-    (csP : List (ConstantVal × Nat)) (rhss : List EIdx) (rhssP : List Expr) :
-    CSpec μ env fe
-      (fun st => denoteN st.ns recName = some recNameP ∧
-        denoteE st recTy = some recTyP ∧ denoteCtors st cs = some csP ∧
-        Frontend.denoteEList st rhss = some rhssP ∧
-        denoteFEnv st fe = some env)
-      (Arena.sumRules fe recName nP mI rP recTy cs rhss)
-      (fun st r => Frontend.denoteRules st r
-        = some (ConLeche.sumRules env.find? recNameP nP mI rP recTyP csP rhssP)) := by
-  induction cs generalizing csP rhss rhssP with
-  | nil =>
-    intro s₀ s' r hok hpre hrun
-    obtain ⟨-, -, hcs, -, -⟩ := hpre
-    simp only [denoteCtors, Option.some.injEq] at hcs
-    subst hcs
-    simp only [Arena.sumRules] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
-    refine ⟨CoreStep.refl hok, ?_⟩
-    cases rhssP <;> rfl
-  | cons c cs ih =>
-    intro s₀ s' r hok hpre hrun
-    obtain ⟨hrn, hrt, hcs, hrh, hfe⟩ := hpre
-    obtain ⟨cv, n⟩ := c
-    simp only [denoteCtors] at hcs
-    cases hcv : Frontend.denoteCV s₀.store cv with
-    | none => rw [hcv] at hcs; simp at hcs
-    | some cP =>
-    cases hrest : denoteCtors s₀.store cs with
-    | none => rw [hcv, hrest] at hcs; simp at hcs
-    | some restP =>
-    rw [hcv, hrest] at hcs
-    obtain rfl := (Option.some.inj hcs).symm
-    cases rhss with
-    | nil =>
-      simp only [Frontend.denoteEList, Option.some.injEq] at hrh
-      subst hrh
-      simp only [Arena.sumRules] at hrun
-      obtain ⟨rfl, rfl⟩ := pureOk hrun
-      exact ⟨CoreStep.refl hok, rfl⟩
-    | cons rhs rhss =>
-    simp only [Frontend.denoteEList] at hrh
-    cases hrhs : denoteE s₀.store rhs with
-    | none => rw [hrhs] at hrh; simp at hrh
-    | some rhsP =>
-    cases hrhss : Frontend.denoteEList s₀.store rhss with
-    | none => rw [hrhs, hrhss] at hrh; simp at hrh
-    | some rhssP' =>
-    rw [hrhs, hrhss] at hrh
-    obtain rfl := (Option.some.inj hrh).symm
-    simp only [Arena.sumRules] at hrun
-    obtain ⟨b, s1, k1, z1⟩ := bindOk hrun
-    obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl k1
-      (ExprOps.recRulePlain_spec Arena.coreWalkFuel s₀ recTy mI rP nP hok.state
-        (by rw [hrt]; rfl))
-    have p1 : PStep s₀ s1 := PStep.of_caches h1 h2 h3 h5 h6
-    have hb : b = Expr.recRulePlain recTyP mI rP nP := h7 recTyP hrt
-    have c1 := p1.toCore hok
-    obtain ⟨rl, s2, k2, z2⟩ := bindOk z1
-    have hrl : Frontend.denoteRule s1.store
-        { ctor := cv.name, nfields := n, ctorParams := nP,
-          fire := (if b then .plain else .inert), rhs := rhs, paramsBlind := true } =
-        some { ctor := cP.name, nfields := n, ctorParams := nP,
-               fire := (if Expr.recRulePlain recTyP mI rP nP then .plain else .inert),
-               rhs := rhsP, paramsBlind := true } := by
-      subst hb
-      simp only [Frontend.denoteRule, denoteN_ext (denoteCV_name hcv) p1.ext,
-        denote_ext hrhs p1.ext]
-      cases Expr.recRulePlain recTyP mI rP nP <;> rfl
-    obtain ⟨hfr, hrlr⟩ := recRuleBits_run c1.ok (denoteN_ext hrn p1.ext) hrl k2
-    have c2 : CoreStep μ env fe s₀ s2 :=
-      c1.trans ⟨Core.CheckOK.ofReadbackFrame c1.ok hfr, hfr.ext, hfr.pins⟩
-    obtain ⟨rs, s3, k3, z3⟩ := bindOk z2
-    obtain ⟨c3, hrs⟩ := ih restP rhss rhssP' s2 s3 rs c2.ok
-      ⟨denoteN_ext hrn c2.ext, denote_ext hrt c2.ext, denoteCtors_ext c2.ext _ _ hrest,
-        denoteEList_ext c2.ext _ _ hrhss, denoteFEnv_ext c2.ext hfe⟩ k3
-    obtain ⟨rfl, rfl⟩ := pureOk z3
-    refine ⟨c2.trans c3, ?_⟩
-    simp only [Frontend.denoteRules, denoteRule_ext hrlr c3.ext, hrs]
-    rfl
-
 /-! ## The monad-generic forms (task #105)
 
 The uniform route's con-leche stages are written over a `CheckerOps m`, and
@@ -1642,21 +1541,6 @@ BridgeCS3.lean`'s `whnfTelescopeS_sim`, `checkSumTeleS_sim`,
 `checkSumTeleS_sim`'s does.  The scoping and freshness facts the block stage
 reads off the constructors (`checkBlockCtors_types`, `checkBlockCtors_fresh`)
 are facts of the pure run, which `FOk` hands over. -/
-
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:34-57 whnfTelescope
-`whnfTelescope_spec` against `whnfTelescope (fueledOpsM μ)`. -/
-theorem whnfTelescope_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (i n : Nat) (e : EIdx)
-    (eP : Expr) (hws : Expr.WScoped i eP) :
-    CSpecF μ env fe
-      (fun st => denoteE st e = some eP ∧ denoteFEnv st fe = some env)
-      (Arena.whnfTelescope μ fe i n e)
-      (fun st r v => denoteBinders st r.1 = some v.1 ∧ denoteL st.ls r.2 = some v.2)
-      (ConLeche.whnfTelescope (fueledOpsM μ) env i n eP) := by
-  intro s₀ s' r hok hpre hrun
-  obtain ⟨hstep, F, bsP, sP, hF, h1, h2⟩ :=
-    whnfTelescope_spec fe hk henv i n e eP hws s₀ s' r hok hpre hrun
-  exact ⟨hstep, (bsP, sP), ⟨h1, h2⟩, F, by rw [whnfTelescope_datF]; exact hF⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:59-73 checkSumTele
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:20-30 checkSumTeleF
@@ -1707,36 +1591,6 @@ theorem checkStructFieldSortsI_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
   obtain ⟨hstep, F, ls, hF, h1⟩ := checkStructFieldSortsI_spec fe hk henv isProp large s sP nP
     fvs idxArgs fvsP idxArgsP j (fun i _ a ha => hfvs i a ha) s₀ s' r hok hpre hrun
   exact ⟨hstep, ls, h1, F, by rw [checkStructFieldSortsI_datF]; exact hF⟩
-
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-147 checkSumCtor
-con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:70-100 checkSumCtorF
-`checkSumCtor_spec` against `checkSumCtor (fueledOpsM μ)`, the former's type
-fvar-free as `checkSumCtorS_sim`'s `hTf` states it. -/
-theorem checkSumCtor_specF {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
-    (hμ : μ.verifiedChecks = true)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (T : NIdx) (TP : ConLeche.Name)
-    (lps : List NIdx) (lpsP : List ConLeche.Name) (nP nIdx : Nat)
-    (resSort : LIdx) (resSortP : Level) (isProp large : Bool)
-    (cvC : IConstantVal) (cvCP : ConstantVal) (nF : Nat)
-    (cvTa : IConstantVal) (cvTaP : ConstantVal) (env₀ : Env)
-    (hTf : cvTaP.type.hasFvar = false) :
-    CSpecF μ env fe
-      (fun st => denoteN st.ns T = some TP ∧
-        Frontend.denoteNList st.ns lps = some lpsP ∧
-        denoteL st.ls resSort = some resSortP ∧
-        Frontend.denoteCV st cvC = some cvCP ∧
-        Frontend.denoteCV st cvTa = some cvTaP ∧
-        denoteFEnv st fe₀ = some env₀ ∧ denoteFEnv st fe = some env ∧
-        IFEnvOKS env₀ fe₀ st)
-      (Arena.checkSumCtor μ fe₀ fe T lps nP nIdx resSort isProp large cvC nF cvTa)
-      (fun st r v => Frontend.denoteCV st r.1 = some v.1 ∧ denoteLList st.ls r.2 = some v.2)
-      (ConLeche.checkSumCtor (fueledOpsM μ) env₀ env TP lpsP nP nIdx resSortP isProp large
-        cvCP nF cvTaP) := by
-  intro s₀ s' r hok hpre hrun
-  obtain ⟨hstep, F, cvCaP, sortsP, hF, h1, h2⟩ := checkSumCtor_spec fe₀ fe hμ hk henv T TP
-    lps lpsP nP nIdx resSort resSortP isProp large cvC cvCP nF cvTa cvTaP env₀
-    (Expr.WScoped.of_not_hasFvar hTf) s₀ s' r hok hpre hrun
-  exact ⟨hstep, (cvCaP, sortsP), ⟨h1, h2⟩, F, by rw [ConLeche.checkSumCtor_datF]; exact hF⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:149-161 checkSumCtors
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:102-112 checkSumCtorsF

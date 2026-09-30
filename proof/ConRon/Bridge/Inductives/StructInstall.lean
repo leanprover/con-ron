@@ -147,31 +147,6 @@ theorem checkStructDomsAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       ConLeche.fueledOps, bind, Except.bind, pure, Except.pure, h1, if_true]
     exact h2
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:31-50 checkStructDomsAt
-con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:25-34 checkStructDomsAtF
-con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:36-46 checkStructDomsAtFA
-**The monad-generic form** (task #105): `checkStructDomsAt_spec` against
-con-leche's function at the monotone fueled operations, `CSpecF`, with the
-scoping hypotheses split as con-leche's cached template states them
-(`ConLeche/Verify/Cached/BridgeCS3.lean`'s `checkStructDomsAtS_sim`: `hc` for
-the opened variables' annotations, `ht` for the expected domains).  The step
-from the `fueledOps μ F` run is `checkStructDomsAt_datF`. -/
-theorem checkStructDomsAt_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (off : Nat)
-    (fvs doms : List EIdx) (fvsP domsP : List Expr) (j : Nat)
-    (hc : ∀ (i : Nat) (x : Expr), fvsP[i]? = some x → Expr.WScoped (off + i) x.fvarTypeD)
-    (ht : ∀ (i : Nat) (x : Expr), domsP[i]? = some x → Expr.WScoped (off + i) x) :
-    CSpecF μ env fe
-      (fun st => Frontend.denoteEList st fvs = some fvsP ∧
-        Frontend.denoteEList st doms = some domsP ∧
-        denoteFEnv st fe = some env)
-      (Arena.checkStructDomsAt μ fe off fvs doms j) (fun _ _ _ => True)
-      (ConLeche.checkStructDomsAt (fueledOpsM μ) env off fvsP domsP j) := by
-  intro s₀ s' r hok hpre hrun
-  obtain ⟨hstep, F, hF⟩ := checkStructDomsAt_spec fe hk henv off fvs doms fvsP domsP j
-    (fun i _ a b ha hb => ⟨hc i a ha, ht i b hb⟩) s₀ s' r hok hpre hrun
-  exact ⟨hstep, (), trivial, F, by rw [checkStructDomsAt_datF]; exact hF⟩
-
 /-! ## The projection table -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-85 checkStructProjTable

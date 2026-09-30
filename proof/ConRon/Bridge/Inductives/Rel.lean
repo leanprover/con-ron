@@ -143,15 +143,6 @@ def CSpec (μ : CheckMode) (env : Env) (fe : IFEnv) {α : Type}
   ∀ (s₀ s' : AState) (r : α), CheckOK μ env fe s₀ → P s₀.store →
     c s₀ = .ok (r, s') → CoreStep μ env fe s₀ s' ∧ R s'.store r
 
-/-- con-leche: none — and a pin-reading pure twin is a core-grade twin at any
-environment: `CheckOK.pins` is exactly what it was missing. -/
-theorem PSpecP.toCSpec {α : Type} {P : EStore → Prop} {c : AM α}
-    {R : EStore → α → Prop} (h : PSpecP P c R) (μ : CheckMode) (env : Env)
-    (fe : IFEnv) : CSpec μ env fe P c R := by
-  intro s₀ s' r hok hp hrun
-  obtain ⟨hstep, hr⟩ := h s₀ s' r hok.state hok.pins hp hrun
-  exact ⟨hstep.toCore hok, hr⟩
-
 /-- con-leche: ConLeche/Verify/Cached/BlockRunC.lean:335 SimG — **the core
 grade against a monad-generic con-leche function** (task #105): the twin's
 answer is related by `R` to SOME value the pure side, run at the monotone
@@ -182,9 +173,6 @@ structure InstStep (s s' : AState) : Prop where
   ext : Ext s.store s'.store
   pins : s'.pins = s.pins
 
-theorem InstStep.refl {s : AState} (h : StateOK s) : InstStep s s :=
-  ⟨h, Ext.refl _, rfl⟩
-
 theorem InstStep.trans {a b c : AState} (h₁ : InstStep a b) (h₂ : InstStep b c) :
     InstStep a c :=
   ⟨h₂.state, h₁.ext.trans h₂.ext, by rw [h₂.pins, h₁.pins]⟩
@@ -195,16 +183,6 @@ theorem _root_.ConRon.Bridge.CoreStep.toInst {μ : CheckMode} {env : Env} {fe : 
 
 theorem PStep.toInst {s s' : AState} (h : PStep s s') : InstStep s s' :=
   ⟨h.ok, h.ext, h.pins⟩
-
-/-- con-leche: none — **the install grade's statement**: from a state
-satisfying `P` (which names the `CheckOK` the run's FIRST knot call needs, at
-whatever index that is), an accepting run leaves the install frame and an
-answer related by `R` to the FINAL state (so `R` may say `CheckOK` at the
-index the run ended on). -/
-def ISpec {α : Type} (P : AState → Prop) (c : AM α) (R : AState → α → Prop) :
-    Prop :=
-  ∀ (s₀ s' : AState) (r : α), P s₀ → c s₀ = .ok (r, s') →
-    InstStep s₀ s' ∧ R s' r
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK (without the caches) —
 **`CheckOK` less its cache clause**: what a state is known to satisfy at an
@@ -226,10 +204,6 @@ theorem ReadOK.mono {env : Env} {fe : IFEnv} {s s' : AState} (h : ReadOK env fe 
     (hok : StateOK s') (hx : Ext s.store s'.store) (hp : s'.pins = s.pins) :
     ReadOK env fe s' :=
   ⟨hok, h.pins.mono hx hp, h.ienv.mono hx⟩
-
-theorem ReadOK.ofInst {env : Env} {fe : IFEnv} {s s' : AState} (h : ReadOK env fe s)
-    (hi : InstStep s s') : ReadOK env fe s' :=
-  h.mono hi.state hi.ext hi.pins
 
 /-- con-leche: ConLeche/Cached/CheckerC.lean flushC — **the flush restores
 `CheckOK` at any index the state reads correctly**: the caches go, and the
@@ -535,36 +509,6 @@ Checker tier, whose `IFEnvOK_of_denote`, `denoteFEnv_restrictTo` and
 `installBasisDecl_bridge` need them and cannot see `Bridge/Inductives/**`.
 They are in scope here unchanged (`ConRon.Bridge` is this namespace's
 parent), so every use in this tier reads the same. -/
-
-/-- con-leche: none — **a denoting binder telescope denotes AT A POSITION**,
-which is the read `structFieldTeleOf` and `structFieldIdxOf` make.  The bound
-is not decoration: below it the two sides' `getD` FALLBACKS are unrelated
-(`default : EIdx × BinderMeta` on one side, `default : Expr × BinderMeta` on
-the other), which is the defect round 4 records at those two statements. -/
-theorem denoteBinders_getD {st : EStore} :
-    ∀ {bs : List (EIdx × BinderMeta)} {xs : List (Expr × BinderMeta)} {k : Nat},
-      denoteBinders st bs = some xs → k < bs.length →
-      denoteE st (bs.getD k default).1 = some (xs.getD k default).1 := by
-  intro bs
-  induction bs with
-  | nil => intro xs k _ hk; simp at hk
-  | cons a as ih =>
-    intro xs k h hk
-    obtain ⟨t, m⟩ := a
-    simp only [denoteBinders] at h
-    cases ht : denoteE st t with
-    | none => rw [ht] at h; simp at h
-    | some x =>
-      cases has : denoteBinders st as with
-      | none => rw [ht, has] at h; simp at h
-      | some ys =>
-        rw [ht, has] at h
-        obtain rfl := Option.some.inj h
-        cases k with
-        | zero => simpa only [List.getD_cons_zero] using ht
-        | succ k =>
-          have hk' : k < as.length := by simpa using hk
-          simpa only [List.getD_cons_succ] using ih has hk'
 
 /-- con-leche: none — **a denoting binder telescope reads at an INDEX with the
 `Option` CARRIED**, both ways.  `structShape` reads `rbs[nP]?`, `rbs[nP+1]?`
@@ -1010,17 +954,6 @@ theorem denoteFEnv_push_inv {st : EStore} {fe : IFEnv} {env env' : Env}
     simp only [Option.some.injEq] at hcs'
     exact ⟨c, rfl, by rw [← hcs']⟩
 
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the read invariant
-survives a push of a non-table row** (`IFEnvOK.push`), at the pushed
-index's denotation. -/
-theorem ReadOK.push {env env' : Env} {fe : IFEnv} {s : AState} {ci : IConstantInfo}
-    (h : ReadOK env fe s) (hcoh : IFEnvCoh fe) (hnp : ∀ t, ci ≠ .projInfo t)
-    (hfe : denoteFEnv s.store fe = some env)
-    (hfe' : denoteFEnv s.store (fe.push ci) = some env') :
-    ReadOK env' (fe.push ci) s := by
-  obtain ⟨c, hc, rfl⟩ := denoteFEnv_push_inv hfe hfe'
-  exact ⟨h.state, h.pins, h.ienv.push h.state hcoh hnp hc⟩
-
 /-- con-leche: none — `InstRel` survives the arena's growth. -/
 theorem InstRel.ext {fe fe' : IFEnv} {P : Env → Prop} {st st' : EStore}
     (h : InstRel fe P st fe') (hx : Ext st st') : InstRel fe P st' fe' := by
@@ -1033,13 +966,6 @@ theorem InstRel.imp {fe fe' : IFEnv} {P Q : Env → Prop} {st : EStore}
     (h : InstRel fe P st fe') (hPQ : ∀ e, P e → Q e) : InstRel fe Q st fe' := by
   obtain ⟨e, he, hp⟩ := h.denote
   exact ⟨h.coh, h.pushed, h.visible, ⟨e, he, hPQ e hp⟩, h.proj⟩
-
-/-- con-leche: none — `InstRel.imp` with the denoted environment in hand. -/
-theorem InstRel.impD {fe fe' : IFEnv} {P Q : Env → Prop} {st : EStore}
-    (h : InstRel fe P st fe')
-    (hPQ : ∀ e, denoteFEnv st fe' = some e → P e → Q e) : InstRel fe Q st fe' := by
-  obtain ⟨e, he, hp⟩ := h.denote
-  exact ⟨h.coh, h.pushed, h.visible, ⟨e, he, hPQ e he hp⟩, h.proj⟩
 
 /-! ## The recognisers' readers (task #97-P3-Ind round 6)
 
@@ -1088,22 +1014,6 @@ theorem reservedBasisNames_pstep {s s' : AState} {hs : List NIdx}
   rw [← reservedBasisNameValues_eq]
   exact denoteNL_toList _ _ hd
 
-/-- con-leche: none — a `some` answer of a telescope peel names the pure
-residual, at ANY pure function (`stripPis_some` is this at `stripPis`). -/
-theorem denoteBP_some' {st : EStore} {v : Option (List (Expr × BinderMeta) × Expr)}
-    {bs : List (EIdx × BinderMeta)} {e : EIdx}
-    (h : ExprOps.denoteBP st (some (bs, e)) = some v) :
-    ∃ xs x, v = some (xs, x) ∧ denoteE st e = some x := by
-  simp only [ExprOps.denoteBP] at h
-  cases hb : ExprOps.denoteBL st bs with
-  | none => rw [hb] at h; simp at h
-  | some xs =>
-    cases he : denoteE st e with
-    | none => rw [hb, he] at h; simp at h
-    | some x =>
-      rw [hb, he] at h
-      exact ⟨xs, x, (Option.some.inj h).symm, rfl⟩
-
 /-- con-leche: none — `denoteBP_someB` at any pure peel (`stripLams`'s too):
 the binders and the residual both denote. -/
 theorem denoteBP_someB' {st : EStore} {v : Option (List (Expr × BinderMeta) × Expr)}
@@ -1120,31 +1030,6 @@ theorem denoteBP_someB' {st : EStore} {v : Option (List (Expr × BinderMeta) × 
       rw [hb, he] at h
       refine ⟨xs, x, (Option.some.inj h).symm, ?_, rfl⟩
       rw [denoteBinders_eq_denoteBL]; exact hb
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean resetMeta — `resetMetaFast` in run
-form at this tier's frame. -/
-theorem resetMeta_pstep {fuel : Nat} {s₀ s' : AState} {e r : EIdx} {eP : Expr}
-    (hok : StateOK s₀) (hd : denoteE s₀.store e = some eP)
-    (hrun : Arena.resetMetaFast fuel e s₀ = .ok (r, s')) :
-    PStep s₀ s' ∧ denoteE s'.store r = some eP.resetMeta := by
-  obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
-    (ExprOps.resetMetaFast_spec fuel s₀ e hok (by rw [hd]; rfl))
-  exact ⟨PStep.of_caches h1 h2 h3 h4 h5, h7 eP hd⟩
-
-/-- con-leche: none — the recogniser's binder comparison "`resetMeta a ==
-resetMeta b`" in run form. -/
-theorem resetPair_pstep {fuel : Nat} {s₀ s' : AState} {a b : EIdx} {aP bP : Expr}
-    {r : Bool} (hok : StateOK s₀) (ha : denoteE s₀.store a = some aP)
-    (hb : denoteE s₀.store b = some bP)
-    (hrun : (do pure ((← Arena.resetMetaFast fuel a) == (← Arena.resetMetaFast fuel b)) :
-      AM Bool) s₀ = .ok (r, s')) :
-    PStep s₀ s' ∧ r = (aP.resetMeta == bP.resetMeta) := by
-  obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
-  obtain ⟨p1, hx⟩ := resetMeta_pstep hok ha k1
-  obtain ⟨y, s2, k2, z2⟩ := bindOk z1
-  obtain ⟨p2, hy⟩ := resetMeta_pstep p1.ok (denote_ext hb p1.ext) k2
-  obtain ⟨rfl, rfl⟩ := pureOk z2
-  exact ⟨p1.trans p2, beq_ehandle_eq p2.ok.wf (denote_ext hx p2.ext) hy⟩
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1120-1126 stripLams — the run form
 of `Bridge/ExprOps/Spine.lean`'s closed `stripLams_spec`, `stripPis_pstep`'s
@@ -1210,21 +1095,6 @@ theorem readLevelM_denote_core {μ : CheckMode} {env : Env} {fe : IFEnv}
     denoteL s.store.ls h = some u :=
   readLevelM_denote_L hc.caches.readL q hrun
 
-/-- con-leche: none — `ROp` is monotone in its relation. -/
-theorem ROp.mono {α β : Type} {R R' : β → EStore → α → Prop} {x : Option β}
-    {st : EStore} {r : Option α} (h : ROp R x st r)
-    (hR : ∀ b a, R b st a → R' b st a) : ROp R' x st r := by
-  cases r with
-  | none => exact h
-  | some a => obtain ⟨b, hb, hr⟩ := h; exact ⟨b, hb, hR b a hr⟩
-
-/-- con-leche: none — and it is two-sided at `isSome`. -/
-theorem ROp.isSome {α β : Type} {R : β → EStore → α → Prop} {x : Option β}
-    {st : EStore} {r : Option α} (h : ROp R x st r) : r.isSome = x.isSome := by
-  cases r with
-  | none => simp only [ROp] at h; rw [h]; rfl
-  | some a => obtain ⟨b, hb, _⟩ := h; rw [hb]; rfl
-
 /-! ## `List.mapM` at the pure frame (task #97-P3-Ind round 6)
 
 Group 3's generators map a pure-grade twin over a list (`structTeleAt` over
@@ -1269,45 +1139,6 @@ theorem mapM_pstep {α β γ : Type} (f : α → AM β) (g : α → γ)
       (fun x hx => hPx p1.ext (hP x (by simp [hx]))) k2
     obtain ⟨rfl, rfl⟩ := pureOk hz2
     exact ⟨p1.trans p2, hRx p2.ext hb, hcs⟩
-
-/-- con-leche: none — `List.mapM` of a pure-grade expression map over a
-denoting handle list: the answer denotes the pure map. -/
-theorem mapM_E_pstep {f : EIdx → AM EIdx} {F : Expr → Expr}
-    (hf : ∀ (e : EIdx) (eP : Expr) (s₀ s' : AState) (r : EIdx), StateOK s₀ →
-      denoteE s₀.store e = some eP → f e s₀ = .ok (r, s') →
-      PStep s₀ s' ∧ denoteE s'.store r = some (F eP)) :
-    ∀ (idx : List EIdx) (idxP : List Expr) (s₀ s' : AState) (r : List EIdx),
-      StateOK s₀ → Frontend.denoteEList s₀.store idx = some idxP →
-      idx.mapM f s₀ = .ok (r, s') →
-      PStep s₀ s' ∧ Frontend.denoteEList s'.store r = some (idxP.map F) := by
-  intro idx
-  induction idx with
-  | nil =>
-    intro idxP s₀ s' r hok h hrun
-    simp only [Frontend.denoteEList, Option.some.injEq] at h
-    subst h
-    simp only [List.mapM_nil] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
-    exact ⟨PStep.refl hok, rfl⟩
-  | cons e es ih =>
-    intro idxP s₀ s' r hok h hrun
-    simp only [Frontend.denoteEList] at h
-    cases he : denoteE s₀.store e with
-    | none => rw [he] at h; simp at h
-    | some eP =>
-      cases hes : Frontend.denoteEList s₀.store es with
-      | none => rw [he, hes] at h; simp at h
-      | some esP =>
-        rw [he, hes] at h
-        obtain rfl := (Option.some.inj h).symm
-        simp only [List.mapM_cons] at hrun
-        obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
-        obtain ⟨p1, hx⟩ := hf e eP s₀ s1 x hok he k1
-        obtain ⟨xs, s2, k2, z2⟩ := bindOk z1
-        obtain ⟨p2, hxs⟩ := ih esP s1 s2 xs p1.ok (denoteEList_ext p1.ext _ _ hes) k2
-        obtain ⟨rfl, rfl⟩ := pureOk z2
-        refine ⟨p1.trans p2, ?_⟩
-        simp only [Frontend.denoteEList, List.map_cons, denote_ext hx p2.ext, hxs]
 
 /-- con-leche: none — `List.allM` of a pure-grade test over a denoting
 handle list, with a store invariant `Q` the test may read (the name a
@@ -1354,38 +1185,6 @@ theorem allM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool} (Q : EStore → 
           refine ⟨p1.trans p2, ?_⟩
           simp only [List.all_cons, ← hc, Bool.true_and, hb]
 
-/-- con-leche: none — `List.allM` of a pure-grade test over a list of
-representation-free keys (indices): the verdict is the pure `List.all`. -/
-theorem allM_pstep {α : Type} {f : α → AM Bool} {g : α → Bool}
-    (P : α → EStore → Prop)
-    (hPx : ∀ {a : α} {st st' : EStore}, Ext st st' → P a st → P a st')
-    (hf : ∀ (a : α) (s₀ s' : AState) (b : Bool), StateOK s₀ → P a s₀.store →
-      f a s₀ = .ok (b, s') → PStep s₀ s' ∧ b = g a) :
-    ∀ (xs : List α) (s₀ s' : AState) (b : Bool), StateOK s₀ →
-      (∀ a ∈ xs, P a s₀.store) → xs.allM f s₀ = .ok (b, s') →
-      PStep s₀ s' ∧ b = xs.all g := by
-  intro xs
-  induction xs with
-  | nil =>
-    intro s₀ s' b hok _ hrun
-    simp only [List.allM] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
-    exact ⟨PStep.refl hok, rfl⟩
-  | cons a as ih =>
-    intro s₀ s' b hok hP hrun
-    simp only [List.allM] at hrun
-    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
-    obtain ⟨p1, hc⟩ := hf a s₀ s1 c hok (hP a (by simp)) k1
-    cases c with
-    | false =>
-      obtain ⟨rfl, rfl⟩ := pureOk z1
-      refine ⟨p1, ?_⟩
-      simp only [List.all_cons, ← hc, Bool.false_and]
-    | true =>
-      obtain ⟨p2, hb⟩ := ih s1 s' b p1.ok (fun x hx => hPx p1.ext (hP x (by simp [hx]))) z1
-      refine ⟨p1.trans p2, ?_⟩
-      simp only [List.all_cons, ← hc, Bool.true_and, hb]
-
 /-- con-leche: none — a handle whose view is not a `.const` denotes a term
 that is not one (`Bridge/Core/Walks/Guards.lean`'s `isBoolTrue_of_not_const`
 argument, as a shape fact). -/
@@ -1410,30 +1209,6 @@ theorem denote_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | lit l => rw [denote_lit_inv hwf hv he]; intro _ _ h; cases h
   | proj n i sub =>
     obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; intro _ _ h; cases h
-
-/-- con-leche: none — a denoting telescope's suffix denotes the suffix. -/
-theorem denoteBinders_drop {st : EStore} :
-    ∀ {bs : List (EIdx × BinderMeta)} {xs : List (Expr × BinderMeta)},
-      denoteBinders st bs = some xs → ∀ (n : Nat),
-        denoteBinders st (bs.drop n) = some (xs.drop n) := by
-  intro bs
-  induction bs with
-  | nil => intro xs h n; simp only [denoteBinders, Option.some.injEq] at h; subst h; simp [denoteBinders]
-  | cons b bs ih =>
-    intro xs h n
-    obtain ⟨t, m⟩ := b
-    simp only [denoteBinders] at h
-    cases ht : denoteE st t with
-    | none => rw [ht] at h; simp at h
-    | some tP =>
-      cases hbs : denoteBinders st bs with
-      | none => rw [ht, hbs] at h; simp at h
-      | some rest =>
-        rw [ht, hbs] at h
-        obtain rfl := (Option.some.inj h).symm
-        cases n with
-        | zero => simp only [List.drop_zero, denoteBinders, ht, hbs]
-        | succ n => simp only [List.drop_succ_cons]; exact ih hbs n
 
 /-- con-leche: none — `List.anyM` of a pure-grade test over a denoting
 binder telescope, with a store invariant `Q`: the verdict is the pure
@@ -1498,28 +1273,6 @@ theorem ListRel.toEList {st : EStore} :
     | cons c cs =>
       obtain ⟨h1, h2⟩ := h
       simp only [Frontend.denoteEList, h1, ih h2]
-
-/-- con-leche: none — and at a binder, `denoteBinders`. -/
-theorem ListRel.toBinders {st : EStore} :
-    ∀ {bs : List (EIdx × BinderMeta)} {cs : List (Expr × BinderMeta)},
-      ListRel (fun st b c => denoteE st b.1 = some c.1 ∧ b.2 = c.2) st bs cs →
-      denoteBinders st bs = some cs := by
-  intro bs
-  induction bs with
-  | nil => intro cs h; cases cs with
-    | nil => rfl
-    | cons _ _ => exact h.elim
-  | cons b bs ih =>
-    intro cs h
-    cases cs with
-    | nil => exact h.elim
-    | cons c cs =>
-      obtain ⟨⟨h1, h1'⟩, h2⟩ := h
-      obtain ⟨t, m⟩ := b
-      obtain ⟨x, m'⟩ := c
-      try simp only at h1 h1'
-      subst h1'
-      simp only [denoteBinders, h1, ih h2]
 
 /-! ## `FvarBSpec`, discharged (task #97-P3-Ind round 6)
 
@@ -1715,60 +1468,6 @@ theorem constsResolveFFast_pstep {env : Env} {fe : IFEnv}
   obtain ⟨h1, h2, h3, h4⟩ := constsResolveFFast_runR hok he hrun
   refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.state.wf⟩ (by rw [h1]; exact Ext.refl _)
     (by rw [h1]; exact BMExt.refl _) h2 h3, h4⟩
-
-/-- con-leche: none — a field type's resolution, the body of two of
-`nativeOpenedOk`'s walks. -/
-theorem crFvarType_pstep {env : Env} {fe : IFEnv} (e : EIdx) (eP : Expr)
-    (s₀ s' : AState) (x : Bool) (hok : ReadOK env fe s₀)
-    (he : denoteE s₀.store e = some eP)
-    (hrun : (do Arena.constsResolveFFast fe (← fvarTypeD e) : AM Bool) s₀ = .ok (x, s')) :
-    PStep s₀ s' ∧ x = eP.fvarTypeD.constsResolve env := by
-  obtain ⟨t, s1, k1, z1⟩ := bindOk hrun
-  obtain ⟨hs1, ht⟩ := fvarTypeD_run hok.state he k1
-  rw [hs1] at z1
-  exact constsResolveFFast_pstep hok ht z1
-
-/-- con-leche: none — a pure-grade step carries `CheckOK` (`PStep.toCore`).
-The list lemmas below are `allM_pstep`'s, with the body allowed to read the
-index. -/
-theorem allM_E_ck {env : Env} {fe : IFEnv} {f : EIdx → AM Bool}
-    {F : Expr → Bool}
-    (hf : ∀ (e : EIdx) (eP : Expr) (s₀ s' : AState) (x : Bool), ReadOK env fe s₀ →
-      denoteE s₀.store e = some eP → f e s₀ = .ok (x, s') → PStep s₀ s' ∧ x = F eP) :
-    ∀ (es : List EIdx) (esP : List Expr) (s₀ s' : AState) (x : Bool),
-      ReadOK env fe s₀ → Frontend.denoteEList s₀.store es = some esP →
-      es.allM f s₀ = .ok (x, s') → PStep s₀ s' ∧ x = esP.all F := by
-  intro es
-  induction es with
-  | nil =>
-    intro esP s₀ s' x hok h hrun
-    simp only [Frontend.denoteEList, Option.some.injEq] at h
-    subst h
-    simp only [List.allM] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
-    exact ⟨PStep.refl hok.state, rfl⟩
-  | cons e es ih =>
-    intro esP s₀ s' x hok h hrun
-    simp only [Frontend.denoteEList] at h
-    cases he : denoteE s₀.store e with
-    | none => rw [he] at h; simp at h
-    | some eP =>
-    cases hr : Frontend.denoteEList s₀.store es with
-    | none => rw [he, hr] at h; simp at h
-    | some rest =>
-    rw [he, hr] at h
-    obtain rfl := (Option.some.inj h).symm
-    simp only [List.allM] at hrun
-    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
-    obtain ⟨p1, hc⟩ := hf e eP s₀ s1 c hok he k1
-    cases c with
-    | false =>
-      obtain ⟨rfl, rfl⟩ := pureOk z1
-      exact ⟨p1, by simp only [List.all_cons, ← hc, Bool.false_and]⟩
-    | true =>
-      obtain ⟨p2, hx⟩ := ih rest s1 s' x (hok.mono p1.ok p1.ext p1.pins)
-        (denoteEList_ext p1.ext _ _ hr) z1
-      exact ⟨p1.trans p2, by simp only [List.all_cons, ← hc, Bool.true_and, hx]⟩
 
 /-- con-leche: none — `allM_E_ck` with a store invariant the body may read. -/
 theorem allM_E_ckQ {env : Env} {fe : IFEnv} {f : EIdx → AM Bool}

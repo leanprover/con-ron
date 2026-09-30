@@ -64,11 +64,6 @@ def cfOf : Arena.ClassField → ConLeche.ClassField
   | .ordinary => .ordinary
   | .recursive c t => .recursive c t
 
-/-- con-leche: none — `cfOf` is injective. -/
-theorem cfOf_injective : Function.Injective cfOf := by
-  intro a b h
-  cases a <;> cases b <;> simp_all [cfOf]
-
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:68-81 ClassCtor — a
 class's constructor over handles denotes con-leche's: its constant, its two
 telescopes; the counts and the kinds verbatim. -/
@@ -2979,15 +2974,6 @@ theorem FEq.refl (a : IFEnv) : FEq a a := ⟨rfl, rfl, fun _ => rfl⟩
 theorem FEq.trans {a b c : IFEnv} (h₁ : FEq a b) (h₂ : FEq b c) : FEq a c :=
   ⟨h₁.1.trans h₂.1, h₁.2.1.trans h₂.2.1, fun n => (h₁.2.2 n).trans (h₂.2.2 n)⟩
 
-/-- con-leche: none — `FEq` indexes answer `find?` alike. -/
-theorem FEq.find? {a b : IFEnv} (h : FEq a b) : a.find? = b.find? := by
-  funext n
-  simp only [IFEnv.find?, h.2.2 n, h.2.1]
-
-/-- con-leche: none — coherence moves along `FEq`. -/
-theorem FEq.coh {a b : IFEnv} (h : FEq a b) (hb : IFEnvCoh b) : IFEnvCoh a :=
-  ⟨by rw [h.2.1, h.1]; exact hb.1, fun n => by rw [h.2.2 n, h.1]; exact hb.2 n⟩
-
 /-- con-leche: none — a temporary pop respects `FEq`. -/
 theorem FEq.popTemp {a b : IFEnv} (h : FEq a b) (n : NIdx) (prev : Option (Nat × IConstantInfo)) :
     FEq (a.popTemp n prev) (b.popTemp n prev) := by
@@ -3704,13 +3690,6 @@ theorem checkBlockClasses_spec {μ : CheckMode} {env₁ : Env} (fe₁ : IFEnv)
 denoted. -/
 def dSeed (st : EStore) (q : Arena.NestKey × Nat) : Option (ConLeche.NestKey × Nat) :=
   (dKey st q.1).map (·, q.2)
-
-/-- con-leche: none — `dSeed` survives the arena's growth. -/
-theorem dSeed_ext : DExt dSeed := by
-  intro st st' hx q y h
-  simp only [dSeed, Option.map_eq_some_iff] at h ⊢
-  obtain ⟨k, hk, rfl⟩ := h
-  exact ⟨k, dKey_ext hx _ _ hk, rfl⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:494-499 classSeeds — **the
 seeds**: every OUTSIDE class in the positivity check's representation

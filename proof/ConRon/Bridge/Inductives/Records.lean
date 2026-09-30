@@ -49,22 +49,10 @@ theorem FOk.seq {β : Type} {x : FueledM Unit} {y : FueledM β} {b : β}
     (hx : FOk x ()) (hy : FOk y b) : FOk (x >>= fun _ => y) b :=
   FOk.bind hx hy
 
-theorem FOk.of_eq {α : Type} {p q : FueledM α} {v : α} (h : FOk p v) (e : p = q) :
-    FOk q v := e ▸ h
-
-theorem FOk.not_throw {α : Type} {e : ConLeche.CheckError} {v : α} :
-    ¬ FOk (throw e : FueledM α) v := by
-  rintro ⟨F, h⟩
-  exact nomatch h
-
 /-- con-leche: none — `unless`/`if` with the test known to pass. -/
 theorem FOk.ite_pos {α : Type} {c : Prop} [Decidable c] {x y : FueledM α} {v : α}
     (hc : c) (h : FOk x v) : FOk (if c then x else y) v := by
   rw [if_pos hc]; exact h
-
-theorem FOk.ite_neg {α : Type} {c : Prop} [Decidable c] {x y : FueledM α} {v : α}
-    (hc : ¬ c) (h : FOk y v) : FOk (if c then x else y) v := by
-  rw [if_neg hc]; exact h
 
 /-- con-leche: ConLeche/Verify/BridgeDecl.lean fueledOpsM — a knot call's
 answer, as the Core tier's `SimE` states it, IS an `FOk` of the fueled
@@ -128,18 +116,9 @@ theorem DExt.list {α β : Type} {d : EStore → α → Option β} (h : DExt d) 
   fun hx xs ys hm => mapM_option_ext (fun x y => h hx x y) xs ys hm
 
 theorem dExt_denoteE : DExt denoteE := fun hx _ _ h => denote_ext h hx
-theorem dExt_denoteN : DExt (fun st n => denoteN st.ns n) :=
-  fun hx _ _ h => denoteN_ext h hx
-theorem dExt_denoteL : DExt (fun st u => denoteL st.ls u) :=
-  fun hx _ _ h => denoteL_ext h hx
-theorem dExt_denoteLs : DExt (fun st u => denoteLs st.lss u) :=
-  fun hx _ _ h => denoteLs_ext h hx
 theorem dExt_denoteCV : DExt Frontend.denoteCV := fun hx _ _ h => denoteCV_ext h hx
 theorem dExt_denoteEList : DExt Frontend.denoteEList :=
   fun hx xs ys h => denoteEList_ext hx xs ys h
-theorem dExt_denoteNList : DExt (fun st ns => Frontend.denoteNList st.ns ns) :=
-  fun hx xs ys h => denoteNListE_ext hx xs ys h
-
 /-- con-leche: none — the do-notation form every record denotation below is
 written in: two transported pieces give a transported pair. -/
 theorem option_bind_ext {α β : Type} {o o' : Option α} {f : α → Option β} {y : β}
@@ -250,10 +229,6 @@ def kindOf : Arena.NestFieldKind → ConLeche.NestFieldKind
   | .reflexive t => .reflexive t
   | .inProgress => .inProgress
   | .nested r => .nested r
-
-theorem kindOf_injective : Function.Injective kindOf := by
-  intro a b h
-  cases a <;> cases b <;> simp_all [kindOf]
 
 theorem kindOf_flat (k : Arena.NestFieldKind) :
     (kindOf k).flat = k.flat := by

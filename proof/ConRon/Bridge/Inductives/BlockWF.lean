@@ -93,27 +93,4 @@ theorem checkBlock_envWF {μ : CheckMode} {F : Nat} {env env' : Env}
   · obtain ⟨_, h, -⟩ := exceptBind_ok h
     exact nomatch h
 
-/-- con-leche: Kernel/CheckDecl.lean:32 checkShapeless — a block the
-recogniser does not read never installs (upstream's
-`Semantics.checkShapeless_ne_ok`, at the fueled operations). -/
-theorem checkShapeless_not_ok {μ : CheckMode} {F : Nat} {env env' : Env}
-    {block : List ConstantInfo} :
-    ConLeche.checkShapeless (fueledOps μ F) env block ≠ .ok env' :=
-  ConLeche.Semantics.checkShapeless_ne_ok
-
-/-- con-leche: Kernel/CheckDecl.lean:177 checkDecl (`.indDecl` arm) — an
-accepting run of `checkDecl` at an inductive block that is not a pinned
-basis block yields a well-formed environment. -/
-theorem indDecl_envWF {μ : CheckMode} {F : Nat} {pinsP : List NatOpPinSet} {env env' : Env}
-    {b : List ConstantInfo} {nP : Nat} (henv : EnvWF env)
-    (hpin : ConLeche.basisPinHit b = none)
-    (h : ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.indDecl b nP) = .ok env') :
-    EnvWF env' := by
-  simp only [checkDecl, hpin] at h
-  split at h
-  · split at h
-    · exact checkBlock_envWF henv h
-    · exact absurd h checkShapeless_not_ok
-  · exact nomatch h
-
 end ConRon.Bridge.Inductives

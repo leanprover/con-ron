@@ -71,24 +71,6 @@ theorem mapM_option_getElem?_bind {α β : Type} {f : α → Option β} :
     | zero => simp [hx]
     | succ j => simpa using ih hxs j
 
-/-- con-leche: none — `Option`'s `mapM` of a `map`. -/
-theorem mapM_option_map {α β γ : Type} {f : β → Option γ} {g : α → β} (xs : List α) :
-    (xs.map g).mapM f = xs.mapM (fun x => f (g x)) := by
-  induction xs with
-  | nil => rfl
-  | cons x xs ih => simp only [List.map_cons, List.mapM_cons, ih]
-
-/-- con-leche: none — `Option`'s `mapM` is a `map` when every image is
-`some`. -/
-theorem mapM_option_eq_map {α β : Type} {f : α → Option β} {g : α → β} :
-    ∀ (xs : List α), (∀ x ∈ xs, f x = some (g x)) → xs.mapM f = some (xs.map g) := by
-  intro xs
-  induction xs with
-  | nil => intro _; rfl
-  | cons x xs ih =>
-    intro h
-    exact mapM_option_cons (h x (by simp)) (ih (fun y hy => h y (by simp [hy])))
-
 /-! ## The record's projections -/
 
 /-- con-leche: none — `dShape`, inverted. -/
@@ -254,54 +236,6 @@ theorem BlockShape.allCtors_spec {st : EStore} {p : Arena.BlockShape}
     simp only [List.map_cons, List.flatten_cons, List.mapM_append, hcs, h2,
       Option.bind_eq_bind, Option.pure_def, Option.bind_some]
 
-/-- con-leche: none — the recursor records at an index, read at their two
-counts. -/
-theorem recs_getElem?_spec {st : EStore} {p : Arena.BlockShape}
-    {pP : ConLeche.BlockShape} (h : dShape st p = some pP) (r : Nat) :
-    (p.recs[r]?).map (fun rc => (rc.rP, rc.mI)) =
-      (pP.recs[r]?).map (fun rc => (rc.rP, rc.mI)) := by
-  obtain ⟨ms, rs, el, s, -, hrs, -, -, rfl⟩ := dShape_inv h
-  have hg := mapM_option_getElem?_bind hrs r
-  show _ = (rs[r]?).map _
-  rw [hg]
-  cases hr : p.recs[r]? with
-  | none => rfl
-  | some rc =>
-    simp only [Option.bind_some]
-    cases hd : dRec st rc with
-    | none =>
-      exfalso
-      rw [hr] at hg
-      change rs[r]? = dRec st rc at hg
-      rw [hd] at hg
-      have h1 := List.getElem?_eq_none_iff.mp hg
-      obtain ⟨h2, -⟩ := List.getElem?_eq_some_iff.mp hr
-      have hl := mapM_option_length hrs
-      omega
-    | some rcP =>
-      obtain ⟨cv, rhss, -, -, rfl⟩ := dRec_inv hd
-      rfl
-
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:154-160 BlockShape.rulePrefixAt -/
-theorem BlockShape.rulePrefixAt_spec {st : EStore} {p : Arena.BlockShape}
-    {pP : ConLeche.BlockShape} (h : dShape st p = some pP) (r : Nat) :
-    p.rulePrefixAt r = pP.rulePrefixAt r := by
-  have e := recs_getElem?_spec h r
-  simp only [Arena.BlockShape.rulePrefixAt, ConLeche.BlockShape.rulePrefixAt,
-    List.getD_eq_getElem?_getD]
-  cases h1 : p.recs[r]? <;> cases h2 : pP.recs[r]? <;> rw [h1, h2] at e <;>
-    simp_all <;> rfl
-
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:162-165 BlockShape.majorIdxAt -/
-theorem BlockShape.majorIdxAt_spec {st : EStore} {p : Arena.BlockShape}
-    {pP : ConLeche.BlockShape} (h : dShape st p = some pP) (r : Nat) :
-    p.majorIdxAt r = pP.majorIdxAt r := by
-  have e := recs_getElem?_spec h r
-  simp only [Arena.BlockShape.majorIdxAt, ConLeche.BlockShape.majorIdxAt,
-    List.getD_eq_getElem?_getD]
-  cases h1 : p.recs[r]? <;> cases h2 : pP.recs[r]? <;> rw [h1, h2] at e <;>
-    simp_all <;> rfl
-
 /-! ## `withSort` and `complete` -/
 
 /-- con-leche: none — the twin's three-way `match` on `lvlEq?`'s verdict is
@@ -352,15 +286,6 @@ theorem BlockShape.withSort_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   simp only [ConLeche.BlockShape.withSort]
   generalize Level.isEquiv sP Level.zero = v
   rcases v with _ | _ | _ <;> rfl
-
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:203-206 BlockParts.complete
-— pure on both sides. -/
-theorem BlockParts.complete_spec {st : EStore} {p₀ : Arena.BlockParts}
-    {q₀ : ConLeche.BlockParts} {p₁ : Arena.BlockShape} {q₁ : ConLeche.BlockShape}
-    (_h₀ : dParts st p₀ = some q₀) (h₁ : dShape st p₁ = some q₁) :
-    dParts st (p₀.complete p₁) = some (q₀.complete q₁) := by
-  simp only [dParts, Arena.BlockParts.complete, ConLeche.BlockParts.complete, h₁,
-    Option.map_some]
 
 /-! ## The split -/
 
@@ -2007,18 +1932,6 @@ theorem blockShape?_run {μ : CheckMode} {env : Env} {fe : IFEnv} (nPd : Nat)
            cases x <;> first | exact hy | exact absurd rfl (hns _)
          exact shapeTail_run nPd cvT0 cvR0 cvT0P cvR0P cvTs cvTsP cs csP rs rsP nIdxs y hc q2
            hT0' hR0' hTs' hcs' hrs' hyP z5)
-
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:385-442 blockShape?
-The block's shape, **two-sided**.  **CORE grade**: `isProp` is `lvlEq?`'s
-verdict, the denotation only under `CheckOK`. -/
-theorem blockShape?_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (nPd : Nat)
-    (block : List IConstantInfo) (blockP : List ConstantInfo) :
-    CSpec μ env fe (fun st => Frontend.denoteCIList st block = some blockP)
-      (Arena.blockShape? nPd block)
-      (ROp (fun q st p => dShape st p = some q) (ConLeche.blockShape? nPd blockP)) := by
-  intro s₀ s' r hok hb hrun
-  obtain ⟨hstep, hrel⟩ := blockShape?_run nPd block blockP s₀ s' r hok hb hrun
-  exact ⟨hstep.toCore hok, hrel⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:444-449 blockParts?
 **THE DISPATCH'S RECOGNISER** — `checkBlock` against `checkShapeless` routes

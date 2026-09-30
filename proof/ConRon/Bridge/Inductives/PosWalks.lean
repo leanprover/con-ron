@@ -1341,15 +1341,6 @@ theorem nestKeyMap_rel {st : EStore} {ds holes : List EIdx} {dsP holesP : List E
   · exact getElem?_ROp hds i
   · exact getElem?_ROp hho _
 
-/-- con-leche: none — `ROp RE` transports along `Ext`. -/
-theorem ROpRE_ext {st st' : EStore} (hx : Ext st st') {x : Option Expr}
-    {o : Option EIdx} (h : ROp RE x st o) : ROp RE x st' o := by
-  cases o with
-  | none => exact h
-  | some a =>
-    obtain ⟨b, hb, hd⟩ := h
-    exact ⟨b, hb, denote_ext hd hx⟩
-
 /-! ## The readback block: `fvMapAt`, `replaceFVarsGo`, `replaceFVars`,
 `nestHoleImg` -/
 
@@ -1824,16 +1815,6 @@ theorem nestHoleImg_spec (ctx : Arena.NestCtx) (prog : List Arena.NestHole) :
 **`fvMapAt`**: every map answers its pure function. -/
 theorem fvMapAt_spec (f : Arena.FvMap) (fP : Nat → Option Expr) : FvMapAtSpec f fP :=
   fvMapAt_spec_of f fP (fun ctx prog n _ => nestHoleImg_spec ctx prog n)
-
-/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:775-810 Expr.replaceFVarsGo
-The memoised readback walk computes `replaceFVars fP`. -/
-theorem replaceFVarsGo_spec (f : Arena.FvMap) (fP : Nat → Option Expr) (fuel : Nat)
-    (memo : Std.HashMap EIdx EIdx) (h : EIdx) (hP : Expr) :
-    PSpecP (fun st => FvMapRel st f fP ∧ denoteE st h = some hP ∧ RFMemoOK fP memo st)
-      (Arena.replaceFVarsGo f memo fuel h)
-      (fun st r => denoteE st r.1 = some (Expr.replaceFVars fP hP) ∧
-        RFMemoOK fP r.2 st) :=
-  replaceFVarsGo_spec_of f fP (fvMapAt_spec f fP) fuel memo h hP
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:875-877 Expr.replaceFVarsFast
 **`replaceFVars`**: the pure `Expr.replaceFVars` (con-leche's `@[csimp]`
