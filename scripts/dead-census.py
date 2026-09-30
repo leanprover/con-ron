@@ -87,7 +87,11 @@ MODIFIERS = (r"(?:public\s+|private\s+|protected\s+|partial\s+|noncomputable\s+|
 DECL_RE = re.compile(
     r"^\s*" + MODIFIERS +
     r"(theorem|def|abbrev|instance|structure|inductive|class|opaque|axiom|lemma)"
-    r"\s+([A-Za-z_][A-Za-z0-9_'!?]*(?:\.[A-Za-z_][A-Za-z0-9_'!?]*)*)")
+    # A Lean identifier component may carry Unicode letters and subscripts
+    # (`AOut₀`, `extract_go₁`): `[^\W\d]` is any letter, `\w` includes `₀`.
+    # With ASCII-only components such a declaration was folded into a prefix
+    # that is no declaration, and so was never an owner (task #105 SW-R2).
+    r"\s+((?:[^\W\d]|_)[\w'!?]*(?:\.(?:[^\W\d]|_)[\w'!?]*)*)")
 REGISTERED_RE = re.compile(
     r"^\s*" + MODIFIERS +
     r"(?:syntax|macro|elab|notation|instance|macro_rules|declare_syntax_cat)\b"
