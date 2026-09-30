@@ -21,7 +21,7 @@ SUBJECT the arena still calls:
 | infrastructure | `SimpSets`, `Abs`, `Fixpoint` (`partial_induct`: `fixpoint_induct` for an `= ok` motive, task #99-PFIX; `Scalars` was deleted at task #97-PRUNE: nothing imported it) |
 | runtime primitives (`ron/`) | `Nat`, `HashMap`, `HashMapWF`, `HashMap2`, `HashMap2WF` |
 | representation-free types (`kernel/`) | `Name`, `Level`, `PropWhen`, `Expr`, `ExprOps`, `ExprOpsFields`, `ExprOpsSubst`, `ExprOpsSpine`, `ExprOpsMeta`, `Env`, `FEnv`, `Canon`, `PropRead` |
-| `core_k`'s readers, names, literals and shape guards | `CoreKBase`, `CoreKNames`, `CoreKVec`, `CoreKLits`, `CoreKSupport`, `CoreKGuards`, `CoreKNatOps`, `CoreKShapes`, `CoreKInfer`, `CoreKProj`, `CoreKPinned` |
+| `core_k`'s readers, names, literals and shape guards | `CoreKBase`, `CoreKNames`, `CoreKVec`, `CoreKLits`, `CoreKSupport`, `CoreKGuards`, `CoreKNatOps`, `CoreKShapes`, `CoreKInfer`, `CoreKProj` (`CoreKPinned` deleted, task #105-DC-refine: every declaration in it was dead) |
 | the pinned data | `BasisTables`, `BasisNames`, `BasisRaw`, `BasisPins`, `StdAxioms`, `TrustAxioms` |
 | the `con-ron-pins/1` decoder | `PinsDec`, `PinsAscii`, `PinsBytes`, `PinsAbs`, `PinsSplit`, `PinsRecords`, `PinsRead`, `PinsRun`, `Pins` |
 

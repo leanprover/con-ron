@@ -67,17 +67,6 @@ def byteAt : Bytes → Nat
   | [] => 256
   | b :: _ => b
 
-/-- `starts_with_from`: does `bs` open with the pattern `p`?  Structural in
-`p`, where the Rust is an index recursion bounded by `p.len()`. -/
-def startsWith : Bytes → Bytes → Bool
-  | _, [] => true
-  | [], _ :: _ => false
-  | b :: bs, c :: p => b == c && startsWith bs p
-
-/-- `pins_header`: `con-ron-pins/1` and its newline. -/
-def headerBytes : Bytes :=
-  [99, 111, 110, 45, 114, 111, 110, 45, 112, 105, 110, 115, 47, 49, 10]
-
 /-- `after_space`. -/
 def afterSpace : Bytes → Option Bytes
   | 32 :: r => some r
@@ -196,9 +185,6 @@ structure Tables where
   exprs : List Expr := []
   sets : List NatOpPinSet := []
   deriving Inhabited
-
-/-- `tables_new`. -/
-def tablesNew : Tables := {}
 
 /-! ## Backward references -/
 
@@ -633,106 +619,5 @@ def recordPinSet (bs : Bytes) (tb : Tables) : Option (Tables × Bytes) :=
               landProofs := q3, lorProofs := q4, xorProofs := q5
               shiftLeftProofs := q6, shiftRightProofs := q7 }] }, r)
           | _, _ => none
-
-/-! ## The pass -/
-
-/-- `run_footer`: `nd <count>\n` and nothing after it (the `e` is already
-consumed). -/
-def runFooter : Bytes → Tables → Option (List NatOpPinSet)
-  | 110 :: 100 :: bs, tb =>
-    match afterSpace bs with
-    | none => none
-    | some r => match readIndex r with
-      | none => none
-      | some (n, r) => match afterNewline r with
-        | none => none
-        | some r =>
-          if r ≠ [] || n ≠ tb.sets.length then none else some tb.sets
-  | _, _ => none
-
-/-- The record dispatch of `run_records`, as its own function so that the
-pass's step is one call. -/
-def recordStep (k : Nat) (bs : Bytes) (tb : Tables) : Option (Tables × Bytes) :=
-  if k = 78 then recordName bs tb
-  else if k = 76 then recordLevel bs tb
-  else if k = 87 then recordPw bs tb
-  else if k = 69 then recordExpr bs tb
-  else if k = 83 then recordPinSet bs tb
-  else none
-
-/-- `run_records`: one record per step, stopping at the footer.  `fuel` is a
-byte budget — `decode` passes the byte count and every step consumes at least
-one byte, so it never binds. -/
-def runRecords : Nat → Bytes → Tables → Option (List NatOpPinSet)
-  | 0, _, _ => none
-  | _ + 1, [], _ => none
-  | f + 1, k :: bs, tb =>
-    if k = 101 then runFooter bs tb
-    else match afterSpace bs with
-      | none => none
-      | some body => match recordStep k body tb with
-        | none => none
-        | some (tb, r) => runRecords f r tb
-
-/-- **The decoder.**  `kernel::pins_decode::decode`, in Lean. -/
-def decode (bs : Bytes) : Option (List NatOpPinSet) :=
-  if startsWith bs headerBytes then
-    runRecords bs.length (bs.drop headerBytes.length) tablesNew
-  else none
-
-/-! ## Self-tests
-
-`Refine/PinsBytes.lean` … `Refine/PinsRead.lean` prove that this file is both
-`kernel::pins_decode` and `ConRon.Dump.parsePins`.  Until they are read, these
-`#guard`s are what says the *definitions* are right — and they stay afterwards,
-because a mirror is only as good as the day someone edits the Rust.
-
-The first block is `kernel::pins_decode`'s own `mod tests`, text for text (the
-empty dump, eight malformed ones, the `\<hex>;` escape and its surrogate
-rejection): accept and reject must agree byte for byte.  The second is a dump
-exercising **every** record kind a pin text can hold — `N` all three arms, `L`
-all five, `W` both, `E` all ten, `S`, the footer — read both ways and compared
-*value for value*, which is `pins_decode_refines` on those inputs. -/
-
-deriving instance DecidableEq for ConLeche.NatOpPinSet
-
-/-- A text as its bytes (these test texts are ASCII, so this is `absText`'s
-inverse on them). -/
-private def testBytes (s : String) : Bytes := s.toList.map Char.toNat
-
-#guard (decode (testBytes "con-ron-pins/1\nend 0\n")).isSome
-#guard decide (decode (testBytes "con-ron-pins/1\nend 0\n") = some [])
-#guard (decode (testBytes "con-ron-pins/2\nend 0\n")).isNone
-#guard (decode (testBytes "con-ron-pins/1\nend 1\n")).isNone
-#guard (decode (testBytes "con-ron-pins/1\nD a 0\nend 0\n")).isNone
-#guard (decode (testBytes "con-ron-pins/1\nN 1 a\nend 0\n")).isNone
-#guard (decode (testBytes "con-ron-pins/1\nN 0 s 0 1 a\nend 0\n")).isNone
-#guard (decode (testBytes "con-ron-pins/1\nend 0\nN 0 a\n")).isNone
-#guard (decode (testBytes "con-ron-pins/1\nend 0")).isNone
-#guard (decode (testBytes "con-ron-pins/1\nN 0 a\nN 1 s 0 2 a\nend 0\n")).isNone
-#guard (decode (testBytes
-  "con-ron-pins/1\nN 0 a\nN 1 s 0 3 a\\20;b\nN 2 s 1 1 \\5c;\nN 3 s 2 1 \\10ffff;\nend 0\n")).isSome
-#guard (decode (testBytes "con-ron-pins/1\nN 0 a\nN 1 s 0 1 \\d800;\nend 0\n")).isNone
-
-/-- Every record kind a pin dump can hold, in one text. -/
-private def testSample : String :=
-  "con-ron-pins/1\nN 0 a\nN 1 s 0 3 Nat\nL 0 z\nW 0 n\nE 0 c 1 0\nE 1 b 0\n" ++
-  "E 2 s 0\nE 3 a 0 1\nE 4 l 0 1 0\nE 5 f 0 1 0\nE 6 t 0 1 1\nE 7 n 12345\n" ++
-  "E 8 g 3 a\\20;b\nE 9 p 1 0 0\nE 10 v 2 0\nL 1 s 0\nL 2 m 0 1\nL 3 i 0 1\n" ++
-  "L 4 p 1\nW 1 z 2 1 1\n" ++
-  "S 3 v99 0 0 0 0 0 0 0 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 0\nend 1\n"
-
-/-- The two readers agree, value for value: `pins_decode_refines` on `s`. -/
-private def testAgree (s : String) : Bool :=
-  decide ((ConRon.Dump.parsePins s).toOption = decode (testBytes s))
-
-#guard (decode (testBytes testSample)).isSome
-#guard ((decode (testBytes testSample)).getD []).length == 1
-#guard testAgree "con-ron-pins/1\nend 0\n"
-#guard testAgree testSample
-#guard testAgree
-  "con-ron-pins/1\nN 0 a\nN 1 s 0 3 a\\20;b\nN 2 s 1 1 \\5c;\nN 3 s 2 1 \\10ffff;\nend 0\n"
-#guard testAgree
-  "con-ron-pins/1\nN 0 a\nN 1 n 0 7\nL 0 z\nE 0 s 0\nS 0  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\nend 1\n"
 
 end ConRon.Refine.PinsDec

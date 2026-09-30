@@ -25,18 +25,6 @@ namespace ConRon.Refine
 
 /-! ## The abstractions -/
 
-/-- A `&str` of the model as a Lean `String`.  Aeneas models `Str` as
-`Slice U8` (`Aeneas/Std/StringDef.lean`) and a `&str` *constant* as
-`toStr "…"`, so this is the left inverse of `toStr` on the constant: the bytes
-are UTF-8 by construction, and `String.fromUTF8?` is total on them.  A
-malformed byte string abstracts to `""`, which no statement below relies on —
-`absText (toStr s) = s` (`absText_toStr`) is what is used, and that is generic
-in `s`. -/
-def absText (t : Str) : String :=
-  match String.fromUTF8? ⟨(t.val.map (fun b => UInt8.ofNat b.val)).toArray⟩ with
-  | some s => s
-  | none => ""
-
 /-- A pin variant of the model as `ConLeche.NatOpPinSet`
 (`ConLeche/Kernel/NatOpPinSet.lean:26-49`): the toolchain string, the eight
 pinned defining expressions and the eight certificate lists, field for field,
@@ -78,56 +66,11 @@ list back never touches it) followed by `String.fromUTF8?_toByteArray`.  The
 alternative — evaluating anything about the literal — is what the measurement
 in `pins_text_decodes` rules out. -/
 
-/-- `ByteArray.toList` is its array's list.  Lean 4.33's core defines
-`ByteArray.toList` as a reverse-accumulating loop and proves nothing about it
-(Aeneas hits the same wall and proves the sibling `length_toList` by hand in
-`Aeneas/Std/String.lean`), so the loop invariant is spelled out here: at index
-`i` with accumulator `r`, the loop yields `r.reverse ++ drop i`. -/
-theorem ByteArray.toList_eq (b : ByteArray) : b.toList = b.data.toList := by
-  have h : ∀ i r, ByteArray.toList.loop b i r
-      = r.reverse ++ b.data.toList.drop i := by
-    intro i r
-    fun_induction ByteArray.toList.loop b i r with
-    | case1 i r hi ih =>
-      rw [ih]; simp
-      have hlt : i < b.data.toList.length := by rw [Array.length_toList]; exact hi
-      rw [List.drop_eq_getElem_cons hlt]
-      have : b.data[i]! = b.data[i]'(by rw [← Array.length_toList]; exact hlt) :=
-        getElem!_pos b.data i (by rw [← Array.length_toList]; exact hlt)
-      simp [ByteArray.get!, this]
-    | case2 i r hi => simp; omega
-  rw [ByteArray.toList]
-  simpa using h 0 []
-
 /-- The byte a `U8` of the model abstracts to is the byte it was made from:
 `toStr`'s `UInt8 → U8` map is undone by `absText`'s `U8 → UInt8` one. -/
 @[simp] theorem u8_ofNat_val (a : UInt8) :
     UInt8.ofNat (a.toBitVec#uscalar : U8).val = a := by
   unfold Std.UScalar.val; simp [UInt8.ofNat]
-
-/-- Decoding a string's own UTF-8 gives the string back.  `String` is a
-structure over a `ByteArray` with a validity field in 4.33, so this is
-`dif_pos` on that field. -/
-theorem String.fromUTF8?_toByteArray (s : String) :
-    String.fromUTF8? s.toByteArray = some s := by
-  simp [String.fromUTF8?, s.isValidUTF8, String.fromUTF8]
-
-/-- **`absText` undoes `toStr`**, for every string and independently of how the
-`toStr` bound was proved — the bound is a *parameter*, and `Slice.from_val`
-reads the list back without looking at it.  This is the one lemma that turns a
-statement about the Rust constant into a statement about a Lean string literal
-at **zero** kernel cost: `PINS_TEXT` is by definition `toStr "…"`, so
-`absText PINS_TEXT` is that literal after one `delta` step and nothing is ever
-evaluated. -/
-theorem absText_toStr (s : String) (h : s.toByteArray.size ≤ U32.max) :
-    absText (toStr s h) = s := by
-  unfold absText toStr
-  simp [Slice.from_val, ByteArray.toList_eq, Function.comp_def]
-  -- `{ data := s.toByteArray.data }` *is* `s.toByteArray` (structure eta), which
-  -- `show` sees and `rw` cannot: the hidden validity proof depends on it.
-  show (match String.fromUTF8? s.toByteArray with | some s => s | none => "") = s
-  rw [String.fromUTF8?_toByteArray]
-
 
 /-! ## The decoder's byte string and state
 

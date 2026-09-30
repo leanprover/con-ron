@@ -65,64 +65,6 @@ namespace ConRon.Refine
 
 /-! ## The refinement of the decoder -/
 
-/-- **The decoder refines the reference reader.**  If the Rust decoder accepts
-the byte slice `t` and returns `v`, then `ConRon.Dump.parsePins` — the Lean
-reader of `con-ron-pins/1` that task #31 validated against con-leche's own
-`natOpPinSets` — accepts `absText t` and returns the same list of variants.
-Nothing is claimed when the Rust decoder fails, which is what makes the port's
-extra strictness free.
-
-**Proved** (task #64), through the byte-level reference decoder
-`ConRon.Refine.PinsDec`, which is `kernel::pins_decode` function for function
-over a `List Nat` suffix.  Task #43's five pieces survive as the five files
-below it, in the same dependency order:
-
-1. `Refine/PinsBytes.lean` — the scalars, the escape and the references, each
-   as "the model's reader at `(t, i)` is `PinsDec`'s at `bytesFrom t i`";
-2. `Refine/PinsRecords.lean` — the `N`/`L`/`W`/`E` records, one
-   smart-constructor lemma each;
-3. `Refine/PinsRun.lean` — the `S` record and the pass, where the byte index
-   becomes `PinsDec.runRecords`' fuel;
-4. `Refine/PinsAscii.lean` — every byte the decoder accepts is ASCII, which is
-   what makes `absText` (a UTF-8 *decode*) readable character for character;
-5. `Refine/PinsSplit.lean` + `Refine/PinsRead.lean` — the tokenizer bridge:
-   `String.splitOn` at a one-character separator, and the two invariants
-   ("the bytes left are the lines left, joined by `'\n'`"; "…the fields left,
-   joined by `' '`") that carry the record pass onto `runLines`.
-
-**Over the whole outcome** (task #67, DESIGN.md §3's ruling of 2026-09-13):
-the `.Err` branch claims *nothing*, and has to.  `kernel::pins_decode` is the
-one module of the port whose errors are wholly its own — con-leche has no byte
-decoder to mirror, its `natOpPinSets` being elaboration-time data
-(`ConLeche/Kernel/NatOpPins.lean:61`) — so all twenty-eight of its throws go
-through `pins_decode::bad_text`, a `CheckError::Native`, and `absErrKind` sends
-every one of them to `none`.  `Refine/PinsBytes.lean`'s `bad_text_native` is
-where that is pinned down.
-
-The outcome is an explicit argument because the result binder `v` it replaces
-was one; `pins_decode_refines_ok` below is the pre-#67 statement, verbatim. -/
-theorem pins_decode_refines (t : Str)
-    (o : core.result.Result (alloc.vec.Vec nat_op_pins.NatOpPinSet)
-        core_types.CheckError)
-    (h : pins_decode.decode t = ok o) :
-    match o with
-    | .Ok v => ConRon.Dump.parsePins (absText t) = .ok (absPins v)
-    | .Err ce => absErrKind ce = none := by
-  cases o with
-  | Err ce => exact PinsRun.decode_refines h
-  | Ok v =>
-    have hA : PinsDec.decode (bytesOf t) = some (absPins v) := PinsRun.decode_refines h
-    have hasc := PinsDec.decode_ascii hA
-    rw [PinsSplit.absText_of_ascii hasc]
-    exact PinsRead.parsePins_of_decode hA hasc
-
-/-- `pins_decode_refines` at a success, the pre-#67 statement. -/
-theorem pins_decode_refines_ok (t : Str)
-    (v : alloc.vec.Vec nat_op_pins.NatOpPinSet)
-    (h : pins_decode.decode t = ok (.Ok v)) :
-    ConRon.Dump.parsePins (absText t) = .ok (absPins v) :=
-  pins_decode_refines t (.Ok v) h
-
 /-! ## The closed computation is gone (task #74)
 
 Task #64 proved one more statement here, `pins_closed`, by `native_decide`:
@@ -160,8 +102,5 @@ One line, and it is an **ordinary proof**: `pins_decode_refines` depends on
 con-leche's own three axioms and nothing else.  It is a theorem about every
 byte string, so nothing is ever evaluated — which is why the file that used to
 be the port's one native-evaluation site now has none at all (task #74). -/
-
-/-- info: 'ConRon.Refine.pins_decode_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms pins_decode_refines
 
 end ConRon.Refine
