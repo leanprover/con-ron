@@ -47,6 +47,80 @@ theorem pos_core_walk_fuel_val : (arena.core.CORE_WALK_FUEL).val = coreWalkFuel 
 
 attribute [local lockstep_simp] pos_core_walk_fuel_abs pos_core_walk_fuel_val
 
+/-- `arena::pins::pins_ready` ⊑ `pinsReady` (`Core/LS/PrimsA1.lean`'s
+`pins_ready_run₀`, restated below the core tier). -/
+theorem pos_pins_ready_run₀ {pers st lst} {o : Bool}
+    (hrel : AStateRel₀ pers st lst)
+    (hrun : arena.pins.pins_ready st = ok o) :
+    o = pinsReady lst := by
+  rw [arena.pins.pins_ready] at hrun
+  have hnames := hrel.pins.names
+  have hlen : lst.pins.names.size = st.pins.names.val.length := by
+    have h := congrArg List.length hnames
+    simpa using h
+  have h2 := Result.ok_injective hrun
+  subst h2
+  show _ = decide (lst.pins.names.size = Arena.pinCount)
+  rw [hlen]
+  have hcount : (arena.pins.PIN_COUNT).val = Arena.pinCount := by
+    rw [arena.pins.PIN_COUNT]; rfl
+  have : (alloc.vec.Vec.len st.pins.names).val = st.pins.names.val.length :=
+    alloc.vec.Vec.len_val _
+  simp only [decide_eq_decide]
+  constructor
+  · intro h; rw [← this, ← hcount, h]
+  · intro h
+    apply Aeneas.Std.UScalar.eq_imp
+    rw [this, hcount, h]
+
+/-- `arena::core::zero_level` ⊑ `zeroLevel` (`Core/LS/Leaves.lean`'s
+`zero_level_ls`, restated below the core tier; LOCAL to this file). -/
+theorem pos_zero_level_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absLIdx a) (arena.core.zero_level st) st lst zeroLevel := by
+  intro o hrun
+  rw [arena.core.zero_level, arena.pins.pin_zero_level] at hrun
+  rw [zeroLevel]
+  obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hbr := pos_pins_ready_run₀ hrel hb
+  have hrun2 : (Arena.pinZeroLevel).run lst
+      = (if Arena.pinsReady lst
+         then Except.ok (lst.pins.zeroLevel, lst)
+         else Except.error
+           (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
+    by_cases h : Arena.pinsReady lst = true
+    · rw [if_pos h]
+      show (Arena.pinZeroLevel) lst = _
+      rw [Arena.pinZeroLevel]
+      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+        Pure.pure, StateT.pure, Except.pure, Except.bind, if_pos h]
+    · simp only [Bool.not_eq_true] at h
+      rw [if_neg (by simp [h])]
+      show (Arena.pinZeroLevel) lst = _
+      rw [Arena.pinZeroLevel]
+      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+        Pure.pure, Except.pure, Except.bind, h, Bool.false_eq_true, if_false,
+        Arena.fail, throwThe, MonadExceptOf.throw, Function.comp_apply, StateT.lift]
+  split at hrun
+  case isTrue hbt =>
+    obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have h2 := Result.ok_injective hrun
+    subst h2
+    rw [dupId_lidx _ _ hl]
+    refine ⟨_, lst, ?_, rfl, hrel, hinv⟩
+    rw [hrun2, if_pos (by rw [← hbr, hbt]), hrel.pins.zeroLevel]
+  case isFalse hbf =>
+    obtain ⟨sl, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨cps, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [arena.monad.fail] at hrun
+    have h2 := Result.ok_injective hrun
+    subst h2
+    refine AErrSim.internal (s := "arena: reserved-name pins not interned") ?_
+    rw [hrun2, if_neg (by simp only [← hbr]; simpa using hbf)]
+
+attribute [local lockstep] pos_zero_level_ls
+attribute [local lockstep_inline] arena.inductives.positivity.sort_zero
+
 /-! ## The name-list scans -/
 
 /-- `names_contain` ⊑ `List.contains` from the cursor on. -/
@@ -855,5 +929,36 @@ theorem root_hole_spec (ctx : arena.inductives.positivity.NestCtx) (j : Std.Usiz
   · cases Result.ok_injective h
     rw [if_neg (by simp [absU]; scalar_tac)]
     rfl
+
+/-! ## The read-back block: `fv_map_at`, `replace_fvars*`, `nest_hole_img` -/
+
+@[lockstep_simp] theorem absFvMap_holeImg (m : arena.inductives.positivity.HoleImgMap) :
+    absFvMap (.HoleImg m) = .holeImg (absNestCtx m.ctx) (m.prog.val.map absNestHole) (absU m.n) :=
+  rfl
+@[lockstep_simp] theorem absFvMap_keyMap (ds holes : alloc.vec.Vec arena.handle.EIdx) :
+    absFvMap (.KeyMap ds holes) = .keyMap (absEIdxL ds) (absEIdxL holes) := rfl
+@[lockstep_simp] theorem absFvMap_erase : absFvMap .Erase = .erase := rfl
+@[lockstep_simp] theorem absFvMap_canon (p : alloc.vec.Vec arena.handle.EIdx) :
+    absFvMap (.Canon p) = .canon (absEIdxL p) := rfl
+
+/-- `fv_map_at` at the three variants that do not read back. -/
+theorem fv_map_at_flat_ls {pers} (f : arena.inductives.positivity.FvMap)
+    (hf : ∀ m, f ≠ .HoleImg m) (i : Std.U64) :
+    ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a.map absEIdx)
+        (arena.inductives.positivity.fv_map_at pers st f i) lst
+        (fvMapAt (absFvMap f) (absU i)) := by
+  intro st lst hrel hinv
+  cases f with
+  | HoleImg m => exact absurd rfl (hf m)
+  | KeyMap ds holes =>
+    rw [arena.inductives.positivity.fv_map_at, absFvMap_keyMap, fvMapAt]
+    lockstep
+  | Erase =>
+    rw [arena.inductives.positivity.fv_map_at, absFvMap_erase, fvMapAt]
+    lockstep
+  | Canon p =>
+    rw [arena.inductives.positivity.fv_map_at, absFvMap_canon, fvMapAt]
+    lockstep
 
 end ConRon.Refine2
