@@ -16,11 +16,11 @@ an `InstRel`.
 ## `checkStructDomsAtFA`'s `Array` spelling
 
 con-leche has a second copy of `checkStructDomsAtF` over `Array Expr`
-(`StructInstallF.lean:38-48`) because its caller holds an array; the twin's
+(`StructInstallF.lean:36-46`) because its caller holds an array; the twin's
 list version serves both (deviation 1), and the `Array` statement is the list
 one at `hs.toList` — which is what `Frontend.denoteEArray` is defined as.
 -/
-import ConRon.Bridge.Inductives.NativeParts
+import ConRon.Bridge.Inductives.StructParts
 
 namespace ConRon.Bridge.Inductives
 
@@ -64,9 +64,9 @@ theorem checkStructDomsAt_mono {μ : CheckMode} {env : Env} {F F' : Nat}
         simp only [if_true] at h ⊢
         exact ih h
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:32-51 checkStructDomsAt
-con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:27-36 checkStructDomsAtF
-con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:38-48 checkStructDomsAtFA
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:31-50 checkStructDomsAt
+con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:25-34 checkStructDomsAtF
+con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:36-46 checkStructDomsAtFA
 The first `j` parameter domains are definitionally the declared ones.  A
 `Unit` answer: what it claims is that con-leche's own check SUCCEEDS at some
 fuel.
@@ -80,8 +80,8 @@ walk (`ConLeche.isDefEqCore_mono` at `max`).
 `EnvWF env`) and at WELL-SCOPED arguments (`Expr.WScoped` at the depth of the
 comparison, `off + i` at the `i`-th pair).  `Bridge/Checker/Base.lean`'s
 `checkDefEqList_bridge` carries exactly the same two for exactly the same
-reason.  Nothing consumes this statement yet (the arena's install inlines no
-call to it), so no caller moved. -/
+reason.  `checkStructDomsAt_specF` below is the form the constructors' stage
+(`checkSumCtor_spec`) consumes. -/
 theorem checkStructDomsAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (off : Nat)
     (fvs doms : List EIdx) (fvsP domsP : List Expr) (j : Nat)
@@ -149,8 +149,8 @@ theorem checkStructDomsAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 
 /-! ## The projection table -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:53-86 checkStructProjTable
-con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:73-95 checkStructProjTableF
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-85 checkStructProjTable
+con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-93 checkStructProjTableF
 **The structure-like block's projection table**: one constant per structure
 (task #175 S1), carrying the fields' bodies off the annotated constructor type
 and the guard levels the constructors' stage measured.
@@ -163,10 +163,10 @@ this is the one theorem where that field has content.  `IProjTableOK`'s three
 clauses are `bodies.size = numFields` (the twin's own `unless bodies.size =
 nF`), `guards.length = numFields` and the table's two names (the twin's
 `let tn ← projTableName T`).  The middle one is about an ARGUMENT, so the
-install cannot test it and does not: `hg` is it, and
-`checkNativeTable_spec` — the caller that builds `structProjGuards cA.1.type
-p.nP cA.2 sorts` and passes it beside `cA.2` — discharges it from
-`structProjGuards_length`.  `Bridge/Checker/Inv.lean`'s
+install cannot test it and does not: `hg` is it, and the caller — the uniform
+route's `checkBlockTables` (`Arena/Inductives/BlockTail.lean`), which builds
+`structProjGuards cA.1.type nP cA.2 sorts` and passes it beside `cA.2` —
+discharges it from `structProjGuards_length`.  `Bridge/Checker/Inv.lean`'s
 `projTableOK_of_install` is the same statement at the same hypothesis, stated
 there so that `IFEnvOK`'s new field has one named debtor; this is its site.
 
@@ -323,5 +323,35 @@ theorem checkStructProjTable_run (fe : IFEnv) (env : Env)
     rw [if_pos ⟨hsizeP, by rw [← Array.all_toList]; exact hall⟩,
       if_pos hg2, if_pos hg3']
   · exact ProjOut.push_table hcoh _ ⟨hsize, hg, TP, denoteN_ext hT x06, htn⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-85 checkStructProjTable
+con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-93 checkStructProjTableF
+**The monad-generic form** (task #105): `checkStructProjTable_run` with the
+install's `InstRel` naming con-leche's table stage at `FueledM`, the monad the
+uniform route's `checkBlockTables` runs it in (`ConLeche/Kernel/Inductives/
+BlockTail.lean`).  The stage calls no operation, so the fuel is immaterial:
+`checkStructProjTable_datF` is `rfl` at every fuel. -/
+theorem checkStructProjTable_runF (fe : IFEnv) (env : Env)
+    (T C : NIdx) (TP CP : ConLeche.Name) (lps : List NIdx)
+    (lpsP : List ConLeche.Name) (nP nF : Nat) (resSort : LIdx)
+    (resSortP : Level) (guards : List LIdx) (guardsP : List Level) (off : Nat)
+    (cvCa : IConstantVal) (cvCaP : ConstantVal)
+    (hg : guards.length = nF) (hcoh : IFEnvCoh fe) :
+    PSpecP
+      (fun st => denoteN st.ns T = some TP ∧ denoteN st.ns C = some CP ∧
+        Frontend.denoteNList st.ns lps = some lpsP ∧
+        denoteL st.ls resSort = some resSortP ∧
+        denoteLList st.ls guards = some guardsP ∧
+        Frontend.denoteCV st cvCa = some cvCaP ∧
+        denoteFEnv st fe = some env ∧ IFEnvOKS env fe st)
+      (Arena.checkStructProjTable T C lps nP nF resSort guards off cvCa fe)
+      (InstRel fe (fun env' =>
+        FOk (ConLeche.checkStructProjTable TP CP lpsP nP nF resSortP guardsP off cvCaP env
+          : FueledM Env) env')) := by
+  intro s₀ s' r hok hpins hpre hrun
+  obtain ⟨hstep, hrel⟩ := checkStructProjTable_run fe env T C TP CP lps lpsP nP nF resSort
+    resSortP guards guardsP off cvCa cvCaP hg hcoh s₀ s' r hok hpins hpre hrun
+  obtain ⟨env', hd, hP⟩ := hrel.denote
+  exact ⟨hstep, { hrel with denote := ⟨env', hd, 0, by rw [checkStructProjTable_datF]; exact hP⟩ }⟩
 
 end ConRon.Bridge.Inductives

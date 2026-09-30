@@ -35,6 +35,13 @@ against `Refine2/Frontend/SpecInd.lean`'s transcriptions, which keep the
 twin's own `forIn` encoding so that `validateIndD_unfold` is `rfl` (ruling
 F12, task #97-T2-LOCKSTEP).
 
+**Task #105** (con-leche's `uniform-inds` merge) leaves `validate_ind_d`
+untouched — every guard is still the parse's own — but deletes `install_ind_d`'s
+projection-owner table, block record and modeller gate: the kernel's uniform
+installer does what they used to, so `note_ind_blocks_refines`,
+`install_gen_refines` and `install_ind_tail` are gone and `install_ind_d_refines`
+is a plain `SimD` composition of `ind_block_of_refines` and `push_decl_refines`.
+
 ## `sorry` count in this file: 0
 -/
 import ConRon.Refine2.Frontend.ExportC
@@ -2256,66 +2263,12 @@ theorem ind_block_of_refines {rsd lsd lst tys cts rcs o} (hd : StateDRel rsd lsd
     · subst he
       exact (Result.ok_injective h).symm
 
-/-- **`note_ind_blocks`** — the twin's `b.types.foldl` into `indBlocks`.  The
-port copies the block per member type name where con-leche shares one value
-(§8.5 has no `ron::ptr`); a block is shape data and the copy is on the parse
-path only. -/
-theorem note_ind_blocks_refines {rsd lsd b rsd'} (hd : StateDRel rsd lsd)
-    (hi : StateDInv rsd)
-    (h : frontend.export_c.note_ind_blocks rsd b = ok rsd') :
-    StateDRel rsd'
-      { lsd with indBlocks := (absBlockRec b).types.foldl
-                   (fun m t => m.insert t.cv.name (absBlockRec b)) lsd.indBlocks } ∧
-      StateDInv rsd' := by
-  rw [frontend.export_c.note_ind_blocks] at h
-  have key : ∀ (n : Nat) (i : Std.Usize) (st : frontend.export_c.StateD)
-      (M : Std.HashMap NIdx BlockRec) (st' : frontend.export_c.StateD),
-      b.types.val.length - i.val = n →
-      StateDRel st { lsd with indBlocks := M } → StateDInv st →
-      frontend.export_c.note_ind_blocks_loop st b.types b.ctors b.recs
-        (alloc.vec.Vec.len b.types) i = ok st' →
-      StateDRel st' { lsd with indBlocks := (List.foldl
-          (fun m t => m.insert t.cv.name (absBlockRec b)) M
-          ((absBlockRec b).types.drop i.val)) } ∧ StateDInv st' := by
-    intro n
-    induction n with
-    | zero =>
-      intro i st M st' hn hd hi h
-      rw [frontend.export_c.note_ind_blocks_loop, if_neg (by scalar_tac)] at h
-      cases Result.ok_injective h
-      rw [List.drop_eq_nil_of_le (by simp [absBlockRec]; omega)]
-      exact ⟨hd, hi⟩
-    | succ k ih =>
-      intro i st M st' hn hd hi h
-      have hi' : i.val < b.types.val.length := by omega
-      rw [frontend.export_c.note_ind_blocks_loop, if_pos (by scalar_tac)] at h
-      obtain ⟨mtr, hmtr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hmtr' := vec_index_eq hi' hmtr
-      obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      rw [dupId_nidx _ _ hn1] at h
-      obtain ⟨br, hbr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hbr' := block_rec_dup_refines hbr
-      obtain ⟨⟨old, hm⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨hR, -⟩ := ConRon.Refine.HashMap2.Rel_insert_wf nidx_eq2
-        (fun a b _ _ e => absNIdx_inj e) hi.indBlocks (anyNKeysOk _) hd.indBlocks trivial hins
-      obtain ⟨hI, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen nidx_eq2 hi.indBlocks
-        (anyNKeysOk _) trivial hins
-      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hi2v : i2.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi2).trans (by simp)
-      have hbrb : absBlockRec br = absBlockRec b := hbr'
-      rw [hbrb] at hR
-      have := ih i2 { st with ind_blocks := hm } (M.insert (absNIdx mtr.cv.name) (absBlockRec b))
-        st' (by omega) { hd with indBlocks := hR } { hi with indBlocks := hI } h
-      rw [hi2v] at this
-      rw [show (absBlockRec b).types.drop i.val =
-          absMIndTypeRec mtr :: (absBlockRec b).types.drop (i.val + 1) by
-        simp only [absBlockRec, ← List.map_drop, List.drop_eq_getElem_cons hi', hmtr',
-          List.map_cons], List.foldl_cons]
-      exact this
-  have := key _ 0#usize rsd lsd.indBlocks rsd' rfl hd hi h
-  simpa using this
+/-! ## The install
 
-/-! ## The install and the modeller seam -/
+Task #105 deletes `note_ind_blocks`, `install_gen`/`Modeller` and the
+`install_ind_tail` gate between them: every block installs through the
+kernel's uniform installer now, so `install_ind_d` has nothing left to do but
+build the block and push it (`installIndD_unfold`, `Spec.lean`). -/
 
 /-- **`quot_kind_of`** — the quotient record's `kind` spelling, against the
 twin's four-way `match`.  Needs `StrWF`: `absString` sends an invalid code
@@ -2383,285 +2336,19 @@ theorem quot_kind_of_refines {k o} (hs : ConRon.Refine.StrWF k)
           cases Result.ok_injective h
           split <;> simp_all
 
-/-- **`install_gen`** — the modeller arm of `installIndD`, split for the
-loop-exit reason.  It is where `ModellerRefines` is consumed: the port's
-`m.generate` against the twin's `md.generate`, at `state_model_ctx`'s
-context. -/
-theorem install_gen_refines {G : Type} {inst : frontend.types.Modeller G} {m : G}
-    {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd block n_pd t0 b o}
-    (hmr : ModellerRefines inst m lmd)
+/-- **`install_ind_d` refines `installIndD`** (`Arena/Frontend/ExportC.lean`)
+— every change to the state a validated inductive record makes.  Task #105
+deletes the projection-owner table, the block record and the modeller gate
+that used to follow `ind_block_of` here (the module note above): the port no
+longer touches `pers`/`ar` at all, and the twin's `installIndD` is `AM StateD`
+(no verdict arm — `SimD`, not `SimDV`), so the ambient `pers`/`rst`/`lst` a
+caller has in hand pass straight through unchanged. -/
+theorem install_ind_d_refines {pers rst lst rsd lsd tys cts rcs n_pd o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
-    (h : frontend.export_c.install_gen inst pers m rst rsd block n_pd t0 b = ok o) :
-    SimDV pers lst o
-      (installGen lmd lsd (absICIL block) (absU n_pd) (absNIdx t0)
-        (absBlockRec b)) := by
-  rw [frontend.export_c.install_gen] at h
-  obtain ⟨ctx, hctx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hC := state_model_ctx_refines hd hi hctx
-  obtain ⟨⟨gen, e⟩, hgen, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨lst1, hrel1, hinv1, hG⟩ := hmr.generate hrel hinv hC hgen
-  simp only [withStore] at hrel1 hinv1
-  unfold installGen SimDV
-  dsimp only
-  rw [am_run_bind']
-  cases gen with
-  | Ok gen2 =>
-    simp only at hG h
-    rw [hG, except_ok_bind]
-    obtain ⟨⟨r, ar1, st1⟩, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hP := push_gen_list_refines hrel1 hinv1 hd hi hp
-    unfold SimD at hP
-    simp only
-    rw [am_run_bind']
-    cases r with
-    | Err err =>
-      cases Result.ok_injective h
-      cases err with
-      | Err ce => exact (AErrSim.bind hP _ : AErrSim ce _)
-      | Verdict v => exact hP.elim
-    | Ok u =>
-    obtain ⟨lsd1, lst2, hx2, hd2, hi2, hrel2, hinv2⟩ := hP
-    have hx2' : (pushGenList lsd (List.map absIDeclaration gen2.val) (absNIdx t0)).run lst1
-        = .ok (lsd1, lst2) := hx2
-    rw [hx2', except_ok_bind]
-    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [dupId_nidx _ _ hn] at h
-    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨ord, hord, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hordv := sat_sub_refines hord
-    obtain ⟨copy1, hcopy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hcopyv : copy1.val.map absIDeclaration = gen2.val.map absIDeclaration := by
-      have key : ∀ (k : Nat) (c : alloc.vec.Vec arena.env.IDeclaration) (i : Std.Usize) r,
-          gen2.val.length - i.val = k →
-          frontend.export_c.install_gen_loop gen2 c (alloc.vec.Vec.len gen2) i = ok r →
-          r.val.map absIDeclaration =
-            c.val.map absIDeclaration ++ (gen2.val.drop i.val).map absIDeclaration := by
-        intro k
-        induction k with
-        | zero =>
-          intro c i r hk h
-          rw [frontend.export_c.install_gen_loop, if_neg (by scalar_tac)] at h
-          cases Result.ok_injective h
-          rw [List.drop_eq_nil_of_le (by omega)]; simp
-        | succ k ih =>
-          intro c i r hk h
-          have hi' : i.val < gen2.val.length := by omega
-          rw [frontend.export_c.install_gen_loop, if_pos (by scalar_tac),
-            vec_index_ok_eq gen2 i hi', bind_tc_ok] at h
-          obtain ⟨d2, hd2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-          obtain ⟨c1, hc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-          obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-          have hi3v : i3.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi3).trans (by simp)
-          rw [ih c1 i3 r (by omega) h, ConRon.Refine.vec_push_val hc1, hi3v,
-            List.map_append, List.map_cons, i_declaration_dup_abs hd2, List.map_nil,
-            List.append_assoc, List.singleton_append,
-            show gen2.val.drop i.val = gen2.val[i.val] :: gen2.val.drop (i.val + 1) from
-              List.drop_eq_getElem_cons hi', List.map_cons]
-      have := key _ _ 0#usize copy1 rfl hcopy
-      simpa [alloc.vec.Vec.with_capacity] using this
-    obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨⟨r1, e1, st2⟩, hp2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    cases Result.ok_injective h
-    have hd3 : StateDRel { st1 with in_modelled := v, in_model_gen := v1 }
-        { lsd1 with inModelled := lsd1.inModelled.push (absNIdx t0),
-                    inModelGen := lsd1.inModelGen.push (lsd1.indCount - 1,
-                      (List.map absIDeclaration gen2.val).toArray) } := by
-      refine { hd2 with inModelled := ?_, inModelGen := ?_ }
-      · show lsd1.inModelled.push (absNIdx t0) = absNIdxArr v
-        rw [hd2.inModelled]
-        simp [absNIdxArr, ConRon.Refine.vec_push_val hv]
-      · show lsd1.inModelGen.push _ = _
-        have hordv' : absU ord = absU st1.ind_count - 1 := by rw [hordv]; rfl
-        dsimp only
-        rw [hd2.inModelGen, ConRon.Refine.vec_push_val hv1, hd2.indCount, ← hordv']
-        simp [absIDeclArr, hcopyv]
-    have hPD := push_decl_refines hrel2 hinv2 hd3
-      ⟨hi2.1, hi2.2, hi2.3, hi2.4, hi2.5, hi2.6⟩ hp2
-    have := SimD.toSimDV_inl hPD
-    unfold SimDV at this
-    exact this
-  | Err why =>
-    simp only at hG
-    change (if rsd.in_model_census = true then _ else _) = _ at h
-    obtain ⟨s, hs⟩ := hG
-    rw [hs, except_ok_bind]
-    simp only
-    have hcen : lsd.inModelCensus = rsd.in_model_census := hd.inModelCensus
-    by_cases hc : rsd.in_model_census = true
-    · rw [if_pos hc] at h
-      rw [if_pos (by rw [hcen]; exact hc)]
-      obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      rw [dupId_nidx _ _ hn] at h
-      obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨⟨r1, e1, st2⟩, hp2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      cases Result.ok_injective h
-      have hd3 : StateDRel { rsd with in_model_declined := v }
-          { lsd with inModelDeclined := lsd.inModelDeclined.push (absNIdx t0, s) } := by
-        refine { hd with inModelDeclined := ?_ }
-        show (lsd.inModelDeclined.push (absNIdx t0, s)).map (·.1) = _
-        rw [Array.map_push, hd.inModelDeclined, ConRon.Refine.vec_push_val hv]
-        simp
-      have hPD := push_decl_refines (rst := { rst with store := e }) hrel1 hinv1 hd3
-        ⟨hi.1, hi.2, hi.3, hi.4, hi.5, hi.6⟩ hp2
-      have := SimD.toSimDV_inl hPD
-      unfold SimDV at this
-      dsimp only [withStore] at this ⊢
-      exact this
-    · rw [if_neg hc] at h
-      rw [if_neg (by rw [hcen]; exact hc)]
-      obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hS := show_name_refines (rst := { rst with store := e }) hrel1 hinv1 hr
-      rw [am_run_bind']
-      cases r with
-      | Err err =>
-        cases Result.ok_injective h
-        unfold SimLR at hS
-        cases err with
-        | Err ce =>
-          have hS' : AErrSim ce ((readName (absNIdx t0)).run lst1) := by
-            intro k hk
-            obtain ⟨le, hx, hle⟩ := hS k hk
-            refine ⟨le, ?_, hle⟩
-            revert hx
-            show (Functor.map _ (readName (absNIdx t0))).run lst1 = _ → _
-            cases hq : (readName (absNIdx t0)).run lst1 with
-            | error e' =>
-              intro hx
-              have : ((fun _ => ()) <$> readName (absNIdx t0) : AM Unit).run lst1 = .error e' := by
-                show StateT.run (StateT.map _ _) lst1 = _
-                simp only [StateT.run, StateT.map] at hq ⊢
-                rw [hq]; rfl
-              rw [this] at hx
-              injection hx with he
-              rw [he]
-            | ok p =>
-              intro hx
-              have : ((fun _ => ()) <$> readName (absNIdx t0) : AM Unit).run lst1 = .ok ((), p.2) := by
-                show StateT.run (StateT.map _ _) lst1 = _
-                simp only [StateT.run, StateT.map] at hq ⊢
-                rw [hq]; rfl
-              rw [this] at hx; cases hx
-          exact (AErrSim.bind hS' _ : AErrSim ce _)
-        | Verdict v => exact hS.elim
-      | Ok t =>
-        obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        rw [frontend.export_c.declined] at hr1
-        cases Result.ok_injective hr1
-        cases Result.ok_injective h
-        unfold SimLR at hS
-        have hq : ∃ nm, (readName (absNIdx t0)).run lst1 = .ok (nm, lst1) := by
-          revert hS
-          show (Functor.map _ (readName (absNIdx t0))).run lst1 = _ → _
-          cases hq : (readName (absNIdx t0)).run lst1 with
-          | error e' =>
-            intro hx
-            have : ((fun _ => ()) <$> readName (absNIdx t0) : AM Unit).run lst1 = .error e' := by
-              show StateT.run (StateT.map _ _) lst1 = _
-              simp only [StateT.run, StateT.map] at hq ⊢
-              rw [hq]; rfl
-            rw [this] at hx; cases hx
-          | ok p =>
-            intro hx
-            have : ((fun _ => ()) <$> readName (absNIdx t0) : AM Unit).run lst1 = .ok ((), p.2) := by
-              show StateT.run (StateT.map _ _) lst1 = _
-              simp only [StateT.run, StateT.map] at hq ⊢
-              rw [hq]; rfl
-            rw [this] at hx
-            simp only [Except.ok.injEq, Prod.mk.injEq] at hx
-            exact ⟨p.1, by rw [← hx.2]⟩
-        obtain ⟨nm, hnm⟩ := hq
-        rw [hnm, except_ok_bind]
-        exact ⟨_, lst1, rfl, rfl⟩
-
-/-- The tail of `install_ind_d` past `T0`: the block record, the table write,
-and the modeller or the push. -/
-theorem install_ind_tail {G : Type} {inst : frontend.types.Modeller G} {m : G}
-    {lmd : Arena.Frontend.Modeller} {pers rst2 lst2 st1 lsd1 tys cts rcs v n_pd t0 o}
-    (hmr : ModellerRefines inst m lmd)
-    (hrel : AStateRel₀ pers rst2 lst2) (hinv : AStateInv pers rst2)
-    (hd : StateDRel st1 lsd1) (hi : StateDInv st1)
-    (h : (do
-      let r2 ← frontend.export_c.block_rec_of st1 tys cts rcs
-      match r2 with
-      | core.result.Result.Ok v1 =>
-        let st2 ← frontend.export_c.note_ind_blocks st1 v1
-        if st2.in_model
-        then
-          let b ← frontend.types.wants v1
-          if b
-          then frontend.export_c.install_gen inst pers m rst2 st2 v n_pd t0 v1
-          else
-            let (r3, e, st3) ← frontend.export_c.push_decl pers rst2.store st2
-                (arena.env.IDeclaration.IndDecl v n_pd)
-            ok (r3, { rst2 with store := e }, st3)
-        else
-          let (r3, e, st3) ← frontend.export_c.push_decl pers rst2.store st2
-              (arena.env.IDeclaration.IndDecl v n_pd)
-          ok (r3, { rst2 with store := e }, st3)
-      | core.result.Result.Err e => ok (core.result.Result.Err e, rst2, st1)) = ok o) :
-    SimDV pers lst2 o (do
-      let b ← blockRecOf lsd1 (absIndTypeRecs tys) (absIndCtorRecs cts) (absIndRecRecs rcs)
-      let st := noteIndBlocks lsd1 b
-      if st.inModel && wants b then installGen lmd st (absICIL v) (absU n_pd) (absNIdx t0) b
-      else return .inl (← pushDecl st (.indDecl (absICIL v) (absU n_pd)))) := by
-  obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hBR := block_rec_of_refines (lst := lst2) hd hr2
-  cases r2 with
-  | Err e =>
-    cases Result.ok_injective h
-    exact SimDV.of_bind hBR (am_run_bind' _ _ _)
-  | Ok v1 =>
-    refine SimDV.bind_ok hBR ?_
-    obtain ⟨st2, hst2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨hd2, hi2⟩ := note_ind_blocks_refines hd hi hst2
-    have hIM : (noteIndBlocks lsd1 (absBlockRec v1)).inModel = st2.in_model := hd2.inModel
-    have push : ∀ {o}, (do
-        let (r3, e, st3) ← frontend.export_c.push_decl pers rst2.store st2
-            (arena.env.IDeclaration.IndDecl v n_pd)
-        ok (r3, { rst2 with store := e }, st3)) = ok o →
-        SimDV pers lst2 o (do
-          pure (Sum.inl (← pushDecl (noteIndBlocks lsd1 (absBlockRec v1))
-            (.indDecl (absICIL v) (absU n_pd))))) := by
-      intro o h
-      obtain ⟨⟨r3, e, st3⟩, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      cases Result.ok_injective h
-      exact SimD.toSimDV_inl (push_decl_refines hrel hinv hd2 hi2 hp)
-    by_cases him : st2.in_model = true
-    · rw [if_pos him] at h
-      obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hw := wants_refines hb
-      by_cases hbt : b = true
-      · rw [if_pos hbt] at h
-        have hc : ((noteIndBlocks lsd1 (absBlockRec v1)).inModel && wants (absBlockRec v1))
-            = true := by rw [hIM, ← hw, him, hbt]; rfl
-        simp only [hc, if_true]
-        exact install_gen_refines hmr hrel hinv hd2 hi2 h
-      · rw [if_neg hbt] at h
-        have hc : ((noteIndBlocks lsd1 (absBlockRec v1)).inModel && wants (absBlockRec v1))
-            = false := by
-          rw [hIM, ← hw, him]; simpa using hbt
-        simp only [hc, Bool.false_eq_true, if_false]
-        exact push h
-    · rw [if_neg him] at h
-      have hc : ((noteIndBlocks lsd1 (absBlockRec v1)).inModel && wants (absBlockRec v1))
-          = false := by
-        rw [hIM]; simp only [Bool.not_eq_true] at him; rw [him]; rfl
-      simp only [hc, Bool.false_eq_true, if_false]
-      exact push h
-
-/-- **`install_ind_d` refines `installIndD`** (`ExportC.lean:549-594`) — every
-change to the state a validated inductive record makes. -/
-theorem install_ind_d_refines {G : Type} {inst : frontend.types.Modeller G} {m : G}
-    {lmd : Arena.Frontend.Modeller} {pers rst lst rsd lsd tys cts rcs n_pd o}
-    (hmr : ModellerRefines inst m lmd)
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
-    (h : frontend.export_c.install_ind_d inst pers m rst rsd tys cts rcs n_pd
-      = ok o) :
-    SimDV pers lst o
-      (installIndD lmd lsd (absIndTypeRecs tys) (absIndCtorRecs cts)
+    (h : frontend.export_c.install_ind_d rsd tys cts rcs n_pd = ok o) :
+    SimD pers lst (o.1, rst, o.2)
+      (installIndD lsd (absIndTypeRecs tys) (absIndCtorRecs cts)
         (absIndRecRecs rcs) (absU n_pd)) := by
   rw [installIndD_unfold]
   rw [frontend.export_c.install_ind_d] at h
@@ -2670,50 +2357,16 @@ theorem install_ind_d_refines {G : Type} {inst : frontend.types.Modeller G} {m :
   cases r with
   | Err e =>
     cases Result.ok_injective h
-    exact SimDV.of_bind hB (am_run_bind' _ _ _)
+    show ALineErrSim e _
+    rw [am_run_bind']
+    exact ALineErrSim.bind hB _
   | Ok v =>
-    refine SimDV.bind_ok (show (indBlockOf lsd _ _ _).run lst = _ from hB) ?_
-    obtain ⟨⟨r1, ar1, st1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hR := register_proj_owners_refines hrel hinv hd hi h1
-    cases r1 with
-    | Err e =>
-      cases Result.ok_injective h
-      exact SimDV.of_bind hR (am_run_bind' _ _ _)
-    | Ok u =>
-      obtain ⟨lsd1, lst1, hx1, hd1, hi1, hrel1, hinv1⟩ := hR
-      refine SimDV.bind_ok hx1 ?_
-      rcases ConRon.Refine.HashMap2.ite_eq_ok h with ⟨hlen, h⟩ | ⟨hlen, h⟩
-      · have hnil : (absICIL v).head? = none := by
-          have : v.val.length = 0 := by scalar_tac
-          simp [absICIL, List.length_eq_zero_iff.mp this]
-        obtain ⟨⟨r2, e⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have hN := ConRon.Refine2.intern_n_node_run₀ hrel1 hinv1 .Anonymous trivial
-          (o := (r2, { ar1 with store := e }))
-          (by rw [arena.monad.intern_n_node, h2]; simp only [bind_tc_ok]; rfl)
-        simp only [hnil]
-        rw [show Arena.internNNode NNodeView.anonymous
-            = Arena.internNNode (absNNodeView arena.store.NNodeView.Anonymous) from rfl]
-        cases r2 with
-        | Err e2 =>
-          obtain ⟨r3, hr3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-          cases Result.ok_injective h
-          obtain ⟨e', rfl, hk⟩ := fail_refines hr3
-          show AErrSim e' _
-          rw [am_run_bind']
-          exact AErrSim.of_kind (AErrSim.bind (Sim₀.apply_err hN) _) hk
-        | Ok h0 =>
-          obtain ⟨lst2, hx2, hrel2, hinv2⟩ := Sim₀.apply hN
-          refine SimDV.bind_ok hx2 ?_
-          exact install_ind_tail hmr hrel2 hinv2 hd1 hi1 h
-      · obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨t0, ht0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        have hhd : (absICIL v).head? = some (absIConstantInfo ii) := by
-          have h1 := vec_index_some hii
-          simp only [show ((0#usize : Std.Usize)).val = 0 from rfl] at h1
-          simp only [absICIL, List.head?_map]
-          rw [List.head?_eq_getElem?, h1]; rfl
-        simp only [hhd]
-        refine SimDV.bind_ok (a := absNIdx t0) (by rw [i_constant_info_name_abs ht0]; rfl) ?_
-        exact install_ind_tail hmr hrel1 hinv1 hd1 hi1 h
+    obtain ⟨st1, hst1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    have hPD := push_decl_refines hd hst1
+    refine SimD.mk (pers := pers) ?_ hPD hi hrel hinv
+    rw [am_run_bind', show (indBlockOf lsd (absIndTypeRecs tys) (absIndCtorRecs cts)
+        (absIndRecRecs rcs)).run lst = _ from hB, except_ok_bind]
+    simp only [absICIL, absIDeclaration] <;> rfl
 
 end ConRon.Refine2.Frontend
