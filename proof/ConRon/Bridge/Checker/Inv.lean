@@ -270,7 +270,17 @@ theorem denoteCaps_pext {st st' : EStore} (hx : PExt st st') {c : IIndCaps}
   simp only [Frontend.denoteCaps] at h ⊢
   cases hn : denoteN st.ns c.etaCtor with
   | none => rw [hn] at h; simp at h
-  | some ct => rw [hn] at h; rw [denoteN_pext hx hp hn]; exact h
+  | some ct =>
+    rw [hn] at h; rw [denoteN_pext hx hp.etaCtor hn]
+    cases ha : Frontend.denoteNList st.ns c.all with
+    | none => rw [ha] at h; simp at h
+    | some all =>
+      cases hk : Frontend.denoteNList st.ns c.ctors with
+      | none => rw [ha, hk] at h; simp at h
+      | some ks =>
+        rw [ha, hk] at h
+        rw [denoteNList_pext hx _ _ hp.all ha, denoteNList_pext hx _ _ hp.ctors hk]
+        exact h
 
 theorem denoteProjTable_pext {st st' : EStore} (hx : PExt st st')
     {t : IProjTable} {x : ProjTable} (hp : PersProjTable t)

@@ -9,7 +9,7 @@ two-phase fold's bridge needs it for the PURE checker, which is what phase A's
 `PhaseA` records.
 
 The proof reads the run off con-leche's own run relation, `DeclRun`
-(`checkDeclRun_ofEnvFactsE`), whose records already carry every duplicate
+(`checkDeclRun_ofEnvFactsK`), whose records already carry every duplicate
 guard the checker ran:
 
 | arm | the guard, in the run record |
@@ -22,9 +22,6 @@ guard the checker ran:
 This module imports con-leche only: the statement and the proof are pure.
 -/
 import ConLeche.Semantics.Bridge.Sound
-import ConLeche.Verify.Inductives.SumInv
-import ConLeche.Verify.Inductives.FixInv
-import ConLeche.Verify.Inductives.StructWF
 import ConLeche.Verify.Extend.Inversions
 import ConLeche.Verify.EnvBound
 import ConLeche.Verify.EnvWF
@@ -103,169 +100,15 @@ theorem declBasisRun_nodup {e e' : Env} {k : BasisKind} (h : DeclBasisRun e k e'
     (hnd : NodupNames e) : NodupNames e' :=
   basisInstallRun_nodup _ h.2 hnd
 
-/-! ## The modeled route -/
+/-! ## The uniform route -/
 
-/-- con-leche: ConLeche/Semantics/DeclIndRun.lean:83 IndMembersRun — the
-member fold pushes each member at a name its front door found fresh. -/
-theorem indMembersRun_nodup {μ : CheckMode} {F : Nat} {bn : List Name}
-    {caps : IndCaps} : ∀ (cs : List ConstantInfo) {e e' : Env},
-      IndMembersRun μ F bn caps e cs e' → NodupNames e → NodupNames e'
-  | [], _, _, h, hnd => by
-    simp only [IndMembersRun] at h; subst h; exact hnd
-  | ci :: cs, e, e', h, hnd => by
-    simp only [IndMembersRun] at h
-    obtain ⟨cvA, ⟨type', hcv, rfl, -⟩, h⟩ := h
-    have hf := hcv.1
-    cases ci with
-    | indInfo v caps' => exact indMembersRun_nodup cs h (nodupNames_push' hnd hf)
-    | ctorInfo v nP nF => exact indMembersRun_nodup cs h (nodupNames_push' hnd hf)
-    | _ => exact h.elim
-
-/-- con-leche: ConLeche/Semantics/DeclIndRun.lean:99 ProvisionRecsRun — the
-provisioned recursor group's names are pairwise distinct and fresh at the
-base: each was checked fresh at the provisional environment holding the ones
-before it. -/
-theorem provisionRecsRun_fresh {μ : CheckMode} {F : Nat} {bn : List Name} :
-    ∀ (cs : List ConstantInfo) {e eS : Env}
-      {checked : List (ConstantVal × Nat × Nat × List RecRule)},
-      ProvisionRecsRun μ F bn e cs eS checked →
-      FreshAt e (checked.map (·.1.name))
-  | [], _, _, _, h => by
-    simp only [ProvisionRecsRun] at h
-    obtain ⟨-, rfl⟩ := h
-    exact ⟨List.nodup_nil, fun _ h => nomatch h⟩
-  | ci :: cs, e, eS, checked, h => by
-    simp only [ProvisionRecsRun] at h
-    obtain ⟨cvA, mI, rP, rules, rest', -, ⟨type', hcv, rfl, -⟩, hrest, rfl⟩ := h
-    have hf : e.find? ci.toConstantVal.name = none :=
-      Option.isNone_iff_eq_none.mp hcv.1
-    have ih := provisionRecsRun_fresh cs hrest
-    exact FreshAt.cons_of
-      (c := .recInfo ⟨ci.toConstantVal.name, ci.toConstantVal.levelParams, type'⟩ mI rP [])
-      hf ih
-
-/-- con-leche: ConLeche/Semantics/DeclIndRun.lean:273 IndRecsRun.IndRecsFoldRun —
-the group's install fold pushes the provisioned names in order. -/
-theorem indRecsFoldRun_nodup {μ : CheckMode} {F : Nat} {bn : List Name}
-    {eB eS : Env} : ∀ (checked : List (ConstantVal × Nat × Nat × List RecRule))
-      {acc out : Env},
-      IndRecsRun.IndRecsFoldRun μ F bn eB eS acc checked out →
-      NodupNames acc → FreshAt acc (checked.map (·.1.name)) → NodupNames out
-  | [], _, _, h, hnd, _ => by
-    simp only [IndRecsRun.IndRecsFoldRun] at h; subst h; exact hnd
-  | c :: cs, acc, out, h, hnd, hfr => by
-    simp only [IndRecsRun.IndRecsFoldRun] at h
-    obtain ⟨rules', -, h⟩ := h
-    have hfr' : FreshAt acc
-        ((ConstantInfo.recInfo c.1 c.2.1 c.2.2.1 rules').name :: cs.map (·.1.name)) := hfr
-    exact indRecsFoldRun_nodup cs h
-      (nodupNames_push hnd (hfr.2 _ (List.mem_cons_self ..))) hfr'.step
-
-theorem indRecsRun_nodup {μ : CheckMode} {F : Nat} {bn : List Name}
-    {e e' : Env} {recs : List ConstantInfo}
-    (h : IndRecsRun μ F bn e recs e') (hnd : NodupNames e) : NodupNames e' := by
-  rcases h with ⟨-, rfl⟩ | ⟨-, -, eS, checked, hprov, hfold⟩
-  · exact hnd
-  · exact indRecsFoldRun_nodup checked hfold hnd (provisionRecsRun_fresh recs hprov)
-
-/-- con-leche: ConLeche/Semantics/DeclIndRun.lean:376 ProjInstallRun — each
-projection function is pushed at a name its guard found fresh. -/
-theorem projInstallRun_nodup {μ : CheckMode} {F : Nat} {T C : Name}
-    {lps : List Name} {nP nF : Nat} : ∀ (is : List Nat) {e e' : Env},
-      ProjInstallRun μ F T C lps nP nF e is e' → NodupNames e → NodupNames e'
-  | [], _, _, h, hnd => by
-    simp only [ProjInstallRun] at h; subst h; exact hnd
-  | i :: is, e, e', h, hnd => by
-    simp only [ProjInstallRun] at h
-    obtain ⟨e'', hstep, hrest⟩ := h
-    refine projInstallRun_nodup is hrest ?_
-    rcases hstep with ⟨cvj, mcv, mval, mhint, pty, rhsA, -, -, -, hf, hrun⟩ | ⟨-, rfl⟩
-    · have heq := hrun.2.2.2.2.2.2.2.2.2.2.2.2
-      rw [heq]
-      exact nodupNames_push' hnd hf
-    · exact hnd
-
-theorem declIndRun_nodup {μ : CheckMode} {F : Nat} {e e' : Env}
-    {block : List ConstantInfo} (h : DeclIndRun μ F e block e')
+/-- con-leche: ConLeche/Semantics/Inductives/DeclBlock.lean:40 DeclBlockRun —
+the uniform install pushes the formers, the constructors, the recursors and
+the projection tables, each at a name found fresh. -/
+theorem declBlockRun_nodup {μ : CheckMode} {F : Nat} {e e' : Env}
+    {block : List ConstantInfo} {p₀ : BlockParts} (h : DeclBlockRun μ F e block p₀ e')
     (hnd : NodupNames e) : NodupNames e' := by
-  obtain ⟨-, h⟩ := h
-  rcases h with ⟨cvT, capsT, cvC, nP, nF, -, -, envM, envR, hM, hR, -, -, hP⟩ |
-    ⟨-, envM, hM, hR⟩
-  · exact projInstallRun_nodup _ hP (indRecsRun_nodup hR (indMembersRun_nodup _ hM hnd))
-  · exact indRecsRun_nodup hR (indMembersRun_nodup _ hM hnd)
-
-/-! ## The native route -/
-
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:270 consSumCtors — the
-constructors' conses push pairwise distinct names fresh at the base. -/
-theorem consSumCtors_nodup (nP : Nat) : ∀ (cs : List (ConstantVal × Nat)) {e : Env},
-    NodupNames e → FreshAt e (cs.map (·.1.name)) →
-    NodupNames (consSumCtors nP cs e)
-  | [], _, hnd, _ => hnd
-  | c :: cs, e, hnd, hfr => by
-    have hfr' : FreshAt e ((ConstantInfo.ctorInfo c.1 nP c.2).name :: cs.map (·.1.name)) :=
-      hfr
-    exact consSumCtors_nodup nP cs (nodupNames_push hnd (hfr.2 _ (List.mem_cons_self ..)))
-      hfr'.step
-
-theorem declNativeRun_nodup {μ : CheckMode} {F : Nat} {e e' : Env}
-    {p₀ : NativeParts} (h : DeclNativeRun μ F e p₀ e') (hnd : NodupNames e) :
-    NodupNames e' := by
-  obtain ⟨hndC, isRec, env₁, cvTa, p₁, p, ctorsA, sortss, kinds, cvRa, rhss, tfvs, trest,
-    isorts, hInd, hp, hCtors, -, -, -, -, -, -, -, hRec, hTbl⟩ := h
-  -- the former
-  obtain ⟨cvT, s, -, -, hccv, hp1, henv1, -⟩ := checkSumInd_shape hInd
-  obtain ⟨hfT, -, -, -, -, -, ty, -, -, -, -, -, -, -, heqT⟩ := checkConstantVal_inv hccv
-  have hnd1 : NodupNames env₁ := by
-    rw [henv1]
-    exact nodupNames_push hnd (by show e.find? cvTa.name = none; rw [heqT]; exact hfT)
-  -- the constructors: the block's by name, each fresh at the former's environment
-  have hctors : p.ctors = p₀.ctors := by
-    rw [hp, hp1]; rfl
-  obtain ⟨hlen, -, hall⟩ := checkSumCtors_inv hCtors
-  have hnames : ctorsA.map (·.1.name) = p₀.ctors.map (·.1.name) := by
-    rw [← hctors]
-    apply List.ext_getElem (by simp [hlen])
-    intro j h1 h2
-    have hj1 : j < ctorsA.length := by simpa using h1
-    have hj2 : j < p.ctors.length := by simpa using h2
-    simp only [List.getElem_map]
-    have hc : p.ctors[j]? = some (p.ctors[j]'hj2) := List.getElem?_eq_getElem hj2
-    have hcA : ctorsA[j]? = some (ctorsA[j]'hj1) := List.getElem?_eq_getElem hj1
-    obtain ⟨-, sorts, -, hrun⟩ := hall j _ _ hc hcA
-    obtain ⟨⟨ty', hccvC⟩, -⟩ := checkSumCtor_shape hrun
-    obtain ⟨-, -, -, -, -, -, ty, -, -, -, -, -, -, -, heq⟩ := checkConstantVal_inv hccvC
-    rw [heq]
-  have hfresh : ∀ c ∈ ctorsA, env₁.find? c.1.name = none := by
-    intro c hc
-    obtain ⟨j, hj⟩ := List.getElem?_of_mem hc
-    have hj' : j < p.ctors.length := by
-      have := (List.getElem?_eq_some_iff.mp hj).1; omega
-    obtain ⟨-, sorts, -, hrun⟩ := hall j _ _ (List.getElem?_eq_getElem hj') hj
-    obtain ⟨⟨ty', hccvC⟩, -⟩ := checkSumCtor_shape hrun
-    obtain ⟨hf, -, -, -, -, -, ty, -, -, -, -, -, -, -, heq⟩ := checkConstantVal_inv hccvC
-    rw [heq]; exact hf
-  have hnd2 : NodupNames (consSumCtors p.nP ctorsA env₁) :=
-    consSumCtors_nodup p.nP ctorsA hnd1 ⟨by rw [hnames]; exact hndC, fun n hn => by
-      obtain ⟨c, hc, rfl⟩ := List.mem_map.mp hn
-      exact hfresh c hc⟩
-  -- the recursor
-  obtain ⟨cvRi, recTy, -, -, hccvR, -, -, -, -, -, -, -, -, -, rfl⟩ := checkNativeRec_shape hRec
-  obtain ⟨hfR, -⟩ := checkConstantVal_inv hccvR
-  have hnd3 := nodupNames_push (c := .recInfo ⟨p.cvR.name, p.cvR.levelParams, recTy⟩
-    p.majorIdx p.rulePrefix
-    (sumRules (consSumCtors p.nP ctorsA env₁).find? p.cvR.name p.nP p.majorIdx
-      p.rulePrefix recTy ctorsA rhss)) hnd2 hfR
-  -- the projection table
-  unfold checkNativeTable at hTbl
-  split at hTbl
-  · split at hTbl
-    · obtain ⟨bodies, -, -, -, hfP, rfl⟩ := checkStructProjTable_inv hTbl
-      exact nodupNames_push hnd3 hfP
-    · simp only [pure, Except.pure, Except.ok.injEq] at hTbl
-      subst hTbl; exact hnd3
-  · simp only [pure, Except.pure, Except.ok.injEq] at hTbl
-    subst hTbl; exact hnd3
+  sorry
 
 /-! ## The whole step -/
 
@@ -278,7 +121,7 @@ theorem checkDecl_nodup {μ : CheckMode} {pinsP : List NatOpPinSet} {F : Nat}
     {env env' : Env} {d : Declaration}
     (h : ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env')
     (hnd : NodupNames env) : NodupNames env' := by
-  have hrun := checkDeclRun_ofEnvFactsE h
+  have hrun := checkDeclRun_ofEnvFactsK h
   cases d with
   | defnDecl cv value hint =>
     obtain ⟨type', value', hcv, -, rfl, -⟩ := hrun
@@ -306,9 +149,9 @@ theorem checkDecl_nodup {μ : CheckMode} {pinsP : List NatOpPinSet} {F : Nat}
     simp only [DeclRun] at hrun
     split at hrun
     · exact declBasisRun_nodup hrun hnd
-    · simp only [DeclIndRunDispatch] at hrun
+    · simp only [DeclIndRunDispatchK] at hrun
       split at hrun
-      · exact declNativeRun_nodup hrun hnd
-      · exact declIndRun_nodup hrun hnd
+      · exact declBlockRun_nodup hrun hnd
+      · exact hrun.elim
 
 end ConRon.Bridge

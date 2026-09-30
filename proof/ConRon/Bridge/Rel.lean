@@ -1014,7 +1014,17 @@ theorem denoteCaps_ext {st st' : EStore} {c : IIndCaps} {d : IndCaps}
   simp only [Frontend.denoteCaps] at h ⊢
   cases hc : denoteN st.ns c.etaCtor with
   | none => rw [hc] at h; simp at h
-  | some ct => rw [hc] at h; rw [denoteN_ext hc hx]; exact h
+  | some ct =>
+    rw [hc] at h; rw [denoteN_ext hc hx]
+    cases ha : Frontend.denoteNList st.ns c.all with
+    | none => rw [ha] at h; simp at h
+    | some all =>
+      cases hk : Frontend.denoteNList st.ns c.ctors with
+      | none => rw [ha, hk] at h; simp at h
+      | some ks =>
+        rw [ha, hk] at h
+        rw [denoteNListE_ext hx _ _ ha, denoteNListE_ext hx _ _ hk]
+        exact h
 
 theorem denoteProjTable_ext {st st' : EStore} {t : IProjTable} {p : ProjTable}
     (h : Frontend.denoteProjTable st t = some p) (hx : Ext st st') :
