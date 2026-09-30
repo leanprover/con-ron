@@ -4136,7 +4136,7 @@ pub fn newline_from(b: &[u8], i: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::frontend::scan_types::{err_tag_beq, scan_err_render};
+    use crate::frontend::scan_types::scan_err_render;
 
     fn s(v: &[u32]) -> String {
         v.iter().filter_map(|c| char::from_u32(*c)).collect()
@@ -4161,7 +4161,7 @@ mod tests {
     fn is_tag(line: &str, t: ErrTag) {
         let got = bad(line);
         assert!(
-            err_tag_beq(&got, &t),
+            core::mem::discriminant(&got) == core::mem::discriminant(&t),
             "{}: {}, wanted {}",
             line,
             s(&crate::frontend::scan_types::err_tag_describe(&got)),

@@ -58,7 +58,6 @@ use crate::arena::trust_axioms::reduce_op_names;
 use crate::arena::pins::{pin_quot_sound, pin_sorry_ax, Pins};
 use crate::arena::env::nidx_vec_dup;
 use crate::arena::store::{EStore, ETables, LTables, LsTables, NTables};
-use crate::kernel::core_k;
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env as cenv;
 use crate::kernel::env::{BasisKind, CheckMode, ReducibilityHint};
@@ -77,16 +76,6 @@ pub const M_QUOT_BASIS_EQ: [u32; 43] = [
     117, 105, 114, 101, 115, 32, 116, 104, 101, 32, 112, 105, 110, 110, 101, 100, 32, 69,
     113, 32, 98, 97, 115, 105, 115
 ];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `" (declaration "`, as code points.
-pub const M_AT_DECL_OPEN: [u32; 14] = [
-    32, 40, 100, 101, 99, 108, 97, 114, 97, 116, 105, 111, 110, 32
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `")"`, as code points.
-pub const M_AT_DECL_CLOSE: [u32; 1] = [41];
 
 // ---------------------------------------------------------------------------
 // The pinned basis install (`Checker.lean:65-78` of the twin)
@@ -587,60 +576,6 @@ pub fn check_pending_list(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:428-445 checkDecls
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:265-276 installThenCheck` —
-/// **the declaration fold the binary runs**: install every record (phase A),
-/// check every recorded declaration (phase B), return the environment.  The
-/// `× Nat` of the error is the failure's POSITION in the fold.
-///
-/// Deviation: the twin's result is `AM (Except (CheckError × Nat) IFEnv)` — an
-/// outer failure the two phases never produce, because `annotDeclStep` and
-/// `checkPendingList` tag every error into the inner `Except`.  The port has
-/// the one `Result` with the tagged error, which is
-/// `con_ron_core::cached::installed::check_decls`' shape.
-///
-/// **Phase B runs on the frozen store** (task #98-FREEZE): the boundary
-/// freezes the store (`EStore::freeze`: the tier out, the scratch tiers on)
-/// and thaws it after, because phase B's per-record bracket is the frozen
-/// store's (`check_pending`).  With nothing pending there is no phase B and
-/// no freeze: the store is phase A's, as the twin's is (`checkPendingList []`
-/// leaves the state alone), which is what lets the refinement relate the
-/// thawed store to the twin's without knowing the twin's scratch tier empty
-/// at the boundary.
-pub fn install_then_check(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    pins: &Vec<INatOpPinSet>,
-    ds: &Vec<IDeclaration>,
-) -> Result<IFEnv, (CheckError, u64)> {
-    match annot_fold(
-        pers,
-        st,
-        mode,
-        pins,
-        (0, mk_ifenv(i_env_empty()), Vec::new()),
-        ds,
-        0,
-    ) {
-        Err(e) => Err(e),
-        Ok(p) => {
-            if p.2.len() == 0 {
-                Ok(p.1)
-            } else {
-                let tier: PersTier = st.store.freeze();
-                let r: Result<(), (CheckError, u64)> =
-                    check_pending_list(&tier, st, mode, &p.1, &p.2, 0);
-                st.store.thaw(tier);
-                match r {
-                    Err(e) => Err(e),
-                    Ok(()) => Ok(p.1),
-                }
-            }
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------
 // The driver's fold: the phase boundary and phase B on a worker
 // (task #97-P5-Driver)
@@ -779,32 +714,6 @@ pub fn worker_state(pins: &Pins) -> AState {
     let mut st = AState::init(EStore::empty_frozen());
     st.pins = pins_dup(pins);
     st
-}
-
-/// con-leche: ConLeche/Cached/Installed.lean:428-445 checkDecls
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:278-290 atDecl` — the fold's
-/// failure, with its POSITION rendered into the message.  It sits beside
-/// `frontend`'s `at_line`, which does the same for the PARSE's position and
-/// must not be confused with it: a line number and a fold position are
-/// different numbers.
-pub fn at_decl(e: CheckError, n: u64) -> CheckError {
-    match e {
-        CheckError::NotImplemented(w) => CheckError::NotImplemented(at_decl_text(w, n)),
-        CheckError::Invalid(w) => CheckError::Invalid(at_decl_text(w, n)),
-        CheckError::Internal(w) => CheckError::Internal(at_decl_text(w, n)),
-        CheckError::Native(w) => CheckError::Native(at_decl_text(w, n)),
-    }
-}
-
-/// con-leche: ConLeche/Cached/Installed.lean:428-445 checkDecls
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:278-290 atDecl` — the twin's
-/// `s!"{w} (declaration {n})"`, as code points; `toString n` is
-/// `con_ron_core::kernel::core_k::nat_to_dec`, the port's own decimal
-/// recursion.
-pub fn at_decl_text(w: Vec<u32>, n: u64) -> Vec<u32> {
-    let out = cp_append(w, &code_points(&M_AT_DECL_OPEN), 0);
-    let out = cp_append(out, &core_k::nat_to_dec(n), 0);
-    cp_append(out, &code_points(&M_AT_DECL_CLOSE), 0)
 }
 
 /// con-leche: none — `String.append`; the port stores a message as `Vec<u32>` (DESIGN.md §3.3)
@@ -1021,7 +930,7 @@ mod tests {
     use crate::arena::std_axioms::i_constant_val_matches_pin;
     use crate::arena::store::EStore;
     use crate::arena::basis::basis_pin_hit;
-    use crate::arena::check_decl::M_NONSTD_AXIOM;
+    
     use crate::kernel::basis_names;
     use crate::kernel::basis_raw;
     use crate::kernel::canon as ccanon;
@@ -1324,23 +1233,6 @@ mod tests {
         }
         assert_eq!(st.store.pers_count(&tier), n0);
         drop_scratch(&mut st, tier);
-    }
-
-    /// `at_decl` renders the fold position into the message, and only into the
-    /// message: the kind is untouched.  Beyond the twin's `#guard`s.
-    #[test]
-    fn at_decl_renders_the_position() {
-        let e = CheckError::Invalid(code_points(&M_NONSTD_AXIOM));
-        match at_decl(e, 12) {
-            CheckError::Invalid(m) => {
-                let want: Vec<u32> = "non-standard axiom (declaration 12)"
-                    .chars()
-                    .map(|c| c as u32)
-                    .collect();
-                assert!(name::str_eq(&m, &want));
-            }
-            _ => panic!("at_decl keeps the kind"),
-        }
     }
 
     /// **The startup walk at the binary's own pin list**, not the empty one

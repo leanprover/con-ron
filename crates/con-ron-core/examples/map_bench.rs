@@ -18,7 +18,9 @@
 //! 2. `cache` — an `EIdx → EIdx` memo under the checker's real rhythm: fill a
 //!    few hundred rows, probe them, **clear**, repeat.  This is `inst1_clear`
 //!    and its ten siblings, and `Caches::reset`'s eleven tables; the chained
-//!    map pays `O(capacity)` per round here and the epoch map pays `O(1)`.
+//!    map paid `O(capacity)` per round here and the epoch map pays `O(1)`.
+//!    The epoch map alone since task #105: nothing clears a chained map any
+//!    more, and its `clear` went with its last caller.
 //! 3. `names` — a `StrNode` (a `Vec<u32>` of code points behind a prefix
 //!    handle) cons table: the one key shape that is not scalar.
 //!
@@ -160,28 +162,6 @@ fn cons_open(n: usize, base: usize) -> (f64, f64, f64, u64) {
 // asymmetry task #97-P6-1's `RESET_KEEP_SLACK` exists for: one big
 // `instantiate1` leaves an array every later small call then walks.
 
-fn cache_chained(rounds: usize, rows: usize) -> (f64, u64) {
-    let mut m: HashMap<EIdx, EIdx> = HashMap::new();
-    let mut acc: u64 = 0;
-    let t = Instant::now();
-    for r in 0..rounds {
-        let k = if r % 10 == 0 { rows * 16 } else { rows };
-        for i in 0..k {
-            m.insert(e((i * 2654435761 % 4000000) as u32), e(i as u32));
-        }
-        for i in 0..(3 * k) {
-            match m.get(&e((i * 2654435761 % 4000000) as u32)) {
-                None => acc += 1,
-                Some(v) => acc += v.word as u64,
-            }
-        }
-        m.clear();
-    }
-    let per = t.elapsed().as_secs_f64() * 1e9 / (rounds as f64);
-    std::hint::black_box(acc);
-    (per, m.capacity() as u64)
-}
-
 fn cache_open(rounds: usize, rows: usize) -> (f64, u64) {
     let mut m: HashMap2<EIdx, EIdx> = HashMap2::new();
     let mut acc: u64 = 0;
@@ -301,11 +281,8 @@ fn main() {
         "\nmap_bench: 2. memo cache, {} rounds of {} rows (every tenth {}x), cleared each round",
         rounds, rows, 16
     );
-    let (c1, cap1) = cache_chained(rounds, rows);
-    println!("  chained   {:9.0} ns/round   final capacity {}", c1, cap1);
     let (c2, cap2) = cache_open(rounds, rows);
     println!("  open      {:9.0} ns/round   final capacity {}", c2, cap2);
-    println!("  ratio     {:.2}x", c1 / c2);
 
     println!("\nmap_bench: 3. name cons table, {} distinct StrNode keys", names);
     let (ni1, ng1) = names_chained(names);

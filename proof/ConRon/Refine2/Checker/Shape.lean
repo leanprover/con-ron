@@ -360,9 +360,9 @@ theorem IFEnvInv.idxRange {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
 `IFEnvRel.idx` reads the port's index through `HashMap2.toFun`, which
 specifies a well-formed table and says nothing about a malformed one — and
 every one of them CONCLUDES `IFEnvRel` alone.  A fold then cannot take its own
-step twice: `check_decls_pure_go` feeds `check_decl_step`'s answer back into
-itself and has no `IFEnvInv` for it, and `install_then_check` hands
-`annot_fold`'s environment to `check_pending_list`, which demands one.
+step twice: a fold feeds its step's answer back into the step and has no
+`IFEnvInv` for it, and phase A hands `annot_fold`'s environment to phase B's
+`check_pending`, which demands one.
 
 So the RESULT relation of every `IFEnv`-returning statement on the fold's path
 is this pair.  It is not a new obligation in substance — the port builds the

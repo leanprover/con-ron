@@ -211,11 +211,6 @@ impl EIdx {
         word_tier(self.word)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:125-126 Idx.index
-    pub fn index(&self) -> u32 {
-        word_index(self.word)
-    }
-
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:128-130 Idx.isPersistent
     pub fn is_persistent(&self) -> bool {
         word_is_persistent(self.word)
@@ -289,11 +284,6 @@ impl NIdx {
         word_tier(self.word)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:125-126 Idx.index
-    pub fn index(&self) -> u32 {
-        word_index(self.word)
-    }
-
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:128-130 Idx.isPersistent
     pub fn is_persistent(&self) -> bool {
         word_is_persistent(self.word)
@@ -333,11 +323,6 @@ impl LIdx {
         word_tier(self.word)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:125-126 Idx.index
-    pub fn index(&self) -> u32 {
-        word_index(self.word)
-    }
-
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:128-130 Idx.isPersistent
     pub fn is_persistent(&self) -> bool {
         word_is_persistent(self.word)
@@ -375,11 +360,6 @@ impl LsIdx {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:122-123 Idx.tier
     pub fn tier(&self) -> u32 {
         word_tier(self.word)
-    }
-
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:125-126 Idx.index
-    pub fn index(&self) -> u32 {
-        word_index(self.word)
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:128-130 Idx.isPersistent

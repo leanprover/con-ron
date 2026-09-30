@@ -80,8 +80,9 @@ and the hypothesis is **dropped from all five statements**
 (`try_resize_spec`, `insert_refines_gen`, `insert_refines`, `Rel_insert`, and
 their `_wf` siblings in `HashMap2WF.lean`).  `Inv` correspondingly loses its
 `sat` clause.  **Every operation of the module is now unconditional.**  The
-port declares the limit as `HashMap2::is_saturated_full` and the arena tests
-it in `Tbl::full`, beside `IDX_CAP`'s own; see DESIGN.md's `Task #97-P6-17`.
+port declares the limit as a precondition of `HashMap2::insert` (the query
+`is_saturated_full` that tested it went unused and was deleted, task #105);
+see DESIGN.md's `Task #97-P6-17`.
 
 Naming: `Refine/README.md`'s rule — the public entry points get
 `<fn>_refines`, the private Rust helpers `<fn>_spec`.

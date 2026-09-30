@@ -6,94 +6,27 @@
 #     <file>:<name>	<reason>
 #
 # (`<file>` and `<name>` exactly as `dead-rust.py` prints them, a real tab
-# before the reason.)  Two kinds of entry, and every line below says which:
+# before the reason.)  An item belongs here only if it is LIVE although no
+# Rust calls it: a live Lean statement (grep `proof/ConRon` outside
+# `Generated/`, and the statement must itself be used — see
+# `scripts/dead-census.py`) names its extracted definition, so deleting it
+# would make that statement fail to even elaborate.
 #
-# (A) LIVE, but only from a Lean proof or the extraction pipeline, never from
-#     another Rust call site — Aeneas still needs the function to exist so
-#     its extracted Lean name is there to state a theorem about, or the
-#     function is deliberately the "entry point" twin of a con-leche
-#     declaration even though the checker's own hot path goes through an
-#     internal `knot_*`/handle-native version instead.  Deleting it would
-#     make a live headline theorem (grep `proof/ConRon/{Refine,Refine2,
-#     Bridge,Capstone}*`) fail to even state, or would drop a con-leche
-#     citation with nothing to replace it.
-#
-# (B) A `dead-rust.py` FALSE POSITIVE: the item has a real, ordinary Rust
-#     caller, but the census's per-line, no-alias heuristic cannot see it.
-#     Two recurring shapes, both noted in the script's own docstring as
-#     heuristic limits:
-#       - the name is not unique in the workspace (defined in more than one
-#         module) and the only call site imports it through a *multi-line*
-#         `use crate::mod::{ ..., name, ... };` (the module path and the name
-#         land on different physical lines, so the single-line regex never
-#         sees them together) or through a module alias (`use crate::kernel::
-#         trust_axioms as ctrust;`, then `ctrust::name(...)`);
-#       - the call is `receiver.name(...)` dot syntax on a struct method
-#         whose name collides with another type's method of the same name
-#         (`HashMap`/`HashMap2`/`Caches`/`Memos`/`EStore` all have their own
-#         `reset`/`view_n`/`insert`/…), so no line contains `mod::name` at
-#         all.
-#     Verified by hand (grep for the real call site) or by `cargo build`
-#     itself failing with "no method/function named `name` found" when the
-#     item was actually deleted; the entry names the real caller.
-#
-# Test-only items ("only-tests" in `dead-rust.py`'s own report) are NOT
-# blanket-listed here as dead weight: several of them are differential or
-# regression test infrastructure for code that IS live (arena/frontend/ron),
-# verified the same way — read the test, see what it actually checks, and
-# only list it if the test gives it real, ongoing value.  Kernel-tier
-# ("the old retired Expr-tree/`cached` checker") only-tests items with no
-# such value were deleted along with their tests in this sweep instead of
-# being listed here; what remains below is what a live test still exercises.
+# Not here, by design (task #105 R-SWEEP2):
+#   * `dead-rust.py` false positives — fix the script instead (it resolves
+#     `use` groups across lines, `use … as` aliases, and methods through the
+#     types a file mentions; `--why <name>` shows what it counted);
+#   * items only tests use — a test of dead code is dead code, so the item
+#     and its test go; an item that is the ORACLE a test checks a live
+#     function against moves into that test module as a private helper.
 
-# --- (A) Lean/extraction: the compiled function is the theorem's subject ---
+# --- Lean-only: the extracted definition is named by a live theorem ---
 
-crates/con-ron-core/src/arena/check_decl.rs:check_decls_pure	Theorem 2 headline (DESIGN §8.2's own sentence): `check_decls_pure_refines`/`check_decls_pure_go_refines` in proof/ConRon/Refine2/Checker/Top.lean, part of Capstone.lean's accept-soundness chain. The binary runs its two-phase driver instead; this pure fold is a deliberate second, simpler spec function with its own refinement theorem (task #105 sweep).
-crates/con-ron-core/src/arena/checker.rs:install_then_check	Theorem 2 headline (DESIGN §8.2's own sentence): `install_then_check_refines` in proof/ConRon/Refine2/Checker/Top.lean, referenced by proof/ConRon/Bridge/Frontend/Capstone.lean's `Arena.installThenCheck_bridge` chain. No Rust caller: the binary's own two-phase pool (`driver.rs`) is proved equivalent to it instead (task #105 sweep).
-crates/con-ron-core/src/arena/checker.rs:at_decl	only-tests: the test harness for `check_decls_pure` above, kept with them (task #105 sweep).
-crates/con-ron-core/src/arena/core.rs:PURE_FNS_A	Same TypeChecker.lean entry-point cluster (`TypeChecker.lean:23-25 pureFns`): the constant every entry point above passes, replacing the twin's function record (§3.4) (task #105 sweep).
-crates/con-ron-core/src/arena/core_state.rs:empty	`Caches::empty` is unfolded by name in proof/ConRon/Capstone.lean's `startState_eq` (`simp only [... arena.core_state.Caches.empty ...]`); no Rust caller needed once `AState::init` is expressed structurally, but the generated Lean definition must exist for the `simp` set (task #105 sweep).
-crates/con-ron-core/src/arena/pins.rs:empty	`Pins::empty` is unfolded the same way in `startState_eq` (`arena.pins.Pins.empty`); only-tests in Rust, required in Lean (task #105 sweep).
-crates/con-ron-core/src/frontend/prepare.rs:prepare_prelude	`frontend.prepare.prepare_prelude` is `rw`/hypothesis material in proof/ConRon/Capstone.lean directly (`h4 : frontend.prepare.prepare_prelude … = ok …`, `rw [frontend.prepare.prepare_prelude, h]`); only-tests in Rust, required in Lean (task #105 sweep).
+crates/con-ron-core/src/frontend/export_c.rs:parse_chunks	`frontend.export_c.parse_chunks` is the subject of `parse_chunks_refines` (proof/ConRon/Refine2/Frontend/Top.lean), which proof/ConRon/Capstone.lean applies (`parse_chunks_refines scanSpec …`) and `Refine2/Frontend/Source.lean` equates with the pooled reader the driver runs (`rw [frontend.export_c.parse_chunks]`).
+crates/con-ron-core/src/frontend/prepare.rs:prepare_prelude	`frontend.prepare.prepare_prelude` is hypothesis and `rw` material in proof/ConRon/Capstone.lean itself (`h4 : frontend.prepare.prepare_prelude … = ok …`, `rw [frontend.prepare.prepare_prelude, h]`); the driver runs its pieces directly.
 
-# --- (B) dead-rust.py false positives: a real caller the census heuristic can't see ---
+# --- PENDING (this lane's next batch): kernel/* only-tests items ---
 
-crates/con-ron-core/src/arena/core_state.rs:reset	`Caches::reset` — real caller `st.caches.reset()` in arena/core.rs (dot call; the name collides with `HashMap`/`Memos`/`EStore`'s own `reset`, so no line reads `core_state::reset`) (task #105 sweep).
-crates/con-ron-core/src/arena/monad.rs:reset	`Memos::reset` — real caller confirmed by `cargo build` ("no method named `reset` found for struct `Memos`") when deleted; same dot-call/name-collision blind spot as `Caches::reset` above (task #105 sweep).
-crates/con-ron-core/src/arena/monad.rs:view_n	Real caller `arena::checker_base` and `arena::promote`, both `use crate::arena::monad::{…, view_n};`; the name collides with `arena::env::view_n`, and dead-rust.py's per-definition reach check re-derives the module from the FILE being tested (both are named `view_n` out of a file called, respectively, `monad.rs`/`env.rs`), so an import naming the wrong one still "reaches" it (task #105 sweep).
-crates/con-ron-core/src/arena/decl_check.rs:std_axiom_ok	Real caller `arena::check_decl::check_decls_verified` (`use crate::arena::decl_check::{…, std_axiom_ok, …};`, a multi-line `use` — module path and name on different lines defeat the per-line reach regex) (task #105 sweep).
-crates/con-ron-core/src/arena/std_axioms.rs:iff_rec_name	Real caller `arena::decl_check`, multi-line `use crate::arena::std_axioms::{…};` (same blind spot as `std_axiom_ok` above); the name also collides with `kernel::std_axioms::iff_rec_name` (task #105 sweep).
-crates/con-ron-core/src/arena/std_axioms.rs:nonempty_name	As `iff_rec_name` above: real caller via the same multi-line `use crate::arena::std_axioms::{…};` in `arena::decl_check` (task #105 sweep).
-crates/con-ron-core/src/arena/std_axioms.rs:nonempty_intro_name	As `iff_rec_name` above (task #105 sweep).
-crates/con-ron-core/src/arena/std_axioms.rs:nonempty_rec_name	As `iff_rec_name` above (task #105 sweep).
-crates/con-ron-core/src/arena/store.rs:view_app	`EStore::view_app` — real caller `arena::monad::view_app` delegates to it (`use crate::arena::store::{…};`, multi-line); the name also collides with `arena::monad::view_app` itself, con-firmed live by `cargo build` when deleted ("no method named `view_app` found for struct `EStore`") (task #105 sweep).
-crates/con-ron-core/src/arena/store.rs:view_sort	As `view_app` above; `cargo build`-confirmed (task #105 sweep).
-crates/con-ron-core/src/arena/store.rs:view_const	As `view_app` above; `cargo build`-confirmed (task #105 sweep).
-crates/con-ron-core/src/arena/store.rs:view_const_name	As `view_app` above; `cargo build`-confirmed (task #105 sweep).
-crates/con-ron-core/src/arena/store.rs:view_fvar_idx	As `view_app` above; `cargo build`-confirmed (task #105 sweep).
-crates/con-ron-core/src/arena/store.rs:view_fvar_ty	As `view_app` above; `cargo build`-confirmed (task #105 sweep).
-crates/con-ron-core/src/arena/store.rs:view_lit	As `view_app` above; `cargo build`-confirmed (task #105 sweep).
-crates/con-ron-core/src/arena/store.rs:view_bvar	As `view_app` above; `cargo build`-confirmed (task #105 sweep).
-crates/con-ron-core/src/arena/store.rs:view_let	As `view_app` above; `cargo build`-confirmed (task #105 sweep).
-crates/con-ron-core/src/arena/store.rs:view_proj	As `view_app` above; `cargo build`-confirmed (task #105 sweep).
-crates/con-ron-core/src/arena/store.rs:intern_levels	`EStore::intern_levels` — real caller in `frontend::export_c` (`ar.intern_levels(pers, ls)`, dot call), `cargo build`-confirmed when deleted (task #105 sweep).
-crates/con-ron-core/src/arena/store.rs:intern_e	`PersTier::intern_e` — real caller, `cargo build`-confirmed ("no method named `intern_e` found for mutable reference `&mut PersTier`") when deleted (task #105 sweep).
-crates/con-ron-core/src/arena/trust_axioms.rs:true_name	Real caller `arena::decl_check`, multi-line `use crate::arena::trust_axioms::{…};`; collides with `kernel::trust_axioms::true_name` (task #105 sweep).
-crates/con-ron-core/src/arena/trust_axioms.rs:true_intro_name	As `true_name` above (task #105 sweep).
-crates/con-ron-core/src/arena/trust_axioms.rs:trust_compiler_name	As `true_name` above, caller `arena::check_decl` (task #105 sweep).
-crates/con-ron-core/src/arena/trust_axioms.rs:of_reduce_op	As `true_name` above, caller `arena::decl_check` (task #105 sweep).
-crates/con-ron-core/src/arena/promote.rs:empty	`PMemo::empty` — real callers `arena::checker`/`arena::check_decl` (`PMemo::empty()`), `cargo build`-confirmed ("no associated function or constant named `empty` found for struct `PMemo`") when deleted (task #105 sweep).
-crates/con-ron-core/src/kernel/trust_axioms.rs:reduce_op_cv_a	Real caller `arena::trust_axioms` through `use crate::kernel::trust_axioms as ctrust;` then `ctrust::reduce_op_cv_a(...)` — a module ALIAS, invisible to dead-rust.py's reach check, which only recognises the literal module basename (task #105 sweep).
-crates/con-ron-core/src/kernel/trust_axioms.rs:of_reduce_pin_a	As `reduce_op_cv_a` above: real caller `arena::trust_axioms` via `ctrust::of_reduce_pin_a(...)` (task #105 sweep).
-crates/con-ron-core/src/ron/hashmap2.rs:find_slot	Real caller `arena::store`/friends via `HashMap2::find_slot` (aliased `use crate::ron::hashmap2::HashMap2 as HashMap;`, so no line reads `hashmap2::find_slot`); `cargo build`-confirmed when deleted (task #105 sweep).
-
-# --- (C) only-tests, kept: differential/regression test value for live code ---
-
-crates/con-ron-core/src/frontend/export_c.rs:parse_chunks	Only-tests unit coverage of the live export parser; also the driver's own doc (`crates/con-ron/src/driver.rs`) names it as the reference the pooled reader is checked against (task #105 sweep).
-crates/con-ron-core/src/frontend/export_c.rs:at_line	Only-tests helper for the `export_c` test suite above (task #105 sweep).
-crates/con-ron-core/src/frontend/prepare.rs:prelude_ix_empty	Only-tests unit coverage of the live prelude-index construction (task #105 sweep).
-crates/con-ron-core/src/frontend/scan_types.rs:err_tag_dup	Only-tests `dup`/`beq` pair for the live scanner's error tag (task #105 sweep).
-crates/con-ron-core/src/frontend/scan_types.rs:err_tag_beq	As `err_tag_dup` above (task #105 sweep).
 crates/con-ron-core/src/kernel/basis_raw.rs:basis_pin_hit	Only-tests, but a differential check of the live basis-pin recognition the arena checker relies on (`arena::basis` delegates to this module's data) (task #105 sweep).
 crates/con-ron-core/src/kernel/basis_raw.rs:quot_pin_hit	As `basis_pin_hit` above (task #105 sweep).
 crates/con-ron-core/src/kernel/core_types.rs:dup	Only-tests `dup`/`beq` pair for `CheckError`, a value type arena still imports (`kernel::core_types::CheckError`); own unit test, not a retired-checker leftover (task #105 sweep).
@@ -111,7 +44,6 @@ crates/con-ron-core/src/kernel/expr_ops.rs:lower_bvars	As `reset_meta` above (ta
 crates/con-ron-core/src/kernel/expr_ops.rs:abstract1	As `reset_meta` above (task #105 sweep).
 crates/con-ron-core/src/kernel/expr_ops.rs:fvar_leaves	As `reset_meta` above (task #105 sweep).
 crates/con-ron-core/src/kernel/expr_ops.rs:loose_bvars_bounded	As `reset_meta` above (task #105 sweep).
-crates/con-ron-core/src/kernel/expr_ops.rs:is_lam	As `reset_meta` above (task #105 sweep).
 crates/con-ron-core/src/kernel/expr_ops.rs:lam_pw	As `reset_meta` above (task #105 sweep).
 crates/con-ron-core/src/kernel/expr_ops.rs:has_fvar	As `reset_meta` above (task #105 sweep).
 crates/con-ron-core/src/kernel/expr_ops.rs:rename_consts	As `reset_meta` above (task #105 sweep).
@@ -131,19 +63,9 @@ crates/con-ron-core/src/kernel/level.rs:name_nodup	Only-tests unit coverage of t
 crates/con-ron-core/src/kernel/prop_when.rs:name_lt	`prop_when::name_lt` — real, non-test caller `con-ron-dump/src/lib.rs`'s canonical-name-ordering test (`assert!(prop_when::name_lt(…))`) (task #105 sweep).
 crates/con-ron-core/src/kernel/prop_when.rs:holds	Only-tests unit coverage of the live `PropWhen` value type arena's pinned data uses (task #105 sweep).
 crates/con-ron-core/src/kernel/std_axioms.rs:std_axiom_ok	`kernel::std_axioms::std_axiom_ok` — real, non-test caller `arena::checker`'s own test module, cross-checking the arena's `std_axiom_ok` against this reference (`cstd::std_axiom_ok`, aliased `use crate::kernel::std_axioms as cstd;`) (task #105 sweep).
-crates/con-ron-core/src/ron/hashmap.rs:is_empty	Only-tests; `ron::hashmap::HashMap` (distinct from the arena's `HashMap2`) is still `frontend::scan_types`'s `IdTable` map and this test suite's differential reference for `HashMap2` (`ron/hashmap2.rs`'s own tests compare `a`/`b` of the two types directly) (task #105 sweep).
-crates/con-ron-core/src/ron/hashmap.rs:clear	As `is_empty` above (task #105 sweep).
-crates/con-ron-core/src/ron/hashmap.rs:contains_key	As `is_empty` above (task #105 sweep).
-crates/con-ron-core/src/ron/hashmap.rs:insert	Not just only-tests: real, non-test caller `frontend::scan_types` (`t.sparse.insert(i, x)`) — a dot call on a name that collides with `HashMap2::insert`, invisible to the census (task #105 sweep).
-crates/con-ron-core/src/ron/hashmap.rs:remove	Only-tests; differential reference for `HashMap2::remove`, as `is_empty` above (task #105 sweep).
-crates/con-ron-core/src/ron/hashmap.rs:dup	Only-tests; differential reference for `HashMap2::dup`, as `is_empty` above (task #105 sweep).
-crates/con-ron-core/src/ron/hashmap2.rs:is_empty	Only-tests unit coverage of the live arena map type (task #105 sweep).
-crates/con-ron-core/src/ron/hashmap2.rs:contains_key	Only-tests unit/differential coverage of the live arena map type (task #105 sweep).
-crates/con-ron-core/src/ron/hashmap2.rs:insert	Only-tests unit/differential coverage of the live arena map type (task #105 sweep).
-crates/con-ron-core/src/ron/hashmap2.rs:is_saturated_full	Only-tests unit coverage of the live arena map type (task #105 sweep).
-crates/con-ron-core/src/ron/hashmap2.rs:remove	Only-tests unit/differential coverage of the live arena map type (task #105 sweep).
-crates/con-ron-core/src/ron/hashmap2.rs:dup	Only-tests unit/differential coverage of the live arena map type (task #105 sweep).
-crates/con-ron-dump/src/dag.rs:census_pins	Only-tests, but the test oracle for pin-dump sharing: its own doc says the check "would be caught here and nowhere else" (task #105 sweep).
-crates/con-ron-dump/src/lib.rs:node_sizes	Only-tests; the regression test that pins node struct sizes against DESIGN.md's memory budgets ("the test pins them, so a further repacking shows up here") (task #105 sweep).
-crates/con-ron-dump/src/lib.rs:expr_node_bytes	Only-tests, paired with `node_sizes` in the same size-budget test (task #105 sweep).
-crates/con-ron/src/render.rs:from_cps	Only-tests unit coverage of the driver's code-point rendering (task #105 sweep).
+crates/con-ron-core/src/kernel/expr_ops.rs:strip_lams	only-tests; found once dead-rust.py stopped counting uses through other modules of the same name (pending this lane's kernel batch).
+crates/con-ron-core/src/kernel/expr_ops.rs:fvar_type_d	only-tests; found once dead-rust.py stopped counting uses through other modules of the same name (pending this lane's kernel batch).
+crates/con-ron-core/src/kernel/expr_ops.rs:rec_rule_plain	only-tests; found once dead-rust.py stopped counting uses through other modules of the same name (pending this lane's kernel batch).
+crates/con-ron-core/src/kernel/expr_ops.rs:inst_pis_at_lift	only-tests; found once dead-rust.py stopped counting uses through other modules of the same name (pending this lane's kernel batch).
+crates/con-ron-core/src/kernel/prop_read.rs:not_proof_fast	only-tests; found once dead-rust.py stopped counting uses through other modules of the same name (pending this lane's kernel batch).
+crates/con-ron-core/src/kernel/prop_read.rs:is_proof_fast	only-tests; found once dead-rust.py stopped counting uses through other modules of the same name (pending this lane's kernel batch).

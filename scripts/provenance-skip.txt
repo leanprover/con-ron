@@ -280,3 +280,4 @@ ConLeche/Kernel/CoreDefs.lean betaGateFires Was `kernel/core_k.rs`'s `beta_gate_
 ConLeche/Kernel/DeclCheck.lean natOpCodF Was `kernel/core_k.rs`'s `nat_op_deps` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).
 ConLeche/Kernel/DeclCheck.lean natOpTyPinnedF Was `kernel/core_k.rs`'s `nat_op_ty_pinned` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).
 ConLeche/Kernel/DeclCheck.lean natOpStoredOkF Was `kernel/core_k.rs`'s `nat_op_stored_ok` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).
+ConLeche/Kernel/CheckDecl.lean checkDeclsPure Was `arena/check_decl.rs`'s `check_decls_pure` (and its `_go` fold), the one-step-per-record spec fold whose refinement theorem task #105 SW-R2 deleted as dead; the binary runs the two-phase driver (`crates/con-ron/src/driver.rs`), so with the theorem gone the Rust had no caller either (deleted, task #105 R-SWEEP2).

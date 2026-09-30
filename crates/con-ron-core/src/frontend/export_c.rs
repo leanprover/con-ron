@@ -2365,32 +2365,6 @@ pub fn parse_source<S: ChunkSource>(
     }
 }
 
-/// con-leche: none — the line number folded into the message
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:622-631 atLine` —
-/// con-leche reports a parse failure as `(CheckError, lineNo)` and its
-/// `Main.lean` prints the pair; the arena's driver seam is `Except CheckError
-/// Nat` and has no position channel, so the number goes into the text instead.
-/// The KIND — hence the exit code — is untouched.
-pub fn at_line(e: CheckError, n: u64) -> CheckError {
-    const A_LINE: [u32; 7] = [
-        32, 40, 108, 105, 110, 101, 32,
-    ];
-    const B_PAREN: [u32; 1] = [
-        41,
-    ];
-    let suffix = text::cat3(
-        core_types::code_points(&A_LINE),
-        &text::u64_str(n),
-        &core_types::code_points(&B_PAREN),
-    );
-    match e {
-        CheckError::NotImplemented(w) => core_types::not_implemented(text::cat(w, &suffix)),
-        CheckError::Invalid(w) => core_types::invalid(text::cat(w, &suffix)),
-        CheckError::Internal(w) => core_types::internal(text::cat(w, &suffix)),
-        CheckError::Native(w) => core_types::native(text::cat(w, &suffix)),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2478,10 +2452,6 @@ mod tests {
             ),
             k
         )
-    }
-
-    fn cp(t: &str) -> Vec<u32> {
-        t.chars().map(|c| c as u32).collect()
     }
 
     fn s_of(v: &[u32]) -> String {
@@ -2794,15 +2764,6 @@ mod tests {
         assert_eq!(line, 0);
         assert_eq!(tag(&e), "declined");
         assert!(msg(&e).starts_with("an input of"));
-    }
-
-    /// `at_line` folds the line into the message and leaves the KIND — hence
-    /// the exit code — alone.
-    #[test]
-    fn at_line_keeps_the_kind() {
-        let e = at_line(core_types::invalid(cp("nope")), 17);
-        assert_eq!(tag(&e), "invalid");
-        assert_eq!(msg(&e), "nope (line 17)");
     }
 
 

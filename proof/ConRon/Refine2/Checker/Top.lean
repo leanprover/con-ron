@@ -3,16 +3,16 @@
 
 **Task #97-P5-Checker**, deliverables 2 and 3 (DESIGN.md §8.2).
 `crates/con-ron-core/src/arena/{check_decl,checker}.rs` against
-`proof/ConRon/Arena/{CheckDecl,Checker}.lean`: `check_decl`'s seven arms, the pure fold
-`check_decls_pure`, the two-phase fold `install_then_check` that the binary
-runs, and the startup walk `intern_all_pins`.
+`proof/ConRon/Arena/{CheckDecl,Checker}.lean`: `check_decl`'s seven arms, the
+two phases' per-record steps (`annot_decl_step`, `check_pending`) and their
+fold `annot_fold`, and the startup walk `intern_all_pins`.
 
-**`install_then_check_refines` and `check_decls_pure_refines` are §8.2's own
-sentence**: *the Aeneas model of the Rust `check_decls` accepting implies (B)
-accepting with the abstracted state/result, over the whole outcome* — a port
-`Native` included, as the twin's `native` (task #98-NATIVE; it used to claim
-nothing).  The driver's fold above them is unverified
-and calls this per record.
+The whole-list folds `check_decls_pure` and `install_then_check`, and their
+`_refines` theorems, are gone (task #105: the theorems stated nothing the
+capstone used, and then the Rust had no caller).  The binary's driver
+(`crates/con-ron/src/driver.rs`) folds the steps itself, unverified, record by
+record; each step's statement covers the whole outcome, a port `Native`
+included, as the twin's `native` (task #98-NATIVE).
 
 ## Finding 13 — the fold's error channel is a PAIR, and that is a fifth shape
 
@@ -53,8 +53,7 @@ redundant hypothesis.
 ## What this file's capstone still owes (task #97-T2-LOCKSTEP lane Checker)
 
 **Nothing but its own leaves, and no precondition on the twin.**
-`install_then_check_refines` and `check_decls_pure_refines` take
-`AStateRel₀` and `AStateInv` and nothing else: the statements are lockstep
+The step statements take `AStateRel₀` and `AStateInv` and nothing else: the statements are lockstep
 (the Rust and the twin do the same operations from related states), so the
 declaration boundary `BrOK`, ruling 2's `DeclResolves` over an abstract `Good`
 and the promote window `AStateRelW` — all Theorem-1 content that had leaked
@@ -64,9 +63,8 @@ into Theorem 2 (task #97-T2-AUDIT §2) — are deleted.  The bracket is three
 ONE `lockstep` call over its callees' `@[lockstep]` wrappers.
 
 The spine is `annot_fold_refines` / `annot_decl_step_refines` /
-`check_pending_list_refines` / `check_decls_pure_go_refines` (cursor folds,
-by hand: the twin is a list recursion with a `tryCatch`, not a zip), all
-closed, and so are the arms' leaves under them: the spine is `sorry`-free
+`check_pending_refines` (the fold a cursor recursion, by hand: the twin is a
+list recursion with a `tryCatch`, not a zip), all closed, and so are the arms' leaves under them: the spine is `sorry`-free
 (the census at the end of the file).
 -/
 import ConRon.Refine2.Checker.DeclCheck
@@ -1270,7 +1268,7 @@ the tier, to the twin's with its scratch tier opened.  A record's bracket is
 then `clear_scratch` against `enterScratch` (`enter_record_sim`) and
 `clear_scratch` against `dropScratch` (`leave_record_rel`).  A record also
 leaves the twin's store in the image of `dropScratch`, which is what the thaw
-at the end of `install_then_check` needs. -/
+at the end of phase B needs. -/
 
 /-- The outcome of one phase-B record, between two idle states. -/
 def SimIdle (tier : arena.store.PersTier) (lst : AState)

@@ -24,8 +24,8 @@ use crate::arena::checker::check_basis_decl;
 use crate::arena::checker_base;
 use crate::arena::checker_base::{check_constant_val, nidx_contains_from};
 use crate::arena::core::{
-    drop_scratch, enter_scratch, flush_caches, nat_div_mod_names, nat_op_deps,
-    nat_op_equations, nat_op_guard, nat_op_names, CORE_WALK_FUEL,
+    nat_div_mod_names, nat_op_deps,
+    nat_op_equations, nat_op_guard, nat_op_names,
 };
 use crate::arena::decl_check::{
     certify_nat_eqs, check_defn_val, check_div_mod_pin, check_opaque_val, check_reduce_pin,
@@ -33,14 +33,13 @@ use crate::arena::decl_check::{
     std_axiom_ok, subst_const0_pairs, trust_compiler_ok,
 };
 use crate::arena::env::{
-    i_constant_info_dup, i_constant_val_dup, i_env_empty, ifenv_restrict_to, mk_ifenv, IConstantInfo,
+    i_constant_info_dup, i_constant_val_dup, ifenv_restrict_to, IConstantInfo,
     IConstantVal, IDeclaration, IFEnv,
 };
 use crate::arena::handle::{EIdx, NIdx};
 use crate::arena::inductives::{block_parts, block_tail};
 use crate::arena::monad::{fail, AState};
 use crate::arena::nat_op_pin_set::INatOpPinSet;
-use crate::arena::promote::{promote_new, PMemo};
 use crate::arena::std_axioms::{choice_name, propext_name};
 use crate::arena::trust_axioms::{
     of_reduce_bool_name, of_reduce_nat_name, reduce_op_names, trust_compiler_name,
@@ -729,87 +728,4 @@ pub fn check_quot_decl(
 // ---------------------------------------------------------------------------
 // The theorem's fold (`Checker.lean:194-208` of the twin)
 // ---------------------------------------------------------------------------
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:216-220 checkDeclsPure
-/// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:213-233 checkDeclStep` — **one
-/// step of the pure fold, bracketed**: `check_decl` inside the per-declaration
-/// scratch tier, with the constants it installed promoted before the tier
-/// goes.
-///
-/// The bracket is `annot_step`'s, letter for letter — one `check_decl` where
-/// phase A has an install half, and no `ValueGroup` because the pure fold
-/// checks what it installs in the same step.  DESIGN.md §8.3's amendment (task
-/// #97-P6-2) puts it here too, so that **the two folds stay one algorithm**:
-/// the tier regime is not an optimisation of the driver's fold that the
-/// theorem's fold may do without, it is where every term the checker builds
-/// lives, and a Theorem-1 statement about a fold with no tiers would say
-/// nothing about the fold the binary runs.
-pub fn check_decl_step(
-    _pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    pins: &Vec<INatOpPinSet>,
-    fe: IFEnv,
-    d: &IDeclaration,
-) -> Result<IFEnv, CheckError> {
-    let vis: u64 = fe.visible_below;
-    flush_caches(st);
-    let mut tier: PersTier = enter_scratch(st);
-    match check_decl(&tier, st, mode, pins, fe, d) {
-        Err(e) => {
-            drop_scratch(st, tier);
-            Err(e)
-        }
-        Ok(fe2) => {
-            let k: u64 = fe2.visible_below - vis;
-            match promote_new(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, k, fe2) {
-                Err(e) => {
-                    drop_scratch(st, tier);
-                    Err(e)
-                }
-                Ok((_, fe3)) => {
-                    drop_scratch(st, tier);
-                    Ok(fe3)
-                }
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:216-220 checkDeclsPure
-/// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:235-244 checkDeclsPureGo` — the
-/// cited `foldlM` as an index recursion threading the index by value (§3.4
-/// forbids the closure).  The step is the bracketed one.
-pub fn check_decls_pure_go(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    pins: &Vec<INatOpPinSet>,
-    fe: IFEnv,
-    ds: &Vec<IDeclaration>,
-    i: usize,
-) -> Result<IFEnv, CheckError> {
-    if i >= ds.len() {
-        Ok(fe)
-    } else {
-        match check_decl_step(pers, st, mode, pins, fe, &ds[i]) {
-            Err(e) => Err(e),
-            Ok(fe2) => check_decls_pure_go(pers, st, mode, pins, fe2, ds, i + 1),
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:216-220 checkDeclsPure
-/// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:246-250 checkDeclsPure` — the
-/// fold from the empty environment.  THE THEOREM'S SHAPE (module note): one
-/// step per record, install and check together, each step bracketed.
-pub fn check_decls_pure(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    pins: &Vec<INatOpPinSet>,
-    ds: &Vec<IDeclaration>,
-) -> Result<IFEnv, CheckError> {
-    check_decls_pure_go(pers, st, mode, pins, mk_ifenv(i_env_empty()), ds, 0)
-}
 

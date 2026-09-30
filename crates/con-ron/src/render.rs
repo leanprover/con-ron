@@ -35,13 +35,6 @@ pub fn name_str(n: &Name) -> String {
 }
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code
-/// points (DESIGN.md §3.3); this is the reverse, at the boundary where a
-/// `CheckError`'s message becomes a line on stderr.
-pub fn from_cps(s: &[u32]) -> String {
-    s.iter().filter_map(|c| char::from_u32(*c)).collect()
-}
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code
 /// points (DESIGN.md §3.3); a driver message on its way into a `CheckError`.
 pub fn cps(s: &str) -> Vec<u32> {
     s.chars().map(|c| c as u32).collect()
@@ -51,6 +44,12 @@ pub fn cps(s: &str) -> Vec<u32> {
 mod tests {
     use super::*;
     use con_ron_core::kernel::name;
+
+    /// `cps`'s reverse: a code-point string as a Rust `String` (test-only
+    /// since task #105; the driver renders messages through its own path).
+    fn from_cps(s: &[u32]) -> String {
+        s.iter().filter_map(|c| char::from_u32(*c)).collect()
+    }
 
     #[test]
     fn the_two_renderings_agree() {

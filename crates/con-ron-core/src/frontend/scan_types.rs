@@ -70,68 +70,6 @@ pub enum ErrTag {
     IndexOverflow,
 }
 
-/// con-leche: none — the copy of a payload-free enum (Lean's value semantics;
-/// DESIGN.md §3.4 forbids `#[derive(Clone)]`)
-pub fn err_tag_dup(t: &ErrTag) -> ErrTag {
-    match t {
-        ErrTag::ExpectedObject => ErrTag::ExpectedObject,
-        ErrTag::ExpectedKey => ErrTag::ExpectedKey,
-        ErrTag::ExpectedColon => ErrTag::ExpectedColon,
-        ErrTag::ExpectedComma => ErrTag::ExpectedComma,
-        ErrTag::ExpectedList => ErrTag::ExpectedList,
-        ErrTag::UnknownKey => ErrTag::UnknownKey,
-        ErrTag::DuplicateKey => ErrTag::DuplicateKey,
-        ErrTag::MissingKey => ErrTag::MissingKey,
-        ErrTag::MixedKeys => ErrTag::MixedKeys,
-        ErrTag::ExpectedNat => ErrTag::ExpectedNat,
-        ErrTag::ExpectedString => ErrTag::ExpectedString,
-        ErrTag::ExpectedBool => ErrTag::ExpectedBool,
-        ErrTag::BadEscape => ErrTag::BadEscape,
-        ErrTag::BadUtf8 => ErrTag::BadUtf8,
-        ErrTag::BadBinderInfo => ErrTag::BadBinderInfo,
-        ErrTag::BadHints => ErrTag::BadHints,
-        ErrTag::BadPw => ErrTag::BadPw,
-        ErrTag::BadNatVal => ErrTag::BadNatVal,
-        ErrTag::Trailing => ErrTag::Trailing,
-        ErrTag::NoProgress => ErrTag::NoProgress,
-        ErrTag::IndexOverflow => ErrTag::IndexOverflow,
-    }
-}
-
-/// con-leche: none — the tag's ordinal, which `err_tag_beq` compares
-/// (DESIGN.md §3.4 forbids `#[derive(PartialEq)]`: a derived `eq` would put
-/// `core::cmp::PartialEq` and a `StructuralPartialEq` impl into the model).
-pub fn err_tag_code(t: &ErrTag) -> u64 {
-    match t {
-        ErrTag::ExpectedObject => 0,
-        ErrTag::ExpectedKey => 1,
-        ErrTag::ExpectedColon => 2,
-        ErrTag::ExpectedComma => 3,
-        ErrTag::ExpectedList => 4,
-        ErrTag::UnknownKey => 5,
-        ErrTag::DuplicateKey => 6,
-        ErrTag::MissingKey => 7,
-        ErrTag::MixedKeys => 8,
-        ErrTag::ExpectedNat => 9,
-        ErrTag::ExpectedString => 10,
-        ErrTag::ExpectedBool => 11,
-        ErrTag::BadEscape => 12,
-        ErrTag::BadUtf8 => 13,
-        ErrTag::BadBinderInfo => 14,
-        ErrTag::BadHints => 15,
-        ErrTag::BadPw => 16,
-        ErrTag::BadNatVal => 17,
-        ErrTag::Trailing => 18,
-        ErrTag::NoProgress => 19,
-        ErrTag::IndexOverflow => 20,
-    }
-}
-
-/// con-leche: none — `ErrTag`'s `DecidableEq`, as a `beq`
-pub fn err_tag_beq(a: &ErrTag, b: &ErrTag) -> bool {
-    err_tag_code(a) == err_tag_code(b)
-}
-
 /// con-leche: ConLeche/Frontend/Scan/Types.lean:94-98 ScanErr
 /// Where the recogniser stopped, and why.  `offset` is a byte offset from the
 /// start of the *chunk*; the caller subtracts the line's start, as
@@ -700,16 +638,6 @@ mod tests {
         let u: IdTable<u64> = id_table_singleton(7);
         assert_eq!(id_table_get(&u, 0), Some(&7));
         assert!(id_table_get(&u, 1).is_none());
-    }
-
-    #[test]
-    fn err_tag_eq_is_by_ordinal() {
-        assert!(err_tag_beq(&ErrTag::BadUtf8, &ErrTag::BadUtf8));
-        assert!(!err_tag_beq(&ErrTag::BadUtf8, &ErrTag::BadEscape));
-        assert!(err_tag_beq(
-            &err_tag_dup(&ErrTag::IndexOverflow),
-            &ErrTag::IndexOverflow
-        ));
     }
 
     #[test]

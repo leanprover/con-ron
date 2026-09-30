@@ -65,7 +65,7 @@
 //! fixups, no cycles, no recursion over the term (the `E` records are already
 //! topologically sorted, so the reader needs no worklist either — the writer's
 //! is enough).  What the reader's resident set *is*, after that, is the terms
-//! themselves: [`node_sizes`] prints what one node of each kind weighs.
+//! themselves: the `node_sizes` test pins what one node of each kind weighs.
 
 // ---------------------------------------------------------------------------
 // The global allocator (task #35).
@@ -196,33 +196,23 @@ pub const ALLOCATOR: &str = if cfg!(feature = "jemalloc") {
     "system"
 };
 
-use con_ron_core::ron::ptr::P;
-use con_ron_core::kernel::env::ConstantInfo;
-use con_ron_core::kernel::env::Declaration;
-use con_ron_core::kernel::env::ConstantVal;
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::BinderMeta;
 use con_ron_core::kernel::expr::Expr;
-use con_ron_core::kernel::expr::ExprKind;
-use con_ron_core::kernel::expr::ExprNode;
 #[allow(unused_imports)]
 use con_ron_core::kernel::expr::ExprView;
 #[allow(unused_imports)]
 use con_ron_core::kernel::expr::Literal;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
-use con_ron_core::kernel::level::LevelKind;
-use con_ron_core::kernel::level::LevelNode;
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
-use con_ron_core::kernel::name::NameKind;
-use con_ron_core::kernel::name::NameNode;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 use con_ron_core::kernel::prop_when;
-use con_ron_core::kernel::prop_when::PropWhen;
 use con_ron_core::ron::nat::Nat;
 
-pub mod dag;
+#[cfg(test)]
+mod dag;
 pub mod natdec;
 pub mod write;
 
@@ -310,107 +300,6 @@ pub struct Counts {
     /// The `S` records, i.e. the pin variants.
     pub pin_sets: usize,
 }
-
-// ---------------------------------------------------------------------------
-// What a node weighs (task #36)
-// ---------------------------------------------------------------------------
-
-/// How many machine words a counted pointer's heap block carries in front of
-/// the value.  One impl per pointer the core may be aliased to
-/// (`ron::ptr::P`, task #44), so `--sizes` follows the alias with no edit
-/// here: two words for `std::rc::Rc` and `std::sync::Arc` (a strong and a
-/// weak count), one for a single-count pointer.  This is a *fact about the
-/// standard library's layout*, restated here because the block type is
-/// private; nothing reads it but the size report.
-trait CountHeader {
-    const WORDS: usize;
-}
-
-impl<T> CountHeader for std::rc::Rc<T> {
-    const WORDS: usize = 2;
-}
-
-impl<T> CountHeader for std::sync::Arc<T> {
-    const WORDS: usize = 2;
-}
-
-/// `P<T>`'s heap block: the reference counts in front of the value
-/// (`alloc::rc::RcInner`/`alloc::sync::ArcInner`, `#[repr(C)] { strong,
-/// weak, value }`).  This is a *model* of that private type, used only to
-/// report a size — nothing is allocated through it and no pointer is cast to
-/// it.  The header width is the alias's own, so swapping `ron::ptr::P`
-/// (task #44) moves the reported node size with it.
-/// The header width of the alias in force.  Not generic in the payload: the
-/// counts sit in front of any `T`.
-const P_HEADER_WORDS: usize = <P<u8> as CountHeader>::WORDS;
-
-#[repr(C)]
-#[allow(dead_code)]
-struct PBlock<T> {
-    header: [usize; P_HEADER_WORDS],
-    value: T,
-}
-
-/// One row of the size report: a type, its `size_of`, and — for a type the
-/// core holds behind an `Rc` — what one heap block of it costs including the
-/// two counts.  `heap == 0` means the type is stored inline, in its owner.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NodeSize {
-    pub what: &'static str,
-    pub size: usize,
-    pub heap: usize,
-}
-
-/// **What the core's terms weigh, per node** (DESIGN.md tasks #36, #38, #90
-/// and #94).  At Mathlib scale these are multiplied by 103 M.
-///
-/// **Task #97-SWAP-2 put the row back.**  Tasks #94-#97-SWAP split it: the
-/// kind lived in the handle and each constructor had a cell of its own size,
-/// which bought 32 bytes for an `app` against 64.  That representation cost
-/// the verified crate its only `unsafe`, and task #97-SWAP measured that the
-/// checking path builds no `Expr` at all — the arena's own records do — so it
-/// was retired.  A node is one `ExprNode` as wide as the widest `ExprKind`
-/// arm again, behind a `P` whose two counts make the heap block.  The rows
-/// below are the real structs, and the test pins them, so a further
-/// repacking shows up here with its saving attached.
-pub fn node_sizes() -> Vec<NodeSize> {
-    fn row<T>(what: &'static str, rc: bool) -> NodeSize {
-        NodeSize {
-            what,
-            size: std::mem::size_of::<T>(),
-            heap: if rc { std::mem::size_of::<PBlock<T>>() } else { 0 },
-        }
-    }
-    vec![
-        row::<ExprNode>("ExprNode (data + kind)", true),
-        row::<ExprKind>("  ExprKind", false),
-        row::<(Expr, Expr)>("    app payload", false),
-        row::<(Name, P<Vec<Level>>)>("    const payload", false),
-        row::<Literal>("    lit payload", false),
-        row::<(Expr, Expr, BinderMeta)>("    lam/forallE payload", false),
-        row::<(Expr, Expr, Expr)>("    letE payload", false),
-        row::<(Name, u64, Expr)>("    proj payload", false),
-        row::<NameNode>("NameNode (hash + kind)", true),
-        row::<NameKind>("  NameKind", false),
-        row::<LevelNode>("LevelNode (hash + kind)", true),
-        row::<LevelKind>("  LevelKind", false),
-        row::<BinderMeta>("BinderMeta (inline PropWhen, task #90)", false),
-        row::<PropWhen>("  PropWhen", false),
-        row::<Vec<u32>>("Vec<u32> (a string's header)", false),
-        row::<Nat>("Nat (limb Vec header)", false),
-        row::<Declaration>("Declaration", false),
-        row::<ConstantInfo>("ConstantInfo (inline)", false),
-        row::<ConstantVal>("ConstantVal (inline)", false),
-    ]
-}
-
-/// The `P` heap block of an `ExprNode` — the reader's dominant cost, one per
-/// `E` record.  Separate from [`node_sizes`] so a caller can multiply it by
-/// the record count without searching the table.
-pub fn expr_node_bytes() -> usize {
-    std::mem::size_of::<PBlock<ExprNode>>()
-}
-
 
 // ---------------------------------------------------------------------------
 // The reader's state
@@ -967,6 +856,118 @@ fn run_lines_str(text: &str, header: &str) -> Result<(Tables, Counts), String> {
 mod tests {
     use super::*;
     use con_ron_core::ron::nat;
+    use con_ron_core::ron::ptr::P;
+    use con_ron_core::kernel::env::ConstantInfo;
+    use con_ron_core::kernel::env::Declaration;
+    use con_ron_core::kernel::env::ConstantVal;
+    use con_ron_core::kernel::expr::ExprKind;
+    use con_ron_core::kernel::expr::ExprNode;
+    use con_ron_core::kernel::level::LevelKind;
+    use con_ron_core::kernel::level::LevelNode;
+    use con_ron_core::kernel::name::NameKind;
+    use con_ron_core::kernel::name::NameNode;
+    use con_ron_core::kernel::prop_when::PropWhen;
+
+    // ---------------------------------------------------------------------------
+    // What a node weighs (task #36; test-only since task #105, when nothing but
+    // `the_node_sizes_are_what_the_accounting_assumes` read it any more)
+    // ---------------------------------------------------------------------------
+
+    /// How many machine words a counted pointer's heap block carries in front of
+    /// the value.  One impl per pointer the core may be aliased to
+    /// (`ron::ptr::P`, task #44), so `--sizes` follows the alias with no edit
+    /// here: two words for `std::rc::Rc` and `std::sync::Arc` (a strong and a
+    /// weak count), one for a single-count pointer.  This is a *fact about the
+    /// standard library's layout*, restated here because the block type is
+    /// private; nothing reads it but the size report.
+    trait CountHeader {
+        const WORDS: usize;
+    }
+
+    impl<T> CountHeader for std::rc::Rc<T> {
+        const WORDS: usize = 2;
+    }
+
+    impl<T> CountHeader for std::sync::Arc<T> {
+        const WORDS: usize = 2;
+    }
+
+    /// `P<T>`'s heap block: the reference counts in front of the value
+    /// (`alloc::rc::RcInner`/`alloc::sync::ArcInner`, `#[repr(C)] { strong,
+    /// weak, value }`).  This is a *model* of that private type, used only to
+    /// report a size — nothing is allocated through it and no pointer is cast to
+    /// it.  The header width is the alias's own, so swapping `ron::ptr::P`
+    /// (task #44) moves the reported node size with it.
+    /// The header width of the alias in force.  Not generic in the payload: the
+    /// counts sit in front of any `T`.
+    const P_HEADER_WORDS: usize = <P<u8> as CountHeader>::WORDS;
+
+    #[repr(C)]
+    #[allow(dead_code)]
+    struct PBlock<T> {
+        header: [usize; P_HEADER_WORDS],
+        value: T,
+    }
+
+    /// One row of the size report: a type, its `size_of`, and — for a type the
+    /// core holds behind an `Rc` — what one heap block of it costs including the
+    /// two counts.  `heap == 0` means the type is stored inline, in its owner.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    struct NodeSize {
+        what: &'static str,
+        size: usize,
+        heap: usize,
+    }
+
+    /// **What the core's terms weigh, per node** (DESIGN.md tasks #36, #38, #90
+    /// and #94).  At Mathlib scale these are multiplied by 103 M.
+    ///
+    /// **Task #97-SWAP-2 put the row back.**  Tasks #94-#97-SWAP split it: the
+    /// kind lived in the handle and each constructor had a cell of its own size,
+    /// which bought 32 bytes for an `app` against 64.  That representation cost
+    /// the verified crate its only `unsafe`, and task #97-SWAP measured that the
+    /// checking path builds no `Expr` at all — the arena's own records do — so it
+    /// was retired.  A node is one `ExprNode` as wide as the widest `ExprKind`
+    /// arm again, behind a `P` whose two counts make the heap block.  The rows
+    /// below are the real structs, and the test pins them, so a further
+    /// repacking shows up here with its saving attached.
+    fn node_sizes() -> Vec<NodeSize> {
+        fn row<T>(what: &'static str, rc: bool) -> NodeSize {
+            NodeSize {
+                what,
+                size: std::mem::size_of::<T>(),
+                heap: if rc { std::mem::size_of::<PBlock<T>>() } else { 0 },
+            }
+        }
+        vec![
+            row::<ExprNode>("ExprNode (data + kind)", true),
+            row::<ExprKind>("  ExprKind", false),
+            row::<(Expr, Expr)>("    app payload", false),
+            row::<(Name, P<Vec<Level>>)>("    const payload", false),
+            row::<Literal>("    lit payload", false),
+            row::<(Expr, Expr, BinderMeta)>("    lam/forallE payload", false),
+            row::<(Expr, Expr, Expr)>("    letE payload", false),
+            row::<(Name, u64, Expr)>("    proj payload", false),
+            row::<NameNode>("NameNode (hash + kind)", true),
+            row::<NameKind>("  NameKind", false),
+            row::<LevelNode>("LevelNode (hash + kind)", true),
+            row::<LevelKind>("  LevelKind", false),
+            row::<BinderMeta>("BinderMeta (inline PropWhen, task #90)", false),
+            row::<PropWhen>("  PropWhen", false),
+            row::<Vec<u32>>("Vec<u32> (a string's header)", false),
+            row::<Nat>("Nat (limb Vec header)", false),
+            row::<Declaration>("Declaration", false),
+            row::<ConstantInfo>("ConstantInfo (inline)", false),
+            row::<ConstantVal>("ConstantVal (inline)", false),
+        ]
+    }
+
+    /// The `P` heap block of an `ExprNode` — the reader's dominant cost, one per
+    /// `E` record.  Separate from [`node_sizes`] so a caller can multiply it by
+    /// the record count without searching the table.
+    fn expr_node_bytes() -> usize {
+        std::mem::size_of::<PBlock<ExprNode>>()
+    }
 
     fn nm(s: &str) -> Name {
         let cps: Vec<u32> = s.chars().map(|c| c as u32).collect();

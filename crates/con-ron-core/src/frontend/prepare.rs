@@ -68,12 +68,7 @@ pub struct PreludeIx {
     pub decls: Vec<IDeclaration>,
 }
 
-/// con-leche: ConLeche/Frontend/Prepare.lean:83-88 PreludeIx
-/// The empty prelude (the Lean's field default), which the prelude's own parse
-/// runs against.
-pub fn prelude_ix_empty() -> PreludeIx {
-    PreludeIx { decls: Vec::new() }
-}
+
 
 /// con-leche: ConLeche/Frontend/Prepare.lean:90-93 preludeKey
 /// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:52-59 preludeKey` —
@@ -286,6 +281,11 @@ pub fn prepare_prelude(
 
 #[cfg(test)]
 mod tests {
+    /// The empty prelude (the Lean's `PreludeIx` field default), which the
+    /// prelude's own parse runs against; test-only since task #105.
+    fn prelude_ix_empty() -> PreludeIx {
+        PreludeIx { decls: Vec::new() }
+    }
     use super::*;
     use crate::arena::env::IConstantVal;
     use crate::arena::store::{ENodeView, LNodeView};

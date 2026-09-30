@@ -262,40 +262,6 @@ where
     }
 }
 
-/// Remove a key from a bucket: returns the bucket without it and the value.
-/// With the optional tail (task #41) the found-entry arm hands back the tail
-/// itself (`Nil` if there is none), and the walk arm rebuilds the node around
-/// the shortened rest — which may be `Cons(.., Some(Nil))`, a shape `alv`
-/// does not distinguish from `Cons(.., None)`; nothing normalises it, because
-/// the checker never removes (see the note on the missing iteration API).
-/// Taken and returned by value, unlike
-/// `vendor/aeneas/tests/src/hashmap.rs:265` (`remove_from_list`), whose
-/// `&mut` walk needs `std::mem::replace` and an `unreachable!()` arm.
-fn list_remove<K, V>(ls: AList<K, V>, key: &K) -> (AList<K, V>, Option<V>)
-where
-    K: Eq2,
-{
-    match ls {
-        AList::Nil => (AList::Nil, None),
-        AList::Cons(ckey, cvalue, tl) => {
-            if ckey.eq2(key) {
-                match tl {
-                    None => (AList::Nil, Some(cvalue)),
-                    Some(b) => (*b, Some(cvalue)),
-                }
-            } else {
-                match tl {
-                    None => (AList::Cons(ckey, cvalue, None), None),
-                    Some(b) => {
-                        let (rest, removed) = list_remove(*b, key);
-                        (AList::Cons(ckey, cvalue, Some(Box::new(rest))), removed)
-                    }
-                }
-            }
-        }
-    }
-}
-
 impl<K, V> HashMap<K, V> {
     /// Push `n` empty buckets onto `slots`.  Split in half rather than
     /// peeled one at a time, so the recursion is `log2 n` deep: a bucket
@@ -373,33 +339,6 @@ impl<K, V> HashMap<K, V> {
         self.num_entries
     }
 
-    /// Whether the map holds no entry.
-    pub fn is_empty(&self) -> bool {
-        self.num_entries == 0
-    }
-
-    /// Empty every bucket, keeping the allocation.  This is con-leche's
-    /// `{ s with instC := {} }` (`Cached/StateC.lean:196`).
-    /// Source: `vendor/aeneas/tests/src/hashmap.rs:95` (`clear`).
-    pub fn clear(&mut self) {
-        self.num_entries = 0;
-        let n = self.slots.len();
-        HashMap::clear_slots(&mut self.slots, 0, n);
-    }
-
-    /// `clear`'s bucket walk over `[lo, hi)`, halving (see `allocate_slots`).
-    fn clear_slots(slots: &mut Vec<AList<K, V>>, lo: usize, hi: usize) {
-        if hi > lo {
-            let n = hi - lo;
-            if n == 1 {
-                slots[lo] = AList::Nil
-            } else {
-                let mid = lo + n / 2;
-                HashMap::clear_slots(slots, lo, mid);
-                HashMap::clear_slots(slots, mid, hi)
-            }
-        }
-    }
 }
 
 impl<K, V> HashMap<K, V>
@@ -415,15 +354,6 @@ where
         } else {
             let i = bucket_index(key.hash64(), self.slots.len());
             list_get(&self.slots[i], key)
-        }
-    }
-
-    /// Whether `key` is bound.
-    /// Source: `vendor/aeneas/tests/src/hashmap.rs:211` (`contains_key`).
-    pub fn contains_key(&self, key: &K) -> bool {
-        match self.get(key) {
-            None => false,
-            Some(_) => true,
         }
     }
 
@@ -506,29 +436,6 @@ where
         }
     }
 
-    /// Unbind `key`, returning the value it was bound to.  The guard is
-    /// `get`'s: an unallocated table binds nothing.
-    /// Source: `vendor/aeneas/tests/src/hashmap.rs:296` (`remove`).
-    pub fn remove(&mut self, key: &K) -> Option<V> {
-        if self.slots.len() == 0 {
-            None
-        } else {
-            let i = bucket_index(key.hash64(), self.slots.len());
-            // One `&mut` on the slot, held across the call: indexing twice
-            // would generate two `Vec.index_mut` round trips in the Lean.
-            let slot = &mut self.slots[i];
-            let ls = core::mem::replace(slot, AList::Nil);
-            let (rest, removed) = list_remove(ls, key);
-            *slot = rest;
-            match removed {
-                None => None,
-                Some(v) => {
-                    self.num_entries -= 1;
-                    Some(v)
-                }
-            }
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -592,85 +499,12 @@ impl<A: Dup, B: Dup, C: Dup> Dup for (A, B, C) {
     }
 }
 
-/// con-leche: none — the `dup` of a memo table; Lean's value semantics hides it
-/// Copy one bucket, entry by entry, rebuilding the optional tail (task #41's
-/// shape: a one-entry bucket allocates nothing).  As deep as the bucket is
-/// long, i.e. `O(1)` under any hash that spreads — the same bound `list_get`
-/// and `list_insert` run under.
-fn dup_alist<K, V>(ls: &AList<K, V>) -> AList<K, V>
-where
-    K: Dup,
-    V: Dup,
-{
-    match ls {
-        AList::Nil => AList::Nil,
-        AList::Cons(ckey, cvalue, tl) => match tl {
-            None => AList::Cons(ckey.dup2(), cvalue.dup2(), None),
-            Some(b) => {
-                let rest = dup_alist(&**b);
-                AList::Cons(ckey.dup2(), cvalue.dup2(), Some(Box::new(rest)))
-            }
-        },
-    }
-}
-
 impl<K, V> HashMap<K, V>
 where
     K: Dup,
     V: Dup,
 {
-    /// con-leche: none — the `dup` of a memo table; Lean's value semantics hides it
-    /// A copy of the table that shares nothing with it: inserting into one
-    /// leaves the other alone.  The three scalar fields are carried over and
-    /// the buckets are rebuilt in place, so the copy has the same capacity,
-    /// the same load threshold and every key in the same bucket — it is the
-    /// same table, not merely the same abstract map.
-    ///
-    /// `O(size)`, like `kernel::fenv::dup`, and for the same reason: there is
-    /// no iteration API to be cleverer with.  That is affordable because the
-    /// caller — the snapshot `CheckerOps.orElse` restores from
-    /// (`ConLeche/Kernel/CheckerBase.lean:36-53`) — runs at most once per
-    /// Nat-op pin variant attempt, a handful of times per run.
-    pub fn dup(&self) -> HashMap<K, V> {
-        let n = self.slots.len();
-        let slots = HashMap::dup_slots(&self.slots, Vec::with_capacity(n), 0, n);
-        HashMap {
-            num_entries: self.num_entries,
-            max_load: self.max_load,
-            saturated: self.saturated,
-            slots,
-        }
-    }
 
-    /// con-leche: none — the `dup` of a memo table; Lean's value semantics hides it
-    /// `dup`'s bucket walk over `[lo, hi)`, pushing the copies onto `out` in
-    /// index order.  Halved rather than peeled one at a time, so the
-    /// recursion is `log2 n` deep and a 2^26-bucket `instC` does not blow the
-    /// stack (see `allocate_slots` and the note on recursion depth at the top
-    /// of the file); the left half is copied first, which is what keeps the
-    /// pushes in order.  The accumulator is passed by value and returned
-    /// (task #6's rule).
-    fn dup_slots(
-        src: &Vec<AList<K, V>>,
-        out: Vec<AList<K, V>>,
-        lo: usize,
-        hi: usize,
-    ) -> Vec<AList<K, V>> {
-        if hi > lo {
-            let n = hi - lo;
-            if n == 1 {
-                let mut out = out;
-                out.push(dup_alist(&src[lo]));
-                out
-            } else {
-                let mid = lo + n / 2;
-                let out = HashMap::dup_slots(src, out, lo, mid);
-                HashMap::dup_slots(src, out, mid, hi)
-            }
-        } else {
-            out
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -778,18 +612,6 @@ mod tests {
             None
         }
 
-        fn remove(&mut self, k: u64) -> Option<u64> {
-            let mut i = 0;
-            while i < self.0.len() {
-                if self.0[i].0 == k {
-                    let (_, v) = self.0.remove(i);
-                    return Some(v);
-                }
-                i += 1;
-            }
-            None
-        }
-
         fn len(&self) -> usize {
             self.0.len()
         }
@@ -798,34 +620,19 @@ mod tests {
     #[test]
     fn basic_ops() {
         let mut m: HashMap<u64, u64> = HashMap::new();
-        assert!(m.is_empty());
         assert_eq!(m.len(), 0);
         assert_eq!(m.get(&7), None);
-        assert!(!m.contains_key(&7));
 
         assert_eq!(m.insert(7, 70), None);
         assert_eq!(m.insert(8, 80), None);
         assert_eq!(m.len(), 2);
-        assert!(!m.is_empty());
         assert_eq!(m.get(&7), Some(&70));
-        assert!(m.contains_key(&8));
+        assert_eq!(m.get(&8), Some(&80));
 
         // Replace semantics.
         assert_eq!(m.insert(7, 71), Some(70));
         assert_eq!(m.len(), 2);
         assert_eq!(m.get(&7), Some(&71));
-
-        assert_eq!(m.remove(&7), Some(71));
-        assert_eq!(m.remove(&7), None);
-        assert_eq!(m.len(), 1);
-
-        m.clear();
-        assert!(m.is_empty());
-        assert_eq!(m.get(&8), None);
-
-        // Usable after a clear.
-        assert_eq!(m.insert(8, 81), None);
-        assert_eq!(m.get(&8), Some(&81));
     }
 
     /// Task #35: `new` allocates no buckets, every read answers on the empty
@@ -834,17 +641,9 @@ mod tests {
     fn new_allocates_nothing_and_insert_allocates() {
         let mut m: HashMap<u64, u64> = HashMap::new();
         assert_eq!(m.slots.len(), 0);
-        // Reads and removes on an unallocated table.
+        // Reads on an unallocated table.
         assert_eq!(m.get(&7), None);
-        assert!(!m.contains_key(&7));
-        assert_eq!(m.remove(&7), None);
         assert_eq!(m.len(), 0);
-        assert!(m.is_empty());
-        // `clear` keeps it unallocated.
-        m.clear();
-        assert_eq!(m.slots.len(), 0);
-        assert!(m.is_empty());
-        assert_eq!(m.get(&7), None);
         // The first insert allocates, and the table then behaves as before.
         assert_eq!(m.insert(7, 70), None);
         assert_eq!(m.slots.len(), MIN_CAPACITY);
@@ -854,11 +653,6 @@ mod tests {
         // A second insert does not reallocate.
         assert_eq!(m.insert(8, 80), None);
         assert_eq!(m.slots.len(), MIN_CAPACITY);
-        // `clear` on an allocated table keeps the allocation (con-leche's
-        // `{ s with instC := {} }`).
-        m.clear();
-        assert_eq!(m.slots.len(), MIN_CAPACITY);
-        assert!(m.is_empty());
         // `with_capacity` still allocates eagerly.
         let w: HashMap<u64, u64> = HashMap::with_capacity(100);
         assert_eq!(w.slots.len(), 128);
@@ -908,7 +702,7 @@ mod tests {
     /// Thousands of random operations on `HashMap<u64, u64>` against the
     /// association-list oracle.  `key_space` controls collision pressure and
     /// hit rate; `n` drives the table well past several growths.
-    fn differential_u64(seed: u64, n: usize, key_space: u64, clear_every: usize) {
+    fn differential_u64(seed: u64, n: usize, key_space: u64) {
         let mut rng = Rng(seed);
         let mut m: HashMap<u64, u64> = HashMap::new();
         let mut o = Oracle::new();
@@ -916,30 +710,15 @@ mod tests {
         while step < n {
             let k = rng.next() % key_space;
             let v = rng.next();
-            match rng.next() % 8 {
-                0 | 1 | 2 | 3 => {
+            match rng.next() % 2 {
+                0 => {
                     assert_eq!(m.insert(k, v), o.insert(k, v), "insert {k} at step {step}");
                 }
-                4 | 5 => {
-                    assert_eq!(m.remove(&k), o.remove(k), "remove {k} at step {step}");
-                }
-                6 => {
-                    assert_eq!(m.get(&k).copied(), o.get(k), "get {k} at step {step}");
-                    assert_eq!(m.contains_key(&k), o.get(k).is_some());
-                }
                 _ => {
-                    assert_eq!(m.len(), o.len(), "len at step {step}");
-                    assert_eq!(m.is_empty(), o.len() == 0);
+                    assert_eq!(m.get(&k).copied(), o.get(k), "get {k} at step {step}");
                 }
             }
             assert_eq!(m.len(), o.len(), "len after step {step}");
-            if clear_every != 0 {
-                if step % clear_every == clear_every - 1 {
-                    m.clear();
-                    o = Oracle::new();
-                    assert!(m.is_empty());
-                }
-            }
             step += 1;
         }
         // Final full comparison, both directions.
@@ -953,17 +732,12 @@ mod tests {
 
     #[test]
     fn differential_dense_keys() {
-        differential_u64(0x2545F4914F6CDD1D, 20000, 500, 0);
+        differential_u64(0x2545F4914F6CDD1D, 20000, 500);
     }
 
     #[test]
     fn differential_sparse_keys_with_growth() {
-        differential_u64(0x9E3779B97F4A7C15, 20000, 200000, 0);
-    }
-
-    #[test]
-    fn differential_with_clears() {
-        differential_u64(0xDEADBEEFCAFEBABE, 20000, 300, 977);
+        differential_u64(0x9E3779B97F4A7C15, 20000, 200000);
     }
 
     /// The same run with a deliberately bad hash: every key hashes to 0, so
@@ -977,9 +751,8 @@ mod tests {
         while step < 4000 {
             let k = rng.next() % 200;
             let v = rng.next();
-            match rng.next() % 4 {
-                0 | 1 => assert_eq!(m.insert(Bad(k), v), o.insert(k, v)),
-                2 => assert_eq!(m.remove(&Bad(k)), o.remove(k)),
+            match rng.next() % 2 {
+                0 => assert_eq!(m.insert(Bad(k), v), o.insert(k, v)),
                 _ => assert_eq!(m.get(&Bad(k)).copied(), o.get(k)),
             }
             assert_eq!(m.len(), o.len());
@@ -1002,9 +775,8 @@ mod tests {
         while step < 8000 {
             let k = rng.next() % 1000;
             let v = rng.next();
-            match rng.next() % 4 {
-                0 | 1 => assert_eq!(m.insert(Coarse(k), v), o.insert(k, v)),
-                2 => assert_eq!(m.remove(&Coarse(k)), o.remove(k)),
+            match rng.next() % 2 {
+                0 => assert_eq!(m.insert(Coarse(k), v), o.insert(k, v)),
                 _ => assert_eq!(m.get(&Coarse(k)).copied(), o.get(k)),
             }
             assert_eq!(m.len(), o.len());
@@ -1015,175 +787,5 @@ mod tests {
             assert_eq!(m.get(&Coarse(k)).copied(), o.get(k));
             k += 1;
         }
-    }
-
-    #[test]
-    fn remove_then_reinsert_across_a_growth() {
-        let mut m: HashMap<u64, u64> = HashMap::new();
-        let mut i: u64 = 0;
-        while i < 1000 {
-            assert_eq!(m.insert(i, i), None);
-            i += 1;
-        }
-        let mut i: u64 = 0;
-        while i < 1000 {
-            if i % 2 == 0 {
-                assert_eq!(m.remove(&i), Some(i));
-            }
-            i += 1;
-        }
-        assert_eq!(m.len(), 500);
-        let mut i: u64 = 0;
-        while i < 1000 {
-            if i % 2 == 0 {
-                assert_eq!(m.get(&i), None);
-                assert_eq!(m.insert(i, i + 1), None);
-            } else {
-                assert_eq!(m.get(&i), Some(&i));
-            }
-            i += 1;
-        }
-        assert_eq!(m.len(), 1000);
-    }
-
-    impl Dup for Bad {
-        fn dup2(&self) -> Bad {
-            Bad(self.0)
-        }
-    }
-
-    /// `dup` of a populated table answers `get` exactly as the original does,
-    /// for present and for absent keys, and reports the same `len`.
-    #[test]
-    fn dup_answers_get_the_same_way() {
-        let mut m: HashMap<u64, u64> = HashMap::new();
-        let mut i: u64 = 0;
-        while i < 500 {
-            assert_eq!(m.insert(i, i * 3 + 1), None);
-            i += 1;
-        }
-        let d = m.dup();
-        assert_eq!(d.len(), m.len());
-        let mut k: u64 = 0;
-        while k < 1000 {
-            assert_eq!(d.get(&k).copied(), m.get(&k).copied());
-            k += 1;
-        }
-        // 500..1000 are the absent ones, and both tables say so.
-        assert_eq!(d.get(&700), None);
-    }
-
-    /// A `dup` of an *unallocated* table (`new`'s, which owns no bucket) is
-    /// itself empty and usable.
-    #[test]
-    fn dup_of_an_unallocated_table() {
-        let m: HashMap<u64, u64> = HashMap::new();
-        let mut d = m.dup();
-        assert!(d.is_empty());
-        assert_eq!(d.get(&3), None);
-        assert_eq!(d.insert(3, 4), None);
-        assert_eq!(d.get(&3), Some(&4));
-        assert_eq!(m.get(&3), None);
-    }
-
-    /// The copy is independent: inserting into one leaves the other alone, in
-    /// both directions, removals included.
-    #[test]
-    fn dup_is_independent_of_the_original() {
-        let mut m: HashMap<u64, u64> = HashMap::new();
-        let mut i: u64 = 0;
-        while i < 100 {
-            assert_eq!(m.insert(i, i), None);
-            i += 1;
-        }
-        let mut d = m.dup();
-        assert_eq!(d.insert(1000, 7), None);
-        assert_eq!(m.get(&1000), None);
-        assert_eq!(m.len(), 100);
-        assert_eq!(d.len(), 101);
-        assert_eq!(m.insert(2000, 9), None);
-        assert_eq!(d.get(&2000), None);
-        assert_eq!(d.remove(&5), Some(5));
-        assert_eq!(m.get(&5), Some(&5));
-        assert_eq!(d.insert(0, 42), Some(0));
-        assert_eq!(m.get(&0), Some(&0));
-    }
-
-    /// Chained buckets are copied node by node: with a constant hash every
-    /// entry sits in bucket 0, so this is the one-long-`AList` case.
-    #[test]
-    fn dup_copies_a_chain() {
-        let mut m: HashMap<Bad, u64> = HashMap::new();
-        let mut i: u64 = 0;
-        while i < 40 {
-            assert_eq!(m.insert(Bad(i), i + 1), None);
-            i += 1;
-        }
-        let mut d = m.dup();
-        let mut i: u64 = 0;
-        while i < 40 {
-            assert_eq!(d.get(&Bad(i)), Some(&(i + 1)));
-            i += 1;
-        }
-        assert_eq!(d.remove(&Bad(20)), Some(21));
-        assert_eq!(m.get(&Bad(20)), Some(&21));
-        assert_eq!(d.get(&Bad(20)), None);
-    }
-
-    /// The dictionaries a `(u64, u64)` test key needs; `CState`'s real tuple
-    /// keys have theirs in `cached::state_c`.
-    impl Hashable for (u64, u64) {
-        fn hash64(&self) -> u64 {
-            self.0.wrapping_mul(31).wrapping_add(self.1)
-        }
-    }
-
-    impl Eq2 for (u64, u64) {
-        fn eq2(&self, other: &Self) -> bool {
-            self.0 == other.0 && self.1 == other.1
-        }
-    }
-
-    /// A tuple key goes through the `Dup` impl on `(A, B)`; the map is a
-    /// stand-in for `CState`'s five tuple-keyed tables.
-    #[test]
-    fn dup_with_a_tuple_key() {
-        let mut m: HashMap<(u64, u64), bool> = HashMap::new();
-        let mut i: u64 = 0;
-        while i < 50 {
-            assert_eq!(m.insert((i, i + 1), i % 2 == 0), None);
-            i += 1;
-        }
-        let d = m.dup();
-        let mut i: u64 = 0;
-        while i < 50 {
-            assert_eq!(d.get(&(i, i + 1)), Some(&(i % 2 == 0)));
-            i += 1;
-        }
-        assert_eq!(d.get(&(3, 3)), None);
-    }
-
-    /// `dup` preserves the *shape*, not merely the abstract map: same entry
-    /// count, same bucket count, and a table that keeps growing the same way.
-    #[test]
-    fn dup_preserves_the_capacity() {
-        let mut m: HashMap<u64, u64> = HashMap::new();
-        let mut i: u64 = 0;
-        while i < 300 {
-            assert_eq!(m.insert(i, i), None);
-            i += 1;
-        }
-        let mut d = m.dup();
-        assert_eq!(d.slots.len(), m.slots.len());
-        assert_eq!(d.max_load, m.max_load);
-        assert_eq!(d.saturated, m.saturated);
-        assert_eq!(d.num_entries, m.num_entries);
-        let mut i: u64 = 300;
-        while i < 900 {
-            assert_eq!(d.insert(i, i), None);
-            assert_eq!(m.insert(i, i), None);
-            i += 1;
-        }
-        assert_eq!(d.slots.len(), m.slots.len());
     }
 }

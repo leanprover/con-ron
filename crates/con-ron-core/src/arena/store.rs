@@ -245,13 +245,14 @@ where
     /// `Arena/Monad.lean`'s interns), so a `Native` here is the twin's
     /// `.native` at the same point (task #98-NATIVE).
     ///
-    /// It used to be `… || self.cons.is_saturated_full()` as well.  That
+    /// It used to be `… || self.cons.is_saturated_full()` as well (a query
+    /// deleted unused since, task #105).  That
     /// disjunct cannot fire below `IDX_CAP`: the cons table holds one key per
     /// row, so at most `2^27` keys, and a table at its load limit with that
     /// many keys has far fewer than `usize::MAX / 2` slots on any target the
     /// port builds for (32 or 64 bits).  It is dropped so that the port's
     /// test is purely size-based, as the twin's is; `HashMap2::insert`'s
-    /// precondition (`!is_saturated_full()`) is then the unreachability just
+    /// precondition (the table not saturated) is then the unreachability just
     /// stated, and the model's `try_resize` still fails (an Aeneas panic, which
     /// Theorem 2 excludes) rather than overwriting a live entry.
     pub fn full(&self) -> bool {
@@ -1465,17 +1466,6 @@ impl NTables {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:428-434 NTables.sizeOf
-    /// The size of the constructor array `v` would land in; the capacity test
-    /// is stated on it.
-    pub fn size_of(&self, v: &NNodeView) -> usize {
-        match v {
-            NNodeView::Anonymous => self.anons.size(),
-            NNodeView::Str(_, _) => self.strs.size(),
-            NNodeView::Num(_, _) => self.nums.size(),
-        }
-    }
-
     /// con-leche: none — arena infrastructure (task #97-P6-17)
     /// `Tbl::full` at the constructor array `v` would land in — the capacity
     /// test, dispatched exactly as `size_of` is.
@@ -1826,17 +1816,6 @@ impl NStore {
         self.scr.reset();
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:533-537 NStore.capOK
-    /// `intern`'s capacity precondition, as a test rather than a `Prop`: the
-    /// constructor's array in the tier being appended to has room for one more
-    /// node.
-    pub fn cap_ok(&self, pers: &PersTier, v: &NNodeView) -> bool {
-        if self.scratch_on {
-            !self.scr.full_of(v)
-        } else {
-            !self.pers_full_of(pers, v)
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1946,17 +1925,6 @@ impl LTables {
             LNodeView::Max(u, w) => self.maxs.find(&BinLNode { u: u.dup2(), v: w.dup2() }),
             LNodeView::Imax(u, w) => self.imaxs.find(&BinLNode { u: u.dup2(), v: w.dup2() }),
             LNodeView::Param(n) => self.params.find(&ParamNode { n: n.dup2() }),
-        }
-    }
-
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:428-434 LTables.sizeOf
-    pub fn size_of(&self, v: &LNodeView) -> usize {
-        match v {
-            LNodeView::Zero => self.zeros.size(),
-            LNodeView::Succ(_) => self.succs.size(),
-            LNodeView::Max(_, _) => self.maxs.size(),
-            LNodeView::Imax(_, _) => self.imaxs.size(),
-            LNodeView::Param(_) => self.params.size(),
         }
     }
 
@@ -2243,15 +2211,6 @@ impl LStore {
         self.scr.reset();
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:533-537 LStore.capOK
-    pub fn cap_ok(&self, pers: &PersTier, v: &LNodeView) -> bool {
-        if self.scratch_on {
-            !self.scr.full_of(v)
-        } else {
-            !self.pers_full_of(pers, v)
-        }
-    }
-
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1741-1746 LStore.internName
     /// Intern a name from the level store.  The Lean detaches the nested store
     /// before handing it down (lesson 14); `&mut` is that, so the Rust is the
@@ -2337,11 +2296,6 @@ impl LsTables {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:90-91 LsTables.find?
     pub fn find(&self, v: &LsNodeView) -> Option<LsIdx> {
         self.lists.find(&ListNode { us: lidx_vec_dup(v) })
-    }
-
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:428-434 LsTables.sizeOf
-    pub fn size_of(&self, _v: &LsNodeView) -> usize {
-        self.lists.size()
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-17)
@@ -2614,15 +2568,6 @@ impl LsStore {
     /// phase-B worker's per-record bracket, where the store stays frozen.
     pub fn clear_scratch(&mut self) {
         self.scr.reset();
-    }
-
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:533-537 LsStore.capOK
-    pub fn cap_ok(&self, pers: &PersTier, v: &LsNodeView) -> bool {
-        if self.scratch_on {
-            !self.scr.full_of(v)
-        } else {
-            !self.pers_full_of(pers, v)
-        }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1748-1754 LsStore.internName
@@ -3017,22 +2962,6 @@ impl ETables {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:428-434 ETables.sizeOf
-    pub fn size_of(&self, v: &ENodeView) -> usize {
-        match v {
-            ENodeView::BVar(_) => self.bvars.size(),
-            ENodeView::FVar(_, _) => self.fvars.size(),
-            ENodeView::Sort(_) => self.sorts.size(),
-            ENodeView::Const(_, _) => self.consts.size(),
-            ENodeView::App(_, _) => self.apps.size(),
-            ENodeView::Lam(_, _, _) => self.lams.size(),
-            ENodeView::ForallE(_, _, _) => self.foralls.size(),
-            ENodeView::LetE(_, _, _) => self.lets.size(),
-            ENodeView::Lit(_) => self.lits.size(),
-            ENodeView::Proj(_, _, _) => self.projs.size(),
-        }
-    }
-
     /// con-leche: none — arena infrastructure (task #97-P6-17)
     /// `Tbl::full` at the constructor array `v` would land in — the capacity
     /// test, dispatched exactly as `size_of` is.
@@ -3350,17 +3279,6 @@ impl EStore {
         }
     }
 
-
-    /// con-leche: none — arena infrastructure (task #97-P6-17)
-    /// The persistent arm of the capacity test, a value-returning persistent
-    /// reader beside `pers_size_of` (task #97-P6-6b's design (A)).
-    fn pers_full_of(&self, pers: &PersTier, v: &ENodeView) -> bool {
-        if pers.frozen {
-            pers.e.full_of(v)
-        } else {
-            self.pers.full_of(v)
-        }
-    }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-467 EStore.persCount
     pub fn pers_count(&self, pers: &PersTier) -> usize {
@@ -4856,15 +4774,6 @@ impl EStore {
         self.scr.reset();
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:533-537 EStore.capOK
-    pub fn cap_ok(&self, pers: &PersTier, v: &ENodeView) -> bool {
-        if self.scratch_on {
-            !self.scr.full_of(v)
-        } else {
-            !self.pers_full_of(pers, v)
-        }
-    }
-
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1764-1769 EStore.internName
     /// Intern a name from the expression store.
     pub fn intern_name(&mut self, pers: &PersTier, v: NNodeView) -> Result<NIdx, CheckError> {
@@ -5035,6 +4944,7 @@ impl PersTier {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::arena::handle::word_index;
     use crate::kernel::expr::Expr;
     use crate::kernel::level;
     use crate::kernel::level::Level;
@@ -5274,8 +5184,8 @@ mod tests {
         assert_eq!(c.tag(), ETAG_CONST); // #guard 3
         assert!(s0.is_persistent()); // #guard 4
         assert!(ap.is_persistent()); // #guard 5
-        assert_eq!(s0.index(), 0); // #guard 6
-        assert_eq!(s1.index(), 1); // #guard 7
+        assert_eq!(word_index(s0.word), 0); // #guard 6
+        assert_eq!(word_index(s1.word), 1); // #guard 7
     }
 
     // --- `StoreTest.lean:64-77`: interning is hash-consing -------------------
@@ -5513,9 +5423,9 @@ mod tests {
         let pers: &PersTier = &tier;
         let scr = ok(st.intern(pers, ENodeView::BVar(0)));
         assert!(!scr.is_persistent());
-        assert_eq!(scr.index(), 0);
+        assert_eq!(word_index(scr.word), 0);
         assert_eq!(scr.tag(), ETAG_BVAR);
-        assert_eq!(s0.index(), 0);
+        assert_eq!(word_index(s0.word), 0);
         assert_ne!(scr.word, s0.word);
         st.clear_scratch();
         assert!(st.view(pers, &scr).is_none());
@@ -5530,7 +5440,6 @@ mod tests {
         let (mut st, _z, _one, _foo, _us, s0, _s1, _c, _ap) = fixture();
         let before = st.node_count(pers);
         assert!(st.find(pers, &ENodeView::App(s0.dup2(), s0.dup2())).is_none());
-        assert!(st.cap_ok(pers, &ENodeView::App(s0.dup2(), s0.dup2())));
         let h = ok(st.intern(pers, ENodeView::App(s0.dup2(), s0.dup2())));
         assert_eq!(st.node_count(pers), before + 1);
         match st.find(pers, &ENodeView::App(s0.dup2(), s0.dup2())) {

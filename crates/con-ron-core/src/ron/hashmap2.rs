@@ -104,7 +104,7 @@ pub enum Slot<K, V> {
 ///
 /// **That last clause is unconditional since task #97-P6-17.**  It used to
 /// end "unless the table is `saturated`", and the exception was a port bug:
-/// see `try_resize` and `is_saturated_full`.
+/// see `try_resize`.
 pub struct HashMap2<K, V> {
     /// The number of live entries.
     num_entries: usize,
@@ -368,12 +368,6 @@ impl<K, V> HashMap2<K, V> {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-4b)
-    /// Whether the map holds no entry.
-    pub fn is_empty(&self) -> bool {
-        self.num_entries == 0
-    }
-
-    /// con-leche: none — arena infrastructure (task #97-P6-4b)
     /// How many slots the table has: `0` for the unallocated table `new`
     /// returns, a power of two `>= MIN_CAPACITY` otherwise.  The one
     /// representation query, as `ron::hashmap::HashMap::capacity` is — and
@@ -542,8 +536,10 @@ where
     /// task #97-P6-17)
     /// Bind `key` to `value`, returning the previous value if there was one.
     ///
-    /// **Precondition: `!self.is_saturated_full()`** — see there and
-    /// `try_resize`.  It used to be `if !self.saturated { self.try_resize() }`
+    /// **Precondition: the table is not saturated** — at its load limit with a
+    /// slot vector that cannot double, which needs `2^63` slots (`2^63 · 20`
+    /// bytes, 184 exabytes) and cannot be reached; see `try_resize`.  It used
+    /// to be `if !self.saturated { self.try_resize() }`
     /// here, i.e. an `insert` past the limit quietly went on writing into a
     /// full table; now the limit is the caller's to respect, and the one
     /// arithmetic step that cannot be taken past it — `capacity * 2` — is
@@ -555,38 +551,6 @@ where
             self.try_resize()
         }
         old
-    }
-
-    /// con-leche: none — arena infrastructure (task #97-P6-17)
-    /// **The table can take no further key**: it is at its load limit *and*
-    /// its slot vector cannot double.  `insert` must not be called on such a
-    /// table.  The arena's cons tables used to test this in `Tbl::full`; since
-    /// task #98-NATIVE they test only `IDX_CAP`, which keeps them at most
-    /// `2^27` keys and so far below this limit on every target.
-    ///
-    /// **Why it exists** (task #97-HM2 §4, DESIGN.md §3.5's "a strengthening
-    /// that turns out false is a port bug; fix the Rust").  `try_resize` used
-    /// to set a `saturated` flag when the slot count passed `usize::MAX / 2`,
-    /// and `insert` then stopped resizing: `num_entries` could climb to
-    /// `slots.len()`, `probe`'s `fuel == 0` arm became reachable, and an
-    /// `insert` **overwrote a live entry**.  For a memo that is a lost cache
-    /// row; for a cons table it is two handles denoting one term, which is
-    /// exactly what §8.3 makes `denote`'s injectivity a *soundness*
-    /// obligation about.  A silent drop is no better for the same reason.  So
-    /// the flag is gone, `try_resize` always doubles, and the limit is a
-    /// declared precondition with a query to test it.
-    ///
-    /// It needs a table of `2^63` slots (`2^63 · 20` bytes, 184 exabytes) and
-    /// cannot be reached; what it buys is that the *model* has no such state
-    /// at all — `try_resize`'s `capacity * 2` fails there, so every refinement
-    /// lemma is about a table that could still grow and none of them carries
-    /// the `2 * slots.len() <= usize::MAX` hypothesis any more.
-    pub fn is_saturated_full(&self) -> bool {
-        if self.num_entries < self.max_load {
-            false
-        } else {
-            self.slots.len() > usize::MAX / 2
-        }
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-4b)
@@ -617,7 +581,7 @@ where
     ///
     /// **Preconditions**, both of them the caller's: `at` is the free slot
     /// `find_slot` returned for this very `key` on this very table, with no
-    /// operation on the table in between; and `!self.is_saturated_full()`.
+    /// operation on the table in between; and `insert`'s (not saturated).
     /// Under them `find_slot` followed by `insert_at` is `insert` at a key the
     /// table does not hold — which is the equation `Refine/HashMap2.lean`'s
     /// `find_slot_insert_at` proves, and the reason the fused pair costs the
@@ -639,8 +603,11 @@ where
     /// ever frees the memory a cleared entry held.
     ///
     /// **Unconditional since task #97-P6-17.**  The `else` arm used to set a
-    /// `saturated` flag (`is_saturated_full`'s note has the bug that cost);
-    /// what is left is `capacity * 2`, whose overflow is the module's limit —
+    /// `saturated` flag when the slot count passed `usize::MAX / 2`, and
+    /// `insert` then stopped resizing: `num_entries` could climb to
+    /// `slots.len()`, `probe`'s `fuel == 0` arm became reachable, and an
+    /// `insert` overwrote a live entry — for a cons table, two handles
+    /// denoting one term, which §8.3 makes a soundness matter.  What is left is `capacity * 2`, whose overflow is the module's limit —
     /// the same kind of limit `self.slots[i]`'s bound already is, discharged
     /// the same way, by the caller's precondition and by the invariant.
     fn try_resize(&mut self) {
@@ -888,7 +855,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ron::hashmap::HashMap;
+    use std::collections::HashMap;
 
     /// xorshift64, so the differential runs are reproducible.
     struct Rng(u64);
@@ -930,7 +897,6 @@ mod tests {
         let m: HashMap2<u64, u64> = HashMap2::new();
         assert_eq!(m.capacity(), 0);
         assert_eq!(m.len(), 0);
-        assert!(m.is_empty());
         assert_eq!(m.get(&0), None);
         assert_eq!(m.get(&12345), None);
         assert!(!m.contains_key(&1));
@@ -1070,8 +1036,8 @@ mod tests {
         assert_eq!(m.len(), 40 - 14);
     }
 
-    /// The whole API, against `ron::hashmap::HashMap` on the same operation
-    /// stream: the two must agree on every answer.
+    /// The whole API, against `std::collections::HashMap` on the same
+    /// operation stream: the two must agree on every answer.
     #[test]
     fn differential_against_the_chained_map() {
         let mut a: HashMap<u64, u64> = HashMap::new();
@@ -1109,7 +1075,7 @@ mod tests {
     /// the backward shift under maximum pressure.
     #[test]
     fn differential_constant_hash() {
-        let mut a: HashMap<Bad, u64> = HashMap::new();
+        let mut a: HashMap<u64, u64> = HashMap::new();
         let mut b: HashMap2<Bad, u64> = HashMap2::new();
         let mut rng = Rng(0x9e3779b97f4a7c15);
         let mut step = 0;
@@ -1117,9 +1083,9 @@ mod tests {
             let r = rng.next();
             let k = r % 64;
             match r % 4 {
-                0 | 1 => assert_eq!(a.insert(Bad(k), r), b.insert(Bad(k), r), "at {}", step),
-                2 => assert_eq!(a.get(&Bad(k)), b.get(&Bad(k)), "at {}", step),
-                _ => assert_eq!(a.remove(&Bad(k)), b.remove(&Bad(k)), "at {}", step),
+                0 | 1 => assert_eq!(a.insert(k, r), b.insert(Bad(k), r), "at {}", step),
+                2 => assert_eq!(a.get(&k), b.get(&Bad(k)), "at {}", step),
+                _ => assert_eq!(a.remove(&k), b.remove(&Bad(k)), "at {}", step),
             }
             assert_eq!(a.len(), b.len(), "len at {}", step);
             step += 1;
@@ -1165,26 +1131,17 @@ mod tests {
         }
     }
 
-    /// `is_saturated_full` is the precondition `insert` now declares, and
-    /// nothing short of a `2^63`-slot table makes it true: the tables the
-    /// checker builds are always able to double.  (The true branch cannot be
-    /// exercised at all — it needs 184 exabytes of slots — which is the whole
-    /// point of task #97-P6-17: the state exists in the *model* and nowhere
-    /// else, and `try_resize`'s `capacity * 2` is where the model stops.)
+    /// Growth keeps the table at most three-quarters full: the tables the
+    /// checker builds always double before `insert` could run out of room.
     #[test]
-    fn a_growing_table_is_never_saturated_full() {
-        let m: HashMap2<u64, u64> = HashMap2::new();
-        assert!(!m.is_saturated_full());
+    fn a_growing_table_keeps_its_load_factor() {
         let mut m: HashMap2<u64, u64> = HashMap2::new();
         let mut i: u64 = 0;
         while i < 5_000 {
             m.insert(i.wrapping_mul(0x9e3779b97f4a7c15), i);
-            assert!(!m.is_saturated_full());
             assert!(m.len() <= m.capacity() * 3 / 4);
             i += 1;
         }
-        m.clear_fit();
-        assert!(!m.is_saturated_full());
     }
 
     #[test]

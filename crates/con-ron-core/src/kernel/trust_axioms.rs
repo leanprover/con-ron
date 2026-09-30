@@ -119,15 +119,6 @@ pub fn of_reduce_bool_name() -> Name {
     )
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:73-74 reduceOpNames
-/// The reduce operations pinned at their `opaque` install.
-pub fn reduce_op_names() -> Vec<Name> {
-    let mut ns: Vec<Name> = Vec::new();
-    ns.push(reduce_nat_name());
-    ns.push(reduce_bool_name());
-    ns
-}
-
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:76-78 ofReduceOp
 /// The reduce operation an `ofReduce*` axiom speaks about.
 pub fn of_reduce_op(n: &Name) -> Name {

@@ -11351,15 +11351,6 @@ pub fn ensure_sort_core(
     ensure_sort(pers, vis, st, mode, LANE_FULL, fuel, fe, depth, e)
 }
 
-/// con-leche: ConLeche/Kernel/TypeChecker.lean:23-25 pureFns
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3733-3739 pureFnsA` — the core,
-/// tied at `AM`, fuel in the knot.  The twin's record has no Rust counterpart
-/// (§3.4 rules out a record of functions); this constant is what replaces it,
-/// and every entry point above passes it.  Named `pureFnsA` in the twin
-/// because the arena's is the MEMOIZED knot; con-leche's `pureFns` is its
-/// unmemoized specification, whose verdicts the memo does not change.
-pub const PURE_FNS_A: u32 = LANE_FULL;
-
 // ---------------------------------------------------------------------------
 // The per-declaration bracket (`Core.lean:2925-2958`)
 // ---------------------------------------------------------------------------
