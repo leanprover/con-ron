@@ -908,4 +908,188 @@ theorem minor_ihs_acc {pers} (g : arena.inductives.gen_rec.ClassGen) (hbm : ConR
   rw [h1]
   cases b <;> simp [absBinderL, alloc.vec.Vec.new]
 
+/-! ## `classGenRule`'s parts: `prefix_vars`, `rule_calls`/`rule_call`, `class_gen_rule_close` -/
+
+theorem gr_absIConstantVal_name (cv : arena.env.IConstantVal) :
+    (absIConstantVal cv).name = absNIdx cv.name := rfl
+theorem gr_absIConstantVal_levelParams (cv : arena.env.IConstantVal) :
+    (absIConstantVal cv).levelParams = absNIdxL cv.level_params := rfl
+theorem gr_absIConstantVal_type (cv : arena.env.IConstantVal) :
+    (absIConstantVal cv).type = absEIdx cv.ty := rfl
+attribute [local lockstep_simp] gr_absIConstantVal_name gr_absIConstantVal_levelParams
+  gr_absIConstantVal_type
+
+/-- `classGenRule`'s prefix variable `i`. -/
+def grPVar (g : ClassGen) (i : Nat) : AM EIdx :=
+  if i < g.nP then exprGetD g.params i else g.slotVar (i - g.nP)
+
+/-- `classGenRule`'s closing tail: the minor premise applied, closed over the
+prefix and the fields (the Rust's `class_gen_rule_close`). -/
+def grRuleClose (g : ClassGen) (s : Nat) (fvs ihs : List EIdx) : AM (Option EIdx) := do
+  let sv ← g.slotVar s
+  let body ← mkAppN sv (fvs ++ ihs)
+  let fbs ← fvs.mapM g.binder
+  let r ← closeLams (g.pre ++ fbs) 0 body
+  pure (some r)
+
+theorem prefix_vars_acc {pers} (g : arena.inductives.gen_rec.ClassGen) (r_p : Std.U64) :
+    ∀ (i : Std.U64) st lst (out : alloc.vec.Vec arena.handle.EIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.gen_rec.prefix_vars pers st g r_p i out) lst
+        (List.mapM.loop (grPVar (absClassGen g)) (List.range' i.val (r_p.val - i.val))
+          (absEIdxL out).reverse) := by
+  refine ls_counted r_p
+    (fun (w : alloc.vec.Vec arena.handle.EIdx) m i =>
+      List.mapM.loop (grPVar (absClassGen g)) (List.range' i m) (absEIdxL w).reverse)
+    (fun st i w => arena.inductives.gen_rec.prefix_vars pers st g r_p i w) ?_ ?_
+  · intro st lst i w hn hrel hinv
+    rw [arena.inductives.gen_rec.prefix_vars.eq_def, if_pos (by scalar_tac)]
+    simp only [List.range'_zero, List.mapM.loop, List.reverse_reverse]
+    lockstep
+  · intro st lst i w m hi hm hrel hinv ih
+    rw [arena.inductives.gen_rec.prefix_vars.eq_def, if_neg (by scalar_tac)]
+    simp only [List.range'_succ, List.mapM.loop, grPVar]
+    lockstep
+
+/-- `prefix_vars … 0 Vec::new()` ⊑ `(List.range rP).mapM (grPVar g)`. -/
+@[lockstep] theorem prefix_vars_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen) (r_p : Std.U64) :
+    LS pers (fun a b => b = absEIdxL a)
+      (arena.inductives.gen_rec.prefix_vars pers st g r_p 0#u64 (alloc.vec.Vec.new _)) lst
+      ((List.range (absU r_p)).mapM (grPVar (absClassGen g))) := by
+  have h := prefix_vars_acc (pers := pers) g r_p 0#u64 st lst (alloc.vec.Vec.new _) hrel hinv
+  simpa [List.range_eq_range', absEIdxL, alloc.vec.Vec.new, List.mapM, absU] using h
+
+/-- The answer relation of an optional term list built onto `out`. -/
+def OptEIdxs (out : alloc.vec.Vec arena.handle.EIdx)
+    (a : Option (alloc.vec.Vec arena.handle.EIdx)) (b : Option (List EIdx)) : Prop :=
+  a.map absEIdxL = b.map (absEIdxL out ++ ·)
+
+theorem ls_tail_opt_cons_e {pers : arena.store.PersTier}
+    {m : Result (core.result.Result (Option (alloc.vec.Vec arena.handle.EIdx))
+      kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM (Option (List EIdx))} {y : EIdx}
+    {out out1 : alloc.vec.Vec arena.handle.EIdx}
+    (h : LS pers (OptEIdxs out1) m lst x) (hout : absEIdxL out1 = absEIdxL out ++ [y]) :
+    LS pers (OptEIdxs out) m lst (do
+      match ← x with
+      | none => pure none
+      | some rest => pure (some (y :: rest))) := by
+  have h2 := LS.twin_map (R := OptEIdxs out) (f := Option.map (y :: ·)) h (by
+    intro a b h1
+    simp only [OptEIdxs] at h1 ⊢
+    rw [h1, hout]
+    cases b <;> simp)
+  refine LS.twin_eq h2 ?_
+  congr 1
+  funext r
+  cases r <;> rfl
+
+attribute [local lockstep_inline] arena.inductives.gen_rec.rule_call
+
+/-- The port's guarded kind read `if i < len then ks[i] else Ordinary`, as one
+value. -/
+theorem gr_kind_read {γ : Type} (ks : alloc.vec.Vec arena.inductives.gen_rec.ClassField)
+    (i : Std.U64) (M : arena.inductives.gen_rec.ClassField → Result γ) :
+    (do
+      let i2 ← lift (UScalar.cast .U64 (alloc.vec.Vec.len ks))
+      let k ← if i < i2 then do
+          let i3 ← lift (UScalar.cast .Usize i)
+          let cf ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            arena.inductives.gen_rec.ClassField) ks i3
+          arena.inductives.gen_rec.class_field_dup cf
+        else ok arena.inductives.gen_rec.ClassField.Ordinary
+      M k) =
+    M (if h : i.val < ks.val.length then ks.val[i.val] else .Ordinary) := by
+  have hl : (UScalar.cast .U64 (alloc.vec.Vec.len ks)).val = ks.val.length := by
+    rw [ConRon.Refine.ExprOps.usize_cast_u64_val]; rfl
+  simp only [lift, bind_tc_ok]
+  by_cases h : i.val < ks.val.length
+  · rw [if_pos (by scalar_tac), dif_pos h]
+    have hc : (UScalar.cast .Usize i).val = i.val :=
+      ConRon.Refine.ExprOps.u64_cast_usize_val (by have := ks.property; scalar_tac)
+    have hidx : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.inductives.gen_rec.ClassField) ks (UScalar.cast .Usize i) = ok ks.val[i.val] := by
+      rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+      rw [show ks[(UScalar.cast .Usize i).val]? = ks.val[(UScalar.cast .Usize i).val]? from rfl,
+        hc, List.getElem?_eq_getElem h]
+    rw [hidx, bind_tc_ok]
+    cases hk : ks.val[i.val] <;> simp [arena.inductives.gen_rec.class_field_dup]
+  · rw [if_neg (by scalar_tac), dif_neg h, bind_tc_ok]
+
+theorem rule_calls_acc {pers} (g : arena.inductives.gen_rec.ClassGen) (hbm : ConRon.Refine.PropWhenWF g.bm.pw)
+    (rec_cls : alloc.vec.Vec Std.U64) (cv_gs : alloc.vec.Vec arena.env.IConstantVal)
+    (rlvls : arena.handle.LsIdx) (x : arena.inductives.gen_rec.ClassCtor) (r_p : Std.U64)
+    (fvs ws pvars : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ (m : Nat) (i : Std.U64) (out : alloc.vec.Vec arena.handle.EIdx) st lst,
+      x.n_f.val - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (OptEIdxs out)
+        (arena.inductives.gen_rec.rule_calls pers st g rec_cls cv_gs rlvls x r_p fvs ws pvars i out)
+        lst
+        (classGenRule.callsGo (absClassGen g) (absNatL rec_cls) (cv_gs.val.map absIConstantVal)
+          (absLsIdx rlvls) (absClassCtor x) (absU r_p) (absEIdxL fvs) (absEIdxL ws)
+          (absEIdxL pvars) m i.val) := by
+  intro m
+  induction m with
+  | zero =>
+    intro i out st lst hm hrel hinv
+    rw [arena.inductives.gen_rec.rule_calls.eq_def, if_pos (by scalar_tac), classGenRule.callsGo]
+    exact LS.pure (by simp [OptEIdxs]) hrel hinv
+  | succ m ih =>
+    intro i out st lst hm hrel hinv
+    rw [arena.inductives.gen_rec.rule_calls.eq_def, if_neg (by scalar_tac), classGenRule.callsGo]
+    rw [gr_kind_read]
+    by_cases hik : i.val < x.kinds.val.length
+    · have htw : (List.map absClassField x.kinds.val).getD i.val .ordinary =
+          absClassField (x.kinds.val[i.val]'hik) := by
+        simp [List.getD_eq_getElem?_getD, hik]
+      simp only [absClassCtor_kinds, htw, dif_pos hik]
+      generalize x.kinds.val[i.val]'hik = k
+      cases k <;> simp only [absClassField]
+      all_goals lockstep
+      rename_i call out1 hout1
+      have hjv : a.val = i.val + 1 := by simpa using hP
+      have h1 := ih a out1 _ _ (by omega) ‹_› ‹_›
+      rw [hjv] at h1
+      refine ls_tail_opt_cons_e h1 ?_
+      simp [absEIdxL, hout1]
+    · have htw : (List.map absClassField x.kinds.val).getD i.val .ordinary = .ordinary := by
+        simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none (Nat.le_of_not_lt hik)]
+      simp only [absClassCtor_kinds, htw, dif_neg hik]
+      lockstep
+
+/-- `rule_calls` from field `0` into `Vec::new()` ⊑ `classGenRule.callsGo … nF 0`. -/
+@[lockstep] theorem rule_calls_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen)
+    (hbm : ConRon.Refine.PropWhenWF g.bm.pw)
+    (rec_cls : alloc.vec.Vec Std.U64) (cv_gs : alloc.vec.Vec arena.env.IConstantVal)
+    (rlvls : arena.handle.LsIdx) (x : arena.inductives.gen_rec.ClassCtor) (r_p : Std.U64)
+    (fvs ws pvars : alloc.vec.Vec arena.handle.EIdx) :
+    LS pers (fun a b => b = a.map absEIdxL)
+      (arena.inductives.gen_rec.rule_calls pers st g rec_cls cv_gs rlvls x r_p fvs ws pvars 0#u64
+        (alloc.vec.Vec.new _)) lst
+      (classGenRule.callsGo (absClassGen g) (absNatL rec_cls) (cv_gs.val.map absIConstantVal)
+        (absLsIdx rlvls) (absClassCtor x) (absU r_p) (absEIdxL fvs) (absEIdxL ws)
+        (absEIdxL pvars) (absU x.n_f) 0) := by
+  have h := rule_calls_acc g hbm rec_cls cv_gs rlvls x r_p fvs ws pvars _ 0#u64
+    (alloc.vec.Vec.new _) st lst rfl hrel hinv
+  refine LS.tail h (by simp [absU]) ?_
+  intro a b h1
+  simp only [OptEIdxs] at h1
+  rw [h1]
+  cases b <;> simp [absEIdxL, alloc.vec.Vec.new]
+
+/-- `class_gen_rule_close` ⊑ `grRuleClose` (`classGenRule`'s tail). -/
+@[lockstep] theorem class_gen_rule_close_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen) (hg : ClassGenWF g)
+    (s : Std.U64) (fvs ihs : alloc.vec.Vec arena.handle.EIdx) :
+    LS pers (fun a b => b = a.map absEIdx)
+      (arena.inductives.gen_rec.class_gen_rule_close pers st g s fvs ihs) lst
+      (grRuleClose (absClassGen g) (absU s) (absEIdxL fvs) (absEIdxL ihs)) := by
+  have hbm := hg.bm
+  have hpre := hg.pre
+  rw [arena.inductives.gen_rec.class_gen_rule_close, grRuleClose]
+  lockstep
+
 end ConRon.Refine2
