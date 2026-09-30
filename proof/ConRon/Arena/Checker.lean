@@ -1,8 +1,10 @@
 /-
 # `ConRon.Arena.Checker` — the declaration fold, over handles
 
-The twin of `ConLeche/Kernel/Checker.lean`'s `checkDecl` / `checkDeclsPure`
-and of `ConLeche/Cached/Installed.lean`'s two-phase `checkDecls`.
+The twin of `ConLeche/Cached/Installed.lean`'s two-phase `checkDecls`, over
+`Arena/CheckDecl.lean`'s `checkDecl` / `checkDeclsPure` (con-leche's
+`Kernel/CheckDecl.lean`, which upstream moved out of `Kernel/Checker.lean`;
+the Rust keeps both folds in `arena::checker`).
 
 ## Two folds, and which is which
 

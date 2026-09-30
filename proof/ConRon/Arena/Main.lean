@@ -1,5 +1,5 @@
 import ConRon.Arena.Frontend.Prelude
-import ConRon.Arena.CheckerGated
+import ConRon.Arena.Checker
 
 /-!
 # `con-ron-lean` — the arena checker's driver (DESIGN.md §8.4, task #97 P2f)

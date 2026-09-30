@@ -49,6 +49,35 @@ and the seeds (`nestSeeds`).  The Rust twin is
 * **`NestedPositivity` and `nestedBlockPositivity` are not ported**: the unit
   tests' entry; the install runs `nestUniform`/`nestRoot` itself.
 
+## The twin's shapes against the Rust (for Theorem 2)
+
+* **`vis` dropped** (the campaign lead's ruling): the Rust's `NestCtx.vis`
+  and every `(vis, fe)` pair are the twin's `fe`, related by `absU vis =
+  lfe.visibleBelow`; every caller passes the `fe` whose `visibleBelow` the
+  Rust stores in `ctx.vis` (`shape_nest_ctx(…, fe.visible_below)`).  The
+  twin's `NestCtx` fields are `names lps nP nIdxs params sort lvls`.  Five
+  signatures lose an argument and keep the Rust's order otherwise:
+  `nestContainer fe C` (Rust `vis, fe, c`), `nestBlockOf fe C`,
+  `nestFrameMates fe C`, `nestArity fe C` (Rust `ctx, fe, c`), and
+  `nestGroupCtors fe nPc cs out` (Rust `fe, ctx, n_pc, cs, i, out`).
+* `NestState` is `keys : Array NestKey`, `active : List NestKey` (innermost
+  first: the Rust's `group_keys ++ active`), `ctorNfs : Array NestCtorNf`;
+  every other Rust `Vec` is a `List`, an index cursor `i` being structural
+  recursion on the list's tail (`nestCtors`, `nestRoot`, `nestSeeds`,
+  `nestGrowGroup`, `nestAcceptGroup`, `nestGroupCtors`, `closeTelescope`,
+  `instPisWith`).
+* `FvMap.holeImg ctx prog n` flattens the Rust's `HoleImg(HoleImgMap { ctx,
+  prog, n })`; `FvMap.rank` (no Rust counterpart) is the measure of the
+  `fvMapAt`/`replaceFVarsGo`/`replaceFVars`/`nestHoleImg` mutual block.
+* The `nestPos` block (`nestFields`, `nestCtors`, `nestFrame`,
+  `nestContNew`, `nestContKey`, `nestCont`, `nestPos`) is well-founded on
+  `(root, fuel, tag, size)`: the Rust's `nest_ctors_walk` split (root fuel
+  vs. enclosing fuel, two tail calls) is the twin's `if _h : root` around the
+  one `nestFields` call.  The helper sets that the Rust splits for
+  extraction (`nest_pos_at`/`nest_pos_hole`, `nest_cont_params`,
+  `nest_frame_at`/`nest_frame_walk`, `nest_ctors_typed`/`_walk`/`_done`,
+  `nest_u4`, `nest_res_ok`) are inline.
+
 The Rust's index-cursor helpers (`names_contain`, `nest_occ_any`,
 `replace_fvars_list`, `params_closed`, `all_fvar_b_le`, `frame_stack`, …) are
 the list operations they cite (`List.contains`, `List.anyM`, `List.mapM`,
@@ -437,7 +466,7 @@ def fvMapAt (f : FvMap) (i : Nat) : AM (Option EIdx) := do
     pure (some v)
   | .canon pfvs => pure pfvs[i]?
 termination_by (f.rank, 0, 0)
-decreasing_by all_goals simp_wf <;> simp [FvMap.rank] <;> omega
+decreasing_by all_goals (simp_wf; simp only [Prod.lex_def, FvMap.rank] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:744-757 Expr.replaceFVars
 con-leche: ConLeche/Kernel/Inductives/Positivity.lean:775-810 Expr.replaceFVarsGo
@@ -491,7 +520,7 @@ def replaceFVarsGo (f : FvMap) (memo : Std.HashMap EIdx EIdx) (fuel : Nat) (h : 
           | _ => pure (h, memo)
         pure (r, m.insert h r)
 termination_by (f.rank, 0, fuel)
-decreasing_by all_goals simp_wf <;> omega
+decreasing_by all_goals (simp_wf; simp only [Prod.lex_def, FvMap.rank] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:875-877 Expr.replaceFVarsFast
 The executed `replaceFVars` (one memoised DAG walk, a fresh memo per
@@ -500,7 +529,7 @@ def replaceFVars (f : FvMap) (e : EIdx) : AM EIdx := do
   let r ← replaceFVarsGo f ∅ coreWalkFuel e
   pure r.1
 termination_by (f.rank, 1, 0)
-decreasing_by all_goals simp_wf <;> omega
+decreasing_by all_goals (simp_wf; simp only [Prod.lex_def, FvMap.rank] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:884-900 nestHoleImg
 **The holes read back** under the frames `prog[..n]` (the stack prefix of
@@ -527,7 +556,7 @@ def nestHoleImg (ctx : NestCtx) (prog : List NestHole) (n i : Nat) :
       pure (some r)
     else nestHoleImg ctx prog n i
 termination_by (n, 2, 0)
-decreasing_by all_goals simp_wf <;> simp [FvMap.rank] <;> omega
+decreasing_by all_goals (simp_wf; simp only [Prod.lex_def, FvMap.rank] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 end
 
@@ -843,6 +872,7 @@ def nestFields (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
     else
       fail (.invalid "nested positivity: invalid nested inductive datatype, its constructor type does not bind its fields (official: ill-formed constructor)")
 termination_by (0, fuel, 1, nF)
+decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1198-1262 nestCtors
 **A frame's constructors**, the root frame's (`root`: each constructor walked
@@ -895,6 +925,7 @@ def nestCtors (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (root : Bool) (fue
             let ns3 := { ns2 with ctorNfs := ns2.ctorNfs.push nf }
             nestCtors mode fe ctx root fuel prog hi us ds names holes cs' ns3 (outs ++ [(ks, closed)])
 termination_by (if root then 1 else 0, fuel, 2, cs.length)
+decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1327-1351 nestFrame
 **A container frame** at the instantiation `(us, ds)`: the instantiation
@@ -921,6 +952,7 @@ def nestFrame (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
     holes ctors ns []
   pure ns2
 termination_by (0, fuel, 3, 0)
+decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1359-1382 nestContNew
 An instantiation's frame: the group-mates' former checks, the frame walked
@@ -943,6 +975,7 @@ def nestContNew (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
   let keys := if closed then nestAcceptGroup us ds grp ns2.keys else ns2.keys
   pure (.nested (kb != 0), { keys, active := act, ctorNfs := ns2.ctorNfs })
 termination_by (0, fuel, 4, 0)
+decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1384-1404 nestContKey
 The instantiation `(n, us, ds)` met: IN PROGRESS (met as a constant, which
@@ -961,6 +994,7 @@ def nestContKey (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
     if closed && ns.keys.contains key then pure (.nested (kb != 0), ns)
     else nestContNew mode fe ctx fuel prog kb n us ds nPc cty ns
 termination_by (0, fuel, 5, 0)
+decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1406-1440 nestCont
 **The container case** of `nestPos`: the reduct is the stored inductive
@@ -999,6 +1033,7 @@ def nestCont (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
               fail (.invalid "nested positivity: type expected (a container instance that is not fully applied)")
             else nestContKey mode fe ctx fuel prog kb n us ds nPc cty ns
 termination_by (0, fuel, 6, 0)
+decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1442-1496 nestPos
 **The positivity function**: the domain `e` at depth `dep`, `kb` `Π` binders
@@ -1059,6 +1094,7 @@ def nestPos (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
           pure (k, w, ns2)
       | _ => fail nestNonValid
 termination_by (0, fuel, 0, 0)
+decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 end
 

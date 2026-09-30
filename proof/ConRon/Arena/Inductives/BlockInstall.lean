@@ -23,8 +23,9 @@ constructors' cons.  The Rust twin is `arena::inductives::block_install`.
   F18), and it is an `AM` function: the result sort is a handle, read
   (`readLevelM`) for its zero-ness.
 * **`checkBlockPositivity`'s `find?` is the environment** (the positivity
-  module's note), and so is `blockNestCtx`'s; `BlockShape.nestCtx` takes the
-  visibility bound the context records, and interns the block's levels once.
+  module's note), and so is `blockNestCtx`'s; the Rust's `NestCtx.vis` (and
+  `BlockShape.nestCtx`'s `vis` argument) is the `fe` the readers take, and
+  `BlockShape.nestCtx` interns the block's levels once.
 * **A list reversal is not needed**: the formers are consed in block order
   with member 0 deepest, which over the oldest-first `IFEnv` is pushing in
   block order.
@@ -205,13 +206,14 @@ def checkBlockInds (mode : CheckMode) (fe : IFEnv) (p : BlockParts) (isRec : Boo
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:191-197 BlockShape.nestCtx
 **The block's positivity context** at the canonical parameter variables
-`fvsP`, its lookup the environment at `vis` (the positivity module's note);
+`fvsP`; its lookup is the environment every reader takes beside it (the
+positivity module's note: the Rust's `vis` field is `fe.visibleBelow`);
 `lvls` the block's own levels, interned. -/
-def BlockShape.nestCtx (p : BlockShape) (fvsP : List EIdx) (vis : Nat) : AM NestCtx := do
+def BlockShape.nestCtx (p : BlockShape) (fvsP : List EIdx) : AM NestCtx := do
   let lps := p.lps
   let lvls ← paramLevels lps
   pure { names := p.memberNames, lps := lps, nP := p.nP, nIdxs := p.nIdxs,
-         params := fvsP, sort := p.resSort, vis := vis, lvls := lvls }
+         params := fvsP, sort := p.resSort, lvls := lvls }
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:199-210 checkBlockCtors
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:97-106 checkBlockCtorsF
@@ -270,7 +272,7 @@ def blockNestCtx (fe : IFEnv) (p : BlockShape) (cvTas : List IConstantVal) :
   | cvTa₀ :: _ => do
     let pq ← unwrapOr (← openPisAtFvarsF p.nP cvTa₀.type 0)
       (.internal "direct rec: type former telescope")
-    let ctx ← p.nestCtx pq.1 fe.visibleBelow
+    let ctx ← p.nestCtx pq.1
     let holes ← unwrapOr (← nestHoles fe ctx)
       (.internal "direct rec: a member is not a stored former")
     pure (ctx, holes)
@@ -287,7 +289,7 @@ def checkBlockPositivity (mode : CheckMode) (fe : IFEnv) (p : BlockParts)
   -- official's `check_uniform_ind_occs`, before the walk
   nestUniform ctx ctorsAs
   -- the root frame on the STORED (declared) constructors
-  let (outs, ns) ← nestRoot mode fe ctx holes ctorsAs {}
+  let (outs, ns) ← nestRoot mode fe ctx holes ctorsAs {} []
   let z ← zeroLevel
   let isProp := (← lvlEq? ctx.sort z) == some true
   checkAbsCtorSortsAll mode fe ctx isProp ctorsAs outs

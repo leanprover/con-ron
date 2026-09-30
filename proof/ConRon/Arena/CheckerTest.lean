@@ -19,21 +19,19 @@ task #97-T2-LOCKSTEP lane Checker the twin's declines carry the Rust port's
 constant messages, with no declaration name read back).  So the rejects and
 the declines below are real tests, not "both sides threw".
 
-**Why this file carries the weight of the phase.**  `scripts/diff-e2e.sh`
-cannot reach an accept yet: every one of the 348 fixtures declares an
-inductive block, and the inductive install is P2d-2's half
-(`Arena/Inductives.lean`).  Everything the fixtures DO exercise of this half
-is the reject and decline lane.  The accept lane — a definition checked and
-installed, a theorem checked against its statement, an axiom pinned, a basis
-block installed, the two folds agreeing — is exercised here, on declaration
-lists that use `basisDecl` for their `Nat` and so need no inductive install
-at all.
+**What this file covers.**  The declaration kinds other than inductive
+blocks — a definition checked and installed, a theorem checked against its
+statement, an axiom pinned, a basis block installed, the two folds agreeing —
+on declaration lists that use `basisDecl` for their `Nat` and so need no
+inductive install at all.  The inductive route has its own differential,
+`InductivesTest.lean`, and `scripts/diff-e2e.sh --bin` runs the whole twin on
+the e2e corpus.
 
 Nothing here is a proof and nothing here is an `#eval` print: every check is
 kernel-reduced, so a disagreement is a build failure.
 -/
 import ConRon.Arena.Checker
-import ConLeche.Kernel.Checker
+import ConLeche.Kernel.CheckDecl
 import ConLeche.Kernel.CheckerSplit
 
 namespace ConRon.Arena
@@ -147,9 +145,7 @@ private def failsWith : ConLeche.CheckM ConLeche.Env → ConLeche.CheckError →
 /-! ## The subjects, written once as con-leche values
 
 `Nat` arrives as `.basisDecl .natK` — the fold's own record for "install the
-pinned block" — so none of these lists needs an inductive install, which is
-what lets the accept lane be tested at all while `Arena/Inductives.lean` is a
-placeholder. -/
+pinned block" — so none of these lists needs an inductive install. -/
 
 /-- con-leche: none — a fixture value of the differential, written once as a con-leche value; the arena side is its interning. -/
 private def anon : ConLeche.Name := .anonymous

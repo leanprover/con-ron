@@ -71,7 +71,7 @@ def checkBlockPass (mode : CheckMode) (fe : IFEnv) (p₀ : BlockParts) (isRec : 
   let ns ← nestSeeds mode fe₁ ctx seeds pos
   pure { env1 := fe₁, cvTas := cvTas, p := pc, ctorsAs := ctorsAs,
          sortsss := sortsss, kinds := kinds, nfs := nfs, params := ctx.params,
-         rd := rd, cls := ms, tbl := ns.ctorNfs }
+         rd := rd, cls := ms, tbl := ns.ctorNfs.toList }
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:76-91 checkBlockRec
 **The recursor stage on the uniform route**: the GENERATED recursor stage at

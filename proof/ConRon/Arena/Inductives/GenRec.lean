@@ -343,7 +343,7 @@ def ClassSlot.isMinor : ClassSlot → Bool
 The minor premise slot of class `c`'s constructor `C`: exactly one. -/
 def classMinorSlot (rd : ClassRead) (c : Nat) (C : NIdx) : AM (Nat × List (Nat × Nat)) := do
   let hits := (List.range rd.slots.length).filterMap fun s =>
-    match rd.slots[s]? with
+    match (rd.slots[s]? : Option ClassSlot) with
     | some (.minor c' C' ihs) => if c' == c && C' == C then some (s, ihs) else none
     | _ => none
   match hits with

@@ -191,7 +191,7 @@ def targetParamsDefEq (mode : CheckMode) (fe : IFEnv) (d : Nat) (names : List NI
       if (← bvarB coreWalkFuel a) != 0 then pure false
       else if (← bvarB coreWalkFuel b) != 0 then pure false
       else if (← fvarB coreWalkFuel a) > pfvs.length then pure false
-      else pure ((← fvarB coreWalkFuel b) ≤ pfvs.length)
+      else pure (decide ((← fvarB coreWalkFuel b) ≤ pfvs.length))
     if !closed then pure false
     else
       let ac ← targetCanonParams pfvs a
@@ -312,7 +312,7 @@ def targetMajorOf (fe : IFEnv) (p : BlockShape)
             else
               let closed ← ds.allM fun x => do
                 if (← bvarB coreWalkFuel x) != 0 then pure false
-                else pure ((← fvarB coreWalkFuel x) ≤ p.nP)
+                else pure (decide ((← fvarB coreWalkFuel x) ≤ p.nP))
               if !closed then
                 fail (.invalid "target rec: the major's parameters mention more than the \
                   recursor's parameters")

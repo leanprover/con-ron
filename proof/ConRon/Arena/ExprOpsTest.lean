@@ -259,7 +259,6 @@ private def chkOPw (c : AM (Option PropWhen)) (expect : Option PropWhen) : Bool 
   | .ok (r, _) => r == expect
   | .error _ => false
 
-/-- con-leche: none — an `Option LIdx`-valued twin. -/
 /-- con-leche: none — the `fvarLeaves` shape. -/
 private def chkFvL (c : AM (List (Nat × EIdx))) (expect : List (Nat × Expr)) : Bool :=
   match c.run S0 with
