@@ -44,20 +44,20 @@ checks the parse DOES make are all its own and are all here: the rebinding
 test, `validateIndD`'s block consistency checks, and the safety/kind
 recognisers.
 
-**The projection-function rewrite is real since task #97e part 2**:
-`Arena/Frontend/ProjRec.lean`, over the `ExprOps` twins, feeding
-`projRewriteD`, `noteProjIota` and `registerProjOwners` below.  The in-process
-modeller sits behind the one-method `Modeller` seam of
-`Arena/Frontend/Types.lean` — DESIGN §8.2's unverified hook — and
-`Arena/Frontend/InModel.lean` instantiates it by delegating to con-leche's own
-generator on the block's denotation.
+**Neither the projection-function rewrite nor the in-process modeller exist
+any more** (con-leche's `uniform-inds` merge, task #105): `Frontend/ProjRec.lean`
+and `Frontend/InModel*.lean` are deleted upstream, and with them this
+module's `projRewriteD`/`noteProjIota`/`registerProjOwners`/`blockRecOf`/
+`pushGenD`/`pushGenList`/`noteGen`/`noteDecl` — every inductive block is
+pushed as one `IndDecl`, unconditionally, and the uniform installer
+(`Arena/Inductives/**`, the kernel lane's) does what used to need a rewrite
+and a generated `_model` family.
 
 **The `M`/line-number collapse** is described in `Arena/Frontend/Types.lean`:
 index errors are `fail (.internal …)` with con-leche's own text and no line
 number; a scan error and a record verdict keep theirs, since those are values.
 -/
 import ConRon.Arena.Frontend.Types
-import ConRon.Arena.Frontend.ProjRec
 import ConRon.Arena.ExprOps
 import ConLeche.Frontend.Scan.Fast
 import ConLeche.Kernel.Level
@@ -83,10 +83,11 @@ def storeFuel : AM Nat := do
 
 /-! ## The direct parse state -/
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:55-63 StateD — the direct parse
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.StateD_bridge, then delete this line
+/-- con-leche: ConLeche/Frontend/ExportC.lean:55-59 StateD — the direct parse
 state: stream-index-keyed tables of HANDLES (a table hit is the same shared
 node, named by its handle) and the parsed declarations as `IDeclaration`.
+Every field the modeller and the projection rewrite used is gone with them
+(task #105).
 
 `names` and `levels` have no default: index 0 of each is the format's implicit
 `Name.anonymous` / `Level.zero`, and over handles that means the handle those
@@ -96,70 +97,14 @@ structure StateD where
   levels : IdTable LIdx
   exprs : IdTable EIdx := {}
   decls : Array IDeclaration := #[]
-  /-- structure-like owners the projection rewrite serves, by type name -/
-  projOwners : Std.HashMap NIdx ProjRecOwner := {}
-  /-- field sorts, by artifact iota name `T._model.proj_i.iota` -/
-  projLevels : Std.HashMap NIdx LIdx := {}
-  /-- projection functions rewritten so far (names, for the driver's trace) -/
-  projRewrites : Array NIdx := #[]
-  /-- the declared types of every declaration pushed so far, by name -/
-  constTypes : Std.HashMap NIdx (List NIdx × EIdx) := {}
-  /-- the definitional heights of the definitions pushed so far -/
-  heights : Std.HashMap NIdx Nat := {}
-  /-- in-process modelling of mutual/nested blocks is on -/
-  inModel : Bool := true
-  /-- the blocks modelled in-process, in stream order -/
-  inModelled : Array NIdx := #[]
-  /-- how many records the in-process modeller GENERATED and pushed -/
-  genRecords : Nat := 0
-  /-- each generated record's leading name ↦ the block it models -/
-  genOwner : Std.HashMap NIdx NIdx := {}
-  /-- per modelled block, its ordinal among the stream's `inductive` records
-  and the generated records -/
-  inModelGen : Array (Nat × Array IDeclaration) := #[]
-  /-- the number of `inductive` records seen so far -/
-  indCount : Nat := 0
-  /-- the parsed inductive blocks, by member type name -/
-  indBlocks : Std.HashMap NIdx BlockRec := {}
-  /-- CENSUS mode: a generator decline is recorded and the block pushed bare -/
-  inModelCensus : Bool := false
-  /-- the census's declines: block name and reason -/
-  inModelDeclined : Array (NIdx × String) := #[]
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:135-153 noteDecl — record a
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.noteDecl_bridge, then delete this line
-pushed declaration's constants in the declaration table (`constTypes`,
-`heights`).
-
-**The `.basisDecl` arm fails loudly** where con-leche reads the pinned block's
-constants out of `BasisKind.decls`.  No frontend function produces a
-`basisDecl` (`ConLeche/Kernel/Env.lean:520-529`: it is the fold's own record
-for "install the pinned block"), so the arm is unreachable from the parse; the
-pinned tables it would read are P2d's, and a loud `internal` beats a silent
-empty list the day someone makes it reachable. -/
-def noteDecl (st : StateD) (d : IDeclaration) : AM StateD := do
-  let cvs : List (NIdx × List NIdx × EIdx × Option Nat) ← match d with
-    | .axiomDecl cv => pure [(cv.name, cv.levelParams, cv.type, none)]
-    | .defnDecl cv _ h => pure [(cv.name, cv.levelParams, cv.type, some (hintHeight h))]
-    | .thmDecl cv _ => pure [(cv.name, cv.levelParams, cv.type, none)]
-    | .opaqueDecl cv _ => pure [(cv.name, cv.levelParams, cv.type, none)]
-    | .basisDecl _ => fail (.internal "noteDecl: a basisDecl is not a parser record")
-    | .quotDecl _ cv => pure [(cv.name, cv.levelParams, cv.type, none)]
-    | .indDecl block _ => block.mapM fun ci => do
-      let v ← ci.toConstantVal
-      pure (v.name, v.levelParams, v.type, none)
-  let ct := st.constTypes
-  let hs := st.heights
-  let st := { st with constTypes := {}, heights := {} }
-  let (ct, hs) := cvs.foldl (fun (ct, hs) (n, lps, ty, h) =>
-    (ct.insert n (lps, ty), match h with | some h => hs.insert n h | none => hs)) (ct, hs)
-  pure { st with constTypes := ct, heights := hs }
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:65-72 pushDecl — one parsed
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.pushDecl_bridge, then delete this line
-record, appended: the decoder keeps the file's records in the file's order. -/
+record, appended: the decoder keeps the file's records in the file's order.
+What used to sit here — the constants-and-heights bookkeeping the in-process
+modeller read (`noteDecl`) — is gone with the modeller: `pushDecl` is a plain
+state update now. -/
 def pushDecl (st : StateD) (d : IDeclaration) : AM StateD :=
-  noteDecl { st with decls := st.decls.push d } d
+  pure { st with decls := st.decls.push d }
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:74-77 StateD.name — the name
 table read. -/
@@ -293,71 +238,6 @@ def parseCVD (st : StateD) (cv : CVRec) : AM IConstantVal := do
          levelParams := ← cv.levelParams.mapM st.name
          type := ty }
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:291-302 projRewriteD — the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.projRewriteD_bridge, then delete this line
-projection-function rewrite at a definition record
-(`Arena/Frontend/ProjRec.lean`): the value is `fun p⃗ self => .proj T i self`
-for a recorded owner `T`, the field's sort is on record from the artifact,
-`PUnit` is available, and the definition's level parameters are the block's.
-`none` = leave the record as parsed.
-
-con-leche's `let .proj T i (.bvar 0) := lamBody vl | none` is a `view` of the
-body's node here; exactness (`denoteE_inj`) makes the two the same test. -/
-def projRewriteD (st : StateD) (cv : IConstantVal) (vl : EIdx) :
-    AM (Option EIdx) := do
-  let fuel ← storeFuel
-  match ← view (← lamBody fuel vl) with
-  | .proj t i sub =>
-    match ← view sub with
-    | .bvar 0 =>
-      match st.projOwners[t]? with
-      | none => pure none
-      | some o =>
-        if cv.levelParams != o.lps then pure none
-        else
-          match st.projLevels[← projIotaName t i]? with
-          | none => pure none
-          | some l => projRecValue fuel o l cv.type vl i
-    | _ => pure none
-  | _ => pure none
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:304-317 noteProjIota — an
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.noteProjIota_bridge, then delete this line
-artifact `T._model.proj_i.iota` names the field's sort in its `Eq` level:
-recorded for the projection rewrite.  Run on the records the in-process
-modeller GENERATES and on those alone (con-leche's task #219: a stream record
-is an ordinary declaration whatever it is called). -/
-def noteProjIota (st : StateD) (cvp : IConstantVal) : AM StateD := do
-  if ← isProjIotaName cvp.name then
-    let fuel ← storeFuel
-    match ← projIotaLevel fuel cvp.type with
-    | some l =>
-      let m := st.projLevels
-      let st := { st with projLevels := {} }
-      pure { st with projLevels := m.insert cvp.name l }
-    | none => pure st
-  else pure st
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:319-326 pushGenD — push one
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.pushGenD_bridge, then delete this line
-record the in-process modeller generated: `pushDecl`, plus the projection-iota
-registration. -/
-def pushGenD (st : StateD) (d : IDeclaration) : AM StateD :=
-  match d with
-  | .thmDecl cv _ => do pushDecl (← noteProjIota st cv) d
-  | _ => pushDecl st d
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:328-336 noteGen — book a record
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.noteGen_bridge, then delete this line
-the in-process modeller generated for block `T0`: a declaration of the FOLD,
-never a record of the file, so the driver's headline count subtracts it. -/
-def noteGen (st : StateD) (d : IDeclaration) (T0 : NIdx) : AM StateD := do
-  let ns := d.names
-  let m := st.genOwner
-  let st := { st with genOwner := {} }
-  pure { st with genRecords := st.genRecords + 1,
-                 genOwner := ns.foldl (fun m n => m.insert n T0) m }
-
 /-- con-leche: ConLeche/Frontend/ExportC.lean:201-207 indPiTeleLen — the
 syntactic Π-telescope length of a declared type: official counts a
 constructor's binders by walking `is_pi` without reducing, and the count past
@@ -390,70 +270,6 @@ con-leche's own parse placeholders. -/
 def parseRuleD (st : StateD) (ru : RuleRec) : AM IRecRule := do
   pure (IRecRule.mk (← st.name ru.ctor) ru.nfields 0 .inert
     (← getDeclD st ru.rhs) false false false)
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:351-375 blockRecOf — the export's
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.blockRecOf_bridge, then delete this line
-shape data of an inductive record, for the in-process modeller. -/
-def blockRecOf (st : StateD) (types : List IndTypeRec) (ctors : List IndCtorRec)
-    (recs : List IndRecRec) : AM BlockRec := do
-  -- the listed constructors are read BEFORE the declaration's common data, in
-  -- the port's order (`export_c::block_rec_types`; task #97-T2-LOCKSTEP lane
-  -- Frontend): both are table reads, and the first failure is the one reported
-  let types ← types.mapM fun t => do
-    let ctors ← t.ctors.mapM st.name
-    pure { cv := ← parseCVD st t.cv
-           nP := t.numParams
-           nIdx := t.numIndices
-           ctors := ctors
-           isRec := t.isRec
-           isReflexive := t.isReflexive
-           numNested := t.numNested : MIndTypeRec }
-  let ctors ← ctors.mapM fun c => do
-    pure { cv := ← parseCVD st c.cv
-           nP := c.numParams
-           nF := c.numFields : MIndCtorRec }
-  let recs ← recs.mapM fun r => do
-    let rules ← r.rules.mapM (parseRuleD st)
-    pure { cv := ← parseCVD st r.cv
-           nP := r.numParams
-           nM := r.numMotives
-           nm := r.numMinors
-           nI := r.numIndices
-           rules := rules : MIndRecRec }
-  pure ⟨types, ctors, recs⟩
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:377-396 registerProjOwners —
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.registerProjOwners_bridge, then delete this line
-record the structure-like owners of a parsed block that the projection rewrite
-serves (`Arena/Frontend/ProjRec.lean`'s `projRecOwners`). -/
-def registerProjOwners (st : StateD) (tys : List IndTypeRec)
-    (cts : List IndCtorRec) (rcs : List IndRecRec)
-    (block : List IConstantInfo) : AM StateD := do
-  let types ← tys.mapM fun t => do
-    let cv ← parseCVD st t.cv
-    pure (cv.name, cv.levelParams, cv.type, t.numParams, t.numIndices,
-      ← t.ctors.mapM st.name, t.isRec)
-  let ctors ← cts.mapM fun c => do
-    let cv ← parseCVD st c.cv
-    pure (cv.name, c.numFields, cv.type)
-  let recs ← rcs.mapM fun r => do
-    let cv ← parseCVD st r.cv
-    pure (cv.name, cv.levelParams, cv.type, r.numMotives, r.numMinors)
-  let fuel ← storeFuel
-  match ← projRecOwners fuel block types ctors recs with
-  | [] => pure st
-  | owners =>
-    let m := st.projOwners
-    let st := { st with projOwners := {} }
-    pure { st with projOwners := owners.foldl (fun m o => m.insert o.T o) m }
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:398-404 pushGenList — push the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.pushGenList_bridge, then delete this line
-records the in-process modeller generated, each booked as a declaration of the
-fold and not a record of the file. -/
-def pushGenList (st : StateD) : List IDeclaration → NIdx → AM StateD
-  | [], _ => pure st
-  | d :: ds, T0 => do pushGenList (← noteGen (← pushGenD st d) d T0) ds T0
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:214-366 validateIndD — an
 inductive record, VALIDATED: the half of the record's processing that reads
@@ -567,18 +383,21 @@ def validateIndD (st : @& StateD) (tys : List IndTypeRec) (cts : List IndCtorRec
     | _ => pure ()
   return .inr (cts, nPd)
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:368-391 installIndD — an
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.installIndD_bridge, then delete this line
-inductive record, INSTALLED: the block's constants, the projection-owner
-table, the in-process modeller, the push.  Every change to the state a
-validated inductive record makes is here.
+/-- con-leche: ConLeche/Frontend/ExportC.lean:368-373 installIndD — an
+inductive record, INSTALLED: the block's constants, pushed as one `IndDecl`.
+Every change to the state a validated inductive record makes is here.
 
-The modeller is the `Modeller` parameter (DESIGN §8.2's seam) where con-leche
-calls `InModel.generate` directly; `wants` is representation-free and stays a
-plain function. -/
-def installIndD (md : Modeller) (st : StateD) (tys : List IndTypeRec)
+con-leche's own `installIndD` used to build the projection-owner table and run
+the in-process modeller here (`registerProjOwners`, `InModel.generate` through
+the `wants`/`inModel` gate); the uniform installer (task #105,
+`Arena/Inductives/**`, the kernel lane's) replaces both, so the parser has
+nothing left to do but push the block.
+
+**EVERY BLOCK IS AN `indDecl`**: the basis-pin match is `preparePrelude`'s and
+the fold's, never the parser's. -/
+def installIndD (st : StateD) (tys : List IndTypeRec)
     (cts : List IndCtorRec) (rcs : List IndRecRec) (nPd : Nat) :
-    AM (StateD ⊕ RecordVerdict) := do
+    AM StateD := do
   let types ← tys.mapM fun t => do
     pure (IConstantInfo.indInfo (← parseCVD st t.cv) {})
   let ctors ← cts.mapM fun c => do
@@ -589,46 +408,15 @@ def installIndD (md : Modeller) (st : StateD) (tys : List IndTypeRec)
       (r.numParams + r.numMotives + r.numMinors + r.numIndices)
       (r.numParams + r.numMotives + r.numMinors) rules)
   let block := types ++ ctors ++ recs
-  -- the projection rewrite's owner table (the export's own shape data)
-  let st ← registerProjOwners st tys cts rcs block
-  -- EVERY BLOCK IS AN `indDecl`: the basis-pin match is `preparePrelude`'s
-  -- and the fold's.  THE IN-PROCESS MODELLER: a mutual or nested block gets
-  -- its `_model` family generated here and pushed ahead of it.
-  let T0 ← match block.head? with
-    | some ci => pure ci.name
-    | none => internNNode .anonymous
-  let b ← blockRecOf st tys cts rcs
-  let st :=
-    let m := st.indBlocks
-    let st := { st with indBlocks := {} }
-    { st with indBlocks := b.types.foldl (fun m t => m.insert t.cv.name b) m }
-  if st.inModel && wants b then
-    let ctx : Ctx :=
-      ⟨fun n => st.constTypes[n]?, fun n => st.heights.getD n 0, fun n => st.indBlocks[n]?⟩
-    match ← md.generate ctx b with
-    | .error why =>
-      if st.inModelCensus then
-        return .inl (← pushDecl
-          { st with inModelDeclined := st.inModelDeclined.push (T0, why) }
-          (.indDecl block nPd))
-      else
-        return .inr (.declined s!"in-process model of {← readName T0}: {why}")
-    | .ok gen =>
-      -- a generated record is a declaration of the FOLD and not a record of
-      -- the file: booked here, so the verdict line reports the file's count
-      let st1 ← pushGenList st gen T0
-      let st1 := { st1 with
-        inModelled := st1.inModelled.push T0,
-        inModelGen := st1.inModelGen.push (st1.indCount - 1, gen.toArray) }
-      return .inl (← pushDecl st1 (.indDecl block nPd))
-  else
-    return .inl (← pushDecl st (.indDecl block nPd))
+  pushDecl st (.indDecl block nPd)
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:393-448 processLineCoreD — the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.processLineCoreD_bridge, then delete this line
+/-- con-leche: ConLeche/Frontend/ExportC.lean:397-455 processLineCoreD — the
 record's own semantics: the declaration kinds, producing `IDeclaration`
-records.  Every branch, guard and error string is con-leche's. -/
-def processLineCoreD (md : Modeller) (st : StateD) (d : DeclRec) :
+records.  Every branch, guard and error string is con-leche's; the
+projection-function rewrite that used to run in the `.defn`/`.thm` arms is
+gone with the modeller (task #105), so every arm now pushes the record it
+parsed, unconditionally. -/
+def processLineCoreD (st : StateD) (d : DeclRec) :
     AM (StateD ⊕ RecordVerdict) := do
   match d with
   | .ax cvr isUnsafe =>
@@ -646,24 +434,12 @@ def processLineCoreD (md : Modeller) (st : StateD) (d : DeclRec) :
         | .«abbrev» => .«abbrev»
         | .«opaque» => .«opaque»
         | .regular n => .regular n
-      -- the projection-function rewrite
-      match ← projRewriteD st cvp vl with
-      | some vl' =>
-        let st ← pushDecl st (.defnDecl cvp vl' h)
-        return .inl { st with projRewrites := st.projRewrites.push cvp.name }
-      | none =>
-        return .inl (← pushDecl st (.defnDecl cvp vl h))
+      return .inl (← pushDecl st (.defnDecl cvp vl h))
     | s => return .inr (.declined s!"definition with safety '{s}'")
   | .thm cvr value =>
     let cvp ← parseCVD st cvr
     let vl ← getDeclD st value
-    -- a proof field's projection function is exported as a theorem
-    match ← projRewriteD st cvp vl with
-    | some vl' =>
-      let st ← pushDecl st (.thmDecl cvp vl')
-      return .inl { st with projRewrites := st.projRewrites.push cvp.name }
-    | none =>
-      return .inl (← pushDecl st (.thmDecl cvp vl))
+    return .inl (← pushDecl st (.thmDecl cvp vl))
   | .opaq cvr value isUnsafe =>
     let cvp ← parseCVD st cvr
     if isUnsafe then
@@ -682,87 +458,70 @@ def processLineCoreD (md : Modeller) (st : StateD) (d : DeclRec) :
       | k => fail (.internal s!"unknown quotient kind '{k}'")
     return .inl (← pushDecl st (.quotDecl qk cv))
   | .ind tys cts rcs =>
-    let st := { st with indCount := st.indCount + 1 }
     match ← validateIndD st tys cts rcs with
     | .inl v => pure (.inr v)
-    | .inr (cts, nPd) => installIndD md st tys cts rcs nPd
+    | .inr (cts, nPd) => pure (.inl (← installIndD st tys cts rcs nPd))
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:450-457 applyDeclD — a
+/-- con-leche: ConLeche/Frontend/ExportC.lean:456-461 applyDeclD — a
 declaration record.  `sorryAx` is the FOLD's: the parse forwards every
 declaration record, the `sorryAx` axiom record included. -/
-def applyDeclD (md : Modeller) (st : StateD) (d : DeclRec) :
+def applyDeclD (st : StateD) (d : DeclRec) :
     AM (StateD ⊕ RecordVerdict) :=
-  processLineCoreD md st d
+  processLineCoreD st d
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:459-469 applyLine — THE SEMANTIC
+/-- con-leche: ConLeche/Frontend/ExportC.lean:462-470 applyLine — THE SEMANTIC
 LAYER: one scanned line applied to the parse state.  The scanned record is
 con-leche's own (`Scan/Fast.lean`, reused); what this does with it is resolve
-the indices, INTERN the nodes, and run the rewrite and the modeller seam. -/
-def applyLine (md : Modeller) (st : StateD) (r : LineRec) :
+the indices and INTERN the nodes.  There is no rewrite and no modeller seam
+left to run (task #105). -/
+def applyLine (st : StateD) (r : LineRec) :
     AM (StateD ⊕ RecordVerdict) :=
   match r with
   | .expr i e => do pure (.inl (← parseExprEntryD st i e))
   | .name i n => do pure (.inl (← parseNameEntryD st i n))
   | .level i l => do pure (.inl (← parseLevelEntryD st i l))
-  | .decl d => applyDeclD md st d
+  | .decl d => applyDeclD st d
   | .header => pure (.inl st)
   | .blank => pure (.inl st)
 
 /-! ## The line feed and the drivers -/
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:473-477 ParseResultD — the direct
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.ParseResultD_bridge, then delete this line
-parse result: the declarations over handles, and the parse's receipts.  No
-arena conversion: the handles already point into the persistent tier the fold
-will read. -/
+parse result: the declarations over handles.  No arena conversion: the handles
+already point into the persistent tier the fold will read.  con-leche's
+receipts (the projection rewrites, the modelled blocks, the generated-record
+counts) are gone with the modeller (task #105). -/
 structure ParseResultD where
-  /-- the FILE's declaration records, in the file's order, plus the records the
-  in-process modeller generated -/
+  /-- the FILE's declaration records, in the file's order -/
   decls : Array IDeclaration
-  /-- projection functions rewritten to recursor form -/
-  projRewrites : Array NIdx := #[]
-  /-- the blocks modelled in-process, in stream order -/
-  inModelled : Array NIdx := #[]
-  /-- how many of `decls` the in-process modeller generated, and which block
-  each of them models -/
-  genRecords : Nat := 0
-  genOwner : Std.HashMap NIdx NIdx := {}
-  /-- the in-process modeller's generated records per block -/
-  inModelGen : Array (Nat × Array IDeclaration) := #[]
-  /-- the census's declines (block, reason) -/
-  inModelDeclined : Array (NIdx × String) := #[]
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:479-481 StateD.init — the initial
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.StateD.init_bridge, then delete this line
 parse state.  Over handles it is monadic: index 0 of the name table is the
 format's implicit `Name.anonymous` and index 0 of the level table its
 `Level.zero`, and those are the handles those two nodes intern at — in the
 PERSISTENT tier, which is the tier the whole parse appends to (`scratchOn` is
 `false` on `EStore.empty` and the parse never enables the scratch one). -/
-def StateD.init (inModel : Bool) (census : Bool := false) : AM StateD := do
+def StateD.init : AM StateD := do
   let n0 ← internNNode .anonymous
   let l0 ← internLNode .zero
-  pure { names := IdTable.singleton n0, levels := IdTable.singleton l0,
-         inModel, inModelCensus := census }
+  pure { names := IdTable.singleton n0, levels := IdTable.singleton l0 }
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:483-485 ParseResultD.ofState —
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.ParseResultD.ofState_bridge, then delete this line
+/-- con-leche: ConLeche/Frontend/ExportC.lean:483-484 ParseResultD.ofState —
 the result: the file's records, in the file's order. -/
 def ParseResultD.ofState (st : StateD) : ParseResultD :=
-  ⟨st.decls, st.projRewrites, st.inModelled,
-   st.genRecords, st.genOwner, st.inModelGen, st.inModelDeclined⟩
+  ⟨st.decls⟩
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:487-497 applyFinalLine — scan and
 apply the LAST line of a stream, the one no newline ends.  A syntactic failure
 is reported at its offset in the line.  con-leche calls `scanLineSpec` and lets
 `@[csimp]` substitute `scanLineFwd`; this calls `scanLineFwd`, which is what
 both binaries execute. -/
-def applyFinalLine (md : Modeller) (st : StateD) (b : @& ByteArray) (i : USize)
+def applyFinalLine (st : StateD) (b : @& ByteArray) (i : USize)
     (lineNo : Nat) : AM (Except (CheckError × Nat) StateD) := do
   match scanLineFwd b i with
   | .err e => pure (.error (.internal (ScanErr.render ⟨e.offset - i.toNat, e.what⟩), lineNo))
   | .ok r _ =>
-    match ← applyLine md st r with
+    match ← applyLine st r with
     | .inr v => pure (.error (v.toError, lineNo))
     | .inl st => pure (.ok st)
 
@@ -773,7 +532,7 @@ told from a malformed one by whether the rest of the chunk holds a newline at
 all.  The loop's advance is the line, and the line reader never returns a
 position at or before its own start, so the remaining byte count is the
 termination measure. -/
-def feedChunk (md : Modeller) (st : StateD) (b : @& ByteArray) (i : USize)
+def feedChunk (st : StateD) (b : @& ByteArray) (i : USize)
     (lineNo : Nat) : AM (Except (CheckError × Nat) (StateD × Nat × USize)) :=
   if _h : i < b.usize then
     match scanLineFwd b i with
@@ -787,10 +546,10 @@ def feedChunk (md : Modeller) (st : StateD) (b : @& ByteArray) (i : USize)
       -- COMPARED, not matched.)
       if j == 0 then pure (.ok (st, lineNo, i))
       else do
-        match ← applyLine md st r with
+        match ← applyLine st r with
         | .inr v => pure (.error (v.toError, lineNo + 1))
         | .inl st =>
-          if _hj : i < j then feedChunk md st b j (lineNo + 1)
+          if _hj : i < j then feedChunk st b j (lineNo + 1)
           else pure (.error (.internal "the line scanner made no progress", lineNo + 1))
   else pure (.ok (st, lineNo, i))
 termination_by b.size - i.toNat
@@ -808,61 +567,56 @@ def sizeError : CheckError × Nat :=
   (.notImplemented s!"an input of {USize.size} bytes or more", 0)
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:548-560 parseBytes — wholesale
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.parseBytes_bridge, then delete this line
 direct parse of a byte buffer: the whole input fed at once, then the last
 line.  The specification the streaming parse is proved equal to. -/
-def parseBytes (md : Modeller) (b : ByteArray) (inModel : Bool := true)
-    (census : Bool := false) : AM (Except (CheckError × Nat) ParseResultD) := do
+def parseBytes (b : ByteArray) : AM (Except (CheckError × Nat) ParseResultD) := do
   if b.size ≥ USize.size then return .error sizeError
-  match ← feedChunk md (← StateD.init inModel census) b 0 0 with
+  match ← feedChunk (← StateD.init) b 0 0 with
   | .error e => pure (.error e)
   | .ok (st, lineNo, tail) =>
     if tail < b.usize then
-      match ← applyFinalLine md st b tail (lineNo + 1) with
+      match ← applyFinalLine st b tail (lineNo + 1) with
       | .error e => pure (.error e)
       | .ok st => pure (.ok (.ofState st))
     else
       pure (.ok (.ofState st))
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:562-566 parseExportD — wholesale
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.parseExportD_bridge, then delete this line
+/-- con-leche: ConLeche/Frontend/ExportC.lean:564-576 parseExportD — wholesale
 direct parse of a string (the built-in prelude, tests and small inputs):
 `parseBytes` of its UTF-8. -/
-def parseExportD (md : Modeller) (contents : String) (inModel : Bool := true)
-    (census : Bool := false) : AM (Except (CheckError × Nat) ParseResultD) :=
-  parseBytes md contents.toUTF8 inModel census
+def parseExportD (contents : String) : AM (Except (CheckError × Nat) ParseResultD) :=
+  parseBytes contents.toUTF8
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:568-585 chunkStep — one chunk of
+/-- con-leche: ConLeche/Frontend/ExportC.lean:577-587 chunkStep — one chunk of
 the stream, applied: the carried incomplete tail is put in front of the new
 bytes, every complete line of the buffer is fed, and the new incomplete tail is
 cut off for the next chunk. -/
-def chunkStep (md : Modeller) (st : StateD) (carry : ByteArray) (lineNo total : Nat)
+def chunkStep (st : StateD) (carry : ByteArray) (lineNo total : Nat)
     (buf0 : ByteArray) :
     AM (Except (CheckError × Nat) (StateD × ByteArray × Nat × Nat)) := do
   if total + buf0.size ≥ USize.size then return .error sizeError
   let buf := if carry.isEmpty then buf0 else carry ++ buf0
-  match ← feedChunk md st buf 0 lineNo with
+  match ← feedChunk st buf 0 lineNo with
   | .error e => pure (.error e)
   | .ok (st, lineNo, tail) =>
     pure (.ok (st, buf.extract tail.toNat buf.size, lineNo, total + buf0.size))
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:587-594 chunkFinish — the end of
+/-- con-leche: ConLeche/Frontend/ExportC.lean:588-597 chunkFinish — the end of
 the stream: the carried tail, if any, is its last line. -/
-def chunkFinish (md : Modeller) (st : StateD) (carry : ByteArray) (lineNo : Nat) :
+def chunkFinish (st : StateD) (carry : ByteArray) (lineNo : Nat) :
     AM (Except (CheckError × Nat) ParseResultD) := do
   if carry.isEmpty then return .ok (.ofState st)
-  match ← applyFinalLine md st carry 0 (lineNo + 1) with
+  match ← applyFinalLine st carry 0 (lineNo + 1) with
   | .error e => pure (.error e)
   | .ok st => pure (.ok (.ofState st))
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:596-600 concatBytes — the bytes of
+/-- con-leche: ConLeche/Frontend/ExportC.lean:598-610 concatBytes — the bytes of
 a list of chunks, in order. -/
 def concatBytes : List ByteArray → ByteArray
   | [] => .empty
   | c :: cs => c ++ concatBytes cs
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:602-621 parseChunks — THE
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.parseChunksGo_bridge, then delete this line
+/-- con-leche: ConLeche/Frontend/ExportC.lean:611-637 parseChunks — THE
 STREAMING PARSE, PURELY: `chunkStep` folded over a list of chunks,
 `chunkFinish` at its end — what the driver's read loop does with the chunks its
 handle hands out, minus the reads.  The list is folded whole: an empty chunk
@@ -870,20 +624,18 @@ contributes nothing and the fold goes on.
 
 con-leche's `where go` is a top-level `parseChunksGo` here, because the arena's
 Rust twin is a loop of its own and a `where` clause has no name to cite. -/
-def parseChunksGo (md : Modeller) (st : StateD) (carry : ByteArray) (lineNo total : Nat) :
+def parseChunksGo (st : StateD) (carry : ByteArray) (lineNo total : Nat) :
     List ByteArray → AM (Except (CheckError × Nat) ParseResultD)
-  | [] => chunkFinish md st carry lineNo
+  | [] => chunkFinish st carry lineNo
   | c :: cs => do
-    match ← chunkStep md st carry lineNo total c with
+    match ← chunkStep st carry lineNo total c with
     | .error e => pure (.error e)
-    | .ok (st, carry, lineNo, total) => parseChunksGo md st carry lineNo total cs
+    | .ok (st, carry, lineNo, total) => parseChunksGo st carry lineNo total cs
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:602-621 parseChunks — the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExportC.parseChunks_bridge, then delete this line
+/-- con-leche: ConLeche/Frontend/ExportC.lean:611-637 parseChunks — the
 streaming parse's entry point: the initial state, then `parseChunksGo` above. -/
-def parseChunks (md : Modeller) (chunks : List ByteArray) (inModel : Bool := true)
-    (census : Bool := false) : AM (Except (CheckError × Nat) ParseResultD) := do
-  parseChunksGo md (← StateD.init inModel census) .empty 0 0 chunks
+def parseChunks (chunks : List ByteArray) : AM (Except (CheckError × Nat) ParseResultD) := do
+  parseChunksGo (← StateD.init) .empty 0 0 chunks
 
 /-- con-leche: none — the line number folded into the message.  con-leche
 reports a parse failure as `(CheckError, lineNo)` and `Main.lean` prints the

@@ -14,12 +14,14 @@ con-leche value into the store.
 tier is the exactness statement `denoteDecls (Arena.parse chunks) =
 parseChunks chunks`, whose left-hand side is exactly `denoteDecls` below: the
 denotation is the *specification side* of the frontend, written here once so
-that P3 states it rather than inventing it.  The intern direction is what a
-**delegation at a seam** needs: DESIGN §8.2 puts the in-process modeller
-outside the verified surface, and the cheapest exact instantiation of that
-seam is con-leche's own generator run on the block's denotation, with its
-generated records interned back (`Arena/Frontend/InModel.lean`).  The same
-pair serves `ProjRec`'s two block recognisers until P2d twins them.
+that P3 states it rather than inventing it.  The intern direction served a
+**delegation at a seam**: the in-process modeller and the projection-function
+rewrite's two block recognisers each needed to intern a transient value back
+into the store; both are deleted upstream (con-leche's `uniform-inds` merge,
+task #105), but the intern family stays — `Arena/Intern.lean`,
+`Arena/StdAxioms.lean`, `Arena/TrustAxioms.lean`, `Arena/NatOpPinSet.lean` and
+`Arena/Checker.lean`'s pin interning all call into it, unrelated to either
+deletion.
 
 **BOTH directions are MEMOISED, and the memo is not an optimisation.**  A
 handle DAG's denotation is a `ConLeche.Expr` whose subterms are shared by
@@ -36,10 +38,10 @@ the two differ only in how many times the tree is built.)  The intern
 direction carries the mirror memo, for the mirror reason.
 
 **The readback is bounded by its callers, too.**  Nothing here runs over the
-stream: `readCIList` is called on ONE inductive block at a time — a type
-former, its constructors and its recursors — and `internDecl` on the records
-one block's model generates.  A walk over the persistent tier is never a
-readback; it is a `view` walk (`Arena/ExprOps.lean` does them all).
+stream: `readCIList` was called on ONE inductive block at a time — a type
+former, its constructors and its recursors.  A walk over the persistent tier
+is never a readback; it is a `view` walk (`Arena/ExprOps.lean` does them
+all).
 
 **`internExpr` carries a memo, and it must.**  A handle DAG denotes to a
 `ConLeche.Expr` *tree* whose subterms are shared by Lean's own pointers, and
@@ -50,13 +52,6 @@ physical-equality shortcut, so a probe is `O(1)` on a shared subterm — and it
 is threaded explicitly rather than put in `AState`, because it lives for one
 block and `Memos` is DESIGN §8.4's per-call record.
 
-**The name lookup is PURE** (`nameHandle?`).  A con-leche `Name` is mapped to
-its handle by probing the name store's cons table, which is `NStore.find?` and
-needs no monad.  A name the store has never interned has no handle — and no
-declaration, since every declared name was interned when it was parsed — so
-`none` is the right answer and not a failure.  That is what lets the
-delegation build con-leche's own `Name → …` context functions, which are
-plain functions and cannot be monadic.
 -/
 import ConRon.Arena.Env
 
@@ -64,24 +59,6 @@ namespace ConRon.Arena.Frontend
 
 open ConLeche
 open ConRon.Arena
-
-/-! ## The pure name lookup -/
-
-/-- con-leche: none — the handle a transient `Name` was interned at, by
-probing the name store's cons table at each component; `none` when the store
-has never seen it (then no declaration carries it either, `denoteN` being
-injective).  Pure, so con-leche's `Name`-keyed context functions can be built
-from it. -/
-def nameHandle? (st : NStore) : ConLeche.Name → Option NIdx
-  | .anonymous => st.find? .anonymous
-  | .str p s =>
-    match nameHandle? st p with
-    | some hp => st.find? (.str hp s)
-    | none => none
-  | .num p n =>
-    match nameHandle? st p with
-    | some hp => st.find? (.num hp n)
-    | none => none
 
 /-! ## The denotation of the declaration layer
 
