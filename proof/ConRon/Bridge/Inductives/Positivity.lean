@@ -2205,4 +2205,164 @@ theorem nestContKey_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
 
 end Cont
 
+section Cont2
+
+variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1406-1440 nestCont
+(the parameters' check) — no loose bound variable, no frame hole past the
+walk's depth, at each parameter. -/
+theorem paramsLocal_spec (hp : Nat) (ds : List EIdx) (dsP : List Expr) :
+    PSpec (fun st => Frontend.denoteEList st ds = some dsP)
+      (ds.allM fun x => do
+        let bb ← bvarB coreWalkFuel x
+        if bb != 0 then pure false
+        else do
+          let fb ← fvarB coreWalkFuel x
+          pure (decide (fb ≤ hp)))
+      (RV (dsP.all fun x => x.bvarB == 0 && decide (x.fvarB ≤ hp))) := by
+  intro s₀ s' r hok hd hrun
+  exact allM_E_pstep (fun _ => True) (fun _ _ => trivial)
+    (fun e eP s₀ s' b hok _ hd hrun => by
+      obtain ⟨bb, s₁, h1, h2⟩ := bindOk hrun
+      obtain ⟨p1, -, rfl⟩ := bvarB_pstep hok hd h1
+      by_cases hb : (eP.bvarB != 0) = true
+      · rw [if_pos hb] at h2
+        obtain ⟨rfl, rfl⟩ := pureOk h2
+        refine ⟨p1, ?_⟩
+        simp only [bne_iff_ne, ne_eq] at hb
+        simp [hb]
+      · rw [if_neg hb] at h2
+        obtain ⟨fb, s₂, h3, h4⟩ := bindOk h2
+        obtain ⟨p2, rfl⟩ := fvarB_pstep p1.ok (denote_ext hd p1.ext) h3
+        obtain ⟨rfl, rfl⟩ := pureOk h4
+        refine ⟨p1.trans p2, ?_⟩
+        simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hb
+        simp [hb])
+    ds dsP s₀ s' r hok trivial hd hrun
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1406-1440 nestCont
+**The container case** (con-leche's `nestContS_sim`): the container's checks,
+its former, then the instantiation (`nestContKey_spec`). -/
+theorem nestCont_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP) {fuel : Nat}
+    (ih : NestPosSpec μ env fe ctx ctxP fuel)
+    (prog : List Arena.NestHole) (progP : List ConLeche.NestHole) (kb : Nat) (n : NIdx)
+    (nP : ConLeche.Name) (us : LsIdx) (usP : List Level) (args : List EIdx)
+    (argsP : List Expr) (ns : Arena.NestState) (nsP : ConLeche.NestState) {dep : Nat}
+    (hargs : ∀ a ∈ argsP, Expr.WScoped dep a) :
+    CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
+        dProg st prog = some progP ∧ denoteN st.ns n = some nP ∧
+        denoteLs st.lss us = some usP ∧ Frontend.denoteEList st args = some argsP ∧
+        dState st ns = some nsP)
+      (Arena.nestCont μ fe ctx fuel prog kb n us args ns)
+      (fun st r v => v.1 = kindOf r.1 ∧ dState st r.2 = some v.2)
+      (ConLeche.nestCont ctxP (fueledOpsM μ) env
+        (ConLeche.nestPos (fueledOpsM μ) env ctxP fuel) progP kb nP usP argsP nsP) := by
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hctx, hprog, hn, hus, hargs', hns⟩ := hp
+  obtain ⟨hcnames, hcnP, hfind, -, -, -⟩ := dCtx_fields hctx
+  have hhp : ctx.hiAt prog.length = ctxP.hiAt progP.length := by
+    rw [hiAt_eq hctx, dProg_length hprog]
+  rw [Arena.nestCont.eq_def] at hrun
+  dsimp only at hrun
+  -- the container
+  obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨p1, ho⟩ := nestContainer_spec ctxP hfind n nP s₀ s₁ o hok.state
+    ⟨hok.ienv.toS, hn⟩ h1
+  cases o with
+  | none => exact absurd h2 (fun hc => failOk hc)
+  | some q =>
+  obtain ⟨nPc, cs⟩ := q
+  obtain ⟨qP, hqP, hq1, -⟩ := ho
+  dsimp only at h2 hq1
+  subst hq1
+  have hlenA := PW.denoteEList_length hargs'
+  by_cases hl : args.length < qP.1
+  · rw [if_pos hl] at h2; exact absurd h2 (fun hc => failOk hc)
+  rw [if_neg hl] at h2
+  -- the indices
+  obtain ⟨b, s₂, h3, h4⟩ := bindOk h2
+  have hargs1 := denoteEList_ext p1.ext _ _ hargs'
+  obtain ⟨p2, hb⟩ := anyM_E_pstep (fun st => Frontend.denoteNList st.ns ctx.names =
+      some ctxP.names)
+    (fun hx h => denoteNListE_ext hx _ _ h)
+    (fun e eP s₀ s' b hok' hq hd hrun' =>
+      nestOcc_spec ctx.names ctxP.names ctx.nP _ e eP s₀ s' b hok' ⟨hq, hd⟩ hrun')
+    _ _ s₁ s₂ b p1.ok (denoteNListE_ext p1.ext _ _ hcnames) (denoteEList_drop' qP.1 hargs1) h3
+  cases b with
+  | true => simp only [↓reduceIte] at h4; exact absurd h4 (fun hc => failOk hc)
+  | false =>
+  simp only [Bool.false_eq_true, ↓reduceIte] at h4
+  -- `Quot`
+  obtain ⟨qn, s₃, h5, h6⟩ := bindOk h4
+  have c2 := (p1.trans p2).toCore hok
+  obtain ⟨hs3, hqn⟩ := pinAt_run (x := ConLeche.quotName) c2.ok.pins rfl h5
+  rw [hs3] at h6
+  have hx02 := p1.ext.trans p2.ext
+  have hnq := beq_handle_eq (p1.trans p2).ok.wf (denoteN_ext hn hx02) hqn
+  by_cases hq : (n == qn) = true
+  · rw [if_pos hq] at h6; exact absurd h6 (fun hc => failOk hc)
+  rw [if_neg hq] at h6
+  -- the parameters
+  obtain ⟨pc, s₄, h7, h8⟩ := bindOk h6
+  obtain ⟨p4, hpc⟩ := paramsLocal_spec (ctx.hiAt prog.length) _ _ s₂ s₄ pc (p1.trans p2).ok
+    (denoteEList_take' qP.1 (denoteEList_ext p2.ext _ _ hargs1)) h7
+  simp only [RV, hhp] at hpc
+  subst hpc
+  by_cases hpc' : (!(List.take qP.1 argsP).all fun x =>
+      x.bvarB == 0 && decide (x.fvarB ≤ ctxP.hiAt progP.length)) = true
+  · rw [if_pos hpc'] at h8; exact absurd h8 (fun hc => failOk hc)
+  rw [if_neg hpc'] at h8
+  have hpcT : ((List.take qP.1 argsP).all fun x =>
+      x.bvarB == 0 && decide (x.fvarB ≤ ctxP.hiAt progP.length)) = true := by
+    simpa using hpc'
+  -- the former
+  have c4 := (p1.trans (p2.trans p4)).toCore hok
+  have hx04 := hx02.trans p4.ext
+  obtain ⟨ni, s₅, h9, h10⟩ := bindOk h8
+  obtain ⟨c5, niP, ⟨hni1, hni2, hni3⟩, hFni⟩ := nestInstType_spec hc ctx _
+    ⟨n, us, args.take qP.1⟩ ⟨nP, usP, argsP.take qP.1⟩ s₄ s₅ ni c4.ok
+    ⟨dCtx_ext _ hx04 _ _ hctx, by simp [dKey, denoteN_ext hn hx04, denoteLs_ext hus hx04,
+      denoteEList_take' qP.1 (denoteEList_ext hx04 _ _ hargs')]⟩ h9
+  obtain ⟨nI, cty⟩ := ni
+  dsimp only at h10 hni1 hni2
+  subst hni1
+  by_cases hlen : (args.length != qP.1 + niP.1) = true
+  · rw [if_pos hlen] at h10; exact absurd h10 (fun hc => failOk hc)
+  rw [if_neg hlen] at h10
+  -- the instantiation
+  have hdsT : ∀ d ∈ List.take qP.1 argsP, Expr.WScoped (ctxP.hiAt progP.length) d := by
+    intro d hd
+    have h1 := List.all_eq_true.mp hpcT d hd
+    simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at h1
+    exact ConLeche.WScoped.of_fvarsBelow (hargs d (List.mem_of_mem_take hd))
+      (Expr.fvarB_le h1.2)
+  have hx05 := hx04.trans c5.ext
+  obtain ⟨c6, v, hv, hFv⟩ := nestContKey_spec hk henv hc ih prog progP kb n nP us usP _ _
+    qP.1 cty niP.2 ns nsP hdsT hni3 s₅ s' r c5.ok
+    ⟨dCtx_ext _ hx05 _ _ hctx, dProg_ext hx05 _ _ hprog, denoteN_ext hn hx05,
+      denoteLs_ext hus hx05, denoteEList_take' qP.1 (denoteEList_ext hx05 _ _ hargs'),
+      hni2, dState_ext hx05 _ _ hns⟩ h10
+  refine ⟨c4.trans (c5.trans c6), v, hv, ?_⟩
+  have hc1 : (decide (argsP.length < qP.1) || !(List.drop qP.1 argsP).all fun x =>
+      !Expr.nestOcc ctxP.names ctxP.nP (ctxP.hiAt progP.length) x) = false := by
+    rw [← hlenA]
+    simp only [hl, decide_false, Bool.false_or, Bool.not_eq_false', ← List.not_any_eq_all_not,
+      Bool.not_eq_true']
+    rw [← hhp, ← hcnP]
+    exact hb.symm
+  have hc2 : (nP == ConLeche.quotName) = false := by rw [← hnq]; simpa using hq
+  have hc4 : (argsP.length == qP.1 + niP.1) = true := by
+    rw [← hlenA]; simpa using hlen
+  simp only [ConLeche.nestCont, hqP]
+  refine FOk.bind FOk.unwrapOr ?_
+  simp only [hc1, hc2, hpcT, Bool.false_eq_true, ↓reduceIte]
+  rw [hhp] at hFni
+  refine FOk.bind hFni ?_
+  simp only [hc4, ↓reduceIte]
+  exact hFv
+
+end Cont2
+
 end ConRon.Bridge.Inductives
