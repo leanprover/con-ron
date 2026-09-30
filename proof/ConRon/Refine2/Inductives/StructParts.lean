@@ -716,7 +716,7 @@ the twin's `structProjBodies` tail (the list to an array). -/
       (do match ← structProjBodiesGo (absNIdx t) (absU k) 0 (absEIdx h) with
         | some l => pure (some l.toArray)
         | none => pure none) := by
-  have h1 := LS.twin_map (f := fun o => o.map List.toArray) (R := fun a b => b = (Option.map absEIdxL a).map List.toArray)
+  have h1 := LS.tail_bind_pure (f := fun o => o.map List.toArray) (R := fun a b => b = (Option.map absEIdxL a).map List.toArray)
     (struct_proj_bodies_go_aux (pers := pers) (t := t) _ k 0#u64 h (alloc.vec.Vec.new _) st lst rfl hrel hinv)
     (fun a b hb => by rw [hb])
   have e : ((do pure ((← structProjBodiesGo (absNIdx t) (absU k) (absU (0#u64 : Std.U64)) (absEIdx h)).map

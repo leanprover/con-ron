@@ -89,12 +89,8 @@ def absRecsLFrom
 
 /-! ## `IRecRule`'s fields -/
 
-theorem absIRecRule_ctor_eq (r : arena.env.IRecRule) :
-    (absIRecRule r).ctor = absNIdx r.ctor := rfl
 theorem absIRecRule_nfields_eq (r : arena.env.IRecRule) :
     (absIRecRule r).nfields = absU r.nfields := rfl
-theorem absIRecRule_rhs_eq (r : arena.env.IRecRule) :
-    (absIRecRule r).rhs = absEIdx r.rhs := rfl
 
 
 /-! ## Rule 11 at a COUNTED recursion — the tier's four list closers
@@ -803,15 +799,6 @@ theorem ls_counted {γ δ ω : Type} {pers : arena.store.PersTier} {R : γ → �
     exact hstep st lst i w m (by omega) hm hrel hinv
       (fun st' lst' j w' hj hrel' hinv' => ih j st' lst' w' (by omega) hrel' hinv')
 
-/-- The port's `dom := if k < len then v[k].0 else EIdx(0)` against the
-twin's `(cbs.getD k default).1`: `lockstep` zips both reads (task
-#97-T2-TACTIC round 3: the pair read by structure eta, `EIdx(0)` by
-`eidx_of_word_spec`); left is the twin's `getD` off the end. -/
-macro "ind_dom_finish" : tactic => `(tactic|
-  (first | rw [binderL_getD_fst_of_ge] | rw [absBinderL_getD_fst_of_ge]
-   · lockstep; done
-   · scalar_tac))
-
 open Lockstep in
 /-- The twin of an `LS` judgement may be replaced by an equal one (the
 accumulator step: the induction hypothesis's `A (out.push b) ++ rest` against
@@ -879,22 +866,6 @@ theorem TeleWF.get {v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMe
   hv _ (List.getElem_mem hk)
 
 namespace Lockstep
-
-/-- A twin-only `map` on the answer: the Rust computation's relation to `x`
-carried to `x`'s image. -/
-theorem LS.twin_map {α β γ : Type} {pers : arena.store.PersTier} {R₁ : α → β → Prop}
-    {R : α → γ → Prop}
-    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
-    {lst : AState} {x : AM β} {f : β → γ}
-    (h : LS pers R₁ m lst x) (hR : ∀ a b, R₁ a b → R a (f b)) :
-    LS pers R m lst (x >>= fun b => Pure.pure (f b)) := by
-  intro o st' hm
-  have h1 := h o st' hm
-  cases o with
-  | Err e => exact errSim_bind h1
-  | Ok a =>
-    obtain ⟨b, lst', hx, hR1, h2, h3⟩ := h1
-    exact ⟨f b, lst', by rw [StateT.run_bind, hx]; rfl, hR _ _ hR1, h2, h3⟩
 
 end Lockstep
 

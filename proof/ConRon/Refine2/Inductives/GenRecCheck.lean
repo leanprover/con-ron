@@ -42,7 +42,7 @@ theorem ls_tail_cons {β τ : Type} {A : τ → List β} {pers : arena.store.Per
     {lst : AState} {x : AM (List β)} {y : β} {out out1 : τ}
     (h : LS pers (fun a b => A a = A out1 ++ b) m lst x) (hout : A out1 = A out ++ [y]) :
     LS pers (fun a b => A a = A out ++ b) m lst (do let r ← x; pure (y :: r)) :=
-  LS.twin_map h (fun a b h1 => by rw [h1, hout]; simp)
+  LS.tail_bind_pure h (fun a b h1 => by rw [h1, hout]; simp)
 
 /-! ## `nfs_of_ctor`, `minor_hits`, `class_minor_slot` -/
 

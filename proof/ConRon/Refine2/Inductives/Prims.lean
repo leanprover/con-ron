@@ -132,10 +132,10 @@ end IndModeledPrims
 
 section RuleBits
 open Lockstep IndModeledPrims
-attribute [local lockstep_simp] absIRecRule_ctor_eq absIRecRule_nfields_eq
+attribute [local lockstep_simp] Lockstep.absIRecRule_ctor absIRecRule_nfields_eq
   IndModeledPrims.absIRecRule_ctorParams Lockstep.absIRecRule_fire
-  absIRecRule_rhs_eq Lockstep.absIRecRule_k Lockstep.absIRecRule_eta
-  IndModeledPrims.absIRecRule_paramsBlind Lockstep.absIIndCaps_eta Lockstep.absIIndCaps_etaCtor IndModeledPrims.absIIndCaps_ruleK IndModeledPrims.decide_u64_eq_zero etag_const_abs
+  Lockstep.absIRecRule_rhs Lockstep.absIRecRule_k Lockstep.absIRecRule_eta
+  IndModeledPrims.absIRecRule_paramsBlind Lockstep.PC1.absIIndCaps_eta Lockstep.PC1.absIIndCaps_etaCtor IndModeledPrims.absIIndCaps_ruleK IndModeledPrims.decide_u64_eq_zero etag_const_abs
 
 end RuleBits
 

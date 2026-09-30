@@ -771,7 +771,7 @@ theorem ls_tail_opt_cons {pers : arena.store.PersTier}
       match ← x with
       | none => pure none
       | some ihs => pure (some (y :: ihs))) := by
-  have h2 := LS.twin_map (R := OptBinders out) (f := Option.map (y :: ·)) h (by
+  have h2 := LS.tail_bind_pure (R := OptBinders out) (f := Option.map (y :: ·)) h (by
     intro a b ⟨h1, h2⟩
     refine ⟨?_, h2⟩
     rw [h1, hout]
@@ -895,7 +895,7 @@ theorem ls_tail_opt_cons_e {pers : arena.store.PersTier}
       match ← x with
       | none => pure none
       | some rest => pure (some (y :: rest))) := by
-  have h2 := LS.twin_map (R := OptEIdxs out) (f := Option.map (y :: ·)) h (by
+  have h2 := LS.tail_bind_pure (R := OptEIdxs out) (f := Option.map (y :: ·)) h (by
     intro a b h1
     simp only [OptEIdxs] at h1 ⊢
     rw [h1, hout]
@@ -1178,7 +1178,7 @@ theorem ctor_count_abs (xss : alloc.vec.Vec (alloc.vec.Vec arena.inductives.gen_
   intro o h
   have := vec_cursor_filterMap cvs (fun cv => some (absEIdx cv.ty)) absEIdxL
     (arena.inductives.gen_rec.former_types cvs) ?_ ?_ 0#usize _ o h
-  · rw [TwinEq, this]; simp [absEIdxL, alloc.vec.Vec.new, ConRon.Refine2.absIConstantVal_type]
+  · rw [TwinEq, this]; simp [absEIdxL, alloc.vec.Vec.new, ConRon.Refine2.Lockstep.PC1.absIConstantVal_type]
   · intro i out o hn h
     rw [arena.inductives.gen_rec.former_types.eq_def,
       if_pos (show i ≥ alloc.vec.Vec.len cvs by scalar_tac), Result.ok.injEq] at h
@@ -1505,7 +1505,7 @@ theorem slot_binders_acc {pers} (g : arena.inductives.gen_rec.ClassGen)
   lockstep
   have h1 := slot_binders_acc (pers := pers) g hbm 0#usize a st _ hrel hinv hR
   simp only [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at h1
-  have h2 := LS.twin_map (R := fun a b => b = Option.map absBinderL a ∧ OptTeleWF a)
+  have h2 := LS.tail_bind_pure (R := fun a b => b = Option.map absBinderL a ∧ OptTeleWF a)
     (f := Option.map (absBinderL a ++ ·)) h1 (by
       intro x y ⟨hxy, hw⟩
       refine ⟨?_, hw⟩

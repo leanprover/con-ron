@@ -264,16 +264,6 @@ theorem strip_pis_aux (n : Nat) :
 end strip
 
 
-open Lean Meta Elab Tactic in
-elab "dbg_ih" : tactic => do
-  let g ← getMainGoal
-  g.withContext do
-  for d in (← getLCtx) do
-    if d.userName.toString == "ih" then
-      let t ← instantiateMVars d.type
-      forallTelescope t fun _xs c => do
-        logInfo m!"ih concl head {c.getAppFn} nargs {c.getAppNumArgs}; rust {(ConRon.Refine2.Lockstep.judgementRustArg? c)}"
-
 section wscoped
 attribute [local lockstep_simp] wscopedBGoArmApp wscopedBGoArmBind wscopedBGoArmLet
 

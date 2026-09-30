@@ -236,9 +236,6 @@ The twin reads fields of the abstracted records (`cvj.levelParams`,
 record copies are identities (`PrimsC2.i_*_dup_ls`), so these projections are
 all the glue the two readings need. -/
 
-theorem absIIndCaps_eta (c : arena.env.IIndCaps) : (absIIndCaps c).eta = c.eta := rfl
-theorem absIIndCaps_etaCtor (c : arena.env.IIndCaps) :
-    (absIIndCaps c).etaCtor = absNIdx c.eta_ctor := rfl
 theorem vec_len_eq_iff {α β : Type} (x : alloc.vec.Vec α) (y : alloc.vec.Vec β) :
     (alloc.vec.Vec.len x = alloc.vec.Vec.len y) = (x.val.length = y.val.length) := by
   apply propext
@@ -246,7 +243,8 @@ theorem vec_len_eq_iff {α β : Type} (x : alloc.vec.Vec α) (y : alloc.vec.Vec 
   · intro h; have := congrArg (·.val) h; simpa using this
   · intro h; apply UScalar.eq_imp; simpa using h
 
-attribute [local lockstep_simp] absIIndCaps_eta absIIndCaps_etaCtor vec_len_eq_iff List.length_map
+attribute [local lockstep_simp] PC1.absIIndCaps_eta PC1.absIIndCaps_etaCtor vec_len_eq_iff
+  List.length_map
 
 /-! ## Stubs (other regions' lemmas; deleted at merge) -/
 
@@ -381,7 +379,6 @@ set_option maxHeartbeats 0 in
 
 section iota
 
-theorem absIRecRule_ctor' (r : arena.env.IRecRule) : (absIRecRule r).ctor = absNIdx r.ctor := rfl
 theorem absIRecRule_nfields (r : arena.env.IRecRule) : (absIRecRule r).nfields = r.nfields.val := rfl
 theorem absIRecRule_ctorParams (r : arena.env.IRecRule) :
     (absIRecRule r).ctorParams = r.ctor_params.val := rfl
@@ -389,7 +386,7 @@ theorem absIRecRule_fire (r : arena.env.IRecRule) :
     (absIRecRule r).fire = absIRecRuleFire r.fire := rfl
 theorem absIRecRule_rhs (r : arena.env.IRecRule) : (absIRecRule r).rhs = absEIdx r.rhs := rfl
 
-attribute [local lockstep_simp] absIRecRule_ctor' absIRecRule_nfields absIRecRule_ctorParams
+attribute [local lockstep_simp] absIRecRule_ctor absIRecRule_nfields absIRecRule_ctorParams
   absIRecRule_fire absIRecRule_rhs absIRecRuleFire
 
 attribute [lockstep_inline] arena.core.iota_rec_major arena.core.iota_rec_fire

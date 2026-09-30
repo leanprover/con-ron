@@ -1411,8 +1411,7 @@ is pure on both sides, `ifenv_find_abs` is the correspondence. -/
 @[lockstep_simp] theorem absIConstantVal_name (cv : arena.env.IConstantVal) :
     (absIConstantVal cv).name = absNIdx cv.name := rfl
 
-@[lockstep_simp] theorem absIConstantVal_type (cv : arena.env.IConstantVal) :
-    (absIConstantVal cv).type = absEIdx cv.ty := rfl
+attribute [lockstep_simp] Lockstep.PC1.absIConstantVal_type
 
 attribute [lockstep_simp] core.option.Option.is_some Option.isSome_map ite_true ite_false
 
