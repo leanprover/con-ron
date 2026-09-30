@@ -65,192 +65,11 @@ interned inside a scratch tier would compare unequal to the stream's own
 persistent copy of it, which is the one way hash-consing can go wrong across
 the tier boundary.
 -/
-import ConRon.Arena.DeclCheck
-import ConRon.Arena.Inductives
-import ConRon.Arena.Promote
+import ConRon.Arena.CheckDecl
 
 namespace ConRon.Arena
 
 open ConLeche
-
-/-! ## The pinned basis install -/
-
-/-- con-leche: ConLeche/Kernel/Checker.lean:425-435 checkBasisDecl —
-**install the pinned (pre-annotated) basis block.**  The three records that
-install one — the fold's own `basisDecl` kind, a stream block `basisPinHit`
-recognises and a quotient record `quotPinHit` recognises — share this body.
-The quotient block's types mention the pinned equality former, which is why
-it requires the `Eq` basis first. -/
-def checkBasisDecl (fe : IFEnv) (kind : BasisKind) : AM IFEnv := do
-  if kind == .quotK then do
-    let en ← pinEq
-    unless fe.find? en == some (← eqA) do
-      fail (.notImplemented "quotient basis requires the pinned Eq basis")
-  installBasisDecls fe (← BasisKind.declsA kind)
-
-/-! ## One declaration -/
-
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl — **check a
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Checker.checkDecl_bridge, then delete this line
-single declaration, extending the environment on success.**  Clause for
-clause; `env : Env` is the index (`Arena/Core.lean`'s deviation 1), and the
-`.indDecl` arm's route choice is `Arena/Inductives.lean`'s seam. -/
-def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
-    (d : IDeclaration) : AM IFEnv := do
-  match d with
-  | .defnDecl cv value hint => do
-    let cv ← checkConstantVal mode fe cv
-    let fe2 ← checkDefnVal mode fe cv value hint
-    -- Structural-`Nat` pins: the fast-path ops must be the standard
-    -- structural recursions — their recurrence equations are checked by
-    -- definitional equality here, once, in the PRE-insertion environment with
-    -- the operation's self-references replaced by its stored value.
-    --
-    -- **The pre-insertion environment is `fe2` restricted to `fe`'s counter**
-    -- (task #97-T2-LOCKSTEP lane Checker round 2): the Rust keeps ONE index
-    -- and runs the three pin gates at `restrict(fe2, k_pre)`, so the twin
-    -- does too.  It answers every `find?` exactly as `fe` does (the pushed
-    -- name was fresh), which is all Theorem 1 needs
-    -- (`Bridge/Checker/Inv.lean`'s `IFEnv.find?_push_restrict`).
-    -- The guard, then the dependency list, then the stored-dependency test:
-    -- the Rust's order (`check_structural_nat_pin`).
-    if (← natOpNames).contains cv.name then do
-      let g ← natOpGuard fe2 cv.name
-      let deps ← natOpDeps cv.name
-      unless g && (← natOpStoredOkAll fe2 deps) do
-        fail (.notImplemented
-          "nonstandard structural Nat operation environment")
-      match fe2.find? cv.name with
-      | some (.defnInfo _ value' _) => do
-        let eqs ← natOpEquations 0 cv.name
-        let ok ← certifyNatEqs mode (fe2.restrictTo fe.visibleBelow)
-          (← substConst0Pairs cv.name value' eqs)
-        unless ok do
-          fail (.notImplemented
-            "nonstandard structural Nat operation")
-      | _ => fail (.internal
-          "structural Nat operation not stored")
-    -- WF-recursive `Nat` pins (`Nat.div`/`Nat.mod`): the stored value must be
-    -- definitionally equal to some committed pin variant, and that variant's
-    -- certificates must check.  No variant matching is a decline.
-    if (← natDivModNames).contains cv.name then
-      checkDivModPin mode pins (fe2.restrictTo fe.visibleBelow) fe2 cv.name
-    pure fe2
-  | .thmDecl cv value => do
-    let cv ← checkConstantVal mode fe cv
-    checkThmVal mode fe cv value
-  | .opaqueDecl cv value => do
-    let cv ← checkConstantVal mode fe cv
-    let fe2 ← checkOpaqueVal mode fe cv value
-    -- Compiler-trust opaques (`Lean.reduceNat`/`Lean.reduceBool`): the stored
-    -- value must be definitionally equal to the build-time pin.
-    if (← reduceOpNames).contains cv.name then
-      checkReducePin mode (fe2.restrictTo fe.visibleBelow) fe2 cv.name value
-    pure fe2
-  | .axiomDecl cv => do
-    -- **`Quot.sound` is the pinned quotient BLOCK's own record**: the export
-    -- writes it as an ordinary axiom record beside the four `#QUOT` ones, so
-    -- it arrives here — compared with the pin and installing NOTHING of its
-    -- own, and DECLINING when it does not match.  The comparison precedes the
-    -- common checks because the name is a reserved basis name: this record IS
-    -- the pinned block's, not a redeclaration of it.
-    if cv.name == (← pinQuotSound) then do
-      let blk ← BasisKind.decls .quotK
-      match blk[4]? with
-      | some pinned =>
-        if ← IConstantInfo.canonEq (.axiomInfo cv) pinned then pure fe
-        else fail (.notImplemented "quotient soundness axiom mismatch")
-      | none => fail (.notImplemented "quotient soundness axiom mismatch")
-    else do
-      let cvA ← checkConstantVal mode fe cv
-      if ← stdAxiomOk fe cvA then
-        pure (fe.push (.axiomInfo cvA))
-      else if cvA.name == (← trustCompilerName) then
-        -- `Lean.trustCompiler : True` is trivially realizable: installed
-        -- exactly like a checked `opaque` with witness value `True.intro`
-        -- over the pinned `True` family.
-        if ← trustCompilerOk fe cvA then
-          pure (fe.push (.axiomInfo cvA))
-        else fail (.notImplemented
-          "unsupported Lean.trustCompiler shape")
-      else if cvA.name == (← ofReduceNatName) || cvA.name == (← ofReduceBoolName) then
-        -- The pinned `ofReduce*` axioms: over the pinned `Eq` basis, the
-        -- element inductive and the identity-certified reduce opaque,
-        -- `∀ a b, reduce a = b → a = b` interprets to an inhabited
-        -- proposition.
-        if ← ofReduceAxOk fe cvA then
-          pure (fe.push (.axiomInfo cvA))
-        else fail (.notImplemented
-          "unsupported compiler-trust axiom environment")
-      else if cvA.name == (← propextName) || cvA.name == (← choiceName) then
-        fail (.notImplemented
-          "standard axiom shape mismatch")
-      else if cvA.name == (← pinSorryAx) then
-        -- `sorryAx` is the one axiom the checker tolerates as a DECLARATION:
-        -- the record is skipped and the run continues, and any USE of the
-        -- name declines at the record that uses it.
-        pure fe
-      else
-        fail (.notImplemented "non-standard axiom")
-  | .basisDecl kind => checkBasisDecl fe kind
-  | .indDecl block nP => do
-    -- **THE PINNED BASIS BLOCKS**: a stream's `Nat` block arrives as an
-    -- ordinary `indDecl` and is recognised HERE.  A block under a pinned name
-    -- that does not match falls through to the ordinary route, where
-    -- `checkConstantVal`'s reserved-name check REJECTS it.
-    match ← basisPinHit block with
-    | some kind => checkBasisDecl fe kind
-    | none => Inductives.checkIndDecl mode fe block nP
-  | .quotDecl k cv => do
-    -- **THE QUOTIENT PACKAGE**: the export writes it as four records; each is
-    -- compared with the pinned block's constant at its own kind, and the
-    -- FIRST that matches installs the pinned block whole.
-    if ← quotPinHit k cv then
-      match k with
-      | .type => checkBasisDecl fe .quotK
-      | _ => pure fe
-    else fail (.notImplemented (match k with
-      | .sound => "quotient soundness axiom mismatch"
-      | _ => "quotient declaration mismatch"))
-
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:216-220 checkDeclsPure — **one
-step of the pure fold, bracketed**: `checkDecl` inside the per-declaration
-scratch tier, with the constants it installed promoted before the tier goes.
-
-The bracket is `annotStep`'s, letter for letter — one `checkDecl` where phase
-A has an install half, and no `ValueGroup` because the pure fold checks what
-it installs in the same step.  DESIGN §8.3's amendment puts it here too, so
-that **the two folds stay one algorithm**: the tier regime is not an
-optimisation of the driver's fold that the theorem's fold may do without, it
-is where every term the checker builds lives, and a Theorem-1 statement about
-a fold with no tiers would say nothing about the fold the binary runs. -/
-def checkDeclStep (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
-    (d : IDeclaration) : AM IFEnv := do
-  let vis := fe.visibleBelow
-  flushCaches
-  enterScratch
-  let fe ← checkDecl mode pins fe d
-  let k := fe.visibleBelow - vis
-  let (_, fe) ← promoteNew PMemo.empty coreWalkFuel k fe
-  dropScratch
-  pure fe
-
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:216-220 checkDeclsPure — check a
-list of declarations in order, starting from the empty environment.  THE
-THEOREM'S SHAPE (module note): one step per record, install and check
-together.  con-leche's `ds.foldlM (checkDecl mode ops pins) Env.empty` takes a
-closure, which DESIGN §3.4 forbids, so the fold is an explicit list
-recursion. -/
-def checkDeclsPureGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) :
-    List IDeclaration → AM IFEnv
-  | [] => pure fe
-  | d :: ds => do checkDeclsPureGo mode pins (← checkDeclStep mode pins fe d) ds
-
-/-- con-leche: ConLeche/Kernel/CheckDecl.lean:216-220 checkDeclsPure — the fold
-from the empty environment. -/
-def checkDeclsPure (mode : CheckMode) (pins : List INatOpPinSet)
-    (ds : List IDeclaration) : AM IFEnv :=
-  checkDeclsPureGo mode pins (mkIFEnv IEnv.empty) ds
 
 /-! ## The two-phase fold the binary runs -/
 
@@ -472,7 +291,6 @@ def atDecl : CheckError → Nat → CheckError
 
 /-- con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
 con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Checker.internAllPins_bridge, then delete this line
 **The one-time tree walk of DESIGN §8.6 P2d**: every datum the checker
 compares a stream record against, interned into the tier that is live at the
 call — which, at the driver's call, is the persistent one.
@@ -493,7 +311,6 @@ annotation writes (`Bridge/Checker/Basis.lean`'s `*_matchesPin_raw`). -/
 def internAllPins (pins : List NatOpPinSet) : AM (List INatOpPinSet) := do
   let _ ← BasisKind.decls .eqK;    let _ ← BasisKind.declsA .eqK
   let _ ← BasisKind.decls .natK;   let _ ← BasisKind.declsA .natK
-  let _ ← BasisKind.decls .punitK; let _ ← BasisKind.declsA .punitK
   let _ ← BasisKind.decls .emptyK; let _ ← BasisKind.declsA .emptyK
   let _ ← BasisKind.decls .falseK; let _ ← BasisKind.declsA .falseK
   let _ ← BasisKind.decls .quotK;  let _ ← BasisKind.declsA .quotK

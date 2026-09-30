@@ -3,7 +3,7 @@
 (DESIGN.md §8, task #97d-2)
 
 `ConLeche/Kernel/Inductives/StructInstall.lean` whole, over handles: the
-binder-domain walk and the projection TABLE the fixpoint route stores at a
+binder-domain walk and the projection TABLE the uniform route stores at a
 structure-like block.
 
 **The `…F` twins collapse into these** (task #97c's deviation 1): con-leche
@@ -15,7 +15,7 @@ environment type, the index, so the twin is one function citing all of them;
 `Arena/Inductives/StructInstallF.lean` carries the `F`-suffixed NAMES as
 `abbrev`s, exactly as `Arena/FEnv.lean` does for `Core.lean`'s.
 -/
-import ConRon.Arena.Inductives.Modeled
+import ConRon.Arena.CheckerBase
 
 namespace ConRon.Arena
 

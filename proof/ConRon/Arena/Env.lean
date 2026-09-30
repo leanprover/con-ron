@@ -41,11 +41,9 @@ hash-consing always keeps the handle it interned, and `IProjTable.tableName`
 is by construction `projTableName structName`.  A table is the only
 `IConstantInfo` whose name is not already a field of its `IConstantVal`.
 
-`IConstantInfo.toConstantVal` and `.type` are still `AM`: the `.projInfo` arm
-builds the closed dummy type `Sort 1`, which has to be interned.  So is
-`IDeclaration.name`, whose `.basisDecl`/`.indDecl` fall-through is
-`.anonymous`.  Both are off the hot path; `IConstantInfo.name` and
-`IDeclaration.names`, which are on it, are pure.
+`IConstantInfo.toConstantVal` is still `AM`: the `.projInfo` arm builds the
+closed dummy type `Sort 1`, which has to be interned.  It is off the hot path;
+`IConstantInfo.name` and `IDeclaration.names`, which are on it, are pure.
 
 **The environment.**  `IEnv` is con-leche's association list, `IFEnv` its
 `ConLeche/Kernel/FEnv.lean` index at `NIdx` keys — the two shapes P2c
@@ -107,7 +105,6 @@ def IRecRule.compareParams (rl : IRecRule) : Bool :=
 /-! ## Inductive capabilities -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps — the definitional
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Env.IIndCaps_bridge, then delete this line
 capabilities of a stored inductive type.  `etaCtor` is a handle; `sortZ` stays
 con-leche's `PropWhen`, which is the datum the store's own binder metadata
 already carries (see the module note). -/
@@ -123,6 +120,12 @@ structure IIndCaps where
   unitParams : Nat := 0
   ruleK : Bool := false
   sortZ : PropWhen := .ifAllZero []
+  /-- Official's `all`: the block's members, itself included, as handles. -/
+  all : List NIdx := []
+  /-- Official's `inductive_val.nparams`. -/
+  nparams : Nat := 0
+  /-- Official's `inductive_val.cnstrs`, in declaration order, as handles. -/
+  ctors : List NIdx := []
   deriving DecidableEq, Repr, Inhabited
 
 /-! ## Projection tables -/
@@ -243,21 +246,6 @@ projection table is a table, not a term. -/
 def IConstantInfo.isTowerEntry : IConstantInfo → Bool
   | .projInfo _ => true
   | _ => false
-
-/-- con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo.type — the constant's
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Env.IConstantInfo.type_bridge, then delete this line
-declared type. -/
-def IConstantInfo.type (c : IConstantInfo) : AM EIdx := do
-  pure (← c.toConstantVal).type
-
-/-- con-leche: ConLeche/Kernel/Env.lean:643 name — the name of a
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Env.IDeclaration.name_bridge, then delete this line
-non-basis declaration, `Declaration.name` at lines 565-568.  con-leche's
-`.anonymous` fall-through is the interned anonymous name here. -/
-def IDeclaration.name : IDeclaration → AM NIdx
-  | .axiomDecl v | .defnDecl v .. | .thmDecl v .. | .opaqueDecl v .. => pure v.name
-  | .quotDecl _ v => pure v.name
-  | .basisDecl _ | .indDecl _ _ => internNNode .anonymous
 
 /-- con-leche: ConLeche/Kernel/Env.lean:656-667 Declaration.names — the names a
 declaration record declares; `preparePrelude`'s lookup and the ground hoist's

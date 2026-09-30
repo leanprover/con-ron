@@ -2,13 +2,13 @@
 # `ConRon.Arena.Basis` — the pinned basis blocks, over handles
 
 The twin of `ConLeche/Kernel/Basis.lean` and `ConLeche/Kernel/BasisA.lean`:
-the constants of the six pinned blocks (`Eq`, `Nat`, `PUnit`, `Empty`,
-`False`, `Quot`) and the two tests that recognise a stream record as one of
+the constants of the five pinned blocks (`Eq`, `Nat`, `Empty`, `False`,
+`Quot`) and the two tests that recognise a stream record as one of
 them.
 
 **The blocks are con-leche's values, interned** (`Arena/Intern.lean`'s module
 note, and DESIGN §8.6 P2d: "intern con-leche's `BasisKind.declsA` at
-startup").  `ConLeche/Kernel/Basis/{Names,Builder,Empty,Eq,False,Nat,PUnit,
+startup").  `ConLeche/Kernel/Basis/{Names,Builder,Empty,Eq,False,Nat,
 Quot}.lean` are ~80 declarations of pure `Expr` and `ConstantInfo` data,
 hand-written against the toolchain's `Init.Prelude` through a builder whose
 every helper is one `Expr` constructor.  A handle twin of them would be the
@@ -31,14 +31,12 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:34-40 BasisKind.decls — the RAW
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Basis.BasisKind.decls_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/Basis.lean:33-39 BasisKind.decls — the RAW
 constants of one basis block, in dependency order, interned. -/
 def BasisKind.decls (k : BasisKind) : AM (List IConstantInfo) :=
   internCIList (ConLeche.BasisKind.decls k)
 
 /-- con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA — the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Basis.BasisKind.declsA_bridge, then delete this line
 ANNOTATED constants of one basis block, in dependency order, interned.  This
 is what `checkBasisDecl` installs. -/
 def BasisKind.declsA (k : BasisKind) : AM (List IConstantInfo) :=
@@ -50,14 +48,13 @@ plain `List.map`. -/
 def blockNames (block : List IConstantInfo) : List NIdx :=
   block.map (·.name)
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit — **the basis-pin
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Basis.basisPinHitGo_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/Basis.lean:52-63 basisPinHit — **the basis-pin
 match**, with con-leche's task-#215 NAME pre-filter in front: `canon` renames
 only level parameters, so a block can match a pin only when its members' names
 are the pin's, member for member, and that test is a handful of handle
 comparisons.
 
-The five kinds are tried in con-leche's order; `.quotK` is deliberately not
+The four kinds are tried in con-leche's order; `.quotK` is deliberately not
 among them (a quotient block arrives as four `quotDecl` records, which
 `quotPinHit` decides). -/
 def basisPinHitGo (block : List IConstantInfo) :
@@ -69,8 +66,7 @@ def basisPinHitGo (block : List IConstantInfo) :
       if ← canonEqList block pinned then pure (some k) else pure none
     else basisPinHitGo block ks
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit — the five pinned
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Basis.basisPinHit_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/Basis.lean:52-63 basisPinHit — the four pinned
 blocks, in con-leche's order.  con-leche writes `[…].find? …` with a closure;
 DESIGN §3.4's rule for a `List` recursion is a helper, so the search is
 `basisPinHitGo`.  `find?` stops at the FIRST kind whose names match and then
@@ -78,7 +74,7 @@ DESIGN §3.4's rule for a `List` recursion is a helper, so the search is
 comparison is `none`, not "try the next kind", which is what the helper's
 `then` branch spells. -/
 def basisPinHit (block : List IConstantInfo) : AM (Option BasisKind) :=
-  basisPinHitGo block [BasisKind.eqK, .natK, .punitK, .emptyK, .falseK]
+  basisPinHitGo block [BasisKind.eqK, .natK, .emptyK, .falseK]
 
 /-- con-leche: ConLeche/Kernel/Basis.lean:66-70 quotPinHit — **the
 quotient-pin match**: the record is the pinned package's constant at the slot

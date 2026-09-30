@@ -32,7 +32,7 @@ at all.
 Nothing here is a proof and nothing here is an `#eval` print: every check is
 kernel-reduced, so a disagreement is a build failure.
 -/
-import ConRon.Arena.CheckerGated
+import ConRon.Arena.Checker
 import ConLeche.Kernel.Checker
 import ConLeche.Kernel.CheckerSplit
 
@@ -281,7 +281,6 @@ differential below is evidence of something. -/
 #guard chkDecls dsQuot
 #guard chkDecls dsQuotBad
 #guard chkDecls dsDup
-#guard chkDecls [.basisDecl .punitK]
 #guard chkDecls [.basisDecl .emptyK]
 #guard chkDecls [.basisDecl .falseK]
 #guard chkDecls (basisPrefix ++ [dTwoBad])
@@ -324,7 +323,7 @@ private def envBasis : ConLeche.Env :=
 #guard chkDecl envBasis dOtherAx
 #guard chkDecl envBasis dNatAdd
 #guard chkDecl envBasis dNatDiv
-#guard chkDecl envBasis (.basisDecl .punitK)
+#guard chkDecl envBasis (.basisDecl .emptyK)
 #guard chkDecl envBasis (.basisDecl .quotK)
 #guard chkDecl envBasis (.quotDecl .type ⟨ConLeche.quotName, [], natTy⟩)
 
@@ -416,7 +415,6 @@ private def chkBasisPinHit (block : List ConstantInfo) : Bool :=
 
 #guard chkBasisPinHit (ConLeche.BasisKind.natK.decls)
 #guard chkBasisPinHit (ConLeche.BasisKind.eqK.decls)
-#guard chkBasisPinHit (ConLeche.BasisKind.punitK.decls)
 #guard chkBasisPinHit (ConLeche.BasisKind.quotK.decls)
 #guard chkBasisPinHit []
 

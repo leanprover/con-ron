@@ -2,10 +2,13 @@
 # `ConRon.Arena.Inductives.StructParts` — the direct install's generators
 (DESIGN.md §8, task #97d-2)
 
-`ConLeche/Kernel/Inductives/StructParts.lean` whole, over handles: the
-syntactic generators every direct install reads and compares against the
-stream — the type-former family, the constructor spines, the rule bodies, the
-Π-to-λ rewrites — and `StructParts`, the shape record.
+`ConLeche/Kernel/Inductives/StructParts.lean`, over handles, as far as the
+executed checker reads it after con-leche's uniform inductive route (task
+#105): the parameter spines, the elimination level, the constructor-residual
+test, and the projection table's generators (bodies, guards) with the two
+memoised walks they share.  The recogniser and the generated recursor that
+lived here (`structShape`, `structPartsCore?`, the family and spine
+generators) went with the fixpoint route.
 
 **The systematic deviations** (all of them inherited from task #97c's list,
 which is where they are argued; only what is NEW to this module is spelled out
@@ -61,12 +64,11 @@ def paramLevels (lps : List NIdx) : AM LsIdx := do
       pure (u :: rest)
   internLsNode (← go lps)
 
-/-! ## The families and the spines -/
+/-! ## The spines -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:50-53 structPsAt
 The parameter variables as seen from under `o` extra binders:
-`p_k = bvar (o + nP - 1 - k)` — `structFam`'s argument spine.  Placed ahead of
-`structFam`, which con-leche spells the same list inline. -/
+`p_k = bvar (o + nP - 1 - k)`. -/
 def structPsAt (o nP : Nat) : AM (List EIdx) :=
   let rec go : Nat → Nat → AM (List EIdx)
     | 0, _ => pure []
@@ -76,105 +78,13 @@ def structPsAt (o nP : Nat) : AM (List EIdx) :=
       pure (b :: rest)
   go nP 0
 
-/-- con-leche: none — `(List.range n).map fun j => Expr.bvar (n - 1 - j)`, the
-FIELD variables' spine, interned.  `structPsAt 0 n` is the same list; it is
-named apart because con-leche writes the two inline at different frames. -/
-def bvarsDesc (n : Nat) : AM (List EIdx) := structPsAt 0 n
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:82-86 structFam
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StructParts.structFam_bridge, then delete this line
-The type former applied to its parameter variables, `bvar` indices offset by
-`o` (the number of binders crossed since the parameters). -/
-def structFam (T : NIdx) (lps : List NIdx) (nP o : Nat) : AM EIdx := do
-  let us ← paramLevels lps
-  let hd ← internE (.const T us)
-  mkAppN hd (← structPsAt o nP)
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:88-94 structCtorSpine
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StructParts.structCtorSpine_bridge, then delete this line
-The constructor applied to the parameter and field variables, as spelled
-inside the recursor's minor premise (parameters sit above the motive
-binder). -/
-def structCtorSpine (C : NIdx) (lps : List NIdx) (nP nF : Nat) : AM EIdx := do
-  let us ← paramLevels lps
-  let hd ← internE (.const C us)
-  let ps ← structPsAt (nF + 1) nP
-  let fs ← bvarsDesc nF
-  mkAppN hd (ps ++ fs)
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:96-99 structRuleBody
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StructParts.structRuleBody_bridge, then delete this line
-The recursor rule's right-hand side body: the minor premise applied to the
-field variables. -/
-def structRuleBody (nF : Nat) : AM EIdx := do
-  let hd ← internE (.bvar nF)
-  mkAppN hd (← bvarsDesc nF)
-
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:55-58 structElimLevel
 The recursor's elimination level: the fresh parameter at the large
 eliminator, `zero` at the small one. -/
 def structElimLevel (elim : NIdx) (large : Bool) : AM LIdx :=
   if large then internLNode (.param elim) else internLNode .zero
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:144-150 structCtorSpineAt
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StructParts.structCtorSpineAt_bridge, then delete this line
-The constructor applied to the parameter and field variables, as spelled under
-`o` binders between the parameters and the fields (the motive and the earlier
-minor premises); `structCtorSpine` is the `o = 1` case. -/
-def structCtorSpineAt (C : NIdx) (lps : List NIdx) (o nP nF : Nat) : AM EIdx := do
-  let us ← paramLevels lps
-  let hd ← internE (.const C us)
-  let ps ← structPsAt (o + nF) nP
-  let fs ← bvarsDesc nF
-  mkAppN hd (ps ++ fs)
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:152-158 Expr.replacePisPw
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StructParts.replacePisPw_bridge, then delete this line
-Replace the body under the first `k` `∀`-binders, resetting their codomain
-data to `pw` (the domains are kept). -/
-def replacePisPw (pw : PropWhen) : Nat → EIdx → EIdx → AM (Option EIdx)
-  | 0, _, b => pure (some b)
-  | k + 1, h, b => do
-    if h.tag == ETag.forallE then
-      match ← view h with
-      | .forallE ty rest _ => do
-        match ← replacePisPw pw k rest b with
-        | some r => do
-          let n ← internE (.forallE ty r ⟨pw⟩)
-          pure (some n)
-        | none => pure none
-      | _ => pure none
-    else pure none
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:160-167 Expr.pisToLamsPw
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StructParts.pisToLamsPw_bridge, then delete this line
-Convert the first `k` `∀`-binders into `λ`-binders with datum `pw` over a
-body. -/
-def pisToLamsPw (pw : PropWhen) : Nat → EIdx → EIdx → AM (Option EIdx)
-  | 0, _, b => pure (some b)
-  | k + 1, h, b => do
-    if h.tag == ETag.forallE then
-      match ← view h with
-      | .forallE ty rest _ => do
-        match ← pisToLamsPw pw k rest b with
-        | some r => do
-          let n ← internE (.lam ty r ⟨pw⟩)
-          pure (some n)
-        | none => pure none
-      | _ => pure none
-    else pure none
-
-/-! ## The generated recursor at an indexed family -/
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:189-194 structFamI
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StructParts.structFamI_bridge, then delete this line
-The family applied to its parameter variables and its index variables. -/
-def structFamI (T : NIdx) (lps : List NIdx) (nP nIdx e o : Nat) : AM EIdx := do
-  let us ← paramLevels lps
-  let hd ← internE (.const T us)
-  let ps ← structPsAt (o + e + nIdx) nP
-  let is ← structPsAt o nIdx
-  mkAppN hd (ps ++ is)
+/-! ## A constructor's residual at an indexed family -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:79-85 structCtorResidOk
 A constructor residual's shape at an indexed family: the family at exactly the
@@ -188,158 +98,6 @@ def structCtorResidOk (T : NIdx) (lps : List NIdx) (nP o nIdx : Nat)
   let args ← getAppArgs coreWalkFuel cbody
   let ps ← structPsAt o nP
   pure (fn == hd && args.length == nP + nIdx && args.take ps.length == ps)
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:204-211 structMotiveTyI
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StructParts.structMotiveTyI_bridge, then delete this line
-The motive's type `∀ ı⃗ (t : T p⃗ ı⃗), Sort ℓ` at the parameters' frame. -/
-def structMotiveTyI (T : NIdx) (lps : List NIdx) (nP nIdx : Nat) (l : LIdx)
-    (itele : EIdx) : AM (Option EIdx) := do
-  let fam ← structFamI T lps nP nIdx 0 0
-  let s ← internE (.sort l)
-  let body ← internE (.forallE fam s ⟨.never⟩)
-  replacePisPw .never nIdx itele body
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:213-244 StructParts
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StructParts.StructParts_bridge, then delete this line
-The pieces of a recognised simple-structure block, over handles. -/
-structure StructParts where
-  /-- the type former -/
-  cvT : IConstantVal
-  /-- the single constructor -/
-  cvC : IConstantVal
-  /-- parameter count -/
-  nP : Nat
-  /-- field count -/
-  nF : Nat
-  /-- the recursor -/
-  cvR : IConstantVal
-  /-- the recursor's fresh elimination level parameter (`large` only) -/
-  elim : NIdx
-  /-- the structure's result sort -/
-  resSort : LIdx
-  /-- the single rule's right-hand side (as exported) -/
-  rhs : EIdx
-  /-- **large eliminator**: the recursor carries a fresh elimination level
-  parameter in front and its motive lands in `Sort elim`. -/
-  large : Bool
-  /-- **propositional result**: the result sort is provably `Prop`. -/
-  isProp : Bool
-  deriving Repr, Inhabited
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:246-281 structShape
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StructParts.structShape_bridge, then delete this line
-The *shape* facts the model reads off the stored (annotated) types. -/
-def structShape (T C : NIdx) (lps : List NIdx) (elim : NIdx) (large : Bool)
-    (nP nF : Nat) (tty cty rty : EIdx) : AM Bool := do
-  match ← stripPis nP tty with
-  | none => pure false
-  | some (_, tbody) =>
-    match ← stripPis (nP + nF) cty with
-    | none => pure false
-    | some (_, cbody) =>
-      match ← stripPis (nP + 3) rty with
-      | none => pure false
-      | some (rbs, rbody) =>
-        if tbody.tag == ETag.sort then
-          match ← view tbody with
-          | .sort _ => do
-            let fam ← structFam T lps nP nF
-            let b2 ← internE (.bvar 2)
-            let b0 ← internE (.bvar 0)
-            let want ← internE (.app b2 b0)
-            if !(cbody == fam && rbody == want) then pure false else do
-            -- the motive's codomain: `Sort elim` for the large eliminator, `Prop`
-            -- for the small one (task #175 W4c/O4)
-            let motiveOk ← match rbs[nP]? with
-              | some (mdom, _) => do
-                if mdom.tag == ETag.forallE then
-                  match ← view mdom with
-                  | .forallE mmaj mcod _ => do
-                    if mcod.tag == ETag.sort then
-                      match ← view mcod with
-                      | .sort s' => do
-                        let want ← if large then internLNode (.param elim) else internLNode .zero
-                        let fam0 ← structFam T lps nP 0
-                        pure (s' == want && mmaj == fam0)
-                      | _ => pure false
-                    else pure false
-                  | _ => pure false
-                else pure false
-              | _ => pure false
-            if !motiveOk then pure false else do
-            let minorOk ← match rbs[nP + 1]? with
-              | some (mindom, _) => do
-                match ← stripPis nF mindom with
-                | some (_, mbody) => do
-                  let hd ← internE (.bvar nF)
-                  let sp ← structCtorSpine C lps nP nF
-                  let want ← internE (.app hd sp)
-                  pure (mbody == want)
-                | none => pure false
-              | none => pure false
-            if !minorOk then pure false else do
-            match rbs[nP + 2]? with
-            | some (majdom, _) => do
-              let fam2 ← structFam T lps nP 2
-              pure (majdom == fam2)
-            | none => pure false
-          | _ => pure false
-        else pure false
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:283-329 structPartsCore?
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StructParts.structPartsCore?_bridge, then delete this line
-Recognise a direct simple-structure block.  `none` means "not this class". -/
-def structPartsCore? (block : List IConstantInfo) : AM (Option StructParts) := do
-  match block with
-  | [.indInfo cvT _, .ctorInfo cvC nP nF, .recInfo cvR mI rP [rule]] => do
-    let T := cvT.name
-    let C := cvC.name
-    let lps := cvT.levelParams
-    let recName ← internNNode (.str T "rec")
-    let reserved ← reservedBasisNames
-    let rhsOk ← match ← stripLams (nP + 2 + nF) rule.rhs with
-      | some (_, rbody) => do
-        let want ← structRuleBody nF
-        pure (rbody == want)
-      | none => pure false
-    if cvR.name == recName && cvC.levelParams == lps &&
-        reserved.contains T == false &&
-        reserved.contains C == false &&
-        reserved.contains cvR.name == false &&
-        mI == nP + 2 && rP == nP + 2 &&
-        rule.ctor == C && rule.nfields == nF && rhsOk then do
-      match ← stripPis nP cvT.type with
-      | some (_, tbody) => do
-        if tbody.tag == ETag.sort then
-          match ← view tbody with
-          | .sort s => do
-            let z ← zeroLevel
-            let isProp := (← lvlEq? s z) == some true
-            -- the large eliminator: a fresh elimination level parameter in
-            -- front of the block's own; else the small eliminator
-            let large? : Option NIdx ← match cvR.levelParams with
-              | elim :: relps => do
-                if relps == lps && !lps.contains elim then
-                  if ← structShape T C lps elim true nP nF cvT.type cvC.type cvR.type then
-                    pure (some elim)
-                  else pure none
-                else pure none
-              | [] => pure none
-            match large? with
-            | some elim =>
-              pure (some ⟨cvT, cvC, nP, nF, cvR, elim, s, rule.rhs, true, isProp⟩)
-            | none => do
-              let anon ← internNNode .anonymous
-              if cvR.levelParams == lps then
-                if ← structShape T C lps anon false nP nF cvT.type cvC.type cvR.type then
-                  pure (some ⟨cvT, cvC, nP, nF, cvR, anon, s, rule.rhs, false, isProp⟩)
-                else pure none
-              else pure none
-          | _ => pure none
-        else pure none
-      | _ => pure none
-    else pure none
-  | _ => pure none
 
 /-! ## The projection bodies -/
 

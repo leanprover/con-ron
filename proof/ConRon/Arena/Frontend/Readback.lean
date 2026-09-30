@@ -147,11 +147,12 @@ def denoteRules (st : EStore) : List IRecRule → Option (List RecRule)
 is con-leche's own `PropWhen` on both sides (`Arena/Env.lean`'s note: the
 store's binder metadata already carries one). -/
 def denoteCaps (st : EStore) (c : IIndCaps) : Option IndCaps :=
-  match denoteN st.ns c.etaCtor with
-  | some ct =>
+  match denoteN st.ns c.etaCtor, denoteNList st.ns c.all,
+      denoteNList st.ns c.ctors with
+  | some ct, some all, some ctors =>
     some ⟨c.eta, ct, c.etaParams, c.etaFields, c.unitlike, c.unitParams,
-          c.ruleK, c.sortZ⟩
-  | none => none
+          c.ruleK, c.sortZ, all, c.nparams, ctors⟩
+  | _, _, _ => none
 
 /-- con-leche: none — the denotation of a projection table.  `tableName` has
 no counterpart: con-leche recomputes it (`Arena/Env.lean`'s one-added-field
@@ -574,8 +575,10 @@ def internRules (m : EMemo) : List RecRule → AM (EMemo × List IRecRule)
 /-- con-leche: none — intern an inductive's capabilities. -/
 def internCaps (c : IndCaps) : AM IIndCaps := do
   let ct ← internName c.etaCtor
+  let all ← internNameList c.all
+  let ctors ← internNameList c.ctors
   pure ⟨c.eta, ct, c.etaParams, c.etaFields, c.unitlike, c.unitParams,
-        c.ruleK, c.sortZ⟩
+        c.ruleK, c.sortZ, all, c.nparams, ctors⟩
 
 /-- con-leche: none — intern a projection table.  `tableName` is the field
 `Arena/Env.lean` adds: the reserved name, interned here so that

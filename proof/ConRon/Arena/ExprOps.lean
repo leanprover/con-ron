@@ -1784,17 +1784,6 @@ def lamPw (h : EIdx) : AM (Option PropWhen) := do
     | some (_, _, m) => pure (some m.pw)
   else pure none
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:896-902 forallPw — the ∀ twin of
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExprOps.forallPw_bridge, then delete this line
-`lamPw`. -/
-def forallPw (h : EIdx) : AM (Option PropWhen) := do
-  -- tag first, then the binder projection, as the port (task #97-T2-LOCKSTEP, D1)
-  if h.tag == ETag.forallE then
-    match ← viewBind h with
-    | none => failDanglingE
-    | some (_, _, m) => pure (some m.pw)
-  else pure none
-
 mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:971-980 hasFvar — does the term
@@ -2100,22 +2089,6 @@ def piResult : Nat → EIdx → AM EIdx
       | some (_, b, _) => piResult fuel b
     else pure h
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1142-1146 instPis — instantiate a
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExprOps.instPis_bridge, then delete this line
-`∀`-telescope with arguments, in order.  Structural on the argument list; the
-fuel is the one `instantiate1Fast` needs. -/
-def instPis (fuel : Nat) : EIdx → List EIdx → AM (Option EIdx)
-  | e, [] => pure (some e)
-  | h, a :: as => do
-    -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
-    if h.tag == ETag.forallE then
-      match ← viewBind h with
-      | none => failDanglingE
-      | some (_, body, _) => do
-        let b ← instantiate1Fast fuel body a 0
-        instPis fuel b as
-    else pure none
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1359-1367 instPisAt — instantiate
 the leading `∀`-binders at the given arguments, returning each binder's
 domain with the fully instantiated residual.  con-leche's `Option.map` over a
@@ -2258,70 +2231,6 @@ def recRulePlain (fuel : Nat) (recTy : EIdx) (mI rP cnP : Nat) : AM Bool := do
           pure (args.take want.length == want)
       else pure false
     | none => pure false
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1246-1261 pisToLams — convert the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExprOps.pisToLams_bridge, then delete this line
-first `k` `∀`-binders into λ-binders over a body; the copied binder metadata
-keeps only the display info, so the result carries the parse placeholder and
-every consumer must annotate it. -/
-def pisToLams : Nat → EIdx → EIdx → AM (Option EIdx)
-  | 0, _, body => pure (some body)
-  | k + 1, h, body => do
-    -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
-    if h.tag == ETag.forallE then
-      match ← viewBind h with
-      | none => failDanglingE
-      | some (ty, rest, _) => do
-        match ← pisToLams k rest body with
-        | some b => do
-          let r ← internLamE ty b ⟨.never⟩
-          pure (some r)
-        | none => pure none
-    else pure none
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1263-1269 replacePiBody — replace
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExprOps.replacePiBody_bridge, then delete this line
-the body under the first `k` `∀`-binders, domains and prop-ness data kept. -/
-def replacePiBody : Nat → EIdx → EIdx → AM (Option EIdx)
-  | 0, _, b => pure (some b)
-  | k + 1, h, b => do
-    -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
-    if h.tag == ETag.forallE then
-      match ← viewBind h with
-      | none => failDanglingE
-      | some (ty, rest, m) => do
-        match ← replacePiBody k rest b with
-        | some r => do
-          let x ← internForallEE ty r ⟨m.pw⟩
-          pure (some x)
-        | none => pure none
-    else pure none
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1271-1274 piArity — the length of
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExprOps.piArity_bridge, then delete this line
-the leading `∀`-telescope. -/
-def piArity : Nat → EIdx → AM Nat
-  | 0, _ => fail (.internal "fuel exhausted: piArity")
-  | fuel + 1, h => do
-    -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
-    if h.tag == ETag.forallE then
-      match ← viewBind h with
-      | none => failDanglingE
-      | some (_, b, _) => do
-        let n ← piArity fuel b
-        pure (n + 1)
-    else pure 0
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1276-1280 resultSort — the result
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ExprOps.resultSort_bridge, then delete this line
-sort at the end of a `∀`-telescope. -/
-def resultSort : Nat → EIdx → AM (Option LIdx)
-  | 0, _ => fail (.internal "fuel exhausted: resultSort")
-  | fuel + 1, h => do
-    match ← view h with
-    | .forallE _ b _ => resultSort fuel b
-    | .sort u => pure (some u)
-    | _ => pure none
 
 /-! ## The packed range fields and their saturated-branch recomputations
 

@@ -268,7 +268,9 @@ handle. -/
 def promoteCaps (m : PMemo) (fuel : Nat) (c : IIndCaps) :
     AM (PMemo × IIndCaps) := do
   let (m, ct) ← promoteN m fuel c.etaCtor
-  pure (m, { c with etaCtor := ct })
+  let (m, all) ← promoteNList m fuel c.all
+  let (m, ctors) ← promoteNList m fuel c.ctors
+  pure (m, { c with etaCtor := ct, all := all, ctors := ctors })
 
 /-- con-leche: none — arena infrastructure; promote a projection table,
 `tableName` included (it is a stored handle, not a recomputed name —

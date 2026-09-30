@@ -260,12 +260,6 @@ private def chkOPw (c : AM (Option PropWhen)) (expect : Option PropWhen) : Bool 
   | .error _ => false
 
 /-- con-leche: none — an `Option LIdx`-valued twin. -/
-private def chkOL (c : AM (Option LIdx)) (expect : Option Level) : Bool :=
-  match c.run S0, expect with
-  | .ok (some r, s'), some u => denoteL s'.store.ls r == some u
-  | .ok (none, _), none => true
-  | _, _ => false
-
 /-- con-leche: none — the `fvarLeaves` shape. -/
 private def chkFvL (c : AM (List (Nat × EIdx))) (expect : List (Nat × Expr)) : Bool :=
   match c.run S0 with
@@ -419,8 +413,6 @@ private def leafSpec (fab base : EIdx) : AM Bool := do
 #guard chkB (isLam fx.piT) (Expr.isLam (E fx.piT))
 #guard chkOPw (lamPw fx.big) (Expr.lamPw (E fx.big))
 #guard chkOPw (lamPw fx.piT) (Expr.lamPw (E fx.piT))
-#guard chkOPw (forallPw fx.piT) (Expr.forallPw (E fx.piT))
-#guard chkOPw (forallPw fx.big) (Expr.forallPw (E fx.big))
 #guard chkB (hasFvar F fx.big) (Expr.hasFvar (E fx.big))
 #guard chkB (hasFvar F fx.piT) (Expr.hasFvar (E fx.piT))
 #guard chkB (hasFvar F fx.fv0) (Expr.hasFvar (E fx.fv0))
@@ -463,15 +455,7 @@ private def renP (n : ConLeche.Name) : ConLeche.Name :=
 
 #guard chkE (piResult F fx.piT) (Expr.piResult (E fx.piT))
 #guard chkE (piResult F fx.cf) (Expr.piResult (E fx.cf))
-#guard chkN (piArity F fx.piT) (Expr.piArity (E fx.piT))
-#guard chkN (piArity F fx.cf) (Expr.piArity (E fx.cf))
-#guard chkOL (resultSort F fx.piS) (Expr.resultSort (E fx.piS))
-#guard chkOL (resultSort F fx.piT) (Expr.resultSort (E fx.piT))
-#guard chkOL (resultSort F fx.s1) (Expr.resultSort (E fx.s1))
 
-#guard chkOE (instPis F fx.piT [fx.cf, fx.s1]) (Expr.instPis (E fx.piT) [E fx.cf, E fx.s1])
-#guard chkOE (instPis F fx.piT []) (Expr.instPis (E fx.piT) [])
-#guard chkOE (instPis F fx.cf [fx.s1]) (Expr.instPis (E fx.cf) [E fx.s1])
 
 #guard chkPair (instPisAt F [fx.cf, fx.s1] fx.piT)
   (Expr.instPisAt [E fx.cf, E fx.s1] (E fx.piT))
@@ -506,12 +490,6 @@ private def renP (n : ConLeche.Name) : ConLeche.Name :=
 #guard chkB (recRulePlain F fx.piT 2 1 2) (Expr.recRulePlain (E fx.piT) 2 1 2)
 #guard chkB (recRulePlain F fx.big 2 2 1) (Expr.recRulePlain (E fx.big) 2 2 1)
 
-#guard chkOE (pisToLams 2 fx.piT fx.cf) (Expr.pisToLams 2 (E fx.piT) (E fx.cf))
-#guard chkOE (pisToLams 0 fx.piT fx.cf) (Expr.pisToLams 0 (E fx.piT) (E fx.cf))
-#guard chkOE (pisToLams 3 fx.piT fx.cf) (Expr.pisToLams 3 (E fx.piT) (E fx.cf))
-#guard chkOE (replacePiBody 2 fx.piT fx.cf) (Expr.replacePiBody 2 (E fx.piT) (E fx.cf))
-#guard chkOE (replacePiBody 1 fx.piT fx.cf) (Expr.replacePiBody 1 (E fx.piT) (E fx.cf))
-#guard chkOE (replacePiBody 3 fx.piT fx.cf) (Expr.replacePiBody 3 (E fx.piT) (E fx.cf))
 
 /-! ## The packed range fields -/
 

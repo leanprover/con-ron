@@ -35,7 +35,6 @@ namespace ConRon.Arena
 open ConLeche
 
 /-- con-leche: Main.lean:263-279 checkWorker — **a phase-B worker's state**:
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Phased.AState.worker_bridge, then delete this line
 the phase-A state with the scratch tier closed and empty, and fresh memos and
 caches.  The Rust's `worker_state` builds the same thing over the FROZEN tier
 (an empty store whose reads go to the `PersTier`); the twin has one store and

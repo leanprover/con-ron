@@ -26,10 +26,9 @@ there is only one.
 Nothing here is a proof and nothing here is an `#eval` print: every check is
 kernel-reduced, so a disagreement is a build failure.
 -/
-import ConRon.Arena.CoreGated
+import ConRon.Arena.CoreIO
 import ConLeche.Kernel.TypeChecker
 import ConLeche.Kernel.CoreIO
-import ConLeche.Kernel.CoreGated
 
 namespace ConRon.Arena
 
@@ -745,24 +744,13 @@ persistent-through row could have stayed: `dropScratchEntries` keeps it. -/
   let kept := ((← get).caches.dropScratchEntries).whnfC.size
   pure (before > 0 && kept == before))
 
-/-! ## The gated and io knots agree with the executed one on the fixture
+/-! ## The io knot agrees with the executed one on the fixture
 
-`CoreGated.lean`'s β gate and `CoreIO.lean`'s leaf lane are statement
-subjects, not executed paths; what these check is that they are not
-*broken* — at `.verified` the gated `whnfCore` and the io `infer` answer the
-fixture the way con-leche's own do. -/
+`CoreIO.lean`'s leaf lane is a statement subject, not an executed path; what
+this checks is that it is not *broken* — at `.verified` the io `infer`
+answers the fixture the way con-leche's own does. -/
 
-#guard chkE (whnfCoreGated MU FX.fe F 0 FX.betaTwo)
-  (ConLeche.whnfCoreGated MU envCL F 0 tBetaTwo)
-#guard chkE (whnfGated MU FX.fe F 0 FX.two)
-  (ConLeche.whnfGated MU envCL F 0 tTwo)
-#guard chkE (inferTypeCoreGated MU FX.fe F 0 FX.succ3)
-  (ConLeche.inferTypeCoreGated MU envCL F 0 tSucc3)
 #guard chkE (inferTypeCoreIO MU FX.fe F 0 FX.succ3)
   (ConLeche.inferTypeCoreIO MU envCL F 0 tSucc3)
-#guard chkE (annotateCoreGated MU FX.fe F 0 FX.idProp)
-  (ConLeche.annotateCoreGated MU envCL F 0 tIdProp)
-#guard chkB (isDefEqCoreGated MU FX.fe F 0 FX.pfA FX.pfB)
-  (ConLeche.isDefEqCoreGated MU envCL F 0 tPfA tPfB)
 
 end ConRon.Arena

@@ -5,7 +5,7 @@ The twin of `ConLeche/Kernel/CheckerBase.lean`: the core entry-point record,
 the common per-declaration constant check, and the strategy-independent
 helpers the install paths share.
 
-## The four systematic deviations
+## The three systematic deviations
 
 1. **`env : Env` becomes `fe : IFEnv`** — `Arena/Core.lean`'s deviation 1.
    con-leche carries each of these functions twice, once reading the linear
@@ -19,21 +19,10 @@ helpers the install paths share.
    code Aeneas must translate, and `crates/con-ron-core/src/kernel/checker.rs`
    drops the `ops` binder for exactly that reason.  So `CheckerOpsA` and its
    ONE instantiation are twinned here — they are the statement subjects P3
-   will need, as `Arena/CoreIO.lean` and `Arena/CoreGated.lean` are — and
+   will need, as `Arena/CoreIO.lean` is — and
    every body below calls `Arena/Core.lean`'s fueled entry points directly.
 3. **`orElse` is `orElseAttempt`, the four-way step**, and it is the one place
    in (B) that recovers from a thrown error.  See its own note.
-4. **A `g : Nat → Expr → Expr` argument is not a function value.**
-   `domsMatchAux` is called at the identity everywhere in this module and at
-   `renameConsts (projFwd …)` in `checkProjIotaF` (the modeled install's,
-   P2d-2's), so the twin here is the identity one; over handles the renaming
-   one cannot share it anyway, because renaming a constant is monadic.
-
-## What is NOT here
-
-`checkProjShape` and `checkProjRule` are the modeled install's stages 2b and
-3; they are twinned here because they need nothing from
-`ConLeche/Kernel/Inductives/*`, which is P2d-2's half of this phase.
 -/
 import ConRon.Arena.NatOpPinSet
 import ConRon.Arena.Inductives.StructParts
@@ -175,16 +164,6 @@ in a list of name HANDLES.  A name comparison is a handle comparison (DESIGN
 def nameNodup : List NIdx → Bool
   | [] => true
   | n :: ns => !ns.contains n && nameNodup ns
-
-/-- con-leche: ConLeche/Kernel/Level.lean:218-221 Name.isModelSuffix — is
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.NIdx.isModelSuffix_bridge, then delete this line
-this a `_model`-suffixed name (the shape of model companions)? -/
-def NIdx.isModelSuffix (n : NIdx) : AM Bool := do
-  if n.tag == NTag.str then
-    match ← viewN n with
-    | .str _ s => pure (s == "_model")
-    | _ => pure false
-  else pure false
 
 /-- con-leche: ConLeche/Kernel/Level.lean:219-226 Name.isProjFnShape — is
 this shaped like an installed projection function's name (`(T.proj).i`) or a
@@ -389,21 +368,6 @@ def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
 
 /-! ## The strategy-independent helpers -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.domsMatchAux_bridge, then delete this line
-con-leche: ConLeche/Kernel/CheckerBase.lean:142-151 domsMatchAuxA
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.domsMatchAux_bridge, then delete this line
-Compare binder domains at offsets `o₁`/`o₂` for `n` positions, at the
-IDENTITY view (module note 4).  con-leche's `List` version is quadratic on a
-wide telescope and its `Array` twin is what the checker runs, so the twin is
-the array one; and over handles a domain comparison is a handle comparison,
-so this is PURE. -/
-def domsMatchAux (bs₁ bs₂ : Array (EIdx × BinderMeta)) (o₁ o₂ n : Nat) : Bool :=
-  (List.range n).all fun i =>
-    match bs₁[o₁ + i]?, bs₂[o₂ + i]? with
-    | some b₁, some b₂ => b₁.1 == b₂.1
-    | _, _ => false
-
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:118-128 openPisAtFvars — open
 the first `n` `∀`-binders at fresh free variables `0..n-1` (each fvar's type
 is the binder domain, instantiated with the earlier fvars).  Structural on
@@ -450,72 +414,6 @@ def openPisAtFvarsF (n : Nat) (e : EIdx) (i : Nat) :
   | some r => pure (some r)
   | none => openPisAtFvars n e i
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:178-190 checkTypedList — check
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.checkTypedList_bridge, then delete this line
-each expression's inferred type against the corresponding expected type
-(definitionally); throws on a length mismatch. -/
-def checkTypedList (mode : CheckMode) (fe : IFEnv) (depth : Nat) :
-    List EIdx → List EIdx → AM Unit
-  | [], [] => pure ()
-  | a :: as, t :: ts => do
-    let ty ← inferTypeCore mode fe checkFuel depth a
-    unless ← isDefEqCore mode fe checkFuel depth ty t do
-      fail (.notImplemented "nested pin type mismatch")
-    checkTypedList mode fe depth as ts
-  | _, _ => fail (.notImplemented "nested pin arity mismatch")
-
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:192-206 checkAnnotList — check
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.checkAnnotList_bridge, then delete this line
-that each expression is a fixed point of the annotation pass in the given
-context. -/
-def checkAnnotList (mode : CheckMode) (fe : IFEnv) (depth : Nat) :
-    List EIdx → AM Unit
-  | [] => pure ()
-  | a :: as => do
-    let aA ← annotateCore mode fe checkFuel depth a
-    unless aA == a do
-      fail (.notImplemented "nested pin annotation mismatch")
-    checkAnnotList mode fe depth as
-
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:208-211 isEqHead — is the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.isEqHead_bridge, then delete this line
-expression the pinned equality former at one level? -/
-def isEqHead (h : EIdx) : AM Bool := do
-  if h.tag == ETag.const then
-    match ← view h with
-    | .const c us => do
-      let en ← pinEq
-      if c == en then pure ((← viewLs us).length == 1) else pure false
-    | _ => pure false
-  else pure false
-
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:213-220 eqHeadLevel — the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.eqHeadLevel_bridge, then delete this line
-level an equality head carries.  Off shape it is `.zero`, which `isEqHead` has
-already rejected wherever the result is used. -/
-def eqHeadLevel (h : EIdx) : AM LIdx := do
-  if h.tag == ETag.const then
-    match ← view h with
-    | .const _ us => do
-      match ← viewLs us with
-      | [l] => pure l
-      | _ => zeroLevel
-    | _ => zeroLevel
-  else zeroLevel
-
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:222-231 checkDefEqList —
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.checkDefEqList_bridge, then delete this line
-pairwise definitional-equality check of two spines (throws on any mismatch,
-including a length difference). -/
-def checkDefEqList (mode : CheckMode) (fe : IFEnv) (depth : Nat) :
-    List EIdx → List EIdx → AM Unit
-  | [], [] => pure ()
-  | a :: as, b :: bs => do
-    unless ← isDefEqCore mode fe checkFuel depth a b do
-      fail (.notImplemented "iota statement component mismatch")
-    checkDefEqList mode fe depth as bs
-  | _, _ => fail (.notImplemented "iota statement component arity")
-
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:198-204 unwrapOr — unwrap an
 optional value or fail with the given error. -/
 def unwrapOr {α : Type} (o : Option α) (err : CheckError) : AM α :=
@@ -523,109 +421,10 @@ def unwrapOr {α : Type} (o : Option α) (err : CheckError) : AM α :=
   | some a => pure a
   | none => fail err
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:241-247 Env.findCV?
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.IFEnv.findCV?_bridge, then delete this line
-con-leche: ConLeche/Kernel/DeclCheck.lean:33-35 FEnv.findCV?
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.IFEnv.findCV?_bridge, then delete this line
-The stored constant under `n`, as an `IConstantVal`, if any. -/
-def IFEnv.findCV? (fe : IFEnv) (n : NIdx) : AM (Option IConstantVal) := do
-  match fe.find? n with
-  | some ci => pure (some (← ci.toConstantVal))
-  | none => pure none
-
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:249-254 piResultSort — the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.piResultSort_bridge, then delete this line
-result sort of a syntactic pi telescope, if it ends in a sort at all. -/
-def piResultSort (e : EIdx) : AM (Option LIdx) := do
-  let r ← piResult coreWalkFuel e
-  if r.tag == ETag.sort then
-    match ← view r with
-    | .sort u => pure (some u)
-    | _ => pure none
-  else pure none
-
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:257-272 checkProjShape — stage
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.checkProjShape_bridge, then delete this line
-2b: the projection type's parameter telescope is *syntactically* the
-constructor's, and the constructor's residual is the family applied to exactly
-the parameters. -/
-def checkProjShape (pty ctorTy : EIdx) (nP nF : Nat) : AM Unit := do
-  let some _ ← stripPis nP pty
-    | fail (.notImplemented "projection type telescope")
-  let some (_, cbody) ← stripPis (nP + nF) ctorTy
-    | fail (.notImplemented "projection constructor telescope")
-  unless (← getAppArgs coreWalkFuel cbody).length == nP do
-    fail (.notImplemented "projection constructor residual arity")
-  let f ← getAppFn coreWalkFuel cbody
-  if f.tag == ETag.const then
-    match ← view f with
-    | .const _ _ => pure ()
-    | _ => fail (.notImplemented "projection constructor residual head")
-  else fail (.notImplemented "projection constructor residual head")
-
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:274-311 checkProjRule
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.checkProjRule_bridge, then delete this line
-con-leche: ConLeche/Kernel/DeclCheck.lean:763-795 checkProjRuleF
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.checkProjRule_bridge, then delete this line
-Stage 3: the reduction rule — λ over the constructor telescope returning field
-`i`, annotated; its λ-domains stay the constructor's. -/
-def checkProjRule (mode : CheckMode) (fe : IFEnv) (pty : EIdx)
-    (cvj : IConstantVal) (lps : List NIdx) (nP nF i : Nat) : AM EIdx := do
-  let bv ← internE (.bvar (nF - 1 - i))
-  let some rhs ← pisToLams (nP + nF) cvj.type bv
-    | fail (.notImplemented "projection rule telescope")
-  unless !(← hasFvarFast coreWalkFuel rhs) &&
-      (← looseBVarsBoundedFast coreWalkFuel 0 rhs) do
-    fail (.notImplemented "projection rule scoping")
-  let rhsA ← annotateCore mode fe checkFuel 0 rhs
-  unless (← allLevelParamsDefined lps rhsA) && (← constsResolveFFast fe rhsA) &&
-      (← looseBVarsBoundedFast coreWalkFuel 0 rhsA) &&
-      !(← hasFvarFast coreWalkFuel rhsA) do
-    fail (.notImplemented "projection rule wellformedness")
-  let some (rbinders, rrbody) ← stripLams (nP + nF) rhsA
-    | fail (.notImplemented "projection rule telescope")
-  unless rrbody == bv do
-    fail (.notImplemented "projection rule body")
-  let some (cbindersR, _) ← stripPis (nP + nF) cvj.type
-    | fail (.notImplemented "projection constructor telescope")
-  unless domsMatchAux rbinders.toArray cbindersR.toArray 0 0 (nP + nF) do
-    fail (.notImplemented "projection rule domain mismatch")
-  let some (fvsP, _) ← openPisAtFvarsF nP pty 0
-    | fail (.notImplemented "projection type telescope")
-  let some (cdomsP, crestP) ← instPisAtF coreWalkFuel fvsP cvj.type
-    | fail (.notImplemented "projection constructor telescope")
-  checkDefEqList mode fe (nP + nF) (← fvarTypeDs fvsP) cdomsP
-  let some (xFvs, _) ← openPisAtFvarsF nF crestP nP
-    | fail (.notImplemented "projection constructor telescope")
-  let some (ldoms, _) ← instLamsAtF coreWalkFuel (fvsP ++ xFvs) rhsA
-    | fail (.notImplemented "projection rule telescope")
-  checkDefEqList mode fe (nP + nF) (← fvarTypeDs (fvsP ++ xFvs)) ldoms
-  let _rhsTy ← inferTypeCore mode fe checkFuel 0 rhsA
-  pure rhsA
-
 /-! ## The block's partition and its declared parameter count
 
-Three `ConLeche/Kernel/Env.lean` declarations, placed at their only readers —
-the `.indDecl` arm and the modeled install — exactly as the six `Level.lean`
-declarations above are.  Task #97d-2 wrote them in
-`Arena/Inductives/Base.lean` under the concurrency contract; task #97f's dedup
-deleted that file and brought them here. -/
-
-/-- con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo.isRecInfo — is
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.isRecInfo_bridge, then delete this line
-this member a recursor record? -/
-def isRecInfo : IConstantInfo → Bool
-  | .recInfo _ _ _ _ => true
-  | _ => false
-
-/-- con-leche: ConLeche/Kernel/Env.lean:721-727 recsFormSuffix — do the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.recsFormSuffix_bridge, then delete this line
-recursors form a suffix of the block?  The tag pass. -/
-def recsFormSuffix : List IConstantInfo → Bool
-  | [] => true
-  | ci :: rest =>
-    if isRecInfo ci then rest.all isRecInfo
-    else recsFormSuffix rest
+A `ConLeche/Kernel/Env.lean` declaration, placed at its only reader — the
+`.indDecl` arm — exactly as the `Level.lean` declarations above are. -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:588-622 indParamsOk — **the stream's
 declared parameter count, checked as official checks it** (con-leche's task
@@ -641,5 +440,110 @@ def indParamsOk (nP : Nat) : List IConstantInfo → AM Bool
       | .ctorInfo _ nPc _ => pure (nPc == nP)
       | _ => pure true
     if ok then indParamsOk nP rest else pure false
+
+/-! ## The syntactic reading of a nested rule's instantiation
+
+The Rust's `expr_ops::nested_rule_syn` group.  It sits HERE rather than in
+`Arena/ExprOps.lean` (con-leche's `Kernel/ExprOps.lean` home) because its
+`resolves` argument is the checker's `constsResolveFFast` — con-leche passes
+it in as a closure, the Rust calls `checker_base` from `expr_ops` (a module
+cycle Rust allows and Lean does not).  Module placement only; the functions
+are the Rust's, one for one. -/
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn — `pins :=
+(args.take cnP).map (lowerBVars k 0)`, left to right. -/
+def lowerList (k : Nat) : List EIdx → AM (List EIdx)
+  | [] => pure []
+  | x :: xs => do
+    let y ← lowerBVarsFast coreWalkFuel k 0 x
+    let ys ← lowerList k xs
+    pure (y :: ys)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn —
+`pins.map (liftLooseBVars k 0)`, left to right. -/
+def liftList (k : Nat) : List EIdx → AM (List EIdx)
+  | [] => pure []
+  | x :: xs => do
+    let y ← liftLooseBVarsFast coreWalkFuel k 0 x
+    let ys ← liftList k xs
+    pure (y :: ys)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn — the pins'
+well-formedness, `pins.all (fun p => !p.hasFvar && p.looseBVarsBounded rP &&
+resolves p && p.allLevelParamsDefined lps)`, the `&&` chain left to right. -/
+def pinsWf (fe : IFEnv) (lps : List NIdx) (rP : Nat) : List EIdx → AM Bool
+  | [] => pure true
+  | p :: ps => do
+    if ← hasFvarFast coreWalkFuel p then pure false
+    else if !(← looseBVarsBoundedFast coreWalkFuel rP p) then pure false
+    else if !(← constsResolveFFast fe p) then pure false
+    else if !(← allLevelParamsDefined lps p) then pure false
+    else pinsWf fe lps rP ps
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn — the
+cursor recursion behind `levelsDeclared`. -/
+def levelsDeclaredFrom (ps : List ConLeche.Name) : List LIdx → AM Bool
+  | [] => pure true
+  | l :: ls => do
+    let lv ← readLevel l
+    if Level.allParamsDefined ps lv then levelsDeclaredFrom ps ls
+    else pure false
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn —
+`lvls.all (Level.allParamsDefined lps)`, over handles. -/
+def levelsDeclared (lps : List NIdx) (lvls : List LIdx) : AM Bool := do
+  let ps ← readNames lps
+  levelsDeclaredFrom ps lvls
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn — the pins'
+and the levels' guards, once the argument shape has matched. -/
+def nestedRuleSynGuards (fe : IFEnv) (lps : List NIdx) (lvls : LsIdx) (rP : Nat)
+    (pins : List EIdx) : AM (Option (List LIdx × List EIdx)) := do
+  if !(← pinsWf fe lps rP pins) then pure none
+  else do
+    let ls ← viewLs lvls
+    if !(← levelsDeclared lps ls) then pure none
+    else pure (some (ls, pins))
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn — at the
+major's domain `dom = D lvls args`: the parameter prefix lowered past the
+`k` indices, the shape tests in con-leche's `∧` order, then the guards. -/
+def nestedRuleSynAt (fe : IFEnv) (lps : List NIdx) (dom : EIdx) (lvls : LsIdx)
+    (k rP cnP : Nat) : AM (Option (List LIdx × List EIdx)) := do
+  let args ← getAppArgs coreWalkFuel dom
+  let pre := args.take cnP
+  let pins ← lowerList k pre
+  if args.length != cnP + k then pure none
+  else do
+    let back ← liftList k pins
+    if pre != back then pure none
+    else do
+      let want ← bvarRange k k 0
+      if args.drop cnP != want then pure none
+      else nestedRuleSynGuards fe lps lvls rP pins
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn — **the
+syntactic reading of a nested rule's instantiation**: the major's level and
+parameter instantiations, read off the recursor's type, when the major's
+domain applies a constant to parameters closed below the indices followed by
+exactly the index variables. -/
+def nestedRuleSyn (fe : IFEnv) (lps : List NIdx) (tyA : EIdx) (mI rP cnP : Nat) :
+    AM (Option (List LIdx × List EIdx)) := do
+  if rP ≤ mI then
+    match ← stripPis mI tyA with
+    | none => pure none
+    | some q =>
+      if q.2.tag == ETag.forallE then
+        match ← viewBind q.2 with
+        | none => failDanglingE
+        | some (dom, _, _) => do
+          let hd ← getAppFn coreWalkFuel dom
+          if hd.tag == ETag.const then
+            match ← viewConst hd with
+            | none => failDanglingE
+            | some (_, lvls) => nestedRuleSynAt fe lps dom lvls (mI - rP) rP cnP
+          else pure none
+      else pure none
+  else pure none
 
 end ConRon.Arena

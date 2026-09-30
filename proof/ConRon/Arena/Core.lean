@@ -27,7 +27,7 @@ function argument and a closure is what DESIGN §3.4 forbids.
    `natOpStoredF`, `towerSlotsAll` / `towerSlotsAllF`, `recSlotsAll` /
    `recSlotsAllF`, `andRescueSlotsOf` / `andRescueSlots` /
    `andRescueSlotsF`, `recRuleKOf`, `recRuleEtaOf`, `recRuleBits`,
-   `projFnRule`, `strLitSupported` / `strLitSupportedF` — collapses into
+   `strLitSupported` / `strLitSupportedF` — collapses into
    ONE twin, which carries a `con-leche:` line per collapsed declaration.
    That is P2b's own rule for the `…Go`/`…Fast` triples, applied to the
    lookup abstraction instead of to the memo.
@@ -37,7 +37,7 @@ function argument and a closure is what DESIGN §3.4 forbids.
    else — a binder count, an argument list, a `Nat` — take none, exactly
    as con-leche's do.
 3. **Reserved names are INTERNED, not compared structurally**
-   (`pin` below).  `natName`, `punitName`, … are `AM NIdx` and every
+   (`pin` below).  `natName`, `eqName`, … are `AM NIdx` and every
    comparison against them is handle equality, which DESIGN §8.3 licenses:
    `denoteN` is injective, so index inequality IS structural inequality.
 4. **Levels are read back, not twinned** (DESIGN §8.3, lesson 4):
@@ -276,19 +276,46 @@ def CoreFnsA.ioView (r : CoreFnsA) : CoreFnsA :=
 
 /-! ## The bodies' small helpers -/
 
+/-- con-leche: ConLeche/Kernel/Core.lean:101-126 projIndexedStructLike — **could
+official's `infer_proj` type `.proj sn i _` at a subject of type `T a⃗` where
+we store no projection table for `T`?**  Only at a single-constructor
+inductive `T` named by the node, applied to MORE arguments than its
+parameters, at a field index below the constructor's field count: an INDEXED
+structure-like type.  The cited `&&` chain, left to right. -/
+def projIndexedStructLike (fe : IFEnv) (T sn : NIdx) (i nArgs : Nat) : Bool :=
+  if T != sn then false
+  else
+    match fe.find? T with
+    | some (.indInfo _ caps) =>
+      match caps.ctors with
+      | [c] =>
+        if caps.nparams < nArgs then
+          match fe.find? c with
+          | some (.ctorInfo _ _ nF) => decide (i < nF)
+          | _ => false
+        else false
+      | _ => false
+    | _ => false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:128-141 projMissError — **the verdict
+at a `.proj sn i _` whose subject type is headed by `T` (applied to `nArgs`
+arguments) with no table entry at field `i`**: an out-of-range index at a
+table; a positively detected indexed structure-like type DECLINES
+(`lean4#14977`); everything else is official's reject.  `hasTable` is the
+cited `(find? (projTableName T)).isSome`, read by the caller. -/
+def projMissError (fe : IFEnv) (hasTable : Bool) (T sn : NIdx) (i nArgs : Nat) :
+    CheckError :=
+  if hasTable then .invalid "projection index out of range"
+  else if projIndexedStructLike fe T sn i nArgs then
+    .notImplemented "projection on an indexed structure-like type"
+  else .invalid "invalid projection: not a structure-like type, or no such field"
+
 /-- con-leche: ConLeche/Kernel/Core.lean:188-199 liftFueled — lift a
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Core.liftFueled_bridge, then delete this line
-fuel-style partial result; `none` is an internal error. -/
+fuel-style partial result; `none` is OUR resource limit running out, so a
+DECLINE (con-leche's charter item 9), never a verdict. -/
 def liftFueled {α : Type} (what : String) : Option α → AM α
   | some a => pure a
-  | none => fail (.internal s!"fuel exhausted: {what}")
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:41-44 projModelName — the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Core.projModelName_bridge, then delete this line
-model-side name of field `i`'s projection for `T`. -/
-def projModelName (T : NIdx) (i : Nat) : AM NIdx := do
-  let m ← internNNode (.str T "_model")
-  internNNode (.str m ("proj_" ++ toString i))
+  | none => fail (.notImplemented s!"resource limit: fuel exhausted: {what}")
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:41-48 isCtorApp — is the
 expression headed by a stored constructor? -/
@@ -303,48 +330,6 @@ def isCtorApp (fe : IFEnv) (e : EIdx) : AM Bool := do
     | _ => pure false
   else pure false
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:55-62 piResultIsProp — does the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Core.piResultIsProp_bridge, then delete this line
-syntactic pi telescope end in a (normalized) `Prop`? -/
-def piResultIsProp (e : EIdx) : AM Bool := do
-  let h ← piResult coreWalkFuel e
-  if h.tag == ETag.sort then
-    match ← view h with
-    | .sort u => do
-      let z ← zeroLevel
-      pure ((← lvlEq? u z) == some true)
-    | _ => pure false
-  else pure false
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:64-72 piResultZ — **the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Core.piResultZ_bridge, then delete this line
-result-sort zero-ness datum of an inductive's type** (`IndCaps.sortZ`). -/
-def piResultZ (e : EIdx) : AM PropWhen := do
-  let h ← piResult coreWalkFuel e
-  if h.tag == ETag.sort then
-    match ← view h with
-    | .sort u => do
-      let l ← readLevelM u
-      pure (Level.zeronessOf l)
-    | _ => pure (.ifAllZero [])
-  else pure (.ifAllZero [])
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:74-82 piResultNeverZero — is the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Core.piResultNeverZero_bridge, then delete this line
-result sort of a stored inductive's type, instantiated at the given levels,
-provably nonzero (official `is_never_zero`)? -/
-def piResultNeverZero (lps : List NIdx) (us : LsIdx) (e : EIdx) : AM Bool := do
-  let h ← piResult coreWalkFuel e
-  if h.tag == ETag.sort then
-    match ← view h with
-    | .sort u => do
-      let ks ← readNamesM lps
-      let vs ← readLevelsM us
-      let l ← readLevelM u
-      pure (Level.subst ks vs l).isNeverZero
-    | _ => pure false
-  else pure false
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:50-60 capsNeverZero — the same
 question read off the STORED datum, which is what the checker runs. -/
 def capsNeverZero (lps : List NIdx) (us : LsIdx) (caps : IIndCaps) :
@@ -352,28 +337,6 @@ def capsNeverZero (lps : List NIdx) (us : LsIdx) (caps : IIndCaps) :
   let ks ← readNamesM lps
   let vs ← readLevelsM us
   pure (Level.substPW ks vs caps.sortZ).isNever
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:97-134 isUnitLikeTy — is this
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Core.isUnitLikeTy_bridge, then delete this line
-(whnf'd) type expression a unit-like inductive type?  con-leche's task #161
-item C1: the head-name comparison against `PUnit` comes FIRST and
-short-circuits after one comparison at every other head. -/
-def isUnitLikeTy (fe : IFEnv) (h : EIdx) : AM Bool := do
-  if h.tag == ETag.const then
-    match ← view h with
-    | .const c _ => do
-      let pu ← pinPUnit
-      if c != pu then pure false
-      else
-        match fe.find? pu with
-        | some (.indInfo _ _) => do
-          let pr ← pinPUnitRec
-          match fe.find? pr with
-          | some (.recInfo _ mI rP [r]) => pure (mI == rP && r.nfields == 0)
-          | _ => pure false
-        | _ => pure false
-    | _ => pure false
-  else pure false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:62-81 unfoldDefinition — unfold
 the (application of a) definition at the head, one step.  The stored value
@@ -1347,36 +1310,31 @@ def iotaIndexOk (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (mI rP cnP : Nat)
     | none => pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:319-341 proofIrrel — proof
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Core.proofIrrel_bridge, then delete this line
-irrelevance certification: both sides' types whnf to the basis unit type,
-or both sides' types' *sorts* are `Prop`. -/
-def proofIrrel (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
+irrelevance certification: both sides' types' *sorts* are `Prop` (the
+unit-like branch went with con-leche's PUNIT). -/
+def proofIrrel (r : CoreFnsA) (_fe : IFEnv) (depth : Nat) (a b : EIdx) :
     AM Bool := do
   -- con-leche's task #172 B4: every inference here is at the io grade
   let ta ← r.inferIO depth a
-  if ← isUnitLikeTy fe (← r.whnf depth ta) then do
-    let tb ← r.inferIO depth b
-    if ← isUnitLikeTy fe (← r.whnf depth tb) then pure true else pure false
-  else do
-    let hh ← r.whnf depth (← r.inferIO depth ta)
-    if hh.tag == ETag.sort then
-      match ← view hh with
-      | .sort uT => do
-        let z ← zeroLevel
-        let okA ← liftFueled "level comparison" (← lvlEq? uT z)
-        let tb ← r.inferIO depth b
-        let hh ← r.whnf depth (← r.inferIO depth tb)
-        if hh.tag == ETag.sort then
-          match ← view hh with
-          | .sort vT => do
-            -- the Rust's `prop_sorts_zero_right` reads `zeroLevel` again here
-            let z ← zeroLevel
-            let okB ← liftFueled "level comparison" (← lvlEq? vT z)
-            pure (okA && okB)
-          | _ => pure false
-        else pure false
-      | _ => pure false
-    else pure false
+  let hh ← r.whnf depth (← r.inferIO depth ta)
+  if hh.tag == ETag.sort then
+    match ← view hh with
+    | .sort uT => do
+      let z ← zeroLevel
+      let okA ← liftFueled "level comparison" (← lvlEq? uT z)
+      let tb ← r.inferIO depth b
+      let hh ← r.whnf depth (← r.inferIO depth tb)
+      if hh.tag == ETag.sort then
+        match ← view hh with
+        | .sort vT => do
+          -- the Rust's `prop_sorts_zero_right` reads `zeroLevel` again here
+          let z ← zeroLevel
+          let okB ← liftFueled "level comparison" (← lvlEq? vT z)
+          pure (okA && okB)
+        | _ => pure false
+      else pure false
+    | _ => pure false
+  else pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:343-385 propIrrel — **the hoisted
 proof-irrelevance test** (con-leche's task #168, Option U): the `Prop`
@@ -1490,11 +1448,45 @@ def etaProjs (fe : IFEnv) (T : NIdx) (us : LsIdx) (targs : List EIdx)
   else projAppsGo T us targs b nF 0
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames —
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Core.reservedBasisNames_bridge, then delete this line
 the names reserved for the pinned basis blocks, interned.  `contains` is
 then handle equality, as everywhere else in this module. -/
 def reservedBasisNames : AM (List NIdx) :=
   pinReserved
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:449-454 litGuardNames — the ten
+names the two literal guards look up: the `Nat` guard's three and the
+`String` guard's seven, off the pin table (every one is pinned).  Placed after
+`reservedBasisNames` (its one reader's other list) rather than beside
+`natOpWfNames` as in the Rust: a module-order difference only. -/
+def litGuardNames : AM (List NIdx) := do
+  let a ← pinNat
+  let b ← pinNatZero
+  let c ← pinNatSucc
+  let d ← pinString
+  let f ← pinStringOfList
+  let g ← pinList
+  let h ← pinListNil
+  let i ← pinListCons
+  let j ← pinChar
+  let k ← pinCharOfNat
+  pure [a, b, c, d, f, g, h, i, j, k]
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:456-466 reservedRecName — **a
+name no block RECURSOR may take**: one the pinned basis blocks reserve, one a
+literal guard looks up, or one of the certified `Nat` operations.  The cited
+`||` chain, each list read off the pin table (handle equality). -/
+def reservedRecName (n : NIdx) : AM Bool := do
+  let rs ← reservedBasisNames
+  if rs.contains n then pure true
+  else do
+    let ls ← litGuardNames
+    if ls.contains n then pure true
+    else do
+      let os ← natOpNames
+      if os.contains n then pure true
+      else do
+        let ds ← natDivModNames
+        pure (ds.contains n)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:412-484 structEtaCertWith — the
 structure-eta certificate against a *given* weak-head-normal type of the
@@ -1662,7 +1654,6 @@ def etaCert (mode : CheckMode) (r : CoreFnsA) (_fe : IFEnv) (depth : Nat)
   else pure false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:568-575 stuckIrrel — the fallback
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Core.stuckIrrel_bridge, then delete this line
 for structurally distinct stuck terms: structural eta in either direction,
 unit-likeness, else proof irrelevance. -/
 def stuckIrrel (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
@@ -1671,16 +1662,6 @@ def stuckIrrel (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   else if ← structEtaCert mode r fe depth b a then pure true
   else if ← structUnitCert mode r fe depth a b then pure true
   else proofIrrel r fe depth a b
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:751-759 etaFabArgs — the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Core.etaFabArgs_bridge, then delete this line
-eta-rescue fabrication's argument spine: the reduced type's arguments
-followed by the installed projection functions applied to the stuck
-major. -/
-def etaFabArgs (T : NIdx) (ust : LsIdx) (targs : List EIdx) (major : EIdx)
-    (nF : Nat) : AM (List EIdx) := do
-  let ps ← projAppsGo T ust targs major nF 0
-  pure (targs ++ ps)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:719-724 etaFabArgsE —
 `etaFabArgs` at the entry kind: the projections are `etaProjs`'. -/
@@ -1732,7 +1713,6 @@ def andRescueSlots (fe : IFEnv) (ctor : NIdx) (nP : Nat) (ust : LsIdx) :
 con-leche's `Core.lean`:1311-1832. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:577-749 majorToCtor — the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Core.fvarLeavesSubset_bridge, then delete this line
 fabrication's fvar-leaf containment, `fab.fvarLeaves.all (fun l =>
 major.fvarLeaves.contains l)`, as a named recursion (DESIGN §3.4). -/
 def fvarLeavesSubset : List (Nat × EIdx) → List (Nat × EIdx) → Bool
@@ -1740,7 +1720,6 @@ def fvarLeavesSubset : List (Nat × EIdx) → List (Nat × EIdx) → Bool
   | l :: ls, ms => ms.contains l && fvarLeavesSubset ls ms
 
 /-- con-leche: ConLeche/Kernel/Core.lean:577-749 majorToCtor
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Core.fabScopeOk_bridge, then delete this line
 con-leche: ConLeche/Cached/CoreC.lean:531-556 majorToCtorI — the scope guard
 the three rescue branches share (cf. `annotateProjElim`): the fabricated major
 is well-scoped, closed under loose bvars, and mentions no free variable the
@@ -1760,7 +1739,6 @@ def fabScopeOk (depth : Nat) (fab major : EIdx) : AM Bool := do
   else leafGuard coreWalkFuel fab major
 
 /-- con-leche: ConLeche/Kernel/Core.lean:577-749 majorToCtor — **the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Core.majorToCtor_bridge, then delete this line
 stuck-major rescue** (`to_cnstr_when_K` and `to_cnstr_when_structure`): a
 recursor's major premise that does not whnf to a constructor application may
 still be *replaced* by one — K-flagged, η-capable, or the pinned `And`.  An
@@ -1843,10 +1821,6 @@ def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
                       if famE then do
                         if ← structEtaCertWith mode r fe depth fab major tmaj then
                           pure fab
-                        -- 0-field rescue for the pinned basis `PUnit`
-                        else if caps.etaFields = 0 then do
-                          if ← proofIrrel r fe depth fab major then pure fab
-                          else pure major
                         else pure major
                       else pure major
                     else pure major
@@ -1974,19 +1948,6 @@ def recRuleBits (fe : IFEnv) (recName : NIdx) (rl : IRecRule) : AM IRecRule := d
   let k ← recRuleKOf fe rl.ctor
   let eta ← recRuleEtaOf fe recName rl.ctor
   pure { rl with k := k, eta := eta }
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:909-921 projFnRule — **the stored
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Core.projFnRule_bridge, then delete this line
-rule of an installed projection function**: the degenerate recursor's single
-rule, with the two rescue bits stamped by `recRuleBits`. -/
-def projFnRule (fe : IFEnv) (T ctorName : NIdx) (pty : EIdx) (nP nF i : Nat)
-    (rhsA : EIdx) : AM IRecRule := do
-  let plain ← recRulePlain coreWalkFuel pty nP nP nP
-  let nm ← projFnName T i
-  recRuleBits fe nm
-    { ctor := ctorName, nfields := nF, ctorParams := nP,
-      fire := if plain then .plain else .inert,
-      rhs := rhsA, paramsBlind := false }
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:865-872 recRuleK — is a recursor
 K-flagged?  The stored bit of its single rule; pure, as con-leche's is. -/
@@ -3428,17 +3389,6 @@ def defeqBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
     Nat → EIdx → EIdx → AM Bool :=
   fun depth a b => defeqLoop mode r fe depth defeqLoopFuel true a b
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1727-1736 isPropType — check that a
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Core.isPropType_bridge, then delete this line
-(raw) type is a `Prop` by annotating it and inferring its sort. -/
-def isPropType (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (ty : EIdx) :
-    AM Bool := do
-  let ty' ← r.annotate depth ty
-  -- io grade: `ty'` is the pass's own output, already annotated
-  let s ← ensureSort r fe depth (← r.inferIO depth ty')
-  let z ← zeroLevel
-  liftFueled "level comparison" (← lvlEq? s z)
-
 /-! ## The untrusted annotation writes
 
 con-leche's `Core.lean`:2699-2893. -/
@@ -3567,7 +3517,6 @@ def annotateLams (r : CoreFnsA) (fe : IFEnv) (d : Nat) :
     else annotateLamsLeaf r fe d t k fvs stk
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1754-1842 annotateBodyI — the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Core.annotateBinder_bridge, then delete this line
 per-binder annotation clause, which con-leche's cached tier keeps as the λ
 RESIDUAL (the loop is chain-identical only on `bvar`-closed nodes; the cached
 bound decides in `O(1)`, and on both corpora this arm is entered zero times). -/
@@ -3586,7 +3535,6 @@ def annotateBinder (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (ty body : EIdx)
   if isLam then internLamE typ ab ⟨pw⟩ else internForallEE typ ab ⟨pw⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1804-1923 annotateBody — the
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Core.annotateBody_bridge, then delete this line
 annotation body: compute the codomain-sort annotations of every binder,
 bottom-up, by real inference on the opened (already annotated) body.  The
 `.letE` clause runs the official `infer_let` triple and returns the ζ
@@ -3666,13 +3614,15 @@ def annotateBody (r : CoreFnsA) (fe : IFEnv) : Nat → EIdx → AM EIdx :=
                 fail (.invalid "projection parameter mismatch")
               else internE (.proj T i e')
           | none => do
-            let p0 ← fe.findProj? T 0
-            fail (if p0.isSome then
-                CheckError.invalid "projection index out of range"
-              else .notImplemented
-                "projection on a non-structure-like type")
-        | _ => fail (.notImplemented "projection on a non-structure type")
-      else fail (.notImplemented "projection on a non-structure type")
+            -- no table entry: official's `infer_proj` verdict (`projMissError`)
+            let tbl ← projTableName T
+            let hasTable := (fe.find? tbl).isSome
+            let targs ← getAppArgs coreWalkFuel te
+            fail (projMissError fe hasTable T sn i targs.length)
+        | _ => failDanglingE
+      else
+        -- official `infer_proj`: the whnf'd type's head is no constant
+        fail (.invalid "invalid projection: not a structure-like type, or no such field")
 
 /-! ## The knot
 

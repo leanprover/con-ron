@@ -113,9 +113,6 @@ def iffIntroRaw : AM IConstantInfo := internCI ConLeche.iffIntroRaw
 def iffRecIntro : AM EIdx := internExpr ConLeche.iffRecIntro
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:229-239 iffRecRaw -/
 def iffRecRaw : AM IConstantInfo := internCI ConLeche.iffRecRaw
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:241-243 iffFamily -/
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StdAxioms.iffFamily_bridge, then delete this line
-def iffFamily : AM (List IConstantInfo) := internCIList ConLeche.iffFamily
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:241-248 propextRaw -/
 def propextRaw : AM IConstantVal := internCV ConLeche.propextRaw
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:250-252 nonemptyRaw -/
@@ -124,22 +121,16 @@ def nonemptyRaw : AM IConstantInfo := internCI ConLeche.nonemptyRaw
 def nonemptyIntroRaw : AM IConstantInfo := internCI ConLeche.nonemptyIntroRaw
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:262-274 nonemptyRecRaw -/
 def nonemptyRecRaw : AM IConstantInfo := internCI ConLeche.nonemptyRecRaw
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:280-282 nonemptyFamily -/
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StdAxioms.nonemptyFamily_bridge, then delete this line
-def nonemptyFamily : AM (List IConstantInfo) :=
-  internCIList ConLeche.nonemptyFamily
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:276-281 choiceRaw -/
 def choiceRaw : AM IConstantVal := internCV ConLeche.choiceRaw
 
-/-- con-leche: ConLeche/Kernel/BasisA.lean:29-49 _ — the annotated `Eq` pin,
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StdAxioms.eqA_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/BasisA.lean:29-44 _ — the annotated `Eq` pin,
 `ConLeche.eqA` (spliced by `#annotate_basis`, so the citation is the command's
 range), interned.  It is the comparand of every "requires the pinned `Eq`
 basis" test in the checker. -/
 def eqA : AM IConstantInfo := internCI ConLeche.eqA
 
-/-- con-leche: ConLeche/Kernel/BasisA.lean:29-49 _ — the annotated `Nat` pin,
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StdAxioms.natA_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/BasisA.lean:29-44 _ — the annotated `Nat` pin,
 `ConLeche.natA`, interned. -/
 def natA : AM IConstantInfo := internCI ConLeche.natA
 

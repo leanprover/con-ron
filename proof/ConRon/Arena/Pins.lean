@@ -28,7 +28,7 @@ raises `.internal` — a loud stop, never a quiet wrong answer.
 
 ## What is pinned
 
-The forty-nine names below and `reservedBasisNames`' nineteen, plus the three
+The forty-eight names below and `reservedBasisNames`' sixteen, plus the three
 interned values every `pin` site around them needs: the empty
 universe-argument list, the level `0` and the expression `Sort 1`
 (`Arena/Core.lean`'s `emptyLevels`, `zeroLevel` and `sortOne`, which now read
@@ -61,116 +61,113 @@ open ConLeche
 /-! ## The slots -/
 
 /-- con-leche: none — the arena's own pin table; the number of pinned names. -/
-def pinCount : Nat := 49
+def pinCount : Nat := 48
 
 /-- con-leche: none — the arena's own pin table; `eqName`'s slot. -/
 def PIN_EQ : Nat := 0
-/-- con-leche: none — the arena's own pin table; `punitName`'s slot. -/
-def PIN_PUNIT : Nat := 1
-/-- con-leche: none — the arena's own pin table; `PUnit.rec`'s slot. -/
-def PIN_PUNIT_REC : Nat := 2
 /-- con-leche: none — the arena's own pin table; `natName`'s slot. -/
-def PIN_NAT : Nat := 3
+def PIN_NAT : Nat := 1
 /-- con-leche: none — the arena's own pin table; `natZeroName`'s slot. -/
-def PIN_NAT_ZERO : Nat := 4
+def PIN_NAT_ZERO : Nat := 2
 /-- con-leche: none — the arena's own pin table; `natSuccName`'s slot. -/
-def PIN_NAT_SUCC : Nat := 5
+def PIN_NAT_SUCC : Nat := 3
 /-- con-leche: none — the arena's own pin table; `Quot.sound`'s slot. -/
-def PIN_QUOT_SOUND : Nat := 6
+def PIN_QUOT_SOUND : Nat := 4
 /-- con-leche: none — the arena's own pin table; `stringName`'s slot. -/
-def PIN_STRING : Nat := 7
+def PIN_STRING : Nat := 5
 /-- con-leche: none — the arena's own pin table; `stringOfListName`'s slot. -/
-def PIN_STRING_OF_LIST : Nat := 8
+def PIN_STRING_OF_LIST : Nat := 6
 /-- con-leche: none — the arena's own pin table; `listName`'s slot. -/
-def PIN_LIST : Nat := 9
+def PIN_LIST : Nat := 7
 /-- con-leche: none — the arena's own pin table; `listNilName`'s slot. -/
-def PIN_LIST_NIL : Nat := 10
+def PIN_LIST_NIL : Nat := 8
 /-- con-leche: none — the arena's own pin table; `listConsName`'s slot. -/
-def PIN_LIST_CONS : Nat := 11
+def PIN_LIST_CONS : Nat := 9
 /-- con-leche: none — the arena's own pin table; `charName`'s slot. -/
-def PIN_CHAR : Nat := 12
+def PIN_CHAR : Nat := 10
 /-- con-leche: none — the arena's own pin table; `andName`'s slot. -/
-def PIN_AND : Nat := 13
+def PIN_AND : Nat := 11
 /-- con-leche: none — the arena's own pin table; `charOfNatName`'s slot. -/
-def PIN_CHAR_OF_NAT : Nat := 14
+def PIN_CHAR_OF_NAT : Nat := 12
 /-- con-leche: none — the arena's own pin table; `sorryAxName`'s slot. -/
-def PIN_SORRY_AX : Nat := 15
+def PIN_SORRY_AX : Nat := 13
 /-- con-leche: none — the arena's own pin table; `Nat.pred`'s slot. -/
-def PIN_NAT_PRED : Nat := 16
+def PIN_NAT_PRED : Nat := 14
 /-- con-leche: none — the arena's own pin table; `Nat.add`'s slot. -/
-def PIN_NAT_ADD : Nat := 17
+def PIN_NAT_ADD : Nat := 15
 /-- con-leche: none — the arena's own pin table; `Nat.sub`'s slot. -/
-def PIN_NAT_SUB : Nat := 18
+def PIN_NAT_SUB : Nat := 16
 /-- con-leche: none — the arena's own pin table; `Nat.mul`'s slot. -/
-def PIN_NAT_MUL : Nat := 19
+def PIN_NAT_MUL : Nat := 17
 /-- con-leche: none — the arena's own pin table; `Nat.pow`'s slot. -/
-def PIN_NAT_POW : Nat := 20
+def PIN_NAT_POW : Nat := 18
 /-- con-leche: none — the arena's own pin table; `Nat.beq`'s slot. -/
-def PIN_NAT_BEQ : Nat := 21
+def PIN_NAT_BEQ : Nat := 19
 /-- con-leche: none — the arena's own pin table; `Nat.ble`'s slot. -/
-def PIN_NAT_BLE : Nat := 22
+def PIN_NAT_BLE : Nat := 20
 /-- con-leche: none — the arena's own pin table; `Nat.div`'s slot. -/
-def PIN_NAT_DIV : Nat := 23
+def PIN_NAT_DIV : Nat := 21
 /-- con-leche: none — the arena's own pin table; `Nat.mod`'s slot. -/
-def PIN_NAT_MOD : Nat := 24
+def PIN_NAT_MOD : Nat := 22
 /-- con-leche: none — the arena's own pin table; `Nat.gcd`'s slot. -/
-def PIN_NAT_GCD : Nat := 25
+def PIN_NAT_GCD : Nat := 23
 /-- con-leche: none — the arena's own pin table; `Nat.land`'s slot. -/
-def PIN_NAT_LAND : Nat := 26
+def PIN_NAT_LAND : Nat := 24
 /-- con-leche: none — the arena's own pin table; `Nat.lor`'s slot. -/
-def PIN_NAT_LOR : Nat := 27
+def PIN_NAT_LOR : Nat := 25
 /-- con-leche: none — the arena's own pin table; `Nat.xor`'s slot. -/
-def PIN_NAT_XOR : Nat := 28
+def PIN_NAT_XOR : Nat := 26
 /-- con-leche: none — the arena's own pin table; `Nat.shiftLeft`'s slot. -/
-def PIN_NAT_SHIFT_LEFT : Nat := 29
+def PIN_NAT_SHIFT_LEFT : Nat := 27
 /-- con-leche: none — the arena's own pin table; `Nat.shiftRight`'s slot. -/
-def PIN_NAT_SHIFT_RIGHT : Nat := 30
+def PIN_NAT_SHIFT_RIGHT : Nat := 28
 /-- con-leche: none — the arena's own pin table; `Bool`'s slot. -/
-def PIN_BOOL : Nat := 31
+def PIN_BOOL : Nat := 29
 /-- con-leche: none — the arena's own pin table; `Bool.true`'s slot. -/
-def PIN_BOOL_TRUE : Nat := 32
+def PIN_BOOL_TRUE : Nat := 30
 /-- con-leche: none — the arena's own pin table; `Bool.false`'s slot. -/
-def PIN_BOOL_FALSE : Nat := 33
+def PIN_BOOL_FALSE : Nat := 31
 /-- con-leche: none — the arena's own pin table; `propextName`'s slot. -/
-def PIN_PROPEXT : Nat := 34
+def PIN_PROPEXT : Nat := 32
 /-- con-leche: none — the arena's own pin table; `choiceName`'s slot. -/
-def PIN_CHOICE : Nat := 35
+def PIN_CHOICE : Nat := 33
 /-- con-leche: none — the arena's own pin table; `iffName`'s slot. -/
-def PIN_IFF : Nat := 36
+def PIN_IFF : Nat := 34
 /-- con-leche: none — the arena's own pin table; `iffIntroName`'s slot. -/
-def PIN_IFF_INTRO : Nat := 37
+def PIN_IFF_INTRO : Nat := 35
 /-- con-leche: none — the arena's own pin table; `iffRecName`'s slot. -/
-def PIN_IFF_REC : Nat := 38
+def PIN_IFF_REC : Nat := 36
 /-- con-leche: none — the arena's own pin table; `nonemptyName`'s slot. -/
-def PIN_NONEMPTY : Nat := 39
+def PIN_NONEMPTY : Nat := 37
 /-- con-leche: none — the arena's own pin table; `nonemptyIntroName`'s slot. -/
-def PIN_NONEMPTY_INTRO : Nat := 40
+def PIN_NONEMPTY_INTRO : Nat := 38
 /-- con-leche: none — the arena's own pin table; `nonemptyRecName`'s slot. -/
-def PIN_NONEMPTY_REC : Nat := 41
+def PIN_NONEMPTY_REC : Nat := 39
 /-- con-leche: none — the arena's own pin table; `trueName`'s slot. -/
-def PIN_TRUE : Nat := 42
+def PIN_TRUE : Nat := 40
 /-- con-leche: none — the arena's own pin table; `trueIntroName`'s slot. -/
-def PIN_TRUE_INTRO : Nat := 43
+def PIN_TRUE_INTRO : Nat := 41
 /-- con-leche: none — the arena's own pin table; `trustCompilerName`'s slot. -/
-def PIN_TRUST_COMPILER : Nat := 44
+def PIN_TRUST_COMPILER : Nat := 42
 /-- con-leche: none — the arena's own pin table; `reduceNatName`'s slot. -/
-def PIN_REDUCE_NAT : Nat := 45
+def PIN_REDUCE_NAT : Nat := 43
 /-- con-leche: none — the arena's own pin table; `reduceBoolName`'s slot. -/
-def PIN_REDUCE_BOOL : Nat := 46
+def PIN_REDUCE_BOOL : Nat := 44
 /-- con-leche: none — the arena's own pin table; `ofReduceNatName`'s slot. -/
-def PIN_OF_REDUCE_NAT : Nat := 47
+def PIN_OF_REDUCE_NAT : Nat := 45
 /-- con-leche: none — the arena's own pin table; `ofReduceBoolName`'s slot. -/
-def PIN_OF_REDUCE_BOOL : Nat := 48
+def PIN_OF_REDUCE_BOOL : Nat := 46
+/-- con-leche: none — the arena's own pin table; `quotName`'s slot (task
+#105: the positivity check's `n == quotName`). -/
+def PIN_QUOT : Nat := 47
 
 /-! ## Filling the table -/
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames —
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Pins.pinNames_bridge, then delete this line
 the pinned names, in `PIN_*` order.  This is the list `internReservedPins` interns
 and `pinAt` indexes. -/
 def pinNames : List ConLeche.Name :=
-  [ConLeche.eqName, ConLeche.punitName, ConLeche.punitName.str "rec",
-    ConLeche.natName, ConLeche.natZeroName, ConLeche.natSuccName,
+  [ConLeche.eqName, ConLeche.natName, ConLeche.natZeroName, ConLeche.natSuccName,
     ConLeche.quotName.str "sound", ConLeche.stringName,
     ConLeche.stringOfListName, ConLeche.listName, ConLeche.listNilName,
     ConLeche.listConsName, ConLeche.charName, ConLeche.andName,
@@ -191,20 +188,17 @@ def pinNames : List ConLeche.Name :=
     ConLeche.nonemptyIntroName, ConLeche.nonemptyRecName,
     ConLeche.trueName, ConLeche.trueIntroName, ConLeche.trustCompilerName,
     ConLeche.reduceNatName, ConLeche.reduceBoolName,
-    ConLeche.ofReduceNatName, ConLeche.ofReduceBoolName]
+    ConLeche.ofReduceNatName, ConLeche.ofReduceBoolName, ConLeche.quotName]
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames —
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Pins.reservedBasisNameValues_bridge, then delete this line
-the nineteen names a stream may not declare, as con-leche's values.  Its own
-list rather than nineteen slots of `names`, because its only reader wants the
-whole vector and because five of the nineteen are `rec` forms that nothing
+the sixteen names a stream may not declare, as con-leche's values.  Its own
+list rather than sixteen slots of `names`, because its only reader wants the
+whole vector and because four of the sixteen are `rec` forms that nothing
 else pins. -/
 def reservedBasisNameValues : List ConLeche.Name :=
   [ConLeche.eqName, ConLeche.eqReflName, ConLeche.eqName.str "rec",
     ConLeche.natName, ConLeche.natZeroName, ConLeche.natSuccName,
-    ConLeche.natName.str "rec", ConLeche.punitName,
-    ConLeche.punitUnitName, ConLeche.punitName.str "rec",
-    ConLeche.emptyName, ConLeche.emptyName.str "rec",
+    ConLeche.natName.str "rec", ConLeche.emptyName, ConLeche.emptyName.str "rec",
     ConLeche.falseName, ConLeche.falseName.str "rec",
     ConLeche.quotName, ConLeche.quotName.str "mk",
     ConLeche.quotName.str "lift", ConLeche.quotName.str "ind",
@@ -251,8 +245,7 @@ happens to parse as a handle. -/
   else fail (.internal "arena: reserved-name pins not interned")
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames —
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Pins.pinReserved_bridge, then delete this line
-the nineteen reserved names, off the table. -/
+the sixteen reserved names, off the table. -/
 def pinReserved : AM (List NIdx) := do
   let s ← get
   if pinsReady s then pure s.pins.reserved
@@ -276,16 +269,10 @@ def pinSortOne : AM EIdx := do
   if pinsReady s then pure s.pins.sortOne
   else fail (.internal "arena: reserved-name pins not interned")
 
-/-! ## The forty-nine named readers, one per slot -/
+/-! ## The forty-eight named readers, one per slot -/
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:18 eqName — off the table. -/
 def pinEq : AM NIdx := pinAt PIN_EQ
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean:24 punitName — off the table. -/
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Pins.pinPUnit_bridge, then delete this line
-def pinPUnit : AM NIdx := pinAt PIN_PUNIT
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean:29 punitRecName — `PUnit.rec`. -/
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Pins.pinPUnitRec_bridge, then delete this line
-def pinPUnitRec : AM NIdx := pinAt PIN_PUNIT_REC
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:24 natName — off the table. -/
 def pinNat : AM NIdx := pinAt PIN_NAT
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:27 natZeroName — off the table. -/
@@ -378,5 +365,8 @@ def pinReduceBool : AM NIdx := pinAt PIN_REDUCE_BOOL
 def pinOfReduceNat : AM NIdx := pinAt PIN_OF_REDUCE_NAT
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:71 ofReduceBoolName — off the table. -/
 def pinOfReduceBool : AM NIdx := pinAt PIN_OF_REDUCE_BOOL
+/-- con-leche: none — the arena's own pin table; `quotName`'s handle, off the
+table (task #105: the positivity check's `n == quotName`). -/
+def pinQuot : AM NIdx := pinAt PIN_QUOT
 
 end ConRon.Arena

@@ -721,8 +721,6 @@ def substConst0Pairs (n : NIdx) (r : EIdx) : List (EIdx × EIdx) → AM (List (E
 /-! ## The three value kinds' full checks -/
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:30-48 checkDefnVal
-con-leche: ConLeche/Kernel/DeclCheck.lean:838-853 checkDefnValF
--- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove DeclCheck.checkDefnVal_bridge, then delete this line
 Check a `def` declaration's value against its checked constant, returning the
 pushed index.  The reducibility hint is stored untouched: it steers only the
 lazy delta unfolding order, never a verdict. -/
