@@ -506,11 +506,6 @@ theorem LsStoreRel.tier_congr {p p' : arena.store.PersTier} {rs ls}
   ⟨h.lvl.tier_congr hf hn hl, by unfold rPersLs; rw [hf, hls]; exact h.perst, h.scrt,
     h.scratchOn⟩
 
-theorem StoreRel.tier_congr {p p' : arena.store.PersTier} {rs ls}
-    (h : StoreRel p rs ls) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n)
-    (hl : p'.l = p.l) (hls : p'.ls = p.ls) (he : p'.e = p.e) : StoreRel p' rs ls :=
-  ⟨h.lss.tier_congr hf hn hl hls, by unfold rPersE; rw [hf, he]; exact h.perst, h.scrt,
-    h.scratchOn⟩
 
 theorem NStoreInv.tier_congr {p p' : arena.store.PersTier} {rs}
     (h : NStoreInv p rs) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n) :
@@ -527,12 +522,6 @@ theorem LsStoreInv.tier_congr {p p' : arena.store.PersTier} {rs}
     (h : LsStoreInv p rs) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n)
     (hl : p'.l = p.l) (hls : p'.ls = p.ls) : LsStoreInv p' rs :=
   ⟨h.lvl.tier_congr hf hn hl, by unfold rPersLs; rw [hf, hls]; exact h.perst, h.scrt,
-    by rw [hf]; exact h.frz⟩
-
-theorem StoreInv.tier_congr {p p' : arena.store.PersTier} {rs}
-    (h : StoreInv p rs) (hf : p'.frozen = p.frozen) (hn : p'.n = p.n)
-    (hl : p'.l = p.l) (hls : p'.ls = p.ls) (he : p'.e = p.e) : StoreInv p' rs :=
-  ⟨h.lss.tier_congr hf hn hl hls, by unfold rPersE; rw [hf, he]; exact h.perst, h.scrt,
     by rw [hf]; exact h.frz⟩
 
 set_option hygiene false in

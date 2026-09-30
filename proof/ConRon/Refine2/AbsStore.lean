@@ -163,11 +163,6 @@ theorem word_tier_abs {w t : Std.U32} (h : arena.handle.word_tier w = ok t) :
   rw [← h2, ← h1]
   simp [absU32]
 
-theorem word_index_abs {w r : Std.U32} (h : arena.handle.word_index w = ok r) :
-    absU32 w % 134217728 = absU32 r := by
-  rw [arena.handle.word_index, arena.handle.IDX_CAP] at h
-  have hm := absU32_mod h
-  simpa [absU32] using hm
 
 theorem eidx_tag_abs {i : arena.handle.EIdx} {t : Std.U32}
     (h : arena.handle.EIdx.tag i = ok t) : (absEIdx i).tag = absU32 t := by
