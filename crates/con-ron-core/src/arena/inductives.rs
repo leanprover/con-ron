@@ -34,6 +34,9 @@
 //! `Arena/Inductives/Base.lean`); the merge deleted both.
 
 pub mod native_parts;
+pub mod field_tele;
+pub mod positivity;
+pub mod block_rec;
 pub mod block_parts;
 pub mod block_tail;
 pub mod struct_install;

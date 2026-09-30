@@ -935,6 +935,18 @@ pub fn ifenv_push(fe: IFEnv, ci: IConstantInfo) -> IFEnv {
     fe
 }
 
+/// con-leche: ConLeche/Kernel/Env.lean:183-188 ConstantVal
+/// Lean twin: the `Inhabited ConstantVal` default — `⟨.anonymous, [], default⟩`
+/// with the zero handles (the twin's `default : NIdx`/`EIdx`).  Only a
+/// total function's unreachable arm reads it.
+pub fn i_constant_info_dummy_val() -> IConstantVal {
+    IConstantVal {
+        name: NIdx::of_word(0),
+        level_params: Vec::new(),
+        ty: EIdx::of_word(0),
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo
 /// Lean twin: none — the `Inhabited IConstantInfo` the twin gets for free
 /// (task #97-P6-5, lever 5).  `Vec::resize` takes a filler it never reads when

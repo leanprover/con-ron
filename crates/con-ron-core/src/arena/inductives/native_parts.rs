@@ -27,6 +27,7 @@
 //! `NativeParts extends InductiveShape` is a `shape` field here, as
 //! `con_ron_core::kernel::inductives::native_parts`' is.
 
+use super::field_tele::pi_binders;
 use super::struct_parts;
 use super::sum_parts;
 use super::sum_parts::InductiveShape;
@@ -59,13 +60,6 @@ use crate::arena::store::PersTier;
 pub const M_FUEL_POS: [u32; 29] = [
     102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 114, 101, 99, 80,
     111, 115, 105, 116, 105, 118, 105, 116, 121,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `'fuel exhausted: piBinders'`, as code points.
-pub const M_FUEL_PI_BINDERS: [u32; 25] = [
-    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 112, 105, 66, 105,
-    110, 100, 101, 114, 115,
 ];
 
 // ---------------------------------------------------------------------------
@@ -480,35 +474,6 @@ pub fn all_negative(n: u64, i: u64, out: Vec<RecFieldKind>) -> Vec<RecFieldKind>
         let mut o: Vec<RecFieldKind> = out;
         o.push(RecFieldKind::Negative);
         all_negative(n, i + 1, o)
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:45-52 Expr.piBinders
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:144-155 piBinders`
-/// — all leading `∀` binders of an expression (outermost first) and the body.
-/// Lean conses on the way out; the port pushes on the way in.
-pub fn pi_binders(
-    pers: &PersTier,
-    st: &AState,
-    fuel: u64,
-    h: &EIdx,
-    out: Vec<(EIdx, BinderMeta)>,
-) -> Result<(Vec<(EIdx, BinderMeta)>, EIdx), CheckError> {
-    if fuel == 0 {
-        fail(core_types::internal(code_points(&M_FUEL_PI_BINDERS)))
-    } else {
-        if h.tag() == ETAG_FORALL_E {
-            match view_bind(pers, st, h) {
-                None => fail_dangling_e(),
-                Some((ty, b, m)) => {
-                    let mut o: Vec<(EIdx, BinderMeta)> = out;
-                    o.push((ty, m));
-                    pi_binders(pers, st, fuel - 1, &b, o)
-                },
-            }
-        } else {
-            Ok((out, h.dup2()))
-        }
     }
 }
 

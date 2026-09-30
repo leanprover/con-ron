@@ -37,7 +37,7 @@
 //!
 //! ## What is pinned
 //!
-//! The forty-seven names below and `basis_names::reserved_basis_names()`'s
+//! The forty-eight names below and `basis_names::reserved_basis_names()`'s
 //! sixteen, plus the three interned values every `pin` site around them
 //! needs: the empty universe-argument list, the level `0` and the expression
 //! `Sort 1` (`arena::core`'s `empty_levels`, `zero_level` and `sort_one`,
@@ -98,7 +98,7 @@ const M_PINS_UNSET: [u32; 38] = [
 
 /// con-leche: none — the arena's own pin table; the number of pinned names
 /// The length `intern_reserved_pins` fills and `pin_at` bounds-checks against.
-pub const PIN_COUNT: usize = 47;
+pub const PIN_COUNT: usize = 48;
 
 // `basis_names`
 /// con-leche: none — the arena's own pin table; `basis_names::eq_name()`'s slot
@@ -201,6 +201,9 @@ pub const PIN_REDUCE_BOOL: usize = 44;
 pub const PIN_OF_REDUCE_NAT: usize = 45;
 /// con-leche: none — the arena's own pin table; `ctrust::of_reduce_bool_name()`'s slot
 pub const PIN_OF_REDUCE_BOOL: usize = 46;
+/// con-leche: none — the arena's own pin table; `basis_names::quot_name()`'s slot
+/// (task #105: the positivity check's one container name, `nestCont`'s `quotName`)
+pub const PIN_QUOT: usize = 47;
 
 // ---------------------------------------------------------------------------
 // The record
@@ -257,14 +260,14 @@ impl Pins {
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3, task #97c)
-/// The forty-seven reserved names as VALUES, in `PIN_*` order.  This is the
+/// The forty-eight reserved names as VALUES, in `PIN_*` order.  This is the
 /// one place they are built, and it runs once per process.
 ///
 /// Spelled as pushes rather than a `vec![…]` literal because the extraction
 /// takes the pushes as they are; the order is the `PIN_*` constants', which
 /// `pins_table_is_in_slot_order` in this module's tests checks name by name.
 /// Lean twin: `proof/ConRon/Arena/Pins.lean:167-193 pinNames` — the same
-/// forty-seven names, in `PIN_*` order.
+/// forty-eight names, in `PIN_*` order.
 pub fn pin_names() -> Vec<Name> {
     let mut out: Vec<Name> = Vec::new();
     out.push(basis_names::eq_name());
@@ -314,6 +317,7 @@ pub fn pin_names() -> Vec<Name> {
     out.push(ctrust::reduce_bool_name());
     out.push(ctrust::of_reduce_nat_name());
     out.push(ctrust::of_reduce_bool_name());
+    out.push(basis_names::quot_name());
     out
 }
 
@@ -437,7 +441,7 @@ pub fn pin_sort_one(st: &AState) -> Result<EIdx, CheckError> {
 }
 
 // ---------------------------------------------------------------------------
-// The forty-seven named readers: one per `PIN_*` slot
+// The forty-eight named readers: one per `PIN_*` slot
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
@@ -814,6 +818,15 @@ pub fn pin_of_reduce_nat(st: &AState) -> Result<NIdx, CheckError> {
 /// same slot, read through `pinAt`.
 pub fn pin_of_reduce_bool(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_OF_REDUCE_BOOL)
+}
+
+/// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
+/// `basis_names::quot_name()`'s handle, off the record `intern_reserved_pins`
+/// filled (task #105: the positivity check's `n == quotName`).
+/// Lean twin: `proof/ConRon/Arena/Pins.lean pinQuot` — the same slot, read
+/// through `pinAt`.
+pub fn pin_quot(st: &AState) -> Result<NIdx, CheckError> {
+    pin_at(st, PIN_QUOT)
 }
 
 

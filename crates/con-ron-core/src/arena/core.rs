@@ -2413,6 +2413,95 @@ pub fn nat_div_mod_names(st: &mut AState) -> Result<Vec<NIdx>, CheckError> {
     }
 }
 
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:449-454 litGuardNames
+/// Lean twin: `proof/ConRon/Arena/Core.lean litGuardNames` — the ten names the
+/// two literal guards look up: the `Nat` guard's three and the `String`
+/// guard's seven, off the pin table (every one is pinned).
+pub fn lit_guard_names(st: &AState) -> Result<Vec<NIdx>, CheckError> {
+    match pin_nat(st) {
+        Err(e) => Err(e),
+        Ok(a) => match pin_nat_zero(st) {
+            Err(e) => Err(e),
+            Ok(b) => match pin_nat_succ(st) {
+                Err(e) => Err(e),
+                Ok(c) => match pin_string(st) {
+                    Err(e) => Err(e),
+                    Ok(d) => match pin_string_of_list(st) {
+                        Err(e) => Err(e),
+                        Ok(f) => match pin_list(st) {
+                            Err(e) => Err(e),
+                            Ok(g) => match pin_list_nil(st) {
+                                Err(e) => Err(e),
+                                Ok(h) => match pin_list_cons(st) {
+                                    Err(e) => Err(e),
+                                    Ok(i) => match pin_char(st) {
+                                        Err(e) => Err(e),
+                                        Ok(j) => match pin_char_of_nat(st) {
+                                            Err(e) => Err(e),
+                                            Ok(k) => {
+                                                let out: Vec<NIdx> = Vec::new();
+                                                let out = push_nidx(out, &a);
+                                                let out = push_nidx(out, &b);
+                                                let out = push_nidx(out, &c);
+                                                let out = push_nidx(out, &d);
+                                                let out = push_nidx(out, &f);
+                                                let out = push_nidx(out, &g);
+                                                let out = push_nidx(out, &h);
+                                                let out = push_nidx(out, &i);
+                                                let out = push_nidx(out, &j);
+                                                Ok(push_nidx(out, &k))
+                                            }
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:456-466 reservedRecName
+/// Lean twin: `proof/ConRon/Arena/Core.lean reservedRecName` — **a name no
+/// block RECURSOR may take**: one the pinned basis blocks reserve, one a
+/// literal guard looks up, or one of the certified `Nat` operations.  The
+/// cited `||` chain, each list read off the pin table (handle equality).
+pub fn reserved_rec_name(st: &mut AState, n: &NIdx) -> Result<bool, CheckError> {
+    match reserved_basis_names(st) {
+        Err(e) => Err(e),
+        Ok(rs) => {
+            if env::nidx_vec_contains(&rs, n) {
+                Ok(true)
+            } else {
+                match lit_guard_names(st) {
+                    Err(e) => Err(e),
+                    Ok(ls) => {
+                        if env::nidx_vec_contains(&ls, n) {
+                            Ok(true)
+                        } else {
+                            match nat_op_names(st) {
+                                Err(e) => Err(e),
+                                Ok(os) => {
+                                    if env::nidx_vec_contains(&os, n) {
+                                        Ok(true)
+                                    } else {
+                                        match nat_div_mod_names(st) {
+                                            Err(e) => Err(e),
+                                            Ok(ds) => Ok(env::nidx_vec_contains(&ds, n)),
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:570-580 natOpWfNames
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1061-1067 natOpWfNames` — the
 /// pin-certified WF-recursive `Nat` operations, as a *safety net*.  The twin's
