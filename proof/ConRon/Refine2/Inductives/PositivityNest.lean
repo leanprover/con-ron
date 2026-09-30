@@ -311,6 +311,20 @@ attribute [local lockstep high] pn_eidx_vec_dup_spec
     simp only [absEIdxL, absNIdxLFrom, absGrpL, hgrp, hj', List.map_append, List.map_cons,
       List.map_nil]
 
+/-- `nest_grow_group` from the first mate on. -/
+@[lockstep] theorem nest_grow_group_new_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx ctx.vis rf lf) (hi : Std.U64)
+    (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx)
+    (cs : alloc.vec.Vec arena.handle.NIdx)
+    (grp : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx)) :
+    LS pers (fun a b => b = absGrpL a)
+      (arena.inductives.positivity.nest_grow_group pers st rf ctx hi us ds cs 0#usize grp) lst
+      (nestGrowGroup lf (absNestCtx ctx) (absU hi) (absLsIdx us) (absEIdxL ds)
+        (absNIdxL cs) (absGrpL grp)) := by
+  have h := nest_grow_group_ls ctx hctx hi us ds cs 0#usize st lst grp hrel hinv
+  rwa [absNIdxLFrom_zero] at h
+
 /-! ## The member holes: `nest_holes` -/
 
 /-- `nest_holes` ⊑ `nestHoles.go` from the member cursor on. -/
@@ -665,5 +679,122 @@ theorem nest_frame_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv
         simp only [absU, absGrpL, List.length_map]; scalar_tac
       rw [← e]
       lockstep
+
+/-- `nest_keys_dup` behind a non-empty accumulator: the accumulator, then the
+copied keys (`nest_cont_new`'s `group_keys ++ active`). -/
+theorem nest_keys_dup_acc (ks : alloc.vec.Vec arena.inductives.positivity.NestKey) :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.inductives.positivity.NestKey),
+      arena.inductives.positivity.nest_keys_dup ks i out = ok o →
+      o.val = out.val ++ (ks.val.drop i.val).map id := by
+  refine vec_map_loop ks _ (arena.inductives.positivity.nest_keys_dup ks) ?_ ?_
+  · intro i out o hn h
+    rw [arena.inductives.positivity.nest_keys_dup.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len ks by scalar_tac), Result.ok.injEq] at h
+    exact h.symm
+  · intro i x out o hx h
+    rw [arena.inductives.positivity.nest_keys_dup.eq_def, if_neg (show ¬ i ≥ alloc.vec.Vec.len ks by
+      have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [nest_key_dup_spec _ _ hk1] at hout1
+    exact ⟨i2, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, h⟩
+
+/-- `nest_keys_dup` from `0` behind any accumulator (below `nest_keys_dup_spec`,
+the exact copy at `Vec::new()`). -/
+@[lockstep low] theorem nest_keys_dup_out_spec
+    (ks out : alloc.vec.Vec arena.inductives.positivity.NestKey) :
+    LSP (arena.inductives.positivity.nest_keys_dup ks 0#usize out)
+      (fun o => o.val = out.val ++ ks.val) := by
+  intro o h
+  rw [nest_keys_dup_acc ks _ out o h]
+  simp
+
+attribute [local lockstep_simp] absGrpL
+
+/-- The Rust's `kb != 0` as the twin's (`NestFieldKind.nested`'s flag). -/
+theorem pn_u64_bne_zero (x : Std.U64) : (x != 0#u64) = (x.val != 0) := by
+  by_cases h : x = 0#u64
+  · subst h; rfl
+  · have h' : x.val ≠ 0 := by intro h0; exact h (by scalar_tac)
+    rw [Bool.eq_iff_iff, bne_iff_ne, bne_iff_ne]
+    exact ⟨fun _ => h', fun _ => h⟩
+
+/-- The answer relation of `nest_cont` / `nest_cont_key` / `nest_cont_new`. -/
+abbrev RCont : arena.inductives.positivity.NestFieldKind × arena.inductives.positivity.NestState →
+    NestFieldKind × NestState → Prop :=
+  fun a b => b = (absNestFieldKind a.1, absNestState a.2)
+
+/-- `nest_cont_new` ⊑ `nestContNew` at a fuel whose `nest_pos` is related. -/
+theorem nest_cont_new_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
+    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hctx : CoreCtx ctx.vis rf lf)
+    {fuel : Std.U64} (hP : NestPosRel pers mode rf lf ctx fuel.val)
+    (prog : alloc.vec.Vec arena.inductives.positivity.NestHole) (kb : Std.U64)
+    (n : arena.handle.NIdx) (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx)
+    (n_pc : Std.U64) (cty : arena.handle.EIdx) (ns : arena.inductives.positivity.NestState) st lst
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers RCont
+      (arena.inductives.positivity.nest_cont_new pers st mode rf ctx fuel prog kb n us ds n_pc cty
+        ns) lst
+      (nestContNew (ConRon.Refine.absMode mode) lf (absNestCtx ctx) (absU fuel)
+        (prog.val.map absNestHole) (absU kb) (absNIdx n) (absLsIdx us) (absEIdxL ds) (absU n_pc)
+        (absEIdx cty) (absNestState ns)) := by
+  have hF := nest_frame_of hctx hP
+  rw [arena.inductives.positivity.nest_cont_new, nestContNew.eq_def]
+  lockstep
+  -- the frame, walked with the group in progress: the Rust's `{ ns with active }`
+  -- is the twin's rebuilt record
+  rename_i wp _ _ _ _ _ _ _ _ wl hwl hw hhw grp v hv
+  refine LS.bind (hF _ _ _ _ _ grp { ns with active := a } _ _ hrel hinv) ?_
+    (fun _ _ => by lockstep_errarm) ?_
+  · have e1 : absU hw = absU ctx.n_p + ctx.names.val.length + (wp.val.map absNestHole).length := by
+      simp only [absU, List.length_map]; scalar_tac
+    simp only [TwinEq] at hv
+    simp only [absNestState, e1, hP, List.map_append, ← hv, vec_new_val', List.map_nil,
+      List.nil_append, absGrpL, List.map_map]
+    rfl
+  · intro r b st2 lst2 hR hrel hinv
+    subst hR
+    lockstep
+    · apply LS.pure _ (by assumption) (by assumption)
+      simp only [TwinEq, absNestKeyArr, absGrpL, absEIdxL] at hP
+      show _ = _
+      simp only [absNestState, absNestFieldKind, hP, pn_u64_bne_zero]
+    · apply LS.pure _ (by assumption) (by assumption)
+      show _ = _
+      simp only [absNestState, absNestFieldKind, hc, pn_u64_bne_zero, if_false]
+
+/-- `nest_keys_contain` over the in-progress keys, the twin's `List`. -/
+theorem nest_keys_contain_list_twin (keys : alloc.vec.Vec arena.inductives.positivity.NestKey)
+    (k : arena.inductives.positivity.NestKey) :
+    LSP (arena.inductives.positivity.nest_keys_contain keys k 0#usize)
+      (fun o => TwinEq ((keys.val.map absNestKey).contains (absNestKey k)) o) := by
+  intro o h
+  have := nest_keys_contain_twin keys k o h
+  simp only [TwinEq, absNestKeyArr, List.contains_toArray] at this ⊢
+  exact this
+
+/-- `nest_cont_key` ⊑ `nestContKey` at a fuel whose `nest_pos` is related. -/
+theorem nest_cont_key_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
+    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hctx : CoreCtx ctx.vis rf lf)
+    {fuel : Std.U64} (hP : NestPosRel pers mode rf lf ctx fuel.val)
+    (prog : alloc.vec.Vec arena.inductives.positivity.NestHole) (kb : Std.U64)
+    (n : arena.handle.NIdx) (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx)
+    (n_pc : Std.U64) (cty : arena.handle.EIdx) (ns : arena.inductives.positivity.NestState) st lst
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers RCont
+      (arena.inductives.positivity.nest_cont_key pers st mode rf ctx fuel prog kb n us ds n_pc cty
+        ns) lst
+      (nestContKey (ConRon.Refine.absMode mode) lf (absNestCtx ctx) (absU fuel)
+        (prog.val.map absNestHole) (absU kb) (absNIdx n) (absLsIdx us) (absEIdxL ds) (absU n_pc)
+        (absEIdx cty) (absNestState ns)) := by
+  have hN := nest_cont_new_of hctx hP
+  rw [arena.inductives.positivity.nest_cont_key, nestContKey.eq_def]
+  lockstep
+  all_goals sorry
 
 end ConRon.Refine2
