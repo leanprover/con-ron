@@ -127,6 +127,28 @@ theorem sum_rules_ctx_aux (m : Nat) :
           (absEIdx rec_ty) (absCtorsLFrom ctors i) (absEIdxLFrom rhss i)))) :=
   sum_rules_ctx_aux _ rfl hrel hinv hctx
 
+/-- `sum_rules` from `0` into an empty accumulator IS `sumRules`. -/
+@[lockstep] theorem sum_rules_ctx_new_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {rec_name : arena.handle.NIdx} {n_p m_i r_p : Std.U64} {rec_ty : arena.handle.EIdx}
+    {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {rhss : alloc.vec.Vec arena.handle.EIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf) :
+    LS pers (fun a b => b = absIRecRuleL a)
+      (arena.inductives.sum_install.sum_rules pers vis st rf rec_name n_p m_i r_p rec_ty ctors
+        rhss 0#usize (alloc.vec.Vec.new arena.env.IRecRule)) lst
+      (sumRules lf (absNIdx rec_name) (absU n_p) (absU m_i) (absU r_p)
+          (absEIdx rec_ty) (absCtorsL ctors) (absEIdxL rhss)) := by
+  have h := sum_rules_ctx_ls (rec_name := rec_name) (n_p := n_p) (m_i := m_i) (r_p := r_p)
+    (rec_ty := rec_ty) (ctors := ctors) (rhss := rhss) (i := 0#usize)
+    (out := alloc.vec.Vec.new arena.env.IRecRule) hrel hinv hctx
+  have e : (do pure (absIRecRuleL (alloc.vec.Vec.new arena.env.IRecRule) ++
+        (← sumRules lf (absNIdx rec_name) (absU n_p) (absU m_i) (absU r_p)
+          (absEIdx rec_ty) (absCtorsLFrom ctors 0#usize) (absEIdxLFrom rhss 0#usize))) : AM _) =
+      sumRules lf (absNIdx rec_name) (absU n_p) (absU m_i) (absU r_p)
+          (absEIdx rec_ty) (absCtorsL ctors) (absEIdxL rhss) := by
+    simp [absIRecRuleL, alloc.vec.Vec.new]
+  rwa [e] at h
+
 end CtxHelpers
 
 /-! ## The member abstraction: `target_abs_go` / `target_abs_node` / `target_abs` -/
@@ -1676,5 +1698,55 @@ theorem recs_by_target_val (rs : alloc.vec.Vec arena.inductives.block_parts.RecS
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       rw [ih i2 () (absSz_add_one hi2) out o h, show i2.val = i.val + 1 from absSz_add_one hi2, hb]
       simp
+
+/-! ## The stored family: `aux_rule_fire_r`, `tgt_stored_rules`, `cons_block_recs_t`
+
+These run at the constructors' visibility bound `vis` beside a LARGER index
+`rf` (`cons_block_recs_t` pushes the recursors above `vis2`), so they are
+stated at `IFEnvRelI rf lf` with the twin reading `lf.restrictTo (absU vis)`,
+which is the twin's `fe.restrictTo vis₂`. -/
+
+/-- PROVISIONAL (sorry): `expr_ops::nested_rule_syn` ⊑ `nestedRuleSyn`
+(`Arena/CheckerBase.lean`).  No lane has it yet; its body (`nested_rule_syn_at`,
+`_guards`, `lower_list`, `lift_list`, `pins_wf`, `levels_declared(_from)`) is
+the checker tier's. -/
+theorem rc_nested_rule_syn_ls {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv}
+    {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (lps : alloc.vec.Vec arena.handle.NIdx) (ty_a : arena.handle.EIdx)
+    (m_i r_p cn_p : Std.U64) :
+    LS pers (fun a b => b = a.map fun q => (q.1.val.map absLIdx, q.2.val.map absEIdx))
+      (arena.expr_ops.nested_rule_syn pers vis st rf lps ty_a m_i r_p cn_p) lst
+      (nestedRuleSyn (lf.restrictTo (absU vis)) (lps.val.map absNIdx) (absEIdx ty_a) (absU m_i)
+        (absU r_p) (absU cn_p)) := by
+  sorry
+
+attribute [local lockstep] rc_nested_rule_syn_ls
+
+@[lockstep] theorem aux_rule_fire_r_ls {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv}
+    {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (cv : arena.env.IConstantVal) (m_i r_p n_pc : Std.U64) :
+    LS pers (fun a b => b = absIRecRuleFire a)
+      (arena.inductives.rec_check.aux_rule_fire_r pers vis st rf cv m_i r_p n_pc) lst
+      (auxRuleFireR (lf.restrictTo (absU vis)) (absIConstantVal cv) (absU m_i) (absU r_p)
+        (absU n_pc)) := by
+  rw [arena.inductives.rec_check.aux_rule_fire_r, auxRuleFireR]
+  lockstep
+
+/-- The side tier's move for a split counter: `CoreCtx vis rf (lf.restrictTo vis)`
+from `IFEnvRelI rf lf` (`IFEnvInv.coreCtxAt`). -/
+local macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (exact IFEnvInv.coreCtxAt _ (IFEnvRelI.rel ‹_›) (IFEnvRelI.inv ‹_›)))
+
+@[lockstep] theorem tgt_stored_rules_ls {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv}
+    {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (cv : arena.env.IConstantVal) (m_i r_p : Std.U64)
+    (m : arena.inductives.rec_check.TargetMajor) (rhss : alloc.vec.Vec arena.handle.EIdx) :
+    LS pers (fun a b => b = absIRecRuleL a)
+      (arena.inductives.rec_check.tgt_stored_rules pers vis st rf cv m_i r_p m rhss) lst
+      (tgtStoredRules (lf.restrictTo (absU vis)) (absIConstantVal cv) (absU m_i) (absU r_p)
+        (absTargetMajor m) (absEIdxL rhss)) := by
+  rw [arena.inductives.rec_check.tgt_stored_rules, tgtStoredRules]
+  lockstep
 
 end ConRon.Refine2
