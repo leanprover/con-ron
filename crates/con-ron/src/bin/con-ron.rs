@@ -20,10 +20,10 @@
 //! #97-P6-4a; every later `pin_*` is a field read, and a read before this has
 //! run is an `Internal` stop), the built-in prelude parses into that tier
 //! (`con_ron_core::frontend::prelude`), the stream is read 4 MiB at a time and
-//! decoded into the same tier (`con_ron_core::frontend::export_c`; mutual and
-//! nested blocks get their `_model` family generated in process by
-//! `con_ron::in_model`, which is `crates/con-ron`'s own modeller behind
-//! a readback), `con_ron_core::frontend::prepare` puts the prelude's
+//! decoded into the same tier (`con_ron_core::frontend::export_c`; every
+//! inductive block — mutual and nested included — installs through the
+//! kernel's uniform installer now, no model ever read from the input, task
+//! #105), `con_ron_core::frontend::prepare` puts the prelude's
 //! declarations in front and hoists a pinned `Nat` operation's ground, the pin
 //! list is interned ONCE while the scratch tier is still off
 //! (`checker::intern_all_pins`), and the resulting `Vec<IDeclaration>` goes to
@@ -51,7 +51,6 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 use con_ron_core::arena::checker;
-use con_ron_core::arena::env::i_declaration_names;
 use con_ron_core::arena::monad::AState;
 use con_ron_core::frontend::export_c;
 use con_ron_core::frontend::export_c::ParseResultD;
@@ -64,7 +63,6 @@ use con_ron_core::kernel::env::CheckMode;
 use con_ron::driver;
 use con_ron::driver::Heartbeat;
 use con_ron::driver::STACK_BYTES;
-use con_ron::in_model::InProcess;
 use con_ron_core::arena::store::PersTier;
 
 // The global allocator is `con-ron-dump`'s (task #35's mimalloc, declared by
@@ -78,7 +76,6 @@ use con_ron_core::arena::store::PersTier;
 // reproduced.
 
 /// con-leche: Main.lean:651-846 usage
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove con-ron::USAGE_refines, then delete this line
 /// The usage text.  DESIGN.md §3.1: message strings need not match.  It is
 /// `con-ron`'s synopsis — the same flags in the same order, because
 /// `scripts/diff-e2e.sh` passes them to whichever binary `--bin` names — with
@@ -110,11 +107,9 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
                     using only the axioms propext, Classical.choice and
                     Quot.sound.  What they still assume are hypotheses, not
                     axioms: that the driver runs the extracted stages in the
-                    order it does on the file's bytes, and that the
-                    unextracted Rust in-process modeller answers as the Lean
-                    twin's does.  They hold at every pin text, every prelude
-                    and both settings of the CON_LECHE_INMODEL* switches.
-                    OVERVIEW.md section 3.1 lists them.
+                    order it does on the file's bytes.  They hold at every pin
+                    text and every prelude.  OVERVIEW.md section 3.1 lists
+                    them.
   --trusted         the unverified mode: the SAME checker bodies at the mode
                     with the certification-only work switched off.  An accept
                     in this mode is outside the theorem.
@@ -186,31 +181,28 @@ which a shell reports as 134).  A panic is exit 3.
 
 THE VERDICT LINE'S COUNT.  It counts the FILE's accepted declaration RECORDS:
 one per def/theorem/opaque/axiom/inductive/quot record the file declares.  The
-built-in prelude's own records are not counted, and neither are the records
-the in-process modeller generates; a stream record that declares a prelude
-declaration IS counted.  That count is a property of the INPUT; the number of
-environment CONSTANTS is not.
+built-in prelude's own records are not counted; a stream record that declares
+a prelude declaration IS counted.  That count is a property of the INPUT; the
+number of environment CONSTANTS is not.
 
 THE BUILT-IN PRELUDE.  Every run installs, first and unconditionally, the
-checker's own little prelude -- the six pinned basis blocks (Eq, Nat, PUnit,
-Empty, False, Quot) and the toolchain's Bool and And blocks, embedded at build
+checker's own little prelude -- the five pinned basis blocks (Eq, Nat, Empty,
+False, Quot) and the toolchain's Bool and And blocks, embedded at build
 time -- so the pin-certified Nat operations find their ground whatever order
 the export chose.  It is parsed into the SAME store as the stream, which is
 what the persistent tier is for: the prelude's nodes and the stream's are
 hash-consed together.
 
-environment (con-leche's):
-  CON_LECHE_INMODEL=0          turn the in-process modeller off; a mutual or
-                               nested block is then pushed bare and the FOLD
-                               declines it, having found no route
-  CON_LECHE_INMODEL_CENSUS=1   report every mutual/nested block's outcome
-                               after the parse and stop (exit 2)
-  CON_LECHE_PROJREC_TRACE      name each rewritten projection function
-These are the in-process modeller's debug switches.  None of them can make a
-run accept what the default rejects or declines: INMODEL=0 makes a mutual or
-nested block decline (exit 2), CENSUS=1 stops after the parse, before any
-check (exit 2), and PROJREC_TRACE only adds output.  The proved theorems
-(--verified) cover every setting of INMODEL and CENSUS.";
+NO PREPROCESSOR, NO MODELS.  The input is a RAW lean4export stream: there is
+no external tool, no dependency and no spawn.  Every inductive block --
+structures, sums, indexed families, recursive, reflexive, mutual and nested
+blocks -- is installed by the ONE uniform installer: it checks the type
+formers and constructors, runs the positivity check, and CHECKS the stream's
+recursor records against the block; nothing is generated in their place.  No
+model is ever read from the input: a stream record whose name carries a
+`_model` component is an ordinary declaration with no effect on any block.  A
+block whose shape the installer does not recognise declines (exit 2), naming
+it.  The binary reads no environment variable.";
 
 /// con-leche: Main.lean:848-862 Args
 /// What the command line asked for — `con-ron`'s `Args`, field for field, so
@@ -298,12 +290,6 @@ fn parse_args(argv: &[String]) -> Args {
     a
 }
 
-/// con-leche: none — `IO.getEnv k == some v`, which `checkMain` writes inline
-/// at each of its environment gates.
-fn env_is(k: &str, v: &str) -> bool {
-    std::env::var(k).ok().as_deref() == Some(v)
-}
-
 /// con-leche: none — the three verdict classes of a `CheckError` as the
 /// frontend's callers report them (`con_ron`'s own `FrontendClass`).  The
 /// port's fourth constructor (`CheckError::Native`, the arena's `2^27` handle
@@ -349,10 +335,8 @@ fn frontend_exit(e: &CheckError, mode_tag: &str) -> u8 {
     }
 }
 
-/// con-leche: Main.lean:462-648 checkMain
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
+/// con-leche: Main.lean:492-649 checkMain
 /// con-leche: Main.lean:47-52 parseInput
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
 /// The driver's front matter: the prelude, the streaming parse, the
 /// preparation, the pin walk, the receipts, then the fold and the verdict.
 /// It is the Lean twin's `runPipelineIO` with the heartbeat and the receipts
@@ -403,14 +387,9 @@ fn check_main(a: &Args, file: &str) -> u8 {
             return 3;
         }
     }
-    // The in-process modeller, which the parse takes as a type parameter: the
-    // arena core is quantified over an arbitrary `Modeller`, and this is the
-    // one the binary supplies — `crates/con-ron`'s own generator behind a
-    // readback (`con_ron::in_model`).
-    let modeller = InProcess::new();
     // THE BUILT-IN PRELUDE, parsed into that store before anything else.
     // ConRon.Capstone: h2
-    let prelude_ix = match prelude::builtin_prelude_e(pers, &modeller, &mut st) {
+    let prelude_ix = match prelude::builtin_prelude_e(pers, &mut st) {
         Ok(p) => p,
         Err((e, line)) => {
             let what = match classify(&e) {
@@ -426,21 +405,17 @@ fn check_main(a: &Args, file: &str) -> u8 {
             return 3;
         }
     };
-    // ConRon.Capstone: `inModel`, `census` (h3's flags)
-    let in_model = !env_is("CON_LECHE_INMODEL", "0");
-    let census = env_is("CON_LECHE_INMODEL_CENSUS", "1");
     // Streaming frontend: the file is read 4 MiB at a time and each buffer is
     // parsed and dropped, so neither a wholesale text buffer nor a scratch
     // file exists.  What comes out is the FILE's records as HANDLES into the
-    // store above (plus the in-process modeller's).
+    // store above.  No model is ever read from the input: every inductive
+    // block — mutual and nested included — installs through the kernel's
+    // uniform installer, unconditionally (task #105).
     // ConRon.Capstone: hreads, h3 (`parse_source` over the file's handle)
     let parsed: ParseResultD = match driver::parse_export_stream_d(
         pers,
-        &modeller,
         &mut st,
         file,
-        in_model,
-        census,
         export_c::CHUNK_SIZE,
     ) {
         Err(e) => {
@@ -465,55 +440,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
         },
         Ok((Ok(r), _)) => r,
     };
-    // the in-process modeller's receipt
-    if !parsed.in_modelled.is_empty() {
-        let names: Vec<String> = parsed
-            .in_modelled
-            .iter()
-            .map(|n| driver::name_of(pers, &st.store, n))
-            .collect();
-        eprintln!(
-            "con-ron: {} inductive blocks modelled in-process: {} ({} generated \
-             records, checked by the fold as declarations and not counted as records \
-             of the file)",
-            parsed.in_modelled.len(),
-            names.join(", "),
-            parsed.gen_records
-        );
-    }
-    // the census (`CON_LECHE_INMODEL_CENSUS=1`): every mutual/nested block's
-    // outcome, then stop — the parse only, no fold.  Exit 2, never 0.
-    if census {
-        for (n, why) in parsed.in_model_declined.iter() {
-            eprintln!(
-                "con-ron: inmodel declined {}: {}",
-                driver::name_of(pers, &st.store, n),
-                con_ron::render::from_cps(why)
-            );
-        }
-        eprintln!(
-            "con-ron: inmodel census: {} modelled, {} declined ({}, parse only)",
-            parsed.in_modelled.len(),
-            parsed.in_model_declined.len(),
-            mode_tag
-        );
-        return 2;
-    }
-    // the projection-function rewrite's receipt
-    if !parsed.proj_rewrites.is_empty() {
-        eprintln!(
-            "con-ron: {} projection functions of non-direct structure-likes \
-             rewritten to recursor form",
-            parsed.proj_rewrites.len()
-        );
-        if std::env::var("CON_LECHE_PROJREC_TRACE").is_ok() {
-            for n in parsed.proj_rewrites.iter() {
-                eprintln!("con-ron:   rewritten {}", driver::name_of(pers, &st.store, n));
-            }
-        }
-    }
     let file_records = parsed.decls.len();
-    let gen_records = parsed.gen_records;
     // From here on the store is the checker's state: the memo tables and the
     // per-declaration caches join it (`AState`), and every handle the parse
     // produced indexes into it.
@@ -556,7 +483,6 @@ fn check_main(a: &Args, file: &str) -> u8 {
     hb.parse_done(
         prepared.decls.len(),
         file_records,
-        gen_records,
         prepared.synthesised,
         (
             st.store.node_count(pers),
@@ -594,33 +520,13 @@ fn check_main(a: &Args, file: &str) -> u8 {
         driver::check_decls_driver(pers, &mut st, &mode, &ipins, &prepared.decls, jobs, &mut silent)
     };
     // **The headline number is the FILE's declaration-record count**: the
-    // records the PARSE produced, which are the file's own, less the records
-    // the in-process modeller generated.  Nothing the preparation does moves
-    // it.
-    let stream_records = file_records as u64 - gen_records;
+    // records the PARSE produced, which are the file's own.  Nothing the
+    // preparation does moves it.
+    let stream_records = file_records as u64;
     match &verdict {
         Ok(_) => driver::verdict_accept(stream_records, mode_tag),
         Err((e, i)) => {
-            // A record the in-process modeller generated: the file has no
-            // position for it, so the BLOCK it models is the handle.
-            let owner = prepared.decls.get(*i as usize).and_then(|d| {
-                i_declaration_names(d).into_iter().find_map(|n| {
-                    parsed
-                        .gen_owner
-                        .get(&n)
-                        .map(|o| driver::name_of(pers, &st.store, o))
-                })
-            });
-            driver::verdict_failure(
-                pers,
-                &st.store,
-                &prepared.decls,
-                e,
-                *i,
-                owner,
-                mode_tag,
-                t0,
-            )
+            driver::verdict_failure(pers, &st.store, &prepared.decls, e, *i, mode_tag, t0)
         }
     }
 }

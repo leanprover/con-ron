@@ -36,10 +36,10 @@
 # (`_tmp/gen-pins/pins.dump`) through the unverified reader instead (task
 # #31's arrangement, kept as a test route).
 #
-# Since task #39 the IN-PROCESS MODELLER is ported, so the 23 fixtures that
-# used to be reported `INMODEL` are checked like any other; the row exists
-# only to catch a regression that reintroduces the "not ported" decline, and
-# is expected to read 0.
+# The IN-PROCESS MODELLER IS GONE (task #105, con-leche's `uniform-inds`
+# merge): every mutual and nested block installs through the kernel's
+# uniform installer now, so the `INMODEL` row task #39 kept as a regression
+# catch is retired along with the modeller it watched for.
 #
 # Nothing is expected to time out: `e2e/tower_beqpair.ndjson`, the one fixture
 # that used to (task #37's `expr::beq` finding), finishes since task #38's
@@ -185,7 +185,7 @@ log="${LOG:-$WORK/run.log}"
 printf '# binary: %s\n# mode: %s, pins: %s, --jobs=%s\n' \
   "$BIN" "$MODE" "${pinargs:-embedded}" "$jobs" >>"$log"
 
-total=0; agree=0; differ=0; inmodel=0; timedout=0; other=0
+total=0; agree=0; differ=0; timedout=0; other=0
 
 # con-leche's `tests/trusted-expected.txt` ("<exit> <suite> <fixture>")
 # overrides the certified expectation under `--trusted`.
@@ -198,13 +198,22 @@ want_for() {
   if [ -n "$line" ]; then echo "$line"; else echo "$cert"; fi
 }
 
-# Per-fixture timeouts BELOW `--timeout`, each with its reason — con-leche's
-# own `E2E_TIMEOUT` table (`tests/arena.sh`, its task #323), keyed the same way.
-# proj_stuck_struct: checks in milliseconds; a regression (a stuck
-# projection's structure argument replaced by its WHNF) is exponential in time
-# AND memory (~8 GB at 60 s), so it fails fast here instead (task #103).
+# Per-fixture timeouts, each with its reason — con-leche's own `E2E_TIMEOUT`
+# table (`tests/arena.sh`), keyed the same way.  Most entries are BELOW
+# `--timeout`; `complete_c05b_nest30_pi1000` is ABOVE the sweep's own
+# default and is capped here only when `--timeout` is raised past it.
+# proj_stuck_struct: BELOW the default, on purpose — checks in milliseconds;
+# a regression (a stuck projection's structure argument replaced by its WHNF)
+# is exponential in time AND memory (~8 GB at 60 s), so it fails fast here
+# instead (task #103).
+# complete_c05b_nest30_pi1000: thirty container descents over a 1000-binder
+# field; the uniform installer opens every auxiliary recursor's type binder
+# by binder, ~130 s on con-leche's own run (task #105's `uniform-inds`
+# merge) — con-ron's own timing may differ, but the fixture is real work,
+# not a hang, so it gets the same headroom con-leche gives it.
 declare -A E2E_TIMEOUT=(
   [proj_stuck_struct.ndjson]=10
+  [complete_c05b_nest30_pi1000.ndjson]=600
 )
 
 one() { # one <suite> <label> <stream> <expected-exit>
@@ -223,9 +232,6 @@ one() { # one <suite> <label> <stream> <expected-exit>
   elif [ "$rc" = "$want" ]; then
     agree=$((agree + 1))
     [ "$verbose" -eq 1 ] && echo "ok      $suite/$label ($rc)"
-  elif [ "$rc" = 2 ] && printf '%s' "$out" | grep -q "the in-process modeller is not ported"; then
-    inmodel=$((inmodel + 1))
-    echo "INMODEL $suite/$label: con-leche expects $want; the block needs the modeller"
   else
     differ=$((differ + 1))
     echo "DIFFER  $suite/$label: con-leche expects $want, $binname got $rc"
@@ -275,7 +281,6 @@ echo "diff-e2e ($MODE, pins ${pinargs:-embedded}, --jobs=$jobs): $total fixtures
 echo "  binary              $BIN"
 echo "  agree               $agree"
 echo "  DIFFER              $differ"
-echo "  needs the modeller  $inmodel   (task #39 ported it; expected 0)"
 echo "  timed out           $timedout"
 echo "  other errors        $other"
 echo "  $((t1 - t0))s; log: $log"

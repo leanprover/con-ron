@@ -58,6 +58,7 @@ back unless its whole module goes.
 
     census.tsv     name / module / kind / live
     deletable.txt  the deletion set: owner / module / constants folded in
+    users.tsv      each owner of the set with the owners that use it
     held.txt       dead owners held back, with the reason
     deletable-modules.txt  modules every owner of which is in the set
     unbuilt.txt    modules of proof/ConRon with no .olean (no target builds them)
@@ -377,6 +378,9 @@ def main():
                 S.discard(o); held[o] = "@[simp], module survives"; changed = True
         if not changed:
             break
+    with open(os.path.join(out, "users.tsv"), "w") as fh:
+        for o in sorted(S):
+            fh.write(f"{o}\t{' '.join(sorted(users[o]))}\n")
     with open(os.path.join(out, "deletable.txt"), "w") as fh:
         for o in sorted(S, key=lambda o: (owner_mod[o], o)):
             fh.write(f"{o}\t{owner_mod[o]}\t{len(members[o])}\n")
