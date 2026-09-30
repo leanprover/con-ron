@@ -359,4 +359,45 @@ theorem nest_holes_acc {pers} (ctx : arena.inductives.positivity.NestCtx)
   rwa [absNIdxLFrom_zero, show absEIdxL (alloc.vec.Vec.new arena.handle.EIdx) = [] from rfl,
     show (0#usize : Std.Usize).val = 0 from rfl] at h
 
+/-! ## U4: `nest_u4` -/
+
+/-- The twin's U4 test at field `i` (`nestCtors`' `anyM` lambda). -/
+abbrev nestU4At (ks : List NestFieldKind) (closed : EIdx) (i : Nat) : AM Bool :=
+  if (ks[i]?.map (· == .ordinary)).getD true then pure false
+  else structUsedLater closed 0 i
+
+/-- `nest_u4` ⊑ `nestCtors`' `(List.range nF).anyM …` from the counter on. -/
+theorem nest_u4_acc {pers} (ks : alloc.vec.Vec arena.inductives.positivity.NestFieldKind)
+    (closed : arena.handle.EIdx) (n_f : Std.U64) :
+    ∀ (i : Std.U64) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a)
+        (arena.inductives.positivity.nest_u4 pers st ks closed n_f i) lst
+        ((List.range' i.val (n_f.val - i.val)).anyM
+          (nestU4At (ks.val.map absNestFieldKind) (absEIdx closed))) := by
+  intro i st lst hrel hinv
+  refine ls_counted n_f (fun (_ : Unit) m j => (List.range' j m).anyM
+      (nestU4At (ks.val.map absNestFieldKind) (absEIdx closed)))
+    (fun st k _ => arena.inductives.positivity.nest_u4 pers st ks closed n_f k) ?_ ?_
+    i st lst () hrel hinv
+  · intro st lst k _ hn hrel hinv
+    rw [arena.inductives.positivity.nest_u4.eq_def, if_pos (by scalar_tac), List.range'_zero,
+      List.anyM_nil]
+    lockstep
+  · intro st lst k _ m hk hm hrel hinv ih
+    rw [arena.inductives.positivity.nest_u4.eq_def, if_neg (by scalar_tac), List.range'_succ,
+      List.anyM_cons]
+    lockstep
+
+/-- `nest_u4` from field `0`: `nestCtors`' U4 test. -/
+@[lockstep] theorem nest_u4_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ks : alloc.vec.Vec arena.inductives.positivity.NestFieldKind)
+    (closed : arena.handle.EIdx) (n_f : Std.U64) :
+    LS pers (fun a b => b = a)
+      (arena.inductives.positivity.nest_u4 pers st ks closed n_f 0#u64) lst
+      ((List.range (absU n_f)).anyM fun i =>
+        if ((ks.val.map absNestFieldKind)[i]?.map (· == .ordinary)).getD true then pure false
+        else structUsedLater (absEIdx closed) 0 i) := by
+  have h := nest_u4_acc ks closed n_f 0#u64 st lst hrel hinv
+  rwa [show (0#u64 : Std.U64).val = 0 from rfl, Nat.sub_zero, ← List.range_eq_range'] at h
+
 end ConRon.Refine2
