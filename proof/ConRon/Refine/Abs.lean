@@ -235,14 +235,6 @@ theorem bind_arc_deref {T β : Type} (A : Type) (x : T) (f : T → Result β) :
     (do let y ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref A x; f y) = f x := by
   rw [arc_deref_eq, bind_tc_ok]
 
-/-- `bind_arc_deref`'s twin for the `Expr` reader head: `let ev ← expr.view e;
-…` is `… (ofKind e._0.kind) …`, in one pre-order step.  Every one of the 263
-generated reader sites begins with exactly this. -/
-theorem bind_expr_view {β : Type} (e : expr.Expr)
-    (f : kernel.expr.ExprView → Result β) :
-    (do let v ← expr.view e; f v) = f (kernel.expr.ExprView.ofKind e._0.kind) := by
-  rw [expr_view_eq, bind_tc_ok]
-
 open Lean Elab Tactic Meta in
 /-- Destructure every local hypothesis whose type is syntactically a pair: the
 `let (n, n1) := val` a Rust `Some((n, n1))` pattern produces is a
@@ -307,16 +299,6 @@ theorem usize_sub_ok {i : Std.Usize} (h : 1 ≤ i.val) :
   obtain ⟨w, h1, h2⟩ :=
     WP.spec_imp_exists (Std.Usize.sub_spec (x := i) (y := 1#usize) (by scalar_tac))
   exact ⟨w, h1, by scalar_tac⟩
-
-/-- The list a downward index recursion peels: `l.take (i+1)` read back to
-front is `l[i]` followed by `l.take i` read back to front.  This is the shape
-every lemma about `Env.consts` needs, because the port stores that list
-reversed (`absEnv`) and scans it from the back. -/
-theorem list_take_reverse_cons {α : Type} {l : List α} {i : Nat}
-    (h : i < l.length) :
-    (l.take (i + 1)).reverse = l[i] :: (l.take i).reverse := by
-  rw [List.take_add_one, List.getElem?_eq_getElem h]
-  simp
 
 /-- Pushing onto the empty vector — the port's spelling of a one-element list
 (`name::singleton`, `level::singleton`, `prop_when::to_list`'s `Two` arm). -/
@@ -676,19 +658,6 @@ and the node layer of the port's three-type mutual inductive. -/
     (fun a b ha hb h => imax h a b ha hb) (fun n h => param h n)
     (fun h _k hk => hk h) (fun _ hnd => hnd) u
 
-/-- Structural induction on the port's `Name` tree. -/
-@[elab_as_elim] theorem Name.ind' {motive : name.Name → Prop}
-    (anonymous : ∀ h, motive (.mk (.mk h .Anonymous)))
-    (str : ∀ h pre s, motive pre → motive (.mk (.mk h (.Str pre s))))
-    (num : ∀ h pre m, motive pre → motive (.mk (.mk h (.Num pre m)))) :
-    ∀ n, motive n :=
-  fun n => name.Name.rec
-    (motive_1 := fun k => ∀ h, motive (.mk (.mk h k)))
-    (motive_2 := fun nd => motive (.mk nd))
-    (motive_3 := motive)
-    anonymous (fun p s hp h => str h p s hp) (fun p m hp h => num h p m hp)
-    (fun h _k hk => hk h) (fun _ hnd => hnd) n
-
 /-! ## The environment records (task #46)
 
 `kernel::env`'s seven stored-constant records, its two little enums and the
@@ -734,10 +703,6 @@ def absRecRule (r : env.RecRule) : ConLeche.RecRule where
   eta := r.eta
   paramsBlind := r.params_blind
 
-/-- A `Vec<RecRule>` as the Lean's `List RecRule` (`recInfo`'s `rules`). -/
-def absRecRules (rs : alloc.vec.Vec env.RecRule) : List ConLeche.RecRule :=
-  rs.val.map absRecRule
-
 /-- `ConLeche/Kernel/Env.lean:362` — `IndCaps`. -/
 def absIndCaps (c : env.IndCaps) : ConLeche.IndCaps where
   eta := c.eta
@@ -763,20 +728,6 @@ def absProjTable (t : env.ProjTable) : ConLeche.ProjTable where
   guards := absLevels t.guards
   off := t.off.val
 
-/-- `ConLeche/Kernel/Env.lean:447` — `ProjEntry`, the per-field view of a
-table (what `env::find_proj` and `fenv::find_proj` return). -/
-def absProjEntry (e : env.ProjEntry) : ConLeche.ProjEntry where
-  structName := absName e.struct_name
-  idx := e.idx.val
-  levelParams := absNames e.level_params
-  numParams := e.num_params.val
-  ctor := absName e.ctor
-  numFields := e.num_fields.val
-  body := absExpr e.body
-  fieldSort := absLevel e.field_sort
-  structSort := absLevel e.struct_sort
-  off := e.off.val
-
 /-- `ConLeche/Kernel/Env.lean:471` — `ConstantInfo`. -/
 def absConstantInfo : env.ConstantInfo → ConLeche.ConstantInfo
   | .AxiomInfo cv => .axiomInfo (absConstantVal cv)
@@ -793,14 +744,6 @@ of `Env.consts`' `Vec<P<ConstantInfo>>`: `P` is the identity in the model. -/
 def absConstantInfos (cs : alloc.vec.Vec env.ConstantInfo) :
     List ConLeche.ConstantInfo :=
   cs.val.map absConstantInfo
-
-/-- `ConLeche/Kernel/Env.lean:627` — `Env`.  A *function*, not a relation:
-`Env.consts` is a list on both sides — but the port stores it **reversed**,
-oldest first (`env.rs`'s `Env` deviation, task #50: a push at the back is
-`Vec::push`, so no function of the port calls `Vec::insert`, whose Aeneas model
-is an overwrite).  So the abstraction reverses it back, and every statement
-about the environment reads the same as it did when the orders agreed. -/
-def absEnv (e : env.Env) : ConLeche.Env := ⟨(absConstantInfos e.consts).reverse⟩
 
 /-- `ConLeche/Kernel/Env.lean:69` — `CheckMode`. -/
 def absMode : env.CheckMode → ConLeche.CheckMode
@@ -884,11 +827,6 @@ def ProjTableWF (t : env.ProjTable) : Prop :=
   NameWF t.struct_name ∧ NamesWF t.level_params ∧ NameWF t.ctor ∧
   LevelWF t.struct_sort ∧ ExprsWF t.bodies ∧ LevelsWF t.guards
 
-/-- `ProjEntry`: the per-field view's own fields. -/
-def ProjEntryWF (e : env.ProjEntry) : Prop :=
-  NameWF e.struct_name ∧ NamesWF e.level_params ∧ NameWF e.ctor ∧
-  ExprWF e.body ∧ LevelWF e.field_sort ∧ LevelWF e.struct_sort
-
 /-- `ConstantInfo`: the hereditary invariant of a stored constant, one clause
 per constructor in the cited field order. -/
 def ConstantInfoWF : env.ConstantInfo → Prop
@@ -904,11 +842,6 @@ def ConstantInfoWF : env.ConstantInfo → Prop
 model — all of whose entries are well formed. -/
 def ConstantInfosWF (cs : alloc.vec.Vec env.ConstantInfo) : Prop :=
   ∀ c ∈ cs.val, ConstantInfoWF c
-
-/-- `Env`: every stored constant is well formed.  This is the invariant the
-checker's fold maintains (`fenv::push` extends it by one constant) and what
-every lookup hands its caller. -/
-def EnvWF (e : env.Env) : Prop := ConstantInfosWF e.consts
 
 /-- `Declaration`: the hereditary invariant of a presented declaration. -/
 def DeclarationWF : env.Declaration → Prop
@@ -991,16 +924,6 @@ def RunErr {ε β : Type} (x : Except ε β) (P : ε → Prop) : Prop :=
 @[simp] theorem RunErr_ok {ε β : Type} (v : β) (P : ε → Prop) :
     RunErr (ε := ε) (.ok v) P ↔ False := Iff.rfl
 
-/-- The con-leche monad plumbing as **unconditional** equations, which is what
-`grind` needs: a conditional rewrite whose right-hand side has variables
-outside its pattern (`x.run lst = ok (a, lst') → (x >>= f).run lst = …`) never
-fires. -/
-theorem except_bind_ok {ε α β : Type} (a : α) (f : α → Except ε β) :
-    (Except.ok a >>= f) = f a := rfl
-
-theorem except_bind_error {ε α β : Type} (e : ε) (f : α → Except ε β) :
-    (Except.error e >>= f : Except ε β) = Except.error e := rfl
-
 /-! ## Errors: the kind, which is what a refinement lemma compares
 
 DESIGN.md §3's ruling of 2026-09-13 (task #67): every refinement lemma is
@@ -1024,12 +947,6 @@ inductive ErrKind where
   | internal
   deriving DecidableEq, Repr
 
-/-- con-leche's error, as its kind. -/
-def lErrKind : ConLeche.CheckError → ErrKind
-  | .notImplemented _ => .notImplemented
-  | .invalid _ => .invalid
-  | .internal _ => .internal
-
 /-- **The port's error, as the con-leche kind it stands for.**  The three
 mirrored constructors are the cited ones; `Native` is the port's own decline
 and abstracts to *nothing*, which is how "claims nothing about this run" is
@@ -1045,122 +962,5 @@ def absErrKind : kernel.core_types.CheckError → Option ErrKind
 @[simp] theorem absErrKind_invalid (m) : absErrKind (.Invalid m) = some .invalid := rfl
 @[simp] theorem absErrKind_internal (m) : absErrKind (.Internal m) = some .internal := rfl
 @[simp] theorem absErrKind_native (m) : absErrKind (.Native m) = none := rfl
-
-/-- **What a Rust error claims about con-leche's outcome**: that con-leche
-throws too, at the same kind.  A `Native` error claims nothing, because
-`absErrKind` sends it to `none` and the hypothesis is then unsatisfiable —
-so the two halves of the ruling are one definition, and a lemma about a
-`Native` site is discharged by `ErrSim.native` without ever naming the
-con-leche side.
-
-It is stated over the *`Except`* the con-leche side ends in, so that the same
-notion serves the pure tier (`CheckM β = Except CheckError β`), the cached
-tier (`(g : CheckCM β).run lst : Except CheckError (β × CState)`) and
-everything in between. -/
-def ErrSim {γ : Type} (e : kernel.core_types.CheckError)
-    (x : Except ConLeche.CheckError γ) : Prop :=
-  ∀ k, absErrKind e = some k → ∃ le, x = .error le ∧ lErrKind le = k
-
-/-- The port's own failure claims nothing. -/
-theorem ErrSim.native {γ : Type} {x : Except ConLeche.CheckError γ} (m) :
-    ErrSim (.Native m) x := by
-  intro k hk; simp at hk
-
-/-- The mirrored case: con-leche throws, at the kind the port's error
-abstracts to. -/
-theorem ErrSim.mk {γ : Type} {e : kernel.core_types.CheckError}
-    {x : Except ConLeche.CheckError γ} {le : ConLeche.CheckError}
-    (hx : x = .error le) (hk : absErrKind e = some (lErrKind le)) :
-    ErrSim e x := by
-  intro k hk'; exact ⟨le, hx, by rw [hk] at hk'; exact Option.some_injective _ hk'⟩
-
-theorem ErrSim.notImplemented {γ : Type} {x : Except ConLeche.CheckError γ} {m s}
-    (hx : x = .error (.notImplemented s)) : ErrSim (.NotImplemented m) x :=
-  ErrSim.mk hx rfl
-
-theorem ErrSim.invalid {γ : Type} {x : Except ConLeche.CheckError γ} {m s}
-    (hx : x = .error (.invalid s)) : ErrSim (.Invalid m) x :=
-  ErrSim.mk hx rfl
-
-theorem ErrSim.internal {γ : Type} {x : Except ConLeche.CheckError γ} {m s}
-    (hx : x = .error (.internal s)) : ErrSim (.Internal m) x :=
-  ErrSim.mk hx rfl
-
-/-- **Error propagation through a bind**, the move every arm makes: a
-sub-computation that threw makes the whole throw, on both sides.  This is
-what keeps the error half of a full-outcome proof to a line per bind. -/
-theorem ErrSim.bind {γ δ : Type} {e : kernel.core_types.CheckError}
-    {x : Except ConLeche.CheckError γ} (h : ErrSim e x)
-    (f : γ → Except ConLeche.CheckError δ) : ErrSim e (x >>= f) := by
-  intro k hk
-  obtain ⟨le, hx, hle⟩ := h k hk
-  exact ⟨le, by rw [hx]; rfl, hle⟩
-
-/-- The same, for a con-leche action's `run` in the state monad: `x` is the
-sub-action's run, `f` what the rest of the `do` block does with its value and
-state. -/
-theorem ErrSim.bind_run {γ δ σ : Type} {e : kernel.core_types.CheckError}
-    {x : Except ConLeche.CheckError (γ × σ)} (h : ErrSim e x)
-    (f : γ × σ → Except ConLeche.CheckError δ) : ErrSim e (x >>= f) :=
-  h.bind f
-
-/-- A failure the con-leche side has no counterpart for claims nothing.  This
-is the form the leaves use: a Rust-only guard inside a *total* con-leche
-function (`natOpResult` answers an `Option`, it does not throw) is discharged
-by showing the error is `Native`, with no con-leche side named at all. -/
-theorem ErrSim.of_none {γ : Type} {e : kernel.core_types.CheckError}
-    {x : Except ConLeche.CheckError γ} (h : absErrKind e = none) : ErrSim e x := by
-  intro k hk; rw [h] at hk; simp at hk
-
-/-- `ErrSim` in `RunErr` form: the introduction rule a `grind` proof of a
-failure half wants, since `ErrSim` itself ends in an existential
-(`AUTOMATION.md`). -/
-theorem ErrSim.ofRunErr {γ : Type} {e : kernel.core_types.CheckError}
-    {x : Except ConLeche.CheckError γ}
-    (h : ∀ k, absErrKind e = some k → RunErr x (fun le => lErrKind le = k)) :
-    ErrSim e x := by
-  intro k hk
-  have hx := h k hk
-  revert hx
-  cases hxx : x with
-  | ok v => intro hx; exact hx.elim
-  | error le => intro hx; exact ⟨le, rfl, hx⟩
-
-/-- **The full outcome, in the pure tier.**  `CheckM β = Except CheckError β`:
-a Rust `Ok` is con-leche's `ok` at the abstracted value, a Rust `Err` is
-`ErrSim`.  The cached tier's twin, which also relates the two states, is
-`Refine/State.lean`'s `Out`. -/
-def OutP {α β : Type} (A : α → β) (WF : α → Prop)
-    (o : core.result.Result α kernel.core_types.CheckError)
-    (x : Except ConLeche.CheckError β) : Prop :=
-  match o with
-  | .Ok r => x = .ok (A r) ∧ WF r
-  | .Err e => ErrSim e x
-
-theorem OutP.ok {α β : Type} {A : α → β} {WF : α → Prop} {r : α}
-    {x : Except ConLeche.CheckError β} (hx : x = .ok (A r)) (hwf : WF r) :
-    OutP A WF (.Ok r) x := ⟨hx, hwf⟩
-
-theorem OutP.err {α β : Type} {A : α → β} {WF : α → Prop}
-    {e : kernel.core_types.CheckError} {x : Except ConLeche.CheckError β}
-    (h : ErrSim e x) : OutP A WF (.Err e) x := h
-
-/-- **`ErrSim` transported forward**: whatever con-leche throws at `x`, it
-throws at `y` too.  This is the wrapper/caller move — a memo wrapper throws
-exactly what its body threw, a `do` block throws exactly what its first
-failing step threw — where `ErrSim.bind` is the special case in which `y` is
-literally `x >>= f`. -/
-theorem ErrSim.trans {γ δ : Type} {e : kernel.core_types.CheckError}
-    {x : Except ConLeche.CheckError γ} {y : Except ConLeche.CheckError δ}
-    (h : ErrSim e x) (hxy : ∀ le, x = .error le → y = .error le) : ErrSim e y := by
-  intro k hk
-  obtain ⟨le, hx, hk'⟩ := h k hk
-  exact ⟨le, hxy le hx, hk'⟩
-
-/-- `ErrSim` transported along an equation on the con-leche side, which is how
-a lemma proved against an unfolded body is used against the folded one. -/
-theorem ErrSim.of_eq {γ : Type} {e : kernel.core_types.CheckError}
-    {x y : Except ConLeche.CheckError γ} (h : ErrSim e x) (hxy : y = x) :
-    ErrSim e y := by rw [hxy]; exact h
 
 end ConRon.Refine
