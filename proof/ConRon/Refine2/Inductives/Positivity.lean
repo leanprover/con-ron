@@ -573,4 +573,140 @@ attribute [local lockstep_simp] fuel_slack_val
   rw [arena.inductives.positivity.whnf_walk_fuel, whnfWalkFuel]
   lockstep
 
+/-! ## The record copies (identities) -/
+
+/-- The tier's copy loops, once: `F` pushes a copy of `xs[i]` (a `dup` that
+is the identity) and recurses. -/
+theorem vec_copy_id {α : Type} (xs : alloc.vec.Vec α)
+    (F : Std.Usize → alloc.vec.Vec α → Result (alloc.vec.Vec α))
+    (hstop : ∀ (i : Std.Usize) (out o : alloc.vec.Vec α),
+      xs.val.length ≤ i.val → F i out = ok o → o.val = out.val)
+    (hstep : ∀ (i : Std.Usize) (x : α) (out o : alloc.vec.Vec α),
+      xs.val[i.val]? = some x → F i out = ok o →
+      ∃ (j : Std.Usize) (out1 : alloc.vec.Vec α),
+        j.val = i.val + 1 ∧ out1.val = out.val ++ [x] ∧ F j out1 = ok o) :
+    ∀ (o : alloc.vec.Vec α), F 0#usize (alloc.vec.Vec.new α) = ok o → o = xs := by
+  intro o h
+  have := vec_cursor_copy xs id id F hstop
+    (fun i x out o hx h => by
+      obtain ⟨j, out1, hj, ho, hF⟩ := hstep i x out o hx h
+      exact ⟨j, x, out1, hj, ho, rfl, hF⟩) 0#usize _ o h
+  apply alloc.vec.Vec.ext
+  simpa [alloc.vec.Vec.new] using this
+
+@[lockstep] theorem nest_key_dup_spec (k : arena.inductives.positivity.NestKey) :
+    LSP (arena.inductives.positivity.nest_key_dup k) (fun o => o = k) := by
+  intro o h
+  rw [arena.inductives.positivity.nest_key_dup] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  rw [dupId_nidx _ _ hn, dupId_lsidx _ _ hl, alloc.vec.Vec.ext _ _ (eidx_vec_dup_val hv)]
+
+@[lockstep] theorem nest_hole_dup_spec (h : arena.inductives.positivity.NestHole) :
+    LSP (arena.inductives.positivity.nest_hole_dup h) (fun o => o = h) := by
+  intro o hh
+  rw [arena.inductives.positivity.nest_hole_dup] at hh
+  obtain ⟨k, hk, hh⟩ := ConRon.Refine.bind_eq_ok_iff.mp hh
+  cases Result.ok_injective hh
+  rw [nest_key_dup_spec _ _ hk]
+
+@[lockstep] theorem nest_ctor_nf_dup_spec (e : arena.inductives.positivity.NestCtorNf) :
+    LSP (arena.inductives.positivity.nest_ctor_nf_dup e) (fun o => o = e) := by
+  intro o h
+  rw [arena.inductives.positivity.nest_ctor_nf_dup] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  rw [dupId_nidx _ _ hn, dupId_lsidx _ _ hl, alloc.vec.Vec.ext _ _ (eidx_vec_dup_val hv),
+    dupId_eidx _ _ ht]
+
+@[lockstep] theorem nest_field_kind_dup_spec (k : arena.inductives.positivity.NestFieldKind) :
+    LSP (arena.inductives.positivity.nest_field_kind_dup k) (fun o => o = k) := by
+  intro o h
+  cases k <;> simp only [arena.inductives.positivity.nest_field_kind_dup,
+    Result.ok.injEq] at h <;> exact h.symm
+
+/-- A copy loop whose element copy is the identity. -/
+private theorem copy_loop_id {α : Type} (dup : α → Result α) (hd : ∀ x y, dup x = ok y → y = x)
+    (xs : alloc.vec.Vec α) (F : Std.Usize → alloc.vec.Vec α → Result (alloc.vec.Vec α))
+    (heq : ∀ i out, F i out = (if i ≥ alloc.vec.Vec.len xs then ok out else do
+      let x ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) xs i
+      let y ← dup x
+      let out1 ← alloc.vec.Vec.push out y
+      let i2 ← i + 1#usize
+      F i2 out1)) :
+    ∀ (o : alloc.vec.Vec α), F 0#usize (alloc.vec.Vec.new α) = ok o → o = xs := by
+  refine vec_copy_id xs F ?_ ?_
+  · intro i out o hn h
+    rw [heq, if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [heq, if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by
+      have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [hd _ _ hy] at hout1
+    exact ⟨i2, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, h⟩
+
+@[lockstep] theorem nest_holes_dup_spec (hs : alloc.vec.Vec arena.inductives.positivity.NestHole) :
+    LSP (arena.inductives.positivity.nest_holes_dup hs 0#usize
+      (alloc.vec.Vec.new arena.inductives.positivity.NestHole)) (fun o => o = hs) :=
+  copy_loop_id _ (fun x y h => nest_hole_dup_spec x y h) hs
+    (arena.inductives.positivity.nest_holes_dup hs)
+    (fun i out => by rw [arena.inductives.positivity.nest_holes_dup.eq_def])
+
+@[lockstep] theorem nest_keys_dup_spec (ks : alloc.vec.Vec arena.inductives.positivity.NestKey) :
+    LSP (arena.inductives.positivity.nest_keys_dup ks 0#usize
+      (alloc.vec.Vec.new arena.inductives.positivity.NestKey)) (fun o => o = ks) :=
+  copy_loop_id _ (fun x y h => nest_key_dup_spec x y h) ks
+    (arena.inductives.positivity.nest_keys_dup ks)
+    (fun i out => by rw [arena.inductives.positivity.nest_keys_dup.eq_def])
+
+@[lockstep] theorem nest_ctor_nfs_dup_spec
+    (es : alloc.vec.Vec arena.inductives.positivity.NestCtorNf) :
+    LSP (arena.inductives.positivity.nest_ctor_nfs_dup es 0#usize
+      (alloc.vec.Vec.new arena.inductives.positivity.NestCtorNf)) (fun o => o = es) :=
+  copy_loop_id _ (fun x y h => nest_ctor_nf_dup_spec x y h) es
+    (arena.inductives.positivity.nest_ctor_nfs_dup es)
+    (fun i out => by rw [arena.inductives.positivity.nest_ctor_nfs_dup.eq_def])
+
+@[lockstep] theorem u64_vec_dup_spec (xs : alloc.vec.Vec Std.U64) :
+    LSP (arena.inductives.positivity.u64_vec_dup xs 0#usize (alloc.vec.Vec.new Std.U64))
+      (fun o => o = xs) :=
+  copy_loop_id (fun x => ok x) (fun x y h => (Result.ok_injective h).symm) xs
+    (arena.inductives.positivity.u64_vec_dup xs)
+    (fun i out => by rw [arena.inductives.positivity.u64_vec_dup.eq_def]; simp only [bind_tc_ok])
+
+@[lockstep] theorem nest_ctx_dup_spec (c : arena.inductives.positivity.NestCtx) :
+    LSP (arena.inductives.positivity.nest_ctx_dup c) (fun o => o = c) := by
+  intro o h
+  rw [arena.inductives.positivity.nest_ctx_dup] at h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v2, hv2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v3, hv3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨li, hli, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  rw [alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv), alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv1),
+    u64_vec_dup_spec _ _ hv2, alloc.vec.Vec.ext _ _ (eidx_vec_dup_val hv3), dupId_lidx _ _ hl,
+    dupId_lsidx _ _ hli]
+
+@[lockstep] theorem nest_state_empty_spec :
+    LSP arena.inductives.positivity.nest_state_empty
+      (fun o => TwinEq ({} : NestState) (absNestState o)) := by
+  intro o h
+  rw [arena.inductives.positivity.nest_state_empty] at h
+  cases Result.ok_injective h
+  simp [TwinEq, absNestState, alloc.vec.Vec.new]
+
 end ConRon.Refine2
