@@ -152,6 +152,16 @@ theorem PSpecP.toCSpec {α : Type} {P : EStore → Prop} {c : AM α}
   obtain ⟨hstep, hr⟩ := h s₀ s' r hok.state hok.pins hp hrun
   exact ⟨hstep.toCore hok, hr⟩
 
+/-- con-leche: ConLeche/Verify/Cached/BlockRunC.lean:335 SimG — **the core
+grade against a monad-generic con-leche function** (task #105): the twin's
+answer is related by `R` to SOME value the pure side, run at the monotone
+fueled operations `fueledOpsM μ`, produces at some fuel (`FOk`,
+`Bridge/Inductives/Records.lean`).  Composing two such runs needs no
+monotonicity lemma of the composed functions: `FOk.bind` takes the maximum. -/
+def CSpecF (μ : CheckMode) (env : Env) (fe : IFEnv) {α β : Type}
+    (P : EStore → Prop) (c : AM α) (R : EStore → α → β → Prop) (p : FueledM β) : Prop :=
+  CSpec μ env fe P c (fun st r => ∃ v, R st r v ∧ FOk p v)
+
 /-! ## The install frame (task #97-P3-Ind round 8, ruling 2 on finding R7.4)
 
 A run that SWITCHES the environment index part-way — pushes a constant and
