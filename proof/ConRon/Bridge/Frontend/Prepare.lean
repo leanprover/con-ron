@@ -511,8 +511,6 @@ theorem frontOf_run :
         rw [ConLeche.Frontend.frontOf]
         exact ⟨hstep1.trans hstep2, hpf, hpr, hnf, hnr, hclf, hclr⟩
 
-/-! ## The ground hoist -/
-
 /-! ### The used-constant walk's memo, and why THIS one is gray
 
 `usedConstsGo` (`Arena/Frontend/NatOpGround.lean:52-71`) inserts the node into
@@ -2232,27 +2230,5 @@ theorem preparePrelude_run {s s' : AState} (hok : StateOK s)
   · rw [hdecls]; exact hno
   · rw [hdecls, hclo, ConLeche.Frontend.preparePrelude,
       ConLeche.Frontend.prepareD]
-
-/-- con-leche: ConLeche/Verify/Frontend/Prepare.lean:174 mem_preparePrelude —
-**the preparation keeps every record**, over handles: the corollary the
-capstone consumes, transported through the denotation.
-
-Proved from `preparePrelude_run` and con-leche's own `mem_preparePrelude`, so
-the permutation argument is never re-run on this side — which is the point of
-stating the pass as a denotation equation rather than as a permutation. -/
-theorem mem_preparePrelude_denote {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {pre : PreludeIx}
-    {preC : ConLeche.Frontend.PreludeIx} (hpre : PreludeIxRel s.store pre preC)
-    (hprep : PersPreludeIx pre) (hnpre : DeclsProjNamed s.store pre.decls)
-    {ds : Array IDeclaration}
-    {dsP : Array Declaration} (hds : denoteDeclArray s.store ds = some dsP)
-    (hpds : PersDecls ds) (hnds : DeclsProjNamed s.store ds)
-    {out : Array IDeclaration}
-    (hrun : preparePrelude pre ds s = .ok (out, s'))
-    {d : Declaration} (hmem : d ∈ dsP) :
-    ∃ outP, denoteDeclArray s'.store out = some outP ∧ d ∈ outP := by
-  obtain ⟨-, -, -, hout⟩ :=
-    preparePrelude_run hok hoff hpins hpre hprep hnpre hds hpds hnds hrun
-  exact ⟨_, hout, ConLeche.Frontend.mem_preparePrelude hmem⟩
 
 end ConRon.Bridge.Frontend

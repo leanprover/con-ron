@@ -75,7 +75,6 @@ namespace ConRon.Bridge.Frontend
 
 #print axioms OptRel.isSome
 #print axioms OptRel.some_left
-#print axioms OptRel.some_right
 #print axioms OptRel.none_left
 #print axioms IdTableRel.bound
 #print axioms IdTableRel.singleton
@@ -133,7 +132,6 @@ an `intern`, which is what the streaming fold's induction rests on. -/
 #print axioms MIndRecRecRel.ext
 #print axioms BlockRecRel.ext
 #print axioms StateDRel.ext
-#print axioms ParseResultRel.ext
 
 /-! ## The parse's frame -/
 
@@ -177,20 +175,10 @@ Item 1 in full: the ten-arm fuel induction both ways (`denoteEGo_spec_le` and
 #print axioms DMemoOK.insert
 #print axioms EMemoOK.empty
 #print axioms denoteEGo_spec
-#print axioms denoteEListGo_spec
-#print axioms denoteCVGo_spec
-#print axioms denoteFireGo_spec
-#print axioms denoteRuleGo_spec
-#print axioms denoteRulesGo_spec
-#print axioms denoteProjTableGo_spec
-#print axioms denoteCIGo_spec
-#print axioms denoteCIListGo_spec
 #print axioms denoteEShared_eq
 #print axioms denoteEGo_isSome
 #print axioms denoteEShared_isSome
 #print axioms denoteEShared_eq_denoteE
-#print axioms readExpr_run
-#print axioms readCIList_run
 #print axioms denoteBlockRec_eq_of_rel
 #print axioms nameHandle?_sound
 #print axioms nameHandle?_isSome
@@ -213,34 +201,14 @@ between this tier and them was an import line. -/
 
 #print axioms EMemoOK.mono
 #print axioms EMemoOK.insert
-#print axioms IStep.refl
 #print axioms IStep.trans
 #print axioms IStep.toParse
 #print axioms EStore.scratchOn_intern
-#print axioms AM.set_state_ok
 #print axioms internE_scratchOn
 #print axioms internE_istep
 #print axioms internName_istep
-#print axioms internLevel_istep
-#print axioms internLevels_istep
-#print axioms internNameList_istep
-#print axioms internLevelList_istep
-#print axioms internExprGo_istep
-#print axioms internExprList_istep
-#print axioms internExpr_run
 #print axioms internNNode_istep
-#print axioms projTableName_istep
-#print axioms internCV_istep
-#print axioms internFire_istep
-#print axioms internRule_istep
-#print axioms internRules_istep
-#print axioms internCaps_istep
-#print axioms internProjTable_istep
-#print axioms internCI_istep
-#print axioms internCIList_istep
-#print axioms internDecl_istep
 #print axioms internDecls_istep
-#print axioms internDecls_run
 
 /-! ## The seam (round 3) — CLOSED
 
@@ -325,7 +293,6 @@ real work, ten constructors — `parseExprEntryD_run`. -/
 /-! ## The line's sum -/
 
 #print axioms SumRel.inl_left
-#print axioms SumRel.inr_left
 #print axioms SumRel.of_state
 
 /-! ## The streaming fold's escape hatch -/
@@ -362,7 +329,6 @@ state relation (the two `do` elaborators build different loop states), and
 the `induct`/`T.rec` comparisons. -/
 
 #print axioms except_ok_bind
-#print axioms except_bind_of
 #print axioms except_bind_ex
 #print axioms ListRel.refl_eq
 #print axioms readName_bind
@@ -382,7 +348,6 @@ the `induct`/`T.rec` comparisons. -/
 #print axioms VInv.inv
 #print axioms VInv.res
 #print axioms validateIndD_run'
-#print axioms validateIndD_run
 
 /-! ## Round seven, continued — the install half, the line, the hoist, CLOSED
 
@@ -522,7 +487,6 @@ what rested on what.
 #print axioms registerProjOwners_run
 #print axioms installIndD_run
 #print axioms processLineCoreD_run
-#print axioms FoldOK_post_pins
 #print axioms applyLine_run
 #print axioms applyFinalLine_run
 #print axioms feedChunk_run_le
@@ -561,9 +525,7 @@ what rested on what.
 #print axioms parseChunks_run
 #print axioms builtinPreludeE_run
 #print axioms preparePrelude_run
-#print axioms mem_preparePrelude_denote
 #print axioms FoldOK_of_start
-#print axioms FoldOK_post_parse
 
 /-! ## Task #97-T1-OCC — the occurrence walks, CLOSED
 
@@ -599,10 +561,6 @@ With the tier closed, the reading of all five is
 the original campaign's for `conron.no_False_declaration`
 (`RefineOld/Main.lean:775`). -/
 
-#print axioms parseChunks_exact
-#print axioms Arena.no_False_declaration
-#print axioms Arena.no_False_declaration_prelude
-#print axioms Arena.no_False_declaration_pipeline
 
 /-! ## What the third letter no longer carries
 

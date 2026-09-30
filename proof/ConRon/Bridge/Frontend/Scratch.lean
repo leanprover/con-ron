@@ -58,13 +58,6 @@ theorem get_bind {β : Type} {b : Bool} {f : AState → AM β}
   intro s s' r hs h
   exact hf s hs s s' r hs h
 
-/-- con-leche: none — `get` moves nothing. -/
-theorem get' {b : Bool} : SPb b (get : AM AState) := by
-  intro s s' r hs h
-  simp only [get, getThe, MonadStateOf.get, StateT.get, Pure.pure, Except.pure,
-    Except.ok.injEq, Prod.mk.injEq] at h
-  rw [← h.2]; exact hs
-
 /-- con-leche: none — a `set` keeps the flag if the new state has it. -/
 theorem set' {b : Bool} {t : AState} (ht : t.store.scratchOn = b) :
     SPb b (set t : AM Unit) := by
@@ -73,23 +66,8 @@ theorem set' {b : Bool} {t : AState} (ht : t.store.scratchOn = b) :
     Except.ok.injEq, Prod.mk.injEq] at h
   rw [← h.2]; exact ht
 
-/-- con-leche: none — a `modify` keeps the flag if its function does. -/
-theorem modify' {b : Bool} {g : AState → AState}
-    (hg : ∀ t, t.store.scratchOn = b → (g t).store.scratchOn = b) :
-    SPb b (modify g : AM Unit) := by
-  intro s s' r hs h
-  simp only [modify, modifyGet, MonadStateOf.modifyGet, StateT.modifyGet, Pure.pure,
-    Except.pure, Except.ok.injEq, Prod.mk.injEq] at h
-  rw [← h.2]; exact hg s hs
-
 /-- con-leche: none — `fail` never succeeds. -/
 theorem fail' {α : Type} {b : Bool} (e : Arena.CheckError) : SPb b (fail e : AM α) := by
-  intro s s' r _ h
-  exact nomatch h
-
-/-- con-leche: none — `throw` never succeeds. -/
-theorem throw' {α : Type} {b : Bool} (e : Arena.CheckError) :
-    SPb b (throw e : AM α) := by
   intro s s' r _ h
   exact nomatch h
 
@@ -162,10 +140,7 @@ macro_rules | `(tactic| sp_lemma) => `(tactic| exact view_sp _ _)
 (task #97-T2-LOCKSTEP), and their dangling-handle arm, read only. -/
 theorem viewBind_sp (b : Bool) (h : EIdx) : SPb b (viewBind h) := by unfold viewBind; sp_auto
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact viewBind_sp _ _)
-theorem viewBindI_sp (b : Bool) (h : EIdx) : SPb b (viewBindI h) := by unfold viewBindI; sp_auto
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact viewBindI_sp _ _)
-theorem viewFVarTy_sp (b : Bool) (h : EIdx) : SPb b (viewFVarTy h) := by
-  unfold viewFVarTy; sp_auto
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact viewFVarTy_sp _ _)
 theorem failDanglingE_sp (b : Bool) {α : Type} : SPb b (failDanglingE : AM α) := by
   unfold failDanglingE; sp_auto
@@ -215,12 +190,6 @@ theorem sp_stripPis (b : Bool) : ∀ x0 x1, SPb b (ConRon.Arena.stripPis x0 x1) 
   induction x0 generalizing x1 <;> (unfold ConRon.Arena.stripPis; sp_auto)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_stripPis _ _ _)
 
-/-- con-leche: none — `readLevel` keeps the scratch flag. -/
-theorem sp_readLevel (b : Bool) : ∀ x0, SPb b (ConRon.Arena.readLevel x0) := by
-  intro x0
-  first
-  | (unfold ConRon.Arena.readLevel; sp_auto; done)
-  | (induction x0 <;> (unfold ConRon.Arena.readLevel; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_readLevel _ _)
 
 /-- con-leche: none — `readLevelM` keeps the scratch flag. -/
@@ -302,56 +271,20 @@ theorem sp_ctorsMentionBlock (b : Bool) : ∀ x0 x1 x2, SPb b (ConRon.Arena.Fron
   | (induction x2 generalizing x0 x1 <;> (unfold ConRon.Arena.Frontend.ctorsMentionBlock; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_ctorsMentionBlock _ _ _ _)
 
-/-- con-leche: none — `pinAt` keeps the scratch flag. -/
-theorem sp_pinAt (b : Bool) : ∀ x0, SPb b (ConRon.Arena.pinAt x0) := by
-  intro x0
-  first
-  | (unfold ConRon.Arena.pinAt; sp_auto; done)
-  | (induction x0 <;> (unfold ConRon.Arena.pinAt; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_pinAt _ _)
 
-/-- con-leche: none — `pinEq` keeps the scratch flag. -/
-theorem sp_pinEq (b : Bool) : SPb b (ConRon.Arena.pinEq) := by
-  first
-  | (unfold ConRon.Arena.pinEq; sp_auto; done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_pinEq _)
 
-/-- con-leche: none — `pin` keeps the scratch flag. -/
-theorem sp_pin (b : Bool) : ∀ x0, SPb b (ConRon.Arena.pin x0) := by
-  intro x0
-  first
-  | (unfold ConRon.Arena.pin; sp_auto; done)
-  | (induction x0 <;> (unfold ConRon.Arena.pin; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_pin _ _)
 
-/-- con-leche: none — `pinNat` keeps the scratch flag. -/
-theorem sp_pinNat (b : Bool) : SPb b (ConRon.Arena.pinNat) := by
-  first
-  | (unfold ConRon.Arena.pinNat; sp_auto; done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_pinNat _)
 
-/-- con-leche: none — `pinNatZero` keeps the scratch flag. -/
-theorem sp_pinNatZero (b : Bool) : SPb b (ConRon.Arena.pinNatZero) := by
-  first
-  | (unfold ConRon.Arena.pinNatZero; sp_auto; done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_pinNatZero _)
 
-/-- con-leche: none — `pinNatSucc` keeps the scratch flag. -/
-theorem sp_pinNatSucc (b : Bool) : SPb b (ConRon.Arena.pinNatSucc) := by
-  first
-  | (unfold ConRon.Arena.pinNatSucc; sp_auto; done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_pinNatSucc _)
 
-/-- con-leche: none — `pinPUnit` keeps the scratch flag. -/
-theorem sp_pinPUnit (b : Bool) : SPb b (ConRon.Arena.pinPUnit) := by
-  first
-  | (unfold ConRon.Arena.pinPUnit; sp_auto; done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_pinPUnit _)
 
-/-- con-leche: none — `pinQuotSound` keeps the scratch flag. -/
-theorem sp_pinQuotSound (b : Bool) : SPb b (ConRon.Arena.pinQuotSound) := by
-  first
-  | (unfold ConRon.Arena.pinQuotSound; sp_auto; done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_pinQuotSound _)
 
 /-- con-leche: none — `reservedBasisNames` keeps the scratch flag. -/
@@ -885,86 +818,16 @@ theorem sp_instLPGo (b : Bool) : ∀ x0 x1 x2 x3, SPb b (ConRon.Arena.instLPGo x
   | succ n ih => unfold ConRon.Arena.instLPGo; unfold ConRon.Arena.instLPArmFVar ConRon.Arena.instLPArmApp ConRon.Arena.instLPArmLam ConRon.Arena.instLPArmForallE ConRon.Arena.instLPArmLet ConRon.Arena.instLPArmProj; sp_auto
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_instLPGo _ _ _ _ _)
 
-/-- con-leche: none — `instLPArmFVar` keeps the scratch flag. -/
-theorem sp_instLPArmFVar (b : Bool) : ∀ x0 x1 x2 x3 x4 x5, SPb b (ConRon.Arena.instLPArmFVar x0 x1 x2 x3 x4 x5) := by
-  intro x0 x1 x2 x3 x4 x5
-  first
-  | (unfold ConRon.Arena.instLPArmFVar; sp_auto; done)
-  | (induction x0 generalizing x1 x2 x3 x4 x5 <;> (unfold ConRon.Arena.instLPArmFVar; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 x3 x4 x5 <;> (unfold ConRon.Arena.instLPArmFVar; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 x3 x4 x5 <;> (unfold ConRon.Arena.instLPArmFVar; sp_auto) <;> done)
-  | (induction x3 generalizing x0 x1 x2 x4 x5 <;> (unfold ConRon.Arena.instLPArmFVar; sp_auto) <;> done)
-  | (induction x4 generalizing x0 x1 x2 x3 x5 <;> (unfold ConRon.Arena.instLPArmFVar; sp_auto) <;> done)
-  | (induction x5 generalizing x0 x1 x2 x3 x4 <;> (unfold ConRon.Arena.instLPArmFVar; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_instLPArmFVar _ _ _ _ _ _ _)
 
-/-- con-leche: none — `instLPArmApp` keeps the scratch flag. -/
-theorem sp_instLPArmApp (b : Bool) : ∀ x0 x1 x2 x3 x4 x5, SPb b (ConRon.Arena.instLPArmApp x0 x1 x2 x3 x4 x5) := by
-  intro x0 x1 x2 x3 x4 x5
-  first
-  | (unfold ConRon.Arena.instLPArmApp; sp_auto; done)
-  | (induction x0 generalizing x1 x2 x3 x4 x5 <;> (unfold ConRon.Arena.instLPArmApp; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 x3 x4 x5 <;> (unfold ConRon.Arena.instLPArmApp; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 x3 x4 x5 <;> (unfold ConRon.Arena.instLPArmApp; sp_auto) <;> done)
-  | (induction x3 generalizing x0 x1 x2 x4 x5 <;> (unfold ConRon.Arena.instLPArmApp; sp_auto) <;> done)
-  | (induction x4 generalizing x0 x1 x2 x3 x5 <;> (unfold ConRon.Arena.instLPArmApp; sp_auto) <;> done)
-  | (induction x5 generalizing x0 x1 x2 x3 x4 <;> (unfold ConRon.Arena.instLPArmApp; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_instLPArmApp _ _ _ _ _ _ _)
 
-/-- con-leche: none — `instLPArmLam` keeps the scratch flag. -/
-theorem sp_instLPArmLam (b : Bool) : ∀ x0 x1 x2 x3 x4 x5 x6, SPb b (ConRon.Arena.instLPArmLam x0 x1 x2 x3 x4 x5 x6) := by
-  intro x0 x1 x2 x3 x4 x5 x6
-  first
-  | (unfold ConRon.Arena.instLPArmLam; sp_auto; done)
-  | (induction x0 generalizing x1 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.instLPArmLam; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.instLPArmLam; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 x3 x4 x5 x6 <;> (unfold ConRon.Arena.instLPArmLam; sp_auto) <;> done)
-  | (induction x3 generalizing x0 x1 x2 x4 x5 x6 <;> (unfold ConRon.Arena.instLPArmLam; sp_auto) <;> done)
-  | (induction x4 generalizing x0 x1 x2 x3 x5 x6 <;> (unfold ConRon.Arena.instLPArmLam; sp_auto) <;> done)
-  | (induction x5 generalizing x0 x1 x2 x3 x4 x6 <;> (unfold ConRon.Arena.instLPArmLam; sp_auto) <;> done)
-  | (induction x6 generalizing x0 x1 x2 x3 x4 x5 <;> (unfold ConRon.Arena.instLPArmLam; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_instLPArmLam _ _ _ _ _ _ _ _)
 
-/-- con-leche: none — `instLPArmForallE` keeps the scratch flag. -/
-theorem sp_instLPArmForallE (b : Bool) : ∀ x0 x1 x2 x3 x4 x5 x6, SPb b (ConRon.Arena.instLPArmForallE x0 x1 x2 x3 x4 x5 x6) := by
-  intro x0 x1 x2 x3 x4 x5 x6
-  first
-  | (unfold ConRon.Arena.instLPArmForallE; sp_auto; done)
-  | (induction x0 generalizing x1 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.instLPArmForallE; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.instLPArmForallE; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 x3 x4 x5 x6 <;> (unfold ConRon.Arena.instLPArmForallE; sp_auto) <;> done)
-  | (induction x3 generalizing x0 x1 x2 x4 x5 x6 <;> (unfold ConRon.Arena.instLPArmForallE; sp_auto) <;> done)
-  | (induction x4 generalizing x0 x1 x2 x3 x5 x6 <;> (unfold ConRon.Arena.instLPArmForallE; sp_auto) <;> done)
-  | (induction x5 generalizing x0 x1 x2 x3 x4 x6 <;> (unfold ConRon.Arena.instLPArmForallE; sp_auto) <;> done)
-  | (induction x6 generalizing x0 x1 x2 x3 x4 x5 <;> (unfold ConRon.Arena.instLPArmForallE; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_instLPArmForallE _ _ _ _ _ _ _ _)
 
-/-- con-leche: none — `instLPArmLet` keeps the scratch flag. -/
-theorem sp_instLPArmLet (b : Bool) : ∀ x0 x1 x2 x3 x4 x5 x6, SPb b (ConRon.Arena.instLPArmLet x0 x1 x2 x3 x4 x5 x6) := by
-  intro x0 x1 x2 x3 x4 x5 x6
-  first
-  | (unfold ConRon.Arena.instLPArmLet; sp_auto; done)
-  | (induction x0 generalizing x1 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.instLPArmLet; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.instLPArmLet; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 x3 x4 x5 x6 <;> (unfold ConRon.Arena.instLPArmLet; sp_auto) <;> done)
-  | (induction x3 generalizing x0 x1 x2 x4 x5 x6 <;> (unfold ConRon.Arena.instLPArmLet; sp_auto) <;> done)
-  | (induction x4 generalizing x0 x1 x2 x3 x5 x6 <;> (unfold ConRon.Arena.instLPArmLet; sp_auto) <;> done)
-  | (induction x5 generalizing x0 x1 x2 x3 x4 x6 <;> (unfold ConRon.Arena.instLPArmLet; sp_auto) <;> done)
-  | (induction x6 generalizing x0 x1 x2 x3 x4 x5 <;> (unfold ConRon.Arena.instLPArmLet; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_instLPArmLet _ _ _ _ _ _ _ _)
 
-/-- con-leche: none — `instLPArmProj` keeps the scratch flag. -/
-theorem sp_instLPArmProj (b : Bool) : ∀ x0 x1 x2 x3 x4 x5 x6, SPb b (ConRon.Arena.instLPArmProj x0 x1 x2 x3 x4 x5 x6) := by
-  intro x0 x1 x2 x3 x4 x5 x6
-  first
-  | (unfold ConRon.Arena.instLPArmProj; sp_auto; done)
-  | (induction x0 generalizing x1 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.instLPArmProj; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.instLPArmProj; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 x3 x4 x5 x6 <;> (unfold ConRon.Arena.instLPArmProj; sp_auto) <;> done)
-  | (induction x3 generalizing x0 x1 x2 x4 x5 x6 <;> (unfold ConRon.Arena.instLPArmProj; sp_auto) <;> done)
-  | (induction x4 generalizing x0 x1 x2 x3 x5 x6 <;> (unfold ConRon.Arena.instLPArmProj; sp_auto) <;> done)
-  | (induction x5 generalizing x0 x1 x2 x3 x4 x6 <;> (unfold ConRon.Arena.instLPArmProj; sp_auto) <;> done)
-  | (induction x6 generalizing x0 x1 x2 x3 x4 x5 <;> (unfold ConRon.Arena.instLPArmProj; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_instLPArmProj _ _ _ _ _ _ _ _)
 
 /-- con-leche: none — `instLPFast` keeps the scratch flag. -/
@@ -1025,35 +888,10 @@ theorem sp_bvarBoundGo (b : Bool) : ∀ x0 x1, SPb b (ConRon.Arena.bvarBoundGo x
   | succ n ih => unfold ConRon.Arena.bvarBoundGo; unfold ConRon.Arena.bvarBoundArmApp ConRon.Arena.bvarBoundArmBind ConRon.Arena.bvarBoundArmLet; sp_auto
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_bvarBoundGo _ _ _)
 
-/-- con-leche: none — `bvarBoundArmApp` keeps the scratch flag. -/
-theorem sp_bvarBoundArmApp (b : Bool) : ∀ x0 x1 x2, SPb b (ConRon.Arena.bvarBoundArmApp x0 x1 x2) := by
-  intro x0 x1 x2
-  first
-  | (unfold ConRon.Arena.bvarBoundArmApp; sp_auto; done)
-  | (induction x0 generalizing x1 x2 <;> (unfold ConRon.Arena.bvarBoundArmApp; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 <;> (unfold ConRon.Arena.bvarBoundArmApp; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 <;> (unfold ConRon.Arena.bvarBoundArmApp; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_bvarBoundArmApp _ _ _ _)
 
-/-- con-leche: none — `bvarBoundArmBind` keeps the scratch flag. -/
-theorem sp_bvarBoundArmBind (b : Bool) : ∀ x0 x1 x2, SPb b (ConRon.Arena.bvarBoundArmBind x0 x1 x2) := by
-  intro x0 x1 x2
-  first
-  | (unfold ConRon.Arena.bvarBoundArmBind; sp_auto; done)
-  | (induction x0 generalizing x1 x2 <;> (unfold ConRon.Arena.bvarBoundArmBind; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 <;> (unfold ConRon.Arena.bvarBoundArmBind; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 <;> (unfold ConRon.Arena.bvarBoundArmBind; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_bvarBoundArmBind _ _ _ _)
 
-/-- con-leche: none — `bvarBoundArmLet` keeps the scratch flag. -/
-theorem sp_bvarBoundArmLet (b : Bool) : ∀ x0 x1 x2 x3, SPb b (ConRon.Arena.bvarBoundArmLet x0 x1 x2 x3) := by
-  intro x0 x1 x2 x3
-  first
-  | (unfold ConRon.Arena.bvarBoundArmLet; sp_auto; done)
-  | (induction x0 generalizing x1 x2 x3 <;> (unfold ConRon.Arena.bvarBoundArmLet; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 x3 <;> (unfold ConRon.Arena.bvarBoundArmLet; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 x3 <;> (unfold ConRon.Arena.bvarBoundArmLet; sp_auto) <;> done)
-  | (induction x3 generalizing x0 x1 x2 <;> (unfold ConRon.Arena.bvarBoundArmLet; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_bvarBoundArmLet _ _ _ _ _)
 
 /-- con-leche: none — `bvarBoundMemo` keeps the scratch flag. -/
@@ -1105,73 +943,14 @@ theorem sp_liftLooseBVarsGo (b : Bool) : ∀ x0 x1 x2 x3, SPb b (ConRon.Arena.li
   | succ n ih => unfold ConRon.Arena.liftLooseBVarsGo; unfold ConRon.Arena.liftArmApp ConRon.Arena.liftArmLam ConRon.Arena.liftArmForallE ConRon.Arena.liftArmLet ConRon.Arena.liftArmProj; sp_auto
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_liftLooseBVarsGo _ _ _ _ _)
 
-/-- con-leche: none — `liftArmApp` keeps the scratch flag. -/
-theorem sp_liftArmApp (b : Bool) : ∀ x0 x1 x2 x3 x4 x5, SPb b (ConRon.Arena.liftArmApp x0 x1 x2 x3 x4 x5) := by
-  intro x0 x1 x2 x3 x4 x5
-  first
-  | (unfold ConRon.Arena.liftArmApp; sp_auto; done)
-  | (induction x0 generalizing x1 x2 x3 x4 x5 <;> (unfold ConRon.Arena.liftArmApp; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 x3 x4 x5 <;> (unfold ConRon.Arena.liftArmApp; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 x3 x4 x5 <;> (unfold ConRon.Arena.liftArmApp; sp_auto) <;> done)
-  | (induction x3 generalizing x0 x1 x2 x4 x5 <;> (unfold ConRon.Arena.liftArmApp; sp_auto) <;> done)
-  | (induction x4 generalizing x0 x1 x2 x3 x5 <;> (unfold ConRon.Arena.liftArmApp; sp_auto) <;> done)
-  | (induction x5 generalizing x0 x1 x2 x3 x4 <;> (unfold ConRon.Arena.liftArmApp; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_liftArmApp _ _ _ _ _ _ _)
 
-/-- con-leche: none — `liftArmLam` keeps the scratch flag. -/
-theorem sp_liftArmLam (b : Bool) : ∀ x0 x1 x2 x3 x4 x5 x6, SPb b (ConRon.Arena.liftArmLam x0 x1 x2 x3 x4 x5 x6) := by
-  intro x0 x1 x2 x3 x4 x5 x6
-  first
-  | (unfold ConRon.Arena.liftArmLam; sp_auto; done)
-  | (induction x0 generalizing x1 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.liftArmLam; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.liftArmLam; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 x3 x4 x5 x6 <;> (unfold ConRon.Arena.liftArmLam; sp_auto) <;> done)
-  | (induction x3 generalizing x0 x1 x2 x4 x5 x6 <;> (unfold ConRon.Arena.liftArmLam; sp_auto) <;> done)
-  | (induction x4 generalizing x0 x1 x2 x3 x5 x6 <;> (unfold ConRon.Arena.liftArmLam; sp_auto) <;> done)
-  | (induction x5 generalizing x0 x1 x2 x3 x4 x6 <;> (unfold ConRon.Arena.liftArmLam; sp_auto) <;> done)
-  | (induction x6 generalizing x0 x1 x2 x3 x4 x5 <;> (unfold ConRon.Arena.liftArmLam; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_liftArmLam _ _ _ _ _ _ _ _)
 
-/-- con-leche: none — `liftArmForallE` keeps the scratch flag. -/
-theorem sp_liftArmForallE (b : Bool) : ∀ x0 x1 x2 x3 x4 x5 x6, SPb b (ConRon.Arena.liftArmForallE x0 x1 x2 x3 x4 x5 x6) := by
-  intro x0 x1 x2 x3 x4 x5 x6
-  first
-  | (unfold ConRon.Arena.liftArmForallE; sp_auto; done)
-  | (induction x0 generalizing x1 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.liftArmForallE; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.liftArmForallE; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 x3 x4 x5 x6 <;> (unfold ConRon.Arena.liftArmForallE; sp_auto) <;> done)
-  | (induction x3 generalizing x0 x1 x2 x4 x5 x6 <;> (unfold ConRon.Arena.liftArmForallE; sp_auto) <;> done)
-  | (induction x4 generalizing x0 x1 x2 x3 x5 x6 <;> (unfold ConRon.Arena.liftArmForallE; sp_auto) <;> done)
-  | (induction x5 generalizing x0 x1 x2 x3 x4 x6 <;> (unfold ConRon.Arena.liftArmForallE; sp_auto) <;> done)
-  | (induction x6 generalizing x0 x1 x2 x3 x4 x5 <;> (unfold ConRon.Arena.liftArmForallE; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_liftArmForallE _ _ _ _ _ _ _ _)
 
-/-- con-leche: none — `liftArmLet` keeps the scratch flag. -/
-theorem sp_liftArmLet (b : Bool) : ∀ x0 x1 x2 x3 x4 x5 x6, SPb b (ConRon.Arena.liftArmLet x0 x1 x2 x3 x4 x5 x6) := by
-  intro x0 x1 x2 x3 x4 x5 x6
-  first
-  | (unfold ConRon.Arena.liftArmLet; sp_auto; done)
-  | (induction x0 generalizing x1 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.liftArmLet; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.liftArmLet; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 x3 x4 x5 x6 <;> (unfold ConRon.Arena.liftArmLet; sp_auto) <;> done)
-  | (induction x3 generalizing x0 x1 x2 x4 x5 x6 <;> (unfold ConRon.Arena.liftArmLet; sp_auto) <;> done)
-  | (induction x4 generalizing x0 x1 x2 x3 x5 x6 <;> (unfold ConRon.Arena.liftArmLet; sp_auto) <;> done)
-  | (induction x5 generalizing x0 x1 x2 x3 x4 x6 <;> (unfold ConRon.Arena.liftArmLet; sp_auto) <;> done)
-  | (induction x6 generalizing x0 x1 x2 x3 x4 x5 <;> (unfold ConRon.Arena.liftArmLet; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_liftArmLet _ _ _ _ _ _ _ _)
 
-/-- con-leche: none — `liftArmProj` keeps the scratch flag. -/
-theorem sp_liftArmProj (b : Bool) : ∀ x0 x1 x2 x3 x4 x5 x6, SPb b (ConRon.Arena.liftArmProj x0 x1 x2 x3 x4 x5 x6) := by
-  intro x0 x1 x2 x3 x4 x5 x6
-  first
-  | (unfold ConRon.Arena.liftArmProj; sp_auto; done)
-  | (induction x0 generalizing x1 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.liftArmProj; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.liftArmProj; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 x3 x4 x5 x6 <;> (unfold ConRon.Arena.liftArmProj; sp_auto) <;> done)
-  | (induction x3 generalizing x0 x1 x2 x4 x5 x6 <;> (unfold ConRon.Arena.liftArmProj; sp_auto) <;> done)
-  | (induction x4 generalizing x0 x1 x2 x3 x5 x6 <;> (unfold ConRon.Arena.liftArmProj; sp_auto) <;> done)
-  | (induction x5 generalizing x0 x1 x2 x3 x4 x6 <;> (unfold ConRon.Arena.liftArmProj; sp_auto) <;> done)
-  | (induction x6 generalizing x0 x1 x2 x3 x4 x5 <;> (unfold ConRon.Arena.liftArmProj; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_liftArmProj _ _ _ _ _ _ _ _)
 
 /-- con-leche: none — `liftLooseBVarsFast` keeps the scratch flag. -/
@@ -1210,73 +989,14 @@ theorem sp_instantiate1LiftGo (b : Bool) : ∀ x0 x1 x2 x3, SPb b (ConRon.Arena.
   | succ n ih => unfold ConRon.Arena.instantiate1LiftGo; unfold ConRon.Arena.inst1LiftArmApp ConRon.Arena.inst1LiftArmLam ConRon.Arena.inst1LiftArmForallE ConRon.Arena.inst1LiftArmLet ConRon.Arena.inst1LiftArmProj; sp_auto
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_instantiate1LiftGo _ _ _ _ _)
 
-/-- con-leche: none — `inst1LiftArmApp` keeps the scratch flag. -/
-theorem sp_inst1LiftArmApp (b : Bool) : ∀ x0 x1 x2 x3 x4 x5, SPb b (ConRon.Arena.inst1LiftArmApp x0 x1 x2 x3 x4 x5) := by
-  intro x0 x1 x2 x3 x4 x5
-  first
-  | (unfold ConRon.Arena.inst1LiftArmApp; sp_auto; done)
-  | (induction x0 generalizing x1 x2 x3 x4 x5 <;> (unfold ConRon.Arena.inst1LiftArmApp; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 x3 x4 x5 <;> (unfold ConRon.Arena.inst1LiftArmApp; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 x3 x4 x5 <;> (unfold ConRon.Arena.inst1LiftArmApp; sp_auto) <;> done)
-  | (induction x3 generalizing x0 x1 x2 x4 x5 <;> (unfold ConRon.Arena.inst1LiftArmApp; sp_auto) <;> done)
-  | (induction x4 generalizing x0 x1 x2 x3 x5 <;> (unfold ConRon.Arena.inst1LiftArmApp; sp_auto) <;> done)
-  | (induction x5 generalizing x0 x1 x2 x3 x4 <;> (unfold ConRon.Arena.inst1LiftArmApp; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_inst1LiftArmApp _ _ _ _ _ _ _)
 
-/-- con-leche: none — `inst1LiftArmLam` keeps the scratch flag. -/
-theorem sp_inst1LiftArmLam (b : Bool) : ∀ x0 x1 x2 x3 x4 x5 x6, SPb b (ConRon.Arena.inst1LiftArmLam x0 x1 x2 x3 x4 x5 x6) := by
-  intro x0 x1 x2 x3 x4 x5 x6
-  first
-  | (unfold ConRon.Arena.inst1LiftArmLam; sp_auto; done)
-  | (induction x0 generalizing x1 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmLam; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmLam; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 x3 x4 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmLam; sp_auto) <;> done)
-  | (induction x3 generalizing x0 x1 x2 x4 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmLam; sp_auto) <;> done)
-  | (induction x4 generalizing x0 x1 x2 x3 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmLam; sp_auto) <;> done)
-  | (induction x5 generalizing x0 x1 x2 x3 x4 x6 <;> (unfold ConRon.Arena.inst1LiftArmLam; sp_auto) <;> done)
-  | (induction x6 generalizing x0 x1 x2 x3 x4 x5 <;> (unfold ConRon.Arena.inst1LiftArmLam; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_inst1LiftArmLam _ _ _ _ _ _ _ _)
 
-/-- con-leche: none — `inst1LiftArmForallE` keeps the scratch flag. -/
-theorem sp_inst1LiftArmForallE (b : Bool) : ∀ x0 x1 x2 x3 x4 x5 x6, SPb b (ConRon.Arena.inst1LiftArmForallE x0 x1 x2 x3 x4 x5 x6) := by
-  intro x0 x1 x2 x3 x4 x5 x6
-  first
-  | (unfold ConRon.Arena.inst1LiftArmForallE; sp_auto; done)
-  | (induction x0 generalizing x1 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmForallE; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmForallE; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 x3 x4 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmForallE; sp_auto) <;> done)
-  | (induction x3 generalizing x0 x1 x2 x4 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmForallE; sp_auto) <;> done)
-  | (induction x4 generalizing x0 x1 x2 x3 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmForallE; sp_auto) <;> done)
-  | (induction x5 generalizing x0 x1 x2 x3 x4 x6 <;> (unfold ConRon.Arena.inst1LiftArmForallE; sp_auto) <;> done)
-  | (induction x6 generalizing x0 x1 x2 x3 x4 x5 <;> (unfold ConRon.Arena.inst1LiftArmForallE; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_inst1LiftArmForallE _ _ _ _ _ _ _ _)
 
-/-- con-leche: none — `inst1LiftArmLet` keeps the scratch flag. -/
-theorem sp_inst1LiftArmLet (b : Bool) : ∀ x0 x1 x2 x3 x4 x5 x6, SPb b (ConRon.Arena.inst1LiftArmLet x0 x1 x2 x3 x4 x5 x6) := by
-  intro x0 x1 x2 x3 x4 x5 x6
-  first
-  | (unfold ConRon.Arena.inst1LiftArmLet; sp_auto; done)
-  | (induction x0 generalizing x1 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmLet; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmLet; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 x3 x4 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmLet; sp_auto) <;> done)
-  | (induction x3 generalizing x0 x1 x2 x4 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmLet; sp_auto) <;> done)
-  | (induction x4 generalizing x0 x1 x2 x3 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmLet; sp_auto) <;> done)
-  | (induction x5 generalizing x0 x1 x2 x3 x4 x6 <;> (unfold ConRon.Arena.inst1LiftArmLet; sp_auto) <;> done)
-  | (induction x6 generalizing x0 x1 x2 x3 x4 x5 <;> (unfold ConRon.Arena.inst1LiftArmLet; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_inst1LiftArmLet _ _ _ _ _ _ _ _)
 
-/-- con-leche: none — `inst1LiftArmProj` keeps the scratch flag. -/
-theorem sp_inst1LiftArmProj (b : Bool) : ∀ x0 x1 x2 x3 x4 x5 x6, SPb b (ConRon.Arena.inst1LiftArmProj x0 x1 x2 x3 x4 x5 x6) := by
-  intro x0 x1 x2 x3 x4 x5 x6
-  first
-  | (unfold ConRon.Arena.inst1LiftArmProj; sp_auto; done)
-  | (induction x0 generalizing x1 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmProj; sp_auto) <;> done)
-  | (induction x1 generalizing x0 x2 x3 x4 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmProj; sp_auto) <;> done)
-  | (induction x2 generalizing x0 x1 x3 x4 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmProj; sp_auto) <;> done)
-  | (induction x3 generalizing x0 x1 x2 x4 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmProj; sp_auto) <;> done)
-  | (induction x4 generalizing x0 x1 x2 x3 x5 x6 <;> (unfold ConRon.Arena.inst1LiftArmProj; sp_auto) <;> done)
-  | (induction x5 generalizing x0 x1 x2 x3 x4 x6 <;> (unfold ConRon.Arena.inst1LiftArmProj; sp_auto) <;> done)
-  | (induction x6 generalizing x0 x1 x2 x3 x4 x5 <;> (unfold ConRon.Arena.inst1LiftArmProj; sp_auto) <;> done)
 macro_rules | `(tactic| sp_lemma) => `(tactic| exact sp_inst1LiftArmProj _ _ _ _ _ _ _ _)
 
 /-- con-leche: none — `instantiate1LiftFast` keeps the scratch flag. -/
