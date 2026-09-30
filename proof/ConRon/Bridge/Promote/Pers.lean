@@ -445,9 +445,13 @@ structure PersRule (rl : IRecRule) : Prop where
 /-- con-leche: none — every rule of the list is persistent. -/
 def PersRules (rs : List IRecRule) : Prop := ∀ r ∈ rs, PersRule r
 
-/-- con-leche: none — an inductive's capabilities record is persistent (its
-one handle field is the eta constructor's name). -/
-def PersCaps (c : IIndCaps) : Prop := PersN c.etaCtor
+/-- con-leche: none — an inductive's capabilities record is persistent, field
+by field: its handle fields are the eta constructor's name and the two name
+lists official's `inductive_val` carries (`all`, `ctors`). -/
+structure PersCaps (c : IIndCaps) : Prop where
+  etaCtor : PersN c.etaCtor
+  all : PersNList c.all
+  ctors : PersNList c.ctors
 
 /-- con-leche: none — a projection table is persistent, field by field. -/
 structure PersProjTable (t : IProjTable) : Prop where

@@ -36,24 +36,24 @@ theorem constWF_le {envA envB : Env}
     (hle : ∀ n, (envA.find? n).isSome = true → (envB.find? n).isSome = true)
     {c : ConstantInfo} (h : ConstWF envA c) : ConstWF envB c := by
   obtain ⟨h1, h2, h3, h4, h5, h6, h8, h9⟩ := h
-  refine ⟨h1, h2, Expr.constsResolve_le hle h3, h4, ?_, ?_,
+  refine ⟨h1, h2, Expr.constsResolve_of_find hle h3, h4, ?_, ?_,
     fun tbl heq =>
       let ⟨hs, hb⟩ := h8 tbl heq
       ⟨hs, fun i b hbi =>
         let ⟨g1, g2, g3, g4⟩ := hb i b hbi
-        ⟨g1, g2, Expr.constsResolve_le hle g3, g4⟩⟩, h9⟩
+        ⟨g1, g2, Expr.constsResolve_of_find hle g3, g4⟩⟩, h9⟩
   · intro cv v hint heq
     obtain ⟨g1, g2, g3, g4⟩ := h5 cv v hint heq
-    exact ⟨g1, g2, Expr.constsResolve_le hle g3, g4⟩
+    exact ⟨g1, g2, Expr.constsResolve_of_find hle g3, g4⟩
   · intro cv a b e heq r hr
     obtain ⟨g1, g2, g3, g4, g5⟩ := h6 cv a b e heq r hr
-    refine ⟨g1, g2, Expr.constsResolve_le hle g3, g4, ?_⟩
+    refine ⟨g1, g2, Expr.constsResolve_of_find hle g3, g4, ?_⟩
     intro lvls pins hf
     obtain ⟨n1, n2, n3, n4⟩ := g5 lvls pins hf
     refine ⟨n1, n2, ?_, n4⟩
     intro pin hp
     obtain ⟨p1, p2, p3, p4⟩ := n3 pin hp
-    exact ⟨p1, p2, Expr.constsResolve_le hle p3, p4⟩
+    exact ⟨p1, p2, Expr.constsResolve_of_find hle p3, p4⟩
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:147 ConstWF (the `.recInfo` clause)
 — a recursor's rules, all at once, from one Boolean test (the rule list of a
@@ -241,7 +241,7 @@ theorem constWF_ofType {env : Env} {c : ConstantInfo}
       | (intro _ heq; exact ConstantInfo.noConfusion heq)
       | (intro _ _ heq; exact ConstantInfo.noConfusion heq)
 
-/-- con-leche: ConLeche/Semantics/Bridge/Sound.lean:52 checkDeclRun_ofEnvFactsE
+/-- con-leche: ConLeche/Semantics/Bridge/Sound.lean:49 checkDeclRun_ofEnvFactsK
 — **every arm off the inductive route keeps the environment well formed and
 pushes no projection table**, read off `DeclRun`: the value arms' records
 carry the type's and the value's guards and annotate outputs
@@ -254,7 +254,7 @@ theorem checkDecl_wf_pure {μ : CheckMode} {pinsP : List NatOpPinSet} {F : Nat}
     (hwf : EnvWF env)
     (hd : ∀ b nP, d = .indDecl b nP → (basisPinHit b).isSome = true) :
     EnvWF env' ∧ NoTowerPush env env' := by
-  have hrun := checkDeclRun_ofEnvFactsE h
+  have hrun := checkDeclRun_ofEnvFactsK h
   cases d with
   | defnDecl cv value hint =>
     obtain ⟨type', value', hcv, hvf, rfl, -⟩ := hrun

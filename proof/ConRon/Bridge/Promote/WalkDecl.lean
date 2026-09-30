@@ -300,19 +300,36 @@ theorem promoteCaps_step {m m' : PMemo} {fuel : Nat} {c c' : IIndCaps}
   simp only [promoteCaps] at hrun
   obtain ⟨⟨m1, n1⟩, s1, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨hwf1, hm1, hx1, hp1, hd1⟩ := promoteN_step hwf hm h1
-  obtain ⟨hr, rfl⟩ := AM.pure_ok h2
+  obtain ⟨⟨m2, al⟩, s2, h3, h4⟩ := AM.bind_ok h2
+  obtain ⟨hwf2, hm2, hx2, hp2, -, hd2⟩ := promoteNList_step _ hwf1 hm1 h3
+  obtain ⟨⟨m3, ks⟩, s3, h5, h6⟩ := AM.bind_ok h4
+  obtain ⟨hwf3, hm3, hx3, hp3, -, hd3⟩ := promoteNList_step _ hwf2 hm2 h5
+  obtain ⟨hr, rfl⟩ := AM.pure_ok h6
   simp only [Prod.mk.injEq] at hr
   obtain ⟨rfl, rfl⟩ := hr
-  refine ⟨hwf1, hm1, hx1, hp1, ?_⟩
+  refine ⟨hwf3, hm3, (hx1.trans hx2).trans hx3, ⟨hp1, hp2, hp3⟩, ?_⟩
   intro x hx
   simp only [Frontend.denoteCaps] at hx ⊢
   cases hn : denoteN s.store.ns c.etaCtor with
   | none => rw [hn] at hx; simp at hx
   | some n =>
     rw [hn] at hx
-    have hn1 : denoteN s'.store.ns n1 = some n := hd1 n hn
+    have hn1 : denoteN s'.store.ns n1 = some n :=
+      (hx2.trans hx3).lss.ls.ns _ _ (hd1 n hn)
     rw [hn1]
-    exact hx
+    cases ha : Frontend.denoteNList s.store.ns c.all with
+    | none => rw [ha] at hx; simp at hx
+    | some all =>
+      cases hk : Frontend.denoteNList s.store.ns c.ctors with
+      | none => rw [ha, hk] at hx; simp at hx
+      | some cs =>
+        rw [ha, hk] at hx
+        have ha3 : Frontend.denoteNList s'.store.ns al = some all :=
+          denoteNListE_ext hx3 _ _ (hd2 all (denoteNListE_ext hx1 _ _ ha))
+        have hk3 : Frontend.denoteNList s'.store.ns ks = some cs :=
+          hd3 cs (denoteNListE_ext (hx1.trans hx2) _ _ hk)
+        rw [ha3, hk3]
+        exact hx
 
 /-- con-leche: none — arena infrastructure; **what the promotion does to a
 projection table** beyond its denotation: the fields `IProjTableOK` reads are
