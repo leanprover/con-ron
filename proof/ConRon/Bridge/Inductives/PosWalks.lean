@@ -67,22 +67,6 @@ theorem internLetEE_run {s s' : AState} {ty v b : EIdx} {tyP vP bP : Expr}
   simp only [denoteEView, denote_ext hty hstep.ext, denote_ext hv hstep.ext,
     denote_ext hb hstep.ext, opt3]
 
-/-- con-leche: none — the `Sort 0`-annotated free variable the canonical maps
-build: `zeroLevel`, `internSortE`, `internFVarE`, in a row. -/
-theorem fvarSort0_run {s s' : AState} {k : Nat} {h : EIdx} (hok : StateOK s)
-    (hp : PinsOK s)
-    (hrun : (do
-      let z ← Arena.zeroLevel
-      let so ← internSortE z
-      internFVarE k so : AM EIdx) s = .ok (h, s')) :
-    PStep s s' ∧ denoteE s'.store h = some (.fvar k (.sort .zero)) := by
-  obtain ⟨z, s1, k1, z1⟩ := bindOk hrun
-  obtain ⟨rfl, hz⟩ := zeroLevel_run hp k1
-  obtain ⟨so, s2, k2, z2⟩ := bindOk z1
-  obtain ⟨p2, hso⟩ := internSortE_run hok hz k2
-  obtain ⟨p3, hv⟩ := internFVarE_run p2.ok hso z2
-  exact ⟨p2.trans p3, hv⟩
-
 /-- con-leche: none — `Bridge/Inductives/Rel.lean`'s `mkAppN_run`,
 restated. -/
 theorem mkAppN_run : ∀ (args : List EIdx) (argsP : List Expr) {s s' : AState}
@@ -1194,5 +1178,642 @@ theorem whnfWalkFuel_spec (e : EIdx) (eP : Expr) :
   obtain ⟨rfl, rfl⟩ := pureOk h2
   simp only [RV] at hr
   exact ⟨hstep, by simp only [RV, ConLeche.whnfWalkFuel, hr]; rfl⟩
+
+/-! ## The records, read: `dCtx`, `dProg`, `nestKeyMap` -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:643-654 NestCtx —
+`dCtx` taken apart. -/
+theorem dCtx_inv {st : EStore} {fnd : ConLeche.Name → Option ConstantInfo}
+    {c : Arena.NestCtx} {cP : ConLeche.NestCtx} (h : dCtx st fnd c = some cP) :
+    ∃ namesP lpsP paramsP sortP,
+      cP = ⟨namesP, lpsP, c.nP, c.nIdxs, paramsP, sortP, fnd⟩ ∧
+      Frontend.denoteNList st.ns c.names = some namesP ∧
+      Frontend.denoteNList st.ns c.lps = some lpsP ∧
+      Frontend.denoteEList st c.params = some paramsP ∧
+      denoteL st.ls c.sort = some sortP ∧
+      denoteLs st.lss c.lvls = some (lpsP.map .param) := by
+  simp only [dCtx] at h
+  cases h1 : Frontend.denoteNList st.ns c.names with
+  | none => rw [h1] at h; exact nomatch h
+  | some a =>
+  cases h2 : Frontend.denoteNList st.ns c.lps with
+  | none => rw [h1, h2] at h; exact nomatch h
+  | some b =>
+  cases h3 : Frontend.denoteEList st c.params with
+  | none => rw [h1, h2, h3] at h; exact nomatch h
+  | some p =>
+  cases h4 : denoteL st.ls c.sort with
+  | none => rw [h1, h2, h3, h4] at h; exact nomatch h
+  | some so =>
+  cases h5 : denoteLs st.lss c.lvls with
+  | none => rw [h1, h2, h3, h4, h5] at h; exact nomatch h
+  | some l =>
+  rw [h1, h2, h3, h4, h5] at h
+  simp only [Option.bind_eq_bind, Option.bind_some] at h
+  split at h
+  · rename_i hl
+    subst hl
+    exact ⟨a, b, p, so, (Option.some.inj h).symm, rfl, rfl, rfl, rfl, rfl⟩
+  · exact nomatch h
+
+/-- con-leche: none — `Option`'s `mapM` keeps the length. -/
+theorem mapM_option_length {α β : Type} {f : α → Option β} :
+    ∀ {xs : List α} {ys : List β}, xs.mapM f = some ys → ys.length = xs.length := by
+  intro xs
+  induction xs with
+  | nil => intro ys h; simp only [List.mapM_nil] at h; cases h; rfl
+  | cons x xs ih =>
+    intro ys h
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h
+    cases hx : f x with
+    | none => rw [hx] at h; simp at h
+    | some y =>
+      rw [hx] at h
+      cases hxs : xs.mapM f with
+      | none => rw [hxs] at h; simp at h
+      | some zs =>
+        rw [hxs] at h
+        simp only [Option.bind_some, Option.some.injEq] at h
+        subst h
+        simp [ih hxs]
+
+/-- con-leche: none — `Option`'s `mapM` over a snoc. -/
+theorem mapM_option_snoc {α β : Type} {f : α → Option β} :
+    ∀ {xs : List α} {x : α} {ys : List β}, (xs ++ [x]).mapM f = some ys →
+      ∃ zs y, ys = zs ++ [y] ∧ xs.mapM f = some zs ∧ f x = some y := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro x ys h
+    simp only [List.nil_append, List.mapM_cons, List.mapM_nil, Option.bind_eq_bind,
+      Option.pure_def] at h
+    cases hx : f x with
+    | none => rw [hx] at h; simp at h
+    | some y =>
+      rw [hx] at h
+      simp only [Option.bind_some, Option.some.injEq] at h
+      subst h
+      exact ⟨[], y, rfl, rfl, rfl⟩
+  | cons a as ih =>
+    intro x ys h
+    simp only [List.cons_append, List.mapM_cons, Option.bind_eq_bind,
+      Option.pure_def] at h
+    cases ha : f a with
+    | none => rw [ha] at h; simp at h
+    | some b =>
+      rw [ha] at h
+      cases hr : (as ++ [x]).mapM f with
+      | none => rw [hr] at h; simp at h
+      | some rs =>
+        rw [hr] at h
+        simp only [Option.bind_some, Option.some.injEq] at h
+        subst h
+        obtain ⟨zs, y, rfl, hz, hy⟩ := ih hr
+        refine ⟨b :: zs, y, rfl, ?_, hy⟩
+        simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def, ha, hz,
+          Option.bind_some]
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:884-900 nestHoleImg
+(`h :: prog`) — **the stack prefix of length `n + 1`, denoted, is its last
+frame consed onto the prefix of length `n`**: the twin's list is outermost
+first, con-leche's innermost first (`dProg` reverses). -/
+theorem dProg_take_succ {st : EStore} {prog : List Arena.NestHole} {n : Nat}
+    (hn : n < prog.length) {progP : List ConLeche.NestHole}
+    (h : dProg st (prog.take (n + 1)) = some progP) :
+    ∃ hP progP', progP = hP :: progP' ∧ dHole st prog[n] = some hP ∧
+      dProg st (prog.take n) = some progP' ∧ progP'.length = n := by
+  simp only [dProg, Option.map_eq_some_iff] at h ⊢
+  obtain ⟨ys, hys, rfl⟩ := h
+  rw [List.take_add_one, List.getElem?_eq_getElem hn, Option.toList_some] at hys
+  obtain ⟨zs, y, rfl, hz, hy⟩ := mapM_option_snoc hys
+  refine ⟨y, zs.reverse, by simp, hy, ⟨zs, hz, rfl⟩, ?_⟩
+  rw [List.length_reverse, mapM_option_length hz, List.length_take]
+  omega
+
+/-- con-leche: none — a denoting handle list at an index, as the `Option`
+lift of `RE`. -/
+theorem getElem?_ROp {st : EStore} {hs : List EIdx} {xs : List Expr}
+    (h : Frontend.denoteEList st hs = some xs) (j : Nat) :
+    ROp RE xs[j]? st hs[j]? := by
+  obtain ⟨hnone, hsome⟩ := denoteEList_getElem? h j
+  cases hj : hs[j]? with
+  | none => exact hnone.mp hj
+  | some a =>
+    obtain ⟨x, hx, hd⟩ := hsome a hj
+    exact ⟨x, hx, hd⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1104-1108 nestKeyMap
+The key's variable replacement, at handles: the `Option` lift of `RE`. -/
+theorem nestKeyMap_rel {st : EStore} {ds holes : List EIdx} {dsP holesP : List Expr}
+    (hds : Frontend.denoteEList st ds = some dsP)
+    (hho : Frontend.denoteEList st holes = some holesP) (i : Nat) :
+    ROp RE (ConLeche.nestKeyMap dsP holesP i) st (Arena.nestKeyMap ds holes i) := by
+  simp only [Arena.nestKeyMap, ConLeche.nestKeyMap, denoteEList_length hds]
+  split
+  · exact getElem?_ROp hds i
+  · exact getElem?_ROp hho _
+
+/-- con-leche: none — `ROp RE` transports along `Ext`. -/
+theorem ROpRE_ext {st st' : EStore} (hx : Ext st st') {x : Option Expr}
+    {o : Option EIdx} (h : ROp RE x st o) : ROp RE x st' o := by
+  cases o with
+  | none => exact h
+  | some a =>
+    obtain ⟨b, hb, hd⟩ := h
+    exact ⟨b, hb, denote_ext hd hx⟩
+
+/-! ## The readback block: `fvMapAt`, `replaceFVarsGo`, `replaceFVars`,
+`nestHoleImg` -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:744-757 Expr.replaceFVars
+(`f`) — **a twin `FvMap` stands for a pure map**, one clause per
+instantiation con-leche writes:
+
+* `.holeImg ctx prog n` is `nestHoleImg ctxP progP` at the denotation of the
+  stack prefix of length `n` (`dProg` reverses it: the twin's stack is
+  outermost first, con-leche's innermost first), `n ≤ prog.length`;
+* `.keyMap ds holes` is `nestKeyMap dsP holesP`;
+* `.erase` is `eraseFVarTys`' constant map to `fvar i (Sort 0)`;
+* `.canon pfvs` is `targetCanonParams`' `fun i => pfvsP[i]?`.
+
+The lookup `fnd` a `holeImg` context denotes at is existential: `nestHoleImg`
+reads no environment. -/
+def FvMapRel (st : EStore) : Arena.FvMap → (Nat → Option Expr) → Prop
+  | .holeImg ctx prog n, fP => ∃ fnd ctxP progP, dCtx st fnd ctx = some ctxP ∧
+      dProg st (prog.take n) = some progP ∧ n ≤ prog.length ∧
+      fP = ConLeche.nestHoleImg ctxP progP
+  | .keyMap ds holes, fP => ∃ dsP holesP, Frontend.denoteEList st ds = some dsP ∧
+      Frontend.denoteEList st holes = some holesP ∧ fP = ConLeche.nestKeyMap dsP holesP
+  | .erase, fP => fP = fun i => some (.fvar i (.sort .zero))
+  | .canon pfvs, fP => ∃ pP, Frontend.denoteEList st pfvs = some pP ∧
+      fP = fun i => pP[i]?
+
+theorem FvMapRel.ext {st st' : EStore} (hx : Ext st st') {f : Arena.FvMap}
+    {fP : Nat → Option Expr} (h : FvMapRel st f fP) : FvMapRel st' f fP := by
+  cases f with
+  | holeImg ctx prog n =>
+    obtain ⟨fnd, ctxP, progP, h1, h2, h3, h4⟩ := h
+    exact ⟨fnd, ctxP, progP, dCtx_ext fnd hx _ _ h1, dProg_ext hx _ _ h2, h3, h4⟩
+  | keyMap ds holes =>
+    obtain ⟨a, b, h1, h2, h3⟩ := h
+    exact ⟨a, b, denoteEList_ext hx _ _ h1, denoteEList_ext hx _ _ h2, h3⟩
+  | erase => exact h
+  | canon pfvs =>
+    obtain ⟨a, h1, h2⟩ := h
+    exact ⟨a, denoteEList_ext hx _ _ h1, h2⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:764-765 ReplaceFVarsMemoInv
+The handle-keyed memo of `replaceFVars fP`. -/
+def RFMemoOK (fP : Nat → Option Expr) (tbl : Std.HashMap EIdx EIdx) (st : EStore) :
+    Prop :=
+  ∀ (k v : EIdx), tbl[k]? = some v →
+    ∃ e, denoteE st k = some e ∧ denoteE st v = some (Expr.replaceFVars fP e)
+
+theorem RFMemoOK.empty {fP : Nat → Option Expr} {st : EStore} : RFMemoOK fP ∅ st := by
+  intro k v h; simp at h
+
+theorem RFMemoOK.ext {fP : Nat → Option Expr} {tbl : Std.HashMap EIdx EIdx}
+    {st st' : EStore} (hx : Ext st st') (h : RFMemoOK fP tbl st) : RFMemoOK fP tbl st' := by
+  intro k v hk
+  obtain ⟨e, h1, h2⟩ := h k v hk
+  exact ⟨e, denote_ext h1 hx, denote_ext h2 hx⟩
+
+theorem RFMemoOK.insert {fP : Nat → Option Expr} {tbl : Std.HashMap EIdx EIdx}
+    {st : EStore} (hm : RFMemoOK fP tbl st) {h r : EIdx} {hP : Expr}
+    (hd : denoteE st h = some hP) (hr : denoteE st r = some (Expr.replaceFVars fP hP)) :
+    RFMemoOK fP (tbl.insert h r) st := by
+  intro k v hk
+  rw [Std.HashMap.getElem?_insert] at hk
+  split at hk
+  · rename_i hbeq
+    cases hk
+    rw [← eq_of_beq hbeq]
+    exact ⟨hP, hd, hr⟩
+  · exact hm k v hk
+
+/-- con-leche: none — the statement `fvMapAt f` answers `fP`. -/
+def FvMapAtSpec (f : Arena.FvMap) (fP : Nat → Option Expr) : Prop :=
+  ∀ i, PSpecP (fun st => FvMapRel st f fP) (Arena.fvMapAt f i) (ROp RE (fP i))
+
+/-- con-leche: none — the statement `nestHoleImg ctx prog n` answers
+con-leche's at the denoted context and stack prefix. -/
+def HoleImgSpec (ctx : Arena.NestCtx) (prog : List Arena.NestHole) (n : Nat) : Prop :=
+  ∀ (i : Nat) (fnd : ConLeche.Name → Option ConstantInfo) (ctxP : ConLeche.NestCtx)
+    (progP : List ConLeche.NestHole),
+    PSpecP (fun st => dCtx st fnd ctx = some ctxP ∧ dProg st (prog.take n) = some progP ∧
+        n ≤ prog.length)
+      (Arena.nestHoleImg ctx prog n i) (ROp RE (ConLeche.nestHoleImg ctxP progP i))
+
+/-- con-leche: none — `PStep` keeps `PinsOK`. -/
+theorem PinsOK.ofPStep {s s' : AState} (hp : PinsOK s) (h : PStep s s') : PinsOK s' :=
+  PinsOK.mono hp h.ext h.pins
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:744-757 Expr.replaceFVars
+**`fvMapAt`, given its `holeImg` arm**: the four maps, variant by variant. -/
+theorem fvMapAt_spec_of (f : Arena.FvMap) (fP : Nat → Option Expr)
+    (hHI : ∀ ctx prog n, f = .holeImg ctx prog n → HoleImgSpec ctx prog n) :
+    FvMapAtSpec f fP := by
+  intro i s₀ s' r hok hpins hpre hrun
+  cases f with
+  | holeImg ctx prog n =>
+    obtain ⟨fnd, ctxP, progP, h1, h2, h3, rfl⟩ := hpre
+    rw [Arena.fvMapAt] at hrun
+    exact hHI ctx prog n rfl i fnd ctxP progP s₀ s' r hok hpins ⟨h1, h2, h3⟩ hrun
+  | keyMap ds holes =>
+    obtain ⟨dsP, holesP, h1, h2, rfl⟩ := hpre
+    rw [Arena.fvMapAt] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, nestKeyMap_rel h1 h2 i⟩
+  | erase =>
+    subst hpre
+    rw [Arena.fvMapAt] at hrun
+    obtain ⟨z, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨rfl, hz⟩ := zeroLevel_run hpins k1
+    obtain ⟨so, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, hso⟩ := internSortE_run hok hz k2
+    obtain ⟨v, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨p3, hv⟩ := internFVarE_run p2.ok hso k3
+    obtain ⟨rfl, rfl⟩ := pureOk z3
+    exact ⟨p2.trans p3, _, rfl, hv⟩
+  | canon pfvs =>
+    obtain ⟨pP, h1, rfl⟩ := hpre
+    rw [Arena.fvMapAt] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, getElem?_ROp h1 i⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:775-810 Expr.replaceFVarsGo
+**The memoised walk, given `fvMapAt f`'s statement**: it computes
+`replaceFVars fP`.  (`PSpecP`: the `.erase` map interns through the
+`zeroLevel` pin.) -/
+theorem replaceFVarsGo_spec_of (f : Arena.FvMap) (fP : Nat → Option Expr)
+    (hfm : FvMapAtSpec f fP) :
+    ∀ (fuel : Nat) (memo : Std.HashMap EIdx EIdx) (h : EIdx) (hP : Expr),
+    PSpecP (fun st => FvMapRel st f fP ∧ denoteE st h = some hP ∧ RFMemoOK fP memo st)
+      (Arena.replaceFVarsGo f memo fuel h)
+      (fun st r => denoteE st r.1 = some (Expr.replaceFVars fP hP) ∧
+        RFMemoOK fP r.2 st) := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro memo h hP s₀ s' r hok _ _ hrun
+    rw [Arena.replaceFVarsGo] at hrun
+    exact absurd hrun (fun hc => failOk hc)
+  | succ fuel ih =>
+    intro memo h hP s₀ s' r hok hpins hp hrun
+    obtain ⟨hF, hd, hm⟩ := hp
+    rw [Arena.replaceFVarsGo] at hrun
+    dsimp only at hrun
+    obtain ⟨v, s₁, hv, h2⟩ := bindOk hrun
+    obtain ⟨hv0, hw⟩ := view_run hv
+    rw [hv0] at h2
+    have fin : ∀ {s₂ s₃ : AState} {rr : EIdx} {mm : Std.HashMap EIdx EIdx}
+        {r' : EIdx × Std.HashMap EIdx EIdx},
+        PStep s₀ s₂ → denoteE s₂.store rr = some (Expr.replaceFVars fP hP) →
+        RFMemoOK fP mm s₂.store →
+        (pure ((rr, mm.insert h rr) : EIdx × Std.HashMap EIdx EIdx) :
+            AM (EIdx × Std.HashMap EIdx EIdx)) s₂ = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ denoteE s₃.store r'.1 = some (Expr.replaceFVars fP hP) ∧
+          RFMemoOK fP r'.2 s₃.store := by
+      intro s₂ s₃ rr mm r' hs hb hmm hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      exact ⟨hs, hb, RFMemoOK.insert hmm (denote_ext hd hs.ext) hb⟩
+    have hit : ∀ {s₃ : AState} {r₀ : EIdx} {r' : EIdx × Std.HashMap EIdx EIdx},
+        memo[h]? = some r₀ →
+        (pure ((r₀, memo) : EIdx × Std.HashMap EIdx EIdx) :
+            AM (EIdx × Std.HashMap EIdx EIdx)) s₀ = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ denoteE s₃.store r'.1 = some (Expr.replaceFVars fP hP) ∧
+          RFMemoOK fP r'.2 s₃.store := by
+      intro s₃ r₀ r' hlk hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨e, he, hre⟩ := hm h r₀ hlk
+      obtain rfl := Option.some.inj (hd.symm.trans he)
+      exact ⟨PStep.refl hok, hre, hm⟩
+    cases v
+    case bvar j =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain rfl := denote_bvar_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, hd, hm⟩
+    case sort u =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨l, rfl, _⟩ := denote_sort_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, hd, hm⟩
+    case lit l =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain rfl := denote_lit_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, hd, hm⟩
+    case const n us =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, hd, hm⟩
+    case fvar k ty =>
+      obtain ⟨t, rfl, _⟩ := denote_fvar_inv hok.wf hw hd
+      obtain ⟨o, s₂, h3, h4⟩ := bindOk h2
+      obtain ⟨p3, ho⟩ := hfm k s₀ s₂ o hok hpins hF h3
+      cases o with
+      | none =>
+        obtain ⟨rfl, rfl⟩ := pureOk h4
+        refine ⟨p3, ?_, hm.ext p3.ext⟩
+        have : fP k = none := ho
+        simp only [Expr.replaceFVars, this, Option.getD_none]
+        exact denote_ext hd p3.ext
+      | some a =>
+        obtain ⟨rfl, rfl⟩ := pureOk h4
+        obtain ⟨b, hb, hab⟩ := ho
+        refine ⟨p3, ?_, hm.ext p3.ext⟩
+        simp only [Expr.replaceFVars, hb, Option.getD_some]
+        exact hab
+    case app f a =>
+      obtain ⟨ef, ea, rfl, hf, ha⟩ := denote_app_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨a2, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo f ef _ _ (a2, m1) hok hpins
+          ⟨hF, hf, hm⟩ hc1
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ := ih m1 a ea _ _ (b2, m2) hsA.ok
+          (PinsOK.ofPStep hpins hsA) ⟨hF.ext hsA.ext, denote_ext ha hsA.ext, hmA⟩ hc2
+        obtain ⟨q, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨hsC, hq⟩ := internAppE_run hsB.ok (denote_ext hrA hsB.ext) hrB hc3
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin ((hsA.trans hsB).trans hsC) (by rw [hq]; rfl) (hmB.ext hsC.ext) hz
+    case lam ty b m =>
+      obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_lam_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨a2, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (a2, m1) hok hpins
+          ⟨hF, hty, hm⟩ hc1
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ := ih m1 b eb _ _ (b2, m2) hsA.ok
+          (PinsOK.ofPStep hpins hsA) ⟨hF.ext hsA.ext, denote_ext hbd hsA.ext, hmA⟩ hc2
+        obtain ⟨q, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨hsC, hq⟩ := internLamE_run hsB.ok (denote_ext hrA hsB.ext) hrB hc3
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin ((hsA.trans hsB).trans hsC) (by rw [hq]; rfl) (hmB.ext hsC.ext) hz
+    case forallE ty b m =>
+      obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨a2, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (a2, m1) hok hpins
+          ⟨hF, hty, hm⟩ hc1
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ := ih m1 b eb _ _ (b2, m2) hsA.ok
+          (PinsOK.ofPStep hpins hsA) ⟨hF.ext hsA.ext, denote_ext hbd hsA.ext, hmA⟩ hc2
+        obtain ⟨q, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨hsC, hq⟩ := internForallEE_run hsB.ok (denote_ext hrA hsB.ext) hrB hc3
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin ((hsA.trans hsB).trans hsC) (by rw [hq]; rfl) (hmB.ext hsC.ext) hz
+    case letE lt lv lb =>
+      obtain ⟨et, ev, eb, rfl, hty, hval, hbd⟩ := denote_letE_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨a2, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo lt et _ _ (a2, m1) hok hpins ⟨hF, hty, hm⟩ hc1
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ := ih m1 lv ev _ _ (b2, m2) hsA.ok
+          (PinsOK.ofPStep hpins hsA) ⟨hF.ext hsA.ext, denote_ext hval hsA.ext, hmA⟩ hc2
+        have hAB := hsA.trans hsB
+        obtain ⟨p3, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨c2, m3⟩ := p3
+        obtain ⟨hsC, hrC, hmC⟩ := ih m2 lb eb _ _ (c2, m3) hsB.ok
+          (PinsOK.ofPStep hpins hAB) ⟨hF.ext hAB.ext, denote_ext hbd hAB.ext, hmB⟩ hc3
+        obtain ⟨q, sd, hc4, hn4⟩ := bindOk hn3
+        obtain ⟨hsD, hq⟩ := internLetEE_run hsC.ok (denote_ext hrA (hsB.ext.trans hsC.ext))
+          (denote_ext hrB hsC.ext) hrC hc4
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn4
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin ((hAB.trans hsC).trans hsD) (by rw [hq]; rfl) (hmC.ext hsD.ext) hz
+    case proj pn pk psub =>
+      obtain ⟨nm, es, rfl, hn, hsub⟩ := denote_proj_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨a2, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo psub es _ _ (a2, m1) hok hpins ⟨hF, hsub, hm⟩ hc1
+        obtain ⟨q, sc, hc3, hn3⟩ := bindOk hn1
+        obtain ⟨hsC, hq⟩ := internProjE_run hsA.ok (denoteN_ext hn hsA.ext) hrA hc3
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin (hsA.trans hsC) (by rw [hq]; rfl) (hmA.ext hsC.ext) hz
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:875-877 Expr.replaceFVarsFast
+The entry at an empty memo, given `fvMapAt f`'s statement. -/
+theorem replaceFVars_spec_of (f : Arena.FvMap) (fP : Nat → Option Expr)
+    (hfm : FvMapAtSpec f fP) (e : EIdx) (eP : Expr) :
+    PSpecP (fun st => FvMapRel st f fP ∧ denoteE st e = some eP)
+      (Arena.replaceFVars f e) (RE (Expr.replaceFVars fP eP)) := by
+  intro s₀ s' r hok hpins hp hrun
+  obtain ⟨hF, hd⟩ := hp
+  rw [Arena.replaceFVars] at hrun
+  obtain ⟨q, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep, hr, _⟩ := replaceFVarsGo_spec_of f fP hfm Arena.coreWalkFuel ∅ e eP
+    s₀ s₁ q hok hpins ⟨hF, hd, RFMemoOK.empty⟩ h1
+  obtain ⟨rfl, rfl⟩ := pureOk h2
+  exact ⟨hstep, hr⟩
+
+/-- con-leche: none — `List.mapM` of a pin-reading expression map over a
+denoting handle list: the answer denotes the pure map, pointwise.  A store
+invariant `Q` rides along (the map's own licence). -/
+theorem mapM_RE_P {F : EIdx → AM EIdx} {G : Expr → Expr} (Q : EStore → Prop)
+    (hQ : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
+    (hF : ∀ (e : EIdx) (eP : Expr),
+      PSpecP (fun st => Q st ∧ denoteE st e = some eP) (F e) (RE (G eP))) :
+    ∀ (xs : List EIdx) (xsP : List Expr),
+      PSpecP (fun st => Q st ∧ Frontend.denoteEList st xs = some xsP) (xs.mapM F)
+        (REL (xsP.map G)) := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro xsP s₀ s' r hok _ hp hrun
+    obtain ⟨_, h⟩ := hp
+    simp only [Frontend.denoteEList, Option.some.injEq] at h
+    subst h
+    simp only [List.mapM_nil] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons e es ih =>
+    intro xsP s₀ s' r hok hpins hp hrun
+    obtain ⟨hq, h⟩ := hp
+    simp only [Frontend.denoteEList] at h
+    cases he : denoteE s₀.store e with
+    | none => rw [he] at h; simp at h
+    | some eP =>
+      cases hes : Frontend.denoteEList s₀.store es with
+      | none => rw [he, hes] at h; simp at h
+      | some esP =>
+        rw [he, hes] at h
+        obtain rfl := (Option.some.inj h).symm
+        simp only [List.mapM_cons] at hrun
+        obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
+        obtain ⟨p1, hx⟩ := hF e eP s₀ s1 x hok hpins ⟨hq, he⟩ k1
+        obtain ⟨xs', s2, k2, z2⟩ := bindOk z1
+        obtain ⟨p2, hxs⟩ := ih esP s1 s2 xs' p1.ok (PinsOK.ofPStep hpins p1)
+          ⟨hQ p1.ext hq, denoteEList_ext p1.ext _ _ hes⟩ k2
+        obtain ⟨rfl, rfl⟩ := pureOk z2
+        refine ⟨p1.trans p2, ?_⟩
+        show Frontend.denoteEList _ (x :: xs') = _
+        have hxs' : Frontend.denoteEList _ xs' = some (esP.map G) := hxs
+        simp only [Frontend.denoteEList, List.map_cons, denote_ext hx p2.ext, hxs']
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:521-528 NestKey —
+`dKey` taken apart. -/
+theorem dKey_inv {st : EStore} {k : Arena.NestKey} {kP : ConLeche.NestKey}
+    (h : dKey st k = some kP) :
+    denoteN st.ns k.cname = some kP.cname ∧ denoteLs st.lss k.lvls = some kP.lvls ∧
+      Frontend.denoteEList st k.ds = some kP.ds := by
+  simp only [dKey] at h
+  cases h1 : denoteN st.ns k.cname with
+  | none => rw [h1] at h; exact nomatch h
+  | some c =>
+  cases h2 : denoteLs st.lss k.lvls with
+  | none => rw [h1, h2] at h; exact nomatch h
+  | some us =>
+  cases h3 : Frontend.denoteEList st k.ds with
+  | none => rw [h1, h2, h3] at h; exact nomatch h
+  | some ds =>
+  rw [h1, h2, h3] at h
+  obtain rfl := (Option.some.inj h).symm
+  exact ⟨rfl, rfl, rfl⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:884-900 nestHoleImg
+**The holes read back**, at every stack prefix: by induction on the prefix
+length `n`, the frame case reading its parameters back through
+`replaceFVars (.holeImg ctx prog n)` — whose `fvMapAt` is this statement at
+`n`, the induction hypothesis. -/
+theorem nestHoleImg_spec (ctx : Arena.NestCtx) (prog : List Arena.NestHole) :
+    ∀ n, HoleImgSpec ctx prog n := by
+  intro n
+  induction n with
+  | zero =>
+    intro i fnd ctxP progP s₀ s' r hok hpins hp hrun
+    obtain ⟨h1, h2, _⟩ := hp
+    cases progP with
+    | cons _ _ => simp [dProg] at h2
+    | nil =>
+    obtain ⟨namesP, lpsP, paramsP, sortP, rfl, hN, _, hPa, _, hLv⟩ := dCtx_inv h1
+    have hlen := denoteNList_length hN
+    rw [Arena.nestHoleImg] at hrun
+    dsimp only at hrun
+    have hiff : ((decide (ctx.nP ≤ i) && decide (i < ctx.hiAt 0)) = true) ↔
+        (ctx.nP ≤ i ∧ i < ctx.nP + namesP.length + 0) := by
+      simp [Arena.NestCtx.hiAt, hlen]
+    by_cases hc : (decide (ctx.nP ≤ i) && decide (i < ctx.hiAt 0)) = true
+    · rw [if_pos hc] at hrun
+      obtain ⟨hlo, hhi⟩ := hiff.mp hc
+      have hj : i - ctx.nP < ctx.names.length := by omega
+      obtain ⟨nm, hnm, hn⟩ := denoteNList_getElem? hN (i - ctx.nP) _
+        (List.getElem?_eq_getElem hj)
+      have hg : ctx.names.getD (i - ctx.nP) default = ctx.names[i - ctx.nP] := by
+        simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj]
+      rw [hg] at hrun
+      obtain ⟨hd, s1, k1, z1⟩ := bindOk hrun
+      obtain ⟨p1, hhd⟩ := internConstE_run hok hn hLv k1
+      obtain ⟨q, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨p2, hq⟩ := mkAppN_run ctx.params paramsP p1.ok hhd
+        (denoteEList_ext p1.ext _ _ hPa) k2
+      obtain ⟨rfl, rfl⟩ := pureOk z2
+      refine ⟨p1.trans p2, _, ?_, hq⟩
+      have hgP : namesP.getD (i - ctx.nP) .anonymous = nm := by
+        simp [List.getD_eq_getElem?_getD, hnm]
+      simp only [ConLeche.nestHoleImg, ConLeche.NestCtx.hiAt, hgP]
+      rw [if_pos ⟨hlo, hhi⟩]
+    · rw [if_neg hc] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      refine ⟨PStep.refl hok, ?_⟩
+      show ConLeche.nestHoleImg _ [] i = none
+      simp only [ConLeche.nestHoleImg, ConLeche.NestCtx.hiAt]
+      rw [if_neg (fun hh => hc (hiff.mpr hh))]
+  | succ n ih =>
+    intro i fnd ctxP progP s₀ s' r hok hpins hp hrun
+    obtain ⟨h1, h2, h3⟩ := hp
+    have hn : n < prog.length := by omega
+    obtain ⟨hP, progP', rfl, hH, hprog', hlenP⟩ := dProg_take_succ hn h2
+    obtain ⟨namesP, lpsP, paramsP, sortP, hctx, hN, _, _, _, _⟩ := dCtx_inv h1
+    have hlen := denoteNList_length hN
+    rw [Arena.nestHoleImg] at hrun
+    dsimp only at hrun
+    have hiff : (i == ctx.hiAt n) = true ↔ i = ctxP.hiAt progP'.length := by
+      subst hctx
+      simp [Arena.NestCtx.hiAt, ConLeche.NestCtx.hiAt, hlen, hlenP]
+    by_cases hc : (i == ctx.hiAt n) = true
+    · rw [if_pos hc] at hrun
+      have hg : prog.getD n default = prog[n] := by
+        simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hn]
+      rw [hg] at hrun
+      simp only [dHole, Option.map_eq_some_iff] at hH
+      obtain ⟨kP, hk, rfl⟩ := hH
+      obtain ⟨hcn, hcl, hcd⟩ := dKey_inv hk
+      have hfm : FvMapAtSpec (.holeImg ctx prog n) (ConLeche.nestHoleImg ctxP progP') :=
+        fvMapAt_spec_of _ _ (fun c p m heq => by cases heq; exact ih)
+      obtain ⟨ds, s1, k1, z1⟩ := bindOk hrun
+      obtain ⟨p1, hds⟩ := mapM_RE_P
+        (fun st => FvMapRel st (.holeImg ctx prog n) (ConLeche.nestHoleImg ctxP progP'))
+        (fun hx h => h.ext hx)
+        (fun e eP => replaceFVars_spec_of _ _ hfm e eP) _ _ s₀ s1 ds hok hpins
+        ⟨⟨fnd, ctxP, progP', h1, hprog', by omega, rfl⟩, hcd⟩ k1
+      obtain ⟨hd, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨p2, hhd⟩ := internConstE_run p1.ok (denoteN_ext hcn p1.ext)
+        (denoteLs_ext hcl p1.ext) k2
+      obtain ⟨q, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨p3, hq⟩ := mkAppN_run ds _ p2.ok hhd (denoteEList_ext p2.ext _ _ hds) k3
+      obtain ⟨rfl, rfl⟩ := pureOk z3
+      refine ⟨(p1.trans p2).trans p3, _, ?_, hq⟩
+      simp only [ConLeche.nestHoleImg]
+      rw [if_pos (hiff.mp hc)]
+    · rw [if_neg hc] at hrun
+      obtain ⟨hs, hr⟩ := ih i fnd ctxP progP' s₀ s' r hok hpins ⟨h1, hprog', by omega⟩ hrun
+      refine ⟨hs, ?_⟩
+      have heq : ConLeche.nestHoleImg ctxP (hP :: progP') i =
+          ConLeche.nestHoleImg ctxP progP' i := by
+        simp only [ConLeche.nestHoleImg]
+        rw [if_neg (fun hh => hc (hiff.mpr hh))]
+      rw [heq]
+      exact hr
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:744-757 Expr.replaceFVars
+**`fvMapAt`**: every map answers its pure function. -/
+theorem fvMapAt_spec (f : Arena.FvMap) (fP : Nat → Option Expr) : FvMapAtSpec f fP :=
+  fvMapAt_spec_of f fP (fun ctx prog n _ => nestHoleImg_spec ctx prog n)
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:775-810 Expr.replaceFVarsGo
+The memoised readback walk computes `replaceFVars fP`. -/
+theorem replaceFVarsGo_spec (f : Arena.FvMap) (fP : Nat → Option Expr) (fuel : Nat)
+    (memo : Std.HashMap EIdx EIdx) (h : EIdx) (hP : Expr) :
+    PSpecP (fun st => FvMapRel st f fP ∧ denoteE st h = some hP ∧ RFMemoOK fP memo st)
+      (Arena.replaceFVarsGo f memo fuel h)
+      (fun st r => denoteE st r.1 = some (Expr.replaceFVars fP hP) ∧
+        RFMemoOK fP r.2 st) :=
+  replaceFVarsGo_spec_of f fP (fvMapAt_spec f fP) fuel memo h hP
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:875-877 Expr.replaceFVarsFast
+**`replaceFVars`**: the pure `Expr.replaceFVars` (con-leche's `@[csimp]`
+swaps its memoised walk in; the structural definition is the spec). -/
+theorem replaceFVars_spec (f : Arena.FvMap) (fP : Nat → Option Expr) (e : EIdx)
+    (eP : Expr) :
+    PSpecP (fun st => FvMapRel st f fP ∧ denoteE st e = some eP)
+      (Arena.replaceFVars f e) (RE (Expr.replaceFVars fP eP)) :=
+  replaceFVars_spec_of f fP (fvMapAt_spec f fP) e eP
 
 end ConRon.Bridge.Inductives
