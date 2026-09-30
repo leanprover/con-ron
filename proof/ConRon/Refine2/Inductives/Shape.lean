@@ -2,35 +2,13 @@
 # `ConRon.Refine2.Inductives.Shape` — the inductive tier's abstractions
 
 **Task #97-P5-Ind** (DESIGN.md §8.2, Theorem 2), the shared base of
-`Refine2/Inductives/**`.  `Refine2/Shape.lean` and
-`Refine2/Checker/Shape.lean` carry the statement shapes this tier uses
-(`Sim`, `SimR`, `SimRE`, `SimP`, `SimRel`, and `ExprOps/Read.lean`'s
-`WOut` / `LOut` for the two memo-threading walks); what this file adds is the
-**data**: the six records `arena::inductives` has that no earlier tier
-abstracts, and the containers its functions carry.
-
-## The records
-
-| Rust | twin | note |
-|---|---|---|
-| `sum_parts::InductiveShape` | `InductiveShape` | field for field |
-| `struct_parts::StructParts` | `StructParts` | field for field |
-| `native_parts::RecFieldKind` | `RecFieldKind` | five constructors, twinned rather than imported (`Arena/Inductives/NativeParts.lean`'s module note) |
-| `native_parts::NativeParts` | `NativeParts` | the twin `extends InductiveShape`; the port has a `shape` FIELD, which is the one record-shape difference of the tier |
-| `native_install::NativePass` | `NativePass` | its `env₁` is an `IFEnv`, so the record RELATES and does not abstract |
-| `modeled::RenameBy` | a `List (NIdx × NIdx)` | **finding 15** below |
-
-**Finding 15 — the last higher-order argument of the crate is not one.**
-Task #97-P5-0's finding 6 gave `arena::expr_ops::rename_consts` a relation
-(`RenameRel`) because the Rust's one-method `NIdxToNIdx` trait stands against
-a twin that takes a TOTAL FUNCTION `NIdx → NIdx`.  At the modeled route the
-twin does not take a function either: `Arena/Inductives/Modeled.lean`'s module
-note says the renaming maps are precomputed TABLES and `renameBy tbl` is their
-lookup, because building a name over handles means interning one.  So
-`RenameBy` and the twin's `List (NIdx × NIdx)` relate as CONTAINERS —
-`absRenameBy` is an ordinary abstraction function, and the `RenameRel`
-hypothesis the `expr_ops` statements carry is discharged at every call site of
-this tier by `rename_by_rel` (`Refine2/Inductives/Modeled.lean`).
+`Refine2/Inductives/**`, lowered by task #105 below the checker tier (it
+imports `Checker/Shape`, `ExprOps/Mut`, `Tactic/Prims` and nothing that needs
+the Core knot; the environment readers and the `CoreCtx` side alternatives
+moved up to `Inductives/Prims.lean`).  `Refine2/Shape.lean` and
+`Refine2/Checker/Shape.lean` carry the statement shapes; this file adds the
+containers the tier's functions carry and the cursor recipes.  The uniform
+route's records are abstracted in `Inductives/Abs.lean`.
 
 ## The containers
 
@@ -39,9 +17,9 @@ Every one is a `Vec` against the container the twin chose, and — as in
 `List`-as-cursor deviation: where the twin recurses structurally on a `List`,
 the Rust takes the whole `Vec` and an index.
 -/
-import ConRon.Refine2.Checker.KnotHyp
+import ConRon.Refine2.Checker.Shape
+import ConRon.Refine2.ExprOps.Mut
 import ConRon.Refine2.Tactic.Prims
-import ConRon.Refine2.Inductives.Prims
 import ConRon.Refine2.Inductives.FieldTele
 
 open Aeneas Aeneas.Std Result
@@ -130,41 +108,8 @@ def absRecsLFrom
   (v.val.drop i.val).map fun p =>
     (absIConstantVal p.1, absU p.2.1, absU p.2.2.1, p.2.2.2.val.map absIRecRule)
 
-/-! ## The renaming table (finding 15) -/
+/-! ## `IRecRule`'s fields -/
 
-/-- `Vec<(NIdx, NIdx)>` as the twin's `List (NIdx × NIdx)` — the rename tables
-of `Arena/Inductives/Modeled.lean`'s `blockRenameTable`, `projBack` and
-`projFwd`. -/
-def absRenameTbl (v : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx)) :
-    List (NIdx × NIdx) := v.val.map fun p => (absNIdx p.1, absNIdx p.2)
-
-def absRenameTblFrom (v : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx))
-    (i : Std.Usize) : List (NIdx × NIdx) :=
-  (v.val.drop i.val).map fun p => (absNIdx p.1, absNIdx p.2)
-
-/-- **`arena::inductives::modeled::RenameBy` is the twin's table, boxed** —
-finding 15 of the module note. -/
-def absRenameBy (r : arena.inductives.modeled.RenameBy) : List (NIdx × NIdx) :=
-  absRenameTbl r.tbl
-
-/-! ## The five records -/
-
-/-- `arena::inductives::sum_parts::InductiveShape`. -/
-def absInductiveShape (p : arena.inductives.sum_parts.InductiveShape) :
-    InductiveShape :=
-  ⟨absIConstantVal p.cv_t, absCtorsL p.ctors, absU p.n_p, absU p.n_idx,
-    absIConstantVal p.cv_r, absNIdx p.elim, absLIdx p.res_sort, absEIdxL p.rhss,
-    p.large, p.is_prop⟩
-
-/-- `arena::inductives::struct_parts::StructParts`. -/
-def absStructParts (p : arena.inductives.struct_parts.StructParts) : StructParts :=
-  ⟨absIConstantVal p.cv_t, absIConstantVal p.cv_c, absU p.n_p, absU p.n_f,
-    absIConstantVal p.cv_r, absNIdx p.elim, absLIdx p.res_sort, absEIdx p.rhs,
-    p.large, p.is_prop⟩
-
-/-- The rule's fields, abstracted (`rfl`; registered `lockstep_simp` LOCALLY by
-the files that need them — `PrimsModeled.lean` has the modeled route's own
-copies under the unsuffixed names). -/
 theorem absIRecRule_ctor_eq (r : arena.env.IRecRule) :
     (absIRecRule r).ctor = absNIdx r.ctor := rfl
 theorem absIRecRule_nfields_eq (r : arena.env.IRecRule) :
@@ -172,46 +117,6 @@ theorem absIRecRule_nfields_eq (r : arena.env.IRecRule) :
 theorem absIRecRule_rhs_eq (r : arena.env.IRecRule) :
     (absIRecRule r).rhs = absEIdx r.rhs := rfl
 
-/-- `arena::inductives::native_parts::RecFieldKind`. -/
-def absRecFieldKind : arena.inductives.native_parts.RecFieldKind → RecFieldKind
-  | .Ordinary => .ordinary
-  | .Recursive => .recursive
-  | .Reflexive => .reflexive
-  | .Negative => .negative
-  | .Unsupported => .unsupported
-
-def absKindL (v : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind) :
-    List RecFieldKind := v.val.map absRecFieldKind
-
-def absKindLFrom (v : alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)
-    (i : Std.Usize) : List RecFieldKind := (v.val.drop i.val).map absRecFieldKind
-
-def absKindLL
-    (v : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind)) :
-    List (List RecFieldKind) := v.val.map absKindL
-
-def absKindLLFrom
-    (v : alloc.vec.Vec (alloc.vec.Vec arena.inductives.native_parts.RecFieldKind))
-    (i : Std.Usize) : List (List RecFieldKind) := (v.val.drop i.val).map absKindL
-
-/-- `arena::inductives::native_parts::NativeParts` — **the one record-shape
-difference of this tier**: the twin `extends InductiveShape` where the port
-carries a `shape` field, so the abstraction crosses that boundary here and
-`toInductiveShape` is what every consumer of the twin's record reads. -/
-def absNativeParts (p : arena.inductives.native_parts.NativeParts) : NativeParts :=
-  ⟨absInductiveShape p.shape, absKindLL p.kinds, p.rec_pinned⟩
-
-/-- `arena::inductives::native_install::NativePass`.  Its `env1` field is an
-`IFEnv`, which RELATES rather than abstracts (`Refine2/AbsState.lean`'s
-`IFEnvRel`), so the record needs a relation and not a function. -/
-structure NativePassRel (r : arena.inductives.native_install.NativePass)
-    (l : NativePass) : Prop where
-  env₁ : IFEnvRel r.env1 l.env₁
-  env₁Inv : IFEnvInv r.env1
-  cvTa : l.cvTa = absIConstantVal r.cv_ta
-  p : l.p = absNativeParts r.p
-  ctorsA : l.ctorsA = absCtorsL r.ctors_a
-  sortss : l.sortss = absLIdxLL r.sortss
 
 /-! ## Rule 11 at a COUNTED recursion — the tier's four list closers
 
@@ -556,66 +461,13 @@ theorem filter_range_filter_ge (P : Nat → Bool) (n i : Nat) :
       omega
     rw [h1, h2, List.nil_append]
 
-/-- **`native_parts::nidx_cons_from` copies a `Vec<NIdx>` onto an accumulator.**
-It sits here rather than beside its `_refines` because `native_rec_lps_ok`
-needs it and stands EARLIER in `native_parts.rs`, and DESIGN §3.4 keeps the
-port's order in the `_refines` file. -/
-theorem nidx_cons_from_map {ns : alloc.vec.Vec arena.handle.NIdx} :
-    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
-      arena.inductives.native_parts.nidx_cons_from ns i out = ok o →
-      o.val.map absNIdx = out.val.map absNIdx ++ (ns.val.drop i.val).map absNIdx := by
-  refine vec_cursor_copy ns absNIdx absNIdx
-    (arena.inductives.native_parts.nidx_cons_from ns) ?_ ?_
-  · intro i out o hn h
-    rw [arena.inductives.native_parts.nidx_cons_from.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len ns by scalar_tac), Result.ok.injEq] at h
-    rw [h]
-  · intro i x out o hx h
-    have hlt : i.val < ns.val.length := (List.getElem?_eq_some_iff.mp hx).1
-    rw [arena.inductives.native_parts.nidx_cons_from.eq_def] at h
-    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ns by scalar_tac)] at h
-    obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hnx : n1 = x := by
-      have h1 := vec_index_some hn1; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
-    subst hnx
-    exact ⟨i2, n2, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
-      by rw [dupId_nidx _ _ hn2], h⟩
-
-/-- `native_parts::nidx_cons` is the twin's `n :: ns`. -/
-theorem nidx_cons_abs {n : arena.handle.NIdx} {ns o : alloc.vec.Vec arena.handle.NIdx}
-    (h : arena.inductives.native_parts.nidx_cons n ns = ok o) :
-    o.val.map absNIdx = absNIdx n :: ns.val.map absNIdx := by
-  rw [arena.inductives.native_parts.nidx_cons] at h
-  obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨out, hout, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [nidx_cons_from_map 0#usize out o h]
-  simp [ConRon.Refine.vec_push_val hout, alloc.vec.Vec.new, dupId_nidx _ _ hn1,
-    show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
-
-/-! ### The declaration copies, and the two readers of a block member
-
-`arena::inductives::modeled` filters and copies a block, so it needs
-`i_constant_info_dup` to be the identity on the abstraction and
-`i_constant_info_name` to be the twin's `.name`.  `is_rec_info_abs` restates
-`Refine2/Checker/Base.lean`'s `is_rec_info_refines`, which is TRUE but stands
-above this tier in the module graph (`Checker/Top.lean` imports the inductives,
-not the other way round), so it cannot be cited here. -/
+/-! ### The declaration copies -/
 
 -- `i_ind_caps_dup_abs`, `i_proj_table_dup_abs` and `i_constant_info_dup_abs`
 -- moved down to `Refine2/Dup.lean` (task #97-P5-Front round 2).
 
 -- `i_constant_info_name_abs` moved down to `Refine2/Checker/Shape.lean`
 -- (task #97-P5-Checker round 4).
-
-/-- `arena::checker_base::is_rec_info` ⊑ `isRecInfo`, restated for this tier. -/
-theorem is_rec_info_abs {ci : arena.env.IConstantInfo} {o : Bool}
-    (h : arena.checker_base.is_rec_info ci = ok o) :
-    o = isRecInfo (absIConstantInfo ci) := by
-  rw [arena.checker_base.is_rec_info.eq_def] at h
-  cases ci <;> (rw [← Result.ok_injective h]; rfl)
 
 /-! ## The STATEFUL cursor recursion, once (round 4; lockstep since task #97-T2-LOCKSTEP)
 
@@ -671,7 +523,7 @@ theorem sim_cursor_copy {ι β δ : Type} {pers : arena.store.PersTier}
   · intro i out hn st lst o hrel hinv h
     rw [hstop st i out o hn h]
     refine Sim₀.mk (AOut₀.ok ?_ hrel hinv)
-    simp only [hnil _ hn, am_run_bind]
+    simp only [hnil _ hn, am_run_bind']
     simp
     rfl
   · intro i out hi ih st lst o hrel hinv h
@@ -685,7 +537,7 @@ theorem sim_cursor_copy {ι β δ : Type} {pers : arena.store.PersTier}
       have key : (do pure (out.val.map f ++ (← rest (val i))) : AM (List δ)).run lst
           = (do pure (out1.val.map f ++ (← rest (val j))) : AM (List δ)).run lst1 := by
         rw [hcons _ hi, hj]
-        simp only [am_run_bind, hrun, hout1, bind_assoc, List.map_append,
+        simp only [am_run_bind', hrun, hout1, bind_assoc, List.map_append,
           List.map_cons, List.map_nil, List.append_assoc, List.cons_append,
           List.nil_append]
         rfl
@@ -695,7 +547,7 @@ theorem sim_cursor_copy {ι β δ : Type} {pers : arena.store.PersTier}
       rw [herr e rfl]
       refine AOut₀.err ?_
       rw [hcons _ hi]
-      simp only [am_run_bind]
+      simp only [am_run_bind']
       exact AErrSim.bind (AErrSim.bind (Sim₀.apply_err hsim) _) _
 
 /-- `sim_cursor_copy` at a `Vec` cursor: the step reads `xs` at the cursor and
@@ -768,9 +620,7 @@ def LOutRel (r : Bool × ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
 
 attribute [simp] absNatL absNatLFrom absBoolL absBoolLFrom absLIdxLL absLIdxLLFrom
   absBinderL absBinderLFrom absCtorsL absCtorsLFrom absCtors3L absCtors3LFrom
-  absCtors4L absCtors4LFrom absRecsL absRecsLFrom absRenameTbl
-  absRenameTblFrom absRenameBy absInductiveShape absStructParts absRecFieldKind
-  absKindL absKindLFrom absKindLL absKindLLFrom absNativeParts
+  absCtors4L absCtors4LFrom absRecsL absRecsLFrom
 
 /-! ## Rust-only copies, for the `lockstep` tactic (task #97-T2-LOCKSTEP lane
 Inductives round 3)
@@ -823,7 +673,7 @@ goal. -/
 scoped macro_rules
   | `(tactic| lockstep_side_ext) =>
     `(tactic| ((try simp only [Lockstep.TwinEq] at *); first
-      | (simp_all [absStructParts, absInductiveShape, absNativeParts, absIRecRule]; done)
+      | (simp_all [absIRecRule]; done)
       -- a Rust-computed Bool against the twin's conjunction whose other
       -- conjuncts the port tested before (a length the context pins)
       | (simp only [ExprOps.absEIdxL, absEIdxL, List.length_map, alloc.vec.Vec.len] at *
@@ -843,97 +693,6 @@ scoped macro_rules
                forallE_eq_absU32_iff]; done))))
 
 end IndSide
-
-/-- The Core front doors (`Refine2/Checker/KnotHyp.lean`) take `CoreCtx vis rf
-lf`; the tier carries `IFEnvRelI rf lf` and, at a split counter, `absU vis =
-lf.visibleBelow` — `IFEnvInv.coreCtx`/`coreCtxSelf` turn those into it. -/
-macro_rules
-  | `(tactic| lockstep_side_ext) =>
-    `(tactic| first
-      | (apply IFEnvInv.coreCtxSelf <;> first
-          | (apply IFEnvRelI.rel; assumption) | (apply IFEnvRelI.inv; assumption))
-      | (apply IFEnvInv.coreCtx <;> first
-          | (apply IFEnvRelI.rel; assumption) | (apply IFEnvRelI.inv; assumption)
-          | assumption | (checker_env_facts; simp_all; done)))
-
-
--- A twin `if` whose test a `TwinEq` rewrote to a literal.
-attribute [lockstep_simp] ite_true ite_false
-
-/-! ## Two environment-record constants -/
-
-open Lockstep in
-/-- `i_ind_caps_default` is the twin's `{}` (the zero word is `default`, the
-empty `if_all_zero` is `.ifAllZero []`). -/
-@[lockstep] theorem i_ind_caps_default_twin :
-    LSP arena.env.i_ind_caps_default (fun o => TwinEq ({} : IIndCaps) (absIIndCaps o) ∧
-      ConRon.Refine.PropWhenWF o.sort_z) := by
-  intro o h
-  refine ⟨?_, ?_⟩
-  swap
-  · rw [arena.env.i_ind_caps_default] at h
-    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [← Result.ok_injective h]
-    exact ConRon.Refine.PropWhen.if_all_zero_wf (fun n hn => by simp [alloc.vec.Vec.new] at hn) hpw
-  simp only [arena.env.i_ind_caps_default, arena.handle.NIdx.of_word,
-    kernel.prop_when.if_all_zero, kernel.prop_when.of_repr, alloc.vec.Vec.new,
-    alloc.vec.Vec.len] at h
-  simp at h
-  rw [if_pos (by rfl)] at h
-  simp at h
-  subst h
-  simp [TwinEq, absIIndCaps]
-  rfl
-
-open Lockstep in
-/-- `checker_base::recs_form_suffix` from the cursor `0`
-(`Refine2/Checker/Base.lean`'s `recs_form_suffix_refines`). -/
-@[lockstep] theorem recs_form_suffix_twin0 (block : alloc.vec.Vec arena.env.IConstantInfo) :
-    LSP (arena.checker_base.recs_form_suffix block 0#usize)
-      (fun o => TwinEq (recsFormSuffix (absICIL block)) o) := by
-  intro o h
-  have h' := recs_form_suffix_refines h
-  simpa [TwinEq, absICILFrom, absICIL] using h'.symm
-
-/-! ## The environment index's readers, as `TwinEq`s
-
-`ifenv_find`/`find_ci` read the Rust index; the twin's `find?` is the same
-lookup (`ifenv_find_abs`, `Refine2/Core/Arms/Delta.lean`).  The twin
-environment is fixed by the `CoreCtx` side goal, which the tier's side
-extension discharges from `IFEnvRelI` (and the split counter). -/
-
-open Lockstep in
-@[lockstep] theorem ifenv_find_twin {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (n : arena.handle.NIdx) (hctx : CoreCtx vis rf lf) :
-    LSP (arena.env.ifenv_find vis rf n)
-      (fun o => TwinEq (lf.find? (absNIdx n)) (o.map absIConstantInfo)) :=
-  fun _ h => (ifenv_find_abs hctx h).symm
-
-open Lockstep in
-@[lockstep] theorem find_ci_twin {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (n : arena.handle.NIdx) (hctx : CoreCtx vis rf lf) :
-    LSP (arena.env.find_ci vis rf n)
-      (fun o => TwinEq (lf.find? (absNIdx n)) (o.map absIConstantInfo)) := by
-  intro o h
-  rw [arena.env.find_ci] at h
-  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hf := ifenv_find_abs hctx hr
-  cases r with
-  | none =>
-    obtain rfl := (Result.ok_injective h).symm
-    exact hf.symm
-  | some ci =>
-    obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain rfl := (Result.ok_injective h).symm
-    rw [← hf]
-    simp [TwinEq, i_constant_info_dup_abs hii]
-
--- `lf.restrictTo (absU vis)` at the split counter IS `lf` (`hvis`): the
--- checker tier's statements are at the restriction, the tier's twins at `lf`.
-macro_rules
-  | `(tactic| lockstep_side_ext) =>
-    `(tactic| (simp only [IFEnv.restrictTo] at *; checker_env_facts; simp_all; done))
 
 /-! ## The cursor recipe in `LS` form (task #97-T2-LOCKSTEP lane Inductives round 4)
 
@@ -1040,15 +799,6 @@ the cursor (`absXLFrom v i`) and the port calls it at `0#usize`. -/
 
 @[lockstep_simp] theorem absRecsLFrom_zero (v) : absRecsLFrom v 0#usize = absRecsL v := by
   simp [absRecsLFrom, absRecsL]
-
-@[lockstep_simp] theorem absRenameTblFrom_zero (v) : absRenameTblFrom v 0#usize = absRenameTbl v := by
-  simp [absRenameTblFrom, absRenameTbl]
-
-@[lockstep_simp] theorem absKindLFrom_zero (v) : absKindLFrom v 0#usize = absKindL v := by
-  simp [absKindLFrom, absKindL]
-
-@[lockstep_simp] theorem absKindLLFrom_zero (v) : absKindLLFrom v 0#usize = absKindLL v := by
-  simp [absKindLLFrom, absKindLL]
 
 /-! ## The axiom census -/
 
@@ -1332,17 +1082,6 @@ not import). -/
 @[lockstep] theorem ind_eidx_vec_dup_twin (es : alloc.vec.Vec arena.handle.EIdx) :
     LSP (arena.env.eidx_vec_dup es) (fun r => TwinEq (absEIdxL es) (absEIdxL r)) :=
   fun _ h => by simp only [Lockstep.TwinEq, absEIdxL, eidx_vec_dup_val h]
-
-open Lockstep in
-/-- `arena::canon::eidx_vec_beq` from `0` is `==` on the abstracted lists. -/
-@[lockstep] theorem canon_eidx_vec_beq_twin (a b : alloc.vec.Vec arena.handle.EIdx) :
-    LSP (arena.canon.eidx_vec_beq a b 0#usize) (fun o => o = (absEIdxL a == absEIdxL b)) := by
-  intro o h
-  rw [eidx_vec_beq_refines h]
-  have e : ∀ v : alloc.vec.Vec arena.handle.EIdx, absEIdxLFrom v 0#usize = absEIdxL v := by
-    intro v; simp [absEIdxLFrom, absEIdxL]
-  rw [e, e]
-  cases h' : decide (absEIdxL a = absEIdxL b) <;> simp_all
 
 /-- `takeEidx` is `List.take` on the array's list (the tier's copy of the
 Core regions' `takeEidx_toList'`, which is region-local). -/
