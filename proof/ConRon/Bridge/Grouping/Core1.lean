@@ -13,8 +13,8 @@ open ConRon.Arena Std.Do
   keeps_step liftFueled
 
 #keeps emptyLevels zeroLevel sortOne constE lvlEq? lvlsEq? constTyAt constValAt ruleRhsAt
-  unknownConstError projModelName isCtorApp piResultIsProp piResultZ piResultNeverZero
-  capsNeverZero isUnitLikeTy unfoldDefinition unfoldableHead headHint sameConstHeads
+  unknownConstError isCtorApp
+  capsNeverZero unfoldDefinition unfoldableHead headHint sameConstHeads
   natLitToConstructor natIndOk natZeroOk natSuccOk natLitSupported
 #keeps_ind constsResolve 1
 #keeps litToCtorIfNat rawNatLit?

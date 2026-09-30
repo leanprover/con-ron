@@ -57,7 +57,7 @@ open ConRon.Arena Std.Do
 #keeps leavesSubArmApp leavesSubArmBind leavesSubArmLet leafGuard
 
 #keeps_fuel looseBVarsBounded [looseBArmApp, looseBArmBind, looseBArmLet]
-#keeps looseBArmApp looseBArmBind looseBArmLet isLam lamPw forallPw
+#keeps looseBArmApp looseBArmBind looseBArmLet isLam lamPw
 
 #keeps_fuel hasFvar [hasFvarArmApp, hasFvarArmBind, hasFvarArmLet]
 #keeps hasFvarArmApp hasFvarArmBind hasFvarArmLet
@@ -79,7 +79,6 @@ open ConRon.Arena Std.Do
 #keeps_ind stripLams
 #keeps_ind stripPis
 #keeps_ind piResult
-#keeps_ind instPis 2
 #keeps_ind instPisAt 1
 #keeps_ind instLamsAt 1
 #keeps_ind instPisAtFGo 2
@@ -89,10 +88,6 @@ open ConRon.Arena Std.Do
 #keeps_ind instSpine 1
 #keeps_ind bvarRange 1
 #keeps recRulePlain
-#keeps_ind pisToLams
-#keeps_ind replacePiBody
-#keeps_ind piArity
-#keeps_ind resultSort
 
 #keeps_fuel bvarBoundGo [bvarBoundArmApp, bvarBoundArmBind, bvarBoundArmLet]
 #keeps bvarBoundArmApp bvarBoundArmBind bvarBoundArmLet bvarBoundMemo

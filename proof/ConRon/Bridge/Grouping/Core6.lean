@@ -8,7 +8,7 @@ open ConRon.Arena Std.Do
 
 #erase_foreign_specs
 
-#keeps isPropType annotPwPi annotPwLam
+#keeps annotPwPi annotPwLam
 
 @[scoped spec] theorem annotateBindersOut_keeps (k : EStore) (p : Pins) {isLam d pw? stk n cur} :
     ⦃fun s => ⌜Inv k p s⌝⦄ annotateBindersOut isLam d pw? stk n cur ⦃⇓? _r s => ⌜Inv k p s⌝⦄ := by

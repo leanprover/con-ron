@@ -3,8 +3,8 @@
 
 DESIGN §8.2's Theorem 1 at the twins of `Arena/ExprOps.lean` whose answer is
 a **representation-free scalar**: `sizeB`, `sizeF`, `wscopedB`,
-`looseBVarsBounded`, `hasFvar`, and the three one-node readers `isLam`,
-`lamPw`, `forallPw`.  Its two companions are `ExprOps/Ranges.lean` (the
+`looseBVarsBounded`, `hasFvar`, and the two one-node readers `isLam`,
+`lamPw`.  Its two companions are `ExprOps/Ranges.lean` (the
 packed-field reads and their memoized recomputations) and
 `ExprOps/Leaves.lean` (the leaf list, the `seen` set and the leaf guard).
 
@@ -70,7 +70,7 @@ attribute [-grind] RelE.ext RelE.of_ext RelE.retarget
 
 /-! ### The catch-all of the one-node readers
 
-`isLam`, `lamPw` and `forallPw` are `match ← view h` with ONE named arm and a
+`isLam` and `lamPw` are `match ← view h` with ONE named arm and a
 `_ =>` fallthrough, and the fallthrough is the one verification condition the
 closer cannot take unaided: it has "the view is not a `lam`" as a
 `∀`-hypothesis over `ENodeView` and no reason to case-split on the view.
@@ -109,42 +109,15 @@ is not a `lam`, in the form `grind` can split. -/
     obtain ⟨_, _, rfl, _, _⟩ := denote_proj_inv hwf hview he
     exact Or.inr ⟨rfl, rfl⟩
 
-/-- con-leche: none — the same at the `forallE` constructor, for
-`forallPw`'s fallthrough. -/
-@[grind →] theorem denote_forallE_or {st : EStore} (hwf : StoreWF st)
-    {h : EIdx} {v : ENodeView} {e : Expr} (hview : st.view h = some v)
-    (he : denoteE st h = some e) :
-    (∃ ty b m, v = .forallE ty b m) ∨ Expr.forallPw e = none := by
-  cases v with
-  | bvar i => rw [denote_bvar_inv hwf hview he]; exact Or.inr rfl
-  | fvar k t =>
-    obtain ⟨_, rfl, _⟩ := denote_fvar_inv hwf hview he; exact Or.inr rfl
-  | sort u =>
-    obtain ⟨_, rfl, _⟩ := denote_sort_inv hwf hview he; exact Or.inr rfl
-  | const n us =>
-    obtain ⟨_, _, rfl, _, _⟩ := denote_const_inv hwf hview he
-    exact Or.inr rfl
-  | app f a =>
-    obtain ⟨_, _, rfl, _, _⟩ := denote_app_inv hwf hview he; exact Or.inr rfl
-  | lam ty b m =>
-    obtain ⟨_, _, rfl, _, _⟩ := denote_lam_inv hwf hview he; exact Or.inr rfl
-  | forallE ty b m => exact Or.inl ⟨ty, b, m, rfl⟩
-  | letE ty w b =>
-    obtain ⟨_, _, _, rfl, _, _, _⟩ := denote_letE_inv hwf hview he
-    exact Or.inr rfl
-  | lit l => rw [denote_lit_inv hwf hview he]; exact Or.inr rfl
-  | proj n i sub =>
-    obtain ⟨_, _, rfl, _, _⟩ := denote_proj_inv hwf hview he; exact Or.inr rfl
-
-/-! ## The three one-node readers — `ExprOps.lean:1000`, `:1008`, `:1015`
+/-! ## The two one-node readers — `ExprOps.lean:1000`, `:1008`
 
 One `view` and a test: no recursion, no fuel, so no `Spec` record and no
 induction.  Theorem 1 is the triple itself.
 
-**`lamPw` and `forallPw` answer `Option PropWhen`, and `PropWhen` is a SEALED
+**`lamPw` answers `Option PropWhen`, and `PropWhen` is a SEALED
 representation** (con-leche's own `ExprOps.lean` needs `import all` to
-destruct one; the arena never destructs one, it only compares).  So the two
-are stated against con-leche's `Expr.lamPw` / `Expr.forallPw` as equations on
+destruct one; the arena never destructs one, it only compares).  So it
+is stated against con-leche's `Expr.lamPw` as an equation on
 the `Option PropWhen` and nothing below looks inside: the `BinderMeta` the
 twin reads off the node IS the one the denotation carries
 (`denote_lam_inv`'s `e = .lam et eb m`), so `m.pw` needs no unfolding. -/

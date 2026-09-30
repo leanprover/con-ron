@@ -126,6 +126,21 @@ and it names no fact anyone has to maintain.
 Add a line here when a new clash appears; the auxiliary's name in the error
 message says which matcher to force. -/
 
+/-- con-leche: none — `ConRon.Arena.isCtorApp`'s (`Core/Walks/Guards.lean`
+against `Core/Walks/Spine.lean`). -/
+theorem matchOwner_isCtorApp (x : ENodeView) :
+    ConRon.Arena.isCtorApp.match_1 (motive := fun _ => Nat) x
+      (fun _ _ => 1) (fun _ => 0) ≤ 1 := by
+  grind
+
+/-- con-leche: none — `ConRon.Arena.proofIrrel`'s (`Core/Walks/PropRead.lean`
+against `Core/EnsureSort.lean`'s closure, task #105: the `.sort` view match
+it shares with `ensureSort`). -/
+theorem matchOwner_proofIrrel (x : ENodeView) :
+    ConRon.Arena.proofIrrel.match_1 (motive := fun _ => Nat) x
+      (fun _ => 1) (fun _ => 0) ≤ 1 := by
+  grind
+
 /-- con-leche: none — `ConRon.Arena.denoteLs`' (`Frontend` against
 `Inductives`). -/
 theorem matchOwner_denoteLs (x : Option LsNodeView) :

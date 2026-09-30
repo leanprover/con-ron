@@ -43,15 +43,18 @@ proofs of `Bridge/Checker/Base.lean` and `Bridge/Checker/Arms.lean` conclude
 third field of `CoreSpec` saying the same thing — is deleted with this
 merge.
 
-**`IndSpec μ` — the INDUCTIVES tier's**.  `Arena/Inductives.lean`'s
-`checkIndDecl` is 9 500 lines of arena twin under it, and `checkDecl`'s
-`.indDecl` arm is the single place the declaration checker calls it.  So the
-whole inductive install is one hypothesis, exactly as
-`RefineOld/Main.lean`'s `hind : IndRoutesSpec .Verified` was.
+**`IndSpec μ` — the INDUCTIVES tier's**.  `checkDecl`'s `.indDecl` arm, past
+the pin recogniser (`checkIndRoute` below: the declared parameter count, then
+`checkBlock` on every block `blockParts?` reads and `checkShapeless` on the
+rest), has the whole of `Arena/Inductives/**` under it, and the arm is the
+single place the declaration checker reaches it.  So the whole inductive
+install is one hypothesis, exactly as `RefineOld/Main.lean`'s
+`hind : IndRoutesSpec .Verified` was.
 -/
 import ConRon.Bridge.Checker.Inv
 import ConRon.Bridge.Core.Induction
 import ConRon.Bridge.Core.EnsureSort
+import ConRon.Arena.CheckDecl
 
 open ConLeche ConRon.Arena Std.Do
 
@@ -220,12 +223,39 @@ theorem CoreSpec.of_core {μ : CheckMode} (hμ : μ.verifiedChecks = true) :
 
 /-! ## The inductive install -/
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:440-609 checkDecl (the `.indDecl`
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:180-200 checkDecl (the
+`.indDecl` arm past `basisPinHit`) — **the unpinned inductive route, named**:
+`Arena/CheckDecl.lean`'s `checkDecl` arm after the pin recogniser declined,
+verbatim (task #105: con-leche's uniform route replaced the old
+`Inductives.checkIndDecl` dispatch, and this is the same seam at the new
+arm).  `checkDecl`'s `.indDecl` arm unfolds to it by `rfl`. -/
+def checkIndRoute (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo)
+    (nP : Nat) : AM IFEnv := do
+  if !(← indParamsOk nP block) then
+    fail (.invalid "number of parameters mismatch")
+  else
+    match ← blockParts? nP block with
+    | some p => checkBlock mode fe block p
+    | none => checkShapeless mode fe block
+
+/-- con-leche: ConLeche/Semantics/Bridge/Sound.lean:38 checkShapeless_ne_ok —
+**a block the recogniser does not read never installs**: the twin's
+`checkShapeless` ends in a decline whatever its formers' checks do. -/
+theorem checkShapeless_ne_ok {mode : CheckMode} {fe fe' : IFEnv}
+    {block : List IConstantInfo} {s s' : AState} :
+    checkShapeless mode fe block s ≠ .ok (fe', s') := by
+  intro h
+  unfold ConRon.Arena.checkShapeless at h
+  obtain ⟨_, s1, _, h2⟩ := AM.bind_ok h
+  exact nomatch h2
+
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:167-200 checkDecl (the `.indDecl`
 arm) — **THE INDUCTIVES TIER'S THEOREM, as this tier's hypothesis**.
 
 The hypothesis `hpin` is the arena's own dispatch, already taken: this clause
 covers the route `basisPinHit` did NOT recognise, which is the one
-`Inductives.checkIndDecl` runs.  The recogniser's own exactness is
+`checkIndRoute` runs (task #105: the statement is unchanged but for the
+route's name; it was `Inductives.checkIndDecl`).  The recogniser's own exactness is
 `Bridge/Checker/Basis.lean`'s and is not part of this hypothesis.
 
 The precedent is `RefineOld/Main.lean`'s `hind : IndRoutesSpec .Verified`:
@@ -239,7 +269,7 @@ them:
 
 * `PersIFEnv fe'` is **false of this arm**.  `Arena/Checker.lean`'s bracket is
   `flushCaches; enterScratch; <the step>; promoteNew; dropScratch`, so
-  `checkDecl` — and with it `Inductives.checkIndDecl` — runs with the scratch
+  `checkDecl` — and with it `checkIndRoute` — runs with the scratch
   tier OPEN and every constant the route installs carries a freshly interned,
   hence scratch, type.  Persistence is `promoteNew`'s, one level up.
   `Bridge/Checker/Decl.lean`'s `DeclOut` says exactly this in prose and omits
@@ -270,7 +300,7 @@ structure IndSpec (μ : CheckMode) : Prop where
       {pinsP : List NatOpPinSet},
     FoldOK μ env fe s → Frontend.denoteCIList s.store block = some b →
     ConLeche.basisPinHit b = none →
-    Inductives.checkIndDecl μ fe block nP s = .ok (fe', s') →
+    checkIndRoute μ fe block nP s = .ok (fe', s') →
     StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
       IFEnvCoh fe' ∧ Pushed fe fe' ∧ fe.visibleBelow ≤ fe'.visibleBelow ∧
       ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
@@ -279,8 +309,8 @@ structure IndSpec (μ : CheckMode) : Prop where
         ∀ t, IConstantInfo.projInfo t ∈ fe'.env.consts →
           IConstantInfo.projInfo t ∈ fe.env.consts ∨ IProjTableOK s'.store t
 
-/-- con-leche: ConLeche/Verify/Inductives/{SumWF,FixWF,StructWF}.lean
-direct_sum_ind_wf / direct_fix_rec_wf / direct_table_wf — **what the
+/-- con-leche: ConLeche/Verify/Inductives/{BlockWF,DirectInv}.lean
+direct_block_inds_wf / direct_block_ctors_wf / direct_table_wf — **what the
 inductive route owes `DeclOut`'s two round-10 clauses** (task #97-P3-Checker
 round 10): the environment the route's index denotes is well formed, and
 every projection table of that index is an old one or well shaped and rightly
@@ -303,7 +333,7 @@ structure IndWFSpec (μ : CheckMode) : Prop where
       {block : List IConstantInfo} {b : List ConstantInfo} {nP : Nat},
     FoldOK μ env fe s → Frontend.denoteCIList s.store block = some b →
     ConLeche.basisPinHit b = none →
-    Inductives.checkIndDecl μ fe block nP s = .ok (fe', s') →
+    checkIndRoute μ fe block nP s = .ok (fe', s') →
     (∀ env', denoteFEnv s'.store fe' = some env' → EnvWF env') ∧
       ∀ t, IConstantInfo.projInfo t ∈ fe'.env.consts →
         IConstantInfo.projInfo t ∈ fe.env.consts ∨ IProjTableOK s'.store t
