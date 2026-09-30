@@ -256,28 +256,6 @@ theorem IFEnvOKS.mono {env : Env} {fe : IFEnv} {st st' : EStore}
   have h1 := h0.mono (s' := s) (by rw [hs]; exact hx)
   exact h1
 
-/-! ## The field kinds
-
-`RecFieldKind` is TWINNED, not imported (task #97d-2's deviation 7), so the
-tier needs the five-clause translation. -/
-
-/-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:44-56 RecFieldKind
-The twin's five constructors are con-leche's five, in order. -/
-def kindOf : Arena.RecFieldKind → ConLeche.RecFieldKind
-  | .ordinary => .ordinary
-  | .recursive => .recursive
-  | .reflexive => .reflexive
-  | .negative => .negative
-  | .unsupported => .unsupported
-
-abbrev RK (k : ConLeche.RecFieldKind) : EStore → Arena.RecFieldKind → Prop :=
-  fun _ r => kindOf r = k
-abbrev RKs (ks : List ConLeche.RecFieldKind) : EStore → List Arena.RecFieldKind → Prop :=
-  fun _ r => r.map kindOf = ks
-abbrev RKss (ks : List (List ConLeche.RecFieldKind)) :
-    EStore → List (List Arena.RecFieldKind) → Prop :=
-  fun _ r => r.map (·.map kindOf) = ks
-
 /-- con-leche: none — **`denoteBinders` IS `Bridge/ExprOps/Spine.lean`'s
 `denoteBL`**: the same definition under two names, written independently by
 the two tiers (this one's note says `Bridge/Rel.lean` has no relation for the
@@ -294,27 +272,6 @@ theorem denoteBinders_eq_denoteBL {st : EStore} :
     obtain ⟨t, m⟩ := a
     simp only [denoteBinders, ExprOps.denoteBL, ih]
     rfl
-
-/-- con-leche: none — `stripPis`' `some` answer, with its BINDER LIST: the
-inversion `Bridge/Inductives/StructParts.lean`'s `stripPis_some` stopped short
-of, because its three consumers only read the residual.  The two field
-readers read the binders. -/
-theorem denoteBP_someB {st : EStore} {k : Nat} {cP : Expr}
-    {bs : List (EIdx × BinderMeta)} {e : EIdx}
-    (h : ExprOps.denoteBP st (some (bs, e)) = some (Expr.stripPis k cP)) :
-    ∃ xs x, Expr.stripPis k cP = some (xs, x) ∧
-      denoteBinders st bs = some xs ∧ denoteE st e = some x := by
-  simp only [ExprOps.denoteBP] at h
-  cases hb : ExprOps.denoteBL st bs with
-  | none => rw [hb] at h; simp at h
-  | some xs =>
-    cases he : denoteE st e with
-    | none => rw [hb, he] at h; simp at h
-    | some x =>
-      rw [hb, he] at h
-      refine ⟨xs, x, (Option.some.inj h).symm, ?_, ?_⟩
-      · rw [denoteBinders_eq_denoteBL]; exact hb
-      · first | exact he | rfl
 
 /-! ### `stripPis`, in run form
 
