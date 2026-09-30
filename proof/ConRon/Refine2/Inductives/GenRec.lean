@@ -36,6 +36,8 @@ open scoped IndSide
 
 attribute [local lockstep_simp] pos_core_walk_fuel_abs pos_core_walk_fuel_val
 attribute [local lockstep] pos_zero_level_ls pos_i_constant_val_dup_spec
+-- `shape_member_names` (RecCheck's provisional companion until BlockParts lands)
+attribute [local lockstep] rc_shape_member_names_twin
 
 /-! ## The records' fields -/
 
@@ -1134,5 +1136,218 @@ theorem classGenRule_eq : classGenRule = classGenRule' := by
   have hbm := hg.bm
   rw [arena.inductives.gen_rec.class_gen_rule, classGenRule_eq, classGenRule']
   lockstep
+
+/-! ## The stage's pure scans -/
+
+theorem filterMap_ite_eq {α β : Type} (f : α → β) (p : β → Bool) (l : List α) :
+    l.filterMap (fun x => if p (f x) then some (f x) else none) = (l.map f).filter p := by
+  induction l with
+  | nil => rfl
+  | cons a l ih =>
+    simp only [List.filterMap_cons, List.map_cons, List.filter_cons, ih]
+    cases p (f a) <;> rfl
+
+/-- **The pushing filter cursor, once**: `F` walks `xs` from `i`, pushing
+`f x` when it is `some`. -/
+theorem vec_cursor_filterMap {α β τ : Type} (xs : alloc.vec.Vec α) (f : α → Option β)
+    (A : τ → List β) (F : Std.Usize → τ → Result τ)
+    (hstop : ∀ (i : Std.Usize) out o, xs.val.length ≤ i.val → F i out = ok o → A o = A out)
+    (hstep : ∀ (i : Std.Usize) x out o, xs.val[i.val]? = some x → F i out = ok o →
+      ∃ (j : Std.Usize) (out' : τ), j.val = i.val + 1 ∧ A out' = A out ++ (f x).toList ∧
+        F j out' = ok o) :
+    ∀ (i : Std.Usize) out o, F i out = ok o →
+      A o = A out ++ (xs.val.drop i.val).filterMap f := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) xs.val.length
+    (fun i (_ : Unit) => ∀ out o, F i out = ok o →
+      A o = A out ++ (xs.val.drop i.val).filterMap f) ?_ ?_ i ()
+  · intro i _ hn out o h
+    rw [hstop i out o hn h, List.drop_eq_nil_of_le hn]; simp
+  · intro i _ hi ih out o h
+    obtain ⟨j, out', hj, hA, hF⟩ := hstep i _ out o (List.getElem?_eq_getElem hi) h
+    rw [ih j () hj out' o hF, hA, hj, List.drop_eq_getElem_cons hi, List.filterMap_cons]
+    cases f xs.val[i.val] <;> simp
+
+@[lockstep] theorem slot_is_minor_twin (sl : arena.inductives.class_read.ClassSlot) :
+    LSP (arena.inductives.gen_rec.slot_is_minor sl)
+      (fun b => b = ClassSlot.isMinor (absClassSlot sl)) := by
+  intro b h
+  cases sl <;> simp only [arena.inductives.gen_rec.slot_is_minor, Result.ok.injEq] at h <;>
+    subst h <;> rfl
+
+theorem minor_count_abs (slots : alloc.vec.Vec arena.inductives.class_read.ClassSlot) :
+    ∀ (i : Std.Usize) (acc o : Std.U64),
+      arena.inductives.gen_rec.minor_count slots i acc = ok o →
+      o.val = acc.val + (((slots.val.drop i.val).map absClassSlot).filter ClassSlot.isMinor).length := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) slots.val.length
+    (fun i (_ : Unit) => ∀ acc o, arena.inductives.gen_rec.minor_count slots i acc = ok o →
+      o.val = acc.val + (((slots.val.drop i.val).map absClassSlot).filter
+        ClassSlot.isMinor).length) ?_ ?_ i ()
+  · intro i _ hn acc o h
+    rw [arena.inductives.gen_rec.minor_count.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len slots by scalar_tac), Result.ok.injEq] at h
+    subst h; rw [List.drop_eq_nil_of_le hn]; simp
+  · intro i _ hi ih acc o h
+    rw [arena.inductives.gen_rec.minor_count.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len slots by scalar_tac)] at h
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, List.filter_cons]
+    obtain ⟨cs, hcs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hx := vec_index_some hcs
+    obtain ⟨hxb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [hxv, ← slot_is_minor_twin cs b hb]
+    cases b
+    · rw [if_neg (by simp)] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      rw [ih i2 () hi2v acc o h, hi2v]; simp
+    · rw [if_pos rfl] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨a2, ha2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      have ha2v : a2.val = acc.val + 1 := ConRon.Refine.Nat.uadd_val ha2
+      rw [ih i2 () hi2v a2 o h, hi2v, ha2v]; simp; omega
+
+@[lockstep] theorem minor_count_twin (slots : alloc.vec.Vec arena.inductives.class_read.ClassSlot) :
+    LSP (arena.inductives.gen_rec.minor_count slots 0#usize 0#u64)
+      (fun o => TwinEq ((slots.val.map absClassSlot).filter ClassSlot.isMinor).length (absU o)) := by
+  intro o h
+  rw [TwinEq, absU, minor_count_abs slots 0#usize 0#u64 o h]
+  simp
+
+theorem ctor_count_abs (xss : alloc.vec.Vec (alloc.vec.Vec arena.inductives.gen_rec.ClassCtor)) :
+    ∀ (i : Std.Usize) (acc o : Std.U64),
+      arena.inductives.gen_rec.ctor_count xss i acc = ok o →
+      o.val = acc.val + (((xss.val.drop i.val).map (fun cs => cs.val.map absClassCtor)).map
+        List.length).sum := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) xss.val.length
+    (fun i (_ : Unit) => ∀ acc o, arena.inductives.gen_rec.ctor_count xss i acc = ok o →
+      o.val = acc.val + (((xss.val.drop i.val).map (fun cs => cs.val.map absClassCtor)).map
+        List.length).sum) ?_ ?_ i ()
+  · intro i _ hn acc o h
+    rw [arena.inductives.gen_rec.ctor_count.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len xss by scalar_tac), Result.ok.injEq] at h
+    subst h; rw [List.drop_eq_nil_of_le hn]; simp
+  · intro i _ hi ih acc o h
+    rw [arena.inductives.gen_rec.ctor_count.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len xss by scalar_tac)] at h
+    rw [List.drop_eq_getElem_cons hi]
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hx := vec_index_some hv
+    obtain ⟨hxb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨a2, ha2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+    have hnv : n.val = v.val.length := by
+      simp only [lift, Result.ok.injEq] at hn; subst hn; simp
+    have ha2v : a2.val = acc.val + n.val := ConRon.Refine.Nat.uadd_val ha2
+    rw [ih i2 () hi2v a2 o h, hi2v, ha2v, hnv, hxv]
+    simp; omega
+
+@[lockstep] theorem ctor_count_twin
+    (xss : alloc.vec.Vec (alloc.vec.Vec arena.inductives.gen_rec.ClassCtor)) :
+    LSP (arena.inductives.gen_rec.ctor_count xss 0#usize 0#u64)
+      (fun o => TwinEq ((xss.val.map (fun cs => cs.val.map absClassCtor)).map List.length).sum
+        (absU o)) := by
+  intro o h
+  rw [TwinEq, absU, ctor_count_abs xss 0#usize 0#u64 o h]
+  simp
+
+@[lockstep] theorem former_types_twin (cvs : alloc.vec.Vec arena.env.IConstantVal) :
+    LSP (arena.inductives.gen_rec.former_types cvs 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq ((cvs.val.map absIConstantVal).map (·.type)) (absEIdxL o)) := by
+  intro o h
+  have := vec_cursor_filterMap cvs (fun cv => some (absEIdx cv.ty)) absEIdxL
+    (arena.inductives.gen_rec.former_types cvs) ?_ ?_ 0#usize _ o h
+  · rw [TwinEq, this]; simp [absEIdxL, alloc.vec.Vec.new, gr_absIConstantVal_type]
+  · intro i out o hn h
+    rw [arena.inductives.gen_rec.former_types.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len cvs by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [arena.inductives.gen_rec.former_types.eq_def, if_neg (show ¬ i ≥ alloc.vec.Vec.len cvs by
+      have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine ⟨i2, out1, absSz_add_one hi2, ?_, h⟩
+    simp [absEIdxL, ConRon.Refine.vec_push_val hout1, dupId_eidx _ _ he]
+
+theorem some_outside_abs (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
+    ∀ (i : Std.Usize) (o : Bool), arena.inductives.gen_rec.some_outside ms i = ok o →
+      o = ((ms.val.drop i.val).map absTargetMajor).any (·.member.isNone) := by
+  intro i o h
+  have := vec_cursor_any ms (fun m => (absTargetMajor m).member.isNone)
+    (arena.inductives.gen_rec.some_outside ms) ?_ ?_ i o h
+  · rw [this, List.any_map]; rfl
+  · intro i o hn h
+    rw [arena.inductives.gen_rec.some_outside.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len ms by scalar_tac), Result.ok.injEq] at h
+    exact h.symm
+  · intro i x o hx h
+    rw [arena.inductives.gen_rec.some_outside.eq_def, if_neg (show ¬ i ≥ alloc.vec.Vec.len ms by
+      have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    cases hm : q.member with
+    | none =>
+      rw [hm, Result.ok.injEq] at h
+      left; exact ⟨by simp [absTargetMajor, hm], h.symm⟩
+    | some t =>
+      rw [hm] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      right; exact ⟨by simp [absTargetMajor, hm], i2, absSz_add_one hi2, h⟩
+
+@[lockstep] theorem some_outside_twin (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
+    LSP (arena.inductives.gen_rec.some_outside ms 0#usize)
+      (fun o => TwinEq ((ms.val.map absTargetMajor).any (·.member.isNone)) o) := by
+  intro o h
+  rw [TwinEq, some_outside_abs ms 0#usize o h]
+  simp
+
+@[lockstep] theorem ihs_at_twin (ihs : alloc.vec.Vec (Std.U64 × Std.U64)) (i : Std.U64) :
+    LSP (arena.inductives.gen_rec.ihs_at ihs i 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq ((ihs.val.map absNatPair).filter (·.1 == absU i)) (o.val.map absNatPair)) := by
+  intro o h
+  have := vec_cursor_filterMap ihs
+    (fun p => if (absNatPair p).1 == absU i then some (absNatPair p) else none)
+    (fun v => v.val.map absNatPair)
+    (arena.inductives.gen_rec.ihs_at ihs i) ?_ ?_ 0#usize _ o h
+  · rw [TwinEq, this, filterMap_ite_eq absNatPair (·.1 == absU i)]
+    simp [alloc.vec.Vec.new]
+  · intro i' out o hn h
+    rw [arena.inductives.gen_rec.ihs_at.eq_def,
+      if_pos (show i' ≥ alloc.vec.Vec.len ihs by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro k x out o hx h
+    rw [arena.inductives.gen_rec.ihs_at.eq_def, if_neg (show ¬ k ≥ alloc.vec.Vec.len ihs by
+      have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨q1, q2⟩ := q
+    simp only [Aeneas.Std.uncurry_apply_pair] at h
+    by_cases he : q1 = i
+    · rw [if_pos he] at h
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      refine ⟨i2, out1, absSz_add_one hi2, ?_, h⟩
+      simp [ConRon.Refine.vec_push_val hout1, he, absNatPair]
+    · rw [if_neg he] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      refine ⟨i2, out, absSz_add_one hi2, ?_, h⟩
+      have : (absU q1 == absU i) = false := by
+        simp only [beq_eq_false_iff_ne, ne_eq]; intro h'; exact he (u64_eq_iff_val.mpr h')
+      simp [this, absNatPair]
 
 end ConRon.Refine2
