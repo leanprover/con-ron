@@ -165,8 +165,8 @@ def canonExprEq (ps ps' cs : List NIdx) : Nat → EIdx → EIdx → AM Bool
 /-! ## Constants -/
 
 /-- con-leche: ConLeche/Kernel/Canon.lean:75-80 ConstantVal.canon
-con-leche: ConLeche/Kernel/Canon.lean:195-199 ConstantVal.canonEq
-con-leche: ConLeche/Kernel/Canon.lean:201-206 ConstantVal.canonEqFast
+con-leche: ConLeche/Kernel/Canon.lean:183-187 ConstantVal.canonEq
+con-leche: ConLeche/Kernel/Canon.lean:189-194 ConstantVal.canonEqFast
 Two constants have the same canonical common data.  The numbered
 level-parameter lists are equal exactly when they are equally long, which is
 why the length test stands in for comparing them — and why ONE `canonNames`
@@ -177,7 +177,7 @@ def IConstantVal.canonEq (cv cv' : IConstantVal) : AM Bool := do
     canonExprEq cv.levelParams cv'.levelParams cs coreWalkFuel cv.type cv'.type
   else pure false
 
-/-- con-leche: ConLeche/Kernel/Canon.lean:224-231 canonRulesEqFast — rule
+/-- con-leche: ConLeche/Kernel/Canon.lean:212-219 canonRulesEqFast — rule
 lists compared through the canonical form of each rule's right-hand side.
 con-leche compares the other fields by rebuilding both rules at the common
 `rhs := .bvar 0`; over handles the same predicate is the record comparison at
@@ -194,8 +194,8 @@ def canonRulesEq (ps ps' cs : List NIdx) (fuel : Nat) :
   | _, _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Canon.lean:82-97 ConstantInfo.canon
-con-leche: ConLeche/Kernel/Canon.lean:250-252 ConstantInfo.canonEq
-con-leche: ConLeche/Kernel/Canon.lean:254-273 ConstantInfo.canonEqFast
+con-leche: ConLeche/Kernel/Canon.lean:238-240 ConstantInfo.canonEq
+con-leche: ConLeche/Kernel/Canon.lean:242-261 ConstantInfo.canonEqFast
 Two stored constants have the same canonical form.  `.indInfo`'s capabilities
 are not compared (`canon` resets both to `{}`), and a projection table is
 compared as it stands (`canon` is the identity there — a table never occurs in
@@ -227,8 +227,8 @@ def IConstantInfo.canonEq : IConstantInfo → IConstantInfo → AM Bool
   | .projInfo t, .projInfo t' => pure (t == t')
   | _, _ => pure false
 
-/-- con-leche: ConLeche/Kernel/Canon.lean:289-292 canonEqList
-con-leche: ConLeche/Kernel/Canon.lean:294-298 canonEqListFast
+/-- con-leche: ConLeche/Kernel/Canon.lean:277-280 canonEqList
+con-leche: ConLeche/Kernel/Canon.lean:282-286 canonEqListFast
 Two blocks are the same, member for member, up to the canonical form. -/
 def canonEqList : List IConstantInfo → List IConstantInfo → AM Bool
   | [], [] => pure true

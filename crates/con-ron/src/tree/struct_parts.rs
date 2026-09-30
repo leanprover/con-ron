@@ -64,9 +64,12 @@ pub fn params_of_from(lps: &Vec<Name>, i: usize, out: Vec<Level>) -> Vec<Level> 
 // The generators (`StructParts.lean:82-211`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:112-119 InductiveShape.withSort
+/// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:35-58 InductiveShape.withSort
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::level_is_prop_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::level_is_prop_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:283-329 structPartsCore?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::level_is_prop_refines, then delete this line
 /// `Level.isEquiv s .zero == some true` — "the result sort is provably
 /// `Prop`", the `isProp` flag all three recognisers compute.  Its own function
 /// because the `Option Bool` match borrows the level and the caller then moves
@@ -80,7 +83,7 @@ pub fn level_is_prop(s: &Level) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:134-137 structPsAt
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:50-53 structPsAt
 /// The parameter variables as seen from under `o` extra binders:
 /// `p_k = bvar (o + nP - 1 - k)` — `structFam`'s argument spine.  The `i = 0`
 /// wrapper of the index recursion below.
@@ -88,7 +91,7 @@ pub fn struct_ps_at(o: u64, n_p: u64) -> Vec<Expr> {
     struct_ps_at_from(o, n_p, 0, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:134-137 structPsAt
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:50-53 structPsAt
 /// The index recursion behind `struct_ps_at` (`(List.range nP).map`).
 pub fn struct_ps_at_from(o: u64, n_p: u64, k: u64, out: Vec<Expr>) -> Vec<Expr> {
     if k >= n_p {
@@ -101,6 +104,7 @@ pub fn struct_ps_at_from(o: u64, n_p: u64, k: u64, out: Vec<Expr>) -> Vec<Expr> 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:82-86 structFam
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::struct_fam_refines, then delete this line
 /// The type former applied to its parameter variables, `bvar` indices offset
 /// by `o` (the number of binders crossed since the parameters).
 pub fn struct_fam(t: &Name, lps: &Vec<Name>, n_p: u64, o: u64) -> Expr {
@@ -109,7 +113,9 @@ pub fn struct_fam(t: &Name, lps: &Vec<Name>, n_p: u64, o: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:88-94 structCtorSpine
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::field_spine_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:96-99 structRuleBody
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::field_spine_refines, then delete this line
 /// The field spine `(List.range m).map fun j => .bvar (m - 1 - j)` that every
 /// constructor spine and rule body below appends — and, at `m` the length of
 /// a reflexive field's own telescope, `NativeParts.lean`'s `structTeleVars`
@@ -120,6 +126,7 @@ pub fn field_spine(m: u64) -> Vec<Expr> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:88-94 structCtorSpine
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::field_spine_from_refines, then delete this line
 /// The index recursion behind `field_spine`.
 pub fn field_spine_from(m: u64, k: u64, out: Vec<Expr>) -> Vec<Expr> {
     if k >= m {
@@ -132,6 +139,7 @@ pub fn field_spine_from(m: u64, k: u64, out: Vec<Expr>) -> Vec<Expr> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:88-94 structCtorSpine
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::struct_ctor_spine_refines, then delete this line
 /// The constructor applied to the parameter and field variables, as spelled
 /// inside the recursor's minor premise (parameters sit above the motive
 /// binder) — `structCtorSpineAt` at `o = 1` (`structCtorSpine_eq_at`).
@@ -140,6 +148,7 @@ pub fn struct_ctor_spine(c: &Name, lps: &Vec<Name>, n_p: u64, n_f: u64) -> Expr 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:144-150 structCtorSpineAt
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::struct_ctor_spine_at_refines, then delete this line
 /// The constructor applied to the parameter and field variables, as spelled
 /// under `o` binders between the parameters and the fields (the motive and
 /// the earlier minor premises).
@@ -153,13 +162,14 @@ pub fn struct_ctor_spine_at(c: &Name, lps: &Vec<Name>, o: u64, n_p: u64, n_f: u6
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:96-99 structRuleBody
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::struct_rule_body_refines, then delete this line
 /// The recursor rule's right-hand side body: the minor premise applied to the
 /// field variables.
 pub fn struct_rule_body(n_f: u64) -> Expr {
     expr_ops::mk_app_n(expr::bvar(n_f), &field_spine(n_f))
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:139-142 structElimLevel
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:55-58 structElimLevel
 /// The recursor's elimination level: the fresh parameter at the large
 /// eliminator, `zero` at the small one.
 pub fn struct_elim_level(elim: &Name, large: bool) -> Level {
@@ -171,6 +181,7 @@ pub fn struct_elim_level(elim: &Name, large: bool) -> Level {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:152-158 Expr.replacePisPw
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::replace_pis_pw_refines, then delete this line
 /// Replace the body under the first `k` `∀`-binders, resetting their codomain
 /// data to `pw` (the domains are kept).  Built on the way *out* of the
 /// recursion, as cited — there is nothing to accumulate.
@@ -193,6 +204,7 @@ pub fn replace_pis_pw(pw: &PropWhen, k: u64, e: &Expr, b: &Expr) -> Option<Expr>
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:160-167 Expr.pisToLamsPw
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::pis_to_lams_pw_refines, then delete this line
 /// Convert the first `k` `∀`-binders into `λ`-binders with datum `pw` over a
 /// body (`pisToLams` with the datum supplied instead of the `.never`
 /// placeholder).
@@ -215,6 +227,7 @@ pub fn pis_to_lams_pw(pw: &PropWhen, k: u64, e: &Expr, b: &Expr) -> Option<Expr>
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:189-194 structFamI
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::struct_fam_i_refines, then delete this line
 /// The family applied to its parameter variables and its index variables:
 /// `e` extra binders sit between the parameters and the indices (the motive
 /// and the minors), `o` binders below the index frame.
@@ -227,7 +240,7 @@ pub fn struct_fam_i(t: &Name, lps: &Vec<Name>, n_p: u64, n_idx: u64, e: u64, o: 
     expr_ops::mk_app_n(head, &args)
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:196-202 structCtorResidOk
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:79-85 structCtorResidOk
 /// A constructor residual's shape at an indexed family: the family at exactly
 /// the parameter variables (`o` binders below the parameter frame) followed
 /// by `nIdx` index expressions.  Deviation: the `&&` cascade is an `if` nest
@@ -258,6 +271,7 @@ pub fn struct_ctor_resid_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:204-211 structMotiveTyI
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::struct_motive_ty_i_refines, then delete this line
 /// The motive's type `∀ ı⃗ (t : T p⃗ ı⃗), Sort ℓ` at the parameters' frame,
 /// over the former's index telescope `itele = ∀ ı⃗, Sort w` (scoped at the
 /// parameters); every binder's codomain is a type former, never a
@@ -283,6 +297,7 @@ pub fn struct_motive_ty_i(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:213-244 StructParts
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::StructParts_refines, then delete this line
 /// The pieces of a recognised simple-structure block.  Deviations as for
 /// `InductiveShape` (`deriving Repr` dropped, counts `u64`).
 ///
@@ -306,6 +321,7 @@ pub struct StructParts {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:246-281 structShape
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::struct_shape_motive_refines, then delete this line
 /// The motive binder's clause of `structShape`: the motive's codomain is
 /// `Sort elim` at the large eliminator and `Prop` at the small one, and its
 /// own major domain is the family at the parameters.  Split off so that every
@@ -344,6 +360,7 @@ pub fn struct_shape_motive(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:246-281 structShape
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::struct_shape_minor_refines, then delete this line
 /// The minor binder's clause: the minor's own `nF`-binder telescope ends in
 /// `motive (C p⃗ f⃗)`.
 pub fn struct_shape_minor(
@@ -367,6 +384,7 @@ pub fn struct_shape_minor(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:246-281 structShape
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::struct_shape_major_refines, then delete this line
 /// The major binder's clause: its domain is the family at the parameters,
 /// two binders down.
 pub fn struct_shape_major(
@@ -383,6 +401,7 @@ pub fn struct_shape_major(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:246-281 structShape
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::struct_shape_refines, then delete this line
 /// The *shape* facts the model reads off the stored (annotated) types —
 /// everything annotation cannot change, checked on both the raw block
 /// (recognition) and the annotated constants (install).
@@ -435,6 +454,7 @@ pub fn struct_shape(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:283-329 structPartsCore?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::struct_parts_front_ok_refines, then delete this line
 /// The block-independent front guards of `structPartsCore?`: the recursor's
 /// name, the shared level parameters, the three reserved-name exclusions, the
 /// two argument sums and the single rule's constructor, field count and
@@ -499,6 +519,7 @@ pub fn struct_parts_front_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:283-329 structPartsCore?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::struct_parts_large_refines, then delete this line
 /// The `large?` reading: a fresh elimination level parameter in front of the
 /// block's own, with the large-eliminator shape confirmed.  `none` falls
 /// through to the small-eliminator branch in the caller.
@@ -543,6 +564,7 @@ pub fn struct_parts_large(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:283-329 structPartsCore?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::struct_parts_small_ok_refines, then delete this line
 /// The `large? = none` branch's guard: the recursor carries the block's own
 /// level parameters and the small-eliminator shape holds.  Its own function
 /// for the same reason as `struct_parts_large` above — the cited conjunction
@@ -574,6 +596,7 @@ pub fn struct_parts_small_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:283-329 structPartsCore?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove struct_parts::struct_parts_core_refines, then delete this line
 /// Recognise a direct simple-structure block (see the module docs).  `none`
 /// means "not this class" — the caller falls through to the modeled path, so
 /// this is never an error source.
@@ -653,14 +676,14 @@ pub fn struct_parts_core(block: &Vec<ConstantInfo>) -> Option<StructParts> {
 // The projection table's pieces (`StructParts.lean:335-356`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:331-337 structProjPs
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:87-93 structProjPs
 /// The parameter spine of the generated projection types, spelled at the
 /// frame of the final `∀ p⃗ (t : T p⃗), _` telescope: `p_k = bvar (nP - k)`.
 pub fn struct_proj_ps(n_p: u64) -> Vec<Expr> {
     struct_proj_ps_from(n_p, 0, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:331-337 structProjPs
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:87-93 structProjPs
 /// The index recursion behind `struct_proj_ps`.
 pub fn struct_proj_ps_from(n_p: u64, k: u64, out: Vec<Expr>) -> Vec<Expr> {
     if k >= n_p {
@@ -672,14 +695,14 @@ pub fn struct_proj_ps_from(n_p: u64, k: u64, out: Vec<Expr>) -> Vec<Expr> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:339-345 structProjArgP
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:95-101 structProjArgP
 /// The `j`-th earlier-field substitute in a tower entry's generated type: the
 /// first-class node `t.j` (`.proj T j` of the subject `t = bvar 0`).
 pub fn struct_proj_arg_p(t: &Name, j: u64) -> Expr {
     expr::proj(name::dup(t), j, expr::bvar(0))
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:347-354 structProjResidP
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:103-109 structProjResidP
 /// The constructor telescope peeled at the parameters and the first `i`
 /// subject projections, threaded incrementally (step `i → i + 1` is a single
 /// `instantiate1Lift`).  Deviation: the `Option.bind` over a closure is an
@@ -704,7 +727,7 @@ pub fn struct_proj_resid_p(t: &Name, n_p: u64, cty: &Expr, i: u64) -> Option<Exp
 // (`StructParts.lean:357-636`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:356-369 Expr.hasLooseBVar
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:111-124 Expr.hasLooseBVar
 /// Does `bvar i` occur loose in `e`?  (Not through fvar type annotations —
 /// the generated telescopes are fvar-free.)  The *specification* of the
 /// bounded walk below; nothing executable calls it, and it is ported so the
@@ -750,7 +773,7 @@ pub fn has_loose_bvar(i: u64, e: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:371-390 Expr.hasLooseBVarB
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:126-145 Expr.hasLooseBVarB
 /// `hasLooseBVar` with the packed bound's cutoff: a node whose loose-bvar
 /// bound is at or below `i` has no `bvar i`, so the walk stops there without
 /// descending.  The *logical* definition; the executed one is
@@ -812,13 +835,13 @@ pub fn memo_b_get(memo: &HashMap<ExprNatKey, bool>, k: &ExprNatKey) -> Option<bo
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:435-440 Expr.hasLooseBVarBIns
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:190-195 Expr.hasLooseBVarBIns
 /// Record one answer for `(e, i)` in the memo the walk hands back.
 pub fn has_loose_bvar_b_ins(memo: &mut HashMap<ExprNatKey, bool>, e: &Expr, i: u64, r: bool) {
     memo.insert(expr_ops::expr_nat_key(e, i), r);
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:442-478 Expr.hasLooseBVarBGo
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:197-233 Expr.hasLooseBVarBGo
 /// The memoized `hasLooseBVarB` walk.  The cutoff and the memo are
 /// complementary: the cutoff stops the walk where the variable *cannot*
 /// occur, the memo stops the re-entry of a shared node whose answer is
@@ -852,7 +875,7 @@ pub fn has_loose_bvar_b_go(memo: &mut HashMap<ExprNatKey, bool>, i: u64, e: &Exp
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:442-478 Expr.hasLooseBVarBGo
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:197-233 Expr.hasLooseBVarBGo
 /// The inner `match e with` of `hasLooseBVarBGo`'s miss branch, split off so
 /// that the probe's borrow dies before the descent mutates the memo (task
 /// #14's rule: never hold a container's borrow across a branch that touches
@@ -895,9 +918,9 @@ pub fn has_loose_bvar_b_node(memo: &mut HashMap<ExprNatKey, bool>, i: u64, e: &E
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:624-626 Expr.hasLooseBVarBFast
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:371-390 Expr.hasLooseBVarB
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:628-631 Expr.hasLooseBVarB_eq_hasLooseBVarBFast
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:379-381 Expr.hasLooseBVarBFast
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:126-145 Expr.hasLooseBVarB
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:383-386 Expr.hasLooseBVarB_eq_hasLooseBVarBFast
 /// **The executed `hasLooseBVarB`** — one memoized DAG walk with an empty,
 /// per-call memo.  The cited `@[csimp]` lemma is what makes this the port of
 /// the logical definition too (module note).
@@ -910,7 +933,7 @@ pub fn has_loose_bvar_b(i: u64, e: &Expr) -> bool {
 // `structUsedLater` and the guard table (`StructParts.lean:634-759`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:633-641 structUsedLater
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:388-396 structUsedLater
 /// **Field `j` is used by a later field** — the official `infer_proj`'s
 /// `has_loose_bvars(binding_body(r))` at step `j`: the field's variable
 /// occurs in the constructor telescope's remainder after binder `j`.
@@ -921,7 +944,7 @@ pub fn struct_used_later(cty: &Expr, n_p: u64, j: u64) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:669-674 structUsedLaterGo
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:424-429 structUsedLaterGo
 /// Memoized `structUsedLater`, taking the shared memo (and, in the port,
 /// mutating it in place rather than handing it back).
 pub fn struct_used_later_go(
@@ -936,7 +959,7 @@ pub fn struct_used_later_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:685-692 structUsedLaterList
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:440-447 structUsedLaterList
 /// `structUsedLater cty nP j` for `j = base, …, base + n - 1`, in order,
 /// through one shared memo.  Lean conses on the way out; the port pushes on
 /// the way in, which is the same order (task #13's pattern 3).
@@ -968,8 +991,8 @@ pub fn sort_get_d(sorts: &Vec<Level>, i: u64) -> Level {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:722-732 structProjGuardsFast
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:643-656 structProjGuards
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:477-487 structProjGuardsFast
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:398-411 structProjGuards
 /// The inner `(List.range i).foldl` of the guard table: field `i`'s own sort
 /// joined with the sorts of the earlier fields a later field uses.
 pub fn struct_proj_guard_at(used: &Vec<bool>, sorts: &Vec<Level>, i: u64, j: u64, acc: Level) -> Level {
@@ -990,9 +1013,9 @@ pub fn struct_proj_guard_at(used: &Vec<bool>, sorts: &Vec<Level>, i: u64, j: u64
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:722-732 structProjGuardsFast
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:643-656 structProjGuards
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:734-746 structProjGuards_eq_structProjGuardsFast
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:477-487 structProjGuardsFast
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:398-411 structProjGuards
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:489-501 structProjGuards_eq_structProjGuardsFast
 /// **The projection guard levels**, as con-leche executes them: the `nF`
 /// `structUsedLater` answers first, through *one* shared
 /// `hasLooseBVarBGo` memo, then the fold.  The pure `structProjGuards`
@@ -1006,7 +1029,7 @@ pub fn struct_proj_guards(cty: &Expr, n_p: u64, n_f: u64, sorts: &Vec<Level>) ->
     struct_proj_guards_from(&used, sorts, n_f, 0, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:722-732 structProjGuardsFast
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:477-487 structProjGuardsFast
 /// The outer `(List.range nF).map` of the guard table.
 pub fn struct_proj_guards_from(
     used: &Vec<bool>,
@@ -1028,8 +1051,8 @@ pub fn struct_proj_guards_from(
 // The projection bodies (`StructParts.lean:761-773`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:748-766 structProjBodiesGo
-/// con-leche: ConLeche/Cached/CheckerC.lean:37-43 structProjBodiesGoC
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:503-521 structProjBodiesGo
+/// con-leche: ConLeche/Cached/CheckerC.lean:33-39 structProjBodiesGoC
 /// The projection bodies' one walk of the constructor telescope: field `i`'s
 /// domain is body `i`, and the field is replaced by the subject's projection
 /// `.proj T i (bvar 0)` before the walk continues.  Lean conses `fdom` on the
@@ -1062,8 +1085,8 @@ pub fn struct_proj_bodies_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:768-771 structProjBodies
-/// con-leche: ConLeche/Cached/CheckerC.lean:45-50 structProjBodiesC
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:523-526 structProjBodies
+/// con-leche: ConLeche/Cached/CheckerC.lean:41-46 structProjBodiesC
 /// **The projection bodies of a recognised block.**  Deviation: `Array Expr`
 /// is `Vec<Expr>` (the port has one list type), so the cited
 /// `List.toArray` is the identity here.
@@ -1085,7 +1108,7 @@ pub fn struct_proj_bodies(t: &Name, n_p: u64, n_f: u64, cty: &Expr) -> Option<Ve
 // `mentionsConst` and its memoized walk (`StructParts.lean:775-930`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:773-782 Expr.mentionsConst
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:528-537 Expr.mentionsConst
 /// Does the constant `T` occur in `e`?  A syntactic walk (`fvar` annotations
 /// included; a `.proj` node names its structure).  The *logical* definition;
 /// the executed one is `mentions_const` below.
@@ -1145,7 +1168,7 @@ pub fn memo_eb_get(memo: &HashMap<Expr, bool>, k: &Expr) -> Option<bool> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:814-849 Expr.mentionsConstGo
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:569-604 Expr.mentionsConstGo
 /// The memoized `mentionsConst` walk: the four leaf arms answer before the
 /// probe, every other node is probed, walked and recorded.
 ///
@@ -1171,7 +1194,7 @@ pub fn mentions_const_go(t: &Name, memo: &mut HashMap<Expr, bool>, e: &Expr) -> 
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:814-849 Expr.mentionsConstGo
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:569-604 Expr.mentionsConstGo
 /// The inner `match e with` of the miss branch, split off so the probe's
 /// borrow dies before the descent mutates the memo (task #14's rule).  The
 /// final `| e => (e.mentionsConst T, memo)` arm is the cited unreachable one
@@ -1230,9 +1253,9 @@ pub fn mentions_const_node(t: &Name, memo: &mut HashMap<Expr, bool>, e: &Expr) -
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:922-924 Expr.mentionsConstFast
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:773-782 Expr.mentionsConst
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:926-929 Expr.mentionsConst_eq_mentionsConstFast
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:677-679 Expr.mentionsConstFast
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:528-537 Expr.mentionsConst
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:681-684 Expr.mentionsConst_eq_mentionsConstFast
 /// **The executed `mentionsConst`** — one memoized DAG walk.  The
 /// recogniser's positivity walk asks this of every field domain and index
 /// argument, and on a DAG-shared field type the tree walk does not finish.

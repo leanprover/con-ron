@@ -84,9 +84,9 @@ pub const M_TBL_TAKEN: [u32; 22] = [
 // The binder-domain walk (`StructInstall.lean:25-40` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:32-51 checkStructDomsAt
-/// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:27-36 checkStructDomsAtF
-/// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:38-48 checkStructDomsAtFA
+/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:31-50 checkStructDomsAt
+/// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:25-34 checkStructDomsAtF
+/// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:36-46 checkStructDomsAtFA
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:24-39 checkStructDomsAt`
 /// — the reference kernels' binder-domain comparisons, run binder by binder
 /// **at its own frame**: the `j`-th opened variable's annotation against the
@@ -150,8 +150,8 @@ pub fn check_struct_doms_at(
 // The projection table (`StructInstall.lean:42-72` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:53-86 checkStructProjTable
-/// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:73-95 checkStructProjTableF
+/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-85 checkStructProjTable
+/// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-93 checkStructProjTableF
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:41-71 checkStructProjTable`
 /// — stage 5: **the projection table** (con-leche's task #175 S1).  One
 /// constant per structure: the fields' result-type bodies read off the
@@ -196,7 +196,7 @@ pub fn check_struct_proj_table(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:53-86 checkStructProjTable
+/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-85 checkStructProjTable
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:41-71 checkStructProjTable`
 /// — the bodies' scoping, validated once at insertion: fvar-free, level
 /// parameters within the structure's, resolving, scoped at the parameters and
@@ -240,7 +240,7 @@ pub fn proj_bodies_scoped(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:53-86 checkStructProjTable
+/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-85 checkStructProjTable
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:41-71 checkStructProjTable`
 /// — the projection-function name family and the table's own reserved name
 /// must be free, and then the table is stored.
@@ -287,7 +287,7 @@ pub fn check_struct_proj_table_names(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:53-86 checkStructProjTable
+/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-85 checkStructProjTable
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:41-71 checkStructProjTable`
 /// — the `(List.range nF).allM` of the projection-function name family, as a
 /// counted recursion.  `arena::inductives::modeled`'s `proj_fn_family_free` is

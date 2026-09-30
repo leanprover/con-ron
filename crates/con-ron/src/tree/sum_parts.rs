@@ -15,7 +15,8 @@ use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 use std::vec::Vec;
 
-/// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:78-101 InductiveShape
+/// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:35-58 InductiveShape
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_parts::InductiveShape_refines, then delete this line
 /// The pieces of a recognised direct block: the type former, the
 /// constructors in declaration order with their field counts, the parameter
 /// and index counts, the recursor, its fresh elimination level parameter
@@ -38,7 +39,8 @@ pub struct InductiveShape {
     pub is_prop: bool,
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:78-101 InductiveShape
+/// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:35-58 InductiveShape
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_parts::inductive_shape_dup_refines, then delete this line
 /// The record copy — what Lean's value semantics gives for free.
 pub fn inductive_shape_dup(p: &InductiveShape) -> InductiveShape {
     InductiveShape {
@@ -77,6 +79,7 @@ pub fn ctors_copy_from(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:103-110 sumSplit
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_parts::sum_split_refines, then delete this line
 /// The block's members after the type former: the constructors (each with
 /// its parameter and field count), then the closing recursor with its two
 /// argument sums and its rules.
@@ -97,6 +100,7 @@ pub fn sum_split(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:103-110 sumSplit
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_parts::sum_split_from_refines, then delete this line
 /// The index recursion behind `sum_split`.  Lean conses the constructor on
 /// the way *out* (`(cvC, nP, nF) :: q.1`); the port accumulates on the way
 /// *in*, which produces the same declaration-order list (task #13's
@@ -141,7 +145,8 @@ pub fn sum_split_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:112-119 InductiveShape.withSort
+/// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:35-58 InductiveShape.withSort
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_parts::with_sort_refines, then delete this line
 /// The record completed with the former's result sort, which the install
 /// stage reads off the checked telescope.  `isProp` is recomputed so that
 /// the recogniser's invariant `isProp = (isEquiv resSort zero == some true)`
@@ -159,6 +164,7 @@ pub fn with_sort(p: InductiveShape, s: Level) -> InductiveShape {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:292-294 InductiveShape.rulePrefix
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_parts::rule_prefix_refines, then delete this line
 /// The recursor's rule prefix: the parameters, the motive and the minors.
 /// Ported with its record rather than with `SumInstall.lean`'s install
 /// stages (the cited file defines it beside the stages that consume it, but
@@ -168,6 +174,7 @@ pub fn rule_prefix(p: &InductiveShape) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:295-295 InductiveShape.majorIdx
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_parts::major_idx_refines, then delete this line
 /// The major premise's index: the rule prefix, then the indices.
 pub fn major_idx(p: &InductiveShape) -> u64 {
     rule_prefix(p) + p.n_idx

@@ -33,6 +33,7 @@ namespace ConRon.Arena
 open ConLeche
 
 /-- con-leche: ConLeche/Kernel/CoreGated.lean:61-115 whnfCoreBodyGated —
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CoreGated.whnfCoreAppGated_bridge, then delete this line
 **the gated `.app` clause**, named so that task #97-P6-7's upward cutoff has a
 subject here too: the node the reduction rebuilds is the one the spine already
 has whenever the head did not move (`internAppRebuilt`), and the stuck step is
@@ -62,6 +63,7 @@ def whnfCoreAppGated (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat
   else whnfCoreStuckApp mode r fe depth h same fp a
 
 /-- con-leche: ConLeche/Kernel/CoreGated.lean:61-115 whnfCoreBodyGated —
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CoreGated.whnfCoreBodyGated_bridge, then delete this line
 **the gated head-normalization body**: `whnfCoreBody` with the `.app`
 clause's β certificate skipped at a `.never` binder under
 `mode.verifiedChecks`.  The projection certificate is NOT gated — the
@@ -109,6 +111,7 @@ def whnfCoreBodyGated (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
       fail (.notImplemented "whnf beyond the supported fragment")
 
 /-- con-leche: ConLeche/Kernel/CoreGated.lean:117-150 coreKnotGated — **the P
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CoreGated.coreKnotGated_bridge, then delete this line
 knot**: `coreKnot`'s tie with `whnfCoreBodyGated` in the `whnfCore` slot;
 `whnf`, `infer`, `defeq` and `annotate` are the *same bodies*, tied to this
 knot one fuel level down.
@@ -156,41 +159,48 @@ def coreKnotGated (mode : CheckMode) (fe : IFEnv) : Nat → CoreFnsA
         inferBody mode (coreKnotGated mode fe fuel) fe d e }
 
 /-- con-leche: ConLeche/Kernel/CoreGated.lean:152-155 pureFnsGated — the P
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CoreGated.pureFnsGated_bridge, then delete this line
 core, tied at `AM`. -/
 def pureFnsGated (mode : CheckMode) (fe : IFEnv) : Nat → CoreFnsA :=
   coreKnotGated mode fe
 
 /-- con-leche: ConLeche/Kernel/CoreGated.lean:157-159 whnfCoreGated — head
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CoreGated.whnfCoreGated_bridge, then delete this line
 normalization with the β-cert gate (fueled). -/
 def whnfCoreGated (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat)
     (e : EIdx) : AM EIdx :=
   (pureFnsGated mode fe fuel).whnfCore depth e
 
 /-- con-leche: ConLeche/Kernel/CoreGated.lean:161-163 whnfGated — the full
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CoreGated.whnfGated_bridge, then delete this line
 reduction loop over the gated knot (fueled). -/
 def whnfGated (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat) (e : EIdx) :
     AM EIdx :=
   (pureFnsGated mode fe fuel).whnf depth e
 
 /-- con-leche: ConLeche/Kernel/CoreGated.lean:165-168 inferTypeCoreGated —
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CoreGated.inferTypeCoreGated_bridge, then delete this line
 type inference over the gated knot (fueled). -/
 def inferTypeCoreGated (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat)
     (e : EIdx) : AM EIdx :=
   (pureFnsGated mode fe fuel).infer depth e
 
 /-- con-leche: ConLeche/Kernel/CoreGated.lean:170-173 isDefEqCoreGated —
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CoreGated.isDefEqCoreGated_bridge, then delete this line
 definitional equality over the gated knot (fueled). -/
 def isDefEqCoreGated (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat)
     (a b : EIdx) : AM Bool :=
   (pureFnsGated mode fe fuel).defeq depth a b
 
 /-- con-leche: ConLeche/Kernel/CoreGated.lean:175-178 annotateCoreGated — the
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CoreGated.annotateCoreGated_bridge, then delete this line
 annotation pass over the gated knot (fueled). -/
 def annotateCoreGated (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat)
     (e : EIdx) : AM EIdx :=
   (pureFnsGated mode fe fuel).annotate depth e
 
 /-- con-leche: ConLeche/Kernel/CoreGated.lean:180-183 ensureSortCoreGated —
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CoreGated.ensureSortCoreGated_bridge, then delete this line
 `ensureSort` over the gated knot (fueled). -/
 def ensureSortCoreGated (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat)
     (e : EIdx) : AM LIdx :=

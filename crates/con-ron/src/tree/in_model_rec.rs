@@ -43,7 +43,8 @@ use con_ron_core::kernel::prop_when;
 use con_ron_core::ron::hashmap::HashMap;
 use con_ron_core::ron::ptr::P;
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:81-90 IndTypeRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:191-200 IndTypeRec
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove in_model_rec::IndTypeRec_refines, then delete this line
 /// One inductive type of a parsed block, with the export's shape data.
 pub struct IndTypeRec {
     pub cv: ConstantVal,
@@ -69,7 +70,8 @@ pub fn ind_type_rec_dup(t: &IndTypeRec) -> IndTypeRec {
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:92-97 IndCtorRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:202-215 IndCtorRec
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove in_model_rec::IndCtorRec_refines, then delete this line
 /// One constructor of a parsed block.
 pub struct IndCtorRec {
     pub cv: ConstantVal,
@@ -86,7 +88,8 @@ pub fn ind_ctor_rec_dup(c: &IndCtorRec) -> IndCtorRec {
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:99-108 IndRecRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:217-226 IndRecRec
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove in_model_rec::IndRecRec_refines, then delete this line
 /// One recursor of a parsed block (`numParams`, `numMotives`, `numMinors`,
 /// `numIndices` as exported).
 pub struct IndRecRec {
@@ -111,6 +114,7 @@ pub fn ind_rec_rec_dup(r: &IndRecRec) -> IndRecRec {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:110-115 BlockRec
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove in_model_rec::BlockRec_refines, then delete this line
 /// A parsed inductive block.
 pub struct BlockRec {
     pub types: Vec<IndTypeRec>,
@@ -179,6 +183,7 @@ fn ind_rec_recs_dup(rs: &Vec<IndRecRec>) -> Vec<IndRecRec> {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:522-525 hintHeight
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove in_model_rec::hint_height_refines, then delete this line
 /// The height a hint records.  It is `InModel`'s, and the parse needs it at
 /// one place only — `export_c::note_decl_entries`, which books a pushed
 /// definition's height for the generator's hint arithmetic — so the seam
@@ -192,6 +197,7 @@ pub fn hint_height(h: &ReducibilityHint) -> u64 {
 }
 
 /// con-leche: ConLeche/Frontend/InModel.lean:34-37 wants
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove in_model_rec::wants_refines, then delete this line
 /// Is the block one this modeller is for: mutual (several types) or nested
 /// (`numNested > 0`)?
 pub fn wants(b: &BlockRec) -> bool {
@@ -210,6 +216,7 @@ pub fn wants(b: &BlockRec) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:117-124 Ctx
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove in_model_rec::ModelCtx_refines, then delete this line
 /// What the generator reads besides the block: the declared types of the
 /// constants so far, the definitional heights, and the parsed inductive
 /// blocks so far by member type name (the nested rung reads a container's
@@ -226,6 +233,7 @@ pub struct ModelCtx<'a> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:603-607 _
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove in_model_rec::ctx_tbl_refines, then delete this line
 /// The cited `fun n => st.constTypes[n]?`: a constant's level parameters and
 /// declared type, if the parse has pushed it.
 pub fn ctx_tbl<'a>(ctx: &'a ModelCtx<'a>, n: &Name) -> Option<(Vec<Name>, Expr)> {
@@ -236,6 +244,7 @@ pub fn ctx_tbl<'a>(ctx: &'a ModelCtx<'a>, n: &Name) -> Option<(Vec<Name>, Expr)>
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:603-607 _
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove in_model_rec::ctx_height_refines, then delete this line
 /// The cited `fun n => st.heights.getD n 0`: a definition's height, `0` when
 /// the parse has not pushed a definition of that name.
 pub fn ctx_height(ctx: &ModelCtx, n: &Name) -> u64 {
@@ -246,6 +255,7 @@ pub fn ctx_height(ctx: &ModelCtx, n: &Name) -> u64 {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:603-607 _
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove in_model_rec::ctx_block_refines, then delete this line
 /// The cited `fun n => st.indBlocks[n]?`: the parsed block a member type name
 /// belongs to.
 pub fn ctx_block<'a>(ctx: &'a ModelCtx<'a>, n: &Name) -> Option<&'a BlockRec> {
@@ -256,6 +266,7 @@ pub fn ctx_block<'a>(ctx: &'a ModelCtx<'a>, n: &Name) -> Option<&'a BlockRec> {
 }
 
 /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove in_model_rec::Modeller_refines, then delete this line
 /// **The modeller seam.**  Generate the model records of a block, in stream
 /// order, or the reason the block is declined.
 ///
@@ -265,6 +276,7 @@ pub fn ctx_block<'a>(ctx: &'a ModelCtx<'a>, n: &Name) -> Option<&'a BlockRec> {
 /// extracted parse is quantified over an arbitrary modeller.
 pub trait Modeller {
     /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
+    /// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove in_model_rec::generate_refines, then delete this line
     /// The one method: the block's model records, or the decline's text.
     fn generate(&self, ctx: &ModelCtx, b: &BlockRec) -> Result<Vec<Declaration>, Vec<u32>>;
 }

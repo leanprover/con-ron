@@ -128,30 +128,35 @@ pub fn dup_names(ns: &[Name]) -> Vec<Name> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:49-50 implName
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::impl_name_refines, then delete this line
 /// `T._model._impl.<s>`.
 pub fn impl_name(t: &Name, s: &str) -> Name {
     nstr(nstr(nstr(name::dup(t), "_model"), "_impl"), s)
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:52-53 tagName
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::tag_name_refines, then delete this line
 /// The tag family `T._model._impl.tag` of the block owned by `T`.
 pub fn tag_name(t: &Name) -> Name {
     impl_name(t, "tag")
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:55-56 tagCtorName
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::tag_ctor_name_refines, then delete this line
 /// The tag constructor of member `k`: `T._model._impl.tag.k`.
 pub fn tag_ctor_name(t: &Name, k: u64) -> Name {
     name::mk_num(tag_name(t), k)
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:58-59 auxName
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::aux_name_refines, then delete this line
 /// The auxiliary family `T._model._impl.aux`.
 pub fn aux_name(t: &Name) -> Name {
     impl_name(t, "aux")
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:61-67 auxCtorName
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::aux_ctor_name_refines, then delete this line
 /// The auxiliary constructor of member `k`'s constructor `C`:
 /// `T._model._impl.aux.k.<last component of C>`.
 pub fn aux_ctor_name(t: &Name, k: u64, c: &Name) -> Name {
@@ -164,18 +169,21 @@ pub fn aux_ctor_name(t: &Name, k: u64, c: &Name) -> Name {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:69-70 modelName
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::model_name_refines, then delete this line
 /// The model companion of a block member: `X._model`.
 pub fn model_name(n: &Name) -> Name {
     nstr(name::dup(n), "_model")
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:72-74 iotaName
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::iota_name_refines, then delete this line
 /// The iota theorem of rule `j` of a modeled recursor `R`: `R._model.iota_j`.
 pub fn iota_name(r: &Name, j: u64) -> Name {
     nstr(model_name(r), &format!("iota_{}", j))
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:76-86 freshLevelName
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::fresh_level_name_refines, then delete this line
 /// A level-parameter name not among `lps`: `u`, then `u_1`, `u_2`, … — the
 /// official kernel's `mk_fresh_lvl_name` convention for a recursor's
 /// elimination level, so a generated recursor's level parameters are the ones
@@ -201,6 +209,7 @@ pub fn fresh_level_name(lps: &[Name]) -> Name {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:90-93 bm
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::bm_refines, then delete this line
 /// The default binder datum of a generated binder: `.never` — what the
 /// frontend gives every parsed binder (the annotate pass recomputes the datum
 /// before it is validated).
@@ -209,6 +218,7 @@ pub fn bm() -> BinderMeta {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:95-97 mkLams
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::mk_lams_refines, then delete this line
 /// `λ`-telescope over domains (outermost first).
 pub fn mk_lams(bs: &[Expr], body: Expr) -> Expr {
     let mut acc = body;
@@ -219,6 +229,7 @@ pub fn mk_lams(bs: &[Expr], body: Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:99-101 mkPis
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::mk_pis_refines, then delete this line
 /// `∀`-telescope over domains (outermost first).
 pub fn mk_pis(bs: &[Expr], body: Expr) -> Expr {
     let mut acc = body;
@@ -229,6 +240,7 @@ pub fn mk_pis(bs: &[Expr], body: Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:103-105 varsAt
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::vars_at_refines, then delete this line
 /// The variables `bvar (o + n - 1 - k)`, `k < n`: a telescope of `n` binders
 /// seen from `o` binders below it (`structPsAt`).
 pub fn vars_at(o: u64, n: u64) -> Vec<Expr> {
@@ -236,18 +248,21 @@ pub fn vars_at(o: u64, n: u64) -> Vec<Expr> {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:107-108 constP
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::const_p_refines, then delete this line
 /// A constant at its level parameters.
 pub fn const_p(n: &Name, lps: &[Name]) -> Expr {
     expr::mk_const(name::dup(n), params_of(lps))
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:110-112 piBinders
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::pi_binders_refines, then delete this line
 /// The domains of a `∀`-telescope's binder list.
 pub fn pi_binders(bs: &[(Expr, BinderMeta)]) -> Vec<Expr> {
     bs.iter().map(|b| expr::dup(&b.0)).collect()
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:114-127 overFirstParams
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::over_first_params_refines, then delete this line
 /// A member's or constructor's telescope `ty` re-spelled over the FIRST
 /// member's parameter binders: the first `nP` binders of `former` with `ty`'s
 /// residual after its own `nP` parameter binders under them.  The re-spelling
@@ -263,6 +278,7 @@ pub fn over_first_params(n_p: u64, former: &Expr, ty: &Expr) -> Option<Expr> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:133-204 specFamGo
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::spec_fam_go_refines, then delete this line
 /// Rewrite every occurrence `T_m a⃗` (exactly `nP + nIdx_m` arguments) of a
 /// member of the block into `aux a⃗_P (tag.m a⃗_P a⃗_I)`.  `members` lists
 /// `(T_m, m, nIdx_m)`.  An occurrence with any other arity is left alone (the
@@ -306,6 +322,7 @@ pub fn spec_fam_go(
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:133-204 specFamGo
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::spec_fam_arm_refines, then delete this line
 /// The compound arm of `spec_fam_go`, i.e. the body the memo wraps.
 pub fn spec_fam_arm(
     t: &Name,
@@ -377,6 +394,7 @@ pub fn spec_fam_arm(
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:206-214 specFamGoList
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::spec_fam_go_list_refines, then delete this line
 /// `spec_fam_go` over a list, threading the memo.
 pub fn spec_fam_go_list(
     t: &Name,
@@ -392,6 +410,7 @@ pub fn spec_fam_go_list(
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:218-221 specFam
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::spec_fam_refines, then delete this line
 /// `spec_fam_go` at a fresh memo.
 pub fn spec_fam(t: &Name, lps: &[Name], n_p: u64, members: &[(Name, u64, u64)], e: &Expr) -> Expr {
     let mut memo: HashMap<ExprKey, Expr> = HashMap::new();
@@ -399,6 +418,7 @@ pub fn spec_fam(t: &Name, lps: &[Name], n_p: u64, members: &[(Name, u64, u64)], 
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:223-275 substParams
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::subst_params_refines, then delete this line
 /// Simultaneous substitution of a parameter block: under `d` binders,
 /// `bvar (d + j)` (`j < n`, innermost first) becomes `vals[n - 1 - j]`
 /// (`vals` outermost first, spelled at the frame `d` binders below the
@@ -412,6 +432,7 @@ pub fn subst_params(d: u64, n: u64, vals: &[Expr], e: &Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:223-275 substParams
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::subst_params_go_refines, then delete this line
 /// The memoized rebuild behind `subst_params`, keyed by the node and the
 /// binder cursor `k` (which shifts under binders).  As everywhere in the
 /// modeller, no spec lemma: it is untrusted, and what it emits is checked.
@@ -482,6 +503,7 @@ pub fn subst_params_go(
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:277-320 mentionsAnyGo
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::mentions_any_go_refines, then delete this line
 /// Does `e` mention any of the names?  One memoized DAG walk: the answer at a
 /// node is a function of the node and `ns`, and `ns` is fixed for the walk, so
 /// the memo is keyed by the node alone and dropped after each call.  No spec
@@ -523,6 +545,7 @@ pub fn mentions_any_go(ns: &[Name], memo: &mut HashMap<ExprKey, bool>, e: &Expr)
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:322-323 mentionsAny
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::mentions_any_refines, then delete this line
 /// `mentions_any_go` at a fresh memo.
 pub fn mentions_any(ns: &[Name], e: &Expr) -> bool {
     let mut memo: HashMap<ExprKey, bool> = HashMap::new();
@@ -561,6 +584,7 @@ pub fn ctor_tuples(ctors: &[KCtor]) -> Vec<(Name, u64, Expr, Vec<u64>)> {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:341-344 recTy
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::rec_ty_refines, then delete this line
 /// **The recursor type** of a recursive family — the direct fixpoint route's
 /// own generator `native_parts::struct_rec_ty_r`, not a private copy:
 ///
@@ -601,6 +625,7 @@ pub fn rec_ty(
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:346-356 recRhs
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::rec_rhs_refines, then delete this line
 /// **The rule** of constructor `j`:
 /// `λ p⃗ motive m⃗ f⃗, minor_j f⃗ (λ a⃗, T.rec p⃗ motive m⃗ e⃗_i(a⃗) (f_i a⃗))…`
 /// (`native_parts::struct_rec_rhs_r`; `rec_c`, `rlvls`: the recursor's name
@@ -644,12 +669,14 @@ pub fn rec_rhs(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:368-369 ConstTable
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::ConstTable_refines, then delete this line
 /// The declared type of a constant: its level parameters and type.  A trait
 /// object where con-leche has a `Name → Option (List Name × Expr)` (the module
 /// note's deviation 1).
 pub type ConstTable<'a> = &'a dyn Fn(&Name) -> Option<(Vec<Name>, Expr)>;
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:371-377 betaHead
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::beta_head_refines, then delete this line
 /// Head β-reduction only.
 pub fn beta_head(e: &Expr) -> Expr {
     match expr::view(&e) {
@@ -665,6 +692,7 @@ pub fn beta_head(e: &Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:379-404 inferTy
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::infer_ty_refines, then delete this line
 /// `infer_ty tbl ctx e` computes the type of `e` from the declared types of
 /// the constants it mentions (`tbl`) and the binder domains of the context
 /// (`ctx`, innermost first, each spelled at its own frame), β-reducing only
@@ -726,6 +754,7 @@ pub fn cons_ctx(d: &Expr, ctx: &[Expr]) -> Vec<Expr> {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:406-408 sortOf
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::sort_of_refines, then delete this line
 /// The sort of a type at a context.  `inferTy`'s own `where`-clause
 /// `sortOf` (`Kit.lean:484-490`, inside `inferTy`'s cited block) is this same
 /// function: the public wrapper there just calls it, and the two are one here.
@@ -738,6 +767,7 @@ pub fn sort_of(tbl: ConstTable, ctx: &[Expr], e: &Expr) -> Option<Level> {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:448-465 sortCeil
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::sort_ceil_refines, then delete this line
 /// A level at least the sort of `d` (the cited section header's four cases).
 /// Nothing here is trusted: a ceiling for an ill-sorted domain is a level like
 /// any other, and the tag family the modeller then emits fails the fold's own
@@ -776,6 +806,7 @@ pub fn sort_ceil(tbl: ConstTable, fuel: u64, ctx: &[Expr], d: &Expr) -> Option<L
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:467-471 idxSort
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::idx_sort_refines, then delete this line
 /// A ceiling for the sort of an index domain at a context (`sort_ceil`), at a
 /// fuel no `∀` telescope or type tower of a real stream reaches.
 pub fn idx_sort(tbl: ConstTable, ctx: &[Expr], e: &Expr) -> Option<Level> {
@@ -787,6 +818,7 @@ pub fn idx_sort(tbl: ConstTable, ctx: &[Expr], e: &Expr) -> Option<Level> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:475-510 maxHeightGo
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::max_height_go_refines, then delete this line
 /// The highest definitional height of a constant mentioned by `e` (`heights`:
 /// the height of every definition declared so far; `0` for anything else).
 /// One memoized DAG walk, keyed by the node — and, like `mentionsAnyGo`, with
@@ -832,6 +864,7 @@ pub fn max_height_go(
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:512-514 maxHeight
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::max_height_refines, then delete this line
 /// `max_height_go` at a fresh memo.
 pub fn max_height(heights: &dyn Fn(&Name) -> u64, e: &Expr) -> u64 {
     let mut memo: HashMap<ExprKey, u64> = HashMap::new();
@@ -839,6 +872,7 @@ pub fn max_height(heights: &dyn Fn(&Name) -> u64, e: &Expr) -> u64 {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:516-520 hintFor
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::hint_for_refines, then delete this line
 /// The reducibility hint of a generated definition: one above the highest
 /// constant its value mentions (the kernel's `getMaxHeight` rule).
 pub fn hint_for(heights: &dyn Fn(&Name) -> u64, value: &Expr) -> ReducibilityHint {
@@ -846,6 +880,7 @@ pub fn hint_for(heights: &dyn Fn(&Name) -> u64, value: &Expr) -> ReducibilityHin
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:522-525 hintHeight
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove kit::hint_height_refines, then delete this line
 /// The height a hint records.
 pub fn hint_height(h: &ReducibilityHint) -> u64 {
     match h {

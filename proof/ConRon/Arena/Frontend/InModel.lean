@@ -17,6 +17,7 @@ handles back to `Expr`/`Name`/`Level`, calls **con-leche's own generator**
 verbatim, and interns the declarations it returns into the persistent tier.
 
     con-leche: ConLeche/Frontend/InModel.lean:39-45 generate — called, not twinned
+    -- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove InModel.denoteMTypeGo_bridge, then delete this line
 
 **Why that is the right instantiation, and not a shortcut.**
 
@@ -185,6 +186,7 @@ def ctxOf (st : EStore) (ctx : Ctx) : ConLeche.Frontend.InModel.Ctx :=
 /-! ## The seam -/
 
 /-- con-leche: ConLeche/Frontend/InModel.lean:39-45 generate — **the modeller,
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove InModel.inProcessModeller_bridge, then delete this line
 by delegation**: the block read back, con-leche's own `InModel.generate` run on
 it, and the declarations it returns interned into the persistent tier.  The
 module note argues why this is the instantiation (B) should have; the short

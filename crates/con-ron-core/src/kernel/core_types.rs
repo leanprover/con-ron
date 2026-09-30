@@ -62,7 +62,7 @@
 use crate::kernel::name;
 use std::vec::Vec;
 
-/// con-leche: ConLeche/Kernel/Core.lean:68-72 CheckError
+/// con-leche: ConLeche/Kernel/Core.lean:65-69 CheckError
 /// The checker's error, in the cited constructor order, **plus a fourth
 /// constructor the cited type does not have**.
 ///
@@ -91,7 +91,7 @@ pub enum CheckError {
     Native(Vec<u32>),
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:80 CheckM
+/// con-leche: ConLeche/Kernel/Core.lean:77 CheckM
 /// `abbrev CheckM := Except CheckError`, as Rust's `Result` (the module note
 /// above spells out the correspondence).  A type alias is erased before
 /// Charon sees anything, so this costs the generated Lean nothing; it is
@@ -120,19 +120,19 @@ pub fn code_points_from(codes: &[u32], i: usize, out: Vec<u32>) -> Vec<u32> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:68-72 CheckError
+/// con-leche: ConLeche/Kernel/Core.lean:65-69 CheckError
 /// `throw (.notImplemented what)`'s payload, as a constructor function.
 pub fn not_implemented(what: Vec<u32>) -> CheckError {
     CheckError::NotImplemented(what)
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:68-72 CheckError
+/// con-leche: ConLeche/Kernel/Core.lean:65-69 CheckError
 /// `throw (.invalid msg)`'s payload, as a constructor function.
 pub fn invalid(m: Vec<u32>) -> CheckError {
     CheckError::Invalid(m)
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:68-72 CheckError
+/// con-leche: ConLeche/Kernel/Core.lean:65-69 CheckError
 /// `throw (.internal msg)`'s payload, as a constructor function.
 pub fn internal(m: Vec<u32>) -> CheckError {
     CheckError::Internal(m)
@@ -147,7 +147,7 @@ pub fn native(m: Vec<u32>) -> CheckError {
     CheckError::Native(m)
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:333-337 divModAttemptReason
+/// con-leche: ConLeche/Kernel/Checker.lean:331-335 divModAttemptReason
 /// The message out of an error, by move.  The cited `divModAttemptReason ps
 /// (some e)` renders `e` into the variant's decline reason with `toString`;
 /// the port has no `ToString` instance (the note on `CheckError` above) and
@@ -183,7 +183,7 @@ pub fn dup(e: &CheckError) -> CheckError {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:68-72 CheckError
+/// con-leche: ConLeche/Kernel/Core.lean:65-69 CheckError
 /// The structural equality the cited `inductive` would derive; the payloads
 /// are compared with `name::str_eq`, the port's code-point equality.  Nothing
 /// in the checker branches on an error, so this exists for the tests and for

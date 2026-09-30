@@ -44,7 +44,7 @@ open ConLeche
 
 /-! ## The core entry-point record -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — the core
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:22-50 CheckerOps — the core
 entry points the declaration checker runs on.  con-leche is polymorphic in
 the monad and instantiates the record twice (the pure knot for the proofs, the
 memoized one in `ConLeche/Cached/CheckerC.lean` for the binary); the arena is
@@ -63,7 +63,7 @@ structure CheckerOpsA where
   the checker actually runs. -/
   orElse : AM Bool → (Option CheckError → AM Unit) → AM Unit
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:57-66 fueledOps — **the one
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:54-63 fueledOps — **the one
 instantiation** (DESIGN §8.2: "one knot, the memoized one").  con-leche's
 `fueledOps` is the PURE knot and `ConLeche/Cached/CheckerC.lean`'s `sharedOpsC`
 the memoized one the binary runs; the arena's `pureFnsA` already carries the
@@ -80,7 +80,7 @@ def fueledOpsA (mode : CheckMode) (F : Nat) : CheckerOpsA where
     | .ok (false, s') => k none s'
     | .error _ => k none s
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:68-69 pureOps — the one
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:65-66 pureOps — the one
 instantiation at the standard fuel. -/
 def pureOpsA (mode : CheckMode) : CheckerOpsA := fueledOpsA mode checkFuel
 
@@ -90,7 +90,7 @@ DESIGN §8.3 and OVERVIEW §6.5 (the `Native` kind) describe con-ron's
 `or_else_attempt` (`crates/con-ron-core/src/arena/checker_base.rs`), and this
 section is its twin. -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — what
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:22-50 CheckerOps — what
 `orElse` decides once the attempt has run.  con-leche's clause is three-way;
 the port's is four, and the arena's is the port's:
 
@@ -110,19 +110,19 @@ inductive OrElseStep where
   | recovered (e : CheckError)
   | failed (e : CheckError)
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — take the
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:22-50 CheckerOps — take the
 snapshot a variant attempt is restored from: the WHOLE state (task
 #97-T2-LOCKSTEP D4b).  In Lean it is the state itself; the port copies it
 (`attempt_snapshot`: the four stores with both tiers, the memos, the caches
 and the pins). -/
 @[inline] def attemptSnapshot (st : AState) : AState := st
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — the restore
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:22-50 CheckerOps — the restore
 of `OrElseStep.recovered`: the snapshot becomes the state, so everything the
 attempt did goes.  The port moves its copy back (`attempt_restore`). -/
 @[inline] def attemptRestore (_st : AState) (snap : AState) : AState := snap
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — **the
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:22-50 CheckerOps — **the
 four-way step itself**, as a PURE function of the attempt's outcome, which is
 the shape the port has. -/
 @[inline] def orElseStepOf : Except CheckError Bool → OrElseStep
@@ -131,7 +131,7 @@ the shape the port has. -/
   | .error (.native m) => .failed (.native m)
   | .error e => .recovered e
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps — **the
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:22-50 CheckerOps — **the
 attempt, with the memo state snapshotted and restored on a mirrored error.**
 
 This is the ONE place (B) recovers from a thrown error, and it is scoped to
@@ -169,7 +169,7 @@ not twinned there (the store layer needed the representation, not the
 predicates); the declaration front door is their only reader, so they are
 here.  Each is a handle comparison or one `viewN`. -/
 
-/-- con-leche: ConLeche/Kernel/Level.lean:213-216 Name.nodup — no duplicates
+/-- con-leche: ConLeche/Kernel/Level.lean:214-217 Name.nodup — no duplicates
 in a list of name HANDLES.  A name comparison is a handle comparison (DESIGN
 §8.3: `denoteN` is injective). -/
 def nameNodup : List NIdx → Bool
@@ -177,6 +177,7 @@ def nameNodup : List NIdx → Bool
   | n :: ns => !ns.contains n && nameNodup ns
 
 /-- con-leche: ConLeche/Kernel/Level.lean:218-221 Name.isModelSuffix — is
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.NIdx.isModelSuffix_bridge, then delete this line
 this a `_model`-suffixed name (the shape of model companions)? -/
 def NIdx.isModelSuffix (n : NIdx) : AM Bool := do
   if n.tag == NTag.str then
@@ -185,7 +186,7 @@ def NIdx.isModelSuffix (n : NIdx) : AM Bool := do
     | _ => pure false
   else pure false
 
-/-- con-leche: ConLeche/Kernel/Level.lean:223-230 Name.isProjFnShape — is
+/-- con-leche: ConLeche/Kernel/Level.lean:219-226 Name.isProjFnShape — is
 this shaped like an installed projection function's name (`(T.proj).i`) or a
 projection table's (`(T.projTable).0`)?  Both shapes are reserved for the
 checker's own installs. -/
@@ -215,8 +216,8 @@ The parameter list is read BACK once at the entry, as `instLPFast` reads its
 own functions on transient values, and DESIGN §8.3's lesson 4 says a level
 algorithm runs on trees. -/
 
-/-- con-leche: ConLeche/Kernel/Level.lean:251-268 Expr.allLevelParamsDefined
-con-leche: ConLeche/Kernel/Level.lean:299-332 Expr.allLevelParamsDefinedGo
+/-- con-leche: ConLeche/Kernel/Level.lean:247-264 Expr.allLevelParamsDefined
+con-leche: ConLeche/Kernel/Level.lean:295-328 Expr.allLevelParamsDefinedGo
 The memoized walk.  `params` are transient names (see the section note); the
 memo is keyed on the node, which is what makes a shared subterm cost one
 probe. -/
@@ -254,7 +255,7 @@ def allLevelParamsDefinedGo (params : List ConLeche.Name)
         | .proj _ _ e => allLevelParamsDefinedGo params memo fuel e
       pure (p.1, p.2.insert h p.1)
 
-/-- con-leche: ConLeche/Kernel/Level.lean:405-407 Expr.allLevelParamsDefinedFast
+/-- con-leche: ConLeche/Kernel/Level.lean:401-403 Expr.allLevelParamsDefinedFast
 The executed `allLevelParamsDefined`: one memoized DAG walk, at the parameter
 list read back once. -/
 def allLevelParamsDefined (lps : List NIdx) (e : EIdx) : AM Bool := do
@@ -272,8 +273,8 @@ DAG-shared type the pure walk unfolds the DAG (con-leche's task #210 Part B,
 only callers; the memo is threaded explicitly — the census's own twin column
 — because the answer depends on `fe` and `Memos` is the per-CALL record. -/
 
-/-- con-leche: ConLeche/Kernel/DeclCheck.lean:37-58 Expr.constsResolveF
-con-leche: ConLeche/Kernel/DeclCheck.lean:89-124 Expr.constsResolveFGo
+/-- con-leche: ConLeche/Kernel/DeclCheck.lean:30-51 Expr.constsResolveF
+con-leche: ConLeche/Kernel/DeclCheck.lean:82-117 Expr.constsResolveFGo
 The memoized walk.  The leaf clauses are `Arena/Core.lean`'s `constsResolve`
 at one node, exactly as con-leche's `…Go` calls the pure walk at its four
 non-recursive constructors.  The node is viewed ONCE and the miss arm
@@ -312,7 +313,7 @@ def constsResolveFGo (fe : IFEnv) (memo : Std.HashMap EIdx Bool) :
           | _ => pure (← constsResolve fe coreWalkFuel h, memo)
         pure (p.1, p.2.insert h p.1)
 
-/-- con-leche: ConLeche/Kernel/DeclCheck.lean:197-199 Expr.constsResolveFFast
+/-- con-leche: ConLeche/Kernel/DeclCheck.lean:190-192 Expr.constsResolveFFast
 The executed `constsResolve` (one memoized DAG walk), which is what every
 front door below calls. -/
 def constsResolveFFast (fe : IFEnv) (e : EIdx) : AM Bool := do
@@ -339,7 +340,7 @@ term `constsResolve` has just walked — is `Arena/Inductives/StructParts.lean`'
 question of a block's field types.  That module imports `Arena/FEnv.lean` and
 nothing above it, so it sits below this one and there is ONE walk. -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:71-91 unresolvedConstsError —
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:68-88 unresolvedConstsError —
 **the verdict at a term whose constants do not all resolve.**  A term that
 mentions `sorryAx` DECLINES (the axiom is tolerated as a declaration and
 installs nothing, so a use of it is a positively detected unsupported
@@ -353,8 +354,8 @@ def unresolvedConstsError (where_ : String) (e : EIdx) : AM CheckError := do
 
 /-! ## The per-declaration constant check -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:95-119 checkConstantVal
-con-leche: ConLeche/Kernel/DeclCheck.lean:463-485 checkConstantValF
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:92-116 checkConstantVal
+con-leche: ConLeche/Kernel/DeclCheck.lean:352-374 checkConstantValF
 Checks common to all declarations: fresh name, well-formed universe
 parameters, and a type that is a type and mentions only declared parameters.
 Returns the constant with its type **annotated**; the guards run on the
@@ -389,7 +390,9 @@ def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
 /-! ## The strategy-independent helpers -/
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.domsMatchAux_bridge, then delete this line
 con-leche: ConLeche/Kernel/CheckerBase.lean:142-151 domsMatchAuxA
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.domsMatchAux_bridge, then delete this line
 Compare binder domains at offsets `o₁`/`o₂` for `n` positions, at the
 IDENTITY view (module note 4).  con-leche's `List` version is quadratic on a
 wide telescope and its `Array` twin is what the checker runs, so the twin is
@@ -401,7 +404,7 @@ def domsMatchAux (bs₁ bs₂ : Array (EIdx × BinderMeta)) (o₁ o₂ n : Nat) 
     | some b₁, some b₂ => b₁.1 == b₂.1
     | _, _ => false
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:130-140 openPisAtFvars — open
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:118-128 openPisAtFvars — open
 the first `n` `∀`-binders at fresh free variables `0..n-1` (each fvar's type
 is the binder domain, instantiated with the earlier fvars).  Structural on
 `n`, so no fuel of its own. -/
@@ -419,7 +422,7 @@ def openPisAtFvars : Nat → EIdx → Nat → AM (Option (List EIdx × EIdx))
       | _ => pure none
     else pure none
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:153-167 openPisAtFvarsFGo —
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:130-144 openPisAtFvarsFGo —
 core of `openPisAtFvarsF`: `acc` holds the already-created fvars, innermost
 binder first.  One `instantiateList` pass per domain instead of one
 whole-telescope `instantiate1` pass per binder. -/
@@ -438,7 +441,7 @@ def openPisAtFvarsFGo (acc : Array EIdx) :
       | _ => pure none
     else pure none
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:169-176 openPisAtFvarsF —
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:146-153 openPisAtFvarsF —
 one-pass `openPisAtFvars` (the fallback covers telescopes whose binders only
 appear after substitution). -/
 def openPisAtFvarsF (n : Nat) (e : EIdx) (i : Nat) :
@@ -448,6 +451,7 @@ def openPisAtFvarsF (n : Nat) (e : EIdx) (i : Nat) :
   | none => openPisAtFvars n e i
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:178-190 checkTypedList — check
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.checkTypedList_bridge, then delete this line
 each expression's inferred type against the corresponding expected type
 (definitionally); throws on a length mismatch. -/
 def checkTypedList (mode : CheckMode) (fe : IFEnv) (depth : Nat) :
@@ -461,6 +465,7 @@ def checkTypedList (mode : CheckMode) (fe : IFEnv) (depth : Nat) :
   | _, _ => fail (.notImplemented "nested pin arity mismatch")
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:192-206 checkAnnotList — check
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.checkAnnotList_bridge, then delete this line
 that each expression is a fixed point of the annotation pass in the given
 context. -/
 def checkAnnotList (mode : CheckMode) (fe : IFEnv) (depth : Nat) :
@@ -473,6 +478,7 @@ def checkAnnotList (mode : CheckMode) (fe : IFEnv) (depth : Nat) :
     checkAnnotList mode fe depth as
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:208-211 isEqHead — is the
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.isEqHead_bridge, then delete this line
 expression the pinned equality former at one level? -/
 def isEqHead (h : EIdx) : AM Bool := do
   if h.tag == ETag.const then
@@ -484,6 +490,7 @@ def isEqHead (h : EIdx) : AM Bool := do
   else pure false
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:213-220 eqHeadLevel — the
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.eqHeadLevel_bridge, then delete this line
 level an equality head carries.  Off shape it is `.zero`, which `isEqHead` has
 already rejected wherever the result is used. -/
 def eqHeadLevel (h : EIdx) : AM LIdx := do
@@ -497,6 +504,7 @@ def eqHeadLevel (h : EIdx) : AM LIdx := do
   else zeroLevel
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:222-231 checkDefEqList —
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.checkDefEqList_bridge, then delete this line
 pairwise definitional-equality check of two spines (throws on any mismatch,
 including a length difference). -/
 def checkDefEqList (mode : CheckMode) (fe : IFEnv) (depth : Nat) :
@@ -508,7 +516,7 @@ def checkDefEqList (mode : CheckMode) (fe : IFEnv) (depth : Nat) :
     checkDefEqList mode fe depth as bs
   | _, _ => fail (.notImplemented "iota statement component arity")
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:233-239 unwrapOr — unwrap an
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:198-204 unwrapOr — unwrap an
 optional value or fail with the given error. -/
 def unwrapOr {α : Type} (o : Option α) (err : CheckError) : AM α :=
   match o with
@@ -516,7 +524,9 @@ def unwrapOr {α : Type} (o : Option α) (err : CheckError) : AM α :=
   | none => fail err
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:241-247 Env.findCV?
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.IFEnv.findCV?_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:33-35 FEnv.findCV?
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.IFEnv.findCV?_bridge, then delete this line
 The stored constant under `n`, as an `IConstantVal`, if any. -/
 def IFEnv.findCV? (fe : IFEnv) (n : NIdx) : AM (Option IConstantVal) := do
   match fe.find? n with
@@ -524,6 +534,7 @@ def IFEnv.findCV? (fe : IFEnv) (n : NIdx) : AM (Option IConstantVal) := do
   | none => pure none
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:249-254 piResultSort — the
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.piResultSort_bridge, then delete this line
 result sort of a syntactic pi telescope, if it ends in a sort at all. -/
 def piResultSort (e : EIdx) : AM (Option LIdx) := do
   let r ← piResult coreWalkFuel e
@@ -534,6 +545,7 @@ def piResultSort (e : EIdx) : AM (Option LIdx) := do
   else pure none
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:257-272 checkProjShape — stage
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.checkProjShape_bridge, then delete this line
 2b: the projection type's parameter telescope is *syntactically* the
 constructor's, and the constructor's residual is the family applied to exactly
 the parameters. -/
@@ -552,7 +564,9 @@ def checkProjShape (pty ctorTy : EIdx) (nP nF : Nat) : AM Unit := do
   else fail (.notImplemented "projection constructor residual head")
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:274-311 checkProjRule
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.checkProjRule_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:763-795 checkProjRuleF
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.checkProjRule_bridge, then delete this line
 Stage 3: the reduction rule — λ over the constructor telescope returning field
 `i`, annotated; its λ-domains stay the constructor's. -/
 def checkProjRule (mode : CheckMode) (fe : IFEnv) (pty : EIdx)
@@ -597,13 +611,15 @@ declarations above are.  Task #97d-2 wrote them in
 `Arena/Inductives/Base.lean` under the concurrency contract; task #97f's dedup
 deleted that file and brought them here. -/
 
-/-- con-leche: ConLeche/Kernel/Env.lean:716-719 ConstantInfo.isRecInfo — is
+/-- con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo.isRecInfo — is
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.isRecInfo_bridge, then delete this line
 this member a recursor record? -/
 def isRecInfo : IConstantInfo → Bool
   | .recInfo _ _ _ _ => true
   | _ => false
 
 /-- con-leche: ConLeche/Kernel/Env.lean:721-727 recsFormSuffix — do the
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerBase.recsFormSuffix_bridge, then delete this line
 recursors form a suffix of the block?  The tag pass. -/
 def recsFormSuffix : List IConstantInfo → Bool
   | [] => true

@@ -64,7 +64,8 @@ pub const M_NUM_PARAMS: [u32; 29] = [
     32, 109, 105, 115, 109, 97, 116, 99, 104,
 ];
 
-/// con-leche: ConLeche/Kernel/Checker.lean:440-609 checkDecl
+/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove inductives::check_ind_decl_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives.lean:30-45 checkIndDecl` — the
 /// `.indDecl` arm: **the declared parameter count first, and for both routes**
 /// (con-leche's task #228; `indParamsOk` is official's own check, one-sided,

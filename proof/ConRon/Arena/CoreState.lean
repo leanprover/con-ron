@@ -50,7 +50,7 @@ open ConLeche
 
 /-! ## The record -/
 
-/-- con-leche: ConLeche/Cached/StateC.lean:127-156 CState — the
+/-- con-leche: ConLeche/Cached/StateC.lean:111-140 CState — the
 per-declaration caches of the arena checker, in one record beside
 `Monad.lean`'s per-call `Memos`.  Keeping the two apart is deliberate: the
 per-call clear (`inst1Clear` and its ten siblings) and the per-declaration
@@ -98,7 +98,7 @@ structure Caches where
   /-- The same for an interned universe-argument LIST (`readLevels`). -/
   readLsC : Std.HashMap LsIdx (List Level)
 
-/-- con-leche: ConLeche/Cached/StateC.lean:131-156 CState — the empty
+/-- con-leche: ConLeche/Cached/StateC.lean:115-140 CState — the empty
 cache set: what a fresh run and every capped table start from. -/
 def Caches.empty : Caches := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅⟩
 
@@ -211,7 +211,7 @@ def Caches.dropScratchEntries (c : Caches) : Caches :=
     readNC := c.readNC.filter keepReadN
     readLsC := c.readLsC.filter keepReadLs }
 
-/-- con-leche: ConLeche/Cached/StateC.lean:394-398 CState.flushed — **what the
+/-- con-leche: ConLeche/Cached/StateC.lean:355-359 CState.flushed — **what the
 per-declaration bracket actually does to the caches**: it drops them whole,
 which is con-leche's own `flushC`, the operation its driver runs at exactly
 this point (`Cached/Installed.lean`'s phase B runs every pending check from

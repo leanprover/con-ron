@@ -43,13 +43,15 @@ pub fn eq_refl_name() -> Name {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Names.lean:23-24 punitName
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_names::punit_name_refines, then delete this line
 /// The name of the basis unit type.
 pub fn punit_name() -> Name {
     const S: [u32; 5] = [80, 85, 110, 105, 116];
     name::mk_str(name::anonymous(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:105-115 reservedBasisNames
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_names::rec_of_refines, then delete this line
 /// `n.str "rec"`, the recursor-name suffix five of the reserved names share
 /// (`eqName.str "rec"`, `natName.str "rec"`, …).  A named helper because
 /// Rust has no string literals in the core; the Lean spells the suffix out
@@ -60,6 +62,7 @@ pub fn rec_of(n: Name) -> Name {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Names.lean:26-29 punitRecName
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_names::punit_rec_name_refines, then delete this line
 /// The name of the basis unit type's recursor.  A top-level constant in the
 /// Lean so that `isUnitLikeTy` does not rebuild it per proof-irrelevance
 /// attempt (con-leche's task #161 item C1); the port rebuilds it, as every
@@ -68,21 +71,21 @@ pub fn punit_rec_name() -> Name {
     rec_of(punit_name())
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:31-32 natName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:23-24 natName
 /// The name `Nat`.
 pub fn nat_name() -> Name {
     const S: [u32; 3] = [78, 97, 116];
     name::mk_str(name::anonymous(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:34-35 natZeroName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:26-27 natZeroName
 /// The name `Nat.zero`.
 pub fn nat_zero_name() -> Name {
     const S: [u32; 4] = [122, 101, 114, 111];
     name::mk_str(nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:37-38 natSuccName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:29-30 natSuccName
 /// The name `Nat.succ`.
 pub fn nat_succ_name() -> Name {
     const S: [u32; 4] = [115, 117, 99, 99];
@@ -90,104 +93,105 @@ pub fn nat_succ_name() -> Name {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Names.lean:40-41 punitUnitName
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_names::punit_unit_name_refines, then delete this line
 /// The name of the basis unit constructor.
 pub fn punit_unit_name() -> Name {
     const S: [u32; 4] = [117, 110, 105, 116];
     name::mk_str(punit_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:43-43 emptyName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:32 emptyName
 /// The name `Empty`.
 pub fn empty_name() -> Name {
     const S: [u32; 5] = [69, 109, 112, 116, 121];
     name::mk_str(name::anonymous(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:45-49 falseName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:34-38 falseName
 /// The name of the pinned `False` basis type.
 pub fn false_name() -> Name {
     const S: [u32; 5] = [70, 97, 108, 115, 101];
     name::mk_str(name::anonymous(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:51-52 quotName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:40-41 quotName
 /// The name of the basis quotient type.
 pub fn quot_name() -> Name {
     const S: [u32; 4] = [81, 117, 111, 116];
     name::mk_str(name::anonymous(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:54-55 quotMkName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:43-44 quotMkName
 /// The name of the basis quotient constructor.
 pub fn quot_mk_name() -> Name {
     const S: [u32; 2] = [109, 107];
     name::mk_str(quot_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:57-58 quotLiftName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:46-47 quotLiftName
 /// The name of the basis quotient lift eliminator.
 pub fn quot_lift_name() -> Name {
     const S: [u32; 4] = [108, 105, 102, 116];
     name::mk_str(quot_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:60-61 quotIndName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:49-50 quotIndName
 /// The name of the basis quotient induction eliminator.
 pub fn quot_ind_name() -> Name {
     const S: [u32; 3] = [105, 110, 100];
     name::mk_str(quot_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:63-64 quotSoundName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:52-53 quotSoundName
 /// The name of the basis quotient soundness axiom.
 pub fn quot_sound_name() -> Name {
     const S: [u32; 5] = [115, 111, 117, 110, 100];
     name::mk_str(quot_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:73-74 stringName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:62-63 stringName
 /// The name `String`.
 pub fn string_name() -> Name {
     const S: [u32; 6] = [83, 116, 114, 105, 110, 103];
     name::mk_str(name::anonymous(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:76-77 stringOfListName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:65-66 stringOfListName
 /// The name `String.ofList`.
 pub fn string_of_list_name() -> Name {
     const S: [u32; 6] = [111, 102, 76, 105, 115, 116];
     name::mk_str(string_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:79-80 listName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:68-69 listName
 /// The name `List`.
 pub fn list_name() -> Name {
     const S: [u32; 4] = [76, 105, 115, 116];
     name::mk_str(name::anonymous(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:82-83 listNilName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:71-72 listNilName
 /// The name `List.nil`.
 pub fn list_nil_name() -> Name {
     const S: [u32; 3] = [110, 105, 108];
     name::mk_str(list_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:85-86 listConsName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:74-75 listConsName
 /// The name `List.cons`.
 pub fn list_cons_name() -> Name {
     const S: [u32; 4] = [99, 111, 110, 115];
     name::mk_str(list_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:88-89 charName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:77-78 charName
 /// The name `Char`.
 pub fn char_name() -> Name {
     const S: [u32; 4] = [67, 104, 97, 114];
     name::mk_str(name::anonymous(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:91-97 andName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:80-86 andName
 /// The name `And`: the one propositional structure whose recursor is rescued
 /// on a stuck proof (`core_k::major_to_ctor`'s `And` branch).
 pub fn and_name() -> Name {
@@ -196,20 +200,22 @@ pub fn and_name() -> Name {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Names.lean:99-100 andIntroName
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_names::and_intro_name_refines, then delete this line
 /// The name `And.intro`.
 pub fn and_intro_name() -> Name {
     const S: [u32; 5] = [105, 110, 116, 114, 111];
     name::mk_str(and_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:102-103 charOfNatName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:88-89 charOfNatName
 /// The name `Char.ofNat`.
 pub fn char_of_nat_name() -> Name {
     const S: [u32; 5] = [111, 102, 78, 97, 116];
     name::mk_str(char_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:105-115 reservedBasisNames
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_names::reserved_basis_names_refines, then delete this line
 /// Names reserved for the pinned basis blocks; no other declaration may use
 /// them.  The cited `List Name` is a `Vec<Name>` built in the cited order,
 /// and the five `… .str "rec"` entries go through `rec_of`.  `PSigma'` is not
@@ -238,7 +244,7 @@ pub fn reserved_basis_names() -> Vec<Name> {
     ns
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:130-131 sorryAxName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:113-114 sorryAxName
 /// The name `sorryAx` — the one axiom the checker tolerates as a
 /// *declaration* (its record installs nothing), which makes any *use* of it a
 /// positively detected unsupported feature: the decline is decided where the

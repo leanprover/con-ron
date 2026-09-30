@@ -72,7 +72,7 @@ pub const M_FUEL_PI_BINDERS: [u32; 25] = [
 // The field kinds (`NativeParts.lean:40-127` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:60-76 RecFieldKind
+/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:27-43 RecFieldKind
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:41-55 RecFieldKind`
 /// — the kind of a constructor field of a recursive block.  Twinned rather
 /// than imported; see the module note.
@@ -89,7 +89,7 @@ pub enum RecFieldKind {
     Unsupported,
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:60-76 RecFieldKind
+/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:27-43 RecFieldKind
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:41-55 RecFieldKind`
 /// — the cited `deriving Inhabited`'s copy; a kind is a tag.
 pub fn rec_field_kind_dup(k: &RecFieldKind) -> RecFieldKind {
@@ -102,7 +102,7 @@ pub fn rec_field_kind_dup(k: &RecFieldKind) -> RecFieldKind {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:60-76 RecFieldKind
+/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:27-43 RecFieldKind
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:41-55 RecFieldKind`
 /// — the cited `deriving DecidableEq`, spelled out (§3.4 forbids `#[derive]`).
 pub fn rec_field_kind_beq(a: &RecFieldKind, b: &RecFieldKind) -> bool {
@@ -156,6 +156,7 @@ pub fn kind_get_d(ks: &Vec<RecFieldKind>, i: u64) -> RecFieldKind {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:78-87 recFamOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::rec_fam_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:57-68 recFamOk` —
 /// is `e` the family at the parameter variables (sitting `o` binders up)
 /// followed by `nIdx` index expressions none of which mentions the block?
@@ -200,6 +201,7 @@ pub fn rec_fam_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:78-87 recFamOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::idx_free_of_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:57-68 recFamOk` —
 /// the `(args.drop nP).allM` of the cited clause: no index expression mentions
 /// the block.
@@ -223,6 +225,7 @@ pub fn idx_free_of(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:89-111 recPositivity
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::rec_positivity_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:96-113 recPositivity`
 /// — official `check_positivity`'s telescope walk on a field domain that
 /// mentions the block, syntactically.
@@ -264,6 +267,7 @@ pub fn rec_positivity(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:89-111 recPositivity
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::rec_positivity_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:70-94 recPositivityAt`
 /// — the leaf of the walk: a head that is the family at exactly the parameter
 /// variables is finitary (`k = 0`) or reflexive, any other occurrence of the
@@ -336,6 +340,7 @@ pub fn rec_positivity_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:113-116 recFieldKind
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::rec_field_kind_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:115-121 recFieldKind`
 /// — the kind of a field whose domain is `dom`, `o` fields into the
 /// constructor's telescope.
@@ -358,6 +363,7 @@ pub fn rec_field_kind(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:118-145 recCtorKinds
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::rec_ctor_kinds_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:123-142 recCtorKinds`
 /// — the kinds of one constructor's fields, off its (raw or annotated) type.
 /// A recursive field that a LATER binder or the residual mentions is marked
@@ -395,6 +401,7 @@ pub fn rec_ctor_kinds(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:118-145 recCtorKinds
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::rec_ctor_kinds_from_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:123-142 recCtorKinds`
 /// — the `(List.range c.2).mapM` of the cited clause, as a cursor recursion.
 #[allow(clippy::too_many_arguments)]
@@ -434,6 +441,7 @@ pub fn rec_ctor_kinds_from(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:118-145 recCtorKinds
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::rec_ctor_kind_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:123-142 recCtorKinds`
 /// — a recursive or reflexive field a LATER field uses is unsupported; every
 /// other kind passes through.
@@ -461,6 +469,7 @@ pub fn rec_ctor_kind_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:118-145 recCtorKinds
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::all_negative_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:123-142 recCtorKinds`
 /// — `ks.map fun _ => .negative`, the verdict when the residual mentions the
 /// block outside its parameters.
@@ -474,7 +483,7 @@ pub fn all_negative(n: u64, i: u64, out: Vec<RecFieldKind>) -> Vec<RecFieldKind>
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:147-154 Expr.piBinders
+/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:45-52 Expr.piBinders
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:144-155 piBinders`
 /// — all leading `∀` binders of an expression (outermost first) and the body.
 /// Lean conses on the way out; the port pushes on the way in.
@@ -504,6 +513,7 @@ pub fn pi_binders(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:156-161 structFieldTeleOf
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_field_tele_of_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:157-165 structFieldTeleOf`
 /// — field `i`'s own telescope `a⃗ : A⃗` (at the field's frame), off the
 /// constructor's type.
@@ -533,6 +543,7 @@ pub fn struct_field_tele_of(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:163-169 structFieldIdxOf
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_field_idx_of_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:167-176 structFieldIdxOf`
 /// — the index expressions of field `i`'s domain `Π a⃗, T p⃗ e⃗`, off the
 /// constructor's type; `[]` when the field is not of that shape.
@@ -564,7 +575,7 @@ pub fn struct_field_idx_of(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:171-175 recIdxOf
+/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:54-58 recIdxOf
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:178-182 recIdxOf`
 /// — the positions of the recursive fields (finitary or reflexive).
 pub fn rec_idx_of(ks: &Vec<RecFieldKind>, i: usize, out: Vec<u64>) -> Vec<u64> {
@@ -588,6 +599,7 @@ pub fn rec_idx_of(ks: &Vec<RecFieldKind>, i: usize, out: Vec<u64>) -> Vec<u64> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:177-192 NativeParts
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::NativeParts_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:184-192 NativeParts`
 /// — the pieces of a recognised direct recursive block: the sum parts with the
 /// family's index count, and the per-constructor field kinds.  Lean's
@@ -601,6 +613,7 @@ pub struct NativeParts {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:177-192 NativeParts
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_parts_dup_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:184-192 NativeParts`
 /// — the record copy.
 pub fn native_parts_dup(p: &NativeParts) -> NativeParts {
@@ -612,6 +625,7 @@ pub fn native_parts_dup(p: &NativeParts) -> NativeParts {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:194-199 NativeParts.complete
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::complete_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:194-198 NativeParts.complete`
 /// — **the record completed by the former's stage**: the sum parts the
 /// former's run returned with the recogniser's field kinds.
@@ -624,6 +638,7 @@ pub fn complete(p0: &NativeParts, p1: InductiveShape) -> NativeParts {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:616-622 NativeParts.withKinds
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::with_kinds_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:548-552 NativeParts.withKinds`
 /// — the record completed with the fields' kinds (con-leche's task #210 Part
 /// D).  Takes the record by value and returns it, which is `{ p with … }`.
@@ -639,6 +654,7 @@ pub fn with_kinds(p: NativeParts, ks: Vec<Vec<RecFieldKind>>) -> NativeParts {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:230-235 structRecPrefixAt
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_rec_prefix_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:202-209 structRecPrefixAt`
 /// — the parameter, motive and minor variables as seen from under the `nF`
 /// fields (and `e` further binders): the recursor's leading spine
@@ -667,6 +683,7 @@ pub fn struct_rec_prefix_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:237-244 structIdxAt
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_idx_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:211-216 structIdxAt`
 /// — an expression of recursive field `i`'s domain sitting under `m` binders
 /// of the field's own telescope, spelled at the recursor-rule frame.
@@ -688,6 +705,7 @@ pub fn struct_idx_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:246-252 structTeleAt
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_tele_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:218-224 structTeleAt`
 /// — field `i`'s own telescope moved as `structIdxAt` moves its expressions,
 /// with every binder's datum reset to the elimination datum.
@@ -720,13 +738,15 @@ pub fn struct_tele_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:254-255 structTeleVars
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_tele_vars_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:226-228 structTeleVars`
 /// — the variables of an `m`-binder telescope, innermost last.
 pub fn struct_tele_vars(pers: &PersTier, st: &mut AState, m: u64) -> Result<Vec<EIdx>, CheckError> {
     struct_parts::bvars_desc(pers, st, m)
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:257-260 Expr.mkPisOf
+/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:60-63 Expr.mkPisOf
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::mk_pis_of_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:230-234 mkPisOf`
 /// — `∀ tele, body` over a binder list (outermost first).
 pub fn mk_pis_of(
@@ -751,6 +771,7 @@ pub fn mk_pis_of(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:261-263 Expr.mkLamsOf
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::mk_lams_of_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:236-240 mkLamsOf`
 /// — `λ tele, body` over a binder list (outermost first).
 pub fn mk_lams_of(
@@ -806,6 +827,7 @@ pub fn struct_idx_list(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:265-277 structIhApp
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_ih_app_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:242-254 structIhApp`
 /// — the inductive hypothesis' value for recursive field `i` with telescope
 /// `tele` and index expressions `idx`, spelled under the fields of a rule body.
@@ -873,6 +895,7 @@ pub fn struct_ih_app(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:279-288 structRuleBodyR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_rule_body_r_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:256-267 structRuleBodyR`
 /// — the right-hand side body of rule `j` at a recursive block: minor `j` at
 /// the fields, then at the inductive hypotheses of the recursive fields.
@@ -960,6 +983,7 @@ pub fn struct_ih_list(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:290-305 structIhPis
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_ih_pis_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:269-287 structIhPis`
 /// — the `ih` binders of a minor premise: for each recursive field position,
 /// `∀ a⃗, motive e⃗_i(a⃗) (f_i a⃗)` under the `l` earlier `ih` binders.  `cty`
@@ -1008,6 +1032,7 @@ pub fn struct_ih_pis(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:290-305 structIhPis
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_ih_pis_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:269-287 structIhPis`
 /// — one `ih` binder's conclusion and domain, and the recursion under it.
 #[allow(clippy::too_many_arguments)]
@@ -1077,6 +1102,7 @@ pub fn struct_ih_pis_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:307-320 structMinorTyR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_minor_ty_r_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:289-309 structMinorTyR`
 /// — a constructor's minor premise at a recursive block: its field telescope
 /// lifted under the `o` extras, every binder's datum reset to the elimination
@@ -1109,6 +1135,7 @@ pub fn struct_minor_ty_r(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:307-320 structMinorTyR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_minor_ty_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:289-309 structMinorTyR`
 /// — the conclusion, the `ih` binders and the re-datumed field telescope.
 #[allow(clippy::too_many_arguments)]
@@ -1154,6 +1181,7 @@ pub fn struct_minor_ty_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:307-320 structMinorTyR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_minor_ty_close_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:289-309 structMinorTyR`
 /// — the conclusion lifted above the `ih`s, the `ih` binders, and the field
 /// telescope re-datumed around them.
@@ -1210,7 +1238,9 @@ pub fn lift_list(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:322-330 structMinorsPisR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::intern_binder_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:332-339 structMinorsLamsR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::intern_binder_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:311-323 structMinorsPisR`
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:325-336 structMinorsLamsR`
 /// — the one clause the twin's two functions differ in, as a function of its
@@ -1236,6 +1266,7 @@ pub fn intern_binder(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:322-330 structMinorsPisR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_minors_pis_r_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:311-323 structMinorsPisR`
 /// — the minor premises' `∀`-telescope at a recursive block, one per
 /// constructor.  `is_lam` selects the `λ` twin (`structMinorsLamsR`), which the
@@ -1279,6 +1310,7 @@ pub fn struct_minors_pis_r(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:332-339 structMinorsLamsR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_minors_lams_r_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:325-336 structMinorsLamsR`
 /// — the `λ` twin of `structMinorsPisR`; the shared body above at
 /// `is_lam = true`.
@@ -1310,6 +1342,7 @@ pub fn u64_vec_dup(xs: &Vec<u64>, i: usize, out: Vec<u64>) -> Vec<u64> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:341-362 structRecTyR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_rec_ty_r_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:338-366 structRecTyR`
 /// — **the generated recursor type at a recursive block.**
 #[allow(clippy::too_many_arguments)]
@@ -1352,6 +1385,7 @@ pub fn struct_rec_ty_r(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:341-362 structRecTyR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_rec_ty_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:338-366 structRecTyR`
 /// — the major premise, the minors and the parameter telescope re-datumed.
 #[allow(clippy::too_many_arguments)]
@@ -1410,6 +1444,7 @@ pub fn struct_rec_ty_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:341-362 structRecTyR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_rec_ty_close_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:338-366 structRecTyR`
 /// — the index binders around the major, the minors' telescope, the motive
 /// binder and the parameter telescope.
@@ -1451,6 +1486,7 @@ pub fn struct_rec_ty_close(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:364-386 structRecRhsR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_rec_rhs_r_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:368-397 structRecRhsR`
 /// — **the generated rule** for constructor `j` at a recursive block.
 #[allow(clippy::too_many_arguments)]
@@ -1494,6 +1530,7 @@ pub fn struct_rec_rhs_r(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:364-386 structRecRhsR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_rec_rhs_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:368-397 structRecRhsR`
 /// — the motive's type, the rule's body, the field λs, the minors' λs and the
 /// parameter λs.
@@ -1541,6 +1578,7 @@ pub fn struct_rec_rhs_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:364-386 structRecRhsR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_rec_rhs_close_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:368-397 structRecRhsR`
 /// — the field λs, the minors' λs, the motive λ and the parameter λs.
 #[allow(clippy::too_many_arguments)]
@@ -1579,6 +1617,7 @@ pub fn struct_rec_rhs_close(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:388-392 nativeCtors4
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_ctors4_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:399-404 nativeCtors4`
 /// — the constructors zipped with their recursive positions, as the generators
 /// take them.
@@ -1608,6 +1647,7 @@ pub fn native_ctors4(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:394-445 nativeRulePrefixOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rule_prefix_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:406-435 nativeRulePrefixOk`
 /// — **the rule's `λ` prefix against the stream's own recursor type**
 /// (con-leche's task #271): the rule binds the recursor's parameters, its
@@ -1647,6 +1687,7 @@ pub fn native_rule_prefix_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:394-445 nativeRulePrefixOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rule_fields_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:406-435 nativeRulePrefixOk`
 /// — the rule's FIELD binders against minor `j`'s own Π-telescope, lifted over
 /// the later minors.
@@ -1672,6 +1713,7 @@ pub fn native_rule_fields_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:394-445 nativeRulePrefixOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::binders_reset_beq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:406-435 nativeRulePrefixOk`
 /// — the `(List.range n).allM` of the cited clause: two binder lists compared
 /// at their `resetMeta` normal forms, which is what makes the comparison blind
@@ -1690,6 +1732,7 @@ pub fn binders_reset_beq(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:394-445 nativeRulePrefixOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::binders_reset_beq_from_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:406-435 nativeRulePrefixOk`
 /// — the cursor recursion behind `binders_reset_beq`.
 #[allow(clippy::too_many_arguments)]
@@ -1731,6 +1774,7 @@ pub fn binders_reset_beq_from(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:447-475 nativeRulesOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rules_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:437-456 nativeRulesOk`
 /// — **the stream's rules against the generated ones** (at install): rule `j`
 /// fires constructor `j` with its field count, and its body is the canonical
@@ -1758,6 +1802,7 @@ pub fn native_rules_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:447-475 nativeRulesOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rules_ok_from_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:437-456 nativeRulesOk`
 /// — the `(List.range n).allM` of the cited clause, as a counted recursion.
 #[allow(clippy::too_many_arguments)]
@@ -1815,6 +1860,7 @@ pub fn native_rules_ok_from(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:447-475 nativeRulesOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rule_body_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:437-456 nativeRulesOk`
 /// — rule `j`'s body under its `λ` prefix is the generated right-hand side's
 /// body at the parse placeholder's binder data.
@@ -1853,6 +1899,7 @@ pub fn native_rule_body_ok(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:501-523 nativeCounts?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_counts_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:460-474 nativeCounts?`
 /// — **the block's parameter and index counts** (con-leche's task #228), read
 /// as official reads them.
@@ -1894,6 +1941,7 @@ pub fn native_counts(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:525-549 nativeRecPinOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rec_pin_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:476-492 nativeRecPinOk`
 /// — **the recursor record's structural pin** (con-leche's task #220): the two
 /// argument sums the record claims, one rule per constructor in constructor
@@ -1924,6 +1972,7 @@ pub fn native_rec_pin_ok(p: &InductiveShape, block: &Vec<IConstantInfo>) -> bool
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:525-549 nativeRecPinOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::rules_pin_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:476-492 nativeRecPinOk`
 /// — the `(List.range …).all` of the cited clause: rule `j` names constructor
 /// `j` with its field count.
@@ -1947,6 +1996,7 @@ pub fn rules_pin_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:551-560 nativeRecLpsOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rec_lps_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:494-498 nativeRecLpsOk`
 /// — **the recursor record's level-parameter pin** (con-leche's task #220).
 pub fn native_rec_lps_ok(p: &InductiveShape) -> bool {
@@ -1982,6 +2032,7 @@ pub fn nidx_cons_from(ns: &Vec<NIdx>, i: usize, out: Vec<NIdx>) -> Vec<NIdx> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_shape_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:500-546 nativeShape?`
 /// — the block's shape at a recursive block: the type former, the constructors
 /// and the counts, with the rules' right-hand sides as exported and the
@@ -2014,6 +2065,7 @@ pub fn native_shape(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_shape_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:500-546 nativeShape?`
 /// — the counts, the reserved-name pins on every member, the result sort and
 /// the eliminator.
@@ -2049,6 +2101,7 @@ pub fn native_shape_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::ctors_pin_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:500-546 nativeShape?`
 /// — every constructor declares `nP` parameters at the block's own level
 /// parameters and is not a reserved basis name.
@@ -2072,6 +2125,7 @@ pub fn ctors_pin_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_shape_sort_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:500-546 nativeShape?`
 /// — the result sort read off the declared type when it is a syntactic
 /// telescope ending in a sort, otherwise a PLACEHOLDER the install's whnf loop
@@ -2109,6 +2163,7 @@ pub fn native_shape_sort(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_shape_elim_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:500-546 nativeShape?`
 /// — `isProp`, the constructors and right-hand sides, and the eliminator's
 /// level-parameter shape.
@@ -2171,6 +2226,7 @@ pub fn native_shape_elim(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_shape_small_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:500-546 nativeShape?`
 /// — the small eliminator's branch, at `.anonymous`.
 #[allow(clippy::too_many_arguments)]
@@ -2232,6 +2288,7 @@ pub fn rhss_of(rules: &Vec<IRecRule>, i: usize, out: Vec<EIdx>) -> Vec<EIdx> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:631-652 nativeParts?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_parts_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:554-561 nativeParts?`
 /// — recognise a direct block — ONE ROUTE (con-leche's task #210): its SHAPE;
 /// the fields' kinds are a PLACEHOLDER the install fills after normalising

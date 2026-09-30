@@ -430,12 +430,14 @@ fn name_handle(pers: &PersTier, ar: &EStore, n: &Name) -> Option<NIdx> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove in_model::impl Modeller for InProcess_refines, then delete this line
 /// **The modeller, by delegation** (the module note): the block read back,
 /// `crate::in_model::generate` run on it — the same function the `con-ron`
 /// binary runs — and the declarations it returns interned into the tier the
 /// parse is in, which is the persistent one.
 impl Modeller for InProcess {
     /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
+    /// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove in_model::generate_refines, then delete this line
     /// The one method.  The immutable half (readback, generate) is a block of
     /// its own, so the `&mut EStore` the intern needs is free by the time the
     /// generator has answered.
@@ -531,6 +533,7 @@ fn cps(s: &str) -> Vec<u32> {
 }
 
 /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove in_model::generate_refines, then delete this line
 /// Generate the model records of a block, in stream order, or the reason the
 /// block is declined.
 pub fn generate(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {

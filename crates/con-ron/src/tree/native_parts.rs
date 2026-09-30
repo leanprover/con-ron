@@ -53,7 +53,7 @@ use std::vec::Vec;
 // The field kinds (`NativeParts.lean:61-81`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:60-76 RecFieldKind
+/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:27-43 RecFieldKind
 /// The kind of a constructor field of a recursive block, in the cited
 /// constructor order.  Deviation: `deriving Repr, DecidableEq, Inhabited` is
 /// dropped (§3.4); the equality is `rec_field_kind_beq` and the `Inhabited`
@@ -67,7 +67,7 @@ pub enum RecFieldKind {
     Unsupported,
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:60-76 RecFieldKind
+/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:27-43 RecFieldKind
 /// The copy; a `RecFieldKind` is a tag, so this is Lean's value semantics.
 pub fn rec_field_kind_dup(k: &RecFieldKind) -> RecFieldKind {
     match k {
@@ -79,7 +79,7 @@ pub fn rec_field_kind_dup(k: &RecFieldKind) -> RecFieldKind {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:60-76 RecFieldKind
+/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:27-43 RecFieldKind
 /// The cited `deriving DecidableEq`, which every `k == .recursive` reads.
 pub fn rec_field_kind_beq(a: &RecFieldKind, b: &RecFieldKind) -> bool {
     match a {
@@ -161,6 +161,7 @@ pub fn kindss_copy_from(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:78-87 recFamOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::rec_fam_ok_refines, then delete this line
 /// Is `e` the family at the parameter variables (sitting `o` binders up)
 /// followed by `nIdx` index expressions none of which mentions the block?
 /// Official's `is_valid_ind_app` exactly.  Deviation: the `&&` cascade is an
@@ -189,7 +190,9 @@ pub fn rec_fam_ok(t: &Name, lps: &Vec<Name>, n_p: u64, n_idx: u64, o: u64, e: &E
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:78-87 recFamOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::args_free_of_from_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:118-145 recCtorKinds
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::args_free_of_from_refines, then delete this line
 /// `(args.drop k).all fun a => !a.mentionsConst T`, as an index recursion
 /// (task #3's pattern): the index arguments of a residual are free of the
 /// block.  Shared by `recFamOk` and `recCtorKinds`' residual conjunct.
@@ -204,6 +207,7 @@ pub fn args_free_of_from(t: &Name, args: &Vec<Expr>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:89-111 recPositivity
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::rec_positivity_refines, then delete this line
 /// Official `check_positivity`'s telescope walk on a field domain that
 /// mentions the block, syntactically: `k` binders of the field's own
 /// telescope have been peeled (the parameters sit `o + k` binders up).
@@ -271,6 +275,7 @@ pub fn rec_positivity(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:113-116 recFieldKind
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::rec_field_kind_refines, then delete this line
 /// The kind of a field whose domain is `dom`, `o` fields into the
 /// constructor's telescope.
 pub fn rec_field_kind(
@@ -301,6 +306,7 @@ pub fn binder_dom_get_d(bs: &Vec<(Expr, BinderMeta)>, i: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:118-145 recCtorKinds
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::rec_ctor_kinds_at_refines, then delete this line
 /// The per-field `(List.range c.2).map` of `recCtorKinds`: a recursive or
 /// reflexive field that a later binder or the residual mentions
 /// (`structUsedLater`) is marked unsupported.
@@ -344,6 +350,7 @@ pub fn rec_ctor_kinds_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:118-145 recCtorKinds
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::kinds_all_negative_refines, then delete this line
 /// The `ks.map fun _ => .negative` arm: a residual whose index expressions
 /// mention the block is official's "invalid return type", so *every* field is
 /// reported negative and the install rejects the block.
@@ -358,6 +365,7 @@ pub fn kinds_all_negative(n: usize, out: Vec<RecFieldKind>) -> Vec<RecFieldKind>
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:118-145 recCtorKinds
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::rec_ctor_kinds_refines, then delete this line
 /// The kinds of one constructor's fields, off its (raw or annotated) type.
 pub fn rec_ctor_kinds(
     t: &Name,
@@ -390,7 +398,7 @@ pub fn rec_ctor_kinds(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:147-154 Expr.piBinders
+/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:45-52 Expr.piBinders
 /// All leading `∀` binders of an expression (outermost first) and the body —
 /// a recursive field's own telescope.  Deviation: the binder list is
 /// accumulated on the way *in*, which is the same outermost-first order
@@ -399,7 +407,7 @@ pub fn pi_binders(e: &Expr) -> (Vec<(Expr, BinderMeta)>, Expr) {
     pi_binders_go(e, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:147-154 Expr.piBinders
+/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:45-52 Expr.piBinders
 /// The accumulator recursion behind `pi_binders`.
 pub fn pi_binders_go(e: &Expr, out: Vec<(Expr, BinderMeta)>) -> (Vec<(Expr, BinderMeta)>, Expr) {
     match expr::view(&e) {
@@ -413,6 +421,7 @@ pub fn pi_binders_go(e: &Expr, out: Vec<(Expr, BinderMeta)>) -> (Vec<(Expr, Bind
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:156-161 structFieldTeleOf
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_field_tele_of_refines, then delete this line
 /// Field `i`'s own telescope `a⃗ : A⃗` (at the field's frame: the parameters
 /// and the earlier fields), off the constructor's type.
 pub fn struct_field_tele_of(cty: &Expr, n_p: u64, n_f: u64, i: u64) -> Vec<(Expr, BinderMeta)> {
@@ -423,6 +432,7 @@ pub fn struct_field_tele_of(cty: &Expr, n_p: u64, n_f: u64, i: u64) -> Vec<(Expr
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:163-169 structFieldIdxOf
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_field_idx_of_refines, then delete this line
 /// The index expressions of field `i`'s domain `Π a⃗, T p⃗ e⃗` (under the
 /// field's own telescope, at the field's frame), off the constructor's type;
 /// `[]` when the field is not of that shape.
@@ -437,7 +447,7 @@ pub fn struct_field_idx_of(cty: &Expr, n_p: u64, n_f: u64, i: u64) -> Vec<Expr> 
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:171-175 recIdxOf
+/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:54-58 recIdxOf
 /// The positions of the recursive fields (finitary or reflexive: the ones
 /// with an inductive hypothesis).  The `i = 0` wrapper of the recursion
 /// below.
@@ -445,7 +455,7 @@ pub fn rec_idx_of(ks: &Vec<RecFieldKind>) -> Vec<u64> {
     rec_idx_of_from(ks, 0, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:171-175 recIdxOf
+/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:54-58 recIdxOf
 /// The index recursion behind `rec_idx_of` (the cited
 /// `(List.range ks.length).filter`).
 pub fn rec_idx_of_from(ks: &Vec<RecFieldKind>, i: usize, out: Vec<u64>) -> Vec<u64> {
@@ -471,6 +481,7 @@ pub fn rec_idx_of_from(ks: &Vec<RecFieldKind>, i: usize, out: Vec<u64>) -> Vec<u
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:177-192 NativeParts
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::NativeParts_refines, then delete this line
 /// The pieces of a recognised direct recursive block: the sum parts (with the
 /// family's index count), the per-constructor field kinds, and the verdict of
 /// the stream's recursor record's structural pin.
@@ -485,6 +496,7 @@ pub struct NativeParts {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:177-192 NativeParts
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_parts_dup_refines, then delete this line
 /// The record copy.
 pub fn native_parts_dup(p: &NativeParts) -> NativeParts {
     NativeParts {
@@ -495,6 +507,7 @@ pub fn native_parts_dup(p: &NativeParts) -> NativeParts {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:194-199 NativeParts.complete
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::complete_refines, then delete this line
 /// **The record completed by the former's stage**: the sum parts the former's
 /// run returned (its result sort read through `whnf`) with the recogniser's
 /// field kinds and its recursor verdict.
@@ -507,6 +520,7 @@ pub fn complete(p0: &NativeParts, p1: InductiveShape) -> NativeParts {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:616-622 NativeParts.withKinds
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::with_kinds_refines, then delete this line
 /// The record completed with the fields' kinds the install classified on the
 /// constructors it stored.  Taken by value and returned, as the cited
 /// `{ p with … }` is.
@@ -522,6 +536,7 @@ pub fn with_kinds(p: NativeParts, ks: Vec<Vec<RecFieldKind>>) -> NativeParts {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:230-235 structRecPrefixAt
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_rec_prefix_at_refines, then delete this line
 /// The parameter, motive and minor variables as seen from under the `nF`
 /// fields (and `e` further binders): the recursor's leading spine
 /// `p⃗ motive m⃗` at that frame.
@@ -532,6 +547,7 @@ pub fn struct_rec_prefix_at(n_p: u64, n: u64, n_f: u64, e: u64) -> Vec<Expr> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:230-235 structRecPrefixAt
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_rec_prefix_minors_refines, then delete this line
 /// The minor half of the prefix spine,
 /// `(List.range n).map fun l => .bvar (e + nF + n - 1 - l)`.
 pub fn struct_rec_prefix_minors(n: u64, base: u64, l: u64, out: Vec<Expr>) -> Vec<Expr> {
@@ -545,6 +561,7 @@ pub fn struct_rec_prefix_minors(n: u64, base: u64, l: u64, out: Vec<Expr>) -> Ve
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:237-244 structIdxAt
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_idx_at_refines, then delete this line
 /// An expression of recursive field `i`'s domain sitting under `m` binders of
 /// the field's own telescope, spelled at the field's frame, moved under all
 /// `nF` fields, `l` further binders below them and `o` extras between the
@@ -555,6 +572,7 @@ pub fn struct_idx_at(n_f: u64, o: u64, i: u64, l: u64, m: u64, e: &Expr) -> Expr
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:237-244 structIdxAt
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_idx_at_all_refines, then delete this line
 /// `idx.map (structIdxAt nF o i l m)` over a `Vec<Expr>`.
 pub fn struct_idx_at_all(
     n_f: u64,
@@ -576,6 +594,7 @@ pub fn struct_idx_at_all(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:246-252 structTeleAt
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_tele_at_refines, then delete this line
 /// Field `i`'s own telescope moved as `structIdxAt` moves its expressions
 /// (binder `k` sits under `k` earlier telescope binders), every binder's
 /// datum reset to `pw`.
@@ -591,6 +610,7 @@ pub fn struct_tele_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:246-252 structTeleAt
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_tele_at_from_refines, then delete this line
 /// The index recursion behind `struct_tele_at`.
 pub fn struct_tele_at_from(
     n_f: u64,
@@ -616,6 +636,7 @@ pub fn struct_tele_at_from(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:254-255 structTeleVars
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_tele_vars_refines, then delete this line
 /// The variables of an `m`-binder telescope, innermost last.  Identical to
 /// `struct_parts::field_spine`, which is where the port spells the recursion
 /// (the constructor spines need it and `StructParts.lean` is below this
@@ -624,14 +645,16 @@ pub fn struct_tele_vars(m: u64) -> Vec<Expr> {
     struct_parts::field_spine(m)
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:257-260 Expr.mkPisOf
+/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:60-63 Expr.mkPisOf
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::mk_pis_of_refines, then delete this line
 /// `∀ tele, body` over a binder list (outermost first).  Built on the way
 /// out, as cited; the port walks the `Vec` by index.
 pub fn mk_pis_of(tele: &Vec<(Expr, BinderMeta)>, body: Expr) -> Expr {
     mk_pis_of_from(tele, 0, body)
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:257-260 Expr.mkPisOf
+/// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:60-63 Expr.mkPisOf
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::mk_pis_of_from_refines, then delete this line
 /// The index recursion behind `mk_pis_of`.
 pub fn mk_pis_of_from(tele: &Vec<(Expr, BinderMeta)>, i: usize, body: Expr) -> Expr {
     if i >= tele.len() {
@@ -647,12 +670,14 @@ pub fn mk_pis_of_from(tele: &Vec<(Expr, BinderMeta)>, i: usize, body: Expr) -> E
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:261-263 Expr.mkLamsOf
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::mk_lams_of_refines, then delete this line
 /// `λ tele, body` over a binder list (outermost first).
 pub fn mk_lams_of(tele: &Vec<(Expr, BinderMeta)>, body: Expr) -> Expr {
     mk_lams_of_from(tele, 0, body)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:261-263 Expr.mkLamsOf
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::mk_lams_of_from_refines, then delete this line
 /// The index recursion behind `mk_lams_of`.
 pub fn mk_lams_of_from(tele: &Vec<(Expr, BinderMeta)>, i: usize, body: Expr) -> Expr {
     if i >= tele.len() {
@@ -668,6 +693,7 @@ pub fn mk_lams_of_from(tele: &Vec<(Expr, BinderMeta)>, i: usize, body: Expr) -> 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:265-277 structIhApp
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_ih_app_refines, then delete this line
 /// The inductive hypothesis' value for recursive field `i`:
 /// `λ a⃗, T.rec p⃗ motive m⃗ e⃗_i(a⃗) (f_i a⃗)` — at a finitary field the
 /// telescope is empty and this is the recursor at the prefix, the field's
@@ -704,6 +730,7 @@ pub fn struct_ih_app(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:279-288 structRuleBodyR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_rule_body_r_refines, then delete this line
 /// The right-hand side body of rule `j` at a recursive block: minor `j` at
 /// the fields, then at the inductive hypotheses of the recursive fields.
 pub fn struct_rule_body_r(
@@ -723,6 +750,7 @@ pub fn struct_rule_body_r(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:279-288 structRuleBodyR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_ih_apps_refines, then delete this line
 /// `recIdx.map fun i => structIhApp …`, as an index recursion.
 pub fn struct_ih_apps(
     rec_c: &Name,
@@ -755,6 +783,7 @@ pub fn struct_ih_apps(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:290-305 structIhPis
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_ih_pis_refines, then delete this line
 /// The `ih` binders of a minor premise: for each recursive field position (in
 /// order), `∀ a⃗, motive e⃗_i(a⃗) (f_i a⃗)` under the `l` earlier `ih` binders.
 /// Built on the way out, as cited; `k` is the cursor into `recIdx` and `l`
@@ -798,6 +827,7 @@ pub fn struct_ih_pis(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:307-320 structMinorTyR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_minor_ty_r_refines, then delete this line
 /// A constructor's minor premise at a recursive block: its field telescope
 /// lifted under the `o` extras, every binder's datum reset to the elimination
 /// datum, then the `ih` binders, ending in `motive e⃗ (C p⃗ f⃗)` lifted above
@@ -842,6 +872,7 @@ pub fn struct_minor_ty_r(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:144-150 structCtorSpineAt
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_ctor_spine_at_o_refines, then delete this line
 /// `structCtorSpineAt` under the name the minor-premise generator calls it
 /// by; `struct_parts` holds the recursion.
 pub fn struct_ctor_spine_at_o(c: &Name, lps: &Vec<Name>, o: u64, n_p: u64, n_f: u64) -> Expr {
@@ -849,6 +880,7 @@ pub fn struct_ctor_spine_at_o(c: &Name, lps: &Vec<Name>, o: u64, n_p: u64, n_f: 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:307-320 structMinorTyR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::lift_all_refines, then delete this line
 /// `(r.2.getAppArgs.drop nP).map (Expr.liftLooseBVars o nF)`, as an index
 /// recursion.
 pub fn lift_all(o: u64, cut: u64, es: &Vec<Expr>, i: usize, out: Vec<Expr>) -> Vec<Expr> {
@@ -862,6 +894,7 @@ pub fn lift_all(o: u64, cut: u64, es: &Vec<Expr>, i: usize, out: Vec<Expr>) -> V
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:322-330 structMinorsPisR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_minors_pis_r_refines, then delete this line
 /// The minor premises' `∀`-telescope at a recursive block, one per
 /// constructor `(C, nF, cty, recIdx)`.  `k` is the cursor into `ctors` and
 /// `o` the cited extras count, which grows by one per minor.
@@ -901,6 +934,7 @@ pub fn struct_minors_pis_r(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:332-339 structMinorsLamsR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_minors_lams_r_refines, then delete this line
 /// The `λ` twin of `structMinorsPisR`.
 pub fn struct_minors_lams_r(
     lps: &Vec<Name>,
@@ -938,6 +972,7 @@ pub fn struct_minors_lams_r(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:341-362 structRecTyR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_rec_ty_r_refines, then delete this line
 /// **The generated recursor type at a recursive block**
 ///
 /// ```text
@@ -997,6 +1032,7 @@ pub fn struct_rec_ty_r(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:364-386 structRecRhsR
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::struct_rec_rhs_r_refines, then delete this line
 /// **The generated rule** for constructor `j` at a recursive block:
 /// `λ p⃗ motive minor⃗ f⃗_j, minor_j f⃗_j (T.rec p⃗ motive minor⃗ e⃗_i f_i)…`.
 pub fn struct_rec_rhs_r(
@@ -1072,6 +1108,7 @@ pub fn u64s_copy_from(xs: &Vec<u64>, i: usize, out: Vec<u64>) -> Vec<u64> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:388-392 nativeCtors4
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_ctors4_refines, then delete this line
 /// The constructors zipped with their recursive positions, as the generators
 /// take them.  `List.zipWith` stops at the shorter list, as the port does.
 pub fn native_ctors4(
@@ -1082,6 +1119,7 @@ pub fn native_ctors4(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:388-392 nativeCtors4
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_ctors4_from_refines, then delete this line
 /// The index recursion behind `native_ctors4`.
 pub fn native_ctors4_from(
     ctors_a: &Vec<(ConstantVal, u64)>,
@@ -1110,6 +1148,7 @@ pub fn native_ctors4_from(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:394-445 nativeRulePrefixOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rule_prefix_head_refines, then delete this line
 /// The leading `(List.range (nP + 1 + n)).all` of `nativeRulePrefixOk`: the
 /// rule's first `nP + 1 + n` λ-domains are the recursor record's own Π-domains
 /// at the same depths, up to the parse placeholder's binder data
@@ -1137,6 +1176,7 @@ pub fn native_rule_prefix_head(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:394-445 nativeRulePrefixOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rule_prefix_fields_refines, then delete this line
 /// The trailing `(List.range nF).all`: the rule's field λ-domains are the
 /// `j`-th minor premise's first `nF` Π-domains, lifted by `n - j`.
 pub fn native_rule_prefix_fields(
@@ -1163,6 +1203,7 @@ pub fn native_rule_prefix_fields(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:394-445 nativeRulePrefixOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rule_prefix_ok_refines, then delete this line
 /// **The rule's `λ` prefix against the stream's own recursor type.**  The
 /// comparison is deliberately NOT with `structRecRhsR`: the two are generated
 /// from different data (this route generates from the STORED constructors,
@@ -1211,6 +1252,7 @@ pub fn native_rule_prefix_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:447-475 nativeRulesOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rule_ok_refines, then delete this line
 /// One rule of `nativeRulesOk`: the field count, the body against the
 /// canonical right-hand side at the parse placeholder's binder data, and the
 /// λ prefix.
@@ -1256,6 +1298,7 @@ pub fn native_rule_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:447-475 nativeRulesOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rules_ok_refines, then delete this line
 /// **The stream's rules against the generated ones**, at install: rule `j`
 /// fires constructor `j` with its field count, and its body is the canonical
 /// right-hand side with the inductive hypotheses.
@@ -1282,6 +1325,7 @@ pub fn native_rules_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:447-475 nativeRulesOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rules_ok_from_refines, then delete this line
 /// The `(List.range n).all` behind `native_rules_ok`.
 pub fn native_rules_ok_from(
     rec_c: &Name,
@@ -1326,6 +1370,7 @@ pub fn native_rules_ok_from(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:501-523 nativeCounts?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_counts_refines, then delete this line
 /// **The block's parameter and index counts**, read as official reads them:
 /// `nP` is the count the DECLARATION carries and `nIdx` is what is left of
 /// the type former's Π-telescope once those binders are peeled.  At a former
@@ -1363,6 +1408,7 @@ pub fn native_counts(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:525-549 nativeRecPinOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rec_pin_rules_refines, then delete this line
 /// The `(List.range p.ctors.length).all` of `nativeRecPinOk`: rule `j` names
 /// constructor `j` with its field count.
 pub fn native_rec_pin_rules(
@@ -1389,6 +1435,7 @@ pub fn native_rec_pin_rules(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:525-549 nativeRecPinOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rec_pin_ok_refines, then delete this line
 /// **The recursor record's structural pin**: the two argument sums the record
 /// claims, one rule per constructor in constructor order, each rule naming its
 /// constructor with its field count.  Official's replay compares the exported
@@ -1426,6 +1473,7 @@ pub fn native_rec_pin_ok(p: &InductiveShape, block: &Vec<ConstantInfo>) -> bool 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:551-560 nativeRecLpsOk
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rec_lps_ok_refines, then delete this line
 /// **The recursor record's level-parameter pin**: the recursor official
 /// generates carries the block's own level parameters, with a fresh
 /// elimination parameter in front at the LARGE eliminator.
@@ -1441,6 +1489,7 @@ pub fn native_rec_lps_ok(p: &InductiveShape) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_ctors_ok_from_refines, then delete this line
 /// The `cs.all` front guard of `nativeShape?`: every constructor carries the
 /// block's parameter count and level parameters and no reserved basis name.
 pub fn native_ctors_ok_from(
@@ -1468,6 +1517,7 @@ pub fn native_ctors_ok_from(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_shape_names_ok_refines, then delete this line
 /// The three reserved-name exclusions and the constructors' guard of
 /// `nativeShape?`, as one function.  Its own function because the cited
 /// `&&` cascade borrows the former and the split's constructors and
@@ -1493,6 +1543,7 @@ pub fn native_shape_names_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_ctors_of_refines, then delete this line
 /// The `cs.map fun c => (c.1, c.2.2)` of `nativeShape?`: the constructors
 /// with their *field* counts (the parameter count is the block's).
 pub fn native_ctors_of(cs: &Vec<(ConstantVal, u64, u64)>) -> Vec<(ConstantVal, u64)> {
@@ -1500,6 +1551,7 @@ pub fn native_ctors_of(cs: &Vec<(ConstantVal, u64, u64)>) -> Vec<(ConstantVal, u
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_ctors_of_from_refines, then delete this line
 /// The index recursion behind `native_ctors_of`.
 pub fn native_ctors_of_from(
     cs: &Vec<(ConstantVal, u64, u64)>,
@@ -1516,6 +1568,7 @@ pub fn native_ctors_of_from(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rhss_of_refines, then delete this line
 /// The `rules.map (·.rhs)` of `nativeShape?`: the rules' right-hand sides as
 /// exported.
 pub fn native_rhss_of(rules: &Vec<env::RecRule>) -> Vec<Expr> {
@@ -1523,6 +1576,7 @@ pub fn native_rhss_of(rules: &Vec<env::RecRule>) -> Vec<Expr> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_rhss_of_from_refines, then delete this line
 /// The index recursion behind `native_rhss_of`.
 pub fn native_rhss_of_from(rules: &Vec<env::RecRule>, i: usize, out: Vec<Expr>) -> Vec<Expr> {
     if i >= rules.len() {
@@ -1535,6 +1589,7 @@ pub fn native_rhss_of_from(rules: &Vec<env::RecRule>, i: usize, out: Vec<Expr>) 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_shape_large_refines, then delete this line
 /// The `large?` reading of `nativeShape?`: a fresh elimination level
 /// parameter in front of the block's own.  A record that is neither shape is
 /// read as the *small* eliminator with the pin failing (`nativeRecLpsOk`,
@@ -1558,6 +1613,7 @@ pub fn native_shape_large(cv_r: &ConstantVal, lps: &Vec<Name>) -> Option<Name> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_shape_refines, then delete this line
 /// The block's shape at a recursive block: the type former, the constructors
 /// and the counts (`nativeCounts?`), with the rules' right-hand sides as
 /// exported and the recursor's level-parameter shape.  Nothing else of the
@@ -1632,6 +1688,7 @@ pub fn native_shape(n_pd: u64, block: &Vec<ConstantInfo>) -> Option<InductiveSha
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:631-652 nativeParts?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_parts::native_parts_refines, then delete this line
 /// Recognise a direct block — ONE ROUTE: its SHAPE (`nativeShape?`); the
 /// fields' kinds are a PLACEHOLDER the install fills (`NativeParts.withKinds`)
 /// after normalising every field domain by official's positivity walk.  A

@@ -36,6 +36,7 @@ pub fn check_sum_tele_f(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:32-43 checkSumIndF
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install_f::check_sum_ind_f_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstallF.lean:23-25 checkSumIndF`
 /// — `checkSumInd` through the index; the same function.
 pub fn check_sum_ind_f(
@@ -49,7 +50,7 @@ pub fn check_sum_ind_f(
     sum_install::check_sum_ind(pers, st, mode, fe, p, is_rec)
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:45-61 checkStructFieldSortsIF
+/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:32-48 checkStructFieldSortsIF
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstallF.lean:27-29 checkStructFieldSortsIF`
 /// — `checkStructFieldSortsI` through the index; the same function.
 #[allow(clippy::too_many_arguments)]
@@ -70,7 +71,7 @@ pub fn check_struct_field_sorts_i_f(
     sum_install::check_struct_field_sorts_i(pers, vis, st, mode, fe, is_prop, large, s, n_p, fvs, idx_args, k)
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:63-81 checkStructFieldSortsIFA
+/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:50-68 checkStructFieldSortsIFA
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstallF.lean:31-34 checkStructFieldSortsIFA`
 /// — the same function over an array of field variables; over a `Vec` there is
 /// nothing left to distinguish.
@@ -93,6 +94,7 @@ pub fn check_struct_field_sorts_i_fa(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:83-95 normCtorValF
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install_f::norm_ctor_val_f_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstallF.lean:36-38 normCtorValF`
 /// — `normCtorVal` through the index; the same function.
 #[allow(clippy::too_many_arguments)]
@@ -111,7 +113,8 @@ pub fn norm_ctor_val_f(
     sum_install::norm_ctor_val(pers, vis, st, mode, fe, t, n_p, n_f, cv_c, cv_ca)
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:97-128 checkSumCtorF
+/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:70-100 checkSumCtorF
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install_f::check_sum_ctor_f_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstallF.lean:40-42 checkSumCtorF`
 /// — `checkSumCtor` through the index; the same function.
 #[allow(clippy::too_many_arguments)]
@@ -138,7 +141,7 @@ pub fn check_sum_ctor_f(
     )
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:130-140 checkSumCtorsF
+/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:102-112 checkSumCtorsF
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstallF.lean:44-46 checkSumCtorsF`
 /// — `checkSumCtors` through the index; the same function.
 #[allow(clippy::too_many_arguments)]
@@ -167,7 +170,7 @@ pub fn check_sum_ctors_f(
     )
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:142-145 consSumCtorsF
+/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:114-117 consSumCtorsF
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstallF.lean:48-50 consSumCtorsF`
 /// — `consSumCtors` through the index; the same function.
 pub fn cons_sum_ctors_f(n_p: u64, ctors: &Vec<(IConstantVal, u64)>, i: usize, fe: IFEnv) -> IFEnv {
@@ -175,6 +178,7 @@ pub fn cons_sum_ctors_f(n_p: u64, ctors: &Vec<(IConstantVal, u64)>, i: usize, fe
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:59-98 nativeCapsAt
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install_f::native_caps_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:105-123 nativeCapsAt`
 /// — the capability record, re-exported under the name
 /// `arena::inductives::native_install` looks for; the function is

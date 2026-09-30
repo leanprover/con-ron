@@ -34,7 +34,8 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-- con-leche: Main.lean:262-278 checkWorker — **a phase-B worker's state**:
+/-- con-leche: Main.lean:263-279 checkWorker — **a phase-B worker's state**:
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Phased.AState.worker_bridge, then delete this line
 the phase-A state with the scratch tier closed and empty, and fresh memos and
 caches.  The Rust's `worker_state` builds the same thing over the FROZEN tier
 (an empty store whose reads go to the `PersTier`); the twin has one store and
@@ -43,7 +44,7 @@ def AState.worker (s : AState) : AState :=
   { s with store := s.store.dropScratch, memos := Memos.empty,
            caches := Caches.empty }
 
-/-- con-leche: ConLeche/Cached/Installed.lean:429-436 checkPendingList —
+/-- con-leche: ConLeche/Cached/Installed.lean:419-426 checkPendingList —
 **phase B on one worker, in record order**: `checkPendingList` from
 `AState.worker`, and the phase-A state handed back as it was, which is what
 the Rust's `thaw_tier` restores. -/
@@ -53,7 +54,7 @@ def checkPendingWorker (mode : CheckMode) (fe : IFEnv) (pend : List PendingCheck
   | .ok (r, _) => .ok (r, s)
   | .error e => .error e
 
-/-- con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls — **the
+/-- con-leche: ConLeche/Cached/Installed.lean:428-445 checkDecls — **the
 declaration fold as the driver runs it**: phase A (`annotFold`), then phase B
 on one worker (`checkPendingWorker`).  The twin of
 `arena::checker::check_decls_phased`. -/

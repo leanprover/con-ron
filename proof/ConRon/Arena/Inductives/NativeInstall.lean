@@ -36,17 +36,20 @@ open ConLeche
 /-! ## The capability record -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:100-103 nativeIsRec
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.nativeIsRec_bridge, then delete this line
 Official's `is_rec` off the classified kinds: some field is recursive or
 reflexive. -/
 def nativeIsRec (kinds : List (List RecFieldKind)) : Bool :=
   kinds.any fun ks => ks.any fun k => k == .recursive || k == .reflexive
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:105-108 nativeCaps
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.nativeCaps_bridge, then delete this line
 The block's capability record at its classified kinds. -/
 def nativeCaps (p : NativeParts) : AM IIndCaps :=
   nativeCapsAt p.toInductiveShape (nativeIsRec p.kinds)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:110-128 nativeRawRec
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.nativeRawRec_bridge, then delete this line
 **The syntactic reading of `is_rec`** (task #268): does the block occur in some
 declared field domain of some constructor? -/
 def nativeRawRec (p : NativeParts) : AM Bool := do
@@ -60,14 +63,14 @@ def nativeRawRec (p : NativeParts) : AM Bool := do
 
 /-! ## `mentionsFvar` -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:214-219 Expr.mentionsFvarIns
+/-- con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:139-144 Expr.mentionsFvarIns
 Record one answer for `e` in the memo the walk hands back. -/
 @[inline] def mentionsFvarIns (e : EIdx) (r : Bool × Std.HashMap EIdx Bool) :
     Bool × Std.HashMap EIdx Bool :=
   (r.1, r.2.insert e r.1)
 
-/-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:139-141 Expr.mentionsFvar
-con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:221-257 Expr.mentionsFvarGo
+/-- con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:65-67 Expr.mentionsFvar
+con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:146-182 Expr.mentionsFvarGo
 Does the variable `q` occur as a leaf of `e` (annotations included, as
 `fvarLeaves` walks them)?  con-leche's per-call memo, keyed by the node. -/
 def mentionsFvarGo (q : Nat) (memo : Std.HashMap EIdx Bool) :
@@ -109,7 +112,7 @@ def mentionsFvarGo (q : Nat) (memo : Std.HashMap EIdx Bool) :
           | _ => pure (false, memo)
         pure (mentionsFvarIns h r)
 
-/-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:379-381 Expr.mentionsFvarFast
+/-- con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:304-306 Expr.mentionsFvarFast
 The executed `mentionsFvar` (one memoized DAG walk). -/
 def mentionsFvar (q : Nat) (e : EIdx) : AM Bool := do
   pure (← mentionsFvarGo q ∅ coreWalkFuel e).1
@@ -117,7 +120,9 @@ def mentionsFvar (q : Nat) (e : EIdx) : AM Bool := do
 /-! ## The field kinds, re-checked on the opened constructors -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:388-433 nativeOpenedOk
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.nativeOpenedOk_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:22-59 nativeOpenedOkF
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.nativeOpenedOk_bridge, then delete this line
 The kinds the recogniser computed, re-checked on the annotated constructor type
 OPENED at variables, in the form the model reads. -/
 def nativeOpenedOk (fe₀ : IFEnv) (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
@@ -177,7 +182,9 @@ def nativeOpenedOk (fe₀ : IFEnv) (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
           | _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:435-445 nativeFieldsOk
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.nativeFieldsOk_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:61-69 nativeFieldsOkF
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.nativeFieldsOk_bridge, then delete this line
 The kinds, re-checked on every annotated constructor, one kind list per
 constructor, one kind per field. -/
 def nativeFieldsOk (fe₀ : IFEnv) (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
@@ -194,7 +201,9 @@ def nativeFieldsOk (fe₀ : IFEnv) (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
 /-! ## The recursor -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:447-463 checkNativeRules
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.checkNativeRules_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:71-85 checkNativeRulesF
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.checkNativeRules_bridge, then delete this line
 The generated rules for constructors `j, j+1, …` (`k` of them), each scoped at
 the environment holding the recursor's constant. -/
 def checkNativeRules (feR : IFEnv) (rlps : List NIdx) (T : NIdx) (lps : List NIdx)
@@ -214,7 +223,9 @@ def checkNativeRules (feR : IFEnv) (rlps : List NIdx) (T : NIdx) (lps : List NId
     pure (rhs :: rest)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:465-502 checkNativeRec
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.checkNativeRec_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:87-115 checkNativeRecF
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.checkNativeRec_bridge, then delete this line
 Stage 3: the recursor, generated and compared — the generated type has the
 inductive-hypothesis binders in each minor; the generated rules are scoped at
 the environment holding the recursor's constant. -/
@@ -254,7 +265,9 @@ def checkNativeRec (mode : CheckMode) (fe : IFEnv) (p : NativeParts)
   pure (cvRa, rhss)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:504-519 checkNativeTable
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.checkNativeTable_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:117-126 checkNativeTableF
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.checkNativeTable_bridge, then delete this line
 Stage 4: **the projection table** at a STRUCTURE-LIKE block — one constructor,
 no index — at the tagged tower's projection offset `1`; nothing at any other
 block. -/
@@ -272,6 +285,7 @@ def checkNativeTable (p : NativeParts) (ctorsA : List (IConstantVal × Nat))
 /-! ## The two-pass install -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:521-537 NativePass
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.NativePass_bridge, then delete this line
 **What one pass over the former and the constructors yields** (task #268).  Not
 generic in the environment: the arena has one (module note). -/
 structure NativePass where
@@ -287,6 +301,7 @@ structure NativePass where
   sortss : List (List LIdx)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:539-554 classifyFixKinds
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.recCtorKindsAll_bridge, then delete this line
 `ctorsA.mapM (recCtorKinds T lps nP nIdx)` at the `Option` monad, spelled as an
 explicit recursion because the twin of `recCtorKinds` is monadic in `AM` and
 optional in its result. -/
@@ -302,6 +317,7 @@ def recCtorKindsAll (T : NIdx) (lps : List NIdx) (nP nIdx : Nat) :
       | some rest => pure (some (ks :: rest))
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:539-554 classifyFixKinds
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.classifyFixKinds_bridge, then delete this line
 **The fields' kinds, classified at install** (task #210 Part D) on the stored
 constructors: a non-positive or non-valid occurrence is INVALID, a nested
 occurrence a positive decline. -/
@@ -316,6 +332,7 @@ def classifyFixKinds (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
   pure kinds
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:556-574 checkNativePass
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.checkNativePass_bridge, then delete this line
 **One pass over the former and the constructors** (task #268) at a given
 `is_rec` verdict.  The last component says whether the classification confirms
 the verdict the pass ran at. -/
@@ -324,6 +341,7 @@ def checkNativePass (mode : CheckMode) (fe : IFEnv) (p₀ : NativeParts) (isRec 
   let (fe₁, cvTa, p₁) ← checkSumInd mode fe p₀.toInductiveShape isRec
   let pC := p₀.complete p₁
   -- con-leche: ConLeche/Cached/CheckerC.lean:179-191 checkNativePassS
+  -- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.checkNativeTail_bridge, then delete this line
   flushCaches
   let (ctorsA, sortss) ← checkSumCtors mode fe₁ fe₁ pC.cvT.name pC.cvT.levelParams pC.nP
     pC.nIdx pC.resSort pC.isProp pC.large cvTa pC.ctors
@@ -333,6 +351,7 @@ def checkNativePass (mode : CheckMode) (fe : IFEnv) (p₀ : NativeParts) (isRec 
   pure (⟨fe₁, cvTa, p, ctorsA, sortss⟩, settled)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:576-611 checkNativeTail
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.checkNativeTail_bridge, then delete this line
 **The install after the pass** (task #268): the elimination restriction, the
 index binders' sorts, the kinds re-checked, the stream's rules against the
 generated ones, the constructors consed, the recursor with its rules, and — at
@@ -363,6 +382,7 @@ def checkNativeTail (mode : CheckMode) (_fe : IFEnv) (q : NativePass) : AM IFEnv
     fail (.invalid "direct rec: recursor rules are not the generated ones")
   let fe₂ := consSumCtors p.nP q.ctorsA q.env₁
   -- con-leche: ConLeche/Cached/CheckerC.lean:194-217 checkNativeTailS
+  -- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.checkNative_bridge, then delete this line
   flushCaches
   let (cvRa, rhss) ← checkNativeRec mode fe₂ p q.cvTa q.ctorsA
   let rules ← sumRules fe₂ cvRa.name p.nP p.majorIdx p.rulePrefix cvRa.type q.ctorsA rhss
@@ -370,6 +390,7 @@ def checkNativeTail (mode : CheckMode) (_fe : IFEnv) (q : NativePass) : AM IFEnv
     (fe₂.push (.recInfo cvRa p.majorIdx p.rulePrefix rules))
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:613-640 checkNative
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeInstall.checkNative_bridge, then delete this line
 Check and install a **direct recursive block**: the distinct names, the pass
 over the former and the constructors — again where the record's syntactic
 reading overshot — and the install after it. -/
@@ -377,6 +398,7 @@ def checkNative (mode : CheckMode) (fe : IFEnv) (p₀ : NativeParts) : AM IFEnv 
   unless (p₀.ctors.map (·.1.name)).Nodup do
     fail (.invalid "direct rec: duplicate constructor")
   -- con-leche: ConLeche/Cached/CheckerC.lean:220-231 checkNativeS
+  -- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proof/ConRon/Arena/Inductives/NativeInstall.lean_bridge, then delete this line
   flushCaches
   -- the former's raw index row before the pass pushes over it, for the retry
   let former := p₀.cvT.name
@@ -389,6 +411,7 @@ def checkNative (mode : CheckMode) (fe : IFEnv) (p₀ : NativeParts) : AM IFEnv 
   if settled then checkNativeTail mode fe q
   else do
     -- con-leche: ConLeche/Cached/CheckerC.lean:220-231 checkNativeS
+    -- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proof/ConRon/Arena/Inductives/NativeInstall.lean_bridge, then delete this line
     flushCaches
     -- the retry runs at the pass's environment with the former popped (the
     -- port's `ifenv_pop_temp`), which answers the entry index's `find?`

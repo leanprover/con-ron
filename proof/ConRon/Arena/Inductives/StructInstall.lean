@@ -21,9 +21,9 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:32-51 checkStructDomsAt
-con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:27-36 checkStructDomsAtF
-con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:38-48 checkStructDomsAtFA
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:31-50 checkStructDomsAt
+con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:25-34 checkStructDomsAtF
+con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:36-46 checkStructDomsAtFA
 The reference kernels' binder-domain comparisons, run binder by binder **at
 its own frame**: the `j`-th opened variable's annotation against the `j`-th
 expected domain, at frame `off + j`.  Walks from the last binder to the
@@ -38,8 +38,8 @@ def checkStructDomsAt (mode : CheckMode) (fe : IFEnv) (off : Nat)
       fail (.notImplemented "direct structure: binder domain mismatch")
     checkStructDomsAt mode fe off fvs doms j
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:53-86 checkStructProjTable
-con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:73-95 checkStructProjTableF
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-85 checkStructProjTable
+con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-93 checkStructProjTableF
 Stage 5: **the projection table** (task #175 S1).  One constant per structure:
 the fields' result-type bodies read off the *annotated* constructor type by
 substitution alone, the per-field guard levels, the constructor and the

@@ -47,6 +47,7 @@ use crate::ron::hashmap::{Dup, Eq2};
 use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:61-115 whnfCoreBodyGated
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_gated::whnf_core_app_gated_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:64-109 whnfCoreBodyGated` —
 /// **THE β SITE** of the gated body: the gate wraps the *test* only, and both
 /// arms are `whnfCoreBody`'s verbatim.  The gate is `mode.verifiedChecks &&
@@ -98,6 +99,7 @@ pub fn whnf_core_app_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:61-115 whnfCoreBodyGated
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_gated::whnf_core_body_gated_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:64-109 whnfCoreBodyGated` —
 /// **the gated head-normalization body**: `whnfCoreBody` with the `.app`
 /// clause's β certificate skipped at a `.never` binder under
@@ -146,7 +148,9 @@ pub fn whnf_core_body_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:117-150 coreKnotGated
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_gated::CORE_KNOT_GATED_refines, then delete this line
 /// con-leche: ConLeche/Kernel/CoreGated.lean:152-155 pureFnsGated
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_gated::CORE_KNOT_GATED_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:111-156 coreKnotGated`
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:158-161 pureFnsGated` — **the
 /// P knot**, tied at `AM`: `coreKnot`'s tie with `whnfCoreBodyGated` in the
@@ -158,6 +162,7 @@ pub fn whnf_core_body_gated(
 pub const CORE_KNOT_GATED: u32 = LANE_GATED;
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:157-159 whnfCoreGated
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_gated::whnf_core_gated_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:163-167 whnfCoreGated` — head
 /// normalization with the β-cert gate (fueled).
 pub fn whnf_core_gated(
@@ -174,6 +179,7 @@ pub fn whnf_core_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:161-163 whnfGated
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_gated::whnf_gated_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:169-173 whnfGated` — the full
 /// reduction loop over the gated knot (fueled).
 pub fn whnf_gated(
@@ -190,6 +196,7 @@ pub fn whnf_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:165-168 inferTypeCoreGated
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_gated::infer_type_core_gated_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:175-179 inferTypeCoreGated` —
 /// type inference over the gated knot (fueled).
 pub fn infer_type_core_gated(
@@ -206,6 +213,7 @@ pub fn infer_type_core_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:170-173 isDefEqCoreGated
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_gated::is_def_eq_core_gated_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:181-185 isDefEqCoreGated` —
 /// definitional equality over the gated knot (fueled).
 pub fn is_def_eq_core_gated(
@@ -223,6 +231,7 @@ pub fn is_def_eq_core_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:175-178 annotateCoreGated
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_gated::annotate_core_gated_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:187-191 annotateCoreGated` —
 /// the annotation pass over the gated knot (fueled).
 pub fn annotate_core_gated(
@@ -239,6 +248,7 @@ pub fn annotate_core_gated(
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:180-183 ensureSortCoreGated
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_gated::ensure_sort_core_gated_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:193-197 ensureSortCoreGated` —
 /// `ensureSort` over the gated knot (fueled).
 pub fn ensure_sort_core_gated(

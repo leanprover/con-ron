@@ -75,7 +75,7 @@ open ConLeche
 
 /-! ## The pinned basis install -/
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:427-437 checkBasisDecl —
+/-- con-leche: ConLeche/Kernel/Checker.lean:425-435 checkBasisDecl —
 **install the pinned (pre-annotated) basis block.**  The three records that
 install one — the fold's own `basisDecl` kind, a stream block `basisPinHit`
 recognises and a quotient record `quotPinHit` recognises — share this body.
@@ -90,7 +90,8 @@ def checkBasisDecl (fe : IFEnv) (kind : BasisKind) : AM IFEnv := do
 
 /-! ## One declaration -/
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl — **check a
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl — **check a
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Checker.checkDecl_bridge, then delete this line
 single declaration, extending the environment on success.**  Clause for
 clause; `env : Env` is the index (`Arena/Core.lean`'s deviation 1), and the
 `.indDecl` arm's route choice is `Arena/Inductives.lean`'s seam. -/
@@ -212,7 +213,7 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
       | .sound => "quotient soundness axiom mismatch"
       | _ => "quotient declaration mismatch"))
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:628-632 checkDeclsPure — **one
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:216-220 checkDeclsPure — **one
 step of the pure fold, bracketed**: `checkDecl` inside the per-declaration
 scratch tier, with the constants it installed promoted before the tier goes.
 
@@ -234,7 +235,7 @@ def checkDeclStep (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
   dropScratch
   pure fe
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:628-632 checkDeclsPure — check a
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:216-220 checkDeclsPure — check a
 list of declarations in order, starting from the empty environment.  THE
 THEOREM'S SHAPE (module note): one step per record, install and check
 together.  con-leche's `ds.foldlM (checkDecl mode ops pins) Env.empty` takes a
@@ -245,7 +246,7 @@ def checkDeclsPureGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) 
   | [] => pure fe
   | d :: ds => do checkDeclsPureGo mode pins (← checkDeclStep mode pins fe d) ds
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:628-632 checkDeclsPure — the fold
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:216-220 checkDeclsPure — the fold
 from the empty environment. -/
 def checkDeclsPure (mode : CheckMode) (pins : List INatOpPinSet)
     (ds : List IDeclaration) : AM IFEnv :=
@@ -253,8 +254,8 @@ def checkDeclsPure (mode : CheckMode) (pins : List INatOpPinSet)
 
 /-! ## The two-phase fold the binary runs -/
 
-/-- con-leche: ConLeche/Cached/Installed.lean:185-195 annotDeclStep
-con-leche: ConLeche/Cached/Installed.lean:429-436 checkPendingList
+/-- con-leche: ConLeche/Cached/Installed.lean:184-194 annotDeclStep
+con-leche: ConLeche/Cached/Installed.lean:419-426 checkPendingList
 **The state a FAILING fold step hands back**, and the reason it is not the
 pre-step state.
 
@@ -277,7 +278,7 @@ So the arm hands back the EMPTY state — which is what con-leche's arm means
 `&mut` state the caller stops using).  Nothing on the error path reads it. -/
 def AState.abandoned : AState := AState.init EStore.empty
 
-/-- con-leche: ConLeche/Cached/Installed.lean:83-91 PendingCheck — a phase-A
+/-- con-leche: ConLeche/Cached/Installed.lean:82-90 PendingCheck — a phase-A
 record awaiting its phase-B check: the datum that crosses the install/check
 seam, the fold position of the declaration (its error tag) and the environment
 counter at the install. -/
@@ -287,7 +288,7 @@ structure PendingCheck where
   vis : Nat
   deriving Inhabited
 
-/-- con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC — phase A's
+/-- con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC — phase A's
 step body: annotate-and-install for the three value kinds, the ordinary step
 `checkDecl` for everything else.
 
@@ -326,7 +327,7 @@ def annotStepGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) :
   | pd => do
     pure (← checkDecl mode pins fe pd, none)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC — **phase A's
+/-- con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC — **phase A's
 step, bracketed**; `i` is the fold position the record is tagged with.
 
 **The bracket, and why phase A has one** (DESIGN §8.3, "Phase A runs in the
@@ -382,7 +383,7 @@ def annotStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
     dropScratch
     pure (fe, pend.push ⟨vg, i, vis⟩)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:185-195 annotDeclStep — phase
+/-- con-leche: ConLeche/Cached/Installed.lean:184-194 annotDeclStep — phase
 A's step with the position carried and the error tagged: a failing step
 reports the `CheckError` together with `i`, the fold position of the
 declaration that failed.
@@ -398,7 +399,7 @@ def annotDeclStep (mode : CheckMode) (pins : List INatOpPinSet)
   | .ok ((fe', pend'), s') => .ok (.ok (p.1 + 1, fe', pend'), s')
   | .error e => .ok (.error (e, p.1), AState.abandoned)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:450-455 checkDecls — phase A as
+/-- con-leche: ConLeche/Cached/Installed.lean:440-445 checkDecls — phase A as
 a fold over the records.  con-leche's `Array.foldlM` takes a closure; DESIGN
 §3.4's rule for a `List` fold is an explicit recursion. -/
 def annotFold (mode : CheckMode) (pins : List INatOpPinSet)
@@ -411,7 +412,7 @@ def annotFold (mode : CheckMode) (pins : List INatOpPinSet)
     | .error e => pure (.error e)
     | .ok p' => annotFold mode pins p' ds
 
-/-- con-leche: ConLeche/Cached/Installed.lean:260-274 checkPending — **phase
+/-- con-leche: ConLeche/Cached/Installed.lean:255-269 checkPending — **phase
 B's check of one record**, against the prefix view `fe.restrictTo pc.vis`,
 from a fresh memo state.
 
@@ -429,7 +430,7 @@ def checkPending (mode : CheckMode) (fe : IFEnv) (pc : PendingCheck) :
   checkValueGroup mode (fe.restrictTo pc.vis) pc.vg
   dropScratch
 
-/-- con-leche: ConLeche/Cached/Installed.lean:429-436 checkPendingList — phase
+/-- con-leche: ConLeche/Cached/Installed.lean:419-426 checkPendingList — phase
 B as a pure walk: every record checked from a fresh memo state, a failure
 tagged with the record's fold position. -/
 def checkPendingList (mode : CheckMode) (fe : IFEnv) :
@@ -440,7 +441,7 @@ def checkPendingList (mode : CheckMode) (fe : IFEnv) :
     | .ok ((), s') => checkPendingList mode fe rest s'
     | .error e => .ok (.error (e, pc.pos), AState.abandoned)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls — **the
+/-- con-leche: ConLeche/Cached/Installed.lean:428-445 checkDecls — **the
 declaration fold the binary runs**: install every record (phase A), check
 every recorded declaration (phase B), return the environment.  The `× Nat` of
 the error is the failure's POSITION in the fold. -/
@@ -453,7 +454,7 @@ def installThenCheck (mode : CheckMode) (pins : List INatOpPinSet)
     | .error e => pure (.error e)
     | .ok () => pure (.ok fe)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls — the fold's
+/-- con-leche: ConLeche/Cached/Installed.lean:428-445 checkDecls — the fold's
 failure, with its POSITION rendered into the message.  con-leche's driver
 reports the declaration by indexing the record array it already holds
 (`Main.lean:461-711`); the seam of (B) has no position channel
@@ -470,7 +471,8 @@ def atDecl : CheckError → Nat → CheckError
 /-! ## The startup walk -/
 
 /-- con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
-con-leche: ConLeche/Kernel/BasisA.lean:50-57 BasisKind.declsA
+con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Checker.internAllPins_bridge, then delete this line
 **The one-time tree walk of DESIGN §8.6 P2d**: every datum the checker
 compares a stream record against, interned into the tier that is live at the
 call — which, at the driver's call, is the persistent one.

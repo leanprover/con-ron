@@ -27,7 +27,7 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-- con-leche: ConLeche/Kernel/CoreIO.lean:91-119 coreKnotIO — **the io
+/-- con-leche: ConLeche/Kernel/CoreIO.lean:90-118 coreKnotIO — **the io
 knot** (the leaf lane).  Its own `inferIO` slot is the io body again: the io
 grade is idempotent, there being nothing below io to select. -/
 def coreKnotIO (mode : CheckMode) (fe : IFEnv) : Nat → CoreFnsA
@@ -46,12 +46,12 @@ def coreKnotIO (mode : CheckMode) (fe : IFEnv) : Nat → CoreFnsA
       infer := fun d e => inferBodyIO mode (coreKnotIO mode fe fuel) fe d e
       inferIO := fun d e => inferBodyIO mode (coreKnotIO mode fe fuel) fe d e }
 
-/-- con-leche: ConLeche/Kernel/CoreIO.lean:121-124 pureFnsIO — the io core,
+/-- con-leche: ConLeche/Kernel/CoreIO.lean:120-123 pureFnsIO — the io core,
 tied at `AM`: the specification the `InferClaimIO` family is stated at. -/
 def pureFnsIO (mode : CheckMode) (fe : IFEnv) : Nat → CoreFnsA :=
   coreKnotIO mode fe
 
-/-- con-leche: ConLeche/Kernel/CoreIO.lean:126-130 inferTypeCoreIO —
+/-- con-leche: ConLeche/Kernel/CoreIO.lean:125-129 inferTypeCoreIO —
 infer-only (io-grade) type inference, fueled: the io lane's single entry
 point. -/
 def inferTypeCoreIO (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat)

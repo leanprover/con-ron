@@ -312,7 +312,7 @@ impl Memos {
 // The state (`Monad.lean:110-126`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:111-140 CState
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:119-136 AState` — the checker
 /// state of (C): the arena, the per-call memo tables and — since task
 /// #97-P4c — the per-declaration caches (`whnfCore`, `whnf`, the three infer
@@ -358,7 +358,7 @@ impl AState {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:53-72 CheckError
+/// con-leche: ConLeche/Kernel/Core.lean:50-69 CheckError
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:148-153 fail` — **the one failure
 /// primitive of (C)**, as it is of (B).
 ///
@@ -375,7 +375,7 @@ pub fn fail<T>(e: CheckError) -> Result<T, CheckError> {
 // The expression store's primitives (`Monad.lean:130-166`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:157-164 view` — decode a handle.
 /// A dangling handle is an internal error: the checker never builds one, and
 /// the bridge claims nothing on failure.
@@ -387,7 +387,7 @@ pub fn view(pers: &PersTier, st: &AState, h: &EIdx) -> Result<ENodeView, CheckEr
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:157-164 view` — the `none` arm of
 /// `view`, spelled once so that a caller of the projections below declines a
 /// dangling handle with `view`'s own error and not a second one.
@@ -409,7 +409,7 @@ pub fn fail_dangling_e<T>() -> Result<T, CheckError> {
     fail(CheckError::Internal(code_points(&M_DANGLING_E)))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:336-338 viewApp` — `viewApp`, the
 /// `app` PROJECTION of `view`. A walk that has already read the tag off the
 /// handle word wants only the two children; going through `view` would cost the
@@ -426,7 +426,7 @@ pub fn view_app(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx)> 
     st.store.view_app(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:340-342 viewBVar` — `viewBVar`,
 /// the `bvar` projection.
 #[inline(always)]
@@ -434,7 +434,7 @@ pub fn view_bvar(pers: &PersTier, st: &AState, h: &EIdx) -> Option<u64> {
     st.store.view_bvar(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:344-346 viewSort` — `viewSort`,
 /// the `sort` projection.
 #[inline(always)]
@@ -442,7 +442,7 @@ pub fn view_sort(pers: &PersTier, st: &AState, h: &EIdx) -> Option<LIdx> {
     st.store.view_sort(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:348-350 viewConst` — `viewConst`,
 /// the `const` projection.
 #[inline(always)]
@@ -450,7 +450,7 @@ pub fn view_const(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(NIdx, LsIdx
     st.store.view_const(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:352-355 viewConstName` —
 /// `viewConstName`, the head NAME of a `const` node; the level arguments are
 /// left in the store.
@@ -459,7 +459,7 @@ pub fn view_const_name(pers: &PersTier, st: &AState, h: &EIdx) -> Option<NIdx> {
     st.store.view_const_name(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:357-359 viewFVarIdx` —
 /// `viewFVarIdx`, the `fvar` index.
 #[inline(always)]
@@ -467,7 +467,7 @@ pub fn view_fvar_idx(pers: &PersTier, st: &AState, h: &EIdx) -> Option<u64> {
     st.store.view_fvar_idx(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:361-364 viewFVarTy` —
 /// `viewFVarTy`, the `fvar` binder type.
 #[inline(always)]
@@ -475,7 +475,7 @@ pub fn view_fvar_ty(pers: &PersTier, st: &AState, h: &EIdx) -> Option<EIdx> {
     st.store.view_fvar_ty(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:366-368 viewLit` — `viewLit`, the
 /// `lit` projection.
 #[inline(always)]
@@ -483,7 +483,7 @@ pub fn view_lit(pers: &PersTier, st: &AState, h: &EIdx) -> Option<Literal> {
     st.store.view_lit(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:370-373 viewBind` — `viewBind`,
 /// the binder projection.
 #[inline(always)]
@@ -491,7 +491,7 @@ pub fn view_bind(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx, 
     st.store.view_bind(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+/// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:375-379 viewBindI` — `viewBindI`,
 /// the binder projection that stops at the datum's HANDLE (see
 /// `EStore::view_bind_i`).
@@ -500,7 +500,7 @@ pub fn view_bind_i(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx
     st.store.view_bind_i(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:386-389 viewLet` — `viewLet`, the
 /// `letE` projection.
 #[inline(always)]
@@ -508,7 +508,7 @@ pub fn view_let(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx, E
     st.store.view_let(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:391-394 viewProj` — `viewProj`,
 /// the `proj` projection.
 #[inline(always)]
@@ -516,7 +516,7 @@ pub fn view_proj(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(NIdx, u64, E
     st.store.view_proj(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:166-171 derivedE` — the packed
 /// derived word of a handle (the `data` computed field, lines 357-402), read
 /// in `O(1)` off the derived column.  No path fails, so the Rust returns the
@@ -909,7 +909,7 @@ pub fn intern_name(pers: &PersTier, st: &mut AState, n: &Name) -> Result<NIdx, C
 // The level store's primitives (`Monad.lean:224-287`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-54 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-52 Level
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:494-500 viewL` — decode a level
 /// handle.
 pub fn view_l(pers: &PersTier, st: &AState, h: &LIdx) -> Result<LNodeView, CheckError> {
@@ -919,7 +919,7 @@ pub fn view_l(pers: &PersTier, st: &AState, h: &LIdx) -> Result<LNodeView, Check
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-54 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-52 Level
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:502-507 derivedL` — the level's
 /// derived pair (its 32-bit hash and its `hasParam` bit, the computed field at
 /// lines 47-53), read in `O(1)`.  Total, so no `Result` (module note).
@@ -934,7 +934,7 @@ pub fn intern_l_node(pers: &PersTier, st: &mut AState, v: LNodeView) -> Result<L
     st.store.intern_level(pers, v)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-44 Level
 /// Lean twin: `proof/ConRon/Arena/Denote.lean:116-127 denoteLAux` — the
 /// fuel-indexed readback of a level handle.
 pub fn denote_l_aux(pers: &PersTier, st: &LStore, fuel: u64, h: &LIdx) -> Option<Level> {
@@ -970,7 +970,7 @@ pub fn denote_l_aux(pers: &PersTier, st: &LStore, fuel: u64, h: &LIdx) -> Option
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-44 Level
 /// Lean twin: `proof/ConRon/Arena/Denote.lean:129-132 denoteL` — the readback
 /// of a level handle, at the store's own node count as fuel.
 pub fn denote_l(pers: &PersTier, st: &LStore, h: &LIdx) -> Option<Level> {
@@ -1018,7 +1018,7 @@ pub fn denote_ls(pers: &PersTier, st: &LsStore, h: &LsIdx) -> Option<Vec<Level>>
     }
 }
 
-/// con-leche: ConLeche/Kernel/Level.lean:26-37 subst
+/// con-leche: ConLeche/Kernel/Level.lean:30-41 subst
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:527-536 readLevel` — **the
 /// readback** (DESIGN.md §8.3 lesson 4, "intern the representation, not the
 /// algorithm"): a level ALGORITHM runs on a transient `Level` tree read out of
@@ -1031,7 +1031,7 @@ pub fn read_level(pers: &PersTier, st: &AState, h: &LIdx) -> Result<Level, Check
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-54 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-52 Level
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:538-555 internLevel` — intern a
 /// transient level tree.  Structural on `Level`, so no fuel.
 pub fn intern_level(pers: &PersTier, st: &mut AState, l: &Level) -> Result<LIdx, CheckError> {
@@ -1066,7 +1066,7 @@ pub fn intern_level(pers: &PersTier, st: &mut AState, l: &Level) -> Result<LIdx,
 // The level-list store's primitives (`Monad.lean:289-330`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-54 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-52 Level
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:559-565 viewLs` — the `none` arm
 /// of `viewLs`, spelled once so that a caller of the length projection below
 /// declines a dangling handle with `viewLs`'s own error and not a second one.
@@ -1076,7 +1076,7 @@ pub fn fail_dangling_ls<T>() -> Result<T, CheckError> {
     fail(CheckError::Internal(code_points(&M_DANGLING_LS)))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-54 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-52 Level
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:607-612 viewLsLen` — `viewLsLen`,
 /// the LENGTH projection of `viewLs`. Decoding a level-list handle copies its
 /// whole `Vec<LIdx>` out of the node (Lean shares the list; DESIGN.md §3.2);
@@ -1087,7 +1087,7 @@ pub fn view_ls_len(pers: &PersTier, st: &AState, h: &LsIdx) -> Option<usize> {
     st.store.ls_s().view_len(pers, h)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:559-565 viewLs` — decode a
 /// universe-argument list handle (the `const` node's second field, line 347).
 pub fn view_ls(pers: &PersTier, st: &AState, h: &LsIdx) -> Result<LsNodeView, CheckError> {
@@ -1108,7 +1108,7 @@ pub fn intern_ls_node(
     st.store.intern_levels(pers, v)
 }
 
-/// con-leche: ConLeche/Kernel/Level.lean:26-37 subst
+/// con-leche: ConLeche/Kernel/Level.lean:30-41 subst
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:585-591 readLevels` — read a
 /// universe argument list back as transient `Level` trees.
 pub fn read_levels(pers: &PersTier, st: &AState, h: &LsIdx) -> Result<Vec<Level>, CheckError> {
@@ -1182,7 +1182,7 @@ impl Dup for Vec<Level> {
 // (`core::drop_scratch`), which is what makes a stale row impossible.  A hit
 // is a reference bump.
 
-/// con-leche: ConLeche/Kernel/Level.lean:26-37 subst
+/// con-leche: ConLeche/Kernel/Level.lean:30-41 subst
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:630-643 readLevelM` —
 /// `readLevelM`, the memoised `readLevel`. Same value, same failure: a hit
 /// answers with the row the miss stored, and `denoteL` is a function of the
@@ -1251,7 +1251,7 @@ pub fn read_names_m_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Level.lean:26-37 subst
+/// con-leche: ConLeche/Kernel/Level.lean:30-41 subst
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:670-683 readLevelsM` —
 /// `readLevelsM`, the memoised `readLevels`.
 pub fn read_levels_m(
@@ -1441,7 +1441,7 @@ pub fn inst_l_clear(st: &mut AState) {
     reset_map(&mut st.memos.inst_l_c)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:430-466 liftLooseBVarsGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:508-544 liftLooseBVarsGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:844-847 liftGet` — probe the
 /// `liftLooseBVars` memo.
 pub fn lift_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
@@ -1451,21 +1451,21 @@ pub fn lift_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:430-466 liftLooseBVarsGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:508-544 liftLooseBVarsGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:849-855 liftSet` — record a
 /// `liftLooseBVars` answer.
 pub fn lift_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
     st.memos.lift_c.insert(k, r.dup2());
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:532-534 liftLooseBVarsFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:610-612 liftLooseBVarsFast
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:857-861 liftClear` — drop the
 /// `liftLooseBVars` memo (it depends on `amount`).
 pub fn lift_clear(st: &mut AState) {
     reset_map(&mut st.memos.lift_c)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:579-615 resetMetaGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:657-693 resetMetaGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:863-866 resetGet` — probe the
 /// `resetMeta` memo.
 pub fn reset_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
@@ -1475,21 +1475,21 @@ pub fn reset_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:579-615 resetMetaGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:657-693 resetMetaGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:868-874 resetSet` — record a
 /// `resetMeta` answer.
 pub fn reset_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
     st.memos.reset_c.insert(k, r.dup2());
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:687-688 resetMetaFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:765-766 resetMetaFast
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:876-880 resetClear` — drop the
 /// `resetMeta` memo.
 pub fn reset_clear(st: &mut AState) {
     reset_map(&mut st.memos.reset_c)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1001-1038 renameConstsGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1056-1093 renameConstsGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:882-885 renameGet` — probe the
 /// `renameConsts` memo.
 pub fn rename_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
@@ -1499,21 +1499,21 @@ pub fn rename_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1001-1038 renameConstsGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1056-1093 renameConstsGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:887-893 renameSet` — record a
 /// `renameConsts` answer.
 pub fn rename_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
     st.memos.rename_c.insert(k, r.dup2());
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1111-1113 renameConstsFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1166-1168 renameConstsFast
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:895-899 renameClear` — drop the
 /// `renameConsts` memo (it depends on the renaming).
 pub fn rename_clear(st: &mut AState) {
     reset_map(&mut st.memos.rename_c)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2066-2110 abstract1Go
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:901-904 abs1Get` — probe the
 /// `abstract1` memo.
 pub fn abs1_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
@@ -1523,21 +1523,21 @@ pub fn abs1_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2066-2110 abstract1Go
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:906-912 abs1Set` — record an
 /// `abstract1` answer.
 pub fn abs1_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
     st.memos.abs1_c.insert(k, r.dup2());
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1929-1931 abstract1Fast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2204-2206 abstract1Fast
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:914-918 abs1Clear` — drop the
 /// `abstract1` memo (it depends on `d`).
 pub fn abs1_clear(st: &mut AState) {
     reset_map(&mut st.memos.abs1_c)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2014-2051 lowerBVarsGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2286-2323 lowerBVarsGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:920-923 lowerGet` — probe the
 /// `lowerBVars` memo.
 pub fn lower_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
@@ -1547,21 +1547,21 @@ pub fn lower_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2014-2051 lowerBVarsGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2286-2323 lowerBVarsGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:925-931 lowerSet` — record a
 /// `lowerBVars` answer.
 pub fn lower_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
     st.memos.lower_c.insert(k, r.dup2());
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2146-2148 lowerBVarsFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2418-2420 lowerBVarsFast
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:933-937 lowerClear` — drop the
 /// `lowerBVars` memo (it depends on `amount`).
 pub fn lower_clear(st: &mut AState) {
     reset_map(&mut st.memos.lower_c)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2224-2263 instantiate1LiftGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2494-2533 instantiate1LiftGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:939-942 inst1LGet` — probe the
 /// `instantiate1Lift` memo.
 pub fn inst1_l_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
@@ -1571,21 +1571,21 @@ pub fn inst1_l_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2224-2263 instantiate1LiftGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2494-2533 instantiate1LiftGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:944-950 inst1LSet` — record an
 /// `instantiate1Lift` answer.
 pub fn inst1_l_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
     st.memos.inst1_l_c.insert(k, r.dup2());
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2358-2360 instantiate1LiftFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2628-2630 instantiate1LiftFast
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:952-956 inst1LClear` — drop the
 /// `instantiate1Lift` memo (it depends on `v`).
 pub fn inst1_l_clear(st: &mut AState) {
     reset_map(&mut st.memos.inst1_l_c)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2831-2870 Expr.instLPGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:958-961 instLPGet` — probe the
 /// level-substitution memo.
 pub fn inst_lp_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
@@ -1595,14 +1595,14 @@ pub fn inst_lp_get(st: &AState, k: &EIdxNat) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2831-2870 Expr.instLPGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:963-969 instLPSet` — record a
 /// level-substitution answer.
 pub fn inst_lp_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
     st.memos.inst_lp_c.insert(k, r.dup2());
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2720-2722 Expr.instLPFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2985-2987 Expr.instLPFast
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:971-976 instLPClear` — drop the
 /// level-substitution memo (it depends on `ks` and `us`).
 pub fn inst_lp_clear(st: &mut AState) {
@@ -1611,7 +1611,7 @@ pub fn inst_lp_clear(st: &mut AState) {
     reset_map(&mut st.memos.inst_lp_ls_c)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2831-2870 Expr.instLPGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:978-981 instLPLGet` — probe the
 /// level-handle substitution memo.
 pub fn inst_lp_l_get(st: &AState, h: &LIdx) -> Option<LIdx> {
@@ -1621,14 +1621,14 @@ pub fn inst_lp_l_get(st: &AState, h: &LIdx) -> Option<LIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2831-2870 Expr.instLPGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:983-989 instLPLSet` — record a
 /// level-handle substitution.
 pub fn inst_lp_l_set(st: &mut AState, h: LIdx, r: &LIdx) {
     st.memos.inst_lp_l_c.insert(h, r.dup2());
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2831-2870 Expr.instLPGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:991-994 instLPLsGet` — probe the
 /// level-LIST substitution memo.
 pub fn inst_lp_ls_get(st: &AState, h: &LsIdx) -> Option<LsIdx> {
@@ -1638,14 +1638,14 @@ pub fn inst_lp_ls_get(st: &AState, h: &LsIdx) -> Option<LsIdx> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2831-2870 Expr.instLPGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:996-1002 instLPLsSet` — record a
 /// level-LIST substitution.
 pub fn inst_lp_ls_set(st: &mut AState, h: LsIdx, r: &LsIdx) {
     st.memos.inst_lp_ls_c.insert(h, r.dup2());
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1370-1394 bvarBoundGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1645-1669 bvarBoundGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:1004-1007 bvarBGet` — probe the
 /// loose-bvar-bound memo.
 pub fn bvar_b_get(st: &AState, k: &EIdx) -> Option<u64> {
@@ -1655,21 +1655,21 @@ pub fn bvar_b_get(st: &AState, k: &EIdx) -> Option<u64> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1370-1394 bvarBoundGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1645-1669 bvarBoundGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:1009-1015 bvarBSet` — record a
 /// loose-bvar bound.
 pub fn bvar_b_set(st: &mut AState, k: EIdx, r: u64) {
     st.memos.bvar_b_c.insert(k, r);
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1396-1397 bvarBoundMemo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1671-1672 bvarBoundMemo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:1017-1021 bvarBClear` — drop the
 /// loose-bvar-bound memo.
 pub fn bvar_b_clear(st: &mut AState) {
     reset_map(&mut st.memos.bvar_b_c)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1399-1424 fvarRangeGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1674-1699 fvarRangeGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:1023-1026 fvarBGet` — probe the
 /// fvar-range memo.
 pub fn fvar_b_get(st: &AState, k: &EIdx) -> Option<u64> {
@@ -1679,14 +1679,14 @@ pub fn fvar_b_get(st: &AState, k: &EIdx) -> Option<u64> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1399-1424 fvarRangeGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1674-1699 fvarRangeGo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:1028-1034 fvarBSet` — record an
 /// fvar range.
 pub fn fvar_b_set(st: &mut AState, k: EIdx, r: u64) {
     st.memos.fvar_b_c.insert(k, r);
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1426-1427 fvarRangeMemo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1701-1702 fvarRangeMemo
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:1036-1040 fvarBClear` — drop the
 /// fvar-range memo.
 pub fn fvar_b_clear(st: &mut AState) {

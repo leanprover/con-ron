@@ -27,7 +27,8 @@ namespace ConRon.Arena.Inductives
 open ConLeche
 open ConRon.Arena
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:440-609 checkDecl — the `.indDecl`
+/-- con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl — the `.indDecl`
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Inductives.checkIndDecl_bridge, then delete this line
 arm: **the declared parameter count first, and for both routes** (task #228;
 `indParamsOk` is official's own check, one-sided, so a `false` is official's
 reject), then ONE ROUTE (task #210) — the fixpoint route takes every block its

@@ -46,7 +46,7 @@ open ConRon.Arena
 
 /-! ## Record verdicts -/
 
-/-- con-leche: ConLeche/Frontend/Export.lean:71-79 RecordVerdict — what a
+/-- con-leche: ConLeche/Frontend/Export.lean:68-76 RecordVerdict — what a
 declaration record carries out of the parse when it does not produce a state:
 a positive DECLINE, or a REJECT (the record's redundant fields contradict the
 block's own declarations). -/
@@ -55,7 +55,7 @@ inductive RecordVerdict where
   | invalid (what : String)
   deriving Repr, DecidableEq
 
-/-- con-leche: ConLeche/Frontend/Export.lean:81-85 RecordVerdict.toError — the
+/-- con-leche: ConLeche/Frontend/Export.lean:78-82 RecordVerdict.toError — the
 checker error a record verdict becomes; the caller pairs it with the line the
 record was read at. -/
 def RecordVerdict.toError : RecordVerdict → CheckError
@@ -65,6 +65,7 @@ def RecordVerdict.toError : RecordVerdict → CheckError
 /-! ## The projection rewrite's owner -/
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:83-104 ProjRecOwner — what the
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Types.ProjRecOwner_bridge, then delete this line
 projection-function rewrite needs to know about one structure-like owner `T` of
 a parsed inductive block the direct install does not serve.  A field-for-field
 mirror; the rewrite that READS it is `Arena/Frontend/ProjRec.lean` (task #97e
@@ -90,7 +91,8 @@ carry an `M` prefix to keep them apart from `ConLeche.Frontend.IndTypeRec`,
 which `Arena/Frontend/ExportC.lean` uses as it is (the scanner is reused, not
 twinned). -/
 
-/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:81-90 IndTypeRec — one
+/-- con-leche: ConLeche/Frontend/Scan/Types.lean:191-200 IndTypeRec — one
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Types.MIndTypeRec_bridge, then delete this line
 type former of a parsed block, resolved. -/
 structure MIndTypeRec where
   cv : IConstantVal
@@ -102,7 +104,8 @@ structure MIndTypeRec where
   numNested : Nat
   deriving Repr, Inhabited
 
-/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:92-97 IndCtorRec — one
+/-- con-leche: ConLeche/Frontend/Scan/Types.lean:202-215 IndCtorRec — one
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Types.MIndCtorRec_bridge, then delete this line
 constructor of a parsed block, resolved. -/
 structure MIndCtorRec where
   cv : IConstantVal
@@ -110,7 +113,8 @@ structure MIndCtorRec where
   nF : Nat
   deriving Repr, Inhabited
 
-/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:99-108 IndRecRec — one
+/-- con-leche: ConLeche/Frontend/Scan/Types.lean:217-226 IndRecRec — one
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Types.MIndRecRec_bridge, then delete this line
 recursor of a parsed block, resolved. -/
 structure MIndRecRec where
   cv : IConstantVal
@@ -122,6 +126,7 @@ structure MIndRecRec where
   deriving Repr, Inhabited
 
 /-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:110-115 BlockRec — a parsed
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Types.BlockRec_bridge, then delete this line
 inductive block. -/
 structure BlockRec where
   types : List MIndTypeRec
@@ -130,10 +135,12 @@ structure BlockRec where
   deriving Repr, Inhabited
 
 /-- con-leche: ConLeche/Frontend/InModel/Kit.lean:368-369 ConstTable — the
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Types.ConstTable_bridge, then delete this line
 declared types of the constants pushed so far, by name. -/
 abbrev ConstTable := NIdx → Option (List NIdx × EIdx)
 
 /-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:117-124 Ctx — what the
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Types.Ctx_bridge, then delete this line
 generator reads besides the block. -/
 structure Ctx where
   tbl : ConstTable
@@ -141,18 +148,21 @@ structure Ctx where
   blocks : NIdx → Option BlockRec := fun _ => none
 
 /-- con-leche: ConLeche/Frontend/InModel/Kit.lean:522-525 hintHeight — the
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Types.hintHeight_bridge, then delete this line
 definitional height a reducibility hint carries. -/
 def hintHeight : ReducibilityHint → Nat
   | .regular n => n
   | _ => 0
 
 /-- con-leche: ConLeche/Frontend/InModel.lean:34-37 wants — is the block one
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Types.wants_bridge, then delete this line
 the modeller is for: mutual (several types) or nested (`numNested > 0`)?  It
 reads counts and no term, so it is the same function over handles. -/
 def wants (b : BlockRec) : Bool :=
   b.types.length > 1 || b.types.any (·.numNested > 0)
 
 /-- con-leche: ConLeche/Frontend/InModel.lean:39-45 generate — **the modeller
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Types.Modeller_bridge, then delete this line
 seam** (DESIGN §8.2's `Modeller`).  One method: a block in, the model records
 it generates in stream order or the reason it is declined.  Handles in,
 handles out: the CHECKER never sees an `Expr`, whatever an instantiation does

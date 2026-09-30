@@ -38,7 +38,7 @@ open ConLeche
 
 /-! ## The field kinds -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:60-76 RecFieldKind
+/-- con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:27-43 RecFieldKind
 The kind of a constructor field of a recursive block.  Twinned rather than
 imported; see the module note. -/
 inductive RecFieldKind where
@@ -55,6 +55,7 @@ inductive RecFieldKind where
   deriving Repr, DecidableEq, Inhabited
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:78-87 recFamOk
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.recFamOk_bridge, then delete this line
 Is `e` the family at the parameter variables (sitting `o` binders up) followed
 by `nIdx` index expressions none of which mentions the block?  Official's
 `is_valid_ind_app` exactly. -/
@@ -68,6 +69,7 @@ def recFamOk (T : NIdx) (lps : List NIdx) (nP nIdx o : Nat) (e : EIdx) : AM Bool
   else (args.drop nP).allM fun a => do pure !(← mentionsConst T a)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:89-111 recPositivity
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.recPositivityAt_bridge, then delete this line
 The leaf of `recPositivity`'s walk, at a term that mentions the block (the
 Rust's `rec_positivity_at`, named apart so that the tag-first dispatch below
 does not spell it twice): a head that is the family at exactly the parameter
@@ -94,6 +96,7 @@ def recPositivityAt (T : NIdx) (lps : List NIdx) (nP nIdx o : Nat) (h : EIdx) (k
     else pure .unsupported
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:89-111 recPositivity
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.recPositivity_bridge, then delete this line
 Official `check_positivity`'s telescope walk on a field domain that mentions
 the block, syntactically. -/
 def recPositivity (T : NIdx) (lps : List NIdx) (nP nIdx o : Nat) :
@@ -113,6 +116,7 @@ def recPositivity (T : NIdx) (lps : List NIdx) (nP nIdx o : Nat) :
       else recPositivityAt T lps nP nIdx o h k
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:113-116 recFieldKind
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.recFieldKind_bridge, then delete this line
 The kind of a field whose domain is `dom`, `o` fields into the constructor's
 telescope. -/
 def recFieldKind (T : NIdx) (lps : List NIdx) (nP nIdx o : Nat) (dom : EIdx) :
@@ -121,6 +125,7 @@ def recFieldKind (T : NIdx) (lps : List NIdx) (nP nIdx o : Nat) (dom : EIdx) :
   else pure .ordinary
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:118-145 recCtorKinds
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.recCtorKinds_bridge, then delete this line
 The kinds of one constructor's fields, off its (raw or annotated) type.  A
 recursive field that a LATER binder or the residual mentions is marked
 unsupported. -/
@@ -141,7 +146,7 @@ def recCtorKinds (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
     else pure (some (List.replicate c.2 .negative))
   | none => pure none
 
-/-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:147-154 Expr.piBinders
+/-- con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:45-52 Expr.piBinders
 All leading `∀` binders of an expression (outermost first) and the body. -/
 def piBinders : Nat → EIdx → AM (List (EIdx × BinderMeta) × EIdx)
   | 0, _ => fail (.internal "fuel exhausted: piBinders")
@@ -155,6 +160,7 @@ def piBinders : Nat → EIdx → AM (List (EIdx × BinderMeta) × EIdx)
     else pure ([], h)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:156-161 structFieldTeleOf
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.structFieldTeleOf_bridge, then delete this line
 Field `i`'s own telescope `a⃗ : A⃗` (at the field's frame), off the
 constructor's type. -/
 def structFieldTeleOf (cty : EIdx) (nP nF i : Nat) : AM (List (EIdx × BinderMeta)) := do
@@ -165,6 +171,7 @@ def structFieldTeleOf (cty : EIdx) (nP nF i : Nat) : AM (List (EIdx × BinderMet
   | none => pure []
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:163-169 structFieldIdxOf
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.structFieldIdxOf_bridge, then delete this line
 The index expressions of field `i`'s domain `Π a⃗, T p⃗ e⃗`, off the
 constructor's type; `[]` when the field is not of that shape. -/
 def structFieldIdxOf (cty : EIdx) (nP nF i : Nat) : AM (List EIdx) := do
@@ -175,13 +182,14 @@ def structFieldIdxOf (cty : EIdx) (nP nF i : Nat) : AM (List EIdx) := do
     pure (args.drop nP)
   | none => pure []
 
-/-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:171-175 recIdxOf
+/-- con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:54-58 recIdxOf
 The positions of the recursive fields (finitary or reflexive). -/
 def recIdxOf (ks : List RecFieldKind) : List Nat :=
   (List.range ks.length).filter fun i =>
     ks.getD i .ordinary == .recursive || ks.getD i .ordinary == .reflexive
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:177-192 NativeParts
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.NativeParts_bridge, then delete this line
 The pieces of a recognised direct recursive block: the sum parts with the
 family's index count, and the per-constructor field kinds. -/
 structure NativeParts extends InductiveShape where
@@ -192,6 +200,7 @@ structure NativeParts extends InductiveShape where
   deriving Repr, Inhabited
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:194-199 NativeParts.complete
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.NativeParts.complete_bridge, then delete this line
 **The record completed by the former's stage**: the sum parts the former's run
 returned with the recogniser's field kinds. -/
 def NativeParts.complete (p₀ : NativeParts) (p₁ : InductiveShape) : NativeParts :=
@@ -200,6 +209,7 @@ def NativeParts.complete (p₀ : NativeParts) (p₁ : InductiveShape) : NativePa
 /-! ## The generated recursor with inductive hypotheses -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:230-235 structRecPrefixAt
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.structRecPrefixAt_bridge, then delete this line
 The parameter, motive and minor variables as seen from under the `nF` fields
 (and `e` further binders): the recursor's leading spine `p⃗ motive m⃗`. -/
 def structRecPrefixAt (nP n nF e : Nat) : AM (List EIdx) := do
@@ -209,6 +219,7 @@ def structRecPrefixAt (nP n nF e : Nat) : AM (List EIdx) := do
   pure (ps ++ [motive] ++ minors)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:237-244 structIdxAt
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.structIdxAt_bridge, then delete this line
 An expression of recursive field `i`'s domain sitting under `m` binders of the
 field's own telescope, spelled at the recursor-rule frame. -/
 def structIdxAt (nF o i l m : Nat) (e : EIdx) : AM EIdx := do
@@ -216,6 +227,7 @@ def structIdxAt (nF o i l m : Nat) (e : EIdx) : AM EIdx := do
   liftLooseBVarsFast coreWalkFuel o (nF + l + m) a
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:246-252 structTeleAt
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.structTeleAt_bridge, then delete this line
 Field `i`'s own telescope moved as `structIdxAt` moves its expressions. -/
 def structTeleAt (nF o i l : Nat) (pw : PropWhen) (tele : List (EIdx × BinderMeta)) :
     AM (List (EIdx × BinderMeta)) :=
@@ -224,22 +236,26 @@ def structTeleAt (nF o i l : Nat) (pw : PropWhen) (tele : List (EIdx × BinderMe
     pure (← structIdxAt nF o i l k b.1, ⟨pw⟩)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:254-255 structTeleVars
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.structTeleVars_bridge, then delete this line
 The variables of an `m`-binder telescope, innermost last. -/
 def structTeleVars (m : Nat) : AM (List EIdx) := bvarsDesc m
 
-/-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:257-260 Expr.mkPisOf
+/-- con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:60-63 Expr.mkPisOf
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.mkPisOf_bridge, then delete this line
 `∀ tele, body` over a binder list (outermost first). -/
 def mkPisOf : List (EIdx × BinderMeta) → EIdx → AM EIdx
   | [], body => pure body
   | (ty, mt) :: bs, body => do internE (.forallE ty (← mkPisOf bs body) mt)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:261-263 Expr.mkLamsOf
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.mkLamsOf_bridge, then delete this line
 `λ tele, body` over a binder list (outermost first). -/
 def mkLamsOf : List (EIdx × BinderMeta) → EIdx → AM EIdx
   | [], body => pure body
   | (ty, mt) :: bs, body => do internE (.lam ty (← mkLamsOf bs body) mt)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:265-277 structIhApp
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.structIhApp_bridge, then delete this line
 The inductive hypothesis' value for recursive field `i` with telescope `tele`
 and index expressions `idx`, spelled under the fields of a rule body. -/
 def structIhApp (recC : NIdx) (rlvls : LsIdx) (pw : PropWhen) (nP n nF i : Nat)
@@ -254,6 +270,7 @@ def structIhApp (recC : NIdx) (rlvls : LsIdx) (pw : PropWhen) (nP n nF i : Nat)
   mkLamsOf (← structTeleAt nF (n + 1) i 0 pw tele) body
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:279-288 structRuleBodyR
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.structRuleBodyR_bridge, then delete this line
 The right-hand side body of rule `j` at a recursive block: minor `j` at the
 fields, then at the inductive hypotheses of the recursive fields.  `cty` and
 the counts replace con-leche's two function arguments (module note). -/
@@ -267,6 +284,7 @@ def structRuleBodyR (recC : NIdx) (rlvls : LsIdx) (pw : PropWhen)
   mkAppN hd (fs ++ ihs)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:290-305 structIhPis
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.structIhPis_bridge, then delete this line
 The `ih` binders of a minor premise: for each recursive field position, `∀ a⃗,
 motive e⃗_i(a⃗) (f_i a⃗)` under the `l` earlier `ih` binders.  `cty` and `nP`
 replace con-leche's two function arguments (module note). -/
@@ -287,6 +305,7 @@ def structIhPis (nF o nP : Nat) (pw : PropWhen) (cty : EIdx) :
     internE (.forallE dom rest ⟨pw⟩)
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:307-320 structMinorTyR
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.structMinorTyR_bridge, then delete this line
 A constructor's minor premise at a recursive block: its field telescope lifted
 under the `o` extras, every binder's datum reset to the elimination datum, then
 the `ih` binders, ending in `motive e⃗ (C p⃗ f⃗)` lifted above the `ih`s. -/
@@ -309,6 +328,7 @@ def structMinorTyR (C : NIdx) (lps : List NIdx) (nP nF o : Nat) (pw : PropWhen)
       replacePisPw pw nF lifted inner
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:322-330 structMinorsPisR
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.structMinorsPisR_bridge, then delete this line
 The minor premises' `∀`-telescope at a recursive block, one per
 constructor. -/
 def structMinorsPisR (lps : List NIdx) (nP : Nat) (pw : PropWhen) :
@@ -323,6 +343,7 @@ def structMinorsPisR (lps : List NIdx) (nP : Nat) (pw : PropWhen) :
       | some rest => do pure (some (← internE (.forallE mty rest ⟨pw⟩)))
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:332-339 structMinorsLamsR
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.structMinorsLamsR_bridge, then delete this line
 The `λ` twin of `structMinorsPisR`. -/
 def structMinorsLamsR (lps : List NIdx) (nP : Nat) (pw : PropWhen) :
     List (NIdx × Nat × EIdx × List Nat) → Nat → EIdx → AM (Option EIdx)
@@ -336,6 +357,7 @@ def structMinorsLamsR (lps : List NIdx) (nP : Nat) (pw : PropWhen) :
       | some rest => do pure (some (← internE (.lam mty rest ⟨pw⟩)))
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:341-362 structRecTyR
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.structRecTyR_bridge, then delete this line
 **The generated recursor type at a recursive block.** -/
 def structRecTyR (T : NIdx) (lps : List NIdx) (elim : NIdx) (large : Bool)
     (nP nIdx : Nat) (tty : EIdx) (ctors : List (NIdx × Nat × EIdx × List Nat)) :
@@ -366,6 +388,7 @@ def structRecTyR (T : NIdx) (lps : List NIdx) (elim : NIdx) (large : Bool)
           replacePisPw pw nP tty body
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:364-386 structRecRhsR
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.structRecRhsR_bridge, then delete this line
 **The generated rule** for constructor `j` at a recursive block. -/
 def structRecRhsR (T : NIdx) (lps : List NIdx) (elim : NIdx) (large : Bool)
     (nP nIdx : Nat) (tty : EIdx) (ctors : List (NIdx × Nat × EIdx × List Nat))
@@ -397,6 +420,7 @@ def structRecRhsR (T : NIdx) (lps : List NIdx) (elim : NIdx) (large : Bool)
               pisToLamsPw pw nP tty lam
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:388-392 nativeCtors4
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.nativeCtors4_bridge, then delete this line
 The constructors zipped with their recursive positions, as the generators take
 them. -/
 def nativeCtors4 (ctorsA : List (IConstantVal × Nat))
@@ -404,6 +428,7 @@ def nativeCtors4 (ctorsA : List (IConstantVal × Nat))
   List.zipWith (fun cA ks => (cA.1.name, cA.2, cA.1.type, recIdxOf ks)) ctorsA kinds
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:394-445 nativeRulePrefixOk
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.nativeRulePrefixOk_bridge, then delete this line
 **The rule's `λ` prefix against the stream's own recursor type** (task #271):
 the rule binds the recursor's parameters, its motive, its minor premises and
 constructor `j`'s fields, and every one of those binder types appears again in
@@ -435,6 +460,7 @@ def nativeRulePrefixOk (recTy : EIdx) (nP n j nF : Nat) (rhs : EIdx) : AM Bool :
         | none => pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:447-475 nativeRulesOk
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.nativeRulesOk_bridge, then delete this line
 **The stream's rules against the generated ones** (at install): rule `j` fires
 constructor `j` with its field count, and its body is the canonical right-hand
 side with the inductive hypotheses, at the parse placeholder's binder data. -/
@@ -458,6 +484,7 @@ def nativeRulesOk (recC : NIdx) (rlvls : LsIdx) (pw : PropWhen) (nP n : Nat)
 /-! ## Recognition -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:501-523 nativeCounts?
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.nativeCounts?_bridge, then delete this line
 **The block's parameter and index counts** (task #228), read as official reads
 them. -/
 def nativeCounts? (nPd : Nat) (cvT : IConstantVal)
@@ -474,6 +501,7 @@ def nativeCounts? (nPd : Nat) (cvT : IConstantVal)
     else if rP - (cs.length + 1) == nPd then pure (some (nPd, mI - rP)) else pure none
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:525-549 nativeRecPinOk
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.nativeRecPinOk_bridge, then delete this line
 **The recursor record's structural pin** (task #220): the two argument sums the
 record claims, one rule per constructor in constructor order, each rule naming
 its constructor with its field count.  Pure: tags, names and counts only. -/
@@ -492,12 +520,14 @@ def nativeRecPinOk (p : InductiveShape) (block : List IConstantInfo) : Bool :=
   | _ => false
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:551-560 nativeRecLpsOk
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.nativeRecLpsOk_bridge, then delete this line
 **The recursor record's level-parameter pin** (task #220). -/
 def nativeRecLpsOk (p : InductiveShape) : Bool :=
   if p.large then p.cvR.levelParams == p.elim :: p.cvT.levelParams
   else p.cvR.levelParams == p.cvT.levelParams
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:562-614 nativeShape?
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.nativeShape?_bridge, then delete this line
 The block's shape at a recursive block: the type former, the constructors and
 the counts, with the rules' right-hand sides as exported and the recursor's
 level-parameter shape. -/
@@ -546,12 +576,14 @@ def nativeShape? (nPd : Nat) (block : List IConstantInfo) :
   | _ => pure none
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:616-622 NativeParts.withKinds
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.NativeParts.withKinds_bridge, then delete this line
 The record completed with the fields' kinds (task #210 Part D). -/
 def NativeParts.withKinds (p : NativeParts) (ks : List (List RecFieldKind)) :
     NativeParts :=
   { p with kinds := ks }
 
 /-- con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:631-652 nativeParts?
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove NativeParts.nativeParts?_bridge, then delete this line
 Recognise a direct block — ONE ROUTE (task #210): its SHAPE; the fields' kinds
 are a PLACEHOLDER the install fills after normalising every field domain by
 official's positivity walk. -/

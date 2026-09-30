@@ -24,7 +24,8 @@ use crate::kernel::core_types::CheckError;
 use crate::ron::hashmap::Dup;
 use crate::arena::store::PersTier;
 
-/// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:78-101 InductiveShape
+/// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:35-58 InductiveShape
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_parts::InductiveShape_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:22-45 InductiveShape`
 /// — the pieces of a recognised direct sum block, over handles.
 pub struct InductiveShape {
@@ -50,7 +51,8 @@ pub struct InductiveShape {
     pub is_prop: bool,
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:78-101 InductiveShape
+/// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:35-58 InductiveShape
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_parts::inductive_shape_dup_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:22-45 InductiveShape`
 /// — the record copy, which Lean's value semantics gives for free.
 pub fn inductive_shape_dup(p: &InductiveShape) -> InductiveShape {
@@ -93,6 +95,7 @@ pub fn ctors_copy_from(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:103-110 sumSplit
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_parts::sum_split_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:47-55 sumSplit` —
 /// the block's members after the type former: the constructors, then the
 /// closing recursor.  Pure; see the module note.
@@ -109,6 +112,7 @@ pub fn sum_split(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:103-110 sumSplit
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_parts::sum_split_from_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:47-55 sumSplit` —
 /// the cursor recursion behind `sum_split`.  Lean conses the constructor on
 /// the way *out*; the port accumulates on the way *in*, which is the same
@@ -153,7 +157,8 @@ pub fn sum_split_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:112-119 InductiveShape.withSort
+/// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:35-58 InductiveShape.withSort
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_parts::with_sort_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:57-62 InductiveShape.withSort`
 /// — the record completed with the former's result sort (con-leche's task
 /// #195); `isProp` is recomputed so that the recogniser's invariant holds by
@@ -185,6 +190,7 @@ pub fn with_sort(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:292-294 InductiveShape.rulePrefix
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_parts::rule_prefix_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:325-327 InductiveShape.rulePrefix`
 /// — the recursor's rule prefix (parameters, motive, minors).  Ported with its
 /// record rather than with `SumInstall.lean`'s install stages: it is a reader
@@ -194,6 +200,7 @@ pub fn rule_prefix(p: &InductiveShape) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:295 InductiveShape.majorIdx
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_parts::major_idx_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:329-331 InductiveShape.majorIdx`
 /// — the recursor's major index (the rule prefix, then the indices).
 pub fn major_idx(p: &InductiveShape) -> u64 {

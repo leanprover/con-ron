@@ -49,7 +49,7 @@ use crate::arena::store::PersTier;
 // Record verdicts (`Types.lean:44-59` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/Export.lean:71-79 RecordVerdict
+/// con-leche: ConLeche/Frontend/Export.lean:68-76 RecordVerdict
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:49-56 RecordVerdict` —
 /// what a declaration record carries out of the parse when it does not produce
 /// a state: a positive DECLINE, or a REJECT (the record's redundant fields
@@ -60,7 +60,7 @@ pub enum RecordVerdict {
     Invalid(Vec<u32>),
 }
 
-/// con-leche: ConLeche/Frontend/Export.lean:81-85 RecordVerdict.toError
+/// con-leche: ConLeche/Frontend/Export.lean:78-82 RecordVerdict.toError
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:58-63 RecordVerdict.toError`
 /// — the checker error a record verdict becomes; the caller pairs it with the
 /// line the record was read at.
@@ -76,6 +76,7 @@ pub fn record_verdict_to_error(v: RecordVerdict) -> CheckError {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:83-104 ProjRecOwner
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove types::ProjRecOwner_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:67-83 ProjRecOwner` —
 /// what the projection-function rewrite needs to know about one
 /// structure-like owner `T` of a parsed inductive block the direct install
@@ -107,7 +108,8 @@ pub struct ProjRecOwner {
 // it is (the scanner is reused, not twinned).
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:81-90 IndTypeRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:191-200 IndTypeRec
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove types::MIndTypeRec_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:93-103 MIndTypeRec` —
 /// one type former of a parsed block, resolved.
 pub struct MIndTypeRec {
@@ -120,7 +122,8 @@ pub struct MIndTypeRec {
     pub num_nested: u64,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:92-97 IndCtorRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:202-215 IndCtorRec
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove types::MIndCtorRec_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:105-111 MIndCtorRec` —
 /// one constructor of a parsed block, resolved.
 pub struct MIndCtorRec {
@@ -129,7 +132,8 @@ pub struct MIndCtorRec {
     pub n_f: u64,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:99-108 IndRecRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:217-226 IndRecRec
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove types::MIndRecRec_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:113-122 MIndRecRec` —
 /// one recursor of a parsed block, resolved.
 pub struct MIndRecRec {
@@ -142,6 +146,7 @@ pub struct MIndRecRec {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:110-115 BlockRec
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove types::BlockRec_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:124-130 BlockRec` — a
 /// parsed inductive block.
 pub struct BlockRec {
@@ -155,6 +160,7 @@ pub struct BlockRec {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:368-369 ConstTable
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove types::ConstTable_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:132-134 ConstTable` — the
 /// declared types of the constants pushed so far, by name.
 ///
@@ -165,6 +171,7 @@ pub struct BlockRec {
 pub type ConstTable = HashMap<NIdx, (Vec<NIdx>, EIdx)>;
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:117-124 Ctx
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove types::ModelCtx_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:136-141 Ctx` — what the
 /// generator reads besides the block.  The three function fields become three
 /// borrows (the [`ConstTable`] deviation); a lifetime-parameterised struct is
@@ -176,6 +183,7 @@ pub struct ModelCtx<'a> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:603-607 _
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove types::ctx_tbl_refines, then delete this line
 /// The cited `fun n => st.constTypes[n]?`: a pushed constant's level
 /// parameters and declared type, borrowed off the context.
 pub fn ctx_tbl<'a>(ctx: &'a ModelCtx<'a>, n: &NIdx) -> Option<&'a (Vec<NIdx>, EIdx)> {
@@ -183,6 +191,7 @@ pub fn ctx_tbl<'a>(ctx: &'a ModelCtx<'a>, n: &NIdx) -> Option<&'a (Vec<NIdx>, EI
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:603-607 _
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove types::ctx_height_refines, then delete this line
 /// The cited `fun n => st.heights.getD n 0`.
 pub fn ctx_height(ctx: &ModelCtx, n: &NIdx) -> u64 {
     match ctx.heights.get(n) {
@@ -192,12 +201,14 @@ pub fn ctx_height(ctx: &ModelCtx, n: &NIdx) -> u64 {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:603-607 _
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove types::ctx_block_refines, then delete this line
 /// The cited `fun n => st.indBlocks[n]?`.
 pub fn ctx_block<'a>(ctx: &'a ModelCtx<'a>, n: &NIdx) -> Option<&'a BlockRec> {
     ctx.blocks.get(n)
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:522-525 hintHeight
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove types::hint_height_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:143-147 hintHeight` —
 /// the definitional height a reducibility hint carries.  It is `InModel`'s,
 /// and the parse needs it at one place only (`export_c::note_decl`, which
@@ -216,6 +227,7 @@ pub fn hint_height(h: &ReducibilityHint) -> u64 {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/InModel.lean:34-37 wants
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove types::wants_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:149-153 wants` — is the
 /// block one the modeller is for: mutual (several types) or nested
 /// (`numNested > 0`)?  It reads counts and no term, so it is the same function
@@ -228,6 +240,7 @@ pub fn wants(b: &BlockRec) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/InModel.lean:34-37 wants
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove types::wants_nested_refines, then delete this line
 /// The cited `b.types.any (·.numNested > 0)`, as the cursor recursion §3.4
 /// asks for outside a loop-exempt walk.
 pub fn wants_nested(b: &BlockRec, i: usize) -> bool {
@@ -241,6 +254,7 @@ pub fn wants_nested(b: &BlockRec, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove types::Modeller_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:155-169 Modeller` —
 /// **the modeller seam** (DESIGN.md §8.2's `Modeller`).  One method: a block
 /// in, the model records it generates in stream order or the reason it is
@@ -260,6 +274,7 @@ pub fn wants_nested(b: &BlockRec, i: usize) -> bool {
 /// record's terms are handles, and building one means interning it.
 pub trait Modeller {
     /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
+    /// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove types::generate_refines, then delete this line
     /// The one method: the block's model records, or the decline's text.
     fn generate(
         &self,

@@ -46,6 +46,7 @@ monadic, and the `Eq`-basis guard because it is the one predicate three
 clauses of this file share and nothing else reads. -/
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux —
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.domsMatchRenamed_bridge, then delete this line
 `domsMatchAux` with the right side renamed (`g = fun _ e => e.renameConsts f`,
 `checkProjIota`'s instance of con-leche's higher-order argument).  Over `List`,
 not `Array`: unlike the identity twin this one is not on a wide-telescope
@@ -61,6 +62,7 @@ def domsMatchRenamed (f : NIdx → NIdx) (bs₁ bs₂ : List (EIdx × BinderMeta
     | _, _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs —
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.eqBasisStored_bridge, then delete this line
 `env.find? eqName = some eqA`, the "requires the pinned `Eq` basis" guard,
 factored out because three call sites make it.  `Arena/StdAxioms.lean`'s `eqA`
 is the comparand: the same `ConstantInfo` through the same store, hence the
@@ -80,6 +82,7 @@ def renameBy (tbl : List (NIdx × NIdx)) (n : NIdx) : NIdx :=
   | none => n
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:373-401 checkMemberVal
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.blockRenameTable_bridge, then delete this line
 The block renaming as a table: every member name maps to its `_model`
 companion, every other name to itself. -/
 def blockRenameTable (blockNames : List NIdx) : AM (List (NIdx × NIdx)) :=
@@ -90,6 +93,7 @@ def blockRenameTable (blockNames : List NIdx) : AM (List (NIdx × NIdx)) :=
     pure ((n, m) :: (← blockRenameTable ns))
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:457-464 projBack —
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.projBack_bridge, then delete this line
 rename a model-side projection type back to public names, as a table. -/
 def projBack (T ctor : NIdx) (nF : Nat) : AM (List (NIdx × NIdx)) := do
   let tm ← internNNode (.str T "_model")
@@ -103,6 +107,7 @@ def projBack (T ctor : NIdx) (nF : Nat) : AM (List (NIdx × NIdx)) := do
   pure ((tm, T) :: (cm, ctor) :: (← go nF 0))
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:466-473 projFwd — the
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.projFwd_bridge, then delete this line
 forward (public → model) map on the projection family, as a table. -/
 def projFwd (T ctor : NIdx) (nF : Nat) : AM (List (NIdx × NIdx)) := do
   let tm ← internNNode (.str T "_model")
@@ -148,6 +153,7 @@ def eqApp3? (h : EIdx) : AM (Option (NIdx × LIdx × EIdx × EIdx × EIdx)) := d
 /-! ## The iota certificates -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:31-53 checkIotaSidesTy
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkIotaSidesTy_bridge, then delete this line
 Certify that both sides of a modeled iota equation inhabit the equation's
 type, and that the equation's type slot itself inhabits the sort the
 statement's own `Eq.{ℓA}` names. -/
@@ -174,6 +180,7 @@ def iotaThmName (cvName : NIdx) (j : Nat) : AM NIdx := do
   internNNode (.str m ("iota_" ++ toString j))
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:55-149 checkIotaThm
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkIotaThm_bridge, then delete this line
 Check a *canonical* recursor rule's `iota_j` theorem, semantically. -/
 def checkIotaThm (mode : CheckMode) (fe' feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (cvName : NIdx) (lps : List NIdx) (tyA : EIdx)
@@ -260,6 +267,7 @@ def checkIotaThm (mode : CheckMode) (fe' feSelf : IFEnv)
   checkIotaSidesTy mode feSelf depth (targs.getD 0 b0) lhsS rhsS lA
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:151-190 nestedRuleShape
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.nestedRuleShape_bridge, then delete this line
 The nested-shape data of a non-canonical rule: the constructor's level and
 parameter instantiations, read off the recursor type's major-premise domain.
 The level list is a `List LIdx`, the shape `IRecRuleFire.nested` stores
@@ -302,6 +310,7 @@ def nestedRuleShape (fe' feSelf : IFEnv) (cvName : NIdx) (lps : List NIdx)
   | _ => pure none
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:192-317 checkIotaThmN
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkIotaThmN_bridge, then delete this line
 Check a *nested-auxiliary* recursor rule's `iota_j` theorem — the
 generalization of `checkIotaThm` to rules whose constructor parameters and
 levels are fixed instantiations. -/
@@ -401,6 +410,7 @@ def checkIotaThmN (mode : CheckMode) (fe' feSelf : IFEnv)
   pure (.nested lvls pins)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:319-360 checkIotaRule
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkIotaRule_bridge, then delete this line
 Check one modeled recursor rule: generic well-formedness of the right-hand
 side, then the model's `iota_j` theorem. -/
 def checkIotaRule (mode : CheckMode) (fe' feSelf : IFEnv)
@@ -434,6 +444,7 @@ def checkIotaRule (mode : CheckMode) (fe' feSelf : IFEnv)
     { r with rhs := rhsA, ctorParams := cnP, fire := fire, paramsBlind := false }
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:362-371 checkIotaRules
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkIotaRules_bridge, then delete this line
 The per-rule check, folded over a modeled recursor's rules. -/
 def checkIotaRules (mode : CheckMode) (fe' feSelf : IFEnv)
     (f : List (NIdx × NIdx)) (cvName : NIdx) (lps : List NIdx) (tyA : EIdx)
@@ -447,6 +458,7 @@ def checkIotaRules (mode : CheckMode) (fe' feSelf : IFEnv)
 /-! ## The block's members -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:373-401 checkMemberVal
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkMemberVal_bridge, then delete this line
 Check a block member's constant against its `_model` counterpart. -/
 def checkMemberVal (mode : CheckMode) (blockNames : List NIdx) (fe' : IFEnv)
     (cv : IConstantVal) : AM IConstantVal := do
@@ -470,11 +482,13 @@ def checkMemberVal (mode : CheckMode) (blockNames : List NIdx) (fe' : IFEnv)
   pure cvA
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:403-414 checkIndMember
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkIndMember_bridge, then delete this line
 Check and install one non-recursor member of a modeled inductive block against
 its `_model` counterpart. -/
 def checkIndMember (mode : CheckMode) (blockNames : List NIdx) (caps : IIndCaps)
     (fe' : IFEnv) (ci : IConstantInfo) : AM IFEnv := do
   -- con-leche: ConLeche/Cached/CheckerC.lean:106-112 checkIndMemberS -- the flush
+  -- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkIndMembers_bridge, then delete this line
   -- at an environment transition (task #97g).  The spec tier this twin cites
   -- has no caches; the EXECUTED tier does, and it is the one (B) runs.
   flushCaches
@@ -485,6 +499,7 @@ def checkIndMember (mode : CheckMode) (blockNames : List NIdx) (caps : IIndCaps)
   | _ => fail (.invalid "non-inductive member in block")
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkIndMembers_bridge, then delete this line
 The member fold of `checkModeled`, as an explicit recursion (DESIGN §3.4: a
 `foldlM` with a partially applied step is a helper of its own). -/
 def checkIndMembers (mode : CheckMode) (blockNames : List NIdx) (caps : IIndCaps)
@@ -495,6 +510,7 @@ def checkIndMembers (mode : CheckMode) (blockNames : List NIdx) (caps : IIndCaps
     checkIndMembers mode blockNames caps fe' rest
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:416-433 provisionRecs
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.provisionRecs_bridge, then delete this line
 Phase 0 of the recursor group: check each recursor's constant and provision it
 *rule-less* on top of the previous ones. -/
 def provisionRecs (mode : CheckMode) (blockNames : List NIdx) :
@@ -505,6 +521,7 @@ def provisionRecs (mode : CheckMode) (blockNames : List NIdx) :
     match ci with
     | .recInfo _ mI rP rules => do
       -- con-leche: ConLeche/Cached/CheckerC.lean:116-131 provisionRecsS
+      -- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.installIndRecs_bridge, then delete this line
       flushCaches
       let cvA ← checkMemberVal mode blockNames feAcc (← ci.toConstantVal)
       let (feSelf, others) ← provisionRecs mode blockNames
@@ -513,6 +530,7 @@ def provisionRecs (mode : CheckMode) (blockNames : List NIdx) :
     | _ => fail (.notImplemented "recursor before other block members")
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.installIndRecs_bridge, then delete this line
 The install fold of `checkIndRecs`, as an explicit recursion. -/
 def installIndRecs (mode : CheckMode) (fe₂ feSelf : IFEnv) (f : List (NIdx × NIdx))
     (acc : IFEnv) : List (IConstantVal × Nat × Nat × List IRecRule) → AM IFEnv
@@ -523,6 +541,7 @@ def installIndRecs (mode : CheckMode) (fe₂ feSelf : IFEnv) (f : List (NIdx × 
     installIndRecs mode fe₂ feSelf f (acc.push (.recInfo c.1 c.2.1 c.2.2.1 rules')) cs
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkIndRecs_bridge, then delete this line
 Check and install a block's recursors *as a group*: every rule right-hand side
 may mention any of them, so all are provisioned rule-less together and
 installed together. -/
@@ -537,6 +556,7 @@ def checkIndRecs (mode : CheckMode) (blockNames : List NIdx) (fe₂ : IFEnv)
       fail (.notImplemented "modeled recursor requires the pinned Eq basis")
     let (feSelf, checked) ← provisionRecs mode blockNames fe₂ recs
     -- con-leche: ConLeche/Cached/CheckerC.lean:136-146 checkIndRecsS -- one flush
+    -- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkProjLookups_bridge, then delete this line
     -- entering the phase, none inside the fold
     flushCaches
     installIndRecs mode fe₂ feSelf f fe₂ checked
@@ -544,6 +564,7 @@ def checkIndRecs (mode : CheckMode) (blockNames : List NIdx) (fe₂ : IFEnv)
 /-! ## The projection functions -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:475-495 checkProjLookups
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkProjLookups_bridge, then delete this line
 Stage 1 of `checkProjFn`: the stored constants the projection depends on. -/
 def checkProjLookups (fe' : IFEnv) (T ctorName : NIdx) (lps : List NIdx)
     (nP nF i : Nat) : AM (IConstantVal × IConstantVal) := do
@@ -564,6 +585,7 @@ def checkProjLookups (fe' : IFEnv) (T ctorName : NIdx) (lps : List NIdx)
   pure (cvj, mcv)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:497-511 checkProjTy
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkProjTy_bridge, then delete this line
 Stage 2: the public projection type — the model's, renamed back (pinned by the
 renaming roundtrip), well-formed and parameter-led. -/
 def checkProjTy (fe' : IFEnv) (T ctorName : NIdx) (lps : List NIdx)
@@ -584,6 +606,7 @@ def checkProjTy (fe' : IFEnv) (T ctorName : NIdx) (lps : List NIdx)
   pure pty
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:513-563 checkProjIota
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkProjIota_bridge, then delete this line
 Stage 4: the model's `proj_i.iota` theorem pins the rule. -/
 def checkProjIota (mode : CheckMode) (fe' feSelf : IFEnv) (T ctorName : NIdx)
     (lps : List NIdx) (cvj : IConstantVal) (nP nF i : Nat) : AM Unit := do
@@ -629,6 +652,7 @@ def checkProjIota (mode : CheckMode) (fe' feSelf : IFEnv) (T ctorName : NIdx)
     (targsO.getD 2 b0) (← eqHeadLevel (← getAppFn coreWalkFuel sbody))
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:565-584 checkProjFn
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkProjFn_bridge, then delete this line
 Check and install the public projection function for field `i` of a modeled
 single-constructor structure.  The function is stored as a degenerate recursor
 (no motive, no minors) carrying one rule. -/
@@ -648,6 +672,7 @@ def checkProjFn (mode : CheckMode) (fe' : IFEnv) (T ctorName : NIdx)
 /-! ## The capabilities -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:586-642 checkEtaThm
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkEtaThm_bridge, then delete this line
 Does the model document structural eta for this single-constructor block — a
 `T._model.eta` theorem with the pinned statement? -/
 def checkEtaThm (mode : CheckMode) (fe' : IFEnv) (T ctorName : NIdx)
@@ -698,6 +723,7 @@ def checkEtaThm (mode : CheckMode) (fe' : IFEnv) (T ctorName : NIdx)
   | _, _, _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:644-680 checkUnitThm
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkUnitThm_bridge, then delete this line
 Does the model document unit-likeness for this block — a `T._model.unitlike`
 theorem with the pinned statement `∀ p⃗ (x y : T._model p⃗), x = y`? -/
 def checkUnitThm (mode : CheckMode) (fe' : IFEnv) (T : NIdx) (lps : List NIdx)
@@ -738,6 +764,7 @@ def checkUnitThm (mode : CheckMode) (fe' : IFEnv) (T : NIdx) (lps : List NIdx)
   | _, _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:682-710 ctorTargetsFam
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.ctorTargetsFam_bridge, then delete this line
 **Official's structure-likeness, read off the block's own constructor**: one
 constructor and no indices, i.e. the constructor targets the family at exactly
 its parameters. -/
@@ -750,17 +777,20 @@ def ctorTargetsFam (ctorTy : EIdx) (T : NIdx) (lps : List NIdx) (nP nF : Nat) :
   | none => pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:712-722 installProjFnStep
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.installProjFnStep_bridge, then delete this line
 One projection-function install step (skipped where the model's projection
 artifact is absent). -/
 def installProjFnStep (mode : CheckMode) (T ctorName : NIdx) (lps : List NIdx)
     (nP nF : Nat) (e : IFEnv) (i : Nat) : AM IFEnv := do
   if (e.find? (← projModelName T i)).isSome then
     -- con-leche: ConLeche/Cached/CheckerC.lean:170-176 installProjFnStepS
+    -- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.installProjFns_bridge, then delete this line
     flushCaches
     checkProjFn mode e T ctorName lps nP nF i
   else pure e
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.installProjFns_bridge, then delete this line
 The projection fold of `checkModeled`, as an explicit recursion. -/
 def installProjFns (mode : CheckMode) (T ctorName : NIdx) (lps : List NIdx)
     (nP nF : Nat) (fe : IFEnv) : Nat → Nat → AM IFEnv
@@ -770,6 +800,7 @@ def installProjFns (mode : CheckMode) (T ctorName : NIdx) (lps : List NIdx)
     installProjFns mode T ctorName lps nP nF fe' k (i + 1)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:724-735 indBlockCaps
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.indBlockCaps_bridge, then delete this line
 The capabilities recorded for a single-constructor modeled block. -/
 def indBlockCaps (mode : CheckMode) (fe : IFEnv) (cvT cvC : IConstantVal)
     (nP nF : Nat) : AM IIndCaps := do
@@ -785,6 +816,7 @@ def indBlockCaps (mode : CheckMode) (fe : IFEnv) (cvT cvC : IConstantVal)
          sortZ := ← piResultZ cvT.type }
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:744-779 ctorResidualOk
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.ctorResidualOk_bridge, then delete this line
 **Task #136: an eta-capable family's constructor returns the family applied to
 its parameters.**  The subject is the STORED constant. -/
 def ctorResidualOk (mode : CheckMode) (fe' : IFEnv) (T ctorName : NIdx)
@@ -802,6 +834,7 @@ def ctorResidualOk (mode : CheckMode) (fe' : IFEnv) (T ctorName : NIdx)
 /-! ## The install -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Modeled.checkModeled_bridge, then delete this line
 Check and install a modeled inductive block: every member is checked against
 its `_model` counterpart, then stored as a real inductive-kind constant. -/
 def checkModeled (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo) :

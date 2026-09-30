@@ -30,7 +30,8 @@ use crate::kernel::env as cenv;
 use crate::kernel::env::{BasisKind, QuotKind};
 use crate::arena::store::PersTier;
 
-/// con-leche: ConLeche/Kernel/Basis.lean:40-47 BasisKind.decls
+/// con-leche: ConLeche/Kernel/Basis.lean:34-40 BasisKind.decls
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis::basis_kind_decls_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:34-37 BasisKind.decls` — the RAW
 /// constants of one basis block, in dependency order, interned.
 pub fn basis_kind_decls(
@@ -41,7 +42,8 @@ pub fn basis_kind_decls(
     intern_ci_list(pers, st, &basis_raw::basis_kind_decls(k))
 }
 
-/// con-leche: ConLeche/Kernel/BasisA.lean:50-57 BasisKind.declsA
+/// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis::basis_kind_decls_a_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:39-43 BasisKind.declsA` — the
 /// ANNOTATED constants of one basis block, in dependency order, interned.
 /// This is what `check_basis_decl` installs.
@@ -53,7 +55,8 @@ pub fn basis_kind_decls_a(
     intern_ci_list(pers, st, &basis_tables::basis_decls_a(k))
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:60-71 basisPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis::block_names_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:45-49 blockNames` — the names of
 /// a block's members, for `basis_pin_hit`'s name pre-filter.
 /// `i_constant_info_name` is pure (task #97e), so this is a plain map, spelled
@@ -68,7 +71,8 @@ pub fn block_names(block: &Vec<IConstantInfo>, i: usize, out: Vec<NIdx>) -> Vec<
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:60-71 basisPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis::basis_pin_hit_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:51-67 basisPinHitGo` — the five
 /// kinds tried in con-leche's order, with con-leche's task-#215 NAME
 /// pre-filter in front: `canon` renames only level parameters, so a block can
@@ -114,7 +118,8 @@ pub fn basis_pin_hit_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:60-71 basisPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis::basis_pin_hit_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:69-77 basisPinHit` — the five
 /// pinned blocks, in con-leche's order.  `.quotK` is deliberately not among
 /// them (a quotient block arrives as four `quotDecl` records, which
@@ -129,7 +134,7 @@ pub fn basis_pin_hit(
     basis_pin_hit_go(pers, st, block, &ks, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:73-78 quotPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:66-70 quotPinHit
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:79-88 quotPinHit` — **the
 /// quotient-pin match**: the record is the pinned package's constant at the
 /// slot it declares itself at, compared at `toConstantVal`.  The twin's

@@ -31,12 +31,14 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:40-47 BasisKind.decls — the RAW
+/-- con-leche: ConLeche/Kernel/Basis.lean:34-40 BasisKind.decls — the RAW
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Basis.BasisKind.decls_bridge, then delete this line
 constants of one basis block, in dependency order, interned. -/
 def BasisKind.decls (k : BasisKind) : AM (List IConstantInfo) :=
   internCIList (ConLeche.BasisKind.decls k)
 
-/-- con-leche: ConLeche/Kernel/BasisA.lean:50-57 BasisKind.declsA — the
+/-- con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA — the
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Basis.BasisKind.declsA_bridge, then delete this line
 ANNOTATED constants of one basis block, in dependency order, interned.  This
 is what `checkBasisDecl` installs. -/
 def BasisKind.declsA (k : BasisKind) : AM (List IConstantInfo) :=
@@ -48,7 +50,8 @@ plain `List.map`. -/
 def blockNames (block : List IConstantInfo) : List NIdx :=
   block.map (·.name)
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:60-71 basisPinHit — **the basis-pin
+/-- con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit — **the basis-pin
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Basis.basisPinHitGo_bridge, then delete this line
 match**, with con-leche's task-#215 NAME pre-filter in front: `canon` renames
 only level parameters, so a block can match a pin only when its members' names
 are the pin's, member for member, and that test is a handful of handle
@@ -66,7 +69,8 @@ def basisPinHitGo (block : List IConstantInfo) :
       if ← canonEqList block pinned then pure (some k) else pure none
     else basisPinHitGo block ks
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:60-71 basisPinHit — the five pinned
+/-- con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit — the five pinned
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Basis.basisPinHit_bridge, then delete this line
 blocks, in con-leche's order.  con-leche writes `[…].find? …` with a closure;
 DESIGN §3.4's rule for a `List` recursion is a helper, so the search is
 `basisPinHitGo`.  `find?` stops at the FIRST kind whose names match and then
@@ -76,7 +80,7 @@ comparison is `none`, not "try the next kind", which is what the helper's
 def basisPinHit (block : List IConstantInfo) : AM (Option BasisKind) :=
   basisPinHitGo block [BasisKind.eqK, .natK, .punitK, .emptyK, .falseK]
 
-/-- con-leche: ConLeche/Kernel/Basis.lean:73-78 quotPinHit — **the
+/-- con-leche: ConLeche/Kernel/Basis.lean:66-70 quotPinHit — **the
 quotient-pin match**: the record is the pinned package's constant at the slot
 it declares itself at, compared at `toConstantVal`. -/
 def quotPinHit (k : QuotKind) (cv : IConstantVal) : AM Bool := do

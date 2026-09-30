@@ -21,6 +21,7 @@ namespace ConRon.Arena
 open ConLeche
 
 /-- con-leche: ConLeche/Kernel/CheckerGated.lean:27-37 fueledOpsGated — the
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerGated.fueledOpsGated_bridge, then delete this line
 pure instantiation over the **gated** knot, at an arbitrary fuel;
 `Arena/CheckerBase.lean`'s `fueledOpsA`, clause for clause. -/
 def fueledOpsGated (mode : CheckMode) (F : Nat) : CheckerOpsA where
@@ -36,6 +37,7 @@ def fueledOpsGated (mode : CheckMode) (F : Nat) : CheckerOpsA where
     | .error _ => k none s
 
 /-- con-leche: ConLeche/Kernel/CheckerGated.lean:39-40 pureOpsGated — the pure
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove CheckerGated.pureOpsGated_bridge, then delete this line
 gated instantiation at the standard fuel. -/
 def pureOpsGated (mode : CheckMode) : CheckerOpsA := fueledOpsGated mode checkFuel
 

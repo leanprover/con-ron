@@ -166,8 +166,8 @@ pub fn canon_expr_eq_fast(ps: &Vec<Name>, ps2: &Vec<Name>, a: &Expr, b: &Expr) -
     }
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:201-206 ConstantVal.canonEqFast
-/// con-leche: ConLeche/Kernel/Canon.lean:195-199 ConstantVal.canonEq
+/// con-leche: ConLeche/Kernel/Canon.lean:189-194 ConstantVal.canonEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:183-187 ConstantVal.canonEq
 /// con-leche: ConLeche/Kernel/Canon.lean:75-80 ConstantVal.canon
 /// Two constants have the same canonical common data.  The numbered
 /// level-parameter lists are equal exactly when they are equally long.
@@ -177,7 +177,7 @@ pub fn constant_val_canon_eq(cv: &ConstantVal, cv2: &ConstantVal) -> bool {
         && canon_expr_eq_fast(&cv.level_params, &cv2.level_params, &cv.ty, &cv2.ty)
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:224-231 canonRulesEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:212-219 canonRulesEqFast
 /// Rule lists compared through the canonical form of each rule's right-hand
 /// side.  `{r with rhs := .bvar 0} == {r' with rhs := .bvar 0}` is every
 /// field but `rhs` under Lean's derived equality, which is what
@@ -191,7 +191,7 @@ pub fn canon_rules_eq_fast(
     canon_rules_eq_fast_from(ps, ps2, rs, rs2, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:224-231 canonRulesEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:212-219 canonRulesEqFast
 /// The index recursion the cited `List` recursion becomes (§3.4 forbids
 /// loops); the two `_, _ => false` arms are the length mismatch.
 pub fn canon_rules_eq_fast_from(
@@ -214,7 +214,7 @@ pub fn canon_rules_eq_fast_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:224-231 canonRulesEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:212-219 canonRulesEqFast
 /// `{r with rhs := .bvar 0} == {r' with rhs := .bvar 0}`: the derived `RecRule`
 /// equality with the right-hand sides forced to the same term, i.e. every
 /// field but `rhs`.
@@ -228,8 +228,8 @@ pub fn rec_rule_eq_but_rhs(r: &RecRule, r2: &RecRule) -> bool {
         && r.params_blind == r2.params_blind
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:254-273 ConstantInfo.canonEqFast
-/// con-leche: ConLeche/Kernel/Canon.lean:250-252 ConstantInfo.canonEq
+/// con-leche: ConLeche/Kernel/Canon.lean:242-261 ConstantInfo.canonEqFast
+/// con-leche: ConLeche/Kernel/Canon.lean:238-240 ConstantInfo.canonEq
 /// con-leche: ConLeche/Kernel/Canon.lean:82-97 ConstantInfo.canon
 /// Two stored constants have the same canonical form.  `indInfo`'s `IndCaps`
 /// is reset on both sides by `canon`, so it is not compared; a `projInfo`
@@ -265,14 +265,14 @@ pub fn constant_info_canon_eq(ci: &ConstantInfo, ci2: &ConstantInfo) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:294-298 canonEqListFast
-/// con-leche: ConLeche/Kernel/Canon.lean:289-292 canonEqList
+/// con-leche: ConLeche/Kernel/Canon.lean:282-286 canonEqListFast
+/// con-leche: ConLeche/Kernel/Canon.lean:277-280 canonEqList
 /// Two blocks are the same, member for member, up to the canonical form.
 pub fn canon_eq_list(xs: &[ConstantInfo], ys: &[ConstantInfo]) -> bool {
     canon_eq_list_from(xs, ys, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Canon.lean:294-298 canonEqListFast
+/// con-leche: ConLeche/Kernel/Canon.lean:282-286 canonEqListFast
 /// The index recursion the cited `List` recursion becomes (§3.4 forbids
 /// loops); the two `_, _ => false` arms are the length mismatch.
 pub fn canon_eq_list_from(xs: &[ConstantInfo], ys: &[ConstantInfo], i: usize) -> bool {

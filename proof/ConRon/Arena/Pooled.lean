@@ -27,7 +27,8 @@ accept into con-leche's per-record pure accepts, each at its record's own
 prefix environment, and those assemble the pure fold whatever the split
 (`Bridge/Checker/Phased.lean`'s `Arena.pooledAccepts_bridge`). -/
 
-/-- con-leche: Main.lean:289-316 checkPool — **the pooled fold, accepted**:
+/-- con-leche: Main.lean:290-317 checkPool — **the pooled fold, accepted**:
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove Pooled.PooledAccepts_bridge, then delete this line
 phase A (`annotFold`) accepted with environment `fe` and pending records
 `pend`, ending in `s'`; and `parts`, one record list per worker, each drawn
 from `pend`, together covering it, each accepted by `checkPendingList` from

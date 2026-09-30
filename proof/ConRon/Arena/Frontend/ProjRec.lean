@@ -71,6 +71,7 @@ open ConRon.Arena
 /-! ## The artifact's name and level -/
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:106-111 projIotaName — the name
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.projIotaName_bridge, then delete this line
 of the model family's constructor-reduction theorem for field `i` of `T`:
 `T._model.proj_i.iota`.  Building a name means interning it, so the twin is
 monadic (`Arena/Env.lean`'s `projFnName` note). -/
@@ -80,6 +81,7 @@ def projIotaName (T : NIdx) (i : Nat) : AM NIdx := do
   internNNode (.str b "iota")
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:113-118 isProjIotaName — is `n`
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.isProjIotaName_bridge, then delete this line
 of the shape `X._model.proj_i.iota`?  The cheap pre-filter for the theorem
 records; the last component decides before anything is compared. -/
 def isProjIotaName (n : NIdx) : AM Bool := do
@@ -102,6 +104,7 @@ def isProjIotaName (n : NIdx) : AM Bool := do
   else pure false
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:120-125 projIotaLevel — the `Eq`
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.projIotaLevel_bridge, then delete this line
 level of an artifact iota statement `∀ …, @Eq.{ℓ} α a b`: the field's sort.
 `none` on any other shape.  The universe argument list is ONE handle
 (DESIGN §8.3's `LsIdx`), so the singleton test is a `viewLs`. -/
@@ -142,8 +145,11 @@ gained is that a shared domain is not re-walked per occurrence, which is the
 `ModularCurve` shape con-leche's own task #214 note describes. -/
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:127-136 occursConst
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.occursConstGo_bridge, then delete this line
 con-leche: ConLeche/Frontend/ProjRec.lean:151-178 occursConstB
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.occursConstGo_bridge, then delete this line
 con-leche: ConLeche/Frontend/ProjRec.lean:180-225 occursConstGo
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.occursConstGo_bridge, then delete this line
 The memoised descent: the set holds the subterms already shown NOT to mention `n`.
 Only `false` is recorded — a `true` aborts the walk, so no `true` is ever
 re-queried.  The set is keyed on the handle, which is nanoda's identity hash
@@ -197,6 +203,7 @@ def occursConstGo (n : NIdx) (seen : Std.HashSet EIdx) :
         | r => pure r
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:227-231 occursConstFast — the
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.occursConstFast_bridge, then delete this line
 executed `occursConst`: the memoised descent at a fresh set (the section note
 above says why the budgeted one has no twin). -/
 def occursConstFast (fuel : Nat) (n : NIdx) (h : EIdx) : AM Bool := do
@@ -205,6 +212,7 @@ def occursConstFast (fuel : Nat) (n : NIdx) (h : EIdx) : AM Bool := do
 /-! ## Telescopes the rewrite builds and takes apart -/
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:233-237 lamBody — the body under
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.lamBody_bridge, then delete this line
 every leading `λ` (the projection shape's pre-filter: the node under the
 value's binders). -/
 def lamBody : Nat → EIdx → AM EIdx
@@ -218,6 +226,7 @@ def lamBody : Nat → EIdx → AM EIdx
     else pure h
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:239-245 stripPisAll — strip every
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.stripPisAll_bridge, then delete this line
 leading `∀`: the binder list (outermost first) and the body. -/
 def stripPisAll : Nat → EIdx → AM (List (EIdx × BinderMeta) × EIdx)
   | 0, _ => fail (.internal "fuel exhausted: stripPisAll")
@@ -231,6 +240,7 @@ def stripPisAll : Nat → EIdx → AM (List (EIdx × BinderMeta) × EIdx)
     else pure ([], h)
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:247-249 mkLams — rebuild a
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.mkLams_bridge, then delete this line
 `λ`-telescope over a binder list (outermost first).  Structural on the list,
 so no fuel; every binder is interned. -/
 def mkLams : List (EIdx × BinderMeta) → EIdx → AM EIdx
@@ -240,6 +250,7 @@ def mkLams : List (EIdx × BinderMeta) → EIdx → AM EIdx
     internE (.lam ty acc m)
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:251-257 instPisOpen — instantiate
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.instPisOpen_bridge, then delete this line
 the leading `∀`-binders at *open* arguments (the body-frame variables and the
 built motives/minors), one binder per argument, returning the residual
 telescope.  Structural on the argument list; `fuel` is the one
@@ -279,6 +290,7 @@ structure ProjBuild where
   punitUnitC : EIdx
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:271-277 headIs — is `T` the head
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.headIs_bridge, then delete this line
 of the owner's own carrier: the motive domain `∀ (t : T p⃗), Sort ℓ` (exactly
 one binder) or the major-premise domain. -/
 def headIs (fuel : Nat) (T : NIdx) (e : EIdx) : AM Bool := do
@@ -290,6 +302,7 @@ def headIs (fuel : Nat) (T : NIdx) (e : EIdx) : AM Bool := do
   else pure false
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue — the motive
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.mkProjMotive_bridge, then delete this line
 body (`mkMotive` inside `projRecValue`): the owner's motive is `fun (t : T p⃗)
 => R` — `R`'s parameter references skip the new binder, its subject reference
 IS the new binder — and every other one is the constant `PUnit.{ℓ}` over its
@@ -311,6 +324,7 @@ def mkProjMotive (pb : ProjBuild) (fuel : Nat) (dom : EIdx) : AM (Option EIdx) :
   else pure none
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue — the minor
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.mkProjMinor_bridge, then delete this line
 body (`mkMinor` inside `projRecValue`): the owner constructor's minor returns
 field `i` of its telescope (the fields come first, then the inductive
 hypotheses recursion adds); every other one returns `PUnit.unit.{ℓ}`.  The
@@ -329,6 +343,7 @@ def mkProjMinor (pb : ProjBuild) (fuel : Nat) (dom : EIdx) : AM (Option EIdx) :=
   | none => pure none
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:259-269 buildBinders — peel `k`
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.buildBinders_bridge, then delete this line
 binders of a telescope, building one term per binder from its (progressively
 instantiated) domain, and instantiating the telescope with that term before
 the next binder is read.  `kind` is con-leche's `mk` argument, as the module
@@ -356,6 +371,7 @@ def buildBinders (kind : ProjBinderKind) (pb : ProjBuild) (fuel : Nat) :
 /-! ## The rewrite -/
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue — **THE
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.projRecValue_bridge, then delete this line
 REWRITE.**  `ty`/`val` are the definition's declared type and value, `i` the
 projected field, `l` the field's sort (from the artifact).  `none` = the value
 is not of the projection shape (the caller keeps the declaration unchanged).
@@ -420,6 +436,7 @@ def projRecValue (fuel : Nat) (o : ProjRecOwner) (l : LIdx) (ty val : EIdx)
     else pure none
 where
   /-- con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue — `o.lps.map
+  -- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.occursAnyOf_bridge, then delete this line
   Level.param`, interned: a `List.map` with a closure is DESIGN §3.4's
   explicit recursion here. -/
   internParamLevels : List NIdx → AM (List LIdx)
@@ -432,6 +449,7 @@ where
 /-! ## Which owners the rewrite serves -/
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners — does any
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.occursAnyOf_bridge, then delete this line
 of `ns` occur in `d`?  con-leche's inner `blockNames.any`, as an explicit
 recursion (DESIGN §3.4). -/
 def occursAnyOf (fuel : Nat) (ns : List NIdx) (d : EIdx) : AM Bool := do
@@ -441,6 +459,7 @@ def occursAnyOf (fuel : Nat) (ns : List NIdx) (d : EIdx) : AM Bool := do
     if ← occursConstFast fuel n d then pure true else occursAnyOf fuel rest d
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners — does any
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.domsMentionAny_bridge, then delete this line
 of `ns` occur in any binder domain of the list?  con-leche's middle
 `(stripPisAll cty).1.any`, as an explicit recursion. -/
 def domsMentionAny (fuel : Nat) (ns : List NIdx) :
@@ -450,6 +469,7 @@ def domsMentionAny (fuel : Nat) (ns : List NIdx) :
     if ← occursAnyOf fuel ns d then pure true else domsMentionAny fuel ns rest
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners — a block
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.ctorsMentionBlock_bridge, then delete this line
 name in a constructor's binder *domains* (its result names the owner by
 definition): con-leche's outer `ctors.any`, as an explicit recursion. -/
 def ctorsMentionBlock (fuel : Nat) (ns : List NIdx) :
@@ -461,12 +481,14 @@ def ctorsMentionBlock (fuel : Nat) (ns : List NIdx) :
     else ctorsMentionBlock fuel ns rest
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners — `ctors.find?
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.findCtorRec_bridge, then delete this line
 (·.1 == C)`, as an explicit recursion (DESIGN §3.4). -/
 def findCtorRec (c : NIdx) : List (NIdx × Nat × EIdx) → Option (NIdx × Nat × EIdx)
   | [] => none
   | r :: rest => if r.1 == c then some r else findCtorRec c rest
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners — `recs.find?
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.findRecRec_bridge, then delete this line
 (·.1 == T.str "rec")`, as an explicit recursion. -/
 def findRecRec (n : NIdx) :
     List (NIdx × List NIdx × EIdx × Nat × Nat) →
@@ -475,6 +497,7 @@ def findRecRec (n : NIdx) :
   | r :: rest => if r.1 == n then some r else findRecRec n rest
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners — the
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.projRecCandidates_bridge, then delete this line
 `filterMap` of `projRecOwners`: the officially structure-like members (one
 constructor, zero indices, non-propositional) whose recursor carries an
 elimination level parameter.  An explicit recursion, since `filterMap` takes a
@@ -515,6 +538,7 @@ def projRecCandidates (fuel : Nat)
     | _ => pure tail
 
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners — **which
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove ProjRec.projRecOwners_bridge, then delete this line
 block members the rewrite serves**: the officially structure-like ones of a
 block the direct install does not recognise — `structPartsCore?` rejects it
 (mutual, multi-constructor, indexed, shape mismatch) or it is recursive (the

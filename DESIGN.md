@@ -65383,3 +65383,257 @@ patch that build re-elaborated everything from `Generated` down (#100's
 28-minute rebuild).  #103's procedural advice (build the main tree from an
 empty `proof/.lake/build` after a landing) is no longer needed; it is
 harmless.
+
+### Task #105 — con-leche sync 3ca9e2fe → 445b9cf4: the uniform inductive route (2026-09-30, Opus under Fable)
+
+The maintainer: "next con-leche sync, a big one! work systematic, leave no
+unused code or proofs around".  con-leche master is now **`445b9cf4`**, the
+merge of its `uniform-inds` branch (834 first-parent commits; the campaign's
+charter and records are upstream DESIGN.md's `## UNIFORM INDUCTIVES` section
+and the lane records after it, GENREC … MERGE2).  Its message:
+
+> Mutual and nested inductives are checked natively by one positivity check
+> over containers at their concrete instances; recursors are generated in
+> official's shape, compared by defeq with the stream's, and ours are
+> installed.  The in-process modeller, the conformance generator and the
+> PUnit special case are gone.
+
+The toolchain is unchanged.  The headline theorem con-ron composes with,
+`ConLeche.Model.checkDeclsPure_sound_of` (`Model/Fold.lean:221`), keeps its
+statement exactly.
+
+#### 1. What upstream changed, for the executed checker
+
+Read off upstream's records (charter items 1–9 as amended, GENREC M3,
+NODESIMP, UNIFCHK, SIMP-AD, HOLEAPP, PROJREJ, PUNIT, KEEPPROJ = our #103,
+MERGEMASTER, MERGE2):
+
+* **One installer for every inductive block** (`Kernel/CheckDecl.lean`'s
+  `checkDecl`): a block the recogniser reads (`blockParts?`,
+  `Inductives/BlockParts.lean`) goes to `checkBlock`
+  (`Inductives/BlockTail.lean`), at any number of members, nested ones
+  included; any other block declines after its formers are checked
+  (`checkShapeless`).  The fixpoint route (`NativeParts`/`NativeInstall(F)`)
+  and the modeled route (`Modeled.lean`, the gated core `CoreGated`/
+  `CheckerGated` it ran on, the `_model` companions) are deleted.
+* **Positivity** (`Inductives/Positivity.lean`, 1 672 lines): one walk over
+  the constructors with the members as holes, whnf by the kernel's own
+  reduction, looking through containers at their concrete instantiation
+  (`nestCont`/`nestFrame`, keyed by the instantiation), official's uniform
+  parameter check first (`nestUniform`, UNIFCHK), holes for the whole
+  application (HOLEAPP); the outside classes the stream's recursors eliminate
+  seed it (`nestSeeds`).  Its table of normalised constructors is what the
+  recursor stage reads.
+* **Recursors generated, not checked** (`Inductives/{ClassRead, RecCheck,
+  GenRec}.lean`): an unverified pre-pass reads the classes off the stream's
+  recursor types (`classRead`), every class is checked as a major, the
+  family is generated in official's shape (`genRecCheck`), each generated type
+  is compared with the stream's by defeq, and OUR rules are installed — the
+  stream's rules are not read.
+* **Data model**: `IndCaps` gains `all`, `nparams`, `ctors` (official's
+  `inductive_val` fields, read by nested positivity); `BasisKind` loses
+  `punitK`; `Env`'s recursor-suffix decision (`recsFormSuffix`) is gone.
+* **Core**: PUNIT — the `isUnitLikeTy` branch of proof irrelevance and the
+  `PUnit` 0-field rescue in `majorToCtor` are gone, `PUnit` is no longer a
+  pinned basis block; PROJREJ — a table-less `.proj` rejects as official
+  does (`projMissError`, `projIndexedStructLike`); `liftFueled` DECLINES
+  (a resource limit, charter item 9); `isPropType` deleted.
+* **Frontend**: the in-process modeller (`Frontend/InModel*`), the
+  projection-function rewrite (`Frontend/ProjRec.lean`), `ExportWrite` and
+  the `Scan/Equiv` keys for them are deleted; `ExportC`'s state loses every
+  modeller field; `Main.lean` loses `CON_LECHE_INMODEL*`.  Generated e2e
+  fixtures are gzipped (`*.ndjson.gz`).
+
+#### 2. The findings, classified before a line was edited
+
+`provenance.py update` at the new pin (no `--old`; the pin is bumped and not
+committed): **1 537 findings, 952 `GONE` and 585 `CHANGED`**, 2 133 citations
+merely MOVED.  `progress.py`'s `stale (CHANGED marker)` read **65** before a
+marker was touched (verified core 14 182 lines to translate, 62 %
+translated; at master's pin the same line read 82 %).  The classifier
+(`_tmp/t105/classify.py`, §7 steps 3–4: hunt each `GONE` declaration by name
+across the whole new tree and compare the comment-stripped block; strip the
+comments of a `CHANGED` block and compare):
+
+| bucket | count | what it costs |
+|---|---:|---|
+| doc-only (comment-stripped text identical) | 402 | marker deleted, mechanically |
+| a byte-identical move (`checkDeclsPure` → `CheckDecl.lean`, `mentionsFvar*`/`piBinders`/`RecFieldKind`/`recIdxOf` → `FieldTele.lean`, `closeTelescope` → `Positivity.lean`) | 32 | citation repointed, marker deleted |
+| moved and changed (`checkDecl` → `CheckDecl.lean`, `mkPisOf`, the three `Ind*Rec` records → `Scan/Types.lean`) | 34 | citation repointed, marker kept: the port |
+| moved by NAME only (three `InModel/Kit` hits on new kernel names) | 3 | a deletion, not a move |
+| really changed | 183 | the port |
+| deleted upstream | 883 | the port: delete all the way down |
+
+Applied mechanically: 402 + 32 markers deleted, 66 citations repointed
+(`_tmp/t105/apply-mech.py`).  1 069 markers remain; they are the work order.
+
+`diff-e2e.sh` with master's binary at the new pin: **602 fixtures (was 389), 472 agree, 130 DIFFER** — the new route's fixtures.
+
+`provenance.py coverage` at the new pin: **652/1 019 (64.0 %)**, 367
+uncovered, of which the new declarations to port are 234 —
+`Positivity` 72, `GenRec` 43, `BlockParts` 30, `RecCheck` 28,
+`BlockInstall` 20, `BlockInstallF` 15, `ClassRead` 9, `FieldTele` 9,
+`BlockTail` 7, `CheckDecl` 3, `ExprOps` 5, `Core`/`CoreDefs` 4,
+`BlockRec` 1 — the rest are the `Cached/*` declarations master already
+leaves uncovered.  14 skip-list entries name declarations that are gone.
+
+**The upstream changes, per file** (executed tiers; `+/−` is `git diff
+--numstat`; findings from `_tmp/t105/findings.tsv`, citing parts by where the
+citation sits):
+
+| upstream file | status | +/− | findings: real · doc · moved · deleted | citing parts |
+|---|---|---:|---|---|
+| `ConLeche/Cached/CheckerC.lean` | changed | +79/−168 | 0 · 0 · 0 · 15 | Rust core 7, twin 8 |
+| `ConLeche/Cached/CoreC.lean` | changed | +32/−170 | 1 · 0 · 0 · 0 | twin 1 |
+| `ConLeche/Cached/ExprNodes.lean` | changed | +20/−59 | — |  |
+| `ConLeche/Cached/ExprOpsC.lean` | changed | +7/−15 | — |  |
+| `ConLeche/Cached/Installed.lean` | changed | +1/−11 | — |  |
+| `ConLeche/Cached/ParsedC.lean` | changed | +25/−19 | — |  |
+| `ConLeche/Cached/StateC.lean` | changed | +5/−47 | 0 · 0 · 0 · 1 | Rust core 1 |
+| `ConLeche/Frontend/Export.lean` | changed | +10/−18 | — |  |
+| `ConLeche/Frontend/ExportC.lean` | changed | +38/−322 | 41 · 37 · 0 · 38 | Rust core 83, Rust unverified 8, twin 25 |
+| `ConLeche/Frontend/ExportWrite.lean` | deleted | +0/−219 | — |  |
+| `ConLeche/Frontend/InModel.lean` | deleted | +0/−47 | 0 · 0 · 0 · 14 | Rust core 4, Rust unverified 6, twin 4 |
+| `ConLeche/Frontend/InModel/Kit.lean` | deleted | +0/−527 | 0 · 0 · 3 · 37 | Rust core 2, Rust unverified 36, twin 2 |
+| `ConLeche/Frontend/InModel/Mutual.lean` | deleted | +0/−486 | 0 · 0 · 9 · 13 | Rust core 5, Rust unverified 12, twin 5 |
+| `ConLeche/Frontend/InModel/Nested.lean` | deleted | +0/−1327 | 0 · 0 · 0 · 73 | Rust unverified 73 |
+| `ConLeche/Frontend/InModelDump.lean` | deleted | +0/−69 | — |  |
+| `ConLeche/Frontend/Prelude.lean` | changed | +4/−5 | — |  |
+| `ConLeche/Frontend/Prepare.lean` | changed | +2/−2 | — |  |
+| `ConLeche/Frontend/ProjRec.lean` | deleted | +0/−372 | 0 · 0 · 0 · 123 | Rust core 57, Rust unverified 41, twin 25 |
+| `ConLeche/Frontend/Scan/Equiv.lean` | changed | +1/−1 | — |  |
+| `ConLeche/Frontend/Scan/Equiv/Keys.lean` | changed | +0/−66 | — |  |
+| `ConLeche/Frontend/Scan/Equiv/Kit.lean` | changed | +0/−15 | — |  |
+| `ConLeche/Frontend/Scan/Equiv/Objects.lean` | changed | +3/−3 | — |  |
+| `ConLeche/Frontend/Scan/Equiv/Scalars.lean` | changed | +0/−60 | — |  |
+| `ConLeche/Frontend/Scan/Types.lean` | changed | +3/−7 | — |  |
+| `ConLeche/Kernel/Basis.lean` | changed | +6/−14 | 12 · 4 · 0 · 0 | Rust core 12, twin 4 |
+| `ConLeche/Kernel/Basis/Empty.lean` | changed | +1/−1 | 2 · 0 · 0 · 0 | Rust core 2 |
+| `ConLeche/Kernel/Basis/Eq.lean` | changed | +1/−1 | 3 · 0 · 0 · 0 | Rust core 3 |
+| `ConLeche/Kernel/Basis/False.lean` | changed | +1/−1 | 2 · 0 · 0 · 0 | Rust core 2 |
+| `ConLeche/Kernel/Basis/Names.lean` | changed | +1/−18 | 7 · 0 · 0 · 6 | Rust core 7, twin 6 |
+| `ConLeche/Kernel/Basis/Nat.lean` | changed | +1/−1 | 2 · 0 · 0 · 0 | Rust core 2 |
+| `ConLeche/Kernel/Basis/PUnit.lean` | deleted | +0/−55 | 0 · 0 · 0 · 10 | Rust core 10 |
+| `ConLeche/Kernel/BasisA.lean` | changed | +0/−4 | 13 · 0 · 0 · 8 | Rust core 17, twin 4 |
+| `ConLeche/Kernel/BasisGen.lean` | changed | +5/−12 | — |  |
+| `ConLeche/Kernel/Canon.lean` | changed | +0/−12 | — |  |
+| `ConLeche/Kernel/CheckDecl.lean` | new | +222/−0 | — |  |
+| `ConLeche/Kernel/Checker.lean` | changed | +5/−202 | 0 · 51 · 27 · 0 | Rust core 50, twin 28 |
+| `ConLeche/Kernel/CheckerBase.lean` | changed | +45/−153 | 0 · 0 · 0 · 33 | Rust core 21, twin 12 |
+| `ConLeche/Kernel/CheckerGated.lean` | deleted | +0/−42 | 0 · 0 · 0 · 4 | Rust core 2, twin 2 |
+| `ConLeche/Kernel/Core.lean` | changed | +111/−109 | 37 · 66 · 0 · 2 | Rust core 87, twin 18 |
+| `ConLeche/Kernel/CoreDefs.lean` | changed | +62/−136 | 0 · 31 · 0 · 25 | Rust core 38, twin 18 |
+| `ConLeche/Kernel/CoreGated.lean` | deleted | +0/−185 | 0 · 0 · 0 · 29 | Rust core 19, twin 10 |
+| `ConLeche/Kernel/CoreIO.lean` | changed | +3/−4 | — |  |
+| `ConLeche/Kernel/DeclCheck.lean` | changed | +2/−481 | 0 · 0 · 0 · 7 | Rust core 4, twin 3 |
+| `ConLeche/Kernel/Env.lean` | changed | +43/−141 | 20 · 29 · 0 · 8 | Rust core 47, twin 10 |
+| `ConLeche/Kernel/Exclusive.lean` | changed | +1/−1 | — |  |
+| `ConLeche/Kernel/Expr.lean` | changed | +6/−27 | 0 · 73 · 0 · 1 | Rust core 33, twin 41 |
+| `ConLeche/Kernel/ExprOps.lean` | changed | +373/−108 | 0 · 28 · 0 · 20 | Rust core 31, twin 17 |
+| `ConLeche/Kernel/FEnv.lean` | changed | +3/−6 | 0 · 4 · 0 · 0 | Rust core 3, twin 1 |
+| `ConLeche/Kernel/Inductives/BlockInstall.lean` | new | +366/−0 | — |  |
+| `ConLeche/Kernel/Inductives/BlockInstallF.lean` | new | +208/−0 | — |  |
+| `ConLeche/Kernel/Inductives/BlockParts.lean` | new | +451/−0 | — |  |
+| `ConLeche/Kernel/Inductives/BlockRec.lean` | new | +86/−0 | — |  |
+| `ConLeche/Kernel/Inductives/BlockTail.lean` | new | +151/−0 | — |  |
+| `ConLeche/Kernel/Inductives/ClassRead.lean` | new | +142/−0 | — |  |
+| `ConLeche/Kernel/Inductives/FieldTele.lean` | new | +313/−0 | — |  |
+| `ConLeche/Kernel/Inductives/GenRec.lean` | new | +595/−0 | — |  |
+| `ConLeche/Kernel/Inductives/Modeled.lean` | deleted | +0/−837 | 0 · 0 · 0 · 106 | Rust core 78, twin 28 |
+| `ConLeche/Kernel/Inductives/NativeInstall.lean` | deleted | +0/−642 | 0 · 0 · 9 · 54 | Rust core 44, twin 19 |
+| `ConLeche/Kernel/Inductives/NativeInstallF.lean` | deleted | +0/−130 | 0 · 0 · 0 · 20 | Rust core 10, twin 10 |
+| `ConLeche/Kernel/Inductives/NativeParts.lean` | deleted | +0/−654 | 0 · 0 · 19 · 142 | Rust core 62, Rust unverified 64, twin 35 |
+| `ConLeche/Kernel/Inductives/Positivity.lean` | new | +1672/−0 | — |  |
+| `ConLeche/Kernel/Inductives/RecCheck.lean` | new | +619/−0 | — |  |
+| `ConLeche/Kernel/Inductives/StructInstall.lean` | changed | +10/−11 | 0 · 8 · 0 · 0 | Rust core 6, twin 2 |
+| `ConLeche/Kernel/Inductives/StructInstallF.lean` | changed | +7/−9 | 0 · 8 · 0 · 0 | Rust core 4, twin 4 |
+| `ConLeche/Kernel/Inductives/StructParts.lean` | changed | +31/−276 | 0 · 21 · 0 · 53 | Rust core 28, Rust unverified 30, twin 16 |
+| `ConLeche/Kernel/Inductives/SumInstall.lean` | changed | +22/−138 | 7 · 3 · 2 · 18 | Rust core 18, Rust unverified 2, twin 10 |
+| `ConLeche/Kernel/Inductives/SumInstallF.lean` | changed | +4/−32 | 4 · 0 · 0 · 8 | Rust core 6, twin 6 |
+| `ConLeche/Kernel/Inductives/SumParts.lean` | changed | +25/−118 | 9 · 0 · 0 · 5 | Rust core 5, Rust unverified 6, twin 3 |
+| `ConLeche/Kernel/Level.lean` | changed | +10/−14 | 1 · 5 · 0 · 4 | Rust core 8, twin 2 |
+| `ConLeche/Kernel/PropWhen.lean` | changed | +5/−18 | 0 · 1 · 0 · 0 | Rust core 1 |
+| `ConLeche/Kernel/StdAxioms.lean` | changed | +3/−16 | 0 · 24 · 0 · 6 | Rust core 26, twin 4 |
+| `ConLeche/Kernel/TrustAxioms.lean` | changed | +3/−2 | — |  |
+| `Main.lean` | changed | +61/−159 | 22 · 9 · 0 · 0 | Rust core 3, Rust unverified 18, twin 10 |
+
+The spec and proof tiers (`Model/**`, `Semantics/**`, `Verify/**`, the parked
+`Complete/*`) are not ported; Theorem 1 uses them only through the lemmas it
+imports (§3 below: their renames are T1 repair work, not port work).
+
+#### 3. The mapping onto con-ron
+
+| upstream | Rust (`con-ron-core`) | twin (`Arena/`) | T1 (`Bridge/`) | T2 (`Refine2/`) |
+|---|---|---|---|---|
+| new `Inductives/{FieldTele, Positivity, BlockParts, BlockRec, BlockInstall(F), RecCheck, ClassRead, GenRec, BlockTail}`, `CheckDecl` | new `arena/inductives/{field_tele, positivity, block_parts, block_rec, block_install, rec_check, class_read, gen_rec, block_tail}.rs`, `arena/check_decl.rs` (the `F` twins collapse, as `native_install_f` did) | same names under `Arena/Inductives/`, `Arena/CheckDecl.lean` | new `Bridge/Inductives/Block*.lean` etc., `IndSpec` restated over `checkBlock` | new `Refine2/Inductives/*` lockstep modules |
+| deleted `Native{Parts,Install,InstallF}`, `Modeled`, `CoreGated`, `CheckerGated` | `arena/inductives/{native_parts, native_install, native_install_f, modeled}.rs`, `arena/{core_gated, checker_gated}.rs` deleted | the six twins deleted | `Bridge/Inductives/{NativeParts, NativeInstall, Modeled}.lean` and every lemma only they used deleted | `Refine2/Inductives/{NativeParts, NativeInstall(F), Modeled, PrimsModeled, SpecModeled}.lean` and their prims deleted |
+| changed `StructParts`, `SumParts`, `SumInstall(F)`, `StructInstall(F)` | the same `.rs` files | the same twins | the same bridge files | the same T2 files |
+| `Core`, `CoreDefs` (PUNIT, PROJREJ, `liftFueled`) | `arena/core.rs` | `Arena/Core.lean` | `Bridge/Core/**` | `Refine2/Core/**` (`Eqns` re-derived) |
+| `Env` (`IndCaps` fields), `Basis*` (`punitK` gone), `Level`, `PropWhen`, `StdAxioms`, `Expr`, `Canon` | `arena/{env, intern, basis, canon, std_axioms}.rs`, `kernel/{env, basis_*, level, prop_when}.rs`, `Gen`-regenerated `basis_tables.rs` | `Arena/{Env, Denote, Basis, Canon, StdAxioms}.lean` | `Bridge/{Rel, StateOK}`, `Bridge/Checker/**` | `Refine2/Checker/**`, `Refine/**` leaf lemmas |
+| `Checker`, `CheckerBase`, `DeclCheck` (dispatch; `checkProjRule`, the `…List` checks, `checkDefnValF` gone) | `arena/{checker, checker_base, decl_check}.rs` | `Arena/{Checker, CheckerBase, DeclCheck, Inductives}.lean` | `Bridge/Checker/**`, `Bridge/Inductives/Decl.lean` | `Refine2/Checker/**` |
+| deleted `Frontend/{InModel*, ProjRec, ExportWrite, InModelDump}`, changed `ExportC`, `Scan/*`, `Main.lean` | `frontend/{proj_rec, types, export_c}.rs`; `crates/con-ron/src/{in_model*, tree/*}` deleted, `driver.rs`/`bin/con-ron.rs` lose the modeller flags | `Arena/Frontend/{InModel, ProjRec, ProjRecTest}.lean` deleted, `ExportC`/`Types`/`Readback`/`Main` | `Bridge/Frontend/{Modeller, ProjRec, ProjRecOwners, ProjRecValue}.lean` deleted, `Lines`/`Rel`/`Shared`/`Scratch`/`Capstone` repaired; **the capstone loses the premise `hmr : ModellerRefines`** | `Refine2/Frontend/{ProjRec}.lean` deleted, `ExportC(Ind)`/`Top` repaired |
+
+Tests and scripts that go with the deletions: `crates/con-ron/tests/inmodel_flags.rs`,
+`diff-e2e.sh`'s `INMODEL` row, the `.ndjson.gz` fixtures (the harness learns
+to read them), OVERVIEW §6.2/§8 rows, `holes.sh` entries, provenance skip
+entries for deleted declarations.
+
+#### 4. Lanes and order
+
+Every lane works in its own worktree under `_tmp/`, branched from
+`t105-uinds`, with `proof/.lake/packages` pointing at this campaign's
+private packages copy (`_tmp/t105-packages`, a reflink copy of the shared
+one moved to `445b9cf4`).  Lanes own disjoint files; the campaign branch
+merges them.  At most three heavy Lean builds at a time.
+
+1. **Rust** (the tree's proofs do not build from here until phase 5):
+   * **R-KERNEL** (Opus): all of `crates/con-ron-core/src/arena/**` and the
+     tree-kernel data it shares (`kernel/{env, basis_*, level, prop_when,
+     expr, canon}.rs`, `proof/ConRon/Gen/*` for the regenerated basis tables):
+     the new route, the deletions, the Core and data-model changes; then
+     `scripts/extract.sh`.
+   * **R-FRONT** (Sonnet): `crates/con-ron-core/src/frontend/**`,
+     `crates/con-ron/**`, `crates/con-ron-dump/**`, `scripts/diff-e2e.sh`:
+     the modeller and projection rewrite gone, the `.gz` fixtures.
+2. **Measure**: `diff-e2e.sh` agreeing on every fixture at `--jobs=1` and
+   `--jobs=4`; `perf stat` on `Init` and `Init+Std+Lean` against master's
+   binary.
+3. **The twin**: **T-KERNEL** (Opus, `proof/ConRon/Arena/**` but
+   `Arena/Frontend`) and **T-FRONT** (Sonnet, `Arena/Frontend/**`,
+   `Arena/Main.lean`), each mirroring the merged Rust item for item.
+4. **Theorem 1**: **B-IND** (Opus, `Bridge/Inductives/**`: the new
+   installer's bridge), **B-CORE** (Sonnet, `Bridge/{Core, Checker,
+   ExprOps}/**` and the Bridge root files), **B-FRONT** (Sonnet,
+   `Bridge/Frontend/**` and `Capstone.lean`'s premise).
+5. **Theorem 2**: **F-IND** (Opus, `Refine2/Inductives/**`), **F-CORE**
+   (Sonnet, `Refine2/{Core, Checker, ExprOps, Promote, Tactic}/**`,
+   `Refine/**`), **F-FRONT** (Sonnet, `Refine2/Frontend/**`).  Lockstep: a
+   T2 mismatch is fixed in the twin (and then in T1), never with a T2
+   invariant.
+6. **The sweep** (§5).
+7. The pin commit, last.
+
+#### 5. The unused-code census
+
+**Tool**: `scripts/dead-census.py` + `scripts/dead-census.lean`, adapted from
+con-leche's own (its task #221 / lane GATEFIX): the constant dependency graph
+of every built module of `proof/ConRon/**`, walked from the capstone's four
+headline theorems (`ConRon.Capstone.{model_exists, no_False_declaration}`
+and their `_embedded` forms), the *Test* modules, the tooling
+(`ConRon.Tools.*`), the extraction output (`ConRon.Generated.*`, a Rust
+question), the executables' `main`s, the README/OVERVIEW/DESIGN links and
+the registered declarations; the dead are folded into source-level owners
+and a deletion set that is closed under users.  `--check` fails on a
+non-empty deletion set or an unbuilt module outside
+`scripts/dead-census-allow.txt`.  Rust: `scripts/dead-rust.py` (to write):
+`pub` items of both crates with no caller outside their own definition.
+
+**Census at master (`723616b1`)**, before a line of this task: 75 259
+constants of ours, 44 336 live; **19 355 source owners, 3 343 dead**
+(deletion set 3 070 owners / 6 246 constants, 273 held back, 15 modules
+whole), by tier: `Refine` 1 223 / 2 735, `Refine2` 1 287 / 7 316, `Bridge`
+523 / 4 305, `Arena` 306 / 2 129, `Capstone` 4 / 31.  Eight modules have no
+`.olean` (the `ConRon.Bridge`/`ConRon.Refine2` index roots #101 found, the
+four executables, the two Aeneas templates).  That run did not have the
+executables built, so the twin's pipeline (`Arena.Main`) read dead; the
+final census builds them first.

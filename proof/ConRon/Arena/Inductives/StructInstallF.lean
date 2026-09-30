@@ -28,17 +28,17 @@ import ConRon.Arena.Inductives.StructInstall
 
 namespace ConRon.Arena
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:27-36 checkStructDomsAtF
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:25-34 checkStructDomsAtF
 `checkStructDomsAt` through the index — the same function; see the module
 note. -/
 abbrev checkStructDomsAtF := @checkStructDomsAt
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:38-48 checkStructDomsAtFA
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:36-46 checkStructDomsAtFA
 `checkStructDomsAtF` over arrays — the same function at `List.toArray`; see
 the module note. -/
 abbrev checkStructDomsAtFA := @checkStructDomsAt
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:73-95 checkStructProjTableF
+/-- con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-93 checkStructProjTableF
 `checkStructProjTable` through the index — the same function; see the module
 note. -/
 abbrev checkStructProjTableF := @checkStructProjTable

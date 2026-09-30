@@ -28,6 +28,7 @@
 use crate::arena::core::LANE_GATED;
 
 /// con-leche: ConLeche/Kernel/CheckerGated.lean:27-37 fueledOpsGated
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker_gated::FUELED_OPS_GATED_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerGated.lean:23-36 fueledOpsGated` — the
 /// pure instantiation over the **gated** knot, at an arbitrary fuel.  The
 /// twin's record has no Rust counterpart (the module note); this constant is
@@ -35,6 +36,7 @@ use crate::arena::core::LANE_GATED;
 pub const FUELED_OPS_GATED: u32 = LANE_GATED;
 
 /// con-leche: ConLeche/Kernel/CheckerGated.lean:39-40 pureOpsGated
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker_gated::PURE_OPS_GATED_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerGated.lean:38-40 pureOpsGated` — the pure
 /// gated instantiation at the standard fuel (`arena::core::CHECK_FUEL`, which
 /// every caller passes).

@@ -116,6 +116,7 @@ pub fn rule(ctor: Name, nfields: u64, rhs: Expr) -> RecRule {
 // --- Eq --------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:22-28 eqRaw
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::eq_raw_refines, then delete this line
 /// `Eq.{u} {α : Sort u} : α → α → Prop`.
 pub fn eq_raw() -> ConstantInfo {
     let caps = IndCaps {
@@ -234,6 +235,7 @@ pub fn nat_t() -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:24-26 natRaw
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::nat_raw_refines, then delete this line
 /// `Nat : Type`.
 pub fn nat_raw() -> ConstantInfo {
     ConstantInfo::IndInfo(
@@ -356,6 +358,7 @@ pub fn nat_basis() -> Vec<ConstantInfo> {
 // --- PUnit -----------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Basis/PUnit.lean:24-29 punitRaw
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::punit_raw_refines, then delete this line
 /// `PUnit.{u} : Sort u`.
 pub fn punit_raw() -> ConstantInfo {
     let caps = IndCaps {
@@ -371,6 +374,7 @@ pub fn punit_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/PUnit.lean:31-33 punitUnitRaw
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::punit_unit_raw_refines, then delete this line
 /// `PUnit.unit.{u} : PUnit.{u}`.
 pub fn punit_unit_raw() -> ConstantInfo {
     ConstantInfo::CtorInfo(
@@ -385,6 +389,7 @@ pub fn punit_unit_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/PUnit.lean:35-37 punitRecMotive
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::punit_rec_motive_refines, then delete this line
 /// The motive of `PUnit.rec`: `∀ (t : PUnit.{u}), Sort u_1`.
 pub fn punit_rec_motive() -> Expr {
     pi(cnst(bnm::punit_name(), vec1(u())), srt(u1()))
@@ -397,6 +402,7 @@ pub fn punit_rec_unit_dom() -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/PUnit.lean:39-50 punitRecRaw
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::punit_rec_raw_refines, then delete this line
 /// `PUnit.rec.{u_1, u} {motive : PUnit.{u} → Sort u_1} (unit : motive
 /// PUnit.unit) (t : PUnit.{u}) : motive t`.
 pub fn punit_rec_raw() -> ConstantInfo {
@@ -426,6 +432,7 @@ pub fn punit_rec_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/PUnit.lean:52-53 punitBasis
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::punit_basis_refines, then delete this line
 /// The pinned `PUnit` basis block, in install order.
 pub fn punit_basis() -> Vec<ConstantInfo> {
     vec3(punit_raw(), punit_unit_raw(), punit_rec_raw())
@@ -434,6 +441,7 @@ pub fn punit_basis() -> Vec<ConstantInfo> {
 // --- Empty -----------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Basis/Empty.lean:21-23 emptyRaw
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::empty_raw_refines, then delete this line
 /// `Empty : Type`.
 pub fn empty_raw() -> ConstantInfo {
     ConstantInfo::IndInfo(
@@ -474,6 +482,7 @@ pub fn empty_basis() -> Vec<ConstantInfo> {
 // --- False -----------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Basis/False.lean:38-40 falseRaw
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::false_raw_refines, then delete this line
 /// `False : Prop`.
 pub fn false_raw() -> ConstantInfo {
     ConstantInfo::IndInfo(
@@ -741,7 +750,8 @@ pub fn quot_basis() -> Vec<ConstantInfo> {
     vec5(quot_raw(), quot_mk_raw(), quot_lift_raw(), quot_ind_raw(), quot_sound_raw())
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:40-47 BasisKind.decls
+/// con-leche: ConLeche/Kernel/Basis.lean:34-40 BasisKind.decls
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::basis_kind_decls_refines, then delete this line
 /// The constants of one basis block, in dependency order.
 pub fn basis_kind_decls(k: &BasisKind) -> Vec<ConstantInfo> {
     match k {
@@ -754,7 +764,8 @@ pub fn basis_kind_decls(k: &BasisKind) -> Vec<ConstantInfo> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:60-71 basisPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::block_pin_kinds_refines, then delete this line
 /// The five blocks the pin match tries, as a list: con-leche writes the
 /// literal `[BasisKind.eqK, .natK, .punitK, .emptyK, .falseK]` inline in
 /// `basisPinHit`'s `List.find?`.  `quot` is not among them — its records
@@ -763,7 +774,8 @@ pub fn block_pin_kinds() -> Vec<BasisKind> {
     vec5(BasisKind::EqK, BasisKind::NatK, BasisKind::PunitK, BasisKind::EmptyK, BasisKind::FalseK)
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:60-71 basisPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::basis_pin_hit_refines, then delete this line
 /// **The basis-pin match**, with con-leche task #215's NAME pre-filter.
 /// `ConstantInfo.canon` rebuilds the whole block as an unshared tree — on a
 /// heavily DAG-shared block that was the frontend's single largest cost — so
@@ -781,7 +793,8 @@ pub fn basis_pin_hit(block: &Vec<ConstantInfo>) -> Option<BasisKind> {
     basis_pin_hit_from(&ks, block, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:60-71 basisPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::basis_pin_hit_from_refines, then delete this line
 /// The index recursion behind `basis_pin_hit`: `ks[i..]`'s `find?` by name,
 /// then the single `filter` by `canonEqList` on whatever it found.  A name
 /// mismatch moves to the next kind; a name MATCH ends the search, and the
@@ -806,7 +819,8 @@ pub fn basis_pin_hit_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:60-71 basisPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::basis_pin_names_eq_refines, then delete this line
 /// The pre-filter's test, `k.decls.map (·.name) == block.map (·.name)`.
 pub fn basis_pin_names_eq(decls: &Vec<ConstantInfo>, block: &Vec<ConstantInfo>) -> bool {
     prop_when::names_beq(
@@ -815,7 +829,7 @@ pub fn basis_pin_names_eq(decls: &Vec<ConstantInfo>, block: &Vec<ConstantInfo>) 
     )
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:73-78 quotPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:66-70 quotPinHit
 /// `BasisKind.quotK.decls.getD slot (.axiomInfo default)`: the pinned
 /// quotient package's constant at one slot, with the total-function fallback
 /// the cited `getD` spells.  A separate function because `check_decl`'s
@@ -834,7 +848,7 @@ pub fn quot_basis_at(slot: u64) -> ConstantInfo {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:73-78 quotPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:66-70 quotPinHit
 /// **The quotient-pin match**: the record is the pinned package's constant at
 /// the slot it declares itself at.  The two are compared at `toConstantVal`,
 /// which con-leche's `ConstantInfo.canon_toConstantVal` identifies with

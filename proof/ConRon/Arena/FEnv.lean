@@ -32,36 +32,36 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:97-99 FEnv.towerSlotsAllF —
+/-- con-leche: ConLeche/Kernel/FEnv.lean:94-96 FEnv.towerSlotsAllF —
 `towerSlotsAll` through the index; the arena's `towerSlotsAll` already is
 that (see the module note). -/
 abbrev IFEnv.towerSlotsAllF (fe : IFEnv) (T : NIdx) (nF : Nat) : AM Bool :=
   towerSlotsAll fe T nF
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:101-103 FEnv.andRescueSlotsF —
+/-- con-leche: ConLeche/Kernel/FEnv.lean:98-100 FEnv.andRescueSlotsF —
 `andRescueSlots` through the index. -/
 abbrev IFEnv.andRescueSlotsF (fe : IFEnv) (ctor : NIdx) (nP : Nat)
     (ust : LsIdx) : AM Bool :=
   andRescueSlots fe ctor nP ust
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:105-110 FEnv.recSlotsAllF —
+/-- con-leche: ConLeche/Kernel/FEnv.lean:102-107 FEnv.recSlotsAllF —
 `recSlotsAll` through the index. -/
 abbrev IFEnv.recSlotsAllF (fe : IFEnv) (T : NIdx) (nF : Nat) : AM Bool :=
   recSlotsAll fe T nF
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:116-119 natLitSupportedF —
+/-- con-leche: ConLeche/Kernel/FEnv.lean:113-116 natLitSupportedF —
 `natLitSupported` through the index. -/
 abbrev natLitSupportedF (fe : IFEnv) : AM Bool := natLitSupported fe
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:121-130 strLitSupportedF —
+/-- con-leche: ConLeche/Kernel/FEnv.lean:118-127 strLitSupportedF —
 `strLitSupported` through the index. -/
 abbrev strLitSupportedF (fe : IFEnv) : AM Bool := strLitSupported fe
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:132-145 natOpGuardF — `natOpGuard`
+/-- con-leche: ConLeche/Kernel/FEnv.lean:129-142 natOpGuardF — `natOpGuard`
 through the index. -/
 abbrev natOpGuardF (fe : IFEnv) (c : NIdx) : AM Bool := natOpGuard fe c
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:147-151 natOpStoredF —
+/-- con-leche: ConLeche/Kernel/FEnv.lean:144-148 natOpStoredF —
 `natOpStored` through the index (con-leche's task #161 item B3). -/
 abbrev natOpStoredF (fe : IFEnv) (c : NIdx) : AM Bool := natOpStored fe c
 

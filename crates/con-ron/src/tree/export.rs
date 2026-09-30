@@ -43,13 +43,13 @@ use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::name::Name;
 use con_ron_core::kernel::prop_when;
 
-/// con-leche: ConLeche/Frontend/Export.lean:117 M
+/// con-leche: ConLeche/Frontend/Export.lean:109 M
 /// The parse's error monad: a message, which the caller pairs with the line
 /// number it was read at.  A message is a `Vec<u32>` of code points
 /// (DESIGN.md §3.3), as every Lean `String` is in the port.
 pub type M<T> = Result<T, Vec<u32>>;
 
-/// con-leche: ConLeche/Frontend/Export.lean:71-79 RecordVerdict
+/// con-leche: ConLeche/Frontend/Export.lean:68-76 RecordVerdict
 /// What a declaration record can carry out of the parse when it does not
 /// produce a state: a positive DECLINE (a feature the checker does not
 /// support) or a REJECT (the record's redundant fields contradict the block's
@@ -59,7 +59,7 @@ pub enum RecordVerdict {
     Invalid(Vec<u32>),
 }
 
-/// con-leche: ConLeche/Frontend/Export.lean:81-85 RecordVerdict.toError
+/// con-leche: ConLeche/Frontend/Export.lean:78-82 RecordVerdict.toError
 /// The checker error a record verdict becomes; the caller pairs it with the
 /// line the record was read at.
 pub fn record_verdict_to_error(v: RecordVerdict) -> CheckError {

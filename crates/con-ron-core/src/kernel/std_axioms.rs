@@ -266,7 +266,7 @@ pub fn matches_pin_fast(cv: &ConstantVal, pin: &ConstantVal) -> bool {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:208-210 iffRaw
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:299-305 _
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:291-297 _
 /// `Iff (a b : Prop) : Prop`.  The second citation is the `#annotate_basis`
 /// command that computes the *annotated* pin `iffA` the guard below compares
 /// against; see the module note for why the raw one gives the same verdict.
@@ -383,6 +383,7 @@ pub fn iff_rec_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:241-243 iffFamily
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove std_axioms::iff_family_refines, then delete this line
 /// The raw `Iff` family, as an export carries it (dependency order).
 pub fn iff_family() -> Vec<ConstantInfo> {
     let mut fam: Vec<ConstantInfo> = Vec::new();
@@ -400,8 +401,8 @@ pub fn one_level() -> Vec<Level> {
     us
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:245-252 propextRaw
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:307-310 _
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:241-248 propextRaw
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:299-302 _
 /// `propext (a b : Prop) : Iff a b → Eq.{1} Prop a b`.  The second citation
 /// is the `#annotate_pins` command computing `propextA` (see the module
 /// note).
@@ -431,7 +432,7 @@ pub fn propext_raw() -> ConstantVal {
     }
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:254-256 nonemptyRaw
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:250-252 nonemptyRaw
 /// `Nonempty.{u} (α : Sort u) : Prop`.
 pub fn nonempty_raw() -> ConstantInfo {
     let mut lps: Vec<Name> = Vec::new();
@@ -449,7 +450,7 @@ pub fn nonempty_raw() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:258-264 nonemptyIntroRaw
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:254-260 nonemptyIntroRaw
 /// `Nonempty.intro.{u} (α : Sort u) (val : α) : Nonempty α`.
 pub fn nonempty_intro_raw() -> ConstantInfo {
     let mut lps: Vec<Name> = Vec::new();
@@ -476,7 +477,7 @@ pub fn nonempty_intro_raw() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:266-278 nonemptyRecRaw
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:262-274 nonemptyRecRaw
 /// `Nonempty.rec.{u} (α : Sort u) (motive : Nonempty α → Prop)`
 /// `(intro : ∀ val, motive (Nonempty.intro α val)) (t : Nonempty α) :`
 /// `motive t`.  The motive sort is pinned to `Prop` (the cited guidance: a
@@ -534,6 +535,7 @@ pub fn nonempty_rec_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:280-282 nonemptyFamily
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove std_axioms::nonempty_family_refines, then delete this line
 /// The raw `Nonempty` family.
 pub fn nonempty_family() -> Vec<ConstantInfo> {
     let mut fam: Vec<ConstantInfo> = Vec::new();
@@ -543,7 +545,7 @@ pub fn nonempty_family() -> Vec<ConstantInfo> {
     fam
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:284-289 choiceRaw
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:276-281 choiceRaw
 /// `Classical.choice.{u} (α : Sort u) : Nonempty α → α`.
 pub fn choice_raw() -> ConstantVal {
     let mut lps: Vec<Name> = Vec::new();
@@ -570,8 +572,8 @@ pub fn choice_raw() -> ConstantVal {
 // The install guard (`StdAxioms.lean:322-373`, `DeclCheck.lean:240-273`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:313-364 stdAxiomOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
 /// The stored `Iff` type former against the pin.  Factored out of the guard's
 /// `&&` cascade (task #3's pattern 9), so each `match` on a lookup ends
 /// before the next one begins (task #14's borrow rule).
@@ -584,8 +586,8 @@ pub fn iff_pinned(fe: &FEnv) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:313-364 stdAxiomOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
 /// The stored `Iff.intro` against the pin, at the pinned arity `2 2`.
 pub fn iff_intro_pinned(fe: &FEnv) -> bool {
     match fenv::find(fe, &iff_intro_name()) {
@@ -604,8 +606,8 @@ pub fn iff_intro_pinned(fe: &FEnv) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:313-364 stdAxiomOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
 /// The stored `Iff.rec` against the pin, at the pinned arity `4 4`.  Only its
 /// *type* is used, never its reduction rules (the cited note).
 pub fn iff_rec_pinned(fe: &FEnv) -> bool {
@@ -625,8 +627,8 @@ pub fn iff_rec_pinned(fe: &FEnv) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:313-364 stdAxiomOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
 /// The stored `Nonempty` type former against the pin.
 pub fn nonempty_pinned(fe: &FEnv) -> bool {
     match fenv::find(fe, &nonempty_name()) {
@@ -637,8 +639,8 @@ pub fn nonempty_pinned(fe: &FEnv) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:313-364 stdAxiomOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
 /// The stored `Nonempty.intro` against the pin, at the pinned arity `1 1`.
 pub fn nonempty_intro_pinned(fe: &FEnv) -> bool {
     match fenv::find(fe, &nonempty_intro_name()) {
@@ -657,8 +659,8 @@ pub fn nonempty_intro_pinned(fe: &FEnv) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:313-364 stdAxiomOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
 /// The stored `Nonempty.rec` against the pin, at the pinned arity `3 3`.
 pub fn nonempty_rec_pinned(fe: &FEnv) -> bool {
     match fenv::find(fe, &nonempty_rec_name()) {
@@ -677,8 +679,8 @@ pub fn nonempty_rec_pinned(fe: &FEnv) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:313-364 stdAxiomOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
 /// Is this checked axiom one of the two recognized standard axioms, over
 /// standardly-shaped stored `Iff` / `Nonempty` families (and the pinned `Eq`
 /// basis)?  A pure predicate, so `check_decl`'s `axiomDecl` arm stays a

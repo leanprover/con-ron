@@ -19,6 +19,7 @@ use crate::kernel::env::CheckMode;
 use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:22-59 nativeOpenedOkF
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_install_f::native_opened_ok_f_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:16-18 nativeOpenedOkF`
 /// — `nativeOpenedOk` through the index; the same function.
 #[allow(clippy::too_many_arguments)]
@@ -39,6 +40,7 @@ pub fn native_opened_ok_f(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:61-69 nativeFieldsOkF
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_install_f::native_fields_ok_f_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:20-22 nativeFieldsOkF`
 /// — `nativeFieldsOk` through the index; the same function.
 #[allow(clippy::too_many_arguments)]
@@ -58,6 +60,7 @@ pub fn native_fields_ok_f(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:71-85 checkNativeRulesF
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_install_f::check_native_rules_f_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:24-26 checkNativeRulesF`
 /// — `checkNativeRules` through the index; the same function.
 #[allow(clippy::too_many_arguments)]
@@ -89,6 +92,7 @@ pub fn check_native_rules_f(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:87-115 checkNativeRecF
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_install_f::check_native_rec_f_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:28-30 checkNativeRecF`
 /// — `checkNativeRec` through the index; the same function.
 pub fn check_native_rec_f(
@@ -104,6 +108,7 @@ pub fn check_native_rec_f(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:117-126 checkNativeTableF
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove native_install_f::check_native_table_f_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:32-34 checkNativeTableF`
 /// — `checkNativeTable` through the index; the same function.
 pub fn check_native_table_f(

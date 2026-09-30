@@ -161,7 +161,7 @@ pub struct LsIdx {
     pub word: u32,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+/// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:73-83 BMIdx` — `BMIdx`, a handle
 /// into the **binder datum store**: the same word layout as the other four (tag
 /// 0, the tier bit, the index), for a store with ONE constructor and so no tag
@@ -227,33 +227,33 @@ impl EIdx {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+/// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:112-117 Idx.mk` —
 /// `Idx.mk`/`tier`/`index`/`isPersistent`/`idxNat` at the binder-datum store.
 /// The tag field is always `0`: the store has one constructor.
 impl BMIdx {
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Handle.lean:112-117 Idx.mk` — `Idx.mk` at
     /// the binder-datum store.
     pub fn pack(tier: u32, idx: u32) -> BMIdx {
         BMIdx { word: word_mk(0, tier, idx) }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Handle.lean:61 Idx.ofWord` — `Idx.ofWord`
     /// at the binder-datum store.
     pub fn of_word(w: u32) -> BMIdx {
         BMIdx { word: w }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Handle.lean:128-130 Idx.isPersistent` —
     /// `Idx.isPersistent` at the binder-datum store.
     pub fn is_persistent(&self) -> bool {
         word_is_persistent(self.word)
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Handle.lean:132-133 Idx.idxNat` —
     /// `Idx.idxNat` at the binder-datum store.
     pub fn idx_nat(&self) -> usize {
@@ -525,57 +525,57 @@ impl Dup for BMIdx {
 // that a reader can line the two up by eye.  Each tag cites the parent
 // inductive and names the constructor it stands for.
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:219-221 ETag.bvar` — the `bvar`
 /// constructor, line 344.
 pub const ETAG_BVAR: u32 = 0;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:222-224 ETag.fvar` — the `fvar`
 /// constructor, line 345.
 pub const ETAG_FVAR: u32 = 1;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:225-227 ETag.sort` — the `sort`
 /// constructor, line 346.
 pub const ETAG_SORT: u32 = 2;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:228-230 ETag.const` — the `const`
 /// constructor, line 347.
 pub const ETAG_CONST: u32 = 3;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:231-233 ETag.app` — the `app`
 /// constructor, line 348.
 pub const ETAG_APP: u32 = 4;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:234-236 ETag.lam` — the `lam`
 /// constructor, line 349.
 pub const ETAG_LAM: u32 = 5;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:237-239 ETag.forallE` — the
 /// `forallE` constructor, line 350.
 pub const ETAG_FORALL_E: u32 = 6;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:240-242 ETag.letE` — the `letE`
 /// constructor, line 351.
 pub const ETAG_LET_E: u32 = 7;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:243-245 ETag.lit` — the `lit`
 /// constructor, line 352.
 pub const ETAG_LIT: u32 = 8;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:246-248 ETag.proj` — the `proj`
 /// constructor, line 353.
 pub const ETAG_PROJ: u32 = 9;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:250-257 ETag.isBind` —
 /// `ETag.isBind`: `lam` or `forallE`, the two constructors that share the
 /// `BindNode` record shape. A named predicate rather than the disjunction
@@ -601,27 +601,27 @@ pub const NTAG_STR: u32 = 1;
 /// constructor, line 37.
 pub const NTAG_NUM: u32 = 2;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-44 Level
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:275-277 LTag.zero` — the `zero`
 /// constructor, line 41.
 pub const LTAG_ZERO: u32 = 0;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-44 Level
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:278-280 LTag.succ` — the `succ`
 /// constructor, line 42.
 pub const LTAG_SUCC: u32 = 1;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-44 Level
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:281-283 LTag.max` — the `max`
 /// constructor, line 43.
 pub const LTAG_MAX: u32 = 2;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-44 Level
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:284-286 LTag.imax` — the `imax`
 /// constructor, line 44.
 pub const LTAG_IMAX: u32 = 3;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-44 Level
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:287-289 LTag.param` — the `param`
 /// constructor, line 45.
 pub const LTAG_PARAM: u32 = 4;

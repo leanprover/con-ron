@@ -21,31 +21,34 @@ namespace ConRon.Arena
 abbrev checkSumTeleF := @checkSumTele
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:32-43 checkSumIndF
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove SumInstallF.checkSumIndF_bridge, then delete this line
 `checkSumInd` through the index — the same function. -/
 abbrev checkSumIndF := @checkSumInd
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:45-61 checkStructFieldSortsIF
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:32-48 checkStructFieldSortsIF
 `checkStructFieldSortsI` through the index — the same function. -/
 abbrev checkStructFieldSortsIF := @checkStructFieldSortsI
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:63-81 checkStructFieldSortsIFA
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:50-68 checkStructFieldSortsIFA
 `checkStructFieldSortsIF` over an array of field variables — the same function
 at `List.toArray`. -/
 abbrev checkStructFieldSortsIFA := @checkStructFieldSortsI
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:83-95 normCtorValF
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove SumInstallF.normCtorValF_bridge, then delete this line
 `normCtorVal` through the index — the same function. -/
 abbrev normCtorValF := @normCtorVal
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:97-128 checkSumCtorF
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:70-100 checkSumCtorF
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove SumInstallF.checkSumCtorF_bridge, then delete this line
 `checkSumCtor` through the index — the same function. -/
 abbrev checkSumCtorF := @checkSumCtor
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:130-140 checkSumCtorsF
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:102-112 checkSumCtorsF
 `checkSumCtors` through the index — the same function. -/
 abbrev checkSumCtorsF := @checkSumCtors
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:142-145 consSumCtorsF
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:114-117 consSumCtorsF
 `consSumCtors` through the index — the same function. -/
 abbrev consSumCtorsF := @consSumCtors
 

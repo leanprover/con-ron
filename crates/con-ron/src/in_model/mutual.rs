@@ -67,6 +67,7 @@ use crate::in_model::kit::{
 pub use crate::tree::in_model_rec::{BlockRec, IndCtorRec, IndRecRec, IndTypeRec};
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:117-124 Ctx
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove mutual::Ctx_refines, then delete this line
 /// What the generator reads besides the block: the declared types of the
 /// constants so far, the definitional heights, and the parsed inductive
 /// blocks so far by member type name (the nested rung reads a container's
@@ -78,6 +79,7 @@ pub struct Ctx<'a> {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:126-132 MCtor
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove mutual::MCtor_refines, then delete this line
 /// A constructor of member `m`, classified: its record, its recursive field
 /// positions with the target member of each.
 pub struct MCtor<'a> {
@@ -87,6 +89,7 @@ pub struct MCtor<'a> {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:134-147 memberApp?
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove mutual::member_app_refines, then delete this line
 /// Is `e` member `m'` of the block applied to the parameter variables (`o`
 /// binders below the parameter frame) and `nIdx_{m'}` index expressions?
 /// Returns the member.
@@ -119,6 +122,7 @@ pub fn member_app(
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:149-180 classifyCtor
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove mutual::classify_ctor_refines, then delete this line
 /// Classify one constructor's fields: each domain is ordinary (no member
 /// mentioned) or, under its own `∀`-telescope whose domains do not mention
 /// the block (empty at a finitary field), exactly a member at the parameters
@@ -182,12 +186,14 @@ pub fn classify_ctor<'a>(
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:182-185 need
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove mutual::need_refines, then delete this line
 /// Unwrap a generator step that cannot fail on a well-formed block.
 pub fn need<T>(what: &str, o: Option<T>) -> Result<T, String> {
     o.ok_or_else(|| format!("internal shape failure: {}", what))
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:187-484 genMutual
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove mutual::gen_mutual_refines, then delete this line
 /// **The mutual rung** (B1 index-free, B2 indexed).  The records, in stream
 /// order: the tag block, the auxiliary block, the member/constructor/recursor
 /// models, the iota theorems, the projection artifacts.
@@ -1101,7 +1107,9 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:187-484 genMutual
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove mutual::h_of_refines, then delete this line
 /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1325 genNested
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove mutual::h_of_refines, then delete this line
 /// The `hOf` of both generators: the height of a constant, the definitions
 /// emitted by this block first (they are not in `ctx` yet), else the parse
 /// state's table.

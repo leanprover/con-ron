@@ -52,7 +52,9 @@ use crate::kernel::fenv::FEnv;
 use std::vec::Vec;
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:29-48 _
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_pins::eq_a_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:22-28 eqRaw
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_pins::eq_a_refines, then delete this line
 /// The pinned annotated `Eq` type former, `eqA` — the head of the `.eqK`
 /// block (`BasisKind.declsA .eqK = [eqA, eqReflA, eqRecA]`).
 ///
@@ -75,6 +77,7 @@ pub fn eq_a() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:29-48 _
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_pins::nat_a_refines, then delete this line
 /// The pinned annotated `Nat` type former, `natA` — the head of the `.natK`
 /// block (`BasisKind.declsA .natK = [natA, natZeroA, natSuccA, natRecA]`).
 pub fn nat_a() -> ConstantInfo {
@@ -83,6 +86,7 @@ pub fn nat_a() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:29-48 _
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_pins::is_pinned_eq_basis_refines, then delete this line
 /// Is the stored constant *the* pinned annotated `Eq` type former?  This is
 /// the `some ci = some eqA` half of `env.find? eqName = some eqA`, i.e. the
 /// derived `DecidableEq (ConstantInfo)` against the table's pin.
@@ -91,16 +95,19 @@ pub fn is_pinned_eq_basis(ci: &ConstantInfo) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:29-48 _
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_pins::is_pinned_nat_basis_refines, then delete this line
 /// Is the stored constant *the* pinned annotated `Nat` type former
 /// (`env.find? natName = some natA`, `reduceElemOk`)?
 pub fn is_pinned_nat_basis(ci: &ConstantInfo) -> bool {
     env::constant_info_beq(ci, &nat_a())
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:313-364 stdAxiomOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_pins::eq_basis_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:475-495 checkProjLookups
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_pins::eq_basis_pinned_refines, then delete this line
 /// **"The pinned `Eq` basis is installed, unmodified"** — the whole guard
 /// `decide (env.find? eqName = some eqA)`, through the index.  Twelve sites
 /// spell it (the module note lists them); two of those are in a pure `Bool`,
@@ -113,8 +120,8 @@ pub fn eq_basis_pinned(fe: &FEnv) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:179-186 reduceElemOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:288-294 reduceElemOkF
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:180-187 reduceElemOk
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:281-287 reduceElemOkF
 /// The same for `Nat`: `decide (env.find? natName = some natA)`, the element
 /// inductive an `ofReduceNat` axiom needs.
 pub fn nat_basis_pinned(fe: &FEnv) -> bool {

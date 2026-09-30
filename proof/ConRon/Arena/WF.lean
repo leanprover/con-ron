@@ -90,7 +90,7 @@ def ENodeView.lschildren : ENodeView → List LsIdx
   | .const _ us => [us]
   | _ => []
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — the datum a node
+/-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the datum a node
 view carries, if it carries one.  `EStore.findBMOfView` is `findBM` at this
 (task #97-P6-16). -/
 def ENodeView.bmOf : ENodeView → Option ConLeche.BinderMeta

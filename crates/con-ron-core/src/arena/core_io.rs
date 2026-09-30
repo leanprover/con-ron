@@ -40,8 +40,8 @@ use crate::kernel::core_types::CheckError;
 use crate::kernel::env::CheckMode;
 use crate::arena::store::PersTier;
 
-/// con-leche: ConLeche/Kernel/CoreIO.lean:91-119 coreKnotIO
-/// con-leche: ConLeche/Kernel/CoreIO.lean:121-124 pureFnsIO
+/// con-leche: ConLeche/Kernel/CoreIO.lean:90-118 coreKnotIO
+/// con-leche: ConLeche/Kernel/CoreIO.lean:120-123 pureFnsIO
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:49-52 pureFnsIO` — **the io
 /// knot** (the leaf lane), tied at `AM`: the specification the `InferClaimIO`
@@ -52,7 +52,7 @@ use crate::arena::store::PersTier;
 /// replaces it.
 pub const CORE_KNOT_IO: u32 = LANE_IO;
 
-/// con-leche: ConLeche/Kernel/CoreIO.lean:126-130 inferTypeCoreIO
+/// con-leche: ConLeche/Kernel/CoreIO.lean:125-129 inferTypeCoreIO
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:54-59 inferTypeCoreIO` —
 /// infer-only (io-grade) type inference, fueled: the io lane's single entry
 /// point.

@@ -579,19 +579,19 @@ pub struct NStore {
 // Levels (`Store.lean:149-214`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-44 Level
 /// Lean twin: `proof/ConRon/Arena/Store.lean:151-155 ZeroNode` — the `zero`
 /// constructor, line 41.
 pub struct ZeroNode {}
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-44 Level
 /// Lean twin: `proof/ConRon/Arena/Store.lean:157-161 SuccNode` — the `succ`
 /// constructor, line 42.
 pub struct SuccNode {
     pub u: LIdx,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-44 Level
 /// Lean twin: `proof/ConRon/Arena/Store.lean:163-169 BinLNode` — the `max`
 /// constructor, line 43, and `imax`, line 44, which has the same two fields
 /// and therefore the same record in its own array.
@@ -600,7 +600,7 @@ pub struct BinLNode {
     pub v: LIdx,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-44 Level
 /// Lean twin: `proof/ConRon/Arena/Store.lean:171-175 ParamNode` — the `param`
 /// constructor, line 45.
 pub struct ParamNode {
@@ -707,7 +707,7 @@ impl Dup for ParamNode {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-44 Level
 /// Lean twin: `proof/ConRon/Arena/Store.lean:182-190 LNodeView` — the
 /// store-side view of a level node.
 pub enum LNodeView {
@@ -718,7 +718,7 @@ pub enum LNodeView {
     Param(NIdx),
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:41-54 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:39-52 Level
 /// Lean twin: `proof/ConRon/Arena/Store.lean:192-199 LDer` — the `hashData`
 /// computed field, lines 47-53, plus the has-a-parameter flag, which
 /// con-leche recomputes by a walk (`Kernel/Expr.lean:114-122 levelHasParam`)
@@ -824,7 +824,7 @@ pub struct LsStore {
 // Expressions (`Store.lean:248-363`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:250-254 BVarNode` — the `bvar`
 /// constructor, line 344.  Deviation (DESIGN.md §3.3): the Lean's `Nat` is a
 /// `u64`, as `expr::bvar`'s index already is.
@@ -832,7 +832,7 @@ pub struct BVarNode {
     pub i: u64,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:256-261 FVarNode` — the `fvar`
 /// constructor, line 345.
 pub struct FVarNode {
@@ -840,14 +840,14 @@ pub struct FVarNode {
     pub ty: EIdx,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:263-267 SortNode` — the `sort`
 /// constructor, line 346.
 pub struct SortNode {
     pub u: LIdx,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:269-274 ConstNode` — the `const`
 /// constructor, line 347.  Two words: the level arguments are one interned
 /// handle, not a list.
@@ -856,7 +856,7 @@ pub struct ConstNode {
     pub us: LsIdx,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:276-281 AppNode` — the `app`
 /// constructor, line 348.  Eight bytes of node and eight of derived word,
 /// which is what DESIGN.md §8.5 prices the representation at.
@@ -865,7 +865,7 @@ pub struct AppNode {
     pub a: EIdx,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:283-291 BindNode` — the `lam`
 /// constructor, line 349, and `forallE`, line 350: same three fields, its own
 /// array.
@@ -875,7 +875,7 @@ pub struct BindNode {
     pub m: BMIdx,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+/// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
 /// Lean twin: `proof/ConRon/Arena/Store.lean:293-311 BMNode` — `BMNode`, the
 /// binder-datum store's one record: a `BinderMeta`'s `PropWhen`, hash-consed
 /// exactly as every other node of the arena is, so that a `BindNode` names it
@@ -899,7 +899,7 @@ pub struct BMNode {
     pub pw: PropWhen,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:313-319 LetNode` — the `letE`
 /// constructor, line 351.
 pub struct LetNode {
@@ -908,14 +908,14 @@ pub struct LetNode {
     pub body: EIdx,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:321-325 LitNode` — the `lit`
 /// constructor, line 352.
 pub struct LitNode {
     pub l: Literal,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:327-333 ProjNode` — the `proj`
 /// constructor, line 353.
 pub struct ProjNode {
@@ -1011,11 +1011,11 @@ impl Hashable for BindNode {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+/// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
 /// Lean twin: `proof/ConRon/Arena/Store.lean:293-311 BMNode` — the binder-datum
 /// store's cons key.
 impl Hashable for BMNode {
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Store.lean:293-311 BMNode` —
     /// `PropWhen.hash`, which is what the binder record used to fold in at
     /// every probe.
@@ -1116,12 +1116,12 @@ impl Eq2 for BindNode {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+/// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
 /// Lean twin: `proof/ConRon/Arena/Store.lean:341 instBEqBMNode` — the
 /// binder-datum store's key equality, which is `BinderMeta`'s own `DecidableEq`
 /// (`expr::binder_meta_beq`'s body).
 impl Eq2 for BMNode {
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Store.lean:341 instBEqBMNode`
     fn eq2(&self, other: &BMNode) -> bool {
         prop_when::beq(&self.pw, &other.pw)
@@ -1252,7 +1252,7 @@ impl Dup for ProjNode {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:346-361 ENodeView` — the
 /// store-side view of an expression node: con-leche's ten constructors with
 /// every subterm replaced by a handle.  `BinderMeta` and `Literal` stay
@@ -1285,7 +1285,7 @@ pub struct ETables {
     pub lets: Tbl<LetNode, EIdx, u64>,
     pub lits: Tbl<LitNode, EIdx, u64>,
     pub projs: Tbl<ProjNode, EIdx, u64>,
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Store.lean:376-382 ETables.bms` — the tier's
     /// **binder-datum store**: the hash-consed `PropWhen`s the `lam` and
     /// `forallE` records name by a `BMIdx`, with the derived column holding
@@ -2126,7 +2126,7 @@ impl LStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:41-54 Level
+    /// con-leche: ConLeche/Kernel/Expr.lean:39-52 Level
     /// Lean twin: `proof/ConRon/Arena/Store.lean:479-483 LStore.derived` — the
     /// `hashData` computed field, lines 47-53, and `Kernel/Expr.lean:114-122
     /// levelHasParam`.
@@ -2140,7 +2140,7 @@ impl LStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:41-54 Level
+    /// con-leche: ConLeche/Kernel/Expr.lean:39-52 Level
     /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 LStore.derOfView` —
     /// the derived record a node view would get, in `O(1)` from the
     /// children's.  con-leche recomputes the parameter flag by an `O(|u|)`
@@ -2511,7 +2511,7 @@ impl LsStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:137-140 levelsHash
+    /// con-leche: ConLeche/Kernel/Expr.lean:131-134 levelsHash
     /// Lean twin: `proof/ConRon/Arena/Store.lean:479-483 LsStore.derived` —
     /// the derived record of a level-list handle.
     pub fn derived(&self, pers: &PersTier, i: &LsIdx) -> LDer {
@@ -2524,7 +2524,7 @@ impl LsStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:137-140 levelsHash
+    /// con-leche: ConLeche/Kernel/Expr.lean:131-134 levelsHash
     /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 LsStore.derOfView` —
     /// and `Kernel/Expr.lean:125-127 levelsHaveParam`: the derived record a
     /// level list would get.  `O(n)` in the list, as con-leche's own fold is.
@@ -2897,7 +2897,7 @@ impl ETables {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Store.lean:936-939 ETables.getBM` — read
     /// one binder datum out of this tier's store.
     #[inline(always)]
@@ -2908,7 +2908,7 @@ impl ETables {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Store.lean:949-952 ETables.findBM` — the
     /// binder datum's cons probe in THIS tier. The record is built here, inside
     /// a leaf with no branch, as `ETables::find` builds its own.
@@ -2916,7 +2916,7 @@ impl ETables {
         self.bms.find(&BMNode { pw: prop_when::dup(&m.pw) })
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Store.lean:941-947 ETables.getBMDer` —
     /// the binder datum's two DERIVED scalars, `PropWhen.hash` (the column) and
     /// `PropWhen.hasParams` (a tag test on the record), which is all
@@ -3113,7 +3113,7 @@ impl ETables {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` — the
 /// `lam` (hash tag 19) and `forallE` (23) arms, which differ in nothing but
 /// the tag.  It is `con_ron_core::kernel::expr::lam`'s body with `data(&ty)`
@@ -3149,7 +3149,7 @@ pub fn der_of_bind(tag: u64, dt: u64, db: u64, hm: u64, pm: bool) -> u64 {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` — the
 /// `letE` arm, `con_ron_core::kernel::expr::let_e`'s body over the derived
 /// column.  A function for the reason `der_of_bind` is one: its
@@ -3176,7 +3176,7 @@ pub fn der_of_let(dt: u64, dv: u64, db: u64) -> u64 {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
 /// Lean twin: `proof/ConRon/Arena/Store.lean:1120-1128 eBindView` —
 /// `eBindView`, the inverse of `EStore.viewBind`: rebuild the binder view a
 /// walk decoded with `viewBind`, at the tag it decoded it at. `lam` and
@@ -3571,7 +3571,7 @@ impl EStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Store.lean:1275-1280 EStore.viewBM` — the
     /// persistent arm of `EStore.viewBM`.
     #[inline(always)]
@@ -3583,7 +3583,7 @@ impl EStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Store.lean:1287-1291 EStore.bmDer` — the
     /// persistent arm of `EStore.bmDer`.
     #[inline(always)]
@@ -3741,7 +3741,7 @@ impl EStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Store.lean:1275-1280 EStore.viewBM` —
     /// `EStore.viewBM`: decode a binder datum handle, the tier bit selecting
     /// the array set as it does for every other handle kind.
@@ -3756,7 +3756,7 @@ impl EStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Store.lean:1287-1291 EStore.bmDer` —
     /// `EStore.bmDer`, the binder datum's two derived scalars (`PropWhen.hash`,
     /// `PropWhen.hasParams`), which is everything `derOfBind` asks of it.
@@ -3771,7 +3771,7 @@ impl EStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Store.lean:949-952 EStore.findBM` —
     /// `EStore.findBM`, the datum's cons probe over both tiers, persistent
     /// first (the store's own order). A datum that is not interned names no
@@ -3789,7 +3789,7 @@ impl EStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Store.lean:949-952 EStore.findBM` — the
     /// persistent arm of `EStore.findBM`.
     fn pers_find_bm(&self, pers: &PersTier, m: &BinderMeta) -> Option<BMIdx> {
@@ -3800,7 +3800,7 @@ impl EStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Store.lean:949-952 EStore.findBM` — the
     /// persistent arm of `EStore.findBM` at the datum's RECORD, which
     /// `intern_bm` builds once (a value-returning reader, like `pers_find_bm`:
@@ -3813,7 +3813,7 @@ impl EStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Store.lean:1441-1461 EStore.internBM` —
     /// `EStore.internBM`: hash-cons a binder datum, `intern`'s own clauses at a
     /// store with one constructor — the persistent probe, the scratch probe,
@@ -3882,7 +3882,7 @@ impl EStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:479-483 EStore.derived` — the
     /// `data` computed field, lines 357-402: the packed derived word of an
     /// expression handle, an `O(1)` column read.
@@ -3897,7 +3897,7 @@ impl EStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `bvar` arm, which is `con_ron_core::kernel::expr::bvar`'s own body.
     ///
@@ -3923,7 +3923,7 @@ impl EStore {
         expr::pack_data(h, expr::sat_succ(i), 0, false)
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `fvar` arm (`con_ron_core::kernel::expr::fvar`'s body).  See
     /// `der_of_bvar`'s note.
@@ -3937,7 +3937,7 @@ impl EStore {
         expr::pack_data(h, 0, expr::sat_succ(idx), expr::lp_of_data(dt))
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `sort` arm (`con_ron_core::kernel::expr::sort`'s body).  See
     /// `der_of_bvar`'s note.
@@ -3948,7 +3948,7 @@ impl EStore {
         expr::pack_data(h, 0, 0, du.has_param)
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `const` arm (`con_ron_core::kernel::expr::mk_const`'s body).  See
     /// `der_of_bvar`'s note.
@@ -3960,7 +3960,7 @@ impl EStore {
         expr::pack_data(h, 0, 0, dus.has_param)
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `app` arm (`con_ron_core::kernel::expr::app`'s body).  See
     /// `der_of_bvar`'s note.
@@ -3980,7 +3980,7 @@ impl EStore {
         )
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `lam` (hash tag 19) and `forallE` (23) arms, whose arithmetic is
     /// `der_of_bind`'s (see that function's note for why it is a function of
@@ -4003,7 +4003,7 @@ impl EStore {
         )
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:1375-1384 EStore.derOfBindAtI`
     /// — `derOfBindAtI`, the `lam`/`forallE` arm over the datum's HANDLE: the
     /// two scalars `derOfBind` wants of the datum are the binder-datum store's
@@ -4022,7 +4022,7 @@ impl EStore {
         der_of_bind(tag, self.derived(pers, ty), self.derived(pers, b), bd.0, bd.1)
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `letE` arm, whose arithmetic is `der_of_let`'s.  See
     /// `der_of_bvar`'s note.
@@ -4031,7 +4031,7 @@ impl EStore {
         der_of_let(self.derived(pers, ty), self.derived(pers, val), self.derived(pers, b))
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `lit` arm (`con_ron_core::kernel::expr::lit`'s body).  See
     /// `der_of_bvar`'s note.
@@ -4041,7 +4041,7 @@ impl EStore {
         expr::pack_data(h, 0, 0, false)
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `proj` arm (`con_ron_core::kernel::expr::proj`'s body).  See
     /// `der_of_bvar`'s note.
@@ -4063,7 +4063,7 @@ impl EStore {
         )
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
     /// the `data` computed field, lines 357-402.
     ///
@@ -4138,7 +4138,7 @@ impl EStore {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Store.lean:1495-1503 EStore.findBMOfView`
     /// — the datum handle a view's cons key needs, PROBED and not interned: a
     /// binder whose datum has never been interned is not in either table, so
@@ -4976,7 +4976,7 @@ impl PersTier {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Store.lean:1463-1474
     /// EStore.internBMPersistent` — the binder datum's promote-intern:
     /// `internPersistent`'s clauses at the datum table, so that a promoted
@@ -4998,7 +4998,7 @@ impl PersTier {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
     /// Lean twin: `proof/ConRon/Arena/Store.lean:1513-1520
     /// EStore.internBMOfViewPersistent` — the binder datum a view names, made
     /// persistent, so that `intern_e` can go on working over the view while

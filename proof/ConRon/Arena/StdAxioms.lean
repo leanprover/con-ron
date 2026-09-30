@@ -114,47 +114,51 @@ def iffRecIntro : AM EIdx := internExpr ConLeche.iffRecIntro
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:229-239 iffRecRaw -/
 def iffRecRaw : AM IConstantInfo := internCI ConLeche.iffRecRaw
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:241-243 iffFamily -/
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StdAxioms.iffFamily_bridge, then delete this line
 def iffFamily : AM (List IConstantInfo) := internCIList ConLeche.iffFamily
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:245-252 propextRaw -/
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:241-248 propextRaw -/
 def propextRaw : AM IConstantVal := internCV ConLeche.propextRaw
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:254-256 nonemptyRaw -/
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:250-252 nonemptyRaw -/
 def nonemptyRaw : AM IConstantInfo := internCI ConLeche.nonemptyRaw
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:258-264 nonemptyIntroRaw -/
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:254-260 nonemptyIntroRaw -/
 def nonemptyIntroRaw : AM IConstantInfo := internCI ConLeche.nonemptyIntroRaw
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:266-278 nonemptyRecRaw -/
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:262-274 nonemptyRecRaw -/
 def nonemptyRecRaw : AM IConstantInfo := internCI ConLeche.nonemptyRecRaw
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:280-282 nonemptyFamily -/
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StdAxioms.nonemptyFamily_bridge, then delete this line
 def nonemptyFamily : AM (List IConstantInfo) :=
   internCIList ConLeche.nonemptyFamily
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:284-289 choiceRaw -/
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:276-281 choiceRaw -/
 def choiceRaw : AM IConstantVal := internCV ConLeche.choiceRaw
 
 /-- con-leche: ConLeche/Kernel/BasisA.lean:29-49 _ — the annotated `Eq` pin,
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StdAxioms.eqA_bridge, then delete this line
 `ConLeche.eqA` (spliced by `#annotate_basis`, so the citation is the command's
 range), interned.  It is the comparand of every "requires the pinned `Eq`
 basis" test in the checker. -/
 def eqA : AM IConstantInfo := internCI ConLeche.eqA
 
 /-- con-leche: ConLeche/Kernel/BasisA.lean:29-49 _ — the annotated `Nat` pin,
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove StdAxioms.natA_bridge, then delete this line
 `ConLeche.natA`, interned. -/
 def natA : AM IConstantInfo := internCI ConLeche.natA
 
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:299-305 _ — the annotated `Iff`
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:291-297 _ — the annotated `Iff`
 pin (`#annotate_basis`'s `iffA`), interned. -/
 def iffA : AM IConstantInfo := internCI ConLeche.iffA
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:299-305 _ — `iffIntroA`. -/
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:291-297 _ — `iffIntroA`. -/
 def iffIntroA : AM IConstantInfo := internCI ConLeche.iffIntroA
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:299-305 _ — `iffRecA`. -/
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:291-297 _ — `iffRecA`. -/
 def iffRecA : AM IConstantInfo := internCI ConLeche.iffRecA
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:299-305 _ — `nonemptyA`. -/
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:291-297 _ — `nonemptyA`. -/
 def nonemptyA : AM IConstantInfo := internCI ConLeche.nonemptyA
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:299-305 _ — `nonemptyIntroA`. -/
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:291-297 _ — `nonemptyIntroA`. -/
 def nonemptyIntroA : AM IConstantInfo := internCI ConLeche.nonemptyIntroA
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:299-305 _ — `nonemptyRecA`. -/
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:291-297 _ — `nonemptyRecA`. -/
 def nonemptyRecA : AM IConstantInfo := internCI ConLeche.nonemptyRecA
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:307-310 _ — `propextA`. -/
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:299-302 _ — `propextA`. -/
 def propextA : AM IConstantVal := internCV ConLeche.propextA
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:307-310 _ — `choiceA`. -/
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:299-302 _ — `choiceA`. -/
 def choiceA : AM IConstantVal := internCV ConLeche.choiceA
 
 end ConRon.Arena

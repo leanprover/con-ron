@@ -19,7 +19,8 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumParts.lean:78-101 InductiveShape
+/-- con-leche: ConLeche/Kernel/Inductives/SumParts.lean:35-58 InductiveShape
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove SumParts.InductiveShape_bridge, then delete this line
 The pieces of a recognised direct sum block, over handles. -/
 structure InductiveShape where
   /-- the type former -/
@@ -45,6 +46,7 @@ structure InductiveShape where
   deriving Repr, Inhabited
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumParts.lean:103-110 sumSplit — the
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove SumParts.sumSplit_bridge, then delete this line
 block's members after the type former: the constructors, then the closing
 recursor.  Pure; see the module note. -/
 def sumSplit : List IConstantInfo →
@@ -54,7 +56,8 @@ def sumSplit : List IConstantInfo →
     (sumSplit rest).map fun q => ((cvC, nP, nF) :: q.1, q.2)
   | _ => none
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumParts.lean:112-119 InductiveShape.withSort
+/-- con-leche: ConLeche/Kernel/Inductives/SumParts.lean:35-58 InductiveShape.withSort
+-- con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove SumParts.InductiveShape.withSort_bridge, then delete this line
 The record completed with the former's result sort (task #195); `isProp` is
 recomputed so that the recogniser's invariant holds by definition. -/
 def InductiveShape.withSort (p : InductiveShape) (s : LIdx) : AM InductiveShape := do

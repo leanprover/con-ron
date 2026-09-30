@@ -82,7 +82,7 @@ use crate::kernel::name::Name;
 use crate::ron::ptr::P;
 use std::vec::Vec;
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:44-49 FEnv
+/// con-leche: ConLeche/Kernel/FEnv.lean:41-46 FEnv
 /// The spec environment together with a name index whose lookup function
 /// agrees with `Env.find?`.  Deviations: `Std.HashMap` is `crate::ron::hashmap`
 /// (§3.3); the two `Nat`s — the per-entry installation counter and
@@ -97,7 +97,7 @@ pub struct FEnv {
     pub visible_below: u64,
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:56-60 mkFEnvGo
+/// con-leche: ConLeche/Kernel/FEnv.lean:53-57 mkFEnvGo
 /// The index build, from the back of the cited list: the newest constant is
 /// inserted last and wins, exactly as `List.find?` takes the first match — so
 /// the agreement with `Env.find?` is unconditional (no freshness assumption).
@@ -134,7 +134,7 @@ pub fn mk_fenv_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:64-66 mkFEnv
+/// con-leche: ConLeche/Kernel/FEnv.lean:61-63 mkFEnv
 /// Build the index of `env`, with nothing hidden (`visibleBelow` is the
 /// constant count).  Takes the environment by value: the `FEnv` owns it.
 pub fn mk_fenv(env: Env) -> FEnv {
@@ -151,7 +151,7 @@ pub fn mk_fenv(env: Env) -> FEnv {
     }
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:72-75 FEnv.find?
+/// con-leche: ConLeche/Kernel/FEnv.lean:69-72 FEnv.find?
 /// Indexed lookup, bounded by the visibility counter (`= Env.find?` for
 /// `mk_fenv`, which hides nothing).
 ///
@@ -170,7 +170,7 @@ pub fn find<'a>(fe: &'a FEnv, n: &Name) -> Option<&'a ConstantInfo> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:79-80 FEnv.restrictTo
+/// con-leche: ConLeche/Kernel/FEnv.lean:76-77 FEnv.restrictTo
 /// Restrict the view to the first `k` installed constants.  `O(1)`: the
 /// cited field update, with the record taken by value and returned (see the
 /// module note on why that replaces Lean's persistence).
@@ -182,7 +182,7 @@ pub fn restrict_to(fe: FEnv, k: u64) -> FEnv {
     }
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:87-89 FEnv.push
+/// con-leche: ConLeche/Kernel/FEnv.lean:84-86 FEnv.push
 /// The index of the cons-extended environment.  The new entry gets the next
 /// installation counter, and the visibility bound advances with it — so a
 /// push is visible to everything checked after it and to nothing checked
@@ -212,7 +212,7 @@ pub fn push(fe: FEnv, ci: ConstantInfo) -> FEnv {
     }
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:92-95 FEnv.findProj?
+/// con-leche: ConLeche/Kernel/FEnv.lean:89-92 FEnv.findProj?
 /// Indexed projection-table lookup (`= Env.findProj?` for `mk_fenv`).
 pub fn find_proj(fe: &FEnv, t: &Name, i: u64) -> Option<ProjEntry> {
     match find(fe, &env::proj_table_name(t)) {
@@ -228,8 +228,8 @@ pub fn find_proj(fe: &FEnv, t: &Name, i: u64) -> Option<ProjEntry> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:98-99 FEnv.towerSlotsAllF
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:709-714 towerSlotsAll
+/// con-leche: ConLeche/Kernel/FEnv.lean:95-96 FEnv.towerSlotsAllF
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:677-682 towerSlotsAll
 /// `towerSlotsAll` through the index — and, since the port reads every
 /// environment through the index (task #18's module note), *the* port of
 /// `Core.lean`'s `towerSlotsAll` as well.
@@ -237,7 +237,7 @@ pub fn tower_slots_all_f(fe: &FEnv, t: &Name, n_f: u64) -> bool {
     tower_slots_all_f_from(fe, t, n_f, 0)
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:98-99 FEnv.towerSlotsAllF
+/// con-leche: ConLeche/Kernel/FEnv.lean:95-96 FEnv.towerSlotsAllF
 /// The index recursion the cited `(List.range nF).all` becomes (§3.4 forbids
 /// closures); `j` runs `0 … nF-1` in the cited order.
 pub fn tower_slots_all_f_from(fe: &FEnv, t: &Name, n_f: u64, j: u64) -> bool {
@@ -250,15 +250,15 @@ pub fn tower_slots_all_f_from(fe: &FEnv, t: &Name, n_f: u64, j: u64) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:106-110 FEnv.recSlotsAllF
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:716-724 recSlotsAll
+/// con-leche: ConLeche/Kernel/FEnv.lean:103-107 FEnv.recSlotsAllF
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:684-692 recSlotsAll
 /// `recSlotsAll` through the index — and the port of `Core.lean`'s
 /// `recSlotsAll` (see `tower_slots_all_f`).
 pub fn rec_slots_all_f(fe: &FEnv, t: &Name, n_f: u64) -> bool {
     rec_slots_all_f_from(fe, t, n_f, 0)
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:106-110 FEnv.recSlotsAllF
+/// con-leche: ConLeche/Kernel/FEnv.lean:103-107 FEnv.recSlotsAllF
 /// The index recursion the cited `(List.range nF).all` becomes.
 pub fn rec_slots_all_f_from(fe: &FEnv, t: &Name, n_f: u64, j: u64) -> bool {
     if j >= n_f {
@@ -270,7 +270,7 @@ pub fn rec_slots_all_f_from(fe: &FEnv, t: &Name, n_f: u64, j: u64) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:106-110 FEnv.recSlotsAllF
+/// con-leche: ConLeche/Kernel/FEnv.lean:103-107 FEnv.recSlotsAllF
 /// The cited body's one-slot test, as its own function so that the borrow of
 /// the index ends before the recursion resumes; `env::is_rec_info` is the
 /// cited `| some (.recInfo _ _ _ _) => true | _ => false`.

@@ -67,6 +67,7 @@ use con_ron_core::kernel::name::{Name, NameKind};
 use con_ron_core::ron::hashmap::HashMap;
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:83-104 ProjRecOwner
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::ProjRecOwner_refines, then delete this line
 /// What the rewrite needs to know about one structure-like owner `T` of a
 /// parsed inductive block that the direct install does not serve.
 pub struct ProjRecOwner {
@@ -113,6 +114,7 @@ pub fn cps_starts_with(s: &Vec<u32>, lit: &[u32]) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:106-111 projIotaName
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::proj_iota_name_refines, then delete this line
 /// The name of the model family's constructor-reduction theorem for field `i`
 /// of `T`: `T._model.proj_i.iota`.  The cited `s!"proj_{i}"` is
 /// `text::cat`/`text::u64_str` (§3.4 has no `format!`).
@@ -129,6 +131,7 @@ pub fn proj_iota_name(t: &Name, i: u64) -> Name {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:113-118 isProjIotaName
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::is_proj_iota_name_refines, then delete this line
 /// Is `n` of the shape `X._model.proj_i.iota`?  Cheap pre-filter for the
 /// theorem records (the last component decides before anything is compared).
 pub fn is_proj_iota_name(n: &Name) -> bool {
@@ -156,6 +159,7 @@ pub fn is_proj_iota_name(n: &Name) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:120-125 projIotaLevel
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::proj_iota_level_refines, then delete this line
 /// The `Eq` level of an artifact iota statement `∀ …, @Eq.{ℓ} α a b`: the
 /// field's sort.  `None` on any other shape.
 pub fn proj_iota_level(ty: &Expr) -> Option<Level> {
@@ -177,9 +181,13 @@ pub fn proj_iota_level(ty: &Expr) -> Option<Level> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:227-231 occursConstFast
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::occurs_const_fast_refines, then delete this line
 /// con-leche: ConLeche/Frontend/ProjRec.lean:180-225 occursConstGo
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::occurs_const_fast_refines, then delete this line
 /// con-leche: ConLeche/Frontend/ProjRec.lean:151-178 occursConstB
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::occurs_const_fast_refines, then delete this line
 /// con-leche: ConLeche/Frontend/ProjRec.lean:127-136 occursConst
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::occurs_const_fast_refines, then delete this line
 /// Does the constant `n` occur in `e`?  (Not through fvar type annotations —
 /// parsed declarations are fvar-free.)  Memoised: the map holds the subterms
 /// already shown NOT to mention `n`, so only `false` is recorded — a `true`
@@ -192,6 +200,7 @@ pub fn occurs_const_fast(n: &Name, e: &Expr) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:180-225 occursConstGo
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::occurs_const_go_refines, then delete this line
 /// The memoised descent's body: the four leaf arms answer before the probe,
 /// every compound node is probed, walked, and recorded when it comes out
 /// `false`.
@@ -217,6 +226,7 @@ pub fn occurs_const_go(n: &Name, seen: &mut HashMap<Expr, bool>, e: &Expr) -> bo
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:180-225 occursConstGo
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::occurs_const_node_refines, then delete this line
 /// The inner `match e with` of the miss branch, split off so the probe's
 /// borrow dies before the descent mutates the memo (task #14's rule).  The
 /// final arm is unreachable — the four leaf kinds answered above.
@@ -255,6 +265,7 @@ pub fn occurs_const_node(n: &Name, seen: &mut HashMap<Expr, bool>, e: &Expr) -> 
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:233-237 lamBody
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::lam_body_refines, then delete this line
 /// The body under every leading `λ` (the projection shape's pre-filter: the
 /// node under the value's binders).
 pub fn lam_body(e: &Expr) -> Expr {
@@ -265,6 +276,7 @@ pub fn lam_body(e: &Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:239-245 stripPisAll
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::strip_pis_all_refines, then delete this line
 /// Strip every leading `∀`: the binder list (outermost first) and the body.
 /// A spine walk, so the loop the directory's relaxation allows (the cited Lean
 /// is the tail recursion Lean compiles to one).
@@ -293,6 +305,7 @@ pub fn strip_pis_all(e: &Expr) -> (Vec<(Expr, BinderMeta)>, Expr) {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:247-249 mkLams
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::mk_lams_refines, then delete this line
 /// Rebuild a `λ`-telescope over a binder list (outermost first).  The cited
 /// `foldr` is a countdown loop (§3.4 has no closures).
 pub fn mk_lams(bs: &Vec<(Expr, BinderMeta)>, body: Expr) -> Expr {
@@ -306,6 +319,7 @@ pub fn mk_lams(bs: &Vec<(Expr, BinderMeta)>, body: Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:251-257 instPisOpen
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::inst_pis_open_refines, then delete this line
 /// Instantiate the leading `∀`-binders at *open* arguments (the body-frame
 /// variables and the built motives/minors), one binder per argument,
 /// returning the residual telescope.
@@ -360,6 +374,7 @@ pub trait MkBinder {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:259-269 buildBinders
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::build_binders_refines, then delete this line
 /// Peel `k` binders of a telescope, building one term per binder from its
 /// (progressively instantiated) domain, and instantiating the telescope with
 /// that term before the next binder is read.
@@ -384,6 +399,7 @@ pub fn build_binders<M: MkBinder>(mk: &M, k: u64, e: &Expr) -> Option<(Vec<Expr>
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:259-269 buildBinders
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::build_binders_step_refines, then delete this line
 /// The cited `| k + 1, .forallE dom body _ => do let t ← mk dom; …`: one
 /// binder's term and the telescope instantiated at it, or `None` for the
 /// cited `| _ + 1, _ => none`.  Its own function because `cur`'s borrow (the
@@ -398,6 +414,7 @@ pub fn build_binders_step<M: MkBinder>(mk: &M, cur: &Expr) -> Option<(Expr, Expr
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:259-269 buildBinders
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::build_binders_step_at_refines, then delete this line
 /// The cited `do` block of that arm, at the binder's domain and body: the
 /// arm's own branch lifted out of the `match` on `cur` (§2.1 F3 — an arm must
 /// end in a call, never in a branch).
@@ -427,6 +444,7 @@ pub fn build_binders_done(ok: bool, out: Vec<Expr>, cur: Expr) -> Option<(Vec<Ex
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:271-277 headIs
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::head_is_refines, then delete this line
 /// Is `T` the head of the owner's own carrier: the motive domain
 /// `∀ (t : T p⃗), Sort ℓ` (exactly one binder) or the major-premise domain.
 pub fn head_is(t: &Name, e: &Expr) -> bool {
@@ -462,6 +480,7 @@ pub fn punit_unit_at(l: &Level) -> Expr {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::MkMotive_refines, then delete this line
 /// The cited `mkMotive`: the owner's motive is `fun (t : T p⃗) => R` (`R`'s
 /// parameter references skip the new binder; its subject reference IS the new
 /// binder); every other one is the constant `PUnit.{ℓ}` over its telescope.
@@ -472,9 +491,11 @@ pub struct MkMotive {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::impl MkBinder for MkMotive_refines, then delete this line
 /// `mkMotive`, as the one method of `MkBinder`.
 impl MkBinder for MkMotive {
     /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
+    /// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::binder_refines, then delete this line
     /// The cited three-arm `match stripPisAll dom with`.
     fn binder(&self, dom: &Expr) -> Option<Expr> {
         let bse = strip_pis_all(dom);
@@ -504,6 +525,7 @@ impl MkBinder for MkMotive {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::MkMinor_refines, then delete this line
 /// The cited `mkMinor`: the owner constructor's minor returns field `i` of its
 /// telescope (fields first, then the inductive hypotheses); every other one
 /// returns `PUnit.unit.{ℓ}`.  The owner's minor is the one whose codomain
@@ -515,9 +537,11 @@ pub struct MkMinor {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::impl MkBinder for MkMinor_refines, then delete this line
 /// `mkMinor`, as the one method of `MkBinder`.
 impl MkBinder for MkMinor {
     /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
+    /// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::binder_refines, then delete this line
     /// The cited `match cod.getAppArgs.getLast? with`; the empty spine is the
     /// cited `none` arm.
     fn binder(&self, dom: &Expr) -> Option<Expr> {
@@ -541,6 +565,7 @@ impl MkBinder for MkMinor {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::bvar_params_refines, then delete this line
 /// The cited `(List.range o.nP).map fun k => Expr.bvar (o.nP - k)`: the body
 /// frame is the value's own `nP + 1` binders, so parameter `k` is
 /// `bvar (nP - k)` and the subject is `bvar 0`.
@@ -568,6 +593,7 @@ pub fn append_exprs(out: Vec<Expr>, xs: &Vec<Expr>) -> Vec<Expr> {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::proj_rec_value_refines, then delete this line
 /// **The rewrite.**  `ty`/`val` are the definition's declared type and value,
 /// `i` the projected field, `l` the field's sort (from the artifact).  `None`
 /// = the value is not of the projection shape (the caller keeps the
@@ -593,6 +619,7 @@ pub fn proj_rec_value(o: &ProjRecOwner, l: &Level, ty: &Expr, val: &Expr, i: u64
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::proj_rec_value_at_refines, then delete this line
 /// The cited block from `let us := o.lps.map Level.param` to the last
 /// `buildBinders`: the recursor's type at the chosen elimination level, its
 /// parameters instantiated at the body frame, then the motives and the minors.
@@ -649,6 +676,7 @@ pub fn append_levels(out: Vec<Level>, us: &Vec<Level>) -> Vec<Level> {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::proj_rec_value_major_refines, then delete this line
 /// The cited final `match rty with | .forallE majDom _ _ => …`: the owner has
 /// no indices, so the next binder is the subject itself, and the value is
 /// `T.rec.{ℓ, u⃗} p⃗ motives minors (bvar 0)` under the definition's own
@@ -688,6 +716,7 @@ pub fn proj_rec_value_major(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::ProjTypeRec_refines, then delete this line
 /// `types`' component of the export record's own shape data (Lean's
 /// `(name, levelParams, type, numParams, numIndices, ctors, isRec)`).
 pub struct ProjTypeRec {
@@ -701,6 +730,7 @@ pub struct ProjTypeRec {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::ProjCtorRec_refines, then delete this line
 /// `ctors`' component (Lean's `(name, numFields, type)`).
 pub struct ProjCtorRec {
     pub name: Name,
@@ -709,6 +739,7 @@ pub struct ProjCtorRec {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::ProjRecRec_refines, then delete this line
 /// `recs`' component (Lean's `(name, levelParams, type, numMotives,
 /// numMinors)`).
 pub struct ProjRecRec {
@@ -720,6 +751,7 @@ pub struct ProjRecRec {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::type_names_refines, then delete this line
 /// The cited `types.map (·.1)`: the block's type formers.
 pub fn type_names(types: &[ProjTypeRec]) -> Vec<Name> {
     let n = types.len();
@@ -733,6 +765,7 @@ pub fn type_names(types: &[ProjTypeRec]) -> Vec<Name> {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::any_is_rec_refines, then delete this line
 /// The cited `types.any (·.2.2.2.2.2.2)`: the export's own `isRec` flag on any
 /// member.
 pub fn any_is_rec(types: &[ProjTypeRec]) -> bool {
@@ -748,6 +781,7 @@ pub fn any_is_rec(types: &[ProjTypeRec]) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::any_ctor_mentions_refines, then delete this line
 /// The cited `ctors.any fun (_, _, cty) => (stripPisAll cty).1.any …`: a block
 /// name in a constructor's binder *domains* (its result names the owner by
 /// definition).
@@ -765,6 +799,7 @@ pub fn any_ctor_mentions(block_names: &Vec<Name>, ctors: &[ProjCtorRec]) -> bool
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::any_dom_mentions_refines, then delete this line
 /// The cited `fun (d, _) => …` over the constructor's binder domains.
 pub fn any_dom_mentions(block_names: &Vec<Name>, bs: &Vec<(Expr, BinderMeta)>) -> bool {
     let n = bs.len();
@@ -779,6 +814,7 @@ pub fn any_dom_mentions(block_names: &Vec<Name>, bs: &Vec<(Expr, BinderMeta)>) -
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::any_name_mentions_refines, then delete this line
 /// The cited innermost `blockNames.any fun n => occursConstFast n d`, one
 /// domain.  Its own function because Aeneas supports no `return` inside a
 /// *nested* loop at all ("Returns inside of nested loops are not supported
@@ -797,6 +833,7 @@ pub fn any_name_mentions(block_names: &Vec<Name>, d: &Expr) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::find_ctor_refines, then delete this line
 /// The cited `ctors.find? (·.1 == C)`, as an index (the subset has no
 /// closures).
 pub fn find_ctor(ctors: &[ProjCtorRec], n: &Name) -> Option<usize> {
@@ -812,6 +849,7 @@ pub fn find_ctor(ctors: &[ProjCtorRec], n: &Name) -> Option<usize> {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::find_rec_refines, then delete this line
 /// The cited `recs.find? (·.1 == T.str "rec")`, as an index.
 pub fn find_rec(recs: &[ProjRecRec], n: &Name) -> Option<usize> {
     let m = recs.len();
@@ -826,6 +864,7 @@ pub fn find_rec(recs: &[ProjRecRec], n: &Name) -> Option<usize> {
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::proj_rec_owner_at_refines, then delete this line
 /// The cited `types.filterMap`'s body on one type record: the officially
 /// structure-like member (one constructor, zero indices, non-`Prop`) whose
 /// recursor carries an elimination level parameter.
@@ -879,6 +918,7 @@ pub fn proj_rec_owner_at(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::proj_rec_owners_refines, then delete this line
 /// Which block members the rewrite serves: the officially structure-like ones
 /// (one constructor, zero indices) of a block the direct install does not
 /// recognise — `struct_parts_core` rejects it (mutual, multi-constructor,
@@ -913,6 +953,7 @@ pub fn proj_rec_owners(
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
+/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove proj_rec::proj_rec_owners_go_refines, then delete this line
 /// The cited `types.filterMap`, as the loop over the type records.
 pub fn proj_rec_owners_go(
     types: &[ProjTypeRec],
