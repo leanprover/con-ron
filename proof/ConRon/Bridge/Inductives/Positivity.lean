@@ -213,7 +213,7 @@ theorem nestCtorEntry_spec (C : NIdx) (CP : ConLeche.Name) (ci : IConstantInfo)
       simp only [ConLeche.nestCtorEntry, stripPis_none hbp]
     | some q =>
       obtain ⟨bs, body⟩ := q
-      obtain ⟨xs, x, hsp, hbody⟩ := stripPis_some hbp
+      obtain ⟨xs, x, hsp, -, hbody⟩ := denoteBP_some hbp
       dsimp only at h2
       obtain ⟨hd, s₂, h3, h4⟩ := bindOk h2
       obtain ⟨rfl, hhd⟩ := getAppFn_run hok hbody h3
@@ -791,7 +791,7 @@ theorem nestInstType_spec {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
   cases o with
   | none => exact absurd h6 (fun hc => failOk hc)
   | some q =>
-  obtain ⟨xs, x, hsp, -⟩ := stripPis_some hbp
+  obtain ⟨xs, x, hsp, -, -⟩ := denoteBP_some hbp
   rw [PW.denoteEList_length hds] at hsp
   dsimp only at h6
   obtain ⟨tl, s₄, h7, h8⟩ := bindOk h6

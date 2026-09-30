@@ -466,7 +466,7 @@ theorem checkBlockTele_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
   | none => exact absurd z3 (fun h => failOk h)
   | some q =>
   obtain ⟨bs, body⟩ := q
-  obtain ⟨xs, x, hxs, hbody⟩ := stripPis_some hsq
+  obtain ⟨xs, x, hxs, -, hbody⟩ := denoteBP_some hsq
   dsimp only at z3
   obtain ⟨srt, s₄, k4, z4⟩ := bindOk z3
   obtain ⟨p4, hsrt⟩ := internSortE_run c2.ok.state h2b k4

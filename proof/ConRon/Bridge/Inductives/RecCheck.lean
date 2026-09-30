@@ -1624,7 +1624,7 @@ theorem nestedRuleSyn_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
       rw [stripPis_none hq]; rfl
     | some q =>
       obtain ⟨bs, e⟩ := q
-      obtain ⟨xs, x, hsx, hx⟩ := stripPis_some hq
+      obtain ⟨xs, x, hsx, -, hx⟩ := denoteBP_some hq
       rw [hsx]
       dsimp only at z1
       by_cases htg : (e.tag == ETag.forallE) = true
@@ -2272,7 +2272,7 @@ theorem targetK53_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     exact ⟨CoreStep.refl hok, false, rfl, FOk.pure false⟩
   | some q =>
   obtain ⟨teleW, leafW⟩ := q
-  obtain ⟨twP, lwP, hsx, htw, hlw⟩ := denoteBP_someB' hq
+  obtain ⟨twP, lwP, hsx, htw, hlw⟩ := denoteBP_some hq
   rw [hsx]
   dsimp only at z1 ⊢
   obtain ⟨ew, s2, k2, z2⟩ := bindOk z1

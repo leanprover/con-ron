@@ -481,7 +481,7 @@ theorem recTargetOf_spec (names : List NIdx) (namesP : List ConLeche.Name) (mI :
     simp only [ConLeche.recTargetOf, stripPis_none hbp, hlen]
   | some q =>
     obtain ⟨bs, e⟩ := q
-    obtain ⟨xs, x, hsp, hx⟩ := stripPis_some hbp
+    obtain ⟨xs, x, hsp, -, hx⟩ := denoteBP_some hbp
     dsimp only at h2
     by_cases htg : (e.tag == ETag.forallE) = true
     · rw [if_pos htg] at h2
@@ -657,7 +657,7 @@ theorem ctorMember?_spec (names : List NIdx) (namesP : List ConLeche.Name) (lvls
     simp only [ConLeche.ctorMember?, stripPis_none hbp]
   | some q =>
     obtain ⟨bs, e⟩ := q
-    obtain ⟨xs, x, hsp, hx⟩ := stripPis_some hbp
+    obtain ⟨xs, x, hsp, -, hx⟩ := denoteBP_some hbp
     dsimp only at h2
     obtain ⟨hh, s₂, h3, h4⟩ := bindOk h2
     obtain ⟨hs2, hhd⟩ := getAppFn_run hok hx h3
@@ -1797,7 +1797,7 @@ theorem blockShape?_run {μ : CheckMode} {env : Env} {fe : IFEnv} (nPd : Nat)
         hT0' hR0' hTs' hcs' hrs' hyP z4
     | some qq =>
       obtain ⟨bs, e⟩ := qq
-      obtain ⟨xs, x, hsp, hx⟩ := stripPis_some hbp
+      obtain ⟨xs, x, hsp, -, hx⟩ := denoteBP_some hbp
       dsimp only at z3
       obtain ⟨v, s4, k4, z4⟩ := bindOk z3
       obtain ⟨hs4, hview⟩ := view_run k4

@@ -301,7 +301,7 @@ theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     exact finish z1 (fun bsP sP h => by rw [stripPis_none hsq] at h; exact nomatch h)
   | some q =>
   obtain ⟨bs, body⟩ := q
-  obtain ⟨xs, x, hxs, hbody⟩ := stripPis_some hsq
+  obtain ⟨xs, x, hxs, -, hbody⟩ := denoteBP_some hsq
   dsimp only at z1
   by_cases htg : (body.tag == ETag.sort) = true
   · rw [if_pos htg] at z1
@@ -1021,7 +1021,7 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
   subst hq3
   rw [hs4] at z4
   obtain ⟨cbs, cbody⟩ := q3
-  obtain ⟨cxs, cbodyP, hsp, hcb⟩ := stripPis_some ho3
+  obtain ⟨cxs, cbodyP, hsp, -, hcb⟩ := denoteBP_some ho3
   dsimp only at z4
   have x02 := c12.ext
   obtain ⟨b5, s₅, k5, z5⟩ := bindOk z4

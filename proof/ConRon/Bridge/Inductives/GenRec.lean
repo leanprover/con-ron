@@ -1776,22 +1776,6 @@ theorem classNodesAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         refine ⟨c12.trans c3, (), trivial, ?_⟩
         exact FOk.bind hK (by simp only [↓reduceIte]; exact FOk.seq (FOk.pure ()) hR)
 
-/-- con-leche: none — a `some` answer of `stripPis`, with its binders. -/
-theorem stripPis_someB {st : EStore} {k : Nat} {cP : Expr}
-    {bs : List (EIdx × BinderMeta)} {e : EIdx}
-    (h : ExprOps.denoteBP st (some (bs, e)) = some (Expr.stripPis k cP)) :
-    ∃ xs x, Expr.stripPis k cP = some (xs, x) ∧ denoteBinders st bs = some xs ∧
-      denoteE st e = some x := by
-  simp only [ExprOps.denoteBP] at h
-  cases hb : ExprOps.denoteBL st bs with
-  | none => rw [hb] at h; simp at h
-  | some xs =>
-    cases he : denoteE st e with
-    | none => rw [hb, he] at h; simp at h
-    | some x =>
-      rw [hb, he] at h
-      exact ⟨xs, x, (Option.some.inj h).symm, by rw [denoteBinders_eq_denoteBL, hb], rfl⟩
-
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:279-293 classFieldsAgree —
 **node agreement at every recursive field of the datum**: the field's
 telescope stripped, its leaf at the inductive hypothesis's class, then every
@@ -1841,7 +1825,7 @@ theorem classFieldsAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       | none => exact absurd z3 (fun hc => failOk hc)
       | some q =>
         obtain ⟨teleB, leaf⟩ := q
-        obtain ⟨teleP, leafP, hsp, hteleB, hleaf⟩ := stripPis_someB hq
+        obtain ⟨teleP, leafP, hsp, hteleB, hleaf⟩ := denoteBP_some hq
         rw [hsp]
         dsimp only at z3
         obtain ⟨mt, s4, k4, z4⟩ := bindOk z3
@@ -2723,7 +2707,7 @@ theorem classRuleOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (vis
   | none => exact absurd z11 (fun hc => failOk hc)
   | some q =>
     obtain ⟨rbs, body⟩ := q
-    obtain ⟨rbsP, bodyP, hsl, hrbs, -⟩ := denoteBP_someB' hq
+    obtain ⟨rbsP, bodyP, hsl, hrbs, -⟩ := denoteBP_some hq
     dsimp only at z11
     obtain ⟨b8, s8, k8, z12⟩ := bindOk z11
     have hr6 : ReadOK env₂ (feR.restrictTo visT) s6 :=

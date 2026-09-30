@@ -285,11 +285,12 @@ theorem stripPis_none {st : EStore} {k : Nat} {cP : Expr}
     (h : ExprOps.denoteBP st none = some (Expr.stripPis k cP)) :
     Expr.stripPis k cP = none := (Option.some.inj h).symm
 
-/-- con-leche: none — and a `some` answer names the pure residual. -/
-theorem stripPis_some {st : EStore} {k : Nat} {cP : Expr}
+/-- con-leche: none — and a `some` answer of a telescope peel (`stripPis`,
+`stripLams`) names the pure answer: its binders and its residual denote. -/
+theorem denoteBP_some {st : EStore} {v : Option (List (Expr × BinderMeta) × Expr)}
     {bs : List (EIdx × BinderMeta)} {e : EIdx}
-    (h : ExprOps.denoteBP st (some (bs, e)) = some (Expr.stripPis k cP)) :
-    ∃ xs x, Expr.stripPis k cP = some (xs, x) ∧ denoteE st e = some x := by
+    (h : ExprOps.denoteBP st (some (bs, e)) = some v) :
+    ∃ xs x, v = some (xs, x) ∧ denoteBinders st bs = some xs ∧ denoteE st e = some x := by
   simp only [ExprOps.denoteBP] at h
   cases hb : ExprOps.denoteBL st bs with
   | none => rw [hb] at h; simp at h
@@ -298,7 +299,8 @@ theorem stripPis_some {st : EStore} {k : Nat} {cP : Expr}
     | none => rw [hb, he] at h; simp at h
     | some x =>
       rw [hb, he] at h
-      exact ⟨xs, x, (Option.some.inj h).symm, rfl⟩
+      refine ⟨xs, x, (Option.some.inj h).symm, ?_, rfl⟩
+      rw [denoteBinders_eq_denoteBL]; exact hb
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean getAppFn — the run form of
 `Bridge/ExprOps/Spine.lean`'s closed `getAppFn_spec`. -/
@@ -960,23 +962,6 @@ theorem reservedBasisNames_pstep {s s' : AState} {hs : List NIdx}
     hps.caches hps.pins, ?_⟩
   rw [← reservedBasisNameValues_eq]
   exact denoteNL_toList _ _ hd
-
-/-- con-leche: none — `denoteBP_someB` at any pure peel (`stripLams`'s too):
-the binders and the residual both denote. -/
-theorem denoteBP_someB' {st : EStore} {v : Option (List (Expr × BinderMeta) × Expr)}
-    {bs : List (EIdx × BinderMeta)} {e : EIdx}
-    (h : ExprOps.denoteBP st (some (bs, e)) = some v) :
-    ∃ xs x, v = some (xs, x) ∧ denoteBinders st bs = some xs ∧ denoteE st e = some x := by
-  simp only [ExprOps.denoteBP] at h
-  cases hb : ExprOps.denoteBL st bs with
-  | none => rw [hb] at h; simp at h
-  | some xs =>
-    cases he : denoteE st e with
-    | none => rw [hb, he] at h; simp at h
-    | some x =>
-      rw [hb, he] at h
-      refine ⟨xs, x, (Option.some.inj h).symm, ?_, rfl⟩
-      rw [denoteBinders_eq_denoteBL]; exact hb
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1120-1126 stripLams — the run form
 of `Bridge/ExprOps/Spine.lean`'s closed `stripLams_spec`, `stripPis_pstep`'s

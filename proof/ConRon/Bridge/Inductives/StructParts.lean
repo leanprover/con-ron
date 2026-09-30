@@ -606,7 +606,7 @@ theorem structUsedLater_spec (cty : EIdx) (ctyP : Expr) (nP j : Nat) :
     exact ⟨PStep.refl hok, rfl⟩
   | some p =>
     obtain ⟨bs, rest⟩ := p
-    obtain ⟨xs, x, hsp, hx⟩ := stripPis_some hbp
+    obtain ⟨xs, x, hsp, -, hx⟩ := denoteBP_some hbp
     rw [hsp]
     exact hasLooseBVarBFast_spec 0 rest x _ _ r hok hx h2
 
@@ -637,7 +637,7 @@ theorem structUsedLaterGo_spec (memo : Std.HashMap (EIdx × Nat) Bool)
     exact ⟨PStep.refl hok, rfl, hm⟩
   | some p =>
     obtain ⟨bs, rest⟩ := p
-    obtain ⟨xs, x, hsp, hx⟩ := stripPis_some hbp
+    obtain ⟨xs, x, hsp, -, hx⟩ := denoteBP_some hbp
     rw [hsp]
     exact hasLooseBVarBGo_spec memo 0 Arena.coreWalkFuel rest x _ _ r hok
       ⟨hx, hm⟩ h2
