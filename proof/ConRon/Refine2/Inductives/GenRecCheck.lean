@@ -1941,4 +1941,21 @@ index handed back related to the twin's popped one, the rules alike. -/
     refine LS.pure ⟨?_, rfl⟩ ‹_› ‹_›
     exact hpop _ _ (by simp [alloc.vec.Vec.len]) hf
 
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.class_keys_of_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms class_keys_of_ls
+
+/-- info: 'ConRon.Refine2.class_ctors_of_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms class_ctors_of_ls
+
+/-- info: 'ConRon.Refine2.class_seeds_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms class_seeds_ls
+
+/-- info: 'ConRon.Refine2.class_fe_r_push_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms class_fe_r_push_spec
+
+/-- info: 'ConRon.Refine2.class_recs_rules_ok_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms class_recs_rules_ok_ls
+
 end ConRon.Refine2
