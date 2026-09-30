@@ -38,7 +38,9 @@ section for every task you land.
   committing**: `cargo build`, `cargo test`, the style lint, the provenance
   check, the OVERVIEW link gate, the pin check, `scripts/extract.sh --check`
   and `cd proof && lake build` (all default targets: both theorems and the
-  capstone), in that order, one OK/FAIL line each,
+  capstone; **failing on any warning from `proof/`'s own sources**, task
+  #102 — fix the warning, do not silence it without a reason in DESIGN), in
+  that order, one OK/FAIL line each,
   stopping at the first failure.  On a many-core machine con-leche's first
   build can exhaust memory; cap the parallelism with `LAKE_JOBS=N
   scripts/gates.sh`.

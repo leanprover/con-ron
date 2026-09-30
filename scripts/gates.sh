@@ -22,10 +22,10 @@
 #                                           library of the chain, Theorem 1
 #                                           (`ConRonBridge`), Theorem 2
 #                                           (`ConRonRefine2`), the composition
-#                                           (`ConRonCapstone`) included
+#                                           (`ConRonCapstone`) included; any
+#      warning from proof/'s own sources fails it (lake-build-wfail.sh, #102)
 #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
-#      has no jobs flag: on a many-core machine the first build of the
-#      vendored con-leche can exhaust memory, task #74)
+#      has no jobs flag; the first con-leche build can exhaust memory, #74)
 #
 # One OK/FAIL line per gate; non-zero exit on the first failure.  Full output
 # of every gate goes to `_tmp/gates/<n>-<name>.log`.
@@ -92,7 +92,9 @@ run gen-prelude-lean "$root/scripts/gen-prelude-lean.sh" --check
 # kernel OOM-killed aeneas (exit 137).  Serialise this one step machine-wide
 # through a lock in the shared `_tmp/` (every worktree sees the same one).
 run extract-check flock "$root/_tmp/.extract-check.lock" "$root/scripts/extract.sh" --check
-run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
+# Warning-free since task #101; `lake-build-wfail.sh` keeps it so (task #102)
+# without failing on the warnings Lake replays from Aeneas's logs.
+run lake-build    env ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} "$root/scripts/lake-build-wfail.sh"
 # Until task #98-TIDY this was followed by three more steps, `lake build
 # ConRonRefine2`, `ConRonBridge` and `ConRonCapstone`, because those libraries
 # were not default targets and a green `lake-build` said nothing about either

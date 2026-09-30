@@ -973,7 +973,8 @@ document's link check (`scripts/overview-links.sh`) and holes table
 Rust prelude text and the twin's prelude bytes are con-leche's
 (`gen-pins.sh`, `gen-prelude.sh`, `gen-prelude-lean.sh`, each `--check`);
 `scripts/extract.sh --check`; and `lake build` of the default targets, which
-include `ConRonBridge`, `ConRonRefine2` and `ConRonCapstone`.
+include `ConRonBridge`, `ConRonRefine2` and `ConRonCapstone`, failing on any
+warning from `proof/`'s own sources.
 
 **Upstream patches.**  One: the pinned Aeneas builds its Lean library
 against an older Lean, and

@@ -65181,3 +65181,38 @@ but that is a proof change no linter asked for, so it was not taken.)
 else imports `ConRon.Bridge` or `ConRon.Refine2`.  Both were built
 separately here and are warning-free.  Unchanged, since they are index
 files.
+
+### Task #102 — the gate fails on warnings from our Lean sources (2026-09-30, Opus under Fable)
+
+Maintainer: "can we make it a gate requirement to build with -Werr".  Task
+#101 left the build free of warnings from our sources; this keeps it that
+way.
+
+**Not `lake build --wfail`.**  Measured on master (`3604bb1d`): exit 1, 175
+warnings, **every one** from Aeneas/AeneasMeta, replayed by Lake from the
+dependency modules' logs (`AeneasMeta/Async/Test.lean`,
+`Aeneas/Data/Coinductive/*`, `Aeneas/Std/*`, …).  Those are not ours to fix
+and `--wfail` cannot be scoped to one package.
+
+**Not `warningAsError` in `leanOptions`.**  That would be scoped to our
+package, but it applies in the inner loop too: a lane's work-in-progress
+`sorry` becomes an error, the module produces no `.olean`, and nothing
+downstream builds.  The rule is for the landing gate, not for editing.
+
+**The step.**  `scripts/lake-build-wfail.sh` runs `lake build` as before
+and then fails if a `warning: <file>.lean:L:C:` line names a file that
+exists under `proof/`, i.e. one of ours; `declaration uses 'sorry'` in a
+*Test* file is exempt (the no-stray-sorry rule).  `gates.sh`'s
+`lake-build` step runs it; the step name is unchanged, so `--only
+lake-build` still selects it.  Checked both ways: master's full build
+passes (no warning path resolves under `proof/`), and a probe module
+`theorem wfailProbe (n : Nat) : n = n := by simp [Nat.add_comm]` fails the
+step with its one unused-simp-argument warning.
+
+**Limitation**, from #101: a module restored from the shared Lake cache
+comes back with an empty log, so the step checks exactly the modules the
+build compiled — those the change touched and their dependents, which is
+what a gate needs.  A warning can hide only in a module some tree
+compiled and seeded into the cache without gating it; a from-scratch
+build with `LAKE_CACHE_DIR` pointed at an empty directory (#101's census)
+finds those.

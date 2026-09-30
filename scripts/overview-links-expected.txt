@@ -3082,10 +3082,10 @@
     22  #                                           library of the chain, Theorem 1
     23  #                                           (`ConRonBridge`), Theorem 2
     24  #                                           (`ConRonRefine2`), the composition
-    25  #                                           (`ConRonCapstone`) included
-    26  #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
-    27  #      has no jobs flag: on a many-core machine the first build of the
-    28  #      vendored con-leche can exhaust memory, task #74)
+    25  #                                           (`ConRonCapstone`) included; any
+    26  #      warning from proof/'s own sources fails it (lake-build-wfail.sh, #102)
+    27  #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
+    28  #      has no jobs flag; the first con-leche build can exhaust memory, #74)
 
 == crates/con-ron-core/src/arena/mod.rs#L1-L22
      1  //! The arena: handles and the four interned stores (DESIGN.md §8.3/§8.5).
