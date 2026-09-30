@@ -961,4 +961,91 @@ theorem fv_map_at_flat_ls {pers} (f : arena.inductives.positivity.FvMap)
     rw [arena.inductives.positivity.fv_map_at, absFvMap_canon, fvMapAt]
     lockstep
 
+/-- `replace_fvars_go` ⊑ `replaceFVarsGo` at a map `f` whose `fv_map_at` is
+related (the hypothesis `hA`, discharged per variant below). -/
+theorem replace_fvars_go_of {pers} (f : arena.inductives.positivity.FvMap)
+    (hA : ∀ (i : Std.U64) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a.map absEIdx)
+        (arena.inductives.positivity.fv_map_at pers st f i) lst
+        (fvMapAt (absFvMap f) (absU i))) (n : Nat) :
+    ∀ (rm : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx)
+      (lm : Std.HashMap EIdx EIdx) (fuel : Std.U64) (h : arena.handle.EIdx) st lst,
+      fuel.val = n → PEMemoRel rm lm → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => ∃ m', PEMemoRel a.2 m' ∧ b = (absEIdx a.1, m'))
+        (arena.inductives.positivity.replace_fvars_go pers st f rm fuel h) lst
+        (replaceFVarsGo (absFvMap f) lm n (absEIdx h)) := by
+  induction n with
+  | zero =>
+    intro rm lm fuel h st lst hn hm hrel hinv
+    rw [arena.inductives.positivity.replace_fvars_go, replaceFVarsGo]
+    lockstep
+  | succ m ih =>
+    intro rm lm fuel h st lst hn hm hrel hinv
+    rw [arena.inductives.positivity.replace_fvars_go, replaceFVarsGo]
+    unfold arena.inductives.positivity.replace_fvars_node
+    lockstep
+
+theorem replace_fvars_of {pers} (f : arena.inductives.positivity.FvMap)
+    (hA : ∀ (i : Std.U64) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a.map absEIdx)
+        (arena.inductives.positivity.fv_map_at pers st f i) lst
+        (fvMapAt (absFvMap f) (absU i))) (e : arena.handle.EIdx) :
+    ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdx a)
+        (arena.inductives.positivity.replace_fvars pers st f e) lst
+        (replaceFVars (absFvMap f) (absEIdx e)) := by
+  intro st lst hrel hinv
+  have hB := replace_fvars_go_of f hA
+  have hB' : ∀ (rm : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx)
+      (lm : Std.HashMap EIdx EIdx) (fuel : Std.U64) (h : arena.handle.EIdx) st lst,
+      PEMemoRel rm lm → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => ∃ m', PEMemoRel a.2 m' ∧ b = (absEIdx a.1, m'))
+        (arena.inductives.positivity.replace_fvars_go pers st f rm fuel h) lst
+        (replaceFVarsGo (absFvMap f) lm (absU fuel) (absEIdx h)) :=
+    fun rm lm fuel h st lst hm hrel hinv => hB _ rm lm fuel h st lst rfl hm hrel hinv
+  clear hB
+  rw [arena.inductives.positivity.replace_fvars, replaceFVars]
+  lockstep
+
+/-- `replace_fvars_list` ⊑ `List.mapM (replaceFVars f)` from the cursor on,
+behind the accumulator. -/
+theorem replace_fvars_list_of {pers} (f : arena.inductives.positivity.FvMap)
+    (hA : ∀ (i : Std.U64) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a.map absEIdx)
+        (arena.inductives.positivity.fv_map_at pers st f i) lst
+        (fvMapAt (absFvMap f) (absU i))) (xs : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ (i : Std.Usize) st lst (out : alloc.vec.Vec arena.handle.EIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.positivity.replace_fvars_list pers st f xs i out) lst
+        (do
+          let r ← (absEIdxLFrom xs i).mapM fun x => replaceFVars (absFvMap f) x
+          pure (absEIdxL out ++ r)) := by
+  have hC := replace_fvars_of f hA
+  intro i st lst out hrel hinv
+  refine ls_cursor_acc xs absEIdx
+    (fun (w : alloc.vec.Vec arena.handle.EIdx) l => do
+      let r ← l.mapM fun x => replaceFVars (absFvMap f) x
+      pure (absEIdxL w ++ r))
+    (fun st k w => arena.inductives.positivity.replace_fvars_list pers st f xs k w)
+    ?_ ?_ i st lst out hrel hinv
+  · intro st lst k w hn hrel hinv
+    rw [arena.inductives.positivity.replace_fvars_list.eq_def,
+      if_pos (show k ≥ alloc.vec.Vec.len xs by scalar_tac)]
+    simp only [List.mapM_nil, pure_bind, List.append_nil]
+    lockstep
+  · intro st lst k w hk hrel hinv ih
+    have ih' : ∀ st' lst' (j : Std.Usize) (w' : alloc.vec.Vec arena.handle.EIdx),
+        j.val = k.val + 1 → AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers (fun a b => b = absEIdxL a)
+          (arena.inductives.positivity.replace_fvars_list pers st' f xs j w') lst'
+          (do
+            let r ← (absEIdxLFrom xs j).mapM fun x => replaceFVars (absFvMap f) x
+            pure (absEIdxL w' ++ r)) := ih
+    clear ih
+    rw [arena.inductives.positivity.replace_fvars_list.eq_def,
+      if_neg (show ¬ k ≥ alloc.vec.Vec.len xs by scalar_tac)]
+    simp only [List.mapM_cons, bind_assoc, pure_bind]
+    lockstep
+
 end ConRon.Refine2
