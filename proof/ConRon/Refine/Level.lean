@@ -276,31 +276,6 @@ theorem level_beq_abs {a : level.Level} (ha : LevelWF a) :
 The two structural induction principles these use (`Level.ind'`, `Name.ind'`)
 live in `ConRon/Refine/Abs.lean`. -/
 
-theorem level_has_param_refines' (u : level.Level) :
-    ∀ b, level.level_has_param u = ok b → b = ConLeche.levelHasParam (absLevel u) := by
-  induction u using Level.ind' with
-  | zero h =>
-    intro b hb; rw [level.level_has_param.eq_def] at hb
-    simp at hb; simp [← hb, ConLeche.levelHasParam]
-  | param h n =>
-    intro b hb; rw [level.level_has_param.eq_def] at hb
-    simp at hb; simp [← hb, ConLeche.levelHasParam]
-  | succ h x ih =>
-    intro b hb; rw [level.level_has_param.eq_def] at hb
-    simp at hb; simp [ConLeche.levelHasParam, ih b hb]
-  | max h x y ih1 ih2 =>
-    intro b hb; rw [level.level_has_param.eq_def] at hb
-    simp at hb
-    rcases hb with ⟨h1, h2⟩ | ⟨h1, rfl⟩
-    · simp [ConLeche.levelHasParam, ← ih1 _ h1, ih2 _ h2]
-    · simp [ConLeche.levelHasParam, ← ih1 _ h1]
-  | imax h x y ih1 ih2 =>
-    intro b hb; rw [level.level_has_param.eq_def] at hb
-    simp at hb
-    rcases hb with ⟨h1, h2⟩ | ⟨h1, rfl⟩
-    · simp [ConLeche.levelHasParam, ← ih1 _ h1, ih2 _ h2]
-    · simp [ConLeche.levelHasParam, ← ih1 _ h1]
-
 theorem LevelWF.succ_inv {h a} (w : LevelWF (.mk (.mk h (.Succ a)))) : LevelWF a := by
   cases w with
   | @zero u hu =>
@@ -640,25 +615,12 @@ theorem subst_refines' : ∀ (u : level.Level), LevelWF u →
     obtain ⟨_, rfl⟩ := level_imax_inv hu'
     exact ⟨by simp [ConLeche.Level.subst, e1, f1], LevelWF.imax e2 f2 hu'⟩
 
-
 /-- The `leq_core` refinement statement at one fuel value: the induction
 hypothesis that the whole `rest`/`imax_rules`/`by_cases` cascade runs on. -/
 abbrev LeqCoreSpec (fuel : Std.U64) : Prop :=
   ∀ l r, LevelWF l → LevelWF r → ∀ (diff : Std.I64) (o : Option Bool),
     level.leq_core fuel l r diff = ok o →
       ConLeche.Level.leqCore fuel.val (absLevel l) (absLevel r) diff.val = o
-
-/-- `LeqCoreSpec` as an E-matching entry point (task #71, the README rule
-"a `use` lemma beside every `Spec`"): the **Rust success equation first**, so
-that the trigger `level.leq_core fuel l r d = ok o` is what an inverted bind
-provides.  `grind` also E-matches a local `∀` hypothesis, but infers its
-pattern from the *conclusion* — `leqCore ↑fuel (absLevel l) (absLevel r) ↑d`,
-which never appears in a goal once `absLevel ⟨_, .Succ t⟩` has become
-`.succ (absLevel t)`. -/
-theorem LeqCoreSpec.use {fuel : Std.U64} (hQ : LeqCoreSpec fuel) {l r : level.Level}
-    (hl : LevelWF l) (hr : LevelWF r) {d : Std.I64} {o : Option Bool}
-    (h : level.leq_core fuel l r d = ok o) :
-    ConLeche.Level.leqCore fuel.val (absLevel l) (absLevel r) d.val = o := hQ l r hl hr d o h
 
 theorem by_cases_refines_aux {fuel : Std.U64} (hQ : LeqCoreSpec fuel)
     {p : name.Name} {l r : level.Level} (hp : NameWF p) (hl : LevelWF l) (hr : LevelWF r)
@@ -1407,54 +1369,6 @@ Left unproved at tasks #5 and #17 because nothing then consumed it;
 index-loop one: the conclusion is stated on `List.drop i`, so that `i = 0`
 collapses to the whole list. -/
 
-theorem levels_have_param_from_refines {us : alloc.vec.Vec level.Level} :
-    ∀ k : Nat, ∀ (i : Std.Usize) (b : Bool), us.val.length - i.val ≤ k →
-      level.levels_have_param_from us i = ok b →
-      b = ConLeche.levelsHaveParam ((us.val.drop i.val).map absLevel) := by
-  intro k
-  induction k with
-  | zero =>
-    intro i b hk h
-    rw [level.levels_have_param_from.eq_def] at h; simp only [] at h
-    rw [if_pos (show i >= alloc.vec.Vec.len us by scalar_tac), Result.ok.injEq] at h
-    rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]
-    rfl
-  | succ k ih =>
-    intro i b hk h
-    rw [level.levels_have_param_from.eq_def] at h; simp only [] at h
-    by_cases hi : i.val ≥ us.val.length
-    · rw [if_pos (show i >= alloc.vec.Vec.len us by scalar_tac), Result.ok.injEq] at h
-      rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]
-      rfl
-    · rw [if_neg (show ¬ i >= alloc.vec.Vec.len us by scalar_tac)] at h
-      have hlt : i.val < us.val.length := by scalar_tac
-      have hmax : i.val + 1 ≤ Std.Usize.max := by have := us.slice.property; scalar_tac
-      obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
-      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec us i hlt)
-      subst hyv
-      simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hw,
-        Result.ok.injEq, exists_eq_left'] at h
-      obtain ⟨b0, hb0, h⟩ := h
-      have hb0' := level_has_param_refines' _ _ hb0
-      rw [List.drop_eq_getElem_cons hlt, List.map_cons, ConLeche.levelsHaveParam, ← hb0']
-      cases hc : b0
-      · simp only [hc, Bool.false_eq_true, if_false, bind_tc_ok] at h
-        simp only [Bool.false_or]
-        have hrec := ih w b (by scalar_tac) h
-        rw [hwv] at hrec
-        exact hrec
-      · simp only [hc, if_true, Result.ok.injEq] at h
-        simp only [Bool.true_or]
-        exact h.symm
-
-/-- `level::levels_have_param` refines `levelsHaveParam`. -/
-theorem levels_have_param_refines {us : alloc.vec.Vec level.Level} {b : Bool}
-    (h : level.levels_have_param us = ok b) :
-    b = ConLeche.levelsHaveParam (absLevels us) := by
-  rw [level.levels_have_param] at h
-  have := levels_have_param_from_refines us.val.length 0#usize b (by scalar_tac) h
-  simpa [absLevels] using this
-
 /-! ## The task-#5 statements, under the `ConRon/Refine/README.md` names
 
 `ConRon.Generated.level.<fn>` is refined by `ConRon.Refine.Level.<fn>_refines`;
@@ -1483,15 +1397,6 @@ well-formed level. -/
 
 theorem zero_wf' {u : level.Level} (h : level.zero = ok u) : LevelWF u := LevelWF.zero h
 
-theorem succ_wf' {a u : level.Level} (h : level.succ a = ok u) (ha : LevelWF a) : LevelWF u :=
-  LevelWF.succ ha h
-
-theorem max_wf' {a b u : level.Level} (h : level.max a b = ok u) (ha : LevelWF a)
-    (hb : LevelWF b) : LevelWF u := LevelWF.max ha hb h
-
-theorem imax_wf' {a b u : level.Level} (h : level.imax a b = ok u) (ha : LevelWF a)
-    (hb : LevelWF b) : LevelWF u := LevelWF.imax ha hb h
-
 theorem param_wf' {n : name.Name} {u : level.Level} (h : level.param n = ok u) (hn : NameWF n) :
     LevelWF u := LevelWF.param hn h
 
@@ -1514,15 +1419,8 @@ theorem param_refines {n : name.Name} {u : level.Level} :
     level.param n = ok u → absLevel u = .param (absName n) := by
   intro h; obtain ⟨_, rfl⟩ := level_param_inv h; simp
 
-theorem name_beq_exact {a b : name.Name} {c : Bool} (ha : NameWF a) (hb : NameWF b) :
-    name.beq a b = ok c → c = decide (absName a = absName b) := Name.name_beq_exact' ha hb
-
 theorem beq_refines {a b : level.Level} {c : Bool} (ha : LevelWF a) (hb : LevelWF b) :
     level.beq a b = ok c → c = decide (absLevel a = absLevel b) := level_beq_exact' ha hb
-
-theorem level_has_param_refines {u : level.Level} {b : Bool} :
-    level.level_has_param u = ok b → b = ConLeche.levelHasParam (absLevel u) :=
-  level_has_param_refines' u b
 
 /-- `hks` is an addition to Fable's statement: the exactness of the `name.beq`
 inside `subst_go` needs the keys well-formed too (task-#5 report). -/
@@ -1548,33 +1446,6 @@ theorem is_never_zero_refines {u : level.Level} {b : Bool} :
     level.is_never_zero u = ok b → b = ConLeche.Level.isNeverZero (absLevel u) :=
   is_never_zero_refines' u b
 
-theorem simplify_refines {u u' : level.Level} (hu : LevelWF u) :
-    level.simplify u = ok u' →
-      absLevel u' = ConLeche.Level.simplify (absLevel u) ∧ LevelWF u' :=
-  simplify_refines' u hu u'
-
-/-- `simplify_refines` keyed on the Rust equation (task #71). -/
-theorem simplify_use {u u' : level.Level} (h : level.simplify u = ok u') (hu : LevelWF u) :
-    absLevel u' = ConLeche.Level.simplify (absLevel u) ∧ LevelWF u' := simplify_refines' u hu u' h
-
-theorem leq_core_refines {fuel : Std.U64} {l r : level.Level} {diff : Std.I64}
-    {o : Option Bool} (hl : LevelWF l) (hr : LevelWF r) :
-    level.leq_core fuel l r diff = ok o →
-      ConLeche.Level.leqCore fuel.val (absLevel l) (absLevel r) diff.val = o :=
-  leq_core_refines_aux fuel.val fuel rfl l r hl hr diff o
-
-theorem rest_refines {fuel : Std.U64} {l r : level.Level} {diff : Std.I64}
-    {o : Option Bool} (hl : LevelWF l) (hr : LevelWF r) :
-    level.rest fuel l r diff = ok o →
-      ConLeche.Level.rest fuel.val (absLevel l) (absLevel r) diff.val = o :=
-  rest_refines_aux (leq_core_refines_aux fuel.val fuel rfl) hl hr
-
-theorem by_cases_refines {fuel : Std.U64} {p : name.Name} {l r : level.Level}
-    {diff : Std.I64} {o : Option Bool} (hl : LevelWF l) (hr : LevelWF r) (hp : NameWF p) :
-    level.by_cases fuel p l r diff = ok o →
-      ConLeche.Level.byCases fuel.val (absName p) (absLevel l) (absLevel r) diff.val = o :=
-  by_cases_refines_aux (leq_core_refines_aux fuel.val fuel rfl) hp hl hr
-
 theorem leq_refines {l r : level.Level} {o : Option Bool} (hl : LevelWF l) (hr : LevelWF r) :
     level.leq l r = ok o → ConLeche.Level.leq (absLevel l) (absLevel r) = o :=
   leq_refines' hl hr
@@ -1593,9 +1464,6 @@ the three standard Lean axioms only. -/
 #guard_msgs in
 #print axioms leq_refines
 
-/-- info: 'ConRon.Refine.Level.simplify_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms simplify_refines
 
 /-- info: 'ConRon.Refine.Level.beq_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

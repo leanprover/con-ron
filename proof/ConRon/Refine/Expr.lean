@@ -143,16 +143,6 @@ theorem max_u64_val {a b r : Std.U64} (h : expr.max_u64 a b = ok r) :
   split at h <;> rename_i hlt <;> simp only [Result.ok.injEq] at h <;>
     rw [← h] <;> scalar_tac
 
-theorem hash_of_data_val {w r : Std.U64} (h : expr.hash_of_data w = ok r) :
-    r.val = w.val / 4294967296 := by
-  rw [expr.hash_of_data] at h
-  simpa using Nat.udiv_val h
-
-theorem hash32_val {w r : Std.U64} (h : expr.hash32 w = ok r) :
-    r.val = w.val % 4294967296 := by
-  rw [expr.hash32] at h
-  simpa using Nat.urem_val h
-
 theorem bvar_of_data_val {w r : Std.U64} (h : expr.bvar_of_data w = ok r) :
     r.val = w.val / 65536 % 32768 := by
   rw [expr.bvar_of_data] at h
@@ -216,7 +206,6 @@ theorem sat_pred_val {x r : Std.U64} (h : expr.sat_pred x = ok r) :
     · obtain ⟨-, hv⟩ := Nat.usub_val h
       rw [if_neg h1', hv]
       scalar_tac
-
 
 /-! ## Smart-constructor shapes
 
@@ -525,80 +514,6 @@ port's `*_inv` beside con-leche's `@[simp]` equation for the same
 constructor -- nothing about the hash field, which is where the two words
 legitimately differ (DESIGN.md §3.2). -/
 
-/-- `prop_when::has_params` is a five-arm `match`, hence total -- which is what
-lets `lam`'s short-circuited `||` chain be related to con-leche's. -/
-theorem has_params_ok (pw : prop_when.PropWhen) :
-    ∃ b, prop_when.has_params pw = ok b := by
-  obtain ⟨r⟩ := pw
-  cases r <;> exact ⟨_, rfl⟩
-
-theorem wf_data {e : expr.Expr} (h : ExprWF e) :
-    bvarBits e = (absExpr e).bvarBRaw ∧ fvarBits e = (absExpr e).fvarBRaw ∧
-      lpBit e = (absExpr e).hasLP := by
-  induction h with
-  | @bvar i e h =>
-    obtain ⟨d, rfl, hb, hf, hl⟩ := bvar_inv h
-    refine ⟨?_, ?_, ?_⟩
-    · rw [hb]; simp
-    · rw [hf]; simp
-    · rw [hl]; simp
-  | @fvar idx ty e hty h ih =>
-    obtain ⟨d, rfl, hb, hf, hl⟩ := fvar_inv h
-    refine ⟨?_, ?_, ?_⟩
-    · rw [hb]; simp
-    · rw [hf]; simp
-    · rw [hl, ih.2.2]; simp
-  | @sort u e hu h =>
-    obtain ⟨d, b, hpar, rfl, hb, hf, hl⟩ := sort_inv h
-    refine ⟨?_, ?_, ?_⟩
-    · rw [hb]; simp
-    · rw [hf]; simp
-    · rw [hl, Level.level_has_param_refines hpar]; simp
-  | @mk_const n us e hn hus h =>
-    obtain ⟨d, b, hpar, rfl, hb, hf, hl⟩ := mk_const_inv h
-    refine ⟨?_, ?_, ?_⟩
-    · rw [hb]; simp
-    · rw [hf]; simp
-    · rw [hl, Level.levels_have_param_refines hpar]; simp
-  | @app f a e hf ha h ihf iha =>
-    obtain ⟨d, rfl, hb, hff, hl⟩ := app_inv h
-    refine ⟨?_, ?_, ?_⟩
-    · rw [hb, ihf.1, iha.1]; simp
-    · rw [hff, ihf.2.1, iha.2.1]; simp
-    · rw [hl, ihf.2.2, iha.2.2]; simp
-  | @lam ty bo m e hty hbo hm h ihty ihbo =>
-    obtain ⟨d, rfl, hb, hff, hl⟩ := lam_inv h
-    obtain ⟨hp, hhp⟩ := has_params_ok m.pw
-    refine ⟨?_, ?_, ?_⟩
-    · rw [hb]; simp only [ihty.1, ihbo.1]; simp
-    · rw [hff, ihty.2.1, ihbo.2.1]; simp
-    · rw [hl hp hhp, ihty.2.2, ihbo.2.2, PropWhen.has_params_refines hm hhp]; simp
-  | @forall_e ty bo m e hty hbo hm h ihty ihbo =>
-    obtain ⟨d, rfl, hb, hff, hl⟩ := forall_e_inv h
-    obtain ⟨hp, hhp⟩ := has_params_ok m.pw
-    refine ⟨?_, ?_, ?_⟩
-    · rw [hb]; simp only [ihty.1, ihbo.1]; simp
-    · rw [hff, ihty.2.1, ihbo.2.1]; simp
-    · rw [hl hp hhp, ihty.2.2, ihbo.2.2, PropWhen.has_params_refines hm hhp]; simp
-  | @let_e ty v bo e hty hv hbo h ihty ihv ihbo =>
-    obtain ⟨d, rfl, hb, hff, hl⟩ := let_e_inv h
-    refine ⟨?_, ?_, ?_⟩
-    · rw [hb]; simp only [ihty.1, ihv.1, ihbo.1]; simp
-    · rw [hff, ihty.2.1, ihv.2.1, ihbo.2.1]; simp
-    · rw [hl, ihty.2.2, ihv.2.2, ihbo.2.2]; simp
-  | @lit l e hl h =>
-    obtain ⟨d, rfl, hb, hf, hlp⟩ := lit_inv h
-    refine ⟨?_, ?_, ?_⟩
-    · rw [hb]; simp
-    · rw [hf]; simp
-    · rw [hlp]; simp
-  | @proj s i x e hs hx h ih =>
-    obtain ⟨d, rfl, hb, hf, hl⟩ := proj_inv h
-    refine ⟨?_, ?_, ?_⟩
-    · rw [hb, ih.1]; simp
-    · rw [hf, ih.2.1]; simp
-    · rw [hl, ih.2.2]; simp
-
 /-! ## The smart constructors
 
 `<c>_wf` is literally the `ExprWF` constructor (the §3.5 convention);
@@ -606,9 +521,6 @@ theorem wf_data {e : expr.Expr} (h : ExprWF e) :
 
 theorem bvar_wf {i : Std.U64} {e : expr.Expr} : expr.bvar i = ok e → ExprWF e :=
   ExprWF.bvar
-
-theorem fvar_wf {idx : Std.U64} {ty e : expr.Expr} (hty : ExprWF ty) :
-    expr.fvar idx ty = ok e → ExprWF e := ExprWF.fvar hty
 
 theorem sort_wf {u : level.Level} {e : expr.Expr} (hu : LevelWF u) :
     expr.sort u = ok e → ExprWF e := ExprWF.sort hu
@@ -628,16 +540,6 @@ theorem forall_e_wf {ty bo e : expr.Expr} {m : expr.BinderMeta}
     (hty : ExprWF ty) (hbo : ExprWF bo) (hm : BinderMetaWF m) :
     expr.forall_e ty bo m = ok e → ExprWF e := ExprWF.forall_e hty hbo hm
 
-theorem let_e_wf {ty v bo e : expr.Expr} (hty : ExprWF ty) (hv : ExprWF v)
-    (hbo : ExprWF bo) : expr.let_e ty v bo = ok e → ExprWF e := ExprWF.let_e hty hv hbo
-
-theorem lit_wf {l : expr.Literal} {e : expr.Expr} (hl : LiteralWF l) :
-    expr.lit l = ok e → ExprWF e := ExprWF.lit hl
-
-theorem proj_wf {s : name.Name} {i : Std.U64} {x e : expr.Expr}
-    (hs : NameWF s) (hx : ExprWF x) : expr.proj s i x = ok e → ExprWF e :=
-  ExprWF.proj hs hx
-
 /-! ### The same, with the Rust equation first (task #71)
 
 What a `grind [→ …]` forward lemma needs: `→` takes its E-matching patterns
@@ -649,35 +551,6 @@ cannot substitute, an `Eq` not being an admissible pattern, so the order is
 part of the statement.  `bvar_wf` needs no twin: its only hypothesis is the
 equation already.  `Refine/README.md` §"Writing a new refinement lemma" states
 the rule. -/
-
-theorem fvar_wf' {idx : Std.U64} {ty e : expr.Expr} (h : expr.fvar idx ty = ok e)
-    (hty : ExprWF ty) : ExprWF e := fvar_wf hty h
-
-theorem sort_wf' {u : level.Level} {e : expr.Expr} (h : expr.sort u = ok e) (hu : LevelWF u) :
-    ExprWF e := sort_wf hu h
-
-theorem mk_const_wf' {n : name.Name} {us : alloc.vec.Vec level.Level} {e : expr.Expr}
-    (h : expr.mk_const n us = ok e) (hn : NameWF n) (hus : LevelsWF us) : ExprWF e :=
-  mk_const_wf hn hus h
-
-theorem app_wf' {f a e : expr.Expr} (h : expr.app f a = ok e) (hf : ExprWF f) (ha : ExprWF a) :
-    ExprWF e := app_wf hf ha h
-
-theorem lam_wf' {ty bo e : expr.Expr} {m : expr.BinderMeta} (h : expr.lam ty bo m = ok e)
-    (hty : ExprWF ty) (hbo : ExprWF bo) (hm : BinderMetaWF m) : ExprWF e := lam_wf hty hbo hm h
-
-theorem forall_e_wf' {ty bo e : expr.Expr} {m : expr.BinderMeta} (h : expr.forall_e ty bo m = ok e)
-    (hty : ExprWF ty) (hbo : ExprWF bo) (hm : BinderMetaWF m) : ExprWF e :=
-  forall_e_wf hty hbo hm h
-
-theorem let_e_wf' {ty v bo e : expr.Expr} (h : expr.let_e ty v bo = ok e)
-    (hty : ExprWF ty) (hv : ExprWF v) (hbo : ExprWF bo) : ExprWF e := let_e_wf hty hv hbo h
-
-theorem lit_wf' {l : expr.Literal} {e : expr.Expr} (h : expr.lit l = ok e) (hl : LiteralWF l) :
-    ExprWF e := lit_wf hl h
-
-theorem proj_wf' {s : name.Name} {i : Std.U64} {x e : expr.Expr} (h : expr.proj s i x = ok e)
-    (hs : NameWF s) (hx : ExprWF x) : ExprWF e := proj_wf hs hx h
 
 theorem bvar_refines {i : Std.U64} {e : expr.Expr} (h : expr.bvar i = ok e) :
     absExpr e = .bvar i.val := by
@@ -723,22 +596,8 @@ theorem proj_refines {s : name.Name} {i : Std.U64} {x e : expr.Expr}
     absExpr e = .proj (absName s) i.val (absExpr x) := by
   obtain ⟨d, rfl, -, -, -⟩ := proj_inv h; simp
 
-/-- `expr::mk_bvar` refines `Expr.mkBvar`.  The `bvarPool` is not ported
-(task #11); con-leche's own `mkBvar_eq` is why that is free -- the pooled and
-the fresh node are the same *value*, which is exactly what this says. -/
-theorem mk_bvar_refines {i : Std.U64} {e : expr.Expr} (h : expr.mk_bvar i = ok e) :
-    absExpr e = ConLeche.Expr.mkBvar i.val := by
-  rw [expr.mk_bvar] at h
-  rw [bvar_refines h, ConLeche.Expr.mkBvar_eq]
-
 theorem mk_bvar_wf {i : Std.U64} {e : expr.Expr} (h : expr.mk_bvar i = ok e) :
     ExprWF e := by rw [expr.mk_bvar] at h; exact ExprWF.bvar h
-
-/-- `expr::bvar_pool_size` refines `Expr.bvarPoolSize` (kept for the record;
-nothing reads it, since the pool is not ported). -/
-theorem bvar_pool_size_refines {r : Std.U64} (h : expr.bvar_pool_size = ok r) :
-    r.val = ConLeche.Expr.bvarPoolSize := by
-  rw [expr.bvar_pool_size, Result.ok.injEq] at h; rw [← h]; rfl
 
 /-! ## The packed word's accessors
 
@@ -746,21 +605,6 @@ theorem bvar_pool_size_refines {r : Std.U64} (h : expr.bvar_pool_size = ok r) :
 the port and con-leche legitimately disagree on (DESIGN.md §3.2 -- `mixHash`
 is opaque, the port hashes its own bignums and strings, and a hash only ever
 picks a memo bucket).  The other three are exact. -/
-
-theorem has_lp_refines {e : expr.Expr} {b : Bool} (hwf : ExprWF e)
-    (h : expr.has_lp e = ok b) : b = ConLeche.Expr.hasLP (absExpr e) := by
-  rw [expr.has_lp, data_eq, bind_tc_ok] at h
-  rw [lp_bit_val h, (wf_data hwf).2.2]
-
-theorem bvar_b_raw_refines {e : expr.Expr} {r : Std.U64} (hwf : ExprWF e)
-    (h : expr.bvar_b_raw e = ok r) : r.val = ConLeche.Expr.bvarBRaw (absExpr e) := by
-  rw [expr.bvar_b_raw, data_eq, bind_tc_ok] at h
-  rw [bvar_bits_val h, (wf_data hwf).1]
-
-theorem fvar_b_raw_refines {e : expr.Expr} {r : Std.U64} (hwf : ExprWF e)
-    (h : expr.fvar_b_raw e = ok r) : r.val = ConLeche.Expr.fvarBRaw (absExpr e) := by
-  rw [expr.fvar_b_raw, data_eq, bind_tc_ok] at h
-  rw [fvar_bits_val h, (wf_data hwf).2.1]
 
 /-! ## `dup`, `ptr_eq` and the copies -/
 
@@ -874,16 +718,6 @@ theorem binder_meta_beq_refines {a b : expr.BinderMeta} {c : Bool}
   simp only [expr.binder_meta_beq] at h
   rw [PropWhen.beq_refines ha hb h]
   simp [absBinderMeta]
-
-/-- `expr::beq_recursive` refines `Expr.beqRecursive`. -/
-theorem beq_recursive_refines {e : expr.Expr} {b : Bool}
-    (h : expr.beq_recursive e = ok b) : b = ConLeche.Expr.beqRecursive (absExpr e) := by
-  obtain ⟨⟨d, k⟩⟩ := e
-  simp only [expr.beq_recursive, expr_view_eq, bind_tc_ok,
-    expr.Expr._0._simpLemma_, expr.ExprNode.kind._simpLemma_,
-    kernel.expr.ExprView.ofKind] at h
-  cases k <;> simp only [Result.ok.injEq] at h <;> rw [← h] <;>
-    simp [ConLeche.Expr.beqRecursive]
 
 /-! ## `List Level` equality
 
@@ -1729,8 +1563,6 @@ theorem beq_go_data_ne {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b)
   intro hc
   exact hne (by rw [absExpr_injective ha hb hc])
 
-
-
 /-- The descent is **sound and complete**: the `Bool` it returns is con-leche's
 `decide (· = ·)` on the abstractions.  One case per `ExprWF` constructor pair;
 the ninety off-diagonal ones are closed by the fact that `absExpr` maps the ten
@@ -2567,70 +2399,6 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
 program may answer `true` in `O(1)`.  The two agree because the descent is
 reflexive, which is DESIGN.md §3.2's obligation and this lemma. -/
 
-theorem levels_beq_from_refl {ls : alloc.vec.Vec level.Level} (hls : LevelsWF ls) :
-    ∀ k : Nat, ∀ i : Std.Usize, ls.val.length - i.val ≤ k →
-      expr.levels_beq_from ls ls i = ok true := by
-  intro k
-  induction k with
-  | zero =>
-    intro i hk
-    rw [expr.levels_beq_from.eq_def]
-    simp only []
-    rw [if_pos (show i >= alloc.vec.Vec.len ls by scalar_tac)]
-  | succ k ih =>
-    intro i hk
-    rw [expr.levels_beq_from.eq_def]
-    simp only []
-    by_cases hi : i.val ≥ ls.val.length
-    · rw [if_pos (show i >= alloc.vec.Vec.len ls by scalar_tac)]
-    · have hlt : i.val < ls.val.length := by scalar_tac
-      have hmax : i.val + 1 ≤ Std.Usize.max := by have := ls.slice.property; scalar_tac
-      obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
-      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec ls i hlt)
-      subst hyv
-      rw [if_neg (show ¬ i >= alloc.vec.Vec.len ls by scalar_tac)]
-      simp only [alloc.vec.Vec.index_slice_index, hy, hw, bind_tc_ok,
-        Level.level_beq_refl (hls _ (List.getElem_mem hlt)), if_true]
-      exact ih w (by scalar_tac)
-
-theorem levels_beq_refl {ls : alloc.vec.Vec level.Level} (hls : LevelsWF ls) :
-    expr.levels_beq ls ls = ok true := by
-  rw [expr.levels_beq.eq_def]
-  simp only []
-  rw [if_neg (by simp)]
-  exact levels_beq_from_refl hls ls.val.length 0#usize (by scalar_tac)
-
-theorem literal_beq_refl {l : expr.Literal} (hl : LiteralWF l) :
-    expr.literal_beq l l = ok true := by
-  cases l with
-  | NatVal n =>
-    rw [expr.literal_beq]; simp only [arc_deref_eq, bind_tc_ok]; exact Nat.beq_refl n
-  | StrVal s =>
-    rw [expr.literal_beq]; simp only [arc_deref_eq, bind_tc_ok]; exact Name.str_eq_refl s
-
-theorem binder_meta_beq_refl {m : expr.BinderMeta} (hm : BinderMetaWF m) :
-    expr.binder_meta_beq m m = ok true := by
-  rw [expr.binder_meta_beq]
-  exact PropWhen.beq_refl hm
-
-/-- **Reflexivity, the transparency obligation of DESIGN.md §3.2** — in the
-forward shape this development uses everywhere (task #5: *exact result on
-success*).  The real program answers `true` on `beq e e` by the pointer test;
-the model takes the slow path, and this says the slow path cannot answer
-anything else.
-
-Task #30 note: the *stronger* form task #20 had here, `expr.beq_go e e =
-ok true`, additionally said that the descent **cannot fail**.  With the pair
-memo threaded through it, that now also asserts that `ron::HashMap`'s `get`
-and `insert` cannot fail — the *totality* half of task #16, which the
-forward-style development of §3.5 does not have for any function (every
-`*_refines` in `proof/` reasons from `f x = ok y`).  So the statement is the
-forward one, and it is a corollary of `beq_go_abs` rather than a second
-hundred-case induction.  Nothing else in `proof/` used the strong form. -/
-theorem beq_go_refl {e : expr.Expr} (h : ExprWF e) {m : BeqMap}
-    {rm : Bool × BeqMap} (hr : expr.beq_go m e e = ok rm) : rm.1 = true := by
-  simpa using beq_go_abs h e h m rm hr
-
 /-! ## The public statements, under the `ConRon/Refine/README.md` names -/
 
 /-- `expr::beq` -- and the `Eq2` dictionary that *is* it -- decides equality of
@@ -2659,27 +2427,12 @@ theorem beq_refines {a b : expr.Expr} {c : Bool} (ha : ExprWF a) (hb : ExprWF b)
     intro hc
     exact hd (by rw [absExpr_injective ha hb hc])
 
-/-- `expr::beq` is reflexive on well-formed terms: the real program's pointer
-fast path answers what the model's descent answers (DESIGN.md §3.2).  Forward
-shape since task #30 — see `beq_go_refl`. -/
-theorem beq_refl {e : expr.Expr} (h : ExprWF e) {c : Bool}
-    (hc : expr.beq e e = ok c) : c = true := by
-  simpa using beq_refines h h hc
-
-/-- The same fact as con-leche states it: `Expr.beq` is `decide (· = ·)`. -/
-theorem beq_exact {a b : expr.Expr} {c : Bool} (ha : ExprWF a) (hb : ExprWF b)
-    (h : expr.beq a b = ok c) :
-    c = ConLeche.Expr.beq (absExpr a) (absExpr b) := beq_refines ha hb h
-
 /-! ## The hash-map dictionaries
 
 `Hashable` is the `hash` field read and `Eq2` is `beq`, which is what makes an
 `Expr` a memo key (task #7's own traits, not Lean's classes).  The `Hashable`
 side gets no refinement lemma, by §3.2: a hash only picks a bucket, and the
 abstract-map relation of §3.3 does not see it. -/
-
-theorem hash64_eq (e : expr.Expr) :
-    expr.Expr.Insts.Con_ron_coreRonHashmapHashable.hash64 e = expr.hash e := rfl
 
 theorem eq2_eq (a b : expr.Expr) :
     expr.Expr.Insts.Con_ron_coreRonHashmapEq2.eq2 a b = expr.beq a b := rfl
@@ -2689,13 +2442,6 @@ theorem eq2_refines {a b : expr.Expr} {c : Bool} (ha : ExprWF a) (hb : ExprWF b)
     (h : expr.Expr.Insts.Con_ron_coreRonHashmapEq2.eq2 a b = ok c) :
     c = decide (absExpr a = absExpr b) := by
   rw [eq2_eq] at h; exact beq_refines ha hb h
-
-/-- The `Eq2` dictionary is reflexive (the `Hashable`/`Eq2` pair is what
-`ron::hashmap` needs of a key: equal keys hash equally, which is immediate
-here since both are functions of the node). -/
-theorem eq2_refl {e : expr.Expr} (h : ExprWF e) {c : Bool}
-    (hc : expr.Expr.Insts.Con_ron_coreRonHashmapEq2.eq2 e e = ok c) : c = true := by
-  rw [eq2_eq] at hc; exact beq_refl h hc
 
 /-! ## What has no refinement lemma, and why
 
@@ -2719,18 +2465,6 @@ info: 'ConRon.Refine.Expr.app_refines' depends on axioms: [propext, Classical.ch
 -/
 #guard_msgs in
 #print axioms app_refines
-
-/--
-info: 'ConRon.Refine.Expr.beq_exact' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms beq_exact
-
-/--
-info: 'ConRon.Refine.Expr.bvar_b_raw_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms bvar_b_raw_refines
 
 end ConRon.Refine.Expr
 
