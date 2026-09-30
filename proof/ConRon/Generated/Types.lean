@@ -982,7 +982,7 @@ inductive arena.env.IConstantInfo where
 | ProjInfo : arena.env.IProjTable → arena.env.IConstantInfo
 
 /-- [con_ron_core::kernel::env::QuotKind]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 899:0-905:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 898:0-904:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.QuotKind where
@@ -1007,7 +1007,7 @@ structure arena.env.IEnv where
   consts : alloc.vec.Vec arena.env.IConstantInfo
 
 /-- [con_ron_core::arena::env::IFEnv]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 811:0-815:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 778:0-782:1
     Visibility: public -/
 structure arena.env.IFEnv where
   env : arena.env.IEnv
@@ -1360,7 +1360,7 @@ structure arena.decl_check.CertCtx where
   xor_n : arena.handle.NIdx
 
 /-- [con_ron_core::arena::checker_base::OrElseStep]
-    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 318:0-323:1
+    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 312:0-317:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.checker_base.OrElseStep where
@@ -1433,13 +1433,13 @@ structure kernel.nat_op_pins.NatOpPinSet where
   shift_right_proofs : alloc.vec.Vec kernel.expr.Expr
 
 /-- Trait declaration: [con_ron_core::arena::expr_ops::NIdxToNIdx]
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2749:0-2752:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2635:0-2638:1
     Visibility: public -/
 structure arena.expr_ops.NIdxToNIdx (Self : Type) where
   rename : Self → arena.handle.NIdx → Result arena.handle.NIdx
 
 /-- [con_ron_core::kernel::env::Declaration]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 943:0-951:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 942:0-950:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.Declaration where
@@ -1518,7 +1518,7 @@ structure frontend.scan_types.ScanErr where
   what : frontend.scan_types.ErrTag
 
 /-- [con_ron_core::frontend::scan_types::IdTable]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 625:0-628:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 618:0-621:1
     Visibility: public -/
 structure frontend.scan_types.IdTable (T : Type) where
   dense : alloc.vec.Vec T
@@ -1534,7 +1534,7 @@ structure frontend.export_c.StateD where
   decls : alloc.vec.Vec arena.env.IDeclaration
 
 /-- [con_ron_core::frontend::scan_types::PwRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 350:0-353:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 343:0-346:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.scan_types.PwRec where
@@ -1542,7 +1542,7 @@ inductive frontend.scan_types.PwRec where
 | IfAllZero : alloc.vec.Vec Std.U64 → frontend.scan_types.PwRec
 
 /-- [con_ron_core::frontend::scan_types::NameRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 333:0-336:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 326:0-329:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.scan_types.NameRec where
@@ -1550,7 +1550,7 @@ inductive frontend.scan_types.NameRec where
 | Num : Std.U64 → Std.U64 → frontend.scan_types.NameRec
 
 /-- [con_ron_core::frontend::scan_types::LevelRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 340:0-345:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 333:0-338:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.scan_types.LevelRec where
@@ -1560,7 +1560,7 @@ inductive frontend.scan_types.LevelRec where
 | Param : Std.U64 → frontend.scan_types.LevelRec
 
 /-- [con_ron_core::frontend::scan_types::ExprRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 362:0-373:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 355:0-366:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.scan_types.ExprRec where
@@ -1584,7 +1584,7 @@ inductive frontend.scan_types.ExprRec where
 | StrVal : alloc.vec.Vec Std.U32 → frontend.scan_types.ExprRec
 
 /-- [con_ron_core::frontend::scan_types::CVRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 377:0-381:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 370:0-374:1
     Visibility: public -/
 structure frontend.scan_types.CVRec where
   «name» : Std.U64
@@ -1592,7 +1592,7 @@ structure frontend.scan_types.CVRec where
   ty : Std.U64
 
 /-- [con_ron_core::frontend::scan_types::RuleRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 393:0-397:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 386:0-390:1
     Visibility: public -/
 structure frontend.scan_types.RuleRec where
   ctor : Std.U64
@@ -1600,7 +1600,7 @@ structure frontend.scan_types.RuleRec where
   rhs : Std.U64
 
 /-- [con_ron_core::frontend::scan_types::IndCtorRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 418:0-425:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 411:0-418:1
     Visibility: public -/
 structure frontend.scan_types.IndCtorRec where
   cv : frontend.scan_types.CVRec
@@ -1611,7 +1611,7 @@ structure frontend.scan_types.IndCtorRec where
   induct : Option Std.U64
 
 /-- [con_ron_core::frontend::scan_types::IndTypeRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 401:0-410:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 394:0-403:1
     Visibility: public -/
 structure frontend.scan_types.IndTypeRec where
   cv : frontend.scan_types.CVRec
@@ -1624,7 +1624,7 @@ structure frontend.scan_types.IndTypeRec where
   num_params : Std.U64
 
 /-- [con_ron_core::frontend::scan_types::IndRecRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 429:0-438:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 422:0-431:1
     Visibility: public -/
 structure frontend.scan_types.IndRecRec where
   cv : frontend.scan_types.CVRec
@@ -1637,7 +1637,7 @@ structure frontend.scan_types.IndRecRec where
   rules : alloc.vec.Vec frontend.scan_types.RuleRec
 
 /-- [con_ron_core::frontend::scan_types::HintsRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 385:0-389:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 378:0-382:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.scan_types.HintsRec where
@@ -1646,7 +1646,7 @@ inductive frontend.scan_types.HintsRec where
 | Regular : Std.U64 → frontend.scan_types.HintsRec
 
 /-- [con_ron_core::frontend::scan_types::DeclRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 444:0-451:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 437:0-444:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.scan_types.DeclRec where
@@ -1674,7 +1674,7 @@ inductive frontend.scan_types.DeclRec where
   frontend.scan_types.DeclRec
 
 /-- [con_ron_core::frontend::scan_types::LineRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 455:0-464:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 448:0-457:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.scan_types.LineRec where
@@ -1701,7 +1701,7 @@ structure frontend.export_c.ParseResultD where
   decls : alloc.vec.Vec arena.env.IDeclaration
 
 /-- [con_ron_core::frontend::scan_types::Key]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 470:0-538:1
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 463:0-531:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.scan_types.Key where
@@ -1818,7 +1818,7 @@ structure frontend.prepare.Prepared where
   hoisted : alloc.vec.Vec arena.handle.NIdx
 
 /-- [con_ron_core::kernel::env::Env]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1172:0-1174:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1150:0-1152:1
     Visibility: public -/
 structure kernel.env.Env where
   consts : alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo)
@@ -1855,7 +1855,7 @@ structure kernel.env.ProjEntry where
   off : Std.U64
 
 /-- Trait declaration: [con_ron_core::kernel::expr_ops::NameToName]
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1176:0-1179:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1121:0-1124:1
     Visibility: public -/
 structure kernel.expr_ops.NameToName (Self : Type) where
   rename : Self → kernel.name.Name → Result kernel.name.Name
