@@ -10,9 +10,16 @@ a stream needs an invariant, and the invariant is this module: **the twin's
 parse state denotes con-leche's, field for field**.
 
 `Arena/Frontend/ExportC.lean`'s `StateD` is a field-for-field mirror of
-`ConLeche/Frontend/ExportC.lean:82-134`'s — eighteen fields, in the same order,
-with `NIdx`/`LIdx`/`EIdx` where con-leche has `Name`/`Level`/`Expr` — so the
-relation is a field-for-field conjunction, and the four shapes it needs are:
+`ConLeche/Frontend/ExportC.lean`'s — **four fields** (task #105 dropped the
+in-process modeller's and the projection rewrite's fourteen census fields:
+`projOwners`, `projLevels`, `projRewrites`, `constTypes`, `heights`,
+`inModel`, `inModelled`, `genRecords`, `genOwner`, `inModelGen`, `indCount`,
+`indBlocks`, `inModelCensus`, `inModelDeclined` are all gone), in the same
+order, with `NIdx`/`LIdx`/`EIdx` where con-leche has `Name`/`Level`/`Expr` —
+plus the projection-table naming invariant (`projNamed`, unrelated to the
+deleted rewrite: it is about `IProjTable.tableName`, the kernel's own struct
+projection bookkeeping, DESIGN §8.3) — so the relation is a field-for-field
+conjunction, and the four shapes it needs are:
 
 * **`OptRel`** — a relation lifted to `Option`, `none` matching `none`.  The
   three stream-index tables are `IdTable`s of handles against `IdTable`s of
@@ -1179,99 +1186,18 @@ theorem declNames_denote {st : EStore} {d : IDeclaration} {dP : Declaration}
     obtain ⟨b, hb, rfl⟩ := hd
     exact ciNames_denote (hpn block nP rfl) hb
 
-/-! ## The frontend's own record denotations -/
-
-/-- con-leche: ConLeche/Frontend/ProjRec.lean:85-104 ProjRecOwner — the
-projection rewrite's owner record, field for field. -/
-structure ProjRecOwnerRel (st : EStore) (o : ProjRecOwner)
-    (oc : ConLeche.Frontend.ProjRecOwner) : Prop where
-  T : denoteN st.ns o.T = some oc.T
-  lps : denoteNList st.ns o.lps = some oc.lps
-  nP : o.nP = oc.nP
-  ctor : denoteN st.ns o.ctor = some oc.ctor
-  nF : o.nF = oc.nF
-  recName : denoteN st.ns o.recName = some oc.recName
-  recLps : denoteNList st.ns o.recLps = some oc.recLps
-  recType : denoteE st o.recType = some oc.recType
-  numMotives : o.numMotives = oc.numMotives
-  numMinors : o.numMinors = oc.numMinors
-
-/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:82-90 IndTypeRec — one
-resolved type former of a parsed block. -/
-structure MIndTypeRecRel (st : EStore) (t : MIndTypeRec)
-    (tc : ConLeche.Frontend.InModel.IndTypeRec) : Prop where
-  cv : denoteCV st t.cv = some tc.cv
-  nP : t.nP = tc.nP
-  nIdx : t.nIdx = tc.nIdx
-  ctors : denoteNList st.ns t.ctors = some tc.ctors
-  isRec : t.isRec = tc.isRec
-  isReflexive : t.isReflexive = tc.isReflexive
-  numNested : t.numNested = tc.numNested
-
-/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:92-97 IndCtorRec. -/
-structure MIndCtorRecRel (st : EStore) (c : MIndCtorRec)
-    (cc : ConLeche.Frontend.InModel.IndCtorRec) : Prop where
-  cv : denoteCV st c.cv = some cc.cv
-  nP : c.nP = cc.nP
-  nF : c.nF = cc.nF
-
-/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:99-108 IndRecRec. -/
-structure MIndRecRecRel (st : EStore) (r : MIndRecRec)
-    (rc : ConLeche.Frontend.InModel.IndRecRec) : Prop where
-  cv : denoteCV st r.cv = some rc.cv
-  nP : r.nP = rc.nP
-  nM : r.nM = rc.nM
-  nm : r.nm = rc.nm
-  nI : r.nI = rc.nI
-  rules : denoteRules st r.rules = some rc.rules
-
-/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:111-115 BlockRec — a
-parsed inductive block denotes con-leche's, member for member. -/
-structure BlockRecRel (st : EStore) (b : BlockRec)
-    (bc : ConLeche.Frontend.InModel.BlockRec) : Prop where
-  types : ListRel (MIndTypeRecRel st) b.types bc.types
-  ctors : ListRel (MIndCtorRecRel st) b.ctors bc.ctors
-  recs : ListRel (MIndRecRecRel st) b.recs bc.recs
-
-/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:119-124 Ctx — what the
-generator reads besides the block, related pointwise.  `tbl` and `blocks` are
-partial and `heights` is total (con-leche's own default is `0`).
-
-This is the relation `Bridge/Frontend/Modeller.lean`'s `ModellerRefines`
-quantifies over, and it is the twin of `RefineOld/Frontend/IndSpecR.lean`'s
-`Frontend.CtxRel`, which `conron.no_False_declaration` carries as `hmr`'s
-third argument. -/
-structure CtxRel (st : EStore) (c : Ctx) (cc : ConLeche.Frontend.InModel.Ctx) :
-    Prop where
-  tbl : ∀ h n, denoteN st.ns h = some n →
-    OptRel (fun (p : List NIdx × EIdx) (q : List ConLeche.Name × Expr) =>
-        denoteNList st.ns p.1 = some q.1 ∧ denoteE st p.2 = some q.2)
-      (c.tbl h) (cc.tbl n)
-  heights : ∀ h n, denoteN st.ns h = some n → c.heights h = cc.heights n
-  blocks : ∀ h n, denoteN st.ns h = some n →
-    OptRel (BlockRecRel st) (c.blocks h) (cc.blocks n)
-  -- **the three COVER clauses** (task #97-P3-Frontend-2 round 2, finding 12):
-  -- the three above say nothing about a name the store has never interned,
-  -- and `ctxOf` answers `none`/`0` there — so without these the readback of
-  -- the twin's context is not con-leche's context, and
-  -- `inProcessModeller_refines` is not provable.  Same shape and same reason
-  -- as `MapRel`'s `cover` beside its `hit`.
-  tblCover : ∀ n q, cc.tbl n = some q → ∃ h, denoteN st.ns h = some n
-  heightsCover : ∀ n, cc.heights n ≠ 0 → ∃ h, denoteN st.ns h = some n
-  blocksCover : ∀ n b, cc.blocks n = some b → ∃ h, denoteN st.ns h = some n
-
 /-! ## The parse state -/
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:82-134 StateD — **THE PARSE-STATE
 RELATION**: the twin's parse state denotes con-leche's, field for field, in
 the store `st`.
 
-Eighteen clauses for eighteen fields.  The three stream-index tables go
-through `IdTableRel`, the five handle-keyed maps through `MapRel`, the
-declaration array through `denoteDeclArray`, and the five scalar/`Bool` fields
-are plain equations — a `Nat` or a `Bool` names no handle, so task #97-P3-0
-§5's finding 1 applies (`RelV`, no target store) and there is nothing to
-denote. -/
+Four clauses for four fields (task #105: the in-process modeller and the
+projection rewrite's fourteen census fields are gone — see this file's
+header note).  The three stream-index tables go through `IdTableRel`, the
+declaration array through `denoteDeclArray`, and `projNamed` is the one
+invariant that is not a raw field: the stream's projection tables (a kernel
+concern, unrelated to the deleted rewrite) are rightly named. -/
 structure StateDRel (st : EStore) (sd : StateD) (sc : ConLeche.Frontend.StateD) :
     Prop where
   names : IdTableRel (fun h n => denoteN st.ns h = some n) sd.names sc.names
@@ -1284,41 +1210,15 @@ structure StateDRel (st : EStore) (sd : StateD) (sc : ConLeche.Frontend.StateD) 
   `tableName`, so `decls` alone does NOT give `IDeclaration.names`'s
   exactness; this clause does, through `declNames_denote`, and it travels
   through the whole streaming fold because the fold only ever transports the
-  relation.  Its two debtors are the two places a record ENTERS the stream:
-  `pushDecl` (the parse, where a block is built out of `.indInfo`/`.ctorInfo`/
-  `.recInfo` and the clause is vacuous) and `pushGenList` (the modeller, where
-  it is `ModellerWF`'s own clause). -/
+  relation.  Its one debtor (task #105: the modeller's `pushGenList` is gone)
+  is `pushDecl` — the only place a record ENTERS the stream, where a block is
+  built out of `.indInfo`/`.ctorInfo`/`.recInfo` and the clause is vacuous. -/
   projNamed : DeclsProjNamed st sd.decls
-  projOwners : MapRel st (ProjRecOwnerRel st) sd.projOwners sc.projOwners
-  projLevels : MapRel st (fun l u => denoteL st.ls l = some u)
-    sd.projLevels sc.projLevels
-  projRewrites : denoteNList st.ns sd.projRewrites.toList
-    = some sc.projRewrites.toList
-  constTypes : MapRel st
-    (fun (p : List NIdx × EIdx) (q : List ConLeche.Name × Expr) =>
-      denoteNList st.ns p.1 = some q.1 ∧ denoteE st p.2 = some q.2)
-    sd.constTypes sc.constTypes
-  heights : MapRel st (fun (a b : Nat) => a = b) sd.heights sc.heights
-  inModel : sd.inModel = sc.inModel
-  inModelled : denoteNList st.ns sd.inModelled.toList = some sc.inModelled.toList
-  genRecords : sd.genRecords = sc.genRecords
-  genOwner : MapRel st (fun h n => denoteN st.ns h = some n) sd.genOwner sc.genOwner
-  inModelGen : ListRel
-    (fun (p : Nat × Array IDeclaration) (q : Nat × Array ConLeche.Declaration) =>
-      p.1 = q.1 ∧ denoteDeclArray st p.2 = some q.2)
-    sd.inModelGen.toList sc.inModelGen.toList
-  indCount : sd.indCount = sc.indCount
-  indBlocks : MapRel st (BlockRecRel st) sd.indBlocks sc.indBlocks
-  inModelCensus : sd.inModelCensus = sc.inModelCensus
-  inModelDeclined : ListRel
-    (fun (p : NIdx × String) (q : ConLeche.Name × String) =>
-      denoteN st.ns p.1 = some q.1 ∧ p.2 = q.2)
-    sd.inModelDeclined.toList sc.inModelDeclined.toList
 
 /-! ## The parse result -/
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:732-753 ParseResultD — the parse
-RESULT relation: the seven fields `ParseResultD.ofState` copies out of the
+RESULT relation: the two fields `ParseResultD.ofState` copies out of the
 state.  This is what DESIGN §8.2's exactness statement is about, and its
 `decls` clause is the equation itself. -/
 structure ParseResultRel (st : EStore) (r : ParseResultD)
@@ -1327,31 +1227,15 @@ structure ParseResultRel (st : EStore) (r : ParseResultD)
   /-- the same clause at the parse RESULT, which is what carries round 4's
   finding 16 out of the parse and into `Bridge/Frontend/Prepare.lean`. -/
   projNamed : DeclsProjNamed st r.decls
-  projRewrites : denoteNList st.ns r.projRewrites.toList
-    = some rc.projRewrites.toList
-  inModelled : denoteNList st.ns r.inModelled.toList = some rc.inModelled.toList
-  genRecords : r.genRecords = rc.genRecords
-  genOwner : MapRel st (fun h n => denoteN st.ns h = some n) r.genOwner rc.genOwner
-  inModelGen : ListRel
-    (fun (p : Nat × Array IDeclaration) (q : Nat × Array ConLeche.Declaration) =>
-      p.1 = q.1 ∧ denoteDeclArray st p.2 = some q.2)
-    r.inModelGen.toList rc.inModelGen.toList
-  inModelDeclined : ListRel
-    (fun (p : NIdx × String) (q : ConLeche.Name × String) =>
-      denoteN st.ns p.1 = some q.1 ∧ p.2 = q.2)
-    r.inModelDeclined.toList rc.inModelDeclined.toList
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:761-763 ParseResultD.ofState —
-the result relation is the state relation's seven clauses, read off.  The one
+the result relation is the state relation's two clauses, read off.  The one
 place the two records meet, and it is a projection. -/
 theorem ParseResultRel.ofState {st : EStore} {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (h : StateDRel st sd sc) :
     ParseResultRel st (ParseResultD.ofState sd)
       (ConLeche.Frontend.ParseResultD.ofState sc) :=
-  { decls := h.decls, projNamed := h.projNamed,
-    projRewrites := h.projRewrites, inModelled := h.inModelled,
-    genRecords := h.genRecords, genOwner := h.genOwner, inModelGen := h.inModelGen,
-    inModelDeclined := h.inModelDeclined }
+  { decls := h.decls, projNamed := h.projNamed }
 
 /-! ## Transport across an append
 
@@ -1503,60 +1387,11 @@ theorem denoteDeclArray_ext {st st' : EStore} (hx : Ext st st')
   obtain ⟨ys, hys, hEq⟩ := h
   exact ⟨ys, denoteDecls_ext hx _ ys hys, hEq⟩
 
-theorem ProjRecOwnerRel.ext {st st' : EStore} (hx : Ext st st') {o : ProjRecOwner}
-    {oc : ConLeche.Frontend.ProjRecOwner} (h : ProjRecOwnerRel st o oc) :
-    ProjRecOwnerRel st' o oc where
-  T := denoteN_ext h.T hx
-  lps := denoteNListE_ext hx _ _ h.lps
-  nP := h.nP
-  ctor := denoteN_ext h.ctor hx
-  nF := h.nF
-  recName := denoteN_ext h.recName hx
-  recLps := denoteNListE_ext hx _ _ h.recLps
-  recType := denote_ext h.recType hx
-  numMotives := h.numMotives
-  numMinors := h.numMinors
-
-theorem MIndTypeRecRel.ext {st st' : EStore} (hx : Ext st st') {t : MIndTypeRec}
-    {tc : ConLeche.Frontend.InModel.IndTypeRec} (h : MIndTypeRecRel st t tc) :
-    MIndTypeRecRel st' t tc where
-  cv := denoteCV_ext h.cv hx
-  nP := h.nP
-  nIdx := h.nIdx
-  ctors := denoteNListE_ext hx _ _ h.ctors
-  isRec := h.isRec
-  isReflexive := h.isReflexive
-  numNested := h.numNested
-
-theorem MIndCtorRecRel.ext {st st' : EStore} (hx : Ext st st') {c : MIndCtorRec}
-    {cc : ConLeche.Frontend.InModel.IndCtorRec} (h : MIndCtorRecRel st c cc) :
-    MIndCtorRecRel st' c cc where
-  cv := denoteCV_ext h.cv hx
-  nP := h.nP
-  nF := h.nF
-
-theorem MIndRecRecRel.ext {st st' : EStore} (hx : Ext st st') {r : MIndRecRec}
-    {rc : ConLeche.Frontend.InModel.IndRecRec} (h : MIndRecRecRel st r rc) :
-    MIndRecRecRel st' r rc where
-  cv := denoteCV_ext h.cv hx
-  nP := h.nP
-  nM := h.nM
-  nm := h.nm
-  nI := h.nI
-  rules := denoteRules_ext hx _ _ h.rules
-
-theorem BlockRecRel.ext {st st' : EStore} (hx : Ext st st') {b : BlockRec}
-    {bc : ConLeche.Frontend.InModel.BlockRec} (h : BlockRecRel st b bc) :
-    BlockRecRel st' b bc where
-  types := h.types.mono (fun _ _ => MIndTypeRecRel.ext hx)
-  ctors := h.ctors.mono (fun _ _ => MIndCtorRecRel.ext hx)
-  recs := h.recs.mono (fun _ _ => MIndRecRecRel.ext hx)
-
 /-- con-leche: none — **the parse-state relation survives an append**: the
 fact the streaming fold's induction rests on, and the reason a line's theorem
 may say `StateDRel s'.store sd' sc'` while the next line's hypothesis is
-`StateDRel s''.store sd' sc'`.  Eighteen clauses, one `Bridge/Rel.lean`
-`…_ext` lemma each; the five scalar clauses are the hypothesis itself. -/
+`StateDRel s''.store sd' sc'`.  Four clauses, one `Bridge/Rel.lean` `…_ext`
+lemma each. -/
 theorem StateDRel.ext {st st' : EStore} (hx : Ext st st') {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (h : StateDRel st sd sc) :
     StateDRel st' sd sc where
@@ -1565,23 +1400,6 @@ theorem StateDRel.ext {st st' : EStore} (hx : Ext st st') {sd : StateD}
   exprs := h.exprs.mono (fun _ _ hd => denote_ext hd hx)
   decls := denoteDeclArray_ext hx h.decls
   projNamed := h.projNamed.mono hx
-  projOwners := h.projOwners.mono hx (fun _ _ ho => ProjRecOwnerRel.ext hx ho)
-  projLevels := h.projLevels.mono hx (fun _ _ hd => denoteL_ext hd hx)
-  projRewrites := denoteNListE_ext hx _ _ h.projRewrites
-  constTypes := h.constTypes.mono hx
-    (fun _ _ hp => ⟨denoteNListE_ext hx _ _ hp.1, denote_ext hp.2 hx⟩)
-  heights := h.heights.mono hx (fun _ _ hp => hp)
-  inModel := h.inModel
-  inModelled := denoteNListE_ext hx _ _ h.inModelled
-  genRecords := h.genRecords
-  genOwner := h.genOwner.mono hx (fun _ _ hd => denoteN_ext hd hx)
-  inModelGen := h.inModelGen.mono
-    (fun _ _ hp => ⟨hp.1, denoteDeclArray_ext hx hp.2⟩)
-  indCount := h.indCount
-  indBlocks := h.indBlocks.mono hx (fun _ _ hb => BlockRecRel.ext hx hb)
-  inModelCensus := h.inModelCensus
-  inModelDeclined := h.inModelDeclined.mono
-    (fun _ _ hp => ⟨denoteN_ext hp.1 hx, hp.2⟩)
 
 /-! ## Persistence
 
