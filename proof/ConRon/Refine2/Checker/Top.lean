@@ -2,8 +2,8 @@
 # `ConRon.Refine2.Checker.Top` — Theorem 2 for `arena::checker`, and the tier's capstone
 
 **Task #97-P5-Checker**, deliverables 2 and 3 (DESIGN.md §8.2).
-`crates/con-ron-core/src/arena/checker.rs` against
-`proof/ConRon/Arena/Checker.lean`: `check_decl`'s seven arms, the pure fold
+`crates/con-ron-core/src/arena/{check_decl,checker}.rs` against
+`proof/ConRon/Arena/{CheckDecl,Checker}.lean`: `check_decl`'s seven arms, the pure fold
 `check_decls_pure`, the two-phase fold `install_then_check` that the binary
 runs, and the startup walk `intern_all_pins`.
 
@@ -34,21 +34,16 @@ read by anything after an `Err`.
 
 ## Finding 14 — `check_ind_decl` is the Inductives tier's, and it is DISCHARGED
 
-`checkDecl`'s `.indDecl` arm calls `Inductives.checkIndDecl`, which is
-`arena::inductives::*` — 6 705 lines that are NOT this tier's.  Task
-#97-P5-Checker carried that seam as a hypothesis (`hind : IndRel`) at thirteen
-sites; task #97-P5-Ind proved `ind_rel : IndRel` unconditionally, and task
-#97-P5-Checker-2 deleted the thirteen binders.
-
-**That cost an import swap, and it is the right end state.**  `IndRel` used to
-be declared HERE and proved in `Refine2/Inductives/Top.lean`, which imports
-this file — so no proof here could reach `ind_rel`.  The structure now lives
-in `Refine2/Checker/Shape.lean` (the base both tiers already import), that
-file's `import ConRon.Refine2.Checker.Top` is gone, and this file imports the
-Inductives tier instead.  (Task #97-T2-LOCKSTEP lane Checker round 2 deleted `IndRel` itself:
-its old `AStateRel`/`SimRel` shape had no consumer once the Inductives lane
-retired `ind_rel`, and `check_ind_decl_refines` is called directly.)  A capstone with no hypotheses must transitively
-import every tier that discharges one.
+`arena::check_decl::check_ind_decl` (task #105: the fold's arms moved out of
+`arena::checker` with con-leche's `Kernel/CheckDecl.lean`) is the pinned-basis
+test, the declared parameter count, the recogniser and ONE route: the uniform
+install `check_block` or the decline `check_shapeless`.  The route's three
+stages are `arena::inductives::*`, not this tier's, and
+`Refine2/Inductives/Top.lean` exports them as `@[lockstep]` lemmas
+(`block_parts_ls`, `check_block_ls`, `check_shapeless_ls`) over this tier's
+base (`Checker/Base.lean`); this file imports that module and proves
+`check_ind_decl_refines` by one `lockstep` call.  A capstone with no
+hypotheses must transitively import every tier that discharges one.
 
 `KnotRel checkFuel` went the same way and needed nothing:
 `Refine2/Checker/KnotHyp.lean`'s `knotRel_checkFuel'` is a theorem of task
@@ -323,7 +318,8 @@ open Lockstep in
 
 /-- `check_ind_decl` ⊑ `checkDecl`'s `.indDecl` arm — the pinned basis blocks
 recognised first (a stream's `Nat` block arrives as an ordinary `indDecl`),
-then the inductive routes.  **Finding 14's `hind`.** -/
+then the declared parameter count, the recogniser and the one uniform route
+(finding 14). -/
 theorem check_ind_decl_refines {pers st lst} {rf lf}
     {mode : kernel.env.CheckMode}
     {block : alloc.vec.Vec arena.env.IConstantInfo} {n_p : Std.U64} {o}
@@ -2294,19 +2290,17 @@ theorem intern_all_axiom_pins_refines {pers st lst} {o}
   rw [run_bind_ok hx4]
   exact intern_all_axiom_pins_rest_refines hrel4 hinv4 hrun
 
-/-- `all_basis_kinds` is the six basis kinds in `internAllPins`' order. -/
+/-- `all_basis_kinds` is the five basis kinds in `internAllPins`' order. -/
 theorem all_basis_kinds_refines {o}
     (hrun : arena.checker.all_basis_kinds = ok o) :
     o.val.map ConRon.Refine.absBasisKind =
-      [.eqK, .natK, .punitK, .emptyK, .falseK, .quotK] := by
+      [.eqK, .natK, .emptyK, .falseK, .quotK] := by
   rw [arena.checker.all_basis_kinds] at hrun
   obtain ⟨k1, h1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨k2, h2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨k3, h3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨k4, h4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨k5, h5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  rw [ConRon.Refine.vec_push_val hrun, ConRon.Refine.vec_push_val h5,
-    ConRon.Refine.vec_push_val h4, ConRon.Refine.vec_push_val h3,
+  rw [ConRon.Refine.vec_push_val hrun, ConRon.Refine.vec_push_val h4, ConRon.Refine.vec_push_val h3,
     ConRon.Refine.vec_push_val h2, ConRon.Refine.vec_push_val h1,
     ConRon.Refine.ExprOps.with_capacity_val]
   rfl
@@ -2314,12 +2308,12 @@ theorem all_basis_kinds_refines {o}
 /-- The cursor's measure induction behind `intern_all_basis_refines`. -/
 private theorem intern_all_basis_aux {pers : arena.store.PersTier} (m : Nat) :
     ∀ {st lst} {i : Std.Usize} {o},
-      6 - i.val = m →
+      5 - i.val = m →
       AStateRel₀ pers st lst → AStateInv pers st →
       arena.checker.intern_all_basis pers st i = ok o →
       Sim₀ (fun _ : Unit => ()) pers lst o
         (internAllBasisSpec
-          ([ConLeche.BasisKind.eqK, .natK, .punitK, .emptyK, .falseK,
+          ([ConLeche.BasisKind.eqK, .natK, .emptyK, .falseK,
             .quotK].drop i.val)) := by
   induction m using Nat.strong_induction_on with
   | _ m ih =>
@@ -2328,13 +2322,13 @@ private theorem intern_all_basis_aux {pers : arena.store.PersTier} (m : Nat) :
     dsimp only at hrun
     obtain ⟨ks, hks, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hk := all_basis_kinds_refines hks
-    have hlen6 : ks.val.length = 6 := by
+    have hlen5 : ks.val.length = 5 := by
       have h := congrArg List.length hk
       simpa using h
     have hl := alloc.vec.Vec.len_val ks
     unfold Sim₀
     by_cases hge : i ≥ ks.len
-    · have hle : 6 ≤ i.val := by scalar_tac
+    · have hle : 5 ≤ i.val := by scalar_tac
       rw [if_pos hge] at hrun
       have ho := Result.ok_injective hrun
       subst ho
@@ -2370,17 +2364,17 @@ private theorem intern_all_basis_aux {pers : arena.store.PersTier} (m : Nat) :
       rw [run_bind_ok hx2]
       obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
-      have hrec := ih (6 - i2.val) (by omega) rfl hrel2 hinv2 hrun
+      have hrec := ih (5 - i2.val) (by omega) rfl hrel2 hinv2 hrun
       rw [← hk, ← List.map_drop, hi2v] at hrec
       exact hrec
 
-/-- `intern_all_basis` — the six basis blocks in BOTH forms, at the cursor. -/
+/-- `intern_all_basis` — the five basis blocks in BOTH forms, at the cursor. -/
 theorem intern_all_basis_refines {pers st lst} {i : Std.Usize} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.checker.intern_all_basis pers st i = ok o) :
     Sim₀ (fun _ : Unit => ()) pers lst o
       (internAllBasisSpec
-        ([ConLeche.BasisKind.eqK, .natK, .punitK, .emptyK, .falseK,
+        ([ConLeche.BasisKind.eqK, .natK, .emptyK, .falseK,
           .quotK].drop i.val)) := by
   exact intern_all_basis_aux _ rfl hrel hinv hrun
 

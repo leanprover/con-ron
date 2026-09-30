@@ -2220,6 +2220,22 @@ open Lockstep in
       (indParamsOk (absU n_p) (absICILFrom block i)) :=
   LS.ofSim₀ fun _ h => ind_params_ok_refines hrel hinv h
 
+open Lockstep in
+/-- `ind_params_ok` from the block's start, against the whole block: the form
+`check_decl::check_ind_decl` calls it in. -/
+@[lockstep] theorem ind_params_ok_zero_ls {pers st lst}
+    {n_p : Std.U64}
+    {block : alloc.vec.Vec arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a)
+      (arena.checker_base.ind_params_ok pers st n_p block 0#usize) lst
+      (indParamsOk (absU n_p) (absICIL block)) := by
+  have e : absICILFrom block 0#usize = absICIL block := by
+    simp [absICILFrom, absICIL, show ((0#usize : Std.Usize)).val = 0 by rfl]
+  rw [← e]
+  exact ind_params_ok_ls hrel hinv
+
 /-! ## `arena::core::lvl_eq` — the cached level comparison (task #97-P5-Top round 3)
 
 `check_value_group_value`'s theorem arm asks `lvl_eq u zero`, and no tier had

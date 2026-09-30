@@ -511,14 +511,6 @@ def absEqPairsFrom (v : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx))
     (i : Std.Usize) : List (EIdx × EIdx) :=
   (v.val.drop i.val).map fun p => (absEIdx p.1, absEIdx p.2)
 
-/-- `Vec<(EIdx, BinderMeta)>` as the twin's `Array (EIdx × BinderMeta)` —
-`domsMatchAux`'s subject.  con-leche's `List` version is quadratic on a wide
-telescope and its `Array` twin is what the checker runs, so the twin is the
-array one. -/
-def absBinderArr (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
-    Array (EIdx × ConLeche.BinderMeta) :=
-  (v.val.map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)).toArray
-
 def absExprLFrom (v : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize) :
     List ConLeche.Expr := (v.val.drop i.val).map ConRon.Refine.absExpr
 def absCIListFrom (v : alloc.vec.Vec kernel.env.ConstantInfo) (i : Std.Usize) :
@@ -838,29 +830,11 @@ theorem ifenv_push_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
       have := hfinv.idxRange m p hp
       omega
 
-/-! ## The telescope opens' LENGTH (task #97-P5-Checker round 3)
+/-! ## Peeling a twin bind
 
-`Arena/CheckerBase.lean`'s `openPisAtFvarsF n cty i` opens the first `n`
-`∀`-binders at fresh free variables and hands back the list it made.  **That
-list has exactly `n` entries**, and the fact is not decoration:
-`Arena/Inductives/NativeInstall.lean`'s `nativeOpenedOk` dispatches its
-per-field walk on TWO scrutinees,
-
-    match xFvs[i]?, ks.getD i .ordinary with … | _, _ => pure false
-
-over `i ∈ List.range nF`, where `Refine2/Inductives/Spec.lean`'s transcription
-dispatches on the kind alone and reads the variable totally.  The two agree
-exactly when `xFvs.length = nF`, so `nativeOpenedOk_unfold` — the Inductives
-tier's owed equation — cannot be repaired without this.
-
-It lives here because `openPisAtFvarsF` is `arena::checker_base`'s twin and
-this is the shared base both tiers import; `Arena/**` carries definitions and
-no theorems (DESIGN §8.4), so a fact ABOUT a twin belongs on this side of the
-line.
-
-`am_run_bind_ok` is the peel these three inductions run on — the `ok` half of
-`Core/Induction.lean`'s `am_run_bind`, which is a sibling of this file rather
-than below it, hence the second spelling. -/
+`am_run_bind_ok` is the `ok` half of `Core/Induction.lean`'s `am_run_bind`,
+which is a sibling of this file rather than below it, hence the second
+spelling. -/
 
 theorem am_run_bind' {α β : Type} (m : AM α) (k : α → AM β) (lst : AState) :
     ((m >>= k)).run lst = (m.run lst) >>= fun p => (k p.1).run p.2 := rfl
@@ -876,111 +850,6 @@ theorem am_run_bind_ok {α β : Type} {m : AM α} {k : α → AM β} {ls ls' : A
     obtain ⟨a, s⟩ := p
     intro h
     exact ⟨a, s, rfl, h⟩
-
-private theorem pure_none_ne {ls ls' : AState} {fvs : List EIdx} {r : EIdx}
-    (h : (pure none : AM (Option (List EIdx × EIdx))).run ls
-      = .ok (some (fvs, r), ls')) : False := by
-  replace h : (Except.ok ((none : Option (List EIdx × EIdx)), ls)
-      : Except Arena.CheckError (Option (List EIdx × EIdx) × AState))
-      = Except.ok (some (fvs, r), ls') := h
-  simp at h
-
-theorem openPisAtFvars_length {n : Nat} {e : EIdx} {i : Nat} {ls ls' : AState}
-    {fvs : List EIdx} {r : EIdx}
-    (h : (openPisAtFvars n e i).run ls = .ok (some (fvs, r), ls')) :
-    fvs.length = n := by
-  induction n generalizing e i ls ls' fvs r with
-  | zero =>
-    rw [openPisAtFvars] at h
-    replace h : (Except.ok (((some ([], e)) : Option (List EIdx × EIdx)), ls)
-        : Except Arena.CheckError (Option (List EIdx × EIdx) × AState))
-        = Except.ok (some (fvs, r), ls') := h
-    simp only [Except.ok.injEq, Prod.mk.injEq, Option.some.injEq] at h
-    rw [← h.1.1]
-    rfl
-  | succ n ih =>
-    rw [openPisAtFvars] at h
-    -- the tag-first twin (task #97-T2-LOCKSTEP lane Checker, D1)
-    by_cases ht : (e.tag == ETag.forallE) = true
-    swap
-    · rw [if_neg ht] at h; exact (pure_none_ne h).elim
-    rw [if_pos ht] at h
-    obtain ⟨v, ls1, -, h⟩ := am_run_bind_ok h
-    cases v
-    case forallE dom body mm =>
-      obtain ⟨fv, ls2, -, h⟩ := am_run_bind_ok h
-      obtain ⟨b, ls3, -, h⟩ := am_run_bind_ok h
-      obtain ⟨o, ls4, ho, h⟩ := am_run_bind_ok h
-      cases o with
-      | none => exact (pure_none_ne h).elim
-      | some p =>
-        obtain ⟨fvs₀, r₀⟩ := p
-        replace h : (Except.ok (((some (fv :: fvs₀, r₀)) : Option (List EIdx × EIdx)), ls4)
-            : Except Arena.CheckError (Option (List EIdx × EIdx) × AState))
-            = Except.ok (some (fvs, r), ls') := h
-        simp only [Except.ok.injEq, Prod.mk.injEq, Option.some.injEq] at h
-        rw [← h.1.1]
-        simp [ih ho]
-    all_goals exact (pure_none_ne h).elim
-
-theorem openPisAtFvarsFGo_length : ∀ {acc : Array EIdx} {n : Nat} {e : EIdx}
-    {i : Nat} {ls ls' : AState} {fvs : List EIdx} {r : EIdx},
-    (openPisAtFvarsFGo acc n e i).run ls = .ok (some (fvs, r), ls') →
-    fvs.length = n := by
-  intro acc n
-  induction n generalizing acc with
-  | zero =>
-    intro e i ls ls' fvs r h
-    rw [openPisAtFvarsFGo] at h
-    obtain ⟨x, ls1, -, h⟩ := am_run_bind_ok h
-    replace h : (Except.ok (((some ([], x)) : Option (List EIdx × EIdx)), ls1)
-        : Except Arena.CheckError (Option (List EIdx × EIdx) × AState))
-        = Except.ok (some (fvs, r), ls') := h
-    simp only [Except.ok.injEq, Prod.mk.injEq, Option.some.injEq] at h
-    rw [← h.1.1]
-    rfl
-  | succ n ih =>
-    intro e i ls ls' fvs r h
-    rw [openPisAtFvarsFGo] at h
-    -- the tag-first twin (task #97-T2-LOCKSTEP lane Checker, D1)
-    by_cases ht : (e.tag == ETag.forallE) = true
-    swap
-    · rw [if_neg ht] at h; exact (pure_none_ne h).elim
-    rw [if_pos ht] at h
-    obtain ⟨v, ls1, -, h⟩ := am_run_bind_ok h
-    cases v
-    case forallE dom body mm =>
-      obtain ⟨d, ls2, -, h⟩ := am_run_bind_ok h
-      obtain ⟨fv, ls3, -, h⟩ := am_run_bind_ok h
-      obtain ⟨o, ls4, ho, h⟩ := am_run_bind_ok h
-      cases o with
-      | none => exact (pure_none_ne h).elim
-      | some p =>
-        obtain ⟨fvs₀, r₀⟩ := p
-        replace h : (Except.ok (((some (fv :: fvs₀, r₀)) : Option (List EIdx × EIdx)), ls4)
-            : Except Arena.CheckError (Option (List EIdx × EIdx) × AState))
-            = Except.ok (some (fvs, r), ls') := h
-        simp only [Except.ok.injEq, Prod.mk.injEq, Option.some.injEq] at h
-        rw [← h.1.1]
-        simp [ih ho]
-    all_goals exact (pure_none_ne h).elim
-
-theorem openPisAtFvarsF_length {n : Nat} {e : EIdx} {i : Nat} {ls ls' : AState}
-    {fvs : List EIdx} {r : EIdx}
-    (h : (openPisAtFvarsF n e i).run ls = .ok (some (fvs, r), ls')) :
-    fvs.length = n := by
-  rw [openPisAtFvarsF] at h
-  obtain ⟨o, ls1, ho, h⟩ := am_run_bind_ok h
-  cases o with
-  | none => exact openPisAtFvars_length h
-  | some p =>
-    obtain ⟨fvs₀, r₀⟩ := p
-    replace h : (Except.ok (((some (fvs₀, r₀)) : Option (List EIdx × EIdx)), ls1)
-        : Except Arena.CheckError (Option (List EIdx × EIdx) × AState))
-        = Except.ok (some (fvs, r), ls') := h
-    simp only [Except.ok.injEq, Prod.mk.injEq, Option.some.injEq] at h
-    rw [← h.1.1]
-    exact openPisAtFvarsFGo_length ho
 
 /-- The ambient Rust state with its store replaced: what a `&mut EStore`
 function hands back, read as an `AState`. -/

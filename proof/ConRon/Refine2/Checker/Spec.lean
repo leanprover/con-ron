@@ -920,7 +920,7 @@ def internAllBasisSpec : List BasisKind → AM Unit
 calls in order — `internAllPins` itself, re-bracketed
 (`internAllPinsPortSpec_eq`, `Checker/Top.lean`). -/
 def internAllPinsPortSpec (pins : List NatOpPinSet) : AM (List INatOpPinSet) := do
-  internAllBasisSpec [.eqK, .natK, .punitK, .emptyK, .falseK, .quotK]
+  internAllBasisSpec [.eqK, .natK, .emptyK, .falseK, .quotK]
   internAllAxiomPinsSpec
   internAllNamesSpec
   internPinSets pins
