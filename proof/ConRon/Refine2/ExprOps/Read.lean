@@ -301,36 +301,6 @@ end loose_bvars_bounded
 
 section result_sort
 
-theorem result_sort_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (fuel : Std.U64) (h : arena.handle.EIdx),
-      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      LSR pers (fun a b => b = absLIdxOpt a) (arena.expr_ops.result_sort pers st fuel h) st lst
-        (resultSort n (absEIdx h)) := by
-  induction n with
-  | zero =>
-    intro pers st lst fuel h hn hrel hinv
-    apply LSR.of_LS
-    rw [arena.expr_ops.result_sort, resultSort]
-    lockstep
-  | succ m ih =>
-    intro pers st lst fuel h hn hrel hinv
-    apply LSR.of_LS
-    rw [arena.expr_ops.result_sort, resultSort]
-    lockstep
-
-@[lockstep] theorem result_sort_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (fuel : Std.U64) (h : arena.handle.EIdx) :
-    LSR pers (fun a b => b = absLIdxOpt a) (arena.expr_ops.result_sort pers st fuel h) st lst
-      (resultSort (absU fuel) (absEIdx h)) :=
-  result_sort_aux _ fuel h rfl hrel hinv
-
-theorem result_sort_refines {pers st lst} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.result_sort pers st fuel h = ok o) :
-    AOut₀ absLIdxOpt pers o st ((resultSort (absU fuel) (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (result_sort_ls hrel hinv fuel h) hrun
-
 end result_sort
 
 section get_app_fn
@@ -403,36 +373,6 @@ end pi_result
 
 section pi_arity
 
-theorem pi_arity_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (fuel : Std.U64) (h : arena.handle.EIdx),
-      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      LSR pers (fun a b => b = absU a) (arena.expr_ops.pi_arity pers st fuel h) st lst
-        (piArity n (absEIdx h)) := by
-  induction n with
-  | zero =>
-    intro pers st lst fuel h hn hrel hinv
-    apply LSR.of_LS
-    rw [arena.expr_ops.pi_arity, piArity]
-    lockstep
-  | succ m ih =>
-    intro pers st lst fuel h hn hrel hinv
-    apply LSR.of_LS
-    rw [arena.expr_ops.pi_arity, piArity]
-    lockstep
-
-@[lockstep] theorem pi_arity_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (fuel : Std.U64) (h : arena.handle.EIdx) :
-    LSR pers (fun a b => b = absU a) (arena.expr_ops.pi_arity pers st fuel h) st lst
-      (piArity (absU fuel) (absEIdx h)) :=
-  pi_arity_aux _ fuel h rfl hrel hinv
-
-theorem pi_arity_refines {pers st lst} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.pi_arity pers st fuel h = ok o) :
-    AOut₀ absU pers o st ((piArity (absU fuel) (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (pi_arity_ls hrel hinv fuel h) hrun
-
 end pi_arity
 
 
@@ -473,14 +413,6 @@ theorem lam_pw_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AState
       (lamPw (absEIdx h)) := by
   apply LSR.of_LS
   rw [arena.expr_ops.lam_pw, lamPw]
-  lockstep
-
-theorem forall_pw_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (h : arena.handle.EIdx) :
-    LSR pers (fun a b => b = absPwOpt a) (arena.expr_ops.forall_pw pers st h) st lst
-      (forallPw (absEIdx h)) := by
-  apply LSR.of_LS
-  rw [arena.expr_ops.forall_pw, forallPw]
   lockstep
 
 @[lockstep] theorem fvar_type_d_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -726,7 +658,7 @@ end entries
       (stripPis (absU k) (absEIdx h)) :=
   strip_pis_aux _ k h rfl hrel hinv
 
-attribute [lockstep] is_lam_ls lam_pw_ls forall_pw_ls fvar_type_d_ls lidx_has_param_ls
+attribute [lockstep] is_lam_ls lam_pw_ls fvar_type_d_ls lidx_has_param_ls
   eidx_has_level_param_ls
 
 @[lockstep] theorem inst_list_cutoff_ls' {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -774,12 +706,6 @@ theorem lam_pw_refines {pers st lst} {h : arena.handle.EIdx} {o}
     (hrun : arena.expr_ops.lam_pw pers st h = ok o) :
     AOut₀ absPwOpt pers o st ((lamPw (absEIdx h)).run lst) :=
   LSR.toAOut₀ (lam_pw_ls hrel hinv h) hrun
-
-theorem forall_pw_refines {pers st lst} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.forall_pw pers st h = ok o) :
-    AOut₀ absPwOpt pers o st ((forallPw (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (forall_pw_ls hrel hinv h) hrun
 
 theorem fvar_type_d_refines {pers st lst} {h : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
