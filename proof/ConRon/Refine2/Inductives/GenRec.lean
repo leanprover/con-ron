@@ -1422,4 +1422,64 @@ open scoped GenRecSide
   rw [arena.inductives.gen_rec.motive_ty, ClassGen.motiveTy]
   lockstep
 
+attribute [local lockstep high] binder_copy_from_val_spec
+
+/-- `minorTy`'s tail: the conclusion and the closed telescope (the Rust's
+`minor_ty_concl`). -/
+def grMinorConcl (g : ClassGen) (c : Nat) (x : ClassCtor) (d : Nat) (ci : TargetMajor)
+    (fvs : List EIdx) (res : EIdx) (ihs : List (EIdx × ConLeche.BinderMeta)) :
+    AM (Option EIdx) := do
+  let ra ← getAppArgs coreWalkFuel res
+  let cc ← internE (.const x.cv.name ci.lvls)
+  let capp ← mkAppN cc (ci.ds ++ fvs)
+  let mc ← g.motVar c
+  let concl ← mkAppN mc (ra.drop ci.nPc ++ [capp])
+  let fbs ← fvs.mapM g.binder
+  let r ← closeTelescope (fbs ++ ihs) d concl
+  pure (some r)
+
+def minorTy' (g : ClassGen) (c : Nat) (x : ClassCtor) (d : Nat) : AM (Option EIdx) := do
+  let ci ← targetMajorAt g.cls c
+  match ← openPisAtFvarsF x.nF x.tyD d with
+  | none => pure none
+  | some (fvs, res) =>
+    match ← targetPiDomsWith fvs x.tyN with
+    | none => pure none
+    | some ws => do
+      let recs := (List.range x.nF).filterMap (grRecField x.kinds)
+      match ← ClassGen.minorTy.ihsGo g x d fvs ws 0 recs with
+      | none => pure none
+      | some ihs => grMinorConcl g c x d ci fvs res ihs
+
+theorem minorTy_eq : ClassGen.minorTy = minorTy' := by
+  funext g c x d
+  simp only [ClassGen.minorTy, minorTy', grMinorConcl]
+  rfl
+
+/-- `minor_ty_concl` ⊑ `grMinorConcl` (`minorTy`'s tail). -/
+@[lockstep] theorem minor_ty_concl_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen)
+    (hbm : ConRon.Refine.PropWhenWF g.bm.pw) (c : Std.U64)
+    (x : arena.inductives.gen_rec.ClassCtor) (d : Std.U64)
+    (ci : arena.inductives.rec_check.TargetMajor) (fvs : alloc.vec.Vec arena.handle.EIdx)
+    (res : arena.handle.EIdx) (ihs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (hihs : TeleWF ihs) :
+    LS pers (fun a b => b = a.map absEIdx)
+      (arena.inductives.gen_rec.minor_ty_concl pers st g c x d ci fvs res ihs) lst
+      (grMinorConcl (absClassGen g) (absU c) (absClassCtor x) (absU d) (absTargetMajor ci)
+        (absEIdxL fvs) (absEIdx res) (absBinderL ihs)) := by
+  rw [arena.inductives.gen_rec.minor_ty_concl, grMinorConcl]
+  lockstep
+
+/-- `minor_ty` ⊑ `ClassGen.minorTy`. -/
+@[lockstep] theorem minor_ty_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen)
+    (hbm : ConRon.Refine.PropWhenWF g.bm.pw) (c : Std.U64)
+    (x : arena.inductives.gen_rec.ClassCtor) (d : Std.U64) :
+    LS pers (fun a b => b = a.map absEIdx)
+      (arena.inductives.gen_rec.minor_ty pers st g c x d) lst
+      ((absClassGen g).minorTy (absU c) (absClassCtor x) (absU d)) := by
+  rw [arena.inductives.gen_rec.minor_ty, minorTy_eq, minorTy']
+  lockstep
+
 end ConRon.Refine2
