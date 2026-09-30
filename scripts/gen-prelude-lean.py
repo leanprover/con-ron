@@ -9,7 +9,7 @@ parts = [data[i:i + CHUNK] for i in range(0, n, CHUNK)]
 out = []
 out.append('''/-
 # `ConRon.Arena.Frontend.PreludeText` — the built-in prelude's bytes
-(`ConLeche/Frontend/Prelude.lean:57-62`, task #97e part 2)
+(`ConLeche/Frontend/Prelude.lean:56-61`, task #97e part 2)
 
 **Generated file — do not edit.**  Written by `scripts/gen-prelude-lean.sh`
 from con-leche's own committed `%s`, the file its
@@ -60,7 +60,7 @@ namespace ConRon.Arena.Frontend
 for i, part in enumerate(parts):
     body = textwrap.fill(", ".join(str(b) for b in part), width=76,
                          initial_indent="  ", subsequent_indent="  ")
-    out.append('/-- con-leche: ConLeche/Frontend/Prelude.lean:57-62 builtinPreludeText\n'
+    out.append('/-- con-leche: ConLeche/Frontend/Prelude.lean:56-61 builtinPreludeText\n'
                'Bytes %d..%d of the prelude (the module note says why it is split). -/\n'
                'def P%02d : ByteArray := ⟨#[\n%s]⟩\n\n'
                % (i * CHUNK, i * CHUNK + len(part), i, body))
@@ -70,7 +70,7 @@ out.append('''/-- con-leche: none — the Rust twin's `push_chunk`
 passed by value and returned, so the two read the same way. -/
 def pushChunk (out : ByteArray) (c : ByteArray) : ByteArray := out ++ c
 
-/-- con-leche: ConLeche/Frontend/Prelude.lean:57-62 builtinPreludeText
+/-- con-leche: ConLeche/Frontend/Prelude.lean:56-61 builtinPreludeText
 The committed prelude for the pinned toolchain (con-leche's `lean-toolchain`),
 verbatim: the `meta` header, the name, level and expression table entries, and
 the declaration records of the six pinned basis blocks, `Bool` and `And`.
