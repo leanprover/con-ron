@@ -1100,4 +1100,183 @@ theorem block_member_counts_ls {pers st} (n_pd k n_c : Std.U64)
     simp [absNatL, absU]
   rwa [e] at h
 
+/-! ## `struct_parts::param_levels` (restated here: `Inductives/StructParts.lean`
+is not below this module yet) -/
+
+/-- `param_levels_go` ⊑ `paramLevels.go` from the cursor on, the accumulated
+levels in front. -/
+theorem bp_param_levels_go_ls {pers} (lps : alloc.vec.Vec arena.handle.NIdx) :
+    ∀ (i : Std.Usize) st lst (out : alloc.vec.Vec arena.handle.LIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absLIdxL a)
+        (arena.inductives.struct_parts.param_levels_go pers st lps i out) lst
+        (do let r ← paramLevels.go ((lps.val.drop i.val).map absNIdx); pure (absLIdxL out ++ r)) := by
+  refine ls_cursor_acc lps absNIdx
+    (fun (w : alloc.vec.Vec arena.handle.LIdx) L =>
+      (do let r ← paramLevels.go L; pure (absLIdxL w ++ r) : AM (List LIdx)))
+    (fun st i w => arena.inductives.struct_parts.param_levels_go pers st lps i w) ?_ ?_
+  · intro st lst i w hn hrel hinv
+    rw [arena.inductives.struct_parts.param_levels_go.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len lps by scalar_tac), paramLevels.go]
+    lockstep
+  · intro st lst i w hi hrel hinv ih
+    rw [arena.inductives.struct_parts.param_levels_go.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len lps by scalar_tac), paramLevels.go]
+    lockstep
+
+/-- `param_levels` ⊑ `paramLevels`. -/
+@[lockstep] theorem bp_param_levels_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (lps : alloc.vec.Vec arena.handle.NIdx) :
+    LS pers (fun a b => b = absLsIdx a) (arena.inductives.struct_parts.param_levels pers st lps)
+      lst (paramLevels (absNIdxL lps)) := by
+  have hgo := bp_param_levels_go_ls (pers := pers) lps 0#usize st lst (alloc.vec.Vec.new _)
+    hrel hinv
+  have e : (paramLevels.go ((lps.val.drop (0#usize : Std.Usize).val).map absNIdx) >>= fun r =>
+      pure (absLIdxL (alloc.vec.Vec.new arena.handle.LIdx) ++ r) : AM _) =
+      paramLevels.go (absNIdxL lps) := by
+    simp [absLIdxL, absNIdxL]
+  rw [e] at hgo
+  rw [arena.inductives.struct_parts.param_levels, paramLevels]
+  lockstep
+
+/-! ## The groups -/
+
+/-- `blockGroups` with its `filterM` predicate as one comparison. -/
+theorem blockGroups_eq (names : List NIdx) (lvls : LsIdx) (nP k : Nat)
+    (cs : List (IConstantVal × Nat)) :
+    blockGroups names lvls nP k cs = if k == 1 then pure [cs] else
+      (List.range k).mapM fun m => cs.filterM fun c =>
+        ctorMember? names lvls nP c >>= fun o => pure (o == some m) := by
+  rw [blockGroups]
+  split
+  · rfl
+  · congr 1; funext m; congr 1; funext c
+    refine am_bind_congr₂ rfl fun o => ?_
+    cases o <;> simp
+
+theorem absCtorsLFrom_cons {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} {i : Std.Usize}
+    (hi : i.val < cs.val.length) :
+    absCtorsLFrom cs i = (absIConstantVal cs.val[i.val].1, absU cs.val[i.val].2) ::
+      (cs.val.drop (i.val + 1)).map (fun p => (absIConstantVal p.1, absU p.2)) := by
+  rw [absCtorsLFrom, List.drop_eq_getElem_cons hi, List.map_cons]
+
+/-- `block_group` ⊑ `filterM` (as `filterAuxM` with the reversed accumulator)
+from the cursor on. -/
+theorem block_group_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
+    (lvls : arena.handle.LsIdx) (n_p m : Std.U64)
+    (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
+    ∀ (i : Std.Usize) (out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = absCtorsL a)
+        (arena.inductives.block_parts.block_group pers st names lvls n_p m cs i out) st lst
+        (do
+          let r ← List.filterAuxM (fun c =>
+              ctorMember? (absNIdxL names) (absLsIdx lvls) (absU n_p) c >>= fun o =>
+                pure (o == some (absU m)))
+            (absCtorsLFrom cs i) (absCtorsL out).reverse
+          pure r.reverse) := by
+  refine cursor_induction (fun i : Std.Usize => i.val) cs.val.length
+    (fun i out => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = absCtorsL a)
+        (arena.inductives.block_parts.block_group pers st names lvls n_p m cs i out) st lst
+        (do
+          let r ← List.filterAuxM (fun c =>
+              ctorMember? (absNIdxL names) (absLsIdx lvls) (absU n_p) c >>= fun o =>
+                pure (o == some (absU m)))
+            (absCtorsLFrom cs i) (absCtorsL out).reverse
+          pure r.reverse)) ?_ ?_
+  · intro i out hn lst hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.block_parts.block_group.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), absCtorsLFrom,
+      List.drop_eq_nil_of_le hn, List.map_nil, List.filterAuxM]
+    lockstep
+  · intro i out hi ih lst hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.block_parts.block_group.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac), absCtorsLFrom_cons hi,
+      List.filterAuxM]
+    lockstep
+    -- the constructor names another member: the twin's comparison is `false`
+    rename_i t
+    have e : (some (absU t) == some (absU m)) = false := by
+      simp only [beq_eq_false_iff_ne, ne_eq, Option.some.injEq]
+      intro h; exact hc (by simp only [absU] at h; scalar_tac)
+    have ha : a.val = i.val + 1 := by simp [hP]
+    refine LSR.tail_ls (ih a out ha lst1 hrel hinv) ?_ (fun _ _ h => h)
+    simp only [absU] at e
+    rw [e, cond_false, absCtorsLFrom, ha]
+
+/-- `block_group` from `0` into an empty accumulator IS the `filterM`. -/
+@[lockstep] theorem block_group_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx)
+    (lvls : arena.handle.LsIdx) (n_p m : Std.U64)
+    (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
+    LSR pers (fun a b => b = absCtorsL a)
+      (arena.inductives.block_parts.block_group pers st names lvls n_p m cs 0#usize
+        (alloc.vec.Vec.new _)) st lst
+      ((absCtorsL cs).filterM fun c =>
+        ctorMember? (absNIdxL names) (absLsIdx lvls) (absU n_p) c >>= fun o =>
+          pure (o == some (absU m))) := by
+  have h := block_group_ls (pers := pers) (st := st) names lvls n_p m cs 0#usize
+    (alloc.vec.Vec.new _) lst hrel hinv
+  rw [absCtorsLFrom_zero] at h
+  exact h
+
+/-- `block_groups_from` ⊑ `(List.range' m (k - m)).mapM` from member `m` on,
+the accumulated groups in front. -/
+theorem block_groups_from_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
+    (lvls : arena.handle.LsIdx) (n_p k : Std.U64)
+    (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
+    ∀ (m : Std.U64) (out : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))) lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = a.val.map absCtorsL)
+        (arena.inductives.block_parts.block_groups_from pers st names lvls n_p k m cs out) st lst
+        (do
+          let r ← (List.range' (absU m) (absU k - absU m)).mapM fun m =>
+            (absCtorsL cs).filterM fun c =>
+              ctorMember? (absNIdxL names) (absLsIdx lvls) (absU n_p) c >>= fun o =>
+                pure (o == some m)
+          pure (out.val.map absCtorsL ++ r)) := by
+  refine cursor_induction (fun m : Std.U64 => m.val) k.val
+    (fun m out => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = a.val.map absCtorsL)
+        (arena.inductives.block_parts.block_groups_from pers st names lvls n_p k m cs out) st lst
+        (do
+          let r ← (List.range' (absU m) (absU k - absU m)).mapM fun m =>
+            (absCtorsL cs).filterM fun c =>
+              ctorMember? (absNIdxL names) (absLsIdx lvls) (absU n_p) c >>= fun o =>
+                pure (o == some m)
+          pure (out.val.map absCtorsL ++ r))) ?_ ?_
+  · intro m out hn lst hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.block_parts.block_groups_from.eq_def,
+      if_pos (show m ≥ k by scalar_tac), show absU k - absU m = 0 by simp only [absU]; omega,
+      List.range'_zero, List.mapM_nil]
+    lockstep
+  · intro m out hm ih lst hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.block_parts.block_groups_from.eq_def,
+      if_neg (show ¬ m ≥ k by scalar_tac),
+      show absU k - absU m = (absU k - (absU m + 1)) + 1 by simp only [absU]; omega,
+      List.range'_succ, List.mapM_cons]
+    lockstep
+
+/-- `block_groups` ⊑ `blockGroups` (at one member the Rust copies the list the
+twin shares). -/
+@[lockstep] theorem block_groups_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx)
+    (lvls : arena.handle.LsIdx) (n_p k : Std.U64)
+    (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
+    LSR pers (fun a b => b = a.val.map absCtorsL)
+      (arena.inductives.block_parts.block_groups pers st names lvls n_p k cs) st lst
+      (blockGroups (absNIdxL names) (absLsIdx lvls) (absU n_p) (absU k) (absCtorsL cs)) := by
+  have hf := block_groups_from_ls (pers := pers) (st := st) names lvls n_p k cs 0#u64
+    (alloc.vec.Vec.new _) lst hrel hinv
+  have e : absU (0#u64 : Std.U64) = 0 := rfl
+  simp only [e, Nat.sub_zero, vec_new_val', List.map_nil, List.nil_append, bind_pure] at hf
+  apply LSR.of_LS
+  rw [arena.inductives.block_parts.block_groups, blockGroups_eq, List.range_eq_range']
+  lockstep
+
 end ConRon.Refine2
