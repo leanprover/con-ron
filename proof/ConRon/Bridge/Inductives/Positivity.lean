@@ -1899,4 +1899,151 @@ theorem nestCtors_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
 
 end Ctors
 
+section Frame
+
+variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+
+/-- con-leche: none — `List.mapIdx` of an index-blind function is `map`. -/
+theorem mapIdx_blind {α β : Type} (f : α → β) (l : List α) :
+    l.mapIdx (fun _ a => f a) = l.map f := by
+  apply List.ext_getElem <;> simp
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1327-1351 nestFrame —
+the twin's frame with its head's name as one bind (the `do` elaborator puts
+the continuation in a join point). -/
+theorem nestFrame_eq (mode : CheckMode) (fe : IFEnv) (ctx : Arena.NestCtx) (fuel : Nat)
+    (prog : List Arena.NestHole) (hi : Nat) (us : LsIdx) (ds : List EIdx) (nPc : Nat)
+    (grp : List (NIdx × EIdx)) (ns : Arena.NestState) :
+    Arena.nestFrame mode fe ctx fuel prog hi us ds nPc grp ns = (do
+      let hn ← (match grp with
+        | [] => internNNode .anonymous
+        | (c, _) :: _ => pure c : AM NIdx)
+      let hc ← internConstE hn us
+      let app ← Arena.mkAppN hc ds
+      let _ ← Arena.inferTypeCore mode fe Arena.checkFuel hi app
+      let prog2 := prog ++ grp.map fun (c, _) =>
+        ({ key := ⟨c, us, ds⟩, base := hi } : Arena.NestHole)
+      let names := grp.map (·.1)
+      let ctors ← Arena.nestGroupCtors fe nPc names []
+      let holes ← grp.zipIdx.mapM fun ((_, ty), i) => internFVarE (hi + i) ty
+      let (_, ns2) ← Arena.nestCtors mode fe ctx false fuel prog2 (hi + grp.length) us ds
+        names holes ctors ns []
+      pure ns2) := by
+  rw [Arena.nestFrame.eq_def]
+  cases grp <;> rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1327-1351 nestFrame
+**A container frame** (con-leche's `nestFrameS_sim`): the instantiation typed
+at the frame's depth, the group's constructors walked at the enclosing walk's
+fuel, with the frame's holes above `hi`. -/
+theorem nestFrame_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP) {fuel : Nat}
+    (ih : NestPosSpec μ env fe ctx ctxP fuel)
+    (prog : List Arena.NestHole) (progP : List ConLeche.NestHole) (hi : Nat) (us : LsIdx)
+    (usP : List Level) (ds : List EIdx) (dsP : List Expr) (nPc : Nat)
+    (grp : List (NIdx × EIdx)) (grpP : List (ConLeche.Name × Expr)) (ns : Arena.NestState)
+    (nsP : ConLeche.NestState)
+    (hds : ∀ d ∈ dsP, Expr.WScoped hi d) (hg : ∀ x ∈ grpP, Expr.WScoped hi x.2) :
+    CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
+        dProg st prog = some progP ∧ denoteLs st.lss us = some usP ∧
+        Frontend.denoteEList st ds = some dsP ∧ dGrp st grp = some grpP ∧
+        dState st ns = some nsP)
+      (Arena.nestFrame μ fe ctx fuel prog hi us ds nPc grp ns)
+      (fun st r v => dState st r = some v)
+      (ConLeche.nestFrame ctxP (fueledOpsM μ) env (ConLeche.nestPos (fueledOpsM μ) env ctxP fuel)
+        progP hi usP dsP nPc grpP nsP) := by
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hctx, hprog, hus, hds', hgrp, hns⟩ := hp
+  obtain ⟨-, -, hfind, -, -, -⟩ := dCtx_fields hctx
+  rw [nestFrame_eq] at hrun
+  -- the head's name
+  obtain ⟨hn, s₁, h1, h2⟩ := bindOk hrun
+  have hhn : PStep s₀ s₁ ∧ denoteN s₁.store.ns hn = some (grpP.headD default).1 := by
+    cases grp with
+    | nil =>
+      simp only [dGrp, List.mapM_nil, Option.pure_def, Option.some.injEq] at hgrp
+      subst hgrp
+      dsimp only at h1
+      obtain ⟨p, hd⟩ := internNNode_run hok.state
+        (by intro c hc; simp [NNodeView.children] at hc) h1
+      exact ⟨p, by rw [hd]; rfl⟩
+    | cons x grp' =>
+      dsimp only at h1
+      obtain ⟨hr, hs⟩ := pureOk h1
+      subst hr
+      rw [hs]
+      simp only [dGrp, List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at hgrp
+      cases hx : dGE s₀.store x with
+      | none => rw [hx] at hgrp; simp at hgrp
+      | some y =>
+      cases hxs : grp'.mapM (dGE s₀.store) with
+      | none => rw [hx, hxs] at hgrp; simp at hgrp
+      | some ys =>
+      rw [hx, hxs] at hgrp
+      simp only [Option.bind_some, Option.some.injEq] at hgrp
+      subst hgrp
+      simp only [dGE, Option.bind_eq_some_iff, Option.map_eq_some_iff] at hx
+      obtain ⟨cP, hcP, tyP, htyP, rfl⟩ := hx
+      exact ⟨PStep.refl hok.state, hcP⟩
+  obtain ⟨p1, hhn'⟩ := hhn
+  have c1 := p1.toCore hok
+  obtain ⟨hc', s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨p2, hc2⟩ := internConstE_run c1.ok.state hhn' (denoteLs_ext hus p1.ext) h3
+  obtain ⟨app, s₃, h5, h6⟩ := bindOk h4
+  obtain ⟨p3, happ⟩ := mkAppN_run ds dsP p2.ok hc2
+    (denoteEList_ext (p1.ext.trans p2.ext) _ _ hds') h5
+  -- the instantiation, typed
+  obtain ⟨tyA, s₄, h7, h8⟩ := bindOk h6
+  have c3 := c1.trans ((p2.trans p3).toCore c1.ok)
+  have hwapp : Expr.WScoped hi (Expr.mkAppN (.const (grpP.headD default).1 usP) dsP) :=
+    Expr.WScoped.mkAppN (by simp [Expr.WScoped]) hds
+  obtain ⟨c4, tyP, -, -, hFty⟩ := infer_crun hk henv c3.ok happ hwapp h7
+  dsimp only at h8
+  -- the group's constructors
+  obtain ⟨ctors, s₅, h9, h10⟩ := bindOk h8
+  have hx04 : Ext s₀.store s₄.store := c3.ext.trans c4.ext
+  have hgrp4 := dGrp_ext hx04 _ _ hgrp
+  obtain ⟨p5, vc, hvc, hFc, hvcl⟩ := nestGroupCtors_spec ctxP hfind hc nPc _ _ [] []
+    s₄ s₅ ctors c4.ok.state ⟨c4.ok.ienv.toS, dGrp_names hgrp4, rfl⟩ h9
+  simp only [List.nil_append] at hvc
+  -- the frame's holes
+  obtain ⟨holes, s₆, h11, h12⟩ := bindOk h10
+  obtain ⟨p6, hholes⟩ := frameHoles_run hi (fun c ty i => rfl) grp grpP 0 s₅ s₆ holes p5.ok
+    (dGrp_ext p5.ext _ _ hgrp4) h11
+  have hholesEq : ((grpP.zipIdx 0).map fun p => Expr.fvar (hi + p.2) p.1.2) =
+      grpP.mapIdx (fun i (x : ConLeche.Name × Expr) => Expr.fvar (hi + i) x.2) := by
+    rw [List.mapIdx_eq_zipIdx_map]
+  rw [hholesEq] at hholes
+  -- the constructors walked
+  obtain ⟨q, s₇, h13, h14⟩ := bindOk h12
+  have hlenG : grp.length = grpP.length := (mapM_option_length hgrp).symm
+  rw [hlenG] at h13
+  have hx06 := hx04.trans (p5.ext.trans p6.ext)
+  have c6 := c3.trans (c4.trans ((p5.trans p6).toCore c4.ok))
+  have hprog2 : dProg s₆.store (prog ++ grp.map fun (x : NIdx × EIdx) =>
+      ({ key := ⟨x.1, us, ds⟩, base := hi } : Arena.NestHole)) =
+      some ((grpP.mapIdx fun _ (x : ConLeche.Name × Expr) =>
+        ({ key := ⟨x.1, usP, dsP⟩, base := hi } : ConLeche.NestHole)).reverse ++ progP) := by
+    rw [mapIdx_blind (fun (x : ConLeche.Name × Expr) =>
+      ({ key := ⟨x.1, usP, dsP⟩, base := hi } : ConLeche.NestHole))]
+    exact dProg_append (dProg_ext hx06 _ _ hprog)
+      (dHoles_grp (denoteLs_ext hus hx06) (denoteEList_ext hx06 _ _ hds') hi
+        (dGrp_ext hx06 _ _ hgrp))
+  obtain ⟨c7, v, ⟨-, hv2, -⟩, hFv⟩ := nestCtors_spec hk henv false fuel
+    (fun _ => ConLeche.nestPos (fueledOpsM μ) env ctxP fuel) (fun _ => by simp)
+    (fun _ => by simpa using ih) _ _ (hi + grpP.length) us usP ds dsP _ _ holes _
+    (fun d hd => Expr.WScoped.mono (Nat.le_add_right _ _) (hds d hd))
+    (Cached.frameHoles_wscoped hg) (by simp) ctors vc ns nsP [] [] hvcl s₆ s₇ q c6.ok
+    ⟨dCtx_ext _ hx06 _ _ hctx, hprog2, denoteLs_ext hus hx06, denoteEList_ext hx06 _ _ hds',
+      dGrp_names (dGrp_ext (p5.ext.trans p6.ext) _ _ hgrp4), hholes,
+      dCtors_ext p6.ext _ _ hvc, dState_ext hx06 _ _ hns, rfl⟩ h13
+  obtain ⟨o, ns2⟩ := q
+  dsimp only at h14
+  obtain ⟨rfl, rfl⟩ := pureOk h14
+  refine ⟨c6.trans c7, v.2, hv2, ?_⟩
+  simp only [ConLeche.nestFrame]
+  exact FOk.bind hFty (FOk.bind hFc (FOk.bind hFv (FOk.pure _)))
+
+end Frame
+
 end ConRon.Bridge.Inductives
