@@ -592,7 +592,8 @@ theorem check_block_ctors_aux (m : Nat) :
   | zero =>
     intro pers st lst mode rf0 lf0 rf lf p cv_tas i out_c out_s hn hrel hinv hfe0 hfe
     rw [arena.inductives.block_install.check_block_ctors, if_pos (by scalar_tac),
-      absMemberShapeLFrom, sp_vecFrom_nil _ _ _ (by omega), checkBlockCtors]
+      absMemberShapeLFrom, sp_vecFrom_nil _ _ _ (by omega)]
+    simp only [checkBlockCtors]
     lockstep
   | succ m ih =>
     intro pers st lst mode rf0 lf0 rf lf p cv_tas i out_c out_s hn hrel hinv hfe0 hfe
@@ -601,8 +602,172 @@ theorem check_block_ctors_aux (m : Nat) :
     by_cases hc : i.val < cv_tas.val.length
     · rw [if_neg (by scalar_tac), absICVLFrom, sp_vecFrom_cons _ _ _ hc, checkBlockCtors]
       lockstep
-      all_goals sorry
-    · rw [if_pos (by scalar_tac), absICVLFrom, sp_vecFrom_nil _ _ _ (by omega), checkBlockCtors]
+      rename_i oc hoc os hos
+      have ha : a.val = i.val + 1 := by scalar_tac
+      refine LS.tail (ih (i := a) (out_c := oc) (out_s := os) (by omega) hrel hinv hfe0 hfe) ?_
+        (fun _ _ h => h)
+      simp only [absMemberShapeLFrom, absICVLFrom, ha, absCtorsLL, absLIdxLLL, hoc, hos,
+        List.map_append, List.map_cons, List.map_nil, List.append_assoc, List.cons_append,
+        List.nil_append]
+    · rw [if_pos (by scalar_tac), absICVLFrom, sp_vecFrom_nil _ _ _ (by omega)]
+      simp only [checkBlockCtors]
       lockstep
+
+/-- `check_block_ctors` ⊑ `checkBlockCtors` from the cursor on, the two
+accumulators in front (the twin conses a pair on the way out, stopping at the
+shorter list). -/
+@[lockstep] theorem check_block_ctors_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (mode : kernel.env.CheckMode) {rf0 : arena.env.IFEnv}
+    {lf0 : IFEnv} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe0 : IFEnvRelI rf0 lf0)
+    (hfe : IFEnvRelI rf lf) (p : arena.inductives.block_parts.BlockShape)
+    (cv_tas : alloc.vec.Vec arena.env.IConstantVal) (i : Std.Usize)
+    (out_c : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64)))
+    (out_s : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx))) :
+    LS pers (fun a b => b = (absCtorsLL a.1, absLIdxLLL a.2))
+      (arena.inductives.block_install.check_block_ctors pers st mode rf0 rf p cv_tas i
+        out_c out_s) lst
+      (do
+        let q ← checkBlockCtors (ConRon.Refine.absMode mode) lf0 lf (absBlockShape p)
+          (absMemberShapeLFrom p.members i) (absICVLFrom cv_tas i)
+        pure (absCtorsLL out_c ++ q.1, absLIdxLLL out_s ++ q.2)) :=
+  check_block_ctors_aux _ rfl hrel hinv hfe0 hfe
+
+/-- `check_block_ctors` from member `0` with empty accumulators IS
+`checkBlockCtors` on the block's members (the tail's call). -/
+@[lockstep] theorem check_block_ctors_new_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (mode : kernel.env.CheckMode) {rf0 : arena.env.IFEnv}
+    {lf0 : IFEnv} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe0 : IFEnvRelI rf0 lf0)
+    (hfe : IFEnvRelI rf lf) (p : arena.inductives.block_parts.BlockShape)
+    (cv_tas : alloc.vec.Vec arena.env.IConstantVal) :
+    LS pers (fun a b => b = (absCtorsLL a.1, absLIdxLLL a.2))
+      (arena.inductives.block_install.check_block_ctors pers st mode rf0 rf p cv_tas 0#usize
+        (alloc.vec.Vec.new _) (alloc.vec.Vec.new _)) lst
+      (checkBlockCtors (ConRon.Refine.absMode mode) lf0 lf (absBlockShape p)
+        (absBlockShape p).members (absICVL cv_tas)) := by
+  have h := check_block_ctors_ls hrel hinv mode hfe0 hfe p cv_tas 0#usize
+    (alloc.vec.Vec.new _) (alloc.vec.Vec.new _)
+  simpa [absCtorsLL, absLIdxLLL, absMemberShapeLFrom, absICVLFrom, absICVL, absBlockShape,
+    alloc.vec.Vec.new] using h
+
+attribute [local lockstep_inline] arena.checker_base.unwrap_or
+
+theorem check_abs_ctor_sorts_aux (m : Nat) :
+    ∀ {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
+      {ctx : arena.inductives.positivity.NestCtx} {is_prop : Bool}
+      {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+      {os : alloc.vec.Vec (alloc.vec.Vec arena.inductives.positivity.NestFieldKind ×
+        arena.handle.EIdx)} {i : Std.Usize},
+      cs.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf lf →
+      LS pers (fun _ _ => True)
+        (arena.inductives.block_install.check_abs_ctor_sorts pers st mode rf ctx is_prop cs os i)
+        lst
+        (checkAbsCtorSorts (ConRon.Refine.absMode mode) lf (absNestCtx ctx) is_prop
+          (absCtorsLFrom cs i) ((os.val.drop i.val).map absCtorOut)) := by
+  induction m with
+  | zero =>
+    intro pers st lst mode rf lf ctx is_prop cs os i hn hrel hinv hfe
+    rw [arena.inductives.block_install.check_abs_ctor_sorts, if_pos (by scalar_tac),
+      absCtorsLFrom, sp_vecFrom_nil _ _ _ (by omega)]
+    simp only [checkAbsCtorSorts]
+    lockstep
+  | succ m ih =>
+    intro pers st lst mode rf lf ctx is_prop cs os i hn hrel hinv hfe
+    have hvis := bi_hvis hfe
+    rw [arena.inductives.block_install.check_abs_ctor_sorts, if_neg (by scalar_tac),
+      absCtorsLFrom, sp_vecFrom_cons _ _ _ (by omega)]
+    by_cases hc : i.val < os.val.length
+    · rw [if_neg (by scalar_tac), sp_vecFrom_cons _ _ _ hc, checkAbsCtorSorts]
+      lockstep
+    · rw [if_pos (by scalar_tac), sp_vecFrom_nil _ _ _ (by omega)]
+      simp only [checkAbsCtorSorts]
+      lockstep
+
+/-- `check_abs_ctor_sorts` ⊑ `checkAbsCtorSorts` from the cursor on,
+pairwise, stopping at the shorter list. -/
+@[lockstep] theorem check_abs_ctor_sorts_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (mode : kernel.env.CheckMode) {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI rf lf) (ctx : arena.inductives.positivity.NestCtx) (is_prop : Bool)
+    (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64))
+    (os : alloc.vec.Vec (alloc.vec.Vec arena.inductives.positivity.NestFieldKind ×
+      arena.handle.EIdx)) (i : Std.Usize) :
+    LS pers (fun _ _ => True)
+      (arena.inductives.block_install.check_abs_ctor_sorts pers st mode rf ctx is_prop cs os i)
+      lst
+      (checkAbsCtorSorts (ConRon.Refine.absMode mode) lf (absNestCtx ctx) is_prop
+        (absCtorsLFrom cs i) ((os.val.drop i.val).map absCtorOut)) :=
+  check_abs_ctor_sorts_aux _ rfl hrel hinv hfe
+
+theorem check_abs_ctor_sorts_all_aux (m : Nat) :
+    ∀ {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
+      {ctx : arena.inductives.positivity.NestCtx} {is_prop : Bool}
+      {css : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))}
+      {oss : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec
+        arena.inductives.positivity.NestFieldKind × arena.handle.EIdx))} {i : Std.Usize},
+      css.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf lf →
+      LS pers (fun _ _ => True)
+        (arena.inductives.block_install.check_abs_ctor_sorts_all pers st mode rf ctx is_prop
+          css oss i) lst
+        (checkAbsCtorSortsAll (ConRon.Refine.absMode mode) lf (absNestCtx ctx) is_prop
+          ((css.val.drop i.val).map absCtorsL)
+          ((oss.val.drop i.val).map fun w => w.val.map absCtorOut)) := by
+  induction m with
+  | zero =>
+    intro pers st lst mode rf lf ctx is_prop css oss i hn hrel hinv hfe
+    rw [arena.inductives.block_install.check_abs_ctor_sorts_all, if_pos (by scalar_tac),
+      sp_vecFrom_nil _ _ _ (by omega)]
+    simp only [checkAbsCtorSortsAll]
+    lockstep
+  | succ m ih =>
+    intro pers st lst mode rf lf ctx is_prop css oss i hn hrel hinv hfe
+    rw [arena.inductives.block_install.check_abs_ctor_sorts_all, if_neg (by scalar_tac),
+      sp_vecFrom_cons _ _ _ (by omega)]
+    by_cases hc : i.val < oss.val.length
+    · rw [if_neg (by scalar_tac), sp_vecFrom_cons _ _ _ hc, checkAbsCtorSortsAll]
+      lockstep
+    · rw [if_pos (by scalar_tac), sp_vecFrom_nil _ _ _ (by omega)]
+      simp only [checkAbsCtorSortsAll]
+      lockstep
+
+/-- `check_abs_ctor_sorts_all` from member `0` (the positivity check's call). -/
+@[lockstep] theorem check_abs_ctor_sorts_all_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (mode : kernel.env.CheckMode) {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI rf lf) (ctx : arena.inductives.positivity.NestCtx) (is_prop : Bool)
+    (css : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64)))
+    (oss : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec
+      arena.inductives.positivity.NestFieldKind × arena.handle.EIdx))) :
+    LS pers (fun _ _ => True)
+      (arena.inductives.block_install.check_abs_ctor_sorts_all pers st mode rf ctx is_prop
+        css oss 0#usize) lst
+      (checkAbsCtorSortsAll (ConRon.Refine.absMode mode) lf (absNestCtx ctx) is_prop
+        (absCtorsLL css) (absCtorOutsL oss)) := by
+  have h := check_abs_ctor_sorts_all_aux _ (i := 0#usize) (css := css) (oss := oss)
+    (ctx := ctx) (is_prop := is_prop) (mode := mode) rfl hrel hinv hfe
+  simpa [absCtorsLL, absCtorOutsL] using h
+
+/-- `block_nest_ctx` ⊑ `blockNestCtx` — the walk's context and the members'
+holes.  The context's `vis` is the environment's counter. -/
+@[lockstep] theorem block_nest_ctx_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf)
+    (p : arena.inductives.block_parts.BlockShape) (cv_tas : alloc.vec.Vec arena.env.IConstantVal) :
+    LS pers (fun a b => b.1 = absNestCtx a.1 ∧ absU a.1.vis = lf.visibleBelow ∧
+        b.2 = absEIdxL a.2)
+      (arena.inductives.block_install.block_nest_ctx pers st rf p cv_tas) lst
+      (blockNestCtx lf (absBlockShape p) (absICVL cv_tas)) := by
+  have hvis := bi_hvis hfe
+  rw [arena.inductives.block_install.block_nest_ctx, blockNestCtx.eq_def]
+  rcases hcv : cv_tas.val with _ | ⟨c0, rest⟩
+  · have h0 : alloc.vec.Vec.len cv_tas = 0#usize := by
+      have : (alloc.vec.Vec.len cv_tas).val = 0 := by simp [alloc.vec.Vec.len, hcv]
+      scalar_tac
+    simp only [h0, ↓reduceIte, absICVL, hcv, List.map_nil]
+    lockstep
+  · have h0 : ¬ alloc.vec.Vec.len cv_tas = 0#usize := by
+      intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hcv] at this
+    have hidx := bi_vec_index_eq cv_tas 0#usize 0 rfl (by simp [hcv])
+    simp only [hcv, List.getElem_cons_zero] at hidx
+    simp only [h0, ↓reduceIte, hidx, bind_tc_ok, absICVL, hcv, List.map_cons]
+    lockstep
 
 end ConRon.Refine2
