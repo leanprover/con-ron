@@ -2432,4 +2432,294 @@ theorem classConstOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ())
       (FOk.seq (FOk.pure ()) (FOk.bind hF9 (FOk.bind hF10 (FOk.pure cP))))))))))
 
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:389-407 classRecTyOk —
+**one recursor's generated type, checked and compared**: the record's member,
+rule prefix and major index the generated ones, the generated type checked as
+a constant under the record's name and level parameters, defeq to the
+stream's checked type (closed, as the cached bridge's `classRecTyOkS_sim`
+has it).  The generated constant denotes con-leche's, closed and fresh. -/
+theorem classRecTyOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (k : Nat) (rc : Arena.RecShape)
+    (rcP : ConLeche.RecShape) (cvRi : IConstantVal) (cvRiP : ConstantVal) (c : Nat)
+    (hRi : Expr.WScoped 0 cvRiP.type) :
+    CSpecF μ env fe
+      (fun st => dClassGen st g = some gP ∧ dRec st rc = some rcP ∧
+        Frontend.denoteCV st cvRi = some cvRiP)
+      (Arena.classRecTyOk μ fe g k rc cvRi c)
+      (fun st r v => Frontend.denoteCV st r = some v ∧ Expr.WScoped 0 v.type ∧
+        env.find? v.name = none)
+      (ConLeche.classRecTyOk (fueledOpsM μ) (mkFEnv env) gP k rcP cvRiP c) := by
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hg, hrc, hRiD⟩ := hpre
+  obtain ⟨hnP, -, hcls, -, hsl, -, -, -, -⟩ := dClassGen_inv hg
+  obtain ⟨hcvR, hrP, hmI, htgt, -⟩ := RC.dRec_inv hrc
+  have hsll : g.slots.length = gP.slots.length := (mapM_option_length hsl).symm
+  simp only [Arena.classRecTyOk] at hrun
+  simp only [ConLeche.classRecTyOk]
+  obtain ⟨ci, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, hci⟩ := targetMajorAt_spec g.cls gP.cls c s₀ s1 ci hok.state hok.pins hcls k1
+  obtain ⟨-, -, -, -, hnIdx, -, hmem, -, -⟩ := dMajor_inv hci
+  obtain ⟨h1, z2⟩ := AM.dunless_ok AM.Never.fail_any z1
+  replace z2 := AM.pure_bind_ok z2
+  obtain ⟨h2, z3⟩ := AM.dunless_ok AM.Never.fail_any z2
+  replace z3 := AM.pure_bind_ok z3
+  have h1P : (rcP.tgt == (gP.cls.getD c default).member.getD k) = true := by
+    rw [← htgt, ← hmem]; exact h1
+  have h2P : (rcP.rP == gP.nP + gP.slots.length &&
+      rcP.mI == rcP.rP + (gP.cls.getD c default).nIdx) = true := by
+    rw [← hrP, ← hmI, ← hnP, ← hsll, ← hnIdx]; exact h2
+  rw [if_pos h1P, if_pos h2P]
+  obtain ⟨o, s4, k4, z4⟩ := bindOk z3
+  obtain ⟨p4, ho⟩ := classGenRecTy_spec g gP c s1 s4 o p1.ok (PinsOK.ofPStep hok.pins p1)
+    (dClassGen_ext p1.ext _ _ hg) k4
+  cases o with
+  | none => exact absurd z4 (fun hc => failOk hc)
+  | some gty =>
+    obtain ⟨gtyP, hgty, hgtyd⟩ := ho
+    rw [hgty]
+    dsimp only at z4
+    have p14 := p1.trans p4
+    have c14 := p14.toCore hok
+    have hcvG : Frontend.denoteCV s4.store ⟨rc.cvR.name, rc.cvR.levelParams, gty⟩ =
+        some { rcP.cvR with type := gtyP } := by
+      obtain ⟨hnm4, hlps4, -⟩ := Core.denoteCV_inv (dExt_denoteCV p14.ext _ _ hcvR)
+      simp only [Frontend.denoteCV, hnm4, hlps4, hgtyd]
+    obtain ⟨cvG, s5, k5, z5⟩ := bindOk z4
+    obtain ⟨c5, cvGP, ⟨rfl, rfl, hwG, hfrG⟩, hF5⟩ := classConstOk_spec fe hk henv _ _ s4 s5 cvG
+      c14.ok hcvG k5
+    obtain ⟨b, s6, k6, z6⟩ := bindOk z5
+    have c15 := c14.trans c5
+    obtain ⟨c6, hF6⟩ := RC.defeq_run (hk.knot env fe henv) c5.ok
+      (Core.denoteCV_inv (dExt_denoteCV c15.ext _ _ hRiD)).2.2
+      (Core.denoteCV_inv (dExt_denoteCV c5.ext _ _ hcvG)).2.2 hRi hwG k6
+    cases b with
+    | false =>
+      simp only [Bool.false_eq_true, ↓reduceIte] at z6
+      exact absurd z6 (fun hc => failOk hc)
+    | true =>
+      simp only [↓reduceIte] at z6
+      obtain ⟨rfl, rfl⟩ := pureOk z6
+      refine ⟨c15.trans c6, _, ⟨dExt_denoteCV c6.ext _ _ (dExt_denoteCV c5.ext _ _ hcvG),
+        hwG, hfrG⟩, ?_⟩
+      exact FOk.bind FOk.unwrapOr (FOk.bind hF5 (FOk.bind (by simpa [mkFEnv_env] using hF6)
+        (by simp only [↓reduceIte]
+            exact FOk.seq (FOk.pure ()) (FOk.pure _))))
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:409-418 classRecTysOk —
+every recursor's generated type, pairwise; the lists running out unevenly
+fail on both sides. -/
+theorem classRecTysOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (k : Nat) :
+    ∀ (recs : List Arena.RecShape) (recsP : List ConLeche.RecShape) (cvs : List IConstantVal)
+      (cvsP : List ConstantVal) (cls : List Nat), (∀ cv ∈ cvsP, Expr.WScoped 0 cv.type) →
+    CSpecF μ env fe
+      (fun st => dClassGen st g = some gP ∧ recs.mapM (dRec st) = some recsP ∧
+        cvs.mapM (Frontend.denoteCV st) = some cvsP)
+      (Arena.classRecTysOk μ fe g k recs cvs cls)
+      (fun st r v => r.mapM (Frontend.denoteCV st) = some v ∧ ∀ cv ∈ v, env.find? cv.name = none)
+      (ConLeche.classRecTysOk (fueledOpsM μ) (mkFEnv env) gP k recsP cvsP cls) := by
+  intro recs
+  induction recs with
+  | nil =>
+    intro recsP cvs cvsP cls _ s₀ s' r hok hpre hrun
+    obtain ⟨-, hrecs, -⟩ := hpre
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrecs
+    subst hrecs
+    simp only [Arena.classRecTysOk] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, [], ⟨rfl, fun _ h => nomatch h⟩, by
+      simp only [ConLeche.classRecTysOk]; exact FOk.pure _⟩
+  | cons rc recs ih =>
+    intro recsP cvs cvsP cls hw s₀ s' r hok hpre hrun
+    obtain ⟨hg, hrecs, hcvs⟩ := hpre
+    obtain ⟨rcP, recsP', rfl, hrc, hrecs'⟩ := GR.mapM_cons_inv hrecs
+    match cvs, cvsP, cls, hcvs, hw, hrun with
+    | [], _, _, _, _, hrun =>
+      simp only [Arena.classRecTysOk] at hrun
+      exact absurd hrun (fun hc => failOk hc)
+    | _ :: _, _, [], _, _, hrun =>
+      simp only [Arena.classRecTysOk] at hrun
+      exact absurd hrun (fun hc => failOk hc)
+    | cvRi :: cvs', cvsP, c :: cs, hcvs, hw, hrun =>
+      obtain ⟨cvRiP, cvsP', rfl, hRi, hcvs'⟩ := GR.mapM_cons_inv hcvs
+      simp only [Arena.classRecTysOk] at hrun
+      obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
+      obtain ⟨c1, xP, ⟨hx, -, hfx⟩, hF1⟩ := classRecTyOk_spec fe hk henv g gP k rc rcP cvRi cvRiP c
+        (hw _ List.mem_cons_self) s₀ s1 x hok ⟨hg, hrc, hRi⟩ k1
+      obtain ⟨xs, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨c2, xsP, ⟨hxs, hfxs⟩, hF2⟩ := ih recsP' cvs' cvsP' cs
+        (fun cv h => hw cv (List.mem_cons_of_mem _ h)) s1 s2 xs c1.ok
+        ⟨dClassGen_ext c1.ext _ _ hg, dRec_ext.list c1.ext _ _ hrecs',
+          dExt_denoteCV.list c1.ext _ _ hcvs'⟩ k2
+      obtain ⟨rfl, rfl⟩ := pureOk z2
+      refine ⟨c1.trans c2, xP :: xsP, ⟨?_, ?_⟩, ?_⟩
+      · simp only [List.mapM_cons, dExt_denoteCV c2.ext _ _ hx, hxs, Option.bind_eq_bind,
+          Option.bind_some, Option.pure_def]
+      · intro cv hcv
+        rcases List.mem_cons.mp hcv with rfl | hcv
+        · exact hfx
+        · exact hfxs cv hcv
+      · simp only [ConLeche.classRecTysOk]
+        exact FOk.bind hF1 (FOk.bind hF2 (FOk.pure _))
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:441-442 classRuleOk (the
+λ-domains) — every domain of a denoting telescope resolves, read through a
+correct index. -/
+theorem allM_domains_resolve {env : Env} {fe : IFEnv} :
+    ∀ (bs : List (EIdx × BinderMeta)) (bsP : List (Expr × BinderMeta)) (s₀ s' : AState)
+      (b : Bool), ReadOK env fe s₀ → denoteBinders s₀.store bs = some bsP →
+      bs.allM (fun b => Arena.constsResolveFFast fe b.1) s₀ = .ok (b, s') →
+      PStep s₀ s' ∧ b = bsP.all (fun b => b.1.constsResolve env) := by
+  intro bs
+  induction bs with
+  | nil =>
+    intro bsP s₀ s' b hok hbs hrun
+    simp only [denoteBinders, Option.some.injEq] at hbs
+    subst hbs
+    simp only [List.allM] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok.state, rfl⟩
+  | cons x bs ih =>
+    intro bsP s₀ s' b hok hbs hrun
+    obtain ⟨t, m⟩ := x
+    simp only [denoteBinders] at hbs
+    cases ht : denoteE s₀.store t with
+    | none => rw [ht] at hbs; simp at hbs
+    | some tP =>
+    cases hr : denoteBinders s₀.store bs with
+    | none => rw [ht, hr] at hbs; simp at hbs
+    | some rest =>
+    rw [ht, hr] at hbs
+    obtain rfl := (Option.some.inj hbs).symm
+    simp only [List.allM] at hrun
+    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, rfl⟩ := constsResolveFFast_pstep hok ht k1
+    cases hc : tP.constsResolve env with
+    | false =>
+      rw [hc] at z1
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      exact ⟨p1, by simp only [List.all_cons, hc, Bool.false_and]⟩
+    | true =>
+      rw [hc] at z1
+      obtain ⟨p2, hb⟩ := ih rest s1 s' b (hok.mono p1.ok p1.ext p1.pins)
+        (denoteBinders_ext p1.ext _ _ hr) z1
+      exact ⟨p1.trans p2, by simp only [List.all_cons, hc, Bool.true_and, hb]⟩
+
+/-- con-leche: none — the binder data of a denoting telescope are the
+telescope's (`BinderMeta` is carried verbatim). -/
+theorem binders_pw_all (pw : PropWhen) {st : EStore} :
+    ∀ {bs : List (EIdx × BinderMeta)} {bsP : List (Expr × BinderMeta)},
+      denoteBinders st bs = some bsP →
+      (bsP.all fun b => b.2.pw == pw) = (bs.all fun b => b.2.pw == pw)
+  | [], bsP, h => by
+    simp only [denoteBinders, Option.some.injEq] at h
+    subst h; rfl
+  | (t, m) :: bs, bsP, h => by
+    simp only [denoteBinders] at h
+    cases ht : denoteE st t with
+    | none => rw [ht] at h; simp at h
+    | some tP =>
+    cases hr : denoteBinders st bs with
+    | none => rw [ht, hr] at h; simp at h
+    | some rest =>
+    rw [ht, hr] at h
+    obtain rfl := (Option.some.inj h).symm
+    simp only [List.all_cons, binders_pw_all pw hr]
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:420-446 classRuleOk
+con-leche: ConLeche/Cached/CheckerC.lean:98-126 sharedOpsRuleR
+**One generated rule, installed as generated**, at the rule-less recursors'
+environment `envR` (index `feR`): closed, its level parameters the
+recursor's, resolving and inferred there — the flush after the inference
+(`sharedOpsRuleR`'s) restores the invariant at `feR` — its λ-telescope `n`
+long, its λ-domains resolving at the constructors' environment `env₂` (the
+view `feR.restrictTo visT`), annotated with the family's datum.  The rule is
+returned as generated. -/
+theorem classRuleOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (visT : Nat)
+    (hk : CoreSpec μ Arena.checkFuel) (henvR : EnvWF envR)
+    (cvR : IConstantVal) (cvRP : ConstantVal) (pw : PropWhen) (n : Nat) (gen : EIdx)
+    (genP : Expr) :
+    CSpecF μ envR feR
+      (fun st => Frontend.denoteCV st cvR = some cvRP ∧ denoteE st gen = some genP ∧
+        IFEnvOKS env₂ (feR.restrictTo visT) st)
+      (Arena.classRuleOk μ visT feR cvR pw n gen) (fun st r v => denoteE st r = some v)
+      (ConLeche.classRuleOk (fueledOpsM μ) .plain (mkFEnv env₂) (mkFEnv envR) cvRP pw n
+        genP) := by
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hcv, hgen, hie₂⟩ := hpre
+  obtain ⟨-, hlps, -⟩ := Core.denoteCV_inv hcv
+  simp only [Arena.classRuleOk] at hrun
+  -- the closedness guards
+  obtain ⟨b1, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, rfl⟩ := RC.looseBVarsBoundedFast_pstep hok.state hgen k1
+  obtain ⟨hlb, z2⟩ := AM.dunless_ok AM.Never.fail_any z1
+  replace z2 := AM.pure_bind_ok z2
+  obtain ⟨b2, s2, k2, z3⟩ := bindOk z2
+  obtain ⟨p2, rfl⟩ := RC.hasFvarFast_pstep p1.ok (denote_ext hgen p1.ext) k2
+  obtain ⟨hfv, z4⟩ := AM.dguard_ok AM.Never.fail_any z3
+  replace z4 := AM.pure_bind_ok z4
+  have hfvP : genP.hasFvar = false := by
+    cases hb : genP.hasFvar with
+    | false => rfl
+    | true => rw [hb] at hfv; exact absurd rfl hfv
+  have hws : Expr.WScoped 0 genP := ConLeche.Expr.WScoped.of_not_hasFvar hfvP
+  have p12 := p1.trans p2
+  -- the level parameters
+  obtain ⟨b3, s3, k3, z5⟩ := bindOk z4
+  obtain ⟨h3st, h3c, h3p, rfl⟩ := allLevelParamsDefined_run p2.ok
+    (denoteNList_ext p12.ext.lss.ls.ns _ _ hlps) (denote_ext hgen p12.ext) k3
+  obtain ⟨hlp, z6⟩ := AM.dunless_ok AM.Never.fail_any z5
+  replace z6 := AM.pure_bind_ok z6
+  have p3 : PStep s2 s3 := PStep.of_caches ⟨by rw [h3st]; exact p2.ok.wf⟩
+    (by rw [h3st]; exact Ext.refl _) (by rw [h3st]; exact BMExt.refl _) h3c h3p
+  have c13 := (p12.trans p3).toCore hok
+  -- the resolution at `feR`
+  obtain ⟨b4, s4, k4, z7⟩ := bindOk z6
+  obtain ⟨p4, rfl⟩ := constsResolveFFast_pstep c13.ok.toR (denote_ext hgen c13.ext) k4
+  obtain ⟨hcr, z8⟩ := AM.dunless_ok (AM.Never.bind fun _ => AM.Never.fail_any) z7
+  replace z8 := AM.pure_bind_ok z8
+  have c14 := c13.trans (p4.toCore c13.ok)
+  -- the inference at `feR`
+  obtain ⟨ty, s5, k5, z9⟩ := bindOk z8
+  obtain ⟨c5, w, -, -, hF5⟩ := infer_crun hk henvR c14.ok (denote_ext hgen c14.ext) hws k5
+  -- the flush
+  obtain ⟨u6, s6, k6, z10⟩ := bindOk z9
+  obtain ⟨hok6, hi6, hst6⟩ := (c5.ok.toR).flush (μ := μ) k6
+  have c56 : CoreStep μ envR feR s5 s6 := ⟨hok6, by rw [hst6]; exact Ext.refl _, hi6.pins⟩
+  have c16 := (c14.trans c5).trans c56
+  -- the λ-telescope
+  obtain ⟨q, s7, k7, z11⟩ := bindOk z10
+  obtain ⟨hs7, hq⟩ := stripLams_pstep hok6.state (denote_ext hgen c16.ext) k7
+  rw [hs7] at z11
+  cases q with
+  | none => exact absurd z11 (fun hc => failOk hc)
+  | some q =>
+    obtain ⟨rbs, body⟩ := q
+    obtain ⟨rbsP, bodyP, hsl, hrbs, -⟩ := denoteBP_someB' hq
+    dsimp only at z11
+    obtain ⟨b8, s8, k8, z12⟩ := bindOk z11
+    have hr6 : ReadOK env₂ (feR.restrictTo visT) s6 :=
+      ⟨hok6.state, hok6.pins, hie₂.mono c16.ext _ rfl⟩
+    obtain ⟨p8, rfl⟩ := allM_domains_resolve rbs rbsP s6 s8 _ hr6 hrbs k8
+    obtain ⟨hdom, z13⟩ := AM.dunless_ok (AM.Never.bind fun _ => AM.Never.fail_any) z12
+    replace z13 := AM.pure_bind_ok z13
+    have hpwP := binders_pw_all pw hrbs
+    have c18 := c16.trans (p8.toCore hok6)
+    by_cases hpw : (rbs.all fun b => b.2.pw == pw) = true
+    · rw [if_pos hpw] at z13
+      obtain ⟨rfl, rfl⟩ := pureOk z13
+      refine ⟨c18, genP, denote_ext hgen c18.ext, ?_⟩
+      have h1P : (genP.looseBVarsBounded 0 && !genP.hasFvar) = true := by
+        simp only [hlb, hfvP, Bool.not_false, Bool.and_self]
+      simp only [ConLeche.classRuleOk, h1P, hlp, StructWalkers.plain, constsResolveF_eq, hcr,
+        mkFEnv_env, hsl, ↓reduceIte]
+      refine FOk.bind hF5 (FOk.bind FOk.unwrapOr ?_)
+      dsimp only
+      rw [if_pos hdom, hpwP, if_pos hpw]
+      exact FOk.pure _
+    · rw [if_neg hpw] at z13
+      exact absurd z13 (fun hc => failOk hc)
+
 end ConRon.Bridge.Inductives
