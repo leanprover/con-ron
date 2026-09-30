@@ -23,11 +23,20 @@ the same scoping facts (`ClassMajScoped`, `classConstOk_typeWF`,
   TEMPORARILY (`classFeR`) and popped (`IFEnv.popTemp`): the rule stage's
   knot calls run at `consBlockRecsBare …` (con-leche's
   `classFeR … = mkFEnv (consBlockRecsBare …)`, `consBlockRecsBareF_mkFEnv`),
-  and the popped index answers exactly as the input one
-  (`classFeR_popped`);
+  and the popped index answers exactly as the input one (`GR.classFeR_pop`,
+  `GR.FEq`: the same list, the same bound, the same row at every key);
 * `recOf` is `classRecOf recCls cvGs`, `ClassGen.bm` a field (the denotation
   `dClassGen` pins it to `⟨Level.zeronessOf elim⟩`), `exprGetD` /
   `targetMajorAt` the `getD … default` reads.
+
+The twins' `let rec` walks (`minorTy.ihsGo`, `prefixBinders.slotsGo`,
+`classGenRule.callsGo`) run over the lists con-leche's indexed `mapM` /
+`filterMapM` range over; `GR.mapIdxFromP` and `GR.filterMapOP` are those as list
+recursions, `GR.mapM_range_getD` / `GR.filterMapM_eq` the bridges.
+
+The headlines are `genRecCheck_spec` (at the constructors' environment) and
+`checkBlockClasses_spec` (at the formers'); `classSeeds_spec` is the pass's
+seeds.
 -/
 import ConRon.Arena.Inductives.GenRec
 import ConRon.Bridge.Inductives.RecCheck
@@ -55,6 +64,7 @@ def cfOf : Arena.ClassField → ConLeche.ClassField
   | .ordinary => .ordinary
   | .recursive c t => .recursive c t
 
+/-- con-leche: none — `cfOf` is injective. -/
 theorem cfOf_injective : Function.Injective cfOf := by
   intro a b h
   cases a <;> cases b <;> simp_all [cfOf]
@@ -84,6 +94,7 @@ def dClassGen (st : EStore) (g : Arena.ClassGen) : Option ConLeche.ClassGen := d
     pure ⟨g.nP, params, cls, fts, slots, ctors, elim, pre⟩
   else none
 
+/-- con-leche: none — `dClassCtor` survives the arena's growth. -/
 theorem dClassCtor_ext : DExt dClassCtor := by
   intro st st' hx x y h
   simp only [dClassCtor, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
@@ -91,10 +102,12 @@ theorem dClassCtor_ext : DExt dClassCtor := by
   obtain ⟨cv, h1, tyD, h2, tyN, h3, rfl⟩ := h
   exact ⟨cv, dExt_denoteCV hx _ _ h1, tyD, denote_ext h2 hx, tyN, denote_ext h3 hx, rfl⟩
 
+/-- con-leche: none — and so does its list-of-lists lift. -/
 theorem dClassCtors_ext : DExt (fun st (xss : List (List Arena.ClassCtor)) =>
     xss.mapM (fun xs => xs.mapM (dClassCtor st))) :=
   DExt.list (DExt.list dClassCtor_ext)
 
+/-- con-leche: none — `dClassGen` survives the arena's growth. -/
 theorem dClassGen_ext : DExt dClassGen := by
   intro st st' hx g y h
   simp only [dClassGen, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def] at h ⊢
@@ -539,6 +552,8 @@ def mapIdxFromP {α β : Type} (f : α → Nat → Option β) : Nat → List α 
     let bs ← mapIdxFromP f (k + 1) as
     pure (b :: bs)
 
+/-- con-leche: none — `mapM` over `List.range'` at a list's entries is
+`mapIdxFromP`. -/
 theorem mapM_range'_getD {α β : Type} [Inhabited α] (f : α → Nat → Option β) :
     ∀ (l L : List α) (k : Nat), L.drop k = l →
       (List.range' k l.length).mapM (fun j => f (L.getD j default) j) = mapIdxFromP f k l
@@ -1141,6 +1156,7 @@ def filterMapOP {α β : Type} (f : α → Option (Option β)) : List α → Opt
       let bs ← filterMapOP f l
       pure (b :: bs)
 
+/-- con-leche: none — `List.filterMapM` in `Option` is `filterMapOP`. -/
 theorem filterMapM_eq {α β : Type} (f : α → Option (Option β)) :
     ∀ (l : List α), l.filterMapM f = filterMapOP f l
   | [] => rfl
@@ -2238,6 +2254,7 @@ theorem mapMLoop_cspecF {μ : CheckMode} {env : Env} {fe : IFEnv} {α αP β βP
           Option.bind_some, Option.pure_def]⟩ z1
     exact ⟨c1.trans c2, v, hv, by simp only [List.mapM.loop]; exact FOk.bind hF hG⟩
 
+/-- con-leche: none — `mapMLoop_cspecF` from the empty accumulator. -/
 theorem mapM_cspecF {μ : CheckMode} {env : Env} {fe : IFEnv} {α αP β βP : Type}
     (d : EStore → α → Option αP) (hd : DExt d) (dR : EStore → β → Option βP) (hdR : DExt dR)
     (Q : EStore → Prop) (hQ : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
@@ -2955,15 +2972,19 @@ bound, the same row at every key. -/
 def FEq (a b : IFEnv) : Prop :=
   a.env = b.env ∧ a.visibleBelow = b.visibleBelow ∧ ∀ n : NIdx, a.idx[n]? = b.idx[n]?
 
+/-- con-leche: none — `FEq` is reflexive. -/
 theorem FEq.refl (a : IFEnv) : FEq a a := ⟨rfl, rfl, fun _ => rfl⟩
 
+/-- con-leche: none — `FEq` is transitive. -/
 theorem FEq.trans {a b c : IFEnv} (h₁ : FEq a b) (h₂ : FEq b c) : FEq a c :=
   ⟨h₁.1.trans h₂.1, h₁.2.1.trans h₂.2.1, fun n => (h₁.2.2 n).trans (h₂.2.2 n)⟩
 
+/-- con-leche: none — `FEq` indexes answer `find?` alike. -/
 theorem FEq.find? {a b : IFEnv} (h : FEq a b) : a.find? = b.find? := by
   funext n
   simp only [IFEnv.find?, h.2.2 n, h.2.1]
 
+/-- con-leche: none — coherence moves along `FEq`. -/
 theorem FEq.coh {a b : IFEnv} (h : FEq a b) (hb : IFEnvCoh b) : IFEnvCoh a :=
   ⟨by rw [h.2.1, h.1]; exact hb.1, fun n => by rw [h.2.2 n, h.1]; exact hb.2 n⟩
 
@@ -3090,6 +3111,7 @@ end GR
 
 namespace GR
 
+/-- con-leche: none — the constants' types of a denoting list denote. -/
 theorem types_denote {st : EStore} :
     ∀ {cvs : List IConstantVal} {cvsP : List ConstantVal},
       cvs.mapM (Frontend.denoteCV st) = some cvsP →
@@ -3100,6 +3122,7 @@ theorem types_denote {st : EStore} :
     obtain ⟨cP, cvsP', rfl, hc, hcs⟩ := mapM_cons_inv h
     simp only [List.map_cons, Frontend.denoteEList, denoteCV_type hc, types_denote hcs]
 
+/-- con-leche: none — the outside-class test reads the verbatim member field. -/
 theorem any_member_isNone {st : EStore} :
     ∀ {ms : List Arena.TargetMajor} {MsP : List ConLeche.TargetMajor},
       ms.mapM (dMajor st) = some MsP →
@@ -3110,6 +3133,7 @@ theorem any_member_isNone {st : EStore} :
     obtain ⟨mP, MsP', rfl, hm, hms⟩ := mapM_cons_inv h
     simp only [List.any_cons, (dMajor_inv hm).2.2.2.2.2.2.1, any_member_isNone hms]
 
+/-- con-leche: none — a denoting list of lists has the same total length. -/
 theorem sum_lengths {α β : Type} {f : α → Option β} :
     ∀ {xss : List (List α)} {yss : List (List β)},
       xss.mapM (fun xs => xs.mapM f) = some yss →
@@ -3120,8 +3144,7 @@ theorem sum_lengths {α β : Type} {f : α → Option β} :
     obtain ⟨ys, yss', rfl, hx, hxs⟩ := mapM_cons_inv h
     simp only [List.map_cons, List.sum_cons, mapM_option_length hx, sum_lengths hxs]
 
-/-- con-leche: none — an index MISS from an environment miss at a denoting
-name (the contrapositive of `IFEnvOK.hit`). -/
+/-- con-leche: none — a member of a denoting list has a denoted partner. -/
 theorem mapM_mem {α β : Type} {f : α → Option β} :
     ∀ {xs : List α} {ys : List β}, xs.mapM f = some ys → ∀ x ∈ xs, ∃ y ∈ ys, f x = some y
   | [], _, _, _, hx => nomatch hx
@@ -3132,6 +3155,8 @@ theorem mapM_mem {α β : Type} {f : α → Option β} :
     · obtain ⟨y, hy, hfy⟩ := mapM_mem hbs x hx
       exact ⟨y, List.mem_cons_of_mem _ hy, hfy⟩
 
+/-- con-leche: none — an index MISS from an environment miss at a denoting
+name (the contrapositive of `IFEnvOK.hit`). -/
 theorem find_none_of_env {env : Env} {fe : IFEnv} {s : AState} (h : IFEnvOK env fe s)
     {n : NIdx} {nm : ConLeche.Name} (hn : denoteN s.store.ns n = some nm)
     (he : env.find? nm = none) : fe.find? n = none := by
@@ -3579,6 +3604,7 @@ theorem classKeysOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 
 namespace GR
 
+/-- con-leche: none — the classes at a member are counted alike. -/
 theorem filter_member_length {st : EStore} (t : Nat) :
     ∀ {ms : List Arena.TargetMajor} {MsP : List ConLeche.TargetMajor},
       ms.mapM (dMajor st) = some MsP →
@@ -3679,6 +3705,7 @@ denoted. -/
 def dSeed (st : EStore) (q : Arena.NestKey × Nat) : Option (ConLeche.NestKey × Nat) :=
   (dKey st q.1).map (·, q.2)
 
+/-- con-leche: none — `dSeed` survives the arena's growth. -/
 theorem dSeed_ext : DExt dSeed := by
   intro st st' hx q y h
   simp only [dSeed, Option.map_eq_some_iff] at h ⊢
