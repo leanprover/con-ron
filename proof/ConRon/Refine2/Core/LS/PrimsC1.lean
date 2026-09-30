@@ -394,6 +394,8 @@ theorem nidx_vec_contains_from_aux (ns : alloc.vec.Vec arena.handle.NIdx)
   rw [arena.env.i_ind_caps_dup] at h
   obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have ho := Result.ok_injective h
   subst ho
   rw [dupId_nidx _ _ hn] at habs ⊢

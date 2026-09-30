@@ -249,6 +249,7 @@ attribute [lockstep_inline] arena.core.annotate_binder arena.core.annotate_let
   arena.core.annotate_proj arena.core.annotate_proj_at
 attribute [local lockstep_simp] annotateBinder absIProjEntry bne_iff_ne ExprOps.absEIdxList
   vec_len_val'
+attribute [local lockstep] proj_table_name_at_ls
 
 /-- **`BodyRel.annotate` in lockstep**: `arena::core::annotate_body` against
 `Arena.annotateBody`. -/
