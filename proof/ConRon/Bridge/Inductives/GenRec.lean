@@ -2148,4 +2148,288 @@ theorem classMajors_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     · simp only [ConLeche.classMajors]
       exact FOk.bind hF1 (FOk.seq hF2 (FOk.bind hF3 (FOk.pure _)))
 
+namespace GR
+
+/-- con-leche: none — `mapM`'s accumulator reversed, denoted. -/
+theorem mapM_reverse {α β : Type} {f : α → Option β} :
+    ∀ {l : List α} {v : List β}, l.mapM f = some v → l.reverse.mapM f = some v.reverse := by
+  intro l
+  induction l with
+  | nil => intro v h; simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h; subst h; rfl
+  | cons a l ih =>
+    intro v h
+    obtain ⟨b, v', rfl, hb, hv⟩ := mapM_cons_inv h
+    simp only [List.reverse_cons, List.mapM_append, ih hv, List.mapM_cons, hb,
+      Option.bind_eq_bind, Option.bind_some, List.mapM_nil, Option.pure_def]
+
+/-- con-leche: none — **`List.mapM` of a core-grade step against con-leche's
+`mapM` at `FueledM`** (the accumulator loop both sides run). -/
+theorem mapMLoop_cspecF {μ : CheckMode} {env : Env} {fe : IFEnv} {α αP β βP : Type}
+    (d : EStore → α → Option αP) (hd : DExt d) (dR : EStore → β → Option βP) (hdR : DExt dR)
+    (Q : EStore → Prop) (hQ : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
+    (f : α → AM β) (g : αP → FueledM βP)
+    (hf : ∀ a aP, CSpecF μ env fe (fun st => Q st ∧ d st a = some aP) (f a)
+      (fun st r v => dR st r = some v) (g aP)) :
+    ∀ (l : List α) (lP : List αP) (acc : List β) (accP : List βP),
+    CSpecF μ env fe (fun st => Q st ∧ l.mapM (d st) = some lP ∧ acc.mapM (dR st) = some accP)
+      (List.mapM.loop f l acc) (fun st r v => r.mapM (dR st) = some v)
+      (List.mapM.loop g lP accP) := by
+  intro l
+  induction l with
+  | nil =>
+    intro lP acc accP s₀ s' r hok hpre hrun
+    obtain ⟨-, hl, hacc⟩ := hpre
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hl
+    subst hl
+    simp only [List.mapM.loop] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, accP.reverse, mapM_reverse hacc, FOk.pure _⟩
+  | cons a l ih =>
+    intro lP acc accP s₀ s' r hok hpre hrun
+    obtain ⟨hq, hl, hacc⟩ := hpre
+    obtain ⟨aP, lP', rfl, ha, hl'⟩ := mapM_cons_inv hl
+    simp only [List.mapM.loop] at hrun
+    obtain ⟨b, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨c1, bP, hb, hF⟩ := hf a aP s₀ s1 b hok ⟨hq, ha⟩ k1
+    obtain ⟨c2, v, hv, hG⟩ := ih lP' (b :: acc) (bP :: accP) s1 s' r c1.ok
+      ⟨hQ c1.ext hq, hd.list c1.ext _ _ hl', by
+        simp only [List.mapM_cons, hb, hdR.list c1.ext _ _ hacc, Option.bind_eq_bind,
+          Option.bind_some, Option.pure_def]⟩ z1
+    exact ⟨c1.trans c2, v, hv, by simp only [List.mapM.loop]; exact FOk.bind hF hG⟩
+
+theorem mapM_cspecF {μ : CheckMode} {env : Env} {fe : IFEnv} {α αP β βP : Type}
+    (d : EStore → α → Option αP) (hd : DExt d) (dR : EStore → β → Option βP) (hdR : DExt dR)
+    (Q : EStore → Prop) (hQ : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
+    (f : α → AM β) (g : αP → FueledM βP)
+    (hf : ∀ a aP, CSpecF μ env fe (fun st => Q st ∧ d st a = some aP) (f a)
+      (fun st r v => dR st r = some v) (g aP)) (l : List α) (lP : List αP) :
+    CSpecF μ env fe (fun st => Q st ∧ l.mapM (d st) = some lP)
+      (l.mapM f) (fun st r v => r.mapM (dR st) = some v) (lP.mapM g) := by
+  intro s₀ s' r hok hpre hrun
+  exact mapMLoop_cspecF d hd dR hdR Q hQ f g hf l lP [] [] s₀ s' r hok
+    ⟨hpre.1, hpre.2, rfl⟩ hrun
+
+end GR
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:346-353 classesNfs —
+**every class with its entries of the table**: the classes stay scoped
+(`classesNfsS_sim`). -/
+theorem classesNfs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (formerTys : List EIdx)
+    (formerTysP : List Expr) (tbl : List Arena.NestCtorNf) (tblP : List ConLeche.NestCtorNf)
+    (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t) :
+    ∀ (ms : List Arena.TargetMajor) (MsP : List ConLeche.TargetMajor),
+    (∀ M ∈ MsP, Cached.TargetMajScoped M) →
+    CSpecF μ env fe
+      (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
+        tbl.mapM (dCtorNf st) = some tblP ∧ ms.mapM (dMajor st) = some MsP)
+      (Arena.classesNfs μ fe p formerTys tbl ms)
+      (fun st r v => r.mapM (dMajor st) = some v ∧ ∀ M ∈ v, Cached.TargetMajScoped M)
+      (ConLeche.classesNfs (fueledOpsM μ) env pP formerTysP tblP MsP) := by
+  intro ms
+  induction ms with
+  | nil =>
+    intro MsP _ s₀ s' r hok hpre hrun
+    obtain ⟨-, -, -, hms⟩ := hpre
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hms
+    subst hms
+    simp only [Arena.classesNfs] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, [], ⟨rfl, fun _ h => nomatch h⟩, by
+      simp only [ConLeche.classesNfs]; exact FOk.pure _⟩
+  | cons m ms ih =>
+    intro MsP hsc s₀ s' r hok hpre hrun
+    obtain ⟨hsh, hft, htbl, hms⟩ := hpre
+    obtain ⟨MP, MsP', rfl, hm, hms'⟩ := GR.mapM_cons_inv hms
+    obtain ⟨hind, hlvls, hds, hnPc, hnIdx, hctors, hmem, -, hpfvs⟩ := dMajor_inv hm
+    obtain ⟨hscp, hscd⟩ := hsc MP List.mem_cons_self
+    simp only [Arena.classesNfs] at hrun
+    obtain ⟨es, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨c1, esP, hes, hF1⟩ := targetMajorNfs_spec fe hk henv p pP formerTys m.pfvs formerTysP
+      MP.pfvs m.lvls MP.lvls m.ds MP.ds m.ctors MP.ctors hformer hscp tbl tblP s₀ s1 es hok
+      ⟨hsh, hft, hpfvs, hlvls, hds, hctors, htbl⟩ k1
+    obtain ⟨rest, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨c2, restP, ⟨hrest, hrsc⟩, hF2⟩ := ih MsP' (fun N hN => hsc N (List.mem_cons_of_mem _ hN))
+      s1 s2 rest c1.ok ⟨dShape_ext c1.ext _ _ hsh, denoteEList_ext c1.ext _ _ hft,
+        dCtorNf_ext.list c1.ext _ _ htbl, dMajor_ext.list c1.ext _ _ hms'⟩ k2
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    have c12 := c1.trans c2
+    refine ⟨c12, { MP with nfs := esP } :: restP, ⟨?_, ?_⟩, ?_⟩
+    · have hm2 : dMajor s'.store { m with nfs := es } = some { MP with nfs := esP } := by
+        have h1 := denoteN_ext hind c12.ext
+        have h2 := denoteLs_ext hlvls c12.ext
+        have h3 := denoteEList_ext c12.ext _ _ hds
+        have h4 := dCtors_ext c12.ext _ _ hctors
+        have h5 := dCtorNf_ext.list c2.ext _ _ hes
+        have h6 := denoteEList_ext c12.ext _ _ hpfvs
+        simp only [dMajor, h1, h2, h3, h4, h5, h6, Option.bind_eq_bind, Option.bind_some,
+          Option.pure_def, hnPc, hnIdx, hmem]
+      simp only [List.mapM_cons, hm2, hrest, Option.bind_eq_bind, Option.bind_some,
+        Option.pure_def]
+    · intro N hN
+      rcases List.mem_cons.mp hN with rfl | hN
+      · exact ⟨hscp, hscd⟩
+      · exact hrsc N hN
+    · simp only [ConLeche.classesNfs]
+      exact FOk.bind hF1 (FOk.bind hF2 (FOk.pure _))
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:355-362 classFormerTy —
+**a class's former type**: a member's own (the `getD` fallback the interned
+`.bvar 0`), an outside class's stored former at the class's levels, read
+through the index (`IFEnvOK`). -/
+theorem classFormerTy_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (cvTas : List IConstantVal) (cvTasP : List ConstantVal) (m : Arena.TargetMajor)
+    (mP : ConLeche.TargetMajor) :
+    CSpecF μ env fe
+      (fun st => cvTas.mapM (Frontend.denoteCV st) = some cvTasP ∧ dMajor st m = some mP)
+      (Arena.classFormerTy fe cvTas m) (fun st r v => denoteE st r = some v)
+      (ConLeche.classFormerTy (m := FueledM) (mkFEnv env) cvTasP mP) := by
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hcv, hm⟩ := hpre
+  obtain ⟨hind, hlvls, -, -, -, -, hmem, -, -⟩ := dMajor_inv hm
+  simp only [Arena.classFormerTy] at hrun
+  simp only [ConLeche.classFormerTy, ← hmem]
+  cases hmm : m.member with
+  | some t =>
+    rw [hmm] at hrun
+    dsimp only at hrun ⊢
+    have hj := mapM_option_getElem? (st := s₀.store) hcv t
+    rw [List.getD_eq_getElem?_getD]
+    revert hrun
+    cases hc : cvTas[t]? with
+    | none =>
+      intro hrun
+      rw [hc] at hj
+      have : cvTasP[t]? = none := hj
+      rw [this, Option.getD_none]
+      obtain ⟨p1, hr⟩ := internBVarE_run hok.state hrun
+      exact ⟨p1.toCore hok, _, hr, FOk.pure _⟩
+    | some cv =>
+      intro hrun
+      rw [hc] at hj
+      obtain ⟨cvP, hcvP, hd⟩ := hj
+      rw [hcvP, Option.getD_some]
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      exact ⟨CoreStep.refl hok, _, denoteCV_type hd, FOk.pure _⟩
+  | none =>
+    rw [hmm] at hrun
+    dsimp only at hrun ⊢
+    rw [mkFEnv_find?]
+    revert hrun
+    cases hf : fe.find? m.ind with
+    | none =>
+      intro hrun
+      exact absurd hrun (fun hc => failOk hc)
+    | some ci =>
+      intro hrun
+      obtain ⟨c, hc, he⟩ := find_some_rel hok.ienv hind hf
+      rw [he]
+      cases ci with
+      | indInfo cv caps =>
+        obtain ⟨cvP, capsP, hcvP, -, rfl⟩ := denoteCI_indInfo_inv hc
+        dsimp only at hrun ⊢
+        obtain ⟨c1, hr⟩ := instLPFast_cstep hok (denoteCV_lps hcvP) hlvls (denoteCV_type hcvP) hrun
+        exact ⟨c1, _, hr, FOk.pure _⟩
+      | _ => exact absurd hrun (fun hc => failOk hc)
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:364-387 classConstOk —
+**a generated constant, checked**: the guards in the cited order (each exact,
+the index read through `IFEnvOK`), then its type inferred and a sort; the
+constant is returned as given, closed (`WScoped 0`) and fresh. -/
+theorem classConstOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (cv : IConstantVal) (cP : ConstantVal) :
+    CSpecF μ env fe (fun st => Frontend.denoteCV st cv = some cP)
+      (Arena.classConstOk μ fe cv)
+      (fun _ r v => r = cv ∧ v = cP ∧ Expr.WScoped 0 cP.type ∧ env.find? cP.name = none)
+      (ConLeche.classConstOk (fueledOpsM μ) (mkFEnv env) cP) := by
+  intro s₀ s' r hok hcv hrun
+  obtain ⟨hnm, hlps, hty⟩ := Core.denoteCV_inv hcv
+  simp only [Arena.classConstOk] at hrun
+  -- 1. the duplicate-declaration guard
+  obtain ⟨hdup, r1⟩ := AM.dguard_ok AM.Never.fail_any hrun
+  replace r1 := AM.pure_bind_ok r1
+  have hfind : fe.find? cv.name = none := by
+    cases hf : fe.find? cv.name with
+    | none => rfl
+    | some ci => rw [hf] at hdup; exact absurd rfl hdup
+  have hfindP : env.find? cP.name = none := IFEnvOK.miss hok.state hok.ienv hnm hfind
+  -- 2. the reserved-name guard
+  obtain ⟨rs, s2, k2, r2⟩ := bindOk r1
+  obtain ⟨p2, hrs⟩ := reservedBasisNames_pstep hok.state hok.pins k2
+  obtain ⟨hres, r3⟩ := AM.dguard_ok AM.Never.fail_any r2
+  replace r3 := AM.pure_bind_ok r3
+  have hresP : ConLeche.reservedBasisNames.contains cP.name = false := by
+    rw [← PW.contains_handle_eq p2.ok.wf (denoteN_ext hnm p2.ext) hrs]
+    cases hb : rs.contains cv.name with
+    | false => rfl
+    | true => rw [hb] at hres; exact absurd rfl hres
+  -- 3. the reserved-projection-name guard
+  obtain ⟨b3, s3, k3, r4⟩ := bindOk r3
+  obtain ⟨rfl, hb3⟩ := isProjFnShape_run p2.ok rfl (denoteN_ext hnm p2.ext) k3
+  obtain ⟨hproj, r5⟩ := AM.dguard_ok AM.Never.fail_any r4
+  replace r5 := AM.pure_bind_ok r5
+  have hprojP : cP.name.isProjFnShape = false := by
+    rw [← hb3]
+    cases hb : b3 with
+    | false => rfl
+    | true => rw [hb] at hproj; exact absurd rfl hproj
+  -- 4. the duplicate-universe-parameter guard
+  obtain ⟨hnod, r6⟩ := AM.dunless_ok AM.Never.fail_any r5
+  replace r6 := AM.pure_bind_ok r6
+  have hnodP : ConLeche.Name.nodup cP.levelParams = true := by
+    rw [← nameNodup_spec p2.ok.wf cv.levelParams cP.levelParams
+      (denoteNList_ext p2.ext.lss.ls.ns _ _ hlps)]
+    exact hnod
+  -- 5. the loose-bound-variable guard
+  obtain ⟨b5, s5, k5, r7⟩ := bindOk r6
+  obtain ⟨p5, rfl⟩ := RC.looseBVarsBoundedFast_pstep p2.ok (denote_ext hty p2.ext) k5
+  obtain ⟨hlbb, r8⟩ := AM.dunless_ok AM.Never.fail_any r7
+  replace r8 := AM.pure_bind_ok r8
+  -- 6. the free-variable guard
+  have p25 := p2.trans p5
+  obtain ⟨b6, s6, k6, r9⟩ := bindOk r8
+  obtain ⟨p6, rfl⟩ := RC.hasFvarFast_pstep p5.ok (denote_ext hty p25.ext) k6
+  obtain ⟨hfv, r10⟩ := AM.dguard_ok AM.Never.fail_any r9
+  replace r10 := AM.pure_bind_ok r10
+  have hfvP : cP.type.hasFvar = false := by
+    cases hb : cP.type.hasFvar with
+    | false => rfl
+    | true => rw [hb] at hfv; exact absurd rfl hfv
+  have hws : Expr.WScoped 0 cP.type := ConLeche.Expr.WScoped.of_not_hasFvar hfvP
+  have p26 := p25.trans p6
+  -- 7. the undeclared-universe-parameter guard
+  obtain ⟨b7, s7, k7, r11⟩ := bindOk r10
+  obtain ⟨h7st, h7c, h7p, rfl⟩ := allLevelParamsDefined_run p6.ok
+    (denoteNList_ext p26.ext.lss.ls.ns _ _ hlps) (denote_ext hty p26.ext) k7
+  obtain ⟨hlpd, r12⟩ := AM.dunless_ok AM.Never.fail_any r11
+  replace r12 := AM.pure_bind_ok r12
+  have p7 : PStep s6 s7 := PStep.of_caches ⟨by rw [h7st]; exact p6.ok.wf⟩
+    (by rw [h7st]; exact Ext.refl _) (by rw [h7st]; exact BMExt.refl _) h7c h7p
+  have p27 := p26.trans p7
+  -- 8. the unresolved-constant guard
+  have c7 := p27.toCore hok
+  obtain ⟨b8, s8, k8, r13⟩ := bindOk r12
+  obtain ⟨h8st, h8c, h8p, rfl⟩ := constsResolveFFast_runR c7.ok.toR
+    (denote_ext hty p27.ext) k8
+  obtain ⟨hcr, r14⟩ := AM.dunless_ok (AM.Never.bind fun _ => AM.Never.fail_any) r13
+  replace r14 := AM.pure_bind_ok r14
+  have p8 : PStep s7 s8 := PStep.of_caches ⟨by rw [h8st]; exact p7.ok.wf⟩
+    (by rw [h8st]; exact Ext.refl _) (by rw [h8st]; exact BMExt.refl _) h8c h8p
+  have c8 := (p27.trans p8).toCore hok
+  -- 9. the inference
+  obtain ⟨stype, s9, k9, r15⟩ := bindOk r14
+  obtain ⟨c9, w, hw, hww, hF9⟩ := infer_crun hk henv c8.ok (denote_ext hty c8.ext) hws k9
+  -- 10. the sort test
+  obtain ⟨u, s10, k10, r16⟩ := bindOk r15
+  obtain ⟨c10, uu, -, hF10⟩ := ensureSort_crun hk henv c9.ok hw hww k10
+  obtain ⟨rfl, rfl⟩ := pureOk r16
+  refine ⟨(c8.trans c9).trans c10, cP, ⟨rfl, rfl, hws, hfindP⟩, ?_⟩
+  simp only [ConLeche.classConstOk, mkFEnv_find?, hfindP, Option.isSome_none,
+    Bool.false_eq_true, ↓reduceIte, hresP, hprojP, hnodP, hlbb, hfvP, hlpd,
+    constsResolveF_eq, hcr, mkFEnv_env]
+  exact FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq
+    (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ()) (FOk.seq (FOk.pure ())
+      (FOk.seq (FOk.pure ()) (FOk.bind hF9 (FOk.bind hF10 (FOk.pure cP))))))))))
+
 end ConRon.Bridge.Inductives
