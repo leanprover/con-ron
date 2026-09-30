@@ -114,9 +114,6 @@ handle comparison of the port is. -/
 @[simp] theorem absU32_eq_iff (x y : Std.U32) : absU32 x = absU32 y ↔ x = y :=
   ⟨fun h => absU32_inj h, fun h => by rw [h]⟩
 
-@[simp] theorem absU64_eq_iff (x y : Std.U64) : absU64 x = absU64 y ↔ x = y :=
-  ⟨fun h => absU64_inj h, fun h => by rw [h]⟩
-
 /-! ### The three word operations the handle layout uses
 
 `Arena/Handle.lean` writes the packing with `*`, `/` and `%` by powers of two

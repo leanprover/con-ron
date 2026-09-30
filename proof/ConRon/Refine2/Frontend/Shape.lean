@@ -88,9 +88,6 @@ that the twin's action left every memo alone. -/
 -- `withStore` / `withStore_store` moved to `Refine2/Checker/Shape.lean` (task
 -- #97-T2-LOCKSTEP lane Checker round 2), where the checker tier reaches them.
 
-@[simp] theorem withStore_self (rst : arena.monad.AState) :
-    withStore rst rst.store = rst := rfl
-
 /-! ## The record verdict -/
 
 /-- The twin's `RecordVerdict` without its message: the two kinds a refinement

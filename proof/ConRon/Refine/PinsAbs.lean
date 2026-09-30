@@ -66,12 +66,6 @@ list back never touches it) followed by `String.fromUTF8?_toByteArray`.  The
 alternative — evaluating anything about the literal — is what the measurement
 in `pins_text_decodes` rules out. -/
 
-/-- The byte a `U8` of the model abstracts to is the byte it was made from:
-`toStr`'s `UInt8 → U8` map is undone by `absText`'s `U8 → UInt8` one. -/
-@[simp] theorem u8_ofNat_val (a : UInt8) :
-    UInt8.ofNat (a.toBitVec#uscalar : U8).val = a := by
-  unfold Std.UScalar.val; simp [UInt8.ofNat]
-
 /-! ## The decoder's byte string and state
 
 The two abstractions `Refine/PinsBytes.lean`'s induction is stated over.  Both

@@ -195,12 +195,6 @@ contexts), so they are total and get plain equations rather than
 @[simp] theorem bool_and_val (a b : Bool) : expr_ops.bool_and a b = ok (a && b) := by
   rw [expr_ops.bool_and]; cases a <;> simp
 
-/-- `expr_ops::bool_and3` is `&&` at three operands, left-associated as Lean's
-`a && b && c` is. -/
-@[simp] theorem bool_and3_val (a b c : Bool) :
-    expr_ops.bool_and3 a b c = ok (a && b && c) := by
-  rw [expr_ops.bool_and3]; simp
-
 /-- `level::all_params_defined` refines `Level.allParamsDefined`
 (`Kernel/Level.lean:39-44`).  The `.param` arm is `name::contains`, which is
 exact only on well-formed names, hence the `LevelWF` hypothesis. -/

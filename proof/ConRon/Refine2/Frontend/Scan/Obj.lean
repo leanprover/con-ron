@@ -102,11 +102,6 @@ private theorem err_val {T : Type} {offset : Std.Usize}
 theorem usize_ext {i j : Std.Usize} (h : i.val = j.val) : i = j :=
   Std.UScalar.eq_of_val_eq h
 
-@[simp] theorem absPos_eq_iff {i j : Std.Usize} : absPos i = absPos j ↔ i = j := by
-  constructor
-  · intro h; exact usize_ext (absPos_inj h)
-  · intro h; rw [h]
-
 /-- `absPos` of the zero position is `0`, which is con-leche's "no such
 position" sentinel. -/
 @[simp] theorem absPos_zero : absPos 0#usize = 0 := by

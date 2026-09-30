@@ -54,13 +54,8 @@ are `rfl` because `ConRon/Generated/FunsExternal.lean` models
 
 @[simp] theorem lift_eq {α : Type} (x : α) : Aeneas.Std.lift x = ok x := rfl
 
-@[simp] theorem arc_new_eq {T : Type} (x : T) : alloc.sync.Arc.new x = ok x := rfl
 @[simp] theorem arc_deref_eq {T : Type} (A : Type) (x : T) :
     alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref A x = ok x := rfl
-@[simp] theorem arc_clone_eq {T A : Type} (i : core.alloc.AllocatorClone A) (x : T) :
-    alloc.sync.Arc.Insts.CoreCloneClone.clone i x = ok x := rfl
-@[simp] theorem arc_ptr_eq_eq {T : Type} (A : Type) (x y : T) :
-    alloc.sync.Arc.ptr_eq (T := T) A x y = ok false := rfl
 
 /- The crate names its shared pointer once, as `ron::ptr::P` (task #44), so
 that the concrete counted pointer behind it is a one-line choice.  The three
@@ -106,69 +101,6 @@ body rather than a hole's model; the statement is unchanged. -/
   cases e with | mk n => cases n with | mk d k =>
     cases k <;> simp [expr.view, kernel.expr.ExprView.ofKind]
 
-/-- `expr::data` is the `@[computed_field]` read through the handle: one
-`Arc::deref` and the first field.  (It was `ron.node.data`, a hole, between
-tasks #94 and #97-SWAP-2.) -/
-@[simp] theorem node_data_eq (e : expr.Expr) : expr.data e = ok e._0.data := by
-  cases e with | mk n => cases n with | mk d k => simp [expr.data]
-
-/-- `expr::ptr_eq` is `Arc::ptr_eq`, i.e. `false` (DESIGN.md §3.2): the model
-always takes the slow path and each fast path is discharged by a reflexivity
-lemma about the walk that uses it. -/
-@[simp] theorem node_ptr_eq_eq (a b : expr.Expr) : expr.ptr_eq a b = ok false := by
-  simp [expr.ptr_eq]
-
-/-- Inverting the view: what a `split` on a reader's `match` now produces is an
-equation about `ofKind k`, and these ten put it back in terms of `k`, which is
-what `absExprKind` and every existing proof speak. -/
-@[simp] theorem of_kind_bvar_iff (k : expr.ExprKind) (i : Std.U64) :
-    kernel.expr.ExprView.ofKind k = .Bvar i ↔ k = .Bvar i := by
-  cases k <;> simp [kernel.expr.ExprView.ofKind]
-@[simp] theorem of_kind_fvar_iff (k : expr.ExprKind) (idx : Std.U64) (ty : expr.Expr) :
-    kernel.expr.ExprView.ofKind k = .Fvar idx ty ↔ k = .Fvar idx ty := by
-  cases k <;> simp [kernel.expr.ExprView.ofKind]
-@[simp] theorem of_kind_sort_iff (k : expr.ExprKind) (u : level.Level) :
-    kernel.expr.ExprView.ofKind k = .«Sort» u ↔ k = .«Sort» u := by
-  cases k <;> simp [kernel.expr.ExprView.ofKind]
-@[simp] theorem of_kind_const_iff (k : expr.ExprKind) (n : name.Name)
-    (us : alloc.sync.Arc (alloc.vec.Vec level.Level)) :
-    kernel.expr.ExprView.ofKind k = .Const n us ↔ k = .Const n us := by
-  cases k <;> simp [kernel.expr.ExprView.ofKind]
-@[simp] theorem of_kind_app_iff (k : expr.ExprKind) (f a : expr.Expr) :
-    kernel.expr.ExprView.ofKind k = .App f a ↔ k = .App f a := by
-  cases k <;> simp [kernel.expr.ExprView.ofKind]
-@[simp] theorem of_kind_lam_iff (k : expr.ExprKind) (ty b : expr.Expr) (m : expr.BinderMeta) :
-    kernel.expr.ExprView.ofKind k = .Lam ty b m ↔ k = .Lam ty b m := by
-  cases k <;> simp [kernel.expr.ExprView.ofKind]
-@[simp] theorem of_kind_forall_e_iff (k : expr.ExprKind) (ty b : expr.Expr) (m : expr.BinderMeta) :
-    kernel.expr.ExprView.ofKind k = .ForallE ty b m ↔ k = .ForallE ty b m := by
-  cases k <;> simp [kernel.expr.ExprView.ofKind]
-@[simp] theorem of_kind_let_e_iff (k : expr.ExprKind) (ty v b : expr.Expr) :
-    kernel.expr.ExprView.ofKind k = .LetE ty v b ↔ k = .LetE ty v b := by
-  cases k <;> simp [kernel.expr.ExprView.ofKind]
-@[simp] theorem of_kind_lit_iff (k : expr.ExprKind) (l : expr.Literal) :
-    kernel.expr.ExprView.ofKind k = .Lit l ↔ k = .Lit l := by
-  cases k <;> simp [kernel.expr.ExprView.ofKind]
-@[simp] theorem of_kind_proj_iff (k : expr.ExprKind) (n : name.Name) (i : Std.U64)
-    (e : expr.Expr) :
-    kernel.expr.ExprView.ofKind k = .Proj n i e ↔ k = .Proj n i e := by
-  cases k <;> simp [kernel.expr.ExprView.ofKind]
-
-/-- Put a `split`-produced `ofKind k = ExprView.X …` back as `k = ExprKind.X …`
-(task #94).  Every reader's `match` is on `view`'s `ExprView` since the kind
-moved into the handle, but the abstraction — `absExprKind`, `ExprWF`'s
-children, every existing arm — speaks `ExprKind`, so the ten inversions above
-sit between the `split` and whatever the proof did next.  `try`, because the
-same idiom splits `Name` and `Level` readers, where there is nothing to
-invert. -/
-syntax "of_kind_inv" ident : tactic
-macro_rules
-  | `(tactic| of_kind_inv $h:ident) => `(tactic|
-      try simp only [of_kind_bvar_iff, of_kind_fvar_iff, of_kind_sort_iff,
-        of_kind_const_iff, of_kind_app_iff, of_kind_lam_iff,
-        of_kind_forall_e_iff, of_kind_let_e_iff, of_kind_lit_iff,
-        of_kind_proj_iff] at $h:ident)
-
 @[simp] theorem level_dup_eq (u : level.Level) : level.dup u = ok u := by
   cases u; simp [level.dup]
 
@@ -200,16 +132,17 @@ The two sets `Refine/SimpSets.lean` registers are populated here with the
 plumbing above; later files add their own (`ExprOps.binder_meta_eq`,
 `BasisTables`'s `expr_dup_eq`). -/
 
-attribute [rust_reduce, rust_invert] arc_deref_eq bind_tc_ok lift_eq ptr_new_eq ptr_clone_eq
-  arc_new_eq arc_clone_eq name_dup_eq level_dup_eq
-  name.NameNode.hash._simpLemma_ name.NameNode.kind._simpLemma_ name.Name._0._simpLemma_
-  level.LevelNode.hash._simpLemma_ level.LevelNode.kind._simpLemma_ level.Level._0._simpLemma_
+attribute [rust_reduce, rust_invert] arc_deref_eq bind_tc_ok lift_eq ptr_new_eq
+  ptr_clone_eq name_dup_eq level_dup_eq name.NameNode.hash._simpLemma_
+  name.NameNode.kind._simpLemma_ name.Name._0._simpLemma_ level.LevelNode.hash._simpLemma_
+  level.LevelNode.kind._simpLemma_ level.Level._0._simpLemma_
   expr.ExprNode.data._simpLemma_ expr.ExprNode.kind._simpLemma_ expr.Expr._0._simpLemma_
 
--- the three `Expr` lemmas above join the same two sets.  (Task #94 put
--- sixteen `ron::node` hole lemmas here; task #97-SWAP-2 left the three that
--- are about translated bodies, `ptr_new_eq`/`arc_deref_eq` doing the rest.)
-attribute [rust_reduce, rust_invert] expr_view_eq node_data_eq node_ptr_eq_eq
+-- `expr_view_eq` joins the same two sets.  (Task #94 put sixteen `ron::node`
+-- hole lemmas here; task #97-SWAP-2 left three about translated bodies,
+-- `ptr_new_eq`/`arc_deref_eq` doing the rest, and task #105 deleted the two
+-- of those no proof used.)
+attribute [rust_reduce, rust_invert] expr_view_eq
 
 -- and the bijection's own ten equations, so that a reader's `match` reduces as
 -- soon as the constructor is known.  A `def` is in no simp set by default;
@@ -218,10 +151,6 @@ attribute [rust_reduce, rust_invert] expr_view_eq node_data_eq node_ptr_eq_eq
 -- (task #94): with it the tier has 25 residual sites to fix by hand, without
 -- it 108.
 attribute [rust_reduce, rust_invert] kernel.expr.ExprView.ofKind
-
-attribute [rust_invert] of_kind_bvar_iff of_kind_fvar_iff of_kind_sort_iff of_kind_const_iff
-  of_kind_app_iff of_kind_lam_iff of_kind_forall_e_iff of_kind_let_e_iff of_kind_lit_iff
-  of_kind_proj_iff
 
 attribute [rust_invert] bind_eq_ok_iff Result.ok.injEq Prod.mk.injEq Prod.exists
   uncurry_apply_pair core.result.Result.Ok.injEq false_and and_false exists_false true_and
@@ -886,24 +815,12 @@ def RunOk {ε β σ : Type} (x : Except ε (β × σ)) (P : β → σ → Prop) 
   | .ok (v, s) => P v s
   | .error _ => False
 
-@[simp] theorem RunOk_ok {ε β σ : Type} (v : β) (s : σ) (P : β → σ → Prop) :
-    RunOk (ε := ε) (.ok (v, s)) P ↔ P v s := Iff.rfl
-
-@[simp] theorem RunOk_error {ε β σ : Type} (e : ε) (P : β → σ → Prop) :
-    RunOk (β := β) (σ := σ) (.error e) P ↔ False := Iff.rfl
-
 /-- A thrown run, as a predicate on the error: the failure half's twin of
 `RunOk`. -/
 def RunErr {ε β : Type} (x : Except ε β) (P : ε → Prop) : Prop :=
   match x with
   | .ok _ => False
   | .error e => P e
-
-@[simp] theorem RunErr_error {ε β : Type} (e : ε) (P : ε → Prop) :
-    RunErr (β := β) (.error e) P ↔ P e := Iff.rfl
-
-@[simp] theorem RunErr_ok {ε β : Type} (v : β) (P : ε → Prop) :
-    RunErr (ε := ε) (.ok v) P ↔ False := Iff.rfl
 
 /-! ## Errors: the kind, which is what a refinement lemma compares
 
@@ -937,11 +854,5 @@ def absErrKind : kernel.core_types.CheckError → Option ErrKind
   | .Invalid _ => some .invalid
   | .Internal _ => some .internal
   | .Native _ => none
-
-@[simp] theorem absErrKind_notImplemented (m) :
-    absErrKind (.NotImplemented m) = some .notImplemented := rfl
-@[simp] theorem absErrKind_invalid (m) : absErrKind (.Invalid m) = some .invalid := rfl
-@[simp] theorem absErrKind_internal (m) : absErrKind (.Internal m) = some .internal := rfl
-@[simp] theorem absErrKind_native (m) : absErrKind (.Native m) = none := rfl
 
 end ConRon.Refine

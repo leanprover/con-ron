@@ -82,11 +82,6 @@ def absKey (k : expr_ops.ExprNatKey) : ConLeche.Expr × Nat := (absExpr k.e, k.d
 /-- A memo key is well formed when its node is. -/
 def KeyWF (k : expr_ops.ExprNatKey) : Prop := ExprWF k.e
 
-@[simp] theorem absKey_mk (e : expr.Expr) (d : Std.U64) :
-    absKey ⟨e, d⟩ = (absExpr e, d.val) := rfl
-
-@[simp] theorem KeyWF_mk (e : expr.Expr) (d : Std.U64) : KeyWF ⟨e, d⟩ ↔ ExprWF e := Iff.rfl
-
 /-! ## Plumbing for the `Vec` walks -/
 
 /-- A `usize`-to-`u64` cast is the identity in the model: `usize` is never
@@ -107,9 +102,6 @@ theorem u64_cast_usize_val {x : Std.U64} (h : x.val ≤ Std.Usize.max) :
     simp only [Std.Usize.max, Std.Usize.numBits]
     omega
   omega
-
-/-- The empty `Vec` abstracts to the empty list. -/
-@[simp] theorem absExprs_new : absExprs (alloc.vec.Vec.new expr.Expr) = [] := rfl
 
 /-- `Vec::index` without an `Inhabited` instance on the element type (the
 `getElem!` form of `HashMap.vec_index_eq` is unavailable for `expr::Expr`). -/

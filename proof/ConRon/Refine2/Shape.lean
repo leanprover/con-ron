@@ -108,14 +108,10 @@ def absAErrKind : kernel.core_types.CheckError → Option AErrKind
   | .Internal _ => some .internal
   | .Native _ => some .native
 
-@[simp] theorem absAErrKind_notImplemented (m) :
-    absAErrKind (.NotImplemented m) = some .notImplemented := rfl
 @[simp] theorem absAErrKind_invalid (m) :
     absAErrKind (.Invalid m) = some .invalid := rfl
 @[simp] theorem absAErrKind_internal (m) :
     absAErrKind (.Internal m) = some .internal := rfl
-@[simp] theorem absAErrKind_native (m) :
-    absAErrKind (.Native m) = some .native := rfl
 
 @[simp] theorem lAErrKind_notImplemented (m) :
     lAErrKind (.notImplemented m) = some .notImplemented := rfl
