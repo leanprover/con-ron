@@ -12,10 +12,10 @@
 //! | `core` | `proof/ConRon/Arena/Core.lean` |
 //! | `fenv` | `proof/ConRon/Arena/FEnv.lean` |
 //! | `core_io` | `proof/ConRon/Arena/CoreIO.lean` |
-//! | `core_gated` | `proof/ConRon/Arena/CoreGated.lean` |
 //! | `inductives` | `proof/ConRon/Arena/Inductives.lean` and `Inductives/*` |
 //! | `promote` | `proof/ConRon/Arena/Promote.lean` |
 //! | `pins` | `proof/ConRon/Arena/Pins.lean` |
+//! | `check_decl` | `proof/ConRon/Arena/CheckDecl.lean` |
 //!
 //! `Denote.lean`, `WF.lean` and `WFProofs.lean` have no Rust counterpart and
 //! never will: they are the arena's own verification (DESIGN.md §8.6's P2a,
@@ -32,7 +32,6 @@ pub mod prop_read;
 pub mod core;
 pub mod fenv;
 pub mod core_io;
-pub mod core_gated;
 pub mod intern;
 pub mod canon;
 pub mod std_axioms;
@@ -45,4 +44,4 @@ pub mod decl_check;
 pub mod inductives;
 pub mod promote;
 pub mod checker;
-pub mod checker_gated;
+pub mod check_decl;

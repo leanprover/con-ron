@@ -342,25 +342,21 @@ pub fn reducibility_hint_same_regular(h1: &ReducibilityHint, h2: &ReducibilityHi
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:332-335 BasisKind
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::BasisKind_refines, then delete this line
 /// The trusted basis inductives.
 pub enum BasisKind {
     EqK,
     NatK,
-    PunitK,
     EmptyK,
     FalseK,
     QuotK,
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:332-335 BasisKind
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::basis_kind_dup_refines, then delete this line
 /// The copy.
 pub fn basis_kind_dup(k: &BasisKind) -> BasisKind {
     match k {
         BasisKind::EqK => BasisKind::EqK,
         BasisKind::NatK => BasisKind::NatK,
-        BasisKind::PunitK => BasisKind::PunitK,
         BasisKind::EmptyK => BasisKind::EmptyK,
         BasisKind::FalseK => BasisKind::FalseK,
         BasisKind::QuotK => BasisKind::QuotK,
@@ -368,7 +364,6 @@ pub fn basis_kind_dup(k: &BasisKind) -> BasisKind {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::IndCaps_refines, then delete this line
 /// Definitional capabilities of a stored inductive type, recorded at
 /// install.  Every field of the cited structure has a default; see
 /// `ind_caps_default`.
@@ -381,10 +376,15 @@ pub struct IndCaps {
     pub unit_params: u64,
     pub rule_k: bool,
     pub sort_z: PropWhen,
+    /// the block's members (official's `all`), itself included
+    pub all: Vec<Name>,
+    /// the family's parameter count (official's `inductive_val.nparams`)
+    pub nparams: u64,
+    /// the family's constructors, in declaration order (official's `cnstrs`)
+    pub ctors: Vec<Name>,
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::ind_caps_default_refines, then delete this line
 /// The cited structure's *field defaults*, which Rust has not: `eta :=
 /// false`, `etaCtor := .anonymous`, `etaParams := etaFields := 0`,
 /// `unitlike := false`, `unitParams := 0`, `ruleK := false` and — the one
@@ -402,11 +402,13 @@ pub fn ind_caps_default() -> IndCaps {
         unit_params: 0,
         rule_k: false,
         sort_z: prop_when::if_all_zero(Vec::new()),
+        all: Vec::new(),
+        nparams: 0,
+        ctors: Vec::new(),
     }
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::ind_caps_dup_refines, then delete this line
 /// The record copy.
 pub fn ind_caps_dup(c: &IndCaps) -> IndCaps {
     IndCaps {
@@ -418,6 +420,9 @@ pub fn ind_caps_dup(c: &IndCaps) -> IndCaps {
         unit_params: c.unit_params,
         rule_k: c.rule_k,
         sort_z: prop_when::dup(&c.sort_z),
+        all: prop_when::names_copy(&c.all),
+        nparams: c.nparams,
+        ctors: prop_when::names_copy(&c.ctors),
     }
 }
 
@@ -717,7 +722,6 @@ pub fn reducibility_hint_beq(a: &ReducibilityHint, b: &ReducibilityHint) -> bool
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::ind_caps_beq_refines, then delete this line
 /// Lean's `deriving DecidableEq` on `IndCaps`, componentwise — the
 /// result-sort zero-ness datum `sort_z` through `prop_when::beq`.
 pub fn ind_caps_beq(a: &IndCaps, b: &IndCaps) -> bool {
@@ -729,6 +733,9 @@ pub fn ind_caps_beq(a: &IndCaps, b: &IndCaps) -> bool {
                         if a.unit_params == b.unit_params {
                             if a.rule_k == b.rule_k {
                                 prop_when::beq(&a.sort_z, &b.sort_z)
+                                    && prop_when::names_beq(&a.all, &b.all)
+                                    && a.nparams == b.nparams
+                                    && prop_when::names_beq(&a.ctors, &b.ctors)
                             } else {
                                 false
                             }

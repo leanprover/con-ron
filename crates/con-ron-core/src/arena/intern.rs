@@ -397,16 +397,25 @@ pub fn intern_rules(
 pub fn intern_caps(pers: &PersTier, st: &mut AState, c: &IndCaps) -> Result<IIndCaps, CheckError> {
     match intern_name(pers, st, &c.eta_ctor) {
         Err(err) => Err(err),
-        Ok(ct) => Ok(IIndCaps {
-            eta: c.eta,
-            eta_ctor: ct,
-            eta_params: c.eta_params,
-            eta_fields: c.eta_fields,
-            unitlike: c.unitlike,
-            unit_params: c.unit_params,
-            rule_k: c.rule_k,
-            sort_z: prop_when::dup(&c.sort_z),
-        }),
+        Ok(ct) => match intern_name_list(pers, st, &c.all) {
+            Err(err) => Err(err),
+            Ok(all) => match intern_name_list(pers, st, &c.ctors) {
+                Err(err) => Err(err),
+                Ok(ctors) => Ok(IIndCaps {
+                    eta: c.eta,
+                    eta_ctor: ct,
+                    eta_params: c.eta_params,
+                    eta_fields: c.eta_fields,
+                    unitlike: c.unitlike,
+                    unit_params: c.unit_params,
+                    rule_k: c.rule_k,
+                    sort_z: prop_when::dup(&c.sort_z),
+                    all,
+                    nparams: c.nparams,
+                    ctors,
+                }),
+            },
+        },
     }
 }
 

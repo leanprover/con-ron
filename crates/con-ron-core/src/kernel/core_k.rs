@@ -28,7 +28,7 @@
 //! What stays here is everything the cached bodies *call*:
 //!
 //! * the syntactic readers and guards — `unfoldable_head`, `head_hint`,
-//!   `same_const_heads`, `raw_nat_lit`, `is_ctor_app`, `is_unit_like_ty`,
+//!   `same_const_heads`, `raw_nat_lit`, `is_ctor_app`,
 //!   `eta_ctor_shape`, `is_bool_true`, `quick_pair`, `succ_of`,
 //!   `str_expansion_fires`, `pw_written`, `lift_fueled`.  **Seven of these
 //!   carry a second citation to `Cached/StateC.lean`'s `*C` index guards**
@@ -483,62 +483,6 @@ pub fn pi_result_never_zero(lps: &Vec<Name>, us: &Vec<Level>, e: &Expr) -> bool 
 /// provably nonzero?  Read off the stored datum.
 pub fn caps_never_zero(lps: &Vec<Name>, us: &Vec<Level>, caps: &IndCaps) -> bool {
     prop_when::is_never(&level::subst_pw(lps, us, &caps.sort_z))
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:97-134 isUnitLikeTy
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::is_unit_like_ty_refines, then delete this line
-/// con-leche: ConLeche/Cached/StateC.lean:48-60 isUnitLikeTyC
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::is_unit_like_ty_refines, then delete this line
-/// Is this (whnf'd) type expression a unit-like inductive type?  The
-/// head-name comparison against the single pin that can pass (`PUnit`) comes
-/// first, then the two stored-shape checks specialised to it — con-leche's
-/// task #161 item C1 computation downgrade, licensed by `unitLike_eq_punit`.
-/// The `&&` cascade is an `if` nest, and `[r]` is `rules.len() == 1`.
-pub fn is_unit_like_ty(fe: &FEnv, e: &Expr) -> bool {
-    match expr::view(&e) {
-        ExprView::Const(c, _) => {
-            if name::beq(c, &basis_names::punit_name()) {
-                if is_punit_ind(fe) {
-                    is_punit_rec_shape(fe)
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        }
-        _ => false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:97-134 isUnitLikeTy
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::is_punit_ind_refines, then delete this line
-/// The cited `match env.find? punitName with | some (.indInfo _ _) => true |
-/// _ => false`, factored out (task #14's probe rule).
-pub fn is_punit_ind(fe: &FEnv) -> bool {
-    match fenv::find(fe, &basis_names::punit_name()) {
-        Some(ConstantInfo::IndInfo(_, _)) => true,
-        Some(_) => false,
-        None => false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:97-134 isUnitLikeTy
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove core_k::is_punit_rec_shape_refines, then delete this line
-/// The cited `match env.find? punitRecName with | some (.recInfo _ mI rP [r])
-/// => mI == rP && r.nfields == 0 | _ => false`, factored out.
-pub fn is_punit_rec_shape(fe: &FEnv) -> bool {
-    match fenv::find(fe, &basis_names::punit_rec_name()) {
-        Some(ConstantInfo::RecInfo(_, m_i, r_p, rules)) => {
-            if rules.len() == 1 {
-                *m_i == *r_p && rules[0].nfields == 0
-            } else {
-                false
-            }
-        }
-        Some(_) => false,
-        None => false,
-    }
 }
 
 // ---------------------------------------------------------------------------

@@ -301,7 +301,6 @@ pub fn i_rec_rules_dup_from(rs: &Vec<IRecRule>, i: usize, out: Vec<IRecRule>) ->
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::IIndCaps_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:109-125 IIndCaps` — the
 /// definitional capabilities of a stored inductive type.  `eta_ctor` is a
 /// handle; `sort_z` stays con-leche's `PropWhen`, which is the datum the
@@ -318,10 +317,15 @@ pub struct IIndCaps {
     pub unit_params: u64,
     pub rule_k: bool,
     pub sort_z: PropWhen,
+    /// the block's members (official's `all`), itself included
+    pub all: Vec<NIdx>,
+    /// the family's parameter count (official's `inductive_val.nparams`)
+    pub nparams: u64,
+    /// the family's constructors, in declaration order (official's `cnstrs`)
+    pub ctors: Vec<NIdx>,
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::i_ind_caps_default_refines, then delete this line
 /// The cited structure's *field defaults*, which Rust has not — and, as
 /// con-ron-core's `env::ind_caps_default` records, the one that is not the
 /// obvious zero is **`sortZ := .ifAllZero []`**, which reads "zero at every
@@ -337,11 +341,13 @@ pub fn i_ind_caps_default() -> IIndCaps {
         unit_params: 0,
         rule_k: false,
         sort_z: prop_when::if_all_zero(Vec::new()),
+        all: Vec::new(),
+        nparams: 0,
+        ctors: Vec::new(),
     }
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::i_ind_caps_dup_refines, then delete this line
 /// The record copy.
 pub fn i_ind_caps_dup(c: &IIndCaps) -> IIndCaps {
     IIndCaps {
@@ -353,6 +359,9 @@ pub fn i_ind_caps_dup(c: &IIndCaps) -> IIndCaps {
         unit_params: c.unit_params,
         rule_k: c.rule_k,
         sort_z: prop_when::dup(&c.sort_z),
+        all: nidx_vec_dup(&c.all),
+        nparams: c.nparams,
+        ctors: nidx_vec_dup(&c.ctors),
     }
 }
 

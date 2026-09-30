@@ -285,9 +285,12 @@ ty: expr::dup(&{tv}) {rb}"
 def gIndCaps (c : IndCaps) : G String := do
   let ec ← gName c.etaCtor
   let sz ← gPw c.sortZ
+  let al ← gNameVec c.all
+  let cs ← gNameVec c.ctors
   bind "ic" s!"IndCaps {lb} eta: {c.eta}, eta_ctor: name::dup(&{ec}), \
 eta_params: {c.etaParams}, eta_fields: {c.etaFields}, unitlike: {c.unitlike}, \
-unit_params: {c.unitParams}, rule_k: {c.ruleK}, sort_z: {sz} {rb}"
+unit_params: {c.unitParams}, rule_k: {c.ruleK}, sort_z: {sz}, all: {al}, \
+nparams: {c.nparams}, ctors: {cs} {rb}"
 
 def gFire : RecRuleFire → G String
   | .inert => pure "RecRuleFire::Inert"

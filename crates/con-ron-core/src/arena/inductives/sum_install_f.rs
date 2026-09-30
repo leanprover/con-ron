@@ -6,13 +6,10 @@
 //! over an `FEnv`.  The arena has ONE environment type (task #97c's deviation
 //! 1), so the `F` twins ARE `arena::inductives::sum_install`'s; this module
 //! carries the `F`-suffixed NAMES, as `arena::inductives::struct_install_f` and
-//! `arena::fenv` do.  `checkSumIndF`'s `capsOf` argument became `is_rec: bool`
-//! at the twin — `sum_install`'s module note says why — so the delegation has
-//! that signature.
+//! `arena::fenv` do.
 
 use super::sum_install;
-use super::sum_parts::InductiveShape;
-use crate::arena::env::{IConstantVal, IFEnv, IIndCaps};
+use crate::arena::env::{IConstantVal, IFEnv};
 use crate::arena::handle::{EIdx, LIdx, NIdx};
 use crate::arena::monad::AState;
 use crate::kernel::core_types::CheckError;
@@ -33,21 +30,6 @@ pub fn check_sum_tele_f(
     cv_ta0: &IConstantVal,
 ) -> Result<(IConstantVal, LIdx), CheckError> {
     sum_install::check_sum_tele(pers, vis, st, mode, fe, cv, n, cv_ta0)
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:32-43 checkSumIndF
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install_f::check_sum_ind_f_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstallF.lean:23-25 checkSumIndF`
-/// — `checkSumInd` through the index; the same function.
-pub fn check_sum_ind_f(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: IFEnv,
-    p: &InductiveShape,
-    is_rec: bool,
-) -> Result<(IFEnv, IConstantVal, InductiveShape), CheckError> {
-    sum_install::check_sum_ind(pers, st, mode, fe, p, is_rec)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:32-48 checkStructFieldSortsIF
@@ -93,28 +75,7 @@ pub fn check_struct_field_sorts_i_fa(
     sum_install::check_struct_field_sorts_i(pers, vis, st, mode, fe, is_prop, large, s, n_p, fvs, idx_args, k)
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:83-95 normCtorValF
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install_f::norm_ctor_val_f_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstallF.lean:36-38 normCtorValF`
-/// — `normCtorVal` through the index; the same function.
-#[allow(clippy::too_many_arguments)]
-pub fn norm_ctor_val_f(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: &IFEnv,
-    t: &NIdx,
-    n_p: u64,
-    n_f: u64,
-    cv_c: &IConstantVal,
-    cv_ca: &IConstantVal,
-) -> Result<IConstantVal, CheckError> {
-    sum_install::norm_ctor_val(pers, vis, st, mode, fe, t, n_p, n_f, cv_c, cv_ca)
-}
-
 /// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:70-100 checkSumCtorF
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install_f::check_sum_ctor_f_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstallF.lean:40-42 checkSumCtorF`
 /// — `checkSumCtor` through the index; the same function.
 #[allow(clippy::too_many_arguments)]
@@ -177,17 +138,3 @@ pub fn cons_sum_ctors_f(n_p: u64, ctors: &Vec<(IConstantVal, u64)>, i: usize, fe
     sum_install::cons_sum_ctors(n_p, ctors, i, fe)
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:59-98 nativeCapsAt
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install_f::native_caps_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:105-123 nativeCapsAt`
-/// — the capability record, re-exported under the name
-/// `arena::inductives::native_install` looks for; the function is
-/// `sum_install`'s, one module earlier than con-leche places it.
-pub fn native_caps_at(
-    pers: &PersTier,
-    st: &mut AState,
-    p: &InductiveShape,
-    is_rec: bool,
-) -> Result<IIndCaps, CheckError> {
-    sum_install::native_caps_at(pers, st, p, is_rec)
-}

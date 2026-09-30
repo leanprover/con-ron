@@ -748,7 +748,6 @@ pub fn i_rec_rules_beq(a: &Vec<IRecRule>, b: &Vec<IRecRule>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove canon::i_ind_caps_beq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:109-125 IIndCaps` — the cited
 /// `deriving DecidableEq`; `sortZ` goes through `PropWhen`'s own.
 pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
@@ -760,6 +759,9 @@ pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
         && a.unit_params == b.unit_params
         && a.rule_k == b.rule_k
         && prop_when::beq(&a.sort_z, &b.sort_z)
+        && nidx_vec_beq(&a.all, &b.all, 0)
+        && a.nparams == b.nparams
+        && nidx_vec_beq(&a.ctors, &b.ctors, 0)
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo

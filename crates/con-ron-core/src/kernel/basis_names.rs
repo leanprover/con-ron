@@ -51,24 +51,13 @@ pub fn punit_name() -> Name {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_names::rec_of_refines, then delete this line
-/// `n.str "rec"`, the recursor-name suffix five of the reserved names share
+/// `n.str "rec"`, the recursor-name suffix four of the reserved names share
 /// (`eqName.str "rec"`, `natName.str "rec"`, …).  A named helper because
 /// Rust has no string literals in the core; the Lean spells the suffix out
-/// at each of the five sites.
+/// at each of the four sites.
 pub fn rec_of(n: Name) -> Name {
     const S: [u32; 3] = [114, 101, 99];
     name::mk_str(n, core_types::code_points(&S))
-}
-
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:26-29 punitRecName
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_names::punit_rec_name_refines, then delete this line
-/// The name of the basis unit type's recursor.  A top-level constant in the
-/// Lean so that `isUnitLikeTy` does not rebuild it per proof-irrelevance
-/// attempt (con-leche's task #161 item C1); the port rebuilds it, as every
-/// name in this module (the module note).
-pub fn punit_rec_name() -> Name {
-    rec_of(punit_name())
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Names.lean:23-24 natName
@@ -199,14 +188,6 @@ pub fn and_name() -> Name {
     name::mk_str(name::anonymous(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:99-100 andIntroName
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_names::and_intro_name_refines, then delete this line
-/// The name `And.intro`.
-pub fn and_intro_name() -> Name {
-    const S: [u32; 5] = [105, 110, 116, 114, 111];
-    name::mk_str(and_name(), core_types::code_points(&S))
-}
-
 /// con-leche: ConLeche/Kernel/Basis/Names.lean:88-89 charOfNatName
 /// The name `Char.ofNat`.
 pub fn char_of_nat_name() -> Name {
@@ -215,10 +196,9 @@ pub fn char_of_nat_name() -> Name {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_names::reserved_basis_names_refines, then delete this line
 /// Names reserved for the pinned basis blocks; no other declaration may use
 /// them.  The cited `List Name` is a `Vec<Name>` built in the cited order,
-/// and the five `… .str "rec"` entries go through `rec_of`.  `PSigma'` is not
+/// and the four `… .str "rec"` entries go through `rec_of`.  `PSigma'` is not
 /// among them (con-leche's task #175 W6).
 pub fn reserved_basis_names() -> Vec<Name> {
     let mut ns: Vec<Name> = Vec::new();
@@ -229,9 +209,6 @@ pub fn reserved_basis_names() -> Vec<Name> {
     ns.push(nat_zero_name());
     ns.push(nat_succ_name());
     ns.push(rec_of(nat_name()));
-    ns.push(punit_name());
-    ns.push(punit_unit_name());
-    ns.push(rec_of(punit_name()));
     ns.push(empty_name());
     ns.push(rec_of(empty_name()));
     ns.push(false_name());
@@ -260,11 +237,11 @@ mod tests {
     use crate::kernel::basis_names as bn;
     use crate::kernel::name;
 
-    /// Every reserved name is distinct, and the list is the cited 19.
+    /// Every reserved name is distinct, and the list is the cited 16.
     #[test]
-    fn reserved_names_are_nineteen_and_distinct() {
+    fn reserved_names_are_sixteen_and_distinct() {
         let ns = bn::reserved_basis_names();
-        assert_eq!(ns.len(), 19);
+        assert_eq!(ns.len(), 16);
         for i in 0..ns.len() {
             for j in 0..ns.len() {
                 assert_eq!(name::beq(&ns[i], &ns[j]), i == j, "{i} vs {j}");
@@ -276,14 +253,14 @@ mod tests {
     /// helper agreeing with the spelled-out names.
     #[test]
     fn name_shapes() {
-        assert!(name::beq(&bn::punit_rec_name(), &bn::rec_of(bn::punit_name())));
+        assert!(name::beq(&bn::reserved_basis_names()[2], &bn::rec_of(bn::eq_name())));
         assert!(name::beq(
             &bn::nat_zero_name(),
             &bn::reserved_basis_names()[4]
         ));
         // distinct heads
         assert!(!name::beq(&bn::nat_name(), &bn::string_name()));
-        assert!(!name::beq(&bn::and_name(), &bn::and_intro_name()));
+        assert!(!name::beq(&bn::and_name(), &bn::nat_name()));
         // `Name.beq` is structural, so a rebuilt name equals the first build
         assert!(name::beq(&bn::char_of_nat_name(), &bn::char_of_nat_name()));
     }

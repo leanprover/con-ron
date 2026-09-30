@@ -1,4 +1,4 @@
-//! `ConLeche/Kernel/Basis/{Eq,Nat,PUnit,Empty,False,Quot}.lean` and
+//! `ConLeche/Kernel/Basis/{Eq,Nat,Empty,False,Quot}.lean` and
 //! `ConLeche/Kernel/Basis.lean` — the **raw** pinned basis blocks: each block
 //! exactly as an export carries it, the toolchain's `Init.Prelude`
 //! declaration at the parser's raw binder annotations — plus the two tests
@@ -12,7 +12,7 @@
 //! unverified crate beside it (`con_ron::frontend::basis_raw`).  Task #293
 //! moved the recognition into the fold: the decoder emits the file's records
 //! and nothing else, `prepare_prelude` only reorders them, and it is
-//! `check_decl` that recognises a block as one of the five pins
+//! `check_decl` that recognises a block as one of the four pins
 //! (`basis_pin_hit` below) and a `#QUOT` record — or the `Quot.sound` axiom
 //! record — as the pinned quotient package's (`quot_pin_hit` below).  The
 //! match is part of the verdict, so the pins and the two tests are part of
@@ -116,11 +116,13 @@ pub fn rule(ctor: Name, nfields: u64, rhs: Expr) -> RecRule {
 // --- Eq --------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:22-28 eqRaw
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::eq_raw_refines, then delete this line
 /// `Eq.{u} {α : Sort u} : α → α → Prop`.
 pub fn eq_raw() -> ConstantInfo {
     let caps = IndCaps {
         rule_k: true,
+        all: vec1(bnm::eq_name()),
+        nparams: 2,
+        ctors: vec1(bnm::eq_refl_name()),
         ..env::ind_caps_default()
     };
     ConstantInfo::IndInfo(
@@ -235,12 +237,15 @@ pub fn nat_t() -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:24-26 natRaw
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::nat_raw_refines, then delete this line
 /// `Nat : Type`.
 pub fn nat_raw() -> ConstantInfo {
     ConstantInfo::IndInfo(
         cv(bnm::nat_name(), Vec::new(), type1()),
-        env::ind_caps_default(),
+        IndCaps {
+            all: vec1(bnm::nat_name()),
+            ctors: vec2(bnm::nat_zero_name(), bnm::nat_succ_name()),
+            ..env::ind_caps_default()
+        },
     )
 }
 
@@ -355,98 +360,17 @@ pub fn nat_basis() -> Vec<ConstantInfo> {
     vec4(nat_raw(), nat_zero_raw(), nat_succ_raw(), nat_rec_raw())
 }
 
-// --- PUnit -----------------------------------------------------------------
-
-/// con-leche: ConLeche/Kernel/Basis/PUnit.lean:24-29 punitRaw
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::punit_raw_refines, then delete this line
-/// `PUnit.{u} : Sort u`.
-pub fn punit_raw() -> ConstantInfo {
-    let caps = IndCaps {
-        eta: true,
-        eta_ctor: bnm::punit_unit_name(),
-        eta_params: 0,
-        eta_fields: 0,
-        unitlike: true,
-        sort_z: prop_when::if_all_zero(vec1(u_n())),
-        ..env::ind_caps_default()
-    };
-    ConstantInfo::IndInfo(cv(bnm::punit_name(), vec1(u_n()), srt(u())), caps)
-}
-
-/// con-leche: ConLeche/Kernel/Basis/PUnit.lean:31-33 punitUnitRaw
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::punit_unit_raw_refines, then delete this line
-/// `PUnit.unit.{u} : PUnit.{u}`.
-pub fn punit_unit_raw() -> ConstantInfo {
-    ConstantInfo::CtorInfo(
-        cv(
-            bnm::punit_unit_name(),
-            vec1(u_n()),
-            cnst(bnm::punit_name(), vec1(u())),
-        ),
-        0,
-        0,
-    )
-}
-
-/// con-leche: ConLeche/Kernel/Basis/PUnit.lean:35-37 punitRecMotive
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::punit_rec_motive_refines, then delete this line
-/// The motive of `PUnit.rec`: `∀ (t : PUnit.{u}), Sort u_1`.
-pub fn punit_rec_motive() -> Expr {
-    pi(cnst(bnm::punit_name(), vec1(u())), srt(u1()))
-}
-
-/// con-leche: none — `PUnit.rec`'s `unit` minor premise, `motive PUnit.unit`,
-/// which `punitRecRaw` spells twice (its type and its iota rule).
-pub fn punit_rec_unit_dom() -> Expr {
-    expr::app(bv(0), cnst(bnm::punit_unit_name(), vec1(u())))
-}
-
-/// con-leche: ConLeche/Kernel/Basis/PUnit.lean:39-50 punitRecRaw
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::punit_rec_raw_refines, then delete this line
-/// `PUnit.rec.{u_1, u} {motive : PUnit.{u} → Sort u_1} (unit : motive
-/// PUnit.unit) (t : PUnit.{u}) : motive t`.
-pub fn punit_rec_raw() -> ConstantInfo {
-    ConstantInfo::RecInfo(
-        cv(
-            bnm::punit_rec_name(),
-            vec2(u1_n(), u_n()),
-            pi(
-                punit_rec_motive(),
-                pi(
-                    punit_rec_unit_dom(),
-                    pi(
-                        cnst(bnm::punit_name(), vec1(u())),
-                        expr::app(bv(2), bv(0)),
-                    ),
-                ),
-            ),
-        ),
-        2,
-        2,
-        vec1(rule(
-            bnm::punit_unit_name(),
-            0,
-            lm(punit_rec_motive(), lm(punit_rec_unit_dom(), bv(0))),
-        )),
-    )
-}
-
-/// con-leche: ConLeche/Kernel/Basis/PUnit.lean:52-53 punitBasis
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::punit_basis_refines, then delete this line
-/// The pinned `PUnit` basis block, in install order.
-pub fn punit_basis() -> Vec<ConstantInfo> {
-    vec3(punit_raw(), punit_unit_raw(), punit_rec_raw())
-}
-
 // --- Empty -----------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Basis/Empty.lean:21-23 emptyRaw
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::empty_raw_refines, then delete this line
 /// `Empty : Type`.
 pub fn empty_raw() -> ConstantInfo {
     ConstantInfo::IndInfo(
         cv(bnm::empty_name(), Vec::new(), type1()),
-        env::ind_caps_default(),
+        IndCaps {
+            all: vec1(bnm::empty_name()),
+            ..env::ind_caps_default()
+        },
     )
 }
 
@@ -482,12 +406,14 @@ pub fn empty_basis() -> Vec<ConstantInfo> {
 // --- False -----------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Basis/False.lean:38-40 falseRaw
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::false_raw_refines, then delete this line
 /// `False : Prop`.
 pub fn false_raw() -> ConstantInfo {
     ConstantInfo::IndInfo(
         cv(bnm::false_name(), Vec::new(), prop()),
-        env::ind_caps_default(),
+        IndCaps {
+            all: vec1(bnm::false_name()),
+            ..env::ind_caps_default()
+        },
     )
 }
 
@@ -751,13 +677,11 @@ pub fn quot_basis() -> Vec<ConstantInfo> {
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:34-40 BasisKind.decls
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::basis_kind_decls_refines, then delete this line
 /// The constants of one basis block, in dependency order.
 pub fn basis_kind_decls(k: &BasisKind) -> Vec<ConstantInfo> {
     match k {
         BasisKind::EqK => eq_basis(),
         BasisKind::NatK => nat_basis(),
-        BasisKind::PunitK => punit_basis(),
         BasisKind::EmptyK => empty_basis(),
         BasisKind::FalseK => false_basis(),
         BasisKind::QuotK => quot_basis(),
@@ -765,21 +689,19 @@ pub fn basis_kind_decls(k: &BasisKind) -> Vec<ConstantInfo> {
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::block_pin_kinds_refines, then delete this line
-/// The five blocks the pin match tries, as a list: con-leche writes the
-/// literal `[BasisKind.eqK, .natK, .punitK, .emptyK, .falseK]` inline in
+/// The four blocks the pin match tries, as a list: con-leche writes the
+/// literal `[BasisKind.eqK, .natK, .emptyK, .falseK]` inline in
 /// `basisPinHit`'s `List.find?`.  `quot` is not among them — its records
 /// arrive one at a time and are matched slot by slot (`quot_pin_hit`).
 pub fn block_pin_kinds() -> Vec<BasisKind> {
-    vec5(BasisKind::EqK, BasisKind::NatK, BasisKind::PunitK, BasisKind::EmptyK, BasisKind::FalseK)
+    vec4(BasisKind::EqK, BasisKind::NatK, BasisKind::EmptyK, BasisKind::FalseK)
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::basis_pin_hit_refines, then delete this line
 /// **The basis-pin match**, with con-leche task #215's NAME pre-filter.
 /// `ConstantInfo.canon` rebuilds the whole block as an unshared tree — on a
 /// heavily DAG-shared block that was the frontend's single largest cost — so
-/// a block that is not one of the five pinned ones must not reach it.  `canon`
+/// a block that is not one of the four pinned ones must not reach it.  `canon`
 /// renames only *level parameters*, leaving every constant name alone, so a
 /// block can match a pin only when its members' names are the pin's, member
 /// for member, and that test is a handful of `Name` comparisons.
@@ -794,7 +716,6 @@ pub fn basis_pin_hit(block: &Vec<ConstantInfo>) -> Option<BasisKind> {
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::basis_pin_hit_from_refines, then delete this line
 /// The index recursion behind `basis_pin_hit`: `ks[i..]`'s `find?` by name,
 /// then the single `filter` by `canonEqList` on whatever it found.  A name
 /// mismatch moves to the next kind; a name MATCH ends the search, and the
@@ -820,7 +741,6 @@ pub fn basis_pin_hit_from(
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:53-64 basisPinHit
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_raw::basis_pin_names_eq_refines, then delete this line
 /// The pre-filter's test, `k.decls.map (·.name) == block.map (·.name)`.
 pub fn basis_pin_names_eq(decls: &Vec<ConstantInfo>, block: &Vec<ConstantInfo>) -> bool {
     prop_when::names_beq(
@@ -878,7 +798,6 @@ mod tests {
         let kinds = [
             BasisKind::EqK,
             BasisKind::NatK,
-            BasisKind::PunitK,
             BasisKind::EmptyK,
             BasisKind::FalseK,
             BasisKind::QuotK,
@@ -898,10 +817,10 @@ mod tests {
                 differed += 1;
             }
         }
-        // `Eq`, `Nat`, `PUnit` and `Quot` carry iota rules whose
-        // install-computed fields the annotation fills in; `Empty` and
-        // `False` have no rules at all and compare equal.
-        assert_eq!(differed, 4);
+        // `Eq`, `Nat` and `Quot` carry iota rules whose install-computed
+        // fields the annotation fills in; `Empty` and `False` have no rules
+        // at all and compare equal.
+        assert_eq!(differed, 3);
     }
 
     /// A raw block matches itself up to the canonical form, which is the
@@ -911,7 +830,6 @@ mod tests {
         for k in [
             BasisKind::EqK,
             BasisKind::NatK,
-            BasisKind::PunitK,
             BasisKind::EmptyK,
             BasisKind::FalseK,
             BasisKind::QuotK,
@@ -927,19 +845,18 @@ mod tests {
         match k {
             BasisKind::EqK => 0,
             BasisKind::NatK => 1,
-            BasisKind::PunitK => 2,
-            BasisKind::EmptyK => 3,
-            BasisKind::FalseK => 4,
-            BasisKind::QuotK => 5,
+            BasisKind::EmptyK => 2,
+            BasisKind::FalseK => 3,
+            BasisKind::QuotK => 4,
         }
     }
 
-    /// The fold's block test: each of the five pins is recognised as itself,
+    /// The fold's block test: each of the four pins is recognised as itself,
     /// the annotated block is NOT (its recursor rules carry the
     /// install-computed fields the parse cannot know), and a block under none
-    /// of the five names never reaches the canonical comparison at all.
+    /// of the four names never reaches the canonical comparison at all.
     #[test]
-    fn basis_pin_hit_recognises_the_five_and_nothing_else() {
+    fn basis_pin_hit_recognises_the_four_and_nothing_else() {
         for k in block_pin_kinds() {
             match basis_pin_hit(&basis_kind_decls(&k)) {
                 Some(hit) => assert_eq!(kind_ix(&hit), kind_ix(&k)),
