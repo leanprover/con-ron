@@ -70,18 +70,6 @@ variable {K V : Type} {HashableInst : ron.hashmap.Hashable K}
 
 end Memo
 
-/-! ## The two memo key types
-
-Five of this file's memos are keyed by `(node, cursor)` (`ExprNatKey`, whose
-`Eq2` is `expr::beq` then the `u64`), three by the node alone.  `KeyExact` for
-both is `Expr.beq`'s exactness on well-formed nodes (task #20). -/
-
-/-- The `(node, cursor)` key's abstraction: con-leche's `(Expr × Nat)`. -/
-def absKey (k : expr_ops.ExprNatKey) : ConLeche.Expr × Nat := (absExpr k.e, k.d.val)
-
-/-- A memo key is well formed when its node is. -/
-def KeyWF (k : expr_ops.ExprNatKey) : Prop := ExprWF k.e
-
 /-! ## Plumbing for the `Vec` walks -/
 
 /-- A `usize`-to-`u64` cast is the identity in the model: `usize` is never

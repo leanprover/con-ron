@@ -189,7 +189,7 @@ same two lines in every lemma.
 |---|---|
 | `register_simp_attr rust_reduce` / `rust_invert` | `SimpSets.lean` |
 | `rust_norm`, `rust_grind`, `rust_pairs`, `bind_arc_deref`, the populated simp sets | `Abs.lean` |
-| `RunOk`/`RunErr`, `except_bind_ok`/`except_bind_error`, `push_new_val` | `Abs.lean` |
+| `push_new_val` | `Abs.lean` |
 | `ExprWF.ind_node`, `ExprWF.kids`, the nine `ExprWF.*_kids`, the `*_wf'` reorderings | `Expr.lean` |
 | `LevelWF.ind_node`; the children as `LevelWF.{succ,max,imax,param}_inv`; `*_wf'`, `LeqCoreSpec.use`, `subst_use`, `simplify_use` | `Level.lean` |
 | `NameWF.ind_node`, `NameWF.str_kids`/`num_kids` | `Name.lean` |
@@ -394,7 +394,7 @@ ordinary induction on the port's counter inside it for the turns that only pop.
 | file | contents |
 |---|---|
 | `SimpSets.lean` | nothing but `register_simp_attr rust_reduce` / `rust_invert` (task #71); `Abs.lean` and later files populate them |
-| `Abs.lean` | the plumbing `simp` set, the task-#71 normaliser (`bind_arc_deref`, `rust_pairs`, `rust_norm`, `rust_grind`, the two populated simp sets), `absString`/`absName`/`absLevel`/`absNames`/`absLevels`/`absOrdering`/`absPropWhen`/`absLiteral`/`absBinderMeta`/`absExpr`, the `*_inv` smart-constructor shapes, `StrWF`/`NameWF`/`LevelWF`/`NamesWF`/`PropWhenWF`/`LevelsWF`/`LiteralWF`/`BinderMetaWF`/`ExprWF`, `Level.ind'`/`Name.ind'`, and `RunOk`/`RunErr` |
+| `Abs.lean` | the plumbing `simp` set, the task-#71 normaliser (`bind_arc_deref`, `rust_pairs`, `rust_norm`, `rust_grind`, the two populated simp sets), `absString`/`absName`/`absLevel`/`absNames`/`absLevels`/`absOrdering`/`absPropWhen`/`absLiteral`/`absBinderMeta`/`absExpr`, the `*_inv` smart-constructor shapes, `StrWF`/`NameWF`/`LevelWF`/`NamesWF`/`PropWhenWF`/`LevelsWF`/`LiteralWF`/`BinderMetaWF`/`ExprWF`, and `Level.ind'`/`Name.ind'` |
 | `Name.lean` | `absString`/`absName` injectivity, `str_eq`, `beq`, `contains`, `singleton`, and `NameWF.ind_node`/`*_kids` |
 | `Level.lean` | the task-#5 development: `absLevel` injectivity, `beq`, `level_has_param`, `subst`, `is_never_zero`, `simplify`, and the `leq_core`/`rest`/`imax_rules`/`by_cases`/`leq`/`is_equiv` cascade, plus `LevelWF.ind_node` and the equation-first `*_wf'`/`*_use` forms |
 | `PropWhen.lean` | `name_cmp` (through `str_compare`/`nat_compare`/`ord_then`), `merge`/`canon`, the smart constructors, `to_list`/`to_list_opt`, `is_never`/`has_params`/`holds`/`params_defined`, `inter`, `bind_z`, `beq`, and (task #20) `absPropWhen`'s injectivity and `beq`'s reflexivity |

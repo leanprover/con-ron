@@ -13,7 +13,7 @@ modules survived the arena swap (task #97-SWAP §5) because their SUBJECT
 survived — `ron::{nat,hashmap,hashmap2}`, `kernel::{name,level,prop_when,
 expr,…}` and the pinned data the arena interns at startup.  **This tier reuses
 them and does not duplicate them**: `Refine/Abs.lean`'s idiom (`rust_norm`,
-`rust_grind`, the two simp sets, `ErrSim`/`RunOk`), `Refine/HashMap2{,WF}`'s
+`rust_grind`, the two simp sets, `ErrSim`), `Refine/HashMap2{,WF}`'s
 `Inv`/`RelOn`/`Eq2Fwd`/`DupId` kit, `Refine/{Name,Level,PropWhen,Expr}`'s
 value abstractions and their WF predicates, and `Refine/Nat.lean`'s forward
 readings of the machine-word operations are all imported rather than rebuilt.

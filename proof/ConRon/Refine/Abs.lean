@@ -786,42 +786,6 @@ info: 'ConRon.Refine.vec_push_val' depends on axioms: [propext, Classical.choice
 #guard_msgs in
 #print axioms vec_push_val
 
-/-! ## The automation shapes (task #69's `AUTOMATION.md`, adopted by task #67)
-
-`Refine/AUTOMATION.md` measured what it takes to replace a hand proof by
-
-```
-⟨one shape line per constructor⟩ ; rust_inv h ; all_goals grind [⟨lemma set⟩]
-```
-
-**The idiom itself is not adopted** — the maintainer is diagnosing its ~5×
-elaboration cost first (task #70), and task #67's re-proofs stay in the
-existing hand style: forward from `= ok`, `bind_eq_ok_iff`, the arms' `Sim`
-shapes.  What *is* carried here is the one prerequisite that costs nothing
-because it is purely additive: a conclusion about a run stated as a predicate
-on the run result rather than an existential, which is what `grind` needs
-(it negates `∃ lst', P lst'` into a `∀` whose body never meets what it
-derives about `g.run lst`).
-
-`RunOk`/`RunErr` are those predicates.  The tower's `Out`/`ErrSim`/`Sim` keep
-their existential statements, so nothing that consumes or proves them changes;
-what is new is an *introduction* form (`ErrSim.ofRunErr` here, `Out.ofRun` and
-`Sim.ofRun` in `State.lean`/`Core/Arms/Shape.lean`) that leaves a
-`RunOk`/`RunErr` goal, for whoever takes task #70's answer up. -/
-
-/-- A successful run, as a predicate on the result: no witness to find. -/
-def RunOk {ε β σ : Type} (x : Except ε (β × σ)) (P : β → σ → Prop) : Prop :=
-  match x with
-  | .ok (v, s) => P v s
-  | .error _ => False
-
-/-- A thrown run, as a predicate on the error: the failure half's twin of
-`RunOk`. -/
-def RunErr {ε β : Type} (x : Except ε β) (P : ε → Prop) : Prop :=
-  match x with
-  | .ok _ => False
-  | .error e => P e
-
 /-! ## Errors: the kind, which is what a refinement lemma compares
 
 DESIGN.md §3's ruling of 2026-09-13 (task #67): every refinement lemma is

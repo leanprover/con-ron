@@ -34,17 +34,6 @@ open ConRon.Generated ConRon.Generated.kernel
 
 namespace ConRon.Refine.ExprOps
 
-/-! ## `resetMeta` (`ExprOps.lean:540-692`) -/
-
-/-! ## `renameConsts` (`ExprOps.lean:930-1116`)
-
-`levels_copy` is the port's stand-in for "the `us` a rebuilt `.const` node
-carries over unchanged"; in the model a `Vec` copy is the *same list*, because
-`level::dup` is the identity (`Rc::clone`, DESIGN.md §3.2), so its helper is an
-equation between vectors rather than a refinement lemma; it lives in the
-foundation (`ExprOps.lean`'s `levels_copy_from_val`/`levels_copy_val`), which is
-where the spine group needs it too. -/
-
 /-! ## The `Level`-to-`PropWhen` bridge (`level.rs`, task #13)
 
 `level::zeroness_of` and `level::subst_pw` were filled into `level.rs` at task
@@ -154,29 +143,6 @@ theorem subst_pw_refines {ks : alloc.vec.Vec name.Name} {vs : alloc.vec.Vec leve
       (ConLeche.Level.subst.go (absNames ks) (absLevels vs) n)) hf hpw h
   exact ⟨by rw [habs, ConLeche.Level.substPW], hwf⟩
 
-/-! ## `instantiateLevelParams` (`Kernel/Level.lean:232-249`, memoized at
-`ExprOps.lean:2564-2724`)
-
-`levels_subst` is `vs.map (Level.subst ks us)`, the closure DESIGN.md §3.4
-forbids, as an index recursion; the `absLevels` of the result is therefore the
-`List.map` con-leche writes. -/
-
-/-! ## The leaf readers
-
-`is_lam`, `lam_pw` and `forall_pw` need no well-formedness: they read the
-node's kind, and a `PropWhen` they hand out is the node's own (`prop_when::dup`
-is the identity), so its `PropWhenWF` is not a *new* obligation -- a caller who
-has `ExprWF e` gets it by inverting that derivation.  The statements are
-therefore plain abstraction equations, `Option.map`-shaped where the result is
-an `Option`. -/
-
-/-! ## `fvarLeaves` (`ExprOps.lean:823`)
-
-The result is a `Vec<(u64, Expr)>` where con-leche has a `List (Nat × Expr)`,
-so the abstraction is the pointwise one; the port accumulates where Lean `++`s
-(task #13's deviation 3), which is what the `*_go` lemma's `out ++` shape
-records. -/
-
 /-! ## `allLevelParamsDefined` (`Kernel/Level.lean:251-268`, memoized at `:299`)
 
 The last family of `expr_ops.rs`: the specification walk, its two `Vec` loops,
@@ -256,10 +222,4 @@ theorem all_params_defined_refines {params : alloc.vec.Vec name.Name}
       simp [ConLeche.Level.allParamsDefined, ← e1, e2]
 
 end ConRon.Refine.ExprOps
-
-/-! ## Axiom census (DESIGN.md §5, the P3 gate)
-
-`instantiate_level_params_refines` is the deepest chain in this part -- the
-node-keyed memo, `levels_subst`, `level::subst_pw` through `PropWhen.bindZ`,
-and the `hasLP` cutoff -- so it is the one worth pinning. -/
 

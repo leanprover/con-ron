@@ -104,11 +104,6 @@ theorem absU32_inj : Function.Injective absU32 := by
   apply UScalar.eq_imp
   rw [← absU32_toNat x, ← absU32_toNat y, h]
 
-theorem absU64_inj : Function.Injective absU64 := by
-  intro x y h
-  apply UScalar.eq_imp
-  rw [← absU64_toNat x, ← absU64_toNat y, h]
-
 /-- Equality of `u32`s is equality of the abstractions — the `==` every
 handle comparison of the port is. -/
 @[simp] theorem absU32_eq_iff (x y : Std.U32) : absU32 x = absU32 y ↔ x = y :=

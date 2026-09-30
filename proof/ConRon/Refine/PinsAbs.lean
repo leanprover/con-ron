@@ -55,17 +55,6 @@ def absPins (ps : alloc.vec.Vec nat_op_pins.NatOpPinSet) :
     List ConLeche.NatOpPinSet :=
   ps.val.map absNatOpPinSet
 
-/-! ## The bridge to the embedded text
-
-`PINS_TEXT` is `toStr "<the 532 456-byte literal>"` in the generated model, so
-`absText PINS_TEXT` is *definitionally* `absText (toStr pinsTextLean)` for the
-Lean string literal `pinsTextLean` — a `delta` step and no computation.  What
-makes that useful is that `absText (toStr s) = s` holds **generically**: it is
-`Slice.from_val` (the `Slice` bound is a *parameter* of `toStr`, so reading the
-list back never touches it) followed by `String.fromUTF8?_toByteArray`.  The
-alternative — evaluating anything about the literal — is what the measurement
-in `pins_text_decodes` rules out. -/
-
 /-! ## The decoder's byte string and state
 
 The two abstractions `Refine/PinsBytes.lean`'s induction is stated over.  Both
