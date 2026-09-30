@@ -1219,12 +1219,6 @@ pin reads only.  The Rust reads its fifteen pins through `nat_op_pins`. -/
   simp only [arena.core.nat_op_pins, arena.core.nat_op_pins_rest]
   lockstep
 
-theorem nat_op_deps_refines {pers st lst} {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.core.nat_op_deps st c = ok o) :
-    Sim₀ absNIdxL pers lst o (natOpDeps (absNIdx c)) :=
-  Lockstep.LS.toSim₀ (nat_op_deps_ls hrel hinv) hrun
-
 open Lockstep in
 /-- `arena::core::nat_op_equations` ⊑ `natOpEquations` — the operation's
 recurrence equations, built.  The twin reads all fifteen operation pins, as
@@ -1240,13 +1234,6 @@ the Rust's `nat_op_pins` does (fixed in the twin, this lane). -/
     arena.core.nat_op_pins_rest, arena.core.nat_op_equations_at, arena.core.nat_op_equations_pow,
     arena.core.nat_op_equations_beq, arena.core.nat_op_equations_ble]
   lockstep
-
-theorem nat_op_equations_refines {pers st lst} {d : Std.U64}
-    {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.core.nat_op_equations pers st d c = ok o) :
-    Sim₀ absEqPairs pers lst o (natOpEquations (absU d) (absNIdx c)) :=
-  Lockstep.LS.toSim₀ (nat_op_equations_ls hrel hinv) hrun
 
 theorem absNIdxLFrom_cons' (v : alloc.vec.Vec arena.handle.NIdx)
     (i : Std.Usize) (hi : i.val < v.val.length) :
@@ -2863,6 +2850,7 @@ theorem check_div_mod_certs_aux (k : Nat) :
       subst hp
       simp only [arena.decl_check.check_div_mod_cert_at, arena.decl_check.check_div_mod_cert_tail]
       simp only [absStmtsFrom, absEIdxLFrom] at ih
+      have hctx := IFEnvInv.coreCtx hfe.rel hfe.inv hvis
       lockstep
     · have : absEIdxLFrom proofs i = [] := by
         simp only [absEIdxLFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl

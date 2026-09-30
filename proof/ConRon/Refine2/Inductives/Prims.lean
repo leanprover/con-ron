@@ -11,6 +11,7 @@ conversion is needed, by `attribute [lockstep]` where not — and adds the
 Rust-only specs the tier's zips need.  Nothing here restates an owner's lemma.
 -/
 import ConRon.Refine2.Checker.Base
+import ConRon.Refine2.Inductives.Shape
 import ConRon.Refine2.ExprOps.Mut
 
 open Aeneas Aeneas.Std Result
@@ -1869,5 +1870,101 @@ attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims
   lockstep
 
 end RuleBits
+
+/-! ## Moved up from `Inductives/Shape.lean` (task #105): the environment readers and the
+`CoreCtx` side alternatives need the checker tier. -/
+
+/-- The Core front doors (`Refine2/Checker/KnotHyp.lean`) take `CoreCtx vis rf
+lf`; the tier carries `IFEnvRelI rf lf` and, at a split counter, `absU vis =
+lf.visibleBelow` — `IFEnvInv.coreCtx`/`coreCtxSelf` turn those into it. -/
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| first
+      | (apply IFEnvInv.coreCtxSelf <;> first
+          | (apply IFEnvRelI.rel; assumption) | (apply IFEnvRelI.inv; assumption))
+      | (apply IFEnvInv.coreCtx <;> first
+          | (apply IFEnvRelI.rel; assumption) | (apply IFEnvRelI.inv; assumption)
+          | assumption | (checker_env_facts; simp_all; done)))
+
+
+-- A twin `if` whose test a `TwinEq` rewrote to a literal.
+attribute [lockstep_simp] ite_true ite_false
+
+/-! ## Two environment-record constants -/
+
+open Lockstep in
+/-- `i_ind_caps_default` is the twin's `{}` (the zero word is `default`, the
+empty `if_all_zero` is `.ifAllZero []`). -/
+@[lockstep] theorem i_ind_caps_default_twin :
+    LSP arena.env.i_ind_caps_default (fun o => TwinEq ({} : IIndCaps) (absIIndCaps o) ∧
+      ConRon.Refine.PropWhenWF o.sort_z) := by
+  intro o h
+  refine ⟨?_, ?_⟩
+  swap
+  · rw [arena.env.i_ind_caps_default] at h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+    exact ConRon.Refine.PropWhen.if_all_zero_wf (fun n hn => by simp [alloc.vec.Vec.new] at hn) hpw
+  simp only [arena.env.i_ind_caps_default, arena.handle.NIdx.of_word,
+    kernel.prop_when.if_all_zero, kernel.prop_when.of_repr, alloc.vec.Vec.new,
+    alloc.vec.Vec.len] at h
+  simp at h
+  rw [if_pos (by rfl)] at h
+  simp at h
+  subst h
+  simp [TwinEq, absIIndCaps]
+  rfl
+
+/-! ## The environment index's readers, as `TwinEq`s
+
+`ifenv_find`/`find_ci` read the Rust index; the twin's `find?` is the same
+lookup (`ifenv_find_abs`, `Refine2/Core/Arms/Delta.lean`).  The twin
+environment is fixed by the `CoreCtx` side goal, which the tier's side
+extension discharges from `IFEnvRelI` (and the split counter). -/
+
+open Lockstep in
+@[lockstep] theorem ifenv_find_twin {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (n : arena.handle.NIdx) (hctx : CoreCtx vis rf lf) :
+    LSP (arena.env.ifenv_find vis rf n)
+      (fun o => TwinEq (lf.find? (absNIdx n)) (o.map absIConstantInfo)) :=
+  fun _ h => (ifenv_find_abs hctx h).symm
+
+open Lockstep in
+@[lockstep] theorem find_ci_twin {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (n : arena.handle.NIdx) (hctx : CoreCtx vis rf lf) :
+    LSP (arena.env.find_ci vis rf n)
+      (fun o => TwinEq (lf.find? (absNIdx n)) (o.map absIConstantInfo)) := by
+  intro o h
+  rw [arena.env.find_ci] at h
+  obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hf := ifenv_find_abs hctx hr
+  cases r with
+  | none =>
+    obtain rfl := (Result.ok_injective h).symm
+    exact hf.symm
+  | some ci =>
+    obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain rfl := (Result.ok_injective h).symm
+    rw [← hf]
+    simp [TwinEq, i_constant_info_dup_abs hii]
+
+-- `lf.restrictTo (absU vis)` at the split counter IS `lf` (`hvis`): the
+-- checker tier's statements are at the restriction, the tier's twins at `lf`.
+macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (simp only [IFEnv.restrictTo] at *; checker_env_facts; simp_all; done))
+
+
+open Lockstep in
+/-- `arena::canon::eidx_vec_beq` from `0` is `==` on the abstracted lists. -/
+@[lockstep] theorem canon_eidx_vec_beq_twin (a b : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.canon.eidx_vec_beq a b 0#usize) (fun o => o = (absEIdxL a == absEIdxL b)) := by
+  intro o h
+  rw [eidx_vec_beq_refines h]
+  have e : ∀ v : alloc.vec.Vec arena.handle.EIdx, absEIdxLFrom v 0#usize = absEIdxL v := by
+    intro v; simp [absEIdxLFrom, absEIdxL]
+  rw [e, e]
+  cases h' : decide (absEIdxL a = absEIdxL b) <;> simp_all
 
 end ConRon.Refine2
