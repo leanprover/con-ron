@@ -76,7 +76,7 @@ theorem pins_ready_run₀ {pers st lst} {o : Bool}
     apply Aeneas.Std.UScalar.eq_imp
     rw [this, hcount, h]
 
-/-- `pin_at` ⊑ `pinAt` — **the one lemma the forty-nine below are instances
+/-- `pin_at` ⊑ `pinAt` — **the one lemma the forty-eight below are instances
 of**: the bounds branch and then `PinsRel.names`. -/
 theorem pin_at_run₀ {pers st lst} {i : Std.Usize} {o}
     (hrel : AStateRel₀ pers st lst) (_hinv : AStateInv pers st)
@@ -323,7 +323,7 @@ theorem pin_sort_one_run₀ {pers st lst} {o}
     refine AErrSim.internal (s := "arena: reserved-name pins not interned") ?_
     rw [hrun2, if_neg (by simp only [← hbr]; simpa using hbf)]
 
-/-! ## The forty-nine named readers, one per slot
+/-! ## The forty-eight named readers, one per slot
 
 Each is `pin_at` at its own constant, and each lemma is `pin_at_run₀` after
 that constant's value.  The order is `Arena/Pins.lean`'s, which is
@@ -339,34 +339,6 @@ theorem pin_eq_run₀ {pers st lst} {o}
   have hc : absSz arena.pins.PIN_EQ = Arena.PIN_EQ := by
     show (arena.pins.PIN_EQ).val = _
     rw [arena.pins.PIN_EQ]
-    rfl
-  rw [hc] at h
-  exact h
-
-/-- `pin_punit` ⊑ `pinPUnit`, at slot `PIN_PUNIT`. -/
-theorem pin_punit_run₀ {pers st lst} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.pins.pin_punit st = ok o) :
-    PinRE absNIdx lst o pinPUnit := by
-  rw [arena.pins.pin_punit] at hrun
-  have h := pin_at_run₀ hrel hinv hrun
-  have hc : absSz arena.pins.PIN_PUNIT = Arena.PIN_PUNIT := by
-    show (arena.pins.PIN_PUNIT).val = _
-    rw [arena.pins.PIN_PUNIT]
-    rfl
-  rw [hc] at h
-  exact h
-
-/-- `pin_punit_rec` ⊑ `pinPUnitRec`, at slot `PIN_PUNIT_REC`. -/
-theorem pin_punit_rec_run₀ {pers st lst} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.pins.pin_punit_rec st = ok o) :
-    PinRE absNIdx lst o pinPUnitRec := by
-  rw [arena.pins.pin_punit_rec] at hrun
-  have h := pin_at_run₀ hrel hinv hrun
-  have hc : absSz arena.pins.PIN_PUNIT_REC = Arena.PIN_PUNIT_REC := by
-    show (arena.pins.PIN_PUNIT_REC).val = _
-    rw [arena.pins.PIN_PUNIT_REC]
     rfl
   rw [hc] at h
   exact h
@@ -1016,6 +988,20 @@ theorem pin_of_reduce_bool_run₀ {pers st lst} {o}
   exact h
 
 
+/-- `pin_quot` ⊑ `pinQuot`, at slot `PIN_QUOT` (task #105). -/
+theorem pin_quot_run₀ {pers st lst} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.pins.pin_quot st = ok o) :
+    PinRE absNIdx lst o pinQuot := by
+  rw [arena.pins.pin_quot] at hrun
+  have h := pin_at_run₀ hrel hinv hrun
+  have hc : absSz arena.pins.PIN_QUOT = Arena.PIN_QUOT := by
+    show (arena.pins.PIN_QUOT).val = _
+    rw [arena.pins.PIN_QUOT]
+    rfl
+  rw [hc] at h
+  exact h
+
 /-! ### As `@[lockstep]` reads -/
 
 @[lockstep] theorem pin_reserved_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -1047,16 +1033,6 @@ theorem pin_of_reduce_bool_run₀ {pers st lst} {o}
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_eq st) st lst pinEq :=
   pinRE_lsr hrel hinv fun _ h => pin_eq_run₀ hrel hinv h
-
-@[lockstep] theorem pin_punit_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_punit st) st lst pinPUnit :=
-  pinRE_lsr hrel hinv fun _ h => pin_punit_run₀ hrel hinv h
-
-@[lockstep] theorem pin_punit_rec_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_punit_rec st) st lst pinPUnitRec :=
-  pinRE_lsr hrel hinv fun _ h => pin_punit_rec_run₀ hrel hinv h
 
 @[lockstep] theorem pin_nat_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :
@@ -1287,6 +1263,11 @@ theorem pin_of_reduce_bool_run₀ {pers st lst} {o}
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_of_reduce_bool st) st lst pinOfReduceBool :=
   pinRE_lsr hrel hinv fun _ h => pin_of_reduce_bool_run₀ hrel hinv h
+
+@[lockstep] theorem pin_quot_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_quot st) st lst pinQuot :=
+  pinRE_lsr hrel hinv fun _ h => pin_quot_run₀ hrel hinv h
 
 /-! ## Handle `dup2` / `eq2` (Rust-only steps) -/
 

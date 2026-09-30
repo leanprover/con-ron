@@ -3,10 +3,9 @@
 
 Task #97-P5-Core round 5, region D.  The lockstep lemmas of
 `arena::core::whnf_app`/`beta_peel` (the batched β spine, one joint
-induction on the spine cursor), `whnf_core_stuck_app`, `whnf_core_body`
-(`BodyRel`'s `whnfCore` field; its fragments `whnf_core_proj`,
-`whnf_core_proj_at`, `whnf_core_proj_fire`, `intern_app` are inlined) and
-`arena::core_gated::whnf_core_body_gated` (fragment `whnf_core_app_gated`).
+induction on the spine cursor) and `whnf_core_body` (`BodyRel`'s `whnfCore`
+field; its fragments `whnf_core_proj`, `whnf_core_proj_at`,
+`whnf_core_proj_fire`, `intern_app` are inlined).
 -/
 import ConRon.Refine2.Core.LS.PrimsD
 import ConRon.Refine2.Core.LS.Shapes
@@ -30,9 +29,8 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PD
 
 attribute [lockstep_inline] arena.core.whnf_core_proj arena.core.whnf_core_proj_at
   arena.core.whnf_core_proj_fire arena.core.intern_app
-  arena.core_gated.whnf_core_app_gated
 
-attribute [local lockstep_simp] whnfCoreAppGated ConRon.Refine.absBinderMeta
+attribute [local lockstep_simp] ConRon.Refine.absBinderMeta
 
 /-! ## Stubs (other regions' lemmas; deleted at merge) -/
 
@@ -166,39 +164,6 @@ theorem whnf_core_body_ls {f : Nat} (hk : KnotRel f)
       (whnfCoreBody (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
         lfe (absU depth) (absEIdx e)) := by
   rw [arena.core.whnf_core_body, whnfCoreBody]
-  lockstep_core
-
-/-! ## `whnf_core_stuck_app` -/
-
-/-- `arena::core::whnf_core_stuck_app` against `Arena.whnfCoreStuckApp`
-(`whnf_core_stuck_app_refines`, in the lockstep form). -/
-@[lockstep] theorem whnf_core_stuck_app_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth h same fp a lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = absEIdx a)
-      (arena.core.whnf_core_stuck_app pers vis st mode lane fu fe depth h same fp a) lst
-      (whnfCoreStuckApp (ConRon.Refine.absMode mode)
-        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
-        (absEIdx h) same (absEIdx fp) (absEIdx a)) := by
-  rw [arena.core.whnf_core_stuck_app, whnfCoreStuckApp]
-  lockstep_core
-
-/-! ## `whnf_core_body_gated` -/
-
-/-- `arena::core_gated::whnf_core_body_gated` against `Arena.whnfCoreBodyGated` —
-`BodyRel`'s `whnfCoreGated` field, in the lockstep form. -/
-theorem whnf_core_body_gated_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth e lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = absEIdx a)
-      (arena.core_gated.whnf_core_body_gated pers vis st mode lane fu fe depth e) lst
-      (whnfCoreBodyGated (ConRon.Refine.absMode mode)
-        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth) (absEIdx e)) := by
-  rw [arena.core_gated.whnf_core_body_gated, whnfCoreBodyGated]
   lockstep_core
 
 end ConRon.Refine2.Lockstep

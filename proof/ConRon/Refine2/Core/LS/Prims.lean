@@ -560,6 +560,17 @@ theorem i_proj_table_entry_abs {tbl : arena.env.IProjTable} {i : Std.U64}
       simp [List.getD, this]; rfl
   simp only [absIProjEntry, absIProjTable, IProjTable.entry, hb, hg, hvv]
 
+/-- `proj_table_name_ls` at a store argument named apart from the state
+(`ifenv_find_proj_ls`'s form): the table-less `.proj` arm of `annotate_proj_at`
+(con-leche's PROJREJ, task #105) builds the table name on the store the lookup
+returned. -/
+theorem proj_table_name_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (s : arena.store.EStore) (hs : st.store = s)
+    (t : arena.handle.NIdx) :
+    LSS pers (fun a b => b = absNIdx a) (arena.env.proj_table_name pers s t) st lst
+      (projTableName (absNIdx t)) := by
+  subst hs; exact proj_table_name_ls hrel hinv t
+
 /-- The projection-table lookup (`ifenv_find_proj`): it interns the table's
 reserved name (`proj_table_name`), then reads the environment.  The Rust store
 argument `s` is named apart from the state `st` the caller rebuilds (`hs`),

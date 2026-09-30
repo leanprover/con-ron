@@ -638,7 +638,10 @@ private theorem pint_lst {α β : Type} {A : α → β} {P t : arena.store.PersT
   rw [arena.env.i_ind_caps_dup] at h
   obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [← Result.ok_injective h, dupId_nidx _ _ hn, ConRon.Refine.PropWhen.dup_eq hpw]
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [← Result.ok_injective h, dupId_nidx _ _ hn, ConRon.Refine.PropWhen.dup_eq hpw,
+    alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv), alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv1)]
 
 @[lockstep] theorem basis_kind_dup_spec (k : kernel.env.BasisKind) :
     LSP (kernel.env.basis_kind_dup k) (fun r => r = k) := by

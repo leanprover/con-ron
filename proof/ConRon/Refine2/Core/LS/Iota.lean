@@ -7,7 +7,7 @@ Task #97-P5-Core round 5, region C2.  The Theorem-2 lockstep lemmas of
   `major_to_ctor_{certs,k,eta_certs,eta,eta_build,and,and_build,at}`,
   `iota_certs_fam`), `etaFabArgsE`;
 * `litMajorToCtor`, `projLitToCtor`, `prepareMajor`;
-* `iotaRec` and `iotaRecAt` (Rust `iota_rec`, `iota_rec_at` and the fragments
+* `iotaRecAt` (Rust `iota_rec_at` and the fragments
   `iota_rec_{major,fire,params,certs,fam,reduct}`, `get_d_eidx`);
 * `projCert`, `projCertAt`.
 
@@ -393,7 +393,7 @@ set_option maxHeartbeats 0 in
   rw [arena.core.prepare_major, prepareMajor]
   lockstep_c2
 
-/-! ## `iotaRecAt` / `iotaRec` -/
+/-! ## `iotaRecAt` -/
 
 section iota
 
@@ -431,18 +431,6 @@ set_option maxHeartbeats 0 in
       (iotaRecAt (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
         lfe (absU depth) (absEIdx hd) (absEIdxArr sargs) (absSz n)) := by
   rw [arena.core.iota_rec_at, iotaRecAt]
-  lockstep_c2
-
-@[lockstep] theorem iota_rec_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth e lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = Option.map absEIdx a)
-      (arena.core.iota_rec pers vis st mode lane fu fe depth e) lst
-      (iotaRec (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-        lfe (absU depth) (absEIdx e)) := by
-  rw [arena.core.iota_rec, iotaRec]
   lockstep_c2
 
 end iota

@@ -69,7 +69,6 @@ import ConRon.Refine2.Frontend.Prepare
 import ConRon.Refine2.Frontend.NatOpGround
 import ConRon.Refine2.Frontend.Spec
 import ConRon.Refine2.Frontend.SpecInd
-import ConRon.Refine2.Frontend.ProjRec
 import ConRon.Refine2.Frontend.ExportC
 import ConRon.Refine2.Frontend.ExportCInd
 import ConRon.Refine2.Frontend.PreludeText

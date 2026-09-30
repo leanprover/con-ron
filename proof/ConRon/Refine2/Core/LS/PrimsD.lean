@@ -1,8 +1,8 @@
 /-
 # `ConRon.Refine2.Core.LS.PrimsD` — region D's primitive pairs
 
-Task #97-P5-Core round 5, region D (`whnfApp`/`betaPeel`, `whnfCoreStuckApp`,
-`whnfCoreBody`, `whnfCoreBodyGated`).  The `@[lockstep]` pairs the region's
+Task #97-P5-Core round 5, region D (`whnfApp`/`betaPeel`,
+`whnfCoreBody`).  The `@[lockstep]` pairs the region's
 zips need that no shared file carries: the mode reads, the handle comparison,
 the projection-table lookup (and the abstraction of its entry).
 -/
