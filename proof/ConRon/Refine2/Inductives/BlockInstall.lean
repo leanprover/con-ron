@@ -435,4 +435,45 @@ cursor on. -/
   have h := check_block_agree_ls mode hfe n_p cv_ta0 s0 rest 0#usize st lst hrel hinv
   simpa [absTeleL] using h
 
+/-- `cons_block_inds` ⊑ `consBlockInds` from the cursor on: the formers
+pushed in block order, each with its capability record. -/
+@[lockstep] theorem cons_block_inds_ls {pers} (p1 : arena.inductives.block_parts.BlockShape)
+    (is_rec : Bool) (cv_tas : alloc.vec.Vec arena.env.IConstantVal) :
+    ∀ (i : Std.Usize) (fe : arena.env.IFEnv) (lf : IFEnv) st lst, IFEnvRelI fe lf →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => IFEnvRelI a b)
+        (arena.inductives.block_install.cons_block_inds pers st p1 is_rec cv_tas i fe) lst
+        (consBlockInds (absBlockShape p1) is_rec (absICVLFrom cv_tas i) i.val lf) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) cv_tas.val.length
+    (fun i (_ : Unit) => ∀ (fe : arena.env.IFEnv) (lf : IFEnv) st lst, IFEnvRelI fe lf →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => IFEnvRelI a b)
+        (arena.inductives.block_install.cons_block_inds pers st p1 is_rec cv_tas i fe) lst
+        (consBlockInds (absBlockShape p1) is_rec (absICVLFrom cv_tas i) i.val lf)) ?_ ?_ i ()
+  · intro i _ hn fe lf st lst hfe hrel hinv
+    rw [arena.inductives.block_install.cons_block_inds.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len cv_tas by scalar_tac), absICVLFrom,
+      List.drop_eq_nil_of_le hn, List.map_nil, consBlockInds]
+    lockstep
+  · intro i _ hlt ih fe lf st lst hfe hrel hinv
+    have ih' : ∀ j : Std.Usize, j.val = i.val + 1 → ∀ (fe : arena.env.IFEnv) (lf : IFEnv) st lst,
+        IFEnvRelI fe lf → AStateRel₀ pers st lst → AStateInv pers st →
+        LS pers (fun a b => IFEnvRelI a b)
+          (arena.inductives.block_install.cons_block_inds pers st p1 is_rec cv_tas j fe) lst
+          (consBlockInds (absBlockShape p1) is_rec (absICVLFrom cv_tas j) j.val lf) :=
+      fun j hj => ih j () hj
+    clear ih
+    rw [arena.inductives.block_install.cons_block_inds.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len cv_tas by scalar_tac), absICVLFrom,
+      List.drop_eq_getElem_cons hlt, List.map_cons, consBlockInds]
+    lockstep
+    rename_i caps _ cv1 hcv1 fe2 hfe2
+    have ha : a.val = i.val + 1 := by scalar_tac
+    refine LS.tail (ih' a ha fe2 (lf.push (IConstantInfo.indInfo
+      (absIConstantVal cv_tas.val[i.val]) (absIIndCaps caps))) st1 lst1 ?_ hrel hinv) ?_
+      (fun _ _ h => h)
+    · have := hfe2.1; simp only [absIConstantInfo, hcv1] at this; exact this
+    · simp only [absICVLFrom, ha]
+
 end ConRon.Refine2
