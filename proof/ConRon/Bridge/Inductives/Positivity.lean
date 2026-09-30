@@ -2046,4 +2046,163 @@ theorem nestFrame_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
 
 end Frame
 
+section Cont
+
+variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1359-1382 nestContNew
+An instantiation's frame (con-leche's `nestContNewS_sim`): the group grown,
+the frame walked with the group in progress, the group cached when its
+parameters mention no frame hole. -/
+theorem nestContNew_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP) {fuel : Nat}
+    (ih : NestPosSpec μ env fe ctx ctxP fuel)
+    (prog : List Arena.NestHole) (progP : List ConLeche.NestHole) (kb : Nat) (n : NIdx)
+    (nP : ConLeche.Name) (us : LsIdx) (usP : List Level) (ds : List EIdx) (dsP : List Expr)
+    (nPc : Nat) (cty : EIdx) (ctyP : Expr) (ns : Arena.NestState) (nsP : ConLeche.NestState)
+    (hds : ∀ d ∈ dsP, Expr.WScoped (ctxP.hiAt progP.length) d)
+    (hni : ∀ d, (∀ y ∈ dsP, Expr.WScoped d y) → Expr.WScoped d ctyP) :
+    CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
+        dProg st prog = some progP ∧ denoteN st.ns n = some nP ∧
+        denoteLs st.lss us = some usP ∧ Frontend.denoteEList st ds = some dsP ∧
+        denoteE st cty = some ctyP ∧ dState st ns = some nsP)
+      (Arena.nestContNew μ fe ctx fuel prog kb n us ds nPc cty ns)
+      (fun st r v => v.1 = kindOf r.1 ∧ dState st r.2 = some v.2)
+      (ConLeche.nestContNew ctxP (fueledOpsM μ) env
+        (ConLeche.nestPos (fueledOpsM μ) env ctxP fuel) progP kb nP usP dsP nPc ctyP nsP) := by
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hctx, hprog, hn, hus, hds', hcty, hns⟩ := hp
+  obtain ⟨-, -, hfind, -, -, -⟩ := dCtx_fields hctx
+  rw [Arena.nestContNew.eq_def] at hrun
+  -- the walk stack
+  obtain ⟨wp, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨p1, hwp⟩ := nestWalkStack_spec ctx prog ds dsP s₀ s₁ wp hok.state hds' h1
+  simp only [RV, hiAt_eq hctx] at hwp
+  have hwpP : dProg s₀.store wp = some (ConLeche.nestWalkStack ctxP progP dsP) := by
+    rw [hwp]; simp only [ConLeche.nestWalkStack]
+    split
+    · rfl
+    · exact hprog
+  have hwpl : wp.length = (ConLeche.nestWalkStack ctxP progP dsP).length :=
+    dProg_length hwpP
+  have hdsw : ∀ d ∈ dsP,
+      Expr.WScoped (ctxP.hiAt (ConLeche.nestWalkStack ctxP progP dsP).length) d := by
+    unfold ConLeche.nestWalkStack; split
+    · rename_i hfree
+      intro x hx
+      exact ConLeche.WScoped.of_fvarsBelow (hds x hx)
+        (Expr.fvarB_le (by simpa using List.all_eq_true.mp hfree x hx))
+    · exact hds
+  have c1 := p1.toCore hok
+  -- the group
+  obtain ⟨grp, s₂, h3, h4⟩ := bindOk h2
+  have hmates := nestFrameMates_rel c1.ok.state c1.ok.ienv ctxP hfind (denoteN_ext hn p1.ext)
+  rw [hiAt_eq (dCtx_ext _ p1.ext _ _ hctx), hwpl] at h3
+  obtain ⟨c2, grpV, ⟨hgrp, hgs⟩, hFg⟩ := nestGrowGroup_spec hc ctx _ us usP ds dsP _ _
+    [(n, cty)] [(nP, ctyP)]
+    (fun x hx => by simp only [List.mem_singleton] at hx; subst hx; exact hni)
+    s₁ s₂ grp c1.ok ⟨dCtx_ext _ p1.ext _ _ hctx, denoteLs_ext hus p1.ext,
+      denoteEList_ext p1.ext _ _ hds', hmates,
+      by simp [dGrp, dGE, denoteN_ext hn p1.ext, denote_ext hcty p1.ext]⟩ h3
+  have hx02 := p1.ext.trans c2.ext
+  obtain ⟨hk1, hk2, hk3⟩ := dState_inv (dState_ext hx02 _ _ hns)
+  -- the frame
+  obtain ⟨ns2, s₃, h5, h6⟩ := bindOk h4
+  rw [hiAt_eq (dCtx_ext _ hx02 _ _ hctx), hwpl] at h5
+  have c12 := c1.trans c2
+  obtain ⟨c3, nsP2, hns2, hFf⟩ := nestFrame_spec hk henv hc ih wp _ _ us usP ds dsP nPc grp
+    grpV _ (ConLeche.NestState.mk nsP.keys
+      (grpV.map (fun p => (⟨p.1, usP, dsP⟩ : ConLeche.NestKey)) ++ nsP.active) nsP.ctorNfs)
+    hdsw (fun x hx => hgs x hx _ hdsw) s₂ s₃ ns2 c12.ok
+    ⟨dCtx_ext _ hx02 _ _ hctx, dProg_ext hx02 _ _ hwpP, denoteLs_ext hus hx02,
+      denoteEList_ext hx02 _ _ hds', hgrp,
+      dState_mk hk1 (mapM_option_append (dKeys_grp (denoteLs_ext hus hx02)
+        (denoteEList_ext hx02 _ _ hds') hgrp) hk2) hk3⟩ h5
+  -- the cache
+  obtain ⟨closed, s₄, h7, h8⟩ := bindOk h6
+  have hx03 := hx02.trans c3.ext
+  obtain ⟨p4, hcl⟩ := closedAll_spec (ctx.hiAt 0) ds dsP s₃ s₄ closed c3.ok.state
+    (denoteEList_ext hx03 _ _ hds') h7
+  simp only [RV, hiAt_eq hctx] at hcl
+  subst hcl
+  obtain ⟨rfl, rfl⟩ := pureOk h8
+  have c4 := c12.trans (c3.trans (p4.toCore c3.ok))
+  obtain ⟨hn1, hn2, hn3⟩ := dState_inv (dState_ext p4.ext _ _ hns2)
+  refine ⟨c4, (.nested (kb != 0), ConLeche.NestState.mk
+      (if dsP.all (fun x => decide (x.fvarB ≤ ctxP.hiAt 0)) then
+        ConLeche.nestAcceptGroup usP dsP grpV nsP2.keys else nsP2.keys)
+      nsP.active nsP2.ctorNfs), ⟨rfl, ?_⟩, ?_⟩
+  · refine dState_mk ?_ (by
+      obtain ⟨-, ha, -⟩ := dState_inv (dState_ext (hx03.trans p4.ext) _ _ hns); exact ha) hn3
+    by_cases hcl : (dsP.all fun x => decide (x.fvarB ≤ ctxP.hiAt 0)) = true
+    · rw [if_pos hcl, if_pos hcl]
+      exact nestAcceptGroup_denote c4.ok.state.wf (denoteLs_ext hus (hx03.trans p4.ext))
+        (denoteEList_ext (hx03.trans p4.ext) _ _ hds') grp grpV _ _
+        (dGrp_names (dGrp_ext (c3.ext.trans p4.ext) _ _ hgrp)) hn1
+    · rw [if_neg hcl, if_neg hcl]
+      exact hn1
+  · simp only [ConLeche.nestContNew]
+    exact FOk.bind hFg (FOk.bind hFf (FOk.pure _))
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1384-1404 nestContKey
+The instantiation met (con-leche's `nestContKeyS_sim`): in progress, a cache
+hit, or a new frame — the same verdict. -/
+theorem nestContKey_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP) {fuel : Nat}
+    (ih : NestPosSpec μ env fe ctx ctxP fuel)
+    (prog : List Arena.NestHole) (progP : List ConLeche.NestHole) (kb : Nat) (n : NIdx)
+    (nP : ConLeche.Name) (us : LsIdx) (usP : List Level) (ds : List EIdx) (dsP : List Expr)
+    (nPc : Nat) (cty : EIdx) (ctyP : Expr) (ns : Arena.NestState) (nsP : ConLeche.NestState)
+    (hds : ∀ d ∈ dsP, Expr.WScoped (ctxP.hiAt progP.length) d)
+    (hni : ∀ d, (∀ y ∈ dsP, Expr.WScoped d y) → Expr.WScoped d ctyP) :
+    CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
+        dProg st prog = some progP ∧ denoteN st.ns n = some nP ∧
+        denoteLs st.lss us = some usP ∧ Frontend.denoteEList st ds = some dsP ∧
+        denoteE st cty = some ctyP ∧ dState st ns = some nsP)
+      (Arena.nestContKey μ fe ctx fuel prog kb n us ds nPc cty ns)
+      (fun st r v => v.1 = kindOf r.1 ∧ dState st r.2 = some v.2)
+      (ConLeche.nestContKey ctxP (fueledOpsM μ) env
+        (ConLeche.nestPos (fueledOpsM μ) env ctxP fuel) progP kb nP usP dsP nPc ctyP nsP) := by
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hctx, hprog, hn, hus, hds', hcty, hns⟩ := hp
+  rw [Arena.nestContKey.eq_def] at hrun
+  dsimp only at hrun
+  have hkey : dKey s₀.store ⟨n, us, ds⟩ = some ⟨nP, usP, dsP⟩ := by
+    simp [dKey, hn, hus, hds']
+  obtain ⟨hk1, hk2, hk3⟩ := dState_inv hns
+  have hact := contains_key_eq hok.state.wf hkey hk2
+  by_cases ha : ns.active.contains ⟨n, us, ds⟩ = true
+  · rw [if_pos ha] at hrun; exact absurd hrun (fun hc => failOk hc)
+  rw [if_neg ha] at hrun
+  have ha' : nsP.active.contains ⟨nP, usP, dsP⟩ = false := by
+    rw [← hact]; simpa using ha
+  obtain ⟨closed, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨p1, hcl⟩ := closedAll_spec (ctx.hiAt 0) ds dsP s₀ s₁ closed hok.state hds' h1
+  simp only [RV, hiAt_eq hctx] at hcl
+  subst hcl
+  have hkeys : ns.keys.contains ⟨n, us, ds⟩ = nsP.keys.contains ⟨nP, usP, dsP⟩ := by
+    rw [← Array.contains_toList, ← Array.contains_toList]
+    exact contains_key_eq hok.state.wf hkey hk1
+  rw [hkeys] at h2
+  simp only [ConLeche.nestContKey, ha', Bool.false_eq_true, ↓reduceIte]
+  by_cases hhit : ((dsP.all fun x => decide (x.fvarB ≤ ctxP.hiAt 0)) &&
+      nsP.keys.contains ⟨nP, usP, dsP⟩) = true
+  · rw [if_pos hhit] at h2
+    obtain ⟨rfl, rfl⟩ := pureOk h2
+    refine ⟨p1.toCore hok, (.nested (kb != 0), nsP), ⟨rfl, dState_ext p1.ext _ _ hns⟩, ?_⟩
+    rw [if_pos hhit]
+    exact FOk.pure _
+  · rw [if_neg hhit] at h2
+    have c1 := p1.toCore hok
+    obtain ⟨c2, v, hv, hF⟩ := nestContNew_spec hk henv hc ih prog progP kb n nP us usP ds dsP
+      nPc cty ctyP ns nsP hds hni s₁ s' r c1.ok
+      ⟨dCtx_ext _ p1.ext _ _ hctx, dProg_ext p1.ext _ _ hprog, denoteN_ext hn p1.ext,
+        denoteLs_ext hus p1.ext, denoteEList_ext p1.ext _ _ hds', denote_ext hcty p1.ext,
+        dState_ext p1.ext _ _ hns⟩ h2
+    refine ⟨c1.trans c2, v, hv, ?_⟩
+    rw [if_neg hhit]
+    exact hF
+
+end Cont
+
 end ConRon.Bridge.Inductives
