@@ -776,15 +776,6 @@ theorem motiveSlot_eq {st : EStore} {slots : List Arena.ClassSlot}
 
 /-! ## `classNPcOf` -/
 
-/-- con-leche: none — a denoting constant value's name handle denotes its name. -/
-theorem denoteCV_name {st : EStore} {cv : IConstantVal} {c : ConstantVal}
-    (h : Frontend.denoteCV st cv = some c) : denoteN st.ns cv.name = some c.name := by
-  unfold Frontend.denoteCV at h
-  split at h
-  · rename_i n lps ty hn _ _
-    cases h; exact hn
-  · cases h
-
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:138 memberNames — a
 denoting shape's member names denote con-leche's. -/
 theorem memberNames_denote {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
@@ -1130,15 +1121,6 @@ theorem classReadSlots_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (e
       | _ => simp [ConLeche.classReadSlots]
 
 /-! ## `classReadRecCls` -/
-
-/-- con-leche: none — a denoting constant value's type handle denotes its type. -/
-theorem denoteCV_type {st : EStore} {cv : IConstantVal} {c : ConstantVal}
-    (h : Frontend.denoteCV st cv = some c) : denoteE st cv.type = some c.type := by
-  unfold Frontend.denoteCV at h
-  split at h
-  · rename_i n lps ty _ _ hty
-    cases h; exact hty
-  · cases h
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:134-137 classRead — one
 recursor's class off its conclusion, as a function (bind form). -/

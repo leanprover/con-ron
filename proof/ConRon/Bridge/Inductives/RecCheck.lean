@@ -1690,20 +1690,6 @@ the lookups the rules make — which is `recRuleBits_runX`'s shape
 
 namespace RC
 
-/-- con-leche: none — `Records.lean`'s `dCtors` is `Run.lean`'s
-`denoteCtors`. -/
-theorem dCtors_denoteCtors {st : EStore} :
-    ∀ (cs : List (IConstantVal × Nat)), dCtors st cs = denoteCtors st cs := by
-  intro cs
-  induction cs with
-  | nil => rfl
-  | cons c cs ih =>
-    obtain ⟨cv, n⟩ := c
-    simp only [dCtors, List.mapM_cons, Option.bind_eq_bind, Option.pure_def, dCtor,
-      denoteCtors] at ih ⊢
-    rw [ih]
-    cases Frontend.denoteCV st cv <;> cases denoteCtors st cs <;> rfl
-
 /-- con-leche: none — every rule's firing mode replaced, denoted. -/
 theorem denoteRules_map_fire {st : EStore} {f : IRecRuleFire} {fP : RecRuleFire}
     (hf : Frontend.denoteFire st f = some fP) :
@@ -1931,7 +1917,7 @@ theorem tgtStoredRules_spec {μ : CheckMode} {envC env : Env} {feC : IFEnv} (fe 
   obtain ⟨-, -, -, hnpc, -, hctors, hmem, -, -⟩ := dMajor_inv hM
   simp only [Arena.tgtStoredRules] at hrun
   obtain ⟨rules, s1, k1, z1⟩ := bindOk hrun
-  rw [RC.dCtors_denoteCtors] at hctors
+  rw [dCtors_eq_denoteCtors] at hctors
   obtain ⟨c1, hrules⟩ := sumRules_specX fe cv.name cvP.name M.nPc mI rP cv.type cvP.type
     M.ctors MP.ctors rhss rhssP s₀ s1 rules hok hie (denoteCV_name hcv) (denoteCV_type hcv)
     hctors hrh k1
@@ -2487,21 +2473,6 @@ theorem filter_recs {st : EStore} (q : Nat → Bool) :
     | true => exact mapM_option_cons hr (ih hrs)
     | false => exact ih hrs
 
-/-- con-leche: none — a denoted constructor list's names. -/
-theorem ctors_names {st : EStore} :
-    ∀ {cs : List (IConstantVal × Nat)} {csP : List (ConstantVal × Nat)},
-      dCtors st cs = some csP →
-      Frontend.denoteNList st.ns (cs.map (·.1.name)) = some (csP.map (·.1.name)) := by
-  intro cs
-  induction cs with
-  | nil => intro csP h; simp only [dCtors, List.mapM_nil] at h; cases h; rfl
-  | cons c cs ih =>
-    intro csP h
-    obtain ⟨cP, csP', rfl, hc, hcs⟩ := mapM_option_cons_inv h
-    simp only [dCtor, Option.map_eq_some_iff] at hc
-    obtain ⟨cv, hcv, rfl⟩ := hc
-    simp only [List.map_cons, Frontend.denoteNList, denoteCV_name hcv, ih hcs]
-
 /-- con-leche: none — a denoted three-tuple constructor list's names. -/
 theorem ctors3_names {st : EStore} :
     ∀ {cs : List (IConstantVal × Nat × Nat)} {csP : List (ConstantVal × Nat × Nat)},
@@ -2688,7 +2659,7 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
           List.map (fun x => x.fst.name) pP.allCtors == List.map (fun x => x.fst.name) csP) := by
       rw [mapM_option_length hcv, mapM_option_length hrs, hk, mapM_option_length hrecs,
         beq_nhandleList_eq pB.ok.wf
-          (RC.ctors_names (dCtors_ext pAB.ext _ _ (BlockShape.allCtors_spec hsh)))
+          (dCtors_names (dCtors_ext pAB.ext _ _ (BlockShape.allCtors_spec hsh)))
           (RC.ctors3_names hcs)]
     by_cases cC : (cvTs.length == p.k && rs.length == p.recs.length &&
           List.map (fun x => x.fst.name) p.allCtors == List.map (fun x => x.fst.name) cs) = true
@@ -2783,7 +2754,7 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
           List.map (fun x => x.fst.name) pP.allCtors == List.map (fun x => x.fst.name) csP) := by
       rw [mapM_option_length hcv, mapM_option_length hrs, hk, mapM_option_length hrecs,
         beq_nhandleList_eq pB.ok.wf
-          (RC.ctors_names (dCtors_ext pAB.ext _ _ (BlockShape.allCtors_spec hsh)))
+          (dCtors_names (dCtors_ext pAB.ext _ _ (BlockShape.allCtors_spec hsh)))
           (RC.ctors3_names hcs)]
     by_cases cC : (cvTs.length == p.k && rs.length == p.recs.length &&
           List.map (fun x => x.fst.name) p.allCtors == List.map (fun x => x.fst.name) cs) = true

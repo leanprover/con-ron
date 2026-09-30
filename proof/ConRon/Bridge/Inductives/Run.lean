@@ -829,4 +829,82 @@ theorem denoteEList_drop {st : EStore} :
         | zero => simp only [List.drop_zero, Frontend.denoteEList, hx, hxs]
         | succ n => simpa only [List.drop_succ_cons] using ih hxs n
 
+/-- con-leche: none — **`zeroLevel`, as a run**: the pin read this tier's
+`structProjGuards` and `structPartsCore?` open with, and the reason
+`PSpecP` exists. -/
+theorem zeroLevel_run {s s' : AState} {u : LIdx} (hp : PinsOK s)
+    (hrun : Arena.zeroLevel s = .ok (u, s')) :
+    s' = s ∧ denoteL s.store.ls u = some .zero := by
+  simp only [Arena.zeroLevel] at hrun
+  exact AM.of_run (P := fun t => t = s) rfl hrun (pinZeroLevel_spec s hp)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:925-928 mkAppN — **`mkAppN`, as a
+run**.  `Bridge/ExprOps/Spine.lean`'s `mkAppN_spec` is closed and says the
+same thing, but its frame has no `BMExt` conjunct and `PStep` needs one, so
+the four-line induction is done here rather than re-stated there (the twin is
+`internE (.app f a)` folded over the list, so each step's `BMExt` is
+`internE_run`'s own). -/
+theorem mkAppN_run : ∀ (args : List EIdx) (argsP : List Expr) {s s' : AState}
+    {f : EIdx} {fP : Expr} {r : EIdx}, StateOK s →
+    denoteE s.store f = some fP →
+    Frontend.denoteEList s.store args = some argsP →
+    ConRon.Arena.mkAppN f args s = .ok (r, s') →
+    PStep s s' ∧ denoteE s'.store r = some (Expr.mkAppN fP argsP) := by
+  intro args
+  induction args with
+  | nil =>
+    intro argsP s s' f fP r hok hf hargs hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at hargs
+    subst hargs
+    simp only [ConRon.Arena.mkAppN, pure, StateT.pure, Except.pure] at hrun
+    obtain ⟨rfl, rfl⟩ := Prod.mk.injEq .. ▸ (Except.ok.inj hrun)
+    exact ⟨PStep.refl hok, hf⟩
+  | cons a as ih =>
+    intro argsP s s' f fP r hok hf hargs hrun
+    simp only [Frontend.denoteEList] at hargs
+    cases ha : denoteE s.store a with
+    | none => rw [ha] at hargs; simp at hargs
+    | some x =>
+      cases has : Frontend.denoteEList s.store as with
+      | none => rw [ha, has] at hargs; simp at hargs
+      | some xs =>
+        rw [ha, has] at hargs
+        obtain rfl := Option.some.inj hargs
+        simp only [ConRon.Arena.mkAppN] at hrun
+        obtain ⟨g, s₁, h1, h2⟩ := bindOk hrun
+        obtain ⟨hstep1, hg⟩ :=
+          internE_run hok (viewOK_app (by rw [hf]; rfl) (by rw [ha]; rfl)) h1
+        have hg' : denoteE s₁.store g = some (.app fP x) := by
+          rw [hg]
+          simp only [denoteEView, denote_ext hf hstep1.ext,
+            denote_ext ha hstep1.ext, opt2]
+        obtain ⟨hstep2, hr⟩ :=
+          ih xs hstep1.ok hg' (denoteEList_ext hstep1.ext _ _ has) h2
+        exact ⟨hstep1.trans hstep2, hr⟩
+
+/-- con-leche: none — the two constructor-list denotations agree:
+`Records.lean`'s `dCtors` (a `mapM`) is `Run.lean`'s `denoteCtors`. -/
+theorem dCtors_eq_denoteCtors (st : EStore) :
+    ∀ cs : List (IConstantVal × Nat), dCtors st cs = denoteCtors st cs
+  | [] => rfl
+  | (cv, n) :: cs => by
+    have ih := dCtors_eq_denoteCtors st cs
+    simp only [dCtors] at ih ⊢
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def, dCtor, denoteCtors, ih]
+    cases Frontend.denoteCV st cv <;> cases denoteCtors st cs <;> rfl
+
+/-- con-leche: none — a denoted constructor list's names. -/
+theorem dCtors_names {st : EStore} :
+    ∀ {cs : List (IConstantVal × Nat)} {csP : List (ConstantVal × Nat)},
+      dCtors st cs = some csP →
+      Frontend.denoteNList st.ns (cs.map (·.1.name)) = some (csP.map (·.1.name))
+  | [], csP, h => by
+    simp only [dCtors, List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+    subst h; rfl
+  | x :: xs, csP, h => by
+    obtain ⟨y, ys', rfl, hy, hys⟩ := mapM_option_cons_inv h
+    simp only [dCtor, Option.map_eq_some_iff] at hy
+    obtain ⟨z, hz, rfl⟩ := hy
+    simp only [List.map_cons, Frontend.denoteNList, denoteCV_name hz, dCtors_names hys]
+
 end ConRon.Bridge.Inductives

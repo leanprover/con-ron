@@ -47,17 +47,6 @@ namespace BI
 /-! ## Small helpers (local; see the report for the ones that belong in a
 shared file) -/
 
-/-- con-leche: none — the two constructor-list denotations agree:
-`Records.lean`'s `dCtors` (a `mapM`) is `Run.lean`'s `denoteCtors`. -/
-theorem dCtors_eq_denoteCtors (st : EStore) :
-    ∀ cs : List (IConstantVal × Nat), dCtors st cs = denoteCtors st cs
-  | [] => rfl
-  | (cv, n) :: cs => by
-    have ih := dCtors_eq_denoteCtors st cs
-    simp only [dCtors] at ih ⊢
-    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def, dCtor, denoteCtors, ih]
-    cases Frontend.denoteCV st cv <;> cases denoteCtors st cs <;> rfl
-
 /-- con-leche: none — `lvlEq?` at the core grade: the store stands still and
 the verdict is `Level.isEquiv` of the denotations (`Core.lvlEq?_spec`). -/
 theorem lvlEq?_crun {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
@@ -103,20 +92,6 @@ theorem dCvL_inv {st : EStore} {x : IConstantVal × LIdx} {y : ConstantVal × Le
   rw [h1, h2] at h
   obtain rfl := (Option.some.inj h).symm
   exact ⟨rfl, rfl⟩
-
-/-- con-leche: none — a denoted constructor list's names. -/
-theorem dCtors_names {st : EStore} :
-    ∀ {cs : List (IConstantVal × Nat)} {csP : List (ConstantVal × Nat)},
-      dCtors st cs = some csP →
-      Frontend.denoteNList st.ns (cs.map (·.1.name)) = some (csP.map (·.1.name))
-  | [], csP, h => by
-    simp only [dCtors, List.mapM_nil, Option.pure_def, Option.some.injEq] at h
-    subst h; rfl
-  | x :: xs, csP, h => by
-    obtain ⟨y, ys', rfl, hy, hys⟩ := mapM_option_cons_inv h
-    simp only [dCtor, Option.map_eq_some_iff] at hy
-    obtain ⟨z, hz, rfl⟩ := hy
-    simp only [List.map_cons, Frontend.denoteNList, denoteCV_name hz, dCtors_names hys]
 
 /-- con-leche: none — the index spec across `consSumCtors`' pushes (none of
 them a projection table). -/

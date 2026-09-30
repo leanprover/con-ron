@@ -371,7 +371,7 @@ theorem ClassGen.slotVar_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (sl 
   have hnP := (dClassGen_inv hg).1
   simp only [Arena.ClassGen.slotVar] at hrun
   obtain ⟨u, s1, k1, z1⟩ := bindOk hrun
-  obtain ⟨rfl, hu⟩ := PW.zeroLevel_run hp k1
+  obtain ⟨rfl, hu⟩ := zeroLevel_run hp k1
   obtain ⟨z, s2, k2, z2⟩ := bindOk z1
   obtain ⟨p2, hz⟩ := internSortE_run hok hu k2
   obtain ⟨p3, hr⟩ := internFVarE_run p2.ok hz z2

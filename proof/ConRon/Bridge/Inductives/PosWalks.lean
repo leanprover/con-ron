@@ -36,14 +36,6 @@ namespace PW
 
 /-! ## Local helpers (restated from `Bridge/Inductives/Rel.lean`, or new) -/
 
-/-- con-leche: none — `Bridge/Inductives/Rel.lean`'s `zeroLevel_run`,
-restated (that module is not in this one's import closure). -/
-theorem zeroLevel_run {s s' : AState} {u : LIdx} (hp : PinsOK s)
-    (hrun : Arena.zeroLevel s = .ok (u, s')) :
-    s' = s ∧ denoteL s.store.ls u = some .zero := by
-  simp only [Arena.zeroLevel] at hrun
-  exact AM.of_run (P := fun t => t = s) rfl hrun (pinZeroLevel_spec s hp)
-
 /-- con-leche: none — `internE` at an `.fvar`. -/
 theorem internFVarE_run {s s' : AState} {k : Nat} {ty : EIdx} {tyP : Expr}
     {h : EIdx} (hok : StateOK s) (hty : denoteE s.store ty = some tyP)
@@ -66,41 +58,6 @@ theorem internLetEE_run {s s' : AState} {ty v b : EIdx} {tyP vP bP : Expr}
   rw [hd]
   simp only [denoteEView, denote_ext hty hstep.ext, denote_ext hv hstep.ext,
     denote_ext hb hstep.ext, opt3]
-
-/-- con-leche: none — `Bridge/Inductives/Rel.lean`'s `mkAppN_run`,
-restated. -/
-theorem mkAppN_run : ∀ (args : List EIdx) (argsP : List Expr) {s s' : AState}
-    {f : EIdx} {fP : Expr} {r : EIdx}, StateOK s →
-    denoteE s.store f = some fP →
-    Frontend.denoteEList s.store args = some argsP →
-    ConRon.Arena.mkAppN f args s = .ok (r, s') →
-    PStep s s' ∧ denoteE s'.store r = some (Expr.mkAppN fP argsP) := by
-  intro args
-  induction args with
-  | nil =>
-    intro argsP s s' f fP r hok hf hargs hrun
-    simp only [Frontend.denoteEList, Option.some.injEq] at hargs
-    subst hargs
-    simp only [ConRon.Arena.mkAppN, pure, StateT.pure, Except.pure] at hrun
-    obtain ⟨rfl, rfl⟩ := Prod.mk.injEq .. ▸ (Except.ok.inj hrun)
-    exact ⟨PStep.refl hok, hf⟩
-  | cons a as ih =>
-    intro argsP s s' f fP r hok hf hargs hrun
-    simp only [Frontend.denoteEList] at hargs
-    cases ha : denoteE s.store a with
-    | none => rw [ha] at hargs; simp at hargs
-    | some x =>
-      cases has : Frontend.denoteEList s.store as with
-      | none => rw [ha, has] at hargs; simp at hargs
-      | some xs =>
-        rw [ha, has] at hargs
-        obtain rfl := Option.some.inj hargs
-        simp only [ConRon.Arena.mkAppN] at hrun
-        obtain ⟨g, s₁, h1, h2⟩ := bindOk hrun
-        obtain ⟨hstep1, hg⟩ := internAppE_run hok hf ha h1
-        obtain ⟨hstep2, hr⟩ :=
-          ih xs hstep1.ok hg (denoteEList_ext hstep1.ext _ _ has) h2
-        exact ⟨hstep1.trans hstep2, hr⟩
 
 /-- con-leche: none — `viewConst`, as a run. -/
 theorem viewConst_run {s s' : AState} {h : EIdx} {r : Option (NIdx × LsIdx)}

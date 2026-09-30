@@ -1233,40 +1233,6 @@ theorem anyM_pstep {α : Type} {f : α → AM Bool} {g : α → Bool}
       refine ⟨p1.trans p2, ?_⟩
       simp only [List.any_cons, ← hc, Bool.false_or, hb]
 
-/-- con-leche: none — `denoteEList` of a prefix. -/
-theorem denoteEList_take' {st : EStore} :
-    ∀ {xs : List EIdx} {xsP : List Expr} (n : Nat), Frontend.denoteEList st xs = some xsP →
-      Frontend.denoteEList st (xs.take n) = some (xsP.take n) := by
-  intro xs
-  induction xs with
-  | nil =>
-    intro xsP n h
-    simp only [Frontend.denoteEList, Option.some.injEq] at h
-    subst h; simp [Frontend.denoteEList]
-  | cons x xs ih =>
-    intro xsP n h
-    obtain ⟨y, ys, hy, hys, rfl⟩ := denoteEList_cons h
-    cases n with
-    | zero => simp [Frontend.denoteEList]
-    | succ n => simp only [List.take_succ_cons, Frontend.denoteEList, hy, ih n hys]
-
-/-- con-leche: none — `denoteEList` of a suffix. -/
-theorem denoteEList_drop' {st : EStore} :
-    ∀ {xs : List EIdx} {xsP : List Expr} (n : Nat), Frontend.denoteEList st xs = some xsP →
-      Frontend.denoteEList st (xs.drop n) = some (xsP.drop n) := by
-  intro xs
-  induction xs with
-  | nil =>
-    intro xsP n h
-    simp only [Frontend.denoteEList, Option.some.injEq] at h
-    subst h; simp [Frontend.denoteEList]
-  | cons x xs ih =>
-    intro xsP n h
-    obtain ⟨y, ys, hy, hys, rfl⟩ := denoteEList_cons h
-    cases n with
-    | zero => simpa using h
-    | succ n => simp only [List.drop_succ_cons]; exact ih n hys
-
 /-! ### The walk's state, denoted -/
 
 theorem dState_inv {st : EStore} {ns : Arena.NestState} {nsP : ConLeche.NestState}
@@ -2254,7 +2220,7 @@ theorem nestCont_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
     (fun hx h => denoteNListE_ext hx _ _ h)
     (fun e eP s₀ s' b hok' hq hd hrun' =>
       nestOcc_spec ctx.names ctxP.names ctx.nP _ e eP s₀ s' b hok' ⟨hq, hd⟩ hrun')
-    _ _ s₁ s₂ b p1.ok (denoteNListE_ext p1.ext _ _ hcnames) (denoteEList_drop' qP.1 hargs1) h3
+    _ _ s₁ s₂ b p1.ok (denoteNListE_ext p1.ext _ _ hcnames) (denoteEList_drop hargs1 qP.1) h3
   cases b with
   | true => simp only [↓reduceIte] at h4; exact absurd h4 (fun hc => failOk hc)
   | false =>
@@ -2272,7 +2238,7 @@ theorem nestCont_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
   -- the parameters
   obtain ⟨pc, s₄, h7, h8⟩ := bindOk h6
   obtain ⟨p4, hpc⟩ := paramsLocal_spec (ctx.hiAt prog.length) _ _ s₂ s₄ pc (p1.trans p2).ok
-    (denoteEList_take' qP.1 (denoteEList_ext p2.ext _ _ hargs1)) h7
+    (denoteEList_take (denoteEList_ext p2.ext _ _ hargs1) qP.1) h7
   simp only [RV, hhp] at hpc
   subst hpc
   by_cases hpc' : (!(List.take qP.1 argsP).all fun x =>
@@ -2289,7 +2255,7 @@ theorem nestCont_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
   obtain ⟨c5, niP, ⟨hni1, hni2, hni3⟩, hFni⟩ := nestInstType_spec hc ctx _
     ⟨n, us, args.take qP.1⟩ ⟨nP, usP, argsP.take qP.1⟩ s₄ s₅ ni c4.ok
     ⟨dCtx_ext _ hx04 _ _ hctx, by simp [dKey, denoteN_ext hn hx04, denoteLs_ext hus hx04,
-      denoteEList_take' qP.1 (denoteEList_ext hx04 _ _ hargs')]⟩ h9
+      denoteEList_take (denoteEList_ext hx04 _ _ hargs') qP.1]⟩ h9
   obtain ⟨nI, cty⟩ := ni
   dsimp only at h10 hni1 hni2
   subst hni1
@@ -2307,7 +2273,7 @@ theorem nestCont_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
   obtain ⟨c6, v, hv, hFv⟩ := nestContKey_spec hk henv hc ih prog progP kb n nP us usP _ _
     qP.1 cty niP.2 ns nsP hdsT hni3 s₅ s' r c5.ok
     ⟨dCtx_ext _ hx05 _ _ hctx, dProg_ext hx05 _ _ hprog, denoteN_ext hn hx05,
-      denoteLs_ext hus hx05, denoteEList_take' qP.1 (denoteEList_ext hx05 _ _ hargs'),
+      denoteLs_ext hus hx05, denoteEList_take (denoteEList_ext hx05 _ _ hargs') qP.1,
       hni2, dState_ext hx05 _ _ hns⟩ h10
   refine ⟨c4.trans (c5.trans c6), v, hv, ?_⟩
   have hc1 : (decide (argsP.length < qP.1) || !(List.drop qP.1 argsP).all fun x =>

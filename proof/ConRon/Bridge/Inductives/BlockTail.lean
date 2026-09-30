@@ -833,7 +833,7 @@ theorem checkBlock_bridge_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
     exact ⟨shP, h1, h2.symm⟩
   simp only [Arena.checkBlock] at hrun
   -- the distinct names
-  have hnC := nameNodup_spec hok.state.wf _ _ (BI.dCtors_names (BlockShape.allCtors_spec hsh))
+  have hnC := nameNodup_spec hok.state.wf _ _ (dCtors_names (BlockShape.allCtors_spec hsh))
   have hnM := nameNodup_spec hok.state.wf _ _ (BlockShape.memberNames_spec hsh)
   by_cases hc : (!nameNodup (p₀.shape.allCtors.map (·.1.name)) ||
       !nameNodup p₀.shape.memberNames) = true
