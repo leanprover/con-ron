@@ -803,7 +803,7 @@ theorem nest_cont_new_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IF
   · have e1 : absU hw = absU ctx.n_p + ctx.names.val.length + (wp.val.map absNestHole).length := by
       simp only [absU, List.length_map]; scalar_tac
     simp only [TwinEq] at hv
-    simp only [absNestState, e1, hP, List.map_append, ← hv, vec_new_val', List.map_nil,
+    simp only [absNestState, e1, hP, List.map_append, ← hv, Lockstep.vec_new_val', List.map_nil,
       List.nil_append, absGrpL, List.map_map]
     rfl
   · intro r b st2 lst2 hR hrel hinv

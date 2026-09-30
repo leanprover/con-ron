@@ -925,12 +925,12 @@ theorem split_outs_abs {outs : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec
     · rw [e1, hd]
       simp only [absKindsLLL, hks, List.map_append, List.map_cons, List.map_nil,
         List.append_assoc, List.cons_append, List.nil_append]
-      simp only [alloc.vec.Vec.new, usz_zero_val, List.drop_zero] at k1
+      simp only [alloc.vec.Vec.new, Lockstep.usize_zero_val', List.drop_zero] at k1
       simp [k1, absCtorOut, Function.comp_def]
     · rw [e2, hd]
       simp only [absEIdxLL, hnf, List.map_append, List.map_cons, List.map_nil,
         List.append_assoc, List.cons_append, List.nil_append]
-      simp only [alloc.vec.Vec.new, usz_zero_val, List.drop_zero] at k2
+      simp only [alloc.vec.Vec.new, Lockstep.usize_zero_val', List.drop_zero] at k2
       simp [absEIdxL, k2, absCtorOut, Function.comp_def]
 
 /-- `split_outs` from `0` with empty accumulators: the twin's two `map`s. -/
@@ -942,7 +942,7 @@ theorem split_outs_abs {outs : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec
         TwinEq ((absCtorOutsL outs).map (·.map (·.2))) (absEIdxLL q.2)) := by
   intro q h
   obtain ⟨e1, e2⟩ := split_outs_abs _ _ _ q h
-  simp only [absKindsLLL, absEIdxLL, alloc.vec.Vec.new, usz_zero_val, List.drop_zero] at e1 e2
+  simp only [absKindsLLL, absEIdxLL, alloc.vec.Vec.new, Lockstep.usize_zero_val', List.drop_zero] at e1 e2
   exact ⟨e1.symm, e2.symm⟩
 
 /-- `check_block_positivity` ⊑ `checkBlockPositivity` — the block's positivity

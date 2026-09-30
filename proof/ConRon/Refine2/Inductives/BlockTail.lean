@@ -178,7 +178,7 @@ lists walked side by side. -/
             checkBlockTables_one]
           lockstep
           all_goals
-            simp only [hcA, hso, List.getElem_cons_zero, usz_zero_val] at *
+            simp only [hcA, hso, List.getElem_cons_zero, Lockstep.usize_zero_val'] at *
             simp only [absMemberShape, absIConstantVal] at *
             lockstep
         · rw [checkBlockTables_other _ _ _ _ _ _ _ _
@@ -208,7 +208,7 @@ lists walked side by side. -/
   subst h1 h2 h3 h4 h5 h6 h7 h8 h9 h10
   rw [arena.inductives.block_tail.check_block_tail, checkBlockTail]
   lockstep
-  simp only [absCtorsLL, absBlockParts_shape, usz_zero_val, List.drop_zero] at *
+  simp only [absCtorsLL, absBlockParts_shape, Lockstep.usize_zero_val', List.drop_zero] at *
   obtain ⟨⟨_, _, hvb, _, _⟩, _⟩ := ‹IFEnvRelI _ (consBlockCtors _ _ _)›
   have hout : ∀ v, absRuleOutL v = v.val.map absRecOut := fun _ => rfl
   simp only [absBlockShape] at hvb ⊢
