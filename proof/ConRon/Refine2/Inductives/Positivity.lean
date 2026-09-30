@@ -709,4 +709,151 @@ private theorem copy_loop_id {α : Type} (dup : α → Result α) (hd : ∀ x y,
   cases Result.ok_injective h
   simp [TwinEq, absNestState, alloc.vec.Vec.new]
 
+/-! ## The context's fields and the pure readers -/
+
+@[lockstep_simp] theorem absNestCtx_names (c : arena.inductives.positivity.NestCtx) :
+    (absNestCtx c).names = absNIdxL c.names := rfl
+@[lockstep_simp] theorem absNestCtx_lps (c : arena.inductives.positivity.NestCtx) :
+    (absNestCtx c).lps = absNIdxL c.lps := rfl
+@[lockstep_simp] theorem absNestCtx_nP (c : arena.inductives.positivity.NestCtx) :
+    (absNestCtx c).nP = absU c.n_p := rfl
+@[lockstep_simp] theorem absNestCtx_nIdxs (c : arena.inductives.positivity.NestCtx) :
+    (absNestCtx c).nIdxs = c.n_idxs.val.map absU := rfl
+@[lockstep_simp] theorem absNestCtx_params (c : arena.inductives.positivity.NestCtx) :
+    (absNestCtx c).params = absEIdxL c.params := rfl
+@[lockstep_simp] theorem absNestCtx_sort (c : arena.inductives.positivity.NestCtx) :
+    (absNestCtx c).sort = absLIdx c.sort := rfl
+@[lockstep_simp] theorem absNestCtx_lvls (c : arena.inductives.positivity.NestCtx) :
+    (absNestCtx c).lvls = absLsIdx c.lvls := rfl
+
+@[lockstep_simp] theorem absNestCtx_hiAt (c : arena.inductives.positivity.NestCtx) (n : Nat) :
+    (absNestCtx c).hiAt n = absU c.n_p + c.names.val.length + n := by
+  simp [NestCtx.hiAt, absNestCtx, absNIdxL]
+
+@[lockstep] theorem hi_at_spec (ctx : arena.inductives.positivity.NestCtx) (nf : Std.U64) :
+    LSP (arena.inductives.positivity.hi_at ctx nf)
+      (fun r => r.val = ctx.n_p.val + ctx.names.val.length + nf.val) := by
+  intro r h
+  rw [arena.inductives.positivity.hi_at] at h
+  obtain ⟨a, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have ha' := lift_cast_u64_of_usize _ a ha
+  have hb' := ConRon.Refine.Nat.uadd_val hb
+  have h' := ConRon.Refine.Nat.uadd_val h
+  simp only [alloc.vec.Vec.len] at ha'
+  scalar_tac
+
+@[lockstep] theorem eidx_get_twin (xs : alloc.vec.Vec arena.handle.EIdx) (i : Std.U64) :
+    LSP (arena.inductives.positivity.eidx_get xs i)
+      (fun o => TwinEq ((absEIdxL xs)[absU i]?) (o.map absEIdx)) := by
+  intro o h
+  rw [arena.inductives.positivity.eidx_get] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hn' := lift_cast_u64_of_usize _ n hn
+  simp only [alloc.vec.Vec.len] at hn'
+  split at h
+  · obtain ⟨k, hk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    rcases lift_cast_usize_of_u64 _ k hk with hk' | hk'
+    · have hx := vec_index_some he
+      rw [dupId_eidx _ _ he1]
+      simp only [TwinEq, absEIdxL, List.getElem?_map, absU, ← hk', hx, Option.map_some]
+    · exfalso; scalar_tac
+  · cases Result.ok_injective h
+    simp only [TwinEq, absEIdxL, Option.map_none]
+    rw [List.getElem?_eq_none]
+    simp only [List.length_map, absU]; scalar_tac
+
+@[lockstep] theorem nest_key_map_twin (ds holes : alloc.vec.Vec arena.handle.EIdx) (i : Std.U64) :
+    LSP (arena.inductives.positivity.nest_key_map ds holes i)
+      (fun o => TwinEq (nestKeyMap (absEIdxL ds) (absEIdxL holes) (absU i)) (o.map absEIdx)) := by
+  intro o h
+  rw [arena.inductives.positivity.nest_key_map] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hn' := lift_cast_u64_of_usize _ n hn
+  simp only [alloc.vec.Vec.len] at hn'
+  split at h
+  · have := eidx_get_twin ds i o h
+    simp only [TwinEq] at this ⊢
+    rw [← this, nestKeyMap, if_pos (by simp [absEIdxL, absU]; scalar_tac)]
+  · obtain ⟨j, hj, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have := eidx_get_twin holes j o h
+    have hj' := ConRon.Refine.Nat.usub_val hj
+    simp only [TwinEq] at this ⊢
+    rw [← this, nestKeyMap, if_neg (by simp [absEIdxL, absU]; scalar_tac)]
+    congr 1
+    simp only [absEIdxL, absU, List.length_map]; scalar_tac
+
+theorem root_hole_spec (ctx : arena.inductives.positivity.NestCtx) (j : Std.Usize) :
+    LSP (arena.inductives.positivity.root_hole ctx j)
+      (fun o => ∃ n, ctx.names.val[j.val]? = some n ∧
+        o = { key := { cname := n, lvls := ctx.lvls, ds := ctx.params }, base := ctx.n_p }) := by
+  intro o h
+  rw [arena.inductives.positivity.root_hole] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  refine ⟨n, vec_index_some hn, ?_⟩
+  rw [dupId_nidx _ _ hn1, dupId_lsidx _ _ hl, alloc.vec.Vec.ext _ _ (eidx_vec_dup_val hv)]
+
+@[lockstep] theorem nest_hole_at_twin (ctx : arena.inductives.positivity.NestCtx)
+    (prog : alloc.vec.Vec arena.inductives.positivity.NestHole) (i : Std.U64) :
+    LSP (arena.inductives.positivity.nest_hole_at ctx prog i)
+      (fun o => TwinEq (nestHoleAt (absNestCtx ctx) (prog.val.map absNestHole) (absU i))
+        (o.map absNestHole)) := by
+  intro o h
+  rw [arena.inductives.positivity.nest_hole_at] at h
+  simp only [TwinEq, nestHoleAt, NestCtx.rootHoles, absNestCtx_nP, absNestCtx_names,
+    absNestCtx_lvls, absNestCtx_params]
+  split at h
+  · rename_i hle
+    rw [if_pos (by simp [absU]; scalar_tac)]
+    obtain ⟨j, hj, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨k, hk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hj' := ConRon.Refine.Nat.usub_val hj
+    have hk' := lift_cast_u64_of_usize _ k hk
+    simp only [alloc.vec.Vec.len] at hk'
+    split at h
+    · rename_i hlt
+      obtain ⟨j2, hj2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨nh, hnh, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      cases Result.ok_injective h
+      rcases lift_cast_usize_of_u64 _ j2 hj2 with hj2' | hj2'
+      · obtain ⟨n, hn, rfl⟩ := root_hole_spec ctx j2 nh hnh
+        rw [List.getElem?_append_left (by simp [absNIdxL, absU]; scalar_tac)]
+        simp only [List.getElem?_map, absNIdxL]
+        have : absU i - absU ctx.n_p = j2.val := by simp [absU] at hj' ⊢; omega
+        rw [this, hn]
+        rfl
+      · exfalso; scalar_tac
+    · rename_i hge
+      obtain ⟨j3, hj3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hj3' := ConRon.Refine.Nat.usub_val hj3
+      have hl' := lift_cast_u64_of_usize _ l hl
+      simp only [alloc.vec.Vec.len] at hl'
+      rw [List.getElem?_append_right (by simp [absNIdxL, absU]; scalar_tac)]
+      simp only [List.length_map, absNIdxL, List.getElem?_map]
+      have : absU i - absU ctx.n_p - ctx.names.val.length = j3.val := by
+        simp only [absU]; scalar_tac
+      rw [this]
+      split at h
+      · obtain ⟨j5, hj5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨nh, hnh, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨nh1, hnh1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        cases Result.ok_injective h
+        rw [nest_hole_dup_spec _ _ hnh1]
+        rcases lift_cast_usize_of_u64 _ j5 hj5 with hj5' | hj5'
+        · rw [← hj5', vec_index_some hnh]
+        · exfalso; scalar_tac
+      · cases Result.ok_injective h
+        rw [List.getElem?_eq_none (by scalar_tac)]
+  · cases Result.ok_injective h
+    rw [if_neg (by simp [absU]; scalar_tac)]
+    rfl
+
 end ConRon.Refine2
