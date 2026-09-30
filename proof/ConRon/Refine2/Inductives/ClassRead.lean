@@ -700,4 +700,76 @@ theorem class_read_rec_cls_acc {pers} (n_p : Std.U64) (mot_pos : alloc.vec.Vec S
     funext r
     rcases r with _ | r <;> simp [absNatL, hout1, absU]
 
+@[lockstep] theorem class_read_rec_cls_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n_p : Std.U64) (mot_pos : alloc.vec.Vec Std.U64)
+    (recs : alloc.vec.Vec arena.inductives.block_parts.RecShape) :
+    LS pers (fun a b => b = a.map absNatL)
+      (arena.inductives.class_read.class_read_rec_cls pers st n_p mot_pos recs 0#usize
+        (alloc.vec.Vec.new _)) lst
+      (classReadRecCls (absU n_p) (absNatL mot_pos) (recs.val.map absRecShape)) := by
+  have h := class_read_rec_cls_acc (pers := pers) n_p mot_pos recs 0#usize st lst
+    (alloc.vec.Vec.new _) hrel hinv
+  refine LS.twin_eq h ?_
+  simp [alloc.vec.Vec.new, absNatL]
+
+/-! ## `class_read` -/
+
+/-- `classRead` with its inline motive positions named (`motPosOf`). -/
+def classRead' (p : BlockShape) (fe : IFEnv) (nP : Nat) (recs : List RecShape) :
+    AM (Option ClassRead) := do
+  match recs with
+  | [] => pure none
+  | rc0 :: _ =>
+    match ← openPisAtFvarsF nP rc0.cvR.type 0 with
+    | none => pure none
+    | some (_, body) =>
+      match ← classReadSlots p fe nP (rc0.rP - nP) [] nP body with
+      | none => pure none
+      | some slots =>
+        let motPos := motPosOf slots
+        match ← classReadRecCls nP motPos recs with
+        | none => pure none
+        | some recCls => pure (some ⟨slots, recCls⟩)
+
+theorem classRead_eq : classRead = classRead' := rfl
+
+@[lockstep] theorem class_read_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf)
+    (p : arena.inductives.block_parts.BlockShape) (n_p : Std.U64)
+    (recs : alloc.vec.Vec arena.inductives.block_parts.RecShape) :
+    LS pers (fun a b => b = a.map absClassRead)
+      (arena.inductives.class_read.class_read pers st p rf n_p recs) lst
+      (classRead (absBlockShape p) lf (absU n_p) (recs.val.map absRecShape)) := by
+  rw [arena.inductives.class_read.class_read, classRead_eq]
+  rcases hr : recs.val with _ | ⟨rc0, rest⟩
+  · rw [if_pos (by scalar_tac), List.map_nil, classRead']
+    lockstep
+  · rw [if_neg (by scalar_tac), List.map_cons, classRead']
+    lockstep
+    simp only [hr] at *
+    lockstep
+
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.class_read_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms class_read_ls
+
+/-- info: 'ConRon.Refine2.class_read_slots_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms class_read_slots_ls
+
+/-- info: 'ConRon.Refine2.class_read_minor_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms class_read_minor_ls
+
+/-- info: 'ConRon.Refine2.class_n_pc_of_twin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms class_n_pc_of_twin
+
+/-- info: 'ConRon.Refine2.motive_slot_twin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms motive_slot_twin
+
+/-- info: 'ConRon.Refine2.classes_twin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms classes_twin
+
+/-- info: 'ConRon.Refine2.slots_dup_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms slots_dup_spec
+
 end ConRon.Refine2
