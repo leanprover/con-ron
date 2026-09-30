@@ -701,14 +701,15 @@ theorem nestArity_spec {env : Env} {fe : IFEnv} (ctxP : ConLeche.NestCtx)
 The constructors of every container in `cs`, the accumulator the prefix of
 con-leche's answer; con-leche's run succeeds with the rest. -/
 theorem nestGroupCtors_spec {env : Env} {fe : IFEnv} (ctxP : ConLeche.NestCtx)
-    (hfind : ctxP.find? = env.find?) (nPc : Nat) :
+    (hfind : ctxP.find? = env.find?) (hcok : NestCtxOk ctxP) (nPc : Nat) :
     ∀ (cs : List NIdx) (csP : List ConLeche.Name) (out : List (IConstantVal × Nat))
       (outP : List (ConstantVal × Nat)),
     PSpec (fun st => IFEnvOKS env fe st ∧ Frontend.denoteNList st.ns cs = some csP ∧
         dCtors st out = some outP)
       (Arena.nestGroupCtors fe nPc cs out)
       (fun st r => ∃ v, dCtors st r = some (outP ++ v) ∧
-        FOk (ConLeche.nestGroupCtors (m := FueledM) ctxP nPc csP) v) := by
+        FOk (ConLeche.nestGroupCtors (m := FueledM) ctxP nPc csP) v ∧
+        ∀ x ∈ v, x.1.type.hasFvar = false) := by
   intro cs
   induction cs with
   | nil =>
@@ -718,7 +719,7 @@ theorem nestGroupCtors_spec {env : Env} {fe : IFEnv} (ctxP : ConLeche.NestCtx)
     subst hcs
     simp only [Arena.nestGroupCtors] at hrun
     obtain ⟨rfl, rfl⟩ := pureOk hrun
-    exact ⟨PStep.refl hok, [], by simpa using hout, FOk.pure _⟩
+    exact ⟨PStep.refl hok, [], by simpa using hout, FOk.pure _, fun _ h => nomatch h⟩
   | cons c cs ih =>
     intro csP out outP s₀ s' r hok hp hrun
     obtain ⟨hie, hcs, hout⟩ := hp
@@ -745,9 +746,12 @@ theorem nestGroupCtors_spec {env : Env} {fe : IFEnv} (ctxP : ConLeche.NestCtx)
       · rw [if_pos hg] at h2; exact absurd h2 (fun hc => failOk hc)
       · rw [if_neg hg] at h2
         have hout1 : dCtors s₁.store out = some outP := dCtors_ext p1.ext _ _ hout
-        obtain ⟨p2, v, hv, hF⟩ := ih csP' (out ++ ctors) (outP ++ qP.2) s₁ s' r p1.ok
+        obtain ⟨p2, v, hv, hF, hvc⟩ := ih csP' (out ++ ctors) (outP ++ qP.2) s₁ s' r p1.ok
           ⟨hie.mono p1.ext, denoteNListE_ext p1.ext _ _ hcs', mapM_option_append hout1 hq2⟩ h2
-        refine ⟨p1.trans p2, qP.2 ++ v, by simpa using hv, ?_⟩
+        refine ⟨p1.trans p2, qP.2 ++ v, by simpa using hv, ?_, fun x hx => by
+          rcases List.mem_append.mp hx with hx | hx
+          · exact Cached.nestContainer_closed hcok hqP x hx
+          · exact hvc x hx⟩
         have hg' : (qP.1 == nPc || qP.2.isEmpty) = true := by
           simp only [Bool.not_eq_true'] at hg
           rw [← hq1]
@@ -1193,5 +1197,453 @@ theorem nestWalkStack_spec (ctx : Arena.NestCtx) (prog : List Arena.NestHole)
     exact ⟨p1, by simp only [RV, if_pos hc]⟩
   · rw [if_neg hc] at h2; obtain ⟨rfl, rfl⟩ := pureOk h2
     exact ⟨p1, by simp only [RV, if_neg hc]⟩
+
+/-! ## Helpers of the walk -/
+
+/-- con-leche: none — `List.anyM` of a pure-grade test over a denoting handle
+list: the verdict is the pure `List.any`. -/
+theorem anyM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool} (Q : EStore → Prop)
+    (hQx : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
+    (hf : ∀ (e : EIdx) (eP : Expr) (s₀ s' : AState) (b : Bool), StateOK s₀ →
+      Q s₀.store → denoteE s₀.store e = some eP → f e s₀ = .ok (b, s') →
+      PStep s₀ s' ∧ b = F eP) :
+    ∀ (hs : List EIdx) (xs : List Expr) (s₀ s' : AState) (b : Bool),
+      StateOK s₀ → Q s₀.store → Frontend.denoteEList s₀.store hs = some xs →
+      hs.anyM f s₀ = .ok (b, s') → PStep s₀ s' ∧ b = xs.any F := by
+  intro hs
+  induction hs with
+  | nil =>
+    intro xs s₀ s' b hok _ h hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at h
+    subst h
+    simp only [List.anyM] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons e es ih =>
+    intro xs s₀ s' b hok hq h hrun
+    obtain ⟨eP, esP, he, hes, rfl⟩ := denoteEList_cons h
+    simp only [List.anyM] at hrun
+    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hc⟩ := hf e eP s₀ s1 c hok hq he k1
+    cases c with
+    | true =>
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      refine ⟨p1, ?_⟩
+      simp only [List.any_cons, ← hc, Bool.true_or]
+    | false =>
+      obtain ⟨p2, hb⟩ := ih esP s1 s' b p1.ok (hQx p1.ext hq)
+        (denoteEList_ext p1.ext _ _ hes) z1
+      refine ⟨p1.trans p2, ?_⟩
+      simp only [List.any_cons, ← hc, Bool.false_or, hb]
+
+/-- con-leche: none — `List.anyM` of a pure-grade test over
+representation-free keys (indices): the verdict is the pure `List.any`. -/
+theorem anyM_pstep {α : Type} {f : α → AM Bool} {g : α → Bool}
+    (P : α → EStore → Prop)
+    (hPx : ∀ {a : α} {st st' : EStore}, Ext st st' → P a st → P a st')
+    (hf : ∀ (a : α) (s₀ s' : AState) (b : Bool), StateOK s₀ → P a s₀.store →
+      f a s₀ = .ok (b, s') → PStep s₀ s' ∧ b = g a) :
+    ∀ (xs : List α) (s₀ s' : AState) (b : Bool), StateOK s₀ →
+      (∀ a ∈ xs, P a s₀.store) → xs.anyM f s₀ = .ok (b, s') →
+      PStep s₀ s' ∧ b = xs.any g := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro s₀ s' b hok _ hrun
+    simp only [List.anyM] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons a as ih =>
+    intro s₀ s' b hok hP hrun
+    simp only [List.anyM] at hrun
+    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hc⟩ := hf a s₀ s1 c hok (hP a (by simp)) k1
+    cases c with
+    | true =>
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      refine ⟨p1, ?_⟩
+      simp only [List.any_cons, ← hc, Bool.true_or]
+    | false =>
+      obtain ⟨p2, hb⟩ := ih s1 s' b p1.ok (fun x hx => hPx p1.ext (hP x (by simp [hx]))) z1
+      refine ⟨p1.trans p2, ?_⟩
+      simp only [List.any_cons, ← hc, Bool.false_or, hb]
+
+/-- con-leche: none — `denoteEList` of a prefix. -/
+theorem denoteEList_take' {st : EStore} :
+    ∀ {xs : List EIdx} {xsP : List Expr} (n : Nat), Frontend.denoteEList st xs = some xsP →
+      Frontend.denoteEList st (xs.take n) = some (xsP.take n) := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro xsP n h
+    simp only [Frontend.denoteEList, Option.some.injEq] at h
+    subst h; simp [Frontend.denoteEList]
+  | cons x xs ih =>
+    intro xsP n h
+    obtain ⟨y, ys, hy, hys, rfl⟩ := denoteEList_cons h
+    cases n with
+    | zero => simp [Frontend.denoteEList]
+    | succ n => simp only [List.take_succ_cons, Frontend.denoteEList, hy, ih n hys]
+
+/-- con-leche: none — `denoteEList` of a suffix. -/
+theorem denoteEList_drop' {st : EStore} :
+    ∀ {xs : List EIdx} {xsP : List Expr} (n : Nat), Frontend.denoteEList st xs = some xsP →
+      Frontend.denoteEList st (xs.drop n) = some (xsP.drop n) := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro xsP n h
+    simp only [Frontend.denoteEList, Option.some.injEq] at h
+    subst h; simp [Frontend.denoteEList]
+  | cons x xs ih =>
+    intro xsP n h
+    obtain ⟨y, ys, hy, hys, rfl⟩ := denoteEList_cons h
+    cases n with
+    | zero => simpa using h
+    | succ n => simp only [List.drop_succ_cons]; exact ih n hys
+
+/-! ### The walk's state, denoted -/
+
+theorem dState_inv {st : EStore} {ns : Arena.NestState} {nsP : ConLeche.NestState}
+    (h : dState st ns = some nsP) :
+    ns.keys.toList.mapM (dKey st) = some nsP.keys.toList ∧
+      ns.active.mapM (dKey st) = some nsP.active ∧
+      ns.ctorNfs.toList.mapM (dCtorNf st) = some nsP.ctorNfs.toList := by
+  simp only [dState] at h
+  cases h1 : ns.keys.toList.mapM (dKey st) with
+  | none => rw [h1] at h; exact nomatch h
+  | some a =>
+  cases h2 : ns.active.mapM (dKey st) with
+  | none => rw [h1, h2] at h; exact nomatch h
+  | some b =>
+  cases h3 : ns.ctorNfs.toList.mapM (dCtorNf st) with
+  | none => rw [h1, h2, h3] at h; exact nomatch h
+  | some c =>
+  rw [h1, h2, h3] at h
+  simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.some.injEq] at h
+  subst h
+  exact ⟨rfl, rfl, rfl⟩
+
+theorem dState_mk {st : EStore} {keys : Array Arena.NestKey} {active : List Arena.NestKey}
+    {nfs : Array Arena.NestCtorNf} {keysP : Array ConLeche.NestKey}
+    {activeP : List ConLeche.NestKey} {nfsP : Array ConLeche.NestCtorNf}
+    (h1 : keys.toList.mapM (dKey st) = some keysP.toList)
+    (h2 : active.mapM (dKey st) = some activeP)
+    (h3 : nfs.toList.mapM (dCtorNf st) = some nfsP.toList) :
+    dState st ⟨keys, active, nfs⟩ = some ⟨keysP, activeP, nfsP⟩ := by
+  simp only [dState, h1, h2, h3, Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+    Array.toArray_toList]
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1198-1262 nestCtors
+(`st.ctorNfs.push`) — a record pushed onto the state. -/
+theorem dState_push {st : EStore} {ns : Arena.NestState} {nsP : ConLeche.NestState}
+    {nf : Arena.NestCtorNf} {nfP : ConLeche.NestCtorNf} (h : dState st ns = some nsP)
+    (hn : dCtorNf st nf = some nfP) :
+    dState st { ns with ctorNfs := ns.ctorNfs.push nf } =
+      some { nsP with ctorNfs := nsP.ctorNfs.push nfP } := by
+  obtain ⟨h1, h2, h3⟩ := dState_inv h
+  exact dState_mk h1 h2 (by
+    rw [Array.toList_push, Array.toList_push]
+    exact mapM_option_append h3 (by simp [hn]))
+
+/-- con-leche: none — a constructor's output `(kinds, walked form)`, denoted. -/
+def dOut (st : EStore) (o : List Arena.NestFieldKind × EIdx) :
+    Option (List ConLeche.NestFieldKind × Expr) :=
+  (denoteE st o.2).map (o.1.map kindOf, ·)
+
+theorem dOut_ext : DExt dOut := by
+  intro st st' hx o y h
+  simp only [dOut, Option.map_eq_some_iff] at h ⊢
+  obtain ⟨e, he, rfl⟩ := h
+  exact ⟨e, denote_ext he hx, rfl⟩
+
+/-- con-leche: none — the stack, appended at its inner end (the twin's), is
+con-leche's with the new frames' holes reversed onto its front. -/
+theorem dProg_append {st : EStore} {prog G : List Arena.NestHole}
+    {progP GP : List ConLeche.NestHole} (hp : dProg st prog = some progP)
+    (hG : G.mapM (dHole st) = some GP) : dProg st (prog ++ G) = some (GP.reverse ++ progP) := by
+  simp only [dProg, Option.map_eq_some_iff] at hp ⊢
+  obtain ⟨a, ha, rfl⟩ := hp
+  exact ⟨a ++ GP, mapM_option_append ha hG, by simp⟩
+
+theorem dProg_length {st : EStore} {prog : List Arena.NestHole}
+    {progP : List ConLeche.NestHole} (hp : dProg st prog = some progP) :
+    prog.length = progP.length := by
+  simp only [dProg, Option.map_eq_some_iff] at hp
+  obtain ⟨a, ha, rfl⟩ := hp
+  rw [List.length_reverse, mapM_option_length ha]
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1198-1262 nestCtors
+(U4's kind test) — the twin's `(ks[i]?.map (· == .ordinary)).getD true` is
+con-leche's `ks.getD i .ordinary == .ordinary` at the kinds read. -/
+theorem u4_kind (ks : List Arena.NestFieldKind) (i : Nat) :
+    ((ks[i]?.map (· == Arena.NestFieldKind.ordinary)).getD true) =
+      !((ks.map kindOf).getD i .ordinary != .ordinary) := by
+  rw [List.getD_eq_getElem?_getD, List.getElem?_map]
+  cases ks[i]? with
+  | none => rfl
+  | some k => cases k <;> rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1327-1351 nestFrame
+(`grp.mapIdx … Expr.fvar (hi + i) ty`) — the frame's holes, interned. -/
+theorem frameHoles_run (hi : Nat) {f : (NIdx × EIdx) × Nat → AM EIdx}
+    (hf : ∀ c ty i, f ((c, ty), i) = internFVarE (hi + i) ty) :
+    ∀ (grp : List (NIdx × EIdx)) (grpP : List (ConLeche.Name × Expr)) (k : Nat)
+      (s₀ s' : AState) (r : List EIdx), StateOK s₀ → dGrp s₀.store grp = some grpP →
+      (grp.zipIdx k).mapM f s₀ = .ok (r, s') →
+      PStep s₀ s' ∧ Frontend.denoteEList s'.store r =
+        some ((grpP.zipIdx k).map fun p => Expr.fvar (hi + p.2) p.1.2) := by
+  intro grp
+  induction grp with
+  | nil =>
+    intro grpP k s₀ s' r hok hg hrun
+    simp only [dGrp, List.mapM_nil, Option.pure_def, Option.some.injEq] at hg
+    subst hg
+    simp only [List.zipIdx_nil, List.mapM_nil] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons p grp ih =>
+    intro grpP k s₀ s' r hok hg hrun
+    simp only [dGrp, List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at hg
+    cases hp : dGE s₀.store p with
+    | none => rw [hp] at hg; simp at hg
+    | some y =>
+    cases hgs : grp.mapM (dGE s₀.store) with
+    | none => rw [hp, hgs] at hg; simp at hg
+    | some ys =>
+    rw [hp, hgs] at hg
+    simp only [Option.bind_some, Option.some.injEq] at hg
+    subst hg
+    obtain ⟨c, ty⟩ := p
+    simp only [dGE, Option.bind_eq_some_iff, Option.map_eq_some_iff] at hp
+    obtain ⟨cP, hcP, tyP, htyP, rfl⟩ := hp
+    simp only [List.zipIdx_cons, List.mapM_cons, hf] at hrun
+    obtain ⟨h1, s₁, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hh1⟩ := internFVarE_run hok htyP k1
+    obtain ⟨hs, s₂, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, hhs⟩ := ih ys (k + 1) s₁ s₂ hs p1.ok (dGrp_ext p1.ext _ _ hgs) k2
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨p1.trans p2, ?_⟩
+    simp only [List.zipIdx_cons, List.map_cons, Frontend.denoteEList,
+      denote_ext hh1 p2.ext, hhs]
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1359-1382 nestContNew
+(`grp.map (fun p => ⟨p.1, us, ds⟩)`) — the group's keys, denoted. -/
+theorem dKeys_grp {st : EStore} {us : LsIdx} {usP : List Level} {ds : List EIdx}
+    {dsP : List Expr} (hus : denoteLs st.lss us = some usP)
+    (hds : Frontend.denoteEList st ds = some dsP) :
+    ∀ {grp : List (NIdx × EIdx)} {grpP : List (ConLeche.Name × Expr)},
+      dGrp st grp = some grpP →
+      (grp.map fun (x : NIdx × EIdx) => (⟨x.1, us, ds⟩ : Arena.NestKey)).mapM (dKey st) =
+        some (grpP.map fun p => (⟨p.1, usP, dsP⟩ : ConLeche.NestKey)) := by
+  intro grp
+  induction grp with
+  | nil => intro grpP h; simp only [dGrp, List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+           subst h; rfl
+  | cons p grp ih =>
+    intro grpP h
+    simp only [dGrp, List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h
+    cases hp : dGE st p with
+    | none => rw [hp] at h; simp at h
+    | some y =>
+    cases hgs : grp.mapM (dGE st) with
+    | none => rw [hp, hgs] at h; simp at h
+    | some ys =>
+    rw [hp, hgs] at h
+    simp only [Option.bind_some, Option.some.injEq] at h
+    subst h
+    simp only [dGE, Option.bind_eq_some_iff, Option.map_eq_some_iff] at hp
+    obtain ⟨cP, hcP, tyP, htyP, rfl⟩ := hp
+    have := ih hgs
+    simp only [List.map_cons, List.mapM_cons, Option.bind_eq_bind, Option.pure_def, this,
+      Option.bind_some]
+    simp [dKey, hcP, hus, hds]
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1327-1351 nestFrame
+(the frame's stack entries) — the group's holes at `base`, denoted. -/
+theorem dHoles_grp {st : EStore} {us : LsIdx} {usP : List Level} {ds : List EIdx}
+    {dsP : List Expr} (hus : denoteLs st.lss us = some usP)
+    (hds : Frontend.denoteEList st ds = some dsP) (b : Nat) :
+    ∀ {grp : List (NIdx × EIdx)} {grpP : List (ConLeche.Name × Expr)},
+      dGrp st grp = some grpP →
+      (grp.map fun (x : NIdx × EIdx) => ({ key := ⟨x.1, us, ds⟩, base := b } : Arena.NestHole)).mapM
+          (dHole st) =
+        some (grpP.map fun p => ({ key := ⟨p.1, usP, dsP⟩, base := b } : ConLeche.NestHole)) := by
+  intro grp
+  induction grp with
+  | nil => intro grpP h; simp only [dGrp, List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+           subst h; rfl
+  | cons p grp ih =>
+    intro grpP h
+    simp only [dGrp, List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h
+    cases hp : dGE st p with
+    | none => rw [hp] at h; simp at h
+    | some y =>
+    cases hgs : grp.mapM (dGE st) with
+    | none => rw [hp, hgs] at h; simp at h
+    | some ys =>
+    rw [hp, hgs] at h
+    simp only [Option.bind_some, Option.some.injEq] at h
+    subst h
+    simp only [dGE, Option.bind_eq_some_iff, Option.map_eq_some_iff] at hp
+    obtain ⟨cP, hcP, tyP, htyP, rfl⟩ := hp
+    have := ih hgs
+    simp only [List.map_cons, List.mapM_cons, Option.bind_eq_bind, Option.pure_def, this,
+      Option.bind_some]
+    simp [dHole, dKey, hcP, hus, hds]
+
+/-- con-leche: none — a binder telescope denotes, extended by one binder. -/
+theorem denoteBinders_snoc {st : EStore} :
+    ∀ {bs : List (EIdx × BinderMeta)} {bsP : List (Expr × BinderMeta)} {t : EIdx}
+      {tP : Expr} (m : BinderMeta), denoteBinders st bs = some bsP →
+      denoteE st t = some tP → denoteBinders st (bs ++ [(t, m)]) = some (bsP ++ [(tP, m)]) := by
+  intro bs
+  induction bs with
+  | nil =>
+    intro bsP t tP m h ht
+    simp only [denoteBinders, Option.some.injEq] at h
+    subst h
+    simp [denoteBinders, ht]
+  | cons b bs ih =>
+    intro bsP t tP m h ht
+    obtain ⟨x, mb⟩ := b
+    simp only [denoteBinders] at h
+    cases hx : denoteE st x with
+    | none => rw [hx] at h; simp at h
+    | some xP =>
+    cases hbs : denoteBinders st bs with
+    | none => rw [hx, hbs] at h; simp at h
+    | some ys =>
+    rw [hx, hbs] at h
+    obtain rfl := (Option.some.inj h).symm
+    simp only [List.cons_append, denoteBinders, hx, ih m hbs ht]
+
+/-! ## The positivity function and the container frames -/
+
+section Walk
+
+variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+
+/-- con-leche: ConLeche/Verify/Cached/NestPosC.lean RecSimC — `nestPos`'s
+answer: the kind read, the walked form and the state denoting con-leche's, the
+walked form well scoped at the walk's depth. -/
+def RPos (dep : Nat) (st : EStore) (r : Arena.NestFieldKind × EIdx × Arena.NestState)
+    (v : ConLeche.NestFieldKind × Expr × ConLeche.NestState) : Prop :=
+  v.1 = kindOf r.1 ∧ denoteE st r.2.1 = some v.2.1 ∧ dState st r.2.2 = some v.2.2 ∧
+    Expr.WScoped dep v.2.1
+
+/-- con-leche: ConLeche/Verify/Cached/NestPosC.lean RecSimC — **`nestPos` at
+`fuel` is correct**: at a well-scoped input, an accepting twin run denotes a
+run of con-leche's `nestPos` at `fueledOpsM μ`. -/
+def NestPosSpec (μ : CheckMode) (env : Env) (fe : IFEnv) (ctx : Arena.NestCtx)
+    (ctxP : ConLeche.NestCtx) (fuel : Nat) : Prop :=
+  ∀ (prog : List Arena.NestHole) (progP : List ConLeche.NestHole) (dep kb : Nat) (e : EIdx)
+    (eP : Expr) (ns : Arena.NestState) (nsP : ConLeche.NestState), Expr.WScoped dep eP →
+    CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
+        dProg st prog = some progP ∧ denoteE st e = some eP ∧ dState st ns = some nsP)
+      (Arena.nestPos μ fe ctx fuel prog dep kb e ns) (RPos dep)
+      (ConLeche.nestPos (fueledOpsM μ) env ctxP fuel progP dep kb eP nsP)
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1169-1186 nestFields
+A constructor's field telescope through the walk at fuel `F` (con-leche's
+`nestFieldsS_sim`): the accumulators are the prefix of con-leche's lists, every
+walked domain well scoped at its own depth, the result at the depth past the
+fields. -/
+theorem nestFields_spec {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} {F : Nat}
+    (hF : NestPosSpec μ env fe ctx ctxP F) (prog : List Arena.NestHole)
+    (progP : List ConLeche.NestHole) (base : Nat) (err : ConLeche.CheckError) :
+    ∀ (nF j : Nat) (cur : EIdx) (curP : Expr) (ns : Arena.NestState)
+      (nsP : ConLeche.NestState) (ks : List Arena.NestFieldKind)
+      (nds : List (EIdx × BinderMeta)) (ndsP : List (Expr × BinderMeta)),
+      Expr.WScoped (base + j) curP →
+      CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
+          dProg st prog = some progP ∧ denoteE st cur = some curP ∧
+          dState st ns = some nsP ∧ denoteBinders st nds = some ndsP)
+        (Arena.nestFields μ fe ctx F prog base nF j cur ns ks nds)
+        (fun st r v => r.1.map kindOf = ks.map kindOf ++ v.1 ∧
+          denoteBinders st r.2.1 = some (ndsP ++ v.2.1) ∧ denoteE st r.2.2.1 = some v.2.2.1 ∧
+          dState st r.2.2.2 = some v.2.2.2 ∧
+          (∀ (i : Nat) (nd : Expr × BinderMeta), v.2.1[i]? = some nd →
+            Expr.WScoped (base + j + i) nd.1) ∧
+          Expr.WScoped (base + j + v.2.1.length) v.2.2.1)
+        (ConLeche.nestFields (ConLeche.nestPos (fueledOpsM μ) env ctxP F) progP base err
+          nF j curP nsP) := by
+  intro nF
+  induction nF with
+  | zero =>
+    intro j cur curP ns nsP ks nds ndsP hw s₀ s' r hok hp hrun
+    obtain ⟨-, -, hcur, hns, hnds⟩ := hp
+    rw [Arena.nestFields] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    refine ⟨CoreStep.refl hok, ([], [], curP, nsP), ⟨by simp, by simpa using hnds, hcur, hns,
+      fun _ _ h => by simp at h, by simpa using hw⟩, ?_⟩
+    simp only [ConLeche.nestFields]
+    exact FOk.pure _
+  | succ nF ih =>
+    intro j cur curP ns nsP ks nds ndsP hw s₀ s' r hok hp hrun
+    obtain ⟨hctx, hprog, hcur, hns, hnds⟩ := hp
+    rw [Arena.nestFields] at hrun
+    dsimp only at hrun
+    by_cases htg : (cur.tag == ETag.forallE) = true
+    · rw [if_pos htg] at hrun
+      obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+      obtain ⟨hs1, ho⟩ := viewBind_run h1
+      rw [hs1] at h2
+      cases o with
+      | none => exact absurd h2 (fun hc => failDanglingE_ok hc)
+      | some p =>
+      obtain ⟨a, b, bm⟩ := p
+      have hwv := view_of_viewBind_tag_forallE htg ho.symm
+      obtain ⟨aP, bP, rfl, ha, hb⟩ := denote_forallE_inv hok.state.wf hwv hcur
+      simp only [Expr.WScoped] at hw
+      dsimp only at h2
+      obtain ⟨q, s₂, h3, h4⟩ := bindOk h2
+      obtain ⟨c2, v1, ⟨hk1, hnd1, hns1, hwnd⟩, hF1⟩ :=
+        hF prog progP (base + j) 0 a aP ns nsP hw.1 s₀ s₂ q hok ⟨hctx, hprog, ha, hns⟩ h3
+      obtain ⟨k, nd, ns2⟩ := q
+      dsimp only at h4 hk1 hnd1 hns1
+      obtain ⟨fv, s₃, h5, h6⟩ := bindOk h4
+      obtain ⟨p3, hfv⟩ := internFVarE_run c2.ok.state (denote_ext ha c2.ext) h5
+      obtain ⟨b2, s₄, h7, h8⟩ := bindOk h6
+      have hb3 : denoteE s₃.store b = some bP := denote_ext hb (c2.ext.trans p3.ext)
+      obtain ⟨q1, q2, q3, q4, q5, -, q7⟩ := ExprOps.instantiate1Fast_run p3.ok hfv
+        (by rw [hb3]; rfl) h7
+      have p4 : PStep s₃ s₄ := PStep.of_caches q1 q2 q3 q4 q5
+      have hb2 : denoteE s₄.store b2 = some (bP.instantiate1 (.fvar (base + j) aP) 0) :=
+        q7 _ hb3
+      have c4 := c2.trans ((p3.trans p4).toCore c2.ok)
+      have hx34 := p3.ext.trans p4.ext
+      have hw' : Expr.WScoped (base + (j + 1)) (bP.instantiate1 (.fvar (base + j) aP)) := by
+        rw [show base + (j + 1) = base + j + 1 by omega]
+        exact Expr.WScoped.instantiate1 hw.1 0 hw.2
+      obtain ⟨c5, v2, ⟨hks2, hnds2, hres2, hns2, hwnds2, hwres2⟩, hF2⟩ :=
+        ih (j + 1) b2 _ ns2 v1.2.2 (ks ++ [k]) (nds ++ [(nd, bm)]) (ndsP ++ [(v1.2.1, bm)]) hw'
+          s₄ s' r c4.ok
+          ⟨dCtx_ext _ (c2.ext.trans hx34) _ _ hctx, dProg_ext (c2.ext.trans hx34) _ _ hprog,
+            hb2, dState_ext hx34 _ _ hns1,
+            denoteBinders_snoc bm (denoteBinders_ext (c2.ext.trans hx34) _ _ hnds)
+              (denote_ext hnd1 hx34)⟩ h8
+      refine ⟨c4.trans c5, (v1.1 :: v2.1, (v1.2.1, bm) :: v2.2.1, v2.2.2.1, v2.2.2.2),
+        ⟨?_, ?_, hres2, hns2, ?_, ?_⟩, ?_⟩
+      · rw [hks2, hk1]; simp
+      · rw [hnds2]; simp
+      · intro i x hx
+        cases i with
+        | zero =>
+          simp only [List.getElem?_cons_zero, Option.some.injEq] at hx
+          subst hx; simpa using hwnd
+        | succ i =>
+          simp only [List.getElem?_cons_succ] at hx
+          have := hwnds2 i x hx
+          rwa [show base + (j + 1) + i = base + j + (i + 1) by omega] at this
+      · simp only [List.length_cons]
+        rw [show base + j + (v2.2.1.length + 1) = base + (j + 1) + v2.2.1.length by omega]
+        exact hwres2
+      · simp only [ConLeche.nestFields]
+        exact FOk.bind hF1 (FOk.bind hF2 (FOk.pure _))
+    · rw [if_neg htg] at hrun
+      exact absurd hrun (fun hc => failOk hc)
+
+end Walk
 
 end ConRon.Bridge.Inductives
