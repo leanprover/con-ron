@@ -119,7 +119,11 @@ theorem pos_zero_level_ls {pers st lst}
     rw [hrun2, if_neg (by simp only [← hbr]; simpa using hbf)]
 
 attribute [local lockstep] pos_zero_level_ls
-attribute [local lockstep_inline] arena.inductives.positivity.sort_zero
+-- `sort_zero` is the twin's `do let z ← zeroLevel; internSortE z`, and
+-- `nest_non_valid` the twin's `nestNonValid`: both inline fragments.
+attribute [lockstep_inline] arena.inductives.positivity.sort_zero
+  arena.inductives.positivity.nest_non_valid
+attribute [lockstep_simp] nestNonValid
 
 /-! ## The name-list scans -/
 
@@ -2363,5 +2367,57 @@ theorem nest_accept_group_abs (us : arena.handle.LsIdx) (ds : alloc.vec.Vec aren
   intro o h
   rw [TwinEq, nest_accept_group_abs us ds grp _ keys o h]
   simp
+
+/-! ## A stored constant as a container's constructor -/
+
+/-- `NIdx::eq2` against `==` on the abstraction (`Tactic/Prims.lean` has the
+`EIdx`/`LIdx`/`LsIdx` rows but not this one; LOCAL here, a helper for
+`Tactic/Prims`). -/
+theorem pos_nidx_eq2_spec (a b : arena.handle.NIdx) :
+    LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
+      (fun c => c = (absNIdx a == absNIdx b)) :=
+  fun _ h => nidx_eq2_abs h
+
+attribute [local lockstep] pos_nidx_eq2_spec
+
+@[lockstep] theorem nest_ctor_entry_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (c : arena.handle.NIdx) (ci : arena.env.IConstantInfo) :
+    LSR pers (fun a b => b = a.map fun p => (absIConstantVal p.1, absU p.2.1, absU p.2.2))
+      (arena.inductives.positivity.nest_ctor_entry pers st c ci) st lst
+      (nestCtorEntry (absNIdx c) (absIConstantInfo ci)) := by
+  apply LSR.of_LS
+  cases ci <;> rw [arena.inductives.positivity.nest_ctor_entry, nestCtorEntry.eq_def] <;>
+    simp only [absIConstantInfo] <;> lockstep
+
+theorem ctor_entries_nf_abs (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)) :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)),
+      arena.inductives.positivity.ctor_entries_nf cs i out = ok o →
+      o.val = out.val ++ (cs.val.drop i.val).map fun p => (p.1, p.2.2) := by
+  refine vec_map_loop cs _ (arena.inductives.positivity.ctor_entries_nf cs) ?_ ?_
+  · intro i out o hn h
+    rw [arena.inductives.positivity.ctor_entries_nf.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
+    exact h.symm
+  · intro i x out o hx h
+    rw [arena.inductives.positivity.ctor_entries_nf.eq_def, if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by
+      have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [pos_i_constant_val_dup_spec _ _ hiv] at hout1
+    exact ⟨i2, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, h⟩
+
+@[lockstep] theorem ctor_entries_nf_twin
+    (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)) :
+    LSP (arena.inductives.positivity.ctor_entries_nf cs 0#usize
+        (alloc.vec.Vec.new (arena.env.IConstantVal × Std.U64)))
+      (fun o => TwinEq ((absCtors3L cs).map fun c => (c.1, c.2.2)) (absCtorsL o)) := by
+  intro o h
+  rw [TwinEq, absCtorsL, ctor_entries_nf_abs cs _ _ o h]
+  simp [absCtors3L, alloc.vec.Vec.new]
 
 end ConRon.Refine2
