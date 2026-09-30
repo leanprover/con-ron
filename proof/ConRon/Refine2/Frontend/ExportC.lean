@@ -411,10 +411,9 @@ theorem push_decl_refines {rsd lsd d rsd'} (hd : StateDRel rsd lsd)
   rw [frontend.export_c.push_decl] at h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases Result.ok_injective h
-  exact { hd with
-    decls := by
-      rw [hd.decls, ConRon.Refine.vec_push_val hv]
-      simp [absIDeclArr] }
+  refine { hd with decls := ?_ }
+  simp only [absIDeclArr, hd.decls, ConRon.Refine.vec_push_val hv, List.map_append,
+    List.map_cons, List.map_nil, List.push_toArray]
 
 /-! ## The index tables -/
 
