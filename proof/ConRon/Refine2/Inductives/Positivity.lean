@@ -1309,4 +1309,73 @@ theorem nest_phs_acc {pers} (n : Std.U64) :
     simp [nestPhs, absEIdxL, alloc.vec.Vec.new, List.range_eq_range']
   rwa [e] at h
 
+/-! ## `replace_apps_go` / `replace_apps`, `nest_canon_crest`, `nest_crest` -/
+
+theorem replace_apps_go_aux {pers} (names : alloc.vec.Vec arena.handle.NIdx)
+    (us : arena.handle.LsIdx) (b n : Std.U64) (k : Nat) :
+    ∀ (rm : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx)
+      (lm : Std.HashMap EIdx EIdx) (fuel : Std.U64) (h : arena.handle.EIdx) st lst,
+      fuel.val = k → PEMemoRel rm lm → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => ∃ m', PEMemoRel a.2 m' ∧ b = (absEIdx a.1, m'))
+        (arena.inductives.positivity.replace_apps_go pers st names us b n rm fuel h) lst
+        (replaceAppsGo (absNIdxL names) (absLsIdx us) (absU b) (absU n) lm k (absEIdx h)) := by
+  induction k with
+  | zero =>
+    intro rm lm fuel h st lst hn hm hrel hinv
+    rw [arena.inductives.positivity.replace_apps_go, replaceAppsGo]
+    lockstep
+  | succ m ih =>
+    intro rm lm fuel h st lst hn hm hrel hinv
+    rw [arena.inductives.positivity.replace_apps_go, replaceAppsGo]
+    unfold arena.inductives.positivity.replace_apps_node
+      arena.inductives.positivity.replace_apps_app
+    lockstep
+
+@[lockstep] theorem replace_apps_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx)
+    (us : arena.handle.LsIdx) (b n : Std.U64)
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx}
+    {lm : Std.HashMap EIdx EIdx} (hm : PEMemoRel rm lm) (fuel : Std.U64)
+    (h : arena.handle.EIdx) :
+    LS pers (fun a b => ∃ m', PEMemoRel a.2 m' ∧ b = (absEIdx a.1, m'))
+      (arena.inductives.positivity.replace_apps_go pers st names us b n rm fuel h) lst
+      (replaceAppsGo (absNIdxL names) (absLsIdx us) (absU b) (absU n) lm (absU fuel)
+        (absEIdx h)) :=
+  replace_apps_go_aux names us b n _ rm lm fuel h st lst rfl hm hrel hinv
+
+@[lockstep] theorem replace_apps_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx)
+    (us : arena.handle.LsIdx) (b n : Std.U64) (e : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.inductives.positivity.replace_apps pers st names us b n e) lst
+      (replaceApps (absNIdxL names) (absLsIdx us) (absU b) (absU n) (absEIdx e)) := by
+  rw [arena.inductives.positivity.replace_apps, replaceApps]
+  lockstep
+
+@[lockstep] theorem nest_canon_crest_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx)
+    (us : arena.handle.LsIdx) (n : Std.U64) (cty : arena.handle.EIdx) :
+    LS pers (fun a b => b = a.map absEIdx)
+      (arena.inductives.positivity.nest_canon_crest pers st names us n cty) lst
+      (nestCanonCrest (absNIdxL names) (absLsIdx us) (absU n) (absEIdx cty)) := by
+  rw [arena.inductives.positivity.nest_canon_crest, nestCanonCrest]
+  lockstep
+
+@[lockstep_simp] theorem fvMapWF_keyMap (a b : alloc.vec.Vec arena.handle.EIdx) :
+    FvMapWF (.KeyMap a b) = True := rfl
+@[lockstep_simp] theorem fvMapWF_erase : FvMapWF .Erase = True := rfl
+@[lockstep_simp] theorem fvMapWF_canon (a : alloc.vec.Vec arena.handle.EIdx) :
+    FvMapWF (.Canon a) = True := rfl
+
+@[lockstep] theorem nest_crest_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx)
+    (us : arena.handle.LsIdx) (ds holes : alloc.vec.Vec arena.handle.EIdx)
+    (cty : arena.handle.EIdx) :
+    LS pers (fun a b => b = a.map absEIdx)
+      (arena.inductives.positivity.nest_crest pers st names us ds holes cty) lst
+      (nestCrest (absNIdxL names) (absLsIdx us) (absEIdxL ds) (absEIdxL holes)
+        (absEIdx cty)) := by
+  rw [arena.inductives.positivity.nest_crest, nestCrest]
+  lockstep
+
 end ConRon.Refine2
