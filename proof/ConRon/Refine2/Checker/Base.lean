@@ -441,25 +441,6 @@ theorem attempt_snapshot_eq {st o : arena.monad.AState}
 
 end DupCopies
 
-/-- `attempt_snapshot` ⊑ `attemptSnapshot` — in Lean the state itself, in Rust
-a full copy of it, which is the identity in the model. -/
-theorem attempt_snapshot_refines₀ {pers st lst} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.checker_base.attempt_snapshot st = ok o) :
-    AStateRel₀ pers o (attemptSnapshot lst) ∧ AStateInv pers o := by
-  obtain rfl := attempt_snapshot_eq hrun
-  exact ⟨hrel, hinv⟩
-
-/-- `attempt_restore` ⊑ `attemptRestore` — **lockstep**: both make the
-snapshot the state, whatever state they are handed. -/
-theorem attempt_restore_refines₀ {pers st lst} {snap lsnap} {o}
-    (hsnap : AStateRel₀ pers snap lsnap) (hsinv : AStateInv pers snap)
-    (hrun : arena.checker_base.attempt_restore st snap = ok o) :
-    AStateRel₀ pers o (attemptRestore lst lsnap) ∧ AStateInv pers o := by
-  unfold arena.checker_base.attempt_restore at hrun
-  obtain rfl := Result.ok_injective hrun
-  exact ⟨hsnap, hsinv⟩
-
 /-- The twin's restore of its own snapshot is the identity — what makes its
 error arm "resume at the pre-attempt state". -/
 @[simp] theorem attemptRestore_self (s : AState) :
@@ -2323,12 +2304,6 @@ end Lockstep
 
 /-- info: 'ConRon.Refine2.attempt_snapshot_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms attempt_snapshot_eq
-
-/-- info: 'ConRon.Refine2.attempt_snapshot_refines₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms attempt_snapshot_refines₀
-
-/-- info: 'ConRon.Refine2.attempt_restore_refines₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms attempt_restore_refines₀
 
 /-- info: 'ConRon.Refine2.memo_b_get_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms memo_b_get_refines

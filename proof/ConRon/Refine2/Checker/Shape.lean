@@ -158,46 +158,6 @@ theorem AOutRel₀.ok {α β : Type} {R : α → β → Prop} {r : α} {v : β}
     (hinv : AStateInv pers st') : AOutRel₀ R pers (.Ok r) st' x :=
   ⟨v, lst', hx, hr, hrel, hinv⟩
 
-theorem AOutRel₀.err {α β : Type} {R : α → β → Prop}
-    {e : kernel.core_types.CheckError} {pers : arena.store.PersTier}
-    {st' : arena.monad.AState} {x : Except Arena.CheckError (β × AState)}
-    (h : AErrSim e x) : AOutRel₀ R pers (.Err e) st' x := h
-
-theorem AOutRel₀.dest {α β : Type} {R : α → β → Prop} {r : α}
-    {pers : arena.store.PersTier} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError (β × AState)}
-    (h : AOutRel₀ R pers (.Ok r) st' x) :
-    ∃ v lst', x = .ok (v, lst') ∧ R r v ∧ AStateRel₀ pers st' lst' ∧
-      AStateInv pers st' := h
-
-/-- The value equation is the stronger claim: a `Sim₀` feeds a `SimRel₀`
-consumer. -/
-theorem Sim₀.toSimRel₀ {α β : Type} {A : α → β} {pers : arena.store.PersTier}
-    {lst : AState}
-    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
-    {x : AM β} (h : Sim₀ A pers lst o x) :
-    SimRel₀ (fun r v => v = A r) pers lst o x := by
-  revert h
-  unfold Sim₀ SimRel₀ AOut₀ AOutRel₀
-  cases o.1 with
-  | Err e => exact id
-  | Ok r =>
-    rintro ⟨lst', hx, h1, h2⟩
-    exact ⟨A r, lst', hx, rfl, h1, h2⟩
-
-theorem SimRel₀.mono {α β : Type} {R R' : α → β → Prop}
-    {pers : arena.store.PersTier} {lst : AState}
-    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
-    {x : AM β} (h : SimRel₀ R pers lst o x) (hRR : ∀ r v, R r v → R' r v) :
-    SimRel₀ R' pers lst o x := by
-  revert h
-  unfold SimRel₀ AOutRel₀
-  cases o.1 with
-  | Err e => exact id
-  | Ok r =>
-    rintro ⟨v, lst', hx, hr, h1, h2⟩
-    exact ⟨v, lst', hx, hRR _ _ hr, h1, h2⟩
-
 /-! ## `SimRE` — a reader that can FAIL
 
 `Refine2/Shape.lean`'s `SimR` is `Result`-valued but never `Err`, which is

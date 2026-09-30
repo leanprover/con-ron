@@ -150,10 +150,6 @@ theorem AErrSim.invalid {γ : Type} {x : Except Arena.CheckError γ} {m s}
 theorem AErrSim.internal {γ : Type} {x : Except Arena.CheckError γ} {m s}
     (hx : x = .error (.internal s)) : AErrSim (.Internal m) x := AErrSim.mk hx rfl
 
-/-- A port `Native` against the twin's `.native` (task #98-NATIVE). -/
-theorem AErrSim.native {γ : Type} {x : Except Arena.CheckError γ} {m s}
-    (hx : x = .error (.native s)) : AErrSim (.Native m) x := AErrSim.mk hx rfl
-
 /-- An error of the kind `absAErrKind e` names, as a twin throw. -/
 theorem AErrSim.of_kind {γ : Type} {e : kernel.core_types.CheckError}
     {x : Except Arena.CheckError γ} {le : Arena.CheckError} {k : AErrKind}
@@ -184,33 +180,11 @@ theorem AErrSim.of_eq {γ : Type} {e : kernel.core_types.CheckError}
 
 /-! ## The whole outcome -/
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `AOut₀`.
-The obligation a Rust outcome puts on the twin's run.  `lst` is the
-twin state the call STARTED in (the one `Ext` is measured from and the one
-`AStateRel pers st lst` relates to the Rust's pre-state). -/
-def AOut {α β : Type} (A : α → β) (WF : α → Prop)
-    (pers : arena.store.PersTier) (lst : AState)
-    (o : core.result.Result α kernel.core_types.CheckError)
-    (st' : arena.monad.AState)
-    (x : Except Arena.CheckError (β × AState)) : Prop :=
-  match o with
-  | .Ok r => ∃ lst', x = .ok (A r, lst') ∧ AStateRel pers st' lst' ∧
-      AStateInv pers st' ∧ Ext lst.store lst'.store ∧ WF r
-  | .Err e => AErrSim e x
-
 /-! ## `Sim` — the statement a Theorem-2 lemma is written with
 
 One definition for the whole tier, over the Rust outcome PAIR the arena's
 functions return (`(Result R CheckError) × AState`), so that a lemma's
 conclusion is one application and the `@[grind →]` rules key on it. -/
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `Sim₀`.
-The simulation statement for a state-threading Rust function. -/
-def Sim {α β : Type} (A : α → β) (WF : α → Prop)
-    (pers : arena.store.PersTier) (lst : AState)
-    (o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState)
-    (x : AM β) : Prop :=
-  AOut A WF pers lst o.1 o.2 (x.run lst)
 
 /-- **The read-only simulation**, for the arena's state READERS (`monad::{view,
 view_app, derived_e, inst1_get, …}` and the `store::*` projections under
@@ -221,31 +195,6 @@ def SimR {α β : Type} (A : α → β) (lst : AState) (r : α) (x : AM β) : Pr
 
 theorem SimR.apply {α β : Type} {A : α → β} {lst : AState} {r : α} {x : AM β}
     (h : SimR A lst r x) : x.run lst = .ok (A r, lst) := h
-
-/-- **The read-only simulation, up to an OBSERVATION of the answer.**  The
-derived column is the one place where the two halves cannot be related as
-VALUES — `Refine2/AbsStore.lean`'s note on `derObsE` says why: con-leche's
-`mixHash` is `opaque`, the port's `mix_hash` is concrete, and no proof relates
-the two — so `derived_e`/`derived_l` answer "the same word up to its hash",
-which is what every reader of the word actually uses. -/
-def SimRO {α β γ : Type} (A : α → β) (obs : β → γ) (lst : AState) (r : α)
-    (x : AM β) : Prop :=
-  ∃ v, x.run lst = .ok (v, lst) ∧ obs v = obs (A r)
-
-theorem SimRO.mk {α β γ : Type} {A : α → β} {obs : β → γ} {lst : AState} {r : α}
-    {v : β} {x : AM β} (hx : x.run lst = .ok (v, lst)) (ho : obs v = obs (A r)) :
-    SimRO A obs lst r x := ⟨v, hx, ho⟩
-
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `SimS₀`.
-**The total state-threading simulation**, for the Rust functions whose
-signature is `Result AState` with no inner `Result` at all — the thirteen memo
-inserts, the thirteen memo clears, `enter_scratch`/`drop_scratch`/
-`flush_caches`.  They cannot fail, so there is no error arm and the twin's
-action is `AM Unit`. -/
-def SimS (pers : arena.store.PersTier) (lst : AState)
-    (st' : arena.monad.AState) (x : AM Unit) : Prop :=
-  ∃ lst', x.run lst = .ok ((), lst') ∧ AStateRel pers st' lst' ∧
-    AStateInv pers st' ∧ Ext lst.store lst'.store
 
 /-! ## The lockstep outcome (task #97-P5-Core round 4)
 
@@ -284,18 +233,6 @@ theorem AOut₀.of_eq {α β : Type} {A : α → β} {pers : arena.store.PersTie
     (h : AOut₀ A pers o st' x) (hxy : y = x) : AOut₀ A pers o st' y := by
   rw [hxy]; exact h
 
-/-- Every `AOut` is a lockstep outcome. -/
-theorem AOut.to₀ {α β : Type} {A : α → β} {WF : α → Prop}
-    {pers : arena.store.PersTier} {lst : AState}
-    {o : core.result.Result α kernel.core_types.CheckError}
-    {st' : arena.monad.AState} {x : Except Arena.CheckError (β × AState)}
-    (h : AOut A WF pers lst o st' x) : AOut₀ A pers o st' x := by
-  cases o with
-  | Err e => exact h
-  | Ok r =>
-    obtain ⟨lst', hx, h1, h2, -⟩ := h
-    exact ⟨lst', hx, h1.to₀, h2⟩
-
 /-- The lockstep simulation statement for a state-threading Rust function. -/
 def Sim₀ {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : AState)
     (o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState)
@@ -311,30 +248,6 @@ theorem Sim₀.apply {α β : Type} {A : α → β} {pers : arena.store.PersTier
 theorem Sim₀.apply_err {α β : Type} {A : α → β} {pers : arena.store.PersTier}
     {lst : AState} {e : kernel.core_types.CheckError} {st' : arena.monad.AState}
     {x : AM β} (h : Sim₀ A pers lst (.Err e, st') x) : AErrSim e (x.run lst) := h
-
-theorem Sim.to₀ {α β : Type} {A : α → β} {WF : α → Prop}
-    {pers : arena.store.PersTier} {lst : AState}
-    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
-    {x : AM β} (h : Sim A WF pers lst o x) : Sim₀ A pers lst o x := AOut.to₀ h
-
-/-- **The projection back to `Sim`**, for a consumer that still wants
-`AStateRel` and `Ext`: the twin's two facts about its own run — the store it
-ends at is well formed and extends the one it started at — are supplied from
-outside (Theorem 1), not threaded through the lockstep statement. -/
-theorem Sim₀.toSim {α β : Type} {A : α → β} {WF : α → Prop}
-    {pers : arena.store.PersTier} {lst : AState}
-    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
-    {x : AM β} (h : Sim₀ A pers lst o x)
-    (htw : ∀ b lst', x.run lst = .ok (b, lst') →
-      StoreWF lst'.store ∧ Ext lst.store lst'.store)
-    (hwf : ∀ r, o.1 = .Ok r → WF r) : Sim A WF pers lst o x := by
-  obtain ⟨o1, o2⟩ := o
-  cases o1 with
-  | Err e => exact h
-  | Ok r =>
-    obtain ⟨lst', hx, h1, h2⟩ := h
-    obtain ⟨hw, he⟩ := htw _ _ hx
-    exact ⟨lst', hx, h1.of₀ hw, h2, he, hwf r rfl⟩
 
 /-- The lockstep outcome of a twin action that cannot fail and answers `()`. -/
 def SimS₀ (pers : arena.store.PersTier) (lst : AState)
@@ -369,17 +282,6 @@ destructors, and the projections from the old shapes.  A result that wants a
 well-formedness predicate states it through `SimRel₀`'s relation
 (`Refine2/Checker/Shape.lean`), as `SimRel` already does. -/
 
-theorem AOut₀.native {α β : Type} {A : α → β} {pers : arena.store.PersTier}
-    {st' : arena.monad.AState} {x : Except Arena.CheckError (β × AState)} {m s}
-    (hx : x = .error (.native s)) :
-    AOut₀ A pers (.Err (.Native m)) st' x := AErrSim.native hx
-
-theorem AOut₀.dest {α β : Type} {A : α → β} {r : α}
-    {pers : arena.store.PersTier} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError (β × AState)} (h : AOut₀ A pers (.Ok r) st' x) :
-    ∃ lst', x = .ok (A r, lst') ∧ AStateRel₀ pers st' lst' ∧
-      AStateInv pers st' := h
-
 theorem AOut₀.destErr {α β : Type} {A : α → β}
     {e : kernel.core_types.CheckError} {pers : arena.store.PersTier}
     {st' : arena.monad.AState} {x : Except Arena.CheckError (β × AState)}
@@ -394,22 +296,5 @@ theorem Sim₀.dest {α β : Type} {A : α → β} {pers : arena.store.PersTier}
     {lst : AState}
     {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
     {x : AM β} (h : Sim₀ A pers lst o x) : AOut₀ A pers o.1 o.2 (x.run lst) := h
-
-/-- The old total simulation is a lockstep one. -/
-theorem SimS.to₀ {pers : arena.store.PersTier} {lst : AState}
-    {st' : arena.monad.AState} {x : AM Unit} (h : SimS pers lst st' x) :
-    SimS₀ pers lst st' x := by
-  obtain ⟨lst', hx, h1, h2, -⟩ := h
-  exact ⟨lst', hx, h1.to₀, h2⟩
-
-/-- Back to the old total simulation, given the twin's two facts about its own
-run from Theorem 1. -/
-theorem SimS₀.toSimS {pers : arena.store.PersTier} {lst : AState}
-    {st' : arena.monad.AState} {x : AM Unit} (h : SimS₀ pers lst st' x)
-    (htw : ∀ lst', x.run lst = .ok ((), lst') →
-      StoreWF lst'.store ∧ Ext lst.store lst'.store) : SimS pers lst st' x := by
-  obtain ⟨lst', hx, h1, h2⟩ := h
-  obtain ⟨hw, he⟩ := htw _ hx
-  exact ⟨lst', hx, h1.of₀ hw, h2, he⟩
 
 end ConRon.Refine2

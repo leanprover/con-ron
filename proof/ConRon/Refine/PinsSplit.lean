@@ -66,11 +66,6 @@ def ulen : List Char → Nat
   | nil => simp
   | cons d a ih => simp [ih, Nat.add_assoc]
 
-/-- Advancing a raw position past a character adds its UTF-8 size. -/
-theorem pos_add_char {n : Nat} {d : Char} :
-    ((⟨n⟩ : String.Pos.Raw) + d) = ⟨n + d.utf8Size⟩ := by
-  simp [String.Pos.Raw.ext_iff]
-
 /-! ## Reading one character
 
 `String.Pos.Raw.get` is `utf8GetAux` on the character list, which walks the
@@ -80,48 +75,6 @@ list adding sizes until it reaches the requested offset. -/
 
 `String.Pos.Raw.extract` is two loops: `go₁` skips to the start offset, `go₂`
 collects up to the end offset.  Each gets its own invariant. -/
-
-/-- `go₂` from offset `n` to offset `n + ulen q` collects exactly `q`. -/
-theorem extract_go₂ {e : List Char} :
-    ∀ (q : List Char) (n : Nat),
-      String.Pos.Raw.extract.go₂ (q ++ e) ⟨n⟩ ⟨n + ulen q⟩ = q := by
-  intro q
-  induction q with
-  | nil =>
-    intro n
-    cases e with
-    | nil => simp [String.Pos.Raw.extract.go₂]
-    | cons d ds => simp [String.Pos.Raw.extract.go₂]
-  | cons d q ih =>
-    intro n
-    have hpos := Char.utf8Size_pos d
-    show String.Pos.Raw.extract.go₂ (d :: (q ++ e)) ⟨n⟩ ⟨n + (d.utf8Size + ulen q)⟩ = _
-    rw [String.Pos.Raw.extract.go₂,
-      if_neg (by simp [String.Pos.Raw.ext_iff]; omega)]
-    rw [pos_add_char, show n + (d.utf8Size + ulen q) = (n + d.utf8Size) + ulen q from by omega,
-      ih]
-
-/-- `go₁` skips the prefix `p` and hands over to `go₂` at offset `n + ulen p`. -/
-theorem extract_go₁ {q : List Char} {e : String.Pos.Raw} :
-    ∀ (p : List Char) (n : Nat),
-      String.Pos.Raw.extract.go₁ (p ++ q) ⟨n⟩ ⟨n + ulen p⟩ e
-        = String.Pos.Raw.extract.go₂ q ⟨n + ulen p⟩ e := by
-  intro p
-  induction p with
-  | nil =>
-    intro n
-    cases q with
-    | nil => simp [String.Pos.Raw.extract.go₁, String.Pos.Raw.extract.go₂]
-    | cons d ds => simp [String.Pos.Raw.extract.go₁]
-  | cons d p ih =>
-    intro n
-    have hpos := Char.utf8Size_pos d
-    show String.Pos.Raw.extract.go₁ (d :: (p ++ q)) ⟨n⟩ ⟨n + (d.utf8Size + ulen p)⟩ e = _
-    rw [String.Pos.Raw.extract.go₁,
-      if_neg (by simp [String.Pos.Raw.ext_iff]; omega)]
-    rw [pos_add_char, show n + (d.utf8Size + ulen p) = (n + d.utf8Size) + ulen p from by omega,
-      ih]
-    simp [Nat.add_assoc]
 
 /-! ## The scan -/
 

@@ -343,11 +343,6 @@ structure AStateRel₀ (pers : arena.store.PersTier) (rs : arena.monad.AState)
   caches : CachesRel rs.caches ls.caches
   pins : PinsRel rs.pins ls.pins
 
-/-- The projection a consumer of the lockstep relation takes. -/
-theorem AStateRel.to₀ {pers : arena.store.PersTier} {rs : arena.monad.AState}
-    {ls : AState} (h : AStateRel pers rs ls) : AStateRel₀ pers rs ls :=
-  ⟨h.store, h.memos, h.caches, h.pins⟩
-
 /-- Back again, given the twin's own invariant. -/
 theorem AStateRel₀.of₀ {pers : arena.store.PersTier} {rs : arena.monad.AState}
     {ls : AState} (h : AStateRel₀ pers rs ls) (hwf : StoreWF ls.store) :

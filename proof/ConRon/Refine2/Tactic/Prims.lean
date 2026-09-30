@@ -1355,15 +1355,6 @@ theorem LSV.ofLS {α β : Type} {pers : arena.store.PersTier} {R : α → β →
   intro a hm
   exact h (.Ok a) st (by rw [hm, Aeneas.Std.bind_tc_ok])
 
-/-- The public `SimR`-shaped statement of a total read from its `LSV`, when the
-twin action leaves the state alone. -/
-theorem LSV.toAOut₀ {α β : Type} {A : α → β} {pers : arena.store.PersTier}
-    {m : Result α} {st : arena.monad.AState} {lst : AState} {x : AM β} {a : α}
-    (h : LSV pers (fun a b => b = A a) m st lst x) (hm : m = ok a) :
-    ∃ lst', x.run lst = .ok (A a, lst') ∧ AStateRel₀ pers st lst' ∧ AStateInv pers st := by
-  obtain ⟨b, lst', hx, rfl, h1, h2⟩ := h a hm
-  exact ⟨lst', hx, h1, h2⟩
-
 /-! ### The three walk-local memos (`ExprOps/Pure.lean`'s relations) -/
 
 @[lockstep] theorem wscoped_memo_get_spec {memo : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
@@ -1824,21 +1815,5 @@ macro_rules
 (task #97-T2-LOCKSTEP lane Inductives Modeled round 2: the modeled route's
 `nested_rule_shape_args` reads the parameter names).  `read_names_ls`,
 `read_levels_ls` and the `_wf` lemmas are with the other reads above. -/
-
-/-- A Rust READ's `LSR` from its `_run₀` (`AOut₀`) statement and a
-well-formedness fact about its answer. -/
-theorem LSR.ofAOut₀WF {α β : Type} {A : α → β} {P : α → Prop} {pers : arena.store.PersTier}
-    {m : Result (core.result.Result α kernel.core_types.CheckError)}
-    {st : arena.monad.AState} {lst : AState} {x : AM β}
-    (h : ∀ o, m = ok o → AOut₀ A pers o st (x.run lst))
-    (hP : ∀ o, m = ok o → ∀ a, o = .Ok a → P a) :
-    LSR pers (fun a b => P a ∧ b = A a) m st lst x := by
-  intro o hm
-  have := h o hm
-  cases o with
-  | Err e => exact this
-  | Ok a =>
-    obtain ⟨lst', hx, h1, h2⟩ := this
-    exact ⟨_, lst', hx, ⟨hP _ hm a rfl, rfl⟩, h1, h2⟩
 
 end ConRon.Refine2.Lockstep
