@@ -35,6 +35,7 @@ import ConRon.Bridge.Inductives.Rel
 import ConRon.Bridge.Inductives.PosWalks
 import ConRon.Bridge.Inductives.StructParts
 import ConLeche.Verify.Inductives.RecCheckScope
+import ConLeche.Verify.Cached.TargetRecC
 
 namespace ConRon.Bridge.Inductives
 
@@ -643,6 +644,183 @@ theorem closed4_bind_run {β : Type} {k : Bool → AM β} {s₀ s' : AState} {a 
           decide (bP.fvarB ≤ n)) = decide (bP.fvarB ≤ n) := by simp [c1, c2, this]
         rw [e]; exact z4
 
+/-! ### The block's shape, taken apart -/
+
+/-- con-leche: none — a denoted shape, field by field. -/
+theorem dShape_inv {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    (h : dShape st p = some pP) :
+    p.members.mapM (dMember st) = some pP.members ∧ p.recs.mapM (dRec st) = some pP.recs ∧
+      p.nP = pP.nP ∧ denoteN st.ns p.elim = some pP.elim ∧
+      denoteL st.ls p.resSort = some pP.resSort ∧ p.large = pP.large ∧
+      p.isProp = pP.isProp := by
+  simp only [dShape] at h
+  cases h1 : p.members.mapM (dMember st) with
+  | none => rw [h1] at h; exact nomatch h
+  | some ms =>
+  cases h2 : p.recs.mapM (dRec st) with
+  | none => rw [h1, h2] at h; exact nomatch h
+  | some rs =>
+  cases h3 : denoteN st.ns p.elim with
+  | none => rw [h1, h2, h3] at h; exact nomatch h
+  | some el =>
+  cases h4 : denoteL st.ls p.resSort with
+  | none => rw [h1, h2, h3, h4] at h; exact nomatch h
+  | some so =>
+  rw [h1, h2, h3, h4] at h
+  obtain rfl := (Option.some.inj h).symm
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- con-leche: none — a denoted member, field by field. -/
+theorem dMember_inv {st : EStore} {m : Arena.MemberShape} {mP : ConLeche.MemberShape}
+    (h : dMember st m = some mP) :
+    Frontend.denoteCV st m.cvT = some mP.cvT ∧ m.nIdx = mP.nIdx ∧
+      dCtors st m.ctors = some mP.ctors := by
+  simp only [dMember] at h
+  cases h1 : Frontend.denoteCV st m.cvT with
+  | none => rw [h1] at h; exact nomatch h
+  | some cv =>
+  cases h2 : dCtors st m.ctors with
+  | none => rw [h1, h2] at h; exact nomatch h
+  | some cs =>
+  rw [h1, h2] at h
+  obtain rfl := (Option.some.inj h).symm
+  exact ⟨rfl, rfl, rfl⟩
+
+/-- con-leche: none — a denoted recursor record, field by field. -/
+theorem dRec_inv {st : EStore} {r : Arena.RecShape} {rP : ConLeche.RecShape}
+    (h : dRec st r = some rP) :
+    Frontend.denoteCV st r.cvR = some rP.cvR ∧ r.rP = rP.rP ∧ r.mI = rP.mI ∧
+      r.tgt = rP.tgt ∧ Frontend.denoteEList st r.rhss = some rP.rhss := by
+  simp only [dRec] at h
+  cases h1 : Frontend.denoteCV st r.cvR with
+  | none => rw [h1] at h; exact nomatch h
+  | some cv =>
+  cases h2 : Frontend.denoteEList st r.rhss with
+  | none => rw [h1, h2] at h; exact nomatch h
+  | some rh =>
+  rw [h1, h2] at h
+  obtain rfl := (Option.some.inj h).symm
+  exact ⟨rfl, rfl, rfl, rfl, rfl⟩
+
+/-- con-leche: none — the members' names of a denoted member list. -/
+theorem members_names {st : EStore} :
+    ∀ {ms : List Arena.MemberShape} {msP : List ConLeche.MemberShape},
+      ms.mapM (dMember st) = some msP →
+      Frontend.denoteNList st.ns (ms.map (·.cvT.name)) = some (msP.map (·.cvT.name)) := by
+  intro ms
+  induction ms with
+  | nil => intro msP h; simp only [List.mapM_nil] at h; cases h; rfl
+  | cons m ms ih =>
+    intro msP h
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h
+    cases hm : dMember st m with
+    | none => rw [hm] at h; simp at h
+    | some mP =>
+      rw [hm] at h
+      cases hms : ms.mapM (dMember st) with
+      | none => rw [hms] at h; simp at h
+      | some rest =>
+        rw [hms] at h
+        simp only [Option.bind_some, Option.some.injEq] at h
+        subst h
+        simp only [List.map_cons, Frontend.denoteNList,
+          denoteCV_name (dMember_inv hm).1, ih hms]
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:137-138
+BlockShape.memberNames — the member names denote. -/
+theorem dShape_memberNames {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    (h : dShape st p = some pP) :
+    Frontend.denoteNList st.ns p.memberNames = some pP.memberNames :=
+  members_names (dShape_inv h).1
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:141-144 BlockShape.lps
+— the block's level parameters denote. -/
+theorem dShape_lps {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    (h : dShape st p = some pP) :
+    Frontend.denoteNList st.ns p.lps = some pP.lps := by
+  have hm := (dShape_inv h).1
+  simp only [Arena.BlockShape.lps, ConLeche.BlockShape.lps]
+  cases hp : p.members with
+  | nil =>
+    rw [hp] at hm
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hm
+    rw [← hm]; rfl
+  | cons m ms =>
+    rw [hp] at hm
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at hm
+    cases hmm : dMember st m with
+    | none => rw [hmm] at hm; simp at hm
+    | some mP =>
+      rw [hmm] at hm
+      cases hms : ms.mapM (dMember st) with
+      | none => rw [hms] at hm; simp at hm
+      | some rest =>
+        rw [hms] at hm
+        simp only [Option.bind_some, Option.some.injEq] at hm
+        rw [← hm]
+        exact denoteCV_lps (dMember_inv hmm).1
+
+/-- con-leche: none — a denoted constructor list's name test is the pure one. -/
+theorem ctors_any_name {st : EStore} (hwf : StoreWF st) {n : NIdx} {nP : ConLeche.Name}
+    (hn : denoteN st.ns n = some nP) :
+    ∀ {cs : List (IConstantVal × Nat)} {csP : List (ConstantVal × Nat)},
+      dCtors st cs = some csP → cs.any (·.1.name == n) = csP.any (·.1.name == nP) := by
+  intro cs
+  induction cs with
+  | nil => intro csP h; simp only [dCtors, List.mapM_nil] at h; cases h; rfl
+  | cons c cs ih =>
+    intro csP h
+    simp only [dCtors, List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h
+    cases hc : dCtor st c with
+    | none => rw [hc] at h; simp at h
+    | some cP =>
+      rw [hc] at h
+      cases hcs : cs.mapM (dCtor st) with
+      | none => rw [hcs] at h; simp at h
+      | some rest =>
+        rw [hcs] at h
+        simp only [Option.bind_some, Option.some.injEq] at h
+        subst h
+        simp only [dCtor, Option.map_eq_some_iff] at hc
+        obtain ⟨cv, hcv, rfl⟩ := hc
+        simp only [List.any_cons, beq_handle_eq hwf (denoteCV_name hcv) hn, ih hcs]
+
+/-- con-leche: none — a denoted normal-form entry, field by field. -/
+theorem dCtorNf_inv {st : EStore} {n : Arena.NestCtorNf} {nP : ConLeche.NestCtorNf}
+    (h : dCtorNf st n = some nP) :
+    denoteN st.ns n.ctor = some nP.ctor ∧ denoteLs st.lss n.lvls = some nP.lvls ∧
+      Frontend.denoteEList st n.ds = some nP.ds ∧ denoteE st n.ty = some nP.ty := by
+  simp only [dCtorNf] at h
+  cases h1 : denoteN st.ns n.ctor with
+  | none => rw [h1] at h; exact nomatch h
+  | some c =>
+  cases h2 : denoteLs st.lss n.lvls with
+  | none => rw [h1, h2] at h; exact nomatch h
+  | some us =>
+  cases h3 : Frontend.denoteEList st n.ds with
+  | none => rw [h1, h2, h3] at h; exact nomatch h
+  | some ds =>
+  cases h4 : denoteE st n.ty with
+  | none => rw [h1, h2, h3, h4] at h; exact nomatch h
+  | some ty =>
+  rw [h1, h2, h3, h4] at h
+  obtain rfl := (Option.some.inj h).symm
+  exact ⟨rfl, rfl, rfl, rfl⟩
+
+/-- con-leche: none — `lvlsEq?` in run form at the core grade. -/
+theorem lvlsEq?_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s₀ s' : AState}
+    {us vs : LsIdx} {usP vsP : List Level} {r : Option Bool}
+    (hok : CheckOK μ env fe s₀) (hu : denoteLs s₀.store.lss us = some usP)
+    (hv : denoteLs s₀.store.lss vs = some vsP)
+    (hrun : Arena.lvlsEq? us vs s₀ = .ok (r, s')) :
+    CoreStep μ env fe s₀ s' ∧ r = Level.isEquivList usP vsP := by
+  obtain ⟨h1, h2, h3, lus, lvs, hu', hv', hr⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (Core.lvlsEq?_spec s₀ us vs hok)
+  rw [hu] at hu'; rw [hv] at hv'
+  obtain rfl := Option.some.inj hu'
+  obtain rfl := Option.some.inj hv'
+  exact ⟨⟨h1, by rw [h2]; exact Ext.refl _, h3⟩, hr⟩
+
 end RC
 
 /-! ## The class match, per component -/
@@ -787,5 +965,147 @@ theorem targetParamsDefEq_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       obtain ⟨rfl, rfl⟩ := pureOk z1
       rw [if_neg (by rw [hcl]; simp)]
       exact ⟨c1, false, rfl, FOk.pure false⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:331-340 targetClassMatch
+**A class matches a recorded instantiation**: the levels by
+`Level.isEquivList` (the cached `lvlsEq?`), then `targetParamsDefEq` over
+the class's openers with the members abstracted to the holes on top.  The
+scoping hypotheses are the cached bridge's (`targetClassMatchS_sim`): the
+formers closed, the openers scoped by their own count. -/
+theorem targetClassMatch_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
+    (formerTys pfvs : List EIdx) (formerTysP pfvsP : List Expr)
+    (us lvls : LsIdx) (usP lvlsP : List Level) (ds eds : List EIdx) (dsP edsP : List Expr)
+    (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t)
+    (hp : ∀ x ∈ pfvsP, Expr.WScoped pfvsP.length x) :
+    CSpecF μ env fe
+      (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
+        Frontend.denoteEList st pfvs = some pfvsP ∧ denoteLs st.lss us = some usP ∧
+        Frontend.denoteEList st ds = some dsP ∧ denoteLs st.lss lvls = some lvlsP ∧
+        Frontend.denoteEList st eds = some edsP)
+      (Arena.targetClassMatch μ fe p formerTys pfvs us ds lvls eds)
+      (fun _ r v => r = v)
+      (ConLeche.targetClassMatch (fueledOpsM μ) env pP formerTysP pfvsP usP dsP lvlsP edsP) := by
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hsh, hft, hpf, hus, hds, hlv, heds⟩ := hpre
+  simp only [Arena.targetClassMatch] at hrun
+  obtain ⟨q, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨c1, rfl⟩ := RC.lvlsEq?_run hok hus hlv k1
+  simp only [ConLeche.targetClassMatch]
+  cases hq : Level.isEquivList usP lvlsP with
+  | none =>
+    rw [hq] at z1
+    obtain ⟨rfl, rfl⟩ := pureOk z1
+    exact ⟨c1, false, rfl, by simp only [reduceCtorEq, beq_iff_eq]; exact FOk.pure false⟩
+  | some b =>
+    cases b with
+    | false =>
+      rw [hq] at z1
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      exact ⟨c1, false, rfl, by simp; exact FOk.pure false⟩
+    | true =>
+      rw [hq] at z1
+      dsimp only at z1
+      obtain ⟨bl, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨c2, hbl⟩ := RC.pspec_core (paramLevels_spec p.lps pP.lps) c1.ok
+        (denoteNListE_ext c1.ext _ _ (RC.dShape_lps hsh)) k2
+      have c12 := c1.trans c2
+      obtain ⟨hs, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨c3, hhs⟩ := RC.pspec_core (targetHoles_spec formerTys formerTysP pfvs.length)
+        c2.ok (denoteEList_ext c12.ext _ _ hft) k3
+      have c13 := c12.trans c3
+      have hlen : pfvs.length = pfvsP.length := PW.denoteEList_length hpf
+      rw [hlen] at hhs z3
+      obtain ⟨c4, v, rfl, hv⟩ := targetParamsDefEq_spec fe hk henv
+        (pfvsP.length + formerTysP.length) p.memberNames bl hs pfvs pP.memberNames
+        (pP.lps.map Level.param) (ConLeche.targetHoles formerTysP pfvsP.length) pfvsP
+        (targetAbs_WScoped (Cached.targetHoles_WScoped hformer pfvsP.length))
+        (fun x hx => (hp x hx).mono (by omega)) ds eds dsP edsP s3 s' r c3.ok
+        ⟨⟨denoteNListE_ext c13.ext _ _ (RC.dShape_memberNames hsh),
+            denoteLs_ext hbl c3.ext, hhs⟩,
+          denoteEList_ext c13.ext _ _ hpf, denoteEList_ext c13.ext _ _ hds,
+          denoteEList_ext c13.ext _ _ heds⟩ (by rw [← PW.denoteEList_length hft]; exact z3)
+      exact ⟨c13.trans c4, r, rfl, by simpa using hv⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:342-354 targetMajorNfs
+**The walk's recorded constructor normal forms of a class**: the entries of
+the class's constructors whose instantiation the class matches, the tail
+first. -/
+theorem targetMajorNfs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
+    (formerTys pfvs : List EIdx) (formerTysP pfvsP : List Expr)
+    (us : LsIdx) (usP : List Level) (ds : List EIdx) (dsP : List Expr)
+    (ctors : List (IConstantVal × Nat)) (ctorsP : List (ConstantVal × Nat))
+    (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t)
+    (hp : ∀ x ∈ pfvsP, Expr.WScoped pfvsP.length x) :
+    ∀ (es : List Arena.NestCtorNf) (esP : List ConLeche.NestCtorNf),
+    CSpecF μ env fe
+      (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
+        Frontend.denoteEList st pfvs = some pfvsP ∧ denoteLs st.lss us = some usP ∧
+        Frontend.denoteEList st ds = some dsP ∧ dCtors st ctors = some ctorsP ∧
+        es.mapM (dCtorNf st) = some esP)
+      (Arena.targetMajorNfs μ fe p formerTys pfvs us ds ctors es)
+      (fun st r v => r.mapM (dCtorNf st) = some v)
+      (ConLeche.targetMajorNfs (fueledOpsM μ) env pP formerTysP pfvsP usP dsP ctorsP esP) := by
+  intro es
+  induction es with
+  | nil =>
+    intro esP s₀ s' r hok hpre hrun
+    obtain ⟨-, -, -, -, -, -, hes⟩ := hpre
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hes
+    subst hes
+    simp only [Arena.targetMajorNfs] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, [], rfl, by simp only [ConLeche.targetMajorNfs]; exact FOk.pure _⟩
+  | cons e es ih =>
+    intro esP s₀ s' r hok hpre hrun
+    obtain ⟨hsh, hft, hpf, hus, hds, hcs, hes⟩ := hpre
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at hes
+    cases he : dCtorNf s₀.store e with
+    | none => rw [he] at hes; simp at hes
+    | some eP =>
+    rw [he] at hes
+    cases hes' : es.mapM (dCtorNf s₀.store) with
+    | none => rw [hes'] at hes; simp at hes
+    | some esP' =>
+    rw [hes'] at hes
+    simp only [Option.bind_some, Option.some.injEq] at hes
+    subst hes
+    simp only [Arena.targetMajorNfs] at hrun
+    obtain ⟨rest, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨c1, v, hv, hF⟩ := ih esP' s₀ s1 rest hok ⟨hsh, hft, hpf, hus, hds, hcs, hes'⟩ k1
+    obtain ⟨hctor, hlv, hed, -⟩ := RC.dCtorNf_inv (dCtorNf_ext c1.ext _ _ he)
+    have hany := RC.ctors_any_name c1.ok.state.wf hctor (dCtors_ext c1.ext _ _ hcs)
+    simp only [ConLeche.targetMajorNfs]
+    by_cases ha : (ctors.any (·.1.name == e.ctor)) = true
+    · rw [if_pos ha] at z1
+      have ha' : (ctorsP.any (·.1.name == eP.ctor)) = true := by rw [← hany]; exact ha
+      obtain ⟨m, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨c2, w, rfl, hW⟩ := targetClassMatch_spec fe hk henv p pP formerTys pfvs
+        formerTysP pfvsP us e.lvls usP eP.lvls ds e.ds dsP eP.ds hformer hp s1 s2 m c1.ok
+        ⟨dShape_ext c1.ext _ _ hsh, denoteEList_ext c1.ext _ _ hft,
+          denoteEList_ext c1.ext _ _ hpf, denoteLs_ext hus c1.ext,
+          denoteEList_ext c1.ext _ _ hds, hlv, hed⟩ k2
+      have hv2 : rest.mapM (dCtorNf s2.store) = some v := dCtorNf_ext.list c2.ext _ _ hv
+      have he2 : dCtorNf s2.store e = some eP := dCtorNf_ext (c1.ext.trans c2.ext) _ _ he
+      cases m with
+      | true =>
+        simp only [↓reduceIte] at z2
+        obtain ⟨rfl, rfl⟩ := pureOk z2
+        refine ⟨c1.trans c2, eP :: v, ?_, ?_⟩
+        · simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def, he2, hv2,
+            Option.bind_some]
+        · exact FOk.bind hF (by rw [if_pos ha']; exact FOk.bind hW (by simp; exact FOk.pure _))
+      | false =>
+        simp only [Bool.false_eq_true, ↓reduceIte] at z2
+        obtain ⟨rfl, rfl⟩ := pureOk z2
+        refine ⟨c1.trans c2, v, hv2, ?_⟩
+        exact FOk.bind hF (by rw [if_pos ha']; exact FOk.bind hW (by simp; exact FOk.pure _))
+    · rw [if_neg ha] at z1
+      have ha' : ¬ (ctorsP.any (·.1.name == eP.ctor)) = true := by rw [← hany]; exact ha
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      exact ⟨c1, v, hv, FOk.bind hF (by rw [if_neg ha']; exact FOk.pure _)⟩
 
 end ConRon.Bridge.Inductives
