@@ -568,6 +568,27 @@ discharging `Core/Arms/Loops.lean`'s `reduce_nat_refines` through
 
 end
 
+/-! ## The recursor-name reservation (task #105, con-leche's GENREC) -/
+
+/-- `lit_guard_names` ⊑ `litGuardNames`: the ten literal-guard names, off the
+pin table. -/
+@[lockstep] theorem lit_guard_names_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdxList a) (arena.core.lit_guard_names st) st lst
+      litGuardNames := by
+  apply LSR.of_LS
+  rw [arena.core.lit_guard_names, litGuardNames]
+  lockstep_core
+
+/-- `reserved_rec_name` ⊑ `reservedRecName`: the cited `||` chain over the
+four reserved lists. -/
+@[lockstep] theorem reserved_rec_name_ls {pers st n lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.reserved_rec_name st n) lst
+      (reservedRecName (absNIdx n)) := by
+  rw [arena.core.reserved_rec_name, reservedRecName]
+  lockstep_core
+
 /-! ## Axiom census -/
 
 /-- info: 'ConRon.Refine2.Lockstep.reduce_nat_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
