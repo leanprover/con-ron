@@ -2367,6 +2367,6 @@ theorem install_ind_d_refines {pers rst lst rsd lsd tys cts rcs n_pd o}
     refine SimD.mk (pers := pers) ?_ hPD hi hrel hinv
     rw [am_run_bind', show (indBlockOf lsd (absIndTypeRecs tys) (absIndCtorRecs cts)
         (absIndRecRecs rcs)).run lst = _ from hB, except_ok_bind]
-    simp only [absICIL, absIDeclaration]
+    simp only [absICIL, absIDeclaration] <;> rfl
 
 end ConRon.Refine2.Frontend
