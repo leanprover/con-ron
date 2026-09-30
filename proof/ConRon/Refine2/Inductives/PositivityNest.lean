@@ -311,4 +311,52 @@ attribute [local lockstep high] pn_eidx_vec_dup_spec
     simp only [absEIdxL, absNIdxLFrom, absGrpL, hgrp, hj', List.map_append, List.map_cons,
       List.map_nil]
 
+/-! ## The member holes: `nest_holes` -/
+
+/-- `nest_holes` ⊑ `nestHoles.go` from the member cursor on. -/
+theorem nest_holes_acc {pers} (ctx : arena.inductives.positivity.NestCtx)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx ctx.vis rf lf) :
+    ∀ (mm : Std.Usize) st lst (out : alloc.vec.Vec arena.handle.EIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a.map absEIdxL)
+        (arena.inductives.positivity.nest_holes pers st rf ctx mm out) lst
+        (nestHoles.go lf (absNestCtx ctx) mm.val (absNIdxLFrom ctx.names mm) (absEIdxL out)) := by
+  intro mm
+  refine cursor_induction (fun i : Std.Usize => i.val) ctx.names.val.length
+    (fun i (_ : Unit) => ∀ st lst (out : alloc.vec.Vec arena.handle.EIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a.map absEIdxL)
+        (arena.inductives.positivity.nest_holes pers st rf ctx i out) lst
+        (nestHoles.go lf (absNestCtx ctx) i.val (absNIdxLFrom ctx.names i) (absEIdxL out)))
+    ?_ ?_ mm ()
+  · intro i _ hn st lst out hrel hinv
+    rw [arena.inductives.positivity.nest_holes.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len ctx.names by scalar_tac), absNIdxLFrom,
+      List.drop_eq_nil_of_le hn, List.map_nil, nestHoles.go]
+    lockstep
+  · intro i _ hlt ih st lst out hrel hinv
+    have ih' : ∀ j : Std.Usize, j.val = i.val + 1 → ∀ st lst (out : alloc.vec.Vec arena.handle.EIdx),
+        AStateRel₀ pers st lst → AStateInv pers st →
+        LS pers (fun a b => b = a.map absEIdxL)
+          (arena.inductives.positivity.nest_holes pers st rf ctx j out) lst
+          (nestHoles.go lf (absNestCtx ctx) j.val (absNIdxLFrom ctx.names j) (absEIdxL out)) :=
+      fun j hj => ih j () hj
+    clear ih
+    rw [arena.inductives.positivity.nest_holes.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len ctx.names by scalar_tac), absNIdxLFrom,
+      List.drop_eq_getElem_cons hlt, List.map_cons, nestHoles.go]
+    unfold arena.inductives.positivity.ind_cv_of
+    lockstep
+
+/-- `nest_holes` from member `0` and an empty accumulator IS `nestHoles`. -/
+@[lockstep] theorem nest_holes_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx ctx.vis rf lf) :
+    LS pers (fun a b => b = a.map absEIdxL)
+      (arena.inductives.positivity.nest_holes pers st rf ctx 0#usize (alloc.vec.Vec.new _)) lst
+      (nestHoles lf (absNestCtx ctx)) := by
+  have h := nest_holes_acc ctx hctx 0#usize st lst (alloc.vec.Vec.new _) hrel hinv
+  rwa [absNIdxLFrom_zero, show absEIdxL (alloc.vec.Vec.new arena.handle.EIdx) = [] from rfl,
+    show (0#usize : Std.Usize).val = 0 from rfl] at h
+
 end ConRon.Refine2
