@@ -25,6 +25,7 @@ installs, because the checker's fold needs both for its next step).  No
 -/
 import ConRon.Refine2.Inductives.Abs
 import ConRon.Refine2.Inductives.Prims
+import ConRon.Refine2.Inductives.BlockParts
 -- `checker_base::ind_params_ok` and `check_constant_val` are the checker
 -- tier's (`Checker/Base.lean`).
 import ConRon.Refine2.Checker.Base

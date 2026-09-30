@@ -141,7 +141,7 @@ open Lockstep in
 /-- `close_telescope` ⊑ `closeTelescope` from the cursor on: close a telescope
 opened at the free variables `i ..< i + bs.length` back into a syntactic
 Π-telescope over `body`. -/
-@[lockstep] theorem close_telescope_ls
+@[lockstep] theorem sum_close_telescope_ls
     {pers st lst}
     {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
     {k : Std.Usize}
