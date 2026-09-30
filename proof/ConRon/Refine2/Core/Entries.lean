@@ -50,9 +50,7 @@ theorem whnf_core_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ 
   rw [laneKnot_full] at h
   exact h
 
-/-- `arena::core::whnf` against `Arena.whnf`.  Since task #97-P5-Core-2 this
-carries no side condition at all — `KnotRel`'s two reduction fields lost the
-gated exclusion when `coreKnotGated 0` got its unconditional `fail` back. -/
+/-- `arena::core::whnf` against `Arena.whnf`, with no side condition. -/
 theorem whnf_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
     (hf : absU fu = f)
