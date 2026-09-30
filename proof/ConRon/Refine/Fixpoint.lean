@@ -140,26 +140,3 @@ elab "partial_induct" func:ident : tactic => do
   setGoals [gStep]
 
 end ConRon.Refine.Fixpoint
-
-/-! ## The two forms on a toy recursion: by hand, and by `partial_induct` -/
-
-namespace ConRon.Refine.Fixpoint.Test
-def tst (x y : Nat) : Result Nat :=
-  if x = 0 then .ok y else tst (x - 1) (y + 1)
-partial_fixpoint
-example : ∀ x y o, tst x y = ok o → o = x + y := by
-  apply tst.fixpoint_induct (motive := fun f => ∀ x y o, f x y = ok o → o = x + y)
-  · admissible_ok_imp
-  · intro g ih x y o h
-    beta_reduce at h
-    split at h
-    · simp_all
-    · have := ih _ _ _ h; omega
-example : ∀ x y o, tst x y = ok o → o = x + y := by
-  partial_induct tst
-  intro g ih x y o h
-  beta_reduce at h
-  split at h
-  · simp_all
-  · have := ih _ _ _ h; omega
-end ConRon.Refine.Fixpoint.Test

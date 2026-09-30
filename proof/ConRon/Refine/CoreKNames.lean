@@ -284,12 +284,6 @@ theorem u64_cast_u32_val_of_lt_ten {x : Std.U64} (h : x.val < 10) :
     rw [UScalarTy.U32_numBits_eq]; decide
   omega
 
-/-- `absCodes` of a concatenation: `proj_model_name` builds its suffix as
-`"proj_" ++ toString i`. -/
-theorem absCodes_append (l₁ l₂ : List Std.U32) :
-    absCodes (l₁ ++ l₂) = absCodes l₁ ++ absCodes l₂ := by
-  simp [absCodes, String.ofList_append]
-
 /-- `ConLeche/Kernel/Core.lean:113-116 projModelName` --
 the digit recursion of `core_k::nat_to_dec_go`: the accumulator with `i`'s
 decimal characters appended, most significant first.  Lean's `toString` on a

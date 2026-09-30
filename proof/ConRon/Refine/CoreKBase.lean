@@ -27,7 +27,6 @@ import ConRon.Refine.Expr
 import ConRon.Refine.ExprOps
 import ConRon.Refine.ExprOpsFields
 import ConRon.Refine.ExprOpsSubst
-import ConRon.Refine.ExprOpsSpine
 import ConRon.Refine.ExprOpsMeta
 import ConRon.Refine.BasisTables
 import ConRon.Refine.Env

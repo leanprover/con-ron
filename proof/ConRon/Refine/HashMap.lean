@@ -568,15 +568,6 @@ theorem getElem!_set_ne {α : Type} [Inhabited α] {l : List α} {i j : Nat} (a 
     List.getElem?_set_ne (Ne.symm h)]
 
 omit [DecidableEq K] in
-theorem al_v_eq_nil_of_slots_nil {m : ron.hashmap.HashMap K V}
-    (h : ∀ j, j < m.slots.val.length → m.slots.val[j]! = ron.hashmap.AList.Nil) :
-    al_v m = [] := by
-  rw [al_v, List.eq_nil_iff_forall_not_mem]
-  intro x hx
-  obtain ⟨j, hj, hxj⟩ := mem_slots_flatten.1 hx
-  rw [h j hj] at hxj; simp at hxj
-
-omit [DecidableEq K] in
 /-! ## The entries of one bucket against all the others -/
 
 omit [DecidableEq K] in

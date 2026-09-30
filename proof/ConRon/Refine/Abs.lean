@@ -770,18 +770,6 @@ def absQuotKind : env.QuotKind → ConLeche.QuotKind
   | .Ind => .ind
   | .Sound => .sound
 
-/-- `ConLeche/Kernel/Env.lean` — `Declaration`, a declaration presented to
-the checker.  Since con-leche's task #285 this is the *only* declaration
-record: the cached tier's `DeclC` twin is gone on both sides. -/
-def absDeclaration : env.Declaration → ConLeche.Declaration
-  | .AxiomDecl cv => .axiomDecl (absConstantVal cv)
-  | .DefnDecl cv v h => .defnDecl (absConstantVal cv) (absExpr v) (absHint h)
-  | .ThmDecl cv v => .thmDecl (absConstantVal cv) (absExpr v)
-  | .OpaqueDecl cv v => .opaqueDecl (absConstantVal cv) (absExpr v)
-  | .BasisDecl k => .basisDecl (absBasisKind k)
-  | .IndDecl block nP => .indDecl (absConstantInfos block) nP.val
-  | .QuotDecl k cv => .quotDecl (absQuotKind k) (absConstantVal cv)
-
 /- These are deliberately **not** in the plumbing `simp` set: task #22's
 `BasisTables.lean` drives its 192-node `step*` proof with `simp only
 [absBasisKind]` and friends at the end, and a global `simp` attribute makes
@@ -845,16 +833,6 @@ def ConstantInfoWF : env.ConstantInfo → Prop
 model — all of whose entries are well formed. -/
 def ConstantInfosWF (cs : alloc.vec.Vec env.ConstantInfo) : Prop :=
   ∀ c ∈ cs.val, ConstantInfoWF c
-
-/-- `Declaration`: the hereditary invariant of a presented declaration. -/
-def DeclarationWF : env.Declaration → Prop
-  | .AxiomDecl cv => ConstantValWF cv
-  | .DefnDecl cv v _ => ConstantValWF cv ∧ ExprWF v
-  | .ThmDecl cv v => ConstantValWF cv ∧ ExprWF v
-  | .OpaqueDecl cv v => ConstantValWF cv ∧ ExprWF v
-  | .BasisDecl _ => True
-  | .IndDecl block _ => ConstantInfosWF block
-  | .QuotDecl _ cv => ConstantValWF cv
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
