@@ -1731,4 +1731,186 @@ theorem gr_pop_push {rf rf1 rfX out : arena.env.IFEnv} {ci : arena.env.IConstant
   · apply UScalar.eq_imp
     rw [hov, hXv, hvb]; omega
 
+/-- The twin's pops restore the index the pushes started from
+(`Bridge/Inductives/GenRec.lean`'s `classFeR_go_pop`, restated). -/
+theorem gr_classFeR_go_pop (p : BlockShape) :
+    ∀ (l : List (IConstantVal × Nat)) (m : Nat) (fe : IFEnv)
+      (prevs : List (NIdx × Option (Nat × IConstantInfo))),
+      ∃ news, (classFeR.go p m l fe prevs).2 = prevs ++ news ∧
+        TFEq (news.foldr (fun (x : NIdx × Option (Nat × IConstantInfo)) acc =>
+          acc.popTemp x.1 x.2) (classFeR.go p m l fe prevs).1) fe
+  | [], m, fe, prevs => ⟨[], by simp [classFeR.go], TFEq.refl _⟩
+  | (cv, c) :: rest, m, fe, prevs => by
+    simp only [classFeR.go]
+    obtain ⟨news, hn, hf⟩ := gr_classFeR_go_pop p rest (m + 1)
+      (fe.push (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) []))
+      (prevs ++ [(cv.name, fe.idx[cv.name]?)])
+    refine ⟨(cv.name, fe.idx[cv.name]?) :: news, by rw [hn]; simp, ?_⟩
+    simp only [List.foldr_cons]
+    exact (hf.popTemp _ _).trans (TFEq.popTemp_push fe (.recInfo cv _ _ []))
+
+theorem gr_usize_ext {a b : Std.Usize} (h : a.val = b.val) : a = b := by scalar_tac
+
+theorem gr_fe_r_push_aux (p : arena.inductives.block_parts.BlockShape)
+    (cv_gs : alloc.vec.Vec arena.env.IConstantVal) (rec_cls : alloc.vec.Vec Std.U64) :
+    ∀ (q : Nat) (m : Std.Usize) (rf : arena.env.IFEnv) (lf : IFEnv)
+      (prevs : alloc.vec.Vec (arena.handle.NIdx × Option (Std.U64 × Std.U64)))
+      (prevsL : List (NIdx × Option (Nat × IConstantInfo))) rfK prevsK,
+      min cv_gs.val.length rec_cls.val.length - m.val = q →
+      IFEnvRelI rf lf →
+      arena.inductives.gen_rec.class_fe_r_push p cv_gs rec_cls m rf prevs = ok (rfK, prevsK) →
+      IFEnvRelI rfK (classFeR.go (absBlockShape p) m.val
+          (((cv_gs.val.map absIConstantVal).zip (rec_cls.val.map absU)).drop m.val) lf prevsL).1 ∧
+      (∃ Q, prevsK.val = prevs.val ++ Q ∧ Q.length = q) ∧
+      (∀ rfX, RFEq rfX rfK → IdxInv rfX → ∀ (j : Std.Usize) out,
+        j.val = prevs.val.length + q →
+        arena.inductives.gen_rec.class_fe_r_pop rfX prevsK j = ok out →
+        ∃ rfY, RFEq rfY rf ∧ IdxInv rfY ∧ ∀ (j' : Std.Usize), j'.val = prevs.val.length →
+          arena.inductives.gen_rec.class_fe_r_pop rfY prevsK j' = ok out) := by
+  intro q
+  induction q with
+  | zero =>
+    intro m rf lf prevs prevsL rfK prevsK hq hfe h
+    rw [arena.inductives.gen_rec.class_fe_r_push.eq_def] at h
+    have hmin : m.val ≥ cv_gs.val.length ∨ m.val ≥ rec_cls.val.length := by omega
+    have hrfK : rfK = rf ∧ prevsK = prevs := by
+      by_cases h1 : m ≥ alloc.vec.Vec.len cv_gs
+      · rw [if_pos h1] at h
+        exact Prod.mk.inj (Result.ok_injective h).symm
+      · rw [if_neg h1, if_pos (by scalar_tac)] at h
+        exact Prod.mk.inj (Result.ok_injective h).symm
+    obtain ⟨rfl, rfl⟩ := hrfK
+    have hnil : ((cv_gs.val.map absIConstantVal).zip (rec_cls.val.map absU)).drop m.val = [] := by
+      apply List.drop_eq_nil_of_le; simp; omega
+    refine ⟨?_, ⟨[], by simp, rfl⟩, ?_⟩
+    · rw [hnil]; simpa [classFeR.go] using hfe
+    · intro rfX hX hXi j out hj hpop
+      refine ⟨rfX, hX, hXi, fun j' hj' => ?_⟩
+      rw [gr_usize_ext (show j'.val = j.val by omega)]; exact hpop
+  | succ q ih =>
+    intro m rf lf prevs prevsL rfK prevsK hq hfe h
+    have hm1 : m.val < cv_gs.val.length := by omega
+    have hm2 : m.val < rec_cls.val.length := by omega
+    rw [arena.inductives.gen_rec.class_fe_r_push.eq_def,
+      if_neg (show ¬ m ≥ alloc.vec.Vec.len cv_gs by scalar_tac),
+      if_neg (show ¬ m ≥ alloc.vec.Vec.len rec_cls by scalar_tac)] at h
+    obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hivx := vec_index_some hiv
+    rw [List.getElem?_eq_getElem hm1, Option.some.injEq] at hivx
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [pos_i_constant_val_dup_spec _ _ hiv1] at h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i4, hi4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i5, hi5, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨pq, hpq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨prev, rf1⟩ := pq
+    simp only [Aeneas.Std.uncurry_apply_pair] at h
+    obtain ⟨prevs1, hprevs1, hA⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨m1, hm1', hB⟩ := ConRon.Refine.bind_eq_ok_iff.mp hA
+    have hm1v : m1.val = m.val + 1 := absSz_add_one hm1'
+    have hi2v : i2.val = m.val := by
+      simp only [lift, Result.ok.injEq] at hi2; subst hi2
+      exact ConRon.Refine.ExprOps.usize_cast_u64_val m
+    have hi4v : i4.val = m.val := by
+      simp only [lift, Result.ok.injEq] at hi4; subst hi4
+      exact ConRon.Refine.ExprOps.usize_cast_u64_val m
+    have hi3v := gr_major_idx_at_twin p i2 i3 hi3
+    have hi5v := gr_rule_prefix_at_twin p i4 i5 hi5
+    simp only [TwinEq] at hi3v hi5v
+    -- the pushed constant
+    obtain ⟨hpush, n', hn', -, -, -, -, -⟩ := gr_ifenv_push_temp_spec hfe.inv hpq
+    have hnn : n' = n := by
+      simp only [arena.env.i_constant_info_name] at hn'
+      rw [dupId_nidx _ _ hn', dupId_nidx _ _ hn]
+    subst hnn
+    obtain ⟨hrel1, hinv1⟩ := ifenv_push_refines hfe.rel hfe.inv
+      (show IConstantInfoWF (arena.env.IConstantInfo.RecInfo _ _ _ _) from trivial) hpush
+    have hdrop : ((cv_gs.val.map absIConstantVal).zip (rec_cls.val.map absU)).drop m.val =
+        (absIConstantVal iv, absU rec_cls.val[m.val]) ::
+          ((cv_gs.val.map absIConstantVal).zip (rec_cls.val.map absU)).drop (m.val + 1) := by
+      rw [List.drop_eq_getElem_cons (by simp; omega)]
+      simp [hivx]
+    obtain ⟨ih1, ⟨Q, hQ, hQl⟩, ih3⟩ := ih m1 rf1 _ prevs1
+      (prevsL ++ [((absIConstantVal iv).name, lf.idx[(absIConstantVal iv).name]?)]) rfK prevsK
+      (by omega) ⟨hrel1, hinv1⟩ hB
+    have hprevs1v := ConRon.Refine.vec_push_val hprevs1
+    refine ⟨?_, ⟨(n', prev) :: Q, by rw [hQ, hprevs1v]; simp, by simp [hQl]⟩, ?_⟩
+    · rw [hdrop]
+      simp only [classFeR.go]
+      rw [hm1v] at ih1
+      have hrec : absIConstantInfo (arena.env.IConstantInfo.RecInfo iv i3 i5
+          (alloc.vec.Vec.new arena.env.IRecRule)) =
+          .recInfo (absIConstantVal iv) ((absBlockShape p).majorIdxAt m.val)
+            ((absBlockShape p).rulePrefixAt m.val) [] := by
+        simp only [absIConstantInfo, ← hi3v, ← hi5v, absU, hi2v, hi4v]
+        rfl
+      rw [hrec] at ih1
+      exact ih1
+    · intro rfX hX hXi j out hj hpop
+      obtain ⟨rfY', hY', hYi', hpop'⟩ := ih3 rfX hX hXi j out
+        (by rw [hj, hprevs1v]; simp; omega) hpop
+      -- one more pop: the row this push displaced
+      obtain ⟨jj, hjj⟩ : ∃ jj : Std.Usize, jj.val = prevs.val.length + 1 :=
+        ⟨UScalar.ofNatCore (ty := .Usize) (prevs.val.length + 1) (by
+          have := prevsK.property; rw [hQ, hprevs1v] at this; simp at this
+          scalar_tac), UScalar.ofNatCore_val_eq _⟩
+      have hp2 := hpop' jj (by rw [hjj, hprevs1v]; simp)
+      rw [arena.inductives.gen_rec.class_fe_r_pop.eq_def, if_neg (by scalar_tac)] at hp2
+      obtain ⟨i1, hi1, hp2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp2
+      have hi1v := ConRon.Refine.Nat.usub_val hi1
+      have hget : prevsK.val[i1.val]? = some (n', prev) := by
+        rw [hQ, hprevs1v, show i1.val = prevs.val.length by simp at hi1v; omega]
+        simp
+      rw [gr_vec_index_eq hget, bind_tc_ok] at hp2
+      obtain ⟨pv, hpv, hp2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp2
+      have hpvv : pv = prev := by
+        cases prev <;> simp only [Result.ok.injEq] at hpv <;> exact hpv.symm
+      subst hpvv
+      simp only [bind_tc_ok] at hp2
+      obtain ⟨fe1, hfe1, hp2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp2
+      obtain ⟨hR1, hI1⟩ := gr_pop_push hfe.inv hpq (by
+        simp only [arena.env.i_constant_info_name]; exact hn') hY' hYi' hfe1
+      refine ⟨fe1, hR1, hI1, fun j' hj' => ?_⟩
+      rw [gr_usize_ext (show j'.val = i1.val by simp at hi1v; omega)]
+      exact hp2
+
+/-- **The rule-less recursors pushed, and popped again**: the pushed index is
+the twin's `classFeR`, and whatever the pops return is related to the twin's
+`foldr popTemp` (any `f` that is the twin's pop lambda). -/
+theorem class_fe_r_push_spec (p : arena.inductives.block_parts.BlockShape)
+    (cv_gs : alloc.vec.Vec arena.env.IConstantVal) (rec_cls : alloc.vec.Vec Std.U64)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf)
+    (f : NIdx × Option (Nat × IConstantInfo) → IFEnv → IFEnv)
+    (hf : ∀ x acc, f x acc = acc.popTemp x.1 x.2) :
+    LSP (arena.inductives.gen_rec.class_fe_r_push p cv_gs rec_cls 0#usize rf (alloc.vec.Vec.new _))
+      (fun r => IFEnvRelI r.1 (classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
+          (rec_cls.val.map absU) lf).1 ∧
+        ∀ (j : Std.Usize) out, j.val = r.2.val.length →
+          arena.inductives.gen_rec.class_fe_r_pop r.1 r.2 j = ok out →
+          IFEnvRelI out ((classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
+            (rec_cls.val.map absU) lf).2.foldr f
+            (classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
+              (rec_cls.val.map absU) lf).1)) := by
+  intro r hr
+  obtain ⟨rfK, prevsK⟩ := r
+  obtain ⟨h1, ⟨Q, hQ, hQl⟩, h3⟩ := gr_fe_r_push_aux p cv_gs rec_cls _ 0#usize rf lf
+    (alloc.vec.Vec.new _) [] rfK prevsK rfl hfe hr
+  simp only [gr_usz0, List.drop_zero] at h1
+  refine ⟨h1, fun j out hj hpop => ?_⟩
+  obtain ⟨rfY, hY, hYi, hpopY⟩ := h3 rfK (RFEq.refl _) h1.inv.1 j out
+    (by rw [hj, hQ]; simp [alloc.vec.Vec.new, hQl]) hpop
+  have hout := hpopY 0#usize (by simp [alloc.vec.Vec.new])
+  rw [arena.inductives.gen_rec.class_fe_r_pop.eq_def, if_pos rfl, Result.ok.injEq] at hout
+  subst hout
+  obtain ⟨news, hn, hT⟩ := gr_classFeR_go_pop (absBlockShape p)
+    ((cv_gs.val.map absIConstantVal).zip (rec_cls.val.map absU)) 0 lf []
+  have hfeq : f = fun (x : NIdx × Option (Nat × IConstantInfo)) acc => acc.popTemp x.1 x.2 := by
+    funext x acc; exact hf x acc
+  refine IFEnvRelI.transfer hfe hY hYi ?_
+  simp only [classFeR]
+  rw [hn, List.nil_append, hfeq]
+  exact hT
+
 end ConRon.Refine2
