@@ -4,6 +4,41 @@
 **Task #105** (DESIGN.md §8.2, Theorem 2).
 `crates/con-ron-core/src/arena/inductives/rec_check.rs` against
 `proof/ConRon/Arena/Inductives/RecCheck.lean`: the recursor stage's class kit.
+One `@[lockstep]` companion per Rust function with a twin counterpart.
+
+## Shapes
+
+* **Fragments unfolded in place** (`lockstep_inline`, Rust side): `target_abs_node`
+  (unfolded in `target_abs_go`'s fuel induction), `pair_closed` (the twin's
+  inline `closed` block), `target_k53_leaf/_args/_class`,
+  `target_major_member/_outside/_outside_aux`.
+* **Two cursors, one twin**: `target_params_def_eq`/`_infer` by one cursor
+  induction, the infer arm derived from the main walk one step on.
+* **`target_major_nfs`**: the Rust counts `i` down pushing matches, then
+  reverses; the twin recurses on the tail first.  `targetMajorNfs_append`
+  (each entry's test does not read the answer so far) turns the twin over
+  `take (i+1)` into the last entry's test followed by the twin over `take i`;
+  `target_major_nfs_rev_aux` states the Rust at `acc ++ r.reverse`.
+* **`want_aux_names`**: `rec_` ++ `nat_to_dec (i+1)` is `s!"rec_{i+1}"`
+  (`rc_aux_name_str`, from `nat_to_dec_spec`).
+* **The split counter**: every function that reads the environment takes
+  `CoreCtx vis rf lf`; the stored family (`aux_rule_fire_r`,
+  `tgt_stored_rules`, `cons_block_recs_t`) runs at the constructors' `vis2`
+  beside the GROWING index, so it takes `IFEnvRelI rf lf` and reads
+  `lf.restrictTo (absU vis)` — the twin's `fe.restrictTo vis₂`
+  (`IFEnvInv.coreCtxAt` gives the core's `CoreCtx`).
+* **Binder data**: `binders_beq` compares raw `BinderMeta`s, so the two erased
+  telescopes carry `TeleWF` (`erase_binders_ls`'s answer; `strip_pis`'s from
+  `rc_strip_pis_wf`); `target_k53_ls` takes `TeleWF tele`.
+
+## Helpers restated here (they belong elsewhere)
+
+`rec_rule_k_of/eta_of/bits` and `sum_rules` at `CoreCtx` (Prims/SumInstall
+have them at `IFEnvRelI` + `hvis` only), `nested_rule_syn` and its body
+(checker tier; nobody had them), and the provisional `block_parts` readers
+(`rc_shape_member_names_twin`, `rc_shape_lps_twin`, `rc_param_levels_ls`,
+`rc_major_idx_at_twin`, `rc_rule_prefix_at_twin`, `rc_ctors_dup_id`) until
+`Inductives/BlockParts.lean` is below this module.
 -/
 import ConRon.Refine2.Inductives.PositivityNest
 import ConRon.Refine2.Inductives.Prims
@@ -2076,5 +2111,53 @@ theorem cons_block_recs_t_aux {pers} (vis2 : Std.U64) (p : arena.inductives.bloc
       (consBlockRecsTF (absU vis2) (absBlockShape p) 0 (out.val.map absRecOut) lf) := by
   have h := cons_block_recs_t_ls hrel hinv hfe vis2 p 0#u64 out
   simpa [absU] using h
+
+/-- `recs_by_target … true`: the member recursors (`p.recs.filter (·.tgt < k)`). -/
+@[lockstep] theorem recs_by_target_own_twin (rs : alloc.vec.Vec arena.inductives.block_parts.RecShape)
+    (k : Std.U64) :
+    LSP (arena.inductives.rec_check.recs_by_target rs k true 0#usize
+        (alloc.vec.Vec.new arena.inductives.block_parts.RecShape))
+      (fun o => TwinEq ((rs.val.map absRecShape).filter fun rc => rc.tgt < absU k)
+        (o.val.map absRecShape)) := by
+  intro o h
+  rw [TwinEq, recs_by_target_val rs k true _ _ o h, List.filter_map]
+  simp only [alloc.vec.Vec.new, List.drop_zero,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+  congr 1
+  simp [Function.comp_def, absRecShape, absU]
+
+/-- `recs_by_target … false`: the auxiliary recursors. -/
+@[lockstep] theorem recs_by_target_aux_twin (rs : alloc.vec.Vec arena.inductives.block_parts.RecShape)
+    (k : Std.U64) :
+    LSP (arena.inductives.rec_check.recs_by_target rs k false 0#usize
+        (alloc.vec.Vec.new arena.inductives.block_parts.RecShape))
+      (fun o => TwinEq ((rs.val.map absRecShape).filter fun rc => !(rc.tgt < absU k))
+        (o.val.map absRecShape)) := by
+  intro o h
+  rw [TwinEq, recs_by_target_val rs k false _ _ o h, List.filter_map]
+  simp only [alloc.vec.Vec.new, List.drop_zero,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+  congr 1
+  simp [Function.comp_def, absRecShape, absU]
+
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.target_abs_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms target_abs_ls
+
+/-- info: 'ConRon.Refine2.target_major_nfs_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms target_major_nfs_ls
+
+/-- info: 'ConRon.Refine2.target_major_of_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms target_major_of_ls
+
+/-- info: 'ConRon.Refine2.target_k53_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms target_k53_ls
+
+/-- info: 'ConRon.Refine2.cons_block_recs_t_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms cons_block_recs_t_ls
+
+/-- info: 'ConRon.Refine2.want_aux_names_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms want_aux_names_ls
 
 end ConRon.Refine2
