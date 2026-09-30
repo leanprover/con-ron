@@ -206,15 +206,6 @@ theorem projLitToCtor_mono (h : FnsRefines r₁ r₂) (d : Nat) (e : Expr) :
   have := (projLitToCtor (pairFns r₁ r₂ h) env d e).property
   rwa [projLitToCtor_fst_proj, projLitToCtor_snd_proj] at this
 
-/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the
-projection's fire certificate. -/
-theorem projCert_mono (h : FnsRefines r₁ r₂) (d : Nat) (lic : Bool)
-    (c : Name) (us : List Level) (args : List Expr) :
-    MRefines (projCert r₁ env d lic c us args)
-      (projCert r₂ env d lic c us args) := by
-  have := (projCert (pairFns r₁ r₂ h) env d lic c us args).property
-  rwa [projCert_fst_proj, projCert_snd_proj] at this
-
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the same as
 the mode runs it. -/
 theorem projCertAt_mono (h : FnsRefines r₁ r₂) (d : Nat) (v lic : Bool)
@@ -223,12 +214,6 @@ theorem projCertAt_mono (h : FnsRefines r₁ r₂) (d : Nat) (v lic : Bool)
       (projCertAt r₂ env d v lic c us args) := by
   have := (projCertAt (pairFns r₁ r₂ h) env d v lic c us args).property
   rwa [projCertAt_fst_proj, projCertAt_snd_proj] at this
-
-/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — one ι step. -/
-theorem iotaRec_mono (h : FnsRefines r₁ r₂) (d : Nat) (e : Expr) :
-    MRefines (iotaRec mode r₁ env d e) (iotaRec mode r₂ env d e) := by
-  have := (iotaRec mode (pairFns r₁ r₂ h) env d e).property
-  rwa [iotaRec_fst_proj, iotaRec_snd_proj] at this
 
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the
 `Bool.true` short-circuit. -/
@@ -403,27 +388,12 @@ theorem projLitToCtorFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat}
   projLitToCtor_mono (pureFns_mono env hle) d e r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the merge at
-the projection certificate. -/
-theorem projCertFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat}
-    {lic : Bool} {c : Name} {us : List Level} {args : List Expr} {r : Bool}
-    (hr : projCertFueled mode env f d lic c us args = .ok r) :
-    projCertFueled mode env f' d lic c us args = .ok r :=
-  projCert_mono (pureFns_mono env hle) d lic c us args r hr
-
-/-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the merge at
 the mode's projection certificate. -/
 theorem projCertAtFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat}
     {v lic : Bool} {c : Name} {us : List Level} {args : List Expr} {r : Bool}
     (hr : projCertAtFueled mode env f d v lic c us args = .ok r) :
     projCertAtFueled mode env f' d v lic c us args = .ok r :=
   projCertAt_mono (pureFns_mono env hle) d v lic c us args r hr
-
-/-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the merge at
-the ι step. -/
-theorem iotaRecFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {e : Expr}
-    {r : Option Expr} (hr : iotaRecFueled mode env f d e = .ok r) :
-    iotaRecFueled mode env f' d e = .ok r :=
-  iotaRec_mono (pureFns_mono env hle) d e r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the merge at
 the `Bool.true` short-circuit. -/
@@ -458,27 +428,6 @@ theorem defeqLoopFueled_mono {f f' : Nat} (hle : f ≤ f') {d n : Nat}
     defeqLoop mode (pureFns mode env f') env d n pi a b = .ok r :=
   defeqLoop_mono (pureFns_mono env hle) d n pi a b r hr
 
-/-! ## 3. The two-existential merge, once
-
-Every caller of §2 does the same three lines — take `max`, lift each side,
-apply the step equation — so the pattern is worth a name.  `Nat.le_max_left`
-and `Nat.le_max_right` are the only arithmetic in the tier. -/
-
-/-- con-leche: none — **the merge idiom**: two answers produced at their own
-fuels are produced at one.  The two monotonicity facts are supplied by the
-caller from §2 (or from `Verify/Mono.lean`), which is what keeps this lemma
-free of any walk's name. -/
-theorem merge2 {α β : Type} {P : Nat → CheckM α} {Q : Nat → CheckM β}
-    {x : α} {y : β}
-    (hP : ∀ {f f' : Nat}, f ≤ f' → ∀ {v : α}, P f = .ok v → P f' = .ok v)
-    (hQ : ∀ {f f' : Nat}, f ≤ f' → ∀ {v : β}, Q f = .ok v → Q f' = .ok v)
-    (hx : ∃ F, P F = .ok x) (hy : ∃ F, Q F = .ok y) :
-    ∃ F, P F = .ok x ∧ Q F = .ok y := by
-  obtain ⟨F₁, h₁⟩ := hx
-  obtain ⟨F₂, h₂⟩ := hy
-  exact ⟨max F₁ F₂, hP (Nat.le_max_left F₁ F₂) h₁,
-    hQ (Nat.le_max_right F₁ F₂) h₂⟩
-
 /-! ## 4. The axiom census -/
 
 section Census
@@ -487,7 +436,6 @@ section Census
 #print axioms defEqListFueled_mono
 #print axioms whnfLoopFueled_mono
 #print axioms defeqLoopFueled_mono
-#print axioms merge2
 
 end Census
 

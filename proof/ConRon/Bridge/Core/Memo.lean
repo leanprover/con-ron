@@ -882,12 +882,6 @@ theorem triple_fail {α : Type} {s₀ : AState} {e : ConRon.Arena.CheckError}
   mvcgen [fail]
   exact fun h => h.elim
 
-/-- con-leche: none — `triple_fail` at the dangling-handle exits. -/
-theorem triple_failDanglingLs {α : Type} {s₀ : AState}
-    {Q : α → AState → Prop} :
-    ⦃fun s => ⌜s = s₀⌝⦄ (failDanglingLs : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ :=
-  triple_fail (Q := Q)
-
 /-- con-leche: none — the same at the expression store. -/
 theorem triple_failDanglingE {α : Type} {s₀ : AState}
     {Q : α → AState → Prop} :

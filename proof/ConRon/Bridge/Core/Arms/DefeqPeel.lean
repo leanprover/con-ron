@@ -155,15 +155,6 @@ def PeelOK (mode : CheckMode) (env : Env) (F j : Nat) (oa ob : Expr)
   (ConLeche.isDefEqCore mode env F j oa ob = .ok true ∧ mism = false ∧
     x = true)
 
-/-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the
-invariant is fuel-monotone. -/
-theorem PeelOK.mono {F F' j : Nat} {oa ob : Expr} {mism x : Bool}
-    (hle : F ≤ F') (h : PeelOK mode env F j oa ob mism x) :
-    PeelOK mode env F' j oa ob mism x := by
-  rcases h with ⟨h, rfl⟩ | ⟨h, hm, rfl⟩
-  · exact .inl ⟨ConLeche.isDefEqCore_mono hle h, rfl⟩
-  · exact .inr ⟨ConLeche.isDefEqCore_mono hle h, hm, rfl⟩
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:211-226 instantiateList — a
 binder opens componentwise, the body one cursor up. -/
 theorem bndE_instantiateList (L : Bool) (t c : Expr) (m : BinderMeta)

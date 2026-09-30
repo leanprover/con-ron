@@ -386,19 +386,6 @@ theorem peelNeverPis_spec' (k : Nat) : ∀ (s₀ : AState) (h : EIdx),
       simp only [denoteEO]
       cases x <;> first | rfl | exact absurd rfl (hnf _ _ _)
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:44-56 Expr.peelNeverPis —
-**THEOREM 1 for `peelNeverPis`**, published shape. -/
-theorem peelNeverPis_spec (k : Nat) (s₀ : AState) (h : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.peelNeverPis k h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧
-        denoteEO s₀.store r = some (x.peelNeverPis k)⌝⦄ := by
-  have hb := peelNeverPis_spec' (mode := mode) (env := env) (fe := fe) k s₀ h
-    hok ⟨x, hden⟩
-  mvcgen [hb]
-  intro h1 h2
-  exact ⟨h1, h2 x hden⟩
-
 /-- con-leche: ConLeche/Kernel/PropRead.lean:58-61 Expr.numArgs — **THEOREM 1
 for `numArgs`**, in answer shape.  The arena's walk is fueled and FAILS at
 fuel `0`; `⇓?` claims nothing of a failure, so the equation is unconditional
@@ -473,29 +460,6 @@ theorem residualPW_spec' (s₀ : AState) (r : Option EIdx)
   next =>
     refine ⟨rfl, fun ox hox => ?_⟩
     rw [denoteEO_none_inv hox]; rfl
-
-/-- con-leche: ConLeche/Kernel/PropRead.lean:65-71 residualPW — published
-shape. -/
-theorem residualPW_spec (s₀ : AState) (r : Option EIdx) (ox : Option Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteEO s₀.store r = some ox) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.residualPW r
-    ⦃⇓? pw s' => ⌜s' = s₀ ∧ pw = ConLeche.residualPW ox⌝⦄ := by
-  have hb := residualPW_spec' (mode := mode) (env := env) (fe := fe) s₀ r hok
-  mvcgen [hb]
-  intro h1 h2
-  exact ⟨h1, h2 ox hden⟩
-
-/-- con-leche: ConLeche/Kernel/PropRead.lean:58-61 Expr.numArgs — published
-shape. -/
-theorem numArgs_spec (fuel : Nat) (s₀ : AState) (h : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.numArgs fuel h
-    ⦃⇓? n s' => ⌜s' = s₀ ∧ n = x.numArgs⌝⦄ := by
-  have hb := numArgs_spec' (mode := mode) (env := env) (fe := fe) fuel s₀ h
-    hok ⟨x, hden⟩
-  mvcgen [hb]
-  intro h1 h2
-  exact ⟨h1, h2 x hden⟩
 
 /-! ## 3. The head readers -/
 
@@ -618,19 +582,6 @@ theorem headTypePW_spec' (s₀ : AState) (h : EIdx) (n : Nat)
     have h2 := denote_not_fvar hok.state.wf hview hx hnf
     cases x <;> first | rfl | exact absurd rfl (h1 _ _) | exact absurd rfl (h2 _ _)
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:73-90 headTypePW — published
-shape. -/
-theorem headTypePW_spec (s₀ : AState) (h : EIdx) (n : Nat) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.headTypePW fe h n
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ r = ConLeche.headTypePW env.find? x n⌝⦄ := by
-  have hb := headTypePW_spec' (mode := mode) (env := env) (fe := fe) s₀ h n
-    hok ⟨x, hden⟩
-  mvcgen [hb]
-  intro h1 h2 h3 h4
-  exact ⟨h1, h2, h3, h4 x hden⟩
-
 /-- con-leche: ConLeche/Kernel/PropRead.lean:92-103 typeSortPW — the last
 arm: neither a ∀ nor a sort reads its head. -/
 theorem typeSortPW_other {find? : ConLeche.Name → Option ConstantInfo}
@@ -686,19 +637,6 @@ theorem typeSortPW_spec' (fuel : Nat) (s₀ : AState) (T : EIdx)
     refine ⟨hck, hst, hp, fun x hx => ?_⟩
     rw [typeSortPW_other (denote_not_forallE hok.state.wf hview hx hnf)
       (denote_not_sort hok.state.wf hview hx hns), hr _ (hfn' x hx), hn x hx]
-
-/-- con-leche: ConLeche/Kernel/PropRead.lean:92-103 typeSortPW — published
-shape. -/
-theorem typeSortPW_spec (fuel : Nat) (s₀ : AState) (T : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store T = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.typeSortPW fe fuel T
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ r = ConLeche.typeSortPW env.find? x⌝⦄ := by
-  have hb := typeSortPW_spec' (mode := mode) (env := env) (fe := fe) fuel s₀ T
-    hok ⟨x, hden⟩
-  mvcgen [hb]
-  intro h1 h2 h3 h4
-  exact ⟨h1, h2, h3, h4 x hden⟩
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:105-122 headProofPW — **THEOREM 1
 for `headProofPW`**, in answer shape (the head is `getAppFn`'s answer). -/
@@ -841,19 +779,6 @@ theorem headProofPW_spec' (fuel : Nat) (s₀ : AState) (h : EIdx)
     | proj n i sub =>
       obtain ⟨_, _, rfl, _, _⟩ := denote_proj_inv hwf hview hx; rfl
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:105-122 headProofPW — published
-shape. -/
-theorem headProofPW_spec (fuel : Nat) (s₀ : AState) (h : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.headProofPW fe fuel h
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ r = ConLeche.headProofPW env.find? x⌝⦄ := by
-  have hb := headProofPW_spec' (mode := mode) (env := env) (fe := fe) fuel s₀ h
-    hok ⟨x, hden⟩
-  mvcgen [hb]
-  intro h1 h2 h3 h4
-  exact ⟨h1, h2, h3, h4 x hden⟩
-
 /-- con-leche: ConLeche/Kernel/PropRead.lean:124-134 proofPW — the last arm:
 anything but a λ reads its head. -/
 theorem proofPW_other {find? : ConLeche.Name → Option ConstantInfo}
@@ -903,19 +828,6 @@ theorem proofPW_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
     intro s hs hrel; subst hs
     exact ⟨_, hrel x₀ hx₀⟩
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:124-134 proofPW — published
-shape. -/
-theorem proofPW_spec (fuel : Nat) (s₀ : AState) (a : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store a = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.proofPW fe fuel a
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ r = ConLeche.proofPW env.find? x⌝⦄ := by
-  have hb := proofPW_spec' (mode := mode) (env := env) (fe := fe) fuel s₀ a
-    hok ⟨x, hden⟩
-  mvcgen [hb]
-  intro h1 h2 h3 h4
-  exact ⟨h1, h2, h3, h4 x hden⟩
-
 /-! ## 4. The two arms
 
 Both decide a GUARD of `propIrrel`, so each states BOTH Bool outcomes: the
@@ -942,19 +854,6 @@ theorem notProofFast_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
      refine ⟨‹_›, ‹_›, ‹_›, fun x hx => ?_⟩
      simp only [ConLeche.notProofFast, ← hr x hx])
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:141-146 notProofFast — published
-shape. -/
-theorem notProofFast_spec (fuel : Nat) (s₀ : AState) (a : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store a = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.notProofFast fe fuel a
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.notProofFast env.find? x⌝⦄ := by
-  have hb := notProofFast_spec' (mode := mode) (env := env) (fe := fe) fuel s₀
-    a hok ⟨x, hden⟩
-  mvcgen [hb]
-  intro h1 h2 h3 h4
-  exact ⟨h1, h2, h3, h4 x hden⟩
-
 /-- con-leche: ConLeche/Kernel/PropRead.lean:148-153 isProofFast — **THEOREM
 1 for `isProofFast`**, in answer shape. -/
 theorem isProofFast_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
@@ -973,26 +872,6 @@ theorem isProofFast_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
     (rename_i hr
      refine ⟨‹_›, ‹_›, ‹_›, fun x hx => ?_⟩
      simp only [ConLeche.isProofFast, ← hr x hx])
-
-/-- con-leche: ConLeche/Kernel/PropRead.lean:148-153 isProofFast — published
-shape. -/
-theorem isProofFast_spec (fuel : Nat) (s₀ : AState) (a : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store a = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.isProofFast fe fuel a
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.isProofFast env.find? x⌝⦄ := by
-  have hb := isProofFast_spec' (mode := mode) (env := env) (fe := fe) fuel s₀
-    a hok ⟨x, hden⟩
-  mvcgen [hb]
-  intro h1 h2 h3 h4
-  exact ⟨h1, h2, h3, h4 x hden⟩
-
-/-! ## 5. The three walks that waited on the readers
-
-`Walks/Owed.lean`'s `annotPwPi`, `annotPwLam` and `propIrrel`, moved here
-(round 5): each is a reader of §3–4 first and the knot's answer-shape slots
-(`Bridge/Core/Knot.lean`) after, and the `ensureSort` in the annotation pair
-is why they cannot sit in `Owed.lean` (`Walks/Spine.lean`'s module note). -/
 
 /-! ### The pure sides at their exits -/
 
@@ -1599,73 +1478,6 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       (ConLeche.inferTypeIO_mono (by omega) hF2)
       (ConLeche.whnf_mono (by omega) hF3) hns⟩
 
-/-! ### The three in ANSWER shape
-
-`annotateBody`'s binder arms reach `annotPwPi` / `annotPwLam` through the
-knot's `annotate` answer, and `defeqStep` reaches `propIrrel` through
-`whnfCore` answers, so by round 3's rule each subject's denotation goes in as
-an existential and comes out as a universal.  Four lines each over the
-published statements. -/
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1746-1777 annotPwPi — answer
-shape. -/
-theorem annotPwPi_spec' {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (body' : EIdx) (hok : CheckOK mode env fe s₀)
-    (hdw : ∃ x, denoteE s₀.store body' = some x ∧ Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.annotPwPi (coreKnot mode fe id fuel) fe d body'
-    ⦃⇓? pw s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ ∀ x, denoteE s₀.store body' = some x →
-        SimVOp
-          (fun F => ConLeche.annotPwPi (ConLeche.pureFns mode env F) env d x)
-          pw⌝⦄ := by
-  obtain ⟨x, hx, hw⟩ := hdw
-  have hb := annotPwPi_spec hsim s₀ d body' x hok hx hw
-  mvcgen [hb]
-  intro h1 h2 h3 h4
-  exact ⟨h1, h2, h3, fun x' hx' => by
-    obtain rfl := Option.some.inj (hx'.symm.trans hx); exact h4⟩
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1779-1793 annotPwLam — answer
-shape. -/
-theorem annotPwLam_spec' {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (body' : EIdx) (hok : CheckOK mode env fe s₀)
-    (hdw : ∃ x, denoteE s₀.store body' = some x ∧ Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.annotPwLam (coreKnot mode fe id fuel) fe d body'
-    ⦃⇓? pw s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ ∀ x, denoteE s₀.store body' = some x →
-        SimVOp
-          (fun F => ConLeche.annotPwLam (ConLeche.pureFns mode env F) env d x)
-          pw⌝⦄ := by
-  obtain ⟨x, hx, hw⟩ := hdw
-  have hb := annotPwLam_spec hsim s₀ d body' x hok hx hw
-  mvcgen [hb]
-  intro h1 h2 h3 h4
-  exact ⟨h1, h2, h3, fun x' hx' => by
-    obtain rfl := Option.some.inj (hx'.symm.trans hx); exact h4⟩
-
-/-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — answer shape. -/
-theorem propIrrel_spec' {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (a b : EIdx) (hok : CheckOK mode env fe s₀)
-    (hda : ∃ x, denoteE s₀.store a = some x ∧ Expr.WScoped d x)
-    (hdb : ∃ y, denoteE s₀.store b = some y ∧ Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.propIrrel (coreKnot mode fe id fuel) fe d a b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ ∀ x y, denoteE s₀.store a = some x →
-        denoteE s₀.store b = some y →
-        SimBOp (fun F => ConLeche.propIrrelFueled mode env F d x y) r⌝⦄ := by
-  obtain ⟨x, hx, hwx⟩ := hda
-  obtain ⟨y, hy, hwy⟩ := hdb
-  have hb := propIrrel_spec hsim s₀ d a b x y hok hx hy hwx hwy
-  mvcgen [hb]
-  intro h1 h2 h3 h4
-  exact ⟨h1, h2, h3, fun x' y' hx' hy' => by
-    obtain rfl := Option.some.inj (hx'.symm.trans hx)
-    obtain rfl := Option.some.inj (hy'.symm.trans hy)
-    exact h4⟩
-
 /-! ## 6. The axiom census -/
 
 section Census
@@ -1683,33 +1495,21 @@ section Census
 #print axioms substPW_cutoff
 /-! **The nine readers**, answer shape then published shape. -/
 #print axioms peelNeverPis_spec'
-#print axioms peelNeverPis_spec
 #print axioms numArgs_spec'
-#print axioms numArgs_spec
 #print axioms residualPW_spec'
-#print axioms residualPW_spec
 #print axioms headTypePW_spec'
-#print axioms headTypePW_spec
 #print axioms typeSortPW_spec'
-#print axioms typeSortPW_spec
 #print axioms headProofPW_spec'
-#print axioms headProofPW_spec
 #print axioms proofPW_spec'
-#print axioms proofPW_spec
 #print axioms notProofFast_spec'
-#print axioms notProofFast_spec
 #print axioms isProofFast_spec'
-#print axioms isProofFast_spec
 /-! **The three walks that waited on them.** -/
 #print axioms annotPwPi_of_steps
 #print axioms annotPwLam_of_steps
 #print axioms propIrrel_slow
 #print axioms annotPwPi_spec
-#print axioms annotPwPi_spec'
 #print axioms annotPwLam_spec
-#print axioms annotPwLam_spec'
 #print axioms propIrrel_spec
-#print axioms propIrrel_spec'
 
 end Census
 

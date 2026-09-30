@@ -138,20 +138,6 @@ theorem toConstantVal_spec (s₀ : AState) (ci : IConstantInfo)
       all_goals assumption
     | _ => simp [IConstantInfo.isTowerEntry] at hti
 
-/-! ## 2. The pinned names, at their values -/
-
-/-- con-leche: none — a pin read at a slot whose reserved name is `x`
-denotes `x` (`pinAt_spec` with the slot's name supplied). -/
-theorem pinAt_named (s₀ : AState) (i : Nat) (x : ConLeche.Name)
-    (hp : PinsOK s₀) (hx : pinNames[i]? = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ pinAt i
-    ⦃⇓? n s' => ⌜s' = s₀ ∧ denoteN s₀.store.ns n = some x⌝⦄ := by
-  mvcgen [pinAt_spec]
-  all_goals (bridge_peel; subst_vars)
-  all_goals clear_tag_hyps
-  case vc1.post.success => intro hs hd; exact ⟨hs, hd x hx⟩
-  case vc2 => intro s hs; subst hs; exact hp
-
 /-! ## 3. The two `Type`-valued shapes: `String` and `Char` -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:301-307 stringTyOk — **THEOREM 1

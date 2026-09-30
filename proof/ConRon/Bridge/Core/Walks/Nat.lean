@@ -864,9 +864,6 @@ of `reduceNat` ask for. -/
 theorem CheckOK.wf' {s : AState} (h : CheckOK mode env fe s) : StoreWF s.store :=
   h.state.wf
 
-theorem CheckOK.readN' {s : AState} (h : CheckOK mode env fe s) :
-    ReadNCacheOK s.caches.readNC s.store := h.caches.readN
-
 /-- con-leche: none — the unary shape: an application of a level-free
 constant, read off two views. -/
 theorem unary_shape {st : EStore} (hwf : StoreWF st) {e f a : EIdx}

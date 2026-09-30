@@ -232,80 +232,6 @@ theorem defeqLoop_reduceNat_right {F d n : Nat} {pi : Bool}
   simp only
   exact hk
 
-/-! ## 4. The binder-congruence arms — what the peel replaces
-
-A `∀`/`∀` (or `λ`/`λ`) pair reaches this arm through five facts about the
-earlier ones, and those five are exactly what the twin's batched descent has
-to reproduce at EVERY peeled level (the ruling's identification obligation):
-
-1. `whnfCore` is the identity on a binder (its first six clauses), so `a'`
-   and `b'` are the binders themselves;
-2. `isBoolTrue` of a binder is `false`, so the eq-true shortcut does not
-   fire;
-3. `quickPair` is `true` on a `∀`/`∀` and a `λ`/`λ` pair, so proof
-   irrelevance is skipped (D4);
-4. `reduceNat`'s match needs an `.app`, so literal acceleration answers
-   `none`;
-5. `unfoldableHead` reads `getAppFn`, which is the binder itself, so lazy
-   delta answers `false, false`.
-
-The two lemmas below are the arm as the chain runs it; `defeqPeel_chain` is
-the statement that the twin's batched descent agrees with iterating them. -/
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1636-1654 defeqStep — the `∀`/`∀`
-congruence: the domains, then the bodies opened at ONE free variable (the
-second domain's, which is the chain's own choice), then — LAST, and only at
-the verified modes — the two prop-ness data (con-leche's task #161: only a
-pair that is otherwise definitionally equal can reach the test, so a firing
-mismatch is exactly the cross-provenance coherence corner). -/
-theorem defeqLoop_forallE {F d n : Nat} {pi : Bool} {a b : Expr}
-    {ty₁ body₁ ty₂ body₂ : Expr} {m₁ m₂ : BinderMeta}
-    (hab : (a == b) = false)
-    (hsc : (if pi && b.isBoolTrue && !a.hasFvar then
-        ConLeche.boolTrueShortcut (ConLeche.pureFns mode env F) d a
-      else pure false) = (.ok false : CheckM Bool))
-    (ha : ConLeche.whnfCore mode env F d a = .ok (.forallE ty₁ body₁ m₁))
-    (hb : ConLeche.whnfCore mode env F d b = .ok (.forallE ty₂ body₂ m₂))
-    (heq : ((Expr.forallE ty₁ body₁ m₁) == .forallE ty₂ body₂ m₂) = false)
-    (hd1 : ConLeche.isDefEqCore mode env F d ty₁ ty₂ = .ok true)
-    (hd2 : ConLeche.isDefEqCore mode env F (d + 1)
-      (body₁.instantiate1 (.fvar d ty₂)) (body₂.instantiate1 (.fvar d ty₂))
-      = .ok true)
-    (hm : (mode.verifiedChecks && !(m₁.pw == m₂.pw)) = false) :
-    ConLeche.defeqLoop mode (ConLeche.pureFns mode env F) env d (n + 1) pi a b
-      = .ok true := by
-  rw [ConLeche.defeqLoop, ConLeche.defeqStep]
-  simp only [hab, Bool.false_eq_true, if_false]
-  rw [hsc]
-  simp [ConLeche.whnfCore_def, ConLeche.defeq_def, ha, hb, heq,
-    ConLeche.Expr.quickPair, ConLeche.reduceNat, ConLeche.unfoldableHead, ConLeche.Expr.getAppFn, hd1, hd2, hm, bind,
-    Except.bind, pure, Except.pure]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1655-1662 defeqStep — the `λ`/`λ`
-congruence, the same clause at the other binder. -/
-theorem defeqLoop_lam {F d n : Nat} {pi : Bool} {a b : Expr}
-    {ty₁ body₁ ty₂ body₂ : Expr} {m₁ m₂ : BinderMeta}
-    (hab : (a == b) = false)
-    (hsc : (if pi && b.isBoolTrue && !a.hasFvar then
-        ConLeche.boolTrueShortcut (ConLeche.pureFns mode env F) d a
-      else pure false) = (.ok false : CheckM Bool))
-    (ha : ConLeche.whnfCore mode env F d a = .ok (.lam ty₁ body₁ m₁))
-    (hb : ConLeche.whnfCore mode env F d b = .ok (.lam ty₂ body₂ m₂))
-    (heq : ((Expr.lam ty₁ body₁ m₁) == .lam ty₂ body₂ m₂) = false)
-    (hd1 : ConLeche.isDefEqCore mode env F d ty₁ ty₂ = .ok true)
-    (hd2 : ConLeche.isDefEqCore mode env F (d + 1)
-      (body₁.instantiate1 (.fvar d ty₂)) (body₂.instantiate1 (.fvar d ty₂))
-      = .ok true)
-    (hm : (mode.verifiedChecks && !(m₁.pw == m₂.pw)) = false) :
-    ConLeche.defeqLoop mode (ConLeche.pureFns mode env F) env d (n + 1) pi a b
-      = .ok true := by
-  rw [ConLeche.defeqLoop, ConLeche.defeqStep]
-  simp only [hab, Bool.false_eq_true, if_false]
-  rw [hsc]
-  simp [ConLeche.whnfCore_def, ConLeche.defeq_def, ha, hb, heq,
-    ConLeche.Expr.quickPair, ConLeche.reduceNat, ConLeche.unfoldableHead, ConLeche.Expr.getAppFn, hd1, hd2, hm, bind,
-    Except.bind, pure, Except.pure]
-
 /-! ## 5. The peel's identification — the campaign's one port-side debt -/
 
 /-- con-leche: none — **CLOSED** (task #97-P3-Core round 6, by
@@ -1277,19 +1203,6 @@ theorem dq_unfold_seq {fe : IFEnv} {d : Nat} (henv : ConLeche.EnvWF env)
   | none =>
     exact hnone s1 hok1 hx1 hp1 (denoteEO_none_inv hdo)
 
-
-/-! ### The string-literal walks — named (closed since: see the round-5 note below)
-
-The two string-literal congruence exits call two arena walks this module has
-no rule for.  They are stated here under names another helper's modules will
-replace at merge (`Walks/StrLit.lean`'s `strLitSupported_spec`,
-`Walks/StrCtor.lean`'s `strLitToConstructor_spec` and
-`strLitToConstructor_WScoped`), each with the statement those rules have. -/
-
-/-! (Round-5 merge: the three placeholders that stood here are gone; the
-arms below call `Walks/StrLit.lean`'s `strLitSupported_spec` and
-`Walks/StrCtor.lean`'s `strLitToConstructor_spec` / `strLitToConstructor_WScoped`
-directly, whose statements they were copies of.) -/
 
 /-! ### The congruence arms
 
