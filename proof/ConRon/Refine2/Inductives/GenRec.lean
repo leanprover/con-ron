@@ -1350,4 +1350,76 @@ theorem some_outside_abs (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMa
         simp only [beq_eq_false_iff_ne, ne_eq]; intro h'; exact he (u64_eq_iff_val.mpr h')
       simp [this, absNatPair]
 
+/-! ## The prefix: `gen_major`, `motive_ty`, `minor_ty`, `slot_binders`, `prefix_binders`,
+`class_gen_rec_ty` -/
+
+/-- `binder_copy_from` is a copy onto `out`. -/
+theorem binder_copy_from_val_spec
+    (xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (i : Std.Usize)
+    (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
+    LSP (arena.expr_ops.binder_copy_from xs i out)
+      (fun r => r.val = out.val ++ xs.val.drop i.val) := by
+  intro r h
+  have := vec_cursor_copy xs id id (fun i out => arena.expr_ops.binder_copy_from xs i out)
+    ?_ ?_ i out r h
+  · simpa using this
+  · intro i out o hn h
+    rw [arena.expr_ops.binder_copy_from.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [arena.expr_ops.binder_copy_from.eq_def, if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by
+      have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨bm1, hbm1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [dupId_eidx _ _ he1, ConRon.Refine.Expr.binder_meta_dup_eq hbm1] at hout1
+    exact ⟨i2, q, out1, absSz_add_one hi2, by simpa using ConRon.Refine.vec_push_val hout1, rfl, h⟩
+
+theorem TeleWF.copy {r out xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {i : Nat} (h : r.val = out.val ++ xs.val.drop i) (ho : TeleWF out) (hx : TeleWF xs) :
+    TeleWF r := by
+  intro p hp
+  rw [h, List.mem_append] at hp
+  rcases hp with hp | hp
+  · exact ho p hp
+  · exact hx p (List.mem_of_mem_drop hp)
+
+namespace GenRecSide
+
+/-- The generator's side alternatives: a copied telescope's `TeleWF`, an
+optional telescope's `TeleWF` at `some`. -/
+scoped macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| first
+      | (refine TeleWF.copy (by assumption) (by assumption) (by assumption); done)
+      | (exact OptTeleWF.get (by assumption)))
+
+end GenRecSide
+
+open scoped GenRecSide
+
+/-- `gen_major` ⊑ `ClassGen.major`. -/
+@[lockstep] theorem gen_major_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen) (c d : Std.U64) :
+    LS pers (fun a b => b = a.map (fun p => (absEIdxL p.1, absEIdx p.2)))
+      (arena.inductives.gen_rec.gen_major pers st g c d) lst
+      ((absClassGen g).major (absU c) (absU d)) := by
+  rw [arena.inductives.gen_rec.gen_major, ClassGen.major]
+  lockstep
+
+/-- `motive_ty` ⊑ `ClassGen.motiveTy`. -/
+@[lockstep] theorem motive_ty_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen) (c d : Std.U64) :
+    LS pers (fun a b => b = a.map absEIdx)
+      (arena.inductives.gen_rec.motive_ty pers st g c d) lst
+      ((absClassGen g).motiveTy (absU c) (absU d)) := by
+  rw [arena.inductives.gen_rec.motive_ty, ClassGen.motiveTy]
+  lockstep
+
 end ConRon.Refine2
