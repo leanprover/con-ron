@@ -33,7 +33,7 @@ use crate::kernel::expr_ops::sub_nat;
 use crate::ron::hashmap::Dup;
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:37-43 ClassKey
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean ClassKey` — a class: an
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:38-45 ClassKey` — a class: an
 /// inductive at the levels `lvls` (interned) and the parameters `ds`.
 pub struct ClassKey {
     pub ind: NIdx,
@@ -52,7 +52,7 @@ pub fn class_key_dup(k: &ClassKey) -> ClassKey {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:45-53 ClassSlot
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean ClassSlot` — one
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:47-56 ClassSlot` — one
 /// binder of the recursors' shared prefix after the parameters: a motive
 /// (its class), or a minor premise (the class ordinal it concludes at, the
 /// constructor it builds, its inductive hypotheses `(field, class)`).
@@ -71,7 +71,7 @@ pub fn class_slot_dup(s: &ClassSlot) -> ClassSlot {
 }
 
 /// con-leche: none — a `List (Nat × Nat)` copy; Lean shares the list
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean ClassSlot`.
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:47-56 ClassSlot`.
 pub fn pairs_dup(xs: &Vec<(u64, u64)>, i: usize, out: Vec<(u64, u64)>) -> Vec<(u64, u64)> {
     if i >= xs.len() {
         out
@@ -83,7 +83,7 @@ pub fn pairs_dup(xs: &Vec<(u64, u64)>, i: usize, out: Vec<(u64, u64)>) -> Vec<(u
 }
 
 /// con-leche: none — a `List ClassSlot` copy; Lean shares the list
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean ClassSlot`.
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:47-56 ClassSlot`.
 pub fn slots_dup(xs: &Vec<ClassSlot>, i: usize, out: Vec<ClassSlot>) -> Vec<ClassSlot> {
     if i >= xs.len() {
         out
@@ -95,7 +95,7 @@ pub fn slots_dup(xs: &Vec<ClassSlot>, i: usize, out: Vec<ClassSlot>) -> Vec<Clas
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:55-61 ClassRead
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean ClassRead` — what the
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:58-64 ClassRead` — what the
 /// pre-pass read: the prefix after the parameters, and per recursor the class
 /// its conclusion eliminates.
 pub struct ClassRead {
@@ -104,7 +104,7 @@ pub struct ClassRead {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:65-67 ClassRead.classes
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean ClassRead.classes` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:66-72 ClassRead.classes` — the
 /// classes (the motives' keys), in prefix order.
 pub fn classes(slots: &Vec<ClassSlot>, i: usize, out: Vec<ClassKey>) -> Vec<ClassKey> {
     if i >= slots.len() {
@@ -146,7 +146,7 @@ pub fn motive_positions(slots: &Vec<ClassSlot>, i: usize, out: Vec<u64>) -> Vec<
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:69-73 ClassRead.motiveSlot
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean ClassRead.motiveSlot` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:74-82 ClassRead.motiveSlot` —
 /// the prefix position (after the parameters) of class `c`'s motive.
 pub fn motive_slot(slots: &Vec<ClassSlot>, c: u64) -> Option<u64> {
     let ms: Vec<u64> = motive_positions(slots, 0, Vec::new());
@@ -170,7 +170,7 @@ pub fn u64_find_idx(xs: &Vec<u64>, x: u64, i: usize) -> Option<u64> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:77-80 classOfMotiveVar
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean classOfMotiveVar` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:84-88 classOfMotiveVar` — the
 /// motive ordinal of the prefix variable `fvar p` (`nP ≤ p`), when that binder
 /// is a motive.
 pub fn class_of_motive_var(n_p: u64, mot_pos: &Vec<u64>, p: u64) -> Option<u64> {
@@ -192,7 +192,7 @@ pub fn eidx_last(xs: &Vec<EIdx>) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:82-105 classReadMinor
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean classReadMinor` — the
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:101-145 classReadMinor` — the
 /// `fvar` head of an application, its index (`none` at any other head).
 pub fn fvar_head(pers: &PersTier, st: &AState, e: &EIdx) -> Result<Option<u64>, CheckError> {
     match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, e) {
@@ -211,7 +211,7 @@ pub fn fvar_head(pers: &PersTier, st: &AState, e: &EIdx) -> Result<Option<u64>, 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:82-105 classReadMinor
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean classReadMinor` — one
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:101-145 classReadMinor` — one
 /// opened binder `q` of a minor premise read as an inductive hypothesis: its
 /// type's conclusion is a motive applied to a field `f` of the minor (`d ≤
 /// f`), giving `(f - d, t)`.
@@ -285,7 +285,7 @@ pub fn class_read_ihs(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:82-105 classReadMinor
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean classReadMinor` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:101-145 classReadMinor` —
 /// **read one minor premise's type `dom`**, opened at depth `d`: its
 /// conclusion is a motive (the class), its last argument a constructor
 /// application (the constructor), and its inductive hypotheses.
@@ -336,7 +336,7 @@ pub fn class_read_minor(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:107-124 classReadSlots
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean classReadSlots` — one
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:181-205 classReadSlots` — one
 /// prefix binder's domain read as a motive (its telescope ends in a sort:
 /// the class is its last binder's domain, at the class's parameter count)
 /// or as a minor premise.
@@ -404,7 +404,7 @@ pub fn u64_snoc(xs: &Vec<u64>, x: u64) -> Vec<u64> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:107-124 classReadSlots
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean classReadSlots` — read
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:181-205 classReadSlots` — read
 /// the prefix binders `n` of a recursor type opened at the parameters (`e`,
 /// depth `d`), classifying each as a motive or a minor premise; each binder
 /// opened at `d` before the next is read.  `none` off the shape.
@@ -491,7 +491,7 @@ pub fn class_read_rec_cls(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:126-140 classRead
-/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean classRead` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:226-247 classRead` — **the
 /// pre-pass**: the prefix layout off the FIRST recursor's type, and every
 /// recursor's class off its conclusion.  `none` when the family is not of the
 /// generated shape.  `nPc` is `classNPcOf p fe` (the module note).

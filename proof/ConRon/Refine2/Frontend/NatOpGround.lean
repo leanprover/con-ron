@@ -1586,69 +1586,12 @@ theorem hoist_targets_refines {pers rst lst ds o}
 
 /-! ## The reorder
 
-Nine pure functions against the twin's five.  `apply_hoist`'s bucket pass is
-`List.mergeSort` — task #87 §5's `hoistBuckets_eq_mergeSort`, the same
+Seven pure functions against the twin's five (task #105 drops two: `hoist_key`
+and `hoist_lt` are gone from the Rust and nothing else calls them, so
+`hoist_key_refines`/`hoist_lt_refines` go with them).  `apply_hoist`'s bucket
+pass is `List.mergeSort` — task #87 §5's `hoistBuckets_eq_mergeSort`, the same
 argument at handles: the keys are pairwise distinct because each carries its
 own index, so `Pairwise` + `Perm` identifies the two orders. -/
-
-/-- **`hoist_key` refines `hoistKey`** (`NatOpGround.lean:370-373`). -/
-theorem hoist_key_refines {rm lm k o} (hr : TargetRel rm lm)
-    (h : frontend.nat_op_ground.hoist_key rm k = ok o) :
-    (absU o.1, absU o.2.1, absU o.2.2) = hoistKey lm (absU k) := by
-  rw [frontend.nat_op_ground.hoist_key] at h
-  obtain ⟨r, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hg := target_get hr hp
-  simp only [hoistKey, ← hg]
-  cases r with
-  | none => cases Result.ok_injective h; rfl
-  | some t => cases Result.ok_injective h; rfl
-
-/-- **`hoist_lt` refines `hoistLt`** (`NatOpGround.lean:377-381`). -/
-theorem hoist_lt_refines {rm lm a b v} (hr : TargetRel rm lm)
-    (h : frontend.nat_op_ground.hoist_lt rm a b = ok v) :
-    v = hoistLt lm (absU a) (absU b) := by
-  rw [frontend.nat_op_ground.hoist_lt] at h
-  obtain ⟨ka, hka, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨kb, hkb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have ea := hoist_key_refines hr hka
-  have eb := hoist_key_refines hr hkb
-  simp only [hoistLt, ← ea, ← eb]
-  obtain ⟨a1, a2, a3⟩ := ka
-  obtain ⟨b1, b2, b3⟩ := kb
-  replace h : (if a1 < b1 then ok true else
-      if a1 = b1 then (if a2 < b2 then ok true else if a2 = b2 then ok (decide (a3 < b3))
-        else ok false) else ok false) = ok v := h
-  simp only [absU]
-  split at h
-  next hl =>
-    cases Result.ok_injective h
-    have : a1.val < b1.val := by scalar_tac
-    simp [this]
-  next hl =>
-    have hl' : ¬ a1.val < b1.val := by scalar_tac
-    split at h
-    next he =>
-      have he' : a1.val = b1.val := by rw [he]
-      split at h
-      next hl2 =>
-        cases Result.ok_injective h
-        have : a2.val < b2.val := by scalar_tac
-        simp [he', this]
-      next hl2 =>
-        have hl2' : ¬ a2.val < b2.val := by scalar_tac
-        split at h
-        next he2 =>
-          cases Result.ok_injective h
-          have he2' : a2.val = b2.val := by rw [he2]
-          simp [he', he2']
-        next he2 =>
-          cases Result.ok_injective h
-          have he2' : ¬ a2.val = b2.val := fun e => he2 (UScalar.eq_of_val_eq e)
-          simp [he', hl2', he2']
-    next he =>
-      cases Result.ok_injective h
-      have he' : ¬ a1.val = b1.val := fun e => he (UScalar.eq_of_val_eq e)
-      simp [hl', he']
 
 /-- **`target_is`** — *"record `k`'s target is `t`"*, the port's own test. -/
 theorem target_is_refines {rm lm k t v} (hr : TargetRel rm lm)
