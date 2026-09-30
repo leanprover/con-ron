@@ -1994,4 +1994,65 @@ theorem block_rec_names_unreserved_ls {pers}
   have h := block_rec_names_unreserved_ls (pers := pers) rs 0#usize st lst hrel hinv
   rwa [usz_zero_val, List.drop_zero] at h
 
+/-! ## The recursor names (the name part `rec`, restated from `Inductives/Prims.lean`) -/
+
+@[lockstep] theorem bp_lift_to_slice_spec {n : Std.Usize} (X : Array Std.U32 n) :
+    LSP (lift (Array.to_slice X)) (fun s => s.val = X.val) := by
+  intro s h
+  simp only [lift, Result.ok.injEq] at h
+  subst h
+  simp
+
+@[lockstep] theorem bp_code_points_spec (s : Slice Std.U32) :
+    LSP (kernel.core_types.code_points s) (fun v => v.val = s.val) :=
+  fun _ h => ConRon.Refine.Env.code_points_val h
+
+open Lean Elab Tactic in
+/-- Fails unless the goal mentions a name-part string. -/
+elab "bp_str_guard" : tactic => do
+  let t ← getMainTarget
+  unless t.containsConst (fun n => n == ``ConRon.Refine.absString ||
+      n == ``ConRon.Refine.StrWF || n == ``NNodeViewWF || n == ``absNNodeView) do
+    throwError "bp_str_guard: no string goal"
+
+/-- The string side goals of a constant name part. -/
+macro "bp_str_side" : tactic =>
+  `(tactic| (bp_str_guard
+             try simp only [global_simps] at *
+             simp_all [Array.make, ConRon.Refine.absString, ConRon.Refine.StrWF, NNodeViewWF, absNNodeView]
+             try decide))
+
+macro_rules
+  | `(tactic| lockstep_side_ext) => `(tactic| (bp_str_side; done))
+
+theorem absMemberShape_cvT (m : arena.inductives.block_parts.MemberShape) :
+    (absMemberShape m).cvT = absIConstantVal m.cv_t := rfl
+
+attribute [local lockstep_simp] absMemberShape_cvT absIConstantVal_name
+
+/-- `want_rec_names` ⊑ `members.mapM (internNNode (.str · "rec"))` from the cursor on. -/
+theorem want_rec_names_ls {pers}
+    (ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape) :
+    ∀ (i : Std.Usize) st lst (out : alloc.vec.Vec arena.handle.NIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absNIdxL a)
+        (arena.inductives.block_parts.want_rec_names pers st ms i out) lst
+        (do
+          let r ← ((ms.val.drop i.val).map absMemberShape).mapM fun m =>
+            internNNode (.str m.cvT.name "rec")
+          pure (absNIdxL out ++ r)) := by
+  refine ls_cursor_acc ms absMemberShape
+    (fun (w : alloc.vec.Vec arena.handle.NIdx) L =>
+      (do let r ← L.mapM fun m => internNNode (.str m.cvT.name "rec"); pure (absNIdxL w ++ r) :
+        AM (List NIdx)))
+    (fun st i w => arena.inductives.block_parts.want_rec_names pers st ms i w) ?_ ?_
+  · intro st lst i w hn hrel hinv
+    rw [arena.inductives.block_parts.want_rec_names.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len ms by scalar_tac), List.mapM_nil]
+    lockstep
+  · intro st lst i w hi hrel hinv ih
+    rw [arena.inductives.block_parts.want_rec_names.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac), List.mapM_cons]
+    lockstep
+
 end ConRon.Refine2
