@@ -468,4 +468,119 @@ theorem cr_shape_member_names_abs {p : arena.inductives.block_parts.BlockShape}
   rw [arena.inductives.class_read.fvar_head, fvarHead]
   lockstep
 
+/-! ## `class_read_ih`, `class_read_ihs`: the `filterMapM` of `classReadMinor` -/
+
+/-- The body of `classReadMinor`'s `fvs.filterMapM fun x => …` — the Rust's
+`class_read_ih`. -/
+def classReadIh (nP : Nat) (motPos : List Nat) (d : Nat) (x : EIdx) :
+    AM (Option (Nat × Nat)) := do
+  let ty ← fvarTypeD x
+  let r ← piResult coreWalkFuel ty
+  match ← fvarHead r with
+  | none => pure none
+  | some p2 =>
+    match classOfMotiveVar nP motPos p2 with
+    | none => pure none
+    | some t => do
+      let rargs ← getAppArgs coreWalkFuel r
+      match rargs.getLast? with
+      | none => pure none
+      | some a =>
+        match ← fvarHead a with
+        | none => pure none
+        | some f => pure (if d ≤ f then some (f - d, t) else none)
+
+/-- `classReadMinor` with its `filterMapM` body named. -/
+def classReadMinor' (nP : Nat) (motPos : List Nat) (d : Nat) (dom : EIdx) :
+    AM (Option ClassSlot) := do
+  let (bs, _) ← piBinders coreWalkFuel dom
+  match ← openPisAtFvarsF bs.length dom d with
+  | none => pure none
+  | some (fvs, concl) =>
+    match ← fvarHead concl with
+    | none => pure none
+    | some p =>
+      match classOfMotiveVar nP motPos p with
+      | none => pure none
+      | some c => do
+        let args ← getAppArgs coreWalkFuel concl
+        match args.getLast? with
+        | none => pure none
+        | some last => do
+          let hd ← getAppFn coreWalkFuel last
+          if hd.tag == ETag.const then
+            match ← viewConst hd with
+            | none => failDanglingE
+            | some (cn, _) => do
+              let ihs ← fvs.filterMapM (classReadIh nP motPos d)
+              pure (some (.minor c cn ihs))
+          else pure none
+
+theorem classReadMinor_eq : classReadMinor = classReadMinor' := rfl
+
+@[lockstep] theorem class_read_ih_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n_p : Std.U64) (mot_pos : alloc.vec.Vec Std.U64) (d : Std.U64)
+    (x : arena.handle.EIdx) :
+    LSR pers (fun a b => b = a.map absNatPair)
+      (arena.inductives.class_read.class_read_ih pers st n_p mot_pos d x) st lst
+      (classReadIh (absU n_p) (absNatL mot_pos) (absU d) (absEIdx x)) := by
+  apply LSR.of_LS
+  rw [arena.inductives.class_read.class_read_ih, classReadIh]
+  lockstep
+  rename_i hP
+  rw [if_pos hP.2]
+  exact LS.pure (by simp [absNatPair, absU, hP.1]) (by assumption) (by assumption)
+
+theorem class_read_ihs_acc {pers st} (n_p : Std.U64) (mot_pos : alloc.vec.Vec Std.U64)
+    (d : Std.U64) (fvs : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ (q : Std.Usize) (out : alloc.vec.Vec (Std.U64 × Std.U64)) lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = a.val.map absNatPair)
+        (arena.inductives.class_read.class_read_ihs pers st n_p mot_pos d fvs q out) st lst
+        (List.filterMapM.loop (classReadIh (absU n_p) (absNatL mot_pos) (absU d))
+          ((fvs.val.drop q.val).map absEIdx) (out.val.map absNatPair).reverse) := by
+  refine cursor_induction (fun i : Std.Usize => i.val) fvs.val.length
+    (fun q out => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = a.val.map absNatPair)
+        (arena.inductives.class_read.class_read_ihs pers st n_p mot_pos d fvs q out) st lst
+        (List.filterMapM.loop (classReadIh (absU n_p) (absNatL mot_pos) (absU d))
+          ((fvs.val.drop q.val).map absEIdx) (out.val.map absNatPair).reverse)) ?_ ?_
+  · intro q out hn lst hrel hinv
+    rw [List.drop_eq_nil_of_le hn, List.map_nil, List.filterMapM.loop, List.reverse_reverse]
+    apply LSR.of_LS
+    rw [arena.inductives.class_read.class_read_ihs.eq_def,
+      if_pos (show q ≥ alloc.vec.Vec.len fvs by scalar_tac)]
+    lockstep
+  · intro q out hq ih lst hrel hinv
+    rw [List.drop_eq_getElem_cons hq, List.map_cons, List.filterMapM.loop]
+    apply LSR.of_LS
+    rw [arena.inductives.class_read.class_read_ihs.eq_def,
+      if_neg (show ¬ q ≥ alloc.vec.Vec.len fvs by scalar_tac)]
+    lockstep
+
+@[lockstep] theorem class_read_ihs_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n_p : Std.U64) (mot_pos : alloc.vec.Vec Std.U64) (d : Std.U64)
+    (fvs : alloc.vec.Vec arena.handle.EIdx) :
+    LSR pers (fun a b => b = a.val.map absNatPair)
+      (arena.inductives.class_read.class_read_ihs pers st n_p mot_pos d fvs 0#usize
+        (alloc.vec.Vec.new _)) st lst
+      ((absEIdxL fvs).filterMapM (classReadIh (absU n_p) (absNatL mot_pos) (absU d))) := by
+  have h := class_read_ihs_acc (pers := pers) n_p mot_pos d fvs 0#usize (alloc.vec.Vec.new _)
+    lst hrel hinv
+  have e : (fvs.val.drop (0#usize : Std.Usize).val).map absEIdx = absEIdxL fvs := by
+    simp [absEIdxL]
+  rw [e] at h
+  exact h
+
+/-! ## `class_read_minor` -/
+
+@[lockstep] theorem class_read_minor_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n_p : Std.U64) (mot_pos : alloc.vec.Vec Std.U64) (d : Std.U64)
+    (dom : arena.handle.EIdx) :
+    LS pers (fun a b => b = a.map absClassSlot)
+      (arena.inductives.class_read.class_read_minor pers st n_p mot_pos d dom) lst
+      (classReadMinor (absU n_p) (absNatL mot_pos) (absU d) (absEIdx dom)) := by
+  rw [arena.inductives.class_read.class_read_minor, classReadMinor_eq, classReadMinor']
+  lockstep
+
 end ConRon.Refine2
