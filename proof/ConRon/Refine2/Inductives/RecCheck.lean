@@ -531,4 +531,197 @@ theorem some_aux_rec_abs (rs : alloc.vec.Vec arena.inductives.block_parts.RecSha
       show ((0#usize : Std.Usize)).val = 0 by scalar_tac, List.drop_zero]
     rw [show absU k = p.members.val.length from hk']
 
+/-! ## `erase_list`, `erase_binders`: the twin's inline `mapM eraseFVarTys` -/
+
+theorem erase_list_acc {pers} (xs : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ (i : Std.Usize) st lst (out : alloc.vec.Vec arena.handle.EIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.rec_check.erase_list pers st xs i out) lst
+        (do
+          let r ← (absEIdxLFrom xs i).mapM eraseFVarTys
+          pure (absEIdxL out ++ r)) := by
+  intro i st lst out hrel hinv
+  refine ls_cursor_acc xs absEIdx
+    (fun (w : alloc.vec.Vec arena.handle.EIdx) l => do
+      let r ← l.mapM eraseFVarTys
+      pure (absEIdxL w ++ r))
+    (fun st k w => arena.inductives.rec_check.erase_list pers st xs k w)
+    ?_ ?_ i st lst out hrel hinv
+  · intro st lst k w hn hrel hinv
+    rw [arena.inductives.rec_check.erase_list.eq_def,
+      if_pos (show k ≥ alloc.vec.Vec.len xs by scalar_tac)]
+    simp only [List.mapM_nil, pure_bind, List.append_nil]
+    lockstep
+  · intro st lst k w hk hrel hinv ih
+    have ih' : ∀ st' lst' (j : Std.Usize) (w' : alloc.vec.Vec arena.handle.EIdx),
+        j.val = k.val + 1 → AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers (fun a b => b = absEIdxL a)
+          (arena.inductives.rec_check.erase_list pers st' xs j w') lst'
+          (do
+            let r ← (absEIdxLFrom xs j).mapM eraseFVarTys
+            pure (absEIdxL w' ++ r)) := ih
+    clear ih
+    rw [arena.inductives.rec_check.erase_list.eq_def,
+      if_neg (show ¬ k ≥ alloc.vec.Vec.len xs by scalar_tac)]
+    simp only [List.mapM_cons, bind_assoc, pure_bind]
+    lockstep
+
+@[lockstep] theorem erase_list_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (xs : alloc.vec.Vec arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdxL a)
+      (arena.inductives.rec_check.erase_list pers st xs 0#usize
+        (alloc.vec.Vec.new arena.handle.EIdx)) lst
+      ((absEIdxL xs).mapM eraseFVarTys) := by
+  have h := erase_list_acc xs 0#usize st lst (alloc.vec.Vec.new arena.handle.EIdx) hrel hinv
+  have e : (do
+      let r ← (absEIdxLFrom xs 0#usize).mapM eraseFVarTys
+      pure (absEIdxL (alloc.vec.Vec.new arena.handle.EIdx) ++ r) : AM _)
+      = (absEIdxL xs).mapM eraseFVarTys := by
+    simp [absEIdxL, absEIdxLFrom, alloc.vec.Vec.new]
+  rwa [e] at h
+
+/-- `erase_binders` ⊑ the twin's `mapM fun b => do pure ((← eraseFVarTys b.1), b.2)`,
+behind the accumulator; a telescope of well-formed binder data stays so (the
+comparison `binders_beq` needs it). -/
+theorem erase_binders_acc {pers} (bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (hbs : TeleWF bs) :
+    ∀ (i : Std.Usize) st lst (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)),
+      TeleWF out → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absBinderL a ∧ TeleWF a)
+        (arena.inductives.rec_check.erase_binders pers st bs i out) lst
+        (do
+          let r ← (absBinderLFrom bs i).mapM fun b => do pure ((← eraseFVarTys b.1), b.2)
+          pure (absBinderL out ++ r)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) bs.val.length
+    (fun i (_ : Unit) => ∀ st lst
+      (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)),
+      TeleWF out → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absBinderL a ∧ TeleWF a)
+        (arena.inductives.rec_check.erase_binders pers st bs i out) lst
+        (do
+          let r ← (absBinderLFrom bs i).mapM fun b => do pure ((← eraseFVarTys b.1), b.2)
+          pure (absBinderL out ++ r))) ?_ ?_ i ()
+  · intro i _ hn st lst out hout hrel hinv
+    rw [arena.inductives.rec_check.erase_binders.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len bs by scalar_tac), absBinderLFrom,
+      List.drop_eq_nil_of_le hn, List.map_nil]
+    simp only [List.mapM_nil, pure_bind, List.append_nil]
+    exact LS.pure ⟨rfl, hout⟩ hrel hinv
+  · intro i _ hlt ih st lst out hout hrel hinv
+    have ih' : ∀ (j : Std.Usize), j.val = i.val + 1 → ∀ st lst
+        (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)),
+        TeleWF out → AStateRel₀ pers st lst → AStateInv pers st →
+        LS pers (fun a b => b = absBinderL a ∧ TeleWF a)
+          (arena.inductives.rec_check.erase_binders pers st bs j out) lst
+          (do
+            let r ← (absBinderLFrom bs j).mapM fun b => do pure ((← eraseFVarTys b.1), b.2)
+            pure (absBinderL out ++ r)) := fun j hj => ih j () hj
+    clear ih
+    have hwi := TeleWF.get hbs i.val hlt
+    rw [arena.inductives.rec_check.erase_binders.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len bs by scalar_tac), absBinderLFrom,
+      List.drop_eq_getElem_cons hlt, List.map_cons]
+    simp only [List.mapM_cons, bind_assoc, pure_bind]
+    lockstep
+
+@[lockstep] theorem erase_binders_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (hbs : TeleWF bs) :
+    LS pers (fun a b => b = absBinderL a ∧ TeleWF a)
+      (arena.inductives.rec_check.erase_binders pers st bs 0#usize
+        (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta))) lst
+      ((absBinderL bs).mapM fun b => do pure ((← eraseFVarTys b.1), b.2)) := by
+  have h := erase_binders_acc bs hbs 0#usize st lst
+    (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)) TeleWF.new hrel hinv
+  have e : (do
+      let r ← (absBinderLFrom bs 0#usize).mapM fun b => do pure ((← eraseFVarTys b.1), b.2)
+      pure (absBinderL (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)) ++ r) :
+        AM _)
+      = (absBinderL bs).mapM (fun b => do pure ((← eraseFVarTys b.1), b.2)) := by
+    simp [absBinderL, absBinderLFrom, alloc.vec.Vec.new]
+  rwa [e] at h
+
+/-! ## `binders_beq`: the twin's inline `!=` on two telescopes -/
+
+theorem binders_beq_abs (a b : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (ha : TeleWF a) (hb : TeleWF b) :
+    ∀ (i : Std.Usize) (o : Bool), arena.inductives.rec_check.binders_beq a b i = ok o →
+      o = decide (absBinderLFrom a i = absBinderLFrom b i) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) a.val.length
+    (fun i (_ : Unit) => ∀ (o : Bool), arena.inductives.rec_check.binders_beq a b i = ok o →
+      o = decide (absBinderLFrom a i = absBinderLFrom b i)) ?_ ?_ i ()
+  · intro i _ hn o h
+    rw [arena.inductives.rec_check.binders_beq.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
+    simp only [absBinderLFrom, List.drop_eq_nil_of_le hn, List.map_nil]
+    by_cases hy : b.val.length ≤ i.val
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len b by scalar_tac), Result.ok.injEq] at h
+      rw [List.drop_eq_nil_of_le hy]; simp [← h]
+    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len b by scalar_tac),
+        if_pos (show i ≥ alloc.vec.Vec.len a by scalar_tac), Result.ok.injEq] at h
+      rw [List.drop_eq_getElem_cons (show i.val < b.val.length by omega)]; simp [← h]; omega
+  · intro i _ hlt ih o h
+    rw [arena.inductives.rec_check.binders_beq.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac),
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
+    simp only [absBinderLFrom, List.drop_eq_getElem_cons hlt, List.map_cons]
+    by_cases hy : b.val.length ≤ i.val
+    · rw [if_pos (show i ≥ alloc.vec.Vec.len b by scalar_tac), Result.ok.injEq] at h
+      rw [List.drop_eq_nil_of_le hy]; simp [← h]
+    · have hlb : i.val < b.val.length := by omega
+      rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len b by scalar_tac)] at h
+      rw [List.drop_eq_getElem_cons hlb, List.map_cons]
+      obtain ⟨⟨e, bm⟩, he, h1⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨⟨e1, bm1⟩, he1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h1
+      obtain ⟨b1, hb1, h3⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+      have hb1v := eidx_eq2_abs_decide hb1
+      have hea : a.val[i.val] = (e, bm) := by
+        have := vec_index_some he; rw [List.getElem?_eq_getElem hlt] at this
+        exact Option.some_inj.mp this
+      have heb : b.val[i.val] = (e1, bm1) := by
+        have := vec_index_some he1; rw [List.getElem?_eq_getElem hlb] at this
+        exact Option.some_inj.mp this
+      have hwa : ConRon.Refine.PropWhenWF bm.pw := by
+        have := TeleWF.get ha i.val hlt; rw [hea] at this; exact this
+      have hwb : ConRon.Refine.PropWhenWF bm1.pw := by
+        have := TeleWF.get hb i.val hlb; rw [heb] at this; exact this
+      rw [hea, heb]
+      cases b1 with
+      | false =>
+        rw [if_neg (by simp), Result.ok.injEq] at h3
+        subst h3
+        have hne : absEIdx e ≠ absEIdx e1 := by simpa using hb1v.symm
+        simp [hne]
+      | true =>
+        rw [if_pos rfl] at h3
+        have hee : absEIdx e = absEIdx e1 := by simpa using hb1v.symm
+        obtain ⟨b2, hb2, h4⟩ := ConRon.Refine.bind_eq_ok_iff.mp h3
+        have hb2v := ConRon.Refine.Expr.binder_meta_beq_refines hwa hwb hb2
+        cases b2 with
+        | false =>
+          rw [if_neg (by simp), Result.ok.injEq] at h4
+          subst h4
+          have hne : ConRon.Refine.absPropWhen bm.pw ≠ ConRon.Refine.absPropWhen bm1.pw := by
+            simpa [ConRon.Refine.absBinderMeta] using hb2v.symm
+          simp [hee, hne]
+        | true =>
+          rw [if_pos rfl] at h4
+          have hbm : ConRon.Refine.absPropWhen bm.pw = ConRon.Refine.absPropWhen bm1.pw := by
+            simpa [ConRon.Refine.absBinderMeta] using hb2v.symm
+          obtain ⟨i5, hi5, h5⟩ := ConRon.Refine.bind_eq_ok_iff.mp h4
+          rw [ih i5 () (absSz_add_one hi5) o h5]
+          simp only [absBinderLFrom, absSz_add_one hi5]
+          simp [hee, hbm]
+
+@[lockstep] theorem binders_beq_twin (a b : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (ha : TeleWF a) (hb : TeleWF b) :
+    LSP (arena.inductives.rec_check.binders_beq a b 0#usize)
+      (fun o => TwinEq (absBinderL a == absBinderL b) o) := by
+  intro o h
+  rw [TwinEq, binders_beq_abs a b ha hb 0#usize o h, absBinderLFrom_zero, absBinderLFrom_zero]
+  exact beq_eq_decide _ _
+
 end ConRon.Refine2
