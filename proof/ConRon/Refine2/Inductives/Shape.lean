@@ -42,6 +42,7 @@ the Rust takes the whole `Vec` and an index.
 import ConRon.Refine2.Checker.KnotHyp
 import ConRon.Refine2.Tactic.Prims
 import ConRon.Refine2.Inductives.Prims
+import ConRon.Refine2.Inductives.FieldTele
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -75,18 +76,6 @@ def absLIdxLL (v : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)) :
 
 def absLIdxLLFrom (v : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx))
     (i : Std.Usize) : List (List LIdx) := (v.val.drop i.val).map absLIdxL
-
-/-- A `Vec<(EIdx, BinderMeta)>` as the twin's `List (EIdx × BinderMeta)` —
-`piBinders`' telescope.  `Refine2/Checker/Shape.lean`'s `absBinderArr` is the
-same `Vec` read as `domsMatchAux`' `Array`; both readings occur in this tier,
-which is task #97-P5-0's finding 5 met again. -/
-def absBinderL (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
-    List (EIdx × ConLeche.BinderMeta) :=
-  v.val.map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)
-
-def absBinderLFrom (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
-    (i : Std.Usize) : List (EIdx × ConLeche.BinderMeta) :=
-  (v.val.drop i.val).map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)
 
 /-! ## The constructor spines -/
 
@@ -799,29 +788,6 @@ open Lockstep in
 @[lockstep] theorem i_constant_infos_dup_spec (cs : alloc.vec.Vec arena.env.IConstantInfo) :
     LSP (arena.env.i_constant_infos_dup cs) (fun o => absICIL o = absICIL cs) :=
   fun _ h => i_constant_infos_dup_abs h
-
-/-! ## The error constructors, for the `lockstep` tactic
-
-The port builds a decline's error as `invalid (code_points M_…)` (or
-`not_implemented`/`internal`) and then `fail`s with it; the twin fails with the
-kind and a message string.  The kinds are what `AErrSim` compares, so each
-constructor is a Rust-only step whose spec is the constructor itself. -/
-
-open Lockstep in
-@[lockstep] theorem core_types_invalid_ls (m : alloc.vec.Vec Std.U32) :
-    LSP (kernel.core_types.invalid m) (fun e => e = .Invalid m) := by
-  intro e h; simp only [kernel.core_types.invalid, Result.ok.injEq] at h; exact h.symm
-
-open Lockstep in
-@[lockstep] theorem core_types_not_implemented_ls (m : alloc.vec.Vec Std.U32) :
-    LSP (kernel.core_types.not_implemented m) (fun e => e = .NotImplemented m) := by
-  intro e h; simp only [kernel.core_types.not_implemented, Result.ok.injEq] at h
-  exact h.symm
-
-open Lockstep in
-@[lockstep] theorem core_types_internal_ls (m : alloc.vec.Vec Std.U32) :
-    LSP (kernel.core_types.internal m) (fun e => e = .Internal m) := by
-  intro e h; simp only [kernel.core_types.internal, Result.ok.injEq] at h; exact h.symm
 
 /-! ## The tier's side-goal extension
 
