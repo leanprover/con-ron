@@ -1482,4 +1482,66 @@ theorem minorTy_eq : ClassGen.minorTy = minorTy' := by
   rw [arena.inductives.gen_rec.minor_ty, minorTy_eq, minorTy']
   lockstep
 
+theorem gr_vec_index_eq {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize} {x : α}
+    (h : v.val[i.val]? = some x) :
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i = ok x := by
+  rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+  rw [show v[i.val]? = v.val[i.val]? from rfl, h]
+
+/-- `prefixBinders.slotsGo`'s slot type (its first `match`, named). -/
+def grSlotTy (g : ClassGen) (s : Nat) (sl : ClassSlot) : AM (Option EIdx) :=
+  let d := g.nP + s
+  match sl with
+  | .motive _ => g.motiveTy ((g.slots.take s).filter isMotiveSlot).length d
+  | .minor c C _ =>
+    match (g.ctors.getD c []).find? (·.cv.name == C) with
+    | none => pure none
+    | some x => g.minorTy c x d
+
+/-- Two `do` blocks that differ only in the matcher constants of their
+`Option` matches (a restated `match` is a new matcher). -/
+macro "gr_opt_congr" : tactic => `(tactic|
+  first
+    | rfl
+    | (congr 1; done)
+    | (congr 1; funext y; cases y <;> first
+        | rfl
+        | (congr 1; done)
+        | (congr 1; funext z; cases z <;> first | rfl | (congr 1; done))))
+
+theorem slotsGo_cons (g : ClassGen) (s : Nat) (sl : ClassSlot) (sls : List ClassSlot) :
+    ClassGen.prefixBinders.slotsGo g s (sl :: sls) = (do
+      match ← grSlotTy g s sl with
+      | none => pure none
+      | some ty =>
+        match ← ClassGen.prefixBinders.slotsGo g (s + 1) sls with
+        | none => pure none
+        | some rest => pure (some ((ty, g.bm) :: rest))) := by
+  rw [ClassGen.prefixBinders.slotsGo.eq_def]
+  cases sl with
+  | motive k =>
+    simp only [grSlotTy]
+    have key : ∀ (q : ClassSlot → Bool) (l : List ClassSlot), (∀ x, q x = isMotiveSlot x) →
+        List.filter q l = List.filter isMotiveSlot l :=
+      fun q l h => List.filter_congr (fun x _ => h x)
+    rw [key]
+    · gr_opt_congr
+    · intro x; cases x <;> rfl
+  | minor c C ihs =>
+    simp only [grSlotTy]
+    cases List.find? (fun x => x.cv.name == C) (g.ctors.getD c []) <;> simp only [pure_bind]
+    all_goals gr_opt_congr
+
+/-- `slot_binder` at a slot `sl` ⊑ `grSlotTy`. -/
+theorem slot_binder_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen)
+    (hbm : ConRon.Refine.PropWhenWF g.bm.pw) (s : Std.Usize)
+    (sl : arena.inductives.class_read.ClassSlot) (hsl : g.slots.val[s.val]? = some sl) :
+    LS pers (fun a b => b = a.map absEIdx)
+      (arena.inductives.gen_rec.slot_binder pers st g s) lst
+      (grSlotTy (absClassGen g) s.val (absClassSlot sl)) := by
+  rw [arena.inductives.gen_rec.slot_binder, gr_vec_index_eq hsl]
+  simp only [bind_tc_ok]
+  cases sl <;> simp only [grSlotTy, absClassSlot] <;> lockstep
+
 end ConRon.Refine2
