@@ -18,6 +18,7 @@ they run at.
 import ConRon.Bridge.Inductives.BlockInstall
 import ConRon.Bridge.Inductives.RecCheck
 import ConRon.Bridge.Inductives.BlockWF
+import ConLeche.Verify.Inductives.PositivityInv
 
 namespace ConRon.Bridge.Inductives
 
@@ -259,6 +260,33 @@ theorem InstRel.same {fe fe' : IFEnv} {env : Env} {st : EStore} (hcoh : IFEnvCoh
 theorem CheckOK.of_find? {μ : CheckMode} {env : Env} {fe fe' : IFEnv} {s : AState}
     (h : CheckOK μ env fe s) (e : fe'.find? = fe.find?) : CheckOK μ env fe' s :=
   ⟨h.state, h.caches, h.pins, RC.IFEnvOK.of_find? h.ienv e⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:266-274 blockNestCtx —
+**the walk's canonical parameters are scoped at the parameter count**
+(`blockNestCtxS_sim₂`'s `hpar`, read off the pure run): they are the first
+former's telescope opened at the parameters (`openPisAtFvars_WScoped`). -/
+theorem blockNestCtx_params_scoped {pP : ConLeche.BlockShape} {cvsP : List ConstantVal}
+    {find? : ConLeche.Name → Option ConstantInfo} {v : ConLeche.NestCtx × List Expr}
+    (hT : ∀ cv ∈ cvsP, Expr.WScoped 0 cv.type)
+    (h : FOk (ConLeche.blockNestCtx (m := FueledM) pP cvsP find?) v) :
+    ∀ x ∈ v.1.params, Expr.WScoped pP.nP x := by
+  obtain ⟨F, hF⟩ := h
+  rw [blockNestCtx_datF] at hF
+  obtain ⟨ctx, holes⟩ := v
+  obtain ⟨cv0, fvs, rest, h0, hop, rfl, -⟩ := ConLeche.blockNestCtx_inv hF
+  intro x hx
+  have := (ConLeche.openPisAtFvars_WScoped pP.nP cv0.type 0 hop
+    (hT cv0 (List.mem_of_mem_head? h0))).1 x hx
+  simpa using this
+
+/-- con-leche: none — a walk state's table, denoted. -/
+theorem dState_ctorNfs {st : EStore} {ns : Arena.NestState} {nsP : ConLeche.NestState}
+    (h : dState st ns = some nsP) :
+    ns.ctorNfs.toList.mapM (dCtorNf st) = some nsP.ctorNfs.toList := by
+  simp only [dState, Option.bind_eq_bind, Option.pure_def, Option.bind_eq_some_iff,
+    Option.some.injEq] at h
+  obtain ⟨a1, h1, a2, h2, a3, h3, rfl⟩ := h
+  simpa using h3
 
 end BT
 
@@ -608,5 +636,153 @@ theorem checkBlockTail_of {μ : CheckMode} (hk : CoreSpec μ Arena.checkFuel)
   subst henv₂
   unfold ConLeche.checkBlockTail
   exact FOk.bind hisF (FOk.bind hGRF he')
+
+
+/-! ## The pass -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:54-74 checkBlockPass
+con-leche: ConLeche/Verify/Cached/GenRecC.lean:931 checkBlockPassS_run —
+**one pass over the formers, the constructors and the classes**: the formers
+(at the entry index, `CheckOK` there), the flush entering the index that
+holds them all, then every other stage at that index.  The answer denotes the
+pass con-leche's `checkBlockPass` produces, with the facts the tail needs:
+the caches sound at the formers' index, both environments well formed, the
+formers' types closed, the classes scoped. -/
+theorem checkBlockPass_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
+    (hk : CoreSpec μ Arena.checkFuel)
+    (hCL : ∀ (fe₁ : IFEnv) (env₁ : Env) (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
+      (params : List EIdx) (paramsP : List Expr) (ctorsAs : List (List (IConstantVal × Nat)))
+      (ctorsAsP : List (List (ConstantVal × Nat))),
+      EnvWF env₁ → paramsP.length = pP.nP → (∀ x ∈ paramsP, Expr.WScoped pP.nP x) →
+      CSpecF μ env₁ fe₁
+        (fun st => dShape st p = some pP ∧ Frontend.denoteEList st params = some paramsP ∧
+          ctorsAs.mapM (dCtors st) = some ctorsAsP ∧ denoteFEnv st fe₁ = some env₁)
+        (Arena.checkBlockClasses μ fe₁ p params ctorsAs)
+        (fun st r v => dClassRead st r.1 = some v.1 ∧ r.2.mapM (dMajor st) = some v.2 ∧
+          ∀ M ∈ v.2, ConLeche.Cached.ClassMajScoped pP.nP M)
+        (ConLeche.checkBlockClasses (fueledOpsM μ) (mkFEnv env₁) env₁ pP paramsP ctorsAsP))
+    (hCS : ∀ (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) (holes : List EIdx)
+      (holesP : List Expr) (ms : List Arena.TargetMajor) (msP : List ConLeche.TargetMajor)
+      (fnd : ConLeche.Name → Option ConstantInfo),
+      PSpec (fun st => dCtx st fnd ctx = some ctxP ∧ Frontend.denoteEList st holes = some holesP ∧
+          ms.mapM (dMajor st) = some msP)
+        (Arena.classSeeds ctx holes ms)
+        (fun st r => r.mapM (fun k => (dKey st k.1).map (·, k.2))
+          = some (ConLeche.classSeeds ctxP holesP msP)))
+    {env : Env} {fe : IFEnv} {p₀ : Arena.BlockParts} {p₀P : ConLeche.BlockParts}
+    {isRec : Bool} {s s' : AState} {q : Arena.BlockPass}
+    (henv : EnvWF env) (hck : CheckOK μ env fe s) (hcoh : IFEnvCoh fe)
+    (hden : denoteFEnv s.store fe = some env) (hp : dParts s.store p₀ = some p₀P)
+    (hrun : Arena.checkBlockPass μ fe p₀ isRec s = .ok (q, s')) :
+    ∃ env₁ qP, InstStep s s' ∧ CheckOK μ env₁ q.env1 s' ∧
+      InstRel fe (fun e => e = env₁) s'.store q.env1 ∧ EnvWF env₁ ∧
+      dPass s'.store env₁ q = some qP ∧ (∀ cv ∈ qP.cvTas, Expr.WScoped 0 cv.type) ∧
+      EnvWF (ConLeche.consBlockCtors qP.p.nP qP.ctorsAs env₁) ∧
+      (∀ M ∈ qP.cls, ConLeche.Cached.ClassMajScoped qP.p.nP M) ∧
+      FOk (ConLeche.checkBlockPass (fueledOpsM μ) env p₀P isRec) qP := by
+  simp only [Arena.checkBlockPass] at hrun
+  -- the formers
+  obtain ⟨⟨fe₁, cvTas, p₁⟩, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨c1, ⟨env₁, cvTasP, p₁P⟩, ⟨hrel1, hOKS1, hcvs, hsh1, hT⟩, hF1⟩ :=
+    checkBlockInds_spec fe hμ hk henv hcoh p₀ p₀P isRec s s₁ _ hck ⟨hp, hden⟩ h1
+  dsimp only at h2 hrel1 hOKS1 hcvs hsh1 hT hF1
+  have henv₁ : EnvWF env₁ := by
+    obtain ⟨F, hF⟩ := hF1
+    rw [checkBlockInds_datF] at hF
+    exact (direct_block_inds_wf henv hF).1
+  have hden₁ : denoteFEnv s₁.store fe₁ = some env₁ := by
+    obtain ⟨e, h, rfl⟩ := hrel1.denote; exact h
+  -- the flush entering the formers' index
+  obtain ⟨u, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨c2, i2, hs2⟩ := ReadOK.flush (μ := μ)
+    (⟨c1.ok.state, c1.ok.pins, hOKS1 s₁ rfl⟩ : ReadOK env₁ fe₁ s₁) h3
+  simp only [Arena.BlockParts.complete] at h4
+  have x2 : Ext s₁.store s₂.store := by rw [hs2]; exact Ext.refl _
+  obtain ⟨hms1, -⟩ := RC.dShape_inv hsh1
+  -- the constructors
+  obtain ⟨⟨ctorsAs, sortsss⟩, s₃, h5, h6⟩ := bindOk h4
+  obtain ⟨c3, ⟨ctorsAsP, sortsssP⟩, ⟨hca, hss⟩, hF3⟩ :=
+    checkBlockCtors_specF fe₁ fe₁ hμ hk henv₁ p₁ p₁P env₁ p₁.members p₁P.members cvTas cvTasP
+      hT s₂ s₃ _ c2
+      ⟨dShape_ext x2 _ _ hsh1, dMember_ext.list x2 _ _ hms1, dExt_denoteCV.list x2 _ _ hcvs,
+        denoteFEnv_ext x2 hden₁, denoteFEnv_ext x2 hden₁, c2.ienv.toS⟩ h5
+  dsimp only at h6 hca hss hF3
+  have x3 := c3.ext
+  -- the walk's context
+  obtain ⟨⟨ctx, holes⟩, s₄, h7, h8⟩ := bindOk h6
+  obtain ⟨c4, ⟨ctxP, holesP⟩, ⟨hctx, hholes, hctxOk, hhw, hpar, hlen, hnh, hnP⟩, hF4⟩ :=
+    blockNestCtx_spec (μ := μ) fe₁ henv₁ p₁ p₁P cvTas cvTasP hT s₃ s₄ _ c3.ok
+      ⟨dShape_ext (x2.trans x3) _ _ hsh1, dExt_denoteCV.list (x2.trans x3) _ _ hcvs⟩ h7
+  dsimp only at h8 hctx hholes hctxOk hhw hpar hlen hnh hnP hF4
+  have hparN := blockNestCtx_params_scoped hT hF4
+  dsimp only at hparN
+  have x4 := c4.ext
+  have x14 : Ext s₁.store s₄.store := x2.trans (x3.trans x4)
+  obtain ⟨namesP, lpsP, paramsP, sortP, hctxEq, -, -, hparams, -, -⟩ := dCtx_inv hctx
+  -- the classes
+  obtain ⟨⟨rd, ms⟩, s₅, h9, h10⟩ := bindOk h8
+  obtain ⟨c5, ⟨rdP, msP⟩, ⟨hrd, hmsP, hMsc⟩, hF5⟩ :=
+    hCL fe₁ env₁ p₁ p₁P ctx.params ctxP.params ctorsAs ctorsAsP henv₁ (by rw [hlen, hnP])
+      (by rw [← hnP]; exact fun x hx => by rw [hnP]; exact hparN x hx) s₄ s₅ _ c4.ok
+      ⟨dShape_ext x14 _ _ hsh1, by rw [hctxEq]; exact hparams,
+        dCtors_ext.list x4 _ _ hca, denoteFEnv_ext x14 hden₁⟩ h9
+  dsimp only at h10 hrd hmsP hMsc hF5
+  have x5 := c5.ext
+  have x15 : Ext s₁.store s₅.store := x14.trans x5
+  -- the positivity function, on the stored constructors (the root frame)
+  obtain ⟨⟨kinds, nfs, pos⟩, s₆, h11, h12⟩ := bindOk h10
+  obtain ⟨c6, ⟨kindsP, nfsP, posP⟩, ⟨hkinds, hnfs, hpos⟩, hF6⟩ :=
+    checkBlockPositivity_spec fe₁ hk henv₁ ⟨p₁⟩ ⟨p₁P⟩ cvTas cvTasP ctorsAs ctorsAsP hT
+      (checkBlockCtors_types hF3) s₅ s₆ _ c5.ok
+      ⟨by simp only [dParts, dShape_ext x15 _ _ hsh1, Option.map_some],
+        dExt_denoteCV.list x15 _ _ hcvs, dCtors_ext.list (x4.trans x5) _ _ hca,
+        denoteFEnv_ext x15 hden₁⟩ h11
+  dsimp only at h12 hkinds hnfs hpos hF6
+  subst hkinds
+  have x6 := c6.ext
+  -- the seeds: every outside class
+  obtain ⟨seeds, s₇, h13, h14⟩ := bindOk h12
+  obtain ⟨p7, hseeds⟩ := hCS ctx ctxP holes holesP ms msP env₁.find? s₆ s₇ seeds c6.ok.state
+    ⟨dCtx_ext _ (x5.trans x6) _ _ hctx, denoteEList_ext (x5.trans x6) _ _ hholes,
+      dMajor_ext.list x6 _ _ hmsP⟩ h13
+  have c7 := p7.toCore c6.ok
+  -- every outside class, walked from the root frame's state
+  obtain ⟨ns, s₈, h15, h16⟩ := bindOk h14
+  obtain ⟨c8, nsP, hns, hF8⟩ := nestSeeds_spec (μ := μ) (env := env₁) (fe := fe₁) hk henv₁
+    hctxOk seeds (ConLeche.classSeeds ctxP holesP msP) pos posP
+    (fun k hk x hx => by
+      obtain ⟨M, hM, hMn, rfl⟩ := ConLeche.Cached.mem_classSeeds hk
+      exact (ConLeche.nestSeedOf_ds hnh hlen (fun y hy => ConLeche.Expr.fvarB_le (by
+        rw [hnP]; exact (hMsc M hM).2.1 hMn y hy)) x hx).2 (fun y hy => (hhw y hy).1) hpar)
+    s₇ s₈ ns c7.ok
+    ⟨dCtx_ext _ (x5.trans (x6.trans c7.ext)) _ _ hctx, hseeds, dState_ext c7.ext _ _ hpos⟩
+    h15
+  obtain ⟨rfl, rfl⟩ := pureOk h16
+  have x8 := c8.ext
+  have x7 := c7.ext
+  have x58 : Ext s₅.store s'.store := x6.trans (x7.trans x8)
+  have x18 : Ext s₁.store s'.store := x15.trans x58
+  -- the pure side
+  have hFP : FOk (ConLeche.checkBlockPass (fueledOpsM μ) env p₀P isRec)
+      ⟨env₁, cvTasP, ⟨p₁P⟩, ctorsAsP, sortsssP, kinds.map (·.map (·.map kindOf)), nfsP,
+        ctxP.params, rdP, msP, nsP.ctorNfs⟩ := by
+    unfold ConLeche.checkBlockPass
+    exact FOk.bind hF1 (FOk.bind hF3 (FOk.bind hF4 (FOk.bind hF5 (FOk.bind hF6
+      (FOk.bind hF8 (FOk.pure _))))))
+  have hwf₂ : EnvWF (ConLeche.consBlockCtors p₁P.nP ctorsAsP env₁) := by
+    obtain ⟨F, hF⟩ := hFP
+    rw [checkBlockPass_datF] at hF
+    exact (checkBlockPass_envWF henv hF).2
+  refine ⟨env₁, _, (c1.toInst.trans i2).trans (c3.toInst.trans (c4.toInst.trans
+      (c5.toInst.trans (c6.toInst.trans (c7.toInst.trans c8.toInst))))), c8.ok,
+    hrel1.ext x18, henv₁, ?_, hT, hwf₂, hMsc, hFP⟩
+  exact dPass_mk (dExt_denoteCV.list x18 _ _ hcvs)
+    (by simp only [dParts, dShape_ext x18 _ _ hsh1, Option.map_some])
+    (dCtors_ext.list (x4.trans (x5.trans x58)) _ _ hca)
+    (DExt.list (d := denoteLLists) (fun hx x y h => BI.denoteLLists_ext hx x y h)
+      (x4.trans (x5.trans x58)) _ _ hss)
+    (dExt_denoteEList.list (x7.trans x8) _ _ hnfs)
+    (denoteEList_ext (x5.trans x58) _ _ (by rw [hctxEq]; exact hparams))
+    (dClassRead_ext x58 _ _ hrd) (dMajor_ext.list x58 _ _ hmsP) (dState_ctorNfs hns)
 
 end ConRon.Bridge.Inductives
