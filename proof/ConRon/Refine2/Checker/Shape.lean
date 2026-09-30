@@ -528,7 +528,7 @@ def absBasisKindLFrom (v : alloc.vec.Vec kernel.env.BasisKind) (i : Std.Usize) :
 
 attribute [simp] absNIdxL absEIdxL absLIdxL absNIdxLFrom absEIdxLFrom absLIdxLFrom
   absIRecRuleL absIRecRuleLFrom absICIL absICILFrom absIDeclL absIDeclLFrom
-  absStmts absStmtsFrom absEqPairs absEqPairsFrom absBinderArr absExprLFrom absCIListFrom absRecRuleLFrom absDeclLFrom absLevelLFrom
+  absStmts absStmtsFrom absEqPairs absEqPairsFrom absExprLFrom absCIListFrom absRecRuleLFrom absDeclLFrom absLevelLFrom
   absNameLFrom absBasisKindLFrom
 
 /-! ## The environment index's own invariant
@@ -942,8 +942,5 @@ attribute [simp] absPendingCheck absPendingCheckL absPendingCheckLFrom
 
 /-- info: 'ConRon.Refine2.ifenv_push_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ifenv_push_refines
-
-/-- info: 'ConRon.Refine2.openPisAtFvarsF_length' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms openPisAtFvarsF_length
 
 end ConRon.Refine2

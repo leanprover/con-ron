@@ -1826,29 +1826,6 @@ open Lockstep in
       pinOfReduceBool :=
   LSR.ofSimRE hrel hinv fun _ h => pin_of_reduce_bool_refines hrel hinv h
 
-/-- `pin_quot` ⊑ `pinQuot`, at slot `PIN_QUOT`. -/
-theorem pin_quot_refines {pers st lst} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.pins.pin_quot st = ok o) :
-    SimRE absNIdx lst o pinQuot := by
-  rw [arena.pins.pin_quot] at hrun
-  have h := pin_at_refines hrel hinv hrun
-  have hc : absSz arena.pins.PIN_QUOT = Arena.PIN_QUOT := by
-    show (arena.pins.PIN_QUOT).val = _
-    rw [arena.pins.PIN_QUOT]
-    rfl
-  rw [hc] at h
-  exact h
-
-open Lockstep in
-@[lockstep] theorem pin_quot_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a)
-      (arena.pins.pin_quot st) st lst
-      pinQuot :=
-  LSR.ofSimRE hrel hinv fun _ h => pin_quot_refines hrel hinv h
-
 /-! ## `arena::nat_op_pin_set` — the `Nat`-operation pin variants
 
 DESIGN §8.6 P2d: *intern con-leche's `natOpPinSets` `Expr`s into the
