@@ -40,7 +40,7 @@
 //!
 //! The one place a *second* view is unavoidable is the inductive install
 //! routes, which hold two or three views of one index at once
-//! (`inductives::native_install`, `inductives::modeled`); they take `dup`,
+//! (the pre-#105 native and modelled installers); they took `dup`,
 //! which rebuilds the index with `mk_fenv_go`.  Task #34 measured what that
 //! costs and what the alternatives cost:
 //!

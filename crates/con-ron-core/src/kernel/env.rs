@@ -802,13 +802,12 @@ pub fn proj_table_beq(a: &ProjTable, b: &ProjTable) -> bool {
 /// Lean's `deriving DecidableEq` on `ConstantInfo` — **the equality the two
 /// pinned-basis guards read** as `env.find? eqName == some eqA` and
 /// `decide (env.find? natName = some natA)`
-/// (`Kernel/StdAxioms.lean:346`, `Kernel/TrustAxioms.lean:180`,
-/// `Kernel/Checker.lean:284,528`,
-/// `Kernel/Inductives/Modeled.lean:448,493,603,653`).  Different
+/// (`Kernel/StdAxioms.lean:324`, `Kernel/TrustAxioms.lean:183,196`,
+/// `Kernel/Checker.lean:282,433`).  Different
 /// constructors are unequal; each arm is componentwise.
 ///
 /// It is a *whole-constant* comparison, not `ConstantVal.matchesPin`: the
-/// other seventeen annotated basis pins are consumed up to `Expr.erasePw`
+/// other fourteen annotated basis pins are consumed up to `Expr.erasePw`
 /// and so need no table at all (task #24's note in
 /// `std_axioms`/`trust_axioms`), while these two read the capabilities and
 /// the recursor rules too.

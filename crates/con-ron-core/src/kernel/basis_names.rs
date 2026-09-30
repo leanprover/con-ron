@@ -1,7 +1,7 @@
 //! The pinned basis names — `ConLeche/Kernel/Basis/Names.lean`.
 //!
 //! Ported here because `Kernel/Core.lean` (task #18) reads every one of
-//! them: the `Nat`/`String` literal guards, `isUnitLikeTy`'s `PUnit` pin,
+//! them: the `Nat`/`String` literal guards,
 //! the `And`-only η rescue and the `reservedBasisNames` exclusions in the
 //! structure-η certificate.  The rest of `Kernel/Basis.lean` (the pinned
 //! declarations themselves, one module per basis type) is a later task; this
