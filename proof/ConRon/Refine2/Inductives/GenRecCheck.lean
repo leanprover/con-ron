@@ -29,6 +29,7 @@ namespace ConRon.Refine2
 open ConRon.Arena
 open Lockstep
 open scoped IndSide
+open scoped GenRecSide
 
 attribute [local lockstep_simp] pos_core_walk_fuel_abs pos_core_walk_fuel_val
   gr_absIConstantVal_name gr_absIConstantVal_levelParams gr_absIConstantVal_type
@@ -1912,5 +1913,86 @@ theorem class_fe_r_push_spec (p : arena.inductives.block_parts.BlockShape)
   simp only [classFeR]
   rw [hn, List.nil_append, hfeq]
   exact hT
+
+/-! ## `gen_rec_check` (with `gen_rec_classes` and `gen_rec_generate` inline) -/
+
+/-- PLACEHOLDER for `RecCheck.lean`'s `target_rec_pins` companion (sub-agent
+`rc`'s; not yet written): the statement it will have. -/
+theorem gr_target_rec_pins_stub {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (p : arena.inductives.block_parts.BlockShape)
+    (block : alloc.vec.Vec arena.env.IConstantInfo) :
+    LS pers (fun _ _ => True) (arena.inductives.rec_check.target_rec_pins pers st p block) lst
+      (targetRecPins (absBlockShape p) (block.val.map absIConstantInfo)) := by
+  sorry
+
+/-- PLACEHOLDER for `BlockRec.lean`'s `block_large_elim_allowed_ls` (on branch
+`t105-fi-bp`, not yet on `t105-fi`): the same statement. -/
+theorem gr_block_large_elim_allowed_stub {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (p : arena.inductives.block_parts.BlockShape) (nested : Bool) :
+    LS pers (fun a b => b = a)
+      (arena.inductives.block_rec.block_large_elim_allowed pers st p nested) lst
+      (blockLargeElimAllowed (absBlockShape p) nested) := by
+  sorry
+
+attribute [local lockstep] gr_target_rec_pins_stub gr_block_large_elim_allowed_stub
+
+/-- The pop lambda, named (the twin's `fun (n, prev) acc => acc.popTemp n prev`). -/
+def grPop (x : NIdx × Option (Nat × IConstantInfo)) (acc : IFEnv) : IFEnv :=
+  acc.popTemp x.1 x.2
+
+theorem class_fe_r_push_ls (p : arena.inductives.block_parts.BlockShape)
+    (cv_gs : alloc.vec.Vec arena.env.IConstantVal) (rec_cls : alloc.vec.Vec Std.U64)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
+    LSP (arena.inductives.gen_rec.class_fe_r_push p cv_gs rec_cls 0#usize rf (alloc.vec.Vec.new _))
+      (fun r => IFEnvRelI r.1 (classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
+          (rec_cls.val.map absU) lf).1 ∧
+        ∀ (j : Std.Usize) out, j.val = r.2.val.length →
+          arena.inductives.gen_rec.class_fe_r_pop r.1 r.2 j = ok out →
+          IFEnvRelI out ((classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
+            (rec_cls.val.map absU) lf).2.foldr grPop
+            (classFeR (absBlockShape p) (cv_gs.val.map absIConstantVal)
+              (rec_cls.val.map absU) lf).1)) :=
+  class_fe_r_push_spec p cv_gs rec_cls hfe grPop (fun _ _ => rfl)
+
+attribute [local lockstep] class_fe_r_push_ls
+attribute [local lockstep_inline] arena.inductives.gen_rec.gen_rec_classes
+  arena.inductives.gen_rec.gen_rec_generate
+
+namespace GenRecSide
+
+/-- The stage's side alternatives: a generator record's `ClassGenWF`. -/
+scoped macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| (refine ⟨?_, ?_⟩ <;> first
+      | assumption
+      | exact TeleWF.new
+      | exact OptTeleWF.get (by assumption)
+      | (simp only at *; assumption)))
+
+end GenRecSide
+
+set_option maxHeartbeats 4000000 in
+/-- `gen_rec_check` ⊑ `genRecCheck` — the export the block tail reads: the
+index handed back related to the twin's popped one, the rules alike. -/
+@[lockstep] theorem gen_rec_check_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf)
+    (p : arena.inductives.block_parts.BlockShape) (nested_bit : Bool)
+    (params : alloc.vec.Vec arena.handle.EIdx)
+    (tbl : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
+    (rd : arena.inductives.class_read.ClassRead)
+    (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor)
+    (cv_tas : alloc.vec.Vec arena.env.IConstantVal)
+    (block : alloc.vec.Vec arena.env.IConstantInfo) :
+    LS pers (fun a b => IFEnvRelI a.1 b.1 ∧ b.2 = absRuleOutL a.2)
+      (arena.inductives.gen_rec.gen_rec_check pers st mode rf p nested_bit params tbl rd ms
+        cv_tas block) lst
+      (genRecCheck (ConRon.Refine.absMode mode) lf (absBlockShape p) nested_bit (absEIdxL params)
+        (tbl.val.map absNestCtorNf) (absClassRead rd) (ms.val.map absTargetMajor)
+        (cv_tas.val.map absIConstantVal) (block.val.map absIConstantInfo)) := by
+  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
+  rw [arena.inductives.gen_rec.gen_rec_check, genRecCheck]
+  lockstep
+  all_goals (trace_state; sorry)
 
 end ConRon.Refine2
