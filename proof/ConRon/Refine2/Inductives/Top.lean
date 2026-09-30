@@ -25,7 +25,7 @@ installs, because the checker's fold needs both for its next step).  No
 -/
 import ConRon.Refine2.Inductives.Abs
 import ConRon.Refine2.Inductives.Prims
-import ConRon.Refine2.Inductives.BlockParts
+import ConRon.Refine2.Inductives.BlockTail
 -- `checker_base::ind_params_ok` and `check_constant_val` are the checker
 -- tier's (`Checker/Base.lean`).
 import ConRon.Refine2.Checker.Base
@@ -42,17 +42,6 @@ open scoped ConRon.Refine2.IndSide
 open ConRon.Arena
 
 open Lockstep
-
-/-- **`block_tail::check_block` ⊑ `checkBlock`** — the uniform install. -/
-@[lockstep] theorem check_block_ls {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
-    {block : alloc.vec.Vec arena.env.IConstantInfo}
-    {p0 : arena.inductives.block_parts.BlockParts}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) :
-    LS pers IFEnvRelI
-      (arena.inductives.block_tail.check_block pers st mode rf block p0) lst
-      (checkBlock (ConRon.Refine.absMode mode) lf (absICIL block) (absBlockParts p0)) := by
-  sorry
 
 /-- `check_decl::check_shapeless_formers` ⊑ `checkShapelessFormers`, from the
 cursor on: the Rust's index walk is the twin's list recursion (every type
