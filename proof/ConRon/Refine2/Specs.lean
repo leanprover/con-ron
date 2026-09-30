@@ -8367,15 +8367,17 @@ theorem internForallEIE_run_of_not_cap {lst : AState} {ty b : EIdx} {mi : BMIdx}
 
 
 
-/-- `arena::monad::intern_e_lam_i` against `Arena.internLamIE`. -/
+/-- The `ETAG_LAM` arm of `arena::monad::intern_e_bind_i` (the Rust's former
+`intern_e_lam_i`, inlined there) against `Arena.internLamIE`. -/
 theorem intern_e_lam_i_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (ty : arena.handle.EIdx) (b : arena.handle.EIdx) (mi : arena.handle.BMIdx)
     {o}
-    (hrun : arena.monad.intern_e_lam_i pers st ty b mi = ok o) :
+    (hrun : (do
+      let (r, e) ← arena.store.EStore.intern_lam_i st.store pers ty b mi
+      ok (r, ({ st with store := e } : arena.monad.AState))) = ok o) :
     Sim₀ absEIdx pers lst o
       (Arena.internLamIE (absEIdx ty) (absEIdx b) (absBMIdx mi)) := by
-  rw [arena.monad.intern_e_lam_i] at hrun
   obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r, e⟩ := p
   have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
@@ -8397,15 +8399,18 @@ theorem intern_e_lam_i_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     obtain ⟨hk, hnc⟩ := herr ee hr
     exact AOut₀.err (aErrSim_native_of hk (internLamIE_run_of_not_cap hnc))
 
-/-- `arena::monad::intern_e_forall_e_i` against `Arena.internForallEIE`. -/
+
+/-- The `forallE` arm of `arena::monad::intern_e_bind_i` (the Rust's former
+`intern_e_forall_e_i`, inlined there) against `Arena.internForallEIE`. -/
 theorem intern_e_forall_e_i_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (ty : arena.handle.EIdx) (b : arena.handle.EIdx) (mi : arena.handle.BMIdx)
     {o}
-    (hrun : arena.monad.intern_e_forall_e_i pers st ty b mi = ok o) :
+    (hrun : (do
+      let (r, e) ← arena.store.EStore.intern_forall_e_i st.store pers ty b mi
+      ok (r, ({ st with store := e } : arena.monad.AState))) = ok o) :
     Sim₀ absEIdx pers lst o
       (Arena.internForallEIE (absEIdx ty) (absEIdx b) (absBMIdx mi)) := by
-  rw [arena.monad.intern_e_forall_e_i] at hrun
   obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨r, e⟩ := p
   have ho : (r, ({ st with store := e } : arena.monad.AState)) = o :=
@@ -8427,6 +8432,7 @@ theorem intern_e_forall_e_i_run₀ {pers st lst} (hrel : AStateRel₀ pers st ls
   | Err ee =>
     obtain ⟨hk, hnc⟩ := herr ee hr
     exact AOut₀.err (aErrSim_native_of hk (internForallEIE_run_of_not_cap hnc))
+
 
 /-- `arena::monad::intern_e_bind_i` against `Arena.internBindIE` — the tag
 dispatch, and nothing but. -/
@@ -13879,13 +13885,6 @@ and nothing here**. -/
 
 /-- info: 'ConRon.Refine2.internForallEIE_run_of_cap' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms internForallEIE_run_of_cap
-
-/-- info: 'ConRon.Refine2.intern_e_lam_i_run₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_e_lam_i_run₀
-
-/-- info: 'ConRon.Refine2.intern_e_forall_e_i_run₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_e_forall_e_i_run₀
-
 
 /-! ## The axiom census, task #97-P5-3 round 3
 
