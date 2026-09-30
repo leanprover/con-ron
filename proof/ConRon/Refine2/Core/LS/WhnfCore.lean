@@ -32,8 +32,6 @@ attribute [lockstep_inline] arena.core.whnf_core_proj arena.core.whnf_core_proj_
 
 attribute [local lockstep_simp] ConRon.Refine.absBinderMeta
 
-/-! ## Stubs (other regions' lemmas; deleted at merge) -/
-
 /-! ## The batched β spine: `whnf_app` / `beta_peel`
 
 One joint induction on the spine's remaining length `args.size - i` (the twin's

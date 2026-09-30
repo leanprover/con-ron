@@ -175,8 +175,6 @@ include hrel hinv
 
 end rebuilt
 
-/-! ### The public statements -/
-
 /-! ## `instLPGo` -/
 
 section instLP
@@ -761,7 +759,5 @@ attribute [local lockstep_simp] renameArmFVar renameArmApp renameArmLam renameAr
 
 end rename
 
-
-/-! ## The public statements (`Sim₀`) -/
 
 end ConRon.Refine2

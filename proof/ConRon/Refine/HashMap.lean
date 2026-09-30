@@ -279,8 +279,6 @@ neither the hash function nor the bucket structure — `Inv` is what ties the tw
 together (and is why no assumption on `hash64` is ever needed). -/
 def toFun (m : ron.hashmap.HashMap K V) (k : K) : Option V := lookupK (al_v m) k
 
-/-! ## The three bucket walks -/
-
 /-! ## `Vec`, read forwards -/
 
 omit [DecidableEq K] in
@@ -421,8 +419,6 @@ theorem toFun_eq_bucket (hinv : Inv HashableInst m) {k : K} {i : Std.Usize}
   obtain ⟨j, hj, hx⟩ := mem_slots_flatten.1 hv
   have hij : i.val = j := hinv.slot_inv j i k (List.mem_map.2 ⟨(k, v), hx, rfl⟩) hb
   rw [hij]; exact hx
-
-/-! ## `get`, `contains_key`, `len`, `is_empty` -/
 
 /-! ## Construction: `allocate_slots`, `new`, `with_capacity` -/
 
@@ -643,8 +639,6 @@ theorem vec_len_congr {α : Type} {v w : alloc.vec.Vec α}
   have h2 := alloc.vec.Vec.len_val w
   scalar_tac
 
-/-! ## `insert` -/
-
 /-! ## Growth: `move_elements`, `try_resize` -/
 
 omit [DecidableEq K] in
@@ -660,8 +654,6 @@ theorem Inv_of_slots_eq {m₁ m₂ : ron.hashmap.HashMap K V} (h₁ : Inv Hashab
   slot_inv := by rw [hs]; exact h₁.slot_inv
   nodup := by rw [al_v_congr hs]; exact h₁.nodup
   entries := he
-
-/-! ## `remove` -/
 
 /-! ## `dup`, the pin loop's pre-attempt snapshot (task #67)
 

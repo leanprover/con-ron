@@ -39,8 +39,6 @@ namespace ConRon.Refine2.Lockstep
 
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PG
 
-/-! ## Stubs (other regions' lemmas; deleted at merge) -/
-
 /-! ## Local normalisation -/
 
 attribute [local lockstep_simp] absEIdxArr_eq vec_len_abs absStk_size List.map_append

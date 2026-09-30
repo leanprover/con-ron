@@ -66,15 +66,6 @@ open ConRon.Generated ConRon.Generated.kernel
 
 namespace ConRon.Refine.CoreK
 
-/-! ## The imported facts
-
-Two bundles of refinements this file *reads* and another agent's file *proves*.
-Each clause is verbatim the other file's statement, so the parent agent
-discharges a bundle by `⟨fun _ _ => that_theorem, …⟩`.  The two pinned names the
-shape guards compare against -- `basis_names::and_name` and
-`basis_names::reserved_basis_names` -- come in as `CoreKBase.lean`'s
-`PinnedName`/`PinnedNames`, which `Refine/CoreKPinned.lean` discharges. -/
-
 /-! ## Two refinements that belong in other landed files
 
 `prop_when::names_beq` (`Refine/PropWhen.lean`) and
@@ -267,45 +258,6 @@ theorem name_is_proj_fn_shape_refines {n : name.Name} {b : Bool} (hn : NameWF n)
       simp only [name_node_kind, Result.ok.injEq] at h
       rw [← h, absName_mk, absNameKind, absName_mk, absNameKind]
       rfl
-
-/-! ## The tower-fire guard (`Core.lean:1227-1253`, `:1893-1982`) -/
-
-/-! ## The shape conjunctions (`Core.lean:1029-1114`, `:1141-1169`)
-
-`structEtaCertWith` and `structUnitCert` are monadic certificates whose first
-test is a conjunction over stored data; the port factors exactly that `∧`
-cascade out as an `if` nest, so the refinement equates the `Bool` with `decide`
-of the cited condition. -/
-
-/-! ## The `And`-only η rescue (`Core.lean:1255-1272`, `FEnv.lean:101-103`)
-
-The three cited declarations -- `andRescueSlotsOf`, `andRescueSlots` and
-`FEnv.andRescueSlotsF` -- are one function in the port (the module note's point
-3: the port's only spelling is the indexed one), so the statements below are
-against `andRescueSlotsOf` at `lfe.findProj?`, which is `andRescueSlotsF`. -/
-
-/-! ## The rescue's scope guard (`Core.lean:1274-1456`) -/
-
-/-! ## The fabricated η projections (`Core.lean:1017-1027`, `:1210-1225`)
-
-`eta_projs`/`eta_projs_from` are **deliberately dead** in the port
-(`core_c::proj_apps_i` superseded them) and `eta_fab_args`/`eta_fab_args_e` are
-written against them and dead in the Lean too (`etaFabArgs`/`etaFabArgsE`);
-all four are ported, and refined here, so the provenance gate stays in step
-with its source (task #11's `beqRecursive` rule). -/
-
-/-! ## The install-time rule bits (`Core.lean:1488-1543`, `:1582-1594`)
-
-`recRuleKOf`/`recRuleEtaOf` are abstracted over the lookup in the cited Lean;
-the port reads `fenv::find` through `ctor_probe`/`ind_probe`, so the statements
-below are at `lfe.find?`.  The four `*_hit`/`*_miss` lemmas turn a probe's
-`Option` equation back into the shape the cited `match find? c with | some
-(.ctorInfo …)` reads.  **The awkward step**: the owning probes return a tuple,
-so the generated body opens it with a pattern `let`, which is a *matcher*
-application `simp` will not reduce -- `split at h` is what takes it apart, and
-the equation it leaves behind is `subst`ed. -/
-
-/-! ## Axiom census (DESIGN.md §5, the P3 gate) -/
 
 end ConRon.Refine.CoreK
 

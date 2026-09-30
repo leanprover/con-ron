@@ -100,10 +100,6 @@ theorem annot_fold_hooked_eq {H : Type} {inst : arena.checker.InstallHook H} {h 
     arena.checker.annot_fold pers st mode pins p ds i = ok o :=
   annot_fold_hooked_aux inst h _ rfl hrun
 
-/-! ## The boundary -/
-
-/-! `tierOf` is `Refine2/Core/Bracket.lean`'s (task #98-FREEZE). -/
-
 /-! ## The worker -/
 
 /-- **`pins_dup` is the identity on the value.** -/

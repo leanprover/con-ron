@@ -581,16 +581,6 @@ theorem cons_binder_refines {ty : arena.handle.EIdx} {m : kernel.expr.BinderMeta
   rw [binder_copy_from_refines h]
   simp [absBinderL, hov, hee, hbb]
 
-/-! ## The `fvar`-leaf list's append -/
-
-/-! ## The three memo probe/insert pairs
-
-Relation in, relation out.  Each `get` is `Refine/HashMap2WF.lean`'s
-`Rel_get_wf` at the key predicate `True` (the keys are handles and a `u64`
-cursor, so `Refine2/AbsState.lean`'s `eidxNat_eq2` / `eidx_eq2` are
-unrestricted), and each `insert` is `Rel_insert_wf` plus the `Inv` its first
-component carries. -/
-
 /-! ## The memo relations (finding 2, and finding 3 for `SeenRel`) -/
 
 /-- `wscoped_b_go`'s memo, keyed on `(handle, depth)`. -/
@@ -836,8 +826,6 @@ theorem leaf_mem_refines {bl : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)}
   rw [arena.expr_ops.leaf_mem] at h
   have hr := leaf_mem_from_refines h
   simpa using hr
-
-/-! ## Handle equality -/
 
 /-! ## The level-list substitution
 

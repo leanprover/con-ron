@@ -257,12 +257,6 @@ theorem bool_false_name_refines {n : name.Name} (h : core_k.bool_false_name = ok
     (L := [102#u32, 97#u32, 108#u32, 115#u32,
       101#u32]) (by simp [core_k.bool_false_name.S]) (by decide)
   exact ⟨by rw [h1, hp]; rfl, h1wf⟩
-/-! ## The name tables -/
-
-/-! ## `nat_op_deps` -/
-
-/-! ## `is_nat_bin_op` -/
-
 /-! ## `projModelName`: the decimal recursion and the model-side name -/
 
 /-- The `%` twin of `HashMap.uscalar_div_eq`.  **Belongs in `CoreKBase.lean`**
@@ -355,7 +349,5 @@ theorem nat_to_dec_refines {i : Std.U64} {r : alloc.vec.Vec Std.U32}
   refine ⟨?_, h2⟩
   rw [absCodes, h1, Nat.toString_eq_ofList_toDigits]
   simp
-
-/-! ## Axiom census (DESIGN.md §5, the P3 gate) -/
 
 end ConRon.Refine.CoreK

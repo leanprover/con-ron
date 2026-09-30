@@ -2017,15 +2017,6 @@ open Lockstep in
       (indParamsOk (absU n_p) (absICILFrom block i)) :=
   LS.ofSim₀ fun _ h => ind_params_ok_refines hrel hinv h
 
-/-! ## `arena::core::lvl_eq` — the cached level comparison (task #97-P5-Top round 3)
-
-`check_value_group_value`'s theorem arm asks `lvl_eq u zero`, and no tier had
-stated `lvl_eq` against `lvlEq?`: the Core knot's own level comparisons go
-through `lvls_eq`, and the Inductives tier's are inside sorried shapes.  The
-proof is `Refine2/Core/Probes.lean`'s probe/write pair at the `lvlEqC` table
-(key `LIdxPair`, value `Bool`, so no value abstraction), around
-`read_level_m_run` twice and the old tier's `Level.is_equiv_refines`. -/
-
 /-! ## `arena::checker_split` — the install/check seam of a value declaration
 
 DESIGN §8.3's per-declaration bracket lives here: the install half writes the

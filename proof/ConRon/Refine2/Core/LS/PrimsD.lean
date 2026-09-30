@@ -125,8 +125,6 @@ attribute [local lockstep_simp] absConstT
   intro o hrun
   exact ⟨_, lst, view_ls_len_run₀ hrel hrun, rfl, hrel, hinv⟩
 
-/-! ## The projection table -/
-
 end ConRon.Refine2.Lockstep.PD
 
 /-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core

@@ -246,8 +246,6 @@ theorem vec_len_eq_iff {α β : Type} (x : alloc.vec.Vec α) (y : alloc.vec.Vec 
 attribute [local lockstep_simp] PC1.absIIndCaps_eta PC1.absIIndCaps_etaCtor vec_len_eq_iff
   List.length_map
 
-/-! ## Stubs (other regions' lemmas; deleted at merge) -/
-
 /-! ## `projCert` / `projCertAt` -/
 
 @[lockstep] theorem proj_cert_ls {f : Nat} (hk : KnotRel f)

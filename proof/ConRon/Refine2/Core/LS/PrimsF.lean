@@ -155,8 +155,6 @@ theorem vec_push_eidx_ls (v : alloc.vec.Vec arena.handle.EIdx) (x : arena.handle
 @[local lockstep_simp] theorem peel_fuel_val : (arena.core.PEEL_FUEL).val = peelFuel := by
   rw [arena.core.PEEL_FUEL]; rfl
 
-/-! ## Spine lengths -/
-
 /-! ## Literals and binder data: exact comparisons on well-formed values -/
 
 /-- `==` at a type whose `BEq` is its `DecidableEq` (`ConLeche.Literal`,

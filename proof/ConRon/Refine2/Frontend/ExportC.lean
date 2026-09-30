@@ -199,26 +199,6 @@ theorem safe_spelling_refines {s : alloc.vec.Vec Std.U32} {b : Bool}
   rw [cps_beq_str hs (by rw [hv]; decide) h, hv]
   rfl
 
-/-! ## The message builders — fifteen functions with NO refinement claim
-
-Every Rust error sentence is a `Vec<u32>` built from a function-local
-`const M: [u32; N]` (DESIGN §3.3), where the twin writes `s!"…"`.  **The
-theorem does not read messages** (DESIGN §3.1; task #87 §13's ruling, where
-weakening a relation rather than strengthening a hypothesis was the fix), so
-these fifteen carry nothing at all, and the two candidate statements both fail
-to say anything:
-
-* *"the message is the twin's"* is false and is the ruling's whole point;
-* *"the builder succeeds"* is **not provable and not needed** — `text::cat`
-  is a `Vec::extend_from_slice` loop, which Aeneas models as failing at
-  `Usize.max`, and a failure inside one makes the CALLER's own
-  `… = ok o` hypothesis unsatisfiable, so every caller is vacuously fine
-  there.
-
-So each of the fifteen is recorded as an explicit no-claim, named so that a
-reader looking for `safety_error` finds the reason rather than a gap.  They
-are counted as statements in this file's census and they are closed. -/
-
 /-! ## Two arithmetic helpers and the scanner's error -/
 
 /-- **`sat_sub`** — saturating subtraction, the twin's `Nat` subtraction. -/
@@ -895,12 +875,6 @@ theorem parse_pw_d_refines {pers rst lst rsd lsd r o}
           show absNIdxL hs = hs.val.map absNIdx from rfl, mapM_readName_run, hdl]
         show Except.ok _ = _
         rw [ConRon.Refine.PropWhen.if_all_zero_refines hw hpw, ConRon.Refine.absNames, hv]
-
-/-! ## The rebinding test
-
-con-leche measured 17 % of its parse phase on this detail, so the three tests
-are their own functions on a borrowed state — and they are the one place the
-parse REJECTS a stream for a reason that is not the scanner's. -/
 
 /-! ## Writing an index table
 

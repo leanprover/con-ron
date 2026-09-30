@@ -505,15 +505,6 @@ theorem proj_inv {s : name.Name} {idx : Std.U64} {x e : expr.Expr}
     (by rw [e6]; exact bvarBits_lt x) (by rw [e7]; exact fvarBits_lt x) hd
   exact ⟨d, rfl, by rw [c1, e6], by rw [c2, e7], by rw [c3, lp_bit_val hbt]⟩
 
-/-! ## The data word refines con-leche's computed field
-
-`wf_data` is the module's central lemma: on a well-formed node the three
-*observed* fields of the port's word are con-leche's `bvarBRaw`, `fvarBRaw`
-and `hasLP` of the abstraction.  One case per `ExprWF` constructor, each the
-port's `*_inv` beside con-leche's `@[simp]` equation for the same
-constructor -- nothing about the hash field, which is where the two words
-legitimately differ (DESIGN.md §3.2). -/
-
 /-! ## The smart constructors
 
 `<c>_wf` is literally the `ExprWF` constructor (the §3.5 convention);
@@ -598,13 +589,6 @@ theorem proj_refines {s : name.Name} {i : Std.U64} {x e : expr.Expr}
 
 theorem mk_bvar_wf {i : Std.U64} {e : expr.Expr} (h : expr.mk_bvar i = ok e) :
     ExprWF e := by rw [expr.mk_bvar] at h; exact ExprWF.bvar h
-
-/-! ## The packed word's accessors
-
-`hash` gets **no** refinement lemma: it reads the one field of the word that
-the port and con-leche legitimately disagree on (DESIGN.md §3.2 -- `mixHash`
-is opaque, the port hashes its own bignums and strings, and a hash only ever
-picks a memo bucket).  The other three are exact. -/
 
 /-! ## `dup`, `ptr_eq` and the copies -/
 
@@ -2392,12 +2376,6 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
         (fun m rm hr => ih1 x2 hx2 m rm hr) h]
       simp only [absExpr_mk, absExprKind, ConLeche.Expr.proj.injEq, decide_eq_decide]
       tauto
-
-/-! ## Reflexivity: the pointer fast path is transparent
-
-`ptr_eq` is `false` in the model, so the model always descends where the real
-program may answer `true` in `O(1)`.  The two agree because the descent is
-reflexive, which is DESIGN.md §3.2's obligation and this lemma. -/
 
 /-! ## The public statements, under the `ConRon/Refine/README.md` names -/
 

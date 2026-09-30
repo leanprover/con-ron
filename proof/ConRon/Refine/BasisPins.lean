@@ -387,34 +387,4 @@ theorem nat_a_refines {ci : env.ConstantInfo} (h : basis_pins.nat_a = ok ci) :
   simp only [absBasisKind, ConLeche.BasisKind.declsA] at hhead
   exact (Option.some_inj.mp hhead).symm
 
-/-! ## The two predicates
-
-`ConstantInfo`'s equality here is the **derived structural one** — task #27
-grepped every kernel site and each spells `==` or `decide (… = some eqA)`;
-`ConstantInfo.canonEq` (`Frontend/Export.lean:279`), which canonicalises
-level-parameter names, belongs to the frontend alone.  `Refine/Env.lean`'s
-`constant_info_beq_refines` is that equality, exactly, on well-formed
-constants. -/
-
-/-! ## The two environment guards
-
-Stated against the `F`-twin, `FEnv.find?` (task #18's deviation 3: the port
-has one environment spelling, the index).  The cited Lean writes the guard
-over `Env` at the pure sites and over `FEnv` at the executed ones
-(`stdAxiomOk` / `stdAxiomOkF`, `reduceElemOk` / `reduceElemOkF`); the two
-agree by `FEnvRel`'s first clause, `absEnv fe.env = lfe.env`. -/
-
-/-! ## `kernel::nat_op_pins`
-
-The module declares the `NatOpPinSet` record and nothing else (the module
-note, and DESIGN.md tasks #31/#43); its abstraction is `Refine/PinsAbs.lean`'s
-`absNatOpPinSet`, reused here and not redefined.  Nothing stands where
-`nat_op_pin_sets()` would have stood: since **task #74** the tower is stated at
-the abstract pin list, so there is no statement to make about the decoded
-list's value, and `nat_op_pin_sets_refines` — this file's copy of task #64's
-`check_decls_pins_refines`, which read the embedded text through
-`pins_text_decodes` — is deleted with it.  `Refine/PinsRun.lean`'s
-`decode_refines` is what remains about the decoder, and
-`Refine2/Checker/PinsWF.lean`'s `decode_wf_refine2` is what the capstones use. -/
-
 end ConRon.Refine.BasisPins

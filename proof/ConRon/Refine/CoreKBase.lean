@@ -116,14 +116,6 @@ theorem str_lit_step {k : Std.Usize} {S : Array Std.U32 k} {L : List Std.U32}
   · rw [Name.mk_str_refines hmk, absString_eq, hwv]
   · intro c hc; exact hvalid c (by rw [← hwv]; exact hc)
 
-/-! ## The pinned names, as a statement
-
-`PinnedName f ln` is exactly what `Refine/BasisNames.lean` and
-`Refine/CoreKNames.lean` prove of a pinned `Name`-valued constant, and
-`PinnedNames` the same for a pinned `Vec<Name>` table.  They live here because
-every `CoreK*` file that compares against a pin states its dependency in this
-shape, and `Refine/CoreKPinned.lean` discharges them. -/
-
 /-! # What this step takes from tasks #46 and #50, and the one thing it states
 differently
 
@@ -147,14 +139,6 @@ theorems stronger and keeps them independent of how the index is built;
 invariant into them in one step, which is all step 6's knot needs.  (`FindWF`
 is the same projection of `FEnv.FEnvWF`: what a lookup hands back is a
 well-formed record, which is what a result used as a *term* needs.) -/
-
-/-! ## Three `kernel::env` readings, paired
-
-Task #46's `Refine/Env.lean` proves each of these as two lemmas, a refinement
-and a well-formedness.  Every guard in the `CoreK*` family consumes them
-together (`obtain ⟨habs, hwf⟩ := …`), so they are paired here once rather than
-at forty call sites.  No new content: each is the conjunction of two of
-`Refine/Env.lean`'s. -/
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate) -/
 

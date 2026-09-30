@@ -32,8 +32,6 @@ open Lockstep in
       (Arena.internNNode (absNNodeView v)) :=
   LS.ofSim₀ fun _ h => intern_n_node_run₀ hrel hinv v hvwf h
 
-/-! ## The mode gates: each is its twin field, a Rust-only step -/
-
 /-! ## The port's message and name-part constants
 
 A name the port builds from a constant (`intern_n_node (Str n (code_points

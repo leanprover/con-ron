@@ -178,8 +178,6 @@ theorem AErrSim.of_eq {γ : Type} {e : kernel.core_types.CheckError}
     {x y : Except Arena.CheckError γ} (h : AErrSim e x) (hxy : y = x) :
     AErrSim e y := by rw [hxy]; exact h
 
-/-! ## The whole outcome -/
-
 /-! ## `Sim` — the statement a Theorem-2 lemma is written with
 
 One definition for the whole tier, over the Rust outcome PAIR the arena's
@@ -264,12 +262,6 @@ theorem SimS₀.apply {pers : arena.store.PersTier} {lst : AState}
     {st' : arena.monad.AState} {x : AM Unit} (h : SimS₀ pers lst st' x) :
     ∃ lst', x.run lst = .ok ((), lst') ∧ AStateRel₀ pers st' lst' ∧
       AStateInv pers st' := h
-
-/-! ## `Ext` at a function that appends nothing
-
-The two lemmas every reader's `Sim` conclusion needs, and the one every bind
-needs.  `Arena/Denote.lean` proves `Ext.refl` and `Ext.trans`; these name
-them in the shape the closer wants. -/
 
 /-! ## The lockstep shapes, completed (task #97-T2-LOCKSTEP step 1)
 

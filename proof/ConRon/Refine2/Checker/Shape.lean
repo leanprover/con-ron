@@ -126,8 +126,6 @@ macro_rules
 macro "twin_reduce" : tactic =>
   `(tactic| simp only [bind_assoc, pure_bind, am_fail_bind, am_ite_bind, am_dite_bind])
 
-/-! ## `SimRel` — `Sim` with the result RELATED rather than abstracted -/
-
 /-! ## `SimRel₀` — the lockstep `SimRel` (task #97-T2-LOCKSTEP)
 
 `AOutRel`/`SimRel` over `AStateRel₀`, without `Ext` and without the dead
@@ -215,18 +213,6 @@ def EMemoRel (rm : ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)
   RelOn ConRon.Refine.ExprWF rm lm ConRon.Refine.absExpr absEIdx ∧
     Inv kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable rm ∧
     ConRon.Refine.HashMap2.KeysOk ConRon.Refine.ExprWF rm
-
-/-! ## The two memo-threading outcome shapes (finding 4, at this tier) -/
-
-/-! ## `arena::checker_base`'s `Bool` memo, threaded two ways
-
-`consts_resolve_f_go` and `all_level_params_defined_go` thread a
-`HashMap2<EIdx, bool>` exactly as `expr_ops`' three memoised walks do, so the
-relation is `Refine2/ExprOps/Read.lean`'s **`LMemoRel`**, reused rather than
-re-declared.  What is new is that the Rust returns the memo OUTSIDE the
-`Result` (a moved value comes back whatever happened) where the twin returns
-it INSIDE, beside the answer — and that the second of the two does not thread
-the state at all.  Two shapes, three lines each. -/
 
 /-! ## The containers these two tiers abstract
 

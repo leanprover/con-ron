@@ -100,21 +100,6 @@ def SimFold {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier
       ∃ le lst', x.run lst = .ok (.error (le, absU p.2), lst') ∧
         lAErrKind le = some k
 
-/-! ## The cursor at zero, and the empty pending list
-
-The two capstones call their folds at cursor `0`, where the `…From`
-abstraction (DESIGN §3.4's `List`-as-cursor deviation) is the plain one. -/
-
-/-! ## The empty environment, on both sides
-
-`check_decls_pure` and `install_then_check` both open with
-`mk_ifenv(i_env_empty)` where the twin writes `mkIFEnv IEnv.empty`.
-`arena::env` has no tier of its own — it is the record layer
-`Refine2/AbsState.lean` abstracts, not a checked module — so the one fact the
-two capstones need about it is proved here, where it is used. -/
-
-/-! ## The basis and quotient arms -/
-
 /-! ## The arms' remaining callees in the judgements `lockstep` zips with
 
 `DeclCheck.lean` files the `*_ok` gates' `_ls`; the Rust-only copy is here. -/
@@ -1331,8 +1316,6 @@ theorem check_pending_refines {tier st lst} {rf lf}
         = .ok ((), lst2) := hx2
     simp only [hx2', except_ok_bind]
     rfl
-
-/-! ## The capstone -/
 
 /-! ## The error tag and the startup walk -/
 

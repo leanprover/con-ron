@@ -68,31 +68,6 @@ section Memo
 variable {K V : Type} {HashableInst : ron.hashmap.Hashable K}
   {Eq2Inst : ron.hashmap.Eq2 K}
 
-/-! ### Inserts add nothing but their own pair
-
-`Compat` is the one side condition: a *recorded* entry whose key the dictionary
-equates to the key being inserted accepts the inserted answer.  It is what
-`list_insert`'s replacing arm needs — that arm keeps the *old* key and the new
-value — and it holds for every invariant below because `expr::beq` is exact on
-well-formed nodes and the invariants only ever speak about a key's
-abstraction. -/
-
-/-! ### The memo invariant
-
-`MemoInv KWF absK Q m` is con-leche's `*MemoInv` on the port's table: every
-recorded entry has a well-formed key, and its value is what the logical
-function gives for the key's *abstraction*.  `KeyExact` is the single fact
-about the key dictionary the two hit/insert lemmas need. -/
-
-/-! ### The same two, keyed on the Rust equation (task #71)
-
-`MemoInv.hit`/`MemoInv.set` take the invariant first, which is what a hand
-proof wants; a `grind [→ …]` lemma needs the **Rust equation first**, so that
-its E-matching trigger is the probe or the insert the inverted body provides
-rather than every memo invariant in scope (`Refine/README.md` §"Writing a new
-refinement lemma", the first keying rule).  These two are what every memoised
-walk registers. -/
-
 end Memo
 
 /-! ## The two memo key types
@@ -111,31 +86,6 @@ def KeyWF (k : expr_ops.ExprNatKey) : Prop := ExprWF k.e
     absKey ⟨e, d⟩ = (absExpr e, d.val) := rfl
 
 @[simp] theorem KeyWF_mk (e : expr.Expr) (d : Std.U64) : KeyWF ⟨e, d⟩ ↔ ExprWF e := Iff.rfl
-
-/-! ## The memo probes
-
-`memo1_get`/`memo_e_get`/`memo_n_get` are the owning probes of task #13's
-deviation 1; each is `HashMap.get` with a `dup` on the hit, so a hit is a
-recorded answer and a miss says nothing. -/
-
-/-! ## `instantiate1` (`ExprOps.lean:29-189`)
-
-The recipe every memoized walk of this file follows:
-
-* the statement is **against the logical definition** (`Expr.instantiate1`),
-  generalised over the memo and the cursor, and proved by induction on the
-  `ExprWF` derivation — which is what supplies both the node's shape
-  (`Expr.app_inv` and friends) and the children's well-formedness in one step,
-  where the `partial_fixpoint`'s own `fixpoint_induct` would want an admissible
-  motive and supply neither (task #20; DESIGN.md task #99-PFIX);
-* the five leaf constructors skip the memo, as in the cited code;
-* the five rebuilding ones probe it (`MemoInv.hit`), and on a miss recurse and
-  write the answer back (`MemoInv.set`).
-
-The generated body destructures *tuples* at every bind (`let (memo1, r) ← …`,
-`let (_, memo2) ← insert …`), which `bind_eq_ok_iff` does not see through, so
-every such bind is inverted in two steps: `bind_eq_ok_iff.mp` and then
-`obtain ⟨_, _⟩` on the pair (task #16's trap). -/
 
 /-! ## Plumbing for the `Vec` walks -/
 
@@ -172,20 +122,5 @@ theorem vec_index_getElem? {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize} {x
   · rw [show v[i.val]? = v.val[i.val]? from rfl, hi] at h
     exact congrArg some (Result.ok_injective h)
 
-/-! ## The `Vec` copies
-
-`levels_copy` and `cons_expr` have no Lean counterpart at all: they are the
-`Vec` copies that stand for Lean's shared lists (task #13's deviation 3), so
-their lemmas are *raw* `Vec` equations -- the copy is the same list, because
-`level::dup` and `expr::dup` are the identity in the model (DESIGN.md §3.2) --
-and the abstraction equation follows by `congrArg`. -/
-
 end ConRon.Refine.ExprOps
-
-/-! ## Axiom census (DESIGN.md §5, the P3 gate)
-
-`instantiate1_refines` is the file's headline lemma and the deepest chain in it
--- the `(node, cursor)` memo through `HashMap.insert`'s resize, `expr::beq`'s
-exactness on well-formed nodes, and the ten smart constructors -- so it is the
-one worth pinning. -/
 

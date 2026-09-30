@@ -28,9 +28,6 @@ namespace ConRon.Refine2.Lockstep
 
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PE
 
-/-! ## Stubs (other regions' lemmas; deleted at merge) -/
-
-
 /-! ## The application spine -/
 
 -- `absEIdxArr_getElem`: the shared one (`Tactic/Prims`)

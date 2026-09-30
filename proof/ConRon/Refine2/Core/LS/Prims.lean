@@ -55,19 +55,6 @@ attribute [local lockstep_simp] etag_const_abs etag_lit_abs etag_fvar_abs
   · have : absU32 t ≠ absU32 arena.handle.ETAG_LIT := fun hc => h (absU32_inj hc)
     simp [h, this]
 
-/-! ## Handle equality, one normal form
-
-The port's `eq2` on handles is stated `r = (absNIdx a == absNIdx b)` by some
-prims and `r = decide (absNIdx a = absNIdx b)` by others; both twin spellings
-occur (`c = entry.ctor` in an `if`, `n₁ == n₂` in a `pure`).  The `lockstep_simp`
-normal form is `decide (_ = _)`. -/
-
-/-! ## The two expression-list abstractions, one normal form
-
-`Refine2/ExprOps/Read.lean`'s `ExprOps.absEIdxList` and `ExprOps/Mut.lean`'s
-`absEIdxList` are the same map; `lockstep_simp` rewrites the first to the
-second, and knows the length of both. -/
-
 /-! ## Well-formedness facts in context
 
 A read that carries the Rust datum's well-formedness states it as
@@ -140,8 +127,6 @@ coordinator's ruling (d) of task #97-P5-Core round 5). -/
     LSP (kernel.env.reducibility_hint_dup h) (fun r => r = h) := by
   intro r hr
   cases h <;> simp [kernel.env.reducibility_hint_dup] at hr <;> exact hr.symm
-
-/-! ## The spine readers (read-only `ExprOps` walks, proved in `Core/Arms/Delta.lean`) -/
 
 /-! ## The `ExprOps` walks, through the `ExprOpsHyp` seam
 

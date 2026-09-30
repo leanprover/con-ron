@@ -177,6 +177,4 @@ canonical-form (`PropWhenWF`) data. -/
     rw [Array.getElem?_eq_getElem hlt3] at hsome
     rw [Option.some_inj.mp hsome]
 
-/-! ## The name builders and the interns — pending the intern slice -/
-
 end ConRon.Refine2.Lockstep.PA2

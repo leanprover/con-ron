@@ -880,8 +880,6 @@ boolean is the twin's test on the word it reads. -/
   exact ⟨(), _, rfl, trivial, { hrel with memos := { hrel.memos with liftC := h1 } },
     { hinv with memos := { hinv.memos with liftC := h2 } }⟩
 
-/-! ## Primitive pairs of the `ExprOps` walks (task #97-T2-LOCKSTEP lane ExprOps) -/
-
 /-! ## Converters -/
 
 theorem LSV.ofSimR {α β : Type} {A : α → β} {pers st lst} {m : Result α} {x : AM β}
@@ -1810,10 +1808,5 @@ elab "lockstep_and_part" : tactic => do
 
 macro_rules
   | `(tactic| lockstep_side_ext) => `(tactic| lockstep_and_part)
-
-/-! ### `read_name`, with the answer's well-formedness
-(task #97-T2-LOCKSTEP lane Inductives Modeled round 2: the modeled route's
-`nested_rule_shape_args` reads the parameter names).  `read_names_ls`,
-`read_levels_ls` and the `_wf` lemmas are with the other reads above. -/
 
 end ConRon.Refine2.Lockstep

@@ -477,12 +477,6 @@ matches on it. -/
 attribute [simp] absNatL absNatLFrom absBoolL absLIdxLL absBinderL absBinderLFrom
   absCtorsL absCtorsLFrom absCtors3L absCtors3LFrom absRecsL absRecsLFrom
 
-/-! ## Rust-only copies, for the `lockstep` tactic (task #97-T2-LOCKSTEP lane
-Inductives round 3)
-
-The two copies `arena::checker::check_ind_decl` makes before it moves its
-arguments into the tier: each is the identity on the abstraction. -/
-
 /-! ## The tier's side-goal extension
 
 A twin `if` over values the port computed in Rust-only steps is decided by

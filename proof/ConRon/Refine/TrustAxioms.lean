@@ -97,14 +97,6 @@ open ConRon.Refine.CoreK
 
 namespace ConRon.Refine.TrustAxioms
 
-/-! ## The two imported hypotheses -/
-
-/-! ## The annotated pins are the raw ones, under `matchesPin`
-
-The four closed computations DESIGN.md task #24's argument predicts.  Nothing
-below ever names an annotation pass: `#annotate_pins`' output is a closed term
-and `Expr.erasePw` of it is the raw pin's, by `rfl`. -/
-
 /-! ## The pinned names (`TrustAxioms.lean:49-75`)
 
 Nine `Name`-valued constants, each the same five lines as `Refine/BasisNames.lean`:
@@ -639,14 +631,6 @@ theorem reduce_nat_decl_pin_refines {e : expr.Expr}
   refine ⟨?_, hwf⟩
   rw [habs, htabs, hbabs, hnabs, Name.anonymous_refines ha, absLevels_new]
   rfl
-
-/-! ## The reduce-operation install pin (`TrustAxioms.lean:198-216`) -/
-
-/-! ## The environment predicates (`TrustAxioms.lean:154-196`)
-
-Every guard is stated against `DeclCheck.lean`'s `FEnv`-indexed twin, over
-`FindAgree`/`FindWF` — the find-agreement projection of task #46's `FEnvRel` /
-`FEnvWF` that `CoreKBase.lean` fixed for step 4. -/
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 

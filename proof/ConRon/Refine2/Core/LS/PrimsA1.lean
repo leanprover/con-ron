@@ -1653,8 +1653,6 @@ theorem find_rule_from (rules : alloc.vec.Vec arena.env.IRecRule) (c : arena.han
   show _ = _
   simpa using this
 
-/-! ## Interns — pending the foundation's intern slice -/
-
 end ConRon.Refine2.Lockstep.PA1
 
 /-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core

@@ -660,12 +660,6 @@ theorem EBindCapAt.not_of_pers_size {st : EStore} {tag : UInt32} {ty b : EIdx}
     (h : ¬ st.pers.bindSizeOf tag < Idx.idxCap) : ¬ EBindCapAt st tag ty b mi :=
   not_cap_of hf (not_ite_lt_off hoff h)
 
-/-! ### Finding 14's first half and the six per-constructor `hchild_*` corollaries
-
-Moved to `Arena/WFSkip.lean` (task #97-T2-LOCKSTEP D2), statements unchanged:
-they are Theorem 1's (`StoreWF`), and since D2 the twin skips the persistent
-probe exactly where the Rust does, so no `estore_intern_*_abs` needs them. -/
-
 /-! ## Floor 2: the expression tier's projections
 
 Eleven readers of `ETables`, each `Tbl.node` at one array plus the handle's
@@ -2212,33 +2206,6 @@ theorem estore_view_abs {pers rs ls} (hrel : StoreRel pers rs ls)
         have h2 : (none : Option arena.store.ENodeView) = o := Result.ok_injective h
         subst h2
         rfl
-
-/-! ### `arena::monad`'s `view` and the binder readers
-
-`view` is the one reader of the tier with an ERROR arm — the dangling-handle
-`Internal` decline both sides spell — so it is `AOut` and not `SimR`, and its
-success arm leaves the state where it found it (`Ext.refl`).
-
-The three binder readers carry finding 3's guard, for the reason
-`etables_get_bind_abs` does: the twin's `getBind` has a third arm answering
-`none` at a non-binder tag and the Rust's has two. -/
-
-/-! ## The rest of the layer: stated, not yet closed
-
-The brief's ask is *one `_run` lemma per primitive of `arena::monad` /
-`arena::store`*, and these are the ones whose PROOF needs a floor this task
-did not build: `EStore.view`'s ten-way `ETables.get` (and the two binder arms
-that meet `viewBM`'s own tier select), `ETables.der_at`'s ten-way derived
-dispatch, and — the big one — `EStore.intern`'s probe-then-push, whose
-abstraction obligation is `HashMap2.Rel_insert_wf` on the cons table PLUS the
-`Array.push` on the two columns PLUS the handle `Idx.mk` at the tier, at each
-of the eighteen arrays.
-
-Every statement below is the shape the ExprOps tier consumes, so writing them
-here is what lets `Refine2/ExprOps/*` be stated and proved against a fixed
-interface; the `sorry`s were named in the task's report (all proved
-since).  **The statements are not weakened**: each is the full-outcome
-claim of DESIGN §8.2 at the abstraction the twin has. -/
 
 /-! ## The three remaining tier bits and the three remaining tag constants -/
 
@@ -3795,55 +3762,6 @@ theorem denote_ls_wf {pers rs} (hinv : LsStoreInv pers rs)
       (alloc.vec.Vec.new kernel.level.Level) (by scalar_tac)
       (by intro u hu; simp at hu) h'
 
-/-! ### `intern`: the probe, the push and the handle
-
-The expensive floor this task did not build.  `EStore.intern` probes the
-persistent cons table, then the scratch one, then appends to the tier the
-state is in; the twin does the same, clause for clause
-(`Arena/Store.lean`'s `EStore.intern`), and the capacity test that keeps it
-total sits at the monadic wrapper on both sides (`Arena/Monad.lean`'s
-`internE`, `arena::monad::intern_e`) — DESIGN §8.3's "the Rust raises `Native`
-at the limit, the Lean `throw`s the same kind".
-
-What each of these needs, once: `tbl_find_abs` (have it), `HashMap2`'s
-`Rel_insert_wf` / `insert_refines_wf` on the cons table (have them, in
-`Refine/HashMap2WF.lean`), `Array.push` on the node and derived columns
-against the Rust's one `Vec::push` of a pair (`Refine/Abs.lean`'s
-`push_new_val`), and `Idx.mk tag tier (UInt32.ofNat size)` against
-`Idx::pack(tag, tier, rows.len() as u32)` — which `Refine2/AbsStore.lean`'s
-module note shows needs NO capacity hypothesis. -/
-
-/-! ### `intern`, the `bvar` constructor: the pattern the other twenty-four follow
-
-Written out once, end to end, so that the remaining twenty-four are the same
-proof at another array.  Its shape is:
-
-1. the persistent cons probe under the `pers.frozen` select (`rPersE` again,
-   and `tbl_find_abs` at that tier's table);
-2. the twin's `intern` at a non-binder view is `internAt` at the datum handle
-   `0`, so the two `match`es on the probe line up clause for clause;
-3. a persistent HIT returns the handle and leaves both stores alone — the
-   port's `{ self with pers := e }` is `self` by structure
-   eta;
-4. a MISS in the scratch tier is `tbl_find_slot_abs`, whose first component
-   re-establishes the relation for the table `find_slot` handed back;
-5. a miss in both is `Tbl::full` — whose `true` arm is `Native` and claims
-   nothing — then `der_of_bvar`, `size`, the `u32` cast, `pack` and
-   `push_at`, which is `tbl_find_slot_abs`'s last component;
-6. and the persistent-append arm.  Its frozen-tier guard (`M_FROZEN`) is gone
-   (task #98-FREEZE): a frozen store is scratch-on by construction, so the
-   scratch-off arm is an owned store's, which `StoreInv.frz` says — finding
-   8's hypothesis `shared_on → scratch_on`, back as a Rust-side
-   representation fact instead of a guard.
-
-`intern_e_bvar_run` then wraps it in `Arena.internE`'s capacity test, and
-**needs finding 9**: the port tests `Tbl::full` only when it is about to
-append, where the twin's `internE` tests `sizeOf` before probing, so on a
-cons HIT at a full array the port answers `Ok` and the twin throws `native`.
-`hcap` is that hypothesis; the proper fix is a one-line twin change (test
-after the probe, as the port does), and it belongs in the next twin
-catch-up. -/
-
 /-! ## `der_of_*`, the `bvar` arm -/
 
 /-- `arena::store::EStore.der_of_bvar` against `EStore.derOfBVar`, UP TO the
@@ -4089,8 +4007,6 @@ theorem estore_intern_bvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
           ⟨hinv.lss, (by unfold rPersE; rw [if_neg (by simp [hsh])]; exact { hinvPerst with bvars := hinv1 }), hinv.scrt, (by frz_tac)⟩,
           ECapAt.of_pers_size (hrel.scratchOn.trans (by simpa using hsc))
             (tbl_not_full_size hrelP hb1 hfull)⟩
-
-/-! ## `arena::monad::intern_e_bvar` -/
 
 /-! ## `Arena.internE` after task #97-P3-1's probe-first fix
 
@@ -7636,50 +7552,6 @@ theorem estore_intern_forall_e_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls
           exact { hinvPerst with foralls := hinv1 }
 
 
-/-! ## The binder arms' side conditions, CONCLUDED (task #97-P5-Mut round 2)
-
-Task #97-P5-Twin round 2 §4 named the route and priced it at ~80 lines: the
-port's `intern_lam_i` tests `Tbl::full` on the binder array exactly where it
-appends, so `estore_intern_lam_i_abs` now concludes `EBindCapAt` at the store
-it ran on, and what is left is to carry that from the SHIFTED store
-`(ls.internBM m).1` and the datum handle `(ls.internBM m).2` back to `ECapAt ls
-(.lam ty b m)`.  When the datum probe HIT the two guards are the same probe;
-when it MISSED the handle is fresh, and "no cons key names a datum handle that
-decodes nowhere" is `StoreWF`'s `bmKeyP`/`bmKeyS` read against `bmConsP`.  The
-one fact about `Arena/` the round had expected to have to add — the appended
-datum handle decodes nowhere BEFORE the append — is `getBM_eq_none_of_size` at
-`pushBM_idxNat`, both already there, so nothing crosses the Arena boundary.
-
-`hchild` falls the same way it does at the six non-binder arms: at a store
-whose datum table answers `mi` for `m`, `pers.lams.find? ⟨ty, b, mi⟩` IS
-`persFind? (.lam ty b m)`, and `persFind?_none_of_echild` plus
-`persFindBM_of_view_pers` (a persistent binder names a persistent datum) close
-the three disjuncts. -/
-
-
-
-
-
-
-
-
-
-
-
-/-! ## `intern_lam` / `intern_forall_e`: the datum intern, then the binder array
-
-Task #97-P5-3 round 2's **one named unfinished piece**.  The port's
-`EStore::intern_lam` is `intern_bm` and then `intern_lam_i`; the twin's
-`EStore.internLam` is `internBM` and then `internLamI`.  What the composition
-needs beyond the two `_abs` lemmas is that **the port's `intern_bm` leaves
-`scratch_on` alone**, so that finding 8's `hfrozen` survives
-into the second step — which is now the third conjunct of
-`estore_intern_bm_abs`'s success arm.  (Task #97-P5-Unfreeze retired
-`hfrozen`; the conjunct stays.) -/
-
-
-
-
 /-! ## The node records: `Dup` is the identity, and `abs` is injective
 
 Two obligations per constructor array, which `tbl_find_slot_abs` and
@@ -8096,25 +7968,6 @@ theorem intern_e_bind_i_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
       intro hcc; exact hc (absU32_inj hcc)
     rw [if_neg (show ¬ ((absU32 tag == ETag.lam) = true) by simp [hne])]
     exact intern_e_forall_e_i_run₀ hrel hinv ty b mi hrun
-
-/-! ## `intern` at a binder view IS the datum intern then `internBindI`
-
-**The other half of what `intern_e_lam_run` / `intern_e_forall_e_run` need**,
-and the half that is about `Arena/` alone.  Task #97-P5-2 §10 named the route
-— `Bridge/StoreBind.lean`'s `EStore.internBindI_eq_internAt` — and `Refine2`
-does not import `Bridge`, so the four lemmas are restated here at underscore
-names (nothing clashes if the two tiers ever meet).  `intern_lam_eq` /
-`intern_forall_e_eq` are the conclusion: the twin's `internLamE ty b m` and
-the port's `EStore::intern_lam` do the same two steps in the same order, at a
-well-formed store whose datum array is below cap.
-
-**What is still missing for the two `_run` lemmas** is `estore_intern_lam_abs`
-— `estore_intern_bm_abs` composed with `estore_intern_lam_i_abs` — and the
-one fact that composition needs and no lemma states: the port's `intern_bm`
-leaves `scratch_on` alone, so that finding 8's `hfrozen`
-survives into the second step.  That is ~30 lines in the same file and is
-this round's one named unfinished piece. -/
-
 
 /-! ## `internBindI` IS `internAt`, once more
 
@@ -10441,9 +10294,6 @@ theorem EStore_internLevelsPersistent_of_persFind {st : EStore} {v : LsNodeView}
     simp only [LsStore.internPersistent, hf]
   simp only [EStore.internLevelsPersistent, h1]
 
-/-! ### Finding 17's clause at the three nested promote-interns -/
-
-
 /-! ### The twin actions' runs -/
 
 theorem internPersistentN_run_of_cap {lst : AState} {v : NNodeView}
@@ -10523,33 +10373,6 @@ theorem internPersistentLs_run_of_not_cap {lst : AState} {v}
   | some h => rw [hf] at hf'; cases hf'
   | none => rw [if_neg hc]; exact ⟨_, rfl⟩
 
-
-/-! ### The four `intern_persistent_*_run`
-
-**Superseded** (task #97-T2-LOCKSTEP): the promote window's `AStateRelW`/`SimW`
-are deleted; the four are the `…_run₀` lemmas over `AStateRel₀`, and what
-follows is the old history.
-
-**Finding 17, discharged** (task #97-P5-Fresh).  Three things changed against
-the statements round 2 left `sorry`:
-
-* the conclusion is `SimW`, not `Sim` — `internPersistent` breaks `fresh`, so
-  the twin post-state satisfies the promote window's invariant and not
-  `StoreWF` (`Arena/WF.lean`'s note has the ruling and the parallel-checking
-  argument); the hypothesis is `AStateRelW` for the same reason, so that a
-  walk can chain one promote-intern after another;
-* `shared_on = false`, which was finding 17's cheap half — retired in task
-  #97-P5-Unfreeze, and the flag itself removed by task #98-FREEZE (a
-  promote-intern writes the tier it is handed, `PersTier::intern_*`);
-* `ViewOK` and `…ViewPers` — the view's handles decode, and they are already
-  PERSISTENT.  The second is `Arena/Store.lean`'s *"added precondition"*:
-  `childOK` carries `i.isPersistent → c.isPersistent` and a promotion has it by
-  construction, because it promotes the children first.  It is not free the way
-  it is for `intern`, where `scrOff` gives it.
-
-The `WF` slot is not `fun _ => True` any more: **the handle a promote-intern
-answers is persistent**, which is the whole purpose of the operation and what
-the walk above it needs at the next node's `…ViewPers`. -/
 
 /-! ### The E tier's own `intern_persistent`
 
@@ -11426,60 +11249,6 @@ theorem intern_persistent_ls_run₀ {tier st lst} (hrel : AStateRel₀ tier st l
     obtain ⟨hk, hnc⟩ := herr ee hr
     exact AOut₀.err (aErrSim_native_of hk (internPersistentLs_run_of_not_cap hnc))
 
-/-! ### The four transient-tree walks
-
-`intern_{name,level,level_list,levels}` are structural over the TRANSIENT
-tree — DESIGN §8.3's *"the tree is a value, not a DAG"* — so there is no fuel
-and no memo: the induction is `Refine/{Name,Level}.lean`'s `NameWF.ind_node` /
-`LevelWF.ind_node`, and the one loop (`intern_level_list_from`'s cursor over a
-`Vec<Level>`) is `read_names_m_from_abs`'s shape.
-
-Three things the walks need that a single `intern_*_node_run` did not, and
-each is proved once here:
-
-* **the handle a walk answers DECODES in the state it answered in.**  A step
-  hands the next node view a handle the PREVIOUS step made, and
-  `intern_*_node_run`'s `hview` is exactly *"this handle decodes"* — which
-  `AOut`'s `WF` slot cannot say, because it sees the Rust value and not the
-  twin post-state.  So it is a TWIN-ONLY lemma
-  (`intern{Name,Level,LevelList,Levels}_run_denote`, a structural induction on
-  the twin's own `ConLeche.Name`/`Level`), and it says the stronger and more
-  useful thing: *interning a transient tree and denoting the handle is the
-  identity*.  `Ext` carries it across the sibling that is interned next, which
-  is why the level tier's binary arms cost nothing extra.
-* **the tier flags do not move.**  An intern appends to one constructor
-  array: every store a `*::intern*` returns is `self`, `{ self with pers := … }`
-  or `{ self with scr := … }`, which is what `FlagsEq` records.  (It used to
-  carry `intern_*_node_run`'s per-store frozen-tier side condition across a
-  step; task #97-P5-Unfreeze retired that condition, and `FlagsEq` stays as a
-  frame fact.)
-* **the steps compose.**  `AOut.errBind` and `AOut.rebase` are
-  `Refine2/ExprOps/Mut.lean`'s two composition lemmas one tier lower; they
-  belong in `Refine2/Shape.lean` and are here because `Shape.lean` was not this
-  task's lane.
-
-The walks are proved in a `'` form that also concludes `FlagsEq`, because the
-induction needs it; the `_run` statement is its first projection and the
-`_flags` one its second, which is the shape `intern_e_bvar_run` /
-`intern_e_bvar_flags` already has at the expression tier. -/
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /-! ### The tier flags, unmoved
 
 The Rust `EStore`, `LsStore`, `LStore` and `NStore` each carry their own
@@ -12202,23 +11971,6 @@ theorem intern_levels_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     Sim₀ absLsIdx pers lst o
       (Arena.internLevels (ConRon.Refine.absLevels us)) :=
   (intern_levels_run'₀ hrel hinv hwf hrun).1
-
-/-! ### The memo writes and the per-call clears
-
-`SimS` (`Refine2/Shape.lean`): a Rust `Result AState` with no inner `Result`,
-so no error arm.  Each write is `HashMap2.Rel_insert_wf` at one table and
-`AStateRel`'s other twenty-six clauses carried across unchanged — which is
-where the record shape of `MemosRel`/`CachesRel` pays for itself.  Each clear
-is `reset_map`, whose VALUE is `HashMap2` empty (task #97-P6-1: the bucket
-array is kept, the entries are not), against the twin's `∅`.
-
-**The other twenty-six clauses cost nothing to carry**, and that is the one
-thing worth naming here: `{ hrel with memos := { hrel.memos with inst1C := h1 } }`
-is a structure-instance UPDATE on the proof, and it typechecks because
-`{ rm with inst1_c := hm }.inst_l_c` reduces to `rm.inst_l_c` by iota — so the
-twelve untouched `RelOn`s and the twelve untouched `Inv`s are reused, not
-re-proved.  Each lemma is therefore nine lines and the same nine lines
-twenty-four times. -/
 
 /-! ## Injectivity of the memo key abstractions -/
 

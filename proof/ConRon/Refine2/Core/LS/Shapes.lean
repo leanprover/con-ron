@@ -231,8 +231,6 @@ theorem pi_residual_aux (n : Nat) :
       (piResidual (absEIdx e) (absEIdxListFrom args i)) :=
   pi_residual_aux _ e args i hx rfl hrel hinv
 
-/-! ## Stubs (other regions' lemmas; deleted at merge) -/
-
 /-! ## The projection-slot walks -/
 
 section slots

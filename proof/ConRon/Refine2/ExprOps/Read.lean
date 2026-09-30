@@ -440,6 +440,4 @@ attribute [lockstep] lam_pw_ls fvar_type_d_ls
   rw [arena.expr_ops.inst_list_cutoff, instListCutoff]
   lockstep
 
-/-! ## The public statements (`AOut₀`, read-only: the Rust post-state is its pre-state) -/
-
 end ConRon.Refine2.ExprOps

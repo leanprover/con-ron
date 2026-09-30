@@ -423,12 +423,4 @@ theorem record_pin_set_refines {t : Slice Std.U8} {i : Std.Usize}
                 decString_absString]
               simp [absTables, absNatOpPinSet, vec_push_val hv16]
 
-/-! ## The pass -/
-
-/-! ## Axiom census (DESIGN.md §5, the P3 gate)
-
-`decode_refines` is the whole of half (A), so this is the line that says the
-Aeneas model of `kernel::pins_decode` refines `Refine/PinsDec.lean` on con-
-leche's own three axioms and nothing else. -/
-
 end ConRon.Refine.PinsRun

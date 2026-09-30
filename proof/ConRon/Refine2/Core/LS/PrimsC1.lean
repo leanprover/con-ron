@@ -21,8 +21,6 @@ namespace ConRon.Refine2.Lockstep.PC1
 
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
 
-/-! ## Bridges between the two `Vec<EIdx>` readings -/
-
 /-! ## `drop_eidx_from` / `drop_eidx_n_from` / `drop_eidx_n` (the twin's `List.drop`) -/
 
 theorem drop_eidx_from_aux (n : Nat) :
@@ -469,8 +467,6 @@ theorem LS.view_ls_len_bind {γ δ : Type} {pers st lst} {h : arena.handle.LsIdx
     have := hk w o st' hk1
     simpa [absLsNodeView] using this
 
-
-/-! ## Twin-side shapes -/
 
 end ConRon.Refine2.Lockstep.PC1
 

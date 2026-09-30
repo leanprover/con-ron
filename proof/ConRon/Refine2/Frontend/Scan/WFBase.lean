@@ -57,10 +57,6 @@ open ConRon.Generated ConRon.Generated.kernel
 namespace ConRon.Refine2.Frontend
 open ConRon.Refine
 
-/-! ## Values of a `ron::HashMap` -/
-
-/-! ## The parse's index tables -/
-
 /-! ## The scanner's one obligation -/
 
 /-- A name record's string payload holds valid code points. -/
