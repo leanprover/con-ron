@@ -51,16 +51,16 @@ expression trees; con-ron stores every expression once, in per-constructor
 arrays, and refers to it by a 32-bit handle.
 
 Before the file's own declarations, every run installs a small built-in
-prelude: the basis blocks con-leche pins (`Eq`, `Nat`, `PUnit`, `Empty`,
-`False`, `Quot`) and the toolchain's `Bool` and `And`.  The prelude text is
+prelude: the basis blocks con-leche pins (`Eq`, `Nat`, `Empty`, `False`,
+`Quot`) and the toolchain's `Bool` and `And`.  The prelude text is
 con-leche's own, embedded at build time
 ([`prelude_text.rs`](https://github.com/leanprover/con-ron/tree/master/crates/con-ron-core/src/frontend/prelude_text.rs)).
 
-Mutual and nested inductive blocks are handled as con-leche handles them: an
-*in-process modeller* translates each block into ordinary declarations, which
-the checker then checks like any other (§6.2).  The modeller is not verified,
-and soundness does not need it to be: a wrong translation is rejected, not
-accepted.
+Every inductive block, mutual and nested ones included, goes through one
+verified installer, con-leche's *uniform route*: a positivity check that
+looks through containers at their concrete instances, and recursors that are
+generated in official's shape, compared with the stream's by definitional
+equality, and installed in their place (§6.3).
 
 ## 2. Running it
 
@@ -90,17 +90,6 @@ con-ron --help
   pin list (§6.1).  They exist for testing and are outside the theorems.
 * **`--no-mark-persistent`** is accepted for command-line compatibility with
   con-leche and does nothing.
-
-Three environment variables belong to the in-process modeller, as in
-con-leche.  `CON_LECHE_INMODEL=0` turns the modeller off, so the checker
-declines every mutual or nested block.  `CON_LECHE_INMODEL_CENSUS=1` reports
-each such block's outcome after parsing and stops with exit 2.
-`CON_LECHE_PROJREC_TRACE` names each rewritten projection function.  The
-first two are parameters of the theorems (§3.1), so runs with them set are
-covered; an integration
-test
-([`inmodel_flags.rs`](https://github.com/leanprover/con-ron/tree/master/crates/con-ron/tests/inmodel_flags.rs))
-checks that they do what the help text says.
 
 ### 2.2 Exit codes
 
@@ -358,15 +347,11 @@ phase, `thaw_tier` moves the tables back.  In the twin, the same sharing is a
 
 ### 4.5 What is still an `Expr` tree
 
-Two things still use con-leche's tree representation (`kernel::expr`, an
-`Arc` per node):
-
-* **the pinned data**: con-leche's own constants that the checker compares
-  stream records against (the basis blocks, the axiom pins, the `Nat`
-  operation pins).  They are interned into the persistent tier once, at
-  startup (§6.1), and no tree is built afterwards while checking;
-* **the in-process modeller**, which reads a block back into trees, runs,
-  and interns its output (§6.2).
+One thing still uses con-leche's tree representation (`kernel::expr`, an
+`Arc` per node): **the pinned data**, con-leche's own constants that the
+checker compares stream records against (the basis blocks, the axiom pins,
+the `Nat` operation pins).  They are interned into the persistent tier once,
+at startup (§6.1), and no tree is built afterwards while checking.
 
 ## 5. Caching
 
@@ -413,10 +398,9 @@ reaches
 [`CACHE_CAP`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L387-L392)
 (2²² entries) is emptied whole.
 
-The type checker runs in three **lanes**
+The type checker runs in two **lanes**
 ([`LANE_*`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L433-L447)),
-one per con-leche knot: the full lane uses the caches above, the gated lane
-uses none, and the IO lane runs `infer` and `inferIO` unmemoised and uses the
+one per con-leche knot: the full lane uses the caches above, and the IO lane runs `infer` and `inferIO` unmemoised and uses the
 full lane for everything else.
 
 **The hash map.**  The arena's tables use
@@ -461,7 +445,7 @@ They are the six stages of the theorems (§3), `h1`…`h5` and the fold's three 
    ([`decode`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_decode.rs#L1325-L1345)).
 6. **The fold**: install every declaration, then check them (§6.3, §6.4).
 
-### 6.2 Parsing and the in-process modeller
+### 6.2 Parsing
 
 The parser is in the verified crate
 ([`frontend/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/mod.rs#L19-L31)).
@@ -477,19 +461,6 @@ The parser is the one place where the Rust uses loops rather than recursion,
 because a per-byte recursion would overflow the stack.  Aeneas turns each
 loop back into a recursive function, which mirrors con-leche's.
 
-The **in-process modeller** turns a mutual or nested inductive block into
-ordinary declarations.  The verified parser calls it through a one-method
-trait
-([`Modeller`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/types.rs#L243-L271)),
-so the extracted parser is quantified over every possible modeller.  The
-binary's modeller
-([`in_model.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/in_model.rs#L1-L30))
-is a Rust port of con-leche's `InModel.generate`: it reads the block back
-into trees, runs the generator, and interns the result.  It keeps no state
-between calls.  The fold checks its generated records like any other, so a
-wrong one is rejected or declined; what the modeller decides is only which
-blocks can be accepted at all.
-
 ### 6.3 The fold: install, then check
 
 The fold is con-leche's two-phase `checkDecls`
@@ -502,6 +473,19 @@ annotate the header and value and add the constant to the environment,
 promote what the environment keeps, drop the tier.  A definition, theorem or
 opaque whose value still needs checking becomes a **pending check**: its
 value, its position, and the prefix of the environment it may see.
+
+An inductive block is installed in phase A by con-leche's uniform route
+(`arena/inductives/`, `check_decl`'s `.indDecl` arm): the recogniser reads
+the block's members, constructors and recursors (`block_parts`); the formers
+and the constructors are checked as constants; an unverified pre-pass reads
+the classes the stream's recursors eliminate off their types
+(`class_read`), and each class is checked as a major premise; one positivity
+walk (`positivity`) runs over every constructor with the members as holes,
+reducing with the kernel's own `whnf` and looking through a container at its
+concrete instance; the recursor family is then generated in official's shape
+from that walk's table (`gen_rec`), each generated type is compared with the
+stream's by definitional equality, and the generated rules, not the
+stream's, are installed.  A block the recogniser does not read is declined.
 
 **Phase B, check**
 ([`check_pending`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/checker.rs#L1247-L1258)).
@@ -888,8 +872,7 @@ differ.
 
 <!-- holes: end -->
 
-`Arc` is used only by tree values: the pinned data and the modeller's terms
-(§4.5), the names and levels the checker reads back, and the `PropWhen`
+`Arc` is used only by tree values: the pinned data (§4.5), the names and levels the checker reads back, and the `PropWhen`
 inside a binder datum.  The arena's nodes are handles.
 
 ### 8.2 The rest of the trust surface
@@ -900,7 +883,6 @@ inside a binder datum.  The arena's nodes are handles.
 | **Aeneas and Charon**: the Lean model is what the Rust means | Nothing; a translator bug is a hole.  The crate stays inside the documented subset (§7.1), and `AENEAS_FINDINGS.md` records what the port found, all of it worked around in the Rust |
 | **`rustc`, the Rust standard library and the allocator** | Nothing.  This is the trade the project makes: these instead of Lean's compiler, runtime and GMP.  The mimalloc wrapper in `con-ron-dump` is the only `unsafe` code in the workspace; an allocator can change memory use and time, not a verdict |
 | **`overflow-checks = true`** in the [release profile](https://github.com/leanprover/con-ron/blob/master/Cargo.toml#L22-L23) | The model is the checked-arithmetic one.  A build without it would wrap where the model fails |
-| **The modeller**, [`crates/con-ron/src/in_model/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/in_model.rs#L1-L30), unverified by design | One hypothesis, `hmr` (§3.1): the Rust modeller answers what the twin's `inProcessModeller` answers, and that one is proved equal to con-leche's `generate`.  The Rust modeller keeps no state between calls.  Every record it generates is checked by the fold, so a wrong one is rejected or declined, never accepted |
 | **The driver**, [`driver.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L1-L60) and the binary's `main` | That it calls the verified stages in the order of `h1`…`h8` (§3), on one state from `AState::empty()`, with the pin list the verified decoder reads from the embedded text and `--verified`, and maps the outcome to the exit codes of §2.2.  The read loop is the verified `parse_source`; that the file handle returns the file's bytes in order is `hreads`.  The fold is a [straight line of verified calls](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L523-L619) (phase A, freeze, phase B as `parallel_all` over two verified closures, thaw), and the progress observer between them holds only shared references |
 | **The worker pool**, [`pool.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/pool.rs#L45-L97) | One generic combinator, `parallel_all(n, workers, init, step, after)`, that knows nothing about checking.  Its contract is an argument about its control flow, not a proof: if it returns `Ok`, every index in `0..n` was claimed by some worker, and each worker built its state with `init` once and folded `step` over its claims in claim order, every step `Ok`.  That is `h8`, with the driver's closures (`worker_state`, `check_pending`) written in; the proof reads it as [`ParallelAll`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Checker/Phased.lean#L435-L439) and turns it into one accepting fold per worker.  The contract does not promise that an index is claimed only once, or that a worker's claims increase (the code does both); the proof needs neither.  Results are merged by index, and an accept means every slot is `Ok`.  Nothing is claimed about which worker ran which index: the capstone relates each worker's walk to the twin separately.  Tests check the partition property generically, and that phase B agrees with the one-worker walk and reports the first failure, at every worker count |
 | **`Native` errors: partial correctness** | Theorem 2 relates a Rust `Native` to the twin's `native` at the same point, and a twin `native` claims nothing about con-leche, so soundness is unaffected and completeness is not proved.  The arena's sites are the 2²⁷-entry arrays' capacity tests, mirrored by the twin; the one the twin does not mirror is the scanner's `u64` overflow on an oversized numeral (§6.5).  The pin decoder's `Native` is outside Theorem 2: the capstone assumes the embedded pins decode |
@@ -956,9 +938,9 @@ changed with a `CHANGED` line, which `check` rejects until the item is
 re-ported.  DESIGN.md §7 has the procedure.
 
 **Differential testing.**  `scripts/diff-e2e.sh` runs the binary on
-con-leche's own test fixtures (389 streams) and compares each exit code with
+con-leche's own test fixtures (602 streams) and compares each exit code with
 con-leche's recorded one, in both modes and at several worker counts.  This
-covers what the proof does not: the driver, the pool and the modeller.  CI
+covers what the proof does not: the driver and the pool.  CI
 runs it (`.github/workflows/ci.yml`).
 
 **The gates.**  `scripts/gates.sh` runs before every commit
@@ -990,10 +972,10 @@ snake case.  Twin files mirror the Rust modules.
 | where | what |
 |---|---|
 | [`con-ron-core/src/arena/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/mod.rs#L1-L22) | the checker: `handle`, `store` (§4), `monad` (`AState`, the memos), `core_state` (the caches), `expr_ops`, `core` (the type checker), `decl_check`, `inductives/`, `checker` (the fold), `promote`, `pins` |
-| [`con-ron-core/src/frontend/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/mod.rs#L19-L31) | the parser: scanner, record assembly, projection rewrite, ground hoist, prelude, the `Modeller` trait |
+| [`con-ron-core/src/frontend/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/mod.rs#L19-L31) | the parser: scanner, record assembly, ground hoist, prelude |
 | [`con-ron-core/src/kernel/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/lib.rs#L33-L54) | representation-free types (`Name`, `Level`, `PropWhen`, `CheckError`, `CheckMode`), the pinned data as `Expr` values, `pins_text` and `pins_decode` |
 | `con-ron-core/src/ron/` | replacements for the Lean runtime: `nat` (bignum), `hashmap`, `hashmap2`, `ptr` (`Arc`) |
-| `con-ron/src/` | unverified: the binary, `driver`, `pool`, the modeller (`in_model/`, `tree/`) |
+| `con-ron/src/` | unverified: the binary, `driver`, `pool` |
 | `con-ron-dump/` | unverified: the `con-ron-pins/1` reader and writer, the global allocator |
 
 **Lean** (`proof/ConRon/`)
