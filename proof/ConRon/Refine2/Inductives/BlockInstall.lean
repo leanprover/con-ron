@@ -10,7 +10,7 @@ constructors' cons.
 -/
 import ConRon.Refine2.Inductives.PositivityNest
 import ConRon.Refine2.Inductives.SumInstall
-import ConRon.Refine2.Inductives.BlockParts
+import ConRon.Refine2.Inductives.BlockRec
 import ConRon.Arena.Inductives.BlockInstall
 
 open Aeneas Aeneas.Std Result
@@ -27,8 +27,7 @@ open scoped IndSide
 @[local lockstep_simp] theorem bi_core_walk_fuel_val :
     (arena.core.CORE_WALK_FUEL).val = coreWalkFuel := core_walk_fuel_abs
 
-@[local lockstep_simp] theorem absMemberShape_cvT (m : arena.inductives.block_parts.MemberShape) :
-    (absMemberShape m).cvT = absIConstantVal m.cv_t := rfl
+attribute [local lockstep_simp] absMemberShape_cvT
 @[local lockstep_simp] theorem absMemberShape_nIdx (m : arena.inductives.block_parts.MemberShape) :
     (absMemberShape m).nIdx = absU m.n_idx := rfl
 @[local lockstep_simp] theorem absMemberShape_ctors (m : arena.inductives.block_parts.MemberShape) :
