@@ -1453,4 +1453,111 @@ attribute [local lockstep_inline] arena.inductives.rec_check.target_major_member
   simp only [h5, hP, absEIdxL, absU, Option.map_some]
   rfl
 
+/-! ## The recursor records' pins: the auxiliary names `T₀.rec_1 … T₀.rec_n` -/
+
+theorem cps_append_val (s t : alloc.vec.Vec Std.U32) :
+    ∀ (i : Std.Usize) (o : alloc.vec.Vec Std.U32),
+      arena.inductives.rec_check.cps_append s t i = ok o → o.val = s.val ++ t.val.drop i.val := by
+  intro i o h
+  have key := vec_cursor_copy t id id (fun i s => arena.inductives.rec_check.cps_append s t i)
+    ?_ ?_ i s o h
+  · simpa using key
+  · intro i out o hn h
+    rw [arena.inductives.rec_check.cps_append.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len t by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [arena.inductives.rec_check.cps_append.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len t by
+        have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, q, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, rfl, h⟩
+
+/-- An auxiliary recursor's name part: `rec_` followed by the decimal digits. -/
+theorem rc_aux_name_str {s1 d s2 : alloc.vec.Vec Std.U32} {k : Nat}
+    (h1 : s1.val = (arena.inductives.rec_check.REC_AUX_PREFIX).val)
+    (h2 : s2.val = s1.val ++ d.val) (hd : ConRon.Refine.absCodes d.val = toString k)
+    (hwf : ConRon.Refine.StrWF d) :
+    ConRon.Refine.absString s2 = s!"rec_{k}" ∧ ConRon.Refine.StrWF s2 := by
+  simp only [global_simps, Array.make] at h1
+  constructor
+  · rw [ConRon.Refine.absString_eq, h2, h1]
+    rw [ConRon.Refine.absCodes] at hd ⊢
+    rw [List.map_append, String.ofList_append, hd]
+    rfl
+  · intro c hc
+    rw [h2, h1] at hc
+    rcases List.mem_append.mp hc with hc | hc
+    · simp at hc; rcases hc with rfl | rfl | rfl | rfl <;> decide
+    · exact hwf c hc
+
+theorem rc_cps_append_twin0 (s t : alloc.vec.Vec Std.U32) :
+    LSP (arena.inductives.rec_check.cps_append s t 0#usize) (fun o => o.val = s.val ++ t.val) := by
+  intro o h
+  rw [cps_append_val s t _ o h]; simp
+
+/-- Interning `n.rec_k` from the port's code points. -/
+theorem rc_intern_aux_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {n : arena.handle.NIdx} {s s1 d s2 : alloc.vec.Vec Std.U32}
+    {k : Nat} (hs : s1.val = s.val)
+    (h0 : s.val = (arena.inductives.rec_check.REC_AUX_PREFIX).val)
+    (h2 : s2.val = s1.val ++ d.val)
+    (hd : ConRon.Refine.absCodes d.val = toString k ∧ ConRon.Refine.StrWF d) :
+    LS pers (fun a b => b = absNIdx a) (arena.monad.intern_n_node pers st (.Str n s2)) lst
+      (Arena.internNNode (.str (absNIdx n) s!"rec_{k}")) := by
+  obtain ⟨e, hw⟩ := rc_aux_name_str (hs.trans h0) h2 hd.1 hd.2
+  have := intern_n_node_ls hrel hinv (.Str n s2) hw
+  simpa [absNNodeView, e] using this
+
+attribute [local lockstep] rc_cps_append_twin0
+attribute [local lockstep high] rc_intern_aux_name_ls
+
+theorem want_aux_names_acc {pers} (n0 : arena.handle.NIdx) (n : Std.U64) :
+    ∀ (i : Std.U64) st lst (out : alloc.vec.Vec arena.handle.NIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absNIdxL a)
+        (arena.inductives.rec_check.want_aux_names pers st n0 n i out) lst
+        (do
+          let r ← (List.range' i.val (n.val - i.val)).mapM fun j =>
+            Arena.internNNode (.str (absNIdx n0) s!"rec_{j + 1}")
+          pure (absNIdxL out ++ r)) := by
+  intro i st lst out hrel hinv
+  refine ls_counted n
+    (fun (w : alloc.vec.Vec arena.handle.NIdx) m k => do
+      let r ← (List.range' k m).mapM fun j =>
+        Arena.internNNode (.str (absNIdx n0) s!"rec_{j + 1}")
+      pure (absNIdxL w ++ r))
+    (fun st k w => arena.inductives.rec_check.want_aux_names pers st n0 n k w) ?_ ?_
+    i st lst out hrel hinv
+  · intro st lst k w hn hrel hinv
+    rw [arena.inductives.rec_check.want_aux_names.eq_def, if_pos (by scalar_tac)]
+    simp only [List.range'_zero, List.mapM_nil, pure_bind, List.append_nil]
+    lockstep
+  · intro st lst k w m hk hm hrel hinv ih
+    rw [arena.inductives.rec_check.want_aux_names.eq_def, if_neg (by scalar_tac)]
+    simp only [List.range'_succ, List.mapM_cons, bind_assoc, pure_bind]
+    lockstep
+
+@[lockstep] theorem want_aux_names_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n0 : arena.handle.NIdx) (n : Std.U64) :
+    LS pers (fun a b => b = absNIdxL a)
+      (arena.inductives.rec_check.want_aux_names pers st n0 n 0#u64
+        (alloc.vec.Vec.new arena.handle.NIdx)) lst
+      ((List.range (absU n)).mapM fun i =>
+        Arena.internNNode (.str (absNIdx n0) s!"rec_{i + 1}")) := by
+  have h := want_aux_names_acc n0 n 0#u64 st lst (alloc.vec.Vec.new arena.handle.NIdx) hrel hinv
+  have e : (do
+      let r ← (List.range' (0#u64 : Std.U64).val (n.val - (0#u64 : Std.U64).val)).mapM fun j =>
+        Arena.internNNode (.str (absNIdx n0) s!"rec_{j + 1}")
+      pure (absNIdxL (alloc.vec.Vec.new arena.handle.NIdx) ++ r) : AM _)
+      = (List.range (absU n)).mapM fun i =>
+        Arena.internNNode (.str (absNIdx n0) s!"rec_{i + 1}") := by
+    simp [absNIdxL, alloc.vec.Vec.new, absU, List.range_eq_range']
+  rwa [e] at h
+
 end ConRon.Refine2
