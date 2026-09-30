@@ -57,7 +57,7 @@ open ConRon.Arena
 open Lockstep
 open scoped IndSide
 
-attribute [local lockstep_simp] pos_core_walk_fuel_abs pos_core_walk_fuel_val
+attribute [local lockstep_simp] core_walk_fuel_abs Lockstep.core_walk_fuel_val
 
 
 /-! ## Helpers for Shape/Abs
@@ -1264,7 +1264,7 @@ theorem rc_ctors_dup_id (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64))
     obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [pos_i_constant_val_dup_spec _ _ hiv1] at hout1
+    rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hiv1] at hout1
     exact ⟨i2, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, h⟩
 
 /-- `target_major_dup` is the identity. -/
@@ -1310,7 +1310,7 @@ theorem rc_ctors_dup_id (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64))
 /-! ## The outside major's type former: `target_outside_inst` -/
 
 attribute [local lockstep_inline] arena.inductives.positivity.ind_cv_of
-attribute [local lockstep high] pos_i_constant_val_dup_spec
+attribute [local lockstep high] Lockstep.PC2.i_constant_val_dup_ls
 
 @[lockstep] theorem target_outside_inst_ls {pers st lst} {vis : Std.U64}
     {rf : arena.env.IFEnv} {lf : IFEnv}
@@ -1582,7 +1582,7 @@ theorem rc_rec_shape_dup_id (r : arena.inductives.block_parts.RecShape) :
   obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases Result.ok_injective h
-  rw [pos_i_constant_val_dup_spec _ _ hiv, alloc.vec.Vec.ext _ _ (eidx_vec_dup_val hv)]
+  rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hiv, alloc.vec.Vec.ext _ _ (eidx_vec_dup_val hv)]
 
 /-- `recs_by_target` keeps the recursors whose major is a member iff `own`. -/
 theorem recs_by_target_val (rs : alloc.vec.Vec arena.inductives.block_parts.RecShape)

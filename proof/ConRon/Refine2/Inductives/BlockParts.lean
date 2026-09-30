@@ -1223,6 +1223,7 @@ theorem block_group_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
     refine LSR.tail_ls (ih a out ha lst1 hrel hinv) ?_ (fun _ _ h => h)
     simp only [absU] at e
     rw [e, cond_false, absCtorsLFrom, ha]
+    rfl
 
 /-- `block_group` from `0` into an empty accumulator IS the `filterM`. -/
 @[lockstep] theorem block_group_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -2081,7 +2082,7 @@ theorem want_rec_names_ls {pers}
     simpa using this
   have hl := hlen _ _ ‹alloc.vec.Vec.len _ = alloc.vec.Vec.len _›
   refine LS.pure ?_ ‹_› ‹_›
-  simp only [absNIdxL, List.length_map, hl, beq_self_eq_true, Bool.true_and, Bool.and_true]
+  simp only [List.length_map, hl, beq_self_eq_true, Bool.true_and, Bool.and_true]
 
 /-! ## The axiom census -/
 

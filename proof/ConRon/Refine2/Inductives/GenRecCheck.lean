@@ -32,9 +32,9 @@ open Lockstep
 open scoped IndSide
 open scoped GenRecSide
 
-attribute [local lockstep_simp] pos_core_walk_fuel_abs pos_core_walk_fuel_val
+attribute [local lockstep_simp] core_walk_fuel_abs Lockstep.core_walk_fuel_val
   gr_absIConstantVal_name gr_absIConstantVal_levelParams gr_absIConstantVal_type
-attribute [local lockstep] pos_zero_level_ls pos_i_constant_val_dup_spec
+attribute [local lockstep] Lockstep.PC2.i_constant_val_dup_ls
 
 /-! ## The cons tails -/
 
@@ -1749,7 +1749,7 @@ theorem gr_fe_r_push_aux (p : arena.inductives.block_parts.BlockShape)
     rw [List.getElem?_eq_getElem hm1, Option.some.injEq] at hivx
     obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [pos_i_constant_val_dup_spec _ _ hiv1] at h
+    rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hiv1] at h
     obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i4, hi4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

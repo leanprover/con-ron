@@ -34,8 +34,10 @@ open ConRon.Arena
 open Lockstep
 open scoped IndSide
 
-attribute [local lockstep_simp] pos_core_walk_fuel_abs pos_core_walk_fuel_val
-attribute [local lockstep] pos_zero_level_ls pos_i_constant_val_dup_spec
+attribute [local lockstep_simp] core_walk_fuel_abs Lockstep.core_walk_fuel_val
+attribute [local lockstep] Lockstep.PC2.i_constant_val_dup_ls
+-- three `drop_eidx_n` rows are global (`Shape`, `PC1`, `PC2`); the proofs here read `Shape`'s
+attribute [local lockstep high] drop_eidx_n_twin
 
 /-! ## The records' fields -/
 
@@ -88,38 +90,10 @@ theorem ClassGenWF.pre {g : arena.inductives.gen_rec.ClassGen} (h : ClassGenWF g
   cases k <;> simp only [arena.inductives.gen_rec.class_field_dup, Result.ok.injEq] at h <;>
     exact h.symm
 
-/-- A copy loop whose element copy is the identity (`Positivity.lean`'s
-private `copy_loop_id`, restated). -/
-theorem gr_copy_loop_id {α : Type} (dup : α → Result α) (hd : ∀ x y, dup x = ok y → y = x)
-    (xs : alloc.vec.Vec α) (F : Std.Usize → alloc.vec.Vec α → Result (alloc.vec.Vec α))
-    (heq : ∀ i out, F i out = (if i ≥ alloc.vec.Vec.len xs then ok out else do
-      let x ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) xs i
-      let y ← dup x
-      let out1 ← alloc.vec.Vec.push out y
-      let i2 ← i + 1#usize
-      F i2 out1)) :
-    ∀ (o : alloc.vec.Vec α), F 0#usize (alloc.vec.Vec.new α) = ok o → o = xs := by
-  refine vec_copy_id xs F ?_ ?_
-  · intro i out o hn h
-    rw [heq, if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
-    rw [h]
-  · intro i x out o hx h
-    rw [heq, if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by
-      have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
-    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hqx : q = x := by
-      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
-    subst hqx
-    obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [hd _ _ hy] at hout1
-    exact ⟨i2, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, h⟩
-
 @[lockstep] theorem class_fields_dup_spec (ks : alloc.vec.Vec arena.inductives.gen_rec.ClassField) :
     LSP (arena.inductives.gen_rec.class_fields_dup ks 0#usize (alloc.vec.Vec.new _))
       (fun o => o = ks) :=
-  gr_copy_loop_id _ (fun x y h => class_field_dup_spec x y h) ks
+  copy_loop_id _ (fun x y h => class_field_dup_spec x y h) ks
     (arena.inductives.gen_rec.class_fields_dup ks)
     (fun i out => by rw [arena.inductives.gen_rec.class_fields_dup.eq_def])
 
@@ -132,13 +106,13 @@ theorem gr_copy_loop_id {α : Type} (dup : α → Result α) (hd : ∀ x y, dup 
   obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases Result.ok_injective h
-  rw [pos_i_constant_val_dup_spec _ _ hcv, class_fields_dup_spec _ _ hv, dupId_eidx _ _ he,
+  rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hcv, class_fields_dup_spec _ _ hv, dupId_eidx _ _ he,
     dupId_eidx _ _ he1]
 
 @[lockstep] theorem class_ctors_dup_spec (xs : alloc.vec.Vec arena.inductives.gen_rec.ClassCtor) :
     LSP (arena.inductives.gen_rec.class_ctors_dup xs 0#usize (alloc.vec.Vec.new _))
       (fun o => o = xs) :=
-  gr_copy_loop_id _ (fun x y h => class_ctor_dup_spec x y h) xs
+  copy_loop_id _ (fun x y h => class_ctor_dup_spec x y h) xs
     (arena.inductives.gen_rec.class_ctors_dup xs)
     (fun i out => by rw [arena.inductives.gen_rec.class_ctors_dup.eq_def])
 

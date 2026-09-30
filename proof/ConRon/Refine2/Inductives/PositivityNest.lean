@@ -294,7 +294,7 @@ attribute [lockstep_inline] arena.inductives.positivity.nest_inst_type_at
 -- `IndInstPrims.unwrapOr_*'` are the same equations, scoped there).
 attribute [local lockstep_inline] arena.checker_base.unwrap_or
 -- The constant's copy IS the constant (`Positivity.lean`'s local spec).
-attribute [local lockstep high] pos_i_constant_val_dup_spec
+attribute [local lockstep high] Lockstep.PC2.i_constant_val_dup_ls
 
 /-- `eidx_vec_dup` is the identity (the exact form, ahead of the generic
 abstraction-level spec, so that a copied key's parameters ARE the original's). -/

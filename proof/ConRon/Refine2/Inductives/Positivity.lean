@@ -33,11 +33,12 @@ block are in `PositivityNest.lean`.
   its stack (`n ≤ |prog|`; every `HoleImg` the port builds has it), without
   which the Rust's `usize` cast of `n - 1` could truncate on a 32-bit
   platform where the twin's `getD` would not.
-* `zero_level` (`pos_zero_level_ls`), `i_constant_val_dup` and `NIdx::eq2`
-  are restated LOCALLY (their lemmas live in the Core/Checker tiers this file
-  may not import), under the helpers heading.
+* `zero_level`, `i_constant_val_dup`, `NIdx::eq2`, `CORE_WALK_FUEL` and
+  `canon::eidx_vec_beq` use the Core/Checker tiers' lemmas (through
+  `Inductives/Prims`); `i_constant_val_dup` in its `o = cv` form
+  (`PC2.i_constant_val_dup_ls`, registered `local lockstep high`).
 -/
-import ConRon.Refine2.Inductives.Abs
+import ConRon.Refine2.Inductives.Prims
 import ConRon.Arena.Inductives.Positivity
 
 open Aeneas Aeneas.Std Result
@@ -51,91 +52,10 @@ open ConRon.Arena
 open Lockstep
 open scoped IndSide
 
-/-! ## Helpers for Shape/Abs -/
+/-! ## Local registrations -/
 
-/-- `CORE_WALK_FUEL = coreWalkFuel` (`Core/Arms/Delta.lean`'s
-`core_walk_fuel_abs`, restated here below the core tier). -/
-theorem pos_core_walk_fuel_abs : absU arena.core.CORE_WALK_FUEL = coreWalkFuel := by
-  rw [arena.core.CORE_WALK_FUEL, Arena.coreWalkFuel]
-  rfl
+attribute [local lockstep_simp] core_walk_fuel_abs Lockstep.core_walk_fuel_val
 
-theorem pos_core_walk_fuel_val : (arena.core.CORE_WALK_FUEL).val = coreWalkFuel :=
-  pos_core_walk_fuel_abs
-
-attribute [local lockstep_simp] pos_core_walk_fuel_abs pos_core_walk_fuel_val
-
-/-- `arena::pins::pins_ready` ⊑ `pinsReady` (`Core/LS/PrimsA1.lean`'s
-`pins_ready_run₀`, restated below the core tier). -/
-theorem pos_pins_ready_run₀ {pers st lst} {o : Bool}
-    (hrel : AStateRel₀ pers st lst)
-    (hrun : arena.pins.pins_ready st = ok o) :
-    o = pinsReady lst := by
-  rw [arena.pins.pins_ready] at hrun
-  have hnames := hrel.pins.names
-  have hlen : lst.pins.names.size = st.pins.names.val.length := by
-    have h := congrArg List.length hnames
-    simpa using h
-  have h2 := Result.ok_injective hrun
-  subst h2
-  show _ = decide (lst.pins.names.size = Arena.pinCount)
-  rw [hlen]
-  have hcount : (arena.pins.PIN_COUNT).val = Arena.pinCount := by
-    rw [arena.pins.PIN_COUNT]; rfl
-  have : (alloc.vec.Vec.len st.pins.names).val = st.pins.names.val.length :=
-    alloc.vec.Vec.len_val _
-  simp only [decide_eq_decide]
-  constructor
-  · intro h; rw [← this, ← hcount, h]
-  · intro h
-    apply Aeneas.Std.UScalar.eq_imp
-    rw [this, hcount, h]
-
-/-- `arena::core::zero_level` ⊑ `zeroLevel` (`Core/LS/Leaves.lean`'s
-`zero_level_ls`, restated below the core tier; LOCAL to this file). -/
-theorem pos_zero_level_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absLIdx a) (arena.core.zero_level st) st lst zeroLevel := by
-  intro o hrun
-  rw [arena.core.zero_level, arena.pins.pin_zero_level] at hrun
-  rw [zeroLevel]
-  obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hbr := pos_pins_ready_run₀ hrel hb
-  have hrun2 : (Arena.pinZeroLevel).run lst
-      = (if Arena.pinsReady lst
-         then Except.ok (lst.pins.zeroLevel, lst)
-         else Except.error
-           (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
-    by_cases h : Arena.pinsReady lst = true
-    · rw [if_pos h]
-      show (Arena.pinZeroLevel) lst = _
-      rw [Arena.pinZeroLevel]
-      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, StateT.pure, Except.pure, Except.bind, if_pos h]
-    · simp only [Bool.not_eq_true] at h
-      rw [if_neg (by simp [h])]
-      show (Arena.pinZeroLevel) lst = _
-      rw [Arena.pinZeroLevel]
-      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, Except.pure, Except.bind, h, Bool.false_eq_true, if_false,
-        Arena.fail, throwThe, MonadExceptOf.throw, Function.comp_apply, StateT.lift]
-  split at hrun
-  case isTrue hbt =>
-    obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have h2 := Result.ok_injective hrun
-    subst h2
-    rw [dupId_lidx _ _ hl]
-    refine ⟨_, lst, ?_, rfl, hrel, hinv⟩
-    rw [hrun2, if_pos (by rw [← hbr, hbt]), hrel.pins.zeroLevel]
-  case isFalse hbf =>
-    obtain ⟨sl, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨cps, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    rw [arena.monad.fail] at hrun
-    have h2 := Result.ok_injective hrun
-    subst h2
-    refine AErrSim.internal (s := "arena: reserved-name pins not interned") ?_
-    rw [hrun2, if_neg (by simp only [← hbr]; simpa using hbf)]
-
-attribute [local lockstep] pos_zero_level_ls
 -- `sort_zero` is the twin's `do let z ← zeroLevel; internSortE z`, and
 -- `nest_non_valid` the twin's `nestNonValid`: both inline fragments.
 attribute [lockstep_inline] arena.inductives.positivity.sort_zero
@@ -726,7 +646,7 @@ theorem vec_copy_id {α : Type} (xs : alloc.vec.Vec α)
     Result.ok.injEq] at h <;> exact h.symm
 
 /-- A copy loop whose element copy is the identity. -/
-private theorem copy_loop_id {α : Type} (dup : α → Result α) (hd : ∀ x y, dup x = ok y → y = x)
+theorem copy_loop_id {α : Type} (dup : α → Result α) (hd : ∀ x y, dup x = ok y → y = x)
     (xs : alloc.vec.Vec α) (F : Std.Usize → alloc.vec.Vec α → Result (alloc.vec.Vec α))
     (heq : ∀ i out, F i out = (if i ≥ alloc.vec.Vec.len xs then ok out else do
       let x ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) xs i
@@ -1125,7 +1045,7 @@ theorem nest_hole_img_aux {pers} (k : Nat) :
     intro ctx prog n i st lst hn hnp hrel hinv
     rw [arena.inductives.positivity.nest_hole_img, if_pos (by scalar_tac), nestHoleImg]
     lockstep
-    rw [absNIdxL, map_getD_of_lt absNIdx ctx.names.val _ _ (by assumption) (by scalar_tac)]
+    rw [map_getD_of_lt absNIdx ctx.names.val _ _ (by assumption) (by scalar_tac)]
     lockstep
   | succ k ih =>
     intro ctx prog n i st lst hn hnp hrel hinv
@@ -1568,19 +1488,7 @@ theorem pi_doms_occ_aux (k : Nat) :
 
 /-! ## Uniform occurrences: `nest_uniform_ok`, `nest_uniform_member`, `nest_uniform` -/
 
-/-- `arena::env::i_constant_val_dup` is the identity (a LOCAL restatement of
-the Core/Checker tiers' `i_constant_val_dup_ls`). -/
-theorem pos_i_constant_val_dup_spec (cv : arena.env.IConstantVal) :
-    LSP (arena.env.i_constant_val_dup cv) (fun o => o = cv) := by
-  intro o h
-  rw [arena.env.i_constant_val_dup] at h
-  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  cases Result.ok_injective h
-  rw [dupId_nidx _ _ hn, dupId_eidx _ _ he, alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv)]
-
-attribute [local lockstep] pos_i_constant_val_dup_spec
+attribute [local lockstep high] Lockstep.PC2.i_constant_val_dup_ls
 
 @[lockstep] theorem nest_uniform_ok_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
@@ -1932,7 +1840,7 @@ theorem ctor_pairs_append_abs (ys : alloc.vec.Vec (arena.env.IConstantVal × Std
     obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [pos_i_constant_val_dup_spec _ _ hiv] at hout1
+    rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hiv] at hout1
     exact ⟨i2, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, h⟩
 
 @[lockstep] theorem ctor_pairs_append_twin (xs ys : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
@@ -2176,73 +2084,6 @@ theorem frame_holes_acc {pers} (hi : Std.U64)
 
 /-! ## Keys: `nest_key_beq`, `nest_keys_contain`, `nest_accept_group` -/
 
-/-- `arena::canon::eidx_vec_beq` at the cursor (`Checker/Canon.lean`'s
-`eidx_vec_beq_refines`, restated below the checker tier). -/
-theorem pos_eidx_vec_beq_abs (n : Nat) :
-    ∀ {a b : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o : Bool},
-      a.val.length - i.val = n →
-      arena.canon.eidx_vec_beq a b i = ok o →
-      o = decide (absEIdxLFrom a i = absEIdxLFrom b i) := by
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-    intro a b i o hn hrun
-    rw [arena.canon.eidx_vec_beq.eq_def] at hrun
-    dsimp only at hrun
-    have hla := alloc.vec.Vec.len_val a
-    have hlb := alloc.vec.Vec.len_val b
-    by_cases ha : i ≥ a.len
-    · have hae : a.val.length ≤ i.val := by scalar_tac
-      rw [if_pos ha] at hrun
-      by_cases hb : i ≥ b.len
-      · have hbe : b.val.length ≤ i.val := by scalar_tac
-        rw [if_pos hb] at hrun
-        rw [← Result.ok_injective hrun]
-        simp [absEIdxLFrom, List.drop_eq_nil_of_le hae, List.drop_eq_nil_of_le hbe]
-      · have hbl : i.val < b.val.length := by scalar_tac
-        rw [if_neg hb, if_pos ha] at hrun
-        rw [← Result.ok_injective hrun]
-        simp only [absEIdxLFrom, List.drop_eq_nil_of_le hae,
-          List.drop_eq_getElem_cons hbl, List.map_nil, List.map_cons]
-        simp
-    · have hal : i.val < a.val.length := by scalar_tac
-      rw [if_neg ha, if_neg ha] at hrun
-      by_cases hb : i ≥ b.len
-      · have hbe : b.val.length ≤ i.val := by scalar_tac
-        rw [if_pos hb] at hrun
-        rw [← Result.ok_injective hrun]
-        simp only [absEIdxLFrom, List.drop_eq_nil_of_le hbe,
-          List.drop_eq_getElem_cons hal, List.map_nil, List.map_cons]
-        simp
-      · have hbl : i.val < b.val.length := by scalar_tac
-        rw [if_neg hb] at hrun
-        obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        obtain ⟨hlt, hev⟩ := List.getElem?_eq_some_iff.mp (vec_index_some he)
-        obtain ⟨hlt1, hev1⟩ := List.getElem?_eq_some_iff.mp (vec_index_some he1)
-        have hb1v := eidx_eq2_abs_decide hb1
-        by_cases hc : b1 = true
-        · rw [if_pos hc] at hrun
-          obtain ⟨i5, hi5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-          have hi5v : i5.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi5
-          have hrec := ih (a.val.length - i5.val) (by omega) (i := i5) rfl hrun
-          rw [hc] at hb1v
-          have heq : absEIdx a.val[i.val] = absEIdx b.val[i.val] := by
-            rw [hev, hev1]; exact of_decide_eq_true hb1v.symm
-          rw [hrec]
-          simp only [absEIdxLFrom, hi5v, List.drop_eq_getElem_cons hal,
-            List.drop_eq_getElem_cons hbl, List.map_cons, List.cons.injEq,
-            heq, true_and]
-        · simp only [Bool.not_eq_true] at hc
-          rw [hc] at hrun hb1v
-          rw [if_neg (by simp)] at hrun
-          rw [← Result.ok_injective hrun]
-          have hne : ¬ (absEIdx a.val[i.val] = absEIdx b.val[i.val]) := by
-            rw [hev, hev1]; exact of_decide_eq_false hb1v.symm
-          simp only [absEIdxLFrom, List.drop_eq_getElem_cons hal,
-            List.drop_eq_getElem_cons hbl, List.map_cons, List.cons.injEq]
-          simp [hne]
-
 /-- The twin's derived `BEq NestKey`, field by field. -/
 theorem nestKey_beq_eq (a b : NestKey) :
     (a == b) = (a.cname == b.cname && (a.lvls == b.lvls && a.ds == b.ds)) := by
@@ -2274,7 +2115,7 @@ theorem nestKey_beq_iff (a b : NestKey) : (a == b) = true ↔ a = b := by
     · rw [if_neg (by simp), Result.ok.injEq] at h
       subst h; rfl
     · rw [if_pos rfl] at h
-      have := pos_eidx_vec_beq_abs _ rfl h
+      have := eidx_vec_beq_refines h
       rw [this, absEIdxLFrom_zero, absEIdxLFrom_zero]
       simp [beq_eq_decide]
 
@@ -2387,15 +2228,6 @@ theorem nest_accept_group_abs (us : arena.handle.LsIdx) (ds : alloc.vec.Vec aren
 
 /-! ## A stored constant as a container's constructor -/
 
-/-- `NIdx::eq2` against `==` on the abstraction (`Tactic/Prims.lean` has the
-`EIdx`/`LIdx`/`LsIdx` rows but not this one; LOCAL here, a helper for
-`Tactic/Prims`). -/
-theorem pos_nidx_eq2_spec (a b : arena.handle.NIdx) :
-    LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
-      (fun c => c = (absNIdx a == absNIdx b)) :=
-  fun _ h => nidx_eq2_abs h
-
-attribute [local lockstep] pos_nidx_eq2_spec
 
 @[lockstep] theorem nest_ctor_entry_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (c : arena.handle.NIdx) (ci : arena.env.IConstantInfo) :
@@ -2425,7 +2257,7 @@ theorem ctor_entries_nf_abs (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U
     obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [pos_i_constant_val_dup_spec _ _ hiv] at hout1
+    rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hiv] at hout1
     exact ⟨i2, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, h⟩
 
 @[lockstep] theorem ctor_entries_nf_twin
