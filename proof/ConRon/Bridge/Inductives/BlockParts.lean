@@ -21,6 +21,7 @@ they are `CSpec`, the old `withSort_spec`/`nativeShape?_spec` argument.
 -/
 import ConRon.Bridge.Inductives.StructParts
 import ConRon.Bridge.Inductives.PosWalks
+import ConRon.Bridge.Inductives.FieldTele
 
 namespace ConRon.Bridge.Inductives
 
@@ -622,5 +623,180 @@ theorem blockSplit_spec (st : EStore) :
         obtain ⟨b, hb, h1, h2⟩ := hC
         simp only [hb, Option.map_some]
         exact ⟨_, rfl, rfl, h1, h2⟩
+
+/-! ## The per-member readers -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:254-271 recTargetOf
+The member a recursor's MAJOR names: `stripPis`, the `forallE` view, the head
+through `getAppFn`, the name through `findIdx_handle_eq`. -/
+theorem recTargetOf_spec (names : List NIdx) (namesP : List ConLeche.Name) (mI : Nat)
+    (ty : EIdx) (tyP : Expr) :
+    PSpec (fun st => Frontend.denoteNList st.ns names = some namesP ∧
+        denoteE st ty = some tyP)
+      (Arena.recTargetOf names mI ty) (RV (ConLeche.recTargetOf namesP mI tyP)) := by
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hN, hd⟩ := hp
+  have hlen := PW.denoteNList_length hN
+  simp only [Arena.recTargetOf] at hrun
+  obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨rfl, hbp⟩ := stripPis_pstep hok hd h1
+  cases o with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk h2
+    refine ⟨PStep.refl hok, ?_⟩
+    show names.length = _
+    simp only [ConLeche.recTargetOf, stripPis_none hbp, hlen]
+  | some q =>
+    obtain ⟨bs, e⟩ := q
+    obtain ⟨xs, x, hsp, hx⟩ := stripPis_some hbp
+    dsimp only at h2
+    by_cases htg : (e.tag == ETag.forallE) = true
+    · rw [if_pos htg] at h2
+      obtain ⟨o, s₂, h3, h4⟩ := bindOk h2
+      obtain ⟨rfl, ho⟩ := PW.viewBind_run h3
+      cases o with
+      | none => exact absurd h4 (fun hc => PW.failDanglingE_ok hc)
+      | some p =>
+        obtain ⟨d, b, m⟩ := p
+        have hw := view_of_viewBind_tag_forallE htg ho.symm
+        obtain ⟨dP, bP, rfl, hdd, -⟩ := denote_forallE_inv hok.wf hw hx
+        dsimp only at h4
+        obtain ⟨hh, s₃, h5, h6⟩ := bindOk h4
+        obtain ⟨rfl, hhd⟩ := getAppFn_run hok hdd h5
+        by_cases htc : (hh.tag == ETag.const) = true
+        · rw [if_pos htc] at h6
+          obtain ⟨o, s₄, h7, h8⟩ := bindOk h6
+          obtain ⟨rfl, ho2⟩ := PW.viewConst_run h7
+          cases o with
+          | none => exact absurd h8 (fun hc => PW.failDanglingE_ok hc)
+          | some p =>
+            obtain ⟨n, us⟩ := p
+            have hw2 := view_of_viewConst_tag htc ho2.symm
+            obtain ⟨nm, ls, hc, hn, -⟩ := denote_const_inv hok.wf hw2 hhd
+            dsimp only at h8
+            have hf := PW.findIdx_handle_eq hok.wf hn hN
+            cases hfi : names.findIdx? (· == n) with
+            | none =>
+              rw [hfi] at h8
+              obtain ⟨rfl, rfl⟩ := pureOk h8
+              refine ⟨PStep.refl hok, ?_⟩
+              show names.length = _
+              simp only [ConLeche.recTargetOf, hsp, hc]
+              rw [← hf, ← hlen, hfi]
+              rfl
+            | some t =>
+              rw [hfi] at h8
+              obtain ⟨rfl, rfl⟩ := pureOk h8
+              refine ⟨PStep.refl hok, ?_⟩
+              show _ = ConLeche.recTargetOf namesP mI tyP
+              simp only [ConLeche.recTargetOf, hsp, hc]
+              rw [← hf, hfi]
+              rfl
+        · rw [if_neg htc] at h6
+          obtain ⟨rfl, rfl⟩ := pureOk h6
+          refine ⟨PStep.refl hok, ?_⟩
+          show names.length = _
+          simp only [ConLeche.recTargetOf, hsp]
+          rw [hlen]
+          generalize hg : dP.getAppFn = g at hhd
+          cases g with
+          | const c us => exact absurd (PW.tag_const_of_denote hok.wf hhd) (by simpa using htc)
+          | _ => rfl
+    · rw [if_neg htg] at h2
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      refine ⟨PStep.refl hok, ?_⟩
+      show names.length = _
+      simp only [ConLeche.recTargetOf, hsp]
+      rw [hlen]
+      cases x with
+      | forallE d b m => exact absurd (PW.tag_forallE_of_denote hok.wf hx) (by simpa using htg)
+      | _ => rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:273-299 blockCounts?
+— the non-sort tail: the recursor's argument sums. -/
+def blockCountsTail (nPd k nC nR : Nat) : Option (Nat × Nat) → Option (Nat × Nat)
+  | none => none
+  | some (mI, rP) =>
+    if rP < nC + k || mI < rP then none
+    else if rP - (nC + k) == nPd then some (nPd, mI - rP)
+    else if k < nR && nPd + nR + nC ≤ rP then some (nPd, mI - rP)
+    else none
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:273-299 blockCounts?
+— con-leche's `match` on the whole pair re-read as a match on the residual,
+which is what the twin's `view` dispatch decides. -/
+theorem blockCounts_eq (nPd k nC nR : Nat) (cvTP : ConstantVal) (r : Option (Nat × Nat)) :
+    ConLeche.blockCounts? nPd k nC nR cvTP r =
+      (match (cvTP.type.piBinders).2 with
+       | .sort _ =>
+         if nPd ≤ (cvTP.type.piBinders).1.length then
+           some (nPd, (cvTP.type.piBinders).1.length - nPd) else none
+       | _ => blockCountsTail nPd k nC nR r) := by
+  simp only [ConLeche.blockCounts?]
+  cases h : cvTP.type.piBinders with
+  | mk bs body =>
+    cases body <;> rcases r with _ | ⟨mI, rP⟩ <;> rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:273-299 blockCounts?
+One member's parameter and index counts: `piBinders_spec`, the ten-way `view`
+dispatch at the residual, `denoteBinders_length` for the telescope's
+length. -/
+theorem blockCounts?_spec (nPd k nC nR : Nat) (cvT : IConstantVal) (cvTP : ConstantVal)
+    (r : Option (Nat × Nat)) :
+    PSpec (fun st => Frontend.denoteCV st cvT = some cvTP)
+      (Arena.blockCounts? nPd k nC nR cvT r)
+      (RV (ConLeche.blockCounts? nPd k nC nR cvTP r)) := by
+  intro s₀ s' x hok hcv hrun
+  simp only [Arena.blockCounts?] at hrun
+  obtain ⟨q, s1, k1, hz1⟩ := bindOk hrun
+  obtain ⟨p1, hbs, hbody⟩ :=
+    piBinders_spec Arena.coreWalkFuel cvT.type cvTP.type s₀ s1 q hok
+      (denoteCV_type hcv) k1
+  obtain ⟨bs, res⟩ := q
+  dsimp only at hz1 hbs hbody
+  obtain ⟨v, s2, k2, hz2⟩ := bindOk hz1
+  obtain ⟨hs2, hview⟩ := view_run k2
+  rw [hs2] at hz2
+  have hlen : bs.length = (cvTP.type.piBinders).1.length := denoteBinders_length hbs
+  have hbv : denoteEView s1.store v = some (cvTP.type.piBinders).2 := by
+    rw [← denoteE_view_eq p1.ok.wf hview]; exact hbody
+  rw [blockCounts_eq]
+  cases v
+  case sort u =>
+    obtain ⟨l, hEq, _⟩ := denote_sort_inv p1.ok.wf hview hbody
+    dsimp only at hz2
+    rw [hEq, ← hlen]
+    split at hz2
+    · obtain ⟨rfl, rfl⟩ := pureOk hz2
+      exact ⟨p1, by simp_all⟩
+    · obtain ⟨rfl, rfl⟩ := pureOk hz2
+      exact ⟨p1, by simp_all⟩
+  all_goals
+    (have hns := ExprOps.denoteEView_not_sort hbv (by simp)
+     have hm : (match (cvTP.type.piBinders).2 with
+         | .sort _ =>
+           if nPd ≤ (cvTP.type.piBinders).1.length then
+             some (nPd, (cvTP.type.piBinders).1.length - nPd) else none
+         | _ => blockCountsTail nPd k nC nR r) = blockCountsTail nPd k nC nR r := by
+       generalize (cvTP.type.piBinders).2 = e at hns
+       cases e <;> first | rfl | exact absurd rfl (hns _)
+     rw [hm]
+     dsimp only at hz2
+     rcases r with _ | ⟨mI, rP⟩
+     · obtain ⟨rfl, rfl⟩ := pureOk hz2
+       exact ⟨p1, rfl⟩
+     · dsimp only at hz2
+       simp only [blockCountsTail]
+       split at hz2
+       · rename_i hc; obtain ⟨rfl, rfl⟩ := pureOk hz2; exact ⟨p1, by simp [hc]⟩
+       · rename_i hc
+         split at hz2
+         · rename_i hc2; obtain ⟨rfl, rfl⟩ := pureOk hz2; exact ⟨p1, by simp [hc, hc2]⟩
+         · rename_i hc2
+           split at hz2
+           · rename_i hc3; obtain ⟨rfl, rfl⟩ := pureOk hz2
+             exact ⟨p1, by simp only [hc, hc2, hc3]; simp_all⟩
+           · rename_i hc3; obtain ⟨rfl, rfl⟩ := pureOk hz2
+             exact ⟨p1, by simp only [hc, hc2, hc3]; simp_all⟩)
 
 end ConRon.Bridge.Inductives
