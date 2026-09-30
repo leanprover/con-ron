@@ -1749,4 +1749,133 @@ local macro_rules
   rw [arena.inductives.rec_check.tgt_stored_rules, tgtStoredRules]
   lockstep
 
+/-- Provisional (until `Inductives/BlockParts.lean` is below): the two recursor
+readers `cons_block_recs_t` needs. -/
+theorem rc_major_idx_at_twin (p : arena.inductives.block_parts.BlockShape) (r : Std.U64) :
+    LSP (arena.inductives.block_parts.major_idx_at p r)
+      (fun o => TwinEq ((absBlockShape p).majorIdxAt (absU r)) (absU o)) := by
+  intro o h
+  rw [arena.inductives.block_parts.major_idx_at] at h
+  obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hi1v := lift_cast_u64_of_usize _ i1 hi1
+  simp only [alloc.vec.Vec.len] at hi1v
+  rw [TwinEq, BlockShape.majorIdxAt]
+  split at h
+  · rename_i hlt
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨rs, hrs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    have hlt' : r.val < p.recs.val.length := by scalar_tac
+    rcases lift_cast_usize_of_u64 _ i2 hi2 with hk | hk
+    · have hx := vec_index_some hrs
+      rw [hk, List.getElem?_eq_getElem hlt'] at hx
+      cases Option.some_inj.mp hx
+      simp [absBlockShape, absU, List.getElem?_eq_getElem hlt', absRecShape]
+    · exfalso; scalar_tac
+  · rename_i hge
+    cases Result.ok_injective h
+    rw [show (absBlockShape p).recs[absU r]? = none from by
+      rw [List.getElem?_eq_none]; simp [absBlockShape, absU]; scalar_tac]
+    rfl
+
+theorem rc_rule_prefix_at_twin (p : arena.inductives.block_parts.BlockShape) (r : Std.U64) :
+    LSP (arena.inductives.block_parts.rule_prefix_at p r)
+      (fun o => TwinEq ((absBlockShape p).rulePrefixAt (absU r)) (absU o)) := by
+  intro o h
+  rw [arena.inductives.block_parts.rule_prefix_at] at h
+  obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hi1v := lift_cast_u64_of_usize _ i1 hi1
+  simp only [alloc.vec.Vec.len] at hi1v
+  rw [TwinEq, BlockShape.rulePrefixAt]
+  split at h
+  · rename_i hlt
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨rs, hrs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h
+    have hlt' : r.val < p.recs.val.length := by scalar_tac
+    rcases lift_cast_usize_of_u64 _ i2 hi2 with hk | hk
+    · have hx := vec_index_some hrs
+      rw [hk, List.getElem?_eq_getElem hlt'] at hx
+      cases Option.some_inj.mp hx
+      simp [absBlockShape, absU, List.getElem?_eq_getElem hlt', absRecShape]
+    · exfalso; scalar_tac
+  · rename_i hge
+    cases Result.ok_injective h
+    rw [show (absBlockShape p).recs[absU r]? = none from by
+      rw [List.getElem?_eq_none]; simp [absBlockShape, absU]; scalar_tac]
+    rfl
+
+attribute [local lockstep] rc_major_idx_at_twin rc_rule_prefix_at_twin
+
+/-- A checked recursor with its major and its right-hand sides. -/
+def absRecOut (x : arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
+    alloc.vec.Vec arena.handle.EIdx) : IConstantVal × TargetMajor × List EIdx :=
+  (absIConstantVal x.1, absTargetMajor x.2.1, absEIdxL x.2.2)
+
+theorem rc_eidx_vec_dup_id (v : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.env.eidx_vec_dup v) (fun o => o = v) :=
+  fun _ h => alloc.vec.Vec.ext _ _ (eidx_vec_dup_val h)
+
+attribute [local lockstep high] rc_eidx_vec_dup_id
+
+theorem cons_block_recs_t_aux {pers} (vis2 : Std.U64) (p : arena.inductives.block_parts.BlockShape)
+    (out : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
+      alloc.vec.Vec arena.handle.EIdx)) (n : Nat) :
+    ∀ (m : Std.U64) st lst (rf : arena.env.IFEnv) (lf : IFEnv),
+      out.val.length - m.val = n → IFEnvRelI rf lf →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => IFEnvRelI a b)
+        (arena.inductives.rec_check.cons_block_recs_t pers vis2 st p m out rf) lst
+        (consBlockRecsTF (absU vis2) (absBlockShape p) (absU m)
+          ((out.val.drop m.val).map absRecOut) lf) := by
+  induction n with
+  | zero =>
+    intro m st lst rf lf hn hfe hrel hinv
+    rw [arena.inductives.rec_check.cons_block_recs_t.eq_def,
+      List.drop_eq_nil_of_le (by omega), List.map_nil, consBlockRecsTF]
+    lockstep
+  | succ n ih =>
+    intro m st lst rf lf hn hfe hrel hinv
+    rw [arena.inductives.rec_check.cons_block_recs_t.eq_def,
+      List.drop_eq_getElem_cons (show m.val < out.val.length by omega), List.map_cons,
+      consBlockRecsTF]
+    lockstep
+    rename_i i6 h6 _ _ _ _ _ _ _ mi _ rp _ rules fe2 hfe2
+    have e6 : i6.val = m.val := by
+      rcases h6 with h | h
+      · exact h
+      · exfalso; scalar_tac
+    have ha : a.val = m.val + 1 := by scalar_tac
+    refine LS.tail (ih a st1 lst1 fe2
+      (lf.push (IConstantInfo.recInfo (absRecOut out.val[m.val]).1 (absU mi) (absU rp)
+        (absIRecRuleL rules))) (by omega) ?_ hrel hinv) ?_ (fun _ _ h => h)
+    · have h1 := hfe2.1
+      have e : out.val[i6.val] = out.val[m.val] := by simp only [e6]
+      simp only [absIConstantInfo, e] at h1
+      exact h1
+    · simp only [ha, absU]
+
+@[lockstep] theorem cons_block_recs_t_ls {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf)
+    (vis2 : Std.U64) (p : arena.inductives.block_parts.BlockShape) (m : Std.U64)
+    (out : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
+      alloc.vec.Vec arena.handle.EIdx)) :
+    LS pers (fun a b => IFEnvRelI a b)
+      (arena.inductives.rec_check.cons_block_recs_t pers vis2 st p m out rf) lst
+      (consBlockRecsTF (absU vis2) (absBlockShape p) (absU m)
+        ((out.val.drop m.val).map absRecOut) lf) :=
+  cons_block_recs_t_aux vis2 p out _ m st lst rf lf rfl hfe hrel hinv
+
+/-- `cons_block_recs_t` from the first recursor (the callers' form). -/
+@[lockstep] theorem cons_block_recs_t_ls0 {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf)
+    (vis2 : Std.U64) (p : arena.inductives.block_parts.BlockShape)
+    (out : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
+      alloc.vec.Vec arena.handle.EIdx)) :
+    LS pers (fun a b => IFEnvRelI a b)
+      (arena.inductives.rec_check.cons_block_recs_t pers vis2 st p 0#u64 out rf) lst
+      (consBlockRecsTF (absU vis2) (absBlockShape p) 0 (out.val.map absRecOut) lf) := by
+  have h := cons_block_recs_t_ls hrel hinv hfe vis2 p 0#u64 out
+  simpa [absU] using h
+
 end ConRon.Refine2
