@@ -274,8 +274,9 @@ pub fn progress_stride(v: &str) -> Result<u64, String> {
 /// core* (`kernel::pins_text::PINS_TEXT`) and decodes it with a verified
 /// decoder (`kernel::pins_decode::decode_embedded`), so a run checks with
 /// con-leche's own pins and nothing is read from outside.  That is the
-/// default, and the theorem's `pins` argument is that closed term
-/// (`proof/ConRon/Refine/Pins.lean`).
+/// default, and the headline theorems take the decoder's output as their
+/// `hpins` premise (`proof/ConRon/Capstone.lean`; the `_embedded` forms fix
+/// the text to `PINS_TEXT`).
 ///
 /// The two overrides are **for testing only** and neither is a con-leche
 /// spelling: `--pins FILE` reads a `con-ron-pins/1` dump through the

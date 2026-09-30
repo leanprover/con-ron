@@ -1340,8 +1340,8 @@ pub fn decode(t: &[u8]) -> CheckM<Vec<NatOpPinSet>> {
 /// written there, hence the `_`.)
 /// **The pin list the binary checks with**: the embedded text, decoded.  This
 /// is what `cached::installed::check_decls`' `pins` parameter is given for a
-/// real run (`con_ron::driver`), and `proof/ConRon/Refine/Pins.lean` is where
-/// what it equals is stated.  `--pins FILE` overrides it for testing only.
+/// real run (`con_ron::driver`), and the capstone's `_embedded` headlines
+/// (`proof/ConRon/Capstone.lean`) take its output as their pin premise.  `--pins FILE` overrides it for testing only.
 pub fn decode_embedded() -> CheckM<Vec<NatOpPinSet>> {
     decode(PINS_TEXT.as_bytes())
 }

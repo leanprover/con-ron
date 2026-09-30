@@ -22,9 +22,9 @@ Exit 0 iff everything agrees, 1 on a mismatch, 3 on usage or IO failure.
 core's embedded `kernel::pins_text::PINS_TEXT`, whose freshness against
 `natOpPinSets` is a gate; `con-ron --pins FILE` reads a file in this format
 through the unverified Rust reader (`crates/con-ron-dump`) as a test override.
-And `parsePins` is a *proof* obligation's right-hand side: `pins_decode_refines`
-(`ConRon/Refine/Pins.lean`) says the core's verified decoder computes what this
-function computes, which is why `runLines` below is total rather than `partial`.
+(`parsePins` was also the right-hand side of a decoder refinement lemma
+until task #105 deleted it as unused: the headline theorems hold at every pin
+list, and take the decoder's output as a premise.)
 
 **What used to be here.**  Until task #80 this directory also held
 `con-ron-decls/1`, the `List DeclC` dump of task #10 (`Main.lean`, `Write.lean`,
@@ -529,9 +529,7 @@ def parseRecord (kind : String) : R Unit := do
 list, but the recursive call sits under a `bind`, which the structural checker
 does not see through; `termination_by` closes it.  It matters for the *proof*
 side and not for the runtime: a `partial def` is opaque, with no equations and
-no unfolding, so nothing whatever can be proved about it — and
-`ConRon/Refine/Pins.lean` needs to state that the Rust decoder computes what
-this function computes. -/
+no unfolding, so nothing whatever can be proved about it. -/
 def runLines : List String → R Unit
   | [] => rerr "the dump has no 'end' footer"
   | l :: ls => do
