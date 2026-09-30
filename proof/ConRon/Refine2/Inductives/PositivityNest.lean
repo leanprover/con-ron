@@ -137,4 +137,100 @@ behind the accumulator. -/
   apply LS.pure _ (by assumption) (by assumption)
   rfl
 
+/-! ## Environment lookups: the frame's readers -/
+
+-- `ind_cv_of` is the twin's `match fe.find? C with | some (.indInfo cv _) => …`:
+-- an inline fragment of `nestInstType`, `nestArity` and `nestHoles`.
+attribute [lockstep_inline] arena.inductives.positivity.ind_cv_of
+
+/-- `nest_block_of` ⊑ `nestBlockOf` (Rust `ctx, fe, c`; twin `fe C`). -/
+@[lockstep] theorem nest_block_of_twin (ctx : arena.inductives.positivity.NestCtx)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx ctx.vis rf lf) (c : arena.handle.NIdx) :
+    LSP (arena.inductives.positivity.nest_block_of ctx rf c)
+      (fun o => TwinEq (nestBlockOf lf (absNIdx c)) (absNIdxL o)) := by
+  intro o h
+  rw [arena.inductives.positivity.nest_block_of] at h
+  obtain ⟨oo, hoo, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hf := ifenv_find_abs hctx hoo
+  rw [TwinEq, nestBlockOf, ← hf]
+  rcases oo with _ | ci
+  · cases Result.ok_injective h; rfl
+  · cases ci <;> (try (cases Result.ok_injective h; rfl))
+    simp only [Option.map_some, absIConstantInfo, absIIndCaps]
+    rw [absNIdxL, nidx_vec_dup_val h]
+
+/-- `nest_frame_mates` ⊑ `nestFrameMates` (Rust `ctx, fe, c`; twin `fe C`). -/
+@[lockstep] theorem nest_frame_mates_twin (ctx : arena.inductives.positivity.NestCtx)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx ctx.vis rf lf) (c : arena.handle.NIdx) :
+    LSP (arena.inductives.positivity.nest_frame_mates ctx rf c)
+      (fun o => TwinEq (nestFrameMates lf (absNIdx c)) (absNIdxL o)) := by
+  intro o h
+  rw [arena.inductives.positivity.nest_frame_mates] at h
+  obtain ⟨all, hall, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h1 := nest_block_of_twin ctx hctx c all hall
+  have h2 := frame_mates_from_twin all c o h
+  simp only [TwinEq] at h1 h2 ⊢
+  rw [nestFrameMates, h1, h2]
+
+/-- `nest_arity` ⊑ `nestArity` (Rust `ctx, fe, c`; twin `fe C`). -/
+@[lockstep] theorem nest_arity_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx ctx.vis rf lf) (c : arena.handle.NIdx) :
+    LSR pers (fun a b => b = absU a)
+      (arena.inductives.positivity.nest_arity pers st ctx rf c) st lst
+      (nestArity lf (absNIdx c)) := by
+  apply LSR.of_LS
+  rw [arena.inductives.positivity.nest_arity, nestArity]
+  lockstep
+
+/-- `nest_group_ctors` ⊑ `nestGroupCtors` from the cursor on (Rust `fe, ctx,
+n_pc, cs, i, out`; twin `fe nPc cs out`). -/
+@[lockstep] theorem nest_group_ctors_ls {pers st} (ctx : arena.inductives.positivity.NestCtx)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx ctx.vis rf lf) (n_pc : Std.U64)
+    (cs : alloc.vec.Vec arena.handle.NIdx) :
+    ∀ (i : Std.Usize) (out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = absCtorsL a)
+        (arena.inductives.positivity.nest_group_ctors pers st rf ctx n_pc cs i out) st lst
+        (nestGroupCtors lf (absU n_pc) (absNIdxLFrom cs i) (absCtorsL out)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) cs.val.length
+    (fun i (_ : Unit) => ∀ (out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = absCtorsL a)
+        (arena.inductives.positivity.nest_group_ctors pers st rf ctx n_pc cs i out) st lst
+        (nestGroupCtors lf (absU n_pc) (absNIdxLFrom cs i) (absCtorsL out))) ?_ ?_ i ()
+  · intro i _ hn out lst hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.nest_group_ctors.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), absNIdxLFrom,
+      List.drop_eq_nil_of_le hn, List.map_nil, nestGroupCtors]
+    lockstep
+  · intro i _ hlt ih out lst hrel hinv
+    have ih' : ∀ j : Std.Usize, j.val = i.val + 1 →
+        ∀ (out : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) lst,
+        AStateRel₀ pers st lst → AStateInv pers st →
+        LSR pers (fun a b => b = absCtorsL a)
+          (arena.inductives.positivity.nest_group_ctors pers st rf ctx n_pc cs j out) st lst
+          (nestGroupCtors lf (absU n_pc) (absNIdxLFrom cs j) (absCtorsL out)) :=
+      fun j hj => ih j () hj
+    clear ih
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.nest_group_ctors.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac), absNIdxLFrom,
+      List.drop_eq_getElem_cons hlt, List.map_cons, nestGroupCtors]
+    lockstep
+
+@[lockstep] theorem nest_group_ctors_new_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx ctx.vis rf lf) (n_pc : Std.U64)
+    (cs : alloc.vec.Vec arena.handle.NIdx) :
+    LSR pers (fun a b => b = absCtorsL a)
+      (arena.inductives.positivity.nest_group_ctors pers st rf ctx n_pc cs 0#usize
+        (alloc.vec.Vec.new _)) st lst
+      (nestGroupCtors lf (absU n_pc) (absNIdxL cs) []) := by
+  have h := nest_group_ctors_ls ctx hctx n_pc cs 0#usize (alloc.vec.Vec.new _) lst hrel hinv
+  rwa [absNIdxLFrom_zero, show absCtorsL (alloc.vec.Vec.new (arena.env.IConstantVal × Std.U64))
+    = [] from rfl] at h
+
 end ConRon.Refine2
