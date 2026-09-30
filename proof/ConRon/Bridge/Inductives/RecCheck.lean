@@ -34,6 +34,8 @@ recursor records' pins, node agreement (`targetCtorAt`, `targetK53`,
 import ConRon.Bridge.Inductives.Rel
 import ConRon.Bridge.Inductives.PosWalks
 import ConRon.Bridge.Inductives.StructParts
+import ConRon.Bridge.Inductives.BlockParts
+import ConRon.Bridge.Inductives.Positivity
 import ConLeche.Verify.Inductives.RecCheckScope
 import ConLeche.Verify.Cached.TargetRecC
 
@@ -535,22 +537,6 @@ theorem fvarB_pstep {fuel : Nat} {s₀ s' : AState} {e : EIdx} {eP : Expr}
   · rw [h1]; exact BMExt.refl _
   · rw [h4 eP hd, Expr.fvarB_eq]
 
-/-- con-leche: ConLeche/Verify/BridgeDecl.lean fueledOpsM — **a knot
-inference, in run form**: `CoreSpec.knot`'s `infer` slot, its `SimE` answer
-read as an `FOk` of the fueled operation. -/
-theorem infer_run {μ : CheckMode} {env : Env} {fe : IFEnv}
-    (hknot : Core.KnotSpec μ env fe Arena.checkFuel) {s₀ s' : AState} {d : Nat}
-    {e r : EIdx} {eP : Expr} (hok : CheckOK μ env fe s₀)
-    (hd : denoteE s₀.store e = some eP) (hw : Expr.WScoped d eP)
-    (hrun : Arena.inferTypeCore μ fe Arena.checkFuel d e s₀ = .ok (r, s')) :
-    CoreStep μ env fe s₀ s' ∧ ∃ v, denoteE s'.store r = some v ∧ Expr.WScoped d v ∧
-      FOk ((fueledOpsM μ).inferType env d eP) v := by
-  obtain ⟨h1, h2, h3, v, hv, hwv, hF⟩ := AM.of_run (P := fun u => u = s₀)
-    (Q := fun r u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧ u.pins = s₀.pins ∧
-      Core.SimE (ConLeche.inferTypeCore μ env) d eP u.store r)
-    rfl hrun (hknot.infer s₀ d e eP hok hd hw)
-  exact ⟨⟨h1, h2, h3⟩, v, hv, hwv, FOk.inferType hF⟩
-
 /-- con-leche: ConLeche/Verify/BridgeDecl.lean fueledOpsM — **a knot defeq,
 in run form**. -/
 theorem defeq_run {μ : CheckMode} {env : Env} {fe : IFEnv}
@@ -643,122 +629,6 @@ theorem closed4_bind_run {β : Type} {k : Bool → AM β} {s₀ s' : AState} {a 
         have e : (aP.bvarB == 0 && bP.bvarB == 0 && decide (aP.fvarB ≤ n) &&
           decide (bP.fvarB ≤ n)) = decide (bP.fvarB ≤ n) := by simp [c1, c2, this]
         rw [e]; exact z4
-
-/-! ### The block's shape, taken apart -/
-
-/-- con-leche: none — a denoted shape, field by field. -/
-theorem dShape_inv {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
-    (h : dShape st p = some pP) :
-    p.members.mapM (dMember st) = some pP.members ∧ p.recs.mapM (dRec st) = some pP.recs ∧
-      p.nP = pP.nP ∧ denoteN st.ns p.elim = some pP.elim ∧
-      denoteL st.ls p.resSort = some pP.resSort ∧ p.large = pP.large ∧
-      p.isProp = pP.isProp := by
-  simp only [dShape] at h
-  cases h1 : p.members.mapM (dMember st) with
-  | none => rw [h1] at h; exact nomatch h
-  | some ms =>
-  cases h2 : p.recs.mapM (dRec st) with
-  | none => rw [h1, h2] at h; exact nomatch h
-  | some rs =>
-  cases h3 : denoteN st.ns p.elim with
-  | none => rw [h1, h2, h3] at h; exact nomatch h
-  | some el =>
-  cases h4 : denoteL st.ls p.resSort with
-  | none => rw [h1, h2, h3, h4] at h; exact nomatch h
-  | some so =>
-  rw [h1, h2, h3, h4] at h
-  obtain rfl := (Option.some.inj h).symm
-  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
-
-/-- con-leche: none — a denoted member, field by field. -/
-theorem dMember_inv {st : EStore} {m : Arena.MemberShape} {mP : ConLeche.MemberShape}
-    (h : dMember st m = some mP) :
-    Frontend.denoteCV st m.cvT = some mP.cvT ∧ m.nIdx = mP.nIdx ∧
-      dCtors st m.ctors = some mP.ctors := by
-  simp only [dMember] at h
-  cases h1 : Frontend.denoteCV st m.cvT with
-  | none => rw [h1] at h; exact nomatch h
-  | some cv =>
-  cases h2 : dCtors st m.ctors with
-  | none => rw [h1, h2] at h; exact nomatch h
-  | some cs =>
-  rw [h1, h2] at h
-  obtain rfl := (Option.some.inj h).symm
-  exact ⟨rfl, rfl, rfl⟩
-
-/-- con-leche: none — a denoted recursor record, field by field. -/
-theorem dRec_inv {st : EStore} {r : Arena.RecShape} {rP : ConLeche.RecShape}
-    (h : dRec st r = some rP) :
-    Frontend.denoteCV st r.cvR = some rP.cvR ∧ r.rP = rP.rP ∧ r.mI = rP.mI ∧
-      r.tgt = rP.tgt ∧ Frontend.denoteEList st r.rhss = some rP.rhss := by
-  simp only [dRec] at h
-  cases h1 : Frontend.denoteCV st r.cvR with
-  | none => rw [h1] at h; exact nomatch h
-  | some cv =>
-  cases h2 : Frontend.denoteEList st r.rhss with
-  | none => rw [h1, h2] at h; exact nomatch h
-  | some rh =>
-  rw [h1, h2] at h
-  obtain rfl := (Option.some.inj h).symm
-  exact ⟨rfl, rfl, rfl, rfl, rfl⟩
-
-/-- con-leche: none — the members' names of a denoted member list. -/
-theorem members_names {st : EStore} :
-    ∀ {ms : List Arena.MemberShape} {msP : List ConLeche.MemberShape},
-      ms.mapM (dMember st) = some msP →
-      Frontend.denoteNList st.ns (ms.map (·.cvT.name)) = some (msP.map (·.cvT.name)) := by
-  intro ms
-  induction ms with
-  | nil => intro msP h; simp only [List.mapM_nil] at h; cases h; rfl
-  | cons m ms ih =>
-    intro msP h
-    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h
-    cases hm : dMember st m with
-    | none => rw [hm] at h; simp at h
-    | some mP =>
-      rw [hm] at h
-      cases hms : ms.mapM (dMember st) with
-      | none => rw [hms] at h; simp at h
-      | some rest =>
-        rw [hms] at h
-        simp only [Option.bind_some, Option.some.injEq] at h
-        subst h
-        simp only [List.map_cons, Frontend.denoteNList,
-          denoteCV_name (dMember_inv hm).1, ih hms]
-
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:137-138
-BlockShape.memberNames — the member names denote. -/
-theorem dShape_memberNames {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
-    (h : dShape st p = some pP) :
-    Frontend.denoteNList st.ns p.memberNames = some pP.memberNames :=
-  members_names (dShape_inv h).1
-
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:141-144 BlockShape.lps
-— the block's level parameters denote. -/
-theorem dShape_lps {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
-    (h : dShape st p = some pP) :
-    Frontend.denoteNList st.ns p.lps = some pP.lps := by
-  have hm := (dShape_inv h).1
-  simp only [Arena.BlockShape.lps, ConLeche.BlockShape.lps]
-  cases hp : p.members with
-  | nil =>
-    rw [hp] at hm
-    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hm
-    rw [← hm]; rfl
-  | cons m ms =>
-    rw [hp] at hm
-    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at hm
-    cases hmm : dMember st m with
-    | none => rw [hmm] at hm; simp at hm
-    | some mP =>
-      rw [hmm] at hm
-      cases hms : ms.mapM (dMember st) with
-      | none => rw [hms] at hm; simp at hm
-      | some rest =>
-        rw [hms] at hm
-        simp only [Option.bind_some, Option.some.injEq] at hm
-        rw [← hm]
-        exact denoteCV_lps (dMember_inv hmm).1
 
 /-- con-leche: none — a denoted constructor list's name test is the pure one. -/
 theorem ctors_any_name {st : EStore} (hwf : StoreWF st) {n : NIdx} {nP : ConLeche.Name}
@@ -938,9 +808,9 @@ theorem targetParamsDefEq_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
               = true := by rw [← hbeq]; exact he
         rw [if_neg hne]
         obtain ⟨t1, s6, k6, z6⟩ := bindOk z5
-        obtain ⟨c6, v1, -, -, hF1⟩ := RC.infer_run hknot c5.ok ha'5 hwa k6
+        obtain ⟨c6, v1, -, -, hF1⟩ := infer_crun hk henv c5.ok ha'5 hwa k6
         obtain ⟨t2, s7, k7, z7⟩ := bindOk z6
-        obtain ⟨c7, v2, -, -, hF2⟩ := RC.infer_run hknot c6.ok (denote_ext hb' c6.ext) hwb k7
+        obtain ⟨c7, v2, -, -, hF2⟩ := infer_crun hk henv c6.ok (denote_ext hb' c6.ext) hwb k7
         obtain ⟨q, s8, k8, z8⟩ := bindOk z7
         have c57 := c6.trans c7
         obtain ⟨c8, hF3⟩ := RC.defeq_run hknot c7.ok (denote_ext ha'5 c57.ext)
@@ -1009,7 +879,7 @@ theorem targetClassMatch_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       dsimp only at z1
       obtain ⟨bl, s2, k2, z2⟩ := bindOk z1
       obtain ⟨c2, hbl⟩ := RC.pspec_core (paramLevels_spec p.lps pP.lps) c1.ok
-        (denoteNListE_ext c1.ext _ _ (RC.dShape_lps hsh)) k2
+        (denoteNListE_ext c1.ext _ _ (BlockShape.lps_spec hsh)) k2
       have c12 := c1.trans c2
       obtain ⟨hs, s3, k3, z3⟩ := bindOk z2
       obtain ⟨c3, hhs⟩ := RC.pspec_core (targetHoles_spec formerTys formerTysP pfvs.length)
@@ -1022,7 +892,7 @@ theorem targetClassMatch_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         (pP.lps.map Level.param) (ConLeche.targetHoles formerTysP pfvsP.length) pfvsP
         (targetAbs_WScoped (Cached.targetHoles_WScoped hformer pfvsP.length))
         (fun x hx => (hp x hx).mono (by omega)) ds eds dsP edsP s3 s' r c3.ok
-        ⟨⟨denoteNListE_ext c13.ext _ _ (RC.dShape_memberNames hsh),
+        ⟨⟨denoteNListE_ext c13.ext _ _ (BlockShape.memberNames_spec hsh),
             denoteLs_ext hbl c3.ext, hhs⟩,
           denoteEList_ext c13.ext _ _ hpf, denoteEList_ext c13.ext _ _ hds,
           denoteEList_ext c13.ext _ _ heds⟩ (by rw [← PW.denoteEList_length hft]; exact z3)
