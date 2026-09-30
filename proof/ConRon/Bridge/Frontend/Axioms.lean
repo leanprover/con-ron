@@ -252,7 +252,10 @@ real work, ten constructors — `parseExprEntryD_run`. -/
 #print axioms parseLevelEntryD_run
 #print axioms parseExprEntryD_run
 
-/-! ## The parsed block, resolved (round 4) -/
+/-! ## The recursor rule list (round 4)
+
+**Task #105**: `blockRecOf_run` (`BlockRec`, the modeller's own resolved-block
+record) is gone with the modeller; `parseRules_run` is general and stays. -/
 
 #print axioms parseRules_run
 
@@ -265,9 +268,6 @@ real work, ten constructors — `parseExprEntryD_run`. -/
 
 #print axioms parseChunksC_eq
 #print axioms parseChunks_eq
-
-/-! ## The seam -/
-
 
 /-! ## The pure fold's stream ingredient (round two) — CLOSED
 
