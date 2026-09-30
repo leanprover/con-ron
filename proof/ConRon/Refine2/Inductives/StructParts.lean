@@ -310,43 +310,8 @@ open Lockstep in
   lockstep
 
 open Lockstep in
-/-- `struct_proj_resid_p` by induction on the count `i` (the port recurses on
-`i - 1` first, as the twin's `i + 1` arm does). -/
-theorem struct_proj_resid_p_aux {pers} {t : arena.handle.NIdx}
-    {n_p : Std.U64} {cty : arena.handle.EIdx} :
-    ∀ (n : Nat) (i : Std.U64) st lst, i.val = n →
-      AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = (Option.map absEIdx) a)
-        (arena.inductives.struct_parts.struct_proj_resid_p pers st t n_p cty i) lst
-        (structProjResidP (absNIdx t) (absU n_p) (absEIdx cty) (absU i)) := by
-  intro n
-  induction n with
-  | zero =>
-    intro i st lst hi hrel hinv
-    have h0 : i = 0#u64 := by scalar_tac
-    subst h0
-    rw [arena.inductives.struct_parts.struct_proj_resid_p.eq_def, if_pos rfl,
-      show absU (0#u64 : Std.U64) = 0 from rfl, structProjResidP]
-    lockstep
-  | succ n ih =>
-    intro i st lst hi hrel hinv
-    rw [arena.inductives.struct_parts.struct_proj_resid_p.eq_def, if_neg (by scalar_tac),
-      show absU i = n + 1 by simp [absU, hi], structProjResidP]
-    lockstep
 
 open Lockstep in
-/-- `struct_proj_resid_p` ⊑ `structProjResidP`. -/
-@[lockstep] theorem struct_proj_resid_p_ls
-    {pers st lst}
-    {t : arena.handle.NIdx}
-    {n_p : Std.U64}
-    {cty : arena.handle.EIdx}
-    {i : Std.U64}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = (Option.map absEIdx) a) (arena.inductives.struct_parts.struct_proj_resid_p pers st t n_p cty i) lst
-      (structProjResidP (absNIdx t) (absU n_p) (absEIdx cty) (absU i)) :=
-  struct_proj_resid_p_aux _ i st lst rfl hrel hinv
 
 /-! ## `hasLooseBVarB` — the cutoff, the memo and the walk
 

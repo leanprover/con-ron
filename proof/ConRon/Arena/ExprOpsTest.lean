@@ -312,10 +312,6 @@ private def chkBinders (c : AM (Option (List (EIdx × BinderMeta) × EIdx)))
 #guard chkE (instantiateList #[fx.s1, fx.cf] F fx.big 0)
   ((E fx.big).instantiateList [E fx.cf, E fx.s1] 0)
 #guard chkE (instantiateList #[fx.cf] F fx.b0 0) ((E fx.b0).instantiateList [E fx.cf] 0)
--- the executed `abstractRange` against the spec descent it is proved from
-#guard chkSame (abstractRangeFast F fx.big 0 1 0) (abstractRange F fx.big 0 1 0)
-#guard chkSame (abstractRangeFast F fx.big 0 2 0) (abstractRange F fx.big 0 2 0)
-#guard chkSame (abstractRangeFast F fx.letT 0 1 0) (abstractRange F fx.letT 0 1 0)
 -- `k = 0` is the identity, even on a term that HAS free variables
 #guard chkSame (abstractRangeFast F fx.fv0 0 0 0) (pure fx.fv0)
 -- and at `k = 1` it is `abstract1` (con-leche's `abstractRange_succ`)
@@ -328,32 +324,23 @@ private def chkBinders (c : AM (Option (List (EIdx × BinderMeta) × EIdx)))
 #guard chkE (liftLooseBVarsFast F 1 0 fx.letT) (Expr.liftLooseBVars 1 0 (E fx.letT))
 #guard chkE (liftLooseBVarsGo 2 F fx.big 0) (Expr.liftLooseBVars 2 0 (E fx.big))
 
-/-! ## `resetMeta` — `ExprOps.lean:552-559`, `:579-615`, `:687-688` -/
-
-#guard chkE (resetMetaFast F fx.big) (Expr.resetMeta (E fx.big))
-#guard chkE (resetMetaFast F fx.lamT) (Expr.resetMeta (E fx.lamT))
-#guard chkE (resetMetaFast F fx.fv1) (Expr.resetMeta (E fx.fv1))
-#guard chkE (resetMetaGo F fx.big) (Expr.resetMeta (E fx.big))
-
 /-! ## The measures and the scope predicates -/
 
 #guard chkN (sizeB F fx.big) (Expr.sizeB (E fx.big))
 #guard chkN (sizeB F fx.fv1) (Expr.sizeB (E fx.fv1))
-#guard chkN (sizeF F fx.big) (Expr.sizeF (E fx.big))
-#guard chkN (sizeF F fx.fv1) (Expr.sizeF (E fx.fv1))
 
-#guard chkE (abstractRange F fx.big 0 2 0) (Expr.abstractRange (E fx.big) 0 2 0)
-#guard chkE (abstractRange F fx.big 1 1 0) (Expr.abstractRange (E fx.big) 1 1 0)
-#guard chkE (abstractRange F fx.allT 0 3 1) (Expr.abstractRange (E fx.allT) 0 3 1)
+#guard chkE (abstractRangeFast F fx.big 0 2 0) (Expr.abstractRange (E fx.big) 0 2 0)
+#guard chkE (abstractRangeFast F fx.big 1 1 0) (Expr.abstractRange (E fx.big) 1 1 0)
+#guard chkE (abstractRangeFast F fx.allT 0 3 1) (Expr.abstractRange (E fx.allT) 0 3 1)
 
 #guard chkFvL (fvarLeaves F fx.big) (Expr.fvarLeaves (E fx.big))
 #guard chkFvL (fvarLeaves F fx.fv1) (Expr.fvarLeaves (E fx.fv1))
 #guard chkFvL (fvarLeaves F fx.s0) (Expr.fvarLeaves (E fx.s0))
 
-#guard chkB (wscopedB F 5 fx.big) (Expr.wscopedB 5 (E fx.big))
-#guard chkB (wscopedB F 1 fx.big) (Expr.wscopedB 1 (E fx.big))
-#guard chkB (wscopedB F 0 fx.big) (Expr.wscopedB 0 (E fx.big))
-#guard chkB (wscopedB F 2 fx.letT) (Expr.wscopedB 2 (E fx.letT))
+#guard chkB (wscopedBFast F 5 fx.big) (Expr.wscopedB 5 (E fx.big))
+#guard chkB (wscopedBFast F 1 fx.big) (Expr.wscopedB 1 (E fx.big))
+#guard chkB (wscopedBFast F 0 fx.big) (Expr.wscopedB 0 (E fx.big))
+#guard chkB (wscopedBFast F 2 fx.letT) (Expr.wscopedB 2 (E fx.letT))
 
 /-! ### The memoized scope queries (task #97g)
 
@@ -378,10 +365,6 @@ private def chkFvLL (c d : AM (List (Nat × EIdx))) : Bool :=
     r.all (fun x => r'.contains x) && r'.all (fun x => r.contains x)
   | _, _ => false
 
-#guard chkBB (wscopedBFast F 5 fx.big) (wscopedB F 5 fx.big)
-#guard chkBB (wscopedBFast F 1 fx.big) (wscopedB F 1 fx.big)
-#guard chkBB (wscopedBFast F 0 fx.big) (wscopedB F 0 fx.big)
-#guard chkBB (wscopedBFast F 2 fx.letT) (wscopedB F 2 fx.letT)
 #guard chkB (wscopedBFast F 5 fx.big) (Expr.wscopedB 5 (E fx.big))
 #guard chkB (wscopedBFast F 0 fx.big) (Expr.wscopedB 0 (E fx.big))
 
@@ -402,19 +385,17 @@ private def leafSpec (fab base : EIdx) : AM Bool := do
 #guard chkBB (leafGuard F fx.s0 fx.fv1) (leafSpec fx.s0 fx.fv1)
 #guard chkBB (leafGuard F fx.letT fx.big) (leafSpec fx.letT fx.big)
 
-#guard chkB (looseBVarsBounded F 3 fx.big) (Expr.looseBVarsBounded 3 (E fx.big))
-#guard chkB (looseBVarsBounded F 0 fx.big) (Expr.looseBVarsBounded 0 (E fx.big))
-#guard chkB (looseBVarsBounded F 1 fx.letT) (Expr.looseBVarsBounded 1 (E fx.letT))
+#guard chkB (looseBVarsBoundedFast F 3 fx.big) (Expr.looseBVarsBounded 3 (E fx.big))
+#guard chkB (looseBVarsBoundedFast F 0 fx.big) (Expr.looseBVarsBounded 0 (E fx.big))
+#guard chkB (looseBVarsBoundedFast F 1 fx.letT) (Expr.looseBVarsBounded 1 (E fx.letT))
 
 /-! ## The one-node readers -/
 
-#guard chkB (isLam fx.big) (Expr.isLam (E fx.big))
-#guard chkB (isLam fx.piT) (Expr.isLam (E fx.piT))
 #guard chkOPw (lamPw fx.big) (Expr.lamPw (E fx.big))
 #guard chkOPw (lamPw fx.piT) (Expr.lamPw (E fx.piT))
-#guard chkB (hasFvar F fx.big) (Expr.hasFvar (E fx.big))
-#guard chkB (hasFvar F fx.piT) (Expr.hasFvar (E fx.piT))
-#guard chkB (hasFvar F fx.fv0) (Expr.hasFvar (E fx.fv0))
+#guard chkB (hasFvarFast F fx.big) (Expr.hasFvar (E fx.big))
+#guard chkB (hasFvarFast F fx.piT) (Expr.hasFvar (E fx.piT))
+#guard chkB (hasFvarFast F fx.fv0) (Expr.hasFvar (E fx.fv0))
 
 /-! ## Application spines -/
 
@@ -424,24 +405,6 @@ private def leafSpec (fab base : EIdx) : AM Bool := do
 #guard chkLE (getAppArgs F fx.cf) (Expr.getAppArgs (E fx.cf))
 #guard chkE (mkAppN fx.cf [fx.fv0, fx.b0]) (Expr.mkAppN (E fx.cf) [E fx.fv0, E fx.b0])
 #guard chkE (mkAppN fx.cf []) (Expr.mkAppN (E fx.cf) [])
-
-/-! ## `renameConsts` — `ExprOps.lean:930-956`, `:999-1036`, `:1109-1111`
-
-The twin's renaming is a map on name HANDLES; the bridge's obligation is that
-it denotes con-leche's map on names, and here the two are written side by
-side. -/
-
-/-- con-leche: none — the fixture's renaming, on handles. -/
-private def renH (n : NIdx) : NIdx := if n == fx.foo then fx.bar else n
-
-/-- con-leche: none — the same renaming, on names. -/
-private def renP (n : ConLeche.Name) : ConLeche.Name :=
-  if n == N fx.foo then N fx.bar else n
-
-#guard chkE (renameConstsFast F renH fx.big) (Expr.renameConsts renP (E fx.big))
-#guard chkE (renameConstsFast F renH fx.cf) (Expr.renameConsts renP (E fx.cf))
-#guard chkE (renameConstsFast F renH fx.fv1) (Expr.renameConsts renP (E fx.fv1))
-#guard chkE (renameConstsGo renH F fx.big) (Expr.renameConsts renP (E fx.big))
 
 /-! ## Telescopes -/
 
@@ -455,28 +418,6 @@ private def renP (n : ConLeche.Name) : ConLeche.Name :=
 #guard chkE (piResult F fx.piT) (Expr.piResult (E fx.piT))
 #guard chkE (piResult F fx.cf) (Expr.piResult (E fx.cf))
 
-
-#guard chkPair (instPisAt F [fx.cf, fx.s1] fx.piT)
-  (Expr.instPisAt [E fx.cf, E fx.s1] (E fx.piT))
-#guard chkPair (instPisAt F [] fx.piT) (Expr.instPisAt [] (E fx.piT))
-#guard chkPair (instPisAt F [fx.cf] fx.lamT2) (Expr.instPisAt [E fx.cf] (E fx.lamT2))
-#guard chkPair (instLamsAt F [fx.cf, fx.s1] fx.lamT2)
-  (Expr.instLamsAt [E fx.cf, E fx.s1] (E fx.lamT2))
-#guard chkPair (instLamsAt F [fx.cf] fx.piT) (Expr.instLamsAt [E fx.cf] (E fx.piT))
-
-#guard chkPair (instPisAtFGo F #[] [fx.cf, fx.s1] fx.piT)
-  (Expr.instPisAtFGo [] [E fx.cf, E fx.s1] (E fx.piT))
-#guard chkPair (instPisAtFGo F #[fx.fv0] [fx.cf] fx.piT)
-  (Expr.instPisAtFGo [E fx.fv0] [E fx.cf] (E fx.piT))
-#guard chkPair (instPisAtF F [fx.cf, fx.s1] fx.piT)
-  (Expr.instPisAtF [E fx.cf, E fx.s1] (E fx.piT))
-#guard chkPair (instPisAtF F [fx.cf] fx.lamT2) (Expr.instPisAtF [E fx.cf] (E fx.lamT2))
-#guard chkPair (instLamsAtFGo F #[] [fx.cf, fx.s1] fx.lamT2)
-  (Expr.instLamsAtFGo [] [E fx.cf, E fx.s1] (E fx.lamT2))
-#guard chkPair (instLamsAtF F [fx.cf, fx.s1] fx.lamT2)
-  (Expr.instLamsAtF [E fx.cf, E fx.s1] (E fx.lamT2))
-#guard chkPair (instLamsAtF F [fx.cf] fx.piT) (Expr.instLamsAtF [E fx.cf] (E fx.piT))
-
 #guard chkE (fvarTypeD fx.fv1) (Expr.fvarTypeD (E fx.fv1))
 #guard chkE (fvarTypeD fx.cf) (Expr.fvarTypeD (E fx.cf))
 
@@ -488,7 +429,6 @@ private def renP (n : ConLeche.Name) : ConLeche.Name :=
 #guard chkB (recRulePlain F fx.piT 1 1 1) (Expr.recRulePlain (E fx.piT) 1 1 1)
 #guard chkB (recRulePlain F fx.piT 2 1 2) (Expr.recRulePlain (E fx.piT) 2 1 2)
 #guard chkB (recRulePlain F fx.big 2 2 1) (Expr.recRulePlain (E fx.big) 2 2 1)
-
 
 /-! ## The packed range fields -/
 
@@ -545,25 +485,18 @@ private def renP (n : ConLeche.Name) : ConLeche.Name :=
 #guard chkOE (instPisAtLift F [] fx.piT) (Expr.instPisAtLift [] (E fx.piT))
 #guard chkOE (instPisAtLift F [fx.cf] fx.lamT2) (Expr.instPisAtLift [E fx.cf] (E fx.lamT2))
 
-/-! ## Equality, and the two derived bits -/
+/-! ## Equality -/
 
-#guard exprPtrBEq fx.big fx.big == Expr.exprPtrBEq (E fx.big) (E fx.big)
-#guard exprPtrBEq fx.big fx.letT == Expr.exprPtrBEq (E fx.big) (E fx.letT)
-#guard exprPtrBEq fx.s0 fx.s1 == Expr.exprPtrBEq (E fx.s0) (E fx.s1)
+#guard (fx.big == fx.big) == Expr.exprPtrBEq (E fx.big) (E fx.big)
+#guard (fx.big == fx.letT) == Expr.exprPtrBEq (E fx.big) (E fx.letT)
+#guard (fx.s0 == fx.s1) == Expr.exprPtrBEq (E fx.s0) (E fx.s1)
 -- interning is hash-consing, so a rebuilt node is the SAME handle and the
 -- index test is the structural test (`denoteE_inj`, task #97a)
 #guard
   match (internE (.app fx.cf fx.b0)).run S0 with
-  | .ok (r, _) => exprPtrBEq r fx.ap1
+  | .ok (r, _) => r == fx.ap1
   | .error _ => false
 
-#guard chkB (LIdx.hasParam fx.pu) (Level.hasParam (L fx.pu))
-#guard chkB (LIdx.hasParam fx.z) (Level.hasParam (L fx.z))
-#guard chkB (LIdx.hasParam fx.one) (Level.hasParam (L fx.one))
-#guard chkB (EIdx.hasLevelParam fx.big) (Expr.hasLevelParam (E fx.big))
-#guard chkB (EIdx.hasLevelParam fx.piT) (Expr.hasLevelParam (E fx.piT))
-#guard chkB (EIdx.hasLevelParam fx.su) (Expr.hasLevelParam (E fx.su))
-#guard chkB (EIdx.hasLevelParam fx.cb) (Expr.hasLevelParam (E fx.cb))
 
 /-! ## `instantiateLevelParams` — `ExprOps.lean:2564-2603`, `:2718-2720` -/
 

@@ -12,7 +12,7 @@
 //!
 //! ```text
 //! intern_reserved_pins  →  builtin_prelude_e  →  parse (chunk_step/
-//! chunk_finish)  →  prepare_d  →  intern_all_pins  →  check_decls_phased
+//! chunk_finish)  →  prepare_d  →  intern_all_pins  →  check_decls_driver
 //! ```
 //!
 //! — the checker's own reserved constants are interned once into the
@@ -27,8 +27,9 @@
 //! declarations in front and hoists a pinned `Nat` operation's ground, the pin
 //! list is interned ONCE while the scratch tier is still off
 //! (`checker::intern_all_pins`), and the resulting `Vec<IDeclaration>` goes to
-//! the two-phase fold, `con_ron::driver::check_decls_driver` — the verified
-//! `checker::check_decls_phased` with the worker pool for its phase B.
+//! the two-phase fold, `con_ron::driver::check_decls_driver` — phase A
+//! (`checker::annot_fold_hooked`), the frozen tier, and the worker pool over
+//! `checker::check_pending` for its phase B.
 //!
 //! Exit codes are con-leche's (`Main.lean:15-31`): 0 accepted, 1 rejected, 2
 //! declined, 3 usage/malformed/internal — `con_ron::driver::exit_code`, the
@@ -502,8 +503,8 @@ fn check_main(a: &Args, file: &str) -> u8 {
         Err(e) => return frontend_exit(&e, mode_tag),
     };
     // ONE driver, and the heartbeat is printed between its steps
-    // (`driver::check_decls_driver`, which is `checker::check_decls_phased`
-    // with the pool for its phase B).
+    // (`driver::check_decls_driver`: phase A, the frozen tier, and the pool
+    // for its phase B).
     let jobs: u64 = match a.jobs {
         Some(n) => n,
         None => con_ron::driver::default_jobs(),

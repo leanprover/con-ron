@@ -2476,7 +2476,7 @@ pub fn check_div_mod_pin_loop(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:22-50 CheckerOps
 /// con-leche: ConLeche/Kernel/Checker.lean:336-358 checkDivModPinLoop
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:81-110 orElseAttempt` —
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:77-106 orElseAttempt` —
 /// **`orElseAttempt (checkDivModPinAt …)`, the one recovering seam, as one
 /// function** (tasks #97-T2-LOCKSTEP D4, D4b, D4c, #98-FREEZE).  The twin gets
 /// the pre-attempt state free from its state function; here the state is

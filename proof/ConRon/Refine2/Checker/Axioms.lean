@@ -720,23 +720,7 @@ open Lockstep in
       (iffIntroRaw) :=
   LS.ofSim₀ fun _ h => iff_intro_raw_refines hrel hinv h
 
-/-- `iff_rec_intro` ⊑ `iffRecIntro` — the con-leche constant, interned. -/
-theorem iff_rec_intro_refines {pers st lst} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.std_axioms.iff_rec_intro pers st = ok o) :
-    Sim₀ absEIdx pers lst o
-      (iffRecIntro) := by
-  rw [arena.std_axioms.iff_rec_intro] at hrun
-  exact sim_intern_expr_of hrel hinv (fun _ h => ConRon.Refine.StdAxioms.iff_rec_intro_refines h) hrun
-
 open Lockstep in
-@[lockstep] theorem iff_rec_intro_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absEIdx a)
-      (arena.std_axioms.iff_rec_intro pers st) lst
-      (iffRecIntro) :=
-  LS.ofSim₀ fun _ h => iff_rec_intro_refines hrel hinv h
 
 /-- `iff_rec_raw` ⊑ `iffRecRaw` — the con-leche constant, interned. -/
 theorem iff_rec_raw_refines {pers st lst} {o}

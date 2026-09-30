@@ -499,13 +499,6 @@ handle. -/
   | some v => pure v
   | none => fail (.internal "arena: dangling level handle")
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:39-52 Level — the level's derived
-pair (its 32-bit hash and its `hasParam` bit, the computed field at lines
-47-53), read in `O(1)`. -/
-@[inline] def derivedL (h : LIdx) : AM LDer := do
-  let s ← get
-  pure (s.store.lder h)
-
 /-- con-leche: none — hash-cons a level node, through the nesting. -/
 def internLNode (v : LNodeView) : AM LIdx := do
   let s ← get
@@ -859,44 +852,6 @@ the `liftLooseBVars` memo (it depends on `amount`). -/
 @[noinline] def liftClear : AM Unit := do
   let s ← get
   set { s with memos := { s.memos with liftC := ∅ } }
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:657-693 resetMetaGo — probe the
-`resetMeta` memo. -/
-@[inline] def resetGet (k : EIdx × Nat) : AM (Option EIdx) := do
-  let s ← get; pure s.memos.resetC[k]?
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:657-693 resetMetaGo — record a
-`resetMeta` answer. -/
-@[noinline] def resetSet (k : EIdx × Nat) (r : EIdx) : AM Unit := do
-  let s ← get
-  let mp := s.memos.resetC
-  let s := { s with memos := { s.memos with resetC := ∅ } }
-  set { s with memos := { s.memos with resetC := mp.insert k r } }
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:765-766 resetMetaFast — drop the
-`resetMeta` memo. -/
-@[noinline] def resetClear : AM Unit := do
-  let s ← get
-  set { s with memos := { s.memos with resetC := ∅ } }
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1056-1093 renameConstsGo — probe
-the `renameConsts` memo. -/
-@[inline] def renameGet (k : EIdx × Nat) : AM (Option EIdx) := do
-  let s ← get; pure s.memos.renameC[k]?
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1056-1093 renameConstsGo — record a
-`renameConsts` answer. -/
-@[noinline] def renameSet (k : EIdx × Nat) (r : EIdx) : AM Unit := do
-  let s ← get
-  let mp := s.memos.renameC
-  let s := { s with memos := { s.memos with renameC := ∅ } }
-  set { s with memos := { s.memos with renameC := mp.insert k r } }
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1166-1168 renameConstsFast — drop
-the `renameConsts` memo (it depends on the renaming). -/
-@[noinline] def renameClear : AM Unit := do
-  let s ← get
-  set { s with memos := { s.memos with renameC := ∅ } }
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2066-2110 abstract1Go — probe the
 `abstract1` memo. -/

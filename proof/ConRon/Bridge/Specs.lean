@@ -149,7 +149,7 @@ theorem matchOwner_denoteLs (x : Option LsNodeView) :
   grind
 
 /-- con-leche: none — the five `instantiate1Arm*` probe matches, shared by
-`ExprOps/{Abs,Inst1,Reset,Subst}.lean`.  They are the `Option` shape of a
+`ExprOps/{Abs,Inst1,Subst}.lean`.  They are the `Option` shape of a
 memo probe and of a `viewApp`/`viewBindI` projection, so every rebuilding
 walk of the tier grinds over one. -/
 theorem matchOwner_instantiate1ArmApp (x : Option (EIdx × EIdx)) :
@@ -182,10 +182,9 @@ theorem matchOwner_instantiate1ArmProj (x : Option (NIdx × Nat × EIdx)) :
       (fun _ => 1) (fun _ _ _ => 0) ≤ 1 := by
   grind
 
-/-- con-leche: none — the three TEN-way `ENodeView` dispatch matches:
-`fvarLeaves` (`ExprOps/{Leaves,Walks}.lean`), `liftLooseBVarsGo`
-(`ExprOps/{Abs,Ranges,Walks}.lean`) and `resetMetaGo`
-(`ExprOps/{Leaves,Reset,Walks}.lean`).  Ten `congr_eq`s each, and one `grind`
+/-- con-leche: none — the two TEN-way `ENodeView` dispatch matches:
+`fvarLeaves` (`ExprOps/{Leaves,Walks}.lean`) and `liftLooseBVarsGo`
+(`ExprOps/{Abs,Ranges,Walks}.lean`).  Ten `congr_eq`s each, and one `grind`
 derives all ten. -/
 theorem matchOwner_fvarLeaves (x : ENodeView) :
     ConRon.Arena.fvarLeaves.match_1 (motive := fun _ => Nat) x
@@ -197,13 +196,6 @@ theorem matchOwner_fvarLeaves (x : ENodeView) :
 theorem matchOwner_liftLooseBVarsGo (x : ENodeView) :
     ConRon.Arena.liftLooseBVarsGo.match_1 (motive := fun _ => Nat) x
       (fun _ => 1) (fun _ _ => 1) (fun _ => 1) (fun _ _ => 1) (fun _ => 1)
-      (fun _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1)
-      (fun _ _ _ => 0) ≤ 1 := by
-  grind
-
-theorem matchOwner_resetMetaGo (x : ENodeView) :
-    ConRon.Arena.resetMetaGo.match_1 (motive := fun _ => Nat) x
-      (fun _ => 1) (fun _ => 1) (fun _ _ => 1) (fun _ => 1) (fun _ _ => 1)
       (fun _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1)
       (fun _ _ _ => 0) ≤ 1 := by
   grind

@@ -1,0 +1,25 @@
+# scripts/dead-census-allow.txt — owners (or modules) `scripts/dead-census.py
+# --check` accepts as dead, one per line, the reason after a TAB.  Every one
+# is used WITHOUT a term-level reference (the census's documented blind
+# spots) or is tooling that no target builds.
+ConRon.Generated.FunsExternal_Template	Aeneas's hole template for the opaque functions, never built by design; read by scripts/holes.sh
+ConRon.Generated.TypesExternal_Template	Aeneas's hole template for the opaque types, never built by design; read by scripts/holes.sh
+ConRon.Arena.ETables.get_pushBM	rfl lemma in `simp only` sets of Arena/WFProofs.lean (ETables.getWith_pushBM); dsimp leaves no trace in the term
+ConRon.Arena.ETables.count_pushBM	rfl lemma in `simp` sets of Arena/WFProofs.lean (nodeCount after pushBM); dsimp leaves no trace
+_private.ConRon.Arena.PersistentRun.0.ConRon.Arena.failRun	rfl lemma in `simp only [failRun]` of Arena/PersistentRun.lean
+ConRon.Bridge.RelE.apply	@[grind →] forward lemma; Bridge/ExprOps/{Abs,Inst1,Subst}.lean's binder-arm VCs need it in `bridge_vcs`' grind
+ConRon.Bridge.RelV.of_ext	named in Bridge/Specs.lean's `bridge_vcs` grind list
+ConRon.Bridge.RelL.of_ext	rfl lemma in `simp` sets of Bridge/ExprOps/InstLP.lean
+ConRon.Bridge.RelLs.of_ext	rfl lemma in `simp` sets of Bridge/ExprOps/InstLP.lean
+ConRon.Bridge.nameIsNum_projTable	simp argument in Bridge/Checker/Basis.lean
+ConRon.Bridge.matchOwner_denoteLs	elaborates the matcher auxiliary once (Bridge/Specs.lean's note, DESIGN finding 18)
+ConRon.Bridge.matchOwner_fvarLeaves	as matchOwner_denoteLs
+ConRon.Bridge.matchOwner_instantiate1ArmApp	as matchOwner_denoteLs
+ConRon.Bridge.matchOwner_instantiate1ArmApp3	as matchOwner_denoteLs
+ConRon.Bridge.matchOwner_instantiate1ArmBVar	as matchOwner_denoteLs
+ConRon.Bridge.matchOwner_instantiate1ArmBind	as matchOwner_denoteLs
+ConRon.Bridge.matchOwner_instantiate1ArmLet	as matchOwner_denoteLs
+ConRon.Bridge.matchOwner_instantiate1ArmProj	as matchOwner_denoteLs
+ConRon.Bridge.matchOwner_isCtorApp	as matchOwner_denoteLs
+ConRon.Bridge.matchOwner_liftLooseBVarsGo	as matchOwner_denoteLs
+ConRon.Bridge.matchOwner_proofIrrel	as matchOwner_denoteLs

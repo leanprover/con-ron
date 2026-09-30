@@ -1414,58 +1414,6 @@ vacuous at `P := fun _ => True` (`HashMap2.KeysOk_true`), which is why
     subst h2
     rw [dupId_eidx _ _ hx]
 
-/-- `arena::monad::reset_get` against `Arena.resetGet`. -/
-@[grind →] theorem reset_get_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) {k : arena.monad.EIdxNat} {o : Option arena.handle.EIdx}
-    (hrun : arena.monad.reset_get st k = ok o) :
-    SimR (Option.map absEIdx) lst o (Arena.resetGet (absEIdxNat k)) := by
-  rw [arena.monad.reset_get] at hrun
-  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hto := ConRon.Refine.HashMap2.get_refines_wf eidxNat_eq2 hinv.memos.resetC
-    ConRon.Refine.HashMap2.KeysOk_true trivial hr
-  have hrelk := hrel.memos.resetC k trivial
-  show (Arena.resetGet (absEIdxNat k)).run lst = _
-  rw [show (Arena.resetGet (absEIdxNat k)).run lst
-        = .ok (lst.memos.resetC[absEIdxNat k]?, lst) from rfl, ← hrelk, ← hto]
-  cases hrc : r with
-  | none =>
-    rw [hrc] at hrun
-    have h2 : (none : Option arena.handle.EIdx) = o := Result.ok_injective hrun
-    subst h2
-    rfl
-  | some r =>
-    rw [hrc] at hrun
-    obtain ⟨x, hx, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have h2 : some x = o := Result.ok_injective hrun
-    subst h2
-    rw [dupId_eidx _ _ hx]
-
-/-- `arena::monad::rename_get` against `Arena.renameGet`. -/
-@[grind →] theorem rename_get_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) {k : arena.monad.EIdxNat} {o : Option arena.handle.EIdx}
-    (hrun : arena.monad.rename_get st k = ok o) :
-    SimR (Option.map absEIdx) lst o (Arena.renameGet (absEIdxNat k)) := by
-  rw [arena.monad.rename_get] at hrun
-  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hto := ConRon.Refine.HashMap2.get_refines_wf eidxNat_eq2 hinv.memos.renameC
-    ConRon.Refine.HashMap2.KeysOk_true trivial hr
-  have hrelk := hrel.memos.renameC k trivial
-  show (Arena.renameGet (absEIdxNat k)).run lst = _
-  rw [show (Arena.renameGet (absEIdxNat k)).run lst
-        = .ok (lst.memos.renameC[absEIdxNat k]?, lst) from rfl, ← hrelk, ← hto]
-  cases hrc : r with
-  | none =>
-    rw [hrc] at hrun
-    have h2 : (none : Option arena.handle.EIdx) = o := Result.ok_injective hrun
-    subst h2
-    rfl
-  | some r =>
-    rw [hrc] at hrun
-    obtain ⟨x, hx, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have h2 : some x = o := Result.ok_injective hrun
-    subst h2
-    rw [dupId_eidx _ _ hx]
-
 /-- `arena::monad::abs1_get` against `Arena.abs1Get`. -/
 @[grind →] theorem abs1_get_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {k : arena.monad.EIdxNat} {o : Option arena.handle.EIdx}
@@ -3018,19 +2966,6 @@ theorem lstore_derived_abs {pers rs ls} (hrel : LStoreRel pers rs ls)
 
 /-! ## The five monad readers -/
 
-theorem derived_l_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
-    {h : arena.handle.LIdx} {d : arena.store.LDer}
-    (hrun : arena.monad.derived_l pers st h = ok d) :
-    SimRO absLDer derObsL lst d (Arena.derivedL (absLIdx h)) := by
-  rw [arena.monad.derived_l, arena.store.EStore.lder] at hrun
-  obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  rw [arena.store.EStore.ls] at hl
-  have hl2 : l = st.store.lss.ls := (Result.ok_injective hl).symm
-  subst hl2
-  exact SimRO.mk rfl (by
-    rw [EStore.lder, EStore.ls]
-    exact lstore_derived_abs hrel.store.lss.lvl hrun)
-
 theorem view_ls_len_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     {h : arena.handle.LsIdx} {o}
     (hrun : arena.monad.view_ls_len pers st h = ok o) :
@@ -4575,8 +4510,6 @@ theorem ECapBMOf.not_of_pers_size {st : EStore} {m : ConLeche.BinderMeta}
   simpa [EStore.capOKBM, hoff] using this
 
 
-
-
 /-- `Arena.internE` at a NON-binder view IS `Arena.internNodeE` (task
 #97-T2-LOCKSTEP D6: the two binder arms are the Rust's datum-then-node
 sequence, and the eight others share one body). -/
@@ -4659,21 +4592,11 @@ so every producer of the relation owes it.  `Arena/WFProofs.lean`'s
   builders below. -/
 
 
-
 /-! ### The ten `ViewOK` builders
 
 One per constructor, so that a caller says what it knows (a child's `view`
 is `some`) rather than assembling a four-field structure.  `bvar` and `lit`
 have no children at all and need no hypothesis. -/
-
-
-
-
-
-
-
-
-
 
 
 theorem intern_e_bvar_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -5399,7 +5322,6 @@ theorem estore_intern_fvar_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           exact { hinvPerst with fvars := hinv1 }
 
 
-
 /-! ## The node records: `Dup` is the identity, and `abs` is injective
 
 Two obligations per constructor array, which `tbl_find_slot_abs` and
@@ -5826,8 +5748,6 @@ theorem estore_intern_sort_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           exact { hinvPerst with sorts := hinv1 }
 
 
-
-
 /-- `arena::store::EStore.intern_const` against `EStore.intern` at the
 `const` view: §3b's six-arm peel at the `consts` array, with finding 7's
 `sk` prologue — the port skips the persistent cons probe when a child is
@@ -6086,8 +6006,6 @@ theorem estore_intern_const_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         · show ETablesInv (rPersE pers _)
           unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with consts := hinv1 }
-
-
 
 
 /-- `arena::store::EStore.intern_app` against `EStore.intern` at the
@@ -6350,8 +6268,6 @@ theorem estore_intern_app_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           exact { hinvPerst with apps := hinv1 }
 
 
-
-
 /-- `arena::store::EStore.intern_proj` against `EStore.intern` at the
 `proj` view: §3b's six-arm peel at the `projs` array, with finding 7's
 `sk` prologue — the port skips the persistent cons probe when a child is
@@ -6610,8 +6526,6 @@ theorem estore_intern_proj_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         · show ETablesInv (rPersE pers _)
           unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with projs := hinv1 }
-
-
 
 
 /-- `arena::store::EStore.intern_let_e` against `EStore.intern` at the
@@ -6877,8 +6791,6 @@ theorem estore_intern_let_e_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
         · show ETablesInv (rPersE pers _)
           unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with lets := hinv1 }
-
-
 
 
 /-- `arena::store::EStore.intern_lit` against `EStore.intern` at the `lit`
@@ -7709,7 +7621,6 @@ theorem estore_intern_lam_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           exact { hinvPerst with lams := hinv1 }
 
 
-
 /-! ## The node records: `Dup` is the identity, and `abs` is injective
 
 Two obligations per constructor array, which `tbl_find_slot_abs` and
@@ -8021,15 +7932,6 @@ whose datum table answers `mi` for `m`, `pers.lams.find? ⟨ty, b, mi⟩` IS
 the three disjuncts. -/
 
 
-
-
-
-
-
-
-
-
-
 /-! ## `intern_lam` / `intern_forall_e`: the datum intern, then the binder array
 
 Task #97-P5-3 round 2's **one named unfinished piece**.  The port's
@@ -8040,8 +7942,6 @@ needs beyond the two `_abs` lemmas is that **the port's `intern_bm` leaves
 into the second step — which is now the third conjunct of
 `estore_intern_bm_abs`'s success arm.  (Task #97-P5-Unfreeze retired
 `hfrozen`; the conjunct stays.) -/
-
-
 
 
 /-! ## The node records: `Dup` is the identity, and `abs` is injective
@@ -8301,7 +8201,6 @@ theorem internBindI_of_findBindI {st : EStore} {tag : UInt32} {ty b : EIdx}
     · simp only [hon] at hf; simp at hf
 
 
-
 /-- `Arena.internLamIE`'s run: the cons hit moves nothing, and the miss is
 below the `lams` array's cap. -/
 theorem internLamIE_run_of_cap {lst : AState} {ty b : EIdx} {mi : BMIdx}
@@ -8363,8 +8262,6 @@ theorem internForallEIE_run_of_not_cap {lst : AState} {ty b : EIdx} {mi : BMIdx}
   cases hf' : lst.store.findBindI ETag.forallE ty b mi with
   | some h => rw [hf] at hf'; cases hf'
   | none => rw [if_neg hc]; exact ⟨_, rfl⟩
-
-
 
 
 /-- The `ETAG_LAM` arm of `arena::monad::intern_e_bind_i` (the Rust's former
@@ -8488,15 +8385,6 @@ The three components are `Bridge/StoreBind.lean`'s and are facts about
 nothing clashes if the two tiers ever meet. -/
 
 
-
-
-
-
-
-
-
-
-
 /-! ### The two binder DISPATCHERS, in the Rust's order (task #97-T2-LOCKSTEP D6)
 
 `Arena.internLamE` / `internForallEE` are `internE` at a binder view, and
@@ -8570,9 +8458,6 @@ theorem internForallEE_run_of_not_bm {lst : AState} {ty b : EIdx} {m : ConLeche.
   rw [StateT.run_bind, hs]; rfl
 
 
-
-
-
 /-- The binder arm's run, as the two monadic steps it is. -/
 theorem internLamE_run_split {lst : AState} {ty b : EIdx} {m : ConLeche.BinderMeta}
     (hcap : ECapBMOf lst.store m) :
@@ -8591,10 +8476,6 @@ theorem internForallEE_run_split {lst : AState} {ty b : EIdx} {m : ConLeche.Bind
   show (Arena.internBME m >>= fun mi => Arena.internForallEIE ty b mi).run lst = _
   rw [StateT.run_bind, internBME_run_of_cap hcap]
   rfl
-
-
-
-
 
 
 /-- `arena::monad::intern_e_lam` against `Arena.internLamE` — **lockstep**
@@ -11345,8 +11226,6 @@ theorem der_of_bind_obs {pers} {rs : arena.store.EStore} {ls : EStore}
         simp only [decide_eq_false hdb0, Bool.false_or, hp']
 
 
-
-
 /-- `arena::store::EStore.der_of_view` against `EStore.derOfView`, up to the
 observation `derObsE`: the ten arms' `der_of_*_obs`, dispatched. -/
 theorem estore_der_of_view_obs {pers} {rs : arena.store.EStore} {ls : EStore}
@@ -11828,22 +11707,6 @@ induction needs it; the `_run` statement is its first projection and the
 `intern_e_bvar_flags` already has at the expression tier. -/
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /-! ### The tier flags, unmoved
 
 The Rust `EStore`, `LsStore`, `LStore` and `NStore` each carry their own
@@ -11984,8 +11847,6 @@ theorem intern_ls_node_flags {pers st v o}
   exact ⟨rfl, hscr, by rw [hls], by rw [hls]⟩
 
 
-
-
 /-- A twin bind whose first step is known: `run` of `do let y ← x; f y` at a
 state where `x` answers `v` is `run` of `f v` at the state it answered in. -/
 theorem run_bind_ok {β δ : Type} {x : AM β} {lst lst1 : AState} {v : β}
@@ -12000,7 +11861,6 @@ theorem run_bind_ok {β δ : Type} {x : AM β} {lst lst1 : AState} {v : β}
 `AOut`, and they are here — one tier lower than their first use — because
 `Shape.lean` was not this task's lane.  The names are `AOut.*` so that the two
 copies do not collide. -/
-
 
 
 /-- The error arm travels through a bind (the lockstep form). -/
@@ -13290,42 +13150,6 @@ theorem lift_set_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
   exact SimS₀.mk rfl { hrel with memos := { hrel.memos with liftC := h1 } }
     { hinv with memos := { hinv.memos with liftC := h2 } }
 
-/-- `arena::monad::reset_set` against `Arena.resetSet`. -/
-theorem reset_set_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) {k : arena.monad.EIdxNat} {r : arena.handle.EIdx} {st'}
-    (hrun : arena.monad.reset_set st k r = ok st') :
-    SimS₀ pers lst st' (Arena.resetSet (absEIdxNat k) (absEIdx r)) := by
-  rw [arena.monad.reset_set] at hrun
-  obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨old, hm⟩ := p
-  rw [dupId_eidx _ _ he] at hp
-  have hst : st' = { st with memos := { st.memos with reset_c := hm } } :=
-    (Result.ok_injective hrun).symm
-  subst hst
-  obtain ⟨h1, h2⟩ := memo_insert_step eidxNat_eq2 absEIdxNat_inj hinv.memos.resetC
-    hrel.memos.resetC hp
-  exact SimS₀.mk rfl { hrel with memos := { hrel.memos with resetC := h1 } }
-    { hinv with memos := { hinv.memos with resetC := h2 } }
-
-/-- `arena::monad::rename_set` against `Arena.renameSet`. -/
-theorem rename_set_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) {k : arena.monad.EIdxNat} {r : arena.handle.EIdx} {st'}
-    (hrun : arena.monad.rename_set st k r = ok st') :
-    SimS₀ pers lst st' (Arena.renameSet (absEIdxNat k) (absEIdx r)) := by
-  rw [arena.monad.rename_set] at hrun
-  obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨old, hm⟩ := p
-  rw [dupId_eidx _ _ he] at hp
-  have hst : st' = { st with memos := { st.memos with rename_c := hm } } :=
-    (Result.ok_injective hrun).symm
-  subst hst
-  obtain ⟨h1, h2⟩ := memo_insert_step eidxNat_eq2 absEIdxNat_inj hinv.memos.renameC
-    hrel.memos.renameC hp
-  exact SimS₀.mk rfl { hrel with memos := { hrel.memos with renameC := h1 } }
-    { hinv with memos := { hinv.memos with renameC := h2 } }
-
 /-- `arena::monad::abs1_set` against `Arena.abs1Set`. -/
 theorem abs1_set_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {k : arena.monad.EIdxNat} {r : arena.handle.EIdx} {st'}
@@ -13510,36 +13334,6 @@ theorem lift_clear_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     hinv.memos.liftC hp0
   exact SimS₀.mk rfl { hrel with memos := { hrel.memos with liftC := g0 } }
     { hinv with memos := { hinv.memos with liftC := i0 } }
-
-/-- `arena::monad::reset_clear` against `Arena.resetClear`. -/
-theorem reset_clear_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) {st'}
-    (hrun : arena.monad.reset_clear st = ok st') :
-    SimS₀ pers lst st' Arena.resetClear := by
-  rw [arena.monad.reset_clear] at hrun
-  obtain ⟨hm0, hp0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hst : st' = { st with memos := { st.memos with reset_c := hm0 } } :=
-    (Result.ok_injective hrun).symm
-  subst hst
-  obtain ⟨g0, i0⟩ := memo_clear_step (absK := absEIdxNat) (absV := absEIdx)
-    hinv.memos.resetC hp0
-  exact SimS₀.mk rfl { hrel with memos := { hrel.memos with resetC := g0 } }
-    { hinv with memos := { hinv.memos with resetC := i0 } }
-
-/-- `arena::monad::rename_clear` against `Arena.renameClear`. -/
-theorem rename_clear_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) {st'}
-    (hrun : arena.monad.rename_clear st = ok st') :
-    SimS₀ pers lst st' Arena.renameClear := by
-  rw [arena.monad.rename_clear] at hrun
-  obtain ⟨hm0, hp0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hst : st' = { st with memos := { st.memos with rename_c := hm0 } } :=
-    (Result.ok_injective hrun).symm
-  subst hst
-  obtain ⟨g0, i0⟩ := memo_clear_step (absK := absEIdxNat) (absV := absEIdx)
-    hinv.memos.renameC hp0
-  exact SimS₀.mk rfl { hrel with memos := { hrel.memos with renameC := g0 } }
-    { hinv with memos := { hinv.memos with renameC := i0 } }
 
 /-- `arena::monad::abs1_clear` against `Arena.abs1Clear`. -/
 theorem abs1_clear_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -13737,8 +13531,6 @@ the census that would have caught it. -/
 #guard_msgs in #print axioms internE_run_of_cap
 
 
-
-
 /-! ## The axiom census, task #97-P5-2
 
 Forty-one more rows, over the ten expression arrays `intern` gained this
@@ -13821,14 +13613,8 @@ packing's `*`/`/`/`%` spelling is what buys. -/
 #guard_msgs in #print axioms absBMNode_inj
 
 
-
-
-
-
-
 /-- info: 'ConRon.Refine2.estore_intern_lit_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms estore_intern_lit_abs
-
 
 
 /-- info: 'ConRon.Refine2.estore_intern_bm_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
@@ -13856,12 +13642,6 @@ packing's `*`/`/`/`%` spelling is what buys. -/
 #guard_msgs in #print axioms internE_run_of_cap
 
 
-
-
-
-
-
-
 /-! ## The tag/view agreement (task #97-P5-3, task #97-P5-Arms)
 
 `EStore_view_tagOf` is the lemma task #97-P5-2 §10 argued for and did not
@@ -13877,9 +13657,6 @@ tier's, verbatim, at its own names — **so the migration is a deletion there
 and nothing here**. -/
 
 
-
-
-
 /-- info: 'ConRon.Refine2.internLamIE_run_of_cap' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms internLamIE_run_of_cap
 
@@ -13892,13 +13669,6 @@ Finding 14's two halves and the binder composition of §2. -/
 
 /-- info: 'ConRon.Refine2.tbl_not_full_size' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms tbl_not_full_size
-
-
-
-
-
-
-
 
 
 /-! ### Task #97-P5-Specs: the eight readbacks and their machinery -/
@@ -13940,7 +13710,6 @@ Finding 14's two halves and the binder composition of §2. -/
 #guard_msgs in #print axioms memo_insert_vals
 
 
-
 /-! ### Task #97-P5-Fresh: the promote window -/
 
 /-- info: 'ConRon.Refine2.pertier_intern_l_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
@@ -13961,9 +13730,6 @@ Finding 14's two halves and the binder composition of §2. -/
 
 
 /-! ### Task #97-P5-Specs round 3: the four transient-tree walks -/
-
-
-
 
 
 /-- info: 'ConRon.Refine2.intern_n_node_flags' depends on axioms: [propext, Classical.choice, Quot.sound] -/

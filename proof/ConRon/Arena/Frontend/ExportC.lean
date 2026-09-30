@@ -575,12 +575,6 @@ def parseBytes (b : ByteArray) : AM (Except (CheckError × Nat) ParseResultD) :=
     else
       pure (.ok (.ofState st))
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:564-576 parseExportD — wholesale
-direct parse of a string (the built-in prelude, tests and small inputs):
-`parseBytes` of its UTF-8. -/
-def parseExportD (contents : String) : AM (Except (CheckError × Nat) ParseResultD) :=
-  parseBytes contents.toUTF8
-
 /-- con-leche: ConLeche/Frontend/ExportC.lean:577-587 chunkStep — one chunk of
 the stream, applied: the carried incomplete tail is put in front of the new
 bytes, every complete line of the buffer is fed, and the new incomplete tail is
@@ -603,12 +597,6 @@ def chunkFinish (st : StateD) (carry : ByteArray) (lineNo : Nat) :
   match ← applyFinalLine st carry 0 (lineNo + 1) with
   | .error e => pure (.error e)
   | .ok st => pure (.ok (.ofState st))
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:598-610 concatBytes — the bytes of
-a list of chunks, in order. -/
-def concatBytes : List ByteArray → ByteArray
-  | [] => .empty
-  | c :: cs => c ++ concatBytes cs
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:611-637 parseChunks — THE
 STREAMING PARSE, PURELY: `chunkStep` folded over a list of chunks,

@@ -244,14 +244,6 @@ open Lockstep in
   LS.ofSim₀ fun _ h => infer_type_core_refines knotRel_checkFuel' hrel hinv hctx hf h
 
 open Lockstep in
-@[lockstep] theorem infer_type_io_ls {pers vis st mode fe lfe fu depth e lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = checkFuel) :
-    LS pers (fun a b => b = absEIdx a)
-      (arena.core.infer_type_io pers vis st mode fe fu depth e) lst
-      (Arena.inferTypeIO (ConRon.Refine.absMode mode) lfe checkFuel (absU depth)
-        (absEIdx e)) :=
-  LS.ofSim₀ fun _ h => infer_type_io_refines knotRel_checkFuel' hrel hinv hctx hf h
 
 open Lockstep in
 @[lockstep] theorem ensure_sort_core_ls {pers vis st mode fe lfe fu depth e lst}
@@ -283,14 +275,6 @@ open Lockstep in
   LS.ofSim₀ fun _ h => whnf_refines knotRel_checkFuel' hrel hinv hctx hf h
 
 open Lockstep in
-@[lockstep] theorem whnf_core_ls {pers vis st mode fe lfe fu depth e lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = checkFuel) :
-    LS pers (fun a b => b = absEIdx a)
-      (arena.core.whnf_core pers vis st mode fe fu depth e) lst
-      (Arena.whnfCore (ConRon.Refine.absMode mode) lfe checkFuel (absU depth)
-        (absEIdx e)) :=
-  LS.ofSim₀ fun _ h => whnf_core_refines knotRel_checkFuel' hrel hinv hctx hf h
 
 open Lockstep in
 @[lockstep] theorem annotate_core_ls {pers vis st mode fe lfe fu depth e lst}

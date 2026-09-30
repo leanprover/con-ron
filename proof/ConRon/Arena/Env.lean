@@ -276,15 +276,6 @@ obligation for exactly this reason). -/
 def IEnv.find? (env : IEnv) (n : NIdx) : Option IConstantInfo :=
   env.consts.find? (·.name == n)
 
-/-- con-leche: ConLeche/Kernel/Env.lean:686-692 Env.findProj? — the
-projection-table entry for field `i` of `T`: the structure's table
-(`projTableName T`), viewed at field `i`.  Monadic only because the reserved
-name has to be interned to be looked up. -/
-def IEnv.findProj? (env : IEnv) (T : NIdx) (i : Nat) : AM (Option IProjEntry) := do
-  match env.find? (← projTableName T) with
-  | some (.projInfo tbl) => pure (if i < tbl.numFields then some (tbl.entry i) else none)
-  | _ => pure none
-
 /-- con-leche: ConLeche/Kernel/FEnv.lean:26-46 FEnv — the environment with its
 `O(1)` index (DESIGN §8.3 lesson 13).  Entries with counter `< visibleBelow`
 are visible; `visibleBelow` doubles as the next counter `push` hands out. -/

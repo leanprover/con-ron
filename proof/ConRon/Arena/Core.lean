@@ -748,7 +748,6 @@ def strLitSupported (fe : IFEnv) : AM Bool := do
                 let co ← pinCharOfNat
                 charOfNatTyOk (fe.find? co)
 
-
 /-! ## Structural-`Nat` literal acceleration
 
 con-leche's certified fast path (`Core.lean:514-863`): an operation
@@ -1214,7 +1213,6 @@ def reduceNat (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (e : EIdx) :
       | _ => pure none
     | _ => pure none
   else pure none
-
 
 /-! ## The certification helpers
 
@@ -1702,7 +1700,6 @@ def andRescueSlots (fe : IFEnv) (ctor : NIdx) (nP : Nat) (ust : LsIdx) :
   let an ← pinAnd
   andRescueSlotsGo fe an ctor nP ust 2 0
 
-
 /-! ## The stuck-major rescue and the ι step
 
 con-leche's `Core.lean`:1311-1832. -/
@@ -2124,17 +2121,6 @@ def iotaRecAt (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
       | _ => pure none
   else pure none
 
-/-- con-leche: ConLeche/Kernel/Core.lean:820-932 iotaRec — **one iota
-step**: the expression is a stored recursor applied to exactly its telescope,
-the major premise whnfs to a fully applied constructor with a matching rule,
-and the spine is certified against the recursor's own (pinned, annotated)
-type.  The walk-it-yourself entry of `iotaRecAt`. -/
-def iotaRec (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
-    (e : EIdx) : AM (Option EIdx) := do
-  let hd ← getAppFn coreWalkFuel e
-  let args ← getAppArgs coreWalkFuel e
-  iotaRecAt mode r fe depth hd args.toArray args.length
-
 /-! ## The application spine, the batched β, and the two stuck tags
 
 DESIGN §8.6 item 9 (`whnfAppI` / `betaPeelI`) and item 7 (the stuck tags). -/
@@ -2203,17 +2189,6 @@ non-`app` is the node itself and the `match` is on `.const`). -/
   else if t == ETag.forallE then true
   else if t == ETag.lit then true
   else false
-
-/-- con-leche: ConLeche/Kernel/Core.lean:977-1072 whnfCoreBody — the STUCK
-application step: rebuild the node (or hand back the one the spine already
-has, task #97-P6-7's lever 4) and try one iota step on it.  The gated lane's
-`.app` clause is its only caller since the batched β landed. -/
-def whnfCoreStuckApp (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
-    (h : EIdx) (same : Bool) (fp a : EIdx) : AM EIdx := do
-  let ap ← internAppRebuilt h same fp a
-  match ← iotaRec mode r fe depth ap with
-  | some e2 => r.whnfCore depth e2
-  | none => pure ap
 
 /-! ### The batched β spine
 
@@ -2960,7 +2935,6 @@ def inferBodyIO (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
       fail (.internal "inferType: `let` in an annotated expression")
     | .bvar _ =>
       fail (.notImplemented "inferType beyond the supported fragment")
-
 
 /-! ## Definitional equality
 
@@ -3764,12 +3738,6 @@ body would have answered). -/
 def pureFnsA (mode : CheckMode) (fe : IFEnv) : Nat → CoreFnsA :=
   coreKnot mode fe id
 
-/-- con-leche: ConLeche/Kernel/TypeChecker.lean:27-29 whnfCore — head
-normalization without delta (fueled). -/
-def whnfCore (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat) (e : EIdx) :
-    AM EIdx :=
-  (pureFnsA mode fe fuel).whnfCore depth e
-
 /-- con-leche: ConLeche/Kernel/TypeChecker.lean:31-33 whnf — the full
 reduction loop (fueled). -/
 def whnf (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat) (e : EIdx) :
@@ -3781,13 +3749,6 @@ full-grade type inference (fueled): the declaration front door's entry. -/
 def inferTypeCore (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat)
     (e : EIdx) : AM EIdx :=
   (pureFnsA mode fe fuel).infer depth e
-
-/-- con-leche: ConLeche/Kernel/TypeChecker.lean:40-46 inferTypeIO — type
-inference at the io grade (fueled): what every internal inference call site
-runs. -/
-def inferTypeIO (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat)
-    (e : EIdx) : AM EIdx :=
-  (pureFnsA mode fe fuel).inferIO depth e
 
 /-- con-leche: ConLeche/Kernel/TypeChecker.lean:48-50 isDefEqCore —
 definitional equality (fueled). -/

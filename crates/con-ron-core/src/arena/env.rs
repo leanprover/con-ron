@@ -746,7 +746,7 @@ pub fn i_env_find_from<'a>(
 
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:26-46 FEnv
-/// Lean twin: `proof/ConRon/Arena/Env.lean:288-294 IFEnv` — the environment
+/// Lean twin: `proof/ConRon/Arena/Env.lean:279-285 IFEnv` — the environment
 /// with its `O(1)` index (DESIGN.md §8.3 lesson 13).  Entries with counter
 /// `< visible_below` are visible; `visible_below` doubles as the next counter
 /// `push` hands out.
@@ -782,7 +782,7 @@ pub struct IFEnv {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:48-57 mkFEnvGo
-/// Lean twin: `proof/ConRon/Arena/Env.lean:296-303 mkIFEnvGo` — the index
+/// Lean twin: `proof/ConRon/Arena/Env.lean:287-294 mkIFEnvGo` — the index
 /// build.  The cited recursion runs from the back of the newest-first list, so
 /// that the newest constant is inserted last and wins, exactly as
 /// `List.find?` takes the first match; over this `Vec`'s oldest-first order
@@ -803,7 +803,7 @@ pub fn mk_ifenv_go(
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:59-63 mkFEnv
-/// Lean twin: `proof/ConRon/Arena/Env.lean:305-309 mkIFEnv` — build the index
+/// Lean twin: `proof/ConRon/Arena/Env.lean:296-300 mkIFEnv` — build the index
 /// of `env`, with nothing hidden.  Takes the environment by value: the `IFEnv`
 /// owns it.
 pub fn mk_ifenv(env: IEnv) -> IFEnv {
@@ -816,7 +816,7 @@ pub fn mk_ifenv(env: IEnv) -> IFEnv {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:67-72 FEnv.find?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:311-316 IFEnv.find?` — indexed
+/// Lean twin: `proof/ConRon/Arena/Env.lean:302-307 IFEnv.find?` — indexed
 /// lookup, bounded by the visibility counter.
 ///
 /// **The bound is a PARAMETER and not the record's field** (task #97-P6-6b).
@@ -842,7 +842,7 @@ pub fn ifenv_find<'a>(vis: u64, fe: &'a IFEnv, n: &NIdx) -> Option<&'a IConstant
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:74-77 FEnv.restrictTo
-/// Lean twin: `proof/ConRon/Arena/Env.lean:318-321 IFEnv.restrictTo` —
+/// Lean twin: `proof/ConRon/Arena/Env.lean:309-312 IFEnv.restrictTo` —
 /// restrict the view to the first `k` installed constants; `O(1)`, a field
 /// update.  Takes the record by value and returns it, which is what makes the
 /// update `O(1)` in Rust (con-ron-core's `fenv` module note).
@@ -853,7 +853,7 @@ pub fn ifenv_restrict_to(fe: IFEnv, k: u64) -> IFEnv {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:79-86 FEnv.push
-/// Lean twin: `proof/ConRon/Arena/Env.lean:323-328 IFEnv.push` — the index of
+/// Lean twin: `proof/ConRon/Arena/Env.lean:314-319 IFEnv.push` — the index of
 /// the cons-extended environment: the new entry gets the next installation
 /// counter and the visibility bound advances with it.
 pub fn ifenv_push(fe: IFEnv, ci: IConstantInfo) -> IFEnv {
@@ -902,7 +902,7 @@ impl core::clone::Clone for IConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:79-86 FEnv.push
-/// Lean twin: `proof/ConRon/Arena/Env.lean:323-328 IFEnv.push` — **the push of
+/// Lean twin: `proof/ConRon/Arena/Env.lean:314-319 IFEnv.push` — **the push of
 /// a TEMPORARY extension, with what it displaced** (task #97-P6-5, lever 4).
 ///
 /// The twin writes `fe_r := fe.push stored` and goes on using `fe`, which in
@@ -928,7 +928,7 @@ pub fn ifenv_push_temp(fe: &mut IFEnv, ci: IConstantInfo) -> Option<(u64, u64)> 
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:79-86 FEnv.push
-/// Lean twin: `proof/ConRon/Arena/Env.lean:330-339 IFEnv.popTemp` — the inverse
+/// Lean twin: `proof/ConRon/Arena/Env.lean:321-330 IFEnv.popTemp` — the inverse
 /// of `ifenv_push_temp`: the constant popped, the displaced index row put
 /// back, the visibility bound restored.  See that function's note.
 pub fn ifenv_pop_temp(fe: &mut IFEnv, n: &NIdx, prev: Option<(u64, u64)>) {
@@ -956,7 +956,7 @@ pub fn ifenv_pop_temp(fe: &mut IFEnv, n: &NIdx, prev: Option<(u64, u64)>) {
 
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:88-92 FEnv.findProj?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:341-346 IFEnv.findProj?` — indexed
+/// Lean twin: `proof/ConRon/Arena/Env.lean:332-337 IFEnv.findProj?` — indexed
 /// projection-table lookup.
 pub fn ifenv_find_proj(
     pers: &PersTier,
@@ -1117,7 +1117,7 @@ pub fn read_names_from(
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:30-41 subst
-/// Lean twin: `proof/ConRon/Arena/Monad.lean:527-536 readLevel` — **the
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:520-529 readLevel` — **the
 /// readback** (DESIGN.md §8.3 lesson 4, "intern the representation, not the
 /// algorithm"): a level ALGORITHM runs on a transient `Level` tree read out of
 /// the store, never on handles.  The readback is `denoteL` itself.
@@ -1179,7 +1179,7 @@ pub fn dangling_level() -> CheckError {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:572-586 Expr.piSortTeleLen?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:350-360 piSortTeleLen?` — the
+/// Lean twin: `proof/ConRon/Arena/Env.lean:341-351 piSortTeleLen?` — the
 /// length of a syntactic Π-telescope ending in a SORT.  A spine walk, so the
 /// fuel is the store's node count; con-leche's structural recursion is the
 /// same walk with the node read through `view`.
