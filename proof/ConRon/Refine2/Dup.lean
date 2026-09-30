@@ -270,8 +270,11 @@ theorem i_ind_caps_dup_abs {c o : arena.env.IIndCaps}
   rw [arena.env.i_ind_caps_dup] at h
   obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [← Result.ok_injective h]
-  simp only [absIIndCaps, dupId_nidx _ _ hn, ConRon.Refine.PropWhen.dup_eq hpw]
+  simp only [absIIndCaps, dupId_nidx _ _ hn, ConRon.Refine.PropWhen.dup_eq hpw,
+    nidx_vec_dup_val hv, nidx_vec_dup_val hv1]
 
 /-- `arena::env::i_proj_table_dup` is the identity on the abstraction. -/
 theorem i_proj_table_dup_abs {t o : arena.env.IProjTable}
