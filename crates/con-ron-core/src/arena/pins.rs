@@ -56,7 +56,7 @@
 //! the export also carries hands the export's parse the very same handle.
 //! What changes is only WHEN the intern happens, and how many times.
 //!
-//! Lean twin: `proof/ConRon/Arena/Monad.lean:119-136 AState` (DESIGN.md §8.6's
+//! Lean twin: `proof/ConRon/Arena/Monad.lean:117-134 AState` (DESIGN.md §8.6's
 //! twin ledger, task #97-P6-4a) — `AState` gains a `pins : Pins` field and
 //! `internAllPins` fills it, and the hundred-odd `pin` clauses become field
 //! reads. Nothing about the DENOTATION moves, and the one obligation is an

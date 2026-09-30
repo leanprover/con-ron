@@ -197,10 +197,10 @@ theorem memos_empty {rm : arena.monad.Memos} (h : arena.monad.Memos.empty = ok r
   have r0 := fun {V' : Type} (absV : arena.handle.EIdx → V') =>
     ConRon.Refine.HashMap2.RelOn_empty (P := fun _ => True) (K' := EIdx × Nat)
       (absK := absEIdxNat) (absV := absV) n0
-  exact ⟨⟨r0 _, r0 _, r0 _, r0 _, r0 _, r0 _, r0 _, r0 _, r0 _,
+  exact ⟨⟨r0 _, r0 _, r0 _, r0 _, r0 _, r0 _, r0 _,
       ConRon.Refine.HashMap2.RelOn_empty n1, ConRon.Refine.HashMap2.RelOn_empty n1,
       ConRon.Refine.HashMap2.RelOn_empty n2, ConRon.Refine.HashMap2.RelOn_empty n3⟩,
-    ⟨i0, i0, i0, i0, i0, i0, i0, i0, i0, i1, i1, i2, i3, i4, i4⟩⟩
+    ⟨i0, i0, i0, i0, i0, i0, i0, i1, i1, i2, i3, i4, i4⟩⟩
 
 theorem caches_empty {rc : arena.core_state.Caches}
     (h : arena.core_state.Caches.empty = ok rc) :

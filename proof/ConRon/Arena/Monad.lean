@@ -63,21 +63,20 @@ tables of the `ExprOps` twins, in one record.
 con-leche threads each memo as an explicit argument-and-result pair
 (`instantiate1Go v memo e d : Expr × Std.HashMap …`); the arena carries them
 in the state, which is what the census's twin column means by "the `…Go`
-family loses the pair and the `AM` carries it".  Eleven tables, one per
-con-leche `…Go`, because the walks NEST — `instantiate1Lift`'s `bvar` arm
+family loses the pair and the `AM` carries it".  Nine tables, one per
+con-leche `…Go` the arena runs, because the walks NEST — `instantiate1Lift`'s `bvar` arm
 calls `liftLooseBVars`, so a single shared table would answer one walk with
 the other's answers.
 
-The nine handle-valued tables are keyed `(EIdx × Nat)`: the node and the
+The seven handle-valued tables are keyed `(EIdx × Nat)`: the node and the
 traversal cursor, which is what the answer depends on once the substituted
-term is fixed (nanoda's trick, DESIGN §8.3 "Caches").  Three of con-leche's
-walks have no cursor (`resetMeta`, `renameConsts`, `instantiateLevelParams`
-key on the node alone); the arena keys them at cursor `0` so that every
-handle-valued memo has ONE invariant and one insert lemma.  `resetC` and
-`renameC` have no walk on either side any more (the port runs neither
-`resetMeta` nor `renameConsts`); they stay field for field with the Rust's
-`Memos`.  The two `Nat`-valued tables are
-the saturated-branch recomputations of the packed range fields. -/
+term is fixed (nanoda's trick, DESIGN §8.3 "Caches").  One of those walks has
+no cursor (`instantiateLevelParams` keys on the node alone); the arena keys it
+at cursor `0` so that every handle-valued memo has ONE invariant and one
+insert lemma.  (`resetMeta` and `renameConsts` had tables here too; neither
+side runs those walks any more, and task #105 removed both tables.)  The two
+`Nat`-valued tables are the saturated-branch recomputations of the packed
+range fields. -/
 structure Memos where
   /-- `instantiate1` (`ExprOps.lean:80-116`). -/
   inst1C : Std.HashMap (EIdx × Nat) EIdx
@@ -85,10 +84,6 @@ structure Memos where
   instLC : Std.HashMap (EIdx × Nat) EIdx
   /-- `liftLooseBVars` (`ExprOps.lean:430-466`). -/
   liftC : Std.HashMap (EIdx × Nat) EIdx
-  /-- `resetMeta` (`ExprOps.lean:579-615`), at cursor `0`. -/
-  resetC : Std.HashMap (EIdx × Nat) EIdx
-  /-- `renameConsts` (`ExprOps.lean:999-1036`), at cursor `0`. -/
-  renameC : Std.HashMap (EIdx × Nat) EIdx
   /-- `abstract1` (`ExprOps.lean:1789-1833`). -/
   abs1C : Std.HashMap (EIdx × Nat) EIdx
   /-- `lowerBVars` (`ExprOps.lean:2012-2049`). -/
@@ -113,7 +108,7 @@ structure Memos where
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:182-184 instantiate1Fast — every
 walk starts from the empty memo (`(instantiate1Go v {} e d).1`), so this is
 what a top-level entry installs. -/
-def Memos.empty : Memos := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅⟩
+def Memos.empty : Memos := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅⟩
 
 instance : Inhabited Memos := ⟨Memos.empty⟩
 

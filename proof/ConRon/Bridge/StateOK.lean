@@ -258,13 +258,13 @@ theorem MemoLsOK.insert {f : List Level → List Level}
     exact ⟨us, hus, hr us hus⟩
   · exact hm k' r' hk'
 
-/-! ### The thirteen tables, one `abbrev` each
+/-! ### The eleven tables, one `abbrev` each
 
 Each fixes the generic `f` to a concrete lambda whose free variables are the
-walk's own parameters and are all first-order (task #97b finding 2).  The
-three tables `Monad.lean` keys at cursor `0` (`resetC`, `renameC`, `instLPC`)
-ignore the cursor in the lambda, which is what makes them one invariant with
-the other six. -/
+walk's own parameters and are all first-order (task #97b finding 2).  The one
+table `Monad.lean` keys at cursor `0` (`instLPC`) ignores the cursor in the
+lambda, which is what makes it one invariant with the other six
+handle-valued tables. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:61-63 Inst1MemoInv. -/
 abbrev Inst1MemoA (ve : Expr) (s : AState) : Prop :=

@@ -34,8 +34,8 @@
 //!    with the modeled route).  It is told as a `lane: u32`, threaded
 //!    beside `mode` through every function whose twin takes `r`.  That is
 //!    defunctionalization of the twin's one higher-order argument, and it is
-//!    the same move §3.4 already asks for at
-//!    `expr_ops::rename_consts_go`'s `f : NIdx → NIdx`.
+//!    the same move §3.4 asks for at `kernel::expr_ops::rename_consts`'
+//!    `f : Name → Name` (its `NameToName` bound).
 //!
 //!    `CoreFnsA.ioView` — `{ r with infer := r.inferIO }`, the *one* place
 //!    the record is rebound — is the extra `io: bool` of `infer_body_io`,

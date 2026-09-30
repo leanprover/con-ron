@@ -100,7 +100,7 @@ pub enum LineErr {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:50-69 CheckError
-/// Lean twin: `proof/ConRon/Arena/Monad.lean:148-153 fail` — the one failure
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:146-151 fail` — the one failure
 /// primitive, lifted into the parse's merged channel.
 pub fn fail<T>(e: CheckError) -> Result<T, LineErr> {
     Err(LineErr::Err(e))

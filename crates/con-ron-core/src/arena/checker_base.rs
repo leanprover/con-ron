@@ -201,8 +201,6 @@ pub fn memos_dup(m: &Memos) -> Memos {
         inst1_c: m.inst1_c.dup(),
         inst_l_c: m.inst_l_c.dup(),
         lift_c: m.lift_c.dup(),
-        reset_c: m.reset_c.dup(),
-        rename_c: m.rename_c.dup(),
         abs1_c: m.abs1_c.dup(),
         lower_c: m.lower_c.dup(),
         inst1_l_c: m.inst1_l_c.dup(),

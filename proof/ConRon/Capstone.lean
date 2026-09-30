@@ -487,7 +487,7 @@ def startState : arena.monad.AState :=
         scratch_on := false },
     memos :=
       { inst1_c := emptyMap _ _, inst_l_c := emptyMap _ _, lift_c := emptyMap _ _,
-        reset_c := emptyMap _ _, rename_c := emptyMap _ _, abs1_c := emptyMap _ _,
+        abs1_c := emptyMap _ _,
         lower_c := emptyMap _ _, inst1_l_c := emptyMap _ _, inst_lp_c := emptyMap _ _,
         bvar_b_c := emptyMap _ _, fvar_b_c := emptyMap _ _, inst_lp_l_c := emptyMap _ _,
         inst_lp_ls_c := emptyMap _ _, lp_def_c := emptyMap _ _, crf_c := emptyMap _ _ },

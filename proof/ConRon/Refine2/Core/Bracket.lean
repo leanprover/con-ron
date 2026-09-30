@@ -596,52 +596,44 @@ theorem memos_reset {rm rm' : arena.monad.Memos} (hinv : MemosInv rm)
   obtain ⟨t8, e8, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨t9, e9, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨t10, e10, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨t11, e11, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨t12, e12, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hst : rm' = { rm with
     inst1_c := t0,
     inst_l_c := t1,
     lift_c := t2,
-    reset_c := t3,
-    rename_c := t4,
-    abs1_c := t5,
-    lower_c := t6,
-    inst1_l_c := t7,
-    inst_lp_c := t8,
-    bvar_b_c := t9,
-    fvar_b_c := t10,
-    inst_lp_l_c := t11,
-    inst_lp_ls_c := t12
+    abs1_c := t3,
+    lower_c := t4,
+    inst1_l_c := t5,
+    inst_lp_c := t6,
+    bvar_b_c := t7,
+    fvar_b_c := t8,
+    inst_lp_l_c := t9,
+    inst_lp_ls_c := t10
   } := (Result.ok_injective h).symm
   subst hst
-  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
-    ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hinv.lpDefC, hinv.crfC⟩⟩
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
+    ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hinv.lpDefC, hinv.crfC⟩⟩
   exacts [reset_map_rel hinv.inst1C e0,
     reset_map_rel hinv.instLC e1,
     reset_map_rel hinv.liftC e2,
-    reset_map_rel hinv.resetC e3,
-    reset_map_rel hinv.renameC e4,
-    reset_map_rel hinv.abs1C e5,
-    reset_map_rel hinv.lowerC e6,
-    reset_map_rel hinv.inst1LC e7,
-    reset_map_rel hinv.instLPC e8,
-    reset_map_rel hinv.bvarBC e9,
-    reset_map_rel hinv.fvarBC e10,
-    reset_map_rel hinv.instLPLC e11,
-    reset_map_rel hinv.instLPLsC e12,
+    reset_map_rel hinv.abs1C e3,
+    reset_map_rel hinv.lowerC e4,
+    reset_map_rel hinv.inst1LC e5,
+    reset_map_rel hinv.instLPC e6,
+    reset_map_rel hinv.bvarBC e7,
+    reset_map_rel hinv.fvarBC e8,
+    reset_map_rel hinv.instLPLC e9,
+    reset_map_rel hinv.instLPLsC e10,
     reset_map_inv hinv.inst1C e0,
     reset_map_inv hinv.instLC e1,
     reset_map_inv hinv.liftC e2,
-    reset_map_inv hinv.resetC e3,
-    reset_map_inv hinv.renameC e4,
-    reset_map_inv hinv.abs1C e5,
-    reset_map_inv hinv.lowerC e6,
-    reset_map_inv hinv.inst1LC e7,
-    reset_map_inv hinv.instLPC e8,
-    reset_map_inv hinv.bvarBC e9,
-    reset_map_inv hinv.fvarBC e10,
-    reset_map_inv hinv.instLPLC e11,
-    reset_map_inv hinv.instLPLsC e12]
+    reset_map_inv hinv.abs1C e3,
+    reset_map_inv hinv.lowerC e4,
+    reset_map_inv hinv.inst1LC e5,
+    reset_map_inv hinv.instLPC e6,
+    reset_map_inv hinv.bvarBC e7,
+    reset_map_inv hinv.fvarBC e8,
+    reset_map_inv hinv.instLPLC e9,
+    reset_map_inv hinv.instLPLsC e10]
 
 
 /-! ## The bracket in the lockstep shape (task #97-T2-LOCKSTEP step 1)

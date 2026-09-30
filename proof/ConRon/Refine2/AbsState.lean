@@ -178,15 +178,13 @@ theorem lsidx_eq2 :
 
 Thirteen `RelOn` clauses at `P := True`: every key is handles and a cursor,
 so the `Eq2` dictionaries above are unrestricted.  One structure rather than
-thirteen hypotheses, so that a spec theorem states what a call touched in ONE
+eleven hypotheses, so that a spec theorem states what a call touched in ONE
 equation (`Arena/Monad.lean`'s own reason for grouping them). -/
 
 structure MemosRel (rm : arena.monad.Memos) (lm : Memos) : Prop where
   inst1C : RelOn (fun _ => True) rm.inst1_c lm.inst1C absEIdxNat absEIdx
   instLC : RelOn (fun _ => True) rm.inst_l_c lm.instLC absEIdxNat absEIdx
   liftC : RelOn (fun _ => True) rm.lift_c lm.liftC absEIdxNat absEIdx
-  resetC : RelOn (fun _ => True) rm.reset_c lm.resetC absEIdxNat absEIdx
-  renameC : RelOn (fun _ => True) rm.rename_c lm.renameC absEIdxNat absEIdx
   abs1C : RelOn (fun _ => True) rm.abs1_c lm.abs1C absEIdxNat absEIdx
   lowerC : RelOn (fun _ => True) rm.lower_c lm.lowerC absEIdxNat absEIdx
   inst1LC : RelOn (fun _ => True) rm.inst1_l_c lm.inst1LC absEIdxNat absEIdx
@@ -200,8 +198,6 @@ structure MemosInv (rm : arena.monad.Memos) : Prop where
   inst1C : Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable rm.inst1_c
   instLC : Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable rm.inst_l_c
   liftC : Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable rm.lift_c
-  resetC : Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable rm.reset_c
-  renameC : Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable rm.rename_c
   abs1C : Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable rm.abs1_c
   lowerC : Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable rm.lower_c
   inst1LC : Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable rm.inst1_l_c
