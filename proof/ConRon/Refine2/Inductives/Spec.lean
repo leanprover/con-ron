@@ -274,6 +274,41 @@ theorem checkStructProjTable_unfold (T C : NIdx) (lps : List NIdx) (nP nF : Nat)
 the twin's own comments name.  `fieldDomsResolve` / `idxArgsResolve` are twin
 `def`s and need no transcription. -/
 
+/-- `whnfTelescope` at `0` binders.  **Lean cannot generate the twin's
+equation lemmas** (`whnfTelescope.eq_def` fails: "no progress at goal" on the
+`match (← view e'), n` whose catch-all arms split on the counter), so `rw
+[whnfTelescope]` is unavailable; these two equations are the definition read
+off the structural recursion by `delta`, one per counter shape, each with the
+Rust's own arm order (the view first, the counter second). -/
+theorem whnfTelescope_zero (mode : ConLeche.CheckMode) (fe : IFEnv) (i : Nat) (e : EIdx) :
+    whnfTelescope mode fe i 0 e = (do
+      let e' ← whnf mode fe checkFuel i e
+      match ← view e' with
+      | .sort s => pure ([], s)
+      | _ => fail (.invalid "direct sum: type former does not reduce to a sort")) := by
+  delta whnfTelescope
+  dsimp only [Nat.brecOn.go, whnfTelescope._f]
+  refine congrArg (bind (whnf mode fe checkFuel i e)) (funext fun e' => ?_)
+  refine congrArg (bind (view e')) (funext fun v => ?_)
+  cases v <;> rfl
+
+/-- `whnfTelescope` at `n + 1` binders (see `whnfTelescope_zero`). -/
+theorem whnfTelescope_succ (mode : ConLeche.CheckMode) (fe : IFEnv) (i n : Nat) (e : EIdx) :
+    whnfTelescope mode fe i (n + 1) e = (do
+      let e' ← whnf mode fe checkFuel i e
+      match ← view e' with
+      | .forallE dom body bm => do
+        let fv ← internE (.fvar i dom)
+        let b ← instantiate1Fast coreWalkFuel body fv 0
+        let (bs, s) ← whnfTelescope mode fe (i + 1) n b
+        pure ((dom, bm) :: bs, s)
+      | _ => fail (.invalid "direct sum: type former does not reduce to a telescope")) := by
+  delta whnfTelescope
+  dsimp only [Nat.brecOn.go, whnfTelescope._f]
+  refine congrArg (bind (whnf mode fe checkFuel i e)) (funext fun e' => ?_)
+  refine congrArg (bind (view e')) (funext fun v => ?_)
+  cases v <;> rfl
+
 /-- `checkStructFieldSortsI`'s per-field universe bound: official's `leq`
 against the family's sort at a non-propositional family, and the large
 eliminator's escape hatch (`Prop`-valued or an index argument) at a

@@ -21,6 +21,8 @@ The Core tier reaches it at one site: `check_struct_doms_at` calls
 `is_def_eq_core` (`Refine2/Checker/KnotHyp.lean`'s `is_def_eq_core_ls`).
 -/
 import ConRon.Refine2.Inductives.StructParts
+import ConRon.Refine2.Inductives.Env
+import ConRon.Refine2.Core.LS.Prims
 import ConRon.Refine2.Checker.Base
 
 open Aeneas Aeneas.Std Result
@@ -36,9 +38,7 @@ open ConRon.Arena
 
 /-! ## `unwrap_or` at the handle types this lane's walks unwrap
 
-`checker_base::unwrap_or` against `unwrapOr` (the checker tier's
-`unwrap_or_refines` was `sorry` when this was written, and
-`PrimsModeled.lean`'s proved copy is downstream of this file).  One `@[lockstep]` lemma per element abstraction
+`checker_base::unwrap_or` against `unwrapOr` (no other tier states it).  One `@[lockstep]` lemma per element abstraction
 and error kind: the tactic applies a spec before it matches the twin, so the
 abstraction cannot be left to unification; the twin's message is free. -/
 
@@ -52,7 +52,7 @@ theorem unwrap_or_lsr {T β : Type} {A : T → β} {pers st lst} {o : Option T}
     (herr : absAErrKind err = lAErrKind lerr) :
     LSR pers (fun a b => b = A a) (arena.checker_base.unwrap_or o err) st lst
       (unwrapOr (o.map A) lerr) := by
-  refine LSR.ofSimRE hrel hinv fun r hrun => ?_
+  intro r hrun
   cases o with
   | none =>
     simp only [arena.checker_base.unwrap_or, Result.ok.injEq] at hrun
@@ -61,7 +61,7 @@ theorem unwrap_or_lsr {T β : Type} {A : T → β} {pers st lst} {o : Option T}
   | some a =>
     simp only [arena.checker_base.unwrap_or, Result.ok.injEq] at hrun
     subst hrun
-    rfl
+    exact ⟨A a, lst, rfl, rfl, hrel, hinv⟩
 
 @[lockstep] theorem unwrap_or_eidx_int {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -147,6 +147,8 @@ recursion and not a cursor. -/
 
 /-! ## The projection table -/
 
+attribute [local lockstep] Lockstep.proj_table_name_ls
+
 open Lockstep in
 /-- `proj_bodies_scoped` ⊑ `checkStructProjTable`'s `scopedOk` `let`, from the
 cursor on. -/
@@ -228,7 +230,7 @@ open Lockstep in
     checkStructProjTableNamesSpec]
   lockstep
   all_goals
-    simp only [absIConstantInfo, absIProjTable] at *
+    (try simp only [absIConstantInfo, absIProjTable] at *)
     lockstep
 
 open Lockstep in

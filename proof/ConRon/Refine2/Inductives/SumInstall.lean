@@ -36,6 +36,20 @@ open scoped ConRon.Refine2.IndSide
 
 open ConRon.Arena
 
+/-! ## Helpers for Shape/Abs
+
+`Promote/Prims.lean`'s two cursor-list facts, restated (that module is not
+below this one). -/
+
+theorem sp_vecFrom_nil {α β : Type} (v : alloc.vec.Vec α) (f : α → β) (i : Std.Usize)
+    (hi : v.val.length ≤ i.val) : (v.val.drop i.val).map f = [] := by
+  rw [List.drop_eq_nil_of_le hi]; rfl
+
+theorem sp_vecFrom_cons {α β : Type} (v : alloc.vec.Vec α) (f : α → β) (i : Std.Usize)
+    (hi : i.val < v.val.length) :
+    (v.val.drop i.val).map f = f v.val[i.val] :: (v.val.drop (i.val + 1)).map f := by
+  rw [List.drop_eq_getElem_cons hi]; rfl
+
 /-! ## The binders' canonical metas (`PropWhenWF`, the erased subtype invariant)
 
 The telescope walks push `(dom, meta)` pairs whose `meta` comes from a view
@@ -86,11 +100,11 @@ theorem whnf_telescope_aux (m : Nat) :
   induction m with
   | zero =>
     intro pers st lst vis rf lf mode i n e out hn hrel hinv hfe hvis hout
-    rw [arena.inductives.sum_install.whnf_telescope, show absU n = 0 from hn, whnfTelescope]
+    rw [arena.inductives.sum_install.whnf_telescope, show absU n = 0 from hn, whnfTelescope_zero]
     lockstep
   | succ m ih =>
     intro pers st lst vis rf lf mode i n e out hn hrel hinv hfe hvis hout
-    rw [arena.inductives.sum_install.whnf_telescope, show absU n = m + 1 from hn, whnfTelescope]
+    rw [arena.inductives.sum_install.whnf_telescope, show absU n = m + 1 from hn, whnfTelescope_succ]
     have hn1 : 1 ≤ n.val := by omega
     obtain rfl : m = n.val - 1 := by omega
     clear hn
@@ -536,13 +550,13 @@ theorem check_sum_ctors_aux (m : Nat) :
     intro pers st lst mode rf0 lf0 rf lf t lps n_p n_idx res_sort is_prop large cv_ta ctors i
       out sout hn hrel hinv hfe0 hfe
     rw [arena.inductives.sum_install.check_sum_ctors, if_pos (by scalar_tac), absCtorsLFrom,
-      vecFrom_nil _ _ _ (by omega), checkSumCtors]
+      sp_vecFrom_nil _ _ _ (by omega), checkSumCtors]
     lockstep
   | succ m ih =>
     intro pers st lst mode rf0 lf0 rf lf t lps n_p n_idx res_sort is_prop large cv_ta ctors i
       out sout hn hrel hinv hfe0 hfe
     rw [arena.inductives.sum_install.check_sum_ctors, if_neg (by scalar_tac), absCtorsLFrom,
-      vecFrom_cons _ _ _ (by omega), checkSumCtors]
+      sp_vecFrom_cons _ _ _ (by omega), checkSumCtors]
     lockstep
 
 open Lockstep in
@@ -650,18 +664,18 @@ theorem sum_rules_aux (m : Nat) :
   | zero =>
     intro pers st lst vis rf lf rec_name n_p m_i r_p rec_ty ctors rhss i out hn hrel hinv hfe hvis
     rw [arena.inductives.sum_install.sum_rules, if_pos (by scalar_tac), absCtorsLFrom,
-      vecFrom_nil _ _ _ (by omega)]
+      sp_vecFrom_nil _ _ _ (by omega)]
     simp only [sumRules]
     lockstep
   | succ m ih =>
     intro pers st lst vis rf lf rec_name n_p m_i r_p rec_ty ctors rhss i out hn hrel hinv hfe hvis
     rw [arena.inductives.sum_install.sum_rules, if_neg (by scalar_tac), absCtorsLFrom,
-      vecFrom_cons _ _ _ (by omega)]
+      sp_vecFrom_cons _ _ _ (by omega)]
     by_cases hr : i.val < rhss.val.length
-    · rw [if_neg (by scalar_tac), absEIdxLFrom, vecFrom_cons _ _ _ hr]
+    · rw [if_neg (by scalar_tac), absEIdxLFrom, sp_vecFrom_cons _ _ _ hr]
       simp only [sumRules]
       lockstep
-    · rw [if_pos (by scalar_tac), absEIdxLFrom, vecFrom_nil _ _ _ (by omega)]
+    · rw [if_pos (by scalar_tac), absEIdxLFrom, sp_vecFrom_nil _ _ _ (by omega)]
       simp only [sumRules]
       lockstep
 
