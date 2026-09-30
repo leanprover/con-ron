@@ -2127,4 +2127,173 @@ theorem blockNestedBit_eq {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.Bl
   simp only [Arena.blockNestedBit, ConLeche.blockNestedBit, hflat, RC.recs_any_tgt h]
   cases ConLeche.nestKindsFlat (kinds.map (·.map (·.map kindOf))) <;> simp
 
+/-! ## The family consed at its majors (`consBlockRecsTF`) -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:607-617 consBlockRecsTF
+(its list) — a checked recursor with its class and right-hand sides,
+denoted. -/
+def dOut (st : EStore) (t : IConstantVal × Arena.TargetMajor × List EIdx) :
+    Option (ConstantVal × ConLeche.TargetMajor × List Expr) := do
+  let cv ← Frontend.denoteCV st t.1
+  let M ← dMajor st t.2.1
+  let rh ← Frontend.denoteEList st t.2.2
+  pure (cv, M, rh)
+
+theorem dOut_ext : DExt dOut := by
+  intro st st' hx t y h
+  simp only [dOut] at h ⊢
+  cases h1 : Frontend.denoteCV st t.1 with
+  | none => rw [h1] at h; exact nomatch h
+  | some a =>
+  cases h2 : dMajor st t.2.1 with
+  | none => rw [h1, h2] at h; exact nomatch h
+  | some b =>
+  cases h3 : Frontend.denoteEList st t.2.2 with
+  | none => rw [h1, h2, h3] at h; exact nomatch h
+  | some c =>
+  rw [h1, h2, h3] at h
+  rw [denoteCV_ext h1 hx, dMajor_ext hx _ _ h2, denoteEList_ext hx _ _ h3]
+  exact h
+
+namespace RC
+
+/-- con-leche: none — `dOut`, taken apart. -/
+theorem dOut_inv {st : EStore} {t : IConstantVal × Arena.TargetMajor × List EIdx}
+    {tP : ConstantVal × ConLeche.TargetMajor × List Expr} (h : dOut st t = some tP) :
+    Frontend.denoteCV st t.1 = some tP.1 ∧ dMajor st t.2.1 = some tP.2.1 ∧
+      Frontend.denoteEList st t.2.2 = some tP.2.2 := by
+  simp only [dOut] at h
+  cases h1 : Frontend.denoteCV st t.1 with
+  | none => rw [h1] at h; exact nomatch h
+  | some a =>
+  cases h2 : dMajor st t.2.1 with
+  | none => rw [h1, h2] at h; exact nomatch h
+  | some b =>
+  cases h3 : Frontend.denoteEList st t.2.2 with
+  | none => rw [h1, h2, h3] at h; exact nomatch h
+  | some c =>
+  rw [h1, h2, h3] at h
+  obtain rfl := (Option.some.inj h).symm
+  exact ⟨rfl, rfl, rfl⟩
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:74-86 FEnv.restrictTo / FEnv.push —
+**a push above the bound leaves the restricted view alone** when the pushed
+name was not visible there: the new row's counter is at or past the bound,
+and it shadows nothing the bound let through. -/
+theorem restrictTo_push_find? {fe : IFEnv} {k : Nat} (hk : k ≤ fe.visibleBelow)
+    {ci : IConstantInfo} (hnone : (fe.restrictTo k).find? ci.name = none) :
+    ((fe.push ci).restrictTo k).find? = (fe.restrictTo k).find? := by
+  funext n
+  simp only [IFEnv.find?, IFEnv.restrictTo, IFEnv.push, Std.HashMap.getElem?_insert]
+  by_cases hEq : (ci.name == n) = true
+  · rw [if_pos hEq]
+    have hn : ci.name = n := eq_of_beq hEq
+    subst hn
+    simp only [IFEnv.find?, IFEnv.restrictTo] at hnone
+    have : ¬ fe.visibleBelow < k := by omega
+    simp only [this, ↓reduceIte]
+    exact hnone.symm
+  · rw [if_neg hEq]
+
+/-- con-leche: none — `IFEnvOK` reads the index only through `find?`. -/
+theorem IFEnvOK.of_find? {env : Env} {fe fe' : IFEnv} {s : AState} (h : IFEnvOK env fe s)
+    (e : fe'.find? = fe.find?) : IFEnvOK env fe' s :=
+  ⟨fun n ci hf => h.hit n ci (by rw [← e]; exact hf),
+   fun nm c hc => by
+     obtain ⟨n, ci, h1, h2, h3⟩ := h.cover nm c hc
+     exact ⟨n, ci, h1, by rw [e]; exact h2, h3⟩,
+   fun n t hf => h.proj n t (by rw [← e]; exact hf)⟩
+
+end RC
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:607-617 consBlockRecsTF
+con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-106 consBlockRecsT
+**The checked family consed through the index, at its majors**: each
+recursor with its rules at ITS major, read at the constructors' view
+`fe.restrictTo vis₂` — con-leche's `consBlockRecsT env₂.find?
+(·.constsResolve env₂)`, where `env₂` is what that view denotes.  The answer
+is an install (`InstRel`: coherent, only pushed, the bound only rose,
+denoting con-leche's cons, no projection table).
+
+**The freshness hypothesis** (`env₂.find? t.1.name = none` at every
+recursor) is what keeps the view fixed while the recursors are pushed above
+it (`RC.restrictTo_push_find?`): a pushed name that shadowed a constructor-
+environment constant would hide it from the later rules' lookups, where
+con-leche's `find?` is the fixed `env₂.find?`. -/
+theorem consBlockRecsTF_spec {μ : CheckMode} {envC env₂ : Env} {feC : IFEnv} (vis₂ : Nat)
+    (p : Arena.BlockShape) (pP : ConLeche.BlockShape) :
+    ∀ (out : List (IConstantVal × Arena.TargetMajor × List EIdx))
+      (outP : List (ConstantVal × ConLeche.TargetMajor × List Expr))
+      (m : Nat) (fe : IFEnv) (env : Env) (s₀ s' : AState) (fe' : IFEnv),
+      CheckOK μ envC feC s₀ → IFEnvOK env₂ (fe.restrictTo vis₂) s₀ →
+      vis₂ ≤ fe.visibleBelow → IFEnvCoh fe → denoteFEnv s₀.store fe = some env →
+      dShape s₀.store p = some pP → out.mapM (dOut s₀.store) = some outP →
+      (∀ t ∈ outP, env₂.find? t.1.name = none) →
+      Arena.consBlockRecsTF vis₂ p m out fe s₀ = .ok (fe', s') →
+      CoreStep μ envC feC s₀ s' ∧
+        InstRel fe (fun e => e = consBlockRecsT env₂.find? (·.constsResolve env₂) pP m outP env)
+          s'.store fe' := by
+  intro out
+  induction out with
+  | nil =>
+    intro outP m fe env s₀ s' fe' hok _ _ hcoh hfe _ hout _ hrun
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hout
+    subst hout
+    simp only [Arena.consBlockRecsTF] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, hcoh, Pushed.refl _, Nat.le_refl _, ⟨env, hfe, rfl⟩,
+      ProjOut.refl _ _⟩
+  | cons t rest ih =>
+    intro outP m fe env s₀ s' fe' hok hie hvis hcoh hfe hsh hout hfresh hrun
+    obtain ⟨cv, M, rhss⟩ := t
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at hout
+    cases ht : dOut s₀.store (cv, M, rhss) with
+    | none => rw [ht] at hout; simp at hout
+    | some tP =>
+    rw [ht] at hout
+    cases hr : rest.mapM (dOut s₀.store) with
+    | none => rw [hr] at hout; simp at hout
+    | some restP =>
+    rw [hr] at hout
+    simp only [Option.bind_some, Option.some.injEq] at hout
+    subst hout
+    obtain ⟨cvP, MP, rhssP⟩ := tP
+    obtain ⟨hcv, hM, hrh⟩ := RC.dOut_inv ht
+    obtain ⟨hmI, hrP⟩ := RC.recAt_eq hsh m
+    simp only [Arena.consBlockRecsTF] at hrun
+    obtain ⟨rules, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨c1, hrules⟩ := tgtStoredRules_spec (fe.restrictTo vis₂) cv cvP
+      (p.majorIdxAt m) (p.rulePrefixAt m) M MP rhss rhssP s₀ s1 rules hok hie hcv hM hrh k1
+    rw [hmI, hrP] at hrules
+    -- the pushed recursor
+    have hci : Frontend.denoteCI s1.store (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) rules)
+        = some (.recInfo cvP (pP.majorIdxAt m) (pP.rulePrefixAt m)
+          (ConLeche.tgtStoredRules env₂.find? (·.constsResolve env₂) cvP (pP.majorIdxAt m)
+            (pP.rulePrefixAt m) MP rhssP)) := by
+      simp only [Frontend.denoteCI, denoteCV_ext hcv c1.ext, hrules, hmI, hrP]
+    have hfe1 := denoteFEnv_push (denoteFEnv_ext c1.ext hfe) hci
+    -- the view stays
+    have hnone : (fe.restrictTo vis₂).find?
+        (IConstantInfo.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) rules).name = none := by
+      cases hf : (fe.restrictTo vis₂).find? cv.name with
+      | none => exact hf
+      | some ci =>
+        obtain ⟨c, -, hc⟩ := RC.find_rel hie (denoteCV_name hcv) hf
+        rw [hfresh (cvP, MP, rhssP) (by simp)] at hc
+        exact nomatch hc
+    have hview := RC.restrictTo_push_find? hvis hnone
+    have hie1 : IFEnvOK env₂ ((fe.push (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m)
+        rules)).restrictTo vis₂) s1 := RC.IFEnvOK.of_find? (hie.mono c1.ext) hview
+    obtain ⟨c2, hrel⟩ := ih restP (m + 1) _ _ s1 s' fe' c1.ok hie1
+      (by simp only [IFEnv.push]; omega) (hcoh.push _) hfe1 (dShape_ext c1.ext _ _ hsh)
+      (dOut_ext.list c1.ext _ _ hr) (fun t ht => hfresh t (by simp [ht])) z1
+    refine ⟨c1.trans c2, ?_⟩
+    have h1 : InstRel fe (fun e => e = ⟨.recInfo cvP (pP.majorIdxAt m) (pP.rulePrefixAt m)
+          (ConLeche.tgtStoredRules env₂.find? (·.constsResolve env₂) cvP (pP.majorIdxAt m)
+            (pP.rulePrefixAt m) MP rhssP) :: env.consts⟩) s1.store
+        (fe.push (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) rules)) :=
+      ⟨hcoh.push _, Pushed.push _ _, by simp only [IFEnv.push]; omega, ⟨_, hfe1, rfl⟩,
+        ProjOut.push hcoh _ (by intro t h; cases h)⟩
+    exact InstRel.trans c2.ext h1 hrel
+
 end ConRon.Bridge.Inductives
