@@ -73,6 +73,15 @@ macro "bp_copy_head " F:term:max xs:term:max : tactic => `(tactic| (
     have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
   subst hqx))
 
+/-- `arena::monad::intern_n_node` ⊑ `internNNode` (restated from
+`Inductives/Prims.lean`, which is not below this module). -/
+@[lockstep] theorem bp_intern_n_node_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (v : arena.store.NNodeView) (hvwf : NNodeViewWF v) :
+    LS pers (fun a b => b = absNIdx a) (arena.monad.intern_n_node pers st v) lst
+      (Arena.internNNode (absNNodeView v)) :=
+  LS.ofSim₀ fun _ h => intern_n_node_run₀ hrel hinv v hvwf h
+
 /-! ## The record copies -/
 
 /-- `ctors_dup` is the identity on the abstraction from the cursor on. -/
@@ -876,6 +885,14 @@ theorem nidx_vec_beq_off_abs {a b : alloc.vec.Vec arena.handle.NIdx} {off : Std.
     · rw [if_neg (by scalar_tac), if_neg (by scalar_tac), if_neg (by scalar_tac)] at h
       exact nidx_vec_beq_off_cmp hi1v hi (by omega) (fun j o hj h => ih j () hj o h) h
 
+/-- `nidx_vec_beq_off a 1 b 0`: `a`'s tail against `b`. -/
+@[lockstep] theorem nidx_vec_beq_off_twin1 (a b : alloc.vec.Vec arena.handle.NIdx) :
+    LSP (arena.inductives.block_parts.nidx_vec_beq_off a 1#usize b 0#usize)
+      (fun o => TwinEq ((a.val.drop 1).map absNIdx == b.val.map absNIdx) o) := by
+  intro o h
+  rw [TwinEq, nidx_vec_beq_off_abs _ o h]
+  simp [usz_zero_val]
+
 /-! ## The recogniser's readers -/
 
 /-- `rec_target_of` ⊑ `recTargetOf`. -/
@@ -1478,6 +1495,92 @@ theorem absIConstantVal_type (cv : arena.env.IConstantVal) :
 attribute [local lockstep_simp] absNIdxL usz_zero_val absIConstantVal_levelParams
   absIConstantVal_name absIConstantVal_type
 
+/-- The twin's eliminator read: `elim :: relps` with `relps == lps` and `elim`
+fresh is the large eliminator. -/
+def largeOf (rl0 lps : List NIdx) : Option NIdx :=
+  match rl0 with
+  | [] => none
+  | elim :: relps => if relps == lps && !lps.contains elim then some elim else none
+
+/-- The twin's last stretch of `blockShape?` (the Rust's `block_shape_elim`). -/
+def elimTwin (members : List MemberShape) (recsL : List RecShape) (nPd : Nat) (s : LIdx)
+    (isProp : Bool) (rl0 lps : List NIdx) : AM (Option BlockShape) :=
+  match largeOf rl0 lps with
+  | some elim => pure (some ⟨members, recsL, nPd, elim, s, true, isProp⟩)
+  | none => do
+    let anon ← internNNode .anonymous
+    pure (some ⟨members, recsL, nPd, anon, s, false, isProp⟩)
+
+theorem vec_len_pos_of_ne {α : Type} {v : alloc.vec.Vec α} (h : ¬ v.len = 0#usize) :
+    0 < v.val.length := by
+  rcases hv : v.val with _ | ⟨x, xs⟩
+  · exact absurd (by have h0 : v.len.val = 0 := by simp [hv]
+                     scalar_tac) h
+  · simp
+
+/-- `elimTwin` with the Rust's tests. -/
+theorem elimTwin_eq (members : List MemberShape) (recsL : List RecShape) (nPd : Nat) (s : LIdx)
+    (isProp : Bool) (rl0 lps : alloc.vec.Vec arena.handle.NIdx) :
+    elimTwin members recsL nPd s isProp (absNIdxL rl0) (absNIdxL lps) =
+      (if h : rl0.len = 0#usize then
+        internNNode .anonymous >>= fun anon =>
+          pure (some ⟨members, recsL, nPd, anon, s, false, isProp⟩)
+      else if ((rl0.val.drop 1).map absNIdx == absNIdxL lps &&
+          !(absNIdxL lps).contains (absNIdx (rl0.val[0]'(vec_len_pos_of_ne h)))) = true then
+        pure (some ⟨members, recsL, nPd, absNIdx (rl0.val[0]'(vec_len_pos_of_ne h)), s, true,
+          isProp⟩)
+      else
+        internNNode .anonymous >>= fun anon =>
+          pure (some ⟨members, recsL, nPd, anon, s, false, isProp⟩) : AM (Option BlockShape)) := by
+  by_cases h : rl0.len = 0#usize
+  · have hv : rl0.val = [] := by
+      have h0 : rl0.len.val = 0 := by rw [h]; rfl
+      simpa using h0
+    rw [dif_pos h, elimTwin]
+    have e : absNIdxL rl0 = [] := by simp [absNIdxL, hv]
+    rw [e]; rfl
+  · rw [dif_neg h, elimTwin]
+    have e : absNIdxL rl0 = absNIdx (rl0.val[0]'(vec_len_pos_of_ne h)) ::
+        (rl0.val.drop 1).map absNIdx := by
+      have hd := List.drop_eq_getElem_cons (vec_len_pos_of_ne h) (l := rl0.val)
+      rw [List.drop_zero] at hd
+      simp only [absNIdxL]
+      conv_lhs => rw [hd]
+      rfl
+    rw [e]
+    by_cases hc : ((List.map absNIdx (List.drop 1 rl0.val) == absNIdxL lps &&
+        !(absNIdxL lps).contains (absNIdx (rl0.val[0]'(vec_len_pos_of_ne h)))) = true)
+    · rw [if_pos hc]; simp only [largeOf, if_pos hc]
+    · rw [if_neg hc]; simp only [largeOf, if_neg hc]
+
+section elim
+
+attribute [local lockstep_simp] usz_zero_val
+
+/-- `block_shape_elim` ⊑ `elimTwin`. -/
+@[lockstep] theorem block_shape_elim_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (members : alloc.vec.Vec arena.inductives.block_parts.MemberShape)
+    (recs : alloc.vec.Vec arena.inductives.block_parts.RecShape) (n_p : Std.U64)
+    (s : arena.handle.LIdx) (is_prop : Bool) (lps rl0 : alloc.vec.Vec arena.handle.NIdx) :
+    LS pers (fun a b => b = a.map absBlockShape)
+      (arena.inductives.block_parts.block_shape_elim pers st members recs n_p s is_prop lps rl0) lst
+      (elimTwin (members.val.map absMemberShape) (recs.val.map absRecShape) (absU n_p)
+        (absLIdx s) is_prop (absNIdxL rl0) (absNIdxL lps)) := by
+  rw [arena.inductives.block_parts.block_shape_elim, elimTwin_eq]
+  lockstep
+
+end elim
+
+/-- The twin's `isProp` read off `lvlEq? s zero`. -/
+def isPropOf : Option Bool → Bool
+  | some true => true
+  | some false => false
+  | none => false
+
+theorem isPropOf_some (b : Bool) : isPropOf (some b) = b := by cases b <;> rfl
+theorem isPropOf_none : isPropOf none = false := rfl
+
 /-- The twin's `blockShape?` from the result sort on (the Rust's
 `block_shape_sort`), with the block's pieces as parameters. -/
 def bsTail (nPd : Nat) (cvTs : List IConstantVal) (cs : List (IConstantVal × Nat × Nat))
@@ -1485,10 +1588,7 @@ def bsTail (nPd : Nat) (cvTs : List IConstantVal) (cs : List (IConstantVal × Na
     (lps rl0 : List NIdx) (s : LIdx) : AM (Option BlockShape) := do
   let z ← zeroLevel
   let eq ← lvlEq? s z
-  let isProp : Bool := match eq with
-    | some true => true
-    | some false => false
-    | none => false
+  let isProp : Bool := isPropOf eq
   let ctors : List (IConstantVal × Nat) := cs.map fun c => (c.1, c.2.2)
   let lvls ← paramLevels lps
   let groups ← blockGroups names lvls nPd cvTs.length ctors
@@ -1497,18 +1597,11 @@ def bsTail (nPd : Nat) (cvTs : List IConstantVal) (cs : List (IConstantVal × Na
   let recsL ← rs.mapM fun r => do
     let tgt ← recTargetOf names r.2.1 r.1.type
     pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2.map (·.rhs)⟩ : RecShape)
-  let large? : Option NIdx := match rl0 with
-    | [] => none
-    | elim :: relps => if relps == lps && !lps.contains elim then some elim else none
-  match large? with
-  | some elim => pure (some ⟨members, recsL, nPd, elim, s, true, isProp⟩)
-  | none => do
-    let anon ← internNNode .anonymous
-    pure (some ⟨members, recsL, nPd, anon, s, false, isProp⟩)
+  elimTwin members recsL nPd s isProp rl0 lps
 
 section sort
 
-attribute [local lockstep_inline] arena.inductives.block_parts.block_shape_elim
+attribute [local lockstep_simp] isPropOf_some isPropOf_none
 
 set_option maxHeartbeats 4000000 in
 /-- `block_shape_sort` ⊑ `bsTail`. -/
@@ -1529,8 +1622,6 @@ theorem block_shape_sort_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
   rw [arena.inductives.block_parts.block_shape_sort]
   unfold bsTail
   lockstep
-  trace_state
-  all_goals sorry
 
 end sort
 
@@ -1561,7 +1652,7 @@ unfolded in place; `block_shape_sort` is `bsTail`). -/
       all_goals try
         (refine LS.tail (block_shape_sort_ls hrel hinv _ _ _ _ _ _ _ _
           (by simpa [usz_zero_val] using hw')) ?_ (fun _ _ h => h)
-         simp only [bsTail, absNIdxL, absICVL_length, usz_zero_val]
+         simp only [bsTail, isPropOf, absNIdxL, absICVL_length, usz_zero_val]
          rfl)
       trace_state
       all_goals sorry
