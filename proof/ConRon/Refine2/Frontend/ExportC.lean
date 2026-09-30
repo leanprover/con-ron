@@ -99,7 +99,99 @@ theorem line_err_to_check_refines {e line_no o}
 
 Ported from `RefineOld/Frontend/IndR.lean` (task #87 §8) by task #97-P5-Front
 round 2: list equality of the code points, and — on a `StrWF` payload and a
-literal of valid code points — equality of the abstracted strings. -/
+literal of valid code points — equality of the abstracted strings.  Task #97
+round 3 moved these to `ProjRec.lean` because `is_proj_iota_name` read them;
+task #105 deletes that file (the projection rewrite it served is gone), and
+`cps_beq_val`/`cps_beq_str` come back here — the one home left that both
+`ExportC.lean` and `ExportCInd.lean` (`cps_beq_rec`, the quot-kind decline
+path) can reach. -/
+
+theorem slice_index_some {α : Type} {s : Slice α} {i : Std.Usize} {x : α}
+    (h : Slice.index_usize s i = ok x) : s.val[i.val]? = some x := by
+  rw [Slice.index_usize] at h
+  have hb : s[i]? = s.val[i.val]? := rfl
+  rcases hi : s.val[i.val]? with _ | y
+  · rw [hb, hi] at h; simp at h
+  · rw [hb, hi] at h
+    exact congrArg some (Result.ok_injective h)
+
+theorem cps_beq_loop_val (N : Nat) :
+    ∀ (s : alloc.vec.Vec Std.U32) (lit : Slice Std.U32) (n i : Std.Usize) (b : Bool),
+      s.val.length - i.val = N → n.val = s.val.length → s.val.length = lit.val.length →
+      frontend.text.cps_beq_loop s lit n i = ok b →
+      (b = true ↔ s.val.drop i.val = lit.val.drop i.val) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro s lit n i b hN hn hlen h
+    rw [frontend.text.cps_beq_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      have hltv : i.val < s.val.length := by scalar_tac
+      obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨c2, hc2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hcv : s.val[i.val]'(by omega) = c := by
+        have hg := vec_index_some hc
+        rw [List.getElem?_eq_getElem (by omega)] at hg
+        exact Option.some_injective _ hg
+      have hc2v : lit.val[i.val]'(by omega) = c2 := by
+        have hg := slice_index_some hc2
+        rw [List.getElem?_eq_getElem (by omega)] at hg
+        exact Option.some_injective _ hg
+      have hds : s.val.drop i.val = c :: s.val.drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons (show i.val < s.val.length by omega), hcv]
+      have hdl : lit.val.drop i.val = c2 :: lit.val.drop (i.val + 1) := by
+        rw [List.drop_eq_getElem_cons (show i.val < lit.val.length by omega), hc2v]
+      rw [hds, hdl]
+      split at h
+      · rename_i hne
+        simp only [Result.ok.injEq] at h
+        have hval : ¬ (c.val = c2.val) := by simpa using hne
+        have hcc : c ≠ c2 := fun hq => hval (congrArg Std.UScalar.val hq)
+        simp [← h, hcc]
+      · rename_i hne
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := ConRon.Refine.Nat.uadd_val hi2
+        have hceq : c = c2 := Std.UScalar.val_eq_imp_iff.mpr (by simpa using hne)
+        rw [ih (s.val.length - i2.val) (by omega) s lit n i2 b rfl hn hlen h, hi2v]
+        simp [hceq]
+    · rename_i hge
+      have hle : s.val.length ≤ i.val := by scalar_tac
+      rw [← Result.ok_injective h]
+      rw [List.drop_eq_nil_of_le (by omega), List.drop_eq_nil_of_le (by omega)]
+      simp
+
+/-- `text::cps_beq` is list equality of the code points. -/
+theorem cps_beq_val {s : alloc.vec.Vec Std.U32} {lit : Slice Std.U32} {b : Bool}
+    (h : frontend.text.cps_beq s lit = ok b) : (b = true ↔ s.val = lit.val) := by
+  rw [frontend.text.cps_beq] at h
+  split at h
+  · rename_i hne
+    have hl : s.val.length ≠ lit.val.length := by
+      simpa [alloc.vec.Vec.len, Slice.len] using hne
+    simp only [Result.ok.injEq] at h
+    refine ⟨fun hb => absurd (h ▸ hb) (by simp), fun he => ?_⟩
+    exact absurd (congrArg List.length he) hl
+  · rename_i hne
+    have hl : s.val.length = lit.val.length := by
+      simpa [alloc.vec.Vec.len, Slice.len] using hne
+    have hh := cps_beq_loop_val _ s lit _ 0#usize b rfl (by simp [alloc.vec.Vec.len]) hl h
+    simpa [show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hh
+
+/-- A scanned spelling equals a literal exactly when `cps_beq` says so. -/
+theorem cps_beq_str {s : alloc.vec.Vec Std.U32} {lit : Slice Std.U32} {b : Bool}
+    (hs : ConRon.Refine.StrWF s) (hL : ∀ c ∈ lit.val, Nat.isValidChar c.val)
+    (h : frontend.text.cps_beq s lit = ok b) :
+    (b = true ↔ ConRon.Refine.absString s = String.ofList (lit.val.map fun c => Char.ofNat c.val)) := by
+  rw [cps_beq_val h]
+  constructor
+  · intro he; simp only [ConRon.Refine.absString, he]
+  · intro he
+    have hlen : lit.val.length ≤ Std.Usize.max := by scalar_tac
+    have ht : ConRon.Refine.StrWF (alloc.vec.Vec.from lit.val hlen) := by
+      intro c hc; exact hL c (by simpa using hc)
+    have := ConRon.Refine.Name.absString_inj hs ht
+      (by rw [he]; simp [ConRon.Refine.absString, alloc.vec.Vec.from_val])
+    rw [this, alloc.vec.Vec.from_val]
 
 /-- **The `"safe"` test of `process_line_core_d`'s `defn` arm.** -/
 theorem safe_spelling_refines {s : alloc.vec.Vec Std.U32} {b : Bool}
@@ -229,6 +321,14 @@ theorem scan_err_to_check_refines {e ce}
     obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h <;>
     simp only [kernel.core_types.internal, kernel.core_types.native, Result.ok.injEq] at h <;>
     subst h <;> simp [absErrTag, absAErrKind]
+
+/-- An `AErrSim` at one kind is one at any equivalent kind: the move every
+reader's "the intern failed" arm makes when its own error is re-tagged going
+up. -/
+theorem AErrSim.of_kind {γ : Type} {e e' : kernel.core_types.CheckError}
+    {x : Except Arena.CheckError γ} (h : AErrSim e x)
+    (hk : absAErrKind e' = absAErrKind e) : AErrSim e' x := by
+  intro k hk'; exact h k (hk ▸ hk')
 
 theorem etables_count_abs {rt lt} (hrel : ETablesRel rt lt) {n : Std.Usize}
     (h : arena.store.ETables.count rt = ok n) : n.val = lt.count := by
@@ -395,8 +495,8 @@ theorem state_d_init_refines {pers rst lst o}
       obtain ⟨it1, hit1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨it2, hit2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have ho := Result.ok_injective h; subst ho
-      exact ⟨_, lst2, rfl, ⟨id_table_singleton_rel hit, id_table_singleton_rel hit1,
-        id_table_empty_rel hit2, rfl⟩, hrel2, hinv2⟩
+      exact ⟨_, lst2, rfl, ⟨⟨id_table_singleton_rel hit, id_table_singleton_rel hit1,
+        id_table_empty_rel hit2, rfl⟩, ⟨⟩⟩, hrel2, hinv2⟩
 
 /-! ## Booking a pushed record -/
 
@@ -1045,7 +1145,7 @@ write.  Both sides intern blindly — neither checks that the parent handle
 resolves (task #97-P5-Front round 3, F11) — so lockstep is all it takes. -/
 theorem name_entry_tail {pers rst lst rsd lsd i v o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (hd : StateDRel rsd lsd) (hi : StateDInv rsd) (hvwf : NNodeViewWF v)
+    (hd : StateDRel rsd lsd) (_hi : StateDInv rsd) (hvwf : NNodeViewWF v)
     (h : (do
       let (r3, ar1) ← arena.store.EStore.intern_name rst.store pers v
       match r3 with
@@ -1076,7 +1176,7 @@ theorem name_entry_tail {pers rst lst rsd lsd i v o}
     obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS
     refine SimD.mk (lsd' := { lsd with names := lsd.names.insert (absU i) (absNIdx hh) })
       ?_ { hd with names := id_table_insert_rel hd.names hit }
-      ⟨hi.1, hi.2, hi.3, hi.4, hi.5, hi.6⟩ hrel1 hinv1
+      ⟨⟩ hrel1 hinv1
     rw [am_run_bind', hx1]; rfl
 
 /-- **`parse_name_entry_d` refines `parseNameEntryD`**
@@ -1212,7 +1312,7 @@ Round 3's F11: lockstep, the freshness test, the value half, the intern and
 the table write, in that order on both sides. -/
 theorem parse_level_entry_d_refines {pers rst lst rsd lsd i r o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (hd : StateDRel rsd lsd) (hi : StateDInv rsd)
+    (hd : StateDRel rsd lsd) (_hi : StateDInv rsd)
     (h : frontend.export_c.parse_level_entry_d pers rst.store rsd i r = ok o) :
     SimD pers lst (o.1, withStore rst o.2.1, o.2.2)
       (parseLevelEntryD lsd (absU i) (absLevelRec r)) := by
@@ -1260,7 +1360,7 @@ theorem parse_level_entry_d_refines {pers rst lst rsd lsd i r o}
         obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS
         refine SimD.mk (lsd' := { lsd with levels := lsd.levels.insert (absU i) (absLIdx hh) })
           ?_ { hd with levels := id_table_insert_rel hd.levels hit }
-          ⟨hi.1, hi.2, hi.3, hi.4, hi.5, hi.6⟩ hrel1 hinv1
+          ⟨⟩ hrel1 hinv1
         rw [hpre, am_run_bind', hx1]; rfl
 
 /-- A `SimL` claim moves along a twin run equation. -/
@@ -1571,7 +1671,7 @@ theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
 Round 3's F11: the freshness test, the value half, the table write. -/
 theorem parse_expr_entry_d_refines {pers rst lst rsd lsd i r o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (hd : StateDRel rsd lsd) (hi : StateDInv rsd) (hs : ExprRecStrWF r)
+    (hd : StateDRel rsd lsd) (_hi : StateDInv rsd) (hs : ExprRecStrWF r)
     (hnat : NatValSpec r)
     (h : frontend.export_c.parse_expr_entry_d pers rst.store rsd i r = ok o) :
     SimD pers lst (o.1, withStore rst o.2.1, o.2.2)
@@ -1601,7 +1701,7 @@ theorem parse_expr_entry_d_refines {pers rst lst rsd lsd i r o}
       obtain ⟨lst1, hx1, hrel1, hinv1⟩ := LOut.dest hV
       refine SimD.mk (lsd' := { lsd with exprs := lsd.exprs.insert (absU i) (absEIdx hh) })
         ?_ { hd with exprs := id_table_insert_rel hd.exprs hit }
-        ⟨hi.1, hi.2, hi.3, hi.4, hi.5, hi.6⟩ hrel1 hinv1
+        ⟨⟩ hrel1 hinv1
       rw [am_run_bind', SimLR.apply hF, except_ok_bind, am_run_bind', hx1]; rfl
 
 /-- **`parse_cv_d` refines `parseCVD`** (`ExportC.lean:286-290`). -/
@@ -1851,6 +1951,52 @@ theorem parse_rules_d_refines {rsd lsd lst rus o} (hd : StateDRel rsd lsd)
         obtain ⟨e1, e2⟩ := cursor_push hout1 hi1
         exact Or.inr ⟨y, out1, i1, rfl, e1, e2, h⟩)
     rfl h
+
+/-! ## The reorder's two `dup`s
+
+`order_block_ctors` (`validate_ind_d`'s reordering, `ExportCInd.lean`) copies
+every constructor record it visits, `ind_ctor_rec_dup` deep — the twin shares.
+Task #105 moves these back here from the now-deleted `ProjRec.lean` (round 3
+put them there because `registerProjOwners` also copied constructor records;
+that caller is gone, `validate_ind_d`'s is not). -/
+
+/-- **`cv_rec_dup` is the identity**, the house `foo_dup`. -/
+theorem cv_rec_dup_refines {cv cv'} (h : frontend.export_c.cv_rec_dup cv = ok cv') :
+    absCVRec cv' = absCVRec cv := by
+  rw [frontend.export_c.cv_rec_dup] at h
+  obtain ⟨lps1, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  have H := vec_cursor_copy cv.level_params absU64 absU64
+    (fun k out => frontend.export_c.cv_rec_dup_loop cv.level_params out
+      (alloc.vec.Vec.len cv.level_params) k)
+    (fun k out o hn h => by
+      rw [frontend.export_c.cv_rec_dup_loop.eq_def] at h
+      rw [if_neg (show ¬ k < alloc.vec.Vec.len cv.level_params by scalar_tac)] at h
+      rw [← Result.ok_injective h])
+    (fun k x out o hx h => by
+      rw [frontend.export_c.cv_rec_dup_loop.eq_def] at h
+      rw [if_pos (show k < alloc.vec.Vec.len cv.level_params by
+        have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+      obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have htx : t = x := Option.some_injective _ ((vec_index_some ht).symm.trans hx)
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨e1, e2⟩ := cursor_push hout1 hk1
+      exact ⟨k1, t, out1, e2, e1, by rw [htx], h⟩)
+    0#usize _ lps1 hl
+  simp only [show (alloc.vec.Vec.with_capacity Std.U64 (alloc.vec.Vec.len cv.level_params)).val
+      = [] from rfl, List.map_nil, List.nil_append,
+    show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at H
+  simp only [absCVRec, absU64s, H]
+
+/-- **`ind_ctor_rec_dup` is the identity.** -/
+theorem ind_ctor_rec_dup_refines {c c'}
+    (h : frontend.export_c.ind_ctor_rec_dup c = ok c') :
+    absIndCtorRec c' = absIndCtorRec c := by
+  rw [frontend.export_c.ind_ctor_rec_dup] at h
+  obtain ⟨cv1, hcv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  simp only [absIndCtorRec, cv_rec_dup_refines hcv]
 
 /-! ## The parse result -/
 
