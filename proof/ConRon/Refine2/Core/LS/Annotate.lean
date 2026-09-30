@@ -269,10 +269,17 @@ attribute [local lockstep] proj_table_name_at_ls
     -- glue: the one-binder initial stack is well formed (its datum is `view`'s)
     simp only [PG2.viewWF] at *
     first
-    | refine LS.tail (annotate_lams_ls hk hx ?_ hrel hinv hctx hf) ?_ (fun _ _ h => h)
-    | refine LS.tail (annotate_pis_ls hk hx ?_ hrel hinv hctx hf) ?_ (fun _ _ h => h)
-    · exact PG2.stk_push_wf (by assumption) (by simp [alloc.vec.Vec.new]) (by assumption)
-    · lockstep_congr
+    | -- glue: the table-less `.proj` verdict (task #105, PROJREJ): the port reads
+      -- `is_some` and the argument count, the twin `isSome` of the abstraction
+      -- and `targs.length`
+      (refine LS.err (errSim_fail (Eq.trans ‹absAErrKind _ = _› ?_))
+       congr 2
+       simp_all [absU, core.option.Option.is_some, Option.isSome_map])
+    | (first
+       | refine LS.tail (annotate_lams_ls hk hx ?_ hrel hinv hctx hf) ?_ (fun _ _ h => h)
+       | refine LS.tail (annotate_pis_ls hk hx ?_ hrel hinv hctx hf) ?_ (fun _ _ h => h)
+       · exact PG2.stk_push_wf (by assumption) (by simp [alloc.vec.Vec.new]) (by assumption)
+       · lockstep_congr)
 
 end loops
 

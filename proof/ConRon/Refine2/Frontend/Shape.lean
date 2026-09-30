@@ -2,12 +2,23 @@
 # `ConRon.Refine2.Frontend.Shape` — the parse state, and the shapes above it
 
 **Task #97-P5-Frontend** (DESIGN.md §8.2, Theorem 2), the frontend tier's
-vocabulary: `StateDRel` — `export_c::StateD`'s nineteen fields against
+vocabulary: `StateDRel` — `export_c::StateD`'s fields against
 `Arena/Frontend/ExportC.lean`'s — the two error channels the parse has that
-the checker tier has not, and the two hypotheses about the unverified
-modeller seam.
+the checker tier has not.
 
-## The three things this tier decides
+**Task #105** (con-leche's `uniform-inds` merge) shrinks this module hard:
+the in-process modeller (`Frontend/InModel*.lean`) and the projection-function
+rewrite (`Frontend/ProjRec.lean`) are deleted upstream, so every inductive
+block installs through the kernel's uniform installer unconditionally and the
+parse's own state loses every field either one used —
+`StateD` goes from nineteen fields to four (`names`, `levels`, `exprs`,
+`decls`), and `ParseResultD` from seven fields to one (`decls`).  Gone with
+them: `ModelCtx`/`CtxRel`, `Modeller`/`ModellerRefines`/`SimGen` (the seam
+itself), `BlockRec`/`MIndTypeRec`/`MIndCtorRec`/`MIndRecRec` and their `abs*`
+functions, `ProjRecOwner` and its `abs*`, and the `noteDecl` bookkeeping's
+`absNoteEntry*`.
+
+## The two things this tier still decides
 
 **1. The parse has TWO error channels and the checker tier has neither.**
 
@@ -34,18 +45,7 @@ cases and they belong together in `Refine2/Shape.lean`; keeping them apart is
 what stops this tier importing the whole declaration checker, and DESIGN.md's
 section lists the merge.
 
-**2. Half of `arena::frontend` threads a bare `&mut EStore`, not an
-`&mut AState`.**  The parse touches no memo (task #97-P4e part 1), so
-**twenty-four** of the 221 — `state_d_init`, `prelude_key`, `front_of`,
-`note_decl`, `parse_expr_rec_d` and nineteen more — take the store alone,
-where the seventy-six above `proj_rewrite_d` take the whole state (part 2's
-narrowing; the remaining 121 take no state at all).  Rather than a second family of shapes,
-`withStore` lifts the port's post-store into the ambient `AState` —
-`{ rst with store := e }` — and the one family covers both.  That the twin's
-corresponding action really leaves the memos alone is not assumed: it is what
-the proof shows, since `AStateRel₀` at the lifted state demands exactly it.
-
-**3. The frontend tier of Theorem 2 needs NO well-formedness hypothesis on a
+**2. The frontend tier of Theorem 2 needs NO well-formedness hypothesis on a
 term**, and that is the arena's dividend.  `RefineOld/Frontend/Base.lean`'s
 `StateDWF` had six clauses — `IdTableWF NameWF`, `ExprWF` on the declarations,
 `MapValsWF` on the two projection tables — because the `Expr`-tree port's
@@ -57,12 +57,10 @@ definition's `safety` and a quotient record's `kind` — and that is
 `DeclRecStrWF`, task #87 §8's finding, carried here as the scanner's
 obligation it always was.
 
-**4. Lockstep (task #97-T2-LOCKSTEP, lane Frontend).**  Every success arm
+**3. Lockstep (task #97-T2-LOCKSTEP, lane Frontend).**  Every success arm
 below relates the post-states by `AStateRel₀` — the same data in two
 representations — and carries no `Ext` and no `StoreWF`: those are the twin's
-own invariants, and Theorem 1's (DESIGN §8.2, task #97-T2-AUDIT §6).  The
-modeller seam `ModellerRefines`/`SimGen` is lockstep too: the Rust generator
-does what the twin's does, from related states to related states.
+own invariants, and Theorem 1's (DESIGN §8.2, task #97-T2-AUDIT §6).
 
 ## `sorry` count in this file: 0
 -/
@@ -243,14 +241,15 @@ structure IdTableRel {T α : Type} (A : T → α)
     absU64 A
   inv : ConRon.Refine.HashMap.Inv hU64 t.sparse
 
-/-! ## Probing a handle-keyed table of the parse
+/-! ## Probing a handle-keyed table
 
-Every `HashMap2` of `StateD` and of `ModelCtx` is keyed on an `NIdx`, and the
-restriction is `anyN` — no restriction at all, because `absNIdx` is injective
-on every handle.  So one lemma serves every probe of this tier: the port's
-`get` answers `toFun`, with no side condition but the table's own `Inv`. -/
+Every `HashMap2` a frontend module keeps (the `ExprOps` memo tables among
+them) is keyed on an `NIdx`, and the restriction is `anyN` — no restriction at
+all, because `absNIdx` is injective on every handle.  So one lemma serves
+every probe: the port's `get` answers `toFun`, with no side condition but the
+table's own `Inv`. -/
 
-/-- The key restriction every table of the parse state takes: none. -/
+/-- The key restriction every `NIdx`-keyed table of this tier takes: none. -/
 @[reducible] def anyN (_ : arena.handle.NIdx) : Prop := True
 
 theorem anyNKeysOk {V : Type} (m : ron.hashmap2.HashMap2 arena.handle.NIdx V) :
@@ -265,124 +264,25 @@ theorem nidx_get {V : Type} {m : ron.hashmap2.HashMap2 arena.handle.NIdx V}
     r = toFun m k :=
   ConRon.Refine.HashMap2.get_refines_gen nidx_eq2 hinv (anyNKeysOk m) trivial h
 
-/-! ## The frontend's own records -/
-
-def absProjRecOwner (o : frontend.types.ProjRecOwner) : ProjRecOwner :=
-  ⟨absNIdx o.t, o.lps.val.map absNIdx, absU o.n_p, absNIdx o.ctor, absU o.n_f,
-    absNIdx o.rec_name, o.rec_lps.val.map absNIdx, absEIdx o.rec_type,
-    absU o.num_motives, absU o.num_minors⟩
-
-def absMIndTypeRec (t : frontend.types.MIndTypeRec) : MIndTypeRec :=
-  ⟨absIConstantVal t.cv, absU t.n_p, absU t.n_idx, t.ctors.val.map absNIdx,
-    t.is_rec, t.is_reflexive, absU t.num_nested⟩
-
-def absMIndCtorRec (c : frontend.types.MIndCtorRec) : MIndCtorRec :=
-  ⟨absIConstantVal c.cv, absU c.n_p, absU c.n_f⟩
-
-def absMIndRecRec (r : frontend.types.MIndRecRec) : MIndRecRec :=
-  ⟨absIConstantVal r.cv, absU r.n_p, absU r.n_m, absU r.nm, absU r.n_i,
-    r.rules.val.map absIRecRule⟩
-
-def absBlockRec (b : frontend.types.BlockRec) : BlockRec :=
-  ⟨b.types.val.map absMIndTypeRec, b.ctors.val.map absMIndCtorRec,
-    b.recs.val.map absMIndRecRec⟩
+/-! ## The frontend's own containers -/
 
 /-- `arena::env::IDeclaration` lists, at the containers the twin has.  The
-`…Arr` family is the parse's, whose `decls` is an `Array`; the `…L` family is
-`Refine2/Checker/Shape.lean`'s and is reused where the twin takes a `List`. -/
+`…Arr` family is the parse's, whose `decls` is an `Array`. -/
 def absIDeclArr (v : alloc.vec.Vec arena.env.IDeclaration) : Array IDeclaration :=
   (v.val.map absIDeclaration).toArray
-def absIDeclArrFrom (v : alloc.vec.Vec arena.env.IDeclaration) (i : Std.Usize) :
-    Array IDeclaration := ((v.val.drop i.val).map absIDeclaration).toArray
 def absNIdxArr (v : alloc.vec.Vec arena.handle.NIdx) : Array NIdx :=
   (v.val.map absNIdx).toArray
-def absProjRecOwnerL (v : alloc.vec.Vec frontend.types.ProjRecOwner) :
-    List ProjRecOwner := v.val.map absProjRecOwner
-def absBinderPairs (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
-    List (EIdx × ConLeche.BinderMeta) :=
-  v.val.map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)
-def absBinderPairsFrom
-    (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
-    (i : Std.Usize) : List (EIdx × ConLeche.BinderMeta) :=
-  (v.val.drop i.val).map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)
 
-/-- `proj_rec`'s three tuple aliases, which the twin spells as tuples too
-(task #97-P4e part 2: *"the twin's tuples, spelled as tuples"*). -/
-def absProjTypeRec
-    (t : arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) × arena.handle.EIdx ×
-      Std.U64 × Std.U64 × (alloc.vec.Vec arena.handle.NIdx) × Bool) :
-    NIdx × List NIdx × EIdx × Nat × Nat × List NIdx × Bool :=
-  (absNIdx t.1, t.2.1.val.map absNIdx, absEIdx t.2.2.1, absU t.2.2.2.1,
-    absU t.2.2.2.2.1, t.2.2.2.2.2.1.val.map absNIdx, t.2.2.2.2.2.2)
-
-def absProjCtorRec (c : arena.handle.NIdx × Std.U64 × arena.handle.EIdx) :
-    NIdx × Nat × EIdx := (absNIdx c.1, absU c.2.1, absEIdx c.2.2)
-
-def absProjRecRec
-    (r : arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) × arena.handle.EIdx ×
-      Std.U64 × Std.U64) : NIdx × List NIdx × EIdx × Nat × Nat :=
-  (absNIdx r.1, r.2.1.val.map absNIdx, absEIdx r.2.2.1, absU r.2.2.2.1,
-    absU r.2.2.2.2)
-
-def absProjTypeRecL
-    (v : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
-      arena.handle.EIdx × Std.U64 × Std.U64 × (alloc.vec.Vec arena.handle.NIdx) × Bool)) :
-    List (NIdx × List NIdx × EIdx × Nat × Nat × List NIdx × Bool) :=
-  v.val.map absProjTypeRec
-def absProjTypeRecLFrom
-    (v : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
-      arena.handle.EIdx × Std.U64 × Std.U64 × (alloc.vec.Vec arena.handle.NIdx) × Bool))
-    (i : Std.Usize) :
-    List (NIdx × List NIdx × EIdx × Nat × Nat × List NIdx × Bool) :=
-  (v.val.drop i.val).map absProjTypeRec
-def absProjCtorRecL (v : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx)) :
-    List (NIdx × Nat × EIdx) := v.val.map absProjCtorRec
-def absProjCtorRecLFrom
-    (v : alloc.vec.Vec (arena.handle.NIdx × Std.U64 × arena.handle.EIdx)) (i : Std.Usize) :
-    List (NIdx × Nat × EIdx) := (v.val.drop i.val).map absProjCtorRec
-def absProjRecRecL
-    (v : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
-      arena.handle.EIdx × Std.U64 × Std.U64)) : List (NIdx × List NIdx × EIdx × Nat × Nat) :=
-  v.val.map absProjRecRec
-def absProjRecRecLFrom
-    (v : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
-      arena.handle.EIdx × Std.U64 × Std.U64)) (i : Std.Usize) :
-    List (NIdx × List NIdx × EIdx × Nat × Nat) :=
-  (v.val.drop i.val).map absProjRecRec
-
-/-- `note_decl`'s intermediate: one entry per constant a pushed record
-declares.  The twin builds the same four-tuple list inline in `noteDecl`. -/
-def absNoteEntry
-    (e : arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) × arena.handle.EIdx ×
-      (Option Std.U64)) : NIdx × List NIdx × EIdx × Option Nat :=
-  (absNIdx e.1, e.2.1.val.map absNIdx, absEIdx e.2.2.1, e.2.2.2.map absU)
-
-def absNoteEntryL
-    (v : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
-      arena.handle.EIdx × (Option Std.U64))) : List (NIdx × List NIdx × EIdx × Option Nat) :=
-  v.val.map absNoteEntry
-def absNoteEntryLFrom
-    (v : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec arena.handle.NIdx) ×
-      arena.handle.EIdx × (Option Std.U64))) (i : Std.Usize) :
-    List (NIdx × List NIdx × EIdx × Option Nat) :=
-  (v.val.drop i.val).map absNoteEntry
-
-attribute [simp] absProjRecOwner absMIndTypeRec absMIndCtorRec absMIndRecRec
-  absBlockRec absIDeclArr absIDeclArrFrom absNIdxArr
-  absProjRecOwnerL absBinderPairs absBinderPairsFrom absProjTypeRec absProjCtorRec
-  absProjRecRec absProjTypeRecL absProjTypeRecLFrom absProjCtorRecL
-  absProjCtorRecLFrom absProjRecRecL absProjRecRecLFrom absNoteEntry
-  absNoteEntryL absNoteEntryLFrom withStore
+attribute [simp] absIDeclArr absNIdxArr withStore
 
 /-! ## `StateDRel` — the parse state
 
-Nineteen fields against nineteen.  Three `IdTable`s, five handle-keyed
-`HashMap2`s, six `Vec`s, three scalars and two flags.  **Every `RelOn` is at
-`P := True`**, because every key and every value is a handle — see the module
-note's point 3.  The one payload that is not is `in_model_declined`'s reason,
-a `Vec<u32>` against a `String`, and it is not compared: a decline REASON is a
-message like any other (DESIGN §3.1, and task #87 §13's ruling, where
-weakening this very clause was the fix). -/
+Four fields against four (task #105 shrunk this from nineteen: every field
+the modeller and the projection rewrite used — the five `HashMap2` census
+tables, the projection-rewrite receipts, the `in_model`/`in_model_census`
+flags — is gone with them).  Every `RelOn` at a remaining table would be at
+`P := True` (module note point 2); none is left to state, since the three
+`IdTable`s carry their own relation and `decls` is a plain `Array`. -/
 
 /-- `export_c::StateD` against `Arena/Frontend/ExportC.lean`'s. -/
 structure StateDRel (rs : frontend.export_c.StateD) (ls : Arena.Frontend.StateD) :
@@ -391,56 +291,20 @@ structure StateDRel (rs : frontend.export_c.StateD) (ls : Arena.Frontend.StateD)
   levels : IdTableRel absLIdx rs.levels ls.levels
   exprs : IdTableRel absEIdx rs.exprs ls.exprs
   decls : ls.decls = absIDeclArr rs.decls
-  projOwners : RelOn anyN rs.proj_owners ls.projOwners absNIdx absProjRecOwner
-  projLevels : RelOn anyN rs.proj_levels ls.projLevels absNIdx absLIdx
-  projRewrites : ls.projRewrites = absNIdxArr rs.proj_rewrites
-  constTypes : RelOn anyN rs.const_types ls.constTypes absNIdx
-    (fun p => (p.1.val.map absNIdx, absEIdx p.2))
-  heights : RelOn anyN rs.heights ls.heights absNIdx absU
-  inModel : ls.inModel = rs.in_model
-  inModelled : ls.inModelled = absNIdxArr rs.in_modelled
-  genRecords : ls.genRecords = absU rs.gen_records
-  genOwner : RelOn anyN rs.gen_owner ls.genOwner absNIdx absNIdx
-  /-- `inModelGen` is the `CON_LECHE_INMODEL_DUMP` writer's receipt, which no
-  reader below the dump looks at; the twin carries it because DESIGN §8.6's
-  lockstep rule is clause-for-clause, and so does the port.  The relation
-  compares the ORDINALS and the declarations. -/
-  inModelGen : ls.inModelGen =
-    (rs.in_model_gen.val.map fun p => (absU p.1, absIDeclArr p.2)).toArray
-  indCount : ls.indCount = absU rs.ind_count
-  indBlocks : RelOn anyN rs.ind_blocks ls.indBlocks absNIdx absBlockRec
-  inModelCensus : ls.inModelCensus = rs.in_model_census
-  /-- The census's declines: the BLOCK NAMES only.  Task #87 §13 — *"the
-  ruling was to weaken the relation, not to strengthen the hypothesis"*: a
-  decline reason is a message, and the theorem does not read messages. -/
-  inModelDeclined : ls.inModelDeclined.map (·.1) =
-    (rs.in_model_declined.val.map fun p => absNIdx p.1).toArray
 
-/-- The Rust-side invariant of the parse state: the five hash tables'.  The
-three `IdTable`s carry their overflow map's `Inv` inside `IdTableRel`, because
-`Tbl`'s does not travel any other way. -/
-structure StateDInv (rs : frontend.export_c.StateD) : Prop where
-  projOwners : Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rs.proj_owners
-  projLevels : Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rs.proj_levels
-  constTypes : Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rs.const_types
-  heights : Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rs.heights
-  genOwner : Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rs.gen_owner
-  indBlocks : Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rs.ind_blocks
+/-- The Rust-side invariant of the parse state.  Every hash table `StateD`
+used to carry (the census's) is gone (task #105); the three `IdTable`s carry
+their overflow map's `Inv` inside `IdTableRel` already, so there is nothing
+left to state here. -/
+structure StateDInv (_rs : frontend.export_c.StateD) : Prop where
 
-/-- **`export_c::ParseResultD` against `Arena/Frontend/ExportC.lean`'s.**  A
-relation and not a function, for `StateDRel`'s reason: two of its seven fields
-are `HashMap2`s.  The census's declines compare BLOCK NAMES only. -/
+/-- **`export_c::ParseResultD` against `Arena/Frontend/ExportC.lean`'s.**  One
+field against one (task #105 shrunk this from seven: the census's receipts —
+the projection rewrites, the modelled blocks, the generated-record counts —
+are gone with the modeller). -/
 structure ParseResultDRel (rp : frontend.export_c.ParseResultD)
     (lp : Arena.Frontend.ParseResultD) : Prop where
   decls : lp.decls = absIDeclArr rp.decls
-  projRewrites : lp.projRewrites = absNIdxArr rp.proj_rewrites
-  inModelled : lp.inModelled = absNIdxArr rp.in_modelled
-  genRecords : lp.genRecords = absU rp.gen_records
-  genOwner : RelOn anyN rp.gen_owner lp.genOwner absNIdx absNIdx
-  inModelGen : lp.inModelGen =
-    (rp.in_model_gen.val.map fun p => (absU p.1, absIDeclArr p.2)).toArray
-  inModelDeclined : lp.inModelDeclined.map (·.1) =
-    (rp.in_model_declined.val.map fun p => absNIdx p.1).toArray
 
 /-! ## `SimD` / `SimDV` — a line function, which threads the parse state too
 
@@ -626,58 +490,6 @@ def SimStreamD {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst
   | .Ok r => ∃ lsd' lst', x.run lst = .ok (.ok (lsd', A r), lst') ∧
       StateDRel o.2.2 lsd' ∧ StateDInv o.2.2 ∧ AStateRel₀ pers o.2.1 lst' ∧ AStateInv pers o.2.1
   | .Err p => StreamErrSim p (x.run lst)
-
-/-! ## The modeller seam (DESIGN §8.2's `Modeller`)
-
-Task #84 made the parse quantify over the modeller, and Charon renders a trait
-method on a type parameter as a TYPECLASS FIELD, so the extracted parse is
-quantified over an opaque `generate`.  This tier therefore carries the same
-two promises the original campaign carried (`RefineOld/Frontend/Base.lean`'s
-`ModellerWF` and task #87 §16's `ModellerRefines`) — minus the first, which
-the arena does not need: `ModellerWF` said *"every declaration `generate`
-returns is well formed"*, and over handles `absIDeclaration` is total.  **One
-promise, not two.**
-
-The seam is unverified by design (§8.2: a wrong generated record is rejected
-or declined by the fold, never accepted; its correctness decides coverage
-only), so the promise disappears the day the modeller leaves the parse, and
-not before. -/
-
-/-- `types::ModelCtx`'s three borrowed tables against the twin's three
-functions.  `ctx_height` answers `0` on a miss where the twin's `heights` is
-total, which is the one clause that is not a plain probe agreement. -/
-structure CtxRel (rc : frontend.types.ModelCtx) (lc : Arena.Frontend.Ctx) : Prop where
-  tbl : ∀ n, lc.tbl (absNIdx n) =
-    (toFun rc.tbl n).map fun p => (p.1.val.map absNIdx, absEIdx p.2)
-  heights : ∀ n, lc.heights (absNIdx n) = ((toFun rc.heights n).map absU).getD 0
-  blocks : ∀ n, lc.blocks (absNIdx n) = (toFun rc.blocks n).map absBlockRec
-  tblInv : Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rc.tbl
-  heightsInv : Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rc.heights
-  blocksInv : Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rc.blocks
-
-/-- **The outcome of one `generate` call.**  The port's generator takes a bare
-`&mut EStore` — it interns and touches no memo — and its decline carries a
-`Vec<u32>` message where the twin's carries a `String`; messages are never
-compared, so the error arm claims only that the twin declines too. -/
-def SimGen (pers : arena.store.PersTier) (rst : arena.monad.AState) (lst : AState)
-    (o : core.result.Result (alloc.vec.Vec arena.env.IDeclaration)
-      (alloc.vec.Vec Std.U32) × arena.store.EStore)
-    (x : AM (Except String (List IDeclaration))) : Prop :=
-  ∃ lst', AStateRel₀ pers (withStore rst o.2) lst' ∧
-    AStateInv pers (withStore rst o.2) ∧
-    (match o.1 with
-     | .Ok ds => x.run lst = .ok (.ok (ds.val.map absIDeclaration), lst')
-     | .Err _ => ∃ s, x.run lst = .ok (.error s, lst'))
-
-/-- **The modeller hypothesis**, task #87 §16's `ModellerRefines` over
-handles: *the port's generator refines the twin's, at a related state and a
-related context*.  One clause. -/
-structure ModellerRefines {G : Type} (inst : frontend.types.Modeller G) (m : G)
-    (lmd : Arena.Frontend.Modeller) : Prop where
-  generate : ∀ {pers rst lst rc lc b o},
-    AStateRel₀ pers rst lst → AStateInv pers rst → CtxRel rc lc →
-    inst.generate m pers rst.store rc b = ok o →
-    SimGen pers rst lst o (lmd.generate lc (absBlockRec b))
 
 /-! ## The scanner seam
 
