@@ -613,4 +613,53 @@ theorem class_read_ihs_acc {pers st} (n_p : Std.U64) (mot_pos : alloc.vec.Vec St
   simp only [Option.map_some, absClassSlot, absClassKey, absEIdxL_of_takeEidx hP]
   rfl
 
+/-! ## `class_read_slots` -/
+
+/-- The twin's `slot :: rest` under the accumulator the Rust pushed it onto. -/
+theorem slots_step_twin (x : AM (Option (List ClassSlot))) (s : ClassSlot) (A : List ClassSlot) :
+    (x >>= fun y =>
+      (match y with
+        | none => pure none
+        | some rest => pure (some (s :: rest))) >>= fun r =>
+      pure (r.map (A ++ ·)) : AM _) =
+    (x >>= fun r => pure (r.map ((A ++ [s]) ++ ·))) := by
+  congr 1
+  funext y
+  rcases y with _ | y <;> simp
+
+theorem class_read_slots_acc {pers} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf)
+    (p : arena.inductives.block_parts.BlockShape) (np : Std.U64) :
+    ∀ (k : Nat) (n : Std.U64) (mot_pos : alloc.vec.Vec Std.U64) (d : Std.U64)
+      (e : arena.handle.EIdx) (out : alloc.vec.Vec arena.inductives.class_read.ClassSlot) st lst,
+      n.val = k → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a.map (fun v => v.val.map absClassSlot))
+        (arena.inductives.class_read.class_read_slots pers st p rf np n mot_pos d e out) lst
+        (do
+          let r ← classReadSlots (absBlockShape p) lf (absU np) k (absNatL mot_pos) (absU d)
+            (absEIdx e)
+          pure (r.map (out.val.map absClassSlot ++ ·))) := by
+  intro k
+  induction k with
+  | zero =>
+    intro n mot_pos d e out st lst hn hrel hinv
+    rw [arena.inductives.class_read.class_read_slots.eq_def, if_pos (by scalar_tac),
+      classReadSlots]
+    lockstep
+  | succ k ih =>
+    intro n mot_pos d e out st lst hn hrel hinv
+    rw [arena.inductives.class_read.class_read_slots.eq_def, if_neg (by scalar_tac),
+      classReadSlots]
+    lockstep
+    all_goals
+      rename_i out1 hout1 n1 hn1
+      refine LS.tail (ih n1 _ _ _ _ _ _ (by scalar_tac) (by assumption) (by assumption)) ?_
+        (fun _ _ h => h)
+      have hdv : absU a = absU d + 1 := by simp only [absU]; scalar_tac
+      rw [hdv]
+      refine Eq.trans ?_ (slots_step_twin _ _ _).symm
+      rcases hsv : absClassSlot ‹arena.inductives.class_read.ClassSlot› with key | ⟨c, cn, ihs⟩ <;>
+        first
+        | (simp [hsv, isMotiveSlot] at hc; done)
+        | simp [hsv, hout1, absU]
+
 end ConRon.Refine2
