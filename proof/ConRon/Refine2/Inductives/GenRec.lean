@@ -371,4 +371,316 @@ in front of the answer (`classGenRecTy`'s `g.pre ++ ibs`). -/
   rw [← this]
   simp [absEIdxL, eidx_vec_dup_val hv]
 
+/-! ## The pure scans
+
+Each Rust cursor scan against the twin's `List` expression, stated at the
+cursor (`List.range' i (n - i)`, `drop i`) and read at `0` by the `TwinEq`
+companion.  The twin's lambdas that carry a `match` are the helpers below
+(`grMinorIs`, `grIsMotive`, `grRecField`): a restated `match` is a new matcher
+constant, so the twin functions that use them are restated once by `rfl`
+(`classGenRule_eq`, …) in terms of these. -/
+
+/-- `classGenRule`'s slot test. -/
+def grMinorIs (c : Nat) (C : NIdx) : Nat × ClassSlot → Bool
+  | (_, .minor c' C' _) => c' == c && C' == C
+  | (_, .motive _) => false
+
+/-- `prefixBinders`' motive test. -/
+def grIsMotive : ClassSlot → Bool
+  | .motive _ => true
+  | _ => false
+
+/-- `minorTy`'s recursive-field reading. -/
+def grRecField (kinds : List ClassField) (i : Nat) : Option (Nat × Nat × Nat) :=
+  match kinds.getD i .ordinary with
+  | .recursive t tele => some (i, t, tele)
+  | .ordinary => none
+
+def absTriple (p : Std.U64 × Std.U64 × Std.U64) : Nat × Nat × Nat :=
+  (absU p.1, absU p.2.1, absU p.2.2)
+
+theorem u64_eq_iff_val {a b : Std.U64} : a = b ↔ a.val = b.val :=
+  ⟨fun h => h ▸ rfl, fun h => by scalar_tac⟩
+
+/-- `class_rec_of` from the cursor `r`. -/
+theorem class_rec_of_abs (rec_cls : alloc.vec.Vec Std.U64)
+    (cv_gs : alloc.vec.Vec arena.env.IConstantVal) (t : Std.U64) :
+    ∀ (r : Std.Usize) (o : Option arena.handle.NIdx),
+      arena.inductives.gen_rec.class_rec_of rec_cls cv_gs t r = ok o →
+      o.map absNIdx = ((List.range' r.val (cv_gs.val.length - r.val)).find?
+        (fun r => (absNatL rec_cls).getD r 0 == absU t)).map
+          (fun r => ((cv_gs.val.map absIConstantVal).getD r default).name) := by
+  intro r
+  refine cursor_induction (fun i : Std.Usize => i.val) cv_gs.val.length
+    (fun r (_ : Unit) => ∀ o, arena.inductives.gen_rec.class_rec_of rec_cls cv_gs t r = ok o →
+      o.map absNIdx = ((List.range' r.val (cv_gs.val.length - r.val)).find?
+        (fun r => (absNatL rec_cls).getD r 0 == absU t)).map
+          (fun r => ((cv_gs.val.map absIConstantVal).getD r default).name)) ?_ ?_ r ()
+  · intro r _ hn o h
+    rw [arena.inductives.gen_rec.class_rec_of.eq_def,
+      if_pos (show r ≥ alloc.vec.Vec.len cv_gs by scalar_tac), Result.ok.injEq] at h
+    subst h
+    rw [show cv_gs.val.length - r.val = 0 by omega]
+    rfl
+  · intro r _ hr ih o h
+    rw [arena.inductives.gen_rec.class_rec_of.eq_def,
+      if_neg (show ¬ r ≥ alloc.vec.Vec.len cv_gs by scalar_tac)] at h
+    rw [show cv_gs.val.length - r.val = (cv_gs.val.length - (r.val + 1)) + 1 by omega,
+      List.range'_succ, List.find?_cons]
+    obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hcv : absU c = (absNatL rec_cls).getD r.val 0 := by
+      split at hc
+      · have := vec_index_some hc
+        simp only [absNatL, List.getD_eq_getElem?_getD, List.getElem?_map, this]
+        rfl
+      · rw [Result.ok.injEq] at hc
+        subst hc
+        simp only [absNatL, List.getD_eq_getElem?_getD, List.getElem?_map]
+        rw [List.getElem?_eq_none (by simp [alloc.vec.Vec.len] at *; scalar_tac)]
+        rfl
+    by_cases hct : c = t
+    · rw [if_pos hct] at h
+      obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [Result.ok.injEq] at h
+      subst h
+      rw [← hcv, hct]
+      simp only [beq_self_eq_true, Option.map_some]
+      have hx := vec_index_some hiv
+      rw [dupId_nidx _ _ hn, List.getD_eq_getElem?_getD, List.getElem?_map, hx]
+      rfl
+    · rw [if_neg hct] at h
+      obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hr2v : r2.val = r.val + 1 := absSz_add_one hr2
+      rw [ih r2 () hr2v o h, hr2v, ← hcv]
+      have : (absU c == absU t) = false := by
+        simp only [beq_eq_false_iff_ne, ne_eq]
+        intro he; exact hct (u64_eq_iff_val.mpr he)
+      rw [this]
+
+/-- `class_rec_of … 0` is `classRecOf`. -/
+@[lockstep] theorem class_rec_of_twin (rec_cls : alloc.vec.Vec Std.U64)
+    (cv_gs : alloc.vec.Vec arena.env.IConstantVal) (t : Std.U64) :
+    LSP (arena.inductives.gen_rec.class_rec_of rec_cls cv_gs t 0#usize)
+      (fun o => TwinEq (classRecOf (absNatL rec_cls) (cv_gs.val.map absIConstantVal) (absU t))
+        (o.map absNIdx)) := by
+  intro o h
+  rw [TwinEq, class_rec_of_abs rec_cls cv_gs t 0#usize o h, classRecOf]
+  simp [List.range_eq_range']
+
+/-- `minor_is` is the slot test. -/
+@[lockstep] theorem minor_is_twin (sl : arena.inductives.class_read.ClassSlot) (c : Std.U64)
+    (cn : arena.handle.NIdx) (k : Nat) :
+    LSP (arena.inductives.gen_rec.minor_is sl c cn)
+      (fun b => b = grMinorIs (absU c) (absNIdx cn) (k, absClassSlot sl)) := by
+  intro b h
+  cases sl with
+  | Motive _ =>
+    simp only [arena.inductives.gen_rec.minor_is, Result.ok.injEq] at h
+    subst h; rfl
+  | Minor c2 n2 ihs =>
+    rw [arena.inductives.gen_rec.minor_is] at h
+    simp only [absClassSlot, grMinorIs]
+    by_cases hc : c2 = c
+    · rw [if_pos hc] at h
+      rw [nidx_eq2_abs h, hc]
+      simp
+    · rw [if_neg hc, Result.ok.injEq] at h
+      subst h
+      have : (absU c2 == absU c) = false := by
+        simp only [beq_eq_false_iff_ne, ne_eq]
+        intro he; exact hc (u64_eq_iff_val.mpr he)
+      rw [this]; rfl
+
+/-- `find_minor_slot` from the cursor `s`. -/
+theorem find_minor_slot_abs (slots : alloc.vec.Vec arena.inductives.class_read.ClassSlot)
+    (c : Std.U64) (cn : arena.handle.NIdx) :
+    ∀ (s : Std.Usize) (o : Option Std.U64),
+      arena.inductives.gen_rec.find_minor_slot slots c cn s = ok o →
+      ((List.range' s.val (slots.val.length - s.val)).zip
+          ((slots.val.drop s.val).map absClassSlot)).find? (grMinorIs (absU c) (absNIdx cn)) =
+        o.map (fun k => (absU k, (slots.val.map absClassSlot).getD (absU k) default)) := by
+  intro s
+  refine cursor_induction (fun i : Std.Usize => i.val) slots.val.length
+    (fun s (_ : Unit) => ∀ o, arena.inductives.gen_rec.find_minor_slot slots c cn s = ok o →
+      ((List.range' s.val (slots.val.length - s.val)).zip
+          ((slots.val.drop s.val).map absClassSlot)).find? (grMinorIs (absU c) (absNIdx cn)) =
+        o.map (fun k => (absU k, (slots.val.map absClassSlot).getD (absU k) default))) ?_ ?_ s ()
+  · intro s _ hn o h
+    rw [arena.inductives.gen_rec.find_minor_slot.eq_def,
+      if_pos (show s ≥ alloc.vec.Vec.len slots by scalar_tac), Result.ok.injEq] at h
+    subst h
+    rw [show slots.val.length - s.val = 0 by omega]
+    rfl
+  · intro s _ hs ih o h
+    rw [arena.inductives.gen_rec.find_minor_slot.eq_def,
+      if_neg (show ¬ s ≥ alloc.vec.Vec.len slots by scalar_tac)] at h
+    rw [show slots.val.length - s.val = (slots.val.length - (s.val + 1)) + 1 by omega,
+      List.range'_succ, List.drop_eq_getElem_cons hs, List.map_cons, List.zip_cons_cons,
+      List.find?_cons]
+    obtain ⟨cs, hcs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hx := vec_index_some hcs
+    obtain ⟨hxb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbv := minor_is_twin cs c cn s.val b hb
+    rw [hxv, ← hbv]
+    cases b
+    · rw [if_neg (by simp)] at h
+      obtain ⟨s2, hs2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hs2v : s2.val = s.val + 1 := absSz_add_one hs2
+      rw [← ih s2 () hs2v o h, hs2v]
+    · rw [if_pos rfl] at h
+      obtain ⟨k, hk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [Result.ok.injEq] at h
+      subst h
+      have hkv : k.val = s.val := by
+        simp only [lift, Result.ok.injEq] at hk; subst hk
+        exact ConRon.Refine.ExprOps.usize_cast_u64_val s
+      simp only [Option.map_some, absU, hkv]
+      rw [List.getD_eq_getElem?_getD, List.getElem?_map, hx]
+      rfl
+
+/-- `find_minor_slot … 0` is `classGenRule`'s `hit`. -/
+@[lockstep] theorem find_minor_slot_twin (slots : alloc.vec.Vec arena.inductives.class_read.ClassSlot)
+    (c : Std.U64) (cn : arena.handle.NIdx) :
+    LSP (arena.inductives.gen_rec.find_minor_slot slots c cn 0#usize)
+      (fun o => TwinEq (((List.range (slots.val.map absClassSlot).length).zip
+          (slots.val.map absClassSlot)).find? (grMinorIs (absU c) (absNIdx cn)))
+        (o.map (fun k => (absU k, (slots.val.map absClassSlot).getD (absU k) default)))) := by
+  intro o h
+  rw [TwinEq, ← find_minor_slot_abs slots c cn 0#usize o h]
+  simp [List.range_eq_range']
+
+/-- `motives_before` from the cursor `i`. -/
+theorem motives_before_abs (slots : alloc.vec.Vec arena.inductives.class_read.ClassSlot)
+    (s : Std.Usize) :
+    ∀ (i : Std.Usize) (acc o : Std.U64),
+      arena.inductives.gen_rec.motives_before slots s i acc = ok o →
+      o.val = acc.val + ((((slots.val.map absClassSlot).take s.val).drop i.val).filter
+        grIsMotive).length := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) (min s.val slots.val.length)
+    (fun i (_ : Unit) => ∀ acc o, arena.inductives.gen_rec.motives_before slots s i acc = ok o →
+      o.val = acc.val + ((((slots.val.map absClassSlot).take s.val).drop i.val).filter
+        grIsMotive).length) ?_ ?_ i ()
+  · intro i _ hn acc o h
+    rw [List.drop_eq_nil_of_le (by simp; omega)]
+    rw [arena.inductives.gen_rec.motives_before.eq_def] at h
+    by_cases h1 : i ≥ s
+    · rw [if_pos h1, Result.ok.injEq] at h; subst h; simp
+    · rw [if_neg h1, if_pos (show i ≥ alloc.vec.Vec.len slots by scalar_tac),
+        Result.ok.injEq] at h
+      subst h; simp
+  · intro i _ hi ih acc o h
+    have his : i.val < s.val := by omega
+    have hil : i.val < slots.val.length := by omega
+    rw [arena.inductives.gen_rec.motives_before.eq_def, if_neg (by scalar_tac),
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len slots by scalar_tac)] at h
+    rw [List.drop_eq_getElem_cons (by simp; omega)]
+    obtain ⟨cs, hcs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hx := vec_index_some hcs
+    obtain ⟨hxb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbv : b = grIsMotive (absClassSlot cs) := by
+      cases cs <;> simp_all [arena.inductives.class_read.is_motive, grIsMotive, absClassSlot]
+    simp only [List.getElem_take, List.getElem_map, hxv, List.filter_cons]
+    rw [← hbv]
+    cases b
+    · rw [if_neg (by simp)] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      rw [ih i2 () hi2v acc o h, hi2v]
+      simp
+    · rw [if_pos rfl] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨a2, ha2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      have ha2v : a2.val = acc.val + 1 := ConRon.Refine.Nat.uadd_val ha2
+      rw [ih i2 () hi2v a2 o h, hi2v, ha2v]
+      simp; omega
+
+/-- `motives_before … s 0 0` is the twin's count of the motives before slot `s`. -/
+@[lockstep] theorem motives_before_twin (slots : alloc.vec.Vec arena.inductives.class_read.ClassSlot)
+    (s : Std.Usize) :
+    LSP (arena.inductives.gen_rec.motives_before slots s 0#usize 0#u64)
+      (fun o => TwinEq ((((slots.val.map absClassSlot).take s.val).filter grIsMotive).length)
+        (absU o)) := by
+  intro o h
+  rw [TwinEq, absU, motives_before_abs slots s 0#usize 0#u64 o h]
+  simp
+
+/-- `find_class_ctor_in` from the cursor `i`. -/
+theorem find_class_ctor_in_abs (xs : alloc.vec.Vec arena.inductives.gen_rec.ClassCtor)
+    (cn : arena.handle.NIdx) :
+    ∀ (i : Std.Usize) (o : Option arena.inductives.gen_rec.ClassCtor),
+      arena.inductives.gen_rec.find_class_ctor_in xs cn i = ok o →
+      o.map absClassCtor = ((xs.val.drop i.val).map absClassCtor).find?
+        (·.cv.name == absNIdx cn) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) xs.val.length
+    (fun i (_ : Unit) => ∀ o, arena.inductives.gen_rec.find_class_ctor_in xs cn i = ok o →
+      o.map absClassCtor = ((xs.val.drop i.val).map absClassCtor).find?
+        (·.cv.name == absNIdx cn)) ?_ ?_ i ()
+  · intro i _ hn o h
+    rw [arena.inductives.gen_rec.find_class_ctor_in.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+    subst h
+    rw [List.drop_eq_nil_of_le hn]; rfl
+  · intro i _ hi ih o h
+    rw [arena.inductives.gen_rec.find_class_ctor_in.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, List.find?_cons]
+    obtain ⟨cc, hcc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hx := vec_index_some hcc
+    obtain ⟨hxb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbv := nidx_eq2_abs hb
+    rw [hxv]
+    change _ = match (absNIdx cc.cv.name == absNIdx cn) with
+      | true => some (absClassCtor cc) | false => _
+    rw [← hbv]
+    cases b
+    · rw [if_neg (by simp)] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      rw [ih i2 () hi2v o h, hi2v]
+    · rw [if_pos rfl] at h
+      obtain ⟨cc1, hcc1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [Result.ok.injEq] at h
+      subst h
+      rw [class_ctor_dup_spec _ _ hcc1]
+      rfl
+
+/-- `find_class_ctor` is `prefixBinders`' constructor lookup. -/
+@[lockstep] theorem find_class_ctor_twin (g : arena.inductives.gen_rec.ClassGen) (c : Std.U64)
+    (cn : arena.handle.NIdx) :
+    LSP (arena.inductives.gen_rec.find_class_ctor g c cn)
+      (fun o => TwinEq (((g.ctors.val.map (fun cs => cs.val.map absClassCtor)).getD (absU c)
+          []).find? (·.cv.name == absNIdx cn)) (o.map absClassCtor)) := by
+  intro o h
+  rw [arena.inductives.gen_rec.find_class_ctor] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hnv : n.val = g.ctors.val.length := by
+    simp only [lift, Result.ok.injEq] at hn; subst hn
+    simp [ConRon.Refine.ExprOps.usize_cast_u64_val]
+  rw [TwinEq]
+  split at h
+  · rename_i hcn
+    obtain ⟨k, hk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hkv : k.val = c.val := by
+      simp only [lift, Result.ok.injEq] at hk
+      subst hk
+      exact ConRon.Refine.ExprOps.u64_cast_usize_val (by
+        have := g.ctors.property
+        scalar_tac)
+    have hx := vec_index_some hv
+    rw [find_class_ctor_in_abs v cn 0#usize o h]
+    rw [List.getD_eq_getElem?_getD, List.getElem?_map, show absU c = k.val from hkv.symm, hx]
+    simp
+  · rw [Result.ok.injEq] at h
+    subst h
+    rw [List.getD_eq_default _ _ (by simp; scalar_tac)]
+    rfl
+
 end ConRon.Refine2
