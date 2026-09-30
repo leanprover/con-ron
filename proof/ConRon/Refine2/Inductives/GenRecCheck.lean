@@ -993,4 +993,22 @@ theorem one_class_per_member_abs (ms : alloc.vec.Vec arena.inductives.rec_check.
   rw [TwinEq, one_class_per_member_abs ms k _ 0#u64 o rfl h]
   simp [List.range_eq_range', absU]
 
+/-! ## `check_block_classes` -/
+
+attribute [local lockstep_simp] absTargetMajorL absClassCtorL absClassCtorLL
+
+/-- `check_block_classes` ⊑ `checkBlockClasses` — the export the block tail
+reads. -/
+@[lockstep] theorem check_block_classes_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf)
+    (p : arena.inductives.block_parts.BlockShape) (params : alloc.vec.Vec arena.handle.EIdx)
+    (ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))) :
+    LS pers (fun a b => b = (absClassRead a.1, absTargetMajorL a.2))
+      (arena.inductives.gen_rec.check_block_classes pers st mode rf p params ctors_as) lst
+      (checkBlockClasses (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL params)
+        (absCtorsLL ctors_as)) := by
+  rw [arena.inductives.gen_rec.check_block_classes, checkBlockClasses]
+  lockstep
+
 end ConRon.Refine2
