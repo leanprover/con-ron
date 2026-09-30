@@ -7,10 +7,7 @@
 These are the shared stages the uniform route's block install runs
 (`checkBlockTele`, `checkBlockCtors`, `checkBlockIdxSorts`, `checkBlock`): the
 former's telescope, the per-field universe bound, the constructors' stage, the
-constructors consed and the stored rules.  (The capability record, the
-positivity normalisation and the former's install stage went with con-leche's
-fixpoint route, task #105, and their lemmas with them; `closeTelescope`'s is
-`Bridge/Inductives/FieldTele.lean`'s now, beside its twin's new home.)
+constructors consed and the stored rules' bits.
 
 **Mostly CORE grade.**  `whnfTelescope` calls `whnf`, `checkStructFieldSortsI`
 calls `inferTypeCore` and `ensureSort`, `checkSumTele` and `checkSumCtor` call
@@ -326,7 +323,7 @@ theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 /-! ## The fields' universe bound -/
 
 /-- con-leche: none — a level-handle list denotes across an append. -/
-theorem denoteLList_append' {st : LStore} :
+theorem denoteLList_append {st : LStore} :
     ∀ {a : List LIdx} {as : List Level} {b : List LIdx} {bs : List Level},
       denoteLList st a = some as → denoteLList st b = some bs →
       denoteLList st (a ++ b) = some (as ++ bs) := by
@@ -509,7 +506,7 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
           denoteEList_ext c05.ext _ _ hidx, denoteFEnv_ext c05.ext hfe⟩ k6
       obtain ⟨rfl, rfl⟩ := pureOk z6
       refine ⟨c05.trans c6, F3, restP, hF3, ?_⟩
-      exact denoteLList_append' hrest (by
+      exact denoteLList_append hrest (by
         simp only [denoteLList, denoteL_ext huP (c5.ext.trans c6.ext), opt2])
     have hF1' : ∀ F, F1 ≤ F →
         ConLeche.inferTypeCore μ env F (nP + j) aP.fvarTypeD = .ok tyP :=
@@ -1067,9 +1064,9 @@ their run forms are here, **on loan from the Core tier** (their module is
 `IFEnvOK`'s `hit`/`miss` pair and each comparison `denoteN_inj`. -/
 
 /-- con-leche: none — a constructor type's result head, two steps deep
-(`piResult`, `getAppFn`), both read-only: the half of `ctorHead_facts` that
+(`piResult`, `getAppFn`), both read-only: the part of the head read that
 precedes the tag-first twin's `view` (task #97-P5-Core round 4). -/
-theorem ctorHead_facts₂ {s s1 s2 : AState} {ty pr fn : EIdx} {tyP : Expr}
+theorem ctorHead_facts {s s1 s2 : AState} {ty pr fn : EIdx} {tyP : Expr}
     (hok : StateOK s) (hd : denoteE s.store ty = some tyP)
     (k1 : Arena.piResult Arena.coreWalkFuel ty s = .ok (pr, s1))
     (k2 : Arena.getAppFn Arena.coreWalkFuel pr s1 = .ok (fn, s2)) :
@@ -1083,7 +1080,7 @@ theorem ctorHead_facts₂ {s s1 s2 : AState} {ty pr fn : EIdx} {tyP : Expr}
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:821-830 recRuleKOf — the K bit at
 install, in run form: read-only, and con-leche's verdict at `env.find?`. -/
-theorem recRuleKOf_runX {env : Env} {fe : IFEnv} {s s' : AState}
+theorem recRuleKOf_run {env : Env} {fe : IFEnv} {s s' : AState}
     {ctor : NIdx} {ctorP : ConLeche.Name} {r : Bool}
     (hst : StateOK s) (hi : IFEnvOK env fe s) (hc : denoteN s.store.ns ctor = some ctorP)
     (hrun : Arena.recRuleKOf fe ctor s = .ok (r, s')) :
@@ -1115,7 +1112,7 @@ theorem recRuleKOf_runX {env : Env} {fe : IFEnv} {s s' : AState}
   dsimp only at hrun ⊢
   obtain ⟨pr, s1, k1, z1⟩ := bindOk hrun
   obtain ⟨fn, s2, k2, z2⟩ := bindOk z1
-  obtain ⟨hs1, hs2, hfn⟩ := ctorHead_facts₂ hst (denoteCV_type hcvj) k1 k2
+  obtain ⟨hs1, hs2, hfn⟩ := ctorHead_facts hst (denoteCV_type hcvj) k1 k2
   subst s1; subst s2
   obtain ⟨v0, hv0⟩ := denoteE_view hfn
   obtain ⟨v, s3, k3, z3⟩ := bindOk (tagIf_view_run hv0
@@ -1173,7 +1170,7 @@ theorem recRuleKOf_runX {env : Env} {fe : IFEnv} {s s' : AState}
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:846-858 recRuleEtaOf — the
 η-rescue bit at install, in run form.  The recursor's name is read back
 (`readNameM`), so the frame is a `ReadbackFrame`. -/
-theorem recRuleEtaOf_runX {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s' : AState}
+theorem recRuleEtaOf_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s' : AState}
     {recName ctor : NIdx} {recNameP ctorP : ConLeche.Name} {r : Bool}
     (hok : CheckOK μ envC feC s) (hi : IFEnvOK env fe s) (hrn : denoteN s.store.ns recName = some recNameP)
     (hc : denoteN s.store.ns ctor = some ctorP)
@@ -1206,7 +1203,7 @@ theorem recRuleEtaOf_runX {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s 
   dsimp only at hrun ⊢
   obtain ⟨pr, s1, k1, z1⟩ := bindOk hrun
   obtain ⟨fn, s2, k2, z2⟩ := bindOk z1
-  obtain ⟨hs1, hs2, hfn⟩ := ctorHead_facts₂ hok.state (denoteCV_type hcvj) k1 k2
+  obtain ⟨hs1, hs2, hfn⟩ := ctorHead_facts hok.state (denoteCV_type hcvj) k1 k2
   subst s1; subst s2
   obtain ⟨v0, hv0⟩ := denoteE_view hfn
   obtain ⟨v, s3, k3, z3⟩ := bindOk (tagIf_view_run hv0
@@ -1272,7 +1269,7 @@ theorem recRuleEtaOf_runX {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s 
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:860-870 recRuleBits — the two
 bits stamped, in run form: the rule denotes con-leche's stamped rule. -/
-theorem recRuleBits_runX {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s' : AState}
+theorem recRuleBits_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s' : AState}
     {recName : NIdx} {recNameP : ConLeche.Name} {rl rl' : IRecRule} {rlP : RecRule}
     (hok : CheckOK μ envC feC s) (hi : IFEnvOK env fe s) (hrn : denoteN s.store.ns recName = some recNameP)
     (hrl : Frontend.denoteRule s.store rl = some rlP)
@@ -1282,10 +1279,10 @@ theorem recRuleBits_runX {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s
   obtain ⟨hctor, -⟩ := denoteRule_ctor hrl
   simp only [Arena.recRuleBits] at hrun
   obtain ⟨k, s1, k1, z1⟩ := bindOk hrun
-  obtain ⟨hs1, hk⟩ := recRuleKOf_runX hok.state hi hctor k1
+  obtain ⟨hs1, hk⟩ := recRuleKOf_run hok.state hi hctor k1
   rw [hs1] at z1
   obtain ⟨e, s2, k2, z2⟩ := bindOk z1
-  obtain ⟨hfr, he⟩ := recRuleEtaOf_runX hok hi hrn hctor k2
+  obtain ⟨hfr, he⟩ := recRuleEtaOf_run hok hi hrn hctor k2
   obtain ⟨rfl, rfl⟩ := pureOk z2
   refine ⟨hfr, ?_⟩
   rw [hfr.store]

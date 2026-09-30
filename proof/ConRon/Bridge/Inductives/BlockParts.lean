@@ -926,7 +926,7 @@ theorem blockRecNameSetOk_spec (members : List Arena.MemberShape) (recs : List A
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:449-454 litGuardNames — the ten
 literal-guard names, off the pin table. -/
-theorem litGuardNames_runB {s s' : AState} {ns : List NIdx} (hp : PinsOK s)
+theorem litGuardNames_run {s s' : AState} {ns : List NIdx} (hp : PinsOK s)
     (hr : Arena.litGuardNames s = .ok (ns, s')) :
     s' = s ∧ denoteNL s.store ns ConLeche.litGuardNames := by
   simp only [Arena.litGuardNames] at hr
@@ -1048,7 +1048,7 @@ theorem reservedRecName_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name} {b :
     simp only [Bool.not_eq_true] at hc
     have hp1 := hp.mono p1.ext p1.pins
     obtain ⟨ls, s₂, h3, h4⟩ := bindOk h2
-    obtain ⟨rfl, hls⟩ := litGuardNames_runB hp1 h3
+    obtain ⟨rfl, hls⟩ := litGuardNames_run hp1 h3
     rw [denoteNList_contains p1.ok.wf _ _ (denoteNL_toList _ _ hls) _ _ hn1] at h4
     split at h4
     · rename_i hc2
@@ -1378,7 +1378,7 @@ theorem denoteCtors3_dCtors {st : EStore} :
         exact mapM_option_cons (by simp [dCtor, h1]) this
 
 /-- con-leche: none — a three-tuple constructor list survives an append. -/
-theorem denoteCtors3_extB {st st' : EStore} (hx : Ext st st') :
+theorem denoteCtors3_ext {st st' : EStore} (hx : Ext st st') :
     ∀ (cs : List (IConstantVal × Nat × Nat)) (csP : List (ConstantVal × Nat × Nat)),
       denoteCtors3 st cs = some csP → denoteCtors3 st' cs = some csP := by
   intro cs
@@ -1399,7 +1399,7 @@ theorem denoteCtors3_extB {st st' : EStore} (hx : Ext st st') :
         exact h
 
 /-- con-leche: none — the rules' right-hand sides denote. -/
-theorem denoteRules_rhssB {st : EStore} :
+theorem denoteRules_rhss {st : EStore} :
     ∀ (rs : List IRecRule) (rsP : List RecRule),
       Frontend.denoteRules st rs = some rsP →
       Frontend.denoteEList st (rs.map (·.rhs)) = some (rsP.map (·.rhs)) := by
@@ -1464,7 +1464,7 @@ theorem recsL_run (names : List NIdx) (namesP : List ConLeche.Name) :
     have x5 := p3.ext.trans p5.ext
     simp only [List.map_cons]
     refine mapM_option_cons ?_ h7
-    simp only [dRec, denoteCV_ext hcv x5, denoteRules_rhssB _ _ (denoteRules_ext x5 _ _ hru),
+    simp only [dRec, denoteCV_ext hcv x5, denoteRules_rhss _ _ (denoteRules_ext x5 _ _ hru),
       Option.bind_eq_bind, Option.bind_some, Option.pure_def, hmI, hrP]
 
 /-- con-leche: none — the members, zipped from the formers, their counts and
@@ -1765,7 +1765,7 @@ theorem blockShape?_run {μ : CheckMode} {env : Env} {fe : IFEnv} (nPd : Nat)
         simp only
         rw [not_eq_beq_false (denoteNList_contains hwf _ _ hres _ _ (denoteCV_name h)),
           beq_nhandleList_eq hwf (denoteCV_lps h) hlps])
-        cs csP (denoteCtors3_extB x2 _ _ hcs)
+        cs csP (denoteCtors3_ext x2 _ _ hcs)
     rw [E1, E2, E3, all_and_split] at z2
     have hB : ∀ a b c d : Bool, (((a && c) && b) && d) = (((a && b) && c) && d) := by decide
     rw [hB] at z2
@@ -1783,7 +1783,7 @@ theorem blockShape?_run {μ : CheckMode} {env : Env} {fe : IFEnv} (nPd : Nat)
     have hT0' := denoteCV_ext hT0 x2
     have hR0' := denoteCV_ext hR0 x2
     have hTs' := mapM_option_ext (fun a b h => denoteCV_ext h x2) _ _ hTs
-    have hcs' := denoteCtors3_extB x2 _ _ hcs
+    have hcs' := denoteCtors3_ext x2 _ _ hcs
     have hrs' := mapM_option_ext (fun a b h => dRec4_ext x2 a b h) _ _ hrs
     have hp2 := hc.pins.mono q2.ext q2.pins
     cases o with

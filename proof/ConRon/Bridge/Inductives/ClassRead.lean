@@ -16,15 +16,8 @@ the other would change which error the stage throws.
 Con-leche's functions are written with `let .fvar p _ := e.getAppFn | none`
 and similar do-blocks; the helpers `fvarHeadP`, `slotP`, `recClsP` and
 `ihP` below are those blocks as named functions, each identified with the
-inline one by `rfl` at its use.
-
-**Helpers restated here that belong in shared files** (reported):
-the telescope opener's run lemmas (`denoteOpen`, `openPisAtFvars_run`,
-`openPisAtFvarsFGo_run`, `openPisAtFvarsF_run`) are
-`Bridge/Inductives/SumInstall.lean`'s, restated because that module is far
-above this one (their owner is the Checker tier); `piBinders_run` is the
-run form of `Arena/Inductives/FieldTele.lean`'s `piBinders`, whose own bridge
-(`Bridge/Inductives/FieldTele.lean`) was not yet committed.
+inline one by `rfl` at its use.  The telescope opener's run forms are
+`Rel.lean`'s, `piBinders_run` is `FieldTele.lean`'s.
 -/
 import ConRon.Bridge.Inductives.FieldTele
 import ConLeche.Verify.EnvBound

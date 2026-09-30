@@ -36,7 +36,7 @@ recursor records' pins, node agreement (`targetCtorAt`, `targetK53`,
 knot or reads the readback caches (`instLPFast`, `lvlEq?`, `lvlsEq?`) is
 `CSpec`/`CSpecF`; `nestedRuleSyn` and `auxRuleFireR` read the index but no
 cache, so they are at the read grade `RdSpec` (`ReadOK` in, `PStep` out).
-The stored-family statements (`sumRules_specX`, `tgtStoredRules_spec`,
+The stored-family statements (`sumRules_spec`, `tgtStoredRules_spec`,
 `consBlockRecsTF_spec`) carry TWO environments: the knot's caches' (`CheckOK
 μ envC feC`) and the lookup index's (`IFEnvOK env fe`), because the rules are
 read at the constructors' view while the caches serve whatever index the
@@ -1656,7 +1656,7 @@ The rules are read at the CONSTRUCTORS' index (`fe.restrictTo vis₂` in
 `consBlockRecsTF`), while the knot's caches serve whatever index the recursor
 stage ended on.  So these statements carry two environments: `CheckOK μ envC
 feC` for the caches (the frame is `CoreStep` there), and `IFEnvOK env fe` for
-the lookups the rules make — which is `recRuleBits_runX`'s shape
+the lookups the rules make — which is `recRuleBits_run`'s shape
 (`Bridge/Inductives/SumInstall.lean`). -/
 
 namespace RC
@@ -1755,9 +1755,9 @@ end RC
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:168-184 sumRules —
 `sumRules_spec` (`Bridge/Inductives/SumInstall.lean`) with the LOOKUP index
 apart from the knot's: the rules read `fe` (`IFEnvOK env fe`), the caches serve
-`feC` (`CheckOK μ envC feC`), as `recRuleBits_runX` states it.  **Belongs in
+`feC` (`CheckOK μ envC feC`), as `recRuleBits_run` states it.  **Belongs in
 `SumInstall.lean` beside `sumRules_spec`** (which is this at `feC := fe`). -/
-theorem sumRules_specX {μ : CheckMode} {envC env : Env} {feC : IFEnv} (fe : IFEnv)
+theorem sumRules_spec {μ : CheckMode} {envC env : Env} {feC : IFEnv} (fe : IFEnv)
     (recName : NIdx) (recNameP : ConLeche.Name) (nP mI rP : Nat)
     (recTy : EIdx) (recTyP : Expr) :
     ∀ (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat))
@@ -1826,7 +1826,7 @@ theorem sumRules_specX {μ : CheckMode} {envC env : Env} {feC : IFEnv} (fe : IFE
       simp only [Frontend.denoteRule, denoteN_ext (denoteCV_name hcv) p1.ext,
         denote_ext hrhs p1.ext]
       cases Expr.recRulePlain recTyP mI rP nP <;> rfl
-    obtain ⟨hfr, hrlr⟩ := recRuleBits_runX c1.ok (hie.mono p1.ext)
+    obtain ⟨hfr, hrlr⟩ := recRuleBits_run c1.ok (hie.mono p1.ext)
       (denoteN_ext hrn p1.ext) hrl k2
     have c2 : CoreStep μ envC feC s₀ s2 :=
       c1.trans ⟨Core.CheckOK.ofReadbackFrame c1.ok hfr, hfr.ext, hfr.pins⟩
@@ -1889,7 +1889,7 @@ theorem tgtStoredRules_spec {μ : CheckMode} {envC env : Env} {feC : IFEnv} (fe 
   simp only [Arena.tgtStoredRules] at hrun
   obtain ⟨rules, s1, k1, z1⟩ := bindOk hrun
   rw [dCtors_eq_denoteCtors] at hctors
-  obtain ⟨c1, hrules⟩ := sumRules_specX fe cv.name cvP.name M.nPc mI rP cv.type cvP.type
+  obtain ⟨c1, hrules⟩ := sumRules_spec fe cv.name cvP.name M.nPc mI rP cv.type cvP.type
     M.ctors MP.ctors rhss rhssP s₀ s1 rules hok hie (denoteCV_name hcv) (denoteCV_type hcv)
     hctors hrh k1
   simp only [ConLeche.tgtStoredRules, ← hnpc, ← hmem]

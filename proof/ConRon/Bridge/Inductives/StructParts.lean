@@ -4,9 +4,7 @@
 `Arena/Inductives/StructParts.lean`'s twins against
 `ConLeche/Kernel/Inductives/StructParts.lean`: the parameter spines, the
 elimination level, the constructor-residual test, the projection bodies and
-guards, and the two memoised `Expr` predicates.  (The families, the Π→λ
-rewrites and the structure recogniser went with con-leche's fixpoint route,
-task #105, and their lemmas with them.)
+guards, and the memoised loose-bound-variable test.
 
 **Every twin here is PURE grade.**  Not one of them calls the knot: they
 intern nodes, read the store, read the pin table and walk handles.  So every
@@ -14,19 +12,15 @@ statement is a `PSpec` and the frame is `PStep` — task #97-P3-0 §2's rule tha
 an `ExprOps`-shaped theorem must not carry the cache clauses, applied to the
 generators.
 
-## The three memo invariants
+## The memo invariant
 
-`hasLooseBVarBGo`, `structUsedLaterGo` and `mentionsConstGo` thread an
-explicit `Std.HashMap` (task #97d-2's deviation 5: the memo stays an ARGUMENT
-because each answer depends on data fixed for one call, and nothing was added
-to `AState`).  Each needs an invariant in `Bridge/StateOK.lean`'s `MemoOK`
-shape — "every recorded answer is the real one" — and the invariant travels
-in and out of the walk, which is what makes these three statements different
-from the others.
-
-con-leche's own are `LooseBVarMemoInv` (`StructParts.lean:171-172`) and
-`MentionsMemoInv` (`StructParts.lean:551-552`); the arena's are the same
-predicate at handle keys, through `denoteE`.
+`hasLooseBVarBGo` threads an explicit `Std.HashMap` (task #97d-2's deviation
+5: the memo stays an ARGUMENT because each answer depends on data fixed for
+one call, and nothing was added to `AState`).  It needs an invariant in
+`Bridge/StateOK.lean`'s `MemoOK` shape — "every recorded answer is the real
+one" — that travels in and out of the walk: `LooseMemoOK`, con-leche's
+`LooseBVarMemoInv` (`StructParts.lean:171-172`) at handle keys, through
+`denoteE`.
 -/
 import ConRon.Bridge.Inductives.Rel
 
@@ -37,7 +31,7 @@ set_option mvcgen.warning false
 
 open ConLeche ConRon.Arena ConRon.Bridge
 
-/-! ## The three memo invariants -/
+/-! ## The memo invariant -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:171-172 LooseBVarMemoInv
 The `(handle, cursor)`-keyed memo of `hasLooseBVarB`: every recorded answer is

@@ -44,8 +44,7 @@ open ConLeche ConRon.Arena ConRon.Bridge
 
 namespace BI
 
-/-! ## Small helpers (local; see the report for the ones that belong in a
-shared file) -/
+/-! ## Small helpers -/
 
 /-- con-leche: none — a checked former with its result sort. -/
 def dCvL (st : EStore) (x : IConstantVal × LIdx) : Option (ConstantVal × Level) := do

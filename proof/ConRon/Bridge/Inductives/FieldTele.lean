@@ -10,10 +10,8 @@ con-leche's `Expr.piBinders`), and `Arena.closeTelescope` / `Arena.instPisWith`
 intern nodes (`instantiate1Fast`, `abstract1Fast`, `internForallEE`), never
 the knot.
 
-`closeTelescope_spec` is the proof `Bridge/Inductives/SumInstall.lean` carried
-while the twin's `closeTelescope` lived in `SumInstall`; `piBinders_spec` is
-task #97-P3-Ind round 2's proof (then in `NativeParts.lean`), over the
-tag-first `viewBind` twin.
+`piBinders_run` is the reader's read-only run form (over the tag-first
+`viewBind` twin); `piBinders_spec` is its `PSpec`.
 -/
 import ConRon.Bridge.Inductives.Rel
 import ConRon.Bridge.Inductives.PosWalks

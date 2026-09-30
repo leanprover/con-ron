@@ -221,8 +221,7 @@ theorem denoteBP_some {st : EStore} {v : Option (List (Expr × BinderMeta) × Ex
       rw [denoteBinders_eq_denoteBL]; exact hb
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1355-1357 piResult — the run form of
-`Bridge/ExprOps/Spine.lean`'s `piResult_spec` (`Bridge/Frontend/ProjRec.lean`'s
-`piResult_run`, restated: that module is not in this one's import closure). -/
+`Bridge/ExprOps/Spine.lean`'s `piResult_spec`. -/
 theorem piResult_run {fuel : Nat} {s s' : AState} {h r : EIdx} {e : Expr}
     (hok : StateOK s) (hd : denoteE s.store h = some e)
     (hrun : Arena.piResult fuel h s = .ok (r, s')) :

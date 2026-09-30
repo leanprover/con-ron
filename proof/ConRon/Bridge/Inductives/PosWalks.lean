@@ -15,12 +15,9 @@ Every statement is `PSpec` (or `PSpecP` where the twin reads the `zeroLevel`
 pin) with an exact answer.  The memo invariants are con-leche's
 (`MentionsAnyMemoInv`, `NestOccMemoInv`, `ReplaceFVarsMemoInv`,
 `ReplaceAppsMemoInv`) at handle keys through `denoteE`, as
-`Bridge/Inductives/StructParts.lean`'s `MentionsMemoOK` is.
+`Bridge/Inductives/StructParts.lean`'s `LooseMemoOK` is.
 
-The module imports `Bridge/Inductives/Run.lean` only; the few run lemmas
-`Bridge/Inductives/Rel.lean` also has (`zeroLevel_run`, `mkAppN_run`, …) are
-restated in the `PW` namespace below, so that the two can be imported side by
-side.
+The module imports `Bridge/Inductives/Run.lean` only.
 -/
 import ConRon.Bridge.Inductives.Run
 
