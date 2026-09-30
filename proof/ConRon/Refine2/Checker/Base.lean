@@ -1568,17 +1568,6 @@ alone: an interned kernel constant (`intern_ci_list`, the basis's
 `basis_kind_decls_a`) and a copy (`i_constant_info_dup`). -/
 
 /-- `intern_caps` copies the zero-ness datum. -/
-theorem intern_caps_sort_z {pers st c r st'}
-    (h : arena.intern.intern_caps pers st c = ok (.Ok r, st')) : r.sort_z = c.sort_z := by
-  rw [arena.intern.intern_caps] at h
-  obtain ⟨⟨r0, st1⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  cases r0 with
-  | Err e => simp at h
-  | Ok ct =>
-    obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
-    rw [← h.1, ConRon.Refine.PropWhen.dup_eq hpw]
-
 theorem intern_ci_go_wf {pers st m c ci st' m'} (hwf : ConRon.Refine.ConstantInfoWF c)
     (h : arena.intern.intern_ci_go pers st m c = ok (.Ok ci, st', m')) : IConstantInfoWF ci := by
   cases c with
@@ -1594,7 +1583,7 @@ theorem intern_ci_go_wf {pers st m c ci st' m'} (hwf : ConRon.Refine.ConstantInf
       | Ok caps =>
         obtain ⟨⟨rfl⟩, -⟩ := Prod.mk.inj (Result.ok_injective h)
         show ConRon.Refine.PropWhenWF caps.sort_z
-        rw [intern_caps_sort_z h2]; exact hwf.2.2
+        rw [intern_caps_sort_z h2]; exact hwf.2.2.1
   | _ =>
     rcases ci with _ | _ | _ | ⟨cv, caps⟩ | _ | _ | _ <;> try trivial
     rw [arena.intern.intern_ci_go] at h
@@ -1673,6 +1662,8 @@ theorem i_constant_info_dup_wf {c o : arena.env.IConstantInfo}
     rw [arena.env.i_ind_caps_dup] at hic
     obtain ⟨n, _, hic⟩ := ConRon.Refine.bind_eq_ok_iff.mp hic
     obtain ⟨pw, hpw, hic⟩ := ConRon.Refine.bind_eq_ok_iff.mp hic
+    obtain ⟨_, _, hic⟩ := ConRon.Refine.bind_eq_ok_iff.mp hic
+    obtain ⟨_, _, hic⟩ := ConRon.Refine.bind_eq_ok_iff.mp hic
     rw [← Result.ok_injective hic]
     show ConRon.Refine.PropWhenWF pw
     rw [ConRon.Refine.PropWhen.dup_eq hpw]; exact hc
@@ -2722,9 +2713,6 @@ end Lockstep
 /-- info: 'ConRon.Refine2.attempt_restore_refines₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms attempt_restore_refines₀
 
-/-- info: 'ConRon.Refine2.is_rec_info_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms is_rec_info_refines
-
 /-- info: 'ConRon.Refine2.memo_b_get_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms memo_b_get_refines
 
@@ -2736,9 +2724,6 @@ end Lockstep
 
 /-- info: 'ConRon.Refine2.nidx_is_proj_fn_shape_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms nidx_is_proj_fn_shape_refines
-
-/-- info: 'ConRon.Refine2.recs_form_suffix_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms recs_form_suffix_refines
 
 /-- info: 'ConRon.Refine2.name_nodup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms name_nodup_refines

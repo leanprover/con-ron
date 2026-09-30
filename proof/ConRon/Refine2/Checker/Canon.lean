@@ -578,11 +578,26 @@ theorem i_ind_caps_beq_refines {a b : arena.env.IIndCaps} {o : Bool}
   intro o6 h
   refine beq_chain' Iff.rfl h ?_
   intro o7 h
+  obtain ⟨b8, hb8, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hiff := ConRon.Refine.PropWhen.beq_iff (ConRon.Refine.PropWhen.wf_shape ha)
-    (ConRon.Refine.PropWhen.wf_shape hb) h
-  cases o7
-  · exact (decide_eq_false (fun hc => by simpa using hiff.mpr hc)).symm
-  · exact (decide_eq_true (hiff.mp rfl)).symm
+    (ConRon.Refine.PropWhen.wf_shape hb) hb8
+  have h8 : b8 = decide (ConRon.Refine.absPropWhen a.sort_z
+      = ConRon.Refine.absPropWhen b.sort_z) := by
+    cases b8
+    · exact (decide_eq_false (fun hc => by simpa using hiff.mpr hc)).symm
+    · exact (decide_eq_true (hiff.mp rfl)).symm
+  refine beq_chain h8 h ?_
+  intro o8 h
+  obtain ⟨b9, hb9, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have h9 := nidx_vec_beq_refines hb9
+  simp only [absNIdxLFrom] at h9
+  refine beq_chain (by simpa using h9) h ?_
+  intro o9 h
+  refine beq_chain' absU_iff h ?_
+  intro o10 h
+  have h10 := nidx_vec_beq_refines h
+  simp only [absNIdxLFrom] at h10
+  simpa using h10
 
 /-- `i_proj_table_beq` ⊑ `==` on `IProjTable`. -/
 theorem i_proj_table_beq_refines {t t2 : arena.env.IProjTable} {o : Bool}
@@ -624,6 +639,26 @@ theorem i_proj_table_beq_refines {t t2 : arena.env.IProjTable} {o : Bool}
   rw [beq_last h]
   exact decide_eq_decide.mpr absU_iff
 
+/-- `intern_caps` copies `sort_z` with `prop_when::dup`, the identity. -/
+theorem intern_caps_sort_z {pers st c r st'}
+    (h : arena.intern.intern_caps pers st c = ok (.Ok r, st')) : r.sort_z = c.sort_z := by
+  rw [arena.intern.intern_caps] at h
+  obtain ⟨⟨r0, st1⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r0 with
+  | Err e => simp at h
+  | Ok ct =>
+  obtain ⟨⟨r1, st2⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r1 with
+  | Err e => simp at h
+  | Ok all =>
+  obtain ⟨⟨r2, st3⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases r2 with
+  | Err e => simp at h
+  | Ok ctors =>
+  obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at h
+  rw [← h.1, ConRon.Refine.PropWhen.dup_eq hpw]
+
 /-- An interned constant's capabilities keep their `sort_z` (`intern_caps`
 copies it with `prop_when::dup`): canonical input, canonical output. -/
 theorem intern_ci_go_caps_wf {pers st m} {c : kernel.env.ConstantInfo}
@@ -644,14 +679,7 @@ theorem intern_ci_go_caps_wf {pers st m} {c : kernel.env.ConstantInfo}
        cases a <;> simp at h
        obtain ⟨-, hc2, -, -⟩ := h
        subst hc2
-       simp only [arena.intern.intern_caps, ConRon.Refine.bind_eq_ok_iff] at h2
-       obtain ⟨⟨r, s2⟩, h3, h2⟩ := h2
-       cases r <;> simp [ConRon.Refine.bind_eq_ok_iff] at h2
-       obtain ⟨pw, hpw, h2⟩ := h2
-       have hd := ConRon.Refine.PropWhen.dup_eq hpw
-       subst hd
-       obtain ⟨hcaps, -⟩ := h2
-       rw [← hcaps]
+       rw [intern_caps_sort_z h2]
        exact hc _ _ rfl)
 
 
@@ -676,7 +704,7 @@ theorem intern_pinned_wf {pers st} {m : Result kernel.env.ConstantInfo}
     refine intern_ci_go_caps_wf ?_ h1 v caps rfl
     intro v c2 hc2
     subst hc2
-    exact hwf.2.2
+    exact hwf.2.2.1
   | _ => trivial
 
 /-- The pinned `Eq` basis is canonical Rust data. -/
