@@ -17,6 +17,7 @@ they run at.
 -/
 import ConRon.Bridge.Inductives.BlockInstall
 import ConRon.Bridge.Inductives.RecCheck
+import ConRon.Bridge.Inductives.GenRec
 import ConRon.Bridge.Inductives.BlockWF
 import ConLeche.Verify.Inductives.PositivityInv
 
@@ -296,10 +297,6 @@ open BT
 
 /-! ## The pass's record, denoted -/
 
--- TEMPORARY (ClassRead.lean cannot be imported beside BlockParts.lean: both define `dRec_inv`)
-opaque dClassRead : EStore → Arena.ClassRead → Option ConLeche.ClassRead
-axiom dClassRead_ext : DExt dClassRead
-
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:25-52 BlockPass —
 **the twin's pass record denotes con-leche's**, at the environment `env₁` its
@@ -545,7 +542,7 @@ def SeedsStageSpec : Prop :=
   ∀ (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) (holes : List EIdx)
     (holesP : List Expr) (ms : List Arena.TargetMajor) (msP : List ConLeche.TargetMajor)
     (fnd : ConLeche.Name → Option ConstantInfo),
-    PSpec (fun st => dCtx st fnd ctx = some ctxP ∧ Frontend.denoteEList st holes = some holesP ∧
+    PSpecP (fun st => dCtx st fnd ctx = some ctxP ∧ Frontend.denoteEList st holes = some holesP ∧
         ms.mapM (dMajor st) = some msP)
       (Arena.classSeeds ctx holes ms)
       (fun st r => r.mapM (fun k => (dKey st k.1).map (·, k.2))
@@ -777,7 +774,7 @@ theorem checkBlockPass_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
   have x6 := c6.ext
   -- the seeds: every outside class
   obtain ⟨seeds, s₇, h13, h14⟩ := bindOk h12
-  obtain ⟨p7, hseeds⟩ := hCS ctx ctxP holes holesP ms msP env₁.find? s₆ s₇ seeds c6.ok.state
+  obtain ⟨p7, hseeds⟩ := hCS ctx ctxP holes holesP ms msP env₁.find? s₆ s₇ seeds c6.ok.state c6.ok.pins
     ⟨dCtx_ext _ (x5.trans x6) _ _ hctx, denoteEList_ext (x5.trans x6) _ _ hholes,
       dMajor_ext.list x6 _ _ hmsP⟩ h13
   have c7 := p7.toCore c6.ok
@@ -908,15 +905,37 @@ theorem checkBlock_bridge_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
 
 /-! ## The three stages, discharged -/
 
--- TEMPORARY: until `GenRec.lean` lands `checkBlockClasses_spec`, `classSeeds_spec`,
--- `genRecCheck_spec`.
-theorem classesStage {μ : CheckMode} (hμ : μ.verifiedChecks = true)
-    (hk : CoreSpec μ Arena.checkFuel) : ClassesStageSpec μ := sorry
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:518-536 checkBlockClasses —
+`GenRec.lean`'s `checkBlockClasses_spec`, at the shape the pass consumes. -/
+theorem classesStage {μ : CheckMode} (hk : CoreSpec μ Arena.checkFuel) :
+    ClassesStageSpec μ := by
+  intro fe₁ env₁ p pP params paramsP ctorsAs ctorsAsP henv₁ hpl hp s₀ s' r hok hpre hrun
+  obtain ⟨h1, h2, h3, -⟩ := hpre
+  exact checkBlockClasses_spec fe₁ hk henv₁ p pP params paramsP ctorsAs ctorsAsP hpl hp
+    s₀ s' r hok ⟨h1, h2, h3⟩ hrun
 
-theorem seedsStage : SeedsStageSpec := sorry
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:494-499 classSeeds —
+`GenRec.lean`'s `classSeeds_spec`. -/
+theorem seedsStage : SeedsStageSpec :=
+  fun ctx ctxP holes holesP ms msP fnd => classSeeds_spec fnd ctx ctxP holes holesP ms msP
 
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:76-91 checkBlockRec —
+`GenRec.lean`'s `genRecCheck_spec`, at the shape the tail consumes: the
+returned index is coherent with the list it was handed (`GR.FEq`). -/
 theorem recStage {μ : CheckMode} (hμ : μ.verifiedChecks = true)
-    (hk : CoreSpec μ Arena.checkFuel) : RecStageSpec μ := sorry
+    (hk : CoreSpec μ Arena.checkFuel) : RecStageSpec μ := by
+  intro fe₂ env₂ p pP nested params paramsP tbl tblP rd rdP ms msP cvTas cvTasP block blockP
+    henv₂ hcoh hT hMs s₀ s' r hok hpre hrun
+  obtain ⟨-, hp, hpa, htb, hrd, hms, hcv, hb⟩ := hpre
+  obtain ⟨shP, hsh, rfl⟩ : ∃ shP, dShape s₀.store p.shape = some shP ∧ pP = ⟨shP⟩ := by
+    simp only [dParts, Option.map_eq_some_iff] at hp
+    obtain ⟨shP, h1, h2⟩ := hp
+    exact ⟨shP, h1, h2.symm⟩
+  obtain ⟨c, out, ⟨hout, hfresh, hfeq⟩, hF⟩ := genRecCheck_spec fe₂ hμ hk henv₂ hcoh p.shape shP
+    nested params paramsP tbl tblP rd rdP ms msP cvTas cvTasP block blockP hMs hT s₀ s' r hok
+    ⟨hsh, hpa, htb, hrd, hms, hcv, hb⟩ hrun
+  refine ⟨c, out, ⟨⟨by rw [hfeq.2.1, hcoh.1, hfeq.1], fun n => by
+    rw [hfeq.2.2 n, hcoh.2 n, hfeq.1]⟩, hfeq.1, hout, hfresh⟩, hF⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:140-148 checkBlock
 con-leche: ConLeche/Verify/Cached/GenRecC.lean:1047 checkBlockKS_run —
@@ -933,7 +952,7 @@ theorem checkBlock_bridge {μ : CheckMode} (hμ : μ.verifiedChecks = true)
     (hp : dParts s.store p₀ = some p₀P)
     (hrun : Arena.checkBlock μ fe block p₀ s = .ok (fe', s')) :
     IndOut fe fe' s s' (fun env' => FOk (ConLeche.checkBlock (fueledOpsM μ) env b p₀P) env') :=
-  checkBlock_bridge_of hμ hk (classesStage hμ hk) seedsStage (recStage hμ hk) hok henv hcoh
+  checkBlock_bridge_of hμ hk (classesStage hk) seedsStage (recStage hμ hk) hok henv hcoh
     hden hb hp hrun
 
 end ConRon.Bridge.Inductives
