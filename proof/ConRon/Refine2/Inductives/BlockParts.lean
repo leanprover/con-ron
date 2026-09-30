@@ -213,4 +213,233 @@ theorem block_shape_dup_abs {p o : arena.inductives.block_parts.BlockShape}
       (fun o => TwinEq (absBlockShape p) (absBlockShape o)) :=
   fun _ h => (block_shape_dup_abs h).symm
 
+/-! ## The split -/
+
+theorem absICILFrom_cons {block : alloc.vec.Vec arena.env.IConstantInfo} {i j : Std.Usize}
+    {ii : arena.env.IConstantInfo} (hx : block.val[i.val]? = some ii)
+    (hj : j.val = i.val + 1) :
+    absICILFrom block i = absIConstantInfo ii :: absICILFrom block j := by
+  obtain ⟨hb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
+  rw [absICILFrom, absICILFrom, List.drop_eq_getElem_cons hb, hxv, List.map_cons, hj]
+
+theorem absICILFrom_cons' {block : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize}
+    {ii : arena.env.IConstantInfo} (hx : block.val[i.val]? = some ii) :
+    absICILFrom block i = absIConstantInfo ii :: (block.val.drop (i.val + 1)).map absIConstantInfo := by
+  obtain ⟨hb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
+  rw [absICILFrom, List.drop_eq_getElem_cons hb, hxv, List.map_cons]
+
+theorem absICILFrom_nil {block : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize}
+    (hn : block.val.length ≤ i.val) : absICILFrom block i = [] := by
+  rw [absICILFrom, List.drop_eq_nil_of_le hn, List.map_nil]
+
+/-- `blockSplitCtors` at a list that does not start with a constructor. -/
+theorem blockSplitCtors_of_not_ctor (L : List IConstantInfo)
+    (hL : ∀ cv np nf rest, L ≠ .ctorInfo cv np nf :: rest) :
+    blockSplitCtors L = (blockSplitRecs L).map (fun rs => ([], rs)) := by
+  match L, hL with
+  | [], _ => simp [blockSplitCtors, blockSplitRecs]
+  | .axiomInfo _ :: _, _ => simp [blockSplitCtors, blockSplitRecs]
+  | .defnInfo _ _ _ :: _, _ => simp [blockSplitCtors, blockSplitRecs]
+  | .thmInfo _ _ :: _, _ => simp [blockSplitCtors, blockSplitRecs]
+  | .indInfo _ _ :: _, _ => simp [blockSplitCtors, blockSplitRecs]
+  | .ctorInfo cv np nf :: rest, hL => exact absurd rfl (hL cv np nf rest)
+  | .recInfo _ _ _ _ :: rest, _ =>
+    simp only [blockSplitCtors, blockSplitRecs]
+    cases blockSplitRecs rest <;> rfl
+  | .projInfo _ :: _, _ => simp [blockSplitCtors, blockSplitRecs]
+
+/-- `blockSplit` at a list that does not start with a type former. -/
+theorem blockSplit_of_not_ind (L : List IConstantInfo)
+    (hL : ∀ cv caps rest, L ≠ .indInfo cv caps :: rest) :
+    blockSplit L = (blockSplitCtors L).map (fun q => ([], q.1, q.2)) := by
+  match L, hL with
+  | [], _ => simp only [blockSplit]; cases blockSplitCtors [] <;> rfl
+  | .axiomInfo a :: r, _ => simp only [blockSplit]; cases blockSplitCtors (.axiomInfo a :: r) <;> rfl
+  | .defnInfo a b c :: r, _ =>
+    simp only [blockSplit]; cases blockSplitCtors (.defnInfo a b c :: r) <;> rfl
+  | .thmInfo a b :: r, _ => simp only [blockSplit]; cases blockSplitCtors (.thmInfo a b :: r) <;> rfl
+  | .indInfo cv caps :: rest, hL => exact absurd rfl (hL cv caps rest)
+  | .ctorInfo a b c :: r, _ =>
+    simp only [blockSplit]; cases blockSplitCtors (.ctorInfo a b c :: r) <;> rfl
+  | .recInfo a b c d :: r, _ =>
+    simp only [blockSplit]; cases blockSplitCtors (.recInfo a b c d :: r) <;> rfl
+  | .projInfo a :: r, _ => simp only [blockSplit]; cases blockSplitCtors (.projInfo a :: r) <;> rfl
+
+theorem block_split_recs_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
+    ∀ (i : Std.Usize) out o,
+      arena.inductives.block_parts.block_split_recs block i out = ok o →
+      o.map absRecsL = (blockSplitRecs (absICILFrom block i)).map (absRecsL out ++ ·) := by
+  refine cursor_induction (fun i : Std.Usize => i.val) block.val.length
+    (fun i out => ∀ o, arena.inductives.block_parts.block_split_recs block i out = ok o →
+      o.map absRecsL = (blockSplitRecs (absICILFrom block i)).map (absRecsL out ++ ·)) ?_ ?_
+  · intro i out hn o h
+    rw [arena.inductives.block_parts.block_split_recs.eq_def] at h
+    rw [if_pos (show i ≥ alloc.vec.Vec.len block by scalar_tac), Result.ok.injEq] at h
+    subst h
+    rw [absICILFrom_nil hn]; simp [blockSplitRecs]
+  · intro i out hi ih o h
+    rw [arena.inductives.block_parts.block_split_recs.eq_def] at h
+    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len block by scalar_tac)] at h
+    obtain ⟨ii, hii, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hx := vec_index_some hii
+    clear h
+    cases ii with
+    | RecInfo cv mi rp rules =>
+      obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+      obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      rw [ih i2 out1 hi2v o h, absICILFrom_cons hx hi2v]
+      simp only [absIConstantInfo, blockSplitRecs]
+      cases blockSplitRecs (absICILFrom block i2) <;>
+        simp [absRecsL, ConRon.Refine.vec_push_val hout1, i_constant_val_dup_abs hiv,
+          i_rec_rules_dup_abs hv]
+    | AxiomInfo _ => simp only [Result.ok.injEq] at h2; subst h2; rw [absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
+    | DefnInfo _ _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
+    | ThmInfo _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
+    | IndInfo _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
+    | CtorInfo _ _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
+    | ProjInfo _ => simp only [Result.ok.injEq] at h2; subst h2; rw [absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
+
+@[lockstep] theorem block_split_recs_twin (block : alloc.vec.Vec arena.env.IConstantInfo)
+    (i : Std.Usize) out :
+    LSP (arena.inductives.block_parts.block_split_recs block i out)
+      (fun o => TwinEq ((blockSplitRecs (absICILFrom block i)).map (absRecsL out ++ ·))
+        (o.map absRecsL)) :=
+  fun o h => (block_split_recs_abs i out o h).symm
+
+theorem block_split_recs_new_abs {block : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize} {o}
+    (h : arena.inductives.block_parts.block_split_recs block i (alloc.vec.Vec.new _) = ok o) :
+    o.map absRecsL = blockSplitRecs (absICILFrom block i) := by
+  rw [block_split_recs_abs i _ o h]
+  cases blockSplitRecs (absICILFrom block i) <;> simp [absRecsL]
+
+theorem block_split_ctors_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
+    ∀ (i : Std.Usize) out o,
+      arena.inductives.block_parts.block_split_ctors block i out = ok o →
+      o.map (fun q => (absCtors3L q.1, absRecsL q.2)) =
+        (blockSplitCtors (absICILFrom block i)).map (fun q => (absCtors3L out ++ q.1, q.2)) := by
+  refine cursor_induction (fun i : Std.Usize => i.val) block.val.length
+    (fun i out => ∀ o, arena.inductives.block_parts.block_split_ctors block i out = ok o →
+      o.map (fun q => (absCtors3L q.1, absRecsL q.2)) =
+        (blockSplitCtors (absICILFrom block i)).map (fun q => (absCtors3L out ++ q.1, q.2)))
+    ?_ ?_
+  · intro i out hn o h
+    rw [arena.inductives.block_parts.block_split_ctors.eq_def] at h
+    rw [if_neg (show ¬ i < alloc.vec.Vec.len block by scalar_tac)] at h
+    obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have e := block_split_recs_new_abs ho1
+    rw [blockSplitCtors_of_not_ctor _ (by rw [absICILFrom_nil hn]; simp), ← e]
+    cases o1 <;> (obtain rfl := Result.ok_injective h; simp)
+  · intro i out hi ih o h
+    rw [arena.inductives.block_parts.block_split_ctors.eq_def] at h
+    rw [if_pos (show i < alloc.vec.Vec.len block by scalar_tac)] at h
+    obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hx := vec_index_some hii
+    by_cases hc : ∃ cv np nf, ii = .CtorInfo cv np nf
+    · obtain ⟨cv, np, nf, rfl⟩ := hc
+      simp only [arena.inductives.block_parts.is_ctor_info, bind_tc_ok, ite_true,
+        arena.inductives.block_parts.ctor_info_parts] at h
+      obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨iv, hiv, ht⟩ := ConRon.Refine.bind_eq_ok_iff.mp ht
+      simp only [Result.ok.injEq] at ht
+      subst ht
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      rw [ih i2 out1 hi2v o h, absICILFrom_cons hx hi2v]
+      simp only [absIConstantInfo, blockSplitCtors]
+      cases blockSplitCtors (absICILFrom block i2) <;>
+        simp [absCtors3L, ConRon.Refine.vec_push_val hout1, i_constant_val_dup_abs hiv]
+    · have hb : arena.inductives.block_parts.is_ctor_info ii = ok false := by
+        cases ii <;> simp_all [arena.inductives.block_parts.is_ctor_info]
+      rw [hb, bind_tc_ok] at h
+      simp only [Bool.false_eq_true, ite_false] at h
+      obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have e := block_split_recs_new_abs ho1
+      rw [blockSplitCtors_of_not_ctor _ ?_, ← e]
+      · cases o1 <;> (obtain rfl := Result.ok_injective h; simp)
+      · intro cv np nf rest hc'
+        rw [absICILFrom_cons' hx] at hc'
+        cases ii <;> simp_all [absIConstantInfo]
+
+@[lockstep] theorem block_split_ctors_twin (block : alloc.vec.Vec arena.env.IConstantInfo)
+    (i : Std.Usize) out :
+    LSP (arena.inductives.block_parts.block_split_ctors block i out)
+      (fun o => TwinEq ((blockSplitCtors (absICILFrom block i)).map
+          (fun q => (absCtors3L out ++ q.1, q.2)))
+        (o.map (fun q => (absCtors3L q.1, absRecsL q.2)))) :=
+  fun o h => (block_split_ctors_abs i out o h).symm
+
+theorem block_split_ctors_new_abs {block : alloc.vec.Vec arena.env.IConstantInfo}
+    {i : Std.Usize} {o}
+    (h : arena.inductives.block_parts.block_split_ctors block i (alloc.vec.Vec.new _) = ok o) :
+    o.map (fun q => (absCtors3L q.1, absRecsL q.2)) = blockSplitCtors (absICILFrom block i) := by
+  rw [block_split_ctors_abs i _ o h]
+  cases blockSplitCtors (absICILFrom block i) <;> simp [absCtors3L]
+
+theorem block_split_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
+    ∀ (i : Std.Usize) out o,
+      arena.inductives.block_parts.block_split block i out = ok o →
+      o.map (fun q => (absICVL q.1, absCtors3L q.2.1, absRecsL q.2.2)) =
+        (blockSplit (absICILFrom block i)).map (fun q => (absICVL out ++ q.1, q.2)) := by
+  refine cursor_induction (fun i : Std.Usize => i.val) block.val.length
+    (fun i out => ∀ o, arena.inductives.block_parts.block_split block i out = ok o →
+      o.map (fun q => (absICVL q.1, absCtors3L q.2.1, absRecsL q.2.2)) =
+        (blockSplit (absICILFrom block i)).map (fun q => (absICVL out ++ q.1, q.2)))
+    ?_ ?_
+  · intro i out hn o h
+    rw [arena.inductives.block_parts.block_split.eq_def] at h
+    rw [if_neg (show ¬ i < alloc.vec.Vec.len block by scalar_tac)] at h
+    obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have e := block_split_ctors_new_abs ho1
+    rw [blockSplit_of_not_ind _ (by rw [absICILFrom_nil hn]; simp), ← e]
+    cases o1 <;> (obtain rfl := Result.ok_injective h; simp)
+  · intro i out hi ih o h
+    rw [arena.inductives.block_parts.block_split.eq_def] at h
+    rw [if_pos (show i < alloc.vec.Vec.len block by scalar_tac)] at h
+    obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hx := vec_index_some hii
+    by_cases hc : ∃ cv caps, ii = .IndInfo cv caps
+    · obtain ⟨cv, caps, rfl⟩ := hc
+      simp only [arena.inductives.block_parts.is_ind_info, bind_tc_ok, ite_true,
+        arena.inductives.block_parts.ind_info_val] at h
+      obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      rw [ih i2 out1 hi2v o h, absICILFrom_cons hx hi2v]
+      simp only [absIConstantInfo, blockSplit]
+      cases blockSplit (absICILFrom block i2) <;>
+        simp [absICVL, ConRon.Refine.vec_push_val hout1, i_constant_val_dup_abs hiv]
+    · have hb : arena.inductives.block_parts.is_ind_info ii = ok false := by
+        cases ii <;> simp_all [arena.inductives.block_parts.is_ind_info]
+      rw [hb, bind_tc_ok] at h
+      simp only [Bool.false_eq_true, ite_false] at h
+      obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have e := block_split_ctors_new_abs ho1
+      rw [blockSplit_of_not_ind _ ?_, ← e]
+      · cases o1 <;> (obtain rfl := Result.ok_injective h; simp)
+      · intro cv caps rest hc'
+        rw [absICILFrom_cons' hx] at hc'
+        cases ii <;> simp_all [absIConstantInfo]
+
+@[lockstep] theorem block_split_twin (block : alloc.vec.Vec arena.env.IConstantInfo)
+    (i : Std.Usize) out :
+    LSP (arena.inductives.block_parts.block_split block i out)
+      (fun o => TwinEq ((blockSplit (absICILFrom block i)).map
+          (fun q => (absICVL out ++ q.1, q.2)))
+        (o.map (fun q => (absICVL q.1, absCtors3L q.2.1, absRecsL q.2.2)))) :=
+  fun o h => (block_split_abs i out o h).symm
+
+/-- `block_split` from `0` into an empty accumulator IS `blockSplit`. -/
+@[lockstep] theorem block_split_twin0 (block : alloc.vec.Vec arena.env.IConstantInfo) :
+    LSP (arena.inductives.block_parts.block_split block 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq (blockSplit (absICIL block))
+        (o.map (fun q => (absICVL q.1, absCtors3L q.2.1, absRecsL q.2.2)))) := by
+  intro o h
+  rw [TwinEq, block_split_abs _ _ o h, absICILFrom_zero]
+  cases blockSplit (absICIL block) <;> simp [absICVL]
+
 end ConRon.Refine2
