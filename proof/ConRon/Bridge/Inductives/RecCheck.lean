@@ -34,6 +34,7 @@ recursor records' pins, node agreement (`targetCtorAt`, `targetK53`,
 import ConRon.Bridge.Inductives.Rel
 import ConRon.Bridge.Inductives.PosWalks
 import ConRon.Bridge.Inductives.StructParts
+import ConLeche.Verify.Inductives.RecCheckScope
 
 namespace ConRon.Bridge.Inductives
 
@@ -385,5 +386,406 @@ theorem targetAbs_spec (names : List NIdx) (lvls : LsIdx) (holes : List EIdx)
     Arena.coreWalkFuel ∅ e eP s₀ s₁ q hok ⟨hA, hd, TAMemoOK.empty⟩ h1
   obtain ⟨rfl, rfl⟩ := pureOk h2
   exact ⟨hstep, hr⟩
+
+/-! ## The holes -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:248-251 targetHoles —
+the `List.range` map read as the recursion the twin runs: the head hole at
+`base`, the rest one further. -/
+theorem targetHoles_cons (ty : Expr) (tys : List Expr) (base : Nat) :
+    ConLeche.targetHoles (ty :: tys) base =
+      .fvar base ty :: ConLeche.targetHoles tys (base + 1) := by
+  simp only [ConLeche.targetHoles, List.length_cons, List.range_succ_eq_map,
+    List.map_cons, List.map_map, Nat.add_zero, List.getD_cons_zero]
+  congr 1
+  apply List.map_congr_left
+  intro t _
+  simp only [Function.comp, List.getD_cons_succ]
+  congr 1
+  omega
+
+theorem targetHoles_nil (base : Nat) : ConLeche.targetHoles [] base = [] := rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:248-251 targetHoles
+**The holes of a rule frame**: member `t` is `.fvar (base + t)` at its
+former's type, interned in member order. -/
+theorem targetHoles_spec : ∀ (tys : List EIdx) (tysP : List Expr) (base : Nat),
+    PSpec (fun st => Frontend.denoteEList st tys = some tysP)
+      (Arena.targetHoles tys base) (REL (ConLeche.targetHoles tysP base)) := by
+  intro tys
+  induction tys with
+  | nil =>
+    intro tysP base s₀ s' r hok hd hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at hd
+    subst hd
+    simp only [Arena.targetHoles] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons ty tys ih =>
+    intro tysP base s₀ s' r hok hd hrun
+    simp only [Frontend.denoteEList] at hd
+    cases h1 : denoteE s₀.store ty with
+    | none => rw [h1] at hd; simp at hd
+    | some tyP =>
+    cases h2 : Frontend.denoteEList s₀.store tys with
+    | none => rw [h1, h2] at hd; simp at hd
+    | some rest =>
+    rw [h1, h2] at hd
+    obtain rfl := (Option.some.inj hd).symm
+    simp only [Arena.targetHoles] at hrun
+    obtain ⟨v, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hv⟩ := PW.internFVarE_run hok h1 k1
+    obtain ⟨vs, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, hvs⟩ := ih rest (base + 1) s1 s2 vs p1.ok (denoteEList_ext p1.ext _ _ h2) k2
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨p1.trans p2, ?_⟩
+    show Frontend.denoteEList _ (v :: vs) = _
+    rw [targetHoles_cons]
+    simp only [Frontend.denoteEList, denote_ext hv p2.ext, hvs]
+
+/-! ## The class record's default, and the class at an index -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:255-275 TargetMajor
+(`deriving Inhabited`) — **the default class record denotes con-leche's
+`default`**: the anonymous name, the pinned empty level list, and nothing
+else.  `PSpecP`: the level list is the `emptyLevels` pin. -/
+theorem targetMajorDefault_spec :
+    PSpecP (fun _ => True) Arena.targetMajorDefault
+      (fun st r => dMajor st r = some (default : ConLeche.TargetMajor)) := by
+  intro s₀ s' r hok hp _ hrun
+  simp only [Arena.targetMajorDefault] at hrun
+  obtain ⟨a, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, ha⟩ := internNNode_run hok
+    (by intro c hc; simp [NNodeView.children] at hc) k1
+  obtain ⟨ls, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨hs2, hls⟩ := AM.of_run (P := fun t => t = s1) rfl k2
+    (pinEmptyLevels_spec s1 (PinsOK.ofPStep hp p1))
+  subst hs2
+  obtain ⟨rfl, rfl⟩ := pureOk z2
+  refine ⟨p1, ?_⟩
+  simp only [denoteNView] at ha
+  simp only [dMajor, ha, hls]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:255-275 TargetMajor
+(`Ms.getD c default`) — **the class at an index**: the denoted list's entry,
+or the default record. -/
+theorem targetMajorAt_spec (ms : List Arena.TargetMajor) (msP : List ConLeche.TargetMajor)
+    (c : Nat) :
+    PSpecP (fun st => ms.mapM (dMajor st) = some msP) (Arena.targetMajorAt ms c)
+      (fun st r => dMajor st r = some (msP.getD c default)) := by
+  intro s₀ s' r hok hp hms hrun
+  simp only [Arena.targetMajorAt] at hrun
+  have hj := mapM_option_getElem? (st := s₀.store) hms c
+  rw [List.getD_eq_getElem?_getD]
+  cases hc : ms[c]? with
+  | none =>
+    rw [hc] at hrun hj
+    have : msP[c]? = none := hj
+    rw [this, Option.getD_none]
+    exact targetMajorDefault_spec s₀ s' r hok hp trivial hrun
+  | some m =>
+    rw [hc] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    rw [hc] at hj
+    obtain ⟨mP, hmP, hd⟩ := hj
+    rw [hmP, Option.getD_some]
+    exact ⟨PStep.refl hok, hd⟩
+
+/-! ## The two `FvMap` readbacks -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:277-281 Expr.eraseFVarTys
+**Every free variable's annotation erased**: `replaceFVars` at the `.erase`
+map. -/
+theorem eraseFVarTys_spec (e : EIdx) (eP : Expr) :
+    PSpecP (fun st => denoteE st e = some eP) (Arena.eraseFVarTys e)
+      (RE (Expr.eraseFVarTys eP)) := by
+  intro s₀ s' r hok hp hd hrun
+  simp only [Arena.eraseFVarTys] at hrun
+  exact replaceFVars_spec .erase _ e eP s₀ s' r hok hp ⟨rfl, hd⟩ hrun
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:305-308 targetCanonParams
+**A term moved to the class's openers**: `replaceFVars` at the `.canon pfvs`
+map. -/
+theorem targetCanonParams_spec (pfvs : List EIdx) (pfvsP : List Expr) (e : EIdx)
+    (eP : Expr) :
+    PSpecP (fun st => Frontend.denoteEList st pfvs = some pfvsP ∧ denoteE st e = some eP)
+      (Arena.targetCanonParams pfvs e) (RE (ConLeche.targetCanonParams pfvsP eP)) := by
+  intro s₀ s' r hok hp hpre hrun
+  obtain ⟨hpf, hd⟩ := hpre
+  simp only [Arena.targetCanonParams] at hrun
+  exact replaceFVars_spec (.canon pfvs) _ e eP s₀ s' r hok hp ⟨⟨pfvsP, hpf, rfl⟩, hd⟩ hrun
+
+/-! ## The knot and the cutoffs, in run form -/
+
+namespace RC
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1714 fvarB — **the free-variable
+cutoff's run form** at this tier's frame: `Bridge/ExprOps/Ranges.lean`'s
+`fvarB_spec` answers `fvarRange`, which is `Expr.fvarB` (`Expr.fvarB_eq`). -/
+theorem fvarB_pstep {fuel : Nat} {s₀ s' : AState} {e : EIdx} {eP : Expr}
+    {r : Nat} (hok : StateOK s₀) (hd : denoteE s₀.store e = some eP)
+    (hrun : Arena.fvarB fuel e s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ s'.store = s₀.store ∧ r = Expr.fvarB eP := by
+  obtain ⟨h1, h2, h3, h4⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.fvarB_spec fuel s₀ e hok (by rw [hd]; rfl))
+  refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.wf⟩ ?_ ?_ h2 h3, h1, ?_⟩
+  · rw [h1]; exact Ext.refl _
+  · rw [h1]; exact BMExt.refl _
+  · rw [h4 eP hd, Expr.fvarB_eq]
+
+/-- con-leche: ConLeche/Verify/BridgeDecl.lean fueledOpsM — **a knot
+inference, in run form**: `CoreSpec.knot`'s `infer` slot, its `SimE` answer
+read as an `FOk` of the fueled operation. -/
+theorem infer_run {μ : CheckMode} {env : Env} {fe : IFEnv}
+    (hknot : Core.KnotSpec μ env fe Arena.checkFuel) {s₀ s' : AState} {d : Nat}
+    {e r : EIdx} {eP : Expr} (hok : CheckOK μ env fe s₀)
+    (hd : denoteE s₀.store e = some eP) (hw : Expr.WScoped d eP)
+    (hrun : Arena.inferTypeCore μ fe Arena.checkFuel d e s₀ = .ok (r, s')) :
+    CoreStep μ env fe s₀ s' ∧ ∃ v, denoteE s'.store r = some v ∧ Expr.WScoped d v ∧
+      FOk ((fueledOpsM μ).inferType env d eP) v := by
+  obtain ⟨h1, h2, h3, v, hv, hwv, hF⟩ := AM.of_run (P := fun u => u = s₀)
+    (Q := fun r u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧ u.pins = s₀.pins ∧
+      Core.SimE (ConLeche.inferTypeCore μ env) d eP u.store r)
+    rfl hrun (hknot.infer s₀ d e eP hok hd hw)
+  exact ⟨⟨h1, h2, h3⟩, v, hv, hwv, FOk.inferType hF⟩
+
+/-- con-leche: ConLeche/Verify/BridgeDecl.lean fueledOpsM — **a knot defeq,
+in run form**. -/
+theorem defeq_run {μ : CheckMode} {env : Env} {fe : IFEnv}
+    (hknot : Core.KnotSpec μ env fe Arena.checkFuel) {s₀ s' : AState} {d : Nat}
+    {a b : EIdx} {aP bP : Expr} {r : Bool} (hok : CheckOK μ env fe s₀)
+    (ha : denoteE s₀.store a = some aP) (hb : denoteE s₀.store b = some bP)
+    (hwa : Expr.WScoped d aP) (hwb : Expr.WScoped d bP)
+    (hrun : Arena.isDefEqCore μ fe Arena.checkFuel d a b s₀ = .ok (r, s')) :
+    CoreStep μ env fe s₀ s' ∧ FOk ((fueledOpsM μ).isDefEq env d aP bP) r := by
+  obtain ⟨h1, h2, h3, hF⟩ := AM.of_run (P := fun u => u = s₀)
+    (Q := fun x u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧ u.pins = s₀.pins ∧
+      Core.SimV (ConLeche.isDefEqCore μ env) d aP bP x)
+    rfl hrun (hknot.defeq s₀ d a b aP bP hok ha hb hwa hwb)
+  exact ⟨⟨h1, h2, h3⟩, FOk.isDefEq hF⟩
+
+/-- con-leche: none — a pure-grade `PSpecP` step taken at the core grade. -/
+theorem pspecP_core {μ : CheckMode} {env : Env} {fe : IFEnv} {α : Type}
+    {P : EStore → Prop} {c : AM α} {R : EStore → α → Prop} (h : PSpecP P c R)
+    {s₀ s' : AState} {r : α} (hok : CheckOK μ env fe s₀) (hp : P s₀.store)
+    (hrun : c s₀ = .ok (r, s')) : CoreStep μ env fe s₀ s' ∧ R s'.store r := by
+  obtain ⟨hs, hr⟩ := h s₀ s' r hok.state hok.pins hp hrun
+  exact ⟨hs.toCore hok, hr⟩
+
+/-- con-leche: none — and a `PSpec` one. -/
+theorem pspec_core {μ : CheckMode} {env : Env} {fe : IFEnv} {α : Type}
+    {P : EStore → Prop} {c : AM α} {R : EStore → α → Prop} (h : PSpec P c R)
+    {s₀ s' : AState} {r : α} (hok : CheckOK μ env fe s₀) (hp : P s₀.store)
+    (hrun : c s₀ = .ok (r, s')) : CoreStep μ env fe s₀ s' ∧ R s'.store r := by
+  obtain ⟨hs, hr⟩ := h s₀ s' r hok.state hp hrun
+  exact ⟨hs.toCore hok, hr⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:318 targetParamsDefEq
+(the guard) — **the four closedness reads**, short-circuiting in the cited
+`&&` order, with the continuation `k` the `do` elaborator pushed into every
+branch: the run is `k` at con-leche's conjunction. -/
+theorem closed4_bind_run {β : Type} {k : Bool → AM β} {s₀ s' : AState} {a b : EIdx}
+    {aP bP : Expr} {n : Nat} {r : β}
+    (hok : StateOK s₀) (ha : denoteE s₀.store a = some aP)
+    (hb : denoteE s₀.store b = some bP)
+    (hrun : (bvarB coreWalkFuel a >>= fun x =>
+      if (x != 0) = true then (pure false >>= k) else
+      (bvarB coreWalkFuel b >>= fun y =>
+        if (y != 0) = true then (pure false >>= k) else
+        (fvarB coreWalkFuel a >>= fun z =>
+          if z > n then (pure false >>= k) else
+          (fvarB coreWalkFuel b >>= fun w => pure (decide (w ≤ n)) >>= k)))) s₀
+        = .ok (r, s')) :
+    ∃ s₁, PStep s₀ s₁ ∧ k (aP.bvarB == 0 && bP.bvarB == 0 && decide (aP.fvarB ≤ n) &&
+      decide (bP.fvarB ≤ n)) s₁ = .ok (r, s') := by
+  obtain ⟨x1, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, -, rfl⟩ := bvarB_pstep hok ha k1
+  by_cases c1 : (aP.bvarB != 0) = true
+  · rw [if_pos c1] at z1
+    refine ⟨s1, p1, ?_⟩
+    have e : (aP.bvarB == 0 && bP.bvarB == 0 && decide (aP.fvarB ≤ n) &&
+      decide (bP.fvarB ≤ n)) = false := by
+      simp only [bne_iff_ne, ne_eq] at c1
+      simp [c1]
+    rw [e]; exact z1
+  · rw [if_neg c1] at z1
+    simp only [bne_iff_ne, ne_eq, Decidable.not_not] at c1
+    obtain ⟨x2, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, -, rfl⟩ := bvarB_pstep p1.ok (denote_ext hb p1.ext) k2
+    by_cases c2 : (bP.bvarB != 0) = true
+    · rw [if_pos c2] at z2
+      refine ⟨s2, p1.trans p2, ?_⟩
+      have e : (aP.bvarB == 0 && bP.bvarB == 0 && decide (aP.fvarB ≤ n) &&
+        decide (bP.fvarB ≤ n)) = false := by
+        simp only [bne_iff_ne, ne_eq] at c2
+        simp [c1, c2]
+      rw [e]; exact z2
+    · rw [if_neg c2] at z2
+      simp only [bne_iff_ne, ne_eq, Decidable.not_not] at c2
+      obtain ⟨x3, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨p3, -, rfl⟩ := fvarB_pstep (p1.trans p2).ok
+        (denote_ext ha (p1.trans p2).ext) k3
+      by_cases c3 : aP.fvarB > n
+      · rw [if_pos c3] at z3
+        refine ⟨s3, (p1.trans p2).trans p3, ?_⟩
+        have : ¬ aP.fvarB ≤ n := by omega
+        have e : (aP.bvarB == 0 && bP.bvarB == 0 && decide (aP.fvarB ≤ n) &&
+          decide (bP.fvarB ≤ n)) = false := by simp [c1, c2, this]
+        rw [e]; exact z3
+      · rw [if_neg c3] at z3
+        obtain ⟨x4, s4, k4, z4⟩ := bindOk z3
+        have p123 := (p1.trans p2).trans p3
+        obtain ⟨p4, -, rfl⟩ := fvarB_pstep p123.ok (denote_ext hb p123.ext) k4
+        refine ⟨s4, p123.trans p4, ?_⟩
+        have : aP.fvarB ≤ n := by omega
+        have e : (aP.bvarB == 0 && bP.bvarB == 0 && decide (aP.fvarB ≤ n) &&
+          decide (bP.fvarB ≤ n)) = decide (bP.fvarB ≤ n) := by simp [c1, c2, this]
+        rw [e]; exact z4
+
+end RC
+
+/-! ## The class match, per component -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:310-329 targetParamsDefEq
+**Per-component parameter defeq**: both sides closed over the openers, moved
+to them and member-abstracted, then syntactically equal or inferred and
+defeq; the answer is con-leche's at `fueledOpsM μ`, with `absM` the
+structural `targetAbs` at the denoted names, levels and holes.
+
+The scoping hypotheses are the cached bridge's (`targetParamsDefEqS_sim`,
+`ConLeche/Verify/Cached/TargetRecC.lean`): the openers scoped at the depth,
+and the abstraction preserving it. -/
+theorem targetParamsDefEq_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) (d : Nat)
+    (names : List NIdx) (lvls : LsIdx) (holes pfvs : List EIdx)
+    (namesP : List ConLeche.Name) (lvlsP : List Level) (holesP pfvsP : List Expr)
+    (habs : ∀ e, Expr.WScoped d e → Expr.WScoped d (ConLeche.targetAbs namesP lvlsP holesP e))
+    (hp : ∀ x ∈ pfvsP, Expr.WScoped d x) :
+    ∀ (as bs : List EIdx) (asP bsP : List Expr),
+    CSpecF μ env fe
+      (fun st => TAArgs names lvls holes namesP lvlsP holesP st ∧
+        Frontend.denoteEList st pfvs = some pfvsP ∧
+        Frontend.denoteEList st as = some asP ∧ Frontend.denoteEList st bs = some bsP)
+      (Arena.targetParamsDefEq μ fe d names lvls holes pfvs as bs)
+      (fun _ r v => r = v)
+      (ConLeche.targetParamsDefEq (fueledOpsM μ) env d
+        (ConLeche.targetAbs namesP lvlsP holesP) pfvsP asP bsP) := by
+  have hknot := hk.knot env fe henv
+  intro as
+  induction as with
+  | nil =>
+    intro bs asP bsP s₀ s' r hok hpre hrun
+    obtain ⟨-, -, has, hbs⟩ := hpre
+    simp only [Frontend.denoteEList, Option.some.injEq] at has
+    subst has
+    cases bs with
+    | nil =>
+      simp only [Frontend.denoteEList, Option.some.injEq] at hbs
+      subst hbs
+      simp only [Arena.targetParamsDefEq] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      exact ⟨CoreStep.refl hok, true, rfl, by
+        simp only [ConLeche.targetParamsDefEq]; exact FOk.pure true⟩
+    | cons b bs =>
+      obtain ⟨y, ys, -, -, rfl⟩ := Core.denoteEList_cons_inv hbs
+      simp only [Arena.targetParamsDefEq] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      exact ⟨CoreStep.refl hok, false, rfl, by
+        simp only [ConLeche.targetParamsDefEq]; exact FOk.pure false⟩
+  | cons a as ih =>
+    intro bs asP bsP s₀ s' r hok hpre hrun
+    obtain ⟨hA, hpf, has, hbs⟩ := hpre
+    obtain ⟨aP, asP', ha, has', rfl⟩ := Core.denoteEList_cons_inv has
+    cases bs with
+    | nil =>
+      simp only [Frontend.denoteEList, Option.some.injEq] at hbs
+      subst hbs
+      simp only [Arena.targetParamsDefEq] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      exact ⟨CoreStep.refl hok, false, rfl, by
+        simp only [ConLeche.targetParamsDefEq]; exact FOk.pure false⟩
+    | cons b bs =>
+    obtain ⟨bP, bsP', hb, hbs', rfl⟩ := Core.denoteEList_cons_inv hbs
+    have hlen : pfvs.length = pfvsP.length := PW.denoteEList_length hpf
+    simp only [Arena.targetParamsDefEq] at hrun
+    obtain ⟨s1, p1, z1⟩ := RC.closed4_bind_run hok.state ha hb hrun
+    generalize hcl : (aP.bvarB == 0 && bP.bvarB == 0 && decide (aP.fvarB ≤ pfvs.length) &&
+      decide (bP.fvarB ≤ pfvs.length)) = cl at z1
+    have c1 := p1.toCore hok
+    rw [ConLeche.targetParamsDefEq]
+    rw [hlen] at hcl
+    by_cases hc : cl = true
+    · rw [hc] at z1 hcl
+      simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte] at z1
+      rw [if_pos hcl]
+      simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hcl
+      obtain ⟨⟨⟨_, _⟩, hfa⟩, hfb⟩ := hcl
+      have hwa : Expr.WScoped d (ConLeche.targetAbs namesP lvlsP holesP
+          (ConLeche.targetCanonParams pfvsP aP)) :=
+        habs _ (targetCanonParams_WScoped hp aP (Expr.fvarsBelow_iff.mpr (Expr.fvarB_eq aP ▸ hfa)))
+      have hwb : Expr.WScoped d (ConLeche.targetAbs namesP lvlsP holesP
+          (ConLeche.targetCanonParams pfvsP bP)) :=
+        habs _ (targetCanonParams_WScoped hp bP (Expr.fvarsBelow_iff.mpr (Expr.fvarB_eq bP ▸ hfb)))
+      -- the four readbacks
+      obtain ⟨ac, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨c2, hac⟩ := RC.pspecP_core (targetCanonParams_spec pfvs pfvsP a aP) c1.ok
+        ⟨denoteEList_ext c1.ext _ _ hpf, denote_ext ha c1.ext⟩ k2
+      obtain ⟨a', s3, k3, z3⟩ := bindOk z2
+      have c12 := c1.trans c2
+      obtain ⟨c3, ha'⟩ := RC.pspec_core (targetAbs_spec names lvls holes namesP lvlsP holesP
+        ac _) c2.ok ⟨hA.ext c12.ext, hac⟩ k3
+      have c13 := c12.trans c3
+      obtain ⟨bc, s4, k4, z4⟩ := bindOk z3
+      obtain ⟨c4, hbc⟩ := RC.pspecP_core (targetCanonParams_spec pfvs pfvsP b bP) c3.ok
+        ⟨denoteEList_ext c13.ext _ _ hpf, denote_ext hb c13.ext⟩ k4
+      have c14 := c13.trans c4
+      obtain ⟨b', s5, k5, z5⟩ := bindOk z4
+      obtain ⟨c5, hb'⟩ := RC.pspec_core (targetAbs_spec names lvls holes namesP lvlsP holesP
+        bc _) c4.ok ⟨hA.ext c14.ext, hbc⟩ k5
+      have c15 := c14.trans c5
+      have ha'5 := denote_ext ha' (c4.ext.trans c5.ext)
+      have hbeq := beq_ehandle_eq c5.ok.state.wf ha'5 hb'
+      by_cases he : (a' == b') = true
+      · rw [if_pos he] at z5
+        rw [he] at hbeq
+        rw [if_pos hbeq.symm]
+        obtain ⟨c6, v, rfl, hv⟩ := ih bs asP' bsP' s5 s' r c5.ok
+          ⟨hA.ext c15.ext, denoteEList_ext c15.ext _ _ hpf, denoteEList_ext c15.ext _ _ has',
+            denoteEList_ext c15.ext _ _ hbs'⟩ z5
+        exact ⟨c15.trans c6, r, rfl, hv⟩
+      · rw [if_neg he] at z5
+        have hne : ¬ (ConLeche.targetAbs namesP lvlsP holesP (ConLeche.targetCanonParams pfvsP aP)
+            == ConLeche.targetAbs namesP lvlsP holesP (ConLeche.targetCanonParams pfvsP bP))
+              = true := by rw [← hbeq]; exact he
+        rw [if_neg hne]
+        obtain ⟨t1, s6, k6, z6⟩ := bindOk z5
+        obtain ⟨c6, v1, -, -, hF1⟩ := RC.infer_run hknot c5.ok ha'5 hwa k6
+        obtain ⟨t2, s7, k7, z7⟩ := bindOk z6
+        obtain ⟨c7, v2, -, -, hF2⟩ := RC.infer_run hknot c6.ok (denote_ext hb' c6.ext) hwb k7
+        obtain ⟨q, s8, k8, z8⟩ := bindOk z7
+        have c57 := c6.trans c7
+        obtain ⟨c8, hF3⟩ := RC.defeq_run hknot c7.ok (denote_ext ha'5 c57.ext)
+          (denote_ext hb' c57.ext) hwa hwb k8
+        have c18 := (c15.trans c57).trans c8
+        cases q with
+        | true =>
+          simp only [↓reduceIte] at z8
+          obtain ⟨c9, v, rfl, hv⟩ := ih bs asP' bsP' s8 s' r c8.ok
+            ⟨hA.ext c18.ext, denoteEList_ext c18.ext _ _ hpf, denoteEList_ext c18.ext _ _ has',
+              denoteEList_ext c18.ext _ _ hbs'⟩ z8
+          refine ⟨c18.trans c9, r, rfl, ?_⟩
+          exact FOk.bind hF1 (FOk.bind hF2 (FOk.bind hF3 (by simpa using hv)))
+        | false =>
+          simp only [Bool.false_eq_true, ↓reduceIte] at z8
+          obtain ⟨rfl, rfl⟩ := pureOk z8
+          refine ⟨c18, false, rfl, ?_⟩
+          exact FOk.bind hF1 (FOk.bind hF2 (FOk.bind hF3 (by simpa using FOk.pure false)))
+    · have hc' : cl = false := by simpa using hc
+      rw [hc'] at z1 hcl
+      simp only [Bool.not_false, ↓reduceIte] at z1
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      rw [if_neg (by rw [hcl]; simp)]
+      exact ⟨c1, false, rfl, FOk.pure false⟩
 
 end ConRon.Bridge.Inductives
