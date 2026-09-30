@@ -27,11 +27,7 @@ never touches the pin table — which is what makes `PersStateD` free and what
 makes the fold theorems' `FoldOK` (`Arena.installThenCheck_bridge`'s `hok`)
 reachable at the post-parse state.
 -/
-import ConRon.Bridge.Frontend.Modeller
 import ConRon.Bridge.Frontend.Shared
-import ConRon.Bridge.Frontend.ProjRec
-import ConRon.Bridge.Frontend.ProjRecValue
-import ConRon.Bridge.Frontend.ProjRecOwners
 
 namespace ConRon.Bridge.Frontend
 
@@ -1076,342 +1072,43 @@ theorem toConstantVal_type_run {s s' : AState} (hok : StateOK s)
     subst hss; subst hvv
     exact ⟨((hstep1.trans hstep2).trans hstep3).toParse hoff, hdty'⟩
 
-/-- con-leche: none — the relation `StateDRel.constTypes` carries, named once
-because `noteDecl`'s fold is stated at it three times. -/
-def CTRel (st : EStore) (p : List NIdx × EIdx)
-    (q : List ConLeche.Name × ConLeche.Expr) : Prop :=
-  denoteNList st.ns p.1 = some q.1 ∧ denoteE st p.2 = some q.2
+/-- con-leche: ConLeche/Frontend/ExportC.lean:65-72 pushDecl — one parsed
+record, appended.  `pushDecl` is a plain state update now (task #105: the
+constants-and-heights bookkeeping the in-process modeller's `noteDecl` used to
+read is gone with it, and `noteDecl` itself is deleted), so the whole frame is
+`s' = s`.
 
-/-- con-leche: none — the relation one entry of `noteDecl`'s working list
-carries: the key denotes, the value is `StateDRel.constTypes`'s pair, and the
-optional height is the same number on both sides. -/
-def NoteRel (st : EStore) (p : NIdx × List NIdx × EIdx × Option Nat)
-    (q : ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Option Nat) : Prop :=
-  denoteN st.ns p.1 = some q.1 ∧ CTRel st (p.2.1, p.2.2.1) (q.2.1, q.2.2.1) ∧
-    p.2.2.2 = q.2.2.2
-
-theorem NoteRel.ext {st st' : EStore} (hx : Ext st st')
-    {p : NIdx × List NIdx × EIdx × Option Nat}
-    {q : ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Option Nat}
-    (h : NoteRel st p q) : NoteRel st' p q :=
-  ⟨denoteN_ext h.1 hx, ⟨denoteNListE_ext hx _ _ h.2.1.1, denote_ext h.2.1.2 hx⟩,
-    h.2.2⟩
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:146-147 noteDecl (the `.indDecl`
-arm) — **a block's working list**, and the one arm of `noteDecl` where the
-store moves: `toConstantVal` interns at a projection table. -/
-theorem noteBlock_run :
-    ∀ (block : List IConstantInfo) {s s' : AState} {blockP : List ConstantInfo}
-      {cvs : List (NIdx × List NIdx × EIdx × Option Nat)},
-      StateOK s → s.store.scratchOn = false →
-      (∀ ci ∈ block, CIProjNamed s.store ci) →
-      ConRon.Arena.Frontend.denoteCIList s.store block = some blockP →
-      (block.mapM (m := AM) fun ci => do
-        let v ← ci.toConstantVal
-        pure (v.name, v.levelParams, v.type, none)) s = .ok (cvs, s') →
-      ParseStep s s' ∧ ListRel (NoteRel s'.store) cvs
-        (blockP.map fun ci =>
-          (ci.toConstantVal.name, ci.toConstantVal.levelParams,
-            ci.toConstantVal.type, (none : Option Nat))) := by
-  intro block
-  induction block with
-  | nil =>
-    intro s s' blockP cvs hok hoff _ hb hrun
-    simp only [ConRon.Arena.Frontend.denoteCIList, Option.some.injEq] at hb
-    subst hb
-    simp only [List.mapM_nil] at hrun
-    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
-    subst hv; subst hst
-    exact ⟨ParseStep.refl hok, .nil⟩
-  | cons ci cs ih =>
-    intro s s' blockP cvs hok hoff hn hb hrun
-    simp only [ConRon.Arena.Frontend.denoteCIList] at hb
-    cases hci : ConRon.Arena.Frontend.denoteCI s.store ci with
-    | none => rw [hci] at hb; simp at hb
-    | some c =>
-      cases hcs : ConRon.Arena.Frontend.denoteCIList s.store cs with
-      | none => rw [hci, hcs] at hb; simp at hb
-      | some csP =>
-        rw [hci, hcs] at hb
-        simp only [Option.some.injEq] at hb
-        subst hb
-        simp only [List.mapM_cons] at hrun
-        obtain ⟨x, s₁, hx, hrest⟩ := AM.bind_ok hrun
-        obtain ⟨v, s₂, hv, hxrest⟩ := AM.bind_ok hx
-        obtain ⟨hstep1, hn1, hl1, ht1⟩ :=
-          toConstantVal_run hok hoff (hn ci (by simp)) hci hv
-        obtain ⟨hxv, hxs⟩ := AM.pure_ok hxrest
-        subst hxs; subst hxv
-        obtain ⟨ys, s₃, hmany, hrest2⟩ := AM.bind_ok hrest
-        obtain ⟨hstep2, hl2⟩ :=
-          ih hstep1.ok (by rw [hstep1.scratch]; exact hoff)
-            (fun c' hc' => (hn c' (by simp [hc'])).mono hstep1.ext)
-            (denoteCIList_ext hstep1.ext _ _ hcs) hmany
-        obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest2
-        subst hst2; subst hv2
-        refine ⟨hstep1.trans hstep2, ?_⟩
-        simp only [List.map_cons]
-        exact .cons (NoteRel.ext hstep2.ext ⟨hn1, ⟨hl1, ht1⟩, rfl⟩) hl2
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:150-152 noteDecl (the fold) —
-**the declaration table's two maps, written entry by entry.**  The whole
-content is `MapRel.insert` at each step, once for `constTypes` and once — only
-at a `.defnDecl`'s height — for `heights`. -/
-theorem noteFold_rel {st : EStore} (hwf : StoreWF st) :
-    ∀ (cvs : List (NIdx × List NIdx × EIdx × Option Nat))
-      (cvsP : List (ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Option Nat)),
-      ListRel (fun (p : NIdx × List NIdx × EIdx × Option Nat)
-          (q : ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Option Nat) =>
-        denoteN st.ns p.1 = some q.1 ∧
-          CTRel st (p.2.1, p.2.2.1) (q.2.1, q.2.2.1) ∧
-          p.2.2.2 = q.2.2.2) cvs cvsP →
-      ∀ (ct : Std.HashMap NIdx (List NIdx × EIdx)) (hs : Std.HashMap NIdx Nat)
-        (ctP : Std.HashMap ConLeche.Name (List ConLeche.Name × ConLeche.Expr))
-        (hsP : Std.HashMap ConLeche.Name Nat),
-        MapRel st (CTRel st) ct ctP → MapRel st (fun (x y : Nat) => x = y) hs hsP →
-        MapRel st (CTRel st)
-            (cvs.foldl (fun (ct, hs) (n, lps, ty, h) =>
-              (ct.insert n (lps, ty),
-                match h with | some h => hs.insert n h | none => hs)) (ct, hs)).1
-            (cvsP.foldl (fun (ct, hs) (n, lps, ty, h) =>
-              (ct.insert n (lps, ty),
-                match h with | some h => hs.insert n h | none => hs)) (ctP, hsP)).1 ∧
-          MapRel st (fun (x y : Nat) => x = y)
-            (cvs.foldl (fun (ct, hs) (n, lps, ty, h) =>
-              (ct.insert n (lps, ty),
-                match h with | some h => hs.insert n h | none => hs)) (ct, hs)).2
-            (cvsP.foldl (fun (ct, hs) (n, lps, ty, h) =>
-              (ct.insert n (lps, ty),
-                match h with | some h => hs.insert n h | none => hs)) (ctP, hsP)).2 := by
-  intro cvs
-  induction cvs with
-  | nil =>
-    intro cvsP hr ct hs ctP hsP h1 h2
-    cases hr
-    exact ⟨h1, h2⟩
-  | cons x xs ih =>
-    intro cvsP hr ct hs ctP hsP h1 h2
-    cases hr with
-    | cons hx hxs =>
-      obtain ⟨n, lps, ty, oh⟩ := x
-      rename_i y _
-      obtain ⟨nP, lpsP, tyP, ohP⟩ := y
-      obtain ⟨hdn, hct, hoh⟩ := hx
-      simp only [List.foldl_cons]
-      subst hoh
-      cases oh with
-      | none =>
-        exact ih _ hxs _ _ _ _ (MapRel.insert hwf h1 hdn hct) h2
-      | some hv =>
-        exact ih _ hxs _ _ _ _ (MapRel.insert hwf h1 hdn hct)
-          (MapRel.insert hwf h2 hdn rfl)
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:137-153 noteDecl — **the
-declaration table, updated.**  con-leche's is PURE and the twin's is monadic
-for two reasons: `.basisDecl` fails loudly (`Arena/Frontend/ExportC.lean`'s own
-note: no frontend function produces one), and — round 4's finding 16 —
-`IConstantInfo.toConstantVal`'s `.projInfo` arm INTERNS.
-
-**Round 5 repaired the statement, both halves.**
-
-1. **The frame.**  `Arena/Env.lean:224-230`'s `.projInfo` arm runs
-   `internLNode .zero`, `internLNode (.succ z)` and `internE (.sort one)`,
-   because con-leche's `ConstantInfo.toConstantVal` builds the closed dummy
-   type `Sort 1` as a VALUE (`ConLeche/Kernel/Env.lean:642`).  So the store
-   moves at a block that holds a projection table and round 1's `s' = s` was
-   not true of that run.  `ParseStep s s'` is, with the relation read at
-   `s'.store` — the repair round 4 made to `projIotaLevel_run` (finding 15),
-   one module over.
-2. **The name.**  The twin keys `constTypes` by `v.name = tbl.tableName`, a
-   STORED handle, where con-leche keys it by
-   `ConLeche.projTableName tbl.structName`; `denoteProjTable` does not mention
-   `tableName` at all.  `DeclProjNamed` (`Bridge/Frontend/Rel.lean`) is
-   exactly the fact that ties the two, it is a hypothesis here, and
-   `StateDRel.projNamed` is what carries it to this theorem's callers without
-   a side condition propagating to the capstone.
-
-`toConstantVal_run` at the block, `noteFold_rel` at the two maps. -/
-theorem noteDecl_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {sd sd' : StateD}
-    {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
-    {d : IDeclaration} {dP : Declaration}
-    (hpn : DeclProjNamed s.store d)
-    (hd : ConRon.Arena.Frontend.denoteDecl s.store d = some dP)
-    (hp : PersStateD sd)
-    (hrun : noteDecl sd d s = .ok (sd', s')) :
-    ParseStep s s' ∧ PersStateD sd' ∧
-      StateDRel s'.store sd' (ConLeche.Frontend.noteDecl sc dP) := by
-  have key : ∀ (t : AState) (cvs : List (NIdx × List NIdx × EIdx × Option Nat))
-      (cvsP : List (ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Option Nat)),
-      ParseStep s t → ListRel (NoteRel t.store) cvs cvsP →
-      ConLeche.Frontend.noteDecl sc dP
-        = { sc with
-            constTypes := (cvsP.foldl (fun (ct, hs) (n, lps, ty, h) =>
-              (ct.insert n (lps, ty),
-                match h with | some h => hs.insert n h | none => hs))
-              (sc.constTypes, sc.heights)).1,
-            heights := (cvsP.foldl (fun (ct, hs) (n, lps, ty, h) =>
-              (ct.insert n (lps, ty),
-                match h with | some h => hs.insert n h | none => hs))
-              (sc.constTypes, sc.heights)).2 } →
-      sd' = { sd with
-            constTypes := (cvs.foldl (fun (ct, hs) (n, lps, ty, h) =>
-              (ct.insert n (lps, ty),
-                match h with | some h => hs.insert n h | none => hs))
-              (sd.constTypes, sd.heights)).1,
-            heights := (cvs.foldl (fun (ct, hs) (n, lps, ty, h) =>
-              (ct.insert n (lps, ty),
-                match h with | some h => hs.insert n h | none => hs))
-              (sd.constTypes, sd.heights)).2 } →
-      s' = t →
-      ParseStep s s' ∧ PersStateD sd' ∧
-        StateDRel s'.store sd' (ConLeche.Frontend.noteDecl sc dP) := by
-    intro t cvs cvsP hstep hl hclP hsd hss
-    subst hss; subst hsd
-    rw [hclP]
-    obtain ⟨hct, hhs⟩ := noteFold_rel hstep.ok.wf cvs cvsP hl _ _ _ _
-      (StateDRel.ext hstep.ext hrel).constTypes (StateDRel.ext hstep.ext hrel).heights
-    exact ⟨hstep, { hp with }, { StateDRel.ext hstep.ext hrel with
-      constTypes := hct, heights := hhs }⟩
-  -- the six arms whose list is a singleton, and the `.basisDecl` arm that fails
-  have hone : ∀ (w : IConstantVal) (cw : ConstantVal) (oh : Option Nat),
-      ConRon.Arena.Frontend.denoteCV s.store w = some cw →
-      ListRel (NoteRel s.store) [(w.name, w.levelParams, w.type, oh)]
-        [(cw.name, cw.levelParams, cw.type, oh)] := by
-    intro w cw oh hw
-    simp only [ConRon.Arena.Frontend.denoteCV] at hw
-    cases h1 : denoteN s.store.ns w.name with
-    | none => rw [h1] at hw; simp at hw
-    | some n =>
-      cases h2 : ConRon.Arena.Frontend.denoteNList s.store.ns w.levelParams with
-      | none => rw [h1, h2] at hw; simp at hw
-      | some lps =>
-        cases h3 : denoteE s.store w.type with
-        | none => rw [h1, h2, h3] at hw; simp at hw
-        | some ty =>
-          rw [h1, h2, h3] at hw
-          obtain rfl := Option.some.inj hw
-          exact .cons ⟨h1, ⟨h2, h3⟩, rfl⟩ .nil
-  cases d with
-  | basisDecl k =>
-    rw [noteDecl] at hrun
-    obtain ⟨cvs, t, hcvs, hrest⟩ := AM.bind_ok hrun
-    exact AM.fail_ok hcvs |>.elim
-  | axiomDecl w =>
-    rw [noteDecl] at hrun
-    obtain ⟨cvs, t, hcvs, hrest⟩ := AM.bind_ok hrun
-    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
-    obtain ⟨cw, hw, rfl⟩ := hd
-    obtain ⟨hv, hst⟩ := AM.pure_ok hcvs
-    subst hv; subst hst
-    obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest
-    exact key _ _ _ (ParseStep.refl hok) (hone w cw none hw) rfl hv2 hst2
-  | quotDecl k w =>
-    rw [noteDecl] at hrun
-    obtain ⟨cvs, t, hcvs, hrest⟩ := AM.bind_ok hrun
-    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
-    obtain ⟨cw, hw, rfl⟩ := hd
-    obtain ⟨hv, hst⟩ := AM.pure_ok hcvs
-    subst hv; subst hst
-    obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest
-    exact key _ _ _ (ParseStep.refl hok) (hone w cw none hw) rfl hv2 hst2
-  | defnDecl w e hh =>
-    rw [noteDecl] at hrun
-    obtain ⟨cvs, t, hcvs, hrest⟩ := AM.bind_ok hrun
-    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
-    cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
-    | none => rw [hw] at hd; simp at hd
-    | some cw =>
-      cases he : denoteE s.store e with
-      | none => rw [hw, he] at hd; simp at hd
-      | some x =>
-        rw [hw, he] at hd
-        obtain rfl := Option.some.inj hd
-        obtain ⟨hv, hst⟩ := AM.pure_ok hcvs
-        subst hv; subst hst
-        obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest
-        refine key _ _ _ (ParseStep.refl hok)
-          (hone w cw (some (hintHeight hh)) hw) ?_ hv2 hst2
-        cases hh <;> rfl
-  | thmDecl w e =>
-    rw [noteDecl] at hrun
-    obtain ⟨cvs, t, hcvs, hrest⟩ := AM.bind_ok hrun
-    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
-    cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
-    | none => rw [hw] at hd; simp at hd
-    | some cw =>
-      cases he : denoteE s.store e with
-      | none => rw [hw, he] at hd; simp at hd
-      | some x =>
-        rw [hw, he] at hd
-        obtain rfl := Option.some.inj hd
-        obtain ⟨hv, hst⟩ := AM.pure_ok hcvs
-        subst hv; subst hst
-        obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest
-        exact key _ _ _ (ParseStep.refl hok) (hone w cw none hw) rfl hv2 hst2
-  | opaqueDecl w e =>
-    rw [noteDecl] at hrun
-    obtain ⟨cvs, t, hcvs, hrest⟩ := AM.bind_ok hrun
-    simp only [ConRon.Arena.Frontend.denoteDecl] at hd
-    cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
-    | none => rw [hw] at hd; simp at hd
-    | some cw =>
-      cases he : denoteE s.store e with
-      | none => rw [hw, he] at hd; simp at hd
-      | some x =>
-        rw [hw, he] at hd
-        obtain rfl := Option.some.inj hd
-        obtain ⟨hv, hst⟩ := AM.pure_ok hcvs
-        subst hv; subst hst
-        obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest
-        exact key _ _ _ (ParseStep.refl hok) (hone w cw none hw) rfl hv2 hst2
-  | indDecl block nP =>
-    rw [noteDecl] at hrun
-    obtain ⟨cvs, t, hcvs, hrest⟩ := AM.bind_ok hrun
-    simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
-    obtain ⟨blockP, hb, rfl⟩ := hd
-    obtain ⟨hstep, hl⟩ := noteBlock_run block hok hoff (hpn block nP rfl) hb hcvs
-    obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest
-    exact key _ _ _ hstep hl rfl hv2 hst2
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:161 pushDecl — **the record
-appended, then noted.**  `pushDecl` IS `noteDecl` of the pushed record, so the
-frame is `ParseStep` for `noteDecl_run`'s reason (round 4's finding 16, round
-5's repair) and the `DeclProjNamed` hypothesis is the same one.
-
-**This is the first of `StateDRel.projNamed`'s two debtors**: the pushed
-record's clause is what keeps the relation's new conjunct true across the
-append, and `DeclsProjNamed.push` is the whole of it.
-
-`noteDecl_run` at the appended state. -/
-theorem pushDecl_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {sd sd' : StateD}
+**This is `StateDRel.projNamed`'s one debtor** (task #105: the modeller's
+`pushGenList` was the other, and it is gone): the pushed record's clause is
+what keeps the relation's `projNamed` conjunct true across the append, and
+`DeclsProjNamed.push` is the whole of it. -/
+theorem pushDecl_run {s s' : AState} {sd sd' : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {d : IDeclaration} {dP : Declaration}
     (hpd : PersDecl d) (hpn : DeclProjNamed s.store d)
     (hd : ConRon.Arena.Frontend.denoteDecl s.store d = some dP)
     (hrun : pushDecl sd d s = .ok (sd', s')) :
-    ParseStep s s' ∧ PersStateD sd' ∧
-      StateDRel s'.store sd' (ConLeche.Frontend.pushDecl sc dP) := by
+    s' = s ∧ PersStateD sd' ∧
+      StateDRel s.store sd' (ConLeche.Frontend.pushDecl sc dP) := by
   rw [pushDecl] at hrun
+  obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+  subst hv; subst hst
   rw [ConLeche.Frontend.pushDecl]
-  have hone : denoteDeclArray s.store #[d] = some #[dP] := by
+  have hone : denoteDeclArray s'.store #[d] = some #[dP] := by
     rw [denoteDeclArray_iff]
     simp only [denoteDecls, hd]
-  have hdecls : denoteDeclArray s.store (sd.decls.push d)
+  have hdecls : denoteDeclArray s'.store (sd.decls.push d)
       = some (sc.decls.push dP) := by
     have h := denoteDeclArray_append hrel.decls hone
     simpa only [Array.push_eq_append] using h
-  have hrel' : StateDRel s.store { sd with decls := sd.decls.push d }
-      { sc with decls := sc.decls.push dP } :=
-    { hrel with decls := hdecls, projNamed := hrel.projNamed.push hpn }
-  have hpers : PersStateD { sd with decls := sd.decls.push d } := by
-    refine { hp with decls := ?_ }
-    intro x hx
-    rcases Array.mem_push.mp hx with h | h
-    · exact hp.decls x h
-    · subst h; exact hpd
-  exact noteDecl_run hok hoff hrel' hpn hd hpers hrun
+  refine ⟨rfl, ?_,
+    { hrel with decls := hdecls, projNamed := hrel.projNamed.push hpn }⟩
+  refine { hp with decls := ?_ }
+  intro x hx
+  rcases Array.mem_push.mp hx with h | h
+  · exact hp.decls x h
+  · subst h; exact hpd
+
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:347 parseRuleD — one recursor
 rule.
@@ -1440,7 +1137,8 @@ theorem parseRuleD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
   rfl
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:346-349 parseRuleD — the rule
-list, `mapM`ed: `blockRecOf`'s recursor records carry one apiece. -/
+list, `mapM`ed: an inductive record's recursors carry one apiece
+(`installIndD_run`). -/
 theorem parseRules_run {s : AState} (hok : StateOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc) :
     ∀ (rus : List ConLeche.Frontend.RuleRec) {rls : List IRecRule}
@@ -1470,163 +1168,6 @@ theorem parseRules_run {s : AState} (hok : StateOK s) {sd : StateD}
     · simp only [List.mapM_cons, hclr, hclrs]
       rfl
     · simp only [denoteRules, hdr, hdrs]
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:353-354 blockRecOf — the parsed
-block, resolved, which is what the modeller seam is handed.
-
-Three `mapM`s over `parseCVD_run` and `parseRuleD_run`; nothing moves the
-store, so the three `ListRel`s of `BlockRecRel` are read off at `s` itself. -/
-theorem blockRecOf_run {s s' : AState} (hok : StateOK s) {sd : StateD}
-    {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
-    {tys : List ConLeche.Frontend.IndTypeRec}
-    {cts : List ConLeche.Frontend.IndCtorRec}
-    {rcs : List ConLeche.Frontend.IndRecRec} {b : BlockRec}
-    (hrun : blockRecOf sd tys cts rcs s = .ok (b, s')) :
-    s' = s ∧ ∃ bP, ConLeche.Frontend.blockRecOf sc tys cts rcs = .ok bP ∧
-      BlockRecRel s.store b bP := by
-  -- the three member lists, each a `mapM` whose step is `parseCVD_run`
-  have htys : ∀ (ts : List ConLeche.Frontend.IndTypeRec)
-      {out : List MIndTypeRec} {t : AState},
-      (ts.mapM fun (x : ConLeche.Frontend.IndTypeRec) => do
-        let ctors ← x.ctors.mapM sd.name
-        pure { cv := ← parseCVD sd x.cv, nP := x.numParams, nIdx := x.numIndices,
-               ctors := ctors, isRec := x.isRec,
-               isReflexive := x.isReflexive,
-               numNested := x.numNested : MIndTypeRec }) s = .ok (out, t) →
-      t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndTypeRec) => do
-        pure { cv := ← ConLeche.Frontend.parseCVD sc x.cv, nP := x.numParams,
-               nIdx := x.numIndices, ctors := ← x.ctors.mapM
-                 (ConLeche.Frontend.StateD.name sc),
-               isRec := x.isRec, isReflexive := x.isReflexive,
-               numNested := x.numNested : ConLeche.Frontend.InModel.IndTypeRec })
-          = .ok outP ∧ ListRel (MIndTypeRecRel s.store) out outP := by
-    intro ts
-    induction ts with
-    | nil =>
-      intro out t hrun
-      simp only [List.mapM_nil] at hrun
-      obtain ⟨hv, hst⟩ := AM.pure_ok hrun
-      subst hv; subst hst
-      exact ⟨rfl, [], rfl, .nil⟩
-    | cons x xs ih =>
-      intro out t hrun
-      simp only [List.mapM_cons] at hrun
-      obtain ⟨y, s₁, hone, hrest⟩ := AM.bind_ok hrun
-      obtain ⟨cs, s₂, hcs, hone2⟩ := AM.bind_ok hone
-      obtain ⟨hs2, csP, hclcs, hdcs⟩ := StateD_names_run hrel x.ctors hcs
-      rw [hs2] at hone2
-      obtain ⟨cv, s₃, hcv, hone3⟩ := AM.bind_ok hone2
-      obtain ⟨hs3, cvP, hclcv, hdcv⟩ := parseCVD_run hok hrel hcv
-      rw [hs3] at hone3
-      obtain ⟨hv1, hst1⟩ := AM.pure_ok hone3
-      rw [hst1] at hrest
-      obtain ⟨ys, s₄, hmany, hrest2⟩ := AM.bind_ok hrest
-      obtain ⟨hs4, ysP, hclys, hdys⟩ := ih hmany
-      rw [hs4] at hrest2
-      obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest2
-      subst hv2; subst hst2; subst hv1
-      refine ⟨rfl, (⟨cvP, x.numParams, x.numIndices, csP, x.isRec,
-          x.isReflexive, x.numNested⟩
-          : ConLeche.Frontend.InModel.IndTypeRec) :: ysP, ?_,
-        .cons ⟨hdcv, rfl, rfl, hdcs, rfl, rfl, rfl⟩ hdys⟩
-      simp only [List.mapM_cons, hclcv, hclcs, hclys]
-      rfl
-  have hcts : ∀ (ts : List ConLeche.Frontend.IndCtorRec)
-      {out : List MIndCtorRec} {t : AState},
-      (ts.mapM fun (x : ConLeche.Frontend.IndCtorRec) => do
-        pure { cv := ← parseCVD sd x.cv, nP := x.numParams,
-               nF := x.numFields : MIndCtorRec }) s = .ok (out, t) →
-      t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndCtorRec) => do
-        pure { cv := ← ConLeche.Frontend.parseCVD sc x.cv, nP := x.numParams,
-               nF := x.numFields : ConLeche.Frontend.InModel.IndCtorRec })
-          = .ok outP ∧ ListRel (MIndCtorRecRel s.store) out outP := by
-    intro ts
-    induction ts with
-    | nil =>
-      intro out t hrun
-      simp only [List.mapM_nil] at hrun
-      obtain ⟨hv, hst⟩ := AM.pure_ok hrun
-      subst hv; subst hst
-      exact ⟨rfl, [], rfl, .nil⟩
-    | cons x xs ih =>
-      intro out t hrun
-      simp only [List.mapM_cons] at hrun
-      obtain ⟨y, s₁, hone, hrest⟩ := AM.bind_ok hrun
-      obtain ⟨cv, s₂, hcv, hone2⟩ := AM.bind_ok hone
-      obtain ⟨hs2, cvP, hclcv, hdcv⟩ := parseCVD_run hok hrel hcv
-      rw [hs2] at hone2
-      obtain ⟨hv1, hst1⟩ := AM.pure_ok hone2
-      rw [hst1] at hrest
-      obtain ⟨ys, s₄, hmany, hrest2⟩ := AM.bind_ok hrest
-      obtain ⟨hs4, ysP, hclys, hdys⟩ := ih hmany
-      rw [hs4] at hrest2
-      obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest2
-      subst hv2; subst hst2; subst hv1
-      refine ⟨rfl, (⟨cvP, x.numParams, x.numFields⟩
-          : ConLeche.Frontend.InModel.IndCtorRec) :: ysP, ?_,
-        .cons ⟨hdcv, rfl, rfl⟩ hdys⟩
-      simp only [List.mapM_cons, hclcv, hclys]
-      rfl
-  have hrcs : ∀ (ts : List ConLeche.Frontend.IndRecRec)
-      {out : List MIndRecRec} {t : AState},
-      (ts.mapM fun (x : ConLeche.Frontend.IndRecRec) => do
-        let rules ← x.rules.mapM (parseRuleD sd)
-        pure { cv := ← parseCVD sd x.cv, nP := x.numParams, nM := x.numMotives,
-               nm := x.numMinors, nI := x.numIndices,
-               rules := rules : MIndRecRec }) s = .ok (out, t) →
-      t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndRecRec) => do
-        let rules ← x.rules.mapM (ConLeche.Frontend.parseRuleD sc)
-        pure { cv := ← ConLeche.Frontend.parseCVD sc x.cv, nP := x.numParams,
-               nM := x.numMotives, nm := x.numMinors, nI := x.numIndices,
-               rules := rules : ConLeche.Frontend.InModel.IndRecRec })
-          = .ok outP ∧ ListRel (MIndRecRecRel s.store) out outP := by
-    intro ts
-    induction ts with
-    | nil =>
-      intro out t hrun
-      simp only [List.mapM_nil] at hrun
-      obtain ⟨hv, hst⟩ := AM.pure_ok hrun
-      subst hv; subst hst
-      exact ⟨rfl, [], rfl, .nil⟩
-    | cons x xs ih =>
-      intro out t hrun
-      simp only [List.mapM_cons] at hrun
-      obtain ⟨y, s₁, hone, hrest⟩ := AM.bind_ok hrun
-      obtain ⟨rls, s₂, hrls, hone2⟩ := AM.bind_ok hone
-      obtain ⟨hs2, rsP, hclrs, hdrs⟩ := parseRules_run hok hrel x.rules hrls
-      rw [hs2] at hone2
-      obtain ⟨cv, s₃, hcv, hone3⟩ := AM.bind_ok hone2
-      obtain ⟨hs3, cvP, hclcv, hdcv⟩ := parseCVD_run hok hrel hcv
-      rw [hs3] at hone3
-      obtain ⟨hv1, hst1⟩ := AM.pure_ok hone3
-      rw [hst1] at hrest
-      obtain ⟨ys, s₄, hmany, hrest2⟩ := AM.bind_ok hrest
-      obtain ⟨hs4, ysP, hclys, hdys⟩ := ih hmany
-      rw [hs4] at hrest2
-      obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest2
-      subst hv2; subst hst2; subst hv1
-      refine ⟨rfl, (⟨cvP, x.numParams, x.numMotives, x.numMinors,
-          x.numIndices, rsP⟩
-          : ConLeche.Frontend.InModel.IndRecRec) :: ysP, ?_,
-        .cons ⟨hdcv, rfl, rfl, rfl, rfl, hdrs⟩ hdys⟩
-      simp only [List.mapM_cons, hclrs, hclcv, hclys]
-      rfl
-  rw [ConRon.Arena.Frontend.blockRecOf] at hrun
-  obtain ⟨ts, s₁, hts, hrest⟩ := AM.bind_ok hrun
-  obtain ⟨hs1, tsP, hcltys, hdtys⟩ := htys tys hts
-  rw [hs1] at hrest
-  obtain ⟨cs, s₂, hcs, hrest2⟩ := AM.bind_ok hrest
-  obtain ⟨hs2, csP, hclcts, hdcts⟩ := hcts cts hcs
-  rw [hs2] at hrest2
-  obtain ⟨rs, s₃, hrs, hrest3⟩ := AM.bind_ok hrest2
-  obtain ⟨hs3, rsP, hclrcs, hdrcs⟩ := hrcs rcs hrs
-  rw [hs3] at hrest3
-  obtain ⟨hv, hst⟩ := AM.pure_ok hrest3
-  subst hv; subst hst
-  refine ⟨rfl, ⟨tsP, csP, rsP⟩, ?_, ⟨hdtys, hdcts, hdrcs⟩⟩
-  rw [ConLeche.Frontend.blockRecOf]
-  simp only [hcltys, hclcts, hclrcs]
-  rfl
 
 /-- con-leche: none — the accumulator's own step: a name pushed on both
 sides.  (`Bridge/Frontend/Prepare.lean`'s `usedConsts` accumulator and
@@ -1820,6 +1361,87 @@ theorem storeFuel_run {s s' : AState} {n : Nat} (hrun : storeFuel s = .ok (n, s'
   obtain ⟨t, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨rfl, rfl⟩ := AM.get_ok h1
   exact (AM.pure_ok h2).2
+
+/-- con-leche: none — `view` moves nothing and answers the store's own
+`view`.  `Bridge/Checker/Hyp.lean` has the same three lines under the same
+name, one tier above the one `Bridge/Frontend/Rel.lean`'s import note limits
+this file to (`Bridge/Checker/Inv.lean`, not the whole checker tier), so this
+tier carries its own rather than widen the import. -/
+theorem view_run {h : EIdx} {s s' : AState} {v : ENodeView}
+    (hr : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v :=
+  AM.of_run (P := fun t => t = s)
+    (Q := fun r t => t = s ∧ s.store.view h = some r) rfl hr (view_spec s h)
+
+/-- con-leche: none — `viewN` in run form, off `Bridge/Specs.lean`'s
+triple. -/
+theorem viewN_run {s s' : AState} {h : NIdx} {v : NNodeView}
+    (hrun : viewN h s = .ok (v, s')) : s' = s ∧ s.store.ns.view h = some v :=
+  AM.of_run (P := fun t => t = s) rfl hrun (viewN_spec s h)
+
+/-- con-leche: none — `readLevel` in run form: the readback IS `denoteL`
+(DESIGN §8.3 lesson 4). -/
+theorem readLevel_run {s s' : AState} {h : LIdx} {u : Level}
+    (hrun : readLevel h s = .ok (u, s')) :
+    s' = s ∧ denoteL s.store.ls h = some u :=
+  AM.of_run (P := fun t => t = s) rfl hrun (readLevel_spec s h)
+
+/-- con-leche: none — the name-side counterpart of `Bridge/Rel.lean`'s
+denote-inversion layer, at the one constructor `validateIndD_run'` reads: a
+handle whose view is `.str p t` denotes `.str q t` with `p` denoting `q`.
+`Arena/WFProofs.lean` has the two halves (`denoteN_unfold`, `denoteNView_str`);
+this is their composition. -/
+theorem denoteN_str_inv {st : NStore} {rk : NIdx → Nat} (hw : Arena.NWFAt st rk)
+    {i p : NIdx} {t : String} (hv : st.view i = some (.str p t))
+    {x : ConLeche.Name} (hd : denoteN st i = some x) :
+    ∃ q, x = .str q t ∧ denoteN st p = some q := by
+  rw [denoteN_unfold hw hv, denoteNView, Option.map_eq_some_iff] at hd
+  obtain ⟨q, hq, hx⟩ := hd
+  exact ⟨q, hx.symm, hq⟩
+
+/-- con-leche: none — the same inversion the other way round: the DENOTED name
+is a `.str`, so the handle's view is, whatever the view was known to be.
+`Arena/WFProofs.lean`'s `denoteNView_str` under `denoteN_unfold`. -/
+theorem view_str_of_denoteN {st : NStore} {rk : NIdx → Nat}
+    (hw : Arena.NWFAt st rk) {i : NIdx} {v : NNodeView}
+    (hv : st.view i = some v) {q : ConLeche.Name} {t : String}
+    (hd : denoteN st i = some (.str q t)) :
+    ∃ p, v = .str p t ∧ denoteN st p = some q := by
+  rw [denoteN_unfold hw hv] at hd
+  exact denoteNView_str hd
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1136-1140 piResult — the run form
+of `validateIndD`'s own `piResultD` (the full-`view` walk): at a denoting
+handle it is con-leche's `piResult`, as `Arena/ExprOps.lean`'s `piResult`
+is. -/
+theorem piResultD_run {fuel : Nat} {s s' : AState} {h r : EIdx} {e : Expr}
+    (hok : StateOK s) (hd : denoteE s.store h = some e)
+    (hrun : piResultD fuel h s = .ok (r, s')) :
+    s' = s ∧ denoteE s.store r = some e.piResult := by
+  induction fuel generalizing h e with
+  | zero =>
+    rw [piResultD] at hrun
+    exact absurd (AM.fail_ok hrun) (by simp)
+  | succ n ih =>
+    rw [piResultD] at hrun
+    obtain ⟨v, s₁, hv, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, hview⟩ := view_run hv
+    rw [hs1] at hrest
+    have hde : denoteEView s.store v = some e := by
+      rw [denoteE_view_eq hok.wf hview] at hd; exact hd
+    cases v
+    case forallE ty b m =>
+      obtain ⟨et, eb, rfl, -, hb⟩ := denote_forallE_inv hok.wf hview hd
+      obtain ⟨hs, hr⟩ := ih hb hrest
+      exact ⟨hs, by rw [hr]; rfl⟩
+    all_goals
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrest
+      refine ⟨rfl, ?_⟩
+      rw [hd]
+      cases e with
+      | forallE x y m =>
+        obtain ⟨_, _, hc, -, -⟩ := denoteEView_forallE hde
+        exact absurd hc (by simp)
+      | _ => rfl
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:342-344 indPiTeleLen — the
 constructor's own `∀`-telescope length, a read-only fuel walk. -/
@@ -2497,222 +2119,13 @@ theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
 
 /-! ## `installIndD`'s machinery
 
-The WRITE half of an inductive record: the block's constants, the owner
-census, the block map, the modeller seam and the pushes.  Everything below is
-a transport of `StateDRel` through one field at a time; the two places with
-content are the block map (`MapRel.foldl_insert_by`, `denoteN_inj` through
-`MapRel.insert`) and the generator's context (`ctxRel_of_maps`, where the
-maps' `cover` clauses become `CtxRel`'s). -/
+The WRITE half of an inductive record: the block's constants, pushed
+(task #105: the owner census, the block map and the modeller seam — the rest
+of what this section used to carry — are gone with the modeller).  The three
+member lists (`types`, `ctors`, `recs`) are each a `mapM` over `parseCVD_run`
+(recursors additionally over `parseRules_run`), nothing moves the store, and
+the whole block denotes con-leche's by `denoteCIList_of_listRel`. -/
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:309-317 noteProjIota — a
-generated iota theorem registers its field's level.  `isProjIotaName_run` and
-`projIotaLevel_run` (whose `OptRel` is exactly what `MapRel.insert` reads at
-`projLevels`), nothing else. -/
-theorem noteProjIota_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {sd sd' : StateD}
-    {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
-    (hp : PersStateD sd) {cv : IConstantVal} {c : ConstantVal}
-    (hcv : denoteCV s.store cv = some c)
-    (hrun : noteProjIota sd cv s = .ok (sd', s')) :
-    ParseStep s s' ∧ PersStateD sd' ∧
-      StateDRel s'.store sd' (ConLeche.Frontend.noteProjIota sc c) := by
-  rw [noteProjIota] at hrun
-  rw [ConLeche.Frontend.noteProjIota]
-  obtain ⟨b, s₁, h1, hrun⟩ := AM.bind_ok hrun
-  obtain ⟨hs1, rfl⟩ := isProjIotaName_run hok (denoteCV_name hcv) h1
-  rw [hs1] at hrun
-  cases hb : ConLeche.Frontend.isProjIotaName c.name with
-  | false =>
-    rw [hb] at hrun
-    simp only [Bool.false_eq_true, if_false] at hrun ⊢
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨ParseStep.refl hok, hp, hrel⟩
-  | true =>
-    rw [hb] at hrun
-    simp only [if_true] at hrun ⊢
-    obtain ⟨fuel, s₂, h2, hrun⟩ := AM.bind_ok hrun
-    have hs2 := storeFuel_run h2
-    rw [hs2] at hrun
-    obtain ⟨o, s₃, h3, hrun⟩ := AM.bind_ok hrun
-    obtain ⟨hstep, hpl, hol⟩ := projIotaLevel_run hok hoff (denoteCV_type hcv) h3
-    have hrel3 := hrel.ext hstep.ext
-    cases o with
-    | none =>
-      have hcl := hol.none_left rfl
-      rw [hcl]
-      simp only [] at hrun ⊢
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-      exact ⟨hstep, hp, hrel3⟩
-    | some l =>
-      obtain ⟨u, hu, hlu⟩ := hol.some_left rfl
-      rw [hu]
-      simp only [] at hrun ⊢
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-      refine ⟨hstep, { hp with }, { hrel3 with projLevels := ?_ }⟩
-      exact MapRel.insert hstep.ok.wf hrel3.projLevels
-        (denoteN_ext (denoteCV_name hcv) hstep.ext) hlu
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:319-326 pushGenD — one generated
-record pushed: `noteProjIota_run` at a theorem, then `pushDecl_run`. -/
-theorem pushGenD_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) {sd sd' : StateD}
-    {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
-    (hp : PersStateD sd) {d : IDeclaration} {dP : Declaration}
-    (hpd : PersDecl d) (hpn : DeclProjNamed s.store d)
-    (hd : ConRon.Arena.Frontend.denoteDecl s.store d = some dP)
-    (hrun : pushGenD sd d s = .ok (sd', s')) :
-    ParseStep s s' ∧ PersStateD sd' ∧
-      StateDRel s'.store sd' (ConLeche.Frontend.pushGenD sc dP) := by
-  cases d
-  case thmDecl v e =>
-    rw [pushGenD] at hrun
-    obtain ⟨sd₁, s₁, h1, hrun⟩ := AM.bind_ok hrun
-    have hd' := hd
-    simp only [ConRon.Arena.Frontend.denoteDecl] at hd'
-    cases hv : ConRon.Arena.Frontend.denoteCV s.store v with
-    | none => rw [hv] at hd'; simp at hd'
-    | some c =>
-      cases he : denoteE s.store e with
-      | none => rw [hv, he] at hd'; simp at hd'
-      | some x =>
-        rw [hv, he] at hd'
-        obtain rfl := Option.some.inj hd'
-        obtain ⟨hstep1, hp1, hrel1⟩ := noteProjIota_run hok hoff hrel hp hv h1
-        obtain ⟨hstep2, hp2, hrel2⟩ := pushDecl_run hstep1.ok
-          (by rw [hstep1.scratch]; exact hoff) hrel1 hp1 hpd (hpn.mono hstep1.ext)
-          (denoteDecl_ext hstep1.ext hd) hrun
-        exact ⟨hstep1.trans hstep2, hp2, hrel2⟩
-  all_goals
-    simp only [pushGenD] at hrun
-    obtain ⟨hstep, hp', hrel'⟩ := pushDecl_run hok hoff hrel hp hpd hpn hd hrun
-    refine ⟨hstep, hp', ?_⟩
-    cases dP with
-    | thmDecl c x =>
-      exfalso
-      simp only [ConRon.Arena.Frontend.denoteDecl] at hd
-      first
-        | (simp at hd)
-        | (split at hd <;> simp at hd)
-    | _ => exact hrel'
-
-/-- con-leche: none — a handle list that denotes a name list is related to it
-element for element. -/
-theorem ListRel.of_denoteNList {st : NStore} :
-    ∀ {hs : List NIdx} {ns : List ConLeche.Name},
-      denoteNList st hs = some ns →
-      ListRel (fun h n => denoteN st h = some n) hs ns
-  | [], ns, h => by
-    simp only [denoteNList, Option.some.injEq] at h
-    subst h; exact ListRel.nil
-  | a :: as, ns, h => by
-    simp only [denoteNList] at h
-    cases ha : denoteN st a with
-    | none => rw [ha] at h; simp at h
-    | some x =>
-      cases has : denoteNList st as with
-      | none => rw [ha, has] at h; simp at h
-      | some xs =>
-        rw [ha, has] at h
-        obtain rfl := Option.some.inj h
-        exact ListRel.cons ha (ListRel.of_denoteNList has)
-
-/-- con-leche: none — `MapRel` through a fold of inserts of one value at every
-key of a list.  `noteGen`'s owner map and `installIndD`'s block map. -/
-theorem MapRel.foldl_insert {α β : Type} {st : EStore} (hwf : StoreWF st)
-    {R : α → β → Prop} {v : α} {vC : β} (hv : R v vC) :
-    ∀ {ns : List NIdx} {nsC : List ConLeche.Name},
-      ListRel (fun h n => denoteN st.ns h = some n) ns nsC →
-      ∀ {m : Std.HashMap NIdx α} {mc : Std.HashMap ConLeche.Name β},
-        MapRel st R m mc →
-        MapRel st R (ns.foldl (fun m n => m.insert n v) m)
-          (nsC.foldl (fun m n => m.insert n vC) mc) := by
-  intro ns nsC h
-  induction h with
-  | nil => intro m mc hm; exact hm
-  | cons hab _ ih =>
-    intro m mc hm
-    exact ih (MapRel.insert hwf hm hab hv)
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:328-336 noteGen — a generated
-record booked: the count, and its names owned by the block.  Pure; the names
-are `declNames_denote`'s. -/
-theorem noteGen_run {s s' : AState} (hok : StateOK s) {sd sd' : StateD}
-    {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
-    {d : IDeclaration} {dP : Declaration} (hpn : DeclProjNamed s.store d)
-    (hd : ConRon.Arena.Frontend.denoteDecl s.store d = some dP)
-    {T0 : NIdx} {T0C : ConLeche.Name} (hT : denoteN s.store.ns T0 = some T0C)
-    (hrun : noteGen sd d T0 s = .ok (sd', s')) :
-    s' = s ∧ (PersStateD sd → PersStateD sd') ∧
-      StateDRel s.store sd' (ConLeche.Frontend.noteGen sc dP T0C) := by
-  rw [noteGen] at hrun
-  rw [ConLeche.Frontend.noteGen]
-  obtain ⟨hv, hs⟩ := AM.pure_ok hrun
-  subst hv
-  refine ⟨hs, fun hp => { hp with }, { hrel with
-    genRecords := by simp only [hrel.genRecords]
-    genOwner := ?_ }⟩
-  exact MapRel.foldl_insert (R := fun h n => denoteN s.store.ns h = some n) hok.wf hT
-    (ListRel.of_denoteNList (declNames_denote hpn hd)) hrel.genOwner
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:402-404 pushGenList — the
-generated records, pushed and booked in order. -/
-theorem pushGenList_run {T0 : NIdx} {T0C : ConLeche.Name} :
-    ∀ (gen : List IDeclaration) {genP : List Declaration} {s s' : AState}
-      {sd sd' : StateD} {sc : ConLeche.Frontend.StateD},
-      StateOK s → s.store.scratchOn = false → StateDRel s.store sd sc →
-      PersStateD sd → (∀ d ∈ gen, PersDecl d) →
-      (∀ d ∈ gen, DeclProjNamed s.store d) →
-      denoteDecls s.store gen = some genP → denoteN s.store.ns T0 = some T0C →
-      pushGenList sd gen T0 s = .ok (sd', s') →
-      ParseStep s s' ∧ PersStateD sd' ∧
-        StateDRel s'.store sd' (ConLeche.Frontend.pushGenList sc genP T0C) := by
-  intro gen
-  induction gen with
-  | nil =>
-    intro genP s s' sd sd' sc hok hoff hrel hp _ _ hg _ hrun
-    simp only [denoteDecls, Option.some.injEq] at hg
-    subst hg
-    rw [pushGenList] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨ParseStep.refl hok, hp, hrel⟩
-  | cons d ds ih =>
-    intro genP s s' sd sd' sc hok hoff hrel hp hpd hpn hg hT hrun
-    simp only [denoteDecls] at hg
-    cases hd : ConRon.Arena.Frontend.denoteDecl s.store d with
-    | none => rw [hd] at hg; simp at hg
-    | some dP =>
-      cases hds : denoteDecls s.store ds with
-      | none => rw [hd, hds] at hg; simp at hg
-      | some dsP =>
-        rw [hd, hds] at hg
-        obtain rfl := Option.some.inj hg
-        rw [pushGenList] at hrun
-        obtain ⟨sd₁, s₁, h1, hrun⟩ := AM.bind_ok hrun
-        obtain ⟨sd₂, s₂, h2, hrun⟩ := AM.bind_ok hrun
-        obtain ⟨hstep1, hp1, hrel1⟩ := pushGenD_run hok hoff hrel hp
-          (hpd d (by simp)) (hpn d (by simp)) hd h1
-        obtain ⟨hs2, hp2, hrel2⟩ := noteGen_run hstep1.ok hrel1
-          ((hpn d (by simp)).mono hstep1.ext) (denoteDecl_ext hstep1.ext hd)
-          (denoteN_ext hT hstep1.ext) h2
-        rw [hs2] at hrun
-        obtain ⟨hstep3, hp3, hrel3⟩ := ih hstep1.ok
-          (by rw [hstep1.scratch]; exact hoff) hrel2 (hp2 hp1)
-          (fun x hx => hpd x (by simp [hx]))
-          (fun x hx => (hpn x (by simp [hx])).mono hstep1.ext)
-          (denoteDecls_ext hstep1.ext ds dsP hds) (denoteN_ext hT hstep1.ext) hrun
-        refine ⟨hstep1.trans hstep3, hp3, ?_⟩
-        rw [ConLeche.Frontend.pushGenList]
-        exact hrel3
-
-/-- con-leche: none — `mapM_sim` with the state equation inside the
-existential, the shape `except_bind_ex` consumes. -/
-theorem mapM_sim' {α β γ : Type} {P : β → γ → Prop}
-    {f : α → AM β} {g : α → Except String γ} {s : AState}
-    (hf : ∀ x b s', f x s = .ok (b, s') → s' = s ∧ ∃ c, g x = .ok c ∧ P b c)
-    (xs : List α) {bs : List β} {s' : AState} (h : xs.mapM f s = .ok (bs, s')) :
-    ∃ cs, xs.mapM g = .ok cs ∧ (s' = s ∧ ListRel P bs cs) := by
-  obtain ⟨h1, cs, h2, h3⟩ := mapM_sim hf xs h
-  exact ⟨cs, h2, h1, h3⟩
 
 /-- con-leche: none — `ListRel` through `++`. -/
 theorem ListRel.append {α β : Type} {P : α → β → Prop} :
@@ -2739,480 +2152,195 @@ record denotes con-leche's default, once the zero name handle decodes to
 theorem denoteCaps_default {st : EStore}
     (h : denoteN st.ns (default : NIdx) = some ConLeche.Name.anonymous) :
     denoteCaps st {} = some {} := by
-  simp only [denoteCaps, h]
+  simp only [denoteCaps, h, denoteNList]
 
-/-- con-leche: ConLeche/Frontend/InModel.lean:36-37 wants — the modeller's
-class test reads counts only. -/
-theorem wants_eq {st : EStore} {b : BlockRec}
-    {bP : ConLeche.Frontend.InModel.BlockRec} (h : BlockRecRel st b bP) :
-    wants b = ConLeche.Frontend.InModel.wants bP := by
-  rw [wants, ConLeche.Frontend.InModel.wants, ListRel.length_eq h.types]
-  congr 1
-  have : ∀ {ts : List MIndTypeRec} {tsP : List ConLeche.Frontend.InModel.IndTypeRec},
-      ListRel (MIndTypeRecRel st) ts tsP →
-      (ts.any fun x => decide (x.numNested > 0)) = (tsP.any fun x => decide (x.numNested > 0)) := by
-    intro ts tsP h
-    induction h with
-    | nil => rfl
-    | cons hab _ ih => simp only [List.any_cons, hab.numNested, ih]
-  exact this h.types
+/-- con-leche: ConLeche/Frontend/ExportC.lean:368-373 installIndD — **an
+inductive record, INSTALLED**: the block's constants, pushed as one
+`indDecl`.  Task #105: con-leche's own `installIndD` used to build the
+projection-owner table and run the in-process modeller here (`registerProjOwners`,
+`InModel.generate` through the `wants`/`inModel` gate); the uniform installer
+(`Arena/Inductives/**`, the kernel lane's) replaces both, so the parser has
+nothing left to do but push the block — the whole function is now three
+`mapM`s (`parseCVD_run`/`parseRules_run`, none of whose callees intern) and
+`pushDecl_run`, so **nothing moves the store**.
 
-/-- con-leche: none — `MapRel.foldl_insert` with the key read off each element
-of a related list. -/
-theorem MapRel.foldl_insert_by {α β γ δ : Type} {st : EStore} (hwf : StoreWF st)
-    {R : α → β → Prop} {v : α} {vC : β} (hv : R v vC)
-    {Q : γ → δ → Prop} {kx : γ → NIdx} {ky : δ → ConLeche.Name}
-    (hk : ∀ x y, Q x y → denoteN st.ns (kx x) = some (ky y)) :
-    ∀ {xs : List γ} {ys : List δ}, ListRel Q xs ys →
-      ∀ {m : Std.HashMap NIdx α} {mc : Std.HashMap ConLeche.Name β},
-        MapRel st R m mc →
-        MapRel st R (xs.foldl (fun m x => m.insert (kx x) v) m)
-          (ys.foldl (fun m y => m.insert (ky y) vC) mc) := by
-  intro xs ys h
-  induction h with
-  | nil => intro m mc hm; exact hm
-  | cons hab _ ih =>
-    intro m mc hm
-    exact ih (MapRel.insert hwf hm (hk _ _ hab) hv)
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:604-605 installIndD — the
-generator's context, built out of three of the parse state's maps on each
-side, related: `MapRel.getElem?_rel` at the three reads and the maps' own
-`cover` at the three cover clauses. -/
-theorem ctxRel_of_maps {st : EStore} (hw : NStoreWF st.ns)
-    {ct : Std.HashMap NIdx (List NIdx × EIdx)}
-    {ctC : Std.HashMap ConLeche.Name (List ConLeche.Name × Expr)}
-    {hs : Std.HashMap NIdx Nat} {hsC : Std.HashMap ConLeche.Name Nat}
-    {ib : Std.HashMap NIdx BlockRec}
-    {ibC : Std.HashMap ConLeche.Name ConLeche.Frontend.InModel.BlockRec}
-    (h1 : MapRel st
-      (fun (p : List NIdx × EIdx) (q : List ConLeche.Name × Expr) =>
-        denoteNList st.ns p.1 = some q.1 ∧ denoteE st p.2 = some q.2) ct ctC)
-    (h2 : MapRel st (fun (a b : Nat) => a = b) hs hsC)
-    (h3 : MapRel st (BlockRecRel st) ib ibC) :
-    CtxRel st ⟨fun n => ct[n]?, fun n => hs.getD n 0, fun n => ib[n]?⟩
-      ⟨fun n => ctC[n]?, fun n => hsC.getD n 0, fun n => ibC[n]?⟩ where
-  tbl := fun h n hn => MapRel.getElem?_rel hw h1 hn
-  heights := by
-    intro h n hn
-    have := MapRel.getElem?_rel hw h2 hn
-    simp only [Std.HashMap.getD_eq_getD_getElem?]
-    cases ha : hs[h]? <;> cases hb : hsC[n]? <;> rw [ha, hb] at this <;>
-      simp_all [OptRel]
-  blocks := fun h n hn => MapRel.getElem?_rel hw h3 hn
-  tblCover := by
-    intro n q hq
-    obtain ⟨h, _, hh, -, -⟩ := h1.cover n q hq
-    exact ⟨h, hh⟩
-  heightsCover := by
-    intro n hn
-    simp only [Std.HashMap.getD_eq_getD_getElem?] at hn
-    cases hb : hsC[n]? with
-    | none => rw [hb] at hn; exact absurd rfl hn
-    | some b =>
-      obtain ⟨h, _, hh, -, -⟩ := h2.cover n b hb
-      exact ⟨h, hh⟩
-  blocksCover := by
-    intro n b hb
-    obtain ⟨h, _, hh, -, -⟩ := h3.cover n b hb
-    exact ⟨h, hh⟩
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:597 installIndD — the block's
-first member names the block, on both sides (`ciName_denote_of`; a parsed
-block holds no `.projInfo`). -/
-theorem head_name_rel {st : EStore} :
-    ∀ {cs : List IConstantInfo} {csP : List ConstantInfo},
-      ListRel (fun ci c => denoteCI st ci = some c ∧ ∀ t, ci ≠ .projInfo t) cs csP →
-      ∀ {ci : IConstantInfo}, cs.head? = some ci →
-        denoteN st.ns ci.name
-          = some ((csP.head?.map (·.name)).getD ConLeche.Name.anonymous)
-  | _, _, .nil, _, h => by simp at h
-  | _, _, .cons hab _, _, h => by
-    simp only [List.head?_cons, Option.some.injEq] at h
-    subst h
-    exact ciName_denote_of (CIProjNamed.of_ne hab.2) hab.1
-
-/-- con-leche: none — every member of a related list is related to something. -/
-theorem ListRel.forall_left {α β : Type} {P : α → β → Prop} :
-    ∀ {xs : List α} {ys : List β}, ListRel P xs ys → ∀ x ∈ xs, ∃ y, P x y := by
-  intro xs ys h
-  induction h with
-  | nil => intro x hx; simp at hx
-  | @cons a b _ _ hab _ ih =>
-    intro x hx
-    rcases List.mem_cons.mp hx with rfl | hx
-    · exact ⟨b, hab⟩
-    · exact ih x hx
-
-/-- con-leche: none — the census's decline slot, updated on both sides. -/
-theorem StateDRel.setDeclined {st : EStore} {sd : StateD}
-    {sc : ConLeche.Frontend.StateD} (h : StateDRel st sd sc)
-    {a : Array (NIdx × String)} {b : Array (ConLeche.Name × String)}
-    (hab : ListRel (fun (p : NIdx × String) (q : ConLeche.Name × String) =>
-      denoteN st.ns p.1 = some q.1 ∧ p.2 = q.2) a.toList b.toList) :
-    StateDRel st { sd with inModelDeclined := a } { sc with inModelDeclined := b } :=
-  { h with inModelDeclined := hab }
-
-/-- con-leche: none — the two in-process bookkeeping slots, updated on both
-sides. -/
-theorem StateDRel.setModelled {st : EStore} {sd : StateD}
-    {sc : ConLeche.Frontend.StateD} (h : StateDRel st sd sc)
-    {a : Array NIdx} {b : Array ConLeche.Name}
-    (hab : denoteNList st.ns a.toList = some b.toList)
-    {g : Array (Nat × Array IDeclaration)} {gC : Array (Nat × Array ConLeche.Declaration)}
-    (hg : ListRel
-      (fun (p : Nat × Array IDeclaration) (q : Nat × Array ConLeche.Declaration) =>
-        p.1 = q.1 ∧ denoteDeclArray st p.2 = some q.2) g.toList gC.toList) :
-    StateDRel st { sd with inModelled := a, inModelGen := g }
-      { sc with inModelled := b, inModelGen := gC } :=
-  { h with inModelled := hab, inModelGen := hg }
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:394-396 registerProjOwners — the
-owner map, extended by the census on both sides (`MapRel.insert` per owner,
-keyed by its own type former). -/
-theorem MapRel.foldl_insert_owners {st : EStore} (hwf : StoreWF st) :
-    ∀ {os : List ProjRecOwner} {osC : List ConLeche.Frontend.ProjRecOwner},
-      ListRel (ProjRecOwnerRel st) os osC →
-      ∀ {m : Std.HashMap NIdx ProjRecOwner}
-        {mc : Std.HashMap ConLeche.Name ConLeche.Frontend.ProjRecOwner},
-        MapRel st (ProjRecOwnerRel st) m mc →
-        MapRel st (ProjRecOwnerRel st) (os.foldl (fun m o => m.insert o.T o) m)
-          (osC.foldl (fun m o => m.insert o.T o) mc) := by
-  intro os osC h
-  induction h with
-  | nil => intro m mc hm; exact hm
-  | cons hab _ ih =>
-    intro m mc hm
-    exact ih (MapRel.insert hwf hm hab.T hab)
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:379-380 registerProjOwners — the
-census, recorded in the parse state's two tables.
-
-Three `mapM`s over `parseCVD_run` (the export's shape data, related in exactly
-the shape `projRecOwners_run` asks), then `projRecOwners_run` and
-`MapRel.foldl_insert_owners`.  Round 7 moved it here from
-`Bridge/Frontend/ProjRec.lean` (it needs `parseCVD_run`, which this module
-states) and proved it from `projRecOwners_run`; it inherits that leaf's frame
-finding (DESIGN, task #97-P3-Frontend round 7). -/
-theorem registerProjOwners_run {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
-    (hrl : ReadLCacheOK s.caches.readLC s.store) {sd sd' : StateD}
+`PinsOK s` is what makes the pushed `.indInfo` rows' DEFAULT capability
+record denote con-leche's: its `etaCtor` is the zero name handle, and it
+denotes `.anonymous` only after the pin phase (`PinsOK.anon`). -/
+theorem installIndD_run {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {tys : List ConLeche.Frontend.IndTypeRec}
     {cts : List ConLeche.Frontend.IndCtorRec}
-    {rcs : List ConLeche.Frontend.IndRecRec} {block : List IConstantInfo}
-    {blockP : List ConstantInfo} (hb : denoteCIList s.store block = some blockP)
-    (hrun : registerProjOwners sd tys cts rcs block s = .ok (sd', s')) :
-    ParseStep s s' ∧ PersStateD sd' ∧
-      ∃ sc', ConLeche.Frontend.registerProjOwners sc tys cts rcs blockP = .ok sc' ∧
-        StateDRel s'.store sd' sc' := by
-  suffices h : (ParseStep s s' ∧ PersStateD sd') ∧
-      ∃ sc', ConLeche.Frontend.registerProjOwners sc tys cts rcs blockP = .ok sc' ∧
-        StateDRel s'.store sd' sc' from ⟨h.1.1, h.1.2, h.2⟩
-  rw [registerProjOwners] at hrun
-  rw [ConLeche.Frontend.registerProjOwners]
-  obtain ⟨types, s₁, h1, hrun⟩ := AM.bind_ok hrun
-  refine except_bind_ex (mapM_sim'
-    (P := fun (p : NIdx × List NIdx × EIdx × Nat × Nat × List NIdx × Bool)
-        (q : ConLeche.Name × List ConLeche.Name × Expr × Nat × Nat ×
-          List ConLeche.Name × Bool) =>
-      denoteN s.store.ns p.1 = some q.1 ∧
-        denoteNList s.store.ns p.2.1 = some q.2.1 ∧
-        denoteE s.store p.2.2.1 = some q.2.2.1 ∧
-        p.2.2.2.1 = q.2.2.2.1 ∧ p.2.2.2.2.1 = q.2.2.2.2.1 ∧
-        denoteNList s.store.ns p.2.2.2.2.2.1 = some q.2.2.2.2.2.1 ∧
-        p.2.2.2.2.2.2 = q.2.2.2.2.2.2)
-    (fun t b s0' h => by
-      obtain ⟨cv, s₂, h2, h3⟩ := AM.bind_ok h
-      obtain ⟨hs2, c, hc, hdc⟩ := parseCVD_run hok hrel h2
-      rw [hs2] at h3
-      obtain ⟨hs, s₃, h4, h5⟩ := AM.bind_ok h3
-      obtain ⟨hs4, xs, hxs, hdxs⟩ := StateD_names_run hrel t.ctors h4
-      rw [hs4] at h5
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok h5
-      refine ⟨rfl, _, by rw [hc, except_ok_bind, hxs]; rfl, ?_⟩
-      exact ⟨denoteCV_name hdc, denoteCV_lps hdc, denoteCV_type hdc, rfl, rfl, hdxs, rfl⟩)
-    tys h1) ?_
-  rintro typesC ⟨hs1, htR⟩
-  rw [hs1] at hrun
-  obtain ⟨ctors, s₁, h1, hrun⟩ := AM.bind_ok hrun
-  refine except_bind_ex (mapM_sim'
-    (P := fun (p : NIdx × Nat × EIdx) (q : ConLeche.Name × Nat × Expr) =>
-      denoteN s.store.ns p.1 = some q.1 ∧ p.2.1 = q.2.1 ∧
-        denoteE s.store p.2.2 = some q.2.2)
-    (fun t b s0' h => by
-      obtain ⟨cv, s₂, h2, h3⟩ := AM.bind_ok h
-      obtain ⟨hs2, c, hc, hdc⟩ := parseCVD_run hok hrel h2
-      rw [hs2] at h3
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok h3
-      refine ⟨rfl, _, by rw [hc, except_ok_bind]; rfl, ?_⟩
-      exact ⟨denoteCV_name hdc, rfl, denoteCV_type hdc⟩)
-    cts h1) ?_
-  rintro ctorsC ⟨hs1, hcR⟩
-  rw [hs1] at hrun
-  obtain ⟨recs, s₁, h1, hrun⟩ := AM.bind_ok hrun
-  refine except_bind_ex (mapM_sim'
-    (P := fun (p : NIdx × List NIdx × EIdx × Nat × Nat)
-        (q : ConLeche.Name × List ConLeche.Name × Expr × Nat × Nat) =>
-      denoteN s.store.ns p.1 = some q.1 ∧
-        denoteNList s.store.ns p.2.1 = some q.2.1 ∧
-        denoteE s.store p.2.2.1 = some q.2.2.1 ∧
-        p.2.2.2.1 = q.2.2.2.1 ∧ p.2.2.2.2 = q.2.2.2.2)
-    (fun t b s0' h => by
-      obtain ⟨cv, s₂, h2, h3⟩ := AM.bind_ok h
-      obtain ⟨hs2, c, hc, hdc⟩ := parseCVD_run hok hrel h2
-      rw [hs2] at h3
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok h3
-      refine ⟨rfl, _, by rw [hc, except_ok_bind]; rfl, ?_⟩
-      exact ⟨denoteCV_name hdc, denoteCV_lps hdc, denoteCV_type hdc, rfl, rfl⟩)
-    rcs h1) ?_
-  rintro recsC ⟨hs1, hrR⟩
-  rw [hs1] at hrun
-  obtain ⟨fuel, s₁, h1, hrun⟩ := AM.bind_ok hrun
-  have hs1 := storeFuel_run h1
-  rw [hs1] at hrun
-  obtain ⟨os, s₂, h2, hrun⟩ := AM.bind_ok hrun
-  obtain ⟨hstep, hos⟩ := projRecOwners_run hok hoff hpins hrl hb htR hcR hrR h2
-  have hrel2 := hrel.ext hstep.ext
-  generalize ConLeche.Frontend.projRecOwners blockP typesC ctorsC recsC = osC at hos ⊢
-  cases hos with
-  | nil =>
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨⟨hstep, hp⟩, _, rfl, hrel2⟩
-  | cons hab hrest =>
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    refine ⟨⟨hstep, { hp with }⟩, _, rfl, { hrel2 with projOwners := ?_ }⟩
-    exact MapRel.foldl_insert_owners hstep.ok.wf (ListRel.cons hab hrest) hrel2.projOwners
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:564-565 installIndD — the half
-that WRITES: the block's constants, the projection-owner registration and the
-modeller seam.  This is the one theorem of the tier that takes the modeller's
-two promises, and it takes them because `installIndD` is where the seam is
-called.
-
-Since round 5 `hmw` carries one clause more — a generated record's projection
-tables are rightly named (`DeclProjNamed`) — and that is what `pushGenList`
-hands `pushDecl_run` for the records the seam returned.
-
-`registerProjOwners_run` (above), `blockRecOf_run`,
-then `hmw`/`hmr` at the seam and `pushGenList_run` for what it returns.
-
-**Two preconditions the round-1 statement lacked** (task #97-P3-Frontend
-round 7).  `PinsOK s`: the pushed `.indInfo` rows carry the DEFAULT capability
-record, whose `etaCtor` is the zero name handle, and it denotes `.anonymous`
-only after the pin phase (`PinsOK.anon`, the Inductives tier's round-5
-ruling) — and `registerProjOwners_run` needs it for its two recognisers
-anyway.  And the seam's promises were one clause short each: `ModellerWF`
-now frames a DECLINING run too, and `ModellerRefines` names con-leche's
-reason, because the census books it (`Bridge/Frontend/Modeller.lean`). -/
-theorem installIndD_run {md : Modeller} (hmw : ModellerWF md)
-    (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
-    (hrl : ReadLCacheOK s.caches.readLC s.store) {sd : StateD}
-    {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
-    (hp : PersStateD sd) {tys : List ConLeche.Frontend.IndTypeRec}
-    {cts : List ConLeche.Frontend.IndCtorRec}
-    {rcs : List ConLeche.Frontend.IndRecRec} {nPd : Nat}
-    {x : StateD ⊕ RecordVerdict}
-    (hrun : installIndD md sd tys cts rcs nPd s = .ok (x, s')) :
-    ParseStep s s' ∧ (∀ sd', x = .inl sd' → PersStateD sd') ∧
-      ∃ y, ConLeche.Frontend.installIndD sc tys cts rcs nPd = .ok y ∧
-        SumRel s'.store x y := by
-  suffices h : (ParseStep s s' ∧ (∀ sd', x = .inl sd' → PersStateD sd')) ∧
-      ∃ y, ConLeche.Frontend.installIndD sc tys cts rcs nPd = .ok y ∧
-        SumRel s'.store x y from ⟨h.1.1, h.1.2, h.2⟩
-  rw [installIndD] at hrun
-  rw [ConLeche.Frontend.installIndD]
+    {rcs : List ConLeche.Frontend.IndRecRec} {nPd : Nat} {sd' : StateD}
+    (hrun : installIndD sd tys cts rcs nPd s = .ok (sd', s')) :
+    s' = s ∧ PersStateD sd' ∧
+      ∃ sc', ConLeche.Frontend.installIndD sc tys cts rcs nPd = .ok sc' ∧
+        StateDRel s.store sd' sc' := by
   have hcaps := denoteCaps_default hpins.anon
+  rw [installIndD] at hrun
+  -- the type formers
+  have htys : ∀ (ts : List ConLeche.Frontend.IndTypeRec)
+      {out : List IConstantInfo} {t : AState},
+      (ts.mapM fun (x : ConLeche.Frontend.IndTypeRec) => do
+        pure (IConstantInfo.indInfo (← parseCVD sd x.cv) {})) s = .ok (out, t) →
+      t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndTypeRec) => do
+          pure (ConstantInfo.indInfo (← ConLeche.Frontend.parseCVD sc x.cv) {}))
+            = .ok outP ∧
+        ListRel (fun ci c => denoteCI s.store ci = some c ∧ ∀ tt, ci ≠ .projInfo tt)
+          out outP := by
+    intro ts
+    induction ts with
+    | nil =>
+      intro out t hrun
+      simp only [List.mapM_nil] at hrun
+      obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+      subst hv; subst hst
+      exact ⟨rfl, [], rfl, .nil⟩
+    | cons x xs ih =>
+      intro out t hrun
+      simp only [List.mapM_cons] at hrun
+      obtain ⟨y, s₁, hone, hrest⟩ := AM.bind_ok hrun
+      obtain ⟨cv, s₂, hcv, hone2⟩ := AM.bind_ok hone
+      obtain ⟨hs2, cvP, hclcv, hdcv⟩ := parseCVD_run hok hrel hcv
+      rw [hs2] at hone2
+      obtain ⟨hv1, hst1⟩ := AM.pure_ok hone2
+      rw [hst1] at hrest
+      obtain ⟨ys, s₄, hmany, hrest2⟩ := AM.bind_ok hrest
+      obtain ⟨hs4, ysP, hclys, hdys⟩ := ih hmany
+      rw [hs4] at hrest2
+      obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest2
+      subst hv2; subst hst2; subst hv1
+      refine ⟨rfl, ConstantInfo.indInfo cvP {} :: ysP, ?_, .cons ⟨?_, by simp⟩ hdys⟩
+      · simp only [List.mapM_cons, hclcv, hclys]; rfl
+      · simp only [denoteCI, hdcv, hcaps]
+  -- the constructors
+  have hcts : ∀ (ts : List ConLeche.Frontend.IndCtorRec)
+      {out : List IConstantInfo} {t : AState},
+      (ts.mapM fun (x : ConLeche.Frontend.IndCtorRec) => do
+        pure (IConstantInfo.ctorInfo (← parseCVD sd x.cv) x.numParams x.numFields))
+          s = .ok (out, t) →
+      t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndCtorRec) => do
+          pure (ConstantInfo.ctorInfo (← ConLeche.Frontend.parseCVD sc x.cv)
+            x.numParams x.numFields)) = .ok outP ∧
+        ListRel (fun ci c => denoteCI s.store ci = some c ∧ ∀ tt, ci ≠ .projInfo tt)
+          out outP := by
+    intro ts
+    induction ts with
+    | nil =>
+      intro out t hrun
+      simp only [List.mapM_nil] at hrun
+      obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+      subst hv; subst hst
+      exact ⟨rfl, [], rfl, .nil⟩
+    | cons x xs ih =>
+      intro out t hrun
+      simp only [List.mapM_cons] at hrun
+      obtain ⟨y, s₁, hone, hrest⟩ := AM.bind_ok hrun
+      obtain ⟨cv, s₂, hcv, hone2⟩ := AM.bind_ok hone
+      obtain ⟨hs2, cvP, hclcv, hdcv⟩ := parseCVD_run hok hrel hcv
+      rw [hs2] at hone2
+      obtain ⟨hv1, hst1⟩ := AM.pure_ok hone2
+      rw [hst1] at hrest
+      obtain ⟨ys, s₄, hmany, hrest2⟩ := AM.bind_ok hrest
+      obtain ⟨hs4, ysP, hclys, hdys⟩ := ih hmany
+      rw [hs4] at hrest2
+      obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest2
+      subst hv2; subst hst2; subst hv1
+      refine ⟨rfl, ConstantInfo.ctorInfo cvP x.numParams x.numFields :: ysP, ?_,
+        .cons ⟨?_, by simp⟩ hdys⟩
+      · simp only [List.mapM_cons, hclcv, hclys]; rfl
+      · simp only [denoteCI, hdcv, Option.map_some]
+  -- the recursors
+  have hrcs : ∀ (ts : List ConLeche.Frontend.IndRecRec)
+      {out : List IConstantInfo} {t : AState},
+      (ts.mapM fun (x : ConLeche.Frontend.IndRecRec) => do
+        let rules ← x.rules.mapM (parseRuleD sd)
+        pure (IConstantInfo.recInfo (← parseCVD sd x.cv)
+          (x.numParams + x.numMotives + x.numMinors + x.numIndices)
+          (x.numParams + x.numMotives + x.numMinors) rules)) s = .ok (out, t) →
+      t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndRecRec) => do
+          let rules ← x.rules.mapM (ConLeche.Frontend.parseRuleD sc)
+          pure (ConstantInfo.recInfo (← ConLeche.Frontend.parseCVD sc x.cv)
+            (x.numParams + x.numMotives + x.numMinors + x.numIndices)
+            (x.numParams + x.numMotives + x.numMinors) rules)) = .ok outP ∧
+        ListRel (fun ci c => denoteCI s.store ci = some c ∧ ∀ tt, ci ≠ .projInfo tt)
+          out outP := by
+    intro ts
+    induction ts with
+    | nil =>
+      intro out t hrun
+      simp only [List.mapM_nil] at hrun
+      obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+      subst hv; subst hst
+      exact ⟨rfl, [], rfl, .nil⟩
+    | cons x xs ih =>
+      intro out t hrun
+      simp only [List.mapM_cons] at hrun
+      obtain ⟨y, s₁, hone, hrest⟩ := AM.bind_ok hrun
+      obtain ⟨rls, s₂, hrls, hone2⟩ := AM.bind_ok hone
+      obtain ⟨hs2, rsP, hclrs, hdrs⟩ := parseRules_run hok hrel x.rules hrls
+      rw [hs2] at hone2
+      obtain ⟨cv, s₃, hcv, hone3⟩ := AM.bind_ok hone2
+      obtain ⟨hs3, cvP, hclcv, hdcv⟩ := parseCVD_run hok hrel hcv
+      rw [hs3] at hone3
+      obtain ⟨hv1, hst1⟩ := AM.pure_ok hone3
+      rw [hst1] at hrest
+      obtain ⟨ys, s₄, hmany, hrest2⟩ := AM.bind_ok hrest
+      obtain ⟨hs4, ysP, hclys, hdys⟩ := ih hmany
+      rw [hs4] at hrest2
+      obtain ⟨hv2, hst2⟩ := AM.pure_ok hrest2
+      subst hv2; subst hst2; subst hv1
+      refine ⟨rfl,
+        ConstantInfo.recInfo cvP
+          (x.numParams + x.numMotives + x.numMinors + x.numIndices)
+          (x.numParams + x.numMotives + x.numMinors) rsP :: ysP, ?_,
+        .cons ⟨?_, by simp⟩ hdys⟩
+      · simp only [List.mapM_cons, hclrs, hclcv, hclys]; rfl
+      · simp only [denoteCI, hdcv, hdrs]
   obtain ⟨types, s₁, h1, hrun⟩ := AM.bind_ok hrun
-  refine except_bind_ex (mapM_sim'
-    (P := fun ci c => denoteCI s.store ci = some c ∧ ∀ t, ci ≠ .projInfo t)
-    (fun t b s0' h => by
-      obtain ⟨cv, s₂, h2, h3⟩ := AM.bind_ok h
-      obtain ⟨hs2, c, hc, hdc⟩ := parseCVD_run hok hrel h2
-      rw [hs2] at h3
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok h3
-      refine ⟨rfl, _, by rw [hc]; rfl, ?_, fun t h => by cases h⟩
-      simp only [denoteCI, hdc, hcaps]) tys h1) ?_
-  rintro typesC ⟨hs1, htR⟩
+  obtain ⟨hs1, typesP, hcltys, hdtys⟩ := htys tys h1
   rw [hs1] at hrun
-  obtain ⟨ctors, s₁, h1, hrun⟩ := AM.bind_ok hrun
-  refine except_bind_ex (mapM_sim'
-    (P := fun ci c => denoteCI s.store ci = some c ∧ ∀ t, ci ≠ .projInfo t)
-    (fun t b s0' h => by
-      obtain ⟨cv, s₂, h2, h3⟩ := AM.bind_ok h
-      obtain ⟨hs2, c, hc, hdc⟩ := parseCVD_run hok hrel h2
-      rw [hs2] at h3
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok h3
-      refine ⟨rfl, _, by rw [hc]; rfl, ?_, fun t h => by cases h⟩
-      simp only [denoteCI, hdc]; rfl) cts h1) ?_
-  rintro ctorsC ⟨hs1, hcR⟩
-  rw [hs1] at hrun
-  obtain ⟨recs, s₁, h1, hrun⟩ := AM.bind_ok hrun
-  refine except_bind_ex (mapM_sim'
-    (P := fun ci c => denoteCI s.store ci = some c ∧ ∀ t, ci ≠ .projInfo t)
-    (fun t b s0' h => by
-      obtain ⟨rls, s₂, h2, h3⟩ := AM.bind_ok h
-      obtain ⟨hs2, rs, hrs, hdrs⟩ := parseRules_run hok hrel t.rules h2
-      rw [hs2] at h3
-      obtain ⟨cv, s₂, h2, h3⟩ := AM.bind_ok h3
-      obtain ⟨hs2, c, hc, hdc⟩ := parseCVD_run hok hrel h2
-      rw [hs2] at h3
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok h3
-      refine ⟨rfl, _, by rw [hrs, except_ok_bind, hc]; rfl, ?_, fun t h => by cases h⟩
-      simp only [denoteCI, hdc, hdrs]) rcs h1) ?_
-  rintro recsC ⟨hs1, hrR⟩
-  rw [hs1] at hrun
-  have hbR := ListRel.append (ListRel.append htR hcR) hrR
-  have hb := denoteCIList_of_listRel hbR
-  dsimp only
-  obtain ⟨sd₄, s₄, h4, hrun⟩ := AM.bind_ok hrun
-  obtain ⟨hstep4, hp4, sc₄, hreg, hrel4⟩ := registerProjOwners_run hok hoff hpins hrl hrel hp hb h4
-  rw [hreg, except_ok_bind]
-  have hoff4 : s₄.store.scratchOn = false := by rw [hstep4.scratch]; exact hoff
-  have hbR4 := hbR.mono
-    (R' := fun ci c => denoteCI s₄.store ci = some c ∧ ∀ t, ci ≠ .projInfo t)
-    (fun a b h => ⟨denoteCI_ext h.1 hstep4.ext, h.2⟩)
-  dsimp only at hrun
-  cases hci : (types ++ ctors ++ recs).head?
-  focus
-    rw [hci] at hrun
-    obtain ⟨T0, s₅, h5, hrun⟩ := AM.bind_ok hrun
-    have hnil : types ++ ctors ++ recs = [] := List.head?_eq_none_iff.mp hci
-    have hnilC : typesC ++ ctorsC ++ recsC = [] := by
-      have hl := ListRel.length_eq hbR4
-      rw [hnil] at hl
-      exact List.eq_nil_of_length_eq_zero hl.symm
-    obtain ⟨histep, -, hdn⟩ :=
-      internNNode_istep hstep4.ok hoff4
-        (by intro c hc; simp only [NNodeView.children] at hc; exact absurd hc (by simp)) h5
-    have hstep5 : ParseStep s₄ s₅ := histep.toParse hoff4
-    have hdT0 : denoteN s₅.store.ns T0 = some
-        ((Option.map (fun x => x.name) (typesC ++ ctorsC ++ recsC).head?).getD
-          ConLeche.Name.anonymous) := by
-      rw [hdn, hnilC]; rfl
-  rotate_left
-  focus
-    rename_i ci
-    rw [hci] at hrun
-    obtain ⟨T0, s₅, h5, hrun⟩ := AM.bind_ok hrun
-    obtain ⟨hv5, hs5⟩ := AM.pure_ok h5
-    have hstep5 : ParseStep s₄ s₅ := ParseStep.of_eq hstep4.ok hs5
-    have hdT0 := head_name_rel hbR4 hci
-    rw [← hv5, ← hs5] at hdT0
-  all_goals
-    clear h5
-    generalize hT0C : (Option.map (fun x => x.name) (typesC ++ ctorsC ++ recsC).head?).getD
-      ConLeche.Name.anonymous = T0C at hdT0 ⊢
-    have hrel5 := hrel4.ext hstep5.ext
-    have hbR5 := hbR4.mono
-      (R' := fun ci c => denoteCI s₅.store ci = some c ∧ ∀ t, ci ≠ .projInfo t)
-      (fun a b h => ⟨denoteCI_ext h.1 hstep5.ext, h.2⟩)
-    have hoff5 : s₅.store.scratchOn = false := by rw [hstep5.scratch]; exact hoff4
-    obtain ⟨b, s₆, h6, hrun⟩ := AM.bind_ok hrun
-    obtain ⟨hs6, bP, hclb, hbr⟩ := blockRecOf_run hstep5.ok hrel5 h6
-    rw [hs6] at hrun
-    rw [hclb, except_ok_bind]
-    have hIB := MapRel.foldl_insert_by (R := BlockRecRel s₅.store) hstep5.ok.wf hbr
-      (Q := MIndTypeRecRel s₅.store) (kx := fun t => t.cv.name) (ky := fun t => t.cv.name)
-      (fun x y h => denoteCV_name h.cv) hbr.types hrel5.indBlocks
-    have hrelB : StateDRel s₅.store
-        { sd₄ with indBlocks := List.foldl (fun m t => m.insert t.cv.name b) sd₄.indBlocks b.types }
-        { sc₄ with indBlocks := List.foldl (fun m t => m.insert t.cv.name bP) sc₄.indBlocks bP.types } :=
-      { hrel5 with indBlocks := hIB }
-    have hpB : PersStateD
-        { sd₄ with indBlocks := List.foldl (fun m t => m.insert t.cv.name b) sd₄.indBlocks b.types } :=
-      { hp4 with }
-    have hdB : ConRon.Arena.Frontend.denoteDecl s₅.store (.indDecl (types ++ ctors ++ recs) nPd)
-        = some (.indDecl (typesC ++ ctorsC ++ recsC) nPd) := by
-      simp only [ConRon.Arena.Frontend.denoteDecl, denoteCIList_of_listRel hbR5]; rfl
-    have hpnB : DeclProjNamed s₅.store (.indDecl (types ++ ctors ++ recs) nPd) :=
-      DeclProjNamed.of_indDecl (fun ci hci => by
-        obtain ⟨c, _, hne⟩ := ListRel.forall_left hbR5 ci hci
-        exact CIProjNamed.of_ne hne)
-    have hpdB : PersDecl (.indDecl (types ++ ctors ++ recs) nPd) :=
-      PersDecl_of_denote hstep5.ok.wf hoff5 hpnB hdB
-    have hcond : (sd₄.inModel && wants b) = (sc₄.inModel && ConLeche.Frontend.InModel.wants bP) := by
-      rw [hrel5.inModel, wants_eq hbr]
-    by_cases hc : (sc₄.inModel && ConLeche.Frontend.InModel.wants bP) = true
-    rotate_left
-    · rw [if_neg (by rw [hcond]; exact hc)] at hrun
-      rw [if_neg hc]
-      obtain ⟨sd', s₇, h7, hrun⟩ := AM.bind_ok hrun
-      obtain ⟨hstep7, hp7, hrel7⟩ := pushDecl_run hstep5.ok hoff5 hrelB hpB hpdB hpnB hdB h7
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-      exact ⟨⟨hstep4.trans (hstep5.trans hstep7), fun _ h => by cases h; exact hp7⟩,
-        _, rfl, hrel7⟩
-    rw [if_pos (by rw [hcond]; exact hc)] at hrun
-    rw [if_pos hc]
-    obtain ⟨o, s₇, h7, hrun⟩ := AM.bind_ok hrun
-    have hctx := ctxRel_of_maps (nsWF_of_StateOK hstep5.ok) hrel5.constTypes hrel5.heights hIB
-    obtain ⟨hokh, herrh⟩ := hmr _ _ b bP s₅ o s₇ hstep5.ok hoff5 hctx hbr h7
-    cases o with
-    | error why =>
-      rw [herrh why rfl]
-      obtain ⟨hok7, hx7, hm7, hc7, hp7, hsc7⟩ := hmw.2 _ _ _ why s₇ hstep5.ok hoff5 h7
-      have hstep7 : ParseStep s₅ s₇ := ParseStep.of_caches hok7 hx7 hsc7 hc7 hp7
-      have hoff7 : s₇.store.scratchOn = false := by rw [hsc7]; exact hoff5
-      dsimp only at hrun ⊢
-      by_cases hcen : sc₄.inModelCensus = true
-      · rw [if_pos (by rw [hrel5.inModelCensus]; exact hcen)] at hrun
-        rw [if_pos hcen]
-        obtain ⟨sd', s₈, h8, hrun⟩ := AM.bind_ok hrun
-        have hrelB7 := hrelB.ext hx7
-        have hdecl : ListRel
-            (fun (p : NIdx × String) (q : ConLeche.Name × String) =>
-              denoteN s₇.store.ns p.1 = some q.1 ∧ p.2 = q.2)
-            (sd₄.inModelDeclined.push (T0, why)).toList
-            (sc₄.inModelDeclined.push (T0C, why)).toList := by
-          rw [Array.toList_push, Array.toList_push]
-          exact ListRel.append hrelB7.inModelDeclined
-            (ListRel.cons ⟨denoteN_ext hdT0 hx7, rfl⟩ ListRel.nil)
-        obtain ⟨hstep8, hp8, hrel8⟩ := pushDecl_run (hrun := h8) hok7 hoff7
-          (hrelB7.setDeclined hdecl) { hpB with } hpdB (hpnB.mono hx7) (denoteDecl_ext hx7 hdB)
-        obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-        exact ⟨⟨hstep4.trans (hstep5.trans (hstep7.trans hstep8)),
-          fun _ h => by cases h; exact hp8⟩, _, rfl, hrel8⟩
-      · rw [if_neg (by rw [hrel5.inModelCensus]; exact hcen)] at hrun
-        rw [if_neg hcen]
-        obtain ⟨nm, hrun⟩ := readName_bind hrun
-        obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-        exact ⟨⟨hstep4.trans (hstep5.trans hstep7), fun _ h => by cases h⟩, _, rfl, trivial⟩
-    | ok gen =>
-      obtain ⟨hok7, hx7, hpers7, hnamed7, hdenS, hm7, hc7, hp7, hsc7⟩ :=
-        hmw.1 _ _ _ gen s₇ hstep5.ok hoff5 h7
-      obtain ⟨genP, hgenP⟩ := Option.isSome_iff_exists.mp hdenS
-      rw [hokh gen rfl genP hgenP]
-      have hstep7 : ParseStep s₅ s₇ := ParseStep.of_caches hok7 hx7 hsc7 hc7 hp7
-      have hoff7 : s₇.store.scratchOn = false := by rw [hsc7]; exact hoff5
-      dsimp only at hrun ⊢
-      obtain ⟨st1, s₈, h8, hrun⟩ := AM.bind_ok hrun
-      obtain ⟨hstep8, hp8, hrel8⟩ := pushGenList_run gen hok7 hoff7 (hrelB.ext hx7) hpB
-        hpers7 hnamed7 hgenP (denoteN_ext hdT0 hx7) h8
-      have hoff8 : s₈.store.scratchOn = false := by rw [hstep8.scratch]; exact hoff7
-      obtain ⟨sd', s₉, h9, hrun⟩ := AM.bind_ok hrun
-      generalize hscB : ConLeche.Frontend.pushGenList
-        { sc₄ with indBlocks := List.foldl (fun m t => m.insert t.cv.name bP) sc₄.indBlocks bP.types }
-        genP T0C = sc8 at hrel8 ⊢
-      have hmod : denoteNList s₈.store.ns (st1.inModelled.push T0).toList
-          = some (sc8.inModelled.push T0C).toList := by
-        rw [Array.toList_push, Array.toList_push]
-        exact denoteNList_snoc hrel8.inModelled (denoteN_ext hdT0 (hx7.trans hstep8.ext))
-      have hgen8 : ListRel
-          (fun (p : Nat × Array IDeclaration) (q : Nat × Array ConLeche.Declaration) =>
-            p.1 = q.1 ∧ denoteDeclArray s₈.store p.2 = some q.2)
-          (st1.inModelGen.push (st1.indCount - 1, gen.toArray)).toList
-          (sc8.inModelGen.push (sc8.indCount - 1, genP.toArray)).toList := by
-        rw [Array.toList_push, Array.toList_push]
-        refine ListRel.append hrel8.inModelGen (ListRel.cons ⟨by rw [hrel8.indCount], ?_⟩ ListRel.nil)
-        simp only [denoteDeclArray, denoteDecls_ext hstep8.ext gen genP hgenP,
-          Option.map_some]
-      obtain ⟨hstep9, hp9, hrel9⟩ := pushDecl_run (hrun := h9) hstep8.ok hoff8
-        (hrel8.setModelled hmod hgen8) { hp8 with } hpdB
-        ((hpnB.mono hx7).mono hstep8.ext) (denoteDecl_ext (hx7.trans hstep8.ext) hdB)
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-      exact ⟨⟨hstep4.trans (hstep5.trans (hstep7.trans (hstep8.trans hstep9))),
-        fun _ h => by cases h; exact hp9⟩, _, rfl, hrel9⟩
+  obtain ⟨ctors, s₂, h2, hrun⟩ := AM.bind_ok hrun
+  obtain ⟨hs2, ctorsP, hclcts, hdcts⟩ := hcts cts h2
+  rw [hs2] at hrun
+  obtain ⟨recs, s₃, h3, hrun⟩ := AM.bind_ok hrun
+  obtain ⟨hs3, recsP, hclrcs, hdrcs⟩ := hrcs rcs h3
+  rw [hs3] at hrun
+  -- the whole block denotes, and none of it is a `.projInfo`
+  have hforall : ∀ {α β : Type} {P : α → β → Prop} {xs : List α} {ys : List β},
+      ListRel P xs ys → ∀ x ∈ xs, ∃ y, P x y := by
+    intro α β P xs ys h
+    induction h with
+    | nil => intro x hx; simp at hx
+    | cons hab _ ih =>
+      intro x hx
+      simp only [List.mem_cons] at hx
+      rcases hx with rfl | hx
+      · exact ⟨_, hab⟩
+      · exact ih x hx
+  have hblockRel : ListRel
+      (fun ci c => denoteCI s.store ci = some c ∧ ∀ tt, ci ≠ .projInfo tt)
+      (types ++ ctors ++ recs) (typesP ++ ctorsP ++ recsP) :=
+    ListRel.append (ListRel.append hdtys hdcts) hdrcs
+  have hb : denoteCIList s.store (types ++ ctors ++ recs)
+      = some (typesP ++ ctorsP ++ recsP) :=
+    denoteCIList_of_listRel hblockRel
+  have hpn : DeclProjNamed s.store (.indDecl (types ++ ctors ++ recs) nPd) :=
+    DeclProjNamed.of_indDecl fun ci hci =>
+      CIProjNamed.of_ne (hforall hblockRel ci hci).choose_spec.2
+  have hd : ConRon.Arena.Frontend.denoteDecl s.store
+      (.indDecl (types ++ ctors ++ recs) nPd)
+      = some (.indDecl (typesP ++ ctorsP ++ recsP) nPd) := by
+    simp only [ConRon.Arena.Frontend.denoteDecl, hb, Option.map_some]
+  obtain ⟨hv, hp', hrel'⟩ :=
+    pushDecl_run hrel hp (PersDecl_of_denote hok.wf hoff hpn hd) hpn hd hrun
+  refine ⟨hv, hp', ConLeche.Frontend.pushDecl sc
+    (.indDecl (typesP ++ ctorsP ++ recsP) nPd), ?_, hrel'⟩
+  rw [ConLeche.Frontend.installIndD]
+  simp only [hcltys, hclcts, hclrcs]
+  rfl
+
 
 /-! ## The line -/
 
@@ -3227,53 +2355,34 @@ theorem pushDecl_built_run {s s' : AState} (hok : StateOK s)
     (hd : ConRon.Arena.Frontend.denoteDecl s.store d = some dP)
     (hrun : pushDecl sd d s = .ok (sd', s')) :
     ParseStep s s' ∧ PersStateD sd' ∧
-      StateDRel s'.store sd' (ConLeche.Frontend.pushDecl sc dP) :=
-  pushDecl_run hok hoff hrel hp (PersDecl_of_denote hok.wf hoff hpn hd) hpn hd hrun
-/-- con-leche: none — the rewrite list, updated on both sides. -/
-theorem StateDRel.setProjRewrites {st : EStore} {sd : StateD}
-    {sc : ConLeche.Frontend.StateD} (h : StateDRel st sd sc)
-    {a : Array NIdx} {b : Array ConLeche.Name}
-    (hab : denoteNList st.ns a.toList = some b.toList) :
-    StateDRel st { sd with projRewrites := a } { sc with projRewrites := b } :=
-  { h with projRewrites := hab }
-
-/-- con-leche: none — the block counter, bumped on both sides. -/
-theorem StateDRel.bumpIndCount {st : EStore} {sd : StateD}
-    {sc : ConLeche.Frontend.StateD} (h : StateDRel st sd sc) :
-    StateDRel st { sd with indCount := sd.indCount + 1 }
-      { sc with indCount := sc.indCount + 1 } :=
-  { h with indCount := by simp only [h.indCount] }
+      StateDRel s'.store sd' (ConLeche.Frontend.pushDecl sc dP) := by
+  obtain ⟨hv, hp', hrel'⟩ :=
+    pushDecl_run hrel hp (PersDecl_of_denote hok.wf hoff hpn hd) hpn hd hrun
+  subst hv
+  exact ⟨ParseStep.refl hok, hp', hrel'⟩
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:629 processLineCoreD — **the
-record's own semantics**: six declaration kinds, the projection rewrite on two
-of them, and the inductive route.  `Arena/Frontend/ExportC.lean`'s own note
-says "every branch, guard and error string is con-leche's", and this is that
-sentence as a theorem.
+record's own semantics**: six declaration kinds and the inductive route.
+`Arena/Frontend/ExportC.lean`'s own note says "every branch, guard and error
+string is con-leche's", and this is that sentence as a theorem.
 
-**What round 5's repair costs this arm**: `pushDecl_run` now asks
-`DeclProjNamed` of the record it pushes, and both sources have it.  A record
-this function builds itself is an `.axiomDecl`/`.defnDecl`/`.thmDecl`/
-`.opaqueDecl`/`.quotDecl` (`DeclProjNamed.of_…`, vacuous) or an `.indDecl`
-block of `.indInfo`/`.ctorInfo`/`.recInfo` (`DeclProjNamed.of_indDecl` at a
-block with no `.projInfo` in it); a record `pushGenList` pushes came from the
-modeller, and `ModellerWF`'s own clause is exactly this.  **Nothing propagates
-past here** — that is what putting the fact in `StateDRel.projNamed` and in
-the seam's promise bought.
+**Task #105**: the projection rewrite that used to run in the `.defn`/`.thm`
+arms is gone with the modeller, so every arm now pushes the record it parsed
+unconditionally — `pushDecl_built_run` alone, no `projRewriteD_run` and no
+`setProjRewrites`.  A record this function builds itself is an
+`.axiomDecl`/`.defnDecl`/`.thmDecl`/`.opaqueDecl`/`.quotDecl`
+(`DeclProjNamed.of_…`, vacuous) or an `.indDecl` block of
+`.indInfo`/`.ctorInfo`/`.recInfo` (`installIndD_run`'s own `DeclProjNamed.of_indDecl`
+at a block with no `.projInfo` in it).
 
-Six arms over `parseCVD_run`, `getDeclD_run`, `projRewriteD_run`
-(`Bridge/Frontend/ProjRec.lean`, two-sided since round 7) and `pushDecl_run`,
-plus the `ind` arm over `validateIndD_run'` and `installIndD_run`.  Round 7
-skeletonised it: its own proof is closed, and what it rests on is
-`projRewriteD_run` and `registerProjOwners_run`.  `PinsOK s` is new (round 7),
-for `installIndD_run`. -/
-theorem processLineCoreD_run {md : Modeller} (hmw : ModellerWF md)
-    (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
-    (hrc : ReadCachesOK s) {sd : StateD}
+Six arms over `parseCVD_run`, `getDeclD_run` and `pushDecl_built_run`, plus
+the `ind` arm over `validateIndD_run'` and `installIndD_run`. -/
+theorem processLineCoreD_run {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {d : ConLeche.Frontend.DeclRec}
     {x : StateD ⊕ RecordVerdict}
-    (hrun : processLineCoreD md sd d s = .ok (x, s')) :
+    (hrun : processLineCoreD sd d s = .ok (x, s')) :
     ParseStep s s' ∧ (∀ sd', x = .inl sd' → PersStateD sd') ∧
       ∃ y, ConLeche.Frontend.processLineCoreD sc d = .ok y ∧
         SumRel s'.store x y := by
@@ -3314,35 +2423,11 @@ theorem processLineCoreD_run {md : Modeller} (hmw : ModellerWF md)
         obtain ⟨hs2, e, he, hde⟩ := getDeclD_run hrel h2
         rw [hs2] at hrun
         rw [he, except_ok_bind]
-        obtain ⟨o, s₃, h3, hrun⟩ := AM.bind_ok hrun
-        obtain ⟨hstep3, hpe, hopt⟩ := projRewriteD_run hok hoff hrc hrel hdc hde h3
-        have hoff3 : s₃.store.scratchOn = false := by rw [hstep3.scratch]; exact hoff
-        have hrel3 := hrel.ext hstep3.ext
-        have hdc3 := denoteCV_ext hdc hstep3.ext
-        cases o with
-        | none =>
-          rw [hopt.none_left rfl]
-          dsimp only at hrun ⊢
-          obtain ⟨sd', s₄, h4, hrun⟩ := AM.bind_ok hrun
-          obtain ⟨hstep4, hp4, hrel4⟩ := pushDecl_built_run hstep3.ok hoff3 hrel3 hp
-            DeclProjNamed.of_defnDecl
-            (by simp only [denoteDecl, hdc3, denote_ext hde hstep3.ext]; try rfl) h4
-          obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-          exact ⟨hstep3.trans hstep4, fun _ h => by cases h; exact hp4, _, rfl, hrel4⟩
-        | some vl' =>
-          obtain ⟨e', he', hde'⟩ := hopt.some_left rfl
-          rw [he']
-          dsimp only at hrun ⊢
-          obtain ⟨sd', s₄, h4, hrun⟩ := AM.bind_ok hrun
-          obtain ⟨hstep4, hp4, hrel4⟩ := pushDecl_built_run hstep3.ok hoff3 hrel3 hp
-            DeclProjNamed.of_defnDecl
-            (by simp only [denoteDecl, hdc3, hde']; try rfl) h4
-          obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-          refine ⟨hstep3.trans hstep4, fun _ h => by cases h; exact { hp4 with }, _, rfl, ?_⟩
-          refine hrel4.setProjRewrites ?_
-          rw [Array.toList_push, Array.toList_push]
-          exact denoteNList_snoc hrel4.projRewrites
-            (denoteN_ext (denoteCV_name hdc) (hstep3.ext.trans hstep4.ext))
+        obtain ⟨sd', s₃, h3, hrun⟩ := AM.bind_ok hrun
+        obtain ⟨hstep, hp', hrel'⟩ := pushDecl_built_run hok hoff hrel hp
+          DeclProjNamed.of_defnDecl (by simp only [denoteDecl, hdc, hde]; try rfl) h3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+        exact ⟨hstep, fun _ h => by cases h; exact hp', _, rfl, hrel'⟩
       · split
         · exfalso; rename_i hne; first | exact hne rfl | simp_all
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
@@ -3358,34 +2443,11 @@ theorem processLineCoreD_run {md : Modeller} (hmw : ModellerWF md)
     obtain ⟨hs2, e, he, hde⟩ := getDeclD_run hrel h2
     rw [hs2] at hrun
     rw [he, except_ok_bind]
-    obtain ⟨o, s₃, h3, hrun⟩ := AM.bind_ok hrun
-    obtain ⟨hstep3, hpe, hopt⟩ := projRewriteD_run hok hoff hrc hrel hdc hde h3
-    have hoff3 : s₃.store.scratchOn = false := by rw [hstep3.scratch]; exact hoff
-    have hrel3 := hrel.ext hstep3.ext
-    have hdc3 := denoteCV_ext hdc hstep3.ext
-    cases o with
-    | none =>
-      rw [hopt.none_left rfl]
-      dsimp only at hrun ⊢
-      obtain ⟨sd', s₄, h4, hrun⟩ := AM.bind_ok hrun
-      obtain ⟨hstep4, hp4, hrel4⟩ := pushDecl_built_run hstep3.ok hoff3 hrel3 hp
-        DeclProjNamed.of_thmDecl
-        (by simp only [denoteDecl, hdc3, denote_ext hde hstep3.ext]; try rfl) h4
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-      exact ⟨hstep3.trans hstep4, fun _ h => by cases h; exact hp4, _, rfl, hrel4⟩
-    | some vl' =>
-      obtain ⟨e', he', hde'⟩ := hopt.some_left rfl
-      rw [he']
-      dsimp only at hrun ⊢
-      obtain ⟨sd', s₄, h4, hrun⟩ := AM.bind_ok hrun
-      obtain ⟨hstep4, hp4, hrel4⟩ := pushDecl_built_run hstep3.ok hoff3 hrel3 hp
-        DeclProjNamed.of_thmDecl (by simp only [denoteDecl, hdc3, hde']; try rfl) h4
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-      refine ⟨hstep3.trans hstep4, fun _ h => by cases h; exact { hp4 with }, _, rfl, ?_⟩
-      refine hrel4.setProjRewrites ?_
-      rw [Array.toList_push, Array.toList_push]
-      exact denoteNList_snoc hrel4.projRewrites
-        (denoteN_ext (denoteCV_name hdc) (hstep3.ext.trans hstep4.ext))
+    obtain ⟨sd', s₃, h3, hrun⟩ := AM.bind_ok hrun
+    obtain ⟨hstep, hp', hrel'⟩ := pushDecl_built_run hok hoff hrel hp
+      DeclProjNamed.of_thmDecl (by simp only [denoteDecl, hdc, hde]; try rfl) h3
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨hstep, fun _ h => by cases h; exact hp', _, rfl, hrel'⟩
   | opaq cvr value isUnsafe =>
     simp only [processLineCoreD] at hrun
     simp only [ConLeche.Frontend.processLineCoreD]
@@ -3436,7 +2498,7 @@ theorem processLineCoreD_run {md : Modeller} (hmw : ModellerWF md)
     simp only [processLineCoreD] at hrun
     simp only [ConLeche.Frontend.processLineCoreD]
     obtain ⟨v, s₁, h1, hrun⟩ := AM.bind_ok hrun
-    obtain ⟨hs1, y, hy, hvr⟩ := validateIndD_run' hok hrel.bumpIndCount h1
+    obtain ⟨hs1, y, hy, hvr⟩ := validateIndD_run' hok hrel h1
     rw [hs1] at hrun
     rw [hy, except_ok_bind]
     cases v with
@@ -3451,21 +2513,28 @@ theorem processLineCoreD_run {md : Modeller} (hmw : ModellerWF md)
       | inl w => exact absurd hvr (by simp [VRes])
       | inr q =>
         obtain rfl : p = q := hvr
-        exact installIndD_run hmw hmr hok hoff hpins hrc.readL hrel.bumpIndCount { hp with } hrun
+        obtain ⟨sd'', s₂, h2, hrun2⟩ := AM.bind_ok hrun
+        obtain ⟨hv2, hp2, sc2, hcl2, hrel2⟩ :=
+          installIndD_run hok hoff hpins hrel hp h2
+        subst hv2
+        obtain ⟨hxv, hsv⟩ := AM.pure_ok hrun2
+        subst hxv; subst hsv
+        refine ⟨ParseStep.refl hok, fun _ h => by cases h; exact hp2, .inl sc2, ?_,
+          SumRel.of_state hrel2⟩
+        simp only [hcl2, except_ok_bind]
+        rfl
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:710 applyDeclD — `processLineCoreD`
 on both sides, by definition. -/
-theorem applyDeclD_run {md : Modeller} (hmw : ModellerWF md)
-    (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
-    (hrc : ReadCachesOK s) {sd : StateD}
+theorem applyDeclD_run {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {d : ConLeche.Frontend.DeclRec}
     {x : StateD ⊕ RecordVerdict}
-    (hrun : applyDeclD md sd d s = .ok (x, s')) :
+    (hrun : applyDeclD sd d s = .ok (x, s')) :
     ParseStep s s' ∧ (∀ sd', x = .inl sd' → PersStateD sd') ∧
       ∃ y, ConLeche.Frontend.applyDeclD sc d = .ok y ∧ SumRel s'.store x y :=
-  processLineCoreD_run hmw hmr hok hoff hpins hrc hrel hp hrun
+  processLineCoreD_run hok hoff hpins hrel hp hrun
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:719 applyLine — **THE SEMANTIC
 LAYER**: one scanned line applied.  Six arms; the two trivial ones (`header`,
@@ -3476,14 +2545,12 @@ Six arms over `parseExprEntryD_run` / `parseNameEntryD_run` /
 `parseLevelEntryD_run` / `applyDeclD_run`, and two `rfl`s: the `header` and
 `blank` lines move nothing on either side, which is the whole point of reusing
 `Scan/Fast.lean` rather than twinning it. -/
-theorem applyLine_run {md : Modeller} (hmw : ModellerWF md)
-    (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) (hpins : PinsOK s)
-    (hrc : ReadCachesOK s) {sd : StateD}
+theorem applyLine_run {s s' : AState} (hok : StateOK s)
+    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     (hp : PersStateD sd) {r : ConLeche.Frontend.LineRec}
     {x : StateD ⊕ RecordVerdict}
-    (hrun : applyLine md sd r s = .ok (x, s')) :
+    (hrun : applyLine sd r s = .ok (x, s')) :
     ParseStep s s' ∧ (∀ sd', x = .inl sd' → PersStateD sd') ∧
       ∃ y, ConLeche.Frontend.applyLine sc r = .ok y ∧ SumRel s'.store x y := by
   cases r with
@@ -3520,7 +2587,7 @@ theorem applyLine_run {md : Modeller} (hmw : ModellerWF md)
   | decl d =>
     rw [applyLine] at hrun
     obtain ⟨hstep, hpers, y, hcl, hxy⟩ :=
-      applyDeclD_run hmw hmr hok hoff hpins hrc hrel hp hrun
+      applyDeclD_run hok hoff hpins hrel hp hrun
     exact ⟨hstep, hpers, y, by rw [ConLeche.Frontend.applyLine]; exact hcl, hxy⟩
   | header =>
     rw [applyLine] at hrun
