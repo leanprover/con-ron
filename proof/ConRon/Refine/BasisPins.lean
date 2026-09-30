@@ -145,10 +145,6 @@ theorem levels_push_wf {v w : alloc.vec.Vec level.Level} {x : level.Level}
     (hv : LevelsWF v) (hx : LevelWF x)
     (h : alloc.vec.Vec.push v x = ok w) : LevelsWF w := vec_all_push hv hx h
 
-theorem exprs_push_wf {v w : alloc.vec.Vec expr.Expr} {x : expr.Expr}
-    (hv : ExprsWF v) (hx : ExprWF x)
-    (h : alloc.vec.Vec.push v x = ok w) : ExprsWF w := vec_all_push hv hx h
-
 theorem rules_push_wf {v w : alloc.vec.Vec env.RecRule} {x : env.RecRule}
     (hv : RecRulesWF v) (hx : RecRuleWF x)
     (h : alloc.vec.Vec.push v x = ok w) : RecRulesWF w := vec_all_push hv hx h
@@ -187,9 +183,6 @@ theorem names_wf_new : NamesWF (alloc.vec.Vec.new name.Name) := by
 
 theorem levels_wf_new : LevelsWF (alloc.vec.Vec.new level.Level) := by
   simp [LevelsWF, alloc.vec.Vec.new]
-
-theorem exprs_wf_new : ExprsWF (alloc.vec.Vec.new expr.Expr) := by
-  simp [ExprsWF, alloc.vec.Vec.new]
 
 theorem rules_wf_new : RecRulesWF (alloc.vec.Vec.new env.RecRule) := by
   simp [RecRulesWF, alloc.vec.Vec.new]
@@ -409,29 +402,6 @@ level-parameter names, belongs to the frontend alone.  `Refine/Env.lean`'s
 `constant_info_beq_refines` is that equality, exactly, on well-formed
 constants. -/
 
-/-- `ConLeche/Kernel/BasisA.lean:29-48` — `basis_pins::is_pinned_eq_basis` is
-the `some ci = some eqA` half of `env.find? eqName = some eqA`: exactly
-`decide (ci = eqA)` on the abstracted stored constant. -/
-theorem is_pinned_eq_basis_refines {ci : env.ConstantInfo} {b : Bool}
-    (hci : ConstantInfoWF ci) (h : basis_pins.is_pinned_eq_basis ci = ok b) :
-    b = decide (absConstantInfo ci = ConLeche.eqA) := by
-  rw [basis_pins.is_pinned_eq_basis] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨pin, hpin, hbeq⟩ := h
-  obtain ⟨habs, hwf⟩ := eq_a_refines hpin
-  rw [Env.constant_info_beq_refines hci hwf hbeq, habs]
-
-/-- `ConLeche/Kernel/BasisA.lean:29-48` — the same for `Nat`
-(`env.find? natName = some natA`, `reduceElemOk`). -/
-theorem is_pinned_nat_basis_refines {ci : env.ConstantInfo} {b : Bool}
-    (hci : ConstantInfoWF ci) (h : basis_pins.is_pinned_nat_basis ci = ok b) :
-    b = decide (absConstantInfo ci = ConLeche.natA) := by
-  rw [basis_pins.is_pinned_nat_basis] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨pin, hpin, hbeq⟩ := h
-  obtain ⟨habs, hwf⟩ := nat_a_refines hpin
-  rw [Env.constant_info_beq_refines hci hwf hbeq, habs]
-
 /-! ## The two environment guards
 
 Stated against the `F`-twin, `FEnv.find?` (task #18's deviation 3: the port
@@ -439,56 +409,6 @@ has one environment spelling, the index).  The cited Lean writes the guard
 over `Env` at the pure sites and over `FEnv` at the executed ones
 (`stdAxiomOk` / `stdAxiomOkF`, `reduceElemOk` / `reduceElemOkF`); the two
 agree by `FEnvRel`'s first clause, `absEnv fe.env = lfe.env`. -/
-
-/-- `ConLeche/Kernel/StdAxioms.lean:322-373 stdAxiomOk` /
-`ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF` —
-**"the pinned `Eq` basis is installed, unmodified"**:
-`basis_pins::eq_basis_pinned` is exactly `decide (find? eqName = some eqA)`.
-The `None` arm is exact too: `decide (none = some eqA)` is `false`. -/
-theorem eq_basis_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {b : Bool}
-    (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe)
-    (h : basis_pins.eq_basis_pinned fe = ok b) :
-    b = decide (lfe.find? ConLeche.eqName = some ConLeche.eqA) := by
-  rw [basis_pins.eq_basis_pinned] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨n, hn, o, hfind, h⟩ := h
-  obtain ⟨hname, hnwf⟩ := BasisNames.eq_name_refines hn
-  have hf := find_refines hrel hwf hnwf hfind
-  rw [hname] at hf
-  cases o with
-  | none =>
-    simp only [Option.map_none] at hf
-    rw [← hf]
-    simp only [Result.ok.injEq] at h
-    simp [← h]
-  | some ci =>
-    simp only [Option.map_some] at hf
-    rw [← hf, is_pinned_eq_basis_refines (find_wf hwf hnwf hfind ci rfl) h]
-    simp
-
-/-- `ConLeche/Kernel/TrustAxioms.lean:177-184 reduceElemOk` /
-`ConLeche/Kernel/DeclCheck.lean:288-294 reduceElemOkF` — the same for `Nat`:
-the element inductive an `ofReduceNat` axiom needs. -/
-theorem nat_basis_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {b : Bool}
-    (hrel : FEnvRel fe lfe) (hwf : FEnvWF fe)
-    (h : basis_pins.nat_basis_pinned fe = ok b) :
-    b = decide (lfe.find? ConLeche.natName = some ConLeche.natA) := by
-  rw [basis_pins.nat_basis_pinned] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨n, hn, o, hfind, h⟩ := h
-  obtain ⟨hname, hnwf⟩ := BasisNames.nat_name_refines hn
-  have hf := find_refines hrel hwf hnwf hfind
-  rw [hname] at hf
-  cases o with
-  | none =>
-    simp only [Option.map_none] at hf
-    rw [← hf]
-    simp only [Result.ok.injEq] at h
-    simp [← h]
-  | some ci =>
-    simp only [Option.map_some] at hf
-    rw [← hf, is_pinned_nat_basis_refines (find_wf hwf hnwf hfind ci rfl) h]
-    simp
 
 /-! ## `kernel::nat_op_pins`
 

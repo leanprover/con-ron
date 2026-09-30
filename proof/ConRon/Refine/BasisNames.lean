@@ -328,19 +328,6 @@ theorem and_name_refines {n : name.Name} (h : basis_names.and_name = ok n) :
     (L := [65#u32, 110#u32, 100#u32]) (by simp [basis_names.and_name.S]) (by decide)
   exact ⟨by rw [h1, Name.anonymous_refines ha]; rfl, h1wf⟩
 
-/-- `ConLeche/Kernel/Basis/Names.lean:99-100 andIntroName` --
-`basis_names::and_intro_name` refines `andIntroName`. -/
-theorem and_intro_name_refines {n : name.Name} (h : basis_names.and_intro_name = ok n) :
-    absName n = ConLeche.andIntroName ∧ NameWF n := by
-  rw [basis_names.and_intro_name] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨a, ha, s, hs, v, hv, hmk⟩ := h
-  obtain ⟨hp, hpwf⟩ := and_name_refines ha
-  obtain ⟨h1, h1wf⟩ := str_lit_step hpwf hs hv hmk
-    (L := [105#u32, 110#u32, 116#u32, 114#u32,
-      111#u32]) (by simp [basis_names.and_intro_name.S]) (by decide)
-  exact ⟨by rw [h1, hp]; rfl, h1wf⟩
-
 /-- `ConLeche/Kernel/Basis/Names.lean:102-103 charOfNatName` --
 `basis_names::char_of_nat_name` refines `charOfNatName`. -/
 theorem char_of_nat_name_refines {n : name.Name} (h : basis_names.char_of_nat_name = ok n) :
