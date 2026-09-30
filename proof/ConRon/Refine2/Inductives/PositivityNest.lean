@@ -1,3 +1,52 @@
+/-
+# `ConRon.Refine2.Inductives.PositivityNest` — Theorem 2 for `positivity`'s high part
+
+**Task #105** (DESIGN.md §8.2, Theorem 2).  The functions of
+`crates/con-ron-core/src/arena/inductives/positivity.rs` that reach the
+environment and the checker core, against their twins in
+`proof/ConRon/Arena/Inductives/Positivity.lean`: the container lookups
+(`nest_container` and its fragments, `nest_block_of`, `nest_frame_mates`,
+`nest_arity`, `nest_group_ctors`, `nest_holes`), the container's former
+(`nest_inst_type`, `nest_grow_group`), U4 (`nest_u4`), the `nest_pos` block,
+the root frame (`nest_root`) and the seeds (`nest_seeds`).  The low part
+(memo walks, read-back block, pure helpers) is
+`Refine2/Inductives/Positivity.lean`.
+
+## Shapes
+
+* **`vis` dropped.**  The Rust's `(vis, fe)` and `NestCtx.vis` are the twin's
+  `fe`: every statement that reads the environment takes `CoreCtx vis rf lf`
+  (`CoreCtx ctx.vis rf lf` where the Rust reads `ctx.vis`), the front doors'
+  own premise, which also files `ifenv_find` (`ifenv_find_twin`).  The five
+  signatures that lose an argument are stated in the Rust's order.
+* **Fragments are inline.**  `ind_caps_ctors`, `ind_cv_of`,
+  `nest_inst_type_at`/`_sort`, `nest_ctors_typed`/`_walk`/`_done`,
+  `nest_frame_at`/`_walk`, `nest_cont_params`, `nest_pos_at`/`_hole` are
+  `@[lockstep_inline]` (the twin's function they are part of is unfolded
+  once); `nest_res_ok` and `checker_base::unwrap_or` are unfolded locally (the
+  twin's normal form flattens `resOk` into its test).
+* **Exact copies.**  The rebuilt keys and constants (`dup2`, `eidx_vec_dup`,
+  `i_constant_val_dup`) are filed LOCALLY at high priority with their exact
+  specs (`o = x`) ahead of the generic abstraction-level ones, so a copied
+  key's fields are the original's.
+* **The `nest_pos` block** (one `partial_fixpoint` in the Rust, the
+  well-founded `mutual` block on `(root, fuel, tag, size)` in the twin) is one
+  induction on the twin's fuel `F`: `NestPosRel … F` (`nest_pos` at `F`)
+  gives the container frame at `F` link by link — `nest_fields_of` (on the
+  field count), `nest_ctors_of` (on the constructor cursor; at `root` the
+  fields' fuel is any), `nest_frame_of`, `nest_cont_new_of`,
+  `nest_cont_key_of`, `nest_cont_of` — and those give `nest_pos` at `F + 1`
+  (`nest_pos_all`).  The `@[lockstep]` companions (`nest_pos_ls`, …,
+  `nest_cont_ls`) are derived afterwards.  `nest_fields`' answer carries
+  `TeleWF` of its walked telescope (`close_telescope`'s premise).
+* The Rust's `nest_ctors_walk` split (two tail calls, root fuel vs. enclosing
+  fuel) is the twin's `if _h : root` around one `nestFields`: `nest_ctors_of`
+  cases on `root` and takes the fields' lemma at the fuel each branch walks.
+* The Rust's `Vec`s are the twin's lists (`absGrpL`, `absCtorsL`,
+  `absCtorOut`, `absSeedsLFrom`); `NestState` is `absNestState`; the index
+  cursors are `cursor_induction` / `ls_cursor_acc` / `ls_counted` from the
+  cursor on, with an at-`0` corollary where the callers use one.
+-/
 import ConRon.Refine2.Inductives.Positivity
 import ConRon.Refine2.Inductives.Prims
 import ConRon.Refine2.Inductives.StructParts
@@ -1186,5 +1235,28 @@ container instance met at the empty frame stack, at its parameters' fuel. -/
         (seeds.val.map fun p => (absNestKey p.1, absU p.2)) (absNestState ns)) := by
   have h := nest_seeds_ls mode ctx hctx seeds 0#usize ns st lst hrel hinv
   simpa [absSeedsLFrom] using h
+
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.nest_container_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_container_ls
+
+/-- info: 'ConRon.Refine2.nest_inst_type_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_inst_type_ls
+
+/-- info: 'ConRon.Refine2.nest_pos_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_pos_ls
+
+/-- info: 'ConRon.Refine2.nest_ctors_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_ctors_ls
+
+/-- info: 'ConRon.Refine2.nest_root_new_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_root_new_ls
+
+/-- info: 'ConRon.Refine2.nest_seeds_zero_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_seeds_zero_ls
+
+/-- info: 'ConRon.Refine2.nest_holes_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_holes_ls
 
 end ConRon.Refine2
