@@ -558,9 +558,9 @@ theorem internAllPins_run {ps : List NatOpPinSet} {r : List INatOpPinSet}
   obtain ⟨_, u9, q9, w9⟩ := AM.bind_ok w8
   have a10 := a9.trans (BasisKind.declsA_sstep a9.ok q9)
   obtain ⟨_, u10, q10, w10⟩ := AM.bind_ok w9
-  have a11 := a10.trans (BasisKind.decls_sstep a10.ok q10)
+  have a11 := a10.trans (internCI_fresh a10.ok q10).1
   obtain ⟨_, u11, q11, w11⟩ := AM.bind_ok w10
-  have a12 := a11.trans (BasisKind.declsA_sstep a11.ok q11)
+  have a12 := a11.trans (internCI_fresh a11.ok q11).1
   obtain ⟨_, u12, q12, w12⟩ := AM.bind_ok w11
   have a13 := a12.trans (internCI_fresh a12.ok q12).1
   obtain ⟨_, u13, q13, w13⟩ := AM.bind_ok w12
@@ -570,9 +570,9 @@ theorem internAllPins_run {ps : List NatOpPinSet} {r : List INatOpPinSet}
   obtain ⟨_, u15, q15, w15⟩ := AM.bind_ok w14
   have a16 := a15.trans (internCI_fresh a15.ok q15).1
   obtain ⟨_, u16, q16, w16⟩ := AM.bind_ok w15
-  have a17 := a16.trans (internCI_fresh a16.ok q16).1
+  have a17 := a16.trans (internCV_fresh a16.ok q16).1
   obtain ⟨_, u17, q17, w17⟩ := AM.bind_ok w16
-  have a18 := a17.trans (internCI_fresh a17.ok q17).1
+  have a18 := a17.trans (internCV_fresh a17.ok q17).1
   obtain ⟨_, u18, q18, w18⟩ := AM.bind_ok w17
   have a19 := a18.trans (internCV_fresh a18.ok q18).1
   obtain ⟨_, u19, q19, w19⟩ := AM.bind_ok w18
@@ -590,37 +590,33 @@ theorem internAllPins_run {ps : List NatOpPinSet} {r : List INatOpPinSet}
   obtain ⟨_, u25, q25, w25⟩ := AM.bind_ok w24
   have a26 := a25.trans (internCV_fresh a25.ok q25).1
   obtain ⟨_, u26, q26, w26⟩ := AM.bind_ok w25
-  have a27 := a26.trans (internCV_fresh a26.ok q26).1
+  have a27 := a26.trans (Frontend.internExpr_sstep a26.ok q26).1
   obtain ⟨_, u27, q27, w27⟩ := AM.bind_ok w26
-  have a28 := a27.trans (internCV_fresh a27.ok q27).1
+  have a28 := a27.trans (Frontend.internExpr_sstep a27.ok q27).1
   obtain ⟨_, u28, q28, w28⟩ := AM.bind_ok w27
-  have a29 := a28.trans (Frontend.internExpr_sstep a28.ok q28).1
+  have a29 := a28.trans (reservedBasisNames_sstep a28.ok (hpins.mono a28.ext a28.pins) q28)
   obtain ⟨_, u29, q29, w29⟩ := AM.bind_ok w28
-  have a30 := a29.trans (Frontend.internExpr_sstep a29.ok q29).1
+  obtain ⟨rfl, -⟩ := natOpNames_run (hpins.mono a29.ext a29.pins) q29
+  have a30 := a29
   obtain ⟨_, u30, q30, w30⟩ := AM.bind_ok w29
-  have a31 := a30.trans (reservedBasisNames_sstep a30.ok (hpins.mono a30.ext a30.pins) q30)
+  obtain ⟨rfl, -⟩ := natDivModNames_run (hpins.mono a30.ext a30.pins) q30
+  have a31 := a30
   obtain ⟨_, u31, q31, w31⟩ := AM.bind_ok w30
-  obtain ⟨rfl, -⟩ := natOpNames_run (hpins.mono a31.ext a31.pins) q31
+  obtain rfl := reduceOpNames_state (hpins.mono a31.ext a31.pins) q31
   have a32 := a31
   obtain ⟨_, u32, q32, w32⟩ := AM.bind_ok w31
-  obtain ⟨rfl, -⟩ := natDivModNames_run (hpins.mono a32.ext a32.pins) q32
+  obtain ⟨p32, -⟩ := pinAt_run (x := ConLeche.sorryAxName) (hpins.mono a32.ext a32.pins) rfl q32
+  rw [p32] at w32
   have a33 := a32
   obtain ⟨_, u33, q33, w33⟩ := AM.bind_ok w32
-  obtain rfl := reduceOpNames_state (hpins.mono a33.ext a33.pins) q33
+  obtain ⟨p33, -⟩ := pinAt_run (x := ConLeche.quotSoundName) (hpins.mono a33.ext a33.pins) rfl q33
+  rw [p33] at w33
   have a34 := a33
-  obtain ⟨_, u34, q34, w34⟩ := AM.bind_ok w33
-  obtain ⟨p34, -⟩ := pinAt_run (x := ConLeche.sorryAxName) (hpins.mono a34.ext a34.pins) rfl q34
-  rw [p34] at w34
-  have a35 := a34
-  obtain ⟨_, u35, q35, w35⟩ := AM.bind_ok w34
-  obtain ⟨p35, -⟩ := pinAt_run (x := ConLeche.quotSoundName) (hpins.mono a35.ext a35.pins) rfl q35
-  rw [p35] at w35
-  have a36 := a35
   obtain ⟨hst', hx', hden, hpps, hoff', hpe, hce, hme⟩ :=
-    internPinSets_run a36.ok (by rw [a36.scratch]; exact hoff) w35
-  have hpeq : s'.pins = s.pins := by rw [hpe, a36.pins]
-  refine ⟨hst', a36.ext.trans hx', hpins.mono (a36.ext.trans hx') hpeq, ?_, hden,
-    hpps, hoff', by rw [hce, a36.caches], by rw [hme, a36.memos]⟩
+    internPinSets_run a34.ok (by rw [a34.scratch]; exact hoff) w33
+  have hpeq : s'.pins = s.pins := by rw [hpe, a34.pins]
+  refine ⟨hst', a34.ext.trans hx', hpins.mono (a34.ext.trans hx') hpeq, ?_, hden,
+    hpps, hoff', by rw [hce, a34.caches], by rw [hme, a34.memos]⟩
   exact ⟨by rw [hpeq]; exact hpp.names, by rw [hpeq]; exact hpp.reserved,
     by rw [hpeq]; exact hpp.emptyLevels, by rw [hpeq]; exact hpp.zeroLevel,
     by rw [hpeq]; exact hpp.sortOne⟩

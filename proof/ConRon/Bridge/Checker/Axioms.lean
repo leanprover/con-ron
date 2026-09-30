@@ -226,18 +226,12 @@ namespace ConRon.Bridge
 -- the readback facts that moved down out of `Base.lean` (round 4)
 #print axioms beq_handle_iff
 
--- **THE DECLARATION FRONT DOOR** (item 11) and the three list checks (item 12)
+-- **THE DECLARATION FRONT DOOR** (item 11)
 #print axioms denoteCV_inv
 #print axioms denoteCIList_get
 #print axioms denoteEList_cons
 #print axioms checkConstantVal_pure
-#print axioms checkTypedList_mono
-#print axioms checkAnnotList_mono
-#print axioms checkDefEqList_mono
 #print axioms checkConstantVal_mono
-#print axioms checkTypedList_cons_pure
-#print axioms checkAnnotList_cons_pure
-#print axioms checkDefEqList_cons_pure
 
 -- one fuel per arm
 #print axioms checkDefnVal_mono
