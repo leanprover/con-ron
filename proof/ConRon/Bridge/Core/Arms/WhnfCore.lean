@@ -152,14 +152,15 @@ each lemma takes that prefix's two answers as hypotheses and differs only in
 what the table and the certificate say. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1005-1037 whnfCoreBody — **no table
-entry**: the projection stays stuck at the reduced scrutinee. -/
+entry**: the projection is stuck, and answers itself (con-leche's task
+#323: its scrutinee as it was, not the reduced one). -/
 theorem whnfCore_proj_none {F d i : Nat} {sn : Name} {pe e0 e' : Expr}
     (hw : ConLeche.whnf mode env F d pe = .ok e0)
     (hl : ConLeche.projLitToCtor (ConLeche.pureFns mode env F) env d e0
       = .ok e')
     (ht : env.findProj? sn i = none) :
     ConLeche.whnfCore mode env (F + 1) d (.proj sn i pe) =
-      .ok (.proj sn i e') := by
+      .ok (.proj sn i pe) := by
   rw [ConLeche.whnfCore_succ]
   simp only [ConLeche.whnfCoreBody, ConLeche.whnf_def, hw, hl, ht, bind,
     Except.bind, pure, Except.pure]
@@ -190,7 +191,7 @@ theorem whnfCore_proj_fire {F d i : Nat} {sn : Name} {pe e0 e' res : Expr}
   exact hr
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1032-1035 whnfCoreBody — the table
-fires and **the certificate fails**: stuck, at the reduced scrutinee. -/
+fires and **the certificate fails**: stuck, the input itself. -/
 theorem whnfCore_proj_cert_false {F d i : Nat} {sn : Name} {pe e0 e' : Expr}
     {entry : ProjEntry} {c : Name} {us : List Level}
     (hw : ConLeche.whnf mode env F d pe = .ok e0)
@@ -204,7 +205,7 @@ theorem whnfCore_proj_cert_false {F d i : Nat} {sn : Name} {pe e0 e' : Expr}
     (hcert : ConLeche.projCertAt (ConLeche.pureFns mode env F) env d
       mode.verifiedChecks mode.betaGate c us e'.getAppArgs = .ok false) :
     ConLeche.whnfCore mode env (F + 1) d (.proj sn i pe) =
-      .ok (.proj sn i e') := by
+      .ok (.proj sn i pe) := by
   rw [ConLeche.whnfCore_succ]
   simp only [ConLeche.whnfCoreBody, ConLeche.whnf_def, hw, hl, ht, hh, bind,
     Except.bind]
@@ -226,7 +227,7 @@ theorem whnfCore_proj_guard {F d i : Nat} {sn : Name} {pe e0 e' : Expr}
       e'.getAppArgs.length = entry.numParams + entry.numFields ∧
       us.length = entry.levelParams.length ∧ entry.fireOk us = true)) :
     ConLeche.whnfCore mode env (F + 1) d (.proj sn i pe) =
-      .ok (.proj sn i e') := by
+      .ok (.proj sn i pe) := by
   rw [ConLeche.whnfCore_succ]
   simp only [ConLeche.whnfCoreBody, ConLeche.whnf_def, hw, hl, ht, hh, bind,
     Except.bind]
@@ -243,7 +244,7 @@ theorem whnfCore_proj_head {F d i : Nat} {sn : Name} {pe e0 e' : Expr}
     (ht : env.findProj? sn i = some entry)
     (hh : ∀ c us, e'.getAppFn ≠ .const c us) :
     ConLeche.whnfCore mode env (F + 1) d (.proj sn i pe) =
-      .ok (.proj sn i e') := by
+      .ok (.proj sn i pe) := by
   rw [ConLeche.whnfCore_succ]
   simp only [ConLeche.whnfCoreBody, ConLeche.whnf_def, hw, hl, ht, bind,
     Except.bind]
@@ -529,25 +530,19 @@ theorem whnfCoreBody_proj {fe : IFEnv} {fuel : Nat}
     refine triple_seq (projLitToCtor_spec hsim s1 d e0 v0 hok1 hv0 hwv0) ?_
     rintro e' s2 ⟨hok2, hx2, hp2, v', hv', hwv', F2, hF2⟩
     have hsn2 : denoteN s2.store.ns sn = some nm := denoteN_ext hsn (hx1.trans hx2)
-    -- the stuck exit, shared by four of the five exits: rebuild the node
+    -- the stuck exit, shared by four of the five exits: the node itself
+    -- (con-leche's task #323: a stuck projection keeps its scrutinee)
     have hstuck : ∀ (s : AState), CheckOK mode env fe s →
         Ext s₀.store s.store → s.pins = s₀.pins →
-        denoteE s.store e' = some v' → denoteN s.store.ns sn = some nm →
         (∃ F, ConLeche.whnfCore mode env F d (.proj nm k es) =
-          .ok (.proj nm k v')) →
-        ⦃fun s' => ⌜s' = s⌝⦄ internE (.proj sn k e')
+          .ok (.proj nm k es)) →
+        ⦃fun s' => ⌜s' = s⌝⦄ (pure i : AM EIdx)
         ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
             s'.pins = s₀.pins ∧
             SimE (ConLeche.whnfCore mode env) d (.proj nm k es) s'.store r⌝⦄ := by
-      intro s hs hxs hps hes hns hF
-      have hvw : s.store.ViewOK (.proj sn k e') :=
-        viewOK_proj (nview_isSome_of_denote hns) (by rw [hes]; rfl)
-      refine triple_mono (internE_spec s _ hs.state.wf hvw) ?_
-      rintro r s' ⟨hwf', hx', _hbm, _hl, _hsc, _hm, hc', hp', _hview, hden'⟩
-      refine ⟨hs.mono ⟨hwf'⟩ hx' hc' hp', hxs.trans hx', hp'.trans hps,
-        .proj nm k v', ?_, by simpa [Expr.WScoped] using hwv', hF⟩
-      rw [hden']
-      simp only [denoteEView, denoteN_ext hns hx', denote_ext hes hx', opt2]
+      intro s hs hxs hps hF
+      mvcgen; bridge_peel; subst_vars
+      exact ⟨hs, hxs, hps, .proj nm k es, denote_ext hden hxs, hw, hF⟩
     -- stage 3: the table
     refine triple_seq (IFEnv.findProj?_spec s2 sn k nm hok2 hsn2) ?_
     rintro oe s3 ⟨hok3, hx3, _hm3, _hc3, hp3, hsome, hnone⟩
@@ -562,7 +557,7 @@ theorem whnfCoreBody_proj {fe : IFEnv} {fuel : Nat}
       projLitToCtorFueled_mono (Nat.le_max_right _ _) hF2
     cases oe with
     | none =>
-      exact hstuck s3 hok3 hx03 hp03 hv'3 hsn3
+      exact hstuck s3 hok3 hx03 hp03
         ⟨max F1 F2 + 1, whnfCore_proj_none hwhnf hplc (hnone rfl)⟩
     | some entry =>
       obtain ⟨pe', hpd, hfp⟩ := hsome entry rfl
@@ -664,8 +659,6 @@ theorem whnfCoreBody_proj {fe : IFEnv} {fuel : Nat}
           cases cert
           · -- the certificate fails: stuck
             exact hstuck s9 hok9 hx09 hp09
-              (denote_ext hv'3 (hx38.trans hx9))
-              (denoteN_ext hsn3 (hx38.trans hx9))
               ⟨max (max F1 F2) F3 + 1, whnfCore_proj_cert_false
                 (ConLeche.whnf_mono (Nat.le_max_left _ _) hwhnf)
                 (projLitToCtorFueled_mono (Nat.le_max_left _ _) hplc) hfp hgf
@@ -687,13 +680,12 @@ theorem whnfCoreBody_proj {fe : IFEnv} {fuel : Nat}
           -- a guard fails: stuck
           have hst : s7.store = s3.store := hst7
           exact hstuck s7 hok7 (by rw [hst]; exact hx03) (hp7.trans hp03)
-            (by rw [hst]; exact hv'3) (by rw [hst]; exact hsn3)
             ⟨max F1 F2 + 1, whnfCore_proj_guard hwhnf hplc hfp hgf
               (fun h => hg (hguard.mpr h))⟩
       -- the head is not a constant: stuck
       all_goals
         dsimp only
-        exact hstuck s3 hok3 hx03 hp03 hv'3 hsn3
+        exact hstuck s3 hok3 hx03 hp03
           ⟨max F1 F2 + 1, whnfCore_proj_head hwhnf hplc hfp
             (denote_not_const hwf3 hvh hdd (by intro c us h; cases h))⟩
   all_goals

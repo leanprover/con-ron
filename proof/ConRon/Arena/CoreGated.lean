@@ -98,11 +98,11 @@ def whnfCoreBodyGated (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
               if ← projCertAt r fe depth mode.verifiedChecks mode.betaGate c us
                   args then
                 r.whnfCore depth arg
-              else internE (.proj sn i e')
-            else internE (.proj sn i e')
-          | _ => internE (.proj sn i e')
-        else internE (.proj sn i e')
-      | none => internE (.proj sn i e')
+              else pure e
+            else pure e
+          | _ => pure e
+        else pure e
+      | none => pure e
     | .letE _ _ _ =>
       fail (.internal "whnfCore: `let` in an annotated expression")
     | .bvar _ =>
