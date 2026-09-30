@@ -1728,7 +1728,7 @@ theorem recs_any_tgt {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockSh
     p.recs.any (fun rc => !(rc.tgt < p.k)) = pP.recs.any (fun rc => !(rc.tgt < pP.k)) := by
   obtain ⟨hms, hrs, -⟩ := dShape_inv h
   have hk : p.k = pP.k := by
-    simp only [Arena.BlockShape.k, ConLeche.BlockShape.k, mapM_option_length hms]
+    simp only [Arena.BlockShape.k, ConLeche.BlockShape.k, ConLeche.option_mapM_length hms]
   rw [hk]
   generalize pP.k = K
   clear hk hms h
@@ -2573,7 +2573,7 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
     have hlen2 := denoteNList_length hwant
     have hlenF : (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs).length =
         (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs).length := by
-      have := mapM_option_length (RC.filter_recs (fun t => !decide (t < pP.k)) hrecs)
+      have := ConLeche.option_mapM_length (RC.filter_recs (fun t => !decide (t < pP.k)) hrecs)
       rw [← hk] at this ⊢; exact this.symm
     have hA : (((List.map (fun x => x.cvR.name)
             (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs)).length == want.length &&
@@ -2628,7 +2628,7 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
           List.map (fun x => x.fst.name) p.allCtors == List.map (fun x => x.fst.name) cs) =
         (cvTsP.length == pP.k && rsP.length == pP.recs.length &&
           List.map (fun x => x.fst.name) pP.allCtors == List.map (fun x => x.fst.name) csP) := by
-      rw [mapM_option_length hcv, mapM_option_length hrs, hk, mapM_option_length hrecs,
+      rw [ConLeche.option_mapM_length hcv, ConLeche.option_mapM_length hrs, hk, ConLeche.option_mapM_length hrecs,
         beq_nhandleList_eq pB.ok.wf
           (dCtors_names (dCtors_ext pAB.ext _ _ (BlockShape.allCtors_spec hsh)))
           (RC.ctors3_names hcs)]
@@ -2668,7 +2668,7 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
     have hlen2 := denoteNList_length hwant
     have hlenF : (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs).length =
         (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs).length := by
-      have := mapM_option_length (RC.filter_recs (fun t => !decide (t < pP.k)) hrecs)
+      have := ConLeche.option_mapM_length (RC.filter_recs (fun t => !decide (t < pP.k)) hrecs)
       rw [← hk] at this ⊢; exact this.symm
     have hA : (((List.map (fun x => x.cvR.name)
             (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs)).length == want.length &&
@@ -2723,7 +2723,7 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
           List.map (fun x => x.fst.name) p.allCtors == List.map (fun x => x.fst.name) cs) =
         (cvTsP.length == pP.k && rsP.length == pP.recs.length &&
           List.map (fun x => x.fst.name) pP.allCtors == List.map (fun x => x.fst.name) csP) := by
-      rw [mapM_option_length hcv, mapM_option_length hrs, hk, mapM_option_length hrecs,
+      rw [ConLeche.option_mapM_length hcv, ConLeche.option_mapM_length hrs, hk, ConLeche.option_mapM_length hrecs,
         beq_nhandleList_eq pB.ok.wf
           (dCtors_names (dCtors_ext pAB.ext _ _ (BlockShape.allCtors_spec hsh)))
           (RC.ctors3_names hcs)]

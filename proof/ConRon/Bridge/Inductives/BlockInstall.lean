@@ -216,7 +216,7 @@ theorem blockCapsAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         rw [h] at hg
         have h1 := List.getElem?_eq_none_iff.mp hg
         obtain ⟨h2, -⟩ := List.getElem?_eq_some_iff.mp hmi
-        have hl := mapM_option_length hms
+        have hl := ConLeche.option_mapM_length hms
         omega
       | some mP => exact ⟨mP, rfl⟩
     rw [hmP] at hg
@@ -266,7 +266,7 @@ theorem blockCapsAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
           denoteNListE_ext hx _ _ hnames, denoteN_ext (denoteCV_name hcvP) hx,
           Frontend.denoteNList]
         simp only [Option.some.injEq, ConLeche.BlockShape.k, Arena.BlockShape.k,
-          mapM_option_length hms] at hk ⊢
+          ConLeche.option_mapM_length hms] at hk ⊢
         generalize m.nIdx = a
         generalize c.2 = b
         generalize p.isProp = ip
@@ -640,11 +640,11 @@ theorem checkBlockAgree_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
       have c5 := (p1.trans (p3.trans p5)).toCore hok
       obtain ⟨u6, s₆, k6, z6⟩ := bindOk z5
       obtain ⟨c6, u6v, -, fk6⟩ := checkBlockDomsAt_specF fe hk henv 0 fvs1 doms xs1
-        (xs0.map Expr.fvarTypeD) (open_fvar_scope hq1 hwx)
+        (xs0.map Expr.fvarTypeD) (ConLeche.Cached.openers_typeD_WScoped hq1 hwx)
         (fun i y hy => by
           rw [List.getElem?_map] at hy
           obtain ⟨z, hz, rfl⟩ := Option.map_eq_some_iff.mp hy
-          exact open_fvar_scope hq0 h0 i z hz) nP s₅ s₆ u6 c5.ok
+          exact ConLeche.Cached.openers_typeD_WScoped hq0 h0 i z hz) nP s₅ s₆ u6 c5.ok
         ⟨denoteEList_ext p5.ext _ _ hxs1, hdoms⟩ k6
       have c16 := c5.trans c6
       obtain ⟨o7, s₇, k7, z7⟩ := bindOk z6
@@ -1012,7 +1012,7 @@ theorem checkAbsCtorSorts_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
     rw [hhi] at hxq
     have c2 := c1.trans (p2.toCore c1.ok)
     obtain ⟨u5, s₅, k5, z5⟩ := bindOk z4
-    have hfvsc := open_fvar_scope hxq hW
+    have hfvsc := ConLeche.Cached.openers_typeD_WScoped hxq hW
     obtain ⟨c5, u5v, -, fk5⟩ := checkStructFieldSortsI_specF fe hk henv isProp false ctx.sort
       ctxP.sort (ctx.hiAt 0) fvs [] xsP [] c.2 (by rw [hhi]; exact hfvsc) s₂ s₅ u5 c2.ok
       ⟨denoteL_ext hsort' c2.ext, hxs, rfl, denoteFEnv_ext c2.ext hfe⟩ k5
@@ -1145,7 +1145,7 @@ theorem checkBlockIdxSorts_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
         Expr.WScoped (p.nP + i) x.fvarTypeD := by
       intro i x hx
       rw [List.getElem?_drop] at hx
-      have := open_fvar_scope htq hw (p.nP + i) x hx
+      have := ConLeche.Cached.openers_typeD_WScoped htq hw (p.nP + i) x hx
       simpa using this
     obtain ⟨c3, isP, h3, fk3⟩ := checkStructFieldSortsI_specF fe hk henv true false p.resSort sP
       p.nP (fvs.drop p.nP) [] (xsP.drop p.nP) [] ms.nIdx hxPos s₁ s₃ is c1.ok

@@ -21,6 +21,7 @@ of the foundation only (`Bridge/Rel.lean`).
 import ConRon.Bridge.Rel
 import ConRon.Arena.Inductives.BlockTail
 import ConLeche.Verify.BridgeDecl
+import ConLeche.Verify.Inductives.NestScope
 
 namespace ConRon.Bridge.Inductives
 
@@ -167,27 +168,6 @@ theorem mapM_option_reverse {α β : Type} {f : α → Option β} :
     obtain ⟨y, ys', rfl, hx, hxs⟩ := mapM_option_cons_inv h
     simp only [List.reverse_cons, List.mapM_append, ih hxs, List.mapM_cons, List.mapM_nil, hx,
       Option.bind_eq_bind, Option.pure_def, Option.bind_some]
-
-/-- con-leche: none — `Option`'s `mapM` keeps the length. -/
-theorem mapM_option_length {α β : Type} {f : α → Option β} :
-    ∀ {xs : List α} {ys : List β}, xs.mapM f = some ys → ys.length = xs.length := by
-  intro xs
-  induction xs with
-  | nil => intro ys h; simp only [List.mapM_nil] at h; cases h; rfl
-  | cons x xs ih =>
-    intro ys h
-    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h
-    cases hx : f x with
-    | none => rw [hx] at h; simp at h
-    | some y =>
-      rw [hx] at h
-      cases hxs : xs.mapM f with
-      | none => rw [hxs] at h; simp at h
-      | some zs =>
-        rw [hxs] at h
-        simp only [Option.bind_some, Option.some.injEq] at h
-        subst h
-        simp [ih hxs]
 
 /-- con-leche: none — `Option`'s `mapM` over a snoc. -/
 theorem mapM_option_snoc {α β : Type} {f : α → Option β} :

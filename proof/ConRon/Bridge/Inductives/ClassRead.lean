@@ -458,7 +458,7 @@ theorem motive_filter_eq {st : EStore} {slots : List Arena.ClassSlot}
     (hC : ∀ o, pC o = match o with | some (.motive _) => true | _ => false) :
     (List.range slots.length).filter (fun s => pA slots[s]?) =
       (List.range slotsP.length).filter (fun s => pC slotsP[s]?) := by
-  rw [mapM_option_length h]
+  rw [ConLeche.option_mapM_length h]
   apply List.filter_congr
   intro j _
   have hj := mapM_option_getElem? (st := st) h j

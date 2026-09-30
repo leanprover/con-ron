@@ -911,7 +911,7 @@ theorem dProg_take_succ {st : EStore} {prog : List Arena.NestHole} {n : Nat}
   rw [List.take_add_one, List.getElem?_eq_getElem hn, Option.toList_some] at hys
   obtain ⟨zs, y, rfl, hz, hy⟩ := mapM_option_snoc hys
   refine ⟨y, zs.reverse, by simp, hy, ⟨zs, hz, rfl⟩, ?_⟩
-  rw [List.length_reverse, mapM_option_length hz, List.length_take]
+  rw [List.length_reverse, ConLeche.option_mapM_length hz, List.length_take]
   omega
 
 /-- con-leche: none — a denoting handle list at an index, as the `Option`

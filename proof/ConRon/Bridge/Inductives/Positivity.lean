@@ -636,7 +636,7 @@ theorem nestGroupCtors_spec {env : Env} {fe : IFEnv} (ctxP : ConLeche.NestCtx)
       obtain ⟨nPc2, ctors⟩ := q
       obtain ⟨qP, hqP, hq1, hq2⟩ := ho
       dsimp only at h2 hq1 hq2
-      have hlen := mapM_option_length hq2
+      have hlen := ConLeche.option_mapM_length hq2
       by_cases hg : (!(nPc2 == nPc || ctors.length == 0)) = true
       · rw [if_pos hg] at h2; exact absurd h2 (fun hc => failOk hc)
       · rw [if_neg hg] at h2
@@ -1185,7 +1185,7 @@ theorem dProg_length {st : EStore} {prog : List Arena.NestHole}
     prog.length = progP.length := by
   simp only [dProg, Option.map_eq_some_iff] at hp
   obtain ⟨a, ha, rfl⟩ := hp
-  rw [List.length_reverse, mapM_option_length ha]
+  rw [List.length_reverse, ConLeche.option_mapM_length ha]
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1198-1262 nestCtors
 (U4's kind test) — the twin's `(ks[i]?.map (· == .ordinary)).getD true` is
@@ -1830,7 +1830,7 @@ theorem nestFrame_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
   rw [hholesEq] at hholes
   -- the constructors walked
   obtain ⟨q, s₇, h13, h14⟩ := bindOk h12
-  have hlenG : grp.length = grpP.length := (mapM_option_length hgrp).symm
+  have hlenG : grp.length = grpP.length := (ConLeche.option_mapM_length hgrp).symm
   rw [hlenG] at h13
   have hx06 := hx04.trans (p5.ext.trans p6.ext)
   have c6 := c3.trans (c4.trans ((p5.trans p6).toCore c4.ok))

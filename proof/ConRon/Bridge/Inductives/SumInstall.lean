@@ -30,6 +30,7 @@ import ConLeche.Verify.FastOps
 import ConRon.Bridge.Checker.Base
 import ConLeche.Verify.BridgeWfImp
 import ConLeche.Verify.Inductives.DirectInv
+import ConLeche.Verify.Cached.BlockRunC
 import ConRon.Bridge.Inductives.FieldTele
 
 namespace ConRon.Bridge.Inductives
@@ -616,19 +617,6 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 
 /-! ## The constructors' stage -/
 
-/-- con-leche: ConLeche/Verify/BridgeWfImp.lean:451-543 openPisAtFvars_index /
-openPisAtFvars_WScoped — **an opened variable's domain is scoped at its own
-position**: the `j`-th variable is `fvar (i + j)`, and the opening's scope
-conjunct says its domain is scoped there. -/
-theorem open_fvar_scope {n i : Nat} {e : Expr} {fvs : List Expr} {body : Expr}
-    (h : ConLeche.openPisAtFvars n e i = some (fvs, body)) (hw : Expr.WScoped i e) :
-    ∀ (j : Nat) (x : Expr), fvs[j]? = some x → Expr.WScoped (i + j) x.fvarTypeD := by
-  intro j x hx
-  obtain ⟨ty, rfl⟩ := ConLeche.openPisAtFvars_index _ _ _ h j x hx
-  have hw' := (ConLeche.openPisAtFvars_WScoped _ _ _ h hw).1 _ (List.mem_of_getElem? hx)
-  simp only [Expr.WScoped] at hw'
-  exact hw'.2
-
 /-- con-leche: none — `Arena.fvarTypeDs` (`xs.map Expr.fvarTypeD` over
 handles, `Arena/CheckerBase.lean`), as a run: it reads the store only. -/
 theorem fvarTypeDs_run : ∀ (xs : List EIdx) (xsP : List Expr) {s₀ s' : AState}
@@ -859,14 +847,14 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
   obtain ⟨c11, F₃, hF₃⟩ := checkStructDomsAt_spec fe hk henv 0 cq.1 doms cfvsP
     (tfvsP.map Expr.fvarTypeD) nP (by
       intro i _ a b ha hb
-      refine ⟨open_fvar_scope hcq hwsA i a ha, ?_⟩
+      refine ⟨ConLeche.Cached.openers_typeD_WScoped hcq hwsA i a ha, ?_⟩
       rw [List.getElem?_map] at hb
       cases hti : tfvsP[i]? with
       | none => rw [hti] at hb; exact nomatch hb
       | some t =>
         rw [hti] at hb
         obtain rfl := (Option.some.inj hb).symm
-        exact open_fvar_scope htq hws i t hti) s₁₀ s₁₁ u11 c10.ok
+        exact ConLeche.Cached.openers_typeD_WScoped htq hws i t hti) s₁₀ s₁₁ u11 c10.ok
     ⟨denoteEList_ext x6_10 _ _ hcfvs, hdoms, denoteFEnv_ext c10.ext hfe⟩ k11
   have c11' := c10.trans c11
   -- the fields, opened past the parameters
@@ -933,7 +921,7 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
     have hwsc : Expr.WScoped nP crestP := by
       have := (ConLeche.openPisAtFvars_WScoped _ _ _ hcq hwsA).2
       simpa using this
-    exact open_fvar_scope hxq hwsc i a ha
+    exact ConLeche.Cached.openers_typeD_WScoped hxq hwsc i a ha
   obtain ⟨c23, F₄, sortsP, hF₄, hsorts⟩ := checkStructFieldSortsI_spec fe hk henv isProp large
     resSort resSortP nP xq.1 (xargs.drop nP) xfvsP (xrestP.getAppArgs.drop nP) nF hxpos
     s₂₂ s₂₃ sorts c22.ok

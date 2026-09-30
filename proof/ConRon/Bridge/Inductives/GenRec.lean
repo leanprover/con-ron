@@ -887,7 +887,7 @@ theorem ClassGen.prefixBinders_slotsGo_spec (g : Arena.ClassGen) (gP : ConLeche.
     simp only [Arena.ClassGen.prefixBinders.slotsGo] at hrun
     obtain ⟨rfl, rfl⟩ := pureOk hrun
     have hsl := (dClassGen_inv hg).2.2.2.2.1
-    have hlen := mapM_option_length hsl
+    have hlen := ConLeche.option_mapM_length hsl
     have : gP.slots.drop s = [] := by
       rw [List.drop_eq_nil_iff] at hdrop ⊢; omega
     rw [this]
@@ -895,7 +895,7 @@ theorem ClassGen.prefixBinders_slotsGo_spec (g : Arena.ClassGen) (gP : ConLeche.
   | cons sl sls ih =>
     intro s hdrop s₀ s' r hok hp hg hrun
     obtain ⟨hnP, -, -, -, hsl, hctors, -, -, hbm⟩ := dClassGen_inv hg
-    have hlen := mapM_option_length hsl
+    have hlen := ConLeche.option_mapM_length hsl
     have hslen : s < g.slots.length := by
       have : (g.slots.drop s).length = sls.length + 1 := by rw [hdrop]; rfl
       rw [List.length_drop] at this; omega
@@ -1109,7 +1109,7 @@ theorem classRecOf_rel {st : EStore} (recCls : List Nat) {cvGs : List IConstantV
     {cvGsP : List ConstantVal} (h : cvGs.mapM (Frontend.denoteCV st) = some cvGsP) (t : Nat) :
     ROp (fun n st r => denoteN st.ns r = some n) (ConLeche.classRecOf recCls cvGsP t) st
       (Arena.classRecOf recCls cvGs t) := by
-  have hlen : cvGs.length = cvGsP.length := (mapM_option_length h).symm
+  have hlen : cvGs.length = cvGsP.length := (ConLeche.option_mapM_length h).symm
   simp only [Arena.classRecOf, ConLeche.classRecOf, hlen]
   cases hf : (List.range cvGsP.length).find? (fun r => recCls.getD r 0 == t) with
   | none => rfl
@@ -1378,7 +1378,7 @@ theorem classGenRule_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
   obtain ⟨hnP, hpar, -, -, hsl, -, -, hpre, hbm⟩ := dClassGen_inv hg
   obtain ⟨hcvx, hnF, hkinds, htyD, htyN⟩ := dClassCtor_inv hx
   have hlen : g.pre.length = gP.pre.length := denoteBinders_length hpre
-  have hsll : g.slots.length = gP.slots.length := (mapM_option_length hsl).symm
+  have hsll : g.slots.length = gP.slots.length := (ConLeche.option_mapM_length hsl).symm
   have hhit := GR.find_hit hok.wf c (ConRon.Bridge.denoteCV_name hcvx) 0 g.slots gP.slots hsl
   rw [← List.range_eq_range', ← List.range_eq_range'] at hhit
   simp only [Arena.classGenRule] at hrun
@@ -1539,7 +1539,7 @@ theorem classMinorSlot_spec (rd : Arena.ClassRead) (rdP : ConLeche.ClassRead) (c
   obtain ⟨hrd, hC⟩ := hpre
   simp only [dClassRead, Option.map_eq_some_iff] at hrd
   obtain ⟨slotsP, hsl, rfl⟩ := hrd
-  have hlen : rd.slots.length = slotsP.length := (mapM_option_length hsl).symm
+  have hlen : rd.slots.length = slotsP.length := (ConLeche.option_mapM_length hsl).symm
   simp only [Arena.classMinorSlot] at hrun
   simp only [ConLeche.classMinorSlot]
   generalize hT : List.filterMap _ (List.range rd.slots.length) = T at hrun
@@ -2464,7 +2464,7 @@ theorem classRecTyOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   obtain ⟨hg, hrc, hRiD⟩ := hpre
   obtain ⟨hnP, -, hcls, -, hsl, -, -, -, -⟩ := dClassGen_inv hg
   obtain ⟨hcvR, hrP, hmI, htgt, -⟩ := dRec_inv hrc
-  have hsll : g.slots.length = gP.slots.length := (mapM_option_length hsl).symm
+  have hsll : g.slots.length = gP.slots.length := (ConLeche.option_mapM_length hsl).symm
   simp only [Arena.classRecTyOk] at hrun
   simp only [ConLeche.classRecTyOk]
   obtain ⟨ci, s1, k1, z1⟩ := bindOk hrun
@@ -2764,7 +2764,7 @@ theorem classRulesOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (vi
     obtain ⟨hg, hcvs, hcvR, hxs, hie⟩ := hpre
     obtain ⟨xP, xsP', rfl, hx, hxs'⟩ := mapM_option_cons_inv hxs
     obtain ⟨hnP, -, -, -, hsl, -, -, -, -⟩ := dClassGen_inv hg
-    have hsll : g.slots.length = gP.slots.length := (mapM_option_length hsl).symm
+    have hsll : g.slots.length = gP.slots.length := (ConLeche.option_mapM_length hsl).symm
     have hnF := (dClassCtor_inv hx).2.1
     obtain ⟨-, hlps, -⟩ := Core.denoteCV_inv hcvR
     simp only [Arena.classRulesOk] at hrun
@@ -3085,18 +3085,7 @@ theorem sum_lengths {α β : Type} {f : α → Option β} :
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h; subst h; rfl
   | xs :: xss, _, h => by
     obtain ⟨ys, yss', rfl, hx, hxs⟩ := mapM_option_cons_inv h
-    simp only [List.map_cons, List.sum_cons, mapM_option_length hx, sum_lengths hxs]
-
-/-- con-leche: none — an index MISS from an environment miss at a denoting
-name (the contrapositive of `IFEnvOK.hit`). -/
-theorem find_none_of_env {env : Env} {fe : IFEnv} {s : AState} (h : IFEnvOK env fe s)
-    {n : NIdx} {nm : ConLeche.Name} (hn : denoteN s.store.ns n = some nm)
-    (he : env.find? nm = none) : fe.find? n = none := by
-  cases hf : fe.find? n with
-  | none => rfl
-  | some ci =>
-    obtain ⟨c, -, hc⟩ := find_some_rel h hn hf
-    rw [he] at hc; exact nomatch hc
+    simp only [List.map_cons, List.sum_cons, ConLeche.option_mapM_length hx, sum_lengths hxs]
 
 end GR
 
@@ -3287,7 +3276,7 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
       · rfl
       · intro x hx
         obtain ⟨cP, hcP, hd⟩ := mapM_option_mem hcvGs x.1 (List.of_mem_zip hx).1
-        exact GR.find_none_of_env (hok.ienv.mono c110.ext) (ConRon.Bridge.denoteCV_name hd)
+        exact IFEnvOK.find?_none (hok.ienv.mono c110.ext) (ConRon.Bridge.denoteCV_name hd)
           (hfrG cP hcP)
     have hie2R : IFEnvOK env₂ ((Arena.classFeR p cvGs rd.recCls fe₂).1.restrictTo
         fe₂.visibleBelow) s10 := RC.IFEnvOK.of_find? (hok.ienv.mono c110.ext) hview

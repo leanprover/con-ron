@@ -49,13 +49,13 @@ theorem numCtorsOf_spec {st : EStore} :
     obtain ⟨mP, msP', rfl, hm, hms⟩ := mapM_option_cons_inv h
     obtain ⟨-, -, hcs⟩ := dMember_inv hm
     simp only [Arena.numCtorsOf, ConLeche.numCtorsOf, ih hms,
-      mapM_option_length (f := dCtor st) hcs]
+      ConLeche.option_mapM_length (f := dCtor st) hcs]
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:131-132 BlockShape.k -/
 theorem BlockShape.k_spec {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
     (h : dShape st p = some pP) : p.k = pP.k := by
   obtain ⟨hms, -, -, -, -, -, -⟩ := dShape_inv h
-  simp only [Arena.BlockShape.k, ConLeche.BlockShape.k, mapM_option_length hms]
+  simp only [Arena.BlockShape.k, ConLeche.BlockShape.k, ConLeche.option_mapM_length hms]
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:133-134 BlockShape.numCtors -/
 theorem BlockShape.numCtors_spec {st : EStore} {p : Arena.BlockShape}
@@ -1184,7 +1184,7 @@ theorem blockMemberCounts?_spec (nPd k nC : Nat) (names : List NIdx)
     intro cvTsP s₀ s' r hok hp hrun
     obtain ⟨hN, hrs, hc⟩ := hp
     obtain ⟨cvTP, tsP, rfl, hcv, hts⟩ := mapM_option_cons_inv hc
-    have hlen : rs.length = rsP.length := (mapM_option_length hrs).symm
+    have hlen : rs.length = rsP.length := (ConLeche.option_mapM_length hrs).symm
     simp only [Arena.blockMemberCounts?] at hrun
     obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
     obtain ⟨p1, ho⟩ := recForMember_run names namesP m rs rsP s₀ s₁ o hok hN hrs h1
@@ -1531,7 +1531,7 @@ theorem shapeTail_run {μ : CheckMode} {env : Env} {fe : IFEnv} (nPd : Nat)
     (denoteNListE_ext p2.ext _ _ hlps) k3
   have x3 := p2.ext.trans p3.ext
   obtain ⟨groups, s4, k4, z4⟩ := bindOk z3
-  have hlenT : cvTs.length = cvTsP.length := (mapM_option_length hTs).symm
+  have hlenT : cvTs.length = cvTsP.length := (ConLeche.option_mapM_length hTs).symm
   rw [hlenT] at k4
   have g1 := denoteNListE_ext x3 _ _ (cvNames_go hTs)
   have g3 := dCtors_ext x3 _ _ (denoteCtors3_dCtors cs csP hcs)
@@ -1717,7 +1717,7 @@ theorem blockShape?_run {μ : CheckMode} {env : Env} {fe : IFEnv} (nPd : Nat)
     generalize hrsL : (cvR0, mI0, rP0, rules0) :: rs' = rs at hrs hrun
     generalize hTsP : cvT0P :: cvTsP' = cvTsP at hTs ⊢
     generalize hrsP : (cvR0P, mI0P, rP0P, rules0P) :: rsP' = rsP at hrs ⊢
-    have hlenT : cvTs.length = cvTsP.length := (mapM_option_length hTs).symm
+    have hlenT : cvTs.length = cvTsP.length := (ConLeche.option_mapM_length hTs).symm
     have hlenC : cs.length = csP.length := denoteCtors3_length hcs
     obtain ⟨cnt, s1, k1, z1⟩ := bindOk hrun
     obtain ⟨p1, hcnt⟩ := blockMemberCounts?_spec nPd cvTs.length cs.length
