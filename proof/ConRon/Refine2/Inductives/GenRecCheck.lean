@@ -1176,4 +1176,19 @@ attribute [local lockstep_inline] arena.inductives.gen_rec.class_rule_ok_tail
   rw [arena.inductives.gen_rec.class_rule_ok, classRuleOk]
   lockstep
 
+/-! ## `class_const_ok` (`_type` inline), `class_rec_ty_ok`, `class_rec_tys_ok` -/
+
+attribute [local lockstep_inline] arena.inductives.gen_rec.class_const_ok_type
+
+/-- `class_const_ok` (with `class_const_ok_type` inline) ⊑ `classConstOk`. -/
+@[lockstep] theorem class_const_ok_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf) (cv : arena.env.IConstantVal) :
+    LS pers (fun a b => b = absIConstantVal a)
+      (arena.inductives.gen_rec.class_const_ok pers st mode rf cv) lst
+      (classConstOk (ConRon.Refine.absMode mode) lf (absIConstantVal cv)) := by
+  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
+  rw [arena.inductives.gen_rec.class_const_ok, classConstOk]
+  lockstep
+
 end ConRon.Refine2
