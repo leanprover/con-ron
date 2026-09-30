@@ -12,8 +12,11 @@ dispatch on it:
 | `knot_whnf_core … lane fuel …` | `(<lane's knot> f).whnfCore` |
 | `knot_whnf`, `knot_infer`, `knot_infer_io`, `knot_defeq`, `knot_annotate` | the record's other five slots |
 | `LANE_FULL` (`0`) | `Core.lean`'s `coreKnot mode fe id` |
-| `LANE_GATED` (`1`) | `CoreGated.lean`'s `coreKnotGated mode fe` |
 | `LANE_IO` (`2`) | `CoreIO.lean`'s `coreKnotIO mode fe` |
+
+(`LANE_GATED` and `coreKnotGated` went with con-leche's modeled route, task
+#105; `knot_whnf_core`, `knot_whnf`, `knot_defeq` and `knot_annotate` no
+longer read the lane at all.)
 | `knot_infer_at … io …` | `CoreFnsA.ioView` applied or not — **the port's
   `io : bool` IS the `ioView` substitution** (its own doc comment says so) |
 
@@ -46,7 +49,7 @@ key and say nothing of the values' resolution) is answered by the knot's hit,
 and the next step read its TAG in the port and its VIEW in the twin.  Round 4's
 audit found that split at ≈ 60 sites of the knot and its `ExprOps` helpers and
 made the twin test the tag first wherever the port does (`Arena/Core.lean`,
-`Arena/CoreGated.lean`, `Arena/ExprOps.lean`); and the coordinator's ruling
+`Arena/ExprOps.lean`); and the coordinator's ruling
 (i) moved `StoreWF` (and `Ext`, a statement about denotation) out of the
 relation into Theorem 1, because the port and the twin both intern over a
 dangling child without looking at it and their stores stay equal field for
@@ -64,7 +67,6 @@ the port's scalar has to be tied back to the field it was split from.
 import ConRon.Refine2.Core.Probes
 import ConRon.Refine2.ExprOps.Read
 import ConRon.Arena.CoreIO
-import ConRon.Arena.CoreGated
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -77,14 +79,13 @@ open ConRon.Arena
 
 /-! ## The lane, as the twin knot it stands for -/
 
-/-- **The twin knot a port lane stands for.**  `LANE_GATED` is the P knot,
-`LANE_IO` the leaf knot, anything else (`LANE_FULL`, which is `0`) the
-memoized full knot — the port's own `else` arm, so the reading is the code's
-and not a case analysis the refinement invents. -/
+/-- **The twin knot a port lane stands for.**  `LANE_IO` is the leaf knot,
+anything else (`LANE_FULL`, which is `0`) the memoized full knot — the port's
+own `else` arm, so the reading is the code's and not a case analysis the
+refinement invents. -/
 def laneKnot (mode : ConLeche.CheckMode) (fe : IFEnv) (lane : Std.U32)
     (f : Nat) : CoreFnsA :=
-  if lane = arena.core.LANE_GATED then coreKnotGated mode fe f
-  else if lane = arena.core.LANE_IO then coreKnotIO mode fe f
+  if lane = arena.core.LANE_IO then coreKnotIO mode fe f
   else coreKnot mode fe id f
 
 /-- **The record an `io`-flagged body call resolves `r.infer` through.**
@@ -95,20 +96,13 @@ def laneKnotAt (mode : ConLeche.CheckMode) (fe : IFEnv) (lane : Std.U32)
     (io : Bool) (f : Nat) : CoreFnsA :=
   if io then (laneKnot mode fe lane f).ioView else laneKnot mode fe lane f
 
-@[simp] theorem laneKnot_gated (mode fe f) :
-    laneKnot mode fe arena.core.LANE_GATED f = coreKnotGated mode fe f := by
-  rw [laneKnot, if_pos rfl]
-
 @[simp] theorem laneKnot_io (mode fe f) :
     laneKnot mode fe arena.core.LANE_IO f = coreKnotIO mode fe f := by
-  rw [laneKnot, if_neg (by rw [arena.core.LANE_IO, arena.core.LANE_GATED]; decide),
-    if_pos rfl]
+  rw [laneKnot, if_pos rfl]
 
 @[simp] theorem laneKnot_full (mode fe f) :
     laneKnot mode fe arena.core.LANE_FULL f = coreKnot mode fe id f := by
-  rw [laneKnot,
-    if_neg (by rw [arena.core.LANE_FULL, arena.core.LANE_GATED]; decide),
-    if_neg (by rw [arena.core.LANE_FULL, arena.core.LANE_IO]; decide)]
+  rw [laneKnot, if_neg (by rw [arena.core.LANE_FULL, arena.core.LANE_IO]; decide)]
 
 @[simp] theorem laneKnotAt_true (mode fe lane f) :
     laneKnotAt mode fe lane true f = (laneKnot mode fe lane f).ioView := by
@@ -118,13 +112,12 @@ def laneKnotAt (mode : ConLeche.CheckMode) (fe : IFEnv) (lane : Std.U32)
     laneKnotAt mode fe lane false f = laneKnot mode fe lane f := by
   rw [laneKnotAt, if_neg (by decide)]
 
-/-- The port's lane is NOT `LANE_GATED` and NOT `LANE_IO` exactly when the
-twin's knot is the full one — the reading every `else` arm of the six entries
-takes. -/
+/-- The port's lane is NOT `LANE_IO` exactly when the twin's knot is the full
+one — the reading every `else` arm of the six entries takes. -/
 theorem laneKnot_of_ne (mode fe f) {lane : Std.U32}
-    (hg : ¬ lane = arena.core.LANE_GATED) (hi : ¬ lane = arena.core.LANE_IO) :
+    (hi : ¬ lane = arena.core.LANE_IO) :
     laneKnot mode fe lane f = coreKnot mode fe id f := by
-  rw [laneKnot, if_neg hg, if_neg hi]
+  rw [laneKnot, if_neg hi]
 
 /-! ## The ambient arguments
 
@@ -208,23 +201,10 @@ structure KnotRel (f : Nat) : Prop where
     Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).whnfCore
         (absU depth) (absEIdx e))
-  /-- **No fuel side condition, at any lane** (task #97-P5-Core-2, which made
-  task #97-P5-Arms §11(b)'s second one-line twin change).  The history is
-  worth keeping because it is a history of the TWIN and not of the proof:
-
-  * task #97-P5-Core found the gated lane's `whnf` slot false at one fuel
-    level — the twin ran `whnfBody (coreKnotGated … (f - 1))`, whose first
-    move is `r.whnfCore`, so at `f = 1` it threw `internal` where the port
-    answered `Ok e` — and this field carried `lane = LANE_GATED → 2 ≤ f`;
-  * task #97-P3-CoreWalks hoisted the stuck-tag test over the fuel dispatch in
-    `coreKnotGated`'s two reduction slots, which removed that level and moved
-    the disagreement to `f = 0` in the OTHER direction (the twin answering
-    `pure e` where the port's `fuel = 0` arm declines), so BOTH reduction
-    fields carried `lane = LANE_GATED → 1 ≤ f`;
-  * this round put the test in the `| fuel + 1 =>` branch ONLY, leaving
-    `coreKnotGated 0`'s two slots the unconditional `fail` the port's
-    `fuel = 0` arm is.  The two now agree at every fuel and the condition is
-    gone from both fields. -/
+  /-- **No fuel side condition, at any lane**: the twin's slots test the
+  stuck tag in their `| fuel + 1 =>` branch only, where the port's `fuel = 0`
+  arm has already declined (task #97-P5-Core-2's history of the gated lane,
+  deleted with it at task #105, is in git). -/
   whnf : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
     AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
     absU fu = f →
@@ -291,22 +271,8 @@ at, and its own recursive `knot_*` calls are at the SAME fuel, which is why
 `KnotRel f → BodyRel f` is the induction step's premise and not its
 conclusion.
 
-`whnfCoreGated` is a seventh field because the gated lane's `whnfCore` slot is
-a different body (`arena::core_gated::whnf_core_body_gated`); the other five
-slots of `coreKnotGated` are the same bodies at the gated knot.
-
-**The two `stuckGated*` fields are gone** (task #97-P5-Core-2).  They existed
-because the port hoisted the stuck-tag test out of every lane and the twin
-hoisted it into the memoized slot only; task #97-P3-CoreWalks put the test in
-`coreKnotGated`'s two reduction slots and this round put it in the
-`| fuel + 1 =>` branch alone, so the twin's slots now test exactly where the
-port's `knot_*` do and `Core/Induction.lean` reads the agreement off the
-knot's own equation (`coreKnotGated_succ_whnfCore_stuck`,
-`coreKnotGated_succ_whnf_stuck`) instead of off a body obligation.  The first
-of the two, a fact about the twin alone that needed its argument to resolve
-(`EResolves`), was kept proved in `Core/Arms/Gated.lean` until task #97-P5-Core
-round 5 deleted it (no consumer; lockstep reads the knot's equation); the
-second, false at `f = 0`, has no consumer and is not restated. -/
+The gated lane's seventh field (`whnfCoreGated`) went with the gated knot at
+task #105. -/
 /- **`inferIO`'s call-site premise** (task #97-P5-Core round 5, region E's
 finding).  The port's `infer_body_io` is called at exactly two points,
 `knot_infer_io`'s `(LANE_IO, false)` and `(LANE_FULL, true)`; its `.lam`
@@ -322,15 +288,6 @@ structure BodyRel (f : Nat) : Prop where
     arena.core.whnf_core_body pers vis st mode lane fu fe depth e = ok o →
     Sim₀ absEIdx pers lst o
       (whnfCoreBody (ConRon.Refine.absMode mode)
-        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-        (absU depth) (absEIdx e))
-  whnfCoreGated : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    absU fu = f →
-    arena.core_gated.whnf_core_body_gated pers vis st mode lane fu fe depth e
-      = ok o →
-    Sim₀ absEIdx pers lst o
-      (whnfCoreBodyGated (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e))
   whnf : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
