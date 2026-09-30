@@ -2420,4 +2420,27 @@ theorem ctor_entries_nf_abs (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U
   rw [TwinEq, absCtorsL, ctor_entries_nf_abs cs _ _ o h]
   simp [absCtors3L, alloc.vec.Vec.new]
 
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.mentions_any_go_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms mentions_any_go_ls
+
+/-- info: 'ConRon.Refine2.nest_hole_img_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_hole_img_ls
+
+/-- info: 'ConRon.Refine2.replace_fvars_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms replace_fvars_ls
+
+/-- info: 'ConRon.Refine2.replace_apps_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms replace_apps_ls
+
+/-- info: 'ConRon.Refine2.nest_uniform_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_uniform_ls
+
+/-- info: 'ConRon.Refine2.nest_seed_of_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_seed_of_ls
+
+/-- info: 'ConRon.Refine2.nest_accept_group_twin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nest_accept_group_twin
+
 end ConRon.Refine2
