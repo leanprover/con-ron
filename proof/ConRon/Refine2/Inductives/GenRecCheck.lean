@@ -320,4 +320,77 @@ theorem class_fields_of_acc {pers st} (p : arena.inductives.block_parts.BlockSha
     refine ⟨b, lst', by simpa [absEIdxL] using hx, ?_, h2, h3⟩
     simpa [alloc.vec.Vec.new] using hR.symm
 
+/-! ## `class_fields_agree` -/
+
+attribute [local lockstep high] rc_strip_pis_wf_ls
+
+/-- The port's in-range kind read `class_field_dup(&ks[i])`, as one value. -/
+theorem gr_kind_read_in {γ : Type} (ks : alloc.vec.Vec arena.inductives.gen_rec.ClassField)
+    (i : Std.U64) (h : i.val < ks.val.length) (M : arena.inductives.gen_rec.ClassField → Result γ) :
+    (do
+      let cf ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.inductives.gen_rec.ClassField) ks (UScalar.cast .Usize i)
+      let cf1 ← arena.inductives.gen_rec.class_field_dup cf
+      M cf1) = M ks.val[i.val] := by
+  have hc : (UScalar.cast .Usize i).val = i.val :=
+    ConRon.Refine.ExprOps.u64_cast_usize_val (by have := ks.property; scalar_tac)
+  rw [gr_vec_index_eq (by rw [hc]; exact List.getElem?_eq_getElem h), bind_tc_ok]
+  cases hk : ks.val[i.val] <;> simp [arena.inductives.gen_rec.class_field_dup]
+
+theorem class_fields_agree_acc {pers} {mode : kernel.env.CheckMode}
+    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx vis rf lf)
+    (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
+    (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor)
+    (fvs : alloc.vec.Vec arena.handle.EIdx)
+    (es : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
+    (ks : alloc.vec.Vec arena.inductives.gen_rec.ClassField) :
+    ∀ (i : Std.U64) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun _ _ => True)
+        (arena.inductives.gen_rec.class_fields_agree pers st mode vis rf p former_tys ms fvs es i ks)
+        lst
+        (classFieldsAgree (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
+          (ms.val.map absTargetMajor) (absEIdxL fvs) (es.val.map absNestCtorNf) i.val
+          ((ks.val.drop i.val).map absClassField)) := by
+  intro i
+  refine cursor_induction (fun i : Std.U64 => i.val) ks.val.length
+    (fun i (_ : Unit) => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun _ _ => True)
+        (arena.inductives.gen_rec.class_fields_agree pers st mode vis rf p former_tys ms fvs es i ks)
+        lst
+        (classFieldsAgree (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
+          (ms.val.map absTargetMajor) (absEIdxL fvs) (es.val.map absNestCtorNf) i.val
+          ((ks.val.drop i.val).map absClassField))) ?_ ?_ i ()
+  · intro i _ hn st lst hrel hinv
+    rw [List.drop_eq_nil_of_le hn, List.map_nil, classFieldsAgree,
+      arena.inductives.gen_rec.class_fields_agree.eq_def]
+    lockstep
+  · intro i _ hi ih st lst hrel hinv
+    rw [List.drop_eq_getElem_cons hi, List.map_cons,
+      arena.inductives.gen_rec.class_fields_agree.eq_def]
+    simp only [lift, bind_tc_ok]
+    rw [if_neg (by
+      have := ConRon.Refine.ExprOps.usize_cast_u64_val ks.len
+      simp only [alloc.vec.Vec.len] at this; scalar_tac)]
+    rw [gr_kind_read_in ks i hi]
+    cases hk : ks.val[i.val] <;> simp only [absClassField, classFieldsAgree]
+    all_goals lockstep
+
+@[lockstep] theorem class_fields_agree_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
+    (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
+    (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor)
+    (fvs : alloc.vec.Vec arena.handle.EIdx)
+    (es : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
+    (ks : alloc.vec.Vec arena.inductives.gen_rec.ClassField) :
+    LS pers (fun _ _ => True)
+      (arena.inductives.gen_rec.class_fields_agree pers st mode vis rf p former_tys ms fvs es 0#u64
+        ks) lst
+      (classFieldsAgree (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
+        (ms.val.map absTargetMajor) (absEIdxL fvs) (es.val.map absNestCtorNf) 0
+        (ks.val.map absClassField)) := by
+  have h := class_fields_agree_acc (pers := pers) (mode := mode) hctx p former_tys ms fvs es ks
+    0#u64 st lst hrel hinv
+  simpa using h
+
 end ConRon.Refine2
