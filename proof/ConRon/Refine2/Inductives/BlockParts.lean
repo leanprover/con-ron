@@ -51,6 +51,28 @@ theorem usz_zero_val : ((0#usize : Std.Usize)).val = 0 := by scalar_tac
 
 @[simp] theorem vec_new_val' {α : Type} : (alloc.vec.Vec.new α).val = [] := rfl
 
+set_option hygiene false in
+/-- The stop arm of a `vec_cursor_copy` instance. -/
+macro "bp_copy_stop " F:term:max xs:term:max : tactic => `(tactic| (
+  intro i out o hn h
+  have hF := $F
+  rw [hF] at h
+  rw [if_pos (show i ≥ alloc.vec.Vec.len $xs by scalar_tac), Result.ok.injEq] at h
+  rw [h]))
+
+set_option hygiene false in
+/-- The head of the step arm of a `vec_cursor_copy` instance: the element read. -/
+macro "bp_copy_head " F:term:max xs:term:max : tactic => `(tactic| (
+  intro i x out o hx h
+  have hlt : i.val < ($xs).val.length := (List.getElem?_eq_some_iff.mp hx).1
+  have hF := $F
+  rw [hF] at h
+  rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len $xs by scalar_tac)] at h
+  obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hqx : q = x := by
+    have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+  subst hqx))
+
 /-! ## The record copies -/
 
 /-- `ctors_dup` is the identity on the abstraction from the cursor on. -/
@@ -441,5 +463,162 @@ theorem block_split_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
   intro o h
   rw [TwinEq, block_split_abs _ _ o h, absICILFrom_zero]
   cases blockSplit (absICIL block) <;> simp [absICVL]
+
+/-! ## The Rust-only list builders -/
+
+theorem former_names_abs {cvs : alloc.vec.Vec arena.env.IConstantVal} :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
+      arena.inductives.block_parts.former_names cvs i out = ok o →
+      absNIdxL o = absNIdxL out ++ (absICVLFrom cvs i).map (·.name) := by
+  have := vec_cursor_copy cvs absNIdx (fun c => absNIdx c.name)
+    (arena.inductives.block_parts.former_names cvs) ?_ ?_
+  · intro i out o h
+    simpa [absNIdxL, absICVLFrom, absIConstantVal, Function.comp_def] using this i out o h
+  · bp_copy_stop arena.inductives.block_parts.former_names.eq_def cvs
+  · bp_copy_head arena.inductives.block_parts.former_names.eq_def cvs
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, n, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [dupId_nidx _ _ hn], h⟩
+
+@[lockstep] theorem former_names_twin0 (cvs : alloc.vec.Vec arena.env.IConstantVal) :
+    LSP (arena.inductives.block_parts.former_names cvs 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq ((absICVL cvs).map (·.name)) (absNIdxL o)) := by
+  intro o h
+  rw [TwinEq, former_names_abs _ _ o h, absICVLFrom_zero]
+  simp [absNIdxL]
+
+theorem ctors_nf_abs {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)} :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)),
+      arena.inductives.block_parts.ctors_nf cs i out = ok o →
+      absCtorsL o = absCtorsL out ++ (absCtors3LFrom cs i).map (fun c => (c.1, c.2.2)) := by
+  have := vec_cursor_copy cs (fun p => (absIConstantVal p.1, absU p.2))
+    (fun c => (absIConstantVal c.1, absU c.2.2))
+    (arena.inductives.block_parts.ctors_nf cs) ?_ ?_
+  · intro i out o h
+    simpa [absCtorsL, absCtors3LFrom, Function.comp_def] using this i out o h
+  · bp_copy_stop arena.inductives.block_parts.ctors_nf.eq_def cs
+  · bp_copy_head arena.inductives.block_parts.ctors_nf.eq_def cs
+    obtain ⟨iv, np, nf⟩ := q
+    obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, (iv1, nf), out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by simp [i_constant_val_dup_abs hiv1], h⟩
+
+@[lockstep] theorem ctors_nf_twin0
+    (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)) :
+    LSP (arena.inductives.block_parts.ctors_nf cs 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq ((absCtors3L cs).map (fun c => (c.1, c.2.2))) (absCtorsL o)) := by
+  intro o h
+  rw [TwinEq, ctors_nf_abs _ _ o h, absCtors3LFrom_zero]
+  simp [absCtorsL]
+
+theorem rule_rhss_abs {rules : alloc.vec.Vec arena.env.IRecRule} :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.EIdx),
+      arena.inductives.block_parts.rule_rhss rules i out = ok o →
+      absEIdxL o = absEIdxL out ++ (absIRecRuleLFrom rules i).map (·.rhs) := by
+  have := vec_cursor_copy rules absEIdx (fun r => absEIdx r.rhs)
+    (arena.inductives.block_parts.rule_rhss rules) ?_ ?_
+  · intro i out o h
+    simpa [absEIdxL, absIRecRuleLFrom, absIRecRule, Function.comp_def] using this i out o h
+  · bp_copy_stop arena.inductives.block_parts.rule_rhss.eq_def rules
+  · bp_copy_head arena.inductives.block_parts.rule_rhss.eq_def rules
+    obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, e, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [dupId_eidx _ _ he], h⟩
+
+@[lockstep] theorem rule_rhss_twin0 (rules : alloc.vec.Vec arena.env.IRecRule) :
+    LSP (arena.inductives.block_parts.rule_rhss rules 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq ((rules.val.map absIRecRule).map (·.rhs)) (absEIdxL o)) := by
+  intro o h
+  rw [TwinEq, rule_rhss_abs _ _ o h]
+  simp [absEIdxL, absIRecRuleLFrom]
+
+theorem member_names_abs {ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape} :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
+      arena.inductives.block_parts.member_names ms i out = ok o →
+      absNIdxL o = absNIdxL out ++ ((ms.val.drop i.val).map absMemberShape).map (·.cvT.name) := by
+  have := vec_cursor_copy ms absNIdx (fun m => absNIdx m.cv_t.name)
+    (arena.inductives.block_parts.member_names ms) ?_ ?_
+  · intro i out o h
+    simpa [absNIdxL, absMemberShape, absIConstantVal, Function.comp_def] using this i out o h
+  · bp_copy_stop arena.inductives.block_parts.member_names.eq_def ms
+  · bp_copy_head arena.inductives.block_parts.member_names.eq_def ms
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, n, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [dupId_nidx _ _ hn], h⟩
+
+@[lockstep] theorem member_names_twin (ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape)
+    (i : Std.Usize) (out : alloc.vec.Vec arena.handle.NIdx) :
+    LSP (arena.inductives.block_parts.member_names ms i out)
+      (fun o => TwinEq (absNIdxL out ++ ((ms.val.drop i.val).map absMemberShape).map (·.cvT.name))
+        (absNIdxL o)) :=
+  fun o h => (member_names_abs i out o h).symm
+
+@[lockstep] theorem shape_member_names_twin (p : arena.inductives.block_parts.BlockShape) :
+    LSP (arena.inductives.block_parts.shape_member_names p)
+      (fun o => TwinEq (absBlockShape p).memberNames (absNIdxL o)) := by
+  intro o h
+  rw [arena.inductives.block_parts.shape_member_names] at h
+  rw [TwinEq, member_names_abs _ _ o h]
+  simp [absNIdxL, BlockShape.memberNames, absBlockShape]
+
+theorem shape_n_idxs_abs {ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape} :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec Std.U64),
+      arena.inductives.block_parts.shape_n_idxs ms i out = ok o →
+      absNatL o = absNatL out ++ ((ms.val.drop i.val).map absMemberShape).map (·.nIdx) := by
+  have := vec_cursor_copy ms absU (fun m => absU m.n_idx)
+    (arena.inductives.block_parts.shape_n_idxs ms) ?_ ?_
+  · intro i out o h
+    simpa [absNatL, absMemberShape, Function.comp_def] using this i out o h
+  · bp_copy_stop arena.inductives.block_parts.shape_n_idxs.eq_def ms
+  · bp_copy_head arena.inductives.block_parts.shape_n_idxs.eq_def ms
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, _, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, rfl, h⟩
+
+@[lockstep] theorem shape_n_idxs_twin (ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape)
+    (i : Std.Usize) (out : alloc.vec.Vec Std.U64) :
+    LSP (arena.inductives.block_parts.shape_n_idxs ms i out)
+      (fun o => TwinEq (absNatL out ++ ((ms.val.drop i.val).map absMemberShape).map (·.nIdx))
+        (absNatL o)) :=
+  fun o h => (shape_n_idxs_abs i out o h).symm
+
+/-- `shape_n_idxs p.members 0 []` IS `p.nIdxs`. -/
+@[lockstep] theorem shape_n_idxs_twin0 (p : arena.inductives.block_parts.BlockShape) :
+    LSP (arena.inductives.block_parts.shape_n_idxs p.members 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq (absBlockShape p).nIdxs (absNatL o)) := by
+  intro o h
+  rw [TwinEq, shape_n_idxs_abs _ _ o h]
+  simp [absNatL, BlockShape.nIdxs, absBlockShape]
+
+theorem rec_names_abs {rs : alloc.vec.Vec arena.inductives.block_parts.RecShape} :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
+      arena.inductives.block_parts.rec_names rs i out = ok o →
+      absNIdxL o = absNIdxL out ++ ((rs.val.drop i.val).map absRecShape).map (·.cvR.name) := by
+  have := vec_cursor_copy rs absNIdx (fun r => absNIdx r.cv_r.name)
+    (arena.inductives.block_parts.rec_names rs) ?_ ?_
+  · intro i out o h
+    simpa [absNIdxL, absRecShape, absIConstantVal, Function.comp_def] using this i out o h
+  · bp_copy_stop arena.inductives.block_parts.rec_names.eq_def rs
+  · bp_copy_head arena.inductives.block_parts.rec_names.eq_def rs
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, n, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [dupId_nidx _ _ hn], h⟩
+
+@[lockstep] theorem rec_names_twin0 (rs : alloc.vec.Vec arena.inductives.block_parts.RecShape) :
+    LSP (arena.inductives.block_parts.rec_names rs 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq ((rs.val.map absRecShape).map (·.cvR.name)) (absNIdxL o)) := by
+  intro o h
+  rw [TwinEq, rec_names_abs _ _ o h]
+  simp [absNIdxL]
 
 end ConRon.Refine2
