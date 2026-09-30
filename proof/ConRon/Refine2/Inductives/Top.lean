@@ -25,6 +25,7 @@ installs, because the checker's fold needs both for its next step).  No
 -/
 import ConRon.Refine2.Inductives.Abs
 import ConRon.Refine2.Inductives.Prims
+import ConRon.Refine2.Inductives.BlockParts
 -- `checker_base::ind_params_ok` and `check_constant_val` are the checker
 -- tier's (`Checker/Base.lean`).
 import ConRon.Refine2.Checker.Base
@@ -41,15 +42,6 @@ open scoped ConRon.Refine2.IndSide
 open ConRon.Arena
 
 open Lockstep
-
-/-- **`block_parts::block_parts` ⊑ `blockParts?`** — the recogniser. -/
-@[lockstep] theorem block_parts_ls {pers st lst} {n_pd : Std.U64}
-    {block : alloc.vec.Vec arena.env.IConstantInfo}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = Option.map absBlockParts a)
-      (arena.inductives.block_parts.block_parts pers st n_pd block) lst
-      (blockParts? (absU n_pd) (absICIL block)) := by
-  sorry
 
 /-- **`block_tail::check_block` ⊑ `checkBlock`** — the uniform install. -/
 @[lockstep] theorem check_block_ls {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
