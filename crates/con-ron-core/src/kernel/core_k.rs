@@ -2430,7 +2430,7 @@ pub fn beta_gate_fires(mode: &CheckMode, pw: &PropWhen) -> bool {
 // `whnfCore` (`Core.lean:1898-1990`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:963-1052 whnfCoreBody
+/// con-leche: ConLeche/Kernel/Core.lean:963-1058 whnfCoreBody
 /// The cited five-conjunct fire guard of the `.proj` arm, as an `if` nest:
 /// the head is the entry's constructor, the field index is in range, the
 /// spine is exactly parameters plus fields, the level count matches, and the
@@ -2455,7 +2455,7 @@ pub fn proj_fire_shape_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1054-1062 whnfCoreLoopFuel
+/// con-leche: ConLeche/Kernel/Core.lean:1060-1068 whnfCoreLoopFuel
 /// Step budget of the `whnfCore` head-normalization loop (con-leche's task
 /// #106).  Nothing in this module reads it — the *interned* `whnfCoreLoopI`
 /// does (`Cached/CoreC.lean`, task #19) — but it is ported so the provenance
@@ -2464,7 +2464,7 @@ pub fn whnf_core_loop_fuel() -> u64 {
     1000000
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1064-1071 whnfLoopFuel
+/// con-leche: ConLeche/Kernel/Core.lean:1070-1077 whnfLoopFuel
 /// Step budget of the `whnf` reduction loop (lean4lean's `FuelConfig.whnf`,
 /// same value).  Literal-acceleration and delta steps are *iteration*, not
 /// recursion.
@@ -2476,8 +2476,8 @@ pub fn whnf_loop_fuel() -> u64 {
 // Inference (`Core.lean:2042-2337`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody
-/// con-leche: ConLeche/Kernel/Core.lean:1276-1404 inferBodyIO
+/// con-leche: ConLeche/Kernel/Core.lean:1115-1280 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:1282-1410 inferBodyIO
 /// A `Nat` literal types as `Nat`, and without the basis declarations it is
 /// *invalid* (not merely unimplemented).
 pub fn infer_lit_nat(fe: &FEnv) -> CheckM<Expr> {
@@ -2493,8 +2493,8 @@ pub fn infer_lit_nat(fe: &FEnv) -> CheckM<Expr> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody
-/// con-leche: ConLeche/Kernel/Core.lean:1276-1404 inferBodyIO
+/// con-leche: ConLeche/Kernel/Core.lean:1115-1280 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:1282-1410 inferBodyIO
 /// A string literal types as `String`; without the pinned support
 /// declarations this is a positively detected unsupported feature — decline.
 pub fn infer_lit_str(fe: &FEnv) -> CheckM<Expr> {
@@ -2510,8 +2510,8 @@ pub fn infer_lit_str(fe: &FEnv) -> CheckM<Expr> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody
-/// con-leche: ConLeche/Kernel/Core.lean:1276-1404 inferBodyIO
+/// con-leche: ConLeche/Kernel/Core.lean:1115-1280 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:1282-1410 inferBodyIO
 /// The `.fvar` arm's scope check at the leaf of a traversal that happens
 /// anyway (`O(1)`, never a fresh walk): a free variable must refer to an
 /// enclosing opened binder.  On raw (closed) input at depth 0 this rejects
@@ -2528,8 +2528,8 @@ pub fn infer_fvar(idx: u64, ty: &Expr, depth: u64) -> CheckM<Expr> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody
-/// con-leche: ConLeche/Kernel/Core.lean:1276-1404 inferBodyIO
+/// con-leche: ConLeche/Kernel/Core.lean:1115-1280 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:1282-1410 inferBodyIO
 /// The cited propositional-structure restriction of the two `.proj` arms
 /// (official `infer_proj`'s task #175 W4c/O4 test): at a `Prop`-declared
 /// structure the field must be a proposition at this instantiation.  The two
@@ -2567,8 +2567,8 @@ pub fn proj_type_at_checked(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody
-/// con-leche: ConLeche/Kernel/Core.lean:1276-1404 inferBodyIO
+/// con-leche: ConLeche/Kernel/Core.lean:1115-1280 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:1282-1410 inferBodyIO
 /// The table lookup and the checks of the two `.proj` clauses, on the already
 /// reduced type of the subject — byte-identical in the two bodies, so one
 /// function here.
@@ -2604,7 +2604,7 @@ pub fn infer_proj_at(
 // Definitional equality (`Core.lean:2346-2660`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep
+/// con-leche: ConLeche/Kernel/Core.lean:1447-1707 defeqStep
 /// The cited `match nn, f with | k + 1, .const c [] => if c = natSuccName …`
 /// of the packed-literal-against-`Nat.succ` arms: the predecessor, when the
 /// literal is positive and the function part is the bare `Nat.succ`.
@@ -2625,7 +2625,7 @@ pub fn succ_of(nn: &Nat, f: &Expr) -> Option<Nat> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep
+/// con-leche: ConLeche/Kernel/Core.lean:1447-1707 defeqStep
 /// The cited `cO = stringOfListName ∧ usO = [] ∧ strLitSupported env` guard
 /// of the string-literal expansion arms — the reference kernels'
 /// `tryStringLitExpansion`, which fires exactly when the other side's
@@ -2643,7 +2643,7 @@ pub fn str_expansion_fires(fe: &FEnv, f: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1710-1714 defeqLoopFuel
+/// con-leche: ConLeche/Kernel/Core.lean:1716-1720 defeqLoopFuel
 /// Step budget of the lazy-delta loop (lean4lean's `FuelConfig.lazyDelta`,
 /// generously sized here because this loop also absorbs the
 /// literal-acceleration re-entries).  Exhaustion is an internal error, never
@@ -2673,7 +2673,7 @@ pub fn pw_written(pw: &PropWhen) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:1018-1024 annotBinderMeta
-/// con-leche: ConLeche/Cached/CoreC.lean:1643-1647 annotBinderMetaI
+/// con-leche: ConLeche/Cached/CoreC.lean:1644-1648 annotBinderMetaI
 /// The datum a rebuilt binder ends up with: the one threaded in from the node
 /// below (the chain rule), unless it carries a real input annotation — those
 /// are judged by validation, never overwritten.  Nothing in this module calls
@@ -2692,7 +2692,7 @@ pub fn annot_binder_meta(pw: Option<PropWhen>, mb: &BinderMeta) -> BinderMeta {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1795-1915 annotateBody
+/// con-leche: ConLeche/Kernel/Core.lean:1801-1921 annotateBody
 /// The table lookup of `annotate_proj` and its three verdicts: the checked
 /// node, the out-of-range index on a projectable structure (invalid), and the
 /// shape without any projection support (decline).
@@ -2744,7 +2744,7 @@ pub fn annotate_proj_entry(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1960-1963 checkFuel
+/// con-leche: ConLeche/Kernel/Core.lean:1966-1969 checkFuel
 /// The shared fuel for the checker core: bounds the recursion depth of
 /// reduction, inference and definitional equality.  Exhaustion is an internal
 /// error, never a verdict.

@@ -134,7 +134,7 @@ pub fn whnf_core_body_gated(
             }
         }
         Ok(ENodeView::Proj(sn, i, pe)) => {
-            whnf_core_proj(pers, vis, st, mode, lane, fuel, fe, depth, &sn, i, &pe)
+            whnf_core_proj(pers, vis, st, mode, lane, fuel, fe, depth, e, &sn, i, &pe)
         }
         Ok(ENodeView::LetE(_, _, _)) => {
             fail(CheckError::Internal(code_points(&M_LET_WHNF)))
