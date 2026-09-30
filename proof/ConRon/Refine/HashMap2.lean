@@ -93,8 +93,7 @@ open ConRon.Generated
 
 open ConRon.Refine.HashMap (lookupK lookupK_nil lookupK_cons lookupK_eq_none_iff
   lookupK_eq_none_of_not_mem lookupK_mem lookupK_eq_some_of_mem lookupK_congr
-  lookupK_append lookupK_perm eraseK eraseK_nil eraseK_cons eraseK_sublist
-  eraseK_eq_self lookupK_eraseK length_eraseK_of_nodup bind_eq_ok_iff
+  lookupK_append lookupK_perm bind_eq_ok_iff
   uscalar_add_eq uscalar_sub_eq uscalar_mul_eq uscalar_div_eq vec_index_eq
   vec_index_mut_eq vec_len_eq_zero_iff vec_push_eq vec_len_congr
   getElem!_set_self getElem!_set_ne Eq2Spec Eq2Fwd Eq2Fwd_of_Eq2Spec eq2_ite
@@ -102,14 +101,13 @@ open ConRon.Refine.HashMap (lookupK lookupK_nil lookupK_cons lookupK_eq_none_iff
 
 namespace ConRon.Refine.HashMap2
 
-attribute [local simp] bind_eq_ok_iff lookupK_nil lookupK_cons eraseK_nil eraseK_cons
+attribute [local simp] bind_eq_ok_iff lookupK_nil lookupK_cons
 
 variable {K V : Type} [DecidableEq K]
   {HashableInst : ron.hashmap.Hashable K} {Eq2Inst : ron.hashmap.Eq2 K}
 
 omit [DecidableEq K] in
 instance : Inhabited (ron.hashmap2.Slot K V) := ⟨.Vacant⟩
-
 
 /-! ## `List.filterMap`, read one slot at a time
 
@@ -140,13 +138,6 @@ theorem filterMap_set {l : List α} {f : α → Option β} {i : Nat} (hi : i < l
     (l.set i x).filterMap f
       = (l.take i).filterMap f ++ ((f x).toList ++ (l.drop (i + 1)).filterMap f) := by
   rw [List.set_eq_take_append_cons_drop, if_pos hi, List.filterMap_append, filterMap_cons_eq]
-
-theorem filterMap_split [Inhabited α] {l : List α} {f : α → Option β} {i : Nat}
-    (hi : i < l.length) :
-    l.filterMap f
-      = (l.take i).filterMap f ++ ((f l[i]!).toList ++ (l.drop (i + 1)).filterMap f) := by
-  conv_lhs => rw [← List.set_getElem_self hi]
-  rw [filterMap_set hi, List.getElem!_of_getElem? (List.getElem?_eq_getElem hi)]
 
 /-- Replacing one slot: the new list is the new entry against everything the
 replaced slot did not contribute.  `y` is the neutral slot (`Slot.Vacant`,
@@ -203,7 +194,6 @@ theorem exists_none_of_length_lt [Inhabited α] {l : List α} {f : α → Option
       exact ⟨i + 1, by simpa using hi, by rwa [getElem!_cons_succ]⟩
 
 end ListPlumbing
-
 
 /-! ## The model of a slot and of the table -/
 
@@ -285,7 +275,6 @@ algorithm R's distance, and the only place a *cyclic* quantity is needed
 (`wraps_past`, in the `remove` section). -/
 def cyc (n a b : Nat) : Nat := (b + n - a) % n
 
-
 /-! ## The table invariant -/
 
 /-- **The table invariant.**
@@ -342,7 +331,6 @@ def KeysOk (P : K → Prop) (m : ron.hashmap2.HashMap2 K V) : Prop := ∀ p ∈ 
 equation `HashMap.lean` gives, over `sl_v` instead of `al_v`; it mentions
 neither the hash function nor the probe. -/
 def toFun (m : ron.hashmap2.HashMap2 K V) (k : K) : Option V := lookupK (sl_v m) k
-
 
 /-! ## Cyclic index arithmetic
 
@@ -462,7 +450,6 @@ theorem cap_div_four (h2 : ∃ e, n = 2 ^ e) (h32 : 32 ≤ n) :
 
 end Cyc
 
-
 /-! ## The abstract map and the slots -/
 
 variable {m : ron.hashmap2.HashMap2 K V}
@@ -497,15 +484,6 @@ theorem sl_v_perm_rest {i : Nat} (hi : i < m.slots.val.length) :
   filterMap_perm hi .Vacant rfl
 
 omit [DecidableEq K] in
-/-- The same, with slot `i` replaced: the `rest` is the *same* list, which is
-what makes one permutation carry lookup, length and nodup at once (the shape
-`HashMap.lean`'s `al_v_set_perm_rest` has). -/
-theorem sl_v_set_perm_rest {i : Nat} (hi : i < m.slots.val.length)
-    (x : ron.hashmap2.Slot K V) :
-    ((m.slots.val.set i x).filterMap (liveAt m.epoch)).Perm
-      ((liveAt m.epoch x).toList ++ rest m i) :=
-  filterMap_set_perm hi x .Vacant rfl
-
 omit [DecidableEq K] in
 theorem mem_rest {i : Nat} {p : K × V} (h : p ∈ rest m i) :
     ∃ j, j ≠ i ∧ j < m.slots.val.length ∧ slotKV m j = some p := by
@@ -517,11 +495,6 @@ theorem mem_rest {i : Nat} {p : K × V} (h : p ∈ rest m i) :
   exact ⟨j, hne, hj, by rwa [getElem!_set_ne _ hne] at hf⟩
 
 omit [DecidableEq K] in
-theorem mem_rest_of {i j : Nat} {p : K × V} (hne : j ≠ i) (hj : j < m.slots.val.length)
-    (h : slotKV m j = some p) : p ∈ rest m i := by
-  refine mem_filterMap_of_index (by rw [List.length_set]; exact hj) ?_
-  rwa [getElem!_set_ne _ hne]
-
 omit [DecidableEq K] in
 theorem rest_subset {i : Nat} {p : K × V} (h : p ∈ rest m i) : p ∈ sl_v m := by
   obtain ⟨j, -, hj, hs⟩ := mem_rest h
@@ -583,7 +556,6 @@ theorem exists_free_slot (hinv : Inv HashableInst m) (hpos : 0 < m.slots.val.len
   have hlt : (sl_v m).length < m.slots.val.length := by
     rw [← hinv.entries]; exact num_entries_lt hinv hpos
   exact exists_none_of_length_lt hlt
-
 
 /-! ## The probe
 
@@ -803,7 +775,6 @@ theorem probe_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P) (hinv : Inv Hashabl
         = liveAt m.epoch m.slots.val[idx m.slots.val.length i.val d']! from rfl, hp]
       simp
 
-
 /-! ## `get`, `contains_key`, `len`, `is_empty`, `capacity` -/
 
 omit [DecidableEq K] in
@@ -902,32 +873,7 @@ theorem toFun_eq_none_iff : (∀ k, toFun m k = none) ↔ sl_v m = [] := by
       simp at this
   · intro h k; simp [toFun, h]
 
-theorem is_empty_refines (hinv : Inv HashableInst m) {b : Bool}
-    (h : ron.hashmap2.HashMap2.is_empty m = ok b) :
-    b = true ↔ ∀ k, toFun m k = none := by
-  rw [ron.hashmap2.HashMap2.is_empty] at h
-  rw [← Result.ok_injective h, toFun_eq_none_iff]
-  have hent := hinv.entries
-  simp only [decide_eq_true_eq]
-  constructor
-  · intro hz
-    have h0 : (sl_v m).length = 0 := by rw [← hent, hz]; simp
-    exact List.eq_nil_of_length_eq_zero h0
-  · intro hz
-    have h0 : m.num_entries.val = 0 := by rw [hent, hz]; simp
-    scalar_tac
-
 omit [DecidableEq K] in
-/-- The one representation query, as `ron::hashmap::HashMap::capacity` is —
-and a capacity is invisible to `toFun`, which is what makes `clear_fit`'s
-re-sizing a representation choice and nothing else (DESIGN.md §3.2). -/
-theorem capacity_refines {c : Std.Usize} (h : ron.hashmap2.HashMap2.capacity m = ok c) :
-    c.val = m.slots.val.length := by
-  rw [ron.hashmap2.HashMap2.capacity] at h
-  rw [← Result.ok_injective h]
-  exact alloc.vec.Vec.len_val _
-
-
 /-! ## Construction: `allocate_slots`, `new`, `ensure_slots`, `with_capacity`
 
 Near-verbatim from `HashMap.lean`, as task #97-P6-4b's table predicted: the
@@ -944,13 +890,6 @@ omit [DecidableEq K] in
   split <;> rfl
 
 omit [DecidableEq K] in
-@[local simp] theorem filterMap_replicate_vacant (e : Std.U32) (n : Nat) :
-    (List.replicate n (ron.hashmap2.Slot.Vacant : ron.hashmap2.Slot K V)).filterMap
-      (liveAt e) = [] := by
-  induction n with
-  | zero => simp
-  | succ n ih => rw [List.replicate_succ]; simp [ih]
-
 omit [DecidableEq K] in
 /-- `allocate_slots slots n` appends `n` `Vacant` slots.  Since task
 #97-PERF-BULKFILL it is one `Vec::resize` to `slots.len() + n`, with the
@@ -1167,7 +1106,6 @@ theorem with_capacity_refines {c : Std.Usize} {m' : ron.hashmap2.HashMap2 K V}
   obtain ⟨hinv, h1, h2', -⟩ := empty_table_inv h2 h32 h
   exact ⟨hinv, h1, h2'⟩
 
-
 /-! ## `clear` and `clear_fit`
 
 **This is the section task #97-P6-4b said would shrink, and it does.**
@@ -1247,10 +1185,6 @@ theorem Inv_fit_hw {m' : ron.hashmap2.HashMap2 K V} (h : Inv HashableInst m')
     (w : Std.Usize) : Inv HashableInst { m' with fit_hw := w } :=
   ⟨⟨h.pow2, h.min_cap, h.max_load_eq, h.epoch_pos, h.stamps, h.nodup,
     h.entries, h.run⟩, h.fit⟩
-
-omit [DecidableEq K] in
-@[local simp] theorem sl_v_fit_hw {m' : ron.hashmap2.HashMap2 K V} (w : Std.Usize) :
-    sl_v { m' with fit_hw := w } = sl_v m' := rfl
 
 /-- **`clear` empties the table.**  On the common path it writes two fields;
 `Inv.stamps` — no slot's stamp exceeds the epoch — is what makes the new
@@ -1354,7 +1288,6 @@ theorem clear_fit_refines (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap
       obtain ⟨t, ht, hok⟩ := h
       exact hremake ht hok
 
-
 /-! ## `dup`, the pin loop's pre-attempt snapshot
 
 `HashMap.lean`'s argument transfers unchanged and is shorter: there is no
@@ -1447,22 +1380,7 @@ theorem dup_spec (hK : DupId DupK) (hV : DupId DupV) {m' : ron.hashmap2.HashMap2
     simpa [alloc.vec.Vec.with_capacity] using this
   rw [← Result.ok_injective hm, alloc.vec.Vec.ext _ _ hv]
 
-theorem dup_toFun (hK : DupId DupK) (hV : DupId DupV) {m' : ron.hashmap2.HashMap2 K V}
-    (h : ron.hashmap2.HashMap2.dup DupK DupV m = ok m') (k : K) :
-    toFun m' k = toFun m k := by rw [dup_spec hK hV h]
-
-omit [DecidableEq K] in
-theorem dup_sl_v (hK : DupId DupK) (hV : DupId DupV) {m' : ron.hashmap2.HashMap2 K V}
-    (h : ron.hashmap2.HashMap2.dup DupK DupV m = ok m') : sl_v m' = sl_v m := by
-  rw [dup_spec hK hV h]
-
-omit [DecidableEq K] in
-theorem dup_inv (hK : DupId DupK) (hV : DupId DupV) {m' : ron.hashmap2.HashMap2 K V}
-    (hinv : Inv HashableInst m) (h : ron.hashmap2.HashMap2.dup DupK DupV m = ok m') :
-    Inv HashableInst m' := by rw [dup_spec hK hV h]; exact hinv
-
 end Dup
-
 
 /-! ## `insert`
 
@@ -1679,7 +1597,6 @@ theorem insert_no_resize_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     rcases List.mem_cons.1 (PM'.mem_iff.1 hp) with hc | hc
     · rw [hc]; exact hk
     · exact hkeys p (rest_subset hc)
-
 
 /-! ## Growth: `move_slots`, `try_resize`
 
@@ -1937,11 +1854,6 @@ theorem Inv0_congr {m1 m2 : ron.hashmap2.HashMap2 K V} (h : Inv0 HashableInst m1
     exact ⟨by rw [hs]; exact hib, D, by rw [hs]; exact hD, by rw [hs]; exact hjD,
       fun d hd => (hlv _).2 (by rw [hs]; exact hrun d hd)⟩
 
-omit [DecidableEq K] in
-theorem usize_max_ge_64 : 64 ≤ Std.Usize.max := by
-  rcases Std.Usize.bounds_eq with hb | hb <;> rw [hb] <;>
-    simp [Std.U32.max, Std.U64.max, Std.U32.numBits, Std.U64.numBits]
-
 /-- **Doubling and rehashing**, and **unconditional since task #97-P6-17**.
 The old body had a second arm — set `saturated := true` when the slot count
 passed `usize::MAX / 2` — which broke `fit` and made the whole module's
@@ -2032,7 +1944,6 @@ theorem try_resize_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
   · intro k
     rw [toFun, toFun, hslv, lookupK_perm Pfin hinv1.nodup]
 
-
 /-! ## `insert`
 
 Three steps and no surprises: allocate if the table has no slots (task #35),
@@ -2076,7 +1987,6 @@ theorem insert_refines_gen {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
       by_contra hc
       exact hunder (UScalar.lt_imp _ _ (by omega))
     exact ⟨⟨hinv1, hle⟩, hold, hupd, hkeys1⟩
-
 
 /-! ## The fused find-or-insert (task #97-survey's N2)
 
@@ -2183,26 +2093,7 @@ theorem find_slot_spec {P : K → Prop} (hV : DupId DupV) (heq : Eq2Fwd Eq2Inst 
     refine bind_eq_ok_iff.mpr ⟨m1, hens, ?_⟩
     exact bind_eq_ok_iff.mpr ⟨(none, mw), hinr, htail⟩
 
-/-- **The fused pair refines `insert`.**  The arena's ten `intern_<ctor>`
-paths probe once and write at the slot they found; this is the lemma that says
-the pair means what `insert` means, and it is `insert_refines_gen` read through
-`find_slot_spec`'s own identification. -/
-theorem find_or_insert_refines {P : K → Prop} (hV : DupId DupV) (heq : Eq2Fwd Eq2Inst P)
-    (hinv : Inv HashableInst m) (hkeys : KeysOk P m) {key : K} (hk : P key)
-    {at1 : Std.Usize} {m1 : ron.hashmap2.HashMap2 K V}
-    (h1 : ron.hashmap2.HashMap2.find_slot HashableInst Eq2Inst DupV m key
-            = ok ((at1, none), m1))
-    {value : V} {m2 : ron.hashmap2.HashMap2 K V}
-    (h2 : ron.hashmap2.HashMap2.insert_at HashableInst Eq2Inst m1 at1 key value = ok m2) :
-    Inv HashableInst m2 ∧ toFun m key = none ∧
-    toFun m2 = Function.update (toFun m) key (some value) ∧ KeysOk P m2 := by
-  obtain ⟨-, -, -, -, hnone, hid⟩ := find_slot_spec hV heq hinv hkeys hk h1
-  obtain ⟨hinv2, -, hupd, hkeys2⟩ :=
-    insert_refines_gen heq hinv hkeys hk (hid rfl value m2 h2)
-  exact ⟨hinv2, hnone.symm, hupd, hkeys2⟩
-
 end Fused
-
 
 /-! ## `remove`
 
@@ -2283,10 +2174,6 @@ structure InvNoRun (HashableInst : ron.hashmap.Hashable K)
   entries : t.num_entries.val = (sl_v t).length
 
 omit [DecidableEq K] in
-theorem InvNoRun.of_Inv {t : ron.hashmap2.HashMap2 K V} (h : Inv HashableInst t) :
-    InvNoRun HashableInst t :=
-  ⟨h.pow2, h.min_cap, h.max_load_eq, h.fit, h.epoch_pos, h.stamps, h.nodup, h.entries⟩
-
 omit [DecidableEq K] in
 theorem Inv.of_InvNoRun {t : ron.hashmap2.HashMap2 K V} (h : InvNoRun HashableInst t)
     (hrun : ∀ (p : Nat) (k : K) (v : V) (i : Std.Usize),
@@ -2926,7 +2813,6 @@ theorem remove_refines_gen {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
       · subst hk'; simp [htf]
       · simp [hk']
 
-
 /-! ## The unrestricted API
 
 `HashMap.lean`'s nine entry points, statement for statement, as the
@@ -2938,37 +2824,6 @@ changing the statement. -/
 omit [DecidableEq K] in
 theorem KeysOk_true : KeysOk (fun _ : K => True) m := fun _ _ => trivial
 
-theorem get_refines (heq : Eq2Spec Eq2Inst) (hinv : Inv HashableInst m) {key : K}
-    {r : Option V} (h : ron.hashmap2.HashMap2.get HashableInst Eq2Inst m key = ok r) :
-    r = toFun m key :=
-  get_refines_gen (Eq2Fwd_of_Eq2Spec heq) hinv KeysOk_true trivial h
-
-theorem contains_key_refines (heq : Eq2Spec Eq2Inst) (hinv : Inv HashableInst m)
-    {key : K} {b : Bool}
-    (h : ron.hashmap2.HashMap2.contains_key HashableInst Eq2Inst m key = ok b) :
-    b = (toFun m key).isSome :=
-  contains_key_refines_gen (Eq2Fwd_of_Eq2Spec heq) hinv KeysOk_true trivial h
-
-theorem insert_refines (heq : Eq2Spec Eq2Inst) (hinv : Inv HashableInst m)
-    {key : K} {value : V}
-    {old : Option V} {m' : ron.hashmap2.HashMap2 K V}
-    (h : ron.hashmap2.HashMap2.insert HashableInst Eq2Inst m key value = ok (old, m')) :
-    Inv HashableInst m' ∧ old = toFun m key ∧
-    toFun m' = Function.update (toFun m) key (some value) := by
-  obtain ⟨h1, h2, h3, -⟩ :=
-    insert_refines_gen (Eq2Fwd_of_Eq2Spec heq) hinv KeysOk_true trivial h
-  exact ⟨h1, h2, h3⟩
-
-theorem remove_refines (heq : Eq2Spec Eq2Inst) (hinv : Inv HashableInst m) {key : K}
-    {old : Option V} {m' : ron.hashmap2.HashMap2 K V}
-    (h : ron.hashmap2.HashMap2.remove HashableInst Eq2Inst m key = ok (old, m')) :
-    Inv HashableInst m' ∧ old = toFun m key ∧
-    toFun m' = Function.update (toFun m) key none := by
-  obtain ⟨h1, h2, h3, -⟩ :=
-    remove_refines_gen (Eq2Fwd_of_Eq2Spec heq) hinv KeysOk_true trivial h
-  exact ⟨h1, h2, h3⟩
-
-
 /-! ## The bridge to `Std.HashMap`
 
 `HashMap.lean`'s `Rel` and its four lemmas, word for word over the new
@@ -2979,54 +2834,6 @@ not move. -/
 section Bridge
 
 variable {K' V' : Type} [BEq K'] [Hashable K'] {absK : K → K'} {absV : V → V'}
-
-/-- `m` represents `s` under the abstractions `absK`, `absV`. -/
-def Rel (m : ron.hashmap2.HashMap2 K V) (s : _root_.Std.HashMap K' V')
-    (absK : K → K') (absV : V → V') : Prop :=
-  ∀ k, (toFun m k).map absV = s[absK k]?
-
-/-- The empty relation.  Compose with `new_refines`, `with_capacity_refines`,
-`clear_refines` or `clear_fit_refines`, whose third component is exactly this
-hypothesis. -/
-theorem Rel_empty (h : ∀ k, toFun m k = none) :
-    Rel m (∅ : _root_.Std.HashMap K' V') absK absV := by
-  intro k; rw [h k, _root_.Std.HashMap.getElem?_empty]; rfl
-
-theorem Rel_get {s : _root_.Std.HashMap K' V'} (heq : Eq2Spec Eq2Inst)
-    (hinv : Inv HashableInst m) (hrel : Rel m s absK absV) {key : K} {r : Option V}
-    (h : ron.hashmap2.HashMap2.get HashableInst Eq2Inst m key = ok r) :
-    r.map absV = s[absK key]? := by
-  rw [get_refines heq hinv h]; exact hrel key
-
-theorem Rel_insert [LawfulBEq K'] [LawfulHashable K'] {s : _root_.Std.HashMap K' V'}
-    (heq : Eq2Spec Eq2Inst) (hinj : Function.Injective absK) (hinv : Inv HashableInst m)
-    (hrel : Rel m s absK absV)
-    {key : K} {value : V} {old : Option V} {m' : ron.hashmap2.HashMap2 K V}
-    (h : ron.hashmap2.HashMap2.insert HashableInst Eq2Inst m key value = ok (old, m')) :
-    Rel m' (s.insert (absK key) (absV value)) absK absV := by
-  obtain ⟨-, -, hupd⟩ := insert_refines heq hinv h
-  intro k'
-  rw [hupd, Function.update_apply, _root_.Std.HashMap.getElem?_insert]
-  by_cases hk : k' = key
-  · subst hk; simp
-  · have hne : ¬(absK key = absK k') := fun hc => hk (hinj hc).symm
-    rw [if_neg hk, if_neg (by simpa using hne)]
-    exact hrel k'
-
-theorem Rel_remove [LawfulBEq K'] [LawfulHashable K'] {s : _root_.Std.HashMap K' V'}
-    (heq : Eq2Spec Eq2Inst) (hinj : Function.Injective absK) (hinv : Inv HashableInst m)
-    (hrel : Rel m s absK absV) {key : K} {old : Option V}
-    {m' : ron.hashmap2.HashMap2 K V}
-    (h : ron.hashmap2.HashMap2.remove HashableInst Eq2Inst m key = ok (old, m')) :
-    Rel m' (s.erase (absK key)) absK absV := by
-  obtain ⟨-, -, hupd⟩ := remove_refines heq hinv h
-  intro k'
-  rw [hupd, Function.update_apply, _root_.Std.HashMap.getElem?_erase]
-  by_cases hk : k' = key
-  · subst hk; simp
-  · have hne : ¬(absK key = absK k') := fun hc => hk (hinj hc).symm
-    rw [if_neg hk, if_neg (by simpa using hne)]
-    exact hrel k'
 
 end Bridge
 
@@ -3040,20 +2847,8 @@ in particular **both fuel obligations are discharged, not assumed** —
 `probe`'s `fuel == 0` arm (from `Inv.fit`, through `probe_spec`) and
 `repair`'s (from `RepairInv.stop`, through `repair_spec`). -/
 
-/-- info: 'ConRon.Refine.HashMap2.insert_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ConRon.Refine.HashMap2.insert_refines
-
 /-- info: 'ConRon.Refine.HashMap2.find_slot_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.HashMap2.find_slot_spec
-
-/-- info: 'ConRon.Refine.HashMap2.find_or_insert_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ConRon.Refine.HashMap2.find_or_insert_refines
-
-/-- info: 'ConRon.Refine.HashMap2.get_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ConRon.Refine.HashMap2.get_refines
-
-/-- info: 'ConRon.Refine.HashMap2.contains_key_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ConRon.Refine.HashMap2.contains_key_refines
 
 /-- info: 'ConRon.Refine.HashMap2.new_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.HashMap2.new_refines
@@ -3070,24 +2865,12 @@ in particular **both fuel obligations are discharged, not assumed** —
 /-- info: 'ConRon.Refine.HashMap2.len_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.HashMap2.len_refines
 
-/-- info: 'ConRon.Refine.HashMap2.is_empty_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ConRon.Refine.HashMap2.is_empty_refines
-
-/-- info: 'ConRon.Refine.HashMap2.capacity_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ConRon.Refine.HashMap2.capacity_refines
-
 /-- info: 'ConRon.Refine.HashMap2.dup_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.HashMap2.dup_spec
 
 /-- info: 'ConRon.Refine.HashMap2.probe_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.HashMap2.probe_spec
 
-/-- info: 'ConRon.Refine.HashMap2.remove_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ConRon.Refine.HashMap2.remove_refines
-
 /-- info: 'ConRon.Refine.HashMap2.repair_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.HashMap2.repair_spec
-
-/-- info: 'ConRon.Refine.HashMap2.Rel_remove' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ConRon.Refine.HashMap2.Rel_remove
 
