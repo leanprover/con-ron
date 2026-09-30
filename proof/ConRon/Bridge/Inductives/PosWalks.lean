@@ -23,6 +23,7 @@ restated in the `PW` namespace below, so that the two can be imported side by
 side.
 -/
 import ConRon.Bridge.Inductives.Run
+import ConRon.Bridge.ExprOps.TagFirst
 
 namespace ConRon.Bridge.Inductives
 
@@ -624,5 +625,574 @@ theorem memberIdxAt?_spec (names : List NIdx) (namesP : List ConLeche.Name)
     cases eP with
     | const c us => exact absurd (tag_const_of_denote hok.wf hd) (by simpa using htg)
     | _ => rfl
+
+/-! ## `nestOcc` -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:379-380 NestOccMemoInv
+The handle-keyed memo of `nestOcc names lo hi`. -/
+def NestOccMemoOK (names : List ConLeche.Name) (lo hi : Nat)
+    (tbl : Std.HashMap EIdx Bool) (st : EStore) : Prop :=
+  ∀ (k : EIdx) (r : Bool), tbl[k]? = some r →
+    ∃ e, denoteE st k = some e ∧ r = Expr.nestOcc names lo hi e
+
+theorem NestOccMemoOK.empty {names : List ConLeche.Name} {lo hi : Nat} {st : EStore} :
+    NestOccMemoOK names lo hi ∅ st := by
+  intro k r h; simp at h
+
+theorem NestOccMemoOK.insert {names : List ConLeche.Name} {lo hi : Nat}
+    {tbl : Std.HashMap EIdx Bool} {st : EStore} (hm : NestOccMemoOK names lo hi tbl st)
+    {h : EIdx} {hP : Expr} {r : Bool} (hd : denoteE st h = some hP)
+    (heq : r = Expr.nestOcc names lo hi hP) :
+    NestOccMemoOK names lo hi (tbl.insert h r) st := by
+  intro k r' hk
+  rw [Std.HashMap.getElem?_insert] at hk
+  split at hk
+  · rename_i hbeq
+    cases hk
+    rw [← eq_of_beq hbeq]
+    exact ⟨hP, hd, heq⟩
+  · exact hm k r' hk
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:347-377 Expr.nestOccGo
+The memoised, short-circuiting walk computes the pure `nestOcc`. -/
+theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi : Nat)
+    (memo : Std.HashMap EIdx Bool) (fuel : Nat) (h : EIdx) (hP : Expr) :
+    PSpec (fun st => Frontend.denoteNList st.ns names = some namesP ∧
+        denoteE st h = some hP ∧ NestOccMemoOK namesP lo hi memo st)
+      (Arena.nestOccGo names lo hi memo fuel h)
+      (fun st r => r.1 = Expr.nestOcc namesP lo hi hP ∧
+        NestOccMemoOK namesP lo hi r.2 st) := by
+  induction fuel generalizing memo h hP with
+  | zero =>
+    intro s₀ s' r hok _ hrun
+    simp only [Arena.nestOccGo] at hrun
+    exact absurd hrun (fun hc => failOk hc)
+  | succ fuel ih =>
+    intro s₀ s' r hok hp hrun
+    obtain ⟨hT, hd, hm⟩ := hp
+    simp only [Arena.nestOccGo] at hrun
+    obtain ⟨v, s₁, hv, h2⟩ := bindOk hrun
+    obtain ⟨hv0, hw⟩ := view_run hv
+    rw [hv0] at h2
+    have fin : ∀ {s₂ s₃ : AState} {b : Bool} {mm : Std.HashMap EIdx Bool}
+        {r' : Bool × Std.HashMap EIdx Bool},
+        PStep s₀ s₂ → b = Expr.nestOcc namesP lo hi hP →
+        NestOccMemoOK namesP lo hi mm s₂.store →
+        (pure ((b, mm.insert h b) : Bool × Std.HashMap EIdx Bool) :
+            AM (Bool × Std.HashMap EIdx Bool)) s₂ = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ r'.1 = Expr.nestOcc namesP lo hi hP ∧
+          NestOccMemoOK namesP lo hi r'.2 s₃.store := by
+      intro s₂ s₃ b mm r' hs hb hmm hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      exact ⟨hs, hb, NestOccMemoOK.insert hmm (denote_ext hd hs.ext) hb⟩
+    have hit : ∀ {s₃ : AState} {r₀ : Bool}
+        {r' : Bool × Std.HashMap EIdx Bool},
+        memo[h]? = some r₀ →
+        (pure ((r₀, memo) : Bool × Std.HashMap EIdx Bool) :
+            AM (Bool × Std.HashMap EIdx Bool)) s₀ = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ r'.1 = Expr.nestOcc namesP lo hi hP ∧
+          NestOccMemoOK namesP lo hi r'.2 s₃.store := by
+      intro s₃ r₀ r' hlk hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨e, he, hre⟩ := hm h r₀ hlk
+      obtain rfl := Option.some.inj (hd.symm.trans he)
+      exact ⟨PStep.refl hok, hre, hm⟩
+    cases v
+    case bvar j =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain rfl := denote_bvar_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, rfl, hm⟩
+    case sort u =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨l, rfl, _⟩ := denote_sort_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, rfl, hm⟩
+    case lit l =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain rfl := denote_lit_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, rfl, hm⟩
+    case fvar k ty =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨t, rfl, _⟩ := denote_fvar_inv hok.wf hw hd
+      refine ⟨PStep.refl hok, ?_, hm⟩
+      simp [Expr.nestOcc]
+    case const n us =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨nm, ls, rfl, hn, _⟩ := denote_const_inv hok.wf hw hd
+      refine ⟨PStep.refl hok, ?_, hm⟩
+      simp only [Expr.nestOcc]
+      exact contains_handle_eq hok.wf hn hT
+    case app f a =>
+      obtain ⟨ef, ea, rfl, hf, ha⟩ := denote_app_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo f ef _ _ (b1, m1) hok ⟨hT, hf, hm⟩ hc1
+        simp only at hrA
+        cases b1
+        · simp only [Bool.false_eq_true, if_false] at hn1
+          obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+          obtain ⟨b2, m2⟩ := p2
+          obtain ⟨hsB, hrB, hmB⟩ := ih m1 a ea _ _ (b2, m2) hsA.ok
+            ⟨denoteNListE_ext hsA.ext _ _ hT, denote_ext ha hsA.ext, hmA⟩ hc2
+          simp only at hrB
+          exact fin (hsA.trans hsB) (by simp only [Expr.nestOcc, ← hrA, ← hrB]; rfl) hmB hn2
+        · simp only [if_true] at hn1
+          obtain ⟨y, sy, hy, hz⟩ := bindOk hn1
+          obtain ⟨rfl, rfl⟩ := pureOk hy
+          exact fin hsA (by simp only [Expr.nestOcc, ← hrA]; rfl) hmA hz
+    case lam ty b m =>
+      obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_lam_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
+        simp only at hrA
+        cases b1
+        · simp only [Bool.false_eq_true, if_false] at hn1
+          obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+          obtain ⟨b2, m2⟩ := p2
+          obtain ⟨hsB, hrB, hmB⟩ := ih m1 b eb _ _ (b2, m2) hsA.ok
+            ⟨denoteNListE_ext hsA.ext _ _ hT, denote_ext hbd hsA.ext, hmA⟩ hc2
+          simp only at hrB
+          exact fin (hsA.trans hsB) (by simp only [Expr.nestOcc, ← hrA, ← hrB]; rfl) hmB hn2
+        · simp only [if_true] at hn1
+          obtain ⟨y, sy, hy, hz⟩ := bindOk hn1
+          obtain ⟨rfl, rfl⟩ := pureOk hy
+          exact fin hsA (by simp only [Expr.nestOcc, ← hrA]; rfl) hmA hz
+    case forallE ty b m =>
+      obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
+        simp only at hrA
+        cases b1
+        · simp only [Bool.false_eq_true, if_false] at hn1
+          obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+          obtain ⟨b2, m2⟩ := p2
+          obtain ⟨hsB, hrB, hmB⟩ := ih m1 b eb _ _ (b2, m2) hsA.ok
+            ⟨denoteNListE_ext hsA.ext _ _ hT, denote_ext hbd hsA.ext, hmA⟩ hc2
+          simp only at hrB
+          exact fin (hsA.trans hsB) (by simp only [Expr.nestOcc, ← hrA, ← hrB]; rfl) hmB hn2
+        · simp only [if_true] at hn1
+          obtain ⟨y, sy, hy, hz⟩ := bindOk hn1
+          obtain ⟨rfl, rfl⟩ := pureOk hy
+          exact fin hsA (by simp only [Expr.nestOcc, ← hrA]; rfl) hmA hz
+    case letE lt lv lb =>
+      obtain ⟨et, ev, eb, rfl, hty, hval, hbd⟩ := denote_letE_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo lt et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
+        simp only at hrA
+        cases b1
+        · simp only [Bool.false_eq_true, if_false] at hn1
+          obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+          obtain ⟨b2, m2⟩ := p2
+          obtain ⟨hsB, hrB, hmB⟩ := ih m1 lv ev _ _ (b2, m2) hsA.ok
+            ⟨denoteNListE_ext hsA.ext _ _ hT, denote_ext hval hsA.ext, hmA⟩ hc2
+          simp only at hrB
+          cases b2
+          · simp only [Bool.false_eq_true, if_false] at hn2
+            obtain ⟨p3, sc, hc3, hn3⟩ := bindOk hn2
+            obtain ⟨b3, m3⟩ := p3
+            obtain ⟨hsC, hrC, hmC⟩ := ih m2 lb eb _ _ (b3, m3) hsB.ok
+              ⟨denoteNListE_ext (hsA.ext.trans hsB.ext) _ _ hT,
+               denote_ext hbd (hsA.ext.trans hsB.ext), hmB⟩ hc3
+            simp only at hrC
+            exact fin ((hsA.trans hsB).trans hsC)
+              (by simp only [Expr.nestOcc, ← hrA, ← hrB, ← hrC]; rfl) hmC hn3
+          · simp only [if_true] at hn2
+            obtain ⟨y, sy, hy, hz⟩ := bindOk hn2
+            obtain ⟨rfl, rfl⟩ := pureOk hy
+            exact fin (hsA.trans hsB) (by simp only [Expr.nestOcc, ← hrA, ← hrB]; rfl) hmB hz
+        · simp only [if_true] at hn1
+          obtain ⟨y, sy, hy, hz⟩ := bindOk hn1
+          obtain ⟨rfl, rfl⟩ := pureOk hy
+          exact fin hsA (by simp only [Expr.nestOcc, ← hrA]; rfl) hmA hz
+    case proj pn pk psub =>
+      obtain ⟨nm, es, rfl, hn, hsub⟩ := denote_proj_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo psub es _ _ (b1, m1) hok ⟨hT, hsub, hm⟩ hc1
+        simp only at hrA
+        exact fin hsA (by simp only [Expr.nestOcc, ← hrA]) hmA hn1
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:506-508 Expr.nestOccFast
+The entry, at an empty memo: the pure `nestOcc`. -/
+theorem nestOcc_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi : Nat)
+    (e : EIdx) (eP : Expr) :
+    PSpec (fun st => Frontend.denoteNList st.ns names = some namesP ∧
+        denoteE st e = some eP)
+      (Arena.nestOcc names lo hi e) (RV (Expr.nestOcc namesP lo hi eP)) := by
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hT, hd⟩ := hp
+  simp only [Arena.nestOcc] at hrun
+  obtain ⟨q, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep, hr, _⟩ :=
+    nestOccGo_spec names namesP lo hi ∅ Arena.coreWalkFuel e eP s₀ s₁ q hok
+      ⟨hT, hd, NestOccMemoOK.empty⟩ h1
+  obtain ⟨rfl, rfl⟩ := pureOk h2
+  exact ⟨hstep, hr⟩
+
+/-! ## `piDomsOcc` -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1543-1548 Expr.piDomsOcc
+The first `n` binder domains, each through `nestOcc`. -/
+theorem piDomsOcc_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi : Nat) :
+    ∀ (n : Nat) (e : EIdx) (eP : Expr),
+    PSpec (fun st => Frontend.denoteNList st.ns names = some namesP ∧
+        denoteE st e = some eP)
+      (Arena.piDomsOcc names lo hi n e) (RV (Expr.piDomsOcc namesP lo hi n eP)) := by
+  intro n
+  induction n with
+  | zero =>
+    intro e eP s₀ s' r hok _ hrun
+    simp only [Arena.piDomsOcc] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | succ n ih =>
+    intro e eP s₀ s' r hok hp hrun
+    obtain ⟨hT, hd⟩ := hp
+    simp only [Arena.piDomsOcc] at hrun
+    by_cases htg : (e.tag == ETag.forallE) = true
+    · rw [if_pos htg] at hrun
+      obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+      obtain ⟨hs1, ho⟩ := viewBind_run h1
+      rw [hs1] at h2
+      cases o with
+      | none => exact absurd h2 (fun hc => failDanglingE_ok hc)
+      | some p =>
+        obtain ⟨d, b, m⟩ := p
+        have hw := view_of_viewBind_tag_forallE htg ho.symm
+        obtain ⟨dP, bP, rfl, hdd, hbd⟩ := denote_forallE_inv hok.wf hw hd
+        dsimp only at h2
+        obtain ⟨c, s₂, h3, h4⟩ := bindOk h2
+        obtain ⟨p3, hc⟩ := nestOcc_spec names namesP lo hi d dP s₀ s₂ c hok ⟨hT, hdd⟩ h3
+        simp only [RV] at hc
+        subst hc
+        by_cases hb : Expr.nestOcc namesP lo hi dP = true
+        · rw [if_pos hb] at h4
+          obtain ⟨rfl, rfl⟩ := pureOk h4
+          exact ⟨p3, by simp [Expr.piDomsOcc, hb]⟩
+        · rw [if_neg hb] at h4
+          obtain ⟨p4, h5⟩ := ih b bP s₂ s' r p3.ok
+            ⟨denoteNListE_ext p3.ext _ _ hT, denote_ext hbd p3.ext⟩ h4
+          refine ⟨p3.trans p4, ?_⟩
+          simp only [RV] at h5
+          simp [Expr.piDomsOcc, hb, h5]
+    · rw [if_neg htg] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      refine ⟨PStep.refl hok, ?_⟩
+      show false = Expr.piDomsOcc namesP lo hi (n + 1) eP
+      cases eP with
+      | forallE d b m => exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
+      | _ => rfl
+
+/-! ## The input-derived fuel: `depth`, `whnfWalkFuel`
+
+con-leche's `Expr.depth` IS its memoised walk (`(e.depthGo {}).1`, no pure
+twin), so the reference here is a structural `depthS`, and both walks —
+con-leche's on terms, the twin's on handles — are shown to compute it. -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:556-592 Expr.depth —
+the depth the memoised walk computes, as a structural function: the longest
+root-to-leaf path, `fvar` annotations not descended. -/
+def depthS : Expr → Nat
+  | .app f a => max (depthS f) (depthS a) + 1
+  | .lam ty b _ => max (depthS ty) (depthS b) + 1
+  | .forallE ty b _ => max (depthS ty) (depthS b) + 1
+  | .letE ty v b => max (max (depthS ty) (depthS v)) (depthS b) + 1
+  | .proj _ _ x => depthS x + 1
+  | _ => 1
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:556-588 Expr.depthGo —
+the memo invariant on con-leche's own walk. -/
+def DepthMemoInv (memo : Std.HashMap Expr Nat) : Prop :=
+  ∀ (k : Expr) (r : Nat), memo[k]? = some r → r = depthS k
+
+theorem DepthMemoInv.insert {memo : Std.HashMap Expr Nat} (hm : DepthMemoInv memo)
+    {e : Expr} {r : Nat} (heq : r = depthS e) : DepthMemoInv (memo.insert e r) := by
+  intro e' r' hk
+  rw [Std.HashMap.getElem?_insert] at hk
+  split at hk
+  · rename_i hbeq
+    cases hk
+    rw [← eq_of_beq hbeq]
+    exact heq
+  · exact hm e' r' hk
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:556-588 Expr.depthGo —
+**con-leche's memoised walk computes `depthS`**. -/
+theorem depthGo_pure_spec :
+    ∀ (e : Expr) (memo : Std.HashMap Expr Nat), DepthMemoInv memo →
+      (Expr.depthGo memo e).1 = depthS e ∧ DepthMemoInv (Expr.depthGo memo e).2 := by
+  intro e
+  induction e with
+  | bvar i => intro memo hm; exact ⟨rfl, hm⟩
+  | sort u => intro memo hm; exact ⟨rfl, hm⟩
+  | const n us => intro memo hm; exact ⟨rfl, hm⟩
+  | lit l => intro memo hm; exact ⟨rfl, hm⟩
+  | fvar i ty _ => intro memo hm; exact ⟨rfl, hm⟩
+  | app a b iha ihb =>
+    intro memo hm
+    rw [Expr.depthGo]
+    split
+    · rename_i r hhit
+      exact ⟨(hm _ _ hhit).symm ▸ rfl, hm⟩
+    · obtain ⟨h1, h2⟩ := iha memo hm
+      obtain ⟨h3, h4⟩ := ihb _ h2
+      refine ⟨by simp [depthS, h1, h3], ?_⟩
+      exact h4.insert (by simp [depthS, h1, h3])
+  | lam ty body bi iht ihb =>
+    intro memo hm
+    rw [Expr.depthGo]
+    split
+    · rename_i r hhit
+      exact ⟨(hm _ _ hhit).symm ▸ rfl, hm⟩
+    · obtain ⟨h1, h2⟩ := iht memo hm
+      obtain ⟨h3, h4⟩ := ihb _ h2
+      refine ⟨by simp [depthS, h1, h3], ?_⟩
+      exact h4.insert (by simp [depthS, h1, h3])
+  | forallE ty body bi iht ihb =>
+    intro memo hm
+    rw [Expr.depthGo]
+    split
+    · rename_i r hhit
+      exact ⟨(hm _ _ hhit).symm ▸ rfl, hm⟩
+    · obtain ⟨h1, h2⟩ := iht memo hm
+      obtain ⟨h3, h4⟩ := ihb _ h2
+      refine ⟨by simp [depthS, h1, h3], ?_⟩
+      exact h4.insert (by simp [depthS, h1, h3])
+  | letE ty val body iht ihv ihb =>
+    intro memo hm
+    rw [Expr.depthGo]
+    split
+    · rename_i r hhit
+      exact ⟨(hm _ _ hhit).symm ▸ rfl, hm⟩
+    · obtain ⟨h1, h2⟩ := iht memo hm
+      obtain ⟨h3, h4⟩ := ihv _ h2
+      obtain ⟨h5, h6⟩ := ihb _ h4
+      refine ⟨by simp [depthS, h1, h3, h5], ?_⟩
+      exact h6.insert (by simp [depthS, h1, h3, h5])
+  | proj s i sub ih =>
+    intro memo hm
+    rw [Expr.depthGo]
+    split
+    · rename_i r hhit
+      exact ⟨(hm _ _ hhit).symm ▸ rfl, hm⟩
+    · obtain ⟨h1, h2⟩ := ih memo hm
+      refine ⟨by simp [depthS, h1], ?_⟩
+      exact h2.insert (by simp [depthS, h1])
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:590-592 Expr.depth —
+con-leche's depth IS the structural one. -/
+theorem depth_eq_depthS (e : Expr) : Expr.depth e = depthS e :=
+  (depthGo_pure_spec e {} (fun k r h => by simp at h)).1
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:556-588 Expr.depthGo —
+the twin's handle-keyed memo. -/
+def DepthMemoOK (tbl : Std.HashMap EIdx Nat) (st : EStore) : Prop :=
+  ∀ (k : EIdx) (r : Nat), tbl[k]? = some r → ∃ e, denoteE st k = some e ∧ r = depthS e
+
+theorem DepthMemoOK.empty {st : EStore} : DepthMemoOK ∅ st := by
+  intro k r h; simp at h
+
+theorem DepthMemoOK.insert {tbl : Std.HashMap EIdx Nat} {st : EStore}
+    (hm : DepthMemoOK tbl st) {h : EIdx} {hP : Expr} {r : Nat}
+    (hd : denoteE st h = some hP) (heq : r = depthS hP) :
+    DepthMemoOK (tbl.insert h r) st := by
+  intro k r' hk
+  rw [Std.HashMap.getElem?_insert] at hk
+  split at hk
+  · rename_i hbeq
+    cases hk
+    rw [← eq_of_beq hbeq]
+    exact ⟨hP, hd, heq⟩
+  · exact hm k r' hk
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:556-588 Expr.depthGo
+The twin's memoised walk computes `depthS`. -/
+theorem depthGo_spec (memo : Std.HashMap EIdx Nat) (fuel : Nat) (h : EIdx) (hP : Expr) :
+    PSpec (fun st => denoteE st h = some hP ∧ DepthMemoOK memo st)
+      (Arena.depthGo memo fuel h)
+      (fun st r => r.1 = depthS hP ∧ DepthMemoOK r.2 st) := by
+  induction fuel generalizing memo h hP with
+  | zero =>
+    intro s₀ s' r hok _ hrun
+    simp only [Arena.depthGo] at hrun
+    exact absurd hrun (fun hc => failOk hc)
+  | succ fuel ih =>
+    intro s₀ s' r hok hp hrun
+    obtain ⟨hd, hm⟩ := hp
+    simp only [Arena.depthGo] at hrun
+    obtain ⟨v, s₁, hv, h2⟩ := bindOk hrun
+    obtain ⟨hv0, hw⟩ := view_run hv
+    rw [hv0] at h2
+    have fin : ∀ {s₂ s₃ : AState} {b : Nat} {mm : Std.HashMap EIdx Nat}
+        {r' : Nat × Std.HashMap EIdx Nat},
+        PStep s₀ s₂ → b = depthS hP → DepthMemoOK mm s₂.store →
+        (pure ((b, mm.insert h b) : Nat × Std.HashMap EIdx Nat) :
+            AM (Nat × Std.HashMap EIdx Nat)) s₂ = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ r'.1 = depthS hP ∧ DepthMemoOK r'.2 s₃.store := by
+      intro s₂ s₃ b mm r' hs hb hmm hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      exact ⟨hs, hb, DepthMemoOK.insert hmm (denote_ext hd hs.ext) hb⟩
+    have hit : ∀ {s₃ : AState} {r₀ : Nat} {r' : Nat × Std.HashMap EIdx Nat},
+        memo[h]? = some r₀ →
+        (pure ((r₀, memo) : Nat × Std.HashMap EIdx Nat) :
+            AM (Nat × Std.HashMap EIdx Nat)) s₀ = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ r'.1 = depthS hP ∧ DepthMemoOK r'.2 s₃.store := by
+      intro s₃ r₀ r' hlk hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨e, he, hre⟩ := hm h r₀ hlk
+      obtain rfl := Option.some.inj (hd.symm.trans he)
+      exact ⟨PStep.refl hok, hre, hm⟩
+    cases v
+    case bvar j =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain rfl := denote_bvar_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, rfl, hm⟩
+    case fvar k ty =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨t, rfl, _⟩ := denote_fvar_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, rfl, hm⟩
+    case sort u =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨l, rfl, _⟩ := denote_sort_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, rfl, hm⟩
+    case const n us =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, rfl, hm⟩
+    case lit l =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain rfl := denote_lit_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, rfl, hm⟩
+    case app f a =>
+      obtain ⟨ef, ea, rfl, hf, ha⟩ := denote_app_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo f ef _ _ (b1, m1) hok ⟨hf, hm⟩ hc1
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ := ih m1 a ea _ _ (b2, m2) hsA.ok
+          ⟨denote_ext ha hsA.ext, hmA⟩ hc2
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn2
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin (hsA.trans hsB)
+          (by simp only at hrA hrB; simp only [depthS, hrA, hrB]) hmB hz
+    case lam ty b m =>
+      obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_lam_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (b1, m1) hok ⟨hty, hm⟩ hc1
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ := ih m1 b eb _ _ (b2, m2) hsA.ok
+          ⟨denote_ext hbd hsA.ext, hmA⟩ hc2
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn2
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin (hsA.trans hsB)
+          (by simp only at hrA hrB; simp only [depthS, hrA, hrB]) hmB hz
+    case forallE ty b m =>
+      obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (b1, m1) hok ⟨hty, hm⟩ hc1
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ := ih m1 b eb _ _ (b2, m2) hsA.ok
+          ⟨denote_ext hbd hsA.ext, hmA⟩ hc2
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn2
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin (hsA.trans hsB)
+          (by simp only at hrA hrB; simp only [depthS, hrA, hrB]) hmB hz
+    case letE lt lv lb =>
+      obtain ⟨et, ev, eb, rfl, hty, hval, hbd⟩ := denote_letE_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo lt et _ _ (b1, m1) hok ⟨hty, hm⟩ hc1
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ := ih m1 lv ev _ _ (b2, m2) hsA.ok
+          ⟨denote_ext hval hsA.ext, hmA⟩ hc2
+        obtain ⟨p3, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨b3, m3⟩ := p3
+        obtain ⟨hsC, hrC, hmC⟩ := ih m2 lb eb _ _ (b3, m3) hsB.ok
+          ⟨denote_ext hbd (hsA.ext.trans hsB.ext), hmB⟩ hc3
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin ((hsA.trans hsB).trans hsC)
+          (by simp only at hrA hrB hrC; simp only [depthS, hrA, hrB, hrC]) hmC hz
+    case proj pn pk psub =>
+      obtain ⟨nm, es, rfl, hn, hsub⟩ := denote_proj_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨b1, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo psub es _ _ (b1, m1) hok ⟨hsub, hm⟩ hc1
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn1
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin hsA (by simp only at hrA; simp only [depthS, hrA]) hmA hz
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:590-592 Expr.depth
+A term's depth: con-leche's memoised `Expr.depth`, exactly. -/
+theorem depth_spec (e : EIdx) (eP : Expr) :
+    PSpec (fun st => denoteE st e = some eP) (Arena.depth e) (RV (Expr.depth eP)) := by
+  intro s₀ s' r hok hd hrun
+  simp only [Arena.depth] at hrun
+  obtain ⟨q, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep, hr, _⟩ :=
+    depthGo_spec ∅ Arena.coreWalkFuel e eP s₀ s₁ q hok ⟨hd, DepthMemoOK.empty⟩ h1
+  obtain ⟨rfl, rfl⟩ := pureOk h2
+  exact ⟨hstep, by simp only [RV, depth_eq_depthS]; exact hr⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:594-596 whnfWalkFuel
+The fuel of a walk through whnf: `depth + fuelSlack`, exactly. -/
+theorem whnfWalkFuel_spec (e : EIdx) (eP : Expr) :
+    PSpec (fun st => denoteE st e = some eP) (Arena.whnfWalkFuel e)
+      (RV (ConLeche.whnfWalkFuel eP)) := by
+  intro s₀ s' r hok hd hrun
+  simp only [Arena.whnfWalkFuel] at hrun
+  obtain ⟨d, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep, hr⟩ := depth_spec e eP s₀ s₁ d hok hd h1
+  obtain ⟨rfl, rfl⟩ := pureOk h2
+  simp only [RV] at hr
+  exact ⟨hstep, by simp only [RV, ConLeche.whnfWalkFuel, hr]; rfl⟩
 
 end ConRon.Bridge.Inductives
