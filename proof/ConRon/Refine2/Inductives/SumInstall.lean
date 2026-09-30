@@ -27,7 +27,7 @@ which is exactly what task #97-P5-Checker's §1 added that shape for; and
 its statement is the `IFEnvRel` of two pushes and carries no monad.
 -/
 import ConRon.Refine2.Inductives.StructInstallF
-import ConRon.Refine2.Inductives.SumParts
+
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
