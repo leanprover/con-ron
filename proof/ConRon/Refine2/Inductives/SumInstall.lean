@@ -26,7 +26,7 @@ which is exactly what task #97-P5-Checker's §1 added that shape for; and
 `cons_sum_ctors` is PURE on both sides (the index push touches no term), so
 its statement is the `IFEnvRel` of two pushes and carries no monad.
 -/
-import ConRon.Refine2.Inductives.StructInstallF
+import ConRon.Refine2.Inductives.StructInstall
 
 
 open Aeneas Aeneas.Std Result
