@@ -26,6 +26,7 @@ pre-pass.
 -/
 import ConRon.Refine2.Inductives.Positivity
 import ConRon.Refine2.Inductives.Prims
+import ConRon.Refine2.Inductives.BlockParts
 import ConRon.Arena.Inductives.ClassRead
 
 open Aeneas Aeneas.Std Result
@@ -392,46 +393,6 @@ theorem u64_find_idx_abs {xs : alloc.vec.Vec Std.U64} {x : Std.U64} :
   rw [u64_vec_dup_spec _ _ hv] at h
   simp [TwinEq, absNatL, ConRon.Refine.vec_push_val h]
 
-/-! ## Helpers for Shape/Abs
-
-`arena::inductives::block_parts::shape_member_names` is the twin's
-`BlockShape.memberNames` (the block-parts sub-lane states it as
-`shape_member_names_twin` in `Refine2/Inductives/BlockParts.lean`, which this
-file does not import; restated here under a local name). -/
-
-theorem cr_member_names_abs {ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape} :
-    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
-      arena.inductives.block_parts.member_names ms i out = ok o →
-      o.val.map absNIdx = out.val.map absNIdx ++
-        (ms.val.drop i.val).map (fun m => absNIdx m.cv_t.name) := by
-  refine vec_cursor_copy ms absNIdx (fun m => absNIdx m.cv_t.name)
-    (arena.inductives.block_parts.member_names ms) ?_ ?_
-  · intro i out o hn h
-    rw [arena.inductives.block_parts.member_names.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len ms by scalar_tac), Result.ok.injEq] at h
-    rw [h]
-  · intro i x out o hx h
-    rw [arena.inductives.block_parts.member_names.eq_def, if_neg (show ¬ i ≥ alloc.vec.Vec.len ms by
-      have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
-    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hqx : q = x := by
-      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
-    subst hqx
-    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    exact ⟨i2, n, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
-      by rw [dupId_nidx _ _ hn], h⟩
-
-theorem cr_shape_member_names_abs {p : arena.inductives.block_parts.BlockShape}
-    {o : alloc.vec.Vec arena.handle.NIdx}
-    (h : arena.inductives.block_parts.shape_member_names p = ok o) :
-    absNIdxL o = (absBlockShape p).memberNames := by
-  rw [arena.inductives.block_parts.shape_member_names] at h
-  have := cr_member_names_abs _ _ o h
-  simp only [alloc.vec.Vec.new] at this
-  simp [absNIdxL, this, BlockShape.memberNames, absBlockShape, absMemberShape, absIConstantVal]
-
 /-! ## `class_n_pc_of` (`gen_rec.rs`; the twin's `classNPcOf` lives in `ClassRead`) -/
 
 @[lockstep] theorem class_n_pc_of_twin {rf : arena.env.IFEnv} {lf : IFEnv}
@@ -444,7 +405,7 @@ theorem cr_shape_member_names_abs {p : arena.inductives.block_parts.BlockShape}
   obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hbv : (absNIdxL v).contains (absNIdx i) = b := names_contain_twin _ _ _ hb
-  rw [cr_shape_member_names_abs hv] at hbv
+  rw [Eq.symm (shape_member_names_twin p _ hv)] at hbv
   rw [TwinEq, classNPcOf, hbv]
   cases b
   · simp only [Bool.false_eq_true, ↓reduceIte] at h ⊢

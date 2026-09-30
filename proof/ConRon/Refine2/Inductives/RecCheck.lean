@@ -37,7 +37,7 @@ One `@[lockstep]` companion per Rust function with a twin counterpart.
 have them at `IFEnvRelI` + `hvis` only), `nested_rule_syn` and its body
 (checker tier; nobody had them), `strip_pis`'s telescope well-formedness,
 `take_eidx_n` as `List.take`, and raw-identity copies (`rc_ctors_dup_id`,
-`rc_rec_shape_dup_id`, `rc_eidx_vec_dup_id`).  `targetRecPins` is split at its
+`rc_rec_shape_dup_id`; `eidx_vec_dup` is `PA1.eidx_vec_dup_ls`).  `targetRecPins` is split at its
 two binds (`targetRecPins_split`, `rcPinsAux`, `rcPinsTail`, by `rfl`) to meet
 the Rust's `_aux`/`_names` fragments.
 -/
@@ -1881,11 +1881,7 @@ def absRecOut (x : arena.env.IConstantVal × arena.inductives.rec_check.TargetMa
     alloc.vec.Vec arena.handle.EIdx) : IConstantVal × TargetMajor × List EIdx :=
   (absIConstantVal x.1, absTargetMajor x.2.1, absEIdxL x.2.2)
 
-theorem rc_eidx_vec_dup_id (v : alloc.vec.Vec arena.handle.EIdx) :
-    LSP (arena.env.eidx_vec_dup v) (fun o => o = v) :=
-  fun _ h => alloc.vec.Vec.ext _ _ (eidx_vec_dup_val h)
-
-attribute [local lockstep high] rc_eidx_vec_dup_id
+attribute [local lockstep high] Lockstep.PA1.eidx_vec_dup_ls
 
 theorem cons_block_recs_t_aux {pers} (vis2 : Std.U64) (p : arena.inductives.block_parts.BlockShape)
     (out : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×

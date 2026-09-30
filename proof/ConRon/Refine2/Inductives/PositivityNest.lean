@@ -296,13 +296,9 @@ attribute [local lockstep_inline] arena.checker_base.unwrap_or
 -- The constant's copy IS the constant (`Positivity.lean`'s local spec).
 attribute [local lockstep high] Lockstep.PC2.i_constant_val_dup_ls
 
-/-- `eidx_vec_dup` is the identity (the exact form, ahead of the generic
-abstraction-level spec, so that a copied key's parameters ARE the original's). -/
-theorem pn_eidx_vec_dup_spec (v : alloc.vec.Vec arena.handle.EIdx) :
-    LSP (arena.env.eidx_vec_dup v) (fun o => o = v) :=
-  fun _ h => alloc.vec.Vec.ext _ _ (eidx_vec_dup_val h)
-
-attribute [local lockstep high] pn_eidx_vec_dup_spec
+-- `eidx_vec_dup` is the identity (the exact form, ahead of the generic
+-- abstraction-level spec, so that a copied key's parameters ARE the original's).
+attribute [local lockstep high] Lockstep.PA1.eidx_vec_dup_ls
 
 attribute [local lockstep_simp] IndInstPrims.unwrapOr_some' IndInstPrims.unwrapOr_none'
 
@@ -836,22 +832,10 @@ theorem nest_keys_contain_keys_twin (ns : arena.inductives.positivity.NestState)
   intro o h
   exact nest_keys_contain_twin _ _ o h
 
-/-- The handle copies are the identity (exact, ahead of the generic specs, so
-that a rebuilt key IS the key). -/
-theorem pn_nidx_dup2_spec (x : arena.handle.NIdx) :
-    LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 x) (fun o => o = x) :=
-  fun _ h => dupId_nidx _ _ h
-
-theorem pn_lsidx_dup2_spec (x : arena.handle.LsIdx) :
-    LSP (arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 x) (fun o => o = x) :=
-  fun _ h => dupId_lsidx _ _ h
-
-theorem pn_eidx_dup2_spec (x : arena.handle.EIdx) :
-    LSP (arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 x) (fun o => o = x) :=
-  fun _ h => dupId_eidx _ _ h
-
+-- The handle copies are the identity (`Tactic/Prims`' exact rows, ahead of the
+-- generic specs, so that a rebuilt key IS the key).
 attribute [local lockstep high] nest_keys_contain_active_twin nest_keys_contain_keys_twin
-  pn_nidx_dup2_spec pn_lsidx_dup2_spec
+  Lockstep.dup2_nidx Lockstep.dup2_lsidx
 
 /-- `nest_cont_key` ⊑ `nestContKey` at a fuel whose `nest_pos` is related. -/
 theorem nest_cont_key_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
@@ -1165,10 +1149,7 @@ constructors at the root key, each at its own input-derived fuel. -/
 
 /-! ## The seeds: `nest_seeds` -/
 
-theorem pn_fuel_slack_val : (arena.inductives.positivity.FUEL_SLACK).val = fuelSlack := by
-  rw [arena.inductives.positivity.FUEL_SLACK, fuelSlack]; rfl
-
-attribute [local lockstep_simp] pn_fuel_slack_val
+attribute [local lockstep_simp] fuel_slack_val
 
 /-- The seeds as the twin's `(NestKey × Nat)` list. -/
 def absSeedsLFrom (v : alloc.vec.Vec (arena.inductives.positivity.NestKey × Std.U64))

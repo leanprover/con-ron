@@ -66,10 +66,7 @@ open ConRon.Arena
 open Lockstep
 open scoped IndSide
 
-@[local lockstep_simp] theorem bi_core_walk_fuel_val :
-    (arena.core.CORE_WALK_FUEL).val = coreWalkFuel := core_walk_fuel_abs
-
-attribute [local lockstep_simp] absMemberShape_cvT
+attribute [local lockstep_simp] Lockstep.core_walk_fuel_val absMemberShape_cvT
 @[local lockstep_simp] theorem absMemberShape_nIdx (m : arena.inductives.block_parts.MemberShape) :
     (absMemberShape m).nIdx = absU m.n_idx := rfl
 @[local lockstep_simp] theorem absMemberShape_ctors (m : arena.inductives.block_parts.MemberShape) :
