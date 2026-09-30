@@ -61,7 +61,7 @@ namespace ConRon.Refine.HashMap
 /-! The `@[local simp]` lemmas of `HashMap.lean` are local to that file; the
 scripts copied below need them, so re-enable exactly those. -/
 attribute [local simp] bind_eq_ok_iff lookupK_nil lookupK_cons alv_nil alvO_none
-  alvO_some alv_cons alv_default eraseK_nil eraseK_cons getElem!_replicate_nil
+  alvO_some alv_cons alv_default getElem!_replicate_nil
   getElem!_map_alv
 
 variable {K V : Type} [DecidableEq K]
@@ -160,7 +160,6 @@ theorem list_get_spec_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     · simp [hkc, ← Result.ok_injective h]
     · simp [hkc, ih (keys_tail hls) h]
 
-
 theorem list_insert_spec_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     {ls : ron.hashmap.AList K V} {k : K} {v : V} {old : Option V}
     {ls' : ron.hashmap.AList K V} (hls : ∀ p ∈ alv ls, P p.1) (hk : P k)
@@ -213,7 +212,6 @@ theorem list_insert_spec_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
           simp [hkc, hk', hc, h3 k'] <;> simp_all
       · intro hnone; simp [h4 hnone]
 
-
 /-! ## `get` and `insert_no_resize` -/
 
 theorem get_refines_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P) (hinv : Inv HashableInst m)
@@ -231,7 +229,6 @@ theorem get_refines_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P) (hinv : Inv Has
   obtain ⟨hlt, rfl⟩ := vec_index_eq hidx
   rw [toFun_eq_bucket hinv hlt hb]
   exact list_get_spec_wf heq (KeysOk.bucket hkeys hlt) hk hget
-
 
 theorem insert_no_resize_spec_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     (hinv : Inv HashableInst m) (hkeys : KeysOk P m) {k : K} {v : V} (hk : P k)
@@ -385,9 +382,6 @@ theorem insert_no_resize_spec_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     refine (List.perm_append_comm_assoc A [(k, v)] R).trans ?_
     simpa using (PM.symm.cons (k, v))
 
-
-
-
 /-! ## Growth: `move_elements`, `try_resize` -/
 
 theorem move_elements_from_list_spec_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P) :
@@ -453,8 +447,6 @@ theorem move_elements_from_list_spec_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P
     refine P2.trans ?_
     refine (List.Perm.append_left (alv tl) P1).trans ?_
     exact List.perm_middle (a := (k, v)) (l₁ := alv tl) (l₂ := al_v nt)
-
-
 
 theorem move_elements_spec_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P) (N : Nat) :
     ∀ (nt nt' : ron.hashmap.HashMap K V)
@@ -585,8 +577,6 @@ theorem move_elements_spec_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P) (N : Nat
       rw [show hi.val - lo.val = 0 by omega, slotsFlat_zero]
       simp
 
-
-
 /-- `try_resize` is the one operation that needs the table to be *allocated*:
 it doubles `slots.len()`, and `0` doubled is still `0`.  `insert` supplies
 `hpos` from `ensure_slots_spec` (task #35). -/
@@ -644,8 +634,6 @@ theorem try_resize_spec_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     · intro k; rw [toFun, toFun, hav]
     · intro p hp; rw [hav] at hp; exact hkeys p hp
 
-
-
 theorem insert_refines_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     (hinv : Inv HashableInst m) (hkeys : KeysOk P m) {k : K} {v : V} (hk : P k)
     {old : Option V} {m' : ron.hashmap.HashMap K V}
@@ -694,8 +682,6 @@ theorem insert_refines_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     rw [e1, e2]
     exact ⟨hinv1, hold, hupd, hkeys1⟩
 
-
-
 /-! ## The bridge to `Std.HashMap`, key-restricted
 
 `HashMap.lean`'s `Rel m s absK absV := ∀ k, (toFun m k).map absV = s[absK k]?`
@@ -716,11 +702,6 @@ variable {K' V' : Type} [BEq K'] [Hashable K'] {absK : K → K'} {absV : V → V
 def RelOn (P : K → Prop) (m : ron.hashmap.HashMap K V)
     (s : _root_.Std.HashMap K' V') (absK : K → K') (absV : V → V') : Prop :=
   ∀ k, P k → (toFun m k).map absV = s[absK k]?
-
-/-- `Rel` is the case `P := fun _ => True`, so it is always the stronger one:
-this is the only direction that holds. -/
-theorem RelOn_of_Rel {P : K → Prop} {s : _root_.Std.HashMap K' V'}
-    (h : Rel m s absK absV) : RelOn P m s absK absV := fun k _ => h k
 
 /-- The empty relation.  Compose with `new_refines`, `with_capacity_refines` or
 `clear_refines`, whose third component is exactly this hypothesis; their second

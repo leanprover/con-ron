@@ -36,14 +36,6 @@ namespace ConRon.Refine
    `ConRon/Refine/Abs.lean`, as task #22's note said they would.  They are
    in scope unqualified: this file is inside `namespace ConRon.Refine`. -/
 
-
-/-- The Rust core's basis table for `k`, abstracted: the generated function
-runs in `Result` (every smart constructor does, because `Vec::push` and the
-word arithmetic can in principle fail), so the claim proved at the end of the
-file is that it *succeeds* and that its value is con-leche's. -/
-def absBasisDecls (k : env.BasisKind) : Result (List ConLeche.ConstantInfo) :=
-  do let v ← basis_tables.basis_decls_a k; ok (absConstantInfos v)
-
 /-! ## TEMPORARY — specifications for the smart constructors
 
 **To be moved to `ConRon/Refine/Abs.lean` (or its own file) when the rest of
@@ -75,16 +67,9 @@ set_option backward.do.legacy true
 
 /-! ### The `Arc` model and the plumbing -/
 
-@[local step] theorem arc_new_spec {T : Type} (x : T) :
-    alloc.sync.Arc.new x ⦃ r => r = x ⦄ := by rw [arc_new_eq]; exact .ret rfl
-
 @[local step] theorem arc_deref_spec {T : Type} (A : Type) (x : T) :
     alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref A x ⦃ r => r = x ⦄ := by
   rw [arc_deref_eq]; exact .ret rfl
-
-@[local step] theorem arc_clone_spec {T A : Type} (i : core.alloc.AllocatorClone A)
-    (x : T) : alloc.sync.Arc.Insts.CoreCloneClone.clone i x ⦃ r => r = x ⦄ := by
-  rw [arc_clone_eq]; exact .ret rfl
 
 @[local step] theorem ptr_new_spec {T : Type} (x : T) :
     ron.ptr.new x ⦃ r => r = x ⦄ := by rw [ptr_new_eq]; exact .ret rfl
@@ -100,9 +85,6 @@ with eleven `rfl` specs.  Task #97-SWAP-2 put `Expr` back on `ron::ptr::P`,
 so a smart constructor ends in `ron.ptr.new` and a reader begins with
 `Arc::deref` exactly as `Name`'s and `Level`'s do: `ptr_new_spec` and
 `arc_deref_spec` above are the whole of it, and the block is gone. -/
-
-@[local step] theorem ptr_clone_spec {T : Type} (x : T) :
-    ron.ptr.clone x ⦃ r => r = x ⦄ := by rw [ptr_clone_eq]; exact .ret rfl
 
 /-- `expr::dup` is `Arc::clone`, i.e. the identity (`level_dup_eq`/`name_dup_eq`
 are in `Refine/Abs.lean`; this one has been here since task #22).  It joins the
@@ -148,9 +130,6 @@ module that declares them. -/
 
 @[local step] theorem lp_of_data_spec (w : Std.U64) :
     expr.lp_of_data w ⦃ _ => True ⦄ := by unfold expr.lp_of_data; step*
-
-@[local step] theorem sat_range_spec : expr.sat_range ⦃ _ => True ⦄ := by
-  unfold expr.sat_range; step*
 
 @[local step] theorem max_u64_spec (a b : Std.U64) :
     expr.max_u64 a b ⦃ _ => True ⦄ := by unfold expr.max_u64; step*
@@ -331,24 +310,12 @@ theorem names_hash_from_aux (ps : alloc.vec.Vec name.Name) :
     name.mk_str pre s ⦃ n => ∃ h, n = .mk (.mk h (.Str pre s)) ⦄ := by
   unfold name.mk_str; step*
 
-@[local step] theorem name_mk_num_spec (pre : name.Name) (k : Std.U64) :
-    name.mk_num pre k ⦃ n => ∃ h, n = .mk (.mk h (.Num pre k)) ⦄ := by
-  unfold name.mk_num; step*
-
 @[local step] theorem level_zero_spec :
     level.zero ⦃ u => u = .mk (.mk 1#u64 .Zero) ⦄ := by unfold level.zero; step*
 
 @[local step] theorem level_succ_spec (a : level.Level) :
     level.succ a ⦃ u => ∃ h, u = .mk (.mk h (.Succ a)) ⦄ := by
   unfold level.succ; step*
-
-@[local step] theorem level_max_spec (a b : level.Level) :
-    level.max a b ⦃ u => ∃ h, u = .mk (.mk h (.Max a b)) ⦄ := by
-  unfold level.max; step*
-
-@[local step] theorem level_imax_spec (a b : level.Level) :
-    level.imax a b ⦃ u => ∃ h, u = .mk (.mk h (.Imax a b)) ⦄ := by
-  unfold level.imax; step*
 
 @[local step] theorem level_param_spec (n : name.Name) :
     level.param n ⦃ u => ∃ h, u = .mk (.mk h (.Param n)) ⦄ := by
@@ -519,20 +486,5 @@ theorem basis_decls_a_refines : ∀ k : env.BasisKind, BasisSpec k
   | .EmptyK => basis_decls_empty_refines
   | .FalseK => basis_decls_false_refines
   | .QuotK => basis_decls_quot_refines
-
-/-- The same, as the `Result`-level equation of DESIGN.md §1: the port's
-table, abstracted, *is* con-leche's. -/
-theorem absBasisDecls_eq (k : env.BasisKind) :
-    absBasisDecls k = ok (ConLeche.BasisKind.declsA (absBasisKind k)) := by
-  obtain ⟨v, hv, habs⟩ := WP.spec_imp_exists (basis_decls_a_refines k)
-  simp [absBasisDecls, hv, habs]
-
-/-! ## Axiom census (DESIGN.md §5, the P3 gate) -/
-
-/--
-info: 'ConRon.Refine.absBasisDecls_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms absBasisDecls_eq
 
 end ConRon.Refine

@@ -57,16 +57,6 @@ namespace ConRon.Refine.BasisRaw
 Each helper is "a `def` whose body is a single `Expr` constructor application",
 so each lemma is one smart-constructor refinement and its `*_wf` twin. -/
 
-/-- `BasisDSL.bn`: a top-level (single-component) name. -/
-theorem bn_refines {s : alloc.vec.Vec Std.U32} {n : name.Name}
-    (hs : StrWF s) (h : basis_builder.bn s = ok n) :
-    absName n = ConLeche.BasisDSL.bn (absString s) ∧ NameWF n := by
-  rw [basis_builder.bn] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨a, ha, hmk⟩ := h
-  exact ⟨by rw [Name.mk_str_refines hmk, Name.anonymous_refines ha]; rfl,
-    NameWF.str (Name.anonymous_wf ha) hs hmk⟩
-
 /-- `BasisDSL.uN` — the universe parameter `u`. -/
 theorem u_n_refines {n : name.Name} (h : basis_builder.u_n = ok n) :
     absName n = ConLeche.BasisDSL.uN ∧ NameWF n := by
@@ -198,17 +188,6 @@ theorem ap3_refines {f a b c e : expr.Expr} (hf : ExprWF f) (ha : ExprWF a)
   obtain ⟨x, hx, hy⟩ := h
   obtain ⟨hxabs, hxwf⟩ := ap2_refines hf ha hb hx
   exact ⟨by rw [Expr.app_refines hy, hxabs]; rfl, Expr.app_wf hxwf hc hy⟩
-
-theorem ap4_refines {f a b c d e : expr.Expr} (hf : ExprWF f) (ha : ExprWF a)
-    (hb : ExprWF b) (hc : ExprWF c) (hd : ExprWF d)
-    (h : basis_builder.ap4 f a b c d = ok e) :
-    absExpr e = ConLeche.BasisDSL.ap4 (absExpr f) (absExpr a) (absExpr b) (absExpr c)
-      (absExpr d) ∧ ExprWF e := by
-  rw [basis_builder.ap4] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨x, hx, hy⟩ := h
-  obtain ⟨hxabs, hxwf⟩ := ap3_refines hf ha hb hc hx
-  exact ⟨by rw [Expr.app_refines hy, hxabs]; rfl, Expr.app_wf hxwf hd hy⟩
 
 /-- `expr::app` in the pair shape the pins are read in (`Quot.ind`'s body is
 the one place a pin applies a single argument). -/
@@ -1239,197 +1218,11 @@ con-leche's task #293 gave the pin match a name pre-filter).  It is proved
 here, locally, and **should move to `Refine/Env.lean`** when that file is next
 touched — the same note `Refine/PropRead.lean` carries for `to_constant_val`. -/
 
-theorem constant_info_names_from_aux (N : Nat) :
-    ∀ (block : alloc.vec.Vec env.ConstantInfo) (i : Std.Usize)
-      (out r : alloc.vec.Vec name.Name),
-      ConstantInfosWF block → NamesWF out → block.val.length - i.val = N →
-      env.constant_info_names_from block i out = ok r →
-      absNames r = absNames out ++
-          ((absConstantInfos block).drop i.val).map ConLeche.ConstantInfo.name
-        ∧ NamesWF r := by
-  induction N using Nat.strong_induction_on with
-  | _ N ih =>
-    intro block i out r hblock hout hN h
-    rw [env.constant_info_names_from.eq_def] at h
-    dsimp only at h
-    split at h
-    · rename_i hge
-      have hlen : (absConstantInfos block).length ≤ i.val := by
-        have := alloc.vec.Vec.len_val block
-        simp only [absConstantInfos, List.length_map]; scalar_tac
-      rw [← Result.ok_injective h, List.drop_eq_nil_of_le hlen]
-      exact ⟨by simp, hout⟩
-    · rename_i hge
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨ci, hidx, n, hn, out1, hpush, i2, hi2, hrec⟩ := h
-      have hg := ExprOps.vec_index_getElem? hidx
-      have hlt : i.val < block.val.length := by
-        have := alloc.vec.Vec.len_val block; scalar_tac
-      have hx : block.val[i.val] = ci := by
-        rw [List.getElem?_eq_getElem hlt] at hg; exact Option.some_injective _ hg
-      have hciwf : ConstantInfoWF ci := hblock ci (by rw [← hx]; exact List.getElem_mem hlt)
-      have hnwf : NameWF n := Env.constant_info_name_wf hciwf hn
-      have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
-      have hout1 : NamesWF out1 := by
-        intro y hy
-        rw [vec_push_val hpush] at hy
-        rcases List.mem_append.mp hy with hy | hy
-        · exact hout y hy
-        · rw [List.mem_singleton.mp hy]; exact hnwf
-      obtain ⟨habs, hwf⟩ :=
-        ih (block.val.length - i2.val) (by omega) block i2 out1 r hblock hout1 rfl hrec
-      refine ⟨?_, hwf⟩
-      rw [habs, hi2v]
-      simp only [absNames, vec_push_val hpush, List.map_append, List.map_cons,
-        List.map_nil, Env.constant_info_name_refines hn]
-      rw [show (absConstantInfos block).drop i.val
-          = absConstantInfo ci :: (absConstantInfos block).drop (i.val + 1) from by
-        rw [absConstantInfos, List.drop_eq_getElem_cons (by simpa using hlt),
-          List.getElem_map, hx]]
-      simp
-
-/-- `ConLeche/Kernel/Env.lean:659-670` — `env::constant_info_names_from` at
-the entry point's `0`/`[]`: a block's member names. -/
-theorem constant_info_names_refines {block : alloc.vec.Vec env.ConstantInfo}
-    {r : alloc.vec.Vec name.Name} (hblock : ConstantInfosWF block)
-    (h : env.constant_info_names_from block 0#usize (alloc.vec.Vec.new name.Name) = ok r) :
-    absNames r = (absConstantInfos block).map ConLeche.ConstantInfo.name ∧ NamesWF r := by
-  obtain ⟨habs, hwf⟩ :=
-    constant_info_names_from_aux _ block 0#usize (alloc.vec.Vec.new name.Name) r hblock
-      (fun x hx => by simp [alloc.vec.Vec.new] at hx) rfl h
-  refine ⟨?_, hwf⟩
-  have h0 : (0#usize : Std.Usize).val = 0 := rfl
-  rw [habs, h0, List.drop_zero]
-  simp [absNames, alloc.vec.Vec.new]
-
-/-- `ConLeche/Kernel/Basis.lean:60-71` — the NAME pre-filter,
-`k.decls.map (·.name) == block.map (·.name)`. -/
-theorem basis_pin_names_eq_refines {decls block : alloc.vec.Vec env.ConstantInfo} {b : Bool}
-    (hd : ConstantInfosWF decls) (hb : ConstantInfosWF block)
-    (h : basis_raw.basis_pin_names_eq decls block = ok b) :
-    b = decide ((absConstantInfos decls).map ConLeche.ConstantInfo.name
-      = (absConstantInfos block).map ConLeche.ConstantInfo.name) := by
-  rw [basis_raw.basis_pin_names_eq] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨v, hv, v1, hv1, hbeq⟩ := h
-  obtain ⟨hvabs, hvwf⟩ := constant_info_names_refines hd hv
-  obtain ⟨hv1abs, hv1wf⟩ := constant_info_names_refines hb hv1
-  rw [Env.names_beq_refines hvwf hv1wf hbeq, hvabs, hv1abs]
-
-theorem basis_pin_hit_from_aux (N : Nat) :
-    ∀ (ks : alloc.vec.Vec env.BasisKind) (block : alloc.vec.Vec env.ConstantInfo)
-      (i : Std.Usize) (o : Option env.BasisKind),
-      ConstantInfosWF block → ks.val.length - i.val = N →
-      basis_raw.basis_pin_hit_from ks block i = ok o →
-      o.map absBasisKind =
-        ((((ks.val.map absBasisKind).drop i.val).find? fun k =>
-            (ConLeche.BasisKind.decls k).map (·.name)
-              == (absConstantInfos block).map (·.name)).filter
-          fun k => ConLeche.canonEqList (absConstantInfos block)
-            (ConLeche.BasisKind.decls k)) := by
-  induction N using Nat.strong_induction_on with
-  | _ N ih =>
-    intro ks block i o hblock hN h
-    rw [basis_raw.basis_pin_hit_from.eq_def] at h
-    dsimp only at h
-    split at h
-    · rename_i hge
-      have hlen : (ks.val.map absBasisKind).length ≤ i.val := by
-        have := alloc.vec.Vec.len_val ks
-        simp only [List.length_map]; scalar_tac
-      rw [← Result.ok_injective h, List.drop_eq_nil_of_le hlen]
-      rfl
-    · rename_i hge
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨bk, hidx, decls, hdecls, b, hb, h⟩ := h
-      have hg := ExprOps.vec_index_getElem? hidx
-      have hlt : i.val < ks.val.length := by
-        have := alloc.vec.Vec.len_val ks; scalar_tac
-      have hx : ks.val[i.val] = bk := by
-        rw [List.getElem?_eq_getElem hlt] at hg; exact Option.some_injective _ hg
-      obtain ⟨hdabs, hdwf⟩ := basis_kind_decls_refines hdecls
-      have hbabs := basis_pin_names_eq_refines hdwf hblock hb
-      rw [show (ks.val.map absBasisKind).drop i.val
-          = absBasisKind bk :: (ks.val.map absBasisKind).drop (i.val + 1) from by
-        rw [List.drop_eq_getElem_cons (by simpa using hlt), List.getElem_map, hx]]
-      rw [List.find?_cons]
-      cases hbv : b
-      · rw [hbv] at hbabs h
-        simp only [Bool.false_eq_true, if_false] at h
-        simp only [bind_eq_ok_iff] at h
-        obtain ⟨i2, hi2, hrec⟩ := h
-        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
-        have hne : ¬ ((ConLeche.BasisKind.decls (absBasisKind bk)).map (·.name)
-            = (absConstantInfos block).map (·.name)) := by
-          rw [← hdabs]; exact of_decide_eq_false hbabs.symm
-        rw [show ((ConLeche.BasisKind.decls (absBasisKind bk)).map (·.name)
-            == (absConstantInfos block).map (·.name)) = false from by simpa using hne]
-        have hrecabs := ih (ks.val.length - i2.val) (by omega) ks block i2 o hblock rfl hrec
-        rwa [hi2v] at hrecabs
-      · rw [hbv] at hbabs h
-        have heq : (ConLeche.BasisKind.decls (absBasisKind bk)).map (·.name)
-            = (absConstantInfos block).map (·.name) := by
-          rw [← hdabs]; exact of_decide_eq_true hbabs.symm
-        rw [show ((ConLeche.BasisKind.decls (absBasisKind bk)).map (·.name)
-            == (absConstantInfos block).map (·.name)) = true from by simpa using heq]
-        simp only []
-        simp only [if_true, bind_eq_ok_iff] at h
-        obtain ⟨c, hc, h⟩ := h
-        have hcabs := Canon.canon_eq_list_deref_refines hblock hdwf hc
-        cases hcv : c
-        · rw [hcv] at hcabs h
-          simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
-          rw [← h]
-          simp only [Option.filter, Option.map_none]
-          rw [if_neg (by rw [← hdabs, ← hcabs]; simp)]
-        · rw [hcv] at hcabs h
-          simp only [if_true, bind_eq_ok_iff, Result.ok.injEq] at h
-          obtain ⟨k', hk', rfl⟩ := h
-          rw [Env.basis_kind_dup_refines hk']
-          simp only [Option.map_some, Option.filter]
-          rw [if_pos (by rw [← hdabs, ← hcabs])]
-
-/-- **The basis-pin match** (`ConLeche/Kernel/Basis.lean:60-71 basisPinHit`).
-The two phases stay in the cited order: `List.find?` picks the candidate by
-member NAMES, and only that one candidate is `Option.filter`ed by
-`canonEqList`. -/
-theorem basis_pin_hit_refines {block : alloc.vec.Vec env.ConstantInfo}
-    {o : Option env.BasisKind} (hblock : ConstantInfosWF block)
-    (h : basis_raw.basis_pin_hit block = ok o) :
-    o.map absBasisKind = ConLeche.basisPinHit (absConstantInfos block) := by
-  rw [basis_raw.basis_pin_hit] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨ks, hks, h⟩ := h
-  have hfrom := basis_pin_hit_from_aux _ ks block 0#usize o hblock rfl h
-  have h0 : (0#usize : Std.Usize).val = 0 := rfl
-  rw [h0, List.drop_zero, block_pin_kinds_refines hks] at hfrom
-  rw [hfrom, ConLeche.basisPinHit]
-
 /-! ## The quotient package, slot by slot -/
 
 /-! `env::to_constant_val`'s well-formedness half belongs to `Refine/Env.lean`
 too (that file proves only the abstraction); it is proved here for the same
 reason as `constant_info_names_from` above, and **should move with it**. -/
-
-theorem to_constant_val_wf {ci : env.ConstantInfo} {cv : env.ConstantVal}
-    (hci : ConstantInfoWF ci) (h : env.to_constant_val ci = ok cv) : ConstantValWF cv := by
-  rw [env.to_constant_val.eq_def] at h
-  cases ci with
-  | AxiomInfo v => rw [Env.constant_val_dup_refines h]; exact hci
-  | DefnInfo v x hint => rw [Env.constant_val_dup_refines h]; exact hci.1
-  | ThmInfo v x => rw [Env.constant_val_dup_refines h]; exact hci.1
-  | IndInfo v c => rw [Env.constant_val_dup_refines h]; exact hci.1
-  | CtorInfo v a b => rw [Env.constant_val_dup_refines h]; exact hci
-  | RecInfo v a b rs => rw [Env.constant_val_dup_refines h]; exact hci.1
-  | ProjInfo tbl =>
-    obtain ⟨hsn, hlp, -, -, -, -⟩ := hci
-    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
-    obtain ⟨n, hn, v, hv, l, hl, l1, hl1, e, he, hcv⟩ := h
-    have hvv : v.val = tbl.level_params.val := PropWhen.names_copy_val hv
-    subst hcv
-    exact ⟨Env.proj_table_name_wf hsn hn,
-      fun m hm => hlp m (by rw [hvv] at hm; exact hm),
-      Expr.sort_wf (Level.succ_wf (Level.zero_wf hl) hl1) he⟩
 
 /-- `ConLeche/Kernel/Env.lean:503-504 QuotKind.slot` -/
 theorem quot_kind_slot_refines {k : env.QuotKind} {i : Std.U64}
@@ -1437,87 +1230,6 @@ theorem quot_kind_slot_refines {k : env.QuotKind} {i : Std.U64}
   cases k <;> simp only [env.quot_kind_slot, Result.ok.injEq] at h <;>
     rw [← h] <;> rfl
 
-/-- `ConLeche/Kernel/Basis.lean:73-78` — the pinned quotient package's
-constant at one slot, with the cited `getD`'s total-function fallback.  The
-fallback is unreachable (`quotBasis` has exactly the five members
-`QuotKind.slot` indexes), and Lean's `default : ConstantVal` is the derived
-`Inhabited` instance `⟨.anonymous, [], .bvar 0⟩`. -/
-theorem quot_basis_at_refines {slot : Std.U64} {ci : env.ConstantInfo}
-    (h : basis_raw.quot_basis_at slot = ok ci) :
-    absConstantInfo ci
-        = (ConLeche.BasisKind.quotK.decls.getD slot.val (.axiomInfo default))
-      ∧ ConstantInfoWF ci := by
-  rw [basis_raw.quot_basis_at] at h
-  simp only [bind_eq_ok_iff, lift_eq, Result.ok.injEq, exists_eq_left'] at h
-  obtain ⟨decls, hdecls, h⟩ := h
-  obtain ⟨hdabs, hdwf⟩ := quot_basis_refines hdecls
-  have hdlen : (ConLeche.BasisKind.quotK.decls).length = decls.val.length := by
-    rw [ConLeche.BasisKind.decls, ← hdabs]; simp [absConstantInfos]
-  split at h
-  · rename_i hlt
-    simp only [bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h
-    obtain ⟨ci', hidx, hdup⟩ := h
-    have hcast : (Std.UScalar.cast Std.UScalarTy.Usize slot).val = slot.val := by
-      apply Env.u64_cast_usize_val
-      have := Env.usize_cast_u64_val (alloc.vec.Vec.len decls)
-      scalar_tac
-    have hslt : slot.val < decls.val.length := by
-      have := Env.usize_cast_u64_val (alloc.vec.Vec.len decls)
-      have := alloc.vec.Vec.len_val decls
-      scalar_tac
-    have hg := ExprOps.vec_index_getElem? hidx
-    rw [hcast] at hg
-    have hx : decls.val[slot.val] = ci' := by
-      rw [List.getElem?_eq_getElem hslt] at hg; exact Option.some_injective _ hg
-    rw [Env.constant_info_dup_refines hdup]
-    refine ⟨?_, hdwf ci' (by rw [← hx]; exact List.getElem_mem hslt)⟩
-    rw [ConLeche.BasisKind.decls, ← hdabs, absConstantInfos,
-      List.getD_eq_getElem?_getD, List.getElem?_map,
-      List.getElem?_eq_getElem hslt, hx]
-    rfl
-  · rename_i hge
-    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
-    obtain ⟨n, hn, e, he, cv, hcv, rfl⟩ := h
-    obtain ⟨acv, wcv⟩ :=
-      cv_refines (Name.anonymous_wf hn) vec_new_wf (Expr.bvar_wf he) hcv
-    refine ⟨?_, wcv⟩
-    have hslt : decls.val.length ≤ slot.val := by
-      have := Env.usize_cast_u64_val (alloc.vec.Vec.len decls)
-      have := alloc.vec.Vec.len_val decls
-      scalar_tac
-    rw [absConstantInfo, acv, Name.anonymous_refines hn, Expr.bvar_refines he,
-      List.getD_eq_getElem?_getD,
-      List.getElem?_eq_none (by omega)]
-    simp [absNames, alloc.vec.Vec.new]
-    rfl
-
-/-- **The quotient-pin match** (`ConLeche/Kernel/Basis.lean:73-78
-quotPinHit`): the record is the pinned package's constant at the slot it
-declares itself at, compared at `toConstantVal`. -/
-theorem quot_pin_hit_refines {k : env.QuotKind} {cv : env.ConstantVal} {b : Bool}
-    (hcv : ConstantValWF cv) (h : basis_raw.quot_pin_hit k cv = ok b) :
-    b = ConLeche.quotPinHit (absQuotKind k) (absConstantVal cv) := by
-  rw [basis_raw.quot_pin_hit] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨i, hi, ci, hci, cv1, hcv1, hb⟩ := h
-  obtain ⟨hciabs, hciwf⟩ := quot_basis_at_refines hci
-  have hcv1abs := Env.to_constant_val_refines hcv1
-  have hcv1wf := to_constant_val_wf hciwf hcv1
-  rw [Canon.constant_val_canon_eq_refines hcv hcv1wf hb, ConLeche.quotPinHit,
-    hcv1abs, hciabs, quot_kind_slot_refines hi]
-
 /-! ## Axiom census (DESIGN.md §5, the P3 gate) -/
-
-/--
-info: 'ConRon.Refine.BasisRaw.basis_pin_hit_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms basis_pin_hit_refines
-
-/--
-info: 'ConRon.Refine.BasisRaw.quot_pin_hit_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms quot_pin_hit_refines
 
 end ConRon.Refine.BasisRaw

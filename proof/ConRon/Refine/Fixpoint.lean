@@ -71,11 +71,6 @@ theorem admissible_eq_ok {α : Type} (P : Prop) (y : α) :
     rw [hsup] at hdiv
     exact absurd hdiv Aeneas.Data.Coinductive.not_ret_div
 
-/-- The partial-correctness motive at one result: `∀ o, x = ok o → Q o`. -/
-theorem admissible_ok_imp {α : Type} (Q : α → Prop) :
-    admissible (fun (x : Result α) => ∀ o, x = ok o → Q o) :=
-  admissible_pi _ fun o => admissible_eq_ok (Q o) o
-
 /-- The leaf of every motive: one function, applied to its (uncurried)
 argument. -/
 theorem admissible_apply_eq_ok {γ : Type} {α : Type} (a : γ) (P : Prop) (y : α) :

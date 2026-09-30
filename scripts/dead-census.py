@@ -342,7 +342,8 @@ def main():
     members = defaultdict(set)
     for n, o in own_of.items():
         members[o or n].add(n)
-    owner_mod = {o: info[next(iter(ns))][0] for o, ns in members.items()}
+    owner_mod = {o: (info[o][0] if o in info else info[next(iter(ns))][0])
+                 for o, ns in members.items()}
 
     def is_matcher(n):
         return any(c.startswith(("match_", "_sparseCasesOn"))

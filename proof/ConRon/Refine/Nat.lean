@@ -603,47 +603,6 @@ theorem beq_refines {a b : ron.nat.Nat} {r : Bool} (ha : NatWF a) (hb : NatWF b)
 §3.2's transparency obligation for it is that the model's walk is *reflexive*.
 `nat::beq` is one of its leaves (a `natVal` literal), hence this. -/
 
-theorem limb_ok (v : alloc.vec.Vec Std.U64) (i : Std.Usize) :
-    ∃ x, ron.nat.limb v i = ok x := by
-  rw [ron.nat.limb]
-  split
-  · rename_i hi
-    have hlt : i.val < v.val.length := by scalar_tac
-    obtain ⟨y, hy, -⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec v i hlt)
-    exact ⟨y, by simpa using hy⟩
-  · exact ⟨_, rfl⟩
-
-theorem cmp_from_refl (v : alloc.vec.Vec Std.U64) :
-    ∀ n : Nat, ∀ k : Std.Usize, k.val ≤ n → ron.nat.cmp_from v v k = ok .Eq := by
-  intro n
-  induction n with
-  | zero =>
-    intro k hk
-    rw [ron.nat.cmp_from.eq_def, if_pos (show k = 0#usize by scalar_tac)]
-  | succ n ih =>
-    intro k hk
-    rw [ron.nat.cmp_from.eq_def]
-    by_cases hz : k = 0#usize
-    · rw [if_pos hz]
-    · rw [if_neg hz]
-      obtain ⟨w, hw, hwv⟩ :=
-        WP.spec_imp_exists (Std.Usize.sub_spec (x := k) (y := 1#usize) (by scalar_tac))
-      obtain ⟨x, hx⟩ := limb_ok v w
-      simp only [hw, hx, bind_tc_ok]
-      rw [if_neg (by simp), if_neg (by simp)]
-      exact ih w (by scalar_tac)
-
-theorem cmp_refl (a : ron.nat.Nat) : ron.nat.cmp a a = ok .Eq := by
-  rw [ron.nat.cmp.eq_def]
-  rw [if_neg (by simp), if_neg (by simp)]
-  exact cmp_from_refl a.limbs (alloc.vec.Vec.len a.limbs).val (alloc.vec.Vec.len a.limbs) le_rfl
-
-/-- `ron::nat::beq` is reflexive -- the pointer fast path of a `natVal`
-literal's comparison is transparent (DESIGN.md §3.2). -/
-theorem beq_refl (a : ron.nat.Nat) : ron.nat.beq a a = ok true := by
-  rw [ron.nat.beq, cmp_refl]
-  simp
-
 theorem ble_refines {a b : ron.nat.Nat} {r : Bool} (ha : NatWF a) (hb : NatWF b)
     (h : ron.nat.ble a b = ok r) : r = decide (toNat a ≤ toNat b) := by
   rw [ron.nat.ble] at h
@@ -989,7 +948,6 @@ theorem seg_zero_mod (v : List Std.U64) (n : Nat) :
 theorem nat_land_eq (x y : Nat) : Nat.land x y = x &&& y := rfl
 theorem nat_lor_eq (x y : Nat) : Nat.lor x y = x ||| y := rfl
 theorem nat_xor_eq (x y : Nat) : Nat.xor x y = x ^^^ y := rfl
-
 /-- `land` only ever needs the shorter operand's window: the bits above it are
 `0` on one side. -/
 theorem land_mod_two_pow (A B k : Nat) (h : A < 2 ^ k ∨ B < 2 ^ k) :
@@ -1179,7 +1137,6 @@ theorem xor_refines {a b c : ron.nat.Nat} (h : ron.nat.xor a b = ok c) :
     Nat.mul_zero, pow_zero, Nat.one_mul, Nat.zero_add] at hseg
   obtain ⟨hnv, hwf⟩ := norm_refines h
   exact ⟨by rw [hnv, hseg]; rfl, hwf⟩
-
 
 /-! ## Shifts -/
 
@@ -1521,10 +1478,6 @@ theorem shr_word {X D bits : Nat} (hb2 : bits < 64) (hX : X < 2 ^ 64) :
           + 2 ^ (64 - bits) * (D % 2 ^ bits + 2 ^ bits * (D / 2 ^ bits)) := by
         rw [hsp]; ring
     _ = X / 2 ^ bits + 2 ^ (64 - bits) * D := by rw [hD]
-
-/-- The right-shift loop step, as pure arithmetic. -/
-theorem shr_step_arith (W O P L R : Nat) (hIH : W = O + P * L + P * R) :
-    W = O + P * (L + R) := by rw [hIH]; ring
 
 theorem shr_bits_from_val (v : alloc.vec.Vec Std.U64) (bits : Std.U64) (hb2 : bits.val < 64) :
     ∀ (d : Nat) (i : Std.Usize) (out w : alloc.vec.Vec Std.U64),

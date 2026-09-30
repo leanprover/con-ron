@@ -55,16 +55,6 @@ theorem bytesFrom_eq_nil {t : Slice Std.U8} {i : Std.Usize} (h : t.length ≤ i.
   have := bytesFrom_length (t := t) (i := i)
   exact List.eq_nil_of_length_eq_zero (by omega)
 
-/-- Two in-range indices name the same suffix only if they are equal: the
-lengths decide it.  This is what turns a `PinsDec`-side equation back into an
-index fact. -/
-theorem bytesFrom_inj {t : Slice Std.U8} {i j : Std.Usize}
-    (hi : i.val ≤ t.length) (hj : j.val ≤ t.length)
-    (h : bytesFrom t i = bytesFrom t j) : i.val = j.val := by
-  have h1 := bytesFrom_length (t := t) (i := i)
-  have h2 := bytesFrom_length (t := t) (i := j)
-  rw [h, h2] at h1; omega
-
 /-! ### The three moves every reader below makes -/
 
 /-- A slice read at an in-range index, in the forward `= ok` form. -/
@@ -190,114 +180,6 @@ private theorem byte_at_head {t : Slice Std.U8} {i : Std.Usize} {b : Std.U64}
   have hb := byte_at_refines h
   rw [bytesFrom_cons hi] at hb
   simpa [PinsDec.byteAt] using hb.symm
-
-/-- Every byte string starts with the empty pattern. -/
-private theorem startsWith_nil (bs : PinsDec.Bytes) :
-    PinsDec.startsWith bs [] = true := by
-  cases bs <;> rfl
-
-/-- The fuel induction behind `starts_with_from_refines`: the recursion is
-bounded by the *pattern*, so the measure is `p.length - i`. -/
-private theorem starts_with_from_aux {t p : Slice Std.U8} :
-    ∀ k (i : Std.Usize), p.length - i.val ≤ k →
-      pins_decode.starts_with_from t p i = ok true →
-      PinsDec.startsWith (bytesFrom t i) (bytesFrom p i) = true := by
-  intro k
-  induction k with
-  | zero =>
-    intro i hk h
-    rw [bytesFrom_eq_nil (show p.length ≤ i.val by omega)]
-    exact startsWith_nil _
-  | succ k ih =>
-    intro i hk h
-    by_cases hlt : i.val < p.length
-    · rw [pins_decode.starts_with_from.eq_def] at h
-      simp only [] at h
-      split at h
-      · exfalso; scalar_tac
-      · simp only [bind_eq_ok_iff] at h
-        obtain ⟨b, hb, c0, hc0, c1, hc1, h⟩ := h
-        rw [slice_index_ok hlt, Result.ok.injEq] at hc0
-        subst hc0
-        simp only [Std.lift, Result.ok.injEq] at hc1
-        subst hc1
-        split at h
-        · simp at h
-        · rename_i hne
-          have hbv : b.val = p.val[i.val].val := by simpa using hne
-          have hti : i.val < t.length := by
-            refine byte_at_lt hb ?_
-            have : p.val[i.val].val ≤ 255 := by scalar_tac
-            omega
-          simp only [bind_eq_ok_iff] at h
-          obtain ⟨w, hw, h⟩ := h
-          obtain ⟨w', hw', hw'v⟩ := step_ok hti
-          rw [hw', Result.ok.injEq] at hw
-          subst hw
-          have hrec := ih w' (by omega) h
-          rw [bytesFrom_step hw'v, bytesFrom_step (t := p) hw'v] at hrec
-          rw [bytesFrom_cons hti, bytesFrom_cons hlt, byte_at_head hb hti, hbv]
-          simpa [PinsDec.startsWith] using hrec
-    · rw [bytesFrom_eq_nil (show p.length ≤ i.val by omega)]
-      exact startsWith_nil _
-
-theorem starts_with_from_refines {t p : Slice Std.U8} {i : Std.Usize}
-    (h : pins_decode.starts_with_from t p i = ok true) (hi : i.val ≤ p.length) :
-    PinsDec.startsWith (bytesFrom t i) (bytesFrom p i) = true := by
-  -- `hi` is not needed below: the measure `p.length - i` is `0` exactly where
-  -- the pattern is already exhausted, which is the base case.
-  have _ := hi
-  exact starts_with_from_aux (p.length - i.val) i (le_refl _) h
-
-/-- `bytes_from` copies the rest of its slice onto the accumulator. -/
-private theorem bytes_from_aux {bs : Slice Std.U8} :
-    ∀ k (i : Std.Usize) (out : alloc.vec.Vec Std.U8), bs.length - i.val ≤ k →
-      ∀ v, pins_decode.bytes_from bs i out = ok v →
-        v.val = out.val ++ bs.val.drop i.val := by
-  intro k
-  induction k with
-  | zero =>
-    intro i out hk v h
-    rw [pins_decode.bytes_from.eq_def] at h
-    simp only [] at h
-    split at h
-    · simp only [Result.ok.injEq] at h
-      subst h
-      rw [List.drop_eq_nil_of_le (by scalar_tac)]; simp
-    · exfalso; scalar_tac
-  | succ k ih =>
-    intro i out hk v h
-    rw [pins_decode.bytes_from.eq_def] at h
-    simp only [] at h
-    split at h
-    · simp only [Result.ok.injEq] at h
-      subst h
-      rw [List.drop_eq_nil_of_le (by scalar_tac)]; simp
-    · rename_i hlt
-      have hi : i.val < bs.length := by scalar_tac
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨x, hx, out1, hpush, w, hw, h⟩ := h
-      rw [slice_index_ok hi, Result.ok.injEq] at hx
-      subst hx
-      obtain ⟨w', hw', hw'v⟩ := step_ok hi
-      rw [hw', Result.ok.injEq] at hw
-      subst hw
-      have hrec := ih w' out1 (by omega) v h
-      rw [hrec, vec_push_val hpush, hw'v, List.drop_eq_getElem_cons hi]
-      simp
-
-/-- `pins_header` builds `PinsDec.headerBytes`. -/
-theorem pins_header_refines {v : alloc.vec.Vec Std.U8}
-    (h : pins_decode.pins_header = ok v) :
-    v.val.map (fun b => b.val) = PinsDec.headerBytes := by
-  rw [pins_decode.pins_header] at h
-  simp only [Std.lift, bind_tc_ok] at h
-  have hv := bytes_from_aux (bs := Array.to_slice pins_decode.pins_header.H)
-    (Array.to_slice pins_decode.pins_header.H).length 0#usize
-    (alloc.vec.Vec.new Std.U8) (by scalar_tac) v h
-  rw [hv]
-  simp [alloc.vec.Vec.new, Array.val_to_slice, pins_decode.pins_header.H,
-    Array.make, PinsDec.headerBytes]
 
 /-- The full outcome (task #67): on `.Err` the decoder declined with its own
 `Native` error, which claims nothing about con-leche — see the module note. -/

@@ -733,12 +733,6 @@ theorem of_sorted_abs {qs : alloc.vec.Vec name.Name} {pw : prop_when.PropWhen}
 
 /-! ## The smart constructors -/
 
-theorem sorted_nil : ConLeche.PropWhen.Sorted ([] : List ConLeche.Name) := by
-  simp [ConLeche.PropWhen.Sorted]
-
-theorem sorted_one (x : ConLeche.Name) : ConLeche.PropWhen.Sorted [x] := by
-  simp [ConLeche.PropWhen.Sorted]
-
 theorem sorted_two {x y : ConLeche.Name} (h : ConLeche.Name.cmp x y = .lt) :
     ConLeche.PropWhen.Sorted [x, y] := by
   simp [ConLeche.PropWhen.Sorted, List.pairwise_cons, ConLeche.Name.lt_def, h]
@@ -1086,47 +1080,7 @@ theorem bind_z_shape {F : Type} {inst : prop_when.NameToPw F} {f : F}
       ConLeche.PropWhen.bindZ_ifAllZero]
     simp [absNames, show (0#usize : Std.Usize).val = 0 from rfl]
 
-theorem u64_zero_decide (m : Std.U64) : decide (m = 0#u64) = ((m.val : Nat) == 0) := by
-  rw [Bool.eq_iff_iff, decide_eq_true_iff, beq_iff_eq]
-  exact ⟨fun h => by rw [h]; rfl,
-    fun h => Std.UScalar.val_eq_imp_iff.mpr (by simpa using h)⟩
-
-theorem u64_zero_true {m : Std.U64} (h : m = 0#u64) : ((m.val : Nat) == 0) = true := by
-  rw [h]; rfl
-
-theorem u64_zero_false {m : Std.U64} (h : ¬ m = 0#u64) : ((m.val : Nat) == 0) = false := by
-  simp only [beq_eq_false_iff_ne, ne_eq]
-  exact fun hc => h (Std.UScalar.val_eq_imp_iff.mpr (by simpa using hc))
-
 /-! ## `to_list` / `to_list_opt` -- the views -/
-
-/-- `ConLeche/Kernel/PropWhen.lean:509-518` -- `prop_when::to_list` refines
-`PropWhen.toList`.  This is where canonicity is *used*: without the
-`WFShape`'s sortedness the Rust list is only membership-equal to
-con-leche's. -/
-theorem to_list_shape {pw : prop_when.PropWhen} {v : alloc.vec.Vec name.Name}
-    (hpw : WFShape pw) (h : prop_when.to_list pw = ok v) :
-    absNames v = (absPropWhen pw).toList := by
-  rw [absNames, to_list_val h, wfShape_toList hpw]
-
-/-- `ConLeche/Kernel/PropWhen.lean:520-525` -- `prop_when::to_list_opt`
-refines `PropWhen.toList?`. -/
-theorem to_list_opt_shape {pw : prop_when.PropWhen} {o : Option (alloc.vec.Vec name.Name)}
-    (hpw : WFShape pw) (h : prop_when.to_list_opt pw = ok o) :
-    o.map absNames = (absPropWhen pw).toList? := by
-  obtain ⟨r⟩ := pw
-  cases r
-  case Never =>
-    simp only [prop_when.to_list_opt, Result.ok.injEq] at h
-    subst h
-    rw [absPropWhen_never rfl, ConLeche.PropWhen.toList?_never]
-    rfl
-  all_goals
-    simp only [prop_when.to_list_opt, bind_eq_ok_iff, Result.ok.injEq] at h
-    obtain ⟨v, hv, rfl⟩ := h
-    rw [absPropWhen_eq_ifAllZero (by simp), ConLeche.PropWhen.toList?_ifAllZero,
-      ConLeche.PropWhen.canon_eq_self hpw.sorted, Option.map_some]
-    rw [absNames, to_list_val hv]
 
 /-! ## `is_never` and `has_params` -/
 
@@ -1186,108 +1140,6 @@ theorem has_params_shape {pw : prop_when.PropWhen} {b : Bool} (hpw : WFShape pw)
 `holds (φ : Name → Nat)` takes a *function*; the port takes a one-method trait
 dictionary (task #9, pattern 1), so the statement carries the hypothesis `hφ`
 that relates the dictionary to `φ`. -/
-
-theorem all_zero_from_refines {V : Type} {inst : prop_when.Valuation V} {phi : V}
-    (φ : ConLeche.Name → Nat)
-    (hφ : ∀ n, NameWF n → ∀ m : Std.U64, inst.value_at phi n = ok m → φ (absName n) = m.val)
-    {ps : alloc.vec.Vec name.Name} (hps : NamesWF ps) :
-    ∀ k : Nat, ∀ (i : Std.Usize) (b : Bool), ps.length - i.val ≤ k →
-      prop_when.all_zero_from inst phi ps i = ok b →
-      b = ((ps.val.drop i.val).map absName).all (fun n => φ n == 0) := by
-  intro k
-  induction k with
-  | zero =>
-    intro i b hk h
-    rw [prop_when.all_zero_from.eq_def] at h; simp only [] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len ps by scalar_tac), Result.ok.injEq] at h
-    subst h
-    rw [List.drop_eq_nil_of_le (show ps.val.length ≤ i.val by scalar_tac)]
-    simp
-  | succ k ih =>
-    intro i b hk h
-    rw [prop_when.all_zero_from.eq_def] at h; simp only [] at h
-    by_cases hle : i.val ≥ ps.val.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len ps by scalar_tac), Result.ok.injEq] at h
-      subst h
-      rw [List.drop_eq_nil_of_le (show ps.val.length ≤ i.val by scalar_tac)]
-      simp
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ps by scalar_tac)] at h
-      have hi : i.val < ps.val.length := by scalar_tac
-      have hwf : NameWF ps.val[i.val] := hps _ (List.getElem_mem hi)
-      have hmax : i.val + 1 ≤ Std.Usize.max := by have := ps.slice.property; scalar_tac
-      obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
-      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec ps i hi)
-      subst hyv
-      simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hw,
-        Result.ok.injEq, exists_eq_left'] at h
-      obtain ⟨m, hm, h⟩ := h
-      have hval := hφ _ hwf m hm
-      rw [List.drop_eq_getElem_cons hi, List.map_cons, List.all_cons, hval]
-      split at h
-      · rename_i hz
-        simp only [bind_tc_ok] at h
-        rw [u64_zero_true hz, Bool.true_and, ← hwv]
-        exact ih w b (by scalar_tac) h
-      · rename_i hz
-        simp only [Result.ok.injEq] at h
-        subst h
-        rw [u64_zero_false hz, Bool.false_and]
-
-/-- `ConLeche/Kernel/PropWhen.lean:691-700` -- `prop_when::holds` refines
-`PropWhen.holds`, exactly. -/
-theorem holds_shape {V : Type} {inst : prop_when.Valuation V} {phi : V}
-    (φ : ConLeche.Name → Nat)
-    (hφ : ∀ n, NameWF n → ∀ m : Std.U64, inst.value_at phi n = ok m → φ (absName n) = m.val)
-    {pw : prop_when.PropWhen} {b : Bool} (hpw : WFShape pw)
-    (h : prop_when.holds inst phi pw = ok b) :
-    b = ConLeche.PropWhen.holds φ (absPropWhen pw) := by
-  obtain ⟨r⟩ := pw
-  cases r with
-  | Never =>
-    simp only [prop_when.holds, Result.ok.injEq] at h
-    subst h
-    rw [absPropWhen_never rfl, ConLeche.PropWhen.holds_never]
-  | Always =>
-    simp only [prop_when.holds, Result.ok.injEq] at h
-    subst h
-    rw [absPropWhen_eq_ifAllZero (by simp), ConLeche.PropWhen.holds_ifAllZero]
-    simp [reprList]
-  | One p =>
-    simp only [prop_when.holds, bind_eq_ok_iff, Result.ok.injEq] at h
-    obtain ⟨m, hm, rfl⟩ := h
-    have hp : NameWF p := hpw.1 p (by simp [reprList])
-    have hval := hφ p hp m hm
-    rw [absPropWhen_eq_ifAllZero (by simp), ConLeche.PropWhen.holds_ifAllZero]
-    simp only [reprList, List.map_cons, List.map_nil, List.all_cons, List.all_nil,
-      Bool.and_true, hval]
-    exact u64_zero_decide m
-  | Two pq =>
-    obtain ⟨p, q⟩ := pq
-    simp only [prop_when.holds, bind_arc_deref, uncurry_apply_pair, bind_eq_ok_iff] at h
-    obtain ⟨m, hm, h⟩ := h
-    have hp : NameWF p := hpw.1 p (by simp [reprList])
-    have hq : NameWF q := hpw.1 q (by simp [reprList])
-    have hval := hφ p hp m hm
-    rw [absPropWhen_eq_ifAllZero (by simp), ConLeche.PropWhen.holds_ifAllZero]
-    simp only [reprList, List.map_cons, List.map_nil, List.all_cons, List.all_nil,
-      Bool.and_true, hval]
-    split at h
-    · rename_i hz
-      simp only [bind_eq_ok_iff, Result.ok.injEq] at h
-      obtain ⟨m1, hm1, rfl⟩ := h
-      have hval1 := hφ q hq m1 hm1
-      rw [hval1, u64_zero_true hz, Bool.true_and]
-      exact u64_zero_decide m1
-    · rename_i hz
-      simp only [Result.ok.injEq] at h
-      subst h
-      rw [u64_zero_false hz, Bool.false_and]
-  | Many ps =>
-    simp only [prop_when.holds, bind_arc_deref] at h
-    have hps : NamesWF ps := by intro n hn; exact hpw.1 n (by simpa [reprList] using hn)
-    have hrec := all_zero_from_refines φ hφ hps ps.length 0#usize b (by scalar_tac) h
-    rw [absPropWhen_eq_ifAllZero (by simp), ConLeche.PropWhen.holds_ifAllZero]
-    simpa [reprList, show (0#usize : Std.Usize).val = 0 from rfl] using hrec
 
 /-! ## `params_defined` -/
 
@@ -1809,57 +1661,6 @@ and DESIGN.md §3.2's transparency obligation for it is that the model's walk is
 *reflexive*.  A `lam`/`forallE` node's `BinderMeta` is one of that descent's
 leaves, so `prop_when::beq` owes the same lemma. -/
 
-theorem names_beq_from_refl {ps : alloc.vec.Vec name.Name} (hps : NamesWF ps) :
-    ∀ k : Nat, ∀ i : Std.Usize, ps.val.length - i.val ≤ k →
-      prop_when.names_beq_from ps ps i = ok true := by
-  intro k
-  induction k with
-  | zero =>
-    intro i hk
-    rw [prop_when.names_beq_from.eq_def]
-    simp only []
-    rw [if_pos (show i ≥ alloc.vec.Vec.len ps by scalar_tac),
-      if_pos (show i ≥ alloc.vec.Vec.len ps by scalar_tac)]
-  | succ k ih =>
-    intro i hk
-    rw [prop_when.names_beq_from.eq_def]
-    simp only []
-    by_cases hi : i.val ≥ ps.val.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len ps by scalar_tac),
-        if_pos (show i ≥ alloc.vec.Vec.len ps by scalar_tac)]
-    · have hlt : i.val < ps.val.length := by scalar_tac
-      have hmax : i.val + 1 ≤ Std.Usize.max := by have := ps.slice.property; scalar_tac
-      obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
-      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec ps i hlt)
-      subst hyv
-      rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ps by scalar_tac),
-        if_neg (show ¬ i ≥ alloc.vec.Vec.len ps by scalar_tac),
-        if_neg (show ¬ i ≥ alloc.vec.Vec.len ps by scalar_tac)]
-      simp only [alloc.vec.Vec.index_slice_index, hy, hw, bind_tc_ok,
-        Name.name_beq_refl (hps _ (List.getElem_mem hlt)), if_true]
-      exact ih w (by scalar_tac)
-
-/-- `prop_when::beq` is reflexive on well-formed data. -/
-theorem beq_refl {pw : prop_when.PropWhen} (h : PropWhenWF pw) :
-    prop_when.beq pw pw = ok true := by
-  have hs := wf_shape h
-  obtain ⟨r⟩ := pw
-  rw [prop_when.beq]
-  cases r with
-  | Never => rfl
-  | Always => rfl
-  | One p =>
-    exact Name.name_beq_refl (hs.namesWF p (by simp [reprList]))
-  | Two pq =>
-    obtain ⟨p, q⟩ := pq
-    simp only [prop_when.equiv_r, bind_arc_deref, uncurry_apply_pair,
-      Name.name_beq_refl (hs.namesWF p (by simp [reprList])), bind_tc_ok, if_true]
-    exact Name.name_beq_refl (hs.namesWF q (by simp [reprList]))
-  | Many ps =>
-    simp only [prop_when.equiv_r, bind_arc_deref, prop_when.names_beq]
-    exact names_beq_from_refl (fun n hn => hs.namesWF n (by simpa [reprList] using hn))
-      ps.val.length 0#usize (by scalar_tac)
-
 /-! ## `absPropWhen` is injective on well-formed data (task #20)
 
 `kernel::expr` needs it: a `lam`/`forallE` node stores a `BinderMeta`, so
@@ -1935,20 +1736,6 @@ theorem if_all_zero_refines {ps pw} (hps : NamesWF ps)
     absPropWhen pw = ConLeche.PropWhen.ifAllZero (absNames ps) :=
   (if_all_zero_shape hps h).2.2
 
-/-- `prop_when::name_cmp` refines `ConLeche.Name.cmp` (`PropWhen.lean:75-85`). -/
-theorem name_cmp_refines' {a b : name.Name} (ha : NameWF a) (hb : NameWF b)
-    {o : prop_when.Ordering} (h : prop_when.name_cmp a b = ok o) :
-    ConLeche.Name.cmp (absName a) (absName b) = absOrdering o := name_cmp_refines ha hb h
-
-/-- `prop_when::to_list` refines `PropWhen.toList`. -/
-theorem to_list_refines {pw v} (hpw : PropWhenWF pw) (h : prop_when.to_list pw = ok v) :
-    absNames v = (absPropWhen pw).toList := to_list_shape (wf_shape hpw) h
-
-/-- `prop_when::to_list_opt` refines `PropWhen.toList?`. -/
-theorem to_list_opt_refines {pw o} (hpw : PropWhenWF pw)
-    (h : prop_when.to_list_opt pw = ok o) : o.map absNames = (absPropWhen pw).toList? :=
-  to_list_opt_shape (wf_shape hpw) h
-
 /-- `prop_when::is_never` refines `PropWhen.isNever`. -/
 theorem is_never_refines {pw b} (h : prop_when.is_never pw = ok b) :
     b = ConLeche.PropWhen.isNever (absPropWhen pw) := is_never_shape h
@@ -1957,14 +1744,6 @@ theorem is_never_refines {pw b} (h : prop_when.is_never pw = ok b) :
 theorem has_params_refines {pw b} (hpw : PropWhenWF pw)
     (h : prop_when.has_params pw = ok b) :
     b = ConLeche.PropWhen.hasParams (absPropWhen pw) := has_params_shape (wf_shape hpw) h
-
-/-- `prop_when::holds` refines `PropWhen.holds`.  `hφ` is the hypothesis that
-the port's `Valuation` dictionary computes con-leche's `φ : Name → Nat`. -/
-theorem holds_refines {V : Type} {inst : prop_when.Valuation V} {phi : V}
-    (φ : ConLeche.Name → Nat)
-    (hφ : ∀ n, NameWF n → ∀ m : Std.U64, inst.value_at phi n = ok m → φ (absName n) = m.val)
-    {pw b} (hpw : PropWhenWF pw) (h : prop_when.holds inst phi pw = ok b) :
-    b = ConLeche.PropWhen.holds φ (absPropWhen pw) := holds_shape φ hφ (wf_shape hpw) h
 
 /-- `prop_when::params_defined` refines `PropWhen.paramsDefined`. -/
 theorem params_defined_refines {params pw b} (hpar : NamesWF params) (hpw : PropWhenWF pw)

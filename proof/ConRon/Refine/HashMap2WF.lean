@@ -41,12 +41,6 @@ variable {K V : Type} [DecidableEq K]
   {m : ron.hashmap2.HashMap2 K V}
 
 omit [DecidableEq K] in
-/-- `KeysOk` transported along a permutation of the entries — the shape in
-which every table-building operation states what it did. -/
-theorem KeysOk_of_perm {P : K → Prop} {m' : ron.hashmap2.HashMap2 K V}
-    {l : List (K × V)} (hp : (sl_v m').Perm l) (hl : ∀ p ∈ l, P p.1) : KeysOk P m' :=
-  fun p hpm => hl p (hp.mem_iff.mp hpm)
-
 /-! ## The operations, key-restricted -/
 
 theorem get_refines_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P) (hinv : Inv HashableInst m)
@@ -59,35 +53,6 @@ theorem contains_key_refines_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     (h : ron.hashmap2.HashMap2.contains_key HashableInst Eq2Inst m key = ok b) :
     b = (toFun m key).isSome :=
   contains_key_refines_gen heq hinv hkeys hk h
-
-/-- `insert_no_resize` concludes `Inv0` and not `Inv`: it writes an entry
-without checking the load, and `insert`'s doubling is what puts the load
-clause back. -/
-theorem insert_no_resize_spec_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
-    (hinv : Inv HashableInst m) (hkeys : KeysOk P m) {key : K} {value : V} (hk : P key)
-    (hpos : 0 < m.slots.val.length) {old : Option V} {m' : ron.hashmap2.HashMap2 K V}
-    (h : ron.hashmap2.HashMap2.insert_no_resize HashableInst Eq2Inst m key value
-          = ok (old, m')) :
-    Inv0 HashableInst m' ∧ old = toFun m key ∧
-    (∀ k', toFun m' k' = if k' = key then some value else toFun m k') ∧
-    m'.slots.val.length = m.slots.val.length ∧
-    m'.max_load = m.max_load ∧ m'.epoch = m.epoch ∧
-    m'.num_entries.val = m.num_entries.val + (if old.isSome then 0 else 1) ∧
-    (sl_v m').length = (sl_v m).length + (if old.isSome then 0 else 1) ∧
-    (old = none → (sl_v m').Perm ((key, value) :: sl_v m)) ∧ KeysOk P m' :=
-  insert_no_resize_spec heq hinv hkeys hk hpos h
-
-/-- `try_resize` is the one operation that needs the table to be *allocated*
-(it doubles `slots.len()`, and `0` doubled is still `0`); `insert` supplies
-`hpos` from `ensure_slots_spec` (task #35).  It used to need a second
-hypothesis, "the table can still double" — task #97-P6-17 took the saturating
-arm out of the Rust, so the `ok` premise supplies it. -/
-theorem try_resize_spec_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
-    (hinv : Inv0 HashableInst m) (hkeys : KeysOk P m) (hpos : 0 < m.slots.val.length)
-    {m' : ron.hashmap2.HashMap2 K V}
-    (h : ron.hashmap2.HashMap2.try_resize HashableInst Eq2Inst m = ok m') :
-    Inv HashableInst m' ∧ KeysOk P m' ∧ (∀ k, toFun m' k = toFun m k) :=
-  try_resize_spec heq hinv hkeys hpos h
 
 theorem insert_refines_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     (hinv : Inv HashableInst m) (hkeys : KeysOk P m) {key : K} {value : V} (hk : P key)
@@ -105,7 +70,6 @@ theorem remove_refines_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     Inv HashableInst m' ∧ old = toFun m key ∧
     toFun m' = Function.update (toFun m) key none ∧ KeysOk P m' :=
   remove_refines_gen heq hinv hkeys hk h
-
 
 /-! ## The bridge to `Std.HashMap`, key-restricted
 
@@ -128,11 +92,6 @@ variable {K' V' : Type} [BEq K'] [Hashable K'] {absK : K → K'} {absV : V → V
 def RelOn (P : K → Prop) (m : ron.hashmap2.HashMap2 K V)
     (s : _root_.Std.HashMap K' V') (absK : K → K') (absV : V → V') : Prop :=
   ∀ k, P k → (toFun m k).map absV = s[absK k]?
-
-/-- `Rel` is the case `P := fun _ => True`, so it is always the stronger one:
-this is the only direction that holds. -/
-theorem RelOn_of_Rel {P : K → Prop} {s : _root_.Std.HashMap K' V'}
-    (h : Rel m s absK absV) : RelOn P m s absK absV := fun k _ => h k
 
 /-- The empty relation.  Compose with `new_refines`, `with_capacity_refines`,
 `clear_refines` or `clear_fit_refines`, whose third component is exactly this
@@ -170,23 +129,6 @@ theorem Rel_insert_wf [LawfulBEq K'] [LawfulHashable K'] {P : K → Prop}
     rw [if_neg hkk, if_neg (by simpa using hne)]
     exact hrel k' hk'
 
-theorem Rel_remove_wf [LawfulBEq K'] [LawfulHashable K'] {P : K → Prop}
-    {s : _root_.Std.HashMap K' V'} (heq : Eq2Fwd Eq2Inst P)
-    (hinj : ∀ a b, P a → P b → absK a = absK b → a = b) (hinv : Inv HashableInst m)
-    (hkeys : KeysOk P m) (hrel : RelOn P m s absK absV) {key : K} (hk : P key)
-    {old : Option V} {m' : ron.hashmap2.HashMap2 K V}
-    (h : ron.hashmap2.HashMap2.remove HashableInst Eq2Inst m key = ok (old, m')) :
-    RelOn P m' (s.erase (absK key)) absK absV ∧ KeysOk P m' := by
-  obtain ⟨-, -, hupd, hkeys'⟩ := remove_refines_wf heq hinv hkeys hk h
-  refine ⟨?_, hkeys'⟩
-  intro k' hk'
-  rw [hupd, Function.update_apply, _root_.Std.HashMap.getElem?_erase]
-  by_cases hkk : k' = key
-  · subst hkk; simp
-  · have hne : ¬(absK key = absK k') := fun hc => hkk (hinj key k' hk hk' hc).symm
-    rw [if_neg hkk, if_neg (by simpa using hne)]
-    exact hrel k' hk'
-
 end Bridge
 
 end ConRon.Refine.HashMap2
@@ -208,5 +150,3 @@ statement. -/
 /-- info: 'ConRon.Refine.HashMap2.remove_refines_wf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.HashMap2.remove_refines_wf
 
-/-- info: 'ConRon.Refine.HashMap2.Rel_remove_wf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ConRon.Refine.HashMap2.Rel_remove_wf
