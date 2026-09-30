@@ -2055,4 +2055,32 @@ theorem want_rec_names_ls {pers}
       if_neg (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac), List.mapM_cons]
     lockstep
 
+@[lockstep] theorem want_rec_names_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape) :
+    LS pers (fun a b => b = absNIdxL a)
+      (arena.inductives.block_parts.want_rec_names pers st ms 0#usize (alloc.vec.Vec.new _)) lst
+      ((ms.val.map absMemberShape).mapM fun m => internNNode (.str m.cvT.name "rec")) := by
+  have h := want_rec_names_ls (pers := pers) ms 0#usize st lst (alloc.vec.Vec.new _) hrel hinv
+  simp only [usz_zero_val, List.drop_zero, absNIdxL, vec_new_val', List.map_nil, List.nil_append,
+    bind_pure] at h
+  exact h
+
+/-- `block_rec_name_set_ok` ⊑ `blockRecNameSetOk`. -/
+@[lockstep] theorem block_rec_name_set_ok_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    (members : alloc.vec.Vec arena.inductives.block_parts.MemberShape)
+    (recs : alloc.vec.Vec arena.inductives.block_parts.RecShape) :
+    LS pers (fun a b => b = a)
+      (arena.inductives.block_parts.block_rec_name_set_ok pers st members recs) lst
+      (blockRecNameSetOk (members.val.map absMemberShape) (recs.val.map absRecShape)) := by
+  rw [arena.inductives.block_parts.block_rec_name_set_ok, blockRecNameSetOk]
+  lockstep
+  have hlen : ∀ (x y : alloc.vec.Vec arena.handle.NIdx), x.len = y.len →
+      x.val.length = y.val.length := fun x y h => by
+    have := congrArg Std.UScalar.val h
+    simpa using this
+  have hl := hlen _ _ ‹alloc.vec.Vec.len _ = alloc.vec.Vec.len _›
+  refine LS.pure ?_ ‹_› ‹_›
+  simp only [absNIdxL, List.length_map, hl, beq_self_eq_true, Bool.true_and, Bool.and_true]
+
 end ConRon.Refine2
