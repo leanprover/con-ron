@@ -197,4 +197,43 @@ out). -/
         pure (absTeleL out ++ q)) :=
   check_block_teles_aux _ rfl hrel hinv hfe
 
+/-- `j - 1` as a plain value equation (the `lockstep` respelling of a
+`TwinEq` reads `↑a = e` facts, not conjunctions). -/
+theorem bi_u64_sub_one (x : Std.U64) : LSP (x - 1#u64) (fun z => z.val = x.val - 1) := by
+  intro z h
+  exact (ConRon.Refine.Nat.usub_val h).2
+
+attribute [local lockstep high] bi_u64_sub_one
+
+@[local lockstep_simp] theorem bi_unwrapOr_some {α : Type} (a : α) (e : Arena.CheckError) :
+    unwrapOr (some a) e = pure a := rfl
+
+@[local lockstep_simp] theorem bi_unwrapOr_none {α : Type} (e : Arena.CheckError) :
+    unwrapOr (none : Option α) e = Arena.fail e := rfl
+
+/-- `check_block_doms_at` ⊑ `checkBlockDomsAt`, on the binder count. -/
+@[lockstep] theorem check_block_doms_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (mode : kernel.env.CheckMode) {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI rf lf) (off : Std.U64) (fvs doms : alloc.vec.Vec arena.handle.EIdx)
+    (j : Std.U64) :
+    LS pers (fun _ _ => True)
+      (arena.inductives.block_install.check_block_doms_at pers st mode rf off fvs doms j) lst
+      (checkBlockDomsAt (ConRon.Refine.absMode mode) lf (absU off) (absEIdxL fvs)
+        (absEIdxL doms) (absU j)) := by
+  have hvis := bi_hvis hfe
+  induction hj : j.val generalizing j st lst with
+  | zero =>
+    rw [arena.inductives.block_install.check_block_doms_at.eq_def, if_pos (by scalar_tac),
+      show absU j = 0 from hj, checkBlockDomsAt]
+    lockstep
+  | succ n ih =>
+    rw [arena.inductives.block_install.check_block_doms_at.eq_def, if_neg (by scalar_tac),
+      show absU j = n + 1 from hj, checkBlockDomsAt]
+    obtain rfl : n = j.val - 1 := by omega
+    clear hj
+    lockstep
+    rename_i k hk _ _ _ _ _ _
+    refine LS.tail (ih hrel hinv k hk) ?_ (fun _ _ h => h)
+    simp only [absEIdxL, absU, hk]
+
 end ConRon.Refine2
