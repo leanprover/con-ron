@@ -1,9 +1,9 @@
 /-
 # `ConRon.Bridge.ExprOps.Spine` — Theorem 1 for the spine and telescope twins
 
-DESIGN §8.2's Theorem 1 at the twenty-one twins of `Arena/ExprOps.lean` that
+DESIGN §8.2's Theorem 1 at the twins of `Arena/ExprOps.lean` that
 walk an APPLICATION SPINE or a BINDER TELESCOPE rather than the handle DAG:
-`getAppFn` … `resultSort` (`ExprOps.lean:1045`–`:1387`).
+`getAppFn` … `instLamsAt` (`ExprOps.lean:1045`–`:1387`).
 
 ## What makes this group different from `ExprOps/Inst1`
 
@@ -12,9 +12,8 @@ walk an APPLICATION SPINE or a BINDER TELESCOPE rather than the handle DAG:
    argument list (`mkAppN`, `instSpine`, `instPisAt`) or on a `Nat` cursor
    (`mkAppNFrom`, `bvarRange`), so the theorems are plain inductions over
    that argument and not fuel inductions, and the postcondition frames no
-   memo table at all.  The eight READ-ONLY twins (`getAppFn`, `getAppArgs`,
-   `stripLams`, `stripPis`, `piResult`, `fvarTypeD`, `piArity`,
-   `resultSort`) intern nothing, so their postcondition is `s' = s₀` and the
+   memo table at all.  The six READ-ONLY twins (`getAppFn`, `getAppArgs`,
+   `stripLams`, `stripPis`, `piResult`, `fvarTypeD`) intern nothing, so their postcondition is `s' = s₀` and the
    answer relation's two stores coincide.
 2. **Two of them are arena-only.**  `bvarRange` interns `recRulePlain`'s
    comparand list (con-leche writes it as a literal `List.map`) and
@@ -35,11 +34,9 @@ walk an APPLICATION SPINE or a BINDER TELESCOPE rather than the handle DAG:
 ## The answer relations
 
 `Bridge/Rel.lean` has the four shapes the DAG walks need; this group needs
-three more, and they are declared here because they are this group's result
+two more, and they are declared here because they are this group's result
 types:
 
-* `RelLO` — an `Option LIdx` answer (`resultSort`), the `Option`-flavoured
-  `RelL`, modelled on `RelEO`;
 * `RelEP` — an `Option (List EIdx × EIdx)` answer (`instPisAt`,
   `instLamsAt`, and the four `…F`s);
 * `RelBP` — an `Option (List (EIdx × BinderMeta) × EIdx)` answer
@@ -50,15 +47,14 @@ Everything else reuses `Rel.lean`: `RelE` for `getAppFn`, `piResult`,
 `fvarTypeD`, `instSpine`, `mkAppN` and `mkAppNFrom` (the last two at the
 partially applied pure function `fun x => Expr.mkAppN x eargs`, which is how
 a multi-subject twin fits a one-subject relation — the argument list's
-denotation is an ordinary hypothesis), `RelV` for `piArity` and
-`recRulePlain`, `RelEO` for `instPis`, and
+denotation is an ordinary hypothesis), `RelV` for `recRulePlain`, and
 `RelEL` for `getAppArgs` and `bvarRange`.
 
 ## The axiom check, and what it inherits
 
 **Nothing in this file is unproved.**  `#print axioms` at the end reports
-`[propext, Classical.choice, Quot.sound]` for all sixteen twins.  Four of
-them — `instPis`, `instPisAt`, `instLamsAt`, `instSpine` — CONSUME
+`[propext, Classical.choice, Quot.sound]` for every twin.  Three of
+them — `instPisAt`, `instLamsAt`, `instSpine` — CONSUME
 `ExprOps/Inst1`'s `instantiate1Fast_spec` and inherited its open goals until
 task #97-P3-1's arm split closed them; as that section predicted, they closed
 with it and no statement changed.
@@ -90,25 +86,12 @@ open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 tier repeats `ExprOps/Inst1`'s line. -/
 attribute [-grind] RelE.ext RelE.of_ext RelE.retarget
 
-/-! ## 1. The three answer relations this group adds
+/-! ## 1. The answer relations this group adds
 
 Modelled on `Bridge/Rel.lean`'s `RelEO`: an `Option`-valued answer gets a
 `denote…` function that turns the handle side into `Option (Option …)`, so
 that the relation has `RelE`'s shape exactly and `grind` still sees a head
 symbol. -/
-
-/-- con-leche: none — the denotation of an OPTIONAL LEVEL handle, so that
-`RelLO` has `RelEO`'s shape. -/
-def denoteLO (st : EStore) : Option LIdx → Option (Option Level)
-  | none => some none
-  | some u => (denoteL st.ls u).map some
-
-/-- con-leche: ConLeche/Verify/SimI.lean:254 RelL — the answer relation whose
-subject is an EXPRESSION handle and whose answer is an optional LEVEL handle
-(`resultSort`).  The `Option`-flavoured `RelL` the group needs. -/
-def RelLO (f : Expr → Option Level) (st : EStore) (c : EIdx) (st' : EStore)
-    (r : Option LIdx) : Prop :=
-  ∀ e, denoteE st c = some e → denoteLO st' r = some (f e)
 
 /-- con-leche: none — the denotation of an optional (handle list, handle)
 PAIR: `instPisAt`'s result shape. -/
@@ -157,7 +140,7 @@ def RelBP (f : Expr → Option (List (Expr × BinderMeta) × Expr))
 /-! ### The TWO-SUBJECT relations
 
 Half of this group takes a second subject — an argument LIST (`mkAppN`,
-`instPis`, `instPisAt`, `instSpine`) — and the answer depends on both.  Template rule 4 says
+`instPisAt`, `instSpine`) — and the answer depends on both.  Template rule 4 says
 why the second subject may not be a named `Expr` in the statement: the
 recursion carries it forward, so a `∀ eargs` in the PRECONDITION leaves the
 recursive call's side goal with a metavariable `grind` cannot invent.  So the
@@ -194,21 +177,10 @@ def RelEPAA (F : Expr → List Expr → List Expr → Option (List Expr × Expr)
 
 /-! ### Their eliminators
 
-`.apply` and the two transports, exactly `RelEO`'s set.  **These three
+`.apply` and the two transports, exactly `RelEO`'s set.  **These
 `denote…`s and their lemmas morally belong in `Bridge/Rel.lean`** beside
 `denoteEO`/`RelEO`; they are here because `Rel.lean` is another agent's file
 this round. -/
-
-/-- con-leche: none — an optional level handle's denotation transports. -/
-theorem denoteLO_ext {st st' : EStore} {r : Option LIdx} {x : Option Level}
-    (h : denoteLO st r = some x) (hx : Ext st st') :
-    denoteLO st' r = some x := by
-  cases r with
-  | none => exact h
-  | some u =>
-    simp only [denoteLO, Option.map_eq_some_iff] at h ⊢
-    obtain ⟨l, hl, hr⟩ := h
-    exact ⟨l, denoteL_ext hl hx, hr⟩
 
 /-- con-leche: none — a binder list's denotation transports. -/
 theorem denoteBL_ext {st st' : EStore} (hx : Ext st st') :
@@ -262,23 +234,6 @@ theorem denoteEP_ext {st st' : EStore} {r : Option (List EIdx × EIdx)}
       | some y =>
         rw [hb, he] at h
         rw [denoteEList_ext hx _ ys hb, denote_ext he hx]; exact h
-
-/-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — `RelEO.apply` at
-`RelLO`. -/
-@[grind →] theorem RelLO.apply {f : Expr → Option Level} {st st' : EStore}
-    {c : EIdx} {r : Option LIdx} {e : Expr} (h : RelLO f st c st' r)
-    (he : denoteE st c = some e) : denoteLO st' r = some (f e) := h e he
-
-/-- con-leche: none — `RelEO.ext` at `RelLO`. -/
-@[grind →] theorem RelLO.ext {f : Expr → Option Level} {st st' st'' : EStore}
-    {c : EIdx} {r : Option LIdx} (h : RelLO f st c st' r) (hx : Ext st' st'') :
-    RelLO f st c st'' r := fun e he => denoteLO_ext (h e he) hx
-
-/-- con-leche: none — `RelEO.of_ext` at `RelLO`. -/
-@[grind →] theorem RelLO.of_ext {f : Expr → Option Level}
-    {st st0 st' : EStore} {c : EIdx} {r : Option LIdx}
-    (h : RelLO f st c st' r) (hx : Ext st0 st) : RelLO f st0 c st' r :=
-  fun e he => h e (denote_ext he hx)
 
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — `RelEO.apply` at
 `RelEP`. -/
@@ -1142,9 +1097,9 @@ theorem bvarRange_spec : ∀ (n : Nat) (s₀ : AState) (mI k : Nat), StateOK s�
          (denote_ext (denote_bvar_of_intern (by arm_hyp)) (by arm_hyp))
          (by arm_hyp))
 
-/-! ## 7. The four walks that fold `instantiate1`
+/-! ## 7. The three walks that fold `instantiate1`
 
-`instSpine`, `instPis`, `instPisAt` and `instLamsAt` call
+`instSpine`, `instPisAt` and `instLamsAt` call
 `instantiate1Fast`, whose Theorem 1 is `ExprOps/Inst1`'s
 `instantiate1Fast_spec`.  Two things about consuming it:
 
@@ -1493,7 +1448,7 @@ theorem instLamsAt_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
 
 /-! ## The axiom check
 
-DESIGN §8.2 asks for it on every closed theorem of the tier.  Sixteen
+DESIGN §8.2 asks for it on every closed theorem of the tier.  The
 twins, and the four denotation transports and two exactness lemmas the
 statements rest on. -/
 

@@ -154,6 +154,8 @@ namespace ConRon.Bridge
 -- `reservedBasisNames_run`'s no-accumulator shape
 #print axioms natOpNames_run
 #print axioms natDivModNames_run
+#print axioms litGuardNames_run
+#print axioms reservedRecName_run
 #print axioms natOpDeps_run
 
 -- the pinned-block comparison's two closed entry points (task
@@ -412,6 +414,8 @@ carries `CoreSpec` nor `IndSpec`, which are hypotheses of the statement. -/
 #print axioms internAllPins_run
 
 -- round 9: the children closed (each prints the three standard axioms)
+#print axioms declBlockRun_nodup
+#print axioms checkShapeless_ne_ok
 #print axioms checkDecl_nodup
 #print axioms Arena.checkPending_prefix
 #print axioms denoteN_default_of_pinNames
