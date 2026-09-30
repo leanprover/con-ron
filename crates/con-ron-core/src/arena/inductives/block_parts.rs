@@ -735,12 +735,18 @@ pub fn names_all_in(xs: &Vec<NIdx>, ys: &Vec<NIdx>, i: usize) -> bool {
 /// con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:335-357 blockRecNameSetOk
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockParts.lean blockRecNameSetOk` —
 /// **the recursor names, as a SET**: exactly `T_m.rec` at every member, each
-/// once.
-pub fn block_rec_name_set_ok(pers: &PersTier, st: &mut AState, p: &BlockShape) -> Result<bool, CheckError> {
-    match want_rec_names(pers, st, &p.members, 0, Vec::new()) {
+/// once.  Takes the members and the recursors apart, so that the caller's
+/// `{ p with recs := own }` is an argument, not a record copy.
+pub fn block_rec_name_set_ok(
+    pers: &PersTier,
+    st: &mut AState,
+    members: &Vec<MemberShape>,
+    recs: &Vec<RecShape>,
+) -> Result<bool, CheckError> {
+    match want_rec_names(pers, st, members, 0, Vec::new()) {
         Err(e) => Err(e),
         Ok(want) => {
-            let got: Vec<NIdx> = rec_names(&p.recs, 0, Vec::new());
+            let got: Vec<NIdx> = rec_names(recs, 0, Vec::new());
             Ok(got.len() == want.len() && names_all_in(&want, &got, 0) && names_all_in(&got, &want, 0))
         }
     }

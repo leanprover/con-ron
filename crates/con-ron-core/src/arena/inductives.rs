@@ -15,12 +15,10 @@
 //! | Rust | Lean twin |
 //! |---|---|
 //! | `struct_parts` | `Arena/Inductives/StructParts.lean` |
-//! | `sum_parts` | `Arena/Inductives/SumParts.lean` |
 //! | `struct_install` | `Arena/Inductives/StructInstall.lean` |
 //! | `struct_install_f` | `Arena/Inductives/StructInstallF.lean` |
 //! | `sum_install` | `Arena/Inductives/SumInstall.lean` |
 //! | `sum_install_f` | `Arena/Inductives/SumInstallF.lean` |
-//! | `native_parts` | `Arena/Inductives/NativeParts.lean` |
 //!
 //! The declaration checker's own helpers — `unwrapOr`, `checkConstantVal`,
 //! `allLevelParamsDefined`, `constsResolveFFast`, `openPisAtFvarsF`,
@@ -33,10 +31,13 @@
 //! (`arena::inductives::ind_base`, as the Lean carried
 //! `Arena/Inductives/Base.lean`); the merge deleted both.
 
-pub mod native_parts;
 pub mod field_tele;
 pub mod positivity;
 pub mod block_rec;
+pub mod rec_check;
+pub mod class_read;
+pub mod gen_rec;
+pub mod block_install;
 pub mod block_parts;
 pub mod block_tail;
 pub mod struct_install;
@@ -44,5 +45,4 @@ pub mod struct_install_f;
 pub mod struct_parts;
 pub mod sum_install;
 pub mod sum_install_f;
-pub mod sum_parts;
 

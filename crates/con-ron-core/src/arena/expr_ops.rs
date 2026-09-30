@@ -85,6 +85,8 @@ use crate::arena::monad::{
     AState, EIdxNat, abs1_clear, abs1_get, abs1_set, bvar_b_clear, bvar_b_get, bvar_b_set, derived_e, derived_l, eidx_nat_key, fail, fail_dangling_e, fvar_b_clear, fvar_b_get, fvar_b_set, inst1_clear, inst1_get, inst1_l_clear, inst1_l_get, inst1_l_set, inst1_set, inst_l_clear, inst_l_get, inst_l_set, inst_lp_clear, inst_lp_get, inst_lp_l_get, inst_lp_l_set, inst_lp_ls_get, inst_lp_ls_set, inst_lp_set, intern_e, intern_e_app, intern_e_bvar, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_lam, intern_e_let_e, intern_e_lit, intern_e_proj, intern_e_sort, intern_level, intern_levels, lift_clear, lift_get, lift_set, lower_clear, lower_get, lower_set, read_level_m, read_levels_m, read_names_m, rename_clear, rename_get, rename_set, reset_clear, reset_get, reset_set, intern_e_bind_i, view, view_app, view_bind, view_bind_i, view_bvar, view_fvar_idx, view_fvar_ty, view_let, view_proj,
 };
 use crate::arena::handle::BMIdx;
+use crate::arena::handle::ETAG_CONST;
+use crate::arena::monad::{read_level, read_names, view_const, view_ls};
 use crate::arena::store::ENodeView;
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::expr;
@@ -232,20 +234,6 @@ const M_FUEL_RENAME: [u32; 28] = [
 const M_FUEL_PI_RESULT: [u32; 24] = [
     102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 112, 105, 82,
     101, 115, 117, 108, 116,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"fuel exhausted: piArity"`, as code points.
-const M_FUEL_PI_ARITY: [u32; 23] = [
-    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 112, 105, 65,
-    114, 105, 116, 121,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"fuel exhausted: resultSort"`, as code points.
-const M_FUEL_RESULT_SORT: [u32; 26] = [
-    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 114, 101, 115,
-    117, 108, 116, 83, 111, 114, 116,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
@@ -2573,21 +2561,6 @@ pub fn lam_pw(pers: &PersTier, st: &AState, h: &EIdx) -> Result<Option<PropWhen>
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:896-902 forallPw
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove expr_ops::forall_pw_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1787-1795 forallPw` — the ∀ twin
-/// of `lam_pw`.
-pub fn forall_pw(pers: &PersTier, st: &AState, h: &EIdx) -> Result<Option<PropWhen>, CheckError> {
-    if h.tag() == ETAG_FORALL_E {
-        match view_bind(pers, st, h) {
-            None => fail_dangling_e(),
-            Some((_, _, m)) => Ok(Some(m.pw)),
-        }
-    } else {
-        Ok(None)
-    }
-}
-
 /// con-leche: ConLeche/Kernel/ExprOps.lean:971-980 hasFvar
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1799-1813 hasFvar` — the pure
 /// walk; what executes is `has_fvar_fast` below (the fvar-range field read).
@@ -3022,54 +2995,6 @@ pub fn pi_result(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<EI
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1142-1146 instPis
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove expr_ops::inst_pis_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2102-2115 instPis` — instantiate
-/// a `∀`-telescope with arguments, in order.  Structural on the argument list;
-/// the fuel is the one `instantiate1_fast` needs.  The `i = 0` wrapper of the
-/// cursor recursion below.
-pub fn inst_pis(
-    pers: &PersTier,
-    st: &mut AState,
-    fuel: u64,
-    e: &EIdx,
-    args: &Vec<EIdx>,
-) -> Result<Option<EIdx>, CheckError> {
-    inst_pis_from(pers, st, fuel, e, args, 0)
-}
-
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1142-1146 instPis
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove expr_ops::inst_pis_from_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2102-2115 instPis` — the cursor
-/// recursion behind `inst_pis`.
-pub fn inst_pis_from(
-    pers: &PersTier,
-    st: &mut AState,
-    fuel: u64,
-    e: &EIdx,
-    args: &Vec<EIdx>,
-    i: usize,
-) -> Result<Option<EIdx>, CheckError> {
-    if i >= args.len() {
-        Ok(Some(e.dup2()))
-    } else {
-        if e.tag() == ETAG_FORALL_E {
-            match view_bind(pers, st, e) {
-                None => fail_dangling_e(),
-                Some((_, body, _)) => {
-                    let a: EIdx = args[i].dup2();
-                    match instantiate1_fast(pers, st, fuel, &body, &a, 0) {
-                        Err(er) => Err(er),
-                        Ok(b) => inst_pis_from(pers, st, fuel, &b, args, i + 1),
-                    }
-                },
-            }
-        } else {
-            Ok(None)
-        }
-    }
-}
-
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1359-1367 instPisAt
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2117-2133 instPisAt` —
 /// instantiate the leading `∀`-binders at the given arguments, returning each
@@ -3415,120 +3340,273 @@ pub fn rec_rule_plain(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1246-1261 pisToLams
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove expr_ops::pis_to_lams_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2260-2277 pisToLams` — convert
-/// the first `k` `∀`-binders into λ-binders over a body; the copied binder
-/// metadata keeps only the display info, so the result carries the parse
-/// placeholder and every consumer must annotate it.
-pub fn pis_to_lams(
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean nestedRuleSyn` — **the syntactic
+/// reading of a nested rule's instantiation**: the major's level and
+/// parameter instantiations, read off the recursor type's major-premise
+/// domain, the parameters lowered into the rule-prefix context (`rP`
+/// binders), with the syntactic well-formedness guards `EnvWF` records for a
+/// stored `.nested` rule.  `resolves` is the constructors' environment's
+/// `constsResolveF` (its one instantiation, `tgtStoredRules`'s), so the port
+/// takes that environment and its visibility bound.  The pins are lowered
+/// before the guards run, as the cited `let` does.
+#[allow(clippy::too_many_arguments)]
+pub fn nested_rule_syn(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &crate::arena::env::IFEnv,
+    lps: &Vec<NIdx>,
+    ty_a: &EIdx,
+    m_i: u64,
+    r_p: u64,
+    cn_p: u64,
+) -> Result<Option<(Vec<LIdx>, Vec<EIdx>)>, CheckError> {
+    if r_p <= m_i {
+        match strip_pis(pers, st, m_i, ty_a) {
+            Err(e) => Err(e),
+            Ok(None) => Ok(None),
+            Ok(Some(q)) => {
+                if q.1.tag() == ETAG_FORALL_E {
+                    match view_bind(pers, st, &q.1) {
+                        None => fail_dangling_e(),
+                        Some((dom, _, _)) => match get_app_fn(pers, st, crate::arena::core::CORE_WALK_FUEL, &dom) {
+                            Err(e) => Err(e),
+                            Ok(hd) => {
+                                if hd.tag() == ETAG_CONST {
+                                    match view_const(pers, st, &hd) {
+                                        None => fail_dangling_e(),
+                                        Some((_, lvls)) => nested_rule_syn_at(
+                                            pers, vis, st, fe, lps, &dom, &lvls, m_i - r_p, r_p, cn_p,
+                                        ),
+                                    }
+                                } else {
+                                    Ok(None)
+                                }
+                            }
+                        },
+                    }
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+    } else {
+        Ok(None)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean nestedRuleSyn` — `pins :=
+/// (args.take cnP).map (lowerBVars k 0)`, in order.
+pub fn lower_list(
     pers: &PersTier,
     st: &mut AState,
     k: u64,
-    h: &EIdx,
-    body: &EIdx,
-) -> Result<Option<EIdx>, CheckError> {
-    if k == 0 {
-        Ok(Some(body.dup2()))
+    xs: &Vec<EIdx>,
+    i: usize,
+    out: Vec<EIdx>,
+) -> Result<Vec<EIdx>, CheckError> {
+    if i >= xs.len() {
+        Ok(out)
     } else {
-        if h.tag() == ETAG_FORALL_E {
-            match view_bind(pers, st, h) {
-                None => fail_dangling_e(),
-                Some((ty, rest, _)) => match pis_to_lams(pers, st, k - 1, &rest, body) {
-                    Err(e) => Err(e),
-                    Ok(Some(b)) => {
-                        let m: BinderMeta = expr::binder_meta(prop_when::never());
-                        match intern_e_lam(pers, st, ty, b, m) {
-                            Err(e) => Err(e),
-                            Ok(r) => Ok(Some(r)),
-                        }
-                    }
-                    Ok(None) => Ok(None),
-                },
+        let x: EIdx = xs[i].dup2();
+        match lower_bvars_fast(pers, st, crate::arena::core::CORE_WALK_FUEL, k, 0, &x) {
+            Err(e) => Err(e),
+            Ok(y) => {
+                let mut o: Vec<EIdx> = out;
+                o.push(y);
+                lower_list(pers, st, k, xs, i + 1, o)
             }
-        } else {
-            Ok(None)
         }
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1263-1269 replacePiBody
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove expr_ops::replace_pi_body_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2279-2294 replacePiBody` —
-/// replace the body under the first `k` `∀`-binders, domains and prop-ness
-/// data kept.
-pub fn replace_pi_body(
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean nestedRuleSyn` —
+/// `pins.map (liftLooseBVars k 0)`, in order.
+pub fn lift_list(
     pers: &PersTier,
     st: &mut AState,
     k: u64,
-    h: &EIdx,
-    b: &EIdx,
-) -> Result<Option<EIdx>, CheckError> {
-    if k == 0 {
-        Ok(Some(b.dup2()))
+    xs: &Vec<EIdx>,
+    i: usize,
+    out: Vec<EIdx>,
+) -> Result<Vec<EIdx>, CheckError> {
+    if i >= xs.len() {
+        Ok(out)
     } else {
-        if h.tag() == ETAG_FORALL_E {
-            match view_bind(pers, st, h) {
-                None => fail_dangling_e(),
-                Some((ty, rest, m)) => match replace_pi_body(pers, st, k - 1, &rest, b) {
-                    Err(e) => Err(e),
-                    Ok(Some(r)) => {
-                        let m2: BinderMeta = expr::binder_meta(m.pw);
-                        match intern_e_forall_e(pers, st, ty, r, m2) {
-                            Err(e) => Err(e),
-                            Ok(x) => Ok(Some(x)),
-                        }
-                    }
-                    Ok(None) => Ok(None),
-                },
+        let x: EIdx = xs[i].dup2();
+        match lift_loose_bvars_fast(pers, st, crate::arena::core::CORE_WALK_FUEL, k, 0, &x) {
+            Err(e) => Err(e),
+            Ok(y) => {
+                let mut o: Vec<EIdx> = out;
+                o.push(y);
+                lift_list(pers, st, k, xs, i + 1, o)
             }
-        } else {
-            Ok(None)
         }
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1271-1274 piArity
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove expr_ops::pi_arity_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2296-2308 piArity` — the length
-/// of the leading `∀`-telescope.
-pub fn pi_arity(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
-    if fuel == 0 {
-        fail(CheckError::Internal(code_points(&M_FUEL_PI_ARITY)))
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean nestedRuleSyn` — the pins'
+/// guards from `i` on, in order, each conjunction left to right: fvar-free,
+/// bounded by the prefix, resolving, level parameters declared.
+#[allow(clippy::too_many_arguments)]
+pub fn pins_wf(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &crate::arena::env::IFEnv,
+    lps: &Vec<NIdx>,
+    r_p: u64,
+    pins: &Vec<EIdx>,
+    i: usize,
+) -> Result<bool, CheckError> {
+    if i >= pins.len() {
+        Ok(true)
     } else {
-        if h.tag() == ETAG_FORALL_E {
-            match view_bind(pers, st, h) {
-                None => fail_dangling_e(),
-                Some((_, b, _)) => match pi_arity(pers, st, fuel - 1, &b) {
+        let p: EIdx = pins[i].dup2();
+        match has_fvar_fast(pers, st, crate::arena::core::CORE_WALK_FUEL, &p) {
+            Err(e) => Err(e),
+            Ok(true) => Ok(false),
+            Ok(false) => match loose_bvars_bounded_fast(pers, st, crate::arena::core::CORE_WALK_FUEL, r_p, &p) {
+                Err(e) => Err(e),
+                Ok(false) => Ok(false),
+                Ok(true) => match crate::arena::checker_base::consts_resolve_f_fast(pers, vis, st, fe, &p) {
                     Err(e) => Err(e),
-                    Ok(n) => Ok(n + 1),
+                    Ok(false) => Ok(false),
+                    Ok(true) => match crate::arena::checker_base::all_level_params_defined(pers, st, lps, &p) {
+                        Err(e) => Err(e),
+                        Ok(false) => Ok(false),
+                        Ok(true) => pins_wf(pers, vis, st, fe, lps, r_p, pins, i + 1),
+                    },
                 },
-            }
-        } else {
-            Ok(0)
+            },
         }
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1276-1280 resultSort
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove expr_ops::result_sort_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:2310-2318 resultSort` — the
-/// result sort at the end of a `∀`-telescope.
-pub fn result_sort(
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean nestedRuleSyn` —
+/// `lvls.all (Level.allParamsDefined lps)`, the parameters' names read once.
+pub fn levels_declared(
     pers: &PersTier,
     st: &AState,
-    fuel: u64,
-    h: &EIdx,
-) -> Result<Option<LIdx>, CheckError>  {
-    if fuel == 0 {
-        fail(CheckError::Internal(code_points(&M_FUEL_RESULT_SORT)))
+    lps: &Vec<NIdx>,
+    lvls: &Vec<LIdx>,
+) -> Result<bool, CheckError> {
+    match read_names(pers, st, lps) {
+        Err(e) => Err(e),
+        Ok(ps) => levels_declared_from(pers, st, &ps, lvls, 0),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
+/// Lean twin: the cursor recursion behind `levels_declared`.
+pub fn levels_declared_from(
+    pers: &PersTier,
+    st: &AState,
+    ps: &Vec<Name>,
+    lvls: &Vec<LIdx>,
+    i: usize,
+) -> Result<bool, CheckError> {
+    if i >= lvls.len() {
+        Ok(true)
     } else {
-        match view(pers, st, h) {
+        match read_level(pers, st, &lvls[i]) {
             Err(e) => Err(e),
-            Ok(ENodeView::ForallE(_, b, _)) => result_sort(pers, st, fuel - 1, &b),
-            Ok(ENodeView::Sort(u)) => Ok(Some(u)),
-            Ok(_) => Ok(None),
+            Ok(l) => {
+                if level::all_params_defined(ps, &l) {
+                    levels_declared_from(pers, st, ps, lvls, i + 1)
+                } else {
+                    Ok(false)
+                }
+            }
         }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean nestedRuleSyn` — at the major's
+/// domain `dom` headed by a constant at the levels `lvls`: the pins lowered,
+/// then the cited five conjuncts in order (the arity, the lift-back
+/// roundtrip, the trailing index variables, the pins' guards, the levels).
+#[allow(clippy::too_many_arguments)]
+pub fn nested_rule_syn_at(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &crate::arena::env::IFEnv,
+    lps: &Vec<NIdx>,
+    dom: &EIdx,
+    lvls: &LsIdx,
+    k: u64,
+    r_p: u64,
+    cn_p: u64,
+) -> Result<Option<(Vec<LIdx>, Vec<EIdx>)>, CheckError> {
+    match get_app_args(pers, st, crate::arena::core::CORE_WALK_FUEL, dom) {
+        Err(e) => Err(e),
+        Ok(args) => {
+            let pre: Vec<EIdx> = take_eidx_n(&args, cn_p);
+            match lower_list(pers, st, k, &pre, 0, Vec::new()) {
+                Err(e) => Err(e),
+                Ok(pins) => {
+                    if args.len() as u64 != cn_p + k {
+                        Ok(None)
+                    } else {
+                        match lift_list(pers, st, k, &pins, 0, Vec::new()) {
+                            Err(e) => Err(e),
+                            Ok(back) => {
+                                if !crate::arena::canon::eidx_vec_beq(&pre, &back, 0) {
+                                    Ok(None)
+                                } else {
+                                    match bvar_range(pers, st, k, k, 0) {
+                                        Err(e) => Err(e),
+                                        Ok(want) => {
+                                            let rest: Vec<EIdx> = crate::arena::core::drop_eidx_n(&args, cn_p);
+                                            if !crate::arena::canon::eidx_vec_beq(&rest, &want, 0) {
+                                                Ok(None)
+                                            } else {
+                                                nested_rule_syn_guards(pers, vis, st, fe, lps, lvls, r_p, pins)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean nestedRuleSyn` — the pins' and
+/// the levels' guards, and the reading.
+#[allow(clippy::too_many_arguments)]
+pub fn nested_rule_syn_guards(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &crate::arena::env::IFEnv,
+    lps: &Vec<NIdx>,
+    lvls: &LsIdx,
+    r_p: u64,
+    pins: Vec<EIdx>,
+) -> Result<Option<(Vec<LIdx>, Vec<EIdx>)>, CheckError> {
+    match pins_wf(pers, vis, st, fe, lps, r_p, &pins, 0) {
+        Err(e) => Err(e),
+        Ok(false) => Ok(None),
+        Ok(true) => match view_ls(pers, st, lvls) {
+            Err(e) => Err(e),
+            Ok(ls) => match levels_declared(pers, st, lps, &ls) {
+                Err(e) => Err(e),
+                Ok(false) => Ok(None),
+                Ok(true) => Ok(Some((ls, pins))),
+            },
+        },
     }
 }
 
