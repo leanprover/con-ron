@@ -278,18 +278,6 @@ abbrev InstLMemoA (ws : List Expr) (s : AState) : Prop :=
 abbrev LiftMemoA (amount : Nat) (s : AState) : Prop :=
   MemoOK (fun c e => Expr.liftLooseBVars amount c e) s.memos.liftC s.store
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:562-564 ResetMemoInv, at cursor
-`0`. -/
-abbrev ResetMemoA (s : AState) : Prop :=
-  MemoOK (fun _ e => Expr.resetMeta e) s.memos.resetC s.store
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:983-985 RenameMemoInv, at cursor
-`0`.  The renaming is a function on con-leche `Name`s: the twin's
-`f : NIdx → NIdx` is related to it by the walk's own hypothesis, not by this
-invariant. -/
-abbrev RenameMemoA (fn : ConLeche.Name → ConLeche.Name) (s : AState) : Prop :=
-  MemoOK (fun _ e => Expr.renameConsts fn e) s.memos.renameC s.store
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1772-1774 Abs1MemoInv. -/
 abbrev Abs1MemoA (d : Nat) (s : AState) : Prop :=
   MemoOK (fun k e => Expr.abstract1 e d k) s.memos.abs1C s.store
@@ -845,27 +833,6 @@ theorem CacheFrame.of_eq {s s' : AState} (hc : s'.caches = s.caches)
   lvlEq := fun _ h => by rw [hc]; exact h.mono hx
   readN := fun h => by rw [hc]; exact h.mono hx
   readLs := fun h => by rw [hc]; exact h.mono hx
-
-/-- con-leche: none — **the frame of a call that reads handles back** (and
-compares no level): the three readback tables moved, `lvlEqC` did not, and
-the call re-established the three invariants outright — the shape of
-`Bridge/ExprOps/Owed.lean`'s `instLPFast_spec`. -/
-theorem CacheFrame.ofReadbacks {s s' : AState} (hx : Ext s.store s'.store)
-    (hc : s'.caches = { s.caches with
-      readLC := s'.caches.readLC, readNC := s'.caches.readNC,
-      readLsC := s'.caches.readLsC })
-    (hL : ReadLCacheOK s'.caches.readLC s'.store)
-    (hN : ReadNCacheOK s'.caches.readNC s'.store)
-    (hLs : ReadLsCacheOK s'.caches.readLsC s'.store) : CacheFrame s s' where
-  caches := by
-    have hle : s'.caches.lvlEqC = s.caches.lvlEqC := by rw [hc]
-    rw [hle]; exact hc
-  readL := fun _ => hL
-  lvlEq := fun _ h => by
-    have hle : s'.caches.lvlEqC = s.caches.lvlEqC := by rw [hc]
-    rw [hle]; exact h.mono hx
-  readN := fun _ => hN
-  readLs := fun _ => hLs
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **`CacheOK` past a level
 comparison**: twelve clauses that did not move, recovered from the one

@@ -798,104 +798,6 @@ theorem natDivModNames_run {s s' : AState} {ns : List NIdx} (hp : PinsOK s)
   obtain ⟨rfl, rfl⟩ := AM.pure_ok r8
   exact ⟨rfl, d1, d2, d3, d4, d5, d6, d7, d8, trivial⟩
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:449-454 litGuardNames — the ten
-names the two literal guards look up, off the pin table (task #105).
-`natOpNames_run`'s proof, ten slots. -/
-theorem litGuardNames_run {s s' : AState} {ns : List NIdx} (hp : PinsOK s)
-    (hr : litGuardNames s = .ok (ns, s')) :
-    s' = s ∧ denoteNL s.store ns ConLeche.litGuardNames := by
-  simp only [Arena.litGuardNames] at hr
-  obtain ⟨n1, t1, g1, r1⟩ := AM.bind_ok hr
-  obtain ⟨e1, d1⟩ := pinAt_run (x := ConLeche.natName) hp rfl g1
-  rw [e1] at r1
-  obtain ⟨n2, t2, g2, r2⟩ := AM.bind_ok r1
-  obtain ⟨e2, d2⟩ := pinAt_run (x := ConLeche.natZeroName) hp rfl g2
-  rw [e2] at r2
-  obtain ⟨n3, t3, g3, r3⟩ := AM.bind_ok r2
-  obtain ⟨e3, d3⟩ := pinAt_run (x := ConLeche.natSuccName) hp rfl g3
-  rw [e3] at r3
-  obtain ⟨n4, t4, g4, r4⟩ := AM.bind_ok r3
-  obtain ⟨e4, d4⟩ := pinAt_run (x := ConLeche.stringName) hp rfl g4
-  rw [e4] at r4
-  obtain ⟨n5, t5, g5, r5⟩ := AM.bind_ok r4
-  obtain ⟨e5, d5⟩ := pinAt_run (x := ConLeche.stringOfListName) hp rfl g5
-  rw [e5] at r5
-  obtain ⟨n6, t6, g6, r6⟩ := AM.bind_ok r5
-  obtain ⟨e6, d6⟩ := pinAt_run (x := ConLeche.listName) hp rfl g6
-  rw [e6] at r6
-  obtain ⟨n7, t7, g7, r7⟩ := AM.bind_ok r6
-  obtain ⟨e7, d7⟩ := pinAt_run (x := ConLeche.listNilName) hp rfl g7
-  rw [e7] at r7
-  obtain ⟨n8, t8, g8, r8⟩ := AM.bind_ok r7
-  obtain ⟨e8, d8⟩ := pinAt_run (x := ConLeche.listConsName) hp rfl g8
-  rw [e8] at r8
-  obtain ⟨n9, t9, g9, r9⟩ := AM.bind_ok r8
-  obtain ⟨e9, d9⟩ := pinAt_run (x := ConLeche.charName) hp rfl g9
-  rw [e9] at r9
-  obtain ⟨n10, t10, g10, r10⟩ := AM.bind_ok r9
-  obtain ⟨e10, d10⟩ := pinAt_run (x := ConLeche.charOfNatName) hp rfl g10
-  rw [e10] at r10
-  obtain ⟨rfl, rfl⟩ := AM.pure_ok r10
-  exact ⟨rfl, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, trivial⟩
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:456-466 reservedRecName — **a
-name no block recursor may take**, exactly (task #105): the four lists off the
-pin table, each membership test a handle comparison, which is a name
-comparison (`denoteNList_contains`).  A pin read leaves the state alone. -/
-theorem reservedRecName_run {n : NIdx} {x : ConLeche.Name} {b : Bool}
-    {s s' : AState} (hwf : StoreWF s.store) (hp : PinsOK s)
-    (hn : denoteN s.store.ns n = some x)
-    (hr : reservedRecName n s = .ok (b, s')) :
-    s' = s ∧ b = ConLeche.reservedRecName x := by
-  simp only [Arena.reservedRecName] at hr
-  obtain ⟨rs, t1, g1, r1⟩ := AM.bind_ok hr
-  obtain ⟨e1, d1⟩ := AM.of_run (P := fun t => t = s)
-    (Q := fun r t => t = s ∧ denoteNL s.store r reservedBasisNameValues)
-    rfl (by exact g1) (pinReserved_spec s hp)
-  subst e1
-  have c1 := denoteNList_contains hwf rs _ (denoteNL_toList rs _ d1) n x hn
-  rw [reservedBasisNameValues_eq] at c1
-  unfold ConLeche.reservedRecName
-  by_cases h1 : rs.contains n = true
-  · rw [if_pos h1] at r1
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok r1
-    refine ⟨rfl, ?_⟩
-    rw [← c1, h1]; rfl
-  rw [if_neg h1] at r1
-  have h1' : ConLeche.reservedBasisNames.contains x = false := by
-    rw [← c1]; simpa using h1
-  obtain ⟨ls, t2, g2, r2⟩ := AM.bind_ok r1
-  obtain ⟨e2, d2⟩ := litGuardNames_run hp g2
-  subst e2
-  have c2 := denoteNList_contains hwf ls _ (denoteNL_toList ls _ d2) n x hn
-  by_cases h2 : ls.contains n = true
-  · rw [if_pos h2] at r2
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok r2
-    refine ⟨rfl, ?_⟩
-    rw [h1', ← c2, h2]; rfl
-  rw [if_neg h2] at r2
-  have h2' : ConLeche.litGuardNames.contains x = false := by
-    rw [← c2]; simpa using h2
-  obtain ⟨os, t3, g3, r3⟩ := AM.bind_ok r2
-  obtain ⟨e3, d3⟩ := natOpNames_run hp g3
-  subst e3
-  have c3 := denoteNList_contains hwf os _ (denoteNL_toList os _ d3) n x hn
-  by_cases h3 : os.contains n = true
-  · rw [if_pos h3] at r3
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok r3
-    refine ⟨rfl, ?_⟩
-    rw [h1', h2', ← c3, h3]; rfl
-  rw [if_neg h3] at r3
-  have h3' : ConLeche.natOpNames.contains x = false := by
-    rw [← c3]; simpa using h3
-  obtain ⟨ds, t4, g4, r4⟩ := AM.bind_ok r3
-  obtain ⟨e4, d4⟩ := natDivModNames_run hp g4
-  subst e4
-  have c4 := denoteNList_contains hwf ds _ (denoteNL_toList ds _ d4) n x hn
-  obtain ⟨rfl, rfl⟩ := AM.pure_ok r4
-  refine ⟨rfl, ?_⟩
-  rw [h1', h2', h3', c4]; rfl
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:500-523 natOpDeps — the
 operations (transitively) involved in `c`'s recurrences.  The twin's dispatch
 is a chain of HANDLE comparisons where con-leche's is a chain of name
@@ -1935,7 +1837,6 @@ theorem substConst0Pairs_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx}
       obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
       refine ⟨hs12.trans hs3, ?_⟩
       exact ⟨denote_ext (denote_ext ha hs2.ext) hs3.ext, denote_ext hb hs3.ext, hrest⟩
-
 
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:110-125 certifyNatEqs — the

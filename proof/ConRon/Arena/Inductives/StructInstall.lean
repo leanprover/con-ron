@@ -11,9 +11,7 @@ carries each of this module's two functions twice — once over `Env`
 (`StructInstall.lean`) and once over `FEnv`
 (`ConLeche/Kernel/Inductives/StructInstallF.lean`), and
 `checkStructDomsAtFA` a third time over `Array`.  The arena has ONE
-environment type, the index, so the twin is one function citing all of them;
-`Arena/Inductives/StructInstallF.lean` carries the `F`-suffixed NAMES as
-`abbrev`s, exactly as `Arena/FEnv.lean` does for `Core.lean`'s.
+environment type, the index, so the twin is one function citing all of them.
 -/
 import ConRon.Arena.CheckerBase
 

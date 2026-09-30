@@ -994,38 +994,6 @@ record bought. -/
   subst hs
   exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
 
-@[spec] theorem resetGet_spec (s₀ : AState) (k : EIdx × Nat) :
-    ⦃fun s => ⌜s = s₀⌝⦄ resetGet k
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.resetC[k]?⌝⦄ := by
-  mvcgen [resetGet]
-  spec_ro
-
-@[spec] theorem resetClear_spec (s₀ : AState) :
-    ⦃fun s => ⌜s = s₀⌝⦄ resetClear
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with resetC := ∅ } ∧
-        ResetMemoA s'⌝⦄ := by
-  mvcgen [resetClear]
-  rename_i s hs
-  subst hs
-  exact ⟨rfl, rfl, rfl, rfl, MemoOK.of_empty rfl⟩
-
-@[spec] theorem renameGet_spec (s₀ : AState) (k : EIdx × Nat) :
-    ⦃fun s => ⌜s = s₀⌝⦄ renameGet k
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.renameC[k]?⌝⦄ := by
-  mvcgen [renameGet]
-  spec_ro
-
-@[spec] theorem renameClear_spec (s₀ : AState) :
-    ⦃fun s => ⌜s = s₀⌝⦄ renameClear
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with renameC := ∅ } ∧
-        ∀ fn, RenameMemoA fn s'⌝⦄ := by
-  mvcgen [renameClear]
-  rename_i s hs
-  subst hs
-  exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
-
 @[spec] theorem abs1Get_spec (s₀ : AState) (k : EIdx × Nat) :
     ⦃fun s => ⌜s = s₀⌝⦄ abs1Get k
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.abs1C[k]?⌝⦄ := by

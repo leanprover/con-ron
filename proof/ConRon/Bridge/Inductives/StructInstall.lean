@@ -1,12 +1,10 @@
 /-
 # `ConRon.Bridge.Inductives.StructInstall` — Theorem 1 for the projection table
 
-`Arena/Inductives/StructInstall.lean` is two twins, and
-`Arena/Inductives/StructInstallF.lean`'s three `abbrev`s are the SAME two
-(task #97d-2's deviation 1: the arena has one environment type, so
-con-leche's `…F` mirrors collapse and their names survive as `abbrev`s).
-So there are two statements here and the three `…F` names are `abbrev`s of
-them, exactly as the twins are of theirs.
+`Arena/Inductives/StructInstall.lean` is two twins, and con-leche's three
+`…F` mirrors of them are the SAME two (task #97d-2's deviation 1: the arena
+has one environment type, so the mirrors collapse).  So there are two
+statements here.
 
 `checkStructDomsAt` is the first CORE-grade twin of the tier: it calls
 `isDefEqCore`, so its frame is `CoreStep` and its statement takes `CheckOK`.

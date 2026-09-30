@@ -14,34 +14,16 @@ con-leche value into the store.
 tier is the exactness statement `denoteDecls (Arena.parse chunks) =
 parseChunks chunks`, whose left-hand side is exactly `denoteDecls` below: the
 denotation is the *specification side* of the frontend, written here once so
-that P3 states it rather than inventing it.  The intern direction served a
-**delegation at a seam**: the in-process modeller and the projection-function
-rewrite's two block recognisers each needed to intern a transient value back
-into the store; both are deleted upstream (con-leche's `uniform-inds` merge,
-task #105), but the intern family stays — `Arena/Intern.lean`,
+that P3 states it rather than inventing it.  The intern direction puts a
+transient con-leche value into the store: `Arena/Intern.lean`,
 `Arena/StdAxioms.lean`, `Arena/TrustAxioms.lean`, `Arena/NatOpPinSet.lean` and
-`Arena/Checker.lean`'s pin interning all call into it, unrelated to either
-deletion.
+`Arena/Checker.lean`'s pin interning all call into it.
 
-**BOTH directions are MEMOISED, and the memo is not an optimisation.**  A
-handle DAG's denotation is a `ConLeche.Expr` whose subterms are shared by
-Lean's own pointers — that is what con-leche's parse builds and what its
-functions are fast on — and `Arena/Denote.lean`'s `denoteE` recurses at each
-child independently, so it re-denotes a shared subterm once per occurrence and
-UNFOLDS the DAG.  On con-leche's own `tests/e2e/tower_struct.ndjson`, whose
-expression table doubles at every second entry, that is `2^60` nodes and the
-readback does not finish.  `denoteEGo` below threads a `Std.HashMap EIdx Expr`
-and rebuilds each node once, so the value it returns is `denoteE`'s — the same
-`Expr` — held with the same sharing con-leche's parse gives it.
-(`denoteEShared st h = denoteE st h` is the exactness obligation this owes P3;
-the two differ only in how many times the tree is built.)  The intern
-direction carries the mirror memo, for the mirror reason.
-
-**The readback is bounded by its callers, too.**  Nothing here runs over the
-stream: `readCIList` was called on ONE inductive block at a time — a type
-former, its constructors and its recursors.  A walk over the persistent tier
-is never a readback; it is a `view` walk (`Arena/ExprOps.lean` does them
-all).
+**The denotation is the specification, not something executed.**  The
+`denote*` family below is one equation per field, with no state and no memo:
+it recurses at each child independently, so on a shared DAG it unfolds the
+tree — which is harmless for a statement and would be fatal for a run.  The
+only executed direction is the intern direction, and it carries the memo.
 
 **`internExpr` carries a memo, and it must.**  A handle DAG denotes to a
 `ConLeche.Expr` *tree* whose subterms are shared by Lean's own pointers, and
@@ -196,141 +178,6 @@ def denoteDecl (st : EStore) : IDeclaration → Option Declaration
   | .indDecl block nP =>
     (denoteCIList st block).map (fun b => .indDecl b nP)
   | .quotDecl k v => (denoteCV st v).map (.quotDecl k)
-
-/-! ## The denotation, MEMOISED — what is actually executed
-
-The `denote*` family above is the SPECIFICATION: one equation per field, with
-no state, which is the shape P3 states the parser tier in.  What the
-delegations below run is this family, which threads a `Std.HashMap EIdx Expr`
-so that a shared subterm is rebuilt once.  It is pure — `EStore.view` is — so
-it can still be handed to con-leche's own `Name → … → Expr` context functions,
-which are plain functions and could not take a monad.  See the module note for
-why the memo is load-bearing rather than a speed-up. -/
-
-/-- con-leche: none — the readback memo: the `Expr` each handle denotes, so
-that the denotation of a DAG is built with the sharing the DAG has. -/
-abbrev DMemo := Std.HashMap EIdx Expr
-
-/-- con-leche: none — `denoteE` with the memo: the same value, built once per
-node.  The fuel bounds the DAG's DEPTH (a memo hit returns at once), which the
-store's node count bounds. -/
-def denoteEGo (st : EStore) (m : DMemo) : Nat -> EIdx -> Option (DMemo × Expr)
-  | 0, _ => none
-  | fuel + 1, h =>
-    match m[h]? with
-    | some e => some (m, e)
-    | none =>
-      match st.view h with
-      | none => none
-      | some (.bvar k) => let e := Expr.bvar k; some (m.insert h e, e)
-      | some (.lit l) => let e := Expr.lit l; some (m.insert h e, e)
-      | some (.sort u) =>
-        match denoteL st.ls u with
-        | some l => let e := Expr.sort l; some (m.insert h e, e)
-        | none => none
-      | some (.const n us) =>
-        match denoteN st.ns n, denoteLs st.lss us with
-        | some nm, some ls => let e := Expr.const nm ls; some (m.insert h e, e)
-        | _, _ => none
-      | some (.fvar k ty) =>
-        match denoteEGo st m fuel ty with
-        | some (m, t) => let e := Expr.fvar k t; some (m.insert h e, e)
-        | none => none
-      | some (.app f a) =>
-        match denoteEGo st m fuel f with
-        | some (m, ef) =>
-          match denoteEGo st m fuel a with
-          | some (m, ea) => let e := Expr.app ef ea; some (m.insert h e, e)
-          | none => none
-        | none => none
-      | some (.lam ty b bi) =>
-        match denoteEGo st m fuel ty with
-        | some (m, et) =>
-          match denoteEGo st m fuel b with
-          | some (m, eb) => let e := Expr.lam et eb bi; some (m.insert h e, e)
-          | none => none
-        | none => none
-      | some (.forallE ty b bi) =>
-        match denoteEGo st m fuel ty with
-        | some (m, et) =>
-          match denoteEGo st m fuel b with
-          | some (m, eb) => let e := Expr.forallE et eb bi; some (m.insert h e, e)
-          | none => none
-        | none => none
-      | some (.letE ty v b) =>
-        match denoteEGo st m fuel ty with
-        | some (m, et) =>
-          match denoteEGo st m fuel v with
-          | some (m, ev) =>
-            match denoteEGo st m fuel b with
-            | some (m, eb) => let e := Expr.letE et ev eb; some (m.insert h e, e)
-            | none => none
-          | none => none
-        | none => none
-      | some (.proj n i sub) =>
-        match denoteN st.ns n, denoteEGo st m fuel sub with
-        | some nm, some (m, es) => let e := Expr.proj nm i es; some (m.insert h e, e)
-        | _, _ => none
-
-/-- con-leche: none — `denoteE` at a fresh memo: the value of `denoteE`, held
-with the DAG's own sharing. -/
-def denoteEShared (st : EStore) (h : EIdx) : Option Expr :=
-  match denoteEGo st (∅ : DMemo) (st.nodeCount + 1) h with
-  | some (_, e) => some e
-  | none => none
-
-/-- con-leche: none — the memoised denotation of an expression-handle list. -/
-def denoteEListGo (st : EStore) (m : DMemo) :
-    List EIdx -> Option (DMemo × List Expr)
-  | [] => some (m, [])
-  | h :: hs =>
-    match denoteEGo st m (st.nodeCount + 1) h with
-    | some (m, e) =>
-      match denoteEListGo st m hs with
-      | some (m, es) => some (m, e :: es)
-      | none => none
-    | none => none
-
-/-- con-leche: none — the memoised denotation of a `ConstantVal`. -/
-def denoteCVGo (st : EStore) (m : DMemo) (cv : IConstantVal) :
-    Option (DMemo × ConstantVal) :=
-  match denoteN st.ns cv.name, denoteNList st.ns cv.levelParams,
-        denoteEGo st m (st.nodeCount + 1) cv.type with
-  | some n, some lps, some (m, ty) => some (m, ⟨n, lps, ty⟩)
-  | _, _, _ => none
-
-/-- con-leche: none — the memoised denotation of a rule's firing mode. -/
-def denoteFireGo (st : EStore) (m : DMemo) :
-    IRecRuleFire -> Option (DMemo × RecRuleFire)
-  | .inert => some (m, .inert)
-  | .plain => some (m, .plain)
-  | .nested lvls pins =>
-    match denoteLList st.ls lvls, denoteEListGo st m pins with
-    | some ls, some (m, ps) => some (m, .nested ls ps)
-    | _, _ => none
-
-/-- con-leche: none — the memoised denotation of one recursor rule. -/
-def denoteRuleGo (st : EStore) (m : DMemo) (rl : IRecRule) :
-    Option (DMemo × RecRule) :=
-  match denoteN st.ns rl.ctor, denoteFireGo st m rl.fire with
-  | some c, some (m, f) =>
-    match denoteEGo st m (st.nodeCount + 1) rl.rhs with
-    | some (m, r) =>
-      some (m, ⟨c, rl.nfields, rl.ctorParams, f, r, rl.k, rl.eta, rl.paramsBlind⟩)
-    | none => none
-  | _, _ => none
-
-/-- con-leche: none — the memoised denotation of a rule list. -/
-def denoteRulesGo (st : EStore) (m : DMemo) :
-    List IRecRule -> Option (DMemo × List RecRule)
-  | [] => some (m, [])
-  | r :: rs =>
-    match denoteRuleGo st m r with
-    | some (m, x) =>
-      match denoteRulesGo st m rs with
-      | some (m, xs) => some (m, x :: xs)
-      | none => none
-    | none => none
 
 /-! ## The intern direction
 

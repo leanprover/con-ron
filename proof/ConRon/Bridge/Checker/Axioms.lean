@@ -154,8 +154,6 @@ namespace ConRon.Bridge
 -- `reservedBasisNames_run`'s no-accumulator shape
 #print axioms natOpNames_run
 #print axioms natDivModNames_run
-#print axioms litGuardNames_run
-#print axioms reservedRecName_run
 #print axioms natOpDeps_run
 
 -- the pinned-block comparison's two closed entry points (task

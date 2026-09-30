@@ -97,11 +97,7 @@ namespace ConRon.Bridge.Frontend
 #print axioms DeclsProjNamed.push
 
 #print axioms ListRel.length_eq
-#print axioms ListRel.mono
 #print axioms IdTableRel.mono
-#print axioms MapRel.mono
-#print axioms MapRel.empty
-#print axioms MapRel.insert
 #print axioms IdTableRel.empty
 #print axioms AM.get_ok
 #print axioms AM.pure_ok
@@ -134,7 +130,6 @@ an `intern`, which is what the streaming fold's induction rests on. -/
 
 #print axioms ParseStep.refl
 #print axioms ParseStep.trans
-#print axioms ParseStep.of_eq
 #print axioms ParseStep.of_caches
 
 /-! ## The parse result -/
@@ -168,14 +163,7 @@ Item 1 in full: the ten-arm fuel induction both ways (`denoteEGo_spec_le` and
 `denoteEGo_isSome`), the record layers over it, and the two `AM` faces.  Item
 3 with them: `ctxOf_eq_of_rel`, over `nameHandle?`'s two exactness halves. -/
 
-#print axioms DMemoOK.empty
-#print axioms DMemoOK.insert
 #print axioms EMemoOK.empty
-#print axioms denoteEGo_spec
-#print axioms denoteEShared_eq
-#print axioms denoteEGo_isSome
-#print axioms denoteEShared_isSome
-#print axioms denoteEShared_eq_denoteE
 
 /-! ## The intern direction (round 3) — CLOSED
 
@@ -199,9 +187,7 @@ between this tier and them was an import line. -/
 #print axioms EStore.scratchOn_intern
 #print axioms internE_scratchOn
 #print axioms internE_istep
-#print axioms internName_istep
 #print axioms internNNode_istep
-#print axioms internDecls_istep
 
 /-! ## General readback helpers (rounds 3 and 4)
 
@@ -323,7 +309,6 @@ at Lean's own three. -/
 #print axioms ListRel.append
 #print axioms denoteCIList_of_listRel
 #print axioms denoteCaps_default
-#print axioms MapRel.getElem?_rel
 #print axioms pushDecl_built_run
 #print axioms reorder_toList
 #print axioms denoteDecls_filterMap
@@ -372,8 +357,6 @@ scratch-frame family) went with them.  `ReadCachesOK` itself survives —
 `ReadCachesOK.ofEmpty` — but nothing in this tier threads it any more, since
 nothing downstream of the parse reads a per-declaration cache. -/
 
-#print axioms ReadCachesOK.step
-#print axioms ReadCachesOK.ofEmpty
 
 /-! ## PROVED, and once resting on an open leaf
 

@@ -1696,16 +1696,6 @@ def internBindI (st : EStore) (tag : UInt32) (ty b : EIdx) (mi : BMIdx) :
 `forallE` constructor over a datum HANDLE. -/
 @[inline] def internForallEI (st : EStore) (ty b : EIdx) (mi : BMIdx) : EStore × EIdx :=
   st.internBindI ETag.forallE ty b mi
-/-- con-leche: none — `intern` at the `lam` constructor. -/
-@[inline] def internLam (st : EStore) (ty b : EIdx) (m : ConLeche.BinderMeta) :
-    EStore × EIdx :=
-  let (st, mi) := st.internBM m
-  st.internLamI ty b mi
-/-- con-leche: none — `intern` at the `forallE` constructor. -/
-@[inline] def internForallE (st : EStore) (ty b : EIdx) (m : ConLeche.BinderMeta) :
-    EStore × EIdx :=
-  let (st, mi) := st.internBM m
-  st.internForallEI ty b mi
 
 /-- con-leche: none — open the scratch tier, in all four stores.  DESIGN §8.3:
 "each tier has its own array set and cons tables, both indexed from 0". -/

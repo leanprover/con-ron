@@ -3227,7 +3227,7 @@ pub fn rec_rule_plain(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:502-524 nestedRuleSyn` — **the syntactic
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:481-503 nestedRuleSyn` — **the syntactic
 /// reading of a nested rule's instantiation**: the major's level and
 /// parameter instantiations, read off the recursor type's major-premise
 /// domain, the parameters lowered into the rule-prefix context (`rP`
@@ -3283,7 +3283,7 @@ pub fn nested_rule_syn(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:502-524 nestedRuleSyn` — `pins :=
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:481-503 nestedRuleSyn` — `pins :=
 /// (args.take cnP).map (lowerBVars k 0)`, in order.
 pub fn lower_list(
     pers: &PersTier,
@@ -3309,7 +3309,7 @@ pub fn lower_list(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:502-524 nestedRuleSyn` —
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:481-503 nestedRuleSyn` —
 /// `pins.map (liftLooseBVars k 0)`, in order.
 pub fn lift_list(
     pers: &PersTier,
@@ -3335,7 +3335,7 @@ pub fn lift_list(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:502-524 nestedRuleSyn` — the pins'
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:481-503 nestedRuleSyn` — the pins'
 /// guards from `i` on, in order, each conjunction left to right: fvar-free,
 /// bounded by the prefix, resolving, level parameters declared.
 #[allow(clippy::too_many_arguments)]
@@ -3374,7 +3374,7 @@ pub fn pins_wf(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:502-524 nestedRuleSyn` —
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:481-503 nestedRuleSyn` —
 /// `lvls.all (Level.allParamsDefined lps)`, the parameters' names read once.
 pub fn levels_declared(
     pers: &PersTier,
@@ -3414,7 +3414,7 @@ pub fn levels_declared_from(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:502-524 nestedRuleSyn` — at the major's
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:481-503 nestedRuleSyn` — at the major's
 /// domain `dom` headed by a constant at the levels `lvls`: the pins lowered,
 /// then the cited five conjuncts in order (the arity, the lift-back
 /// roundtrip, the trailing index variables, the pins' guards, the levels).
@@ -3469,7 +3469,7 @@ pub fn nested_rule_syn_at(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:502-524 nestedRuleSyn` — the pins' and
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:481-503 nestedRuleSyn` — the pins' and
 /// the levels' guards, and the reading.
 #[allow(clippy::too_many_arguments)]
 pub fn nested_rule_syn_guards(

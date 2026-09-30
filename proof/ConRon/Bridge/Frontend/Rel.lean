@@ -254,9 +254,6 @@ theorem ParseStep.of_caches {s s' : AState} (hok : StateOK s')
     (hp : s'.pins = s.pins) : ParseStep s s' :=
   ⟨hok, hx, hsc, CacheFrame.of_eq hc hx, hp⟩
 
-theorem ParseStep.of_eq {s s' : AState} (hok : StateOK s) (h : s' = s) :
-    ParseStep s s' := by subst h; exact ParseStep.refl hok
-
 /-! ## The three readback invariants, threaded through the parse
 
 Task #97-P3-Frontend round 8.  The projection rewrite's `instLPFast` answers
@@ -265,24 +262,6 @@ Owed.lean`'s `instLPFast_spec`), so the parse carries the three invariants from
 the capstones' empty caches.  They survive every parse step through
 `ParseStep.cframe`'s implications — which is why those are implications and
 not equations. -/
-
-/-- con-leche: none — the three readback memos are sound at `s`. -/
-structure ReadCachesOK (s : AState) : Prop where
-  readL : ReadLCacheOK s.caches.readLC s.store
-  readN : ReadNCacheOK s.caches.readNC s.store
-  readLs : ReadLsCacheOK s.caches.readLsC s.store
-
-/-- con-leche: none — the invariants survive a parse step. -/
-theorem ReadCachesOK.step {s s' : AState} (h : ReadCachesOK s)
-    (hs : ParseStep s s') : ReadCachesOK s' :=
-  ⟨hs.cframe.readL h.readL, hs.cframe.readN h.readN, hs.cframe.readLs h.readLs⟩
-
-/-- con-leche: none — the capstones' start: the caches are empty. -/
-theorem ReadCachesOK.ofEmpty {s : AState} (h : s.caches = Caches.empty) :
-    ReadCachesOK s where
-  readL := by intro k u hk; rw [h] at hk; simp [Caches.empty] at hk
-  readN := by intro k x hk; rw [h] at hk; simp [Caches.empty] at hk
-  readLs := by intro k us hk; rw [h] at hk; simp [Caches.empty] at hk
 
 /-! ## The two generic shapes -/
 
@@ -376,94 +355,6 @@ theorem IdTableRel.insert {α β : Type} {R : α → β → Prop}
   split
   · exact hx
   · exact h j
-
-/-- con-leche: none — a `Std.HashMap` over HANDLES against one over the values
-they denote.  Both directions, for `Bridge/StateOK.lean`'s `IFEnvOK` reason:
-`hit` is what a read consumes, `cover` is what an arena extension preserves
-(the naive "a miss at a handle that denotes `n` means a miss at `n`" is not). -/
-structure MapRel {α : Type} {β : Type} (st : EStore) (R : α → β → Prop)
-    (m : Std.HashMap NIdx α) (mc : Std.HashMap ConLeche.Name β) : Prop where
-  hit : ∀ h a, m[h]? = some a →
-    ∃ n b, denoteN st.ns h = some n ∧ mc[n]? = some b ∧ R a b
-  cover : ∀ n b, mc[n]? = some b →
-    ∃ h a, denoteN st.ns h = some n ∧ m[h]? = some a ∧ R a b
-
-/-- con-leche: none — two EMPTY maps relate, whatever the relation is.  Five
-of `StateD.init`'s eighteen fields are this (`Bridge/Frontend/Chunks.lean`'s
-`StateD_init_run`). -/
-theorem MapRel.empty {α β : Type} (st : EStore) (R : α → β → Prop) :
-    MapRel st R (∅ : Std.HashMap NIdx α) (∅ : Std.HashMap ConLeche.Name β) where
-  hit := by intro h a hk; simp at hk
-  cover := by intro n b hn; simp at hn
-
-/-- con-leche: none — **one entry, on both sides**, and the one place in this
-module `denoteN_inj` is load-bearing: `hit` at a handle the insert missed has
-to land on a KEY the insert missed, and two distinct handles denoting one name
-would break exactly that.  Injectivity of the name store's denotation (task
-#97a's `denoteN_inj`; DESIGN §8.3 makes exactness a soundness obligation) is
-what rules it out, in both directions.
-
-This is the lemma the six `noteDecl` arms, `registerProjOwners` and
-`noteProjIota` all read: `MapRel.{mono,empty}` carry a map across an append
-and start it, and this is the only thing that puts anything in one. -/
-theorem MapRel.insert {α β : Type} {st : EStore} (hwf : StoreWF st)
-    {R : α → β → Prop} {m : Std.HashMap NIdx α}
-    {mc : Std.HashMap ConLeche.Name β} (h : MapRel st R m mc) {k : NIdx}
-    {n : ConLeche.Name} (hk : denoteN st.ns k = some n) {a : α} {b : β}
-    (hab : R a b) : MapRel st R (m.insert k a) (mc.insert n b) := by
-  obtain ⟨rk, hrk⟩ := hwf
-  refine ⟨?_, ?_⟩
-  · intro i x hx
-    rw [Std.HashMap.getElem?_insert] at hx
-    by_cases hik : k = i
-    · subst hik
-      simp only [beq_self_eq_true, if_pos, Option.some.injEq] at hx
-      subst hx
-      exact ⟨n, b, hk, by simp, hab⟩
-    · rw [if_neg (by simpa using hik)] at hx
-      obtain ⟨n', b', hn', hb', hR⟩ := h.hit i x hx
-      refine ⟨n', b', hn', ?_, hR⟩
-      rw [Std.HashMap.getElem?_insert]
-      by_cases hnn : n = n'
-      · subst hnn
-        exact absurd (denoteN_inj hrk.nsWF hk hn') hik
-      · rw [if_neg (by simpa using hnn)]; exact hb'
-  · intro n' b' hb'
-    rw [Std.HashMap.getElem?_insert] at hb'
-    by_cases hnn : n = n'
-    · subst hnn
-      simp only [beq_self_eq_true, if_pos, Option.some.injEq] at hb'
-      subst hb'
-      exact ⟨k, a, hk, by simp, hab⟩
-    · rw [if_neg (by simpa using hnn)] at hb'
-      obtain ⟨i, x, hi, hx, hR⟩ := h.cover n' b' hb'
-      refine ⟨i, x, hi, ?_, hR⟩
-      rw [Std.HashMap.getElem?_insert]
-      by_cases hik : k = i
-      · subst hik
-        rw [hk] at hi
-        simp only [Option.some.injEq] at hi
-        exact absurd hi hnn
-      · rw [if_neg (by simpa using hik)]; exact hx
-
-/-- con-leche: none — a `MapRel` read at a handle that denotes: the two maps
-answer alike (`hit` one way, `cover` and `denoteN_inj` the other). -/
-theorem MapRel.getElem?_rel {α β : Type} {st : EStore} (hw : NStoreWF st.ns)
-    {R : α → β → Prop} {m : Std.HashMap NIdx α} {mc : Std.HashMap ConLeche.Name β}
-    (h : MapRel st R m mc) {k : NIdx} {n : ConLeche.Name}
-    (hk : denoteN st.ns k = some n) : OptRel R m[k]? mc[n]? := by
-  cases hm : m[k]? with
-  | some a =>
-    obtain ⟨n', b, hn', hb, hab⟩ := h.hit k a hm
-    obtain rfl : n' = n := Option.some.inj (hn'.symm.trans hk)
-    rw [hb]; exact hab
-  | none =>
-    cases hc : mc[n]? with
-    | none => exact OptRel.refl_none
-    | some b =>
-      obtain ⟨k', a, hk', ha, -⟩ := h.cover n b hc
-      obtain rfl : k' = k := denoteN_inj hw hk' hk
-      rw [hm] at ha; exact absurd ha (by simp)
 
 /-! ## The declaration array -/
 
@@ -614,9 +505,6 @@ theorem DeclProjNamed.of_thmDecl {st : EStore} {v : IConstantVal} {e : EIdx} :
 
 theorem DeclProjNamed.of_opaqueDecl {st : EStore} {v : IConstantVal} {e : EIdx} :
     DeclProjNamed st (.opaqueDecl v e) := by intro _ _ h; exact nomatch h
-
-theorem DeclProjNamed.of_basisDecl {st : EStore} {k : BasisKind} :
-    DeclProjNamed st (.basisDecl k) := by intro _ _ h; exact nomatch h
 
 theorem DeclProjNamed.of_quotDecl {st : EStore} {k : QuotKind} {v : IConstantVal} :
     DeclProjNamed st (.quotDecl k v) := by intro _ _ h; exact nomatch h
@@ -1022,31 +910,6 @@ theorem PersDecl_of_denote {st : EStore} (hwf : StoreWF st)
     | some b =>
       exact PersCIList_of_denote hwf hoff (hn block nP rfl) h1
 
-/-- con-leche: none — a whole declaration STREAM, which is what the modeller
-seam and the parse both hand on. -/
-theorem PersDecls_of_denote {st : EStore} (hwf : StoreWF st)
-    (hoff : st.scratchOn = false) :
-    ∀ {dis : List IDeclaration} {ds : List Declaration},
-      (∀ d ∈ dis, DeclProjNamed st d) →
-      ConRon.Bridge.denoteDecls st dis = some ds → ∀ d ∈ dis, PersDecl d := by
-  intro dis
-  induction dis with
-  | nil => intro ds _ _ d hd; simp at hd
-  | cons a as ih =>
-    intro ds hn hd
-    rw [ConRon.Bridge.denoteDecls] at hd
-    cases h1 : denoteDecl st a with
-    | none => rw [h1] at hd; simp at hd
-    | some x =>
-      cases h2 : ConRon.Bridge.denoteDecls st as with
-      | none => rw [h1, h2] at hd; simp at hd
-      | some xs =>
-        intro d hdm
-        simp only [List.mem_cons] at hdm
-        rcases hdm with rfl | hdm
-        · exact PersDecl_of_denote hwf hoff (hn d (by simp)) h1
-        · exact ih (fun di hdi => hn di (by simp [hdi])) h2 d hdm
-
 /-! The non-projection half is `Bridge/StateOK.lean`'s own `denoteCI_name`,
 which landed there while this round ran; only the `.projInfo` half is restated
 here, because that one asks `IProjTableOK` where this tier has only its `named`
@@ -1272,14 +1135,6 @@ before an extension may decode after it.  `cover` says the opposite direction
 — and an extension keeps that handle decoding, so the clause survives by
 `denoteN_ext` alone. -/
 
-theorem ListRel.mono {α : Type u} {β : Type v} {R R' : α → β → Prop}
-    (hR : ∀ a b, R a b → R' a b) :
-    ∀ {as : List α} {bs : List β}, ListRel R as bs → ListRel R' as bs := by
-  intro as bs h
-  induction h with
-  | nil => exact .nil
-  | cons hab _ ih => exact .cons (hR _ _ hab) ih
-
 theorem IdTableRel.mono {α β : Type} {R R' : α → β → Prop}
     (hR : ∀ a b, R a b → R' a b) {t : ConLeche.Frontend.IdTable α}
     {u : ConLeche.Frontend.IdTable β} (h : IdTableRel R t u) :
@@ -1291,19 +1146,6 @@ theorem IdTableRel.mono {α β : Type} {R R' : α → β → Prop}
   | some a =>
     obtain ⟨b, hv, hab⟩ := hi.some_left hu
     rw [hv]; exact hR _ _ hab
-
-theorem MapRel.mono {α β : Type} {st st' : EStore} {R R' : α → β → Prop}
-    (hx : Ext st st') (hR : ∀ a b, R a b → R' a b) {m : Std.HashMap NIdx α}
-    {mc : Std.HashMap ConLeche.Name β} (h : MapRel st R m mc) :
-    MapRel st' R' m mc where
-  hit := by
-    intro k a hk
-    obtain ⟨n, b, hn, hb, hab⟩ := h.hit k a hk
-    exact ⟨n, b, denoteN_ext hn hx, hb, hR _ _ hab⟩
-  cover := by
-    intro n b hn
-    obtain ⟨k, a, hk, ha, hab⟩ := h.cover n b hn
-    exact ⟨k, a, denoteN_ext hk hx, ha, hR _ _ hab⟩
 
 /-- con-leche: none — `Bridge/Rel.lean`'s `denoteCI_ext` at a BLOCK.  It has a
 `…_pext` twin (`Bridge/Checker/Inv.lean:320`) and no `…_ext` one, because the
