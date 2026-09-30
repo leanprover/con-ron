@@ -1149,4 +1149,234 @@ theorem classReadSlots_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (e
       | forallE a b m => exact absurd (PW.tag_forallE_of_denote hok.wf hd) (by simpa using htg)
       | _ => simp [ConLeche.classReadSlots]
 
+/-! ## `classReadRecCls` -/
+
+/-- con-leche: none — a denoting constant value's type handle denotes its type. -/
+theorem denoteCV_type {st : EStore} {cv : IConstantVal} {c : ConstantVal}
+    (h : Frontend.denoteCV st cv = some c) : denoteE st cv.type = some c.type := by
+  unfold Frontend.denoteCV at h
+  split at h
+  · rename_i n lps ty _ _ hty
+    cases h; exact hty
+  · cases h
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:71-96 RecShape — what
+the pre-pass reads of a denoting recursor record. -/
+theorem dRec_inv {st : EStore} {r : Arena.RecShape} {rP : ConLeche.RecShape}
+    (h : dRec st r = some rP) :
+    denoteE st r.cvR.type = some rP.cvR.type ∧ rP.mI = r.mI ∧ rP.rP = r.rP := by
+  simp only [dRec, Option.bind_eq_bind] at h
+  cases hcv : Frontend.denoteCV st r.cvR with
+  | none => rw [hcv] at h; simp at h
+  | some cv =>
+  rw [hcv] at h
+  simp only [Option.bind_some] at h
+  cases hr : Frontend.denoteEList st r.rhss with
+  | none => rw [hr] at h; simp at h
+  | some rs =>
+  rw [hr] at h
+  simp only [Option.bind_some, Option.pure_def, Option.some.injEq] at h
+  subst h
+  exact ⟨denoteCV_type hcv, rfl, rfl⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:134-137 classRead — one
+recursor's class off its conclusion, as a function (bind form). -/
+def recClsP (nP : Nat) (motPos : List Nat) (rc : ConLeche.RecShape) : Option Nat :=
+  (ConLeche.openPisAtFvars (rc.mI + 1) rc.cvR.type 0).bind fun (_, concl) =>
+    (fvarHeadP concl).bind fun p => ConLeche.classOfMotiveVar nP motPos p
+
+/-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:134-137 classRead
+(`recs.mapM`) — **every recursor's class**, at the pure grade; the answer is
+representation-free, so `RV` at the `Option` is already two-sided. -/
+theorem classReadRecCls_spec (nP : Nat) (motPos : List Nat) :
+    ∀ (recs : List Arena.RecShape) (recsP : List ConLeche.RecShape),
+    PSpec (fun st => recs.mapM (dRec st) = some recsP)
+      (Arena.classReadRecCls nP motPos recs) (RV (recsP.mapM (recClsP nP motPos))) := by
+  intro recs
+  induction recs with
+  | nil =>
+    intro recsP s₀ s' r hok hp hrun
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hp
+    subst hp
+    simp only [Arena.classReadRecCls] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons rc rest ih =>
+    intro recsP s₀ s' r hok hp hrun
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at hp
+    cases hx : dRec s₀.store rc with
+    | none => rw [hx] at hp; simp at hp
+    | some rcP =>
+    rw [hx] at hp
+    cases hxs : rest.mapM (dRec s₀.store) with
+    | none => rw [hxs] at hp; simp at hp
+    | some restP =>
+    rw [hxs] at hp
+    simp only [Option.bind_some, Option.some.injEq] at hp
+    subst hp
+    obtain ⟨hty, hmI, -⟩ := dRec_inv hx
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def]
+    simp only [Arena.classReadRecCls] at hrun
+    obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨p1, ho⟩ := CR.openPisAtFvarsF_run hok hty h1
+    rw [← hmI] at ho
+    cases o with
+    | none =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      refine ⟨p1, ?_⟩
+      have hn := (Option.some.inj ho).symm
+      simp [RV, recClsP, hn]
+    | some q =>
+    obtain ⟨fvs, concl⟩ := q
+    obtain ⟨fvsP, conclP, hq, -, hconcl⟩ := CR.denoteOpen_some_inv ho
+    dsimp only at h2
+    obtain ⟨hp, s₂, h3, h4⟩ := bindOk h2
+    obtain ⟨rfl, rfl⟩ := fvarHead_run p1.ok hconcl h3
+    have hrc : recClsP nP motPos rcP = (fvarHeadP conclP).bind fun p =>
+        ConLeche.classOfMotiveVar nP motPos p := by
+      simp [recClsP, hq]
+    rw [hrc]
+    cases hfp : fvarHeadP conclP with
+    | none =>
+      rw [hfp] at h4
+      obtain ⟨rfl, rfl⟩ := pureOk h4
+      exact ⟨p1, by simp [RV]⟩
+    | some p =>
+    rw [hfp] at h4
+    dsimp only at h4
+    rw [classOfMotiveVar_eq] at h4
+    simp only [Option.bind_some]
+    cases hc : ConLeche.classOfMotiveVar nP motPos p with
+    | none =>
+      rw [hc] at h4
+      obtain ⟨rfl, rfl⟩ := pureOk h4
+      exact ⟨p1, by simp [RV]⟩
+    | some c =>
+    rw [hc] at h4
+    dsimp only at h4
+    obtain ⟨o2, s₃, h5, h6⟩ := bindOk h4
+    obtain ⟨p5, ho2⟩ := ih restP _ _ _ p1.ok (dRec_ext.list p1.ext _ _ hxs) h5
+    simp only [RV] at ho2
+    subst ho2
+    simp only [Option.bind_some]
+    cases hrs : restP.mapM (recClsP nP motPos) with
+    | none =>
+      rw [hrs] at h6
+      obtain ⟨rfl, rfl⟩ := pureOk h6
+      exact ⟨p1.trans p5, by simp [RV]⟩
+    | some cs =>
+      rw [hrs] at h6
+      obtain ⟨rfl, rfl⟩ := pureOk h6
+      exact ⟨p1.trans p5, by simp [RV]⟩
+
+/-! ## The headline: `classRead` -/
+
+/-- con-leche: none — `Option`'s `mapM` under a pointwise-equal function. -/
+theorem mapM_option_congr {α β : Type} {f g : α → Option β} (h : ∀ x, f x = g x)
+    (xs : List α) : xs.mapM f = xs.mapM g := by
+  rw [show f = g from funext h]
+
+/-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:126-140 classRead —
+**THEOREM 1 for the recursor stage's pre-pass**: from a denoting block shape,
+the formers' index invariant and a denoting recursor family, an accepting run
+of the twin answers con-leche's `classRead` at `nPc := classNPcOf pP (mkFEnv
+env)`, TWO-SIDEDLY on the `Option` (the stage throws on `none`), the read
+record denoting con-leche's. -/
+theorem classRead_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (env : Env)
+    (fe : IFEnv) (nP : Nat) (recs : List Arena.RecShape) (recsP : List ConLeche.RecShape) :
+    PSpec (fun st => dShape st p = some pP ∧ IFEnvOKS env fe st ∧
+        recs.mapM (dRec st) = some recsP)
+      (Arena.classRead p fe nP recs)
+      (ROp (fun q st r => dClassRead st r = some q)
+        (ConLeche.classRead nP (ConLeche.classNPcOf pP (mkFEnv env)) recsP)) := by
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hsh, hfe, hrecs⟩ := hp
+  unfold ConLeche.classRead
+  simp only [Arena.classRead] at hrun
+  cases recs with
+  | nil =>
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrecs
+    subst hrecs
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons rc0 rest =>
+  have hrecs' := hrecs
+  simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at hrecs'
+  cases hx : dRec s₀.store rc0 with
+  | none => rw [hx] at hrecs'; simp at hrecs'
+  | some rc0P =>
+  rw [hx] at hrecs'
+  cases hxs : rest.mapM (dRec s₀.store) with
+  | none => rw [hxs] at hrecs'; simp at hrecs'
+  | some restP =>
+  rw [hxs] at hrecs'
+  simp only [Option.bind_some, Option.some.injEq] at hrecs'
+  subst hrecs'
+  obtain ⟨hty, -, hrP⟩ := dRec_inv hx
+  simp only [List.head?_cons, Option.bind_eq_bind, Option.bind_some]
+  dsimp only at hrun
+  obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨p1, ho⟩ := CR.openPisAtFvarsF_run hok hty h1
+  cases o with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk h2
+    refine ⟨p1, ?_⟩
+    have hn := (Option.some.inj ho).symm
+    simp [ROp, hn]
+  | some q =>
+  obtain ⟨fvs, body⟩ := q
+  obtain ⟨fvsP, bodyP, hq, -, hbody⟩ := CR.denoteOpen_some_inv ho
+  rw [hq]
+  simp only [Option.bind_some]
+  dsimp only at h2
+  obtain ⟨os, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨p3, hos⟩ := classReadSlots_spec p pP env fe nP (rc0.rP - nP) [] nP body bodyP _ _ _
+    p1.ok ⟨dShape_ext p1.ext _ _ hsh, hfe.mono p1.ext, hbody⟩ h3
+  rw [hrP]
+  cases os with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk h4
+    refine ⟨p1.trans p3, ?_⟩
+    simp only [ROp] at hos
+    simp [ROp, hos]
+  | some slots =>
+  obtain ⟨slotsP, hsP, hsl⟩ := hos
+  rw [hsP]
+  simp only [Option.bind_some]
+  dsimp only at h4
+  generalize hT : List.filter _ (List.range slots.length) = mT at h4
+  generalize hU : List.filter _ (List.range slotsP.length) = mU
+  have hmT : mT = mU := by
+    rw [← hT, ← hU]
+    exact motive_filter_eq hsl (fun o => match o with | some (.motive _) => true | _ => false)
+      (fun o => match o with | some (.motive _) => true | _ => false)
+      (fun _ => rfl) (fun _ => rfl)
+  subst hmT
+  rw [mapM_option_congr (g := recClsP nP mT) ?_]
+  · obtain ⟨o2, s₃, h5, h6⟩ := bindOk h4
+    have p13 := p1.trans p3
+    obtain ⟨p5, ho2⟩ := classReadRecCls_spec nP mT (rc0 :: rest) (rc0P :: restP) _ _ _
+      p3.ok (dRec_ext.list p13.ext _ _ hrecs) h5
+    simp only [RV] at ho2
+    subst ho2
+    have p15 := p13.trans p5
+    cases hrc : (rc0P :: restP).mapM (recClsP nP mT) with
+    | none =>
+      rw [hrc] at h6
+      obtain ⟨rfl, rfl⟩ := pureOk h6
+      exact ⟨p15, by simp [ROp]⟩
+    | some cs =>
+      rw [hrc] at h6
+      obtain ⟨rfl, rfl⟩ := pureOk h6
+      refine ⟨p15, _, rfl, ?_⟩
+      simp [dClassRead, dSlot_ext.list p5.ext _ _ hsl]
+  · intro rc
+    unfold recClsP
+    cases ConLeche.openPisAtFvars (rc.mI + 1) rc.cvR.type 0 with
+    | none => rfl
+    | some q =>
+      obtain ⟨_, concl⟩ := q
+      simp only [Option.bind_some, fvarHeadP]
+      cases concl.getAppFn <;> rfl
+
 end ConRon.Bridge.Inductives
