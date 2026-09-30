@@ -140,18 +140,6 @@ variable {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
   (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
 include hrel hinv
 
-@[lockstep] theorem intern_rebuilt_ls (h : arena.handle.EIdx) (same : Bool)
-    (v : arena.store.ENodeView) (hlit : ∀ l, v = .Lit l → ConRon.Refine.LiteralWF l)
-    (hpw : ∀ ty b m, v = .Lam ty b m ∨ v = .ForallE ty b m → ConRon.Refine.PropWhenWF m.pw) :
-    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.intern_rebuilt pers st h same v) lst
-      (internRebuilt (absEIdx h) same (absENodeView v)) := by
-  rw [arena.expr_ops.intern_rebuilt, internRebuilt]; lockstep
-
-@[lockstep] theorem intern_rebuilt_bvar_ls (h : arena.handle.EIdx) (same : Bool) (i : Std.U64) :
-    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.intern_rebuilt_bvar pers st h same i) lst
-      (internRebuiltBVar (absEIdx h) same (absU i)) := by
-  rw [arena.expr_ops.intern_rebuilt_bvar, internRebuiltBVar]; lockstep
-
 @[lockstep] theorem intern_rebuilt_fvar_ls (h : arena.handle.EIdx) (same : Bool) (i : Std.U64)
     (ty : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a) (arena.expr_ops.intern_rebuilt_fvar pers st h same i ty)
@@ -199,26 +187,11 @@ include hrel hinv
       lst (internRebuiltLetE (absEIdx h) same (absEIdx t) (absEIdx v) (absEIdx b)) := by
   rw [arena.expr_ops.intern_rebuilt_let_e, internRebuiltLetE]; lockstep
 
-@[lockstep] theorem intern_rebuilt_lit_ls (h : arena.handle.EIdx) (same : Bool)
-    (l : kernel.expr.Literal) (hwf : ConRon.Refine.LiteralWF l) :
-    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.intern_rebuilt_lit pers st h same l)
-      lst (internRebuiltLit (absEIdx h) same (ConRon.Refine.absLiteral l)) := by
-  rw [arena.expr_ops.intern_rebuilt_lit, internRebuiltLit]; lockstep
-
 @[lockstep] theorem intern_rebuilt_proj_ls (h : arena.handle.EIdx) (same : Bool)
     (n : arena.handle.NIdx) (i : Std.U64) (e : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a) (arena.expr_ops.intern_rebuilt_proj pers st h same n i e)
       lst (internRebuiltProj (absEIdx h) same (absNIdx n) (absU i) (absEIdx e)) := by
   rw [arena.expr_ops.intern_rebuilt_proj, internRebuiltProj]; lockstep
-
-@[lockstep] theorem intern_rebuilt_bind_ls (h : arena.handle.EIdx) (same : Bool)
-    (tag : Std.U32) (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
-    (hpw : ConRon.Refine.PropWhenWF m.pw) :
-    LS pers (fun a b => b = absEIdx a)
-      (arena.expr_ops.intern_rebuilt_bind pers st h same tag ty b m)
-      lst (internRebuiltBind (absEIdx h) same (absU32 tag) (absEIdx ty) (absEIdx b)
-        (ConRon.Refine.absBinderMeta m)) := by
-  rw [arena.expr_ops.intern_rebuilt_bind, internRebuiltBind]; lockstep
 
 @[lockstep] theorem intern_rebuilt_bind_i_ls (h : arena.handle.EIdx) (same : Bool)
     (tag : Std.U32) (ty b : arena.handle.EIdx) (m : arena.handle.BMIdx) :
@@ -231,20 +204,6 @@ include hrel hinv
 end rebuilt
 
 /-! ### The public statements -/
-
-theorem intern_rebuilt_refines {pers st lst} (h : arena.handle.EIdx) (same : Bool)
-    (v : arena.store.ENodeView) {o} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hlit : ∀ l, v = .Lit l → ConRon.Refine.LiteralWF l)
-    (hpw : ∀ ty b m, v = .Lam ty b m ∨ v = .ForallE ty b m → ConRon.Refine.PropWhenWF m.pw)
-    (hrun : arena.expr_ops.intern_rebuilt pers st h same v = ok o) :
-    Sim₀ absEIdx pers lst o (internRebuilt (absEIdx h) same (absENodeView v)) :=
-  LS.toSim₀ (intern_rebuilt_ls hrel hinv h same v hlit hpw) hrun
-
-theorem intern_rebuilt_bvar_refines {pers st lst} (h : arena.handle.EIdx) (same : Bool) (i : Std.U64) {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.intern_rebuilt_bvar pers st h same i = ok o) :
-    Sim₀ absEIdx pers lst o (internRebuiltBVar (absEIdx h) same (absU i)) :=
-  LS.toSim₀ (intern_rebuilt_bvar_ls hrel hinv h same i) hrun
 
 theorem intern_rebuilt_fvar_refines {pers st lst} (h : arena.handle.EIdx) (same : Bool) (i : Std.U64) (ty : arena.handle.EIdx) {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -294,25 +253,11 @@ theorem intern_rebuilt_proj_refines {pers st lst} (h : arena.handle.EIdx) (same 
     Sim₀ absEIdx pers lst o (internRebuiltProj (absEIdx h) same (absNIdx n) (absU i) (absEIdx e)) :=
   LS.toSim₀ (intern_rebuilt_proj_ls hrel hinv h same n i e) hrun
 
-theorem intern_rebuilt_bind_refines {pers st lst} (h : arena.handle.EIdx) (same : Bool) (tag : Std.U32) (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta) {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hpw : ConRon.Refine.PropWhenWF m.pw)
-    (hrun : arena.expr_ops.intern_rebuilt_bind pers st h same tag ty b m = ok o) :
-    Sim₀ absEIdx pers lst o (internRebuiltBind (absEIdx h) same (absU32 tag) (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
-  LS.toSim₀ (intern_rebuilt_bind_ls hrel hinv h same tag ty b m hpw) hrun
-
 theorem intern_rebuilt_bind_i_refines {pers st lst} (h : arena.handle.EIdx) (same : Bool) (tag : Std.U32) (ty b : arena.handle.EIdx) (m : arena.handle.BMIdx) {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.expr_ops.intern_rebuilt_bind_i pers st h same tag ty b m = ok o) :
     Sim₀ absEIdx pers lst o (internRebuiltBindI (absEIdx h) same (absU32 tag) (absEIdx ty) (absEIdx b) (absBMIdx m)) :=
   LS.toSim₀ (intern_rebuilt_bind_i_ls hrel hinv h same tag ty b m) hrun
-
-theorem intern_rebuilt_lit_refines {pers st lst} (h : arena.handle.EIdx) (same : Bool)
-    (l : kernel.expr.Literal) {o} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hwf : ConRon.Refine.LiteralWF l)
-    (hrun : arena.expr_ops.intern_rebuilt_lit pers st h same l = ok o) :
-    Sim₀ absEIdx pers lst o (internRebuiltLit (absEIdx h) same (ConRon.Refine.absLiteral l)) :=
-  LS.toSim₀ (intern_rebuilt_lit_ls hrel hinv h same l hwf) hrun
-
 
 /-! ## `instLPGo` -/
 
@@ -945,79 +890,6 @@ theorem bvar_range_aux (N : Nat) :
   rw [arena.expr_ops.rec_rule_plain, recRulePlain]
   lockstep
 
-theorem pis_to_lams_aux (N : Nat) :
-    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (k : Std.U64) (h body : arena.handle.EIdx),
-      k.val = N → AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = absOptE a) (arena.expr_ops.pis_to_lams pers st k h body) lst
-        (pisToLams N (absEIdx h) (absEIdx body)) := by
-  induction N with
-  | zero =>
-    intro pers st lst k h body hn hrel hinv
-    rw [arena.expr_ops.pis_to_lams, pisToLams]
-    lockstep
-  | succ m ih =>
-    intro pers st lst k h body hn hrel hinv
-    rw [arena.expr_ops.pis_to_lams, pisToLams]
-    lockstep
-
-@[lockstep] theorem pis_to_lams_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (k : Std.U64) (h body : arena.handle.EIdx) :
-    LS pers (fun a b => b = absOptE a) (arena.expr_ops.pis_to_lams pers st k h body) lst
-      (pisToLams (absU k) (absEIdx h) (absEIdx body)) :=
-  pis_to_lams_aux _ k h body rfl hrel hinv
-
-theorem replace_pi_body_aux (N : Nat) :
-    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (k : Std.U64) (h b : arena.handle.EIdx),
-      k.val = N → AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = absOptE a) (arena.expr_ops.replace_pi_body pers st k h b) lst
-        (replacePiBody N (absEIdx h) (absEIdx b)) := by
-  induction N with
-  | zero =>
-    intro pers st lst k h b hn hrel hinv
-    rw [arena.expr_ops.replace_pi_body, replacePiBody]
-    lockstep
-  | succ m ih =>
-    intro pers st lst k h b hn hrel hinv
-    rw [arena.expr_ops.replace_pi_body, replacePiBody]
-    lockstep
-
-@[lockstep] theorem replace_pi_body_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (k : Std.U64) (h b : arena.handle.EIdx) :
-    LS pers (fun a b => b = absOptE a) (arena.expr_ops.replace_pi_body pers st k h b) lst
-      (replacePiBody (absU k) (absEIdx h) (absEIdx b)) :=
-  replace_pi_body_aux _ k h b rfl hrel hinv
-
-theorem inst_pis_from_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (fuel : Std.U64) (e : arena.handle.EIdx) (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize),
-      args.val.length - i.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = absOptE a) (arena.expr_ops.inst_pis_from pers st fuel e args i) lst
-        (instPis (absU fuel) (absEIdx e) (absEIdxListFrom args i)) := by
-  induction n with
-  | zero =>
-    intro pers st lst fuel e args i hn hrel hinv
-    rw [arena.expr_ops.inst_pis_from, listFrom_nil args i (by omega), instPis]
-    lockstep
-  | succ k ih =>
-    intro pers st lst fuel e args i hn hrel hinv
-    rw [arena.expr_ops.inst_pis_from, listFrom_cons args i (by omega), instPis]
-    lockstep
-
-@[lockstep] theorem inst_pis_from_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (fuel : Std.U64) (e : arena.handle.EIdx) (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) :
-    LS pers (fun a b => b = absOptE a) (arena.expr_ops.inst_pis_from pers st fuel e args i) lst
-      (instPis (absU fuel) (absEIdx e) (absEIdxListFrom args i)) :=
-  inst_pis_from_aux _ fuel e args i rfl hrel hinv
-
-@[lockstep] theorem inst_pis_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (fuel : Std.U64) (e : arena.handle.EIdx) (args : alloc.vec.Vec arena.handle.EIdx) :
-    LS pers (fun a b => b = absOptE a) (arena.expr_ops.inst_pis pers st fuel e args) lst
-      (instPis (absU fuel) (absEIdx e) (absEIdxList args)) := by
-  rw [arena.expr_ops.inst_pis]
-  lockstep
-
 theorem inst_pis_at_from_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
       (fuel : Std.U64) (args : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) (h : arena.handle.EIdx),
@@ -1395,30 +1267,6 @@ theorem rec_rule_plain_refines {pers st lst} {fuel : Std.U64} {rec_ty : arena.ha
     (hrun : arena.expr_ops.rec_rule_plain pers st fuel rec_ty m_i r_p cn_p = ok o) :
     Sim₀ id pers lst o (recRulePlain (absU fuel) (absEIdx rec_ty) (absU m_i) (absU r_p) (absU cn_p)) :=
   LS.toSim₀ (rec_rule_plain_ls hrel hinv fuel rec_ty m_i r_p cn_p) hrun
-
-theorem pis_to_lams_refines {pers st lst} {k : Std.U64} {h body : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.pis_to_lams pers st k h body = ok o) :
-    Sim₀ absOptE pers lst o (pisToLams (absU k) (absEIdx h) (absEIdx body)) :=
-  LS.toSim₀ (pis_to_lams_ls hrel hinv k h body) hrun
-
-theorem replace_pi_body_refines {pers st lst} {k : Std.U64} {h b : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.replace_pi_body pers st k h b = ok o) :
-    Sim₀ absOptE pers lst o (replacePiBody (absU k) (absEIdx h) (absEIdx b)) :=
-  LS.toSim₀ (replace_pi_body_ls hrel hinv k h b) hrun
-
-theorem inst_pis_from_refines {pers st lst} {fuel : Std.U64} {e : arena.handle.EIdx} {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.inst_pis_from pers st fuel e args i = ok o) :
-    Sim₀ absOptE pers lst o (instPis (absU fuel) (absEIdx e) (absEIdxListFrom args i)) :=
-  LS.toSim₀ (inst_pis_from_ls hrel hinv fuel e args i) hrun
-
-theorem inst_pis_refines {pers st lst} {fuel : Std.U64} {e : arena.handle.EIdx} {args : alloc.vec.Vec arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.inst_pis pers st fuel e args = ok o) :
-    Sim₀ absOptE pers lst o (instPis (absU fuel) (absEIdx e) (absEIdxList args)) :=
-  LS.toSim₀ (inst_pis_ls hrel hinv fuel e args) hrun
 
 theorem inst_pis_at_from_refines {pers st lst} {fuel : Std.U64} {args : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize} {h : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
