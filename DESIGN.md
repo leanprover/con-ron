@@ -65290,6 +65290,13 @@ less and touches no table.
 only).  OVERVIEW's bracket anchor moved +9 lines (the new doc paragraph
 in `core.rs`), and the fixture count went 388 → 389.
 
+**Gates.**  `scripts/gates.sh` (`LAKE_JOBS=4`) **all 13 OK**, with
+`provenance` at 6 881 items / 4 258 citations, all current at `3ca9e2fe`,
+and `extract-check` at 85 s with no diff.  The full `lake build` (2 871 jobs,
+including `Refine2/Core/Eqns.lean`, 948 s) printed no warning from
+`proof/`.  The pin (`proof/lakefile.toml`, `proof/lake-manifest.json`) is
+the branch's last commit (§7 step 9).
+
 **Shared state.**  The campaign ran on a private reflink copy
 `_tmp/t103-aeneas-lean`, deleted at the end.  The shared con-leche checkout
 was not touched and is still at `1e567fcf`.
