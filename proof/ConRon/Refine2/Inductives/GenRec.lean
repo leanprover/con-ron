@@ -1093,4 +1093,46 @@ theorem rule_calls_acc {pers} (g : arena.inductives.gen_rec.ClassGen) (hbm : Con
   rw [arena.inductives.gen_rec.class_gen_rule_close, grRuleClose]
   lockstep
 
+/-! ## `class_gen_rule` ⊑ `classGenRule`
+
+The twin's slot test is a `match`-lambda; `classGenRule'` is the same `def`
+with it named (`grMinorIs`), the prefix variable named (`grPVar`) and the tail
+named (`grRuleClose`) — equal by `rfl`. -/
+
+def classGenRule' (g : ClassGen) (recCls : List Nat) (cvGs : List IConstantVal)
+    (rlvls : LsIdx) (c : Nat) (x : ClassCtor) : AM (Option EIdx) := do
+  let rP := g.pre.length
+  let hit := ((List.range g.slots.length).zip g.slots).find? (grMinorIs c x.cv.name)
+  match hit with
+  | none => pure none
+  | some (s, _) =>
+    match ← openPisAtFvarsF x.nF x.tyD rP with
+    | none => pure none
+    | some (fvs, _) =>
+      match ← targetPiDomsWith fvs x.tyN with
+      | none => pure none
+      | some ws => do
+        let pvars ← (List.range rP).mapM (grPVar g)
+        match ← classGenRule.callsGo g recCls cvGs rlvls x rP fvs ws pvars x.nF 0 with
+        | none => pure none
+        | some ihs => grRuleClose g s fvs ihs
+
+theorem classGenRule_eq : classGenRule = classGenRule' := by
+  funext g recCls cvGs rlvls c x
+  simp only [classGenRule, classGenRule', grRuleClose]
+  congr 1
+  · congr 1; funext p; rcases p with ⟨_, _ | _⟩ <;> rfl
+
+@[lockstep] theorem class_gen_rule_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen) (hg : ClassGenWF g)
+    (rec_cls : alloc.vec.Vec Std.U64) (cv_gs : alloc.vec.Vec arena.env.IConstantVal)
+    (rlvls : arena.handle.LsIdx) (c : Std.U64) (x : arena.inductives.gen_rec.ClassCtor) :
+    LS pers (fun a b => b = a.map absEIdx)
+      (arena.inductives.gen_rec.class_gen_rule pers st g rec_cls cv_gs rlvls c x) lst
+      (classGenRule (absClassGen g) (absNatL rec_cls) (cv_gs.val.map absIConstantVal)
+        (absLsIdx rlvls) (absU c) (absClassCtor x)) := by
+  have hbm := hg.bm
+  rw [arena.inductives.gen_rec.class_gen_rule, classGenRule_eq, classGenRule']
+  lockstep
+
 end ConRon.Refine2
