@@ -43,19 +43,6 @@ structure BlockPassRel (r : arena.inductives.block_tail.BlockPass) (q : BlockPas
   cls : q.cls = absTargetMajorL r.cls
   tbl : q.tbl = r.tbl.val.map absNestCtorNf
 
-/-- An `LS` at a weaker answer relation. -/
-theorem LS.mono_rel {α β : Type} {pers : arena.store.PersTier} {R R' : α → β → Prop}
-    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
-    {lst : AState} {x : AM β} (h : LS pers R m lst x) (hR : ∀ a b, R a b → R' a b) :
-    LS pers R' m lst x := by
-  intro o st' hm
-  have h1 := h o st' hm
-  cases o with
-  | Err e => exact h1
-  | Ok a =>
-    obtain ⟨b, lst', hx, hR1, h2, h3⟩ := h1
-    exact ⟨b, lst', hx, hR _ _ hR1, h2, h3⟩
-
 /-- `check_block_inds` with the pair of abstractions as ONE equation, so the
 twin's `let (fe₁, cvTas, p₁) ← …` destructures a known term. -/
 @[lockstep high] theorem check_block_inds_pair_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -64,7 +51,7 @@ twin's `let (fe₁, cvTas, p₁) ← …` destructures a known term. -/
     LS pers (fun a b => IFEnvRelI a.1 b.1 ∧ b.2 = (absICVL a.2.1, absBlockShape a.2.2))
       (arena.inductives.block_install.check_block_inds pers st mode rf p is_rec) lst
       (checkBlockInds (ConRon.Refine.absMode mode) lf (absBlockParts p) is_rec) :=
-  LS.mono_rel (check_block_inds_ls hrel hinv mode hfe p is_rec)
+  Lockstep.PPR.LS.weaken (check_block_inds_ls hrel hinv mode hfe p is_rec)
     (fun _ _ h => ⟨h.1, Prod.ext h.2.1 h.2.2⟩)
 
 attribute [local lockstep_inline] arena.inductives.block_tail.check_block_pass_classes

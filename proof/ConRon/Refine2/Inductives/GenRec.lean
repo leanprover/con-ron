@@ -252,48 +252,6 @@ theorem mapM_loop_acc {α β : Type} (f : α → AM β) (l : List α) (acc : Lis
     rw [ih, ih (b :: [])]
     simp
 
-/-- A twin-only `map` on a read's answer, taken off: the relation composed
-with it. -/
-theorem LSR.of_twin_map {α β γ : Type} {pers : arena.store.PersTier} {R₁ : α → γ → Prop}
-    {m : Result (core.result.Result α kernel.core_types.CheckError)}
-    {st : arena.monad.AState} {lst : AState} {x : AM β} {f : β → γ}
-    (h : LSR pers R₁ m st lst (x >>= fun b => pure (f b))) :
-    LSR pers (fun a b => R₁ a (f b)) m st lst x := by
-  intro o hm
-  have h1 := h o hm
-  rw [StateT.run_bind] at h1
-  cases hx : x.run lst with
-  | error le =>
-    rw [hx] at h1
-    cases o with
-    | Err e =>
-      intro k hk
-      obtain ⟨le', hle, hk'⟩ := h1 k hk
-      have : le' = le := by
-        change Except.error le = Except.error le' at hle
-        cases hle; rfl
-      subst this
-      exact ⟨le', rfl, hk'⟩
-    | Ok a =>
-      obtain ⟨b, lst', hb, -⟩ := h1
-      exact absurd hb (by simp [Bind.bind, Except.bind])
-  | ok p =>
-    rw [hx] at h1
-    obtain ⟨b, l1⟩ := p
-    cases o with
-    | Err e =>
-      intro k hk
-      obtain ⟨le, hle, -⟩ := h1 k hk
-      exact absurd hle (by
-        show Except.bind (Except.ok (b, l1)) (fun p => (pure (f p.1) : AM γ).run p.2) ≠ _
-        simp [Except.bind, Pure.pure, StateT.pure, StateT.run, Except.pure])
-    | Ok a =>
-      obtain ⟨c, lst', hc, hR, h2, h3⟩ := h1
-      simp only [Bind.bind, Except.bind, Pure.pure, StateT.pure, Except.pure, StateT.run,
-        Except.ok.injEq, Prod.mk.injEq] at hc
-      obtain ⟨rfl, rfl⟩ := hc
-      exact ⟨b, l1, rfl, hR, h2, h3⟩
-
 /-- `gen_binders` seeded with a prefix `out` ⊑ `xs.mapM g.binder`, the prefix
 in front of the answer (`classGenRecTy`'s `g.pre ++ ibs`). -/
 @[lockstep] theorem gen_binders_pre_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -305,7 +263,7 @@ in front of the answer (`classGenRecTy`'s `g.pre ++ ibs`). -/
       ((absEIdxL xs).mapM (absClassGen g).binder) := by
   have h := gen_binders_acc (pers := pers) g hbm xs 0#usize out lst hrel hinv hout
   rw [mapM_loop_acc, List.reverse_reverse] at h
-  have h2 := LSR.of_twin_map h
+  have h2 := LSR.of_map h
   have e : (List.mapM.loop (absClassGen g).binder
       ((xs.val.drop (0#usize : Std.Usize).val).map absEIdx) []) =
       (absEIdxL xs).mapM (absClassGen g).binder := by
