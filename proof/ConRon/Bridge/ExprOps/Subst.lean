@@ -619,15 +619,6 @@ theorem instantiate1Lift_leaf {ve : Expr} {d : Nat} {e : Expr}
   rcases h with ⟨k, t, rfl⟩ | ⟨u, rfl⟩ | ⟨n, us, rfl⟩ | ⟨l, rfl⟩ <;>
     simp [Expr.instantiate1Lift]
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:211-235 instantiateList — the
-identity on leaves. -/
-theorem instantiateList_leaf {ws : List Expr} {d : Nat} {e : Expr}
-    (h : (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨
-      (∃ n us, e = .const n us) ∨ ∃ l, e = .lit l) :
-    e.instantiateList ws d = e := by
-  rcases h with ⟨k, t, rfl⟩ | ⟨u, rfl⟩ | ⟨n, us, rfl⟩ | ⟨l, rfl⟩ <;>
-    rw [Expr.instantiateList]
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:387 liftLooseBVars — the `.bvar`
 arm's LIFTING branch. -/
 theorem LiftAt.bvar_up {st st' : EStore} {h r : EIdx} {amount c i : Nat}
@@ -1237,21 +1228,6 @@ theorem InstLAt.bvar_rec {st st' : EStore} (hwf : StoreWF st) {h vi r : EIdx}
     rw [List.getElem?_eq_getElem hj] at hwi; exact Option.some.inj hwi
   rw [Expr.instantiateList, if_neg hge, dif_pos hj, hg]
   exact hrec w hvi
-
-/-- con-leche: none — a denoting vector denotes SOME list, in the orientation
-`InstLVec` fixes. -/
-theorem InstLVec.of_isSome {st : EStore} {vs : Array EIdx}
-    (h : (Frontend.denoteEList st vs.toList).isSome = true) :
-    ∃ ws, InstLVec st vs ws := by
-  obtain ⟨xs, hxs⟩ := Option.isSome_iff_exists.mp h
-  exact ⟨xs.reverse, by rw [InstLVec, List.reverse_reverse]; exact hxs⟩
-
-/-- con-leche: none — and the `isSome` travels with the arena. -/
-theorem InstLVec.isSome_ext {st st' : EStore} {vs : Array EIdx}
-    (h : (Frontend.denoteEList st vs.toList).isSome = true) (hx : Ext st st') :
-    (Frontend.denoteEList st' vs.toList).isSome = true := by
-  obtain ⟨xs, hxs⟩ := Option.isSome_iff_exists.mp h
-  rw [denoteEList_ext hx _ _ hxs]; rfl
 
 /-! ### The same four, at the arm's OWN hypotheses
 
@@ -2186,28 +2162,6 @@ insert's spec for `instLC`, generic in the pure function (see
   all_goals (bridge_peel; subst_vars)
   all_goals exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
 
-/-! ### The three `Array` twins at the DENOTATION -/
-
-/-- con-leche: none — **Theorem 1 for `takeEidx` at the denotation**: the
-first `k` slots of a denoting handle vector denote the first `k` terms.  This
-is the list fact the substituting walks consume. -/
-theorem denoteEList_takeEidx {st : EStore} {xs : Array EIdx} {es : List Expr}
-    (h : Frontend.denoteEList st xs.toList = some es) (k : Nat) :
-    Frontend.denoteEList st (takeEidx xs k).toList = some (es.take k) := by
-  rw [takeEidx_toList]
-  exact denoteEList_take k xs.toList es h
-
-/-- con-leche: none — **Theorem 1 for `lastEidx` at the denotation**: the LAST
-`k` slots of a denoting handle vector denote the last `k` terms.  Through
-`InstLVec`'s reversal this is `List.take k` on the pure walk's list
-(`InstLVec.last`), which is what con-leche's `vs.take (j - d)` is. -/
-theorem denoteEList_lastEidx {st : EStore} {xs : Array EIdx} {es : List Expr}
-    (h : Frontend.denoteEList st xs.toList = some es) (k : Nat) :
-    Frontend.denoteEList st (lastEidx xs k).toList
-      = some (es.drop (es.length - k)) := by
-  rw [lastEidx_toList, denoteEList_length xs.toList es h]
-  exact denoteEList_drop _ xs.toList es h
-
 /-! ### `instantiateList`, the unmemoized walk -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
@@ -2794,8 +2748,6 @@ name. -/
 #print axioms eidxCopyUpto_toList
 #print axioms takeEidx_toList
 #print axioms lastEidx_toList
-#print axioms denoteEList_takeEidx
-#print axioms denoteEList_lastEidx
 #print axioms InstLVec.get
 #print axioms InstLVec.last
 #print axioms InstLAt.cutoff

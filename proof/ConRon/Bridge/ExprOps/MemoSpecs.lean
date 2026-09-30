@@ -321,18 +321,6 @@ reflexive there. -/
 One line each, exactly as `Bridge/Specs.lean`'s are: `internRebuiltX h same
 args` IS `internRebuilt h same (.X args)`. -/
 
-@[spec high] theorem internRebuiltBVar_specV (s₀ : AState) (h : EIdx)
-    (same : Bool) (i : Nat) (hwf : StoreWF s₀.store)
-    (hsame : same = true → s₀.store.view h = some (.bvar i)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltBVar h same i
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
-        denoteE s'.store r = denoteEView s'.store (.bvar i)⌝⦄ :=
-  internRebuilt_specV s₀ h same (.bvar i) hwf viewOK_bvar hsame
-
 @[spec high] theorem internRebuiltFVar_specV (s₀ : AState) (h : EIdx)
     (same : Bool) (idx : Nat) (ty : EIdx) (hwf : StoreWF s₀.store)
     (hty : (denoteE s₀.store ty).isSome = true)

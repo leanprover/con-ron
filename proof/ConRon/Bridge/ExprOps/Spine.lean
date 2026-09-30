@@ -173,13 +173,6 @@ def RelEA (F : Expr → List Expr → Expr) (st : EStore) (c : EIdx)
   ∀ e es, denoteE st c = some e → Frontend.denoteEList st args = some es →
     denoteE st' r = some (F e es)
 
-/-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — the same at an `Option`
-handle answer (`instPis`). -/
-def RelEOA (F : Expr → List Expr → Option Expr) (st : EStore) (c : EIdx)
-    (args : List EIdx) (st' : EStore) (r : Option EIdx) : Prop :=
-  ∀ e es, denoteE st c = some e → Frontend.denoteEList st args = some es →
-    denoteEO st' r = some (F e es)
-
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — the same at
 `instPisAt`'s answer shape. -/
 def RelEPA (F : Expr → List Expr → Option (List Expr × Expr)) (st : EStore)
@@ -315,18 +308,6 @@ theorem denoteEP_ext {st st' : EStore} {r : Option (List EIdx × EIdx)}
     (h : RelEP f st c st' r) (hx : Ext st0 st) : RelEP f st0 c st' r :=
   fun e he => h e (denote_ext he hx)
 
-/-- con-leche: none — `RelEO.retarget` at `RelEP`. -/
-theorem RelEP.retarget {f : Expr → Option (List Expr × Expr)}
-    {st st0 st' : EStore} {c : EIdx} {r : Option (List EIdx × EIdx)}
-    (h : RelEP f st c st' r) (hx : Ext st st0)
-    (hs : (denoteE st c).isSome = true) : RelEP f st0 c st' r := by
-  intro e he
-  obtain ⟨e0, he0⟩ := Option.isSome_iff_exists.mp hs
-  have hh := denote_ext he0 hx
-  rw [he] at hh
-  rw [Option.some.inj hh]
-  exact h e0 he0
-
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — `RelEO.apply` at
 `RelBP`. -/
 @[grind →] theorem RelBP.apply
@@ -391,37 +372,6 @@ theorem RelE.self_of_view {f : Expr → Expr} {st : EStore} {h : EIdx}
     (hf : ∀ e, denoteEView st v = some e → f e = e) : RelE f st h st h :=
   RelE.self (fun e he => hf e (by rw [← denoteE_view_eq hwf hview]; exact he))
 
-/-- con-leche: none — the same, at a store the walk has already grown. -/
-theorem RelE.self_of_view_ext {f : Expr → Expr} {st st' : EStore} {h : EIdx}
-    {v : ENodeView} (hwf : StoreWF st) (hview : st.view h = some v)
-    (hf : ∀ e, denoteEView st v = some e → f e = e) (hx : Ext st st') :
-    RelE f st h st' h := (RelE.self_of_view hwf hview hf).ext hx
-
-/-- con-leche: none — `RelV` at a fallthrough arm. -/
-theorem RelV.self_of_view {α : Type} {f : Expr → α} {st : EStore} {h : EIdx}
-    {v : ENodeView} {x : α} (hwf : StoreWF st) (hview : st.view h = some v)
-    (hf : ∀ e, denoteEView st v = some e → x = f e) : RelV f st h x :=
-  fun e he => hf e (by rw [← denoteE_view_eq hwf hview]; exact he)
-
-/-- con-leche: none — `RelEO` at a fallthrough arm that answers `none`. -/
-theorem RelEO.none_of_view {f : Expr → Option Expr} {st : EStore} {h : EIdx}
-    {v : ENodeView} (hwf : StoreWF st) (hview : st.view h = some v)
-    (hf : ∀ e, denoteEView st v = some e → f e = none) :
-    RelEO f st h st none := by
-  intro e he
-  rw [denoteE_view_eq hwf hview] at he
-  rw [denoteEO, hf e he]
-
-/-- con-leche: none — `RelEP` at a fallthrough arm that answers `none`. -/
-theorem RelEP.none_of_view {f : Expr → Option (List Expr × Expr)}
-    {st : EStore} {h : EIdx} {v : ENodeView} (hwf : StoreWF st)
-    (hview : st.view h = some v)
-    (hf : ∀ e, denoteEView st v = some e → f e = none) :
-    RelEP f st h st none := by
-  intro e he
-  rw [denoteE_view_eq hwf hview] at he
-  rw [denoteEP, hf e he]
-
 /-- con-leche: none — `RelBP` at a fallthrough arm that answers `none`. -/
 theorem RelBP.none_of_view
     {f : Expr → Option (List (Expr × BinderMeta) × Expr)} {st : EStore}
@@ -433,15 +383,6 @@ theorem RelBP.none_of_view
   rw [denoteE_view_eq hwf hview] at he
   rw [denoteBP, hf e he]
 
-/-- con-leche: none — `RelLO` at a fallthrough arm that answers `none`. -/
-theorem RelLO.none_of_view {f : Expr → Option Level} {st : EStore} {h : EIdx}
-    {v : ENodeView} (hwf : StoreWF st) (hview : st.view h = some v)
-    (hf : ∀ e, denoteEView st v = some e → f e = none) :
-    RelLO f st h st none := by
-  intro e he
-  rw [denoteE_view_eq hwf hview] at he
-  rw [denoteLO, hf e he]
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1212-1217 fvarTypeD — the one
 walk of this group that answers a node's CHILD without recursing. -/
 theorem RelE.fvar_ty_step {F : Expr → Expr} {st st' : EStore} {h ty : EIdx}
@@ -451,39 +392,6 @@ theorem RelE.fvar_ty_step {F : Expr → Expr} {st st' : EStore} {h ty : EIdx}
   intro e he
   obtain ⟨t, rfl, hdt⟩ := denote_fvar_inv hwf hview he
   rw [hdec]; exact denote_ext hdt hx
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1271-1274 piArity — descend into
-the body and add one; the one `RelV` step lemma this group needs. -/
-theorem RelV.body_succ_step {F Fb : Expr → Nat} {st : EStore} {h ty b : EIdx}
-    {m : BinderMeta} {n : Nat} (hwf : StoreWF st)
-    (hview : st.view h = some (.forallE ty b m))
-    (hdec : ∀ x y, F (.forallE x y m) = Fb y + 1) (hb : RelV Fb st b n) :
-    RelV F st h (n + 1) := by
-  intro e he
-  obtain ⟨et, eb, rfl, _, hdb⟩ := denote_forallE_inv hwf hview he
-  rw [hdec, hb eb hdb]
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1276-1280 resultSort — descend
-into the body, at an optional LEVEL answer. -/
-theorem RelLO.body_step {F Fb : Expr → Option Level} {st st' : EStore}
-    {h ty b : EIdx} {r : Option LIdx} {m : BinderMeta} (hwf : StoreWF st)
-    (hview : st.view h = some (.forallE ty b m))
-    (hdec : ∀ x y, F (.forallE x y m) = Fb y) (hb : RelLO Fb st b st' r) :
-    RelLO F st h st' r := by
-  intro e he
-  obtain ⟨et, eb, rfl, _, hdb⟩ := denote_forallE_inv hwf hview he
-  rw [hdec]; exact hb eb hdb
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1276-1280 resultSort — the `sort`
-arm: the telescope ends and the level handle IS the answer. -/
-theorem RelLO.sort_step {F : Expr → Option Level} {st st' : EStore} {h : EIdx}
-    {u : LIdx} (hwf : StoreWF st) (hview : st.view h = some (.sort u))
-    (hdec : ∀ l, F (.sort l) = some l) (hx : Ext st st') :
-    RelLO F st h st' (some u) := by
-  intro e he
-  obtain ⟨l, rfl, hl⟩ := denote_sort_inv hwf hview he
-  rw [hdec, denoteLO, denoteL_ext hl hx]
-  rfl
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:925-928 mkAppN — the CONS clause
 of an argument fold: intern the application and continue with the tail.  The
@@ -713,23 +621,6 @@ theorem piResult_of_not_forallE {e : Expr}
   cases e with
   | forallE ty b m => exact absurd rfl (h ty b m)
   | _ => simp [Expr.piResult]
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1271-1274 piArity — the
-fallthrough clause. -/
-theorem piArity_of_not_forallE {e : Expr}
-    (h : ∀ ty b m, e ≠ Expr.forallE ty b m) : Expr.piArity e = 0 := by
-  cases e with
-  | forallE ty b m => exact absurd rfl (h ty b m)
-  | _ => simp [Expr.piArity]
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1276-1280 resultSort — the
-fallthrough clause: neither a `∀` nor a sort. -/
-theorem resultSort_of_not {e : Expr} (h : ∀ ty b m, e ≠ Expr.forallE ty b m)
-    (hs : ∀ l, e ≠ Expr.sort l) : Expr.resultSort e = none := by
-  cases e with
-  | forallE ty b m => exact absurd rfl (h ty b m)
-  | sort l => exact absurd rfl (hs l)
-  | _ => simp [Expr.resultSort]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1212-1217 fvarTypeD — the
 fallthrough clause. -/
@@ -984,60 +875,6 @@ theorem fvarTypeD_spec (s₀ : AState) (h : EIdx) (hok : StateOK s₀)
          (Ext.refl _)⟩
      | exact ⟨rfl, RelE.self_of_view hok.wf (by arm_hyp) (fun e he =>
          fvarTypeD_of_not_fvar (denoteEView_not_fvar he (by grind)))⟩)
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1271-1274 piArity — **THEOREM 1**
-for `piArity`.  The answer is a `Nat` — representation-free — so the relation
-is `RelV` and names no target store. -/
-theorem piArity_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx),
-    StateOK s₀ → (denoteE s₀.store h).isSome = true →
-    ⦃fun s => ⌜s = s₀⌝⦄ piArity fuel h
-    ⦃⇓? n s' => ⌜s' = s₀ ∧ RelV Expr.piArity s₀.store h n⌝⦄ := by
-  intro fuel
-  induction fuel with
-  | zero =>
-    intro s₀ h _ _
-    mvcgen [piArity]
-    all_goals bridge_vcs [Expr.piArity]
-  | succ fuel ih =>
-    intro s₀ h hok hden
-    mvcgen [piArity, ih]
-    all_goals try bridge_vcs [Expr.piArity]
-    all_goals
-      (arm_pre
-       first
-       | exact ⟨rfl, RelV.body_succ_step hok.wf (by arm_hyp) (fun _ _ => rfl)
-           (by arm_hyp)⟩
-       | exact ⟨rfl, RelV.self_of_view hok.wf (by arm_hyp) (fun e he =>
-           (piArity_of_not_forallE
-             (denoteEView_not_forallE he (by grind))).symm)⟩)
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1276-1280 resultSort —
-**THEOREM 1** for `resultSort`.  The answer is an `Option LIdx`, so this is
-the twin that needs `RelLO`, the `Option`-flavoured `RelL`. -/
-theorem resultSort_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx),
-    StateOK s₀ → (denoteE s₀.store h).isSome = true →
-    ⦃fun s => ⌜s = s₀⌝⦄ resultSort fuel h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ RelLO Expr.resultSort s₀.store h s₀.store r⌝⦄ := by
-  intro fuel
-  induction fuel with
-  | zero =>
-    intro s₀ h _ _
-    mvcgen [resultSort]
-    all_goals bridge_vcs [Expr.resultSort]
-  | succ fuel ih =>
-    intro s₀ h hok hden
-    mvcgen [resultSort, ih]
-    all_goals try bridge_vcs [Expr.resultSort]
-    all_goals
-      (arm_pre
-       first
-       | exact ⟨rfl, RelLO.body_step hok.wf (by arm_hyp) (fun _ _ => rfl)
-           (by arm_hyp)⟩
-       | exact ⟨rfl, RelLO.sort_step hok.wf (by arm_hyp) (fun _ => rfl)
-           (Ext.refl _)⟩
-       | exact ⟨rfl, RelLO.none_of_view hok.wf (by arm_hyp) (fun e he =>
-           resultSort_of_not (denoteEView_not_forallE he (by grind))
-             (denoteEView_not_sort he (by grind)))⟩)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1128-1134 stripPis — **THEOREM 1**
 for `stripPis`: strip `k` leading `∀`s.  Structural on `k`, so the induction
@@ -1368,24 +1205,6 @@ theorem RelEOB.lam_step {F Fb : Expr → Expr → Option Expr}
     denote_ext (denote_ext hdt hx1) hx2, denote_ext hdb hx2]
   rfl
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1263-1269 replacePiBody — the
-same clause, rebuilding a `∀`. -/
-theorem RelEOB.forallE_step {F Fb : Expr → Expr → Option Expr}
-    {st s1 s2 : EStore} {h ty rest body b r : EIdx} {m m' : BinderMeta}
-    (hwf : StoreWF st) (hview : st.view h = some (.forallE ty rest m))
-    (hb : RelEOB Fb st rest body s1 (some b))
-    (hx1 : Ext st s1) (hx2 : Ext s1 s2)
-    (hr : denoteE s2 r = denoteEView s2 (.forallE ty b m'))
-    (hdec : ∀ x y z w, Fb y z = some w →
-      F (.forallE x y m) z = some (.forallE x w m')) :
-    RelEOB F st h body s2 (some r) := by
-  intro e eb he heb
-  obtain ⟨et, erest, rfl, hdt, hdrest⟩ := denote_forallE_inv hwf hview he
-  obtain ⟨w, hw, hdb⟩ := denoteEO_some_inv (hb erest eb hdrest heb)
-  rw [hdec et erest eb w hw, denoteEO, hr, denoteEView,
-    denote_ext (denote_ext hdt hx1) hx2, denote_ext hdb hx2]
-  rfl
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1246-1261 pisToLams — the `none`
 clause. -/
 theorem RelEOB.none_step {F Fb : Expr → Expr → Option Expr} {st s1 : EStore}
@@ -1417,15 +1236,6 @@ theorem pisToLams_of_not_forallE {e eb : Expr} {k : Nat}
   cases e with
   | forallE ty b m => exact absurd rfl (h ty b m)
   | _ => simp [Expr.pisToLams]
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1263-1269 replacePiBody — the
-same. -/
-theorem replacePiBody_of_not_forallE {e eb : Expr} {k : Nat}
-    (h : ∀ ty b m, e ≠ Expr.forallE ty b m) :
-    Expr.replacePiBody (k + 1) e eb = none := by
-  cases e with
-  | forallE ty b m => exact absurd rfl (h ty b m)
-  | _ => simp [Expr.replacePiBody]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1246-1261 pisToLams —
 **THEOREM 1** for `pisToLams`: turn the first `k` `∀`-binders into λs over a
@@ -1474,51 +1284,6 @@ theorem pisToLams_spec : ∀ (k : Nat) (s₀ : AState) (h body : EIdx),
        | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
            RelEOB.none_of_view hok.wf (by arm_hyp) (fun e eb he =>
              pisToLams_of_not_forallE
-               (denoteEView_not_forallE he (by assumption)))⟩)
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1263-1269 replacePiBody —
-**THEOREM 1** for `replacePiBody`: replace the body under the first `k`
-`∀`-binders, domains and prop-ness data kept. -/
-theorem replacePiBody_spec : ∀ (k : Nat) (s₀ : AState) (h body : EIdx),
-    StateOK s₀ → (denoteE s₀.store h).isSome = true →
-    (denoteE s₀.store body).isSome = true →
-    ⦃fun s => ⌜s = s₀⌝⦄ replacePiBody k h body
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧ s'.memos = s₀.memos ∧
-        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        RelEOB (Expr.replacePiBody k) s₀.store h body s'.store r⌝⦄ := by
-  intro k
-  induction k with
-  | zero =>
-    intro s₀ h body hok hden hbody
-    mvcgen [replacePiBody]
-    all_goals try bridge_vcs [Expr.replacePiBody]
-    all_goals
-      (arm_pre
-       exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
-         RelEOB.self_body (fun _ _ => rfl) (Ext.refl _)⟩)
-  | succ k ih =>
-    intro s₀ h body hok hden hbody
-    mvcgen [replacePiBody, ih]
-    all_goals try bridge_vcs [Expr.replacePiBody]
-    all_goals
-      (arm_pre
-       first
-       | exact RelEOB.isSome (by arm_hyp) (by grind) (by grind)
-       | exact viewOK_forallE (by grind) (by grind)
-       | (refine ⟨by first | arm_hyp | exact ⟨by arm_hyp⟩,
-            by grind only [Ext.trans],
-            by grind only [BMExt.trans, BMExt.refl], by grind, by grind, by grind, ?_⟩
-          first
-          | exact RelEOB.forallE_step (Fb := Expr.replacePiBody k) hok.wf
-              (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp)
-              (by intro x y z w hh; simp [Expr.replacePiBody, hh])
-          | exact RelEOB.none_step (Fb := Expr.replacePiBody k) hok.wf
-              (by arm_hyp) (by intro x y z hh; simp [Expr.replacePiBody, hh])
-              (by arm_hyp))
-       | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
-           RelEOB.none_of_view hok.wf (by arm_hyp) (fun e eb he =>
-             replacePiBody_of_not_forallE
                (denoteEView_not_forallE he (by assumption)))⟩)
 
 /-! ## 7. The four walks that fold `instantiate1`
@@ -1602,116 +1367,6 @@ theorem instSpine_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
             by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
           exact RelEA.inst_step hea (by arm_hyp) (by arm_hyp) (by arm_hyp)
             (fun _ _ => rfl)))
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1142-1146 instPis — the CONS
-clause at an `Option` answer: peel a `∀`, substitute, continue. -/
-theorem RelEOA.inst_step {F Fr : Expr → List Expr → Option Expr}
-    {gf : Expr → Expr} {st s1 st' : EStore} {h ty b a b' : EIdx}
-    {r : Option EIdx} {as : List EIdx} {ea : Expr} {m : BinderMeta}
-    (hwf : StoreWF st) (hview : st.view h = some (.forallE ty b m))
-    (hea : denoteE st a = some ea) (hx1 : Ext st s1)
-    (hg : RelE gf st b s1 b') (hrec : RelEOA Fr s1 b' as st' r)
-    (hdec : ∀ x y ys, F (.forallE x y m) (ea :: ys) = Fr (gf y) ys) :
-    RelEOA F st h (a :: as) st' r := by
-  intro x es hx hes
-  obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_forallE_inv hwf hview hx
-  simp only [Frontend.denoteEList] at hes
-  cases has : Frontend.denoteEList st as with
-  | none => rw [hea, has] at hes; simp at hes
-  | some eas =>
-    rw [hea, has] at hes
-    obtain rfl := Option.some.inj hes
-    rw [hdec]
-    exact hrec (gf eb) eas (hg eb hdb) (denoteEList_ext hx1 as eas has)
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1142-1146 instPis — the NIL
-clause: the telescope is exhausted and the subject is the answer. -/
-theorem RelEOA.nil {F : Expr → List Expr → Option Expr} {st st' : EStore}
-    {h : EIdx} (hdec : ∀ x, F x [] = some x) (hx : Ext st st') :
-    RelEOA F st h [] st' (some h) := by
-  intro e es he hes
-  simp only [Frontend.denoteEList, Option.some.injEq] at hes
-  subst hes
-  rw [hdec, denoteEO, denote_ext he hx]
-  rfl
-
-/-- con-leche: none — `RelEOA` at a fallthrough arm that answers `none`.  The
-handle list is a CONS there (the empty list is the walk's other clause), so
-the pure obligation may assume the denoted list is one too. -/
-theorem RelEOA.none_of_view_cons {F : Expr → List Expr → Option Expr}
-    {st : EStore} {h a : EIdx} {v : ENodeView} {as : List EIdx}
-    (hwf : StoreWF st) (hview : st.view h = some v)
-    (hf : ∀ e x xs, denoteEView st v = some e → F e (x :: xs) = none) :
-    RelEOA F st h (a :: as) st none := by
-  intro e es he hes
-  rw [denoteE_view_eq hwf hview] at he
-  simp only [Frontend.denoteEList] at hes
-  cases hea : denoteE st a with
-  | none => rw [hea] at hes; simp at hes
-  | some ea =>
-    cases has : Frontend.denoteEList st as with
-    | none => rw [hea, has] at hes; simp at hes
-    | some eas =>
-      rw [hea, has] at hes
-      obtain rfl := Option.some.inj hes
-      rw [denoteEO, hf e ea eas he]
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1142-1146 instPis — the
-fallthrough clause: a nonempty argument list at a non-`∀`. -/
-theorem instPis_of_not_forallE {e : Expr} {a : Expr} {as : List Expr}
-    (h : ∀ ty b m, e ≠ Expr.forallE ty b m) : Expr.instPis e (a :: as) = none := by
-  cases e with
-  | forallE ty b m => exact absurd rfl (h ty b m)
-  | _ => simp [Expr.instPis]
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1142-1146 instPis — **THEOREM 1**
-for `instPis`: instantiate a `∀`-telescope with arguments, in order.
-Structural on the argument list. -/
-theorem instPis_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
-    (h : EIdx), StateOK s₀ → (denoteE s₀.store h).isSome = true →
-    (Frontend.denoteEList s₀.store as).isSome = true →
-    ⦃fun s => ⌜s = s₀⌝⦄ instPis fuel h as
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        RelEOA Expr.instPis s₀.store h as s'.store r⌝⦄ := by
-  intro as
-  induction as with
-  | nil =>
-    intro s₀ h hok hden hargs
-    mvcgen [instPis]
-    all_goals try bridge_vcs [Expr.instPis]
-    all_goals
-      (arm_pre
-       exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, RelEOA.nil (fun _ => rfl) (Ext.refl _)⟩)
-  | cons a as ih =>
-    intro s₀ h hok hden hargs
-    obtain ⟨ha1, ha2⟩ := denoteEList_cons_isSome hargs
-    obtain ⟨ea, hea⟩ := Option.isSome_iff_exists.mp ha1
-    have hinst : ∀ (s : AState) (x : EIdx) (d : Nat), StateOK s →
-        denoteE s.store a = some ea → (denoteE s.store x).isSome = true →
-        ⦃fun u => ⌜u = s⌝⦄ instantiate1Fast fuel x a d
-        ⦃⇓? rr s' => ⌜StateOK s' ∧ Ext s.store s'.store ∧
-            BMExt s.store s'.store ∧
-            s'.caches = s.caches ∧ s'.pins = s.pins ∧
-            s'.memos.inst1C = ∅ ∧
-            Inst1At ea d s.store x s'.store rr⌝⦄ :=
-      fun s x d hs hv hx => instantiate1Fast_spec fuel s x a d ea hs hv hx
-    mvcgen [instPis, ih, hinst]
-    all_goals try bridge_vcs [Expr.instPis]
-    all_goals
-      (arm_pre
-       first
-       | exact hea
-       | (refine ⟨by first | arm_hyp | exact ⟨by arm_hyp⟩,
-            by grind only [Ext.trans],
-            by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
-          exact RelEOA.inst_step hok.wf (by arm_hyp) hea (by arm_hyp)
-            (by arm_hyp) (by arm_hyp) (fun _ _ _ => rfl))
-       | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl,
-           RelEOA.none_of_view_cons hok.wf (by arm_hyp) (fun e x xs he =>
-             instPis_of_not_forallE
-               (denoteEView_not_forallE he (by assumption)))⟩)
 
 /-! ## 8. `instPisAt` / `instLamsAt` — the sequential telescope peels
 
@@ -1993,7 +1648,6 @@ statements rest on. -/
 #print axioms stripLams_spec
 #print axioms stripPis_spec
 #print axioms piResult_spec
-#print axioms instPis_spec
 #print axioms instPisAt_spec
 #print axioms instLamsAt_spec
 #print axioms fvarTypeD_spec
@@ -2001,9 +1655,6 @@ statements rest on. -/
 #print axioms bvarRange_spec
 #print axioms bvarRangeSpec_eq_range
 #print axioms pisToLams_spec
-#print axioms replacePiBody_spec
-#print axioms piArity_spec
-#print axioms resultSort_spec
 #print axioms denoteEView_shape
 #print axioms not_app_of_tag
 #print axioms denoteEList_snoc

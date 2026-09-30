@@ -78,113 +78,6 @@ macro "lp_hyp" : tactic => `(tactic| first
   | (symm; assumption)
   | grind only [Ext.trans, Ext.refl])
 
-/-! ## 1. `exprPtrBEq` — handle equality IS expression equality
-
-`Arena/ExprOps.lean:1868`.  The twin takes no monad: it is one machine-word
-comparison, and `denoteE_inj` (`Arena/WFProofs.lean`) is the whole content. -/
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2384-2390 exprPtrBEq — **THEOREM 1
-for `exprPtrBEq`**: the arena's index comparison answering `true` means the
-two handles denote one term.  This is the direction the checker's soundness
-needs (the twin is a SHORTCUT: a `true` licenses skipping a comparison), and
-it needs no well-formedness at all — equal handles have equal denotations by
-congruence. -/
-theorem exprPtrBEq_sound {st : EStore} {a b : EIdx}
-    (h : exprPtrBEq a b = true) : denoteE st a = denoteE st b := by
-  unfold exprPtrBEq at h
-  simp only [beq_iff_eq] at h
-  rw [h]
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2384-2390 exprPtrBEq — the same
-as an exactness statement against con-leche's own function, in the `RelV`
-idiom: on a well-formed arena the handle comparison and the structural
-comparison agree.  The `→` direction is `exprPtrBEq_sound`; the `←`
-direction is `denoteE_inj`, and it is the only place this tier needs it.
-Not required by any caller — con-leche's `exprPtrBEq` is a one-sided
-shortcut — but free, and it is what says the arena's comparison is not
-*weaker* than the pure one. -/
-theorem exprPtrBEq_exact {st : EStore} (hwf : StoreWF st) {a b : EIdx}
-    {ea eb : Expr} (ha : denoteE st a = some ea) (hb : denoteE st b = some eb) :
-    exprPtrBEq a b = Expr.exprPtrBEq ea eb := by
-  have hp : Expr.exprPtrBEq ea eb = (ea == eb) := by
-    unfold ConLeche.Expr.exprPtrBEq withPtrEq; rfl
-  rw [hp]
-  unfold exprPtrBEq
-  by_cases hab : a = b
-  · subst hab
-    rw [ha] at hb
-    obtain rfl := Option.some.inj hb
-    simp
-  · have hne : ea ≠ eb := by
-      intro hee
-      subst hee
-      exact hab (denoteE_inj hwf ha hb)
-    have h1 : (a == b) = false := by
-      cases hh : (a == b) with
-      | false => rfl
-      | true => exact absurd (eq_of_beq hh) hab
-    have h2 : (ea == eb) = false := by
-      cases hh : (ea == eb) with
-      | false => rfl
-      | true => exact absurd (eq_of_beq hh) hne
-    rw [h1, h2]
-
-/-! ## 2. The two derived-bit reads — `Arena/ExprOps.lean:1875`, `:1883`
-
-Neither is a walk: `LIdx.hasParam` reads `LDer.hasParam` off the level
-store's derived column and `EIdx.hasLevelParam` reads the `hasLP` bit off the
-expression store's packed word.  `LStore.derived_exact` and
-`EStore.derived_exact` say those columns are con-leche's own computed fields,
-and con-leche's `Expr.levelHasParam_eq` / `Expr.hasLP_eq` say those fields
-are `Level.hasParam` / `Expr.hasLevelParam`. -/
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2401-2408 Level.hasParam — the
-answer relation for a LEVEL subject and a representation-free answer.  The
-shape `Bridge/Rel.lean` does not have (it has `RelV` at an `EIdx` subject and
-`RelL` at a level answer, but not this one); it belongs beside them. -/
-def RelLV {α : Type} (f : Level → α) (st : EStore) (c : LIdx) (x : α) : Prop :=
-  ∀ u, denoteL st.ls c = some u → x = f u
-
-/-- con-leche: none — `RelLV`'s one eliminator. -/
-theorem RelLV.apply {α : Type} {f : Level → α} {st : EStore} {c : LIdx}
-    {x : α} {u : Level} (h : RelLV f st c x) (hu : denoteL st.ls c = some u) :
-    x = f u := h u hu
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2401-2408 Level.hasParam —
-**THEOREM 1 for `LIdx.hasParam`**: the `O(1)` bit read is con-leche's walk.
-con-leche walks the level tree; the arena reads `LDer.hasParam`, which
-`LStore.derived_exact` pins to `levelHasParam` of the denotation and
-`Expr.levelHasParam_eq` identifies with `Level.hasParam`. -/
-theorem LIdx_hasParam_spec (s₀ : AState) (h : LIdx) (hok : StateOK s₀) :
-    ⦃fun s => ⌜s = s₀⌝⦄ LIdx.hasParam h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ RelLV Level.hasParam s₀.store h r⌝⦄ := by
-  mvcgen [LIdx.hasParam]
-  spec_fails
-  bridge_peel
-  subst_vars
-  refine ⟨rfl, ?_⟩
-  intro u hu
-  obtain ⟨rk, hrk⟩ := hok.wf
-  have hd := LStore.derived_exact hrk.lsWF hu
-  simp only [EStore.lder, hd, Expr.Expr.levelHasParam_eq]
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2422-2437 Expr.hasLevelParam —
-**THEOREM 1 for `EIdx.hasLevelParam`**: the `hasLP` bit of the packed derived
-word is con-leche's `Expr.hasLevelParam`.  `EStore.derived_exact` says the
-word is `e.data`; `Expr.hasLP_eq` (con-leche `ExprOps.lean:2541`) says
-`lpOfData e.data = e.hasLevelParam`. -/
-theorem EIdx_hasLevelParam_spec (s₀ : AState) (h : EIdx) (hok : StateOK s₀) :
-    ⦃fun s => ⌜s = s₀⌝⦄ EIdx.hasLevelParam h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ RelV Expr.hasLevelParam s₀.store h r⌝⦄ := by
-  mvcgen [EIdx.hasLevelParam]
-  spec_fails
-  bridge_peel
-  subst_vars
-  refine ⟨rfl, ?_⟩
-  intro e he
-  rw [EStore.derived_exact hok.wf he]
-  exact Expr.Expr.hasLP_eq e
-
 /-! ## 3. `substLevelList` — `Arena/ExprOps.lean:1901`
 
 con-leche writes `vs.map (Level.subst ks us)`; DESIGN §3.4 forbids the closure
@@ -247,7 +140,7 @@ level tree, by induction on the `Level` (the recursion `internLevel` takes: a
     mvcgen [internLevel, internName_spec, internLNode_spec]
     all_goals bridge_vcs [denoteLView, Arena.LStore.ViewOK,
       LNodeView.lchildren, LNodeView.nchildren, nview_isSome_of_denote,
-      denoteN_ext, EStore.ns, EStore.ls, Arena.LsStore.ns]
+      denoteN_ext, EStore.ns, EStore.ls]
 
 /-- con-leche: none — intern a list of transient levels, one handle each. -/
 @[spec] theorem internLevelList_spec (s₀ : AState) (us : List Level)

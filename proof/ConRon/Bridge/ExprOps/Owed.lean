@@ -130,8 +130,6 @@ theorem abstract1Fast_spec (hfv : FvarBSpec) (fuel : Nat) (s₀ : AState)
   mvcgen [abstract1Fast, hr]
   all_goals bridge_vcs [Expr.abstract1, BMExt]
 
-/-! ## `abstractRange`'s executed form -/
-
 /-! ### `AbsRangeAt`'s step lemmas at the EXECUTED walk's own hypotheses
 
 `ExprOps/Abs.lean`'s `AbsRangeAt.*_step` are stated at `st.view`; the executed
@@ -722,50 +720,6 @@ theorem renameConstsGo_specS (f : NIdx → NIdx)
         by grind only [Ext.trans], by grind [EStore.ns], by grind, by grind,
         by grind, by grind, hans.ext (by grind only [Ext.refl])⟩
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:999-1036 renameConstsGo — the
-same at one state, which is the form the entry consumes.  Its step lemmas are
-`Reset.lean`'s `RenameAt.*`, `RenameAt.const_step` included. -/
-theorem renameConstsGo_spec (f : NIdx → NIdx) (fn : ConLeche.Name → ConLeche.Name)
-    (fuel : Nat) (s₀ : AState) (c : EIdx) (hok : StateOK s₀)
-    (hm : RenameMemoA fn s₀)
-    (hf : ∀ (n : NIdx) (x : ConLeche.Name), denoteN s₀.store.ns n = some x →
-      denoteN s₀.store.ns (f n) = some (fn x))
-    (hden : (denoteE s₀.store c).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ renameConstsGo f fuel c
-    ⦃⇓? r s' => ⌜StateOK s' ∧ RenameMemoA fn s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        RelE (Expr.renameConsts fn) s₀.store c s'.store r⌝⦄ := by
-  have hr := (renameConstsGo_specS f fn s₀.store.ns hf fuel).run
-  mvcgen [hr]
-  all_goals bridge_vcs [Expr.renameConsts, BMExt]
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1112-1114 renameConstsFast — the
-bracket over `renameConstsGo_spec`, in `ExprOps/Inst1.lean`'s
-`instantiate1Fast_spec` shape. -/
-theorem renameConstsFast_spec (fuel : Nat) (f : NIdx → NIdx)
-    (fn : ConLeche.Name → ConLeche.Name) (s₀ : AState) (e : EIdx)
-    (hok : StateOK s₀)
-    (hf : ∀ (n : NIdx) (x : ConLeche.Name), denoteN s₀.store.ns n = some x →
-      denoteN s₀.store.ns (f n) = some (fn x))
-    (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ renameConstsFast fuel f e
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧ s'.memos.renameC = ∅ ∧
-        RelE (Expr.renameConsts fn) s₀.store e s'.store r⌝⦄ := by
-  have hr := renameConstsGo_spec f fn fuel
-  mvcgen [renameConstsFast, hr]
-  all_goals bridge_vcs [Expr.renameConsts, BMExt]
-
-/-! ## `instantiateLevelParams`
-
-DESIGN §8.3 lesson 4: the level ALGORITHM runs on transient trees, so `ks`
-and `us` are `List Name` and `List Level` in the walk and handles only at the
-entry, which reads them back with `readNames` / `readLevels`.  The cutoff is
-the `hasLP` bit and its licence is con-leche's
-`Expr.instantiateLevelParams_eq_self` (`ExprOps.lean:2465`). -/
-
 /-! ### The answer relation, the cutoff's licence and the step lemmas -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — `instantiateLevelParams`'
@@ -1334,8 +1288,6 @@ theorem instLPFast_spec (fuel : Nat) (s₀ : AState) (ks : List NIdx)
 #print axioms abstractRangeGo_spec
 #print axioms abstractRangeFast_spec
 #print axioms resetMetaFast_spec
-#print axioms renameConstsGo_spec
-#print axioms renameConstsFast_spec
 #print axioms instLPGo_spec
 #print axioms instLPFast_spec
 
