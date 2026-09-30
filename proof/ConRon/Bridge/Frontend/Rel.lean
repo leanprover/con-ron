@@ -479,7 +479,11 @@ theorem IdTableRel.empty {α β : Type} (R : α → β → Prop) :
     IdTableRel R ({} : ConLeche.Frontend.IdTable α)
       ({} : ConLeche.Frontend.IdTable β) := by
   intro i
-  simp only [ConLeche.Frontend.IdTable.get?_empty]
+  have h1 : ({} : ConLeche.Frontend.IdTable α).get? i = none := by
+    simp [ConLeche.Frontend.IdTable.get?]
+  have h2 : ({} : ConLeche.Frontend.IdTable β).get? i = none := by
+    simp [ConLeche.Frontend.IdTable.get?]
+  simp only [h1, h2]
   exact OptRel.refl_none
 
 /-- con-leche: none — `denoteDeclArray` read as a list equation, which is the
@@ -837,7 +841,15 @@ theorem PersCaps_of_denote {st : EStore} (hwf : StoreWF st)
   rw [denoteCaps] at hd
   cases h1 : denoteN st.ns c.etaCtor with
   | none => rw [h1] at hd; simp at hd
-  | some n => exact PersN_of_denote hwf hoff h1
+  | some n =>
+  cases h2 : denoteNList st.ns c.all with
+  | none => rw [h1, h2] at hd; simp at hd
+  | some all =>
+  cases h3 : denoteNList st.ns c.ctors with
+  | none => rw [h1, h2, h3] at hd; simp at hd
+  | some ctors =>
+    exact ⟨PersN_of_denote hwf hoff h1, PersNList_of_denote hwf hoff h2,
+      PersNList_of_denote hwf hoff h3⟩
 
 /-- con-leche: none — a projection table.  Six of its seven handle fields are
 read by `denoteProjTable`; the seventh, `tableName`, is the one con-leche
