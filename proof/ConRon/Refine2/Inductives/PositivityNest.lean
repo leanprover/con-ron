@@ -768,15 +768,41 @@ theorem nest_cont_new_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IF
       show _ = _
       simp only [absNestState, absNestFieldKind, hc, pn_u64_bne_zero, if_false]
 
-/-- `nest_keys_contain` over the in-progress keys, the twin's `List`. -/
-theorem nest_keys_contain_list_twin (keys : alloc.vec.Vec arena.inductives.positivity.NestKey)
-    (k : arena.inductives.positivity.NestKey) :
-    LSP (arena.inductives.positivity.nest_keys_contain keys k 0#usize)
-      (fun o => TwinEq ((keys.val.map absNestKey).contains (absNestKey k)) o) := by
+/-- `nest_keys_contain` of a rebuilt key over a state's in-progress keys (the
+twin's `List`) and over its accepted keys (the twin's `Array`), in the forms
+`nestContKey` reads them. -/
+theorem nest_keys_contain_active_twin (ns : arena.inductives.positivity.NestState)
+    (n : arena.handle.NIdx) (l : arena.handle.LsIdx) (d : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.inductives.positivity.nest_keys_contain ns.active
+        { cname := n, lvls := l, ds := d } 0#usize)
+      (fun o => TwinEq ((absNestState ns).active.contains
+        { cname := absNIdx n, lvls := absLsIdx l, ds := List.map absEIdx d.val }) o) := by
   intro o h
-  have := nest_keys_contain_twin keys k o h
+  have := nest_keys_contain_twin _ _ o h
   simp only [TwinEq, absNestKeyArr, List.contains_toArray] at this ⊢
   exact this
+
+theorem nest_keys_contain_keys_twin (ns : arena.inductives.positivity.NestState)
+    (n : arena.handle.NIdx) (l : arena.handle.LsIdx) (d : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.inductives.positivity.nest_keys_contain ns.keys
+        { cname := n, lvls := l, ds := d } 0#usize)
+      (fun o => TwinEq ((absNestState ns).keys.contains
+        { cname := absNIdx n, lvls := absLsIdx l, ds := List.map absEIdx d.val }) o) := by
+  intro o h
+  exact nest_keys_contain_twin _ _ o h
+
+/-- The handle copies are the identity (exact, ahead of the generic specs, so
+that a rebuilt key IS the key). -/
+theorem pn_nidx_dup2_spec (x : arena.handle.NIdx) :
+    LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 x) (fun o => o = x) :=
+  fun _ h => dupId_nidx _ _ h
+
+theorem pn_lsidx_dup2_spec (x : arena.handle.LsIdx) :
+    LSP (arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 x) (fun o => o = x) :=
+  fun _ h => dupId_lsidx _ _ h
+
+attribute [local lockstep high] nest_keys_contain_active_twin nest_keys_contain_keys_twin
+  pn_nidx_dup2_spec pn_lsidx_dup2_spec
 
 /-- `nest_cont_key` ⊑ `nestContKey` at a fuel whose `nest_pos` is related. -/
 theorem nest_cont_key_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
@@ -795,6 +821,8 @@ theorem nest_cont_key_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IF
   have hN := nest_cont_new_of hctx hP
   rw [arena.inductives.positivity.nest_cont_key, nestContKey.eq_def]
   lockstep
-  all_goals sorry
+  apply LS.pure _ (by assumption) (by assumption)
+  show _ = _
+  simp only [absNestFieldKind, pn_u64_bne_zero]
 
 end ConRon.Refine2
