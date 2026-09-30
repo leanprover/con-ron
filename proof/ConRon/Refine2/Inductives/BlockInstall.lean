@@ -124,4 +124,77 @@ def absMemberShapeLFrom (v : alloc.vec.Vec arena.inductives.block_parts.MemberSh
         (fun _ _ h => h)
     · exact absurd rfl hc
 
+/-! ## Stage 1: the formers -/
+
+theorem bi_hvis {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
+    absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
+
+@[local lockstep_simp] theorem absMemberShape_cvT (m : arena.inductives.block_parts.MemberShape) :
+    (absMemberShape m).cvT = absIConstantVal m.cv_t := rfl
+@[local lockstep_simp] theorem absMemberShape_nIdx (m : arena.inductives.block_parts.MemberShape) :
+    (absMemberShape m).nIdx = absU m.n_idx := rfl
+@[local lockstep_simp] theorem absMemberShape_ctors (m : arena.inductives.block_parts.MemberShape) :
+    (absMemberShape m).ctors = absCtorsL m.ctors := rfl
+
+/-- `check_block_tele` ⊑ `checkBlockTele`: one member's type former. -/
+@[lockstep] theorem check_block_tele_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (mode : kernel.env.CheckMode) {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI rf lf) (n_p : Std.U64) (ms : arena.inductives.block_parts.MemberShape) :
+    LS pers (fun a b => b = (absIConstantVal a.1, absLIdx a.2))
+      (arena.inductives.block_install.check_block_tele pers st mode rf n_p ms) lst
+      (checkBlockTele (ConRon.Refine.absMode mode) lf (absU n_p) (absMemberShape ms)) := by
+  have hvis := bi_hvis hfe
+  rw [arena.inductives.block_install.check_block_tele, checkBlockTele]
+  lockstep
+
+/-- The checked formers with their sorts, `Vec<(IConstantVal, LIdx)>`. -/
+def absTeleL (v : alloc.vec.Vec (arena.env.IConstantVal × arena.handle.LIdx)) :
+    List (IConstantVal × LIdx) :=
+  v.val.map fun p => (absIConstantVal p.1, absLIdx p.2)
+
+theorem check_block_teles_aux (m : Nat) :
+    ∀ {pers st lst} {mode : kernel.env.CheckMode} {rf lf} {n_p : Std.U64}
+      {ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape} {i : Std.Usize}
+      {out : alloc.vec.Vec (arena.env.IConstantVal × arena.handle.LIdx)},
+      ms.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf lf →
+      LS pers (fun a b => b = absTeleL a)
+        (arena.inductives.block_install.check_block_teles pers st mode rf n_p ms i out) lst
+        (do
+          let q ← checkBlockTeles (ConRon.Refine.absMode mode) lf (absU n_p)
+            (absMemberShapeLFrom ms i)
+          pure (absTeleL out ++ q)) := by
+  induction m with
+  | zero =>
+    intro pers st lst mode rf lf n_p ms i out hn hrel hinv hfe
+    rw [arena.inductives.block_install.check_block_teles, if_pos (by scalar_tac),
+      absMemberShapeLFrom, sp_vecFrom_nil _ _ _ (by omega), checkBlockTeles]
+    lockstep
+  | succ m ih =>
+    intro pers st lst mode rf lf n_p ms i out hn hrel hinv hfe
+    rw [arena.inductives.block_install.check_block_teles, if_neg (by scalar_tac),
+      absMemberShapeLFrom, sp_vecFrom_cons _ _ _ (by omega), checkBlockTeles]
+    lockstep
+    rename_i o1 ho1
+    have ha : a.val = i.val + 1 := by scalar_tac
+    refine LS.tail (ih (i := a) (out := o1) (by omega) hrel hinv hfe) ?_ (fun _ _ h => h)
+    simp only [absMemberShapeLFrom, ha, absTeleL, ho1, List.map_append, List.map_cons,
+      List.map_nil, List.append_assoc, List.cons_append, List.nil_append]
+
+/-- `check_block_teles` ⊑ `checkBlockTeles` from the cursor on, the checked
+formers accumulated in front (the Rust pushes, the twin conses on the way
+out). -/
+@[lockstep] theorem check_block_teles_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (mode : kernel.env.CheckMode) {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI rf lf) (n_p : Std.U64)
+    (ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape) (i : Std.Usize)
+    (out : alloc.vec.Vec (arena.env.IConstantVal × arena.handle.LIdx)) :
+    LS pers (fun a b => b = absTeleL a)
+      (arena.inductives.block_install.check_block_teles pers st mode rf n_p ms i out) lst
+      (do
+        let q ← checkBlockTeles (ConRon.Refine.absMode mode) lf (absU n_p)
+          (absMemberShapeLFrom ms i)
+        pure (absTeleL out ++ q)) :=
+  check_block_teles_aux _ rfl hrel hinv hfe
+
 end ConRon.Refine2
