@@ -1694,10 +1694,220 @@ These run at the constructors' visibility bound `vis` beside a LARGER index
 stated at `IFEnvRelI rf lf` with the twin reading `lf.restrictTo (absU vis)`,
 which is the twin's `fe.restrictTo vis₂`. -/
 
-/-- PROVISIONAL (sorry): `expr_ops::nested_rule_syn` ⊑ `nestedRuleSyn`
-(`Arena/CheckerBase.lean`).  No lane has it yet; its body (`nested_rule_syn_at`,
-`_guards`, `lower_list`, `lift_list`, `pins_wf`, `levels_declared(_from)`) is
-the checker tier's. -/
+/-! ### Helpers for Shape/Abs: `expr_ops::nested_rule_syn` and its body
+
+`nested_rule_syn` ⊑ `nestedRuleSyn` (`Arena/CheckerBase.lean`), with
+`nested_rule_syn_at`, `_guards`, `lower_list`, `lift_list`, `pins_wf`,
+`levels_declared(_from)`: the checker tier's functions, which no lane had
+proved; they belong beside `Checker/Base.lean`'s. -/
+
+theorem rc_lower_list_acc {pers} (k : Std.U64) (xs : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ (i : Std.Usize) st lst (out : alloc.vec.Vec arena.handle.EIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdxL a)
+        (arena.expr_ops.lower_list pers st k xs i out) lst
+        (do
+          let r ← lowerList (absU k) (absEIdxLFrom xs i)
+          pure (absEIdxL out ++ r)) := by
+  intro i st lst out hrel hinv
+  refine ls_cursor_acc xs absEIdx
+    (fun (w : alloc.vec.Vec arena.handle.EIdx) l => do
+      let r ← lowerList (absU k) l
+      pure (absEIdxL w ++ r))
+    (fun st j w => arena.expr_ops.lower_list pers st k xs j w)
+    ?_ ?_ i st lst out hrel hinv
+  · intro st lst j w hn hrel hinv
+    rw [arena.expr_ops.lower_list.eq_def,
+      if_pos (show j ≥ alloc.vec.Vec.len xs by scalar_tac), lowerList]
+    simp only [pure_bind, List.append_nil]
+    lockstep
+  · intro st lst j w hk hrel hinv ih
+    have ih' : ∀ st' lst' (j' : Std.Usize) (w' : alloc.vec.Vec arena.handle.EIdx),
+        j'.val = j.val + 1 → AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers (fun a b => b = absEIdxL a)
+          (arena.expr_ops.lower_list pers st' k xs j' w') lst'
+          (do
+            let r ← lowerList (absU k) ((xs.val.drop j'.val).map absEIdx)
+            pure (absEIdxL w' ++ r)) := ih
+    clear ih
+    rw [arena.expr_ops.lower_list.eq_def,
+      if_neg (show ¬ j ≥ alloc.vec.Vec.len xs by scalar_tac), lowerList]
+    simp only [bind_assoc, pure_bind]
+    lockstep
+
+theorem rc_lower_list_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : Std.U64) (xs : alloc.vec.Vec arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdxL a)
+      (arena.expr_ops.lower_list pers st k xs 0#usize (alloc.vec.Vec.new arena.handle.EIdx)) lst
+      (lowerList (absU k) (absEIdxL xs)) := by
+  have h := rc_lower_list_acc k xs 0#usize st lst (alloc.vec.Vec.new arena.handle.EIdx) hrel hinv
+  have e : (do
+      let r ← lowerList (absU k) (absEIdxLFrom xs 0#usize)
+      pure (absEIdxL (alloc.vec.Vec.new arena.handle.EIdx) ++ r) : AM _)
+      = lowerList (absU k) (absEIdxL xs) := by
+    simp [absEIdxL, absEIdxLFrom, alloc.vec.Vec.new]
+  rwa [e] at h
+
+theorem rc_lift_list_acc {pers} (k : Std.U64) (xs : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ (i : Std.Usize) st lst (out : alloc.vec.Vec arena.handle.EIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdxL a)
+        (arena.expr_ops.lift_list pers st k xs i out) lst
+        (do
+          let r ← liftList (absU k) (absEIdxLFrom xs i)
+          pure (absEIdxL out ++ r)) := by
+  intro i st lst out hrel hinv
+  refine ls_cursor_acc xs absEIdx
+    (fun (w : alloc.vec.Vec arena.handle.EIdx) l => do
+      let r ← liftList (absU k) l
+      pure (absEIdxL w ++ r))
+    (fun st j w => arena.expr_ops.lift_list pers st k xs j w)
+    ?_ ?_ i st lst out hrel hinv
+  · intro st lst j w hn hrel hinv
+    rw [arena.expr_ops.lift_list.eq_def,
+      if_pos (show j ≥ alloc.vec.Vec.len xs by scalar_tac), liftList]
+    simp only [pure_bind, List.append_nil]
+    lockstep
+  · intro st lst j w hk hrel hinv ih
+    have ih' : ∀ st' lst' (j' : Std.Usize) (w' : alloc.vec.Vec arena.handle.EIdx),
+        j'.val = j.val + 1 → AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers (fun a b => b = absEIdxL a)
+          (arena.expr_ops.lift_list pers st' k xs j' w') lst'
+          (do
+            let r ← liftList (absU k) ((xs.val.drop j'.val).map absEIdx)
+            pure (absEIdxL w' ++ r)) := ih
+    clear ih
+    rw [arena.expr_ops.lift_list.eq_def,
+      if_neg (show ¬ j ≥ alloc.vec.Vec.len xs by scalar_tac), liftList]
+    simp only [bind_assoc, pure_bind]
+    lockstep
+
+theorem rc_lift_list_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : Std.U64) (xs : alloc.vec.Vec arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdxL a)
+      (arena.expr_ops.lift_list pers st k xs 0#usize (alloc.vec.Vec.new arena.handle.EIdx)) lst
+      (liftList (absU k) (absEIdxL xs)) := by
+  have h := rc_lift_list_acc k xs 0#usize st lst (alloc.vec.Vec.new arena.handle.EIdx) hrel hinv
+  have e : (do
+      let r ← liftList (absU k) (absEIdxLFrom xs 0#usize)
+      pure (absEIdxL (alloc.vec.Vec.new arena.handle.EIdx) ++ r) : AM _)
+      = liftList (absU k) (absEIdxL xs) := by
+    simp [absEIdxL, absEIdxLFrom, alloc.vec.Vec.new]
+  rwa [e] at h
+
+theorem rc_pins_wf_aux {pers} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI rf lf) (lps : alloc.vec.Vec arena.handle.NIdx) (r_p : Std.U64)
+    (pins : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ (i : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a)
+        (arena.expr_ops.pins_wf pers vis st rf lps r_p pins i) lst
+        (pinsWf (lf.restrictTo (absU vis)) (absNIdxL lps) (absU r_p)
+          ((pins.val.drop i.val).map absEIdx)) := by
+  refine ls_cursor pins absEIdx
+    (fun l => pinsWf (lf.restrictTo (absU vis)) (absNIdxL lps) (absU r_p) l)
+    (fun st i => arena.expr_ops.pins_wf pers vis st rf lps r_p pins i) ?_ ?_
+  · intro st lst i hn hrel hinv
+    rw [arena.expr_ops.pins_wf.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len pins by scalar_tac), pinsWf]
+    lockstep
+  · intro st lst i hlt hrel hinv ih
+    have ih' : ∀ st' lst' (j : Std.Usize), j.val = i.val + 1 →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers (fun a b => b = a)
+          (arena.expr_ops.pins_wf pers vis st' rf lps r_p pins j) lst'
+          (pinsWf (lf.restrictTo (absU vis)) (absNIdxL lps) (absU r_p)
+            ((pins.val.drop j.val).map absEIdx)) := ih
+    clear ih
+    rw [arena.expr_ops.pins_wf.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len pins by scalar_tac), pinsWf]
+    lockstep
+
+theorem rc_levels_declared_from_aux {pers st} (ps : alloc.vec.Vec kernel.name.Name)
+    (hps : ConRon.Refine.NamesWF ps) (lvls : alloc.vec.Vec arena.handle.LIdx) :
+    ∀ (i : Std.Usize) lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = a)
+        (arena.expr_ops.levels_declared_from pers st ps lvls i) st lst
+        (levelsDeclaredFrom (ConRon.Refine.absNames ps) ((lvls.val.drop i.val).map absLIdx)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) lvls.val.length
+    (fun i (_ : Unit) => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = a)
+        (arena.expr_ops.levels_declared_from pers st ps lvls i) st lst
+        (levelsDeclaredFrom (ConRon.Refine.absNames ps) ((lvls.val.drop i.val).map absLIdx)))
+    ?_ ?_ i ()
+  · intro i _ hn lst hrel hinv
+    apply LSR.of_LS
+    rw [arena.expr_ops.levels_declared_from.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len lvls by scalar_tac),
+      List.drop_eq_nil_of_le hn, List.map_nil, levelsDeclaredFrom]
+    lockstep
+  · intro i _ hlt ih lst hrel hinv
+    have ih' : ∀ j : Std.Usize, j.val = i.val + 1 → ∀ lst, AStateRel₀ pers st lst →
+        AStateInv pers st →
+        LSR pers (fun a b => b = a)
+          (arena.expr_ops.levels_declared_from pers st ps lvls j) st lst
+          (levelsDeclaredFrom (ConRon.Refine.absNames ps) ((lvls.val.drop j.val).map absLIdx)) :=
+      fun j hj => ih j () hj
+    clear ih
+    apply LSR.of_LS
+    rw [arena.expr_ops.levels_declared_from.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len lvls by scalar_tac),
+      List.drop_eq_getElem_cons hlt, List.map_cons, levelsDeclaredFrom]
+    lockstep
+
+theorem rc_levels_declared_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (lps : alloc.vec.Vec arena.handle.NIdx)
+    (lvls : alloc.vec.Vec arena.handle.LIdx) :
+    LSR pers (fun a b => b = a)
+      (arena.expr_ops.levels_declared pers st lps lvls) st lst
+      (levelsDeclared (absNIdxL lps) (lvls.val.map absLIdx)) := by
+  have hf : ∀ ps, ConRon.Refine.NamesWF ps → ∀ lst, AStateRel₀ pers st lst →
+      AStateInv pers st →
+      LSR pers (fun a b => b = a)
+        (arena.expr_ops.levels_declared_from pers st ps lvls 0#usize) st lst
+        (levelsDeclaredFrom (ConRon.Refine.absNames ps) (lvls.val.map absLIdx)) := by
+    intro ps hps lst hrel hinv
+    have := rc_levels_declared_from_aux ps hps lvls 0#usize lst hrel hinv
+    simpa using this
+  apply LSR.of_LS
+  rw [arena.expr_ops.levels_declared, levelsDeclared]
+  lockstep
+
+attribute [local lockstep] rc_lower_list_ls rc_lift_list_ls rc_levels_declared_ls
+
+theorem rc_nested_rule_syn_guards_ls {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv}
+    {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (lps : alloc.vec.Vec arena.handle.NIdx) (lvls : arena.handle.LsIdx)
+    (r_p : Std.U64) (pins : alloc.vec.Vec arena.handle.EIdx) :
+    LS pers (fun a b => b = a.map fun q => (q.1.val.map absLIdx, q.2.val.map absEIdx))
+      (arena.expr_ops.nested_rule_syn_guards pers vis st rf lps lvls r_p pins) lst
+      (nestedRuleSynGuards (lf.restrictTo (absU vis)) (absNIdxL lps) (absLsIdx lvls) (absU r_p)
+        (absEIdxL pins)) := by
+  have hp : ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a)
+        (arena.expr_ops.pins_wf pers vis st rf lps r_p pins 0#usize) lst
+        (pinsWf (lf.restrictTo (absU vis)) (absNIdxL lps) (absU r_p) (absEIdxL pins)) := by
+    intro st lst hrel hinv
+    have := rc_pins_wf_aux (vis := vis) hfe lps r_p pins 0#usize st lst hrel hinv
+    simpa [absEIdxL] using this
+  rw [arena.expr_ops.nested_rule_syn_guards, nestedRuleSynGuards]
+  lockstep
+
+attribute [local lockstep] rc_nested_rule_syn_guards_ls
+
+theorem rc_nested_rule_syn_at_ls {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv}
+    {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hfe : IFEnvRelI rf lf) (lps : alloc.vec.Vec arena.handle.NIdx) (dom : arena.handle.EIdx)
+    (lvls : arena.handle.LsIdx) (k r_p cn_p : Std.U64) :
+    LS pers (fun a b => b = a.map fun q => (q.1.val.map absLIdx, q.2.val.map absEIdx))
+      (arena.expr_ops.nested_rule_syn_at pers vis st rf lps dom lvls k r_p cn_p) lst
+      (nestedRuleSynAt (lf.restrictTo (absU vis)) (absNIdxL lps) (absEIdx dom) (absLsIdx lvls)
+        (absU k) (absU r_p) (absU cn_p)) := by
+  rw [arena.expr_ops.nested_rule_syn_at, nestedRuleSynAt]
+  lockstep
+
+attribute [local lockstep] rc_nested_rule_syn_at_ls
+
 theorem rc_nested_rule_syn_ls {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv}
     {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rf lf) (lps : alloc.vec.Vec arena.handle.NIdx) (ty_a : arena.handle.EIdx)
@@ -1706,7 +1916,8 @@ theorem rc_nested_rule_syn_ls {pers st lst} {vis : Std.U64} {rf : arena.env.IFEn
       (arena.expr_ops.nested_rule_syn pers vis st rf lps ty_a m_i r_p cn_p) lst
       (nestedRuleSyn (lf.restrictTo (absU vis)) (lps.val.map absNIdx) (absEIdx ty_a) (absU m_i)
         (absU r_p) (absU cn_p)) := by
-  sorry
+  rw [arena.expr_ops.nested_rule_syn, nestedRuleSyn]
+  lockstep
 
 attribute [local lockstep] rc_nested_rule_syn_ls
 
