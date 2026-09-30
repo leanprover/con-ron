@@ -36,8 +36,6 @@ open scoped IndSide
 
 attribute [local lockstep_simp] pos_core_walk_fuel_abs pos_core_walk_fuel_val
 attribute [local lockstep] pos_zero_level_ls pos_i_constant_val_dup_spec
--- `shape_member_names` (RecCheck's provisional companion until BlockParts lands)
-attribute [local lockstep] rc_shape_member_names_twin
 
 /-! ## The records' fields -/
 

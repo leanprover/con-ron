@@ -34,7 +34,7 @@ open scoped GenRecSide
 
 attribute [local lockstep_simp] pos_core_walk_fuel_abs pos_core_walk_fuel_val
   gr_absIConstantVal_name gr_absIConstantVal_levelParams gr_absIConstantVal_type
-attribute [local lockstep] pos_zero_level_ls pos_i_constant_val_dup_spec rc_shape_member_names_twin
+attribute [local lockstep] pos_zero_level_ls pos_i_constant_val_dup_spec
 
 /-! ## The cons tails -/
 
@@ -395,61 +395,6 @@ theorem class_fields_agree_acc {pers} {mode : kernel.env.CheckMode}
     0#u64 st lst hrel hinv
   simpa using h
 
-/-! ## Helpers for Shape/Abs — `block_parts` readers (BlockParts' own lemmas once they land) -/
-
-theorem gr_shape_k_twin (p : arena.inductives.block_parts.BlockShape) :
-    LSP (arena.inductives.block_parts.shape_k p)
-      (fun k => TwinEq (absBlockShape p).k (absU k)) := by
-  intro k h
-  rw [arena.inductives.block_parts.shape_k, Result.ok.injEq] at h
-  subst h
-  simp [TwinEq, absU, BlockShape.k, absBlockShape]
-
-theorem gr_major_idx_at_twin (p : arena.inductives.block_parts.BlockShape) (r : Std.U64) :
-    LSP (arena.inductives.block_parts.major_idx_at p r)
-      (fun k => TwinEq ((absBlockShape p).majorIdxAt (absU r)) (absU k)) := by
-  intro k h
-  rw [arena.inductives.block_parts.major_idx_at] at h
-  simp only [lift, bind_tc_ok] at h
-  rw [TwinEq, BlockShape.majorIdxAt]
-  have hl := ConRon.Refine.ExprOps.usize_cast_u64_val p.recs.len
-  split at h
-  · rename_i hr
-    have hc : (UScalar.cast .Usize r).val = r.val :=
-      ConRon.Refine.ExprOps.u64_cast_usize_val (by have := p.recs.property; scalar_tac)
-    rw [gr_vec_index_eq (by rw [hc]; exact List.getElem?_eq_getElem (by
-      simp only [alloc.vec.Vec.len] at hl; scalar_tac)), bind_tc_ok, Result.ok.injEq] at h
-    subst h
-    simp [absBlockShape, absU, List.getElem?_eq_getElem (show r.val < p.recs.val.length by
-      simp only [alloc.vec.Vec.len] at hl; scalar_tac), absRecShape]
-  · rw [Result.ok.injEq] at h
-    subst h
-    rw [List.getElem?_eq_none (by simp [absBlockShape, absU]; simp only [alloc.vec.Vec.len] at hl; scalar_tac)]
-    rfl
-
-theorem gr_rule_prefix_at_twin (p : arena.inductives.block_parts.BlockShape) (r : Std.U64) :
-    LSP (arena.inductives.block_parts.rule_prefix_at p r)
-      (fun k => TwinEq ((absBlockShape p).rulePrefixAt (absU r)) (absU k)) := by
-  intro k h
-  rw [arena.inductives.block_parts.rule_prefix_at] at h
-  simp only [lift, bind_tc_ok] at h
-  rw [TwinEq, BlockShape.rulePrefixAt]
-  have hl := ConRon.Refine.ExprOps.usize_cast_u64_val p.recs.len
-  split at h
-  · rename_i hr
-    have hc : (UScalar.cast .Usize r).val = r.val :=
-      ConRon.Refine.ExprOps.u64_cast_usize_val (by have := p.recs.property; scalar_tac)
-    rw [gr_vec_index_eq (by rw [hc]; exact List.getElem?_eq_getElem (by
-      simp only [alloc.vec.Vec.len] at hl; scalar_tac)), bind_tc_ok, Result.ok.injEq] at h
-    subst h
-    simp [absBlockShape, absU, List.getElem?_eq_getElem (show r.val < p.recs.val.length by
-      simp only [alloc.vec.Vec.len] at hl; scalar_tac), absRecShape]
-  · rw [Result.ok.injEq] at h
-    subst h
-    rw [List.getElem?_eq_none (by simp [absBlockShape, absU]; simp only [alloc.vec.Vec.len] at hl; scalar_tac)]
-    rfl
-
-attribute [local lockstep] gr_shape_k_twin gr_major_idx_at_twin gr_rule_prefix_at_twin
 attribute [local lockstep high] rc_ctors_dup_spec
 
 /-! ## `class_ctor_of`, `class_ctors_of`, `classes_ctors` -/
@@ -1821,8 +1766,8 @@ theorem gr_fe_r_push_aux (p : arena.inductives.block_parts.BlockShape)
     have hi4v : i4.val = m.val := by
       simp only [lift, Result.ok.injEq] at hi4; subst hi4
       exact ConRon.Refine.ExprOps.usize_cast_u64_val m
-    have hi3v := gr_major_idx_at_twin p i2 i3 hi3
-    have hi5v := gr_rule_prefix_at_twin p i4 i5 hi5
+    have hi3v := major_idx_at_twin p i2 i3 hi3
+    have hi5v := rule_prefix_at_twin p i4 i5 hi5
     simp only [TwinEq] at hi3v hi5v
     -- the pushed constant
     obtain ⟨hpush, n', hn', -, -, -, -, -⟩ := gr_ifenv_push_temp_spec hfe.inv hpq
