@@ -41,7 +41,10 @@ if ! git merge-base --is-ancestor "$branch" "$into"; then
 fi
 git worktree unlock "$path" 2>/dev/null || true
 git worktree remove --force "$path"
-git branch -d "$branch" >/dev/null
+# `-D`, not `-d`: the ancestry check above is against $into, while `-d`
+# checks the MAIN worktree's HEAD, which refuses a branch merged into a
+# campaign branch (task #105).
+git branch -D "$branch" >/dev/null
 key=$(printf '%s' "$path" | sha256sum | cut -c1-12)
 rm -rf "_tmp/gates-$key" "_tmp/extract-$key" "_tmp/extract-check-$key" \
        "_tmp/frontier-$key" "_tmp/gen-prelude-lean-$key"
