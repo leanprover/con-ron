@@ -932,6 +932,24 @@ theorem root_hole_spec (ctx : arena.inductives.positivity.NestCtx) (j : Std.Usiz
 
 /-! ## The read-back block: `fv_map_at`, `replace_fvars*`, `nest_hole_img` -/
 
+@[lockstep_simp] theorem absNestHole_key (h : arena.inductives.positivity.NestHole) :
+    (absNestHole h).key = absNestKey h.key := rfl
+@[lockstep_simp] theorem absNestHole_base (h : arena.inductives.positivity.NestHole) :
+    (absNestHole h).base = absU h.base := rfl
+@[lockstep_simp] theorem absNestKey_cname (k : arena.inductives.positivity.NestKey) :
+    (absNestKey k).cname = absNIdx k.cname := rfl
+@[lockstep_simp] theorem absNestKey_lvls (k : arena.inductives.positivity.NestKey) :
+    (absNestKey k).lvls = absLsIdx k.lvls := rfl
+@[lockstep_simp] theorem absNestKey_ds (k : arena.inductives.positivity.NestKey) :
+    (absNestKey k).ds = absEIdxL k.ds := rfl
+
+/-- The twin's `getD` of a mapped list at an in-range index. -/
+theorem map_getD_of_lt {α β : Type} [Inhabited β] (f : α → β) (l : List α) (k j : Nat)
+    (hj : j < l.length) (hjk : j = k) : (l.map f).getD k default = f (l[j]'hj) := by
+  subst hjk
+  rw [List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_eq_getElem hj]
+  rfl
+
 @[lockstep_simp] theorem absFvMap_holeImg (m : arena.inductives.positivity.HoleImgMap) :
     absFvMap (.HoleImg m) = .holeImg (absNestCtx m.ctx) (m.prog.val.map absNestHole) (absU m.n) :=
   rfl
@@ -1047,5 +1065,153 @@ theorem replace_fvars_list_of {pers} (f : arena.inductives.positivity.FvMap)
       if_neg (show ¬ k ≥ alloc.vec.Vec.len xs by scalar_tac)]
     simp only [List.mapM_cons, bind_assoc, pure_bind]
     lockstep
+
+/-- `replace_fvars_list` from an empty accumulator at `0` IS `List.mapM`. -/
+theorem replace_fvars_list_new_of {pers} (f : arena.inductives.positivity.FvMap)
+    (hA : ∀ (i : Std.U64) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a.map absEIdx)
+        (arena.inductives.positivity.fv_map_at pers st f i) lst
+        (fvMapAt (absFvMap f) (absU i))) (xs : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.positivity.replace_fvars_list pers st f xs 0#usize
+          (alloc.vec.Vec.new arena.handle.EIdx)) lst
+        ((absEIdxL xs).mapM fun x => replaceFVars (absFvMap f) x) := by
+  intro st lst hrel hinv
+  have h := replace_fvars_list_of f hA xs 0#usize st lst (alloc.vec.Vec.new arena.handle.EIdx)
+    hrel hinv
+  have e : (do
+      let r ← (absEIdxLFrom xs 0#usize).mapM fun x => replaceFVars (absFvMap f) x
+      pure (absEIdxL (alloc.vec.Vec.new arena.handle.EIdx) ++ r) : AM _)
+      = (absEIdxL xs).mapM fun x => replaceFVars (absFvMap f) x := by
+    simp [absEIdxL, alloc.vec.Vec.new]
+  rwa [e] at h
+
+/-- **`nest_hole_img` ⊑ `nestHoleImg`**, by induction on the stack prefix's
+length: the frame hole's parameters are read back through the map one frame
+shorter, whose `fv_map_at` is this lemma one level down.  The prefix length is
+at most the stack's (`n ≤ |prog|`, which every caller's `prog.len()` and the
+recursion's `n - 1` keep): the Rust's `usize` cast of `n - 1` is then exact. -/
+theorem nest_hole_img_aux {pers} (k : Nat) :
+    ∀ (ctx : arena.inductives.positivity.NestCtx)
+      (prog : alloc.vec.Vec arena.inductives.positivity.NestHole) (n i : Std.U64) st lst,
+      n.val = k → n.val ≤ prog.val.length → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a.map absEIdx)
+        (arena.inductives.positivity.nest_hole_img pers st ctx prog n i) lst
+        (nestHoleImg (absNestCtx ctx) (prog.val.map absNestHole) k (absU i)) := by
+  induction k with
+  | zero =>
+    intro ctx prog n i st lst hn hnp hrel hinv
+    rw [arena.inductives.positivity.nest_hole_img, if_pos (by scalar_tac), nestHoleImg]
+    lockstep
+    rw [absNIdxL, map_getD_of_lt absNIdx ctx.names.val _ _ (by assumption) (by scalar_tac)]
+    lockstep
+  | succ k ih =>
+    intro ctx prog n i st lst hn hnp hrel hinv
+    have hA : ∀ (m : arena.inductives.positivity.HoleImgMap), m.n.val = k →
+        m.n.val ≤ m.prog.val.length →
+        ∀ (i : Std.U64) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+        LS pers (fun a b => b = a.map absEIdx)
+          (arena.inductives.positivity.fv_map_at pers st (.HoleImg m) i) lst
+          (fvMapAt (absFvMap (.HoleImg m)) (absU i)) := by
+      intro m hm hmp i st lst hrel hinv
+      rw [arena.inductives.positivity.fv_map_at, absFvMap_holeImg, fvMapAt]
+      rw [show absU m.n = k from hm]
+      exact ih m.ctx m.prog m.n i st lst hm hmp hrel hinv
+    have hD : ∀ (m : arena.inductives.positivity.HoleImgMap), m.n.val = k →
+        m.n.val ≤ m.prog.val.length →
+        ∀ (xs : alloc.vec.Vec arena.handle.EIdx) st lst,
+        AStateRel₀ pers st lst → AStateInv pers st →
+        LS pers (fun a b => b = absEIdxL a)
+          (arena.inductives.positivity.replace_fvars_list pers st (.HoleImg m) xs 0#usize
+            (alloc.vec.Vec.new arena.handle.EIdx)) lst
+          ((absEIdxL xs).mapM fun x =>
+            replaceFVars (.holeImg (absNestCtx m.ctx) (m.prog.val.map absNestHole) k) x) := by
+      intro m hm hmp xs st lst hrel hinv
+      have := replace_fvars_list_new_of (.HoleImg m) (hA m hm hmp) xs st lst hrel hinv
+      rwa [absFvMap_holeImg, show absU m.n = k from hm] at this
+    clear hA
+    rw [arena.inductives.positivity.nest_hole_img, if_neg (by scalar_tac), nestHoleImg]
+    iterate 4 lockstep_step
+    · rw [if_pos (by simp only [beq_iff_eq]; scalar_tac)]
+      lockstep_step
+      rw [map_getD_of_lt absNestHole prog.val _ _ (by assumption)
+        (by casesm* (_ : Nat) = _ ∨ Std.Usize.max < _ <;> scalar_tac)]
+      lockstep
+    · rw [if_neg (by simp only [beq_iff_eq]; scalar_tac)]
+      exact ih ctx prog _ i st lst (by scalar_tac) (by scalar_tac) hrel hinv
+
+/-- A read-back map's representation fact: a `HoleImg` map's prefix length is
+at most its stack's (the only `HoleImg` the port builds is
+`nest_ctor_nf`'s, at `prog.len()`, and `nest_hole_img`'s own, one shorter). -/
+def FvMapWF : arena.inductives.positivity.FvMap → Prop
+  | .HoleImg m => m.n.val ≤ m.prog.val.length
+  | _ => True
+
+@[lockstep] theorem nest_hole_img_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
+    (prog : alloc.vec.Vec arena.inductives.positivity.NestHole) (n i : Std.U64)
+    (hnp : n.val ≤ prog.val.length) :
+    LS pers (fun a b => b = a.map absEIdx)
+      (arena.inductives.positivity.nest_hole_img pers st ctx prog n i) lst
+      (nestHoleImg (absNestCtx ctx) (prog.val.map absNestHole) (absU n) (absU i)) :=
+  nest_hole_img_aux _ ctx prog n i st lst rfl hnp hrel hinv
+
+@[lockstep] theorem fv_map_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (f : arena.inductives.positivity.FvMap) (hwf : FvMapWF f)
+    (i : Std.U64) :
+    LS pers (fun a b => b = a.map absEIdx)
+      (arena.inductives.positivity.fv_map_at pers st f i) lst
+      (fvMapAt (absFvMap f) (absU i)) := by
+  cases f with
+  | HoleImg m =>
+    rw [arena.inductives.positivity.fv_map_at, absFvMap_holeImg, fvMapAt]
+    exact nest_hole_img_ls hrel hinv m.ctx m.prog m.n i hwf
+  | _ => exact fv_map_at_flat_ls _ (by intro m h; cases h) i st lst hrel hinv
+
+theorem fv_map_at_all {pers} (f : arena.inductives.positivity.FvMap) (hwf : FvMapWF f) :
+    ∀ (i : Std.U64) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a.map absEIdx)
+        (arena.inductives.positivity.fv_map_at pers st f i) lst
+        (fvMapAt (absFvMap f) (absU i)) :=
+  fun i _ _ hrel hinv => fv_map_at_ls hrel hinv f hwf i
+
+@[lockstep] theorem replace_fvars_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (f : arena.inductives.positivity.FvMap) (hwf : FvMapWF f)
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx}
+    {lm : Std.HashMap EIdx EIdx} (hm : PEMemoRel rm lm) (fuel : Std.U64)
+    (h : arena.handle.EIdx) :
+    LS pers (fun a b => ∃ m', PEMemoRel a.2 m' ∧ b = (absEIdx a.1, m'))
+      (arena.inductives.positivity.replace_fvars_go pers st f rm fuel h) lst
+      (replaceFVarsGo (absFvMap f) lm (absU fuel) (absEIdx h)) :=
+  replace_fvars_go_of f (fv_map_at_all f hwf) _ rm lm fuel h st lst rfl hm hrel hinv
+
+@[lockstep] theorem replace_fvars_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (f : arena.inductives.positivity.FvMap) (hwf : FvMapWF f)
+    (e : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.inductives.positivity.replace_fvars pers st f e) lst
+      (replaceFVars (absFvMap f) (absEIdx e)) :=
+  replace_fvars_of f (fv_map_at_all f hwf) e st lst hrel hinv
+
+@[lockstep] theorem replace_fvars_list_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (f : arena.inductives.positivity.FvMap) (hwf : FvMapWF f)
+    (xs : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize)
+    (out : alloc.vec.Vec arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdxL a)
+      (arena.inductives.positivity.replace_fvars_list pers st f xs i out) lst
+      (do
+        let r ← (absEIdxLFrom xs i).mapM fun x => replaceFVars (absFvMap f) x
+        pure (absEIdxL out ++ r)) :=
+  replace_fvars_list_of f (fv_map_at_all f hwf) xs i st lst out hrel hinv
+
+@[lockstep] theorem replace_fvars_list_new_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (f : arena.inductives.positivity.FvMap) (hwf : FvMapWF f)
+    (xs : alloc.vec.Vec arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdxL a)
+      (arena.inductives.positivity.replace_fvars_list pers st f xs 0#usize
+        (alloc.vec.Vec.new arena.handle.EIdx)) lst
+      ((absEIdxL xs).mapM fun x => replaceFVars (absFvMap f) x) :=
+  replace_fvars_list_new_of f (fv_map_at_all f hwf) xs st lst hrel hinv
 
 end ConRon.Refine2
