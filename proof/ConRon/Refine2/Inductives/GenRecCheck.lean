@@ -597,4 +597,140 @@ theorem classes_ctors_acc {pers} {mode : kernel.env.CheckMode}
   simp only [gr_usz0, List.drop_zero] at h
   exact LS.tail h rfl (fun a b h1 => by simpa [absClassCtorLL, alloc.vec.Vec.new] using h1.symm)
 
+/-! ## `class_majors`, `classes_nfs`, `class_former_ty(s)` -/
+
+attribute [local lockstep_inline] arena.inductives.positivity.ind_cv_of
+
+def absTargetMajorL (v : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
+    List TargetMajor :=
+  v.val.map absTargetMajor
+
+theorem class_majors_acc {pers} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf)
+    (p : arena.inductives.block_parts.BlockShape)
+    (ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64)))
+    (pfvs : alloc.vec.Vec arena.handle.EIdx)
+    (keys : alloc.vec.Vec arena.inductives.class_read.ClassKey) :
+    ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) st lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => absTargetMajorL a = absTargetMajorL out ++ b)
+        (arena.inductives.gen_rec.class_majors pers st mode rf p ctors_as pfvs keys i out) lst
+        (classMajors (ConRon.Refine.absMode mode) lf (absBlockShape p) (absCtorsLL ctors_as)
+          (absEIdxL pfvs) ((keys.val.drop i.val).map absClassKey)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) keys.val.length
+    (fun i out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => absTargetMajorL a = absTargetMajorL out ++ b)
+        (arena.inductives.gen_rec.class_majors pers st mode rf p ctors_as pfvs keys i out) lst
+        (classMajors (ConRon.Refine.absMode mode) lf (absBlockShape p) (absCtorsLL ctors_as)
+          (absEIdxL pfvs) ((keys.val.drop i.val).map absClassKey))) ?_ ?_ i
+  · intro i out hn st lst hrel hinv
+    rw [List.drop_eq_nil_of_le hn, List.map_nil, classMajors,
+      arena.inductives.gen_rec.class_majors.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len keys by scalar_tac)]
+    exact LS.pure (by simp) hrel hinv
+  · intro i out hi ih st lst hrel hinv
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, classMajors,
+      arena.inductives.gen_rec.class_majors.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len keys by scalar_tac)]
+    lockstep
+    rename_i x out1 hout1
+    have hjv : a.val = i.val + 1 := by simpa using hP
+    have h1 := ih a out1 hjv _ _ ‹_› ‹_›
+    simp only [hjv] at h1
+    refine ls_tail_cons h1 ?_
+    simp [absTargetMajorL, hout1]
+
+@[lockstep] theorem class_majors_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf)
+    (p : arena.inductives.block_parts.BlockShape)
+    (ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64)))
+    (pfvs : alloc.vec.Vec arena.handle.EIdx)
+    (keys : alloc.vec.Vec arena.inductives.class_read.ClassKey) :
+    LS pers (fun a b => b = absTargetMajorL a)
+      (arena.inductives.gen_rec.class_majors pers st mode rf p ctors_as pfvs keys 0#usize
+        (alloc.vec.Vec.new _)) lst
+      (classMajors (ConRon.Refine.absMode mode) lf (absBlockShape p) (absCtorsLL ctors_as)
+        (absEIdxL pfvs) (keys.val.map absClassKey)) := by
+  have h := class_majors_acc (pers := pers) (mode := mode) hfe p ctors_as pfvs keys 0#usize
+    (alloc.vec.Vec.new _) st lst hrel hinv
+  simp only [gr_usz0, List.drop_zero] at h
+  exact LS.tail h rfl (fun a b h1 => by simpa [absTargetMajorL, alloc.vec.Vec.new] using h1.symm)
+
+theorem classes_nfs_acc {pers} {mode : kernel.env.CheckMode}
+    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx vis rf lf)
+    (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
+    (tbl : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
+    (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
+    ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) st lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => absTargetMajorL a = absTargetMajorL out ++ b)
+        (arena.inductives.gen_rec.classes_nfs pers st mode vis rf p former_tys tbl ms i out) lst
+        (classesNfs (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
+          (tbl.val.map absNestCtorNf) ((ms.val.drop i.val).map absTargetMajor)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) ms.val.length
+    (fun i out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => absTargetMajorL a = absTargetMajorL out ++ b)
+        (arena.inductives.gen_rec.classes_nfs pers st mode vis rf p former_tys tbl ms i out) lst
+        (classesNfs (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
+          (tbl.val.map absNestCtorNf) ((ms.val.drop i.val).map absTargetMajor))) ?_ ?_ i
+  · intro i out hn st lst hrel hinv
+    rw [List.drop_eq_nil_of_le hn, List.map_nil, classesNfs,
+      arena.inductives.gen_rec.classes_nfs.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len ms by scalar_tac)]
+    exact LS.pure (by simp) hrel hinv
+  · intro i out hi ih st lst hrel hinv
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, classesNfs,
+      arena.inductives.gen_rec.classes_nfs.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac)]
+    lockstep
+    rename_i out1 hout1
+    have hjv : a.val = i.val + 1 := by simpa using hP
+    have h1 := ih a out1 hjv _ _ ‹_› ‹_›
+    simp only [hjv] at h1
+    refine ls_tail_cons h1 ?_
+    simp [absTargetMajorL, hout1, absTargetMajor]
+
+@[lockstep] theorem classes_nfs_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
+    (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
+    (tbl : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
+    (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
+    LS pers (fun a b => b = absTargetMajorL a)
+      (arena.inductives.gen_rec.classes_nfs pers st mode vis rf p former_tys tbl ms 0#usize
+        (alloc.vec.Vec.new _)) lst
+      (classesNfs (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
+        (tbl.val.map absNestCtorNf) (ms.val.map absTargetMajor)) := by
+  have h := classes_nfs_acc (pers := pers) (mode := mode) hctx p former_tys tbl ms 0#usize
+    (alloc.vec.Vec.new _) st lst hrel hinv
+  simp only [gr_usz0, List.drop_zero] at h
+  exact LS.tail h rfl (fun a b h1 => by simpa [absTargetMajorL, alloc.vec.Vec.new] using h1.symm)
+
+/-- `class_former_ty` ⊑ `classFormerTy`. -/
+@[lockstep] theorem class_former_ty_ls {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf)
+    (cv_tas : alloc.vec.Vec arena.env.IConstantVal) (m : arena.inductives.rec_check.TargetMajor) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.inductives.gen_rec.class_former_ty pers st rf cv_tas m) lst
+      (classFormerTy lf (cv_tas.val.map absIConstantVal) (absTargetMajor m)) := by
+  rw [arena.inductives.gen_rec.class_former_ty, classFormerTy]
+  lockstep
+  rename_i _ t hm n hn hkb v hd
+  rw [hm, Option.map_some, Option.some.injEq] at hd
+  subst hd
+  rcases hP with hk | hk
+  · have e : (List.map absIConstantVal cv_tas.val)[absU t]? =
+        some (absIConstantVal (cv_tas.val[a.val]'hkb)) := by
+      rw [List.getElem?_map, show absU t = a.val by simp [absU, hk],
+        List.getElem?_eq_getElem hkb]
+      rfl
+    simp only [e]
+    exact LS.pure (by simp [absIConstantVal]) ‹_› ‹_›
+  · exfalso
+    have := cv_tas.property
+    scalar_tac
+
 end ConRon.Refine2
