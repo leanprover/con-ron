@@ -71,11 +71,11 @@ beside their `IFEnvRelI` forms. -/
 
 section CtxHelpers
 open IndModeledPrims
-attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims.absIRecRule_nfields
-  IndModeledPrims.absIRecRule_ctorParams IndModeledPrims.absIRecRule_fire
-  IndModeledPrims.absIRecRule_rhs IndModeledPrims.absIRecRule_k IndModeledPrims.absIRecRule_eta
-  IndModeledPrims.absIRecRule_paramsBlind IndModeledPrims.absIIndCaps_eta
-  IndModeledPrims.absIIndCaps_etaCtor IndModeledPrims.absIIndCaps_ruleK
+attribute [local lockstep_simp] absIRecRule_ctor_eq absIRecRule_nfields_eq
+  IndModeledPrims.absIRecRule_ctorParams Lockstep.absIRecRule_fire
+  absIRecRule_rhs_eq Lockstep.absIRecRule_k Lockstep.absIRecRule_eta
+  IndModeledPrims.absIRecRule_paramsBlind Lockstep.absIIndCaps_eta
+  Lockstep.absIIndCaps_etaCtor IndModeledPrims.absIIndCaps_ruleK
   IndModeledPrims.decide_u64_eq_zero etag_const_abs
 
 @[lockstep] theorem rec_rule_k_of_ctx_ls {pers st lst} {vis : Std.U64} {rf lf}
