@@ -29,8 +29,9 @@ order.
   `Arena.checkDecl_bridge` and the binary's fold `Arena.installThenCheck_bridge`
   / `Arena.pooledAccepts_bridge` (the capstone is `ConRon/Capstone.lean`);
 * `Bridge/Inductives.lean` — the inductive tier (task #97-P3-Ind):
-  `Arena/Inductives/**`'s ~110 twins and `checkIndDecl_bridge`, which
-  discharges the `Bridge/Checker/Hyp.lean` hypothesis `IndSpec`.  It imports
+  `Arena/Inductives/**`'s twins and `indSpec_of_bridge`, which discharges
+  the `Bridge/Checker/Hyp.lean` hypothesis `IndSpec` (stated over
+  `checkIndRoute`, the `.indDecl` arm past the pin recogniser, task #105).  It imports
   `Bridge/Checker/Hyp.lean` and `Bridge/Checker/Names.lean` and **not**
   `Bridge/Checker/Base.lean` or `Bridge/Checker/Fold.lean`, because the
   checker tier's `.indDecl` arm will import it back — which is why
