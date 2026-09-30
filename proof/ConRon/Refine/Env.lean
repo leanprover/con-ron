@@ -270,7 +270,9 @@ theorem ind_caps_default_wf {c : env.IndCaps} (h : env.ind_caps_default = ok c) 
   simp only [env.ind_caps_default, bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, pw, hpw, rfl⟩ := h
   exact ⟨Name.anonymous_wf hn,
-    PropWhen.if_all_zero_wf (fun _ hm => by simp [alloc.vec.Vec.new] at hm) hpw⟩
+    PropWhen.if_all_zero_wf (fun _ hm => by simp [alloc.vec.Vec.new] at hm) hpw,
+    fun _ hm => by simp [alloc.vec.Vec.new] at hm,
+    fun _ hm => by simp [alloc.vec.Vec.new] at hm⟩
 
 /-- `ConLeche/Kernel/Env.lean:362-384` -- `env::ind_caps_dup` is the
 identity. -/
@@ -278,8 +280,9 @@ theorem ind_caps_dup_refines {c c' : env.IndCaps}
     (h : env.ind_caps_dup c = ok c') : c' = c := by
   simp only [env.ind_caps_dup, bind_eq_ok_iff, name_dup_eq, Result.ok.injEq,
     exists_eq_left'] at h
-  obtain ⟨pw, hpw, rfl⟩ := h
-  rw [PropWhen.dup_eq hpw]
+  obtain ⟨pw, hpw, v, hv, v1, hv1, rfl⟩ := h
+  rw [PropWhen.dup_eq hpw, alloc.vec.Vec.ext _ _ (PropWhen.names_copy_val hv),
+    alloc.vec.Vec.ext _ _ (PropWhen.names_copy_val hv1)]
 
 /-- `ConLeche/Kernel/Env.lean:411-441` -- `env::proj_table_dup` is the
 identity. -/

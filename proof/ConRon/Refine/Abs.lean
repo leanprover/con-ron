@@ -713,6 +713,9 @@ def absIndCaps (c : env.IndCaps) : ConLeche.IndCaps where
   unitParams := c.unit_params.val
   ruleK := c.rule_k
   sortZ := absPropWhen c.sort_z
+  all := absNames c.all
+  nparams := c.nparams.val
+  ctors := absNames c.ctors
 
 /-- `ConLeche/Kernel/Env.lean:411` — `ProjTable`.  The Lean's `bodies` is an
 `Array Expr` while its `guards` is a `List Level`; the port has a `Vec` for
@@ -754,7 +757,6 @@ def absMode : env.CheckMode → ConLeche.CheckMode
 def absBasisKind : env.BasisKind → ConLeche.BasisKind
   | .EqK => .eqK
   | .NatK => .natK
-  | .PunitK => .punitK
   | .EmptyK => .emptyK
   | .FalseK => .falseK
   | .QuotK => .quotK
@@ -817,9 +819,10 @@ def RecRuleWF (r : env.RecRule) : Prop :=
 /-- A `Vec<RecRule>` all of whose entries are well formed. -/
 def RecRulesWF (rs : alloc.vec.Vec env.RecRule) : Prop := ∀ r ∈ rs.val, RecRuleWF r
 
-/-- `IndCaps`: the η constructor's name and the result-sort zero-ness datum. -/
+/-- `IndCaps`: the η constructor's name, the result-sort zero-ness datum, and
+the block's member and constructor names. -/
 def IndCapsWF (c : env.IndCaps) : Prop :=
-  NameWF c.eta_ctor ∧ PropWhenWF c.sort_z
+  NameWF c.eta_ctor ∧ PropWhenWF c.sort_z ∧ NamesWF c.all ∧ NamesWF c.ctors
 
 /-- `ProjTable`: every stored name, the structure's sort, the field bodies and
 the per-field guard levels. -/

@@ -473,31 +473,6 @@ theorem iff_rec_raw_refines {ci : env.ConstantInfo}
     rfl
   · intro r hr; simp [alloc.vec.Vec.new] at hr
 
-/-- `ConLeche/Kernel/StdAxioms.lean:250-252 iffFamily` —
-`std_axioms::iff_family` refines `iffFamily`, the raw `Iff` family in
-dependency order. -/
-theorem iff_family_refines {v : alloc.vec.Vec env.ConstantInfo}
-    (h : std_axioms.iff_family = ok v) :
-    absConstantInfos v = ConLeche.iffFamily ∧ ConstantInfosWF v := by
-  rw [std_axioms.iff_family] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨ci, hci, fam, hfam, ci1, hci1, fam1, hfam1, ci2, hci2, hlast⟩ := h
-  obtain ⟨a0, w0⟩ := iff_raw_refines hci
-  obtain ⟨a1, w1⟩ := iff_intro_raw_refines hci1
-  obtain ⟨a2, w2⟩ := iff_rec_raw_refines hci2
-  have hval : v.val = [ci, ci1, ci2] := by
-    rw [vec_push_val hlast, vec_push_val hfam1, vec_push_val hfam]
-    simp [alloc.vec.Vec.new]
-  refine ⟨?_, ?_⟩
-  · rw [absConstantInfos, hval]
-    simp only [List.map_cons, List.map_nil, a0, a1, a2]
-    rfl
-  · intro x hx
-    rw [hval] at hx
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
-    rcases hx with rfl|rfl|rfl
-    exacts [w0, w1, w2]
-
 /-- con-leche: none — `std_axioms::one_level` is the level list `[.succ .zero]`
 the pinned `Eq` of `propextRaw`'s conclusion carries; Lean writes it inline. -/
 theorem one_level_refines {v : alloc.vec.Vec level.Level}
@@ -630,30 +605,6 @@ theorem nonempty_rec_raw_refines {ci : env.ConstantInfo}
     simp only [alloc.vec.Vec.new]
     rfl
   · intro r hr; simp [alloc.vec.Vec.new] at hr
-
-/-- `ConLeche/Kernel/StdAxioms.lean:289-291 nonemptyFamily` —
-`std_axioms::nonempty_family` refines `nonemptyFamily`. -/
-theorem nonempty_family_refines {v : alloc.vec.Vec env.ConstantInfo}
-    (h : std_axioms.nonempty_family = ok v) :
-    absConstantInfos v = ConLeche.nonemptyFamily ∧ ConstantInfosWF v := by
-  rw [std_axioms.nonempty_family] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨ci, hci, fam, hfam, ci1, hci1, fam1, hfam1, ci2, hci2, hlast⟩ := h
-  obtain ⟨a0, w0⟩ := nonempty_raw_refines hci
-  obtain ⟨a1, w1⟩ := nonempty_intro_raw_refines hci1
-  obtain ⟨a2, w2⟩ := nonempty_rec_raw_refines hci2
-  have hval : v.val = [ci, ci1, ci2] := by
-    rw [vec_push_val hlast, vec_push_val hfam1, vec_push_val hfam]
-    simp [alloc.vec.Vec.new]
-  refine ⟨?_, ?_⟩
-  · rw [absConstantInfos, hval]
-    simp only [List.map_cons, List.map_nil, a0, a1, a2]
-    rfl
-  · intro x hx
-    rw [hval] at hx
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
-    rcases hx with rfl|rfl|rfl
-    exacts [w0, w1, w2]
 
 /-- `ConLeche/Kernel/StdAxioms.lean:293-298 choiceRaw`
 (`:316-319` `#annotate_pins`, computing `choiceA`) — `std_axioms::choice_raw`
