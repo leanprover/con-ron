@@ -37,6 +37,7 @@ import ConRon.Bridge.Inductives.StructParts
 import ConRon.Bridge.Inductives.FieldTele
 import ConRon.Bridge.Inductives.SumInstall
 import ConRon.Bridge.Inductives.BlockParts
+import ConRon.Bridge.Inductives.Positivity
 import ConLeche.Verify.Inductives.RecCheckScope
 import ConLeche.Verify.Cached.TargetRecC
 
@@ -2133,16 +2134,16 @@ theorem blockNestedBit_eq {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.Bl
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:607-617 consBlockRecsTF
 (its list) — a checked recursor with its class and right-hand sides,
 denoted. -/
-def dOut (st : EStore) (t : IConstantVal × Arena.TargetMajor × List EIdx) :
+def dRecOut (st : EStore) (t : IConstantVal × Arena.TargetMajor × List EIdx) :
     Option (ConstantVal × ConLeche.TargetMajor × List Expr) := do
   let cv ← Frontend.denoteCV st t.1
   let M ← dMajor st t.2.1
   let rh ← Frontend.denoteEList st t.2.2
   pure (cv, M, rh)
 
-theorem dOut_ext : DExt dOut := by
+theorem dRecOut_ext : DExt dRecOut := by
   intro st st' hx t y h
-  simp only [dOut] at h ⊢
+  simp only [dRecOut] at h ⊢
   cases h1 : Frontend.denoteCV st t.1 with
   | none => rw [h1] at h; exact nomatch h
   | some a =>
@@ -2158,12 +2159,12 @@ theorem dOut_ext : DExt dOut := by
 
 namespace RC
 
-/-- con-leche: none — `dOut`, taken apart. -/
-theorem dOut_inv {st : EStore} {t : IConstantVal × Arena.TargetMajor × List EIdx}
-    {tP : ConstantVal × ConLeche.TargetMajor × List Expr} (h : dOut st t = some tP) :
+/-- con-leche: none — `dRecOut`, taken apart. -/
+theorem dRecOut_inv {st : EStore} {t : IConstantVal × Arena.TargetMajor × List EIdx}
+    {tP : ConstantVal × ConLeche.TargetMajor × List Expr} (h : dRecOut st t = some tP) :
     Frontend.denoteCV st t.1 = some tP.1 ∧ dMajor st t.2.1 = some tP.2.1 ∧
       Frontend.denoteEList st t.2.2 = some tP.2.2 := by
-  simp only [dOut] at h
+  simp only [dRecOut] at h
   cases h1 : Frontend.denoteCV st t.1 with
   | none => rw [h1] at h; exact nomatch h
   | some a =>
@@ -2228,7 +2229,7 @@ theorem consBlockRecsTF_spec {μ : CheckMode} {envC env₂ : Env} {feC : IFEnv} 
       (m : Nat) (fe : IFEnv) (env : Env) (s₀ s' : AState) (fe' : IFEnv),
       CheckOK μ envC feC s₀ → IFEnvOK env₂ (fe.restrictTo vis₂) s₀ →
       vis₂ ≤ fe.visibleBelow → IFEnvCoh fe → denoteFEnv s₀.store fe = some env →
-      dShape s₀.store p = some pP → out.mapM (dOut s₀.store) = some outP →
+      dShape s₀.store p = some pP → out.mapM (dRecOut s₀.store) = some outP →
       (∀ t ∈ outP, env₂.find? t.1.name = none) →
       Arena.consBlockRecsTF vis₂ p m out fe s₀ = .ok (fe', s') →
       CoreStep μ envC feC s₀ s' ∧
@@ -2248,18 +2249,18 @@ theorem consBlockRecsTF_spec {μ : CheckMode} {envC env₂ : Env} {feC : IFEnv} 
     intro outP m fe env s₀ s' fe' hok hie hvis hcoh hfe hsh hout hfresh hrun
     obtain ⟨cv, M, rhss⟩ := t
     simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at hout
-    cases ht : dOut s₀.store (cv, M, rhss) with
+    cases ht : dRecOut s₀.store (cv, M, rhss) with
     | none => rw [ht] at hout; simp at hout
     | some tP =>
     rw [ht] at hout
-    cases hr : rest.mapM (dOut s₀.store) with
+    cases hr : rest.mapM (dRecOut s₀.store) with
     | none => rw [hr] at hout; simp at hout
     | some restP =>
     rw [hr] at hout
     simp only [Option.bind_some, Option.some.injEq] at hout
     subst hout
     obtain ⟨cvP, MP, rhssP⟩ := tP
-    obtain ⟨hcv, hM, hrh⟩ := RC.dOut_inv ht
+    obtain ⟨hcv, hM, hrh⟩ := RC.dRecOut_inv ht
     obtain ⟨hmI, hrP⟩ := RC.recAt_eq hsh m
     simp only [Arena.consBlockRecsTF] at hrun
     obtain ⟨rules, s1, k1, z1⟩ := bindOk hrun
@@ -2287,7 +2288,7 @@ theorem consBlockRecsTF_spec {μ : CheckMode} {envC env₂ : Env} {feC : IFEnv} 
         rules)).restrictTo vis₂) s1 := RC.IFEnvOK.of_find? (hie.mono c1.ext) hview
     obtain ⟨c2, hrel⟩ := ih restP (m + 1) _ _ s1 s' fe' c1.ok hie1
       (by simp only [IFEnv.push]; omega) (hcoh.push _) hfe1 (dShape_ext c1.ext _ _ hsh)
-      (dOut_ext.list c1.ext _ _ hr) (fun t ht => hfresh t (by simp [ht])) z1
+      (dRecOut_ext.list c1.ext _ _ hr) (fun t ht => hfresh t (by simp [ht])) z1
     refine ⟨c1.trans c2, ?_⟩
     have h1 : InstRel fe (fun e => e = ⟨.recInfo cvP (pP.majorIdxAt m) (pP.rulePrefixAt m)
           (ConLeche.tgtStoredRules env₂.find? (·.constsResolve env₂) cvP (pP.majorIdxAt m)
@@ -2959,5 +2960,269 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
       rw [if_pos cC]
       rfl
     · rw [if_neg cC] at zD; exact absurd zD (fun hc => failOk hc)
+
+/-! ## A recursor's class, resolved -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:356-360 targetCtorsOf
+**The constructors of a stored inductive and its parameter count**:
+`nestContainer`'s reading at a context whose lookup is the index's
+(`Bridge/Inductives/Positivity.lean`'s `nestContainer_spec`). -/
+theorem targetCtorsOf_spec {env : Env} (fe : IFEnv) (I : NIdx) (IP : ConLeche.Name) :
+    PSpec (fun st => IFEnvOKS env fe st ∧ denoteN st.ns I = some IP)
+      (Arena.targetCtorsOf fe I) (ROp RCont (ConLeche.targetCtorsOf (mkFEnv env) IP)) := by
+  intro s₀ s' r hok hp hrun
+  simp only [Arena.targetCtorsOf] at hrun
+  simp only [ConLeche.targetCtorsOf]
+  exact nestContainer_spec (env := env) _ (by simp only [mkFEnv_find?_fun]) I IP s₀ s' r hok hp hrun
+
+namespace RC
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:410 targetMajorOf (the
+closedness test) — one parameter closed over the recursor's parameters, the
+two reads short-circuiting. -/
+theorem closed1_run {s₀ s' : AState} {x : EIdx} {xP : Expr} {n : Nat} {r : Bool}
+    (hok : StateOK s₀) (hx : denoteE s₀.store x = some xP)
+    (hrun : (do
+      if (← bvarB coreWalkFuel x) != 0 then pure false
+      else pure (decide ((← fvarB coreWalkFuel x) ≤ n)) : AM Bool) s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ r = (xP.bvarB == 0 && decide (xP.fvarB ≤ n)) := by
+  obtain ⟨x1, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, -, rfl⟩ := bvarB_pstep hok hx k1
+  by_cases c1 : (xP.bvarB != 0) = true
+  · rw [if_pos c1] at z1
+    obtain ⟨rfl, rfl⟩ := pureOk z1
+    refine ⟨p1, ?_⟩
+    simp only [bne_iff_ne, ne_eq] at c1
+    simp [c1]
+  · rw [if_neg c1] at z1
+    simp only [bne_iff_ne, ne_eq, Decidable.not_not] at c1
+    obtain ⟨x2, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, -, rfl⟩ := fvarB_pstep p1.ok (denote_ext hx p1.ext) k2
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    exact ⟨p1.trans p2, by simp [c1]⟩
+
+/-- con-leche: none — `List.anyM` of a pure-grade test over a denoting handle
+list: the verdict is the pure `List.any` (`allM_E_pstep`'s dual). -/
+theorem anyM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool} (Q : EStore → Prop)
+    (hQx : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
+    (hf : ∀ (e : EIdx) (eP : Expr) (s₀ s' : AState) (b : Bool), StateOK s₀ →
+      Q s₀.store → denoteE s₀.store e = some eP → f e s₀ = .ok (b, s') →
+      PStep s₀ s' ∧ b = F eP) :
+    ∀ (hs : List EIdx) (xs : List Expr) (s₀ s' : AState) (b : Bool),
+      StateOK s₀ → Q s₀.store → Frontend.denoteEList s₀.store hs = some xs →
+      hs.anyM f s₀ = .ok (b, s') → PStep s₀ s' ∧ b = xs.any F := by
+  intro hs
+  induction hs with
+  | nil =>
+    intro xs s₀ s' b hok _ h hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at h
+    subst h
+    simp only [List.anyM] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons e es ih =>
+    intro xs s₀ s' b hok hq h hrun
+    obtain ⟨eP, esP, he, hes, rfl⟩ := Core.denoteEList_cons_inv h
+    simp only [List.anyM] at hrun
+    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hc⟩ := hf e eP s₀ s1 c hok hq he k1
+    cases c with
+    | true =>
+      obtain ⟨rfl, rfl⟩ := pureOk z1
+      exact ⟨p1, by simp only [List.any_cons, ← hc, Bool.true_or]⟩
+    | false =>
+      obtain ⟨p2, hb⟩ := ih esP s1 s' b p1.ok (hQx p1.ext hq) (denoteEList_ext p1.ext _ _ hes) z1
+      exact ⟨p1.trans p2, by simp only [List.any_cons, ← hc, Bool.false_or, hb]⟩
+
+/-- con-leche: none — `lvlEq?` in run form at the core grade. -/
+theorem lvlEq?_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s₀ s' : AState}
+    {u v : LIdx} {uP vP : Level} {r : Option Bool}
+    (hok : CheckOK μ env fe s₀) (hu : denoteL s₀.store.ls u = some uP)
+    (hv : denoteL s₀.store.ls v = some vP)
+    (hrun : Arena.lvlEq? u v s₀ = .ok (r, s')) :
+    CoreStep μ env fe s₀ s' ∧ r = Level.isEquiv uP vP := by
+  obtain ⟨h1, h2, h3, lu, lv, hu', hv', hr⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (Core.lvlEq?_spec s₀ u v hok)
+  rw [hu] at hu'; rw [hv] at hv'
+  obtain rfl := Option.some.inj hu'
+  obtain rfl := Option.some.inj hv'
+  exact ⟨⟨h1, by rw [h2]; exact Ext.refl _, h3⟩, hr⟩
+
+end RC
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:380-439 targetMajorOf
+**A recursor's major, resolved** from its opened type: a MEMBER at the
+block's levels and parameters, or an outside stored inductive (not `Quot`,
+its parameters closed over the recursor's, naming a member, in the block's
+universe).  The class record denotes con-leche's (`dMajor`); the pure side
+at `mkFEnv env` performs no operation. -/
+theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
+    (ctorsAs : List (List (IConstantVal × Nat))) (ctorsAsP : List (List (ConstantVal × Nat)))
+    (pfvs fvs : List EIdx) (pfvsP fvsP : List Expr) (mty : EIdx) (mtyP : Expr) :
+    CSpecF μ env fe
+      (fun st => dShape st p = some pP ∧ ctorsAs.mapM (dCtors st) = some ctorsAsP ∧
+        Frontend.denoteEList st pfvs = some pfvsP ∧ Frontend.denoteEList st fvs = some fvsP ∧
+        denoteE st mty = some mtyP)
+      (Arena.targetMajorOf fe p ctorsAs pfvs fvs mty)
+      (fun st r v => dMajor st r = some v)
+      (ConLeche.targetMajorOf (m := FueledM) (mkFEnv env) pP ctorsAsP pfvsP fvsP mtyP) := by
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hsh, hcas, hpf, hfv, hmty⟩ := hpre
+  obtain ⟨hmems, -, hnP, -, hres, -⟩ := RC.dShape_inv hsh
+  simp only [Arena.targetMajorOf] at hrun
+  obtain ⟨args, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨hs1, hargs⟩ := getAppArgs_run hok.state hmty k1
+  rw [hs1] at z1
+  obtain ⟨hd, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨hs2, hhd⟩ := getAppFn_run hok.state hmty k2
+  rw [hs2] at z2
+  by_cases ct : (hd.tag == ETag.const) = true
+  case neg => rw [if_neg ct] at z2; exact absurd z2 (fun hc => failOk hc)
+  rw [if_pos ct] at z2
+  obtain ⟨o, s3, k3, z3⟩ := bindOk z2
+  obtain ⟨hs3, ho⟩ := PW.viewConst_run k3
+  rw [hs3] at z3
+  cases o with
+  | none => exact absurd z3 (fun hc => failOk hc)
+  | some t0 =>
+  obtain ⟨I, us⟩ := t0
+  obtain ⟨IP, usP, hg, hI, hus⟩ := denote_const_inv hok.state.wf
+    (view_of_viewConst_tag ct ho.symm) hhd
+  dsimp only at z3
+  simp only [ConLeche.targetMajorOf, hg]
+  have hfi := PW.findIdx_handle_eq hok.state.wf hI (BlockShape.memberNames_spec hsh)
+  rw [hfi] at z3
+  cases hft : pP.memberNames.findIdx? (· == IP) with
+  | some t =>
+    rw [hft] at z3
+    dsimp only at z3 ⊢
+    -- the member
+    obtain ⟨ms, s4, k4, z4⟩ := bindOk z3
+    obtain ⟨hms, hs4⟩ := unwrapOr_ok k4
+    rw [hs4] at z4
+    have hj := mapM_option_getElem? (st := s₀.store) hmems t
+    rw [hms] at hj
+    obtain ⟨msP, hmsP, hdm⟩ := hj
+    obtain ⟨cA, s5, k5, z5⟩ := bindOk z4
+    obtain ⟨hcA, hs5⟩ := unwrapOr_ok k5
+    rw [hs5] at z5
+    have hj2 := mapM_option_getElem? (st := s₀.store) hcas t
+    rw [hcA] at hj2
+    obtain ⟨cAP, hcAP, hdc⟩ := hj2
+    obtain ⟨bl, s6, k6, z6⟩ := bindOk z5
+    obtain ⟨p6, hbl⟩ := paramLevels_spec p.lps pP.lps s₀ s6 bl hok.state
+      (BlockShape.lps_spec hsh) k6
+    have hb1 := PW.beq_lshandle_eq p6.ok.wf (denoteLs_ext hus p6.ext) hbl
+    have hb2 := beq_ehandleList_eq p6.ok.wf
+      (denoteEList_take (denoteEList_ext p6.ext _ _ hargs) p.nP)
+      (denoteEList_take (denoteEList_ext p6.ext _ _ hfv) p.nP)
+    rw [hmsP, hcAP]
+    by_cases cm : (us == bl && List.take p.nP args == List.take p.nP fvs) = true
+    · rw [if_pos cm] at z6
+      obtain ⟨rfl, rfl⟩ := pureOk z6
+      rw [hb1, hb2, hnP] at cm
+      refine ⟨p6.toCore hok, _, ?_, FOk.bind FOk.unwrapOr (FOk.bind FOk.unwrapOr
+        (by rw [if_pos cm]; exact FOk.pure _))⟩
+      obtain ⟨-, hnidx, -⟩ := RC.dMember_inv hdm
+      simp only [dMajor, denoteN_ext hI p6.ext, denoteLs_ext hus p6.ext,
+        denoteEList_take (denoteEList_ext p6.ext _ _ hfv), dCtors_ext p6.ext _ _ hdc,
+        denoteEList_ext p6.ext _ _ hpf, hnP, hnidx, List.mapM_nil]
+      rfl
+    · rw [if_neg cm] at z6; exact absurd z6 (fun hc => failOk hc)
+  | none =>
+    rw [hft] at z3
+    dsimp only at z3 ⊢
+    -- an outside inductive
+    obtain ⟨q, s4, k4, z4⟩ := bindOk z3
+    obtain ⟨hs4, hq⟩ := pinAt_run (x := ConLeche.quotName) hok.pins rfl k4
+    rw [hs4] at z4
+    have hbq := beq_handle_eq hok.state.wf hI hq
+    by_cases cq : (I == q) = true
+    · rw [if_pos cq] at z4; exact absurd z4 (fun hc => failOk hc)
+    rw [if_neg cq] at z4
+    rw [hbq] at cq
+    rw [if_neg cq]
+    obtain ⟨o2, s5, k5, z5⟩ := bindOk z4
+    obtain ⟨p5, ho2⟩ := targetCtorsOf_spec (env := env) fe I IP s₀ s5 o2 hok.state
+      ⟨hok.ienv.toS, hI⟩ k5
+    cases o2 with
+    | none => exact absurd z5 (fun hc => failOk hc)
+    | some t2 =>
+    obtain ⟨nPc, ctors⟩ := t2
+    obtain ⟨⟨nPcP, ctorsP⟩, hco, hnpc, hctors⟩ := ho2
+    simp only at hnpc
+    subst hnpc
+    rw [hco]
+    dsimp only at z5 ⊢
+    have c5 := p5.toCore hok
+    have hds := denoteEList_take (denoteEList_ext p5.ext _ _ hargs) nPc
+    have hlen : (List.take nPc args).length = (List.take nPc mtyP.getAppArgs).length :=
+      PW.denoteEList_length hds
+    by_cases cl : ((List.take nPc args).length != nPc) = true
+    · rw [if_pos cl] at z5; exact absurd z5 (fun hc => failOk hc)
+    rw [if_neg cl] at z5
+    obtain ⟨cls, s6, k6, z6⟩ := bindOk z5
+    obtain ⟨p6, hcls⟩ := allM_E_pstep (fun _ => True) (fun _ h => h)
+      (fun e eP s₀ s' b hok _ he hrun => RC.closed1_run hok he hrun)
+      _ _ s5 s6 cls p5.ok trivial hds k6
+    have c6 := c5.trans (p6.toCore c5.ok)
+    by_cases cc : (!cls) = true
+    · rw [if_pos cc] at z6; exact absurd z6 (fun hc => failOk hc)
+    rw [if_neg cc] at z6
+    have hcl1 : ((List.take nPc mtyP.getAppArgs).length == nPc &&
+        (List.take nPc mtyP.getAppArgs).all fun x => x.bvarB == 0 && decide (x.fvarB ≤ pP.nP))
+          = true := by
+      rw [← hlen, ← hnP]
+      have e1 : ((List.take nPc args).length == nPc) = true := by simpa using cl
+      have e2 : cls = true := by simpa using cc
+      rw [e1, ← hcls, e2]; rfl
+    rw [if_pos hcl1]
+    obtain ⟨an, s7, k7, z7⟩ := bindOk z6
+    obtain ⟨p7, han⟩ := RC.anyM_E_pstep (fun st => Frontend.denoteNList st.ns p.memberNames =
+        some pP.memberNames) (fun hx h => denoteNListE_ext hx _ _ h)
+      (fun e eP s₀ s' b hok hq he hrun => nestOcc_spec p.memberNames pP.memberNames 0 0 e eP
+        s₀ s' b hok ⟨hq, he⟩ hrun)
+      _ _ s6 s7 an p6.ok (denoteNListE_ext c6.ext _ _ (BlockShape.memberNames_spec hsh))
+      (denoteEList_ext p6.ext _ _ hds) k7
+    have c7 := c6.trans (p7.toCore c6.ok)
+    by_cases ca : an = true
+    case neg => rw [if_neg ca] at z7; exact absurd z7 RC.failBindOk
+    rw [if_pos ca] at z7
+    rw [han] at ca
+    rw [if_pos ca]
+    obtain ⟨_, s8, k8, z8⟩ := bindOk z7
+    obtain ⟨-, hs8⟩ := pureOk k8
+    rw [hs8] at z8
+    obtain ⟨ni, s9, k9, z9⟩ := bindOk z8
+    obtain ⟨c9, ⟨niP, lP⟩, ⟨hni1, hni2⟩, hFo⟩ := targetOutsideInst_spec fe I IP us usP _ _
+      s7 s9 ni c7.ok ⟨denoteN_ext hI c7.ext, denoteLs_ext hus c7.ext,
+        denoteEList_ext (p6.ext.trans p7.ext) _ _ hds⟩ k9
+    have c79 := c7.trans c9
+    obtain ⟨nIdx, sI⟩ := ni
+    dsimp only at z9 hni1 hni2
+    obtain ⟨lv, s10, k10, z10⟩ := bindOk z9
+    obtain ⟨c10, rfl⟩ := RC.lvlEq?_run c9.ok hni2
+      (denoteL_ext hres (c79.ext)) k10
+    obtain ⟨b, s11, k11, z11⟩ := bindOk z10
+    obtain ⟨hlv, hs11⟩ := liftFueled_ok k11
+    rw [hs11] at z11
+    by_cases cb : b = true
+    case neg => rw [if_neg cb] at z11; exact absurd z11 RC.failBindOk
+    rw [if_pos cb] at z11
+    obtain ⟨_, s12, k12, z12⟩ := bindOk z11
+    obtain ⟨-, hs12⟩ := pureOk k12
+    rw [hs12] at z12
+    obtain ⟨rfl, rfl⟩ := pureOk z12
+    have c10' := c79.trans c10
+    refine ⟨c10', ConLeche.TargetMajor.mk IP usP (List.take nPc mtyP.getAppArgs) nPc niP ctorsP
+      none [] pfvsP, ?_,
+      FOk.bind hFo (FOk.bind (hlv ▸ FOk.liftFueled) ?_)⟩
+    · simp only [dMajor, denoteN_ext hI c10'.ext, denoteLs_ext hus c10'.ext,
+        denoteEList_ext (p6.ext.trans (p7.ext.trans (c9.ext.trans c10.ext))) _ _ hds,
+        dCtors_ext (p6.ext.trans (p7.ext.trans (c9.ext.trans c10.ext))) _ _ hctors,
+        denoteEList_ext c10'.ext _ _ hpf, hni1, List.mapM_nil]
+      rfl
+    · rw [if_pos cb]; exact FOk.pure _
 
 end ConRon.Bridge.Inductives
