@@ -223,4 +223,50 @@ attribute [local lockstep_simp] gr_absClassRead_slots gr_absClassRead_recCls
     all_goals simp only [ha, List.map_nil, List.map_cons]
     all_goals first | (simp [ha] at hlen; done) | lockstep
 
+/-! ## `class_leaf_at`, `class_nodes_agree`, `class_fields_of` -/
+
+attribute [local lockstep_simp] Option.getD_some Option.getD_none
+
+/-- `class_leaf_at` ⊑ `classLeafAt`. -/
+@[lockstep] theorem class_leaf_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (m : arena.inductives.rec_check.TargetMajor)
+    (leaf : arena.handle.EIdx) :
+    LSR pers (fun a b => b = a) (arena.inductives.gen_rec.class_leaf_at pers st m leaf) st lst
+      (classLeafAt (absTargetMajor m) (absEIdx leaf)) := by
+  apply LSR.of_LS
+  rw [arena.inductives.gen_rec.class_leaf_at, classLeafAt]
+  lockstep
+
+/-- `class_nodes_agree` ⊑ `classNodesAgree`, the entries from the cursor on. -/
+@[lockstep] theorem class_nodes_agree_ls {pers} {mode : kernel.env.CheckMode}
+    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx vis rf lf)
+    (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
+    (mc : arena.inductives.rec_check.TargetMajor)
+    (tele : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (htele : TeleWF tele)
+    (leaf : arena.handle.EIdx) (fvs : alloc.vec.Vec arena.handle.EIdx) (i : Std.U64)
+    (es : alloc.vec.Vec arena.inductives.positivity.NestCtorNf) :
+    ∀ (j : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun _ _ => True)
+        (arena.inductives.gen_rec.class_nodes_agree pers st mode vis rf p former_tys mc tele leaf
+          fvs i es j) lst
+        (classNodesAgree (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
+          (absTargetMajor mc) (absBinderL tele) (absEIdx leaf) (absEIdxL fvs) (absU i)
+          ((es.val.drop j.val).map absNestCtorNf)) := by
+  intro j st lst hrel hinv
+  refine ls_cursor es absNestCtorNf
+    (fun l => classNodesAgree (ConRon.Refine.absMode mode) lf (absBlockShape p)
+      (absEIdxL former_tys) (absTargetMajor mc) (absBinderL tele) (absEIdx leaf) (absEIdxL fvs)
+      (absU i) l)
+    (fun st j => arena.inductives.gen_rec.class_nodes_agree pers st mode vis rf p former_tys mc
+      tele leaf fvs i es j) ?_ ?_ j st lst hrel hinv
+  · intro st lst j hn hrel hinv
+    rw [arena.inductives.gen_rec.class_nodes_agree.eq_def,
+      if_pos (show j ≥ alloc.vec.Vec.len es by scalar_tac), classNodesAgree]
+    lockstep
+  · intro st lst j hj hrel hinv ih
+    rw [arena.inductives.gen_rec.class_nodes_agree.eq_def,
+      if_neg (show ¬ j ≥ alloc.vec.Vec.len es by scalar_tac), classNodesAgree]
+    lockstep
+    all_goals simp [TwinEq, absEIdxL, alloc.vec.Vec.new] at hP
+
 end ConRon.Refine2
