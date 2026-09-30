@@ -269,4 +269,55 @@ attribute [local lockstep_simp] Option.getD_some Option.getD_none
     lockstep
     all_goals simp [TwinEq, absEIdxL, alloc.vec.Vec.new] at hP
 
+set_option maxHeartbeats 1000000 in
+theorem class_fields_of_acc {pers st} (p : arena.inductives.block_parts.BlockShape)
+    (ihs : alloc.vec.Vec (Std.U64 × Std.U64)) (fs : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ (i : Std.U64) (out : alloc.vec.Vec arena.inductives.gen_rec.ClassField) lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => a.val.map absClassField = out.val.map absClassField ++ b)
+        (arena.inductives.gen_rec.class_fields_of pers st p ihs i fs out) st lst
+        (classFieldsOf (absBlockShape p) (ihs.val.map absNatPair) i.val
+          ((fs.val.drop i.val).map absEIdx)) := by
+  intro i
+  refine cursor_induction (fun i : Std.U64 => i.val) fs.val.length
+    (fun i out => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => a.val.map absClassField = out.val.map absClassField ++ b)
+        (arena.inductives.gen_rec.class_fields_of pers st p ihs i fs out) st lst
+        (classFieldsOf (absBlockShape p) (ihs.val.map absNatPair) i.val
+          ((fs.val.drop i.val).map absEIdx))) ?_ ?_ i
+  · intro i out hn lst hrel hinv
+    rw [List.drop_eq_nil_of_le hn, List.map_nil, classFieldsOf]
+    apply LSR.of_LS
+    rw [arena.inductives.gen_rec.class_fields_of.eq_def]
+    lockstep
+  · intro i out hi ih lst hrel hinv
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, classFieldsOf]
+    apply LSR.of_LS
+    rw [arena.inductives.gen_rec.class_fields_of.eq_def]
+    lockstep
+    all_goals
+      refine LS.pure ?_ ‹_› ‹_›
+      simp_all [absClassField, absBinderL]
+    all_goals
+      rw [List.getElem?_eq_getElem (show 0 < _ from ‹(0#usize : Std.Usize).val < _›)]
+      rfl
+
+/-- `class_fields_of` from field `0` into `Vec::new()` ⊑ `classFieldsOf … 0`. -/
+@[lockstep] theorem class_fields_of_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (p : arena.inductives.block_parts.BlockShape)
+    (ihs : alloc.vec.Vec (Std.U64 × Std.U64)) (fs : alloc.vec.Vec arena.handle.EIdx) :
+    LSR pers (fun a b => b = a.val.map absClassField)
+      (arena.inductives.gen_rec.class_fields_of pers st p ihs 0#u64 fs (alloc.vec.Vec.new _)) st lst
+      (classFieldsOf (absBlockShape p) (ihs.val.map absNatPair) 0 (absEIdxL fs)) := by
+  have h := class_fields_of_acc (pers := pers) (st := st) p ihs fs 0#u64 (alloc.vec.Vec.new _) lst
+    hrel hinv
+  intro o ho
+  have h1 := h o ho
+  cases o with
+  | Err e => simp only [LOut] at h1 ⊢; simpa [absEIdxL] using h1
+  | Ok a =>
+    obtain ⟨b, lst', hx, hR, h2, h3⟩ := h1
+    refine ⟨b, lst', by simpa [absEIdxL] using hx, ?_, h2, h3⟩
+    simpa [alloc.vec.Vec.new] using hR.symm
+
 end ConRon.Refine2
