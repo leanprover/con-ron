@@ -119,6 +119,102 @@ The answer is a `CheckError` on both sides; messages are never compared
   rw [arena.core.unknown_const_error, unknownConstError]
   lockstep_core
 
+/-! ## The verdict at a table-less projection (con-leche's PROJREJ, task #105) -/
+
+/-- `proj_indexed_struct_like` is pure on both sides: the cited `&&` chain,
+read off the environment. -/
+theorem proj_indexed_struct_like_abs {vis fe lfe} (hctx : CoreCtx vis fe lfe)
+    {t sn : arena.handle.NIdx} {i n : Std.U64} {b : Bool}
+    (h : arena.core.proj_indexed_struct_like vis fe t sn i n = ok b) :
+    b = projIndexedStructLike lfe (absNIdx t) (absNIdx sn) (absU i) (absU n) := by
+  rw [arena.core.proj_indexed_struct_like] at h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have he' := nidx_eq2 t sn e trivial trivial he
+  unfold projIndexedStructLike
+  by_cases hts : t = sn
+  · subst hts
+    have he1 : e = true := by simpa using he'
+    subst he1
+    simp only [if_true, bne_self_eq_false, Bool.false_eq_true, if_false] at h ⊢
+    obtain ⟨o, ho, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← ifenv_find_abs hctx ho]
+    rcases o with _ | ci
+    · cases Result.ok_injective h; rfl
+    · cases ci with
+      | IndInfo cv caps =>
+        simp only [Option.map_some, absIConstantInfo, absIIndCaps] at h ⊢
+        have hl := alloc.vec.Vec.len_val caps.ctors
+        rcases hc : caps.ctors.val with _ | ⟨c, _ | ⟨c2, rest⟩⟩
+        · have : ¬ (alloc.vec.Vec.len caps.ctors = 1#usize) := by
+            intro h1; have h2 := congrArg Std.UScalar.val h1
+            rw [alloc.vec.Vec.len_val] at h2; simp [alloc.vec.Vec.length, hc] at h2
+          rw [if_neg this] at h; cases Result.ok_injective h; rfl
+        · have h1 : alloc.vec.Vec.len caps.ctors = 1#usize := by
+            apply Std.UScalar.eq_of_val_eq; rw [alloc.vec.Vec.len_val]
+            simp [alloc.vec.Vec.length, hc]
+          rw [if_pos h1] at h
+          simp only [List.map_cons, List.map_nil]
+          by_cases hp : caps.nparams < n
+          · rw [if_pos hp] at h
+            rw [if_pos (by simpa [absU] using hp)]
+            obtain ⟨c0, hc0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+            have hx := ExprOps.vecIndexSome hc0
+            rw [hc] at hx
+            simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.getElem?_cons_zero,
+              Option.some.injEq] at hx
+            subst hx
+            obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+            rw [← ifenv_find_abs hctx ho1]
+            rcases o1 with _ | ci1
+            · cases Result.ok_injective h; rfl
+            · cases ci1 <;> (cases Result.ok_injective h) <;>
+                simp [absIConstantInfo, absU]
+          · rw [if_neg hp] at h
+            rw [if_neg (by simpa [absU] using hp)]
+            cases Result.ok_injective h; rfl
+        · have : ¬ (alloc.vec.Vec.len caps.ctors = 1#usize) := by
+            intro h1; have h2 := congrArg Std.UScalar.val h1
+            rw [alloc.vec.Vec.len_val] at h2; simp [alloc.vec.Vec.length, hc] at h2
+          rw [if_neg this] at h; cases Result.ok_injective h; rfl
+      | _ => cases Result.ok_injective h; rfl
+  · have he0 : e = false := by simpa [hts] using he'
+    subst he0
+    have hne : absNIdx t ≠ absNIdx sn := fun hc => hts (absNIdx_inj hc)
+    simp only [Bool.false_eq_true, if_false] at h
+    cases Result.ok_injective h
+    simp [hne]
+
+@[lockstep] theorem proj_indexed_struct_like_spec {vis fe lfe} (hctx : CoreCtx vis fe lfe)
+    (t sn : arena.handle.NIdx) (i n : Std.U64) :
+    LSP (arena.core.proj_indexed_struct_like vis fe t sn i n)
+      (fun b => b = projIndexedStructLike lfe (absNIdx t) (absNIdx sn) (absU i) (absU n)) :=
+  fun _ h => proj_indexed_struct_like_abs hctx h
+
+/-- `proj_miss_error` against `projMissError`: the error KIND (messages are
+never compared, DESIGN §3.1). -/
+@[lockstep] theorem proj_miss_error_spec {vis fe lfe} (hctx : CoreCtx vis fe lfe)
+    (ht : Bool) (t sn : arena.handle.NIdx) (i n : Std.U64) :
+    LSP (arena.core.proj_miss_error vis fe ht t sn i n)
+      (fun ce => absAErrKind ce
+        = lAErrKind (projMissError lfe ht (absNIdx t) (absNIdx sn) (absU i) (absU n))) := by
+  intro ce h
+  rw [arena.core.proj_miss_error] at h
+  unfold projMissError
+  cases ht with
+  | true =>
+    simp only [if_true] at h ⊢
+    obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    cases Result.ok_injective h; rfl
+  | false =>
+    simp only [Bool.false_eq_true, if_false] at h ⊢
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [← proj_indexed_struct_like_abs hctx hb]
+    cases b <;> simp only [Bool.false_eq_true, if_false, if_true] at h ⊢ <;>
+    · obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      cases Result.ok_injective h; rfl
+
 /-! ## The bodies' small helpers -/
 
 /-- `lift_fueled` is monomorphic at `Option Bool` with the message baked in;
@@ -137,7 +233,7 @@ the twin's `what` is free (messages are never compared). -/
     obtain ⟨s, -, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
     obtain ⟨v, -, hr⟩ := ConRon.Refine.bind_eq_ok_iff.mp hr
     rw [fail_run hr]
-    exact AErrSim.internal rfl
+    exact AErrSim.notImplemented rfl
 
 @[lockstep] theorem is_ctor_app_ls {pers vis st fe lfe e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -215,33 +311,6 @@ the twin's `what` is free (messages are never compared). -/
       (sameConstHeads (absEIdx a) (absEIdx b)) := by
   rw [arena.core.same_const_heads, sameConstHeads]
   lockstep_core
-
-@[lockstep] theorem is_unit_like_ty_ls {pers vis st fe lfe h lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.is_unit_like_ty pers vis st fe h) lst
-      (isUnitLikeTy lfe (absEIdx h)) := by
-  rw [arena.core.is_unit_like_ty, isUnitLikeTy]
-  lockstep_core
-  -- glue: the port tests `rules.len() == 1` and reads `rules[0]`, the twin
-  -- matches the singleton pattern `[r]`
-  all_goals
-    split
-    all_goals rename_i heq
-    all_goals
-      refine LS.pure ?_ ‹_› ‹_›
-      simp only [Option.some.injEq, IConstantInfo.recInfo.injEq, List.map_eq_singleton_iff] at heq
-      first
-      | rfl
-      | (obtain ⟨-, rfl, rfl, x, hx, rfl⟩ := heq
-         simp_all [absIRecRule, uscalar_eq_iff_val, absU,
-           nat_beq_eq_decide])
-      | (exfalso
-         have hl := congrArg (fun u : Std.Usize => u.val) ‹alloc.vec.Vec.len _ = 1#usize›
-         simp only [alloc.vec.Vec.len_val] at hl
-         obtain ⟨y, hy⟩ := List.length_eq_one_iff.mp hl
-         exact heq _ _ _ _ ⟨rfl, rfl, rfl, y, hy, rfl⟩)
-
 
 /-! ## The level verdicts, cached -/
 
