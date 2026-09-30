@@ -513,6 +513,67 @@ theorem checkBlockTables_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) 
 
 
 
+/-! ## The three stages this module consumes from `GenRec.lean`, named
+
+The pass and the tail are assembled over three stage statements that
+`Bridge/Inductives/GenRec.lean` proves (`checkBlockClasses`, `classSeeds`,
+`genRecCheck`); they are named here so that the assembly states exactly the
+shape it consumes. -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:518-536 checkBlockClasses
+— the classes stage's statement, as the pass consumes it
+(`checkBlockClassesS_sim`'s hypotheses). -/
+def ClassesStageSpec (μ : CheckMode) : Prop :=
+  ∀ (fe₁ : IFEnv) (env₁ : Env) (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
+    (params : List EIdx) (paramsP : List Expr) (ctorsAs : List (List (IConstantVal × Nat)))
+    (ctorsAsP : List (List (ConstantVal × Nat))),
+    EnvWF env₁ → paramsP.length = pP.nP → (∀ x ∈ paramsP, Expr.WScoped pP.nP x) →
+    CSpecF μ env₁ fe₁
+      (fun st => dShape st p = some pP ∧ Frontend.denoteEList st params = some paramsP ∧
+        ctorsAs.mapM (dCtors st) = some ctorsAsP ∧ denoteFEnv st fe₁ = some env₁)
+      (Arena.checkBlockClasses μ fe₁ p params ctorsAs)
+      (fun st r v => dClassRead st r.1 = some v.1 ∧ r.2.mapM (dMajor st) = some v.2 ∧
+        ∀ M ∈ v.2, ConLeche.Cached.ClassMajScoped pP.nP M)
+      (ConLeche.checkBlockClasses (fueledOpsM μ) (mkFEnv env₁) env₁ pP paramsP ctorsAsP)
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:494-499 classSeeds — the
+seeds' statement, as the pass consumes it. -/
+def SeedsStageSpec : Prop :=
+  ∀ (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) (holes : List EIdx)
+    (holesP : List Expr) (ms : List Arena.TargetMajor) (msP : List ConLeche.TargetMajor)
+    (fnd : ConLeche.Name → Option ConstantInfo),
+    PSpec (fun st => dCtx st fnd ctx = some ctxP ∧ Frontend.denoteEList st holes = some holesP ∧
+        ms.mapM (dMajor st) = some msP)
+      (Arena.classSeeds ctx holes ms)
+      (fun st r => r.mapM (fun k => (dKey st k.1).map (·, k.2))
+        = some (ConLeche.classSeeds ctxP holesP msP))
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:76-91 checkBlockRec
+con-leche: ConLeche/Verify/Cached/GenRecC.lean:773 genRecCheckS_run — the
+recursor stage's statement, as the tail consumes it: the index handed back is
+the one handed in (the temporary recursors popped), the checked family
+denotes, and its names are fresh in the constructors' environment (what
+`consBlockRecsTF_spec` needs). -/
+def RecStageSpec (μ : CheckMode) : Prop :=
+  ∀ (fe₂ : IFEnv) (env₂ : Env) (p : Arena.BlockParts) (pP : ConLeche.BlockParts)
+    (nested : Bool) (params : List EIdx) (paramsP : List Expr) (tbl : List Arena.NestCtorNf)
+    (tblP : List ConLeche.NestCtorNf) (rd : Arena.ClassRead) (rdP : ConLeche.ClassRead)
+    (ms : List Arena.TargetMajor) (msP : List ConLeche.TargetMajor)
+    (cvTas : List IConstantVal) (cvTasP : List ConstantVal) (block : List IConstantInfo)
+    (blockP : List ConstantInfo),
+    EnvWF env₂ → IFEnvCoh fe₂ → (∀ cv ∈ cvTasP, Expr.WScoped 0 cv.type) →
+    (∀ M ∈ msP, ConLeche.Cached.ClassMajScoped pP.nP M) →
+    CSpecF μ env₂ fe₂
+      (fun st => denoteFEnv st fe₂ = some env₂ ∧ dParts st p = some pP ∧
+        Frontend.denoteEList st params = some paramsP ∧ tbl.mapM (dCtorNf st) = some tblP ∧
+        dClassRead st rd = some rdP ∧ ms.mapM (dMajor st) = some msP ∧
+        cvTas.mapM (Frontend.denoteCV st) = some cvTasP ∧
+        Frontend.denoteCIList st block = some blockP)
+      (Arena.checkBlockRec μ fe₂ p nested params tbl rd ms block cvTas)
+      (fun st r out => IFEnvCoh r.1 ∧ r.1.env = fe₂.env ∧ r.2.mapM (dRecOut st) = some out ∧
+        ∀ t ∈ out, env₂.find? t.1.name = none)
+      (ConLeche.checkBlockRec (fueledOpsM μ) env₂ pP nested paramsP tblP rdP msP blockP cvTasP)
+
 /-! ## The install after the pass -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:125-138 checkBlockTail
@@ -526,29 +587,13 @@ at the constructors' view, the tables.  The answer is an install over
 theorem checkBlockTail_of {μ : CheckMode} (hk : CoreSpec μ Arena.checkFuel)
     {env₁ : Env} {q : Arena.BlockPass} {qP : ConLeche.BlockPass Env}
     {block : List IConstantInfo} {blockP : List ConstantInfo} {s s' : AState} {fe' : IFEnv}
-    (hGR : ∀ (s₀ s₁ : AState) (r : IFEnv × List (IConstantVal × Arena.TargetMajor × List EIdx)),
-      CheckOK μ (ConLeche.consBlockCtors qP.p.nP qP.ctorsAs env₁)
-        (Arena.consBlockCtors q.p.shape.nP q.ctorsAs q.env1) s₀ →
-      dPass s₀.store env₁ q = some qP →
-      denoteFEnv s₀.store (Arena.consBlockCtors q.p.shape.nP q.ctorsAs q.env1)
-        = some (ConLeche.consBlockCtors qP.p.nP qP.ctorsAs env₁) →
-      Frontend.denoteCIList s₀.store block = some blockP →
-      Arena.checkBlockRec μ (Arena.consBlockCtors q.p.shape.nP q.ctorsAs q.env1) q.p
-        (Arena.blockNestedBit q.p.shape q.kinds) q.params q.tbl q.rd q.cls block q.cvTas s₀
-        = .ok (r, s₁) →
-      CoreStep μ (ConLeche.consBlockCtors qP.p.nP qP.ctorsAs env₁)
-          (Arena.consBlockCtors q.p.shape.nP q.ctorsAs q.env1) s₀ s₁ ∧
-        IFEnvCoh r.1 ∧ r.1.env = (Arena.consBlockCtors q.p.shape.nP q.ctorsAs q.env1).env ∧
-        ∃ outP, r.2.mapM (dRecOut s₁.store) = some outP ∧
-          (∀ t ∈ outP, (ConLeche.consBlockCtors qP.p.nP qP.ctorsAs env₁).find? t.1.name = none) ∧
-          FOk (ConLeche.checkBlockRec (fueledOpsM μ)
-            (ConLeche.consBlockCtors qP.p.nP qP.ctorsAs env₁) qP.p
-            (ConLeche.blockNestedBit qP.p.toBlockShape qP.kinds) qP.params qP.tbl.toList
-            qP.rd qP.cls blockP qP.cvTas) outP)
+    (hGR : RecStageSpec μ)
     (henv₁ : EnvWF env₁) (hck : CheckOK μ env₁ q.env1 s) (hcoh : IFEnvCoh q.env1)
     (hden : denoteFEnv s.store q.env1 = some env₁) (hq : dPass s.store env₁ q = some qP)
     (hb : Frontend.denoteCIList s.store block = some blockP)
     (hT : ∀ cv ∈ qP.cvTas, Expr.WScoped 0 cv.type)
+    (henv₂ : EnvWF (ConLeche.consBlockCtors qP.p.nP qP.ctorsAs env₁))
+    (hMs : ∀ M ∈ qP.cls, ConLeche.Cached.ClassMajScoped qP.p.nP M)
     (hrun : Arena.checkBlockTail μ block q s = .ok (fe', s')) :
     InstStep s s' ∧
       InstRel q.env1 (fun e => FOk (ConLeche.checkBlockTail (fueledOpsM μ) blockP qP) e)
@@ -570,10 +615,10 @@ theorem checkBlockTail_of {μ : CheckMode} (hk : CoreSpec μ Arena.checkFuel)
     q.env1 env₁ (dCtors_ext.list x1 _ _ hca) (denoteFEnv_ext x1 hden) hcoh
   rw [hnP, ← show qP.p.nP = shP.nP by rw [hpP]] at hcons hconsOK
   rw [← show qP.p.nP = shP.nP by rw [hpP]] at hnP
-  generalize hfe₂ : Arena.consBlockCtors q.p.shape.nP q.ctorsAs q.env1 = fe₂ at hGR h2
+  generalize hfe₂ : Arena.consBlockCtors q.p.shape.nP q.ctorsAs q.env1 = fe₂ at h2
   rw [hnP] at hfe₂
   subst hfe₂
-  generalize henv₂ : ConLeche.consBlockCtors qP.p.nP qP.ctorsAs env₁ = env₂ at hGR hcons hconsOK
+  generalize hE₂ : ConLeche.consBlockCtors qP.p.nP qP.ctorsAs env₁ = env₂ at henv₂ hcons hconsOK
   have hden₂ : denoteFEnv s₁.store (Arena.consBlockCtors qP.p.nP q.ctorsAs q.env1) = some env₂ := by
     obtain ⟨e, h, rfl⟩ := hcons.denote; exact h
   -- the flush entering them
@@ -584,8 +629,13 @@ theorem checkBlockTail_of {μ : CheckMode} (hk : CoreSpec μ Arena.checkFuel)
   have x2 : Ext s.store s₂.store := by rw [hs2]; exact x1
   -- the recursor stage
   obtain ⟨⟨fe₂b, out⟩, s₃, h5, h6⟩ := bindOk h4
-  obtain ⟨c3, hcoh₂b, hfe₂b, outP, hout, hfresh, hGRF⟩ := hGR s₂ s₃ (fe₂b, out) c2
-    (dPass_ext x2 _ _ hq) (by rw [hs2]; exact hden₂) (denoteCIList_ext x2 _ _ hb) h5
+  obtain ⟨-, hcv', hp', hca', hss', -, hnf', hpa', hrd', hcl', htb'⟩ :=
+    dPass_inv (dPass_ext x2 _ _ hq)
+  obtain ⟨c3, outP, ⟨hcoh₂b, hfe₂b, hout, hfresh⟩, hGRF⟩ := hGR _ env₂ q.p qP.p _ q.params
+    qP.params q.tbl qP.tbl.toList q.rd qP.rd q.cls qP.cls q.cvTas qP.cvTas block blockP henv₂
+    hcons.coh hT hMs s₂ s₃ (fe₂b, out) c2
+    ⟨by rw [hs2]; exact hden₂, hp', hpa', htb', hrd', hcl', hcv', denoteCIList_ext x2 _ _ hb⟩ h5
+  rw [blockNestedBit_eq hsh, ← hkd, ← show qP.p.toBlockShape = shP by rw [hpP]] at hGRF
   have x3 := c3.ext
   dsimp only at h6
   -- the recursors consed at the constructors' view
@@ -631,9 +681,9 @@ theorem checkBlockTail_of {μ : CheckMode} (hk : CoreSpec μ Arena.checkFuel)
   refine ⟨(c1.toInst.trans i2).trans (c3.toInst.trans (c4.toInst.trans p5.toInst)), ?_⟩
   refine r05.imp fun e he' => ?_
   obtain ⟨env₁', cvTasP, pP', ctorsAsP, sortsssP, kindsP, nfsP, paramsP, rdP, clsP, tblP⟩ := qP
-  simp only at he hpP hisF hGRF henv₂ hfresh he' hkd
+  simp only at he hpP hisF hGRF hE₂ hfresh he' hkd
   subst he hpP
-  subst henv₂
+  subst hE₂
   unfold ConLeche.checkBlockTail
   exact FOk.bind hisF (FOk.bind hGRF he')
 
@@ -650,25 +700,7 @@ the caches sound at the formers' index, both environments well formed, the
 formers' types closed, the classes scoped. -/
 theorem checkBlockPass_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
     (hk : CoreSpec μ Arena.checkFuel)
-    (hCL : ∀ (fe₁ : IFEnv) (env₁ : Env) (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
-      (params : List EIdx) (paramsP : List Expr) (ctorsAs : List (List (IConstantVal × Nat)))
-      (ctorsAsP : List (List (ConstantVal × Nat))),
-      EnvWF env₁ → paramsP.length = pP.nP → (∀ x ∈ paramsP, Expr.WScoped pP.nP x) →
-      CSpecF μ env₁ fe₁
-        (fun st => dShape st p = some pP ∧ Frontend.denoteEList st params = some paramsP ∧
-          ctorsAs.mapM (dCtors st) = some ctorsAsP ∧ denoteFEnv st fe₁ = some env₁)
-        (Arena.checkBlockClasses μ fe₁ p params ctorsAs)
-        (fun st r v => dClassRead st r.1 = some v.1 ∧ r.2.mapM (dMajor st) = some v.2 ∧
-          ∀ M ∈ v.2, ConLeche.Cached.ClassMajScoped pP.nP M)
-        (ConLeche.checkBlockClasses (fueledOpsM μ) (mkFEnv env₁) env₁ pP paramsP ctorsAsP))
-    (hCS : ∀ (ctx : Arena.NestCtx) (ctxP : ConLeche.NestCtx) (holes : List EIdx)
-      (holesP : List Expr) (ms : List Arena.TargetMajor) (msP : List ConLeche.TargetMajor)
-      (fnd : ConLeche.Name → Option ConstantInfo),
-      PSpec (fun st => dCtx st fnd ctx = some ctxP ∧ Frontend.denoteEList st holes = some holesP ∧
-          ms.mapM (dMajor st) = some msP)
-        (Arena.classSeeds ctx holes ms)
-        (fun st r => r.mapM (fun k => (dKey st k.1).map (·, k.2))
-          = some (ConLeche.classSeeds ctxP holesP msP)))
+    (hCL : ClassesStageSpec μ) (hCS : SeedsStageSpec)
     {env : Env} {fe : IFEnv} {p₀ : Arena.BlockParts} {p₀P : ConLeche.BlockParts}
     {isRec : Bool} {s s' : AState} {q : Arena.BlockPass}
     (henv : EnvWF env) (hck : CheckOK μ env fe s) (hcoh : IFEnvCoh fe)
@@ -784,5 +816,121 @@ theorem checkBlockPass_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
     (dExt_denoteEList.list (x7.trans x8) _ _ hnfs)
     (denoteEList_ext (x5.trans x58) _ _ (by rw [hctxEq]; exact hparams))
     (dClassRead_ext x58 _ _ hrd) (dMajor_ext.list x58 _ _ hmsP) (dState_ctorNfs hns)
+
+
+/-! ## The uniform route's entry -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:140-148 checkBlock
+con-leche: ConLeche/Verify/Cached/GenRecC.lean:1047 checkBlockKS_run —
+**Theorem 1 at the uniform route**, over the three `GenRec.lean` stages
+(named above): the distinct names (`nameNodup_spec`, `name_nodup_iff`), the
+flush, the pass at official's `is_rec` (`blockRawRec_spec`), the install after
+it.  `IndOut`'s `envWF` clause is `checkBlock_envWF` at the pure run, its
+`proj` the chained `ProjOut`s. -/
+theorem checkBlock_bridge_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
+    (hk : CoreSpec μ Arena.checkFuel) (hCL : ClassesStageSpec μ) (hCS : SeedsStageSpec)
+    (hGR : RecStageSpec μ)
+    {env : Env} {fe fe' : IFEnv} {s s' : AState} {block : List IConstantInfo}
+    {b : List ConstantInfo} {p₀ : Arena.BlockParts} {p₀P : ConLeche.BlockParts}
+    (hok : CheckOK μ env fe s) (henv : EnvWF env) (hcoh : IFEnvCoh fe)
+    (hden : denoteFEnv s.store fe = some env) (hb : Frontend.denoteCIList s.store block = some b)
+    (hp : dParts s.store p₀ = some p₀P)
+    (hrun : Arena.checkBlock μ fe block p₀ s = .ok (fe', s')) :
+    IndOut fe fe' s s' (fun env' => FOk (ConLeche.checkBlock (fueledOpsM μ) env b p₀P) env') := by
+  obtain ⟨shP, hsh, rfl⟩ : ∃ shP, dShape s.store p₀.shape = some shP ∧ p₀P = ⟨shP⟩ := by
+    simp only [dParts, Option.map_eq_some_iff] at hp
+    obtain ⟨shP, h1, h2⟩ := hp
+    exact ⟨shP, h1, h2.symm⟩
+  simp only [Arena.checkBlock] at hrun
+  -- the distinct names
+  have hnC := nameNodup_spec hok.state.wf _ _ (BI.dCtors_names (BlockShape.allCtors_spec hsh))
+  have hnM := nameNodup_spec hok.state.wf _ _ (BlockShape.memberNames_spec hsh)
+  by_cases hc : (!nameNodup (p₀.shape.allCtors.map (·.1.name)) ||
+      !nameNodup p₀.shape.memberNames) = true
+  · rw [if_pos hc] at hrun; exact absurd hrun (fun h => failOk h)
+  rw [if_neg hc] at hrun
+  have hnd : (shP.allCtors.map (·.1.name)).Nodup ∧ shP.memberNames.Nodup := by
+    rw [hnC, hnM] at hc
+    refine ⟨(name_nodup_iff _).1 ?_, (name_nodup_iff _).1 ?_⟩ <;> revert hc <;>
+      cases ConLeche.Name.nodup (shP.allCtors.map (·.1.name)) <;>
+      cases ConLeche.Name.nodup shP.memberNames <;> simp
+  -- the flush
+  obtain ⟨u, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨c1, i1, hs1⟩ := ReadOK.flush (μ := μ) hok.toR h1
+  have x1 : Ext s.store s₁.store := by rw [hs1]; exact Ext.refl _
+  -- official's `is_rec`
+  obtain ⟨raw, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨p2, hraw⟩ := blockRawRec_spec p₀ ⟨shP⟩ s₁ s₂ raw c1.state
+    (by simp only [dParts, dShape_ext x1 _ _ hsh, Option.map_some]) h3
+  simp only [RV] at hraw
+  subst hraw
+  have c2 := p2.toCore c1
+  have x12 := x1.trans p2.ext
+  -- the pass
+  obtain ⟨q, s₃, h5, h6⟩ := bindOk h4
+  obtain ⟨env₁, qP, i3, c3, hrel3, henv₁, hq, hT, henv₂, hMs, hFP⟩ :=
+    checkBlockPass_of (p₀P := ⟨shP⟩) hμ hk hCL hCS henv c2.ok hcoh (denoteFEnv_ext x12 hden)
+      (by simp only [dParts, dShape_ext x12 _ _ hsh, Option.map_some]) h5
+  have x3 := i3.ext
+  obtain ⟨e₁, hden₁, rfl⟩ := hrel3.denote
+  -- the install after it
+  obtain ⟨i4, hrel4⟩ := checkBlockTail_of hk hGR henv₁ c3 hrel3.coh hden₁ hq
+    (denoteCIList_ext (x12.trans x3) _ _ hb) hT henv₂ hMs h6
+  have hrel := InstRel.trans i4.ext hrel3 hrel4
+  have hFB : ∀ e, FOk (ConLeche.checkBlockTail (fueledOpsM μ) b qP) e →
+      FOk (ConLeche.checkBlock (fueledOpsM μ) env b ⟨shP⟩) e := by
+    intro e he
+    unfold ConLeche.checkBlock
+    dsimp only
+    rw [if_pos hnd]
+    exact FOk.bind hFP he
+  have hi := (i1.trans (p2.toInst.trans (i3.trans i4)))
+  obtain ⟨env', hden', hF'⟩ := hrel.denote
+  exact
+    { state := hi.state
+      ext := hi.ext
+      pins := hi.pins
+      coh := hrel.coh
+      pushed := hrel.pushed
+      visible := hrel.visible
+      denote := ⟨env', hden', hFB env' hF'⟩
+      proj := hrel.proj
+      envWF := fun env'' h'' => by
+        rw [hden'] at h''
+        obtain rfl := Option.some.inj h''
+        obtain ⟨F, hF⟩ := hFB env' hF'
+        rw [checkBlock_datF] at hF
+        exact checkBlock_envWF henv hF }
+
+
+/-! ## The three stages, discharged -/
+
+-- TEMPORARY: until `GenRec.lean` lands `checkBlockClasses_spec`, `classSeeds_spec`,
+-- `genRecCheck_spec`.
+theorem classesStage {μ : CheckMode} (hμ : μ.verifiedChecks = true)
+    (hk : CoreSpec μ Arena.checkFuel) : ClassesStageSpec μ := sorry
+
+theorem seedsStage : SeedsStageSpec := sorry
+
+theorem recStage {μ : CheckMode} (hμ : μ.verifiedChecks = true)
+    (hk : CoreSpec μ Arena.checkFuel) : RecStageSpec μ := sorry
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:140-148 checkBlock
+con-leche: ConLeche/Verify/Cached/GenRecC.lean:1047 checkBlockKS_run —
+**THEOREM 1 AT THE UNIFORM ROUTE**: an accepting run of `Arena.checkBlock`
+from a checking state at a well-formed environment's coherent index refines
+con-leche's `checkBlock` at the fueled operations, with the install's nine
+clauses (`IndOut`). -/
+theorem checkBlock_bridge {μ : CheckMode} (hμ : μ.verifiedChecks = true)
+    (hk : CoreSpec μ Arena.checkFuel)
+    {env : Env} {fe fe' : IFEnv} {s s' : AState} {block : List IConstantInfo}
+    {b : List ConstantInfo} {p₀ : Arena.BlockParts} {p₀P : ConLeche.BlockParts}
+    (hok : CheckOK μ env fe s) (henv : EnvWF env) (hcoh : IFEnvCoh fe)
+    (hden : denoteFEnv s.store fe = some env) (hb : Frontend.denoteCIList s.store block = some b)
+    (hp : dParts s.store p₀ = some p₀P)
+    (hrun : Arena.checkBlock μ fe block p₀ s = .ok (fe', s')) :
+    IndOut fe fe' s s' (fun env' => FOk (ConLeche.checkBlock (fueledOpsM μ) env b p₀P) env') :=
+  checkBlock_bridge_of hμ hk (classesStage hμ hk) seedsStage (recStage hμ hk) hok henv hcoh
+    hden hb hp hrun
 
 end ConRon.Bridge.Inductives
