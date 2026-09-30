@@ -255,8 +255,8 @@ theorem targetAbsGo_spec (names : List NIdx) (lvls : LsIdx) (holes : List EIdx)
     case const n us =>
       obtain ⟨nm, ls, rfl, hn, hl⟩ := denote_const_inv hok.wf hw hd
       obtain ⟨hnames, hlvls, hholes⟩ := hA
-      have hbeq : (us == lvls) = (ls == lvlsP) := PW.beq_lshandle_eq hok.wf hl hlvls
-      have hfi := PW.findIdx_handle_eq hok.wf hn hnames
+      have hbeq : (us == lvls) = (ls == lvlsP) := beq_lshandle_eq hok.wf hl hlvls
+      have hfi := findIdx_handle_eq hok.wf hn hnames
       simp only [ConLeche.targetAbs]
       dsimp only at h2
       rw [hbeq] at h2
@@ -268,7 +268,7 @@ theorem targetAbsGo_spec (names : List NIdx) (lvls : LsIdx) (holes : List EIdx)
         | some t =>
           rw [ht] at h2
           dsimp only at h2 ⊢
-          obtain ⟨hnone, hsome⟩ := PW.denoteEList_getElem? hholes t
+          obtain ⟨hnone, hsome⟩ := denoteEList_getElem? hholes t
           cases hg : holes[t]? with
           | none =>
             rw [hg] at h2
@@ -365,7 +365,7 @@ theorem targetAbsGo_spec (names : List NIdx) (lvls : LsIdx) (holes : List EIdx)
         obtain ⟨hsC, hrC, hmC⟩ := ih m2 lb eb _ _ (c2, m3) hsB.ok
           ⟨hA.ext hAB.ext, denote_ext hbd hAB.ext, hmB⟩ hc3
         obtain ⟨q, sd, hc4, hn4⟩ := bindOk hn3
-        obtain ⟨hsD, hq⟩ := PW.internLetEE_run hsC.ok
+        obtain ⟨hsD, hq⟩ := internLetEE_run hsC.ok
           (denote_ext hrA (hsB.ext.trans hsC.ext)) (denote_ext hrB hsC.ext) hrC hc4
         obtain ⟨y, sy, hy, hz⟩ := bindOk hn4
         obtain ⟨rfl, rfl⟩ := pureOk hy
@@ -449,7 +449,7 @@ theorem targetHoles_spec : ∀ (tys : List EIdx) (tysP : List Expr) (base : Nat)
     obtain rfl := (Option.some.inj hd).symm
     simp only [Arena.targetHoles] at hrun
     obtain ⟨v, s1, k1, z1⟩ := bindOk hrun
-    obtain ⟨p1, hv⟩ := PW.internFVarE_run hok h1 k1
+    obtain ⟨p1, hv⟩ := internFVarE_run hok h1 k1
     obtain ⟨vs, s2, k2, z2⟩ := bindOk z1
     obtain ⟨p2, hvs⟩ := ih rest (base + 1) s1 s2 vs p1.ok (denoteEList_ext p1.ext _ _ h2) k2
     obtain ⟨rfl, rfl⟩ := pureOk z2
@@ -740,7 +740,7 @@ theorem targetParamsDefEq_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         simp only [ConLeche.targetParamsDefEq]; exact FOk.pure false⟩
     | cons b bs =>
     obtain ⟨bP, bsP', hb, hbs', rfl⟩ := Core.denoteEList_cons_inv hbs
-    have hlen : pfvs.length = pfvsP.length := PW.denoteEList_length hpf
+    have hlen : pfvs.length = pfvsP.length := denoteEList_length hpf
     simp only [Arena.targetParamsDefEq] at hrun
     obtain ⟨s1, p1, z1⟩ := RC.closed4_bind_run hok.state ha hb hrun
     generalize hcl : (aP.bvarB == 0 && bP.bvarB == 0 && decide (aP.fvarB ≤ pfvs.length) &&
@@ -870,7 +870,7 @@ theorem targetClassMatch_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       obtain ⟨c3, hhs⟩ := RC.pspec_core (targetHoles_spec formerTys formerTysP pfvs.length)
         c2.ok (denoteEList_ext c12.ext _ _ hft) k3
       have c13 := c12.trans c3
-      have hlen : pfvs.length = pfvsP.length := PW.denoteEList_length hpf
+      have hlen : pfvs.length = pfvsP.length := denoteEList_length hpf
       rw [hlen] at hhs z3
       obtain ⟨c4, v, rfl, hv⟩ := targetParamsDefEq_spec fe hk henv
         (pfvsP.length + formerTysP.length) p.memberNames bl hs pfvs pP.memberNames
@@ -880,7 +880,7 @@ theorem targetClassMatch_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         ⟨⟨denoteNListE_ext c13.ext _ _ (BlockShape.memberNames_spec hsh),
             denoteLs_ext hbl c3.ext, hhs⟩,
           denoteEList_ext c13.ext _ _ hpf, denoteEList_ext c13.ext _ _ hds,
-          denoteEList_ext c13.ext _ _ heds⟩ (by rw [← PW.denoteEList_length hft]; exact z3)
+          denoteEList_ext c13.ext _ _ heds⟩ (by rw [← denoteEList_length hft]; exact z3)
       exact ⟨c13.trans c4, r, rfl, by simpa using hv⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:342-354 targetMajorNfs
@@ -1012,7 +1012,7 @@ theorem targetPiDomsWith_spec : ∀ (xs : List EIdx) (xsP : List Expr) (e : EIdx
     by_cases htg : (e.tag == ETag.forallE) = true
     · rw [if_pos htg] at hrun
       obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
-      obtain ⟨hs1, ho⟩ := PW.viewBind_run h1
+      obtain ⟨hs1, ho⟩ := viewBind_run h1
       rw [hs1] at h2
       cases o with
       | none => exact absurd h2 (fun hc => failOk hc)
@@ -1051,7 +1051,7 @@ theorem targetPiDomsWith_spec : ∀ (xs : List EIdx) (xsP : List Expr) (e : EIdx
       show _ = none
       cases eP with
       | forallE dP bP m =>
-        exact absurd (PW.tag_forallE_of_denote hok.wf hd) (by simpa using htg)
+        exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
       | _ => rfl
 
 /-! ## An outside class, typed -/
@@ -1502,7 +1502,7 @@ theorem nestedRuleSynAt_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
   obtain ⟨pins, s2, k2, z2⟩ := bindOk z1
   obtain ⟨p2, hpins⟩ := lowerList_spec k (args.take cnP) (domP.getAppArgs.take cnP) s₀ s2 pins
     hok.state (denoteEList_take hargs cnP) k2
-  have hlen : args.length = domP.getAppArgs.length := PW.denoteEList_length hargs
+  have hlen : args.length = domP.getAppArgs.length := denoteEList_length hargs
   simp only [RC.synAt]
   by_cases c1 : (args.length != cnP + k) = true
   · rw [if_pos c1] at z2
@@ -1601,7 +1601,7 @@ theorem nestedRuleSyn_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
       by_cases htg : (e.tag == ETag.forallE) = true
       · rw [if_pos htg] at z1
         obtain ⟨o, s2, k2, z2⟩ := bindOk z1
-        obtain ⟨hs2, ho⟩ := PW.viewBind_run k2
+        obtain ⟨hs2, ho⟩ := viewBind_run k2
         rw [hs2] at z2
         cases o with
         | none => exact absurd z2 (fun hc => failOk hc)
@@ -1616,7 +1616,7 @@ theorem nestedRuleSyn_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
           by_cases htc : (hd'.tag == ETag.const) = true
           · rw [if_pos htc] at z3
             obtain ⟨o2, s4, k4, z4⟩ := bindOk z3
-            obtain ⟨hs4, ho2⟩ := PW.viewConst_run k4
+            obtain ⟨hs4, ho2⟩ := viewConst_run k4
             rw [hs4] at z4
             cases o2 with
             | none => exact absurd z4 (fun hc => failOk hc)
@@ -1636,14 +1636,14 @@ theorem nestedRuleSyn_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
             cases hg : domP.getAppFn with
             | const D us =>
               rw [hg] at hhd
-              exact absurd (PW.tag_const_of_denote hok.state.wf hhd) (by simpa using htc)
+              exact absurd (tag_const_of_denote hok.state.wf hhd) (by simpa using htc)
             | _ => show _ = none; rfl
       · rw [if_neg htg] at z1
         obtain ⟨rfl, rfl⟩ := pureOk z1
         refine ⟨PStep.refl hok.state, ?_⟩
         cases x with
         | forallE dP bP m =>
-          exact absurd (PW.tag_forallE_of_denote hok.state.wf hx) (by simpa using htg)
+          exact absurd (tag_forallE_of_denote hok.state.wf hx) (by simpa using htg)
         | _ => show _ = none; rfl
   · rw [if_neg hle] at hrun
     rw [if_neg hle]
@@ -2273,7 +2273,7 @@ theorem targetK53_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       simp only [Bool.and_eq_true] at ct
       obtain ⟨ct1, ct2⟩ := ct
       obtain ⟨o1, s6, k6, z6⟩ := bindOk z5
-      obtain ⟨hs6, ho1⟩ := PW.viewConst_run k6
+      obtain ⟨hs6, ho1⟩ := viewConst_run k6
       rw [hs6] at z6
       cases o1 with
       | none => exact absurd z6 (fun hc => failOk hc)
@@ -2283,7 +2283,7 @@ theorem targetK53_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         (view_of_viewConst_tag ct1 ho1.symm) hlh
       dsimp only at z6
       obtain ⟨o2, s7, k7, z7⟩ := bindOk z6
-      obtain ⟨hs7, ho2⟩ := PW.viewConst_run k7
+      obtain ⟨hs7, ho2⟩ := viewConst_run k7
       rw [hs7] at z7
       cases o2 with
       | none => exact absurd z7 (fun hc => failOk hc)
@@ -2300,8 +2300,8 @@ theorem targetK53_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       obtain ⟨hs9, hma⟩ := getAppArgs_run c3.ok.state hmd3 k9
       rw [hs9] at z9
       have hII := beq_handle_eq c3.ok.state.wf hI' hI
-      have hll : la.length = lwP.getAppArgs.length := PW.denoteEList_length hla
-      have hml : ma.length = majDomP.getAppArgs.length := PW.denoteEList_length hma
+      have hll : la.length = lwP.getAppArgs.length := denoteEList_length hla
+      have hml : ma.length = majDomP.getAppArgs.length := denoteEList_length hma
       have hcA : (I' == I && la.length == ma.length) =
           (I'P == IP && lwP.getAppArgs.length == majDomP.getAppArgs.length) := by
         rw [hII, hll, hml]
@@ -2392,8 +2392,8 @@ theorem targetK53_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         cases hg2 : majDomP.getAppFn with
         | const I us =>
           rw [hg1] at hlh; rw [hg2] at hmh
-          exact absurd (ct (by simpa using PW.tag_const_of_denote c3.ok.state.wf hlh))
-            (by simpa using PW.tag_const_of_denote c3.ok.state.wf hmh)
+          exact absurd (ct (by simpa using tag_const_of_denote c3.ok.state.wf hlh))
+            (by simpa using tag_const_of_denote c3.ok.state.wf hmh)
         | _ => exact FOk.pure false
       | _ => exact FOk.pure false
 
@@ -2569,8 +2569,8 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
     have hrecsB := mapM_option_ext (fun x y h => dRec_ext pAB.ext x y h) _ _ hrecs
     have hgot := recShapeNames_go (RC.filter_recs (fun t => !decide (t < pP.k)) hrecsB)
     rw [← hk] at hgot
-    have hlen1 := PW.denoteNList_length hgot
-    have hlen2 := PW.denoteNList_length hwant
+    have hlen1 := denoteNList_length hgot
+    have hlen2 := denoteNList_length hwant
     have hlenF : (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs).length =
         (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs).length := by
       have := mapM_option_length (RC.filter_recs (fun t => !decide (t < pP.k)) hrecs)
@@ -2664,8 +2664,8 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
     have hrecsB := mapM_option_ext (fun x y h => dRec_ext pAB.ext x y h) _ _ hrecs
     have hgot := recShapeNames_go (RC.filter_recs (fun t => !decide (t < pP.k)) hrecsB)
     rw [← hk] at hgot
-    have hlen1 := PW.denoteNList_length hgot
-    have hlen2 := PW.denoteNList_length hwant
+    have hlen1 := denoteNList_length hgot
+    have hlen2 := denoteNList_length hwant
     have hlenF : (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs).length =
         (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs).length := by
       have := mapM_option_length (RC.filter_recs (fun t => !decide (t < pP.k)) hrecs)
@@ -2813,7 +2813,7 @@ theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   case neg => rw [if_neg ct] at z2; exact absurd z2 (fun hc => failOk hc)
   rw [if_pos ct] at z2
   obtain ⟨o, s3, k3, z3⟩ := bindOk z2
-  obtain ⟨hs3, ho⟩ := PW.viewConst_run k3
+  obtain ⟨hs3, ho⟩ := viewConst_run k3
   rw [hs3] at z3
   cases o with
   | none => exact absurd z3 (fun hc => failOk hc)
@@ -2823,7 +2823,7 @@ theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (view_of_viewConst_tag ct ho.symm) hhd
   dsimp only at z3
   simp only [ConLeche.targetMajorOf, hg]
-  have hfi := PW.findIdx_handle_eq hok.state.wf hI (BlockShape.memberNames_spec hsh)
+  have hfi := findIdx_handle_eq hok.state.wf hI (BlockShape.memberNames_spec hsh)
   rw [hfi] at z3
   cases hft : pP.memberNames.findIdx? (· == IP) with
   | some t =>
@@ -2845,7 +2845,7 @@ theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     obtain ⟨bl, s6, k6, z6⟩ := bindOk z5
     obtain ⟨p6, hbl⟩ := paramLevels_spec p.lps pP.lps s₀ s6 bl hok.state
       (BlockShape.lps_spec hsh) k6
-    have hb1 := PW.beq_lshandle_eq p6.ok.wf (denoteLs_ext hus p6.ext) hbl
+    have hb1 := beq_lshandle_eq p6.ok.wf (denoteLs_ext hus p6.ext) hbl
     have hb2 := beq_ehandleList_eq p6.ok.wf
       (denoteEList_take (denoteEList_ext p6.ext _ _ hargs) p.nP)
       (denoteEList_take (denoteEList_ext p6.ext _ _ hfv) p.nP)
@@ -2890,7 +2890,7 @@ theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     have c5 := p5.toCore hok
     have hds := denoteEList_take (denoteEList_ext p5.ext _ _ hargs) nPc
     have hlen : (List.take nPc args).length = (List.take nPc mtyP.getAppArgs).length :=
-      PW.denoteEList_length hds
+      denoteEList_length hds
     by_cases cl : ((List.take nPc args).length != nPc) = true
     · rw [if_pos cl] at z5; exact absurd z5 (fun hc => failOk hc)
     rw [if_neg cl] at z5

@@ -294,10 +294,10 @@ theorem piDomsMentionAny_spec (names : List NIdx) (namesP : List ConLeche.Name) 
     by_cases htg : (e.tag == ETag.forallE) = true
     · rw [if_pos htg] at hrun
       obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
-      obtain ⟨hs1, ho⟩ := PW.viewBind_run h1
+      obtain ⟨hs1, ho⟩ := viewBind_run h1
       rw [hs1] at h2
       cases o with
-      | none => exact absurd h2 (fun hc => PW.failDanglingE_ok hc)
+      | none => exact absurd h2 (fun hc => failDanglingE_ok hc)
       | some q =>
         obtain ⟨d, b, m⟩ := q
         have hw := view_of_viewBind_tag_forallE htg ho.symm
@@ -322,7 +322,7 @@ theorem piDomsMentionAny_spec (names : List NIdx) (namesP : List ConLeche.Name) 
       refine ⟨PStep.refl hok, ?_⟩
       show false = Expr.piDomsMentionAny namesP eP
       cases eP with
-      | forallE d b m => exact absurd (PW.tag_forallE_of_denote hok.wf hd) (by simpa using htg)
+      | forallE d b m => exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
       | _ => rfl
 
 /-- con-leche: none — `List.anyM` at the pure frame, over a denoted list, the
@@ -629,8 +629,8 @@ theorem checkBlockAgree_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
     obtain ⟨fvs1, b1⟩ := tq
     obtain ⟨xs1, x1, hq1, hxs1, -⟩ := denoteOpen_some_inv ho1
     have hxs0' := denoteEList_ext p3.ext _ _ hxs0
-    have hl0 := PW.denoteEList_length hxs0'
-    have hl1 := PW.denoteEList_length hxs1
+    have hl0 := denoteEList_length hxs0'
+    have hl1 := denoteEList_length hxs1
     dsimp only at z4
     by_cases hlen : (fvs1.length == fvs0.length) = true
     · rw [if_pos hlen] at z4
@@ -994,7 +994,7 @@ theorem checkAbsCtorSorts_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
     have hsort' : denoteL s₀.store.ls ctx.sort = some ctxP.sort := by rw [hceq]; exact hsort
     have hhi : ctx.hiAt 0 = ctxP.hiAt 0 := by
       rw [hceq]
-      simp [Arena.NestCtx.hiAt, ConLeche.NestCtx.hiAt, PW.denoteNList_length hn]
+      simp [Arena.NestCtx.hiAt, ConLeche.NestCtx.hiAt, denoteNList_length hn]
     simp only [Arena.checkAbsCtorSorts] at hrun
     obtain ⟨b, s₁, k1, z1⟩ := bindOk hrun
     obtain ⟨h1s, h1c, h1p, hb⟩ := allLevelParamsDefined_run hok.state hl' htyN k1

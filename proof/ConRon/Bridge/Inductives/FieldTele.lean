@@ -21,30 +21,32 @@ import ConRon.Bridge.Inductives.PosWalks
 namespace ConRon.Bridge.Inductives
 
 
-open ConLeche ConRon.Arena ConRon.Bridge PW
+open ConLeche ConRon.Arena ConRon.Bridge
 
 /-- con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:45-52 Expr.piBinders —
-all leading `∀` binders and the body; the twin's fuel is invisible under
-partial correctness (exhaustion fails). -/
-theorem piBinders_spec : ∀ (fuel : Nat) (h : EIdx) (hP : Expr),
-    PSpec (fun st => denoteE st h = some hP)
-      (Arena.piBinders fuel h)
-      (fun st r => denoteBinders st r.1 = some (Expr.piBinders hP).1 ∧
-        denoteE st r.2 = some (Expr.piBinders hP).2) := by
+the twin's telescope reader, as a run: read-only, the binders and the body
+denote con-leche's; the twin's fuel is invisible under partial correctness
+(exhaustion fails). -/
+theorem piBinders_run : ∀ (fuel : Nat) {h : EIdx} {hP : Expr} {s₀ s' : AState}
+    {r : List (EIdx × BinderMeta) × EIdx},
+    StateOK s₀ → denoteE s₀.store h = some hP →
+    Arena.piBinders fuel h s₀ = .ok (r, s') →
+    s' = s₀ ∧ denoteBinders s₀.store r.1 = some hP.piBinders.1 ∧
+      denoteE s₀.store r.2 = some hP.piBinders.2 := by
   intro fuel
   induction fuel with
   | zero =>
-    intro h hP s₀ s' r hok hd hrun
+    intro h hP s₀ s' r _ _ hrun
     simp only [Arena.piBinders] at hrun
     exact absurd hrun (fun hc => failOk hc)
-  | succ fuel ih =>
+  | succ n ih =>
     intro h hP s₀ s' r hok hd hrun
     simp only [Arena.piBinders] at hrun
     by_cases htg : (h.tag == ETag.forallE) = true
     · rw [if_pos htg] at hrun
       obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
       obtain ⟨hs1, ho⟩ := viewBind_run h1
-      rw [hs1] at h2
+      subst hs1
       cases o with
       | none => exact absurd h2 (fun hc => failDanglingE_ok hc)
       | some p =>
@@ -53,20 +55,27 @@ theorem piBinders_spec : ∀ (fuel : Nat) (h : EIdx) (hP : Expr),
         obtain ⟨dP, bP, rfl, hdd, hbd⟩ := denote_forallE_inv hok.wf hw hd
         dsimp only at h2
         obtain ⟨q, s₂, h3, h4⟩ := bindOk h2
-        obtain ⟨hstep, hq1, hq2⟩ := ih b bP s₀ s₂ q hok hbd h3
+        obtain ⟨rfl, hq1, hq2⟩ := ih hok hbd h3
         obtain ⟨rfl, rfl⟩ := pureOk h4
-        refine ⟨hstep, ?_, ?_⟩
-        · simp only [Expr.piBinders, denoteBinders, denote_ext hdd hstep.ext, hq1]
-        · simpa only [Expr.piBinders] using hq2
+        refine ⟨rfl, ?_, hq2⟩
+        simp [denoteBinders, hdd, hq1, Expr.piBinders]
     · rw [if_neg htg] at hrun
       obtain ⟨rfl, rfl⟩ := pureOk hrun
-      refine ⟨PStep.refl hok, ?_, ?_⟩
-      · cases hP with
-        | forallE d b m => exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
-        | _ => rfl
-      · cases hP with
-        | forallE d b m => exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
-        | _ => exact hd
+      refine ⟨rfl, ?_⟩
+      cases hP with
+      | forallE d b m => exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
+      | _ => exact ⟨rfl, hd⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:45-52 Expr.piBinders —
+all leading `∀` binders and the body, as a `PSpec`. -/
+theorem piBinders_spec (fuel : Nat) (h : EIdx) (hP : Expr) :
+    PSpec (fun st => denoteE st h = some hP)
+      (Arena.piBinders fuel h)
+      (fun st r => denoteBinders st r.1 = some (Expr.piBinders hP).1 ∧
+        denoteE st r.2 = some (Expr.piBinders hP).2) := by
+  intro s₀ s' r hok hd hrun
+  obtain ⟨rfl, h1, h2⟩ := piBinders_run fuel hok hd hrun
+  exact ⟨PStep.refl hok, h1, h2⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:211-219 closeTelescope
 Close a body under a telescope, abstracting the free variables as it goes.

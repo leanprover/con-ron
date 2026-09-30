@@ -54,7 +54,7 @@ namespace ConRon.Bridge.Inductives
 set_option autoImplicit false
 set_option mvcgen.warning false
 
-open ConLeche ConRon.Arena ConRon.Bridge PW
+open ConLeche ConRon.Arena ConRon.Bridge
 
 /-! ## The generator's records, denoted -/
 
@@ -306,7 +306,7 @@ theorem exprGetD_spec (xs : List EIdx) (xsP : List Expr) (i : Nat) :
       (RE (xsP.getD i default)) := by
   intro s₀ s' r hok hxs hrun
   simp only [Arena.exprGetD] at hrun
-  obtain ⟨hj1, hj2⟩ := PW.denoteEList_getElem? hxs i
+  obtain ⟨hj1, hj2⟩ := denoteEList_getElem? hxs i
   rw [List.getD_eq_getElem?_getD]
   cases hc : xs[i]? with
   | none =>
@@ -420,7 +420,7 @@ theorem ClassGen.major_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c d :
     have p13 := p1.trans (p2.trans p3)
     dsimp only at z3
     obtain ⟨o2, s4, k4, z4⟩ := bindOk z3
-    obtain ⟨p4, ho2⟩ := CR.openPisAtFvarsF_run p3.ok htyd k4
+    obtain ⟨p4, ho2⟩ := openPisAtFvarsF_run p3.ok htyd k4
     simp only [hty, Option.bind_eq_bind, Option.bind_some]
     rw [hnIdx] at ho2
     cases o2 with
@@ -432,7 +432,7 @@ theorem ClassGen.major_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c d :
       rw [hn]; rfl
     | some q =>
       obtain ⟨ifs, body⟩ := q
-      obtain ⟨ifsP, bodyP, hq, hifs, -⟩ := CR.denoteOpen_some_inv ho2
+      obtain ⟨ifsP, bodyP, hq, hifs, -⟩ := denoteOpen_some_inv ho2
       dsimp only at z4
       obtain ⟨hd, s5, k5, z5⟩ := bindOk z4
       have p14 := p13.trans p4
@@ -498,7 +498,7 @@ theorem ClassGen.ihParts_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (t t
   have hcls := (dClassGen_inv hg).2.2.1
   simp only [Arena.ClassGen.ihParts] at hrun
   obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
-  obtain ⟨p1, ho⟩ := CR.openPisAtFvarsF_run hok hw k1
+  obtain ⟨p1, ho⟩ := openPisAtFvarsF_run hok hw k1
   simp only [ConLeche.ClassGen.ihParts]
   cases o with
   | none =>
@@ -509,7 +509,7 @@ theorem ClassGen.ihParts_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (t t
     rw [hn]; rfl
   | some q =>
     obtain ⟨xs, leaf⟩ := q
-    obtain ⟨xsP, leafP, hq, hxs, hleaf⟩ := CR.denoteOpen_some_inv ho
+    obtain ⟨xsP, leafP, hq, hxs, hleaf⟩ := denoteOpen_some_inv ho
     simp only [hq, Option.bind_eq_bind, Option.bind_some]
     dsimp only at z1
     obtain ⟨args, s2, k2, z2⟩ := bindOk z1
@@ -708,7 +708,7 @@ theorem ClassGen.minorTy_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c :
   obtain ⟨ci, s1, k1, z1⟩ := bindOk hrun
   obtain ⟨p1, hci⟩ := targetMajorAt_spec g.cls gP.cls c s₀ s1 ci hok hp hcls k1
   obtain ⟨o, s2, k2, z2⟩ := bindOk z1
-  obtain ⟨p2, ho⟩ := CR.openPisAtFvarsF_run p1.ok (denote_ext htyD p1.ext) k2
+  obtain ⟨p2, ho⟩ := openPisAtFvarsF_run p1.ok (denote_ext htyD p1.ext) k2
   have p12 := p1.trans p2
   simp only [ConLeche.ClassGen.minorTy]
   rw [hnF] at ho
@@ -721,7 +721,7 @@ theorem ClassGen.minorTy_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c :
     simp only [hn, Option.bind_eq_bind, Option.bind_none]
   | some q =>
     obtain ⟨fvs, res⟩ := q
-    obtain ⟨fvsP, resP, hq, hfvs, hres⟩ := CR.denoteOpen_some_inv ho
+    obtain ⟨fvsP, resP, hq, hfvs, hres⟩ := denoteOpen_some_inv ho
     simp only [hq, Option.bind_eq_bind, Option.bind_some]
     dsimp only at z2
     obtain ⟨o2, s3, k3, z3⟩ := bindOk z2
@@ -1073,7 +1073,7 @@ theorem classGenRecTy_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c : Na
     obtain ⟨⟨ifsP, majP⟩, hq, hifs, hmaj⟩ := ho
     simp only [hq, Option.bind_eq_bind, Option.bind_some]
     dsimp only at z1
-    have hil : ifs.length = ifsP.length := PW.denoteEList_length hifs
+    have hil : ifs.length = ifsP.length := denoteEList_length hifs
     obtain ⟨t, s2, k2, z2⟩ := bindOk z1
     obtain ⟨p2, ht⟩ := internE_run p1.ok (viewOK_fvar (by rw [hmaj]; rfl)) k2
     have ht' : denoteE s2.store t = some (.fvar (gP.pre.length + ifsP.length) majP) := by
@@ -1406,7 +1406,7 @@ theorem classGenRule_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
     simp only [Option.bind_eq_bind, Option.bind_some]
     dsimp only at hrun
     obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
-    obtain ⟨p1, ho⟩ := CR.openPisAtFvarsF_run hok htyD k1
+    obtain ⟨p1, ho⟩ := openPisAtFvarsF_run hok htyD k1
     rw [hnF, hlen] at ho
     cases o with
     | none =>
@@ -1417,7 +1417,7 @@ theorem classGenRule_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
       simp only [hn, Option.bind_none]
     | some q =>
       obtain ⟨fvs, res⟩ := q
-      obtain ⟨fvsP, resP, hq, hfvs, -⟩ := CR.denoteOpen_some_inv ho
+      obtain ⟨fvsP, resP, hq, hfvs, -⟩ := denoteOpen_some_inv ho
       simp only [hq, Option.bind_some]
       dsimp only at z1
       obtain ⟨o2, s2, k2, z2⟩ := bindOk z1
@@ -1673,7 +1673,7 @@ theorem classLeafAt_spec (m : Arena.TargetMajor) (mP : ConLeche.TargetMajor) (le
   by_cases ct : (hd.tag == ETag.const) = true
   · rw [if_pos ct] at z1
     obtain ⟨o, s2, k2, z2⟩ := bindOk z1
-    obtain ⟨rfl, ho⟩ := PW.viewConst_run k2
+    obtain ⟨rfl, ho⟩ := viewConst_run k2
     cases o with
     | none => exact absurd z2 (fun hc => failDanglingE_ok hc)
     | some t0 =>
@@ -1748,7 +1748,7 @@ theorem classNodesAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       ⟨hfvs, hety⟩ k1
     have c1 := p1.toCore hok
     have hdoms := ROp_REL_getD ho
-    obtain ⟨hj1, hj2⟩ := PW.denoteEList_getElem? hdoms i
+    obtain ⟨hj1, hj2⟩ := denoteEList_getElem? hdoms i
     generalize hD : (o.getD [])[i]? = D at z1
     cases D with
     | none =>
@@ -1920,13 +1920,13 @@ theorem classCtorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     obtain ⟨slot, ihs⟩ := sl
     dsimp only at z2
     obtain ⟨o, s3, k3, z3⟩ := bindOk z2
-    obtain ⟨p3, ho⟩ := CR.openPisAtFvarsF_run p2.ok (denote_ext he0ty p2.ext) k3
+    obtain ⟨p3, ho⟩ := openPisAtFvarsF_run p2.ok (denote_ext he0ty p2.ext) k3
     rw [hnP, hk'] at ho
     cases o with
     | none => exact absurd z3 (fun hc => failOk hc)
     | some q =>
       obtain ⟨fvs, body⟩ := q
-      obtain ⟨fvsP, bodyP, hq, hfvs, -⟩ := CR.denoteOpen_some_inv ho
+      obtain ⟨fvsP, bodyP, hq, hfvs, -⟩ := denoteOpen_some_inv ho
       dsimp only at z3
       have p13 := p1.trans (p2.trans p3)
       obtain ⟨kinds, s4, k4, z4⟩ := bindOk z3
@@ -2370,7 +2370,7 @@ theorem classConstOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   obtain ⟨hres, r3⟩ := AM.dguard_ok AM.Never.fail_any r2
   replace r3 := AM.pure_bind_ok r3
   have hresP : ConLeche.reservedBasisNames.contains cP.name = false := by
-    rw [← PW.contains_handle_eq p2.ok.wf (denoteN_ext hnm p2.ext) hrs]
+    rw [← contains_handle_eq p2.ok.wf (denoteN_ext hnm p2.ext) hrs]
     cases hb : rs.contains cv.name with
     | false => rfl
     | true => rw [hb] at hres; exact absurd rfl hres

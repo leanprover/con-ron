@@ -39,7 +39,7 @@ namespace ConRon.Bridge.Inductives
 
 set_option autoImplicit false
 
-open ConLeche ConRon.Arena ConRon.Bridge PW
+open ConLeche ConRon.Arena ConRon.Bridge
 
 /-! ## Small run forms -/
 
@@ -709,7 +709,7 @@ theorem nestInstType_spec {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
   rw [Core.viewLen_of_denoteLs hlv] at hnl
   subst hnl
   dsimp only at h4
-  have hlenC := PW.denoteNList_length hlpsC
+  have hlenC := denoteNList_length hlpsC
   by_cases hlen : (keyP.lvls.length != cv0.levelParams.length) = true
   · rw [if_pos hlen] at h4; exact absurd h4 (fun hc => failOk hc)
   rw [if_neg hlen] at h4
@@ -722,7 +722,7 @@ theorem nestInstType_spec {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP)
   | none => exact absurd h6 (fun hc => failOk hc)
   | some q =>
   obtain ⟨xs, x, hsp, -, -⟩ := denoteBP_some hbp
-  rw [PW.denoteEList_length hds] at hsp
+  rw [denoteEList_length hds] at hsp
   dsimp only at h6
   obtain ⟨tl, s₄, h7, h8⟩ := bindOk h6
   obtain ⟨c4, htl⟩ := instLPFast_cstep hok hlpsC hlv htyC h7
@@ -952,7 +952,7 @@ theorem nestCrest_spec (names : List NIdx) (namesP : List ConLeche.Name)
   obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
   obtain ⟨p1, ho⟩ := nestCanonCrest_spec names namesP us usP ds.length cty ctyP s₀ s₁ o hok
     hpins ⟨hN, hU, hC⟩ h1
-  rw [PW.denoteEList_length hD] at ho
+  rw [denoteEList_length hD] at ho
   simp only [ConLeche.nestCrest]
   cases o with
   | none =>
@@ -2091,7 +2091,7 @@ theorem nestCont_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
   obtain ⟨qP, hqP, hq1, -⟩ := ho
   dsimp only at h2 hq1
   subst hq1
-  have hlenA := PW.denoteEList_length hargs'
+  have hlenA := denoteEList_length hargs'
   by_cases hl : args.length < qP.1
   · rw [if_pos hl] at h2; exact absurd h2 (fun hc => failOk hc)
   rw [if_neg hl] at h2
@@ -2349,8 +2349,8 @@ theorem nestPos_succ (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
         ⟨c2.ok.ienv.toS.mono p6.ext, denoteN_ext hkc p6.ext⟩ h13
       simp only [RV] at har
       subst har
-      have hlen1 := PW.denoteEList_length hargs
-      have hlen2 := PW.denoteEList_length hkd
+      have hlen1 := denoteEList_length hargs
+      have hlen2 := denoteEList_length hkd
       rw [hlen1, hlen2] at h14
       by_cases hL : (wP.getAppArgs.length + kP.ds.length ==
           ConLeche.nestArity ctxP kP.cname) = true

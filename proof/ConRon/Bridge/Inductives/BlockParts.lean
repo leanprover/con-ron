@@ -469,7 +469,7 @@ theorem recTargetOf_spec (names : List NIdx) (namesP : List ConLeche.Name) (mI :
       (Arena.recTargetOf names mI ty) (RV (ConLeche.recTargetOf namesP mI tyP)) := by
   intro s₀ s' r hok hp hrun
   obtain ⟨hN, hd⟩ := hp
-  have hlen := PW.denoteNList_length hN
+  have hlen := denoteNList_length hN
   simp only [Arena.recTargetOf] at hrun
   obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
   obtain ⟨rfl, hbp⟩ := stripPis_pstep hok hd h1
@@ -486,9 +486,9 @@ theorem recTargetOf_spec (names : List NIdx) (namesP : List ConLeche.Name) (mI :
     by_cases htg : (e.tag == ETag.forallE) = true
     · rw [if_pos htg] at h2
       obtain ⟨o, s₂, h3, h4⟩ := bindOk h2
-      obtain ⟨rfl, ho⟩ := PW.viewBind_run h3
+      obtain ⟨rfl, ho⟩ := viewBind_run h3
       cases o with
-      | none => exact absurd h4 (fun hc => PW.failDanglingE_ok hc)
+      | none => exact absurd h4 (fun hc => failDanglingE_ok hc)
       | some p =>
         obtain ⟨d, b, m⟩ := p
         have hw := view_of_viewBind_tag_forallE htg ho.symm
@@ -499,15 +499,15 @@ theorem recTargetOf_spec (names : List NIdx) (namesP : List ConLeche.Name) (mI :
         by_cases htc : (hh.tag == ETag.const) = true
         · rw [if_pos htc] at h6
           obtain ⟨o, s₄, h7, h8⟩ := bindOk h6
-          obtain ⟨rfl, ho2⟩ := PW.viewConst_run h7
+          obtain ⟨rfl, ho2⟩ := viewConst_run h7
           cases o with
-          | none => exact absurd h8 (fun hc => PW.failDanglingE_ok hc)
+          | none => exact absurd h8 (fun hc => failDanglingE_ok hc)
           | some p =>
             obtain ⟨n, us⟩ := p
             have hw2 := view_of_viewConst_tag htc ho2.symm
             obtain ⟨nm, ls, hc, hn, -⟩ := denote_const_inv hok.wf hw2 hhd
             dsimp only at h8
-            have hf := PW.findIdx_handle_eq hok.wf hn hN
+            have hf := findIdx_handle_eq hok.wf hn hN
             cases hfi : names.findIdx? (· == n) with
             | none =>
               rw [hfi] at h8
@@ -533,7 +533,7 @@ theorem recTargetOf_spec (names : List NIdx) (namesP : List ConLeche.Name) (mI :
           rw [hlen]
           generalize hg : dP.getAppFn = g at hhd
           cases g with
-          | const c us => exact absurd (PW.tag_const_of_denote hok.wf hhd) (by simpa using htc)
+          | const c us => exact absurd (tag_const_of_denote hok.wf hhd) (by simpa using htc)
           | _ => rfl
     · rw [if_neg htg] at h2
       obtain ⟨rfl, rfl⟩ := pureOk h2
@@ -542,7 +542,7 @@ theorem recTargetOf_spec (names : List NIdx) (namesP : List ConLeche.Name) (mI :
       simp only [ConLeche.recTargetOf, hsp]
       rw [hlen]
       cases x with
-      | forallE d b m => exact absurd (PW.tag_forallE_of_denote hok.wf hx) (by simpa using htg)
+      | forallE d b m => exact absurd (tag_forallE_of_denote hok.wf hx) (by simpa using htg)
       | _ => rfl
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:273-299 blockCounts?
@@ -901,7 +901,7 @@ theorem all_contains_eq {st : EStore} (hwf : StoreWF st) {bs : List NIdx}
       | some xs =>
         rw [ha, has] at h
         obtain rfl := Option.some.inj h
-        simp only [List.all_cons, PW.contains_handle_eq hwf ha hb, ih has]
+        simp only [List.all_cons, contains_handle_eq hwf ha hb, ih has]
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:335-357 blockRecNameSetOk
 The recursor names as a SET.  The twin takes the members and the recursors
@@ -921,7 +921,7 @@ theorem blockRecNameSetOk_spec (members : List Arena.MemberShape) (recs : List A
   refine ⟨p1, ?_⟩
   have hg := recShapeNames_go (mapM_option_ext (fun x y h => dRec_ext p1.ext x y h) _ _ hrs)
   simp only [RV, ConLeche.blockRecNameSetOk]
-  rw [PW.denoteNList_length hg, PW.denoteNList_length hw, all_contains_eq p1.ok.wf hg hw,
+  rw [denoteNList_length hg, denoteNList_length hw, all_contains_eq p1.ok.wf hg hw,
     all_contains_eq p1.ok.wf hw hg]
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:449-454 litGuardNames — the ten
