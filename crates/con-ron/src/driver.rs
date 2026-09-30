@@ -67,8 +67,6 @@
 //! order.
 
 use std::io::Read;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 use std::time::Instant;
 
@@ -84,7 +82,6 @@ use con_ron_core::arena::store::EStore;
 use con_ron_core::frontend::export_c;
 use con_ron_core::frontend::export_c::ChunkSource;
 use con_ron_core::frontend::export_c::ParseResultD;
-use con_ron_core::frontend::types::Modeller;
 
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
@@ -433,8 +430,7 @@ pub trait PhaseObserver {
     /// reports the lane the run actually took.
     fn phase_b_workers(&mut self, _workers: usize) {}
 
-    /// con-leche: Main.lean:239-261 checkOne
-    /// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove driver::wants_check_lines_refines, then delete this line
+    /// con-leche: Main.lean:245-266 checkOne
     /// Does this observer print a line per check?  The driver asks ONCE, before
     /// the pool spawns: off, no worker touches the completed-count atomic or the
     /// observer lock at all, which is the difference between a plain pooled
@@ -475,27 +471,35 @@ impl InstallHook for Silent {
 }
 
 /// con-leche: Main.lean:136-151 checkHeartbeat
+/// con-leche: Main.lean:245-266 checkOne
 /// The heartbeat's line after phase B's `k`-th record, on the worker that
 /// checked it: `parallel_all`'s `after` hook.  `heartbeat` is the port's
 /// spelling of the cited `stride > 0` guard inside `checkOne`: off, no worker
-/// touches the `done` counter or the observer lock at all.  It holds the
-/// worker's state by `&` only.
-#[allow(clippy::too_many_arguments)]
+/// touches the counter or the observer lock at all.
+///
+/// **The bump and its line are ONE critical section** (con-leche task
+/// absorbed by #105's `uniform-inds` merge, Main.lean's own note on
+/// `checkOne`/`checkPool`): the completed-count and the observer share one
+/// `Mutex`, so a worker cannot be descheduled between incrementing the count
+/// and printing it — which used to let a later count's line overtake its own
+/// (`check 1, 3, 2`, measured under load) when the two were a separate
+/// atomic and a separate lock.  Under the one lock the lines leave in count
+/// order, whatever the scheduling.
 fn check_line<O: PhaseObserver>(
     heartbeat: bool,
-    done: &AtomicUsize,
-    obs: &Mutex<&mut O>,
+    lock: &Mutex<(usize, &mut O)>,
     tier: &PersTier,
     w: &AState,
     m: usize,
     pc: &PendingCheck,
 ) {
     if heartbeat {
-        let n = done.fetch_add(1, Ordering::Relaxed) + 1;
         // A poisoned lock means another worker panicked while printing; the
         // panic is the report and this line is dropped.
-        if let Ok(mut g) = obs.lock() {
-            g.check_after(tier, &w.store, n, m, pc);
+        if let Ok(mut g) = lock.lock() {
+            g.0 += 1;
+            let n = g.0;
+            g.1.check_after(tier, &w.store, n, m, pc);
         }
     }
 }
@@ -587,18 +591,17 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
     // verdict and the record a rejection names are the one-worker walk's at
     // every `--jobs` (the least failing index).  (ConRon.Capstone: h8)
     let heartbeat = obs.wants_check_lines();
-    let lock = Mutex::new(obs);
-    let done = AtomicUsize::new(0);
+    let lock: Mutex<(usize, &mut O)> = Mutex::new((0, obs));
     let r = parallel_all(
         m,
         workers,
         || checker::worker_state(&st.pins),
         |w: &mut AState, k| checker::check_pending(&tier, w, mode, &fe, &pend[k]),
-        |w: &AState, k| check_line(heartbeat, &done, &lock, &tier, w, m, &pend[k]),
+        |w: &AState, k| check_line(heartbeat, &lock, &tier, w, m, &pend[k]),
     );
     let obs: &mut O = match lock.into_inner() {
-        Ok(o) => o,
-        Err(e) => e.into_inner(),
+        Ok((_, o)) => o,
+        Err(e) => e.into_inner().1,
     };
     // AND THE TIER GOES BACK.  Everything after the fold — the verdict line's
     // declaration label, the failing record's name, the receipts — reads a
@@ -658,8 +661,7 @@ pub struct Heartbeat {
 /// The heartbeat's own lines: the parse's, and the closing summary the failure
 /// and success arms share.
 impl Heartbeat {
-    /// con-leche: Main.lean:462-648 checkMain
-    /// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove driver::new_refines, then delete this line
+    /// con-leche: Main.lean:492-649 checkMain
     /// A heartbeat at `stride` (0 for none), starting now.
     pub fn new(stride: u64, t0: Instant) -> Heartbeat {
         Heartbeat {
@@ -676,15 +678,13 @@ impl Heartbeat {
         self.t0.elapsed().as_millis()
     }
 
-    /// con-leche: Main.lean:462-648 checkMain
-    /// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove driver::parse_done_refines, then delete this line
+    /// con-leche: Main.lean:492-649 checkMain
     /// `con-ron: parse done: …`, the heartbeat's first line.  Records
     /// `t_parse`, so the summary can price the parse whatever happens next.
     pub fn parse_done(
         &mut self,
         fold_records: usize,
         file_records: usize,
-        gen_records: u64,
         synthesised: u64,
         nodes: (usize, usize, usize),
     ) {
@@ -693,12 +693,11 @@ impl Heartbeat {
             return;
         }
         eprintln!(
-            "con-ron: parse done: {} fold records — the file's {} ({} of them \
-             generated in-process), {} built-in prelude records synthesised; store \
-             {} expression, {} level, {} name nodes t={}s (parse {}s)",
+            "con-ron: parse done: {} fold records — the file's {}, {} built-in \
+             prelude records synthesised; store {} expression, {} level, {} name \
+             nodes t={}s (parse {}s)",
             fold_records,
             file_records,
-            gen_records,
             synthesised,
             nodes.0,
             nodes.1,
@@ -809,8 +808,7 @@ impl PhaseObserver for Heartbeat {
         self.workers = workers;
     }
 
-    /// con-leche: Main.lean:239-261 checkOne
-    /// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove driver::wants_check_lines_refines, then delete this line
+    /// con-leche: Main.lean:245-266 checkOne
     /// The heartbeat prints a check line exactly when it has a stride.
     fn wants_check_lines(&self) -> bool {
         self.stride > 0
@@ -874,14 +872,13 @@ impl PhaseObserver for Heartbeat {
 // The verdict lines
 // ---------------------------------------------------------------------------
 
-/// con-leche: Main.lean:462-648 checkMain
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove driver::verdict_accept_refines, then delete this line
+/// con-leche: Main.lean:492-649 checkMain
 /// **The accept line**, `crate::driver::verdict_accept`'s with this
 /// binary's name: `records` is the FILE's declaration-record count — what the
-/// parse produced, less the records the in-process modeller generated — and
-/// nothing the preparation does moves it.  It is not the environment's
-/// constant count, which is a property of the representation and not of the
-/// input.  Printed on STDOUT, where a caller greps for a verdict.
+/// parse produced — and nothing the preparation does moves it.  It is not the
+/// environment's constant count, which is a property of the representation
+/// and not of the input.  Printed on STDOUT, where a caller greps for a
+/// verdict.
 pub fn verdict_accept(records: u64, mode_tag: &str) -> u8 {
     println!(
         "con-ron: accepted {} declarations ({})",
@@ -890,40 +887,29 @@ pub fn verdict_accept(records: u64, mode_tag: &str) -> u8 {
     0
 }
 
-/// con-leche: Main.lean:462-648 checkMain
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove driver::verdict_failure_refines, then delete this line
+/// con-leche: Main.lean:492-649 checkMain
 /// The failure line: the error, the declaration it names and its FOLD
 /// position, the mode, the elapsed time.  There is no second pass — the fold's
 /// error carries the position, so the label is read off the record array the
 /// driver already holds.
 ///
 /// `i` is the fold position and is NOT the file's record index (the prepared
-/// list starts with the prelude's records and carries the ones the in-process
-/// modeller generated); the declaration NAME on the line is the portable
-/// handle.  `owner` is the inductive block a generated `_model` record belongs
-/// to, where the caller can say.
+/// list starts with the prelude's records); the declaration NAME on the line
+/// is the portable handle.  con-leche's own generated-`_model`-record owner
+/// naming is gone with the modeller (task #105).
 pub fn verdict_failure(
     pers: &PersTier,
     ar: &EStore,
     ds: &Vec<IDeclaration>,
     e: &CheckError,
     i: u64,
-    owner: Option<String>,
     mode_tag: &str,
     t0: Instant,
 ) -> u8 {
     let code = exit_code(e);
     let loc = match ds.get(i as usize) {
         None => format!(" [at fold position {}]", i),
-        Some(d) => match owner {
-            Some(t) => format!(
-                " [at {}, a generated model record of inductive {}, fold position {}]",
-                decl_label(pers, ar, d),
-                t,
-                i
-            ),
-            None => format!(" [at {}, fold position {}]", decl_label(pers, ar, d), i),
-        },
+        Some(d) => format!(" [at {}, fold position {}]", decl_label(pers, ar, d), i),
     };
     eprintln!(
         "con-ron: {}: {}{} ({}) t={}s",
@@ -946,8 +932,7 @@ pub fn verdict_failure(
 // theorem about its bytes.
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:623-649 parseExportHandleD
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove driver::HandleSource_refines, then delete this line
+/// con-leche: ConLeche/Frontend/ExportC.lean:638-651 parseExportHandleD
 /// **The file handle as the parse's `ChunkSource`**: each `next_chunk` is one
 /// `read_up_to` of `chunk` bytes, strictly forward, handed over whole; the
 /// first empty read is the end of the input.  A failed read ends the input
@@ -965,11 +950,9 @@ pub struct HandleSource<'a, R: Read> {
     pub err: Option<std::io::Error>,
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:623-649 parseExportHandleD
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove driver::impl<'a, R: Read> ChunkSource for HandleSource<'a, R>_refines, then delete this line
+/// con-leche: ConLeche/Frontend/ExportC.lean:638-651 parseExportHandleD
 impl<'a, R: Read> ChunkSource for HandleSource<'a, R> {
-    /// con-leche: ConLeche/Frontend/ExportC.lean:623-649 parseExportHandleD
-    /// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove driver::next_chunk_refines, then delete this line
+    /// con-leche: ConLeche/Frontend/ExportC.lean:638-651 parseExportHandleD
     /// One read of up to `chunk` bytes; empty at the end or on a failure.
     fn next_chunk(&mut self) -> Vec<u8> {
         if self.err.is_some() {
@@ -992,50 +975,41 @@ impl<'a, R: Read> ChunkSource for HandleSource<'a, R> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:623-649 parseExportHandleD
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove driver::parse_export_handle_d_refines, then delete this line
+/// con-leche: ConLeche/Frontend/ExportC.lean:638-651 parseExportHandleD
 /// Streaming direct parse off an open reader, into the persistent tier of
 /// `ar`: the VERIFIED reader loop `export_c::parse_source` over the handle
 /// (task #97-P5-Driver moved the loop into the core; what is left here is
 /// the reads).  The chunk count comes back for the heartbeat, as the Lean
 /// twin's `readFold` returns it.
-pub fn parse_export_handle_d<R: Read, M: Modeller>(
+pub fn parse_export_handle_d<R: Read>(
     pers: &PersTier,
-    m: &M,
     ar: &mut AState,
     h: &mut R,
-    in_model: bool,
-    census: bool,
     chunk: usize,
 ) -> std::io::Result<(Result<ParseResultD, (CheckError, u64)>, u64)> {
     let mut src = HandleSource { h, chunk, chunks: 0, err: None };
-    let r = export_c::parse_source(pers, m, ar, &mut src, in_model, census);
+    let r = export_c::parse_source(pers, ar, &mut src);
     match src.err {
         Some(e) => Err(e),
         None => Ok((r, src.chunks)),
     }
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:651-654 parseExportStreamD
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove driver::parse_export_stream_d_refines, then delete this line
+/// con-leche: ConLeche/Frontend/ExportC.lean:652-655 parseExportStreamD
 /// Streaming direct parse of a file.
-pub fn parse_export_stream_d<M: Modeller>(
+pub fn parse_export_stream_d(
     pers: &PersTier,
-    m: &M,
     ar: &mut AState,
     path: &str,
-    in_model: bool,
-    census: bool,
     chunk: usize,
 ) -> std::io::Result<(Result<ParseResultD, (CheckError, u64)>, u64)> {
     let mut f = std::fs::File::open(path)?;
-    parse_export_handle_d(pers, m, ar, &mut f, in_model, census, chunk)
+    parse_export_handle_d(pers, ar, &mut f, chunk)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use con_ron_core::frontend::types::DeclineModeller;
 
     /// **The reader loop is `parse_chunks` with the reads interleaved.**  The
     /// core proves nothing about the reader — it cannot, `IO.FS.Handle.read`
@@ -1057,13 +1031,13 @@ mod tests {
             let mut ar = AState::init(EStore::empty());
             let mut r = std::io::Cursor::new(b.to_vec());
             let (streamed, _) =
-                parse_export_handle_d(pers, &DeclineModeller {}, &mut ar, &mut r, true, false, chunk)
+                parse_export_handle_d(pers, &mut ar, &mut r, chunk)
                     .expect("no io error");
             let streamed = streamed
                 .unwrap_or_else(|(e, l)| panic!("chunk {} line {}: {}", chunk, l, message(&e)));
             let mut ar2 = AState::init(EStore::empty());
             let cs: Vec<Vec<u8>> = b.chunks(chunk).map(|c| c.to_vec()).collect();
-            let pure = export_c::parse_chunks(pers, &DeclineModeller {}, &mut ar2, &cs, true, false)
+            let pure = export_c::parse_chunks(pers, &mut ar2, &cs)
                 .unwrap_or_else(|(e, l)| {
                     panic!("pure chunk {} line {}: {}", chunk, l, message(&e))
                 });

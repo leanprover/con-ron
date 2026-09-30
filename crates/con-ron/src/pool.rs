@@ -143,10 +143,8 @@ pub enum ParallelError<E> {
     Panicked,
 }
 
-/// con-leche: Main.lean:263-279 checkWorker
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove pool::worker_refines, then delete this line
-/// con-leche: Main.lean:239-261 checkOne
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove pool::worker_refines, then delete this line
+/// con-leche: Main.lean:267-281 checkWorker
+/// con-leche: Main.lean:245-266 checkOne
 /// **One worker**: build ONE state with `init()`, then claim ONE index off the
 /// shared counter, step it on that state, repeat until the counter is past
 /// `n`.  An index at or above the shared `limit` is skipped — it is above a
@@ -187,7 +185,7 @@ fn worker<S, E>(
     }
 }
 
-/// con-leche: Main.lean:281-288 mergeResults
+/// con-leche: Main.lean:282-293 mergeResults
 /// The workers' arrays merged **by index** into one table.  The table is the
 /// pool's whole interface to the verdict: which worker produced a result, and
 /// when, is recorded nowhere.
@@ -226,8 +224,7 @@ pub fn first_failure<E>(tab: Vec<Option<Result<(), E>>>) -> Result<(), ParallelE
     Ok(())
 }
 
-/// con-leche: Main.lean:290-317 checkPool
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove pool::parallel_all_refines, then delete this line
+/// con-leche: Main.lean:295-322 checkPool
 /// **`step` at every index of `0..n`, on a pool of `workers` threads** — the
 /// module note's trusted claim is this function's contract:
 ///

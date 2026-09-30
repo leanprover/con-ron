@@ -107,14 +107,12 @@ ConLeche/Kernel/Name.lean ofLeanName Conversion from `Lean.Name`, used by con-le
 # cherries ledger closes at 100 % of what is to be ported.
 # ---------------------------------------------------------------------------
 
-# The checker's own ANNOTATED NDJSON writer and the debug splice built on it:
-# output paths (`lake exe con-leche-annot` writes the `tests/annot` fixtures,
-# `CON_LECHE_INMODEL_DUMP` a copy of the input with the generated records
-# spliced in), not something a checker reads.  con-ron reads those fixtures
-# like any other stream; `crates/con-ron/src/lib.rs`'s module note has the
-# argument (task #37 for the writer, task #39 for the splice).
-ConLeche/Frontend/ExportWrite.lean * An output format, not a checking path: the checker's own annotated-NDJSON writer, which con-ron has no counterpart of (it reads the `tests/annot` fixtures it produces like any other stream).
-ConLeche/Frontend/InModelDump.lean * `CON_LECHE_INMODEL_DUMP`'s debug splice, written through `ExportWrite.lean`'s writer: the same output path, one layer up (`in_model`'s module note).
+# `ConLeche/Frontend/ExportWrite.lean` (the checker's own annotated-NDJSON
+# writer) and `ConLeche/Frontend/InModelDump.lean` (the debug splice built on
+# it) were never ported — they were output paths, not something a checker
+# reads — and both are deleted upstream now (task #105, con-leche's
+# `uniform-inds` merge, along with the in-process modeller `InModelDump`
+# served): no entry is needed for a file that no longer exists to skip.
 
 # `Scan/Naive.lean` is the reference recogniser: the SPECIFICATION every item
 # of `frontend::scan_fast` cites beside the `Fast.lean` declaration it ports

@@ -1,13 +1,13 @@
 //! `arena-parse` — the P4e measurement driver (DESIGN.md §8, task #97-P4e
 //! part 1).
 //!
-//!     cargo run --release --example arena_parse -- FILE.ndjson [--skip-modelled]
+//!     cargo run --release --example arena_parse -- FILE.ndjson
 //!
 //! Parses a lean4export stream into ONE `EStore` and reports what the Lean
-//! twin's `runPipelineM` reports: the FILE's declaration record count (the
-//! modeller's generated records subtracted), the three stores' node counts,
-//! and peak RSS.  An *example*, not a crate module: Charon never sees it, so
-//! it is outside DESIGN.md §3.4 and may loop, print and read files.
+//! twin's `runPipelineM` reports: the FILE's declaration record count, the
+//! three stores' node counts, and peak RSS.  An *example*, not a crate
+//! module: Charon never sees it, so it is outside DESIGN.md §3.4 and may
+//! loop, print and read files.
 //!
 //! **It is the twin's pipeline, minus the fold** (`Arena/Main.lean:150-175`):
 //! `builtinPreludeE`, then the stream's chunks, then `preparePrelude` — three
@@ -15,13 +15,12 @@
 //! prelude's nodes and the stream's are hash-consed together).  There is no
 //! fold to run: P2c/P2d and P4c/P4d are what come next.
 //!
-//! **The modeller is the declining stub** (`frontend::types::DeclineModeller`),
-//! as it is in the twin, so a mutual or nested block stops the parse with
-//! `declined: in-process model of <block>` — on `Init` that is line 78 503,
-//! `Lean.Syntax`.  `--skip-modelled` is con-leche's own `CON_LECHE_INMODEL=0`,
-//! i.e. `inModel := false`: the block is pushed bare and the parse runs to the
-//! end of the file, which is the measurement build the twin's `Init` numbers
-//! were taken on.
+//! **There is no modeller any more** (task #105, con-leche's `uniform-inds`
+//! merge): every inductive block — mutual and nested included — is pushed as
+//! one `IndDecl`, unconditionally, and installs through the kernel's uniform
+//! installer at the fold this example does not run.  `--skip-modelled`, con-
+//! leche's own `CON_LECHE_INMODEL=0`, is gone with the flag it used to mean
+//! nothing without: there is nothing left to skip.
 //!
 //! **The reads are interleaved with the parse**, in 4 MiB chunks
 //! (`export_c::CHUNK_SIZE`): this is `parseExportHandleD`'s loop, whose pure
@@ -45,7 +44,6 @@ use con_ron_core::arena::store::EStore;
 use con_ron_core::frontend::export_c;
 use con_ron_core::frontend::prelude::builtin_prelude_e;
 use con_ron_core::frontend::prepare;
-use con_ron_core::frontend::types::DeclineModeller;
 use con_ron_core::kernel::core_types::CheckError;
 use std::io::Read;
 use std::time::Instant;
@@ -95,11 +93,8 @@ fn group(n: u64) -> String {
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut path: Option<String> = None;
-    let mut in_model = true;
     for a in args.iter() {
-        if a == "--skip-modelled" {
-            in_model = false;
-        } else if a.starts_with("--") {
+        if a.starts_with("--") {
             eprintln!("arena-parse: unknown flag {}", a);
             std::process::exit(3);
         } else {
@@ -109,7 +104,7 @@ fn main() {
     let path = match path {
         Some(p) => p,
         None => {
-            eprintln!("usage: arena-parse FILE.ndjson [--skip-modelled]");
+            eprintln!("usage: arena-parse FILE.ndjson");
             std::process::exit(3);
         }
     };
@@ -133,10 +128,8 @@ fn main() {
             std::process::exit(3);
         }
     }
-    let md = DeclineModeller {};
-
     // 1. the built-in prelude, into the same store
-    let pre = match builtin_prelude_e(pers, &md, &mut ar) {
+    let pre = match builtin_prelude_e(pers, &mut ar) {
         Ok(p) => p,
         Err((e, line)) => {
             let (m, c) = render(&e);
@@ -158,7 +151,7 @@ fn main() {
             std::process::exit(3);
         }
     };
-    let mut st = match export_c::state_d_init(pers, &mut ar.store, in_model, false) {
+    let mut st = match export_c::state_d_init(pers, &mut ar.store) {
         Ok(s) => s,
         Err(e) => {
             let (m, c) = render(&e);
@@ -184,7 +177,7 @@ fn main() {
             break;
         }
         bytes += n as u64;
-        match export_c::chunk_step(pers, &md, &mut ar, &mut st, carry, line_no, total, &buf[..n]) {
+        match export_c::chunk_step(pers, &mut ar, &mut st, carry, line_no, total, &buf[..n]) {
             Ok((c2, l, t)) => {
                 carry = c2;
                 line_no = l;
@@ -199,7 +192,7 @@ fn main() {
     }
     let r = match failed {
         Some(e) => Err(e),
-        None => export_c::chunk_finish(pers, &md, &mut ar, st, &carry[..], line_no),
+        None => export_c::chunk_finish(pers, &mut ar, st, &carry[..], line_no),
     };
 
     let (n_e, n_l, n_n) = (
@@ -233,7 +226,7 @@ fn main() {
         }
         Ok(res) => {
             // 3. `preparePrelude`, as the twin's `runPipelineM` runs it
-            let records = res.decls.len() as u64 - res.gen_records;
+            let records = res.decls.len() as u64;
             // `prepare_d` takes the whole state since task #97-P4d: step 2 of
             // `preparePrelude` is the real ground hoist, whose trigger set is
             // the kernel's pinned `Nat` operation names.

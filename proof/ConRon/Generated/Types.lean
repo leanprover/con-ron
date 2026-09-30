@@ -240,7 +240,7 @@ theorem kernel.expr.Expr._0._simpLemma_ (_0 : alloc.sync.Arc
   kernel.expr.ExprNode) : (kernel.expr.Expr.mk _0)._0 = _0 := by rfl
 
 /-- [con_ron_core::kernel::env::ProjTable]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 423:0-433:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 428:0-438:1
     Visibility: public -/
 structure kernel.env.ProjTable where
   struct_name : kernel.name.Name
@@ -254,7 +254,7 @@ structure kernel.env.ProjTable where
   off : Std.U64
 
 /-- [con_ron_core::kernel::env::IndCaps]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 372:0-381:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 375:0-384:1
     Visibility: public -/
 structure kernel.env.IndCaps where
   eta : Bool
@@ -309,7 +309,7 @@ structure kernel.env.ConstantVal where
   ty : kernel.expr.Expr
 
 /-- [con_ron_core::kernel::env::ConstantInfo]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 508:0-516:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 513:0-521:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.ConstantInfo where
@@ -341,7 +341,7 @@ inductive kernel.env.ConstantInfo where
 | ProjInfo : kernel.env.ProjTable → kernel.env.ConstantInfo
 
 /-- [con_ron_core::kernel::env::BasisKind]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 346:0-353:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 347:0-354:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.BasisKind where
@@ -884,7 +884,7 @@ inductive arena.store.ENodeView where
   arena.store.ENodeView
 
 /-- [con_ron_core::arena::env::IProjTable]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 363:0-378:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 366:0-381:1
     Visibility: public -/
 structure arena.env.IProjTable where
   struct_name : arena.handle.NIdx
@@ -899,7 +899,7 @@ structure arena.env.IProjTable where
   off : Std.U64
 
 /-- [con_ron_core::arena::env::IIndCaps]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 308:0-320:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 309:0-321:1
     Visibility: public -/
 structure arena.env.IIndCaps where
   eta : Bool
@@ -945,7 +945,7 @@ structure arena.env.IConstantVal where
   ty : arena.handle.EIdx
 
 /-- [con_ron_core::arena::env::IConstantInfo]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 451:0-459:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 454:0-462:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.env.IConstantInfo where
@@ -977,7 +977,7 @@ inductive arena.env.IConstantInfo where
 | ProjInfo : arena.env.IProjTable → arena.env.IConstantInfo
 
 /-- [con_ron_core::kernel::env::QuotKind]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 886:0-892:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 892:0-898:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.QuotKind where
@@ -988,13 +988,13 @@ inductive kernel.env.QuotKind where
 | Sound : kernel.env.QuotKind
 
 /-- [con_ron_core::arena::env::IEnv]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 739:0-741:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 744:0-746:1
     Visibility: public -/
 structure arena.env.IEnv where
   consts : alloc.vec.Vec arena.env.IConstantInfo
 
 /-- [con_ron_core::arena::env::IFEnv]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 833:0-837:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 838:0-842:1
     Visibility: public -/
 structure arena.env.IFEnv where
   env : arena.env.IEnv
@@ -1032,7 +1032,7 @@ structure arena.nat_op_pin_set.INatOpPinSet where
   shift_right_proofs : alloc.vec.Vec arena.handle.EIdx
 
 /-- [con_ron_core::arena::env::IDeclaration]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 516:0-524:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 519:0-527:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.env.IDeclaration where
@@ -1061,7 +1061,7 @@ inductive arena.env.IDeclaration where
   arena.env.IDeclaration
 
 /-- [con_ron_core::arena::inductives::sum_parts::InductiveShape]
-    Source: 'crates/con-ron-core/src/arena/inductives/sum_parts.rs', lines 30:0-51:1
+    Source: 'crates/con-ron-core/src/arena/inductives/sum_parts.rs', lines 31:0-52:1
     Visibility: public -/
 structure arena.inductives.sum_parts.InductiveShape where
   cv_t : arena.env.IConstantVal
@@ -1087,7 +1087,7 @@ inductive arena.inductives.native_parts.RecFieldKind where
 | Unsupported : arena.inductives.native_parts.RecFieldKind
 
 /-- [con_ron_core::arena::inductives::native_parts::NativeParts]
-    Source: 'crates/con-ron-core/src/arena/inductives/native_parts.rs', lines 595:0-601:1
+    Source: 'crates/con-ron-core/src/arena/inductives/native_parts.rs', lines 607:0-613:1
     Visibility: public -/
 structure arena.inductives.native_parts.NativeParts where
   shape : arena.inductives.sum_parts.InductiveShape
@@ -1102,14 +1102,14 @@ structure kernel.prop_when.NameToPw (Self : Type) where
   apply : Self → kernel.name.Name → Result kernel.prop_when.PropWhen
 
 /-- [con_ron_core::kernel::level::SubstZ]
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 543:0-546:1
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 545:0-548:1
     Visibility: public -/
 structure kernel.level.SubstZ where
   ks : alloc.vec.Vec kernel.name.Name
   vs : alloc.vec.Vec kernel.level.Level
 
 /-- [con_ron_core::arena::env::IProjEntry]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 400:0-411:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 403:0-414:1
     Visibility: public -/
 structure arena.env.IProjEntry where
   struct_name : arena.handle.NIdx
@@ -1124,7 +1124,7 @@ structure arena.env.IProjEntry where
   off : Std.U64
 
 /-- [con_ron_core::arena::core::NatOpPins]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2483:0-2499:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2490:0-2506:1
     Visibility: public -/
 structure arena.core.NatOpPins where
   pr : arena.handle.NIdx
@@ -1144,7 +1144,7 @@ structure arena.core.NatOpPins where
   sr : arena.handle.NIdx
 
 /-- [con_ron_core::arena::inductives::native_install::NativePass]
-    Source: 'crates/con-ron-core/src/arena/inductives/native_install.rs', lines 1166:0-1177:1
+    Source: 'crates/con-ron-core/src/arena/inductives/native_install.rs', lines 1195:0-1206:1
     Visibility: public -/
 structure arena.inductives.native_install.NativePass where
   env1 : arena.env.IFEnv
@@ -1154,19 +1154,19 @@ structure arena.inductives.native_install.NativePass where
   sortss : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)
 
 /-- [con_ron_core::arena::inductives::modeled::RenameBy]
-    Source: 'crates/con-ron-core/src/arena/inductives/modeled.rs', lines 563:0-565:1
+    Source: 'crates/con-ron-core/src/arena/inductives/modeled.rs', lines 565:0-567:1
     Visibility: public -/
 structure arena.inductives.modeled.RenameBy where
   tbl : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx)
 
 /-- Trait declaration: [con_ron_core::arena::expr_ops::NIdxToNIdx]
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2775:0-2778:1
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2776:0-2779:1
     Visibility: public -/
 structure arena.expr_ops.NIdxToNIdx (Self : Type) where
   rename : Self → arena.handle.NIdx → Result arena.handle.NIdx
 
 /-- [con_ron_core::arena::core::NatEqCtx]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2704:0-2713:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2711:0-2720:1
     Visibility: public -/
 structure arena.core.NatEqCtx where
   x : arena.handle.EIdx
@@ -1241,7 +1241,7 @@ structure arena.checker_split.ValueGroup where
   jv : arena.handle.EIdx
 
 /-- [con_ron_core::arena::checker::PendingCheck]
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 840:0-844:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 858:0-862:1
     Visibility: public -/
 structure arena.checker.PendingCheck where
   vg : arena.checker_split.ValueGroup
@@ -1249,7 +1249,7 @@ structure arena.checker.PendingCheck where
   vis : Std.U64
 
 /-- Trait declaration: [con_ron_core::arena::checker::InstallHook]
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1364:0-1368:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1382:0-1386:1
     Visibility: public -/
 structure arena.checker.InstallHook (Self : Type) where
   install_before : Self → arena.store.PersTier → arena.store.EStore →
@@ -1278,7 +1278,7 @@ structure kernel.nat_op_pins.NatOpPinSet where
   shift_right_proofs : alloc.vec.Vec kernel.expr.Expr
 
 /-- [con_ron_core::arena::inductives::struct_parts::StructParts]
-    Source: 'crates/con-ron-core/src/arena/inductives/struct_parts.rs', lines 497:0-519:1
+    Source: 'crates/con-ron-core/src/arena/inductives/struct_parts.rs', lines 506:0-528:1
     Visibility: public -/
 structure arena.inductives.struct_parts.StructParts where
   cv_t : arena.env.IConstantVal
@@ -1293,7 +1293,7 @@ structure arena.inductives.struct_parts.StructParts where
   is_prop : Bool
 
 /-- [con_ron_core::kernel::env::Declaration]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 930:0-938:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 936:0-944:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.Declaration where
@@ -1322,7 +1322,7 @@ inductive kernel.env.Declaration where
   kernel.env.Declaration
 
 /-- [con_ron_core::frontend::types::RecordVerdict]
-    Source: 'crates/con-ron-core/src/frontend/types.rs', lines 58:0-61:1
+    Source: 'crates/con-ron-core/src/frontend/types.rs', lines 41:0-44:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.types.RecordVerdict where
@@ -1330,7 +1330,7 @@ inductive frontend.types.RecordVerdict where
 | Invalid : alloc.vec.Vec Std.U32 → frontend.types.RecordVerdict
 
 /-- [con_ron_core::frontend::export_c::LineErr]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 111:0-114:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 97:0-100:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.export_c.LineErr where
@@ -1371,60 +1371,6 @@ structure frontend.scan_types.ScanErr where
   offset : Std.Usize
   what : frontend.scan_types.ErrTag
 
-/-- [con_ron_core::frontend::types::MIndRecRec]
-    Source: 'crates/con-ron-core/src/frontend/types.rs', lines 135:0-142:1
-    Visibility: public -/
-structure frontend.types.MIndRecRec where
-  cv : arena.env.IConstantVal
-  n_p : Std.U64
-  n_m : Std.U64
-  nm : Std.U64
-  n_i : Std.U64
-  rules : alloc.vec.Vec arena.env.IRecRule
-
-/-- [con_ron_core::frontend::types::MIndCtorRec]
-    Source: 'crates/con-ron-core/src/frontend/types.rs', lines 126:0-130:1
-    Visibility: public -/
-structure frontend.types.MIndCtorRec where
-  cv : arena.env.IConstantVal
-  n_p : Std.U64
-  n_f : Std.U64
-
-/-- [con_ron_core::frontend::types::MIndTypeRec]
-    Source: 'crates/con-ron-core/src/frontend/types.rs', lines 113:0-121:1
-    Visibility: public -/
-structure frontend.types.MIndTypeRec where
-  cv : arena.env.IConstantVal
-  n_p : Std.U64
-  n_idx : Std.U64
-  ctors : alloc.vec.Vec arena.handle.NIdx
-  is_rec : Bool
-  is_reflexive : Bool
-  num_nested : Std.U64
-
-/-- [con_ron_core::frontend::types::BlockRec]
-    Source: 'crates/con-ron-core/src/frontend/types.rs', lines 147:0-151:1
-    Visibility: public -/
-structure frontend.types.BlockRec where
-  types : alloc.vec.Vec frontend.types.MIndTypeRec
-  ctors : alloc.vec.Vec frontend.types.MIndCtorRec
-  recs : alloc.vec.Vec frontend.types.MIndRecRec
-
-/-- [con_ron_core::frontend::types::ProjRecOwner]
-    Source: 'crates/con-ron-core/src/frontend/types.rs', lines 87:0-98:1
-    Visibility: public -/
-structure frontend.types.ProjRecOwner where
-  t : arena.handle.NIdx
-  lps : alloc.vec.Vec arena.handle.NIdx
-  n_p : Std.U64
-  ctor : arena.handle.NIdx
-  n_f : Std.U64
-  rec_name : arena.handle.NIdx
-  rec_lps : alloc.vec.Vec arena.handle.NIdx
-  rec_type : arena.handle.EIdx
-  num_motives : Std.U64
-  num_minors : Std.U64
-
 /-- [con_ron_core::frontend::scan_types::IdTable]
     Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 625:0-628:1
     Visibility: public -/
@@ -1433,40 +1379,13 @@ structure frontend.scan_types.IdTable (T : Type) where
   sparse : ron.hashmap.HashMap Std.U64 T
 
 /-- [con_ron_core::frontend::export_c::StateD]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 224:0-262:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 211:0-216:1
     Visibility: public -/
 structure frontend.export_c.StateD where
   names : frontend.scan_types.IdTable arena.handle.NIdx
   levels : frontend.scan_types.IdTable arena.handle.LIdx
   exprs : frontend.scan_types.IdTable arena.handle.EIdx
   decls : alloc.vec.Vec arena.env.IDeclaration
-  proj_owners : ron.hashmap2.HashMap2 arena.handle.NIdx
-    frontend.types.ProjRecOwner
-  proj_levels : ron.hashmap2.HashMap2 arena.handle.NIdx arena.handle.LIdx
-  proj_rewrites : alloc.vec.Vec arena.handle.NIdx
-  const_types : ron.hashmap2.HashMap2 arena.handle.NIdx ((alloc.vec.Vec
-    arena.handle.NIdx) × arena.handle.EIdx)
-  heights : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64
-  in_model : Bool
-  in_modelled : alloc.vec.Vec arena.handle.NIdx
-  gen_records : Std.U64
-  gen_owner : ron.hashmap2.HashMap2 arena.handle.NIdx arena.handle.NIdx
-  in_model_gen : alloc.vec.Vec (Std.U64 × (alloc.vec.Vec
-    arena.env.IDeclaration))
-  ind_count : Std.U64
-  ind_blocks : ron.hashmap2.HashMap2 arena.handle.NIdx frontend.types.BlockRec
-  in_model_census : Bool
-  in_model_declined : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
-    Std.U32))
-
-/-- [con_ron_core::frontend::types::ModelCtx]
-    Source: 'crates/con-ron-core/src/frontend/types.rs', lines 172:0-176:1
-    Visibility: public -/
-structure frontend.types.ModelCtx where
-  tbl : ron.hashmap2.HashMap2 arena.handle.NIdx ((alloc.vec.Vec
-    arena.handle.NIdx) × arena.handle.EIdx)
-  heights : ron.hashmap2.HashMap2 arena.handle.NIdx Std.U64
-  blocks : ron.hashmap2.HashMap2 arena.handle.NIdx frontend.types.BlockRec
 
 /-- [con_ron_core::frontend::scan_types::PwRec]
     Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 350:0-353:1
@@ -1526,25 +1445,6 @@ structure frontend.scan_types.CVRec where
   level_params : alloc.vec.Vec Std.U64
   ty : Std.U64
 
-/-- [con_ron_core::frontend::proj_rec::ProjBuild]
-    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 647:0-654:1
-    Visibility: public -/
-structure frontend.proj_rec.ProjBuild where
-  t : arena.handle.NIdx
-  ctor : arena.handle.NIdx
-  r : arena.handle.EIdx
-  i : Std.U64
-  punit_c : arena.handle.EIdx
-  punit_unit_c : arena.handle.EIdx
-
-/-- [con_ron_core::frontend::proj_rec::ProjBinderKind]
-    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 637:0-640:1
-    Visibility: public -/
-@[discriminant isize]
-inductive frontend.proj_rec.ProjBinderKind where
-| Motive : frontend.proj_rec.ProjBinderKind
-| Minor : frontend.proj_rec.ProjBinderKind
-
 /-- [con_ron_core::frontend::scan_types::RuleRec]
     Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 393:0-397:1
     Visibility: public -/
@@ -1564,19 +1464,6 @@ structure frontend.scan_types.IndCtorRec where
   cidx : Option Std.U64
   induct : Option Std.U64
 
-/-- [con_ron_core::frontend::scan_types::IndRecRec]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 429:0-438:1
-    Visibility: public -/
-structure frontend.scan_types.IndRecRec where
-  cv : frontend.scan_types.CVRec
-  is_unsafe : Bool
-  k : Bool
-  num_indices : Std.U64
-  num_minors : Std.U64
-  num_motives : Std.U64
-  num_params : Std.U64
-  rules : alloc.vec.Vec frontend.scan_types.RuleRec
-
 /-- [con_ron_core::frontend::scan_types::IndTypeRec]
     Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 401:0-410:1
     Visibility: public -/
@@ -1590,14 +1477,18 @@ structure frontend.scan_types.IndTypeRec where
   num_nested : Std.U64
   num_params : Std.U64
 
-/-- Trait declaration: [con_ron_core::frontend::types::Modeller]
-    Source: 'crates/con-ron-core/src/frontend/types.rs', lines 261:0-271:1
+/-- [con_ron_core::frontend::scan_types::IndRecRec]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 429:0-438:1
     Visibility: public -/
-structure frontend.types.Modeller (Self : Type) where
-  generate : Self → arena.store.PersTier → arena.store.EStore →
-    frontend.types.ModelCtx → frontend.types.BlockRec → Result
-    ((core.result.Result (alloc.vec.Vec arena.env.IDeclaration) (alloc.vec.Vec
-    Std.U32)) × arena.store.EStore)
+structure frontend.scan_types.IndRecRec where
+  cv : frontend.scan_types.CVRec
+  is_unsafe : Bool
+  k : Bool
+  num_indices : Std.U64
+  num_minors : Std.U64
+  num_motives : Std.U64
+  num_params : Std.U64
+  rules : alloc.vec.Vec frontend.scan_types.RuleRec
 
 /-- [con_ron_core::frontend::scan_types::HintsRec]
     Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 385:0-389:1
@@ -1658,18 +1549,10 @@ inductive frontend.scan_types.LineRec where
 | Blank : frontend.scan_types.LineRec
 
 /-- [con_ron_core::frontend::export_c::ParseResultD]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2921:0-2937:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2056:0-2059:1
     Visibility: public -/
 structure frontend.export_c.ParseResultD where
   decls : alloc.vec.Vec arena.env.IDeclaration
-  proj_rewrites : alloc.vec.Vec arena.handle.NIdx
-  in_modelled : alloc.vec.Vec arena.handle.NIdx
-  gen_records : Std.U64
-  gen_owner : ron.hashmap2.HashMap2 arena.handle.NIdx arena.handle.NIdx
-  in_model_gen : alloc.vec.Vec (Std.U64 × (alloc.vec.Vec
-    arena.env.IDeclaration))
-  in_model_declined : alloc.vec.Vec (arena.handle.NIdx × (alloc.vec.Vec
-    Std.U32))
 
 /-- [con_ron_core::frontend::scan_types::Key]
     Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 470:0-538:1
@@ -1769,7 +1652,7 @@ inductive frontend.scan_fast.Member where
   frontend.scan_fast.Member
 
 /-- Trait declaration: [con_ron_core::frontend::export_c::ChunkSource]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 3252:0-3259:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2348:0-2355:1
     Visibility: public -/
 structure frontend.export_c.ChunkSource (Self : Type) where
   next_chunk : Self → Result ((alloc.vec.Vec Std.U8) × Self)
@@ -1788,14 +1671,8 @@ structure frontend.prepare.Prepared where
   synthesised : Std.U64
   hoisted : alloc.vec.Vec arena.handle.NIdx
 
-/-- [con_ron_core::frontend::types::DeclineModeller]
-    Source: 'crates/con-ron-core/src/frontend/types.rs', lines 280:0-280:29
-    Visibility: public -/
-@[reducible]
-def frontend.types.DeclineModeller := Unit
-
 /-- [con_ron_core::kernel::env::Env]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1188:0-1190:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1196:0-1198:1
     Visibility: public -/
 structure kernel.env.Env where
   consts : alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo)
@@ -1817,7 +1694,7 @@ structure kernel.expr_ops.ExprNatKey where
   d : Std.U64
 
 /-- [con_ron_core::kernel::env::ProjEntry]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 453:0-464:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 458:0-469:1
     Visibility: public -/
 structure kernel.env.ProjEntry where
   struct_name : kernel.name.Name
@@ -1832,7 +1709,7 @@ structure kernel.env.ProjEntry where
   off : Std.U64
 
 /-- Trait declaration: [con_ron_core::kernel::expr_ops::NameToName]
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1185:0-1188:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1186:0-1189:1
     Visibility: public -/
 structure kernel.expr_ops.NameToName (Self : Type) where
   rename : Self → kernel.name.Name → Result kernel.name.Name

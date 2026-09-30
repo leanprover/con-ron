@@ -2,9 +2,10 @@
 //! (task #97 P4e part 1).
 //!
 //! con-leche's `ConLeche/Frontend/Prelude.lean`: the checker's own little
-//! prelude — the six pinned basis blocks (`Eq`, `Nat`, `PUnit`, `Empty`,
-//! `False`, `Quot` with its soundness axiom), the `Bool` block, and the `And`
-//! block pinned by design — as a lean4export-format stream parsed by the
+//! prelude — the five pinned basis blocks (`Eq`, `Nat`, `Empty`, `False`,
+//! `Quot` with its soundness axiom; `PUnit` is unpinned, task #105's
+//! `uniform-inds` PUNIT item), the `Bool` block, and the `And` block pinned
+//! by design — as a lean4export-format stream parsed by the
 //! ORDINARY parser into declaration records.  `prepare::prepare_prelude` puts
 //! them at the front of every stream it prepares, which is what "in the env
 //! initially and unconditionally" means in practice.
@@ -30,14 +31,9 @@
 //! anyway.  It is the same deviation
 //! `crates/con-ron-core/src/frontend/prelude.rs` records, for the same reason.
 //!
-//! The prelude has no mutual or nested block, so the `Modeller` it is parsed
-//! with cannot change the result; the driver passes the same one it parses the
-//! stream with, as both other ports do.
-
 use crate::arena::monad::AState;
 use crate::frontend::export_c;
 use crate::frontend::prepare::PreludeIx;
-use crate::frontend::types::Modeller;
 use crate::frontend::prelude_text::prelude_text;
 use crate::kernel::core_types::CheckError;
 use crate::arena::store::PersTier;
@@ -57,13 +53,9 @@ pub fn builtin_prelude_text() -> Vec<u8> {
 /// can in principle be corrupted, and a prelude that does not parse must be a
 /// loud error rather than a silently empty prelude.  The index is the records
 /// alone since con-leche's task #293.
-pub fn builtin_prelude_e<G: Modeller>(
-    pers: &PersTier,
-    m: &G,
-    ar: &mut AState,
-) -> Result<PreludeIx, (CheckError, u64)> {
+pub fn builtin_prelude_e(pers: &PersTier, ar: &mut AState) -> Result<PreludeIx, (CheckError, u64)> {
     let text: Vec<u8> = builtin_prelude_text();
-    match export_c::parse_bytes(pers, m, ar, &text, true, false) {
+    match export_c::parse_bytes(pers, ar, &text) {
         Err(e) => Err(e),
         Ok(r) => Ok(PreludeIx { decls: r.decls }),
     }
@@ -73,12 +65,10 @@ pub fn builtin_prelude_e<G: Modeller>(
 mod tests {
     use super::*;
     use crate::arena::env::i_declaration_names;
-    use crate::frontend::types::DeclineModeller;
 
     /// con-leche: none — a test fixture
     /// The state the driver builds: an empty store with the reserved-name
-    /// pins interned (task #97-P6-4a).  `export_c`'s projection-rewrite seam
-    /// reads a pin, so this is the only state the prelude parses in.
+    /// pins interned (task #97-P6-4a).
     fn pinned_state() -> AState {
         let pers: &PersTier = &PersTier::empty();
         let mut ar = AState::init(crate::arena::store::EStore::empty());
@@ -93,7 +83,7 @@ mod tests {
     fn builtin_prelude_parses() {
         let pers: &PersTier = &PersTier::empty();
         let mut ar = pinned_state();
-        let p = match builtin_prelude_e(pers, &DeclineModeller {}, &mut ar) {
+        let p = match builtin_prelude_e(pers, &mut ar) {
             Ok(p) => p,
             Err((_, line)) => panic!("the built-in prelude does not parse at line {}", line),
         };
@@ -124,27 +114,34 @@ mod tests {
             ar.store.ls().node_count(pers),
             ar.store.ns().node_count(pers),
         );
-        let p = match builtin_prelude_e(pers, &DeclineModeller {}, &mut ar) {
+        let p = match builtin_prelude_e(pers, &mut ar) {
             Ok(p) => p,
             Err((_, line)) => panic!("the built-in prelude does not parse at line {}", line),
         };
-        assert_eq!(p.decls.len(), 12, "prelude declaration records");
+        // task #105 (con-leche's `uniform-inds` merge, PUNIT): `PUnit` is
+        // unpinned and no longer part of the built-in prelude, so the record
+        // count and every node count below is one basis block smaller than
+        // before the bump.  These are this Rust parse's own counts on the
+        // new prelude; re-measuring the Lean twin's arena checker on the same
+        // (now PUnit-less) empty input is the kernel lane's, not repeated
+        // here.
+        assert_eq!(p.decls.len(), 11, "prelude declaration records");
         // The reserved-name pins are interned first and the store is
         // hash-consed, so what the prelude ADDS is the twin's count minus
         // what the two share: the pins' one expression node (`Sort 1`) and
-        // both its level nodes (`0`, `1`) are the prelude's too, and 24 of
+        // both its level nodes (`0`, `1`) are the prelude's too, and some of
         // their 64 name nodes are.
         assert_eq!(e0, 1, "the pins' expression nodes");
         assert_eq!(l0, 2, "the pins' level nodes");
         assert_eq!(n0, 64, "the pins' name nodes");
-        assert_eq!(ar.store.node_count(pers) - e0, 195, "expression nodes added");
+        assert_eq!(ar.store.node_count(pers) - e0, 186, "expression nodes added");
         assert_eq!(ar.store.ls().node_count(pers) - l0, 3, "level nodes added");
-        assert_eq!(ar.store.ns().node_count(pers) - n0, 31, "name nodes added");
-        // …so the UNION is still the twin's own 196 and 5 on the two stores
-        // whose pinned nodes the prelude re-declares.
-        assert_eq!(ar.store.node_count(pers), 196, "expression nodes");
+        assert_eq!(ar.store.ns().node_count(pers) - n0, 30, "name nodes added");
+        // …so the union on the two stores whose pinned nodes the prelude
+        // re-declares is:
+        assert_eq!(ar.store.node_count(pers), 187, "expression nodes");
         assert_eq!(ar.store.ls().node_count(pers), 5, "level nodes");
-        assert_eq!(ar.store.ns().node_count(pers), 55 + 40, "name nodes");
+        assert_eq!(ar.store.ns().node_count(pers), 94, "name nodes");
     }
 
     /// The prelude text is `con-ron-core`'s generated constant, byte for byte
@@ -154,7 +151,7 @@ mod tests {
     #[test]
     fn the_prelude_text_is_the_committed_ndjson() {
         let b = builtin_prelude_text();
-        assert_eq!(b.len(), 16922);
+        assert_eq!(b.len(), 15700);
         assert_eq!(b[b.len() - 1], b'\n');
     }
 }
