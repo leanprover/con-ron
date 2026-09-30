@@ -10,6 +10,7 @@ constructors' cons.
 -/
 import ConRon.Refine2.Inductives.PositivityNest
 import ConRon.Refine2.Inductives.SumInstall
+import ConRon.Refine2.Inductives.BlockParts
 import ConRon.Arena.Inductives.BlockInstall
 
 open Aeneas Aeneas.Std Result
@@ -123,6 +124,21 @@ def absMemberShapeLFrom (v : alloc.vec.Vec arena.inductives.block_parts.MemberSh
       exact LSR.tail_ls (ih' _ ha _ hrel) (by simp only [absMemberShapeLFrom, ha, absNIdxL])
         (fun _ _ h => h)
     · exact absurd rfl hc
+
+@[local lockstep_simp] theorem absBlockParts_shape (p : arena.inductives.block_parts.BlockParts) :
+    (absBlockParts p).shape = absBlockShape p.shape := rfl
+@[local lockstep_simp] theorem absBlockShape_members (p : arena.inductives.block_parts.BlockShape) :
+    (absBlockShape p).members = p.members.val.map absMemberShape := rfl
+
+/-- `block_raw_rec` ⊑ `blockRawRec` — official's `is_rec`. -/
+@[lockstep] theorem block_raw_rec_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (p : arena.inductives.block_parts.BlockParts) :
+    LSR pers (fun a b => b = a)
+      (arena.inductives.block_install.block_raw_rec pers st p) st lst
+      (blockRawRec (absBlockParts p)) := by
+  apply LSR.of_LS
+  rw [arena.inductives.block_install.block_raw_rec, blockRawRec]
+  lockstep
 
 /-! ## Stage 1: the formers -/
 
