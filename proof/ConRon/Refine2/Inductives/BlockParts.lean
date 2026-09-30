@@ -1637,8 +1637,26 @@ unfolded in place; `block_shape_sort` is `bsTail`). -/
       (blockShape? (absU n_pd) (absICIL block)) := by
   rw [arena.inductives.block_parts.block_shape, blockShape?]
   lockstep
-  · sorry
-  · sorry
+  · split
+    · rename_i heqT _
+      exfalso
+      have h0 := congrArg List.length heqT
+      simp only [absICVL, List.length_map, List.length_cons] at h0
+      have h1 := congrArg Std.UScalar.val hc
+      simp only [alloc.vec.Vec.len_val] at h1
+      simp at h1
+      simp [h1] at h0
+    · lockstep
+  · split
+    · rename_i heqR
+      exfalso
+      have h0 := congrArg List.length heqR
+      simp only [absRecsL, List.length_map, List.length_cons] at h0
+      have h1 := congrArg Std.UScalar.val hc
+      simp only [alloc.vec.Vec.len_val] at h1
+      simp at h1
+      simp [h1] at h0
+    · lockstep
   · split
     · rename_i cvTs rs' cvT0 ctail cvR0 rmi rrp rrules rtail heqT heqR
       obtain ⟨hw, rfl⟩ := absICVL_eq_cons heqT
@@ -1654,10 +1672,27 @@ unfolded in place; `block_shape_sort` is `bsTail`). -/
           (by simpa [usz_zero_val] using hw')) ?_ (fun _ _ h => h)
          simp only [bsTail, isPropOf, absNIdxL, absICVL_length, usz_zero_val]
          rfl)
-      trace_state
-      all_goals sorry
-    · sorry
+    · rename_i cvs _ rsv _ hcv _ _ _ _ _ _ hne
+      exfalso
+      have n1 : absICVL cvs ≠ [] := by
+        simpa [absICVL] using List.ne_nil_of_length_pos (vec_len_pos_of_ne hcv)
+      have n2 : absRecsL rsv ≠ [] := by
+        simpa [absRecsL] using List.ne_nil_of_length_pos (vec_len_pos_of_ne hc)
+      obtain ⟨c, t, h1⟩ := List.exists_cons_of_ne_nil n1
+      obtain ⟨⟨r1, r2, r3, r4⟩, t', h2⟩ := List.exists_cons_of_ne_nil n2
+      exact hne _ _ _ _ _ _ _ h1 h2
 
 end recogniser
+
+/-- **`block_parts::block_parts` ⊑ `blockParts?`** — the recogniser. -/
+@[lockstep] theorem block_parts_ls {pers st lst} {n_pd : Std.U64}
+    {block : alloc.vec.Vec arena.env.IConstantInfo}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = Option.map absBlockParts a)
+      (arena.inductives.block_parts.block_parts pers st n_pd block) lst
+      (blockParts? (absU n_pd) (absICIL block)) := by
+  rw [arena.inductives.block_parts.block_parts, blockParts?]
+  lockstep
+
 
 end ConRon.Refine2
