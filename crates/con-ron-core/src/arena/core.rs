@@ -6662,34 +6662,6 @@ pub fn iota_rec_major(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:820-932 iotaRec
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2164-2173 iotaRec` — **one iota
-/// step**: the expression is a stored recursor applied to exactly its
-/// telescope, the major premise whnfs to a fully applied constructor with a
-/// matching rule, and the spine is certified against the recursor's own
-/// (pinned, annotated) type.
-pub fn iota_rec(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    e: &EIdx,
-) -> Result<Option<EIdx>, CheckError> {
-    match get_app_fn(pers, st, CORE_WALK_FUEL, e) {
-        Err(er) => Err(er),
-        Ok(hd) => match get_app_args(pers, st, CORE_WALK_FUEL, e) {
-            Err(er) => Err(er),
-            Ok(args) => {
-                let n: usize = args.len();
-                iota_rec_at(pers, vis, st, mode, lane, fuel, fe, depth, &hd, &args, n)
-            }
-        },
-    }
-}
 
 /// con-leche: ConLeche/Kernel/Core.lean:820-932 iotaRec
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2164-2173 iotaRec` — `iotaRec` with
@@ -6786,12 +6758,6 @@ pub fn iota_rec_at(
 // The projection certificate and the reduction bodies (`Core.lean:1939-2087`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — `List.reverse` on a `Vec`; Lean's list reverse is a value
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2360-2371 IProjEntry.typeAt` — the cited
-/// `targs.reverse`.
-pub fn rev_eidx(xs: &Vec<EIdx>) -> Vec<EIdx> {
-    rev_eidx_from(xs, xs.len(), Vec::new())
-}
 
 /// con-leche: none — `List.reverse` on a `Vec`; Lean's list reverse is a value
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2360-2371 IProjEntry.typeAt` — the
@@ -6891,14 +6857,6 @@ pub fn proj_cert_at(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:907-939 betaGateFires
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2392-2407 betaGateFires` — **THE β
-/// SITE'S GATE**: at `mode.betaGate` a λ-binder whose *validated* annotation
-/// datum is `.never` licenses skipping the certificate.  Mode-and-datum only,
-/// so it is decidable before the certificate would have started.
-pub fn beta_gate_fires(mode: &CheckMode, pw: &PropWhen) -> bool {
-    crate::kernel::env::beta_gate(mode) && prop_when::is_never(pw)
-}
 
 /// con-leche: ConLeche/Kernel/Core.lean:977-1072 whnfCoreBody
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2409-2467 whnfCoreBody`
@@ -7420,32 +7378,6 @@ pub fn intern_app_rebuilt(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:977-1072 whnfCoreBody
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2409-2467 whnfCoreBody` — the
-/// `.app` clause's non-λ head: the ι step on the re-interned application.
-pub fn whnf_core_stuck_app(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    h: &EIdx,
-    same: bool,
-    fp: &EIdx,
-    a: &EIdx,
-) -> Result<EIdx, CheckError> {
-    match intern_app_rebuilt(pers, st, h, same, fp, a) {
-        Err(e) => Err(e),
-        Ok(ap) => match iota_rec(pers, vis, st, mode, lane, fuel, fe, depth, &ap) {
-            Err(e) => Err(e),
-            Ok(Some(e2)) => knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &e2),
-            Ok(None) => Ok(ap),
-        },
-    }
-}
 
 /// con-leche: ConLeche/Kernel/Core.lean:977-1072 whnfCoreBody
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2409-2467 whnfCoreBody` — the
@@ -7516,15 +7448,6 @@ pub fn whnf_core_body(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1074-1082 whnfCoreLoopFuel
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2469-2476 whnfCoreLoopFuel` — step budget
-/// of the `whnfCore` head-normalization loop.  The arena's `whnfCoreBody` is
-/// con-leche's SPEC shape — beta, iota and projection steps chained through
-/// the knot, not iterated in a local loop — so this budget has **no reader**
-/// here yet; it is twinned because the executed loop
-/// (`Cached/CoreC.lean`'s `whnfCoreLoopI`) is what P2g will measure against,
-/// and its budget must be the same number.
-pub const WHNF_CORE_LOOP_FUEL: u64 = 1000000;
 
 /// con-leche: ConLeche/Kernel/Core.lean:1084-1091 whnfLoopFuel
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2478-2481 whnfLoopFuel` — step budget of

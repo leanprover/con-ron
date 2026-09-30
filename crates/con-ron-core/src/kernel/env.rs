@@ -949,27 +949,6 @@ pub enum Declaration {
     QuotDecl(QuotKind, ConstantVal),
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:656-667 Declaration.names
-/// **The names a declaration record declares**: the ground hoist's name index
-/// and `prepare::prepare_prelude`'s lookup of the stream's own copy of a
-/// prelude declaration read it.  A quotient record declares the one constant
-/// it carries; a `BasisDecl`, which no frontend function produces, declares
-/// nothing.
-pub fn declaration_names(d: &Declaration) -> Vec<Name> {
-    match d {
-        Declaration::AxiomDecl(cv)
-        | Declaration::DefnDecl(cv, _, _)
-        | Declaration::ThmDecl(cv, _)
-        | Declaration::OpaqueDecl(cv, _)
-        | Declaration::QuotDecl(_, cv) => {
-            let mut ns: Vec<Name> = Vec::new();
-            ns.push(name::dup(&cv.name));
-            ns
-        }
-        Declaration::IndDecl(block, _) => constant_info_names_from(block, 0, Vec::new()),
-        Declaration::BasisDecl(_) => Vec::new(),
-    }
-}
 
 /// con-leche: ConLeche/Kernel/Env.lean:656-667 Declaration.names
 /// The index recursion behind `declaration_names`' `block.map (·.name)`

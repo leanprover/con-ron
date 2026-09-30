@@ -19,10 +19,18 @@
 //! | `block_parts` | `Inductives/BlockParts.lean` |
 //! | `block_tail` | `Inductives/BlockTail.lean` |
 //! | `struct_parts` | `Inductives/StructParts.lean` |
-//! | `struct_install` | `Inductives/StructInstall.lean` |
-//! | `struct_install_f` | `Inductives/StructInstallF.lean` |
-//! | `sum_install` | `Inductives/SumInstall.lean` |
-//! | `sum_install_f` | `Inductives/SumInstallF.lean` |
+//! | `struct_install` | `Inductives/StructInstall.lean`, `StructInstallF.lean` |
+//! | `sum_install` | `Inductives/SumInstall.lean`, `SumInstallF.lean` |
+//!
+//! **`StructInstallF.lean`/`SumInstallF.lean`'s `F`-suffixed names had no
+//! caller** (task #105 sweep): the arena has ONE environment type (task
+//! #97c's deviation 1), so their bodies were already `struct_install`'s/
+//! `sum_install`'s — the one-line delegation modules `struct_install_f.rs`/
+//! `sum_install_f.rs` carried nothing else, and were deleted along with their
+//! `mod` lines.  Their con-leche citations survive as the SECOND `/// con-
+//! leche:` line already on the corresponding `struct_install`/`sum_install`
+//! function (e.g. `checkStructDomsAtF` on `check_struct_doms_at`), so
+//! `scripts/provenance.py coverage` needed no new skip-list entry.
 //!
 //! What is NOT here is the **pinned basis block** (`basisPinHit`): a stream's
 //! `Nat` block arrives as an ordinary `indDecl` and is recognised first, in
@@ -40,8 +48,6 @@ pub mod block_install;
 pub mod block_parts;
 pub mod block_tail;
 pub mod struct_install;
-pub mod struct_install_f;
 pub mod struct_parts;
 pub mod sum_install;
-pub mod sum_install_f;
 

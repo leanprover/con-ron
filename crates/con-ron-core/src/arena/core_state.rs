@@ -395,86 +395,11 @@ pub const CACHE_CAP: usize = 4194304;
 // The scratch-tier drop (`CoreState.lean:101-153`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — DESIGN.md §8.3, "Drop"
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:149-153 keepE` — a memo entry
-/// survives the scratch tier exactly when BOTH its key and its value are
-/// persistent handles.  One tier-bit test each, no denotation.
-pub fn keep_e(k: &EIdx, v: &EIdx) -> bool {
-    if k.is_persistent() {
-        v.is_persistent()
-    } else {
-        false
-    }
-}
 
-/// con-leche: none — DESIGN.md §8.3, "Drop"
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:155-158 keepEE` — the `defeq`
-/// table's survival test: both handles of the key are persistent (the value
-/// is a `bool` and names no tier).
-pub fn keep_ee(k: &EIdxPair, _v: bool) -> bool {
-    if k.a.is_persistent() {
-        k.b.is_persistent()
-    } else {
-        false
-    }
-}
 
-/// con-leche: none — DESIGN.md §8.3, "Drop"
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:160-162 keepLL` — the
-/// level-verdict tables' survival test.
-pub fn keep_ll(k: &LIdxPair, _v: bool) -> bool {
-    if k.a.is_persistent() {
-        k.b.is_persistent()
-    } else {
-        false
-    }
-}
 
-/// con-leche: none — DESIGN.md §8.3, "Drop"
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:164-166 keepLsLs` — the
-/// level-list-verdict table's survival test.
-pub fn keep_ls_ls(k: &LsIdxPair, _v: bool) -> bool {
-    if k.a.is_persistent() {
-        k.b.is_persistent()
-    } else {
-        false
-    }
-}
 
-/// con-leche: none — DESIGN.md §8.3, "Drop"
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:168-171 keepNLs` — the
-/// instantiated-constant tables' survival test: the name, the
-/// universe-argument list and the instantiated term.
-pub fn keep_n_ls(k: &NLsKey, v: &EIdx) -> bool {
-    if k.n.is_persistent() {
-        if k.us.is_persistent() {
-            v.is_persistent()
-        } else {
-            false
-        }
-    } else {
-        false
-    }
-}
 
-/// con-leche: none — DESIGN.md §8.3, "Drop"
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:183-186 keepNNLs` —
-/// `ruleRhsC`'s survival test.
-pub fn keep_nn_ls(k: &NNLsKey, v: &EIdx) -> bool {
-    if k.rec_name.is_persistent() {
-        if k.ctor.is_persistent() {
-            if k.us.is_persistent() {
-                v.is_persistent()
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-    } else {
-        false
-    }
-}
 
 // ---------------------------------------------------------------------------
 // The per-declaration reset (`CoreState.lean:87-89 Caches.empty`), in place

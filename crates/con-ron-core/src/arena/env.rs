@@ -725,13 +725,6 @@ pub fn i_env_empty() -> IEnv {
     IEnv { consts: Vec::new() }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:683-684 Env.find?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:281-286 IEnv.find?` — the linear
-/// lookup.  A name comparison is a handle comparison, sound because `denoteN`
-/// is injective (task #97a's `denoteN_inj`).
-pub fn i_env_find<'a>(env: &'a IEnv, n: &NIdx) -> Option<&'a IConstantInfo> {
-    i_env_find_from(&env.consts, env.consts.len(), n)
-}
 
 /// con-leche: ConLeche/Kernel/Env.lean:683-684 Env.find?
 /// The index recursion the cited `List.find?` becomes, counting **down**:
@@ -751,32 +744,6 @@ pub fn i_env_find_from<'a>(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:686-692 Env.findProj?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:288-295 IEnv.findProj?` — the
-/// projection-table entry for field `i` of `T`: the structure's table
-/// (`proj_table_name T`), viewed at field `i`.  Takes the store only because
-/// the reserved name has to be interned to be looked up.
-pub fn i_env_find_proj(
-    pers: &PersTier,
-    ar: &mut EStore,
-    env: &IEnv,
-    t: &NIdx,
-    i: u64,
-) -> Result<Option<IProjEntry>, CheckError> {
-    match proj_table_name(pers, ar, t) {
-        Err(e) => Err(e),
-        Ok(tn) => match i_env_find(env, &tn) {
-            Some(IConstantInfo::ProjInfo(tbl)) => {
-                if i < tbl.num_fields {
-                    Ok(Some(i_proj_table_entry(tbl, i)))
-                } else {
-                    Ok(None)
-                }
-            }
-            _ => Ok(None),
-        },
-    }
-}
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:26-46 FEnv
 /// Lean twin: `proof/ConRon/Arena/Env.lean:297-303 IFEnv` — the environment
@@ -987,18 +954,6 @@ pub fn ifenv_pop_temp(fe: &mut IFEnv, n: &NIdx, prev: Option<(u64, u64)>) {
     fe.visible_below = fe.visible_below - 1;
 }
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:26-46 FEnv
-/// Lean twin: none — a representation read (task #97-P6-5, lever 5).  The raw
-/// index row under a name, VISIBLE OR NOT, which is what `ifenv_pop_temp` has
-/// to put back when the caller pushed over it.  `ifenv_find` cannot serve: it
-/// hides a row whose counter is at or above the visibility bound, and a hidden
-/// row is exactly the one a naive pop would lose.
-pub fn ifenv_row(fe: &IFEnv, n: &NIdx) -> Option<(u64, u64)> {
-    match fe.idx.get(n) {
-        Some(e) => Some(*e),
-        None => None,
-    }
-}
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:88-92 FEnv.findProj?
 /// Lean twin: `proof/ConRon/Arena/Env.lean:350-355 IFEnv.findProj?` — indexed
@@ -1047,46 +1002,8 @@ impl Dup for IConstantInfo {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:674-676 Env
-/// Lean twin: `proof/ConRon/Arena/Env.lean:270-275 IEnv` — the environment
-/// copy Lean's value semantics gives for free.
-pub fn i_env_dup(e: &IEnv) -> IEnv {
-    IEnv {
-        consts: i_constant_infos_dup(&e.consts),
-    }
-}
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:26-46 FEnv
-/// Lean twin: `proof/ConRon/Arena/Env.lean:297-303 IFEnv` — the indexed
-/// environment's copy: the constants, the index and the visibility bound.
-/// `O(size)`, as `con_ron_core::kernel::fenv::dup` is, and for the same reason
-/// — but since task #97-P6-5's lever 1 the index half is a **slot memcpy**
-/// and not a second deep copy of every constant, so the cost is one
-/// `IConstantInfo` copy per constant instead of two.  The five callers are
-/// all in `arena::inductives`, where a block is checked against an extended
-/// environment while the original has to survive.
-pub fn ifenv_dup(fe: &IFEnv) -> IFEnv {
-    IFEnv {
-        env: i_env_dup(&fe.env),
-        idx: fe.idx.dup(),
-        visible_below: fe.visible_below,
-    }
-}
 
-/// con-leche: ConLeche/Kernel/FEnv.lean:67-72 FEnv.find?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:320-325 IFEnv.find?` — **the stored
-/// constant, COPIED.**  Every reader whose answer outlives a `&mut st` pays the
-/// copy (task #97-P4c's row); written INLINE, the `Option`-producing match
-/// leaves Aeneas with two loan contexts it cannot join (*"Could not match the
-/// contexts"*, `interp/Interp.ml:617`), which is task #97-P4c's extraction
-/// rule 5 at an `ifenv_find` rather than at a `HashMap::get`.  So the copy is
-/// one function and is never inlined.
-pub fn find_ci(vis: u64, fe: &IFEnv, n: &NIdx) -> Option<IConstantInfo> {
-    match ifenv_find(vis, fe, n) {
-        Some(ci) => Some(i_constant_info_dup(ci)),
-        None => None,
-    }
-}
 
 // ---------------------------------------------------------------------------
 // `Monad.lean`'s primitives, pending `arena/monad.rs` (task #97 P4b)

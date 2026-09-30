@@ -159,12 +159,6 @@ pub const M_FUEL_CRF: [u32; 30] = [
     116, 115, 82, 101, 115, 111, 108, 118, 101, 70,
 ];
 
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"fuel exhausted: mentionsConst"`, as code points.
-pub const M_FUEL_MENTIONS: [u32; 29] = [
-    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 109, 101, 110, 116,
-    105, 111, 110, 115, 67, 111, 110, 115, 116,
-];
 
 // ---------------------------------------------------------------------------
 // The state snapshot (`CheckerBase.lean:113-139`'s `orElseAttempt`, deviation 6)
