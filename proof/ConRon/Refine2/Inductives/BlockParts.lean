@@ -1696,3 +1696,194 @@ end recogniser
 
 
 end ConRon.Refine2
+
+/-! ## The projections -/
+
+namespace ConRon.Refine2
+
+open ConRon.Arena
+open Lockstep
+open scoped IndSide
+
+@[lockstep] theorem complete_twin (p0 : arena.inductives.block_parts.BlockParts)
+    (p1 : arena.inductives.block_parts.BlockShape) :
+    LSP (arena.inductives.block_parts.complete p0 p1)
+      (fun o => TwinEq ((absBlockParts p0).complete (absBlockShape p1)) (absBlockParts o)) := by
+  intro o h
+  simp only [arena.inductives.block_parts.complete, Result.ok.injEq] at h
+  subst h; rfl
+
+@[lockstep] theorem shape_k_twin (p : arena.inductives.block_parts.BlockShape) :
+    LSP (arena.inductives.block_parts.shape_k p)
+      (fun o => TwinEq (absBlockShape p).k (absU o)) := by
+  intro o h
+  simp only [arena.inductives.block_parts.shape_k, Result.ok.injEq] at h
+  subst h
+  simp only [TwinEq, BlockShape.k, absBlockShape, List.length_map, absU]
+  rw [ConRon.Refine.ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+
+theorem num_ctors_of_abs {ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape} :
+    ∀ (i : Std.Usize) (o : Std.U64), arena.inductives.block_parts.num_ctors_of ms i = ok o →
+      absU o = numCtorsOf ((ms.val.drop i.val).map absMemberShape) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) ms.val.length
+    (fun i (_ : Unit) => ∀ o, arena.inductives.block_parts.num_ctors_of ms i = ok o →
+      absU o = numCtorsOf ((ms.val.drop i.val).map absMemberShape)) ?_ ?_ i ()
+  · intro i _ hn o h
+    rw [arena.inductives.block_parts.num_ctors_of.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len ms by scalar_tac), Result.ok.injEq] at h
+    subst h
+    rw [List.drop_eq_nil_of_le hn]; rfl
+  · intro i _ hi ih o h
+    rw [arena.inductives.block_parts.num_ctors_of.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac)] at h
+    obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, hmv⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hm)
+    simp only [lift, Result.ok.injEq] at hc
+    subst hc
+    have e1 := ih i2 () (absSz_add_one hi2) r hr
+    have e2 := ConRon.Refine.Nat.uadd_val h
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, numCtorsOf, hmv, ← absSz_add_one hi2, ← e1]
+    simp only [absU, e2, absMemberShape, absCtorsL, List.length_map]
+    rw [ConRon.Refine.ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+
+@[lockstep] theorem num_ctors_of_twin0 (ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape) :
+    LSP (arena.inductives.block_parts.num_ctors_of ms 0#usize)
+      (fun o => TwinEq (numCtorsOf (ms.val.map absMemberShape)) (absU o)) := by
+  intro o h
+  rw [TwinEq, num_ctors_of_abs _ o h, usz_zero_val, List.drop_zero]
+
+@[lockstep] theorem shape_num_ctors_twin (p : arena.inductives.block_parts.BlockShape) :
+    LSP (arena.inductives.block_parts.shape_num_ctors p)
+      (fun o => TwinEq (absBlockShape p).numCtors (absU o)) := by
+  intro o h
+  rw [arena.inductives.block_parts.shape_num_ctors] at h
+  rw [TwinEq, num_ctors_of_abs _ o h, usz_zero_val, List.drop_zero]; rfl
+
+@[lockstep] theorem shape_lps_twin (p : arena.inductives.block_parts.BlockShape) :
+    LSP (arena.inductives.block_parts.shape_lps p)
+      (fun o => TwinEq (absBlockShape p).lps (absNIdxL o)) := by
+  intro o h
+  rw [arena.inductives.block_parts.shape_lps] at h
+  simp only [TwinEq, BlockShape.lps, absBlockShape]
+  by_cases h0 : alloc.vec.Vec.len p.members = 0#usize
+  · rw [if_pos h0, Result.ok.injEq] at h
+    subst h
+    have hv : p.members.val = [] := by
+      have h1 := congrArg Std.UScalar.val h0
+      simpa using h1
+    simp [hv, absNIdxL]
+  · rw [if_neg h0] at h
+    obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hmv := vec_index_some hm
+    rw [usz_zero_val] at hmv
+    rcases hv : p.members.val with _ | ⟨x, xs⟩
+    · simp [hv] at hmv
+    · simp only [hv, List.getElem?_cons_zero, Option.some.injEq] at hmv
+      subst hmv
+      simp [absNIdxL, absMemberShape, absIConstantVal, nidx_vec_dup_val h]
+
+theorem all_ctors_abs {ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape} :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)),
+      arena.inductives.block_parts.all_ctors ms i out = ok o →
+      absCtorsL o = absCtorsL out ++
+        (((ms.val.drop i.val).map absMemberShape).map (·.ctors)).flatten := by
+  refine cursor_induction (fun i : Std.Usize => i.val) ms.val.length
+    (fun i out => ∀ o, arena.inductives.block_parts.all_ctors ms i out = ok o →
+      absCtorsL o = absCtorsL out ++
+        (((ms.val.drop i.val).map absMemberShape).map (·.ctors)).flatten) ?_ ?_
+  · intro i out hn o h
+    rw [arena.inductives.block_parts.all_ctors.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len ms by scalar_tac), Result.ok.injEq] at h
+    subst h
+    simp [List.drop_eq_nil_of_le hn]
+  · intro i out hi ih o h
+    rw [arena.inductives.block_parts.all_ctors.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac)] at h
+    obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, hmv⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hm)
+    have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+    rw [ih i2 o1 hi2v o h, ctors_dup_abs _ _ o1 ho1, hi2v, List.drop_eq_getElem_cons hi, hmv]
+    simp [absMemberShape, absCtorsL, absCtorsLFrom, usz_zero_val]
+
+@[lockstep] theorem all_ctors_twin0 (p : arena.inductives.block_parts.BlockShape) :
+    LSP (arena.inductives.block_parts.all_ctors p.members 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq (absBlockShape p).allCtors (absCtorsL o)) := by
+  intro o h
+  rw [TwinEq, all_ctors_abs _ _ o h]
+  simp [BlockShape.allCtors, absBlockShape, absCtorsL, usz_zero_val]
+
+theorem idx_at_abs {α : Type} (v : alloc.vec.Vec α) (r : Std.U64) (f : α → Std.U64)
+    (o : Std.U64)
+    (h : (do
+      let i1 ← lift (UScalar.cast .U64 (alloc.vec.Vec.len v))
+      if r < i1 then do
+        let i2 ← lift (UScalar.cast .Usize r)
+        let rs ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i2
+        ok (f rs)
+      else ok 0#u64) = ok o) :
+    absU o = (match v.val[absU r]? with | some x => absU (f x) | none => 0) := by
+  simp only [lift, bind_tc_ok] at h
+  have hl : (UScalar.cast .U64 (alloc.vec.Vec.len v)).val = v.val.length := by
+    rw [ConRon.Refine.ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
+  by_cases hr : r < UScalar.cast .U64 (alloc.vec.Vec.len v)
+  · rw [if_pos hr] at h
+    have hrv : r.val < v.val.length := by
+      have : r.val < (UScalar.cast .U64 (alloc.vec.Vec.len v)).val := hr
+      omega
+    obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    simp only [Result.ok.injEq] at h
+    subst h
+    have hxv := vec_index_some hx
+    have hcv : (UScalar.cast .Usize r).val = r.val := by
+      rw [Std.UScalar.cast_val_eq]
+      refine Nat.mod_eq_of_lt ?_
+      have : v.val.length ≤ Std.Usize.max := by scalar_tac
+      have hmax : Std.Usize.max = 2 ^ System.Platform.numBits - 1 := by
+        simp only [Std.Usize.max, Std.Usize.numBits, Std.UScalarTy.Usize_numBits_eq]
+      have : Std.UScalarTy.Usize.numBits = System.Platform.numBits := rfl
+      rw [this]; omega
+    rw [hcv] at hxv
+    simp only [absU] at hxv ⊢
+    rw [hxv]
+  · rw [if_neg hr, Result.ok.injEq] at h
+    subst h
+    have hrv : ¬ r.val < v.val.length := by
+      intro hc; apply hr; show r.val < _; omega
+    simp only [absU] at hrv ⊢
+    rw [List.getElem?_eq_none (by omega)]; rfl
+
+@[lockstep] theorem rule_prefix_at_twin (p : arena.inductives.block_parts.BlockShape) (r : Std.U64) :
+    LSP (arena.inductives.block_parts.rule_prefix_at p r)
+      (fun o => TwinEq ((absBlockShape p).rulePrefixAt (absU r)) (absU o)) := by
+  intro o h
+  rw [arena.inductives.block_parts.rule_prefix_at] at h
+  rw [TwinEq, idx_at_abs p.recs r (·.r_p) o h]
+  simp only [BlockShape.rulePrefixAt, absBlockShape, List.getElem?_map]
+  cases p.recs.val[absU r]? <;> rfl
+
+@[lockstep] theorem major_idx_at_twin (p : arena.inductives.block_parts.BlockShape) (r : Std.U64) :
+    LSP (arena.inductives.block_parts.major_idx_at p r)
+      (fun o => TwinEq ((absBlockShape p).majorIdxAt (absU r)) (absU o)) := by
+  intro o h
+  rw [arena.inductives.block_parts.major_idx_at] at h
+  rw [TwinEq, idx_at_abs p.recs r (·.m_i) o h]
+  simp only [BlockShape.majorIdxAt, absBlockShape, List.getElem?_map]
+  cases p.recs.val[absU r]? <;> rfl
+
+/-- `with_sort` ⊑ `BlockShape.withSort`. -/
+@[lockstep] theorem with_sort_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (p : arena.inductives.block_parts.BlockShape)
+    (s : arena.handle.LIdx) :
+    LS pers (fun a b => b = absBlockShape a) (arena.inductives.block_parts.with_sort pers st p s)
+      lst ((absBlockShape p).withSort (absLIdx s)) := by
+  rw [arena.inductives.block_parts.with_sort, BlockShape.withSort]
+  lockstep
+  all_goals (split <;> (refine LS.pure ?_ ‹_› ‹_›; simp_all [absBlockShape]))
+
+end ConRon.Refine2
