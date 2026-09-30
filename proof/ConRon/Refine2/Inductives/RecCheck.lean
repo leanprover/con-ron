@@ -2140,6 +2140,89 @@ theorem cons_block_recs_t_aux {pers} (vis2 : Std.U64) (p : arena.inductives.bloc
   congr 1
   simp [Function.comp_def, absRecShape, absU]
 
+/-! ## `target_rec_pins` (`_aux`, `_names`: fragments of the one twin
+`targetRecPins`, unfolded in place)
+
+`Inductives/BlockParts.lean` holds the `block_parts` readers this needs but
+cannot be imported beside `Inductives/Prims.lean` (name clashes with
+`Checker/Base.lean`), so the proof takes BlockParts' statements as premises
+(`BPReaders`, their exact forms); `target_rec_pins_ls` is the instance once
+the clash is resolved. -/
+
+/-- BlockParts' readers, as `target_rec_pins` uses them. -/
+structure BPReaders (pers : arena.store.PersTier) : Prop where
+  shapeK : ∀ p : arena.inductives.block_parts.BlockShape,
+    LSP (arena.inductives.block_parts.shape_k p) (fun o => TwinEq (absBlockShape p).k (absU o))
+  lpsOk : ∀ p : arena.inductives.block_parts.BlockShape,
+    LSP (arena.inductives.block_parts.block_rec_lps_ok p)
+      (fun o => TwinEq (blockRecLpsOk (absBlockShape p)) o)
+  unreserved : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
+    ∀ rs : alloc.vec.Vec arena.inductives.block_parts.RecShape,
+    LS pers (fun a b => b = a)
+      (arena.inductives.block_parts.block_rec_names_unreserved st rs 0#usize) lst
+      (blockRecNamesUnreserved (rs.val.map absRecShape))
+  nameSetOk : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
+    ∀ (members : alloc.vec.Vec arena.inductives.block_parts.MemberShape)
+      (recs : alloc.vec.Vec arena.inductives.block_parts.RecShape),
+    LS pers (fun a b => b = a)
+      (arena.inductives.block_parts.block_rec_name_set_ok pers st members recs) lst
+      (blockRecNameSetOk (members.val.map absMemberShape) (recs.val.map absRecShape))
+  recNames : ∀ rs : alloc.vec.Vec arena.inductives.block_parts.RecShape,
+    LSP (arena.inductives.block_parts.rec_names rs 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq ((rs.val.map absRecShape).map (·.cvR.name)) (absNIdxL o))
+  allIn : ∀ xs ys : alloc.vec.Vec arena.handle.NIdx,
+    LSP (arena.inductives.block_parts.names_all_in xs ys 0#usize)
+      (fun o => TwinEq ((absNIdxL xs).all (fun n => (absNIdxL ys).contains n)) o)
+  split : ∀ block : alloc.vec.Vec arena.env.IConstantInfo,
+    LSP (arena.inductives.block_parts.block_split block 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq (blockSplit (absICIL block))
+        (o.map (fun q => (q.1.val.map absIConstantVal, absCtors3L q.2.1, absRecsL q.2.2))))
+  allCtors : ∀ p : arena.inductives.block_parts.BlockShape,
+    LSP (arena.inductives.block_parts.all_ctors p.members 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq (absBlockShape p).allCtors (absCtorsL o))
+
+theorem rc_absBlockShape_members (p : arena.inductives.block_parts.BlockShape) :
+    (absBlockShape p).members = p.members.val.map absMemberShape := rfl
+theorem rc_absBlockShape_recs (p : arena.inductives.block_parts.BlockShape) :
+    (absBlockShape p).recs = p.recs.val.map absRecShape := rfl
+
+attribute [local lockstep_inline] arena.inductives.rec_check.target_rec_pins_aux
+  arena.inductives.rec_check.target_rec_pins_names
+
+set_option maxHeartbeats 1000000 in
+theorem target_rec_pins_of {pers st lst} (hbp : BPReaders pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (p : arena.inductives.block_parts.BlockShape)
+    (block : alloc.vec.Vec arena.env.IConstantInfo) :
+    LS pers (fun a b => b = a)
+      (arena.inductives.rec_check.target_rec_pins pers st p block) lst
+      (targetRecPins (absBlockShape p) (absICIL block)) := by
+  have h1 := hbp.shapeK
+  have h2 := hbp.lpsOk
+  have h3 : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
+      ∀ rs : alloc.vec.Vec arena.inductives.block_parts.RecShape,
+      LS pers (fun a b => b = a)
+        (arena.inductives.block_parts.block_rec_names_unreserved st rs 0#usize) lst
+        (blockRecNamesUnreserved (rs.val.map absRecShape)) := hbp.unreserved
+  have h4 : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
+      ∀ (members : alloc.vec.Vec arena.inductives.block_parts.MemberShape)
+        (recs : alloc.vec.Vec arena.inductives.block_parts.RecShape),
+      LS pers (fun a b => b = a)
+        (arena.inductives.block_parts.block_rec_name_set_ok pers st members recs) lst
+        (blockRecNameSetOk (members.val.map absMemberShape) (recs.val.map absRecShape)) :=
+    hbp.nameSetOk
+  have h5 := hbp.recNames
+  have h6 := hbp.allIn
+  have h7 := hbp.split
+  have h8 := hbp.allCtors
+  rw [arena.inductives.rec_check.target_rec_pins, targetRecPins]
+  simp only [rc_absBlockShape_members, rc_absBlockShape_recs]
+  rcases hm : p.members.val with _ | ⟨m0, ms⟩
+  all_goals simp only [List.map_nil, List.map_cons]
+  all_goals lockstep
+  trace_state
+  all_goals sorry
+
 /-! ## The axiom census -/
 
 /-- info: 'ConRon.Refine2.target_abs_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
