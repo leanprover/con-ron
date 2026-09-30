@@ -348,6 +348,34 @@ theorem beq_lshandle_eq {st : EStore} (hwf : StoreWF st) {a b : LsIdx}
     rw [h1] at hne
     exact absurd hne (by simp)
 
+/-- con-leche: none — the `fvar` index projection read means the type
+projection reads too (one row of the `fvar` array): `TagFirst`'s
+`viewFVarIdx_of_viewFVarTy`, the other way. -/
+theorem viewFVarTy_of_viewFVarIdx {st : EStore} {i : EIdx} {k : Nat}
+    (h : st.viewFVarIdx i = some k) : ∃ ty, st.viewFVarTy i = some ty := by
+  unfold EStore.viewFVarIdx at h
+  unfold EStore.viewFVarTy EStore.persGetFVarTy
+  unfold EStore.persGetFVarIdx at h
+  split at h
+  · simp only [ETables.getFVarIdx, Option.map_eq_some_iff] at h
+    obtain ⟨r, hr, -⟩ := h
+    exact ⟨r.ty, by simp [*, ETables.getFVarTy]⟩
+  · split at h
+    · simp only [ETables.getFVarIdx, Option.map_eq_some_iff] at h
+      obtain ⟨r, hr, -⟩ := h
+      exact ⟨r.ty, by simp [*, ETables.getFVarTy]⟩
+    · cases h
+
+/-- con-leche: none — an `fvar`-tagged handle's index projection, with its
+denotation: the term is that free variable. -/
+theorem denote_of_viewFVarIdx {st : EStore} (hwf : StoreWF st) {a : EIdx} {j : Nat}
+    {aP : Expr} (htg : (a.tag == ETag.fvar) = true) (hj : st.viewFVarIdx a = some j)
+    (hd : denoteE st a = some aP) : ∃ t, aP = .fvar j t := by
+  obtain ⟨ty, hty⟩ := viewFVarTy_of_viewFVarIdx hj
+  have hw := view_of_viewFVar_tag htg hj hty
+  obtain ⟨t, rfl, _⟩ := denote_fvar_inv hwf hw hd
+  exact ⟨t, rfl⟩
+
 end PW
 
 open PW
@@ -1815,5 +1843,482 @@ theorem replaceFVars_spec (f : Arena.FvMap) (fP : Nat → Option Expr) (e : EIdx
     PSpecP (fun st => FvMapRel st f fP ∧ denoteE st e = some eP)
       (Arena.replaceFVars f e) (RE (Expr.replaceFVars fP eP)) :=
   replaceFVars_spec_of f fP (fvMapAt_spec f fP) e eP
+
+/-! ## The whole-application abstraction: `phApp?`, `nestCanonSub`, `appHole?`,
+`replaceApps`, `nestPhs` -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:917-923 Expr.phApp? —
+a constant's name and level list, denoted. -/
+abbrev RPh (p : ConLeche.Name × List Level) : EStore → NIdx × LsIdx → Prop :=
+  fun st q => denoteN st.ns q.1 = some p.1 ∧ denoteLs st.lss q.2 = some p.2
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:917-923 Expr.phApp?
+`e` is a constant applied to exactly the placeholders `fvar b, …`. -/
+theorem phApp?_spec (b : Nat) :
+    ∀ (n : Nat) (e : EIdx) (eP : Expr),
+    PSpec (fun st => denoteE st e = some eP) (Arena.phApp? b e n)
+      (ROp RPh (Expr.phApp? b eP n)) := by
+  intro n
+  induction n with
+  | zero =>
+    intro e eP s₀ s' r hok hd hrun
+    simp only [Arena.phApp?] at hrun
+    by_cases htg : (e.tag == ETag.const) = true
+    · rw [if_pos htg] at hrun
+      obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+      obtain ⟨hs1, ho⟩ := viewConst_run h1
+      rw [hs1] at h2
+      cases o with
+      | none => exact absurd h2 (fun hc => failDanglingE_ok hc)
+      | some p =>
+        obtain ⟨c, us⟩ := p
+        have hw := view_of_viewConst_tag htg ho.symm
+        obtain ⟨nm, ls, rfl, hn, hls⟩ := denote_const_inv hok.wf hw hd
+        dsimp only at h2
+        obtain ⟨rfl, rfl⟩ := pureOk h2
+        exact ⟨PStep.refl hok, (nm, ls), rfl, hn, hls⟩
+    · rw [if_neg htg] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      refine ⟨PStep.refl hok, ?_⟩
+      show Expr.phApp? b eP 0 = none
+      cases eP with
+      | const c us => exact absurd (tag_const_of_denote hok.wf hd) (by simpa using htg)
+      | _ => simp [Expr.phApp?]
+  | succ n ih =>
+    intro e eP s₀ s' r hok hd hrun
+    simp only [Arena.phApp?] at hrun
+    by_cases htg : (e.tag == ETag.app) = true
+    · rw [if_pos htg] at hrun
+      obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+      obtain ⟨hs1, ho⟩ := viewApp_run h1
+      rw [hs1] at h2
+      cases o with
+      | none => exact absurd h2 (fun hc => failDanglingE_ok hc)
+      | some p =>
+        obtain ⟨f, a⟩ := p
+        have hw := view_of_viewApp_tag htg ho.symm
+        obtain ⟨fP, aP, rfl, hf, ha⟩ := denote_app_inv hok.wf hw hd
+        dsimp only at h2
+        by_cases hta : (a.tag == ETag.fvar) = true
+        · rw [if_pos hta] at h2
+          obtain ⟨o2, s₂, h3, h4⟩ := bindOk h2
+          obtain ⟨hs2, ho2⟩ := viewFVarIdx_run h3
+          rw [hs2] at h4
+          cases o2 with
+          | none => exact absurd h4 (fun hc => failDanglingE_ok hc)
+          | some j =>
+            obtain ⟨t, rfl⟩ := denote_of_viewFVarIdx hok.wf hta ho2.symm ha
+            dsimp only at h4
+            by_cases hj : (j == b + n) = true
+            · rw [if_pos hj] at h4
+              have hj' : j = b + n := by simpa using hj
+              have heq : Expr.phApp? b (.app fP (.fvar j t)) (n + 1) = Expr.phApp? b fP n := by
+                simp [Expr.phApp?, hj']
+              rw [heq]
+              exact ih f fP s₀ s' r hok hf h4
+            · rw [if_neg hj] at h4
+              obtain ⟨rfl, rfl⟩ := pureOk h4
+              refine ⟨PStep.refl hok, ?_⟩
+              show Expr.phApp? b (.app fP (.fvar j t)) (n + 1) = none
+              have hj' : ¬ j = b + n := by simpa using hj
+              simp [Expr.phApp?, hj']
+        · rw [if_neg hta] at h2
+          obtain ⟨rfl, rfl⟩ := pureOk h2
+          refine ⟨PStep.refl hok, ?_⟩
+          show Expr.phApp? b (.app fP aP) (n + 1) = none
+          cases aP with
+          | fvar j t => exact absurd (tag_fvar_of_denote hok.wf ha) (by simpa using hta)
+          | _ => rfl
+    · rw [if_neg htg] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      refine ⟨PStep.refl hok, ?_⟩
+      show Expr.phApp? b eP (n + 1) = none
+      cases eP with
+      | app f a => exact absurd (tag_app_of_denote hok.wf hd) (by simpa using htg)
+      | _ => rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1089-1095 nestCanonSub
+Member `m` at the levels `us` to the canonical hole `fvar (n + m)`; the level
+lists compare by handle (`beq_lshandle_eq`). -/
+theorem nestCanonSub_spec (names : List NIdx) (namesP : List ConLeche.Name)
+    (us : LsIdx) (usP : List Level) (n : Nat) (c : NIdx) (cP : ConLeche.Name)
+    (v : LsIdx) (vP : List Level) :
+    PSpecP (fun st => Frontend.denoteNList st.ns names = some namesP ∧
+        denoteLs st.lss us = some usP ∧ denoteN st.ns c = some cP ∧
+        denoteLs st.lss v = some vP)
+      (Arena.nestCanonSub names us n c v)
+      (ROp RE (ConLeche.nestCanonSub namesP usP n cP vP)) := by
+  intro s₀ s' r hok hpins hp hrun
+  obtain ⟨hN, hU, hC, hV⟩ := hp
+  simp only [Arena.nestCanonSub] at hrun
+  have hbv := beq_lshandle_eq hok.wf hV hU
+  have hfi := findIdx_handle_eq hok.wf hC hN
+  by_cases hb : (v == us) = true
+  · rw [if_pos hb] at hrun
+    have hbP : (vP == usP) = true := by rw [← hbv]; exact hb
+    cases hm : names.findIdx? (· == c) with
+    | none =>
+      rw [hm] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      refine ⟨PStep.refl hok, ?_⟩
+      show ConLeche.nestCanonSub namesP usP n cP vP = none
+      simp only [ConLeche.nestCanonSub, hbP, if_true, ← hfi, hm, Option.map_none]
+    | some m =>
+      rw [hm] at hrun
+      dsimp only at hrun
+      obtain ⟨z, s1, k1, z1⟩ := bindOk hrun
+      obtain ⟨rfl, hz⟩ := zeroLevel_run hpins k1
+      obtain ⟨so, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨p2, hso⟩ := internSortE_run hok hz k2
+      obtain ⟨q, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨p3, hq⟩ := internFVarE_run p2.ok hso k3
+      obtain ⟨rfl, rfl⟩ := pureOk z3
+      refine ⟨p2.trans p3, _, ?_, hq⟩
+      simp only [ConLeche.nestCanonSub, hbP, if_true, ← hfi, hm, Option.map_some]
+  · rw [if_neg hb] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    refine ⟨PStep.refl hok, ?_⟩
+    have hbP : ¬ (vP == usP) = true := by rw [← hbv]; exact hb
+    show ConLeche.nestCanonSub namesP usP n cP vP = none
+    simp [ConLeche.nestCanonSub, hbP]
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:925-928 Expr.appHole?
+The hole a whole application is replaced by, at `nestCanonSub`. -/
+theorem appHole?_spec (names : List NIdx) (namesP : List ConLeche.Name)
+    (us : LsIdx) (usP : List Level) (b n : Nat) (e : EIdx) (eP : Expr) :
+    PSpecP (fun st => Frontend.denoteNList st.ns names = some namesP ∧
+        denoteLs st.lss us = some usP ∧ denoteE st e = some eP)
+      (Arena.appHole? names us b n e)
+      (ROp RE (Expr.appHole? (ConLeche.nestCanonSub namesP usP n) b n eP)) := by
+  intro s₀ s' r hok hpins hp hrun
+  obtain ⟨hN, hU, hd⟩ := hp
+  simp only [Arena.appHole?] at hrun
+  obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨p1, ho⟩ := phApp?_spec b n e eP s₀ s₁ o hok hd h1
+  cases o with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk h2
+    refine ⟨p1, ?_⟩
+    have : Expr.phApp? b eP n = none := ho
+    show Expr.appHole? _ b n eP = none
+    simp only [Expr.appHole?, this, Option.bind_none]
+  | some q =>
+    obtain ⟨c, v⟩ := q
+    obtain ⟨⟨cP, vP⟩, hph, hc, hv⟩ := ho
+    dsimp only at h2
+    obtain ⟨p2, hr⟩ := nestCanonSub_spec names namesP us usP n c cP v vP s₁ s' r p1.ok
+      (PinsOK.ofPStep hpins p1)
+      ⟨denoteNListE_ext p1.ext _ _ hN, denoteLs_ext hU p1.ext, hc, hv⟩ h2
+    refine ⟨p1.trans p2, ?_⟩
+    have heq : Expr.appHole? (ConLeche.nestCanonSub namesP usP n) b n eP =
+        ConLeche.nestCanonSub namesP usP n cP vP := by
+      simp only [Expr.appHole?, hph, Option.bind_some]
+    rw [heq]
+    exact hr
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:949-951 ReplaceAppsMemoInv
+The handle-keyed memo of `replaceApps F b n`. -/
+def RAMemoOK (F : ConLeche.Name → List Level → Option Expr) (b n : Nat)
+    (tbl : Std.HashMap EIdx EIdx) (st : EStore) : Prop :=
+  ∀ (k v : EIdx), tbl[k]? = some v →
+    ∃ e, denoteE st k = some e ∧ denoteE st v = some (Expr.replaceApps F b n e)
+
+theorem RAMemoOK.empty {F : ConLeche.Name → List Level → Option Expr} {b n : Nat}
+    {st : EStore} : RAMemoOK F b n ∅ st := by
+  intro k v h; simp at h
+
+theorem RAMemoOK.ext {F : ConLeche.Name → List Level → Option Expr} {b n : Nat}
+    {tbl : Std.HashMap EIdx EIdx} {st st' : EStore} (hx : Ext st st')
+    (h : RAMemoOK F b n tbl st) : RAMemoOK F b n tbl st' := by
+  intro k v hk
+  obtain ⟨e, h1, h2⟩ := h k v hk
+  exact ⟨e, denote_ext h1 hx, denote_ext h2 hx⟩
+
+theorem RAMemoOK.insert {F : ConLeche.Name → List Level → Option Expr} {b n : Nat}
+    {tbl : Std.HashMap EIdx EIdx} {st : EStore} (hm : RAMemoOK F b n tbl st)
+    {h r : EIdx} {hP : Expr} (hd : denoteE st h = some hP)
+    (hr : denoteE st r = some (Expr.replaceApps F b n hP)) :
+    RAMemoOK F b n (tbl.insert h r) st := by
+  intro k v hk
+  rw [Std.HashMap.getElem?_insert] at hk
+  split at hk
+  · rename_i hbeq
+    cases hk
+    rw [← eq_of_beq hbeq]
+    exact ⟨hP, hd, hr⟩
+  · exact hm k v hk
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:966-1004 Expr.replaceAppsGo
+The memoised whole-application replacement at `nestCanonSub namesP usP n`
+computes the pure `replaceApps`. -/
+theorem replaceAppsGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
+    (us : LsIdx) (usP : List Level) (b n : Nat) :
+    ∀ (fuel : Nat) (memo : Std.HashMap EIdx EIdx) (h : EIdx) (hP : Expr),
+    PSpecP (fun st => Frontend.denoteNList st.ns names = some namesP ∧
+        denoteLs st.lss us = some usP ∧ denoteE st h = some hP ∧
+        RAMemoOK (ConLeche.nestCanonSub namesP usP n) b n memo st)
+      (Arena.replaceAppsGo names us b n memo fuel h)
+      (fun st r => denoteE st r.1 =
+          some (Expr.replaceApps (ConLeche.nestCanonSub namesP usP n) b n hP) ∧
+        RAMemoOK (ConLeche.nestCanonSub namesP usP n) b n r.2 st) := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro memo h hP s₀ s' r hok _ _ hrun
+    simp only [Arena.replaceAppsGo] at hrun
+    exact absurd hrun (fun hc => failOk hc)
+  | succ fuel ih =>
+    intro memo h hP s₀ s' r hok hpins hp hrun
+    obtain ⟨hN, hU, hd, hm⟩ := hp
+    simp only [Arena.replaceAppsGo] at hrun
+    obtain ⟨v, s₁, hv, h2⟩ := bindOk hrun
+    obtain ⟨hv0, hw⟩ := view_run hv
+    rw [hv0] at h2
+    have fin : ∀ {s₂ s₃ : AState} {rr : EIdx} {mm : Std.HashMap EIdx EIdx}
+        {r' : EIdx × Std.HashMap EIdx EIdx},
+        PStep s₀ s₂ →
+        denoteE s₂.store rr =
+          some (Expr.replaceApps (ConLeche.nestCanonSub namesP usP n) b n hP) →
+        RAMemoOK (ConLeche.nestCanonSub namesP usP n) b n mm s₂.store →
+        (pure ((rr, mm.insert h rr) : EIdx × Std.HashMap EIdx EIdx) :
+            AM (EIdx × Std.HashMap EIdx EIdx)) s₂ = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ denoteE s₃.store r'.1 =
+          some (Expr.replaceApps (ConLeche.nestCanonSub namesP usP n) b n hP) ∧
+          RAMemoOK (ConLeche.nestCanonSub namesP usP n) b n r'.2 s₃.store := by
+      intro s₂ s₃ rr mm r' hs hb hmm hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      exact ⟨hs, hb, RAMemoOK.insert hmm (denote_ext hd hs.ext) hb⟩
+    have hit : ∀ {s₃ : AState} {r₀ : EIdx} {r' : EIdx × Std.HashMap EIdx EIdx},
+        memo[h]? = some r₀ →
+        (pure ((r₀, memo) : EIdx × Std.HashMap EIdx EIdx) :
+            AM (EIdx × Std.HashMap EIdx EIdx)) s₀ = .ok (r', s₃) →
+        PStep s₀ s₃ ∧ denoteE s₃.store r'.1 =
+          some (Expr.replaceApps (ConLeche.nestCanonSub namesP usP n) b n hP) ∧
+          RAMemoOK (ConLeche.nestCanonSub namesP usP n) b n r'.2 s₃.store := by
+      intro s₃ r₀ r' hlk hz
+      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨e, he, hre⟩ := hm h r₀ hlk
+      obtain rfl := Option.some.inj (hd.symm.trans he)
+      exact ⟨PStep.refl hok, hre, hm⟩
+    cases v
+    case bvar j =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain rfl := denote_bvar_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, hd, hm⟩
+    case sort u =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨l, rfl, _⟩ := denote_sort_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, hd, hm⟩
+    case lit l =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain rfl := denote_lit_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, hd, hm⟩
+    case fvar k ty =>
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨t, rfl, _⟩ := denote_fvar_inv hok.wf hw hd
+      exact ⟨PStep.refl hok, hd, hm⟩
+    case const c us' =>
+      obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hok.wf hw hd
+      obtain ⟨o, s₂, h3, h4⟩ := bindOk h2
+      obtain ⟨p3, ho⟩ := appHole?_spec names namesP us usP b n h _ s₀ s₂ o hok hpins
+        ⟨hN, hU, hd⟩ h3
+      cases o with
+      | none =>
+        obtain ⟨rfl, rfl⟩ := pureOk h4
+        refine ⟨p3, ?_, hm.ext p3.ext⟩
+        have : Expr.appHole? (ConLeche.nestCanonSub namesP usP n) b n (.const nm ls) = none := ho
+        simp only [Expr.replaceApps, this, Option.getD_none]
+        exact denote_ext hd p3.ext
+      | some a =>
+        obtain ⟨rfl, rfl⟩ := pureOk h4
+        obtain ⟨bq, hb, hab⟩ := ho
+        refine ⟨p3, ?_, hm.ext p3.ext⟩
+        simp only [Expr.replaceApps, hb, Option.getD_some]
+        exact hab
+    case app f a =>
+      obtain ⟨ef, ea, rfl, hf, ha⟩ := denote_app_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨o, s₂, h3, h4⟩ := bindOk h2
+        obtain ⟨p3, ho⟩ := appHole?_spec names namesP us usP b n h _ s₀ s₂ o hok hpins
+          ⟨hN, hU, hd⟩ h3
+        cases o with
+        | some q =>
+          obtain ⟨bq, hb, hab⟩ := ho
+          dsimp only at h4
+          obtain ⟨y, sy, hy, hz⟩ := bindOk h4
+          obtain ⟨rfl, rfl⟩ := pureOk hy
+          exact fin p3 (by simp only [Expr.replaceApps, hb, Option.getD_some]; exact hab)
+            (hm.ext p3.ext) hz
+        | none =>
+          have hnone : Expr.appHole? (ConLeche.nestCanonSub namesP usP n) b n
+              (.app ef ea) = none := ho
+          dsimp only at h4
+          obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h4
+          obtain ⟨a2, m1⟩ := p1
+          obtain ⟨hsA, hrA, hmA⟩ := ih memo f ef _ _ (a2, m1) p3.ok
+            (PinsOK.ofPStep hpins p3)
+            ⟨denoteNListE_ext p3.ext _ _ hN, denoteLs_ext hU p3.ext, denote_ext hf p3.ext,
+             hm.ext p3.ext⟩ hc1
+          have h3A := p3.trans hsA
+          obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+          obtain ⟨b2, m2⟩ := p2
+          obtain ⟨hsB, hrB, hmB⟩ := ih m1 a ea _ _ (b2, m2) hsA.ok
+            (PinsOK.ofPStep hpins h3A)
+            ⟨denoteNListE_ext h3A.ext _ _ hN, denoteLs_ext hU h3A.ext,
+             denote_ext ha h3A.ext, hmA⟩ hc2
+          obtain ⟨q, sc, hc3, hn3⟩ := bindOk hn2
+          obtain ⟨hsC, hq⟩ := internAppE_run hsB.ok (denote_ext hrA hsB.ext) hrB hc3
+          obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
+          obtain ⟨rfl, rfl⟩ := pureOk hy
+          exact fin ((h3A.trans hsB).trans hsC)
+            (by rw [hq]; simp only [Expr.replaceApps, hnone, Option.getD_none])
+            (hmB.ext hsC.ext) hz
+    case lam ty bd m =>
+      obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_lam_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨a2, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (a2, m1) hok hpins
+          ⟨hN, hU, hty, hm⟩ hc1
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ := ih m1 bd eb _ _ (b2, m2) hsA.ok
+          (PinsOK.ofPStep hpins hsA)
+          ⟨denoteNListE_ext hsA.ext _ _ hN, denoteLs_ext hU hsA.ext, denote_ext hbd hsA.ext,
+           hmA⟩ hc2
+        obtain ⟨q, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨hsC, hq⟩ := internLamE_run hsB.ok (denote_ext hrA hsB.ext) hrB hc3
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin ((hsA.trans hsB).trans hsC) (by rw [hq]; rfl) (hmB.ext hsC.ext) hz
+    case forallE ty bd m =>
+      obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨a2, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (a2, m1) hok hpins
+          ⟨hN, hU, hty, hm⟩ hc1
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ := ih m1 bd eb _ _ (b2, m2) hsA.ok
+          (PinsOK.ofPStep hpins hsA)
+          ⟨denoteNListE_ext hsA.ext _ _ hN, denoteLs_ext hU hsA.ext, denote_ext hbd hsA.ext,
+           hmA⟩ hc2
+        obtain ⟨q, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨hsC, hq⟩ := internForallEE_run hsB.ok (denote_ext hrA hsB.ext) hrB hc3
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin ((hsA.trans hsB).trans hsC) (by rw [hq]; rfl) (hmB.ext hsC.ext) hz
+    case letE lt lv lb =>
+      obtain ⟨et, ev, eb, rfl, hty, hval, hbd⟩ := denote_letE_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨a2, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo lt et _ _ (a2, m1) hok hpins
+          ⟨hN, hU, hty, hm⟩ hc1
+        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨b2, m2⟩ := p2
+        obtain ⟨hsB, hrB, hmB⟩ := ih m1 lv ev _ _ (b2, m2) hsA.ok
+          (PinsOK.ofPStep hpins hsA)
+          ⟨denoteNListE_ext hsA.ext _ _ hN, denoteLs_ext hU hsA.ext,
+           denote_ext hval hsA.ext, hmA⟩ hc2
+        have hAB := hsA.trans hsB
+        obtain ⟨p3, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨c2, m3⟩ := p3
+        obtain ⟨hsC, hrC, hmC⟩ := ih m2 lb eb _ _ (c2, m3) hsB.ok
+          (PinsOK.ofPStep hpins hAB)
+          ⟨denoteNListE_ext hAB.ext _ _ hN, denoteLs_ext hU hAB.ext,
+           denote_ext hbd hAB.ext, hmB⟩ hc3
+        obtain ⟨q, sd, hc4, hn4⟩ := bindOk hn3
+        obtain ⟨hsD, hq⟩ := internLetEE_run hsC.ok (denote_ext hrA (hsB.ext.trans hsC.ext))
+          (denote_ext hrB hsC.ext) hrC hc4
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn4
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin ((hAB.trans hsC).trans hsD) (by rw [hq]; rfl) (hmC.ext hsD.ext) hz
+    case proj pn pk psub =>
+      obtain ⟨nm, es, rfl, hn, hsub⟩ := denote_proj_inv hok.wf hw hd
+      cases hlk : memo[h]? with
+      | some r₀ => rw [hlk] at h2; exact hit hlk h2
+      | none =>
+        rw [hlk] at h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨a2, m1⟩ := p1
+        obtain ⟨hsA, hrA, hmA⟩ := ih memo psub es _ _ (a2, m1) hok hpins
+          ⟨hN, hU, hsub, hm⟩ hc1
+        obtain ⟨q, sc, hc3, hn3⟩ := bindOk hn1
+        obtain ⟨hsC, hq⟩ := internProjE_run hsA.ok (denoteN_ext hn hsA.ext) hrA hc3
+        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
+        obtain ⟨rfl, rfl⟩ := pureOk hy
+        exact fin (hsA.trans hsC) (by rw [hq]; rfl) (hmA.ext hsC.ext) hz
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1077-1079 Expr.replaceAppsFast
+**`replaceApps` at `nestCanonSub`**: the pure `Expr.replaceApps`. -/
+theorem replaceApps_spec (names : List NIdx) (namesP : List ConLeche.Name)
+    (us : LsIdx) (usP : List Level) (b n : Nat) (e : EIdx) (eP : Expr) :
+    PSpecP (fun st => Frontend.denoteNList st.ns names = some namesP ∧
+        denoteLs st.lss us = some usP ∧ denoteE st e = some eP)
+      (Arena.replaceApps names us b n e)
+      (RE (Expr.replaceApps (ConLeche.nestCanonSub namesP usP n) b n eP)) := by
+  intro s₀ s' r hok hpins hp hrun
+  obtain ⟨hN, hU, hd⟩ := hp
+  simp only [Arena.replaceApps] at hrun
+  obtain ⟨q, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hstep, hr, _⟩ := replaceAppsGo_spec names namesP us usP b n Arena.coreWalkFuel
+    ∅ e eP s₀ s₁ q hok hpins ⟨hN, hU, hd, RAMemoOK.empty⟩ h1
+  obtain ⟨rfl, rfl⟩ := pureOk h2
+  exact ⟨hstep, hr⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1086-1087 nestPhs
+The canonical parameter variables at `Sort 0`, one per index of the list. -/
+theorem nestPhs_go :
+    ∀ (l : List Nat),
+    PSpecP PT (l.mapM fun i => do
+        let z ← Arena.zeroLevel
+        let s ← internSortE z
+        internFVarE i s)
+      (REL (l.map fun i => Expr.fvar i (.sort .zero))) := by
+  intro l
+  induction l with
+  | nil =>
+    intro s₀ s' r hok _ _ hrun
+    simp only [List.mapM_nil] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons i is ih =>
+    intro s₀ s' r hok hpins _ hrun
+    simp only [List.mapM_cons] at hrun
+    obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨z, t1, j1, y1⟩ := bindOk k1
+    obtain ⟨rfl, hz⟩ := zeroLevel_run hpins j1
+    obtain ⟨so, t2, j2, y2⟩ := bindOk y1
+    obtain ⟨q2, hso⟩ := internSortE_run hok hz j2
+    obtain ⟨q3, hx⟩ := internFVarE_run q2.ok hso y2
+    have p1 := q2.trans q3
+    obtain ⟨xs', s2, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, hxs⟩ := ih s1 s2 xs' p1.ok (PinsOK.ofPStep hpins p1) trivial k2
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨p1.trans p2, ?_⟩
+    show Frontend.denoteEList _ (x :: xs') = _
+    have hxs' : Frontend.denoteEList _ xs' = some _ := hxs
+    simp only [Frontend.denoteEList, List.map_cons, denote_ext hx p2.ext, hxs']
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1086-1087 nestPhs
+`fvar 0, …, fvar (n - 1)` at `Sort 0`. -/
+theorem nestPhs_spec (n : Nat) :
+    PSpecP PT (Arena.nestPhs n) (REL (ConLeche.nestPhs n)) := by
+  intro s₀ s' r hok hpins hp hrun
+  exact nestPhs_go (List.range n) s₀ s' r hok hpins hp hrun
 
 end ConRon.Bridge.Inductives
