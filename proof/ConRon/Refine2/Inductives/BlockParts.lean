@@ -253,7 +253,7 @@ theorem bp_absICILFrom_cons {block : alloc.vec.Vec arena.env.IConstantInfo} {i j
   obtain ⟨hb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
   rw [absICILFrom, absICILFrom, List.drop_eq_getElem_cons hb, hxv, List.map_cons, hj]
 
-theorem absICILFrom_cons' {block : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize}
+theorem bp_absICILFrom_cons' {block : alloc.vec.Vec arena.env.IConstantInfo} {i : Std.Usize}
     {ii : arena.env.IConstantInfo} (hx : block.val[i.val]? = some ii) :
     absICILFrom block i = absIConstantInfo ii :: (block.val.drop (i.val + 1)).map absIConstantInfo := by
   obtain ⟨hb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
@@ -326,12 +326,12 @@ theorem block_split_recs_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
       cases blockSplitRecs (absICILFrom block i2) <;>
         simp [absRecsL, ConRon.Refine.vec_push_val hout1, i_constant_val_dup_abs hiv,
           i_rec_rules_dup_abs hv]
-    | AxiomInfo _ => simp only [Result.ok.injEq] at h2; subst h2; rw [absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
-    | DefnInfo _ _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
-    | ThmInfo _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
-    | IndInfo _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
-    | CtorInfo _ _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
-    | ProjInfo _ => simp only [Result.ok.injEq] at h2; subst h2; rw [absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
+    | AxiomInfo _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
+    | DefnInfo _ _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
+    | ThmInfo _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
+    | IndInfo _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
+    | CtorInfo _ _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
+    | ProjInfo _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
 
 theorem block_split_recs_twin (block : alloc.vec.Vec arena.env.IConstantInfo)
     (i : Std.Usize) out :
@@ -392,7 +392,7 @@ theorem block_split_ctors_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
       rw [blockSplitCtors_of_not_ctor _ ?_, ← e]
       · cases o1 <;> (obtain rfl := Result.ok_injective h; simp)
       · intro cv np nf rest hc'
-        rw [absICILFrom_cons' hx] at hc'
+        rw [bp_absICILFrom_cons' hx] at hc'
         cases ii <;> simp_all [absIConstantInfo]
 
 theorem block_split_ctors_twin (block : alloc.vec.Vec arena.env.IConstantInfo)
@@ -453,7 +453,7 @@ theorem block_split_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
       rw [blockSplit_of_not_ind _ ?_, ← e]
       · cases o1 <;> (obtain rfl := Result.ok_injective h; simp)
       · intro cv caps rest hc'
-        rw [absICILFrom_cons' hx] at hc'
+        rw [bp_absICILFrom_cons' hx] at hc'
         cases ii <;> simp_all [absIConstantInfo]
 
 theorem block_split_twin (block : alloc.vec.Vec arena.env.IConstantInfo)
@@ -891,7 +891,7 @@ theorem nidx_vec_beq_off_abs {a b : alloc.vec.Vec arena.handle.NIdx} {off : Std.
       (fun o => TwinEq ((a.val.drop 1).map absNIdx == b.val.map absNIdx) o) := by
   intro o h
   rw [TwinEq, nidx_vec_beq_off_abs _ o h]
-  simp [usz_zero_val]
+  simp
 
 /-! ## The recogniser's readers -/
 
@@ -1427,9 +1427,9 @@ theorem absICVL_eq_cons {v : alloc.vec.Vec arena.env.IConstantVal} {c : IConstan
       c = absIConstantVal (v.val[(0#usize : Std.Usize).val]'hw) := by
   rcases hv : v.val with _ | ⟨x, xs⟩
   · simp [absICVL, hv] at h
-  · refine ⟨by simp [hv, usz_zero_val], ?_⟩
+  · refine ⟨by simp, ?_⟩
     simp only [absICVL, hv, List.map_cons, List.cons.injEq] at h
-    simp [hv, usz_zero_val, h.1]
+    simp [h.1]
 
 theorem absRecsL_eq_cons {v : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
       (alloc.vec.Vec arena.env.IRecRule))} {c : IConstantVal} {a b : Nat} {r : List IRecRule}
@@ -1438,9 +1438,9 @@ theorem absRecsL_eq_cons {v : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 �
       c = absIConstantVal (v.val[(0#usize : Std.Usize).val]'hw).1 := by
   rcases hv : v.val with _ | ⟨x, xs⟩
   · simp [absRecsL, hv] at h
-  · refine ⟨by simp [hv, usz_zero_val], ?_⟩
+  · refine ⟨by simp, ?_⟩
     simp only [absRecsL, hv, List.map_cons, List.cons.injEq, Prod.mk.injEq] at h
-    simp [hv, usz_zero_val, h.1.1]
+    simp [h.1.1]
 
 @[lockstep_simp] theorem absICVL_length (v : alloc.vec.Vec arena.env.IConstantVal) :
     (absICVL v).length = v.len.val := by simp [absICVL]
@@ -1458,12 +1458,12 @@ theorem absNatL_headD (v : alloc.vec.Vec Std.U64) :
   · have : v.len = 0#usize := by
       have h0 : v.len.val = 0 := by simp [hv]
       scalar_tac
-    simp [absNatL, hv, this]
+    simp [absNatL, hv]
   · have : ¬ v.len = 0#usize := by
       intro h
       have h0 : v.len.val = 0 := by rw [h]; rfl
       simp [hv] at h0
-    simp [absNatL, hv, this]
+    simp [absNatL, hv]
 
 theorem absNatL_headD_zero {v : alloc.vec.Vec Std.U64} (h : v.len = 0#usize) :
     (absNatL v).headD 0 = 0 := by
@@ -1809,14 +1809,14 @@ theorem all_ctors_abs {ms : alloc.vec.Vec arena.inductives.block_parts.MemberSha
     obtain ⟨_, hmv⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hm)
     have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
     rw [ih i2 o1 hi2v o h, ctors_dup_abs _ _ o1 ho1, hi2v, List.drop_eq_getElem_cons hi, hmv]
-    simp [absMemberShape, absCtorsL, absCtorsLFrom, usz_zero_val]
+    simp [absMemberShape, absCtorsL, absCtorsLFrom]
 
 @[lockstep] theorem all_ctors_twin0 (p : arena.inductives.block_parts.BlockShape) :
     LSP (arena.inductives.block_parts.all_ctors p.members 0#usize (alloc.vec.Vec.new _))
       (fun o => TwinEq (absBlockShape p).allCtors (absCtorsL o)) := by
   intro o h
   rw [TwinEq, all_ctors_abs _ _ o h]
-  simp [BlockShape.allCtors, absBlockShape, absCtorsL, usz_zero_val]
+  simp [BlockShape.allCtors, absBlockShape, absCtorsL]
 
 theorem idx_at_abs {α : Type} (v : alloc.vec.Vec α) (r : Std.U64) (f : α → Std.U64)
     (o : Std.U64)
@@ -2082,5 +2082,16 @@ theorem want_rec_names_ls {pers}
   have hl := hlen _ _ ‹alloc.vec.Vec.len _ = alloc.vec.Vec.len _›
   refine LS.pure ?_ ‹_› ‹_›
   simp only [absNIdxL, List.length_map, hl, beq_self_eq_true, Bool.true_and, Bool.and_true]
+
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.block_parts_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms block_parts_ls
+
+/-- info: 'ConRon.Refine2.block_rec_name_set_ok_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms block_rec_name_set_ok_ls
+
+/-- info: 'ConRon.Refine2.block_rec_lps_ok_twin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms block_rec_lps_ok_twin
 
 end ConRon.Refine2
