@@ -1117,6 +1117,49 @@ theorem allM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool} (Q : EStore → 
           refine ⟨p1.trans p2, ?_⟩
           simp only [List.all_cons, ← hc, Bool.true_and, hb]
 
+/-- con-leche: none — and `List.anyM`: the verdict is the pure `List.any`. -/
+theorem anyM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool} (Q : EStore → Prop)
+    (hQx : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
+    (hf : ∀ (e : EIdx) (eP : Expr) (s₀ s' : AState) (b : Bool), StateOK s₀ →
+      Q s₀.store → denoteE s₀.store e = some eP → f e s₀ = .ok (b, s') →
+      PStep s₀ s' ∧ b = F eP) :
+    ∀ (hs : List EIdx) (xs : List Expr) (s₀ s' : AState) (b : Bool),
+      StateOK s₀ → Q s₀.store → Frontend.denoteEList s₀.store hs = some xs →
+      hs.anyM f s₀ = .ok (b, s') → PStep s₀ s' ∧ b = xs.any F := by
+  intro hs
+  induction hs with
+  | nil =>
+    intro xs s₀ s' b hok _ h hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at h
+    subst h
+    simp only [List.anyM] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons e es ih =>
+    intro xs s₀ s' b hok hq h hrun
+    simp only [Frontend.denoteEList] at h
+    cases he : denoteE s₀.store e with
+    | none => rw [he] at h; simp at h
+    | some eP =>
+      cases hes : Frontend.denoteEList s₀.store es with
+      | none => rw [he, hes] at h; simp at h
+      | some esP =>
+        rw [he, hes] at h
+        obtain rfl := (Option.some.inj h).symm
+        simp only [List.anyM] at hrun
+        obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+        obtain ⟨p1, hc⟩ := hf e eP s₀ s1 c hok hq he k1
+        cases c with
+        | true =>
+          obtain ⟨rfl, rfl⟩ := pureOk z1
+          refine ⟨p1, ?_⟩
+          simp only [List.any_cons, ← hc, Bool.true_or]
+        | false =>
+          obtain ⟨p2, hb⟩ := ih esP s1 s' b p1.ok (hQx p1.ext hq)
+            (denoteEList_ext p1.ext _ _ hes) z1
+          refine ⟨p1.trans p2, ?_⟩
+          simp only [List.any_cons, ← hc, Bool.false_or, hb]
+
 /-- con-leche: none — a handle whose view is not a `.const` denotes a term
 that is not one (`Bridge/Core/Walks/Guards.lean`'s `isBoolTrue_of_not_const`
 argument, as a shape fact). -/
@@ -1488,5 +1531,138 @@ theorem projFnName_run {s s' : AState} {T : NIdx} {TP : ConLeche.Name}
   obtain ⟨p2, hr⟩ := internNumN_run p1.ok hm h2
   exact ⟨p1.trans p2, hr⟩
 
+/-! ## The knot's entry points, in run form
+
+Each answer is an `FOk` of `fueledOpsM`'s operation, the frame a `CoreStep`. -/
+
+section Knot
+
+variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:27 CheckerOps.whnf — the knot's
+`whnf` slot in run form, its answer an `FOk` of `fueledOpsM`'s. -/
+theorem whnf_crun (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    {s s' : AState} {d : Nat} {e r : EIdx} {eP : Expr}
+    (hok : CheckOK μ env fe s) (he : denoteE s.store e = some eP)
+    (hw : Expr.WScoped d eP)
+    (hrun : Arena.whnf μ fe Arena.checkFuel d e s = .ok (r, s')) :
+    CoreStep μ env fe s s' ∧ ∃ w, denoteE s'.store r = some w ∧ Expr.WScoped d w ∧
+      FOk ((fueledOpsM μ).whnf env d eP) w := by
+  obtain ⟨h1, h2, h3, v, hv, hwv, hF⟩ := AM.of_run (P := fun u => u = s)
+    (Q := fun r u => CheckOK μ env fe u ∧ Ext s.store u.store ∧ u.pins = s.pins ∧
+      Core.SimE (ConLeche.whnf μ env) d eP u.store r)
+    rfl hrun ((hk.knot env fe henv).whnf s d e eP hok he hw)
+  exact ⟨⟨h1, h2, h3⟩, v, hv, hwv, FOk.whnf hF⟩
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:27 CheckerOps.inferType — the
+knot's `infer` slot in run form. -/
+theorem infer_crun (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    {s s' : AState} {d : Nat} {e r : EIdx} {eP : Expr}
+    (hok : CheckOK μ env fe s) (he : denoteE s.store e = some eP)
+    (hw : Expr.WScoped d eP)
+    (hrun : Arena.inferTypeCore μ fe Arena.checkFuel d e s = .ok (r, s')) :
+    CoreStep μ env fe s s' ∧ ∃ w, denoteE s'.store r = some w ∧ Expr.WScoped d w ∧
+      FOk ((fueledOpsM μ).inferType env d eP) w := by
+  obtain ⟨h1, h2, h3, v, hv, hwv, hF⟩ := AM.of_run (P := fun u => u = s)
+    (Q := fun r u => CheckOK μ env fe u ∧ Ext s.store u.store ∧ u.pins = s.pins ∧
+      Core.SimE (ConLeche.inferTypeCore μ env) d eP u.store r)
+    rfl hrun ((hk.knot env fe henv).infer s d e eP hok he hw)
+  exact ⟨⟨h1, h2, h3⟩, v, hv, hwv, FOk.inferType hF⟩
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:27 CheckerOps.ensureSort — the
+seventh entry point in run form. -/
+theorem ensureSort_crun (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    {s s' : AState} {d : Nat} {e : EIdx} {r : LIdx} {eP : Expr}
+    (hok : CheckOK μ env fe s) (he : denoteE s.store e = some eP)
+    (hw : Expr.WScoped d eP)
+    (hrun : Arena.ensureSortCore μ fe Arena.checkFuel d e s = .ok (r, s')) :
+    CoreStep μ env fe s s' ∧ ∃ u, denoteL s'.store.ls r = some u ∧
+      FOk ((fueledOpsM μ).ensureSort env d eP) u := by
+  obtain ⟨h1, h2, h3, u, hu, hF⟩ := AM.of_run (P := fun u => u = s)
+    (Q := fun r u => CheckOK μ env fe u ∧ Ext s.store u.store ∧ u.pins = s.pins ∧
+      SimL (ConLeche.ensureSortCore μ env) d eP u.store r)
+    rfl hrun (hk.sort env fe henv s d e eP hok he hw)
+  exact ⟨⟨h1, h2, h3⟩, u, hu, FOk.ensureSort hF⟩
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean instantiateLevelParams — the
+executed level instantiation at the checking invariant (it writes the three
+readback caches, so the frame is a `CoreStep`). -/
+theorem instLPFast_cstep {s s' : AState}
+    {ks : List NIdx} {us : LsIdx} {e r : EIdx} {ksv : List ConLeche.Name}
+    {usv : List Level} {eP : Expr} (hok : CheckOK μ env fe s)
+    (hks : Frontend.denoteNList s.store.ns ks = some ksv)
+    (hus : denoteLs s.store.lss us = some usv) (he : denoteE s.store e = some eP)
+    (hrun : Arena.instLPFast Arena.coreWalkFuel ks us e s = .ok (r, s')) :
+    CoreStep μ env fe s s' ∧
+      denoteE s'.store r = some (eP.instantiateLevelParams ksv usv) := by
+  obtain ⟨hst, hx, -, hL, hLs, hN, hc, hp, -, hrel⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun
+    (ExprOps.instLPFast_spec _ s ks us e ksv usv hok.state hok.caches.readN hok.caches.readL
+      hok.caches.readLs hks hus (by rw [he]; rfl))
+  exact ⟨⟨Core.CheckOK.ofInstLP hok hst hx hL hLs hN hc hp, hx, hp⟩, hrel eP he⟩
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:27 CheckerOps.annotate — the
+knot's annotation in run form, its answer an `FOk` of `fueledOpsM`'s. -/
+theorem annotate_crun {μ : CheckMode} {env : Env} {fe : IFEnv}
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    {s s' : AState} {d : Nat} {e r : EIdx} {eP : Expr}
+    (hok : CheckOK μ env fe s) (he : denoteE s.store e = some eP)
+    (hw : Expr.WScoped d eP)
+    (hrun : Arena.annotateCore μ fe Arena.checkFuel d e s = .ok (r, s')) :
+    CoreStep μ env fe s s' ∧ ∃ w, denoteE s'.store r = some w ∧ Expr.WScoped d w ∧
+      FOk ((fueledOpsM μ).annotate env d eP) w := by
+  obtain ⟨h1, h2, h3, v, hv, hwv, hF⟩ := AM.of_run (P := fun u => u = s)
+    (Q := fun r u => CheckOK μ env fe u ∧ Ext s.store u.store ∧ u.pins = s.pins ∧
+      Core.SimE (ConLeche.annotateCore μ env) d eP u.store r)
+    rfl hrun ((hk.knot env fe henv).annotate s d e eP hok he hw)
+  exact ⟨⟨h1, h2, h3⟩, v, hv, hwv, FOk.annotate hF⟩
+
+/-- con-leche: none — `lvlEq?` at the core grade: the store stands still and
+the verdict is `Level.isEquiv` of the denotations (`Core.lvlEq?_spec`). -/
+theorem lvlEq?_crun {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
+    {u v : LIdx} {uP vP : Level} {r : Option Bool} (hok : CheckOK μ env fe s)
+    (hu : denoteL s.store.ls u = some uP) (hv : denoteL s.store.ls v = some vP)
+    (hrun : Arena.lvlEq? u v s = .ok (r, s')) :
+    CoreStep μ env fe s s' ∧ r = Level.isEquiv uP vP := by
+  obtain ⟨h1, h2, h3, lu, lv, hlu, hlv, ha⟩ :=
+    AM.of_run (P := fun t => t = s) rfl hrun (Core.lvlEq?_spec s u v hok)
+  rw [hu] at hlu; rw [hv] at hlv
+  cases hlu; cases hlv
+  exact ⟨⟨h1, by rw [h2]; exact Ext.refl _, h3⟩, ha⟩
+
+/-- con-leche: ConLeche/Verify/BridgeDecl.lean fueledOpsM — **a knot defeq,
+in run form**. -/
+theorem defeq_crun {μ : CheckMode} {env : Env} {fe : IFEnv}
+    (hknot : Core.KnotSpec μ env fe Arena.checkFuel) {s₀ s' : AState} {d : Nat}
+    {a b : EIdx} {aP bP : Expr} {r : Bool} (hok : CheckOK μ env fe s₀)
+    (ha : denoteE s₀.store a = some aP) (hb : denoteE s₀.store b = some bP)
+    (hwa : Expr.WScoped d aP) (hwb : Expr.WScoped d bP)
+    (hrun : Arena.isDefEqCore μ fe Arena.checkFuel d a b s₀ = .ok (r, s')) :
+    CoreStep μ env fe s₀ s' ∧ FOk ((fueledOpsM μ).isDefEq env d aP bP) r := by
+  obtain ⟨h1, h2, h3, hF⟩ := AM.of_run (P := fun u => u = s₀)
+    (Q := fun x u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧ u.pins = s₀.pins ∧
+      Core.SimV (ConLeche.isDefEqCore μ env) d aP bP x)
+    rfl hrun (hknot.defeq s₀ d a b aP bP hok ha hb hwa hwb)
+  exact ⟨⟨h1, h2, h3⟩, FOk.isDefEq hF⟩
+
+
+
+end Knot
+
+/-! ## Shared walks at the pure frame -/
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1714 fvarB — **the free-variable
+cutoff's run form** at this tier's frame: `Bridge/ExprOps/Ranges.lean`'s
+`fvarB_spec` answers `fvarRange`, which is `Expr.fvarB` (`Expr.fvarB_eq`). -/
+theorem fvarB_pstep {fuel : Nat} {s₀ s' : AState} {e : EIdx} {eP : Expr}
+    {r : Nat} (hok : StateOK s₀) (hd : denoteE s₀.store e = some eP)
+    (hrun : Arena.fvarB fuel e s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ s'.store = s₀.store ∧ r = Expr.fvarB eP := by
+  obtain ⟨h1, h2, h3, h4⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.fvarB_spec fuel s₀ e hok (by rw [hd]; rfl))
+  refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.wf⟩ ?_ ?_ h2 h3, h1, ?_⟩
+  · rw [h1]; exact Ext.refl _
+  · rw [h1]; exact BMExt.refl _
+  · rw [h4 eP hd, Expr.fvarB_eq]
 
 end ConRon.Bridge.Inductives

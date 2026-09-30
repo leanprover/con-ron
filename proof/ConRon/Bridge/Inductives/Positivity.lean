@@ -41,76 +41,6 @@ set_option autoImplicit false
 
 open ConLeche ConRon.Arena ConRon.Bridge PW
 
-/-! ## Run forms of the three knot calls -/
-
-section Knot
-
-variable {μ : CheckMode} {env : Env} {fe : IFEnv}
-
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:27 CheckerOps.whnf — the knot's
-`whnf` slot in run form, its answer an `FOk` of `fueledOpsM`'s. -/
-theorem whnf_crun (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
-    {s s' : AState} {d : Nat} {e r : EIdx} {eP : Expr}
-    (hok : CheckOK μ env fe s) (he : denoteE s.store e = some eP)
-    (hw : Expr.WScoped d eP)
-    (hrun : Arena.whnf μ fe Arena.checkFuel d e s = .ok (r, s')) :
-    CoreStep μ env fe s s' ∧ ∃ w, denoteE s'.store r = some w ∧ Expr.WScoped d w ∧
-      FOk ((fueledOpsM μ).whnf env d eP) w := by
-  obtain ⟨h1, h2, h3, v, hv, hwv, hF⟩ := AM.of_run (P := fun u => u = s)
-    (Q := fun r u => CheckOK μ env fe u ∧ Ext s.store u.store ∧ u.pins = s.pins ∧
-      Core.SimE (ConLeche.whnf μ env) d eP u.store r)
-    rfl hrun ((hk.knot env fe henv).whnf s d e eP hok he hw)
-  exact ⟨⟨h1, h2, h3⟩, v, hv, hwv, FOk.whnf hF⟩
-
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:27 CheckerOps.inferType — the
-knot's `infer` slot in run form. -/
-theorem infer_crun (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
-    {s s' : AState} {d : Nat} {e r : EIdx} {eP : Expr}
-    (hok : CheckOK μ env fe s) (he : denoteE s.store e = some eP)
-    (hw : Expr.WScoped d eP)
-    (hrun : Arena.inferTypeCore μ fe Arena.checkFuel d e s = .ok (r, s')) :
-    CoreStep μ env fe s s' ∧ ∃ w, denoteE s'.store r = some w ∧ Expr.WScoped d w ∧
-      FOk ((fueledOpsM μ).inferType env d eP) w := by
-  obtain ⟨h1, h2, h3, v, hv, hwv, hF⟩ := AM.of_run (P := fun u => u = s)
-    (Q := fun r u => CheckOK μ env fe u ∧ Ext s.store u.store ∧ u.pins = s.pins ∧
-      Core.SimE (ConLeche.inferTypeCore μ env) d eP u.store r)
-    rfl hrun ((hk.knot env fe henv).infer s d e eP hok he hw)
-  exact ⟨⟨h1, h2, h3⟩, v, hv, hwv, FOk.inferType hF⟩
-
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:27 CheckerOps.ensureSort — the
-seventh entry point in run form. -/
-theorem ensureSort_crun (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
-    {s s' : AState} {d : Nat} {e : EIdx} {r : LIdx} {eP : Expr}
-    (hok : CheckOK μ env fe s) (he : denoteE s.store e = some eP)
-    (hw : Expr.WScoped d eP)
-    (hrun : Arena.ensureSortCore μ fe Arena.checkFuel d e s = .ok (r, s')) :
-    CoreStep μ env fe s s' ∧ ∃ u, denoteL s'.store.ls r = some u ∧
-      FOk ((fueledOpsM μ).ensureSort env d eP) u := by
-  obtain ⟨h1, h2, h3, u, hu, hF⟩ := AM.of_run (P := fun u => u = s)
-    (Q := fun r u => CheckOK μ env fe u ∧ Ext s.store u.store ∧ u.pins = s.pins ∧
-      SimL (ConLeche.ensureSortCore μ env) d eP u.store r)
-    rfl hrun (hk.sort env fe henv s d e eP hok he hw)
-  exact ⟨⟨h1, h2, h3⟩, u, hu, FOk.ensureSort hF⟩
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean instantiateLevelParams — the
-executed level instantiation at the checking invariant (it writes the three
-readback caches, so the frame is a `CoreStep`). -/
-theorem instLPFast_cstep {s s' : AState}
-    {ks : List NIdx} {us : LsIdx} {e r : EIdx} {ksv : List ConLeche.Name}
-    {usv : List Level} {eP : Expr} (hok : CheckOK μ env fe s)
-    (hks : Frontend.denoteNList s.store.ns ks = some ksv)
-    (hus : denoteLs s.store.lss us = some usv) (he : denoteE s.store e = some eP)
-    (hrun : Arena.instLPFast Arena.coreWalkFuel ks us e s = .ok (r, s')) :
-    CoreStep μ env fe s s' ∧
-      denoteE s'.store r = some (eP.instantiateLevelParams ksv usv) := by
-  obtain ⟨hst, hx, -, hL, hLs, hN, hc, hp, -, hrel⟩ :=
-    AM.of_run (P := fun t => t = s) rfl hrun
-    (ExprOps.instLPFast_spec _ s ks us e ksv usv hok.state hok.caches.readN hok.caches.readL
-      hok.caches.readLs hks hus (by rw [he]; rfl))
-  exact ⟨⟨Core.CheckOK.ofInstLP hok hst hx hL hLs hN hc hp, hx, hp⟩, hrel eP he⟩
-
-end Knot
-
 /-! ## Small run forms -/
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:201-204 unwrapOr — an
@@ -1115,17 +1045,6 @@ theorem nestCtorNf_spec (ctx : Arena.NestCtx) (prog : List Arena.NestHole) (us :
 
 /-! ## The parameters' free-variable test and the walk stack -/
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1714 fvarB — `fvarB`'s run at this
-tier's frame: con-leche's `Expr.fvarB`, nothing framed moved. -/
-theorem fvarB_pstep {fuel : Nat} {s₀ s' : AState} {e : EIdx} {eP : Expr} {r : Nat}
-    (hok : StateOK s₀) (hd : denoteE s₀.store e = some eP)
-    (hrun : Arena.fvarB fuel e s₀ = .ok (r, s')) : PStep s₀ s' ∧ r = eP.fvarB := by
-  obtain ⟨h1, h2, h3, h4⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
-    (ExprOps.fvarB_spec fuel s₀ e hok (by rw [hd]; rfl))
-  refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.wf⟩ (by rw [h1]; exact Ext.refl _)
-    (by rw [h1]; exact BMExt.refl _) h2 h3, ?_⟩
-  rw [h4 eP hd, Expr.fvarB_eq]
-
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1353-1357 nestWalkStack
 (`ds.all (·.fvarB ≤ hiAt 0)`) — the parameters-mention-no-frame-hole test, the
 twin's `allM` over `fvarB`. -/
@@ -1139,7 +1058,7 @@ theorem closedAll_spec (h : Nat) (ds : List EIdx) (dsP : List Expr) :
   exact allM_E_pstep (fun _ => True) (fun _ _ => trivial)
     (fun e eP s₀ s' b hok _ hd hrun => by
       obtain ⟨b0, s₁, h1, h2⟩ := bindOk hrun
-      obtain ⟨p1, rfl⟩ := fvarB_pstep hok hd h1
+      obtain ⟨p1, -, rfl⟩ := fvarB_pstep hok hd h1
       obtain ⟨rfl, rfl⟩ := pureOk h2
       exact ⟨p1, rfl⟩)
     ds dsP s₀ s' r hok trivial hd hrun
@@ -1164,42 +1083,6 @@ theorem nestWalkStack_spec (ctx : Arena.NestCtx) (prog : List Arena.NestHole)
     exact ⟨p1, by simp only [RV, if_neg hc]⟩
 
 /-! ## Helpers of the walk -/
-
-/-- con-leche: none — `List.anyM` of a pure-grade test over a denoting handle
-list: the verdict is the pure `List.any`. -/
-theorem anyM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool} (Q : EStore → Prop)
-    (hQx : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
-    (hf : ∀ (e : EIdx) (eP : Expr) (s₀ s' : AState) (b : Bool), StateOK s₀ →
-      Q s₀.store → denoteE s₀.store e = some eP → f e s₀ = .ok (b, s') →
-      PStep s₀ s' ∧ b = F eP) :
-    ∀ (hs : List EIdx) (xs : List Expr) (s₀ s' : AState) (b : Bool),
-      StateOK s₀ → Q s₀.store → Frontend.denoteEList s₀.store hs = some xs →
-      hs.anyM f s₀ = .ok (b, s') → PStep s₀ s' ∧ b = xs.any F := by
-  intro hs
-  induction hs with
-  | nil =>
-    intro xs s₀ s' b hok _ h hrun
-    simp only [Frontend.denoteEList, Option.some.injEq] at h
-    subst h
-    simp only [List.anyM] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
-    exact ⟨PStep.refl hok, rfl⟩
-  | cons e es ih =>
-    intro xs s₀ s' b hok hq h hrun
-    obtain ⟨eP, esP, he, hes, rfl⟩ := denoteEList_cons h
-    simp only [List.anyM] at hrun
-    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
-    obtain ⟨p1, hc⟩ := hf e eP s₀ s1 c hok hq he k1
-    cases c with
-    | true =>
-      obtain ⟨rfl, rfl⟩ := pureOk z1
-      refine ⟨p1, ?_⟩
-      simp only [List.any_cons, ← hc, Bool.true_or]
-    | false =>
-      obtain ⟨p2, hb⟩ := ih esP s1 s' b p1.ok (hQx p1.ext hq)
-        (denoteEList_ext p1.ext _ _ hes) z1
-      refine ⟨p1.trans p2, ?_⟩
-      simp only [List.any_cons, ← hc, Bool.false_or, hb]
 
 /-- con-leche: none — `List.anyM` of a pure-grade test over
 representation-free keys (indices): the verdict is the pure `List.any`. -/
@@ -2165,7 +2048,7 @@ theorem paramsLocal_spec (hp : Nat) (ds : List EIdx) (dsP : List Expr) :
         simp [hb]
       · rw [if_neg hb] at h2
         obtain ⟨fb, s₂, h3, h4⟩ := bindOk h2
-        obtain ⟨p2, rfl⟩ := fvarB_pstep p1.ok (denote_ext hd p1.ext) h3
+        obtain ⟨p2, -, rfl⟩ := fvarB_pstep p1.ok (denote_ext hd p1.ext) h3
         obtain ⟨rfl, rfl⟩ := pureOk h4
         refine ⟨p1.trans p2, ?_⟩
         simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hb

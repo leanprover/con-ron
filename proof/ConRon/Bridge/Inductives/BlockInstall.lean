@@ -47,19 +47,6 @@ namespace BI
 /-! ## Small helpers (local; see the report for the ones that belong in a
 shared file) -/
 
-/-- con-leche: none — `lvlEq?` at the core grade: the store stands still and
-the verdict is `Level.isEquiv` of the denotations (`Core.lvlEq?_spec`). -/
-theorem lvlEq?_crun {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    {u v : LIdx} {uP vP : Level} {r : Option Bool} (hok : CheckOK μ env fe s)
-    (hu : denoteL s.store.ls u = some uP) (hv : denoteL s.store.ls v = some vP)
-    (hrun : Arena.lvlEq? u v s = .ok (r, s')) :
-    CoreStep μ env fe s s' ∧ r = Level.isEquiv uP vP := by
-  obtain ⟨h1, h2, h3, lu, lv, hlu, hlv, ha⟩ :=
-    AM.of_run (P := fun t => t = s) rfl hrun (Core.lvlEq?_spec s u v hok)
-  rw [hu] at hlu; rw [hv] at hlv
-  cases hlu; cases hlv
-  exact ⟨⟨h1, by rw [h2]; exact Ext.refl _, h3⟩, ha⟩
-
 /-- con-leche: none — a checked former with its result sort. -/
 def dCvL (st : EStore) (x : IConstantVal × LIdx) : Option (ConstantVal × Level) := do
   let c ← Frontend.denoteCV st x.1

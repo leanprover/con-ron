@@ -2500,7 +2500,7 @@ theorem classRecTyOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       c14.ok hcvG k5
     obtain ⟨b, s6, k6, z6⟩ := bindOk z5
     have c15 := c14.trans c5
-    obtain ⟨c6, hF6⟩ := RC.defeq_run (hk.knot env fe henv) c5.ok
+    obtain ⟨c6, hF6⟩ := defeq_crun (hk.knot env fe henv) c5.ok
       (Core.denoteCV_inv (dExt_denoteCV c15.ext _ _ hRiD)).2.2
       (Core.denoteCV_inv (dExt_denoteCV c5.ext _ _ hcvG)).2.2 hRi hwG k6
     cases b with
@@ -3341,22 +3341,6 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
 
 /-! ## The classes, read and checked (the pass) -/
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:27 CheckerOps.annotate — the
-knot's annotation in run form, its answer an `FOk` of `fueledOpsM`'s. -/
-theorem annotate_crun {μ : CheckMode} {env : Env} {fe : IFEnv}
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
-    {s s' : AState} {d : Nat} {e r : EIdx} {eP : Expr}
-    (hok : CheckOK μ env fe s) (he : denoteE s.store e = some eP)
-    (hw : Expr.WScoped d eP)
-    (hrun : Arena.annotateCore μ fe Arena.checkFuel d e s = .ok (r, s')) :
-    CoreStep μ env fe s s' ∧ ∃ w, denoteE s'.store r = some w ∧ Expr.WScoped d w ∧
-      FOk ((fueledOpsM μ).annotate env d eP) w := by
-  obtain ⟨h1, h2, h3, v, hv, hwv, hF⟩ := AM.of_run (P := fun u => u = s)
-    (Q := fun r u => CheckOK μ env fe u ∧ Ext s.store u.store ∧ u.pins = s.pins ∧
-      Core.SimE (ConLeche.annotateCore μ env) d eP u.store r)
-    rfl hrun ((hk.knot env fe henv).annotate s d e eP hok he hw)
-  exact ⟨⟨h1, h2, h3⟩, v, hv, hwv, FOk.annotate hF⟩
-
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:481-484 classKeyCanon —
 a class key moved to the canonical parameter variables. -/
 theorem classKeyCanon_spec (params : List EIdx) (paramsP : List Expr) (k : Arena.ClassKey)
@@ -3459,7 +3443,7 @@ theorem classKeyOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       · rw [if_neg hb] at y1
         simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hb
         obtain ⟨ff, t2, j2, y2⟩ := bindOk y1
-        obtain ⟨q2, -, rfl⟩ := RC.fvarB_pstep q1.ok (denote_ext he q1.ext) j2
+        obtain ⟨q2, -, rfl⟩ := fvarB_pstep q1.ok (denote_ext he q1.ext) j2
         obtain ⟨rfl, rfl⟩ := pureOk y2
         exact ⟨q1.trans q2, by simp [hb]⟩)
     k2.ds ds s1 s2 cl p1.ok trivial hds k2' 

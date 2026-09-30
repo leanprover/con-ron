@@ -535,35 +535,6 @@ theorem targetCanonParams_spec (pfvs : List EIdx) (pfvsP : List Expr) (e : EIdx)
 
 namespace RC
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1714 fvarB — **the free-variable
-cutoff's run form** at this tier's frame: `Bridge/ExprOps/Ranges.lean`'s
-`fvarB_spec` answers `fvarRange`, which is `Expr.fvarB` (`Expr.fvarB_eq`). -/
-theorem fvarB_pstep {fuel : Nat} {s₀ s' : AState} {e : EIdx} {eP : Expr}
-    {r : Nat} (hok : StateOK s₀) (hd : denoteE s₀.store e = some eP)
-    (hrun : Arena.fvarB fuel e s₀ = .ok (r, s')) :
-    PStep s₀ s' ∧ s'.store = s₀.store ∧ r = Expr.fvarB eP := by
-  obtain ⟨h1, h2, h3, h4⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
-    (ExprOps.fvarB_spec fuel s₀ e hok (by rw [hd]; rfl))
-  refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.wf⟩ ?_ ?_ h2 h3, h1, ?_⟩
-  · rw [h1]; exact Ext.refl _
-  · rw [h1]; exact BMExt.refl _
-  · rw [h4 eP hd, Expr.fvarB_eq]
-
-/-- con-leche: ConLeche/Verify/BridgeDecl.lean fueledOpsM — **a knot defeq,
-in run form**. -/
-theorem defeq_run {μ : CheckMode} {env : Env} {fe : IFEnv}
-    (hknot : Core.KnotSpec μ env fe Arena.checkFuel) {s₀ s' : AState} {d : Nat}
-    {a b : EIdx} {aP bP : Expr} {r : Bool} (hok : CheckOK μ env fe s₀)
-    (ha : denoteE s₀.store a = some aP) (hb : denoteE s₀.store b = some bP)
-    (hwa : Expr.WScoped d aP) (hwb : Expr.WScoped d bP)
-    (hrun : Arena.isDefEqCore μ fe Arena.checkFuel d a b s₀ = .ok (r, s')) :
-    CoreStep μ env fe s₀ s' ∧ FOk ((fueledOpsM μ).isDefEq env d aP bP) r := by
-  obtain ⟨h1, h2, h3, hF⟩ := AM.of_run (P := fun u => u = s₀)
-    (Q := fun x u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧ u.pins = s₀.pins ∧
-      Core.SimV (ConLeche.isDefEqCore μ env) d aP bP x)
-    rfl hrun (hknot.defeq s₀ d a b aP bP hok ha hb hwa hwb)
-  exact ⟨⟨h1, h2, h3⟩, FOk.isDefEq hF⟩
-
 /-- con-leche: none — a pure-grade `PSpecP` step taken at the core grade. -/
 theorem pspecP_core {μ : CheckMode} {env : Env} {fe : IFEnv} {α : Type}
     {P : EStore → Prop} {c : AM α} {R : EStore → α → Prop} (h : PSpecP P c R)
@@ -827,7 +798,7 @@ theorem targetParamsDefEq_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         obtain ⟨c7, v2, -, -, hF2⟩ := infer_crun hk henv c6.ok (denote_ext hb' c6.ext) hwb k7
         obtain ⟨q, s8, k8, z8⟩ := bindOk z7
         have c57 := c6.trans c7
-        obtain ⟨c8, hF3⟩ := RC.defeq_run hknot c7.ok (denote_ext ha'5 c57.ext)
+        obtain ⟨c8, hF3⟩ := defeq_crun hknot c7.ok (denote_ext ha'5 c57.ext)
           (denote_ext hb' c57.ext) hwa hwb k8
         have c18 := (c15.trans c57).trans c8
         cases q with
@@ -2809,53 +2780,6 @@ theorem closed1_run {s₀ s' : AState} {x : EIdx} {xP : Expr} {n : Nat} {r : Boo
     obtain ⟨rfl, rfl⟩ := pureOk z2
     exact ⟨p1.trans p2, by simp [c1]⟩
 
-/-- con-leche: none — `List.anyM` of a pure-grade test over a denoting handle
-list: the verdict is the pure `List.any` (`allM_E_pstep`'s dual). -/
-theorem anyM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool} (Q : EStore → Prop)
-    (hQx : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
-    (hf : ∀ (e : EIdx) (eP : Expr) (s₀ s' : AState) (b : Bool), StateOK s₀ →
-      Q s₀.store → denoteE s₀.store e = some eP → f e s₀ = .ok (b, s') →
-      PStep s₀ s' ∧ b = F eP) :
-    ∀ (hs : List EIdx) (xs : List Expr) (s₀ s' : AState) (b : Bool),
-      StateOK s₀ → Q s₀.store → Frontend.denoteEList s₀.store hs = some xs →
-      hs.anyM f s₀ = .ok (b, s') → PStep s₀ s' ∧ b = xs.any F := by
-  intro hs
-  induction hs with
-  | nil =>
-    intro xs s₀ s' b hok _ h hrun
-    simp only [Frontend.denoteEList, Option.some.injEq] at h
-    subst h
-    simp only [List.anyM] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
-    exact ⟨PStep.refl hok, rfl⟩
-  | cons e es ih =>
-    intro xs s₀ s' b hok hq h hrun
-    obtain ⟨eP, esP, he, hes, rfl⟩ := Core.denoteEList_cons_inv h
-    simp only [List.anyM] at hrun
-    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
-    obtain ⟨p1, hc⟩ := hf e eP s₀ s1 c hok hq he k1
-    cases c with
-    | true =>
-      obtain ⟨rfl, rfl⟩ := pureOk z1
-      exact ⟨p1, by simp only [List.any_cons, ← hc, Bool.true_or]⟩
-    | false =>
-      obtain ⟨p2, hb⟩ := ih esP s1 s' b p1.ok (hQx p1.ext hq) (denoteEList_ext p1.ext _ _ hes) z1
-      exact ⟨p1.trans p2, by simp only [List.any_cons, ← hc, Bool.false_or, hb]⟩
-
-/-- con-leche: none — `lvlEq?` in run form at the core grade. -/
-theorem lvlEq?_run {μ : CheckMode} {env : Env} {fe : IFEnv} {s₀ s' : AState}
-    {u v : LIdx} {uP vP : Level} {r : Option Bool}
-    (hok : CheckOK μ env fe s₀) (hu : denoteL s₀.store.ls u = some uP)
-    (hv : denoteL s₀.store.ls v = some vP)
-    (hrun : Arena.lvlEq? u v s₀ = .ok (r, s')) :
-    CoreStep μ env fe s₀ s' ∧ r = Level.isEquiv uP vP := by
-  obtain ⟨h1, h2, h3, lu, lv, hu', hv', hr⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
-    (Core.lvlEq?_spec s₀ u v hok)
-  rw [hu] at hu'; rw [hv] at hv'
-  obtain rfl := Option.some.inj hu'
-  obtain rfl := Option.some.inj hv'
-  exact ⟨⟨h1, by rw [h2]; exact Ext.refl _, h3⟩, hr⟩
-
 end RC
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:380-439 targetMajorOf
@@ -2987,7 +2911,7 @@ theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       rw [e1, ← hcls, e2]; rfl
     rw [if_pos hcl1]
     obtain ⟨an, s7, k7, z7⟩ := bindOk z6
-    obtain ⟨p7, han⟩ := RC.anyM_E_pstep (fun st => Frontend.denoteNList st.ns p.memberNames =
+    obtain ⟨p7, han⟩ := anyM_E_pstep (fun st => Frontend.denoteNList st.ns p.memberNames =
         some pP.memberNames) (fun hx h => denoteNListE_ext hx _ _ h)
       (fun e eP s₀ s' b hok hq he hrun => nestOcc_spec p.memberNames pP.memberNames 0 0 e eP
         s₀ s' b hok ⟨hq, he⟩ hrun)
@@ -3010,7 +2934,7 @@ theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     obtain ⟨nIdx, sI⟩ := ni
     dsimp only at z9 hni1 hni2
     obtain ⟨lv, s10, k10, z10⟩ := bindOk z9
-    obtain ⟨c10, rfl⟩ := RC.lvlEq?_run c9.ok hni2
+    obtain ⟨c10, rfl⟩ := lvlEq?_crun c9.ok hni2
       (denoteL_ext hres (c79.ext)) k10
     obtain ⟨b, s11, k11, z11⟩ := bindOk z10
     obtain ⟨hlv, hs11⟩ := liftFueled_ok k11
