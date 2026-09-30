@@ -33,6 +33,7 @@ import ConRon.Arena.Inductives.GenRec
 import ConRon.Bridge.Inductives.RecCheck
 import ConRon.Bridge.Inductives.ClassRead
 import ConRon.Bridge.Inductives.FieldTele
+import ConRon.Bridge.Inductives.Positivity
 
 namespace ConRon.Bridge.Inductives
 
@@ -481,74 +482,6 @@ theorem ClassGen.ihParts_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (t t
 
 /-! ### The minor premise -/
 
-namespace GR
-
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:558-563 targetPiDomsWith
-— **the leading `∀` domains, each instantiated at the earlier variables**,
-`none` exactly when con-leche's is.  (A RecCheck twin; proved here because the
-generator is its first consumer.) -/
-theorem targetPiDomsWith_spec : ∀ (xs : List EIdx) (xsP : List Expr) (e : EIdx) (eP : Expr),
-    PSpec (fun st => Frontend.denoteEList st xs = some xsP ∧ denoteE st e = some eP)
-      (Arena.targetPiDomsWith xs e) (ROp REL (ConLeche.targetPiDomsWith xsP eP)) := by
-  intro xs
-  induction xs with
-  | nil =>
-    intro xsP e eP s₀ s' r hok hp hrun
-    obtain ⟨ha, hd⟩ := hp
-    simp only [Frontend.denoteEList, Option.some.injEq] at ha
-    subst ha
-    simp only [Arena.targetPiDomsWith] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
-    exact ⟨PStep.refl hok, _, rfl, rfl⟩
-  | cons a xs ih =>
-    intro xsP e eP s₀ s' r hok hp hrun
-    obtain ⟨ha, hd⟩ := hp
-    obtain ⟨aP, restP, hA, hR, rfl⟩ := Core.denoteEList_cons_inv ha
-    simp only [Arena.targetPiDomsWith] at hrun
-    by_cases htg : (e.tag == ETag.forallE) = true
-    · rw [if_pos htg] at hrun
-      obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
-      obtain ⟨hs1, ho⟩ := viewBind_run h1
-      rw [hs1] at h2
-      cases o with
-      | none => exact absurd h2 (fun hc => failDanglingE_ok hc)
-      | some p =>
-        obtain ⟨d, b, m⟩ := p
-        have hw := view_of_viewBind_tag_forallE htg ho.symm
-        obtain ⟨dP, bP, rfl, hdd, hbd⟩ := denote_forallE_inv hok.wf hw hd
-        dsimp only at h2
-        obtain ⟨b', s₂, h3, h4⟩ := bindOk h2
-        obtain ⟨q1, q2, q3, q4, q5, -, q7⟩ := ExprOps.instantiate1Fast_run hok hA
-          (by rw [hbd]; rfl) h3
-        have p2 : PStep s₀ s₂ := PStep.of_caches q1 q2 q3 q4 q5
-        have hb' : denoteE s₂.store b' = some (bP.instantiate1 aP 0) := q7 _ hbd
-        obtain ⟨o2, s₃, h5, h6⟩ := bindOk h4
-        obtain ⟨p3, ho2⟩ := ih restP b' (bP.instantiate1 aP 0) s₂ s₃ o2 p2.ok
-          ⟨denoteEList_ext p2.ext _ _ hR, hb'⟩ h5
-        cases o2 with
-        | none =>
-          obtain ⟨rfl, rfl⟩ := pureOk h6
-          refine ⟨p2.trans p3, ?_⟩
-          have hn : ConLeche.targetPiDomsWith restP (bP.instantiate1 aP 0) = none := ho2
-          show ConLeche.targetPiDomsWith _ _ = none
-          simp only [ConLeche.targetPiDomsWith, hn]; rfl
-        | some ds =>
-          obtain ⟨dsP, hds, hdsd⟩ := ho2
-          obtain ⟨rfl, rfl⟩ := pureOk h6
-          refine ⟨p2.trans p3, dP :: dsP, ?_, ?_⟩
-          · show (fun x => dP :: x) <$> ConLeche.targetPiDomsWith restP (bP.instantiate1 aP 0) = _
-            rw [hds]; rfl
-          · show Frontend.denoteEList _ (d :: ds) = _
-            simp only [Frontend.denoteEList, denote_ext hdd (p2.ext.trans p3.ext), hdsd]
-    · rw [if_neg htg] at hrun
-      obtain ⟨rfl, rfl⟩ := pureOk hrun
-      refine ⟨PStep.refl hok, ?_⟩
-      show ConLeche.targetPiDomsWith (aP :: restP) eP = none
-      cases eP with
-      | forallE d b m => exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
-      | _ => rfl
-
-end GR
 
 namespace GR
 
@@ -739,7 +672,7 @@ theorem ClassGen.minorTy_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c :
     simp only [hq, Option.bind_eq_bind, Option.bind_some]
     dsimp only at z2
     obtain ⟨o2, s3, k3, z3⟩ := bindOk z2
-    obtain ⟨p3, ho2⟩ := GR.targetPiDomsWith_spec fvs fvsP x.tyN xP.tyN s2 s3 o2 p2.ok
+    obtain ⟨p3, ho2⟩ := targetPiDomsWith_spec fvs fvsP x.tyN xP.tyN s2 s3 o2 p2.ok
       ⟨hfvs, denote_ext htyN p12.ext⟩ k3
     cases o2 with
     | none =>
@@ -1449,7 +1382,7 @@ theorem classGenRule_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
       simp only [hq, Option.bind_some]
       dsimp only at z1
       obtain ⟨o2, s2, k2, z2⟩ := bindOk z1
-      obtain ⟨p2, ho2⟩ := GR.targetPiDomsWith_spec fvs fvsP x.tyN xP.tyN s1 s2 o2 p1.ok
+      obtain ⟨p2, ho2⟩ := targetPiDomsWith_spec fvs fvsP x.tyN xP.tyN s1 s2 o2 p1.ok
         ⟨hfvs, denote_ext htyN p1.ext⟩ k2
       have p12 := p1.trans p2
       cases o2 with
@@ -1526,5 +1459,379 @@ theorem classGenRule_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
               denote_ext hbody p7.ext⟩ k8
           obtain ⟨rfl, rfl⟩ := pureOk z8
           exact ⟨p17.trans p8, _, rfl, hrr⟩
+
+/-! ## The stage -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:218-221 ClassSlot.isMinor
+— the minor premises of a denoting slot list are counted alike. -/
+theorem isMinor_count {st : EStore} :
+    ∀ {slots : List Arena.ClassSlot} {slotsP : List ConLeche.ClassSlot},
+      slots.mapM (dSlot st) = some slotsP →
+      (slots.filter Arena.ClassSlot.isMinor).length =
+        (slotsP.filter ConLeche.ClassSlot.isMinor).length
+  | [], _, h => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+    subst h; rfl
+  | sl :: sls, _, h => by
+    obtain ⟨slP, slsP, rfl, hd, hds⟩ := GR.mapM_cons_inv h
+    have ih := isMinor_count hds
+    cases sl with
+    | motive k =>
+      simp only [dSlot, Option.map_eq_some_iff] at hd
+      obtain ⟨_, _, rfl⟩ := hd
+      simp only [List.filter_cons, Arena.ClassSlot.isMinor, ConLeche.ClassSlot.isMinor]
+      exact ih
+    | minor c C ihs =>
+      simp only [dSlot, Option.map_eq_some_iff] at hd
+      obtain ⟨_, _, rfl⟩ := hd
+      simp only [List.filter_cons, Arena.ClassSlot.isMinor, ConLeche.ClassSlot.isMinor,
+        if_true, List.length_cons]
+      rw [ih]
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:223-232 classMinorSlot —
+**the minor premise slot of a class's constructor**: the same hits, so the same
+single hit (the twin fails exactly where con-leche throws). -/
+theorem classMinorSlot_spec (rd : Arena.ClassRead) (rdP : ConLeche.ClassRead) (c : Nat)
+    (C : NIdx) (CP : ConLeche.Name) :
+    PSpec (fun st => dClassRead st rd = some rdP ∧ denoteN st.ns C = some CP)
+      (Arena.classMinorSlot rd c C)
+      (fun _ r => FOk (ConLeche.classMinorSlot (m := FueledM) rdP c CP) r) := by
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hrd, hC⟩ := hpre
+  simp only [dClassRead, Option.map_eq_some_iff] at hrd
+  obtain ⟨slotsP, hsl, rfl⟩ := hrd
+  have hlen : rd.slots.length = slotsP.length := (mapM_option_length hsl).symm
+  simp only [Arena.classMinorSlot] at hrun
+  simp only [ConLeche.classMinorSlot]
+  generalize hT : List.filterMap _ (List.range rd.slots.length) = T at hrun
+  generalize hU : List.filterMap _ (List.range (ConLeche.ClassRead.slots ⟨slotsP, rd.recCls⟩).length) = U
+  have hTU : T = U := by
+    rw [← hT, ← hU]
+    show _ = List.filterMap _ (List.range slotsP.length)
+    rw [hlen]
+    congr 1
+    funext j
+    have hj := mapM_option_getElem? (st := s₀.store) hsl j
+    cases hs : rd.slots[j]? with
+    | none =>
+      rw [hs] at hj
+      have : slotsP[j]? = none := hj
+      simp only [this]
+    | some sl =>
+      rw [hs] at hj
+      obtain ⟨slP, hslP, hd⟩ := hj
+      show _ = (match slotsP[j]? with
+        | some (.minor c' C' ihs) => if c' == c && C' == CP then some (j, ihs) else none
+        | _ => none)
+      rw [hslP]
+      cases sl with
+      | motive k =>
+        simp only [dSlot, Option.map_eq_some_iff] at hd
+        obtain ⟨_, _, rfl⟩ := hd
+        rfl
+      | minor c' C' ihs =>
+        simp only [dSlot, Option.map_eq_some_iff] at hd
+        obtain ⟨CP', hCP', rfl⟩ := hd
+        dsimp only
+        rw [beq_handle_eq hok.wf hCP' hC]
+  subst hTU
+  match T, hrun with
+  | [], hrun => exact absurd hrun (fun hc => failOk hc)
+  | [h], hrun =>
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, FOk.pure _⟩
+  | _ :: _ :: _, hrun => exact absurd hrun (fun hc => failOk hc)
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:234-254 classFieldsOf —
+**the minor premise's inductive hypotheses are the datum's recursive fields**:
+the twin's two-test `if` is con-leche's `match` on the occurrence and the
+hits; the kinds are con-leche's (`cfOf`). -/
+theorem classFieldsOf_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
+    (ctor : ConLeche.Name) (ihs : List (Nat × Nat)) :
+    ∀ (fs : List EIdx) (fsP : List Expr) (i : Nat),
+    PSpec (fun st => dShape st p = some pP ∧ Frontend.denoteEList st fs = some fsP)
+      (Arena.classFieldsOf p ihs i fs)
+      (fun _ r => FOk (ConLeche.classFieldsOf (m := FueledM) pP ctor ihs i fsP) (r.map cfOf)) := by
+  intro fs
+  induction fs with
+  | nil =>
+    intro fsP i s₀ s' r hok hpre hrun
+    obtain ⟨-, hfs⟩ := hpre
+    simp only [Frontend.denoteEList, Option.some.injEq] at hfs
+    subst hfs
+    simp only [Arena.classFieldsOf] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, by simp only [ConLeche.classFieldsOf]; exact FOk.pure _⟩
+  | cons f fs ih =>
+    intro fsP i s₀ s' r hok hpre hrun
+    obtain ⟨hsh, hfs⟩ := hpre
+    obtain ⟨fP, fsP', hf, hfs', rfl⟩ := Core.denoteEList_cons_inv hfs
+    simp only [Arena.classFieldsOf] at hrun
+    obtain ⟨w, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨rfl, hw⟩ := fvarTypeD_run hok hf k1
+    obtain ⟨occ, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, rfl⟩ := nestOcc_spec p.memberNames pP.memberNames 0 0 w _ s1 s2 occ hok
+      ⟨BlockShape.memberNames_spec hsh, hw⟩ k2
+    simp only [ConLeche.classFieldsOf]
+    generalize hH : ihs.filter (·.1 == i) = H at z2 ⊢
+    generalize hO : Expr.nestOcc pP.memberNames 0 0 fP.fvarTypeD = O at z2 ⊢
+    have hsh2 := dShape_ext p2.ext _ _ hsh
+    have hfs2 := denoteEList_ext p2.ext _ _ hfs'
+    cases O with
+    | false =>
+      cases H with
+      | nil =>
+        simp only [Bool.not_false, List.length_nil, beq_self_eq_true, Bool.and_self,
+          ↓reduceIte] at z2
+        obtain ⟨rest, s3, k3, z3⟩ := bindOk z2
+        obtain ⟨p3, hrest⟩ := ih fsP' (i + 1) s2 s3 rest p2.ok ⟨hsh2, hfs2⟩ k3
+        obtain ⟨rfl, rfl⟩ := pureOk z3
+        refine ⟨p2.trans p3, ?_⟩
+        exact FOk.bind (FOk.pure _) (FOk.bind hrest (FOk.pure _))
+      | cons h t =>
+        simp only [Bool.not_false, List.length_cons, Bool.true_and, Bool.false_and,
+          Bool.false_eq_true, ↓reduceIte] at z2
+        exact absurd z2 (fun hc => failOk (by
+          have : (Nat.succ t.length == 0) = false := by simp
+          simp only [this, Bool.false_eq_true, ↓reduceIte] at hc; exact hc))
+    | true =>
+      match H, z2 with
+      | [], z2 =>
+        simp at z2; exact absurd z2 (fun hc => failOk hc)
+      | [(a, t)], z2 =>
+        simp only [Bool.not_true, Bool.false_and, Bool.false_eq_true, ↓reduceIte,
+          List.length_singleton, beq_self_eq_true, Bool.and_self] at z2
+        obtain ⟨q, s3, k3, z3⟩ := bindOk z2
+        obtain ⟨p3, hq1, -⟩ := piBinders_spec coreWalkFuel w _ s2 s3 q p2.ok
+          (denote_ext hw p2.ext) k3
+        obtain ⟨bs, leaf⟩ := q
+        dsimp only at z3
+        obtain ⟨rest, s4, k4, z4⟩ := bindOk z3
+        obtain ⟨p4, hrest⟩ := ih fsP' (i + 1) s3 s4 rest p3.ok
+          ⟨dShape_ext p3.ext _ _ hsh2, denoteEList_ext p3.ext _ _ hfs2⟩ k4
+        obtain ⟨rfl, rfl⟩ := pureOk z4
+        refine ⟨p2.trans (p3.trans p4), ?_⟩
+        have hbl : bs.length = fP.fvarTypeD.piBinders.1.length := denoteBinders_length hq1
+        simp only [List.map_cons, cfOf, List.getD_cons_zero, hbl]
+        exact FOk.bind (FOk.pure _) (FOk.bind hrest (FOk.pure _))
+      | _ :: _ :: _, z2 =>
+        simp at z2; exact absurd z2 (fun hc => failOk hc)
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:273-277 classLeafAt — a
+walked field's leaf is headed by the class's inductive: the tag test and the
+`viewConst` read are con-leche's `match` on the head. -/
+theorem classLeafAt_spec (m : Arena.TargetMajor) (mP : ConLeche.TargetMajor) (leaf : EIdx)
+    (leafP : Expr) :
+    PSpec (fun st => dMajor st m = some mP ∧ denoteE st leaf = some leafP)
+      (Arena.classLeafAt m leaf) (RV (ConLeche.classLeafAt mP leafP)) := by
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hm, hleaf⟩ := hpre
+  have hind := (dMajor_inv hm).1
+  simp only [Arena.classLeafAt] at hrun
+  obtain ⟨hd, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨rfl, hhd⟩ := getAppFn_run hok hleaf k1
+  simp only [ConLeche.classLeafAt]
+  by_cases ct : (hd.tag == ETag.const) = true
+  · rw [if_pos ct] at z1
+    obtain ⟨o, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨rfl, ho⟩ := PW.viewConst_run k2
+    cases o with
+    | none => exact absurd z2 (fun hc => failDanglingE_ok hc)
+    | some t0 =>
+      obtain ⟨I, us⟩ := t0
+      obtain ⟨IP, usP, hg, hI, -⟩ := denote_const_inv hok.wf
+        (view_of_viewConst_tag ct ho.symm) hhd
+      dsimp only at z2
+      obtain ⟨rfl, rfl⟩ := pureOk z2
+      refine ⟨PStep.refl hok, ?_⟩
+      rw [hg]
+      exact beq_handle_eq hok.wf hI hind
+  · rw [if_neg ct] at z1
+    obtain ⟨rfl, rfl⟩ := pureOk z1
+    refine ⟨PStep.refl hok, ?_⟩
+    cases hga : leafP.getAppFn with
+    | const I us =>
+      rw [hga] at hhd
+      exact absurd (tag_const_of_denote hok.wf hhd) (by simpa using ct)
+    | _ => rfl
+
+/-- con-leche: none — `Option.getD []` on a two-sided list answer. -/
+theorem ROp_REL_getD {st : EStore} {x : Option (List Expr)} {o : Option (List EIdx)}
+    (h : ROp REL x st o) : Frontend.denoteEList st (o.getD []) = some (x.getD []) := by
+  cases o with
+  | none =>
+    have hx : x = none := h
+    rw [hx]; rfl
+  | some l =>
+    obtain ⟨v, hv, hl⟩ := h
+    rw [hv]; exact hl
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:256-271 classNodesAgree —
+**node agreement at one recursive field** (K.53′), at every recorded entry of
+the constructor: the recorded field read at the same position, `targetK53`
+answering con-leche's at `fueledOpsM μ`.  Scoping as the cached bridge's
+`classNodesAgreeS_sim`. -/
+theorem classNodesAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (formerTys : List EIdx)
+    (formerTysP : List Expr) (mc : Arena.TargetMajor) (McP : ConLeche.TargetMajor)
+    (tele : List (EIdx × BinderMeta)) (teleP : List (Expr × BinderMeta)) (leaf : EIdx)
+    (leafP : Expr) (fvs : List EIdx) (fvsP : List Expr) (i : Nat) (ctor : ConLeche.Name)
+    (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t) (hMc : Cached.TargetMajScoped McP) :
+    ∀ (es : List Arena.NestCtorNf) (esP : List ConLeche.NestCtorNf),
+    CSpecF μ env fe
+      (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
+        dMajor st mc = some McP ∧ denoteBinders st tele = some teleP ∧
+        denoteE st leaf = some leafP ∧ Frontend.denoteEList st fvs = some fvsP ∧
+        es.mapM (dCtorNf st) = some esP)
+      (Arena.classNodesAgree μ fe p formerTys mc tele leaf fvs i es) (fun _ _ _ => True)
+      (ConLeche.classNodesAgree (fueledOpsM μ) env pP formerTysP McP teleP leafP fvsP i ctor
+        esP) := by
+  intro es
+  induction es with
+  | nil =>
+    intro esP s₀ s' r hok hpre hrun
+    obtain ⟨-, -, -, -, -, -, hes⟩ := hpre
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hes
+    subst hes
+    simp only [Arena.classNodesAgree] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, (), trivial, by simp only [ConLeche.classNodesAgree]; exact FOk.pure _⟩
+  | cons e es ih =>
+    intro esP s₀ s' r hok hpre hrun
+    obtain ⟨hsh, hft, hmc, htele, hleaf, hfvs, hes⟩ := hpre
+    obtain ⟨eP, esP', rfl, he, hes'⟩ := GR.mapM_cons_inv hes
+    have hety := (RC.dCtorNf_inv he).2.2.2
+    simp only [Arena.classNodesAgree] at hrun
+    simp only [ConLeche.classNodesAgree]
+    obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, ho⟩ := targetPiDomsWith_spec fvs fvsP e.ty eP.ty s₀ s1 o hok.state
+      ⟨hfvs, hety⟩ k1
+    have c1 := p1.toCore hok
+    have hdoms := ROp_REL_getD ho
+    obtain ⟨hj1, hj2⟩ := PW.denoteEList_getElem? hdoms i
+    generalize hD : (o.getD [])[i]? = D at z1
+    cases D with
+    | none =>
+      exact absurd z1 (fun hc => failOk hc)
+    | some f =>
+      obtain ⟨fP, hfP, hfd⟩ := hj2 f hD
+      rw [hfP]
+      obtain ⟨b, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨c2, v, rfl, hK⟩ := targetK53_spec fe hk henv p pP formerTys formerTysP mc McP tele
+        teleP leaf f leafP fP hformer hMc s1 s2 b c1.ok
+        ⟨dShape_ext c1.ext _ _ hsh, denoteEList_ext c1.ext _ _ hft, dMajor_ext c1.ext _ _ hmc,
+          denoteBinders_ext c1.ext _ _ htele, denote_ext hleaf c1.ext, hfd⟩ k2
+      cases b with
+      | false =>
+        simp only [Bool.false_eq_true, ↓reduceIte] at z2
+        exact absurd z2 (fun hc => failOk hc)
+      | true =>
+        simp only [↓reduceIte] at z2
+        have c12 := c1.trans c2
+        obtain ⟨c3, ⟨⟩, -, hR⟩ := ih esP' s2 s' r c2.ok
+          ⟨dShape_ext c12.ext _ _ hsh, denoteEList_ext c12.ext _ _ hft,
+            dMajor_ext c12.ext _ _ hmc, denoteBinders_ext c12.ext _ _ htele,
+            denote_ext hleaf c12.ext, denoteEList_ext c12.ext _ _ hfvs,
+            dCtorNf_ext.list c12.ext _ _ hes'⟩ z2
+        refine ⟨c12.trans c3, (), trivial, ?_⟩
+        exact FOk.bind hK (by simp only [↓reduceIte]; exact FOk.seq (FOk.pure ()) hR)
+
+/-- con-leche: none — a `some` answer of `stripPis`, with its binders. -/
+theorem stripPis_someB {st : EStore} {k : Nat} {cP : Expr}
+    {bs : List (EIdx × BinderMeta)} {e : EIdx}
+    (h : ExprOps.denoteBP st (some (bs, e)) = some (Expr.stripPis k cP)) :
+    ∃ xs x, Expr.stripPis k cP = some (xs, x) ∧ denoteBinders st bs = some xs ∧
+      denoteE st e = some x := by
+  simp only [ExprOps.denoteBP] at h
+  cases hb : ExprOps.denoteBL st bs with
+  | none => rw [hb] at h; simp at h
+  | some xs =>
+    cases he : denoteE st e with
+    | none => rw [hb, he] at h; simp at h
+    | some x =>
+      rw [hb, he] at h
+      exact ⟨xs, x, (Option.some.inj h).symm, by rw [denoteBinders_eq_denoteBL, hb], rfl⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:279-293 classFieldsAgree —
+**node agreement at every recursive field of the datum**: the field's
+telescope stripped, its leaf at the inductive hypothesis's class, then every
+entry (`classNodesAgree`).  Scoping as `classFieldsAgreeS_sim`. -/
+theorem classFieldsAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (formerTys : List EIdx)
+    (formerTysP : List Expr) (ms : List Arena.TargetMajor) (MsP : List ConLeche.TargetMajor)
+    (fvs : List EIdx) (fvsP : List Expr) (es : List Arena.NestCtorNf)
+    (esP : List ConLeche.NestCtorNf) (ctor : ConLeche.Name)
+    (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t)
+    (hMs : ∀ M ∈ MsP, Cached.TargetMajScoped M) :
+    ∀ (ks : List Arena.ClassField) (i : Nat),
+    CSpecF μ env fe
+      (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
+        ms.mapM (dMajor st) = some MsP ∧ Frontend.denoteEList st fvs = some fvsP ∧
+        es.mapM (dCtorNf st) = some esP)
+      (Arena.classFieldsAgree μ fe p formerTys ms fvs es i ks) (fun _ _ _ => True)
+      (ConLeche.classFieldsAgree (fueledOpsM μ) env pP formerTysP MsP fvsP ctor esP i
+        (ks.map cfOf)) := by
+  intro ks
+  induction ks with
+  | nil =>
+    intro i s₀ s' r hok _ hrun
+    simp only [Arena.classFieldsAgree] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, (), trivial, by
+      simp only [List.map_nil, ConLeche.classFieldsAgree]; exact FOk.pure _⟩
+  | cons kd ks ih =>
+    intro i s₀ s' r hok hpre hrun
+    obtain ⟨hsh, hft, hms, hfvs, hes⟩ := hpre
+    cases kd with
+    | ordinary =>
+      simp only [Arena.classFieldsAgree] at hrun
+      obtain ⟨c1, u, hu, hF⟩ := ih (i + 1) s₀ s' r hok ⟨hsh, hft, hms, hfvs, hes⟩ hrun
+      exact ⟨c1, u, hu, by simpa only [List.map_cons, cfOf, ConLeche.classFieldsAgree] using hF⟩
+    | recursive t tele =>
+      simp only [Arena.classFieldsAgree] at hrun
+      simp only [List.map_cons, cfOf, ConLeche.classFieldsAgree]
+      obtain ⟨fv, s1, k1, z1⟩ := bindOk hrun
+      obtain ⟨p1, hfv⟩ := exprGetD_spec fvs fvsP i s₀ s1 fv hok.state hfvs k1
+      obtain ⟨fty, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨rfl, hfty⟩ := fvarTypeD_run p1.ok hfv k2
+      obtain ⟨q, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨rfl, hq⟩ := stripPis_pstep p1.ok hfty k3
+      cases q with
+      | none => exact absurd z3 (fun hc => failOk hc)
+      | some q =>
+        obtain ⟨teleB, leaf⟩ := q
+        obtain ⟨teleP, leafP, hsp, hteleB, hleaf⟩ := stripPis_someB hq
+        rw [hsp]
+        dsimp only at z3
+        obtain ⟨mt, s4, k4, z4⟩ := bindOk z3
+        obtain ⟨p4, hmt⟩ := targetMajorAt_spec ms MsP t _ s4 mt p1.ok
+          (PinsOK.ofPStep hok.pins p1) (dMajor_ext.list p1.ext _ _ hms) k4
+        obtain ⟨b, s5, k5, z5⟩ := bindOk z4
+        obtain ⟨p5, rfl⟩ := classLeafAt_spec mt _ leaf leafP s4 s5 b p4.ok
+          ⟨hmt, denote_ext hleaf p4.ext⟩ k5
+        have c15 := (p1.trans (p4.trans p5)).toCore hok
+        by_cases hb : ConLeche.classLeafAt (MsP.getD t default) leafP = true
+        · rw [if_pos hb] at z5
+          obtain ⟨u1, s6, k6, z6⟩ := bindOk z5
+          have p45 := p4.trans p5
+          obtain ⟨c6, ⟨⟩, -, hN⟩ := classNodesAgree_spec fe hk henv p pP formerTys formerTysP mt
+            (MsP.getD t default) teleB teleP leaf leafP fvs fvsP i ctor hformer
+            (Cached.TargetMajScoped.getD hMs t) es esP s5 s6 u1 c15.ok
+            ⟨dShape_ext c15.ext _ _ hsh, denoteEList_ext c15.ext _ _ hft,
+              dMajor_ext p5.ext _ _ hmt, denoteBinders_ext p45.ext _ _ hteleB,
+              denote_ext hleaf p45.ext, denoteEList_ext c15.ext _ _ hfvs,
+              dCtorNf_ext.list c15.ext _ _ hes⟩ k6
+          have c16 := c15.trans c6
+          obtain ⟨c7, ⟨⟩, -, hR⟩ := ih (i + 1) s6 s' r c6.ok
+            ⟨dShape_ext c16.ext _ _ hsh, denoteEList_ext c16.ext _ _ hft,
+              dMajor_ext.list c16.ext _ _ hms, denoteEList_ext c16.ext _ _ hfvs,
+              dCtorNf_ext.list c16.ext _ _ hes⟩ z6
+          refine ⟨c16.trans c7, (), trivial, FOk.bind FOk.unwrapOr ?_⟩
+          simp only [hb, ↓reduceIte]
+          exact FOk.seq hN hR
+        · rw [if_neg hb] at z5
+          exact absurd z5 (fun hc => failOk hc)
 
 end ConRon.Bridge.Inductives
