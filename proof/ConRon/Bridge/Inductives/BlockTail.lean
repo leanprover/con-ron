@@ -158,10 +158,12 @@ theorem denoteLLists_cons_inv {st : EStore} {l : List LIdx} {ls : List (List LId
   rw [h1, h2] at h
   exact ⟨y, ys', (Option.some.inj h).symm, rfl, rfl⟩
 
+/-- con-leche: none — `denoteLLists` at the empty list, inverted. -/
 theorem denoteLLists_nil_inv {st : EStore} {ys : List (List Level)}
     (h : denoteLLists st [] = some ys) : ys = [] := by
   simp only [denoteLLists, Option.some.injEq] at h; exact h.symm
 
+/-- con-leche: none — `Option`'s `mapM` at the empty list, inverted. -/
 theorem mapM_option_nil_inv {α β : Type} {f : α → Option β} {ys : List β}
     (h : ([] : List α).mapM f = some ys) : ys = [] := by
   simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h; exact h.symm
@@ -351,6 +353,7 @@ theorem dPass_mk {st : EStore} {env₁ : Env} {q : Arena.BlockPass}
   simp only [dPass, h1, h2, h3, h4, h5, h6, h7, h8, h9, Option.bind_eq_bind, Option.bind_some,
     Option.pure_def]
 
+/-- con-leche: none — `dPass` survives the arena's growth. -/
 theorem dPass_ext {env₁ : Env} : DExt (fun st q => dPass st env₁ q) := by
   intro st st' hx q qP h
   obtain ⟨he, h1, h2, h3, h4, hk, h5, h6, h7, h8, h9⟩ := dPass_inv h
