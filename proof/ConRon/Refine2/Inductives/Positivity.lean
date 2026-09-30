@@ -18,7 +18,24 @@ block are in `PositivityNest.lean`.
   `NMemoRel` below for the `EIdx`/`u64` ones), threaded through the answer.
 * The Rust's `…_node` fragments are unfolded in place (they are the twin's
   inner `match`).
-* A Rust index cursor is the twin's list operation from the cursor on.
+* A Rust index cursor is the twin's list operation from the cursor on
+  (`anyM`/`allM`/`mapM`/`foldlM`/`contains`/`findIdx?`), a pushing
+  accumulator stated in front of the twin's list (`… >>= pure (absXL out ++ ·)`),
+  with an at-`0`/`Vec::new()` corollary where the callers use one.
+* **The read-back block** (`fv_map_at`, `replace_fvars_go`, `replace_fvars`,
+  `replace_fvars_list`, `nest_hole_img`; one mutual `partial_fixpoint` in the
+  Rust, the well-founded `fvMapAt` block in the twin) is proved by induction
+  on the `HoleImg` prefix length `n`: at a map whose `fv_map_at` is related,
+  `replace_fvars_go` goes by fuel induction and `replace_fvars(_list)`
+  follow (`*_of`); `nest_hole_img` at `n + 1` uses those at the map one
+  frame shorter, whose `fv_map_at` is the induction hypothesis.  The one
+  representation premise is `FvMapWF`: a `HoleImg` prefix is no longer than
+  its stack (`n ≤ |prog|`; every `HoleImg` the port builds has it), without
+  which the Rust's `usize` cast of `n - 1` could truncate on a 32-bit
+  platform where the twin's `getD` would not.
+* `zero_level` (`pos_zero_level_ls`), `i_constant_val_dup` and `NIdx::eq2`
+  are restated LOCALLY (their lemmas live in the Core/Checker tiers this file
+  may not import), under the helpers heading.
 -/
 import ConRon.Refine2.Inductives.Abs
 import ConRon.Arena.Inductives.Positivity
