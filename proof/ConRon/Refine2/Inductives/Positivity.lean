@@ -2024,4 +2024,118 @@ theorem nest_kinds_flat_member_abs
   rw [TwinEq, key _ o h, nestKindsFlat]
   simp [List.all_map, Function.comp_def]
 
+/-! ## `frame_mates_from`, `frame_holes` -/
+
+/-- `frame_mates_from` ⊑ `nestFrameMates.go` from the cursor on. -/
+theorem frame_mates_from_abs (ns : alloc.vec.Vec arena.handle.NIdx) (c : arena.handle.NIdx) :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
+      arena.inductives.positivity.frame_mates_from ns c i out = ok o →
+      absNIdxL o = nestFrameMates.go (absNIdx c) (absNIdxLFrom ns i) (absNIdxL out) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) ns.val.length
+    (fun i (_ : Unit) => ∀ (out o : alloc.vec.Vec arena.handle.NIdx),
+      arena.inductives.positivity.frame_mates_from ns c i out = ok o →
+      absNIdxL o = nestFrameMates.go (absNIdx c) (absNIdxLFrom ns i) (absNIdxL out)) ?_ ?_ i ()
+  · intro i _ hn out o h
+    rw [arena.inductives.positivity.frame_mates_from.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len ns by scalar_tac), Result.ok.injEq] at h
+    subst h
+    rw [absNIdxLFrom, List.drop_eq_nil_of_le hn, List.map_nil, nestFrameMates.go]
+  · intro i _ hlt ih out o h
+    rw [arena.inductives.positivity.frame_mates_from.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len ns by scalar_tac)] at h
+    rw [absNIdxLFrom, List.drop_eq_getElem_cons hlt, List.map_cons, nestFrameMates.go]
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨_, hnv⟩ := List.getElem?_eq_some_iff.mp (vec_index_some hn)
+    rw [hnv]
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbv := nidx_eq2_abs hb
+    cases b
+    · rw [if_neg (by simp)] at h
+      obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hb1v := names_contain_abs _ b1 hb1
+      rw [absNIdxLFrom_zero] at hb1v
+      cases b1
+      · rw [if_neg (by simp)] at h
+        obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+        have hcond : (absNIdx n == absNIdx c || (absNIdxL out).contains (absNIdx n)) = false := by
+          rw [← hbv, ← hb1v]; rfl
+        rw [if_neg (by rw [hcond]; simp)]
+        rw [ih i2 () hi2v out1 o h, absNIdxLFrom, hi2v]
+        congr 1
+        simp [absNIdxL, ConRon.Refine.vec_push_val hout1, dupId_nidx _ _ hn1]
+      · rw [if_pos rfl] at h
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+        have hcond : (absNIdx n == absNIdx c || (absNIdxL out).contains (absNIdx n)) = true := by
+          rw [← hbv, ← hb1v]; rfl
+        rw [if_pos hcond]
+        rw [ih i2 () hi2v out o h, absNIdxLFrom, hi2v]
+    · rw [if_pos rfl] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      have hcond : (absNIdx n == absNIdx c || (absNIdxL out).contains (absNIdx n)) = true := by
+        rw [← hbv]; rfl
+      rw [if_pos hcond]
+      rw [ih i2 () hi2v out o h, absNIdxLFrom, hi2v]
+
+@[lockstep] theorem frame_mates_from_twin (ns : alloc.vec.Vec arena.handle.NIdx)
+    (c : arena.handle.NIdx) :
+    LSP (arena.inductives.positivity.frame_mates_from ns c 0#usize
+        (alloc.vec.Vec.new arena.handle.NIdx))
+      (fun o => TwinEq (nestFrameMates.go (absNIdx c) (absNIdxL ns) []) (absNIdxL o)) := by
+  intro o h
+  rw [TwinEq, frame_mates_from_abs ns c _ _ o h, absNIdxLFrom_zero]
+  simp [absNIdxL, alloc.vec.Vec.new]
+
+/-- `frame_holes` ⊑ `grp.zipIdx.mapM (internFVarE (hi + i) ty)` from the
+cursor on, behind the accumulator. -/
+theorem frame_holes_acc {pers} (hi : Std.U64)
+    (grp : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx)) :
+    ∀ (i : Std.Usize) st lst (out : alloc.vec.Vec arena.handle.EIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.positivity.frame_holes pers st hi grp i out) lst
+        (do
+          let r ← (((absGrpL grp).drop i.val).zipIdx i.val).mapM
+            fun (x : (NIdx × EIdx) × Nat) => internFVarE (absU hi + x.2) x.1.2
+          pure (absEIdxL out ++ r)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) grp.val.length
+    (fun i (_ : Unit) => ∀ st lst (out : alloc.vec.Vec arena.handle.EIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.positivity.frame_holes pers st hi grp i out) lst
+        (do
+          let r ← (((absGrpL grp).drop i.val).zipIdx i.val).mapM
+            fun (x : (NIdx × EIdx) × Nat) => internFVarE (absU hi + x.2) x.1.2
+          pure (absEIdxL out ++ r))) ?_ ?_ i ()
+  · intro i _ hn st lst out hrel hinv
+    rw [arena.inductives.positivity.frame_holes.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len grp by scalar_tac), absGrpL, ← List.map_drop,
+      List.drop_eq_nil_of_le hn]
+    simp only [List.map_nil, List.zipIdx_nil, List.mapM_nil, pure_bind, List.append_nil]
+    lockstep
+  · intro i _ hlt ih st lst out hrel hinv
+    have ih' : ∀ (j : Std.Usize), j.val = i.val + 1 → ∀ st lst (out : alloc.vec.Vec arena.handle.EIdx),
+        AStateRel₀ pers st lst → AStateInv pers st →
+        LS pers (fun a b => b = absEIdxL a)
+          (arena.inductives.positivity.frame_holes pers st hi grp j out) lst
+          (do
+            let r ← (((absGrpL grp).drop j.val).zipIdx j.val).mapM
+              fun (x : (NIdx × EIdx) × Nat) => internFVarE (absU hi + x.2) x.1.2
+            pure (absEIdxL out ++ r)) := fun j hj => ih j () hj
+    clear ih
+    have hd : (absGrpL grp).drop i.val =
+        (absNIdx grp.val[i.val].1, absEIdx grp.val[i.val].2) ::
+          (absGrpL grp).drop (i.val + 1) := by
+      rw [absGrpL, ← List.map_drop, List.drop_eq_getElem_cons hlt, List.map_cons, List.map_drop]
+    rw [arena.inductives.positivity.frame_holes.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len grp by scalar_tac), hd, List.zipIdx_cons,
+      mapM_cons_acc]
+    lockstep
+
 end ConRon.Refine2
