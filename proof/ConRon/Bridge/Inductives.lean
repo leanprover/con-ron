@@ -1,50 +1,56 @@
 /-
 # `ConRon.Bridge.Inductives` — Theorem 1's inductive tier (index)
 
-DESIGN §8.2's **Theorem 1** at `Arena/Inductives.lean` and the ten modules
-under it — the `.indDecl` arm of con-leche's `checkDecl`
-(`ConLeche/Kernel/Checker.lean:564-600`) and the two routes behind it.  This
-tier discharges the hypothesis `Bridge/Checker/Hyp.lean` names `IndSpec`.
+DESIGN §8.2's **Theorem 1** at the uniform inductive route (task #105):
+`Arena/CheckDecl.lean`'s `.indDecl` arm past the pin recogniser — B-CORE's
+`checkIndRoute` in `Bridge/Checker/Hyp.lean` — against con-leche 445b9cf4's
+`checkDecl` arm (`Kernel/CheckDecl.lean`, `Kernel/Inductives/*`).  This tier
+discharges the hypothesis `Hyp.lean` names `IndSpec` (`indSpec_of_bridge`).
 
 ## The modules, in dependency order
 
 | module | what |
 |---|---|
-| `Inductives/Rel.lean` | the two frames (`PStep`, `CoreStep`), the two statement shapes (`PSpec`, `CSpec`), the answer relations, the record relations, `InstRel` and `IndOut` |
-| `Inductives/StructParts.lean` | the generators: families, spines, Π→λ, the structure recogniser, the projection bodies, the two memoised predicates |
-| `Inductives/SumParts.lean` | `sumSplit` and `InductiveShape.withSort` |
-| `Inductives/NativeParts.lean` | the positivity classification and the GENERATED recursor (`structRecTyR` / `structRecRhsR`), the rule checks, the two recognisers |
-| `Inductives/StructInstall.lean` | the parameter domains and the projection TABLE |
-| `Inductives/SumInstall.lean` | the direct install's stages: telescope, caps, field sorts, positivity normalisation, constructors, rules |
-| `Inductives/NativeInstall.lean` | the fixpoint route: the two-pass install |
-| `Inductives/Modeled.lean` | the modeled route: iota certificates, member checks, projection functions, capability theorems |
-| `Inductives/Decl.lean` | `checkIndDecl_bridge` — the arm — and `indSpec_of_bridge` |
-| `Inductives/Axioms.lean` | the trust census |
+| `Records` | the twin records' denotations (`dShape`, `dCtx`, `dState`, …) and the `FOk` fuel calculus over `fueledOpsM` |
+| `Run` | the pure grade: `PStep`, `PSpec`, answer relations, run forms of the store primitives |
+| `Rel` | the core grade: `CSpec`, `CSpecF`, `InstRel`, `ProjOut`, `IndOut` |
+| `BlockWF` | con-leche side only: `checkBlock` keeps `EnvWF` |
+| `PosWalks` | the positivity walk's memoised leaves (`nestOcc`, `replaceFVars`, `replaceApps`, …) |
+| `StructParts`, `StructInstall`, `FieldTele`, `SumInstall` | the shared generators, telescopes, constructor stage and projection table |
+| `Positivity` | `nestPos` and its frames, the root, the seeds |
+| `BlockParts`, `BlockRec` | the recogniser (two-sided) and the elimination guard |
+| `BlockInstall` | the formers', constructors' and positivity stages |
+| `ClassRead`, `RecCheck`, `GenRec` | the recursor pre-pass, class kit and generated recursor stage |
+| `BlockTail` | `checkBlock_bridge`: the pass and the tail, producing `IndOut` |
+| `Decl` | `checkIndRoute_bridge` and `indSpec_of_bridge` |
+| `Axioms` | the trust census |
 
-## Two grades, and the rule for which a twin gets
+## Two grades
 
 A twin that calls the knot (`inferTypeCore`, `isDefEqCore`, `whnf`,
-`annotateCore`, `ensureSortCore`) is CORE grade: its statement is a `CSpec`,
-its invariant `CheckOK`, its frame `CoreStep`, and it takes `CoreSpec` as a
-hypothesis.  Everything else is PURE grade: `PSpec`, `StateOK`, `PStep`, and
-task #97-P3-0 §2's rule that such a theorem must not mention the caches.
-
-## The tier's one finding
-
-`IndSpec` as `Bridge/Checker/Hyp.lean` states it asks for `PersIFEnv fe'`,
-which is **false** for this arm (the route runs with the scratch tier open),
-and does NOT ask for `Pushed fe fe'`, which its own consumer `DeclOut` needs.
-`Bridge/Inductives/Decl.lean`'s module note writes the correction out;
-`IndOut` is the corrected conclusion and `checkIndDecl_bridge` is proved at
-it.
+`annotateCore`, `ensureSortCore`) or reads a verdict cache (`lvlEq?`) is CORE
+grade: `CSpec`/`CSpecF`, invariant `CheckOK`, frame `CoreStep`, hypothesis
+`CoreSpec`.  Everything else is PURE grade: `PSpec`, `StateOK`, `PStep`.  A
+core-grade statement's pure side is the monad-generic con-leche function at
+`fueledOpsM μ`, related through `FOk`; the tier's final `FOk` becomes
+`IndSpec`'s `∃ F` by `checkDecl_datF`.
 -/
+import ConRon.Bridge.Inductives.Records
+import ConRon.Bridge.Inductives.Run
 import ConRon.Bridge.Inductives.Rel
+import ConRon.Bridge.Inductives.BlockWF
+import ConRon.Bridge.Inductives.PosWalks
 import ConRon.Bridge.Inductives.StructParts
-import ConRon.Bridge.Inductives.SumParts
-import ConRon.Bridge.Inductives.NativeParts
 import ConRon.Bridge.Inductives.StructInstall
+import ConRon.Bridge.Inductives.FieldTele
 import ConRon.Bridge.Inductives.SumInstall
-import ConRon.Bridge.Inductives.NativeInstall
-import ConRon.Bridge.Inductives.Modeled
+import ConRon.Bridge.Inductives.Positivity
+import ConRon.Bridge.Inductives.BlockParts
+import ConRon.Bridge.Inductives.BlockRec
+import ConRon.Bridge.Inductives.BlockInstall
+import ConRon.Bridge.Inductives.ClassRead
+import ConRon.Bridge.Inductives.RecCheck
+import ConRon.Bridge.Inductives.GenRec
+import ConRon.Bridge.Inductives.BlockTail
 import ConRon.Bridge.Inductives.Decl
 import ConRon.Bridge.Inductives.Axioms
