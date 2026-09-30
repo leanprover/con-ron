@@ -219,18 +219,32 @@ pub fn block_caps_at(
     }
 }
 
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `fuel exhausted: piDomsMentionAny`, as code points.
+pub const M_FUEL_PI_DOMS: [u32; 32] = [102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 112, 105, 68, 111, 109, 115, 77, 101, 110, 116, 105, 111, 110, 65, 110, 121];
+
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:83-88 Expr.piDomsMentionAny
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean piDomsMentionAny` —
 /// does some binder domain of the SYNTACTIC `∀`-telescope of `e` mention one
-/// of `names`?  No reduction; the `||` short-circuits.
-pub fn pi_doms_mention_any(pers: &PersTier, st: &AState, names: &Vec<NIdx>, e: &EIdx) -> Result<bool, CheckError> {
-    if e.tag() == ETAG_FORALL_E {
+/// of `names`?  No reduction; the `||` short-circuits.  Fueled, one unit per
+/// binder, as the twin is (a walk over handles has no structural measure;
+/// task #105): the callers pass `core::CORE_WALK_FUEL`.
+pub fn pi_doms_mention_any(
+    pers: &PersTier,
+    st: &AState,
+    names: &Vec<NIdx>,
+    fuel: u64,
+    e: &EIdx,
+) -> Result<bool, CheckError> {
+    if fuel == 0 {
+        fail(core_types::internal(code_points(&M_FUEL_PI_DOMS)))
+    } else if e.tag() == ETAG_FORALL_E {
         match view_bind(pers, st, e) {
             None => fail_dangling_e(),
             Some((ty, b, _)) => match positivity::mentions_any_const(pers, st, names, &ty) {
                 Err(er) => Err(er),
                 Ok(true) => Ok(true),
-                Ok(false) => pi_doms_mention_any(pers, st, names, &b),
+                Ok(false) => pi_doms_mention_any(pers, st, names, fuel - 1, &b),
             },
         }
     } else {
@@ -250,7 +264,7 @@ pub fn ctors_mention_any(
     if i >= cs.len() {
         Ok(false)
     } else {
-        match pi_doms_mention_any(pers, st, names, &cs[i].0.ty) {
+        match pi_doms_mention_any(pers, st, names, core::CORE_WALK_FUEL, &cs[i].0.ty) {
             Err(e) => Err(e),
             Ok(true) => Ok(true),
             Ok(false) => ctors_mention_any(pers, st, names, cs, i + 1),

@@ -45613,7 +45613,7 @@ def arena.inductives.sum_install.cons_sum_ctors
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::block_install::cons_block_ctors]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 895:0-902:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 909:0-916:1
     Visibility: public -/
 def arena.inductives.block_install.cons_block_ctors
   (n_p : Std.U64)
@@ -45846,7 +45846,7 @@ def arena.inductives.block_install.M_REC_TELE : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::block_install::check_block_idx_sorts]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 845:0-889:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 859:0-903:1
     Visibility: public -/
 def arena.inductives.block_install.check_block_idx_sorts
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -51292,7 +51292,7 @@ def arena.inductives.positivity.nest_state_empty
     }
 
 /-- [con_ron_core::arena::inductives::block_install::split_nfs]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 778:0-786:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 792:0-800:1
     Visibility: public -/
 def arena.inductives.block_install.split_nfs
   (os : alloc.vec.Vec ((alloc.vec.Vec
@@ -51331,7 +51331,7 @@ def arena.inductives.positivity.nest_field_kind_dup
   | arena.inductives.positivity.NestFieldKind.Nested _ => ok k
 
 /-- [con_ron_core::arena::inductives::block_install::kinds_dup]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 766:0-774:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 780:0-788:1
     Visibility: public -/
 def arena.inductives.block_install.kinds_dup
   (ks : alloc.vec.Vec arena.inductives.positivity.NestFieldKind)
@@ -51353,7 +51353,7 @@ def arena.inductives.block_install.kinds_dup
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::block_install::split_kinds]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 754:0-762:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 768:0-776:1
     Visibility: public -/
 def arena.inductives.block_install.split_kinds
   (os : alloc.vec.Vec ((alloc.vec.Vec
@@ -51381,7 +51381,7 @@ def arena.inductives.block_install.split_kinds
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::block_install::split_outs]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 735:0-750:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 749:0-764:1
     Visibility: public -/
 def arena.inductives.block_install.split_outs
   (outs : alloc.vec.Vec (alloc.vec.Vec ((alloc.vec.Vec
@@ -51476,7 +51476,7 @@ def arena.inductives.block_parts.shape_n_idxs
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::block_install::shape_nest_ctx]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 542:0-563:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 556:0-577:1
     Visibility: public -/
 def arena.inductives.block_install.shape_nest_ctx
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -51534,7 +51534,7 @@ def arena.inductives.block_install.M_REC_NO_FORMER : Array Std.U32 26#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::block_install::block_nest_ctx]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 707:0-730:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 721:0-744:1
     Visibility: public -/
 def arena.inductives.block_install.block_nest_ctx
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -51632,7 +51632,7 @@ def arena.inductives.block_install.M_NF_LPS : Array Std.U32 73#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::block_install::check_abs_ctor_sorts]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 626:0-674:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 640:0-688:1
     Visibility: public -/
 def arena.inductives.block_install.check_abs_ctor_sorts
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -51706,7 +51706,7 @@ def arena.inductives.block_install.check_abs_ctor_sorts
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::block_install::check_abs_ctor_sorts_all]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 681:0-700:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 695:0-714:1
     Visibility: public -/
 def arena.inductives.block_install.check_abs_ctor_sorts_all
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -51747,7 +51747,7 @@ def arena.inductives.block_install.check_abs_ctor_sorts_all
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::block_install::check_block_positivity]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 795:0-833:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 809:0-847:1
     Visibility: public -/
 def arena.inductives.block_install.check_block_positivity
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -52540,7 +52540,7 @@ def arena.inductives.sum_install.check_sum_ctors
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::block_install::check_block_ctors]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 572:0-617:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 586:0-631:1
     Visibility: public -/
 def arena.inductives.block_install.check_block_ctors
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -52688,7 +52688,7 @@ def arena.inductives.block_parts.block_shape_dup
   ok { p with members := v, recs := v1, elim := n, res_sort := l }
 
 /-- [con_ron_core::arena::inductives::block_install::tele_vals]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 480:0-488:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 494:0-502:1
     Visibility: public -/
 def arena.inductives.block_install.tele_vals
   (cvs : alloc.vec.Vec (arena.env.IConstantVal × arena.handle.LIdx))
@@ -52879,7 +52879,7 @@ def arena.inductives.block_install.block_caps_at
       { caps with all := names, nparams := p.n_p, ctors := cs }, st)
 
 /-- [con_ron_core::arena::inductives::block_install::cons_block_inds]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 456:0-476:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 470:0-490:1
     Visibility: public -/
 def arena.inductives.block_install.cons_block_inds
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -52936,7 +52936,7 @@ def arena.inductives.block_install.M_DOM_IDX : Array Std.U32 19#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::block_install::check_block_doms_at]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 365:0-394:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 379:0-408:1
     Visibility: public -/
 def arena.inductives.block_install.check_block_doms_at
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -53021,7 +53021,7 @@ def arena.inductives.block_install.M_BLOCK_TELE : Array Std.U32 28#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::block_install::check_block_agree]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 403:0-449:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 417:0-463:1
     Visibility: public -/
 def arena.inductives.block_install.check_block_agree
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -53519,7 +53519,7 @@ def arena.inductives.block_install.M_TELE : Array Std.U32 33#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::block_install::check_block_tele]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 299:0-328:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 313:0-342:1
     Visibility: public -/
 def arena.inductives.block_install.check_block_tele
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -53578,7 +53578,7 @@ def arena.inductives.block_install.check_block_tele
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
 /-- [con_ron_core::arena::inductives::block_install::check_block_teles]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 334:0-356:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 348:0-370:1
     Visibility: public -/
 def arena.inductives.block_install.check_block_teles
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -53618,7 +53618,7 @@ def arena.inductives.block_install.M_NO_FORMER : Array Std.U32 21#usize :=
     ]
 
 /-- [con_ron_core::arena::inductives::block_install::check_block_inds]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 497:0-531:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 511:0-545:1
     Visibility: public -/
 def arena.inductives.block_install.check_block_inds
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -54010,34 +54010,59 @@ def arena.inductives.positivity.mentions_any_const
                                 ok (core.result.Result.Ok b)
   | core.result.Result.Err er => ok (core.result.Result.Err er)
 
+/-- [con_ron_core::arena::inductives::block_install::M_FUEL_PI_DOMS]
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 224:0-224:192
+    Visibility: public -/
+@[global_simps, irreducible]
+def arena.inductives.block_install.M_FUEL_PI_DOMS : Array Std.U32 32#usize :=
+  Array.make 32#usize [
+    102#u32, 117#u32, 101#u32, 108#u32, 32#u32, 101#u32, 120#u32, 104#u32,
+    97#u32, 117#u32, 115#u32, 116#u32, 101#u32, 100#u32, 58#u32, 32#u32,
+    112#u32, 105#u32, 68#u32, 111#u32, 109#u32, 115#u32, 77#u32, 101#u32,
+    110#u32, 116#u32, 105#u32, 111#u32, 110#u32, 65#u32, 110#u32, 121#u32
+    ]
+
 /-- [con_ron_core::arena::inductives::block_install::pi_doms_mention_any]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 226:0-239:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 232:0-253:1
     Visibility: public -/
 def arena.inductives.block_install.pi_doms_mention_any
   (pers : arena.store.PersTier) (st : arena.monad.AState)
-  (names : alloc.vec.Vec arena.handle.NIdx) (e : arena.handle.EIdx) :
+  (names : alloc.vec.Vec arena.handle.NIdx) (fuel : Std.U64)
+  (e : arena.handle.EIdx) :
   Result (core.result.Result Bool kernel.core_types.CheckError)
   := do
-  let i ← arena.handle.EIdx.tag e
-  if i = arena.handle.ETAG_FORALL_E
+  if fuel = 0#u64
   then
-    let o ← arena.monad.view_bind pers st e
-    match o with
-    | none => arena.monad.fail_dangling_e Bool
-    | some t =>
-      let (ty, b, _) := t
-      let r ← arena.inductives.positivity.mentions_any_const pers st names ty
-      match r with
-      | core.result.Result.Ok b1 =>
-        if b1
-        then ok r
-        else arena.inductives.block_install.pi_doms_mention_any pers st names b
-      | core.result.Result.Err _ => ok r
-  else ok (core.result.Result.Ok false)
+    let s ←
+      lift (Array.to_slice arena.inductives.block_install.M_FUEL_PI_DOMS)
+    let v ← kernel.core_types.code_points s
+    let ce ← kernel.core_types.internal v
+    arena.monad.fail Bool ce
+  else
+    let i ← arena.handle.EIdx.tag e
+    if i = arena.handle.ETAG_FORALL_E
+    then
+      let o ← arena.monad.view_bind pers st e
+      match o with
+      | none => arena.monad.fail_dangling_e Bool
+      | some t =>
+        let (ty, b, _) := t
+        let r ←
+          arena.inductives.positivity.mentions_any_const pers st names ty
+        match r with
+        | core.result.Result.Ok b1 =>
+          if b1
+          then ok r
+          else
+            let i1 ← fuel - 1#u64
+            arena.inductives.block_install.pi_doms_mention_any pers st names i1
+              b
+        | core.result.Result.Err _ => ok r
+    else ok (core.result.Result.Ok false)
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::block_install::ctors_mention_any]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 243:0-259:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 257:0-273:1
     Visibility: public -/
 def arena.inductives.block_install.ctors_mention_any
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -54053,7 +54078,8 @@ def arena.inductives.block_install.ctors_mention_any
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
         (arena.env.IConstantVal × Std.U64)) cs i
     let r ←
-      arena.inductives.block_install.pi_doms_mention_any pers st names iv.ty
+      arena.inductives.block_install.pi_doms_mention_any pers st names
+        arena.core.CORE_WALK_FUEL iv.ty
     match r with
     | core.result.Result.Ok b =>
       if b
@@ -54065,7 +54091,7 @@ def arena.inductives.block_install.ctors_mention_any
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::block_install::members_mention_any]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 263:0-279:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 277:0-293:1
     Visibility: public -/
 def arena.inductives.block_install.members_mention_any
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -54095,7 +54121,7 @@ def arena.inductives.block_install.members_mention_any
 partial_fixpoint
 
 /-- [con_ron_core::arena::inductives::block_install::block_raw_rec]:
-    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 285:0-288:1
+    Source: 'crates/con-ron-core/src/arena/inductives/block_install.rs', lines 299:0-302:1
     Visibility: public -/
 def arena.inductives.block_install.block_raw_rec
   (pers : arena.store.PersTier) (st : arena.monad.AState)
