@@ -535,4 +535,19 @@ theorem tele_vals_cons_abs {cvs : alloc.vec.Vec (arena.env.IConstantVal × arena
     rw [← e]
     lockstep
 
+/-! ## Stage 1b: the constructors, and the positivity check -/
+
+/-- `shape_nest_ctx` ⊑ `BlockShape.nestCtx`.  The Rust stores `vis` in the
+context, which `absNestCtx` drops; the answer carries it. -/
+@[lockstep] theorem shape_nest_ctx_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (p : arena.inductives.block_parts.BlockShape)
+    (fvs_p : alloc.vec.Vec arena.handle.EIdx) (vis : Std.U64) :
+    LS pers (fun a b => b = absNestCtx a ∧ a.vis = vis)
+      (arena.inductives.block_install.shape_nest_ctx pers st p fvs_p vis) lst
+      ((absBlockShape p).nestCtx (absEIdxL fvs_p)) := by
+  rw [arena.inductives.block_install.shape_nest_ctx, BlockShape.nestCtx]
+  lockstep
+  refine LS.pure ⟨?_, rfl⟩ hrel hinv
+  simp_all [TwinEq, absNestCtx, absNatL, absBlockShape]
+
 end ConRon.Refine2
