@@ -9,7 +9,7 @@ Three families of con-leche declaration are pure `Expr` / `ConstantInfo`
 them is an algorithm:
 
 * the basis blocks (`ConLeche/Kernel/Basis*.lean`, `BasisKind.declsA` — the
-  annotated `Eq`, `Nat`, `PUnit`, `Empty`, `False` and `Quot` pins);
+  annotated `Eq`, `Nat`, `Empty`, `False` and `Quot` pins);
 * the standard- and compiler-trust axiom pins (`ConLeche/Kernel/StdAxioms.lean`,
   `ConLeche/Kernel/TrustAxioms.lean`, `ConLeche/Kernel/TrustPins.lean`);
 * the `Nat`-operation pin variants (`ConLeche/Kernel/NatOpPins.lean`'s

@@ -395,8 +395,8 @@ tier and re-indexed, everything below them untouched.
 install route in (B) grows the environment by `IFEnv.push` alone
 (`Arena/Checker.lean`, `Arena/DeclCheck.lean`, `Arena/Inductives/*`), so the
 `k` newest entries of `fe.env.consts` are exactly the step's, and the
-provisional self-environments the recursor installs build (`provisionRecs`'s
-`feSelf`, `checkNativeRec`'s `feR`) are discarded by their own callers and
+provisional self-environment the recursor stage builds (`genRecCheck`'s
+`feR`, popped before it returns) is discarded by their own callers and
 never reach here. -/
 def promoteNew (m : PMemo) (fuel k : Nat) (fe : IFEnv) : AM (PMemo × IFEnv) := do
   if k == 0 then pure (m, fe)

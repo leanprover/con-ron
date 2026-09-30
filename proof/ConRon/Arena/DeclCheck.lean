@@ -23,17 +23,6 @@ collapsed declaration, and the twin keeps the UNSUFFIXED name — as
   and over handles each of them has to intern anyway.
 * `divModCertsGuard`'s `(… .zip …).all (fun p => …)` is an explicit
   two-list recursion.
-
-## What is P2d-2's
-
-The modeled and native inductive installs (`ConLeche/Kernel/Inductives/*`)
-are the other half of this phase.  Eight of `DeclCheck.lean`'s declarations
-are theirs, because they call into those modules and nothing here does:
-`ctorResidualOkF` (needs `StructParts.structFam`), `checkIotaThmF`,
-`nestedRuleShapeF`, `checkIotaThmNF`, `checkIotaRuleF`, `checkIotaRulesF`
-(need `Modeled.checkIotaSidesTy`), `checkProjTyF` and `checkProjIotaF` (need
-`Modeled.projFwd`/`projBack`).  Everything else `DeclCheck.lean` declares is
-here.
 -/
 import ConRon.Arena.CheckerSplit
 
@@ -777,14 +766,5 @@ list recursion (DESIGN §3.4). -/
 def installBasisDecls (fe : IFEnv) : List IConstantInfo → AM IFEnv
   | [] => pure fe
   | ci :: cs => do installBasisDecls (← installBasisDecl fe ci) cs
-
-/-! ## The modeled install's environment reads
-
-`checkEtaThm`, `checkUnitThm`, `indBlockCaps`, `checkMemberVal` and
-`checkProjLookups` — the five `DeclCheck.lean` declarations that read the
-model companions a generated block leaves in the environment — are
-`Arena/Inductives/Modeled.lean`'s (P2d-2's half of this phase).  They call
-nothing this module has and everything they are called from is there, so
-they live with their callers and there is ONE twin of each. -/
 
 end ConRon.Arena

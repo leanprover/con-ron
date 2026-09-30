@@ -1892,9 +1892,7 @@ decreasing_by omega
 /-! ## `renameConsts` — `ExprOps.lean:930-956`, `:999-1036`, `:1109-1111`
 
 The renaming is a function on NAME HANDLES, not on names: the census's
-mechanical column says so, and it is what the call site (the modeled-block
-contract, which compares a block's types against their `_model` counterparts)
-can supply.  It is the module's one higher-order argument, and it is
+mechanical column says so.  It is the module's one higher-order argument, and it is
 con-leche's own (`renameConsts (f : Name → Name)`); what the Rust passes
 there is P2d's to decide. -/
 
