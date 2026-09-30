@@ -1378,4 +1378,154 @@ theorem replace_apps_go_aux {pers} (names : alloc.vec.Vec arena.handle.NIdx)
   rw [arena.inductives.positivity.nest_crest, nestCrest]
   lockstep
 
+/-! ## The result head, the closedness scans, the walk stack -/
+
+@[lockstep] theorem nest_res_head_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (e : arena.handle.EIdx) :
+    LSR pers (fun a b => b = a)
+      (arena.inductives.positivity.nest_res_head pers st e) st lst
+      (nestResHead (absEIdx e)) := by
+  apply LSR.of_LS
+  rw [arena.inductives.positivity.nest_res_head, nestResHead]
+  lockstep
+
+/-- `nest_res_ok` — a fragment of `nestCtors`: the result headed by its hole
+with hole-free indices, stated against that sub-expression of the twin. -/
+@[lockstep] theorem nest_res_ok_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx) (hi : Std.U64)
+    (cur : arena.handle.EIdx) :
+    LSR pers (fun a b => b = a)
+      (arena.inductives.positivity.nest_res_ok pers st ctx hi cur) st lst
+      (do
+        if ← nestResHead (absEIdx cur) then do
+          let args ← getAppArgs coreWalkFuel (absEIdx cur)
+          let occ ← args.anyM fun x => nestOcc (absNIdxL ctx.names) (absU ctx.n_p) (absU hi) x
+          pure !occ
+        else pure false) := by
+  apply LSR.of_LS
+  rw [arena.inductives.positivity.nest_res_ok]
+  lockstep
+
+/-- `all_fvar_b_le` ⊑ `List.allM (fvarB · ≤ bound)` from the cursor on. -/
+@[lockstep] theorem all_fvar_b_le_ls {pers} (ds : alloc.vec.Vec arena.handle.EIdx)
+    (bound : Std.U64) :
+    ∀ (i : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a)
+        (arena.inductives.positivity.all_fvar_b_le pers st ds bound i) lst
+        ((absEIdxLFrom ds i).allM fun x => do
+          let b ← fvarB coreWalkFuel x
+          pure (decide (b ≤ absU bound))) := by
+  refine ls_cursor ds absEIdx
+    (fun l => l.allM fun x => do
+      let b ← fvarB coreWalkFuel x
+      pure (decide (b ≤ absU bound)))
+    (fun st i => arena.inductives.positivity.all_fvar_b_le pers st ds bound i) ?_ ?_
+  · intro st lst i hn hrel hinv
+    rw [arena.inductives.positivity.all_fvar_b_le.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len ds by scalar_tac), List.allM]
+    lockstep
+  · intro st lst i hi hrel hinv ih
+    have ih' : ∀ st' lst' (j : Std.Usize), j.val = i.val + 1 →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers (fun a b => b = a)
+          (arena.inductives.positivity.all_fvar_b_le pers st' ds bound j) lst'
+          ((absEIdxLFrom ds j).allM fun x => do
+            let b ← fvarB coreWalkFuel x
+            pure (decide (b ≤ absU bound))) := ih
+    clear ih
+    rw [arena.inductives.positivity.all_fvar_b_le.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len ds by scalar_tac)]
+    simp only [List.allM, bind_assoc, pure_bind]
+    lockstep
+
+/-- `params_closed` ⊑ `List.allM (bvarB · == 0 && fvarB · ≤ hi)` from the
+cursor on, the `bvarB` read first. -/
+@[lockstep] theorem params_closed_ls {pers} (xs : alloc.vec.Vec arena.handle.EIdx)
+    (hi : Std.U64) :
+    ∀ (i : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a)
+        (arena.inductives.positivity.params_closed pers st xs hi i) lst
+        ((absEIdxLFrom xs i).allM fun x => do
+          let bb ← bvarB coreWalkFuel x
+          if bb != 0 then pure false
+          else do
+            let fb ← fvarB coreWalkFuel x
+            pure (decide (fb ≤ absU hi))) := by
+  refine ls_cursor xs absEIdx
+    (fun l => l.allM fun x => do
+      let bb ← bvarB coreWalkFuel x
+      if bb != 0 then pure false
+      else do
+        let fb ← fvarB coreWalkFuel x
+        pure (decide (fb ≤ absU hi)))
+    (fun st i => arena.inductives.positivity.params_closed pers st xs hi i) ?_ ?_
+  · intro st lst i hn hrel hinv
+    rw [arena.inductives.positivity.params_closed.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), List.allM]
+    lockstep
+  · intro st lst i hlt hrel hinv ih
+    have ih' : ∀ st' lst' (j : Std.Usize), j.val = i.val + 1 →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers (fun a b => b = a)
+          (arena.inductives.positivity.params_closed pers st' xs hi j) lst'
+          ((absEIdxLFrom xs j).allM fun x => do
+            let bb ← bvarB coreWalkFuel x
+            if bb != 0 then pure false
+            else do
+              let fb ← fvarB coreWalkFuel x
+              pure (decide (fb ≤ absU hi))) := ih
+    clear ih
+    rw [arena.inductives.positivity.params_closed.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)]
+    simp only [List.allM, bind_assoc]
+    lockstep
+
+@[lockstep] theorem nest_walk_stack_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
+    (prog : alloc.vec.Vec arena.inductives.positivity.NestHole)
+    (ds : alloc.vec.Vec arena.handle.EIdx) :
+    LS pers (fun a b => b = a.val.map absNestHole)
+      (arena.inductives.positivity.nest_walk_stack pers st ctx prog ds) lst
+      (nestWalkStack (absNestCtx ctx) (prog.val.map absNestHole) (absEIdxL ds)) := by
+  rw [arena.inductives.positivity.nest_walk_stack, nestWalkStack]
+  lockstep
+
+/-! ## Uniform occurrences' low part: `pi_doms_occ`, `nest_root_canon` -/
+
+theorem pi_doms_occ_aux (k : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (names : alloc.vec.Vec arena.handle.NIdx) (lo hi n : Std.U64) (e : arena.handle.EIdx),
+      n.val = k → AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = a)
+        (arena.inductives.positivity.pi_doms_occ pers st names lo hi n e) st lst
+        (piDomsOcc (absNIdxL names) (absU lo) (absU hi) k (absEIdx e)) := by
+  induction k with
+  | zero =>
+    intro pers st lst names lo hi n e hn hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.pi_doms_occ, if_pos (by scalar_tac), piDomsOcc]
+    lockstep
+  | succ k ih =>
+    intro pers st lst names lo hi n e hn hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.pi_doms_occ, if_neg (by scalar_tac), piDomsOcc]
+    lockstep
+
+@[lockstep] theorem pi_doms_occ_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx)
+    (lo hi n : Std.U64) (e : arena.handle.EIdx) :
+    LSR pers (fun a b => b = a)
+      (arena.inductives.positivity.pi_doms_occ pers st names lo hi n e) st lst
+      (piDomsOcc (absNIdxL names) (absU lo) (absU hi) (absU n) (absEIdx e)) :=
+  pi_doms_occ_aux _ names lo hi n e rfl hrel hinv
+
+@[lockstep] theorem nest_root_canon_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
+    (cv : arena.env.IConstantVal) :
+    LS pers (fun a b => b = a.map absEIdx)
+      (arena.inductives.positivity.nest_root_canon pers st ctx cv) lst
+      (nestRootCanon (absNestCtx ctx) (absIConstantVal cv)) := by
+  rw [arena.inductives.positivity.nest_root_canon, nestRootCanon]
+  lockstep
+
 end ConRon.Refine2
