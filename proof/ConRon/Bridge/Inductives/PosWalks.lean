@@ -1244,63 +1244,6 @@ theorem dCtx_inv {st : EStore} {fnd : ConLeche.Name → Option ConstantInfo}
     exact ⟨a, b, p, so, (Option.some.inj h).symm, rfl, rfl, rfl, rfl, rfl⟩
   · exact nomatch h
 
-/-- con-leche: none — `Option`'s `mapM` keeps the length. -/
-theorem mapM_option_length {α β : Type} {f : α → Option β} :
-    ∀ {xs : List α} {ys : List β}, xs.mapM f = some ys → ys.length = xs.length := by
-  intro xs
-  induction xs with
-  | nil => intro ys h; simp only [List.mapM_nil] at h; cases h; rfl
-  | cons x xs ih =>
-    intro ys h
-    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h
-    cases hx : f x with
-    | none => rw [hx] at h; simp at h
-    | some y =>
-      rw [hx] at h
-      cases hxs : xs.mapM f with
-      | none => rw [hxs] at h; simp at h
-      | some zs =>
-        rw [hxs] at h
-        simp only [Option.bind_some, Option.some.injEq] at h
-        subst h
-        simp [ih hxs]
-
-/-- con-leche: none — `Option`'s `mapM` over a snoc. -/
-theorem mapM_option_snoc {α β : Type} {f : α → Option β} :
-    ∀ {xs : List α} {x : α} {ys : List β}, (xs ++ [x]).mapM f = some ys →
-      ∃ zs y, ys = zs ++ [y] ∧ xs.mapM f = some zs ∧ f x = some y := by
-  intro xs
-  induction xs with
-  | nil =>
-    intro x ys h
-    simp only [List.nil_append, List.mapM_cons, List.mapM_nil, Option.bind_eq_bind,
-      Option.pure_def] at h
-    cases hx : f x with
-    | none => rw [hx] at h; simp at h
-    | some y =>
-      rw [hx] at h
-      simp only [Option.bind_some, Option.some.injEq] at h
-      subst h
-      exact ⟨[], y, rfl, rfl, rfl⟩
-  | cons a as ih =>
-    intro x ys h
-    simp only [List.cons_append, List.mapM_cons, Option.bind_eq_bind,
-      Option.pure_def] at h
-    cases ha : f a with
-    | none => rw [ha] at h; simp at h
-    | some b =>
-      rw [ha] at h
-      cases hr : (as ++ [x]).mapM f with
-      | none => rw [hr] at h; simp at h
-      | some rs =>
-        rw [hr] at h
-        simp only [Option.bind_some, Option.some.injEq] at h
-        subst h
-        obtain ⟨zs, y, rfl, hz, hy⟩ := ih hr
-        refine ⟨b :: zs, y, rfl, ?_, hy⟩
-        simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def, ha, hz,
-          Option.bind_some]
-
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:884-900 nestHoleImg
 (`h :: prog`) — **the stack prefix of length `n + 1`, denoted, is its last
 frame consed onto the prefix of length `n`**: the twin's list is outermost

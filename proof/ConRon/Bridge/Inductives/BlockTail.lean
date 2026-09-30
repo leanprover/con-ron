@@ -164,11 +164,6 @@ theorem denoteLLists_nil_inv {st : EStore} {ys : List (List Level)}
     (h : denoteLLists st [] = some ys) : ys = [] := by
   simp only [denoteLLists, Option.some.injEq] at h; exact h.symm
 
-/-- con-leche: none — `Option`'s `mapM` at the empty list, inverted. -/
-theorem mapM_option_nil_inv {α β : Type} {f : α → Option β} {ys : List β}
-    (h : ([] : List α).mapM f = some ys) : ys = [] := by
-  simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h; exact h.symm
-
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — a pushed index that
 denotes had a denoting index under it, and the pushed row denotes. -/
 theorem denoteFEnv_push_pre {st : EStore} {fe : IFEnv} {ci : IConstantInfo} {e : Env}
@@ -400,7 +395,7 @@ theorem checkBlockTables_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) 
       obtain ⟨hstep, hrel⟩ := checkBlockTables_spec p pP ms msP' css cssP' sss sssP' fe env
         s₀ s' fe' hok hpins hcoh hienv hfe hsh hms' hcss' hsss' h
       exact ⟨hstep, hrel.imp fun e he => FOk.bind hx he⟩
-    obtain ⟨hcvT, hnI, hcsm⟩ := RC.dMember_inv hm
+    obtain ⟨hcvT, hnI, hcsm⟩ := dMember_inv hm
     match cs, ss, csP, ssP, hcs, hss with
     | [(cA, nF)], [sorts], csP, ssP, hcs, hss =>
       obtain ⟨cAP', csP', rfl, hcA, hcs'⟩ := mapM_option_cons_inv hcs
@@ -417,7 +412,7 @@ theorem checkBlockTables_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) 
           guards hok hpins ⟨denoteCV_type hcAP, hsorts⟩ h1
         have hglen : guards.length = nF := by
           rw [denoteLList_length _ _ hg, structProjGuards_length]
-        obtain ⟨-, -, hnP, -, hrs, -, -⟩ := RC.dShape_inv hsh
+        obtain ⟨-, -, hnP, -, hrs, -, -⟩ := dShape_inv hsh
         have x1 := p1.ext
         obtain ⟨fe₂, s₂, h3, h4⟩ := bindOk h2
         obtain ⟨p3, hrel3⟩ := checkStructProjTable_runF fe env m.cvT.name cA.name mP.cvT.name
@@ -598,7 +593,7 @@ theorem checkBlockTail_of {μ : CheckMode} (hk : CoreSpec μ Arena.checkFuel)
     simp only [dParts, Option.map_eq_some_iff] at hp
     obtain ⟨shP, h1, h2⟩ := hp
     exact ⟨shP, h1, h2.symm⟩
-  obtain ⟨hms, -, hnP, -, -, -, -⟩ := RC.dShape_inv hsh
+  obtain ⟨hms, -, hnP, -, -, -, -⟩ := dShape_inv hsh
   simp only [Arena.checkBlockTail] at hrun
   -- the index binders' sorts
   obtain ⟨isorts, s₁, h1, h2⟩ := bindOk hrun
@@ -725,7 +720,7 @@ theorem checkBlockPass_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
     (⟨c1.ok.state, c1.ok.pins, hOKS1 s₁ rfl⟩ : ReadOK env₁ fe₁ s₁) h3
   simp only [Arena.BlockParts.complete] at h4
   have x2 : Ext s₁.store s₂.store := by rw [hs2]; exact Ext.refl _
-  obtain ⟨hms1, -⟩ := RC.dShape_inv hsh1
+  obtain ⟨hms1, -⟩ := dShape_inv hsh1
   -- the constructors
   obtain ⟨⟨ctorsAs, sortsss⟩, s₃, h5, h6⟩ := bindOk h4
   obtain ⟨c3, ⟨ctorsAsP, sortsssP⟩, ⟨hca, hss⟩, hF3⟩ :=

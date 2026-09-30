@@ -848,21 +848,6 @@ theorem motive_count {st : EStore} {slots : List Arena.ClassSlot}
       List.getD_eq_getElem?_getD, haP, Option.getD_some]
     split <;> rfl
 
-/-- con-leche: none — `Option`'s `mapM` on a cons, inverted. -/
-theorem mapM_cons_inv {α β : Type} {f : α → Option β} {x : α} {xs : List α} {ys : List β}
-    (h : (x :: xs).mapM f = some ys) :
-    ∃ y ys', ys = y :: ys' ∧ f x = some y ∧ xs.mapM f = some ys' := by
-  simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h
-  cases hx : f x with
-  | none => rw [hx] at h; simp at h
-  | some y =>
-  cases hxs : xs.mapM f with
-  | none => rw [hx, hxs] at h; simp at h
-  | some ys' =>
-  rw [hx, hxs] at h
-  simp only [Option.bind_some, Option.some.injEq] at h
-  exact ⟨y, ys', h.symm, rfl, rfl⟩
-
 /-- con-leche: none — `find?` by constructor name over a denoting constructor
 list: the twin's handle test is con-leche's name test. -/
 theorem find_ctor {st : EStore} (hwf : StoreWF st) {C : NIdx} {CP : ConLeche.Name}
@@ -875,7 +860,7 @@ theorem find_ctor {st : EStore} (hwf : StoreWF st) {C : NIdx} {CP : ConLeche.Nam
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
     subst h; rfl
   | x :: xs, xsP, h => by
-    obtain ⟨xP, xsP', rfl, hx, hxs⟩ := mapM_cons_inv h
+    obtain ⟨xP, xsP', rfl, hx, hxs⟩ := mapM_option_cons_inv h
     have hn := ConRon.Bridge.denoteCV_name (dClassCtor_inv hx).1
     have hb := beq_handle_eq hwf hn hC
     simp only [List.find?_cons]
@@ -1212,7 +1197,7 @@ theorem find_hit {st : EStore} (hwf : StoreWF st) (c : Nat) {C : NIdx} {CP : Con
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
     subst h; rfl
   | k, sl :: sls, slsP, h => by
-    obtain ⟨slP, slsP', rfl, hd, hds⟩ := mapM_cons_inv h
+    obtain ⟨slP, slsP', rfl, hd, hds⟩ := mapM_option_cons_inv h
     simp only [List.length_cons, List.range'_succ, List.zip_cons_cons, List.find?_cons]
     have ih := find_hit hwf c hC (k + 1) sls slsP' hds
     cases sl with
@@ -1527,7 +1512,7 @@ theorem isMinor_count {st : EStore} :
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
     subst h; rfl
   | sl :: sls, _, h => by
-    obtain ⟨slP, slsP, rfl, hd, hds⟩ := GR.mapM_cons_inv h
+    obtain ⟨slP, slsP, rfl, hd, hds⟩ := mapM_option_cons_inv h
     have ih := isMinor_count hds
     cases sl with
     | motive k =>
@@ -1754,7 +1739,7 @@ theorem classNodesAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   | cons e es ih =>
     intro esP s₀ s' r hok hpre hrun
     obtain ⟨hsh, hft, hmc, htele, hleaf, hfvs, hes⟩ := hpre
-    obtain ⟨eP, esP', rfl, he, hes'⟩ := GR.mapM_cons_inv hes
+    obtain ⟨eP, esP', rfl, he, hes'⟩ := mapM_option_cons_inv hes
     have hety := (RC.dCtorNf_inv he).2.2.2
     simp only [Arena.classNodesAgree] at hrun
     simp only [ConLeche.classNodesAgree]
@@ -1898,7 +1883,7 @@ theorem filter_nfs {st : EStore} (hwf : StoreWF st) {C : NIdx} {CP : ConLeche.Na
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
     subst h; rfl
   | e :: es, esP, h => by
-    obtain ⟨eP, esP', rfl, he, hes⟩ := GR.mapM_cons_inv h
+    obtain ⟨eP, esP', rfl, he, hes⟩ := mapM_option_cons_inv h
     have ih := filter_nfs hwf hC es esP' hes
     have hb := beq_handle_eq hwf (RC.dCtorNf_inv he).1 hC
     simp only [List.filter_cons, hb]
@@ -1929,7 +1914,7 @@ theorem classCtorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   simp only [dCtor, Option.map_eq_some_iff] at hcA
   obtain ⟨cvP, hcv, rfl⟩ := hcA
   have hname := ConRon.Bridge.denoteCV_name hcv
-  obtain ⟨-, -, hnP, -, -, -, -⟩ := RC.dShape_inv hsh
+  obtain ⟨-, -, hnP, -, -, -, -⟩ := dShape_inv hsh
   have hk' := BlockShape.k_spec hsh
   simp only [Arena.classCtorOf] at hrun
   simp only [ConLeche.classCtorOf]
@@ -1942,7 +1927,7 @@ theorem classCtorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   cases Es with
   | nil => exact absurd z1 (fun hc => failOk hc)
   | cons e0 Es' =>
-    obtain ⟨e0P, EsP', rfl, he0, hEs'⟩ := GR.mapM_cons_inv hE
+    obtain ⟨e0P, EsP', rfl, he0, hEs'⟩ := mapM_option_cons_inv hE
     have he0ty := (RC.dCtorNf_inv he0).2.2.2
     dsimp only at z1
     obtain ⟨sl, s2, k2, z2⟩ := bindOk z1
@@ -2028,7 +2013,7 @@ theorem classCtorsOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   | cons cA cs ih =>
     intro csP s₀ s' r hok hpre hrun
     obtain ⟨hsh, hft, hrd, hms, hcs⟩ := hpre
-    obtain ⟨cAP, csP', rfl, hcA, hcs'⟩ := GR.mapM_cons_inv hcs
+    obtain ⟨cAP, csP', rfl, hcA, hcs'⟩ := mapM_option_cons_inv hcs
     simp only [Arena.classCtorsOf] at hrun
     obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
     obtain ⟨c1, xP, hx, hF1⟩ := classCtorOf_spec fe hk henv p pP formerTys formerTysP rd rdP ms
@@ -2074,7 +2059,7 @@ theorem classesCtors_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   | cons m l ih =>
     intro lP c s₀ s' r hok hpre hrun
     obtain ⟨hsh, hft, hrd, hms, hl⟩ := hpre
-    obtain ⟨mP, lP', rfl, hm, hl'⟩ := GR.mapM_cons_inv hl
+    obtain ⟨mP, lP', rfl, hm, hl'⟩ := mapM_option_cons_inv hl
     have hmc := (dMajor_inv hm).2.2.2.2.2.1
     simp only [Arena.classesCtors] at hrun
     obtain ⟨xs, s1, k1, z1⟩ := bindOk hrun
@@ -2147,11 +2132,11 @@ theorem classMajors_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   | cons key keys ih =>
     intro keysP hsc s₀ s' r hok hpre hrun
     obtain ⟨hsh, hcas, hpf, hks⟩ := hpre
-    obtain ⟨keyP, keysP', rfl, hkey, hks'⟩ := GR.mapM_cons_inv hks
+    obtain ⟨keyP, keysP', rfl, hkey, hks'⟩ := mapM_option_cons_inv hks
     simp only [dClassKey, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
       Option.some.injEq] at hkey
     obtain ⟨ind, hind, lvls, hlvls, ds, hds, rfl⟩ := hkey
-    obtain ⟨-, -, hnP, -, -, -, -⟩ := RC.dShape_inv hsh
+    obtain ⟨-, -, hnP, -, -, -, -⟩ := dShape_inv hsh
     simp only [Arena.classMajors] at hrun
     obtain ⟨hd, s1, k1, z1⟩ := bindOk hrun
     obtain ⟨p1, hhd⟩ := internConstE_run hok.state hind hlvls k1
@@ -2202,18 +2187,6 @@ theorem classMajors_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 
 namespace GR
 
-/-- con-leche: none — `mapM`'s accumulator reversed, denoted. -/
-theorem mapM_reverse {α β : Type} {f : α → Option β} :
-    ∀ {l : List α} {v : List β}, l.mapM f = some v → l.reverse.mapM f = some v.reverse := by
-  intro l
-  induction l with
-  | nil => intro v h; simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h; subst h; rfl
-  | cons a l ih =>
-    intro v h
-    obtain ⟨b, v', rfl, hb, hv⟩ := mapM_cons_inv h
-    simp only [List.reverse_cons, List.mapM_append, ih hv, List.mapM_cons, hb,
-      Option.bind_eq_bind, Option.bind_some, List.mapM_nil, Option.pure_def]
-
 /-- con-leche: none — **`List.mapM` of a core-grade step against con-leche's
 `mapM` at `FueledM`** (the accumulator loop both sides run). -/
 theorem mapMLoop_cspecF {μ : CheckMode} {env : Env} {fe : IFEnv} {α αP β βP : Type}
@@ -2235,11 +2208,11 @@ theorem mapMLoop_cspecF {μ : CheckMode} {env : Env} {fe : IFEnv} {α αP β βP
     subst hl
     simp only [List.mapM.loop] at hrun
     obtain ⟨rfl, rfl⟩ := pureOk hrun
-    exact ⟨CoreStep.refl hok, accP.reverse, mapM_reverse hacc, FOk.pure _⟩
+    exact ⟨CoreStep.refl hok, accP.reverse, mapM_option_reverse hacc, FOk.pure _⟩
   | cons a l ih =>
     intro lP acc accP s₀ s' r hok hpre hrun
     obtain ⟨hq, hl, hacc⟩ := hpre
-    obtain ⟨aP, lP', rfl, ha, hl'⟩ := mapM_cons_inv hl
+    obtain ⟨aP, lP', rfl, ha, hl'⟩ := mapM_option_cons_inv hl
     simp only [List.mapM.loop] at hrun
     obtain ⟨b, s1, k1, z1⟩ := bindOk hrun
     obtain ⟨c1, bP, hb, hF⟩ := hf a aP s₀ s1 b hok ⟨hq, ha⟩ k1
@@ -2294,7 +2267,7 @@ theorem classesNfs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   | cons m ms ih =>
     intro MsP hsc s₀ s' r hok hpre hrun
     obtain ⟨hsh, hft, htbl, hms⟩ := hpre
-    obtain ⟨MP, MsP', rfl, hm, hms'⟩ := GR.mapM_cons_inv hms
+    obtain ⟨MP, MsP', rfl, hm, hms'⟩ := mapM_option_cons_inv hms
     obtain ⟨hind, hlvls, hds, hnPc, hnIdx, hctors, hmem, -, hpfvs⟩ := dMajor_inv hm
     obtain ⟨hscp, hscd⟩ := hsc MP List.mem_cons_self
     simp only [Arena.classesNfs] at hrun
@@ -2506,7 +2479,7 @@ theorem classRecTyOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   intro s₀ s' r hok hpre hrun
   obtain ⟨hg, hrc, hRiD⟩ := hpre
   obtain ⟨hnP, -, hcls, -, hsl, -, -, -, -⟩ := dClassGen_inv hg
-  obtain ⟨hcvR, hrP, hmI, htgt, -⟩ := RC.dRec_inv hrc
+  obtain ⟨hcvR, hrP, hmI, htgt, -⟩ := dRec_inv hrc
   have hsll : g.slots.length = gP.slots.length := (mapM_option_length hsl).symm
   simp only [Arena.classRecTyOk] at hrun
   simp only [ConLeche.classRecTyOk]
@@ -2587,7 +2560,7 @@ theorem classRecTysOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   | cons rc recs ih =>
     intro recsP cvs cvsP cls hw s₀ s' r hok hpre hrun
     obtain ⟨hg, hrecs, hcvs⟩ := hpre
-    obtain ⟨rcP, recsP', rfl, hrc, hrecs'⟩ := GR.mapM_cons_inv hrecs
+    obtain ⟨rcP, recsP', rfl, hrc, hrecs'⟩ := mapM_option_cons_inv hrecs
     match cvs, cvsP, cls, hcvs, hw, hrun with
     | [], _, _, _, _, hrun =>
       simp only [Arena.classRecTysOk] at hrun
@@ -2596,7 +2569,7 @@ theorem classRecTysOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       simp only [Arena.classRecTysOk] at hrun
       exact absurd hrun (fun hc => failOk hc)
     | cvRi :: cvs', cvsP, c :: cs, hcvs, hw, hrun =>
-      obtain ⟨cvRiP, cvsP', rfl, hRi, hcvs'⟩ := GR.mapM_cons_inv hcvs
+      obtain ⟨cvRiP, cvsP', rfl, hRi, hcvs'⟩ := mapM_option_cons_inv hcvs
       simp only [Arena.classRecTysOk] at hrun
       obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
       obtain ⟨c1, xP, ⟨hx, -, hfx⟩, hF1⟩ := classRecTyOk_spec fe hk henv g gP k rc rcP cvRi cvRiP c
@@ -2805,7 +2778,7 @@ theorem classRulesOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (vi
   | cons x xs ih =>
     intro xsP s₀ s' r hok hpre hrun
     obtain ⟨hg, hcvs, hcvR, hxs, hie⟩ := hpre
-    obtain ⟨xP, xsP', rfl, hx, hxs'⟩ := GR.mapM_cons_inv hxs
+    obtain ⟨xP, xsP', rfl, hx, hxs'⟩ := mapM_option_cons_inv hxs
     obtain ⟨hnP, -, -, -, hsl, -, -, -, -⟩ := dClassGen_inv hg
     have hsll : g.slots.length = gP.slots.length := (mapM_option_length hsl).symm
     have hnF := (dClassCtor_inv hx).2.1
@@ -2869,7 +2842,7 @@ theorem classRecsRulesOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv)
   | cons cvG cvs ih =>
     intro cvsP cs s₀ s' r hok hpre hrun
     obtain ⟨hg, hcvGs, hcvs, hie⟩ := hpre
-    obtain ⟨cvGP, cvsP', rfl, hcvG, hcvs'⟩ := GR.mapM_cons_inv hcvs
+    obtain ⟨cvGP, cvsP', rfl, hcvG, hcvs'⟩ := mapM_option_cons_inv hcvs
     cases cs with
     | nil =>
       simp only [Arena.classRecsRulesOk] at hrun
@@ -2934,8 +2907,8 @@ theorem classStreamRecs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       simp only [ConLeche.classStreamRecs]; exact FOk.pure _⟩
   | cons rc recs ih =>
     intro recsP s₀ s' r hok hrecs hrun
-    obtain ⟨rcP, recsP', rfl, hrc, hrecs'⟩ := GR.mapM_cons_inv hrecs
-    have hcvR := (RC.dRec_inv hrc).1
+    obtain ⟨rcP, recsP', rfl, hrc, hrecs'⟩ := mapM_option_cons_inv hrecs
+    have hcvR := (dRec_inv hrc).1
     simp only [Arena.classStreamRecs] at hrun
     obtain ⟨cv, s1, k1, z1⟩ := bindOk hrun
     obtain ⟨c1, cA, F, hcA, hF⟩ := checkConstantVal_bridge hμ hk hok henv hcvR k1
@@ -3057,10 +3030,10 @@ theorem classFeR_go_ok {s : AState} (hst : StateOK s) (p : Arena.BlockShape)
     subst hcvs
     exact ⟨hie, hcoh⟩
   | cv :: cvs, cvsP, [], m, fe, env, prevs, hie, hcoh, hcvs => by
-    obtain ⟨cvP, cvsP', rfl, -, -⟩ := mapM_cons_inv hcvs
+    obtain ⟨cvP, cvsP', rfl, -, -⟩ := mapM_option_cons_inv hcvs
     exact ⟨hie, hcoh⟩
   | cv :: cvs, cvsP, c :: rc, m, fe, env, prevs, hie, hcoh, hcvs => by
-    obtain ⟨cvP, cvsP', rfl, hcv, hcvs'⟩ := mapM_cons_inv hcvs
+    obtain ⟨cvP, cvsP', rfl, hcv, hcvs'⟩ := mapM_option_cons_inv hcvs
     obtain ⟨hmI, hrP⟩ := RC.recAt_eq hsh m
     have hci : Frontend.denoteCI s.store (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) []) =
         some (.recInfo cvP (pP.majorIdxAt m) (pP.rulePrefixAt m) []) := by
@@ -3105,7 +3078,7 @@ theorem types_denote {st : EStore} :
   | [], _, h => by
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h; subst h; rfl
   | cv :: cvs, _, h => by
-    obtain ⟨cP, cvsP', rfl, hc, hcs⟩ := mapM_cons_inv h
+    obtain ⟨cP, cvsP', rfl, hc, hcs⟩ := mapM_option_cons_inv h
     simp only [List.map_cons, Frontend.denoteEList, denoteCV_type hc, types_denote hcs]
 
 /-- con-leche: none — the outside-class test reads the verbatim member field. -/
@@ -3116,7 +3089,7 @@ theorem any_member_isNone {st : EStore} :
   | [], _, h => by
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h; subst h; rfl
   | m :: ms, _, h => by
-    obtain ⟨mP, MsP', rfl, hm, hms⟩ := mapM_cons_inv h
+    obtain ⟨mP, MsP', rfl, hm, hms⟩ := mapM_option_cons_inv h
     simp only [List.any_cons, (dMajor_inv hm).2.2.2.2.2.2.1, any_member_isNone hms]
 
 /-- con-leche: none — a denoting list of lists has the same total length. -/
@@ -3127,19 +3100,8 @@ theorem sum_lengths {α β : Type} {f : α → Option β} :
   | [], _, h => by
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h; subst h; rfl
   | xs :: xss, _, h => by
-    obtain ⟨ys, yss', rfl, hx, hxs⟩ := mapM_cons_inv h
+    obtain ⟨ys, yss', rfl, hx, hxs⟩ := mapM_option_cons_inv h
     simp only [List.map_cons, List.sum_cons, mapM_option_length hx, sum_lengths hxs]
-
-/-- con-leche: none — a member of a denoting list has a denoted partner. -/
-theorem mapM_mem {α β : Type} {f : α → Option β} :
-    ∀ {xs : List α} {ys : List β}, xs.mapM f = some ys → ∀ x ∈ xs, ∃ y ∈ ys, f x = some y
-  | [], _, _, _, hx => nomatch hx
-  | a :: as, _, h, x, hx => by
-    obtain ⟨b, bs, rfl, hb, hbs⟩ := mapM_cons_inv h
-    rcases List.mem_cons.mp hx with rfl | hx
-    · exact ⟨b, List.mem_cons_self, hb⟩
-    · obtain ⟨y, hy, hfy⟩ := mapM_mem hbs x hx
-      exact ⟨y, List.mem_cons_of_mem _ hy, hfy⟩
 
 /-- con-leche: none — an index MISS from an environment miss at a denoting
 name (the contrapositive of `IFEnvOK.hit`). -/
@@ -3188,9 +3150,9 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
   intro s₀ s' r hok hpre hrun
   obtain ⟨hsh, hpar, htbl, hrd, hms, hcvT, hblk⟩ := hpre
   simp only [Arena.genRecCheck] at hrun
-  obtain ⟨-, -, hnP, -, -, hlarge, -⟩ := RC.dShape_inv hsh
+  obtain ⟨-, -, hnP, -, -, hlarge, -⟩ := dShape_inv hsh
   have hk' := BlockShape.k_spec hsh
-  have hrecs := (RC.dShape_inv hsh).2.1
+  have hrecs := (dShape_inv hsh).2.1
   -- the records' pins
   obtain ⟨u0, s1, k1, z1⟩ := bindOk hrun
   obtain ⟨p1, hF1⟩ := targetRecPins_spec p pP block blockP s₀ s1 u0 hok.state hok.pins
@@ -3276,7 +3238,7 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
     -- the elimination level and the binder datum
     obtain ⟨elim, s7, k7, z9⟩ := bindOk z8
     obtain ⟨p7, helim⟩ := structElimLevel_spec p.elim pP.elim p.large s6 s7 elim c6.ok.state
-      ((RC.dShape_inv (dShape_ext c16.ext _ _ hsh)).2.2.2.1) k7
+      ((dShape_inv (dShape_ext c16.ext _ _ hsh)).2.2.2.1) k7
     obtain ⟨bm, s8, k8, z10⟩ := bindOk z9
     have c17 := c16.trans (p7.toCore c6.ok)
     obtain ⟨p8, rfl⟩ := classGenBm_spec elim _ s7 s8 bm c17.ok.state c17.ok.caches.readL helim k8
@@ -3340,7 +3302,7 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
       rw [GR.classFeR_go_view p fe₂.visibleBelow _ 0 fe₂ [] (Nat.le_refl _)]
       · rfl
       · intro x hx
-        obtain ⟨cP, hcP, hd⟩ := GR.mapM_mem hcvGs x.1 (List.of_mem_zip hx).1
+        obtain ⟨cP, hcP, hd⟩ := mapM_option_mem hcvGs x.1 (List.of_mem_zip hx).1
         exact GR.find_none_of_env (hok.ienv.mono c110.ext) (ConRon.Bridge.denoteCV_name hd)
           (hfrG cP hcP)
     have hie2R : IFEnvOK env₂ ((Arena.classFeR p cvGs rd.recCls fe₂).1.restrictTo
@@ -3460,7 +3422,7 @@ theorem annotateList_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     refine ⟨CoreStep.refl hok, accP.reverse, ⟨?_, fun x hx => hwacc x (List.mem_reverse.mp hx)⟩,
       FOk.pure _⟩
     rw [← mapM_denoteE_eq_list]
-    exact GR.mapM_reverse (by rw [mapM_denoteE_eq_list]; exact hacc)
+    exact mapM_option_reverse (by rw [mapM_denoteE_eq_list]; exact hacc)
   | cons x xs ih =>
     intro xsP acc accP hwx hwacc s₀ s' r hok hpre hrun
     obtain ⟨hx, hacc⟩ := hpre
@@ -3568,12 +3530,12 @@ theorem classKeysOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     subst hks
     simp only [List.mapM.loop] at hrun
     obtain ⟨rfl, rfl⟩ := pureOk hrun
-    exact ⟨CoreStep.refl hok, accP.reverse, ⟨GR.mapM_reverse hacc,
+    exact ⟨CoreStep.refl hok, accP.reverse, ⟨mapM_option_reverse hacc,
       fun k hk => hwacc k (List.mem_reverse.mp hk)⟩, FOk.pure _⟩
   | cons k ks ih =>
     intro ksP acc accP hwacc s₀ s' r hok hpre hrun
     obtain ⟨hpar, hks, hacc⟩ := hpre
-    obtain ⟨kP, ksP', rfl, hkd, hks'⟩ := GR.mapM_cons_inv hks
+    obtain ⟨kP, ksP', rfl, hkd, hks'⟩ := mapM_option_cons_inv hks
     simp only [List.mapM.loop] at hrun
     obtain ⟨b, s1, k1, z1⟩ := bindOk hrun
     obtain ⟨c1, bP, ⟨hb, hwb⟩, hF⟩ := classKeyOf_spec fe hk henv nP params paramsP hpl hp k kP
@@ -3598,7 +3560,7 @@ theorem filter_member_length {st : EStore} (t : Nat) :
   | [], _, h => by
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h; subst h; rfl
   | m :: ms, _, h => by
-    obtain ⟨mP, MsP', rfl, hm, hms⟩ := mapM_cons_inv h
+    obtain ⟨mP, MsP', rfl, hm, hms⟩ := mapM_option_cons_inv h
     have hmem := (dMajor_inv hm).2.2.2.2.2.2.1
     simp only [List.filter_cons, hmem]
     split <;> simp [filter_member_length t hms]
@@ -3627,7 +3589,7 @@ theorem checkBlockClasses_spec {μ : CheckMode} {env₁ : Env} (fe₁ : IFEnv)
       (ConLeche.checkBlockClasses (fueledOpsM μ) (mkFEnv env₁) env₁ pP paramsP ctorsAsP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hsh, hpar, hcas⟩ := hpre
-  obtain ⟨-, hrecs, hnP, -, -, -, -⟩ := RC.dShape_inv hsh
+  obtain ⟨-, hrecs, hnP, -, -, -, -⟩ := dShape_inv hsh
   have hk' := BlockShape.k_spec hsh
   simp only [Arena.checkBlockClasses] at hrun
   simp only [ConLeche.checkBlockClasses]
@@ -3714,7 +3676,7 @@ theorem classSeeds_spec (fnd : ConLeche.Name → Option ConstantInfo) (ctx : Are
   | cons m ms ih =>
     intro MsP s₀ s' r hok hp hpre hrun
     obtain ⟨hctx, hholes, hms⟩ := hpre
-    obtain ⟨mP, MsP', rfl, hm, hms'⟩ := GR.mapM_cons_inv hms
+    obtain ⟨mP, MsP', rfl, hm, hms'⟩ := mapM_option_cons_inv hms
     obtain ⟨hind, hlvls, hds, hnPc, -, -, hmem, -, -⟩ := dMajor_inv hm
     simp only [Arena.classSeeds] at hrun
     simp only [ConLeche.classSeeds, List.filterMap_cons] at ⊢ ih

@@ -644,62 +644,6 @@ theorem closed4_bind_run {β : Type} {k : Bool → AM β} {s₀ s' : AState} {a 
 
 /-! ### The block's shape, taken apart -/
 
-/-- con-leche: none — a denoted shape, field by field. -/
-theorem dShape_inv {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
-    (h : dShape st p = some pP) :
-    p.members.mapM (dMember st) = some pP.members ∧ p.recs.mapM (dRec st) = some pP.recs ∧
-      p.nP = pP.nP ∧ denoteN st.ns p.elim = some pP.elim ∧
-      denoteL st.ls p.resSort = some pP.resSort ∧ p.large = pP.large ∧
-      p.isProp = pP.isProp := by
-  simp only [dShape] at h
-  cases h1 : p.members.mapM (dMember st) with
-  | none => rw [h1] at h; exact nomatch h
-  | some ms =>
-  cases h2 : p.recs.mapM (dRec st) with
-  | none => rw [h1, h2] at h; exact nomatch h
-  | some rs =>
-  cases h3 : denoteN st.ns p.elim with
-  | none => rw [h1, h2, h3] at h; exact nomatch h
-  | some el =>
-  cases h4 : denoteL st.ls p.resSort with
-  | none => rw [h1, h2, h3, h4] at h; exact nomatch h
-  | some so =>
-  rw [h1, h2, h3, h4] at h
-  obtain rfl := (Option.some.inj h).symm
-  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
-
-/-- con-leche: none — a denoted member, field by field. -/
-theorem dMember_inv {st : EStore} {m : Arena.MemberShape} {mP : ConLeche.MemberShape}
-    (h : dMember st m = some mP) :
-    Frontend.denoteCV st m.cvT = some mP.cvT ∧ m.nIdx = mP.nIdx ∧
-      dCtors st m.ctors = some mP.ctors := by
-  simp only [dMember] at h
-  cases h1 : Frontend.denoteCV st m.cvT with
-  | none => rw [h1] at h; exact nomatch h
-  | some cv =>
-  cases h2 : dCtors st m.ctors with
-  | none => rw [h1, h2] at h; exact nomatch h
-  | some cs =>
-  rw [h1, h2] at h
-  obtain rfl := (Option.some.inj h).symm
-  exact ⟨rfl, rfl, rfl⟩
-
-/-- con-leche: none — a denoted recursor record, field by field. -/
-theorem dRec_inv {st : EStore} {r : Arena.RecShape} {rP : ConLeche.RecShape}
-    (h : dRec st r = some rP) :
-    Frontend.denoteCV st r.cvR = some rP.cvR ∧ r.rP = rP.rP ∧ r.mI = rP.mI ∧
-      r.tgt = rP.tgt ∧ Frontend.denoteEList st r.rhss = some rP.rhss := by
-  simp only [dRec] at h
-  cases h1 : Frontend.denoteCV st r.cvR with
-  | none => rw [h1] at h; exact nomatch h
-  | some cv =>
-  cases h2 : Frontend.denoteEList st r.rhss with
-  | none => rw [h1, h2] at h; exact nomatch h
-  | some rh =>
-  rw [h1, h2] at h
-  obtain rfl := (Option.some.inj h).symm
-  exact ⟨rfl, rfl, rfl, rfl, rfl⟩
-
 /-- con-leche: none — a denoted constructor list's name test is the pure one. -/
 theorem ctors_any_name {st : EStore} (hwf : StoreWF st) {n : NIdx} {nP : ConLeche.Name}
     (hn : denoteN st.ns n = some nP) :
@@ -2537,7 +2481,7 @@ theorem filter_recs {st : EStore} (q : Nat → Bool) :
   | cons r rs ih =>
     intro rsP h
     obtain ⟨rP, rsP', rfl, hr, hrs⟩ := mapM_option_cons_inv h
-    have ht := (RC.dRec_inv hr).2.2.2.1
+    have ht := (dRec_inv hr).2.2.2.1
     simp only [List.filter_cons, ht]
     cases q rP.tgt with
     | true => exact mapM_option_cons hr (ih hrs)
@@ -2622,7 +2566,7 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
       (fun _ _ => FOk (ConLeche.targetRecPins (m := FueledM) pP blockP) ()) := by
   intro s₀ s' r hok hp hpre hrun
   obtain ⟨hsh, hblk⟩ := hpre
-  obtain ⟨hmems, hrecs, -⟩ := RC.dShape_inv hsh
+  obtain ⟨hmems, hrecs, -⟩ := dShape_inv hsh
   have hk : p.k = pP.k := BlockShape.k_spec hsh
   simp only [Arena.targetRecPins] at hrun
   by_cases c1 : Arena.blockRecLpsOk p = true
@@ -2766,7 +2710,7 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
     subst hs6
     have hn0 : denoteN s6.store.ns ms.cvT.name =
         some ((pP.memberNames.head?).getD ConLeche.Name.anonymous) := by
-      rw [denoteN_ext (denoteCV_name (RC.dMember_inv hmsP).1) p24.ext]
+      rw [denoteN_ext (denoteCV_name (dMember_inv hmsP).1) p24.ext]
       simp [ConLeche.BlockShape.memberNames, hmP]
     generalize hg0 : (pP.memberNames.head?).getD ConLeche.Name.anonymous = n0P at hn0
     have p06 := p24
@@ -2962,7 +2906,7 @@ theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (ConLeche.targetMajorOf (m := FueledM) (mkFEnv env) pP ctorsAsP pfvsP fvsP mtyP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hsh, hcas, hpf, hfv, hmty⟩ := hpre
-  obtain ⟨hmems, -, hnP, -, hres, -⟩ := RC.dShape_inv hsh
+  obtain ⟨hmems, -, hnP, -, hres, -⟩ := dShape_inv hsh
   simp only [Arena.targetMajorOf] at hrun
   obtain ⟨args, s1, k1, z1⟩ := bindOk hrun
   obtain ⟨hs1, hargs⟩ := getAppArgs_run hok.state hmty k1
@@ -3017,7 +2961,7 @@ theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       rw [hb1, hb2, hnP] at cm
       refine ⟨p6.toCore hok, _, ?_, FOk.bind FOk.unwrapOr (FOk.bind FOk.unwrapOr
         (by rw [if_pos cm]; exact FOk.pure _))⟩
-      obtain ⟨-, hnidx, -⟩ := RC.dMember_inv hdm
+      obtain ⟨-, hnidx, -⟩ := dMember_inv hdm
       simp only [dMajor, denoteN_ext hI p6.ext, denoteLs_ext hus p6.ext,
         denoteEList_take (denoteEList_ext p6.ext _ _ hfv), dCtors_ext p6.ext _ _ hdc,
         denoteEList_ext p6.ext _ _ hpf, hnP, hnidx, List.mapM_nil]

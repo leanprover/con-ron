@@ -58,12 +58,6 @@ theorem dCtors_eq_denoteCtors (st : EStore) :
     simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def, dCtor, denoteCtors, ih]
     cases Frontend.denoteCV st cv <;> cases denoteCtors st cs <;> rfl
 
-theorem fok_unwrapOr {α : Type} {a : α} {e : ConLeche.CheckError} :
-    FOk (ConLeche.unwrapOr (m := FueledM) (some a) e) a := FOk.pure a
-
-theorem fok_liftFueled {α : Type} {a : α} {w : String} :
-    FOk (ConLeche.liftFueled (m := FueledM) w (some a)) a := FOk.pure a
-
 /-- con-leche: none — `lvlEq?` at the core grade: the store stands still and
 the verdict is `Level.isEquiv` of the denotations (`Core.lvlEq?_spec`). -/
 theorem lvlEq?_crun {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
@@ -233,7 +227,9 @@ theorem blockCapsAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   intro s₀ s' r hok hp hrun
   have hnames := BlockShape.memberNames_spec hp
   have hk := BlockShape.k_spec hp
-  obtain ⟨ms, rs, el, sP, hms, -, -, hsP, rfl⟩ := dShape_inv hp
+  obtain ⟨ms, rs, nP, el, sP, lg, ip⟩ := pP
+  obtain ⟨hms, -, rfl, -, hsP, rfl, rfl⟩ := dShape_inv hp
+  dsimp only at hms hsP
   have hanon := hok.pins.anon
   have hg := mapM_option_getElem?_bind hms mi
   simp only [Arena.blockCapsAt] at hrun
@@ -264,7 +260,9 @@ theorem blockCapsAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     rw [hmP] at hg
     rw [hg]
     simp only [Option.getD_some]
-    obtain ⟨cv, cs, hcv, hcs, rfl⟩ := dMember_inv hmP
+    obtain ⟨cv, nI, cs⟩ := mP
+    obtain ⟨hcv, rfl, hcs⟩ := dMember_inv hmP
+    dsimp only at hcv hcs
     dsimp only at hrun ⊢
     cases hc : m.ctors with
     | nil =>
@@ -413,7 +411,9 @@ theorem blockRawRec_spec (p : Arena.BlockParts) (pP : ConLeche.BlockParts) :
   simp only [dParts, Option.map_eq_some_iff] at hp
   obtain ⟨q, hq, rfl⟩ := hp
   have hnames := BlockShape.memberNames_spec hq
-  obtain ⟨ms, rs, el, sP, hms, -, -, -, rfl⟩ := dShape_inv hq
+  obtain ⟨ms, rs, nP, el, sP, lg, ip⟩ := q
+  obtain ⟨hms, -, rfl, -, -, rfl, rfl⟩ := dShape_inv hq
+  dsimp only at hms
   simp only [Arena.blockRawRec] at hrun
   have hQ : ∀ {st st' : EStore}, Ext st st' →
       Frontend.denoteNList st.ns p.shape.memberNames = some (ConLeche.BlockShape.memberNames
@@ -445,7 +445,9 @@ theorem blockRawRec_spec (p : Arena.BlockParts) (pP : ConLeche.BlockParts) :
             ⟨ms, rs, p.shape.nP, el, sP, p.shape.large, p.shape.isProp⟩))) := by
     intro m mP s₀ s' r hok hp hrun
     obtain ⟨hT, hm⟩ := hp
-    obtain ⟨cv, cs, -, hcs, rfl⟩ := dMember_inv hm
+    obtain ⟨cv, nI, cs⟩ := mP
+    obtain ⟨-, rfl, hcs⟩ := dMember_inv hm
+    dsimp only at hcs
     exact anyM_dpstep dCtor dCtor_ext _ hQ _ _ hin m.ctors cs s₀ s' r hok ⟨hT, hcs⟩ hrun
   exact anyM_dpstep dMember dMember_ext _ hQ _ _ hout p.shape.members ms s₀ s' r hok
     ⟨hnames, hms⟩ hrun
@@ -467,7 +469,9 @@ theorem checkBlockTele_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
       (ConLeche.checkBlockTele (fueledOpsM μ) env nP msP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hm, hfe⟩ := hpre
-  obtain ⟨cv, cs, hcv, -, rfl⟩ := dMember_inv hm
+  obtain ⟨cv, nI, cs⟩ := msP
+  obtain ⟨hcv, rfl, -⟩ := dMember_inv hm
+  dsimp only at hcv
   simp only [Arena.checkBlockTele] at hrun
   obtain ⟨cvA, s₁, k1, z1⟩ := bindOk hrun
   obtain ⟨c1, cAP, F₁, hcA, hF₁⟩ := checkConstantVal_bridge hμ hk hok henv hcv k1
@@ -501,7 +505,7 @@ theorem checkBlockTele_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
     unfold ConLeche.checkBlockTele
     refine FOk.bind fk1 (FOk.bind fk2 ?_)
     simp only [hxs]
-    refine FOk.bind fok_unwrapOr ?_
+    refine FOk.bind FOk.unwrapOr ?_
     exact FOk.ite_pos (by simpa using hbeq.symm) (FOk.pure _)
   · rw [if_neg hb] at z4
     exact absurd z4 (fun h => failOk h)
@@ -608,7 +612,7 @@ theorem checkBlockDomsAt_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
     refine ⟨⟨hstep.ok, hx4.trans hstep.ext, by rw [hstep.pins, hp4]⟩, (), trivial, ?_⟩
     unfold ConLeche.checkBlockDomsAt
     simp only [haP, hbP]
-    refine FOk.bind fok_unwrapOr (FOk.bind fok_unwrapOr (FOk.bind fkd ?_))
+    refine FOk.bind FOk.unwrapOr (FOk.bind FOk.unwrapOr (FOk.bind fkd ?_))
     simpa using fk
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:144-164 checkBlockAgree
@@ -697,9 +701,9 @@ theorem checkBlockAgree_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
       unfold ConLeche.checkBlockAgree
       rw [ho7] at hb8
       simp only [hq0, hq1, hb8]
-      refine FOk.bind fok_unwrapOr (FOk.bind fok_unwrapOr ?_)
+      refine FOk.bind FOk.unwrapOr (FOk.bind FOk.unwrapOr ?_)
       refine FOk.ite_pos (by rw [← hl0, ← hl1]; simpa using hlen)
-        (FOk.bind fk6 (FOk.bind fok_liftFueled ?_))
+        (FOk.bind fk6 (FOk.bind FOk.liftFueled ?_))
       exact FOk.ite_pos rfl fk9
     · rw [if_neg hlen] at z4
       exact absurd z4 (AM.Never.fail_any _ _ _)
@@ -785,7 +789,9 @@ theorem checkBlockInds_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   obtain ⟨hp, hfe⟩ := hpre
   simp only [dParts, Option.map_eq_some_iff] at hp
   obtain ⟨q, hq, rfl⟩ := hp
-  obtain ⟨ms, rs, el, sP, hms, hrs, hel, hsP, rfl⟩ := dShape_inv hq
+  obtain ⟨ms, rs, nP, el, sP, lg, ip⟩ := q
+  obtain ⟨hms, hrs, rfl, hel, hsP, rfl, rfl⟩ := dShape_inv hq
+  dsimp only at hms hrs hel hsP
   simp only [Arena.checkBlockInds] at hrun
   cases hmem : p.shape.members with
   | nil =>
@@ -863,7 +869,9 @@ theorem BlockShape.nestCtx_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape
   have hnames := BlockShape.memberNames_spec hp
   have hlps := BlockShape.lps_spec hp
   have hnI := BlockShape.nIdxs_spec hp
-  obtain ⟨ms, rs, el, sP, -, -, -, hsP, rfl⟩ := dShape_inv hp
+  obtain ⟨ms, rs, nP, el, sP, lg, ip⟩ := pP
+  obtain ⟨-, -, rfl, -, hsP, rfl, rfl⟩ := dShape_inv hp
+  dsimp only at hsP
   simp only [Arena.BlockShape.nestCtx] at hrun
   obtain ⟨lv, s₁, k1, z1⟩ := bindOk hrun
   obtain ⟨p1, hlv⟩ := paramLevels_spec p.lps _ s₀ s₁ lv hok hlps k1
@@ -919,9 +927,13 @@ theorem checkBlockCtors_specF {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
         simp only [List.zip_nil_right, ConLeche.checkBlockCtors]; exact FOk.pure _⟩
     | cons cvTa cvTas =>
     obtain ⟨cvTaP, cvTasP, rfl, hcv, hcvs'⟩ := mapM_option_cons_inv hcvs
-    obtain ⟨cvT, csP, hcvT, hcs, rfl⟩ := dMember_inv hm
+    obtain ⟨cvT, nI, csP⟩ := msP
+    obtain ⟨hcvT, rfl, hcs⟩ := dMember_inv hm
+    dsimp only at hcvT hcs
     have hlps := BlockShape.lps_spec hp
-    obtain ⟨mm, rs, el, sP, -, -, -, hsP, rfl⟩ := dShape_inv hp
+    obtain ⟨mm, rs, nP, el, sP, lg, ip⟩ := pP
+    obtain ⟨-, -, rfl, -, hsP, rfl, rfl⟩ := dShape_inv hp
+    dsimp only at hsP
     simp only [Arena.checkBlockCtors] at hrun
     obtain ⟨t1, s₁, k1, z1⟩ := bindOk hrun
     obtain ⟨c1, ⟨csA, ssA⟩, ⟨h1a, h1b⟩, fk1⟩ := checkSumCtors_specF fe₀ fe hμ hk henv
@@ -1050,7 +1062,7 @@ theorem checkAbsCtorSorts_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
     rw [hb] at hbt
     unfold ConLeche.checkAbsCtorSorts
     simp only [hxq]
-    refine FOk.ite_pos hbt (FOk.bind fok_unwrapOr ?_)
+    refine FOk.ite_pos hbt (FOk.bind FOk.unwrapOr ?_)
     rw [← hprop, ← hhi]
     exact FOk.bind fk5 fk6
 
@@ -1151,8 +1163,11 @@ theorem checkBlockIdxSorts_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
         simp only [List.zip_nil_right, ConLeche.checkBlockIdxSorts]; exact FOk.pure _⟩
     | cons cvTa cvTas =>
     obtain ⟨cvTaP, cvTasP, rfl, hcv, hcvs'⟩ := mapM_option_cons_inv hcvs
-    obtain ⟨cvT, csP, -, -, rfl⟩ := dMember_inv hm
-    obtain ⟨mm, rs, el, sP, -, -, -, hsP, rfl⟩ := dShape_inv hp
+    obtain ⟨cvT, nI, csP⟩ := msP
+    obtain ⟨-, rfl, -⟩ := dMember_inv hm
+    obtain ⟨mm, rs, nP, el, sP, lg, ip⟩ := pP
+    obtain ⟨-, -, rfl, -, hsP, rfl, rfl⟩ := dShape_inv hp
+    dsimp only at hsP
     have hw : Expr.WScoped 0 cvTaP.type := hws _ List.mem_cons_self
     simp only [Arena.checkBlockIdxSorts] at hrun
     obtain ⟨oq, s₁, k1, z1⟩ := bindOk hrun
@@ -1185,7 +1200,7 @@ theorem checkBlockIdxSorts_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
     · simp only [List.zip_cons_cons]
       unfold ConLeche.checkBlockIdxSorts
       simp only [htq]
-      exact FOk.bind fok_unwrapOr (FOk.bind fk3 (FOk.bind fk4 (FOk.pure _)))
+      exact FOk.bind FOk.unwrapOr (FOk.bind fk3 (FOk.bind fk4 (FOk.pure _)))
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:313-317 consBlockCtors
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:122-125 consBlockCtorsF
@@ -1239,8 +1254,7 @@ theorem blockNestCtx_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (henv : EnvW
   | nil => exact absurd hrun (fun h => failOk h)
   | cons cv0 rest =>
   obtain ⟨cv0P, restP, rfl, hcv0, -⟩ := mapM_option_cons_inv hcvs
-  have hnP : p.nP = pP.nP := by
-    obtain ⟨_, _, _, _, -, -, -, -, rfl⟩ := dShape_inv hp; rfl
+  have hnP : p.nP = pP.nP := (dShape_inv hp).2.2.1
   dsimp only at hrun
   obtain ⟨o, s₁, k1, z1⟩ := bindOk hrun
   obtain ⟨p1, ho⟩ := openPisAtFvarsF_run hok.state (denoteCV_type hcv0) k1
@@ -1277,11 +1291,11 @@ theorem blockNestCtx_spec {μ : CheckMode} {env : Env} (fe : IFEnv) (henv : EnvW
       ConLeche.Verify.openPisAtFvars_length _ hpq, hnh, rfl⟩, ?_⟩
   unfold ConLeche.blockNestCtx
   simp only [List.head?_cons]
-  refine FOk.bind fok_unwrapOr ?_
+  refine FOk.bind FOk.unwrapOr ?_
   simp only [hpq]
-  refine FOk.bind fok_unwrapOr ?_
+  refine FOk.bind FOk.unwrapOr ?_
   simp only [hnh]
-  exact FOk.bind fok_unwrapOr (FOk.pure _)
+  exact FOk.bind FOk.unwrapOr (FOk.pure _)
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:276-294 checkBlockPositivity
 **The block's positivity, on its stored constructors**, against

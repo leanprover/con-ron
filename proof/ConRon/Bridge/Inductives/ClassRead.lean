@@ -1140,25 +1140,6 @@ theorem denoteCV_type {st : EStore} {cv : IConstantVal} {c : ConstantVal}
     cases h; exact hty
   · cases h
 
-/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:71-96 RecShape — what
-the pre-pass reads of a denoting recursor record. -/
-theorem dRec_inv_CR {st : EStore} {r : Arena.RecShape} {rP : ConLeche.RecShape}
-    (h : dRec st r = some rP) :
-    denoteE st r.cvR.type = some rP.cvR.type ∧ rP.mI = r.mI ∧ rP.rP = r.rP := by
-  simp only [dRec, Option.bind_eq_bind] at h
-  cases hcv : Frontend.denoteCV st r.cvR with
-  | none => rw [hcv] at h; simp at h
-  | some cv =>
-  rw [hcv] at h
-  simp only [Option.bind_some] at h
-  cases hr : Frontend.denoteEList st r.rhss with
-  | none => rw [hr] at h; simp at h
-  | some rs =>
-  rw [hr] at h
-  simp only [Option.bind_some, Option.pure_def, Option.some.injEq] at h
-  subst h
-  exact ⟨denoteCV_type hcv, rfl, rfl⟩
-
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:134-137 classRead — one
 recursor's class off its conclusion, as a function (bind form). -/
 def recClsP (nP : Nat) (motPos : List Nat) (rc : ConLeche.RecShape) : Option Nat :=
@@ -1194,12 +1175,13 @@ theorem classReadRecCls_spec (nP : Nat) (motPos : List Nat) :
     rw [hxs] at hp
     simp only [Option.bind_some, Option.some.injEq] at hp
     subst hp
-    obtain ⟨hty, hmI, -⟩ := dRec_inv_CR hx
+    obtain ⟨hcv, -, hmI, -, -⟩ := dRec_inv hx
+    have hty := denoteCV_type hcv
     simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def]
     simp only [Arena.classReadRecCls] at hrun
     obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
     obtain ⟨p1, ho⟩ := CR.openPisAtFvarsF_run hok hty h1
-    rw [← hmI] at ho
+    rw [hmI] at ho
     cases o with
     | none =>
       obtain ⟨rfl, rfl⟩ := pureOk h2
@@ -1251,11 +1233,6 @@ theorem classReadRecCls_spec (nP : Nat) (motPos : List Nat) :
 
 /-! ## The headline: `classRead` -/
 
-/-- con-leche: none — `Option`'s `mapM` under a pointwise-equal function. -/
-theorem mapM_option_congr {α β : Type} {f g : α → Option β} (h : ∀ x, f x = g x)
-    (xs : List α) : xs.mapM f = xs.mapM g := by
-  rw [show f = g from funext h]
-
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:126-140 classRead —
 **THEOREM 1 for the recursor stage's pre-pass**: from a denoting block shape,
 the formers' index invariant and a denoting recursor family, an accepting run
@@ -1292,7 +1269,9 @@ theorem classRead_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (env : 
   rw [hxs] at hrecs'
   simp only [Option.bind_some, Option.some.injEq] at hrecs'
   subst hrecs'
-  obtain ⟨hty, -, hrP⟩ := dRec_inv_CR hx
+  obtain ⟨hcv, hrP, -, -, -⟩ := dRec_inv hx
+  have hty := denoteCV_type hcv
+  replace hrP := hrP.symm
   simp only [List.head?_cons, Option.bind_eq_bind, Option.bind_some]
   dsimp only at hrun
   obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun

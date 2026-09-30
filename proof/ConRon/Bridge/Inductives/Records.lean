@@ -54,6 +54,15 @@ theorem FOk.ite_pos {α : Type} {c : Prop} [Decidable c] {x y : FueledM α} {v :
     (hc : c) (h : FOk x v) : FOk (if c then x else y) v := by
   rw [if_pos hc]; exact h
 
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:201-204 unwrapOr — at `some`,
+the pure side's `unwrapOr` is `pure`. -/
+theorem FOk.unwrapOr {α : Type} {a : α} {e : ConLeche.CheckError} :
+    FOk (ConLeche.unwrapOr (m := FueledM) (some a) e) a := FOk.pure a
+
+/-- con-leche: ConLeche/Kernel/Core.lean:197-199 liftFueled — the same. -/
+theorem FOk.liftFueled {α : Type} {a : α} {w : String} :
+    FOk (ConLeche.liftFueled (m := FueledM) w (some a)) a := FOk.pure a
+
 /-- con-leche: ConLeche/Verify/BridgeDecl.lean fueledOpsM — a knot call's
 answer, as the Core tier's `SimE` states it, IS an `FOk` of the fueled
 operation. -/
@@ -105,6 +114,162 @@ theorem mapM_option_ext {α β : Type} {f g : α → Option β}
         simp only [Option.bind_some] at hm
         rw [h x y hx, mapM_option_ext h xs zs hxs]
         exact hm
+
+/-- con-leche: none — `Option`'s `mapM` at a cons, inverted. -/
+theorem mapM_option_cons_inv {α β : Type} {f : α → Option β} {x : α} {xs : List α}
+    {ys : List β} (h : (x :: xs).mapM f = some ys) :
+    ∃ y ys', ys = y :: ys' ∧ f x = some y ∧ xs.mapM f = some ys' := by
+  simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h
+  cases hx : f x with
+  | none => rw [hx] at h; simp at h
+  | some y =>
+    rw [hx] at h
+    cases hxs : xs.mapM f with
+    | none => rw [hxs] at h; simp at h
+    | some zs =>
+      rw [hxs] at h
+      simp only [Option.bind_some, Option.some.injEq] at h
+      exact ⟨y, zs, h.symm, rfl, rfl⟩
+
+/-- con-leche: none — and built back up. -/
+theorem mapM_option_cons {α β : Type} {f : α → Option β} {x : α} {xs : List α}
+    {y : β} {ys : List β} (hx : f x = some y) (hxs : xs.mapM f = some ys) :
+    (x :: xs).mapM f = some (y :: ys) := by
+  simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def, hx, hxs,
+    Option.bind_some]
+
+/-- con-leche: none — `Option`'s `mapM` at an index. -/
+theorem mapM_option_getElem?_bind {α β : Type} {f : α → Option β} :
+    ∀ {xs : List α} {ys : List β}, xs.mapM f = some ys → ∀ (j : Nat),
+      ys[j]? = xs[j]?.bind f := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro ys h j
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+    subst h; simp
+  | cons x xs ih =>
+    intro ys h j
+    obtain ⟨y, ys', rfl, hx, hxs⟩ := mapM_option_cons_inv h
+    cases j with
+    | zero => simp [hx]
+    | succ j => simpa using ih hxs j
+
+/-- con-leche: none — `Option`'s `mapM` of a reversed list. -/
+theorem mapM_option_reverse {α β : Type} {f : α → Option β} :
+    ∀ {xs : List α} {ys : List β}, xs.mapM f = some ys → xs.reverse.mapM f = some ys.reverse := by
+  intro xs
+  induction xs with
+  | nil => intro ys h; simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+           subst h; rfl
+  | cons x xs ih =>
+    intro ys h
+    obtain ⟨y, ys', rfl, hx, hxs⟩ := mapM_option_cons_inv h
+    simp only [List.reverse_cons, List.mapM_append, ih hxs, List.mapM_cons, List.mapM_nil, hx,
+      Option.bind_eq_bind, Option.pure_def, Option.bind_some]
+
+/-- con-leche: none — `Option`'s `mapM` keeps the length. -/
+theorem mapM_option_length {α β : Type} {f : α → Option β} :
+    ∀ {xs : List α} {ys : List β}, xs.mapM f = some ys → ys.length = xs.length := by
+  intro xs
+  induction xs with
+  | nil => intro ys h; simp only [List.mapM_nil] at h; cases h; rfl
+  | cons x xs ih =>
+    intro ys h
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h
+    cases hx : f x with
+    | none => rw [hx] at h; simp at h
+    | some y =>
+      rw [hx] at h
+      cases hxs : xs.mapM f with
+      | none => rw [hxs] at h; simp at h
+      | some zs =>
+        rw [hxs] at h
+        simp only [Option.bind_some, Option.some.injEq] at h
+        subst h
+        simp [ih hxs]
+
+/-- con-leche: none — `Option`'s `mapM` over a snoc. -/
+theorem mapM_option_snoc {α β : Type} {f : α → Option β} :
+    ∀ {xs : List α} {x : α} {ys : List β}, (xs ++ [x]).mapM f = some ys →
+      ∃ zs y, ys = zs ++ [y] ∧ xs.mapM f = some zs ∧ f x = some y := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro x ys h
+    simp only [List.nil_append, List.mapM_cons, List.mapM_nil, Option.bind_eq_bind,
+      Option.pure_def] at h
+    cases hx : f x with
+    | none => rw [hx] at h; simp at h
+    | some y =>
+      rw [hx] at h
+      simp only [Option.bind_some, Option.some.injEq] at h
+      subst h
+      exact ⟨[], y, rfl, rfl, rfl⟩
+  | cons a as ih =>
+    intro x ys h
+    simp only [List.cons_append, List.mapM_cons, Option.bind_eq_bind,
+      Option.pure_def] at h
+    cases ha : f a with
+    | none => rw [ha] at h; simp at h
+    | some b =>
+      rw [ha] at h
+      cases hr : (as ++ [x]).mapM f with
+      | none => rw [hr] at h; simp at h
+      | some rs =>
+        rw [hr] at h
+        simp only [Option.bind_some, Option.some.injEq] at h
+        subst h
+        obtain ⟨zs, y, rfl, hz, hy⟩ := ih hr
+        refine ⟨b :: zs, y, rfl, ?_, hy⟩
+        simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def, ha, hz,
+          Option.bind_some]
+
+/-- con-leche: none — `Option`'s `mapM` distributes over `++`. -/
+theorem mapM_option_append {α β : Type} {f : α → Option β} :
+    ∀ {xs ys : List α} {a b : List β}, xs.mapM f = some a → ys.mapM f = some b →
+      (xs ++ ys).mapM f = some (a ++ b) := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro ys a b ha hb
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at ha
+    subst ha; simpa using hb
+  | cons x xs ih =>
+    intro ys a b ha hb
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at ha
+    cases hx : f x with
+    | none => rw [hx] at ha; simp at ha
+    | some y =>
+      cases hxs : xs.mapM f with
+      | none => rw [hx, hxs] at ha; simp at ha
+      | some zs =>
+        rw [hx, hxs] at ha
+        simp only [Option.bind_some, Option.some.injEq] at ha
+        subst ha
+        simp only [List.cons_append, List.mapM_cons, Option.bind_eq_bind, Option.pure_def, hx,
+          ih hxs hb, Option.bind_some]
+
+/-- con-leche: none — `Option`'s `mapM` under a pointwise-equal function. -/
+theorem mapM_option_congr {α β : Type} {f g : α → Option β} (h : ∀ x, f x = g x)
+    (xs : List α) : xs.mapM f = xs.mapM g := by
+  rw [show f = g from funext h]
+
+/-- con-leche: none — a member of a denoting list has a denoted partner. -/
+theorem mapM_option_mem {α β : Type} {f : α → Option β} :
+    ∀ {xs : List α} {ys : List β}, xs.mapM f = some ys → ∀ x ∈ xs, ∃ y ∈ ys, f x = some y
+  | [], _, _, _, hx => nomatch hx
+  | a :: as, _, h, x, hx => by
+    obtain ⟨b, bs, rfl, hb, hbs⟩ := mapM_option_cons_inv h
+    rcases List.mem_cons.mp hx with rfl | hx
+    · exact ⟨b, List.mem_cons_self, hb⟩
+    · obtain ⟨y, hy, hfy⟩ := mapM_option_mem hbs x hx
+      exact ⟨y, List.mem_cons_of_mem _ hy, hfy⟩
+
+/-- con-leche: none — `Option`'s `mapM` at the empty list, inverted. -/
+theorem mapM_option_nil_inv {α β : Type} {f : α → Option β} {ys : List β}
+    (h : ([] : List α).mapM f = some ys) : ys = [] := by
+  simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h; exact h.symm
 
 /-- con-leche: none — a denotation is TRANSPORTED along `Ext` when every
 answer it gives at the smaller store it gives at the larger. -/
@@ -368,5 +533,63 @@ theorem dCtx_ext (find? : ConLeche.Name → Option ConstantInfo) :
   rw [denoteNListE_ext hx _ _ h1, denoteNListE_ext hx _ _ h2, denoteEList_ext hx _ _ h3,
     denoteL_ext h4 hx, denoteLs_ext h5 hx]
   exact h
+
+/-! ## The shape records, inverted -/
+
+/-- con-leche: none — a denoted shape, field by field. -/
+theorem dShape_inv {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    (h : dShape st p = some pP) :
+    p.members.mapM (dMember st) = some pP.members ∧ p.recs.mapM (dRec st) = some pP.recs ∧
+      p.nP = pP.nP ∧ denoteN st.ns p.elim = some pP.elim ∧
+      denoteL st.ls p.resSort = some pP.resSort ∧ p.large = pP.large ∧
+      p.isProp = pP.isProp := by
+  simp only [dShape] at h
+  cases h1 : p.members.mapM (dMember st) with
+  | none => rw [h1] at h; exact nomatch h
+  | some ms =>
+  cases h2 : p.recs.mapM (dRec st) with
+  | none => rw [h1, h2] at h; exact nomatch h
+  | some rs =>
+  cases h3 : denoteN st.ns p.elim with
+  | none => rw [h1, h2, h3] at h; exact nomatch h
+  | some el =>
+  cases h4 : denoteL st.ls p.resSort with
+  | none => rw [h1, h2, h3, h4] at h; exact nomatch h
+  | some so =>
+  rw [h1, h2, h3, h4] at h
+  obtain rfl := (Option.some.inj h).symm
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- con-leche: none — a denoted member, field by field. -/
+theorem dMember_inv {st : EStore} {m : Arena.MemberShape} {mP : ConLeche.MemberShape}
+    (h : dMember st m = some mP) :
+    Frontend.denoteCV st m.cvT = some mP.cvT ∧ m.nIdx = mP.nIdx ∧
+      dCtors st m.ctors = some mP.ctors := by
+  simp only [dMember] at h
+  cases h1 : Frontend.denoteCV st m.cvT with
+  | none => rw [h1] at h; exact nomatch h
+  | some cv =>
+  cases h2 : dCtors st m.ctors with
+  | none => rw [h1, h2] at h; exact nomatch h
+  | some cs =>
+  rw [h1, h2] at h
+  obtain rfl := (Option.some.inj h).symm
+  exact ⟨rfl, rfl, rfl⟩
+
+/-- con-leche: none — a denoted recursor record, field by field. -/
+theorem dRec_inv {st : EStore} {r : Arena.RecShape} {rP : ConLeche.RecShape}
+    (h : dRec st r = some rP) :
+    Frontend.denoteCV st r.cvR = some rP.cvR ∧ r.rP = rP.rP ∧ r.mI = rP.mI ∧
+      r.tgt = rP.tgt ∧ Frontend.denoteEList st r.rhss = some rP.rhss := by
+  simp only [dRec] at h
+  cases h1 : Frontend.denoteCV st r.cvR with
+  | none => rw [h1] at h; exact nomatch h
+  | some cv =>
+  cases h2 : Frontend.denoteEList st r.rhss with
+  | none => rw [h1, h2] at h; exact nomatch h
+  | some rh =>
+  rw [h1, h2] at h
+  obtain rfl := (Option.some.inj h).symm
+  exact ⟨rfl, rfl, rfl, rfl, rfl⟩
 
 end ConRon.Bridge.Inductives

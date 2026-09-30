@@ -135,15 +135,6 @@ theorem liftFueled_ok {α : Type} {w : String} {o : Option α} {a : α}
     obtain ⟨rfl, rfl⟩ := pureOk h
     exact ⟨rfl, rfl⟩
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:201-204 unwrapOr — at `some`,
-the pure side's `unwrapOr` is `pure`. -/
-theorem FOk.unwrapOr {α : Type} {a : α} {e : ConLeche.CheckError} :
-    FOk (ConLeche.unwrapOr (m := FueledM) (some a) e) a := FOk.pure a
-
-/-- con-leche: ConLeche/Kernel/Core.lean:197-199 liftFueled — the same. -/
-theorem FOk.liftFueled {α : Type} {a : α} {w : String} :
-    FOk (ConLeche.liftFueled (m := FueledM) w (some a)) a := FOk.pure a
-
 /-! ## The environment index, read at a denoting name -/
 
 section Find
@@ -486,31 +477,6 @@ theorem denoteCaps_inv {st : EStore} {caps : IIndCaps} {capsP : IndCaps}
     obtain rfl := (Option.some.inj h).symm
     exact ⟨hall, hct, rfl⟩
   · exact nomatch h
-
-/-- con-leche: none — `Option`'s `mapM` distributes over `++`. -/
-theorem mapM_option_append {α β : Type} {f : α → Option β} :
-    ∀ {xs ys : List α} {a b : List β}, xs.mapM f = some a → ys.mapM f = some b →
-      (xs ++ ys).mapM f = some (a ++ b) := by
-  intro xs
-  induction xs with
-  | nil =>
-    intro ys a b ha hb
-    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at ha
-    subst ha; simpa using hb
-  | cons x xs ih =>
-    intro ys a b ha hb
-    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at ha
-    cases hx : f x with
-    | none => rw [hx] at ha; simp at ha
-    | some y =>
-      cases hxs : xs.mapM f with
-      | none => rw [hx, hxs] at ha; simp at ha
-      | some zs =>
-        rw [hx, hxs] at ha
-        simp only [Option.bind_some, Option.some.injEq] at ha
-        subst ha
-        simp only [List.cons_append, List.mapM_cons, Option.bind_eq_bind, Option.pure_def, hx,
-          ih hxs hb, Option.bind_some]
 
 /-- con-leche: none — a name-handle list denotes, appended. -/
 theorem denoteNList_append {st : NStore} :

@@ -31,101 +31,7 @@ open ConLeche ConRon.Arena ConRon.Bridge
 
 /-! ## `Option`'s `mapM`, the record lists' shape -/
 
-/-- con-leche: none — `Option`'s `mapM` at a cons, inverted. -/
-theorem mapM_option_cons_inv {α β : Type} {f : α → Option β} {x : α} {xs : List α}
-    {ys : List β} (h : (x :: xs).mapM f = some ys) :
-    ∃ y ys', ys = y :: ys' ∧ f x = some y ∧ xs.mapM f = some ys' := by
-  simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h
-  cases hx : f x with
-  | none => rw [hx] at h; simp at h
-  | some y =>
-    rw [hx] at h
-    cases hxs : xs.mapM f with
-    | none => rw [hxs] at h; simp at h
-    | some zs =>
-      rw [hxs] at h
-      simp only [Option.bind_some, Option.some.injEq] at h
-      exact ⟨y, zs, h.symm, rfl, rfl⟩
-
-/-- con-leche: none — and built back up. -/
-theorem mapM_option_cons {α β : Type} {f : α → Option β} {x : α} {xs : List α}
-    {y : β} {ys : List β} (hx : f x = some y) (hxs : xs.mapM f = some ys) :
-    (x :: xs).mapM f = some (y :: ys) := by
-  simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def, hx, hxs,
-    Option.bind_some]
-
-/-- con-leche: none — `Option`'s `mapM` at an index. -/
-theorem mapM_option_getElem?_bind {α β : Type} {f : α → Option β} :
-    ∀ {xs : List α} {ys : List β}, xs.mapM f = some ys → ∀ (j : Nat),
-      ys[j]? = xs[j]?.bind f := by
-  intro xs
-  induction xs with
-  | nil =>
-    intro ys h j
-    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
-    subst h; simp
-  | cons x xs ih =>
-    intro ys h j
-    obtain ⟨y, ys', rfl, hx, hxs⟩ := mapM_option_cons_inv h
-    cases j with
-    | zero => simp [hx]
-    | succ j => simpa using ih hxs j
-
 /-! ## The record's projections -/
-
-/-- con-leche: none — `dShape`, inverted. -/
-theorem dShape_inv {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
-    (h : dShape st p = some pP) :
-    ∃ ms rs el s, p.members.mapM (dMember st) = some ms ∧
-      p.recs.mapM (dRec st) = some rs ∧ denoteN st.ns p.elim = some el ∧
-      denoteL st.ls p.resSort = some s ∧
-      pP = ⟨ms, rs, p.nP, el, s, p.large, p.isProp⟩ := by
-  simp only [dShape] at h
-  cases h1 : p.members.mapM (dMember st) with
-  | none => rw [h1] at h; exact nomatch h
-  | some ms =>
-  cases h2 : p.recs.mapM (dRec st) with
-  | none => rw [h1, h2] at h; exact nomatch h
-  | some rs =>
-  cases h3 : denoteN st.ns p.elim with
-  | none => rw [h1, h2, h3] at h; exact nomatch h
-  | some el =>
-  cases h4 : denoteL st.ls p.resSort with
-  | none => rw [h1, h2, h3, h4] at h; exact nomatch h
-  | some s =>
-  rw [h1, h2, h3, h4] at h
-  exact ⟨ms, rs, el, s, rfl, rfl, rfl, rfl, (Option.some.inj h).symm⟩
-
-/-- con-leche: none — `dMember`, inverted. -/
-theorem dMember_inv {st : EStore} {m : Arena.MemberShape} {mP : ConLeche.MemberShape}
-    (h : dMember st m = some mP) :
-    ∃ cv cs, Frontend.denoteCV st m.cvT = some cv ∧ dCtors st m.ctors = some cs ∧
-      mP = ⟨cv, m.nIdx, cs⟩ := by
-  simp only [dMember] at h
-  cases h1 : Frontend.denoteCV st m.cvT with
-  | none => rw [h1] at h; exact nomatch h
-  | some cv =>
-  cases h2 : dCtors st m.ctors with
-  | none => rw [h1, h2] at h; exact nomatch h
-  | some cs =>
-  rw [h1, h2] at h
-  exact ⟨cv, cs, rfl, rfl, (Option.some.inj h).symm⟩
-
-/-- con-leche: none — `dRec`, inverted. -/
-theorem dRec_inv {st : EStore} {r : Arena.RecShape} {rP : ConLeche.RecShape}
-    (h : dRec st r = some rP) :
-    ∃ cv rhss, Frontend.denoteCV st r.cvR = some cv ∧
-      Frontend.denoteEList st r.rhss = some rhss ∧
-      rP = ⟨cv, r.rP, r.mI, r.tgt, rhss⟩ := by
-  simp only [dRec] at h
-  cases h1 : Frontend.denoteCV st r.cvR with
-  | none => rw [h1] at h; exact nomatch h
-  | some cv =>
-  cases h2 : Frontend.denoteEList st r.rhss with
-  | none => rw [h1, h2] at h; exact nomatch h
-  | some rhss =>
-  rw [h1, h2] at h
-  exact ⟨cv, rhss, rfl, rfl, (Option.some.inj h).symm⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:123-127 numCtorsOf —
 the constructor count survives the denotation. -/
@@ -141,21 +47,21 @@ theorem numCtorsOf_spec {st : EStore} :
   | cons m ms ih =>
     intro msP h
     obtain ⟨mP, msP', rfl, hm, hms⟩ := mapM_option_cons_inv h
-    obtain ⟨cv, cs, -, hcs, rfl⟩ := dMember_inv hm
+    obtain ⟨-, -, hcs⟩ := dMember_inv hm
     simp only [Arena.numCtorsOf, ConLeche.numCtorsOf, ih hms,
       mapM_option_length (f := dCtor st) hcs]
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:131-132 BlockShape.k -/
 theorem BlockShape.k_spec {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
     (h : dShape st p = some pP) : p.k = pP.k := by
-  obtain ⟨ms, rs, el, s, hms, -, -, -, rfl⟩ := dShape_inv h
+  obtain ⟨hms, -, -, -, -, -, -⟩ := dShape_inv h
   simp only [Arena.BlockShape.k, ConLeche.BlockShape.k, mapM_option_length hms]
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:133-134 BlockShape.numCtors -/
 theorem BlockShape.numCtors_spec {st : EStore} {p : Arena.BlockShape}
     {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
     p.numCtors = pP.numCtors := by
-  obtain ⟨ms, rs, el, s, hms, -, -, -, rfl⟩ := dShape_inv h
+  obtain ⟨hms, -, -, -, -, -, -⟩ := dShape_inv h
   exact numCtorsOf_spec hms
 
 /-- con-leche: none — the member names, over the member list. -/
@@ -172,7 +78,7 @@ theorem memberNames_go {st : EStore} :
   | cons m ms ih =>
     intro msP h
     obtain ⟨mP, msP', rfl, hm, hms⟩ := mapM_option_cons_inv h
-    obtain ⟨cv, cs, hcv, -, rfl⟩ := dMember_inv hm
+    obtain ⟨hcv, -, -⟩ := dMember_inv hm
     simp only [List.map_cons, Frontend.denoteNList, denoteCV_name hcv, ih hms]
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:137-138 BlockShape.memberNames
@@ -180,15 +86,16 @@ theorem memberNames_go {st : EStore} :
 theorem BlockShape.memberNames_spec {st : EStore} {p : Arena.BlockShape}
     {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
     Frontend.denoteNList st.ns p.memberNames = some pP.memberNames := by
-  obtain ⟨ms, rs, el, s, hms, -, -, -, rfl⟩ := dShape_inv h
+  obtain ⟨hms, -, -, -, -, -, -⟩ := dShape_inv h
   exact memberNames_go hms
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:139-140 BlockShape.nIdxs -/
 theorem BlockShape.nIdxs_spec {st : EStore} {p : Arena.BlockShape}
     {pP : ConLeche.BlockShape} (h : dShape st p = some pP) : p.nIdxs = pP.nIdxs := by
-  obtain ⟨ms, rs, el, s, hms, -, -, -, rfl⟩ := dShape_inv h
+  obtain ⟨hms, -, -, -, -, -, -⟩ := dShape_inv h
   simp only [Arena.BlockShape.nIdxs, ConLeche.BlockShape.nIdxs]
   clear h
+  generalize pP.members = ms at hms ⊢
   generalize p.members = xs at hms
   induction xs generalizing ms with
   | nil =>
@@ -196,15 +103,15 @@ theorem BlockShape.nIdxs_spec {st : EStore} {p : Arena.BlockShape}
     subst hms; rfl
   | cons m xs ih =>
     obtain ⟨mP, msP', rfl, hm, hxs⟩ := mapM_option_cons_inv hms
-    obtain ⟨cv, cs, -, -, rfl⟩ := dMember_inv hm
-    simp only [List.map_cons, ih msP' hxs]
+    simp only [List.map_cons, ih msP' hxs, (dMember_inv hm).2.1]
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:141-144 BlockShape.lps -/
 theorem BlockShape.lps_spec {st : EStore} {p : Arena.BlockShape}
     {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
     Frontend.denoteNList st.ns p.lps = some pP.lps := by
-  obtain ⟨ms, rs, el, s, hms, -, -, -, rfl⟩ := dShape_inv h
+  obtain ⟨hms, -, -, -, -, -, -⟩ := dShape_inv h
   simp only [Arena.BlockShape.lps, ConLeche.BlockShape.lps]
+  generalize pP.members = ms at hms ⊢
   cases hm : p.members with
   | nil =>
     rw [hm] at hms
@@ -213,16 +120,17 @@ theorem BlockShape.lps_spec {st : EStore} {p : Arena.BlockShape}
   | cons m xs =>
     rw [hm] at hms
     obtain ⟨mP, msP', rfl, hm, -⟩ := mapM_option_cons_inv hms
-    obtain ⟨cv, cs, hcv, -, rfl⟩ := dMember_inv hm
+    obtain ⟨hcv, -, -⟩ := dMember_inv hm
     simpa using denoteCV_lps hcv
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:145-147 BlockShape.allCtors -/
 theorem BlockShape.allCtors_spec {st : EStore} {p : Arena.BlockShape}
     {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
     dCtors st p.allCtors = some pP.allCtors := by
-  obtain ⟨ms, rs, el, s, hms, -, -, -, rfl⟩ := dShape_inv h
+  obtain ⟨hms, -, -, -, -, -, -⟩ := dShape_inv h
   simp only [Arena.BlockShape.allCtors, ConLeche.BlockShape.allCtors]
   clear h
+  generalize pP.members = ms at hms ⊢
   generalize p.members = xs at hms
   induction xs generalizing ms with
   | nil =>
@@ -230,7 +138,7 @@ theorem BlockShape.allCtors_spec {st : EStore} {p : Arena.BlockShape}
     subst hms; rfl
   | cons m xs ih =>
     obtain ⟨mP, msP', rfl, hm, hxs⟩ := mapM_option_cons_inv hms
-    obtain ⟨cv, cs, -, hcs, rfl⟩ := dMember_inv hm
+    obtain ⟨-, -, hcs⟩ := dMember_inv hm
     have h2 := ih msP' hxs
     simp only [dCtors] at h2 hcs ⊢
     simp only [List.map_cons, List.flatten_cons, List.mapM_append, hcs, h2,
@@ -280,8 +188,8 @@ theorem BlockShape.withSort_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   obtain ⟨q, ha⟩ := lvlEqZero_run hok (PStep.refl hok.state) hs h1 h3
   obtain ⟨rfl, rfl⟩ := pureOk h4
   refine ⟨q.toCore hok, ?_⟩
-  obtain ⟨ms, rs, el, sl, hms, hrs, hel, -, rfl⟩ := dShape_inv (dShape_ext q.ext _ _ hp)
-  simp only [dShape, hms, hrs, hel, denoteL_ext hs q.ext, ha,
+  obtain ⟨hms, hrs, hnP, hel, -, hlg, -⟩ := dShape_inv (dShape_ext q.ext _ _ hp)
+  simp only [dShape, hms, hrs, hnP, hel, hlg, denoteL_ext hs q.ext, ha,
     Option.bind_eq_bind, Option.bind_some, Option.pure_def]
   simp only [ConLeche.BlockShape.withSort]
   generalize Level.isEquiv sP Level.zero = v
@@ -761,19 +669,6 @@ theorem ctorMember?_spec (names : List NIdx) (namesP : List ConLeche.Name) (lvls
     rw [h5]
     simp only [ConLeche.ctorMember?, hsp]
 
-/-- con-leche: none — `Option`'s `mapM` of a reversed list. -/
-theorem mapM_option_reverse {α β : Type} {f : α → Option β} :
-    ∀ {xs : List α} {ys : List β}, xs.mapM f = some ys → xs.reverse.mapM f = some ys.reverse := by
-  intro xs
-  induction xs with
-  | nil => intro ys h; simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
-           subst h; rfl
-  | cons x xs ih =>
-    intro ys h
-    obtain ⟨y, ys', rfl, hx, hxs⟩ := mapM_option_cons_inv h
-    simp only [List.reverse_cons, List.mapM_append, ih hxs, List.mapM_cons, List.mapM_nil, hx,
-      Option.bind_eq_bind, Option.pure_def, Option.bind_some]
-
 /-- con-leche: none — **`List.filterM` of a pure-grade test** (the accumulator
 form `List.filterAuxM`): the kept elements denote the pure `filter`, reversed
 onto the accumulator. -/
@@ -914,15 +809,13 @@ theorem blockRecLpsOk_spec {st : EStore} (hwf : StoreWF st) {p : Arena.BlockShap
     {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
     Arena.blockRecLpsOk p = ConLeche.blockRecLpsOk pP := by
   have hlps := BlockShape.lps_spec h
-  obtain ⟨ms, rs, el, s, hms, hrs, hel, -, hpP⟩ := dShape_inv h
-  have hr : pP.recs = rs := by rw [hpP]
-  have hl : pP.large = p.large := by rw [hpP]
-  have he : pP.elim = el := by rw [hpP]
-  have hcons : Frontend.denoteNList st.ns (p.elim :: p.lps) = some (el :: pP.lps) := by
+  obtain ⟨-, hrs, -, hel, -, hl, -⟩ := dShape_inv h
+  have hcons : Frontend.denoteNList st.ns (p.elim :: p.lps) = some (pP.elim :: pP.lps) := by
     simp only [Frontend.denoteNList, hel, hlps]
-  simp only [Arena.blockRecLpsOk, ConLeche.blockRecLpsOk, hr, hl, he]
+  simp only [Arena.blockRecLpsOk, ConLeche.blockRecLpsOk, ← hl]
   generalize pP.lps = L at hlps hcons
-  clear h hms hpP hr
+  generalize pP.recs = rs at hrs ⊢
+  clear h
   generalize p.recs = xs at hrs
   induction xs generalizing rs with
   | nil =>
@@ -930,7 +823,7 @@ theorem blockRecLpsOk_spec {st : EStore} (hwf : StoreWF st) {p : Arena.BlockShap
     subst hrs; rfl
   | cons x xs ih =>
     obtain ⟨y, ys, rfl, hx, hxs⟩ := mapM_option_cons_inv hrs
-    obtain ⟨cv, rhss, hcv, -, rfl⟩ := dRec_inv hx
+    obtain ⟨hcv, -, -, -, -⟩ := dRec_inv hx
     simp only [List.all_cons, ih ys hxs]
     congr 1
     cases p.large
@@ -956,7 +849,7 @@ theorem recNames_run : ∀ (ms : List Arena.MemberShape) (msP : List ConLeche.Me
   | cons m ms ih =>
     intro msP s₀ s' want hok hms hrun
     obtain ⟨mP, msP', rfl, hm, hxs⟩ := mapM_option_cons_inv hms
-    obtain ⟨cv, cs, hcv, -, rfl⟩ := dMember_inv hm
+    obtain ⟨hcv, -, -⟩ := dMember_inv hm
     simp only [List.mapM_cons] at hrun
     obtain ⟨n, s₁, h1, h2⟩ := bindOk hrun
     obtain ⟨p1, hn⟩ := internStrN_run hok (denoteCV_name hcv) h1
@@ -981,7 +874,7 @@ theorem recShapeNames_go {st : EStore} :
   | cons r rs ih =>
     intro rsP h
     obtain ⟨rP, rsP', rfl, hr, hrs⟩ := mapM_option_cons_inv h
-    obtain ⟨cv, rhss, hcv, -, rfl⟩ := dRec_inv hr
+    obtain ⟨hcv, -, -, -, -⟩ := dRec_inv hr
     simp only [List.map_cons, Frontend.denoteNList, denoteCV_name hcv, ih hrs]
 
 /-- con-leche: none — `all`/`contains` over two denoting name-handle lists is
@@ -1201,7 +1094,7 @@ theorem blockRecNamesUnreserved_spec (pP : ConLeche.BlockShape) :
   | cons rc rest ih =>
     intro s₀ s' r hok hp hrs hrun
     obtain ⟨rP, rsP', rfl, hr, hrest⟩ := mapM_option_cons_inv hrs
-    obtain ⟨cv, rhss, hcv, -, rfl⟩ := dRec_inv hr
+    obtain ⟨hcv, -, -, -, -⟩ := dRec_inv hr
     simp only [Arena.blockRecNamesUnreserved] at hrun
     obtain ⟨b, s₁, h1, h2⟩ := bindOk hrun
     obtain ⟨p1, rfl⟩ := reservedRecName_run hok hp (denoteCV_name hcv) h1

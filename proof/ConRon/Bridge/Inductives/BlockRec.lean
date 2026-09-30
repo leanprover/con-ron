@@ -30,10 +30,10 @@ theorem blockLargeElimAllowed_spec (p : Arena.BlockShape) (pP : ConLeche.BlockSh
   obtain ⟨l, s₁, h1, h2⟩ := bindOk hrun
   have p1 := readLevelM_pstep hok h1
   have hl := readLevelM_denote_L hrl (PStep.refl hok) h1
-  obtain ⟨ms, rs, el, sl, -, -, -, hs, hpP⟩ := dShape_inv hp
+  obtain ⟨-, -, -, -, hs, hlg, -⟩ := dShape_inv hp
   have hres : pP.resSort = l := by
-    rw [hpP]; rw [hl] at hs; exact (Option.some.inj hs).symm
-  have hlg : pP.large = p.large := by rw [hpP]
+    rw [hl] at hs; exact (Option.some.inj hs).symm
+  replace hlg := hlg.symm
   simp only [RV, ConLeche.blockLargeElimAllowed, hres, hlg, ← hk, ← hn]
   by_cases hz : Level.isNeverZero l = true
   · rw [if_pos hz] at h2
