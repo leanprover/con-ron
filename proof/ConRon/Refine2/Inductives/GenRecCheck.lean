@@ -1296,4 +1296,104 @@ theorem class_rec_tys_ok_acc {pers} {mode : kernel.env.CheckMode}
   simp only [gr_usz0, List.drop_zero] at h
   exact LS.tail h rfl (fun a b h1 => by simpa [absICVList, alloc.vec.Vec.new] using h1.symm)
 
+/-! ## `class_stream_recs`, `class_seeds` -/
+
+theorem class_stream_recs_acc {pers} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf)
+    (rcs : alloc.vec.Vec arena.inductives.block_parts.RecShape) :
+    ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.env.IConstantVal) st lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => absICVList a = absICVList out ++ b)
+        (arena.inductives.gen_rec.class_stream_recs pers st mode rf rcs i out) lst
+        (classStreamRecs (ConRon.Refine.absMode mode) lf ((rcs.val.drop i.val).map absRecShape)) := by
+  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) rcs.val.length
+    (fun i out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => absICVList a = absICVList out ++ b)
+        (arena.inductives.gen_rec.class_stream_recs pers st mode rf rcs i out) lst
+        (classStreamRecs (ConRon.Refine.absMode mode) lf
+          ((rcs.val.drop i.val).map absRecShape))) ?_ ?_ i
+  · intro i out hn st lst hrel hinv
+    rw [List.drop_eq_nil_of_le hn, List.map_nil, classStreamRecs,
+      arena.inductives.gen_rec.class_stream_recs.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len rcs by scalar_tac)]
+    exact LS.pure (by simp) hrel hinv
+  · intro i out hi ih st lst hrel hinv
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, classStreamRecs,
+      arena.inductives.gen_rec.class_stream_recs.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len rcs by scalar_tac)]
+    lockstep
+    rename_i x out1 hout1
+    have hjv : a.val = i.val + 1 := by simpa using hP
+    have h1 := ih a out1 hjv _ _ ‹_› ‹_›
+    simp only [hjv] at h1
+    refine ls_tail_cons h1 ?_
+    simp [absICVList, hout1]
+
+@[lockstep] theorem class_stream_recs_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf)
+    (rcs : alloc.vec.Vec arena.inductives.block_parts.RecShape) :
+    LS pers (fun a b => b = absICVList a)
+      (arena.inductives.gen_rec.class_stream_recs pers st mode rf rcs 0#usize (alloc.vec.Vec.new _))
+      lst (classStreamRecs (ConRon.Refine.absMode mode) lf (rcs.val.map absRecShape)) := by
+  have h := class_stream_recs_acc (pers := pers) (mode := mode) hfe rcs 0#usize
+    (alloc.vec.Vec.new _) st lst hrel hinv
+  simp only [gr_usz0, List.drop_zero] at h
+  exact LS.tail h rfl (fun a b h1 => by simpa [absICVList, alloc.vec.Vec.new] using h1.symm)
+
+def absSeedL (v : alloc.vec.Vec (arena.inductives.positivity.NestKey × Std.U64)) :
+    List (NestKey × Nat) :=
+  v.val.map fun p => (absNestKey p.1, absU p.2)
+
+theorem class_seeds_acc {pers} (ctx : arena.inductives.positivity.NestCtx)
+    (holes : alloc.vec.Vec arena.handle.EIdx)
+    (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
+    ∀ (i : Std.Usize) (out : alloc.vec.Vec (arena.inductives.positivity.NestKey × Std.U64)) st lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => absSeedL a = absSeedL out ++ b)
+        (arena.inductives.gen_rec.class_seeds pers st ctx holes ms i out) lst
+        (classSeeds (absNestCtx ctx) (absEIdxL holes) ((ms.val.drop i.val).map absTargetMajor)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) ms.val.length
+    (fun i out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => absSeedL a = absSeedL out ++ b)
+        (arena.inductives.gen_rec.class_seeds pers st ctx holes ms i out) lst
+        (classSeeds (absNestCtx ctx) (absEIdxL holes)
+          ((ms.val.drop i.val).map absTargetMajor))) ?_ ?_ i
+  · intro i out hn st lst hrel hinv
+    rw [List.drop_eq_nil_of_le hn, List.map_nil, classSeeds,
+      arena.inductives.gen_rec.class_seeds.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len ms by scalar_tac)]
+    exact LS.pure (by simp) hrel hinv
+  · intro i out hi ih st lst hrel hinv
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, classSeeds,
+      arena.inductives.gen_rec.class_seeds.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac)]
+    rw [gr_vec_index_eq (List.getElem?_eq_getElem hi), bind_tc_ok]
+    cases hm : (ms.val[i.val]'hi).member <;>
+      simp only [absTargetMajor_member, hm, Option.map_none, Option.map_some]
+    · lockstep
+      rename_i x out1 hout1
+      have hjv : a.val = i.val + 1 := by simpa using hP
+      have h1 := ih a out1 hjv _ _ ‹_› ‹_›
+      simp only [hjv] at h1
+      refine ls_tail_cons h1 ?_
+      simp [absSeedL, hout1]
+    · lockstep
+
+/-- `class_seeds` ⊑ `classSeeds` — the export the block tail reads. -/
+@[lockstep] theorem class_seeds_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
+    (holes : alloc.vec.Vec arena.handle.EIdx)
+    (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
+    LS pers (fun a b => b = absSeedL a)
+      (arena.inductives.gen_rec.class_seeds pers st ctx holes ms 0#usize (alloc.vec.Vec.new _)) lst
+      (classSeeds (absNestCtx ctx) (absEIdxL holes) (ms.val.map absTargetMajor)) := by
+  have h := class_seeds_acc (pers := pers) ctx holes ms 0#usize (alloc.vec.Vec.new _) st lst
+    hrel hinv
+  simp only [gr_usz0, List.drop_zero] at h
+  exact LS.tail h rfl (fun a b h1 => by simpa [absSeedL, alloc.vec.Vec.new] using h1.symm)
+
 end ConRon.Refine2
