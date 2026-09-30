@@ -20,7 +20,6 @@ import ConRon.Bridge.Inductives.PosWalks
 
 namespace ConRon.Bridge.Inductives
 
-set_option linter.unusedVariables false
 
 open ConLeche ConRon.Arena ConRon.Bridge PW
 
