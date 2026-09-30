@@ -459,16 +459,6 @@ private theorem promote_n_aux (n : Nat) :
       (arena.promote.promote_n t st rm fuel h) lst (promoteN lm (absU fuel) (absNIdx h)) :=
   promote_n_aux _ fuel h rfl hP ht hsc hrel hinv hm
 
-/-- `promote_n_node` ⊑ `promoteNNodeSpec`, from the walk at the same fuel. -/
-theorem promote_n_node_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
-    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
-    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
-    (v : arena.store.NNodeView) (hvwf : NNodeViewWF v) :
-    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absNIdx p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
-      (arena.promote.promote_n_node t st rm fuel v) lst
-      (promoteNNodeSpec lm (absU fuel) (absNNodeView v)) := by
-  cases v <;> rw [arena.promote.promote_n_node] <;>
-    simp only [absNNodeView, promoteNNodeSpec] <;> lockstep
 
 private theorem promote_l_aux (n : Nat) :
     ∀ {P t st lst rm lm} (fuel : Std.U64) (h : arena.handle.LIdx),
@@ -513,27 +503,7 @@ private theorem promote_l_aux (n : Nat) :
       (arena.promote.promote_l t st rm fuel h) lst (promoteL lm (absU fuel) (absLIdx h)) :=
   promote_l_aux _ fuel h rfl hP ht hsc hrel hinv hm
 
-/-- `promote_l_two` ⊑ `promoteLTwo`. -/
-@[lockstep] theorem promote_l_two_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
-    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
-    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
-    (u v : arena.handle.LIdx) :
-    LST P (fun p w => (PMemoRel p.1.1 w.1 ∧ w.2 = (absLIdx p.1.2.1, absLIdx p.1.2.2)) ∧ p.2.frozen = true) (fun t' => glue t' st)
-      (arena.promote.promote_l_two t st rm fuel u v) lst
-      (promoteLTwo lm (absU fuel) (absLIdx u) (absLIdx v)) := by
-  rw [arena.promote.promote_l_two, promoteLTwo]
-  lockstep
 
-/-- `promote_l_node` ⊑ `promoteLNodeSpec`. -/
-theorem promote_l_node_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
-    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
-    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
-    (v : arena.store.LNodeView) :
-    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absLIdx p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
-      (arena.promote.promote_l_node t st rm fuel v) lst
-      (promoteLNodeSpec lm (absU fuel) (absLNodeView v)) := by
-  cases v <;> rw [arena.promote.promote_l_node] <;>
-    simp only [absLNodeView, promoteLNodeSpec] <;> lockstep
 
 private theorem promote_l_list_from_aux (n : Nat) :
     ∀ {P t st lst rm lm} (fuel : Std.U64) (us : alloc.vec.Vec arena.handle.LIdx)
@@ -645,27 +615,7 @@ private theorem promote_e_aux (n : Nat) :
       (arena.promote.promote_e t st rm fuel h) lst (promoteE lm (absU fuel) (absEIdx h)) :=
   promote_e_aux _ fuel h rfl hP ht hsc hrel hinv hm
 
-/-- `promote_e_two` ⊑ `promoteETwo`. -/
-@[lockstep] theorem promote_e_two_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
-    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
-    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
-    (x y : arena.handle.EIdx) :
-    LST P (fun p w => (PMemoRel p.1.1 w.1 ∧ w.2 = (absEIdx p.1.2.1, absEIdx p.1.2.2)) ∧ p.2.frozen = true) (fun t' => glue t' st)
-      (arena.promote.promote_e_two t st rm fuel x y) lst
-      (promoteETwo lm (absU fuel) (absEIdx x) (absEIdx y)) := by
-  rw [arena.promote.promote_e_two, promoteETwo]
-  lockstep
 
-/-- `promote_e_node` ⊑ `promoteENodeSpec`. -/
-theorem promote_e_node_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
-    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
-    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
-    (v : arena.store.ENodeView) (hvwf : ENodeViewWF v) :
-    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absEIdx p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
-      (arena.promote.promote_e_node t st rm fuel v) lst
-      (promoteENodeSpec lm (absU fuel) (absENodeView v)) := by
-  cases v <;> rw [arena.promote.promote_e_node] <;>
-    simp only [absENodeView, promoteENodeSpec] <;> lockstep
 
 private theorem promote_n_list_from_aux (n : Nat) :
     ∀ {P t st lst rm lm} (fuel : Std.U64) (us : alloc.vec.Vec arena.handle.NIdx)
@@ -937,72 +887,14 @@ attribute [local lockstep_simp] absIConstantVal absIRecRuleFire absIRecRule absI
 
 end decl2
 
-private theorem promote_ci_list_from_aux (n : Nat) :
-    ∀ {P t st lst rm lm} (fuel : Std.U64) (us : alloc.vec.Vec arena.env.IConstantInfo)
-      (i : Std.Usize) (out : alloc.vec.Vec arena.env.IConstantInfo),
-      us.val.length - i.val = n → P.frozen = false → t.frozen = true → ScratchOn st.store →
-        AStateRel₀ P (glue t st) lst → AStateInv P (glue t st) →
-      PMemoRel rm lm →
-      LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absICIL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
-        (arena.promote.promote_ci_list_from t st rm fuel us i out) lst
-        (pmapFrom (fun m u => promoteCI m (absU fuel) u) lm (absICIL out)
-          ((us.val.drop i.val).map absIConstantInfo)) := by
-  induction n with
-  | zero =>
-    intro P t st lst rm lm fuel us i out hn hP ht hsc hrel hinv hm
-    rw [arena.promote.promote_ci_list_from, vecFrom_nil us absIConstantInfo i (by omega), pmapFrom]
-    have hl := alloc.vec.Vec.len_val us
-    refine LS.packT_ite (LS.ite (fun _ => LS.packT_ok_ok (LS.pure ⟨⟨hm, rfl⟩, ht⟩ hrel hinv))
-      (fun hc => absurd hc (by scalar_tac)))
-  | succ k ih =>
-    intro P t st lst rm lm fuel us i out hn hP ht hsc hrel hinv hm
-    rw [arena.promote.promote_ci_list_from, vecFrom_cons us absIConstantInfo i (by omega), pmapFrom]
-    have hl := alloc.vec.Vec.len_val us
-    refine LS.packT_ite (LS.ite (fun hc => absurd hc (by scalar_tac)) (fun hc => ?_))
-    lockstep
 
-/-- `promote_ci_list_from` ⊑ `pmapFrom promoteCI` — the cursor, in the judgement shape. -/
-@[lockstep] theorem promote_ci_list_from_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
-    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
-    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
-    (us : alloc.vec.Vec arena.env.IConstantInfo) (i : Std.Usize) (out : alloc.vec.Vec arena.env.IConstantInfo) :
-    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absICIL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
-      (arena.promote.promote_ci_list_from t st rm fuel us i out) lst
-      (pmapFrom (fun m u => promoteCI m (absU fuel) u) lm (absICIL out)
-        ((us.val.drop i.val).map absIConstantInfo)) :=
-  promote_ci_list_from_aux _ fuel us i out rfl hP ht hsc hrel hinv hm
 
-theorem promoteCIList_pmapFrom (m : PMemo) (fuel : Nat) l acc :
-    pmapFrom (fun m u => promoteCI m fuel u) m acc l =
-      (do let (m, ys) ← promoteCIList m fuel l; pure (m, acc ++ ys)) :=
-  pmapFrom_cons_eq _ (fun m l => promoteCIList m fuel l) (fun _ => rfl) (fun _ _ _ => rfl) l m acc
 
-/-- `promote_ci_list` ⊑ `promoteCIList`. -/
-@[lockstep] theorem promote_ci_list_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
-    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
-    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
-    (us : alloc.vec.Vec arena.env.IConstantInfo) :
-    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absICIL p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
-      (arena.promote.promote_ci_list t st rm fuel us) lst
-      (promoteCIList lm (absU fuel) (absICIL us)) := by
-  have h := promote_ci_list_from_ls hP ht hsc hrel hinv hm fuel us 0#usize (alloc.vec.Vec.new _)
-  rw [promoteCIList_pmapFrom] at h
-  simpa [arena.promote.promote_ci_list, absICIL, alloc.vec.Vec.new] using h
 
 
 section decl3
 attribute [local lockstep_simp] absIConstantVal absIDeclaration absICIL
 
-/-- `promote_decl` ⊑ `promoteDecl` — the seven constructors. -/
-@[lockstep] theorem promote_decl_ls {P t st lst rm lm} (hP : P.frozen = false) (ht : t.frozen = true)
-    (hsc : ScratchOn st.store) (hrel : AStateRel₀ P (glue t st) lst)
-    (hinv : AStateInv P (glue t st)) (hm : PMemoRel rm lm) (fuel : Std.U64)
-    (d : arena.env.IDeclaration) :
-    LST P (fun p v => (PMemoRel p.1.1 v.1 ∧ v.2 = absIDeclaration p.1.2) ∧ p.2.frozen = true) (fun t' => glue t' st)
-      (arena.promote.promote_decl t st rm fuel d) lst
-      (promoteDecl lm (absU fuel) (absIDeclaration d)) := by
-  cases d <;> rw [arena.promote.promote_decl] <;> simp only [absIDeclaration, promoteDecl] <;>
-    lockstep
 
 end decl3
 
@@ -1680,17 +1572,9 @@ handle type. -/
 /-- info: 'ConRon.Refine2.promoteN_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms promoteN_unfold
 
-/-- info: 'ConRon.Refine2.Lockstep.promote_n_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms Lockstep.promote_n_ls
 
-/-- info: 'ConRon.Refine2.Lockstep.promote_e_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms Lockstep.promote_e_ls
 
-/-- info: 'ConRon.Refine2.Lockstep.promote_ci_list_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms Lockstep.promote_ci_list_ls
 
-/-- info: 'ConRon.Refine2.Lockstep.promote_decl_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms Lockstep.promote_decl_ls
 
 /-- info: 'ConRon.Refine2.promote_vg_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms promote_vg_ls
