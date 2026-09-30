@@ -36,6 +36,7 @@ import ConRon.Bridge.Inductives.PosWalks
 import ConRon.Bridge.Inductives.StructParts
 import ConRon.Bridge.Inductives.FieldTele
 import ConRon.Bridge.Inductives.SumInstall
+import ConRon.Bridge.Inductives.BlockParts
 import ConLeche.Verify.Inductives.RecCheckScope
 import ConLeche.Verify.Cached.TargetRecC
 
@@ -2600,5 +2601,363 @@ theorem targetK53_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
             (by simpa using PW.tag_const_of_denote c3.ok.state.wf hmh)
         | _ => exact FOk.pure false
       | _ => exact FOk.pure false
+
+/-! ## The recursor records' pins -/
+
+namespace RC
+
+/-- con-leche: none — a failing primitive, then anything, cannot have
+accepted. -/
+theorem failBindOk {α β : Type} {e : Arena.CheckError} {k : α → AM β} {s s' : AState} {r : β}
+    (h : ((Arena.fail e : AM α) >>= k) s = .ok (r, s')) : False := by
+  obtain ⟨a, s1, h1, -⟩ := bindOk h
+  exact failOk h1
+
+/-- con-leche: none — `Name.nodup` is a sufficient test for `Nodup`. -/
+theorem nodup_of : ∀ {xs : List ConLeche.Name}, ConLeche.Name.nodup xs = true →
+    decide xs.Nodup = true := by
+  intro xs
+  induction xs with
+  | nil => intro _; decide
+  | cons x xs ih =>
+    intro h
+    simp only [ConLeche.Name.nodup, Bool.and_eq_true, Bool.not_eq_true'] at h
+    obtain ⟨h1, h2⟩ := h
+    have := of_decide_eq_true (ih h2)
+    simp only [decide_eq_true_eq, List.nodup_cons]
+    refine ⟨fun hm => ?_, this⟩
+    rw [List.contains_iff_mem.mpr hm] at h1
+    exact absurd h1 (by decide)
+
+/-- con-leche: none — a denoted recursor list, filtered on the targets. -/
+theorem filter_recs {st : EStore} (q : Nat → Bool) :
+    ∀ {rs : List Arena.RecShape} {rsP : List ConLeche.RecShape},
+      rs.mapM (dRec st) = some rsP →
+      (rs.filter (fun rc => q rc.tgt)).mapM (dRec st) = some (rsP.filter (fun rc => q rc.tgt)) := by
+  intro rs
+  induction rs with
+  | nil =>
+    intro rsP h
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+    subst h; rfl
+  | cons r rs ih =>
+    intro rsP h
+    obtain ⟨rP, rsP', rfl, hr, hrs⟩ := mapM_option_cons_inv h
+    have ht := (RC.dRec_inv hr).2.2.2.1
+    simp only [List.filter_cons, ht]
+    cases q rP.tgt with
+    | true => exact mapM_option_cons hr (ih hrs)
+    | false => exact ih hrs
+
+/-- con-leche: none — a denoted constructor list's names. -/
+theorem ctors_names {st : EStore} :
+    ∀ {cs : List (IConstantVal × Nat)} {csP : List (ConstantVal × Nat)},
+      dCtors st cs = some csP →
+      Frontend.denoteNList st.ns (cs.map (·.1.name)) = some (csP.map (·.1.name)) := by
+  intro cs
+  induction cs with
+  | nil => intro csP h; simp only [dCtors, List.mapM_nil] at h; cases h; rfl
+  | cons c cs ih =>
+    intro csP h
+    obtain ⟨cP, csP', rfl, hc, hcs⟩ := mapM_option_cons_inv h
+    simp only [dCtor, Option.map_eq_some_iff] at hc
+    obtain ⟨cv, hcv, rfl⟩ := hc
+    simp only [List.map_cons, Frontend.denoteNList, denoteCV_name hcv, ih hcs]
+
+/-- con-leche: none — a denoted three-tuple constructor list's names. -/
+theorem ctors3_names {st : EStore} :
+    ∀ {cs : List (IConstantVal × Nat × Nat)} {csP : List (ConstantVal × Nat × Nat)},
+      denoteCtors3 st cs = some csP →
+      Frontend.denoteNList st.ns (cs.map (·.1.name)) = some (csP.map (·.1.name)) := by
+  intro cs
+  induction cs with
+  | nil => intro csP h; simp only [denoteCtors3, Option.some.injEq] at h; subst h; rfl
+  | cons c cs ih =>
+    intro csP h
+    obtain ⟨cv, a, b⟩ := c
+    simp only [denoteCtors3] at h
+    cases hcv : Frontend.denoteCV st cv with
+    | none => rw [hcv] at h; simp at h
+    | some cP =>
+    cases hcs : denoteCtors3 st cs with
+    | none => rw [hcv, hcs] at h; simp at h
+    | some rest =>
+    rw [hcv, hcs] at h
+    obtain rfl := (Option.some.inj h).symm
+    simp only [List.map_cons, Frontend.denoteNList, denoteCV_name hcv, ih hcs]
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:504 targetRecPins
+(`wantAux`) — the generated auxiliary names `n₀.rec_i`, interned. -/
+theorem recAuxNames_run (n₀ : NIdx) (n0P : ConLeche.Name) :
+    ∀ (is : List Nat) (s₀ s' : AState) (r : List NIdx), StateOK s₀ →
+      denoteN s₀.store.ns n₀ = some n0P →
+      is.mapM (fun i => internNNode (.str n₀ (toString "rec_" ++ toString (i + 1)))) s₀
+        = .ok (r, s') →
+      PStep s₀ s' ∧ Frontend.denoteNList s'.store.ns r =
+        some (is.map fun i => n0P.str (toString "rec_" ++ toString (i + 1))) := by
+  intro is
+  induction is with
+  | nil =>
+    intro s₀ s' r hok _ hrun
+    simp only [List.mapM_nil] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons i is ih =>
+    intro s₀ s' r hok hn hrun
+    simp only [List.mapM_cons] at hrun
+    obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hx⟩ := internStrN_run hok hn k1
+    obtain ⟨xs, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, hxs⟩ := ih s1 s2 xs p1.ok (denoteN_ext hn p1.ext) k2
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨p1.trans p2, ?_⟩
+    show Frontend.denoteNList _ (x :: xs) = _
+    simp only [List.map_cons, Frontend.denoteNList, denoteN_ext hx p2.ext, hxs]
+
+end RC
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:480-518 targetRecPins
+**The recursor records' pins**: the level parameters, the reserved names, the
+member recursors' name set, the auxiliary names `T_0.rec_1 … T_0.rec_n`, all
+names distinct, and the constructor grouping.  An accepting twin run is an
+accepting pure run (`PSpecP`: the reserved-name reads are pins). -/
+theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
+    (block : List IConstantInfo) (blockP : List ConstantInfo) :
+    PSpecP (fun st => dShape st p = some pP ∧ Frontend.denoteCIList st block = some blockP)
+      (Arena.targetRecPins p block)
+      (fun _ _ => FOk (ConLeche.targetRecPins (m := FueledM) pP blockP) ()) := by
+  intro s₀ s' r hok hp hpre hrun
+  obtain ⟨hsh, hblk⟩ := hpre
+  obtain ⟨hmems, hrecs, -⟩ := RC.dShape_inv hsh
+  have hk : p.k = pP.k := BlockShape.k_spec hsh
+  simp only [Arena.targetRecPins] at hrun
+  by_cases c1 : Arena.blockRecLpsOk p = true
+  case neg => rw [if_neg c1] at hrun; exact absurd hrun RC.failBindOk
+  rw [if_pos c1] at hrun
+  have hL : ConLeche.blockRecLpsOk pP = true := by rw [← blockRecLpsOk_spec hok.wf hsh]; exact c1
+  obtain ⟨_, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨-, hs1⟩ := pureOk k1
+  rw [hs1] at z1
+  obtain ⟨u, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨p2, rfl⟩ := blockRecNamesUnreserved_spec pP p.recs _ _ u hok hp hrecs k2
+  by_cases c2 : ConLeche.blockRecNamesUnreserved pP = true
+  case neg => rw [if_neg c2] at z2; exact absurd z2 RC.failBindOk
+  rw [if_pos c2] at z2
+  have hU := c2
+  obtain ⟨_, s3, k3, z3⟩ := bindOk z2
+  obtain ⟨-, hs3⟩ := pureOk k3
+  rw [hs3] at z3
+  obtain ⟨u3, s4, k4, z4⟩ := bindOk z3
+  have hown := RC.filter_recs (fun t => decide (t < pP.k))
+    (mapM_option_ext (fun x y h => dRec_ext p2.ext x y h) _ _ hrecs)
+  rw [← hk] at hown
+  obtain ⟨p4, rfl⟩ := blockRecNameSetOk_spec p.members
+    (p.recs.filter fun rc => decide (rc.tgt < p.k))
+    { pP with recs := pP.recs.filter fun rc => decide (rc.tgt < pP.k) } _ _ u3 p2.ok
+    ⟨mapM_option_ext (fun x y h => dMember_ext p2.ext x y h) _ _ hmems,
+      by rw [hk] at hown ⊢; exact hown⟩ k4
+  by_cases c3 : ConLeche.blockRecNameSetOk
+      { pP with recs := pP.recs.filter fun rc => decide (rc.tgt < pP.k) } = true
+  case neg => rw [if_neg c3] at z4; exact absurd z4 RC.failBindOk
+  rw [if_pos c3] at z4
+  have hS := c3
+  obtain ⟨_, s5, k5, z5⟩ := bindOk z4
+  obtain ⟨-, hs5⟩ := pureOk k5
+  rw [hs5] at z5
+  have p24 := p2.trans p4
+  clear hown
+  cases hm : p.members with
+  | nil =>
+    rw [hm] at z5
+    have hmP : pP.members = [] := by
+      rw [hm] at hmems
+      simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hmems
+      exact hmems.symm
+    obtain ⟨y, s6, k6, z6⟩ := bindOk z5
+    obtain ⟨p6, hy⟩ := internNNode_run p24.ok (by intro c hc; simp [NNodeView.children] at hc) k6
+    simp only [denoteNView] at hy
+    have hn0 : denoteN s6.store.ns y =
+        some ((pP.memberNames.head?).getD ConLeche.Name.anonymous) := by
+      rw [hy]; simp [ConLeche.BlockShape.memberNames, hmP]
+    generalize hg0 : (pP.memberNames.head?).getD ConLeche.Name.anonymous = n0P at hn0
+    have p06 := p24.trans p6
+    obtain ⟨want, sB, kB, zB⟩ := bindOk z6
+    obtain ⟨pB, hwant⟩ := RC.recAuxNames_run y n0P
+      (List.range (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs).length) _ sB want
+      p06.ok hn0 kB
+    have pAB := p06.trans pB
+    have hrecsB := mapM_option_ext (fun x y h => dRec_ext pAB.ext x y h) _ _ hrecs
+    have hgot := recShapeNames_go (RC.filter_recs (fun t => !decide (t < pP.k)) hrecsB)
+    rw [← hk] at hgot
+    have hlen1 := PW.denoteNList_length hgot
+    have hlen2 := PW.denoteNList_length hwant
+    have hlenF : (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs).length =
+        (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs).length := by
+      have := mapM_option_length (RC.filter_recs (fun t => !decide (t < pP.k)) hrecs)
+      rw [← hk] at this ⊢; exact this.symm
+    have hA : (((List.map (fun x => x.cvR.name)
+            (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs)).length == want.length &&
+          want.all (fun x => (List.map (fun x => x.cvR.name)
+            (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs)).contains x)) &&
+          (List.map (fun x => x.cvR.name)
+            (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs)).all
+            (fun x => want.contains x)) =
+        (((List.map (fun x => x.cvR.name) (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs)).length ==
+            (List.map (fun i => n0P.str (toString "rec_" ++ toString (i + 1)))
+              (List.range (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs).length)).length &&
+          (List.map (fun i => n0P.str (toString "rec_" ++ toString (i + 1)))
+              (List.range (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs).length)).all
+            (fun x => (List.map (fun x => x.cvR.name)
+              (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs)).contains x)) &&
+          (List.map (fun x => x.cvR.name) (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs)).all
+            (fun x => (List.map (fun i => n0P.str (toString "rec_" ++ toString (i + 1)))
+              (List.range (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs).length)).contains x)) := by
+      rw [hlen1, hlen2, all_contains_eq pB.ok.wf hgot hwant, all_contains_eq pB.ok.wf hwant hgot,
+        hlenF, hk]
+    by_cases cA : (((List.map (fun x => x.cvR.name)
+            (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs)).length == want.length &&
+          want.all (fun x => (List.map (fun x => x.cvR.name)
+            (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs)).contains x)) &&
+          (List.map (fun x => x.cvR.name)
+            (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs)).all
+            (fun x => want.contains x)) = true
+    case neg => rw [if_neg cA] at zB; exact absurd zB RC.failBindOk
+    rw [if_pos cA] at zB
+    rw [hA] at cA
+    obtain ⟨_, sC, kC, zC⟩ := bindOk zB
+    obtain ⟨-, hsC⟩ := pureOk kC
+    rw [hsC] at zC
+    have hnames := recShapeNames_go hrecsB
+    have hnd := nameNodup_spec pB.ok.wf _ _ hnames
+    by_cases cN : nameNodup (List.map (fun x => x.cvR.name) p.recs) = true
+    case neg => rw [if_neg cN] at zC; exact absurd zC RC.failBindOk
+    rw [if_pos cN] at zC
+    rw [hnd] at cN
+    obtain ⟨_, sD, kD, zD⟩ := bindOk zC
+    obtain ⟨-, hsD⟩ := pureOk kD
+    rw [hsD] at zD
+    have hsp := blockSplit_spec sB.store block blockP (denoteCIList_ext pAB.ext _ _ hblk)
+    cases hbs : Arena.blockSplit block with
+    | none => rw [hbs] at zD; exact absurd zD (fun hc => failOk hc)
+    | some q =>
+    rw [hbs] at zD hsp
+    obtain ⟨cvTs, cs, rs⟩ := q
+    obtain ⟨⟨cvTsP, csP, rsP⟩, hq, hcv, hcs, hrs⟩ := hsp
+    dsimp only at zD
+    have hC : (cvTs.length == p.k && rs.length == p.recs.length &&
+          List.map (fun x => x.fst.name) p.allCtors == List.map (fun x => x.fst.name) cs) =
+        (cvTsP.length == pP.k && rsP.length == pP.recs.length &&
+          List.map (fun x => x.fst.name) pP.allCtors == List.map (fun x => x.fst.name) csP) := by
+      rw [mapM_option_length hcv, mapM_option_length hrs, hk, mapM_option_length hrecs,
+        beq_nhandleList_eq pB.ok.wf
+          (RC.ctors_names (dCtors_ext pAB.ext _ _ (BlockShape.allCtors_spec hsh)))
+          (RC.ctors3_names hcs)]
+    by_cases cC : (cvTs.length == p.k && rs.length == p.recs.length &&
+          List.map (fun x => x.fst.name) p.allCtors == List.map (fun x => x.fst.name) cs) = true
+    · rw [if_pos cC] at zD
+      obtain ⟨-, rfl⟩ := pureOk zD
+      rw [hC] at cC
+      refine ⟨pAB, 0, ?_⟩
+      simp only [ConLeche.targetRecPins, hg0]
+      rw [if_pos hL, if_pos hU, if_pos hS, if_pos cA, if_pos (of_decide_eq_true (RC.nodup_of cN)), hq]
+      dsimp only
+      rw [if_pos cC]
+      rfl
+    · rw [if_neg cC] at zD; exact absurd zD (fun hc => failOk hc)
+  | cons ms rest =>
+    rw [hm] at z5 hmems
+    obtain ⟨mP, msP', hmP, hmsP, -⟩ := mapM_option_cons_inv hmems
+    obtain ⟨y, s6, k6, z6⟩ := bindOk z5
+    obtain ⟨rfl, hs6⟩ := pureOk k6
+    subst hs6
+    have hn0 : denoteN s6.store.ns ms.cvT.name =
+        some ((pP.memberNames.head?).getD ConLeche.Name.anonymous) := by
+      rw [denoteN_ext (denoteCV_name (RC.dMember_inv hmsP).1) p24.ext]
+      simp [ConLeche.BlockShape.memberNames, hmP]
+    generalize hg0 : (pP.memberNames.head?).getD ConLeche.Name.anonymous = n0P at hn0
+    have p06 := p24
+    obtain ⟨want, sB, kB, zB⟩ := bindOk z6
+    obtain ⟨pB, hwant⟩ := RC.recAuxNames_run ms.cvT.name n0P
+      (List.range (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs).length) _ sB want
+      p06.ok hn0 kB
+    have pAB := p06.trans pB
+    have hrecsB := mapM_option_ext (fun x y h => dRec_ext pAB.ext x y h) _ _ hrecs
+    have hgot := recShapeNames_go (RC.filter_recs (fun t => !decide (t < pP.k)) hrecsB)
+    rw [← hk] at hgot
+    have hlen1 := PW.denoteNList_length hgot
+    have hlen2 := PW.denoteNList_length hwant
+    have hlenF : (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs).length =
+        (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs).length := by
+      have := mapM_option_length (RC.filter_recs (fun t => !decide (t < pP.k)) hrecs)
+      rw [← hk] at this ⊢; exact this.symm
+    have hA : (((List.map (fun x => x.cvR.name)
+            (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs)).length == want.length &&
+          want.all (fun x => (List.map (fun x => x.cvR.name)
+            (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs)).contains x)) &&
+          (List.map (fun x => x.cvR.name)
+            (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs)).all
+            (fun x => want.contains x)) =
+        (((List.map (fun x => x.cvR.name) (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs)).length ==
+            (List.map (fun i => n0P.str (toString "rec_" ++ toString (i + 1)))
+              (List.range (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs).length)).length &&
+          (List.map (fun i => n0P.str (toString "rec_" ++ toString (i + 1)))
+              (List.range (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs).length)).all
+            (fun x => (List.map (fun x => x.cvR.name)
+              (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs)).contains x)) &&
+          (List.map (fun x => x.cvR.name) (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs)).all
+            (fun x => (List.map (fun i => n0P.str (toString "rec_" ++ toString (i + 1)))
+              (List.range (List.filter (fun rc => !decide (rc.tgt < pP.k)) pP.recs).length)).contains x)) := by
+      rw [hlen1, hlen2, all_contains_eq pB.ok.wf hgot hwant, all_contains_eq pB.ok.wf hwant hgot,
+        hlenF, hk]
+    by_cases cA : (((List.map (fun x => x.cvR.name)
+            (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs)).length == want.length &&
+          want.all (fun x => (List.map (fun x => x.cvR.name)
+            (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs)).contains x)) &&
+          (List.map (fun x => x.cvR.name)
+            (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs)).all
+            (fun x => want.contains x)) = true
+    case neg => rw [if_neg cA] at zB; exact absurd zB RC.failBindOk
+    rw [if_pos cA] at zB
+    rw [hA] at cA
+    obtain ⟨_, sC, kC, zC⟩ := bindOk zB
+    obtain ⟨-, hsC⟩ := pureOk kC
+    rw [hsC] at zC
+    have hnames := recShapeNames_go hrecsB
+    have hnd := nameNodup_spec pB.ok.wf _ _ hnames
+    by_cases cN : nameNodup (List.map (fun x => x.cvR.name) p.recs) = true
+    case neg => rw [if_neg cN] at zC; exact absurd zC RC.failBindOk
+    rw [if_pos cN] at zC
+    rw [hnd] at cN
+    obtain ⟨_, sD, kD, zD⟩ := bindOk zC
+    obtain ⟨-, hsD⟩ := pureOk kD
+    rw [hsD] at zD
+    have hsp := blockSplit_spec sB.store block blockP (denoteCIList_ext pAB.ext _ _ hblk)
+    cases hbs : Arena.blockSplit block with
+    | none => rw [hbs] at zD; exact absurd zD (fun hc => failOk hc)
+    | some q =>
+    rw [hbs] at zD hsp
+    obtain ⟨cvTs, cs, rs⟩ := q
+    obtain ⟨⟨cvTsP, csP, rsP⟩, hq, hcv, hcs, hrs⟩ := hsp
+    dsimp only at zD
+    have hC : (cvTs.length == p.k && rs.length == p.recs.length &&
+          List.map (fun x => x.fst.name) p.allCtors == List.map (fun x => x.fst.name) cs) =
+        (cvTsP.length == pP.k && rsP.length == pP.recs.length &&
+          List.map (fun x => x.fst.name) pP.allCtors == List.map (fun x => x.fst.name) csP) := by
+      rw [mapM_option_length hcv, mapM_option_length hrs, hk, mapM_option_length hrecs,
+        beq_nhandleList_eq pB.ok.wf
+          (RC.ctors_names (dCtors_ext pAB.ext _ _ (BlockShape.allCtors_spec hsh)))
+          (RC.ctors3_names hcs)]
+    by_cases cC : (cvTs.length == p.k && rs.length == p.recs.length &&
+          List.map (fun x => x.fst.name) p.allCtors == List.map (fun x => x.fst.name) cs) = true
+    · rw [if_pos cC] at zD
+      obtain ⟨-, rfl⟩ := pureOk zD
+      rw [hC] at cC
+      refine ⟨pAB, 0, ?_⟩
+      simp only [ConLeche.targetRecPins, hg0]
+      rw [if_pos hL, if_pos hU, if_pos hS, if_pos cA, if_pos (of_decide_eq_true (RC.nodup_of cN)), hq]
+      dsimp only
+      rw [if_pos cC]
+      rfl
+    · rw [if_neg cC] at zD; exact absurd zD (fun hc => failOk hc)
 
 end ConRon.Bridge.Inductives
