@@ -1,14 +1,14 @@
 /-
 # `ConRon.Bridge.ExprOps.Spine` — Theorem 1 for the spine and telescope twins
 
-DESIGN §8.2's Theorem 1 at the twenty-two twins of `Arena/ExprOps.lean` that
+DESIGN §8.2's Theorem 1 at the twenty-one twins of `Arena/ExprOps.lean` that
 walk an APPLICATION SPINE or a BINDER TELESCOPE rather than the handle DAG:
 `getAppFn` … `resultSort` (`ExprOps.lean:1045`–`:1387`).
 
 ## What makes this group different from `ExprOps/Inst1`
 
 1. **Almost none of them takes a memo, and half take no fuel.**  The
-   recursion is structural on a binder count (`stripPis`, `pisToLams`), on an
+   recursion is structural on a binder count (`stripPis`), on an
    argument list (`mkAppN`, `instSpine`, `instPisAt`) or on a `Nat` cursor
    (`mkAppNFrom`, `bvarRange`), so the theorems are plain inductions over
    that argument and not fuel inductions, and the postcondition frames no
@@ -51,13 +51,13 @@ Everything else reuses `Rel.lean`: `RelE` for `getAppFn`, `piResult`,
 partially applied pure function `fun x => Expr.mkAppN x eargs`, which is how
 a multi-subject twin fits a one-subject relation — the argument list's
 denotation is an ordinary hypothesis), `RelV` for `piArity` and
-`recRulePlain`, `RelEO` for `instPis`, `pisToLams` and `replacePiBody`, and
+`recRulePlain`, `RelEO` for `instPis`, and
 `RelEL` for `getAppArgs` and `bvarRange`.
 
 ## The axiom check, and what it inherits
 
 **Nothing in this file is unproved.**  `#print axioms` at the end reports
-`[propext, Classical.choice, Quot.sound]` for all seventeen twins.  Four of
+`[propext, Classical.choice, Quot.sound]` for all sixteen twins.  Four of
 them — `instPis`, `instPisAt`, `instLamsAt`, `instSpine` — CONSUME
 `ExprOps/Inst1`'s `instantiate1Fast_spec` and inherited its open goals until
 task #97-P3-1's arm split closed them; as that section predicted, they closed
@@ -157,14 +157,13 @@ def RelBP (f : Expr → Option (List (Expr × BinderMeta) × Expr))
 /-! ### The TWO-SUBJECT relations
 
 Half of this group takes a second subject — an argument LIST (`mkAppN`,
-`instPis`, `instPisAt`, `instSpine`) or a second handle (`pisToLams`,
-`replacePiBody`) — and the answer depends on both.  Template rule 4 says
+`instPis`, `instPisAt`, `instSpine`) — and the answer depends on both.  Template rule 4 says
 why the second subject may not be a named `Expr` in the statement: the
 recursion carries it forward, so a `∀ eargs` in the PRECONDITION leaves the
 recursive call's side goal with a metavariable `grind` cannot invent.  So the
 relation quantifies it, exactly as `RelE` quantifies the first.
 
-**All six belong in `Bridge/Rel.lean` group 7.** -/
+**All of them belong in `Bridge/Rel.lean` group 7.** -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — the answer relation with
 an argument LIST as a second subject (`mkAppN`, `mkAppNFrom`, `instSpine`). -/
@@ -192,14 +191,6 @@ def RelEPAA (F : Expr → List Expr → List Expr → Option (List Expr × Expr)
     Frontend.denoteEList st acc = some eacc →
     Frontend.denoteEList st args = some es →
       denoteEP st' r = some (F e eacc es)
-
-/-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — the answer relation with a
-second EXPRESSION HANDLE as second subject and an `Option` handle answer
-(`pisToLams`, `replacePiBody`). -/
-def RelEOB (F : Expr → Expr → Option Expr) (st : EStore) (c b : EIdx)
-    (st' : EStore) (r : Option EIdx) : Prop :=
-  ∀ e eb, denoteE st c = some e → denoteE st b = some eb →
-    denoteEO st' r = some (F e eb)
 
 /-! ### Their eliminators
 
@@ -441,11 +432,11 @@ theorem RelEA.nil {F : Expr → List Expr → Expr} {st st' : EStore} {f : EIdx}
 /-! ### The `Option`-pair answers' inversions and their two step lemmas
 
 The telescope peels (`stripLams`, `stripPis`, `instPisAt`, `instLamsAt`,
-`pisToLams`, `replacePiBody`, and the four `…F`s) all have the SAME two arms
+and the four `…F`s) all have the SAME two arms
 — "the recursive call answered `some p`, so cons this binder onto it" and
 "the recursive call answered `none`, so answer `none`" — and the pure
 function's own clause is an `Option.map`.  Two step lemmas per answer shape
-cover all ten.  They belong in `Bridge/Rel.lean` group 7. -/
+cover all eight.  They belong in `Bridge/Rel.lean` group 7. -/
 
 /-- con-leche: none — what `denoteBP` at `some p` says. -/
 theorem denoteBP_some_inv {st : EStore} {p : List (EIdx × BinderMeta) × EIdx}
@@ -1151,141 +1142,6 @@ theorem bvarRange_spec : ∀ (n : Nat) (s₀ : AState) (mI k : Nat), StateOK s�
          (denote_ext (denote_bvar_of_intern (by arm_hyp)) (by arm_hyp))
          (by arm_hyp))
 
-/-! ## 6. The two binder REBUILDS
-
-`pisToLams` and `replacePiBody` take TWO handle subjects — the telescope and
-the body that replaces its residual — so their relation is `RelEOB`.  They
-differ only in the node they build: `.lam _ _ ⟨.never⟩` for the first,
-`.forallE _ _ ⟨m.pw⟩` for the second (con-leche's own metadata rule,
-`ExprOps.lean:1246-1261`'s "the copied binder metadata keeps only the display
-info"), so there is one step lemma each. -/
-
-/-- con-leche: none — a `some`-answer of an `Option` handle relation denotes.
-Belongs in `Bridge/Rel.lean` group 4. -/
-theorem denoteEO_some_isSome {st : EStore} {j : EIdx} {x : Option Expr}
-    (h : denoteEO st (some j) = some x) : (denoteE st j).isSome = true := by
-  simp only [denoteEO, Option.map_eq_some_iff] at h
-  obtain ⟨e, he, _⟩ := h
-  rw [he]; rfl
-
-/-- con-leche: none — `RelE.isSome` at `RelEOB`: what the enclosing
-`internE`'s `ViewOK` needs of the recursive answer. -/
-@[grind →] theorem RelEOB.isSome {F : Expr → Expr → Option Expr} {st st' : EStore}
-    {c b j : EIdx} (hr : RelEOB F st c b st' (some j))
-    (hc : (denoteE st c).isSome = true) (hb : (denoteE st b).isSome = true) :
-    (denoteE st' j).isSome = true := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hc
-  obtain ⟨eb, heb⟩ := Option.isSome_iff_exists.mp hb
-  exact denoteEO_some_isSome (hr e eb he heb)
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1246-1261 pisToLams — the `k = 0`
-clause: the answer is the replacement body itself. -/
-theorem RelEOB.self_body {F : Expr → Expr → Option Expr} {st st' : EStore}
-    {h body : EIdx} (hdec : ∀ x y, F x y = some y) (hx : Ext st st') :
-    RelEOB F st h body st' (some body) := by
-  intro e eb he heb
-  rw [hdec, denoteEO, denote_ext heb hx]
-  rfl
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1246-1261 pisToLams — the CONS
-clause: peel a `∀`, rebuild the level below, intern a λ over it. -/
-theorem RelEOB.lam_step {F Fb : Expr → Expr → Option Expr}
-    {st s1 s2 : EStore} {h ty rest body b r : EIdx} {m m' : BinderMeta}
-    (hwf : StoreWF st) (hview : st.view h = some (.forallE ty rest m))
-    (hb : RelEOB Fb st rest body s1 (some b))
-    (hx1 : Ext st s1) (hx2 : Ext s1 s2)
-    (hr : denoteE s2 r = denoteEView s2 (.lam ty b m'))
-    (hdec : ∀ x y z w, Fb y z = some w →
-      F (.forallE x y m) z = some (.lam x w m')) :
-    RelEOB F st h body s2 (some r) := by
-  intro e eb he heb
-  obtain ⟨et, erest, rfl, hdt, hdrest⟩ := denote_forallE_inv hwf hview he
-  obtain ⟨w, hw, hdb⟩ := denoteEO_some_inv (hb erest eb hdrest heb)
-  rw [hdec et erest eb w hw, denoteEO, hr, denoteEView,
-    denote_ext (denote_ext hdt hx1) hx2, denote_ext hdb hx2]
-  rfl
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1246-1261 pisToLams — the `none`
-clause. -/
-theorem RelEOB.none_step {F Fb : Expr → Expr → Option Expr} {st s1 : EStore}
-    {h ty rest body : EIdx} {m : BinderMeta} (hwf : StoreWF st)
-    (hview : st.view h = some (.forallE ty rest m))
-    (hdec : ∀ x y z, Fb y z = none → F (.forallE x y m) z = none)
-    (hb : RelEOB Fb st rest body s1 none) : RelEOB F st h body s1 none := by
-  intro e eb he heb
-  obtain ⟨et, erest, rfl, _, hdrest⟩ := denote_forallE_inv hwf hview he
-  have hh := hb erest eb hdrest heb
-  simp only [denoteEO, Option.some.injEq] at hh
-  rw [hdec et erest eb hh.symm, denoteEO]
-
-/-- con-leche: none — `RelEOB` at a fallthrough arm that answers `none`. -/
-theorem RelEOB.none_of_view {F : Expr → Expr → Option Expr} {st : EStore}
-    {h body : EIdx} {v : ENodeView} (hwf : StoreWF st)
-    (hview : st.view h = some v)
-    (hf : ∀ e eb, denoteEView st v = some e → F e eb = none) :
-    RelEOB F st h body st none := by
-  intro e eb he heb
-  rw [denoteE_view_eq hwf hview] at he
-  rw [denoteEO, hf e eb he]
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1246-1261 pisToLams — the
-fallthrough clause at a nonzero count. -/
-theorem pisToLams_of_not_forallE {e eb : Expr} {k : Nat}
-    (h : ∀ ty b m, e ≠ Expr.forallE ty b m) :
-    Expr.pisToLams (k + 1) e eb = none := by
-  cases e with
-  | forallE ty b m => exact absurd rfl (h ty b m)
-  | _ => simp [Expr.pisToLams]
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1246-1261 pisToLams —
-**THEOREM 1** for `pisToLams`: turn the first `k` `∀`-binders into λs over a
-body.  Structural on `k`.  The λ carries con-leche's parse placeholder
-`⟨.never⟩` and not the `∀`'s own `pw` — the deviation con-leche's doc comment
-insists on, visible here because `Expr.pisToLams` is what the relation is
-taken at. -/
-theorem pisToLams_spec : ∀ (k : Nat) (s₀ : AState) (h body : EIdx),
-    StateOK s₀ → (denoteE s₀.store h).isSome = true →
-    (denoteE s₀.store body).isSome = true →
-    ⦃fun s => ⌜s = s₀⌝⦄ pisToLams k h body
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧ s'.memos = s₀.memos ∧
-        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        RelEOB (Expr.pisToLams k) s₀.store h body s'.store r⌝⦄ := by
-  intro k
-  induction k with
-  | zero =>
-    intro s₀ h body hok hden hbody
-    mvcgen [pisToLams]
-    all_goals try bridge_vcs [Expr.pisToLams]
-    all_goals
-      (arm_pre
-       exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
-         RelEOB.self_body (fun _ _ => rfl) (Ext.refl _)⟩)
-  | succ k ih =>
-    intro s₀ h body hok hden hbody
-    mvcgen [pisToLams, ih]
-    all_goals try bridge_vcs [Expr.pisToLams]
-    all_goals
-      (arm_pre
-       first
-       | exact RelEOB.isSome (by arm_hyp) (by grind) (by grind)
-       | exact viewOK_lam (by grind) (by grind)
-       | (refine ⟨by first | arm_hyp | exact ⟨by arm_hyp⟩,
-            by grind only [Ext.trans],
-            by grind only [BMExt.trans, BMExt.refl], by grind, by grind, by grind, ?_⟩
-          first
-          | exact RelEOB.lam_step (Fb := Expr.pisToLams k)
-              (m' := ⟨.never⟩) hok.wf (by arm_hyp) (by arm_hyp) (by arm_hyp)
-              (by arm_hyp) (by arm_hyp)
-              (by intro x y z w hh; simp [Expr.pisToLams, hh])
-          | exact RelEOB.none_step (Fb := Expr.pisToLams k) hok.wf
-              (by arm_hyp) (by intro x y z hh; simp [Expr.pisToLams, hh])
-              (by arm_hyp))
-       | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
-           RelEOB.none_of_view hok.wf (by arm_hyp) (fun e eb he =>
-             pisToLams_of_not_forallE
-               (denoteEView_not_forallE he (by assumption)))⟩)
-
 /-! ## 7. The four walks that fold `instantiate1`
 
 `instSpine`, `instPis`, `instPisAt` and `instLamsAt` call
@@ -1637,7 +1493,7 @@ theorem instLamsAt_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
 
 /-! ## The axiom check
 
-DESIGN §8.2 asks for it on every closed theorem of the tier.  Seventeen
+DESIGN §8.2 asks for it on every closed theorem of the tier.  Sixteen
 twins, and the four denotation transports and two exactness lemmas the
 statements rest on. -/
 
@@ -1654,7 +1510,6 @@ statements rest on. -/
 #print axioms instSpine_spec
 #print axioms bvarRange_spec
 #print axioms bvarRangeSpec_eq_range
-#print axioms pisToLams_spec
 #print axioms denoteEView_shape
 #print axioms not_app_of_tag
 #print axioms denoteEList_snoc

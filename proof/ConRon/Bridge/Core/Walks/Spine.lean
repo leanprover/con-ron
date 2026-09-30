@@ -1,5 +1,5 @@
 /-
-# `ConRon.Bridge.Core.Walks.Spine` — the five non-slot walks that cannot sit on the knot-facing chain
+# `ConRon.Bridge.Core.Walks.Spine` — the non-slot walks that cannot sit on the knot-facing chain
 
 Task #97-P3-Core round 3.  `Bridge/Core/Walks/Owed.lean` left four walks with
 one note between them — *"no import of the `ExprOps` tier is made by
@@ -31,7 +31,7 @@ two oleans both carry it.
 The rule the round takes from it: **`Bridge/Core/**`'s knot-facing chain
 (`Knot → Memo → Arms/* → Induction`) stays free of the `ExprOps` tier and of
 `mvcgen` over `ensureSort`, and the walks that need either live in SIBLING
-modules off it.**  A body walk that eventually needs one of these five will
+modules off it.**  A body walk that eventually needs one of these will
 import this module beside `Owed.lean`; nothing on the chain has to.
 
 **And this module is a workaround, not a fix.**  `Arena/Core.lean` calls
@@ -51,12 +51,11 @@ bridged to the denotation, `denoteCI`'s constructor preservation at
 and the two "index equality IS structural equality" transfers at the name
 store.  Their section notes are below.
 
-Two things are here for the IMPORT's sake rather than the subject's, and §5
-says why the constraint is not about the `ExprOps` tier at all:
-`isPropType_spec`, which needs no `ExprOps` rule and cannot live in
-`Owed.lean` or `Cached.lean` either; and `instantiate1Fast_specE`, which is
-`ExprOps/Inst1.lean`'s spec in answer shape and is what `etaCert_spec`
-(open when this was written, closed since) needed.
+One thing is here for the IMPORT's sake rather than the subject's:
+`instantiate1Fast_specE`, which is `ExprOps/Inst1.lean`'s spec in answer
+shape and is what `etaCert_spec` (open when this was written, closed since)
+needed.  (`isPropType_spec` was the other; con-leche deleted `isPropType`,
+task #105.)
 -/
 import ConRon.Bridge.Core.Walks.Owed
 import ConRon.Bridge.Core.Walks.Cached
@@ -1198,19 +1197,7 @@ theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         (fun ty b m hh => view_tagOf_ne hv (t := ETag.forallE) htag
           (by rw [hh]; rfl)))⟩
 
-/-! ## 5. `isPropType` — here for the import reason, not the subject
-
-The walk needs `lvlEq?_spec` (`Walks/Cached.lean`) and nothing of the
-`ExprOps` tier, so its natural home is `Owed.lean` or `Cached.lean`.  It can
-be in neither: **`mvcgen` over `ensureSort` generates the same derived
-congruence auxiliary that `Core/EnsureSort.lean` does**, and
-`Bridge/Checker/Hyp.lean` imports `EnsureSort` beside `Core.Induction` (which
-reaches `Owed.lean`) while `Bridge/Inductives/Rel.lean` imports it beside
-`Walks/Cached.lean`.  Both were measured, in that order.
-
-It is the smallest walk that CHAINS two knot calls — `r.inferIO` runs on
-`r.annotate`'s ANSWER and `ensureSort`'s `r.whnf` on `r.inferIO`'s — so it is
-the walk that forced `Bridge/Core/Knot.lean`'s six primed slots. -/
+/-! ## 5. A knot slot's answer, forgotten -/
 
 /-- con-leche: none — a knot slot's answer, forgetting the pure run: the
 existential a SECOND slot's precondition asks for.  The one-line bridge
@@ -1220,101 +1207,6 @@ theorem SimE.exists_denote {op : Nat → Nat → Expr → CheckM Expr} {d : Nat}
     {e : Expr} {st : EStore} {r : EIdx} (h : SimE op d e st r) :
     ∃ v, denoteE st r = some v ∧ Expr.WScoped d v := by
   obtain ⟨v, hv, hw, _⟩ := h; exact ⟨v, hv, hw⟩
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1721-1730 isPropType — the pure
-side's whole run in one equation: annotate, infer at the io grade, reduce to
-a sort, compare the level with zero.  **At ONE fuel**, which is what the
-three `…_mono` lifts in the walk's last verification condition produce. -/
-theorem isPropType_of_steps {F d : Nat} {t ty' tyty : Expr} {l : Level}
-    {b : Bool}
-    (h1 : ConLeche.annotateCore mode env F d t = .ok ty')
-    (h2 : ConLeche.inferTypeIO mode env F d ty' = .ok tyty)
-    (h3 : ConLeche.whnf mode env F d tyty = .ok (.sort l))
-    (h4 : Level.isEquiv l Level.zero = some b) :
-    ConLeche.isPropType (ConLeche.pureFns mode env F) env d t = .ok b := by
-  have e1 : (ConLeche.pureFns mode env F).annotate d t = .ok ty' := h1
-  have e2 : (ConLeche.pureFns mode env F).inferIO d ty' = .ok tyty := h2
-  have e3 : (ConLeche.pureFns mode env F).whnf d tyty = .ok (.sort l) := h3
-  simp only [ConLeche.isPropType, ConLeche.ensureSort, e1, e2, e3,
-    ConLeche.liftFueled, h4, bind, Except.bind, pure, Except.pure]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1721-1730 isPropType — **THEOREM 1
-for `isPropType`**: is the annotated type a proposition?  **CLOSED** (round
-3).
-
-It is the smallest walk that CHAINS two knot calls — `r.inferIO` runs on
-`r.annotate`'s ANSWER, and `ensureSort`'s `r.whnf` on `r.inferIO`'s — so it
-is the walk that forced `Bridge/Core/Knot.lean`'s six primed slots (the
-existential/universal shape of task #97-P3-Core-2's finding 5.2, restated
-once at the knot instead of per site).  Eleven verification conditions: two
-`CheckOK`s and two `∃ e, denoteE … ∧ WScoped` for the two chained calls, the
-zero pin, `lvlEq?_spec`'s own `CheckOK`, and the conclusion — which is the
-three-way fuel merge (`max F₁ (max F₂ F₃)` over con-leche's own
-`annotateCore_mono`, `inferTypeIO_mono` and `whnf_mono`) followed by
-`isPropType_of_steps`.
-
-Owed.lean's note said this one waited on "the head-symbol reader
-`typeSortPW`"; **that was wrong** — `typeSortPW` is `annotPwPi`'s reader, and
-`isPropType` reads no head symbol at all.  It needed the knot and the level
-comparison and nothing else. -/
-theorem isPropType_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (ty : EIdx) (t : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store ty = some t)
-    (hw : Expr.WScoped d t) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.isPropType (coreKnot mode fe id fuel) fe d ty
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimBOp
-          (fun F => ConLeche.isPropType (ConLeche.pureFns mode env F) env d t)
-          r⌝⦄ := by
-  have ha := hsim.annotate s₀ d ty t hok hden hw
-  have hi := hsim.inferIO'
-  have hn := hsim.whnf'
-  mvcgen [ConRon.Arena.isPropType, ConRon.Arena.ensureSort,
-    ConRon.Arena.zeroLevel, ha, hi, hn, lvlEq?_spec]
-  case vc2 => bridge_peel; subst_vars; assumption
-  case vc3 =>
-    bridge_peel; subst_vars
-    exact SimE.exists_denote (by assumption)
-  case vc4 => bridge_peel; subst_vars; assumption
-  case vc5 =>
-    bridge_peel; subst_vars
-    rename_i s2 r1 s1 r0 s0 hckA hckI hxtI hsimA hpnI hsimI hxtA hpnA
-    obtain ⟨v, hv, hwv, _⟩ := hsimA
-    exact SimE.exists_denote (hsimI v hv)
-  case vc6 => bridge_peel; subst_vars; exact CheckOK.pins (by assumption)
-  case vc10 => bridge_peel; subst_vars; assumption
-  case vc11 =>
-    bridge_peel; subst_vars
-    rename_i s3 rty s2 rio s1 rw usort rz s0 rb hck2 hck1 hxt21 hsimA hpn12
-      hsimI hxt32 hpn23 hzero hck0 hvsort hxt10 hpn01 hsimW
-    intro s hcks hsts hpns heq
-    mvcgen [ConRon.Arena.liftFueled]
-    case vc2 => intro hf; exact False.elim hf
-    case vc1 =>
-      rename_i a hrbs
-      obtain ⟨lu, lv, hlu, hlv, hrbeq⟩ := heq
-      obtain ⟨ty', hty', hwty', F1, hF1⟩ := hsimA
-      obtain ⟨tio, htio, hwtio, F2, hF2⟩ := hsimI ty' hty'
-      obtain ⟨w, hw', hww, F3, hF3⟩ := hsimW tio htio
-      obtain ⟨l, rfl, hl⟩ := denote_sort_inv hck0.state.wf hvsort hw'
-      rw [hl] at hlu
-      rw [hzero] at hlv
-      have hlu' : lu = l := (Option.some.inj hlu).symm
-      have hlv' : lv = Level.zero := (Option.some.inj hlv).symm
-      have hiso : Level.isEquiv l Level.zero = some a := by
-        rw [← hlu', ← hlv', ← hrbeq]; exact hrbs
-      refine ⟨hcks, ?_, ?_, max F1 (max F2 F3), ?_⟩
-      · rw [hsts]; exact (hxt32.trans hxt21).trans hxt10
-      · rw [hpns, hpn01, hpn12, hpn23]
-      · exact isPropType_of_steps
-          (ConLeche.annotateCore_mono (Nat.le_max_left _ _) hF1)
-          (ConLeche.inferTypeIO_mono
-            (Nat.le_trans (Nat.le_max_left F2 F3) (Nat.le_max_right F1 _)) hF2)
-          (ConLeche.whnf_mono
-            (Nat.le_trans (Nat.le_max_right F2 F3) (Nat.le_max_right F1 _))
-            hF3)
-          hiso
 
 /-! ## 6. The axiom census -/
 
@@ -1332,12 +1224,11 @@ section Census
 #print axioms beq_of_denoteN
 #print axioms name_eq_iff_of_denoteN
 #print axioms instantiate1Fast_specE
-/-! **The five closed walks of this module.** -/
+/-! **The four closed walks of this module.** -/
 #print axioms unfoldableHead_spec
 #print axioms headHint_spec
 #print axioms sameConstHeads_spec
 #print axioms defeqSpine_spec
-#print axioms isPropType_spec
 #print axioms view_len_of_denoteLs
 #print axioms denote_not_forallE
 #print axioms unfoldDefinition_spec

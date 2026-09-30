@@ -131,7 +131,7 @@ def mtcK (mode : CheckMode) (env : Env) (F d : Nat) (rl : RecRule)
             (ConLeche.pureFns mode env F).inferIO d fab >>= fun tfab =>
             (ConLeche.pureFns mode env F).defeq d tmaj tfab >>= fun rd =>
             if rd then
-              ConLeche.proofIrrel (ConLeche.pureFns mode env F) env d fab major >>=
+              ConLeche.proofIrrel (ConLeche.pureFns mode env F) d fab major >>=
                 fun r => if r then pure fab else pure major
             else pure major
           else pure major
@@ -161,11 +161,7 @@ def mtcEta (mode : CheckMode) (env : Env) (F d : Nat) (cvj cvT : ConstantVal)
         if rc then
           ConLeche.structEtaCertWith mode (ConLeche.pureFns mode env F) env d fab
               major tmaj >>= fun r =>
-          if r then pure fab
-          else if caps.etaFields = 0 then
-            ConLeche.proofIrrel (ConLeche.pureFns mode env F) env d fab major >>=
-              fun r' => if r' then pure fab else pure major
-          else pure major
+          if r then pure fab else pure major
         else pure major
       else pure major
     else pure major
@@ -194,7 +190,7 @@ def mtcAnd (mode : CheckMode) (env : Env) (F d : Nat) (rl : RecRule)
           (ConLeche.pureFns mode env F).inferIO d fab >>= fun tfab =>
           (ConLeche.pureFns mode env F).defeq d tmaj tfab >>= fun rd =>
           if rd then
-            ConLeche.proofIrrel (ConLeche.pureFns mode env F) env d fab major >>=
+            ConLeche.proofIrrel (ConLeche.pureFns mode env F) d fab major >>=
               fun r => if r then pure fab else pure major
           else pure major
         else pure major
@@ -333,7 +329,7 @@ theorem mtcK_fire {F d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
     simp only [if_true, h4', h5']
     cases b5
     · rfl
-    · have h6' : ConLeche.proofIrrel (ConLeche.pureFns mode env F) env d
+    · have h6' : ConLeche.proofIrrel (ConLeche.pureFns mode env F) d
           (Expr.mkAppN (.const rl.ctor ust) (tmaj.getAppArgs.take cnP)) x =
           .ok b6 := h6 rfl rfl
       simp only [if_true, h6']
@@ -622,14 +618,14 @@ theorem denoteCaps_fields {st : EStore} {c : IIndCaps} {dc : IndCaps}
       dc.sortZ = c.sortZ := by
   simp only [Frontend.denoteCaps] at h
   split at h
-  · rename_i ct hct; cases h; exact ⟨rfl, hct, rfl, rfl, rfl⟩
+  · rename_i ct _ _ hct _ _; cases h; exact ⟨rfl, hct, rfl, rfl, rfl⟩
   · simp at h
 
-/-- con-leche: ConLeche/Kernel/Core.lean:618-658 majorToCtor — the η branch
-past its guards, as a function of the three verdicts. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:630-654 majorToCtor — the η branch
+past its guards, as a function of the two verdicts. -/
 theorem mtcEta_fire {F d : Nat} {cvj cvT : ConstantVal} {caps : IndCaps}
     {T T' : ConLeche.Name} {x tm tmaj : Expr} {ust : List Level}
-    {b3 b4 b5 : Bool}
+    {b3 b4 : Bool}
     (e1 : ConLeche.inferTypeIO mode env F d x = .ok tm)
     (e2 : ConLeche.whnf mode env F d tm = .ok tmaj)
     (hgf : tmaj.getAppFn = .const T' ust)
@@ -649,14 +645,9 @@ theorem mtcEta_fire {F d : Nat} {cvj cvT : ConstantVal} {caps : IndCaps}
     (h4 : b3 = true → ConLeche.structEtaCertWithFueled mode env F d
       (Expr.mkAppN (.const caps.etaCtor ust)
         (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs x caps.etaFields)) x tmaj
-      = .ok b4)
-    (h5 : b3 = true → b4 = false → caps.etaFields = 0 →
-      ConLeche.proofIrrelFueled mode env F d
-        (Expr.mkAppN (.const caps.etaCtor ust)
-          (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs x caps.etaFields)) x
-        = .ok b5) :
+      = .ok b4) :
     mtcEta mode env F d cvj cvT caps T x = .ok
-      (if b3 && (b4 || (decide (caps.etaFields = 0) && b5)) then
+      (if b3 && b4 then
         Expr.mkAppN (.const caps.etaCtor ust)
           (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs x caps.etaFields)
       else x) := by
@@ -675,19 +666,7 @@ theorem mtcEta_fire {F d : Nat} {cvj cvT : ConstantVal} {caps : IndCaps}
           (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs x caps.etaFields)) x tmaj
         = .ok b4 := h4 rfl
     simp only [if_true, h4']
-    cases b4
-    · simp only [Bool.false_eq_true, if_false]
-      by_cases hz : caps.etaFields = 0
-      · have h5' : ConLeche.proofIrrel (ConLeche.pureFns mode env F) env d
-            (Expr.mkAppN (.const caps.etaCtor ust)
-              (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs x caps.etaFields)) x
-            = .ok b5 := h5 rfl rfl hz
-        rw [if_pos hz]
-        simp only [h5']
-        cases b5 <;> simp [hz, pure, Except.pure]
-      · rw [if_neg hz]
-        simp [hz, pure, Except.pure]
-    · simp [pure, Except.pure]
+    cases b4 <;> simp [pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:659-721 majorToCtor — the `And`
 branch past its guards, as a function of the three verdicts. -/
@@ -737,7 +716,7 @@ theorem mtcAnd_fire {F d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
     simp only [if_true, h4', h5']
     cases b5
     · rfl
-    · have h6' : ConLeche.proofIrrel (ConLeche.pureFns mode env F) env d
+    · have h6' : ConLeche.proofIrrel (ConLeche.pureFns mode env F) d
           (Expr.mkAppN (.const rl.ctor ust)
             (tmaj.getAppArgs ++ [.proj T 0 x, .proj T 1 x])) x = .ok b6 := h6 rfl rfl
       simp only [if_true, h6']
@@ -747,8 +726,8 @@ theorem mtcAnd_fire {F d : Nat} {rl : RecRule} {cvj : ConstantVal} {cnP : Nat}
 rescue** (`to_cnstr_when_structure`): the constructor of the major's
 projections, fabricated at an instantiated-never-`Prop` structure, certified
 by the synthetic spine's telescope (a family, gated on `mode.certs`) and the
-structure-η certificate, or — at the 0-field basis `PUnit` — proof
-irrelevance. -/
+structure-η certificate.  (con-leche's PUNIT, task #105, removed the 0-field
+proof-irrelevance rescue.) -/
 theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
     (s₁ : AState) (d : Nat) (rl' : RecRule) (major : EIdx) (x : Expr)
@@ -788,10 +767,6 @@ theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                 if ← ConRon.Arena.structEtaCertWith mode (coreKnot mode fe id fuel) fe d
                     fab major tmaj then
                   pure fab
-                else if icaps.etaFields = 0 then do
-                  if ← ConRon.Arena.proofIrrel (coreKnot mode fe id fuel) fe d fab major
-                  then pure fab
-                  else pure major
                 else pure major
               else pure major
             else pure major
@@ -840,13 +815,7 @@ theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     have htl := denoteEList_len htargs
     refine triple_seq (capsNeverZero_spec s3 icvT.levelParams ust icaps
       dcvT.levelParams lsu dcaps hok3 (denoteNListE_ext hx13 _ _ hlpsT) hlsu
-      (by
-        simp only [Frontend.denoteCaps] at hcaps ⊢
-        rw [denoteN_ext hctor hx13]
-        split at hcaps
-        · rename_i ct hct
-          rw [hctor] at hct; cases hct; exact hcaps
-        · simp at hcaps)) ?_
+      (denoteCaps_ext hcaps hx13)) ?_
     rintro nz s7 ⟨hok7, hst7, hp7, hnz⟩
     have hx37 : Ext s3.store s7.store := by rw [hst7]; exact Ext.refl _
     have hcond : (T' = T ∧ targs.length = icaps.etaParams ∧
@@ -890,7 +859,7 @@ theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
       rintro gd s11 ⟨hok11, hst11, hp11, hgd⟩
       have hx111 : Ext s₁.store s11.store := by rw [hst11]; exact hx110
       have hp111 : s11.pins = s₁.pins := hp11.trans hp110
-      have hTs : ∀ {b3 b4 b5 : Bool} {G : Nat}, max F1 F2 ≤ G →
+      have hTs : ∀ {b3 b4 : Bool} {G : Nat}, max F1 F2 ≤ G →
           (gd = true) →
           ConLeche.iotaCertsFueled mode env G d false
             (dcvj.type.instantiateLevelParams dcvj.levelParams lsu)
@@ -899,21 +868,16 @@ theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             (Expr.mkAppN (.const dcaps.etaCtor lsu)
               (ConLeche.etaFabArgsE env Tn lsu vtmaj.getAppArgs x dcaps.etaFields))
             x vtmaj = .ok b4) →
-          (b3 = true → b4 = false → dcaps.etaFields = 0 →
-            ConLeche.proofIrrelFueled mode env G d
-              (Expr.mkAppN (.const dcaps.etaCtor lsu)
-                (ConLeche.etaFabArgsE env Tn lsu vtmaj.getAppArgs x dcaps.etaFields))
-              x = .ok b5) →
           mtcEta mode env G d dcvj dcvT dcaps Tn x = .ok
-            (if b3 && (b4 || (decide (dcaps.etaFields = 0) && b5)) then
+            (if b3 && b4 then
               Expr.mkAppN (.const dcaps.etaCtor lsu)
                 (ConLeche.etaFabArgsE env Tn lsu vtmaj.getAppArgs x dcaps.etaFields)
             else x) := by
-        intro b3 b4 b5 G hG hgt h3 h4 h5
+        intro b3 b4 G hG hgt h3 h4
         obtain ⟨e1, e2⟩ := hA G hG
         obtain ⟨hTT, hr⟩ := hgP
         subst hTT
-        exact mtcEta_fire e1 e2 hgf ⟨rfl, hr⟩ (hgd ▸ hgt) h3 h4 h5
+        exact mtcEta_fire e1 e2 hgf ⟨rfl, hr⟩ (hgd ▸ hgt) h3 h4
       by_cases hgt : gd = true
       · rw [if_pos hgt]
         have hgP' := hgd ▸ hgt
@@ -960,59 +924,31 @@ theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           by_cases hb4 : b4 = true
           · rw [if_pos hb4]
             subst hb4
-            have hv := hTs (b3 := true) (b4 := true) (b5 := false)
+            have hv := hTs (b3 := true) (b4 := true)
               (G := max (max F1 F2) (max F3 F4)) (by omega) hgt
               (iotaCertsFueled_mono (by omega) hF3)
               (fun _ => structEtaCertWithFueled_mono (by omega) hF4)
-              (fun _ h => by cases h)
             mvcgen
             bridge_peel; subst_vars
             exact ⟨hok14, hx114, hp114, _, hfab14, hwfab, _, hv⟩
           · rw [if_neg hb4]
             have hb4f : b4 = false := by simpa using hb4
             subst hb4f
-            by_cases hz : icaps.etaFields = 0
-            · rw [if_pos hz]
-              have hz' : dcaps.etaFields = 0 := by rw [hef]; exact hz
-              refine triple_seq (proofIrrel_spec hsim s14 d fab major _ x hok14
-                hfab14 (denote_ext hmaj hx114) hwfab hw) ?_
-              rintro ir s15 ⟨hok15, hx15, hp15, F5, hF5⟩
-              have hv := hTs (b3 := true) (b4 := false) (b5 := ir)
-                (G := max (max F1 F2) (max F3 (max F4 F5))) (by omega) hgt
-                (iotaCertsFueled_mono (by omega) hF3)
-                (fun _ => structEtaCertWithFueled_mono (by omega) hF4)
-                (fun _ _ _ => proofIrrelFueled_mono (by omega) hF5)
-              have hfab15 := denote_ext hfab14 hx15
-              have hmaj15 := denote_ext hmaj (hx114.trans hx15)
-              cases ir
-              · simp [hz'] at hv
-                mvcgen
-                bridge_peel; subst_vars
-                exact ⟨hok15, hx114.trans hx15, hp15.trans hp114, x, hmaj15, hw, _, hv⟩
-              · rw [if_pos (by simp [hz'] : (true && (false ||
-                  (decide (dcaps.etaFields = 0) && true))) = true)] at hv
-                mvcgen
-                bridge_peel; subst_vars
-                exact ⟨hok15, hx114.trans hx15, hp15.trans hp114, _, hfab15, hwfab,
-                  _, hv⟩
-            · rw [if_neg hz]
-              have hz' : dcaps.etaFields ≠ 0 := by rw [hef]; exact hz
-              have hv := hTs (b3 := true) (b4 := false) (b5 := false)
-                (G := max (max F1 F2) (max F3 F4)) (by omega) hgt
-                (iotaCertsFueled_mono (by omega) hF3)
-                (fun _ => structEtaCertWithFueled_mono (by omega) hF4)
-                (fun _ _ h => absurd h hz')
-              simp at hv
-              mvcgen
-              bridge_peel; subst_vars
-              exact ⟨hok14, hx114, hp114, x, denote_ext hmaj hx114, hw, _, hv⟩
+            have hv := hTs (b3 := true) (b4 := false)
+              (G := max (max F1 F2) (max F3 F4)) (by omega) hgt
+              (iotaCertsFueled_mono (by omega) hF3)
+              (fun _ => structEtaCertWithFueled_mono (by omega) hF4)
+            simp at hv
+            mvcgen
+            bridge_peel; subst_vars
+            exact ⟨hok14, hx114, hp114, x, denote_ext hmaj hx114, hw, _, hv⟩
         · rw [if_neg hc1t]
           have hc1f : c1 = false := by simpa using hc1t
           subst hc1f
-          have hv := hTs (b3 := false) (b4 := false) (b5 := false)
+          have hv := hTs (b3 := false) (b4 := false)
             (G := max (max F1 F2) F3) (by omega) hgt
             (iotaCertsFueled_mono (by omega) hF3)
-            (fun h => by cases h) (fun h => by cases h)
+            (fun h => by cases h)
           mvcgen
           bridge_peel; subst_vars
           exact ⟨hok13, hx113, hp113, x, denote_ext hmaj hx113, hw, _, hv⟩

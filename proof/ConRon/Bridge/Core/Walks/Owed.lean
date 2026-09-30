@@ -27,7 +27,8 @@ against a walk that has no statement.
 ## 0a. Round 3: six of the sixteen are CLOSED, and five of them moved out
 
 Task #97-P3-Core round 3 closed `unfoldableHead`, `headHint`,
-`sameConstHeads`, `defeqSpine`, `isPropType` and `defEqList`.  **`defEqList`
+`sameConstHeads`, `defeqSpine`, `isPropType` (deleted with con-leche's
+`isPropType`, task #105) and `defEqList`.  **`defEqList`
 is the only one still here** (§4): the other five live in
 `Bridge/Core/Walks/Spine.lean`, a sibling module off the knot-facing import
 chain, because a module that imports the `ExprOps` tier or `mvcgen`s over
@@ -492,7 +493,7 @@ theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 /-! ## 5. The annotation pass's three
 
 `Bridge/Core/Arms/Annotate.lean`'s `annotateBody_spec` names `annotPwPi` and
-`annotPwLam`; `isPropType` is under both. -/
+`annotPwLam`. -/
 
 /-! `annotPwPi_spec` **moved to `Bridge/Core/Walks/PropRead.lean`** in round 5
 and is CLOSED there, over that module's `typeSortPW`. -/

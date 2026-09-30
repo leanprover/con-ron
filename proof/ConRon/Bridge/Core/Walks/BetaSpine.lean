@@ -224,6 +224,16 @@ throw). -/
 CLOSED there): the held head is not an application (`hnapp`, a spine head) and
 the count is the whole vector (`hn`), both discharged at the call below. -/
 
+
+/-- con-leche: ConLeche/Model/Inductives/TargetCallWalk.lean:198
+getAppFn_ne_app — a spine head is never an application (a local copy: the
+cited module sits deep in the model tier). -/
+theorem getAppFn_not_app : ∀ (e f a : Expr), e.getAppFn ≠ .app f a := by
+  intro e
+  induction e with
+  | app g b ihg ihb => intro f a; exact ihg f a
+  | _ => intro f a h; exact nomatch h
+
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:224 iotaRec_head_not_const —
 **the iota step `whnfApp` runs at a non-λ head**: `iotaRecAt` when the
 spine's head handle is a constant, else `none` off the tag (con-leche's
@@ -255,7 +265,7 @@ theorem whnfApp_iotaStep_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
       exact ExprOps.denoteEList_snoc hda _ _ hdv
     have h := iotaRecAt_spec hμ henv hsim s₀ d hd (vargs.push a) (vargs.push a).size
       V.getAppFn (V.getAppArgs ++ [A]) hok hdh
-      (fun f a => ConLeche.Expr.getAppFn_not_app V f a) rfl hdx (by rw [happ]; exact hw)
+      (fun f a => getAppFn_not_app V f a) rfl hdx (by rw [happ]; exact hw)
     rw [happ] at h
     exact h
   · rw [if_neg htc]

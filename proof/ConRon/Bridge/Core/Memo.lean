@@ -844,6 +844,22 @@ theorem tag_view_bind_triple {α : Type} {s₀ : AState} {i : EIdx} {v : ENodeVi
   · rw [if_neg ht, ← he (by rw [← EStore.tagOf_of_view hv]; simpa using ht)]
     exact h
 
+/-- con-leche: none — `tag_view_bind_triple` when the tag test's `else`
+branch is NOT the view match's own fallthrough (the `.proj` arm of
+`annotateBody`, task #105: a dangling view and a non-constant head fail with
+different errors): each branch is given its own triple. -/
+theorem tag_view_bind_triple_else {α : Type} {s₀ : AState} {i : EIdx}
+    {v : ENodeView} {t : UInt32} (hv : s₀.store.view i = some v)
+    {f : ENodeView → AM α} {e : AM α} {Q : α → AState → Prop}
+    (h : ⦃fun s => ⌜s = s₀⌝⦄ f v ⦃⇓? r s' => ⌜Q r s'⌝⦄)
+    (he : v.tagOf ≠ t → ⦃fun s => ⌜s = s₀⌝⦄ e ⦃⇓? r s' => ⌜Q r s'⌝⦄) :
+    ⦃fun s => ⌜s = s₀⌝⦄ (if i.tag == t then (view i >>= f) else e)
+      ⦃⇓? r s' => ⌜Q r s'⌝⦄ := by
+  by_cases ht : (i.tag == t) = true
+  · rw [if_pos ht]; exact view_bind_triple hv h
+  · rw [if_neg ht]
+    exact he (by rw [← EStore.tagOf_of_view hv]; simpa using ht)
+
 /-- con-leche: none — **sequencing at a pinned state**: a triple for `x`
 whose postcondition names its facts, and one for the continuation at every
 state those facts hold of, make a triple for `x >>= f`.  This is what lets
