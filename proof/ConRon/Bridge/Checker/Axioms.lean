@@ -154,8 +154,6 @@ namespace ConRon.Bridge
 -- `reservedBasisNames_run`'s no-accumulator shape
 #print axioms natOpNames_run
 #print axioms natDivModNames_run
-#print axioms litGuardNames_run
-#print axioms reservedRecName_run
 #print axioms natOpDeps_run
 
 -- the pinned-block comparison's two closed entry points (task
@@ -169,7 +167,7 @@ namespace ConRon.Bridge
 
 -- the level tier's readers and inversions, and the whole lockstep `canon`
 -- comparison (task #97-P3-Checker round 4)
-#print axioms viewE_run
+#print axioms view_run
 #print axioms viewL_run
 #print axioms viewLs_run
 #print axioms denoteL_view_eq

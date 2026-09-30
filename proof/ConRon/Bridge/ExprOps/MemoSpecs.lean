@@ -74,46 +74,6 @@ table. -/
   show MemoOK f (s.memos.abs1C.insert k r) s.store
   exact MemoOK.insert hm rfl hk hr
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:562-564 ResetMemoInv — the same
-for `resetSet`. -/
-@[spec high] theorem resetSet_specI (s₀ : AState) (k : EIdx × Nat) (r : EIdx)
-    (hk : (denoteE s₀.store k.1).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ resetSet k r
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧
-        s'.memos = { s₀.memos with resetC := s₀.memos.resetC.insert k r } ∧
-        ∀ f : Nat → Expr → Expr, MemoOK f s₀.memos.resetC s₀.store →
-          RelE (f k.2) s₀.store k.1 s₀.store r →
-            MemoOK f s'.memos.resetC s'.store⌝⦄ := by
-  unfold resetSet
-  mvcgen
-  rename_i s hs _s1
-  subst hs
-  refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
-  show MemoOK f (s.memos.resetC.insert k r) s.store
-  exact MemoOK.insert hm rfl hk hr
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:983-985 RenameMemoInv — the same
-for `renameSet`.  Here the internalisation is load-bearing twice over: the
-renaming `fn : Name → Name` is the module's one higher-order parameter, and
-as a theorem parameter it is exactly what `mvcgen` cannot guess. -/
-@[spec high] theorem renameSet_specI (s₀ : AState) (k : EIdx × Nat) (r : EIdx)
-    (hk : (denoteE s₀.store k.1).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ renameSet k r
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧
-        s'.memos = { s₀.memos with renameC := s₀.memos.renameC.insert k r } ∧
-        ∀ f : Nat → Expr → Expr, MemoOK f s₀.memos.renameC s₀.store →
-          RelE (f k.2) s₀.store k.1 s₀.store r →
-            MemoOK f s'.memos.renameC s'.store⌝⦄ := by
-  unfold renameSet
-  mvcgen
-  rename_i s hs _s1
-  subst hs
-  refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
-  show MemoOK f (s.memos.renameC.insert k r) s.store
-  exact MemoOK.insert hm rfl hk hr
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2546-2550 InstLPMemoInv — the same
 for `instLPSet`. -/
 @[spec high] theorem instLPSet_specI (s₀ : AState) (k : EIdx × Nat) (r : EIdx)
@@ -454,14 +414,12 @@ abstraction walks intern a fresh `bvar` rather than rebuilding, so they need
 
 `Bridge/Rel.lean`'s group 7 has `RelE.of_view` and the five per-site instances
 for the BRANCHING constructors (`app`, `lam`, `forallE`, `letE`, `proj`).
-Three walks of this tier rebuild a constructor that group 7 does not cover:
-`resetMeta` and `renameConsts` descend into a `fvar`'s annotation, and
-`instLPGo` rebuilds a `sort` and a `const`.  These are the same lemma at those
-three constructors, and they belong beside the other five. -/
+`instLPGo` rebuilds constructors that group 7 does not cover — a `fvar`'s
+annotation, a `sort` and a `const`.  These are the same lemma at those three
+constructors, and they belong beside the other five. -/
 
 /-- con-leche: none — `RelE.of_view` at `fvar`, whose child is the type
-ANNOTATION (`resetMeta`, `renameConsts` and `instantiateLevelParams` are the
-three pure functions that descend into it). -/
+ANNOTATION (`instantiateLevelParams` descends into it). -/
 theorem RelE.fvar {F Ft : Expr → Expr} {st st' : EStore} {h ty rt r : EIdx}
     {idx : Nat} (hwf : StoreWF st)
     (hview : st.view h = some (.fvar idx ty))

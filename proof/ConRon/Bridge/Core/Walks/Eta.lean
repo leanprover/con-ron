@@ -33,57 +33,6 @@ variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
 /-! ## 1. Small facts about the denotations -/
 
-/-- con-leche: none — a copy of `Bridge/Checker/Canon.lean`'s
-`denoteNList_inj` (that module sits above this tier: `Checker/Hyp.lean`
-imports `Core/Induction.lean`). -/
-theorem denoteNList_injC {st : EStore} (hwf : StoreWF st) :
-    ∀ (as bs : List NIdx) (xs : List ConLeche.Name),
-      Frontend.denoteNList st.ns as = some xs →
-      Frontend.denoteNList st.ns bs = some xs → as = bs := by
-  obtain ⟨rk, hrk⟩ := hwf
-  intro as
-  induction as with
-  | nil =>
-    intro bs xs ha hb
-    simp only [Frontend.denoteNList, Option.some.injEq] at ha
-    subst ha
-    cases bs with
-    | nil => rfl
-    | cons b bt =>
-      simp only [Frontend.denoteNList] at hb
-      cases hbh : denoteN st.ns b with
-      | none => rw [hbh] at hb; simp at hb
-      | some y =>
-        cases hbt : Frontend.denoteNList st.ns bt with
-        | none => rw [hbh, hbt] at hb; simp at hb
-        | some ys => rw [hbh, hbt] at hb; simp at hb
-  | cons a at_ ih =>
-    intro bs xs ha hb
-    simp only [Frontend.denoteNList] at ha
-    cases hah : denoteN st.ns a with
-    | none => rw [hah] at ha; simp at ha
-    | some x =>
-      cases hat : Frontend.denoteNList st.ns at_ with
-      | none => rw [hah, hat] at ha; simp at ha
-      | some xt =>
-        rw [hah, hat] at ha
-        simp only [Option.some.injEq] at ha
-        subst ha
-        cases bs with
-        | nil => simp only [Frontend.denoteNList] at hb; simp at hb
-        | cons b bt =>
-          simp only [Frontend.denoteNList] at hb
-          cases hbh : denoteN st.ns b with
-          | none => rw [hbh] at hb; simp at hb
-          | some y =>
-            cases hbt : Frontend.denoteNList st.ns bt with
-            | none => rw [hbh, hbt] at hb; simp at hb
-            | some yt =>
-              rw [hbh, hbt] at hb
-              simp only [Option.some.injEq, List.cons.injEq] at hb
-              obtain ⟨rfl, rfl⟩ := hb
-              rw [denoteN_inj hrk.nsWF hah hbh, ih bt _ hat hbt]
-
 /-- con-leche: none — two denoting name-handle lists are equal exactly when
 their denotations are (the store interns names injectively). -/
 theorem denoteNList_eq_iff {st : EStore} (hwf : StoreWF st)
@@ -92,7 +41,7 @@ theorem denoteNList_eq_iff {st : EStore} (hwf : StoreWF st)
     (hb : Frontend.denoteNList st.ns bs = some ys) : as = bs ↔ xs = ys := by
   constructor
   · rintro rfl; exact Option.some.inj (ha.symm.trans hb)
-  · rintro rfl; exact denoteNList_injC hwf as bs xs ha hb
+  · rintro rfl; exact denoteNList_inj hwf as bs xs ha hb
 
 /-- con-leche: none — a snoc of denoting handles denotes the snoc. -/
 theorem denoteEList_snoc {st : EStore} :
@@ -643,7 +592,7 @@ theorem etaProjs_WScoped {d : Nat} {Tn : ConLeche.Name} {ls : List Level}
 
 section Census
 
-#print axioms denoteNList_injC
+#print axioms denoteNList_inj
 #print axioms relBP_isSome
 #print axioms optCI_rec_some
 #print axioms optCI_rec_none

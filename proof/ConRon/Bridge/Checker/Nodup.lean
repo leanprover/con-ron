@@ -65,26 +65,6 @@ theorem FreshAt.step {e : Env} {c : ConstantInfo} {ns : List Name}
   rw [Env.find?_cons, if_neg (fun he => hnd.1 (by rw [he]; exact hn))]
   exact hfr n (List.mem_cons_of_mem _ hn)
 
-/-- con-leche: ConLeche/Verify/Cached/PushChain.lean FreshNames.cons_of — fresh
-at the extended environment, and the head fresh at the base, is fresh at the
-base as a whole list. -/
-theorem FreshAt.cons_of {e : Env} {c : ConstantInfo} {ns : List Name}
-    (hc : e.find? c.name = none) (h : FreshAt ⟨c :: e.consts⟩ ns) :
-    FreshAt e (c.name :: ns) := by
-  obtain ⟨hnd, hfr⟩ := h
-  have hne : ∀ n ∈ ns, c.name ≠ n ∧ e.find? n = none := by
-    intro n hn
-    have := hfr n hn
-    rw [Env.find?_cons] at this
-    by_cases he : c.name = n
-    · rw [if_pos he] at this; exact nomatch this
-    · rw [if_neg he] at this; exact ⟨he, this⟩
-  refine ⟨List.nodup_cons.mpr ⟨fun hm => (hne _ hm).1 rfl, hnd⟩, ?_⟩
-  intro n hn
-  rcases List.mem_cons.mp hn with rfl | hn
-  · exact hc
-  · exact (hne n hn).2
-
 /-! ## The pinned blocks -/
 
 /-- con-leche: ConLeche/Semantics/Decl.lean:57 BasisInstallRun — the pinned

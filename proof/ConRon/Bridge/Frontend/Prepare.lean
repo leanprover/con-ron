@@ -900,7 +900,7 @@ theorem ucBlockStep_denote {st : EStore} {ci : IConstantInfo}
 The frame is `ParseStep` and not `s' = s`: `toConstantVal`'s `.projInfo` arm
 interns `Sort 1` (`Arena/Env.lean:224-230` — round 4's finding 16), so the
 store grows at a block that holds a projection table, and `UCSeen.mono`,
-`denoteNListE_ext` and `denoteCIList_ext` are what carry the induction's data
+`denoteNListE_ext` and `denoteCIList_mono` are what carry the induction's data
 across that. -/
 theorem usedConstsBlock_run :
     ∀ (cs : List IConstantInfo) {csP : List ConLeche.ConstantInfo}
@@ -961,7 +961,7 @@ theorem usedConstsBlock_run :
           intro sn2 ac2 t hs2 ha2 hr2
           obtain ⟨hstep2, hs3, ha3⟩ :=
             ih hstep1.ok (by rw [hstep1.scratch]; exact hoff)
-              (denoteCIList_ext hstep1.ext _ _ h2) hs2 ha2 hr2
+              (denoteCIList_mono hstep1.ext _ _ h2) hs2 ha2 hr2
           exact ⟨hstep1.trans hstep2,
             by simpa only [List.foldl_cons] using hs3,
             by simpa only [List.foldl_cons] using ha3⟩

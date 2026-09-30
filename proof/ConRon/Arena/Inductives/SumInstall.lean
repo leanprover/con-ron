@@ -12,8 +12,7 @@ rules.  The Rust twin is `arena::inductives::sum_install`.
 * **The `…F` twins collapse into these** (task #97c's deviation 1), as in
   `StructInstall.lean`: `ConLeche/Kernel/Inductives/SumInstallF.lean`'s
   declarations are the same functions over an `FEnv`, and
-  `checkStructFieldSortsIFA` is one of them over `Array`.  The names live on
-  as `abbrev`s in `Arena/Inductives/SumInstallF.lean`.
+  `checkStructFieldSortsIFA` is one of them over `Array`.
 * **`sumRules` takes `fe : IFEnv`, not `find?`**: con-leche abstracts the
   lookup so that the pure and the indexed tier share one body; the arena has
   one environment, and a `find?` passed as an argument is a closure
@@ -26,7 +25,7 @@ rules.  The Rust twin is `arena::inductives::sum_install`.
 * **The fields' sorts are `List LIdx`** — `Arena/Inductives/StructParts.lean`'s
   note.
 -/
-import ConRon.Arena.Inductives.StructInstallF
+import ConRon.Arena.Inductives.StructInstall
 import ConRon.Arena.Inductives.Positivity
 
 namespace ConRon.Arena

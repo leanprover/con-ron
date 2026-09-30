@@ -46,9 +46,7 @@ import ConRon.Arena.PromoteExt
 import ConRon.Arena.DeclCheck
 import ConRon.Arena.Inductives.StructParts
 import ConRon.Arena.Inductives.StructInstall
-import ConRon.Arena.Inductives.StructInstallF
 import ConRon.Arena.Inductives.SumInstall
-import ConRon.Arena.Inductives.SumInstallF
 import ConRon.Arena.Inductives.FieldTele
 import ConRon.Arena.Inductives.Positivity
 import ConRon.Arena.Inductives.BlockParts

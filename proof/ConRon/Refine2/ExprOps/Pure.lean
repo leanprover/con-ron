@@ -904,19 +904,6 @@ theorem leaf_mem_refines {bl : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)}
   have hr := leaf_mem_from_refines h
   simpa using hr
 
-/-! ## Handle equality -/
-
-theorem expr_ptr_beq_refines {a b : arena.handle.EIdx} {r : Bool}
-    (h : arena.expr_ops.expr_ptr_beq a b = ok r) :
-    exprPtrBEq (absEIdx a) (absEIdx b) = r := by
-  rw [arena.expr_ops.expr_ptr_beq] at h
-  have hbv : r = decide (a = b) := eidx_eq2 a b r trivial trivial h
-  rw [exprPtrBEq, hbv]
-  by_cases hc : a = b
-  · subst hc; simp
-  · have hne : absEIdx a ≠ absEIdx b := fun hcc => hc (absEIdx_inj hcc)
-    simp [hc, hne]
-
 /-! ## The level-list substitution
 
 The one pair of this file that needs a well-formedness hypothesis: the

@@ -91,7 +91,7 @@
 //! claimed before `f` was and is finished by the worker that claimed it.
 //! `pool_reports_the_first_failure_at_every_jobs` is the test, at 1, 2, 3, 4
 //! and 8 workers on a list whose records 2 and 4 both fail;
-//! `pool_is_check_pending_worker_at_every_jobs` checks that phase B's verdict
+//! `pool_is_the_one_worker_walk_at_every_jobs` checks that phase B's verdict
 //! is the one-worker walk's; `parallel_all_partitions_the_indices` checks the
 //! claim itself on a state that records its claims.
 //!
@@ -496,11 +496,11 @@ mod tests {
     }
 
     /// **The trusted claim, as a test**: at every worker count the pool
-    /// returns what the verified one-worker walk
-    /// `checker::check_pending_worker` returns — the same verdict, and on a
+    /// returns what the verified one-worker walk (`checker::check_pending_list`
+    /// from one `checker::worker_state`) returns — the same verdict, and on a
     /// failure the same fold position.
     #[test]
-    fn pool_is_check_pending_worker_at_every_jobs() {
+    fn pool_is_the_one_worker_walk_at_every_jobs() {
         let lists: Vec<Vec<bool>> = vec![
             vec![true, true, false, true, false, true],
             vec![true; 9],
@@ -512,7 +512,8 @@ mod tests {
         let mode = CheckMode::Verified;
         for oks in lists {
             let (tier, pins, pend) = fixture(&oks);
-            let seq = checker::check_pending_worker(&tier, &mode, &fe, &pins, &pend);
+            let mut st = checker::worker_state(&pins);
+            let seq = checker::check_pending_list(&tier, &mut st, &mode, &fe, &pend, 0);
             for workers in [1usize, 2, 3, 4, 8] {
                 let mut obs = Silent;
                 let lock = Mutex::new(&mut obs);

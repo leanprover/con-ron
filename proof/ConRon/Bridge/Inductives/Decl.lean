@@ -68,7 +68,7 @@ theorem indParamsOk_tail {nP : Nat} {rest : List IConstantInfo}
     exact ⟨hstep, by rw [hr]; simp⟩
   | false =>
     simp only [Bool.false_eq_true, if_false] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, by simp⟩
 
 theorem indParamsOk_spec (nP : Nat) (block : List IConstantInfo)
@@ -81,7 +81,7 @@ theorem indParamsOk_spec (nP : Nat) (block : List IConstantInfo)
     simp only [Frontend.denoteCIList, Option.some.injEq] at hd
     subst hd
     simp only [Arena.indParamsOk] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, rfl⟩
   | cons ci rest ih =>
     intro s₀ s' r hok hd hrun
@@ -106,11 +106,11 @@ theorem indParamsOk_spec (nP : Nat) (block : List IConstantInfo)
             | some capsP =>
               rw [hcv, hcp] at hc
               obtain rfl := Option.some.inj hc
-              obtain ⟨o, s₂, h3, h4⟩ := bindOk hrun
+              obtain ⟨o, s₂, h3, h4⟩ := AM.bind_ok hrun
               obtain ⟨hstep1, ho⟩ :=
                 piSortTeleLen?_spec Arena.coreWalkFuel cvT.type cvP.type s₀ s₂ o
                   hok (denoteCV_type hcv) h3
-              have hcs₂ := denoteCIList_ext hstep1.ext _ _ hcs
+              have hcs₂ := denoteCIList_mono hstep1.ext _ _ hcs
               cases o with
               | none =>
                 have h4' : (if (true : Bool) = true then Arena.indParamsOk nP rest
@@ -230,19 +230,19 @@ theorem checkIndRoute_bridge {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
       ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.indDecl b nP) = .ok env') := by
   simp only [checkIndRoute] at hrun
   -- the parameter-count gate
-  obtain ⟨okb, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨okb, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨hstep1, hr1⟩ := indParamsOk_spec nP block b s s₁ okb hok.check.state hb h1
   subst hr1
   cases hparams : ConLeche.indParamsOk nP b with
-  | false => rw [hparams] at h2; exact absurd h2 (fun h => failOk h)
+  | false => rw [hparams] at h2; exact absurd h2 (fun h => AM.fail_ok h)
   | true =>
   rw [hparams] at h2
   simp only [Bool.not_true, Bool.false_eq_true, if_false] at h2
   -- the recogniser
-  obtain ⟨o, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨o, s₂, h3, h4⟩ := AM.bind_ok h2
   have hck₁ : CheckOK μ env fe s₁ := (hstep1.toCore hok.check).ok
   have hb₁ : Frontend.denoteCIList s₁.store block = some b :=
-    denoteCIList_ext hstep1.ext _ _ hb
+    denoteCIList_mono hstep1.ext _ _ hb
   obtain ⟨hstep2, hr2⟩ := blockParts?_spec fe nP block b s₁ s₂ o hck₁ hb₁ h3
   have hext12 : Ext s.store s₂.store := hstep1.ext.trans hstep2.ext
   have hpins12 : s₂.pins = s.pins := by rw [hstep2.pins, hstep1.pins]
@@ -252,7 +252,7 @@ theorem checkIndRoute_bridge {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
   simp only [ROp] at hr2
   obtain ⟨q, hq, hrel⟩ := hr2
   have out := checkBlock_bridge hμ hk hstep2.ok hok.envWF hok.coh
-    (denoteFEnv_ext hext12 hok.denote) (denoteCIList_ext hstep2.ext _ _ hb₁) hrel h4
+    (denoteFEnv_mono hext12 hok.denote) (denoteCIList_mono hstep2.ext _ _ hb₁) hrel h4
   obtain ⟨env', hden, hF⟩ := out.denote
   exact
     { state := out.state

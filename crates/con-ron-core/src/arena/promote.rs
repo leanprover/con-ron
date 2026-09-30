@@ -955,7 +955,7 @@ pub fn promote_ci_list_from(
 }
 
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:359-367 promoteVG
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:330-338 promoteVG
 /// Promote the datum that crosses the install/check seam
 /// (`arena::checker_split`'s `ValueGroup`).  An `opaque`'s value is NOT in the
 /// environment — only the pending record holds it — so the seam is promoted
@@ -989,7 +989,7 @@ pub fn promote_vg(
 // (`Promote.lean:368-410`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:371-380 eraseInstalled
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:342-351 eraseInstalled
 /// Forget the index rows of the constants a step installed — `consts[i..]`,
 /// which over this `Vec`'s oldest-first order is the twin's `consts.take k`
 /// over its newest-first list.
@@ -1010,8 +1010,8 @@ pub fn erase_installed(fe: IFEnv, i: usize) -> IFEnv {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:382-388 indexPromoted
-/// Lean twin: `proof/ConRon/Arena/Promote.lean:390-410 promoteNew`
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:353-359 indexPromoted
+/// Lean twin: `proof/ConRon/Arena/Promote.lean:361-381 promoteNew`
 /// Promote the constants of slots `start..j` and re-index them at the
 /// installation counters they were pushed with, walking DOWN — the twin's list
 /// is newest-first and its counters run down from `c`, which over this `Vec`
@@ -1048,7 +1048,7 @@ pub fn index_promoted(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:390-410 promoteNew
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:361-381 promoteNew
 /// **The phase-A bracket's promotion half**: the `k` constants the step just
 /// installed, copied into the persistent tier and re-indexed, everything below
 /// them untouched.

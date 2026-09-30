@@ -661,20 +661,6 @@ readbacks' half of it is the only part that composes. -/
 
 section Frame
 
-/-- con-leche: none — `get` moves nothing and answers the state.  (The
-`ConRon.Bridge.Frontend` namespace has its own copy; this tier does not import
-that module.) -/
-theorem AM.get_ok {s s' t : AState} (h : (get : AM AState) s = .ok (t, s')) :
-    t = s ∧ s' = s := by
-  have he : ((s, s) : AState × AState) = (t, s') := Except.ok.inj h
-  exact ⟨(congrArg Prod.fst he).symm, (congrArg Prod.snd he).symm⟩
-
-/-- con-leche: none — `set` answers `()` at the state it was handed. -/
-theorem AM.set_ok {s s' t : AState} {u : Unit}
-    (h : (set t : AM Unit) s = .ok (u, s')) : s' = t := by
-  have he : (((), t) : Unit × AState) = (u, s') := Except.ok.inj h
-  exact (congrArg Prod.snd he).symm
-
 /-- con-leche: none — **`readLevelM`'s frame**, with no hypothesis: the
 memoised readback moves the readback memo and nothing else, whatever is in it.
 The `ReadLCacheOK` of `Bridge/Specs.lean`'s `readLevelM_spec` buys the

@@ -208,17 +208,17 @@ theorem mapM_B_pstep {f : EIdx → AM (EIdx × BinderMeta)} {F : Expr → Expr �
     simp only [Frontend.denoteEList, Option.some.injEq] at h
     subst h
     simp only [List.mapM_nil] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, rfl⟩
   | cons e es ih =>
     intro idxP s₀ s' r hok h hrun
     obtain ⟨eP, esP, he, hes, rfl⟩ := Core.denoteEList_cons_inv h
     simp only [List.mapM_cons] at hrun
-    obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨x, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨p1, hx1, hx2⟩ := hf e eP s₀ s1 x hok he k1
-    obtain ⟨xs, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨xs, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨p2, hxs⟩ := ih esP s1 s2 xs p1.ok (denoteEList_ext p1.ext _ _ hes) k2
-    obtain ⟨rfl, rfl⟩ := pureOk z2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
     refine ⟨p1.trans p2, ?_⟩
     obtain ⟨t, m⟩ := x
     simp only at hx1 hx2
@@ -272,7 +272,7 @@ theorem closeLams_spec (bs : List (EIdx × BinderMeta))
     simp only [denoteBinders, Option.some.injEq] at hbs
     subst hbs
     simp only [Arena.closeLams] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, hbody⟩
   | cons b bs ih =>
     intro s₀ s' r hok hpre hrun
@@ -288,11 +288,11 @@ theorem closeLams_spec (bs : List (EIdx × BinderMeta))
     rw [hdom, hrest] at hbs
     obtain rfl := (Option.some.inj hbs).symm
     simp only [Arena.closeLams] at hrun
-    obtain ⟨inner, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨inner, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨p1, hin⟩ := ih rest (i + 1) s₀ s1 inner hok ⟨hrest, hbody⟩ k1
-    obtain ⟨cl, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨cl, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s1) rfl k2
-      (ExprOps.abstract1Fast_spec fvarBSpec Arena.coreWalkFuel s1 inner i 0 p1.ok
+      (ExprOps.abstract1Fast_spec Core.fvarBSpec Arena.coreWalkFuel s1 inner i 0 p1.ok
         (by rw [hin]; rfl))
     have p2 : PStep s1 s2 := PStep.of_caches h1 h2 h3 h4 h5
     obtain ⟨p3, hr⟩ := internLamE_run p2.ok (denote_ext hdom (p1.ext.trans p2.ext))
@@ -316,7 +316,7 @@ theorem exprGetD_spec (xs : List EIdx) (xsP : List Expr) (i : Nat) :
   | some x =>
     rw [hc] at hrun
     obtain ⟨y, hy, hd⟩ := hj2 x hc
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     rw [hy, Option.getD_some]
     exact ⟨PStep.refl hok, hd⟩
 
@@ -328,9 +328,9 @@ theorem classBinder_run {x : EIdx} {xP : Expr} {s₀ s' : AState} {r : EIdx × B
     PStep s₀ s' ∧ denoteE s'.store r.1 = some (ConLeche.classBinder xP).1 ∧
       r.2 = (ConLeche.classBinder xP).2 := by
   simp only [Arena.classBinder] at hrun
-  obtain ⟨t, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨t, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨rfl, ht⟩ := fvarTypeD_run hok hx k1
-  obtain ⟨rfl, rfl⟩ := pureOk z1
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
   exact ⟨PStep.refl hok, ht, rfl⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:106-111 ClassGen.bm —
@@ -341,12 +341,12 @@ theorem classGenBm_spec (elim : LIdx) (elimP : Level) :
       (RV (⟨Level.zeronessOf elimP⟩ : BinderMeta)) := by
   intro s₀ s' r hok hrl he hrun
   simp only [Arena.classGenBm] at hrun
-  obtain ⟨u, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨u, s1, k1, z1⟩ := AM.bind_ok hrun
   have p1 := readLevelM_pstep hok k1
   have hu := readLevelM_denote_L hrl (PStep.refl hok) k1
   rw [he] at hu
   obtain rfl := (Option.some.inj hu).symm
-  obtain ⟨rfl, rfl⟩ := pureOk z1
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
   exact ⟨p1, rfl⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:113-114 ClassGen.binder
@@ -357,9 +357,9 @@ theorem ClassGen.binder_run {g : Arena.ClassGen} {gP : ConLeche.ClassGen} (hbm :
     (hrun : g.binder x s₀ = .ok (r, s')) :
     PStep s₀ s' ∧ denoteE s'.store r.1 = some (gP.binder xP).1 ∧ r.2 = (gP.binder xP).2 := by
   simp only [Arena.ClassGen.binder] at hrun
-  obtain ⟨t, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨t, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨rfl, ht⟩ := fvarTypeD_run hok hx k1
-  obtain ⟨rfl, rfl⟩ := pureOk z1
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
   exact ⟨PStep.refl hok, ht, hbm⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:116-117 ClassGen.slotVar
@@ -370,9 +370,9 @@ theorem ClassGen.slotVar_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (sl 
   intro s₀ s' r hok hp hg hrun
   have hnP := (dClassGen_inv hg).1
   simp only [Arena.ClassGen.slotVar] at hrun
-  obtain ⟨u, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨u, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨rfl, hu⟩ := zeroLevel_run hp k1
-  obtain ⟨z, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨z, s2, k2, z2⟩ := AM.bind_ok z1
   obtain ⟨p2, hz⟩ := internSortE_run hok hu k2
   obtain ⟨p3, hr⟩ := internFVarE_run p2.ok hz z2
   refine ⟨p2.trans p3, ?_⟩
@@ -398,18 +398,18 @@ theorem ClassGen.major_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c d :
   intro s₀ s' r hok hp hg hrun
   obtain ⟨-, -, hcls, hfts, -⟩ := dClassGen_inv hg
   simp only [Arena.ClassGen.major] at hrun
-  obtain ⟨ci, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨ci, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, hci⟩ := targetMajorAt_spec g.cls gP.cls c s₀ s1 ci hok hp hcls k1
-  obtain ⟨fty, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨fty, s2, k2, z2⟩ := AM.bind_ok z1
   obtain ⟨p2, hfty⟩ := exprGetD_spec g.formerTys gP.formerTys c s1 s2 fty p1.ok
     (denoteEList_ext p1.ext _ _ hfts) k2
   obtain ⟨hind, hlvls, hds, -, hnIdx, -⟩ := dMajor_inv (dMajor_ext p2.ext _ _ hci)
-  obtain ⟨o, s3, k3, z3⟩ := bindOk z2
+  obtain ⟨o, s3, k3, z3⟩ := AM.bind_ok z2
   obtain ⟨p3, ho⟩ := instPisWith_spec ci.ds _ fty _ s2 s3 o p2.ok ⟨hds, hfty⟩ k3
   simp only [ConLeche.ClassGen.major]
   cases o with
   | none =>
-    obtain ⟨rfl, rfl⟩ := pureOk z3
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
     refine ⟨p1.trans (p2.trans p3), ?_⟩
     have hn : ConLeche.instPisWith (gP.cls.getD c default).ds
         (gP.formerTys.getD c default) = none := ho
@@ -419,13 +419,13 @@ theorem ClassGen.major_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c d :
     obtain ⟨tyP, hty, htyd⟩ := ho
     have p13 := p1.trans (p2.trans p3)
     dsimp only at z3
-    obtain ⟨o2, s4, k4, z4⟩ := bindOk z3
+    obtain ⟨o2, s4, k4, z4⟩ := AM.bind_ok z3
     obtain ⟨p4, ho2⟩ := openPisAtFvarsF_run p3.ok htyd k4
     simp only [hty, Option.bind_eq_bind, Option.bind_some]
     rw [hnIdx] at ho2
     cases o2 with
     | none =>
-      obtain ⟨rfl, rfl⟩ := pureOk z4
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
       refine ⟨p13.trans p4, ?_⟩
       have hn := (Option.some.inj ho2).symm
       show _ = none
@@ -434,17 +434,17 @@ theorem ClassGen.major_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c d :
       obtain ⟨ifs, body⟩ := q
       obtain ⟨ifsP, bodyP, hq, hifs, -⟩ := denoteOpen_some_inv ho2
       dsimp only at z4
-      obtain ⟨hd, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨hd, s5, k5, z5⟩ := AM.bind_ok z4
       have p14 := p13.trans p4
       have p24 := p3.trans p4
       obtain ⟨p5, hhd⟩ := internConstE_run p4.ok (denoteN_ext hind p24.ext)
         (denoteLs_ext hlvls p24.ext) k5
-      obtain ⟨maj, s6, k6, z6⟩ := bindOk z5
+      obtain ⟨maj, s6, k6, z6⟩ := AM.bind_ok z5
       have p25 := p24.trans p5
       obtain ⟨p6, hmaj⟩ := mkAppN_run _ _ p5.ok hhd
         (denoteEList_append (denoteEList_ext p25.ext _ _ hds)
           (denoteEList_ext (p5.ext) _ _ hifs)) k6
-      obtain ⟨rfl, rfl⟩ := pureOk z6
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z6
       refine ⟨(p14.trans p5).trans p6, ?_⟩
       rw [hq]
       exact ⟨_, rfl, denoteEList_ext p6.ext _ _ (denoteEList_ext p5.ext _ _ hifs), hmaj⟩
@@ -455,12 +455,12 @@ theorem ClassGen.motiveTy_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c 
     PSpecP (fun st => dClassGen st g = some gP) (g.motiveTy c d) (ROp RE (gP.motiveTy c d)) := by
   intro s₀ s' r hok hp hg hrun
   simp only [Arena.ClassGen.motiveTy] at hrun
-  obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨o, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, ho⟩ := ClassGen.major_spec g gP c d s₀ s1 o hok hp hg k1
   simp only [ConLeche.ClassGen.motiveTy]
   cases o with
   | none =>
-    obtain ⟨rfl, rfl⟩ := pureOk z1
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
     refine ⟨p1, ?_⟩
     have hn : gP.major c d = none := ho
     show _ = none
@@ -471,18 +471,18 @@ theorem ClassGen.motiveTy_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c 
     simp only [hq, Option.bind_eq_bind, Option.bind_some]
     dsimp only at z1
     have helim := (dClassGen_inv (dClassGen_ext p1.ext _ _ hg)).2.2.2.2.2.2.1
-    obtain ⟨srt, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨srt, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨p2, hsrt⟩ := internSortE_run p1.ok helim k2
-    obtain ⟨body, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨body, s3, k3, z3⟩ := AM.bind_ok z2
     obtain ⟨p3, hbody⟩ := internForallEE_run p2.ok (denote_ext hmaj p2.ext) hsrt k3
-    obtain ⟨bs, s4, k4, z4⟩ := bindOk z3
+    obtain ⟨bs, s4, k4, z4⟩ := AM.bind_ok z3
     obtain ⟨p4, hbs⟩ := mapM_B_pstep (F := ConLeche.classBinder)
       (fun e eP s₀ s' r hok he hrun => classBinder_run hok he hrun) ifs ifsP s3 s4 bs p3.ok
       (denoteEList_ext (p2.ext.trans p3.ext) _ _ hifs) k4
-    obtain ⟨cl, s5, k5, z5⟩ := bindOk z4
+    obtain ⟨cl, s5, k5, z5⟩ := AM.bind_ok z4
     obtain ⟨p5, hcl⟩ := closeTelescope_spec bs _ d body _ s4 s5 cl p4.ok
       ⟨hbs, denote_ext hbody p4.ext⟩ k5
-    obtain ⟨rfl, rfl⟩ := pureOk z5
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z5
     exact ⟨p1.trans (p2.trans (p3.trans (p4.trans p5))), _, rfl, hcl⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:135-141 ClassGen.ihParts
@@ -497,12 +497,12 @@ theorem ClassGen.ihParts_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (t t
   obtain ⟨hg, hw⟩ := hpre
   have hcls := (dClassGen_inv hg).2.2.1
   simp only [Arena.ClassGen.ihParts] at hrun
-  obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨o, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, ho⟩ := openPisAtFvarsF_run hok hw k1
   simp only [ConLeche.ClassGen.ihParts]
   cases o with
   | none =>
-    obtain ⟨rfl, rfl⟩ := pureOk z1
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
     refine ⟨p1, ?_⟩
     have hn := (Option.some.inj ho).symm
     show _ = none
@@ -512,9 +512,9 @@ theorem ClassGen.ihParts_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (t t
     obtain ⟨xsP, leafP, hq, hxs, hleaf⟩ := denoteOpen_some_inv ho
     simp only [hq, Option.bind_eq_bind, Option.bind_some]
     dsimp only at z1
-    obtain ⟨args, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨args, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨rfl, hargs⟩ := getAppArgs_run p1.ok hleaf k2
-    obtain ⟨rfl, rfl⟩ := pureOk z2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
     refine ⟨p1, _, rfl, hxs, ?_⟩
     have hj := mapM_option_getElem? (st := s₀.store) hcls t
     show Frontend.denoteEList _ (List.drop _ args) = some (List.drop _ _)
@@ -621,7 +621,7 @@ theorem ClassGen.minorTy_ihsGo_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen
   | nil =>
     intro l s₀ s' r hok hp _ hrun
     simp only [Arena.ClassGen.minorTy.ihsGo] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, [], rfl, rfl⟩
   | cons q rest ih =>
     intro l s₀ s' r hok hp hpre hrun
@@ -629,16 +629,16 @@ theorem ClassGen.minorTy_ihsGo_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen
     obtain ⟨hg, hfvs, hws⟩ := hpre
     have hbm := (dClassGen_inv hg).2.2.2.2.2.2.2.2
     simp only [Arena.ClassGen.minorTy.ihsGo] at hrun
-    obtain ⟨w, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨w, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨p1, hw⟩ := exprGetD_spec ws wsP i s₀ s1 w hok hws k1
-    obtain ⟨o, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨o, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨p2, ho⟩ := ClassGen.ihParts_spec g gP t tele w _ (d + x.nF + l) s1 s2 o p1.ok
       ⟨dClassGen_ext p1.ext _ _ hg, hw⟩ k2
     have p12 := p1.trans p2
     simp only [mapIdxFromP, minorIhP, ← hnF]
     cases o with
     | none =>
-      obtain ⟨rfl, rfl⟩ := pureOk z2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
       refine ⟨p12, ?_⟩
       have hn : gP.ihParts t tele (wsP.getD i default) (d + x.nF + l) = none := ho
       show _ = none
@@ -648,42 +648,42 @@ theorem ClassGen.minorTy_ihsGo_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen
       obtain ⟨⟨xsP, idxP⟩, hq, hxs, hidx⟩ := ho
       simp only [hq, Option.bind_eq_bind, Option.bind_some]
       dsimp only at z2
-      obtain ⟨f, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨f, s3, k3, z3⟩ := AM.bind_ok z2
       obtain ⟨p3, hf⟩ := exprGetD_spec fvs fvsP i s2 s3 f p2.ok
         (denoteEList_ext p12.ext _ _ hfvs) k3
-      obtain ⟨fx, s4, k4, z4⟩ := bindOk z3
+      obtain ⟨fx, s4, k4, z4⟩ := AM.bind_ok z3
       obtain ⟨p4, hfx⟩ := mkAppN_run _ _ p3.ok hf (denoteEList_ext p3.ext _ _ hxs) k4
       have p14 := p12.trans (p3.trans p4)
-      obtain ⟨mt, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨mt, s5, k5, z5⟩ := AM.bind_ok z4
       obtain ⟨p5, hmt⟩ := ClassGen.motVar_spec g gP t s4 s5 mt p4.ok
         (PinsOK.ofPStep hp p14) (dClassGen_ext p14.ext _ _ hg) k5
-      obtain ⟨body, s6, k6, z6⟩ := bindOk z5
+      obtain ⟨body, s6, k6, z6⟩ := AM.bind_ok z5
       obtain ⟨p6, hbody⟩ := mkAppN_run _ _ p5.ok hmt
         (denoteEList_append (denoteEList_ext ((p3.trans p4).trans p5).ext _ _ hidx)
           (show Frontend.denoteEList _ [fx] = some [(fvsP.getD i default).mkAppN xsP] by
             simp only [Frontend.denoteEList, denote_ext hfx p5.ext])) k6
-      obtain ⟨bs, s7, k7, z7⟩ := bindOk z6
+      obtain ⟨bs, s7, k7, z7⟩ := AM.bind_ok z6
       have p16 := (p14.trans p5).trans p6
       obtain ⟨p7, hbs⟩ := mapM_B_pstep (F := gP.binder) (ClassGen.binder_run hbm) xs xsP s6 s7
         bs p6.ok (denoteEList_ext ((p3.trans p4).trans (p5.trans p6)).ext _ _ hxs) k7
-      obtain ⟨ihE, s8, k8, z8⟩ := bindOk z7
+      obtain ⟨ihE, s8, k8, z8⟩ := AM.bind_ok z7
       obtain ⟨p8, hihE⟩ := closeTelescope_spec bs _ _ body _ s7 s8 ihE p7.ok
         ⟨hbs, denote_ext hbody p7.ext⟩ k8
       have p18 := (p16.trans p7).trans p8
-      obtain ⟨o2, s9, k9, z9⟩ := bindOk z8
+      obtain ⟨o2, s9, k9, z9⟩ := AM.bind_ok z8
       obtain ⟨p9, ho2⟩ := ih (l + 1) s8 s9 o2 p8.ok (PinsOK.ofPStep hp p18)
         ⟨dClassGen_ext p18.ext _ _ hg, denoteEList_ext p18.ext _ _ hfvs,
           denoteEList_ext p18.ext _ _ hws⟩ k9
       cases o2 with
       | none =>
-        obtain ⟨rfl, rfl⟩ := pureOk z9
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z9
         refine ⟨p18.trans p9, ?_⟩
         have hn : mapIdxFromP (minorIhP gP xP d fvsP wsP) (l + 1) rest = none := ho2
         show _ = none
         simp only [hn, Option.bind_none]; rfl
       | some ihs =>
         obtain ⟨ihsP, hihs, hihsd⟩ := ho2
-        obtain ⟨rfl, rfl⟩ := pureOk z9
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z9
         refine ⟨p18.trans p9, (ConLeche.closeTelescope (xsP.map gP.binder) (d + x.nF + l)
           ((gP.motVar t).mkAppN (idxP ++ [(fvsP.getD i default).mkAppN xsP])), gP.bm) :: ihsP,
           ?_, ?_⟩
@@ -705,16 +705,16 @@ theorem ClassGen.minorTy_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c :
   obtain ⟨hnP, -, hcls, -, -, -, -, -, hbm⟩ := dClassGen_inv hg
   obtain ⟨hcv, hnF, hkinds, htyD, htyN⟩ := dClassCtor_inv hx
   simp only [Arena.ClassGen.minorTy] at hrun
-  obtain ⟨ci, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨ci, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, hci⟩ := targetMajorAt_spec g.cls gP.cls c s₀ s1 ci hok hp hcls k1
-  obtain ⟨o, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨o, s2, k2, z2⟩ := AM.bind_ok z1
   obtain ⟨p2, ho⟩ := openPisAtFvarsF_run p1.ok (denote_ext htyD p1.ext) k2
   have p12 := p1.trans p2
   simp only [ConLeche.ClassGen.minorTy]
   rw [hnF] at ho
   cases o with
   | none =>
-    obtain ⟨rfl, rfl⟩ := pureOk z2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
     refine ⟨p12, ?_⟩
     have hn := (Option.some.inj ho).symm
     show _ = none
@@ -724,12 +724,12 @@ theorem ClassGen.minorTy_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c :
     obtain ⟨fvsP, resP, hq, hfvs, hres⟩ := denoteOpen_some_inv ho
     simp only [hq, Option.bind_eq_bind, Option.bind_some]
     dsimp only at z2
-    obtain ⟨o2, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨o2, s3, k3, z3⟩ := AM.bind_ok z2
     obtain ⟨p3, ho2⟩ := targetPiDomsWith_spec fvs fvsP x.tyN xP.tyN s2 s3 o2 p2.ok
       ⟨hfvs, denote_ext htyN p12.ext⟩ k3
     cases o2 with
     | none =>
-      obtain ⟨rfl, rfl⟩ := pureOk z3
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
       refine ⟨p12.trans p3, ?_⟩
       have hn : ConLeche.targetPiDomsWith fvsP xP.tyN = none := ho2
       show _ = none
@@ -739,7 +739,7 @@ theorem ClassGen.minorTy_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c :
       simp only [hws, Option.bind_some]
       dsimp only at z3
       have p13 := p12.trans p3
-      obtain ⟨o3, s4, k4, z4⟩ := bindOk z3
+      obtain ⟨o3, s4, k4, z4⟩ := AM.bind_ok z3
       generalize hT : List.filterMap _ (List.range x.nF) = T at k4
       obtain ⟨p4, ho3⟩ := ClassGen.minorTy_ihsGo_spec g gP x xP hnF d fvs ws fvsP wsP _ 0
         s3 s4 o3 p3.ok (PinsOK.ofPStep hp p13)
@@ -752,7 +752,7 @@ theorem ClassGen.minorTy_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c :
       subst hUT
       cases o3 with
       | none =>
-        obtain ⟨rfl, rfl⟩ := pureOk z4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
         refine ⟨p13.trans p4, ?_⟩
         have hn := ho3
         simp only [ROp] at hn
@@ -763,21 +763,21 @@ theorem ClassGen.minorTy_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c :
         simp only [hihs, Option.bind_some]
         dsimp only at z4
         have p14 := p13.trans p4
-        obtain ⟨ra, s5, k5, z5⟩ := bindOk z4
+        obtain ⟨ra, s5, k5, z5⟩ := AM.bind_ok z4
         obtain ⟨rfl, hra⟩ := getAppArgs_run p4.ok (denote_ext hres (p3.ext.trans p4.ext)) k5
         obtain ⟨hind, hlvls, hds, hnPc, -⟩ := dMajor_inv (dMajor_ext (p2.ext.trans (p3.ext.trans p4.ext)) _ _ hci)
-        obtain ⟨cc, s6, k6, z6⟩ := bindOk z5
+        obtain ⟨cc, s6, k6, z6⟩ := AM.bind_ok z5
         obtain ⟨p6, hcc⟩ := internConstE_run p4.ok
           (ConRon.Bridge.denoteCV_name (dExt_denoteCV p14.ext _ _ hcv)) hlvls k6
-        obtain ⟨capp, s7, k7, z7⟩ := bindOk z6
+        obtain ⟨capp, s7, k7, z7⟩ := AM.bind_ok z6
         obtain ⟨p7, hcapp⟩ := mkAppN_run _ _ p6.ok hcc
           (denoteEList_append (denoteEList_ext p6.ext _ _ hds)
             (denoteEList_ext (p3.ext.trans (p4.ext.trans p6.ext)) _ _ hfvs)) k7
         have p17 := (p14.trans p6).trans p7
-        obtain ⟨mc, s8, k8, z8⟩ := bindOk z7
+        obtain ⟨mc, s8, k8, z8⟩ := AM.bind_ok z7
         obtain ⟨p8, hmc⟩ := ClassGen.motVar_spec g gP c s7 s8 mc p7.ok
           (PinsOK.ofPStep hp p17) (dClassGen_ext p17.ext _ _ hg) k8
-        obtain ⟨concl, s9, k9, z9⟩ := bindOk z8
+        obtain ⟨concl, s9, k9, z9⟩ := AM.bind_ok z8
         have hra8 : Frontend.denoteEList s8.store (ra.drop ci.nPc) =
             some (resP.getAppArgs.drop (gP.cls.getD c default).nPc) := by
           rw [← hnPc]
@@ -788,16 +788,16 @@ theorem ClassGen.minorTy_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c :
           simp only [Frontend.denoteEList, denote_ext hcapp p8.ext]
         obtain ⟨p9, hconcl⟩ := mkAppN_run _ _ p8.ok hmc (denoteEList_append hra8 hcapp8) k9
         have p19 := (p17.trans p8).trans p9
-        obtain ⟨fbs, s10, k10, z10⟩ := bindOk z9
+        obtain ⟨fbs, s10, k10, z10⟩ := AM.bind_ok z9
         obtain ⟨p10, hfbs⟩ := mapM_B_pstep (F := gP.binder) (ClassGen.binder_run hbm) fvs fvsP
           s9 s10 fbs p9.ok (denoteEList_ext (p3.ext.trans (p4.ext.trans (p6.ext.trans
             (p7.ext.trans (p8.ext.trans p9.ext))))) _ _ hfvs) k10
-        obtain ⟨rr, s11, k11, z11⟩ := bindOk z10
+        obtain ⟨rr, s11, k11, z11⟩ := AM.bind_ok z10
         obtain ⟨p11, hrr⟩ := closeTelescope_spec _ _ d concl _ s10 s11 rr p10.ok
           ⟨GR.denoteBinders_append hfbs
             (denoteBinders_ext (p6.ext.trans (p7.ext.trans (p8.ext.trans (p9.ext.trans
               p10.ext)))) _ _ hihsd), denote_ext hconcl p10.ext⟩ k11
-        obtain ⟨rfl, rfl⟩ := pureOk z11
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z11
         exact ⟨(p19.trans p10).trans p11, _, rfl, hrr⟩
 
 /-! ### The prefix -/
@@ -885,7 +885,7 @@ theorem ClassGen.prefixBinders_slotsGo_spec (g : Arena.ClassGen) (gP : ConLeche.
   | nil =>
     intro s hdrop s₀ s' r hok hp hg hrun
     simp only [Arena.ClassGen.prefixBinders.slotsGo] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     have hsl := (dClassGen_inv hg).2.2.2.2.1
     have hlen := ConLeche.option_mapM_length hsl
     have : gP.slots.drop s = [] := by
@@ -921,7 +921,7 @@ theorem ClassGen.prefixBinders_slotsGo_spec (g : Arena.ClassGen) (gP : ConLeche.
       simp only [dSlot, Option.map_eq_some_iff] at hdsl
       obtain ⟨kP, -, rfl⟩ := hdsl
       dsimp only at hrun
-      obtain ⟨tyo, s1, k1, z1⟩ := bindOk hrun
+      obtain ⟨tyo, s1, k1, z1⟩ := AM.bind_ok hrun
       obtain ⟨p1, ho⟩ := ClassGen.motiveTy_spec g gP _ _ s₀ s1 tyo hok hp hg k1
       rw [GR.motive_count hsl _ (fun a aP had => by
         cases a with
@@ -959,8 +959,8 @@ theorem ClassGen.prefixBinders_slotsGo_spec (g : Arena.ClassGen) (gP : ConLeche.
       case' none =>
         have hn : (gP.ctors.getD c []).find? (·.cv.name == CP) = none := hf
         dsimp only at hrun
-        obtain ⟨tyo, s1, k1, z1⟩ := bindOk hrun
-        obtain ⟨htyo, hs1⟩ := pureOk k1
+        obtain ⟨tyo, s1, k1, z1⟩ := AM.bind_ok hrun
+        obtain ⟨htyo, hs1⟩ := AM.pure_ok k1
         have p1 : PStep s₀ s1 := by rw [hs1]; exact PStep.refl hok
         have hXo0 : ROp RE (none : Option Expr) s1.store tyo := by rw [htyo]; rfl
         have hslot0 : GR.slotP gP (.minor c CP ihs) s =
@@ -974,7 +974,7 @@ theorem ClassGen.prefixBinders_slotsGo_spec (g : Arena.ClassGen) (gP : ConLeche.
       case' some x =>
         obtain ⟨xP, hxP, hdx⟩ := hf
         dsimp only at hrun
-        obtain ⟨tyo, s1, k1, z1⟩ := bindOk hrun
+        obtain ⟨tyo, s1, k1, z1⟩ := AM.bind_ok hrun
         obtain ⟨p1, ho⟩ := ClassGen.minorTy_spec g gP c x xP (g.nP + s) s₀ s1 tyo hok hp
           ⟨hg, hdx⟩ k1
         rw [hnP] at ho
@@ -986,7 +986,7 @@ theorem ClassGen.prefixBinders_slotsGo_spec (g : Arena.ClassGen) (gP : ConLeche.
     all_goals
       cases tyo with
       | none =>
-        obtain ⟨rfl, rfl⟩ := pureOk z1
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
         refine ⟨p1, ?_⟩
         have hn : X = none := hXo
         show _ = none
@@ -995,19 +995,19 @@ theorem ClassGen.prefixBinders_slotsGo_spec (g : Arena.ClassGen) (gP : ConLeche.
         obtain ⟨tP, htP, hty⟩ := hXo
         simp only [htP, Option.bind_eq_bind, Option.bind_some, Option.pure_def]
         dsimp only at z1
-        obtain ⟨o2, s2, k2, z2⟩ := bindOk z1
+        obtain ⟨o2, s2, k2, z2⟩ := AM.bind_ok z1
         obtain ⟨p2, ho2⟩ := ih (s + 1) hdrop' s1 s2 o2 p1.ok (PinsOK.ofPStep hp p1)
           (dClassGen_ext p1.ext _ _ hg) k2
         cases o2 with
         | none =>
-          obtain ⟨rfl, rfl⟩ := pureOk z2
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
           refine ⟨p1.trans p2, ?_⟩
           have hn : mapIdxFromP (GR.slotP gP) (s + 1) (gP.slots.drop (s + 1)) = none := ho2
           show _ = none
           simp only [hn, Option.bind_none]
         | some rs =>
           obtain ⟨rsP, hrs, hrsd⟩ := ho2
-          obtain ⟨rfl, rfl⟩ := pureOk z2
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
           refine ⟨p1.trans p2, (tP, gP.bm) :: rsP, ?_, ?_⟩
           · simp only [hrs, Option.bind_some]
           · show denoteBinders _ ((ty, g.bm) :: rs) = _
@@ -1022,10 +1022,10 @@ theorem ClassGen.prefixBinders_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen
   intro s₀ s' r hok hp hg hrun
   obtain ⟨-, hpar, -, -, -, -, -, -, hbm⟩ := dClassGen_inv hg
   simp only [Arena.ClassGen.prefixBinders] at hrun
-  obtain ⟨pbs, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨pbs, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, hpbs⟩ := mapM_B_pstep (F := gP.binder) (ClassGen.binder_run hbm) g.params
     gP.params s₀ s1 pbs hok hpar k1
-  obtain ⟨o, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨o, s2, k2, z2⟩ := AM.bind_ok z1
   obtain ⟨p2, ho⟩ := ClassGen.prefixBinders_slotsGo_spec g gP g.slots 0 rfl s1 s2 o p1.ok
     (PinsOK.ofPStep hp p1) (dClassGen_ext p1.ext _ _ hg) k2
   simp only [ConLeche.ClassGen.prefixBinders]
@@ -1034,14 +1034,14 @@ theorem ClassGen.prefixBinders_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen
   rw [List.drop_zero] at ho
   cases o with
   | none =>
-    obtain ⟨rfl, rfl⟩ := pureOk z2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
     refine ⟨p1.trans p2, ?_⟩
     have hn : mapIdxFromP (GR.slotP gP) 0 gP.slots = none := ho
     show _ = none
     simp only [hn, Option.bind_eq_bind, Option.bind_none]
   | some sbs =>
     obtain ⟨sbsP, hsbs, hsbsd⟩ := ho
-    obtain ⟨rfl, rfl⟩ := pureOk z2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
     refine ⟨p1.trans p2, _, ?_, GR.denoteBinders_append (denoteBinders_ext p2.ext _ _ hpbs) hsbsd⟩
     simp only [hsbs, Option.bind_eq_bind, Option.bind_some, Option.pure_def]
 
@@ -1057,13 +1057,13 @@ theorem classGenRecTy_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c : Na
   obtain ⟨-, -, -, -, -, -, -, hpre, hbm⟩ := dClassGen_inv hg
   have hlen : g.pre.length = gP.pre.length := denoteBinders_length hpre
   simp only [Arena.classGenRecTy] at hrun
-  obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨o, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, ho⟩ := ClassGen.major_spec g gP c _ s₀ s1 o hok hp hg k1
   rw [hlen] at ho
   simp only [ConLeche.classGenRecTy]
   cases o with
   | none =>
-    obtain ⟨rfl, rfl⟩ := pureOk z1
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
     refine ⟨p1, ?_⟩
     have hn : gP.major c gP.pre.length = none := ho
     show _ = none
@@ -1074,24 +1074,24 @@ theorem classGenRecTy_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c : Na
     simp only [hq, Option.bind_eq_bind, Option.bind_some]
     dsimp only at z1
     have hil : ifs.length = ifsP.length := denoteEList_length hifs
-    obtain ⟨t, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨t, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨p2, ht⟩ := internE_run p1.ok (viewOK_fvar (by rw [hmaj]; rfl)) k2
     have ht' : denoteE s2.store t = some (.fvar (gP.pre.length + ifsP.length) majP) := by
       rw [ht]; simp only [denoteEView, denote_ext hmaj p2.ext, Option.map_some, hlen, hil]
-    obtain ⟨ibs, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨ibs, s3, k3, z3⟩ := AM.bind_ok z2
     obtain ⟨p3, hibs⟩ := mapM_B_pstep (F := gP.binder) (ClassGen.binder_run hbm) ifs ifsP
       s2 s3 ibs p2.ok (denoteEList_ext p2.ext _ _ hifs) k3
     have p13 := p1.trans (p2.trans p3)
-    obtain ⟨mv, s4, k4, z4⟩ := bindOk z3
+    obtain ⟨mv, s4, k4, z4⟩ := AM.bind_ok z3
     obtain ⟨p4, hmv⟩ := ClassGen.motVar_spec g gP c s3 s4 mv p3.ok (PinsOK.ofPStep hp p13)
       (dClassGen_ext p13.ext _ _ hg) k4
-    obtain ⟨body, s5, k5, z5⟩ := bindOk z4
+    obtain ⟨body, s5, k5, z5⟩ := AM.bind_ok z4
     have hargs : Frontend.denoteEList s4.store (ifs ++ [t]) =
         some (ifsP ++ [.fvar (gP.pre.length + ifsP.length) majP]) :=
       denoteEList_append (denoteEList_ext ((p2.trans p3).trans p4).ext _ _ hifs)
         (by simp only [Frontend.denoteEList, denote_ext ht' (p3.ext.trans p4.ext)])
     obtain ⟨p5, hbody⟩ := mkAppN_run _ _ p4.ok hmv hargs k5
-    obtain ⟨rr, s6, k6, z6⟩ := bindOk z5
+    obtain ⟨rr, s6, k6, z6⟩ := AM.bind_ok z5
     have hbs : denoteBinders s5.store (g.pre ++ ibs ++ [(maj, g.bm)]) =
         some (gP.pre ++ ifsP.map gP.binder ++ [(majP, gP.bm)]) := by
       refine GR.denoteBinders_append (GR.denoteBinders_append
@@ -1099,7 +1099,7 @@ theorem classGenRecTy_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (c : Na
         (denoteBinders_ext (p4.trans p5).ext _ _ hibs)) ?_
       simp only [denoteBinders, denote_ext hmaj (p2.trans (p3.trans (p4.trans p5))).ext, hbm]
     obtain ⟨p6, hrr⟩ := closeTelescope_spec _ _ 0 body _ s5 s6 rr p5.ok ⟨hbs, hbody⟩ k6
-    obtain ⟨rfl, rfl⟩ := pureOk z6
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z6
     exact ⟨(p13.trans (p4.trans p5)).trans p6, _, rfl, hrr⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:538-543 classRecOf — **the
@@ -1165,17 +1165,17 @@ theorem mapM_pstepP {α β γ : Type} (f : α → AM β) (g : α → γ)
   | nil =>
     intro s₀ s' bs hok _ _ hrun
     simp only [List.mapM_nil] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, trivial⟩
   | cons a as ih =>
     intro s₀ s' bs hok hp hP hrun
     simp only [List.mapM_cons] at hrun
-    obtain ⟨b, s1, k1, hz1⟩ := bindOk hrun
+    obtain ⟨b, s1, k1, hz1⟩ := AM.bind_ok hrun
     obtain ⟨p1, hb⟩ := hf a s₀ s1 b hok hp (hP a (by simp)) k1
-    obtain ⟨cs, s2, k2, hz2⟩ := bindOk hz1
+    obtain ⟨cs, s2, k2, hz2⟩ := AM.bind_ok hz1
     obtain ⟨p2, hcs⟩ := ih s1 s2 cs p1.ok (PinsOK.ofPStep hp p1)
       (fun x hx => hPx p1.ext (hP x (by simp [hx]))) k2
-    obtain ⟨rfl, rfl⟩ := pureOk hz2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hz2
     exact ⟨p1.trans p2, hRx p2.ext hb, hcs⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:197-198 classGenRule (`find?`) —
@@ -1255,7 +1255,7 @@ theorem classGenRule_callsGo_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
   | zero =>
     intro i s₀ s' r hok hp _ hrun
     simp only [Arena.classGenRule.callsGo] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, [], rfl, rfl⟩
   | succ n ih =>
     intro i s₀ s' r hok hp hpre hrun
@@ -1275,16 +1275,16 @@ theorem classGenRule_callsGo_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
     | recursive t tele =>
       simp only [cfOf]
       dsimp only at hrun
-      obtain ⟨w, s1, k1, z1⟩ := bindOk hrun
+      obtain ⟨w, s1, k1, z1⟩ := AM.bind_ok hrun
       obtain ⟨p1, hw⟩ := exprGetD_spec ws wsP i s₀ s1 w hok hws k1
-      obtain ⟨o, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨o, s2, k2, z2⟩ := AM.bind_ok z1
       obtain ⟨p2, ho⟩ := ClassGen.ihParts_spec g gP t tele w _ (rP + x.nF) s1 s2 o p1.ok
         ⟨dClassGen_ext p1.ext _ _ hg, hw⟩ k2
       rw [hnF] at ho
       have p12 := p1.trans p2
       cases o with
       | none =>
-        obtain ⟨rfl, rfl⟩ := pureOk z2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
         refine ⟨p12, ?_⟩
         have hn : gP.ihParts t tele (wsP.getD i default) (rP + xP.nF) = none := ho
         show _ = none
@@ -1302,7 +1302,7 @@ theorem classGenRule_callsGo_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
           intro z2
           rw [hr] at hro
           have hn : ConLeche.classRecOf recCls cvGsP t = none := hro
-          obtain ⟨rfl, rfl⟩ := pureOk z2
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
           refine ⟨p12, ?_⟩
           show _ = none
           simp only [hn, Option.bind_none]
@@ -1312,31 +1312,31 @@ theorem classGenRule_callsGo_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
           obtain ⟨rnP, hrn, hrnd⟩ := hro
           simp only [hrn, Option.bind_some]
           dsimp only at z2
-          obtain ⟨f, s3, k3, z3⟩ := bindOk z2
+          obtain ⟨f, s3, k3, z3⟩ := AM.bind_ok z2
           obtain ⟨p3, hf⟩ := exprGetD_spec fvs fvsP i s2 s3 f p2.ok
             (denoteEList_ext p12.ext _ _ hfvs) k3
-          obtain ⟨fx, s4, k4, z4⟩ := bindOk z3
+          obtain ⟨fx, s4, k4, z4⟩ := AM.bind_ok z3
           obtain ⟨p4, hfx⟩ := mkAppN_run _ _ p3.ok hf (denoteEList_ext p3.ext _ _ hxs) k4
           have p14 := p12.trans (p3.trans p4)
-          obtain ⟨rc, s5, k5, z5⟩ := bindOk z4
+          obtain ⟨rc, s5, k5, z5⟩ := AM.bind_ok z4
           obtain ⟨p5, hrc⟩ := internConstE_run p4.ok
             (denoteN_ext hrnd (p3.ext.trans p4.ext)) (denoteLs_ext hrl p14.ext) k5
-          obtain ⟨app, s6, k6, z6⟩ := bindOk z5
+          obtain ⟨app, s6, k6, z6⟩ := AM.bind_ok z5
           have hfx5 : Frontend.denoteEList s5.store [fx] = some [(fvsP.getD i default).mkAppN xsP] := by
             simp only [Frontend.denoteEList, denote_ext hfx p5.ext]
           have hargs := denoteEList_append (denoteEList_append
             (denoteEList_ext (p14.trans p5).ext _ _ hpv)
             (denoteEList_ext ((p3.trans p4).trans p5).ext _ _ hidx)) hfx5
           obtain ⟨p6, happ⟩ := mkAppN_run _ _ p5.ok hrc hargs k6
-          obtain ⟨bs, s7, k7, z7⟩ := bindOk z6
+          obtain ⟨bs, s7, k7, z7⟩ := AM.bind_ok z6
           obtain ⟨p7, hbs⟩ := mapM_B_pstep (F := gP.binder) (ClassGen.binder_run hbm) xs xsP s6 s7
             bs p6.ok (denoteEList_ext ((p3.trans p4).trans (p5.trans p6)).ext _ _ hxs) k7
-          obtain ⟨call, s8, k8, z8⟩ := bindOk z7
+          obtain ⟨call, s8, k8, z8⟩ := AM.bind_ok z7
           obtain ⟨p8, hcall⟩ := closeLams_spec bs _ _ app _ s7 s8 call p7.ok
             ⟨hbs, denote_ext happ p7.ext⟩ k8
           rw [hnF] at hcall
           have p18 := ((p14.trans p5).trans (p6.trans p7)).trans p8
-          obtain ⟨o2, s9, k9, z9⟩ := bindOk z8
+          obtain ⟨o2, s9, k9, z9⟩ := AM.bind_ok z8
           obtain ⟨p9, ho2⟩ := ih (i + 1) s8 s9 o2 p8.ok (PinsOK.ofPStep hp p18)
             ⟨dClassGen_ext p18.ext _ _ hg, denoteEList_ext p18.ext _ _ hfvs,
               denoteEList_ext p18.ext _ _ hws, denoteEList_ext p18.ext _ _ hpv,
@@ -1344,7 +1344,7 @@ theorem classGenRule_callsGo_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
           simp only [Option.pure_def, Option.bind_some]
           cases o2 with
           | none =>
-            obtain ⟨rfl, rfl⟩ := pureOk z9
+            obtain ⟨rfl, rfl⟩ := AM.pure_ok z9
             refine ⟨p18.trans p9, ?_⟩
             have hn := ho2
             simp only [ROp] at hn
@@ -1352,7 +1352,7 @@ theorem classGenRule_callsGo_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
             simp only [hn, Option.bind_none]
           | some rs =>
             obtain ⟨rsP, hrs, hrsd⟩ := ho2
-            obtain ⟨rfl, rfl⟩ := pureOk z9
+            obtain ⟨rfl, rfl⟩ := AM.pure_ok z9
             refine ⟨p18.trans p9, (ConLeche.closeLams (xsP.map gP.binder) (rP + xP.nF)
               ((Expr.const rnP rlvlsP).mkAppN (pvarsP ++ idxP ++
                 [(fvsP.getD i default).mkAppN xsP]))) :: rsP, ?_, ?_⟩
@@ -1392,7 +1392,7 @@ theorem classGenRule_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
       cases U with
       | none => rfl
       | some _ => simp at hUT
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     refine ⟨PStep.refl hok, ?_⟩
     show _ = none
     simp only [hn, Option.bind_eq_bind, Option.bind_none]
@@ -1405,12 +1405,12 @@ theorem classGenRule_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
     subst hsid
     simp only [Option.bind_eq_bind, Option.bind_some]
     dsimp only at hrun
-    obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨o, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨p1, ho⟩ := openPisAtFvarsF_run hok htyD k1
     rw [hnF, hlen] at ho
     cases o with
     | none =>
-      obtain ⟨rfl, rfl⟩ := pureOk z1
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
       refine ⟨p1, ?_⟩
       have hn := (Option.some.inj ho).symm
       show _ = none
@@ -1420,13 +1420,13 @@ theorem classGenRule_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
       obtain ⟨fvsP, resP, hq, hfvs, -⟩ := denoteOpen_some_inv ho
       simp only [hq, Option.bind_some]
       dsimp only at z1
-      obtain ⟨o2, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨o2, s2, k2, z2⟩ := AM.bind_ok z1
       obtain ⟨p2, ho2⟩ := targetPiDomsWith_spec fvs fvsP x.tyN xP.tyN s1 s2 o2 p1.ok
         ⟨hfvs, denote_ext htyN p1.ext⟩ k2
       have p12 := p1.trans p2
       cases o2 with
       | none =>
-        obtain ⟨rfl, rfl⟩ := pureOk z2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
         refine ⟨p12, ?_⟩
         have hn : ConLeche.targetPiDomsWith fvsP xP.tyN = none := ho2
         show _ = none
@@ -1435,7 +1435,7 @@ theorem classGenRule_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
         obtain ⟨wsP, hws, hwsd⟩ := ho2
         simp only [hws, Option.bind_some]
         dsimp only at z2
-        obtain ⟨pvars, s3, k3, z3⟩ := bindOk z2
+        obtain ⟨pvars, s3, k3, z3⟩ := AM.bind_ok z2
         obtain ⟨p3, hpv⟩ := GR.mapM_pstepP _
           (fun i => if i < gP.nP then gP.params.getD i default else gP.slotVar (i - gP.nP))
           (fun st b c => denoteE st b = some c) (fun _ st => dClassGen st g = some gP)
@@ -1453,7 +1453,7 @@ theorem classGenRule_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
         have hpvE := ListRel.toEList hpv
         rw [hlen] at hpvE
         have p13 := p12.trans p3
-        obtain ⟨o3, s4, k4, z4⟩ := bindOk z3
+        obtain ⟨o3, s4, k4, z4⟩ := AM.bind_ok z3
         obtain ⟨p4, ho3⟩ := classGenRule_callsGo_spec g gP recCls cvGs cvGsP rlvls rlvlsP x xP
           hnF hkinds _ fvs ws pvars fvsP wsP _ x.nF 0 s3 s4 o3 p3.ok (PinsOK.ofPStep hp p13)
           ⟨dClassGen_ext p13.ext _ _ hg, denoteEList_ext (p2.ext.trans p3.ext) _ _ hfvs,
@@ -1464,7 +1464,7 @@ theorem classGenRule_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
         rw [hnF, hlen] at ho3
         cases o3 with
         | none =>
-          obtain ⟨rfl, rfl⟩ := pureOk z4
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
           refine ⟨p13.trans p4, ?_⟩
           have hn := ho3
           simp only [ROp] at hn
@@ -1480,23 +1480,23 @@ theorem classGenRule_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
           simp only [Option.bind_some]
           dsimp only at z4
           have p14 := p13.trans p4
-          obtain ⟨sv, s5, k5, z5⟩ := bindOk z4
+          obtain ⟨sv, s5, k5, z5⟩ := AM.bind_ok z4
           obtain ⟨p5, hsv⟩ := ClassGen.slotVar_spec g gP sidx s4 s5 sv p4.ok
             (PinsOK.ofPStep hp p14) (dClassGen_ext p14.ext _ _ hg) k5
-          obtain ⟨body, s6, k6, z6⟩ := bindOk z5
+          obtain ⟨body, s6, k6, z6⟩ := AM.bind_ok z5
           obtain ⟨p6, hbody⟩ := mkAppN_run _ _ p5.ok hsv
             (denoteEList_append (denoteEList_ext (p2.ext.trans (p3.ext.trans (p4.ext.trans
               p5.ext))) _ _ hfvs) (denoteEList_ext p5.ext _ _ hihsd)) k6
-          obtain ⟨fbs, s7, k7, z7⟩ := bindOk z6
+          obtain ⟨fbs, s7, k7, z7⟩ := AM.bind_ok z6
           obtain ⟨p7, hfbs⟩ := mapM_B_pstep (F := gP.binder) (ClassGen.binder_run hbm) fvs fvsP
             s6 s7 fbs p6.ok (denoteEList_ext (p2.ext.trans (p3.ext.trans (p4.ext.trans
               (p5.ext.trans p6.ext)))) _ _ hfvs) k7
           have p17 := (p14.trans p5).trans (p6.trans p7)
-          obtain ⟨rr, s8, k8, z8⟩ := bindOk z7
+          obtain ⟨rr, s8, k8, z8⟩ := AM.bind_ok z7
           obtain ⟨p8, hrr⟩ := closeLams_spec _ _ 0 body _ s7 s8 rr p7.ok
             ⟨GR.denoteBinders_append (denoteBinders_ext p17.ext _ _ hpre) hfbs,
               denote_ext hbody p7.ext⟩ k8
-          obtain ⟨rfl, rfl⟩ := pureOk z8
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok z8
           exact ⟨p17.trans p8, _, rfl, hrr⟩
 
 /-! ## The stage -/
@@ -1575,11 +1575,11 @@ theorem classMinorSlot_spec (rd : Arena.ClassRead) (rdP : ConLeche.ClassRead) (c
         rw [beq_handle_eq hok.wf hCP' hC]
   subst hTU
   match T, hrun with
-  | [], hrun => exact absurd hrun (fun hc => failOk hc)
+  | [], hrun => exact absurd hrun (fun hc => AM.fail_ok hc)
   | [h], hrun =>
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, FOk.pure _⟩
-  | _ :: _ :: _, hrun => exact absurd hrun (fun hc => failOk hc)
+  | _ :: _ :: _, hrun => exact absurd hrun (fun hc => AM.fail_ok hc)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:234-254 classFieldsOf —
 **the minor premise's inductive hypotheses are the datum's recursive fields**:
@@ -1599,16 +1599,16 @@ theorem classFieldsOf_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
     simp only [Frontend.denoteEList, Option.some.injEq] at hfs
     subst hfs
     simp only [Arena.classFieldsOf] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, by simp only [ConLeche.classFieldsOf]; exact FOk.pure _⟩
   | cons f fs ih =>
     intro fsP i s₀ s' r hok hpre hrun
     obtain ⟨hsh, hfs⟩ := hpre
     obtain ⟨fP, fsP', hf, hfs', rfl⟩ := Core.denoteEList_cons_inv hfs
     simp only [Arena.classFieldsOf] at hrun
-    obtain ⟨w, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨w, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨rfl, hw⟩ := fvarTypeD_run hok hf k1
-    obtain ⟨occ, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨occ, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨p2, rfl⟩ := nestOcc_spec p.memberNames pP.memberNames 0 0 w _ s1 s2 occ hok
       ⟨BlockShape.memberNames_spec hsh, hw⟩ k2
     simp only [ConLeche.classFieldsOf]
@@ -1622,39 +1622,39 @@ theorem classFieldsOf_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
       | nil =>
         simp only [Bool.not_false, List.length_nil, beq_self_eq_true, Bool.and_self,
           ↓reduceIte] at z2
-        obtain ⟨rest, s3, k3, z3⟩ := bindOk z2
+        obtain ⟨rest, s3, k3, z3⟩ := AM.bind_ok z2
         obtain ⟨p3, hrest⟩ := ih fsP' (i + 1) s2 s3 rest p2.ok ⟨hsh2, hfs2⟩ k3
-        obtain ⟨rfl, rfl⟩ := pureOk z3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
         refine ⟨p2.trans p3, ?_⟩
         exact FOk.bind (FOk.pure _) (FOk.bind hrest (FOk.pure _))
       | cons h t =>
         simp only [Bool.not_false, List.length_cons, Bool.true_and, Bool.false_and,
           Bool.false_eq_true, ↓reduceIte] at z2
-        exact absurd z2 (fun hc => failOk (by
+        exact absurd z2 (fun hc => AM.fail_ok (by
           have : (Nat.succ t.length == 0) = false := by simp
           simp only [this, Bool.false_eq_true, ↓reduceIte] at hc; exact hc))
     | true =>
       match H, z2 with
       | [], z2 =>
-        simp at z2; exact absurd z2 (fun hc => failOk hc)
+        simp at z2; exact absurd z2 (fun hc => AM.fail_ok hc)
       | [(a, t)], z2 =>
         simp only [Bool.not_true, Bool.false_and, Bool.false_eq_true, ↓reduceIte,
           List.length_singleton, beq_self_eq_true, Bool.and_self] at z2
-        obtain ⟨q, s3, k3, z3⟩ := bindOk z2
+        obtain ⟨q, s3, k3, z3⟩ := AM.bind_ok z2
         obtain ⟨p3, hq1, -⟩ := piBinders_spec coreWalkFuel w _ s2 s3 q p2.ok
           (denote_ext hw p2.ext) k3
         obtain ⟨bs, leaf⟩ := q
         dsimp only at z3
-        obtain ⟨rest, s4, k4, z4⟩ := bindOk z3
+        obtain ⟨rest, s4, k4, z4⟩ := AM.bind_ok z3
         obtain ⟨p4, hrest⟩ := ih fsP' (i + 1) s3 s4 rest p3.ok
           ⟨dShape_ext p3.ext _ _ hsh2, denoteEList_ext p3.ext _ _ hfs2⟩ k4
-        obtain ⟨rfl, rfl⟩ := pureOk z4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
         refine ⟨p2.trans (p3.trans p4), ?_⟩
         have hbl : bs.length = fP.fvarTypeD.piBinders.1.length := denoteBinders_length hq1
         simp only [List.map_cons, cfOf, List.getD_cons_zero, hbl]
         exact FOk.bind (FOk.pure _) (FOk.bind hrest (FOk.pure _))
       | _ :: _ :: _, z2 =>
-        simp at z2; exact absurd z2 (fun hc => failOk hc)
+        simp at z2; exact absurd z2 (fun hc => AM.fail_ok hc)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:273-277 classLeafAt — a
 walked field's leaf is headed by the class's inductive: the tag test and the
@@ -1667,12 +1667,12 @@ theorem classLeafAt_spec (m : Arena.TargetMajor) (mP : ConLeche.TargetMajor) (le
   obtain ⟨hm, hleaf⟩ := hpre
   have hind := (dMajor_inv hm).1
   simp only [Arena.classLeafAt] at hrun
-  obtain ⟨hd, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨hd, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨rfl, hhd⟩ := getAppFn_run hok hleaf k1
   simp only [ConLeche.classLeafAt]
   by_cases ct : (hd.tag == ETag.const) = true
   · rw [if_pos ct] at z1
-    obtain ⟨o, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨o, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨rfl, ho⟩ := viewConst_run k2
     cases o with
     | none => exact absurd z2 (fun hc => failDanglingE_ok hc)
@@ -1681,12 +1681,12 @@ theorem classLeafAt_spec (m : Arena.TargetMajor) (mP : ConLeche.TargetMajor) (le
       obtain ⟨IP, usP, hg, hI, -⟩ := denote_const_inv hok.wf
         (view_of_viewConst_tag ct ho.symm) hhd
       dsimp only at z2
-      obtain ⟨rfl, rfl⟩ := pureOk z2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
       refine ⟨PStep.refl hok, ?_⟩
       rw [hg]
       exact beq_handle_eq hok.wf hI hind
   · rw [if_neg ct] at z1
-    obtain ⟨rfl, rfl⟩ := pureOk z1
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
     refine ⟨PStep.refl hok, ?_⟩
     cases hga : leafP.getAppFn with
     | const I us =>
@@ -1734,7 +1734,7 @@ theorem classNodesAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hes
     subst hes
     simp only [Arena.classNodesAgree] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨CoreStep.refl hok, (), trivial, by simp only [ConLeche.classNodesAgree]; exact FOk.pure _⟩
   | cons e es ih =>
     intro esP s₀ s' r hok hpre hrun
@@ -1743,7 +1743,7 @@ theorem classNodesAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     have hety := (RC.dCtorNf_inv he).2.2.2
     simp only [Arena.classNodesAgree] at hrun
     simp only [ConLeche.classNodesAgree]
-    obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨o, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨p1, ho⟩ := targetPiDomsWith_spec fvs fvsP e.ty eP.ty s₀ s1 o hok.state
       ⟨hfvs, hety⟩ k1
     have c1 := p1.toCore hok
@@ -1752,11 +1752,11 @@ theorem classNodesAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     generalize hD : (o.getD [])[i]? = D at z1
     cases D with
     | none =>
-      exact absurd z1 (fun hc => failOk hc)
+      exact absurd z1 (fun hc => AM.fail_ok hc)
     | some f =>
       obtain ⟨fP, hfP, hfd⟩ := hj2 f hD
       rw [hfP]
-      obtain ⟨b, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨b, s2, k2, z2⟩ := AM.bind_ok z1
       obtain ⟨c2, v, rfl, hK⟩ := targetK53_spec fe hk henv p pP formerTys formerTysP mc McP tele
         teleP leaf f leafP fP hformer hMc s1 s2 b c1.ok
         ⟨dShape_ext c1.ext _ _ hsh, denoteEList_ext c1.ext _ _ hft, dMajor_ext c1.ext _ _ hmc,
@@ -1764,7 +1764,7 @@ theorem classNodesAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       cases b with
       | false =>
         simp only [Bool.false_eq_true, ↓reduceIte] at z2
-        exact absurd z2 (fun hc => failOk hc)
+        exact absurd z2 (fun hc => AM.fail_ok hc)
       | true =>
         simp only [↓reduceIte] at z2
         have c12 := c1.trans c2
@@ -1801,7 +1801,7 @@ theorem classFieldsAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   | nil =>
     intro i s₀ s' r hok _ hrun
     simp only [Arena.classFieldsAgree] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨CoreStep.refl hok, (), trivial, by
       simp only [List.map_nil, ConLeche.classFieldsAgree]; exact FOk.pure _⟩
   | cons kd ks ih =>
@@ -1815,29 +1815,29 @@ theorem classFieldsAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     | recursive t tele =>
       simp only [Arena.classFieldsAgree] at hrun
       simp only [List.map_cons, cfOf, ConLeche.classFieldsAgree]
-      obtain ⟨fv, s1, k1, z1⟩ := bindOk hrun
+      obtain ⟨fv, s1, k1, z1⟩ := AM.bind_ok hrun
       obtain ⟨p1, hfv⟩ := exprGetD_spec fvs fvsP i s₀ s1 fv hok.state hfvs k1
-      obtain ⟨fty, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨fty, s2, k2, z2⟩ := AM.bind_ok z1
       obtain ⟨rfl, hfty⟩ := fvarTypeD_run p1.ok hfv k2
-      obtain ⟨q, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨q, s3, k3, z3⟩ := AM.bind_ok z2
       obtain ⟨rfl, hq⟩ := stripPis_pstep p1.ok hfty k3
       cases q with
-      | none => exact absurd z3 (fun hc => failOk hc)
+      | none => exact absurd z3 (fun hc => AM.fail_ok hc)
       | some q =>
         obtain ⟨teleB, leaf⟩ := q
         obtain ⟨teleP, leafP, hsp, hteleB, hleaf⟩ := denoteBP_some hq
         rw [hsp]
         dsimp only at z3
-        obtain ⟨mt, s4, k4, z4⟩ := bindOk z3
+        obtain ⟨mt, s4, k4, z4⟩ := AM.bind_ok z3
         obtain ⟨p4, hmt⟩ := targetMajorAt_spec ms MsP t _ s4 mt p1.ok
           (PinsOK.ofPStep hok.pins p1) (dMajor_ext.list p1.ext _ _ hms) k4
-        obtain ⟨b, s5, k5, z5⟩ := bindOk z4
+        obtain ⟨b, s5, k5, z5⟩ := AM.bind_ok z4
         obtain ⟨p5, rfl⟩ := classLeafAt_spec mt _ leaf leafP s4 s5 b p4.ok
           ⟨hmt, denote_ext hleaf p4.ext⟩ k5
         have c15 := (p1.trans (p4.trans p5)).toCore hok
         by_cases hb : ConLeche.classLeafAt (MsP.getD t default) leafP = true
         · rw [if_pos hb] at z5
-          obtain ⟨u1, s6, k6, z6⟩ := bindOk z5
+          obtain ⟨u1, s6, k6, z6⟩ := AM.bind_ok z5
           have p45 := p4.trans p5
           obtain ⟨c6, ⟨⟩, -, hN⟩ := classNodesAgree_spec fe hk henv p pP formerTys formerTysP mt
             (MsP.getD t default) teleB teleP leaf leafP fvs fvsP i ctor hformer
@@ -1855,7 +1855,7 @@ theorem classFieldsAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
           simp only [hb, ↓reduceIte]
           exact FOk.seq hN hR
         · rw [if_neg hb] at z5
-          exact absurd z5 (fun hc => failOk hc)
+          exact absurd z5 (fun hc => AM.fail_ok hc)
 
 /-- con-leche: none — a denoting table's entries at a constructor name. -/
 theorem filter_nfs {st : EStore} (hwf : StoreWF st) {C : NIdx} {CP : ConLeche.Name}
@@ -1902,61 +1902,61 @@ theorem classCtorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   have hk' := BlockShape.k_spec hsh
   simp only [Arena.classCtorOf] at hrun
   simp only [ConLeche.classCtorOf]
-  obtain ⟨m, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨m, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, hm⟩ := targetMajorAt_spec ms MsP c s₀ s1 m hok.state hok.pins hms k1
   obtain ⟨-, -, hmds, -, -, -, -, hnfs, -⟩ := dMajor_inv hm
   have hE := filter_nfs p1.ok.wf (denoteN_ext hname p1.ext) _ _ hnfs
   generalize hEs : m.nfs.filter (·.ctor == cA.1.name) = Es at z1 hE
   generalize hEP : (MsP.getD c default).nfs.filter (·.ctor == cvP.name) = EsP at hE ⊢
   cases Es with
-  | nil => exact absurd z1 (fun hc => failOk hc)
+  | nil => exact absurd z1 (fun hc => AM.fail_ok hc)
   | cons e0 Es' =>
     obtain ⟨e0P, EsP', rfl, he0, hEs'⟩ := mapM_option_cons_inv hE
     have he0ty := (RC.dCtorNf_inv he0).2.2.2
     dsimp only at z1
-    obtain ⟨sl, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨sl, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨p2, hsl⟩ := classMinorSlot_spec rd rdP c cA.1.name cvP.name s1 s2 sl p1.ok
       ⟨dClassRead_ext p1.ext _ _ hrd, denoteN_ext hname p1.ext⟩ k2
     obtain ⟨slot, ihs⟩ := sl
     dsimp only at z2
-    obtain ⟨o, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨o, s3, k3, z3⟩ := AM.bind_ok z2
     obtain ⟨p3, ho⟩ := openPisAtFvarsF_run p2.ok (denote_ext he0ty p2.ext) k3
     rw [hnP, hk'] at ho
     cases o with
-    | none => exact absurd z3 (fun hc => failOk hc)
+    | none => exact absurd z3 (fun hc => AM.fail_ok hc)
     | some q =>
       obtain ⟨fvs, body⟩ := q
       obtain ⟨fvsP, bodyP, hq, hfvs, -⟩ := denoteOpen_some_inv ho
       dsimp only at z3
       have p13 := p1.trans (p2.trans p3)
-      obtain ⟨kinds, s4, k4, z4⟩ := bindOk z3
+      obtain ⟨kinds, s4, k4, z4⟩ := AM.bind_ok z3
       obtain ⟨p4, hkinds⟩ := classFieldsOf_spec p pP cvP.name ihs fvs fvsP 0 s3 s4 kinds p3.ok
         ⟨dShape_ext p13.ext _ _ hsh, hfvs⟩ k4
       have p14 := p13.trans p4
       have c14 := p14.toCore hok
-      obtain ⟨u, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨u, s5, k5, z5⟩ := AM.bind_ok z4
       obtain ⟨c5, ⟨⟩, -, hagree⟩ := classFieldsAgree_spec fe hk henv p pP formerTys formerTysP ms
         MsP fvs fvsP (e0 :: Es') (e0P :: EsP') cvP.name hformer hMs kinds 0 s4 s5 u c14.ok
         ⟨dShape_ext c14.ext _ _ hsh, denoteEList_ext c14.ext _ _ hft,
           dMajor_ext.list c14.ext _ _ hms, denoteEList_ext p4.ext _ _ hfvs,
           dCtorNf_ext.list (p2.trans (p3.trans p4)).ext _ _ hE⟩ k5
       have c15 := c14.trans c5
-      obtain ⟨t0, s6, k6, z6⟩ := bindOk z5
+      obtain ⟨t0, s6, k6, z6⟩ := AM.bind_ok z5
       obtain ⟨c6, ht0⟩ := targetCtorAt_spec fe m _ cA.1 cvP s5 s6 t0 c5.ok
         ⟨dMajor_ext (p2.ext.trans (p3.ext.trans (p4.ext.trans c5.ext))) _ _ hm,
           dExt_denoteCV c15.ext _ _ hcv⟩ k6
       have c16 := c15.trans c6
-      obtain ⟨o2, s7, k7, z7⟩ := bindOk z6
+      obtain ⟨o2, s7, k7, z7⟩ := AM.bind_ok z6
       obtain ⟨p7, ho2⟩ := instPisWith_spec m.ds _ t0 _ s6 s7 o2 c6.ok.state
         ⟨denoteEList_ext (p2.ext.trans (p3.ext.trans (p4.ext.trans (c5.ext.trans c6.ext))))
           _ _ hmds, ht0⟩ k7
       have c17 := c16.trans (p7.toCore c6.ok)
       cases o2 with
-      | none => exact absurd z7 (fun hc => failOk hc)
+      | none => exact absurd z7 (fun hc => AM.fail_ok hc)
       | some tyD =>
         obtain ⟨tyDP, htyD, htyDd⟩ := ho2
         dsimp only at z7
-        obtain ⟨rfl, rfl⟩ := pureOk z7
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z7
         refine ⟨c17, ⟨cvP, cA.2, kinds.map cfOf, tyDP, e0P.ty⟩, ?_, ?_⟩
         · simp only [dClassCtor, dExt_denoteCV c17.ext _ _ hcv, htyDd,
             denote_ext he0ty (p2.ext.trans (p3.ext.trans (p4.ext.trans (c5.ext.trans
@@ -1992,21 +1992,21 @@ theorem classCtorsOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     simp only [dCtors, List.mapM_nil, Option.pure_def, Option.some.injEq] at hcs
     subst hcs
     simp only [Arena.classCtorsOf] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨CoreStep.refl hok, [], rfl, by simp only [ConLeche.classCtorsOf]; exact FOk.pure _⟩
   | cons cA cs ih =>
     intro csP s₀ s' r hok hpre hrun
     obtain ⟨hsh, hft, hrd, hms, hcs⟩ := hpre
     obtain ⟨cAP, csP', rfl, hcA, hcs'⟩ := mapM_option_cons_inv hcs
     simp only [Arena.classCtorsOf] at hrun
-    obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨x, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨c1, xP, hx, hF1⟩ := classCtorOf_spec fe hk henv p pP formerTys formerTysP rd rdP ms
       MsP c cA cAP hformer hMs s₀ s1 x hok ⟨hsh, hft, hrd, hms, hcA⟩ k1
-    obtain ⟨xs, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨xs, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨c2, xsP, hxs, hF2⟩ := ih csP' s1 s2 xs c1.ok
       ⟨dShape_ext c1.ext _ _ hsh, denoteEList_ext c1.ext _ _ hft, dClassRead_ext c1.ext _ _ hrd,
         dMajor_ext.list c1.ext _ _ hms, dCtors_ext c1.ext _ _ hcs'⟩ k2
-    obtain ⟨rfl, rfl⟩ := pureOk z2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
     refine ⟨c1.trans c2, xP :: xsP, ?_, ?_⟩
     · simp only [List.mapM_cons, dClassCtor_ext c2.ext _ _ hx, hxs, Option.bind_eq_bind,
         Option.bind_some, Option.pure_def]
@@ -2038,7 +2038,7 @@ theorem classesCtors_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hl
     subst hl
     simp only [Arena.classesCtors] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨CoreStep.refl hok, [], rfl, by simp only [ConLeche.classesCtors]; exact FOk.pure _⟩
   | cons m l ih =>
     intro lP c s₀ s' r hok hpre hrun
@@ -2046,14 +2046,14 @@ theorem classesCtors_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     obtain ⟨mP, lP', rfl, hm, hl'⟩ := mapM_option_cons_inv hl
     have hmc := (dMajor_inv hm).2.2.2.2.2.1
     simp only [Arena.classesCtors] at hrun
-    obtain ⟨xs, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨xs, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨c1, xsP, hxs, hF1⟩ := classCtorsOf_spec fe hk henv p pP formerTys formerTysP rd rdP ms
       MsP c hformer hMs m.ctors mP.ctors s₀ s1 xs hok ⟨hsh, hft, hrd, hms, hmc⟩ k1
-    obtain ⟨xss, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨xss, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨c2, xssP, hxss, hF2⟩ := ih lP' (c + 1) s1 s2 xss c1.ok
       ⟨dShape_ext c1.ext _ _ hsh, denoteEList_ext c1.ext _ _ hft, dClassRead_ext c1.ext _ _ hrd,
         dMajor_ext.list c1.ext _ _ hms, dMajor_ext.list c1.ext _ _ hl'⟩ k2
-    obtain ⟨rfl, rfl⟩ := pureOk z2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
     refine ⟨c1.trans c2, xsP :: xssP, ?_, ?_⟩
     · simp only [List.mapM_cons, dClassCtor_ext.list c2.ext _ _ hxs, hxss, Option.bind_eq_bind,
         Option.bind_some, Option.pure_def]
@@ -2110,7 +2110,7 @@ theorem classMajors_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hks
     subst hks
     simp only [Arena.classMajors] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨CoreStep.refl hok, [], ⟨rfl, fun _ h => nomatch h⟩, by
       simp only [ConLeche.classMajors]; exact FOk.pure _⟩
   | cons key keys ih =>
@@ -2122,12 +2122,12 @@ theorem classMajors_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     obtain ⟨ind, hind, lvls, hlvls, ds, hds, rfl⟩ := hkey
     obtain ⟨-, -, hnP, -, -, -, -⟩ := dShape_inv hsh
     simp only [Arena.classMajors] at hrun
-    obtain ⟨hd, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨hd, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨p1, hhd⟩ := internConstE_run hok.state hind hlvls k1
-    obtain ⟨mty, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨mty, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨p2, hmty⟩ := mkAppN_run _ _ p1.ok hhd (denoteEList_ext p1.ext _ _ hds) k2
     have c12 := (p1.trans p2).toCore hok
-    obtain ⟨m, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨m, s3, k3, z3⟩ := AM.bind_ok z2
     obtain ⟨c3, MP, hm, hF1⟩ := targetMajorOf_spec fe p pP ctorsAs ctorsAsP pfvs pfvs pfvsP pfvsP
       mty _ s2 s3 m c12.ok
       ⟨dShape_ext c12.ext _ _ hsh, dCtors_ext.list c12.ext _ _ hcas,
@@ -2147,16 +2147,16 @@ theorem classMajors_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         simp only [ConLeche.Expr.getAppArgs, List.nil_append] at hxa
         obtain ⟨D, hD⟩ := hsc _ List.mem_cons_self x hxa
         exact ConLeche.WScoped.of_fvarsBelow hD (ConLeche.Expr.fvarB_le hfb)
-    obtain ⟨u, s4, k4, z4⟩ := bindOk z3
+    obtain ⟨u, s4, k4, z4⟩ := AM.bind_ok z3
     rw [hnP] at k4
     obtain ⟨c4, ⟨⟩, -, hF2⟩ := targetMajorPins_spec fe hk henv pP.nP m MP
       (fun _ => hdsW) s3 s4 u c3.ok hm k4
     have c14 := (c12.trans c3).trans c4
-    obtain ⟨ms, s5, k5, z5⟩ := bindOk z4
+    obtain ⟨ms, s5, k5, z5⟩ := AM.bind_ok z4
     obtain ⟨c5, MsP, ⟨hms, hMsc⟩, hF3⟩ := ih keysP' (fun k hk' => hsc k (List.mem_cons_of_mem _ hk'))
       s4 s5 ms c4.ok ⟨dShape_ext c14.ext _ _ hsh, dCtors_ext.list c14.ext _ _ hcas,
         denoteEList_ext c14.ext _ _ hpf, dClassKey_ext.list c14.ext _ _ hks'⟩ k5
-    obtain ⟨rfl, rfl⟩ := pureOk z5
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z5
     refine ⟨c14.trans c5, MP :: MsP, ⟨?_, ?_⟩, ?_⟩
     · simp only [List.mapM_cons, dMajor_ext (c4.ext.trans c5.ext) _ _ hm, hms,
         Option.bind_eq_bind, Option.bind_some, Option.pure_def]
@@ -2191,14 +2191,14 @@ theorem mapMLoop_cspecF {μ : CheckMode} {env : Env} {fe : IFEnv} {α αP β βP
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hl
     subst hl
     simp only [List.mapM.loop] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨CoreStep.refl hok, accP.reverse, mapM_option_reverse hacc, FOk.pure _⟩
   | cons a l ih =>
     intro lP acc accP s₀ s' r hok hpre hrun
     obtain ⟨hq, hl, hacc⟩ := hpre
     obtain ⟨aP, lP', rfl, ha, hl'⟩ := mapM_option_cons_inv hl
     simp only [List.mapM.loop] at hrun
-    obtain ⟨b, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨b, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨c1, bP, hb, hF⟩ := hf a aP s₀ s1 b hok ⟨hq, ha⟩ k1
     obtain ⟨c2, v, hv, hG⟩ := ih lP' (b :: acc) (bP :: accP) s1 s' r c1.ok
       ⟨hQ c1.ext hq, hd.list c1.ext _ _ hl', by
@@ -2245,7 +2245,7 @@ theorem classesNfs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hms
     subst hms
     simp only [Arena.classesNfs] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨CoreStep.refl hok, [], ⟨rfl, fun _ h => nomatch h⟩, by
       simp only [ConLeche.classesNfs]; exact FOk.pure _⟩
   | cons m ms ih =>
@@ -2255,15 +2255,15 @@ theorem classesNfs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     obtain ⟨hind, hlvls, hds, hnPc, hnIdx, hctors, hmem, -, hpfvs⟩ := dMajor_inv hm
     obtain ⟨hscp, hscd⟩ := hsc MP List.mem_cons_self
     simp only [Arena.classesNfs] at hrun
-    obtain ⟨es, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨es, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨c1, esP, hes, hF1⟩ := targetMajorNfs_spec fe hk henv p pP formerTys m.pfvs formerTysP
       MP.pfvs m.lvls MP.lvls m.ds MP.ds m.ctors MP.ctors hformer hscp tbl tblP s₀ s1 es hok
       ⟨hsh, hft, hpfvs, hlvls, hds, hctors, htbl⟩ k1
-    obtain ⟨rest, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨rest, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨c2, restP, ⟨hrest, hrsc⟩, hF2⟩ := ih MsP' (fun N hN => hsc N (List.mem_cons_of_mem _ hN))
       s1 s2 rest c1.ok ⟨dShape_ext c1.ext _ _ hsh, denoteEList_ext c1.ext _ _ hft,
         dCtorNf_ext.list c1.ext _ _ htbl, dMajor_ext.list c1.ext _ _ hms'⟩ k2
-    obtain ⟨rfl, rfl⟩ := pureOk z2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
     have c12 := c1.trans c2
     refine ⟨c12, { MP with nfs := esP } :: restP, ⟨?_, ?_⟩, ?_⟩
     · have hm2 : dMajor s'.store { m with nfs := es } = some { MP with nfs := esP } := by
@@ -2320,7 +2320,7 @@ theorem classFormerTy_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       rw [hc] at hj
       obtain ⟨cvP, hcvP, hd⟩ := hj
       rw [hcvP, Option.getD_some]
-      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨CoreStep.refl hok, _, denoteCV_type hd, FOk.pure _⟩
   | none =>
     rw [hmm] at hrun
@@ -2330,7 +2330,7 @@ theorem classFormerTy_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     cases hf : fe.find? m.ind with
     | none =>
       intro hrun
-      exact absurd hrun (fun hc => failOk hc)
+      exact absurd hrun (fun hc => AM.fail_ok hc)
     | some ci =>
       intro hrun
       obtain ⟨c, hc, he⟩ := find_some_rel hok.ienv hind hf
@@ -2341,7 +2341,7 @@ theorem classFormerTy_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         dsimp only at hrun ⊢
         obtain ⟨c1, hr⟩ := instLPFast_cstep hok (denoteCV_lps hcvP) hlvls (denoteCV_type hcvP) hrun
         exact ⟨c1, _, hr, FOk.pure _⟩
-      | _ => exact absurd hrun (fun hc => failOk hc)
+      | _ => exact absurd hrun (fun hc => AM.fail_ok hc)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:364-387 classConstOk —
 **a generated constant, checked**: the guards in the cited order (each exact,
@@ -2365,7 +2365,7 @@ theorem classConstOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     | some ci => rw [hf] at hdup; exact absurd rfl hdup
   have hfindP : env.find? cP.name = none := IFEnvOK.miss hok.state hok.ienv hnm hfind
   -- 2. the reserved-name guard
-  obtain ⟨rs, s2, k2, r2⟩ := bindOk r1
+  obtain ⟨rs, s2, k2, r2⟩ := AM.bind_ok r1
   obtain ⟨p2, hrs⟩ := reservedBasisNames_pstep hok.state hok.pins k2
   obtain ⟨hres, r3⟩ := AM.dguard_ok AM.Never.fail_any r2
   replace r3 := AM.pure_bind_ok r3
@@ -2375,7 +2375,7 @@ theorem classConstOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     | false => rfl
     | true => rw [hb] at hres; exact absurd rfl hres
   -- 3. the reserved-projection-name guard
-  obtain ⟨b3, s3, k3, r4⟩ := bindOk r3
+  obtain ⟨b3, s3, k3, r4⟩ := AM.bind_ok r3
   obtain ⟨rfl, hb3⟩ := isProjFnShape_run p2.ok rfl (denoteN_ext hnm p2.ext) k3
   obtain ⟨hproj, r5⟩ := AM.dguard_ok AM.Never.fail_any r4
   replace r5 := AM.pure_bind_ok r5
@@ -2392,13 +2392,13 @@ theorem classConstOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (denoteNList_ext p2.ext.lss.ls.ns _ _ hlps)]
     exact hnod
   -- 5. the loose-bound-variable guard
-  obtain ⟨b5, s5, k5, r7⟩ := bindOk r6
+  obtain ⟨b5, s5, k5, r7⟩ := AM.bind_ok r6
   obtain ⟨p5, rfl⟩ := RC.looseBVarsBoundedFast_pstep p2.ok (denote_ext hty p2.ext) k5
   obtain ⟨hlbb, r8⟩ := AM.dunless_ok AM.Never.fail_any r7
   replace r8 := AM.pure_bind_ok r8
   -- 6. the free-variable guard
   have p25 := p2.trans p5
-  obtain ⟨b6, s6, k6, r9⟩ := bindOk r8
+  obtain ⟨b6, s6, k6, r9⟩ := AM.bind_ok r8
   obtain ⟨p6, rfl⟩ := RC.hasFvarFast_pstep p5.ok (denote_ext hty p25.ext) k6
   obtain ⟨hfv, r10⟩ := AM.dguard_ok AM.Never.fail_any r9
   replace r10 := AM.pure_bind_ok r10
@@ -2409,7 +2409,7 @@ theorem classConstOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   have hws : Expr.WScoped 0 cP.type := ConLeche.Expr.WScoped.of_not_hasFvar hfvP
   have p26 := p25.trans p6
   -- 7. the undeclared-universe-parameter guard
-  obtain ⟨b7, s7, k7, r11⟩ := bindOk r10
+  obtain ⟨b7, s7, k7, r11⟩ := AM.bind_ok r10
   obtain ⟨h7st, h7c, h7p, rfl⟩ := allLevelParamsDefined_run p6.ok
     (denoteNList_ext p26.ext.lss.ls.ns _ _ hlps) (denote_ext hty p26.ext) k7
   obtain ⟨hlpd, r12⟩ := AM.dunless_ok AM.Never.fail_any r11
@@ -2419,7 +2419,7 @@ theorem classConstOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   have p27 := p26.trans p7
   -- 8. the unresolved-constant guard
   have c7 := p27.toCore hok
-  obtain ⟨b8, s8, k8, r13⟩ := bindOk r12
+  obtain ⟨b8, s8, k8, r13⟩ := AM.bind_ok r12
   obtain ⟨h8st, h8c, h8p, rfl⟩ := constsResolveFFast_runR c7.ok.toR
     (denote_ext hty p27.ext) k8
   obtain ⟨hcr, r14⟩ := AM.dunless_ok (AM.Never.bind fun _ => AM.Never.fail_any) r13
@@ -2428,12 +2428,12 @@ theorem classConstOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (by rw [h8st]; exact Ext.refl _) (by rw [h8st]; exact BMExt.refl _) h8c h8p
   have c8 := (p27.trans p8).toCore hok
   -- 9. the inference
-  obtain ⟨stype, s9, k9, r15⟩ := bindOk r14
+  obtain ⟨stype, s9, k9, r15⟩ := AM.bind_ok r14
   obtain ⟨c9, w, hw, hww, hF9⟩ := infer_crun hk henv c8.ok (denote_ext hty c8.ext) hws k9
   -- 10. the sort test
-  obtain ⟨u, s10, k10, r16⟩ := bindOk r15
+  obtain ⟨u, s10, k10, r16⟩ := AM.bind_ok r15
   obtain ⟨c10, uu, -, hF10⟩ := ensureSort_crun hk henv c9.ok hw hww k10
-  obtain ⟨rfl, rfl⟩ := pureOk r16
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok r16
   refine ⟨(c8.trans c9).trans c10, cP, ⟨rfl, rfl, hws, hfindP⟩, ?_⟩
   simp only [ConLeche.classConstOk, mkFEnv_find?, hfindP, Option.isSome_none,
     Bool.false_eq_true, ↓reduceIte, hresP, hprojP, hnodP, hlbb, hfvP, hlpd,
@@ -2467,7 +2467,7 @@ theorem classRecTyOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   have hsll : g.slots.length = gP.slots.length := (ConLeche.option_mapM_length hsl).symm
   simp only [Arena.classRecTyOk] at hrun
   simp only [ConLeche.classRecTyOk]
-  obtain ⟨ci, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨ci, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, hci⟩ := targetMajorAt_spec g.cls gP.cls c s₀ s1 ci hok.state hok.pins hcls k1
   obtain ⟨-, -, -, -, hnIdx, -, hmem, -, -⟩ := dMajor_inv hci
   obtain ⟨h1, z2⟩ := AM.dunless_ok AM.Never.fail_any z1
@@ -2480,11 +2480,11 @@ theorem classRecTyOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       rcP.mI == rcP.rP + (gP.cls.getD c default).nIdx) = true := by
     rw [← hrP, ← hmI, ← hnP, ← hsll, ← hnIdx]; exact h2
   rw [if_pos h1P, if_pos h2P]
-  obtain ⟨o, s4, k4, z4⟩ := bindOk z3
+  obtain ⟨o, s4, k4, z4⟩ := AM.bind_ok z3
   obtain ⟨p4, ho⟩ := classGenRecTy_spec g gP c s1 s4 o p1.ok (PinsOK.ofPStep hok.pins p1)
     (dClassGen_ext p1.ext _ _ hg) k4
   cases o with
-  | none => exact absurd z4 (fun hc => failOk hc)
+  | none => exact absurd z4 (fun hc => AM.fail_ok hc)
   | some gty =>
     obtain ⟨gtyP, hgty, hgtyd⟩ := ho
     rw [hgty]
@@ -2495,10 +2495,10 @@ theorem classRecTyOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         some { rcP.cvR with type := gtyP } := by
       obtain ⟨hnm4, hlps4, -⟩ := Core.denoteCV_inv (dExt_denoteCV p14.ext _ _ hcvR)
       simp only [Frontend.denoteCV, hnm4, hlps4, hgtyd]
-    obtain ⟨cvG, s5, k5, z5⟩ := bindOk z4
+    obtain ⟨cvG, s5, k5, z5⟩ := AM.bind_ok z4
     obtain ⟨c5, cvGP, ⟨rfl, rfl, hwG, hfrG⟩, hF5⟩ := classConstOk_spec fe hk henv _ _ s4 s5 cvG
       c14.ok hcvG k5
-    obtain ⟨b, s6, k6, z6⟩ := bindOk z5
+    obtain ⟨b, s6, k6, z6⟩ := AM.bind_ok z5
     have c15 := c14.trans c5
     obtain ⟨c6, hF6⟩ := defeq_crun (hk.knot env fe henv) c5.ok
       (Core.denoteCV_inv (dExt_denoteCV c15.ext _ _ hRiD)).2.2
@@ -2506,10 +2506,10 @@ theorem classRecTyOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     cases b with
     | false =>
       simp only [Bool.false_eq_true, ↓reduceIte] at z6
-      exact absurd z6 (fun hc => failOk hc)
+      exact absurd z6 (fun hc => AM.fail_ok hc)
     | true =>
       simp only [↓reduceIte] at z6
-      obtain ⟨rfl, rfl⟩ := pureOk z6
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z6
       refine ⟨c15.trans c6, _, ⟨dExt_denoteCV c6.ext _ _ (dExt_denoteCV c5.ext _ _ hcvG),
         hwG, hfrG⟩, ?_⟩
       exact FOk.bind FOk.unwrapOr (FOk.bind hF5 (FOk.bind (by simpa [mkFEnv_env] using hF6)
@@ -2538,7 +2538,7 @@ theorem classRecTysOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrecs
     subst hrecs
     simp only [Arena.classRecTysOk] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨CoreStep.refl hok, [], ⟨rfl, fun _ h => nomatch h⟩, by
       simp only [ConLeche.classRecTysOk]; exact FOk.pure _⟩
   | cons rc recs ih =>
@@ -2548,22 +2548,22 @@ theorem classRecTysOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     match cvs, cvsP, cls, hcvs, hw, hrun with
     | [], _, _, _, _, hrun =>
       simp only [Arena.classRecTysOk] at hrun
-      exact absurd hrun (fun hc => failOk hc)
+      exact absurd hrun (fun hc => AM.fail_ok hc)
     | _ :: _, _, [], _, _, hrun =>
       simp only [Arena.classRecTysOk] at hrun
-      exact absurd hrun (fun hc => failOk hc)
+      exact absurd hrun (fun hc => AM.fail_ok hc)
     | cvRi :: cvs', cvsP, c :: cs, hcvs, hw, hrun =>
       obtain ⟨cvRiP, cvsP', rfl, hRi, hcvs'⟩ := mapM_option_cons_inv hcvs
       simp only [Arena.classRecTysOk] at hrun
-      obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
+      obtain ⟨x, s1, k1, z1⟩ := AM.bind_ok hrun
       obtain ⟨c1, xP, ⟨hx, -, hfx⟩, hF1⟩ := classRecTyOk_spec fe hk henv g gP k rc rcP cvRi cvRiP c
         (hw _ List.mem_cons_self) s₀ s1 x hok ⟨hg, hrc, hRi⟩ k1
-      obtain ⟨xs, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨xs, s2, k2, z2⟩ := AM.bind_ok z1
       obtain ⟨c2, xsP, ⟨hxs, hfxs⟩, hF2⟩ := ih recsP' cvs' cvsP' cs
         (fun cv h => hw cv (List.mem_cons_of_mem _ h)) s1 s2 xs c1.ok
         ⟨dClassGen_ext c1.ext _ _ hg, dRec_ext.list c1.ext _ _ hrecs',
           dExt_denoteCV.list c1.ext _ _ hcvs'⟩ k2
-      obtain ⟨rfl, rfl⟩ := pureOk z2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
       refine ⟨c1.trans c2, xP :: xsP, ⟨?_, ?_⟩, ?_⟩
       · simp only [List.mapM_cons, dExt_denoteCV c2.ext _ _ hx, hxs, Option.bind_eq_bind,
           Option.bind_some, Option.pure_def]
@@ -2589,7 +2589,7 @@ theorem allM_domains_resolve {env : Env} {fe : IFEnv} :
     simp only [denoteBinders, Option.some.injEq] at hbs
     subst hbs
     simp only [List.allM] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok.state, rfl⟩
   | cons x bs ih =>
     intro bsP s₀ s' b hok hbs hrun
@@ -2604,12 +2604,12 @@ theorem allM_domains_resolve {env : Env} {fe : IFEnv} :
     rw [ht, hr] at hbs
     obtain rfl := (Option.some.inj hbs).symm
     simp only [List.allM] at hrun
-    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨c, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨p1, rfl⟩ := constsResolveFFast_pstep hok ht k1
     cases hc : tP.constsResolve env with
     | false =>
       rw [hc] at z1
-      obtain ⟨rfl, rfl⟩ := pureOk z1
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
       exact ⟨p1, by simp only [List.all_cons, hc, Bool.false_and]⟩
     | true =>
       rw [hc] at z1
@@ -2662,11 +2662,11 @@ theorem classRuleOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (vis
   obtain ⟨-, hlps, -⟩ := Core.denoteCV_inv hcv
   simp only [Arena.classRuleOk] at hrun
   -- the closedness guards
-  obtain ⟨b1, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨b1, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, rfl⟩ := RC.looseBVarsBoundedFast_pstep hok.state hgen k1
   obtain ⟨hlb, z2⟩ := AM.dunless_ok AM.Never.fail_any z1
   replace z2 := AM.pure_bind_ok z2
-  obtain ⟨b2, s2, k2, z3⟩ := bindOk z2
+  obtain ⟨b2, s2, k2, z3⟩ := AM.bind_ok z2
   obtain ⟨p2, rfl⟩ := RC.hasFvarFast_pstep p1.ok (denote_ext hgen p1.ext) k2
   obtain ⟨hfv, z4⟩ := AM.dguard_ok AM.Never.fail_any z3
   replace z4 := AM.pure_bind_ok z4
@@ -2677,7 +2677,7 @@ theorem classRuleOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (vis
   have hws : Expr.WScoped 0 genP := ConLeche.Expr.WScoped.of_not_hasFvar hfvP
   have p12 := p1.trans p2
   -- the level parameters
-  obtain ⟨b3, s3, k3, z5⟩ := bindOk z4
+  obtain ⟨b3, s3, k3, z5⟩ := AM.bind_ok z4
   obtain ⟨h3st, h3c, h3p, rfl⟩ := allLevelParamsDefined_run p2.ok
     (denoteNList_ext p12.ext.lss.ls.ns _ _ hlps) (denote_ext hgen p12.ext) k3
   obtain ⟨hlp, z6⟩ := AM.dunless_ok AM.Never.fail_any z5
@@ -2686,30 +2686,30 @@ theorem classRuleOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (vis
     (by rw [h3st]; exact Ext.refl _) (by rw [h3st]; exact BMExt.refl _) h3c h3p
   have c13 := (p12.trans p3).toCore hok
   -- the resolution at `feR`
-  obtain ⟨b4, s4, k4, z7⟩ := bindOk z6
+  obtain ⟨b4, s4, k4, z7⟩ := AM.bind_ok z6
   obtain ⟨p4, rfl⟩ := constsResolveFFast_pstep c13.ok.toR (denote_ext hgen c13.ext) k4
   obtain ⟨hcr, z8⟩ := AM.dunless_ok (AM.Never.bind fun _ => AM.Never.fail_any) z7
   replace z8 := AM.pure_bind_ok z8
   have c14 := c13.trans (p4.toCore c13.ok)
   -- the inference at `feR`
-  obtain ⟨ty, s5, k5, z9⟩ := bindOk z8
+  obtain ⟨ty, s5, k5, z9⟩ := AM.bind_ok z8
   obtain ⟨c5, w, -, -, hF5⟩ := infer_crun hk henvR c14.ok (denote_ext hgen c14.ext) hws k5
   -- the flush
-  obtain ⟨u6, s6, k6, z10⟩ := bindOk z9
+  obtain ⟨u6, s6, k6, z10⟩ := AM.bind_ok z9
   obtain ⟨hok6, hi6, hst6⟩ := (c5.ok.toR).flush (μ := μ) k6
   have c56 : CoreStep μ envR feR s5 s6 := ⟨hok6, by rw [hst6]; exact Ext.refl _, hi6.pins⟩
   have c16 := (c14.trans c5).trans c56
   -- the λ-telescope
-  obtain ⟨q, s7, k7, z11⟩ := bindOk z10
+  obtain ⟨q, s7, k7, z11⟩ := AM.bind_ok z10
   obtain ⟨hs7, hq⟩ := stripLams_pstep hok6.state (denote_ext hgen c16.ext) k7
   rw [hs7] at z11
   cases q with
-  | none => exact absurd z11 (fun hc => failOk hc)
+  | none => exact absurd z11 (fun hc => AM.fail_ok hc)
   | some q =>
     obtain ⟨rbs, body⟩ := q
     obtain ⟨rbsP, bodyP, hsl, hrbs, -⟩ := denoteBP_some hq
     dsimp only at z11
-    obtain ⟨b8, s8, k8, z12⟩ := bindOk z11
+    obtain ⟨b8, s8, k8, z12⟩ := AM.bind_ok z11
     have hr6 : ReadOK env₂ (feR.restrictTo visT) s6 :=
       ⟨hok6.state, hok6.pins, hie₂.mono c16.ext _ rfl⟩
     obtain ⟨p8, rfl⟩ := allM_domains_resolve rbs rbsP s6 s8 _ hr6 hrbs k8
@@ -2719,7 +2719,7 @@ theorem classRuleOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (vis
     have c18 := c16.trans (p8.toCore hok6)
     by_cases hpw : (rbs.all fun b => b.2.pw == pw) = true
     · rw [if_pos hpw] at z13
-      obtain ⟨rfl, rfl⟩ := pureOk z13
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z13
       refine ⟨c18, genP, denote_ext hgen c18.ext, ?_⟩
       have h1P : (genP.looseBVarsBounded 0 && !genP.hasFvar) = true := by
         simp only [hlb, hfvP, Bool.not_false, Bool.and_self]
@@ -2730,7 +2730,7 @@ theorem classRuleOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (vis
       rw [if_pos hdom, hpwP, if_pos hpw]
       exact FOk.pure _
     · rw [if_neg hpw] at z13
-      exact absurd z13 (fun hc => failOk hc)
+      exact absurd z13 (fun hc => AM.fail_ok hc)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:448-459 classRulesOk — a
 recursor's generated rules, one per constructor of its class, the callee the
@@ -2757,7 +2757,7 @@ theorem classRulesOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (vi
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hxs
     subst hxs
     simp only [Arena.classRulesOk] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨CoreStep.refl hok, [], rfl, by simp only [ConLeche.classRulesOk]; exact FOk.pure _⟩
   | cons x xs ih =>
     intro xsP s₀ s' r hok hpre hrun
@@ -2769,30 +2769,30 @@ theorem classRulesOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (vi
     obtain ⟨-, hlps, -⟩ := Core.denoteCV_inv hcvR
     simp only [Arena.classRulesOk] at hrun
     simp only [ConLeche.classRulesOk]
-    obtain ⟨rl, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨rl, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨p1, hrl⟩ := paramLevels_spec _ _ s₀ s1 rl hok.state hlps k1
-    obtain ⟨o, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨o, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨p2, ho⟩ := classGenRule_spec g gP recCls cvGs cvGsP rl _ c x xP s1 s2 o p1.ok
       (PinsOK.ofPStep hok.pins p1)
       ⟨dClassGen_ext p1.ext _ _ hg, dClassCtor_ext p1.ext _ _ hx,
         dExt_denoteCV.list p1.ext _ _ hcvs, hrl⟩ k2
     have c12 := (p1.trans p2).toCore hok
     cases o with
-    | none => exact absurd z2 (fun hc => failOk hc)
+    | none => exact absurd z2 (fun hc => AM.fail_ok hc)
     | some gen =>
       obtain ⟨genP, hgenP, hgen⟩ := ho
       dsimp only at z2
-      obtain ⟨r1, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨r1, s3, k3, z3⟩ := AM.bind_ok z2
       rw [hnP, hsll, hnF] at k3
       obtain ⟨c3, r1P, hr1, hF3⟩ := classRuleOk_spec feR visT hk henvR cvR cvRP pw _ gen genP
         s2 s3 r1 c12.ok ⟨dExt_denoteCV c12.ext _ _ hcvR, hgen, hie.mono c12.ext⟩ k3
       have c13 := c12.trans c3
-      obtain ⟨rs, s4, k4, z4⟩ := bindOk z3
+      obtain ⟨rs, s4, k4, z4⟩ := AM.bind_ok z3
       obtain ⟨c4, rsP, hrs, hF4⟩ := ih xsP' s3 s4 rs c3.ok
         ⟨dClassGen_ext c13.ext _ _ hg, dExt_denoteCV.list c13.ext _ _ hcvs,
           dExt_denoteCV c13.ext _ _ hcvR, dClassCtor_ext.list c13.ext _ _ hxs',
           hie.mono c13.ext⟩ k4
-      obtain ⟨rfl, rfl⟩ := pureOk z4
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
       refine ⟨c13.trans c4, r1P :: rsP, ?_, ?_⟩
       · simp only [Frontend.denoteEList, denote_ext hr1 c4.ext, hrs]
       · rw [hgenP]
@@ -2821,7 +2821,7 @@ theorem classRecsRulesOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv)
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hcvs
     subst hcvs
     simp only [Arena.classRecsRulesOk] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨CoreStep.refl hok, [], rfl, by simp only [ConLeche.classRecsRulesOk]; exact FOk.pure _⟩
   | cons cvG cvs ih =>
     intro cvsP cs s₀ s' r hok hpre hrun
@@ -2830,7 +2830,7 @@ theorem classRecsRulesOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv)
     cases cs with
     | nil =>
       simp only [Arena.classRecsRulesOk] at hrun
-      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨CoreStep.refl hok, [], rfl, by simp only [ConLeche.classRecsRulesOk]; exact FOk.pure _⟩
     | cons c cs =>
       obtain ⟨-, -, hcls, -, -, hctors, -, -, -⟩ := dClassGen_inv hg
@@ -2848,18 +2848,18 @@ theorem classRecsRulesOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv)
           rw [hxsP]; exact hd
       simp only [Arena.classRecsRulesOk] at hrun
       simp only [ConLeche.classRecsRulesOk]
-      obtain ⟨rhss, s1, k1, z1⟩ := bindOk hrun
+      obtain ⟨rhss, s1, k1, z1⟩ := AM.bind_ok hrun
       obtain ⟨c1, rhssP, hrhss, hF1⟩ := classRulesOk_spec feR visT hk henvR g gP recCls cvGs cvGsP
         cvG cvGP pw c _ _ s₀ s1 rhss hok ⟨hg, hcvGs, hcvG, hxs, hie⟩ k1
-      obtain ⟨m, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨m, s2, k2, z2⟩ := AM.bind_ok z1
       obtain ⟨p2, hm⟩ := targetMajorAt_spec g.cls gP.cls c s1 s2 m c1.ok.state c1.ok.pins
         (dMajor_ext.list c1.ext _ _ hcls) k2
       have c12 := c1.trans (p2.toCore c1.ok)
-      obtain ⟨rest, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨rest, s3, k3, z3⟩ := AM.bind_ok z2
       obtain ⟨c3, restP, hrest, hF3⟩ := ih cvsP' cs s2 s3 rest c12.ok
         ⟨dClassGen_ext c12.ext _ _ hg, dExt_denoteCV.list c12.ext _ _ hcvGs,
           dExt_denoteCV.list c12.ext _ _ hcvs', hie.mono c12.ext⟩ k3
-      obtain ⟨rfl, rfl⟩ := pureOk z3
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
       refine ⟨c12.trans c3, (cvGP, gP.cls.getD c default, rhssP) :: restP, ?_, ?_⟩
       · have h1 : dRecOut s'.store (cvG, m, rhss) = some (cvGP, gP.cls.getD c default, rhssP) := by
           simp only [dRecOut, dExt_denoteCV c12.ext _ _ hcvG |> dExt_denoteCV c3.ext _ _,
@@ -2886,7 +2886,7 @@ theorem classStreamRecs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrecs
     subst hrecs
     simp only [Arena.classStreamRecs] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨CoreStep.refl hok, [], ⟨rfl, fun _ h => nomatch h⟩, by
       simp only [ConLeche.classStreamRecs]; exact FOk.pure _⟩
   | cons rc recs ih =>
@@ -2894,16 +2894,16 @@ theorem classStreamRecs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     obtain ⟨rcP, recsP', rfl, hrc, hrecs'⟩ := mapM_option_cons_inv hrecs
     have hcvR := (dRec_inv hrc).1
     simp only [Arena.classStreamRecs] at hrun
-    obtain ⟨cv, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨cv, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨c1, cA, F, hcA, hF⟩ := checkConstantVal_bridge hμ hk hok henv hcvR k1
     have hwA : Expr.WScoped 0 cA.type := by
       obtain ⟨-, -, -, -, -, hitf, type, -, -, hann, -, -, -, -, rfl⟩ :=
         ConLeche.checkConstantVal_inv hF
       exact ConLeche.annotateCore_WScoped F _ hann (ConLeche.Expr.WScoped.of_not_hasFvar hitf)
-    obtain ⟨cvs, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨cvs, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨c2, cvsP, ⟨hcvs, hwcvs⟩, hF2⟩ := ih recsP' s1 s2 cvs c1.ok
       (dRec_ext.list c1.ext _ _ hrecs') k2
-    obtain ⟨rfl, rfl⟩ := pureOk z2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
     refine ⟨c1.trans c2, cA :: cvsP, ⟨?_, ?_⟩, ?_⟩
     · simp only [List.mapM_cons, dExt_denoteCV c2.ext _ _ hcA, hcvs, Option.bind_eq_bind,
         Option.bind_some, Option.pure_def]
@@ -3127,12 +3127,12 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
   have hk' := BlockShape.k_spec hsh
   have hrecs := (dShape_inv hsh).2.1
   -- the records' pins
-  obtain ⟨u0, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨u0, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, hF1⟩ := targetRecPins_spec p pP block blockP s₀ s1 u0 hok.state hok.pins
     ⟨hsh, hblk⟩ k1
   have c1 := p1.toCore hok
   -- the stream's recursor types
-  obtain ⟨cvRis, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨cvRis, s2, k2, z2⟩ := AM.bind_ok z1
   obtain ⟨c2, cvRisP, ⟨hcvRis, hwRis⟩, hF2⟩ := classStreamRecs_spec fe₂ hμ hk henv₂ p.recs
     pP.recs s1 s2 cvRis c1.ok (dRec_ext.list c1.ext _ _ hrecs) k2
   have c12 := c1.trans c2
@@ -3145,7 +3145,7 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
   by_cases hL : p.large = true
   case' pos =>
     rw [if_pos hL] at z3
-    obtain ⟨la, s3, k3, z4⟩ := bindOk z3
+    obtain ⟨la, s3, k3, z4⟩ := AM.bind_ok z3
     obtain ⟨c3, rfl⟩ := blockLargeElimAllowed_cspec fe₂ p pP _ s2 s3 la c12.ok
       (dShape_ext c12.ext _ _ hsh) k3
     obtain ⟨hla, z4⟩ := AM.dunless_ok AM.Never.fail_any z4
@@ -3171,14 +3171,14 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
       exact hT cv hcv
     have hMsT : ∀ M ∈ MsP, Cached.TargetMajScoped M := fun M hM => (hMs M hM).1
     -- every class's table entries
-    obtain ⟨ms2, s4, k4, z5⟩ := bindOk z4
+    obtain ⟨ms2, s4, k4, z5⟩ := AM.bind_ok z4
     obtain ⟨c4, Ms2P, ⟨hms2, hMs2⟩, hF4⟩ := classesNfs_spec fe₂ hk henv₂ p pP _ _ tbl tblP hformer
       ms MsP hMsT s3 s4 ms2 c13.ok
       ⟨dShape_ext c13.ext _ _ hsh, GR.types_denote (dExt_denoteCV.list c13.ext _ _ hcvT),
         dCtorNf_ext.list c13.ext _ _ htbl, dMajor_ext.list c13.ext _ _ hms⟩ k4
     have c14 := c13.trans c4
     -- the generator's constructors
-    obtain ⟨ctors, s5, k5, z6⟩ := bindOk z5
+    obtain ⟨ctors, s5, k5, z6⟩ := AM.bind_ok z5
     obtain ⟨c5, ctorsP, hctors, hF5⟩ := classesCtors_spec fe₂ hk henv₂ p pP _ _ rd rdP ms2 Ms2P
       hformer hMs2 ms2 Ms2P 0 s4 s5 ctors c4.ok
       ⟨dShape_ext c14.ext _ _ hsh, GR.types_denote (dExt_denoteCV.list c14.ext _ _ hcvT),
@@ -3199,7 +3199,7 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
         (ctorsP.map List.length).sum) = true := by
       rw [← isMinor_count hsl, ← GR.sum_lengths hctors]; exact hminor
     -- the classes' formers
-    obtain ⟨fTC, s6, k6, z8⟩ := bindOk z7
+    obtain ⟨fTC, s6, k6, z8⟩ := AM.bind_ok z7
     obtain ⟨c6, fTCP, hfTC, hF6⟩ := GR.mapM_cspecF dMajor dMajor_ext (fun st e => denoteE st e)
       dExt_denoteE (fun st => cvTas.mapM (Frontend.denoteCV st) = some cvTasP)
       (fun hx h => dExt_denoteCV.list hx _ _ h) (Arena.classFormerTy fe₂ cvTas)
@@ -3209,10 +3209,10 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
       ⟨dExt_denoteCV.list c15.ext _ _ hcvT, dMajor_ext.list c5.ext _ _ hms2⟩ k6
     have c16 := c15.trans c6
     -- the elimination level and the binder datum
-    obtain ⟨elim, s7, k7, z9⟩ := bindOk z8
+    obtain ⟨elim, s7, k7, z9⟩ := AM.bind_ok z8
     obtain ⟨p7, helim⟩ := structElimLevel_spec p.elim pP.elim p.large s6 s7 elim c6.ok.state
       ((dShape_inv (dShape_ext c16.ext _ _ hsh)).2.2.2.1) k7
-    obtain ⟨bm, s8, k8, z10⟩ := bindOk z9
+    obtain ⟨bm, s8, k8, z10⟩ := AM.bind_ok z9
     have c17 := c16.trans (p7.toCore c6.ok)
     obtain ⟨p8, rfl⟩ := classGenBm_spec elim _ s7 s8 bm c17.ok.state c17.ok.caches.readL helim k8
     have c18 := c17.trans (p8.toCore c17.ok)
@@ -3231,17 +3231,17 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
       simp only [dClassGen, e1, e2, e3, e4, e5, e6, denoteBinders, hnP, hlarge,
         Option.bind_eq_bind, Option.bind_some, Option.pure_def, if_true]
     -- the prefix
-    obtain ⟨o, s9, k9, z11⟩ := bindOk z10
+    obtain ⟨o, s9, k9, z11⟩ := AM.bind_ok z10
     obtain ⟨p9, ho⟩ := ClassGen.prefixBinders_spec _ _ s8 s9 o c18.ok.state c18.ok.pins hg0 k9
     have c19 := c18.trans (p9.toCore c18.ok)
     cases o with
-    | none => exact absurd z11 (fun hc => failOk hc)
+    | none => exact absurd z11 (fun hc => AM.fail_ok hc)
     | some pre =>
     obtain ⟨preP, hpreP, hpre⟩ := ho
     dsimp only at z11
     have hg := dClassGen_pre (dClassGen_ext p9.ext _ _ hg0) hpre
     -- the generated types
-    obtain ⟨cvGs, s10, k10, z12⟩ := bindOk z11
+    obtain ⟨cvGs, s10, k10, z12⟩ := AM.bind_ok z11
     rw [hk'] at k10
     obtain ⟨c10, cvGsP, ⟨hcvGs, hfrG⟩, hF10⟩ := classRecTysOk_spec fe₂ hk henv₂ _ _ pP.k p.recs
       pP.recs cvRis cvRisP rd.recCls hwRis s9 s10 cvGs c19.ok
@@ -3281,24 +3281,24 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
     have hie2R : IFEnvOK env₂ ((Arena.classFeR p cvGs rd.recCls fe₂).1.restrictTo
         fe₂.visibleBelow) s10 := RC.IFEnvOK.of_find? (hok.ienv.mono c110.ext) hview
     -- the flush into the rule-less recursors' environment
-    obtain ⟨u11, s11, k11, z13⟩ := bindOk z12
+    obtain ⟨u11, s11, k11, z13⟩ := AM.bind_ok z12
     obtain ⟨hok11, hi11, hst11⟩ := (⟨c10.ok.state, c10.ok.pins, hfeR.1⟩ :
       ReadOK _ (Arena.classFeR p cvGs rd.recCls fe₂).1 s10).flush (μ := μ) k11
     -- the rules
-    obtain ⟨out, s12, k12, z14⟩ := bindOk z13
+    obtain ⟨out, s12, k12, z14⟩ := AM.bind_ok z13
     obtain ⟨c12', outP, hout, hF12⟩ := classRecsRulesOk_spec _ fe₂.visibleBelow hk henvR _ _
       rd.recCls _ cvGs cvGsP cvGs cvGsP rd.recCls s11 s12 out hok11
       ⟨by rw [hst11]; exact dClassGen_ext c10.ext _ _ hg, by rw [hst11]; exact hcvGs,
         by rw [hst11]; exact hcvGs, by rw [hst11]; exact hie2R.toS⟩ k12
     -- the flush back
-    obtain ⟨u13, s13, k13, z15⟩ := bindOk z14
+    obtain ⟨u13, s13, k13, z15⟩ := AM.bind_ok z14
     have hext12 : Ext s₀.store s12.store := c110.ext.trans (by rw [← hst11]; exact c12'.ext)
     have hpins12 : s12.pins = s₀.pins := by
       rw [c12'.pins, hi11.pins, c110.pins]
     obtain ⟨hok13, hi13, hst13⟩ := (⟨c12'.ok.state, by
       exact hok.pins.mono hext12 hpins12, hok.ienv.mono hext12⟩ : ReadOK env₂ fe₂ s12).flush
       (μ := μ) k13
-    obtain ⟨hr15, hs15⟩ := pureOk z15
+    obtain ⟨hr15, hs15⟩ := AM.pure_ok z15
     subst hr15
     rw [← hs15] at hok13 hi13 hst13
     have hframe : CoreStep μ env₂ fe₂ s₀ s' :=
@@ -3343,13 +3343,13 @@ theorem classKeyCanon_spec (params : List EIdx) (paramsP : List Expr) (k : Arena
     Option.some.injEq] at hk
   obtain ⟨ind, hind, lvls, hlvls, ds, hds, rfl⟩ := hk
   simp only [Arena.classKeyCanon] at hrun
-  obtain ⟨ds2, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨ds2, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, hds2⟩ := mapM_RE_P (fun st => Frontend.denoteEList st params = some paramsP)
     (fun hx h => denoteEList_ext hx _ _ h)
     (fun e eP s₀ s' r hok hp hpre hrun =>
       targetCanonParams_spec params paramsP e eP s₀ s' r hok hp hpre hrun)
     k.ds ds s₀ s1 ds2 hok hp ⟨hpar, hds⟩ k1
-  obtain ⟨rfl, rfl⟩ := pureOk z1
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
   refine ⟨p1, ?_⟩
   simp only [dClassKey, denoteN_ext hind p1.ext, denoteLs_ext hlvls p1.ext, hds2,
     Option.bind_eq_bind, Option.bind_some, Option.pure_def, ConLeche.classKeyCanon]
@@ -3375,7 +3375,7 @@ theorem annotateList_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     simp only [Frontend.denoteEList, Option.some.injEq] at hx
     subst hx
     simp only [List.mapM.loop] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     refine ⟨CoreStep.refl hok, accP.reverse, ⟨?_, fun x hx => hwacc x (List.mem_reverse.mp hx)⟩,
       FOk.pure _⟩
     rw [← mapM_denoteE_eq_list]
@@ -3385,7 +3385,7 @@ theorem annotateList_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     obtain ⟨hx, hacc⟩ := hpre
     obtain ⟨xP, xsP', hxP, hxs, rfl⟩ := Core.denoteEList_cons_inv hx
     simp only [List.mapM.loop] at hrun
-    obtain ⟨b, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨b, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨c1, w, hw, hww, hF⟩ := annotate_crun hk henv hok hxP (hwx xP List.mem_cons_self) k1
     obtain ⟨c2, v, hv, hG⟩ := ih xsP' (b :: acc) (w :: accP)
       (fun y hy => hwx y (List.mem_cons_of_mem _ hy))
@@ -3413,27 +3413,27 @@ theorem classKeyOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (ConLeche.classKeyOf (fueledOpsM μ) env nP paramsP kP) := by
   intro s₀ s' r hok hpre hrun
   simp only [Arena.classKeyOf] at hrun
-  obtain ⟨k2, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨k2, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, hk2⟩ := classKeyCanon_spec params paramsP k kP s₀ s1 k2 hok.state hok.pins hpre k1
   simp only [dClassKey, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
     Option.some.injEq] at hk2
   obtain ⟨ind, hind, lvls, hlvls, ds, hds, hkc⟩ := hk2
-  obtain ⟨cl, s2, k2', z2⟩ := bindOk z1
+  obtain ⟨cl, s2, k2', z2⟩ := AM.bind_ok z1
   obtain ⟨p2, rfl⟩ := allM_E_pstep (F := fun x => x.bvarB == 0 && decide (x.fvarB ≤ nP))
     (fun _ => True) (fun _ h => h)
     (fun e eP s₀ s' b hok _ he hrun => by
-      obtain ⟨bb, t1, j1, y1⟩ := bindOk hrun
+      obtain ⟨bb, t1, j1, y1⟩ := AM.bind_ok hrun
       obtain ⟨q1, -, rfl⟩ := bvarB_pstep hok he j1
       by_cases hb : (eP.bvarB != 0) = true
       · rw [if_pos hb] at y1
-        obtain ⟨rfl, rfl⟩ := pureOk y1
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok y1
         simp only [bne_iff_ne, ne_eq] at hb
         exact ⟨q1, by simp [hb]⟩
       · rw [if_neg hb] at y1
         simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hb
-        obtain ⟨ff, t2, j2, y2⟩ := bindOk y1
+        obtain ⟨ff, t2, j2, y2⟩ := AM.bind_ok y1
         obtain ⟨q2, -, rfl⟩ := fvarB_pstep q1.ok (denote_ext he q1.ext) j2
-        obtain ⟨rfl, rfl⟩ := pureOk y2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok y2
         exact ⟨q1.trans q2, by simp [hb]⟩)
     k2.ds ds s1 s2 cl p1.ok trivial hds k2' 
   obtain ⟨hcl, z3⟩ := AM.dunless_ok AM.Never.fail_any z2
@@ -3450,10 +3450,10 @@ theorem classKeyOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (fun i r hr => hp r (List.mem_of_getElem? hr))
       (fun i hi => by simp [hpl, hi]) y (ConLeche.Expr.fvarB_le hx'.2)
   have c12 := (p1.trans p2).toCore hok
-  obtain ⟨dsA, s3, k3, z4⟩ := bindOk z3
+  obtain ⟨dsA, s3, k3, z4⟩ := AM.bind_ok z3
   obtain ⟨c3, dsAP, ⟨hdsA, hwA⟩, hF⟩ := annotateList_spec fe hk henv nP k2.ds _ [] [] hw
     (fun _ h => nomatch h) s2 s3 dsA c12.ok ⟨denoteEList_ext p2.ext _ _ hds, rfl⟩ k3
-  obtain ⟨rfl, rfl⟩ := pureOk z4
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
   have c13 := c12.trans c3
   refine ⟨c13, { ConLeche.classKeyCanon paramsP kP with ds := dsAP }, ⟨?_, hwA⟩, ?_⟩
   · have e1 := denoteN_ext hind (p2.ext.trans c3.ext)
@@ -3486,7 +3486,7 @@ theorem classKeysOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hks
     subst hks
     simp only [List.mapM.loop] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨CoreStep.refl hok, accP.reverse, ⟨mapM_option_reverse hacc,
       fun k hk => hwacc k (List.mem_reverse.mp hk)⟩, FOk.pure _⟩
   | cons k ks ih =>
@@ -3494,7 +3494,7 @@ theorem classKeysOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     obtain ⟨hpar, hks, hacc⟩ := hpre
     obtain ⟨kP, ksP', rfl, hkd, hks'⟩ := mapM_option_cons_inv hks
     simp only [List.mapM.loop] at hrun
-    obtain ⟨b, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨b, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨c1, bP, ⟨hb, hwb⟩, hF⟩ := classKeyOf_spec fe hk henv nP params paramsP hpl hp k kP
       s₀ s1 b hok ⟨hpar, hkd⟩ k1
     obtain ⟨c2, v, hv, hG⟩ := ih ksP' (b :: acc) (bP :: accP)
@@ -3550,13 +3550,13 @@ theorem checkBlockClasses_spec {μ : CheckMode} {env₁ : Env} (fe₁ : IFEnv)
   have hk' := BlockShape.k_spec hsh
   simp only [Arena.checkBlockClasses] at hrun
   simp only [ConLeche.checkBlockClasses]
-  obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨o, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, ho⟩ := classRead_spec p pP env₁ fe₁ p.nP p.recs pP.recs s₀ s1 o hok.state
     ⟨hsh, hok.ienv.toS, hrecs⟩ k1
   rw [hnP] at ho
   have c1 := p1.toCore hok
   cases o with
-  | none => exact absurd z1 (fun hc => failOk hc)
+  | none => exact absurd z1 (fun hc => AM.fail_ok hc)
   | some rd =>
     obtain ⟨rdP, hrdP, hrd⟩ := ho
     rw [hrdP]
@@ -3573,13 +3573,13 @@ theorem checkBlockClasses_spec {μ : CheckMode} {env₁ : Env} (fe₁ : IFEnv)
     have hclsP : ConLeche.ClassRead.classes ⟨rdP.slots, rd.recCls⟩ = rdP.classes := by
       rw [hrc]
     rw [hclsP] at hcls
-    obtain ⟨keys, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨keys, s2, k2, z2⟩ := AM.bind_ok z1
     rw [hnP] at k2
     obtain ⟨c2, keysP, ⟨hkeys, hwk⟩, hF2⟩ := classKeysOf_spec fe₁ hk henv₁ pP.nP params paramsP
       hpl hp _ _ [] [] (fun _ h => nomatch h) s1 s2 keys c1.ok
       ⟨denoteEList_ext c1.ext _ _ hpar, hcls, rfl⟩ k2
     have c12 := c1.trans c2
-    obtain ⟨ms, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨ms, s3, k3, z3⟩ := AM.bind_ok z2
     obtain ⟨c3, MsP, ⟨hms, hMs⟩, hF3⟩ := classMajors_spec fe₁ hk henv₁ p pP ctorsAs ctorsAsP
       params paramsP hpl hp keys keysP (fun k hk x hx => ⟨pP.nP, hwk k hk x hx⟩) s2 s3 ms c2.ok
       ⟨dShape_ext c12.ext _ _ hsh, dCtors_ext.list c12.ext _ _ hcas,
@@ -3594,7 +3594,7 @@ theorem checkBlockClasses_spec {μ : CheckMode} {env₁ : Env} (fe₁ : IFEnv)
       = true
     · rw [← hall] at h1
       rw [if_pos h1] at z3
-      obtain ⟨rfl, rfl⟩ := pureOk z3
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
       rw [hall] at h1
       refine ⟨c12.trans c3, (rdP, MsP), ⟨dClassRead_ext (c2.ext.trans c3.ext) _ _ hrd, hms, hMs⟩,
         ?_⟩
@@ -3603,7 +3603,7 @@ theorem checkBlockClasses_spec {μ : CheckMode} {env₁ : Env} (fe₁ : IFEnv)
       exact FOk.seq (FOk.pure ()) (FOk.pure _)
     · rw [← hall] at h1
       rw [if_neg h1] at z3
-      exact absurd z3 (fun hc => failOk hc)
+      exact absurd z3 (fun hc => AM.fail_ok hc)
 
 /-- con-leche: none — a seed (a positivity key with its parameter count),
 denoted. -/
@@ -3628,7 +3628,7 @@ theorem classSeeds_spec (fnd : ConLeche.Name → Option ConstantInfo) (ctx : Are
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hms
     subst hms
     simp only [Arena.classSeeds] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, rfl⟩
   | cons m ms ih =>
     intro MsP s₀ s' r hok hp hpre hrun
@@ -3646,14 +3646,14 @@ theorem classSeeds_spec (fnd : ConLeche.Name → Option ConstantInfo) (ctx : Are
       rw [hmm] at hrun
       rw [← hmem, hmm]
       dsimp only at hrun
-      obtain ⟨sd, s1, k1, z1⟩ := bindOk hrun
+      obtain ⟨sd, s1, k1, z1⟩ := AM.bind_ok hrun
       obtain ⟨p1, hsd, hsd2⟩ := nestSeedOf_spec fnd ctx ctxP holes holesP m.ind mP.ind m.lvls
         mP.lvls m.ds mP.ds m.nPc s₀ s1 sd hok hp ⟨hctx, hholes, hind, hlvls, hds⟩ k1
-      obtain ⟨rest, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨rest, s2, k2, z2⟩ := AM.bind_ok z1
       obtain ⟨p2, hrest⟩ := ih MsP' s1 s2 rest p1.ok (PinsOK.ofPStep hp p1)
         ⟨dCtx_ext fnd p1.ext _ _ hctx, denoteEList_ext p1.ext _ _ hholes,
           dMajor_ext.list p1.ext _ _ hms'⟩ k2
-      obtain ⟨rfl, rfl⟩ := pureOk z2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
       refine ⟨p1.trans p2, ?_⟩
       simp only [Option.isNone_none, ↓reduceIte, List.mapM_cons, hrest, Option.bind_eq_bind,
         Option.pure_def]

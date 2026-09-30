@@ -37,14 +37,8 @@ frontend's `M` collapses into `AM` and nothing else moves.  So there is no
 theorems are one-directional (twin accepts ⇒ con-leche accepts) and a twin
 failure claims nothing, which is all the capstone needs.
 
-**Task #105**: the in-process modeller and the `in_model`/`census` flags are
-gone, so every function here drops its `Modeller`/`ModellerWF`/
-`ModellerRefines` premises and `StateD.init`/`parseBytes`/`parseChunks` drop
-the `im ce : Bool` arguments.  With the modeller gone, nothing downstream of
-`applyLine_run` reads a per-declaration cache either, so `ReadCachesOK` drops
-out of the whole chain too — it was threaded here only for
-`projRewriteD_run` (`Bridge/Frontend/ProjRec.lean`, deleted with the
-projection rewrite).
+Nothing downstream of `applyLine_run` reads a per-declaration cache, so no
+cache invariant is threaded through the chain.
 
 ## The one import the tier's own module note did not foresee
 

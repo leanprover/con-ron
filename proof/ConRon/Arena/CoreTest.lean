@@ -477,12 +477,12 @@ with the con-leche side computed from the denotation. -/
 
 The same subjects: `whnfCore` must NOT unfold `two`, where `whnf` does. -/
 
-#guard chkE (whnfCore MU FX.fe F 0 FX.two) (ConLeche.whnfCore MU envCL F 0 tTwo)
-#guard chkE (whnfCore MU FX.fe F 0 FX.betaTwo)
+#guard chkE ((pureFnsA MU FX.fe F).whnfCore 0 FX.two) (ConLeche.whnfCore MU envCL F 0 tTwo)
+#guard chkE ((pureFnsA MU FX.fe F).whnfCore 0 FX.betaTwo)
   (ConLeche.whnfCore MU envCL F 0 tBetaTwo)
-#guard chkE (whnfCore MU FX.fe F 0 FX.succ3)
+#guard chkE ((pureFnsA MU FX.fe F).whnfCore 0 FX.succ3)
   (ConLeche.whnfCore MU envCL F 0 tSucc3)
-#guard chkE (whnfCore MU FX.fe F 0 FX.piPi) (ConLeche.whnfCore MU envCL F 0 tPiPi)
+#guard chkE ((pureFnsA MU FX.fe F).whnfCore 0 FX.piPi) (ConLeche.whnfCore MU envCL F 0 tPiPi)
 
 /-! ## `infer` — twelve subjects, the last two failures -/
 
@@ -518,11 +518,11 @@ A hit in the io table must never serve a full-`infer` query and vice versa;
 what this checks is the weaker, necessary condition — the two grades agree on
 the fixture, which they must at `.verified`. -/
 
-#guard chkE (inferTypeIO MU FX.fe F 0 FX.two)
+#guard chkE ((pureFnsA MU FX.fe F).inferIO 0 FX.two)
   (ConLeche.inferTypeIO MU envCL F 0 tTwo)
-#guard chkE (inferTypeIO MU FX.fe F 0 FX.idNat)
+#guard chkE ((pureFnsA MU FX.fe F).inferIO 0 FX.idNat)
   (ConLeche.inferTypeIO MU envCL F 0 tIdNat)
-#guard chkE (inferTypeIO MU FX.fe F 0 FX.succ3)
+#guard chkE ((pureFnsA MU FX.fe F).inferIO 0 FX.succ3)
   (ConLeche.inferTypeIO MU envCL F 0 tSucc3)
 
 /-! ## `defeq` — twelve pairs, both verdicts -/
@@ -602,13 +602,13 @@ against `ConLeche`'s chained body on the denotation. -/
 #guard chkE (annotateCore MU FX.fe F 0 FX.lam2)
   (ConLeche.annotateCore MU envCL F 0 tLam2)
 -- `whnfApp` / `betaPeel`: a two-argument β redex peeled in ONE group
-#guard chkE (whnfCore MU FX.fe F 0 FX.beta2)
+#guard chkE ((pureFnsA MU FX.fe F).whnfCore 0 FX.beta2)
   (ConLeche.whnfCore MU envCL F 0 tBeta2)
 #guard chkE (whnf MU FX.fe F 0 FX.beta2) (ConLeche.whnf MU envCL F 0 tBeta2)
 -- `inferApp` / `inferSpine`: the same spine, inferred head-first
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.beta2)
   (ConLeche.inferTypeCore MU envCL F 0 tBeta2)
-#guard chkE (inferTypeIO MU FX.fe F 0 FX.beta2)
+#guard chkE ((pureFnsA MU FX.fe F).inferIO 0 FX.beta2)
   (ConLeche.inferTypeIO MU envCL F 0 tBeta2)
 -- `defeqBinders` / `defeqPeel`: two telescopes peeled together
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.pi3 FX.pi3)
@@ -691,7 +691,7 @@ it against a state whose table was filled by hand gives that entry back. -/
   pure (s.caches.inferC.size > 0))
 
 #guard runB (do
-  let _ ← inferTypeIO MU FX.fe F 0 FX.succ3
+  let _ ← (pureFnsA MU FX.fe F).inferIO 0 FX.succ3
   let s ← get
   pure (s.caches.inferIOC.size > 0))
 

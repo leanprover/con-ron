@@ -36,7 +36,7 @@
 use crate::arena::core::CORE_WALK_FUEL;
 use crate::arena::env::{IConstantInfo, IConstantVal};
 use crate::arena::handle::{EIdx, NIdx};
-use crate::arena::intern::{intern_ci, intern_cv, intern_expr};
+use crate::arena::intern::{intern_ci, intern_cv};
 use crate::arena::monad::{fail, view, AState};
 use crate::arena::store::ENodeView;
 use crate::kernel::basis_pins;
@@ -261,50 +261,44 @@ pub fn iff_intro_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, 
     intern_ci(pers, st, &cstd::iff_intro_raw())
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:222-227 iffRecIntro
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:112-113 iffRecIntro`.
-pub fn iff_rec_intro(pers: &PersTier, st: &mut AState) -> Result<EIdx, CheckError> {
-    intern_expr(pers, st, &cstd::iff_rec_intro())
-}
-
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:229-239 iffRecRaw
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:114-115 iffRecRaw`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:112-113 iffRecRaw`.
 pub fn iff_rec_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &cstd::iff_rec_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:241-248 propextRaw
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:116-117 propextRaw`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:114-115 propextRaw`.
 pub fn propext_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantVal, CheckError> {
     intern_cv(pers, st, &cstd::propext_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:250-252 nonemptyRaw
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:118-119 nonemptyRaw`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:116-117 nonemptyRaw`.
 pub fn nonempty_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &cstd::nonempty_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:254-260 nonemptyIntroRaw
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:120-121 nonemptyIntroRaw`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:118-119 nonemptyIntroRaw`.
 pub fn nonempty_intro_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &cstd::nonempty_intro_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:262-274 nonemptyRecRaw
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:122-123 nonemptyRecRaw`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:120-121 nonemptyRecRaw`.
 pub fn nonempty_rec_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &cstd::nonempty_rec_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:276-281 choiceRaw
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:124-125 choiceRaw`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:122-123 choiceRaw`.
 pub fn choice_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantVal, CheckError> {
     intern_cv(pers, st, &cstd::choice_raw())
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:29-44 _
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:127-131 eqA` — the ANNOTATED `Eq`
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:125-129 eqA` — the ANNOTATED `Eq`
 /// pin, interned.  It is the comparand of every "requires the pinned `Eq`
 /// basis" test in the checker, and the one pin compared by whole-constant
 /// EQUALITY rather than by `matchesPin` (the module note).
@@ -313,7 +307,7 @@ pub fn eq_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckErro
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:29-44 _
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:133-135 natA` — the ANNOTATED
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:131-133 natA` — the ANNOTATED
 /// `Nat` pin, interned.
 pub fn nat_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &basis_pins::nat_a())

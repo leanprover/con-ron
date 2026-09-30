@@ -52,7 +52,7 @@ section "The memoised DAG walks of the front door":
 | `IFEnvOK.find_isSome`, `constsResolve_run` | the pure resolution walk |
 | `CRMemoOK` and its two laws, `crLeaf`, `constsResolveFGo_run` | the memoised one |
 
-It needs `viewE_run`, which lives in `Bridge/Checker/Hyp.lean`; that module is
+It needs `view_run`, which lives in `Bridge/Checker/Hyp.lean`; that module is
 already in both tiers' import prefix (`Base.lean` and `Bridge/Inductives/
 Rel.lean` both import it) and imports nothing of this one, so this module now
 imports it.
@@ -308,7 +308,7 @@ theorem allLevelParamsDefinedGo_run {params : List ConLeche.Name} :
     | none =>
       rw [hhit] at hrun
       obtain ⟨v, s2, g2, k2⟩ := AM.bind_ok (α := ENodeView) hrun
-      obtain ⟨rfl, hv⟩ := viewE_run g2
+      obtain ⟨rfl, hv⟩ := view_run g2
       cases v with
       | bvar i =>
         obtain rfl := denote_bvar_inv hwf hv hd
@@ -551,7 +551,7 @@ theorem constsResolve_run {env : Env} {fe : IFEnv} :
     have hwf : StoreWF s.store := hok.wf
     simp only [Arena.constsResolve] at hrun
     obtain ⟨v, s1, g1, k1⟩ := AM.bind_ok (α := ENodeView) hrun
-    obtain ⟨rfl, hv⟩ := viewE_run g1
+    obtain ⟨rfl, hv⟩ := view_run g1
     cases v with
     | bvar i =>
       obtain rfl := denote_bvar_inv hwf hv hd
@@ -740,7 +740,7 @@ theorem constsResolveFGo_run {env : Env} {fe : IFEnv} :
     have hwf : StoreWF s.store := hok.wf
     simp only [Arena.constsResolveFGo] at hrun
     obtain ⟨v, s1, g1, k1⟩ := AM.bind_ok (α := ENodeView) hrun
-    obtain ⟨rfl, hv⟩ := viewE_run g1
+    obtain ⟨rfl, hv⟩ := view_run g1
     cases v with
     | bvar i =>
       obtain ⟨gP, rfl⟩ := crLeaf k1

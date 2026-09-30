@@ -151,14 +151,14 @@ theorem liftFueled_spec {α : Type} (s₀ : AState) (what : String)
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
 the reserved list in triple form: `Walks/Reserved.lean`'s
 `reservedBasisNames_runC` (a copy of `Bridge/Checker/Names.lean`'s) (the pin-table read `pinReserved`) read through
-`triple_of_run`. -/
+`AM.triple_of_run_at`. -/
 theorem reservedBasisNames_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
     ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.reservedBasisNames
     ⦃⇓? hs s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Frontend.denoteNList s'.store.ns hs =
           some ConLeche.reservedBasisNames⌝⦄ :=
-  triple_of_run fun hs s' hr => by
+  AM.triple_of_run_at fun hs s' hr => by
     obtain ⟨hps, hd⟩ := reservedBasisNames_runC hok.state.wf hok.pins hr
     refine ⟨hok.mono ⟨hps.wf⟩ hps.ext hps.caches hps.pins, hps.ext, hps.pins, ?_⟩
     show Frontend.denoteNList s'.store.ns hs = some reservedBasisNameValues
@@ -337,8 +337,8 @@ and the unchanged state satisfy. -/
 theorem triple_pureC {α : Type} {s₀ : AState} {a : α}
     {Q : α → AState → Prop} (h : Q a s₀) :
     ⦃fun s => ⌜s = s₀⌝⦄ (pure a : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ :=
-  triple_of_run fun r s' hr => by
-    simp only [StateT.run, pure, StateT.pure, Except.pure] at hr
+  AM.triple_of_run_at fun r s' hr => by
+    simp only [pure, StateT.pure, Except.pure] at hr
     cases hr
     exact h
 

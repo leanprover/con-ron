@@ -1360,7 +1360,7 @@ structure arena.decl_check.CertCtx where
   xor_n : arena.handle.NIdx
 
 /-- [con_ron_core::arena::checker_base::OrElseStep]
-    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 312:0-317:1
+    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 309:0-314:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.checker_base.OrElseStep where
@@ -1404,7 +1404,7 @@ structure arena.checker.PendingCheck where
   vis : Std.U64
 
 /-- Trait declaration: [con_ron_core::arena::checker::InstallHook]
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 672:0-676:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 671:0-675:1
     Visibility: public -/
 structure arena.checker.InstallHook (Self : Type) where
   install_before : Self → arena.store.PersTier → arena.store.EStore →
@@ -1431,12 +1431,6 @@ structure kernel.nat_op_pins.NatOpPinSet where
   xor_proofs : alloc.vec.Vec kernel.expr.Expr
   shift_left_proofs : alloc.vec.Vec kernel.expr.Expr
   shift_right_proofs : alloc.vec.Vec kernel.expr.Expr
-
-/-- Trait declaration: [con_ron_core::arena::expr_ops::NIdxToNIdx]
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2635:0-2638:1
-    Visibility: public -/
-structure arena.expr_ops.NIdxToNIdx (Self : Type) where
-  rename : Self → arena.handle.NIdx → Result arena.handle.NIdx
 
 /-- [con_ron_core::kernel::env::Declaration]
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 942:0-950:1
@@ -1798,7 +1792,7 @@ inductive frontend.scan_fast.Member where
   frontend.scan_fast.Member
 
 /-- Trait declaration: [con_ron_core::frontend::export_c::ChunkSource]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2348:0-2355:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2322:0-2329:1
     Visibility: public -/
 structure frontend.export_c.ChunkSource (Self : Type) where
   next_chunk : Self → Result ((alloc.vec.Vec Std.U8) × Self)

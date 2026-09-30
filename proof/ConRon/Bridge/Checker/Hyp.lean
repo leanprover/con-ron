@@ -361,14 +361,4 @@ theorem IndSpec.wf {μ : CheckMode} (_hμ : μ.verifiedChecks = true) (hind : In
 this module and both walk the expression store, so `view`'s run form lives
 here rather than in either of them. -/
 
-/-- con-leche: none — `view`'s inversion, off `Bridge/Specs.lean`'s triple.
-(`Bridge/Inductives/Rel.lean` has the same three lines under the name
-`view_run`, one tier ABOVE this one, so this tier carries its own; it lives
-here rather than in `Base.lean` or `Canon.lean` because BOTH siblings walk
-the expression store.) -/
-theorem viewE_run {h : EIdx} {s s' : AState} {v : ENodeView}
-    (hr : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v :=
-  AM.of_run (P := fun t => t = s)
-    (Q := fun r t => t = s ∧ s.store.view h = some r) rfl hr (view_spec s h)
-
 end ConRon.Bridge

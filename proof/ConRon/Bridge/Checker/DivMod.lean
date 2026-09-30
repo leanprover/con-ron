@@ -138,7 +138,7 @@ theorem substConstAll_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx} {x : Expr
         (denote_ext hx ht.ext) (denote_ext ha ht.ext) g
     simp only [Arena.substConstAll] at hrun
     obtain ⟨v, s1, g1, k1⟩ := AM.bind_ok hrun
-    obtain ⟨e1s, hv⟩ := viewE_run g1
+    obtain ⟨e1s, hv⟩ := view_run g1
     rw [e1s] at k1
     cases v
     case const c us =>

@@ -566,9 +566,9 @@ theorem annotateBody_proj {fe : IFEnv} {fuel : Nat}
         -- official's `infer_proj` verdict (`projMissError`): every exit fails
         dsimp only
         refine triple_seq (Q := fun _ _ => True)
-          (triple_of_run (fun _ _ _ => trivial)) fun _ _ _ => ?_
+          (AM.triple_of_run_at (fun _ _ _ => trivial)) fun _ _ _ => ?_
         refine triple_seq (Q := fun _ _ => True)
-          (triple_of_run (fun _ _ _ => trivial)) fun _ _ _ => ?_
+          (AM.triple_of_run_at (fun _ _ _ => trivial)) fun _ _ _ => ?_
         exact triple_fail
       | some entry =>
         obtain ⟨p, hpd, hfp⟩ := hsome entry rfl
